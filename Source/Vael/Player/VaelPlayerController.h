@@ -16,7 +16,7 @@ struct FInputActionValue;
  *  Left stick or WASD moves, right stick or mouse aims, the character turns towards the aim direction.
  *  Input actions and their key mappings are created in code, no input assets are needed.
  */
-UCLASS(abstract)
+UCLASS()
 class AVaelPlayerController : public APlayerController
 {
 	GENERATED_BODY()

@@ -4,10 +4,13 @@
 #include "Camera/VaelSharedCamera.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 
 AVaelGameMode::AVaelGameMode()
 {
+	DefaultPawnClass = AVaelCharacter::StaticClass();
+	PlayerControllerClass = AVaelPlayerController::StaticClass();
 	SharedCameraClass = AVaelSharedCamera::StaticClass();
 
 	// blue, green, orange, beige

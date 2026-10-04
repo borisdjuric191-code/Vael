@@ -2,15 +2,18 @@
 
 #include "Player/VaelCharacter.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Animation/AnimInstance.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelPlayerController.h"
+#include "Vael.h"
 #include "VaelGameMode.h"
 
 AVaelCharacter::AVaelCharacter()
@@ -29,6 +32,21 @@ AVaelCharacter::AVaelCharacter()
 	GetCharacterMovement()->RotationRate = FRotator(0.f, 900.f, 0.f);
 	GetCharacterMovement()->bConstrainToPlane = true;
 	GetCharacterMovement()->bSnapToPlaneAtStart = true;
+
+	// Placeholder look: the template mannequin, until the classes get their own characters
+	GetMesh()->SetRelativeLocationAndRotation(FVector(0.f, 0.f, -89.f), FRotator(0.f, -90.f, 0.f));
+
+	static ConstructorHelpers::FObjectFinder<USkeletalMesh> PlaceholderMesh(TEXT("/Game/Characters/Mannequins/Meshes/SKM_Manny_Simple.SKM_Manny_Simple"));
+	if (PlaceholderMesh.Succeeded())
+	{
+		GetMesh()->SetSkeletalMesh(PlaceholderMesh.Object);
+	}
+
+	static ConstructorHelpers::FClassFinder<UAnimInstance> PlaceholderAnimClass(TEXT("/Game/Characters/Mannequins/Anims/Unarmed/ABP_Unarmed"));
+	if (PlaceholderAnimClass.Succeeded())
+	{
+		GetMesh()->SetAnimInstanceClass(PlaceholderAnimClass.Class);
+	}
 
 	// Create the player marker from engine placeholder assets
 	PlayerMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlayerMarker"));
@@ -93,6 +111,8 @@ void AVaelCharacter::PossessedBy(AController* NewController)
 	if (VaelController != nullptr && GameMode != nullptr)
 	{
 		SetPlayerColor(GameMode->GetPlayerColor(VaelController->GetPlayerSlot()));
+
+		UE_LOG(LogVael, Log, TEXT("Player slot %d controls '%s'"), VaelController->GetPlayerSlot(), *GetNameSafe(this));
 	}
 }
 

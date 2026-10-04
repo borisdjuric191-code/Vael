@@ -241,6 +241,8 @@ void AVaelPlayerController::ApplyMoveInput(const FVector2D& Input)
 
 	VaelCharacter->AddMovementInput(Direction, 1.0f, false);
 	MoveDirection += Direction;
+
+	UE_LOG(LogVael, VeryVerbose, TEXT("Player slot %d: move input %s, pawn at %s"), PlayerSlot, *Input.ToString(), *VaelCharacter->GetActorLocation().ToCompactString());
 }
 
 FVector AVaelPlayerController::InputToWorldDirection(const FVector2D& Input) const

@@ -11,9 +11,8 @@ class AVaelSharedCamera;
 /**
  *  Game Mode for local co-op with one shared isometric camera
  *  Sets the default gameplay framework classes
- *  Check the Blueprint derived class for the set values
  */
-UCLASS(abstract)
+UCLASS()
 class AVaelGameMode : public AGameModeBase
 {
 	GENERATED_BODY()

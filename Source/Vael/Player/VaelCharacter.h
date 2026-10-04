@@ -12,7 +12,7 @@ class UStaticMeshComponent;
  *  A directly controlled player character seen from the shared isometric camera.
  *  Turns towards the aim direction of its controller and can dodge roll.
  */
-UCLASS(abstract)
+UCLASS()
 class AVaelCharacter : public ACharacter
 {
 	GENERATED_BODY()
