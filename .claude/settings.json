@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Edit(/Source/**)",
+      "PowerShell(.\\Scripts\\BuildEditor.bat*)",
+      "PowerShell(& .\\Scripts\\BuildEditor.bat*)",
+      "Bash(./Scripts/BuildEditor.bat*)",
+      "PowerShell(git *)",
+      "Bash(git *)"
+    ],
+    "ask": [
+      "PowerShell(Remove-Item *)",
+      "PowerShell(rm *)",
+      "PowerShell(del *)",
+      "PowerShell(rmdir *)",
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "PowerShell(git rm *)",
+      "PowerShell(git clean *)",
+      "PowerShell(git reset --hard*)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push -f*)",
+      "Bash(git rm *)",
+      "Bash(git clean *)",
+      "Bash(git reset --hard*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)"
+    ],
+    "deny": [
+      "Edit(/Content/**)"
+    ]
+  }
+}
