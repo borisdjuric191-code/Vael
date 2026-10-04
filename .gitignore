@@ -1,0 +1,55 @@
+# Unreal Engine generated folders
+Binaries/
+Build/*
+DerivedDataCache/
+Intermediate/
+Saved/
+Plugins/*/Binaries/
+Plugins/*/Intermediate/
+
+# Keep hand-authored build resources (icons, splash) if they are ever added
+!Build/*/
+Build/*/**
+!Build/*/*.ico
+!Build/*/*.png
+!Build/*/*.xml
+
+# Visual Studio / Rider / VS Code
+.vs/
+.idea/
+.vscode/
+*.sln
+*.slnx
+*.suo
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+*.xcodeproj
+*.xcworkspace
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+
+# Compiled files (*.obj is not ignored: Wavefront models use it and go to LFS)
+*.pdb
+*.ilk
+*.exp
+*.lib
+*.dll
+*.exe
+*.dmp
+*.log
+
+# Editor startup/crash leftovers
+enc_temp_folder/
+*.tmp
+*.bak
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Claude Code: personal settings stay local, shared settings.json is committed
+.claude/settings.local.json
