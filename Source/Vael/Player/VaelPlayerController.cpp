@@ -13,7 +13,9 @@
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "InputTriggers.h"
+#include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
+#include "Player/VaelCheatManager.h"
 #include "TimerManager.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
@@ -26,6 +28,8 @@ AVaelPlayerController::AVaelPlayerController()
 
 	// all players look through the shared camera, never through their own pawn
 	bAutoManageActiveCameraTarget = false;
+
+	CheatClass = UVaelCheatManager::StaticClass();
 }
 
 bool AVaelPlayerController::IsFirstLocalPlayer() const
@@ -78,6 +82,15 @@ void AVaelPlayerController::SetupInputComponent()
 
 			EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnDodge);
 			EnhancedInputComponent->BindAction(LeaveAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnLeave);
+
+			// The element actions are stored in the order of the element enum
+			for (int32 ElementIndex = 0; ElementIndex < ElementActions.Num(); ++ElementIndex)
+			{
+				EnhancedInputComponent->BindAction(ElementActions[ElementIndex], ETriggerEvent::Started, this, &AVaelPlayerController::OnElement, static_cast<EVaelElement>(ElementIndex));
+			}
+
+			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCast);
+			EnhancedInputComponent->BindAction(ClearQueueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnClearQueue);
 		}
 		else
 		{
@@ -139,6 +152,31 @@ void AVaelPlayerController::CreateInputAssets()
 	HoldTrigger->bIsOneShot = true;
 
 	MappingContext->MapKey(LeaveAction, EKeys::Gamepad_FaceButton_Right).Triggers.Add(HoldTrigger);
+
+	// Elements, laid out like the browser prototype: fire, water, earth, air on Circle, Square, Cross, Triangle (B, X, A, Y) and on 1-4.
+	// Circle / B is shared with leaving co-op: a tap queues fire, holding it leaves.
+	const FKey ElementPadKeys[] = { EKeys::Gamepad_FaceButton_Right, EKeys::Gamepad_FaceButton_Left, EKeys::Gamepad_FaceButton_Bottom, EKeys::Gamepad_FaceButton_Top };
+	const FKey ElementKeyboardKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four };
+	const TCHAR* ElementActionNames[] = { TEXT("IA_Element_Fire"), TEXT("IA_Element_Water"), TEXT("IA_Element_Earth"), TEXT("IA_Element_Air") };
+
+	const int32 NumElementActions = UE_ARRAY_COUNT(ElementActionNames);
+	for (int32 ElementIndex = 0; ElementIndex < NumElementActions; ++ElementIndex)
+	{
+		UInputAction* ElementAction = CreateAction(ElementActionNames[ElementIndex], EInputActionValueType::Boolean);
+		ElementActions.Add(ElementAction);
+
+		MappingContext->MapKey(ElementAction, ElementPadKeys[ElementIndex]);
+		MappingContext->MapKey(ElementAction, ElementKeyboardKeys[ElementIndex]);
+	}
+
+	// Cast and discard the queued elements
+	CastAction = CreateAction(TEXT("IA_Cast"), EInputActionValueType::Boolean);
+	MappingContext->MapKey(CastAction, EKeys::Gamepad_RightTrigger);
+	MappingContext->MapKey(CastAction, EKeys::LeftMouseButton);
+
+	ClearQueueAction = CreateAction(TEXT("IA_ClearQueue"), EInputActionValueType::Boolean);
+	MappingContext->MapKey(ClearQueueAction, EKeys::Gamepad_LeftShoulder);
+	MappingContext->MapKey(ClearQueueAction, EKeys::RightMouseButton);
 }
 
 void AVaelPlayerController::PlayerTick(float DeltaTime)
@@ -221,6 +259,34 @@ void AVaelPlayerController::OnLeave()
 				GameInstance->RemoveLocalPlayer(LeavingPlayer);
 			}
 		}));
+}
+
+void AVaelPlayerController::OnElement(EVaelElement Element)
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging())
+	{
+		VaelCharacter->GetElementComponent()->AddElement(Element);
+	}
+}
+
+void AVaelPlayerController::OnCast()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging())
+	{
+		// Bring the aim up to date so the spell flies where the player points right now
+		UpdateFacing();
+		VaelCharacter->GetElementComponent()->CastQueue();
+	}
+}
+
+void AVaelPlayerController::OnClearQueue()
+{
+	if (const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	{
+		VaelCharacter->GetElementComponent()->ClearQueue();
+	}
 }
 
 void AVaelPlayerController::ApplyMoveInput(const FVector2D& Input)

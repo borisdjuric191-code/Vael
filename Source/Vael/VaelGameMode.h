@@ -7,6 +7,7 @@
 #include "VaelGameMode.generated.h"
 
 class AVaelSharedCamera;
+class AVaelTrainingDummy;
 
 /**
  *  Game Mode for local co-op with one shared isometric camera
@@ -51,7 +52,25 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Players", meta = (ClampMin = 0))
 	float JoinSpawnRadius = 150.0f;
 
+	/** Temporary: targets to test spells on until the real creatures exist. Spawned around the first player. */
+	UPROPERTY(EditDefaultsOnly, Category="Testing")
+	TSubclassOf<AVaelTrainingDummy> TrainingDummyClass;
+
+	/** Temporary: number of training dummies, 0 for none */
+	UPROPERTY(EditDefaultsOnly, Category="Testing", meta = (ClampMin = 0))
+	int32 TrainingDummyCount = 3;
+
+	/** Temporary: distance of the training dummies from the first player */
+	UPROPERTY(EditDefaultsOnly, Category="Testing", meta = (ClampMin = 0))
+	float TrainingDummyDistance = 400.0f;
+
 private:
+
+	/** Spawns the training dummies in a ring around a location */
+	void SpawnTrainingDummies(const FVector& Center);
+
+	/** True once the training dummies exist */
+	bool bTrainingDummiesSpawned = false;
 
 	/** Returns the lowest player slot that no other player uses */
 	int32 FindFreePlayerSlot(const APlayerController* ForPlayer) const;

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
+#include "Magic/VaelElementTypes.h"
 #include "VaelPlayerController.generated.h"
 
 class AVaelSharedCamera;
@@ -14,6 +15,7 @@ struct FInputActionValue;
 /**
  *  Player controller for direct twin-stick style controls.
  *  Left stick or WASD moves, right stick or mouse aims, the character turns towards the aim direction.
+ *  Face buttons or 1-4 queue elements, right trigger or left click casts them.
  *  Input actions and their key mappings are created in code, no input assets are needed.
  */
 UCLASS()
@@ -59,6 +61,18 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LeaveAction;
 
+	/** Queue Element Input Actions: fire, water, earth, air */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UInputAction>> ElementActions;
+
+	/** Cast the queued elements Input Action */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CastAction;
+
+	/** Discard the queued elements Input Action */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ClearQueueAction;
+
 public:
 
 	/** Constructor */
@@ -95,6 +109,9 @@ protected:
 	void OnAimStickReleased();
 	void OnDodge();
 	void OnLeave();
+	void OnElement(EVaelElement Element);
+	void OnCast();
+	void OnClearQueue();
 
 	/** Moves the pawn by a camera-relative input */
 	void ApplyMoveInput(const FVector2D& Input);

@@ -2,6 +2,7 @@
 
 #include "VaelGameMode.h"
 #include "Camera/VaelSharedCamera.h"
+#include "Creatures/VaelTrainingDummy.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Player/VaelCharacter.h"
@@ -12,6 +13,7 @@ AVaelGameMode::AVaelGameMode()
 	DefaultPawnClass = AVaelCharacter::StaticClass();
 	PlayerControllerClass = AVaelPlayerController::StaticClass();
 	SharedCameraClass = AVaelSharedCamera::StaticClass();
+	TrainingDummyClass = AVaelTrainingDummy::StaticClass();
 
 	// blue, green, orange, beige
 	PlayerColors.Add(FLinearColor(0.05f, 0.25f, 1.0f));
@@ -62,6 +64,31 @@ void AVaelGameMode::RestartPlayer(AController* NewPlayer)
 	}
 
 	Super::RestartPlayer(NewPlayer);
+
+	if (!bTrainingDummiesSpawned && NewPlayer != nullptr && NewPlayer->GetPawn() != nullptr)
+	{
+		bTrainingDummiesSpawned = true;
+		SpawnTrainingDummies(NewPlayer->GetPawn()->GetActorLocation());
+	}
+}
+
+void AVaelGameMode::SpawnTrainingDummies(const FVector& Center)
+{
+	if (TrainingDummyClass == nullptr)
+	{
+		return;
+	}
+
+	FActorSpawnParameters SpawnParameters;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	for (int32 DummyIndex = 0; DummyIndex < TrainingDummyCount; ++DummyIndex)
+	{
+		const float Angle = UE_TWO_PI * DummyIndex / TrainingDummyCount;
+		const FVector Location = Center + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * TrainingDummyDistance;
+
+		GetWorld()->SpawnActor<AVaelTrainingDummy>(TrainingDummyClass, Location, FRotator::ZeroRotator, SpawnParameters);
+	}
 }
 
 AVaelSharedCamera* AVaelGameMode::GetSharedCamera()
