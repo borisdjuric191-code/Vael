@@ -4,6 +4,7 @@
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelGameplayEffects.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelGameplayTags.h"
 
 AVaelCharacterBase::AVaelCharacterBase()
@@ -24,6 +25,8 @@ void AVaelCharacterBase::PostInitializeComponents()
 	AttributeSet->InitHealth(StartingHealth);
 	AttributeSet->InitMaxMana(StartingMana);
 	AttributeSet->InitMana(StartingMana);
+
+	AbilitySystemComponent->RegisterGameplayTagEvent(VaelTags::Status_Frozen, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AVaelCharacterBase::OnFrozenChanged);
 }
 
 void AVaelCharacterBase::BeginPlay()
@@ -72,5 +75,40 @@ void AVaelCharacterBase::ApplyKnockback(const FVector& Direction, float Speed)
 	if (Speed > 0.0f && !GroundDirection.IsNearlyZero())
 	{
 		LaunchCharacter(GroundDirection * Speed, true, false);
+	}
+}
+
+FText AVaelCharacterBase::GetStatusText() const
+{
+	TArray<FString> Names;
+
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Wet))
+	{
+		Names.Add(TEXT("nass"));
+	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Burning))
+	{
+		Names.Add(TEXT("brennt"));
+	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Frozen))
+	{
+		Names.Add(TEXT("gefroren"));
+	}
+
+	return FText::FromString(FString::Join(Names, TEXT(", ")));
+}
+
+void AVaelCharacterBase::OnFrozenChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+
+	if (NewCount > 0)
+	{
+		Movement->StopMovementImmediately();
+		Movement->DisableMovement();
+	}
+	else if (Movement->MovementMode == MOVE_None)
+	{
+		Movement->SetMovementMode(MOVE_Walking);
 	}
 }

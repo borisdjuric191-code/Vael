@@ -22,4 +22,12 @@ public:
 	 */
 	UFUNCTION(Exec)
 	void VaelCast(const FString& Elements, float AimYaw);
+
+	/** Adds every formula of the game to the grimoire, sealed ones included */
+	UFUNCTION(Exec)
+	void VaelLearnAll();
+
+	/** Puts a condition on everything the player can hurt: Wet, Burning or Frozen, for the given seconds. Example: VaelStatus Wet 5 */
+	UFUNCTION(Exec)
+	void VaelStatus(const FString& Status, float Duration);
 };

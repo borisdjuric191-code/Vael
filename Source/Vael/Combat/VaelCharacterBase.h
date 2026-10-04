@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
+#include "GameplayTagContainer.h"
 #include "VaelCharacterBase.generated.h"
 
 class UAbilitySystemComponent;
@@ -75,4 +76,13 @@ public:
 	/** Pushes the character along the ground */
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	virtual void ApplyKnockback(const FVector& Direction, float Speed);
+
+	/** Names of the conditions the character has right now, for display. Empty if there are none. */
+	UFUNCTION(BlueprintPure, Category="Combat")
+	FText GetStatusText() const;
+
+protected:
+
+	/** Called when the character freezes or thaws. Frozen characters can't move. */
+	virtual void OnFrozenChanged(const FGameplayTag Tag, int32 NewCount);
 };

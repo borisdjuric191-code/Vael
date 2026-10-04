@@ -12,7 +12,7 @@ class UVaelFormula;
 /**
  *  Ability that performs a formula. The formula asset is the source object of the ability,
  *  mana cost and power come from the cast the element component has prepared.
- *  Handles projectiles and cones; formulas that work differently derive from this class and override ExecuteFormula.
+ *  Handles projectiles, cones and chains; formulas that work differently derive from this class and override ExecuteFormula.
  */
 UCLASS()
 class UVaelFormulaAbility : public UGameplayAbility
@@ -40,6 +40,9 @@ protected:
 
 	/** Hits every enemy in a cone in the aim direction */
 	void HitCone(const UVaelFormula& Formula, AActor* Caster, float Power);
+
+	/** Strikes the nearest enemy in the aim direction and jumps on to others nearby */
+	void HitChain(const UVaelFormula& Formula, AActor* Caster, float Power);
 
 	/** Direction on the ground in which the caster aims */
 	static FVector GetAimDirection(const AActor* Caster);

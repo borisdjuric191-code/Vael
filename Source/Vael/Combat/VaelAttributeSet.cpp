@@ -2,6 +2,7 @@
 
 #include "Combat/VaelAttributeSet.h"
 #include "GameplayEffectExtension.h"
+#include "Vael.h"
 
 void UVaelAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
 {
@@ -31,6 +32,8 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 		if (Damage > 0.0f)
 		{
 			SetHealth(FMath::Clamp(GetHealth() - Damage, 0.0f, GetMaxHealth()));
+
+			UE_LOG(LogVael, VeryVerbose, TEXT("'%s' takes %.1f damage, health now %.1f"), *GetNameSafe(GetOwningActor()), Damage, GetHealth());
 		}
 	}
 	else if (Attribute == GetHealthAttribute())

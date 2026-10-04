@@ -3,15 +3,18 @@
 #include "Magic/VaelFormulaAbility.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Combat/VaelGameplayEffects.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellProjectile.h"
 
@@ -83,6 +86,10 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 	case EVaelSpellDelivery::Cone:
 		HitCone(Formula, Caster, Power);
 		break;
+
+	case EVaelSpellDelivery::Chain:
+		HitChain(Formula, Caster, Power);
+		break;
 	}
 }
 
@@ -100,13 +107,87 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 	AVaelSpellProjectile* Projectile = World->SpawnActorDeferred<AVaelSpellProjectile>(Formula.ProjectileClass, SpawnTransform, Caster, Cast<APawn>(Caster), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	if (Projectile != nullptr)
 	{
-		FVaelSpellHit Hit;
-		Hit.Damage = Formula.Damage * Power;
-		Hit.Element = Formula.DamageElement;
-		Hit.Knockback = Formula.Knockback;
-
-		Projectile->InitSpell(Hit, Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
+		Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, Formula.ProjectilePierce,
+			UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
 		Projectile->FinishSpawning(SpawnTransform);
+	}
+}
+
+void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	UWorld* World = Caster->GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+	const FVector AimDirection = GetAimDirection(Caster);
+	const float MinAimCosine = FMath::Cos(FMath::DegreesToRadians(Formula.ChainAimHalfAngle));
+
+	// Everything the caster may hurt is a possible link of the chain
+	TArray<AVaelCharacterBase*> Candidates;
+	for (TActorIterator<AVaelCharacterBase> It(World); It; ++It)
+	{
+		if (UVaelCombatStatics::CanDamage(Caster, *It))
+		{
+			Candidates.Add(*It);
+		}
+	}
+
+	// The first link is the nearest enemy roughly in the aim direction
+	FVector LinkStart = Caster->GetActorLocation();
+	AVaelCharacterBase* Target = nullptr;
+	float BestDistance = Formula.ChainRange;
+
+	for (AVaelCharacterBase* Candidate : Candidates)
+	{
+		const FVector ToCandidate = Candidate->GetActorLocation() - LinkStart;
+		const float Distance = ToCandidate.Size2D();
+
+		if (Distance <= BestDistance && FVector::DotProduct(ToCandidate.GetSafeNormal2D(), AimDirection) >= MinAimCosine)
+		{
+			BestDistance = Distance;
+			Target = Candidate;
+		}
+	}
+
+	const FColor Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true);
+
+	if (Target == nullptr)
+	{
+#if ENABLE_DRAW_DEBUG
+		// Placeholder look: the bolt fizzles out in the aim direction
+		DrawDebugLine(World, LinkStart, LinkStart + AimDirection * Formula.ChainJumpRange, Color, false, 0.2f, 0, 3.0f);
+#endif
+		return;
+	}
+
+	for (int32 NumHit = 0; NumHit < Formula.ChainMaxTargets && Target != nullptr; ++NumHit)
+	{
+		const FVector TargetLocation = Target->GetActorLocation();
+
+#if ENABLE_DRAW_DEBUG
+		DrawDebugLine(World, LinkStart, TargetLocation, Color, false, 0.25f, 0, 4.0f);
+#endif
+
+		UVaelCombatStatics::ApplySpellHit(Caster, Target, Hit, TargetLocation - LinkStart);
+		Candidates.RemoveSingleSwap(Target);
+
+		// Jump on to the nearest enemy that hasn't been hit yet
+		LinkStart = TargetLocation;
+		Target = nullptr;
+		BestDistance = Formula.ChainJumpRange;
+
+		for (AVaelCharacterBase* Candidate : Candidates)
+		{
+			const float Distance = FVector::Dist2D(Candidate->GetActorLocation(), LinkStart);
+			if (Distance <= BestDistance)
+			{
+				BestDistance = Distance;
+				Target = Candidate;
+			}
+		}
 	}
 }
 
@@ -122,10 +203,17 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	const FVector AimDirection = GetAimDirection(Caster);
 	const float MinCosine = FMath::Cos(FMath::DegreesToRadians(Formula.ConeHalfAngle));
 
-	FVaelSpellHit Hit;
-	Hit.Damage = Formula.Damage * Power;
-	Hit.Element = Formula.DamageElement;
-	Hit.Knockback = Formula.Knockback;
+	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+
+	// Wind carries fires on, water puts them out
+	if (Formula.DamageElement == EVaelElement::Air)
+	{
+		AVaelGroundArea::SpreadFires(Cast<APawn>(Caster), Origin, AimDirection, Formula.ConeRange, Formula.ConeHalfAngle);
+	}
+	else if (Formula.DamageElement == EVaelElement::Water)
+	{
+		AVaelGroundArea::ExtinguishFires(World, Origin + AimDirection * Formula.ConeRange * 0.5f, Formula.ConeRange * 0.5f);
+	}
 
 	// Collect every pawn in reach, then keep those inside the cone
 	TArray<FOverlapResult> Overlaps;

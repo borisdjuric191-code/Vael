@@ -5,6 +5,7 @@
 #include "Creatures/VaelTrainingDummy.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Magic/VaelGroundArea.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 
@@ -69,7 +70,34 @@ void AVaelGameMode::RestartPlayer(AController* NewPlayer)
 	{
 		bTrainingDummiesSpawned = true;
 		SpawnTrainingDummies(NewPlayer->GetPawn()->GetActorLocation());
+
+		if (bSpawnTestAreas)
+		{
+			SpawnTestAreas(NewPlayer->GetPawn()->GetActorLocation());
+		}
 	}
+}
+
+void AVaelGameMode::SpawnTestAreas(const FVector& Center)
+{
+	// Between the training dummies: the camp fire at 60 degrees, the puddle at 300 degrees
+	const auto SpawnOnGround = [this, &Center](float AngleDegrees, EVaelElement Element, float Radius, bool bExtinguishable)
+	{
+		const float Angle = FMath::DegreesToRadians(AngleDegrees);
+		FVector Location = Center + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * TestAreaDistance;
+
+		// The player start may float above the floor
+		FHitResult GroundHit;
+		if (GetWorld()->LineTraceSingleByObjectType(GroundHit, Location, Location - FVector(0.0f, 0.0f, 2000.0f), FCollisionObjectQueryParams(ECC_WorldStatic)))
+		{
+			Location = GroundHit.Location + FVector(0.0f, 0.0f, 2.0f);
+		}
+
+		AVaelGroundArea::SpawnArea(GetWorld(), Location, Element, Radius, 0.0f, 0.0f, nullptr, bExtinguishable);
+	};
+
+	SpawnOnGround(60.0f, EVaelElement::Fire, 120.0f, false);
+	SpawnOnGround(300.0f, EVaelElement::Water, 250.0f, true);
 }
 
 void AVaelGameMode::SpawnTrainingDummies(const FVector& Center)

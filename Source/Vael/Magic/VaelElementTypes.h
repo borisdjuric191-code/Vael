@@ -35,7 +35,22 @@ UENUM(BlueprintType)
 enum class EVaelSpellDelivery : uint8
 {
 	Projectile,
-	Cone
+	Cone,
+	/** Strikes the first enemy in the aim direction and jumps on to others nearby */
+	Chain
+};
+
+/** Conditions a hit can leave on its target */
+UENUM(BlueprintType)
+enum class EVaelStatus : uint8
+{
+	None,
+	/** Doubles lightning damage, weakens fire */
+	Wet,
+	/** Takes fire damage over time, water puts it out */
+	Burning,
+	/** Can't move, earth shatters it for extra damage */
+	Frozen
 };
 
 /** Outcome of trying to cast the queued elements */
@@ -47,8 +62,10 @@ enum class EVaelCastResult : uint8
 	EmptyQueue,
 	/** No formula exists for this combination */
 	NoFormula,
-	/** The formula exists but has not been learned yet */
+	/** The formula exists but is sealed: it has to be found in the world first */
 	UnknownFormula,
+	/** Experimenting with an undiscovered formula went wrong and hurt the caster */
+	UnstableDischarge,
 	NotEnoughMana,
 	/** The ability system refused to activate the formula */
 	Blocked

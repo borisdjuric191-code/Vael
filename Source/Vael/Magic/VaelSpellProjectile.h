@@ -40,7 +40,10 @@ public:
 	AVaelSpellProjectile();
 
 	/** Sets what the projectile does. Has to be called between deferred spawning and FinishSpawning. */
-	void InitSpell(const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color);
+	void InitSpell(const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, int32 Pierce, const FLinearColor& Color);
+
+	/** Update */
+	virtual void Tick(float DeltaSeconds) override;
 
 protected:
 
@@ -55,6 +58,9 @@ protected:
 	/** What the projectile does to its target */
 	FVaelSpellHit Hit;
 
-	/** True once the projectile has hit its target */
-	bool bHasHit = false;
+	/** Enemies the projectile has already hit */
+	TSet<TWeakObjectPtr<AActor>> HitActors;
+
+	/** Number of enemies the projectile can still fly through */
+	int32 RemainingPierce = 0;
 };

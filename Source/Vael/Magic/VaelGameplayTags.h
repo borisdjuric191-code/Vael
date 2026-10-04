@@ -15,10 +15,19 @@ namespace VaelTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Air);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Element_Mark);
 
+	/** Conditions of a character, granted by status effects while they last */
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Wet);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Burning);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Frozen);
+
 	/** Magnitudes handed to gameplay effects by their caller */
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Mana);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Duration);
 
 	/** Returns the tag of an element */
 	FGameplayTag GetElementTag(EVaelElement Element);
+
+	/** Returns the tag of a status, invalid for None */
+	FGameplayTag GetStatusTag(EVaelStatus Status);
 }

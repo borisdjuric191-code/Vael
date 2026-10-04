@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/ProjectileMovementComponent.h"
+#include "Magic/VaelGroundArea.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 
@@ -61,11 +62,19 @@ AVaelSpellProjectile::AVaelSpellProjectile()
 	Movement->OnProjectileStop.AddDynamic(this, &AVaelSpellProjectile::OnStopped);
 
 	InitialLifeSpan = 1.1f;
+
+	// Only water projectiles tick, see InitSpell
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
 }
 
-void AVaelSpellProjectile::InitSpell(const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color)
+void AVaelSpellProjectile::InitSpell(const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, int32 Pierce, const FLinearColor& Color)
 {
 	Hit = InHit;
+	RemainingPierce = Pierce;
+
+	// Water puts out the fires it flies over, which has to be checked every frame
+	PrimaryActorTick.bStartWithTickEnabled = Hit.Element == EVaelElement::Water;
 
 	Collision->SetSphereRadius(Radius);
 	Mesh->SetRelativeScale3D(FVector(Radius / PlaceholderSphereRadius));
@@ -87,9 +96,19 @@ void AVaelSpellProjectile::InitSpell(const FVaelSpellHit& InHit, float Speed, fl
 	}
 }
 
+void AVaelSpellProjectile::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	if (Hit.Element == EVaelElement::Water)
+	{
+		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), Collision->GetScaledSphereRadius());
+	}
+}
+
 void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (bHasHit || OtherActor == nullptr || OtherActor == GetInstigator())
+	if (OtherActor == nullptr || OtherActor == GetInstigator() || HitActors.Contains(OtherActor))
 	{
 		return;
 	}
@@ -97,8 +116,14 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 	// Allies are passed through
 	if (UVaelCombatStatics::ApplySpellHit(GetInstigator(), OtherActor, Hit, GetVelocity()))
 	{
-		bHasHit = true;
-		Destroy();
+		HitActors.Add(OtherActor);
+
+		if (RemainingPierce-- <= 0)
+		{
+			// Later overlaps of the same move must not hit anything else
+			Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Destroy();
+		}
 	}
 }
 

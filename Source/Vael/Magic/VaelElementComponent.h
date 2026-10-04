@@ -54,6 +54,9 @@ public:
 	/** Elements waiting to be cast, oldest first */
 	const TArray<EVaelElement>& GetQueue() const { return Queue; }
 
+	/** True if the element in the given slot was drawn from the environment when it was queued */
+	bool IsFromEnvironment(int32 SlotIndex) const { return QueueFromEnvironment.IsValidIndex(SlotIndex) && QueueFromEnvironment[SlotIndex]; }
+
 	/** Number of elements the queue can hold */
 	int32 GetNumSlots() const { return FMath::Clamp(UnlockedSlots, 1, VaelElements::MaxQueueSlots); }
 
@@ -85,6 +88,12 @@ private:
 
 	/** Finishes a cast attempt: empties the queue and tells listeners */
 	EVaelCastResult FinishCast(EVaelCastResult Result, const UVaelFormula* Formula);
+
+	/** Experimenting went wrong: hurts the caster and throws nearby enemies back */
+	void UnstableDischarge();
+
+	/** For every queued element, whether it was drawn from the environment */
+	TArray<bool> QueueFromEnvironment;
 
 	UAbilitySystemComponent* GetAbilitySystem() const;
 	UVaelGrimoireSubsystem* GetGrimoire() const;

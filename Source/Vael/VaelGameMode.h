@@ -64,10 +64,21 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Testing", meta = (ClampMin = 0))
 	float TrainingDummyDistance = 400.0f;
 
+	/** Temporary: puts a camp fire and a puddle next to the first player to test elements from the environment, until levels bring their own */
+	UPROPERTY(EditDefaultsOnly, Category="Testing")
+	bool bSpawnTestAreas = true;
+
+	/** Temporary: distance of the test areas from the first player */
+	UPROPERTY(EditDefaultsOnly, Category="Testing", meta = (ClampMin = 0))
+	float TestAreaDistance = 450.0f;
+
 private:
 
 	/** Spawns the training dummies in a ring around a location */
 	void SpawnTrainingDummies(const FVector& Center);
+
+	/** Spawns a camp fire and a puddle on the ground near a location */
+	void SpawnTestAreas(const FVector& Center);
 
 	/** True once the training dummies exist */
 	bool bTrainingDummiesSpawned = false;

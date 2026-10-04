@@ -4,8 +4,12 @@
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelCharacterBase.h"
+#include "Combat/VaelCombatStatics.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelGrimoireSubsystem.h"
@@ -62,7 +66,9 @@ bool UVaelElementComponent::AddElement(EVaelElement Element)
 		return false;
 	}
 
+	// Where the element comes from is decided at the moment it is queued, not when the formula is cast
 	Queue.Add(Element);
+	QueueFromEnvironment.Add(UVaelEnvironmentStatics::IsElementInEnvironment(GetOwner(), Element));
 	OnQueueChanged.Broadcast();
 
 	return true;
@@ -73,6 +79,7 @@ void UVaelElementComponent::ClearQueue()
 	if (!Queue.IsEmpty())
 	{
 		Queue.Reset();
+		QueueFromEnvironment.Reset();
 		OnQueueChanged.Broadcast();
 	}
 }
@@ -85,27 +92,50 @@ EVaelCastResult UVaelElementComponent::CastQueue()
 	}
 
 	UAbilitySystemComponent* AbilitySystem = GetAbilitySystem();
-	const UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
+	UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
 	if (AbilitySystem == nullptr || Grimoire == nullptr)
 	{
 		return FinishCast(EVaelCastResult::Blocked, nullptr);
 	}
 
-	const UVaelFormula* Formula = Grimoire->FindFormula(Queue);
+	UVaelFormula* Formula = Grimoire->FindFormula(Queue);
 	if (Formula == nullptr)
 	{
 		return FinishCast(EVaelCastResult::NoFormula, nullptr);
 	}
 
-	const FGameplayAbilitySpecHandle* AbilityHandle = FormulaAbilities.Find(Formula);
-	if (AbilityHandle == nullptr || !Grimoire->IsFormulaKnown(Formula))
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+
+	if (!Grimoire->IsFormulaKnown(Formula))
 	{
-		return FinishCast(EVaelCastResult::UnknownFormula, Formula);
+		// Free formulas can be discovered by trying them out, everything else has to be found in the world
+		if (Formula->Source != EVaelFormulaSource::Free)
+		{
+			return FinishCast(EVaelCastResult::UnknownFormula, Formula);
+		}
+
+		if (FMath::FRand() >= MagicSettings->DiscoveryChance)
+		{
+			UnstableDischarge();
+			return FinishCast(EVaelCastResult::UnstableDischarge, Formula);
+		}
+
+		// Learning grants the ability to every mage, this one included
+		Grimoire->LearnFormula(Formula);
 	}
 
-	// Elements drawn from the environment will lower the cost and raise the power once the environment system exists
-	PendingCast.ManaCost = UVaelMagicSettings::Get()->GetManaCost(Queue.Num(), 0);
-	PendingCast.Power = 1.0f;
+	const FGameplayAbilitySpecHandle* AbilityHandle = FormulaAbilities.Find(Formula);
+	if (AbilityHandle == nullptr)
+	{
+		return FinishCast(EVaelCastResult::Blocked, Formula);
+	}
+
+	// Elements drawn from the environment make the formula cheaper and stronger.
+	// Casters corrupted by Mark get a smaller bonus; until corruption exists everybody counts as pure.
+	const int32 NumEnvironmentElements = QueueFromEnvironment.FilterByPredicate([](bool bFromEnvironment) { return bFromEnvironment; }).Num();
+
+	PendingCast.ManaCost = MagicSettings->GetManaCost(Queue.Num(), NumEnvironmentElements);
+	PendingCast.Power = 1.0f + NumEnvironmentElements * MagicSettings->EnvironmentPowerBonusPure;
 
 	if (AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetManaAttribute()) < PendingCast.ManaCost)
 	{
@@ -119,16 +149,40 @@ EVaelCastResult UVaelElementComponent::CastQueue()
 
 EVaelCastResult UVaelElementComponent::FinishCast(EVaelCastResult Result, const UVaelFormula* Formula)
 {
-	UE_LOG(LogVael, Verbose, TEXT("'%s' casts %d elements: %s (%s)"), *GetNameSafe(GetOwner()), Queue.Num(),
-		*UEnum::GetValueAsString(Result), Formula != nullptr ? *Formula->DisplayName.ToString() : TEXT("no formula"));
+	UE_LOG(LogVael, Verbose, TEXT("'%s' casts %d elements: %s (%s), cost %.0f mana, power %.2f"), *GetNameSafe(GetOwner()), Queue.Num(),
+		*UEnum::GetValueAsString(Result), Formula != nullptr ? *Formula->DisplayName.ToString() : TEXT("no formula"), PendingCast.ManaCost, PendingCast.Power);
 
 	PendingCast = FVaelPendingCast();
 
 	Queue.Reset();
+	QueueFromEnvironment.Reset();
 	OnQueueChanged.Broadcast();
 	OnCastFinished.Broadcast(Result, Formula);
 
 	return Result;
+}
+
+void UVaelElementComponent::UnstableDischarge()
+{
+	AActor* Caster = GetOwner();
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+
+	FVaelSpellHit Hit;
+	Hit.Damage = MagicSettings->UnstableDamage;
+	Hit.Element = EVaelElement::Air;
+	Hit.Knockback = MagicSettings->UnstableKnockback;
+
+	const FVector Origin = Caster->GetActorLocation();
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		const FVector ToTarget = It->GetActorLocation() - Origin;
+		if (ToTarget.SizeSquared2D() <= FMath::Square(MagicSettings->UnstableRadius))
+		{
+			UVaelCombatStatics::ApplySpellHit(Caster, *It, Hit, ToTarget);
+		}
+	}
+
+	UVaelCombatStatics::DealDamage(Caster, Caster, MagicSettings->UnstableSelfDamage, EVaelElement::Air);
 }
 
 UAbilitySystemComponent* UVaelElementComponent::GetAbilitySystem() const

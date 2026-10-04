@@ -53,7 +53,7 @@ void AVaelTrainingDummy::Tick(float DeltaSeconds)
 	}
 
 #if ENABLE_DRAW_DEBUG
-	const FString Status = FString::Printf(TEXT("%.0f / %.0f"), GetHealth(), GetMaxHealth());
+	const FString Status = FString::Printf(TEXT("%.0f / %.0f   %s"), GetHealth(), GetMaxHealth(), *GetStatusText().ToString());
 	DrawDebugString(GetWorld(), FVector(0.f, 0.f, 130.f), Status, this, GetHealth() > 0.0f ? FColor::White : FColor::Red, 0.f, true);
 #endif
 }

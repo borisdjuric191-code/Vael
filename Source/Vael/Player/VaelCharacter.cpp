@@ -148,11 +148,12 @@ void AVaelCharacter::RefreshQueueOrbs()
 			continue;
 		}
 
-		// Filled slots are bigger and carry the color of their element
+		// Filled slots are bigger and carry the color of their element, elements drawn from the environment are bigger still
 		const bool bFilled = Queue.IsValidIndex(SlotIndex);
+		const float OrbScale = !bFilled ? 0.1f : ElementComponent->IsFromEnvironment(SlotIndex) ? 0.36f : 0.24f;
 
 		Orb->SetRelativeLocation(FVector(0.f, (SlotIndex - (NumSlots - 1) * 0.5f) * QueueOrbSpacing, 0.f));
-		Orb->SetRelativeScale3D(FVector(bFilled ? 0.24f : 0.1f));
+		Orb->SetRelativeScale3D(FVector(OrbScale));
 
 		UMaterialInstanceDynamic* OrbMaterial = Cast<UMaterialInstanceDynamic>(Orb->GetMaterial(0));
 		if (OrbMaterial == nullptr)
@@ -174,7 +175,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 #if ENABLE_DRAW_DEBUG
 	if (bShowStatusText)
 	{
-		const FString Status = FString::Printf(TEXT("Leben %.0f   Mana %.0f"), GetHealth(), GetMana());
+		const FString Status = FString::Printf(TEXT("Leben %.0f   Mana %.0f   %s"), GetHealth(), GetMana(), *GetStatusText().ToString());
 		DrawDebugString(GetWorld(), FVector(0.f, 0.f, QueueOrbHeight + 45.f), Status, this, FColor::White, 0.f, true);
 	}
 #endif

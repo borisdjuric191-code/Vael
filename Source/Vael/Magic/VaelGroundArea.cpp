@@ -1,0 +1,216 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Magic/VaelGroundArea.h"
+#include "UObject/ConstructorHelpers.h"
+#include "Combat/VaelCharacterBase.h"
+#include "Combat/VaelCombatStatics.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
+#include "Magic/VaelMagicSettings.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
+#include "Vael.h"
+
+namespace
+{
+	/** Radius of the engine cylinder mesh used as placeholder */
+	constexpr float PlaceholderCylinderRadius = 50.0f;
+
+	/** Seconds between two damage steps of an area */
+	constexpr float DamageStepInterval = 0.5f;
+}
+
+AVaelGroundArea::AVaelGroundArea()
+{
+	// Placeholder look from engine assets
+	Disc = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Disc"));
+	Disc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Disc->SetCastShadow(false);
+	Disc->bReceivesDecals = false;
+	RootComponent = Disc;
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> DiscMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	if (DiscMesh.Succeeded())
+	{
+		Disc->SetStaticMesh(DiscMesh.Object);
+	}
+
+	static ConstructorHelpers::FObjectFinder<UMaterialInterface> DiscMaterial(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+	if (DiscMaterial.Succeeded())
+	{
+		Disc->SetMaterial(0, DiscMaterial.Object);
+	}
+
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
+}
+
+void AVaelGroundArea::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	RefreshLook();
+}
+
+void AVaelGroundArea::BeginPlay()
+{
+	Super::BeginPlay();
+
+	RefreshLook();
+
+	if (Lifetime > 0.0f)
+	{
+		SetLifeSpan(Lifetime);
+	}
+
+	// Only areas that hurt somebody need to tick
+	SetActorTickEnabled(DamagePerSecond > 0.0f && GetInstigator() != nullptr);
+}
+
+void AVaelGroundArea::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	DamageStepTime += DeltaSeconds;
+	if (DamageStepTime < DamageStepInterval)
+	{
+		return;
+	}
+
+	FVaelSpellHit Hit;
+	Hit.Damage = DamagePerSecond * DamageStepTime;
+	Hit.Element = Element;
+
+	DamageStepTime = 0.0f;
+
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		if (IsInRange(It->GetActorLocation()))
+		{
+			UVaelCombatStatics::ApplySpellHit(GetInstigator(), *It, Hit, FVector::ZeroVector);
+		}
+	}
+}
+
+AVaelGroundArea* AVaelGroundArea::SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable)
+{
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	const FTransform SpawnTransform(Location);
+
+	AVaelGroundArea* Area = World->SpawnActorDeferred<AVaelGroundArea>(AVaelGroundArea::StaticClass(), SpawnTransform, InInstigator, InInstigator, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (Area != nullptr)
+	{
+		Area->Element = InElement;
+		Area->Radius = InRadius;
+		Area->Lifetime = InLifetime;
+		Area->DamagePerSecond = InDamagePerSecond;
+		Area->bExtinguishable = bInExtinguishable;
+
+		Area->FinishSpawning(SpawnTransform);
+	}
+
+	return Area;
+}
+
+int32 AVaelGroundArea::ExtinguishFires(const UWorld* World, const FVector& Location, float InRadius)
+{
+	int32 NumExtinguished = 0;
+
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		AVaelGroundArea* Area = *It;
+		if (Area->Element == EVaelElement::Fire && Area->bExtinguishable && Area->IsInRange(Location, InRadius))
+		{
+			UE_LOG(LogVael, Verbose, TEXT("Fire '%s' is put out"), *GetNameSafe(Area));
+
+			Area->Destroy();
+			++NumExtinguished;
+		}
+	}
+
+	return NumExtinguished;
+}
+
+int32 AVaelGroundArea::SpreadFires(APawn* Caster, const FVector& Origin, const FVector& Direction, float Range, float HalfAngleDegrees)
+{
+	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return 0;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const float MinCosine = FMath::Cos(FMath::DegreesToRadians(HalfAngleDegrees));
+
+	// New fires are added while iterating, so collect the existing ones first
+	TArray<AVaelGroundArea*> Fires;
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		if (It->Element == EVaelElement::Fire)
+		{
+			Fires.Add(*It);
+		}
+	}
+
+	int32 NumSpread = 0;
+	for (const AVaelGroundArea* Fire : Fires)
+	{
+		if (NumSpread >= MagicSettings->MaxFireSpreads)
+		{
+			break;
+		}
+
+		const FVector FireLocation = Fire->GetActorLocation();
+		const FVector ToFire = (FireLocation - Origin).GetSafeNormal2D();
+
+		if (!Fire->IsInRange(Origin, Range) || FVector::DotProduct(ToFire, Direction) < MinCosine)
+		{
+			continue;
+		}
+
+		// Walls stop the fire
+		const FVector NewLocation = FireLocation + Direction * MagicSettings->FireSpreadDistance;
+		const FVector TraceOffset(0.0f, 0.0f, 50.0f);
+		if (World->LineTraceTestByObjectType(FireLocation + TraceOffset, NewLocation + TraceOffset, FCollisionObjectQueryParams(ECC_WorldStatic)))
+		{
+			continue;
+		}
+
+		const float NewDamagePerSecond = Fire->DamagePerSecond > 0.0f ? Fire->DamagePerSecond : MagicSettings->FireSpreadDamagePerSecond;
+		SpawnArea(World, NewLocation, EVaelElement::Fire, Fire->Radius * 1.1f, MagicSettings->FireSpreadLifetime, NewDamagePerSecond, Caster);
+
+		UE_LOG(LogVael, Verbose, TEXT("Wind carries fire '%s' on to %s"), *GetNameSafe(Fire), *NewLocation.ToCompactString());
+
+		++NumSpread;
+	}
+
+	return NumSpread;
+}
+
+bool AVaelGroundArea::IsInRange(const FVector& Location, float ExtraDistance) const
+{
+	return FVector::DistSquared2D(Location, GetActorLocation()) <= FMath::Square(Radius + ExtraDistance);
+}
+
+void AVaelGroundArea::RefreshLook()
+{
+	Disc->SetWorldScale3D(FVector(Radius / PlaceholderCylinderRadius, Radius / PlaceholderCylinderRadius, 0.02f));
+
+	UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Disc->GetMaterial(0));
+	if (Material == nullptr)
+	{
+		Material = Disc->CreateAndSetMaterialInstanceDynamic(0);
+	}
+
+	if (Material != nullptr)
+	{
+		Material->SetVectorParameterValue(TEXT("Color"), UVaelMagicSettings::Get()->GetElementColor(Element));
+	}
+}

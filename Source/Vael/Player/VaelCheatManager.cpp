@@ -1,8 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCheatManager.h"
+#include "Combat/VaelCharacterBase.h"
+#include "Combat/VaelCombatStatics.h"
+#include "Engine/GameInstance.h"
+#include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Magic/VaelElementComponent.h"
+#include "Magic/VaelFormula.h"
+#include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
 
@@ -36,4 +43,47 @@ void UVaelCheatManager::VaelCast(const FString& Elements, float AimYaw)
 	const EVaelCastResult Result = ElementComponent->CastQueue();
 
 	UE_LOG(LogVael, Log, TEXT("VaelCast %s: %s, mana now %.1f"), *Elements, *UEnum::GetValueAsString(Result), VaelCharacter->GetMana());
+}
+
+void UVaelCheatManager::VaelLearnAll()
+{
+	const UGameInstance* GameInstance = GetWorld() != nullptr ? GetWorld()->GetGameInstance() : nullptr;
+	UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+	if (Grimoire == nullptr)
+	{
+		return;
+	}
+
+	int32 NumLearned = 0;
+	for (UVaelFormula* Formula : Grimoire->GetAllFormulas())
+	{
+		NumLearned += Grimoire->LearnFormula(Formula) ? 1 : 0;
+	}
+
+	UE_LOG(LogVael, Log, TEXT("VaelLearnAll: %d formulas learned, %d known now"), NumLearned, Grimoire->GetKnownFormulas().Num());
+}
+
+void UVaelCheatManager::VaelStatus(const FString& Status, float Duration)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+
+	const int64 StatusValue = StaticEnum<EVaelStatus>()->GetValueByNameString(Status);
+	if (PlayerPawn == nullptr || StatusValue == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Burning needs a strength; the value of the spark is a good test value
+	const float TestBurnDamagePerSecond = 6.0f;
+
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		if (UVaelCombatStatics::CanDamage(PlayerPawn, *It))
+		{
+			UVaelCombatStatics::ApplyStatus(PlayerPawn, *It, static_cast<EVaelStatus>(StatusValue), Duration, TestBurnDamagePerSecond);
+
+			UE_LOG(LogVael, Log, TEXT("VaelStatus: '%s' is now: %s"), *GetNameSafe(*It), *It->GetStatusText().ToString());
+		}
+	}
 }

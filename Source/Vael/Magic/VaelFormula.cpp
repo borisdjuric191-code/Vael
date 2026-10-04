@@ -12,6 +12,20 @@ UVaelFormula::UVaelFormula()
 	ProjectileClass = AVaelSpellProjectile::StaticClass();
 }
 
+FVaelSpellHit UVaelFormula::MakeSpellHit(float Power) const
+{
+	FVaelSpellHit Hit;
+	Hit.Damage = Damage * Power;
+	Hit.Element = DamageElement;
+	Hit.Knockback = Knockback;
+	Hit.bLightning = bLightning;
+	Hit.Status = AppliedStatus;
+	Hit.StatusDuration = StatusDuration;
+	Hit.StatusDamagePerSecond = StatusDamagePerSecond;
+
+	return Hit;
+}
+
 FPrimaryAssetId UVaelFormula::GetPrimaryAssetId() const
 {
 	return FPrimaryAssetId(PrimaryAssetType, GetFName());
