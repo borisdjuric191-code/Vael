@@ -65,9 +65,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static bool ApplyNatureHit(AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection);
 
-	/** Deals damage without reactions or a check who may hurt whom, for example to the caster themselves */
+	/** Deals damage without reactions or a check who may hurt whom, for example to the caster themselves. The reaction multiplier only colors the damage number. */
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
-	static void DealDamage(AActor* Attacker, AActor* Target, float Damage, EVaelElement Element);
+	static void DealDamage(AActor* Attacker, AActor* Target, float Damage, EVaelElement Element, float ReactionMultiplier = 1.0f);
 
 	/** True if the actor currently has the condition */
 	UFUNCTION(BlueprintPure, Category="Vael|Combat")

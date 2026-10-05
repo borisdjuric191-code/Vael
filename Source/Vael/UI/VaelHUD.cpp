@@ -18,6 +18,7 @@
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 #include "UI/VaelNoticeSubsystem.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "VaelGameMode.h"
 #include "World/VaelRegion.h"
 
@@ -110,6 +111,7 @@ void AVaelHUD::DrawHUD()
 
 	DrawWeather();
 	DrawCreatureHealthBars();
+	DrawCombatTexts();
 	DrawRegionInfo();
 
 	// One panel per player, side by side at the bottom
@@ -903,3 +905,32 @@ void AVaelHUD::DrawWeather()
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void AVaelHUD::DrawCombatTexts()
+{
+	UVaelCombatTextSubsystem* CombatTexts = GetWorld()->GetSubsystem<UVaelCombatTextSubsystem>();
+	if (CombatTexts == nullptr)
+	{
+		return;
+	}
+
+	const UVaelUISettings* Settings = UVaelUISettings::Get();
+	const double Now = GetWorld()->GetTimeSeconds();
+	const float Duration = FMath::Max(Settings->CombatTextDuration, 0.01f);
+
+	for (const FVaelCombatText& CombatText : CombatTexts->GetActiveTexts())
+	{
+		const FVector ScreenPosition = Canvas->Project(CombatText.Location);
+		if (ScreenPosition.Z <= 0.0f)
+		{
+			continue;
+		}
+
+		// Rises steadily, stays solid for the first half and fades in the second
+		const float Age = FMath::Clamp(static_cast<float>(Now - CombatText.StartTime) / Duration, 0.0f, 1.0f);
+		const float Alpha = Age < 0.5f ? 1.0f : 1.0f - (Age - 0.5f) * 2.0f;
+		const float Size = CombatText.Size * UiScale;
+
+		DrawLabel(CombatText.Text, ScreenPosition.X, ScreenPosition.Y - Settings->CombatTextRise * UiScale * Age - Size * 0.5f, Size, WithAlpha(CombatText.Color, Alpha), 0.5f);
+	}
+}

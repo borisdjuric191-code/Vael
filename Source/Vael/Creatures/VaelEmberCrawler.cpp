@@ -12,6 +12,7 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGroundArea.h"
 #include "Player/VaelCharacter.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -179,6 +180,7 @@ void AVaelEmberCrawler::OnDoused(const FGameplayTag Tag, int32 NewCount)
 	if (NewCount > 0 && State == EVaelCrawlerState::Fuse && !IsDead())
 	{
 		UE_LOG(LogVael, Verbose, TEXT("'%s' is doused"), *GetNameSafe(this));
+		UVaelCombatTextSubsystem::PostReaction(this, NSLOCTEXT("VaelHUD", "Doused", "Gel\u00F6scht!"));
 		EnterState(EVaelCrawlerState::Doused);
 	}
 }

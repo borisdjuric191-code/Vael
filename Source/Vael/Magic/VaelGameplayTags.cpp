@@ -13,6 +13,7 @@ namespace VaelTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Damage, "SetByCaller.Damage", "Amount of damage of a damage effect");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Mana, "SetByCaller.Mana", "Amount of mana an effect adds, negative for costs");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Duration, "SetByCaller.Duration", "Seconds a status effect lasts");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(SetByCaller_Multiplier, "SetByCaller.Multiplier", "Factor a reaction applied to the damage, for the damage number");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Wet, "Status.Wet", "Wet: lightning hits twice as hard, fire is weakened");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Burning, "Status.Burning", "Burning: takes fire damage over time");

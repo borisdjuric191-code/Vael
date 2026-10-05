@@ -48,4 +48,59 @@ public:
 	/** Size of the HUD relative to a 1080 pixel high screen */
 	UPROPERTY(config, EditAnywhere, Category="HUD", meta = (ClampMin = 0.5, ClampMax = 2))
 	float HudScale = 1.0f;
+
+	/** Shows how much damage every hit dealt */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text")
+	bool bShowDamageNumbers = true;
+
+	/** Shows words like "Zerschmettert!" when a reaction happens */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text")
+	bool bShowReactionTexts = true;
+
+	/** Seconds a combat text rises and fades */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 0.1))
+	float CombatTextDuration = 1.0f;
+
+	/** Pixels a combat text rises during its time, at HUD scale 1 */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 0))
+	float CombatTextRise = 45.0f;
+
+	/** Hits at least this many times as strong as normal count as a weakness: big and yellow */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 1))
+	float WeaknessThreshold = 1.4f;
+
+	/** Hits at most this many times as strong as normal count as a resistance: grey */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 0, ClampMax = 1))
+	float ResistanceThreshold = 0.8f;
+
+	/** Text height of damage numbers in pixels at HUD scale 1 */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 4))
+	float DamageNumberSize = 16.0f;
+
+	/** Text height of numbers of hits against a weakness */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 4))
+	float WeaknessNumberSize = 22.0f;
+
+	/** Text height of reaction words */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 4))
+	float ReactionTextSize = 17.0f;
+
+	/** Reaction words start this much higher than damage numbers, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Combat Text", meta = (ClampMin = 0))
+	float ReactionExtraHeight = 40.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Combat Text")
+	FLinearColor DamageColor = FLinearColor(FColor(243, 230, 208));
+
+	UPROPERTY(config, EditAnywhere, Category="Combat Text")
+	FLinearColor WeaknessColor = FLinearColor(FColor(255, 210, 122));
+
+	UPROPERTY(config, EditAnywhere, Category="Combat Text")
+	FLinearColor ResistanceColor = FLinearColor(FColor(154, 143, 134));
+
+	UPROPERTY(config, EditAnywhere, Category="Combat Text")
+	FLinearColor PlayerDamageColor = FLinearColor(FColor(255, 107, 94));
+
+	UPROPERTY(config, EditAnywhere, Category="Combat Text")
+	FLinearColor ReactionColor = FLinearColor(FColor(255, 207, 107));
 };

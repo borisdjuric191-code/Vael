@@ -28,6 +28,7 @@ namespace VaelTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Mana);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Duration);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Multiplier);
 
 	/** Returns the tag of an element */
 	FGameplayTag GetElementTag(EVaelElement Element);

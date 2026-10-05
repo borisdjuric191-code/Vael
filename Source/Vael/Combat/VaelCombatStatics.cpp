@@ -8,6 +8,7 @@
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
 
 namespace
@@ -81,12 +82,14 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 	{
 		DamageMultiplier *= MagicSettings->LightningOnWetMultiplier;
 		Reaction = TEXT(", overloaded");
+		UVaelCombatTextSubsystem::PostReaction(Target, NSLOCTEXT("VaelHUD", "Overloaded", "\u00DCberladen!"));
 	}
 
 	if (Hit.Element == EVaelElement::Earth && RemoveStatus(Target, EVaelStatus::Frozen))
 	{
 		DamageMultiplier *= MagicSettings->EarthOnFrozenMultiplier;
 		Reaction = TEXT(", shattered");
+		UVaelCombatTextSubsystem::PostReaction(Target, NSLOCTEXT("VaelHUD", "Shattered", "Zerschmettert!"));
 	}
 
 	if (Hit.Element == EVaelElement::Fire && RemoveStatus(Target, EVaelStatus::Wet))
@@ -100,6 +103,7 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 		if (RemoveStatus(Target, EVaelStatus::Burning))
 		{
 			Reaction = TEXT(", extinguished");
+			UVaelCombatTextSubsystem::PostReaction(Target, NSLOCTEXT("VaelHUD", "Extinguished", "Gel\u00F6scht!"));
 		}
 
 		// Water leaves its target wet even if the formula names no condition, unless it comes as ice
@@ -109,7 +113,7 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 		}
 	}
 
-	DealDamage(Attacker, Target, Hit.Damage * DamageMultiplier, Hit.Element);
+	DealDamage(Attacker, Target, Hit.Damage * DamageMultiplier, Hit.Element, DamageMultiplier);
 
 	ApplyStatus(Attacker, Target, Hit.Status, Hit.StatusDuration, Hit.StatusDamagePerSecond);
 
@@ -124,7 +128,7 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 	return true;
 }
 
-void UVaelCombatStatics::DealDamage(AActor* Attacker, AActor* Target, float Damage, EVaelElement Element)
+void UVaelCombatStatics::DealDamage(AActor* Attacker, AActor* Target, float Damage, EVaelElement Element, float ReactionMultiplier)
 {
 	UAbilitySystemComponent* TargetAbilitySystem = GetAbilitySystem(Target);
 	if (TargetAbilitySystem == nullptr || Damage <= 0.0f)
@@ -141,6 +145,7 @@ void UVaelCombatStatics::DealDamage(AActor* Attacker, AActor* Target, float Dama
 	if (DamageSpec.IsValid())
 	{
 		DamageSpec.Data->SetSetByCallerMagnitude(VaelTags::SetByCaller_Damage, Damage);
+		DamageSpec.Data->SetSetByCallerMagnitude(VaelTags::SetByCaller_Multiplier, ReactionMultiplier);
 		DamageSpec.Data->AddDynamicAssetTag(VaelTags::GetElementTag(Element));
 
 		SourceAbilitySystem->ApplyGameplayEffectSpecToTarget(*DamageSpec.Data, TargetAbilitySystem);

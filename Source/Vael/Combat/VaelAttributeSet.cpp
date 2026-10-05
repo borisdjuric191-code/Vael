@@ -3,6 +3,9 @@
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCharacterBase.h"
 #include "GameplayEffectExtension.h"
+#include "Magic/VaelGameplayTags.h"
+#include "Player/VaelCharacter.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
 
 void UVaelAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -55,6 +58,13 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 			if (Target != nullptr)
 			{
 				Target->OnDamageTaken(Damage, DamageTags);
+
+				// The number on screen: how well the hit worked, from weaknesses and the reaction it caused
+				const float BaseDamage = Data.EffectSpec.GetSetByCallerMagnitude(VaelTags::SetByCaller_Damage, false, Damage);
+				const float ReactionMultiplier = Data.EffectSpec.GetSetByCallerMagnitude(VaelTags::SetByCaller_Multiplier, false, 1.0f);
+				const float EffectMultiplier = ReactionMultiplier * (BaseDamage > 0.0f ? Damage / BaseDamage : 1.0f);
+
+				UVaelCombatTextSubsystem::PostDamage(Target, Damage, EffectMultiplier, Target->IsA<AVaelCharacter>());
 			}
 
 			SetHealth(FMath::Clamp(GetHealth() - Damage, 0.0f, GetMaxHealth()));

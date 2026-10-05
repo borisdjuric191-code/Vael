@@ -67,6 +67,7 @@ private:
 	void DrawCreatureHealthBars();
 	void DrawGrimoire(const AVaelPlayerController* PlayerController);
 	void DrawRegionInfo();
+	void DrawCombatTexts();
 	void DrawWeather();
 
 	// Element symbols
