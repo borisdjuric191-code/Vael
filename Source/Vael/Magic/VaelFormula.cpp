@@ -26,6 +26,15 @@ FVaelSpellHit UVaelFormula::MakeSpellHit(float Power) const
 	return Hit;
 }
 
+FVaelSpellHit UVaelFormula::MakeExplosionHit(float Power) const
+{
+	FVaelSpellHit Hit = MakeSpellHit(Power);
+	Hit.Damage = ExplosionDamage * Power;
+	Hit.Knockback = ExplosionKnockback;
+
+	return Hit;
+}
+
 FPrimaryAssetId UVaelFormula::GetPrimaryAssetId() const
 {
 	return FPrimaryAssetId(PrimaryAssetType, GetFName());

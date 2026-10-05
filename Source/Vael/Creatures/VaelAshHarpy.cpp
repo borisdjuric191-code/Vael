@@ -167,7 +167,7 @@ void AVaelAshHarpy::TickBehavior(float DeltaSeconds)
 		MoveTowards(Target->GetActorLocation() + FVector(FMath::Cos(CircleAngle), FMath::Sin(CircleAngle), 0.0f) * Data->CombatCircleRadius, Data->MoveSpeed);
 
 		DiveCooldown -= DeltaSeconds;
-		if (DiveCooldown <= 0.0f)
+		if (DiveCooldown <= 0.0f && !IsBlinded())
 		{
 			DiveTarget = Target;
 			DivePoint = Target->GetActorLocation();
@@ -178,7 +178,7 @@ void AVaelAshHarpy::TickBehavior(float DeltaSeconds)
 		if (Data->bCanScreech)
 		{
 			ScreechCooldown -= DeltaSeconds;
-			if (ScreechCooldown <= 0.0f)
+			if (ScreechCooldown <= 0.0f && !IsBlinded())
 			{
 				ScreechCooldown = Data->ScreechInterval;
 				Screech();

@@ -18,6 +18,8 @@
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGrimoireSubsystem.h"
+#include "Magic/VaelGroundArea.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
@@ -182,6 +184,11 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		DrawDebugString(GetWorld(), FVector(0.f, 0.f, GetStatusTextHeight()), Status, this, FColor(255, 214, 160), 0.f, true);
 	}
 #endif
+
+	if (!bDead)
+	{
+		UpdateGroundEffects();
+	}
 
 	if (bDead || GetWorld()->GetTimeSeconds() < StunEndTime || UVaelCombatStatics::HasStatus(this, EVaelStatus::Frozen))
 	{
@@ -373,7 +380,7 @@ void AVaelCreature::MoveInDirection(const FVector& Direction, float Speed)
 	}
 
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	Movement->MaxWalkSpeed = Speed;
+	Movement->MaxWalkSpeed = Speed * GroundSpeedMultiplier;
 	Movement->MaxFlySpeed = Speed;
 
 	AddMovementInput(GroundDirection, 1.0f);
@@ -472,3 +479,25 @@ void AVaelCreature::RefreshBodyColor()
 }
 
 #undef LOCTEXT_NAMESPACE
+
+bool AVaelCreature::IsBlinded() const
+{
+	return GetWorld()->GetTimeSeconds() < BlindEndTime;
+}
+
+void AVaelCreature::UpdateGroundEffects()
+{
+	bool bInSteam = false;
+	AVaelGroundArea::GetEffectsOn(this, bInSteam, GroundSpeedMultiplier);
+
+	// Mud only holds back creatures that walk
+	if (GetCharacterMovement()->IsFlying())
+	{
+		GroundSpeedMultiplier = 1.0f;
+	}
+
+	if (bInSteam)
+	{
+		BlindEndTime = GetWorld()->GetTimeSeconds() + UVaelMagicSettings::Get()->SteamBlindLinger;
+	}
+}

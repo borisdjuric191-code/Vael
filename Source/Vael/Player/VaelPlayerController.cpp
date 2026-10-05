@@ -463,6 +463,18 @@ bool AVaelPlayerController::GetMouseAimDirection(FVector& OutDirection) const
 	return !OutDirection.IsNearlyZero();
 }
 
+bool AVaelPlayerController::GetMouseAimLocation(FVector& OutLocation) const
+{
+	FVector Direction;
+	if (!bUsingMouseAim || !GetMouseAimDirection(Direction))
+	{
+		return false;
+	}
+
+	OutLocation = GetPawn()->GetActorLocation() + Direction;
+	return true;
+}
+
 void AVaelPlayerController::UseSharedCamera()
 {
 	if (!IsLocalPlayerController())

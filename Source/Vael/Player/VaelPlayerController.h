@@ -122,6 +122,9 @@ public:
 	/** Button symbols for the device this player used last */
 	EVaelInputGlyphs GetInputGlyphs() const;
 
+	/** Ground point under the mouse cursor while this player aims with the mouse. Returns false when aiming with a gamepad. */
+	bool GetMouseAimLocation(FVector& OutLocation) const;
+
 	/** True while this player has the grimoire open */
 	bool IsGrimoireOpen() const { return bGrimoireOpen; }
 

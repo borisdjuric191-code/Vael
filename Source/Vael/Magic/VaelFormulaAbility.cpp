@@ -17,11 +17,28 @@
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellProjectile.h"
+#include "Player/VaelPlayerController.h"
 
 namespace
 {
 	/** Distance in front of the caster at which projectiles appear */
 	constexpr float ProjectileSpawnDistance = 75.0f;
+
+	/** Ground areas aimed with a gamepad: enemies up to this distance and angle off the aim direction are targeted (prototype: 9 tiles) */
+	constexpr float AutoTargetRange = 1260.0f;
+	constexpr float AutoTargetHalfAngle = 29.0f;
+
+	/** A targeted enemy closer than this still gets the patch at this distance (2 tiles) */
+	constexpr float AutoTargetMinDistance = 280.0f;
+
+	/** Distance of the patch without a target (4.5 tiles) */
+	constexpr float AutoTargetDefaultDistance = 630.0f;
+
+	/** How far in front of a wall a patch stays */
+	constexpr float WallBackOffDistance = 56.0f;
+
+	/** How far below the aimed point the ground is searched */
+	constexpr float AreaGroundSearchDepth = 500.0f;
 }
 
 UVaelFormulaAbility::UVaelFormulaAbility()
@@ -90,6 +107,14 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 	case EVaelSpellDelivery::Chain:
 		HitChain(Formula, Caster, Power);
 		break;
+
+	case EVaelSpellDelivery::Explosion:
+		FireProjectile(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::GroundArea:
+		PlaceGroundArea(Formula, Caster, Power);
+		break;
 	}
 }
 
@@ -109,6 +134,17 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 	{
 		Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, Formula.ProjectilePierce,
 			UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
+
+		if (Formula.Delivery == EVaelSpellDelivery::Explosion)
+		{
+			Projectile->SetExplosion(Formula.MakeExplosionHit(Power), Formula.ExplosionRadius);
+
+			if (Formula.AreaRadius > 0.0f)
+			{
+				Projectile->SetImpactArea(Formula.DamageElement, Formula.AreaRadius, Formula.AreaLifetime, Formula.AreaDamagePerSecond * Power, Formula.AreaEffect);
+			}
+		}
+
 		Projectile->FinishSpawning(SpawnTransform);
 	}
 }
@@ -245,6 +281,83 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	DrawDebugCone(World, Origin, AimDirection, Formula.ConeRange, HalfAngle, FMath::DegreesToRadians(8.0f), 16,
 		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true), false, 0.25f, 0, 3.0f);
 #endif
+}
+
+void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	UWorld* World = Caster->GetWorld();
+	if (World == nullptr || Formula.AreaRadius <= 0.0f)
+	{
+		return;
+	}
+
+	FVector Location = FindGroundTarget(Caster, Formula.AreaRange);
+
+	// The patch lies on the ground below the aimed point
+	FHitResult GroundHit;
+	if (World->LineTraceSingleByObjectType(GroundHit, Location, Location - FVector(0.0f, 0.0f, AreaGroundSearchDepth), FCollisionObjectQueryParams(ECC_WorldStatic)))
+	{
+		Location = GroundHit.Location;
+	}
+	else
+	{
+		Location.Z -= Caster->GetSimpleCollisionHalfHeight();
+	}
+
+	AVaelGroundArea::SpawnArea(World, Location + FVector(0.0f, 0.0f, 2.0f), Formula.DamageElement, Formula.AreaRadius, Formula.AreaLifetime,
+		Formula.AreaDamagePerSecond * Power, Cast<APawn>(Caster), true, Formula.AreaEffect);
+
+	// Steam puts out the fires it covers
+	if (Formula.DamageElement == EVaelElement::Water)
+	{
+		AVaelGroundArea::ExtinguishFires(World, Location, Formula.AreaRadius);
+	}
+}
+
+FVector UVaelFormulaAbility::FindGroundTarget(AActor* Caster, float MaxRange)
+{
+	const FVector Origin = Caster->GetActorLocation();
+	const FVector AimDirection = GetAimDirection(Caster);
+	float Distance = AutoTargetDefaultDistance;
+
+	const APawn* CasterPawn = Cast<APawn>(Caster);
+	const AVaelPlayerController* PlayerController = CasterPawn != nullptr ? Cast<AVaelPlayerController>(CasterPawn->GetController()) : nullptr;
+
+	FVector MouseLocation;
+	if (PlayerController != nullptr && PlayerController->GetMouseAimLocation(MouseLocation))
+	{
+		Distance = FVector::Dist2D(Origin, MouseLocation);
+	}
+	else
+	{
+		// With a gamepad the patch lands on the nearest enemy roughly in the aim direction
+		const float MinAimCosine = FMath::Cos(FMath::DegreesToRadians(AutoTargetHalfAngle));
+		float BestDistance = AutoTargetRange;
+
+		for (TActorIterator<AVaelCharacterBase> It(Caster->GetWorld()); It; ++It)
+		{
+			const FVector ToCandidate = It->GetActorLocation() - Origin;
+			const float CandidateDistance = ToCandidate.Size2D();
+
+			if (CandidateDistance < BestDistance && UVaelCombatStatics::CanDamage(Caster, *It) && FVector::DotProduct(ToCandidate.GetSafeNormal2D(), AimDirection) >= MinAimCosine)
+			{
+				BestDistance = CandidateDistance;
+				Distance = FMath::Max(CandidateDistance, AutoTargetMinDistance);
+			}
+		}
+	}
+
+	FVector Target = Origin + AimDirection * FMath::Min(Distance, MaxRange);
+
+	// Walls stop the patch in front of them
+	FHitResult WallHit;
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelGroundTarget), false, Caster);
+	if (Caster->GetWorld()->LineTraceSingleByObjectType(WallHit, Origin, Target, FCollisionObjectQueryParams(ECC_WorldStatic), QueryParams))
+	{
+		Target = Origin + AimDirection * FMath::Max(0.0f, WallHit.Distance - WallBackOffDistance);
+	}
+
+	return Target;
 }
 
 FVector UVaelFormulaAbility::GetAimDirection(const AActor* Caster)

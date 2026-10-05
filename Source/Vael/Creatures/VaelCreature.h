@@ -166,6 +166,9 @@ protected:
 	/** Keeps the creature from acting for some seconds */
 	void Stun(float Duration);
 
+	/** True while the creature stands in steam or has just left it: it can't see and doesn't start attacks */
+	bool IsBlinded() const;
+
 	/** Sets the color the body shows outside of hit flashes */
 	void SetBodyColor(const FLinearColor& Color);
 
@@ -217,4 +220,13 @@ private:
 
 	/** Tip of the body during a stagger: roll and pitch in degrees */
 	FVector2D StaggerTipDirection = FVector2D::ZeroVector;
+
+	/** Share of its speed at which the creature walks, lowered by mud */
+	float GroundSpeedMultiplier = 1.0f;
+
+	/** World time until which the creature is blind */
+	float BlindEndTime = 0.0f;
+
+	/** Reads what the patches on the ground the creature stands in do to it */
+	void UpdateGroundEffects();
 };

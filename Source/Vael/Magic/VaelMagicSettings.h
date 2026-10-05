@@ -120,6 +120,18 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Discovery", meta = (ClampMin = 0))
 	float UnstableKnockback = 420.0f;
 
+	/** Walking enemies in mud move at this share of their speed */
+	UPROPERTY(config, EditAnywhere, Category="Ground Areas", meta = (ClampMin = 0, ClampMax = 1))
+	float MudSpeedMultiplier = 0.35f;
+
+	/** Seconds an enemy stays blind after leaving steam */
+	UPROPERTY(config, EditAnywhere, Category="Ground Areas", meta = (ClampMin = 0))
+	float SteamBlindLinger = 0.3f;
+
+	/** Placeholder color of steam */
+	UPROPERTY(config, EditAnywhere, Category="Appearance")
+	FLinearColor SteamColor = FLinearColor(0.8f, 0.82f, 0.85f);
+
 	/** Placeholder color per element */
 	UPROPERTY(config, EditAnywhere, Category="Appearance")
 	TMap<EVaelElement, FLinearColor> ElementColors;

@@ -134,7 +134,7 @@ void AVaelEmberQueen::TickBehavior(float DeltaSeconds)
 	}
 
 	SpitCooldown -= DeltaSeconds;
-	if (SpitCooldown <= 0.0f)
+	if (SpitCooldown <= 0.0f && !IsBlinded())
 	{
 		SpitCooldown = (bWet ? Data->SpitIntervalWet : Data->SpitInterval) - (bSecondPhase ? Data->SpitIntervalReductionSecondPhase : 0.0f);
 		Spit(Target, bSecondPhase);

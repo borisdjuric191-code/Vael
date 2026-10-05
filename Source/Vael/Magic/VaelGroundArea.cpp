@@ -108,7 +108,7 @@ void AVaelGroundArea::Tick(float DeltaSeconds)
 	}
 }
 
-AVaelGroundArea* AVaelGroundArea::SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable)
+AVaelGroundArea* AVaelGroundArea::SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable, EVaelGroundEffect InEffect)
 {
 	if (World == nullptr)
 	{
@@ -125,6 +125,7 @@ AVaelGroundArea* AVaelGroundArea::SpawnArea(UWorld* World, const FVector& Locati
 		Area->Lifetime = InLifetime;
 		Area->DamagePerSecond = InDamagePerSecond;
 		Area->bExtinguishable = bInExtinguishable;
+		Area->Effect = InEffect;
 
 		Area->FinishSpawning(SpawnTransform);
 	}
@@ -207,6 +208,44 @@ int32 AVaelGroundArea::SpreadFires(APawn* Caster, const FVector& Origin, const F
 	return NumSpread;
 }
 
+void AVaelGroundArea::GetEffectsOn(const AActor* Victim, bool& bOutBlinded, float& OutSpeedMultiplier)
+{
+	bOutBlinded = false;
+	OutSpeedMultiplier = 1.0f;
+
+	const UWorld* World = Victim != nullptr ? Victim->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	const FVector Location = Victim->GetActorLocation();
+
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		const AVaelGroundArea* Area = *It;
+		if (Area->Effect == EVaelGroundEffect::None || !Area->IsInRange(Location))
+		{
+			continue;
+		}
+
+		// Areas of a caster only affect the enemies of the caster
+		if (Area->GetInstigator() != nullptr && !UVaelCombatStatics::CanDamage(Area->GetInstigator(), Victim))
+		{
+			continue;
+		}
+
+		if (Area->Effect == EVaelGroundEffect::Blind)
+		{
+			bOutBlinded = true;
+		}
+		else if (Area->Effect == EVaelGroundEffect::Slow)
+		{
+			OutSpeedMultiplier = FMath::Min(OutSpeedMultiplier, UVaelMagicSettings::Get()->MudSpeedMultiplier);
+		}
+	}
+}
+
 bool AVaelGroundArea::IsInRange(const FVector& Location, float ExtraDistance) const
 {
 	return FVector::DistSquared2D(Location, GetActorLocation()) <= FMath::Square(Radius + ExtraDistance);
@@ -224,6 +263,8 @@ void AVaelGroundArea::RefreshLook()
 
 	if (Material != nullptr)
 	{
-		Material->SetVectorParameterValue(TEXT("Color"), UVaelMagicSettings::Get()->GetElementColor(Element));
+		// Steam is pale, everything else shows the color of its element
+		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+		Material->SetVectorParameterValue(TEXT("Color"), Effect == EVaelGroundEffect::Blind ? MagicSettings->SteamColor : MagicSettings->GetElementColor(Element));
 	}
 }

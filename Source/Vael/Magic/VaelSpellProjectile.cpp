@@ -4,9 +4,14 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
+#include "DrawDebugHelpers.h"
+#include "Engine/OverlapResult.h"
+#include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 
@@ -14,6 +19,9 @@ namespace
 {
 	/** Radius of the engine sphere mesh used as placeholder */
 	constexpr float PlaceholderSphereRadius = 50.0f;
+
+	/** Camera shake of a spell explosion, as in the prototype */
+	constexpr float ExplosionShake = 0.2f;
 }
 
 AVaelSpellProjectile::AVaelSpellProjectile()
@@ -137,12 +145,19 @@ void AVaelSpellProjectile::LifeSpanExpired()
 	EndFlight();
 }
 
-void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond)
+void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond, EVaelGroundEffect Effect)
 {
+	ImpactEffect = Effect;
 	ImpactElement = Element;
 	ImpactRadius = Radius;
 	ImpactLifetime = Lifetime;
 	ImpactDamagePerSecond = DamagePerSecond;
+}
+
+void AVaelSpellProjectile::SetExplosion(const FVaelSpellHit& InExplosionHit, float Radius)
+{
+	ExplosionHit = InExplosionHit;
+	ExplosionRadius = Radius;
 }
 
 AVaelSpellProjectile* AVaelSpellProjectile::Launch(APawn* Attacker, const FVector& Location, const FVector& Direction, const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color, float FireRadius, float FireLifetime, float FireDamagePerSecond)
@@ -174,6 +189,11 @@ void AVaelSpellProjectile::EndFlight()
 		return;
 	}
 
+	if (ExplosionRadius > 0.0f)
+	{
+		Explode();
+	}
+
 	if (ImpactRadius > 0.0f)
 	{
 		FVector Location = GetActorLocation();
@@ -182,9 +202,38 @@ void AVaelSpellProjectile::EndFlight()
 		FHitResult GroundHit;
 		if (GetWorld()->LineTraceSingleByObjectType(GroundHit, Location, Location - FVector(0.0f, 0.0f, 500.0f), FCollisionObjectQueryParams(ECC_WorldStatic)))
 		{
-			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator());
+			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator(), true, ImpactEffect);
 		}
 	}
 
 	Destroy();
+}
+
+void AVaelSpellProjectile::Explode()
+{
+	UWorld* World = GetWorld();
+	const FVector Center = GetActorLocation();
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellExplosion), false, this);
+	World->OverlapMultiByObjectType(Overlaps, Center, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(ExplosionRadius), QueryParams);
+
+	// A pawn can overlap with several components, it is hit only once
+	TSet<AActor*> BurstActors;
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AActor* Target = Overlap.GetActor();
+		if (Target != nullptr && !BurstActors.Contains(Target))
+		{
+			BurstActors.Add(Target);
+			UVaelCombatStatics::ApplySpellHit(GetInstigator(), Target, ExplosionHit, Target->GetActorLocation() - Center);
+		}
+	}
+
+	UVaelHitFeedbackSubsystem::Shake(this, ExplosionShake);
+
+#if ENABLE_DRAW_DEBUG
+	// Placeholder look until the formulas get real effects
+	DrawDebugSphere(World, Center, ExplosionRadius, 24, UVaelMagicSettings::Get()->GetElementColor(ExplosionHit.Element).ToFColor(true), false, 0.3f);
+#endif
 }

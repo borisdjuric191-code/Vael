@@ -130,7 +130,7 @@ void AVaelEmberCrawler::TickBehavior(float DeltaSeconds)
 		{
 			MoveTowards(Target->GetActorLocation(), Data->MoveSpeed * Data->CrawlSpeedScale);
 		}
-		else if (ClawCooldown <= 0.0f)
+		else if (ClawCooldown <= 0.0f && !IsBlinded())
 		{
 			FaceTowards(Target->GetActorLocation());
 			HitPlayer(Target, Data->ClawDamage, EVaelElement::Fire);

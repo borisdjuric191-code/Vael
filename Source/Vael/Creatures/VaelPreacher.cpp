@@ -104,14 +104,14 @@ void AVaelPreacher::TickBehavior(float DeltaSeconds)
 	MoveInDirection(Move, Data->MoveSpeed * FMath::Min(1.0f, Move.Size()));
 
 	BoltCooldown -= DeltaSeconds;
-	if (BoltCooldown <= 0.0f)
+	if (BoltCooldown <= 0.0f && !IsBlinded())
 	{
 		BoltCooldown = RandomInRange(Data->BoltInterval);
 		ShootBolt(Target);
 	}
 
 	SpikeCooldown -= DeltaSeconds;
-	if (SpikeCooldown <= 0.0f && TargetDistance < Data->SpikeRange)
+	if (SpikeCooldown <= 0.0f && TargetDistance < Data->SpikeRange && !IsBlinded())
 	{
 		SpikeCooldown = RandomInRange(Data->SpikeInterval);
 		StartSpikeLine(Target);

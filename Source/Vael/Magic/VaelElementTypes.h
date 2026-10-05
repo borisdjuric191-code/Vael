@@ -37,7 +37,23 @@ enum class EVaelSpellDelivery : uint8
 	Projectile,
 	Cone,
 	/** Strikes the first enemy in the aim direction and jumps on to others nearby */
-	Chain
+	Chain,
+	/** A projectile that bursts where its flight ends and may leave a patch on the ground */
+	Explosion,
+	/** Places a patch on the ground at the aimed point */
+	GroundArea
+};
+
+/** What a patch on the ground does to the enemies of its creator standing in it */
+UENUM(BlueprintType)
+enum class EVaelGroundEffect : uint8
+{
+	/** Only its element and damage; mages can draw the element from it */
+	None,
+	/** Steam: enemies inside can't see and don't start attacks */
+	Blind,
+	/** Mud: walking enemies are slowed, flying ones aren't */
+	Slow
 };
 
 /** Conditions a hit can leave on its target */

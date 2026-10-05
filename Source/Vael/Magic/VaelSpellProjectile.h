@@ -43,7 +43,10 @@ public:
 	void InitSpell(const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, int32 Pierce, const FLinearColor& Color);
 
 	/** Leaves a patch of the element on the ground where the projectile ends. Has to be called before FinishSpawning. */
-	void SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond);
+	void SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond, EVaelGroundEffect Effect = EVaelGroundEffect::None);
+
+	/** Makes the projectile burst where its flight ends, hitting everyone around. Has to be called before FinishSpawning. */
+	void SetExplosion(const FVaelSpellHit& InExplosionHit, float Radius);
 
 	/** Spawns a projectile of the default class flying in a horizontal direction, for attacks of creatures. A fire radius above 0 leaves a fire where it ends. */
 	static AVaelSpellProjectile* Launch(APawn* Attacker, const FVector& Location, const FVector& Direction, const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color, float FireRadius = 0.0f, float FireLifetime = 0.0f, float FireDamagePerSecond = 0.0f);
@@ -75,8 +78,17 @@ protected:
 
 private:
 
-	/** Destroys the projectile and leaves the impact area, if it has one */
+	/** Destroys the projectile, bursts and leaves the impact area, if it has them */
 	void EndFlight();
+
+	/** Hits everyone the caster may hurt within the explosion radius */
+	void Explode();
+
+	/** What the burst does to each target, only used while the explosion radius is above 0 */
+	FVaelSpellHit ExplosionHit;
+
+	/** Radius of the burst, 0 for none */
+	float ExplosionRadius = 0.0f;
 
 	/** Element of the patch left on the ground */
 	EVaelElement ImpactElement = EVaelElement::Fire;
@@ -89,4 +101,7 @@ private:
 
 	/** Damage per second of the patch to the enemies of the instigator */
 	float ImpactDamagePerSecond = 0.0f;
+
+	/** What the patch does to enemies standing in it */
+	EVaelGroundEffect ImpactEffect = EVaelGroundEffect::None;
 };

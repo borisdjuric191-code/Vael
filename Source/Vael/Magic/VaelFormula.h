@@ -99,23 +99,23 @@ public:
 	float StatusDamagePerSecond = 0.0f;
 
 	/** Projectile actor to spawn */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	TSubclassOf<AVaelSpellProjectile> ProjectileClass;
 
 	/** Flight speed in cm/s */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	float ProjectileSpeed = 1500.0f;
 
 	/** Collision radius in cm */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Projectile"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	float ProjectileRadius = 30.0f;
 
 	/** Seconds until the projectile fizzles out */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Projectile"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	float ProjectileLifetime = 1.1f;
 
 	/** Number of additional enemies the projectile flies through after its first hit */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	int32 ProjectilePierce = 0;
 
 	/** How far away the first target of the chain may be, in cm */
@@ -141,4 +141,39 @@ public:
 	/** Half opening angle of the cone in degrees */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cone", meta = (ClampMin = 1, ClampMax = 180, EditCondition = "Delivery == EVaelSpellDelivery::Cone"))
 	float ConeHalfAngle = 45.0f;
+
+	/** Radius of the burst where the projectile ends, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Explosion", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Explosion"))
+	float ExplosionRadius = 266.0f;
+
+	/** Damage of the burst to everyone in it, on top of the damage of a direct hit. The burst leaves the same condition as a direct hit. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Explosion", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Explosion"))
+	float ExplosionDamage = 0.0f;
+
+	/** Speed at which the burst pushes targets away from its center, in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Explosion", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Explosion"))
+	float ExplosionKnockback = 560.0f;
+
+	/** How far away the patch can be placed, in cm. Walls stop it earlier. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea"))
+	float AreaRange = 980.0f;
+
+	/** Radius of the patch on the ground in cm. Explosions leave no patch while this is 0. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	float AreaRadius = 0.0f;
+
+	/** Seconds the patch lasts */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	float AreaLifetime = 5.0f;
+
+	/** Damage per second of the patch to the enemies of the caster, in the damage element of the formula */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	float AreaDamagePerSecond = 0.0f;
+
+	/** What the patch does to enemies standing in it */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	EVaelGroundEffect AreaEffect = EVaelGroundEffect::None;
+
+	/** What the burst of an explosion does to a single target at the given power */
+	FVaelSpellHit MakeExplosionHit(float Power) const;
 };
