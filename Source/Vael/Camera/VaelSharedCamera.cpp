@@ -77,13 +77,14 @@ void AVaelSharedCamera::Tick(float DeltaSeconds)
 		CurrentDistance = FMath::FInterpTo(CurrentDistance, TargetDistance, DeltaSeconds, ZoomSpeed);
 	}
 
-	const FRotator Rotation(CameraPitch, CameraYaw, 0.0f);
-	SetActorLocationAndRotation(FocusPoint - Rotation.Vector() * CurrentDistance, Rotation);
-
-	// Shake: the view jumps around its place, less and less
+	// Shake: the view jumps around its place, less and less.
+	// The camera is the root component, so the offset goes into the actor location, sideways and up in view space.
 	ShakeStrength = FMath::Max(0.0f, ShakeStrength - ShakeDecay * DeltaSeconds);
 	const float Offset = ShakeStrength * ShakeOffset;
-	Camera->SetRelativeLocation(FVector(0.0f, FMath::FRandRange(-Offset, Offset), FMath::FRandRange(-Offset, Offset)));
+	const FVector ShakeInView(0.0f, FMath::FRandRange(-Offset, Offset), FMath::FRandRange(-Offset, Offset));
+
+	const FRotator Rotation(CameraPitch, CameraYaw, 0.0f);
+	SetActorLocationAndRotation(FocusPoint - Rotation.Vector() * CurrentDistance + Rotation.RotateVector(ShakeInView), Rotation);
 }
 
 void AVaelSharedCamera::AddShake(float Strength)
