@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "World/VaelWeatherTypes.h"
 #include "VaelWorldSettings.generated.h"
 
 /**
@@ -17,6 +18,9 @@ class UVaelWorldSettings : public UDeveloperSettings
 
 public:
 
+	/** Constructor */
+	UVaelWorldSettings();
+
 	/** Returns the settings object */
 	static const UVaelWorldSettings* Get() { return GetDefault<UVaelWorldSettings>(); }
 
@@ -26,21 +30,41 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Weather")
 	FVector2D WeatherDuration = FVector2D(55.0f, 85.0f);
 
-	/** Chance weights of the next weather in a region free of corruption: clear, rain, storm */
+	/** Seconds of calm, clear sky at the start of a game before the weather changes for the first time */
+	UPROPERTY(config, EditAnywhere, Category="Weather", meta = (ClampMin = 0))
+	float CalmStartDuration = 240.0f;
+
+	/** Chance weights of the next weather in a region free of corruption; weathers missing here never come */
 	UPROPERTY(config, EditAnywhere, Category="Weather")
-	FVector WeatherWeightsPure = FVector(1.0f, 1.0f, 1.0f);
+	TMap<EVaelWeather, float> WeatherWeightsPure;
 
 	/** Chance weights of the next weather in a fully corrupted region: the weather grows wilder in between */
 	UPROPERTY(config, EditAnywhere, Category="Weather")
-	FVector WeatherWeightsCorrupted = FVector(0.3f, 1.0f, 2.5f);
+	TMap<EVaelWeather, float> WeatherWeightsCorrupted;
+
+	/** Seconds the first explanation of a weather stays on screen */
+	UPROPERTY(config, EditAnywhere, Category="Weather", meta = (ClampMin = 0))
+	float WeatherExplanationDuration = 9.0f;
+
+	/** How each weather changes the formulas of an element, by their damage element */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Spells")
+	TArray<FVaelWeatherSpellModifier> SpellModifiers;
+
+	/** A wet mage casting lightning takes this share of the damage of the formula */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Spells", meta = (ClampMin = 0))
+	float WetLightningBacklashShare = 0.5f;
 
 	/** Seconds a fire lasts in the rain, as a share of its normal lifetime */
 	UPROPERTY(config, EditAnywhere, Category="Weather|Rain", meta = (ClampMin = 0, ClampMax = 1))
 	float RainFireLifetimeShare = 0.375f;
 
-	/** Seconds creatures in the rain stay wet after each refresh */
+	/** Seconds players and creatures in the rain stay wet after each refresh */
 	UPROPERTY(config, EditAnywhere, Category="Weather|Rain", meta = (ClampMin = 0))
 	float RainWetDuration = 1.0f;
+
+	/** Seconds a fire lasts in a drought, as a multiple of its normal lifetime */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Drought", meta = (ClampMin = 1))
+	float DroughtFireLifetimeMultiplier = 1.6f;
 
 	/** Seconds between two lightning strikes in a storm, picked at random in this range */
 	UPROPERTY(config, EditAnywhere, Category="Weather|Storm")
@@ -76,6 +100,10 @@ public:
 	/** Corruption of a region at the start, 0 to 100, for regions that don't set their own */
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))
 	float DefaultCorruption = 0.0f;
+
+	/** Region corruption removed for every marked creature killed in it */
+	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0))
+	float CleansingPerMarkedKill = 2.0f;
 
 	/** Region corruption added for every Mark element cast in it */
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0))

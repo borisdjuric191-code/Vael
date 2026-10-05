@@ -12,6 +12,7 @@
 #include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelFormulaAbility.h"
+#include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Vael.h"
@@ -170,27 +171,58 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 		PendingCast.Power *= MagicSettings->QuickPowerMultiplier;
 	}
 
+	// The weather favors some elements and works against others
+	const UVaelWorldSettings* WorldSettings = UVaelWorldSettings::Get();
+	const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetOwner()->GetActorLocation());
+	const EVaelWeather Weather = Region != nullptr ? Region->GetWeather() : EVaelWeather::Clear;
+	const bool bAttuned = AbilitySystem->HasMatchingGameplayTag(VaelTags::Gear_WeatherAttunement);
+
+	for (const FVaelWeatherSpellModifier& Modifier : WorldSettings->SpellModifiers)
+	{
+		if (Modifier.Weather != Weather || Modifier.Element != Formula->DamageElement)
+		{
+			continue;
+		}
+
+		// Attuned gear doubles what the weather gives, never what it takes
+		const float CostMultiplier = bAttuned && Modifier.ManaCostMultiplier < 1.0f ? 1.0f - 2.0f * (1.0f - Modifier.ManaCostMultiplier) : Modifier.ManaCostMultiplier;
+		const float PowerMultiplier = bAttuned && Modifier.PowerMultiplier > 1.0f ? 1.0f + 2.0f * (Modifier.PowerMultiplier - 1.0f) : Modifier.PowerMultiplier;
+
+		PendingCast.ManaCost = FMath::Max(FMath::RoundToFloat(PendingCast.ManaCost * FMath::Max(CostMultiplier, 0.0f)), MagicSettings->MinManaCost);
+		PendingCast.Power *= PowerMultiplier;
+	}
+
 	if (AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetManaAttribute()) < PendingCast.ManaCost)
 	{
 		return EVaelCastResult::NotEnoughMana;
 	}
+
+	// Wetness has to be known before the formula runs
+	const bool bBacklash = Formula->bLightning && AbilitySystem->HasMatchingGameplayTag(VaelTags::Status_Wet) && !AbilitySystem->HasMatchingGameplayTag(VaelTags::Gear_WeatherWard);
+	const float BacklashDamage = Formula->Damage * PendingCast.Power * WorldSettings->WetLightningBacklashShare;
 
 	if (!AbilitySystem->TryActivateAbility(*AbilityHandle))
 	{
 		return EVaelCastResult::Blocked;
 	}
 
+	// Lightning cast with wet hands runs through the caster too
+	if (bBacklash && BacklashDamage > 0.0f)
+	{
+		UVaelCombatStatics::DealDamage(GetOwner(), GetOwner(), BacklashDamage, EVaelElement::Air);
+		OnLightningBacklash.Broadcast(BacklashDamage);
+	}
+
 	// Mark corrupts the caster and the region around them
 	const int32 NumMarkElements = Formula->Elements.FilterByPredicate([](EVaelElement Element) { return Element == EVaelElement::Mark; }).Num();
 	if (NumMarkElements > 0)
 	{
-		const UVaelWorldSettings* WorldSettings = UVaelWorldSettings::Get();
 		const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
 		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + NumMarkElements * WorldSettings->PlayerCorruptionPerMarkElement, 100.0f));
 
-		if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetOwner()->GetActorLocation()))
+		if (AVaelRegion* CastRegion = AVaelRegion::GetRegionAt(GetWorld(), GetOwner()->GetActorLocation()))
 		{
-			Region->AddCorruption(NumMarkElements * WorldSettings->RegionCorruptionPerMarkElement);
+			CastRegion->AddCorruption(NumMarkElements * WorldSettings->RegionCorruptionPerMarkElement);
 		}
 	}
 

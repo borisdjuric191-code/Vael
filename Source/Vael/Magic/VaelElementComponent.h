@@ -24,6 +24,7 @@ struct FVaelPendingCast
 
 DECLARE_MULTICAST_DELEGATE(FVaelOnElementQueueChanged);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FVaelOnCastFinished, EVaelCastResult /*Result*/, const UVaelFormula* /*Formula*/);
+DECLARE_MULTICAST_DELEGATE_OneParam(FVaelOnLightningBacklash, float /*Damage*/);
 
 /**
  *  The element queue of a mage: collects elements and casts the formula they add up to.
@@ -84,6 +85,9 @@ public:
 
 	/** Called after every cast attempt with elements in the queue */
 	FVaelOnCastFinished OnCastFinished;
+
+	/** Called when a lightning formula cast while wet hurts the caster */
+	FVaelOnLightningBacklash OnLightningBacklash;
 
 protected:
 

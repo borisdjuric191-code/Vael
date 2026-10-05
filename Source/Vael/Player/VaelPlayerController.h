@@ -174,6 +174,9 @@ protected:
 	/** Tells the players what came of a cast */
 	void OnCastFinished(EVaelCastResult Result, const UVaelFormula* Formula);
 
+	/** Warns the players that lightning cast while wet hurt the caster */
+	void OnLightningBacklash(float Damage);
+
 	/** Moves the pawn by a camera-relative input */
 	void ApplyMoveInput(const FVector2D& Input);
 
@@ -222,4 +225,7 @@ protected:
 
 	/** Handle of the cast result delegate of the pawn */
 	FDelegateHandle CastFinishedHandle;
+
+	/** Handle of the lightning backlash delegate of the pawn */
+	FDelegateHandle BacklashHandle;
 };

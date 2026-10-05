@@ -46,7 +46,7 @@ public:
 	UFUNCTION(Exec)
 	void VaelGlyphs(const FString& Glyphs);
 
-	/** Changes the weather of the region the player stands in: Klar, Regen or Sturm. Example: VaelWeather Sturm */
+	/** Changes the weather of the region the player stands in: Klar, Regen, Sturm or Duerre. Example: VaelWeather Sturm */
 	UFUNCTION(Exec)
 	void VaelWeather(const FString& Weather);
 
@@ -57,4 +57,8 @@ public:
 	/** Sets the personal corruption of the player, 0 to 100. Example: VaelPlayerCorruption 30 */
 	UFUNCTION(Exec)
 	void VaelPlayerCorruption(float Corruption);
+
+	/** Puts on or takes off a gear effect for testing until items exist: WeatherWard or WeatherAttunement. Example: VaelGear WeatherWard */
+	UFUNCTION(Exec)
+	void VaelGear(const FString& Gear);
 };

@@ -65,11 +65,15 @@ void AVaelGroundArea::BeginPlay()
 
 	if (Lifetime > 0.0f)
 	{
-		// Fires lit in the rain die sooner
+		// Fires lit in the rain die sooner, in a drought they burn longer
 		const AVaelRegion* Region = Element == EVaelElement::Fire ? AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation()) : nullptr;
 		if (Region != nullptr && Region->GetWeather() == EVaelWeather::Rain)
 		{
 			Lifetime *= UVaelWorldSettings::Get()->RainFireLifetimeShare;
+		}
+		else if (Region != nullptr && Region->GetWeather() == EVaelWeather::Drought)
+		{
+			Lifetime *= UVaelWorldSettings::Get()->DroughtFireLifetimeMultiplier;
 		}
 
 		SetLifeSpan(Lifetime);

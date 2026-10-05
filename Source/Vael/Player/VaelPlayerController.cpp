@@ -61,6 +61,7 @@ void AVaelPlayerController::OnPossess(APawn* InPawn)
 	if (const AVaelCharacter* VaelCharacter = Cast<AVaelCharacter>(InPawn))
 	{
 		CastFinishedHandle = VaelCharacter->GetElementComponent()->OnCastFinished.AddUObject(this, &AVaelPlayerController::OnCastFinished);
+		BacklashHandle = VaelCharacter->GetElementComponent()->OnLightningBacklash.AddUObject(this, &AVaelPlayerController::OnLightningBacklash);
 	}
 }
 
@@ -69,6 +70,7 @@ void AVaelPlayerController::OnUnPossess()
 	if (const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
 	{
 		VaelCharacter->GetElementComponent()->OnCastFinished.Remove(CastFinishedHandle);
+		VaelCharacter->GetElementComponent()->OnLightningBacklash.Remove(BacklashHandle);
 	}
 
 	CloseGrimoire();
@@ -677,4 +679,10 @@ void AVaelPlayerController::OnCastFinished(EVaelCastResult Result, const UVaelFo
 	default:
 		break;
 	}
+}
+
+void AVaelPlayerController::OnLightningBacklash(float Damage)
+{
+	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "Backlash", "Der Blitz schl\u00E4gt zur\u00FCck"),
+		NSLOCTEXT("VaelMagic", "BacklashDetail", "Wer nass einen Blitz wirkt, wird selbst getroffen."), FLinearColor(FColor(214, 236, 255)), 3.0f);
 }

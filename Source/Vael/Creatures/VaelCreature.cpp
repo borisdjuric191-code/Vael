@@ -284,6 +284,15 @@ void AVaelCreature::Die()
 
 	OnDied.Broadcast(this);
 
+	// Every marked creature that falls cleanses its region a little
+	if (bMarked)
+	{
+		if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation()))
+		{
+			Region->AddCorruption(-UVaelWorldSettings::Get()->CleansingPerMarkedKill);
+		}
+	}
+
 	// Nothing may bump into or target the corpse
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCharacterMovement()->StopMovementImmediately();

@@ -864,8 +864,14 @@ void AVaelHUD::DrawWeather()
 	const double Now = FPlatformTime::Seconds();
 	const float Time = static_cast<float>(FMath::Fmod(Now, 1000.0));
 
-	// Placeholder until there are particles: a darker sky and falling streaks of ash rain
-	if (Weather != EVaelWeather::Clear)
+	// Placeholder until there are particles: a drought bleaches the land in a warm glare
+	if (Weather == EVaelWeather::Drought)
+	{
+		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(255, 170, 80, 28));
+	}
+
+	// A darker sky and falling streaks of ash rain
+	if (Weather == EVaelWeather::Rain || Weather == EVaelWeather::Storm)
 	{
 		const bool bStorm = Weather == EVaelWeather::Storm;
 		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, bStorm ? Rgb(10, 14, 24, 70) : Rgb(20, 26, 34, 45));

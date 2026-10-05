@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelRegion.h"
+#include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/BoxComponent.h"
 #include "Creatures/VaelCreature.h"
+#include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
@@ -12,14 +14,15 @@
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 #include "World/VaelLightningStrike.h"
+#include "World/VaelProgressSubsystem.h"
 #include "World/VaelWorldSettings.h"
 
 #define LOCTEXT_NAMESPACE "VaelWorld"
 
 namespace
 {
-	/** Seconds between two refreshes of the wetness in the rain */
-	constexpr float RainRefreshInterval = 0.5f;
+	/** Seconds between two refreshes of wetness in the rain or dryness in a drought */
+	constexpr float WetnessRefreshInterval = 0.5f;
 }
 
 AVaelRegion::AVaelRegion()
@@ -31,6 +34,7 @@ AVaelRegion::AVaelRegion()
 	RootComponent = Bounds;
 
 	RegionName = LOCTEXT("DefaultRegionName", "Aschenmark");
+	AvailableWeathers = { EVaelWeather::Clear, EVaelWeather::Rain, EVaelWeather::Storm, EVaelWeather::Drought };
 
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
@@ -44,7 +48,7 @@ void AVaelRegion::BeginPlay()
 
 	Corruption = FMath::Clamp(StartCorruption >= 0.0f ? StartCorruption : Settings->DefaultCorruption, 0.0f, 100.0f);
 	Weather = StartWeather;
-	WeatherTimeLeft = FMath::FRandRange(Settings->WeatherDuration.X, Settings->WeatherDuration.Y);
+	WeatherTimeLeft = bCalmStart ? FMath::Max(Settings->CalmStartDuration, PickWeatherDuration()) : PickWeatherDuration();
 	LightningCooldown = FMath::FRandRange(Settings->LightningInterval.X, Settings->LightningInterval.Y);
 }
 
@@ -61,13 +65,19 @@ void AVaelRegion::Tick(float DeltaSeconds)
 		}
 	}
 
-	if (Weather == EVaelWeather::Rain)
+	switch (Weather)
 	{
+	case EVaelWeather::Rain:
 		TickRain(DeltaSeconds);
-	}
-	else if (Weather == EVaelWeather::Storm)
-	{
+		break;
+	case EVaelWeather::Storm:
 		TickStorm(DeltaSeconds);
+		break;
+	case EVaelWeather::Drought:
+		TickDrought(DeltaSeconds);
+		break;
+	default:
+		break;
 	}
 }
 
@@ -136,9 +146,7 @@ void AVaelRegion::SetCorruption(float NewCorruption)
 
 void AVaelRegion::SetWeather(EVaelWeather NewWeather)
 {
-	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
-
-	WeatherTimeLeft = FMath::FRandRange(Settings->WeatherDuration.X, Settings->WeatherDuration.Y);
+	WeatherTimeLeft = PickWeatherDuration();
 
 	if (NewWeather == Weather)
 	{
@@ -146,42 +154,74 @@ void AVaelRegion::SetWeather(EVaelWeather NewWeather)
 	}
 
 	Weather = NewWeather;
-	RainRefreshTime = 0.0f;
+	WetnessRefreshTime = 0.0f;
 
 	UE_LOG(LogVael, Log, TEXT("Weather in '%s': %s"), *RegionName.ToString(), *GetWeatherName(Weather).ToString());
 
-	// Fires already burning die sooner once the rain starts
-	if (Weather == EVaelWeather::Rain)
+	// Fires already burning die sooner once the rain starts and last longer in a drought
+	if (Weather == EVaelWeather::Rain || Weather == EVaelWeather::Drought)
 	{
+		const float LifeSpanScale = Weather == EVaelWeather::Rain ? 0.625f : UVaelWorldSettings::Get()->DroughtFireLifetimeMultiplier;
+
 		for (TActorIterator<AVaelGroundArea> It(GetWorld()); It; ++It)
 		{
 			const float LifeSpan = It->GetLifeSpan();
 			if (It->GetElement() == EVaelElement::Fire && LifeSpan > 0.0f && Contains(It->GetActorLocation()))
 			{
-				It->SetLifeSpan(FMath::Max(LifeSpan * 0.625f, 0.1f));
+				It->SetLifeSpan(FMath::Max(LifeSpan * LifeSpanScale, 0.1f));
 			}
 		}
 	}
 
-	if (!HasPlayerInside())
+	if (HasPlayerInside())
 	{
-		return;
+		AnnounceWeather();
 	}
+}
+
+void AVaelRegion::AnnounceWeather()
+{
+	// The first time a weather comes, it is explained at length; afterwards a short line is enough
+	const UGameInstance* GameInstance = GetGameInstance();
+	UVaelProgressSubsystem* Progress = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
+	const bool bFirstTime = Progress != nullptr && Progress->MarkWeatherIntroduced(Weather);
+	const float Duration = bFirstTime ? UVaelWorldSettings::Get()->WeatherExplanationDuration : 4.2f;
+
+	FText Title;
+	FText Detail;
+	FLinearColor Color(FColor(214, 236, 255));
 
 	switch (Weather)
 	{
 	case EVaelWeather::Rain:
-		UVaelNoticeSubsystem::Post(this, LOCTEXT("RainStarts", "Ascheregen setzt ein"),
-			LOCTEXT("RainStartsDetail", "Alles wird nass: Blitze treffen doppelt, Feuer erlischt schneller."), FLinearColor(FColor(158, 199, 232)));
+		Title = LOCTEXT("RainStarts", "Ascheregen setzt ein");
+		Detail = bFirstTime
+			? LOCTEXT("RainExplained", "Alle werden nass, auch ihr: Blitze treffen Nasse doppelt, und wer nass einen Blitz wirkt, bekommt selbst Schaden. Wasserzauber kosten weniger und treffen h\u00E4rter, Feuer erlischt schneller.")
+			: LOCTEXT("RainShort", "Wasser st\u00E4rker, Blitze gef\u00E4hrlich, Feuer erlischt schneller.");
+		Color = FLinearColor(FColor(158, 199, 232));
 		break;
+
 	case EVaelWeather::Storm:
-		UVaelNoticeSubsystem::Post(this, LOCTEXT("StormStarts", "Ein Sturm zieht auf"),
-			LOCTEXT("StormStartsDetail", "Luft liegt \u00FCberall in der Umgebung. Achtung, Blitzeinschl\u00E4ge!"), FLinearColor(FColor(214, 236, 255)));
+		Title = LOCTEXT("StormStarts", "Ein Sturm zieht auf");
+		Detail = bFirstTime
+			? LOCTEXT("StormExplained", "Luft liegt \u00FCberall in der Umgebung und ist billiger und st\u00E4rker. Helle Kreise am Boden k\u00FCndigen Blitzeinschl\u00E4ge an: geht aus ihnen heraus.")
+			: LOCTEXT("StormShort", "Luft \u00FCberall. Achtung, Blitzeinschl\u00E4ge!");
 		break;
+
+	case EVaelWeather::Drought:
+		Title = LOCTEXT("DroughtStarts", "D\u00FCrre legt sich \u00FCber das Land");
+		Detail = bFirstTime
+			? LOCTEXT("DroughtExplained", "N\u00E4sse verdunstet sofort. Feuerzauber kosten weniger und treffen h\u00E4rter, Feuer brennt l\u00E4nger. Wasserzauber sind teurer und schw\u00E4cher.")
+			: LOCTEXT("DroughtShort", "Feuer st\u00E4rker, Wasser schw\u00E4cher.");
+		Color = FLinearColor(FColor(240, 176, 96));
+		break;
+
 	default:
-		UVaelNoticeSubsystem::Post(this, LOCTEXT("SkyClears", "Der Himmel klart auf"), FText::GetEmpty(), FLinearColor(FColor(214, 236, 255)));
+		Title = LOCTEXT("SkyClears", "Der Himmel klart auf");
 		break;
 	}
+
+	UVaelNoticeSubsystem::Post(this, Title, Detail, Color, Duration);
 }
 
 FText AVaelRegion::GetWeatherName(EVaelWeather InWeather)
@@ -190,57 +230,88 @@ FText AVaelRegion::GetWeatherName(EVaelWeather InWeather)
 	{
 	case EVaelWeather::Rain: return LOCTEXT("WeatherRain", "Ascheregen");
 	case EVaelWeather::Storm: return LOCTEXT("WeatherStorm", "Sturm");
+	case EVaelWeather::Drought: return LOCTEXT("WeatherDrought", "D\u00FCrre");
 	default: return LOCTEXT("WeatherClear", "Klarer Himmel");
 	}
 }
 
+float AVaelRegion::PickWeatherDuration() const
+{
+	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
+	return FMath::FRandRange(Settings->WeatherDuration.X, Settings->WeatherDuration.Y) * WeatherDurationScale;
+}
+
 EVaelWeather AVaelRegion::PickNextWeather() const
 {
-	// Between the weights of a pure and a fully corrupted region; never the same weather twice in a row
+	// Among the weathers of the region, between the weights of a pure and a fully corrupted region; never the same twice in a row
 	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
-	const FVector Weights = FMath::Lerp(Settings->WeatherWeightsPure, Settings->WeatherWeightsCorrupted, Corruption / 100.0f);
-	const EVaelWeather Options[] = { EVaelWeather::Clear, EVaelWeather::Rain, EVaelWeather::Storm };
+	const float CorruptionShare = Corruption / 100.0f;
 
+	TArray<TPair<EVaelWeather, float>> Options;
 	float TotalWeight = 0.0f;
-	for (int32 OptionIndex = 0; OptionIndex < 3; ++OptionIndex)
+
+	for (const EVaelWeather Option : AvailableWeathers)
 	{
-		TotalWeight += Options[OptionIndex] != Weather ? FMath::Max(Weights[OptionIndex], 0.0f) : 0.0f;
+		const float* PureWeight = Settings->WeatherWeightsPure.Find(Option);
+		const float* CorruptedWeight = Settings->WeatherWeightsCorrupted.Find(Option);
+		const float Weight = FMath::Max(FMath::Lerp(PureWeight != nullptr ? *PureWeight : 0.0f, CorruptedWeight != nullptr ? *CorruptedWeight : 0.0f, CorruptionShare), 0.0f);
+
+		if (Option != Weather && Weight > 0.0f && !Options.ContainsByPredicate([Option](const TPair<EVaelWeather, float>& Entry) { return Entry.Key == Option; }))
+		{
+			Options.Emplace(Option, Weight);
+			TotalWeight += Weight;
+		}
 	}
 
 	float Pick = FMath::FRandRange(0.0f, TotalWeight);
-	for (int32 OptionIndex = 0; OptionIndex < 3; ++OptionIndex)
+	for (const TPair<EVaelWeather, float>& Option : Options)
 	{
-		if (Options[OptionIndex] == Weather)
-		{
-			continue;
-		}
-
-		Pick -= FMath::Max(Weights[OptionIndex], 0.0f);
+		Pick -= Option.Value;
 		if (Pick <= 0.0f)
 		{
-			return Options[OptionIndex];
+			return Option.Key;
 		}
 	}
 
-	return Weather == EVaelWeather::Clear ? EVaelWeather::Rain : EVaelWeather::Clear;
+	return Options.IsEmpty() ? Weather : Options.Last().Key;
 }
 
 void AVaelRegion::TickRain(float DeltaSeconds)
 {
-	RainRefreshTime -= DeltaSeconds;
-	if (RainRefreshTime > 0.0f)
+	WetnessRefreshTime -= DeltaSeconds;
+	if (WetnessRefreshTime > 0.0f)
 	{
 		return;
 	}
 
-	RainRefreshTime = RainRefreshInterval;
+	WetnessRefreshTime = WetnessRefreshInterval;
 
+	// Players are as wet as the creatures
 	const float WetDuration = UVaelWorldSettings::Get()->RainWetDuration;
-	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
-		if (!It->IsDead() && Contains(It->GetActorLocation()))
+		if (!It->IsDefeated() && (It->IsA<AVaelCharacter>() || It->IsA<AVaelCreature>()) && Contains(It->GetActorLocation()))
 		{
 			UVaelCombatStatics::ApplyStatus(nullptr, *It, EVaelStatus::Wet, WetDuration);
+		}
+	}
+}
+
+void AVaelRegion::TickDrought(float DeltaSeconds)
+{
+	WetnessRefreshTime -= DeltaSeconds;
+	if (WetnessRefreshTime > 0.0f)
+	{
+		return;
+	}
+
+	WetnessRefreshTime = WetnessRefreshInterval;
+
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		if (Contains(It->GetActorLocation()))
+		{
+			UVaelCombatStatics::RemoveStatus(*It, EVaelStatus::Wet);
 		}
 	}
 }

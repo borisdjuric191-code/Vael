@@ -18,6 +18,9 @@ namespace VaelTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Burning, "Status.Burning", "Burning: takes fire damage over time");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Frozen, "Status.Frozen", "Frozen: can't move, earth shatters it");
 
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gear_WeatherWard, "Gear.WeatherWard", "Gear like a storm cloak: the weather turns no spell against its wearer");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gear_WeatherAttunement, "Gear.WeatherAttunement", "Gear like a storm cloak: what the weather gives to spells counts twice");
+
 	FGameplayTag GetStatusTag(EVaelStatus Status)
 	{
 		switch (Status)

@@ -19,6 +19,7 @@
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
 #include "World/VaelRegion.h"
+#include "Magic/VaelGameplayTags.h"
 
 void UVaelCheatManager::VaelCast(const FString& Elements, float AimYaw)
 {
@@ -195,9 +196,13 @@ void UVaelCheatManager::VaelWeather(const FString& Weather)
 	{
 		Region->SetWeather(EVaelWeather::Clear);
 	}
+	else if (Name.StartsWith(TEXT("d")))
+	{
+		Region->SetWeather(EVaelWeather::Drought);
+	}
 	else
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelWeather: use Klar, Regen or Sturm"));
+		UE_LOG(LogVael, Warning, TEXT("VaelWeather: use Klar, Regen, Sturm or Duerre"));
 	}
 }
 
@@ -220,4 +225,36 @@ void UVaelCheatManager::VaelPlayerCorruption(float Corruption)
 	{
 		VaelCharacter->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Clamp(Corruption, 0.0f, 100.0f));
 	}
+}
+
+void UVaelCheatManager::VaelGear(const FString& Gear)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter == nullptr)
+	{
+		return;
+	}
+
+	const FString Name = Gear.ToLower();
+	const FGameplayTag Tag = Name.Contains(TEXT("ward")) ? VaelTags::Gear_WeatherWard : Name.Contains(TEXT("attun")) ? VaelTags::Gear_WeatherAttunement : FGameplayTag();
+	if (!Tag.IsValid())
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelGear: use WeatherWard or WeatherAttunement"));
+		return;
+	}
+
+	// Loose tags stand in for the effect of a worn item
+	UAbilitySystemComponent* AbilitySystem = VaelCharacter->GetAbilitySystemComponent();
+	const bool bWearing = AbilitySystem->HasMatchingGameplayTag(Tag);
+	if (bWearing)
+	{
+		AbilitySystem->RemoveLooseGameplayTag(Tag);
+	}
+	else
+	{
+		AbilitySystem->AddLooseGameplayTag(Tag);
+	}
+
+	UE_LOG(LogVael, Log, TEXT("VaelGear: %s %s"), *Tag.ToString(), bWearing ? TEXT("taken off") : TEXT("put on"));
 }

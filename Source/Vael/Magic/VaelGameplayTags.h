@@ -20,6 +20,10 @@ namespace VaelTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Burning);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Frozen);
 
+	/** Granted by gear while it is worn */
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gear_WeatherWard);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gear_WeatherAttunement);
+
 	/** Magnitudes handed to gameplay effects by their caller */
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Damage);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(SetByCaller_Mana);

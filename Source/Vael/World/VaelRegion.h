@@ -4,25 +4,17 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "World/VaelWeatherTypes.h"
 #include "VaelRegion.generated.h"
 
 class UBoxComponent;
 
-/** Weather of a region */
-UENUM(BlueprintType)
-enum class EVaelWeather : uint8
-{
-	Clear,
-	/** Ash rain: creatures are wet, fires die sooner */
-	Rain,
-	/** Air is everywhere, lightning strikes near the players */
-	Storm
-};
-
 /**
  *  A region of the world with its own corruption and weather, like the Aschenmark.
  *  Place it in a level and size its box; a level without regions gets one covering everything when the game starts.
- *  Corruption grows with Mark cast inside the region and makes the weather wilder and the creatures stronger.
+ *  Corruption grows with Mark cast inside the region and makes the weather wilder and the creatures stronger;
+ *  killing marked creatures cleanses it.
+ *  Early regions of the campaign keep the weather calm: a calm start, few available weathers, long weather windows.
  */
 UCLASS()
 class AVaelRegion : public AActor
@@ -56,6 +48,18 @@ protected:
 	/** False keeps the start weather forever */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather")
 	bool bChangingWeather = true;
+
+	/** Weathers that can come in this region. Early regions of the campaign offer few, later ones more. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather")
+	TArray<EVaelWeather> AvailableWeathers;
+
+	/** True: the sky stays clear for a while at the start (time in the project settings) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather")
+	bool bCalmStart = true;
+
+	/** Weather windows last this many times as long as in the project settings; above 1 for calmer regions */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather", meta = (ClampMin = 0.1))
+	float WeatherDurationScale = 1.0f;
 
 public:
 
@@ -109,8 +113,17 @@ private:
 	/** Picks the next weather, wilder the more corrupted the region is */
 	EVaelWeather PickNextWeather() const;
 
-	/** Keeps the creatures in the region wet */
+	/** Keeps players and creatures in the region wet */
 	void TickRain(float DeltaSeconds);
+
+	/** Dries everybody in the region */
+	void TickDrought(float DeltaSeconds);
+
+	/** Tells the players about a new weather, at length the first time they see it */
+	void AnnounceWeather();
+
+	/** Seconds the next weather window lasts */
+	float PickWeatherDuration() const;
 
 	/** Lets lightning fall near the players in the region */
 	void TickStorm(float DeltaSeconds);
@@ -127,8 +140,8 @@ private:
 	/** Seconds until the next lightning strike */
 	float LightningCooldown = 0.0f;
 
-	/** Seconds until the creatures get wet again */
-	float RainRefreshTime = 0.0f;
+	/** Seconds until wetness is refreshed or dried again */
+	float WetnessRefreshTime = 0.0f;
 
 	/** Real time of the last lightning strike */
 	double LastLightningTime = -100.0;
