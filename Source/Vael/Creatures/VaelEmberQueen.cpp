@@ -17,6 +17,7 @@
 #include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelNoticeSubsystem.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -65,6 +66,7 @@ void AVaelEmberQueen::OnHealthChanged(float OldValue, float NewValue)
 void AVaelEmberQueen::Die()
 {
 	Super::Die();
+	UVaelHitFeedbackSubsystem::Shake(this, 1.2f);
 
 	UVaelNoticeSubsystem::Post(this, FText::Format(LOCTEXT("QueenFallen", "{0} ist gefallen"), GetCreatureName()), LOCTEXT("QueenFallenDetail", "Akt I des Prototyps ist abgeschlossen."), FLinearColor(FColor(255, 154, 74)), 10.0f);
 }
@@ -240,6 +242,7 @@ void AVaelEmberQueen::WakeUp()
 	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetMaxHealthAttribute(), ScaledMaxHealth);
 	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), FMath::Min(GetHealth(), ScaledMaxHealth));
 
+	UVaelHitFeedbackSubsystem::Shake(this, 0.8f);
 	SetBodyColor(Data->BodyColor);
 
 	UE_LOG(LogVael, Log, TEXT("'%s' wakes up with %.0f health for %d players"), *GetNameSafe(this), ScaledMaxHealth, NumPlayers);

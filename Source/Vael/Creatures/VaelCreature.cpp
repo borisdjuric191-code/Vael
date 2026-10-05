@@ -21,6 +21,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
+#include "UI/VaelUISettings.h"
 #include "Vael.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
@@ -158,6 +159,20 @@ void AVaelCreature::Tick(float DeltaSeconds)
 	{
 		bShowingHitFlash = false;
 		RefreshBodyColor();
+	}
+
+	// A staggering body tips over and rights itself again
+	if (StaggerLength > 0.0f)
+	{
+		const float Remaining = StaggerEndTime - GetWorld()->GetTimeSeconds();
+		const float Tip = bDead ? 0.0f : FMath::Clamp(Remaining / StaggerLength, 0.0f, 1.0f);
+
+		Body->SetRelativeRotation(FRotator(StaggerTipDirection.X * Tip, 0.0f, StaggerTipDirection.Y * Tip));
+
+		if (Tip <= 0.0f)
+		{
+			StaggerLength = 0.0f;
+		}
 	}
 
 #if ENABLE_DRAW_DEBUG
@@ -418,6 +433,26 @@ bool AVaelCreature::TeachFormula(TConstArrayView<EVaelElement> Elements, const F
 void AVaelCreature::Stun(float Duration)
 {
 	StunEndTime = FMath::Max(StunEndTime, GetWorld()->GetTimeSeconds() + Duration);
+}
+
+void AVaelCreature::Stagger(float Duration)
+{
+	const float Multiplier = ActiveData->StaggerMultiplier;
+	const float StaggerTime = Duration * Multiplier;
+	if (bDead || StaggerTime <= 0.0f)
+	{
+		return;
+	}
+
+	Stun(StaggerTime);
+
+	// Tips the body in a random direction, bosses less
+	const float Tilt = UVaelUISettings::Get()->StaggerTilt * FMath::Min(Multiplier, 1.0f);
+	const FVector2D Direction = FVector2D(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f)).GetSafeNormal();
+
+	StaggerTipDirection = Direction * Tilt;
+	StaggerLength = StaggerTime;
+	StaggerEndTime = GetWorld()->GetTimeSeconds() + StaggerTime;
 }
 
 void AVaelCreature::SetBodyColor(const FLinearColor& Color)

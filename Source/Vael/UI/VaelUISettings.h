@@ -103,4 +103,44 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="Combat Text")
 	FLinearColor ReactionColor = FLinearColor(FColor(255, 207, 107));
+
+	/** Hits dealing at least this much damage are heavy, like hits against a weakness or with a reaction */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0))
+	float HeavyHitDamage = 30.0f;
+
+	/** Real seconds the game nearly stops on a heavy hit, 0 for no hit-stop */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0, ClampMax = 0.5))
+	float HitStopDuration = 0.06f;
+
+	/** Speed of the game during a hit-stop */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0.01, ClampMax = 1))
+	float HitStopTimeDilation = 0.05f;
+
+	/** Real seconds after a hit-stop before the next one may start, so volleys don't stutter */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0))
+	float HitStopCooldown = 0.15f;
+
+	/** Camera shake of a heavy hit on a creature, 1 is a heavy blow */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0))
+	float HeavyHitShake = 0.2f;
+
+	/** Camera shake when a player is hurt */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0))
+	float PlayerHurtShake = 0.25f;
+
+	/** Creatures hit by at least this much damage stagger */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0))
+	float StaggerMinDamage = 6.0f;
+
+	/** Seconds a creature staggers after a normal hit */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0))
+	float StaggerDuration = 0.15f;
+
+	/** Seconds a creature staggers after a heavy hit */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0))
+	float HeavyStaggerDuration = 0.35f;
+
+	/** How far a staggering body tips over, in degrees */
+	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0, ClampMax = 45))
+	float StaggerTilt = 14.0f;
 };

@@ -11,6 +11,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
 
@@ -125,6 +126,7 @@ void AVaelLightningStrike::Strike()
 	if (AVaelRegion* OwningRegion = Region.Get())
 	{
 		OwningRegion->NotifyLightning();
+		UVaelHitFeedbackSubsystem::Shake(this, 0.3f);
 	}
 
 	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();

@@ -51,6 +51,7 @@ UVaelHarpyElderData::UVaelHarpyElderData()
 	ElementMultipliers.Reset();
 	ElementMultipliers.Add(EVaelElement::Earth, 1.3f);
 	KnockbackMultiplier = 0.5f;
+	StaggerMultiplier = 0.5f;
 	FormulaOnDeath = { EVaelElement::Air, EVaelElement::Air, EVaelElement::Air };
 	BodyColor = FLinearColor(0.3f, 0.26f, 0.2f);
 
@@ -96,6 +97,7 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	KnockbackMultiplier = 0.15f;
 	bCanBeFrozen = false;
 	bCanBeMarked = false;
+	StaggerMultiplier = 0.2f;
 	AggroRange = 1400.0f;
 	BodyColor = FLinearColor(1.0f, 0.15f, 0.01f);
 }

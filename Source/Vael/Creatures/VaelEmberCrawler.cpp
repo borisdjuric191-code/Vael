@@ -13,6 +13,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -244,6 +245,7 @@ void AVaelEmberCrawler::Explode()
 #endif
 
 	UE_LOG(LogVael, Verbose, TEXT("'%s' explodes"), *GetNameSafe(this));
+	UVaelHitFeedbackSubsystem::Shake(this, 0.45f);
 
 	Die();
 

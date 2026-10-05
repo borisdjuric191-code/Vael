@@ -52,6 +52,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
 	float KnockbackMultiplier = 1.0f;
 
+	/** Stagger after hits lasts this many times as long; bosses barely stagger */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
+	float StaggerMultiplier = 1.0f;
+
 	/** False for bosses: a corrupted region never sends a marked, stronger version */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes")
 	bool bCanBeMarked = true;

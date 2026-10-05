@@ -98,6 +98,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Creature")
 	bool IsMarked() const { return bMarked; }
 
+	/** Lets the creature stumble after a hit: it stops acting for a moment and its body tips over. Bosses barely stagger. */
+	void Stagger(float Duration);
+
 	/** Makes the creature a marked one: more health, more damage, tinted by the Mark */
 	void SetMarked();
 
@@ -205,4 +208,13 @@ private:
 
 	/** True for a stronger version sent by a corrupted region */
 	bool bMarked = false;
+
+	/** World time at which the current stagger ends */
+	float StaggerEndTime = 0.0f;
+
+	/** Seconds the current stagger lasts */
+	float StaggerLength = 0.0f;
+
+	/** Tip of the body during a stagger: roll and pitch in degrees */
+	FVector2D StaggerTipDirection = FVector2D::ZeroVector;
 };

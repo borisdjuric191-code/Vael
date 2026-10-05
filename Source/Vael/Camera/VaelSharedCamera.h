@@ -34,6 +34,9 @@ public:
 	/** Removes the part of a move direction that would take a pawn out of the area the camera can frame */
 	FVector ConstrainMoveDirection(const FVector& PawnLocation, const FVector& Direction) const;
 
+	/** Shakes the view; a stronger shake replaces a weaker one, then it fades out. 1 is a heavy blow. */
+	void AddShake(float Strength);
+
 	/** Returns the camera component **/
 	UCameraComponent* GetCameraComponent() const { return Camera.Get(); }
 
@@ -42,6 +45,14 @@ protected:
 	/** Shared camera */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
 	TObjectPtr<UCameraComponent> Camera;
+
+	/** Sideways and up and down movement of the view at shake strength 1, in cm */
+	UPROPERTY(EditAnywhere, Category="Shake", meta = (ClampMin = 0))
+	float ShakeOffset = 30.0f;
+
+	/** Shake strength lost per second */
+	UPROPERTY(EditAnywhere, Category="Shake", meta = (ClampMin = 0))
+	float ShakeDecay = 2.0f;
 
 	/** Downward tilt of the camera in degrees */
 	UPROPERTY(EditAnywhere, Category="Camera", meta = (ClampMin = -89, ClampMax = -10))
@@ -88,6 +99,9 @@ private:
 
 	/** Smoothed distance to the focus point */
 	float CurrentDistance = 0.0f;
+
+	/** Current shake strength */
+	float ShakeStrength = 0.0f;
 
 	/** Furthest a player may be from the group centre */
 	float LeashRadius = 0.0f;

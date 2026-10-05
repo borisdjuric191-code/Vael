@@ -6,6 +6,7 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Vael.h"
 
 void UVaelAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, float& NewValue)
@@ -65,6 +66,7 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 				const float EffectMultiplier = ReactionMultiplier * (BaseDamage > 0.0f ? Damage / BaseDamage : 1.0f);
 
 				UVaelCombatTextSubsystem::PostDamage(Target, Damage, EffectMultiplier, Target->IsA<AVaelCharacter>());
+				UVaelHitFeedbackSubsystem::OnDamageTaken(Target, Damage, EffectMultiplier, Target->IsA<AVaelCharacter>());
 			}
 
 			SetHealth(FMath::Clamp(GetHealth() - Damage, 0.0f, GetMaxHealth()));
