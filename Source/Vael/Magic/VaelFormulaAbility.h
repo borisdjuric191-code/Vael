@@ -12,7 +12,7 @@ class UVaelFormula;
 /**
  *  Ability that performs a formula. The formula asset is the source object of the ability,
  *  mana cost and power come from the cast the element component has prepared.
- *  Handles projectiles, cones, chains, explosions and ground areas; formulas that work differently derive from this class and override ExecuteFormula.
+ *  Handles projectiles, cones, chains, explosions, ground areas, dashes and walls; formulas that work differently derive from this class and override ExecuteFormula.
  */
 UCLASS()
 class UVaelFormulaAbility : public UGameplayAbility
@@ -48,6 +48,12 @@ protected:
 	void PlaceGroundArea(const UVaelFormula& Formula, AActor* Caster, float Power);
 
 	/** Point on the ground the caster aims at: the mouse cursor, or with a gamepad the nearest enemy in the aim direction. Stays within range and in front of walls. */
+	/** Lets the caster rush in the aim direction; the dash ends in a burst */
+	void StartDash(const UVaelFormula& Formula, AActor* Caster, float Power);
+
+	/** Raises a row of rock blocks across the aim direction at the aimed point; enemies where a block rises are hurt and pushed away */
+	void RaiseWall(const UVaelFormula& Formula, AActor* Caster, float Power);
+
 	static FVector FindGroundTarget(AActor* Caster, float MaxRange);
 
 	/** Direction on the ground in which the caster aims */

@@ -41,7 +41,11 @@ enum class EVaelSpellDelivery : uint8
 	/** A projectile that bursts where its flight ends and may leave a patch on the ground */
 	Explosion,
 	/** Places a patch on the ground at the aimed point */
-	GroundArea
+	GroundArea,
+	/** The caster rushes in the aim direction and bursts where the dash ends */
+	Dash,
+	/** Raises a wall of rock blocks across the aim direction at the aimed point */
+	Wall
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/VaelCharacterBase.h"
+#include "Combat/VaelCombatStatics.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelCharacter.generated.h"
 
@@ -121,6 +122,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dodge")
 	bool IsDodging() const { return bIsDodging; }
 
+	/**
+	 *  Rushes on the wind like a dodge roll, just faster and regardless of the dodge cooldown.
+	 *  When the dash ends the burst hits everyone around within the radius. Returns false while down.
+	 */
+	bool StartSpellDash(const FVector& WorldDirection, float Speed, float Duration, const FVaelSpellHit& InDashBurst, float BurstRadius);
+
 	/** Number of the player for messages, starting at 1 */
 	int32 GetPlayerNumber() const;
 
@@ -196,4 +203,13 @@ private:
 
 	/** True while a dodge roll is in progress */
 	bool bIsDodging = false;
+
+	/** Speed of the current roll or dash in cm/s */
+	float CurrentDodgeSpeed = 0.0f;
+
+	/** What the end of the current spell dash does, only used while the burst radius is above 0 */
+	FVaelSpellHit DashBurst;
+
+	/** Radius of the burst at the end of the current spell dash, 0 for a plain dodge roll */
+	float DashBurstRadius = 0.0f;
 };

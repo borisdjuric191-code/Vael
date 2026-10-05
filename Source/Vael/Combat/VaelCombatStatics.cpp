@@ -5,6 +5,8 @@
 #include "AbilitySystemGlobals.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelGameplayEffects.h"
+#include "Engine/OverlapResult.h"
+#include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
@@ -68,6 +70,32 @@ bool UVaelCombatStatics::ApplyNatureHit(AActor* Target, const FVaelSpellHit& Hit
 	}
 
 	return ApplyHit(nullptr, Target, Hit, KnockbackDirection);
+}
+
+int32 UVaelCombatStatics::ApplySpellHitInRadius(AActor* Attacker, const FVector& Center, float Radius, const FVaelSpellHit& Hit)
+{
+	UWorld* World = Attacker != nullptr ? Attacker->GetWorld() : nullptr;
+	if (World == nullptr || Radius <= 0.0f)
+	{
+		return 0;
+	}
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellRadius), false, Attacker);
+	World->OverlapMultiByObjectType(Overlaps, Center, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(Radius), QueryParams);
+
+	// A pawn can overlap with several components, it is hit only once
+	TSet<AActor*> HitActors;
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AActor* Target = Overlap.GetActor();
+		if (Target != nullptr && !HitActors.Contains(Target) && ApplySpellHit(Attacker, Target, Hit, Target->GetActorLocation() - Center))
+		{
+			HitActors.Add(Target);
+		}
+	}
+
+	return HitActors.Num();
 }
 
 bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection)

@@ -197,12 +197,24 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 		if (GetWorld()->GetTimeSeconds() >= DodgeEndTime)
 		{
 			EndDodge();
+
+			// A spell dash ends in a burst around the player
+			if (DashBurstRadius > 0.0f)
+			{
+				UVaelCombatStatics::ApplySpellHitInRadius(this, GetActorLocation(), DashBurstRadius, DashBurst);
+
+#if ENABLE_DRAW_DEBUG
+				DrawDebugCircle(GetWorld(), GetActorLocation(), DashBurstRadius, 32, UVaelMagicSettings::Get()->GetElementColor(DashBurst.Element).ToFColor(true),
+					false, 0.25f, 0, 4.0f, FVector::ForwardVector, FVector::RightVector, false);
+#endif
+				DashBurstRadius = 0.0f;
+			}
 		}
 		else
 		{
 			// Hold the roll speed, leave falling to the movement component
 			UCharacterMovementComponent* Movement = GetCharacterMovement();
-			Movement->Velocity = FVector(DodgeDirection.X * DodgeSpeed, DodgeDirection.Y * DodgeSpeed, Movement->Velocity.Z);
+			Movement->Velocity = FVector(DodgeDirection.X * CurrentDodgeSpeed, DodgeDirection.Y * CurrentDodgeSpeed, Movement->Velocity.Z);
 		}
 	}
 }
@@ -237,8 +249,35 @@ bool AVaelCharacter::StartDodge(const FVector& WorldDirection)
 	}
 
 	bIsDodging = true;
+	CurrentDodgeSpeed = DodgeSpeed;
+	DashBurstRadius = 0.0f;
 	DodgeEndTime = Now + DodgeDuration;
 	NextDodgeTime = Now + DodgeCooldown;
+
+	GetMesh()->SetRelativeScale3D(DefaultMeshScale * FVector(1.f, 1.f, DodgeMeshSquash));
+
+	return true;
+}
+
+bool AVaelCharacter::StartSpellDash(const FVector& WorldDirection, float Speed, float Duration, const FVaelSpellHit& InDashBurst, float BurstRadius)
+{
+	if (bDowned)
+	{
+		return false;
+	}
+
+	DodgeDirection = WorldDirection.GetSafeNormal2D();
+	if (DodgeDirection.IsNearlyZero())
+	{
+		DodgeDirection = GetActorForwardVector().GetSafeNormal2D();
+	}
+
+	// Rides on the movement of a dodge roll, which also keeps the player safe while dashing
+	bIsDodging = true;
+	CurrentDodgeSpeed = Speed;
+	DashBurst = InDashBurst;
+	DashBurstRadius = BurstRadius;
+	DodgeEndTime = GetWorld()->GetTimeSeconds() + Duration;
 
 	GetMesh()->SetRelativeScale3D(DefaultMeshScale * FVector(1.f, 1.f, DodgeMeshSquash));
 
@@ -270,7 +309,7 @@ void AVaelCharacter::EndDodge()
 
 	// Come out of the roll at no more than walking speed
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
-	const float ExitSpeed = FMath::Min(DodgeSpeed, Movement->GetMaxSpeed());
+	const float ExitSpeed = FMath::Min(CurrentDodgeSpeed, Movement->GetMaxSpeed());
 	Movement->Velocity = FVector(DodgeDirection.X * ExitSpeed, DodgeDirection.Y * ExitSpeed, Movement->Velocity.Z);
 }
 

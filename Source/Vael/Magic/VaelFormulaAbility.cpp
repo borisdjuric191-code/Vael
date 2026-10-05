@@ -6,6 +6,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Combat/VaelGameplayEffects.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
@@ -16,7 +17,9 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelRockWall.h"
 #include "Magic/VaelSpellProjectile.h"
+#include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 
 namespace
@@ -39,6 +42,9 @@ namespace
 
 	/** How far below the aimed point the ground is searched */
 	constexpr float AreaGroundSearchDepth = 500.0f;
+
+	/** Camera shake when a wall rises, as in the prototype */
+	constexpr float WallShake = 0.25f;
 }
 
 UVaelFormulaAbility::UVaelFormulaAbility()
@@ -114,6 +120,14 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 
 	case EVaelSpellDelivery::GroundArea:
 		PlaceGroundArea(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Dash:
+		StartDash(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Wall:
+		RaiseWall(Formula, Caster, Power);
 		break;
 	}
 }
@@ -311,6 +325,96 @@ void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* C
 	if (Formula.DamageElement == EVaelElement::Water)
 	{
 		AVaelGroundArea::ExtinguishFires(World, Location, Formula.AreaRadius);
+	}
+}
+
+void UVaelFormulaAbility::StartDash(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	AVaelCharacter* Player = Cast<AVaelCharacter>(Caster);
+	if (Player != nullptr && Player->StartSpellDash(GetAimDirection(Caster), Formula.DashSpeed, Formula.DashDuration, Formula.MakeSpellHit(Power), Formula.DashBurstRadius))
+	{
+		Player->SetInvulnerableFor(Formula.DashInvulnerability);
+	}
+}
+
+void UVaelFormulaAbility::RaiseWall(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	UWorld* World = Caster->GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	const FVector Center = FindGroundTarget(Caster, Formula.WallRange);
+	const FVector AimDirection = GetAimDirection(Caster);
+	const FVector Across(-AimDirection.Y, AimDirection.X, 0.0f);
+	const FQuat Rotation = AimDirection.ToOrientationQuat();
+	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+
+	const float HalfSize = Formula.WallBlockSize * 0.5f;
+	const float HalfHeight = Formula.WallHeight * 0.5f;
+
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelRaiseWall), false, Caster);
+	int32 NumRaised = 0;
+
+	for (int32 BlockIndex = 0; BlockIndex < Formula.WallBlocks; ++BlockIndex)
+	{
+		const FVector BlockLocation = Center + Across * ((BlockIndex - (Formula.WallBlocks - 1) * 0.5f) * Formula.WallBlockSpacing);
+
+		// Each block stands on the ground below its spot
+		FHitResult GroundHit;
+		if (!World->LineTraceSingleByObjectType(GroundHit, BlockLocation, BlockLocation - FVector(0.0f, 0.0f, AreaGroundSearchDepth), FCollisionObjectQueryParams(ECC_WorldStatic), QueryParams))
+		{
+			continue;
+		}
+
+		const FVector BlockCenter = GroundHit.Location + FVector(0.0f, 0.0f, HalfHeight);
+
+		// No block inside rocks, walls or other blocks; a little margin lets it touch them
+		const FCollisionShape SolidTestShape = FCollisionShape::MakeBox(FVector(HalfSize * 0.8f, HalfSize * 0.8f, HalfHeight * 0.8f));
+		if (World->OverlapAnyTestByObjectType(BlockCenter + FVector(0.0f, 0.0f, HalfHeight * 0.1f), Rotation, FCollisionObjectQueryParams(ECC_WorldStatic), SolidTestShape, QueryParams))
+		{
+			continue;
+		}
+
+		// Players are never walled in, enemies are hurt and thrown out of the way
+		TArray<FOverlapResult> Overlaps;
+		World->OverlapMultiByObjectType(Overlaps, BlockCenter, Rotation, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeBox(FVector(HalfSize, HalfSize, HalfHeight)), QueryParams);
+
+		bool bPlayerInTheWay = false;
+		TSet<AActor*> Enemies;
+		for (const FOverlapResult& Overlap : Overlaps)
+		{
+			const APawn* Pawn = Cast<APawn>(Overlap.GetActor());
+			if (Pawn != nullptr && Pawn->IsPlayerControlled())
+			{
+				bPlayerInTheWay = true;
+			}
+			else if (Overlap.GetActor() != nullptr)
+			{
+				Enemies.Add(Overlap.GetActor());
+			}
+		}
+
+		if (bPlayerInTheWay)
+		{
+			continue;
+		}
+
+		for (AActor* Enemy : Enemies)
+		{
+			UVaelCombatStatics::ApplySpellHit(Caster, Enemy, Hit, Enemy->GetActorLocation() - Center);
+		}
+
+		if (AVaelRockWall::RaiseBlock(World, GroundHit.Location, AimDirection.Rotation().Yaw, Formula.WallBlockSize, Formula.WallHeight, Formula.WallLifetime, Cast<APawn>(Caster)) != nullptr)
+		{
+			++NumRaised;
+		}
+	}
+
+	if (NumRaised > 0)
+	{
+		UVaelHitFeedbackSubsystem::Shake(Caster, WallShake);
 	}
 }
 

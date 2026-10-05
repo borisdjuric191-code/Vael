@@ -174,6 +174,46 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
 	EVaelGroundEffect AreaEffect = EVaelGroundEffect::None;
 
+	/** Speed of the dash in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Dash"))
+	float DashSpeed = 2100.0f;
+
+	/** Seconds the dash lasts */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0.05, EditCondition = "Delivery == EVaelSpellDelivery::Dash"))
+	float DashDuration = 0.28f;
+
+	/** Seconds nothing can hurt the caster from the start of the dash; the dash itself always protects */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Dash"))
+	float DashInvulnerability = 0.32f;
+
+	/** Radius of the burst at the end of the dash in cm; it deals the damage and knockback of the formula */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Dash"))
+	float DashBurstRadius = 322.0f;
+
+	/** How far away the wall can be raised, in cm. Walls of the level stop it earlier. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
+	float WallRange = 476.0f;
+
+	/** Number of rock blocks in a row across the aim direction */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
+	int32 WallBlocks = 5;
+
+	/** Distance between the centers of two blocks in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
+	float WallBlockSpacing = 133.0f;
+
+	/** Width and depth of a block in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
+	float WallBlockSize = 118.0f;
+
+	/** Height of a block in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
+	float WallHeight = 120.0f;
+
+	/** Seconds until the wall crumbles */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
+	float WallLifetime = 8.0f;
+
 	/** What the burst of an explosion does to a single target at the given power */
 	FVaelSpellHit MakeExplosionHit(float Power) const;
 };

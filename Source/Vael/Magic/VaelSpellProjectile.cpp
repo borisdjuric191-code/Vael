@@ -6,7 +6,6 @@
 #include "Components/StaticMeshComponent.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "DrawDebugHelpers.h"
-#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/ProjectileMovementComponent.h"
@@ -214,21 +213,7 @@ void AVaelSpellProjectile::Explode()
 	UWorld* World = GetWorld();
 	const FVector Center = GetActorLocation();
 
-	TArray<FOverlapResult> Overlaps;
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellExplosion), false, this);
-	World->OverlapMultiByObjectType(Overlaps, Center, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(ExplosionRadius), QueryParams);
-
-	// A pawn can overlap with several components, it is hit only once
-	TSet<AActor*> BurstActors;
-	for (const FOverlapResult& Overlap : Overlaps)
-	{
-		AActor* Target = Overlap.GetActor();
-		if (Target != nullptr && !BurstActors.Contains(Target))
-		{
-			BurstActors.Add(Target);
-			UVaelCombatStatics::ApplySpellHit(GetInstigator(), Target, ExplosionHit, Target->GetActorLocation() - Center);
-		}
-	}
+	UVaelCombatStatics::ApplySpellHitInRadius(GetInstigator(), Center, ExplosionRadius, ExplosionHit);
 
 	UVaelHitFeedbackSubsystem::Shake(this, ExplosionShake);
 

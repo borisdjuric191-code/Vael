@@ -65,6 +65,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static bool ApplyNatureHit(AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection);
 
+	/** Applies a spell to everyone the attacker may hurt within a radius, pushing them away from the center. Returns the number of targets hit. */
+	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
+	static int32 ApplySpellHitInRadius(AActor* Attacker, const FVector& Center, float Radius, const FVaelSpellHit& Hit);
+
 	/** Deals damage without reactions or a check who may hurt whom, for example to the caster themselves. The reaction multiplier only colors the damage number. */
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static void DealDamage(AActor* Attacker, AActor* Target, float Damage, EVaelElement Element, float ReactionMultiplier = 1.0f);
