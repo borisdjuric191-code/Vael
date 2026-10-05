@@ -27,7 +27,7 @@ public class Vael : ModuleRules
 			"DeveloperSettings"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { });
+		PrivateDependencyModuleNames.AddRange(new string[] { "RenderCore" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"Vael",

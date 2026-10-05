@@ -51,9 +51,9 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	FLinearColor EmptySlotColor = FLinearColor(0.02f, 0.02f, 0.02f);
 
-	/** Placeholder until the HUD exists: shows health and mana as text above the character */
+	/** Debug help: shows health and mana as text above the character */
 	UPROPERTY(EditAnywhere, Category="Appearance")
-	bool bShowStatusText = true;
+	bool bShowStatusText = false;
 
 	/** Speed during a dodge roll */
 	UPROPERTY(EditAnywhere, Category="Dodge", meta = (ClampMin = 0))
@@ -121,6 +121,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dodge")
 	bool IsDodging() const { return bIsDodging; }
 
+	/** Number of the player for messages, starting at 1 */
+	int32 GetPlayerNumber() const;
+
+	/** Share of the help a downed player has received, 1 means back on their feet */
+	float GetReviveFraction() const { return ReviveDuration > 0.0f ? FMath::Clamp(ReviveProgress / ReviveDuration, 0.0f, 1.0f) : 0.0f; }
+
 	/** True while the player is down and waits for help */
 	UFUNCTION(BlueprintPure, Category="Combat")
 	bool IsDowned() const { return bDowned; }
@@ -163,9 +169,6 @@ private:
 
 	/** Advances the help of a teammate standing close to a downed player */
 	void TickRevive(float DeltaSeconds);
-
-	/** Number of the player for messages, starting at 1 */
-	int32 GetPlayerNumber() const;
 
 	/** True while the player is down */
 	bool bDowned = false;

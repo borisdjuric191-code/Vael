@@ -16,6 +16,11 @@
 #include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelCheatManager.h"
+#include "GameFramework/InputDeviceSubsystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "Magic/VaelFormula.h"
+#include "Magic/VaelGrimoireSubsystem.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "TimerManager.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
@@ -52,6 +57,23 @@ void AVaelPlayerController::OnPossess(APawn* InPawn)
 	Super::OnPossess(InPawn);
 
 	UseSharedCamera();
+
+	if (const AVaelCharacter* VaelCharacter = Cast<AVaelCharacter>(InPawn))
+	{
+		CastFinishedHandle = VaelCharacter->GetElementComponent()->OnCastFinished.AddUObject(this, &AVaelPlayerController::OnCastFinished);
+	}
+}
+
+void AVaelPlayerController::OnUnPossess()
+{
+	if (const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	{
+		VaelCharacter->GetElementComponent()->OnCastFinished.Remove(CastFinishedHandle);
+	}
+
+	CloseGrimoire();
+
+	Super::OnUnPossess();
 }
 
 void AVaelPlayerController::SetupInputComponent()
@@ -91,6 +113,21 @@ void AVaelPlayerController::SetupInputComponent()
 
 			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCast);
 			EnhancedInputComponent->BindAction(ClearQueueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnClearQueue);
+
+			for (int32 SlotIndex = 0; SlotIndex < QuickSlotActions.Num(); ++SlotIndex)
+			{
+				EnhancedInputComponent->BindAction(QuickSlotActions[SlotIndex], ETriggerEvent::Started, this, &AVaelPlayerController::OnQuickSlot, SlotIndex);
+			}
+
+			EnhancedInputComponent->BindAction(GrimoireAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnToggleGrimoire);
+			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnMenuNavigate);
+			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnMenuNavigateReleased);
+			EnhancedInputComponent->BindAction(MenuCloseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuClose);
+
+			for (int32 SlotIndex = 0; SlotIndex < MenuAssignActions.Num(); ++SlotIndex)
+			{
+				EnhancedInputComponent->BindAction(MenuAssignActions[SlotIndex], ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuAssign, SlotIndex);
+			}
 		}
 		else
 		{
@@ -177,6 +214,54 @@ void AVaelPlayerController::CreateInputAssets()
 	ClearQueueAction = CreateAction(TEXT("IA_ClearQueue"), EInputActionValueType::Boolean);
 	MappingContext->MapKey(ClearQueueAction, EKeys::Gamepad_LeftShoulder);
 	MappingContext->MapKey(ClearQueueAction, EKeys::RightMouseButton);
+
+	// Quick slots on Z, X, C, V and the d-pad clockwise from up, like the browser prototype
+	const FKey QuickSlotPadKeys[] = { EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Right, EKeys::Gamepad_DPad_Down, EKeys::Gamepad_DPad_Left };
+	const FKey QuickSlotKeyboardKeys[] = { EKeys::Z, EKeys::X, EKeys::C, EKeys::V };
+
+	for (int32 SlotIndex = 0; SlotIndex < UE_ARRAY_COUNT(QuickSlotPadKeys); ++SlotIndex)
+	{
+		UInputAction* QuickSlotAction = CreateAction(*FString::Printf(TEXT("IA_QuickSlot%d"), SlotIndex + 1), EInputActionValueType::Boolean);
+		QuickSlotActions.Add(QuickSlotAction);
+
+		MappingContext->MapKey(QuickSlotAction, QuickSlotPadKeys[SlotIndex]);
+		MappingContext->MapKey(QuickSlotAction, QuickSlotKeyboardKeys[SlotIndex]);
+	}
+
+	// The grimoire opens and closes while the game is paused
+	GrimoireAction = CreateAction(TEXT("IA_Grimoire"), EInputActionValueType::Boolean);
+	GrimoireAction->bTriggerWhenPaused = true;
+	MappingContext->MapKey(GrimoireAction, EKeys::Gamepad_Special_Left);
+	MappingContext->MapKey(GrimoireAction, EKeys::Tab);
+
+	// Menu controls, only active while the grimoire is open
+	MenuMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VaelMenu"));
+
+	MenuNavigateAction = CreateAction(TEXT("IA_MenuNavigate"), EInputActionValueType::Axis1D);
+	MenuNavigateAction->bTriggerWhenPaused = true;
+
+	UInputModifierDeadZone* NavigateDeadZone = NewObject<UInputModifierDeadZone>(MenuMappingContext);
+	NavigateDeadZone->LowerThreshold = 0.5f;
+	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::Gamepad_LeftY).Modifiers.Add(NavigateDeadZone);
+	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::W);
+	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::Up);
+	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::S).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
+	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::Down).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
+
+	MenuCloseAction = CreateAction(TEXT("IA_MenuClose"), EInputActionValueType::Boolean);
+	MenuCloseAction->bTriggerWhenPaused = true;
+	MenuMappingContext->MapKey(MenuCloseAction, EKeys::Gamepad_FaceButton_Right);
+	MenuMappingContext->MapKey(MenuCloseAction, EKeys::Escape);
+
+	for (int32 SlotIndex = 0; SlotIndex < UE_ARRAY_COUNT(QuickSlotPadKeys); ++SlotIndex)
+	{
+		UInputAction* AssignAction = CreateAction(*FString::Printf(TEXT("IA_MenuAssign%d"), SlotIndex + 1), EInputActionValueType::Boolean);
+		AssignAction->bTriggerWhenPaused = true;
+		MenuAssignActions.Add(AssignAction);
+
+		MenuMappingContext->MapKey(AssignAction, QuickSlotPadKeys[SlotIndex]);
+		MenuMappingContext->MapKey(AssignAction, QuickSlotKeyboardKeys[SlotIndex]);
+	}
 }
 
 void AVaelPlayerController::PlayerTick(float DeltaTime)
@@ -394,4 +479,202 @@ AVaelSharedCamera* AVaelPlayerController::GetSharedCamera() const
 	AVaelGameMode* GameMode = GetWorld() != nullptr ? GetWorld()->GetAuthGameMode<AVaelGameMode>() : nullptr;
 
 	return GameMode != nullptr ? GameMode->GetSharedCamera() : nullptr;
+}
+
+EVaelInputGlyphs AVaelPlayerController::GetInputGlyphs() const
+{
+	// Without information the first player uses keyboard and mouse, everybody else a controller
+	bool bUsesGamepad = !IsFirstLocalPlayer();
+	FString DeviceName;
+
+	const ULocalPlayer* LocalPlayer = GetLocalPlayer();
+	const UInputDeviceSubsystem* InputDevices = UInputDeviceSubsystem::Get();
+	if (LocalPlayer != nullptr && InputDevices != nullptr)
+	{
+		const FHardwareDeviceIdentifier Device = InputDevices->GetMostRecentlyUsedHardwareDevice(LocalPlayer->GetPlatformUserId());
+		if (Device.PrimaryDeviceType == EHardwareDevicePrimaryType::Gamepad)
+		{
+			bUsesGamepad = true;
+			DeviceName = Device.HardwareDeviceIdentifier.ToString() + TEXT(" ") + Device.InputClassName.ToString();
+		}
+		else if (Device.PrimaryDeviceType == EHardwareDevicePrimaryType::KeyboardAndMouse)
+		{
+			bUsesGamepad = false;
+		}
+	}
+
+	if (!bUsesGamepad)
+	{
+		return EVaelInputGlyphs::Keyboard;
+	}
+
+	switch (UVaelUISettings::Get()->GamepadGlyphs)
+	{
+	case EVaelGamepadGlyphPreference::Xbox:
+		return EVaelInputGlyphs::Xbox;
+	case EVaelGamepadGlyphPreference::PlayStation:
+		return EVaelInputGlyphs::PlayStation;
+	default:
+		break;
+	}
+
+	const bool bPlayStation = DeviceName.Contains(TEXT("Dual")) || DeviceName.Contains(TEXT("PlayStation")) || DeviceName.Contains(TEXT("PS4")) || DeviceName.Contains(TEXT("PS5"));
+	return bPlayStation ? EVaelInputGlyphs::PlayStation : EVaelInputGlyphs::Xbox;
+}
+
+void AVaelPlayerController::OnQuickSlot(int32 SlotIndex)
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned() && !UGameplayStatics::IsGamePaused(this))
+	{
+		// Bring the aim up to date so the spell flies where the player points right now
+		UpdateFacing();
+		VaelCharacter->GetElementComponent()->CastQuickSlot(SlotIndex);
+	}
+}
+
+void AVaelPlayerController::OnToggleGrimoire()
+{
+	if (bGrimoireOpen)
+	{
+		CloseGrimoire();
+	}
+	else
+	{
+		OpenGrimoire();
+	}
+}
+
+bool AVaelPlayerController::OpenGrimoire()
+{
+	if (bGrimoireOpen || GetPawn<AVaelCharacter>() == nullptr)
+	{
+		return false;
+	}
+
+	// One grimoire for the group: nobody else may open it while the game is paused
+	if (UGameplayStatics::IsGamePaused(this))
+	{
+		return false;
+	}
+
+	UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	if (InputSubsystem == nullptr || MenuMappingContext == nullptr)
+	{
+		return false;
+	}
+
+	bGrimoireOpen = true;
+	NextNavigateTime = 0.0;
+	InputSubsystem->AddMappingContext(MenuMappingContext, 1);
+	UGameplayStatics::SetGamePaused(this, true);
+
+	return true;
+}
+
+void AVaelPlayerController::CloseGrimoire()
+{
+	if (!bGrimoireOpen)
+	{
+		return;
+	}
+
+	bGrimoireOpen = false;
+
+	if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	{
+		InputSubsystem->RemoveMappingContext(MenuMappingContext);
+	}
+
+	UGameplayStatics::SetGamePaused(this, false);
+}
+
+void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
+{
+	const float Direction = Value.Get<float>();
+	const UGameInstance* GameInstance = GetGameInstance();
+	const UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+
+	if (!bGrimoireOpen || Grimoire == nullptr || FMath::Abs(Direction) < 0.5f)
+	{
+		return;
+	}
+
+	// One step right away, then repeating while held
+	const double Now = FPlatformTime::Seconds();
+	if (NextNavigateTime > 0.0 && Now < NextNavigateTime)
+	{
+		return;
+	}
+
+	NextNavigateTime = Now + (NextNavigateTime > 0.0 ? MenuRepeatInterval : MenuRepeatDelay);
+
+	// Up on the stick or key is positive and moves the selection up the list
+	const int32 NumFormulas = Grimoire->GetAllFormulas().Num();
+	GrimoireSelection = FMath::Clamp(GrimoireSelection + (Direction > 0.0f ? -1 : 1), 0, FMath::Max(NumFormulas - 1, 0));
+}
+
+void AVaelPlayerController::OnMenuNavigateReleased()
+{
+	NextNavigateTime = 0.0;
+}
+
+void AVaelPlayerController::OnMenuClose()
+{
+	CloseGrimoire();
+}
+
+void AVaelPlayerController::OnMenuAssign(int32 SlotIndex)
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	const UGameInstance* GameInstance = GetGameInstance();
+	const UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+
+	if (!bGrimoireOpen || VaelCharacter == nullptr || Grimoire == nullptr || !Grimoire->GetAllFormulas().IsValidIndex(GrimoireSelection))
+	{
+		return;
+	}
+
+	UVaelFormula* Formula = Grimoire->GetAllFormulas()[GrimoireSelection];
+	if (!Grimoire->IsFormulaKnown(Formula))
+	{
+		return;
+	}
+
+	// Pressing the slot of the formula again takes it off
+	UVaelElementComponent* ElementComponent = VaelCharacter->GetElementComponent();
+	ElementComponent->AssignQuickSlot(SlotIndex, ElementComponent->GetQuickSlotFormula(SlotIndex) == Formula ? nullptr : Formula);
+}
+
+void AVaelPlayerController::OnCastFinished(EVaelCastResult Result, const UVaelFormula* Formula)
+{
+	switch (Result)
+	{
+	case EVaelCastResult::NoFormula:
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "NoFormulaEcho", "Echo: Diese Formel ist versiegelt"),
+			NSLOCTEXT("VaelMagic", "NoFormulaEchoDetail", "Ihr Fragment liegt jenseits der Aschenmark."), FLinearColor(FColor(158, 143, 125)));
+		break;
+
+	case EVaelCastResult::UnknownFormula:
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "SealedEcho", "Echo einer versiegelten Formel"),
+			Formula != nullptr ? Formula->Hint : FText::GetEmpty(), FLinearColor(FColor(201, 180, 138)), 6.0f);
+		break;
+
+	case EVaelCastResult::UnstableDischarge:
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "Unstable", "Instabile Entladung"),
+			NSLOCTEXT("VaelMagic", "UnstableDetail", "Die Formel entgleitet dir. Versuch es noch einmal."), FLinearColor(FColor(216, 200, 255)));
+		break;
+
+	case EVaelCastResult::NotEnoughMana:
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "NoMana", "Zu wenig Mana"), FText::GetEmpty(), FLinearColor(FColor(127, 176, 255)), 1.5f);
+		break;
+
+	case EVaelCastResult::EmptyQueue:
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "EmptyQuickSlot", "Schnellplatz leer"),
+			NSLOCTEXT("VaelMagic", "EmptyQuickSlotDetail", "Im Grimoire belegen (Tab / Ansicht)."), FLinearColor(FColor(158, 143, 125)), 2.5f);
+		break;
+
+	default:
+		break;
+	}
 }

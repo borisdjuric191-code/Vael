@@ -45,6 +45,8 @@ public:
 	UFUNCTION(BlueprintPure, Category="Creature")
 	bool IsInSecondPhase() const;
 
+	virtual bool IsBossFightActive() const override { return State != EVaelQueenState::Sleeping && !IsDead(); }
+
 protected:
 
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;

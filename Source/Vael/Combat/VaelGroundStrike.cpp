@@ -13,7 +13,7 @@
 namespace
 {
 	/** Size of the engine basic shapes used as placeholders */
-	constexpr float PlaceholderShapeSize = 100.0f;
+	constexpr float StrikeShapeSize = 100.0f;
 
 	/** Height of the warning disc in cm */
 	constexpr float WarningDiscHeight = 2.0f;
@@ -77,11 +77,11 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(APawn* Attacker, const FVector
 	GroundStrike->Delay = InDelay;
 
 	// The warning is a dark version of the color, the spike the color itself
-	const float Diameter = InRadius * 2.0f / PlaceholderShapeSize;
+	const float Diameter = InRadius * 2.0f / StrikeShapeSize;
 	GroundStrike->WarningDisc->SetRelativeLocation(FVector(0.0f, 0.0f, WarningDiscHeight * 0.5f));
-	GroundStrike->WarningDisc->SetRelativeScale3D(FVector(Diameter, Diameter, WarningDiscHeight / PlaceholderShapeSize));
+	GroundStrike->WarningDisc->SetRelativeScale3D(FVector(Diameter, Diameter, WarningDiscHeight / StrikeShapeSize));
 	GroundStrike->Spike->SetRelativeLocation(FVector(0.0f, 0.0f, GroundStrike->SpikeHeight * 0.5f));
-	GroundStrike->Spike->SetRelativeScale3D(FVector(Diameter * 0.5f, Diameter * 0.5f, GroundStrike->SpikeHeight / PlaceholderShapeSize));
+	GroundStrike->Spike->SetRelativeScale3D(FVector(Diameter * 0.5f, Diameter * 0.5f, GroundStrike->SpikeHeight / StrikeShapeSize));
 
 	if (UMaterialInstanceDynamic* WarningMaterial = GroundStrike->WarningDisc->CreateAndSetMaterialInstanceDynamic(0))
 	{

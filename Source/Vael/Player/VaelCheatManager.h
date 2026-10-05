@@ -41,4 +41,8 @@ public:
 	/** Kills every creature in the level */
 	UFUNCTION(Exec)
 	void VaelKillAll();
+
+	/** Chooses the controller symbols of the HUD: Auto, Xbox or PlayStation. Example: VaelGlyphs PlayStation */
+	UFUNCTION(Exec)
+	void VaelGlyphs(const FString& Glyphs);
 };

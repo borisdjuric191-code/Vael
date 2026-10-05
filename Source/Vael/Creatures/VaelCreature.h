@@ -37,9 +37,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Creature")
 	TObjectPtr<UVaelCreatureData> CreatureData;
 
-	/** Placeholder until the HUD exists: shows name, health and conditions above the creature once it is hurt */
+	/** Debug help: shows name, health and conditions as text above the creature once it is hurt */
 	UPROPERTY(EditAnywhere, Category="Appearance")
-	bool bShowStatusText = true;
+	bool bShowStatusText = false;
 
 	/** Seconds the body lights up after a hit */
 	UPROPERTY(EditAnywhere, Category="Appearance", meta = (ClampMin = 0))
@@ -90,6 +90,12 @@ public:
 	virtual bool CanReceiveStatus(EVaelStatus Status) const override;
 	virtual void ApplyKnockback(const FVector& Direction, float Speed) override;
 	//~End AVaelCharacterBase
+
+	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */
+	virtual bool IsBossFightActive() const { return false; }
+
+	/** Height above the actor at which the HUD shows the health bar */
+	float GetHealthBarHeight() const { return GetStatusTextHeight(); }
 
 	/** Called when the creature dies */
 	FVaelOnCreatureDied OnDied;

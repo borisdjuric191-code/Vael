@@ -44,6 +44,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Mana", meta = (ClampMin = 0))
 	float MinManaCost = 2.0f;
 
+	/** Formulas cast from a quick slot cost this much more mana than by hand */
+	UPROPERTY(config, EditAnywhere, Category="Quick Slots", meta = (ClampMin = 0))
+	float QuickManaCostMultiplier = 1.5f;
+
+	/** Formulas cast from a quick slot hit with this share of their power: combos by hand are stronger */
+	UPROPERTY(config, EditAnywhere, Category="Quick Slots", meta = (ClampMin = 0))
+	float QuickPowerMultiplier = 0.85f;
+
 	/** Lightning damage against wet targets is multiplied by this */
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0))
 	float LightningOnWetMultiplier = 2.0f;

@@ -20,6 +20,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelPlayerController.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
 
@@ -375,7 +376,7 @@ void AVaelCharacter::TickRevive(float DeltaSeconds)
 	if (ReviveProgress >= ReviveDuration)
 	{
 		Revive(ReviveHealth, ReviveInvulnerability);
-		UVaelCombatStatics::ShowNotice(FText::Format(NSLOCTEXT("VaelPlayers", "PlayerRevived", "Spieler {0} steht wieder."), GetPlayerNumber()), FColor(159, 224, 168), 3.0f);
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelPlayers", "PlayerRevived", "Spieler {0} steht wieder"), GetPlayerNumber()), FText::GetEmpty(), FLinearColor(FColor(159, 224, 168)), 3.0f);
 	}
 }
 

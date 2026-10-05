@@ -58,6 +58,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (MultiLine = true))
 	FText Hint;
 
+	/** Seconds a quick slot needs after casting this formula, before it can be cast from there again */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
+	float QuickCooldown = 4.0f;
+
 	/** Ability that performs the formula. The default handles projectiles and cones, special formulas get their own class. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect")
 	TSubclassOf<UVaelFormulaAbility> AbilityClass;

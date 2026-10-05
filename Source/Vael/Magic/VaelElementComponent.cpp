@@ -19,6 +19,10 @@
 UVaelElementComponent::UVaelElementComponent()
 {
 	PrimaryComponentTick.bCanEverTick = false;
+
+	QuickSlots.Init(nullptr, NumQuickSlots);
+	QuickSlotReadyTimes.Init(0.0f, NumQuickSlots);
+	QuickSlotCooldowns.Init(0.0f, NumQuickSlots);
 }
 
 void UVaelElementComponent::BeginPlay()
@@ -32,7 +36,16 @@ void UVaelElementComponent::BeginPlay()
 			GrantFormula(Formula);
 		}
 
-		FormulaLearnedHandle = Grimoire->OnFormulaLearned.AddUObject(this, &UVaelElementComponent::GrantFormula);
+		// Quick slots start with the known combinations, in the order of the grimoire
+		for (const UVaelFormula* Formula : Grimoire->GetAllFormulas())
+		{
+			if (Grimoire->IsFormulaKnown(Formula))
+			{
+				FillEmptyQuickSlot(Formula);
+			}
+		}
+
+		FormulaLearnedHandle = Grimoire->OnFormulaLearned.AddUObject(this, &UVaelElementComponent::OnFormulaLearned);
 	}
 }
 
@@ -111,6 +124,8 @@ EVaelCastResult UVaelElementComponent::CastQueue()
 		// Free formulas can be discovered by trying them out, everything else has to be found in the world
 		if (Formula->Source != EVaelFormulaSource::Free)
 		{
+			// The echo reveals where the formula can be found
+			Grimoire->AddEcho(Formula);
 			return FinishCast(EVaelCastResult::UnknownFormula, Formula);
 		}
 
@@ -121,30 +136,141 @@ EVaelCastResult UVaelElementComponent::CastQueue()
 		}
 
 		// Learning grants the ability to every mage, this one included
-		Grimoire->LearnFormula(Formula);
+		Grimoire->LearnFormula(Formula, NSLOCTEXT("VaelMagic", "LearnedByExperiment", "Durch Experimentieren entdeckt."));
 	}
 
+	const int32 NumEnvironmentElements = QueueFromEnvironment.FilterByPredicate([](bool bFromEnvironment) { return bFromEnvironment; }).Num();
+
+	return FinishCast(ActivateFormula(Formula, Queue.Num(), NumEnvironmentElements, false), Formula);
+}
+
+EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, int32 NumElements, int32 NumEnvironmentElements, bool bFromQuickSlot)
+{
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystem();
 	const FGameplayAbilitySpecHandle* AbilityHandle = FormulaAbilities.Find(Formula);
-	if (AbilityHandle == nullptr)
+	if (AbilitySystem == nullptr || AbilityHandle == nullptr)
 	{
-		return FinishCast(EVaelCastResult::Blocked, Formula);
+		return EVaelCastResult::Blocked;
 	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 
 	// Elements drawn from the environment make the formula cheaper and stronger.
 	// Casters corrupted by Mark get a smaller bonus; until corruption exists everybody counts as pure.
-	const int32 NumEnvironmentElements = QueueFromEnvironment.FilterByPredicate([](bool bFromEnvironment) { return bFromEnvironment; }).Num();
-
-	PendingCast.ManaCost = MagicSettings->GetManaCost(Queue.Num(), NumEnvironmentElements);
+	PendingCast.ManaCost = MagicSettings->GetManaCost(NumElements, NumEnvironmentElements);
 	PendingCast.Power = 1.0f + NumEnvironmentElements * MagicSettings->EnvironmentPowerBonusPure;
+
+	// Quick slots trade cost and power for speed
+	if (bFromQuickSlot)
+	{
+		PendingCast.ManaCost = FMath::RoundToFloat(PendingCast.ManaCost * MagicSettings->QuickManaCostMultiplier);
+		PendingCast.Power *= MagicSettings->QuickPowerMultiplier;
+	}
 
 	if (AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetManaAttribute()) < PendingCast.ManaCost)
 	{
-		return FinishCast(EVaelCastResult::NotEnoughMana, Formula);
+		return EVaelCastResult::NotEnoughMana;
 	}
 
-	const bool bActivated = AbilitySystem->TryActivateAbility(*AbilityHandle);
+	return AbilitySystem->TryActivateAbility(*AbilityHandle) ? EVaelCastResult::Success : EVaelCastResult::Blocked;
+}
 
-	return FinishCast(bActivated ? EVaelCastResult::Success : EVaelCastResult::Blocked, Formula);
+EVaelCastResult UVaelElementComponent::CastQuickSlot(int32 SlotIndex)
+{
+	UVaelFormula* Formula = GetQuickSlotFormula(SlotIndex);
+	UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
+
+	EVaelCastResult Result = EVaelCastResult::EmptyQueue;
+
+	if (Formula != nullptr && Grimoire != nullptr && Grimoire->IsFormulaKnown(Formula))
+	{
+		if (GetWorld()->GetTimeSeconds() < QuickSlotReadyTimes[SlotIndex])
+		{
+			Result = EVaelCastResult::OnCooldown;
+		}
+		else
+		{
+			// Whether an element comes from the environment is decided right now
+			int32 NumEnvironmentElements = 0;
+			for (const EVaelElement Element : Formula->Elements)
+			{
+				NumEnvironmentElements += UVaelEnvironmentStatics::IsElementInEnvironment(GetOwner(), Element) ? 1 : 0;
+			}
+
+			Result = ActivateFormula(Formula, Formula->Elements.Num(), NumEnvironmentElements, true);
+
+			if (Result == EVaelCastResult::Success)
+			{
+				QuickSlotCooldowns[SlotIndex] = Formula->QuickCooldown;
+				QuickSlotReadyTimes[SlotIndex] = GetWorld()->GetTimeSeconds() + Formula->QuickCooldown;
+			}
+		}
+	}
+
+	UE_LOG(LogVael, Verbose, TEXT("'%s' casts quick slot %d: %s (%s), cost %.0f mana, power %.2f"), *GetNameSafe(GetOwner()), SlotIndex,
+		*UEnum::GetValueAsString(Result), Formula != nullptr ? *Formula->DisplayName.ToString() : TEXT("empty"), PendingCast.ManaCost, PendingCast.Power);
+
+	PendingCast = FVaelPendingCast();
+	OnCastFinished.Broadcast(Result, Formula);
+
+	return Result;
+}
+
+void UVaelElementComponent::AssignQuickSlot(int32 SlotIndex, UVaelFormula* Formula)
+{
+	if (!QuickSlots.IsValidIndex(SlotIndex))
+	{
+		return;
+	}
+
+	// A formula sits on one slot at most
+	if (Formula != nullptr)
+	{
+		const int32 PreviousSlot = QuickSlots.Find(Formula);
+		if (PreviousSlot != INDEX_NONE)
+		{
+			QuickSlots[PreviousSlot] = nullptr;
+		}
+	}
+
+	QuickSlots[SlotIndex] = Formula;
+}
+
+UVaelFormula* UVaelElementComponent::GetQuickSlotFormula(int32 SlotIndex) const
+{
+	return QuickSlots.IsValidIndex(SlotIndex) ? QuickSlots[SlotIndex].Get() : nullptr;
+}
+
+float UVaelElementComponent::GetQuickSlotCooldownFraction(int32 SlotIndex) const
+{
+	if (!QuickSlotReadyTimes.IsValidIndex(SlotIndex) || QuickSlotCooldowns[SlotIndex] <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	const float Remaining = QuickSlotReadyTimes[SlotIndex] - GetWorld()->GetTimeSeconds();
+	return FMath::Clamp(Remaining / QuickSlotCooldowns[SlotIndex], 0.0f, 1.0f);
+}
+
+void UVaelElementComponent::OnFormulaLearned(const UVaelFormula* Formula, const FText& Reason)
+{
+	GrantFormula(Formula);
+	FillEmptyQuickSlot(Formula);
+}
+
+void UVaelElementComponent::FillEmptyQuickSlot(const UVaelFormula* Formula)
+{
+	// Single elements are on the face buttons already
+	if (Formula == nullptr || Formula->Elements.Num() < 2 || QuickSlots.Contains(Formula))
+	{
+		return;
+	}
+
+	const int32 EmptySlot = QuickSlots.Find(nullptr);
+	if (EmptySlot != INDEX_NONE)
+	{
+		QuickSlots[EmptySlot] = const_cast<UVaelFormula*>(Formula);
+	}
 }
 
 EVaelCastResult UVaelElementComponent::FinishCast(EVaelCastResult Result, const UVaelFormula* Formula)

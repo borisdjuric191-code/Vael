@@ -15,6 +15,7 @@
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
+#include "UI/VaelUISettings.h"
 
 void UVaelCheatManager::VaelCast(const FString& Elements, float AimYaw)
 {
@@ -152,4 +153,18 @@ void UVaelCheatManager::VaelKillAll()
 	}
 
 	UE_LOG(LogVael, Log, TEXT("VaelKillAll: %d creatures killed"), NumKilled);
+}
+
+void UVaelCheatManager::VaelGlyphs(const FString& Glyphs)
+{
+	const int64 Value = StaticEnum<EVaelGamepadGlyphPreference>()->GetValueByNameString(Glyphs);
+	if (Value == INDEX_NONE)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelGlyphs: use Auto, Xbox or PlayStation"));
+		return;
+	}
+
+	// Only for this session; the lasting choice is in the project settings under Vael UI
+	GetMutableDefault<UVaelUISettings>()->GamepadGlyphs = static_cast<EVaelGamepadGlyphPreference>(Value);
+	UE_LOG(LogVael, Log, TEXT("VaelGlyphs: %s"), *Glyphs);
 }

@@ -5,9 +5,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "Magic/VaelElementTypes.h"
+#include "UI/VaelUISettings.h"
 #include "VaelPlayerController.generated.h"
 
 class AVaelSharedCamera;
+class UVaelFormula;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
@@ -73,6 +75,38 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> ClearQueueAction;
 
+	/** Cast a quick slot Input Actions: Z, X, C, V and the d-pad up, right, down, left */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UInputAction>> QuickSlotActions;
+
+	/** Open and close the grimoire Input Action */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> GrimoireAction;
+
+	/** Mapping context active while the grimoire is open, above the game controls */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputMappingContext> MenuMappingContext;
+
+	/** Move the selection in a menu Input Action */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MenuNavigateAction;
+
+	/** Close a menu Input Action */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MenuCloseAction;
+
+	/** Put the selected formula on a quick slot Input Actions, same keys as the quick slots */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UInputAction>> MenuAssignActions;
+
+	/** Seconds between two steps while the selection is held in one direction */
+	UPROPERTY(EditAnywhere, Category="Input", meta = (ClampMin = 0.05))
+	float MenuRepeatInterval = 0.12f;
+
+	/** Seconds a direction has to be held before the selection starts to repeat */
+	UPROPERTY(EditAnywhere, Category="Input", meta = (ClampMin = 0.05))
+	float MenuRepeatDelay = 0.3f;
+
 public:
 
 	/** Constructor */
@@ -85,6 +119,21 @@ public:
 	/** True for the first local player, who owns keyboard and mouse and can't leave */
 	bool IsFirstLocalPlayer() const;
 
+	/** Button symbols for the device this player used last */
+	EVaelInputGlyphs GetInputGlyphs() const;
+
+	/** True while this player has the grimoire open */
+	bool IsGrimoireOpen() const { return bGrimoireOpen; }
+
+	/** Index of the selected formula in the grimoire, in the order of all formulas */
+	int32 GetGrimoireSelection() const { return GrimoireSelection; }
+
+	/** Opens the grimoire and pauses the game. Returns false if another player has it open. */
+	bool OpenGrimoire();
+
+	/** Closes the grimoire and lets the game go on */
+	void CloseGrimoire();
+
 protected:
 
 	/** Initialization */
@@ -92,6 +141,9 @@ protected:
 
 	/** Keeps the view on the shared camera */
 	virtual void OnPossess(APawn* InPawn) override;
+
+	/** Stops listening to the cast results of the old pawn */
+	virtual void OnUnPossess() override;
 
 	/** Initialize input bindings */
 	virtual void SetupInputComponent() override;
@@ -112,6 +164,15 @@ protected:
 	void OnElement(EVaelElement Element);
 	void OnCast();
 	void OnClearQueue();
+	void OnQuickSlot(int32 SlotIndex);
+	void OnToggleGrimoire();
+	void OnMenuNavigate(const FInputActionValue& Value);
+	void OnMenuNavigateReleased();
+	void OnMenuClose();
+	void OnMenuAssign(int32 SlotIndex);
+
+	/** Tells the players what came of a cast */
+	void OnCastFinished(EVaelCastResult Result, const UVaelFormula* Formula);
 
 	/** Moves the pawn by a camera-relative input */
 	void ApplyMoveInput(const FVector2D& Input);
@@ -149,4 +210,16 @@ protected:
 
 	/** True if the mouse was used last, false if the gamepad was */
 	bool bUsingMouseAim = false;
+
+	/** True while this player has the grimoire open */
+	bool bGrimoireOpen = false;
+
+	/** Selected row of the grimoire */
+	int32 GrimoireSelection = 0;
+
+	/** Real time of the next selection step while a direction is held, 0 when nothing is held */
+	double NextNavigateTime = 0.0;
+
+	/** Handle of the cast result delegate of the pawn */
+	FDelegateHandle CastFinishedHandle;
 };

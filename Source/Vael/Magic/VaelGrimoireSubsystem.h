@@ -9,7 +9,7 @@
 
 class UVaelFormula;
 
-DECLARE_MULTICAST_DELEGATE_OneParam(FVaelOnFormulaLearned, const UVaelFormula* /*Formula*/);
+DECLARE_MULTICAST_DELEGATE_TwoParams(FVaelOnFormulaLearned, const UVaelFormula* /*Formula*/, const FText& /*Reason*/);
 
 /**
  *  The grimoire of the group: knows every formula of the game and which of them the players have learned.
@@ -32,10 +32,16 @@ public:
 	/** True if the players have learned the formula */
 	bool IsFormulaKnown(const UVaelFormula* Formula) const;
 
-	/** Adds a formula to the grimoire. Returns false if it was already known. */
-	bool LearnFormula(UVaelFormula* Formula);
+	/** Adds a formula to the grimoire. Returns false if it was already known. The reason is shown to the players. */
+	bool LearnFormula(UVaelFormula* Formula, const FText& Reason = FText::GetEmpty());
 
-	/** Every formula of the game */
+	/** Remembers that the players heard the echo of a sealed formula, which reveals its hint in the grimoire */
+	void AddEcho(const UVaelFormula* Formula);
+
+	/** True if the players have heard the echo of the formula */
+	bool HasEcho(const UVaelFormula* Formula) const;
+
+	/** Every formula of the game, in the order of the grimoire */
 	const TArray<TObjectPtr<UVaelFormula>>& GetAllFormulas() const { return Formulas; }
 
 	/** Formulas the players have learned */
@@ -56,6 +62,10 @@ private:
 	/** Formulas the players have learned */
 	UPROPERTY()
 	TArray<TObjectPtr<UVaelFormula>> KnownFormulas;
+
+	/** Sealed formulas whose echo the players have heard */
+	UPROPERTY()
+	TSet<TObjectPtr<UVaelFormula>> EchoedFormulas;
 
 	/** Formulas by the key of their element combination */
 	UPROPERTY()

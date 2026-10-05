@@ -16,6 +16,7 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelCharacter.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -65,7 +66,7 @@ void AVaelEmberQueen::Die()
 {
 	Super::Die();
 
-	UVaelCombatStatics::ShowNotice(LOCTEXT("QueenFallen", "Die Glutk\u00F6nigin ist gefallen. Akt I des Prototyps ist abgeschlossen."), FColor(255, 154, 74), 10.0f);
+	UVaelNoticeSubsystem::Post(this, FText::Format(LOCTEXT("QueenFallen", "{0} ist gefallen"), GetCreatureName()), LOCTEXT("QueenFallenDetail", "Akt I des Prototyps ist abgeschlossen."), FLinearColor(FColor(255, 154, 74)), 10.0f);
 }
 
 void AVaelEmberQueen::TickBehavior(float DeltaSeconds)
@@ -161,7 +162,7 @@ void AVaelEmberQueen::TickBehavior(float DeltaSeconds)
 		const FVector Feet = GetActorLocation() - FVector(0.0f, 0.0f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
 		AVaelFlameRing::SpawnRing(this, Feet, Hit, Data->RingSpeed, Data->RingMaxRadius, Data->RingHalfWidth, FLinearColor(1.0f, 0.45f, 0.05f));
 
-		UVaelCombatStatics::ShowNotice(LOCTEXT("FlameRing", "Flammenring! Weiche aus (Leertaste / LT), wenn die Welle dich erreicht."), FColor(255, 179, 107), 3.0f);
+		UVaelNoticeSubsystem::Post(this, LOCTEXT("FlameRing", "Flammenring"), LOCTEXT("FlameRingDetail", "Weiche aus (Leertaste / LT), wenn die Welle dich erreicht."), FLinearColor(FColor(255, 179, 107)), 3.0f);
 	}
 
 	ChargeCooldown -= DeltaSeconds;
@@ -243,7 +244,7 @@ void AVaelEmberQueen::WakeUp()
 
 	UE_LOG(LogVael, Log, TEXT("'%s' wakes up with %.0f health for %d players"), *GetNameSafe(this), ScaledMaxHealth, NumPlayers);
 
-	UVaelCombatStatics::ShowNotice(FText::Format(LOCTEXT("QueenWakes", "{0} erwacht. Mutter aller Glutkriecher: Wasser schw\u00E4cht sie, Feuer kaum."), GetCreatureName()), FColor(255, 138, 61), 6.0f);
+	UVaelNoticeSubsystem::Post(this, FText::Format(LOCTEXT("QueenWakes", "{0} erwacht"), GetCreatureName()), LOCTEXT("QueenWakesDetail", "Mutter aller Glutkriecher. Wasser schw\u00E4cht sie, Feuer kaum."), FLinearColor(FColor(255, 138, 61)), 6.0f);
 }
 
 void AVaelEmberQueen::Spit(const AActor* Target, bool bSecondPhase)

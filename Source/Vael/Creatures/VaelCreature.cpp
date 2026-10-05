@@ -27,7 +27,7 @@
 namespace
 {
 	/** Size of the engine basic shapes used as placeholders */
-	constexpr float PlaceholderShapeSize = 100.0f;
+	constexpr float CreatureShapeSize = 100.0f;
 
 	/** Height above the ground at which creatures shoot, about the chest of a player */
 	constexpr float ProjectileHeight = 90.0f;
@@ -98,7 +98,7 @@ void AVaelCreature::PostInitializeComponents()
 	Movement->MaxWalkSpeed = ActiveData->MoveSpeed;
 	Movement->MaxFlySpeed = ActiveData->MoveSpeed;
 
-	Body->SetRelativeScale3D(FVector(ActiveData->CollisionRadius * 2.0f, ActiveData->CollisionRadius * 2.0f, ActiveData->CollisionHalfHeight * 2.0f) / PlaceholderShapeSize);
+	Body->SetRelativeScale3D(FVector(ActiveData->CollisionRadius * 2.0f, ActiveData->CollisionRadius * 2.0f, ActiveData->CollisionHalfHeight * 2.0f) / CreatureShapeSize);
 
 	Super::PostInitializeComponents();
 }
@@ -366,13 +366,7 @@ bool AVaelCreature::TeachFormula(TConstArrayView<EVaelElement> Elements, const F
 		return false;
 	}
 
-	if (!Grimoire->LearnFormula(Formula))
-	{
-		return false;
-	}
-
-	UVaelCombatStatics::ShowNotice(FText::Format(LOCTEXT("FormulaLearned", "Neue Formel: {0}. {1}"), Formula->DisplayName, Reason), FColor(246, 231, 166));
-	return true;
+	return Grimoire->LearnFormula(Formula, Reason);
 }
 
 void AVaelCreature::Stun(float Duration)

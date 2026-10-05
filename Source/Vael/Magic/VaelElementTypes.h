@@ -67,6 +67,8 @@ enum class EVaelCastResult : uint8
 	/** Experimenting with an undiscovered formula went wrong and hurt the caster */
 	UnstableDischarge,
 	NotEnoughMana,
+	/** The quick slot still has to cool down */
+	OnCooldown,
 	/** The ability system refused to activate the formula */
 	Blocked
 };

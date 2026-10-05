@@ -17,7 +17,7 @@
 namespace
 {
 	/** The preacher stops walking home closer than this, in cm */
-	constexpr float HomeTolerance = 140.0f;
+	constexpr float PreacherHomeTolerance = 140.0f;
 
 	/** Radians per second of the sideways walk */
 	constexpr float StrafeFrequency = 0.9f;
@@ -84,7 +84,7 @@ void AVaelPreacher::TickBehavior(float DeltaSeconds)
 
 	if (Target == nullptr)
 	{
-		if (FVector::Dist2D(GetActorLocation(), HomeLocation) > HomeTolerance)
+		if (FVector::Dist2D(GetActorLocation(), HomeLocation) > PreacherHomeTolerance)
 		{
 			FaceTowards(HomeLocation);
 			MoveTowards(HomeLocation, Data->MoveSpeed * Data->ReturnSpeedScale);

@@ -10,6 +10,8 @@
 #include "Creatures/VaelTrainingDummy.h"
 #include "GameFramework/PlayerStart.h"
 #include "TimerManager.h"
+#include "UI/VaelNoticeSubsystem.h"
+#include "UI/VaelHUD.h"
 #include "Vael.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -21,6 +23,7 @@ AVaelGameMode::AVaelGameMode()
 {
 	DefaultPawnClass = AVaelCharacter::StaticClass();
 	PlayerControllerClass = AVaelPlayerController::StaticClass();
+	HUDClass = AVaelHUD::StaticClass();
 	SharedCameraClass = AVaelSharedCamera::StaticClass();
 	TrainingDummyClass = AVaelTrainingDummy::StaticClass();
 
@@ -224,11 +227,11 @@ void AVaelGameMode::OnPlayerDowned(AVaelCharacter* Player)
 
 	if (!bAllDown)
 	{
-		UVaelCombatStatics::ShowNotice(NSLOCTEXT("VaelPlayers", "PlayerDown", "Ein Spieler ist gefallen. Stell dich daneben, um ihn wiederzubeleben."), FColor(255, 122, 106));
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelPlayers", "PlayerDown", "Spieler {0} ist gefallen"), Player != nullptr ? Player->GetPlayerNumber() : 1), NSLOCTEXT("VaelPlayers", "PlayerDownDetail", "Stell dich daneben, um wiederzubeleben."), FLinearColor(FColor(255, 122, 106)));
 		return;
 	}
 
-	UVaelCombatStatics::ShowNotice(NSLOCTEXT("VaelPlayers", "AllDown", "Alle sind gefallen..."), FColor(255, 122, 106));
+	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelPlayers", "AllDown", "Alle sind gefallen"), FText::GetEmpty(), FLinearColor(FColor(255, 122, 106)));
 	GetWorldTimerManager().SetTimer(RespawnTimer, this, &AVaelGameMode::RespawnGroup, FMath::Max(AllDownRespawnDelay, 0.01f));
 }
 
@@ -258,5 +261,5 @@ void AVaelGameMode::RespawnGroup()
 		}
 	}
 
-	UVaelCombatStatics::ShowNotice(NSLOCTEXT("VaelPlayers", "Respawned", "Ihr erwacht am Lagerfeuer. Edda hat euch aus der Asche gezogen."), FColor(232, 176, 122));
+	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelPlayers", "Respawned", "Ihr erwacht am Lagerfeuer"), NSLOCTEXT("VaelPlayers", "RespawnedDetail", "Edda hat euch aus der Asche gezogen."), FLinearColor(FColor(232, 176, 122)));
 }

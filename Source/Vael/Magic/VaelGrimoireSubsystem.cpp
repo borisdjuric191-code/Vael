@@ -44,6 +44,36 @@ void UVaelGrimoireSubsystem::LoadFormulas()
 		}
 	}
 
+	// Order of the grimoire: Mark last, then by how the formula is found, then the simpler ones first
+	Formulas.Sort([](const UVaelFormula& A, const UVaelFormula& B)
+	{
+		const bool bMarkA = A.Elements.Contains(EVaelElement::Mark);
+		const bool bMarkB = B.Elements.Contains(EVaelElement::Mark);
+		if (bMarkA != bMarkB)
+		{
+			return bMarkB;
+		}
+
+		if (A.Source != B.Source)
+		{
+			return A.Source < B.Source;
+		}
+
+		if (A.Elements.Num() != B.Elements.Num())
+		{
+			return A.Elements.Num() < B.Elements.Num();
+		}
+
+		const int32 NumDistinctA = TSet<EVaelElement>(A.Elements).Num();
+		const int32 NumDistinctB = TSet<EVaelElement>(B.Elements).Num();
+		if (NumDistinctA != NumDistinctB)
+		{
+			return NumDistinctA < NumDistinctB;
+		}
+
+		return A.GetComboKey() < B.GetComboKey();
+	});
+
 	if (Formulas.IsEmpty())
 	{
 		UE_LOG(LogVael, Warning, TEXT("The grimoire found no formulas. Formula assets belong in /Game/Vael/Magic/Formulas."));
@@ -65,7 +95,7 @@ bool UVaelGrimoireSubsystem::IsFormulaKnown(const UVaelFormula* Formula) const
 	return Formula != nullptr && KnownFormulas.Contains(Formula);
 }
 
-bool UVaelGrimoireSubsystem::LearnFormula(UVaelFormula* Formula)
+bool UVaelGrimoireSubsystem::LearnFormula(UVaelFormula* Formula, const FText& Reason)
 {
 	if (Formula == nullptr || !Formulas.Contains(Formula) || KnownFormulas.Contains(Formula))
 	{
@@ -73,7 +103,20 @@ bool UVaelGrimoireSubsystem::LearnFormula(UVaelFormula* Formula)
 	}
 
 	KnownFormulas.Add(Formula);
-	OnFormulaLearned.Broadcast(Formula);
+	OnFormulaLearned.Broadcast(Formula, Reason);
 
 	return true;
+}
+
+void UVaelGrimoireSubsystem::AddEcho(const UVaelFormula* Formula)
+{
+	if (Formula != nullptr)
+	{
+		EchoedFormulas.Add(const_cast<UVaelFormula*>(Formula));
+	}
+}
+
+bool UVaelGrimoireSubsystem::HasEcho(const UVaelFormula* Formula) const
+{
+	return Formula != nullptr && EchoedFormulas.Contains(const_cast<UVaelFormula*>(Formula));
 }

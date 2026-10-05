@@ -22,7 +22,7 @@ namespace
 	constexpr float BurrowedHeightScale = 0.2f;
 
 	/** The crawler stops walking home closer than this, in cm */
-	constexpr float HomeTolerance = 140.0f;
+	constexpr float CrawlerHomeTolerance = 140.0f;
 }
 
 AVaelEmberCrawler::AVaelEmberCrawler()
@@ -75,7 +75,7 @@ void AVaelEmberCrawler::TickBehavior(float DeltaSeconds)
 	case EVaelCrawlerState::Burrowed:
 		if (Target == nullptr)
 		{
-			if (FVector::Dist2D(GetActorLocation(), HomeLocation) > HomeTolerance)
+			if (FVector::Dist2D(GetActorLocation(), HomeLocation) > CrawlerHomeTolerance)
 			{
 				MoveTowards(HomeLocation, Data->MoveSpeed * Data->BurrowReturnSpeedScale);
 			}

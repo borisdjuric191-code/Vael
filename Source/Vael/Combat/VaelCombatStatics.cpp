@@ -3,7 +3,6 @@
 #include "Combat/VaelCombatStatics.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
-#include "Engine/Engine.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelGameplayEffects.h"
 #include "GameFramework/Pawn.h"
@@ -201,12 +200,3 @@ bool UVaelCombatStatics::RemoveStatus(AActor* Target, EVaelStatus Status)
 	return TargetAbilitySystem->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(StatusTag)) > 0;
 }
 
-void UVaelCombatStatics::ShowNotice(const FText& Message, const FColor& Color, float Duration)
-{
-	UE_LOG(LogVael, Log, TEXT("Notice: %s"), *Message.ToString());
-
-	if (GEngine != nullptr)
-	{
-		GEngine->AddOnScreenDebugMessage(INDEX_NONE, Duration, Color, Message.ToString());
-	}
-}

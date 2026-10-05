@@ -13,6 +13,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Player/VaelCharacter.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -275,7 +276,7 @@ void AVaelAshHarpy::Screech()
 		}
 	}
 
-	UVaelCombatStatics::ShowNotice(FText::Format(LOCTEXT("Screech", "{0} kreischt. Weitere Harpyien folgen ihrem Ruf."), GetCreatureName()), FColor(201, 180, 138));
+	UVaelNoticeSubsystem::Post(this, FText::Format(LOCTEXT("Screech", "{0} kreischt"), GetCreatureName()), LOCTEXT("ScreechDetail", "Weitere Harpyien folgen ihrem Ruf."), FLinearColor(FColor(201, 180, 138)));
 
 	if (NumNearby >= Data->ScreechMaxNearby)
 	{
