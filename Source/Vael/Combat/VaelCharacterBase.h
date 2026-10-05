@@ -75,6 +75,10 @@ public:
 	UFUNCTION(BlueprintPure, Category="Attributes")
 	float GetMaxMana() const;
 
+	/** Corruption by the Mark, 0 to 100 */
+	UFUNCTION(BlueprintPure, Category="Attributes")
+	float GetCorruption() const;
+
 	/** Pushes the character along the ground */
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	virtual void ApplyKnockback(const FVector& Direction, float Speed);
@@ -96,6 +100,9 @@ public:
 
 	/** False if a condition can't be put on the character, for example bosses can't be frozen */
 	virtual bool CanReceiveStatus(EVaelStatus Status) const { return true; }
+
+	/** Damage this character deals is multiplied by this, for example by marked creatures */
+	virtual float GetOutgoingDamageMultiplier() const { return 1.0f; }
 
 	/** Called by the attributes right before damage is taken off the health, with the final amount and the tags of the damage */
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) {}

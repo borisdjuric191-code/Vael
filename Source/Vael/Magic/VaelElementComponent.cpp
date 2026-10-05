@@ -15,6 +15,8 @@
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Vael.h"
+#include "World/VaelRegion.h"
+#include "World/VaelWorldSettings.h"
 
 UVaelElementComponent::UVaelElementComponent()
 {
@@ -156,9 +158,10 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 
 	// Elements drawn from the environment make the formula cheaper and stronger.
-	// Casters corrupted by Mark get a smaller bonus; until corruption exists everybody counts as pure.
+	// Casters touched by the Mark get the smaller bonus: the pure path is the stronger one here.
+	const bool bPure = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute()) < 1.0f;
 	PendingCast.ManaCost = MagicSettings->GetManaCost(NumElements, NumEnvironmentElements);
-	PendingCast.Power = 1.0f + NumEnvironmentElements * MagicSettings->EnvironmentPowerBonusPure;
+	PendingCast.Power = 1.0f + NumEnvironmentElements * (bPure ? MagicSettings->EnvironmentPowerBonusPure : MagicSettings->EnvironmentPowerBonusCorrupted);
 
 	// Quick slots trade cost and power for speed
 	if (bFromQuickSlot)
@@ -172,7 +175,26 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 		return EVaelCastResult::NotEnoughMana;
 	}
 
-	return AbilitySystem->TryActivateAbility(*AbilityHandle) ? EVaelCastResult::Success : EVaelCastResult::Blocked;
+	if (!AbilitySystem->TryActivateAbility(*AbilityHandle))
+	{
+		return EVaelCastResult::Blocked;
+	}
+
+	// Mark corrupts the caster and the region around them
+	const int32 NumMarkElements = Formula->Elements.FilterByPredicate([](EVaelElement Element) { return Element == EVaelElement::Mark; }).Num();
+	if (NumMarkElements > 0)
+	{
+		const UVaelWorldSettings* WorldSettings = UVaelWorldSettings::Get();
+		const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
+		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + NumMarkElements * WorldSettings->PlayerCorruptionPerMarkElement, 100.0f));
+
+		if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetOwner()->GetActorLocation()))
+		{
+			Region->AddCorruption(NumMarkElements * WorldSettings->RegionCorruptionPerMarkElement);
+		}
+	}
+
+	return EVaelCastResult::Success;
 }
 
 EVaelCastResult UVaelElementComponent::CastQuickSlot(int32 SlotIndex)

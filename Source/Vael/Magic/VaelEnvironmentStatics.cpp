@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
+#include "World/VaelRegion.h"
 
 namespace
 {
@@ -33,6 +34,13 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		{
 			return true;
 		}
+	}
+
+	// A storm fills the whole region with air
+	if (Element == EVaelElement::Air)
+	{
+		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
+		return Region != nullptr && Region->GetWeather() == EVaelWeather::Storm;
 	}
 
 	if (Element == EVaelElement::Earth)

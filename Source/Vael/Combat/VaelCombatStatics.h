@@ -61,6 +61,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static bool ApplySpellHit(AActor* Attacker, AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection);
 
+	/** Applies a hit of nature, like lightning, to anyone who can be hurt right now: players and creatures alike */
+	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
+	static bool ApplyNatureHit(AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection);
+
 	/** Deals damage without reactions or a check who may hurt whom, for example to the caster themselves */
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static void DealDamage(AActor* Attacker, AActor* Target, float Damage, EVaelElement Element);
@@ -76,5 +80,10 @@ public:
 	/** Ends a condition of the actor. Returns true if it had the condition. */
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static bool RemoveStatus(AActor* Target, EVaelStatus Status);
+
+private:
+
+	/** Reactions, damage, condition and knockback of a hit, without checking who may hurt whom */
+	static bool ApplyHit(AActor* Attacker, AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection);
 
 };

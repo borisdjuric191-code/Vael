@@ -36,7 +36,6 @@ void AVaelEmberCrawler::BeginPlay()
 	SurfacedBodyScale = GetBody()->GetRelativeScale3D();
 
 	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
-	AbilitySystem->RegisterGameplayTagEvent(VaelTags::Status_Wet, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AVaelEmberCrawler::OnDoused);
 	AbilitySystem->RegisterGameplayTagEvent(VaelTags::Status_Frozen, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AVaelEmberCrawler::OnDoused);
 
 	EnterState(EVaelCrawlerState::Burrowed);
@@ -181,6 +180,17 @@ void AVaelEmberCrawler::OnDoused(const FGameplayTag Tag, int32 NewCount)
 	{
 		UE_LOG(LogVael, Verbose, TEXT("'%s' is doused"), *GetNameSafe(this));
 		EnterState(EVaelCrawlerState::Doused);
+	}
+}
+
+void AVaelEmberCrawler::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
+{
+	Super::OnDamageTaken(Damage, DamageTags);
+
+	// A hit of water puts the fuse out; rain only makes the crawler wet
+	if (DamageTags.HasTagExact(VaelTags::Element_Water))
+	{
+		OnDoused(VaelTags::Element_Water, 1);
 	}
 }
 

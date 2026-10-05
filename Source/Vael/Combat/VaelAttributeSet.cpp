@@ -17,6 +17,10 @@ void UVaelAttributeSet::PreAttributeChange(const FGameplayAttribute& Attribute, 
 	{
 		NewValue = FMath::Clamp(NewValue, 0.0f, GetMaxMana());
 	}
+	else if (Attribute == GetCorruptionAttribute())
+	{
+		NewValue = FMath::Clamp(NewValue, 0.0f, 100.0f);
+	}
 }
 
 void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallbackData& Data)
@@ -38,6 +42,12 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 		{
 			Data.EffectSpec.GetAllAssetTags(DamageTags);
 			Damage *= Target->GetIncomingDamageMultiplier(DamageTags);
+		}
+
+		// Stronger attackers, like creatures marked by the corruption
+		if (const AVaelCharacterBase* Attacker = Cast<AVaelCharacterBase>(Data.EffectSpec.GetContext().GetInstigator()))
+		{
+			Damage *= Attacker->GetOutgoingDamageMultiplier();
 		}
 
 		if (Damage > 0.0f)

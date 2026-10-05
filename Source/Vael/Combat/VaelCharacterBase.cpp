@@ -119,3 +119,8 @@ void AVaelCharacterBase::OnFrozenChanged(const FGameplayTag Tag, int32 NewCount)
 		Movement->SetDefaultMovementMode();
 	}
 }
+
+float AVaelCharacterBase::GetCorruption() const
+{
+	return AttributeSet->GetCorruption();
+}

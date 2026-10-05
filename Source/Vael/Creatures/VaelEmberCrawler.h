@@ -51,13 +51,14 @@ protected:
 
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
 	virtual void TickBehavior(float DeltaSeconds) override;
+	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
 
 private:
 
 	/** Switches to a new state and updates the look */
 	void EnterState(EVaelCrawlerState NewState);
 
-	/** Water or ice puts out a burning fuse */
+	/** Water or ice puts out a burning fuse: called on a hit of water and when the crawler freezes */
 	void OnDoused(const FGameplayTag Tag, int32 NewCount);
 
 	/** Hurts everything around, leaves a fire and dies */

@@ -94,6 +94,15 @@ public:
 	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */
 	virtual bool IsBossFightActive() const { return false; }
 
+	/** True for a stronger version sent by a corrupted region */
+	UFUNCTION(BlueprintPure, Category="Creature")
+	bool IsMarked() const { return bMarked; }
+
+	/** Makes the creature a marked one: more health, more damage, tinted by the Mark */
+	void SetMarked();
+
+	virtual float GetOutgoingDamageMultiplier() const override;
+
 	/** Height above the actor at which the HUD shows the health bar */
 	float GetHealthBarHeight() const { return GetStatusTextHeight(); }
 
@@ -193,4 +202,7 @@ private:
 
 	/** True once the creature has died */
 	bool bDead = false;
+
+	/** True for a stronger version sent by a corrupted region */
+	bool bMarked = false;
 };

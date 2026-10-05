@@ -66,6 +66,8 @@ private:
 	void DrawNotices(float Top);
 	void DrawCreatureHealthBars();
 	void DrawGrimoire(const AVaelPlayerController* PlayerController);
+	void DrawRegionInfo();
+	void DrawWeather();
 
 	// Element symbols
 	void DrawElementButton(EVaelInputGlyphs Glyphs, EVaelElement Element, const FVector2D& Center, float Radius, float Alpha = 1.0f);

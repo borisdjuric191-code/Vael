@@ -55,6 +55,22 @@ bool UVaelCombatStatics::ApplySpellHit(AActor* Attacker, AActor* Target, const F
 		return false;
 	}
 
+	return ApplyHit(Attacker, Target, Hit, KnockbackDirection);
+}
+
+bool UVaelCombatStatics::ApplyNatureHit(AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection)
+{
+	const AVaelCharacterBase* TargetCharacter = Cast<AVaelCharacterBase>(Target);
+	if (GetAbilitySystem(Target) == nullptr || (TargetCharacter != nullptr && (TargetCharacter->IsInvulnerable() || TargetCharacter->IsDefeated())))
+	{
+		return false;
+	}
+
+	return ApplyHit(nullptr, Target, Hit, KnockbackDirection);
+}
+
+bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection)
+{
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 
 	// Reactions between the hit and the conditions of the target

@@ -13,6 +13,8 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Vael.h"
+#include "World/VaelRegion.h"
+#include "World/VaelWorldSettings.h"
 
 namespace
 {
@@ -63,6 +65,13 @@ void AVaelGroundArea::BeginPlay()
 
 	if (Lifetime > 0.0f)
 	{
+		// Fires lit in the rain die sooner
+		const AVaelRegion* Region = Element == EVaelElement::Fire ? AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation()) : nullptr;
+		if (Region != nullptr && Region->GetWeather() == EVaelWeather::Rain)
+		{
+			Lifetime *= UVaelWorldSettings::Get()->RainFireLifetimeShare;
+		}
+
 		SetLifeSpan(Lifetime);
 	}
 

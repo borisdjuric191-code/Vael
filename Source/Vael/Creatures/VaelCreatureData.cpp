@@ -95,6 +95,7 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	ElementMultipliers.Add(EVaelElement::Fire, 0.35f);
 	KnockbackMultiplier = 0.15f;
 	bCanBeFrozen = false;
+	bCanBeMarked = false;
 	AggroRange = 1400.0f;
 	BodyColor = FLinearColor(1.0f, 0.15f, 0.01f);
 }

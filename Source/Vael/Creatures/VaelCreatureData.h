@@ -52,6 +52,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
 	float KnockbackMultiplier = 1.0f;
 
+	/** False for bosses: a corrupted region never sends a marked, stronger version */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes")
+	bool bCanBeMarked = true;
+
 	/** False for bosses: spells can't freeze them */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes")
 	bool bCanBeFrozen = true;

@@ -16,6 +16,9 @@
 #include "Vael.h"
 #include "VaelGameMode.h"
 #include "UI/VaelUISettings.h"
+#include "AbilitySystemComponent.h"
+#include "Combat/VaelAttributeSet.h"
+#include "World/VaelRegion.h"
 
 void UVaelCheatManager::VaelCast(const FString& Elements, float AimYaw)
 {
@@ -167,4 +170,54 @@ void UVaelCheatManager::VaelGlyphs(const FString& Glyphs)
 	// Only for this session; the lasting choice is in the project settings under Vael UI
 	GetMutableDefault<UVaelUISettings>()->GamepadGlyphs = static_cast<EVaelGamepadGlyphPreference>(Value);
 	UE_LOG(LogVael, Log, TEXT("VaelGlyphs: %s"), *Glyphs);
+}
+
+void UVaelCheatManager::VaelWeather(const FString& Weather)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	AVaelRegion* Region = PlayerPawn != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), PlayerPawn->GetActorLocation()) : nullptr;
+	if (Region == nullptr)
+	{
+		return;
+	}
+
+	const FString Name = Weather.ToLower();
+	if (Name.StartsWith(TEXT("reg")) || Name.StartsWith(TEXT("rain")))
+	{
+		Region->SetWeather(EVaelWeather::Rain);
+	}
+	else if (Name.StartsWith(TEXT("stu")) || Name.StartsWith(TEXT("storm")))
+	{
+		Region->SetWeather(EVaelWeather::Storm);
+	}
+	else if (Name.StartsWith(TEXT("kla")) || Name.StartsWith(TEXT("clear")))
+	{
+		Region->SetWeather(EVaelWeather::Clear);
+	}
+	else
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelWeather: use Klar, Regen or Sturm"));
+	}
+}
+
+void UVaelCheatManager::VaelCorruption(float Corruption)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (AVaelRegion* Region = PlayerPawn != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), PlayerPawn->GetActorLocation()) : nullptr)
+	{
+		Region->SetCorruption(Corruption);
+		UE_LOG(LogVael, Log, TEXT("VaelCorruption: '%s' is at %.0f"), *Region->GetRegionName().ToString(), Region->GetCorruption());
+	}
+}
+
+void UVaelCheatManager::VaelPlayerCorruption(float Corruption)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter != nullptr)
+	{
+		VaelCharacter->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Clamp(Corruption, 0.0f, 100.0f));
+	}
 }

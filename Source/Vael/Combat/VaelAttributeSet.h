@@ -45,6 +45,11 @@ public:
 	FGameplayAttributeData MaxMana;
 	VAEL_ATTRIBUTE_ACCESSORS(UVaelAttributeSet, MaxMana)
 
+	/** Corruption by the Mark, 0 (pure) to 100. Grows with every Mark element cast. */
+	UPROPERTY(BlueprintReadOnly, Category="Attributes")
+	FGameplayAttributeData Corruption;
+	VAEL_ATTRIBUTE_ACCESSORS(UVaelAttributeSet, Corruption)
+
 	/** Meta attribute: damage effects write here, the value is moved to Health right away and never kept */
 	UPROPERTY(BlueprintReadOnly, Category="Attributes")
 	FGameplayAttributeData IncomingDamage;

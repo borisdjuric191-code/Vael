@@ -4,6 +4,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "AbilitySystemComponent.h"
 #include "AIController.h"
+#include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -21,6 +22,8 @@
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
+#include "World/VaelRegion.h"
+#include "World/VaelWorldSettings.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -111,6 +114,40 @@ void AVaelCreature::BeginPlay()
 
 	BodyMaterial = Body->CreateAndSetMaterialInstanceDynamic(0);
 	SetBodyColor(ActiveData->BodyColor);
+
+	// A corrupted region sends stronger creatures
+	const UVaelWorldSettings* WorldSettings = UVaelWorldSettings::Get();
+	const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation());
+	const float Corruption = Region != nullptr ? Region->GetCorruption() : 0.0f;
+
+	if (ActiveData->bCanBeMarked && Corruption > WorldSettings->MarkedCreatureThreshold && FMath::FRand() < Corruption / WorldSettings->MarkedCreatureChanceDivisor)
+	{
+		SetMarked();
+	}
+}
+
+void AVaelCreature::SetMarked()
+{
+	if (bMarked || bDead)
+	{
+		return;
+	}
+
+	bMarked = true;
+
+	const float MarkedMaxHealth = GetMaxHealth() * UVaelWorldSettings::Get()->MarkedHealthMultiplier;
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetMaxHealthAttribute(), MarkedMaxHealth);
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), MarkedMaxHealth);
+
+	RefreshBodyColor();
+
+	UE_LOG(LogVael, Verbose, TEXT("'%s' is marked by the corruption"), *GetNameSafe(this));
+}
+
+float AVaelCreature::GetOutgoingDamageMultiplier() const
+{
+	return bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f;
 }
 
 void AVaelCreature::Tick(float DeltaSeconds)
@@ -384,7 +421,9 @@ void AVaelCreature::RefreshBodyColor()
 {
 	if (BodyMaterial != nullptr)
 	{
-		BodyMaterial->SetVectorParameterValue(BodyColorParameter, bShowingHitFlash ? FLinearColor(1.0f, 0.9f, 0.75f) : BodyColor);
+		// Marked creatures carry the violet of the Mark
+		const FLinearColor ShownColor = bMarked ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.45f) : BodyColor;
+		BodyMaterial->SetVectorParameterValue(BodyColorParameter, bShowingHitFlash ? FLinearColor(1.0f, 0.9f, 0.75f) : ShownColor);
 	}
 }
 

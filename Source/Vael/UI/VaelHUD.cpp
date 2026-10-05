@@ -19,6 +19,7 @@
 #include "Player/VaelPlayerController.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "VaelGameMode.h"
+#include "World/VaelRegion.h"
 
 #define LOCTEXT_NAMESPACE "VaelHUD"
 
@@ -107,7 +108,9 @@ void AVaelHUD::DrawHUD()
 	Canvas->TextSize(Font, TEXT("Ag"), FontWidth, FontBaseHeight);
 	FontBaseHeight = FMath::Max(FontBaseHeight, 1.0f);
 
+	DrawWeather();
 	DrawCreatureHealthBars();
+	DrawRegionInfo();
 
 	// One panel per player, side by side at the bottom
 	TArray<const AVaelPlayerController*> PlayerControllers;
@@ -268,6 +271,15 @@ void AVaelHUD::DrawPlayerPanel(const AVaelPlayerController* PlayerController, co
 		DrawQuickSlotLabel(Glyphs, SlotIndex, FVector2D(QuickX + QuickSize * 0.5f, QuickTop + QuickSize - 6.0f * S), 9.0f * S, DimColor);
 	}
 
+	// Corruption of the mage along the bottom edge, only once the Mark has touched them
+	if (Player->GetCorruption() > 0.0f)
+	{
+		const float BarLeft = X + OrbRadius * 2.0f + 20.0f * S;
+		const float BarWidth = Width - (OrbRadius * 2.0f + 20.0f * S) * 2.0f;
+		DrawBox(BarLeft, Y + Height - 6.0f * S, BarWidth, 3.0f * S, Rgb(28, 18, 32));
+		DrawBox(BarLeft, Y + Height - 6.0f * S, BarWidth * Player->GetCorruption() / 100.0f, 3.0f * S, Rgb(162, 77, 255));
+	}
+
 	// Down: the panel darkens and shows how far the help has come
 	if (Player->IsDowned())
 	{
@@ -368,7 +380,7 @@ void AVaelHUD::DrawCreatureHealthBars()
 		const float Top = ScreenPosition.Y;
 
 		DrawBox(Left - 1.0f * S, Top - 1.0f * S, Width + 2.0f * S, Height + 2.0f * S, Rgb(13, 9, 10, 200));
-		DrawBox(Left, Top, Width * FMath::Clamp(Creature->GetHealth() / FMath::Max(Creature->GetMaxHealth(), 1.0f), 0.0f, 1.0f), Height, Rgb(196, 64, 48));
+		DrawBox(Left, Top, Width * FMath::Clamp(Creature->GetHealth() / FMath::Max(Creature->GetMaxHealth(), 1.0f), 0.0f, 1.0f), Height, Creature->IsMarked() ? Rgb(162, 77, 255) : Rgb(196, 64, 48));
 
 		// Conditions as small dots in front of the bar
 		float DotX = Left - 5.0f * S;
@@ -806,6 +818,82 @@ UVaelGrimoireSubsystem* AVaelHUD::GetGrimoire() const
 {
 	const UGameInstance* GameInstance = GetGameInstance();
 	return GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+}
+
+void AVaelHUD::DrawRegionInfo()
+{
+	// The region the first player stands in
+	const APawn* FirstPawn = GetOwningPawn();
+	const AVaelRegion* Region = FirstPawn != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), FirstPawn->GetActorLocation()) : nullptr;
+	if (Region == nullptr)
+	{
+		return;
+	}
+
+	const float S = UiScale;
+	const float Width = 240.0f * S;
+	const float Height = 92.0f * S;
+	const float Left = Canvas->ClipX - Width - 16.0f * S;
+	const float Top = 16.0f * S;
+	const float Padding = 12.0f * S;
+
+	DrawBox(Left, Top, Width, Height, Rgb(13, 9, 10, 173));
+	DrawFrame(Left, Top, Width, Height, RimColor);
+
+	DrawLabel(Region->GetRegionName(), Left + Padding, Top + 8.0f * S, 20.0f * S, BoneColor, 0.0f, Width - 2.0f * Padding);
+	DrawLabel(FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}"), AVaelRegion::GetWeatherName(Region->GetWeather())), Left + Padding, Top + 36.0f * S, 13.0f * S, Rgb(205, 189, 166));
+
+	const int32 Corruption = FMath::RoundToInt(Region->GetCorruption());
+	DrawLabel(FText::Format(LOCTEXT("CorruptionLine", "Verderbnis der Region: {0} %"), Corruption), Left + Padding, Top + 56.0f * S, 13.0f * S, Rgb(205, 189, 166));
+
+	const float BarWidth = Width - 2.0f * Padding;
+	DrawBox(Left + Padding, Top + Height - 12.0f * S, BarWidth, 5.0f * S, Rgb(42, 31, 46));
+	DrawBox(Left + Padding, Top + Height - 12.0f * S, BarWidth * Region->GetCorruption() / 100.0f, 5.0f * S, Rgb(162, 77, 255));
+}
+
+void AVaelHUD::DrawWeather()
+{
+	const APawn* FirstPawn = GetOwningPawn();
+	const AVaelRegion* Region = FirstPawn != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), FirstPawn->GetActorLocation()) : nullptr;
+	if (Region == nullptr)
+	{
+		return;
+	}
+
+	const EVaelWeather Weather = Region->GetWeather();
+	const double Now = FPlatformTime::Seconds();
+	const float Time = static_cast<float>(FMath::Fmod(Now, 1000.0));
+
+	// Placeholder until there are particles: a darker sky and falling streaks of ash rain
+	if (Weather != EVaelWeather::Clear)
+	{
+		const bool bStorm = Weather == EVaelWeather::Storm;
+		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, bStorm ? Rgb(10, 14, 24, 70) : Rgb(20, 26, 34, 45));
+
+		const int32 NumStreaks = bStorm ? 140 : 90;
+		const float Length = (bStorm ? 46.0f : 30.0f) * UiScale;
+		const float Slant = bStorm ? 0.45f : 0.12f;
+		const FLinearColor StreakColor = bStorm ? Rgb(200, 210, 225, 70) : Rgb(170, 185, 200, 60);
+
+		for (int32 StreakIndex = 0; StreakIndex < NumStreaks; ++StreakIndex)
+		{
+			// Every streak has its own fixed column and speed and loops from top to bottom
+			const float Seed = FMath::Frac(FMath::Sin(StreakIndex * 12.9898f) * 43758.5453f);
+			const float Speed = (bStorm ? 1.6f : 1.0f) * (0.7f + 0.6f * Seed);
+			const float Progress = FMath::Frac(Time * Speed * 0.9f + Seed * 7.0f);
+			const float X = FMath::Frac(Seed * 3.7f + StreakIndex * 0.618f) * (Canvas->ClipX + Canvas->ClipY * Slant) - Canvas->ClipY * Slant * Progress;
+			const float Y = Progress * (Canvas->ClipY + Length) - Length;
+
+			DrawSegment(FVector2D(X, Y), FVector2D(X - Length * Slant, Y + Length), StreakColor, 1.5f * UiScale);
+		}
+	}
+
+	// A flash across the screen when lightning strikes
+	const float SinceLightning = static_cast<float>(Now - Region->GetLastLightningTime());
+	if (SinceLightning >= 0.0f && SinceLightning < 0.3f)
+	{
+		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, FLinearColor(0.85f, 0.9f, 1.0f, 0.35f * (1.0f - SinceLightning / 0.3f)));
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
