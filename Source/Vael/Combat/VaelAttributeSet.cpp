@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelCharacterBase.h"
 #include "GameplayEffectExtension.h"
 #include "Vael.h"
 
@@ -26,11 +27,26 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 
 	if (Attribute == GetIncomingDamageAttribute())
 	{
-		const float Damage = GetIncomingDamage();
+		float Damage = GetIncomingDamage();
 		SetIncomingDamage(0.0f);
+
+		// Weaknesses and resistances of the target, for hits and damage over time alike
+		AVaelCharacterBase* Target = Cast<AVaelCharacterBase>(GetOwningActor());
+		FGameplayTagContainer DamageTags;
+
+		if (Target != nullptr)
+		{
+			Data.EffectSpec.GetAllAssetTags(DamageTags);
+			Damage *= Target->GetIncomingDamageMultiplier(DamageTags);
+		}
 
 		if (Damage > 0.0f)
 		{
+			if (Target != nullptr)
+			{
+				Target->OnDamageTaken(Damage, DamageTags);
+			}
+
 			SetHealth(FMath::Clamp(GetHealth() - Damage, 0.0f, GetMaxHealth()));
 
 			UE_LOG(LogVael, VeryVerbose, TEXT("'%s' takes %.1f damage, health now %.1f"), *GetNameSafe(GetOwningActor()), Damage, GetHealth());

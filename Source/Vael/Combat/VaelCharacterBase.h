@@ -6,10 +6,12 @@
 #include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
 #include "GameplayTagContainer.h"
+#include "Magic/VaelElementTypes.h"
 #include "VaelCharacterBase.generated.h"
 
 class UAbilitySystemComponent;
 class UVaelAttributeSet;
+struct FOnAttributeChangeData;
 
 /**
  *  Base of every character that can fight: owns the ability system and the core attributes.
@@ -81,8 +83,33 @@ public:
 	UFUNCTION(BlueprintPure, Category="Combat")
 	FText GetStatusText() const;
 
+	/** Incoming damage carrying the given tags (element tags among them) is multiplied by this */
+	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const { return 1.0f; }
+
+	/** True while nothing can hurt the character, for example during a dodge roll */
+	UFUNCTION(BlueprintPure, Category="Combat")
+	virtual bool IsInvulnerable() const { return false; }
+
+	/** True if the character is out of the fight: a dead creature or a player who is down */
+	UFUNCTION(BlueprintPure, Category="Combat")
+	virtual bool IsDefeated() const { return false; }
+
+	/** False if a condition can't be put on the character, for example bosses can't be frozen */
+	virtual bool CanReceiveStatus(EVaelStatus Status) const { return true; }
+
+	/** Called by the attributes right before damage is taken off the health, with the final amount and the tags of the damage */
+	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) {}
+
 protected:
+
+	/** Called whenever the health changes */
+	virtual void OnHealthChanged(float OldValue, float NewValue) {}
 
 	/** Called when the character freezes or thaws. Frozen characters can't move. */
 	virtual void OnFrozenChanged(const FGameplayTag Tag, int32 NewCount);
+
+private:
+
+	/** Forwards health changes to OnHealthChanged */
+	void HandleHealthChanged(const FOnAttributeChangeData& ChangeData);
 };

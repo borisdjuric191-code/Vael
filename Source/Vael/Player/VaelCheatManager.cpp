@@ -3,6 +3,8 @@
 #include "Player/VaelCheatManager.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Creatures/VaelCreature.h"
+#include "Creatures/VaelCreatureData.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -12,6 +14,7 @@
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
+#include "VaelGameMode.h"
 
 void UVaelCheatManager::VaelCast(const FString& Elements, float AimYaw)
 {
@@ -86,4 +89,67 @@ void UVaelCheatManager::VaelStatus(const FString& Status, float Duration)
 			UE_LOG(LogVael, Log, TEXT("VaelStatus: '%s' is now: %s"), *GetNameSafe(*It), *It->GetStatusText().ToString());
 		}
 	}
+}
+
+void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();
+	if (PlayerPawn == nullptr || GameMode == nullptr)
+	{
+		return;
+	}
+
+	// German and English names, shortened is fine
+	const FString Name = Kind.ToLower();
+	UVaelCreatureData* Data = nullptr;
+
+	if (Name.StartsWith(TEXT("glut")) || Name.StartsWith(TEXT("krie")) || Name.StartsWith(TEXT("crawl")))
+	{
+		Data = GetMutableDefault<UVaelEmberCrawlerData>();
+	}
+	else if (Name.StartsWith(TEXT("asch")) || Name.StartsWith(TEXT("harp")))
+	{
+		Data = GetMutableDefault<UVaelAshHarpyData>();
+	}
+	else if (Name.StartsWith(TEXT("ael")) || Name.StartsWith(TEXT("alt")) || Name.StartsWith(TEXT("elder")))
+	{
+		Data = GetMutableDefault<UVaelHarpyElderData>();
+	}
+	else if (Name.StartsWith(TEXT("pred")) || Name.StartsWith(TEXT("preach")))
+	{
+		Data = GetMutableDefault<UVaelPreacherData>();
+	}
+	else if (Name.StartsWith(TEXT("koe")) || Name.StartsWith(TEXT("kon")) || Name.StartsWith(TEXT("queen")))
+	{
+		Data = GetMutableDefault<UVaelEmberQueenData>();
+	}
+
+	if (Data == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger or Koenigin."), *Kind);
+		return;
+	}
+
+	const FVector Center = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector().GetSafeNormal2D() * 800.0f;
+	const int32 NumSpawned = GameMode->SpawnCreatureGroup(Data, Center, FMath::Max(Count, 1), 150.0f + Data->CollisionRadius);
+
+	UE_LOG(LogVael, Log, TEXT("VaelSpawn: %d x %s"), NumSpawned, *Data->DisplayName.ToString());
+}
+
+void UVaelCheatManager::VaelKillAll()
+{
+	int32 NumKilled = 0;
+
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsDead())
+		{
+			UVaelCombatStatics::DealDamage(nullptr, *It, It->GetHealth() + 1000.0f, EVaelElement::Earth);
+			++NumKilled;
+		}
+	}
+
+	UE_LOG(LogVael, Log, TEXT("VaelKillAll: %d creatures killed"), NumKilled);
 }

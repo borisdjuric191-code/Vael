@@ -27,6 +27,12 @@ void AVaelCharacterBase::PostInitializeComponents()
 	AttributeSet->InitMana(StartingMana);
 
 	AbilitySystemComponent->RegisterGameplayTagEvent(VaelTags::Status_Frozen, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AVaelCharacterBase::OnFrozenChanged);
+	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UVaelAttributeSet::GetHealthAttribute()).AddUObject(this, &AVaelCharacterBase::HandleHealthChanged);
+}
+
+void AVaelCharacterBase::HandleHealthChanged(const FOnAttributeChangeData& ChangeData)
+{
+	OnHealthChanged(ChangeData.OldValue, ChangeData.NewValue);
 }
 
 void AVaelCharacterBase::BeginPlay()
@@ -107,8 +113,9 @@ void AVaelCharacterBase::OnFrozenChanged(const FGameplayTag Tag, int32 NewCount)
 		Movement->StopMovementImmediately();
 		Movement->DisableMovement();
 	}
-	else if (Movement->MovementMode == MOVE_None)
+	else if (Movement->MovementMode == MOVE_None && !IsDefeated())
 	{
-		Movement->SetMovementMode(MOVE_Walking);
+		// Walking, or flying for creatures of the air
+		Movement->SetDefaultMovementMode();
 	}
 }

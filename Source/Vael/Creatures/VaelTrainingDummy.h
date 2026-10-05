@@ -7,7 +7,6 @@
 #include "VaelTrainingDummy.generated.h"
 
 class UStaticMeshComponent;
-struct FOnAttributeChangeData;
 
 /**
  *  Temporary target for testing spells until the real creatures exist.
@@ -37,8 +36,8 @@ public:
 
 protected:
 
-	/** Reacts to damage */
-	void OnHealthChanged(const FOnAttributeChangeData& ChangeData);
+	/** Remembers the time of the last hit */
+	virtual void OnHealthChanged(float OldValue, float NewValue) override;
 
 	/** Seconds after the last hit until the dummy is back at full health */
 	UPROPERTY(EditAnywhere, Category="Attributes", meta = (ClampMin = 0))

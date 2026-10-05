@@ -2,7 +2,15 @@
 
 #include "VaelGameMode.h"
 #include "Camera/VaelSharedCamera.h"
+#include "AbilitySystemComponent.h"
+#include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelCombatStatics.h"
+#include "Creatures/VaelCreature.h"
+#include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelTrainingDummy.h"
+#include "GameFramework/PlayerStart.h"
+#include "TimerManager.h"
+#include "Vael.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelGroundArea.h"
@@ -74,6 +82,11 @@ void AVaelGameMode::RestartPlayer(AController* NewPlayer)
 		if (bSpawnTestAreas)
 		{
 			SpawnTestAreas(NewPlayer->GetPawn()->GetActorLocation());
+		}
+
+		if (bSpawnTestCreatures)
+		{
+			SpawnTestCreatures(NewPlayer->GetPawn()->GetActorLocation());
 		}
 	}
 }
@@ -153,4 +166,97 @@ int32 AVaelGameMode::FindFreePlayerSlot(const APlayerController* ForPlayer) cons
 
 	const int32 FreeSlot = UsedSlots.Find(false);
 	return FreeSlot != INDEX_NONE ? FreeSlot : 0;
+}
+
+void AVaelGameMode::SpawnTestCreatures(const FVector& Center)
+{
+	// Between the test areas and away from the training dummies: crawlers ahead, harpies and a preacher to the sides
+	const auto SpawnAtAngle = [this, &Center](UVaelCreatureData* Data, float AngleDegrees, int32 Count)
+	{
+		const float Angle = FMath::DegreesToRadians(AngleDegrees);
+		SpawnCreatureGroup(Data, Center + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * TestCreatureDistance, Count, 150.0f);
+	};
+
+	SpawnAtAngle(GetMutableDefault<UVaelEmberCrawlerData>(), 0.0f, 3);
+	SpawnAtAngle(GetMutableDefault<UVaelAshHarpyData>(), 120.0f, 3);
+	SpawnAtAngle(GetMutableDefault<UVaelPreacherData>(), 240.0f, 1);
+}
+
+int32 AVaelGameMode::SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread)
+{
+	int32 NumSpawned = 0;
+
+	for (int32 CreatureIndex = 0; CreatureIndex < Count; ++CreatureIndex)
+	{
+		// The first one in the center, the others in a ring around it
+		const float Angle = UE_TWO_PI * CreatureIndex / FMath::Max(Count - 1, 1);
+		const FVector Offset = CreatureIndex == 0 ? FVector::ZeroVector : FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Spread;
+
+		FVector Ground;
+		if (AVaelCreature::FindGround(GetWorld(), Center + Offset, Ground) && AVaelCreature::SpawnCreature(GetWorld(), Data, Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f)) != nullptr)
+		{
+			++NumSpawned;
+		}
+	}
+
+	if (NumSpawned < Count)
+	{
+		UE_LOG(LogVael, Warning, TEXT("Only %d of %d creatures of '%s' found ground near %s"), NumSpawned, Count, *GetNameSafe(Data), *Center.ToCompactString());
+	}
+
+	return NumSpawned;
+}
+
+void AVaelGameMode::OnPlayerDowned(AVaelCharacter* Player)
+{
+	bool bAllDown = true;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* PlayerController = It->Get();
+		const AVaelCharacter* Other = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+
+		if (Other != nullptr && !Other->IsDowned())
+		{
+			bAllDown = false;
+			break;
+		}
+	}
+
+	if (!bAllDown)
+	{
+		UVaelCombatStatics::ShowNotice(NSLOCTEXT("VaelPlayers", "PlayerDown", "Ein Spieler ist gefallen. Stell dich daneben, um ihn wiederzubeleben."), FColor(255, 122, 106));
+		return;
+	}
+
+	UVaelCombatStatics::ShowNotice(NSLOCTEXT("VaelPlayers", "AllDown", "Alle sind gefallen..."), FColor(255, 122, 106));
+	GetWorldTimerManager().SetTimer(RespawnTimer, this, &AVaelGameMode::RespawnGroup, FMath::Max(AllDownRespawnDelay, 0.01f));
+}
+
+void AVaelGameMode::RespawnGroup()
+{
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		APlayerController* PlayerController = It->Get();
+		AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+		if (Player == nullptr)
+		{
+			continue;
+		}
+
+		Player->Revive(Player->GetMaxHealth(), RespawnInvulnerability);
+		Player->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Player->GetMaxMana());
+
+		// Each slot gets its own spot around the start
+		if (const AActor* Start = FindPlayerStart(PlayerController))
+		{
+			const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(PlayerController);
+			const int32 PlayerSlot = VaelController != nullptr ? FMath::Max(VaelController->GetPlayerSlot(), 0) : 0;
+			const float Angle = FMath::DegreesToRadians(90.0f * PlayerSlot);
+			const FVector Offset = PlayerSlot == 0 ? FVector::ZeroVector : FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * JoinSpawnRadius;
+
+			Player->TeleportTo(Start->GetActorLocation() + Offset, Player->GetActorRotation());
+		}
+	}
+
+	UVaelCombatStatics::ShowNotice(NSLOCTEXT("VaelPlayers", "Respawned", "Ihr erwacht am Lagerfeuer. Edda hat euch aus der Asche gezogen."), FColor(232, 176, 122));
 }

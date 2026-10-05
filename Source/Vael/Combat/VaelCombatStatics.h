@@ -76,4 +76,7 @@ public:
 	/** Ends a condition of the actor. Returns true if it had the condition. */
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static bool RemoveStatus(AActor* Target, EVaelStatus Status);
+
+	/** Placeholder until the HUD exists: shows a short message on screen and writes it to the log */
+	static void ShowNotice(const FText& Message, const FColor& Color = FColor::White, float Duration = 5.0f);
 };

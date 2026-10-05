@@ -264,7 +264,7 @@ void AVaelPlayerController::OnLeave()
 void AVaelPlayerController::OnElement(EVaelElement Element)
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging())
+	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned())
 	{
 		VaelCharacter->GetElementComponent()->AddElement(Element);
 	}
@@ -273,7 +273,7 @@ void AVaelPlayerController::OnElement(EVaelElement Element)
 void AVaelPlayerController::OnCast()
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging())
+	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned())
 	{
 		// Bring the aim up to date so the spell flies where the player points right now
 		UpdateFacing();
@@ -292,7 +292,7 @@ void AVaelPlayerController::OnClearQueue()
 void AVaelPlayerController::ApplyMoveInput(const FVector2D& Input)
 {
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter == nullptr || VaelCharacter->IsDodging())
+	if (VaelCharacter == nullptr || VaelCharacter->IsDodging() || VaelCharacter->IsDowned())
 	{
 		return;
 	}

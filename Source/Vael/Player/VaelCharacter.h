@@ -71,6 +71,26 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Dodge", meta = (ClampMin = 0.1, ClampMax = 1))
 	float DodgeMeshSquash = 0.6f;
 
+	/** Seconds nothing can hurt the player after a hit */
+	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 0))
+	float HitInvulnerability = 0.35f;
+
+	/** A teammate this close helps a downed player up, in cm */
+	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 0))
+	float ReviveDistance = 224.0f;
+
+	/** Seconds a teammate has to stay close to help a downed player up */
+	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 0))
+	float ReviveDuration = 2.4f;
+
+	/** Health after being helped up */
+	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 1))
+	float ReviveHealth = 45.0f;
+
+	/** Seconds nothing can hurt the player after being helped up */
+	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 0))
+	float ReviveInvulnerability = 1.5f;
+
 	/** Vector parameter that tints the character materials in the player color */
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	FName BodyTintParameter = TEXT("Paint Tint");
@@ -101,6 +121,23 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dodge")
 	bool IsDodging() const { return bIsDodging; }
 
+	/** True while the player is down and waits for help */
+	UFUNCTION(BlueprintPure, Category="Combat")
+	bool IsDowned() const { return bDowned; }
+
+	/** Gets a downed player back on their feet with the given health and some seconds of invulnerability */
+	UFUNCTION(BlueprintCallable, Category="Combat")
+	void Revive(float Health, float InvulnerableSeconds);
+
+	/** Nothing can hurt the player for the given seconds */
+	UFUNCTION(BlueprintCallable, Category="Combat")
+	void SetInvulnerableFor(float Seconds);
+
+	//~Begin AVaelCharacterBase
+	virtual bool IsInvulnerable() const override;
+	virtual bool IsDefeated() const override { return bDowned; }
+	//~End AVaelCharacterBase
+
 	/** Tints the character and its marker */
 	UFUNCTION(BlueprintCallable, Category="Appearance")
 	void SetPlayerColor(const FLinearColor& Color);
@@ -111,10 +148,33 @@ public:
 	/** Returns the element queue **/
 	UVaelElementComponent* GetElementComponent() const { return ElementComponent.Get(); }
 
+protected:
+
+	/** Brings the player down at zero health and starts the short invulnerability after a hit */
+	virtual void OnHealthChanged(float OldValue, float NewValue) override;
+
 private:
 
 	/** Updates the queue orbs to show the queued elements */
 	void RefreshQueueOrbs();
+
+	/** Puts the player down until a teammate helps them up */
+	void GoDown();
+
+	/** Advances the help of a teammate standing close to a downed player */
+	void TickRevive(float DeltaSeconds);
+
+	/** Number of the player for messages, starting at 1 */
+	int32 GetPlayerNumber() const;
+
+	/** True while the player is down */
+	bool bDowned = false;
+
+	/** Seconds a teammate has helped so far */
+	float ReviveProgress = 0.0f;
+
+	/** World time until which nothing can hurt the player */
+	float InvulnerableEndTime = 0.0f;
 
 	/** Ends the dodge roll and returns to normal movement */
 	void EndDodge();

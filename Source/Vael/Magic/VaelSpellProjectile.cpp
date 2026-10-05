@@ -122,12 +122,69 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 		{
 			// Later overlaps of the same move must not hit anything else
 			Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			Destroy();
+			EndFlight();
 		}
 	}
 }
 
 void AVaelSpellProjectile::OnStopped(const FHitResult& ImpactResult)
 {
+	EndFlight();
+}
+
+void AVaelSpellProjectile::LifeSpanExpired()
+{
+	EndFlight();
+}
+
+void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond)
+{
+	ImpactElement = Element;
+	ImpactRadius = Radius;
+	ImpactLifetime = Lifetime;
+	ImpactDamagePerSecond = DamagePerSecond;
+}
+
+AVaelSpellProjectile* AVaelSpellProjectile::Launch(APawn* Attacker, const FVector& Location, const FVector& Direction, const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color, float FireRadius, float FireLifetime, float FireDamagePerSecond)
+{
+	UWorld* World = Attacker != nullptr ? Attacker->GetWorld() : nullptr;
+	const FVector FlightDirection = Direction.GetSafeNormal2D();
+	if (World == nullptr || FlightDirection.IsNearlyZero())
+	{
+		return nullptr;
+	}
+
+	const FTransform SpawnTransform(FlightDirection.Rotation(), Location);
+
+	AVaelSpellProjectile* Projectile = World->SpawnActorDeferred<AVaelSpellProjectile>(AVaelSpellProjectile::StaticClass(), SpawnTransform, Attacker, Attacker, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (Projectile != nullptr)
+	{
+		Projectile->InitSpell(InHit, Speed, Radius, Lifetime, 0, Color);
+		Projectile->SetImpactArea(EVaelElement::Fire, FireRadius, FireLifetime, FireDamagePerSecond);
+		Projectile->FinishSpawning(SpawnTransform);
+	}
+
+	return Projectile;
+}
+
+void AVaelSpellProjectile::EndFlight()
+{
+	if (IsActorBeingDestroyed())
+	{
+		return;
+	}
+
+	if (ImpactRadius > 0.0f)
+	{
+		FVector Location = GetActorLocation();
+
+		// The patch lies on the ground below the projectile
+		FHitResult GroundHit;
+		if (GetWorld()->LineTraceSingleByObjectType(GroundHit, Location, Location - FVector(0.0f, 0.0f, 500.0f), FCollisionObjectQueryParams(ECC_WorldStatic)))
+		{
+			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator());
+		}
+	}
+
 	Destroy();
 }

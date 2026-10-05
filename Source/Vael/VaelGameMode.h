@@ -6,8 +6,10 @@
 #include "GameFramework/GameModeBase.h"
 #include "VaelGameMode.generated.h"
 
+class AVaelCharacter;
 class AVaelSharedCamera;
 class AVaelTrainingDummy;
+class UVaelCreatureData;
 
 /**
  *  Game Mode for local co-op with one shared isometric camera
@@ -37,6 +39,12 @@ public:
 
 	/** Returns the placeholder color of a player slot */
 	FLinearColor GetPlayerColor(int32 PlayerSlot) const;
+
+	/** Called by a player who goes down. Once every player is down, the group wakes up at the start after a moment. */
+	void OnPlayerDowned(AVaelCharacter* Player);
+
+	/** Spawns creatures of one kind on the ground around a location. Returns the number spawned. */
+	int32 SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread);
 
 protected:
 
@@ -72,6 +80,22 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Testing", meta = (ClampMin = 0))
 	float TestAreaDistance = 450.0f;
 
+	/** Temporary: spawns a few ember crawlers, ash harpies and a preacher around the first player, until levels bring their own */
+	UPROPERTY(EditDefaultsOnly, Category="Testing")
+	bool bSpawnTestCreatures = true;
+
+	/** Temporary: distance of the test creatures from the first player */
+	UPROPERTY(EditDefaultsOnly, Category="Testing", meta = (ClampMin = 0))
+	float TestCreatureDistance = 1800.0f;
+
+	/** Seconds after the last player went down until the group wakes up at the start */
+	UPROPERTY(EditDefaultsOnly, Category="Players", meta = (ClampMin = 0))
+	float AllDownRespawnDelay = 2.5f;
+
+	/** Seconds nothing can hurt the players after waking up at the start */
+	UPROPERTY(EditDefaultsOnly, Category="Players", meta = (ClampMin = 0))
+	float RespawnInvulnerability = 2.0f;
+
 private:
 
 	/** Spawns the training dummies in a ring around a location */
@@ -79,6 +103,15 @@ private:
 
 	/** Spawns a camp fire and a puddle on the ground near a location */
 	void SpawnTestAreas(const FVector& Center);
+
+	/** Spawns the test creatures around a location */
+	void SpawnTestCreatures(const FVector& Center);
+
+	/** Brings every player back to the start with full health and mana */
+	void RespawnGroup();
+
+	/** Timer of the group waking up at the start */
+	FTimerHandle RespawnTimer;
 
 	/** True once the training dummies exist */
 	bool bTrainingDummiesSpawned = false;

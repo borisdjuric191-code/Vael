@@ -30,4 +30,15 @@ public:
 	/** Puts a condition on everything the player can hurt: Wet, Burning or Frozen, for the given seconds. Example: VaelStatus Wet 5 */
 	UFUNCTION(Exec)
 	void VaelStatus(const FString& Status, float Duration);
+
+	/**
+	 *  Spawns creatures 8 m in front of the player: Glutkriecher, Aschharpyie, Aelteste, Prediger or Koenigin.
+	 *  Example: VaelSpawn Koenigin 1
+	 */
+	UFUNCTION(Exec)
+	void VaelSpawn(const FString& Kind, int32 Count);
+
+	/** Kills every creature in the level */
+	UFUNCTION(Exec)
+	void VaelKillAll();
 };

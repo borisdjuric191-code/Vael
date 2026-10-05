@@ -4,6 +4,9 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Animation/AnimInstance.h"
 #include "Camera/VaelSharedCamera.h"
+#include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelCombatStatics.h"
+#include "AbilitySystemComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -175,10 +178,18 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 #if ENABLE_DRAW_DEBUG
 	if (bShowStatusText)
 	{
-		const FString Status = FString::Printf(TEXT("Leben %.0f   Mana %.0f   %s"), GetHealth(), GetMana(), *GetStatusText().ToString());
-		DrawDebugString(GetWorld(), FVector(0.f, 0.f, QueueOrbHeight + 45.f), Status, this, FColor::White, 0.f, true);
+		const FString Status = bDowned
+			? FString::Printf(TEXT("Am Boden   Wiederbeleben %.0f %%"), 100.f * ReviveProgress / FMath::Max(ReviveDuration, 0.01f))
+			: FString::Printf(TEXT("Leben %.0f   Mana %.0f   %s"), GetHealth(), GetMana(), *GetStatusText().ToString());
+		DrawDebugString(GetWorld(), FVector(0.f, 0.f, QueueOrbHeight + 45.f), Status, this, bDowned ? FColor(255, 107, 94) : FColor::White, 0.f, true);
 	}
 #endif
+
+	if (bDowned)
+	{
+		TickRevive(DeltaSeconds);
+		return;
+	}
 
 	if (bIsDodging)
 	{
@@ -213,7 +224,7 @@ void AVaelCharacter::PossessedBy(AController* NewController)
 bool AVaelCharacter::StartDodge(const FVector& WorldDirection)
 {
 	const float Now = GetWorld()->GetTimeSeconds();
-	if (bIsDodging || Now < NextDodgeTime || !GetCharacterMovement()->IsMovingOnGround())
+	if (bDowned || bIsDodging || Now < NextDodgeTime || !GetCharacterMovement()->IsMovingOnGround())
 	{
 		return false;
 	}
@@ -260,4 +271,116 @@ void AVaelCharacter::EndDodge()
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	const float ExitSpeed = FMath::Min(DodgeSpeed, Movement->GetMaxSpeed());
 	Movement->Velocity = FVector(DodgeDirection.X * ExitSpeed, DodgeDirection.Y * ExitSpeed, Movement->Velocity.Z);
+}
+
+bool AVaelCharacter::IsInvulnerable() const
+{
+	return bIsDodging || GetWorld()->GetTimeSeconds() < InvulnerableEndTime;
+}
+
+void AVaelCharacter::SetInvulnerableFor(float Seconds)
+{
+	InvulnerableEndTime = FMath::Max(InvulnerableEndTime, GetWorld()->GetTimeSeconds() + Seconds);
+}
+
+void AVaelCharacter::OnHealthChanged(float OldValue, float NewValue)
+{
+	Super::OnHealthChanged(OldValue, NewValue);
+
+	if (bDowned || NewValue >= OldValue)
+	{
+		return;
+	}
+
+	if (NewValue <= 0.0f)
+	{
+		GoDown();
+	}
+	else
+	{
+		// A short moment of grace keeps volleys from hitting several times at once
+		SetInvulnerableFor(HitInvulnerability);
+	}
+}
+
+void AVaelCharacter::GoDown()
+{
+	bDowned = true;
+	ReviveProgress = 0.0f;
+
+	if (bIsDodging)
+	{
+		EndDodge();
+	}
+
+	ElementComponent->ClearQueue();
+
+	// Conditions end, nothing burns on
+	UVaelCombatStatics::RemoveStatus(this, EVaelStatus::Wet);
+	UVaelCombatStatics::RemoveStatus(this, EVaelStatus::Burning);
+	UVaelCombatStatics::RemoveStatus(this, EVaelStatus::Frozen);
+
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->StopMovementImmediately();
+	Movement->DisableMovement();
+
+	// Placeholder for a fall animation: the body lies flat
+	GetMesh()->SetRelativeScale3D(DefaultMeshScale * FVector(1.f, 1.f, 0.25f));
+
+	UE_LOG(LogVael, Log, TEXT("Player %d is down"), GetPlayerNumber());
+
+	if (AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>())
+	{
+		GameMode->OnPlayerDowned(this);
+	}
+}
+
+void AVaelCharacter::Revive(float Health, float InvulnerableSeconds)
+{
+	GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), FMath::Clamp(Health, 1.0f, GetMaxHealth()));
+
+	if (!bDowned)
+	{
+		return;
+	}
+
+	bDowned = false;
+	ReviveProgress = 0.0f;
+	SetInvulnerableFor(InvulnerableSeconds);
+
+	GetMesh()->SetRelativeScale3D(DefaultMeshScale);
+	GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+
+	UE_LOG(LogVael, Log, TEXT("Player %d is back on their feet"), GetPlayerNumber());
+}
+
+void AVaelCharacter::TickRevive(float DeltaSeconds)
+{
+	// A teammate on their feet next to the downed player helps them up
+	bool bHelped = false;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* PlayerController = It->Get();
+		const AVaelCharacter* Teammate = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+
+		if (Teammate != nullptr && Teammate != this && !Teammate->IsDowned() && FVector::Dist2D(Teammate->GetActorLocation(), GetActorLocation()) < ReviveDistance)
+		{
+			bHelped = true;
+			break;
+		}
+	}
+
+	ReviveProgress = bHelped ? ReviveProgress + DeltaSeconds : FMath::Max(0.0f, ReviveProgress - DeltaSeconds);
+
+	if (ReviveProgress >= ReviveDuration)
+	{
+		Revive(ReviveHealth, ReviveInvulnerability);
+		UVaelCombatStatics::ShowNotice(FText::Format(NSLOCTEXT("VaelPlayers", "PlayerRevived", "Spieler {0} steht wieder."), GetPlayerNumber()), FColor(159, 224, 168), 3.0f);
+	}
+}
+
+int32 AVaelCharacter::GetPlayerNumber() const
+{
+	const AVaelPlayerController* VaelController = GetController<AVaelPlayerController>();
+	return VaelController != nullptr ? VaelController->GetPlayerSlot() + 1 : 1;
 }

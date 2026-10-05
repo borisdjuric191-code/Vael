@@ -3,6 +3,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "Engine/Engine.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelGameplayEffects.h"
 #include "GameFramework/Pawn.h"
@@ -28,6 +29,13 @@ namespace
 bool UVaelCombatStatics::CanDamage(const AActor* Attacker, const AActor* Target)
 {
 	if (Attacker == nullptr || Target == nullptr || Attacker == Target)
+	{
+		return false;
+	}
+
+	// Nothing hurts a dodging player or a creature that is already dead
+	const AVaelCharacterBase* TargetCharacter = Cast<AVaelCharacterBase>(Target);
+	if (TargetCharacter != nullptr && (TargetCharacter->IsInvulnerable() || TargetCharacter->IsDefeated()))
 	{
 		return false;
 	}
@@ -142,6 +150,12 @@ void UVaelCombatStatics::ApplyStatus(AActor* Attacker, AActor* Target, EVaelStat
 		return;
 	}
 
+	const AVaelCharacterBase* TargetCharacter = Cast<AVaelCharacterBase>(Target);
+	if (TargetCharacter != nullptr && !TargetCharacter->CanReceiveStatus(Status))
+	{
+		return;
+	}
+
 	// One effect per condition: renew it and keep the longer of the two durations
 	const FGameplayEffectQuery StatusQuery = FGameplayEffectQuery::MakeQuery_MatchAnyOwningTags(FGameplayTagContainer(StatusTag));
 	for (const float TimeRemaining : TargetAbilitySystem->GetActiveEffectsTimeRemaining(StatusQuery))
@@ -185,4 +199,14 @@ bool UVaelCombatStatics::RemoveStatus(AActor* Target, EVaelStatus Status)
 	}
 
 	return TargetAbilitySystem->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(StatusTag)) > 0;
+}
+
+void UVaelCombatStatics::ShowNotice(const FText& Message, const FColor& Color, float Duration)
+{
+	UE_LOG(LogVael, Log, TEXT("Notice: %s"), *Message.ToString());
+
+	if (GEngine != nullptr)
+	{
+		GEngine->AddOnScreenDebugMessage(INDEX_NONE, Duration, Color, Message.ToString());
+	}
 }

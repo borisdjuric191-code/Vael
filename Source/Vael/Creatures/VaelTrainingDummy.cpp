@@ -38,8 +38,6 @@ AVaelTrainingDummy::AVaelTrainingDummy()
 void AVaelTrainingDummy::BeginPlay()
 {
 	Super::BeginPlay();
-
-	GetAbilitySystemComponent()->GetGameplayAttributeValueChangeDelegate(UVaelAttributeSet::GetHealthAttribute()).AddUObject(this, &AVaelTrainingDummy::OnHealthChanged);
 }
 
 void AVaelTrainingDummy::Tick(float DeltaSeconds)
@@ -58,9 +56,11 @@ void AVaelTrainingDummy::Tick(float DeltaSeconds)
 #endif
 }
 
-void AVaelTrainingDummy::OnHealthChanged(const FOnAttributeChangeData& ChangeData)
+void AVaelTrainingDummy::OnHealthChanged(float OldValue, float NewValue)
 {
-	if (ChangeData.NewValue < ChangeData.OldValue)
+	Super::OnHealthChanged(OldValue, NewValue);
+
+	if (NewValue < OldValue)
 	{
 		LastHitTime = GetWorld()->GetTimeSeconds();
 	}
