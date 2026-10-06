@@ -18,6 +18,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
+#include "Creatures/VaelCreatureSpawner.h"
 #include "World/VaelGround.h"
 
 AVaelGameMode::AVaelGameMode()
@@ -77,6 +78,12 @@ void AVaelGameMode::RestartPlayer(AController* NewPlayer)
 	}
 
 	Super::RestartPlayer(NewPlayer);
+
+	// Real levels bring their own creatures; the test setup is only for the test level
+	if (!bTrainingDummiesSpawned && NewPlayer != nullptr && NewPlayer->GetPawn() != nullptr && AVaelCreatureSpawner::LevelHasSpawners(GetWorld()))
+	{
+		bTrainingDummiesSpawned = true;
+	}
 
 	if (!bTrainingDummiesSpawned && NewPlayer != nullptr && NewPlayer->GetPawn() != nullptr)
 	{

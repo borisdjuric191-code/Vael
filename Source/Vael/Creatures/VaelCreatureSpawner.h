@@ -40,6 +40,9 @@ public:
 	/** Constructor */
 	AVaelCreatureSpawner();
 
+	/** True if the level has at least one spawner, which makes it a real level instead of the test level */
+	static bool LevelHasSpawners(const UWorld* World);
+
 	/** Spawns the creatures */
 	virtual void BeginPlay() override;
 };

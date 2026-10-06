@@ -21,9 +21,19 @@ public:
 	/** Remembers that a weather has been explained. Returns true the first time. */
 	bool MarkWeatherIntroduced(EVaelWeather Weather);
 
+	/** True once the character with this name has told their first talk */
+	bool HasHeardIntro(FName Speaker) const { return HeardIntros.Contains(Speaker); }
+
+	/** Remembers that the character has told their first talk */
+	void MarkIntroHeard(FName Speaker) { HeardIntros.Add(Speaker); }
+
 private:
 
 	/** Weathers the players have had explained */
 	UPROPERTY()
 	TSet<EVaelWeather> IntroducedWeathers;
+
+	/** Characters whose first talk the players have heard */
+	UPROPERTY()
+	TSet<FName> HeardIntros;
 };

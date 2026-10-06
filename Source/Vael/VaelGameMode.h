@@ -80,7 +80,7 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Testing", meta = (ClampMin = 0))
 	float TestAreaDistance = 450.0f;
 
-	/** Temporary: spawns a few ember crawlers, ash harpies and a preacher around the first player, until levels bring their own */
+	/** Temporary: spawns a few ember crawlers, ash harpies and a preacher around the first player; levels with creature spawners leave all test setup out */
 	UPROPERTY(EditDefaultsOnly, Category="Testing")
 	bool bSpawnTestCreatures = true;
 

@@ -132,6 +132,7 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(MenuPageAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuPage);
 			EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuConfirm);
 			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnToggleInventory);
+			EnhancedInputComponent->BindAction(DialogueContinueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnDialogueContinue);
 
 			for (int32 SlotIndex = 0; SlotIndex < MenuAssignActions.Num(); ++SlotIndex)
 			{
@@ -285,6 +286,16 @@ void AVaelPlayerController::CreateInputAssets()
 	MenuMappingContext->MapKey(MenuConfirmAction, EKeys::Gamepad_FaceButton_Bottom);
 	MenuMappingContext->MapKey(MenuConfirmAction, EKeys::Enter);
 	MenuMappingContext->MapKey(MenuConfirmAction, EKeys::SpaceBar);
+
+	// Dialogues: every button that talks or confirms shows the next line
+	DialogueMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VaelDialogue"));
+	DialogueContinueAction = CreateAction(TEXT("IA_DialogueContinue"), EInputActionValueType::Boolean);
+	DialogueContinueAction->bTriggerWhenPaused = true;
+
+	for (const FKey& ContinueKey : { EKeys::E, EKeys::Enter, EKeys::SpaceBar, EKeys::LeftMouseButton, EKeys::Gamepad_FaceButton_Bottom, EKeys::Gamepad_LeftShoulder })
+	{
+		DialogueMappingContext->MapKey(DialogueContinueAction, ContinueKey);
+	}
 
 	for (int32 SlotIndex = 0; SlotIndex < UE_ARRAY_COUNT(QuickSlotPadKeys); ++SlotIndex)
 	{
@@ -745,6 +756,55 @@ int32 AVaelPlayerController::GetNumInventoryRows() const
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	const int32 NumBackpack = VaelCharacter != nullptr ? VaelCharacter->GetInventory()->GetBackpack().Num() : 0;
 	return static_cast<int32>(EVaelEquipSlot::Count) + NumBackpack;
+}
+
+bool AVaelPlayerController::StartDialogue(const FText& Speaker, const TArray<FText>& Lines)
+{
+	// One thing at a time: no dialogue while the game is paused for a menu or another dialogue
+	if (Lines.IsEmpty() || IsInDialogue() || UGameplayStatics::IsGamePaused(this))
+	{
+		return false;
+	}
+
+	UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	if (InputSubsystem == nullptr || DialogueMappingContext == nullptr)
+	{
+		return false;
+	}
+
+	DialogueSpeaker = Speaker;
+	DialogueLines = Lines;
+	DialogueIndex = 0;
+	DialogueStartTime = FPlatformTime::Seconds();
+
+	InputSubsystem->AddMappingContext(DialogueMappingContext, 2);
+	UGameplayStatics::SetGamePaused(this, true);
+
+	return true;
+}
+
+void AVaelPlayerController::OnDialogueContinue()
+{
+	if (!IsInDialogue() || FPlatformTime::Seconds() - DialogueStartTime < DialogueInputDelay)
+	{
+		return;
+	}
+
+	if (++DialogueIndex < DialogueLines.Num())
+	{
+		return;
+	}
+
+	// The last line was read
+	DialogueLines.Reset();
+	DialogueIndex = 0;
+
+	if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
+	{
+		InputSubsystem->RemoveMappingContext(DialogueMappingContext);
+	}
+
+	UGameplayStatics::SetGamePaused(this, false);
 }
 
 void AVaelPlayerController::OnMenuNavigateReleased()

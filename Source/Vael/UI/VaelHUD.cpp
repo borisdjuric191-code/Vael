@@ -19,6 +19,7 @@
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelInteractable.h"
+#include "Story/VaelNpc.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
@@ -147,6 +148,7 @@ void AVaelHUD::DrawHUD()
 		}
 	}
 
+	DrawNpcMarkers();
 	DrawInteractPrompts(PlayerControllers);
 
 	float NoticeTop = 70.0f * UiScale;
@@ -158,6 +160,15 @@ void AVaelHUD::DrawHUD()
 		if (PlayerController->IsGrimoireOpen())
 		{
 			DrawGrimoire(PlayerController);
+			break;
+		}
+	}
+
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		if (PlayerController->IsInDialogue())
+		{
+			DrawDialogue(PlayerController);
 			break;
 		}
 	}
@@ -1233,6 +1244,56 @@ FText AVaelHUD::GetEquipSlotName(EVaelEquipSlot EquipSlot)
 	case EVaelEquipSlot::Amulet:	return LOCTEXT("EquipAmulet", "Amulett");
 	default:						return LOCTEXT("EquipRing", "Ring");
 	}
+}
+
+void AVaelHUD::DrawNpcMarkers()
+{
+	const float S = UiScale;
+
+	for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+	{
+		const FVector Screen = Project(It->GetActorLocation() + FVector(0.0f, 0.0f, 150.0f), false);
+		if (Screen.Z <= 0.0f)
+		{
+			continue;
+		}
+
+		DrawLabel(It->GetDisplayName(), Screen.X, Screen.Y, 13.0f * S, Rgb(246, 231, 166, 140), 0.5f);
+
+		// Someone with news to tell carries a bobbing "!", like in the prototype
+		if (It->HasNews())
+		{
+			const float Bob = FMath::Sin(GetWorld()->GetRealTimeSeconds() * 4.0f) * 3.0f * S;
+			DrawLabel(LOCTEXT("NpcNews", "!"), Screen.X, Screen.Y - 30.0f * S + Bob, 24.0f * S, Rgb(255, 207, 107), 0.5f);
+		}
+	}
+}
+
+void AVaelHUD::DrawDialogue(const AVaelPlayerController* PlayerController)
+{
+	const float S = UiScale;
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+
+	// A dark panel low on the screen, like the dialogue of the prototype
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 90));
+
+	const float Width = FMath::Min(760.0f * S, Canvas->ClipX - 32.0f * S);
+	const float Height = 160.0f * S;
+	const float Left = (Canvas->ClipX - Width) * 0.5f;
+	const float Top = Canvas->ClipY - Height - 0.04f * Canvas->ClipY - PanelHeight * S;
+	const float Padding = 26.0f * S;
+
+	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawFrame(Left, Top, Width, Height, RimColor);
+	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
+
+	DrawLabel(PlayerController->GetDialogueSpeaker(), Left + Padding, Top + 16.0f * S, 26.0f * S, EmberColor);
+	DrawLabel(PlayerController->GetDialogueLine(), Left + Padding, Top + 52.0f * S, 19.0f * S, BoneColor, 0.0f, Width - 2.0f * Padding);
+
+	const FText Continue = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("DialogueKeyboard", "Weiter mit Klick, Enter oder E")
+		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("DialoguePlayStation", "Weiter mit ✕")
+		: LOCTEXT("DialogueXbox", "Weiter mit A");
+	DrawLabel(Continue, Left + Width - Padding, Top + Height - 26.0f * S, 13.0f * S, DimColor, 1.0f);
 }
 
 FText AVaelHUD::GetItemSlotName(EVaelItemSlot Slot)

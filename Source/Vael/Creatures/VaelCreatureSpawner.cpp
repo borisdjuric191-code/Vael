@@ -4,6 +4,7 @@
 #include "Components/BillboardComponent.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
 
@@ -41,4 +42,9 @@ void AVaelCreatureSpawner::BeginPlay()
 	}
 
 	GameMode->SpawnCreatureGroup(Data, GetActorLocation(), Count, Spread);
+}
+
+bool AVaelCreatureSpawner::LevelHasSpawners(const UWorld* World)
+{
+	return World != nullptr && TActorIterator<AVaelCreatureSpawner>(World);
 }

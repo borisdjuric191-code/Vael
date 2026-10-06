@@ -125,9 +125,21 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> InventoryAction;
 
+	/** Input Mapping Context while a dialogue is shown */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputMappingContext> DialogueMappingContext;
+
+	/** Next line of a dialogue Input Action: E, Enter, Space, left mouse button, Cross / A, L1 / LB */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> DialogueContinueAction;
+
 	/** Seconds between two steps while the selection is held in one direction */
 	UPROPERTY(EditAnywhere, Category="Input", meta = (ClampMin = 0.05))
 	float MenuRepeatInterval = 0.12f;
+
+	/** Seconds after a dialogue opens before a press shows the next line */
+	UPROPERTY(EditAnywhere, Category="Input", meta = (ClampMin = 0))
+	float DialogueInputDelay = 0.25f;
 
 	/** Seconds a direction has to be held before the selection starts to repeat */
 	UPROPERTY(EditAnywhere, Category="Input", meta = (ClampMin = 0.05))
@@ -162,6 +174,18 @@ public:
 
 	/** Selected row of the inventory page: the ten equipment places first, then the fields of the backpack */
 	int32 GetInventorySelection() const { return InventorySelection; }
+
+	/** Shows lines of a person one after the other and pauses the game, until the player has read them all. Returns false while the game is paused. */
+	bool StartDialogue(const FText& Speaker, const TArray<FText>& Lines);
+
+	/** True while this player reads a dialogue */
+	bool IsInDialogue() const { return !DialogueLines.IsEmpty(); }
+
+	/** Name of the person speaking */
+	const FText& GetDialogueSpeaker() const { return DialogueSpeaker; }
+
+	/** The line shown right now */
+	FText GetDialogueLine() const { return DialogueLines.IsValidIndex(DialogueIndex) ? DialogueLines[DialogueIndex] : FText::GetEmpty(); }
 
 	/** Opens the grimoire and pauses the game. Returns false if another player has it open. */
 	bool OpenGrimoire(EVaelMenuPage Page = EVaelMenuPage::Formulas);
@@ -209,6 +233,7 @@ protected:
 	void OnMenuPage(const FInputActionValue& Value);
 	void OnMenuConfirm();
 	void OnToggleInventory();
+	void OnDialogueContinue();
 
 	/** Tells the players what came of a cast */
 	void OnCastFinished(EVaelCastResult Result, const UVaelFormula* Formula);
@@ -264,6 +289,14 @@ protected:
 
 	/** Selected row of the inventory page */
 	int32 InventorySelection = 0;
+
+	/** Dialogue being read: who speaks, the lines and the one shown */
+	FText DialogueSpeaker;
+	TArray<FText> DialogueLines;
+	int32 DialogueIndex = 0;
+
+	/** Real time the dialogue started; the press that opened it must not skip the first line */
+	double DialogueStartTime = 0.0;
 
 	/** Number of rows of the inventory page: equipment places and the items in the backpack */
 	int32 GetNumInventoryRows() const;

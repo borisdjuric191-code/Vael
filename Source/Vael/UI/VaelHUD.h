@@ -80,6 +80,12 @@ private:
 	/** Draws the inventory page of the menu: equipment, backpack and the selected item compared with what it would replace */
 	void DrawInventory(const AVaelPlayerController* PlayerController);
 
+	/** Draws the names of the people in the level and a "!" over those with news */
+	void DrawNpcMarkers();
+
+	/** Draws the dialogue a player is reading */
+	void DrawDialogue(const AVaelPlayerController* PlayerController);
+
 	/** Name of an equipment place, like "Brust" */
 	static FText GetEquipSlotName(EVaelEquipSlot EquipSlot);
 
