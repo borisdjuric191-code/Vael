@@ -9,12 +9,15 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelFormulaScroll.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 #include "VaelGameMode.h"
 #include "UI/VaelUISettings.h"
 #include "AbilitySystemComponent.h"
@@ -334,5 +337,27 @@ void UVaelCheatManager::VaelSealSource()
 	if (Closest == nullptr || !Closest->Seal())
 	{
 		UE_LOG(LogVael, Warning, TEXT("VaelSealSource: no open Mark source in the level"));
+	}
+}
+
+void UVaelCheatManager::VaelMaterial(const FString& Name, int32 Count)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter == nullptr)
+	{
+		return;
+	}
+
+	const FString AssetName = TEXT("DA_Material_") + Name;
+	const FSoftObjectPath Path(FString::Printf(TEXT("/Game/Vael/Items/Materials/%s.%s"), *AssetName, *AssetName));
+
+	if (const UVaelMaterial* Material = Cast<UVaelMaterial>(VaelAssets::LoadOptional(Path)))
+	{
+		VaelCharacter->GetMaterialBag()->AddMaterial(Material, FMath::Max(Count, 1));
+	}
+	else
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelMaterial: no material %s, try Glutdruese, Russfeder, Ordenssiegel, Aeltestenschwinge, Markkristall or HerzDerGlut"), *AssetName);
 	}
 }

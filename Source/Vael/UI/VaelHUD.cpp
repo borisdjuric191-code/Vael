@@ -13,6 +13,8 @@
 #include "EngineUtils.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Player/VaelCharacter.h"
@@ -489,7 +491,7 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		}
 		else if (Formula->Source == EVaelFormulaSource::Mark)
 		{
-			Description = LOCTEXT("MarkUnknown", "Erwacht an der Mark-Quelle.");
+			Description = LOCTEXT("MarkUnknown", "Erwacht mit dem Mark.");
 		}
 		else if (Formula->Source == EVaelFormulaSource::Free)
 		{
@@ -546,6 +548,44 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ClosePlayStation", "Linker Stick: w\u00E4hlen \u00B7 Steuerkreuz: belegen \u00B7 \u25CB / Create: schlie\u00DFen")
 		: LOCTEXT("CloseXbox", "Linker Stick: w\u00E4hlen \u00B7 Steuerkreuz: belegen \u00B7 B / Ansicht: schlie\u00DFen");
 	DrawLabel(CloseHint, Left + Width - Padding, FooterY, 13.0f * S, DimColor, 1.0f);
+
+	DrawMaterialBag(Player, Left, Top, Width, Height);
+}
+
+void AVaelHUD::DrawMaterialBag(const AVaelCharacter* Player, float PanelLeft, float PanelTop, float PanelWidthOnScreen, float PanelHeightOnScreen)
+{
+	const float S = UiScale;
+	const float Width = 250.0f * S;
+	const float Padding = 18.0f * S;
+	const float RowHeight = 22.0f * S;
+	const TArray<FVaelMaterialStack> Stacks = Player->GetMaterialBag()->GetStacks();
+
+	// Right of the grimoire if there is room, otherwise over its left edge
+	const float RightX = PanelLeft + PanelWidthOnScreen + 16.0f * S;
+	const float Left = RightX + Width <= Canvas->ClipX - 16.0f * S ? RightX : FMath::Max(16.0f * S, PanelLeft - Width - 16.0f * S);
+	const float Height = FMath::Min(PanelHeightOnScreen, 64.0f * S + FMath::Max(Stacks.Num(), 1) * RowHeight + 12.0f * S);
+
+	DrawBox(Left, PanelTop, Width, Height, Rgb(23, 17, 15));
+	DrawFrame(Left, PanelTop, Width, Height, RimColor);
+
+	DrawLabel(LOCTEXT("BagEyebrow", "MATERIALBEUTEL"), Left + Padding, PanelTop + 18.0f * S, 12.0f * S, EmberColor);
+
+	if (Stacks.IsEmpty())
+	{
+		DrawLabel(LOCTEXT("BagEmpty", "Noch leer. Gefallene Kreaturen lassen Teile zurück."), Left + Padding, PanelTop + 44.0f * S, 12.0f * S, DimColor, 0.0f, Width - 2.0f * Padding);
+		return;
+	}
+
+	const int32 MaxRows = FMath::Max(1, FMath::FloorToInt((Height - 64.0f * S) / RowHeight));
+	for (int32 Index = 0; Index < FMath::Min(Stacks.Num(), MaxRows); ++Index)
+	{
+		const FVaelMaterialStack& Stack = Stacks[Index];
+		const float RowY = PanelTop + 44.0f * S + Index * RowHeight;
+
+		DrawDisc(FVector2D(Left + Padding + 5.0f * S, RowY + 8.0f * S), 5.0f * S, Stack.Material->Color);
+		DrawLabel(Stack.Material->DisplayName, Left + Padding + 18.0f * S, RowY, 14.0f * S, BoneColor, 0.0f, Width - 2.0f * Padding - 60.0f * S);
+		DrawLabel(FText::AsNumber(Stack.Count), Left + Width - Padding, RowY, 14.0f * S, BoneColor, 1.0f);
+	}
 }
 
 void AVaelHUD::DrawElementButton(EVaelInputGlyphs Glyphs, EVaelElement Element, const FVector2D& Center, float Radius, float Alpha)

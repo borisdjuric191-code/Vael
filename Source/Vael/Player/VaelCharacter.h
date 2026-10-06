@@ -13,6 +13,7 @@ class UAnimMontage;
 class UNiagaraComponent;
 class UStaticMeshComponent;
 class UVaelElementComponent;
+class UVaelMaterialBag;
 
 /**
  *  A directly controlled player character seen from the shared isometric camera.
@@ -32,6 +33,10 @@ private:
 	/** Element queue and formula casting */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelElementComponent> ElementComponent;
+
+	/** Ores, plants and parts of creatures of this player */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVaelMaterialBag> MaterialBag;
 
 	/** Anchor of the queue orbs above the head, keeps facing the camera while the character turns */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -175,6 +180,9 @@ public:
 
 	/** Returns the element queue **/
 	UVaelElementComponent* GetElementComponent() const { return ElementComponent.Get(); }
+
+	/** Returns the material bag **/
+	UVaelMaterialBag* GetMaterialBag() const { return MaterialBag.Get(); }
 
 protected:
 

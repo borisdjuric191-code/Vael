@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
+#include "Items/VaelMaterial.h"
 #include "World/VaelWeatherTypes.h"
 #include "VaelWorldSettings.generated.h"
 
@@ -128,6 +129,22 @@ public:
 	/** Chance per Mark cast that the Mark whispers above the threshold */
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0, ClampMax = 1))
 	float CorruptionWhisperChance = 0.35f;
+
+	/** What every marked creature drops on top of its own loot: the crystals offered at Mark sources */
+	UPROPERTY(config, EditAnywhere, Category="Loot")
+	FVaelLootEntry MarkedLoot = FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Markkristall.DA_Material_Markkristall"), 1.0f);
+
+	/** Health a health orb gives back (prototype: 25) */
+	UPROPERTY(config, EditAnywhere, Category="Loot", meta = (ClampMin = 0))
+	float HealthOrbAmount = 25.0f;
+
+	/** Mana a mana orb gives back (prototype: 35) */
+	UPROPERTY(config, EditAnywhere, Category="Loot", meta = (ClampMin = 0))
+	float ManaOrbAmount = 35.0f;
+
+	/** Players this close to an orb pick it up, in cm (prototype: 0.9 tiles) */
+	UPROPERTY(config, EditAnywhere, Category="Loot", meta = (ClampMin = 0))
+	float OrbPickupRadius = 126.0f;
 
 	/** Region corruption an unsealed Mark source adds per minute */
 	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))

@@ -49,6 +49,11 @@ void UVaelCombatTextSubsystem::PostReaction(const AActor* Target, const FText& T
 	}
 }
 
+void UVaelCombatTextSubsystem::PostPickup(const AActor* Target, const FText& Text, const FLinearColor& Color)
+{
+	Post(Target, Text, Color, UVaelUISettings::Get()->DamageNumberSize, 0.0f);
+}
+
 void UVaelCombatTextSubsystem::Post(const AActor* Target, const FText& Text, const FLinearColor& Color, float Size, float ExtraHeight)
 {
 	UWorld* World = Target != nullptr ? Target->GetWorld() : nullptr;

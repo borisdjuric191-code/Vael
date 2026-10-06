@@ -15,6 +15,9 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
+#include "Items/VaelPickupOrb.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGrimoireSubsystem.h"
@@ -23,8 +26,10 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "UI/VaelUISettings.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
 #include "World/VaelGround.h"
@@ -340,6 +345,8 @@ void AVaelCreature::Die()
 		}
 	}
 
+	DropLoot();
+
 	// Nothing may bump into or target the corpse
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetCharacterMovement()->StopMovementImmediately();
@@ -352,6 +359,63 @@ void AVaelCreature::Die()
 	SetBodyColor(ActiveData->BodyColor * 0.25f);
 
 	SetLifeSpan(FMath::Max(CorpseDuration, 0.01f));
+}
+
+void AVaelCreature::DropLoot()
+{
+	// Materials: rolled once, every player gets their own copy straight into the bag
+	TArray<FVaelLootEntry> Entries = ActiveData->Loot;
+	if (bMarked)
+	{
+		Entries.Add(UVaelWorldSettings::Get()->MarkedLoot);
+	}
+
+	for (const FVaelLootEntry& Entry : Entries)
+	{
+		const int32 Count = Entry.Roll();
+		const UVaelMaterial* Material = Count > 0 ? VaelAssets::LoadOptional(Entry.Material) : nullptr;
+		if (Material == nullptr)
+		{
+			continue;
+		}
+
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			const APlayerController* PlayerController = It->Get();
+			const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+			if (Player != nullptr)
+			{
+				Player->GetMaterialBag()->AddMaterial(Material, Count);
+			}
+		}
+
+		const FText Label = Count > 1 ? FText::Format(LOCTEXT("LootCount", "{0} ×{1}"), Material->DisplayName, Count) : Material->DisplayName;
+		UVaelCombatTextSubsystem::PostPickup(this, Label, Material->Color);
+
+		UE_LOG(LogVael, Verbose, TEXT("'%s' drops %d x %s for every player"), *GetNameSafe(this), Count, *Material->DisplayName.ToString());
+	}
+
+	// Orbs lie on the ground for whoever needs them first
+	const auto DropOrbNearby = [this](EVaelOrbKind Kind)
+	{
+		const FVector Scatter(FMath::FRandRange(-56.0f, 56.0f), FMath::FRandRange(-56.0f, 56.0f), 0.0f);
+		AVaelPickupOrb::DropOrb(GetWorld(), GetActorLocation() + Scatter, Kind);
+	};
+
+	if (FMath::FRand() < ActiveData->HealthOrbChance)
+	{
+		DropOrbNearby(EVaelOrbKind::Health);
+	}
+
+	if (FMath::FRand() < ActiveData->ManaOrbChance)
+	{
+		DropOrbNearby(EVaelOrbKind::Mana);
+	}
+
+	for (int32 OrbIndex = 0; OrbIndex < ActiveData->GuaranteedHealthOrbs; ++OrbIndex)
+	{
+		DropOrbNearby(EVaelOrbKind::Health);
+	}
 }
 
 AVaelCharacter* AVaelCreature::FindNearestPlayer(float MaxDistance, float* OutDistance) const

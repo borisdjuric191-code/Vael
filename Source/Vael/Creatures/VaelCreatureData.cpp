@@ -21,6 +21,7 @@ UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 	ElementMultipliers.Add(EVaelElement::Fire, 0.5f);
 	AggroRange = 1540.0f;
 	FormulaOnWitnessedExplosion = { EVaelElement::Fire, EVaelElement::Fire, EVaelElement::Fire };
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glutdruese.DA_Material_Glutdruese"), 0.55f));
 	BodyColor = FLinearColor(1.0f, 0.25f, 0.05f);
 }
 
@@ -37,6 +38,7 @@ UVaelAshHarpyData::UVaelAshHarpyData()
 	ElementMultipliers.Add(EVaelElement::Air, 1.2f);
 	AggroRange = 1400.0f;
 	FormulaOnWitnessedDive = { EVaelElement::Earth, EVaelElement::Air };
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Russfeder.DA_Material_Russfeder"), 0.5f));
 	BodyColor = FLinearColor(0.15f, 0.13f, 0.12f);
 }
 
@@ -53,6 +55,8 @@ UVaelHarpyElderData::UVaelHarpyElderData()
 	KnockbackMultiplier = 0.5f;
 	StaggerMultiplier = 0.5f;
 	FormulaOnDeath = { EVaelElement::Air, EVaelElement::Air, EVaelElement::Air };
+	Loot.Reset();
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Aeltestenschwinge.DA_Material_Aeltestenschwinge"), 1.0f));
 	BodyColor = FLinearColor(0.3f, 0.26f, 0.2f);
 
 	FlightHeight = 180.0f;
@@ -80,6 +84,7 @@ UVaelPreacherData::UVaelPreacherData()
 	AggroRange = 1680.0f;
 	FormulaOnDeath = { EVaelElement::Mark, EVaelElement::Fire };
 	FormulaOnWitnessedSpikes = { EVaelElement::Mark, EVaelElement::Earth };
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Ordenssiegel.DA_Material_Ordenssiegel"), 1.0f));
 	BodyColor = FLinearColor(0.27f, 0.05f, 0.1f);
 }
 
@@ -100,6 +105,8 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	StaggerMultiplier = 0.2f;
 	StunMultiplier = 0.2f;
 	PullMultiplier = 0.0f;
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_HerzDerGlut.DA_Material_HerzDerGlut"), 1.0f));
+	GuaranteedHealthOrbs = 6;
 	AggroRange = 1400.0f;
 	BodyColor = FLinearColor(1.0f, 0.15f, 0.01f);
 }

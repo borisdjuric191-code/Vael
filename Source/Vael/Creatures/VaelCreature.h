@@ -135,6 +135,9 @@ protected:
 	/** Kills the creature: stops it, teaches its formula and removes it after a moment */
 	virtual void Die();
 
+	/** Gives every player their copy of the dropped materials and leaves health and mana orbs on the ground */
+	void DropLoot();
+
 	/** Returns the creature data as its subclass. Never null after PostInitializeComponents. */
 	template <typename DataType>
 	const DataType* GetData() const { return CastChecked<DataType>(ActiveData.Get()); }

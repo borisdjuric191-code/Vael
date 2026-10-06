@@ -76,4 +76,8 @@ public:
 	/** Seals the Mark source closest to the player, until the offering and its guardian exist */
 	UFUNCTION(Exec)
 	void VaelSealSource();
+
+	/** Puts materials into the bag of the player, named like their asset without DA_Material_. Example: VaelMaterial Markkristall 5 */
+	UFUNCTION(Exec)
+	void VaelMaterial(const FString& Name, int32 Count = 1);
 };

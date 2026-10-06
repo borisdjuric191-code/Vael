@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelCreatureData.generated.h"
 
@@ -71,6 +72,22 @@ public:
 	/** False for bosses: spells can't freeze them */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes")
 	bool bCanBeFrozen = true;
+
+	/** Materials the creature drops. Each roll happens once, every player gets their own copy. Marked creatures drop Markkristalle on top. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TArray<FVaelLootEntry> Loot;
+
+	/** Chance from 0 to 1 that a health orb drops (prototype: 0.3) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0, ClampMax = 1))
+	float HealthOrbChance = 0.3f;
+
+	/** Chance from 0 to 1 that a mana orb drops (prototype: 0.32) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0, ClampMax = 1))
+	float ManaOrbChance = 0.32f;
+
+	/** Health orbs that always drop, like after a boss */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0))
+	int32 GuaranteedHealthOrbs = 0;
 
 	/** Players closer than this are noticed, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))

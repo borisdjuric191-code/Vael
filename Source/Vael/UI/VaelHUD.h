@@ -66,6 +66,9 @@ private:
 	void DrawNotices(float Top);
 	void DrawCreatureHealthBars();
 	void DrawGrimoire(const AVaelPlayerController* PlayerController);
+
+	/** Draws the material bag of the player next to the open grimoire */
+	void DrawMaterialBag(const AVaelCharacter* Player, float PanelLeft, float PanelTop, float PanelWidthOnScreen, float PanelHeightOnScreen);
 	void DrawRegionInfo();
 	void DrawCombatTexts();
 	void DrawWeather();

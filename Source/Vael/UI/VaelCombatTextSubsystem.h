@@ -40,6 +40,9 @@ public:
 	/** Shows a word over an actor, slightly above the damage numbers */
 	static void PostReaction(const AActor* Target, const FText& Text);
 
+	/** Shows a pickup or loot over an actor, like "+25" or "Glutdruese", in its own color */
+	static void PostPickup(const AActor* Target, const FText& Text, const FLinearColor& Color);
+
 	/** Texts still on screen, oldest first. Removes those whose time is over. */
 	const TArray<FVaelCombatText>& GetActiveTexts();
 
