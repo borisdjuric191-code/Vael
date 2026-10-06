@@ -149,6 +149,11 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 	{
 		TargetCharacter->ApplyKnockback(KnockbackDirection, Hit.Knockback);
 
+		if (Hit.StunDuration > 0.0f)
+		{
+			TargetCharacter->ApplyStun(Hit.StunDuration);
+		}
+
 		UE_LOG(LogVael, Verbose, TEXT("'%s' hits '%s': %.1f %s damage%s, health now %.1f, conditions: %s"), *GetNameSafe(Attacker), *GetNameSafe(Target),
 			Hit.Damage * DamageMultiplier, *VaelTags::GetElementTag(Hit.Element).ToString(), Reaction, TargetCharacter->GetHealth(), *TargetCharacter->GetStatusText().ToString());
 	}

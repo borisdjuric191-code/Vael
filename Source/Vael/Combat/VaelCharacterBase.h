@@ -83,6 +83,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	virtual void ApplyKnockback(const FVector& Direction, float Speed);
 
+	/** Keeps the character from acting for some seconds after a heavy blow. Only creatures can be stunned. */
+	virtual void ApplyStun(float Duration) {}
+
 	/** Names of the conditions the character has right now, for display. Empty if there are none. */
 	UFUNCTION(BlueprintPure, Category="Combat")
 	FText GetStatusText() const;

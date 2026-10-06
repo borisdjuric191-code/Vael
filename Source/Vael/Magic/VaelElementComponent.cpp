@@ -114,6 +114,12 @@ EVaelCastResult UVaelElementComponent::CastQueue()
 		return FinishCast(EVaelCastResult::Blocked, nullptr);
 	}
 
+	// While a spell is channeled the cast is ignored and the queue waits for later
+	if (AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling))
+	{
+		return EVaelCastResult::Blocked;
+	}
+
 	UVaelFormula* Formula = Grimoire->FindFormula(Queue);
 	if (Formula == nullptr)
 	{
@@ -233,6 +239,13 @@ EVaelCastResult UVaelElementComponent::CastQuickSlot(int32 SlotIndex)
 {
 	UVaelFormula* Formula = GetQuickSlotFormula(SlotIndex);
 	UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
+
+	// Quick slots wait until the channeled spell has ended
+	const UAbilitySystemComponent* AbilitySystem = GetAbilitySystem();
+	if (AbilitySystem != nullptr && AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling))
+	{
+		return EVaelCastResult::Blocked;
+	}
 
 	EVaelCastResult Result = EVaelCastResult::EmptyQueue;
 

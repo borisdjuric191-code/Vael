@@ -38,6 +38,10 @@ struct FVaelSpellHit
 	/** Damage per second of the condition, only used by burning */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
 	float StatusDamagePerSecond = 0.0f;
+
+	/** Seconds the target can't act after the hit, 0 for none */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
+	float StunDuration = 0.0f;
 };
 
 /**

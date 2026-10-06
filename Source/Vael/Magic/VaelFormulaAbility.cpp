@@ -18,6 +18,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelRockWall.h"
+#include "Magic/VaelSpellBeam.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
@@ -129,6 +130,14 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 	case EVaelSpellDelivery::Wall:
 		RaiseWall(Formula, Caster, Power);
 		break;
+
+	case EVaelSpellDelivery::Beam:
+		StartBeam(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Nova:
+		HitNova(Formula, Caster, Power);
+		break;
 	}
 }
 
@@ -148,6 +157,11 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 	{
 		Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, Formula.ProjectilePierce,
 			UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
+
+		if (Formula.bProjectilePassesWalls)
+		{
+			Projectile->SetPassesWalls();
+		}
 
 		if (Formula.Delivery == EVaelSpellDelivery::Explosion)
 		{
@@ -416,6 +430,38 @@ void UVaelFormulaAbility::RaiseWall(const UVaelFormula& Formula, AActor* Caster,
 	{
 		UVaelHitFeedbackSubsystem::Shake(Caster, WallShake);
 	}
+}
+
+void UVaelFormulaAbility::StartBeam(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	FVaelBeamSettings Beam;
+	Beam.Hit = Formula.MakeSpellHit(Power);
+	Beam.DamagePerSecond = Formula.Damage * Power;
+	Beam.DamageStep = Formula.BeamDamageStep;
+	Beam.Duration = Formula.BeamDuration;
+	Beam.Length = Formula.BeamLength;
+	Beam.HalfWidth = Formula.BeamHalfWidth;
+	Beam.FireInterval = Formula.AreaRadius > 0.0f ? Formula.BeamFireInterval : 0.0f;
+	Beam.FireRadius = Formula.AreaRadius;
+	Beam.FireLifetime = Formula.AreaLifetime;
+	Beam.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
+	Beam.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
+
+	AVaelSpellBeam::StartBeam(Cast<APawn>(Caster), Beam);
+}
+
+void UVaelFormulaAbility::HitNova(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	const FVector Center = Caster->GetActorLocation();
+
+	UVaelCombatStatics::ApplySpellHitInRadius(Caster, Center, Formula.NovaRadius, Formula.MakeSpellHit(Power));
+	UVaelHitFeedbackSubsystem::Shake(Caster, Formula.NovaShake);
+
+#if ENABLE_DRAW_DEBUG
+	// Placeholder look until the formulas get real effects
+	DrawDebugCircle(Caster->GetWorld(), Center - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight() - 5.0f), Formula.NovaRadius, 48,
+		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true), false, 0.4f, 0, 8.0f, FVector::ForwardVector, FVector::RightVector, false);
+#endif
 }
 
 FVector UVaelFormulaAbility::FindGroundTarget(AActor* Caster, float MaxRange)

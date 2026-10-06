@@ -89,6 +89,7 @@ public:
 	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const override;
 	virtual bool CanReceiveStatus(EVaelStatus Status) const override;
 	virtual void ApplyKnockback(const FVector& Direction, float Speed) override;
+	virtual void ApplyStun(float Duration) override;
 	//~End AVaelCharacterBase
 
 	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */

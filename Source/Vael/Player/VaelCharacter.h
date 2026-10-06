@@ -192,6 +192,9 @@ private:
 	/** Mesh scale outside of a dodge roll */
 	FVector DefaultMeshScale = FVector::OneVector;
 
+	/** Walking speed while not channeling a spell */
+	float DefaultWalkSpeed = 0.0f;
+
 	/** Normalized direction of the current dodge roll */
 	FVector DodgeDirection = FVector::ZeroVector;
 

@@ -100,6 +100,10 @@ FText AVaelCharacterBase::GetStatusText() const
 	{
 		Names.Add(TEXT("gefroren"));
 	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Slowed))
+	{
+		Names.Add(TEXT("verlangsamt"));
+	}
 
 	return FText::FromString(FString::Join(Names, TEXT(", ")));
 }

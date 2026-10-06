@@ -45,6 +45,9 @@ public:
 	/** Leaves a patch of the element on the ground where the projectile ends. Has to be called before FinishSpawning. */
 	void SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond, EVaelGroundEffect Effect = EVaelGroundEffect::None);
 
+	/** Lets the projectile fly through walls, rocks and rock walls. Has to be called before FinishSpawning. */
+	void SetPassesWalls();
+
 	/** Makes the projectile burst where its flight ends, hitting everyone around. Has to be called before FinishSpawning. */
 	void SetExplosion(const FVaelSpellHit& InExplosionHit, float Radius);
 

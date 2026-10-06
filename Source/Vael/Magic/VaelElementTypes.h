@@ -45,7 +45,11 @@ enum class EVaelSpellDelivery : uint8
 	/** The caster rushes in the aim direction and bursts where the dash ends */
 	Dash,
 	/** Raises a wall of rock blocks across the aim direction at the aimed point */
-	Wall
+	Wall,
+	/** A channeled beam from the hands of the caster that burns everything along it for some seconds */
+	Beam,
+	/** Hits everyone around the caster at once */
+	Nova
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */
@@ -70,7 +74,9 @@ enum class EVaelStatus : uint8
 	/** Takes fire damage over time, water puts it out */
 	Burning,
 	/** Can't move, earth shatters it for extra damage */
-	Frozen
+	Frozen,
+	/** Moves at a share of its speed, walking or flying */
+	Slowed
 };
 
 /** Outcome of trying to cast the queued elements */

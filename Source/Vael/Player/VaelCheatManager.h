@@ -38,6 +38,13 @@ public:
 	UFUNCTION(Exec)
 	void VaelSpawn(const FString& Kind, int32 Count);
 
+	/**
+	 *  Lays a scroll in front of the player, 3 m unless a distance in cm is given, that teaches the formula of the elements, letters as in VaelCast.
+	 *  Example: VaelScroll EEE
+	 */
+	UFUNCTION(Exec)
+	void VaelScroll(const FString& Elements, float Distance = 300.0f);
+
 	/** Kills every creature in the level */
 	UFUNCTION(Exec)
 	void VaelKillAll();

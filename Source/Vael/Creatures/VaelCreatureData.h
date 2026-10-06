@@ -56,6 +56,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
 	float StaggerMultiplier = 1.0f;
 
+	/** Stuns by spells like the earthquake last this many times as long; bosses shake them off quickly */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
+	float StunMultiplier = 1.0f;
+
 	/** False for bosses: a corrupted region never sends a marked, stronger version */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes")
 	bool bCanBeMarked = true;

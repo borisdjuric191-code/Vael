@@ -153,6 +153,12 @@ void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, flo
 	ImpactDamagePerSecond = DamagePerSecond;
 }
 
+void AVaelSpellProjectile::SetPassesWalls()
+{
+	Collision->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Ignore);
+	Collision->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Ignore);
+}
+
 void AVaelSpellProjectile::SetExplosion(const FVaelSpellHit& InExplosionHit, float Radius)
 {
 	ExplosionHit = InExplosionHit;

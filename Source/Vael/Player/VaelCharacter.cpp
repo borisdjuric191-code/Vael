@@ -16,6 +16,7 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelElementComponent.h"
+#include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -124,6 +125,7 @@ void AVaelCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	DefaultMeshScale = GetMesh()->GetRelativeScale3D();
+	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 
 	// Line the queue orbs up across the screen
 	AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();
@@ -191,6 +193,10 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 		TickRevive(DeltaSeconds);
 		return;
 	}
+
+	// Channeling a spell holds the mage back
+	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
+	GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f);
 
 	if (bIsDodging)
 	{

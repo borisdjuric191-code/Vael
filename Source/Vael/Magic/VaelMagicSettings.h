@@ -124,6 +124,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Ground Areas", meta = (ClampMin = 0, ClampMax = 1))
 	float MudSpeedMultiplier = 0.35f;
 
+	/** Slowed enemies, walking or flying, move at this share of their speed */
+	UPROPERTY(config, EditAnywhere, Category="Conditions", meta = (ClampMin = 0, ClampMax = 1))
+	float SlowedSpeedMultiplier = 0.5f;
+
+	/** A mage channeling a spell like the fire beam walks at this share of their speed */
+	UPROPERTY(config, EditAnywhere, Category="Channeling", meta = (ClampMin = 0, ClampMax = 1))
+	float ChannelMoveSpeedMultiplier = 0.35f;
+
 	/** Seconds an enemy stays blind after leaving steam */
 	UPROPERTY(config, EditAnywhere, Category="Ground Areas", meta = (ClampMin = 0))
 	float SteamBlindLinger = 0.3f;

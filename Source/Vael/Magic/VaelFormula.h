@@ -74,7 +74,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect")
 	EVaelElement DamageElement = EVaelElement::Fire;
 
-	/** Damage per target */
+	/** Damage per target. For beams: damage per second to everyone in the beam. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect", meta = (ClampMin = 0))
 	float Damage = 0.0f;
 
@@ -98,6 +98,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Status", meta = (ClampMin = 0, EditCondition = "AppliedStatus == EVaelStatus::Burning"))
 	float StatusDamagePerSecond = 0.0f;
 
+	/** Seconds a hit enemy can't act, 0 for none. Bosses shake it off faster. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Status", meta = (ClampMin = 0))
+	float StunDuration = 0.0f;
+
 	/** Projectile actor to spawn */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	TSubclassOf<AVaelSpellProjectile> ProjectileClass;
@@ -117,6 +121,10 @@ public:
 	/** Number of additional enemies the projectile flies through after its first hit */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	int32 ProjectilePierce = 0;
+
+	/** True if walls, rocks and rock walls don't stop the projectile */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
+	bool bProjectilePassesWalls = false;
 
 	/** How far away the first target of the chain may be, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Chain", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Chain"))
@@ -213,6 +221,34 @@ public:
 	/** Seconds until the wall crumbles */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
 	float WallLifetime = 8.0f;
+
+	/** Seconds the beam is channeled. The caster walks slower meanwhile and casts nothing else. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
+	float BeamDuration = 1.7f;
+
+	/** Reach of the beam in cm. Walls stop it earlier. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
+	float BeamLength = 1050.0f;
+
+	/** Enemies this far from the middle line of the beam are hit, plus half their own radius, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
+	float BeamHalfWidth = 77.0f;
+
+	/** Damage collects on each enemy and is dealt once it reaches this much, so the numbers stay readable */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
+	float BeamDamageStep = 8.0f;
+
+	/** Seconds between two fires the beam leaves where it ends; the fires use the ground area values. 0 for none. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
+	float BeamFireInterval = 0.35f;
+
+	/** Reach of the burst around the caster in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Nova", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Nova"))
+	float NovaRadius = 644.0f;
+
+	/** Strength of the camera shake of the burst */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Nova", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Nova"))
+	float NovaShake = 0.7f;
 
 	/** What the burst of an explosion does to a single target at the given power */
 	FVaelSpellHit MakeExplosionHit(float Power) const;

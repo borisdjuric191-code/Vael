@@ -11,6 +11,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
+#include "Magic/VaelFormulaScroll.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
@@ -141,6 +142,43 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	const int32 NumSpawned = GameMode->SpawnCreatureGroup(Data, Center, FMath::Max(Count, 1), 150.0f + Data->CollisionRadius);
 
 	UE_LOG(LogVael, Log, TEXT("VaelSpawn: %d x %s"), NumSpawned, *Data->DisplayName.ToString());
+}
+
+void UVaelCheatManager::VaelScroll(const FString& Elements, float Distance)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (PlayerPawn == nullptr)
+	{
+		return;
+	}
+
+	TArray<EVaelElement> ScrollElements;
+	for (const TCHAR Letter : Elements.ToUpper())
+	{
+		switch (Letter)
+		{
+		case TEXT('F'): ScrollElements.Add(EVaelElement::Fire); break;
+		case TEXT('W'): ScrollElements.Add(EVaelElement::Water); break;
+		case TEXT('E'): ScrollElements.Add(EVaelElement::Earth); break;
+		case TEXT('L'): ScrollElements.Add(EVaelElement::Air); break;
+		case TEXT('M'): ScrollElements.Add(EVaelElement::Mark); break;
+		default: break;
+		}
+	}
+
+	const FVector Spot = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector().GetSafeNormal2D() * Distance;
+
+	FVector Ground;
+	if (ScrollElements.IsEmpty() || !AVaelCreature::FindGround(GetWorld(), Spot, Ground))
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelScroll: no elements in '%s' or no ground in front of the player"), *Elements);
+		return;
+	}
+
+	AVaelFormulaScroll::SpawnScroll(GetWorld(), Ground, ScrollElements, NSLOCTEXT("VaelCheats", "TestScroll", "Test-Schriftrolle"));
+
+	UE_LOG(LogVael, Log, TEXT("VaelScroll: scroll for %s laid out"), *Elements);
 }
 
 void UVaelCheatManager::VaelKillAll()

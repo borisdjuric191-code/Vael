@@ -98,6 +98,7 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	bCanBeFrozen = false;
 	bCanBeMarked = false;
 	StaggerMultiplier = 0.2f;
+	StunMultiplier = 0.2f;
 	AggroRange = 1400.0f;
 	BodyColor = FLinearColor(1.0f, 0.15f, 0.01f);
 }

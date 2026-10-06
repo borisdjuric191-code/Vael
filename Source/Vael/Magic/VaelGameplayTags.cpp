@@ -18,6 +18,9 @@ namespace VaelTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Wet, "Status.Wet", "Wet: lightning hits twice as hard, fire is weakened");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Burning, "Status.Burning", "Burning: takes fire damage over time");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Frozen, "Status.Frozen", "Frozen: can't move, earth shatters it");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Slowed, "Status.Slowed", "Slowed: moves at a share of its speed");
+
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Channeling, "State.Channeling", "Channels a spell: casts nothing else and walks slower");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gear_WeatherWard, "Gear.WeatherWard", "Gear like a storm cloak: the weather turns no spell against its wearer");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gear_WeatherAttunement, "Gear.WeatherAttunement", "Gear like a storm cloak: what the weather gives to spells counts twice");
@@ -29,6 +32,7 @@ namespace VaelTags
 		case EVaelStatus::Wet:		return Status_Wet;
 		case EVaelStatus::Burning:	return Status_Burning;
 		case EVaelStatus::Frozen:	return Status_Frozen;
+		case EVaelStatus::Slowed:	return Status_Slowed;
 		default:					return FGameplayTag();
 		}
 	}

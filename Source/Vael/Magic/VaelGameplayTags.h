@@ -19,6 +19,10 @@ namespace VaelTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Wet);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Burning);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Frozen);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Slowed);
+
+	/** Granted while a character channels a spell: no other spell can be cast and the character walks slower */
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Channeling);
 
 	/** Granted by gear while it is worn */
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gear_WeatherWard);
