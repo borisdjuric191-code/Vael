@@ -41,6 +41,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Region", meta = (ClampMin = -1, ClampMax = 100))
 	float StartCorruption = -1.0f;
 
+	/** Markkristalle a Mark source of this region asks as offering before its guardian rises */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Region", meta = (ClampMin = 0))
+	int32 OfferingCrystals = 5;
+
 	/** Weather at the start */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather")
 	EVaelWeather StartWeather = EVaelWeather::Clear;
@@ -81,6 +85,9 @@ public:
 	/** Corruption from 0 (pure) to 100 (fully corrupted) */
 	UFUNCTION(BlueprintPure, Category="Region")
 	float GetCorruption() const { return Corruption; }
+
+	/** Markkristalle a Mark source of this region asks as offering */
+	int32 GetOfferingCrystals() const { return OfferingCrystals; }
 
 	/** Changes the corruption, kept between 0 and 100 */
 	UFUNCTION(BlueprintCallable, Category="Region")

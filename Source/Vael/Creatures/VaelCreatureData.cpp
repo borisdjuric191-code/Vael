@@ -5,6 +5,7 @@
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelPreacher.h"
+#include "Creatures/VaelSourceGuardian.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -112,6 +113,35 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	MinItemRarity = EVaelRarity::Rare;
 	AggroRange = 1400.0f;
 	BodyColor = FLinearColor(1.0f, 0.15f, 0.01f);
+}
+
+UVaelSourceGuardianData::UVaelSourceGuardianData()
+{
+	DisplayName = LOCTEXT("SourceGuardian", "Quellwächter");
+	CreatureClass = AVaelSourceGuardian::StaticClass();
+
+	// Between the harpy elder and the ember queen; it shares the weaknesses of the crawlers and harpies it is made of
+	MaxHealth = 650.0f;
+	MoveSpeed = 260.0f;
+	CollisionRadius = 120.0f;
+	CollisionHalfHeight = 140.0f;
+	ElementMultipliers.Add(EVaelElement::Water, 1.25f);
+	ElementMultipliers.Add(EVaelElement::Earth, 1.25f);
+	ElementMultipliers.Add(EVaelElement::Mark, 0.5f);
+	KnockbackMultiplier = 0.2f;
+	StaggerMultiplier = 0.3f;
+	StunMultiplier = 0.3f;
+	PullMultiplier = 0.0f;
+	bCanBeMarked = false;
+	bCanBeFrozen = false;
+	AggroRange = 100000.0f;
+	BodyColor = FLinearColor(0.35f, 0.08f, 0.5f);
+
+	GuaranteedHealthOrbs = 4;
+	GuaranteedItems = 1;
+	MinItemRarity = EVaelRarity::Rare;
+
+	ScreamHealthShares = { 0.66f, 0.33f };
 }
 
 #undef LOCTEXT_NAMESPACE

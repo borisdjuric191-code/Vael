@@ -4,9 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Player/VaelInteractable.h"
 #include "VaelMarkSource.generated.h"
 
 class AVaelCharacter;
+class AVaelSourceGuardian;
+class UVaelCreatureData;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class UStaticMeshComponent;
@@ -19,7 +22,7 @@ class UStaticMeshComponent;
  *  Placeholder look: a violet disc, grey once sealed.
  */
 UCLASS()
-class AVaelMarkSource : public AActor
+class AVaelMarkSource : public AActor, public IVaelInteractable
 {
 	GENERATED_BODY()
 
@@ -41,6 +44,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mark Source")
 	TObjectPtr<UNiagaraSystem> OpenEffect;
 
+	/** Guardian that rises after the offering. Empty: the Quellwaechter with its default values. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mark Source")
+	TObjectPtr<UVaelCreatureData> GuardianData;
+
 public:
 
 	/** Constructor */
@@ -54,6 +61,18 @@ public:
 
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
+
+	//~Begin IVaelInteractable
+	virtual bool CanInteract(const AVaelCharacter* Player) const override;
+	virtual void Interact(AVaelCharacter* Player) override;
+	virtual FText GetInteractPrompt() const override;
+	//~End IVaelInteractable
+
+	/** Markkristalle the source asks as offering, set by its region */
+	int32 GetOfferingCrystals() const;
+
+	/** True while its guardian lives */
+	bool IsGuardianFighting() const;
 
 	/** Closes the source for good and takes corruption away from its region. Returns false if it was sealed already. */
 	UFUNCTION(BlueprintCallable, Category="Mark Source")
@@ -70,6 +89,12 @@ public:
 	static AVaelMarkSource* FindOpenSourceAt(const UWorld* World, const FVector& Location, float ExtraDistance = 0.0f);
 
 private:
+
+	/** Unregisters the source from the interactions */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	/** Guardian risen from the source, while it lives */
+	TWeakObjectPtr<AVaelSourceGuardian> Guardian;
 
 	/** Raises the corruption of the region while the source is open */
 	void FeedRegion(float DeltaSeconds);

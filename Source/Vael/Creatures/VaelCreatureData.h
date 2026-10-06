@@ -601,3 +601,112 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Charge", meta = (ClampMin = 0))
 	float ChargeDamage = 24.0f;
 };
+
+/**
+ *  Quellwaechter: the guardian of a Mark source, rising after the offering of Markkristalle.
+ *  A hybrid of the creatures around the source, fused by the Mark into one being with a swarm consciousness:
+ *  it bursts like an ember crawler, dives like a harpy and calls its swarm out of the source.
+ *  At shares of its health it screams with the pain and rage of the Sleeper, and the swarm grows denser.
+ */
+UCLASS(BlueprintType)
+class UVaelSourceGuardianData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelSourceGuardianData();
+
+	/** Health with one player is MaxHealth times this ... */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
+	float HealthScaleBase = 0.7f;
+
+	/** ... plus this for every player in the game */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
+	float HealthScalePerPlayer = 0.3f;
+
+	/** Seconds it takes to rise out of the source before it attacks */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))
+	float RiseDuration = 2.0f;
+
+	/** It screams each time its health falls below one of these shares; every scream makes the swarm denser */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Scream")
+	TArray<float> ScreamHealthShares;
+
+	/** Speed at which a scream throws players back, in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Scream", meta = (ClampMin = 0))
+	float ScreamKnockback = 900.0f;
+
+	/** Reach of the scream in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Scream", meta = (ClampMin = 0))
+	float ScreamRadius = 700.0f;
+
+	/** Distance at which it stops and strikes, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0))
+	float StrikeRange = 260.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0))
+	float StrikeDamage = 14.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0))
+	float StrikeInterval = 1.3f;
+
+	/** Seconds between two ember bursts around it, like a crawler exploding */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ember Burst", meta = (ClampMin = 0))
+	float BurstInterval = 7.0f;
+
+	/** Warning time before the burst breaks out */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ember Burst", meta = (ClampMin = 0))
+	float BurstWarning = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ember Burst", meta = (ClampMin = 0))
+	float BurstRadius = 350.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ember Burst", meta = (ClampMin = 0))
+	float BurstDamage = 24.0f;
+
+	/** Seconds between two dives, like a harpy, picked between X and Y */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dive")
+	FVector2D DiveInterval = FVector2D(6.0f, 9.0f);
+
+	/** Players farther away than this are not dived at, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dive", meta = (ClampMin = 0))
+	float DiveRange = 1400.0f;
+
+	/** Seconds it shows the line of the dive before it rushes */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dive", meta = (ClampMin = 0))
+	float DiveWarning = 0.8f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dive", meta = (ClampMin = 0))
+	float DiveSpeed = 1800.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dive", meta = (ClampMin = 0))
+	float DiveDuration = 0.6f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dive", meta = (ClampMin = 0))
+	float DiveDamage = 18.0f;
+
+	/** Creatures of the swarm, called in turns; empty: ember crawlers and ash harpies */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm")
+	TArray<TObjectPtr<UVaelCreatureData>> SwarmData;
+
+	/** Seconds between two calls of the swarm, before the first scream */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 0))
+	float SwarmInterval = 10.0f;
+
+	/** Seconds each scream takes off the interval */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 0))
+	float SwarmIntervalReductionPerScream = 2.0f;
+
+	/** Creatures per call, before the first scream */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 1))
+	int32 SwarmCount = 2;
+
+	/** Creatures each scream adds to a call */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 0))
+	int32 SwarmCountPerScream = 1;
+
+	/** No new swarm while this many of its creatures still live */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 1))
+	int32 SwarmMaxAlive = 8;
+};

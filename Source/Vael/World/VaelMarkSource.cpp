@@ -5,9 +5,12 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Combat/VaelGroundStrike.h"
 #include "Components/StaticMeshComponent.h"
+#include "Creatures/VaelSourceGuardian.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -68,6 +71,14 @@ void AVaelMarkSource::BeginPlay()
 	Super::BeginPlay();
 
 	RefreshLook();
+	UVaelInteractionSubsystem::Register(this);
+}
+
+void AVaelMarkSource::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UVaelInteractionSubsystem::Unregister(this);
+
+	Super::EndPlay(EndPlayReason);
 }
 
 void AVaelMarkSource::Tick(float DeltaSeconds)
@@ -80,7 +91,60 @@ void AVaelMarkSource::Tick(float DeltaSeconds)
 	}
 
 	FeedRegion(DeltaSeconds);
-	AttackPlayers(DeltaSeconds);
+
+	// While its guardian fights, the source leaves the players to it
+	if (!IsGuardianFighting())
+	{
+		AttackPlayers(DeltaSeconds);
+	}
+}
+
+bool AVaelMarkSource::IsGuardianFighting() const
+{
+	return Guardian.IsValid() && !Guardian->IsDead();
+}
+
+int32 AVaelMarkSource::GetOfferingCrystals() const
+{
+	const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation());
+	return Region != nullptr ? Region->GetOfferingCrystals() : 5;
+}
+
+bool AVaelMarkSource::CanInteract(const AVaelCharacter* Player) const
+{
+	return !bSealed && !IsGuardianFighting();
+}
+
+FText AVaelMarkSource::GetInteractPrompt() const
+{
+	return FText::Format(NSLOCTEXT("VaelWorld", "OfferCrystals", "{0} Markkristalle opfern"), GetOfferingCrystals());
+}
+
+void AVaelMarkSource::Interact(AVaelCharacter* Player)
+{
+	if (Player == nullptr || !CanInteract(Player))
+	{
+		return;
+	}
+
+	const UVaelMaterial* Crystal = VaelAssets::LoadOptional(UVaelWorldSettings::Get()->MarkedLoot.Material);
+	const int32 Needed = GetOfferingCrystals();
+	const int32 Owned = Crystal != nullptr ? Player->GetMaterialBag()->GetCount(Crystal) : 0;
+
+	// Not enough crystals: marked creatures carry them
+	if (Crystal == nullptr || !Player->GetMaterialBag()->RemoveMaterial(Crystal, Needed))
+	{
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelWorld", "OfferingMissing", "Die Quelle verlangt {0} Markkristalle"), Needed),
+			FText::Format(NSLOCTEXT("VaelWorld", "OfferingMissingDetail", "Du trägst {0}. Gezeichnete Wesen tragen sie in sich."), Owned),
+			UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 3.5f);
+		return;
+	}
+
+	UE_LOG(LogVael, Log, TEXT("Player %d offers %d Markkristalle at '%s'"), Player->GetPlayerNumber(), Needed, *GetNameSafe(this));
+
+	TimeInside.Reset();
+	NextAttack.Reset();
+	Guardian = AVaelSourceGuardian::RiseFromSource(this, GuardianData);
 }
 
 void AVaelMarkSource::FeedRegion(float DeltaSeconds)
