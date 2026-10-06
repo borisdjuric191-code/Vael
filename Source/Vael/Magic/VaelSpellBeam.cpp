@@ -22,8 +22,8 @@
 namespace
 {
 	/** Size of the engine cylinder mesh used as placeholder */
-	constexpr float PlaceholderCylinderRadius = 50.0f;
-	constexpr float PlaceholderCylinderHeight = 100.0f;
+	constexpr float BeamPlaceholderCylinderRadius = 50.0f;
+	constexpr float BeamPlaceholderCylinderHeight = 100.0f;
 
 	/** Thickness of the placeholder beam in cm */
 	constexpr float BeamLookRadius = 22.0f;
@@ -214,5 +214,5 @@ void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, 
 
 	// The cylinder stands on its axis, which is turned into the aim direction
 	Mesh->SetWorldLocationAndRotation(Start + Direction * VisibleLength * 0.5f, FRotationMatrix::MakeFromZ(Direction).Rotator());
-	Mesh->SetWorldScale3D(FVector(BeamLookRadius / PlaceholderCylinderRadius, BeamLookRadius / PlaceholderCylinderRadius, VisibleLength / PlaceholderCylinderHeight));
+	Mesh->SetWorldScale3D(FVector(BeamLookRadius / BeamPlaceholderCylinderRadius, BeamLookRadius / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
 }

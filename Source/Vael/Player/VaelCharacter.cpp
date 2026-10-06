@@ -3,6 +3,7 @@
 #include "Player/VaelCharacter.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
 #include "Camera/VaelSharedCamera.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
@@ -20,10 +21,28 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Misc/PackageName.h"
 #include "Player/VaelPlayerController.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
+
+namespace
+{
+	/** Loads an asset the player may not have made yet in the editor. Returns null without a warning if it doesn't exist. */
+	UObject* LoadOptionalAsset(const FSoftObjectPath& Path)
+	{
+		if (Path.IsNull() || !FPackageName::DoesPackageExist(Path.GetLongPackageName()))
+		{
+			return nullptr;
+		}
+
+		return Path.TryLoad();
+	}
+
+	/** Blend time when a roll montage is cut short */
+	constexpr float RollMontageBlendOutTime = 0.15f;
+}
 
 AVaelCharacter::AVaelCharacter()
 {
@@ -123,6 +142,15 @@ AVaelCharacter::AVaelCharacter()
 void AVaelCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// The animations of the mage take over from the template ones as soon as they are made in the editor
+	if (UClass* AnimClass = Cast<UClass>(LoadOptionalAsset(MageAnimClass.ToSoftObjectPath())))
+	{
+		GetMesh()->SetAnimInstanceClass(AnimClass);
+	}
+
+	LoadedDodgeMontage = Cast<UAnimMontage>(LoadOptionalAsset(DodgeMontage.ToSoftObjectPath()));
+	LoadedSpellDashMontage = Cast<UAnimMontage>(LoadOptionalAsset(SpellDashMontage.ToSoftObjectPath()));
 
 	DefaultMeshScale = GetMesh()->GetRelativeScale3D();
 	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
@@ -260,7 +288,7 @@ bool AVaelCharacter::StartDodge(const FVector& WorldDirection)
 	DodgeEndTime = Now + DodgeDuration;
 	NextDodgeTime = Now + DodgeCooldown;
 
-	GetMesh()->SetRelativeScale3D(DefaultMeshScale * FVector(1.f, 1.f, DodgeMeshSquash));
+	BeginRollLook(LoadedDodgeMontage, DodgeDuration);
 
 	return true;
 }
@@ -285,9 +313,28 @@ bool AVaelCharacter::StartSpellDash(const FVector& WorldDirection, float Speed, 
 	DashBurstRadius = BurstRadius;
 	DodgeEndTime = GetWorld()->GetTimeSeconds() + Duration;
 
-	GetMesh()->SetRelativeScale3D(DefaultMeshScale * FVector(1.f, 1.f, DodgeMeshSquash));
+	BeginRollLook(LoadedSpellDashMontage != nullptr ? LoadedSpellDashMontage : LoadedDodgeMontage, Duration);
 
 	return true;
+}
+
+void AVaelCharacter::BeginRollLook(UAnimMontage* Montage, float Duration)
+{
+	// The body rolls the way it moves; it turns back to the aim direction afterwards
+	GetCharacterMovement()->bUseControllerDesiredRotation = false;
+	SetActorRotation(DodgeDirection.Rotation());
+
+	ActiveRollMontage = nullptr;
+
+	if (Montage != nullptr && Duration > 0.0f && PlayAnimMontage(Montage, Montage->GetPlayLength() / Duration) > 0.0f)
+	{
+		ActiveRollMontage = Montage;
+		GetMesh()->SetRelativeScale3D(DefaultMeshScale);
+	}
+	else
+	{
+		GetMesh()->SetRelativeScale3D(DefaultMeshScale * FVector(1.f, 1.f, DodgeMeshSquash));
+	}
 }
 
 void AVaelCharacter::SetPlayerColor(const FLinearColor& Color)
@@ -312,6 +359,16 @@ void AVaelCharacter::EndDodge()
 	bIsDodging = false;
 
 	GetMesh()->SetRelativeScale3D(DefaultMeshScale);
+	GetCharacterMovement()->bUseControllerDesiredRotation = true;
+
+	if (ActiveRollMontage != nullptr)
+	{
+		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+		{
+			AnimInstance->Montage_Stop(RollMontageBlendOutTime, ActiveRollMontage);
+		}
+		ActiveRollMontage = nullptr;
+	}
 
 	// Come out of the roll at no more than walking speed
 	UCharacterMovementComponent* Movement = GetCharacterMovement();

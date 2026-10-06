@@ -8,6 +8,8 @@
 #include "Magic/VaelElementTypes.h"
 #include "VaelCharacter.generated.h"
 
+class UAnimInstance;
+class UAnimMontage;
 class UStaticMeshComponent;
 class UVaelElementComponent;
 
@@ -68,9 +70,21 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Dodge", meta = (ClampMin = 0))
 	float DodgeCooldown = 0.9f;
 
-	/** Placeholder for the roll animation: height scale of the mesh while dodging */
+	/** Placeholder for the roll animation while no dodge montage exists: height scale of the mesh while dodging */
 	UPROPERTY(EditAnywhere, Category="Dodge", meta = (ClampMin = 0.1, ClampMax = 1))
 	float DodgeMeshSquash = 0.6f;
+
+	/** Montage of the dodge roll, stretched to the length of the roll. Used once the asset exists; until then the mesh is squashed. */
+	UPROPERTY(EditAnywhere, Category="Dodge")
+	TSoftObjectPtr<UAnimMontage> DodgeMontage = TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Dodge.AM_Mage_Dodge")));
+
+	/** Montage of spell dashes like the Boee, stretched to their length. Without it the dodge montage is used. */
+	UPROPERTY(EditAnywhere, Category="Dodge")
+	TSoftObjectPtr<UAnimMontage> SpellDashMontage = TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_SpellDash.AM_Mage_SpellDash")));
+
+	/** Animation blueprint of the mage, based on UVaelAnimInstance. Used once the asset exists; until then the template animations play. */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftClassPtr<UAnimInstance> MageAnimClass = TSoftClassPtr<UAnimInstance>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/ABP_Mage.ABP_Mage_C")));
 
 	/** Seconds nothing can hurt the player after a hit */
 	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 0))
@@ -188,6 +202,20 @@ private:
 
 	/** Ends the dodge roll and returns to normal movement */
 	void EndDodge();
+
+	/** Turns the body into the roll direction and plays the montage stretched over the roll, or squashes the mesh without one */
+	void BeginRollLook(UAnimMontage* Montage, float Duration);
+
+	/** Montages loaded at the start, null while their assets don't exist */
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> LoadedDodgeMontage;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> LoadedSpellDashMontage;
+
+	/** Montage playing for the current roll or dash */
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> ActiveRollMontage;
 
 	/** Mesh scale outside of a dodge roll */
 	FVector DefaultMeshScale = FVector::OneVector;
