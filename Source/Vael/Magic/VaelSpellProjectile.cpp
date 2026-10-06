@@ -13,6 +13,7 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "World/VaelGround.h"
 
 namespace
 {
@@ -205,7 +206,7 @@ void AVaelSpellProjectile::EndFlight()
 
 		// The patch lies on the ground below the projectile
 		FHitResult GroundHit;
-		if (GetWorld()->LineTraceSingleByObjectType(GroundHit, Location, Location - FVector(0.0f, 0.0f, 500.0f), FCollisionObjectQueryParams(ECC_WorldStatic)))
+		if (VaelGround::TraceGround(GetWorld(), Location, Location - FVector(0.0f, 0.0f, 500.0f), GroundHit, this))
 		{
 			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator(), true, ImpactEffect);
 		}

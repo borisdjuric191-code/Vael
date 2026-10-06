@@ -20,14 +20,14 @@
 namespace
 {
 	/** Height of the scroll above the ground */
-	constexpr float HoverHeight = 45.0f;
+	constexpr float ScrollHoverHeight = 45.0f;
 
 	/** How far the scroll bobs up and down, in cm, and how fast */
-	constexpr float BobAmplitude = 6.0f;
-	constexpr float BobSpeed = 2.5f;
+	constexpr float ScrollBobAmplitude = 6.0f;
+	constexpr float ScrollBobSpeed = 2.5f;
 
 	/** Turning speed in degrees per second */
-	constexpr float TurnSpeed = 40.0f;
+	constexpr float ScrollTurnSpeed = 40.0f;
 }
 
 AVaelFormulaScroll::AVaelFormulaScroll()
@@ -45,7 +45,7 @@ AVaelFormulaScroll::AVaelFormulaScroll()
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
 	Mesh->SetupAttachment(RootComponent);
 	Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Mesh->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, HoverHeight), FRotator(90.0f, 0.0f, 0.0f));
+	Mesh->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, ScrollHoverHeight), FRotator(90.0f, 0.0f, 0.0f));
 	Mesh->SetRelativeScale3D(FVector(0.18f, 0.18f, 0.5f));
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -118,9 +118,9 @@ void AVaelFormulaScroll::Tick(float DeltaSeconds)
 
 	const float Time = GetWorld()->GetTimeSeconds();
 	FVector MeshLocation = Mesh->GetRelativeLocation();
-	MeshLocation.Z = BaseMeshHeight + FMath::Sin(Time * BobSpeed) * BobAmplitude;
+	MeshLocation.Z = BaseMeshHeight + FMath::Sin(Time * ScrollBobSpeed) * ScrollBobAmplitude;
 
-	Mesh->SetRelativeLocationAndRotation(MeshLocation, FRotator(90.0f, Time * TurnSpeed, 0.0f));
+	Mesh->SetRelativeLocationAndRotation(MeshLocation, FRotator(90.0f, Time * ScrollTurnSpeed, 0.0f));
 }
 
 void AVaelFormulaScroll::OnPickupOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)

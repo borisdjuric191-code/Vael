@@ -17,6 +17,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "World/VaelGround.h"
 
 namespace
 {
@@ -32,6 +33,9 @@ namespace
 
 	/** How far below the end of the beam the ground is searched */
 	constexpr float GroundSearchDepth = 500.0f;
+
+	/** How far above it the search starts, so rising ground is found too */
+	constexpr float GroundSearchHeight = 80.0f;
 }
 
 AVaelSpellBeam::AVaelSpellBeam()
@@ -198,7 +202,7 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 			const FVector FireLocation = Start + Direction * FMath::Max(Length - FireBackOffDistance, 0.0f);
 
 			FHitResult GroundHit;
-			if (World->LineTraceSingleByObjectType(GroundHit, FireLocation, FireLocation - FVector(0.0f, 0.0f, GroundSearchDepth), FCollisionObjectQueryParams(ECC_WorldStatic), QueryParams))
+			if (VaelGround::TraceGround(World, FireLocation + FVector(0.0f, 0.0f, GroundSearchHeight), FireLocation - FVector(0.0f, 0.0f, GroundSearchDepth), GroundHit, Caster))
 			{
 				AVaelGroundArea::SpawnArea(World, GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), Settings.Hit.Element, Settings.FireRadius, Settings.FireLifetime,
 					Settings.FireDamagePerSecond, Caster);

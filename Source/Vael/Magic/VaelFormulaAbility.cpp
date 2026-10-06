@@ -22,6 +22,8 @@
 #include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
+#include "Vael.h"
+#include "World/VaelGround.h"
 
 namespace
 {
@@ -43,6 +45,12 @@ namespace
 
 	/** How far below the aimed point the ground is searched */
 	constexpr float AreaGroundSearchDepth = 500.0f;
+
+	/** How far above it the search starts, so rising ground like ramps is found too */
+	constexpr float AreaGroundSearchHeight = 80.0f;
+
+	/** Surfaces that face up at least this much are ramps or slopes, not walls (about 45 degrees) */
+	constexpr float WalkableSlopeNormalZ = 0.7f;
 
 	/** Camera shake when a wall rises, as in the prototype */
 	constexpr float WallShake = 0.25f;
@@ -323,7 +331,7 @@ void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* C
 
 	// The patch lies on the ground below the aimed point
 	FHitResult GroundHit;
-	if (World->LineTraceSingleByObjectType(GroundHit, Location, Location - FVector(0.0f, 0.0f, AreaGroundSearchDepth), FCollisionObjectQueryParams(ECC_WorldStatic)))
+	if (VaelGround::TraceGround(World, Location + FVector(0.0f, 0.0f, AreaGroundSearchHeight), Location - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
 	{
 		Location = GroundHit.Location;
 	}
@@ -377,16 +385,20 @@ void UVaelFormulaAbility::RaiseWall(const UVaelFormula& Formula, AActor* Caster,
 
 		// Each block stands on the ground below its spot
 		FHitResult GroundHit;
-		if (!World->LineTraceSingleByObjectType(GroundHit, BlockLocation, BlockLocation - FVector(0.0f, 0.0f, AreaGroundSearchDepth), FCollisionObjectQueryParams(ECC_WorldStatic), QueryParams))
+		if (!VaelGround::TraceGround(World, BlockLocation + FVector(0.0f, 0.0f, AreaGroundSearchHeight), BlockLocation - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
 		{
 			continue;
 		}
 
 		const FVector BlockCenter = GroundHit.Location + FVector(0.0f, 0.0f, HalfHeight);
 
-		// No block inside rocks, walls or other blocks; a little margin lets it touch them
+		// No block inside rocks, walls or other blocks; a little margin lets it touch them.
+		// The ground it stands on doesn't count, so blocks rise on ramps and slopes too.
+		FCollisionQueryParams SolidQueryParams = QueryParams;
+		SolidQueryParams.AddIgnoredComponent(GroundHit.GetComponent());
+
 		const FCollisionShape SolidTestShape = FCollisionShape::MakeBox(FVector(HalfSize * 0.8f, HalfSize * 0.8f, HalfHeight * 0.8f));
-		if (World->OverlapAnyTestByObjectType(BlockCenter + FVector(0.0f, 0.0f, HalfHeight * 0.1f), Rotation, FCollisionObjectQueryParams(ECC_WorldStatic), SolidTestShape, QueryParams))
+		if (World->OverlapAnyTestByObjectType(BlockCenter + FVector(0.0f, 0.0f, HalfHeight * 0.1f), Rotation, FCollisionObjectQueryParams(ECC_WorldStatic), SolidTestShape, SolidQueryParams))
 		{
 			continue;
 		}
@@ -425,6 +437,8 @@ void UVaelFormulaAbility::RaiseWall(const UVaelFormula& Formula, AActor* Caster,
 			++NumRaised;
 		}
 	}
+
+	UE_LOG(LogVael, Verbose, TEXT("'%s' raises %d of %d rock blocks around %s"), *GetNameSafe(Caster), NumRaised, Formula.WallBlocks, *Center.ToCompactString());
 
 	if (NumRaised > 0)
 	{
@@ -502,7 +516,7 @@ FVector UVaelFormulaAbility::FindGroundTarget(AActor* Caster, float MaxRange)
 	// Walls stop the patch in front of them
 	FHitResult WallHit;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelGroundTarget), false, Caster);
-	if (Caster->GetWorld()->LineTraceSingleByObjectType(WallHit, Origin, Target, FCollisionObjectQueryParams(ECC_WorldStatic), QueryParams))
+	if (Caster->GetWorld()->LineTraceSingleByObjectType(WallHit, Origin, Target, FCollisionObjectQueryParams(ECC_WorldStatic), QueryParams) && WallHit.ImpactNormal.Z < WalkableSlopeNormalZ)
 	{
 		Target = Origin + AimDirection * FMath::Max(0.0f, WallHit.Distance - WallBackOffDistance);
 	}

@@ -18,6 +18,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
+#include "World/VaelGround.h"
 
 AVaelGameMode::AVaelGameMode()
 {
@@ -104,7 +105,7 @@ void AVaelGameMode::SpawnTestAreas(const FVector& Center)
 
 		// The player start may float above the floor
 		FHitResult GroundHit;
-		if (GetWorld()->LineTraceSingleByObjectType(GroundHit, Location, Location - FVector(0.0f, 0.0f, 2000.0f), FCollisionObjectQueryParams(ECC_WorldStatic)))
+		if (VaelGround::TraceGround(GetWorld(), Location + FVector(0.0f, 0.0f, 500.0f), Location - FVector(0.0f, 0.0f, 2000.0f), GroundHit))
 		{
 			Location = GroundHit.Location + FVector(0.0f, 0.0f, 2.0f);
 		}

@@ -27,6 +27,7 @@
 #include "Vael.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
+#include "World/VaelGround.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -220,7 +221,7 @@ AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Da
 bool AVaelCreature::FindGround(const UWorld* World, const FVector& Location, FVector& OutGroundLocation)
 {
 	FHitResult GroundHit;
-	if (World != nullptr && World->LineTraceSingleByObjectType(GroundHit, Location + FVector(0.0f, 0.0f, 500.0f), Location - FVector(0.0f, 0.0f, 2000.0f), FCollisionObjectQueryParams(ECC_WorldStatic)))
+	if (World != nullptr && VaelGround::TraceGround(World, Location + FVector(0.0f, 0.0f, 500.0f), Location - FVector(0.0f, 0.0f, 2000.0f), GroundHit))
 	{
 		OutGroundLocation = GroundHit.Location;
 		return true;
