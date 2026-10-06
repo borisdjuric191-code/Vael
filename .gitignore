@@ -53,3 +53,6 @@ Desktop.ini
 
 # Claude Code: personal settings stay local, shared settings.json is committed
 .claude/settings.local.json
+
+# Fab and Marketplace packs: large, can be downloaded again from Fab at any time
+Content/Fab/
