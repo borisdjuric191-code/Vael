@@ -49,6 +49,11 @@ UAnimMontage* UVaelFormula::FindCastMontage() const
 	return UVaelMagicSettings::Get()->FindCastMontage(Delivery);
 }
 
+FVaelLoadedEffects UVaelFormula::LoadEffects() const
+{
+	return VaelEffects::Load(DamageElement, &Effects);
+}
+
 FPrimaryAssetId UVaelFormula::GetPrimaryAssetId() const
 {
 	return FPrimaryAssetId(PrimaryAssetType, GetFName());

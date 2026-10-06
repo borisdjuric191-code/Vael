@@ -10,9 +10,12 @@
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelSpellEffects.h"
+#include "NiagaraSystem.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
 
@@ -81,6 +84,9 @@ void AVaelGroundArea::BeginPlay()
 
 	// Only areas that hurt somebody need to tick
 	SetActorTickEnabled(DamagePerSecond > 0.0f && GetInstigator() != nullptr);
+
+	// The real look replaces the placeholder disc as soon as the effect exists
+	SpawnVisual();
 }
 
 void AVaelGroundArea::Tick(float DeltaSeconds)
@@ -108,7 +114,7 @@ void AVaelGroundArea::Tick(float DeltaSeconds)
 	}
 }
 
-AVaelGroundArea* AVaelGroundArea::SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable, EVaelGroundEffect InEffect)
+AVaelGroundArea* AVaelGroundArea::SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable, EVaelGroundEffect InEffect, UNiagaraSystem* InVisual)
 {
 	if (World == nullptr)
 	{
@@ -126,6 +132,7 @@ AVaelGroundArea* AVaelGroundArea::SpawnArea(UWorld* World, const FVector& Locati
 		Area->DamagePerSecond = InDamagePerSecond;
 		Area->bExtinguishable = bInExtinguishable;
 		Area->Effect = InEffect;
+		Area->VisualOverride = InVisual;
 
 		Area->FinishSpawning(SpawnTransform);
 	}
@@ -281,8 +288,44 @@ void AVaelGroundArea::RefreshLook()
 
 	if (Material != nullptr)
 	{
-		// Steam is pale, everything else shows the color of its element
+		Material->SetVectorParameterValue(TEXT("Color"), GetLookColor());
+	}
+}
+
+FLinearColor AVaelGroundArea::GetLookColor() const
+{
+	// Steam is pale, everything else shows the color of its element
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	return Effect == EVaelGroundEffect::Blind ? MagicSettings->SteamColor : MagicSettings->GetElementColor(Element);
+}
+
+void AVaelGroundArea::SpawnVisual()
+{
+	UNiagaraSystem* Visual = VisualOverride;
+
+	if (Visual == nullptr)
+	{
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-		Material->SetVectorParameterValue(TEXT("Color"), Effect == EVaelGroundEffect::Blind ? MagicSettings->SteamColor : MagicSettings->GetElementColor(Element));
+
+		// Steam and mud have their own look, or else the one of water and earth
+		if (Effect == EVaelGroundEffect::Blind)
+		{
+			Visual = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
+		}
+		else if (Effect == EVaelGroundEffect::Slow)
+		{
+			Visual = VaelAssets::LoadOptional(MagicSettings->MudEffect);
+		}
+
+		if (Visual == nullptr)
+		{
+			const EVaelElement LookElement = Effect == EVaelGroundEffect::Blind ? EVaelElement::Water : Effect == EVaelGroundEffect::Slow ? EVaelElement::Earth : Element;
+			Visual = VaelEffects::Load(LookElement).Ground;
+		}
+	}
+
+	if (VaelEffects::Attach(Visual, Disc, NAME_None, GetLookColor(), Radius) != nullptr)
+	{
+		Disc->SetVisibility(false);
 	}
 }

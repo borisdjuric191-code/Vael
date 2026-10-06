@@ -13,6 +13,7 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraSystem.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -126,23 +127,46 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 	{
 		HitActors.Add(OtherActor);
 
+		if (RemainingPierce > 0)
+		{
+			// Flying on: each pierced target gets its own impact, the last one comes with the end of the flight
+			VaelEffects::PlayImpact(this, Effects, OtherActor->GetActorLocation(), Collision->GetScaledSphereRadius());
+		}
+
 		if (RemainingPierce-- <= 0)
 		{
 			// Later overlaps of the same move must not hit anything else
 			Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			EndFlight();
+			EndFlight(true);
 		}
 	}
 }
 
 void AVaelSpellProjectile::OnStopped(const FHitResult& ImpactResult)
 {
-	EndFlight();
+	EndFlight(true);
 }
 
 void AVaelSpellProjectile::LifeSpanExpired()
 {
-	EndFlight();
+	EndFlight(false);
+}
+
+void AVaelSpellProjectile::SetEffects(const FVaelLoadedEffects& InEffects, UNiagaraSystem* InImpactAreaVisual)
+{
+	Effects = InEffects;
+	ImpactAreaVisual = InImpactAreaVisual;
+}
+
+void AVaelSpellProjectile::BeginPlay()
+{
+	Super::BeginPlay();
+
+	// The trail replaces the placeholder sphere as soon as it exists
+	if (VaelEffects::Attach(Effects.Trail, Collision, NAME_None, Effects.Color, Collision->GetScaledSphereRadius()) != nullptr)
+	{
+		Mesh->SetVisibility(false);
+	}
 }
 
 void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond, EVaelGroundEffect Effect)
@@ -182,13 +206,14 @@ AVaelSpellProjectile* AVaelSpellProjectile::Launch(APawn* Attacker, const FVecto
 	{
 		Projectile->InitSpell(InHit, Speed, Radius, Lifetime, 0, Color);
 		Projectile->SetImpactArea(EVaelElement::Fire, FireRadius, FireLifetime, FireDamagePerSecond);
+		Projectile->SetEffects(VaelEffects::Load(InHit.Element));
 		Projectile->FinishSpawning(SpawnTransform);
 	}
 
 	return Projectile;
 }
 
-void AVaelSpellProjectile::EndFlight()
+void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 {
 	if (IsActorBeingDestroyed())
 	{
@@ -200,6 +225,12 @@ void AVaelSpellProjectile::EndFlight()
 		Explode();
 	}
 
+	// A projectile that just runs out in the air fizzles without an impact
+	if (bHitSomething || ExplosionRadius > 0.0f)
+	{
+		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : Collision->GetScaledSphereRadius());
+	}
+
 	if (ImpactRadius > 0.0f)
 	{
 		FVector Location = GetActorLocation();
@@ -208,7 +239,7 @@ void AVaelSpellProjectile::EndFlight()
 		FHitResult GroundHit;
 		if (VaelGround::TraceGround(GetWorld(), Location, Location - FVector(0.0f, 0.0f, 500.0f), GroundHit, this))
 		{
-			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator(), true, ImpactEffect);
+			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator(), true, ImpactEffect, ImpactAreaVisual);
 		}
 	}
 
@@ -225,7 +256,10 @@ void AVaelSpellProjectile::Explode()
 	UVaelHitFeedbackSubsystem::Shake(this, ExplosionShake);
 
 #if ENABLE_DRAW_DEBUG
-	// Placeholder look until the formulas get real effects
-	DrawDebugSphere(World, Center, ExplosionRadius, 24, UVaelMagicSettings::Get()->GetElementColor(ExplosionHit.Element).ToFColor(true), false, 0.3f);
+	// Placeholder look while no impact effect exists
+	if (Effects.Impact == nullptr)
+	{
+		DrawDebugSphere(World, Center, ExplosionRadius, 24, UVaelMagicSettings::Get()->GetElementColor(ExplosionHit.Element).ToFColor(true), false, 0.3f);
+	}
 #endif
 }

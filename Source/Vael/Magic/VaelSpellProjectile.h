@@ -5,8 +5,10 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Magic/VaelSpellEffects.h"
 #include "VaelSpellProjectile.generated.h"
 
+class UNiagaraSystem;
 class UProjectileMovementComponent;
 class USphereComponent;
 class UStaticMeshComponent;
@@ -48,6 +50,9 @@ public:
 	/** Lets the projectile fly through walls, rocks and rock walls. Has to be called before FinishSpawning. */
 	void SetPassesWalls();
 
+	/** Gives the projectile its trail, impact effect and sound. Has to be called before FinishSpawning. */
+	void SetEffects(const FVaelLoadedEffects& InEffects, UNiagaraSystem* InImpactAreaVisual = nullptr);
+
 	/** Makes the projectile burst where its flight ends, hitting everyone around. Has to be called before FinishSpawning. */
 	void SetExplosion(const FVaelSpellHit& InExplosionHit, float Radius);
 
@@ -61,6 +66,9 @@ public:
 	virtual void LifeSpanExpired() override;
 
 protected:
+
+	/** Starts the trail */
+	virtual void BeginPlay() override;
 
 	/** Called when the projectile touches something it can pass through, like a character */
 	UFUNCTION()
@@ -82,7 +90,7 @@ protected:
 private:
 
 	/** Destroys the projectile, bursts and leaves the impact area, if it has them */
-	void EndFlight();
+	void EndFlight(bool bHitSomething);
 
 	/** Hits everyone the caster may hurt within the explosion radius */
 	void Explode();
@@ -107,4 +115,12 @@ private:
 
 	/** What the patch does to enemies standing in it */
 	EVaelGroundEffect ImpactEffect = EVaelGroundEffect::None;
+
+	/** Trail, impact effect and sound */
+	UPROPERTY(Transient)
+	FVaelLoadedEffects Effects;
+
+	/** Own look of the patch left on the ground, null for the one from the magic settings */
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraSystem> ImpactAreaVisual;
 };

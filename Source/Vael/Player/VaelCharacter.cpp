@@ -19,8 +19,11 @@
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 #include "Player/VaelPlayerController.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
@@ -151,10 +154,44 @@ void AVaelCharacter::BeginPlay()
 	QueueOrbRoot->SetRelativeLocation(FVector(0.f, 0.f, QueueOrbHeight));
 	QueueOrbRoot->SetWorldRotation(FRotator(0.f, SharedCamera != nullptr ? SharedCamera->GetCameraYaw() : 0.f, 0.f));
 
-	LoadedElementSelectMontage = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementSelectMontage);
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	LoadedElementSelectMontage = VaelAssets::LoadOptional(MagicSettings->ElementSelectMontage);
+
+	// The hand glows in the color of the chosen elements, once the effect exists
+	HandEffect = VaelEffects::Attach(VaelAssets::LoadOptional(MagicSettings->HandEffect), GetMesh(), MagicSettings->CastSocketName, FLinearColor::White, 0.0f, false);
+	if (HandEffect != nullptr)
+	{
+		HandEffect->Deactivate();
+	}
 
 	ElementComponent->OnQueueChanged.AddUObject(this, &AVaelCharacter::OnElementQueueChanged);
 	RefreshQueueOrbs();
+}
+
+void AVaelCharacter::RefreshHandEffect()
+{
+	if (HandEffect == nullptr)
+	{
+		return;
+	}
+
+	const TArray<EVaelElement>& Queue = ElementComponent->GetQueue();
+	if (Queue.IsEmpty())
+	{
+		HandEffect->Deactivate();
+		return;
+	}
+
+	// The newest element colors the glow; drawn from the environment it shines twice as strong
+	const int32 Newest = Queue.Num() - 1;
+	HandEffect->SetVariableLinearColor(VaelEffects::ColorParameter, UVaelMagicSettings::Get()->GetElementColor(Queue[Newest]));
+	HandEffect->SetVariableFloat(VaelEffects::IntensityParameter, ElementComponent->IsFromEnvironment(Newest) ? 2.0f : 1.0f);
+	HandEffect->SetVariableFloat(VaelEffects::RadiusParameter, Queue.Num());
+
+	if (!HandEffect->IsActive())
+	{
+		HandEffect->Activate(true);
+	}
 }
 
 void AVaelCharacter::OnElementQueueChanged()
@@ -164,6 +201,7 @@ void AVaelCharacter::OnElementQueueChanged()
 	NumQueuedElements = NumQueued;
 
 	RefreshQueueOrbs();
+	RefreshHandEffect();
 
 	// A short gesture of the hand for each chosen element, unless a spell or a roll is playing
 	const UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();

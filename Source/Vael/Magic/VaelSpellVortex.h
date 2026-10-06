@@ -7,6 +7,8 @@
 #include "Combat/VaelCombatStatics.h"
 #include "VaelSpellVortex.generated.h"
 
+class UNiagaraComponent;
+class UNiagaraSystem;
 class UStaticMeshComponent;
 
 /** What a whirlwind does and how it moves */
@@ -50,6 +52,9 @@ struct FVaelVortexSettings
 
 	/** Damage per second of each fire to the enemies of the caster */
 	float FireDamagePerSecond = 0.0f;
+
+	/** Look of the spell; gets the user parameters Color and Radius. Null for the placeholder. */
+	UNiagaraSystem* Visual = nullptr;
 
 	/** Placeholder colors */
 	FLinearColor Color = FLinearColor::White;
@@ -117,6 +122,10 @@ private:
 
 	/** True once it has turned into a fire whirl */
 	bool bFiery = false;
+
+	/** The effect of the whirlwind, null while the placeholder cone shows */
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> VisualComponent;
 
 	/** Seconds until the next fire */
 	float NextFireCountdown = 0.0f;

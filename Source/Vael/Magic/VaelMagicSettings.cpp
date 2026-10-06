@@ -2,6 +2,8 @@
 
 #include "Magic/VaelMagicSettings.h"
 #include "Animation/AnimMontage.h"
+#include "NiagaraSystem.h"
+#include "Sound/SoundBase.h"
 #include "VaelAssets.h"
 
 UVaelMagicSettings::UVaelMagicSettings()
@@ -27,6 +29,28 @@ UVaelMagicSettings::UVaelMagicSettings()
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Aura, PushMontage);
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Beam, TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Channel.AM_Mage_Channel"))));
 	ElementSelectMontage = TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Select.AM_Mage_Select")));
+
+	// General effects the spells use once they are made in the editor; they are tinted in the color of each element
+	const auto Effect = [](const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Effects/%s.%s"), Name, Name)));
+	};
+	const auto Sound = [](const TCHAR* Name)
+	{
+		return TSoftObjectPtr<USoundBase>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Audio/%s.%s"), Name, Name)));
+	};
+
+	DefaultEffects.CastEffect = Effect(TEXT("NS_Vael_Cast"));
+	DefaultEffects.TrailEffect = Effect(TEXT("NS_Vael_Trail"));
+	DefaultEffects.ImpactEffect = Effect(TEXT("NS_Vael_Impact"));
+	DefaultEffects.GroundEffect = Effect(TEXT("NS_Vael_Ground"));
+	DefaultEffects.CastSound = Sound(TEXT("SFX_Vael_Cast"));
+	DefaultEffects.ImpactSound = Sound(TEXT("SFX_Vael_Impact"));
+
+	SteamEffect = Effect(TEXT("NS_Vael_Steam"));
+	MudEffect = Effect(TEXT("NS_Vael_Mud"));
+	BeamEffect = Effect(TEXT("NS_Vael_Beam"));
+	HandEffect = Effect(TEXT("NS_Vael_Hand"));
 }
 
 UAnimMontage* UVaelMagicSettings::FindCastMontage(EVaelSpellDelivery Delivery) const

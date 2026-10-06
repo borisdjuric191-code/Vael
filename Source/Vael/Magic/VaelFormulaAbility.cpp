@@ -28,9 +28,12 @@
 #include "Magic/VaelSpellBeam.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Magic/VaelSpellVortex.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -262,6 +265,18 @@ FVector UVaelFormulaAbility::GetProjectileStart(const AActor* Caster, const FVec
 
 void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Caster, float Power)
 {
+	// Flash and sound at the hand the spell leaves
+	const FVaelLoadedEffects Effects = Formula.LoadEffects();
+	const FVector CastLocation = GetProjectileStart(Caster, GetAimDirection(Caster));
+
+	VaelEffects::PlaySound(Caster, Effects.CastSound, CastLocation);
+
+	// Cones use the cast effect as their spray, stretched to their reach
+	if (Formula.Delivery != EVaelSpellDelivery::Cone)
+	{
+		VaelEffects::SpawnAt(Caster, Effects.Cast, CastLocation, GetAimDirection(Caster).Rotation(), Effects.Color, 0.0f);
+	}
+
 	switch (Formula.Delivery)
 	{
 	case EVaelSpellDelivery::Projectile:
@@ -327,6 +342,8 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 		Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, Formula.ProjectilePierce,
 			UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
 
+		Projectile->SetEffects(Formula.LoadEffects(), VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
+
 		if (Formula.bProjectilePassesWalls)
 		{
 			Projectile->SetPassesWalls();
@@ -386,13 +403,27 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 	}
 
 	const FColor Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true);
+	const FVaelLoadedEffects Effects = Formula.LoadEffects();
+	UNiagaraSystem* BoltEffect = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BeamEffect);
+
+	// One jump of the bolt: the beam effect between the two points, or a line as placeholder
+	const auto DrawBolt = [&](const FVector& From, const FVector& To, float Duration)
+	{
+		if (UNiagaraComponent* Bolt = VaelEffects::SpawnAt(Caster, BoltEffect, From, (To - From).Rotation(), Effects.Color, 0.0f))
+		{
+			Bolt->SetVariableVec3(VaelEffects::BeamEndParameter, To);
+			return;
+		}
+
+#if ENABLE_DRAW_DEBUG
+		DrawDebugLine(World, From, To, Color, false, Duration, 0, 4.0f);
+#endif
+	};
 
 	if (Target == nullptr)
 	{
-#if ENABLE_DRAW_DEBUG
-		// Placeholder look: the bolt fizzles out in the aim direction
-		DrawDebugLine(World, LinkStart, LinkStart + AimDirection * Formula.ChainJumpRange, Color, false, 0.2f, 0, 3.0f);
-#endif
+		// The bolt fizzles out in the aim direction
+		DrawBolt(LinkStart, LinkStart + AimDirection * Formula.ChainJumpRange, 0.2f);
 		return;
 	}
 
@@ -400,9 +431,8 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 	{
 		const FVector TargetLocation = Target->GetActorLocation();
 
-#if ENABLE_DRAW_DEBUG
-		DrawDebugLine(World, LinkStart, TargetLocation, Color, false, 0.25f, 0, 4.0f);
-#endif
+		DrawBolt(LinkStart, TargetLocation, 0.25f);
+		VaelEffects::PlayImpact(Caster, Effects, TargetLocation, Target->GetSimpleCollisionRadius());
 
 		UVaelCombatStatics::ApplySpellHit(Caster, Target, Hit, TargetLocation - LinkStart);
 		Candidates.RemoveSingleSwap(Target);
@@ -437,6 +467,7 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	const float MinCosine = FMath::Cos(FMath::DegreesToRadians(Formula.ConeHalfAngle));
 
 	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+	const FVaelLoadedEffects Effects = Formula.LoadEffects();
 
 	// Wind carries fires on, water puts them out
 	if (Formula.DamageElement == EVaelElement::Air)
@@ -470,10 +501,17 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 
 		HitActors.Add(Target);
 		UVaelCombatStatics::ApplySpellHit(Caster, Target, Hit, AimDirection);
+		VaelEffects::PlayImpact(Caster, Effects, Target->GetActorLocation(), Target->GetSimpleCollisionRadius());
+	}
+
+	// The spray of the cone is the one-shot cast effect, its radius the reach
+	if (VaelEffects::SpawnAt(Caster, Effects.Cast, Origin, AimDirection.Rotation(), Effects.Color, Formula.ConeRange) != nullptr)
+	{
+		return;
 	}
 
 #if ENABLE_DRAW_DEBUG
-	// Placeholder look until the formulas get real effects
+	// Placeholder look while no trail effect exists
 	const float HalfAngle = FMath::DegreesToRadians(Formula.ConeHalfAngle);
 	DrawDebugCone(World, Origin, AimDirection, Formula.ConeRange, HalfAngle, FMath::DegreesToRadians(8.0f), 16,
 		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true), false, 0.25f, 0, 3.0f);
@@ -502,7 +540,7 @@ void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* C
 	}
 
 	AVaelGroundArea::SpawnArea(World, Location + FVector(0.0f, 0.0f, 2.0f), Formula.DamageElement, Formula.AreaRadius, Formula.AreaLifetime,
-		Formula.AreaDamagePerSecond * Power, Cast<APawn>(Caster), true, Formula.AreaEffect);
+		Formula.AreaDamagePerSecond * Power, Cast<APawn>(Caster), true, Formula.AreaEffect, VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
 
 	// Steam puts out the fires it covers
 	if (Formula.DamageElement == EVaelElement::Water)
@@ -604,6 +642,7 @@ void UVaelFormulaAbility::RaiseWall(const UVaelFormula& Formula, AActor* Caster,
 	if (NumRaised > 0)
 	{
 		UVaelHitFeedbackSubsystem::Shake(Caster, WallShake);
+		VaelEffects::PlayImpact(Caster, Formula.LoadEffects(), Center, Formula.WallBlocks * Formula.WallBlockSpacing * 0.5f);
 	}
 }
 
@@ -621,6 +660,7 @@ void UVaelFormulaAbility::StartBeam(const UVaelFormula& Formula, AActor* Caster,
 	Beam.FireLifetime = Formula.AreaLifetime;
 	Beam.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
 	Beam.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
+	Beam.Visual = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BeamEffect);
 
 	AVaelSpellBeam::StartBeam(Cast<APawn>(Caster), Beam);
 }
@@ -632,8 +672,18 @@ void UVaelFormulaAbility::HitNova(const UVaelFormula& Formula, AActor* Caster, f
 	UVaelCombatStatics::ApplySpellHitInRadius(Caster, Center, Formula.NovaRadius, Formula.MakeSpellHit(Power));
 	UVaelHitFeedbackSubsystem::Shake(Caster, Formula.NovaShake);
 
+	// The burst on the ground around the caster is the impact effect, its radius the reach
+	const FVector Feet = Center - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight());
+	const FVaelLoadedEffects Effects = Formula.LoadEffects();
+	VaelEffects::PlaySound(Caster, Effects.ImpactSound, Center);
+
+	if (VaelEffects::SpawnAt(Caster, Effects.Impact, Feet, FRotator::ZeroRotator, Effects.Color, Formula.NovaRadius) != nullptr)
+	{
+		return;
+	}
+
 #if ENABLE_DRAW_DEBUG
-	// Placeholder look until the formulas get real effects
+	// Placeholder look while no impact effect exists
 	DrawDebugCircle(Caster->GetWorld(), Center - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight() - 5.0f), Formula.NovaRadius, 48,
 		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true), false, 0.4f, 0, 8.0f, FVector::ForwardVector, FVector::RightVector, false);
 #endif
@@ -663,6 +713,7 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 	Vortex.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
 	Vortex.Color = MagicSettings->GetElementColor(Formula.DamageElement);
 	Vortex.FireColor = MagicSettings->GetElementColor(EVaelElement::Fire);
+	Vortex.Visual = Formula.LoadEffects().Trail;
 
 	const FVector AimDirection = GetAimDirection(Caster);
 	AVaelSpellVortex::Launch(Cast<APawn>(Caster), Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance, AimDirection, Vortex);
@@ -678,6 +729,7 @@ void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster,
 	Aura.Duration = Formula.AuraDuration;
 	Aura.BlindDuration = Formula.AuraBlindDuration;
 	Aura.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
+	Aura.Visual = Formula.LoadEffects().Trail;
 
 	AVaelSpellAura::StartAura(Cast<APawn>(Caster), Aura);
 }

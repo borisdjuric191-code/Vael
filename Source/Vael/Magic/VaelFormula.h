@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Magic/VaelElementTypes.h"
+#include "Magic/VaelSpellEffects.h"
 #include "VaelFormula.generated.h"
 
 class AVaelSpellProjectile;
@@ -80,6 +81,13 @@ public:
 
 	/** Returns the cast animation of the formula, its own or the one of its kind, null if none exists yet */
 	UAnimMontage* FindCastMontage() const;
+
+	/** Own effects and sounds of the formula. Empty entries use those of its damage element from the magic settings. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effects")
+	FVaelSpellEffects Effects;
+
+	/** Loads the effects of the formula, tinted in the color of its damage element */
+	FVaelLoadedEffects LoadEffects() const;
 
 	/** How the formula reaches its targets */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect")

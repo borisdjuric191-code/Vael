@@ -10,8 +10,10 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
 
 namespace
 {
@@ -99,6 +101,14 @@ void AVaelSpellAura::Restart(const FVaelAuraSettings& InSettings)
 	{
 		Material->SetVectorParameterValue(TEXT("Color"), Settings.Color);
 	}
+
+	// The effect replaces the placeholder disc and rings as soon as it exists
+	if (VisualComponent == nullptr)
+	{
+		VisualComponent = VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, Settings.Radius);
+	}
+
+	Mesh->SetVisibility(VisualComponent == nullptr);
 }
 
 void AVaelSpellAura::Tick(float DeltaSeconds)
@@ -120,6 +130,11 @@ void AVaelSpellAura::Tick(float DeltaSeconds)
 	HitEnemies(DeltaSeconds);
 
 #if ENABLE_DRAW_DEBUG
+	if (VisualComponent != nullptr)
+	{
+		return;
+	}
+
 	// Placeholder: whirling rings of sand around the caster
 	const FColor RingColor = Settings.Color.ToFColor(true);
 	const float Spin = FMath::DegreesToRadians(GetActorRotation().Yaw);

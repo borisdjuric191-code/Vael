@@ -7,6 +7,8 @@
 #include "Combat/VaelCombatStatics.h"
 #include "VaelSpellAura.generated.h"
 
+class UNiagaraComponent;
+class UNiagaraSystem;
 class UStaticMeshComponent;
 
 /** What a storm around the caster does and how long it lasts */
@@ -29,6 +31,9 @@ struct FVaelAuraSettings
 
 	/** Enemies inside can't see for this long, renewed as long as they stay inside */
 	float BlindDuration = 0.4f;
+
+	/** Look of the spell; gets the user parameters Color and Radius. Null for the placeholder. */
+	UNiagaraSystem* Visual = nullptr;
 
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
@@ -77,6 +82,10 @@ private:
 
 	/** Damage collected on each enemy that hasn't been dealt yet */
 	FVaelDamageCollector CollectedDamage;
+
+	/** The effect of the storm, null while the placeholder shows */
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> VisualComponent;
 
 	/** World time at which the storm ends */
 	float EndTime = 0.0f;

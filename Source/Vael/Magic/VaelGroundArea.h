@@ -7,6 +7,7 @@
 #include "Magic/VaelElementTypes.h"
 #include "VaelGroundArea.generated.h"
 
+class UNiagaraSystem;
 class UStaticMeshComponent;
 
 /**
@@ -52,6 +53,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Area")
 	EVaelGroundEffect Effect = EVaelGroundEffect::None;
 
+	/** Own look of this area. Empty: the look of steam, mud or its element from the magic settings. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Area")
+	TObjectPtr<UNiagaraSystem> VisualOverride;
+
 public:
 
 	/** Constructor */
@@ -67,7 +72,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** Spawns an area on the ground. The instigator decides who its damage hurts. */
-	static AVaelGroundArea* SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable = true, EVaelGroundEffect InEffect = EVaelGroundEffect::None);
+	static AVaelGroundArea* SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable = true, EVaelGroundEffect InEffect = EVaelGroundEffect::None, UNiagaraSystem* InVisual = nullptr);
 
 	/** Finds what the areas the actor stands in do to it: whether it is blinded and how fast it can walk (1 for normal speed) */
 	static void GetEffectsOn(const AActor* Victim, bool& bOutBlinded, float& OutSpeedMultiplier);
@@ -95,6 +100,12 @@ private:
 
 	/** Sizes and colors the disc */
 	void RefreshLook();
+
+	/** Color of the area: pale for steam, otherwise its element */
+	FLinearColor GetLookColor() const;
+
+	/** Starts the effect of the area and hides the placeholder disc, if an effect exists */
+	void SpawnVisual();
 
 	/** Seconds since the last damage step */
 	float DamageStepTime = 0.0f;

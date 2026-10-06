@@ -12,8 +12,10 @@
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
 #include "World/VaelGround.h"
@@ -124,6 +126,13 @@ void AVaelSpellVortex::BeginPlay()
 	const float LookScale = Settings.Radius * VortexLookRadiusShare / VortexPlaceholderConeRadius;
 	Mesh->SetRelativeScale3D(FVector(LookScale, LookScale, VortexLookHeight / VortexPlaceholderConeHeight));
 
+	// The effect replaces the placeholder cone as soon as it exists
+	VisualComponent = VaelEffects::Attach(Settings.Visual, RootComponent, NAME_None, Settings.Color, Settings.Radius);
+	if (VisualComponent != nullptr)
+	{
+		Mesh->SetVisibility(false);
+	}
+
 	RefreshColor();
 }
 
@@ -140,8 +149,11 @@ void AVaelSpellVortex::Tick(float DeltaSeconds)
 
 #if ENABLE_DRAW_DEBUG
 	// Placeholder: the reach on the ground
-	DrawDebugCircle(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 5.0f), Settings.Radius, 32, (bFiery ? Settings.FireColor : Settings.Color).ToFColor(true),
-		false, -1.0f, 0, 4.0f, FVector::ForwardVector, FVector::RightVector, false);
+	if (VisualComponent == nullptr)
+	{
+		DrawDebugCircle(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 5.0f), Settings.Radius, 32, (bFiery ? Settings.FireColor : Settings.Color).ToFColor(true),
+			false, -1.0f, 0, 4.0f, FVector::ForwardVector, FVector::RightVector, false);
+	}
 #endif
 }
 
@@ -236,6 +248,11 @@ void AVaelSpellVortex::LayFires(float DeltaSeconds)
 
 void AVaelSpellVortex::RefreshColor()
 {
+	if (VisualComponent != nullptr)
+	{
+		VisualComponent->SetVariableLinearColor(VaelEffects::ColorParameter, bFiery ? Settings.FireColor : Settings.Color);
+	}
+
 	UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Mesh->GetMaterial(0));
 	if (Material == nullptr)
 	{

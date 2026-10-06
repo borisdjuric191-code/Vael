@@ -10,6 +10,7 @@
 
 class UAnimInstance;
 class UAnimMontage;
+class UNiagaraComponent;
 class UStaticMeshComponent;
 class UVaelElementComponent;
 
@@ -187,6 +188,13 @@ private:
 
 	/** Shows the new queue and plays the hand gesture for a chosen element */
 	void OnElementQueueChanged();
+
+	/** Lets the hand glow in the color of the newest queued element, or switches the glow off for an empty queue */
+	void RefreshHandEffect();
+
+	/** Glow at the hand while elements are queued, null while the effect doesn't exist */
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> HandEffect;
 
 	/** Number of elements in the queue at the last change */
 	int32 NumQueuedElements = 0;

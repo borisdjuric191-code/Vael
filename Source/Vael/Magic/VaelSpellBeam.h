@@ -8,6 +8,8 @@
 #include "VaelSpellBeam.generated.h"
 
 class UAbilitySystemComponent;
+class UNiagaraComponent;
+class UNiagaraSystem;
 class UStaticMeshComponent;
 
 /** What a channeled beam does and how long it lasts */
@@ -42,6 +44,9 @@ struct FVaelBeamSettings
 
 	/** Damage per second of each fire to the enemies of the caster */
 	float FireDamagePerSecond = 0.0f;
+
+	/** Effect of the beam; gets the user parameter BeamEnd. Null for the placeholder cylinder. */
+	UNiagaraSystem* Visual = nullptr;
 
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
@@ -96,6 +101,10 @@ private:
 
 	/** Damage collected on each enemy that hasn't been dealt yet */
 	FVaelDamageCollector CollectedDamage;
+
+	/** The beam effect, null while the placeholder cylinder shows */
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> VisualComponent;
 
 	/** World time at which the beam ends */
 	float EndTime = 0.0f;

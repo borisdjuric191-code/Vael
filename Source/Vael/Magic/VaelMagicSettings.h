@@ -5,9 +5,11 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "Magic/VaelElementTypes.h"
+#include "Magic/VaelSpellEffects.h"
 #include "VaelMagicSettings.generated.h"
 
 class UAnimMontage;
+class UNiagaraSystem;
 
 /**
  *  Rules of the magic system that apply to every formula.
@@ -167,4 +169,28 @@ public:
 
 	/** Returns the cast montage the formula uses by its kind, null if none exists */
 	UAnimMontage* FindCastMontage(EVaelSpellDelivery Delivery) const;
+
+	/** Effects every spell uses unless its element or formula has its own. Tinted in the color of the element. */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	FVaelSpellEffects DefaultEffects;
+
+	/** Effects per element; empty entries fall back to the default effects */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TMap<EVaelElement, FVaelSpellEffects> ElementEffects;
+
+	/** Look of steam on the ground; without it steam uses the ground effect of water, tinted pale */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UNiagaraSystem> SteamEffect;
+
+	/** Look of mud on the ground; without it mud uses the ground effect of earth */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UNiagaraSystem> MudEffect;
+
+	/** Beam between two points, for the fire beam and the jumps of the chain lightning. Gets the user parameter BeamEnd (a position). */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UNiagaraSystem> BeamEffect;
+
+	/** Glow at the hand while elements are chosen; gets Color, and Intensity 1 or 2 for elements from the environment */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UNiagaraSystem> HandEffect;
 };

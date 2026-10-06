@@ -15,8 +15,10 @@
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -95,6 +97,15 @@ void AVaelSpellBeam::BeginPlay()
 	if (UMaterialInstanceDynamic* Material = Mesh->CreateAndSetMaterialInstanceDynamic(0))
 	{
 		Material->SetVectorParameterValue(TEXT("Color"), Settings.Color);
+	}
+
+	// The beam effect replaces the placeholder cylinder as soon as it exists
+	VisualComponent = VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, BeamLookRadius);
+	if (VisualComponent != nullptr)
+	{
+		VisualComponent->SetUsingAbsoluteLocation(true);
+		VisualComponent->SetUsingAbsoluteRotation(true);
+		Mesh->SetVisibility(false);
 	}
 
 	CasterAbilitySystem = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetInstigator());
@@ -211,6 +222,12 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, float Length)
 {
 	const float VisibleLength = FMath::Max(Length, 1.0f);
+
+	if (VisualComponent != nullptr)
+	{
+		VisualComponent->SetWorldLocationAndRotation(Start, Direction.Rotation());
+		VisualComponent->SetVariableVec3(VaelEffects::BeamEndParameter, Start + Direction * VisibleLength);
+	}
 
 	// The cylinder stands on its axis, which is turned into the aim direction
 	Mesh->SetWorldLocationAndRotation(Start + Direction * VisibleLength * 0.5f, FRotationMatrix::MakeFromZ(Direction).Rotator());
