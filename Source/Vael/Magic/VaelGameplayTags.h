@@ -24,6 +24,12 @@ namespace VaelTags
 	/** Granted while a character channels a spell: no other spell can be cast and the character walks slower */
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Channeling);
 
+	/** Granted while a character plays the animation of a spell, from the start until it blends out */
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Casting);
+
+	/** Sent by the cast point notify of a cast animation: the moment the spell leaves the hand */
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Event_CastPoint);
+
 	/** Granted by gear while it is worn */
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gear_WeatherWard);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Gear_WeatherAttunement);

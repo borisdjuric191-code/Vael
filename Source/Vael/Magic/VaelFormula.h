@@ -9,6 +9,7 @@
 #include "VaelFormula.generated.h"
 
 class AVaelSpellProjectile;
+class UAnimMontage;
 class UVaelFormulaAbility;
 
 /**
@@ -65,6 +66,20 @@ public:
 	/** Ability that performs the formula. The default handles projectiles and cones, special formulas get their own class. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect")
 	TSubclassOf<UVaelFormulaAbility> AbilityClass;
+
+	/**
+	 *  Animation of the cast, played on the upper body. The spell appears at its "Vael Cast Point" notify, or when it ends without one.
+	 *  Empty: the cast montage of this kind of formula from the magic settings.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation")
+	TSoftObjectPtr<UAnimMontage> CastMontage;
+
+	/** Speed of the cast animation, above 1 is faster */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Animation", meta = (ClampMin = 0.1))
+	float CastMontagePlayRate = 1.0f;
+
+	/** Returns the cast animation of the formula, its own or the one of its kind, null if none exists yet */
+	UAnimMontage* FindCastMontage() const;
 
 	/** How the formula reaches its targets */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect")

@@ -1,7 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelFormulaAbility.h"
+#include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
+#include "Abilities/Tasks/AbilityTask_WaitGameplayTag.h"
 #include "AbilitySystemComponent.h"
+#include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/Character.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
@@ -61,6 +67,9 @@ namespace
 UVaelFormulaAbility::UVaelFormulaAbility()
 {
 	InstancingPolicy = EGameplayAbilityInstancingPolicy::InstancedPerActor;
+
+	// Casting the same formula again during its animation releases the first spell and starts anew
+	bRetriggerInstancedAbility = true;
 }
 
 bool UVaelFormulaAbility::CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags) const
@@ -104,9 +113,151 @@ void UVaelFormulaAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 		return;
 	}
 
-	ExecuteFormula(*Formula, Caster, ElementComponent->GetPendingCast().Power);
+	// The element component forgets the cast right after activation, the animation takes longer
+	CastFormula = Formula;
+	CastPower = ElementComponent->GetPendingCast().Power;
+	bSpellReleased = false;
+	bCastAnimated = false;
+	bWaitingForChannel = false;
 
-	EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+	const ACharacter* Character = Cast<ACharacter>(Caster);
+	UAnimMontage* Montage = Formula->FindCastMontage();
+
+	if (Montage == nullptr || Character == nullptr || Character->GetMesh()->GetAnimInstance() == nullptr)
+	{
+		// No animation yet: the spell appears at once
+		ReleaseSpell();
+		EndAbility(Handle, ActorInfo, ActivationInfo, true, false);
+		return;
+	}
+
+	bCastAnimated = true;
+	ActorInfo->AbilitySystemComponent->AddLooseGameplayTag(VaelTags::State_Casting);
+
+	UAbilityTask_WaitGameplayEvent* WaitCastPoint = UAbilityTask_WaitGameplayEvent::WaitGameplayEvent(this, VaelTags::Event_CastPoint, nullptr, true, true);
+	WaitCastPoint->EventReceived.AddDynamic(this, &UVaelFormulaAbility::OnCastPoint);
+	WaitCastPoint->ReadyForActivation();
+
+	UAbilityTask_PlayMontageAndWait* PlayMontage = UAbilityTask_PlayMontageAndWait::CreatePlayMontageAndWaitProxy(this, NAME_None, Montage, Formula->CastMontagePlayRate);
+	PlayMontage->OnBlendOut.AddDynamic(this, &UVaelFormulaAbility::OnCastMontageEnded);
+	PlayMontage->OnCompleted.AddDynamic(this, &UVaelFormulaAbility::OnCastMontageEnded);
+	PlayMontage->OnInterrupted.AddDynamic(this, &UVaelFormulaAbility::OnCastMontageEnded);
+	PlayMontage->OnCancelled.AddDynamic(this, &UVaelFormulaAbility::OnCastMontageEnded);
+	PlayMontage->ReadyForActivation();
+}
+
+void UVaelFormulaAbility::EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled)
+{
+	// A cast cut short, for example by casting again, still releases its spell; the mana is paid already
+	if (!bWasCancelled && !bSpellReleased && CastFormula != nullptr)
+	{
+		ReleaseSpell();
+	}
+
+	if (bCastAnimated && ActorInfo != nullptr && ActorInfo->AbilitySystemComponent.IsValid())
+	{
+		ActorInfo->AbilitySystemComponent->RemoveLooseGameplayTag(VaelTags::State_Casting);
+	}
+
+	CastFormula = nullptr;
+	bCastAnimated = false;
+	bWaitingForChannel = false;
+
+	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
+}
+
+void UVaelFormulaAbility::OnCastPoint(FGameplayEventData Payload)
+{
+	ReleaseSpell();
+
+	// A channeled spell keeps its loop running until it ends; everything else lets the animation play out
+	WaitForChannelEnd();
+}
+
+void UVaelFormulaAbility::OnCastMontageEnded()
+{
+	if (!IsActive() || bWaitingForChannel)
+	{
+		return;
+	}
+
+	// An animation without a cast point releases the spell at its end
+	ReleaseSpell();
+
+	if (!WaitForChannelEnd())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	}
+}
+
+void UVaelFormulaAbility::OnChannelEnded()
+{
+	if (IsActive())
+	{
+		MontageStop();
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	}
+}
+
+bool UVaelFormulaAbility::WaitForChannelEnd()
+{
+	if (bWaitingForChannel)
+	{
+		return true;
+	}
+
+	const UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponentFromActorInfo();
+	if (AbilitySystem == nullptr || !AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling))
+	{
+		return false;
+	}
+
+	bWaitingForChannel = true;
+
+	UAbilityTask_WaitGameplayTagRemoved* WaitChannel = UAbilityTask_WaitGameplayTagRemoved::WaitGameplayTagRemove(this, VaelTags::State_Channeling, nullptr, true);
+	WaitChannel->Removed.AddDynamic(this, &UVaelFormulaAbility::OnChannelEnded);
+	WaitChannel->ReadyForActivation();
+
+	return true;
+}
+
+void UVaelFormulaAbility::ReleaseSpell()
+{
+	if (bSpellReleased || CastFormula == nullptr)
+	{
+		return;
+	}
+
+	bSpellReleased = true;
+
+	// A caster who went down meanwhile casts nothing
+	AActor* Caster = GetAvatarActorFromActorInfo();
+	const AVaelCharacterBase* CasterCharacter = Cast<AVaelCharacterBase>(Caster);
+	if (Caster == nullptr || (CasterCharacter != nullptr && CasterCharacter->IsDefeated()))
+	{
+		return;
+	}
+
+	ExecuteFormula(*CastFormula, Caster, CastPower);
+}
+
+FVector UVaelFormulaAbility::GetProjectileStart(const AActor* Caster, const FVector& AimDirection) const
+{
+	const FVector InFront = Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance;
+
+	const ACharacter* Character = Cast<ACharacter>(Caster);
+	const FName SocketName = UVaelMagicSettings::Get()->CastSocketName;
+
+	if (!bCastAnimated || Character == nullptr || SocketName.IsNone() || !Character->GetMesh()->DoesSocketExist(SocketName))
+	{
+		return InFront;
+	}
+
+	// The spell leaves the hand, but never behind the caster, so it can't fly out of their back
+	const FVector Hand = Character->GetMesh()->GetSocketLocation(SocketName);
+	const float AlongAim = FVector::DotProduct(Hand - Caster->GetActorLocation(), AimDirection);
+
+	return Hand + AimDirection * FMath::Max(0.0f, ProjectileSpawnDistance * 0.5f - AlongAim);
 }
 
 void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Caster, float Power)
@@ -168,7 +319,7 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 	}
 
 	const FVector AimDirection = GetAimDirection(Caster);
-	const FTransform SpawnTransform(AimDirection.Rotation(), Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance);
+	const FTransform SpawnTransform(AimDirection.Rotation(), GetProjectileStart(Caster, AimDirection));
 
 	AVaelSpellProjectile* Projectile = World->SpawnActorDeferred<AVaelSpellProjectile>(Formula.ProjectileClass, SpawnTransform, Caster, Cast<APawn>(Caster), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	if (Projectile != nullptr)

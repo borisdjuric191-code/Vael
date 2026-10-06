@@ -185,6 +185,16 @@ private:
 	/** Updates the queue orbs to show the queued elements */
 	void RefreshQueueOrbs();
 
+	/** Shows the new queue and plays the hand gesture for a chosen element */
+	void OnElementQueueChanged();
+
+	/** Number of elements in the queue at the last change */
+	int32 NumQueuedElements = 0;
+
+	/** Hand gesture for a chosen element, null while the asset doesn't exist */
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> LoadedElementSelectMontage;
+
 	/** Puts the player down until a teammate helps them up */
 	void GoDown();
 

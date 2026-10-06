@@ -45,5 +45,5 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsDowned = Character->IsDowned();
 
 	const UAbilitySystemComponent* AbilitySystem = Character->GetAbilitySystemComponent();
-	bIsCasting = AbilitySystem != nullptr && AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling);
+	bIsCasting = AbilitySystem != nullptr && (AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Casting) || AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling));
 }

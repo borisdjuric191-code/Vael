@@ -12,6 +12,7 @@ class UVaelFormula;
 /**
  *  Ability that performs a formula. The formula asset is the source object of the ability,
  *  mana cost and power come from the cast the element component has prepared.
+ *  With a cast animation the spell appears at its cast point; casting again during the animation releases the first spell at once.
  *  Handles projectiles, cones, chains, explosions, ground areas, dashes, walls, beams and novas; formulas that work differently derive from this class and override ExecuteFormula.
  */
 UCLASS()
@@ -28,6 +29,7 @@ public:
 	virtual bool CheckCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, OUT FGameplayTagContainer* OptionalRelevantTags = nullptr) const override;
 	virtual void ApplyCost(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo) const override;
 	virtual void ActivateAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, const FGameplayEventData* TriggerEventData) override;
+	virtual void EndAbility(const FGameplayAbilitySpecHandle Handle, const FGameplayAbilityActorInfo* ActorInfo, const FGameplayAbilityActivationInfo ActivationInfo, bool bReplicateEndAbility, bool bWasCancelled) override;
 	//~End UGameplayAbility
 
 	/** Direction on the ground in which the caster aims */
@@ -73,4 +75,43 @@ protected:
 
 	/** Element component of the avatar, holds the prepared cast */
 	static UVaelElementComponent* GetElementComponent(const FGameplayAbilityActorInfo* ActorInfo);
+
+	/** Where projectiles start: the casting hand after a cast animation, otherwise in front of the caster */
+	FVector GetProjectileStart(const AActor* Caster, const FVector& AimDirection) const;
+
+private:
+
+	/** The cast animation reached its cast point */
+	UFUNCTION()
+	void OnCastPoint(FGameplayEventData Payload);
+
+	/** The cast animation has blended out, was interrupted or couldn't play */
+	UFUNCTION()
+	void OnCastMontageEnded();
+
+	/** The channeled spell has ended */
+	UFUNCTION()
+	void OnChannelEnded();
+
+	/** Performs the formula of the current cast, once */
+	void ReleaseSpell();
+
+	/** Keeps the ability and the cast loop running while the caster channels. Returns false if nothing is channeled. */
+	bool WaitForChannelEnd();
+
+	/** Formula of the current cast */
+	UPROPERTY(Transient)
+	TObjectPtr<const UVaelFormula> CastFormula;
+
+	/** Strength of the current cast, taken when it started; the element component forgets it right away */
+	float CastPower = 1.0f;
+
+	/** True once the formula of the current cast has been performed */
+	bool bSpellReleased = false;
+
+	/** True while a cast animation plays, so the spell comes out of the hand */
+	bool bCastAnimated = false;
+
+	/** True while the ability waits for a channeled spell to end */
+	bool bWaitingForChannel = false;
 };

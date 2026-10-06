@@ -40,7 +40,7 @@ protected:
 	UPROPERTY(BlueprintReadOnly, Category="Movement")
 	bool bIsDodging = false;
 
-	/** True while the character casts a spell; for now while channeling, like the fire beam */
+	/** True while the character plays a cast animation or channels a spell, like the fire beam */
 	UPROPERTY(BlueprintReadOnly, Category="Magic")
 	bool bIsCasting = false;
 

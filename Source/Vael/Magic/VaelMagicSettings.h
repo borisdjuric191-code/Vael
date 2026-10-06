@@ -7,6 +7,8 @@
 #include "Magic/VaelElementTypes.h"
 #include "VaelMagicSettings.generated.h"
 
+class UAnimMontage;
+
 /**
  *  Rules of the magic system that apply to every formula.
  *  Edited under Project Settings > Game > Vael Magic, stored in DefaultGame.ini.
@@ -143,4 +145,26 @@ public:
 	/** Placeholder color per element */
 	UPROPERTY(config, EditAnywhere, Category="Appearance")
 	TMap<EVaelElement, FLinearColor> ElementColors;
+
+	/**
+	 *  Cast animation per kind of formula, for formulas without their own montage.
+	 *  Montages that don't exist yet are skipped, the formula then uses the default cast montage.
+	 */
+	UPROPERTY(config, EditAnywhere, Category="Animation")
+	TMap<EVaelSpellDelivery, TSoftObjectPtr<UAnimMontage>> CastMontagesByDelivery;
+
+	/** Cast animation of every formula that has no other. Without it spells appear at once, without animation. */
+	UPROPERTY(config, EditAnywhere, Category="Animation")
+	TSoftObjectPtr<UAnimMontage> DefaultCastMontage;
+
+	/** Short hand gesture when an element is chosen, played if no spell is being cast */
+	UPROPERTY(config, EditAnywhere, Category="Animation")
+	TSoftObjectPtr<UAnimMontage> ElementSelectMontage;
+
+	/** Socket or bone of the character from which projectiles leave after a cast animation */
+	UPROPERTY(config, EditAnywhere, Category="Animation")
+	FName CastSocketName = TEXT("hand_r");
+
+	/** Returns the cast montage the formula uses by its kind, null if none exists */
+	UAnimMontage* FindCastMontage(EVaelSpellDelivery Delivery) const;
 };

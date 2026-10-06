@@ -21,25 +21,14 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
-#include "Misc/PackageName.h"
 #include "Player/VaelPlayerController.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 #include "VaelGameMode.h"
 
 namespace
 {
-	/** Loads an asset the player may not have made yet in the editor. Returns null without a warning if it doesn't exist. */
-	UObject* LoadOptionalAsset(const FSoftObjectPath& Path)
-	{
-		if (Path.IsNull() || !FPackageName::DoesPackageExist(Path.GetLongPackageName()))
-		{
-			return nullptr;
-		}
-
-		return Path.TryLoad();
-	}
-
 	/** Blend time when a roll montage is cut short */
 	constexpr float RollMontageBlendOutTime = 0.15f;
 }
@@ -144,13 +133,13 @@ void AVaelCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	// The animations of the mage take over from the template ones as soon as they are made in the editor
-	if (UClass* AnimClass = Cast<UClass>(LoadOptionalAsset(MageAnimClass.ToSoftObjectPath())))
+	if (UClass* AnimClass = VaelAssets::LoadOptionalClass(MageAnimClass))
 	{
 		GetMesh()->SetAnimInstanceClass(AnimClass);
 	}
 
-	LoadedDodgeMontage = Cast<UAnimMontage>(LoadOptionalAsset(DodgeMontage.ToSoftObjectPath()));
-	LoadedSpellDashMontage = Cast<UAnimMontage>(LoadOptionalAsset(SpellDashMontage.ToSoftObjectPath()));
+	LoadedDodgeMontage = VaelAssets::LoadOptional(DodgeMontage);
+	LoadedSpellDashMontage = VaelAssets::LoadOptional(SpellDashMontage);
 
 	DefaultMeshScale = GetMesh()->GetRelativeScale3D();
 	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
@@ -162,8 +151,28 @@ void AVaelCharacter::BeginPlay()
 	QueueOrbRoot->SetRelativeLocation(FVector(0.f, 0.f, QueueOrbHeight));
 	QueueOrbRoot->SetWorldRotation(FRotator(0.f, SharedCamera != nullptr ? SharedCamera->GetCameraYaw() : 0.f, 0.f));
 
-	ElementComponent->OnQueueChanged.AddUObject(this, &AVaelCharacter::RefreshQueueOrbs);
+	LoadedElementSelectMontage = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementSelectMontage);
+
+	ElementComponent->OnQueueChanged.AddUObject(this, &AVaelCharacter::OnElementQueueChanged);
 	RefreshQueueOrbs();
+}
+
+void AVaelCharacter::OnElementQueueChanged()
+{
+	const int32 NumQueued = ElementComponent->GetQueue().Num();
+	const bool bElementAdded = NumQueued > NumQueuedElements;
+	NumQueuedElements = NumQueued;
+
+	RefreshQueueOrbs();
+
+	// A short gesture of the hand for each chosen element, unless a spell or a roll is playing
+	const UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
+	const bool bBusy = bIsDodging || AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Casting) || AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling);
+
+	if (bElementAdded && !bBusy && LoadedElementSelectMontage != nullptr)
+	{
+		PlayAnimMontage(LoadedElementSelectMontage);
+	}
 }
 
 void AVaelCharacter::RefreshQueueOrbs()
