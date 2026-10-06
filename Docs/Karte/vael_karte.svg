@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1600" height="1100" viewBox="0 0 1600 1100">
+  <defs>
+    <radialGradient id="sea" cx="50%" cy="45%" r="75%">
+      <stop offset="0" stop-color="#2a3138"/>
+      <stop offset="1" stop-color="#121519"/>
+    </radialGradient>
+    <radialGradient id="heart" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ff3b2a" stop-opacity="0.95"/>
+      <stop offset="0.45" stop-color="#a3161a" stop-opacity="0.8"/>
+      <stop offset="1" stop-color="#5a0d10" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="coast" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="4" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="38" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="28"/></filter>
+    <filter id="fog"><feGaussianBlur stdDeviation="40"/></filter>
+    <filter id="grain">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="3"/>
+      <feColorMatrix values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.10 0"/>
+    </filter>
+
+    <!-- The body of the Urdrachin, drawn in currentColor so it can serve as land and as mask -->
+    <g id="body">
+      <path d="M1150 360 C1050 420 980 520 900 600 C820 700 700 760 560 760 C420 760 300 700 260 580 C220 460 260 330 360 260" fill="none" stroke="currentColor" stroke-width="200" stroke-linecap="round"/>
+      <path d="M360 260 C460 190 620 160 760 165" fill="none" stroke="currentColor" stroke-width="130" stroke-linecap="round"/>
+      <path d="M760 165 C880 170 960 195 1010 235" fill="none" stroke="currentColor" stroke-width="80" stroke-linecap="round"/>
+      <ellipse cx="1205" cy="315" rx="115" ry="80" transform="rotate(-25 1205 315)" fill="currentColor"/>
+      <path d="M1130 270 L1098 262 L1120 300 Z" fill="currentColor" stroke="currentColor" stroke-width="40" stroke-linejoin="round"/>
+      <!-- legs as peninsulas -->
+      <path d="M930 640 C980 700 1010 760 1060 790" fill="none" stroke="currentColor" stroke-width="70" stroke-linecap="round"/>
+      <path d="M380 780 C380 840 350 890 300 920" fill="none" stroke="currentColor" stroke-width="80" stroke-linecap="round"/>
+    </g>
+    <mask id="landmask"><rect width="1600" height="1100" fill="black"/><use href="#body" style="color:white"/></mask>
+  </defs>
+
+  <rect width="1600" height="1100" fill="url(#sea)"/>
+
+  <!-- Land with regions, roughened together -->
+  <g filter="url(#coast)">
+    <use href="#body" style="color:#4d453e"/>
+    <g mask="url(#landmask)">
+      <g filter="url(#soft)">
+        <ellipse cx="440" cy="790" rx="150" ry="110" fill="#8a5a3c" opacity="0.85"/>
+        <ellipse cx="285" cy="440" rx="120" ry="200" fill="#3f5a3a" opacity="0.95"/>
+        <ellipse cx="1190" cy="330" rx="170" ry="130" fill="#4b5f7d" opacity="0.95"/>
+        <ellipse cx="730" cy="705" rx="190" ry="100" fill="#2f2c2b" opacity="0.95"/>
+        <ellipse cx="680" cy="185" rx="300" ry="70" fill="#5b5550" opacity="0.7"/>
+      </g>
+      <circle cx="985" cy="495" r="95" fill="url(#heart)"/>
+    </g>
+  </g>
+
+  <!-- Embers of the Eisenschlund furnaces -->
+  <g fill="#ff8a3a" opacity="0.8">
+    <circle cx="660" cy="700" r="4"/><circle cx="720" cy="730" r="3"/><circle cx="790" cy="690" r="4"/><circle cx="610" cy="740" r="3"/><circle cx="760" cy="760" r="3"/>
+  </g>
+  <!-- Ash embers in the Aschenmark -->
+  <g fill="#ffb066" opacity="0.6">
+    <circle cx="420" cy="770" r="3"/><circle cx="470" cy="810" r="2.5"/><circle cx="500" cy="770" r="2"/><circle cx="390" cy="820" r="2.5"/>
+  </g>
+
+  <!-- Storm over the head -->
+  <g filter="url(#fog)" opacity="0.75">
+    <ellipse cx="1230" cy="250" rx="210" ry="95" fill="#3a4352"/>
+    <ellipse cx="1120" cy="210" rx="140" ry="70" fill="#414b5c"/>
+  </g>
+  <path d="M1250 200 L1228 255 L1252 255 L1226 315" fill="none" stroke="#cfe3ff" stroke-width="4" opacity="0.85"/>
+
+  <!-- Fog hiding the outline -->
+  <g filter="url(#fog)" fill="#9aa3a8">
+    <ellipse cx="160" cy="250" rx="160" ry="90" opacity="0.18"/>
+    <ellipse cx="1350" cy="650" rx="200" ry="120" opacity="0.15"/>
+    <ellipse cx="700" cy="980" rx="320" ry="90" opacity="0.16"/>
+    <ellipse cx="900" cy="60" rx="260" ry="60" opacity="0.14"/>
+    <ellipse cx="1060" cy="900" rx="160" ry="80" opacity="0.14"/>
+  </g>
+
+  <!-- Route of the campaign -->
+  <path d="M440 780 C360 700 250 600 285 450 C300 330 420 230 560 190 C720 160 900 170 1050 250 C1120 280 1170 300 1190 330 C1185 420 1090 560 970 650 C900 705 800 735 730 715 C770 640 850 560 955 505"
+        fill="none" stroke="#e8dcc0" stroke-width="3" stroke-dasharray="10 9" opacity="0.75"/>
+
+  <!-- The gap in the bite -->
+  <circle cx="1058" cy="250" r="26" fill="none" stroke="#e8dcc0" stroke-width="2" stroke-dasharray="4 5"/>
+
+  <!-- Labels -->
+  <g font-family="Georgia, 'Times New Roman', serif" fill="#efe6d2" text-anchor="middle">
+    <text x="440" y="880" font-size="30" font-weight="bold">I · Aschenmark</text>
+    <text x="440" y="910" font-size="17" fill="#cdbfa3">Flanke · Start · Glutkönigin</text>
+
+    <text x="150" y="455" font-size="30" font-weight="bold">II · Wurzelforst</text>
+    <text x="150" y="485" font-size="17" fill="#cdbfa3">Rücken und Fell · Ewiger Hain</text>
+
+    <text x="1340" y="415" font-size="30" font-weight="bold">III · Sturmzinnen</text>
+    <text x="1340" y="445" font-size="17" fill="#cdbfa3">Kopf · zerstörte Akademie</text>
+
+    <text x="735" y="650" font-size="30" font-weight="bold">IV · Eisenschlund</text>
+    <text x="735" y="678" font-size="17" fill="#cdbfa3">Rippen · Minen der Gilde</text>
+
+    <text x="985" y="440" font-size="30" font-weight="bold" fill="#ffd2c8">V · Das Herz</text>
+    <text x="985" y="565" font-size="17" fill="#ffd2c8">Brust · die Wunde</text>
+
+    <text x="1058" y="205" font-size="20" font-style="italic">Die Lücke</text>
+    <text x="1058" y="183" font-size="14" fill="#cdbfa3">hier schließt sich der Biss</text>
+
+    <text x="640" y="120" font-size="20" font-style="italic" fill="#cdbfa3">Schwanzgrat · unerforscht (Erweiterungen)</text>
+  </g>
+
+  <!-- Title and legend -->
+  <g font-family="Georgia, 'Times New Roman', serif" fill="#efe6d2">
+    <text x="60" y="1000" font-size="40" font-weight="bold">Vael</text>
+    <text x="60" y="1032" font-size="18" fill="#cdbfa3">Der Körper der Urdrachin · Skizze, nicht maßstabsgetreu · Stand 6. Oktober 2026</text>
+    <line x1="1180" y1="1000" x2="1230" y2="1000" stroke="#e8dcc0" stroke-width="3" stroke-dasharray="10 9"/>
+    <text x="1245" y="1006" font-size="18">Weg der Kampagne, Akt I bis V</text>
+    <text x="1180" y="1036" font-size="16" fill="#cdbfa3">Pro Region 3–5 Zonen, je 150–250 m</text>
+  </g>
+
+  <rect width="1600" height="1100" filter="url(#grain)"/>
+</svg>
