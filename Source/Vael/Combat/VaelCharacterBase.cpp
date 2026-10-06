@@ -84,6 +84,18 @@ void AVaelCharacterBase::ApplyKnockback(const FVector& Direction, float Speed)
 	}
 }
 
+void AVaelCharacterBase::ApplyPull(const FVector& Location, float Speed, float DeltaSeconds)
+{
+	const FVector ToLocation = (Location - GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
+	const float Step = FMath::Min(Speed * DeltaSeconds, ToLocation.Size());
+
+	if (Step > KINDA_SMALL_NUMBER)
+	{
+		// Swept, so walls and other characters still stop the pull
+		AddActorWorldOffset(ToLocation.GetSafeNormal() * Step, true);
+	}
+}
+
 FText AVaelCharacterBase::GetStatusText() const
 {
 	TArray<FString> Names;

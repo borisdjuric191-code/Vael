@@ -18,8 +18,10 @@
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelRockWall.h"
+#include "Magic/VaelSpellAura.h"
 #include "Magic/VaelSpellBeam.h"
 #include "Magic/VaelSpellProjectile.h"
+#include "Magic/VaelSpellVortex.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
@@ -145,6 +147,14 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 
 	case EVaelSpellDelivery::Nova:
 		HitNova(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Vortex:
+		LaunchVortex(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Aura:
+		StartAura(Formula, Caster, Power);
 		break;
 	}
 }
@@ -476,6 +486,49 @@ void UVaelFormulaAbility::HitNova(const UVaelFormula& Formula, AActor* Caster, f
 	DrawDebugCircle(Caster->GetWorld(), Center - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight() - 5.0f), Formula.NovaRadius, 48,
 		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true), false, 0.4f, 0, 8.0f, FVector::ForwardVector, FVector::RightVector, false);
 #endif
+}
+
+void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+
+	FVaelVortexSettings Vortex;
+	Vortex.Hit = Formula.MakeSpellHit(Power);
+	Vortex.FireHit = Vortex.Hit;
+	Vortex.FireHit.Element = EVaelElement::Fire;
+	Vortex.FireHit.Status = EVaelStatus::Burning;
+	Vortex.FireHit.StatusDuration = Formula.VortexBurnDuration;
+	Vortex.FireHit.StatusDamagePerSecond = Formula.VortexBurnDamagePerSecond;
+	Vortex.DamagePerSecond = Formula.Damage * Power;
+	Vortex.FireDamageBonus = Formula.VortexFireDamageBonus;
+	Vortex.DamageStep = Formula.BeamDamageStep;
+	Vortex.Speed = Formula.VortexSpeed;
+	Vortex.Radius = Formula.VortexRadius;
+	Vortex.Lifetime = Formula.VortexLifetime;
+	Vortex.PullSpeed = Formula.VortexPullSpeed;
+	Vortex.FireInterval = Formula.AreaRadius > 0.0f ? Formula.VortexFireInterval : 0.0f;
+	Vortex.FireRadius = Formula.AreaRadius;
+	Vortex.FireLifetime = Formula.AreaLifetime;
+	Vortex.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
+	Vortex.Color = MagicSettings->GetElementColor(Formula.DamageElement);
+	Vortex.FireColor = MagicSettings->GetElementColor(EVaelElement::Fire);
+
+	const FVector AimDirection = GetAimDirection(Caster);
+	AVaelSpellVortex::Launch(Cast<APawn>(Caster), Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance, AimDirection, Vortex);
+}
+
+void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	FVaelAuraSettings Aura;
+	Aura.Hit = Formula.MakeSpellHit(Power);
+	Aura.DamagePerSecond = Formula.Damage * Power;
+	Aura.DamageStep = Formula.BeamDamageStep;
+	Aura.Radius = Formula.AuraRadius;
+	Aura.Duration = Formula.AuraDuration;
+	Aura.BlindDuration = Formula.AuraBlindDuration;
+	Aura.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
+
+	AVaelSpellAura::StartAura(Cast<APawn>(Caster), Aura);
 }
 
 FVector UVaelFormulaAbility::FindGroundTarget(AActor* Caster, float MaxRange)

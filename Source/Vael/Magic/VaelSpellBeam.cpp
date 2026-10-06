@@ -178,14 +178,11 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 			continue;
 		}
 
-		float& Collected = CollectedDamage.FindOrAdd(Target);
-		Collected += Settings.DamagePerSecond * DeltaSeconds;
-
-		if (Collected >= Settings.DamageStep)
+		const float Dealt = CollectedDamage.Add(Target, Settings.DamagePerSecond * DeltaSeconds, Settings.DamageStep);
+		if (Dealt > 0.0f)
 		{
 			FVaelSpellHit Hit = Settings.Hit;
-			Hit.Damage = Collected;
-			Collected = 0.0f;
+			Hit.Damage = Dealt;
 
 			UVaelCombatStatics::ApplySpellHit(Caster, Target, Hit, Direction);
 		}

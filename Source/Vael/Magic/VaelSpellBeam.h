@@ -95,7 +95,7 @@ private:
 	TWeakObjectPtr<UAbilitySystemComponent> CasterAbilitySystem;
 
 	/** Damage collected on each enemy that hasn't been dealt yet */
-	TMap<TWeakObjectPtr<AActor>, float> CollectedDamage;
+	FVaelDamageCollector CollectedDamage;
 
 	/** World time at which the beam ends */
 	float EndTime = 0.0f;

@@ -45,6 +45,34 @@ struct FVaelSpellHit
 };
 
 /**
+ *  Collects damage that arrives a little every frame, like from a beam or a whirlwind,
+ *  and hands it out in steps, so the damage numbers stay readable.
+ */
+struct FVaelDamageCollector
+{
+	/** Adds damage for the target. Returns the collected damage once it reaches the step and starts over, 0 before. */
+	float Add(const AActor* Target, float Damage, float Step)
+	{
+		float& Collected = CollectedDamage.FindOrAdd(Target);
+		Collected += Damage;
+
+		if (Collected < Step)
+		{
+			return 0.0f;
+		}
+
+		const float Dealt = Collected;
+		Collected = 0.0f;
+		return Dealt;
+	}
+
+private:
+
+	/** Damage collected on each target that hasn't been dealt yet */
+	TMap<TWeakObjectPtr<const AActor>, float> CollectedDamage;
+};
+
+/**
  *  Shared combat helpers for spells and attacks.
  */
 UCLASS()

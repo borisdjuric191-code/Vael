@@ -86,6 +86,12 @@ public:
 	/** Keeps the character from acting for some seconds after a heavy blow. Only creatures can be stunned. */
 	virtual void ApplyStun(float Duration) {}
 
+	/** Drags the character towards a location for one frame, like a whirlwind does; it never passes the location */
+	virtual void ApplyPull(const FVector& Location, float Speed, float DeltaSeconds);
+
+	/** Takes away the sight of the character for some seconds, so it starts no attacks. Only creatures can be blinded. */
+	virtual void ApplyBlind(float Duration) {}
+
 	/** Names of the conditions the character has right now, for display. Empty if there are none. */
 	UFUNCTION(BlueprintPure, Category="Combat")
 	FText GetStatusText() const;

@@ -208,6 +208,24 @@ int32 AVaelGroundArea::SpreadFires(APawn* Caster, const FVector& Origin, const F
 	return NumSpread;
 }
 
+bool AVaelGroundArea::IsFireNear(const UWorld* World, const FVector& Location, float ExtraDistance)
+{
+	if (World == nullptr)
+	{
+		return false;
+	}
+
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		if (It->Element == EVaelElement::Fire && It->IsInRange(Location, ExtraDistance))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 void AVaelGroundArea::GetEffectsOn(const AActor* Victim, bool& bOutBlinded, float& OutSpeedMultiplier)
 {
 	bOutBlinded = false;

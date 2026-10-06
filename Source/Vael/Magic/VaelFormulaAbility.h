@@ -62,6 +62,12 @@ protected:
 	/** Hits everyone around the caster at once */
 	void HitNova(const UVaelFormula& Formula, AActor* Caster, float Power);
 
+	/** Lets a whirlwind loose in front of the caster that wanders in the aim direction */
+	void LaunchVortex(const UVaelFormula& Formula, AActor* Caster, float Power);
+
+	/** Starts a storm around the caster, or renews it */
+	void StartAura(const UVaelFormula& Formula, AActor* Caster, float Power);
+
 	/** Point on the ground the caster aims at: the mouse cursor, or with a gamepad the nearest enemy in the aim direction. Stays within range and in front of walls. */
 	static FVector FindGroundTarget(AActor* Caster, float MaxRange);
 

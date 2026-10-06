@@ -75,6 +75,9 @@ public:
 	/** Puts out every fire that touches the given circle. Returns the number of fires put out. */
 	static int32 ExtinguishFires(const UWorld* World, const FVector& Location, float InRadius);
 
+	/** True if a fire burns at the location or closer to it than the extra distance */
+	static bool IsFireNear(const UWorld* World, const FVector& Location, float ExtraDistance = 0.0f);
+
 	/** Carries the fires inside a cone further in its direction. Returns the number of new fires. */
 	static int32 SpreadFires(APawn* Caster, const FVector& Origin, const FVector& Direction, float Range, float HalfAngleDegrees);
 

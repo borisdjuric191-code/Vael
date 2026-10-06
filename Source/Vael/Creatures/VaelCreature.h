@@ -90,6 +90,8 @@ public:
 	virtual bool CanReceiveStatus(EVaelStatus Status) const override;
 	virtual void ApplyKnockback(const FVector& Direction, float Speed) override;
 	virtual void ApplyStun(float Duration) override;
+	virtual void ApplyPull(const FVector& Location, float Speed, float DeltaSeconds) override;
+	virtual void ApplyBlind(float Duration) override;
 	//~End AVaelCharacterBase
 
 	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */
@@ -167,7 +169,7 @@ protected:
 	/** Keeps the creature from acting for some seconds */
 	void Stun(float Duration);
 
-	/** True while the creature stands in steam or has just left it: it can't see and doesn't start attacks */
+	/** True while the creature is blinded by steam or a sandstorm, or has just left it: it can't see and doesn't start attacks */
 	bool IsBlinded() const;
 
 	/** Sets the color the body shows outside of hit flashes */

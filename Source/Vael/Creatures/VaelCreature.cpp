@@ -271,6 +271,22 @@ void AVaelCreature::ApplyStun(float Duration)
 	}
 }
 
+void AVaelCreature::ApplyPull(const FVector& Location, float Speed, float DeltaSeconds)
+{
+	if (!bDead && ActiveData->PullMultiplier > 0.0f)
+	{
+		Super::ApplyPull(Location, Speed * ActiveData->PullMultiplier, DeltaSeconds);
+	}
+}
+
+void AVaelCreature::ApplyBlind(float Duration)
+{
+	if (!bDead)
+	{
+		BlindEndTime = FMath::Max(BlindEndTime, GetWorld()->GetTimeSeconds() + Duration);
+	}
+}
+
 TSubclassOf<UVaelCreatureData> AVaelCreature::GetDefaultDataClass() const
 {
 	return nullptr;
@@ -510,6 +526,6 @@ void AVaelCreature::UpdateGroundEffects()
 
 	if (bInSteam)
 	{
-		BlindEndTime = GetWorld()->GetTimeSeconds() + UVaelMagicSettings::Get()->SteamBlindLinger;
+		ApplyBlind(UVaelMagicSettings::Get()->SteamBlindLinger);
 	}
 }

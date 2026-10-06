@@ -74,7 +74,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect")
 	EVaelElement DamageElement = EVaelElement::Fire;
 
-	/** Damage per target. For beams: damage per second to everyone in the beam. */
+	/** Damage per target. For beams, whirlwinds and storms: damage per second to everyone inside. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effect", meta = (ClampMin = 0))
 	float Damage = 0.0f;
 
@@ -167,15 +167,15 @@ public:
 	float AreaRange = 980.0f;
 
 	/** Radius of the patch on the ground in cm. Explosions leave no patch while this is 0. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex"))
 	float AreaRadius = 0.0f;
 
 	/** Seconds the patch lasts */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex"))
 	float AreaLifetime = 5.0f;
 
 	/** Damage per second of the patch to the enemies of the caster, in the damage element of the formula */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex"))
 	float AreaDamagePerSecond = 0.0f;
 
 	/** What the patch does to enemies standing in it */
@@ -234,8 +234,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
 	float BeamHalfWidth = 77.0f;
 
-	/** Damage collects on each enemy and is dealt once it reaches this much, so the numbers stay readable */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
+	/** Damage collects on each enemy and is dealt once it reaches this much, so the numbers stay readable. Also used by whirlwinds and storms. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex || Delivery == EVaelSpellDelivery::Aura"))
 	float BeamDamageStep = 8.0f;
 
 	/** Seconds between two fires the beam leaves where it ends; the fires use the ground area values. 0 for none. */
@@ -249,6 +249,50 @@ public:
 	/** Strength of the camera shake of the burst */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Nova", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Nova"))
 	float NovaShake = 0.7f;
+
+	/** Wandering speed of the whirlwind in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexSpeed = 476.0f;
+
+	/** Radius of the whirlwind in cm; enemies touching it are pulled in and hurt */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexRadius = 224.0f;
+
+	/** Seconds until the whirlwind dies down */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexLifetime = 4.2f;
+
+	/** Speed at which enemies inside are dragged towards the middle, in cm/s. Bosses resist through their pull multiplier. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexPullSpeed = 500.0f;
+
+	/** Extra damage per second once the whirlwind has passed over fire and become a fire whirl; it then deals fire damage */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexFireDamageBonus = 14.0f;
+
+	/** Seconds a fire whirl sets enemies on fire */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexBurnDuration = 2.0f;
+
+	/** Damage per second while burning from a fire whirl */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexBurnDamagePerSecond = 6.0f;
+
+	/** Seconds between two fires a fire whirl leaves behind; the fires use the ground area values. 0 for none. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexFireInterval = 0.5f;
+
+	/** Reach of the storm around the caster in cm, plus the radius of the enemy */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))
+	float AuraRadius = 420.0f;
+
+	/** Seconds the storm lasts */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))
+	float AuraDuration = 4.2f;
+
+	/** Enemies inside the storm can't see for this long, renewed as long as they stay inside */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))
+	float AuraBlindDuration = 0.4f;
 
 	/** What the burst of an explosion does to a single target at the given power */
 	FVaelSpellHit MakeExplosionHit(float Power) const;

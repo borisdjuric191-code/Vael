@@ -60,6 +60,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
 	float StunMultiplier = 1.0f;
 
+	/** Whirlwinds drag the creature in at this share of their pull; bosses stand firm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes", meta = (ClampMin = 0))
+	float PullMultiplier = 1.0f;
+
 	/** False for bosses: a corrupted region never sends a marked, stronger version */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attributes")
 	bool bCanBeMarked = true;

@@ -49,7 +49,11 @@ enum class EVaelSpellDelivery : uint8
 	/** A channeled beam from the hands of the caster that burns everything along it for some seconds */
 	Beam,
 	/** Hits everyone around the caster at once */
-	Nova
+	Nova,
+	/** A slow whirlwind that wanders in the aim direction, pulls enemies in and turns into a fire whirl over fire */
+	Vortex,
+	/** A storm around the caster for some seconds that grinds and blinds everyone close by */
+	Aura
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */
