@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Items/VaelItemTypes.h"
 #include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelCreatureData.generated.h"
@@ -88,6 +89,18 @@ public:
 	/** Health orbs that always drop, like after a boss */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0))
 	int32 GuaranteedHealthOrbs = 0;
+
+	/** Chance from 0 to 1, rolled for every player, that an item drops for them. Creatures drop parts, not gear; humans and bosses do. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0, ClampMax = 1))
+	float ItemDropChance = 0.0f;
+
+	/** Items every player gets for sure, like after a boss */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0))
+	int32 GuaranteedItems = 0;
+
+	/** Dropped items are at least this rare */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	EVaelRarity MinItemRarity = EVaelRarity::Common;
 
 	/** Players closer than this are noticed, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))

@@ -75,6 +75,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> ClearQueueAction;
 
+	/** Interact Input Action: use a chest or another thing close by */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> InteractAction;
+
 	/** Cast a quick slot Input Actions: Z, X, C, V and the d-pad up, right, down, left */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UInputAction>> QuickSlotActions;
@@ -167,6 +171,7 @@ protected:
 	void OnElement(EVaelElement Element);
 	void OnCast();
 	void OnClearQueue();
+	void OnInteract();
 	void OnQuickSlot(int32 SlotIndex);
 	void OnToggleGrimoire();
 	void OnMenuNavigate(const FInputActionValue& Value);

@@ -5,10 +5,15 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
+#include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
+#include "Items/VaelInventory.h"
+#include "Items/VaelItemData.h"
+#include "Items/VaelItemDrop.h"
+#include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelElementComponent.h"
@@ -359,5 +364,99 @@ void UVaelCheatManager::VaelMaterial(const FString& Name, int32 Count)
 	else
 	{
 		UE_LOG(LogVael, Warning, TEXT("VaelMaterial: no material %s, try Glutdruese, Russfeder, Ordenssiegel, Aeltestenschwinge, Markkristall or HerzDerGlut"), *AssetName);
+	}
+}
+
+void UVaelCheatManager::VaelItem(const FString& Name)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter == nullptr)
+	{
+		return;
+	}
+
+	const FString Lower = Name.ToLower();
+	FVaelItem Item;
+
+	if (Lower.StartsWith(TEXT("gew")) || Lower.StartsWith(TEXT("mag")) || Lower.StartsWith(TEXT("sel")))
+	{
+		const EVaelRarity Rarity = Lower.StartsWith(TEXT("gew")) ? EVaelRarity::Common : Lower.StartsWith(TEXT("mag")) ? EVaelRarity::Magic : EVaelRarity::Rare;
+		Item = UVaelItemSettings::Get()->RollItem(Rarity);
+	}
+	else
+	{
+		const FString AssetName = TEXT("DA_Item_") + Name;
+		const FSoftObjectPath Path(FString::Printf(TEXT("/Game/Vael/Items/Gear/%s.%s"), *AssetName, *AssetName));
+
+		if (const UVaelItemData* ItemData = Cast<UVaelItemData>(VaelAssets::LoadOptional(Path)))
+		{
+			Item = ItemData->MakeItem();
+		}
+	}
+
+	if (!Item.IsValid())
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelItem: use Gewoehnlich, Magisch, Selten or an item asset like Sturmmantel"));
+		return;
+	}
+
+	AVaelItemDrop::DropItem(GetWorld(), VaelCharacter->GetActorLocation() + VaelCharacter->GetActorForwardVector() * 150.0f, Item, VaelCharacter);
+}
+
+void UVaelCheatManager::VaelInventory()
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter == nullptr || GEngine == nullptr)
+	{
+		return;
+	}
+
+	const UVaelInventory* Inventory = VaelCharacter->GetInventory();
+
+	const auto DescribeItem = [](const FVaelItem& Item)
+	{
+		FString Text = FString::Printf(TEXT("%s (%s)"), *Item.DisplayName.ToString(), *UEnum::GetDisplayValueAsText(Item.Rarity).ToString());
+		for (const FVaelItemStatValue& StatValue : Item.Stats)
+		{
+			Text += TEXT(", ") + VaelItems::DescribeStat(StatValue).ToString();
+		}
+		if (const FVaelLegendaryAbility* Ability = Item.GetLegendaryAbility())
+		{
+			Text += TEXT(" | ") + Ability->Description.ToString();
+		}
+		return Text;
+	};
+
+	// Shown newest on top: totals, backpack, equipment
+	TArray<FString> Lines;
+	Lines.Add(TEXT("Ausruestung:"));
+	for (int32 SlotIndex = 0; SlotIndex < static_cast<int32>(EVaelEquipSlot::Count); ++SlotIndex)
+	{
+		const EVaelEquipSlot EquipSlot = static_cast<EVaelEquipSlot>(SlotIndex);
+		const FVaelItem& Item = Inventory->GetEquipped(EquipSlot);
+		Lines.Add(FString::Printf(TEXT("  %s: %s"), *UEnum::GetDisplayValueAsText(EquipSlot).ToString(), Item.IsValid() ? *DescribeItem(Item) : TEXT("-")));
+	}
+
+	Lines.Add(FString::Printf(TEXT("Rucksack (%d):"), Inventory->GetBackpack().Num()));
+	for (int32 Index = 0; Index < Inventory->GetBackpack().Num(); ++Index)
+	{
+		Lines.Add(FString::Printf(TEXT("  %d. %s"), Index + 1, *DescribeItem(Inventory->GetBackpack()[Index])));
+	}
+
+	for (int32 Index = Lines.Num() - 1; Index >= 0; --Index)
+	{
+		GEngine->AddOnScreenDebugMessage(-1, 20.0f, FColor(234, 220, 196), Lines[Index]);
+	}
+}
+
+void UVaelCheatManager::VaelEquip(int32 BackpackField)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter != nullptr && !VaelCharacter->GetInventory()->EquipFromBackpack(BackpackField - 1))
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelEquip: field %d of the backpack is empty"), BackpackField);
 	}
 }

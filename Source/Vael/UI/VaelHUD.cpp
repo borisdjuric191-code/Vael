@@ -16,6 +16,7 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelGrimoireSubsystem.h"
+#include "Player/VaelInteractable.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
@@ -143,6 +144,8 @@ void AVaelHUD::DrawHUD()
 			DrawPlayerPanel(PlayerControllers[PanelIndex], PlayerControllers[PanelIndex]->GetPawn<AVaelCharacter>(), Left + PanelIndex * (Width + Gap), Top, Width, Height);
 		}
 	}
+
+	DrawInteractPrompts(PlayerControllers);
 
 	float NoticeTop = 70.0f * UiScale;
 	DrawBossBar(NoticeTop);
@@ -946,7 +949,6 @@ void AVaelHUD::DrawWeather()
 	}
 }
 
-#undef LOCTEXT_NAMESPACE
 
 void AVaelHUD::DrawCombatTexts()
 {
@@ -976,3 +978,39 @@ void AVaelHUD::DrawCombatTexts()
 		DrawLabel(CombatText.Text, ScreenPosition.X, ScreenPosition.Y - Settings->CombatTextRise * UiScale * Age - Size * 0.5f, Size, WithAlpha(CombatText.Color, Alpha), 0.5f);
 	}
 }
+
+void AVaelHUD::DrawInteractPrompts(const TArray<const AVaelPlayerController*>& PlayerControllers)
+{
+	const float S = UiScale;
+
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		const AActor* Target = UVaelInteractionSubsystem::FindNearest(PlayerController->GetPawn<AVaelCharacter>());
+		const IVaelInteractable* Interactable = Cast<IVaelInteractable>(Target);
+		if (Interactable == nullptr)
+		{
+			continue;
+		}
+
+		const FVector Screen = Project(Target->GetActorLocation() + FVector(0.0f, 0.0f, 120.0f), false);
+		if (Screen.Z <= 0.0f)
+		{
+			continue;
+		}
+
+		// The button in the symbols of the player's device
+		const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+		const FText Button = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("InteractKeyboard", "E")
+			: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("InteractPlayStation", "L1")
+			: LOCTEXT("InteractXbox", "LB");
+
+		const FText Prompt = FText::Format(LOCTEXT("InteractPrompt", "{0} · {1}"), Button, Interactable->GetInteractPrompt());
+		const float Width = MeasureLabel(Prompt, 14.0f * S) + 20.0f * S;
+
+		DrawBox(Screen.X - Width * 0.5f, Screen.Y - 12.0f * S, Width, 26.0f * S, Rgb(23, 17, 15, 220));
+		DrawFrame(Screen.X - Width * 0.5f, Screen.Y - 12.0f * S, Width, 26.0f * S, RimColor);
+		DrawLabel(Prompt, Screen.X, Screen.Y - 7.0f * S, 14.0f * S, BoneColor, 0.5f);
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

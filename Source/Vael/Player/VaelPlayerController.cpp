@@ -16,6 +16,7 @@
 #include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelCheatManager.h"
+#include "Player/VaelInteractable.h"
 #include "GameFramework/InputDeviceSubsystem.h"
 #include "Kismet/GameplayStatics.h"
 #include "Magic/VaelFormula.h"
@@ -116,6 +117,7 @@ void AVaelPlayerController::SetupInputComponent()
 
 			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCast);
 			EnhancedInputComponent->BindAction(ClearQueueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnClearQueue);
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnInteract);
 
 			for (int32 SlotIndex = 0; SlotIndex < QuickSlotActions.Num(); ++SlotIndex)
 			{
@@ -217,6 +219,10 @@ void AVaelPlayerController::CreateInputAssets()
 	ClearQueueAction = CreateAction(TEXT("IA_ClearQueue"), EInputActionValueType::Boolean);
 	MappingContext->MapKey(ClearQueueAction, EKeys::Gamepad_LeftShoulder);
 	MappingContext->MapKey(ClearQueueAction, EKeys::RightMouseButton);
+
+	// Interact: E; on the gamepad L1 / LB, which interacts when something is close and discards the combo otherwise, like the prototype
+	InteractAction = CreateAction(TEXT("IA_Interact"), EInputActionValueType::Boolean);
+	MappingContext->MapKey(InteractAction, EKeys::E);
 
 	// Quick slots on Z, X, C, V and the d-pad clockwise from up, like the browser prototype
 	const FKey QuickSlotPadKeys[] = { EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Right, EKeys::Gamepad_DPad_Down, EKeys::Gamepad_DPad_Left };
@@ -371,9 +377,29 @@ void AVaelPlayerController::OnCast()
 
 void AVaelPlayerController::OnClearQueue()
 {
-	if (const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr)
 	{
-		VaelCharacter->GetElementComponent()->ClearQueue();
+		return;
+	}
+
+	// L1 / LB uses what is close by, otherwise it discards the combo; the right mouse button only discards
+	IVaelInteractable* Interactable = Cast<IVaelInteractable>(UVaelInteractionSubsystem::FindNearest(VaelCharacter));
+	if (Interactable != nullptr && GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
+	{
+		Interactable->Interact(VaelCharacter);
+		return;
+	}
+
+	VaelCharacter->GetElementComponent()->ClearQueue();
+}
+
+void AVaelPlayerController::OnInteract()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (IVaelInteractable* Interactable = Cast<IVaelInteractable>(UVaelInteractionSubsystem::FindNearest(VaelCharacter)))
+	{
+		Interactable->Interact(VaelCharacter);
 	}
 }
 

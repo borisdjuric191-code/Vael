@@ -16,6 +16,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Items/VaelInventory.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelGameplayTags.h"
@@ -99,6 +100,9 @@ AVaelCharacter::AVaelCharacter()
 
 	// Create the material bag
 	MaterialBag = CreateDefaultSubobject<UVaelMaterialBag>(TEXT("MaterialBag"));
+
+	// Create the equipment and backpack
+	Inventory = CreateDefaultSubobject<UVaelInventory>(TEXT("Inventory"));
 
 	// Create the queue orbs: one per possible slot, laid out when the game starts
 	QueueOrbRoot = CreateDefaultSubobject<USceneComponent>(TEXT("QueueOrbRoot"));

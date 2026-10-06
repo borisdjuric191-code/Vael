@@ -13,6 +13,7 @@ class UAnimMontage;
 class UNiagaraComponent;
 class UStaticMeshComponent;
 class UVaelElementComponent;
+class UVaelInventory;
 class UVaelMaterialBag;
 
 /**
@@ -33,6 +34,10 @@ private:
 	/** Element queue and formula casting */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelElementComponent> ElementComponent;
+
+	/** Equipment and backpack of this player */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVaelInventory> Inventory;
 
 	/** Ores, plants and parts of creatures of this player */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -183,6 +188,9 @@ public:
 
 	/** Returns the material bag **/
 	UVaelMaterialBag* GetMaterialBag() const { return MaterialBag.Get(); }
+
+	/** Returns the equipment and backpack **/
+	UVaelInventory* GetInventory() const { return Inventory.Get(); }
 
 protected:
 

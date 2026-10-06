@@ -24,7 +24,7 @@ namespace VaelTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Casting, "State.Casting", "Plays the animation of a spell");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Event_CastPoint, "Event.CastPoint", "The moment in a cast animation at which the spell leaves the hand");
 
-	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gear_WeatherWard, "Gear.WeatherWard", "Gear like a storm cloak: the weather turns no spell against its wearer");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gear_WeatherWard, "Gear.WeatherWard", "Gear like the Sturmmantel: rain doesn't wet its wearer, lightning strikes and the backlash of lightning cast while wet don't hurt");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Gear_WeatherAttunement, "Gear.WeatherAttunement", "Gear like a storm cloak: what the weather gives to spells counts twice");
 
 	FGameplayTag GetStatusTag(EVaelStatus Status)

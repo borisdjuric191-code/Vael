@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelRegion.h"
+#include "AbilitySystemComponent.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/BoxComponent.h"
@@ -10,6 +11,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelGameplayTags.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
@@ -290,7 +292,9 @@ void AVaelRegion::TickRain(float DeltaSeconds)
 	const float WetDuration = UVaelWorldSettings::Get()->RainWetDuration;
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
-		if (!It->IsDefeated() && (It->IsA<AVaelCharacter>() || It->IsA<AVaelCreature>()) && Contains(It->GetActorLocation()))
+		// Gear like the Sturmmantel keeps its wearer dry
+		const bool bWarded = It->GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::Gear_WeatherWard);
+		if (!bWarded && !It->IsDefeated() && (It->IsA<AVaelCharacter>() || It->IsA<AVaelCreature>()) && Contains(It->GetActorLocation()))
 		{
 			UVaelCombatStatics::ApplyStatus(nullptr, *It, EVaelStatus::Wet, WetDuration);
 		}

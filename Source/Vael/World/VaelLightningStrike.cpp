@@ -2,6 +2,7 @@
 
 #include "World/VaelLightningStrike.h"
 #include "UObject/ConstructorHelpers.h"
+#include "AbilitySystemComponent.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelCreature.h"
@@ -10,6 +11,7 @@
 #include "EngineUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Magic/VaelGameplayTags.h"
 #include "Player/VaelCharacter.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "World/VaelRegion.h"
@@ -139,7 +141,9 @@ void AVaelLightningStrike::Strike()
 		const bool bCreature = It->IsA<AVaelCreature>();
 		const float Radius = bPlayer ? Settings->LightningPlayerRadius : Settings->LightningCreatureRadius;
 
-		if ((!bPlayer && !bCreature) || FVector::Dist2D(It->GetActorLocation(), Center) > Radius)
+		// Gear like the Sturmmantel lets lightning pass its wearer by
+		const bool bWarded = It->GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::Gear_WeatherWard);
+		if ((!bPlayer && !bCreature) || bWarded || FVector::Dist2D(It->GetActorLocation(), Center) > Radius)
 		{
 			continue;
 		}

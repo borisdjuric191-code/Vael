@@ -85,6 +85,7 @@ UVaelPreacherData::UVaelPreacherData()
 	FormulaOnDeath = { EVaelElement::Mark, EVaelElement::Fire };
 	FormulaOnWitnessedSpikes = { EVaelElement::Mark, EVaelElement::Earth };
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Ordenssiegel.DA_Material_Ordenssiegel"), 1.0f));
+	ItemDropChance = 0.4f;
 	BodyColor = FLinearColor(0.27f, 0.05f, 0.1f);
 }
 
@@ -107,6 +108,8 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	PullMultiplier = 0.0f;
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_HerzDerGlut.DA_Material_HerzDerGlut"), 1.0f));
 	GuaranteedHealthOrbs = 6;
+	GuaranteedItems = 1;
+	MinItemRarity = EVaelRarity::Rare;
 	AggroRange = 1400.0f;
 	BodyColor = FLinearColor(1.0f, 0.15f, 0.01f);
 }

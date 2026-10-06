@@ -15,6 +15,8 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
+#include "Items/VaelItemDrop.h"
+#include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Items/VaelPickupOrb.h"
@@ -393,6 +395,25 @@ void AVaelCreature::DropLoot()
 		UVaelCombatTextSubsystem::PostPickup(this, Label, Material->Color);
 
 		UE_LOG(LogVael, Verbose, TEXT("'%s' drops %d x %s for every player"), *GetNameSafe(this), Count, *Material->DisplayName.ToString());
+	}
+
+	// Gear is personal: rolled for every player, lying in their color
+	int32 PlayerIndex = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It, ++PlayerIndex)
+	{
+		AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+		if (Player == nullptr)
+		{
+			continue;
+		}
+
+		const int32 NumItems = ActiveData->GuaranteedItems + (FMath::FRand() < ActiveData->ItemDropChance ? 1 : 0);
+		for (int32 ItemIndex = 0; ItemIndex < NumItems; ++ItemIndex)
+		{
+			const float Angle = 2.0f * PI * (PlayerIndex * 3 + ItemIndex) / 12.0f;
+			const FVector Offset(FMath::Cos(Angle) * 90.0f, FMath::Sin(Angle) * 90.0f, 0.0f);
+			AVaelItemDrop::DropItem(GetWorld(), GetActorLocation() + Offset, UVaelItemSettings::Get()->RollItem(ActiveData->MinItemRarity), Player);
+		}
 	}
 
 	// Orbs lie on the ground for whoever needs them first

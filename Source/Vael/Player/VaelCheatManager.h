@@ -80,4 +80,16 @@ public:
 	/** Puts materials into the bag of the player, named like their asset without DA_Material_. Example: VaelMaterial Markkristall 5 */
 	UFUNCTION(Exec)
 	void VaelMaterial(const FString& Name, int32 Count = 1);
+
+	/** Drops an item for the player at their feet: a rarity (Gewoehnlich, Magisch, Selten) rolls one, otherwise the item asset without DA_Item_. Example: VaelItem Sturmmantel */
+	UFUNCTION(Exec)
+	void VaelItem(const FString& Name);
+
+	/** Shows the equipment, backpack and the totals of the worn properties on screen, until the inventory screen exists */
+	UFUNCTION(Exec)
+	void VaelInventory();
+
+	/** Puts on the item from the given field of the backpack, counted from 1. Example: VaelEquip 1 */
+	UFUNCTION(Exec)
+	void VaelEquip(int32 BackpackField);
 };

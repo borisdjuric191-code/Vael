@@ -67,6 +67,9 @@ private:
 	void DrawCreatureHealthBars();
 	void DrawGrimoire(const AVaelPlayerController* PlayerController);
 
+	/** Shows over chests and other usable things which button uses them, for every player close enough */
+	void DrawInteractPrompts(const TArray<const AVaelPlayerController*>& PlayerControllers);
+
 	/** Draws the material bag of the player next to the open grimoire */
 	void DrawMaterialBag(const AVaelCharacter* Player, float PanelLeft, float PanelTop, float PanelWidthOnScreen, float PanelHeightOnScreen);
 	void DrawRegionInfo();

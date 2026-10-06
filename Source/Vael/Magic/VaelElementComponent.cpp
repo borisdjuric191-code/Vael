@@ -9,6 +9,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Items/VaelInventory.h"
 #include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelFormulaAbility.h"
@@ -19,6 +20,22 @@
 #include "Vael.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
+
+namespace
+{
+	/** Percent more damage worn gear gives formulas of the element */
+	float GetGearElementBonus(const UVaelInventory& Inventory, EVaelElement Element)
+	{
+		switch (Element)
+		{
+		case EVaelElement::Fire:	return Inventory.GetStatTotal(EVaelItemStat::FireDamage);
+		case EVaelElement::Water:	return Inventory.GetStatTotal(EVaelItemStat::WaterDamage);
+		case EVaelElement::Earth:	return Inventory.GetStatTotal(EVaelItemStat::EarthDamage);
+		case EVaelElement::Air:		return Inventory.GetStatTotal(EVaelItemStat::AirDamage);
+		default:					return 0.0f;
+		}
+	}
+}
 
 UVaelElementComponent::UVaelElementComponent()
 {
@@ -178,7 +195,11 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 	// Casters touched by the Mark get the smaller bonus: the pure path is the stronger one here.
 	const bool bPure = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute()) < 1.0f;
 	PendingCast.ManaCost = MagicSettings->GetManaCost(NumElements, NumEnvironmentElements);
-	PendingCast.Power = 1.0f + NumEnvironmentElements * (bPure ? MagicSettings->EnvironmentPowerBonusPure : MagicSettings->EnvironmentPowerBonusCorrupted);
+
+	// Worn gear can make the environment give more
+	const UVaelInventory* Inventory = GetOwner()->FindComponentByClass<UVaelInventory>();
+	const float GearEnvironmentFactor = 1.0f + (Inventory != nullptr ? Inventory->GetStatTotal(EVaelItemStat::EnvironmentPower) / 100.0f : 0.0f);
+	PendingCast.Power = 1.0f + NumEnvironmentElements * (bPure ? MagicSettings->EnvironmentPowerBonusPure : MagicSettings->EnvironmentPowerBonusCorrupted) * GearEnvironmentFactor;
 
 	// Quick slots trade cost and power for speed
 	if (bFromQuickSlot)
@@ -206,6 +227,13 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 
 		PendingCast.ManaCost = FMath::Max(FMath::RoundToFloat(PendingCast.ManaCost * FMath::Max(CostMultiplier, 0.0f)), MagicSettings->MinManaCost);
 		PendingCast.Power *= PowerMultiplier;
+	}
+
+	// Worn gear strengthens formulas of its elements, and lightning
+	if (Inventory != nullptr)
+	{
+		const float LightningBonus = Formula->bLightning ? Inventory->GetStatTotal(EVaelItemStat::LightningDamage) : 0.0f;
+		PendingCast.Power *= 1.0f + (GetGearElementBonus(*Inventory, Formula->DamageElement) + LightningBonus) / 100.0f;
 	}
 
 	if (AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetManaAttribute()) < PendingCast.ManaCost)
@@ -302,8 +330,13 @@ EVaelCastResult UVaelElementComponent::CastQuickSlot(int32 SlotIndex)
 
 			if (Result == EVaelCastResult::Success)
 			{
-				QuickSlotCooldowns[SlotIndex] = Formula->QuickCooldown;
-				QuickSlotReadyTimes[SlotIndex] = GetWorld()->GetTimeSeconds() + Formula->QuickCooldown;
+				// Worn gear can shorten the cooldown
+				const UVaelInventory* Inventory = GetOwner()->FindComponentByClass<UVaelInventory>();
+				const float CooldownReduction = Inventory != nullptr ? FMath::Clamp(Inventory->GetStatTotal(EVaelItemStat::QuickCooldown) / 100.0f, 0.0f, 0.9f) : 0.0f;
+				const float Cooldown = Formula->QuickCooldown * (1.0f - CooldownReduction);
+
+				QuickSlotCooldowns[SlotIndex] = Cooldown;
+				QuickSlotReadyTimes[SlotIndex] = GetWorld()->GetTimeSeconds() + Cooldown;
 			}
 		}
 	}
