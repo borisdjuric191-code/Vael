@@ -47,8 +47,8 @@ public:
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Spawns a strike on the ground that lands after the delay. The attacker decides whom it hurts. */
-	static AVaelGroundStrike* SpawnStrike(APawn* Attacker, const FVector& GroundLocation, const FVaelSpellHit& InHit, float InRadius, float InDelay, const FLinearColor& Color);
+	/** Spawns a strike on the ground that lands after the delay. The attacker decides whom it hurts: a pawn its enemies, any other actor only players. */
+	static AVaelGroundStrike* SpawnStrike(AActor* Attacker, const FVector& GroundLocation, const FVaelSpellHit& InHit, float InRadius, float InDelay, const FLinearColor& Color);
 
 private:
 

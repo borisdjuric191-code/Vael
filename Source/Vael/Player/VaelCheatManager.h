@@ -68,4 +68,12 @@ public:
 	/** Puts on or takes off a gear effect for testing until items exist: WeatherWard or WeatherAttunement. Example: VaelGear WeatherWard */
 	UFUNCTION(Exec)
 	void VaelGear(const FString& Gear);
+
+	/** Awakens the Mark for the group as in Act III: the fifth element can be chosen and Mark formulas cast */
+	UFUNCTION(Exec)
+	void VaelAwakenMark();
+
+	/** Seals the Mark source closest to the player, until the offering and its guardian exist */
+	UFUNCTION(Exec)
+	void VaelSealSource();
 };

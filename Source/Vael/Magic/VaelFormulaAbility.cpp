@@ -12,6 +12,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Combat/VaelGameplayEffects.h"
+#include "Combat/VaelGroundStrike.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
@@ -321,6 +322,10 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 
 	case EVaelSpellDelivery::Aura:
 		StartAura(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::SpikeLine:
+		CallSpikeLine(Formula, Caster, Power);
 		break;
 	}
 }
@@ -732,6 +737,43 @@ void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster,
 	Aura.Visual = Formula.LoadEffects().Trail;
 
 	AVaelSpellAura::StartAura(Cast<APawn>(Caster), Aura);
+}
+
+void UVaelFormulaAbility::CallSpikeLine(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	UWorld* World = Caster->GetWorld();
+	APawn* CasterPawn = Cast<APawn>(Caster);
+	if (World == nullptr || CasterPawn == nullptr)
+	{
+		return;
+	}
+
+	const FVector Start = Caster->GetActorLocation();
+	const FVector AimDirection = GetAimDirection(Caster);
+	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+	const FLinearColor Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
+
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpikeLine), false, Caster);
+
+	for (int32 SpikeIndex = 1; SpikeIndex <= Formula.SpikeCount; ++SpikeIndex)
+	{
+		const FVector Point = Start + AimDirection * Formula.SpikeSpacing * SpikeIndex;
+
+		// The line ends at walls and rocks
+		FHitResult WallHit;
+		if (World->LineTraceSingleByObjectType(WallHit, Start, Point, FCollisionObjectQueryParams(ECC_WorldStatic), QueryParams) && WallHit.ImpactNormal.Z < WalkableSlopeNormalZ)
+		{
+			break;
+		}
+
+		FHitResult GroundHit;
+		if (!VaelGround::TraceGround(World, Point + FVector(0.0f, 0.0f, AreaGroundSearchHeight), Point - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
+		{
+			break;
+		}
+
+		AVaelGroundStrike::SpawnStrike(CasterPawn, GroundHit.Location, Hit, Formula.SpikeRadius, Formula.SpikeStagger * SpikeIndex, Color);
+	}
 }
 
 FVector UVaelFormulaAbility::FindGroundTarget(AActor* Caster, float MaxRange)

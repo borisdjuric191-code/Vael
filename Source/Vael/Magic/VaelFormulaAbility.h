@@ -70,6 +70,9 @@ protected:
 	/** Starts a storm around the caster, or renews it */
 	void StartAura(const UVaelFormula& Formula, AActor* Caster, float Power);
 
+	/** Calls a line of spikes out of the ground in the aim direction */
+	void CallSpikeLine(const UVaelFormula& Formula, AActor* Caster, float Power);
+
 	/** Point on the ground the caster aims at: the mouse cursor, or with a gamepad the nearest enemy in the aim direction. Stays within range and in front of walls. */
 	static FVector FindGroundTarget(AActor* Caster, float MaxRange);
 

@@ -20,8 +20,8 @@ public:
 
 	/**
 	 *  True if the element is present around the actor:
-	 *  water when standing in it, fire when next to it, earth when next to rock or walls.
-	 *  Air comes from storms and Mark from Mark veins, both arrive with the weather and corruption systems.
+	 *  water when standing in it, fire when next to it, earth when next to rock or walls,
+	 *  air from storms, Mark from open Mark sources.
 	 */
 	UFUNCTION(BlueprintPure, Category="Vael|Magic")
 	static bool IsElementInEnvironment(const AActor* Caster, EVaelElement Element);

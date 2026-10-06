@@ -20,6 +20,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGrimoireSubsystem.h"
+#include "Magic/VaelMagicSettings.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "TimerManager.h"
 #include "Vael.h"
@@ -192,11 +193,11 @@ void AVaelPlayerController::CreateInputAssets()
 
 	MappingContext->MapKey(LeaveAction, EKeys::Gamepad_FaceButton_Right).Triggers.Add(HoldTrigger);
 
-	// Elements, laid out like the browser prototype: fire, water, earth, air on Circle, Square, Cross, Triangle (B, X, A, Y) and on 1-4.
+	// Elements, laid out like the browser prototype: fire, water, earth, air on Circle, Square, Cross, Triangle (B, X, A, Y) and on 1-4, Mark on R1 (RB) and 5.
 	// Circle / B is shared with leaving co-op: a tap queues fire, holding it leaves.
-	const FKey ElementPadKeys[] = { EKeys::Gamepad_FaceButton_Right, EKeys::Gamepad_FaceButton_Left, EKeys::Gamepad_FaceButton_Bottom, EKeys::Gamepad_FaceButton_Top };
-	const FKey ElementKeyboardKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four };
-	const TCHAR* ElementActionNames[] = { TEXT("IA_Element_Fire"), TEXT("IA_Element_Water"), TEXT("IA_Element_Earth"), TEXT("IA_Element_Air") };
+	const FKey ElementPadKeys[] = { EKeys::Gamepad_FaceButton_Right, EKeys::Gamepad_FaceButton_Left, EKeys::Gamepad_FaceButton_Bottom, EKeys::Gamepad_FaceButton_Top, EKeys::Gamepad_RightShoulder };
+	const FKey ElementKeyboardKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five };
+	const TCHAR* ElementActionNames[] = { TEXT("IA_Element_Fire"), TEXT("IA_Element_Water"), TEXT("IA_Element_Earth"), TEXT("IA_Element_Air"), TEXT("IA_Element_Mark") };
 
 	const int32 NumElementActions = UE_ARRAY_COUNT(ElementActionNames);
 	for (int32 ElementIndex = 0; ElementIndex < NumElementActions; ++ElementIndex)
@@ -681,6 +682,11 @@ void AVaelPlayerController::OnCastFinished(EVaelCastResult Result, const UVaelFo
 
 	case EVaelCastResult::NotEnoughMana:
 		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "NoMana", "Zu wenig Mana"), FText::GetEmpty(), FLinearColor(FColor(127, 176, 255)), 1.5f);
+		break;
+
+	case EVaelCastResult::MarkAsleep:
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkStirs", "Etwas in dir regt sich"),
+			NSLOCTEXT("VaelMagic", "MarkAsleep", "Das Mark schläft noch in dir."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
 		break;
 
 	case EVaelCastResult::EmptyQueue:

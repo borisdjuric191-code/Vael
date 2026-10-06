@@ -53,7 +53,9 @@ enum class EVaelSpellDelivery : uint8
 	/** A slow whirlwind that wanders in the aim direction, pulls enemies in and turns into a fire whirl over fire */
 	Vortex,
 	/** A storm around the caster for some seconds that grinds and blinds everyone close by */
-	Aura
+	Aura,
+	/** A line of spikes breaks out of the ground in the aim direction, one after the other, until a wall */
+	SpikeLine
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */
@@ -97,6 +99,8 @@ enum class EVaelCastResult : uint8
 	/** Experimenting with an undiscovered formula went wrong and hurt the caster */
 	UnstableDischarge,
 	NotEnoughMana,
+	/** The formula uses the Mark, which still sleeps (until Act III) */
+	MarkAsleep,
 	/** The quick slot still has to cool down */
 	OnCooldown,
 	/** The ability system refused to activate the formula */

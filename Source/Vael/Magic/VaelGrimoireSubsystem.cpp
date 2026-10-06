@@ -108,6 +108,33 @@ bool UVaelGrimoireSubsystem::LearnFormula(UVaelFormula* Formula, const FText& Re
 	return true;
 }
 
+bool UVaelGrimoireSubsystem::AwakenMark(const FText& Reason)
+{
+	if (bMarkAwakened)
+	{
+		return false;
+	}
+
+	bMarkAwakened = true;
+	UE_LOG(LogVael, Log, TEXT("The Mark awakens in the group"));
+
+	// Formulas that come with the Mark itself are known from now on
+	for (UVaelFormula* Formula : Formulas)
+	{
+		if (Formula->Source == EVaelFormulaSource::Mark)
+		{
+			LearnFormula(Formula, Reason);
+		}
+	}
+
+	return true;
+}
+
+bool UVaelGrimoireSubsystem::IsBlockedByMark(const UVaelFormula* Formula) const
+{
+	return !bMarkAwakened && Formula != nullptr && Formula->Elements.Contains(EVaelElement::Mark);
+}
+
 void UVaelGrimoireSubsystem::AddEcho(const UVaelFormula* Formula)
 {
 	if (Formula != nullptr)

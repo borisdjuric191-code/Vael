@@ -182,13 +182,15 @@ void AVaelHUD::DrawPlayerPanel(const AVaelPlayerController* PlayerController, co
 	DrawLabel(FText::Format(LOCTEXT("PlayerLabel", "Spieler {0} \u00B7 {1}"), PlayerController->GetPlayerSlot() + 1, GetDeviceName(Glyphs)),
 		CenterX, Y + 7.0f * S, 12.0f * S, DimColor, 0.5f, InnerWidth);
 
-	// Legend: which button queues which element; Mark is still asleep
+	// Legend: which button queues which element; Mark stays dim while it sleeps
+	const UVaelGrimoireSubsystem* LegendGrimoire = GetGrimoire();
+	const bool bMarkAwake = LegendGrimoire != nullptr && LegendGrimoire->IsMarkAwakened();
 	const float LegendRadius = 10.5f * S;
 	const float LegendSpacing = 27.0f * S;
 	for (int32 ElementIndex = 0; ElementIndex < UE_ARRAY_COUNT(LegendElements); ++ElementIndex)
 	{
 		const EVaelElement Element = LegendElements[ElementIndex];
-		DrawElementButton(Glyphs, Element, FVector2D(CenterX + (ElementIndex - 2) * LegendSpacing, Y + 37.0f * S), LegendRadius, Element == EVaelElement::Mark ? 0.3f : 1.0f);
+		DrawElementButton(Glyphs, Element, FVector2D(CenterX + (ElementIndex - 2) * LegendSpacing, Y + 37.0f * S), LegendRadius, Element == EVaelElement::Mark && !bMarkAwake ? 0.3f : 1.0f);
 	}
 
 	// Queue: unlocked slots, locked ones dashed with their number

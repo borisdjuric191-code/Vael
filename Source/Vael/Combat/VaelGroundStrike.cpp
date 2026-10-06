@@ -56,7 +56,7 @@ AVaelGroundStrike::AVaelGroundStrike()
 	PrimaryActorTick.bStartWithTickEnabled = true;
 }
 
-AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(APawn* Attacker, const FVector& GroundLocation, const FVaelSpellHit& InHit, float InRadius, float InDelay, const FLinearColor& Color)
+AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVector& GroundLocation, const FVaelSpellHit& InHit, float InRadius, float InDelay, const FLinearColor& Color)
 {
 	UWorld* World = Attacker != nullptr ? Attacker->GetWorld() : nullptr;
 	if (World == nullptr)
@@ -66,7 +66,7 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(APawn* Attacker, const FVector
 
 	const FTransform SpawnTransform(GroundLocation);
 
-	AVaelGroundStrike* GroundStrike = World->SpawnActorDeferred<AVaelGroundStrike>(AVaelGroundStrike::StaticClass(), SpawnTransform, Attacker, Attacker, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	AVaelGroundStrike* GroundStrike = World->SpawnActorDeferred<AVaelGroundStrike>(AVaelGroundStrike::StaticClass(), SpawnTransform, Attacker, Cast<APawn>(Attacker), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	if (GroundStrike == nullptr)
 	{
 		return nullptr;
@@ -124,7 +124,8 @@ void AVaelGroundStrike::Strike()
 	{
 		if (FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) <= Radius)
 		{
-			UVaelCombatStatics::ApplySpellHit(GetInstigator(), *It, Hit, It->GetActorLocation() - GetActorLocation());
+			// Pawns hurt their enemies; anything else, like a Mark source, only hurts players
+			UVaelCombatStatics::ApplySpellHit(GetOwner(), *It, Hit, It->GetActorLocation() - GetActorLocation());
 		}
 	}
 }

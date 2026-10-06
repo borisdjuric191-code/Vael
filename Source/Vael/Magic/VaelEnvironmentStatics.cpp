@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
+#include "World/VaelMarkSource.h"
 #include "World/VaelRegion.h"
 
 namespace
@@ -41,6 +42,12 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 	{
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
 		return Region != nullptr && Region->GetWeather() == EVaelWeather::Storm;
+	}
+
+	// Open Mark sources let mages draw the Mark, once it has awakened in them
+	if (Element == EVaelElement::Mark)
+	{
+		return AVaelMarkSource::FindOpenSourceAt(World, Location) != nullptr;
 	}
 
 	if (Element == EVaelElement::Earth)

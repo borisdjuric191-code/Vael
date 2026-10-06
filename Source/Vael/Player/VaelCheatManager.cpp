@@ -19,6 +19,7 @@
 #include "UI/VaelUISettings.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
+#include "World/VaelMarkSource.h"
 #include "World/VaelRegion.h"
 #include "Magic/VaelGameplayTags.h"
 
@@ -295,4 +296,43 @@ void UVaelCheatManager::VaelGear(const FString& Gear)
 	}
 
 	UE_LOG(LogVael, Log, TEXT("VaelGear: %s %s"), *Tag.ToString(), bWearing ? TEXT("taken off") : TEXT("put on"));
+}
+
+void UVaelCheatManager::VaelAwakenMark()
+{
+	const UGameInstance* GameInstance = GetWorld() != nullptr ? GetWorld()->GetGameInstance() : nullptr;
+	UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+
+	if (Grimoire != nullptr && !Grimoire->AwakenMark(NSLOCTEXT("VaelMagic", "MarkAwakensCheat", "Das Mark erwacht in dir.")))
+	{
+		UE_LOG(LogVael, Log, TEXT("VaelAwakenMark: the Mark is awake already"));
+	}
+}
+
+void UVaelCheatManager::VaelSealSource()
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* Pawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (Pawn == nullptr)
+	{
+		return;
+	}
+
+	AVaelMarkSource* Closest = nullptr;
+	float ClosestDistance = TNumericLimits<float>::Max();
+
+	for (TActorIterator<AVaelMarkSource> It(GetWorld()); It; ++It)
+	{
+		const float Distance = FVector::Dist2D(It->GetActorLocation(), Pawn->GetActorLocation());
+		if (!It->IsSealed() && Distance < ClosestDistance)
+		{
+			Closest = *It;
+			ClosestDistance = Distance;
+		}
+	}
+
+	if (Closest == nullptr || !Closest->Seal())
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelSealSource: no open Mark source in the level"));
+	}
 }

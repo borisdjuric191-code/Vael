@@ -50,6 +50,15 @@ public:
 	/** Called when the players learn a formula */
 	FVaelOnFormulaLearned OnFormulaLearned;
 
+	/** True once the Mark has awakened in the group: the fifth element can be chosen (Act III) */
+	bool IsMarkAwakened() const { return bMarkAwakened; }
+
+	/** Awakens the Mark for the whole group and teaches the formulas that come with it. Returns false if it was awake already. */
+	bool AwakenMark(const FText& Reason);
+
+	/** True if the formula uses the Mark while it still sleeps, so it can't be cast */
+	bool IsBlockedByMark(const UVaelFormula* Formula) const;
+
 private:
 
 	/** Loads all formula assets through the asset manager */
@@ -66,6 +75,9 @@ private:
 	/** Sealed formulas whose echo the players have heard */
 	UPROPERTY()
 	TSet<TObjectPtr<UVaelFormula>> EchoedFormulas;
+
+	/** True once the Mark has awakened */
+	bool bMarkAwakened = false;
 
 	/** Formulas by the key of their element combination */
 	UPROPERTY()

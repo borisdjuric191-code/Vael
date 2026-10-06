@@ -113,6 +113,54 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0))
 	float PlayerCorruptionPerMarkElement = 4.5f;
 
+	/** From this personal corruption on, every Mark element cast hurts the caster (prototype: 60) */
+	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))
+	float CorruptionPainThreshold = 60.0f;
+
+	/** Damage to the caster for every Mark element cast above the pain threshold */
+	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0))
+	float CorruptionPainPerMarkElement = 4.0f;
+
+	/** From this personal corruption on, the Mark may whisper to the caster */
+	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))
+	float CorruptionWhisperThreshold = 85.0f;
+
+	/** Chance per Mark cast that the Mark whispers above the threshold */
+	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0, ClampMax = 1))
+	float CorruptionWhisperChance = 0.35f;
+
+	/** Region corruption an unsealed Mark source adds per minute */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))
+	float SourceCorruptionPerMinute = 1.0f;
+
+	/** A source stops adding corruption once its region has this much */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0, ClampMax = 100))
+	float SourceCorruptionCap = 60.0f;
+
+	/** Region corruption a sealed source takes away */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))
+	float SourceSealCleansing = 30.0f;
+
+	/** Seconds a player can stand in a source before it attacks them */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))
+	float SourceGraceTime = 3.0f;
+
+	/** Seconds between two attacks of the source on a player standing in it */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0.1))
+	float SourceStrikeInterval = 1.5f;
+
+	/** Warning time before an attack of the source breaks out of the ground */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))
+	float SourceStrikeWarning = 0.7f;
+
+	/** Damage of an attack of the source */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))
+	float SourceStrikeDamage = 12.0f;
+
+	/** Reach of an attack of the source in cm */
+	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))
+	float SourceStrikeRadius = 110.0f;
+
 	/** Below this region corruption no creature is marked */
 	UPROPERTY(config, EditAnywhere, Category="Corruption|Marked Creatures", meta = (ClampMin = 0, ClampMax = 100))
 	float MarkedCreatureThreshold = 40.0f;

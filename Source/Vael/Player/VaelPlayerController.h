@@ -63,7 +63,7 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> LeaveAction;
 
-	/** Queue Element Input Actions: fire, water, earth, air */
+	/** Queue Element Input Actions: fire, water, earth, air, Mark */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UInputAction>> ElementActions;
 

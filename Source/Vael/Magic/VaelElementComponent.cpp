@@ -15,6 +15,7 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Magic/VaelMagicSettings.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
@@ -79,6 +80,15 @@ bool UVaelElementComponent::AddElement(EVaelElement Element)
 {
 	if (Queue.Num() >= GetNumSlots())
 	{
+		return false;
+	}
+
+	// The fifth element can't be touched before the Mark awakens (Act III)
+	const UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
+	if (Element == EVaelElement::Mark && (Grimoire == nullptr || !Grimoire->IsMarkAwakened()))
+	{
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkStirs", "Etwas in dir regt sich"),
+			NSLOCTEXT("VaelMagic", "MarkAsleep", "Das Mark schläft noch in dir."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
 		return false;
 	}
 
@@ -230,6 +240,26 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 		{
 			CastRegion->AddCorruption(NumMarkElements * WorldSettings->RegionCorruptionPerMarkElement);
 		}
+
+		// Deep in the Mark every use of it hurts, and it starts to whisper
+		const float NewCorruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
+		if (NewCorruption >= WorldSettings->CorruptionPainThreshold)
+		{
+			UVaelCombatStatics::DealDamage(GetOwner(), GetOwner(), NumMarkElements * WorldSettings->CorruptionPainPerMarkElement, EVaelElement::Mark);
+		}
+
+		if (NewCorruption >= WorldSettings->CorruptionWhisperThreshold && FMath::FRand() < WorldSettings->CorruptionWhisperChance)
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkWhisper", "…tiefer…"), NSLOCTEXT("VaelMagic", "MarkWhisperDetail", "Das Mark flüstert in deinem Kopf."),
+				FLinearColor(FColor(185, 139, 232)), 3.0f);
+		}
+	}
+
+	// Some formulas are paid with blood; they never kill the caster
+	if (Formula->HealthCost > 0.0f)
+	{
+		const float Health = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetHealthAttribute());
+		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), FMath::Max(1.0f, Health - Formula->HealthCost));
 	}
 
 	return EVaelCastResult::Success;
@@ -251,7 +281,11 @@ EVaelCastResult UVaelElementComponent::CastQuickSlot(int32 SlotIndex)
 
 	if (Formula != nullptr && Grimoire != nullptr && Grimoire->IsFormulaKnown(Formula))
 	{
-		if (GetWorld()->GetTimeSeconds() < QuickSlotReadyTimes[SlotIndex])
+		if (Grimoire->IsBlockedByMark(Formula))
+		{
+			Result = EVaelCastResult::MarkAsleep;
+		}
+		else if (GetWorld()->GetTimeSeconds() < QuickSlotReadyTimes[SlotIndex])
 		{
 			Result = EVaelCastResult::OnCooldown;
 		}
@@ -327,8 +361,9 @@ void UVaelElementComponent::OnFormulaLearned(const UVaelFormula* Formula, const 
 
 void UVaelElementComponent::FillEmptyQuickSlot(const UVaelFormula* Formula)
 {
-	// Single elements are on the face buttons already
-	if (Formula == nullptr || Formula->Elements.Num() < 2 || QuickSlots.Contains(Formula))
+	// Single elements are on the face buttons already; Mark formulas wait until the Mark awakens
+	const UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
+	if (Formula == nullptr || Formula->Elements.Num() < 2 || QuickSlots.Contains(Formula) || (Grimoire != nullptr && Grimoire->IsBlockedByMark(Formula)))
 	{
 		return;
 	}

@@ -60,6 +60,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (MultiLine = true))
 	FText Hint;
 
+	/** Health the caster pays on top of the mana, like the Markstoss. Never brings them below 1. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
+	float HealthCost = 0.0f;
+
 	/** Seconds a quick slot needs after casting this formula, before it can be cast from there again */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
 	float QuickCooldown = 4.0f;
@@ -304,6 +308,22 @@ public:
 	/** Seconds between two fires a fire whirl leaves behind; the fires use the ground area values. 0 for none. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
 	float VortexFireInterval = 0.5f;
+
+	/** Number of spikes in the line */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spike Line", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::SpikeLine"))
+	int32 SpikeCount = 9;
+
+	/** Distance between two spikes in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spike Line", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::SpikeLine"))
+	float SpikeSpacing = 126.0f;
+
+	/** Seconds between two spikes breaking out */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spike Line", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::SpikeLine"))
+	float SpikeStagger = 0.055f;
+
+	/** Reach of each spike in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spike Line", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::SpikeLine"))
+	float SpikeRadius = 105.0f;
 
 	/** Reach of the storm around the caster in cm, plus the radius of the enemy */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))
