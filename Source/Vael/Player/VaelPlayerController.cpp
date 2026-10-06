@@ -13,6 +13,7 @@
 #include "InputMappingContext.h"
 #include "InputModifiers.h"
 #include "InputTriggers.h"
+#include "Items/VaelInventory.h"
 #include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelCheatManager.h"
@@ -128,6 +129,9 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnMenuNavigate);
 			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnMenuNavigateReleased);
 			EnhancedInputComponent->BindAction(MenuCloseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuClose);
+			EnhancedInputComponent->BindAction(MenuPageAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuPage);
+			EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuConfirm);
+			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnToggleInventory);
 
 			for (int32 SlotIndex = 0; SlotIndex < MenuAssignActions.Num(); ++SlotIndex)
 			{
@@ -243,6 +247,11 @@ void AVaelPlayerController::CreateInputAssets()
 	MappingContext->MapKey(GrimoireAction, EKeys::Gamepad_Special_Left);
 	MappingContext->MapKey(GrimoireAction, EKeys::Tab);
 
+	// The inventory page of the same menu opens directly with I
+	InventoryAction = CreateAction(TEXT("IA_Inventory"), EInputActionValueType::Boolean);
+	InventoryAction->bTriggerWhenPaused = true;
+	MappingContext->MapKey(InventoryAction, EKeys::I);
+
 	// Menu controls, only active while the grimoire is open
 	MenuMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VaelMenu"));
 
@@ -261,6 +270,21 @@ void AVaelPlayerController::CreateInputAssets()
 	MenuCloseAction->bTriggerWhenPaused = true;
 	MenuMappingContext->MapKey(MenuCloseAction, EKeys::Gamepad_FaceButton_Right);
 	MenuMappingContext->MapKey(MenuCloseAction, EKeys::Escape);
+
+	// Pages: L1 / R1 (LB / RB) and Q / E, left is negative
+	MenuPageAction = CreateAction(TEXT("IA_MenuPage"), EInputActionValueType::Axis1D);
+	MenuPageAction->bTriggerWhenPaused = true;
+	MenuMappingContext->MapKey(MenuPageAction, EKeys::Gamepad_RightShoulder);
+	MenuMappingContext->MapKey(MenuPageAction, EKeys::E);
+	MenuMappingContext->MapKey(MenuPageAction, EKeys::Gamepad_LeftShoulder).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
+	MenuMappingContext->MapKey(MenuPageAction, EKeys::Q).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
+
+	// Confirm: put on or take off the selected item
+	MenuConfirmAction = CreateAction(TEXT("IA_MenuConfirm"), EInputActionValueType::Boolean);
+	MenuConfirmAction->bTriggerWhenPaused = true;
+	MenuMappingContext->MapKey(MenuConfirmAction, EKeys::Gamepad_FaceButton_Bottom);
+	MenuMappingContext->MapKey(MenuConfirmAction, EKeys::Enter);
+	MenuMappingContext->MapKey(MenuConfirmAction, EKeys::SpaceBar);
 
 	for (int32 SlotIndex = 0; SlotIndex < UE_ARRAY_COUNT(QuickSlotPadKeys); ++SlotIndex)
 	{
@@ -586,7 +610,7 @@ void AVaelPlayerController::OnToggleGrimoire()
 	}
 }
 
-bool AVaelPlayerController::OpenGrimoire()
+bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 {
 	if (bGrimoireOpen || GetPawn<AVaelCharacter>() == nullptr)
 	{
@@ -606,6 +630,7 @@ bool AVaelPlayerController::OpenGrimoire()
 	}
 
 	bGrimoireOpen = true;
+	MenuPage = Page;
 	NextNavigateTime = 0.0;
 	InputSubsystem->AddMappingContext(MenuMappingContext, 1);
 	UGameplayStatics::SetGamePaused(this, true);
@@ -651,8 +676,75 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 	NextNavigateTime = Now + (NextNavigateTime > 0.0 ? MenuRepeatInterval : MenuRepeatDelay);
 
 	// Up on the stick or key is positive and moves the selection up the list
+	const int32 Step = Direction > 0.0f ? -1 : 1;
+
+	if (MenuPage == EVaelMenuPage::Inventory)
+	{
+		InventorySelection = FMath::Clamp(InventorySelection + Step, 0, FMath::Max(GetNumInventoryRows() - 1, 0));
+		return;
+	}
+
 	const int32 NumFormulas = Grimoire->GetAllFormulas().Num();
-	GrimoireSelection = FMath::Clamp(GrimoireSelection + (Direction > 0.0f ? -1 : 1), 0, FMath::Max(NumFormulas - 1, 0));
+	GrimoireSelection = FMath::Clamp(GrimoireSelection + Step, 0, FMath::Max(NumFormulas - 1, 0));
+}
+
+void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
+{
+	if (bGrimoireOpen)
+	{
+		// Two pages: either direction switches
+		MenuPage = MenuPage == EVaelMenuPage::Formulas ? EVaelMenuPage::Inventory : EVaelMenuPage::Formulas;
+	}
+}
+
+void AVaelPlayerController::OnMenuConfirm()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (!bGrimoireOpen || MenuPage != EVaelMenuPage::Inventory || VaelCharacter == nullptr)
+	{
+		return;
+	}
+
+	// Equipment rows take the item off, backpack rows put it on
+	UVaelInventory* Inventory = VaelCharacter->GetInventory();
+	const int32 NumEquipRows = static_cast<int32>(EVaelEquipSlot::Count);
+
+	if (InventorySelection < NumEquipRows)
+	{
+		if (!Inventory->Unequip(static_cast<EVaelEquipSlot>(InventorySelection)) && Inventory->GetEquipped(static_cast<EVaelEquipSlot>(InventorySelection)).IsValid())
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelItems", "BackpackFull", "Rucksack voll"), FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
+		}
+	}
+	else
+	{
+		Inventory->EquipFromBackpack(InventorySelection - NumEquipRows);
+	}
+
+	InventorySelection = FMath::Clamp(InventorySelection, 0, FMath::Max(GetNumInventoryRows() - 1, 0));
+}
+
+void AVaelPlayerController::OnToggleInventory()
+{
+	if (!bGrimoireOpen)
+	{
+		OpenGrimoire(EVaelMenuPage::Inventory);
+	}
+	else if (MenuPage == EVaelMenuPage::Inventory)
+	{
+		CloseGrimoire();
+	}
+	else
+	{
+		MenuPage = EVaelMenuPage::Inventory;
+	}
+}
+
+int32 AVaelPlayerController::GetNumInventoryRows() const
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	const int32 NumBackpack = VaelCharacter != nullptr ? VaelCharacter->GetInventory()->GetBackpack().Num() : 0;
+	return static_cast<int32>(EVaelEquipSlot::Count) + NumBackpack;
 }
 
 void AVaelPlayerController::OnMenuNavigateReleased()
@@ -671,7 +763,7 @@ void AVaelPlayerController::OnMenuAssign(int32 SlotIndex)
 	const UGameInstance* GameInstance = GetGameInstance();
 	const UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
 
-	if (!bGrimoireOpen || VaelCharacter == nullptr || Grimoire == nullptr || !Grimoire->GetAllFormulas().IsValidIndex(GrimoireSelection))
+	if (!bGrimoireOpen || MenuPage != EVaelMenuPage::Formulas || VaelCharacter == nullptr || Grimoire == nullptr || !Grimoire->GetAllFormulas().IsValidIndex(GrimoireSelection))
 	{
 		return;
 	}

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Items/VaelItemTypes.h"
 #include "Magic/VaelElementTypes.h"
 #include "UI/VaelUISettings.h"
 #include "VaelHUD.generated.h"
@@ -72,6 +73,19 @@ private:
 
 	/** Draws the material bag of the player next to the open grimoire */
 	void DrawMaterialBag(const AVaelCharacter* Player, float PanelLeft, float PanelTop, float PanelWidthOnScreen, float PanelHeightOnScreen);
+
+	/** Draws the page names of the menu and the buttons that switch between them, right aligned */
+	void DrawMenuTabs(const AVaelPlayerController* PlayerController, float Right, float Y);
+
+	/** Draws the inventory page of the menu: equipment, backpack and the selected item compared with what it would replace */
+	void DrawInventory(const AVaelPlayerController* PlayerController);
+
+	/** Name of an equipment place, like "Brust" */
+	static FText GetEquipSlotName(EVaelEquipSlot EquipSlot);
+
+	/** Name of the place an item is worn at */
+	static FText GetItemSlotName(EVaelItemSlot Slot);
+
 	void DrawRegionInfo();
 	void DrawCombatTexts();
 	void DrawWeather();

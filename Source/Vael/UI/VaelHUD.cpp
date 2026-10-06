@@ -13,6 +13,8 @@
 #include "EngineUtils.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
+#include "Items/VaelInventory.h"
+#include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelGrimoireSubsystem.h"
@@ -417,6 +419,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		return;
 	}
 
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Inventory)
+	{
+		DrawInventory(PlayerController);
+		return;
+	}
+
 	const float S = UiScale;
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
 	const UVaelElementComponent* Elements = Player->GetElementComponent();
@@ -440,6 +448,7 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 
 	DrawLabel(FText::Format(LOCTEXT("GrimoireEyebrow", "GRIMOIRE DER GRUPPE \u00B7 SPIELER {0}"), PlayerController->GetPlayerSlot() + 1), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
 	DrawLabel(LOCTEXT("GrimoireTitle", "Formeln"), Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
+	DrawMenuTabs(PlayerController, Left + Width - Padding, Top + 22.0f * S);
 	DrawLabel(LOCTEXT("GrimoireNote", "Bekannte Formeln auf einen Schnellplatz legen: Zeile w\u00E4hlen und den Schnellplatz dr\u00FCcken. Schnellformeln kosten mehr Mana und k\u00FChlen ab, von Hand gewirkte Kombos sind st\u00E4rker."),
 		Left + Padding, Top + 88.0f * S, 13.0f * S, DimColor, 0.0f, Width - 2.0f * Padding);
 
@@ -1011,6 +1020,226 @@ void AVaelHUD::DrawInteractPrompts(const TArray<const AVaelPlayerController*>& P
 		DrawFrame(Screen.X - Width * 0.5f, Screen.Y - 12.0f * S, Width, 26.0f * S, RimColor);
 		DrawLabel(Prompt, Screen.X, Screen.Y - 7.0f * S, 14.0f * S, BoneColor, 0.5f);
 	}
+}
+
+void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float Right, float Y)
+{
+	const float S = UiScale;
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+	const bool bInventory = PlayerController->GetMenuPage() == EVaelMenuPage::Inventory;
+
+	const FText Switch = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("TabsKeyboard", "Q / E")
+		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("TabsPlayStation", "L1 / R1")
+		: LOCTEXT("TabsXbox", "LB / RB");
+
+	// Right aligned: the switch buttons, then the pages; the open page is lit
+	const FText InventoryTab = LOCTEXT("TabInventory", "INVENTAR");
+	const FText FormulasTab = LOCTEXT("TabFormulas", "FORMELN");
+	const float InventoryWidth = MeasureLabel(InventoryTab, 13.0f * S);
+	const float FormulasWidth = MeasureLabel(FormulasTab, 13.0f * S);
+
+	DrawLabel(InventoryTab, Right, Y, 13.0f * S, bInventory ? EmberColor : DimColor, 1.0f);
+	DrawLabel(FormulasTab, Right - InventoryWidth - 18.0f * S, Y, 13.0f * S, bInventory ? DimColor : EmberColor, 1.0f);
+	DrawLabel(Switch, Right - InventoryWidth - FormulasWidth - 36.0f * S, Y, 13.0f * S, Rgb(201, 180, 138), 1.0f);
+}
+
+void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
+{
+	const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+	const UVaelInventory* Inventory = Player->GetInventory();
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+	const float S = UiScale;
+
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 168));
+
+	const float RowHeight = 30.0f * S;
+	const int32 NumVisibleRows = 14;
+	const float Width = FMath::Min(GrimoireWidth * S, Canvas->ClipX - 32.0f * S);
+	const float Height = 150.0f * S + NumVisibleRows * RowHeight + 50.0f * S;
+	const float Left = (Canvas->ClipX - Width) * 0.5f;
+	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
+	const float Padding = 28.0f * S;
+
+	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawFrame(Left, Top, Width, Height, RimColor);
+	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
+
+	DrawLabel(FText::Format(LOCTEXT("InventoryEyebrow", "AUSRÜSTUNG UND RUCKSACK · SPIELER {0}"), PlayerController->GetPlayerSlot() + 1), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
+	DrawLabel(LOCTEXT("InventoryTitle", "Inventar"), Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
+	DrawMenuTabs(PlayerController, Left + Width - Padding, Top + 22.0f * S);
+	DrawLabel(FText::Format(LOCTEXT("InventoryNote", "Rucksack: {0} von {1} Feldern belegt. Jedes Teil belegt ein Feld."), Inventory->GetBackpack().Num(), UVaelItemSettings::Get()->BackpackSize),
+		Left + Padding, Top + 88.0f * S, 13.0f * S, DimColor);
+
+	// List: the ten equipment places, then the backpack
+	const int32 NumEquipRows = static_cast<int32>(EVaelEquipSlot::Count);
+	const int32 NumRows = NumEquipRows + Inventory->GetBackpack().Num();
+	const int32 Selection = FMath::Clamp(PlayerController->GetInventorySelection(), 0, NumRows - 1);
+	const int32 FirstRow = FMath::Clamp(Selection - NumVisibleRows / 2, 0, FMath::Max(NumRows - NumVisibleRows, 0));
+
+	const float ListLeft = Left + Padding;
+	const float ListWidth = (Width - 2.0f * Padding) * 0.5f;
+	const float ListTop = Top + 120.0f * S;
+
+	const auto GetRowItem = [Inventory, NumEquipRows](int32 Row) -> const FVaelItem&
+	{
+		return Row < NumEquipRows ? Inventory->GetEquipped(static_cast<EVaelEquipSlot>(Row)) : Inventory->GetBackpack()[Row - NumEquipRows];
+	};
+
+	for (int32 Row = FirstRow; Row < FMath::Min(FirstRow + NumVisibleRows, NumRows); ++Row)
+	{
+		const float RowTop = ListTop + (Row - FirstRow) * RowHeight;
+		const FVaelItem& Item = GetRowItem(Row);
+
+		DrawBox(ListLeft, RowTop, ListWidth, RowHeight - 3.0f * S, Rgb(29, 22, 19));
+		if (Row == Selection)
+		{
+			DrawFrame(ListLeft, RowTop, ListWidth, RowHeight - 3.0f * S, EmberColor, 2.0f * S);
+		}
+
+		// The backpack starts below a thin line
+		if (Row == NumEquipRows)
+		{
+			DrawBox(ListLeft, RowTop - 2.0f * S, ListWidth, 1.0f * S, EmberColor);
+		}
+
+		const FText Label = Row < NumEquipRows ? GetEquipSlotName(static_cast<EVaelEquipSlot>(Row)) : FText::AsNumber(Row - NumEquipRows + 1);
+		DrawLabel(Label, ListLeft + 10.0f * S, RowTop + 6.0f * S, 13.0f * S, DimColor, 0.0f, 90.0f * S);
+		DrawLabel(Item.IsValid() ? Item.DisplayName : LOCTEXT("EmptyPlace", "–"), ListLeft + 105.0f * S, RowTop + 5.0f * S, 15.0f * S,
+			Item.IsValid() ? VaelItems::GetRarityColor(Item.Rarity) : Rgb(124, 109, 97), 0.0f, ListWidth - 115.0f * S);
+	}
+
+	// Details of the selected item, compared with what it would replace
+	const float DetailLeft = ListLeft + ListWidth + 24.0f * S;
+	const float DetailWidth = Left + Width - Padding - DetailLeft;
+	const FVaelItem& Selected = GetRowItem(Selection);
+	float Y = ListTop;
+
+	if (!Selected.IsValid())
+	{
+		DrawLabel(LOCTEXT("NothingWorn", "Hier ist nichts angelegt."), DetailLeft, Y, 14.0f * S, DimColor, 0.0f, DetailWidth);
+	}
+	else
+	{
+		DrawLabel(Selected.DisplayName, DetailLeft, Y, 22.0f * S, VaelItems::GetRarityColor(Selected.Rarity), 0.0f, DetailWidth);
+		Y += 30.0f * S;
+		DrawLabel(FText::Format(LOCTEXT("ItemKind", "{0} · {1}"), UEnum::GetDisplayValueAsText(Selected.Rarity), GetItemSlotName(Selected.Slot)), DetailLeft, Y, 13.0f * S, DimColor);
+		Y += 26.0f * S;
+
+		// A backpack item is compared with what it would replace: the first place of its kind, unless one is free
+		const FVaelItem* Compared = nullptr;
+		if (Selection >= NumEquipRows)
+		{
+			TArray<EVaelEquipSlot> EquipSlots;
+			VaelItems::GetEquipSlots(Selected.Slot, EquipSlots);
+
+			bool bFreePlace = false;
+			for (const EVaelEquipSlot EquipSlot : EquipSlots)
+			{
+				bFreePlace |= !Inventory->GetEquipped(EquipSlot).IsValid();
+			}
+
+			if (!bFreePlace && !EquipSlots.IsEmpty())
+			{
+				Compared = &Inventory->GetEquipped(EquipSlots[0]);
+			}
+		}
+
+		const auto StatValue = [](const FVaelItem* Item, EVaelItemStat Stat)
+		{
+			float Value = 0.0f;
+			if (Item != nullptr)
+			{
+				for (const FVaelItemStatValue& Each : Item->Stats)
+				{
+					Value += Each.Stat == Stat ? Each.Value : 0.0f;
+				}
+			}
+			return Value;
+		};
+
+		// Properties of both; gains green, losses red
+		TArray<EVaelItemStat> Stats;
+		for (const FVaelItemStatValue& Each : Selected.Stats)
+		{
+			Stats.AddUnique(Each.Stat);
+		}
+		if (Compared != nullptr)
+		{
+			for (const FVaelItemStatValue& Each : Compared->Stats)
+			{
+				Stats.AddUnique(Each.Stat);
+			}
+		}
+
+		for (const EVaelItemStat Stat : Stats)
+		{
+			const float Value = StatValue(&Selected, Stat);
+			const float Difference = Value - StatValue(Compared, Stat);
+
+			FVaelItemStatValue Shown;
+			Shown.Stat = Stat;
+			Shown.Value = Value != 0.0f ? Value : StatValue(Compared, Stat);
+
+			// A property only the worn item has is shown greyed out
+			DrawLabel(VaelItems::DescribeStat(Shown), DetailLeft, Y, 15.0f * S, Value != 0.0f ? BoneColor : Rgb(124, 109, 97), 0.0f, DetailWidth - 70.0f * S);
+
+			if (Compared != nullptr && FMath::Abs(Difference) >= 0.5f)
+			{
+				const bool bBetter = Difference > 0.0f;
+				const FText Amount = FText::AsNumber(FMath::RoundToInt(FMath::Abs(Difference)));
+				DrawLabel(FText::Format(bBetter ? LOCTEXT("StatUp", "▲ {0}") : LOCTEXT("StatDown", "▼ {0}"), Amount),
+					DetailLeft + DetailWidth, Y, 15.0f * S, bBetter ? Rgb(127, 201, 109) : Rgb(224, 92, 80), 1.0f);
+			}
+
+			Y += 24.0f * S;
+		}
+
+		if (const FVaelLegendaryAbility* Ability = Selected.GetLegendaryAbility())
+		{
+			Y += 8.0f * S;
+			DrawLabel(Ability->Description, DetailLeft, Y, 14.0f * S, VaelItems::GetRarityColor(EVaelRarity::Legendary), 0.0f, DetailWidth);
+			Y += 44.0f * S;
+		}
+
+		if (Compared != nullptr)
+		{
+			Y += 8.0f * S;
+			DrawLabel(FText::Format(LOCTEXT("ComparedWith", "Verglichen mit: {0}"), Compared->DisplayName), DetailLeft, Y, 12.0f * S, DimColor, 0.0f, DetailWidth);
+		}
+	}
+
+	// Footer
+	const float FooterY = Top + Height - 34.0f * S;
+	const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "✕") : LOCTEXT("ConfirmXbox", "A");
+	const FText Action = Selection < NumEquipRows ? LOCTEXT("ActionUnequip", "ablegen") : LOCTEXT("ActionEquip", "anlegen");
+	const FText Close = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("InvCloseKeyboard", "I / Esc") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("InvClosePlayStation", "○") : LOCTEXT("InvCloseXbox", "B");
+
+	DrawLabel(FText::Format(LOCTEXT("InventoryFooter", "{0}: {1} · {2}: schließen"), Confirm, Action, Close), Left + Width - Padding, FooterY, 13.0f * S, DimColor, 1.0f);
+
+	DrawMaterialBag(Player, Left, Top, Width, Height);
+}
+
+FText AVaelHUD::GetEquipSlotName(EVaelEquipSlot EquipSlot)
+{
+	switch (EquipSlot)
+	{
+	case EVaelEquipSlot::Weapon:	return LOCTEXT("EquipWeapon", "Waffe");
+	case EVaelEquipSlot::Offhand:	return LOCTEXT("EquipOffhand", "Nebenhand");
+	case EVaelEquipSlot::Head:		return LOCTEXT("EquipHead", "Kopf");
+	case EVaelEquipSlot::Chest:		return LOCTEXT("EquipChest", "Brust");
+	case EVaelEquipSlot::Hands:		return LOCTEXT("EquipHands", "Hände");
+	case EVaelEquipSlot::Feet:		return LOCTEXT("EquipFeet", "Füße");
+	case EVaelEquipSlot::Belt:		return LOCTEXT("EquipBelt", "Gürtel");
+	case EVaelEquipSlot::Amulet:	return LOCTEXT("EquipAmulet", "Amulett");
+	default:						return LOCTEXT("EquipRing", "Ring");
+	}
+}
+
+FText AVaelHUD::GetItemSlotName(EVaelItemSlot Slot)
+{
+	TArray<EVaelEquipSlot> EquipSlots;
+	VaelItems::GetEquipSlots(Slot, EquipSlots);
+	return EquipSlots.IsEmpty() ? FText::GetEmpty() : GetEquipSlotName(EquipSlots[0]);
 }
 
 #undef LOCTEXT_NAMESPACE

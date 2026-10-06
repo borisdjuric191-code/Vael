@@ -8,6 +8,16 @@
 #include "UI/VaelUISettings.h"
 #include "VaelPlayerController.generated.h"
 
+/** Pages of the menu that pauses the game */
+UENUM(BlueprintType)
+enum class EVaelMenuPage : uint8
+{
+	/** The grimoire of the group: formulas and quick slots */
+	Formulas,
+	/** Equipment and backpack of the player */
+	Inventory
+};
+
 class AVaelSharedCamera;
 class UVaelFormula;
 class UInputMappingContext;
@@ -103,6 +113,18 @@ protected:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UInputAction>> MenuAssignActions;
 
+	/** Switch the menu page Input Action: L1 / R1 (LB / RB), Q / E */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MenuPageAction;
+
+	/** Confirm in the menu Input Action: Cross / A, Enter, Space */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MenuConfirmAction;
+
+	/** Open the inventory Input Action: I */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> InventoryAction;
+
 	/** Seconds between two steps while the selection is held in one direction */
 	UPROPERTY(EditAnywhere, Category="Input", meta = (ClampMin = 0.05))
 	float MenuRepeatInterval = 0.12f;
@@ -135,8 +157,14 @@ public:
 	/** Index of the selected formula in the grimoire, in the order of all formulas */
 	int32 GetGrimoireSelection() const { return GrimoireSelection; }
 
+	/** Page of the open menu */
+	EVaelMenuPage GetMenuPage() const { return MenuPage; }
+
+	/** Selected row of the inventory page: the ten equipment places first, then the fields of the backpack */
+	int32 GetInventorySelection() const { return InventorySelection; }
+
 	/** Opens the grimoire and pauses the game. Returns false if another player has it open. */
-	bool OpenGrimoire();
+	bool OpenGrimoire(EVaelMenuPage Page = EVaelMenuPage::Formulas);
 
 	/** Closes the grimoire and lets the game go on */
 	void CloseGrimoire();
@@ -178,6 +206,9 @@ protected:
 	void OnMenuNavigateReleased();
 	void OnMenuClose();
 	void OnMenuAssign(int32 SlotIndex);
+	void OnMenuPage(const FInputActionValue& Value);
+	void OnMenuConfirm();
+	void OnToggleInventory();
 
 	/** Tells the players what came of a cast */
 	void OnCastFinished(EVaelCastResult Result, const UVaelFormula* Formula);
@@ -227,6 +258,15 @@ protected:
 
 	/** Selected row of the grimoire */
 	int32 GrimoireSelection = 0;
+
+	/** Page of the open menu */
+	EVaelMenuPage MenuPage = EVaelMenuPage::Formulas;
+
+	/** Selected row of the inventory page */
+	int32 InventorySelection = 0;
+
+	/** Number of rows of the inventory page: equipment places and the items in the backpack */
+	int32 GetNumInventoryRows() const;
 
 	/** Real time of the next selection step while a direction is held, 0 when nothing is held */
 	double NextNavigateTime = 0.0;
