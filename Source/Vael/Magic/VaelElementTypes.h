@@ -60,6 +60,16 @@ enum class EVaelSpellDelivery : uint8
 	Strike
 };
 
+/** Look of a flying spell while it has no effect of its own */
+UENUM(BlueprintType)
+enum class EVaelProjectileLook : uint8
+{
+	/** A plain ball in the color of the element */
+	Sphere,
+	/** A slim, glowing streak that keeps shedding little embers in flight, like the Funke */
+	Spark
+};
+
 /** What a patch on the ground does to the enemies of its creator standing in it */
 UENUM(BlueprintType)
 enum class EVaelGroundEffect : uint8

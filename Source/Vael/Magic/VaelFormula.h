@@ -133,6 +133,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	TSubclassOf<AVaelSpellProjectile> ProjectileClass;
 
+	/** Look of the projectile while it has no trail effect of its own */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
+	EVaelProjectileLook ProjectileLook = EVaelProjectileLook::Sphere;
+
 	/** Flight speed in cm/s */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	float ProjectileSpeed = 1500.0f;

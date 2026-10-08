@@ -36,6 +36,7 @@ FORMULAS = [
         "applied_status": Status.BURNING,
         "status_duration": 2.5,
         "status_damage_per_second": 6.0,
+        "projectile_look": unreal.VaelProjectileLook.SPARK,
         "projectile_speed": 14.0 * TILE,
         "projectile_radius": 0.22 * TILE,
         "projectile_lifetime": 1.1,

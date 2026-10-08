@@ -365,6 +365,7 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 			UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
 
 		Projectile->SetEffects(Formula.LoadEffects(), VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
+		Projectile->SetLook(Formula.ProjectileLook);
 
 		if (Formula.bProjectilePassesWalls)
 		{
