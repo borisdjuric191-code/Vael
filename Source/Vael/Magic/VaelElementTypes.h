@@ -69,7 +69,9 @@ enum class EVaelProjectileLook : uint8
 	/** A slim, glowing streak that keeps shedding little embers in flight, like the Funke */
 	Spark,
 	/** A round, softly wobbling ball of water that bursts under pressure where it hits, like the Wassergeschoss */
-	WaterOrb
+	WaterOrb,
+	/** A pointed stone that spins in its fast flight and loses sand and pebbles, like the Steinbrocken; it shatters where it hits */
+	RockShard
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */

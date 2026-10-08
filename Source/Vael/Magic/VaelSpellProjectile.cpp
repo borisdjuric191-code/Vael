@@ -63,6 +63,25 @@ namespace
 	constexpr float WaterBurstFlash = 5.0f;
 	constexpr float WaterBurstShake = 0.12f;
 
+	/** The pointed stone: number of rocks it is made of, its length and thickness as shares of the collision radius, its spin in degrees per second */
+	constexpr int32 RockShardParts = 3;
+	constexpr float RockShardLengthShare = 2.6f;
+	constexpr float RockShardThicknessShare = 0.85f;
+	constexpr float RockShardSpin = 540.0f;
+
+	/** Largest side of the rock mesh in cm */
+	constexpr float RockShardMeshSize = 230.0f;
+
+	/** Sand and pebbles the stone can have in the air at once, seconds between two, seconds each one lasts, how they fall in cm/s² */
+	constexpr int32 RockShardLooseCount = 24;
+	constexpr float RockShardShedInterval = 0.035f;
+	constexpr float RockShardLooseLifetime = 0.6f;
+	constexpr float RockShardGravity = 980.0f;
+
+	/** How fast the pieces fly off when the stone shatters, in cm/s, and the shake of the camera */
+	constexpr float RockShardShatterSpeed = 620.0f;
+	constexpr float RockShardShake = 0.1f;
+
 	/** Material parameters of the glow materials */
 	const FName LookColorParameter(TEXT("Color"));
 	const FName LookGlowParameter(TEXT("Glow"));
@@ -165,11 +184,11 @@ void AVaelSpellProjectile::Tick(float DeltaSeconds)
 	}
 }
 
-UStaticMeshComponent* AVaelSpellProjectile::AddLookShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim, bool bLoose)
+UStaticMeshComponent* AVaelSpellProjectile::AddLookShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim, bool bLoose, UStaticMesh* OwnMesh)
 {
 	UStaticMeshComponent* Shape = NewObject<UStaticMeshComponent>(this);
 	Shape->SetupAttachment(RootComponent);
-	Shape->SetStaticMesh(Mesh->GetStaticMesh());
+	Shape->SetStaticMesh(OwnMesh != nullptr ? OwnMesh : Mesh->GetStaticMesh().Get());
 	Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Shape->SetCastShadow(false);
 	Shape->bReceivesDecals = false;
@@ -183,6 +202,13 @@ UStaticMeshComponent* AVaelSpellProjectile::AddLookShape(UMaterialInterface* Mat
 	}
 
 	Shape->RegisterComponent();
+
+	// A mesh of its own, like the rock, keeps its own material
+	if (OwnMesh != nullptr)
+	{
+		return Shape;
+	}
+
 	Shape->SetMaterial(0, Material);
 
 	if (UMaterialInstanceDynamic* Dynamic = Shape->CreateAndSetMaterialInstanceDynamic(0))
@@ -281,6 +307,35 @@ void AVaelSpellProjectile::BuildLook()
 
 		AddLookLight(Bright, 3.0f);
 	}
+	else if (Look == EVaelProjectileLook::RockShard)
+	{
+		// The rock of the earth orb; brown spheres stand in for it while the pack isn't installed
+		UStaticMesh* RockMesh = VaelAssets::LoadOptional(MagicSettings->ElementOrbRockMesh);
+		bRealRock = RockMesh != nullptr;
+
+		const FLinearColor Stone = SpellColor * 0.55f;
+		const FLinearColor Sand = FMath::Lerp(SpellColor, FLinearColor(0.75f, 0.65f, 0.5f), 0.6f);
+
+		// Three rocks in a row, each smaller than the one behind it, taper into a point
+		for (int32 PartIndex = 0; PartIndex < RockShardParts; ++PartIndex)
+		{
+			LookShapes.Add(AddLookShape(CoreMaterial, Stone, 0.0f, 0.0f, false, RockMesh));
+		}
+
+		// What the stone loses in flight: mostly grains of sand, every third piece a pebble
+		const float PieceScale = Radius / (bRealRock ? RockShardMeshSize : PlaceholderSphereRadius * 2.0f);
+		for (int32 PieceIndex = 0; PieceIndex < RockShardLooseCount; ++PieceIndex)
+		{
+			const bool bPebble = PieceIndex % 3 == 0;
+			LoosePieces.Add(bPebble ? AddLookShape(CoreMaterial, Stone, 0.0f, 0.0f, true, RockMesh) : AddLookShape(CoreMaterial, Sand, 0.0f, 0.0f, true));
+			LoosePieceSizes.Add(bPebble ? PieceScale * FMath::FRandRange(0.16f, 0.3f) : Radius * FMath::FRandRange(0.05f, 0.1f) / (PlaceholderSphereRadius * 2.0f));
+		}
+
+		LooseLifetime = RockShardLooseLifetime;
+		LooseGravity = RockShardGravity;
+		LooseDrag = 1.5f;
+		bLooseTumble = true;
+	}
 	else
 	{
 		return;
@@ -304,7 +359,7 @@ void AVaelSpellProjectile::ShedPiece(const FVector& Location, const FVector& Vel
 	LooseAges[NextLoosePiece] = 0.0f;
 	LooseVelocities[NextLoosePiece] = Velocity;
 	LoosePieces[NextLoosePiece]->SetWorldLocation(Location);
-	LoosePieces[NextLoosePiece]->SetRelativeScale3D(FVector(LooseSize));
+	LoosePieces[NextLoosePiece]->SetRelativeScale3D(FVector(LoosePieceSizes.IsValidIndex(NextLoosePiece) ? LoosePieceSizes[NextLoosePiece] : LooseSize));
 	LoosePieces[NextLoosePiece]->SetVisibility(true);
 
 	NextLoosePiece = (NextLoosePiece + 1) % LoosePieces.Num();
@@ -333,9 +388,13 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 	{
 		AnimateSpark(Time, DeltaSeconds);
 	}
-	else
+	else if (Look == EVaelProjectileLook::WaterOrb)
 	{
 		AnimateWaterOrb(Time);
+	}
+	else
+	{
+		AnimateRock(Time, DeltaSeconds);
 	}
 
 	// Loose pieces fall, slow down in the air and shrink as they die
@@ -360,8 +419,48 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 		const float Dying = 1.0f - LooseAges[PieceIndex] / LooseLifetime;
 		const float Flicker = bLooseFlicker ? 0.8f + 0.4f * FMath::Sin(Time * 40.0f + PieceIndex * 2.7f) : 1.0f;
 
+		// Sand and pebbles keep their size until they are nearly gone, embers and drops shrink all the way
+		const float Size = LoosePieceSizes.IsValidIndex(PieceIndex) ? LoosePieceSizes[PieceIndex] : LooseSize;
+		const float Shrink = bLooseTumble ? FMath::Min(1.0f, Dying * 4.0f) : Dying;
+
 		LoosePieces[PieceIndex]->SetWorldLocation(LoosePieces[PieceIndex]->GetComponentLocation() + LooseVelocities[PieceIndex] * DeltaSeconds);
-		LoosePieces[PieceIndex]->SetRelativeScale3D(FVector(LooseSize * Dying * Flicker));
+		LoosePieces[PieceIndex]->SetRelativeScale3D(FVector(Size * Shrink * Flicker));
+
+		if (bLooseTumble)
+		{
+			LoosePieces[PieceIndex]->SetWorldRotation(FRotator(LooseAges[PieceIndex] * 620.0f + PieceIndex * 50.0f, LooseAges[PieceIndex] * 440.0f, 0.0f));
+		}
+	}
+}
+
+void AVaelSpellProjectile::AnimateRock(float Time, float DeltaSeconds)
+{
+	const float Radius = Collision->GetScaledSphereRadius();
+	const float MeshSize = bRealRock ? RockShardMeshSize : PlaceholderSphereRadius * 2.0f;
+	const float Length = Radius * RockShardLengthShare;
+	const float Thickness = Radius * RockShardThicknessShare;
+
+	// The stone spins around its flight like a thrown spearhead; the rocks sit one before the other and get smaller towards the tip
+	for (int32 PartIndex = 0; PartIndex < LookShapes.Num(); ++PartIndex)
+	{
+		const float Along = PartIndex / FMath::Max(LookShapes.Num() - 1.0f, 1.0f);
+		const float Taper = FMath::Lerp(1.0f, 0.38f, Along);
+
+		UStaticMeshComponent* Part = LookShapes[PartIndex];
+		Part->SetRelativeLocation(FVector(Length * FMath::Lerp(-0.2f, 0.42f, Along), 0.0f, 0.0f));
+		Part->SetRelativeRotation(FRotator(0.0f, 0.0f, Time * RockShardSpin + PartIndex * 47.0f));
+		Part->SetRelativeScale3D(FVector(Length * FMath::Lerp(0.6f, 0.34f, Along), Thickness * Taper, Thickness * Taper) / MeshSize);
+	}
+
+	// Sand and pebbles come off the back and are left behind
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = RockShardShedInterval * FMath::FRandRange(0.6f, 1.5f);
+
+		const FVector Forward = GetActorForwardVector();
+		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.3f, 1.0f) + FMath::VRand() * Radius * 0.25f,
+			Forward * Movement->Velocity.Size() * 0.06f + FMath::VRand() * FMath::FRandRange(40.0f, 130.0f));
 	}
 }
 
@@ -504,6 +603,25 @@ void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
 		else
 		{
 			LookLight->SetVisibility(false);
+		}
+	}
+	else if (Look == EVaelProjectileLook::RockShard)
+	{
+		// The stone shatters on what it hits: splinters and sand fly off all around and drop heavily
+		const int32 NumPieces = bHitSomething ? LoosePieces.Num() : LoosePieces.Num() / 4;
+
+		for (int32 PieceIndex = 0; PieceIndex < NumPieces; ++PieceIndex)
+		{
+			FVector Direction = FMath::VRand();
+			Direction.Z = FMath::Abs(Direction.Z) * 0.6f;
+			Direction.Normalize();
+
+			ShedPiece(Center + Direction * Radius * 0.3f, Direction * FMath::FRandRange(RockShardShatterSpeed * 0.4f, RockShardShatterSpeed) * (bHitSomething ? 1.0f : 0.3f) + FVector(0.0f, 0.0f, 120.0f));
+		}
+
+		if (bHitSomething)
+		{
+			UVaelHitFeedbackSubsystem::Shake(this, RockShardShake);
 		}
 	}
 }

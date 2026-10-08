@@ -14,6 +14,7 @@ class UNiagaraSystem;
 class UPointLightComponent;
 class UProjectileMovementComponent;
 class USphereComponent;
+class UStaticMesh;
 class UStaticMeshComponent;
 
 /**
@@ -134,7 +135,7 @@ private:
 	void BuildLook();
 
 	/** Adds a sphere to the look. Loose pieces are shed later and then move on their own. */
-	UStaticMeshComponent* AddLookShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim = 0.0f, bool bLoose = false);
+	UStaticMeshComponent* AddLookShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim = 0.0f, bool bLoose = false, UStaticMesh* OwnMesh = nullptr);
 
 	/** Adds the light of the look */
 	void AddLookLight(const FLinearColor& LightColor, float Intensity);
@@ -144,6 +145,7 @@ private:
 	void AnimateSpark(float Time, float DeltaSeconds);
 	void AnimateWaterOrb(float Time);
 	void AnimateWaterBurst();
+	void AnimateRock(float Time, float DeltaSeconds);
 
 	/** Lets go of the next loose piece at a place with a speed */
 	void ShedPiece(const FVector& Location, const FVector& Velocity);
@@ -183,6 +185,15 @@ private:
 	float LooseGravity = 500.0f;
 	float LooseDrag = 2.0f;
 	bool bLooseFlicker = false;
+
+	/** True if the loose pieces tumble, like pebbles */
+	bool bLooseTumble = false;
+
+	/** Size of each loose piece where they differ, like pebbles among sand; empty if all share LooseSize */
+	TArray<float> LoosePieceSizes;
+
+	/** True if the stone is made of the rock mesh, false while spheres stand in for it */
+	bool bRealRock = false;
 
 	/** Seconds until the next piece is shed in flight, and which one it will be */
 	float NextShedCountdown = 0.0f;

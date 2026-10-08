@@ -68,6 +68,7 @@ FORMULAS = [
         "damage_element": Element.EARTH,
         "damage": 24.0,
         "knockback": 4.5 * TILE,
+        "projectile_look": unreal.VaelProjectileLook.ROCK_SHARD,
         "projectile_speed": 9.5 * TILE,
         "projectile_radius": 0.3 * TILE,
         "projectile_lifetime": 1.2,
