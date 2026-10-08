@@ -8,6 +8,7 @@
 #include "Magic/VaelSpellEffects.h"
 #include "VaelSpellProjectile.generated.h"
 
+class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UNiagaraSystem;
 class UPointLightComponent;
@@ -17,7 +18,7 @@ class UStaticMeshComponent;
 
 /**
  *  A spell flying in a straight line. Hits the first enemy it touches and stops at walls.
- *  Placeholder look: a sphere in the color of its element.
+ *  Placeholder look: a sphere in the color of its element, or the look its formula picks (EVaelProjectileLook).
  */
 UCLASS()
 class AVaelSpellProjectile : public AActor
@@ -129,14 +130,26 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraSystem> ImpactAreaVisual;
 
-	/** Builds the spark: a slim glowing streak with a tail, a light and embers waiting to be shed */
-	void BuildSpark();
+	/** Builds the look of the projectile from glowing spheres: the spark or the ball of water */
+	void BuildLook();
 
-	/** Lets the spark flicker and shed its embers */
-	void AnimateSpark(float DeltaSeconds);
+	/** Adds a sphere to the look. Loose pieces are shed later and then move on their own. */
+	UStaticMeshComponent* AddLookShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim = 0.0f, bool bLoose = false);
 
-	/** Adds a sphere to the spark. Embers keep their place in the world instead of flying along. */
-	UStaticMeshComponent* AddSparkShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, bool bStaysBehind = false);
+	/** Adds the light of the look */
+	void AddLookLight(const FLinearColor& LightColor, float Intensity);
+
+	/** Moves the look: the flying shapes, the loose pieces, and what plays out after the flight */
+	void AnimateLook(float DeltaSeconds);
+	void AnimateSpark(float Time, float DeltaSeconds);
+	void AnimateWaterOrb(float Time);
+	void AnimateWaterBurst();
+
+	/** Lets go of the next loose piece at a place with a speed */
+	void ShedPiece(const FVector& Location, const FVector& Velocity);
+
+	/** Ends the flight but keeps the projectile for a moment: embers glow out, water bursts */
+	void BeginAfterglow(bool bHitSomething);
 
 	/** Look while no trail effect exists */
 	EVaelProjectileLook Look = EVaelProjectileLook::Sphere;
@@ -144,23 +157,44 @@ private:
 	/** Color of the element */
 	FLinearColor SpellColor = FLinearColor::White;
 
-	/** Shapes of the spark that fly along: core, halo and the pieces of its tail */
+	/** Shapes of the look that fly along, in the order the look builds them */
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMeshComponent>> SparkShapes;
+	TArray<TObjectPtr<UStaticMeshComponent>> LookShapes;
 
-	/** Embers of the spark; each one falls on its own once it has been shed */
+	/** Embers or drops; each one moves on its own once it has been shed */
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMeshComponent>> Embers;
+	TArray<TObjectPtr<UStaticMeshComponent>> LoosePieces;
 
-	/** Light of the spark */
+	/** Light of the look */
 	UPROPERTY(Transient)
-	TObjectPtr<UPointLightComponent> SparkLight;
+	TObjectPtr<UPointLightComponent> LookLight;
 
-	/** Speed of each ember and seconds since it was shed; an age below 0 means it waits */
-	TArray<FVector> EmberVelocities;
-	TArray<float> EmberAges;
+	/** Material of the ring of spray, to let it fade */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BurstMaterial;
 
-	/** Seconds until the next ember is shed, and which one it will be */
-	float NextEmberCountdown = 0.0f;
-	int32 NextEmber = 0;
+	/** Speed of each loose piece and seconds since it was shed; an age below 0 means it waits */
+	TArray<FVector> LooseVelocities;
+	TArray<float> LooseAges;
+
+	/** How the loose pieces of this look behave: size as scale of the engine sphere, seconds they last, fall in cm/s², slowing by the air, flicker */
+	float LooseSize = 0.05f;
+	float LooseLifetime = 0.5f;
+	float LooseGravity = 500.0f;
+	float LooseDrag = 2.0f;
+	bool bLooseFlicker = false;
+
+	/** Seconds until the next piece is shed in flight, and which one it will be */
+	float NextShedCountdown = 0.0f;
+	int32 NextLoosePiece = 0;
+
+	/** Brightness of the light before flicker and flash, in candela */
+	float LookLightIntensity = 0.0f;
+
+	/** True once the flight is over and only the afterglow plays, and seconds since then */
+	bool bFlightEnded = false;
+	float AfterglowTime = 0.0f;
+
+	/** True if the ball of water burst on something instead of running out in the air */
+	bool bBurst = false;
 };

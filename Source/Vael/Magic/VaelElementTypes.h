@@ -67,7 +67,9 @@ enum class EVaelProjectileLook : uint8
 	/** A plain ball in the color of the element */
 	Sphere,
 	/** A slim, glowing streak that keeps shedding little embers in flight, like the Funke */
-	Spark
+	Spark,
+	/** A round, softly wobbling ball of water that bursts under pressure where it hits, like the Wassergeschoss */
+	WaterOrb
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */

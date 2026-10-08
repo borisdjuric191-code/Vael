@@ -53,6 +53,7 @@ FORMULAS = [
         "knockback": 4.0 * TILE,
         "applied_status": Status.WET,
         "status_duration": 5.0,
+        "projectile_look": unreal.VaelProjectileLook.WATER_ORB,
         "projectile_speed": 11.0 * TILE,
         "projectile_radius": 0.22 * TILE,
         "projectile_lifetime": 1.1,

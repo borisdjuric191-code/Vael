@@ -43,10 +43,30 @@ namespace
 	constexpr float SparkEmberForwardShare = 0.12f;
 	constexpr float SparkEmberGravity = 520.0f;
 
+	/** Embers a hit throws out on top of those already in the air */
+	constexpr int32 SparkImpactEmbers = 7;
+
+	/** The ball of water is this much smaller than the collision radius of its projectile, and swells and shrinks by this share */
+	constexpr float WaterOrbSizeShare = 0.92f;
+	constexpr float WaterOrbWobble = 0.06f;
+
+	/** Drops a ball of water bursts into, how fast they shoot out in cm/s, how they fall in cm/s² and how long they last */
+	constexpr int32 WaterBurstDropCount = 18;
+	constexpr float WaterBurstSpeed = 1050.0f;
+	constexpr float WaterBurstGravity = 950.0f;
+	constexpr float WaterBurstDropLifetime = 0.5f;
+
+	/** The ring of spray grows to this many times the ball within this time; its glow, the flash of the light and the shake of the camera */
+	constexpr float WaterBurstRingGrowth = 4.2f;
+	constexpr float WaterBurstRingTime = 0.2f;
+	constexpr float WaterBurstGlow = 3.0f;
+	constexpr float WaterBurstFlash = 5.0f;
+	constexpr float WaterBurstShake = 0.12f;
+
 	/** Material parameters of the glow materials */
-	const FName SparkColorParameter(TEXT("Color"));
-	const FName SparkGlowParameter(TEXT("Glow"));
-	const FName SparkRimParameter(TEXT("Rim"));
+	const FName LookColorParameter(TEXT("Color"));
+	const FName LookGlowParameter(TEXT("Glow"));
+	const FName LookRimParameter(TEXT("Rim"));
 }
 
 AVaelSpellProjectile::AVaelSpellProjectile()
@@ -134,18 +154,18 @@ void AVaelSpellProjectile::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (Hit.Element == EVaelElement::Water)
+	if (Hit.Element == EVaelElement::Water && !bFlightEnded)
 	{
 		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), Collision->GetScaledSphereRadius());
 	}
 
-	if (!SparkShapes.IsEmpty())
+	if (!LookShapes.IsEmpty())
 	{
-		AnimateSpark(DeltaSeconds);
+		AnimateLook(DeltaSeconds);
 	}
 }
 
-UStaticMeshComponent* AVaelSpellProjectile::AddSparkShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, bool bStaysBehind)
+UStaticMeshComponent* AVaelSpellProjectile::AddLookShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim, bool bLoose)
 {
 	UStaticMeshComponent* Shape = NewObject<UStaticMeshComponent>(this);
 	Shape->SetupAttachment(RootComponent);
@@ -154,8 +174,9 @@ UStaticMeshComponent* AVaelSpellProjectile::AddSparkShape(UMaterialInterface* Ma
 	Shape->SetCastShadow(false);
 	Shape->bReceivesDecals = false;
 
-	if (bStaysBehind)
+	if (bLoose)
 	{
+		// Loose pieces keep their place in the world instead of flying along, and wait hidden until they are shed
 		Shape->SetUsingAbsoluteLocation(true);
 		Shape->SetUsingAbsoluteRotation(true);
 		Shape->SetVisibility(false);
@@ -166,15 +187,31 @@ UStaticMeshComponent* AVaelSpellProjectile::AddSparkShape(UMaterialInterface* Ma
 
 	if (UMaterialInstanceDynamic* Dynamic = Shape->CreateAndSetMaterialInstanceDynamic(0))
 	{
-		Dynamic->SetVectorParameterValue(SparkColorParameter, ShapeColor);
-		Dynamic->SetScalarParameterValue(SparkGlowParameter, Glow);
-		Dynamic->SetScalarParameterValue(SparkRimParameter, 0.0f);
+		Dynamic->SetVectorParameterValue(LookColorParameter, ShapeColor);
+		Dynamic->SetScalarParameterValue(LookGlowParameter, Glow);
+		Dynamic->SetScalarParameterValue(LookRimParameter, Rim);
 	}
 
 	return Shape;
 }
 
-void AVaelSpellProjectile::BuildSpark()
+void AVaelSpellProjectile::AddLookLight(const FLinearColor& LightColor, float Intensity)
+{
+	LookLight = NewObject<UPointLightComponent>(this);
+	LookLight->SetupAttachment(RootComponent);
+	LookLight->SetMobility(EComponentMobility::Movable);
+	LookLight->SetIntensityUnits(ELightUnits::Candelas);
+	LookLight->SetIntensity(Intensity);
+	LookLight->SetLightColor(LightColor);
+	LookLight->SetAttenuationRadius(320.0f);
+	LookLight->SetSourceRadius(4.0f);
+	LookLight->SetCastShadows(false);
+	LookLight->RegisterComponent();
+
+	LookLightIntensity = Intensity;
+}
+
+void AVaelSpellProjectile::BuildLook()
 {
 	// The glowing materials of the element orbs; the plain engine material while they don't exist
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
@@ -184,105 +221,290 @@ void AVaelSpellProjectile::BuildSpark()
 	CoreMaterial = CoreMaterial != nullptr ? CoreMaterial : Plain;
 	GlowMaterial = GlowMaterial != nullptr ? GlowMaterial : Plain;
 
-	const FLinearColor Hot = FMath::Lerp(SpellColor, FLinearColor::White, 0.45f);
-	const FLinearColor Dying = SpellColor * FLinearColor(1.0f, 0.45f, 0.3f);
+	const float Radius = Collision->GetScaledSphereRadius();
 
-	// A white-hot streak in a halo of its color, with a tail that thins out behind it
-	SparkShapes.Add(AddSparkShape(CoreMaterial, Hot, 18.0f));
-	SparkShapes.Add(AddSparkShape(GlowMaterial, SpellColor, 3.0f));
-
-	for (int32 TailIndex = 0; TailIndex < SparkTailCount; ++TailIndex)
+	if (Look == EVaelProjectileLook::Spark)
 	{
-		SparkShapes.Add(AddSparkShape(GlowMaterial, FMath::Lerp(SpellColor, Dying, (TailIndex + 1.0f) / SparkTailCount), 2.6f - TailIndex * 0.5f));
+		const FLinearColor Hot = FMath::Lerp(SpellColor, FLinearColor::White, 0.45f);
+		const FLinearColor Dying = SpellColor * FLinearColor(1.0f, 0.45f, 0.3f);
+
+		// A white-hot streak in a halo of its color, with a tail that thins out behind it
+		LookShapes.Add(AddLookShape(CoreMaterial, Hot, 18.0f));
+		LookShapes.Add(AddLookShape(GlowMaterial, SpellColor, 3.0f));
+
+		for (int32 TailIndex = 0; TailIndex < SparkTailCount; ++TailIndex)
+		{
+			LookShapes.Add(AddLookShape(GlowMaterial, FMath::Lerp(SpellColor, Dying, (TailIndex + 1.0f) / SparkTailCount), 2.6f - TailIndex * 0.5f));
+		}
+
+		// Embers the spark sheds in flight
+		for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
+		{
+			LoosePieces.Add(AddLookShape(GlowMaterial, FMath::Lerp(SpellColor, Dying, 0.5f), 5.0f, 0.0f, true));
+		}
+
+		LooseSize = Radius * SparkThicknessShare * 0.9f / (PlaceholderSphereRadius * 2.0f);
+		LooseLifetime = SparkEmberLifetime;
+		LooseGravity = SparkEmberGravity;
+		LooseDrag = 2.2f;
+		bLooseFlicker = true;
+
+		AddLookLight(SpellColor, 9.0f);
+	}
+	else if (Look == EVaelProjectileLook::WaterOrb)
+	{
+		const FLinearColor Deep = SpellColor * FLinearColor(0.25f, 0.45f, 0.8f);
+		const FLinearColor Bright = FMath::Lerp(SpellColor, FLinearColor::White, 0.35f);
+
+		// A round ball of water with a pale sheen, two drops trailing behind, and the ring of its burst waiting inside
+		LookShapes.Add(AddLookShape(CoreMaterial, Deep, 0.7f));
+		LookShapes.Add(AddLookShape(GlowMaterial, Bright, 1.8f, 1.0f));
+		LookShapes.Add(AddLookShape(CoreMaterial, Bright, 0.8f));
+		LookShapes.Add(AddLookShape(CoreMaterial, Bright, 0.8f));
+
+		UStaticMeshComponent* Ring = AddLookShape(GlowMaterial, Bright, WaterBurstGlow, 1.0f);
+		Ring->SetVisibility(false);
+		BurstMaterial = Cast<UMaterialInstanceDynamic>(Ring->GetMaterial(0));
+		LookShapes.Add(Ring);
+
+		// Drops the ball bursts into
+		for (int32 DropIndex = 0; DropIndex < WaterBurstDropCount; ++DropIndex)
+		{
+			LoosePieces.Add(AddLookShape(CoreMaterial, Bright, 0.9f, 0.0f, true));
+		}
+
+		LooseSize = Radius * 0.3f / (PlaceholderSphereRadius * 2.0f);
+		LooseLifetime = WaterBurstDropLifetime;
+		LooseGravity = WaterBurstGravity;
+		LooseDrag = 2.6f;
+		bLooseFlicker = false;
+
+		AddLookLight(Bright, 3.0f);
+	}
+	else
+	{
+		return;
 	}
 
-	for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
-	{
-		Embers.Add(AddSparkShape(GlowMaterial, FMath::Lerp(SpellColor, Dying, 0.5f), 5.0f, true));
-	}
-
-	EmberVelocities.Init(FVector::ZeroVector, SparkEmberCount);
-	EmberAges.Init(-1.0f, SparkEmberCount);
-
-	SparkLight = NewObject<UPointLightComponent>(this);
-	SparkLight->SetupAttachment(RootComponent);
-	SparkLight->SetMobility(EComponentMobility::Movable);
-	SparkLight->SetIntensityUnits(ELightUnits::Candelas);
-	SparkLight->SetIntensity(9.0f);
-	SparkLight->SetLightColor(SpellColor);
-	SparkLight->SetAttenuationRadius(320.0f);
-	SparkLight->SetSourceRadius(4.0f);
-	SparkLight->SetCastShadows(false);
-	SparkLight->RegisterComponent();
+	LooseVelocities.Init(FVector::ZeroVector, LoosePieces.Num());
+	LooseAges.Init(-1.0f, LoosePieces.Num());
 
 	Mesh->SetVisibility(false);
 	SetActorTickEnabled(true);
-	AnimateSpark(0.0f);
+	AnimateLook(0.0f);
 }
 
-void AVaelSpellProjectile::AnimateSpark(float DeltaSeconds)
+void AVaelSpellProjectile::ShedPiece(const FVector& Location, const FVector& Velocity)
+{
+	if (LoosePieces.IsEmpty())
+	{
+		return;
+	}
+
+	LooseAges[NextLoosePiece] = 0.0f;
+	LooseVelocities[NextLoosePiece] = Velocity;
+	LoosePieces[NextLoosePiece]->SetWorldLocation(Location);
+	LoosePieces[NextLoosePiece]->SetRelativeScale3D(FVector(LooseSize));
+	LoosePieces[NextLoosePiece]->SetVisibility(true);
+
+	NextLoosePiece = (NextLoosePiece + 1) % LoosePieces.Num();
+}
+
+void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 {
 	const float Time = GetWorld()->GetTimeSeconds();
+
+	if (bFlightEnded)
+	{
+		// What is left of the spell plays out, then the projectile goes
+		AfterglowTime += DeltaSeconds;
+		if (AfterglowTime >= LooseLifetime)
+		{
+			Destroy();
+			return;
+		}
+
+		if (Look == EVaelProjectileLook::WaterOrb)
+		{
+			AnimateWaterBurst();
+		}
+	}
+	else if (Look == EVaelProjectileLook::Spark)
+	{
+		AnimateSpark(Time, DeltaSeconds);
+	}
+	else
+	{
+		AnimateWaterOrb(Time);
+	}
+
+	// Loose pieces fall, slow down in the air and shrink as they die
+	for (int32 PieceIndex = 0; PieceIndex < LoosePieces.Num(); ++PieceIndex)
+	{
+		if (LooseAges[PieceIndex] < 0.0f)
+		{
+			continue;
+		}
+
+		LooseAges[PieceIndex] += DeltaSeconds;
+		if (LooseAges[PieceIndex] >= LooseLifetime)
+		{
+			LooseAges[PieceIndex] = -1.0f;
+			LoosePieces[PieceIndex]->SetVisibility(false);
+			continue;
+		}
+
+		LooseVelocities[PieceIndex].Z -= LooseGravity * DeltaSeconds;
+		LooseVelocities[PieceIndex] *= FMath::Max(0.0f, 1.0f - LooseDrag * DeltaSeconds);
+
+		const float Dying = 1.0f - LooseAges[PieceIndex] / LooseLifetime;
+		const float Flicker = bLooseFlicker ? 0.8f + 0.4f * FMath::Sin(Time * 40.0f + PieceIndex * 2.7f) : 1.0f;
+
+		LoosePieces[PieceIndex]->SetWorldLocation(LoosePieces[PieceIndex]->GetComponentLocation() + LooseVelocities[PieceIndex] * DeltaSeconds);
+		LoosePieces[PieceIndex]->SetRelativeScale3D(FVector(LooseSize * Dying * Flicker));
+	}
+}
+
+void AVaelSpellProjectile::AnimateSpark(float Time, float DeltaSeconds)
+{
 	const float Radius = Collision->GetScaledSphereRadius();
 	const float Length = Radius * SparkLengthShare / (PlaceholderSphereRadius * 2.0f);
 	const float Thickness = Radius * SparkThicknessShare / (PlaceholderSphereRadius * 2.0f);
 	const float Flicker = FMath::PerlinNoise1D(Time * 14.0f);
 
 	// The streak lies along the flight; core and halo flicker against each other
-	SparkShapes[0]->SetRelativeScale3D(FVector(Length, Thickness, Thickness) * (1.0f + 0.1f * Flicker));
-	SparkShapes[1]->SetRelativeScale3D(FVector(Length * 1.5f, Thickness * 2.6f, Thickness * 2.6f) * (1.0f - 0.15f * Flicker));
+	LookShapes[0]->SetRelativeScale3D(FVector(Length, Thickness, Thickness) * (1.0f + 0.1f * Flicker));
+	LookShapes[1]->SetRelativeScale3D(FVector(Length * 1.5f, Thickness * 2.6f, Thickness * 2.6f) * (1.0f - 0.15f * Flicker));
 
 	for (int32 TailIndex = 0; TailIndex < SparkTailCount; ++TailIndex)
 	{
 		const float Thin = 1.0f - (TailIndex + 1.0f) / (SparkTailCount + 1.5f);
 		const float Waver = FMath::Sin(Time * 26.0f + TailIndex * 1.9f);
 
-		UStaticMeshComponent* Piece = SparkShapes[2 + TailIndex];
+		UStaticMeshComponent* Piece = LookShapes[2 + TailIndex];
 		Piece->SetRelativeLocation(FVector(-Radius * SparkLengthShare * 0.55f * (TailIndex + 1.0f), Waver * Radius * 0.07f, 0.0f));
 		Piece->SetRelativeScale3D(FVector(Length * 0.9f, Thickness * 2.0f * Thin, Thickness * 2.0f * Thin) * (1.0f + 0.12f * Waver));
 	}
 
-	SparkLight->SetIntensity(9.0f * (1.0f + 0.3f * Flicker));
+	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.3f * Flicker));
 
 	// Shed the next ember: it leaves the spark sideways, keeps a little of the flight speed and falls
-	NextEmberCountdown -= DeltaSeconds;
-	if (NextEmberCountdown <= 0.0f)
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
 	{
-		NextEmberCountdown = SparkEmberInterval * FMath::FRandRange(0.6f, 1.5f);
+		NextShedCountdown = SparkEmberInterval * FMath::FRandRange(0.6f, 1.5f);
 
 		const FVector Forward = GetActorForwardVector();
-		const FVector Sideways = FMath::VRand() * SparkEmberSpread * FMath::FRandRange(0.4f, 1.0f);
+		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.2f, 1.2f),
+			Forward * Movement->Velocity.Size() * SparkEmberForwardShare + FMath::VRand() * SparkEmberSpread * FMath::FRandRange(0.4f, 1.0f) + FVector(0.0f, 0.0f, 60.0f));
+	}
+}
 
-		EmberAges[NextEmber] = 0.0f;
-		EmberVelocities[NextEmber] = Forward * Movement->Velocity.Size() * SparkEmberForwardShare + Sideways + FVector(0.0f, 0.0f, 60.0f);
-		Embers[NextEmber]->SetWorldLocation(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.2f, 1.2f));
-		Embers[NextEmber]->SetVisibility(true);
+void AVaelSpellProjectile::AnimateWaterOrb(float Time)
+{
+	const float Radius = Collision->GetScaledSphereRadius();
+	const float Size = Radius * WaterOrbSizeShare / PlaceholderSphereRadius;
 
-		NextEmber = (NextEmber + 1) % SparkEmberCount;
+	// Round, with a slow wobble: the ball swells a little along one axis while it shrinks along the others
+	const float Wave = Time * 7.0f;
+	const FVector Wobble(1.0f + WaterOrbWobble * FMath::Sin(Wave), 1.0f + WaterOrbWobble * FMath::Sin(Wave + 2.1f), 1.0f + WaterOrbWobble * FMath::Sin(Wave + 4.2f));
+
+	LookShapes[0]->SetRelativeScale3D(Wobble * Size);
+	LookShapes[1]->SetRelativeScale3D(Wobble * Size * 1.12f);
+
+	// Two drops are dragged along behind and swing below the path of the ball
+	for (int32 DropIndex = 0; DropIndex < 2; ++DropIndex)
+	{
+		const float Swing = FMath::Sin(Time * 9.0f + DropIndex * 2.4f);
+
+		UStaticMeshComponent* Drop = LookShapes[2 + DropIndex];
+		Drop->SetRelativeLocation(FVector(-Radius * (1.05f + 0.55f * DropIndex), Swing * Radius * 0.12f, -Radius * (0.15f + 0.2f * DropIndex)));
+		Drop->SetRelativeScale3D(FVector(1.25f, 0.85f, 0.85f) * Size * (0.26f - 0.08f * DropIndex) * (1.0f + 0.15f * Swing));
 	}
 
-	for (int32 EmberIndex = 0; EmberIndex < Embers.Num(); ++EmberIndex)
+	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.1f * FMath::Sin(Wave)));
+}
+
+void AVaelSpellProjectile::AnimateWaterBurst()
+{
+	if (!bBurst)
 	{
-		if (EmberAges[EmberIndex] < 0.0f)
+		return;
+	}
+
+	// The ring of spray shoots outwards and fades, the flash of light dies with it
+	const float Progress = FMath::Clamp(AfterglowTime / WaterBurstRingTime, 0.0f, 1.0f);
+	const float Reach = 1.0f - FMath::Square(1.0f - Progress);
+	const float Size = Collision->GetScaledSphereRadius() * WaterOrbSizeShare / PlaceholderSphereRadius;
+
+	UStaticMeshComponent* Ring = LookShapes.Last();
+	Ring->SetRelativeScale3D(FVector(Size * (1.0f + WaterBurstRingGrowth * Reach)));
+	Ring->SetVisibility(Progress < 1.0f);
+
+	if (BurstMaterial != nullptr)
+	{
+		BurstMaterial->SetScalarParameterValue(LookGlowParameter, WaterBurstGlow * (1.0f - Progress));
+	}
+
+	LookLight->SetIntensity(LookLightIntensity * WaterBurstFlash * (1.0f - Progress));
+}
+
+void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
+{
+	bFlightEnded = true;
+	AfterglowTime = 0.0f;
+
+	// The projectile stays where it ended and can't hit anything any more
+	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Movement->StopMovementImmediately();
+	Movement->Deactivate();
+	SetLifeSpan(0.0f);
+
+	const FVector Center = GetActorLocation();
+	const float Radius = Collision->GetScaledSphereRadius();
+
+	for (UStaticMeshComponent* Shape : LookShapes)
+	{
+		Shape->SetVisibility(false);
+	}
+
+	if (Look == EVaelProjectileLook::Spark)
+	{
+		// The embers already in the air glow out; a hit throws a last handful in all directions
+		LookLight->SetVisibility(false);
+
+		for (int32 EmberIndex = 0; bHitSomething && EmberIndex < SparkImpactEmbers; ++EmberIndex)
 		{
-			continue;
+			ShedPiece(Center, FMath::VRand() * SparkEmberSpread * FMath::FRandRange(1.2f, 2.6f) + FVector(0.0f, 0.0f, 140.0f));
+		}
+	}
+	else if (Look == EVaelProjectileLook::WaterOrb)
+	{
+		// The ball bursts under pressure: drops shoot out all around and upwards, a ring of spray races after them.
+		// A ball that just runs out in the air only falls apart.
+		const int32 NumDrops = bHitSomething ? LoosePieces.Num() : LoosePieces.Num() / 4;
+		const float Pressure = bHitSomething ? 1.0f : 0.2f;
+
+		for (int32 DropIndex = 0; DropIndex < NumDrops; ++DropIndex)
+		{
+			FVector Direction = FMath::VRand();
+			Direction.Z = FMath::Abs(Direction.Z) * 0.7f;
+			Direction.Normalize();
+
+			ShedPiece(Center + Direction * Radius * 0.4f, Direction * FMath::FRandRange(WaterBurstSpeed * 0.55f, WaterBurstSpeed) * Pressure + FVector(0.0f, 0.0f, 160.0f * Pressure));
 		}
 
-		EmberAges[EmberIndex] += DeltaSeconds;
-		if (EmberAges[EmberIndex] >= SparkEmberLifetime)
+		bBurst = bHitSomething;
+
+		if (bHitSomething)
 		{
-			EmberAges[EmberIndex] = -1.0f;
-			Embers[EmberIndex]->SetVisibility(false);
-			continue;
+			LookShapes.Last()->SetVisibility(true);
+			UVaelHitFeedbackSubsystem::Shake(this, WaterBurstShake);
 		}
-
-		// Embers fall, slow down in the air and shrink as they die
-		EmberVelocities[EmberIndex].Z -= SparkEmberGravity * DeltaSeconds;
-		EmberVelocities[EmberIndex] *= FMath::Max(0.0f, 1.0f - 2.2f * DeltaSeconds);
-
-		const float Dying = 1.0f - EmberAges[EmberIndex] / SparkEmberLifetime;
-		Embers[EmberIndex]->SetWorldLocation(Embers[EmberIndex]->GetComponentLocation() + EmberVelocities[EmberIndex] * DeltaSeconds);
-		Embers[EmberIndex]->SetRelativeScale3D(FVector(Thickness * 0.9f * Dying * (0.8f + 0.4f * FMath::Sin(Time * 40.0f + EmberIndex * 2.7f))));
+		else
+		{
+			LookLight->SetVisibility(false);
+		}
 	}
 }
 
@@ -338,9 +560,9 @@ void AVaelSpellProjectile::BeginPlay()
 	{
 		Mesh->SetVisibility(false);
 	}
-	else if (Look == EVaelProjectileLook::Spark)
+	else
 	{
-		BuildSpark();
+		BuildLook();
 	}
 }
 
@@ -390,7 +612,7 @@ AVaelSpellProjectile* AVaelSpellProjectile::Launch(APawn* Attacker, const FVecto
 
 void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 {
-	if (IsActorBeingDestroyed())
+	if (IsActorBeingDestroyed() || bFlightEnded)
 	{
 		return;
 	}
@@ -416,6 +638,13 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 		{
 			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator(), true, ImpactEffect, ImpactAreaVisual);
 		}
+	}
+
+	// A projectile with a look of its own stays for a moment, so its embers can glow out or its water can burst
+	if (!LookShapes.IsEmpty())
+	{
+		BeginAfterglow(bHitSomething);
+		return;
 	}
 
 	Destroy();
