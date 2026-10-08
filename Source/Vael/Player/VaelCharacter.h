@@ -14,6 +14,7 @@ class UNiagaraComponent;
 class UPointLightComponent;
 class UStaticMeshComponent;
 class UVaelElementComponent;
+class UVaelElementOrbitComponent;
 class UVaelInventory;
 class UVaelMaterialBag;
 
@@ -44,13 +45,9 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelMaterialBag> MaterialBag;
 
-	/** Anchor of the queue orbs above the head, keeps facing the camera while the character turns */
+	/** The queued elements, circling above the head */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<USceneComponent> QueueOrbRoot;
-
-	/** Placeholder display of the element queue: one orb per slot */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	TArray<TObjectPtr<UStaticMeshComponent>> QueueOrbs;
+	TObjectPtr<UVaelElementOrbitComponent> ElementOrbit;
 
 	/** Light at the casting hand in the color of the newest queued element */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -58,21 +55,14 @@ private:
 
 protected:
 
-	/** Height of the queue orbs above the centre of the character */
+	/** Height of the circle of element orbs above the centre of the character */
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	float QueueOrbHeight = 135.0f;
-
-	/** Distance between two queue orbs */
-	UPROPERTY(EditAnywhere, Category="Appearance")
-	float QueueOrbSpacing = 34.0f;
 
 	/** Brightness of the light at the hand for one queued element, in candela; more elements and elements from the environment shine stronger */
 	UPROPERTY(EditAnywhere, Category="Appearance", meta = (ClampMin = 0))
 	float HandLightIntensity = 12.0f;
 
-	/** Color of a queue slot without an element */
-	UPROPERTY(EditAnywhere, Category="Appearance")
-	FLinearColor EmptySlotColor = FLinearColor(0.02f, 0.02f, 0.02f);
 
 	/** Debug help: shows health and mana as text above the character */
 	UPROPERTY(EditAnywhere, Category="Appearance")
@@ -208,7 +198,7 @@ protected:
 
 private:
 
-	/** Updates the queue orbs to show the queued elements */
+	/** Lets the element orbs show the queued elements */
 	void RefreshQueueOrbs();
 
 	/** Shows the new queue and plays the hand gesture for a chosen element */
@@ -217,14 +207,8 @@ private:
 	/** Lets the hand glow in the color of the newest queued element, or switches the glow off for an empty queue */
 	void RefreshHandEffect();
 
-	/** Keeps the queue orbs alive: filled ones float and pulse, a newly chosen one pops up; lets the light at the hand flicker */
-	void AnimateQueue();
-
-	/** Size of each queue orb at rest */
-	TArray<float> QueueOrbScales;
-
-	/** Time each queue orb was filled, below 0 while its slot is empty */
-	TArray<float> QueueOrbFillTimes;
+	/** Lets the light at the hand flicker */
+	void FlickerHandLight();
 
 	/** Brightness of the light at the hand before its flicker, 0 while no element is queued */
 	float CurrentHandLightIntensity = 0.0f;

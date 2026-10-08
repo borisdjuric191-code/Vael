@@ -9,7 +9,9 @@
 #include "VaelMagicSettings.generated.h"
 
 class UAnimMontage;
+class UMaterialInterface;
 class UNiagaraSystem;
+class UStaticMesh;
 
 /**
  *  Rules of the magic system that apply to every formula.
@@ -193,4 +195,16 @@ public:
 	/** Glow at the hand while elements are chosen; gets Color, and Intensity 1 or 2 for elements from the environment */
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UNiagaraSystem> HandEffect;
+
+	/** Solid, glowing material of the element orbs above the head; gets Color and Glow. Without it they use the plain engine material. */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UMaterialInterface> ElementOrbCoreMaterial;
+
+	/** See-through glow of the element orbs: halos, flames, wind; gets Color, Glow and Rim (0 bright in the middle, 1 bright at the edge) */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UMaterialInterface> ElementOrbGlowMaterial;
+
+	/** Rock of the earth orb. Without it the orb is a brown sphere. */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UStaticMesh> ElementOrbRockMesh;
 };

@@ -2,6 +2,8 @@
 
 #include "Magic/VaelMagicSettings.h"
 #include "Animation/AnimMontage.h"
+#include "Engine/StaticMesh.h"
+#include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
 #include "VaelAssets.h"
@@ -53,6 +55,10 @@ UVaelMagicSettings::UVaelMagicSettings()
 	MudEffect = Effect(TEXT("NS_Vael_Mud"));
 	BeamEffect = Effect(TEXT("NS_Vael_Beam"));
 	HandEffect = Effect(TEXT("NS_Vael_Hand"));
+
+	ElementOrbCoreMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/M_Vael_Kugel.M_Vael_Kugel")));
+	ElementOrbGlowMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/M_Vael_Schein.M_Vael_Schein")));
+	ElementOrbRockMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Rock_Collection_04/Meshes/Rock_03/StaticMeshes/SM_Rock_03.SM_Rock_03")));
 }
 
 UAnimMontage* UVaelMagicSettings::FindCastMontage(EVaelSpellDelivery Delivery) const

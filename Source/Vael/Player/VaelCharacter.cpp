@@ -20,6 +20,7 @@
 #include "Items/VaelInventory.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelElementComponent.h"
+#include "Magic/VaelElementOrbitComponent.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
@@ -37,23 +38,6 @@ namespace
 {
 	/** Blend time when a roll montage is cut short */
 	constexpr float RollMontageBlendOutTime = 0.15f;
-
-	/** How far filled queue orbs float up and down in cm, and how fast */
-	constexpr float QueueOrbFloatHeight = 4.5f;
-	constexpr float QueueOrbFloatSpeed = 2.4f;
-
-	/** Share by which filled queue orbs swell and shrink, and how fast */
-	constexpr float QueueOrbPulse = 0.07f;
-	constexpr float QueueOrbPulseSpeed = 3.2f;
-
-	/** A newly chosen element pops up this much bigger, swings and settles */
-	constexpr float QueueOrbPopSize = 0.7f;
-	constexpr float QueueOrbPopDecay = 8.0f;
-	constexpr float QueueOrbPopSwing = 20.0f;
-
-	/** Faint breathing of the empty slots */
-	constexpr float QueueOrbEmptyPulse = 0.15f;
-	constexpr float QueueOrbEmptyPulseSpeed = 1.6f;
 }
 
 AVaelCharacter::AVaelCharacter()
@@ -122,38 +106,9 @@ AVaelCharacter::AVaelCharacter()
 	// Create the equipment and backpack
 	Inventory = CreateDefaultSubobject<UVaelInventory>(TEXT("Inventory"));
 
-	// Create the queue orbs: one per possible slot, laid out when the game starts
-	QueueOrbRoot = CreateDefaultSubobject<USceneComponent>(TEXT("QueueOrbRoot"));
-	QueueOrbRoot->SetupAttachment(RootComponent);
-	QueueOrbRoot->SetUsingAbsoluteRotation(true);
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> OrbMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-
-	for (int32 SlotIndex = 0; SlotIndex < VaelElements::MaxQueueSlots; ++SlotIndex)
-	{
-		UStaticMeshComponent* Orb = CreateDefaultSubobject<UStaticMeshComponent>(*FString::Printf(TEXT("QueueOrb%d"), SlotIndex));
-
-		Orb->SetupAttachment(QueueOrbRoot);
-		Orb->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Orb->SetCastShadow(false);
-		Orb->bReceivesDecals = false;
-		Orb->SetVisibility(false);
-
-		if (OrbMesh.Succeeded())
-		{
-			Orb->SetStaticMesh(OrbMesh.Object);
-		}
-
-		if (MarkerMaterial.Succeeded())
-		{
-			Orb->SetMaterial(0, MarkerMaterial.Object);
-		}
-
-		QueueOrbs.Add(Orb);
-	}
-
-	QueueOrbScales.Init(0.0f, VaelElements::MaxQueueSlots);
-	QueueOrbFillTimes.Init(-1.0f, VaelElements::MaxQueueSlots);
+	// Create the circle of element orbs above the head
+	ElementOrbit = CreateDefaultSubobject<UVaelElementOrbitComponent>(TEXT("ElementOrbit"));
+	ElementOrbit->SetupAttachment(RootComponent);
 
 	// Create the light at the casting hand; it moves to the hand socket when the game starts
 	HandLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("HandLight"));
@@ -187,12 +142,7 @@ void AVaelCharacter::BeginPlay()
 	DefaultMeshScale = GetMesh()->GetRelativeScale3D();
 	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 
-	// Line the queue orbs up across the screen
-	AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();
-	const AVaelSharedCamera* SharedCamera = GameMode != nullptr ? GameMode->GetSharedCamera() : nullptr;
-
-	QueueOrbRoot->SetRelativeLocation(FVector(0.f, 0.f, QueueOrbHeight));
-	QueueOrbRoot->SetWorldRotation(FRotator(0.f, SharedCamera != nullptr ? SharedCamera->GetCameraYaw() : 0.f, 0.f));
+	ElementOrbit->SetRelativeLocation(FVector(0.f, 0.f, QueueOrbHeight));
 
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	LoadedElementSelectMontage = VaelAssets::LoadOptional(MagicSettings->ElementSelectMontage);
@@ -281,77 +231,12 @@ void AVaelCharacter::OnElementQueueChanged()
 
 void AVaelCharacter::RefreshQueueOrbs()
 {
-	const TArray<EVaelElement>& Queue = ElementComponent->GetQueue();
-	const int32 NumSlots = ElementComponent->GetNumSlots();
-	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-
-	for (int32 SlotIndex = 0; SlotIndex < QueueOrbs.Num(); ++SlotIndex)
-	{
-		UStaticMeshComponent* Orb = QueueOrbs[SlotIndex];
-
-		Orb->SetVisibility(SlotIndex < NumSlots);
-		if (SlotIndex >= NumSlots)
-		{
-			continue;
-		}
-
-		// Filled slots are bigger and carry the color of their element, elements drawn from the environment are bigger still
-		const bool bFilled = Queue.IsValidIndex(SlotIndex);
-		const float OrbScale = !bFilled ? 0.1f : ElementComponent->IsFromEnvironment(SlotIndex) ? 0.36f : 0.24f;
-
-		Orb->SetRelativeLocation(FVector(0.f, (SlotIndex - (NumSlots - 1) * 0.5f) * QueueOrbSpacing, 0.f));
-		Orb->SetRelativeScale3D(FVector(OrbScale));
-
-		// Remember the size at rest and when the slot was filled; the animation works from these
-		QueueOrbScales[SlotIndex] = OrbScale;
-		if (!bFilled)
-		{
-			QueueOrbFillTimes[SlotIndex] = -1.0f;
-		}
-		else if (QueueOrbFillTimes[SlotIndex] < 0.0f)
-		{
-			QueueOrbFillTimes[SlotIndex] = GetWorld()->GetTimeSeconds();
-		}
-
-		UMaterialInstanceDynamic* OrbMaterial = Cast<UMaterialInstanceDynamic>(Orb->GetMaterial(0));
-		if (OrbMaterial == nullptr)
-		{
-			OrbMaterial = Orb->CreateAndSetMaterialInstanceDynamic(0);
-		}
-
-		if (OrbMaterial != nullptr)
-		{
-			OrbMaterial->SetVectorParameterValue(MarkerColorParameter, bFilled ? MagicSettings->GetElementColor(Queue[SlotIndex]) : EmptySlotColor);
-		}
-	}
+	ElementOrbit->ShowQueue(*ElementComponent);
 }
 
-void AVaelCharacter::AnimateQueue()
+void AVaelCharacter::FlickerHandLight()
 {
 	const float Time = GetWorld()->GetTimeSeconds();
-	const int32 NumSlots = ElementComponent->GetNumSlots();
-
-	for (int32 SlotIndex = 0; SlotIndex < QueueOrbs.Num() && SlotIndex < NumSlots; ++SlotIndex)
-	{
-		UStaticMeshComponent* Orb = QueueOrbs[SlotIndex];
-		const float Across = (SlotIndex - (NumSlots - 1) * 0.5f) * QueueOrbSpacing;
-
-		if (QueueOrbFillTimes[SlotIndex] < 0.0f)
-		{
-			// Empty slots breathe faintly in place
-			Orb->SetRelativeLocation(FVector(0.0f, Across, 0.0f));
-			Orb->SetRelativeScale3D(FVector(QueueOrbScales[SlotIndex] * (1.0f + QueueOrbEmptyPulse * FMath::Sin(Time * QueueOrbEmptyPulseSpeed + SlotIndex))));
-			continue;
-		}
-
-		// A chosen element pops up, swings out and then floats and pulses, each orb a little out of step with its neighbors
-		const float Age = Time - QueueOrbFillTimes[SlotIndex];
-		const float Pop = 1.0f + QueueOrbPopSize * FMath::Exp(-Age * QueueOrbPopDecay) * FMath::Cos(Age * QueueOrbPopSwing);
-		const float Pulse = 1.0f + QueueOrbPulse * FMath::Sin(Time * QueueOrbPulseSpeed + SlotIndex * 1.3f);
-
-		Orb->SetRelativeLocation(FVector(0.0f, Across, QueueOrbFloatHeight * FMath::Sin(Time * QueueOrbFloatSpeed + SlotIndex * 1.1f)));
-		Orb->SetRelativeScale3D(FVector(QueueOrbScales[SlotIndex] * Pop * Pulse));
-	}
 
 	if (CurrentHandLightIntensity > 0.0f)
 	{
@@ -363,7 +248,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	AnimateQueue();
+	FlickerHandLight();
 
 #if ENABLE_DRAW_DEBUG
 	if (bShowStatusText)
