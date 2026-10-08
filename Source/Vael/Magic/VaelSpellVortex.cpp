@@ -218,6 +218,11 @@ void AVaelSpellVortex::HitEnemies(float DeltaSeconds)
 
 		Target->ApplyPull(Center, Settings.PullSpeed, DeltaSeconds);
 
+		if (Settings.BlindDuration > 0.0f)
+		{
+			Target->ApplyBlind(Settings.BlindDuration);
+		}
+
 		const float Dealt = CollectedDamage.Add(Target, DamagePerSecond * DeltaSeconds, Settings.DamageStep);
 		if (Dealt > 0.0f)
 		{

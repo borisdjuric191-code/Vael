@@ -41,6 +41,9 @@ struct FVaelVortexSettings
 	/** Speed at which enemies inside are dragged towards the middle, in cm/s */
 	float PullSpeed = 500.0f;
 
+	/** Enemies inside can't see for this long, renewed as long as they stay inside. 0 for none. */
+	float BlindDuration = 0.0f;
+
 	/** Seconds between two fires a fire whirl leaves behind, 0 for none */
 	float FireInterval = 0.0f;
 

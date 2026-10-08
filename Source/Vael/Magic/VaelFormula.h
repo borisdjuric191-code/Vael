@@ -189,8 +189,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Explosion", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Explosion"))
 	float ExplosionKnockback = 560.0f;
 
-	/** How far away the patch or the strike can be placed, in cm. Walls stop it earlier. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Strike"))
+	/** How far away the patch, the strike or a standing whirl can be placed, in cm. Walls stop it earlier. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::Vortex"))
 	float AreaRange = 980.0f;
 
 	/** Radius of the patch on the ground in cm. Explosions, strikes and spike lines leave no patch while this is 0. */
@@ -220,6 +220,18 @@ public:
 	/** Strength of the camera shake when the strike lands */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Strike"))
 	float StrikeShake = 0.0f;
+
+	/** Number of strikes. More than one makes a storm: they land one after the other, scattered around the aimed point. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Strike"))
+	int32 StrikeCount = 1;
+
+	/** Seconds between two strikes of a storm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Strike && StrikeCount > 1"))
+	float StrikeInterval = 0.3f;
+
+	/** How far from the aimed point the strikes of a storm land at most, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Strike && StrikeCount > 1"))
+	float StrikeScatter = 0.0f;
 
 	/** Speed of the dash in cm/s */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Dash"))
@@ -289,9 +301,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Nova", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Nova"))
 	float NovaShake = 0.7f;
 
-	/** Wandering speed of the whirlwind in cm/s */
+	/** Wandering speed of the whirlwind in cm/s. At 0 it stands still and is placed at the aimed point, like a maw in a swamp. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
 	float VortexSpeed = 476.0f;
+
+	/** Enemies inside the whirlwind can't see for this long, renewed as long as they stay inside. 0 for none. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
+	float VortexBlindDuration = 0.0f;
 
 	/** Radius of the whirlwind in cm; enemies touching it are pulled in and hurt */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))

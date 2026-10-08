@@ -729,6 +729,7 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 	Vortex.Radius = Formula.VortexRadius;
 	Vortex.Lifetime = Formula.VortexLifetime;
 	Vortex.PullSpeed = Formula.VortexPullSpeed;
+	Vortex.BlindDuration = Formula.VortexBlindDuration;
 	Vortex.FireInterval = Formula.AreaRadius > 0.0f ? Formula.VortexFireInterval : 0.0f;
 	Vortex.FireRadius = Formula.AreaRadius;
 	Vortex.FireLifetime = Formula.AreaLifetime;
@@ -738,7 +739,10 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 	Vortex.Visual = Formula.LoadEffects().Trail;
 
 	const FVector AimDirection = GetAimDirection(Caster);
-	AVaelSpellVortex::Launch(Cast<APawn>(Caster), Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance, AimDirection, Vortex);
+
+	// A whirl that doesn't wander opens at the aimed point, one that does starts in front of the caster
+	const FVector Location = Formula.VortexSpeed > 0.0f ? Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance : FindGroundTarget(Caster, Formula.AreaRange);
+	AVaelSpellVortex::Launch(Cast<APawn>(Caster), Location, AimDirection, Vortex);
 }
 
 void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster, float Power)
@@ -807,24 +811,36 @@ void UVaelFormulaAbility::CallStrike(const UVaelFormula& Formula, AActor* Caster
 		return;
 	}
 
-	FVector Location = FindGroundTarget(Caster, Formula.AreaRange);
+	const FVector Target = FindGroundTarget(Caster, Formula.AreaRange);
+	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+	const FLinearColor Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
 
-	// The strike lands on the ground below the aimed point
-	FHitResult GroundHit;
-	if (VaelGround::TraceGround(World, Location + FVector(0.0f, 0.0f, AreaGroundSearchHeight), Location - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
+	for (int32 StrikeIndex = 0; StrikeIndex < Formula.StrikeCount; ++StrikeIndex)
 	{
-		Location = GroundHit.Location;
-	}
-	else
-	{
-		Location.Z -= Caster->GetSimpleCollisionHalfHeight();
-	}
+		// A single strike lands exactly where it was aimed, the strikes of a storm scatter around that point
+		FVector Location = Target;
+		if (Formula.StrikeCount > 1 && Formula.StrikeScatter > 0.0f)
+		{
+			const FVector2D Offset = FMath::RandPointInCircle(Formula.StrikeScatter);
+			Location += FVector(Offset.X, Offset.Y, 0.0f);
+		}
 
-	AVaelGroundStrike* Strike = AVaelGroundStrike::SpawnStrike(Caster, Location, Formula.MakeSpellHit(Power), Formula.StrikeRadius, Formula.StrikeDelay,
-		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
-	if (Strike != nullptr)
-	{
-		Strike->SetAftermath(MakeAftermath(Formula, Power), Formula.StrikeShake);
+		// Each strike lands on the ground below its point
+		FHitResult GroundHit;
+		if (VaelGround::TraceGround(World, Location + FVector(0.0f, 0.0f, AreaGroundSearchHeight), Location - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
+		{
+			Location = GroundHit.Location;
+		}
+		else
+		{
+			Location.Z -= Caster->GetSimpleCollisionHalfHeight();
+		}
+
+		AVaelGroundStrike* Strike = AVaelGroundStrike::SpawnStrike(Caster, Location, Hit, Formula.StrikeRadius, Formula.StrikeDelay + Formula.StrikeInterval * StrikeIndex, Color);
+		if (Strike != nullptr)
+		{
+			Strike->SetAftermath(MakeAftermath(Formula, Power), Formula.StrikeShake);
+		}
 	}
 }
 
