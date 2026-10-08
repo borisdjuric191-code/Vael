@@ -189,25 +189,37 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Explosion", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Explosion"))
 	float ExplosionKnockback = 560.0f;
 
-	/** How far away the patch can be placed, in cm. Walls stop it earlier. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea"))
+	/** How far away the patch or the strike can be placed, in cm. Walls stop it earlier. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Strike"))
 	float AreaRange = 980.0f;
 
-	/** Radius of the patch on the ground in cm. Explosions leave no patch while this is 0. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex"))
+	/** Radius of the patch on the ground in cm. Explosions, strikes and spike lines leave no patch while this is 0. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::SpikeLine"))
 	float AreaRadius = 0.0f;
 
 	/** Seconds the patch lasts */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::SpikeLine"))
 	float AreaLifetime = 5.0f;
 
 	/** Damage per second of the patch to the enemies of the caster, in the damage element of the formula */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Beam || Delivery == EVaelSpellDelivery::Vortex || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::SpikeLine"))
 	float AreaDamagePerSecond = 0.0f;
 
 	/** What the patch does to enemies standing in it */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Explosion || Delivery == EVaelSpellDelivery::Strike"))
 	EVaelGroundEffect AreaEffect = EVaelGroundEffect::None;
+
+	/** Seconds between the warning on the ground and the strike landing */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Strike"))
+	float StrikeDelay = 1.0f;
+
+	/** Reach of the strike in cm; it deals the damage, knockback and condition of the formula to everyone inside */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Strike"))
+	float StrikeRadius = 266.0f;
+
+	/** Strength of the camera shake when the strike lands */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Strike"))
+	float StrikeShake = 0.0f;
 
 	/** Speed of the dash in cm/s */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Dash"))

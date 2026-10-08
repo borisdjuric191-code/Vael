@@ -13,7 +13,7 @@ class UVaelFormula;
  *  Ability that performs a formula. The formula asset is the source object of the ability,
  *  mana cost and power come from the cast the element component has prepared.
  *  With a cast animation the spell appears at its cast point; casting again during the animation releases the first spell at once.
- *  Handles projectiles, cones, chains, explosions, ground areas, dashes, walls, beams and novas; formulas that work differently derive from this class and override ExecuteFormula.
+ *  Handles every delivery of EVaelSpellDelivery; formulas that work differently derive from this class and override ExecuteFormula.
  */
 UCLASS()
 class UVaelFormulaAbility : public UGameplayAbility
@@ -70,8 +70,11 @@ protected:
 	/** Starts a storm around the caster, or renews it */
 	void StartAura(const UVaelFormula& Formula, AActor* Caster, float Power);
 
-	/** Calls a line of spikes out of the ground in the aim direction */
+	/** Calls a line of spikes out of the ground in the aim direction; with ground area values every second spike leaves a patch */
 	void CallSpikeLine(const UVaelFormula& Formula, AActor* Caster, float Power);
+
+	/** Calls a single strike down on the aimed point; it lands after a warning and may leave a patch */
+	void CallStrike(const UVaelFormula& Formula, AActor* Caster, float Power);
 
 	/** Point on the ground the caster aims at: the mouse cursor, or with a gamepad the nearest enemy in the aim direction. Stays within range and in front of walls. */
 	static FVector FindGroundTarget(AActor* Caster, float MaxRange);

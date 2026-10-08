@@ -9,6 +9,23 @@
 
 class UStaticMeshComponent;
 
+/** A patch on the ground a strike leaves where it lands, like the fire of a meteor */
+struct FVaelStrikeAftermath
+{
+	EVaelElement Element = EVaelElement::Fire;
+
+	/** Radius of the patch in cm, 0 for none */
+	float Radius = 0.0f;
+
+	/** Seconds the patch lasts */
+	float Lifetime = 0.0f;
+
+	/** Damage per second to the enemies of the attacker */
+	float DamagePerSecond = 0.0f;
+
+	EVaelGroundEffect Effect = EVaelGroundEffect::None;
+};
+
 /**
  *  An attack that breaks out of the ground after a warning, like the bone spikes of a preacher.
  *  Shows a flat warning disc first, then hurts the enemies of its instigator inside its radius once.
@@ -50,6 +67,9 @@ public:
 	/** Spawns a strike on the ground that lands after the delay. The attacker decides whom it hurts: a pawn its enemies, any other actor only players. */
 	static AVaelGroundStrike* SpawnStrike(AActor* Attacker, const FVector& GroundLocation, const FVaelSpellHit& InHit, float InRadius, float InDelay, const FLinearColor& Color);
 
+	/** Lets the strike leave a patch on the ground when it lands and shake the camera. Call right after spawning. */
+	void SetAftermath(const FVaelStrikeAftermath& InAftermath, float InShake = 0.0f);
+
 private:
 
 	/** Hurts everything inside the radius and shows the spike */
@@ -69,4 +89,10 @@ private:
 
 	/** True once the strike has landed */
 	bool bStruck = false;
+
+	/** Patch the strike leaves behind */
+	FVaelStrikeAftermath Aftermath;
+
+	/** Strength of the camera shake when the strike lands, 0 for none */
+	float Shake = 0.0f;
 };

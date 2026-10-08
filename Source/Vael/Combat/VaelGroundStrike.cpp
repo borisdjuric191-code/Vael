@@ -3,6 +3,8 @@
 #include "Combat/VaelGroundStrike.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Combat/VaelCharacterBase.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
+#include "Magic/VaelGroundArea.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -97,6 +99,12 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVecto
 	return GroundStrike;
 }
 
+void AVaelGroundStrike::SetAftermath(const FVaelStrikeAftermath& InAftermath, float InShake)
+{
+	Aftermath = InAftermath;
+	Shake = InShake;
+}
+
 void AVaelGroundStrike::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -127,5 +135,22 @@ void AVaelGroundStrike::Strike()
 			// Pawns hurt their enemies; anything else, like a Mark source, only hurts players
 			UVaelCombatStatics::ApplySpellHit(GetOwner(), *It, Hit, It->GetActorLocation() - GetActorLocation());
 		}
+	}
+
+	// Water puts out the fires it lands on
+	if (Hit.Element == EVaelElement::Water)
+	{
+		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), Radius);
+	}
+
+	if (Aftermath.Radius > 0.0f)
+	{
+		AVaelGroundArea::SpawnArea(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 2.0f), Aftermath.Element, Aftermath.Radius, Aftermath.Lifetime,
+			Aftermath.DamagePerSecond, GetInstigator(), true, Aftermath.Effect);
+	}
+
+	if (Shake > 0.0f)
+	{
+		UVaelHitFeedbackSubsystem::Shake(this, Shake);
 	}
 }

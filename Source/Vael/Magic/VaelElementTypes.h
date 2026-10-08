@@ -55,7 +55,9 @@ enum class EVaelSpellDelivery : uint8
 	/** A storm around the caster for some seconds that grinds and blinds everyone close by */
 	Aura,
 	/** A line of spikes breaks out of the ground in the aim direction, one after the other, until a wall */
-	SpikeLine
+	SpikeLine,
+	/** A single strike at the aimed point that lands after a warning, like a meteor or a geyser, and may leave a patch on the ground */
+	Strike
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */

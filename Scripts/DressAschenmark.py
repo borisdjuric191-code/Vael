@@ -884,6 +884,21 @@ def dress_border(level_actors):
         if isinstance(actor, unreal.StaticMeshActor) and str(actor.get_folder_path()) == "Rand" and actor.get_actor_label().startswith("Rand "):
             hide_placeholder(actor)
 
+def place_scrolls():
+    """Scrolls of the sealed formulas Act I gained with the spell list (step 10b); the places match the hints of the formulas"""
+    element = unreal.VaelElement
+    scrolls = [((46.0, 17.2), [element.FIRE, element.FIRE, element.EARTH], "Schriftrolle am Kratereingang"),
+               ((52.2, 41.5), [element.FIRE, element.FIRE, element.AIR], "Schriftrolle im Steinkreis"),
+               ((7.6, 28.3), [element.AIR, element.AIR, element.WATER], "Schriftrolle am Westufer"),
+               ((36.9, 52.1), [element.FIRE, element.EARTH, element.AIR], "Schriftrolle bei den Graebern")]
+    for tile, elements, label in scrolls:
+        scroll = actors.spawn_actor_from_class(unreal.VaelFormulaScroll, world(tile[0], tile[1], 40.0), unreal.Rotator(0.0, 0.0, 0.0))
+        scroll.set_editor_property("elements", elements)
+        scroll.set_editor_property("label", unreal.Text(label))
+        scroll.set_folder_path("Schriftrollen")
+        scroll.set_actor_label(label)
+        counts["Schriftrollen"] = counts.get("Schriftrollen", 0) + 1
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -938,6 +953,8 @@ def dress():
         dress_crater()
     if not done("Rand/Kulisse"):
         dress_border(level_actors)
+    if not done("Schriftrollen"):
+        place_scrolls()
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 

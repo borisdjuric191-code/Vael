@@ -66,6 +66,19 @@ namespace
 
 	/** Camera shake when a wall rises, as in the prototype */
 	constexpr float WallShake = 0.25f;
+
+	/** The patch a strike or spike of the formula leaves behind, from its ground area values */
+	FVaelStrikeAftermath MakeAftermath(const UVaelFormula& Formula, float Power)
+	{
+		FVaelStrikeAftermath Aftermath;
+		Aftermath.Element = Formula.DamageElement;
+		Aftermath.Radius = Formula.AreaRadius;
+		Aftermath.Lifetime = Formula.AreaLifetime;
+		Aftermath.DamagePerSecond = Formula.AreaDamagePerSecond * Power;
+		Aftermath.Effect = Formula.AreaEffect;
+
+		return Aftermath;
+	}
 }
 
 UVaelFormulaAbility::UVaelFormulaAbility()
@@ -326,6 +339,10 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 
 	case EVaelSpellDelivery::SpikeLine:
 		CallSpikeLine(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Strike:
+		CallStrike(Formula, Caster, Power);
 		break;
 	}
 }
@@ -772,7 +789,42 @@ void UVaelFormulaAbility::CallSpikeLine(const UVaelFormula& Formula, AActor* Cas
 			break;
 		}
 
-		AVaelGroundStrike::SpawnStrike(CasterPawn, GroundHit.Location, Hit, Formula.SpikeRadius, Formula.SpikeStagger * SpikeIndex, Color);
+		AVaelGroundStrike* Spike = AVaelGroundStrike::SpawnStrike(CasterPawn, GroundHit.Location, Hit, Formula.SpikeRadius, Formula.SpikeStagger * SpikeIndex, Color);
+
+		// A rift of lava: every second spike leaves its patch, so the patches touch without piling up
+		if (Spike != nullptr && Formula.AreaRadius > 0.0f && SpikeIndex % 2 == 1)
+		{
+			Spike->SetAftermath(MakeAftermath(Formula, Power));
+		}
+	}
+}
+
+void UVaelFormulaAbility::CallStrike(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	UWorld* World = Caster->GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	FVector Location = FindGroundTarget(Caster, Formula.AreaRange);
+
+	// The strike lands on the ground below the aimed point
+	FHitResult GroundHit;
+	if (VaelGround::TraceGround(World, Location + FVector(0.0f, 0.0f, AreaGroundSearchHeight), Location - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
+	{
+		Location = GroundHit.Location;
+	}
+	else
+	{
+		Location.Z -= Caster->GetSimpleCollisionHalfHeight();
+	}
+
+	AVaelGroundStrike* Strike = AVaelGroundStrike::SpawnStrike(Caster, Location, Formula.MakeSpellHit(Power), Formula.StrikeRadius, Formula.StrikeDelay,
+		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
+	if (Strike != nullptr)
+	{
+		Strike->SetAftermath(MakeAftermath(Formula, Power), Formula.StrikeShake);
 	}
 }
 
