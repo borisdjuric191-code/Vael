@@ -4,8 +4,8 @@
 #   Deleting those folders in the editor undoes the dressing.
 # - Placeholders that get a real mesh (rocks, dead trees, crates) are not deleted. They are made invisible and keep
 #   their collision, so the game plays exactly as before. They carry the tag "VaelPlatzhalterVersteckt".
-# - The ash ground gets the new material MI_Aschenmark_Boden; nothing else of the existing level is changed.
-# - Runs once: if the level already holds actors tagged "VaelKulisse", nothing happens.
+# - Ash ground, paths, house floors and the crater get world-aligned materials (M_Vael_Boden and its instances).
+# - Every place is dressed once: a place whose Kulisse folder exists is skipped, so the script can grow and run again.
 # - Writes a summary to Saved/DressLog.txt. Mesh sizes come from Scripts/MeasureMeshes.py (Saved/MeshSizes.txt).
 #
 # Run with the editor closed:
@@ -70,7 +70,7 @@ def mesh(name):
     return unreal.load_asset(path)
 
 
-def place(name, tile, folder, label, scale=1.0, yaw=0.0, pitch=0.0, roll=0.0, z=0.0, sink=0.0, stretch=None):
+def place(name, tile, folder, label, scale=1.0, yaw=0.0, pitch=0.0, roll=0.0, z=0.0, sink=0.0, stretch=None, grounded=True):
     """Puts a pack mesh on the ground at a tile position. Purely visual: it never blocks movement."""
     asset = mesh(name)
     if asset is None:
@@ -78,7 +78,7 @@ def place(name, tile, folder, label, scale=1.0, yaw=0.0, pitch=0.0, roll=0.0, z=
 
     box = asset.get_bounding_box()
     scale_vector = unreal.Vector(scale, scale, scale) if stretch is None else unreal.Vector(scale * stretch[0], scale * stretch[1], scale * stretch[2])
-    location = world(tile[0], tile[1], z - box.min.z * scale_vector.z - sink)
+    location = world(tile[0], tile[1], z - (box.min.z * scale_vector.z if grounded else 0.0) - sink)
 
     actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, location, unreal.Rotator(roll, pitch, yaw))
     actor.static_mesh_component.set_static_mesh(asset)
@@ -117,7 +117,7 @@ def tile_of(actor):
     return (MAP_TILES / 2 - location.x / TILE, MAP_TILES / 2 - location.y / TILE)
 
 
-# ---------------------------------------------------------------- Ground material
+# ---------------------------------------------------------------- Ground materials
 
 def texture_sampler(texture):
     compression = texture.get_editor_property("compression_settings")
@@ -132,18 +132,131 @@ def texture_sampler(texture):
     return unreal.MaterialSamplerType.SAMPLERTYPE_COLOR if texture.get_editor_property("srgb") else unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR
 
 
-def make_ground_material():
-    """A simple material that lays ground textures by world position, so it tiles evenly on shapes of any size"""
-    instance_path = "{}/MI_Aschenmark_Boden".format(DRESSING_FOLDER)
-    if unreal.EditorAssetLibrary.does_asset_exist(instance_path):
-        return unreal.load_asset(instance_path)
+def surface(name, suffix):
+    return unreal.load_asset("/Game/Megascans/Surfaces/{0}/T_{0}_{1}".format(name, suffix))
 
-    textures = {}
-    for key, suffix in (("Albedo", "D"), ("Normal", "N"), ("Roughness", "R")):
-        textures[key] = unreal.load_asset("/Game/Megascans/Surfaces/HeavyMud/T_HeavyMud_{}".format(suffix))
-        if textures[key] is None:
-            notes.append("ground texture T_HeavyMud_{}".format(suffix))
-            return None
+
+def build_ground_graph(material):
+    """Ground laid by world position, so it never stretches. Two surfaces are mixed by a large soft mask and every
+    surface is sampled at two sizes, which hides the repeating pattern."""
+    library = unreal.MaterialEditingLibrary
+    library.delete_all_material_expressions(material)
+
+    def node(expression_class, x, y):
+        return library.create_material_expression(material, expression_class, x, y)
+
+    def scalar(name, value, x, y):
+        parameter = node(unreal.MaterialExpressionScalarParameter, x, y)
+        parameter.set_editor_property("parameter_name", name)
+        parameter.set_editor_property("default_value", value)
+        return parameter
+
+    def tint(name, color, x, y):
+        parameter = node(unreal.MaterialExpressionVectorParameter, x, y)
+        parameter.set_editor_property("parameter_name", name)
+        parameter.set_editor_property("default_value", color)
+        return parameter
+
+    position = node(unreal.MaterialExpressionWorldPosition, -2200, 0)
+    plane = node(unreal.MaterialExpressionComponentMask, -2000, 0)
+    plane.set_editor_property("r", True)
+    plane.set_editor_property("g", True)
+    plane.set_editor_property("b", False)
+    plane.set_editor_property("a", False)
+    library.connect_material_expressions(position, "", plane, "")
+
+    tile_size = scalar("TileSize", 450.0, -2000, 200)
+    macro_size = scalar("MacroSize", 5200.0, -2000, 320)
+
+    def coordinates(size, factor, x, y):
+        divide = node(unreal.MaterialExpressionDivide, x, y)
+        library.connect_material_expressions(plane, "", divide, "A")
+        if factor == 1.0:
+            library.connect_material_expressions(size, "", divide, "B")
+        else:
+            scaled = node(unreal.MaterialExpressionMultiply, x - 180, y + 60)
+            scaled.set_editor_property("const_b", factor)
+            library.connect_material_expressions(size, "", scaled, "A")
+            library.connect_material_expressions(scaled, "", divide, "B")
+        return divide
+
+    near, far, other = coordinates(tile_size, 1.0, -1600, 0), coordinates(tile_size, 3.37, -1600, 160), coordinates(tile_size, 1.43, -1600, 320)
+    macro, wide = coordinates(macro_size, 1.0, -1600, 480), coordinates(macro_size, 2.9, -1600, 640)
+
+    def sample(name, texture, uvs, x, y, parameter=True):
+        expression = node(unreal.MaterialExpressionTextureSampleParameter2D if parameter else unreal.MaterialExpressionTextureSample, x, y)
+        if parameter:
+            expression.set_editor_property("parameter_name", name)
+        expression.set_editor_property("texture", texture)
+        expression.set_editor_property("sampler_type", texture_sampler(texture))
+        library.connect_material_expressions(uvs, "", expression, "UVs")
+        return expression
+
+    mud_d, mud_n, mud_r, forest_d = surface("HeavyMud", "D"), surface("HeavyMud", "N"), surface("HeavyMud", "R"), surface("ForestGround", "D")
+
+    albedo_near = sample("Albedo", mud_d, near, -1250, -200)
+    albedo_far = sample("", mud_d, far, -1250, 60, parameter=False)
+    albedo_other = sample("Albedo2", forest_d, other, -1250, 320)
+    normal = sample("Normal", mud_n, near, -1250, 900)
+    roughness = sample("Roughness", mud_r, near, -1250, 1160)
+    mask = sample("", mud_r, macro, -1250, 580, parameter=False)
+    shade = sample("", mud_r, wide, -1250, 740, parameter=False)
+
+    # The far sample must follow the texture the instance picks for "Albedo"; a plain sample can't, so it stays the
+    # default surface and only adds large soft variation
+    first = node(unreal.MaterialExpressionLinearInterpolate, -900, -100)
+    first.set_editor_property("const_alpha", 0.45)
+    library.connect_material_expressions(albedo_near, "RGB", first, "A")
+    library.connect_material_expressions(albedo_far, "RGB", first, "B")
+
+    first_tinted = node(unreal.MaterialExpressionMultiply, -700, -100)
+    library.connect_material_expressions(first, "", first_tinted, "A")
+    library.connect_material_expressions(tint("Tint", unreal.LinearColor(0.62, 0.58, 0.56, 1.0), -900, -320), "", first_tinted, "B")
+
+    second_tinted = node(unreal.MaterialExpressionMultiply, -700, 300)
+    library.connect_material_expressions(albedo_other, "RGB", second_tinted, "A")
+    library.connect_material_expressions(tint("Tint2", unreal.LinearColor(0.40, 0.38, 0.36, 1.0), -900, 460), "", second_tinted, "B")
+
+    # Soft mask with a firm edge: (mask - bias) * contrast, clamped
+    bias = node(unreal.MaterialExpressionSubtract, -900, 620)
+    library.connect_material_expressions(mask, "R", bias, "A")
+    library.connect_material_expressions(scalar("MaskBias", 0.45, -1100, 700), "", bias, "B")
+    contrast = node(unreal.MaterialExpressionMultiply, -740, 620)
+    library.connect_material_expressions(bias, "", contrast, "A")
+    library.connect_material_expressions(scalar("MaskContrast", 5.0, -900, 760), "", contrast, "B")
+    clamped = node(unreal.MaterialExpressionSaturate, -580, 620)
+    library.connect_material_expressions(contrast, "", clamped, "")
+
+    mixed = node(unreal.MaterialExpressionLinearInterpolate, -420, 100)
+    library.connect_material_expressions(first_tinted, "", mixed, "A")
+    library.connect_material_expressions(second_tinted, "", mixed, "B")
+    library.connect_material_expressions(clamped, "", mixed, "Alpha")
+
+    # Slow change of brightness across the map
+    brightness = node(unreal.MaterialExpressionLinearInterpolate, -420, 760)
+    brightness.set_editor_property("const_a", 0.78)
+    brightness.set_editor_property("const_b", 1.12)
+    library.connect_material_expressions(shade, "R", brightness, "Alpha")
+    shaded = node(unreal.MaterialExpressionMultiply, -240, 200)
+    library.connect_material_expressions(mixed, "", shaded, "A")
+    library.connect_material_expressions(brightness, "", shaded, "B")
+
+    grey = node(unreal.MaterialExpressionDesaturation, -80, 200)
+    library.connect_material_expressions(shaded, "", grey, "")
+    library.connect_material_expressions(scalar("Desaturation", 0.35, -240, 380), "", grey, "Fraction")
+
+    library.connect_material_property(grey, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    library.connect_material_property(roughness, "R", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.recompile_material(material)
+
+
+def make_ground_materials():
+    """Material M_Vael_Boden and its instances for the ash ground, the paths and the crater. Returns them by name."""
+    for name, suffix in (("HeavyMud", "D"), ("HeavyMud", "N"), ("HeavyMud", "R"), ("ForestGround", "D"), ("ForestGround", "N"), ("ForestGround", "R")):
+        if surface(name, suffix) is None:
+            notes.append("ground texture T_{}_{}".format(name, suffix))
+            return {}
 
     library = unreal.MaterialEditingLibrary
     tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -154,50 +267,60 @@ def make_ground_material():
     else:
         material = tools.create_asset("M_Vael_Boden", DRESSING_FOLDER, unreal.Material, unreal.MaterialFactoryNew())
 
-        position = library.create_material_expression(material, unreal.MaterialExpressionWorldPosition, -1300, 0)
-        mask = library.create_material_expression(material, unreal.MaterialExpressionComponentMask, -1100, 0)
-        mask.set_editor_property("r", True)
-        mask.set_editor_property("g", True)
-        mask.set_editor_property("b", False)
-        mask.set_editor_property("a", False)
-        library.connect_material_expressions(position, "", mask, "")
-
-        tile_size = library.create_material_expression(material, unreal.MaterialExpressionScalarParameter, -1100, 150)
-        tile_size.set_editor_property("parameter_name", "TileSize")
-        tile_size.set_editor_property("default_value", 450.0)
-
-        divide = library.create_material_expression(material, unreal.MaterialExpressionDivide, -900, 50)
-        library.connect_material_expressions(mask, "", divide, "A")
-        library.connect_material_expressions(tile_size, "", divide, "B")
-
-        samples = {}
-        for index, key in enumerate(("Albedo", "Normal", "Roughness")):
-            sample = library.create_material_expression(material, unreal.MaterialExpressionTextureSampleParameter2D, -650, index * 280)
-            sample.set_editor_property("parameter_name", key)
-            sample.set_editor_property("texture", textures[key])
-            sample.set_editor_property("sampler_type", texture_sampler(textures[key]))
-            library.connect_material_expressions(divide, "", sample, "UVs")
-            samples[key] = sample
-
-        tint = library.create_material_expression(material, unreal.MaterialExpressionVectorParameter, -650, -220)
-        tint.set_editor_property("parameter_name", "Tint")
-        tint.set_editor_property("default_value", unreal.LinearColor(0.62, 0.58, 0.56, 1.0))
-
-        multiply = library.create_material_expression(material, unreal.MaterialExpressionMultiply, -350, -80)
-        library.connect_material_expressions(samples["Albedo"], "RGB", multiply, "A")
-        library.connect_material_expressions(tint, "", multiply, "B")
-
-        library.connect_material_property(multiply, "", unreal.MaterialProperty.MP_BASE_COLOR)
-        library.connect_material_property(samples["Normal"], "RGB", unreal.MaterialProperty.MP_NORMAL)
-        library.connect_material_property(samples["Roughness"], "R", unreal.MaterialProperty.MP_ROUGHNESS)
-
-        library.recompile_material(material)
+    # The first version had no macro mask; rebuild the graph once
+    if "MacroSize" not in [str(name) for name in library.get_scalar_parameter_names(material)]:
+        build_ground_graph(material)
         unreal.EditorAssetLibrary.save_loaded_asset(material, False)
 
-    instance = tools.create_asset("MI_Aschenmark_Boden", DRESSING_FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
-    library.set_material_instance_parent(instance, material)
-    unreal.EditorAssetLibrary.save_loaded_asset(instance, False)
-    return instance
+    looks = {
+        "MI_Aschenmark_Boden": {},
+        "MI_Aschenmark_Weg": {"textures": {"Albedo": surface("ForestGround", "D"), "Normal": surface("ForestGround", "N"), "Roughness": surface("ForestGround", "R"), "Albedo2": surface("HeavyMud", "D")},
+                              "colors": {"Tint": unreal.LinearColor(0.80, 0.72, 0.62, 1.0), "Tint2": unreal.LinearColor(0.70, 0.62, 0.54, 1.0)},
+                              "scalars": {"TileSize": 330.0, "MacroSize": 2600.0, "Desaturation": 0.45}},
+        "MI_Aschenmark_Krater": {"colors": {"Tint": unreal.LinearColor(0.17, 0.14, 0.13, 1.0), "Tint2": unreal.LinearColor(0.09, 0.08, 0.08, 1.0)},
+                                 "scalars": {"Desaturation": 0.6}},
+    }
+
+    instances = {}
+    for name, look in looks.items():
+        path = "{}/{}".format(DRESSING_FOLDER, name)
+        if unreal.EditorAssetLibrary.does_asset_exist(path):
+            # Existing instances keep whatever was tuned in the editor
+            instances[name] = unreal.load_asset(path)
+            continue
+
+        instance = tools.create_asset(name, DRESSING_FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        library.set_material_instance_parent(instance, material)
+        for key, texture in look.get("textures", {}).items():
+            library.set_material_instance_texture_parameter_value(instance, key, texture)
+        for key, color in look.get("colors", {}).items():
+            library.set_material_instance_vector_parameter_value(instance, key, color)
+        for key, value in look.get("scalars", {}).items():
+            library.set_material_instance_scalar_parameter_value(instance, key, value)
+        library.update_material_instance(instance)
+        unreal.EditorAssetLibrary.save_loaded_asset(instance, False)
+        instances[name] = instance
+
+    return instances
+
+
+def lay_ground(level_actors, instances):
+    """Ash ground, paths, house floors and the crater get the world-aligned materials"""
+    def is_flat(actor, label, folder_start):
+        return isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label().startswith(label) and str(actor.get_folder_path()).startswith(folder_start)
+
+    for actor in level_actors:
+        look = None
+        if is_flat(actor, "Ascheboden", "Boden"):
+            look = "MI_Aschenmark_Boden"
+        elif is_flat(actor, "Weg ", "Wege") or is_flat(actor, "Boden", "Dorf"):
+            look = "MI_Aschenmark_Weg"
+        elif is_flat(actor, "Verbrannter Boden", "Krater"):
+            look = "MI_Aschenmark_Krater"
+
+        if look is not None and look in instances:
+            actor.static_mesh_component.set_material(0, instances[look])
+            counts["Boden: " + look] = counts.get("Boden: " + look, 0) + 1
 
 
 # ---------------------------------------------------------------- Places
@@ -309,7 +432,7 @@ def dress_rocks(level_actors):
     rocks = ["SM_Rock_0{}".format(index) for index in range(1, 8)]
 
     for actor in level_actors:
-        if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Fels":
+        if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Fels" or unreal.Name(HIDDEN_TAG) in actor.get_editor_property("tags"):
             continue
 
         place_folder = str(actor.get_folder_path())
@@ -338,7 +461,7 @@ def dress_rocks(level_actors):
 def dress_trees(level_actors):
     """Dead trunks where the blockout has dark cylinders"""
     for actor in level_actors:
-        if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Toter Baum":
+        if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Toter Baum" or unreal.Name(HIDDEN_TAG) in actor.get_editor_property("tags"):
             continue
 
         roll = rng.random()
@@ -412,6 +535,117 @@ def dress_fields(taken):
         clusters += 1
 
 
+def dress_village(level_actors):
+    """Dry-stone ruins where the blockout has wall cubes, rubble and fallen beams inside, the well and a few fences"""
+    local = random.Random(733)
+    houses = {"Dorf/Haus 1": (22, 33, 27, 37), "Dorf/Haus 2": (33, 33, 37, 37), "Dorf/Haus 3": (16, 40, 20, 44), "Dorf/Kapelle": (34, 43, 40, 49)}
+
+    for actor in level_actors:
+        if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Mauer":
+            continue
+
+        house = str(actor.get_folder_path())
+        if house not in houses or unreal.Name(HIDDEN_TAG) in actor.get_editor_property("tags"):
+            continue
+
+        x0, y0, x1, y1 = houses[house]
+        tile = tile_of(actor)
+        along_x = int(tile[1]) in (y0, y1)
+        chapel = house == "Dorf/Kapelle"
+        height = actor.get_actor_scale3d().z * 100.0
+
+        # Rows of the same wall piece, each row a little off, so the stones keep one size whatever the wall's height
+        size = 1.12 if chapel else 0.88
+        row_height = 93.0 * size * 0.86
+        rows = max(1, int(round(height / row_height)))
+        if rows > 1 and local.random() < 0.3:
+            rows -= 1
+        for row in range(rows):
+            yaw = (0.0 if along_x else 90.0) + local.choice((0.0, 180.0)) + local.uniform(-3.0, 3.0)
+            spot = (tile[0] + local.uniform(-0.05, 0.05), tile[1] + local.uniform(-0.05, 0.05))
+            place("SM_MossyStoneWallC_02", spot, house + "/Kulisse", "Bruchsteinmauer", scale=size, stretch=(1.0, 1.45, 1.0), yaw=yaw, z=row * row_height, sink=5.0 if row == 0 else 0.0)
+        hide_placeholder(actor)
+
+    # Inside the houses: fallen beams, rubble and what was left behind
+    left_behind = [("SM_WoodenBarrelB", 1.0), ("SM_WoodenWheelA", 1.0), ("SM_OldWoodenChest", 1.0), ("SM_WoodenBox", 1.3), ("SM_OldWoodenBucketB", 1.0), ("SM_MedievalButterChurn", 1.0), ("SM_OldWoodenTrough", 0.8)]
+    for house, (x0, y0, x1, y1) in houses.items():
+        folder = house + "/Kulisse/Innen"
+        for beam in range(3 if house == "Dorf/Kapelle" else 2):
+            spot = (local.uniform(x0 + 1.4, x1 - 0.4), local.uniform(y0 + 1.4, y1 - 0.4))
+            place(local.choice(("SM_WornWoodenBeamA_00", "SM_WornWoodenBeamA_01", "SM_WornWoodenBeamB")), spot, folder, "Gefallener Balken", scale=1.2, yaw=local.uniform(0.0, 360.0), pitch=90.0 + local.uniform(-6.0, 6.0), z=14.0)
+        for rubble in range(9):
+            edge = local.choice(("N", "S", "W", "E"))
+            x = local.uniform(x0 + 1.1, x1 - 0.1) if edge in ("N", "S") else (x0 + 1.25 if edge == "W" else x1 - 0.25)
+            y = local.uniform(y0 + 1.1, y1 - 0.1) if edge in ("W", "E") else (y0 + 1.25 if edge == "N" else y1 - 0.25)
+            place("SM_MossyStonesPack_0{}".format(local.randint(0, 3)), (x, y), folder, "Schutt", scale=local.uniform(2.2, 3.6), yaw=local.uniform(0.0, 360.0), sink=4.0)
+        if house != "Dorf/Kapelle":
+            for thing in range(2):
+                name, scale = local.choice(left_behind)
+                place(name, (local.uniform(x0 + 1.5, x1 - 0.5), local.uniform(y0 + 1.5, y1 - 0.5)), folder, "Hausrat", scale=scale, yaw=local.uniform(0.0, 360.0))
+
+    # Chapel: a stone dais at the east wall with candles
+    place("SM_JapaneseShrineStoneFloorC_00", (39.1, 46.5), "Dorf/Kapelle/Kulisse/Innen", "Altarstufe", yaw=0.0)
+    place("SM_GraveB", (39.3, 46.5), "Dorf/Kapelle/Kulisse/Innen", "Altarstein", z=10.0, yaw=0.0)
+    for candle in range(7):
+        place("SM_Candles_0{}".format(candle % 3 + 1), (39.0 + local.uniform(-0.45, 0.45), 46.5 + local.uniform(-0.75, 0.75)), "Dorf/Kapelle/Kulisse/Innen", "Kerzen", scale=2.4, z=12.0, yaw=local.uniform(0.0, 360.0))
+
+    # The well in the square; its parts share one origin, so none of them is dropped to the ground
+    for actor in level_actors:
+        if isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label() == "Brunnen" and str(actor.get_folder_path()) == "Dorf":
+            for part in ("SM_WellBase", "SM_MainWell", "SM_WellDetailPieces", "SM_WellShingles"):
+                place(part, tile_of(actor), "Dorf/Kulisse/Brunnen", part.replace("SM_", ""), yaw=35.0, grounded=False)
+            hide_placeholder(actor)
+
+    # A broken garden fence west of the third house, a hitching post by the square
+    for index, name in enumerate(("SM_Fenc01_P1", "SM_Fence01_Dmg", "SM_Fence02_P2")):
+        place(name, (14.9, 40.9 + index * 1.95), "Dorf/Kulisse/Zaun", "Gartenzaun", yaw=90.0 + local.uniform(-4.0, 4.0), roll=local.uniform(-5.0, 5.0))
+    place("SM_Fence01_End", (15.6, 39.9), "Dorf/Kulisse/Zaun", "Zaunende", yaw=local.uniform(-6.0, 6.0))
+    place("SM_HorseHitchingPost", (27.4, 38.4), "Dorf/Kulisse", "Anbindebalken", yaw=12.0)
+    place("SM_WoodenWheelbarrow", (31.3, 38.2), "Dorf/Kulisse", "Schubkarre", yaw=200.0, roll=8.0)
+
+
+def dress_pond():
+    """Shore of the pond: mossy banks on the far side, stones and dry reeds all around, candles at the shrine"""
+    local = random.Random(288)
+    pond = (13.0, 28.0)
+    folder = "Teich/Kulisse"
+
+    # Banks on the west and north shore, where nobody arrives from
+    banks = ["SM_MossyEmbankmentA_00", "SM_MossyEmbankmentA_01", "SM_MossyEmbankmentB", "SM_MossyEmbankmentC", "SM_MossyEmbankmentE"]
+    angle = 150.0
+    while angle < 300.0:
+        place(local.choice(banks), ring(pond, angle, 6.05 + local.uniform(-0.15, 0.2)), folder + "/Ufer", "Uferwall", scale=local.uniform(1.0, 1.25), yaw=world_yaw(angle) + 90.0 + local.uniform(-12.0, 12.0), sink=10.0)
+        angle += local.uniform(24.0, 32.0)
+
+    stones = ["SM_MossyRocksA", "SM_MossyRocksB", "SM_MossyRock", "SM_IcelandicMossyRock", "SM_MossyStonesPack_01", "SM_HovsBeachRock"]
+    for stone in range(22):
+        name = local.choice(stones)
+        scale = local.uniform(2.5, 4.0) if "StonesPack" in name else local.uniform(0.6, 1.1)
+        place(name, ring(pond, local.uniform(0.0, 360.0), local.uniform(4.9, 6.1)), folder + "/Steine", "Uferstein", scale=scale, yaw=local.uniform(0.0, 360.0), sink=6.0)
+
+    # Reeds: tall dry stalks, in clumps, some of them standing in the shallow water
+    reeds = ["SM_DryPlantSet01_V09", "SM_DryPlantSet01_V10", "SM_DryPlantSet01_V11", "SM_DryPlantSet01_V01", "SM_ThatchingGrass00_V10", "SM_ThatchingGrass00_V2", "SM_DryPlant00_V1"]
+    for clump in range(34):
+        angle, radius = local.uniform(0.0, 360.0), local.uniform(4.2, 5.9)
+        center = ring(pond, angle, radius)
+        for stalk in range(local.randint(3, 6)):
+            place(local.choice(reeds), (center[0] + local.uniform(-0.35, 0.35), center[1] + local.uniform(-0.35, 0.35)), folder + "/Schilf", "Schilf", scale=local.uniform(1.1, 1.7), yaw=local.uniform(0.0, 360.0), z=3.0, sink=3.0)
+
+    # Dead wood in the water
+    place("SM_MossyLog", ring(pond, 35.0, 4.4), folder + "/Totholz", "Stamm im Wasser", yaw=local.uniform(0.0, 360.0), sink=45.0)
+    place("SM_MossyLog", ring(pond, 215.0, 4.7), folder + "/Totholz", "Stamm im Wasser", scale=0.85, yaw=local.uniform(0.0, 360.0), sink=40.0)
+    place("SM_FallenFirTree", ring(pond, 110.0, 5.0), folder + "/Totholz", "Gestuerzte Tanne", yaw=world_yaw(110.0) + 20.0, sink=8.0)
+
+    # Shrine: stone slabs around it, candles at its foot and on top
+    shrine = (7.0, 23.0)
+    for index, (dx, dy) in enumerate(((-0.95, -0.95), (0.95, -0.95), (-0.95, 0.95), (0.95, 0.95))):
+        place("SM_JapaneseShrineStoneFloorA" if index % 2 == 0 else "SM_JapaneseShrineStoneFloorC_00", (shrine[0] + dx, shrine[1] + dy), folder + "/Schrein", "Steinplatte", yaw=local.choice((0.0, 90.0, 180.0, 270.0)) + local.uniform(-3.0, 3.0), sink=8.0)
+    for candle in range(6):
+        place("SM_Candles_0{}".format(candle % 3 + 1), (shrine[0] + local.uniform(-0.6, 0.6), shrine[1] + local.uniform(-0.6, 0.6)), folder + "/Schrein", "Kerzen auf dem Schrein", scale=2.4, z=120.0, yaw=local.uniform(0.0, 360.0))
+    for candle in range(8):
+        place("SM_Candles_0{}".format(candle % 3 + 1), ring(shrine, local.uniform(0.0, 360.0), local.uniform(1.0, 1.35)), folder + "/Schrein", "Kerzen am Schrein", scale=2.4, z=14.0, yaw=local.uniform(0.0, 360.0))
+
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -421,9 +655,11 @@ def dress():
         return
 
     level_actors = list(actors.get_all_level_actors())
-    if any(unreal.Name(DRESSING_TAG) in actor.get_editor_property("tags") for actor in level_actors):
-        unreal.log_warning("Vael: {} is dressed already, nothing was changed. Delete the folders named Kulisse in the editor to dress it anew.".format(LEVEL_PATH))
-        return
+    folders = set(str(actor.get_folder_path()) for actor in level_actors)
+
+    def done(folder):
+        """A place is dressed once; whoever wants it anew deletes its Kulisse folder in the editor first"""
+        return any(existing == folder or existing.startswith(folder + "/") for existing in folders)
 
     load_meshes()
 
@@ -431,33 +667,35 @@ def dress():
     taken = [tile_of(actor) for actor in level_actors if isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label() in ("Fels", "Toter Baum")]
 
     try:
-        ground = make_ground_material()
+        lay_ground(level_actors, make_ground_materials())
     except Exception as error:
-        ground = None
-        notes.append("ground material failed: {}".format(error))
-    if ground is not None:
-        for actor in level_actors:
-            if isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label() == "Ascheboden":
-                actor.static_mesh_component.set_material(0, ground)
+        notes.append("ground materials failed: {}".format(error))
 
-    dress_camp()
-    dress_crates(level_actors)
+    if not done("Lager/Kulisse"):
+        dress_camp()
+        dress_crates(level_actors)
     dress_rocks(level_actors)
     dress_trees(level_actors)
-    dress_graveyard(taken)
-    dress_fields(taken)
+    if not done("Dorf/Kapelle/Kulisse"):
+        dress_graveyard(taken)
+    if not done("Streuung/Kulisse/Totholz"):
+        dress_fields(taken)
+    if not done("Dorf/Kulisse"):
+        dress_village(level_actors)
+    if not done("Teich/Kulisse"):
+        dress_pond()
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 
-    lines = ["saved: {}".format(saved), "ground material: {}".format(ground is not None)]
+    lines = ["saved: {}".format(saved)]
     lines += ["{:<40} {}".format(folder, count) for folder, count in sorted(counts.items())]
-    lines += ["total new actors: {}".format(sum(counts.values()))]
+    lines += ["total new actors: {}".format(sum(count for folder, count in counts.items() if not folder.startswith("Boden: ")))]
     lines += ["missing: {}".format(", ".join(notes) if notes else "nothing")]
     with open(os.path.join(unreal.Paths.project_saved_dir(), "DressLog.txt"), "w", encoding="utf-8") as file:
         file.write("\n".join(lines))
 
     if saved:
-        unreal.log("Vael: dressed {} with {} new actors".format(LEVEL_PATH, sum(counts.values())))
+        unreal.log("Vael: dressed {}, see Saved/DressLog.txt".format(LEVEL_PATH))
     else:
         unreal.log_error("Vael: could not save {}".format(LEVEL_PATH))
 
