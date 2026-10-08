@@ -58,3 +58,11 @@ Desktop.ini
 Content/Fab/
 Content/Megaplant_Library/
 Content/Rock_Collection_04/
+
+# Migrated from the Medieval Village Megascans Sample (keeps its original folder names).
+# Vael's own assets live under Content/Vael/, never in these folders.
+Content/Megascans/
+Content/Meshes/
+Content/Materials/
+Content/Effects/
+Content/PhysMat/
