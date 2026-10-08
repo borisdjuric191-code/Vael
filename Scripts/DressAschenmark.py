@@ -245,9 +245,16 @@ def build_ground_graph(material):
     library.connect_material_expressions(shaded, "", grey, "")
     library.connect_material_expressions(scalar("Desaturation", 0.35, -240, 380), "", grey, "Fraction")
 
+    # Ash and dry earth don't shine: the roughness never drops below RoughnessMin and the highlight is turned down
+    rough = node(unreal.MaterialExpressionLinearInterpolate, -420, 1160)
+    rough.set_editor_property("const_b", 1.0)
+    library.connect_material_expressions(scalar("RoughnessMin", 0.82, -640, 1300), "", rough, "A")
+    library.connect_material_expressions(roughness, "R", rough, "Alpha")
+
     library.connect_material_property(grey, "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
-    library.connect_material_property(roughness, "R", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(scalar("Specular", 0.2, -240, 1300), "", unreal.MaterialProperty.MP_SPECULAR)
     library.recompile_material(material)
 
 
@@ -267,30 +274,42 @@ def make_ground_materials():
     else:
         material = tools.create_asset("M_Vael_Boden", DRESSING_FOLDER, unreal.Material, unreal.MaterialFactoryNew())
 
-    # The first version had no macro mask; rebuild the graph once
-    if "MacroSize" not in [str(name) for name in library.get_scalar_parameter_names(material)]:
+    # Rebuild the graph when it is older than this script (RoughnessMin is its newest parameter)
+    rebuilt = "RoughnessMin" not in [str(name) for name in library.get_scalar_parameter_names(material)]
+    if rebuilt:
         build_ground_graph(material)
         unreal.EditorAssetLibrary.save_loaded_asset(material, False)
 
+    # Dark ash ground, lighter and warmer paths so they stay readable from above, burnt crater
+    mud = {"Albedo": surface("HeavyMud", "D"), "Normal": surface("HeavyMud", "N"), "Roughness": surface("HeavyMud", "R"), "Albedo2": surface("ForestGround", "D")}
+    path_ground = {"Albedo": surface("ForestGround", "D"), "Normal": surface("ForestGround", "N"), "Roughness": surface("ForestGround", "R"), "Albedo2": surface("HeavyMud", "D")}
     looks = {
-        "MI_Aschenmark_Boden": {},
-        "MI_Aschenmark_Weg": {"textures": {"Albedo": surface("ForestGround", "D"), "Normal": surface("ForestGround", "N"), "Roughness": surface("ForestGround", "R"), "Albedo2": surface("HeavyMud", "D")},
-                              "colors": {"Tint": unreal.LinearColor(0.80, 0.72, 0.62, 1.0), "Tint2": unreal.LinearColor(0.70, 0.62, 0.54, 1.0)},
-                              "scalars": {"TileSize": 330.0, "MacroSize": 2600.0, "Desaturation": 0.45}},
-        "MI_Aschenmark_Krater": {"colors": {"Tint": unreal.LinearColor(0.17, 0.14, 0.13, 1.0), "Tint2": unreal.LinearColor(0.09, 0.08, 0.08, 1.0)},
+        "MI_Aschenmark_Boden": {"textures": mud,
+                                "colors": {"Tint": unreal.LinearColor(0.34, 0.31, 0.30, 1.0), "Tint2": unreal.LinearColor(0.20, 0.19, 0.185, 1.0)},
+                                "scalars": {"TileSize": 450.0, "MacroSize": 5200.0, "Desaturation": 0.55}},
+        "MI_Aschenmark_Weg": {"textures": path_ground,
+                              "colors": {"Tint": unreal.LinearColor(0.62, 0.52, 0.42, 1.0), "Tint2": unreal.LinearColor(0.50, 0.43, 0.36, 1.0)},
+                              "scalars": {"TileSize": 330.0, "MacroSize": 2600.0, "Desaturation": 0.35}},
+        "MI_Aschenmark_Krater": {"textures": mud,
+                                 "colors": {"Tint": unreal.LinearColor(0.13, 0.10, 0.095, 1.0), "Tint2": unreal.LinearColor(0.06, 0.055, 0.055, 1.0)},
                                  "scalars": {"Desaturation": 0.6}},
     }
 
     instances = {}
     for name, look in looks.items():
         path = "{}/{}".format(DRESSING_FOLDER, name)
-        if unreal.EditorAssetLibrary.does_asset_exist(path):
-            # Existing instances keep whatever was tuned in the editor
-            instances[name] = unreal.load_asset(path)
+        exists = unreal.EditorAssetLibrary.does_asset_exist(path)
+        if exists:
+            instance = unreal.load_asset(path)
+        else:
+            instance = tools.create_asset(name, DRESSING_FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            library.set_material_instance_parent(instance, material)
+        instances[name] = instance
+
+        # An existing instance keeps what was tuned in the editor, unless the graph is new and its values mean something else
+        if exists and not rebuilt:
             continue
 
-        instance = tools.create_asset(name, DRESSING_FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
-        library.set_material_instance_parent(instance, material)
         for key, texture in look.get("textures", {}).items():
             library.set_material_instance_texture_parameter_value(instance, key, texture)
         for key, color in look.get("colors", {}).items():
@@ -299,10 +318,33 @@ def make_ground_materials():
             library.set_material_instance_scalar_parameter_value(instance, key, value)
         library.update_material_instance(instance)
         unreal.EditorAssetLibrary.save_loaded_asset(instance, False)
-        instances[name] = instance
 
     return instances
 
+
+def make_water_material():
+    """Still, dark water for the deep middle of the pond"""
+    path = "{}/M_Vael_Wasser".format(DRESSING_FOLDER)
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        return unreal.load_asset(path)
+
+    library = unreal.MaterialEditingLibrary
+    material = unreal.AssetToolsHelpers.get_asset_tools().create_asset("M_Vael_Wasser", DRESSING_FOLDER, unreal.Material, unreal.MaterialFactoryNew())
+
+    color = library.create_material_expression(material, unreal.MaterialExpressionVectorParameter, -400, 0)
+    color.set_editor_property("parameter_name", "Color")
+    color.set_editor_property("default_value", unreal.LinearColor(0.012, 0.022, 0.026, 1.0))
+    library.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
+
+    for index, (name, value, target) in enumerate((("Roughness", 0.07, unreal.MaterialProperty.MP_ROUGHNESS), ("Specular", 0.6, unreal.MaterialProperty.MP_SPECULAR))):
+        parameter = library.create_material_expression(material, unreal.MaterialExpressionScalarParameter, -400, 200 + index * 120)
+        parameter.set_editor_property("parameter_name", name)
+        parameter.set_editor_property("default_value", value)
+        library.connect_material_property(parameter, "", target)
+
+    library.recompile_material(material)
+    unreal.EditorAssetLibrary.save_loaded_asset(material, False)
+    return material
 
 def lay_ground(level_actors, instances):
     """Ash ground, paths, house floors and the crater get the world-aligned materials"""
@@ -317,6 +359,8 @@ def lay_ground(level_actors, instances):
             look = "MI_Aschenmark_Weg"
         elif is_flat(actor, "Verbrannter Boden", "Krater"):
             look = "MI_Aschenmark_Krater"
+        elif is_flat(actor, "Tiefes Wasser", "Teich") and "Wasser" in instances:
+            actor.static_mesh_component.set_material(0, instances["Wasser"])
 
         if look is not None and look in instances:
             actor.static_mesh_component.set_material(0, instances[look])
@@ -646,6 +690,94 @@ def dress_pond():
         place("SM_Candles_0{}".format(candle % 3 + 1), ring(shrine, local.uniform(0.0, 360.0), local.uniform(1.0, 1.35)), folder + "/Schrein", "Kerzen am Schrein", scale=2.4, z=14.0, yaw=local.uniform(0.0, 360.0))
 
 
+def dress_order():
+    """Order of the Scar: a ring of standing stones around the fire bowl, candles at their feet. The tents stay blockout."""
+    local = random.Random(905)
+    bowl = (53.5, 41.5)
+    folder = "Orden der Narbe/Kulisse"
+
+    for stone in range(7):
+        angle = stone * 360.0 / 7 + 12.0
+        spot = ring(bowl, angle, 2.25)
+        place("SM_Rock_03", spot, folder + "/Steinkreis", "Stehender Stein", scale=local.uniform(0.95, 1.2), stretch=(0.36, 0.38, 1.15),
+              yaw=local.uniform(0.0, 360.0), pitch=local.uniform(-6.0, 6.0), roll=local.uniform(-6.0, 6.0), sink=25.0)
+        for candle in range(3):
+            place("SM_Candles_0{}".format(local.randint(1, 3)), ring(spot, local.uniform(0.0, 360.0), local.uniform(0.38, 0.55)), folder + "/Steinkreis", "Kerzen", scale=2.4, yaw=local.uniform(0.0, 360.0))
+
+    # Offerings between the stones
+    place("SM_PileOfChains", ring(bowl, 70.0, 1.3), folder, "Ketten", scale=1.4, yaw=40.0)
+    place("SM_PileOfChains", ring(bowl, 250.0, 1.5), folder, "Ketten", scale=1.2, yaw=160.0)
+    place("SM_Sword", ring(bowl, 160.0, 1.2), folder, "Schwert", yaw=75.0, z=2.0)
+    place("SM_OldMetalPotA", ring(bowl, 320.0, 1.25), folder, "Topf", yaw=10.0)
+    for coal in range(10):
+        place(local.choice(("SM_CoalA", "SM_CoalB")), ring(bowl, local.uniform(0.0, 360.0), local.uniform(0.7, 1.0)), folder, "Kohle", scale=local.uniform(4.0, 7.0), yaw=local.uniform(0.0, 360.0))
+
+
+def dress_dead_trees(taken):
+    """Bare dead trees between the places: the dead broom bush of the plant pack, grown to the size of a tree"""
+    local = random.Random(551)
+    reserved = [(13, 28, 6.8), (45.5, 22.5, 3.4), (52, 11, 9.8), (10.5, 52.5, 7.6), (53.5, 41.5, 5.6), (30, 13, 2.2), (31.5, 15.5, 1.8), (29.5, 39.5, 2.4)]
+    trees = ["SM_DeadBroomBush_V1", "SM_DeadBroomBush_V2", "SM_DeadBroomBush_V3", "SM_DeadBroomBush_V4"]
+
+    placed, tries = 0, 0
+    while placed < 48 and tries < 5000:
+        tries += 1
+        x, y = local.uniform(4, 60), local.uniform(4, 60)
+        if road_distance(x, y) < 2.9 or any(math.hypot(x - cx, y - cy) < r for cx, cy, r in reserved):
+            continue
+        if any(x0 - 1.2 < x < x1 + 2.2 and y0 - 1.2 < y < y1 + 2.2 for x0, y0, x1, y1 in HOUSES):
+            continue
+        if any(math.hypot(x - ox, y - oy) < 1.8 for ox, oy in taken):
+            continue
+        place(local.choice(trees), (x, y), "Streuung/Kulisse/Tote Baeume", "Toter Baum", scale=local.uniform(3.6, 5.6), yaw=local.uniform(0.0, 360.0), roll=local.uniform(-5.0, 5.0), sink=10.0)
+        taken.append((x, y))
+        placed += 1
+
+
+def dress_light(level_actors):
+    """Dusk: a low, warm sun, thicker ash haze, a slightly muted picture and flickering fire light at the fires"""
+    folder = "Licht/Kulisse"
+
+    # Sun and haze are only moved while they still hold the values of BuildAschenmark.py; tuned ones stay
+    for actor in level_actors:
+        if isinstance(actor, unreal.DirectionalLight) and actor.get_actor_label() == "Sonne":
+            if abs(actor.light_component.get_editor_property("intensity") - 4.0) < 0.01:
+                actor.set_actor_rotation(unreal.Rotator(0.0, -24.0, -30.0), False)
+                actor.light_component.set_editor_property("intensity", 3.2)
+                actor.light_component.set_light_color(unreal.LinearColor(1.0, 0.66, 0.46, 1.0))
+        elif isinstance(actor, unreal.ExponentialHeightFog) and actor.get_actor_label() == "Ascheschleier":
+            if abs(actor.component.get_editor_property("fog_density") - 0.03) < 0.001:
+                actor.component.set_editor_property("fog_density", 0.045)
+                actor.component.set_editor_property("fog_inscattering_luminance", unreal.LinearColor(0.20, 0.15, 0.12, 1.0))
+
+    volume = actors.spawn_actor_from_class(unreal.PostProcessVolume, unreal.Vector(0.0, 0.0, 200.0), unreal.Rotator(0.0, 0.0, 0.0))
+    volume.set_editor_property("unbound", True)
+    settings = volume.get_editor_property("settings")
+    settings.set_editor_property("override_auto_exposure_bias", True)
+    settings.set_editor_property("auto_exposure_bias", -0.4)
+    settings.set_editor_property("override_color_saturation", True)
+    settings.set_editor_property("color_saturation", unreal.Vector4(0.84, 0.84, 0.84, 1.0))
+    settings.set_editor_property("override_vignette_intensity", True)
+    settings.set_editor_property("vignette_intensity", 0.5)
+    volume.set_editor_property("settings", settings)
+    volume.set_folder_path(folder)
+    volume.set_actor_label("Stimmung Aschenmark")
+    volume.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+    counts[folder] = counts.get(folder, 0) + 1
+
+    # Fire light, unless some was placed by hand already
+    if any(isinstance(actor, unreal.VaelFireLight) for actor in level_actors):
+        return
+    fires = [("Feuerschein Lagerfeuer", (10.5, 52.5), 130.0, 140.0), ("Feuerschein Feuerschale", (53.5, 41.5), 150.0, 110.0), ("Kerzenschein Kapelle", (39.0, 46.5), 70.0, 25.0),
+             ("Kerzenschein Schrein", (7.0, 23.0), 170.0, 25.0), ("Laternenschein Edda", (13.3, 52.0), 120.0, 20.0), ("Laternenschein Tor", (15.1, 50.25), 130.0, 20.0)]
+    for label, tile, height, intensity in fires:
+        light = actors.spawn_actor_from_class(unreal.VaelFireLight, world(tile[0], tile[1], height), unreal.Rotator(0.0, 0.0, 0.0))
+        light.set_editor_property("base_intensity", intensity)
+        light.set_folder_path(folder)
+        light.set_actor_label(label)
+        light.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+        counts[folder] = counts.get(folder, 0) + 1
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -667,7 +799,9 @@ def dress():
     taken = [tile_of(actor) for actor in level_actors if isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label() in ("Fels", "Toter Baum")]
 
     try:
-        lay_ground(level_actors, make_ground_materials())
+        instances = make_ground_materials()
+        instances["Wasser"] = make_water_material()
+        lay_ground(level_actors, instances)
     except Exception as error:
         notes.append("ground materials failed: {}".format(error))
 
@@ -684,6 +818,12 @@ def dress():
         dress_village(level_actors)
     if not done("Teich/Kulisse"):
         dress_pond()
+    if not done("Orden der Narbe/Kulisse"):
+        dress_order()
+    if not done("Streuung/Kulisse/Tote Baeume"):
+        dress_dead_trees(taken)
+    if not done("Licht/Kulisse"):
+        dress_light(level_actors)
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 
