@@ -42,6 +42,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> WarningDisc;
 
+	/** Brighter disc that grows inside the warning until it fills it at the moment of the strike */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> WarningFill;
+
 	/** Placeholder spike shown when the strike lands */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> Spike;
@@ -95,4 +99,8 @@ private:
 
 	/** Strength of the camera shake when the strike lands, 0 for none */
 	float Shake = 0.0f;
+
+	/** Scale of the warning disc and of the spike at full size */
+	FVector WarningScale = FVector::OneVector;
+	FVector SpikeScale = FVector::OneVector;
 };

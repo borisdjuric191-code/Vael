@@ -19,6 +19,10 @@ namespace
 
 	/** Height of the warning disc in cm */
 	constexpr float WarningDiscHeight = 2.0f;
+
+	/** Seconds the spike needs to shoot out of the ground, and the share of its time it spends sinking back at the end */
+	constexpr float SpikeRiseTime = 0.07f;
+	constexpr float SpikeSinkShare = 0.45f;
 }
 
 AVaelGroundStrike::AVaelGroundStrike()
@@ -30,6 +34,11 @@ AVaelGroundStrike::AVaelGroundStrike()
 	WarningDisc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WarningDisc->SetCastShadow(false);
 
+	WarningFill = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("WarningFill"));
+	WarningFill->SetupAttachment(RootComponent);
+	WarningFill->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	WarningFill->SetCastShadow(false);
+
 	Spike = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Spike"));
 	Spike->SetupAttachment(RootComponent);
 	Spike->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -39,6 +48,7 @@ AVaelGroundStrike::AVaelGroundStrike()
 	if (DiscMesh.Succeeded())
 	{
 		WarningDisc->SetStaticMesh(DiscMesh.Object);
+		WarningFill->SetStaticMesh(DiscMesh.Object);
 	}
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> SpikeMesh(TEXT("/Engine/BasicShapes/Cone.Cone"));
@@ -51,6 +61,7 @@ AVaelGroundStrike::AVaelGroundStrike()
 	if (ShapeMaterial.Succeeded())
 	{
 		WarningDisc->SetMaterial(0, ShapeMaterial.Object);
+		WarningFill->SetMaterial(0, ShapeMaterial.Object);
 		Spike->SetMaterial(0, ShapeMaterial.Object);
 	}
 
@@ -90,6 +101,17 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVecto
 		WarningMaterial->SetVectorParameterValue(TEXT("Color"), Color * 0.2f);
 	}
 
+	// The fill starts as a point and lies just above the warning
+	GroundStrike->WarningScale = FVector(Diameter, Diameter, WarningDiscHeight / StrikeShapeSize);
+	GroundStrike->SpikeScale = GroundStrike->Spike->GetRelativeScale3D();
+	GroundStrike->WarningFill->SetRelativeLocation(FVector(0.0f, 0.0f, WarningDiscHeight * 1.5f));
+	GroundStrike->WarningFill->SetRelativeScale3D(FVector(0.0f, 0.0f, GroundStrike->WarningScale.Z));
+
+	if (UMaterialInstanceDynamic* FillMaterial = GroundStrike->WarningFill->CreateAndSetMaterialInstanceDynamic(0))
+	{
+		FillMaterial->SetVectorParameterValue(TEXT("Color"), Color * 0.55f);
+	}
+
 	if (UMaterialInstanceDynamic* SpikeMaterial = GroundStrike->Spike->CreateAndSetMaterialInstanceDynamic(0))
 	{
 		SpikeMaterial->SetVectorParameterValue(TEXT("Color"), Color);
@@ -118,6 +140,27 @@ void AVaelGroundStrike::Tick(float DeltaSeconds)
 	else if (bStruck && Elapsed >= Delay + SpikeDuration)
 	{
 		Destroy();
+		return;
+	}
+
+	if (!bStruck)
+	{
+		// The fill closes in on the edge of the warning, faster towards the end, so the moment of the strike can be read
+		const float Progress = Delay > 0.0f ? FMath::Clamp(Elapsed / Delay, 0.0f, 1.0f) : 1.0f;
+		const float Fill = FMath::Square(Progress);
+		WarningFill->SetRelativeScale3D(FVector(WarningScale.X * Fill, WarningScale.Y * Fill, WarningScale.Z));
+	}
+	else
+	{
+		// The spike shoots out of the ground, stands and sinks back
+		const float SinceStrike = Elapsed - Delay;
+		const float Rise = SpikeRiseTime > 0.0f ? FMath::Clamp(SinceStrike / SpikeRiseTime, 0.0f, 1.0f) : 1.0f;
+		const float SinkStart = SpikeDuration * (1.0f - SpikeSinkShare);
+		const float Sink = SinceStrike > SinkStart ? 1.0f - FMath::Clamp((SinceStrike - SinkStart) / FMath::Max(SpikeDuration - SinkStart, KINDA_SMALL_NUMBER), 0.0f, 1.0f) : 1.0f;
+		const float Height = FMath::Max(Rise * Sink, 0.01f);
+
+		Spike->SetRelativeScale3D(FVector(SpikeScale.X, SpikeScale.Y, SpikeScale.Z * Height));
+		Spike->SetRelativeLocation(FVector(0.0f, 0.0f, SpikeHeight * 0.5f * Height));
 	}
 }
 
@@ -126,6 +169,7 @@ void AVaelGroundStrike::Strike()
 	bStruck = true;
 
 	WarningDisc->SetVisibility(false);
+	WarningFill->SetVisibility(false);
 	Spike->SetVisibility(true);
 
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
