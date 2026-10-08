@@ -49,6 +49,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="HUD", meta = (ClampMin = 0.5, ClampMax = 2))
 	float HudScale = 1.0f;
 
+	/** Height in pixels of the name of the queued formula above the head of its mage, on a 1080 pixel high screen. 0 hides it. */
+	UPROPERTY(config, EditAnywhere, Category="HUD", meta = (ClampMin = 0, ClampMax = 60))
+	float FormulaNameSize = 26.0f;
+
+	/** How far above the centre of the mage the name of the queued formula floats, in cm: above the circling elements */
+	UPROPERTY(config, EditAnywhere, Category="HUD", meta = (ClampMin = 0))
+	float FormulaNameHeight = 205.0f;
+
 	/** Shows how much damage every hit dealt */
 	UPROPERTY(config, EditAnywhere, Category="Combat Text")
 	bool bShowDamageNumbers = true;

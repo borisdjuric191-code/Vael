@@ -150,6 +150,7 @@ void AVaelHUD::DrawHUD()
 
 	DrawNpcMarkers();
 	DrawInteractPrompts(PlayerControllers);
+	DrawFormulaNames(PlayerControllers);
 
 	float NoticeTop = 70.0f * UiScale;
 	DrawBossBar(NoticeTop);
@@ -260,7 +261,7 @@ void AVaelHUD::DrawPlayerPanel(const AVaelPlayerController* PlayerController, co
 		ComboColor = Rgb(158, 143, 125);
 	}
 
-	DrawLabel(ComboText, CenterX, Y + 82.0f * S, 12.0f * S, ComboColor, 0.5f, InnerWidth);
+	DrawLabel(ComboText, CenterX, Y + 81.0f * S, 14.0f * S, ComboColor, 0.5f, InnerWidth);
 
 	// Quick slots with their formula, cooldown and button
 	const float QuickSize = 30.0f * S;
@@ -996,6 +997,54 @@ void AVaelHUD::DrawCombatTexts()
 		const float Size = CombatText.Size * UiScale;
 
 		DrawLabel(CombatText.Text, ScreenPosition.X, ScreenPosition.Y - Settings->CombatTextRise * UiScale * Age - Size * 0.5f, Size, WithAlpha(CombatText.Color, Alpha), 0.5f);
+	}
+}
+
+void AVaelHUD::DrawFormulaNames(const TArray<const AVaelPlayerController*>& PlayerControllers)
+{
+	const UVaelUISettings* UISettings = UVaelUISettings::Get();
+	const UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
+	if (UISettings->FormulaNameSize <= 0.0f || Grimoire == nullptr)
+	{
+		return;
+	}
+
+	const float S = UiScale;
+
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+		if (Player == nullptr || Player->IsDowned() || PlayerController->IsGrimoireOpen())
+		{
+			continue;
+		}
+
+		const TArray<EVaelElement>& Queue = Player->GetElementComponent()->GetQueue();
+		if (Queue.IsEmpty())
+		{
+			continue;
+		}
+
+		const FVector Screen = Project(Player->GetActorLocation() + FVector(0.0f, 0.0f, UISettings->FormulaNameHeight), false);
+		if (Screen.Z <= 0.0f)
+		{
+			continue;
+		}
+
+		// A known formula shows its name, bright in the color of its element; anything else stays small and pale
+		const UVaelFormula* Formula = Grimoire->FindFormula(Queue);
+		const float NameSize = UISettings->FormulaNameSize * S;
+
+		if (Formula != nullptr && Grimoire->IsFormulaKnown(Formula))
+		{
+			const FLinearColor ElementColor = UVaelMagicSettings::Get()->GetElementColor(Formula->DamageElement);
+			DrawLabel(Formula->DisplayName, Screen.X, Screen.Y - NameSize, NameSize, FMath::Lerp(ElementColor, FLinearColor::White, 0.35f), 0.5f);
+		}
+		else
+		{
+			const FText Unknown = Formula != nullptr && Formula->Source == EVaelFormulaSource::Free ? LOCTEXT("FormulaNameUnknown", "Unbekannt") : LOCTEXT("FormulaNameSealed", "Versiegelt");
+			DrawLabel(Unknown, Screen.X, Screen.Y - NameSize * 0.7f, NameSize * 0.7f, Rgb(158, 143, 125), 0.5f);
+		}
 	}
 }
 
