@@ -29,8 +29,11 @@ def measure():
 
             box = mesh.get_bounding_box()
             size = box.max - box.min
+
+            # The subsystem is missing when the script runs as a commandlet; -1 then means "not counted"
+            collision = meshes.get_simple_collision_count(mesh) if meshes is not None else -1
             lines.append("{:<44} {:>8.0f} {:>8.0f} {:>8.0f}  low {:>7.0f}  collision {:>2}  {}".format(
-                str(data.asset_name), size.x, size.y, size.z, box.min.z, meshes.get_simple_collision_count(mesh), str(data.package_name)))
+                str(data.asset_name), size.x, size.y, size.z, box.min.z, collision, str(data.package_name)))
 
     path = os.path.join(unreal.Paths.project_saved_dir(), "MeshSizes.txt")
     with open(path, "w", encoding="utf-8") as file:
