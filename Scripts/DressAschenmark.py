@@ -290,6 +290,9 @@ def make_ground_materials():
         "MI_Aschenmark_Weg": {"textures": path_ground,
                               "colors": {"Tint": unreal.LinearColor(0.62, 0.52, 0.42, 1.0), "Tint2": unreal.LinearColor(0.50, 0.43, 0.36, 1.0)},
                               "scalars": {"TileSize": 330.0, "MacroSize": 2600.0, "Desaturation": 0.35}},
+        "MI_Aschenmark_Mark": {"textures": mud,
+                               "colors": {"Tint": unreal.LinearColor(0.20, 0.035, 0.04, 1.0), "Tint2": unreal.LinearColor(0.07, 0.012, 0.016, 1.0)},
+                               "scalars": {"Desaturation": 0.0, "MacroSize": 1400.0}},
         "MI_Aschenmark_Krater": {"textures": mud,
                                  "colors": {"Tint": unreal.LinearColor(0.13, 0.10, 0.095, 1.0), "Tint2": unreal.LinearColor(0.06, 0.055, 0.055, 1.0)},
                                  "scalars": {"Desaturation": 0.6}},
@@ -460,7 +463,7 @@ def dress_camp():
     place("SM_TreeStumpB", (11.2, 56.9), folder + "/Holzplatz", "Hackklotz", scale=0.7, yaw=40.0)
     place("SM_Axe", (11.2, 56.9), folder + "/Holzplatz", "Axt", z=76.0, yaw=115.0)
     for piece in range(7):
-        place("SM_WoodBranchA", (10.0 + rng.uniform(-0.25, 0.25), 57.3 + rng.uniform(-0.2, 0.2)), folder + "/Holzplatz", "Holzscheit", scale=0.7, yaw=20.0 + rng.uniform(-12, 12), z=piece * 9.0)
+        place("SM_WoodBranchA", (10.0 + rng.uniform(-0.25, 0.25), 57.3 + rng.uniform(-0.2, 0.2)), folder + "/Holzplatz", "Holzscheit", scale=0.7, yaw=20.0 + rng.uniform(-12, 12), z=(piece // 3) * 14.0)
     place("SM_WoodenWheelbarrow", (12.4, 57.2), folder + "/Holzplatz", "Schubkarre", yaw=310.0)
     place("SM_WoodenWheelB", (14.9, 56.9), folder + "/Holzplatz", "Wagenrad", yaw=15.0)
 
@@ -505,7 +508,7 @@ def dress_rocks(level_actors):
 def dress_trees(level_actors):
     """Dead trunks where the blockout has dark cylinders"""
     for actor in level_actors:
-        if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Toter Baum" or unreal.Name(HIDDEN_TAG) in actor.get_editor_property("tags"):
+        if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Toter Baum" or str(actor.get_folder_path()) != "Streuung" or unreal.Name(HIDDEN_TAG) in actor.get_editor_property("tags"):
             continue
 
         roll = rng.random()
@@ -616,7 +619,7 @@ def dress_village(level_actors):
         folder = house + "/Kulisse/Innen"
         for beam in range(3 if house == "Dorf/Kapelle" else 2):
             spot = (local.uniform(x0 + 1.4, x1 - 0.4), local.uniform(y0 + 1.4, y1 - 0.4))
-            place(local.choice(("SM_WornWoodenBeamA_00", "SM_WornWoodenBeamA_01", "SM_WornWoodenBeamB")), spot, folder, "Gefallener Balken", scale=1.2, yaw=local.uniform(0.0, 360.0), pitch=90.0 + local.uniform(-6.0, 6.0), z=14.0)
+            place(local.choice(("SM_WornWoodenBeamA_00", "SM_WornWoodenBeamA_01", "SM_WornWoodenBeamB")), spot, folder, "Gefallener Balken", scale=1.2, yaw=local.uniform(0.0, 360.0), pitch=90.0 + local.uniform(-4.0, 4.0), z=16.0, grounded=False)
         for rubble in range(9):
             edge = local.choice(("N", "S", "W", "E"))
             x = local.uniform(x0 + 1.1, x1 - 0.1) if edge in ("N", "S") else (x0 + 1.25 if edge == "W" else x1 - 0.25)
@@ -778,6 +781,109 @@ def dress_light(level_actors):
         light.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
         counts[folder] = counts.get(folder, 0) + 1
 
+def fix_floating(level_actors):
+    """Corrections to earlier passes: beams that hung in the air (their pivot is in the middle) and loose firewood"""
+    stacked = 0
+    for actor in level_actors:
+        if unreal.Name(DRESSING_TAG) not in actor.get_editor_property("tags"):
+            continue
+
+        label = actor.get_actor_label()
+        location = actor.get_actor_location()
+        if label.startswith("Gefallener Balken") and location.z > 40.0:
+            actor.set_actor_location(unreal.Vector(location.x, location.y, 16.0), False, False)
+            counts["Korrektur: Balken"] = counts.get("Korrektur: Balken", 0) + 1
+        elif label.startswith("Holzscheit") and str(actor.get_folder_path()) == "Lager/Kulisse/Holzplatz":
+            actor.set_actor_location(unreal.Vector(location.x, location.y, location.z - max(0.0, location.z - 3.0) + (stacked // 3) * 14.0), False, False)
+            stacked += 1
+
+
+def dress_mark_source(instances):
+    """Mark source: dark red ground, a crown of stone thorns leaning away from it, roots and dead trees around"""
+    local = random.Random(166)
+    source = (45.5, 22.5)
+    folder = "Mark-Quelle/Kulisse"
+
+    if "MI_Aschenmark_Mark" in instances:
+        stain = actors.spawn_actor_from_class(unreal.StaticMeshActor, world(source[0], source[1], 1.6), unreal.Rotator(0.0, 0.0, 0.0))
+        stain.static_mesh_component.set_static_mesh(unreal.load_asset("/Engine/BasicShapes/Cylinder.Cylinder"))
+        stain.static_mesh_component.set_material(0, instances["MI_Aschenmark_Mark"])
+        stain.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        stain.static_mesh_component.set_cast_shadow(False)
+        stain.set_actor_scale3d(unreal.Vector(3.1 * 2.0 * TILE / 100.0, 3.1 * 2.0 * TILE / 100.0, 0.012))
+        stain.set_folder_path(folder)
+        stain.set_actor_label("Markgetraenkter Boden")
+        stain.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+        counts[folder] = counts.get(folder, 0) + 1
+
+    for thorn in range(10):
+        angle = thorn * 36.0 + local.uniform(-9.0, 9.0)
+        place(local.choice(("SM_Rock_03", "SM_Rock_07", "SM_Rock_06")), ring(source, angle, local.uniform(2.3, 2.9)), folder + "/Dornen", "Steindorn",
+              scale=local.uniform(0.7, 1.15), stretch=(0.3, 0.34, 1.25), yaw=world_yaw(angle), pitch=-local.uniform(16.0, 30.0), sink=30.0)
+    for root in range(7):
+        angle = root * 360.0 / 7 + local.uniform(-12.0, 12.0)
+        place(local.choice(("SM_ForestRootsA", "SM_ForestRootsB")), ring(source, angle, local.uniform(1.5, 2.0)), folder, "Wurzel", scale=local.uniform(0.9, 1.3), yaw=world_yaw(angle), sink=3.0)
+    for tree in range(6):
+        place(local.choice(("SM_DeadBroomBush_V1", "SM_DeadBroomBush_V2", "SM_DeadBroomBush_V3")), ring(source, tree * 60.0 + local.uniform(-15.0, 15.0), local.uniform(3.4, 4.1)), folder, "Verdorrter Baum",
+              scale=local.uniform(3.2, 4.8), yaw=local.uniform(0.0, 360.0), roll=local.uniform(-12.0, 12.0), sink=10.0)
+
+
+def dress_crater():
+    """Crater of the ember queen: charred wood and coal along the inside of the rock ring, the middle stays free for the fight"""
+    local = random.Random(377)
+    crater = (52.0, 11.0)
+    folder = "Krater/Kulisse/Verbranntes"
+    gap = 135.0
+
+    def inside(spot):
+        return 3.0 < spot[0] < 61.0 and 3.0 < spot[1] < 61.0
+
+    for coal in range(46):
+        angle = local.uniform(0.0, 360.0)
+        spot = ring(crater, angle, local.uniform(5.6, 7.9))
+        if inside(spot):
+            place(local.choice(("SM_CoalA", "SM_CoalB")), spot, folder, "Kohlebrocken", scale=local.uniform(6.0, 14.0), yaw=local.uniform(0.0, 360.0), sink=4.0)
+    for stump in range(12):
+        angle = local.uniform(0.0, 360.0)
+        spot = ring(crater, angle, local.uniform(6.6, 7.8))
+        if inside(spot) and abs((angle - gap + 180.0) % 360.0 - 180.0) > 28.0:
+            place(local.choice(("SM_BrokenPineStump", "SM_WoodStump", "SM_BrokenTreeStump", "SM_FallenPineTree")), spot, folder, "Verkohlter Stumpf", scale=local.uniform(0.9, 1.4), yaw=local.uniform(0.0, 360.0), sink=6.0)
+    for bush in range(14):
+        spot = ring(crater, local.uniform(0.0, 360.0), local.uniform(6.2, 7.9))
+        if inside(spot):
+            place(local.choice(("SM_DeadBroomBush_V3", "SM_DeadBroomBush_V4", "SM_DeadBranches_02")), spot, folder, "Verbranntes Geaest", scale=local.uniform(1.4, 2.6), yaw=local.uniform(0.0, 360.0), sink=4.0)
+
+    # Embers glowing along the edge
+    for ember in range(4):
+        spot = ring(crater, 45.0 + ember * 90.0, 6.4)
+        if not inside(spot):
+            continue
+        light = actors.spawn_actor_from_class(unreal.VaelFireLight, world(spot[0], spot[1], 60.0), unreal.Rotator(0.0, 0.0, 0.0))
+        light.set_editor_property("base_intensity", 45.0)
+        light.set_folder_path("Krater/Kulisse/Glut")
+        light.set_actor_label("Glutschein")
+        light.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+        counts["Krater/Kulisse/Glut"] = counts.get("Krater/Kulisse/Glut", 0) + 1
+
+
+def dress_border(level_actors):
+    """A wall of big rocks instead of the four grey blocks around the map; the blocks stay as invisible collision"""
+    local = random.Random(640)
+    rocks = ["SM_Rock_0{}".format(index) for index in range(1, 8)]
+    folder = "Rand/Kulisse"
+
+    position = 0.5
+    while position < MAP_TILES:
+        for side in range(4):
+            offset = 1.0 + local.uniform(-0.45, 0.35)
+            spot = {0: (position, offset), 1: (position, MAP_TILES - offset), 2: (offset, position), 3: (MAP_TILES - offset, position)}[side]
+            place(local.choice(rocks), spot, folder, "Randfels", scale=local.uniform(1.5, 2.3), yaw=local.uniform(0.0, 360.0), sink=45.0)
+        position += local.uniform(2.2, 3.0)
+
+    for actor in level_actors:
+        if isinstance(actor, unreal.StaticMeshActor) and str(actor.get_folder_path()) == "Rand" and actor.get_actor_label().startswith("Rand "):
+            hide_placeholder(actor)
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -798,6 +904,7 @@ def dress():
     # Tiles the blockout already uses for rocks and trees, so new things keep their distance
     taken = [tile_of(actor) for actor in level_actors if isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label() in ("Fels", "Toter Baum")]
 
+    instances = {}
     try:
         instances = make_ground_materials()
         instances["Wasser"] = make_water_material()
@@ -824,6 +931,13 @@ def dress():
         dress_dead_trees(taken)
     if not done("Licht/Kulisse"):
         dress_light(level_actors)
+    fix_floating(level_actors)
+    if not done("Mark-Quelle/Kulisse"):
+        dress_mark_source(instances)
+    if not done("Krater/Kulisse/Verbranntes"):
+        dress_crater()
+    if not done("Rand/Kulisse"):
+        dress_border(level_actors)
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 
