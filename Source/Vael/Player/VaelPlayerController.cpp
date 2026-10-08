@@ -178,16 +178,29 @@ void AVaelPlayerController::CreateInputAssets()
 	BackMapping.Modifiers.Add(NewObject<UInputModifierNegate>(MappingContext));
 
 	// Sticks
-	const auto MapStick = [this](const UInputAction* Action, const FKey& StickKey)
+	const auto MapStick = [this](const UInputAction* Action, const FKey& StickKey, bool bInvertY)
 	{
 		UInputModifierDeadZone* DeadZone = NewObject<UInputModifierDeadZone>(MappingContext);
 		DeadZone->LowerThreshold = StickDeadZone;
 
-		MappingContext->MapKey(Action, StickKey).Modifiers.Add(DeadZone);
+		FEnhancedActionKeyMapping& StickMapping = MappingContext->MapKey(Action, StickKey);
+		StickMapping.Modifiers.Add(DeadZone);
+
+		if (bInvertY)
+		{
+			UInputModifierNegate* InvertY = NewObject<UInputModifierNegate>(MappingContext);
+			InvertY->bX = false;
+			InvertY->bY = true;
+			InvertY->bZ = false;
+
+			StickMapping.Modifiers.Add(InvertY);
+		}
 	};
 
-	MapStick(MoveGamepadAction, EKeys::Gamepad_Left2D);
-	MapStick(AimStickAction, EKeys::Gamepad_Right2D);
+	MapStick(MoveGamepadAction, EKeys::Gamepad_Left2D, false);
+
+	// The right stick reports up as negative Y, unlike the left one
+	MapStick(AimStickAction, EKeys::Gamepad_Right2D, true);
 
 	// Dodge roll
 	MappingContext->MapKey(DodgeAction, EKeys::Gamepad_LeftTrigger);
