@@ -72,6 +72,9 @@ public:
 	/** Ends the flight when the lifetime is over */
 	virtual void LifeSpanExpired() override;
 
+	/** Stops the projectile where it is, as if it hit a wall, for example on a stone of a Steinkreis */
+	void Block() { EndFlight(true); }
+
 protected:
 
 	/** Starts the trail */

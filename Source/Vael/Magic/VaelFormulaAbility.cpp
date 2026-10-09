@@ -31,6 +31,7 @@
 #include "Magic/VaelSpellAura.h"
 #include "Magic/VaelSpellBeam.h"
 #include "Magic/VaelSpellGust.h"
+#include "Magic/VaelSpellOrbit.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Magic/VaelSpellVortex.h"
 #include "NiagaraComponent.h"
@@ -351,6 +352,10 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 
 	case EVaelSpellDelivery::Summon:
 		SummonServant(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Orbit:
+		StartOrbit(Formula, Caster, Power);
 		break;
 	}
 }
@@ -967,4 +972,16 @@ void UVaelFormulaAbility::SummonServant(const UVaelFormula& Formula, AActor* Cas
 	}
 
 	AVaelClayGolem::Summon(Formula.SummonClass, CasterPawn, Location, Formula.MakeSpellHit(Power), Formula.SummonLifetime);
+}
+
+void UVaelFormulaAbility::StartOrbit(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	FVaelOrbitSettings Settings;
+	Settings.Count = Formula.OrbitCount;
+	Settings.Radius = Formula.OrbitRadius;
+	Settings.Speed = Formula.OrbitSpeed;
+	Settings.StoneSize = Formula.OrbitStoneSize;
+	Settings.Lifetime = Formula.OrbitLifetime;
+
+	AVaelSpellOrbit::Start(Cast<APawn>(Caster), Formula.MakeSpellHit(Power), Settings);
 }

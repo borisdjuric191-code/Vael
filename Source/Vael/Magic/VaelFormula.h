@@ -142,6 +142,26 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Summon", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Summon"))
 	float SummonLifetime = 10.0f;
 
+	/** Number of stones circling the caster */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Orbit", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Orbit"))
+	int32 OrbitCount = 4;
+
+	/** Distance of the stones from the caster in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Orbit", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Orbit"))
+	float OrbitRadius = 224.0f;
+
+	/** Speed of the stones in degrees per second */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Orbit", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Orbit"))
+	float OrbitSpeed = 300.0f;
+
+	/** Size of each stone in cm, also how close it has to come to hit */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Orbit", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Orbit"))
+	float OrbitStoneSize = 45.0f;
+
+	/** Seconds the stones circle */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Orbit", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Orbit"))
+	float OrbitLifetime = 6.0f;
+
 	/** Own look of the projectile, shown together with its trail effect */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	EVaelProjectileLook ProjectileLook = EVaelProjectileLook::Sphere;

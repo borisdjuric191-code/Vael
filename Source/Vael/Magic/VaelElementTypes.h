@@ -59,7 +59,9 @@ enum class EVaelSpellDelivery : uint8
 	/** A single strike at the aimed point that lands after a warning, like a meteor or a geyser, and may leave a patch on the ground */
 	Strike,
 	/** Calls a short-lived servant to the aimed point, like the Lehmgolem */
-	Summon
+	Summon,
+	/** Stones circle around the caster for some seconds, hit enemies they touch and stop enemy projectiles, like the Steinkreis */
+	Orbit
 };
 
 /** Own look of a flying spell, shown together with its trail effect */

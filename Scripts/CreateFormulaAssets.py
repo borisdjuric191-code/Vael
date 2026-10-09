@@ -591,6 +591,23 @@ FORMULAS = [
         "area_range": 4.0 * TILE,
         "summon_lifetime": 10.0,
     },
+    {
+        "asset": "DA_Formula_Steinkreis",
+        "display_name": unreal.Text("Steinkreis"),
+        "description": unreal.Text("Steine kreisen um dich, treffen Nahe und fangen Geschosse ab"),
+        "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
+        "elements": [Element.EARTH, Element.EARTH, Element.AIR],
+        "source": Source.SEALED,
+        "delivery": Delivery.ORBIT,
+        "damage_element": Element.EARTH,
+        "damage": 9.0,
+        "knockback": 2.0 * TILE,
+        "orbit_count": 4,
+        "orbit_radius": 1.6 * TILE,
+        "orbit_speed": 300.0,
+        "orbit_stone_size": 45.0,
+        "orbit_lifetime": 6.0,
+    },
     # Mark formulas: castable only once the Mark has awakened (Act III)
     {
         "asset": "DA_Formula_Marksplitter",
