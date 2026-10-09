@@ -42,13 +42,19 @@ bool UVaelCombatStatics::CanDamage(const AActor* Attacker, const AActor* Target)
 		return false;
 	}
 
-	const APawn* AttackerPawn = Cast<APawn>(Attacker);
-	const APawn* TargetPawn = Cast<APawn>(Target);
+	// Players and their servants on one side, everything else on the other
+	const auto IsOnPlayerSide = [](const AActor* Actor)
+	{
+		if (const AVaelCharacterBase* Character = Cast<AVaelCharacterBase>(Actor))
+		{
+			return Character->IsOnPlayerSide();
+		}
 
-	const bool bAttackerIsPlayer = AttackerPawn != nullptr && AttackerPawn->IsPlayerControlled();
-	const bool bTargetIsPlayer = TargetPawn != nullptr && TargetPawn->IsPlayerControlled();
+		const APawn* Pawn = Cast<APawn>(Actor);
+		return Pawn != nullptr && Pawn->IsPlayerControlled();
+	};
 
-	return bAttackerIsPlayer != bTargetIsPlayer;
+	return IsOnPlayerSide(Attacker) != IsOnPlayerSide(Target);
 }
 
 bool UVaelCombatStatics::ApplySpellHit(AActor* Attacker, AActor* Target, const FVaelSpellHit& Hit, const FVector& KnockbackDirection)

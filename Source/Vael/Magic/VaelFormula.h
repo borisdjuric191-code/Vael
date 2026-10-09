@@ -9,6 +9,7 @@
 #include "Magic/VaelSpellEffects.h"
 #include "VaelFormula.generated.h"
 
+class AVaelClayGolem;
 class AVaelSpellProjectile;
 class UAnimMontage;
 class UVaelFormulaAbility;
@@ -133,6 +134,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	TSubclassOf<AVaelSpellProjectile> ProjectileClass;
 
+	/** Servant the formula calls; its strength and behavior are set on the class */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Summon", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Summon"))
+	TSubclassOf<AVaelClayGolem> SummonClass;
+
+	/** Seconds the servant stays before it falls apart */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Summon", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Summon"))
+	float SummonLifetime = 10.0f;
+
 	/** Own look of the projectile, shown together with its trail effect */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	EVaelProjectileLook ProjectileLook = EVaelProjectileLook::Sphere;
@@ -198,7 +207,7 @@ public:
 	float ExplosionKnockback = 560.0f;
 
 	/** How far away the patch, the strike or a standing whirl can be placed, in cm. Walls stop it earlier. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::Vortex"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::Vortex || Delivery == EVaelSpellDelivery::Summon"))
 	float AreaRange = 980.0f;
 
 	/** Radius of the patch on the ground in cm. Explosions, strikes and spike lines leave no patch while this is 0. */

@@ -19,6 +19,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
+#include "Magic/VaelClayGolem.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
@@ -346,6 +347,10 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 
 	case EVaelSpellDelivery::Strike:
 		CallStrike(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Summon:
+		SummonServant(Formula, Caster, Power);
 		break;
 	}
 }
@@ -937,4 +942,29 @@ UVaelElementComponent* UVaelFormulaAbility::GetElementComponent(const FGameplayA
 {
 	const AActor* Avatar = ActorInfo != nullptr ? ActorInfo->AvatarActor.Get() : nullptr;
 	return Avatar != nullptr ? Avatar->FindComponentByClass<UVaelElementComponent>() : nullptr;
+}
+
+void UVaelFormulaAbility::SummonServant(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	UWorld* World = Caster->GetWorld();
+	APawn* CasterPawn = Cast<APawn>(Caster);
+	if (World == nullptr || CasterPawn == nullptr)
+	{
+		return;
+	}
+
+	// The servant stands on the ground at the aimed point
+	FVector Location = FindGroundTarget(Caster, Formula.AreaRange);
+
+	FHitResult GroundHit;
+	if (VaelGround::TraceGround(World, Location + FVector(0.0f, 0.0f, AreaGroundSearchHeight), Location - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
+	{
+		Location = GroundHit.Location;
+	}
+	else
+	{
+		Location.Z -= Caster->GetSimpleCollisionHalfHeight();
+	}
+
+	AVaelClayGolem::Summon(Formula.SummonClass, CasterPawn, Location, Formula.MakeSpellHit(Power), Formula.SummonLifetime);
 }

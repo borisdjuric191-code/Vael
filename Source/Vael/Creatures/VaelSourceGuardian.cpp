@@ -143,7 +143,7 @@ void AVaelSourceGuardian::TickBehavior(float DeltaSeconds)
 	}
 
 	float TargetDistance = 0.0f;
-	AVaelCharacter* Target = FindNearestPlayer(GuardianPursuitRange, &TargetDistance);
+	AActor* Target = FindTarget(GuardianPursuitRange, &TargetDistance);
 	if (Target == nullptr)
 	{
 		return;

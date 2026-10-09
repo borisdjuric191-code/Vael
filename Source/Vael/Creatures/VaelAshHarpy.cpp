@@ -147,7 +147,7 @@ void AVaelAshHarpy::TickBehavior(float DeltaSeconds)
 		const FVector CirclePoint = HomeLocation + FVector(FMath::Cos(CircleAngle), FMath::Sin(CircleAngle), 0.0f) * Data->IdleCircleRadius;
 		MoveTowards(CirclePoint, FMath::Min(Data->MoveSpeed, FVector::Dist2D(CirclePoint, GetActorLocation()) * 1.5f));
 
-		if (FindNearestPlayer(Data->AggroRange) != nullptr)
+		if (FindTarget(Data->AggroRange) != nullptr)
 		{
 			StartCircling();
 		}
@@ -156,7 +156,7 @@ void AVaelAshHarpy::TickBehavior(float DeltaSeconds)
 
 	case EVaelHarpyState::Circling:
 	{
-		AVaelCharacter* Target = FindNearestPlayer(Data->LoseInterestRange);
+		AActor* Target = FindTarget(Data->LoseInterestRange);
 		if (Target == nullptr)
 		{
 			EnterState(EVaelHarpyState::Idle);

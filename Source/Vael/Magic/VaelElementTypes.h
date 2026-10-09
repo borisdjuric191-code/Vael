@@ -57,7 +57,9 @@ enum class EVaelSpellDelivery : uint8
 	/** A line of spikes breaks out of the ground in the aim direction, one after the other, until a wall */
 	SpikeLine,
 	/** A single strike at the aimed point that lands after a warning, like a meteor or a geyser, and may leave a patch on the ground */
-	Strike
+	Strike,
+	/** Calls a short-lived servant to the aimed point, like the Lehmgolem */
+	Summon
 };
 
 /** Own look of a flying spell, shown together with its trail effect */

@@ -142,8 +142,8 @@ protected:
 	template <typename DataType>
 	const DataType* GetData() const { return CastChecked<DataType>(ActiveData.Get()); }
 
-	/** Returns the closest player who isn't down, or null if none is within the distance */
-	AVaelCharacter* FindNearestPlayer(float MaxDistance, float* OutDistance = nullptr) const;
+	/** Returns what the creature goes for: a golem of a mage drawing it in, else the closest player who isn't down and can be seen; null if none is within the distance */
+	AActor* FindTarget(float MaxDistance, float* OutDistance = nullptr) const;
 
 	/** Calls the function for every player in the level who isn't down */
 	void ForEachActivePlayer(TFunctionRef<void(AVaelCharacter*)> Function) const;

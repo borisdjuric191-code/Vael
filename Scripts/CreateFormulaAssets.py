@@ -575,6 +575,22 @@ FORMULAS = [
         "area_damage_per_second": 0.0,
         "area_effect": GroundEffect.VEIL,
     },
+    {
+        "asset": "DA_Formula_Lehmgolem",
+        "display_name": unreal.Text("Lehmgolem"),
+        "description": unreal.Text("Ein Golem aus Lehm lockt Gegner auf sich, stampft und zerfällt zu Schlamm"),
+        "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
+        "elements": [Element.EARTH, Element.EARTH, Element.WATER],
+        "source": Source.SEALED,
+        "delivery": Delivery.SUMMON,
+        "damage_element": Element.EARTH,
+        "damage": 10.0,
+        "knockback": 1.5 * TILE,
+        "applied_status": Status.SLOWED,
+        "status_duration": 1.5,
+        "area_range": 4.0 * TILE,
+        "summon_lifetime": 10.0,
+    },
     # Mark formulas: castable only once the Mark has awakened (Act III)
     {
         "asset": "DA_Formula_Marksplitter",

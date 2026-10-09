@@ -79,7 +79,7 @@ void AVaelEmberQueen::TickBehavior(float DeltaSeconds)
 
 	if (State == EVaelQueenState::Sleeping)
 	{
-		if (FindNearestPlayer(Data->AggroRange) != nullptr)
+		if (FindTarget(Data->AggroRange) != nullptr)
 		{
 			WakeUp();
 		}
@@ -107,7 +107,7 @@ void AVaelEmberQueen::TickBehavior(float DeltaSeconds)
 	}
 
 	float TargetDistance = 0.0f;
-	AVaelCharacter* Target = FindNearestPlayer(PursuitRange, &TargetDistance);
+	AActor* Target = FindTarget(PursuitRange, &TargetDistance);
 	if (Target == nullptr)
 	{
 		return;

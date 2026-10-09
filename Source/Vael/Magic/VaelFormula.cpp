@@ -2,6 +2,7 @@
 
 #include "Magic/VaelFormula.h"
 #include "Animation/AnimMontage.h"
+#include "Magic/VaelClayGolem.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellProjectile.h"
@@ -13,6 +14,7 @@ UVaelFormula::UVaelFormula()
 {
 	AbilityClass = UVaelFormulaAbility::StaticClass();
 	ProjectileClass = AVaelSpellProjectile::StaticClass();
+	SummonClass = AVaelClayGolem::StaticClass();
 }
 
 FVaelSpellHit UVaelFormula::MakeSpellHit(float Power) const

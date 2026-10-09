@@ -100,6 +100,9 @@ public:
 	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const { return 1.0f; }
 
 	/** True while nothing can hurt the character, for example during a dodge roll */
+	/** True for players and the servants they summon, false for their enemies */
+	virtual bool IsOnPlayerSide() const { return IsPlayerControlled(); }
+
 	UFUNCTION(BlueprintPure, Category="Combat")
 	virtual bool IsInvulnerable() const { return false; }
 

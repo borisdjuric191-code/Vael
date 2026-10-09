@@ -13,6 +13,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Items/VaelItemDrop.h"
@@ -20,6 +21,7 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Items/VaelPickupOrb.h"
+#include "Magic/VaelClayGolem.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGrimoireSubsystem.h"
@@ -439,13 +441,29 @@ void AVaelCreature::DropLoot()
 	}
 }
 
-AVaelCharacter* AVaelCreature::FindNearestPlayer(float MaxDistance, float* OutDistance) const
+AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 {
-	AVaelCharacter* Nearest = nullptr;
+	AActor* Nearest = nullptr;
 	float NearestDistance = MaxDistance;
+
+	// A golem of a mage draws every enemy near it onto itself
+	for (TActorIterator<AVaelClayGolem> It(GetWorld()); It; ++It)
+	{
+		const float Distance = GetDistanceTo2D(*It);
+		if (!It->IsDefeated() && Distance < FMath::Min(NearestDistance, It->GetLureRadius()))
+		{
+			Nearest = *It;
+			NearestDistance = Distance;
+		}
+	}
 
 	ForEachActivePlayer([this, &Nearest, &NearestDistance](AVaelCharacter* Player)
 	{
+		if (Cast<AVaelClayGolem>(Nearest) != nullptr)
+		{
+			return;
+		}
+
 		// Players in the mist of a mage can't be made out from afar
 		if (AVaelGroundArea::IsHiddenInMist(Player, this))
 		{

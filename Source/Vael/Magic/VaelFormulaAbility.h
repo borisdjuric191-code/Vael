@@ -76,6 +76,9 @@ protected:
 	/** Calls a single strike down on the aimed point; it lands after a warning and may leave a patch */
 	void CallStrike(const UVaelFormula& Formula, AActor* Caster, float Power);
 
+	/** Calls the servant of the formula to the aimed point */
+	void SummonServant(const UVaelFormula& Formula, AActor* Caster, float Power);
+
 	/** Point on the ground the caster aims at: the mouse cursor, or with a gamepad the nearest enemy in the aim direction. Stays within range and in front of walls. */
 	static FVector FindGroundTarget(AActor* Caster, float MaxRange);
 

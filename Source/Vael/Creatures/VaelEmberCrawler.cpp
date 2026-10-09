@@ -69,7 +69,7 @@ void AVaelEmberCrawler::TickBehavior(float DeltaSeconds)
 	ClawCooldown -= DeltaSeconds;
 
 	float TargetDistance = 0.0f;
-	AVaelCharacter* Target = FindNearestPlayer(Data->AggroRange, &TargetDistance);
+	AActor* Target = FindTarget(Data->AggroRange, &TargetDistance);
 
 	switch (State)
 	{
