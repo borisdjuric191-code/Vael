@@ -32,6 +32,9 @@ struct FVaelAuraSettings
 	/** Enemies inside can't see for this long, renewed as long as they stay inside */
 	float BlindDuration = 0.4f;
 
+	/** Damage per second the storm does to its own caster, like the heat of the Schwarze Sonne; 0 for none */
+	float SelfDamagePerSecond = 0.0f;
+
 	/** Look of the spell; gets the user parameters Color and Radius. Null for the placeholder. */
 	UNiagaraSystem* Visual = nullptr;
 

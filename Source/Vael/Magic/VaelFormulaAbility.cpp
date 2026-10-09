@@ -467,8 +467,21 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 #endif
 	};
 
+	// A wild chain that finds no prey turns on its caster
+	const auto StrikeCaster = [&](const FVector& From)
+	{
+		DrawBolt(From, Caster->GetActorLocation(), 0.25f);
+		UVaelCombatStatics::DealDamage(Caster, Caster, Hit.Damage, Hit.Element);
+	};
+
 	if (Target == nullptr)
 	{
+		if (Formula.bChainTurnsOnCaster)
+		{
+			StrikeCaster(LinkStart + AimDirection * Formula.ChainJumpRange);
+			return;
+		}
+
 		// The bolt fizzles out in the aim direction
 		DrawBolt(LinkStart, LinkStart + AimDirection * Formula.ChainJumpRange, 0.2f);
 		return;
@@ -482,9 +495,15 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 		VaelEffects::PlayImpact(Caster, Effects, TargetLocation, Target->GetSimpleCollisionRadius());
 
 		UVaelCombatStatics::ApplySpellHit(Caster, Target, Hit, TargetLocation - LinkStart);
-		Candidates.RemoveSingleSwap(Target);
 
-		// Jump on to the nearest enemy that hasn't been hit yet
+		// Most chains hit each enemy once; a wild one may come back, just never to the one it is on
+		AVaelCharacterBase* Previous = Target;
+		if (!Formula.bChainTurnsOnCaster)
+		{
+			Candidates.RemoveSingleSwap(Target);
+		}
+
+		// Jump on to the nearest enemy that can still be hit
 		LinkStart = TargetLocation;
 		Target = nullptr;
 		BestDistance = Formula.ChainJumpRange;
@@ -492,11 +511,16 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 		for (AVaelCharacterBase* Candidate : Candidates)
 		{
 			const float Distance = FVector::Dist2D(Candidate->GetActorLocation(), LinkStart);
-			if (Distance <= BestDistance)
+			if (Candidate != Previous && !Candidate->IsDefeated() && Distance <= BestDistance)
 			{
 				BestDistance = Distance;
 				Target = Candidate;
 			}
+		}
+
+		if (Target == nullptr && Formula.bChainTurnsOnCaster && NumHit + 1 < Formula.ChainMaxTargets)
+		{
+			StrikeCaster(LinkStart);
 		}
 	}
 }
@@ -794,6 +818,7 @@ void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster,
 	Aura.Radius = Formula.AuraRadius;
 	Aura.Duration = Formula.AuraDuration;
 	Aura.BlindDuration = Formula.AuraBlindDuration;
+	Aura.SelfDamagePerSecond = Formula.AuraSelfDamagePerSecond;
 	Aura.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
 	Aura.Visual = Formula.LoadEffects().Trail;
 

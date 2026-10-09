@@ -96,6 +96,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Region")
 	void SetCorruption(float NewCorruption);
 
+	/** Raises the corruption for good: cleansing never brings it below the scars, like those the Offene Wunde leaves */
+	UFUNCTION(BlueprintCallable, Category="Region")
+	void AddScar(float Amount);
+
 	UFUNCTION(BlueprintPure, Category="Region")
 	EVaelWeather GetWeather() const { return Weather; }
 
@@ -137,6 +141,9 @@ private:
 
 	/** True if at least one player stands in the region */
 	bool HasPlayerInside() const;
+
+	/** Corruption that can't be cleansed any more */
+	float ScarredCorruption = 0.0f;
 
 	float Corruption = 0.0f;
 	EVaelWeather Weather = EVaelWeather::Clear;

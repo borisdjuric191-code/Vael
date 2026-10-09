@@ -143,7 +143,13 @@ void AVaelRegion::AddCorruption(float Amount)
 
 void AVaelRegion::SetCorruption(float NewCorruption)
 {
-	Corruption = FMath::Clamp(NewCorruption, 0.0f, 100.0f);
+	Corruption = FMath::Clamp(NewCorruption, ScarredCorruption, 100.0f);
+}
+
+void AVaelRegion::AddScar(float Amount)
+{
+	ScarredCorruption = FMath::Clamp(ScarredCorruption + Amount, 0.0f, 100.0f);
+	AddCorruption(Amount);
 }
 
 void AVaelRegion::SetWeather(EVaelWeather NewWeather)

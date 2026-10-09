@@ -65,6 +65,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
 	float HealthCost = 0.0f;
 
+	/** Corruption the formula adds to the region for good, on top of the usual price of the Mark; cleansing can't take it back */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
+	float RegionScar = 0.0f;
+
 	/** Seconds a quick slot needs after casting this formula, before it can be cast from there again */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
 	float QuickCooldown = 4.0f;
@@ -201,6 +205,10 @@ public:
 	/** The first target has to be within this angle of the aim direction, in degrees */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Chain", meta = (ClampMin = 1, ClampMax = 180, EditCondition = "Delivery == EVaelSpellDelivery::Chain"))
 	float ChainAimHalfAngle = 29.0f;
+
+	/** A wild chain may jump back to enemies it hit before, and strikes its caster when it finds no enemy to jump to before its last jump, like the Schwarzer Blitz */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Chain", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Chain"))
+	bool bChainTurnsOnCaster = false;
 
 	/** Reach of the cone in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cone", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Cone"))
@@ -409,6 +417,10 @@ public:
 	/** Enemies inside the storm can't see for this long, renewed as long as they stay inside */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))
 	float AuraBlindDuration = 0.4f;
+
+	/** Damage per second the storm does to its own caster, the price of some Mark formulas */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))
+	float AuraSelfDamagePerSecond = 0.0f;
 
 	/** What the burst of an explosion does to a single target at the given power */
 	FVaelSpellHit MakeExplosionHit(float Power) const;

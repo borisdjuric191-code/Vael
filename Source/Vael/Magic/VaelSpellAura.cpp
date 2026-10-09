@@ -156,6 +156,16 @@ void AVaelSpellAura::HitEnemies(float DeltaSeconds)
 	APawn* Caster = GetInstigator();
 	const FVector Center = Caster->GetActorLocation();
 
+	// Some storms burn their caster too
+	if (Settings.SelfDamagePerSecond > 0.0f)
+	{
+		const float Burned = CollectedDamage.Add(Caster, Settings.SelfDamagePerSecond * DeltaSeconds, Settings.DamageStep);
+		if (Burned > 0.0f)
+		{
+			UVaelCombatStatics::DealDamage(Caster, Caster, Burned, Settings.Hit.Element);
+		}
+	}
+
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
 		AVaelCharacterBase* Target = *It;
@@ -165,7 +175,10 @@ void AVaelSpellAura::HitEnemies(float DeltaSeconds)
 			continue;
 		}
 
-		Target->ApplyBlind(Settings.BlindDuration);
+		if (Settings.BlindDuration > 0.0f)
+		{
+			Target->ApplyBlind(Settings.BlindDuration);
+		}
 
 		const float Dealt = CollectedDamage.Add(Target, Settings.DamagePerSecond * DeltaSeconds, Settings.DamageStep);
 		if (Dealt > 0.0f)

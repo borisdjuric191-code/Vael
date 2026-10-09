@@ -267,6 +267,7 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 		if (AVaelRegion* CastRegion = AVaelRegion::GetRegionAt(GetWorld(), GetOwner()->GetActorLocation()))
 		{
 			CastRegion->AddCorruption(NumMarkElements * WorldSettings->RegionCorruptionPerMarkElement);
+			CastRegion->AddScar(Formula->RegionScar);
 		}
 
 		// Deep in the Mark every use of it hurts, and it starts to whisper
