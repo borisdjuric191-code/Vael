@@ -4,6 +4,8 @@
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Compendium/VaelCompendiumSettings.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "Creatures/VaelCreature.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
@@ -151,6 +153,7 @@ void AVaelHUD::DrawHUD()
 	DrawNpcMarkers();
 	DrawInteractPrompts(PlayerControllers);
 	DrawFormulaNames(PlayerControllers);
+	DrawObservation(PlayerControllers);
 
 	float NoticeTop = 70.0f * UiScale;
 	DrawBossBar(NoticeTop);
@@ -434,6 +437,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 	if (PlayerController->GetMenuPage() == EVaelMenuPage::Inventory)
 	{
 		DrawInventory(PlayerController);
+		return;
+	}
+
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Compendium)
+	{
+		DrawCompendium(PlayerController);
 		return;
 	}
 
@@ -1086,21 +1095,28 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 {
 	const float S = UiScale;
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
-	const bool bInventory = PlayerController->GetMenuPage() == EVaelMenuPage::Inventory;
+	const EVaelMenuPage OpenPage = PlayerController->GetMenuPage();
 
 	const FText Switch = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("TabsKeyboard", "Q / E")
 		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("TabsPlayStation", "L1 / R1")
 		: LOCTEXT("TabsXbox", "LB / RB");
 
-	// Right aligned: the switch buttons, then the pages; the open page is lit
-	const FText InventoryTab = LOCTEXT("TabInventory", "INVENTAR");
-	const FText FormulasTab = LOCTEXT("TabFormulas", "FORMELN");
-	const float InventoryWidth = MeasureLabel(InventoryTab, 13.0f * S);
-	const float FormulasWidth = MeasureLabel(FormulasTab, 13.0f * S);
+	// Right aligned, last page first: the pages, then the switch buttons; the open page is lit
+	const TPair<EVaelMenuPage, FText> Pages[] =
+	{
+		{ EVaelMenuPage::Compendium, LOCTEXT("TabCompendium", "KOMPENDIUM") },
+		{ EVaelMenuPage::Inventory, LOCTEXT("TabInventory", "INVENTAR") },
+		{ EVaelMenuPage::Formulas, LOCTEXT("TabFormulas", "FORMELN") },
+	};
 
-	DrawLabel(InventoryTab, Right, Y, 13.0f * S, bInventory ? EmberColor : DimColor, 1.0f);
-	DrawLabel(FormulasTab, Right - InventoryWidth - 18.0f * S, Y, 13.0f * S, bInventory ? DimColor : EmberColor, 1.0f);
-	DrawLabel(Switch, Right - InventoryWidth - FormulasWidth - 36.0f * S, Y, 13.0f * S, Rgb(201, 180, 138), 1.0f);
+	float X = Right;
+	for (const TPair<EVaelMenuPage, FText>& Page : Pages)
+	{
+		DrawLabel(Page.Value, X, Y, 13.0f * S, Page.Key == OpenPage ? EmberColor : DimColor, 1.0f);
+		X -= MeasureLabel(Page.Value, 13.0f * S) + 18.0f * S;
+	}
+
+	DrawLabel(Switch, X, Y, 13.0f * S, Rgb(201, 180, 138), 1.0f);
 }
 
 void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
@@ -1350,6 +1366,397 @@ FText AVaelHUD::GetItemSlotName(EVaelItemSlot Slot)
 	TArray<EVaelEquipSlot> EquipSlots;
 	VaelItems::GetEquipSlots(Slot, EquipSlots);
 	return EquipSlots.IsEmpty() ? FText::GetEmpty() : GetEquipSlotName(EquipSlots[0]);
+}
+
+namespace
+{
+	/** Look of a book of the compendium series: its name, the color of the cover and of its trim and seal */
+	struct FCompendiumBookLook
+	{
+		FText Name;
+		FLinearColor Cover;
+		FLinearColor Trim;
+	};
+
+	FCompendiumBookLook GetCompendiumBookLook(EVaelCompendiumBook Book)
+	{
+		switch (Book)
+		{
+		case EVaelCompendiumBook::Herbarium:
+			return { LOCTEXT("BookHerbarium", "Herbarium"), Rgb(48, 70, 38), Rgb(132, 168, 96) };
+		case EVaelCompendiumBook::Stones:
+			return { LOCTEXT("BookStones", "Buch der Gesteine"), Rgb(58, 60, 66), Rgb(160, 162, 172) };
+		default:
+			return { LOCTEXT("BookBestiary", "Bestiarium"), Rgb(92, 42, 30), Rgb(196, 112, 82) };
+		}
+	}
+
+	/** Name of a research stage in the compendium */
+	FText GetCompendiumStageName(EVaelResearchStage Stage)
+	{
+		switch (Stage)
+		{
+		case EVaelResearchStage::Sighted:		return LOCTEXT("CompendiumSighted", "gesichtet");
+		case EVaelResearchStage::Observed:		return LOCTEXT("CompendiumObserved", "beobachtet");
+		case EVaelResearchStage::Defeated:		return LOCTEXT("CompendiumDefeated", "bezwungen");
+		case EVaelResearchStage::Researched:	return LOCTEXT("CompendiumResearched", "erforscht");
+		default:								return LOCTEXT("CompendiumUnknown", "unbekannt");
+		}
+	}
+
+	/** The books in the order of the series */
+	const EVaelCompendiumBook CompendiumBooks[] = { EVaelCompendiumBook::Bestiary, EVaelCompendiumBook::Herbarium, EVaelCompendiumBook::Stones };
+
+	/** Color of the focus circle of a spyglass and of the progress of watching */
+	const FLinearColor SpyglassColor = Rgb(232, 205, 140, 220);
+}
+
+float AVaelHUD::DrawWrappedLabel(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float MaxWidth)
+{
+	const float LineHeight = PixelHeight * 1.3f;
+
+	TArray<FString> Paragraphs;
+	Text.ToString().ParseIntoArray(Paragraphs, TEXT("\n"), false);
+
+	for (const FString& Paragraph : Paragraphs)
+	{
+		TArray<FString> Words;
+		Paragraph.ParseIntoArrayWS(Words);
+
+		FString Line;
+		for (const FString& Word : Words)
+		{
+			const FString Longer = Line.IsEmpty() ? Word : Line + TEXT(" ") + Word;
+			if (!Line.IsEmpty() && MeasureLabel(FText::FromString(Longer), PixelHeight) > MaxWidth)
+			{
+				DrawLabel(FText::FromString(Line), X, Y, PixelHeight, Color);
+				Y += LineHeight;
+				Line = Word;
+			}
+			else
+			{
+				Line = Longer;
+			}
+		}
+
+		DrawLabel(FText::FromString(Line), X, Y, PixelHeight, Color);
+		Y += LineHeight;
+	}
+
+	return Y;
+}
+
+void AVaelHUD::DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float Width, float Height, bool bLit)
+{
+	const float S = UiScale;
+	const FCompendiumBookLook Look = GetCompendiumBookLook(Book);
+	const float Light = bLit ? 1.0f : 0.5f;
+
+	// Cover with a darker spine and a pressed frame
+	DrawBox(X, Y, Width, Height, Look.Cover * (bLit ? 1.0f : 0.6f));
+	DrawBox(X, Y, Width * 0.12f, Height, Look.Cover * 0.55f);
+	DrawFrame(X + Width * 0.18f, Y + Height * 0.06f, Width * 0.76f, Height * 0.88f, Look.Trim * Light, 1.5f * S);
+
+	// The leather strap that holds it shut, with its buckle
+	DrawBox(X, Y + Height * 0.58f, Width, Height * 0.09f, Rgb(40, 26, 18));
+	DrawFrame(X + Width * 0.78f, Y + Height * 0.555f, Width * 0.12f, Height * 0.135f, Rgb(170, 150, 110) * Light, 2.0f * S);
+
+	// The seal and its sign: claws for the beasts, a leaf for the plants, a crystal for the stones
+	const FVector2D Seal(X + Width * 0.56f, Y + Height * 0.33f);
+	const float R = Width * 0.2f;
+	const FLinearColor Sign = Rgb(30, 20, 15);
+
+	DrawDisc(Seal, R, Look.Trim * (bLit ? 0.9f : 0.45f));
+	DrawRing(Seal, R, Sign, 1.5f * S);
+
+	if (Book == EVaelCompendiumBook::Bestiary)
+	{
+		for (int32 Claw = -1; Claw <= 1; ++Claw)
+		{
+			DrawSegment(Seal + FVector2D(Claw * 0.35f * R - 0.2f * R, -0.55f * R), Seal + FVector2D(Claw * 0.35f * R + 0.2f * R, 0.55f * R), Sign, 2.0f * S);
+		}
+	}
+	else if (Book == EVaelCompendiumBook::Herbarium)
+	{
+		DrawPolygon({ Seal + FVector2D(0.0f, -0.65f * R), Seal + FVector2D(0.38f * R, 0.0f), Seal + FVector2D(0.0f, 0.65f * R), Seal + FVector2D(-0.38f * R, 0.0f) }, Sign);
+		DrawSegment(Seal + FVector2D(0.0f, -0.5f * R), Seal + FVector2D(0.0f, 0.75f * R), Look.Trim * Light, 1.0f * S);
+	}
+	else
+	{
+		TArray<FVector2D> Crystal;
+		for (int32 Corner = 0; Corner < 6; ++Corner)
+		{
+			const float Angle = UE_TWO_PI * Corner / 6.0f + UE_HALF_PI;
+			Crystal.Add(Seal + FVector2D(FMath::Cos(Angle) * 0.4f * R, FMath::Sin(Angle) * 0.62f * R));
+		}
+
+		DrawPolygon(Crystal, Sign);
+	}
+
+	DrawLabel(Look.Name, X + Width * 0.5f, Y + Height + 6.0f * S, 12.0f * S, bLit ? BoneColor : DimColor, 0.5f, Width * 1.6f);
+}
+
+void AVaelHUD::DrawCompendium(const AVaelPlayerController* PlayerController)
+{
+	const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+	if (Compendium == nullptr)
+	{
+		return;
+	}
+
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+	const float S = UiScale;
+
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 168));
+
+	const float RowHeight = 28.0f * S;
+	const int32 NumVisibleRows = 12;
+	const float CoverHeight = 104.0f * S;
+	const float CoverWidth = 76.0f * S;
+	const float Width = FMath::Min(GrimoireWidth * S, Canvas->ClipX - 32.0f * S);
+	const float Height = 150.0f * S + CoverHeight + 40.0f * S + NumVisibleRows * RowHeight + 20.0f * S;
+	const float Left = (Canvas->ClipX - Width) * 0.5f;
+	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
+	const float Padding = 28.0f * S;
+
+	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawFrame(Left, Top, Width, Height, RimColor);
+	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
+
+	DrawLabel(LOCTEXT("CompendiumEyebrow", "ALBRUNS KOMPENDIUM · DIE GANZE GRUPPE FORSCHT MIT"), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
+	DrawLabel(LOCTEXT("CompendiumTitle", "Kompendium"), Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
+	DrawMenuTabs(PlayerController, Left + Width - Padding, Top + 22.0f * S);
+
+	// The rows: a header per book, then its entries; only the entries can be selected
+	struct FCompendiumRow
+	{
+		EVaelCompendiumBook Book;
+		const UVaelCompendiumEntry* Entry = nullptr;
+		bool bHeader = false;
+	};
+
+	TArray<FCompendiumRow> Rows;
+	TArray<int32> EntryRows;
+
+	for (const EVaelCompendiumBook Book : CompendiumBooks)
+	{
+		Rows.Add({ Book, nullptr, true });
+
+		const TArray<const UVaelCompendiumEntry*> Entries = Compendium->GetEntries(Book);
+		if (Entries.IsEmpty())
+		{
+			Rows.Add({ Book, nullptr, false });
+		}
+
+		for (const UVaelCompendiumEntry* Entry : Entries)
+		{
+			EntryRows.Add(Rows.Num());
+			Rows.Add({ Book, Entry, false });
+		}
+	}
+
+	const int32 Selection = EntryRows.IsEmpty() ? INDEX_NONE : EntryRows[FMath::Clamp(PlayerController->GetCompendiumSelection(), 0, EntryRows.Num() - 1)];
+	const UVaelCompendiumEntry* Selected = Selection != INDEX_NONE ? Rows[Selection].Entry : nullptr;
+
+	// The three books side by side, the open one lit
+	const float ListLeft = Left + Padding;
+	const float ListWidth = (Width - 2.0f * Padding) * 0.45f;
+	const float CoverTop = Top + 100.0f * S;
+
+	for (int32 BookIndex = 0; BookIndex < UE_ARRAY_COUNT(CompendiumBooks); ++BookIndex)
+	{
+		const float CoverLeft = ListLeft + BookIndex * (ListWidth / 3.0f) + (ListWidth / 3.0f - CoverWidth) * 0.5f;
+		DrawBookCover(CompendiumBooks[BookIndex], CoverLeft, CoverTop, CoverWidth, CoverHeight, Selected != nullptr && Selected->Book == CompendiumBooks[BookIndex]);
+	}
+
+	// The list below the books
+	const float ListTop = CoverTop + CoverHeight + 40.0f * S;
+	const int32 FirstRow = FMath::Clamp(Selection - NumVisibleRows / 2, 0, FMath::Max(Rows.Num() - NumVisibleRows, 0));
+
+	for (int32 Row = FirstRow; Row < FMath::Min(FirstRow + NumVisibleRows, Rows.Num()); ++Row)
+	{
+		const float RowTop = ListTop + (Row - FirstRow) * RowHeight;
+		const FCompendiumRow& Item = Rows[Row];
+		const FCompendiumBookLook Look = GetCompendiumBookLook(Item.Book);
+
+		if (Item.bHeader)
+		{
+			DrawLabel(Look.Name.ToUpper(), ListLeft, RowTop + 9.0f * S, 12.0f * S, Look.Trim);
+			continue;
+		}
+
+		if (Item.Entry == nullptr)
+		{
+			DrawLabel(LOCTEXT("CompendiumBookEmpty", "noch keine Einträge"), ListLeft + 16.0f * S, RowTop + 6.0f * S, 13.0f * S, DimColor);
+			continue;
+		}
+
+		const FVaelResearchProgress Progress = Compendium->GetProgress(Item.Entry->SubjectId);
+		const bool bKnown = Progress.Stage != EVaelResearchStage::Unknown;
+
+		DrawBox(ListLeft, RowTop, ListWidth, RowHeight - 3.0f * S, Rgb(29, 22, 19));
+		if (Row == Selection)
+		{
+			DrawFrame(ListLeft, RowTop, ListWidth, RowHeight - 3.0f * S, EmberColor, 2.0f * S);
+		}
+
+		DrawDisc(FVector2D(ListLeft + 12.0f * S, RowTop + RowHeight * 0.45f), 4.0f * S, Look.Trim);
+		DrawLabel(bKnown ? Item.Entry->DisplayName : LOCTEXT("CompendiumUnknownName", "? ? ?"), ListLeft + 24.0f * S, RowTop + 5.0f * S, 15.0f * S,
+			bKnown ? BoneColor : DimColor, 0.0f, ListWidth - 90.0f * S);
+
+		// One pip per stage reached
+		for (int32 Pip = 0; Pip < 4; ++Pip)
+		{
+			const FVector2D PipCenter(ListLeft + ListWidth - (52.0f - Pip * 13.0f) * S, RowTop + RowHeight * 0.45f);
+			if (static_cast<int32>(Progress.Stage) > Pip)
+			{
+				DrawDisc(PipCenter, 4.0f * S, Look.Trim);
+			}
+			else
+			{
+				DrawRing(PipCenter, 4.0f * S, DimColor, 1.0f * S);
+			}
+		}
+	}
+
+	// What the group knows about the selected entry; what is still hidden shows how to find out
+	const float DetailLeft = ListLeft + ListWidth + 28.0f * S;
+	const float DetailWidth = Left + Width - Padding - DetailLeft;
+	const float DetailBottom = Top + Height - 20.0f * S;
+	float Y = CoverTop;
+
+	if (Selected == nullptr)
+	{
+		DrawWrappedLabel(LOCTEXT("CompendiumNothing", "Noch keine Einträge. Albrun wartet auf eure Funde."), DetailLeft, Y, 14.0f * S, DimColor, DetailWidth);
+		return;
+	}
+
+	const FVaelResearchProgress Progress = Compendium->GetProgress(Selected->SubjectId);
+	const bool bKnown = Progress.Stage != EVaelResearchStage::Unknown;
+
+	DrawLabel(bKnown ? Selected->DisplayName : LOCTEXT("CompendiumUnknownKind", "Unbekannt"), DetailLeft, Y, 24.0f * S, bKnown ? BoneColor : DimColor, 0.0f, DetailWidth);
+	Y += 32.0f * S;
+	DrawLabel(FText::Format(LOCTEXT("CompendiumMeta", "{0} · {1}"), Selected->Region, GetCompendiumStageName(Progress.Stage)), DetailLeft, Y, 13.0f * S, GetCompendiumBookLook(Selected->Book).Trim);
+	Y += 28.0f * S;
+
+	const FText SpyglassButton = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("SpyglassKey", "F") : LOCTEXT("SpyglassPad", "L3");
+	const int32 ObservedPercent = FMath::RoundToInt(Compendium->GetObservationShare(Selected->SubjectId) * 100.0f);
+
+	struct FCompendiumSection
+	{
+		FText Title;
+		FText Text;
+		EVaelResearchStage Stage;
+		FText Hint;
+	};
+
+	const FText StudyHint = FText::Format(LOCTEXT("HintStudy", "Proben im Lager untersuchen: {0} von {1} gesammelt."), Progress.Samples, Selected->StudyCount);
+	const FCompendiumSection Sections[] =
+	{
+		{ LOCTEXT("SectionGlimpse", "Erster Eindruck"), Selected->Glimpse, EVaelResearchStage::Sighted, LOCTEXT("HintSight", "Noch nie gesehen.") },
+		{ LOCTEXT("SectionBehaviour", "Verhalten"), Selected->Behaviour, EVaelResearchStage::Observed,
+			FText::Format(LOCTEXT("HintObserve", "Beobachten: in Ruhe aus der Nähe, oder ungesehen durchs Fernglas ({0} halten). {1} %"), SpyglassButton, ObservedPercent) },
+		{ LOCTEXT("SectionWeakness", "Schwächen und Beute"), Selected->Weakness, EVaelResearchStage::Defeated, LOCTEXT("HintDefeat", "Besiegen, pflücken oder abbauen.") },
+		{ LOCTEXT("SectionUses", "Nutzen"), Selected->Uses, EVaelResearchStage::Researched, StudyHint },
+		{ LOCTEXT("SectionMarked", "Unter dem Mark"), Selected->MarkedForm, EVaelResearchStage::Researched, FText::GetEmpty() },
+		{ LOCTEXT("SectionAlbrun", "Albruns Randnotiz"), Selected->AlbrunNote, EVaelResearchStage::Researched, FText::GetEmpty() },
+	};
+
+	bool bShowedHint = false;
+	for (const FCompendiumSection& Section : Sections)
+	{
+		if (Y > DetailBottom || Section.Text.IsEmpty())
+		{
+			continue;
+		}
+
+		const bool bOpen = Progress.Stage >= Section.Stage;
+		if (!bOpen && bShowedHint)
+		{
+			continue;
+		}
+
+		DrawLabel(Section.Title.ToUpper(), DetailLeft, Y, 11.0f * S, bOpen ? EmberColor : DimColor);
+		Y += 16.0f * S;
+
+		if (bOpen)
+		{
+			const bool bAlbrun = Section.Stage == EVaelResearchStage::Researched && &Section == &Sections[UE_ARRAY_COUNT(Sections) - 1];
+			Y = DrawWrappedLabel(Section.Text, DetailLeft, Y, 14.0f * S, bAlbrun ? Rgb(201, 180, 138) : BoneColor, DetailWidth) + 10.0f * S;
+		}
+		else
+		{
+			Y = DrawWrappedLabel(Section.Hint, DetailLeft, Y, 13.0f * S, DimColor, DetailWidth) + 10.0f * S;
+			bShowedHint = true;
+		}
+	}
+}
+
+void AVaelHUD::DrawObservation(const TArray<const AVaelPlayerController*>& PlayerControllers)
+{
+	const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+	const UVaelCompendiumSettings* Settings = UVaelCompendiumSettings::Get();
+	const float S = UiScale;
+
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+		if (Player == nullptr || !Player->IsObserving())
+		{
+			continue;
+		}
+
+		// The focus circle lies on the ground
+		const FVector Focus = Player->GetFocusLocation() + FVector(0.0f, 0.0f, 6.0f);
+		FVector2D Previous = FVector2D::ZeroVector;
+
+		for (int32 Side = 0; Side <= CircleSides; ++Side)
+		{
+			const float Angle = UE_TWO_PI * Side / CircleSides;
+			const FVector OnScreen = Canvas->Project(Focus + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Settings->SpyglassFocusRadius);
+			const FVector2D Point(OnScreen.X, OnScreen.Y);
+
+			if (Side > 0 && Side % 2 == 0)
+			{
+				DrawSegment(Previous, Point, SpyglassColor, 2.0f * S);
+			}
+
+			Previous = Point;
+		}
+
+		if (Compendium == nullptr)
+		{
+			continue;
+		}
+
+		// Above every creature in the circle, how far it has been watched
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			const FName SubjectId = It->GetCompendiumId();
+			if (It->IsDead() || It->IsOnPlayerSide() || Compendium->FindEntry(SubjectId) == nullptr
+				|| FVector::Dist2D(It->GetActorLocation(), Focus) > Settings->SpyglassFocusRadius + It->GetSimpleCollisionRadius())
+			{
+				continue;
+			}
+
+			const FVector Above = Canvas->Project(It->GetActorLocation() + FVector(0.0f, 0.0f, It->GetSimpleCollisionHalfHeight() + 60.0f));
+			const FVector2D Center(Above.X, Above.Y);
+			const float Share = Compendium->GetObservationShare(SubjectId);
+			const float Radius = 13.0f * S;
+
+			DrawRing(Center, Radius, Rgb(40, 30, 24, 200), 4.0f * S);
+
+			const int32 LitSides = FMath::RoundToInt(Share * CircleSides);
+			for (int32 Side = 0; Side < LitSides; ++Side)
+			{
+				const float AngleA = UE_TWO_PI * Side / CircleSides - UE_HALF_PI;
+				const float AngleB = UE_TWO_PI * (Side + 1) / CircleSides - UE_HALF_PI;
+				DrawSegment(Center + FVector2D(FMath::Cos(AngleA), FMath::Sin(AngleA)) * Radius, Center + FVector2D(FMath::Cos(AngleB), FMath::Sin(AngleB)) * Radius, SpyglassColor, 3.0f * S);
+			}
+
+			DrawLabel(Share >= 1.0f ? LOCTEXT("Observed", "beobachtet") : LOCTEXT("Observing", "beobachten …"), Center.X, Center.Y + Radius + 4.0f * S, 11.0f * S, SpyglassColor, 0.5f);
+		}
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

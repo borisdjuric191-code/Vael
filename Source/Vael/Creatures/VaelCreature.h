@@ -90,6 +90,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Creature")
 	bool IsDead() const { return bDead; }
 
+	/** Entry of the compendium this creature is researched under, none for people */
+	FName GetCompendiumId() const;
+
 	//~Begin AVaelCharacterBase
 	virtual bool IsDefeated() const override { return bDead; }
 	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const override;
@@ -204,6 +207,13 @@ private:
 	/** Values in use: the data asset, or the defaults of the data class without one */
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelCreatureData> ActiveData;
+
+	/** Tells the compendium when players see or watch this creature, a few times per second */
+	void UpdateResearch(float DeltaSeconds);
+
+	/** Seconds until the next look of the compendium, and when the creature was last hurt */
+	float ResearchCountdown = 0.0f;
+	float LastHurtTime = -1000.0f;
 
 	/** True while it was raised by the Mark and fights for the players, until the time it falls again */
 	bool bServant = false;

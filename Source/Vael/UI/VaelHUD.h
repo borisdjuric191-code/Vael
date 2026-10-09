@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/HUD.h"
+#include "Compendium/VaelCompendiumEntry.h"
 #include "Items/VaelItemTypes.h"
 #include "Magic/VaelElementTypes.h"
 #include "UI/VaelUISettings.h"
@@ -82,6 +83,18 @@ private:
 
 	/** Draws the inventory page of the menu: equipment, backpack and the selected item compared with what it would replace */
 	void DrawInventory(const AVaelPlayerController* PlayerController);
+
+	/** Draws the compendium page of the menu: the three books, their entries and what the group knows about the selected one */
+	void DrawCompendium(const AVaelPlayerController* PlayerController);
+
+	/** Draws a closed book of the compendium series: cover in its color, strap and seal; lit if it is the open one */
+	void DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float Width, float Height, bool bLit);
+
+	/** Draws the focus circle of every raised spyglass and how far the creatures in it have been watched */
+	void DrawObservation(const TArray<const AVaelPlayerController*>& PlayerControllers);
+
+	/** Draws text broken into lines no wider than the width; returns the Y below the last line */
+	float DrawWrappedLabel(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float MaxWidth);
 
 	/** Draws the names of the people in the level and a "!" over those with news */
 	void DrawNpcMarkers();

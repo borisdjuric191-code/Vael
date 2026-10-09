@@ -27,6 +27,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
 	FText DisplayName;
 
+	/** Entry of the compendium this kind of creature is researched under, like "Glutkriecher"; none for people, who are no subject of the bestiary */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
+	FName CompendiumId;
+
 	/** Class spawned for this kind of creature by spawners and console commands */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
 	TSubclassOf<AVaelCreature> CreatureClass;

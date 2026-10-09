@@ -49,6 +49,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelKillAll();
 
+	/** Studies the samples of the group as if at the camp: every entry with enough samples becomes researched */
+	UFUNCTION(Exec)
+	void VaelStudy();
+
+	/** Sets a compendium entry to a stage: 0 unknown to 4 researched; "Alle" for every entry. Example: VaelResearch Glutkriecher 4 */
+	UFUNCTION(Exec)
+	void VaelResearch(const FString& Name, int32 Stage);
+
 	/** Chooses the controller symbols of the HUD: Auto, Xbox or PlayStation. Example: VaelGlyphs PlayStation */
 	UFUNCTION(Exec)
 	void VaelGlyphs(const FString& Glyphs);

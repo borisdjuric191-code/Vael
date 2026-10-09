@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCheatManager.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
@@ -463,4 +464,38 @@ void UVaelCheatManager::VaelEquip(int32 BackpackField)
 	{
 		UE_LOG(LogVael, Warning, TEXT("VaelEquip: field %d of the backpack is empty"), BackpackField);
 	}
+}
+
+void UVaelCheatManager::VaelStudy()
+{
+	UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(GetWorld());
+	if (Compendium != nullptr)
+	{
+		UE_LOG(LogVael, Log, TEXT("VaelStudy: %d entries researched, %s"), Compendium->StudyAtCamp(), *Compendium->Describe());
+	}
+}
+
+void UVaelCheatManager::VaelResearch(const FString& Name, int32 Stage)
+{
+	UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(GetWorld());
+	if (Compendium == nullptr)
+	{
+		return;
+	}
+
+	const EVaelResearchStage NewStage = static_cast<EVaelResearchStage>(FMath::Clamp(Stage, 0, static_cast<int32>(EVaelResearchStage::Researched)));
+	const bool bAll = Name.Equals(TEXT("Alle"), ESearchCase::IgnoreCase) || Name.Equals(TEXT("All"), ESearchCase::IgnoreCase);
+
+	for (const EVaelCompendiumBook Book : { EVaelCompendiumBook::Bestiary, EVaelCompendiumBook::Herbarium, EVaelCompendiumBook::Stones })
+	{
+		for (const UVaelCompendiumEntry* Entry : Compendium->GetEntries(Book))
+		{
+			if (bAll || Entry->SubjectId.ToString().Equals(Name, ESearchCase::IgnoreCase) || Entry->DisplayName.ToString().Equals(Name, ESearchCase::IgnoreCase))
+			{
+				Compendium->SetStage(Entry->SubjectId, NewStage);
+			}
+		}
+	}
+
+	UE_LOG(LogVael, Log, TEXT("VaelResearch: %s"), *Compendium->Describe());
 }

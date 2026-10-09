@@ -31,6 +31,9 @@
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "Player/VaelPlayerController.h"
+#include "World/VaelGround.h"
+#include "Magic/VaelFormulaAbility.h"
+#include "Compendium/VaelCompendiumSettings.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 #include "VaelAssets.h"
@@ -273,7 +276,12 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 
 	// Channeling a spell holds the mage back
 	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
-	GetCharacterMovement()->MaxWalkSpeed = DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f);
+	GetCharacterMovement()->MaxWalkSpeed = bObserving ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f);
+
+	if (bObserving)
+	{
+		UpdateFocus();
+	}
 
 	if (bIsDodging)
 	{
@@ -567,4 +575,35 @@ int32 AVaelCharacter::GetPlayerNumber() const
 {
 	const AVaelPlayerController* VaelController = GetController<AVaelPlayerController>();
 	return VaelController != nullptr ? VaelController->GetPlayerSlot() + 1 : 1;
+}
+
+void AVaelCharacter::SetObserving(bool bInObserving)
+{
+	bObserving = bInObserving && !bDowned;
+	UpdateFocus();
+}
+
+void AVaelCharacter::UpdateFocus()
+{
+	// The mouse points at the spot, the stick at a spot at the reach of the glass
+	const UVaelCompendiumSettings* Settings = UVaelCompendiumSettings::Get();
+	const FVector Feet = GetActorLocation() - FVector(0.0f, 0.0f, GetSimpleCollisionHalfHeight());
+	const AVaelPlayerController* PlayerController = Cast<AVaelPlayerController>(GetController());
+
+	FVector MouseLocation;
+	if (PlayerController != nullptr && PlayerController->GetMouseAimLocation(MouseLocation))
+	{
+		const FVector Offset = (MouseLocation - Feet) * FVector(1.0f, 1.0f, 0.0f);
+		FocusLocation = Feet + Offset.GetClampedToMaxSize(Settings->SpyglassReach);
+	}
+	else
+	{
+		FocusLocation = Feet + UVaelFormulaAbility::GetAimDirection(this) * Settings->SpyglassReach;
+	}
+
+	FHitResult GroundHit;
+	if (VaelGround::TraceGround(GetWorld(), FocusLocation + FVector(0.0f, 0.0f, 300.0f), FocusLocation - FVector(0.0f, 0.0f, 600.0f), GroundHit, this))
+	{
+		FocusLocation = GroundHit.Location;
+	}
 }

@@ -15,7 +15,9 @@ enum class EVaelMenuPage : uint8
 	/** The grimoire of the group: formulas and quick slots */
 	Formulas,
 	/** Equipment and backpack of the player */
-	Inventory
+	Inventory,
+	/** Albrun's compendium of creatures, plants and stones */
+	Compendium
 };
 
 class AVaelSharedCamera;
@@ -125,6 +127,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> InventoryAction;
 
+	/** Spyglass Input Action, held: left stick click or F */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> SpyglassAction;
+
 	/** Input Mapping Context while a dialogue is shown */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> DialogueMappingContext;
@@ -174,6 +180,9 @@ public:
 
 	/** Selected row of the inventory page: the ten equipment places first, then the fields of the backpack */
 	int32 GetInventorySelection() const { return InventorySelection; }
+
+	/** Row of the compendium page the player has selected */
+	int32 GetCompendiumSelection() const { return CompendiumSelection; }
 
 	/** Shows lines of a person one after the other and pauses the game, until the player has read them all. Returns false while the game is paused. */
 	bool StartDialogue(const FText& Speaker, const TArray<FText>& Lines);
@@ -233,6 +242,8 @@ protected:
 	void OnMenuPage(const FInputActionValue& Value);
 	void OnMenuConfirm();
 	void OnToggleInventory();
+	void OnSpyglassRaised();
+	void OnSpyglassLowered();
 	void OnDialogueContinue();
 
 	/** Tells the players what came of a cast */
@@ -289,6 +300,9 @@ protected:
 
 	/** Selected row of the inventory page */
 	int32 InventorySelection = 0;
+
+	/** Row of the compendium page the player has selected, counting through the books in order */
+	int32 CompendiumSelection = 0;
 
 	/** Dialogue being read: who speaks, the lines and the one shown */
 	FText DialogueSpeaker;

@@ -11,6 +11,7 @@
 #include "InputAction.h"
 #include "InputActionValue.h"
 #include "InputMappingContext.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "InputModifiers.h"
 #include "InputTriggers.h"
 #include "Items/VaelInventory.h"
@@ -132,6 +133,9 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(MenuPageAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuPage);
 			EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuConfirm);
 			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnToggleInventory);
+			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnSpyglassRaised);
+			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnSpyglassLowered);
+			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnSpyglassLowered);
 			EnhancedInputComponent->BindAction(DialogueContinueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnDialogueContinue);
 
 			for (int32 SlotIndex = 0; SlotIndex < MenuAssignActions.Num(); ++SlotIndex)
@@ -265,6 +269,11 @@ void AVaelPlayerController::CreateInputAssets()
 	InventoryAction = CreateAction(TEXT("IA_Inventory"), EInputActionValueType::Boolean);
 	InventoryAction->bTriggerWhenPaused = true;
 	MappingContext->MapKey(InventoryAction, EKeys::I);
+
+	// The spyglass is held up while the button is held
+	SpyglassAction = CreateAction(TEXT("IA_Spyglass"), EInputActionValueType::Boolean);
+	MappingContext->MapKey(SpyglassAction, EKeys::Gamepad_LeftThumbstick);
+	MappingContext->MapKey(SpyglassAction, EKeys::F);
 
 	// Menu controls, only active while the grimoire is open
 	MenuMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VaelMenu"));
@@ -708,6 +717,19 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 		return;
 	}
 
+	if (MenuPage == EVaelMenuPage::Compendium)
+	{
+		const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+		int32 NumEntries = 0;
+		for (const EVaelCompendiumBook Book : { EVaelCompendiumBook::Bestiary, EVaelCompendiumBook::Herbarium, EVaelCompendiumBook::Stones })
+		{
+			NumEntries += Compendium != nullptr ? Compendium->GetEntries(Book).Num() : 0;
+		}
+
+		CompendiumSelection = FMath::Clamp(CompendiumSelection + Step, 0, FMath::Max(NumEntries - 1, 0));
+		return;
+	}
+
 	const int32 NumFormulas = Grimoire->GetAllFormulas().Num();
 	GrimoireSelection = FMath::Clamp(GrimoireSelection + Step, 0, FMath::Max(NumFormulas - 1, 0));
 }
@@ -716,8 +738,10 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 {
 	if (bGrimoireOpen)
 	{
-		// Two pages: either direction switches
-		MenuPage = MenuPage == EVaelMenuPage::Formulas ? EVaelMenuPage::Inventory : EVaelMenuPage::Formulas;
+		// The pages in a ring: right goes on, left goes back
+		const int32 NumPages = static_cast<int32>(EVaelMenuPage::Compendium) + 1;
+		const int32 Step = Value.Get<float>() < 0.0f ? NumPages - 1 : 1;
+		MenuPage = static_cast<EVaelMenuPage>((static_cast<int32>(MenuPage) + Step) % NumPages);
 	}
 }
 
@@ -894,4 +918,20 @@ void AVaelPlayerController::OnLightningBacklash(float Damage)
 {
 	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "Backlash", "Der Blitz schl\u00E4gt zur\u00FCck"),
 		NSLOCTEXT("VaelMagic", "BacklashDetail", "Wer nass einen Blitz wirkt, wird selbst getroffen."), FLinearColor(FColor(214, 236, 255)), 3.0f);
+}
+
+void AVaelPlayerController::OnSpyglassRaised()
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	{
+		VaelCharacter->SetObserving(true);
+	}
+}
+
+void AVaelPlayerController::OnSpyglassLowered()
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	{
+		VaelCharacter->SetObserving(false);
+	}
 }

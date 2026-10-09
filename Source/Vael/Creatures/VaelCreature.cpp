@@ -8,6 +8,8 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Compendium/VaelCompendiumSettings.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "Creatures/VaelCreatureData.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/GameInstance.h"
@@ -45,6 +47,9 @@ namespace
 	/** The Mark raises creatures that fell at most this many seconds ago, this far from the aimed point in cm */
 	constexpr float RaiseMaxAge = 10.0f;
 	constexpr float RaiseSearchRadius = 420.0f;
+
+	/** Seconds between two looks of the compendium at a creature */
+	constexpr float CreatureResearchInterval = 0.5f;
 
 	/** Size of the engine basic shapes used as placeholders */
 	constexpr float CreatureShapeSize = 100.0f;
@@ -204,6 +209,12 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		UpdateGroundEffects();
 	}
 
+	// What the players see of it goes into the compendium
+	if (!bDead && !bServant)
+	{
+		UpdateResearch(DeltaSeconds);
+	}
+
 	// A raised creature falls again when its time is up
 	if (bServant && !bDead && GetWorld()->GetTimeSeconds() >= ServantEndTime)
 	{
@@ -351,6 +362,7 @@ void AVaelCreature::OnHealthChanged(float OldValue, float NewValue)
 		return;
 	}
 
+	LastHurtTime = GetWorld()->GetTimeSeconds();
 	HitFlashEndTime = GetWorld()->GetTimeSeconds() + HitFlashDuration;
 	bShowingHitFlash = true;
 	RefreshBodyColor();
@@ -389,6 +401,12 @@ void AVaelCreature::Die()
 		}
 
 		DropLoot();
+
+		// Every fallen creature is a sample for the compendium
+		if (UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this))
+		{
+			Compendium->AddSample(ActiveData->CompendiumId);
+		}
 
 		// Remembered for a while, so the Mark can raise it
 		const float Now = GetWorld()->GetTimeSeconds();
@@ -544,6 +562,12 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 	ForEachActivePlayer([this, &Nearest, &NearestDistance](AVaelCharacter* Player)
 	{
 		if (Cast<AVaelClayGolem>(Nearest) != nullptr)
+		{
+			return;
+		}
+
+		// Behind a spyglass a player goes unnoticed unless they are right next to it
+		if (Player->IsObserving() && GetDistanceTo2D(Player) > UVaelCompendiumSettings::Get()->SpyglassUnnoticedDistance)
 		{
 			return;
 		}
@@ -776,4 +800,60 @@ AVaelCreature* AVaelCreature::RaiseFallen(APawn* Caster, const FVector& Location
 	}
 
 	return Risen;
+}
+
+void AVaelCreature::UpdateResearch(float DeltaSeconds)
+{
+	ResearchCountdown -= DeltaSeconds;
+	if (ResearchCountdown > 0.0f)
+	{
+		return;
+	}
+
+	ResearchCountdown = CreatureResearchInterval;
+
+	UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+	const FName SubjectId = ActiveData->CompendiumId;
+	if (Compendium == nullptr || SubjectId.IsNone())
+	{
+		return;
+	}
+
+	// Seen from afar; watched while calm from close by, or from further through the spyglass, every watcher counting
+	const UVaelCompendiumSettings* Settings = UVaelCompendiumSettings::Get();
+	const bool bCalm = GetWorld()->GetTimeSeconds() - LastHurtTime >= Settings->CalmSeconds;
+	const float Reach = Settings->SpyglassFocusRadius + GetSimpleCollisionRadius();
+
+	bool bSeen = false;
+	float Watched = 0.0f;
+
+	ForEachActivePlayer([this, Settings, bCalm, Reach, &bSeen, &Watched](AVaelCharacter* Player)
+	{
+		const float Distance = GetDistanceTo2D(Player);
+		bSeen |= Distance <= Settings->SightRange;
+
+		if (Player->IsObserving() && FVector::Dist2D(Player->GetFocusLocation(), GetActorLocation()) <= Reach)
+		{
+			Watched += CreatureResearchInterval * Settings->SpyglassObserveRate;
+		}
+		else if (bCalm && Distance <= Settings->ObserveRange)
+		{
+			Watched += CreatureResearchInterval;
+		}
+	});
+
+	if (bSeen)
+	{
+		Compendium->Sight(SubjectId);
+	}
+
+	if (Watched > 0.0f)
+	{
+		Compendium->Observe(SubjectId, Watched);
+	}
+}
+
+FName AVaelCreature::GetCompendiumId() const
+{
+	return ActiveData != nullptr ? ActiveData->CompendiumId : NAME_None;
 }

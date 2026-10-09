@@ -4,6 +4,7 @@
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEmberQueen.h"
@@ -197,6 +198,20 @@ void AVaelSmokeTest::BeginPlay()
 	}, SmokeSettleTime });
 
 	Steps.Add({ TEXT("Lingering actors"), [this]() { return CountLingeringActors(); }, 0.1f });
+
+	// The fights should have filled the bestiary: sighted, observed and defeated
+	Steps.Add({ TEXT("Compendium"), [this]()
+	{
+		UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+		if (Compendium == nullptr)
+		{
+			return FString(TEXT("FAILED: no compendium"));
+		}
+
+		const FString Before = Compendium->Describe();
+		const int32 NumStudied = Compendium->StudyAtCamp();
+		return FString::Printf(TEXT("%s; %d researched by study"), *Before, NumStudied);
+	}, 0.1f });
 
 	StepTimeLeft = SmokeWarmUp;
 	UE_LOG(LogVael, Display, TEXT("Smoke test: %d steps planned"), Steps.Num());

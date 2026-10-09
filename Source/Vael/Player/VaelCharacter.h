@@ -170,6 +170,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	void SetInvulnerableFor(float Seconds);
 
+	/** Raises or lowers the spyglass: while raised the player stands still, watches what is inside the focus circle and goes unnoticed by creatures */
+	void SetObserving(bool bInObserving);
+
+	/** True while the spyglass is raised */
+	bool IsObserving() const { return bObserving; }
+
+	/** Middle of the circle the spyglass is aimed at, on the ground */
+	FVector GetFocusLocation() const { return FocusLocation; }
+
 	//~Begin AVaelCharacterBase
 	virtual bool IsInvulnerable() const override;
 	virtual bool IsDefeated() const override { return bDowned; }
@@ -288,4 +297,11 @@ private:
 
 	/** Shows the burst at the end of a spell dash: lightning or a ring of wind, the outline as placeholder for everything else */
 	void ShowDashBurst();
+
+	/** True while the spyglass is raised, and where it is aimed */
+	bool bObserving = false;
+	FVector FocusLocation = FVector::ZeroVector;
+
+	/** Moves the focus circle of the spyglass with the aim */
+	void UpdateFocus();
 };

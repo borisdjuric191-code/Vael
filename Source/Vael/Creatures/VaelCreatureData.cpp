@@ -12,6 +12,7 @@
 UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 {
 	DisplayName = LOCTEXT("EmberCrawler", "Glutkriecher");
+	CompendiumId = TEXT("Glutkriecher");
 	CreatureClass = AVaelEmberCrawler::StaticClass();
 
 	MaxHealth = 34.0f;
@@ -29,6 +30,7 @@ UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 UVaelAshHarpyData::UVaelAshHarpyData()
 {
 	DisplayName = LOCTEXT("AshHarpy", "Aschharpyie");
+	CompendiumId = TEXT("Aschharpyie");
 	CreatureClass = AVaelAshHarpy::StaticClass();
 
 	MaxHealth = 26.0f;
@@ -46,6 +48,7 @@ UVaelAshHarpyData::UVaelAshHarpyData()
 UVaelHarpyElderData::UVaelHarpyElderData()
 {
 	DisplayName = LOCTEXT("HarpyElder", "Harpyien-\u00C4lteste");
+	CompendiumId = TEXT("HarpyienAelteste");
 
 	MaxHealth = 180.0f;
 	MoveSpeed = 532.0f;
@@ -93,6 +96,7 @@ UVaelPreacherData::UVaelPreacherData()
 UVaelEmberQueenData::UVaelEmberQueenData()
 {
 	DisplayName = LOCTEXT("EmberQueen", "Glutk\u00F6nigin");
+	CompendiumId = TEXT("Glutkoenigin");
 	CreatureClass = AVaelEmberQueen::StaticClass();
 
 	MaxHealth = 1300.0f;
@@ -118,6 +122,7 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 UVaelSourceGuardianData::UVaelSourceGuardianData()
 {
 	DisplayName = LOCTEXT("SourceGuardian", "Quellwächter");
+	CompendiumId = TEXT("Quellwaechter");
 	CreatureClass = AVaelSourceGuardian::StaticClass();
 
 	// Between the harpy elder and the ember queen; it shares the weaknesses of the crawlers and harpies it is made of
