@@ -15,7 +15,9 @@ enum class EVaelCompendiumBook : uint8
 	/** Plants */
 	Herbarium,
 	/** Stones, ores and crystals */
-	Stones
+	Stones,
+	/** Fungi, which are no plants: the Pilzbuch */
+	Fungi
 };
 
 /** How far the group has researched an entry */

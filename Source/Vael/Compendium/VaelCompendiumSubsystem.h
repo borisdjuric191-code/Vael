@@ -61,6 +61,9 @@ public:
 	/** Entry of a kind, null if there is none */
 	const UVaelCompendiumEntry* FindEntry(FName SubjectId) const;
 
+	/** The books in the order of the series: beasts, plants, fungi, stones */
+	static TConstArrayView<EVaelCompendiumBook> GetBooks();
+
 	/** Entries of a book in their order */
 	TArray<const UVaelCompendiumEntry*> GetEntries(EVaelCompendiumBook Book) const;
 

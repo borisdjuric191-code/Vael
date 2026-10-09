@@ -19,6 +19,7 @@
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "Nature/VaelHarvestable.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelInteractable.h"
 #include "Story/VaelNpc.h"
@@ -1386,6 +1387,8 @@ namespace
 			return { LOCTEXT("BookHerbarium", "Herbarium"), Rgb(48, 70, 38), Rgb(132, 168, 96) };
 		case EVaelCompendiumBook::Stones:
 			return { LOCTEXT("BookStones", "Buch der Gesteine"), Rgb(58, 60, 66), Rgb(160, 162, 172) };
+		case EVaelCompendiumBook::Fungi:
+			return { LOCTEXT("BookFungi", "Pilzbuch"), Rgb(56, 36, 70), Rgb(176, 142, 204) };
 		default:
 			return { LOCTEXT("BookBestiary", "Bestiarium"), Rgb(92, 42, 30), Rgb(196, 112, 82) };
 		}
@@ -1403,9 +1406,6 @@ namespace
 		default:								return LOCTEXT("CompendiumUnknown", "unbekannt");
 		}
 	}
-
-	/** The books in the order of the series */
-	const EVaelCompendiumBook CompendiumBooks[] = { EVaelCompendiumBook::Bestiary, EVaelCompendiumBook::Herbarium, EVaelCompendiumBook::Stones };
 
 	/** Color of the focus circle of a spyglass and of the progress of watching */
 	const FLinearColor SpyglassColor = Rgb(232, 205, 140, 220);
@@ -1461,7 +1461,7 @@ void AVaelHUD::DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float W
 	DrawBox(X, Y + Height * 0.58f, Width, Height * 0.09f, Rgb(40, 26, 18));
 	DrawFrame(X + Width * 0.78f, Y + Height * 0.555f, Width * 0.12f, Height * 0.135f, Rgb(170, 150, 110) * Light, 2.0f * S);
 
-	// The seal and its sign: claws for the beasts, a leaf for the plants, a crystal for the stones
+	// The seal and its sign: claws for the beasts, a leaf for the plants, a mushroom cap for the fungi, a crystal for the stones
 	const FVector2D Seal(X + Width * 0.56f, Y + Height * 0.33f);
 	const float R = Width * 0.2f;
 	const FLinearColor Sign = Rgb(30, 20, 15);
@@ -1480,6 +1480,18 @@ void AVaelHUD::DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float W
 	{
 		DrawPolygon({ Seal + FVector2D(0.0f, -0.65f * R), Seal + FVector2D(0.38f * R, 0.0f), Seal + FVector2D(0.0f, 0.65f * R), Seal + FVector2D(-0.38f * R, 0.0f) }, Sign);
 		DrawSegment(Seal + FVector2D(0.0f, -0.5f * R), Seal + FVector2D(0.0f, 0.75f * R), Look.Trim * Light, 1.0f * S);
+	}
+	else if (Book == EVaelCompendiumBook::Fungi)
+	{
+		TArray<FVector2D> Cap;
+		for (int32 Corner = 0; Corner <= 8; ++Corner)
+		{
+			const float Angle = UE_PI * Corner / 8.0f;
+			Cap.Add(Seal + FVector2D(-FMath::Cos(Angle) * 0.62f * R, 0.05f * R - FMath::Sin(Angle) * 0.5f * R));
+		}
+
+		DrawPolygon(Cap, Sign);
+		DrawBox(Seal.X - 0.12f * R, Seal.Y + 0.05f * R, 0.24f * R, 0.55f * R, Sign);
 	}
 	else
 	{
@@ -1538,6 +1550,7 @@ void AVaelHUD::DrawCompendium(const AVaelPlayerController* PlayerController)
 	TArray<FCompendiumRow> Rows;
 	TArray<int32> EntryRows;
 
+	const TConstArrayView<EVaelCompendiumBook> CompendiumBooks = UVaelCompendiumSubsystem::GetBooks();
 	for (const EVaelCompendiumBook Book : CompendiumBooks)
 	{
 		Rows.Add({ Book, nullptr, true });
@@ -1558,14 +1571,15 @@ void AVaelHUD::DrawCompendium(const AVaelPlayerController* PlayerController)
 	const int32 Selection = EntryRows.IsEmpty() ? INDEX_NONE : EntryRows[FMath::Clamp(PlayerController->GetCompendiumSelection(), 0, EntryRows.Num() - 1)];
 	const UVaelCompendiumEntry* Selected = Selection != INDEX_NONE ? Rows[Selection].Entry : nullptr;
 
-	// The three books side by side, the open one lit
+	// The books side by side, the open one lit
 	const float ListLeft = Left + Padding;
 	const float ListWidth = (Width - 2.0f * Padding) * 0.45f;
 	const float CoverTop = Top + 100.0f * S;
+	const float BookSlot = ListWidth / CompendiumBooks.Num();
 
-	for (int32 BookIndex = 0; BookIndex < UE_ARRAY_COUNT(CompendiumBooks); ++BookIndex)
+	for (int32 BookIndex = 0; BookIndex < CompendiumBooks.Num(); ++BookIndex)
 	{
-		const float CoverLeft = ListLeft + BookIndex * (ListWidth / 3.0f) + (ListWidth / 3.0f - CoverWidth) * 0.5f;
+		const float CoverLeft = ListLeft + BookIndex * BookSlot + (BookSlot - CoverWidth) * 0.5f;
 		DrawBookCover(CompendiumBooks[BookIndex], CoverLeft, CoverTop, CoverWidth, CoverHeight, Selected != nullptr && Selected->Book == CompendiumBooks[BookIndex]);
 	}
 
@@ -1729,17 +1743,38 @@ void AVaelHUD::DrawObservation(const TArray<const AVaelPlayerController*>& Playe
 			continue;
 		}
 
-		// Above every creature in the circle, how far it has been watched
+		// Above every creature, plant, fungus and stone in the circle, how far its kind has been watched
+		TArray<TPair<FName, FVector>> Watched;
+
 		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
 		{
-			const FName SubjectId = It->GetCompendiumId();
-			if (It->IsDead() || It->IsOnPlayerSide() || Compendium->FindEntry(SubjectId) == nullptr
-				|| FVector::Dist2D(It->GetActorLocation(), Focus) > Settings->SpyglassFocusRadius + It->GetSimpleCollisionRadius())
+			if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), Focus) <= Settings->SpyglassFocusRadius + It->GetSimpleCollisionRadius())
+			{
+				Watched.Emplace(It->GetCompendiumId(), It->GetActorLocation() + FVector(0.0f, 0.0f, It->GetSimpleCollisionHalfHeight() + 60.0f));
+			}
+		}
+
+		for (TActorIterator<AVaelHarvestable> It(GetWorld()); It; ++It)
+		{
+			FVector Origin;
+			FVector Extent;
+			It->GetActorBounds(true, Origin, Extent);
+
+			if (FVector::Dist2D(It->GetActorLocation(), Focus) <= Settings->SpyglassFocusRadius + Extent.X)
+			{
+				Watched.Emplace(It->GetCompendiumId(), FVector(Origin.X, Origin.Y, Origin.Z + Extent.Z + 40.0f));
+			}
+		}
+
+		for (const TPair<FName, FVector>& Each : Watched)
+		{
+			const FName SubjectId = Each.Key;
+			if (Compendium->FindEntry(SubjectId) == nullptr)
 			{
 				continue;
 			}
 
-			const FVector Above = Canvas->Project(It->GetActorLocation() + FVector(0.0f, 0.0f, It->GetSimpleCollisionHalfHeight() + 60.0f));
+			const FVector Above = Canvas->Project(Each.Value);
 			const FVector2D Center(Above.X, Above.Y);
 			const float Share = Compendium->GetObservationShare(SubjectId);
 			const float Radius = 13.0f * S;

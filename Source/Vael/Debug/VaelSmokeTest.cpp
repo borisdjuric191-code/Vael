@@ -21,6 +21,8 @@
 #include "Misc/OutputDevice.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
+#include "Items/VaelMaterialBag.h"
+#include "Nature/VaelHarvestable.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
@@ -198,6 +200,51 @@ void AVaelSmokeTest::BeginPlay()
 	}, SmokeSettleTime });
 
 	Steps.Add({ TEXT("Lingering actors"), [this]() { return CountLingeringActors(); }, 0.1f });
+
+	// One of every plant, fungus and stone is gathered: it must give materials and a sample, then lie bare
+	Steps.Add({ TEXT("Harvest"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		if (Player == nullptr)
+		{
+			return FString(TEXT("FAILED: no player"));
+		}
+
+		TSet<FName> Gathered;
+		TArray<FString> Failed;
+
+		for (TActorIterator<AVaelHarvestable> It(GetWorld()); It; ++It)
+		{
+			const FName SubjectId = It->GetCompendiumId();
+			if (Gathered.Contains(SubjectId) || !It->CanInteract(Player))
+			{
+				continue;
+			}
+
+			int32 Before = 0;
+			for (const FVaelMaterialStack& Stack : Player->GetMaterialBag()->GetStacks())
+			{
+				Before += Stack.Count;
+			}
+
+			It->Interact(Player);
+			Gathered.Add(SubjectId);
+
+			int32 After = 0;
+			for (const FVaelMaterialStack& Stack : Player->GetMaterialBag()->GetStacks())
+			{
+				After += Stack.Count;
+			}
+
+			if (After <= Before || !It->IsHarvested() || It->CanInteract(Player))
+			{
+				Failed.Add(SubjectId.ToString());
+			}
+		}
+
+		return Failed.IsEmpty() ? FString::Printf(TEXT("%d kinds gathered"), Gathered.Num())
+			: FString::Printf(TEXT("FAILED: %d kinds gathered, no loot or not bare: %s"), Gathered.Num(), *FString::Join(Failed, TEXT(", ")));
+	}, 0.1f });
 
 	// The fights should have filled the bestiary: sighted, observed and defeated
 	Steps.Add({ TEXT("Compendium"), [this]()

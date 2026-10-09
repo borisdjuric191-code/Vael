@@ -2,6 +2,14 @@
 
 #include "Items/VaelMaterialBag.h"
 #include "Items/VaelMaterial.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Player/VaelCharacter.h"
+#include "UI/VaelCombatTextSubsystem.h"
+#include "Vael.h"
+#include "VaelAssets.h"
+
+#define LOCTEXT_NAMESPACE "VaelItems"
 
 void UVaelMaterialBag::AddMaterial(const UVaelMaterial* Material, int32 Count)
 {
@@ -57,3 +65,39 @@ TArray<FVaelMaterialStack> UVaelMaterialBag::GetStacks() const
 
 	return Stacks;
 }
+
+void UVaelMaterialBag::GiveToGroup(const AActor* Source, const TArray<FVaelLootEntry>& Loot)
+{
+	UWorld* World = Source != nullptr ? Source->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	for (const FVaelLootEntry& Entry : Loot)
+	{
+		const int32 Count = Entry.Roll();
+		const UVaelMaterial* Material = Count > 0 ? VaelAssets::LoadOptional(Entry.Material) : nullptr;
+		if (Material == nullptr)
+		{
+			continue;
+		}
+
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			const APlayerController* PlayerController = It->Get();
+			const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+			if (Player != nullptr)
+			{
+				Player->GetMaterialBag()->AddMaterial(Material, Count);
+			}
+		}
+
+		const FText Label = Count > 1 ? FText::Format(LOCTEXT("LootCount", "{0} ×{1}"), Material->DisplayName, Count) : Material->DisplayName;
+		UVaelCombatTextSubsystem::PostPickup(Source, Label, Material->Color);
+
+		UE_LOG(LogVael, Verbose, TEXT("'%s' gives %d x %s to every player"), *GetNameSafe(Source), Count, *Material->DisplayName.ToString());
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

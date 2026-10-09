@@ -7,6 +7,7 @@
 #include "VaelMaterialBag.generated.h"
 
 class UVaelMaterial;
+struct FVaelLootEntry;
 
 DECLARE_MULTICAST_DELEGATE(FVaelOnMaterialsChanged);
 
@@ -49,6 +50,9 @@ public:
 	/** Everything in the bag, sorted by region and name */
 	UFUNCTION(BlueprintPure, Category="Materials")
 	TArray<FVaelMaterialStack> GetStacks() const;
+
+	/** Rolls the loot once and puts a copy into the bag of every player, with a pickup label above the source */
+	static void GiveToGroup(const AActor* Source, const TArray<FVaelLootEntry>& Loot);
 
 	/** Called whenever the content of the bag changes */
 	FVaelOnMaterialsChanged OnMaterialsChanged;

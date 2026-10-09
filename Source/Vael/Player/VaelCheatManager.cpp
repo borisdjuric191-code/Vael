@@ -486,7 +486,7 @@ void UVaelCheatManager::VaelResearch(const FString& Name, int32 Stage)
 	const EVaelResearchStage NewStage = static_cast<EVaelResearchStage>(FMath::Clamp(Stage, 0, static_cast<int32>(EVaelResearchStage::Researched)));
 	const bool bAll = Name.Equals(TEXT("Alle"), ESearchCase::IgnoreCase) || Name.Equals(TEXT("All"), ESearchCase::IgnoreCase);
 
-	for (const EVaelCompendiumBook Book : { EVaelCompendiumBook::Bestiary, EVaelCompendiumBook::Herbarium, EVaelCompendiumBook::Stones })
+	for (const EVaelCompendiumBook Book : UVaelCompendiumSubsystem::GetBooks())
 	{
 		for (const UVaelCompendiumEntry* Entry : Compendium->GetEntries(Book))
 		{

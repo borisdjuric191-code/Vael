@@ -18,6 +18,7 @@ namespace
 		{
 		case EVaelCompendiumBook::Herbarium:	return FLinearColor(FColor(132, 168, 96));
 		case EVaelCompendiumBook::Stones:		return FLinearColor(FColor(160, 162, 172));
+		case EVaelCompendiumBook::Fungi:		return FLinearColor(FColor(176, 142, 204));
 		default:								return FLinearColor(FColor(196, 112, 82));
 		}
 	}
@@ -83,6 +84,12 @@ const UVaelCompendiumEntry* UVaelCompendiumSubsystem::FindEntry(FName SubjectId)
 	}
 
 	return nullptr;
+}
+
+TConstArrayView<EVaelCompendiumBook> UVaelCompendiumSubsystem::GetBooks()
+{
+	static const EVaelCompendiumBook Books[] = { EVaelCompendiumBook::Bestiary, EVaelCompendiumBook::Herbarium, EVaelCompendiumBook::Fungi, EVaelCompendiumBook::Stones };
+	return Books;
 }
 
 TArray<const UVaelCompendiumEntry*> UVaelCompendiumSubsystem::GetEntries(EVaelCompendiumBook Book) const

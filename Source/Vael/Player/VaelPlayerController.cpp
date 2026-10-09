@@ -721,7 +721,7 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 	{
 		const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
 		int32 NumEntries = 0;
-		for (const EVaelCompendiumBook Book : { EVaelCompendiumBook::Bestiary, EVaelCompendiumBook::Herbarium, EVaelCompendiumBook::Stones })
+		for (const EVaelCompendiumBook Book : UVaelCompendiumSubsystem::GetBooks())
 		{
 			NumEntries += Compendium != nullptr ? Compendium->GetEntries(Book).Num() : 0;
 		}

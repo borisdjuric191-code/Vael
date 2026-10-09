@@ -441,30 +441,7 @@ void AVaelCreature::DropLoot()
 		Entries.Add(UVaelWorldSettings::Get()->MarkedLoot);
 	}
 
-	for (const FVaelLootEntry& Entry : Entries)
-	{
-		const int32 Count = Entry.Roll();
-		const UVaelMaterial* Material = Count > 0 ? VaelAssets::LoadOptional(Entry.Material) : nullptr;
-		if (Material == nullptr)
-		{
-			continue;
-		}
-
-		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
-		{
-			const APlayerController* PlayerController = It->Get();
-			const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
-			if (Player != nullptr)
-			{
-				Player->GetMaterialBag()->AddMaterial(Material, Count);
-			}
-		}
-
-		const FText Label = Count > 1 ? FText::Format(LOCTEXT("LootCount", "{0} ×{1}"), Material->DisplayName, Count) : Material->DisplayName;
-		UVaelCombatTextSubsystem::PostPickup(this, Label, Material->Color);
-
-		UE_LOG(LogVael, Verbose, TEXT("'%s' drops %d x %s for every player"), *GetNameSafe(this), Count, *Material->DisplayName.ToString());
-	}
+	UVaelMaterialBag::GiveToGroup(this, Entries);
 
 	// Gear is personal: rolled for every player, lying in their color
 	int32 PlayerIndex = 0;
