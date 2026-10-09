@@ -85,6 +85,7 @@ FORMULAS = [
         "knockback": 7.0 * TILE,
         "cone_range": 3.4 * TILE,
         "cone_half_angle": 43.0,
+        "cone_look": unreal.VaelConeLook.WIND_GUST,
     },
     {
         "asset": "DA_Formula_Kettenblitz",

@@ -181,6 +181,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cone", meta = (ClampMin = 1, ClampMax = 180, EditCondition = "Delivery == EVaelSpellDelivery::Cone"))
 	float ConeHalfAngle = 45.0f;
 
+	/** Look of the cone while it has no cast effect of its own */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cone", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Cone"))
+	EVaelConeLook ConeLook = EVaelConeLook::Plain;
+
 	/** Radius of the burst where the projectile ends, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Explosion", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Explosion"))
 	float ExplosionRadius = 266.0f;

@@ -74,6 +74,16 @@ enum class EVaelProjectileLook : uint8
 	RockShard
 };
 
+/** Look of a cone spell while it has no cast effect of its own */
+UENUM(BlueprintType)
+enum class EVaelConeLook : uint8
+{
+	/** Only the outline of the cone */
+	Plain,
+	/** A curved wall of pressure rolls along the cone with streaks of wind and kicks up dust, like the Windstoß */
+	WindGust
+};
+
 /** What a patch on the ground does to the enemies of its creator standing in it */
 UENUM(BlueprintType)
 enum class EVaelGroundEffect : uint8
