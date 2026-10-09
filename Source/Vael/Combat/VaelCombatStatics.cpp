@@ -12,6 +12,7 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMarkCharge.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Nature/VaelHarvestable.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
 
@@ -93,6 +94,9 @@ int32 UVaelCombatStatics::ApplySpellHitInRadius(AActor* Attacker, const FVector&
 	{
 		return 0;
 	}
+
+	// Plants that burst on a hit, like the Aschblase, are caught by blasts as well
+	AVaelHarvestable::NotifySpellImpact(World, Center, Radius);
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellRadius), false, Attacker);

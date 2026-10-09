@@ -23,6 +23,7 @@
 #include "Misc/ScopeLock.h"
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
+#include "World/VaelRegion.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
@@ -201,8 +202,12 @@ void AVaelSmokeTest::BeginPlay()
 
 	Steps.Add({ TEXT("Lingering actors"), [this]() { return CountLingeringActors(); }, 0.1f });
 
-	// One of every plant, fungus and stone is gathered: it must give materials and a sample, then lie bare
-	Steps.Add({ TEXT("Harvest"), [this]()
+	// One of every plant, fungus and stone is gathered: it must give materials and a sample, then lie bare.
+	// First in the region as it is, then once more under heavy corruption, where the Mark plants grow.
+	const TSharedRef<TSet<FName>> Gathered = MakeShared<TSet<FName>>();
+	const TSharedRef<float> CorruptionBefore = MakeShared<float>(0.0f);
+
+	const auto Harvest = [this, Gathered]()
 	{
 		AVaelCharacter* Player = GetPlayer();
 		if (Player == nullptr)
@@ -210,13 +215,16 @@ void AVaelSmokeTest::BeginPlay()
 			return FString(TEXT("FAILED: no player"));
 		}
 
-		TSet<FName> Gathered;
+		TSet<FName> All;
 		TArray<FString> Failed;
+		int32 NumNew = 0;
 
 		for (TActorIterator<AVaelHarvestable> It(GetWorld()); It; ++It)
 		{
 			const FName SubjectId = It->GetCompendiumId();
-			if (Gathered.Contains(SubjectId) || !It->CanInteract(Player))
+			All.Add(SubjectId);
+
+			if (Gathered->Contains(SubjectId) || !It->CanInteract(Player))
 			{
 				continue;
 			}
@@ -228,7 +236,8 @@ void AVaelSmokeTest::BeginPlay()
 			}
 
 			It->Interact(Player);
-			Gathered.Add(SubjectId);
+			Gathered->Add(SubjectId);
+			++NumNew;
 
 			int32 After = 0;
 			for (const FVaelMaterialStack& Stack : Player->GetMaterialBag()->GetStacks())
@@ -242,8 +251,55 @@ void AVaelSmokeTest::BeginPlay()
 			}
 		}
 
-		return Failed.IsEmpty() ? FString::Printf(TEXT("%d kinds gathered"), Gathered.Num())
-			: FString::Printf(TEXT("FAILED: %d kinds gathered, no loot or not bare: %s"), Gathered.Num(), *FString::Join(Failed, TEXT(", ")));
+		TArray<FString> Missing;
+		for (const FName SubjectId : All)
+		{
+			if (!Gathered->Contains(SubjectId))
+			{
+				Missing.Add(SubjectId.ToString());
+			}
+		}
+
+		const FString Summary = FString::Printf(TEXT("%d kinds gathered now, %d of %d in all; not available: %s"), NumNew, Gathered->Num(), All.Num(),
+			Missing.IsEmpty() ? TEXT("none") : *FString::Join(Missing, TEXT(", ")));
+		return Failed.IsEmpty() ? Summary : FString::Printf(TEXT("FAILED: no loot or not bare: %s; %s"), *FString::Join(Failed, TEXT(", ")), *Summary);
+	};
+
+	// The fights may have corrupted the region: plants that need a pure land get a clean one first
+	const auto SetRegionCorruption = [this, CorruptionBefore](float Corruption, bool bRemember)
+	{
+		AVaelCharacter* Player = GetPlayer();
+		AVaelRegion* Region = Player != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), Player->GetActorLocation()) : nullptr;
+		if (Region == nullptr)
+		{
+			return FString(TEXT("no region"));
+		}
+
+		if (bRemember)
+		{
+			*CorruptionBefore = Region->GetCorruption();
+		}
+
+		const float Old = Region->GetCorruption();
+		Region->SetCorruption(Corruption);
+		return FString::Printf(TEXT("corruption %.0f -> %.0f"), Old, Corruption);
+	};
+
+	Steps.Add({ TEXT("Cleanse the region"), [SetRegionCorruption]() { return SetRegionCorruption(0.0f, true); }, 1.5f });
+	Steps.Add({ TEXT("Harvest"), Harvest, 0.1f });
+	Steps.Add({ TEXT("Corrupt the region"), [SetRegionCorruption]() { return SetRegionCorruption(70.0f, false); }, 1.5f });
+
+	Steps.Add({ TEXT("Harvest under the Mark"), [this, Harvest, CorruptionBefore]()
+	{
+		const FString Result = Harvest();
+
+		AVaelCharacter* Player = GetPlayer();
+		if (AVaelRegion* Region = Player != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), Player->GetActorLocation()) : nullptr)
+		{
+			Region->SetCorruption(*CorruptionBefore);
+		}
+
+		return Result;
 	}, 0.1f });
 
 	// The fights should have filled the bestiary: sighted, observed and defeated

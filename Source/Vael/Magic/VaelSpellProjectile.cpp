@@ -12,6 +12,7 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Nature/VaelHarvestable.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
@@ -1176,6 +1177,9 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 	if (bHitSomething || ExplosionRadius > 0.0f)
 	{
 		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius);
+
+		// Plants that burst on a hit, like the Aschblase, feel it
+		AVaelHarvestable::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius);
 	}
 
 	if (ImpactRadius > 0.0f)

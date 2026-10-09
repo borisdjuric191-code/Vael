@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Nature/VaelHarvestable.h"
 #include "World/VaelMarkSource.h"
 #include "World/VaelRegion.h"
 
@@ -32,6 +33,15 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
 	{
 		if (It->ProvidesElement(Element) && It->IsInRange(Location, ExtraDistance))
+		{
+			return true;
+		}
+	}
+
+	// Plants and stones that carry an element, like the Glutdistel or the Traenenkelch
+	for (TActorIterator<AVaelHarvestable> It(World); It; ++It)
+	{
+		if (It->ProvidesElement(Element, Location))
 		{
 			return true;
 		}

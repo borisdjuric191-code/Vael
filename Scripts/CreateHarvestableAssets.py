@@ -15,6 +15,8 @@ FOLDER = "/Game/Vael/Nature"
 MATERIALS = "/Game/Vael/Items/Materials"
 
 Kind = unreal.VaelHarvestKind
+Trait = unreal.VaelHarvestTrait
+Element = unreal.VaelElement
 
 
 def color(hex_code):
@@ -62,6 +64,26 @@ HARVESTABLES = [
     {"asset": "DA_Harvest_Markdruse", "display_name": unreal.Text("Markdruse"), "compendium_id": "Markdruse", "kind": Kind.STONE,
      "loot": [loot("DA_Material_Markkristall", 1.0, 1, 1)], "regrow_seconds": 300.0, "height": 110.0, "base_color": color("2a2430"), "glow_color": color("a24dff")},
 ]
+
+
+# Signature traits, element sources and corruption ranges (package 2: plants; stones only as element sources so far)
+TRAITS = {
+    "DA_Harvest_Glutdistel": {"element_source": True, "source_element": Element.FIRE, "source_radius": 250.0,
+                              "trait": Trait.IGNITE_ON_TOUCH, "trait_radius": 90.0, "trait_interval": 10.0, "trait_amount": 4.0, "trait_duration": 3.0,
+                              "trait_color": color("ffd27a")},
+    "DA_Harvest_Traenenkelch": {"element_source": True, "source_element": Element.WATER, "source_radius": 250.0, "max_corruption": 40.0,
+                                "trait": Trait.HEALING_DRIP, "trait_radius": 110.0, "trait_interval": 3.0, "trait_amount": 5.0},
+    "DA_Harvest_Aschblase": {"element_source": True, "source_element": Element.AIR, "source_radius": 250.0,
+                             "trait": Trait.BURST_ON_HIT, "trait_radius": 260.0, "trait_duration": 5.0},
+    "DA_Harvest_Laternenglocke": {"trait": Trait.PURITY_GLOW, "trait_color": color("8a6cff")},
+    "DA_Harvest_Russmoos": {"trait": Trait.RAIN_SOAK, "trait_color": color("2f4a26")},
+    "DA_Harvest_Fleischkelch": {"min_corruption": 50.0, "trait": Trait.BREATHING},
+    "DA_Harvest_Glutstein": {"element_source": True, "source_element": Element.FIRE, "source_radius": 250.0},
+    "DA_Harvest_Russquarz": {"element_source": True, "source_element": Element.EARTH, "source_radius": 250.0},
+}
+
+for definition in HARVESTABLES:
+    definition.update(TRAITS.get(definition["asset"], {}))
 
 
 def comparable(value):
