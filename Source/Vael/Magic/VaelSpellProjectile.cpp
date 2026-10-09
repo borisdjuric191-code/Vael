@@ -82,6 +82,55 @@ namespace
 	constexpr float RockShardShatterSpeed = 620.0f;
 	constexpr float RockShardShake = 0.1f;
 
+	/** Height and base diameter of the engine cone mesh, which points up its Z axis */
+	constexpr float PlaceholderConeSize = 100.0f;
+
+	/** The lance of ice: length and thickness as shares of the collision radius, side spikes along it */
+	constexpr float IceLanceLengthShare = 4.2f;
+	constexpr float IceLanceThicknessShare = 0.7f;
+	constexpr int32 IceLanceSpikes = 3;
+
+	/** Frost the lance can have in the air at once, seconds between two, seconds each one lasts, how it falls in cm/s² */
+	constexpr int32 IceLanceLooseCount = 18;
+	constexpr float IceLanceShedInterval = 0.04f;
+	constexpr float IceLanceLooseLifetime = 0.5f;
+	constexpr float IceLanceGravity = 450.0f;
+
+	/** How fast the splinters fly off where the lance shatters or pierces, in cm/s */
+	constexpr float IceLanceShatterSpeed = 650.0f;
+	constexpr int32 IceLancePierceSplinters = 5;
+	constexpr float IceLanceShake = 0.08f;
+
+	/** The ball of lava: size of the core and the plates of crust as shares of the collision radius, its roll in radians per second */
+	constexpr float LavaCoreShare = 0.8f;
+	constexpr float LavaCrustShare = 1.0f;
+	constexpr int32 LavaCrustPlates = 4;
+	constexpr float LavaRoll = 5.0f;
+
+	/** Drops and chunks the ball can have in the air at once, seconds between two drops, seconds each one lasts, how they fall in cm/s² */
+	constexpr int32 LavaLooseCount = 24;
+	constexpr float LavaShedInterval = 0.06f;
+	constexpr float LavaLooseLifetime = 0.7f;
+	constexpr float LavaGravity = 1100.0f;
+
+	/** Where it bursts: speed of the splashes in cm/s, time the ring of heat needs to reach the edge of the explosion, flash of the light */
+	constexpr float LavaBurstSpeed = 900.0f;
+	constexpr float LavaBurstRingTime = 0.22f;
+	constexpr float LavaBurstGlow = 4.0f;
+	constexpr float LavaBurstFlash = 6.0f;
+
+	/** The splinter of Mark: length and thickness as shares of the collision radius, veins of light trailing behind it */
+	constexpr float MarkShardLengthShare = 4.0f;
+	constexpr float MarkShardThicknessShare = 0.55f;
+	constexpr int32 MarkShardVeins = 2;
+
+	/** Motes the splinter can have in the air at once, seconds between two, seconds each one lasts; they rise, in cm/s² */
+	constexpr int32 MarkShardLooseCount = 18;
+	constexpr float MarkShardShedInterval = 0.04f;
+	constexpr float MarkShardLooseLifetime = 0.65f;
+	constexpr float MarkShardRise = -180.0f;
+	constexpr float MarkShardShatterSpeed = 520.0f;
+
 	/** Material parameters of the glow materials */
 	const FName LookColorParameter(TEXT("Color"));
 	const FName LookGlowParameter(TEXT("Glow"));
@@ -116,6 +165,12 @@ AVaelSpellProjectile::AVaelSpellProjectile()
 	if (SphereMesh.Succeeded())
 	{
 		Mesh->SetStaticMesh(SphereMesh.Object);
+	}
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> Cone(TEXT("/Engine/BasicShapes/Cone.Cone"));
+	if (Cone.Succeeded())
+	{
+		ConeMesh = Cone.Object;
 	}
 
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SphereMaterial(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
@@ -237,6 +292,25 @@ void AVaelSpellProjectile::AddLookLight(const FLinearColor& LightColor, float In
 	LookLightIntensity = Intensity;
 }
 
+UStaticMeshComponent* AVaelSpellProjectile::AddLookCone(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim, bool bLoose)
+{
+	// The material set on the sphere stays on the cone's only slot
+	UStaticMeshComponent* Cone = AddLookShape(Material, ShapeColor, Glow, Rim, bLoose);
+	if (ConeMesh != nullptr)
+	{
+		Cone->SetStaticMesh(ConeMesh);
+	}
+
+	return Cone;
+}
+
+void AVaelSpellProjectile::PlaceCone(UStaticMeshComponent* Cone, const FVector& Base, const FVector& Direction, float Length, float Width)
+{
+	Cone->SetRelativeLocation(Base + Direction * Length * 0.5f);
+	Cone->SetRelativeRotation(FRotationMatrix::MakeFromZ(Direction).Rotator());
+	Cone->SetRelativeScale3D(FVector(Width, Width, Length) / PlaceholderConeSize);
+}
+
 void AVaelSpellProjectile::BuildLook()
 {
 	// The glowing materials of the element orbs; the plain engine material while they don't exist
@@ -336,6 +410,110 @@ void AVaelSpellProjectile::BuildLook()
 		LooseDrag = 1.5f;
 		bLooseTumble = true;
 	}
+	else if (Look == EVaelProjectileLook::IceLance)
+	{
+		const FLinearColor Ice = FMath::Lerp(SpellColor, FLinearColor::White, 0.55f);
+		const FLinearColor Frost = FMath::Lerp(SpellColor, FLinearColor::White, 0.85f);
+
+		// Two points of clear ice meeting in the middle, side spikes pointing back, all in a cold sheen
+		LookShapes.Add(AddLookCone(CoreMaterial, Ice, 1.2f));
+		LookShapes.Add(AddLookCone(CoreMaterial, Ice, 1.2f));
+
+		for (int32 SpikeIndex = 0; SpikeIndex < IceLanceSpikes; ++SpikeIndex)
+		{
+			LookShapes.Add(AddLookCone(CoreMaterial, Ice, 1.0f));
+		}
+
+		LookShapes.Add(AddLookShape(GlowMaterial, Frost, 1.3f, 1.0f));
+
+		// Frost in flight and splinters where it breaks: glints and little points of ice by turns
+		for (int32 PieceIndex = 0; PieceIndex < IceLanceLooseCount; ++PieceIndex)
+		{
+			const bool bGlint = PieceIndex % 2 == 0;
+			LoosePieces.Add(bGlint ? AddLookShape(GlowMaterial, Frost, 6.0f, 0.0f, true) : AddLookCone(CoreMaterial, Ice, 1.0f, 0.0f, true));
+			LoosePieceSizes.Add(Radius * (bGlint ? FMath::FRandRange(0.1f, 0.18f) : FMath::FRandRange(0.3f, 0.5f)) / PlaceholderConeSize);
+		}
+
+		LooseLifetime = IceLanceLooseLifetime;
+		LooseGravity = IceLanceGravity;
+		LooseDrag = 2.5f;
+		bLooseFlicker = true;
+		bLooseTumble = true;
+
+		AddLookLight(Ice, 4.0f);
+	}
+	else if (Look == EVaelProjectileLook::LavaBall)
+	{
+		// The rock of the earth orb makes the crust; dark spheres stand in for it while the pack isn't installed
+		UStaticMesh* RockMesh = VaelAssets::LoadOptional(MagicSettings->ElementOrbRockMesh);
+		bRealRock = RockMesh != nullptr;
+
+		const FLinearColor Molten = FMath::Lerp(SpellColor, FLinearColor(1.0f, 0.85f, 0.4f), 0.4f);
+		const FLinearColor Crust(0.08f, 0.05f, 0.04f);
+
+		// A white-hot core in a halo of heat, the crust tumbling around it
+		LookShapes.Add(AddLookShape(CoreMaterial, Molten, 10.0f));
+		LookShapes.Add(AddLookShape(GlowMaterial, SpellColor, 2.0f));
+
+		for (int32 PlateIndex = 0; PlateIndex < LavaCrustPlates; ++PlateIndex)
+		{
+			LookShapes.Add(AddLookShape(CoreMaterial, Crust, 0.0f, 0.0f, false, RockMesh));
+		}
+
+		// The ring of heat waits inside until the ball bursts
+		UStaticMeshComponent* Ring = AddLookShape(GlowMaterial, Molten, LavaBurstGlow, 1.0f);
+		Ring->SetVisibility(false);
+		BurstMaterial = Cast<UMaterialInstanceDynamic>(Ring->GetMaterial(0));
+		LookShapes.Add(Ring);
+
+		// Drops of lava, every fourth piece a chunk of crust
+		const float ChunkMeshSize = bRealRock ? RockShardMeshSize : PlaceholderSphereRadius * 2.0f;
+		for (int32 PieceIndex = 0; PieceIndex < LavaLooseCount; ++PieceIndex)
+		{
+			const bool bChunk = PieceIndex % 4 == 0;
+			LoosePieces.Add(bChunk ? AddLookShape(CoreMaterial, Crust, 0.0f, 0.0f, true, RockMesh) : AddLookShape(CoreMaterial, Molten, 6.0f, 0.0f, true));
+			LoosePieceSizes.Add(bChunk ? Radius * FMath::FRandRange(0.25f, 0.4f) / ChunkMeshSize : Radius * FMath::FRandRange(0.12f, 0.25f) / (PlaceholderSphereRadius * 2.0f));
+		}
+
+		LooseLifetime = LavaLooseLifetime;
+		LooseGravity = LavaGravity;
+		LooseDrag = 1.0f;
+		bLooseTumble = true;
+
+		AddLookLight(SpellColor, 10.0f);
+	}
+	else if (Look == EVaelProjectileLook::MarkShard)
+	{
+		const FLinearColor Void(0.03f, 0.0f, 0.05f);
+		const FLinearColor Edge = FMath::Lerp(SpellColor, FLinearColor::White, 0.15f);
+
+		// A crooked black splinter with a spur, a violet edge and veins of light trailing behind
+		LookShapes.Add(AddLookCone(CoreMaterial, Void, 0.0f));
+		LookShapes.Add(AddLookCone(CoreMaterial, Void, 0.0f));
+		LookShapes.Add(AddLookCone(CoreMaterial, Void, 0.0f));
+		LookShapes.Add(AddLookShape(GlowMaterial, Edge, 2.5f, 1.0f));
+
+		for (int32 VeinIndex = 0; VeinIndex < MarkShardVeins; ++VeinIndex)
+		{
+			LookShapes.Add(AddLookShape(GlowMaterial, SpellColor, 3.0f));
+		}
+
+		// Violet motes and black splinters by turns
+		for (int32 PieceIndex = 0; PieceIndex < MarkShardLooseCount; ++PieceIndex)
+		{
+			const bool bMote = PieceIndex % 2 == 0;
+			LoosePieces.Add(bMote ? AddLookShape(GlowMaterial, SpellColor, 5.0f, 0.0f, true) : AddLookCone(CoreMaterial, Void, 0.0f, 0.0f, true));
+			LoosePieceSizes.Add(Radius * (bMote ? FMath::FRandRange(0.1f, 0.2f) : FMath::FRandRange(0.3f, 0.45f)) / PlaceholderConeSize);
+		}
+
+		LooseLifetime = MarkShardLooseLifetime;
+		LooseGravity = MarkShardRise;
+		LooseDrag = 2.0f;
+		bLooseFlicker = true;
+		bLooseTumble = true;
+
+		AddLookLight(SpellColor, 6.0f);
+	}
 	else
 	{
 		return;
@@ -383,18 +561,42 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 		{
 			AnimateWaterBurst();
 		}
-	}
-	else if (Look == EVaelProjectileLook::Spark)
-	{
-		AnimateSpark(Time, DeltaSeconds);
-	}
-	else if (Look == EVaelProjectileLook::WaterOrb)
-	{
-		AnimateWaterOrb(Time);
+		else if (Look == EVaelProjectileLook::LavaBall)
+		{
+			AnimateLavaBurst();
+		}
 	}
 	else
 	{
-		AnimateRock(Time, DeltaSeconds);
+		switch (Look)
+		{
+		case EVaelProjectileLook::Spark:
+			AnimateSpark(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::WaterOrb:
+			AnimateWaterOrb(Time);
+			break;
+
+		case EVaelProjectileLook::RockShard:
+			AnimateRock(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::IceLance:
+			AnimateIceLance(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::LavaBall:
+			AnimateLavaBall(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::MarkShard:
+			AnimateMarkShard(Time, DeltaSeconds);
+			break;
+
+		default:
+			break;
+		}
 	}
 
 	// Loose pieces fall, slow down in the air and shrink as they die
@@ -461,6 +663,165 @@ void AVaelSpellProjectile::AnimateRock(float Time, float DeltaSeconds)
 		const FVector Forward = GetActorForwardVector();
 		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.3f, 1.0f) + FMath::VRand() * Radius * 0.25f,
 			Forward * Movement->Velocity.Size() * 0.06f + FMath::VRand() * FMath::FRandRange(40.0f, 130.0f));
+	}
+}
+
+void AVaelSpellProjectile::AnimateIceLance(float Time, float DeltaSeconds)
+{
+	const float Radius = Collision->GetScaledSphereRadius();
+	const float Length = Radius * IceLanceLengthShare;
+	const float Thickness = Radius * IceLanceThicknessShare;
+	const float Middle = -0.1f * Length;
+
+	// The long point leads, the short one trails
+	PlaceCone(LookShapes[0], FVector(Middle, 0.0f, 0.0f), FVector::ForwardVector, Length * 0.6f, Thickness);
+	PlaceCone(LookShapes[1], FVector(Middle, 0.0f, 0.0f), FVector::BackwardVector, Length * 0.4f, Thickness);
+
+	// The side spikes turn around the lance as it spins on its flight
+	for (int32 SpikeIndex = 0; SpikeIndex < IceLanceSpikes; ++SpikeIndex)
+	{
+		const float Around = Time * 2.0f + SpikeIndex * UE_TWO_PI / IceLanceSpikes;
+		const FVector Out = FVector(-0.55f, FMath::Cos(Around) * 0.85f, FMath::Sin(Around) * 0.85f).GetSafeNormal();
+		const FVector Base(Middle - Length * (0.05f + 0.08f * SpikeIndex), Out.Y * Thickness * 0.25f, Out.Z * Thickness * 0.25f);
+
+		PlaceCone(LookShapes[2 + SpikeIndex], Base, Out, Length * (0.3f - 0.04f * SpikeIndex), Thickness * 0.45f);
+	}
+
+	UStaticMeshComponent* Sheen = LookShapes[2 + IceLanceSpikes];
+	Sheen->SetRelativeLocation(FVector(Length * 0.02f, 0.0f, 0.0f));
+	Sheen->SetRelativeScale3D(FVector(Length * 1.05f, Thickness * 1.5f, Thickness * 1.5f) / (PlaceholderSphereRadius * 2.0f));
+
+	// Frost crumbles off the back and glitters as it sinks
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = IceLanceShedInterval * FMath::FRandRange(0.6f, 1.5f);
+
+		const FVector Forward = GetActorForwardVector();
+		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.5f, 2.0f) + FMath::VRand() * Thickness * 0.4f,
+			Forward * Movement->Velocity.Size() * 0.05f + FMath::VRand() * FMath::FRandRange(30.0f, 110.0f));
+	}
+}
+
+void AVaelSpellProjectile::AnimateLavaBall(float Time, float DeltaSeconds)
+{
+	const float Radius = Collision->GetScaledSphereRadius();
+	const float CoreSize = Radius * 2.0f * LavaCoreShare / (PlaceholderSphereRadius * 2.0f);
+	const float Pulse = FMath::PerlinNoise1D(Time * 6.0f);
+
+	LookShapes[0]->SetRelativeScale3D(FVector(CoreSize * (1.0f + 0.05f * Pulse)));
+	LookShapes[1]->SetRelativeScale3D(FVector(CoreSize * 1.45f * (1.0f + 0.1f * Pulse)));
+
+	// The plates of crust roll forward over the core like a boulder, the glow shows between them
+	static const FVector PlateDirections[] = { FVector(1.0f, 1.0f, 1.0f), FVector(1.0f, -1.0f, -1.0f), FVector(-1.0f, 1.0f, -1.0f), FVector(-1.0f, -1.0f, 1.0f) };
+
+	const FQuat Roll(FVector::RightVector, Time * LavaRoll);
+	const float PlateScale = Radius * LavaCrustShare / (bRealRock ? RockShardMeshSize : PlaceholderSphereRadius * 2.0f);
+
+	for (int32 PlateIndex = 0; PlateIndex < LavaCrustPlates; ++PlateIndex)
+	{
+		UStaticMeshComponent* Plate = LookShapes[2 + PlateIndex];
+		Plate->SetRelativeLocation(Roll.RotateVector(PlateDirections[PlateIndex % UE_ARRAY_COUNT(PlateDirections)].GetSafeNormal()) * Radius * 0.5f);
+		Plate->SetRelativeRotation((Roll * FQuat(FRotator(PlateIndex * 70.0f, PlateIndex * 110.0f, 0.0f))).Rotator());
+		Plate->SetRelativeScale3D(FVector(1.0f, 0.9f, 0.6f) * PlateScale);
+	}
+
+	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.25f * Pulse));
+
+	// Lava drips from the underside, now and then a bit of crust breaks off
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = LavaShedInterval * FMath::FRandRange(0.6f, 1.5f);
+
+		ShedPiece(GetActorLocation() + FVector(0.0f, 0.0f, -Radius * 0.6f) + FMath::VRand() * Radius * 0.3f,
+			GetActorForwardVector() * Movement->Velocity.Size() * 0.1f + FMath::VRand() * 60.0f - FVector(0.0f, 0.0f, 50.0f));
+	}
+}
+
+void AVaelSpellProjectile::AnimateLavaBurst()
+{
+	if (!bBurst)
+	{
+		return;
+	}
+
+	// The flat ring of heat races out to the edge of the explosion and fades, the flash dies a little later
+	const float Progress = FMath::Clamp(AfterglowTime / LavaBurstRingTime, 0.0f, 1.0f);
+	const float Reach = 1.0f - FMath::Square(1.0f - Progress);
+	const float StartSize = Collision->GetScaledSphereRadius() * 2.0f * LavaCoreShare;
+	const float EndSize = FMath::Max(ExplosionRadius * 2.0f, StartSize);
+
+	UStaticMeshComponent* Ring = LookShapes.Last();
+	Ring->SetRelativeScale3D(FVector(1.0f, 1.0f, 0.18f) * FMath::Lerp(StartSize, EndSize, Reach) / (PlaceholderSphereRadius * 2.0f));
+	Ring->SetVisibility(Progress < 1.0f);
+
+	if (BurstMaterial != nullptr)
+	{
+		BurstMaterial->SetScalarParameterValue(LookGlowParameter, LavaBurstGlow * (1.0f - Progress));
+	}
+
+	LookLight->SetIntensity(LookLightIntensity * LavaBurstFlash * FMath::Max(0.0f, 1.0f - AfterglowTime / 0.35f));
+}
+
+void AVaelSpellProjectile::AnimateMarkShard(float Time, float DeltaSeconds)
+{
+	const float Radius = Collision->GetScaledSphereRadius();
+	const float Length = Radius * MarkShardLengthShare;
+	const float Thickness = Radius * MarkShardThicknessShare;
+
+	// Restless: a fast twitch and now and then a jolt that flares the edge
+	const float Twitch = FMath::PerlinNoise1D(Time * 23.0f);
+	const float Jolt = FMath::Min(1.0f, FMath::Square(FMath::PerlinNoise1D(Time * 9.0f + 3.7f)) * 4.0f);
+
+	// The points sit askew, the spur sticks out to the side
+	const FVector Middle(-0.05f * Length, 0.0f, 0.0f);
+	PlaceCone(LookShapes[0], Middle, FVector(1.0f, 0.07f + 0.05f * Twitch, 0.04f).GetSafeNormal(), Length * 0.65f, Thickness);
+	PlaceCone(LookShapes[1], Middle, FVector(-1.0f, -0.12f, 0.06f).GetSafeNormal(), Length * 0.35f, Thickness * 0.9f);
+	PlaceCone(LookShapes[2], FVector(0.1f * Length, Thickness * 0.2f, 0.0f), FVector(0.6f, 0.8f, -0.1f).GetSafeNormal(), Length * 0.22f, Thickness * 0.5f);
+
+	UStaticMeshComponent* EdgeShape = LookShapes[3];
+	EdgeShape->SetRelativeScale3D(FVector(Length * 1.1f, Thickness * 1.9f, Thickness * 1.9f) / (PlaceholderSphereRadius * 2.0f) * (1.0f + 0.12f * Twitch));
+	if (UMaterialInstanceDynamic* EdgeMaterial = Cast<UMaterialInstanceDynamic>(EdgeShape->GetMaterial(0)))
+	{
+		EdgeMaterial->SetScalarParameterValue(LookGlowParameter, 2.5f * (0.6f + 0.8f * Jolt));
+	}
+
+	// The veins of light jerk from side to side behind the splinter
+	for (int32 VeinIndex = 0; VeinIndex < MarkShardVeins; ++VeinIndex)
+	{
+		UStaticMeshComponent* Vein = LookShapes[4 + VeinIndex];
+		Vein->SetRelativeLocation(FVector(-Length * (0.55f + 0.35f * VeinIndex),
+			FMath::PerlinNoise1D(Time * 30.0f + VeinIndex * 5.0f) * Thickness * 0.8f,
+			FMath::PerlinNoise1D(Time * 27.0f + VeinIndex * 9.0f) * Thickness * 0.8f));
+		Vein->SetRelativeScale3D(FVector(Length * 0.5f, Thickness * 0.18f, Thickness * 0.18f) / (PlaceholderSphereRadius * 2.0f));
+	}
+
+	LookLight->SetIntensity(LookLightIntensity * (0.5f + Jolt));
+
+	// Motes and splinters drift off the back and rise
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = MarkShardShedInterval * FMath::FRandRange(0.6f, 1.5f);
+
+		const FVector Forward = GetActorForwardVector();
+		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.5f, 2.0f) + FMath::VRand() * Thickness * 0.5f,
+			Forward * Movement->Velocity.Size() * 0.04f + FMath::VRand() * FMath::FRandRange(40.0f, 120.0f));
+	}
+}
+
+void AVaelSpellProjectile::ShedOnPierce(const FVector& Location)
+{
+	if (Look != EVaelProjectileLook::IceLance && Look != EVaelProjectileLook::MarkShard)
+	{
+		return;
+	}
+
+	// Splinters burst off where the point goes through
+	for (int32 SplinterIndex = 0; SplinterIndex < IceLancePierceSplinters; ++SplinterIndex)
+	{
+		ShedPiece(Location, FMath::VRand() * FMath::FRandRange(0.4f, 1.0f) * IceLanceShatterSpeed * 0.6f + FVector(0.0f, 0.0f, 100.0f));
 	}
 }
 
@@ -624,6 +985,55 @@ void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
 			UVaelHitFeedbackSubsystem::Shake(this, RockShardShake);
 		}
 	}
+	else if (Look == EVaelProjectileLook::IceLance || Look == EVaelProjectileLook::MarkShard)
+	{
+		// The crystal breaks into splinters; ice sinks glittering, the Mark rises
+		const bool bIce = Look == EVaelProjectileLook::IceLance;
+		const int32 NumPieces = bHitSomething ? LoosePieces.Num() : LoosePieces.Num() / 4;
+		const float Speed = bIce ? IceLanceShatterSpeed : MarkShardShatterSpeed;
+
+		LookLight->SetVisibility(false);
+
+		for (int32 PieceIndex = 0; PieceIndex < NumPieces; ++PieceIndex)
+		{
+			FVector Direction = FMath::VRand();
+			Direction.Z = FMath::Abs(Direction.Z) * 0.6f;
+			Direction.Normalize();
+
+			ShedPiece(Center + Direction * Radius * 0.3f, Direction * FMath::FRandRange(Speed * 0.4f, Speed) * (bHitSomething ? 1.0f : 0.3f) + FVector(0.0f, 0.0f, bIce ? 120.0f : 0.0f));
+		}
+
+		if (bHitSomething && bIce)
+		{
+			UVaelHitFeedbackSubsystem::Shake(this, IceLanceShake);
+		}
+	}
+	else if (Look == EVaelProjectileLook::LavaBall)
+	{
+		// The ball bursts: lava and crust splash out all around, the ring of heat races along the ground. One that just runs out only crumbles.
+		const bool bSplash = bHitSomething || ExplosionRadius > 0.0f;
+		const int32 NumPieces = bSplash ? LoosePieces.Num() : LoosePieces.Num() / 4;
+
+		for (int32 PieceIndex = 0; PieceIndex < NumPieces; ++PieceIndex)
+		{
+			FVector Direction = FMath::VRand();
+			Direction.Z = FMath::Abs(Direction.Z) * 0.8f;
+			Direction.Normalize();
+
+			ShedPiece(Center + Direction * Radius * 0.4f, Direction * FMath::FRandRange(LavaBurstSpeed * 0.4f, LavaBurstSpeed) * (bSplash ? 1.0f : 0.25f) + FVector(0.0f, 0.0f, bSplash ? 250.0f : 0.0f));
+		}
+
+		bBurst = bSplash;
+
+		if (bSplash)
+		{
+			LookShapes.Last()->SetVisibility(true);
+		}
+		else
+		{
+			LookLight->SetVisibility(false);
+		}
+	}
 }
 
 void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
@@ -642,6 +1052,7 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 		{
 			// Flying on: each pierced target gets its own impact, the last one comes with the end of the flight
 			VaelEffects::PlayImpact(this, Effects, OtherActor->GetActorLocation(), Collision->GetScaledSphereRadius());
+			ShedOnPierce(GetActorLocation());
 		}
 
 		if (RemainingPierce-- <= 0)
@@ -776,8 +1187,8 @@ void AVaelSpellProjectile::Explode()
 	UVaelHitFeedbackSubsystem::Shake(this, ExplosionShake);
 
 #if ENABLE_DRAW_DEBUG
-	// Placeholder look while no impact effect exists
-	if (Effects.Impact == nullptr)
+	// Placeholder look while neither an impact effect nor a look of its own exists
+	if (Effects.Impact == nullptr && LookShapes.IsEmpty())
 	{
 		DrawDebugSphere(World, Center, ExplosionRadius, 24, UVaelMagicSettings::Get()->GetElementColor(ExplosionHit.Element).ToFColor(true), false, 0.3f);
 	}

@@ -146,7 +146,19 @@ private:
 	void AnimateWaterOrb(float Time);
 	void AnimateWaterBurst();
 	void AnimateRock(float Time, float DeltaSeconds);
+	void AnimateIceLance(float Time, float DeltaSeconds);
+	void AnimateLavaBall(float Time, float DeltaSeconds);
+	void AnimateLavaBurst();
+	void AnimateMarkShard(float Time, float DeltaSeconds);
 
+	/** Adds a cone to the look, pointed like a crystal */
+	UStaticMeshComponent* AddLookCone(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim = 0.0f, bool bLoose = false);
+
+	/** Lays a cone of the look from its base towards its point, in the space of the projectile */
+	static void PlaceCone(UStaticMeshComponent* Cone, const FVector& Base, const FVector& Direction, float Length, float Width);
+
+	/** Throws a few pieces off where the projectile flies through an enemy */
+	void ShedOnPierce(const FVector& Location);
 	/** Lets go of the next loose piece at a place with a speed */
 	void ShedPiece(const FVector& Location, const FVector& Velocity);
 
@@ -170,6 +182,10 @@ private:
 	/** Light of the look */
 	UPROPERTY(Transient)
 	TObjectPtr<UPointLightComponent> LookLight;
+
+	/** Engine cone for the crystals of the look */
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> ConeMesh;
 
 	/** Material of the ring of spray, to let it fade */
 	UPROPERTY(Transient)

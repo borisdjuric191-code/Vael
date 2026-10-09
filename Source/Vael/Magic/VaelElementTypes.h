@@ -71,7 +71,13 @@ enum class EVaelProjectileLook : uint8
 	/** A round, softly wobbling ball of water that bursts under pressure where it hits, like the Wassergeschoss */
 	WaterOrb,
 	/** A pointed stone that spins in its fast flight and loses sand and pebbles, like the Steinbrocken; it shatters where it hits */
-	RockShard
+	RockShard,
+	/** A long crystal of ice with two points and little side spikes, loses frost and splinters on every enemy it pierces, like the Frostlanze */
+	IceLance,
+	/** A glowing core under tumbling plates of crust that drips lava and splashes it all around where it bursts, like the Lavaball */
+	LavaBall,
+	/** A crooked black splinter with a twitching violet edge whose motes rise instead of fall, like the Marksplitter */
+	MarkShard
 };
 
 /** Own look of a cone spell, shown together with its cast effect */
