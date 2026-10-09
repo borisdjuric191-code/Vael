@@ -77,6 +77,9 @@ public:
 	/** Finds what the areas the actor stands in do to it: whether it is blinded and how fast it can walk (1 for normal speed) */
 	static void GetEffectsOn(const AActor* Victim, bool& bOutBlinded, float& OutSpeedMultiplier);
 
+	/** True if the target stands in mist of an ally and the observer is too far away to notice them through it */
+	static bool IsHiddenInMist(const AActor* Target, const AActor* Observer);
+
 	/** Puts out every fire that touches the given circle. Returns the number of fires put out. */
 	static int32 ExtinguishFires(const UWorld* World, const FVector& Location, float InRadius);
 

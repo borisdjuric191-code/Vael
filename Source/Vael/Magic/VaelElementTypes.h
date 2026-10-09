@@ -123,7 +123,9 @@ enum class EVaelGroundEffect : uint8
 	/** Steam: enemies inside can't see and don't start attacks */
 	Blind,
 	/** Mud: walking enemies are slowed, flying ones aren't */
-	Slow
+	Slow,
+	/** Mist: the caster and their allies inside are hidden from enemies further away, who lose them as a target */
+	Veil
 };
 
 /** Conditions a hit can leave on its target */

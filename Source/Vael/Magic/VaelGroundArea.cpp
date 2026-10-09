@@ -271,6 +271,45 @@ void AVaelGroundArea::GetEffectsOn(const AActor* Victim, bool& bOutBlinded, floa
 	}
 }
 
+bool AVaelGroundArea::IsHiddenInMist(const AActor* Target, const AActor* Observer)
+{
+	const UWorld* World = Target != nullptr ? Target->GetWorld() : nullptr;
+	if (World == nullptr || Observer == nullptr)
+	{
+		return false;
+	}
+
+	// Close by, the observer still makes them out through the mist
+	const FVector TargetLocation = Target->GetActorLocation();
+	const FVector ObserverLocation = Observer->GetActorLocation();
+	if (FVector::DistSquared2D(TargetLocation, ObserverLocation) <= FMath::Square(UVaelMagicSettings::Get()->MistSenseRange))
+	{
+		return false;
+	}
+
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		const AVaelGroundArea* Area = *It;
+		if (Area->Effect != EVaelGroundEffect::Veil || !Area->IsInRange(TargetLocation))
+		{
+			continue;
+		}
+
+		// Mist only hides the caster and their allies, and only from those outside it
+		if (Area->GetInstigator() != nullptr && UVaelCombatStatics::CanDamage(Area->GetInstigator(), Target))
+		{
+			continue;
+		}
+
+		if (!Area->IsInRange(ObserverLocation))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool AVaelGroundArea::IsInRange(const FVector& Location, float ExtraDistance) const
 {
 	return FVector::DistSquared2D(Location, GetActorLocation()) <= FMath::Square(Radius + ExtraDistance);
@@ -294,8 +333,13 @@ void AVaelGroundArea::RefreshLook()
 
 FLinearColor AVaelGroundArea::GetLookColor() const
 {
-	// Steam is pale, everything else shows the color of its element
+	// Steam is pale, mist a cold grey, everything else shows the color of its element
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	if (Effect == EVaelGroundEffect::Veil)
+	{
+		return MagicSettings->MistColor;
+	}
+
 	return Effect == EVaelGroundEffect::Blind ? MagicSettings->SteamColor : MagicSettings->GetElementColor(Element);
 }
 
@@ -307,8 +351,8 @@ void AVaelGroundArea::SpawnVisual()
 	{
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 
-		// Steam and mud have their own look, or else the one of water and earth
-		if (Effect == EVaelGroundEffect::Blind)
+		// Steam and mist share their own look, mud has one; or else the one of water and earth
+		if (Effect == EVaelGroundEffect::Blind || Effect == EVaelGroundEffect::Veil)
 		{
 			Visual = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
 		}
@@ -319,7 +363,7 @@ void AVaelGroundArea::SpawnVisual()
 
 		if (Visual == nullptr)
 		{
-			const EVaelElement LookElement = Effect == EVaelGroundEffect::Blind ? EVaelElement::Water : Effect == EVaelGroundEffect::Slow ? EVaelElement::Earth : Element;
+			const EVaelElement LookElement = Effect == EVaelGroundEffect::Blind || Effect == EVaelGroundEffect::Veil ? EVaelElement::Water : Effect == EVaelGroundEffect::Slow ? EVaelElement::Earth : Element;
 			Visual = VaelEffects::Load(LookElement).Ground;
 		}
 	}

@@ -559,6 +559,22 @@ FORMULAS = [
         "vortex_pull_speed": 150.0,
         "vortex_blind_duration": 0.6,
     },
+    # Third package (step 10b): the last four triples. No act yet.
+    {
+        "asset": "DA_Formula_Nebelschleier",
+        "display_name": unreal.Text("Nebelschleier"),
+        "description": unreal.Text("Nebel um dich und Mitspieler; Gegner von außen verlieren euch aus den Augen"),
+        "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
+        "elements": [Element.WATER, Element.WATER, Element.FIRE],
+        "source": Source.SEALED,
+        "delivery": Delivery.GROUND_AREA,
+        "damage_element": Element.WATER,
+        "area_range": 0.0,
+        "area_radius": 3.0 * TILE,
+        "area_lifetime": 6.0,
+        "area_damage_per_second": 0.0,
+        "area_effect": GroundEffect.VEIL,
+    },
     # Mark formulas: castable only once the Mark has awakened (Act III)
     {
         "asset": "DA_Formula_Marksplitter",

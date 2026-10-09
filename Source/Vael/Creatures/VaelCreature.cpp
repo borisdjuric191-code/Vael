@@ -446,6 +446,12 @@ AVaelCharacter* AVaelCreature::FindNearestPlayer(float MaxDistance, float* OutDi
 
 	ForEachActivePlayer([this, &Nearest, &NearestDistance](AVaelCharacter* Player)
 	{
+		// Players in the mist of a mage can't be made out from afar
+		if (AVaelGroundArea::IsHiddenInMist(Player, this))
+		{
+			return;
+		}
+
 		const float Distance = GetDistanceTo2D(Player);
 		if (Distance < NearestDistance)
 		{

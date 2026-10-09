@@ -142,9 +142,17 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Ground Areas", meta = (ClampMin = 0))
 	float SteamBlindLinger = 0.3f;
 
+	/** Enemies closer than this to a player hidden in mist, in cm, still notice them; those further away lose them */
+	UPROPERTY(config, EditAnywhere, Category="Ground Areas", meta = (ClampMin = 0))
+	float MistSenseRange = 280.0f;
+
 	/** Placeholder color of steam */
 	UPROPERTY(config, EditAnywhere, Category="Appearance")
 	FLinearColor SteamColor = FLinearColor(0.8f, 0.82f, 0.85f);
+
+	/** Placeholder color of the mist that hides allies */
+	UPROPERTY(config, EditAnywhere, Category="Appearance")
+	FLinearColor MistColor = FLinearColor(0.62f, 0.7f, 0.8f);
 
 	/** Placeholder color per element */
 	UPROPERTY(config, EditAnywhere, Category="Appearance")
