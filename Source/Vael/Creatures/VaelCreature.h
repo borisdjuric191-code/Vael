@@ -193,10 +193,13 @@ protected:
 	/** Where the creature started */
 	FVector HomeLocation = FVector::ZeroVector;
 
-private:
-
 	/** Applies the body color, or the flash color while a hit flash lasts */
 	void RefreshBodyColor();
+
+	/** Called whenever the color of the body changes, for creatures whose look is made of more than the body: the color with the Mark mixed in, and whether a hit flashes it */
+	virtual void OnBodyColorShown(const FLinearColor& Color, bool bHitFlash) {}
+
+private:
 
 	/** Values in use: the data asset, or the defaults of the data class without one */
 	UPROPERTY(Transient)

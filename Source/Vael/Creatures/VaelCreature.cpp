@@ -691,14 +691,17 @@ void AVaelCreature::SetBodyColor(const FLinearColor& Color)
 
 void AVaelCreature::RefreshBodyColor()
 {
+	// Marked creatures carry the violet of the Mark
+	const FLinearColor ShownColor = bServant ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.7f)
+		: bMarked ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.45f)
+		: BodyColor;
+
 	if (BodyMaterial != nullptr)
 	{
-		// Marked creatures carry the violet of the Mark
-		const FLinearColor ShownColor = bServant ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.7f)
-			: bMarked ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.45f)
-			: BodyColor;
 		BodyMaterial->SetVectorParameterValue(BodyColorParameter, bShowingHitFlash ? FLinearColor(1.0f, 0.9f, 0.75f) : ShownColor);
 	}
+
+	OnBodyColorShown(ShownColor, bShowingHitFlash);
 }
 
 #undef LOCTEXT_NAMESPACE
