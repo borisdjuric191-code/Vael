@@ -673,15 +673,13 @@ void AVaelSpellProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// The trail replaces the placeholder sphere as soon as it exists
+	// The trail replaces the plain placeholder sphere, but plays together with a look of its own
 	if (VaelEffects::Attach(Effects.Trail, Collision, NAME_None, Effects.Color, Collision->GetScaledSphereRadius()) != nullptr)
 	{
 		Mesh->SetVisibility(false);
 	}
-	else
-	{
-		BuildLook();
-	}
+
+	BuildLook();
 }
 
 void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond, EVaelGroundEffect Effect)

@@ -60,7 +60,7 @@ enum class EVaelSpellDelivery : uint8
 	Strike
 };
 
-/** Look of a flying spell while it has no effect of its own */
+/** Own look of a flying spell, shown together with its trail effect */
 UENUM(BlueprintType)
 enum class EVaelProjectileLook : uint8
 {
@@ -74,7 +74,7 @@ enum class EVaelProjectileLook : uint8
 	RockShard
 };
 
-/** Look of a cone spell while it has no cast effect of its own */
+/** Own look of a cone spell, shown together with its cast effect */
 UENUM(BlueprintType)
 enum class EVaelConeLook : uint8
 {

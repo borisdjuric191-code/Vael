@@ -133,7 +133,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	TSubclassOf<AVaelSpellProjectile> ProjectileClass;
 
-	/** Look of the projectile while it has no trail effect of its own */
+	/** Own look of the projectile, shown together with its trail effect */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	EVaelProjectileLook ProjectileLook = EVaelProjectileLook::Sphere;
 
@@ -181,7 +181,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cone", meta = (ClampMin = 1, ClampMax = 180, EditCondition = "Delivery == EVaelSpellDelivery::Cone"))
 	float ConeHalfAngle = 45.0f;
 
-	/** Look of the cone while it has no cast effect of its own */
+	/** Own look of the cone, shown together with its cast effect */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cone", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Cone"))
 	EVaelConeLook ConeLook = EVaelConeLook::Plain;
 

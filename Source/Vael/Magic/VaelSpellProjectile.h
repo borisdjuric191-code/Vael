@@ -57,7 +57,7 @@ public:
 	/** Gives the projectile its trail, impact effect and sound. Has to be called before FinishSpawning. */
 	void SetEffects(const FVaelLoadedEffects& InEffects, UNiagaraSystem* InImpactAreaVisual = nullptr);
 
-	/** Chooses the look of the projectile while it has no trail effect. Has to be called before FinishSpawning. */
+	/** Chooses the look of the projectile; it plays together with a trail effect. Has to be called before FinishSpawning. */
 	void SetLook(EVaelProjectileLook InLook) { Look = InLook; }
 
 	/** Makes the projectile burst where its flight ends, hitting everyone around. Has to be called before FinishSpawning. */
@@ -153,7 +153,7 @@ private:
 	/** Ends the flight but keeps the projectile for a moment: embers glow out, water bursts */
 	void BeginAfterglow(bool bHitSomething);
 
-	/** Look while no trail effect exists */
+	/** Own look of the projectile, shown together with the trail effect */
 	EVaelProjectileLook Look = EVaelProjectileLook::Sphere;
 
 	/** Color of the element */

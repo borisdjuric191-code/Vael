@@ -529,18 +529,20 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	}
 
 	// The spray of the cone is the one-shot cast effect, its radius the reach
-	if (VaelEffects::SpawnAt(Caster, Effects.Cast, Origin, AimDirection.Rotation(), Effects.Color, Formula.ConeRange) != nullptr)
-	{
-		return;
-	}
+	const bool bHasSpray = VaelEffects::SpawnAt(Caster, Effects.Cast, Origin, AimDirection.Rotation(), Effects.Color, Formula.ConeRange) != nullptr;
 
-	// The cone's own look blows out of the hand, as far as the cone reaches from the caster
+	// The cone's own look blows out of the hand together with the spray, as far as the cone reaches from the caster
 	if (Formula.ConeLook == EVaelConeLook::WindGust)
 	{
 		const FVector Hand = GetProjectileStart(Caster, AimDirection);
 		const float HandAhead = FVector::DotProduct(Hand - Origin, AimDirection);
 
 		AVaelSpellGust::Spawn(Caster, Hand, AimDirection, Formula.ConeRange - HandAhead, Formula.ConeHalfAngle, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
+		return;
+	}
+
+	if (bHasSpray)
+	{
 		return;
 	}
 
