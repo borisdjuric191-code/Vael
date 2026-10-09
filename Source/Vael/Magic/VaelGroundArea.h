@@ -96,8 +96,16 @@ public:
 	float GetRadius() const { return Radius; }
 	EVaelGroundEffect GetEffect() const { return Effect; }
 
-	/** True if mages near the area can draw its element from it; steam and mud provide none */
-	bool ProvidesElement() const { return Effect == EVaelGroundEffect::None; }
+	/** True if mages near the area can draw the element from it: its own, or fire and water from a hot spring; steam, mist and mud provide none */
+	bool ProvidesElement(EVaelElement InElement) const
+	{
+		if (Effect == EVaelGroundEffect::HotSpring)
+		{
+			return InElement == EVaelElement::Fire || InElement == EVaelElement::Water;
+		}
+
+		return Effect == EVaelGroundEffect::None && Element == InElement;
+	}
 
 private:
 

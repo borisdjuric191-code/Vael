@@ -340,6 +340,12 @@ FLinearColor AVaelGroundArea::GetLookColor() const
 		return MagicSettings->MistColor;
 	}
 
+	// A hot spring is water with a glow of fire
+	if (Effect == EVaelGroundEffect::HotSpring)
+	{
+		return FMath::Lerp(MagicSettings->GetElementColor(EVaelElement::Water), MagicSettings->GetElementColor(EVaelElement::Fire), 0.35f);
+	}
+
 	return Effect == EVaelGroundEffect::Blind ? MagicSettings->SteamColor : MagicSettings->GetElementColor(Element);
 }
 

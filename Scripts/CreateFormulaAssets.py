@@ -608,6 +608,21 @@ FORMULAS = [
         "orbit_stone_size": 45.0,
         "orbit_lifetime": 6.0,
     },
+    {
+        "asset": "DA_Formula_HeisseQuelle",
+        "display_name": unreal.Text("Heiße Quelle"),
+        "description": unreal.Text("Eine heiße Quelle bricht auf: Wer darin steht, zieht Feuer und Wasser aus ihr"),
+        "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
+        "elements": [Element.FIRE, Element.WATER, Element.EARTH],
+        "source": Source.SEALED,
+        "delivery": Delivery.GROUND_AREA,
+        "damage_element": Element.WATER,
+        "area_range": 5.0 * TILE,
+        "area_radius": 2.2 * TILE,
+        "area_lifetime": 12.0,
+        "area_damage_per_second": 0.0,
+        "area_effect": GroundEffect.HOT_SPRING,
+    },
     # Mark formulas: castable only once the Mark has awakened (Act III)
     {
         "asset": "DA_Formula_Marksplitter",

@@ -31,7 +31,7 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 
 	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
 	{
-		if (It->ProvidesElement() && It->GetElement() == Element && It->IsInRange(Location, ExtraDistance))
+		if (It->ProvidesElement(Element) && It->IsInRange(Location, ExtraDistance))
 		{
 			return true;
 		}

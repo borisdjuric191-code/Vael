@@ -129,7 +129,9 @@ enum class EVaelGroundEffect : uint8
 	/** Mud: walking enemies are slowed, flying ones aren't */
 	Slow,
 	/** Mist: the caster and their allies inside are hidden from enemies further away, who lose them as a target */
-	Veil
+	Veil,
+	/** Hot spring: mages standing in it can draw both fire and water from it */
+	HotSpring
 };
 
 /** Conditions a hit can leave on its target */
