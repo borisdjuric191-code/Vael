@@ -159,6 +159,18 @@ enum class EVaelStatus : uint8
 	Fevered
 };
 
+/** When a charge of Mark left in a target bursts */
+UENUM(BlueprintType)
+enum class EVaelChargeMode : uint8
+{
+	/** No charge */
+	None,
+	/** Bursts after its time, like the Kernsplitter */
+	Delayed,
+	/** Bursts only if the target dies within its time, and the burst charges those it hits again, like the Blutsieden */
+	OnDeath
+};
+
 /** Outcome of trying to cast the queued elements */
 UENUM(BlueprintType)
 enum class EVaelCastResult : uint8

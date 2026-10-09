@@ -28,6 +28,11 @@ FVaelSpellHit UVaelFormula::MakeSpellHit(float Power) const
 	Hit.StatusDuration = StatusDuration;
 	Hit.StatusDamagePerSecond = StatusDamagePerSecond;
 	Hit.StunDuration = StunDuration;
+	Hit.LifeSteal = LifeSteal;
+	Hit.Charge = Charge;
+	Hit.ChargeTime = ChargeTime;
+	Hit.ChargeDamage = ChargeDamage * Power;
+	Hit.ChargeRadius = ChargeRadius;
 
 	return Hit;
 }

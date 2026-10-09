@@ -3,12 +3,14 @@
 #include "Combat/VaelCombatStatics.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
+#include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelGameplayEffects.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelMarkCharge.h"
 #include "Magic/VaelMagicSettings.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
@@ -155,6 +157,18 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 
 	DealDamage(Attacker, Target, Hit.Damage * DamageMultiplier, Hit.Element, DamageMultiplier);
 
+	// Some Mark drinks the life of its victims for the caster
+	if (Hit.LifeSteal > 0.0f)
+	{
+		Heal(Attacker, Hit.Damage * DamageMultiplier * Hit.LifeSteal);
+	}
+
+	// Some Mark leaves a charge in its victims that bursts later
+	if (Hit.Charge != EVaelChargeMode::None)
+	{
+		AVaelMarkCharge::Attach(Attacker, Target, Hit);
+	}
+
 	ApplyStatus(Attacker, Target, Hit.Status, Hit.StatusDuration, Hit.StatusDamagePerSecond);
 
 	if (AVaelCharacterBase* TargetCharacter = Cast<AVaelCharacterBase>(Target))
@@ -266,3 +280,15 @@ bool UVaelCombatStatics::RemoveStatus(AActor* Target, EVaelStatus Status)
 	return TargetAbilitySystem->RemoveActiveEffectsWithGrantedTags(FGameplayTagContainer(StatusTag)) > 0;
 }
 
+
+void UVaelCombatStatics::Heal(AActor* Target, float Amount)
+{
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystem(Target);
+	const AVaelCharacterBase* Character = Cast<AVaelCharacterBase>(Target);
+	if (AbilitySystem == nullptr || Character == nullptr || Character->IsDefeated() || Amount <= 0.0f)
+	{
+		return;
+	}
+
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), FMath::Min(Character->GetHealth() + Amount, Character->GetMaxHealth()));
+}

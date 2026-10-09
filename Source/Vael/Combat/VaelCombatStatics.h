@@ -42,6 +42,25 @@ struct FVaelSpellHit
 	/** Seconds the target can't act after the hit, 0 for none */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
 	float StunDuration = 0.0f;
+
+	/** Share of the damage dealt that heals the attacker, like the Aderzug; 0 for none */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
+	float LifeSteal = 0.0f;
+
+	/** Charge of Mark the hit leaves in the target, which bursts later */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
+	EVaelChargeMode Charge = EVaelChargeMode::None;
+
+	/** Seconds until a delayed charge bursts, or how long a charge waits for the death of its target */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
+	float ChargeTime = 0.0f;
+
+	/** Damage of the burst of the charge to everyone around, and its radius in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
+	float ChargeDamage = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
+	float ChargeRadius = 0.0f;
 };
 
 /**
@@ -104,6 +123,9 @@ public:
 	/** Deals damage without reactions or a check who may hurt whom, for example to the caster themselves. The reaction multiplier only colors the damage number. */
 	UFUNCTION(BlueprintCallable, Category="Vael|Combat")
 	static void DealDamage(AActor* Attacker, AActor* Target, float Damage, EVaelElement Element, float ReactionMultiplier = 1.0f);
+
+	/** Gives health back, never above the maximum */
+	static void Heal(AActor* Target, float Amount);
 
 	/** True if the actor currently has the condition */
 	UFUNCTION(BlueprintPure, Category="Vael|Combat")

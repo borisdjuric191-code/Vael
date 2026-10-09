@@ -69,6 +69,25 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
 	float RegionScar = 0.0f;
 
+	/** Share of the damage dealt that heals the caster, like the Aderzug */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta = (ClampMin = 0))
+	float LifeSteal = 0.0f;
+
+	/** Charge of Mark each hit leaves in its target: bursting after its time, or when the target dies in that time */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit")
+	EVaelChargeMode Charge = EVaelChargeMode::None;
+
+	/** Seconds until the charge bursts, or how long it waits for the death of its target */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta = (ClampMin = 0, EditCondition = "Charge != EVaelChargeMode::None"))
+	float ChargeTime = 2.0f;
+
+	/** Damage of the burst to everyone around, and its radius in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta = (ClampMin = 0, EditCondition = "Charge != EVaelChargeMode::None"))
+	float ChargeDamage = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hit", meta = (ClampMin = 0, EditCondition = "Charge != EVaelChargeMode::None"))
+	float ChargeRadius = 200.0f;
+
 	/** Seconds a quick slot needs after casting this formula, before it can be cast from there again */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formula", meta = (ClampMin = 0))
 	float QuickCooldown = 4.0f;
