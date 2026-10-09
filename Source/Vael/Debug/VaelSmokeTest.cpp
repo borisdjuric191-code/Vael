@@ -25,6 +25,7 @@
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelRegion.h"
 #include "Player/VaelCharacter.h"
+#include "Player/VaelPlayerController.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
 
@@ -284,6 +285,24 @@ void AVaelSmokeTest::BeginPlay()
 		Region->SetCorruption(Corruption);
 		return FString::Printf(TEXT("corruption %.0f -> %.0f"), Old, Corruption);
 	};
+
+	// Gamepad aim locks on to an enemy that comes close, and the player faces it
+	Steps.Add({ TEXT("Auto aim arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelPreacherData>(), 1); }, 1.0f });
+	Steps.Add({ TEXT("Auto aim"), [this]()
+	{
+		const AVaelCharacter* Player = GetPlayer();
+		const AVaelPlayerController* PlayerController = Player != nullptr ? Cast<AVaelPlayerController>(Player->GetController()) : nullptr;
+		const AActor* Target = PlayerController != nullptr ? PlayerController->GetAimTarget() : nullptr;
+		if (Target == nullptr)
+		{
+			return FString(TEXT("FAILED: no enemy locked on"));
+		}
+
+		const FVector ToTarget = (Target->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
+		const float Angle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(Player->GetActorForwardVector().GetSafeNormal2D(), ToTarget)));
+		return FString::Printf(TEXT("%slocked on %s at %.0f cm, player faces it within %.0f degrees"), Angle > 20.0f ? TEXT("FAILED: ") : TEXT(""),
+			*GetNameSafe(Target), FVector::Dist2D(Target->GetActorLocation(), Player->GetActorLocation()), Angle);
+	}, 0.1f });
 
 	// Glowing stones: water lets out their heat and they stop giving fire, fire heats them up again
 	Steps.Add({ TEXT("Steam stones"), [this]()

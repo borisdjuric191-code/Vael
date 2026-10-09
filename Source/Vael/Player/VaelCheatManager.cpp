@@ -17,6 +17,8 @@
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "Magic/VaelMagicSettings.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelFormulaScroll.h"
@@ -316,10 +318,18 @@ void UVaelCheatManager::VaelAwakenMark()
 	const UGameInstance* GameInstance = GetWorld() != nullptr ? GetWorld()->GetGameInstance() : nullptr;
 	UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
 
-	if (Grimoire != nullptr && !Grimoire->AwakenMark(NSLOCTEXT("VaelMagic", "MarkAwakensCheat", "Das Mark erwacht in dir.")))
+	if (Grimoire == nullptr)
 	{
-		UE_LOG(LogVael, Log, TEXT("VaelAwakenMark: the Mark is awake already"));
+		UE_LOG(LogVael, Warning, TEXT("VaelAwakenMark: no grimoire"));
+		return;
 	}
+
+	const bool bAwakened = Grimoire->AwakenMark(NSLOCTEXT("VaelMagic", "MarkAwakensCheat", "Das Mark erwacht in dir."));
+	UE_LOG(LogVael, Log, TEXT("VaelAwakenMark: %s"), bAwakened ? TEXT("the Mark awakens") : TEXT("the Mark is awake already"));
+
+	// Seen on screen too, with the button of the fifth element
+	UVaelNoticeSubsystem::Post(GetWorld()->GetGameInstance(), bAwakened ? NSLOCTEXT("VaelMagic", "MarkAwakeCheat", "Das Mark ist erwacht") : NSLOCTEXT("VaelMagic", "MarkAwakeAlready", "Das Mark ist schon wach"),
+		NSLOCTEXT("VaelMagic", "MarkButtonHint", "Mark-Element: RB / R1 oder Taste 5"), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 5.0f);
 }
 
 void UVaelCheatManager::VaelSealSource()

@@ -154,6 +154,7 @@ void AVaelHUD::DrawHUD()
 	DrawNpcMarkers();
 	DrawInteractPrompts(PlayerControllers);
 	DrawFormulaNames(PlayerControllers);
+	DrawAimTargets(PlayerControllers);
 	DrawObservation(PlayerControllers);
 
 	float NoticeTop = 70.0f * UiScale;
@@ -1689,6 +1690,42 @@ void AVaelHUD::DrawCompendium(const AVaelPlayerController* PlayerController)
 		{
 			Y = DrawWrappedLabel(Section.Hint, DetailLeft, Y, 13.0f * S, DimColor, DetailWidth) + 10.0f * S;
 			bShowedHint = true;
+		}
+	}
+}
+
+void AVaelHUD::DrawAimTargets(const TArray<const AVaelPlayerController*>& PlayerControllers)
+{
+	const AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();
+	const float S = UiScale;
+
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		const AActor* Target = PlayerController->GetAimTarget();
+		if (Target == nullptr)
+		{
+			continue;
+		}
+
+		// A ring on the ground around the target's feet, a little wider than its body, broken into four arcs
+		const FLinearColor Color = GameMode != nullptr ? GameMode->GetPlayerColor(PlayerController->GetPlayerSlot()) : BoneColor;
+		const FVector Feet = Target->GetActorLocation() - FVector(0.0f, 0.0f, Target->GetSimpleCollisionHalfHeight() - 4.0f);
+		const float Radius = Target->GetSimpleCollisionRadius() + 30.0f;
+		const float Spin = GetWorld()->GetTimeSeconds() * 1.5f;
+
+		FVector2D Previous = FVector2D::ZeroVector;
+		for (int32 Side = 0; Side <= CircleSides; ++Side)
+		{
+			const float Angle = Spin + UE_TWO_PI * Side / CircleSides;
+			const FVector OnScreen = Canvas->Project(Feet + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Radius);
+			const FVector2D Point(OnScreen.X, OnScreen.Y);
+
+			if (Side > 0 && Side % 7 != 0)
+			{
+				DrawSegment(Previous, Point, Color, 2.5f * S);
+			}
+
+			Previous = Point;
 		}
 	}
 }

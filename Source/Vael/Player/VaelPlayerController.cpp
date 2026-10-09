@@ -2,6 +2,7 @@
 
 #include "Player/VaelPlayerController.h"
 #include "Camera/VaelSharedCamera.h"
+#include "Player/VaelAutoAimComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/LocalPlayer.h"
 #include "Engine/World.h"
@@ -37,6 +38,8 @@ AVaelPlayerController::AVaelPlayerController()
 
 	// all players look through the shared camera, never through their own pawn
 	bAutoManageActiveCameraTarget = false;
+
+	AutoAim = CreateDefaultSubobject<UVaelAutoAimComponent>(TEXT("AutoAim"));
 
 	CheatClass = UVaelCheatManager::StaticClass();
 }
@@ -356,7 +359,16 @@ void AVaelPlayerController::PlayerTick(float DeltaTime)
 		}
 	}
 
+	// Gamepad players lock on to enemies; mouse players aim exactly where they point
+	const bool bStickAims = StickAim.Size() > 0.5f;
+	AutoAim->UpdateTarget(DeltaTime, GetPawn(), bStickAims ? InputToWorldDirection(StickAim) : FVector::ZeroVector, !bUsingMouseAim);
+
 	UpdateFacing();
+}
+
+AActor* AVaelPlayerController::GetAimTarget() const
+{
+	return AutoAim != nullptr ? AutoAim->GetTarget() : nullptr;
 }
 
 void AVaelPlayerController::OnMoveKeyboard(const FInputActionValue& Value)
@@ -500,9 +512,15 @@ void AVaelPlayerController::UpdateFacing()
 
 	FVector Facing = FVector::ZeroVector;
 
+	const AActor* AimTarget = GetAimTarget();
+
 	if (bUsingMouseAim)
 	{
 		GetMouseAimDirection(Facing);
+	}
+	else if (AimTarget != nullptr)
+	{
+		Facing = AimTarget->GetActorLocation() - VaelCharacter->GetActorLocation();
 	}
 	else if (!StickAim.IsNearlyZero())
 	{

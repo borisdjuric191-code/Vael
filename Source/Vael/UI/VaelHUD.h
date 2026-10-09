@@ -93,6 +93,9 @@ private:
 	/** Draws the focus circle of every raised spyglass and how far the creatures in it have been watched */
 	void DrawObservation(const TArray<const AVaelPlayerController*>& PlayerControllers);
 
+	/** Rings under the enemies the players aim is locked on, in the color of each player */
+	void DrawAimTargets(const TArray<const AVaelPlayerController*>& PlayerControllers);
+
 	/** Draws text broken into lines no wider than the width; returns the Y below the last line */
 	float DrawWrappedLabel(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float MaxWidth);
 

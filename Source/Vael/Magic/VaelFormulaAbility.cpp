@@ -968,6 +968,11 @@ FVector UVaelFormulaAbility::FindGroundTarget(AActor* Caster, float MaxRange)
 	{
 		Distance = FVector::Dist2D(Origin, MouseLocation);
 	}
+	else if (const AActor* AimTarget = PlayerController != nullptr ? PlayerController->GetAimTarget() : nullptr)
+	{
+		// The enemy the gamepad aim is locked on
+		Distance = FMath::Max(FVector::Dist2D(Origin, AimTarget->GetActorLocation()), AutoTargetMinDistance);
+	}
 	else
 	{
 		// With a gamepad the patch lands on the nearest enemy roughly in the aim direction

@@ -21,6 +21,7 @@ enum class EVaelMenuPage : uint8
 };
 
 class AVaelSharedCamera;
+class UVaelAutoAimComponent;
 class UVaelFormula;
 class UInputMappingContext;
 class UInputAction;
@@ -36,6 +37,10 @@ UCLASS()
 class AVaelPlayerController : public APlayerController
 {
 	GENERATED_BODY()
+
+	/** Soft lock on enemies while aiming with a gamepad */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVaelAutoAimComponent> AutoAim;
 
 protected:
 
@@ -168,6 +173,9 @@ public:
 
 	/** Ground point under the mouse cursor while this player aims with the mouse. Returns false when aiming with a gamepad. */
 	bool GetMouseAimLocation(FVector& OutLocation) const;
+
+	/** The enemy the gamepad aim is locked on, null if there is none or this player aims with the mouse */
+	AActor* GetAimTarget() const;
 
 	/** True while this player has the grimoire open */
 	bool IsGrimoireOpen() const { return bGrimoireOpen; }
