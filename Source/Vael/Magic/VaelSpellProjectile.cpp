@@ -15,6 +15,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
+#include "Vael.h"
 #include "VaelAssets.h"
 #include "World/VaelGround.h"
 
@@ -131,6 +132,9 @@ namespace
 	constexpr float MarkShardRise = -180.0f;
 	constexpr float MarkShardShatterSpeed = 520.0f;
 
+	/** Walls and the ground stop a projectile on a sphere no larger than this, in cm, however wide the spell is */
+	constexpr float ProjectileWallProbeRadius = 40.0f;
+
 	/** Material parameters of the glow materials */
 	const FName LookColorParameter(TEXT("Color"));
 	const FName LookGlowParameter(TEXT("Glow"));
@@ -139,7 +143,7 @@ namespace
 
 AVaelSpellProjectile::AVaelSpellProjectile()
 {
-	// Walls stop the projectile, characters are passed through and checked in OnOverlap
+	// Walls stop the projectile; characters are passed through and found by the hit area below
 	Collision = CreateDefaultSubobject<USphereComponent>(TEXT("Collision"));
 	Collision->InitSphereRadius(30.0f);
 	Collision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
@@ -147,12 +151,25 @@ AVaelSpellProjectile::AVaelSpellProjectile()
 	Collision->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Collision->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
 	Collision->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
-	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	Collision->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	Collision->SetGenerateOverlapEvents(true);
 	Collision->CanCharacterStepUpOn = ECB_No;
 	RootComponent = Collision;
 
-	Collision->OnComponentBeginOverlap.AddDynamic(this, &AVaelSpellProjectile::OnOverlap);
+
+	// Characters are found by a sphere of their own, as large as the spell; the collision above stays small,
+	// so a wide spell like a rolling wall of fire doesn't stick in the ground it rolls over
+	HitArea = CreateDefaultSubobject<USphereComponent>(TEXT("HitArea"));
+	HitArea->SetupAttachment(RootComponent);
+	HitArea->InitSphereRadius(30.0f);
+	HitArea->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	HitArea->SetCollisionObjectType(ECC_WorldDynamic);
+	HitArea->SetCollisionResponseToAllChannels(ECR_Ignore);
+	HitArea->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
+	HitArea->SetGenerateOverlapEvents(true);
+	HitArea->CanCharacterStepUpOn = ECB_No;
+
+	HitArea->OnComponentBeginOverlap.AddDynamic(this, &AVaelSpellProjectile::OnOverlap);
 
 	// Placeholder look from engine assets
 	Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
@@ -204,7 +221,9 @@ void AVaelSpellProjectile::InitSpell(const FVaelSpellHit& InHit, float Speed, fl
 	// Water puts out the fires it flies over, which has to be checked every frame
 	PrimaryActorTick.bStartWithTickEnabled = Hit.Element == EVaelElement::Water;
 
-	Collision->SetSphereRadius(Radius);
+	SpellRadius = Radius;
+	Collision->SetSphereRadius(FMath::Min(Radius, ProjectileWallProbeRadius));
+	HitArea->SetSphereRadius(Radius);
 	Mesh->SetRelativeScale3D(FVector(Radius / PlaceholderSphereRadius));
 
 	if (UMaterialInstanceDynamic* Material = Mesh->CreateAndSetMaterialInstanceDynamic(0))
@@ -230,7 +249,7 @@ void AVaelSpellProjectile::Tick(float DeltaSeconds)
 
 	if (Hit.Element == EVaelElement::Water && !bFlightEnded)
 	{
-		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), Collision->GetScaledSphereRadius());
+		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), SpellRadius);
 	}
 
 	if (!LookShapes.IsEmpty())
@@ -321,7 +340,7 @@ void AVaelSpellProjectile::BuildLook()
 	CoreMaterial = CoreMaterial != nullptr ? CoreMaterial : Plain;
 	GlowMaterial = GlowMaterial != nullptr ? GlowMaterial : Plain;
 
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 
 	if (Look == EVaelProjectileLook::Spark)
 	{
@@ -637,7 +656,7 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 
 void AVaelSpellProjectile::AnimateRock(float Time, float DeltaSeconds)
 {
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 	const float MeshSize = bRealRock ? RockShardMeshSize : PlaceholderSphereRadius * 2.0f;
 	const float Length = Radius * RockShardLengthShare;
 	const float Thickness = Radius * RockShardThicknessShare;
@@ -668,7 +687,7 @@ void AVaelSpellProjectile::AnimateRock(float Time, float DeltaSeconds)
 
 void AVaelSpellProjectile::AnimateIceLance(float Time, float DeltaSeconds)
 {
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 	const float Length = Radius * IceLanceLengthShare;
 	const float Thickness = Radius * IceLanceThicknessShare;
 	const float Middle = -0.1f * Length;
@@ -705,7 +724,7 @@ void AVaelSpellProjectile::AnimateIceLance(float Time, float DeltaSeconds)
 
 void AVaelSpellProjectile::AnimateLavaBall(float Time, float DeltaSeconds)
 {
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 	const float CoreSize = Radius * 2.0f * LavaCoreShare / (PlaceholderSphereRadius * 2.0f);
 	const float Pulse = FMath::PerlinNoise1D(Time * 6.0f);
 
@@ -749,7 +768,7 @@ void AVaelSpellProjectile::AnimateLavaBurst()
 	// The flat ring of heat races out to the edge of the explosion and fades, the flash dies a little later
 	const float Progress = FMath::Clamp(AfterglowTime / LavaBurstRingTime, 0.0f, 1.0f);
 	const float Reach = 1.0f - FMath::Square(1.0f - Progress);
-	const float StartSize = Collision->GetScaledSphereRadius() * 2.0f * LavaCoreShare;
+	const float StartSize = SpellRadius * 2.0f * LavaCoreShare;
 	const float EndSize = FMath::Max(ExplosionRadius * 2.0f, StartSize);
 
 	UStaticMeshComponent* Ring = LookShapes.Last();
@@ -766,7 +785,7 @@ void AVaelSpellProjectile::AnimateLavaBurst()
 
 void AVaelSpellProjectile::AnimateMarkShard(float Time, float DeltaSeconds)
 {
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 	const float Length = Radius * MarkShardLengthShare;
 	const float Thickness = Radius * MarkShardThicknessShare;
 
@@ -827,7 +846,7 @@ void AVaelSpellProjectile::ShedOnPierce(const FVector& Location)
 
 void AVaelSpellProjectile::AnimateSpark(float Time, float DeltaSeconds)
 {
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 	const float Length = Radius * SparkLengthShare / (PlaceholderSphereRadius * 2.0f);
 	const float Thickness = Radius * SparkThicknessShare / (PlaceholderSphereRadius * 2.0f);
 	const float Flicker = FMath::PerlinNoise1D(Time * 14.0f);
@@ -862,7 +881,7 @@ void AVaelSpellProjectile::AnimateSpark(float Time, float DeltaSeconds)
 
 void AVaelSpellProjectile::AnimateWaterOrb(float Time)
 {
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 	const float Size = Radius * WaterOrbSizeShare / PlaceholderSphereRadius;
 
 	// Round, with a slow wobble: the ball swells a little along one axis while it shrinks along the others
@@ -895,7 +914,7 @@ void AVaelSpellProjectile::AnimateWaterBurst()
 	// The ring of spray shoots outwards and fades, the flash of light dies with it
 	const float Progress = FMath::Clamp(AfterglowTime / WaterBurstRingTime, 0.0f, 1.0f);
 	const float Reach = 1.0f - FMath::Square(1.0f - Progress);
-	const float Size = Collision->GetScaledSphereRadius() * WaterOrbSizeShare / PlaceholderSphereRadius;
+	const float Size = SpellRadius * WaterOrbSizeShare / PlaceholderSphereRadius;
 
 	UStaticMeshComponent* Ring = LookShapes.Last();
 	Ring->SetRelativeScale3D(FVector(Size * (1.0f + WaterBurstRingGrowth * Reach)));
@@ -916,12 +935,13 @@ void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
 
 	// The projectile stays where it ended and can't hit anything any more
 	Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitArea->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Movement->StopMovementImmediately();
 	Movement->Deactivate();
 	SetLifeSpan(0.0f);
 
 	const FVector Center = GetActorLocation();
-	const float Radius = Collision->GetScaledSphereRadius();
+	const float Radius = SpellRadius;
 
 	for (UStaticMeshComponent* Shape : LookShapes)
 	{
@@ -1051,7 +1071,7 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 		if (RemainingPierce > 0)
 		{
 			// Flying on: each pierced target gets its own impact, the last one comes with the end of the flight
-			VaelEffects::PlayImpact(this, Effects, OtherActor->GetActorLocation(), Collision->GetScaledSphereRadius());
+			VaelEffects::PlayImpact(this, Effects, OtherActor->GetActorLocation(), SpellRadius);
 			ShedOnPierce(GetActorLocation());
 		}
 
@@ -1059,6 +1079,7 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 		{
 			// Later overlaps of the same move must not hit anything else
 			Collision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HitArea->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			EndFlight(true);
 		}
 	}
@@ -1066,6 +1087,8 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 
 void AVaelSpellProjectile::OnStopped(const FHitResult& ImpactResult)
 {
+	UE_LOG(LogVael, Verbose, TEXT("'%s' stopped by '%s' (%s) after %.0f cm"), *GetNameSafe(this), *GetNameSafe(ImpactResult.GetActor()), *GetNameSafe(ImpactResult.GetComponent()),
+		FVector::Dist(ImpactResult.TraceStart, ImpactResult.Location));
 	EndFlight(true);
 }
 
@@ -1085,7 +1108,7 @@ void AVaelSpellProjectile::BeginPlay()
 	Super::BeginPlay();
 
 	// The trail replaces the plain placeholder sphere, but plays together with a look of its own
-	if (VaelEffects::Attach(Effects.Trail, Collision, NAME_None, Effects.Color, Collision->GetScaledSphereRadius()) != nullptr)
+	if (VaelEffects::Attach(Effects.Trail, Collision, NAME_None, Effects.Color, SpellRadius) != nullptr)
 	{
 		Mesh->SetVisibility(false);
 	}
@@ -1152,7 +1175,7 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 	// A projectile that just runs out in the air fizzles without an impact
 	if (bHitSomething || ExplosionRadius > 0.0f)
 	{
-		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : Collision->GetScaledSphereRadius());
+		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius);
 	}
 
 	if (ImpactRadius > 0.0f)

@@ -29,6 +29,9 @@ public:
 	AVaelGameMode();
 
 	/** Gives every joining player a free player slot */
+	/** Starts the automatic check when the game was launched with -VaelSmokeTest */
+	virtual void StartPlay() override;
+
 	virtual void PostLogin(APlayerController* NewPlayer) override;
 
 	/** Spawns joining players next to the group instead of at the player start */

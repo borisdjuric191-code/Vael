@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VaelGameMode.h"
+#include "Debug/VaelSmokeTest.h"
 #include "Camera/VaelSharedCamera.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
@@ -270,4 +271,14 @@ void AVaelGameMode::RespawnGroup()
 	}
 
 	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelPlayers", "Respawned", "Ihr erwacht am Lagerfeuer"), NSLOCTEXT("VaelPlayers", "RespawnedDetail", "Edda hat euch aus der Asche gezogen."), FLinearColor(FColor(232, 176, 122)));
+}
+
+void AVaelGameMode::StartPlay()
+{
+	Super::StartPlay();
+
+	if (AVaelSmokeTest::IsRequested())
+	{
+		GetWorld()->SpawnActor<AVaelSmokeTest>();
+	}
 }

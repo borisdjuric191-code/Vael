@@ -18,7 +18,8 @@ class UStaticMesh;
 class UStaticMeshComponent;
 
 /**
- *  A spell flying in a straight line. Hits the first enemy it touches and stops at walls.
+ *  A spell flying in a straight line. Hits the first enemy it touches and stops at walls; the ground and walls stop it on a small sphere,
+ *  enemies are found by one as large as the spell.
  *  Placeholder look: a sphere in the color of its element, or the look its formula picks (EVaelProjectileLook).
  */
 UCLASS()
@@ -31,6 +32,10 @@ private:
 	/** Collision of the projectile */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USphereComponent> Collision;
+
+	/** Finds the characters the spell touches, as large as the spell */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USphereComponent> HitArea;
 
 	/** Placeholder look */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -176,6 +181,9 @@ private:
 
 	/** Color of the element */
 	FLinearColor SpellColor = FLinearColor::White;
+
+	/** Radius of the spell in cm: how far it reaches and how large it looks */
+	float SpellRadius = 30.0f;
 
 	/** Shapes of the look that fly along, in the order the look builds them */
 	UPROPERTY(Transient)
