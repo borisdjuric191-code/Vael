@@ -61,6 +61,9 @@ public:
 	/** Entry of a kind, null if there is none */
 	const UVaelCompendiumEntry* FindEntry(FName SubjectId) const;
 
+	/** Word for a stage, like "gesichtet"; stage 3 reads "bezwungen", "geerntet" or "abgebaut" depending on the book */
+	static FText GetStageWord(EVaelResearchStage Stage, EVaelCompendiumBook Book);
+
 	/** The books in the order of the series: beasts, plants, fungi, stones */
 	static TConstArrayView<EVaelCompendiumBook> GetBooks();
 

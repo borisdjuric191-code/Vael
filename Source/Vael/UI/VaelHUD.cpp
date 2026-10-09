@@ -1394,19 +1394,6 @@ namespace
 		}
 	}
 
-	/** Name of a research stage in the compendium */
-	FText GetCompendiumStageName(EVaelResearchStage Stage)
-	{
-		switch (Stage)
-		{
-		case EVaelResearchStage::Sighted:		return LOCTEXT("CompendiumSighted", "gesichtet");
-		case EVaelResearchStage::Observed:		return LOCTEXT("CompendiumObserved", "beobachtet");
-		case EVaelResearchStage::Defeated:		return LOCTEXT("CompendiumDefeated", "bezwungen");
-		case EVaelResearchStage::Researched:	return LOCTEXT("CompendiumResearched", "erforscht");
-		default:								return LOCTEXT("CompendiumUnknown", "unbekannt");
-		}
-	}
-
 	/** Color of the focus circle of a spyglass and of the progress of watching */
 	const FLinearColor SpyglassColor = Rgb(232, 205, 140, 220);
 }
@@ -1650,7 +1637,7 @@ void AVaelHUD::DrawCompendium(const AVaelPlayerController* PlayerController)
 
 	DrawLabel(bKnown ? Selected->DisplayName : LOCTEXT("CompendiumUnknownKind", "Unbekannt"), DetailLeft, Y, 24.0f * S, bKnown ? BoneColor : DimColor, 0.0f, DetailWidth);
 	Y += 32.0f * S;
-	DrawLabel(FText::Format(LOCTEXT("CompendiumMeta", "{0} · {1}"), Selected->Region, GetCompendiumStageName(Progress.Stage)), DetailLeft, Y, 13.0f * S, GetCompendiumBookLook(Selected->Book).Trim);
+	DrawLabel(FText::Format(LOCTEXT("CompendiumMeta", "{0} · {1}"), Selected->Region, UVaelCompendiumSubsystem::GetStageWord(Progress.Stage, Selected->Book)), DetailLeft, Y, 13.0f * S, GetCompendiumBookLook(Selected->Book).Trim);
 	Y += 28.0f * S;
 
 	const FText SpyglassButton = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("SpyglassKey", "F") : LOCTEXT("SpyglassPad", "L3");

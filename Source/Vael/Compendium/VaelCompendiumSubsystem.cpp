@@ -22,18 +22,24 @@ namespace
 		default:								return FLinearColor(FColor(196, 112, 82));
 		}
 	}
+}
 
-	/** Word for a stage in a notice */
-	FText GetStageWord(EVaelResearchStage Stage)
+FText UVaelCompendiumSubsystem::GetStageWord(EVaelResearchStage Stage, EVaelCompendiumBook Book)
+{
+	switch (Stage)
 	{
-		switch (Stage)
+	case EVaelResearchStage::Sighted:		return LOCTEXT("StageSighted", "gesichtet");
+	case EVaelResearchStage::Observed:		return LOCTEXT("StageObserved", "beobachtet");
+	case EVaelResearchStage::Researched:	return LOCTEXT("StageResearched", "erforscht");
+	case EVaelResearchStage::Defeated:
+		switch (Book)
 		{
-		case EVaelResearchStage::Sighted:		return LOCTEXT("StageSighted", "gesichtet");
-		case EVaelResearchStage::Observed:		return LOCTEXT("StageObserved", "beobachtet");
-		case EVaelResearchStage::Defeated:		return LOCTEXT("StageDefeated", "bezwungen");
-		case EVaelResearchStage::Researched:	return LOCTEXT("StageResearched", "erforscht");
-		default:								return FText::GetEmpty();
+		case EVaelCompendiumBook::Herbarium:
+		case EVaelCompendiumBook::Fungi:	return LOCTEXT("StageHarvested", "geerntet");
+		case EVaelCompendiumBook::Stones:	return LOCTEXT("StageMined", "abgebaut");
+		default:							return LOCTEXT("StageDefeated", "bezwungen");
 		}
+	default:								return LOCTEXT("StageUnknown", "unbekannt");
 	}
 }
 
@@ -140,8 +146,9 @@ void UVaelCompendiumSubsystem::Reach(FName SubjectId, EVaelResearchStage Stage)
 
 	Current.Stage = Stage;
 
-	UE_LOG(LogVael, Log, TEXT("Compendium: %s %s"), *Entry->DisplayName.ToString(), *GetStageWord(Stage).ToString());
-	UVaelNoticeSubsystem::Post(GetGameInstance(), FText::Format(LOCTEXT("StageNotice", "{0} {1}"), Entry->DisplayName, GetStageWord(Stage)),
+	const FText StageWord = GetStageWord(Stage, Entry->Book);
+	UE_LOG(LogVael, Log, TEXT("Compendium: %s %s"), *Entry->DisplayName.ToString(), *StageWord.ToString());
+	UVaelNoticeSubsystem::Post(GetGameInstance(), FText::Format(LOCTEXT("StageNotice", "{0} {1}"), Entry->DisplayName, StageWord),
 		LOCTEXT("StageNoticeDetail", "Neuer Eintrag im Kompendium"), GetBookColor(Entry->Book), 3.0f);
 }
 
