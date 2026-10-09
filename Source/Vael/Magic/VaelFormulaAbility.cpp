@@ -14,6 +14,7 @@
 #include "Combat/VaelGameplayEffects.h"
 #include "Combat/VaelGroundStrike.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
+#include "Creatures/VaelCreature.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
@@ -357,6 +358,14 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 	case EVaelSpellDelivery::Orbit:
 		StartOrbit(Formula, Caster, Power);
 		break;
+
+	case EVaelSpellDelivery::Teleport:
+		TeleportCaster(Formula, Caster, Power);
+		break;
+
+	case EVaelSpellDelivery::Raise:
+		RaiseFallen(Formula, Caster, Power);
+		break;
 	}
 }
 
@@ -369,33 +378,65 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 	}
 
 	const FVector AimDirection = GetAimDirection(Caster);
-	const FTransform SpawnTransform(AimDirection.Rotation(), GetProjectileStart(Caster, AimDirection));
 
-	AVaelSpellProjectile* Projectile = World->SpawnActorDeferred<AVaelSpellProjectile>(Formula.ProjectileClass, SpawnTransform, Caster, Cast<APawn>(Caster), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-	if (Projectile != nullptr)
+	// Homing projectiles share out the enemies around, nearest first
+	TArray<AActor*> HomingTargets;
+	if (Formula.ProjectileHoming > 0.0f)
 	{
-		Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, Formula.ProjectilePierce,
-			UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
-
-		Projectile->SetEffects(Formula.LoadEffects(), VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
-		Projectile->SetLook(Formula.ProjectileLook);
-
-		if (Formula.bProjectilePassesWalls)
+		const float SearchRange = Formula.ProjectileSpeed * Formula.ProjectileLifetime;
+		for (TActorIterator<AVaelCharacterBase> It(World); It; ++It)
 		{
-			Projectile->SetPassesWalls();
-		}
-
-		if (Formula.Delivery == EVaelSpellDelivery::Explosion)
-		{
-			Projectile->SetExplosion(Formula.MakeExplosionHit(Power), Formula.ExplosionRadius);
-
-			if (Formula.AreaRadius > 0.0f)
+			if (UVaelCombatStatics::CanDamage(Caster, *It) && FVector::Dist2D(It->GetActorLocation(), Caster->GetActorLocation()) <= SearchRange)
 			{
-				Projectile->SetImpactArea(Formula.DamageElement, Formula.AreaRadius, Formula.AreaLifetime, Formula.AreaDamagePerSecond * Power, Formula.AreaEffect);
+				HomingTargets.Add(*It);
 			}
 		}
 
-		Projectile->FinishSpawning(SpawnTransform);
+		HomingTargets.Sort([Caster](const AActor& A, const AActor& B)
+		{
+			return FVector::DistSquared2D(A.GetActorLocation(), Caster->GetActorLocation()) < FVector::DistSquared2D(B.GetActorLocation(), Caster->GetActorLocation());
+		});
+	}
+
+	const int32 NumProjectiles = FMath::Max(Formula.ProjectileCount, 1);
+	for (int32 ProjectileIndex = 0; ProjectileIndex < NumProjectiles; ++ProjectileIndex)
+	{
+		// Fanned out evenly around the aim
+		const float FanYaw = (ProjectileIndex - (NumProjectiles - 1) * 0.5f) * Formula.ProjectileSpread;
+		const FVector Direction = AimDirection.RotateAngleAxis(FanYaw, FVector::UpVector);
+		const FTransform SpawnTransform(Direction.Rotation(), GetProjectileStart(Caster, AimDirection));
+
+		AVaelSpellProjectile* Projectile = World->SpawnActorDeferred<AVaelSpellProjectile>(Formula.ProjectileClass, SpawnTransform, Caster, Cast<APawn>(Caster), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (Projectile != nullptr)
+		{
+			if (!HomingTargets.IsEmpty())
+			{
+				Projectile->SetHomingTarget(HomingTargets[ProjectileIndex % HomingTargets.Num()], Formula.ProjectileHoming);
+			}
+
+			Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, Formula.ProjectilePierce,
+				UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
+
+			Projectile->SetEffects(Formula.LoadEffects(), VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
+			Projectile->SetLook(Formula.ProjectileLook);
+
+			if (Formula.bProjectilePassesWalls)
+			{
+				Projectile->SetPassesWalls();
+			}
+
+			if (Formula.Delivery == EVaelSpellDelivery::Explosion)
+			{
+				Projectile->SetExplosion(Formula.MakeExplosionHit(Power), Formula.ExplosionRadius);
+
+				if (Formula.AreaRadius > 0.0f)
+				{
+					Projectile->SetImpactArea(Formula.DamageElement, Formula.AreaRadius, Formula.AreaLifetime, Formula.AreaDamagePerSecond * Power, Formula.AreaEffect);
+				}
+			}
+
+			Projectile->FinishSpawning(SpawnTransform);
+		}
 	}
 }
 
@@ -714,7 +755,7 @@ void UVaelFormulaAbility::RaiseWall(const UVaelFormula& Formula, AActor* Caster,
 			UVaelCombatStatics::ApplySpellHit(Caster, Enemy, Hit, Enemy->GetActorLocation() - Center);
 		}
 
-		if (AVaelRockWall::RaiseBlock(World, GroundHit.Location, AimDirection.Rotation().Yaw, Formula.WallBlockSize, Formula.WallHeight, Formula.WallLifetime, Cast<APawn>(Caster)) != nullptr)
+		if (AVaelRockWall::RaiseBlock(World, GroundHit.Location, AimDirection.Rotation().Yaw, Formula.WallBlockSize, Formula.WallHeight, Formula.WallLifetime, Cast<APawn>(Caster), Formula.bWallHurtsOnContact ? &Hit : nullptr) != nullptr)
 		{
 			++NumRaised;
 		}
@@ -1009,4 +1050,61 @@ void UVaelFormulaAbility::StartOrbit(const UVaelFormula& Formula, AActor* Caster
 	Settings.Lifetime = Formula.OrbitLifetime;
 
 	AVaelSpellOrbit::Start(Cast<APawn>(Caster), Formula.MakeSpellHit(Power), Settings);
+}
+
+void UVaelFormulaAbility::TeleportCaster(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	AVaelCharacter* Player = Cast<AVaelCharacter>(Caster);
+	UWorld* World = Caster->GetWorld();
+	if (Player == nullptr || World == nullptr)
+	{
+		return;
+	}
+
+	// The aimed point, stopped short of walls, on the ground there
+	const FVector Start = Caster->GetActorLocation();
+	FVector Target = FindGroundTarget(Caster, Formula.AreaRange);
+
+	FHitResult GroundHit;
+	if (VaelGround::TraceGround(World, Target + FVector(0.0f, 0.0f, AreaGroundSearchHeight), Target - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
+	{
+		Target = GroundHit.Location + FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight() + 2.0f);
+	}
+
+	if (!Caster->TeleportTo(Target, Caster->GetActorRotation()))
+	{
+		return;
+	}
+
+	Player->SetInvulnerableFor(Formula.DashInvulnerability);
+
+	// A streak of Mark marks the way, and patches of it stay on the ground and burn enemies
+	const FVector End = Caster->GetActorLocation();
+	const FLinearColor MarkColor = UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark);
+	AVaelLightningBolt::Spawn(Caster, Start, End, MarkColor, 0.3f, 1.5f, false);
+
+	if (Formula.AreaRadius <= 0.0f)
+	{
+		return;
+	}
+
+	const int32 NumPatches = FMath::Max(1, FMath::RoundToInt(FVector::Dist2D(Start, End) / (Formula.AreaRadius * 1.5f)));
+	for (int32 PatchIndex = 0; PatchIndex < NumPatches; ++PatchIndex)
+	{
+		FVector PatchLocation = FMath::Lerp(Start, End, (PatchIndex + 0.5f) / NumPatches);
+
+		if (VaelGround::TraceGround(World, PatchLocation + FVector(0.0f, 0.0f, AreaGroundSearchHeight), PatchLocation - FVector(0.0f, 0.0f, AreaGroundSearchDepth), GroundHit, Caster))
+		{
+			AVaelGroundArea::SpawnArea(World, GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), EVaelElement::Mark, Formula.AreaRadius, Formula.AreaLifetime,
+				Formula.AreaDamagePerSecond * Power, Player, true, EVaelGroundEffect::None);
+		}
+	}
+}
+
+void UVaelFormulaAbility::RaiseFallen(const UVaelFormula& Formula, AActor* Caster, float Power)
+{
+	if (AVaelCreature::RaiseFallen(Cast<APawn>(Caster), FindGroundTarget(Caster, Formula.AreaRange), Formula.SummonLifetime) == nullptr)
+	{
+		UE_LOG(LogVael, Verbose, TEXT("'%s' calls on the dead, but nobody fell nearby"), *GetNameSafe(Caster));
+	}
 }

@@ -82,6 +82,12 @@ protected:
 	/** Lets stones circle around the caster */
 	void StartOrbit(const UVaelFormula& Formula, AActor* Caster, float Power);
 
+	/** Moves the caster to the aimed point through the Mark and leaves a trail behind */
+	void TeleportCaster(const UVaelFormula& Formula, AActor* Caster, float Power);
+
+	/** Raises the enemy that fell last near the aimed point to fight for the caster */
+	void RaiseFallen(const UVaelFormula& Formula, AActor* Caster, float Power);
+
 	/** Point on the ground the caster aims at: the mouse cursor, or with a gamepad the nearest enemy in the aim direction. Stays within range and in front of walls. */
 	static FVector FindGroundTarget(AActor* Caster, float MaxRange);
 

@@ -61,7 +61,11 @@ enum class EVaelSpellDelivery : uint8
 	/** Calls a short-lived servant to the aimed point, like the Lehmgolem */
 	Summon,
 	/** Stones circle around the caster for some seconds, hit enemies they touch and stop enemy projectiles, like the Steinkreis */
-	Orbit
+	Orbit,
+	/** The caster steps through the Mark to the aimed point, is briefly untouchable and leaves a trail of Mark, like the Schattensprung */
+	Teleport,
+	/** The enemy that fell last near the aimed point rises for some seconds and fights for the caster, like the Markgeburt */
+	Raise
 };
 
 /** Own look of a flying spell, shown together with its trail effect */

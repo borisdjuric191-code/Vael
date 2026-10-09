@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/CollisionProfile.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelDebrisBurst.h"
@@ -24,6 +25,10 @@ namespace
 
 	/** How far the rocks shoot past their place when they rise, as in an ease-out-back curve */
 	constexpr float RockWallOvershoot = 1.7f;
+
+	/** A wall of flesh hurts those touching it every this many seconds, and reaches this far past its edge in cm */
+	constexpr float RockWallContactInterval = 0.5f;
+	constexpr float RockWallContactReach = 25.0f;
 }
 
 AVaelRockWall::AVaelRockWall()
@@ -62,7 +67,16 @@ void AVaelRockWall::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UStaticMesh* RockMesh = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementOrbRockMesh);
+	// A wall of bone and flesh keeps its block, dark red with a shimmer of the Mark; it pulses in Tick
+	if (bHurtsOnContact)
+	{
+		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Block->GetMaterial(0)))
+		{
+			Material->SetVectorParameterValue(TEXT("Color"), FMath::Lerp(FLinearColor(0.35f, 0.04f, 0.08f), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 0.25f));
+		}
+	}
+
+	UStaticMesh* RockMesh = bHurtsOnContact ? nullptr : VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementOrbRockMesh);
 	if (RockMesh != nullptr)
 	{
 		Block->SetVisibility(false);
@@ -153,9 +167,53 @@ void AVaelRockWall::Tick(float DeltaSeconds)
 		Block->SetRelativeLocation(FVector(0.0f, 0.0f, -FullHeight * 0.5f * (1.0f - Rise)));
 	}
 
+	if (bHurtsOnContact)
+	{
+		// Flesh pulses like a heart and hurts whoever touches it
+		const FVector Scale = Block->GetRelativeScale3D();
+		const float Beat = 1.0f + 0.05f * FMath::Max(0.0f, FMath::Sin(RiseTime * 7.0f));
+		Block->SetRelativeScale3D(FVector(BlockSize / PlaceholderCubeSize * Beat, BlockSize / PlaceholderCubeSize * Beat, Scale.Z));
+
+		ContactCountdown -= DeltaSeconds;
+		if (ContactCountdown <= 0.0f)
+		{
+			ContactCountdown = RockWallContactInterval;
+			HurtTouchingEnemies();
+		}
+
+		return;
+	}
+
 	if (Rise >= 1.0f)
 	{
 		SetActorTickEnabled(false);
+	}
+}
+
+void AVaelRockWall::HurtTouchingEnemies()
+{
+	APawn* Caster = GetInstigator();
+	if (Caster == nullptr)
+	{
+		return;
+	}
+
+	// Everyone pressed against the block, a hand's breadth around it
+	const FVector Extent = Collision->GetScaledBoxExtent() + FVector(RockWallContactReach, RockWallContactReach, 0.0f);
+
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelWallContact), false, this);
+	GetWorld()->OverlapMultiByObjectType(Overlaps, GetActorLocation(), GetActorQuat(), FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeBox(Extent), QueryParams);
+
+	TSet<AActor*> Hurt;
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AActor* Target = Overlap.GetActor();
+		if (Target != nullptr && !Hurt.Contains(Target))
+		{
+			Hurt.Add(Target);
+			UVaelCombatStatics::ApplySpellHit(Caster, Target, ContactHit, Target->GetActorLocation() - GetActorLocation());
+		}
 	}
 }
 
@@ -190,7 +248,7 @@ void AVaelRockWall::LifeSpanExpired()
 	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Rubble);
 }
 
-AVaelRockWall* AVaelRockWall::RaiseBlock(UWorld* World, const FVector& GroundLocation, float Yaw, float Size, float Height, float Lifetime, APawn* InInstigator)
+AVaelRockWall* AVaelRockWall::RaiseBlock(UWorld* World, const FVector& GroundLocation, float Yaw, float Size, float Height, float Lifetime, APawn* InInstigator, const FVaelSpellHit* InContactHit)
 {
 	if (World == nullptr)
 	{
@@ -202,6 +260,12 @@ AVaelRockWall* AVaelRockWall::RaiseBlock(UWorld* World, const FVector& GroundLoc
 	AVaelRockWall* Wall = World->SpawnActorDeferred<AVaelRockWall>(AVaelRockWall::StaticClass(), SpawnTransform, InInstigator, InInstigator, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	if (Wall != nullptr)
 	{
+		if (InContactHit != nullptr)
+		{
+			Wall->bHurtsOnContact = true;
+			Wall->ContactHit = *InContactHit;
+		}
+
 		Wall->SetBlockSize(Size, Height);
 		Wall->InitialLifeSpan = Lifetime;
 		Wall->FinishSpawning(SpawnTransform);

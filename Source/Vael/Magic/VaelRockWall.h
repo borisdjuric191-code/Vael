@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Combat/VaelCombatStatics.h"
 #include "VaelRockWall.generated.h"
 
 class UBoxComponent;
@@ -47,7 +48,7 @@ public:
 	virtual void LifeSpanExpired() override;
 
 	/** Raises a block standing on the ground at the location, facing the yaw. Returns null if it can't be spawned. */
-	static AVaelRockWall* RaiseBlock(UWorld* World, const FVector& GroundLocation, float Yaw, float Size, float Height, float Lifetime, APawn* InInstigator);
+	static AVaelRockWall* RaiseBlock(UWorld* World, const FVector& GroundLocation, float Yaw, float Size, float Height, float Lifetime, APawn* InInstigator, const FVaelSpellHit* InContactHit = nullptr);
 
 protected:
 
@@ -74,6 +75,16 @@ private:
 
 	TArray<FVector> RockPlaces;
 	TArray<FVector> RockScales;
+
+	/** A wall of bone and flesh hurts enemies that touch it with this hit, like the Narbenwall */
+	bool bHurtsOnContact = false;
+	FVaelSpellHit ContactHit;
+
+	/** Seconds until enemies touching it are hurt again */
+	float ContactCountdown = 0.0f;
+
+	/** Hurts the enemies touching the block */
+	void HurtTouchingEnemies();
 
 	/** True once the block has begun to crumble, and seconds since then */
 	bool bCrumbling = false;

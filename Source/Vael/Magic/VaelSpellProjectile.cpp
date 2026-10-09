@@ -1194,3 +1194,15 @@ void AVaelSpellProjectile::Explode()
 	}
 #endif
 }
+
+void AVaelSpellProjectile::SetHomingTarget(AActor* Target, float Acceleration)
+{
+	if (Target == nullptr || Acceleration <= 0.0f)
+	{
+		return;
+	}
+
+	Movement->bIsHomingProjectile = true;
+	Movement->HomingAccelerationMagnitude = Acceleration;
+	Movement->HomingTargetComponent = Target->GetRootComponent();
+}

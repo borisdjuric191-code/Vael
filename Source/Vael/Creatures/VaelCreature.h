@@ -70,6 +70,12 @@ public:
 	/** Spawns the creature described by the data on the ground at the given location. Returns null if it can't be spawned. */
 	static AVaelCreature* SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation = FRotator::ZeroRotator);
 
+	/** Raises the creature that fell last near the location, at most a few seconds ago, to fight for the caster for some seconds, like the Markgeburt. Returns null if nobody fell there. */
+	static AVaelCreature* RaiseFallen(APawn* Caster, const FVector& Location, float Lifetime);
+
+	/** True while it fights for the players after being raised */
+	virtual bool IsOnPlayerSide() const override { return bServant; }
+
 	/** Finds the ground below a location. Returns false if there is none within a few meters. */
 	static bool FindGround(const UWorld* World, const FVector& Location, FVector& OutGroundLocation);
 
@@ -195,6 +201,21 @@ private:
 	/** Values in use: the data asset, or the defaults of the data class without one */
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelCreatureData> ActiveData;
+
+	/** True while it was raised by the Mark and fights for the players, until the time it falls again */
+	bool bServant = false;
+	float ServantEndTime = 0.0f;
+
+	/** Creatures that fell lately, so the Mark can raise them again */
+	struct FVaelFallenCreature
+	{
+		TWeakObjectPtr<UWorld> World;
+		TWeakObjectPtr<UVaelCreatureData> Data;
+		FVector Location = FVector::ZeroVector;
+		float Time = 0.0f;
+	};
+
+	static TArray<FVaelFallenCreature> RecentlyFallen;
 
 	/** Material of the placeholder body */
 	UPROPERTY(Transient)

@@ -33,6 +33,8 @@ UVaelMagicSettings::UVaelMagicSettings()
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Strike, PushMontage);
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Summon, PushMontage);
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Orbit, PushMontage);
+	CastMontagesByDelivery.Add(EVaelSpellDelivery::Teleport, PushMontage);
+	CastMontagesByDelivery.Add(EVaelSpellDelivery::Raise, PushMontage);
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Beam, TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Channel.AM_Mage_Channel"))));
 	ElementSelectMontage = TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Select.AM_Mage_Select")));
 

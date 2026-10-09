@@ -42,6 +42,10 @@
 
 namespace
 {
+	/** The Mark raises creatures that fell at most this many seconds ago, this far from the aimed point in cm */
+	constexpr float RaiseMaxAge = 10.0f;
+	constexpr float RaiseSearchRadius = 420.0f;
+
 	/** Size of the engine basic shapes used as placeholders */
 	constexpr float CreatureShapeSize = 100.0f;
 
@@ -200,6 +204,12 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		UpdateGroundEffects();
 	}
 
+	// A raised creature falls again when its time is up
+	if (bServant && !bDead && GetWorld()->GetTimeSeconds() >= ServantEndTime)
+	{
+		Die();
+	}
+
 	if (bDead || GetWorld()->GetTimeSeconds() < StunEndTime || UVaelCombatStatics::HasStatus(this, EVaelStatus::Frozen))
 	{
 		return;
@@ -231,6 +241,8 @@ void AVaelCreature::Tick(float DeltaSeconds)
 
 	TickBehavior(DeltaSeconds);
 }
+
+TArray<AVaelCreature::FVaelFallenCreature> AVaelCreature::RecentlyFallen;
 
 AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation)
 {
@@ -360,20 +372,33 @@ void AVaelCreature::Die()
 
 	UE_LOG(LogVael, Log, TEXT("'%s' (%s) dies"), *GetNameSafe(this), *GetCreatureName().ToString());
 
-	TeachFormula(ActiveData->FormulaOnDeath, FText::Format(LOCTEXT("FormulaFromCorpse", "Im Leib von {0} liegt ein Fragment."), GetCreatureName()));
-
-	OnDied.Broadcast(this);
-
-	// Every marked creature that falls cleanses its region a little
-	if (bMarked)
+	// A raised creature just falls again: no fragment, no cleansing, no loot
+	if (!bServant)
 	{
-		if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation()))
-		{
-			Region->AddCorruption(-UVaelWorldSettings::Get()->CleansingPerMarkedKill);
-		}
-	}
+		TeachFormula(ActiveData->FormulaOnDeath, FText::Format(LOCTEXT("FormulaFromCorpse", "Im Leib von {0} liegt ein Fragment."), GetCreatureName()));
 
-	DropLoot();
+		OnDied.Broadcast(this);
+
+		// Every marked creature that falls cleanses its region a little
+		if (bMarked)
+		{
+			if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation()))
+			{
+				Region->AddCorruption(-UVaelWorldSettings::Get()->CleansingPerMarkedKill);
+			}
+		}
+
+		DropLoot();
+
+		// Remembered for a while, so the Mark can raise it
+		const float Now = GetWorld()->GetTimeSeconds();
+		RecentlyFallen.RemoveAll([Now](const FVaelFallenCreature& Fallen)
+		{
+			return !Fallen.World.IsValid() || Now - Fallen.Time > RaiseMaxAge;
+		});
+
+		RecentlyFallen.Add({ GetWorld(), ActiveData.Get(), GetActorLocation(), Now });
+	}
 
 	// Nothing may bump into or target the corpse
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -470,13 +495,13 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 	AActor* Nearest = nullptr;
 	float NearestDistance = MaxDistance;
 
-	// In fever it goes for its own kind instead
-	if (UVaelCombatStatics::HasStatus(this, EVaelStatus::Fevered))
+	// In fever it goes for its own kind instead, and so does a creature raised by the Mark
+	if (bServant || UVaelCombatStatics::HasStatus(this, EVaelStatus::Fevered))
 	{
 		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
 		{
 			const float Distance = GetDistanceTo2D(*It);
-			if (*It != this && !It->IsDead() && Distance < NearestDistance)
+			if (*It != this && !It->IsDead() && (!bServant || !It->bServant) && Distance < NearestDistance)
 			{
 				Nearest = *It;
 				NearestDistance = Distance;
@@ -499,6 +524,20 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 		{
 			Nearest = *It;
 			NearestDistance = Distance;
+		}
+	}
+
+	// Creatures raised by the Mark are fought like players
+	if (Nearest == nullptr)
+	{
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			const float Distance = GetDistanceTo2D(*It);
+			if (It->bServant && !It->IsDead() && Distance < NearestDistance)
+			{
+				Nearest = *It;
+				NearestDistance = Distance;
+			}
 		}
 	}
 
@@ -655,7 +694,9 @@ void AVaelCreature::RefreshBodyColor()
 	if (BodyMaterial != nullptr)
 	{
 		// Marked creatures carry the violet of the Mark
-		const FLinearColor ShownColor = bMarked ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.45f) : BodyColor;
+		const FLinearColor ShownColor = bServant ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.7f)
+			: bMarked ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.45f)
+			: BodyColor;
 		BodyMaterial->SetVectorParameterValue(BodyColorParameter, bShowingHitFlash ? FLinearColor(1.0f, 0.9f, 0.75f) : ShownColor);
 	}
 }
@@ -682,4 +723,54 @@ void AVaelCreature::UpdateGroundEffects()
 	{
 		ApplyBlind(UVaelMagicSettings::Get()->SteamBlindLinger);
 	}
+}
+
+AVaelCreature* AVaelCreature::RaiseFallen(APawn* Caster, const FVector& Location, float Lifetime)
+{
+	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	// The one that fell last near the place, not too long ago
+	const float Now = World->GetTimeSeconds();
+	int32 BestIndex = INDEX_NONE;
+
+	for (int32 FallenIndex = 0; FallenIndex < RecentlyFallen.Num(); ++FallenIndex)
+	{
+		const FVaelFallenCreature& Fallen = RecentlyFallen[FallenIndex];
+		if (Fallen.World.Get() != World || !Fallen.Data.IsValid() || Now - Fallen.Time > RaiseMaxAge || FVector::Dist2D(Fallen.Location, Location) > RaiseSearchRadius)
+		{
+			continue;
+		}
+
+		if (BestIndex == INDEX_NONE || Fallen.Time > RecentlyFallen[BestIndex].Time)
+		{
+			BestIndex = FallenIndex;
+		}
+	}
+
+	if (BestIndex == INDEX_NONE)
+	{
+		return nullptr;
+	}
+
+	const FVaelFallenCreature Fallen = RecentlyFallen[BestIndex];
+	RecentlyFallen.RemoveAt(BestIndex);
+
+	FVector Ground = Fallen.Location;
+	FindGround(World, Fallen.Location, Ground);
+
+	// It rises in its own form, marked violet, and fights for the caster until its time is up
+	AVaelCreature* Risen = SpawnCreature(World, Fallen.Data.Get(), Ground, Caster->GetActorRotation());
+	if (Risen != nullptr)
+	{
+		Risen->bServant = true;
+		Risen->ServantEndTime = Now + Lifetime;
+		Risen->SetInstigator(Caster);
+		Risen->RefreshBodyColor();
+	}
+
+	return Risen;
 }

@@ -161,8 +161,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Summon", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Summon"))
 	TSubclassOf<AVaelClayGolem> SummonClass;
 
-	/** Seconds the servant stays before it falls apart */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Summon", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Summon"))
+	/** Seconds the servant stays before it falls apart, or a risen enemy fights before it falls again */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Summon", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Summon || Delivery == EVaelSpellDelivery::Raise"))
 	float SummonLifetime = 10.0f;
 
 	/** Number of stones circling the caster */
@@ -188,6 +188,18 @@ public:
 	/** Own look of the projectile, shown together with its trail effect */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	EVaelProjectileLook ProjectileLook = EVaelProjectileLook::Sphere;
+
+	/** Projectiles fired at once, fanned out around the aim */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
+	int32 ProjectileCount = 1;
+
+	/** Degrees between two projectiles of the fan */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
+	float ProjectileSpread = 0.0f;
+
+	/** Each projectile picks an enemy and steers towards it with this acceleration in cm/s², like the spores of the Sporenschwarm; 0 flies straight */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
+	float ProjectileHoming = 0.0f;
 
 	/** Flight speed in cm/s */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
@@ -254,7 +266,7 @@ public:
 	float ExplosionKnockback = 560.0f;
 
 	/** How far away the patch, the strike or a standing whirl can be placed, in cm. Walls stop it earlier. */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::Vortex || Delivery == EVaelSpellDelivery::Summon"))
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ground Area", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::GroundArea || Delivery == EVaelSpellDelivery::Strike || Delivery == EVaelSpellDelivery::Vortex || Delivery == EVaelSpellDelivery::Summon || Delivery == EVaelSpellDelivery::Teleport || Delivery == EVaelSpellDelivery::Raise"))
 	float AreaRange = 980.0f;
 
 	/** Radius of the patch on the ground in cm. Explosions, strikes and spike lines leave no patch while this is 0. */
@@ -336,6 +348,10 @@ public:
 	/** Seconds until the wall crumbles */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
 	float WallLifetime = 8.0f;
+
+	/** The wall is bone and flesh that hurts enemies touching it with the hit of the formula, like the Narbenwall */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wall", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Wall"))
+	bool bWallHurtsOnContact = false;
 
 	/** Seconds the beam is channeled. The caster walks slower meanwhile and casts nothing else. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Beam", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Beam"))
