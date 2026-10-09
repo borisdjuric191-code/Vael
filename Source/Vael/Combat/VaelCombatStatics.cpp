@@ -96,7 +96,7 @@ int32 UVaelCombatStatics::ApplySpellHitInRadius(AActor* Attacker, const FVector&
 	}
 
 	// Plants that burst on a hit, like the Aschblase, are caught by blasts as well
-	AVaelHarvestable::NotifySpellImpact(World, Center, Radius);
+	AVaelHarvestable::NotifySpellImpact(World, Center, Radius, Hit.Element);
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellRadius), false, Attacker);

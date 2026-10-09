@@ -13,6 +13,11 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Items/VaelMaterialBag.h"
+#include "Kismet/GameplayStatics.h"
+#include "Components/AudioComponent.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundWaveProcedural.h"
+#include "World/VaelMarkSource.h"
 #include "Magic/VaelGroundArea.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -66,6 +71,78 @@ namespace
 
 	/** A burning crown grows by this share and flickers */
 	constexpr float BurningSwell = 1.3f;
+
+	/** A whistling cap shakes this many seconds */
+	constexpr float WhistleShakeSeconds = 1.4f;
+
+	/** A puffing ball swells to this size within this many seconds, then lies empty */
+	constexpr float PuffSwell = 2.6f;
+	constexpr float PuffSeconds = 0.35f;
+
+	/** Veins stretch towards the Mark up to this share longer; all of them twitch for a moment once every this many seconds */
+	constexpr float VeinStretch = 1.8f;
+	constexpr float VeinTwitchEvery = 17.0f;
+	constexpr float VeinTwitchSeconds = 0.35f;
+
+	/** A cooled glowing stone shows this grey */
+	const FLinearColor CooledStoneColor(0.09f, 0.08f, 0.075f);
+
+	/** The whistle tone: sample rate, length and the pitch it glides between */
+	constexpr int32 WhistleSampleRate = 22050;
+	constexpr float WhistleSeconds = 1.4f;
+	constexpr float WhistleLowHz = 1450.0f;
+	constexpr float WhistleHighHz = 1720.0f;
+
+	/** A thin pipe tone gliding up with a slight vibrato and some breath, faded in and out; made once, 16 bit mono */
+	const TArray<uint8>& GetWhistleSamples()
+	{
+		static TArray<uint8> Bytes;
+		if (!Bytes.IsEmpty())
+		{
+			return Bytes;
+		}
+
+		const int32 NumSamples = FMath::RoundToInt(WhistleSampleRate * WhistleSeconds);
+		Bytes.SetNumUninitialized(NumSamples * sizeof(int16));
+		int16* Samples = reinterpret_cast<int16*>(Bytes.GetData());
+
+		FRandomStream Breath(7);
+		float Phase = 0.0f;
+
+		for (int32 Index = 0; Index < NumSamples; ++Index)
+		{
+			const float Time = static_cast<float>(Index) / WhistleSampleRate;
+			const float Share = Time / WhistleSeconds;
+			const float Frequency = FMath::Lerp(WhistleLowHz, WhistleHighHz, FMath::Sqrt(Share)) + 35.0f * FMath::Sin(UE_TWO_PI * 6.0f * Time);
+			Phase += UE_TWO_PI * Frequency / WhistleSampleRate;
+
+			const float Envelope = FMath::Min(Time / 0.15f, 1.0f) * FMath::Min((WhistleSeconds - Time) / 0.45f, 1.0f);
+			const float Tone = FMath::Sin(Phase) + 0.25f * FMath::Sin(2.0f * Phase) + 0.12f * Breath.FRandRange(-1.0f, 1.0f);
+
+			Samples[Index] = static_cast<int16>(FMath::Clamp(Tone * Envelope * 0.32f, -1.0f, 1.0f) * 32767.0f);
+		}
+
+		return Bytes;
+	}
+
+	/** The closest open Mark source, null if there is none */
+	const AVaelMarkSource* FindClosestOpenSource(const UWorld* World, const FVector& Location, float& OutDistance)
+	{
+		const AVaelMarkSource* Closest = nullptr;
+		OutDistance = UE_BIG_NUMBER;
+
+		for (TActorIterator<AVaelMarkSource> It(World); It; ++It)
+		{
+			const float Distance = FVector::Dist2D(It->GetActorLocation(), Location);
+			if (!It->IsSealed() && Distance < OutDistance)
+			{
+				Closest = *It;
+				OutDistance = Distance;
+			}
+		}
+
+		return Closest;
+	}
 }
 
 AVaelHarvestable::AVaelHarvestable()
@@ -152,7 +229,20 @@ void AVaelHarvestable::BeginPlay()
 		DropCountdown = FMath::FRandRange(0.0f, Data->TraitInterval);
 		SetActorTickEnabled(true);
 		break;
+	case EVaelHarvestTrait::PuffOnStep:
+		Timers.SetTimer(TraitTimer, this, &AVaelHarvestable::UpdateTrait, HarvestableTouchInterval, true, FMath::FRandRange(0.0f, HarvestableTouchInterval));
+		SetActorTickEnabled(true);
+		break;
+	case EVaelHarvestTrait::StormWhistle:
+		WhistleCountdown = FMath::FRandRange(0.0f, Data->TraitInterval);
+		WhistleAttenuation = NewObject<USoundAttenuation>(this);
+		WhistleAttenuation->Attenuation.bAttenuate = true;
+		WhistleAttenuation->Attenuation.AttenuationShapeExtents = FVector(300.0f);
+		WhistleAttenuation->Attenuation.FalloffDistance = 2600.0f;
+		SetActorTickEnabled(true);
+		break;
 	case EVaelHarvestTrait::Breathing:
+	case EVaelHarvestTrait::MarkVeins:
 		SetActorTickEnabled(true);
 		break;
 	default:
@@ -215,6 +305,7 @@ void AVaelHarvestable::BecomeBare()
 	bHarvested = true;
 	BurnEndTime = -1.0f;
 	DropAge = -1.0f;
+	PuffAge = -1.0f;
 	RefreshLook();
 
 	if (Data->RegrowSeconds > 0.0f)
@@ -231,10 +322,16 @@ void AVaelHarvestable::Regrow()
 
 bool AVaelHarvestable::ProvidesElement(EVaelElement Element, const FVector& Location) const
 {
-	return IsAvailable() && Data->bElementSource && Data->SourceElement == Element && FVector::Dist2D(Location, GetActorLocation()) <= Data->SourceRadius;
+	return IsAvailable() && !IsCooled() && Data->bElementSource && Data->SourceElement == Element && FVector::Dist2D(Location, GetActorLocation()) <= Data->SourceRadius;
 }
 
-void AVaelHarvestable::NotifySpellImpact(const UWorld* World, const FVector& Location, float Radius)
+bool AVaelHarvestable::IsCooled() const
+{
+	const UWorld* World = GetWorld();
+	return Data != nullptr && Data->Trait == EVaelHarvestTrait::SteamOnWater && World != nullptr && World->IsGameWorld() && World->GetTimeSeconds() < NextTraitTime;
+}
+
+void AVaelHarvestable::NotifySpellImpact(const UWorld* World, const FVector& Location, float Radius, EVaelElement Element)
 {
 	if (World == nullptr)
 	{
@@ -243,11 +340,103 @@ void AVaelHarvestable::NotifySpellImpact(const UWorld* World, const FVector& Loc
 
 	for (TActorIterator<AVaelHarvestable> It(World); It; ++It)
 	{
-		if (It->IsAvailable() && It->Data->Trait == EVaelHarvestTrait::BurstOnHit
-			&& FVector::Dist(It->Crown->GetComponentLocation(), Location) <= Radius + It->Data->Height * 0.5f)
+		// Measured from its middle: a spell stopped by a boulder hits its side, not its crystal
+		const FVector Middle = It->GetActorLocation() + FVector(0.0f, 0.0f, It->Data->Height * 0.5f);
+		if (!It->IsAvailable() || FVector::Dist(Middle, Location) > Radius + It->Data->Height * 0.8f)
 		{
-			It->Burst();
+			continue;
 		}
+
+		switch (It->Data->Trait)
+		{
+		case EVaelHarvestTrait::BurstOnHit:
+			It->Burst();
+			break;
+		case EVaelHarvestTrait::SteamOnWater:
+			if (Element == EVaelElement::Water && !It->IsCooled())
+			{
+				It->Steam();
+			}
+			else if (Element == EVaelElement::Fire && It->IsCooled())
+			{
+				// Fire heats a cooled stone up again at once
+				It->NextTraitTime = 0.0f;
+				It->RefreshLook();
+			}
+			break;
+		default:
+			break;
+		}
+	}
+}
+
+void AVaelHarvestable::Steam()
+{
+	// The stored heat leaves at once: hot steam that blinds the creatures standing in it
+	AVaelGroundArea::SpawnArea(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 2.0f), EVaelElement::Water, Data->TraitRadius, Data->TraitDuration, 0.0f, nullptr, true, EVaelGroundEffect::Blind);
+
+	NextTraitTime = GetWorld()->GetTimeSeconds() + Data->TraitInterval;
+	RefreshLook();
+	UE_LOG(LogVael, Verbose, TEXT("'%s' lets out steam"), *GetNameSafe(this));
+}
+
+void AVaelHarvestable::Puff()
+{
+	// The ash smothers flames: burning people and fires close by go out
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		if (FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) <= Data->TraitRadius + It->GetSimpleCollisionRadius())
+		{
+			UVaelCombatStatics::RemoveStatus(*It, EVaelStatus::Burning);
+		}
+	}
+
+	AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), Data->TraitRadius);
+
+	PuffAge = 0.0f;
+	NextTraitTime = GetWorld()->GetTimeSeconds() + Data->TraitInterval;
+	UE_LOG(LogVael, Verbose, TEXT("'%s' puffs"), *GetNameSafe(this));
+}
+
+void AVaelHarvestable::Whistle(float Loudness)
+{
+	WhistleEndTime = GetWorld()->GetTimeSeconds() + WhistleShakeSeconds;
+	UE_LOG(LogVael, Verbose, TEXT("'%s' whistles at %.0f %%"), *GetNameSafe(this), Loudness * 100.0f);
+	PlayWhistleSound(FMath::Lerp(0.25f, 0.9f, Loudness));
+}
+
+void AVaelHarvestable::PlayWhistleSound(float Volume)
+{
+	if (GetNetMode() == NM_DedicatedServer || !FApp::CanEverRenderAudio())
+	{
+		return;
+	}
+
+	USoundWaveProcedural* Wave = NewObject<USoundWaveProcedural>(this);
+	Wave->SetSampleRate(WhistleSampleRate);
+	Wave->NumChannels = 1;
+	Wave->Duration = WhistleSeconds;
+	Wave->SoundGroup = SOUNDGROUP_Default;
+	Wave->bLooping = false;
+
+	const TArray<uint8>& Samples = GetWhistleSamples();
+	Wave->QueueAudio(Samples.GetData(), Samples.Num());
+
+	UGameplayStatics::SpawnSoundAtLocation(this, Wave, Crown->GetComponentLocation(), FRotator::ZeroRotator, Volume, FMath::FRandRange(0.9f, 1.12f), 0.0f, WhistleAttenuation);
+}
+
+void AVaelHarvestable::UpdateMarkVeins()
+{
+	float Distance = 0.0f;
+	const AVaelMarkSource* Source = FindClosestOpenSource(GetWorld(), GetActorLocation(), Distance);
+
+	const float OldStrength = VeinStrength;
+	VeinStrength = Source != nullptr ? FMath::Clamp(1.0f - Distance / FMath::Max(Data->TraitRadius, 1.0f), 0.0f, 1.0f) : 0.0f;
+	VeinYaw = Source != nullptr ? (Source->GetActorLocation() - GetActorLocation()).Rotation().Yaw - GetActorRotation().Yaw : 0.0f;
+
+	if (!FMath::IsNearlyEqual(OldStrength, VeinStrength, 0.02f))
+	{
+		RefreshLook();
 	}
 }
 
@@ -266,30 +455,76 @@ void AVaelHarvestable::UpdateSurroundings()
 	bSoaked = Data->Trait == EVaelHarvestTrait::RainSoak && Region != nullptr && Region->GetWeather() == EVaelWeather::Rain;
 	Purity = 1.0f - Corruption / 100.0f;
 
-	if (bAbsent != bWasAbsent || bWilted != bWasWilted || bSoaked != bWasSoaked || (Data->Trait == EVaelHarvestTrait::PurityGlow && !FMath::IsNearlyEqual(Purity, OldPurity, 0.01f)))
+	// The Mark's own crystal only grows while its source is open
+	if (Data->Trait == EVaelHarvestTrait::NeedsOpenSource)
+	{
+		float Distance = 0.0f;
+		bAbsent |= FindClosestOpenSource(GetWorld(), GetActorLocation(), Distance) == nullptr || Distance > Data->TraitRadius;
+	}
+
+	const bool bFollowsPurity = Data->Trait == EVaelHarvestTrait::PurityGlow || Data->Trait == EVaelHarvestTrait::PurityClarity;
+	if (bAbsent != bWasAbsent || bWilted != bWasWilted || bSoaked != bWasSoaked || IsCooled() != bShownCooled
+		|| (bFollowsPurity && !FMath::IsNearlyEqual(Purity, OldPurity, 0.01f)))
 	{
 		RefreshLook();
+	}
+
+	if (Data->Trait == EVaelHarvestTrait::MarkVeins)
+	{
+		UpdateMarkVeins();
+	}
+
+	// The whistling cap hears a storm before anyone else: quietly while it is coming, loud while it rages
+	if (Data->Trait == EVaelHarvestTrait::StormWhistle && IsAvailable() && Region != nullptr)
+	{
+		float Loudness = 0.0f;
+		if (Region->GetWeather() == EVaelWeather::Storm)
+		{
+			Loudness = 1.0f;
+		}
+		else if (Region->GetComingWeather() == EVaelWeather::Storm && Region->GetWeatherTimeLeft() <= Data->TraitDuration)
+		{
+			Loudness = 1.0f - Region->GetWeatherTimeLeft() / FMath::Max(Data->TraitDuration, 1.0f);
+		}
+
+		WhistleCountdown -= HarvestableSurroundingsInterval;
+		if (Loudness > 0.0f && WhistleCountdown <= 0.0f)
+		{
+			Whistle(Loudness);
+			WhistleCountdown = Data->TraitInterval * FMath::FRandRange(0.8f, 1.2f);
+		}
 	}
 }
 
 void AVaelHarvestable::UpdateTrait()
 {
-	if (!IsAvailable() || Data->Trait != EVaelHarvestTrait::IgniteOnTouch)
+	const bool bTouchTrait = Data->Trait == EVaelHarvestTrait::IgniteOnTouch || Data->Trait == EVaelHarvestTrait::PuffOnStep;
+	if (!IsAvailable() || !bTouchTrait || PuffAge >= 0.0f)
 	{
 		return;
 	}
 
 	const float Now = GetWorld()->GetTimeSeconds();
-	if (Now < NextIgniteTime)
+	if (Now < NextTraitTime)
 	{
 		return;
 	}
 
+	// A puffball bursts under a foot; the thistle already when someone brushes past
+	const float Reach = Data->Trait == EVaelHarvestTrait::PuffOnStep ? Data->Height * 0.5f : Data->TraitRadius;
+
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
-		if (It->GetHealth() > 0.0f && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) <= Data->TraitRadius + It->GetSimpleCollisionRadius())
+		if (It->GetHealth() > 0.0f && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) <= Reach + It->GetSimpleCollisionRadius())
 		{
-			Ignite();
+			if (Data->Trait == EVaelHarvestTrait::PuffOnStep)
+			{
+				Puff();
+			}
+			else
+			{
+				Ignite();
+			}
 			return;
 		}
 	}
@@ -299,7 +534,7 @@ void AVaelHarvestable::Ignite()
 {
 	const float Now = GetWorld()->GetTimeSeconds();
 	BurnEndTime = Now + Data->TraitDuration;
-	NextIgniteTime = Now + FMath::Max(Data->TraitInterval, Data->TraitDuration);
+	NextTraitTime = Now + FMath::Max(Data->TraitInterval, Data->TraitDuration);
 
 	// Everyone close catches fire, players and creatures alike: nature takes no sides
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
@@ -352,6 +587,45 @@ void AVaelHarvestable::Tick(float DeltaSeconds)
 
 	switch (Data->Trait)
 	{
+	case EVaelHarvestTrait::StormWhistle:
+	{
+		// The cap trembles while it whistles
+		if (bAvailable && Now < WhistleEndTime)
+		{
+			const float Shake = 4.0f * FMath::Sin(Now * 41.0f) * (WhistleEndTime - Now) / WhistleShakeSeconds;
+			Crown->SetRelativeRotation(FRotator(Shake, 0.0f, Shake * 0.6f));
+		}
+		else if (!Crown->GetRelativeRotation().IsNearlyZero())
+		{
+			Crown->SetRelativeRotation(FRotator::ZeroRotator);
+		}
+		break;
+	}
+	case EVaelHarvestTrait::PuffOnStep:
+	{
+		// The ball swells into its cloud, then lies empty
+		if (PuffAge >= 0.0f)
+		{
+			PuffAge += DeltaSeconds;
+			const float Share = FMath::Clamp(PuffAge / PuffSeconds, 0.0f, 1.0f);
+			Crown->SetRelativeScale3D(CrownScale * FMath::Lerp(1.0f, PuffSwell, Share));
+
+			if (Share >= 1.0f)
+			{
+				PuffAge = -1.0f;
+				BecomeBare();
+			}
+		}
+		break;
+	}
+	case EVaelHarvestTrait::MarkVeins:
+	{
+		// Now and then every vein in the land twitches at once: something very large moves below
+		const float Phase = FMath::Fmod(Now, VeinTwitchEvery);
+		const float Twitch = VeinStrength > 0.2f && Phase < VeinTwitchSeconds ? FMath::Sin(Phase / VeinTwitchSeconds * UE_PI) * 0.3f : 0.0f;
+		Crown->SetRelativeScale3D(CrownScale * FVector(1.0f + Twitch, 1.0f, 1.0f + Twitch * 2.0f));
+		break;
+	}
 	case EVaelHarvestTrait::Breathing:
 	{
 		const float Breath = 1.0f + BreathDepth * FMath::Sin(Now * UE_TWO_PI / BreathSeconds);
@@ -546,6 +820,13 @@ void AVaelHarvestable::RefreshLook()
 		CrownScale *= SoakedSwell;
 	}
 
+	// Veins stretch towards the Mark that colors them
+	if (Data->Trait == EVaelHarvestTrait::MarkVeins)
+	{
+		CrownScale.X *= FMath::Lerp(1.0f, VeinStretch, VeinStrength);
+		Crown->SetRelativeRotation(FRotator(0.0f, VeinYaw, 0.0f));
+	}
+
 	Crown->SetRelativeScale3D(CrownScale);
 
 	// What is taken is gone until it grows back; a mined stone stays, but dull
@@ -581,6 +862,26 @@ void AVaelHarvestable::RefreshLook()
 	if (bColdGlow)
 	{
 		CrownColor = Data->TraitColor;
+	}
+
+	switch (Data->Trait)
+	{
+	case EVaelHarvestTrait::PurityClarity:
+		// Smoky in a sick land, clear in a healthy one
+		CrownColor = FMath::Lerp(Data->GlowColor, Data->TraitColor, FMath::Clamp(Purity, 0.0f, 1.0f));
+		break;
+	case EVaelHarvestTrait::MarkVeins:
+		CrownColor = FMath::Lerp(Data->GlowColor, Data->TraitColor, VeinStrength);
+		break;
+	case EVaelHarvestTrait::SteamOnWater:
+		bShownCooled = IsCooled();
+		if (bShownCooled)
+		{
+			CrownColor = CooledStoneColor;
+		}
+		break;
+	default:
+		break;
 	}
 
 	const UWorld* World = GetWorld();

@@ -78,8 +78,15 @@ TRAITS = {
     "DA_Harvest_Laternenglocke": {"trait": Trait.PURITY_GLOW, "trait_color": color("8a6cff")},
     "DA_Harvest_Russmoos": {"trait": Trait.RAIN_SOAK, "trait_color": color("2f4a26")},
     "DA_Harvest_Fleischkelch": {"min_corruption": 50.0, "trait": Trait.BREATHING},
-    "DA_Harvest_Glutstein": {"element_source": True, "source_element": Element.FIRE, "source_radius": 250.0},
-    "DA_Harvest_Russquarz": {"element_source": True, "source_element": Element.EARTH, "source_radius": 250.0},
+    # Package 3: fungi and stones
+    "DA_Harvest_Pfeifenmorchel": {"trait": Trait.STORM_WHISTLE, "trait_interval": 6.0, "trait_duration": 45.0},
+    "DA_Harvest_Aschenstaeubling": {"trait": Trait.PUFF_ON_STEP, "trait_radius": 220.0},
+    "DA_Harvest_Adernflechte": {"trait": Trait.MARK_VEINS, "trait_radius": 2800.0, "trait_color": color("a24dff")},
+    "DA_Harvest_Glutstein": {"element_source": True, "source_element": Element.FIRE, "source_radius": 250.0,
+                             "trait": Trait.STEAM_ON_WATER, "trait_radius": 240.0, "trait_interval": 20.0, "trait_duration": 4.0},
+    "DA_Harvest_Russquarz": {"element_source": True, "source_element": Element.EARTH, "source_radius": 250.0,
+                             "trait": Trait.PURITY_CLARITY, "trait_color": color("e4ecf4")},
+    "DA_Harvest_Markdruse": {"trait": Trait.NEEDS_OPEN_SOURCE, "trait_radius": 700.0},
 }
 
 for definition in HARVESTABLES:

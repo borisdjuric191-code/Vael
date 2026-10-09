@@ -1179,7 +1179,7 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius);
 
 		// Plants that burst on a hit, like the Aschblase, feel it
-		AVaelHarvestable::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius);
+		AVaelHarvestable::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit.Element : Hit.Element);
 	}
 
 	if (ImpactRadius > 0.0f)

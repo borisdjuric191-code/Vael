@@ -103,6 +103,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Region")
 	EVaelWeather GetWeather() const { return Weather; }
 
+	/** The weather that comes when the current window ends; decided in advance, so nature can announce it */
+	EVaelWeather GetComingWeather() const;
+
+	/** Seconds until the weather changes, a very long time if it never does */
+	float GetWeatherTimeLeft() const { return bChangingWeather ? WeatherTimeLeft : UE_BIG_NUMBER; }
+
 	/** Changes the weather right away and tells the players */
 	UFUNCTION(BlueprintCallable, Category="Weather")
 	void SetWeather(EVaelWeather NewWeather);
@@ -150,6 +156,9 @@ private:
 
 	/** Seconds until the weather changes */
 	float WeatherTimeLeft = 0.0f;
+
+	/** The weather after the current window, picked the first time someone asks */
+	mutable TOptional<EVaelWeather> ComingWeather;
 
 	/** Seconds until the next lightning strike */
 	float LightningCooldown = 0.0f;

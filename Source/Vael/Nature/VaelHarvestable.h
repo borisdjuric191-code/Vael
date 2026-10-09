@@ -9,6 +9,7 @@
 #include "VaelHarvestable.generated.h"
 
 class UPointLightComponent;
+class USoundAttenuation;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UVaelHarvestableData;
@@ -71,8 +72,8 @@ public:
 	/** True if a mage at the location can draw the element from it */
 	bool ProvidesElement(EVaelElement Element, const FVector& Location) const;
 
-	/** A spell hit or exploded at a location: kinds that burst on a hit and stand within the radius burst */
-	static void NotifySpellImpact(const UWorld* World, const FVector& Location, float Radius);
+	/** A spell of an element hit or exploded at a location: bubbles within the radius burst, glowing stones let out steam under water or heat up again under fire */
+	static void NotifySpellImpact(const UWorld* World, const FVector& Location, float Radius, EVaelElement Element);
 
 	/** Builds the placeholder from the data, also while placing it in the editor */
 	virtual void OnConstruction(const FTransform& Transform) override;
@@ -114,6 +115,24 @@ private:
 	/** Bursts into a blinding cloud */
 	void Burst();
 
+	/** Puffs a cloud of ash that puts out burning people and fires, then lies empty */
+	void Puff();
+
+	/** Lets out its heat as a steam burst and cools down */
+	void Steam();
+
+	/** Whistles, louder the closer the storm */
+	void Whistle(float Loudness);
+
+	/** Plays the whistle tone, made in code until the Klangbibel has its sound */
+	void PlayWhistleSound(float Volume);
+
+	/** Looks for the closest open Mark source: how strongly the veins color and which way they stretch */
+	void UpdateMarkVeins();
+
+	/** True if a glowing stone is cool after letting out steam */
+	bool IsCooled() const;
+
 	/** A drop lands: players below are healed */
 	void LandDrop();
 
@@ -142,9 +161,29 @@ private:
 	/** Share from 0 to 1 of the purity of its region, for the glow */
 	float Purity = 1.0f;
 
-	/** Game time until which it burns, and from which it can catch fire again */
+	/** Game time until which it burns, and from which it can catch fire, puff or let out steam again */
 	float BurnEndTime = -1.0f;
-	float NextIgniteTime = 0.0f;
+	float NextTraitTime = 0.0f;
+
+	/** Seconds since a puff began, negative while none plays */
+	float PuffAge = -1.0f;
+
+	/** Game time until which a whistling crown shakes */
+	float WhistleEndTime = -1.0f;
+
+	/** Seconds until the next whistle */
+	float WhistleCountdown = 0.0f;
+
+	/** How far a whistle carries */
+	UPROPERTY(Transient)
+	TObjectPtr<USoundAttenuation> WhistleAttenuation;
+
+	/** True while the look shows a cooled stone */
+	bool bShownCooled = false;
+
+	/** How strongly veins color towards the Mark, 0 to 1, and the yaw they stretch along */
+	float VeinStrength = 0.0f;
+	float VeinYaw = 0.0f;
 
 	/** Seconds the current drop has been falling, negative while none falls */
 	float DropAge = -1.0f;

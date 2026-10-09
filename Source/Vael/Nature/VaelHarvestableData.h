@@ -37,7 +37,19 @@ enum class EVaelHarvestTrait : uint8
 	/** Soaks up rain: swells and turns the trait color while it rains (Russmoos) */
 	RainSoak,
 	/** Breathes: its crown slowly swells and sinks (Fleischkelch) */
-	Breathing
+	Breathing,
+	/** Whistles in a storm, and already within the trait duration before one comes, every trait interval (Pfeifenmorchel) */
+	StormWhistle,
+	/** Puffs when someone comes within the trait radius: puts out burning people and fires there, then lies empty (Aschenstaeubling) */
+	PuffOnStep,
+	/** Turns the trait color the closer an open Mark source is within the trait radius, stretched towards it; all twitch at once now and then (Adernflechte) */
+	MarkVeins,
+	/** A water spell hitting it lets out a steam burst of the trait radius; then it is cool for the trait interval, unless fire hits it (Glutstein) */
+	SteamOnWater,
+	/** Clouded in its glow color in a sick region, clear in the trait color in a pure one (Russquarz) */
+	PurityClarity,
+	/** Only there while an open Mark source lies within the trait radius (Markdruse) */
+	NeedsOpenSource
 };
 
 /**
@@ -99,7 +111,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0))
 	float TraitRadius = 120.0f;
 
-	/** Seconds between drops, or until it can catch fire again */
+	/** Seconds between drops or whistles, or until it can catch fire or steam again */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0.1))
 	float TraitInterval = 3.0f;
 
@@ -107,7 +119,7 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0))
 	float TraitAmount = 5.0f;
 
-	/** Seconds the trait lasts: burning, fire patch, smoke cloud */
+	/** Seconds the trait lasts: burning, fire patch, smoke cloud, steam, warning before a storm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0))
 	float TraitDuration = 4.0f;
 

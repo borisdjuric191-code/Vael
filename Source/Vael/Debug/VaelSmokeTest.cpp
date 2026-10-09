@@ -285,6 +285,47 @@ void AVaelSmokeTest::BeginPlay()
 		return FString::Printf(TEXT("corruption %.0f -> %.0f"), Old, Corruption);
 	};
 
+	// Glowing stones: water lets out their heat and they stop giving fire, fire heats them up again
+	Steps.Add({ TEXT("Steam stones"), [this]()
+	{
+		int32 NumStones = 0;
+		int32 NumCooled = 0;
+		int32 NumReheated = 0;
+
+		for (TActorIterator<AVaelHarvestable> It(GetWorld()); It; ++It)
+		{
+			const FVector Location = It->GetActorLocation();
+			if (It->GetCompendiumId() != TEXT("Glutstein") || !It->ProvidesElement(EVaelElement::Fire, Location))
+			{
+				continue;
+			}
+
+			++NumStones;
+			AVaelHarvestable::NotifySpellImpact(GetWorld(), Location, 50.0f, EVaelElement::Water);
+			NumCooled += It->ProvidesElement(EVaelElement::Fire, Location) ? 0 : 1;
+
+			AVaelHarvestable::NotifySpellImpact(GetWorld(), Location, 50.0f, EVaelElement::Fire);
+			NumReheated += It->ProvidesElement(EVaelElement::Fire, Location) ? 1 : 0;
+		}
+
+		const bool bOk = NumStones > 0 && NumCooled == NumStones && NumReheated == NumStones;
+		return FString::Printf(TEXT("%s%d glowing stones, %d cooled by water, %d heated again by fire"), bOk ? TEXT("") : TEXT("FAILED: "), NumStones, NumCooled, NumReheated);
+	}, 0.1f });
+
+	// A storm makes the whistling caps whistle (seen in the log with LogVael Verbose)
+	Steps.Add({ TEXT("Storm"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		AVaelRegion* Region = Player != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), Player->GetActorLocation()) : nullptr;
+		if (Region == nullptr)
+		{
+			return FString(TEXT("no region"));
+		}
+
+		Region->SetWeather(EVaelWeather::Storm);
+		return FString(TEXT("storm"));
+	}, 7.0f });
+
 	Steps.Add({ TEXT("Cleanse the region"), [SetRegionCorruption]() { return SetRegionCorruption(0.0f, true); }, 1.5f });
 	Steps.Add({ TEXT("Harvest"), Harvest, 0.1f });
 	Steps.Add({ TEXT("Corrupt the region"), [SetRegionCorruption]() { return SetRegionCorruption(70.0f, false); }, 1.5f });

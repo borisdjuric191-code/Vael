@@ -63,7 +63,7 @@ void AVaelRegion::Tick(float DeltaSeconds)
 		WeatherTimeLeft -= DeltaSeconds;
 		if (WeatherTimeLeft <= 0.0f)
 		{
-			SetWeather(PickNextWeather());
+			SetWeather(GetComingWeather());
 		}
 	}
 
@@ -152,9 +152,20 @@ void AVaelRegion::AddScar(float Amount)
 	AddCorruption(Amount);
 }
 
+EVaelWeather AVaelRegion::GetComingWeather() const
+{
+	if (!ComingWeather.IsSet())
+	{
+		ComingWeather = PickNextWeather();
+	}
+
+	return ComingWeather.GetValue();
+}
+
 void AVaelRegion::SetWeather(EVaelWeather NewWeather)
 {
 	WeatherTimeLeft = PickWeatherDuration();
+	ComingWeather.Reset();
 
 	if (NewWeather == Weather)
 	{
