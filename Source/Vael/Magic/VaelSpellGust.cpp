@@ -1,17 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelSpellGust.h"
-#include "UObject/ConstructorHelpers.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
-#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
-#include "Magic/VaelMagicSettings.h"
-#include "Materials/MaterialInstanceDynamic.h"
-#include "Materials/MaterialInterface.h"
-#include "VaelAssets.h"
+#include "Magic/VaelSpellEffects.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -54,29 +49,11 @@ namespace
 
 	/** Brightness of the light on the wall of air in candela */
 	constexpr float GustLightIntensity = 6.0f;
-
-	/** Material parameters of the glow materials */
-	const FName GustColorParameter(TEXT("Color"));
-	const FName GustGlowParameter(TEXT("Glow"));
-	const FName GustRimParameter(TEXT("Rim"));
 }
 
 AVaelSpellGust::AVaelSpellGust()
 {
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
-
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> Sphere(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	if (Sphere.Succeeded())
-	{
-		SphereMesh = Sphere.Object;
-	}
-
-	static ConstructorHelpers::FObjectFinder<UMaterialInterface> Plain(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-	if (Plain.Succeeded())
-	{
-		PlainMaterial = Plain.Object;
-	}
-
 	PrimaryActorTick.bCanEverTick = true;
 }
 
@@ -103,47 +80,14 @@ AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, c
 	return Gust;
 }
 
-UStaticMeshComponent* AVaelSpellGust::AddShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim)
-{
-	UStaticMeshComponent* Shape = NewObject<UStaticMeshComponent>(this);
-	Shape->SetupAttachment(RootComponent);
-	Shape->SetStaticMesh(SphereMesh);
-	Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Shape->SetCastShadow(false);
-	Shape->bReceivesDecals = false;
-	Shape->SetVisibility(false);
-	Shape->RegisterComponent();
-
-	Shape->SetMaterial(0, Material);
-
-	if (UMaterialInstanceDynamic* Dynamic = Shape->CreateAndSetMaterialInstanceDynamic(0))
-	{
-		Dynamic->SetVectorParameterValue(GustColorParameter, ShapeColor);
-		Dynamic->SetScalarParameterValue(GustGlowParameter, Glow);
-		Dynamic->SetScalarParameterValue(GustRimParameter, Rim);
-	}
-
-	return Shape;
-}
-
-void AVaelSpellGust::SetGlow(UStaticMeshComponent* Shape, float Glow)
-{
-	if (UMaterialInstanceDynamic* Dynamic = Cast<UMaterialInstanceDynamic>(Shape->GetMaterial(0)))
-	{
-		Dynamic->SetScalarParameterValue(GustGlowParameter, Glow);
-	}
-}
-
 void AVaelSpellGust::BeginPlay()
 {
 	Super::BeginPlay();
 
 	// The glowing materials of the element orbs; the plain engine material while they don't exist
-	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	UMaterialInterface* CoreMaterial = VaelAssets::LoadOptional(MagicSettings->ElementOrbCoreMaterial);
-	UMaterialInterface* GlowMaterial = VaelAssets::LoadOptional(MagicSettings->ElementOrbGlowMaterial);
-	CoreMaterial = CoreMaterial != nullptr ? CoreMaterial : PlainMaterial.Get();
-	GlowMaterial = GlowMaterial != nullptr ? GlowMaterial : PlainMaterial.Get();
+	UMaterialInterface* CoreMaterial = nullptr;
+	UMaterialInterface* GlowMaterial = nullptr;
+	VaelEffects::LoadLookMaterials(CoreMaterial, GlowMaterial);
 
 	// The wall of air rolls over the ground below the hand
 	const FVector Hand = GetActorLocation();
@@ -156,18 +100,18 @@ void AVaelSpellGust::BeginPlay()
 	const FLinearColor Bright = FMath::Lerp(GustColor, FLinearColor::White, 0.3f);
 	const FLinearColor Ash(0.42f, 0.36f, 0.28f);
 
-	HandRing = AddShape(GlowMaterial, Bright, 2.2f, 1.0f);
+	HandRing = VaelEffects::AddLookShape(this, GlowMaterial, Bright, 2.2f, 1.0f);
 
 	// The wall only shines at its edges, so it reads as clear air pressed together
 	for (int32 SegmentIndex = 0; SegmentIndex < GustWaveSegments; ++SegmentIndex)
 	{
-		WaveFront.Add(AddShape(GlowMaterial, Bright, 1.4f, 1.0f));
-		WaveBack.Add(AddShape(GlowMaterial, GustColor, 0.5f, 0.6f));
+		WaveFront.Add(VaelEffects::AddLookShape(this, GlowMaterial, Bright, 1.4f, 1.0f));
+		WaveBack.Add(VaelEffects::AddLookShape(this, GlowMaterial, GustColor, 0.5f, 0.6f));
 	}
 
 	for (int32 StreakIndex = 0; StreakIndex < GustStreakCount; ++StreakIndex)
 	{
-		Streaks.Add(AddShape(GlowMaterial, Bright, 3.5f, 0.0f));
+		Streaks.Add(VaelEffects::AddLookShape(this, GlowMaterial, Bright, 3.5f, 0.0f));
 		StreakYaws.Add(FMath::FRandRange(-HalfAngle, HalfAngle) * 0.85f);
 		StreakHeights.Add(GroundHeight + FMath::FRandRange(25.0f, Range * GustWaveEndHeight * 0.9f));
 		StreakStarts.Add(FMath::FRandRange(0.0f, GustStreakLatestStart));
@@ -183,7 +127,7 @@ void AVaelSpellGust::BeginPlay()
 		const FVector Side(-Out.Y, Out.X, 0.0f);
 		const float Distance = Range * FMath::FRandRange(0.2f, 0.85f);
 
-		Dust.Add(bPuff ? AddShape(GlowMaterial, FLinearColor(0.55f, 0.52f, 0.48f), 0.35f, 0.3f) : AddShape(CoreMaterial, Ash, 0.0f, 0.0f));
+		Dust.Add(bPuff ? VaelEffects::AddLookShape(this, GlowMaterial, FLinearColor(0.55f, 0.52f, 0.48f), 0.35f, 0.3f) : VaelEffects::AddLookShape(this, CoreMaterial, Ash, 0.0f, 0.0f));
 		DustOrigins.Add(Out * Distance + FVector(0.0f, 0.0f, GroundHeight + 3.0f));
 		DustStarts.Add(GetWaveArrival(Distance) + FMath::FRandRange(0.0f, 0.03f));
 		DustSizes.Add(bPuff ? FMath::FRandRange(30.0f, 50.0f) : FMath::FRandRange(5.0f, 12.0f));
@@ -254,7 +198,7 @@ void AVaelSpellGust::AnimateHandRing()
 
 	HandRing->SetRelativeLocation(FVector(30.0f * Progress, 0.0f, 0.0f));
 	HandRing->SetRelativeScale3D(FVector(Size * 0.08f, Size, Size));
-	SetGlow(HandRing, 2.2f * (1.0f - Progress));
+	VaelEffects::SetLookGlow(HandRing, 2.2f * (1.0f - Progress));
 }
 
 void AVaelSpellGust::AnimateWave()
@@ -299,13 +243,13 @@ void AVaelSpellGust::AnimateWave()
 		Front->SetRelativeLocation(Out * SegmentDistance + FVector(0.0f, 0.0f, GroundHeight + SegmentHeight * 0.5f));
 		Front->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
 		Front->SetRelativeScale3D(FVector(GustWaveThickness, Width, SegmentHeight) / GustSphereSize);
-		SetGlow(Front, 1.4f * Fade);
+		VaelEffects::SetLookGlow(Front, 1.4f * Fade);
 
 		UStaticMeshComponent* Back = WaveBack[SegmentIndex];
 		Back->SetRelativeLocation(Out * SegmentDistance * GustWaveBackShare + FVector(0.0f, 0.0f, GroundHeight + SegmentHeight * 0.4f));
 		Back->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
 		Back->SetRelativeScale3D(FVector(GustWaveThickness * 1.6f, Width * GustWaveBackShare, SegmentHeight * 0.8f) / GustSphereSize);
-		SetGlow(Back, 0.5f * Fade);
+		VaelEffects::SetLookGlow(Back, 0.5f * Fade);
 	}
 
 	WaveLight->SetRelativeLocation(FVector(Distance, 0.0f, GroundHeight + Height * 0.5f));
@@ -334,7 +278,7 @@ void AVaelSpellGust::AnimateStreaks()
 		Streak->SetRelativeLocation(Out * (Head - Length * 0.5f) + FVector(0.0f, 0.0f, StreakHeights[StreakIndex] + Progress * 20.0f));
 		Streak->SetRelativeRotation(FRotator(0.0f, StreakYaws[StreakIndex], 0.0f));
 		Streak->SetRelativeScale3D(FVector(Length, GustStreakThickness, GustStreakThickness) / GustSphereSize);
-		SetGlow(Streak, 3.5f * FMath::Min(1.0f, Progress * 6.0f) * (1.0f - Progress));
+		VaelEffects::SetLookGlow(Streak, 3.5f * FMath::Min(1.0f, Progress * 6.0f) * (1.0f - Progress));
 	}
 }
 
@@ -369,7 +313,7 @@ void AVaelSpellGust::AnimateDust()
 
 		if (bPuff)
 		{
-			SetGlow(Grain, 0.35f * (1.0f - Life));
+			VaelEffects::SetLookGlow(Grain, 0.35f * (1.0f - Life));
 		}
 	}
 }

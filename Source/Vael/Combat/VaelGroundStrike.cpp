@@ -5,6 +5,8 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelLightningBolt.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -14,6 +16,9 @@
 
 namespace
 {
+	/** Lightning comes down from this high above the ground, in cm */
+	constexpr float StrikeLightningHeight = 900.0f;
+
 	/** Size of the engine basic shapes used as placeholders */
 	constexpr float StrikeShapeSize = 100.0f;
 
@@ -170,7 +175,19 @@ void AVaelGroundStrike::Strike()
 
 	WarningDisc->SetVisibility(false);
 	WarningFill->SetVisibility(false);
-	Spike->SetVisibility(true);
+
+	// Lightning comes down from the sky instead of the spike rising
+	if (Hit.bLightning)
+	{
+		const FVector Ground = GetActorLocation();
+		const FVector Sky = Ground + FVector(FMath::FRandRange(-150.0f, 150.0f), FMath::FRandRange(-150.0f, 150.0f), StrikeLightningHeight);
+
+		AVaelLightningBolt::Spawn(GetOwner(), Sky, Ground, UVaelMagicSettings::Get()->GetElementColor(Hit.Element), 0.3f, 1.6f, true);
+	}
+	else
+	{
+		Spike->SetVisibility(true);
+	}
 
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{

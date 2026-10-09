@@ -282,4 +282,10 @@ private:
 
 	/** Radius of the burst at the end of the current spell dash, 0 for a plain dodge roll */
 	float DashBurstRadius = 0.0f;
+
+	/** Where the current spell dash began, for the look of its burst */
+	FVector DashStartLocation = FVector::ZeroVector;
+
+	/** Shows the burst at the end of a spell dash: lightning or a ring of wind, the outline as placeholder for everything else */
+	void ShowDashBurst();
 };

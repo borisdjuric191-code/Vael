@@ -22,8 +22,10 @@
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelElementOrbitComponent.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelSpellGust.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
@@ -36,6 +38,9 @@
 
 namespace
 {
+	/** Bolts lashing out where a dash of lightning lands */
+	constexpr int32 DashLightningBolts = 6;
+
 	/** Blend time when a roll montage is cut short */
 	constexpr float RollMontageBlendOutTime = 0.15f;
 }
@@ -280,11 +285,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 			if (DashBurstRadius > 0.0f)
 			{
 				UVaelCombatStatics::ApplySpellHitInRadius(this, GetActorLocation(), DashBurstRadius, DashBurst);
-
-#if ENABLE_DRAW_DEBUG
-				DrawDebugCircle(GetWorld(), GetActorLocation(), DashBurstRadius, 32, UVaelMagicSettings::Get()->GetElementColor(DashBurst.Element).ToFColor(true),
-					false, 0.25f, 0, 4.0f, FVector::ForwardVector, FVector::RightVector, false);
-#endif
+				ShowDashBurst();
 				DashBurstRadius = 0.0f;
 			}
 		}
@@ -355,11 +356,47 @@ bool AVaelCharacter::StartSpellDash(const FVector& WorldDirection, float Speed, 
 	CurrentDodgeSpeed = Speed;
 	DashBurst = InDashBurst;
 	DashBurstRadius = BurstRadius;
+	DashStartLocation = GetActorLocation();
 	DodgeEndTime = GetWorld()->GetTimeSeconds() + Duration;
 
 	BeginRollLook(LoadedSpellDashMontage != nullptr ? LoadedSpellDashMontage : LoadedDodgeMontage, Duration);
 
 	return true;
+}
+
+void AVaelCharacter::ShowDashBurst()
+{
+	const FVector Center = GetActorLocation();
+	const FLinearColor Color = UVaelMagicSettings::Get()->GetElementColor(DashBurst.Element);
+
+	if (DashBurst.bLightning)
+	{
+		// The jump leaves a bolt along its path, and lightning lashes out all around where it lands
+		AVaelLightningBolt::Spawn(this, DashStartLocation, Center, Color, 0.3f, 1.3f, false);
+
+		const float FeetHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight() * 0.6f;
+		const float FirstAngle = FMath::FRandRange(0.0f, 360.0f);
+		for (int32 BoltIndex = 0; BoltIndex < DashLightningBolts; ++BoltIndex)
+		{
+			const float Angle = FMath::DegreesToRadians(FirstAngle + BoltIndex * 360.0f / DashLightningBolts + FMath::FRandRange(-15.0f, 15.0f));
+			const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+
+			AVaelLightningBolt::Spawn(this, Center, Center + Out * DashBurstRadius * FMath::FRandRange(0.75f, 1.0f) - FVector(0.0f, 0.0f, FeetHeight), Color, 0.22f, 0.8f, true);
+		}
+
+		return;
+	}
+
+	if (DashBurst.Element == EVaelElement::Air)
+	{
+		// A ring of wind pushes out all around
+		AVaelSpellGust::Spawn(this, Center, DodgeDirection, DashBurstRadius, 180.0f, Color);
+		return;
+	}
+
+#if ENABLE_DRAW_DEBUG
+	DrawDebugCircle(GetWorld(), Center, DashBurstRadius, 32, Color.ToFColor(true), false, 0.25f, 0, 4.0f, FVector::ForwardVector, FVector::RightVector, false);
+#endif
 }
 
 void AVaelCharacter::BeginRollLook(UAnimMontage* Montage, float Duration)

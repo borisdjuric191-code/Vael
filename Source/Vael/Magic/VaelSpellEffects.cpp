@@ -2,8 +2,13 @@
 
 #include "Magic/VaelSpellEffects.h"
 #include "Components/SceneComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "GameFramework/Actor.h"
 #include "Kismet/GameplayStatics.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
@@ -116,4 +121,56 @@ void VaelEffects::PlayImpact(const UObject* WorldContext, const FVaelLoadedEffec
 {
 	SpawnAt(WorldContext, Effects.Impact, Location, FRotator::ZeroRotator, Effects.Color, Radius);
 	PlaySound(WorldContext, Effects.ImpactSound, Location);
+}
+
+const FName VaelEffects::LookColorParameter(TEXT("Color"));
+const FName VaelEffects::LookGlowParameter(TEXT("Glow"));
+const FName VaelEffects::LookRimParameter(TEXT("Rim"));
+
+void VaelEffects::LoadLookMaterials(UMaterialInterface*& OutCore, UMaterialInterface*& OutGlow)
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	UMaterialInterface* Plain = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+
+	OutCore = VaelAssets::LoadOptional(MagicSettings->ElementOrbCoreMaterial);
+	OutGlow = VaelAssets::LoadOptional(MagicSettings->ElementOrbGlowMaterial);
+	OutCore = OutCore != nullptr ? OutCore : Plain;
+	OutGlow = OutGlow != nullptr ? OutGlow : Plain;
+}
+
+UStaticMeshComponent* VaelEffects::AddLookShape(AActor* Owner, UMaterialInterface* Material, const FLinearColor& Color, float Glow, float Rim)
+{
+	static TWeakObjectPtr<UStaticMesh> SphereMesh;
+	if (!SphereMesh.IsValid())
+	{
+		SphereMesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	}
+
+	UStaticMeshComponent* Shape = NewObject<UStaticMeshComponent>(Owner);
+	Shape->SetupAttachment(Owner->GetRootComponent());
+	Shape->SetStaticMesh(SphereMesh.Get());
+	Shape->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Shape->SetCastShadow(false);
+	Shape->bReceivesDecals = false;
+	Shape->SetVisibility(false);
+	Shape->RegisterComponent();
+
+	Shape->SetMaterial(0, Material);
+
+	if (UMaterialInstanceDynamic* Dynamic = Shape->CreateAndSetMaterialInstanceDynamic(0))
+	{
+		Dynamic->SetVectorParameterValue(LookColorParameter, Color);
+		Dynamic->SetScalarParameterValue(LookGlowParameter, Glow);
+		Dynamic->SetScalarParameterValue(LookRimParameter, Rim);
+	}
+
+	return Shape;
+}
+
+void VaelEffects::SetLookGlow(UStaticMeshComponent* Shape, float Glow)
+{
+	if (UMaterialInstanceDynamic* Dynamic = Cast<UMaterialInstanceDynamic>(Shape->GetMaterial(0)))
+	{
+		Dynamic->SetScalarParameterValue(LookGlowParameter, Glow);
+	}
 }

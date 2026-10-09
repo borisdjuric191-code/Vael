@@ -6,10 +6,13 @@
 #include "Magic/VaelElementTypes.h"
 #include "VaelSpellEffects.generated.h"
 
+class AActor;
+class UMaterialInterface;
 class UNiagaraComponent;
 class UNiagaraSystem;
 class USceneComponent;
 class USoundBase;
+class UStaticMeshComponent;
 
 /**
  *  Effects and sounds of a spell, made in the editor. Every entry is optional.
@@ -97,4 +100,18 @@ namespace VaelEffects
 
 	/** Plays the impact effect and sound of a spell at a location */
 	void PlayImpact(const UObject* WorldContext, const FVaelLoadedEffects& Effects, const FVector& Location, float Radius);
+
+	/** Material parameters of the glowing look materials */
+	extern const FName LookColorParameter;
+	extern const FName LookGlowParameter;
+	extern const FName LookRimParameter;
+
+	/** The materials of the looks built in code: the solid core and the additive glow, the plain engine material while they don't exist */
+	void LoadLookMaterials(UMaterialInterface*& OutCore, UMaterialInterface*& OutGlow);
+
+	/** Adds a hidden engine sphere (100 cm across) to an actor's root, in a look material with its color, glow and rim, without collision or shadow */
+	UStaticMeshComponent* AddLookShape(AActor* Owner, UMaterialInterface* Material, const FLinearColor& Color, float Glow, float Rim = 0.0f);
+
+	/** Sets the glow of a shape made by AddLookShape */
+	void SetLookGlow(UStaticMeshComponent* Shape, float Glow);
 }

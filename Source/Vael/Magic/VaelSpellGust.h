@@ -6,10 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "VaelSpellGust.generated.h"
 
-class UMaterialInstanceDynamic;
-class UMaterialInterface;
 class UPointLightComponent;
-class UStaticMesh;
 class UStaticMeshComponent;
 
 /**
@@ -40,9 +37,6 @@ protected:
 
 private:
 
-	/** Adds a hidden sphere to the look, in a glowing material with its color, glow and rim */
-	UStaticMeshComponent* AddShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim);
-
 	/** The parts of the gust, each over its own share of the time */
 	void AnimateHandRing();
 	void AnimateWave();
@@ -52,9 +46,6 @@ private:
 	/** Distance of the wall of air from the hand at a time in seconds, and the time it reaches a distance */
 	float GetWaveDistance(float Time) const;
 	float GetWaveArrival(float Distance) const;
-
-	/** Sets the glow of a shape that has a glowing material */
-	static void SetGlow(UStaticMeshComponent* Shape, float Glow);
 
 	/** Reach in cm, half opening angle in degrees and color of the gust */
 	float Range = 450.0f;
@@ -66,13 +57,6 @@ private:
 
 	/** Seconds since the gust started */
 	float Elapsed = 0.0f;
-
-	/** Engine sphere and plain material, used where the glowing materials don't exist */
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> SphereMesh;
-
-	UPROPERTY()
-	TObjectPtr<UMaterialInterface> PlainMaterial;
 
 	/** Flat ring of pressure at the hand */
 	UPROPERTY(Transient)

@@ -23,6 +23,7 @@
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelRockWall.h"
 #include "Magic/VaelSpellAura.h"
@@ -430,12 +431,23 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 	const FVaelLoadedEffects Effects = Formula.LoadEffects();
 	UNiagaraSystem* BoltEffect = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BeamEffect);
 
-	// One jump of the bolt: the beam effect between the two points, or a line as placeholder
+	// One jump of the bolt: the beam effect and the lightning look between the two points, or a line as placeholder
 	const auto DrawBolt = [&](const FVector& From, const FVector& To, float Duration)
 	{
-		if (UNiagaraComponent* Bolt = VaelEffects::SpawnAt(Caster, BoltEffect, From, (To - From).Rotation(), Effects.Color, 0.0f))
+		UNiagaraComponent* Bolt = VaelEffects::SpawnAt(Caster, BoltEffect, From, (To - From).Rotation(), Effects.Color, 0.0f);
+		if (Bolt != nullptr)
 		{
 			Bolt->SetVariableVec3(VaelEffects::BeamEndParameter, To);
+		}
+
+		if (Formula.bLightning)
+		{
+			AVaelLightningBolt::Spawn(Caster, From, To, Effects.Color, Duration, 1.0f, true);
+			return;
+		}
+
+		if (Bolt != nullptr)
+		{
 			return;
 		}
 
