@@ -26,6 +26,12 @@ namespace
 
 	/** Seconds between two damage steps of an area */
 	constexpr float DamageStepInterval = 0.5f;
+
+	/** Seconds a condition of the area stays on those who leave it */
+	constexpr float AreaStatusLinger = 1.5f;
+
+	/** Corruption black water adds to its region per second */
+	constexpr float BlackwaterCorruptionPerSecond = 0.3f;
 }
 
 AVaelGroundArea::AVaelGroundArea()
@@ -82,8 +88,8 @@ void AVaelGroundArea::BeginPlay()
 		SetLifeSpan(Lifetime);
 	}
 
-	// Only areas that hurt somebody need to tick
-	SetActorTickEnabled(DamagePerSecond > 0.0f && GetInstigator() != nullptr);
+	// Only areas that hurt somebody or lay a condition on them need to tick
+	SetActorTickEnabled((DamagePerSecond > 0.0f || GetInflictedStatus() != EVaelStatus::None) && GetInstigator() != nullptr);
 
 	// The real look replaces the placeholder disc as soon as the effect exists
 	SpawnVisual();
@@ -105,12 +111,44 @@ void AVaelGroundArea::Tick(float DeltaSeconds)
 
 	DamageStepTime = 0.0f;
 
+	// Black water and fever mist lay their condition on everyone inside, renewed while they stay
+	const EVaelStatus InflictedStatus = GetInflictedStatus();
+
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
-		if (IsInRange(It->GetActorLocation()))
+		if (!IsInRange(It->GetActorLocation()))
+		{
+			continue;
+		}
+
+		if (DamagePerSecond > 0.0f)
 		{
 			UVaelCombatStatics::ApplySpellHit(GetInstigator(), *It, Hit, FVector::ZeroVector);
 		}
+
+		if (InflictedStatus != EVaelStatus::None && UVaelCombatStatics::CanDamage(GetInstigator(), *It))
+		{
+			UVaelCombatStatics::ApplyStatus(GetInstigator(), *It, InflictedStatus, AreaStatusLinger);
+		}
+	}
+
+	// Black water is a little Mark source of its own, and it seeps into the region
+	if (Effect == EVaelGroundEffect::Blackwater)
+	{
+		if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation()))
+		{
+			Region->AddCorruption(BlackwaterCorruptionPerSecond * DamageStepInterval);
+		}
+	}
+}
+
+EVaelStatus AVaelGroundArea::GetInflictedStatus() const
+{
+	switch (Effect)
+	{
+	case EVaelGroundEffect::Blackwater:	return EVaelStatus::Marked;
+	case EVaelGroundEffect::Fever:		return EVaelStatus::Fevered;
+	default:							return EVaelStatus::None;
 	}
 }
 
@@ -264,7 +302,7 @@ void AVaelGroundArea::GetEffectsOn(const AActor* Victim, bool& bOutBlinded, floa
 		{
 			bOutBlinded = true;
 		}
-		else if (Area->Effect == EVaelGroundEffect::Slow)
+		else if (Area->Effect == EVaelGroundEffect::Slow || Area->Effect == EVaelGroundEffect::Blackwater)
 		{
 			OutSpeedMultiplier = FMath::Min(OutSpeedMultiplier, UVaelMagicSettings::Get()->MudSpeedMultiplier);
 		}

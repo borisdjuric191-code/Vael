@@ -4,6 +4,8 @@
 #include "Combat/VaelCharacterBase.h"
 #include "GameplayEffectExtension.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelMagicSettings.h"
+#include "AbilitySystemComponent.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
@@ -46,6 +48,12 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 		{
 			Data.EffectSpec.GetAllAssetTags(DamageTags);
 			Damage *= Target->GetIncomingDamageMultiplier(DamageTags);
+
+			// The Mark marks its victims for everyone's blows
+			if (Target->GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::Status_Marked))
+			{
+				Damage *= UVaelMagicSettings::Get()->MarkedDamageMultiplier;
+			}
 		}
 
 		// Stronger attackers, like creatures marked by the corruption

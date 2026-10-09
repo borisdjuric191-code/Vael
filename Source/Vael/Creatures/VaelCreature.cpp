@@ -205,6 +205,30 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		return;
 	}
 
+	// Fear drives it away from the nearest player instead of fighting
+	if (UVaelCombatStatics::HasStatus(this, EVaelStatus::Feared))
+	{
+		const AVaelCharacter* Nearest = nullptr;
+		float NearestDistance = UE_BIG_NUMBER;
+
+		ForEachActivePlayer([this, &Nearest, &NearestDistance](AVaelCharacter* Player)
+		{
+			const float Distance = GetDistanceTo2D(Player);
+			if (Distance < NearestDistance)
+			{
+				Nearest = Player;
+				NearestDistance = Distance;
+			}
+		});
+
+		if (Nearest != nullptr)
+		{
+			MoveInDirection((GetActorLocation() - Nearest->GetActorLocation()).GetSafeNormal2D(), ActiveData->MoveSpeed);
+		}
+
+		return;
+	}
+
 	TickBehavior(DeltaSeconds);
 }
 
@@ -445,6 +469,27 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 {
 	AActor* Nearest = nullptr;
 	float NearestDistance = MaxDistance;
+
+	// In fever it goes for its own kind instead
+	if (UVaelCombatStatics::HasStatus(this, EVaelStatus::Fevered))
+	{
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			const float Distance = GetDistanceTo2D(*It);
+			if (*It != this && !It->IsDead() && Distance < NearestDistance)
+			{
+				Nearest = *It;
+				NearestDistance = Distance;
+			}
+		}
+
+		if (OutDistance != nullptr)
+		{
+			*OutDistance = NearestDistance;
+		}
+
+		return Nearest;
+	}
 
 	// A golem of a mage draws every enemy near it onto itself
 	for (TActorIterator<AVaelClayGolem> It(GetWorld()); It; ++It)

@@ -146,6 +146,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Ground Areas", meta = (ClampMin = 0))
 	float MistSenseRange = 280.0f;
 
+	/** Damage taken by those marked by the Mark, as multiplier */
+	UPROPERTY(config, EditAnywhere, Category="Conditions", meta = (ClampMin = 1))
+	float MarkedDamageMultiplier = 1.35f;
+
 	/** Placeholder color of steam */
 	UPROPERTY(config, EditAnywhere, Category="Appearance")
 	FLinearColor SteamColor = FLinearColor(0.8f, 0.82f, 0.85f);

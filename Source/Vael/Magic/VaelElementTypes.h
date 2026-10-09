@@ -131,7 +131,11 @@ enum class EVaelGroundEffect : uint8
 	/** Mist: the caster and their allies inside are hidden from enemies further away, who lose them as a target */
 	Veil,
 	/** Hot spring: mages standing in it can draw both fire and water from it */
-	HotSpring
+	HotSpring,
+	/** Black water of the Mark: slows and marks enemies, mages can draw the Mark from it, it seeps corruption into the region */
+	Blackwater,
+	/** Fever mist: enemies inside fall into fever and go for each other */
+	Fever
 };
 
 /** Conditions a hit can leave on its target */
@@ -146,7 +150,13 @@ enum class EVaelStatus : uint8
 	/** Can't move, earth shatters it for extra damage */
 	Frozen,
 	/** Moves at a share of its speed, walking or flying */
-	Slowed
+	Slowed,
+	/** Marked by the Mark: takes more damage from everything */
+	Marked,
+	/** Flees from the players and doesn't attack */
+	Feared,
+	/** Mad with fever: goes for other creatures, and they can hurt each other */
+	Fevered
 };
 
 /** Outcome of trying to cast the queued elements */

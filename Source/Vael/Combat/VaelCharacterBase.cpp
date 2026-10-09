@@ -116,6 +116,18 @@ FText AVaelCharacterBase::GetStatusText() const
 	{
 		Names.Add(TEXT("verlangsamt"));
 	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Marked))
+	{
+		Names.Add(TEXT("gezeichnet"));
+	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Feared))
+	{
+		Names.Add(TEXT("in Furcht"));
+	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Fevered))
+	{
+		Names.Add(TEXT("im Fieber"));
+	}
 
 	return FText::FromString(FString::Join(Names, TEXT(", ")));
 }

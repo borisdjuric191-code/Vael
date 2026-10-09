@@ -54,6 +54,12 @@ bool UVaelCombatStatics::CanDamage(const AActor* Attacker, const AActor* Target)
 		return Pawn != nullptr && Pawn->IsPlayerControlled();
 	};
 
+	// Creatures in fever turn on their own kind
+	if (!IsOnPlayerSide(Attacker) && !IsOnPlayerSide(Target) && HasStatus(Attacker, EVaelStatus::Fevered))
+	{
+		return true;
+	}
+
 	return IsOnPlayerSide(Attacker) != IsOnPlayerSide(Target);
 }
 

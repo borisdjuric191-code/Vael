@@ -104,8 +104,16 @@ public:
 			return InElement == EVaelElement::Fire || InElement == EVaelElement::Water;
 		}
 
+		if (Effect == EVaelGroundEffect::Blackwater)
+		{
+			return InElement == EVaelElement::Mark;
+		}
+
 		return Effect == EVaelGroundEffect::None && Element == InElement;
 	}
+
+	/** Condition the area lays on the enemies of its caster standing in it, None for most */
+	EVaelStatus GetInflictedStatus() const;
 
 private:
 
