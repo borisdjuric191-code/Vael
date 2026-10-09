@@ -80,6 +80,30 @@ enum class EVaelProjectileLook : uint8
 	MarkShard
 };
 
+/** What rises out of the ground where a strike of a spell lands */
+UENUM(BlueprintType)
+enum class EVaelStrikeLook : uint8
+{
+	/** One plain spike in the color of the element */
+	Spike,
+	/** A cluster of pale, leaning bone spikes over a violet glow, shards and motes rise, like the Knochendornen */
+	BoneSpikes,
+	/** A cluster of dark rock spikes with glowing edges over molten ground, lava splashes up, like the Magmariss */
+	MagmaSpikes
+};
+
+/** Own look of a burst around the caster, shown together with its impact effect */
+UENUM(BlueprintType)
+enum class EVaelNovaLook : uint8
+{
+	/** Only the outline of the burst */
+	Plain,
+	/** The ground cracks open in a widening ring, rocks break out and sink back amid dust, like the Erdbeben */
+	Quake,
+	/** A violet dome of pressure swells out of a black hole at the caster's feet, dark shards rise, like the Markstoß */
+	MarkPulse
+};
+
 /** Own look of a cone spell, shown together with its cast effect */
 UENUM(BlueprintType)
 enum class EVaelConeLook : uint8

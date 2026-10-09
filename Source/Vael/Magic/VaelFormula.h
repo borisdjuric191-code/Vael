@@ -309,6 +309,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Nova", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Nova"))
 	float NovaShake = 0.7f;
 
+	/** Own look of the burst, shown together with its impact effect */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Nova", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Nova"))
+	EVaelNovaLook NovaLook = EVaelNovaLook::Plain;
+
 	/** Wandering speed of the whirlwind in cm/s. At 0 it stands still and is placed at the aimed point, like a maw in a swamp. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vortex", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Vortex"))
 	float VortexSpeed = 476.0f;
@@ -360,6 +364,10 @@ public:
 	/** Reach of each spike in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spike Line", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::SpikeLine"))
 	float SpikeRadius = 105.0f;
+
+	/** What rises out of the ground at each spike */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spike Line", meta = (EditCondition = "Delivery == EVaelSpellDelivery::SpikeLine"))
+	EVaelStrikeLook SpikeLook = EVaelStrikeLook::Spike;
 
 	/** Reach of the storm around the caster in cm, plus the radius of the enemy */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))

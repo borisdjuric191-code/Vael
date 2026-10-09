@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Magic/VaelElementTypes.h"
 #include "VaelGroundStrike.generated.h"
 
 class UStaticMeshComponent;
@@ -74,6 +75,9 @@ public:
 	/** Lets the strike leave a patch on the ground when it lands and shake the camera. Call right after spawning. */
 	void SetAftermath(const FVaelStrikeAftermath& InAftermath, float InShake = 0.0f);
 
+	/** Chooses what rises where the strike lands instead of the plain spike. Call right after spawning. */
+	void SetLook(EVaelStrikeLook InLook) { Look = InLook; }
+
 private:
 
 	/** Hurts everything inside the radius and shows the spike */
@@ -103,4 +107,26 @@ private:
 	/** Scale of the warning disc and of the spike at full size */
 	FVector WarningScale = FVector::OneVector;
 	FVector SpikeScale = FVector::OneVector;
+
+	/** What rises where the strike lands */
+	EVaelStrikeLook Look = EVaelStrikeLook::Spike;
+
+	/** Builds the cluster of bone or rock spikes, its glow at the base and the debris it throws up */
+	void BuildSpikeCluster();
+
+	/** Spikes of the cluster; where each stands, how it leans, its height and width in cm */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> ClusterSpikes;
+
+	TArray<FVector> ClusterBases;
+	TArray<FRotator> ClusterLeans;
+	TArray<float> ClusterHeights;
+	TArray<float> ClusterWidths;
+
+	/** Glow on the ground at the foot of the cluster, and its light */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ClusterGlow;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UPointLightComponent> ClusterLight;
 };

@@ -292,6 +292,7 @@ FORMULAS = [
         "stun_duration": 0.4,
         "nova_radius": 4.6 * TILE,
         "nova_shake": 0.7,
+        "nova_look": unreal.VaelNovaLook.QUAKE,
     },
     {
         "asset": "DA_Formula_Wirbelsturm",
@@ -442,6 +443,7 @@ FORMULAS = [
         "spike_spacing": 0.9 * TILE,
         "spike_stagger": 0.07,
         "spike_radius": 0.75 * TILE,
+        "spike_look": unreal.VaelStrikeLook.MAGMA_SPIKES,
         "area_radius": 0.7 * TILE,
         "area_lifetime": 4.0,
         "area_damage_per_second": 12.0,
@@ -608,6 +610,7 @@ FORMULAS = [
         "spike_spacing": 0.9 * TILE,
         "spike_stagger": 0.055,
         "spike_radius": 0.75 * TILE,
+        "spike_look": unreal.VaelStrikeLook.BONE_SPIKES,
     },
     {
         "asset": "DA_Formula_Markstoss",
@@ -624,6 +627,7 @@ FORMULAS = [
         "knockback": 10.0 * TILE,
         "nova_radius": 5.2 * TILE,
         "nova_shake": 0.9,
+        "nova_look": unreal.VaelNovaLook.MARK_PULSE,
     },
 ]
 

@@ -4,9 +4,12 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
+#include "Components/PointLightComponent.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -28,6 +31,12 @@ namespace
 	/** Seconds the spike needs to shoot out of the ground, and the share of its time it spends sinking back at the end */
 	constexpr float SpikeRiseTime = 0.07f;
 	constexpr float SpikeSinkShare = 0.45f;
+
+	/** Spikes in a cluster of bone or rock, glow of the ground at their foot and its light in candela */
+	constexpr int32 ClusterSpikeCount = 4;
+	constexpr float ClusterBoneGlow = 2.5f;
+	constexpr float ClusterMagmaGlow = 4.0f;
+	constexpr float ClusterLightIntensity = 15.0f;
 }
 
 AVaelGroundStrike::AVaelGroundStrike()
@@ -166,7 +175,113 @@ void AVaelGroundStrike::Tick(float DeltaSeconds)
 
 		Spike->SetRelativeScale3D(FVector(SpikeScale.X, SpikeScale.Y, SpikeScale.Z * Height));
 		Spike->SetRelativeLocation(FVector(0.0f, 0.0f, SpikeHeight * 0.5f * Height));
+
+		// The spikes of a cluster grow along their lean, the glow at their foot dies as they sink
+		for (int32 SpikeIndex = 0; SpikeIndex < ClusterSpikes.Num(); ++SpikeIndex)
+		{
+			const float SpikeLength = FMath::Max(ClusterHeights[SpikeIndex] * Height, 1.0f);
+
+			ClusterSpikes[SpikeIndex]->SetRelativeLocation(ClusterBases[SpikeIndex] + ClusterLeans[SpikeIndex].RotateVector(FVector(0.0f, 0.0f, SpikeLength * 0.5f)));
+			ClusterSpikes[SpikeIndex]->SetRelativeScale3D(FVector(ClusterWidths[SpikeIndex], ClusterWidths[SpikeIndex], SpikeLength) / StrikeShapeSize);
+		}
+
+		if (ClusterGlow != nullptr)
+		{
+			VaelEffects::SetLookGlow(ClusterGlow, (Look == EVaelStrikeLook::BoneSpikes ? ClusterBoneGlow : ClusterMagmaGlow) * Sink);
+			ClusterLight->SetIntensity(ClusterLightIntensity * Sink * FMath::FRandRange(0.8f, 1.0f));
+		}
 	}
+}
+
+void AVaelGroundStrike::BuildSpikeCluster()
+{
+	UMaterialInterface* CoreMaterial = nullptr;
+	UMaterialInterface* GlowMaterial = nullptr;
+	VaelEffects::LoadLookMaterials(CoreMaterial, GlowMaterial);
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const bool bBone = Look == EVaelStrikeLook::BoneSpikes;
+	const FLinearColor GlowColor = MagicSettings->GetElementColor(bBone ? EVaelElement::Mark : EVaelElement::Fire);
+	const FLinearColor Bone(0.85f, 0.8f, 0.68f);
+	const FLinearColor Rock(0.1f, 0.07f, 0.06f);
+
+	// A big spike in the middle, smaller ones leaning out around it; bones are slender, rock is thick and its edges glow
+	const float FirstAngle = FMath::FRandRange(0.0f, 360.0f);
+	for (int32 SpikeIndex = 0; SpikeIndex < ClusterSpikeCount; ++SpikeIndex)
+	{
+		const bool bMain = SpikeIndex == 0;
+		const float Angle = FMath::DegreesToRadians(FirstAngle + SpikeIndex * 360.0f / (ClusterSpikeCount - 1) + FMath::FRandRange(-20.0f, 20.0f));
+		const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+
+		const float Height = SpikeHeight * (bMain ? 1.0f : FMath::FRandRange(0.45f, 0.75f)) * (bBone ? 1.1f : 0.9f);
+		const float Width = Radius * (bMain ? 0.55f : FMath::FRandRange(0.25f, 0.4f)) * (bBone ? 0.45f : 1.0f);
+		const float Lean = bMain ? 5.0f : FMath::FRandRange(bBone ? 15.0f : 10.0f, bBone ? 30.0f : 20.0f);
+		const FVector Base = bMain ? FVector::ZeroVector : Out * Radius * FMath::FRandRange(0.25f, 0.55f);
+		const FRotator Leaning = FRotationMatrix::MakeFromZ(Out * FMath::Tan(FMath::DegreesToRadians(Lean)) + FVector::UpVector).Rotator();
+
+		const auto AddSpike = [&](UMaterialInterface* Material, const FLinearColor& Color, float Glow, float Rim, float Grow)
+		{
+			UStaticMeshComponent* Shape = VaelEffects::AddLookShape(this, Material, Color, Glow, Rim);
+			Shape->SetStaticMesh(Spike->GetStaticMesh());
+			Shape->SetRelativeRotation(Leaning);
+			Shape->SetVisibility(true);
+
+			ClusterSpikes.Add(Shape);
+			ClusterBases.Add(Base);
+			ClusterLeans.Add(Leaning);
+			ClusterHeights.Add(Height * Grow);
+			ClusterWidths.Add(Width * Grow);
+		};
+
+		AddSpike(CoreMaterial, bBone ? Bone : Rock, bBone ? 0.15f : 0.0f, 0.0f, 1.0f);
+
+		if (!bBone)
+		{
+			AddSpike(GlowMaterial, GlowColor, 2.0f, 1.0f, 1.1f);
+		}
+	}
+
+	// The ground at the foot glows: violet for bone, molten for rock
+	ClusterGlow = VaelEffects::AddLookShape(this, GlowMaterial, GlowColor, bBone ? ClusterBoneGlow : ClusterMagmaGlow, bBone ? 1.0f : 0.4f);
+	ClusterGlow->SetRelativeLocation(FVector(0.0f, 0.0f, 3.0f));
+	ClusterGlow->SetRelativeScale3D(FVector(Radius * 1.6f, Radius * 1.6f, 8.0f) / StrikeShapeSize);
+	ClusterGlow->SetVisibility(true);
+
+	ClusterLight = NewObject<UPointLightComponent>(this);
+	ClusterLight->SetupAttachment(RootComponent);
+	ClusterLight->SetRelativeLocation(FVector(0.0f, 0.0f, 40.0f));
+	ClusterLight->SetMobility(EComponentMobility::Movable);
+	ClusterLight->SetIntensityUnits(ELightUnits::Candelas);
+	ClusterLight->SetLightColor(GlowColor);
+	ClusterLight->SetAttenuationRadius(Radius * 4.0f);
+	ClusterLight->SetCastShadows(false);
+	ClusterLight->RegisterComponent();
+
+	// Bone splinters fly and violet motes rise; or lava splashes up among chunks of rock
+	FVaelDebris Pieces;
+	Pieces.Count = bBone ? 6 : 5;
+	Pieces.Spread = Radius * 0.4f;
+	Pieces.Speed = 220.0f;
+	Pieces.Lift = 300.0f;
+	Pieces.MinSize = 4.0f;
+	Pieces.MaxSize = 9.0f;
+	Pieces.Color = bBone ? Bone : Rock;
+	Pieces.RockShare = bBone ? 0.0f : 0.4f;
+	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Pieces);
+
+	FVaelDebris Glowing;
+	Glowing.Count = bBone ? 6 : 9;
+	Glowing.Spread = Radius * 0.4f;
+	Glowing.Speed = bBone ? 120.0f : 260.0f;
+	Glowing.Lift = bBone ? 150.0f : 480.0f;
+	Glowing.Gravity = bBone ? -200.0f : 1100.0f;
+	Glowing.Lifetime = 0.75f;
+	Glowing.MinSize = bBone ? 3.0f : 5.0f;
+	Glowing.MaxSize = bBone ? 6.0f : 10.0f;
+	Glowing.Color = bBone ? GlowColor : FMath::Lerp(GlowColor, FLinearColor(1.0f, 0.85f, 0.4f), 0.4f);
+	Glowing.Glow = bBone ? 5.0f : 6.0f;
+	Glowing.bLandOnGround = !bBone;
+	AVaelDebrisBurst::Spawn(this, GetActorLocation() + FVector(0.0f, 0.0f, 10.0f), Glowing);
 }
 
 void AVaelGroundStrike::Strike()
@@ -183,6 +298,10 @@ void AVaelGroundStrike::Strike()
 		const FVector Sky = Ground + FVector(FMath::FRandRange(-150.0f, 150.0f), FMath::FRandRange(-150.0f, 150.0f), StrikeLightningHeight);
 
 		AVaelLightningBolt::Spawn(GetOwner(), Sky, Ground, UVaelMagicSettings::Get()->GetElementColor(Hit.Element), 0.3f, 1.6f, true);
+	}
+	else if (Look != EVaelStrikeLook::Spike)
+	{
+		BuildSpikeCluster();
 	}
 	else
 	{

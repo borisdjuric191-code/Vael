@@ -23,6 +23,7 @@
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelGroundShock.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelRockWall.h"
@@ -725,7 +726,10 @@ void UVaelFormulaAbility::HitNova(const UVaelFormula& Formula, AActor* Caster, f
 	const FVaelLoadedEffects Effects = Formula.LoadEffects();
 	VaelEffects::PlaySound(Caster, Effects.ImpactSound, Center);
 
-	if (VaelEffects::SpawnAt(Caster, Effects.Impact, Feet, FRotator::ZeroRotator, Effects.Color, Formula.NovaRadius) != nullptr)
+	const bool bHasImpact = VaelEffects::SpawnAt(Caster, Effects.Impact, Feet, FRotator::ZeroRotator, Effects.Color, Formula.NovaRadius) != nullptr;
+
+	// The burst's own look runs over the ground together with the impact effect
+	if (AVaelGroundShock::Spawn(Caster, Feet, Formula.NovaRadius, Formula.NovaLook, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement)) != nullptr || bHasImpact)
 	{
 		return;
 	}
@@ -820,6 +824,10 @@ void UVaelFormulaAbility::CallSpikeLine(const UVaelFormula& Formula, AActor* Cas
 		}
 
 		AVaelGroundStrike* Spike = AVaelGroundStrike::SpawnStrike(CasterPawn, GroundHit.Location, Hit, Formula.SpikeRadius, Formula.SpikeStagger * SpikeIndex, Color);
+		if (Spike != nullptr)
+		{
+			Spike->SetLook(Formula.SpikeLook);
+		}
 
 		// A rift of lava: every second spike leaves its patch, so the patches touch without piling up
 		if (Spike != nullptr && Formula.AreaRadius > 0.0f && SpikeIndex % 2 == 1)
