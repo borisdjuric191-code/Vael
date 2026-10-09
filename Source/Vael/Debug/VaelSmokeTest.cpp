@@ -24,6 +24,9 @@
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelRegion.h"
+#include "Story/VaelNpc.h"
+#include "Story/VaelQuestMarker.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
@@ -302,6 +305,98 @@ void AVaelSmokeTest::BeginPlay()
 		const float Angle = FMath::RadiansToDegrees(FMath::Acos(FVector::DotProduct(Player->GetActorForwardVector().GetSafeNormal2D(), ToTarget)));
 		return FString::Printf(TEXT("%slocked on %s at %.0f cm, player faces it within %.0f degrees"), Angle > 20.0f ? TEXT("FAILED: ") : TEXT(""),
 			*GetNameSafe(Target), FVector::Dist2D(Target->GetActorLocation(), Player->GetActorLocation()), Angle);
+	}, 0.1f });
+
+	// The main story of Act I once through: real talks with Edda, the village marker reached by walking there, the rest reported
+	Steps.Add({ TEXT("Quests first half"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+		AVaelNpc* Edda = nullptr;
+		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+		{
+			Edda = *It;
+		}
+
+		AVaelQuestMarker* Village = nullptr;
+		for (TActorIterator<AVaelQuestMarker> It(GetWorld()); It; ++It)
+		{
+			Village = It->GetMarkerId() == TEXT("Dorf") ? *It : Village;
+		}
+
+		if (Player == nullptr || Quests == nullptr || Edda == nullptr || Village == nullptr)
+		{
+			return FString(TEXT("FAILED: no player, quests, Edda or village marker"));
+		}
+
+		const FString Before = Quests->Describe();
+
+		Edda->Interact(Player);
+		for (int32 Cast = 0; Cast < 3; ++Cast)
+		{
+			Quests->NotifyCast(NAME_None);
+		}
+		Edda->Interact(Player);
+
+		for (int32 Kill = 0; Kill < 6; ++Kill)
+		{
+			Quests->NotifyKill(TEXT("Glutkriecher"));
+		}
+		for (int32 Kill = 0; Kill < 3; ++Kill)
+		{
+			Quests->NotifyKill(TEXT("Aschharpyie"));
+		}
+		Edda->Interact(Player);
+
+		// Beside the marker, on the road: the marker itself stands at the well
+		bool bArrived = false;
+		for (const FVector Offset : { FVector(350.0f, 0.0f, 0.0f), FVector(-350.0f, 0.0f, 0.0f), FVector(0.0f, 350.0f, 0.0f), FVector(0.0f, -350.0f, 0.0f) })
+		{
+			if (Player->TeleportTo(Village->GetActorLocation() + Offset + FVector(0.0f, 0.0f, 60.0f), Player->GetActorRotation()))
+			{
+				bArrived = true;
+				break;
+			}
+		}
+
+		return FString::Printf(TEXT("before: %s; %s"), *Before, bArrived ? TEXT("walking to the village") : TEXT("could not get into the village"));
+	}, 1.2f });
+
+	Steps.Add({ TEXT("Quests second half"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+		AVaelNpc* Edda = nullptr;
+		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+		{
+			Edda = *It;
+		}
+
+		const UVaelQuest* Village = Quests != nullptr ? Quests->FindQuest(TEXT("Q3_Kesselgrund")) : nullptr;
+		if (Player == nullptr || Edda == nullptr || Village == nullptr)
+		{
+			return FString(TEXT("FAILED: no player, Edda or quest Q3"));
+		}
+
+		const bool bReachedByWalking = Quests->GetProgress(Village).Step >= 1;
+
+		Quests->NotifyReach(TEXT("Brunnen"));
+		Edda->Interact(Player);
+
+		Quests->NotifyReach(TEXT("Orden"));
+		for (int32 Kill = 0; Kill < 3; ++Kill)
+		{
+			Quests->NotifyKill(TEXT("Prediger"));
+		}
+		Edda->Interact(Player);
+
+		Quests->NotifyReach(TEXT("Krater"));
+		Quests->NotifyKill(TEXT("Glutkoenigin"));
+		Edda->Interact(Player);
+
+		const UVaelQuest* Last = Quests->FindQuest(TEXT("Q5_DieMutter"));
+		const bool bOk = bReachedByWalking && Last != nullptr && Quests->GetProgress(Last).bDone;
+		return FString::Printf(TEXT("%svillage marker %s; %s"), bOk ? TEXT("") : TEXT("FAILED: "), bReachedByWalking ? TEXT("reached by walking") : TEXT("NOT reached"), *Quests->Describe());
 	}, 0.1f });
 
 	// Glowing stones: water lets out their heat and they stop giving fire, fire heats them up again

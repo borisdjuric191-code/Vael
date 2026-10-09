@@ -12,6 +12,7 @@
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 #include "Story/VaelDialogue.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "World/VaelProgressSubsystem.h"
 
 namespace
@@ -95,6 +96,11 @@ void AVaelNpc::Interact(AVaelCharacter* Player)
 		return;
 	}
 
+	// A quest waiting for this talk speaks first
+	TArray<FText> QuestLines;
+	UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+	const bool bQuestTalk = Quests != nullptr && Quests->TakeTalk(GetSpeakerKey(), QuestLines);
+
 	// The first talk is the intro, later ones give the hints that fit now
 	TArray<FText> Lines;
 	if (!Progress->HasHeardIntro(GetSpeakerKey()) && !Dialogue->IntroLines.IsEmpty())
@@ -102,10 +108,12 @@ void AVaelNpc::Interact(AVaelCharacter* Player)
 		Lines = Dialogue->IntroLines;
 		Progress->MarkIntroHeard(GetSpeakerKey());
 	}
-	else
+	else if (!bQuestTalk || QuestLines.IsEmpty())
 	{
 		Lines = Dialogue->GatherHints(GetWorld());
 	}
+
+	Lines.Append(QuestLines);
 
 	if (Lines.IsEmpty())
 	{
@@ -123,7 +131,10 @@ FText AVaelNpc::GetInteractPrompt() const
 bool AVaelNpc::HasNews() const
 {
 	const UVaelProgressSubsystem* Progress = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
-	return Dialogue != nullptr && !Dialogue->IntroLines.IsEmpty() && Progress != nullptr && !Progress->HasHeardIntro(GetSpeakerKey());
+	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+
+	return Dialogue != nullptr && ((!Dialogue->IntroLines.IsEmpty() && Progress != nullptr && !Progress->HasHeardIntro(GetSpeakerKey()))
+		|| (Quests != nullptr && Quests->IsWaitingForTalk(GetSpeakerKey())));
 }
 
 FText AVaelNpc::GetDisplayName() const

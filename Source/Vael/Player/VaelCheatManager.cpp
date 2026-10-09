@@ -19,6 +19,7 @@
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelMagicSettings.h"
 #include "UI/VaelNoticeSubsystem.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelFormulaScroll.h"
@@ -311,6 +312,27 @@ void UVaelCheatManager::VaelGear(const FString& Gear)
 	}
 
 	UE_LOG(LogVael, Log, TEXT("VaelGear: %s %s"), *Tag.ToString(), bWearing ? TEXT("taken off") : TEXT("put on"));
+}
+
+void UVaelCheatManager::VaelQuest(const FString& QuestId, int32 Step)
+{
+	UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(GetWorld());
+	if (Quests == nullptr)
+	{
+		return;
+	}
+
+	if (!QuestId.IsEmpty())
+	{
+		if (Quests->FindQuest(FName(*QuestId)) == nullptr)
+		{
+			UE_LOG(LogVael, Warning, TEXT("VaelQuest: no quest '%s'"), *QuestId);
+		}
+
+		Quests->SetStep(FName(*QuestId), Step - 1);
+	}
+
+	UE_LOG(LogVael, Log, TEXT("VaelQuest: %s"), *Quests->Describe());
 }
 
 void UVaelCheatManager::VaelAwakenMark()

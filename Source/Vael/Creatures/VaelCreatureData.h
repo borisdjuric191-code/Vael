@@ -31,6 +31,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
 	FName CompendiumId;
 
+	/** Kind of creature quests count, like "Glutkriecher" or "Prediger"; people have one too */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
+	FName KindId;
+
 	/** Class spawned for this kind of creature by spawners and console commands */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
 	TSubclassOf<AVaelCreature> CreatureClass;

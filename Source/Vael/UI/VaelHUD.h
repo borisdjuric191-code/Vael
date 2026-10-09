@@ -87,6 +87,9 @@ private:
 	/** Draws the compendium page of the menu: the three books, their entries and what the group knows about the selected one */
 	void DrawCompendium(const AVaelPlayerController* PlayerController);
 
+	/** The page of the quests in the grimoire: open quests with their steps, then the finished ones */
+	void DrawQuestLog(const AVaelPlayerController* PlayerController);
+
 	/** Draws a closed book of the compendium series: cover in its color, strap and seal; lit if it is the open one */
 	void DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float Width, float Height, bool bLit);
 
@@ -112,6 +115,9 @@ private:
 	static FText GetItemSlotName(EVaelItemSlot Slot);
 
 	void DrawRegionInfo();
+
+	/** The open quests under the region box, main story first */
+	void DrawQuestTracker();
 	void DrawCombatTexts();
 	void DrawWeather();
 

@@ -77,6 +77,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelGear(const FString& Gear);
 
+	/** Moves a quest to a step, counted from 1; a step past the last finishes it. Without arguments lists every quest. Example: VaelQuest Q2_DieBrut 3 */
+	UFUNCTION(Exec)
+	void VaelQuest(const FString& QuestId = TEXT(""), int32 Step = 0);
+
 	/** Awakens the Mark for the group as in Act III: the fifth element can be chosen and Mark formulas cast */
 	UFUNCTION(Exec)
 	void VaelAwakenMark();

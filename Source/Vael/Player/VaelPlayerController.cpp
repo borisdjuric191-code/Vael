@@ -757,7 +757,7 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 	if (bGrimoireOpen)
 	{
 		// The pages in a ring: right goes on, left goes back
-		const int32 NumPages = static_cast<int32>(EVaelMenuPage::Compendium) + 1;
+		const int32 NumPages = static_cast<int32>(EVaelMenuPage::Quests) + 1;
 		const int32 Step = Value.Get<float>() < 0.0f ? NumPages - 1 : 1;
 		MenuPage = static_cast<EVaelMenuPage>((static_cast<int32>(MenuPage) + Step) % NumPages);
 	}

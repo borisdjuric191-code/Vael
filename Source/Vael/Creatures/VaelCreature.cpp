@@ -10,6 +10,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Compendium/VaelCompendiumSettings.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "Creatures/VaelCreatureData.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/GameInstance.h"
@@ -406,6 +407,11 @@ void AVaelCreature::Die()
 		if (UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this))
 		{
 			Compendium->AddSample(ActiveData->CompendiumId);
+		}
+
+		if (UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this))
+		{
+			Quests->NotifyKill(ActiveData->KindId);
 		}
 
 		// Remembered for a while, so the Mark can raise it

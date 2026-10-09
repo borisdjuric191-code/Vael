@@ -17,7 +17,9 @@ enum class EVaelMenuPage : uint8
 	/** Equipment and backpack of the player */
 	Inventory,
 	/** Albrun's compendium of creatures, plants and stones */
-	Compendium
+	Compendium,
+	/** The quests of the group */
+	Quests
 };
 
 class AVaelSharedCamera;

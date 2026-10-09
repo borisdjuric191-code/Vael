@@ -12,6 +12,7 @@
 UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 {
 	DisplayName = LOCTEXT("EmberCrawler", "Glutkriecher");
+	KindId = TEXT("Glutkriecher");
 	CompendiumId = TEXT("Glutkriecher");
 	CreatureClass = AVaelEmberCrawler::StaticClass();
 
@@ -30,6 +31,7 @@ UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 UVaelAshHarpyData::UVaelAshHarpyData()
 {
 	DisplayName = LOCTEXT("AshHarpy", "Aschharpyie");
+	KindId = TEXT("Aschharpyie");
 	CompendiumId = TEXT("Aschharpyie");
 	CreatureClass = AVaelAshHarpy::StaticClass();
 
@@ -48,6 +50,7 @@ UVaelAshHarpyData::UVaelAshHarpyData()
 UVaelHarpyElderData::UVaelHarpyElderData()
 {
 	DisplayName = LOCTEXT("HarpyElder", "Harpyien-\u00C4lteste");
+	KindId = TEXT("HarpyienAelteste");
 	CompendiumId = TEXT("HarpyienAelteste");
 
 	MaxHealth = 180.0f;
@@ -77,6 +80,7 @@ UVaelHarpyElderData::UVaelHarpyElderData()
 UVaelPreacherData::UVaelPreacherData()
 {
 	DisplayName = LOCTEXT("Preacher", "Prediger der Narbe");
+	KindId = TEXT("Prediger");
 	CreatureClass = AVaelPreacher::StaticClass();
 
 	MaxHealth = 85.0f;
@@ -96,6 +100,7 @@ UVaelPreacherData::UVaelPreacherData()
 UVaelEmberQueenData::UVaelEmberQueenData()
 {
 	DisplayName = LOCTEXT("EmberQueen", "Glutk\u00F6nigin");
+	KindId = TEXT("Glutkoenigin");
 	CompendiumId = TEXT("Glutkoenigin");
 	CreatureClass = AVaelEmberQueen::StaticClass();
 
@@ -122,6 +127,7 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 UVaelSourceGuardianData::UVaelSourceGuardianData()
 {
 	DisplayName = LOCTEXT("SourceGuardian", "Quellwächter");
+	KindId = TEXT("Quellwaechter");
 	CompendiumId = TEXT("Quellwaechter");
 	CreatureClass = AVaelSourceGuardian::StaticClass();
 

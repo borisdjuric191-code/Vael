@@ -6,6 +6,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Compendium/VaelCompendiumSettings.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -293,6 +294,11 @@ void AVaelHarvestable::Interact(AVaelCharacter* Player)
 	if (UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this))
 	{
 		Compendium->AddSample(Data->CompendiumId);
+	}
+
+	if (UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this))
+	{
+		Quests->NotifyGather(Data->CompendiumId);
 	}
 
 	BecomeBare();

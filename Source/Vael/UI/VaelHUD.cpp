@@ -20,6 +20,7 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelInteractable.h"
 #include "Story/VaelNpc.h"
@@ -122,6 +123,7 @@ void AVaelHUD::DrawHUD()
 	DrawCreatureHealthBars();
 	DrawCombatTexts();
 	DrawRegionInfo();
+	DrawQuestTracker();
 
 	// One panel per player, side by side at the bottom
 	TArray<const AVaelPlayerController*> PlayerControllers;
@@ -445,6 +447,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 	if (PlayerController->GetMenuPage() == EVaelMenuPage::Compendium)
 	{
 		DrawCompendium(PlayerController);
+		return;
+	}
+
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Quests)
+	{
+		DrawQuestLog(PlayerController);
 		return;
 	}
 
@@ -930,6 +938,136 @@ void AVaelHUD::DrawRegionInfo()
 	DrawBox(Left + Padding, Top + Height - 12.0f * S, BarWidth * Region->GetCorruption() / 100.0f, 5.0f * S, Rgb(162, 77, 255));
 }
 
+namespace
+{
+	/** An objective with its count, like "Glutkriecher besiegen 3/6" */
+	FText GetObjectiveLine(const FVaelQuestStep& Step, const FVaelQuestProgress& Progress)
+	{
+		return Step.Count > 1 ? FText::Format(LOCTEXT("ObjectiveCount", "{0} {1}/{2}"), Step.Objective, Progress.Count, Step.Count) : Step.Objective;
+	}
+
+	/** Color of quest titles: warm parchment, like the notices */
+	const FLinearColor QuestTitleColor(FLinearColor(FColor(232, 205, 140)));
+}
+
+void AVaelHUD::DrawQuestTracker()
+{
+	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+	if (Quests == nullptr)
+	{
+		return;
+	}
+
+	const TArray<const UVaelQuest*> Open = Quests->GetOpenQuests();
+	if (Open.IsEmpty())
+	{
+		return;
+	}
+
+	// Under the region box, right aligned like it; at most three quests
+	const float S = UiScale;
+	const float Width = 240.0f * S;
+	const float Right = Canvas->ClipX - 16.0f * S;
+	float Y = 16.0f * S + 92.0f * S + 12.0f * S;
+
+	for (int32 Index = 0; Index < FMath::Min(Open.Num(), 3); ++Index)
+	{
+		const UVaelQuest* Quest = Open[Index];
+		const FVaelQuestStep* Step = Quests->GetCurrentStep(Quest);
+
+		DrawLabel(Quest->Title, Right, Y, 14.0f * S, Quest->bMainQuest ? QuestTitleColor : DimColor, 1.0f, Width);
+		DrawLabel(GetObjectiveLine(*Step, Quests->GetProgress(Quest)), Right, Y + 18.0f * S, 13.0f * S, BoneColor, 1.0f, Width);
+		Y += 42.0f * S;
+	}
+}
+
+void AVaelHUD::DrawQuestLog(const AVaelPlayerController* PlayerController)
+{
+	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+	if (Quests == nullptr)
+	{
+		return;
+	}
+
+	const float S = UiScale;
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 168));
+
+	const float Width = FMath::Min(GrimoireWidth * S, Canvas->ClipX - 32.0f * S);
+	const float Height = FMath::Min(640.0f * S, Canvas->ClipY - 32.0f * S);
+	const float Left = (Canvas->ClipX - Width) * 0.5f;
+	const float Top = (Canvas->ClipY - Height) * 0.5f;
+	const float Padding = 28.0f * S;
+	const float Bottom = Top + Height - Padding;
+	const float TextWidth = Width - 2.0f * Padding;
+
+	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawFrame(Left, Top, Width, Height, RimColor);
+	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
+
+	DrawLabel(LOCTEXT("QuestsEyebrow", "DIE GANZE GRUPPE TEILT IHRE AUFTRÄGE"), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
+	DrawLabel(LOCTEXT("QuestsTitle", "Aufträge"), Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
+	DrawMenuTabs(PlayerController, Left + Width - Padding, Top + 22.0f * S);
+
+	float Y = Top + 100.0f * S;
+	const TArray<const UVaelQuest*> Open = Quests->GetOpenQuests();
+
+	if (Open.IsEmpty())
+	{
+		DrawLabel(LOCTEXT("QuestsNone", "Gerade wartet kein Auftrag."), Left + Padding, Y, 14.0f * S, DimColor);
+		Y += 30.0f * S;
+	}
+
+	// Open quests: title, giver, what it is about, then the steps so far and the current one
+	for (const UVaelQuest* Quest : Open)
+	{
+		if (Y > Bottom - 60.0f * S)
+		{
+			break;
+		}
+
+		const FVaelQuestProgress Progress = Quests->GetProgress(Quest);
+		const FText Kind = Quest->bMainQuest ? LOCTEXT("QuestMain", "Hauptgeschichte") : LOCTEXT("QuestSide", "Nebenauftrag");
+
+		DrawLabel(Quest->Title, Left + Padding, Y, 20.0f * S, Quest->bMainQuest ? QuestTitleColor : BoneColor);
+		DrawLabel(FText::Format(LOCTEXT("QuestGiver", "{0} · {1}"), Kind, Quest->GiverName), Left + Width - Padding, Y + 5.0f * S, 12.0f * S, DimColor, 1.0f);
+		Y += 28.0f * S;
+
+		if (!Quest->Summary.IsEmpty())
+		{
+			Y = DrawWrappedLabel(Quest->Summary, Left + Padding, Y, 13.0f * S, Rgb(205, 189, 166), TextWidth) + 4.0f * S;
+		}
+
+		for (int32 StepIndex = 0; StepIndex <= Progress.Step && Quest->Steps.IsValidIndex(StepIndex); ++StepIndex)
+		{
+			const bool bCurrent = StepIndex == Progress.Step;
+			const FVaelQuestStep& Step = Quest->Steps[StepIndex];
+			const FText Line = bCurrent ? GetObjectiveLine(Step, Progress) : Step.Objective;
+
+			DrawLabel(bCurrent ? LOCTEXT("QuestStepNow", "›") : LOCTEXT("QuestStepDone", "·"), Left + Padding + 4.0f * S, Y, 14.0f * S, bCurrent ? EmberColor : DimColor);
+			DrawLabel(Line, Left + Padding + 20.0f * S, Y, 14.0f * S, bCurrent ? BoneColor : DimColor, 0.0f, TextWidth - 20.0f * S);
+			Y += 20.0f * S;
+		}
+
+		Y += 16.0f * S;
+	}
+
+	// Finished quests, only by name
+	TArray<FString> Finished;
+	for (const UVaelQuest* Quest : Quests->GetQuests())
+	{
+		if (Quests->GetProgress(Quest).bDone)
+		{
+			Finished.Add(Quest->Title.ToString());
+		}
+	}
+
+	if (!Finished.IsEmpty() && Y < Bottom - 30.0f * S)
+	{
+		DrawLabel(LOCTEXT("QuestsDone", "ERLEDIGT"), Left + Padding, Y, 12.0f * S, EmberColor);
+		DrawWrappedLabel(FText::FromString(FString::Join(Finished, TEXT(" · "))), Left + Padding, Y + 18.0f * S, 13.0f * S, DimColor, TextWidth);
+	}
+}
+
 void AVaelHUD::DrawWeather()
 {
 	const APawn* FirstPawn = GetOwningPawn();
@@ -1106,6 +1244,7 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 	// Right aligned, last page first: the pages, then the switch buttons; the open page is lit
 	const TPair<EVaelMenuPage, FText> Pages[] =
 	{
+		{ EVaelMenuPage::Quests, LOCTEXT("TabQuests", "AUFTRÄGE") },
 		{ EVaelMenuPage::Compendium, LOCTEXT("TabCompendium", "KOMPENDIUM") },
 		{ EVaelMenuPage::Inventory, LOCTEXT("TabInventory", "INVENTAR") },
 		{ EVaelMenuPage::Formulas, LOCTEXT("TabFormulas", "FORMELN") },

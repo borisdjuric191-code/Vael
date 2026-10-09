@@ -19,6 +19,7 @@
 #include "NiagaraSystem.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelNoticeSubsystem.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "World/VaelRegion.h"
@@ -225,6 +226,11 @@ bool AVaelMarkSource::Seal()
 	}
 
 	UE_LOG(LogVael, Log, TEXT("Mark source '%s' is sealed"), *GetNameSafe(this));
+
+	if (UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this))
+	{
+		Quests->NotifyEvent(TEXT("QuelleVersiegelt"));
+	}
 
 	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelWorld", "SourceSealed", "Die Mark-Quelle ist versiegelt"),
 		NSLOCTEXT("VaelWorld", "SourceSealedDetail", "Die Wunde schließt sich, das Land atmet auf."), FLinearColor(FColor(159, 224, 168)), 4.0f);

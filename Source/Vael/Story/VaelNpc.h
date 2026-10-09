@@ -54,7 +54,7 @@ public:
 	virtual FText GetInteractPrompt() const override;
 	//~End IVaelInteractable
 
-	/** True while the person has not told their first talk yet; the HUD shows a "!" over them */
+	/** True while the person has not told their first talk yet, or a quest waits for a talk with them; the HUD shows a "!" over them */
 	bool HasNews() const;
 
 	/** Name shown over the person */

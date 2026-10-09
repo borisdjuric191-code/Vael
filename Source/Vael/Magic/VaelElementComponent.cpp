@@ -17,6 +17,7 @@
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Magic/VaelMagicSettings.h"
 #include "UI/VaelNoticeSubsystem.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "Vael.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
@@ -289,6 +290,11 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 	{
 		const float Health = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetHealthAttribute());
 		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), FMath::Max(1.0f, Health - Formula->HealthCost));
+	}
+
+	if (UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this))
+	{
+		Quests->NotifyCast(Formula->GetFName());
 	}
 
 	return EVaelCastResult::Success;
