@@ -200,6 +200,9 @@ public:
 	/** True while this player reads a dialogue */
 	bool IsInDialogue() const { return !DialogueLines.IsEmpty(); }
 
+	/** Closes the dialogue at once, as if all lines were read, and lets the game run again */
+	void EndDialogue();
+
 	/** Name of the person speaking */
 	const FText& GetDialogueSpeaker() const { return DialogueSpeaker; }
 

@@ -851,6 +851,16 @@ void AVaelPlayerController::OnDialogueContinue()
 	}
 
 	// The last line was read
+	EndDialogue();
+}
+
+void AVaelPlayerController::EndDialogue()
+{
+	if (!IsInDialogue())
+	{
+		return;
+	}
+
 	DialogueLines.Reset();
 	DialogueIndex = 0;
 

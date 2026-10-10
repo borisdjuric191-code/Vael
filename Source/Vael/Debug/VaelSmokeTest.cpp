@@ -37,6 +37,16 @@ namespace
 	/** Seconds before the first step, so the level and the player are ready */
 	constexpr float SmokeWarmUp = 3.0f;
 
+	/** Talks to a person and reads the whole dialogue at once, so the game does not stay paused */
+	void SmokeTalk(AVaelNpc* Npc, AVaelCharacter* Player)
+	{
+		Npc->Interact(Player);
+		if (AVaelPlayerController* Controller = Player->GetController<AVaelPlayerController>())
+		{
+			Controller->EndDialogue();
+		}
+	}
+
 	/** Seconds each creature fights, each formula plays out, and the idle time before the actors are counted */
 	constexpr float SmokeFightTime = 6.0f;
 	constexpr float SmokeCastTime = 3.5f;
@@ -331,12 +341,12 @@ void AVaelSmokeTest::BeginPlay()
 
 		const FString Before = Quests->Describe();
 
-		Edda->Interact(Player);
+		SmokeTalk(Edda, Player);
 		for (int32 Cast = 0; Cast < 3; ++Cast)
 		{
 			Quests->NotifyCast(NAME_None);
 		}
-		Edda->Interact(Player);
+		SmokeTalk(Edda, Player);
 
 		for (int32 Kill = 0; Kill < 6; ++Kill)
 		{
@@ -346,7 +356,7 @@ void AVaelSmokeTest::BeginPlay()
 		{
 			Quests->NotifyKill(TEXT("Aschharpyie"));
 		}
-		Edda->Interact(Player);
+		SmokeTalk(Edda, Player);
 
 		// Beside the marker, on the road: the marker itself stands at the well
 		bool bArrived = false;
@@ -381,18 +391,18 @@ void AVaelSmokeTest::BeginPlay()
 		const bool bReachedByWalking = Quests->GetProgress(Village).Step >= 1;
 
 		Quests->NotifyReach(TEXT("Brunnen"));
-		Edda->Interact(Player);
+		SmokeTalk(Edda, Player);
 
 		Quests->NotifyReach(TEXT("Orden"));
 		for (int32 Kill = 0; Kill < 3; ++Kill)
 		{
 			Quests->NotifyKill(TEXT("Prediger"));
 		}
-		Edda->Interact(Player);
+		SmokeTalk(Edda, Player);
 
 		Quests->NotifyReach(TEXT("Krater"));
 		Quests->NotifyKill(TEXT("Glutkoenigin"));
-		Edda->Interact(Player);
+		SmokeTalk(Edda, Player);
 
 		const UVaelQuest* Last = Quests->FindQuest(TEXT("Q5_DieMutter"));
 		const bool bOk = bReachedByWalking && Last != nullptr && Quests->GetProgress(Last).bDone;
