@@ -37,7 +37,7 @@ Die vollständige Lore und alle Designentscheidungen stehen in der **Lore-Bibel*
 4. Nichts löschen, keine Engine-Dateien ändern, keine Pakete installieren, ohne vorher zu fragen.
 5. Sparsam mit dem Kontingent umgehen: keine riesigen Logs komplett einlesen, nur die relevanten Fehlerzeilen. Bei Kompilierfehlern zuerst die erste Fehlermeldung beheben.
 6. Am Ende jeder Aufgabe in 2–4 Sätzen melden: was gebaut wurde, ob es kompiliert, was Boris im Editor testen soll.
-7. Der PC hat derzeit 16 GB RAM (32 GB sind bestellt): Kompilieren nicht parallel zum offenen Editor erzwingen, wenn es eng wird.
+7. Der PC hat 32 GB RAM (seit 10. Oktober 2026). Kompilieren und Skripte ohne Oberfläche brauchen trotzdem einen geschlossenen Editor (gesperrte DLLs und Assets): Boris bitten, ihn zu schließen, nie selbst beenden.
 
 ## Erster Meilenstein: „Aschenmark spielbar“
 Ziel: Der Browser-Prototyp (Magier, Aschenmark, Glutkönigin, Koop) in Unreal nachgebaut, mit Platzhalter-Grafik.
