@@ -32,6 +32,44 @@ public:
 	/** Color of its label and placeholder look */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Material")
 	FLinearColor Color = FLinearColor(0.91f, 0.82f, 0.61f);
+
+	/** Share of the maximum health a potion heals when drunk with the potion button; 0 for materials that are no potion */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Potion", meta = (ClampMin = 0, ClampMax = 1))
+	float HealFraction = 0.0f;
+
+	bool IsPotion() const { return HealFraction > 0.0f; }
+};
+
+/** One thing a trader sells */
+USTRUCT(BlueprintType)
+struct FVaelShopOffer
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shop")
+	TSoftObjectPtr<UVaelMaterial> Material;
+
+	/** Price in guild coins */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shop", meta = (ClampMin = 0))
+	int32 Price = 5;
+};
+
+/**
+ *  What a trader like Maren Holt sells for guild coins. Each player buys with their own purse into their own bag.
+ */
+UCLASS(BlueprintType)
+class UVaelShop : public UPrimaryDataAsset
+{
+	GENERATED_BODY()
+
+public:
+
+	/** Name over the shop page, like "Gildenkontor" */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shop")
+	FText Title;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shop")
+	TArray<FVaelShopOffer> Offers;
 };
 
 /** One possible drop of a creature */

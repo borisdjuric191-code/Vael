@@ -208,6 +208,13 @@ void AVaelHUD::DrawPlayerPanel(const AVaelPlayerController* PlayerController, co
 	DrawLabel(FText::Format(LOCTEXT("PlayerLabel", "Spieler {0} \u00B7 {1}"), PlayerController->GetPlayerSlot() + 1, GetDeviceName(Glyphs)),
 		CenterX, Y + 7.0f * S, 12.0f * S, DimColor, 0.5f, InnerWidth);
 
+	// Healing potions above the health orb, with the button that drinks them
+	const FText PotionButton = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("PotionKeyboard", "Q")
+		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("PotionPlayStation", "L1") : LOCTEXT("PotionXbox", "LB");
+	const int32 NumPotions = Player->GetPotionCount();
+	DrawLabel(FText::Format(LOCTEXT("PotionCount", "{0} \u00B7 Tr\u00E4nke {1}"), PotionButton, NumPotions), X + 8.0f * S, Y + 7.0f * S, 12.0f * S,
+		NumPotions > 0 ? Rgb(150, 214, 140) : Rgb(108, 94, 82));
+
 	// Legend: which button queues which element; Mark stays dim while it sleeps
 	const UVaelGrimoireSubsystem* LegendGrimoire = GetGrimoire();
 	const bool bMarkAwake = LegendGrimoire != nullptr && LegendGrimoire->IsMarkAwakened();
@@ -456,6 +463,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		return;
 	}
 
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Shop)
+	{
+		DrawShop(PlayerController);
+		return;
+	}
+
 	const float S = UiScale;
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
 	const UVaelElementComponent* Elements = Player->GetElementComponent();
@@ -593,6 +606,77 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 	DrawLabel(CloseHint, Left + Width - Padding, FooterY, 13.0f * S, DimColor, 1.0f);
 
 	DrawMaterialBag(Player, Left, Top, Width, Height);
+}
+
+void AVaelHUD::DrawShop(const AVaelPlayerController* PlayerController)
+{
+	const UVaelShop* Shop = PlayerController->GetOpenShop();
+	const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+	if (Shop == nullptr || Player == nullptr)
+	{
+		return;
+	}
+
+	const float S = UiScale;
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+	const int32 Coins = Player->GetInventory()->GetCoins();
+
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 168));
+
+	const float RowHeight = 34.0f * S;
+	const float Width = FMath::Min(GrimoireWidth * 0.8f * S, Canvas->ClipX - 32.0f * S);
+	const float Height = FMath::Min(150.0f * S + FMath::Max(Shop->Offers.Num(), 1) * RowHeight + 40.0f * S, Canvas->ClipY - 32.0f * S);
+	const float Left = (Canvas->ClipX - Width) * 0.5f;
+	const float Top = (Canvas->ClipY - Height) * 0.5f;
+	const float Padding = 28.0f * S;
+
+	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawFrame(Left, Top, Width, Height, RimColor);
+	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
+
+	DrawLabel(FText::Format(LOCTEXT("ShopEyebrow", "NUR GEGEN GILDENMÜNZEN · SPIELER {0}"), PlayerController->GetPlayerSlot() + 1), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
+	DrawLabel(Shop->Title, Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
+	DrawLabel(FText::Format(LOCTEXT("ShopCoins", "{0} Gildenmünzen"), Coins), Left + Width - Padding, Top + 56.0f * S, 14.0f * S, Rgb(232, 205, 140), 1.0f);
+
+	// Goods: name, what the bag holds of it, price; the selected row is lit
+	const float ListTop = Top + 100.0f * S;
+	for (int32 Index = 0; Index < Shop->Offers.Num(); ++Index)
+	{
+		const FVaelShopOffer& Offer = Shop->Offers[Index];
+		const UVaelMaterial* Goods = Offer.Material.LoadSynchronous();
+		if (Goods == nullptr)
+		{
+			continue;
+		}
+
+		const float RowY = ListTop + Index * RowHeight;
+		const bool bSelected = Index == PlayerController->GetShopSelection();
+		const bool bAffordable = Coins >= Offer.Price;
+
+		if (bSelected)
+		{
+			DrawBox(Left + Padding - 8.0f * S, RowY - 4.0f * S, Width - 2.0f * Padding + 16.0f * S, RowHeight - 4.0f * S, Rgb(44, 32, 26));
+			DrawFrame(Left + Padding - 8.0f * S, RowY - 4.0f * S, Width - 2.0f * Padding + 16.0f * S, RowHeight - 4.0f * S, EmberColor);
+		}
+
+		DrawDisc(FVector2D(Left + Padding + 6.0f * S, RowY + 11.0f * S), 6.0f * S, Goods->Color);
+		DrawLabel(Goods->DisplayName, Left + Padding + 22.0f * S, RowY + 2.0f * S, 16.0f * S, bAffordable ? BoneColor : DimColor);
+		DrawLabel(FText::Format(LOCTEXT("ShopOwned", "im Beutel: {0}"), Player->GetMaterialBag()->GetCount(Goods)), Left + Width * 0.55f, RowY + 5.0f * S, 12.0f * S, DimColor);
+		DrawLabel(FText::Format(LOCTEXT("ShopPrice", "{0} Münzen"), Offer.Price), Left + Width - Padding, RowY + 3.0f * S, 15.0f * S, bAffordable ? Rgb(232, 205, 140) : Rgb(140, 70, 60), 1.0f);
+	}
+
+	// What the selected thing is good for
+	if (Shop->Offers.IsValidIndex(PlayerController->GetShopSelection()))
+	{
+		if (const UVaelMaterial* Selected = Shop->Offers[PlayerController->GetShopSelection()].Material.LoadSynchronous())
+		{
+			DrawWrappedLabel(Selected->Description, Left + Padding, ListTop + Shop->Offers.Num() * RowHeight + 8.0f * S, 13.0f * S, Rgb(205, 189, 166), Width - 2.0f * Padding);
+		}
+	}
+
+	const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ShopConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ShopConfirmPlayStation", "✕") : LOCTEXT("ShopConfirmXbox", "A");
+	const FText Close = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ShopCloseKeyboard", "Esc") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ShopClosePlayStation", "○") : LOCTEXT("ShopCloseXbox", "B");
+	DrawLabel(FText::Format(LOCTEXT("ShopFooter", "{0}: kaufen · {1}: schließen"), Confirm, Close), Left + Width - Padding, Top + Height - 30.0f * S, 13.0f * S, DimColor, 1.0f);
 }
 
 void AVaelHUD::DrawMaterialBag(const AVaelCharacter* Player, float PanelLeft, float PanelTop, float PanelWidthOnScreen, float PanelHeightOnScreen)
@@ -1205,7 +1289,9 @@ void AVaelHUD::DrawInteractPrompts(const TArray<const AVaelPlayerController*>& P
 
 	for (const AVaelPlayerController* PlayerController : PlayerControllers)
 	{
-		const AActor* Target = UVaelInteractionSubsystem::FindNearest(PlayerController->GetPawn<AVaelCharacter>());
+		// On the gamepad the earth button interacts, but not in a fight
+		const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+		const AActor* Target = Glyphs == EVaelInputGlyphs::Keyboard ? UVaelInteractionSubsystem::FindNearest(PlayerController->GetPawn<AVaelCharacter>()) : PlayerController->GetPadInteractTarget();
 		const IVaelInteractable* Interactable = Cast<IVaelInteractable>(Target);
 		if (Interactable == nullptr)
 		{
@@ -1218,18 +1304,20 @@ void AVaelHUD::DrawInteractPrompts(const TArray<const AVaelPlayerController*>& P
 			continue;
 		}
 
-		// The button in the symbols of the player's device
-		const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
-		const FText Button = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("InteractKeyboard", "E")
-			: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("InteractPlayStation", "L1")
-			: LOCTEXT("InteractXbox", "LB");
+		// The button in the symbols of the player's device: E, or the earth button drawn as on the pad
+		const bool bKeyboard = Glyphs == EVaelInputGlyphs::Keyboard;
+		const FText Prompt = bKeyboard ? FText::Format(LOCTEXT("InteractPrompt", "E · {0}"), Interactable->GetInteractPrompt()) : Interactable->GetInteractPrompt();
+		const float SymbolWidth = bKeyboard ? 0.0f : 24.0f * S;
+		const float Width = MeasureLabel(Prompt, 14.0f * S) + 20.0f * S + SymbolWidth;
+		const float Left = Screen.X - Width * 0.5f;
 
-		const FText Prompt = FText::Format(LOCTEXT("InteractPrompt", "{0} · {1}"), Button, Interactable->GetInteractPrompt());
-		const float Width = MeasureLabel(Prompt, 14.0f * S) + 20.0f * S;
-
-		DrawBox(Screen.X - Width * 0.5f, Screen.Y - 12.0f * S, Width, 26.0f * S, Rgb(23, 17, 15, 220));
-		DrawFrame(Screen.X - Width * 0.5f, Screen.Y - 12.0f * S, Width, 26.0f * S, RimColor);
-		DrawLabel(Prompt, Screen.X, Screen.Y - 7.0f * S, 14.0f * S, BoneColor, 0.5f);
+		DrawBox(Left, Screen.Y - 12.0f * S, Width, 26.0f * S, Rgb(23, 17, 15, 220));
+		DrawFrame(Left, Screen.Y - 12.0f * S, Width, 26.0f * S, RimColor);
+		if (!bKeyboard)
+		{
+			DrawButtonSymbol(Glyphs, EVaelElement::Earth, FVector2D(Left + 18.0f * S, Screen.Y + 1.0f * S), 8.5f * S, BoneColor);
+		}
+		DrawLabel(Prompt, Left + 10.0f * S + SymbolWidth, Screen.Y - 7.0f * S, 14.0f * S, BoneColor, 0.0f);
 	}
 }
 

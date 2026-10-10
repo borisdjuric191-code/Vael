@@ -19,12 +19,15 @@ enum class EVaelMenuPage : uint8
 	/** Albrun's compendium of creatures, plants and stones */
 	Compendium,
 	/** The quests of the group */
-	Quests
+	Quests,
+	/** A trader's goods, only reached by talking to the trader; not part of the page ring */
+	Shop
 };
 
 class AVaelSharedCamera;
 class UVaelAutoAimComponent;
 class UVaelFormula;
+class UVaelShop;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
@@ -97,6 +100,10 @@ protected:
 	/** Interact Input Action: use a chest or another thing close by */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> InteractAction;
+
+	/** Drink a healing potion Input Action: Q; on the gamepad L1 / LB drinks while no element is queued */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PotionAction;
 
 	/** Cast a quick slot Input Actions: Z, X, C, V and the d-pad up, right, down, left */
 	UPROPERTY(Transient)
@@ -194,6 +201,18 @@ public:
 	/** Row of the compendium page the player has selected */
 	int32 GetCompendiumSelection() const { return CompendiumSelection; }
 
+	/** Row of the shop page the player has selected */
+	int32 GetShopSelection() const { return ShopSelection; }
+
+	/** Shop open on the shop page */
+	const UVaelShop* GetOpenShop() const { return OpenShop.Get(); }
+
+	/** Opens the shop page for this player right after the current dialogue, or at once without one */
+	void OpenShopAfterDialogue(const UVaelShop* Shop);
+
+	/** What the earth button of the gamepad uses instead of queueing earth right now: something close by, outside of fights or in a safe zone; null if nothing */
+	AActor* GetPadInteractTarget() const;
+
 	/** Shows lines of a person one after the other and pauses the game, until the player has read them all. Returns false while the game is paused. */
 	bool StartDialogue(const FText& Speaker, const TArray<FText>& Lines);
 
@@ -246,6 +265,7 @@ protected:
 	void OnCast();
 	void OnClearQueue();
 	void OnInteract();
+	void OnPotion();
 	void OnQuickSlot(int32 SlotIndex);
 	void OnToggleGrimoire();
 	void OnMenuNavigate(const FInputActionValue& Value);
@@ -316,6 +336,13 @@ protected:
 
 	/** Row of the compendium page the player has selected, counting through the books in order */
 	int32 CompendiumSelection = 0;
+
+	/** Selected row of the shop page, and the shop it shows */
+	int32 ShopSelection = 0;
+	TWeakObjectPtr<const UVaelShop> OpenShop;
+
+	/** Shop that opens once the current dialogue is read */
+	TWeakObjectPtr<const UVaelShop> PendingShop;
 
 	/** Dialogue being read: who speaks, the lines and the one shown */
 	FText DialogueSpeaker;

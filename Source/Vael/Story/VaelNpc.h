@@ -10,6 +10,7 @@
 class UCapsuleComponent;
 class UStaticMeshComponent;
 class UVaelDialogue;
+class UVaelShop;
 
 /**
  *  A person players can talk to, like Edda Krell in the camp. Placed in a level with a dialogue asset.
@@ -38,6 +39,10 @@ protected:
 	/** What the person says */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")
 	TObjectPtr<UVaelDialogue> Dialogue;
+
+	/** Goods the person sells for guild coins; the shop opens after each talk. Empty for people who sell nothing. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")
+	TObjectPtr<UVaelShop> Shop;
 
 	/** Color of the placeholder robe */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")

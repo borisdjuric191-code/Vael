@@ -121,6 +121,12 @@ void AVaelNpc::Interact(AVaelCharacter* Player)
 	}
 
 	PlayerController->StartDialogue(GetDisplayName(), Lines);
+
+	// A trader shows their goods once the talk is read
+	if (Shop != nullptr)
+	{
+		PlayerController->OpenShopAfterDialogue(Shop);
+	}
 }
 
 FText AVaelNpc::GetInteractPrompt() const

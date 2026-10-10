@@ -992,6 +992,20 @@ def dress_kontor(level_actors):
     marker.set_actor_label("Questziel Kontor")
 
 
+def place_safe_zones(level_actors):
+    """Camp and Gildenkontor are safe: creatures stay out and attack nobody inside (Boris, 2026-10-10). Maren gets her goods."""
+    for label, tile, radius_tiles in (("Schutzzone Lager", CAMP, CAMP_RADIUS + 1.0), ("Schutzzone Kontor", KONTOR, KONTOR_RADIUS + 1.0)):
+        zone = actors.spawn_actor_from_class(unreal.VaelSafeZone, world(tile[0], tile[1], 50.0), unreal.Rotator(0.0, 0.0, 0.0))
+        zone.set_editor_property("radius", radius_tiles * TILE)
+        zone.set_folder_path("Schutzzonen")
+        zone.set_actor_label(label)
+
+    shop = unreal.load_asset("/Game/Vael/Items/Shops/DA_Shop_Gildenkontor")
+    for actor in level_actors:
+        if isinstance(actor, unreal.VaelNpc) and actor.get_actor_label() == "Maren Holt":
+            actor.set_editor_property("shop", shop)
+
+
 def place_scrolls():
     """Scrolls of the sealed formulas Act I gained with the spell list (step 10b); the places match the hints of the formulas"""
     element = unreal.VaelElement
@@ -1065,6 +1079,8 @@ def dress():
         place_scrolls()
     if not done("Kontor/Kulisse"):
         dress_kontor(level_actors)
+    if not done("Schutzzonen"):
+        place_safe_zones(actors.get_all_level_actors())
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 

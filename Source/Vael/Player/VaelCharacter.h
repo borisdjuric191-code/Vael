@@ -162,6 +162,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Combat")
 	bool IsDowned() const { return bDowned; }
 
+	/** Drinks a healing potion from the bag if health is not full and the last one has worn off. Returns true if one was drunk. */
+	bool DrinkPotion();
+
+	/** Healing potions in the bag */
+	int32 GetPotionCount() const;
+
 	/** Gets a downed player back on their feet with the given health and some seconds of invulnerability */
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	void Revive(float Health, float InvulnerableSeconds);
@@ -182,6 +188,7 @@ public:
 	//~Begin AVaelCharacterBase
 	virtual bool IsInvulnerable() const override;
 	virtual bool IsDefeated() const override { return bDowned; }
+	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const override;
 	//~End AVaelCharacterBase
 
 	/** Tints the character and its marker */
@@ -241,6 +248,9 @@ private:
 
 	/** True while the player is down */
 	bool bDowned = false;
+
+	/** World time from which the next potion can be drunk */
+	float NextPotionTime = 0.0f;
 
 	/** Seconds a teammate has helped so far */
 	float ReviveProgress = 0.0f;

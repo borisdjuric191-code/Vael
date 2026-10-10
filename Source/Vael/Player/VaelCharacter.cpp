@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCharacter.h"
+#include "World/VaelSafeZone.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
@@ -18,6 +19,8 @@
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Items/VaelInventory.h"
+#include "Items/VaelItemSettings.h"
+#include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelElementOrbitComponent.h"
@@ -34,6 +37,7 @@
 #include "World/VaelGround.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Compendium/VaelCompendiumSettings.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 #include "VaelAssets.h"
@@ -149,6 +153,13 @@ void AVaelCharacter::BeginPlay()
 
 	DefaultMeshScale = GetMesh()->GetRelativeScale3D();
 	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
+
+	// Every player starts with a few healing potions in the bag
+	const UVaelItemSettings* ItemSettings = UVaelItemSettings::Get();
+	if (const UVaelMaterial* Potion = ItemSettings->StartingPotion.LoadSynchronous())
+	{
+		MaterialBag->AddMaterial(Potion, ItemSettings->StartingPotionCount);
+	}
 
 	ElementOrbit->SetRelativeLocation(FVector(0.f, 0.f, QueueOrbHeight));
 
@@ -606,4 +617,54 @@ void AVaelCharacter::UpdateFocus()
 	{
 		FocusLocation = GroundHit.Location;
 	}
+}
+
+float AVaelCharacter::GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const
+{
+	// Nothing hurts players in a safe zone like the camp
+	return AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation()) ? 0.0f : Super::GetIncomingDamageMultiplier(DamageTags);
+}
+
+int32 AVaelCharacter::GetPotionCount() const
+{
+	int32 Count = 0;
+	for (const FVaelMaterialStack& Stack : MaterialBag->GetStacks())
+	{
+		Count += Stack.Material != nullptr && Stack.Material->IsPotion() ? Stack.Count : 0;
+	}
+	return Count;
+}
+
+bool AVaelCharacter::DrinkPotion()
+{
+	if (bDowned || GetHealth() >= GetMaxHealth() || GetWorld()->GetTimeSeconds() < NextPotionTime)
+	{
+		return false;
+	}
+
+	// The weakest potion first, the strong ones are kept for later
+	const UVaelMaterial* Potion = nullptr;
+	for (const FVaelMaterialStack& Stack : MaterialBag->GetStacks())
+	{
+		if (Stack.Material != nullptr && Stack.Material->IsPotion() && Stack.Count > 0 && (Potion == nullptr || Stack.Material->HealFraction < Potion->HealFraction))
+		{
+			Potion = Stack.Material;
+		}
+	}
+
+	if (Potion == nullptr)
+	{
+		UVaelCombatTextSubsystem::PostPickup(this, NSLOCTEXT("VaelItems", "NoPotion", "Kein Heiltrank"), FLinearColor(FColor(158, 143, 125)));
+		NextPotionTime = GetWorld()->GetTimeSeconds() + 0.6f;
+		return false;
+	}
+
+	const float Amount = GetMaxHealth() * Potion->HealFraction;
+	MaterialBag->RemoveMaterial(Potion, 1);
+	UVaelCombatStatics::Heal(this, Amount);
+	UVaelCombatTextSubsystem::PostPickup(this, FText::Format(NSLOCTEXT("VaelItems", "PotionHeal", "+{0} Leben"), FText::AsNumber(FMath::RoundToInt(Amount))), FLinearColor(FColor(120, 230, 120)));
+	NextPotionTime = GetWorld()->GetTimeSeconds() + UVaelItemSettings::Get()->PotionCooldown;
+
+	UE_LOG(LogVael, Log, TEXT("'%s' drinks %s, %d left"), *GetNameSafe(this), *Potion->DisplayName.ToString(), GetPotionCount());
+	return true;
 }

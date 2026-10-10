@@ -38,6 +38,7 @@
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "World/VaelRegion.h"
+#include "World/VaelSafeZone.h"
 #include "World/VaelWorldSettings.h"
 #include "World/VaelGround.h"
 
@@ -555,6 +556,12 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 			return;
 		}
 
+		// Nobody attacks in a safe zone like the camp
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation()))
+		{
+			return;
+		}
+
 		// Players in the mist of a mage can't be made out from afar
 		if (AVaelGroundArea::IsHiddenInMist(Player, this))
 		{
@@ -598,7 +605,7 @@ float AVaelCreature::GetDistanceTo2D(const AActor* Other) const
 
 void AVaelCreature::MoveInDirection(const FVector& Direction, float Speed)
 {
-	const FVector GroundDirection = Direction.GetSafeNormal2D();
+	const FVector GroundDirection = AVaelSafeZone::KeepOut(GetWorld(), GetActorLocation(), Direction.GetSafeNormal2D(), GetCapsuleComponent()->GetScaledCapsuleRadius()).GetSafeNormal2D();
 	if (Speed <= 0.0f || GroundDirection.IsNearlyZero())
 	{
 		return;

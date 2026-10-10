@@ -66,6 +66,15 @@ MATERIALS = [
         "region": unreal.Text("Mark"),
         "color": color("a24dff"),
     },
+    # Sold by the Gildenkontor; every player starts with two
+    {
+        "asset": "DA_Material_Heiltrank",
+        "display_name": unreal.Text("Heiltrank"),
+        "description": unreal.Text("Kelchtau, abgekocht und mit Gildensiegel verkorkt. Heilt vier Zehntel des Lebens. Für den Notfall, nicht für jeden Kratzer."),
+        "region": unreal.Text("Vorrat"),
+        "color": color("d0443a"),
+        "heal_fraction": 0.4,
+    },
     # Creatures of the creature factory
     {
         "asset": "DA_Material_Spannfaden",

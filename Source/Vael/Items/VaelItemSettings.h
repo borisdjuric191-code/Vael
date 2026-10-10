@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "Items/VaelItemTypes.h"
+#include "Items/VaelMaterial.h"
 #include "VaelItemSettings.generated.h"
 
 /** A kind of item that can be rolled, like a robe or a ring */
@@ -69,4 +70,19 @@ public:
 	/** Players this close to something they can use, like a chest, get the prompt, in cm (prototype: 2 tiles) */
 	UPROPERTY(config, EditAnywhere, Category="Inventory", meta = (ClampMin = 0))
 	float InteractRange = 280.0f;
+
+	/** On the gamepad the earth button interacts instead when something is close, but only if no enemy is this close, in cm; in safe zones always */
+	UPROPERTY(config, EditAnywhere, Category="Inventory", meta = (ClampMin = 0))
+	float InteractCombatRange = 1200.0f;
+
+	/** Healing potion every player starts with, and how many */
+	UPROPERTY(config, EditAnywhere, Category="Potions")
+	TSoftObjectPtr<UVaelMaterial> StartingPotion = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Heiltrank.DA_Material_Heiltrank")));
+
+	UPROPERTY(config, EditAnywhere, Category="Potions", meta = (ClampMin = 0))
+	int32 StartingPotionCount = 2;
+
+	/** Seconds after drinking before the next potion */
+	UPROPERTY(config, EditAnywhere, Category="Potions", meta = (ClampMin = 0))
+	float PotionCooldown = 1.5f;
 };

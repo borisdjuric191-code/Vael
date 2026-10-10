@@ -15,7 +15,13 @@
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "InputModifiers.h"
 #include "InputTriggers.h"
+#include "Creatures/VaelCreature.h"
+#include "EngineUtils.h"
 #include "Items/VaelInventory.h"
+#include "Items/VaelItemSettings.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
+#include "World/VaelSafeZone.h"
 #include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelCheatManager.h"
@@ -123,6 +129,7 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCast);
 			EnhancedInputComponent->BindAction(ClearQueueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnClearQueue);
 			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnInteract);
+			EnhancedInputComponent->BindAction(PotionAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnPotion);
 
 			for (int32 SlotIndex = 0; SlotIndex < QuickSlotActions.Num(); ++SlotIndex)
 			{
@@ -245,9 +252,13 @@ void AVaelPlayerController::CreateInputAssets()
 	MappingContext->MapKey(ClearQueueAction, EKeys::Gamepad_LeftShoulder);
 	MappingContext->MapKey(ClearQueueAction, EKeys::RightMouseButton);
 
-	// Interact: E; on the gamepad L1 / LB, which interacts when something is close and discards the combo otherwise, like the prototype
+	// Interact: E; on the gamepad the earth button (Cross / A) interacts instead when something is close and no fight is going on
 	InteractAction = CreateAction(TEXT("IA_Interact"), EInputActionValueType::Boolean);
 	MappingContext->MapKey(InteractAction, EKeys::E);
+
+	// Healing potion: Q; on the gamepad L1 / LB drinks while no element is queued
+	PotionAction = CreateAction(TEXT("IA_Potion"), EInputActionValueType::Boolean);
+	MappingContext->MapKey(PotionAction, EKeys::Q);
 
 	// Quick slots on Z, X, C, V and the d-pad clockwise from up, like the browser prototype
 	const FKey QuickSlotPadKeys[] = { EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Right, EKeys::Gamepad_DPad_Down, EKeys::Gamepad_DPad_Left };
@@ -426,10 +437,52 @@ void AVaelPlayerController::OnLeave()
 
 void AVaelPlayerController::OnElement(EVaelElement Element)
 {
-	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned())
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr || VaelCharacter->IsDodging() || VaelCharacter->IsDowned())
 	{
-		VaelCharacter->GetElementComponent()->AddElement(Element);
+		return;
+	}
+
+	// On the gamepad the earth button uses what is close by instead, while no fight is going on
+	if (Element == EVaelElement::Earth && GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
+	{
+		if (IVaelInteractable* Interactable = Cast<IVaelInteractable>(GetPadInteractTarget()))
+		{
+			Interactable->Interact(VaelCharacter);
+			return;
+		}
+	}
+
+	VaelCharacter->GetElementComponent()->AddElement(Element);
+}
+
+AActor* AVaelPlayerController::GetPadInteractTarget() const
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	AActor* Target = VaelCharacter != nullptr ? UVaelInteractionSubsystem::FindNearest(VaelCharacter) : nullptr;
+	if (Target == nullptr || AVaelSafeZone::IsSafe(GetWorld(), VaelCharacter->GetActorLocation()))
+	{
+		return Target;
+	}
+
+	// In a fight the button stays earth, so a chest or a plant nearby doesn't swallow a spell
+	const float CombatRange = UVaelItemSettings::Get()->InteractCombatRange;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), VaelCharacter->GetActorLocation()) < CombatRange)
+		{
+			return nullptr;
+		}
+	}
+
+	return Target;
+}
+
+void AVaelPlayerController::OnPotion()
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	{
+		VaelCharacter->DrinkPotion();
 	}
 }
 
@@ -452,15 +505,15 @@ void AVaelPlayerController::OnClearQueue()
 		return;
 	}
 
-	// L1 / LB uses what is close by, otherwise it discards the combo; the right mouse button only discards
-	IVaelInteractable* Interactable = Cast<IVaelInteractable>(UVaelInteractionSubsystem::FindNearest(VaelCharacter));
-	if (Interactable != nullptr && GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
+	// L1 / LB discards queued elements; with none queued it drinks a healing potion. The right mouse button only discards.
+	UVaelElementComponent* Elements = VaelCharacter->GetElementComponent();
+	if (Elements->GetQueue().IsEmpty() && GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
 	{
-		Interactable->Interact(VaelCharacter);
+		VaelCharacter->DrinkPotion();
 		return;
 	}
 
-	VaelCharacter->GetElementComponent()->ClearQueue();
+	Elements->ClearQueue();
 }
 
 void AVaelPlayerController::OnInteract()
@@ -697,6 +750,11 @@ void AVaelPlayerController::CloseGrimoire()
 	}
 
 	bGrimoireOpen = false;
+	OpenShop.Reset();
+	if (MenuPage == EVaelMenuPage::Shop)
+	{
+		MenuPage = EVaelMenuPage::Formulas;
+	}
 
 	if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 	{
@@ -735,6 +793,13 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 		return;
 	}
 
+	if (MenuPage == EVaelMenuPage::Shop)
+	{
+		const int32 NumOffers = OpenShop.IsValid() ? OpenShop->Offers.Num() : 0;
+		ShopSelection = FMath::Clamp(ShopSelection + Step, 0, FMath::Max(NumOffers - 1, 0));
+		return;
+	}
+
 	if (MenuPage == EVaelMenuPage::Compendium)
 	{
 		const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
@@ -754,7 +819,7 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 
 void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 {
-	if (bGrimoireOpen)
+	if (bGrimoireOpen && MenuPage != EVaelMenuPage::Shop)
 	{
 		// The pages in a ring: right goes on, left goes back
 		const int32 NumPages = static_cast<int32>(EVaelMenuPage::Quests) + 1;
@@ -766,6 +831,24 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 void AVaelPlayerController::OnMenuConfirm()
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+
+	// Buying: from the own purse into the own bag
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Shop && VaelCharacter != nullptr && OpenShop.IsValid() && OpenShop->Offers.IsValidIndex(ShopSelection))
+	{
+		const FVaelShopOffer& Offer = OpenShop->Offers[ShopSelection];
+		const UVaelMaterial* Goods = Offer.Material.LoadSynchronous();
+		if (Goods != nullptr && VaelCharacter->GetInventory()->SpendCoins(Offer.Price))
+		{
+			VaelCharacter->GetMaterialBag()->AddMaterial(Goods, 1);
+			UE_LOG(LogVael, Log, TEXT("Player %d buys %s for %d coins"), PlayerSlot + 1, *Goods->DisplayName.ToString(), Offer.Price);
+		}
+		else
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelItems", "NotEnoughCoins", "Nicht genug Gildenmünzen"), FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
+		}
+		return;
+	}
+
 	if (!bGrimoireOpen || MenuPage != EVaelMenuPage::Inventory || VaelCharacter == nullptr)
 	{
 		return;
@@ -870,6 +953,34 @@ void AVaelPlayerController::EndDialogue()
 	}
 
 	UGameplayStatics::SetGamePaused(this, false);
+
+	// A trader opens their goods once the talk is over
+	if (const UVaelShop* Shop = PendingShop.Get())
+	{
+		PendingShop.Reset();
+		OpenShopAfterDialogue(Shop);
+	}
+}
+
+void AVaelPlayerController::OpenShopAfterDialogue(const UVaelShop* Shop)
+{
+	if (Shop == nullptr)
+	{
+		return;
+	}
+
+	if (IsInDialogue())
+	{
+		PendingShop = Shop;
+		return;
+	}
+
+	OpenShop = Shop;
+	ShopSelection = 0;
+	if (!OpenGrimoire(EVaelMenuPage::Shop))
+	{
+		OpenShop.Reset();
+	}
 }
 
 void AVaelPlayerController::OnMenuNavigateReleased()

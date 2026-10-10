@@ -24,9 +24,11 @@
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
 #include "Items/VaelInventory.h"
+#include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelRegion.h"
+#include "World/VaelSafeZone.h"
 #include "Story/VaelNpc.h"
 #include "Story/VaelQuestMarker.h"
 #include "Story/VaelQuestSubsystem.h"
@@ -474,6 +476,44 @@ void AVaelSmokeTest::BeginPlay()
 		const bool bOk = Earned == Contract->CoinReward && Progress.TimesDone == 1 && Progress.bActive && !Progress.bDone && Progress.Step == 0;
 		return FString::Printf(TEXT("%s%d coins earned, K1 done %d times, offered again: %s"), bOk ? TEXT("") : TEXT("FAILED: "), Earned, Progress.TimesDone,
 			Progress.bActive && !Progress.bDone ? TEXT("yes") : TEXT("no"));
+	}, 0.1f });
+
+	// Healing potion from the start, Maren's shop, and the camp as a safe zone
+	Steps.Add({ TEXT("Potion and safe zone"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		AVaelNpc* Edda = nullptr;
+		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+		{
+			Edda = It->GetDisplayName().ToString().StartsWith(TEXT("Edda")) ? *It : Edda;
+		}
+		if (Player == nullptr || Edda == nullptr)
+		{
+			return FString(TEXT("FAILED: no player or Edda"));
+		}
+
+		// Out in the field: hurt, then drink
+		Player->TeleportTo(StartLocation, StartRotation);
+		const int32 PotionsBefore = Player->GetPotionCount();
+		UVaelCombatStatics::DealDamage(nullptr, Player, Player->GetMaxHealth() * 0.6f, EVaelElement::Fire);
+		const float Hurt = Player->GetHealth();
+		const bool bDrank = Player->DrinkPotion();
+		const float Healed = Player->GetHealth() - Hurt;
+
+		// At the campfire nothing hurts
+		const FVector Camp = Edda->GetActorLocation() + Edda->GetActorForwardVector() * 150.0f;
+		Player->TeleportTo(Camp, Player->GetActorRotation());
+		const bool bSafe = AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation());
+		const float BeforeHit = Player->GetHealth();
+		UVaelCombatStatics::DealDamage(nullptr, Player, 30.0f, EVaelElement::Fire);
+		const bool bUnhurt = FMath::IsNearlyEqual(Player->GetHealth(), BeforeHit);
+		Player->TeleportTo(StartLocation, StartRotation);
+		RefillPlayer();
+
+		const UVaelShop* Shop = LoadObject<UVaelShop>(nullptr, TEXT("/Game/Vael/Items/Shops/DA_Shop_Gildenkontor.DA_Shop_Gildenkontor"));
+		const bool bOk = PotionsBefore >= 2 && bDrank && Healed > 1.0f && Player->GetPotionCount() == PotionsBefore - 1 && bSafe && bUnhurt && Shop != nullptr && !Shop->Offers.IsEmpty();
+		return FString::Printf(TEXT("%s%d potions at start, drank: %s (+%.0f), camp safe: %s, hurt in camp: %s, shop offers: %d"), bOk ? TEXT("") : TEXT("FAILED: "),
+			PotionsBefore, bDrank ? TEXT("yes") : TEXT("no"), Healed, bSafe ? TEXT("yes") : TEXT("no"), bUnhurt ? TEXT("no") : TEXT("YES"), Shop != nullptr ? Shop->Offers.Num() : 0);
 	}, 0.1f });
 
 	// Glowing stones: water lets out their heat and they stop giving fire, fire heats them up again

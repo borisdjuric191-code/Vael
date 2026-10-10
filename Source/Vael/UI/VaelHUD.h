@@ -90,6 +90,9 @@ private:
 	/** The page of the quests in the grimoire: open quests with their steps, then the finished ones */
 	void DrawQuestLog(const AVaelPlayerController* PlayerController);
 
+	/** Page of a trader: goods, prices, the purse and what the bag holds of each */
+	void DrawShop(const AVaelPlayerController* PlayerController);
+
 	/** Draws a closed book of the compendium series: cover in its color, strap and seal; lit if it is the open one */
 	void DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float Width, float Height, bool bLit);
 
