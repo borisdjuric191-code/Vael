@@ -19,14 +19,14 @@ Vael_Quellen\
 ## Ablauf pro Kreatur
 
 1. Tripo-Modell als FBX oder GLB in `02_tripo` legen.
-2. Eingabeaufforderung öffnen und ausführen (Pfad zu blender.exe ggf. anpassen):
+2. Eingabeaufforderung öffnen und ausführen:
    ```
-   "C:\Program Files\Blender Foundation\Blender 4.x\blender.exe" -b -P D:\Vael_Tools\blender\vael_kreatur_aufbereiten.py -- vorbereiten D:\Vael_Quellen\Spannhornkaefer
+   "C:\Users\boris\Tools\blender-5.2.2-windows-x64\blender.exe" -b -P C:\Projekte\Vael\Tools\Kreaturenfabrik\blender\vael_kreatur_aufbereiten.py -- vorbereiten C:\Projekte\Vael_Quellen\Spannhornkaefer
    ```
 3. `03_blender\Spannhornkaefer.blend` in Blender öffnen. Das Vorlage-Skelett sitzt grob, die Knochen bei Bedarf im Bearbeitungsmodus an Beine und Hörner schieben (ein paar Minuten). Speichern.
 4. Binden und exportieren:
    ```
-   "...\blender.exe" -b -P D:\Vael_Tools\blender\vael_kreatur_aufbereiten.py -- binden D:\Vael_Quellen\Spannhornkaefer
+   "C:\Users\boris\Tools\blender-5.2.2-windows-x64\blender.exe" -b -P C:\Projekte\Vael\Tools\Kreaturenfabrik\blender\vael_kreatur_aufbereiten.py -- binden C:\Projekte\Vael_Quellen\Spannhornkaefer
    ```
 5. In Unreal: Werkzeuge → Python-Skript ausführen → `unreal\vael_kreatur_import.py`, dann den Kreatur-Ordner wählen.
 
@@ -49,3 +49,13 @@ Vael_Quellen\
 - Unreal: Import in `/Game/Vael/Kreaturen/<Region>/<Name>/`, Physik-Asset, Material-Instanz (sobald das Master-Material existiert)
 
 Getestet: Blender-Skript mit Blender 5.1 an einem Ersatzmodell. Das Unreal-Skript ist noch ungetestet und läuft beim ersten echten Import zum ersten Mal.
+
+## Stand auf diesem PC (2026-10-10)
+
+- Diese Skripte liegen versioniert im Vael-Repo unter `Tools\Kreaturenfabrik\` – das ist die maßgebliche Fassung. `C:\Projekte\Vael_Tools` ist nur die erste, unversionierte Kopie.
+- Quellen jeder Kreatur (Tripo-Export, .blend, Export-FBX, Testbilder) liegen in `C:\Projekte\Vael_Quellen\<Name>\`, außerhalb des Repos.
+- Blender 5.2.2 LTS portabel unter `C:\Users\boris\Tools\blender-5.2.2-windows-x64\` (keine Installation, keine Admin-Rechte nötig). Das Skript `vorbereiten` ist damit getestet.
+- Unreal-Schritte ohne offenen Editor (`UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="..."`):
+  - Master-Material einmalig: `unreal/vael_kreatur_master.py`
+  - Import: `unreal/vael_kreatur_import.py C:/Projekte/Vael_Quellen/<Name>` – mit `--nur-material` nur Material-Instanz und Slots erneuern
+  - Testbilder: `UnrealEditor.exe Vael.uproject "-ExecCmds=py <Pfad>/unreal/vael_kreatur_testbild.py"` (Testmap L_Kreaturentest; Pfade im Skript anpassen)
