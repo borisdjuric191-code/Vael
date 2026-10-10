@@ -39,6 +39,7 @@ Vael_Quellen\
 | `drehung_z_grad` | falls das Tripo-Modell falsch herum schaut (z. B. 180) |
 | `tripo_rig_verwenden` | `true`, wenn Tripos Sechsbeiner-Rig gut sitzt; sonst baut das Skript das Vorlage-Skelett |
 | `tripo_prompt` | der englische Prompt für das Konzeptbild |
+| `bein_radius` | optional, Anteil der Körperlänge (z. B. 0.075): Beinknochen bewegen nur Punkte in diesem Abstand, alles andere gehört zum Körper. Nötig bei großem Hinterleib (Glutkönigin), sonst flattert er mit den Hinterbeinen |
 
 ## Was die Skripte erledigen
 

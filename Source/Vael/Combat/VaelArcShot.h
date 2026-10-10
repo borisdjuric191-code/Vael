@@ -11,7 +11,7 @@ class UStaticMeshComponent;
 /**
  *  A shot lobbed in an arc, like the one of the Spannhornkaefer. Only the look: it flies from start to end
  *  in a fixed time and vanishes; the damage comes from the ground strike that marks the impact.
- *  Placeholder look: a small sphere of the engine shapes that tumbles.
+ *  Placeholder look: a stretched sphere of the engine shapes that points along its flight.
  */
 UCLASS()
 class AVaelArcShot : public AActor
@@ -39,5 +39,4 @@ private:
 	float FlightTime = 1.0f;
 	float Apex = 300.0f;
 	float Age = 0.0f;
-	FRotator Spin = FRotator::ZeroRotator;
 };

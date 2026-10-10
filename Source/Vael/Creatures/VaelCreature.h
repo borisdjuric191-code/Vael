@@ -216,8 +216,8 @@ protected:
 	/** Glow of the ember parts of the factory mesh, like a burning fuse; the rest glow is MeshGlow of the data */
 	void SetFactoryGlow(float Glow);
 
-	/** Moves and scales the factory mesh from its place on the bottom of the capsule, like sinking into the ground or swelling up */
-	void SetFactoryMeshOffset(const FVector& Offset, float Scale = 1.0f);
+	/** Moves, scales and pitches (nose up, in degrees) the factory mesh from its place on the bottom of the capsule, like sinking into the ground or swelling up */
+	void SetFactoryMeshOffset(const FVector& Offset, float Scale = 1.0f, float Pitch = 0.0f);
 
 private:
 

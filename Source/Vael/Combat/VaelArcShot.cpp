@@ -48,8 +48,7 @@ AVaelArcShot* AVaelArcShot::Lob(UWorld* World, const FVector& InStart, const FVe
 	Shot->End = InEnd;
 	Shot->FlightTime = FMath::Max(InFlightTime, 0.05f);
 	Shot->Apex = InApex;
-	Shot->Spin = FRotator(FMath::FRandRange(300.0f, 600.0f), FMath::FRandRange(-200.0f, 200.0f), 0.0f);
-	Shot->Shell->SetWorldScale3D(FVector(Size / 50.0f) * FVector(1.0f, 1.0f, 1.25f));
+	Shot->Shell->SetWorldScale3D(FVector(Size / 50.0f) * FVector(2.6f, 0.55f, 0.55f));
 
 	if (UMaterialInstanceDynamic* Material = Shot->Shell->CreateAndSetMaterialInstanceDynamic(0))
 	{
@@ -77,7 +76,9 @@ void AVaelArcShot::Tick(float DeltaSeconds)
 
 	FVector Location = FMath::Lerp(Start, End, Alpha);
 	Location.Z = Height;
-	SetActorLocationAndRotation(Location, GetActorRotation() + Spin * DeltaSeconds);
+	// Points along its flight like a dart
+	const FVector Travel = Location - GetActorLocation();
+	SetActorLocationAndRotation(Location, Travel.IsNearlyZero() ? GetActorRotation() : Travel.Rotation());
 
 	if (Alpha >= 1.0f)
 	{

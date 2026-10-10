@@ -920,11 +920,11 @@ void AVaelCreature::SetFactoryGlow(float Glow)
 	}
 }
 
-void AVaelCreature::SetFactoryMeshOffset(const FVector& Offset, float Scale)
+void AVaelCreature::SetFactoryMeshOffset(const FVector& Offset, float Scale, float Pitch)
 {
 	if (FactoryMesh != nullptr)
 	{
-		FactoryMesh->SetRelativeLocation(FactoryMeshBase + Offset);
+		FactoryMesh->SetRelativeLocationAndRotation(FactoryMeshBase + Offset, FRotator(Pitch, 0.0f, 0.0f).Quaternion() * FRotator(0.0f, ActiveData->MeshYaw, 0.0f).Quaternion());
 		FactoryMesh->SetRelativeScale3D(FVector(Scale));
 	}
 }

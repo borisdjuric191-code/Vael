@@ -30,6 +30,10 @@ namespace
 	/** The burrowed body is squashed to this share of its height */
 	constexpr float BurrowedHeightScale = 0.2f;
 
+	/** A burrowed crawler on the move lifts this share of its depth out of the ash, rear first by this pitch in degrees */
+	constexpr float CrawlerPeekShare = 0.5f;
+	constexpr float CrawlerPeekPitch = -14.0f;
+
 	/** The crawler stops walking home closer than this, in cm */
 	constexpr float CrawlerHomeTolerance = 140.0f;
 
@@ -468,7 +472,10 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	Emergence = bBurrowed ? FMath::Max(0.0f, Emergence - DeltaSeconds * 4.0f) : FMath::Min(1.0f, Emergence + DeltaSeconds * RiseSpeed);
 
 	const float Climb = 1.0f - FMath::Square(1.0f - Emergence);
-	FVector RigOffset(0.0f, 0.0f, -(1.0f - Climb) * HalfHeight * 1.6f - (bDeadNow ? 12.0f : 0.0f));
+	// On the move its back and the glowing gland plough through the ash; lying in wait it is gone
+	Peek = FMath::FInterpTo(Peek, bBurrowed && Speed > 20.0f && !bDeadNow ? 1.0f : 0.0f, DeltaSeconds, 4.0f);
+
+	FVector RigOffset(0.0f, 0.0f, -(1.0f - Climb) * HalfHeight * 1.6f * (1.0f - CrawlerPeekShare * Peek) - (bDeadNow ? 12.0f : 0.0f));
 
 	// The fuse makes it swell and tremble faster and faster
 	float GlandSwell = 1.0f;
@@ -482,7 +489,7 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	switch (State)
 	{
 	case EVaelCrawlerState::Burrowed:
-		Glow = 0.5f;
+		Glow = 0.5f + Peek * (1.3f + 0.5f * FMath::Sin(Time * 7.0f));
 		break;
 
 	case EVaelCrawlerState::Surfacing:
@@ -517,9 +524,9 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	if (bFactory)
 	{
 		// The mesh sinks and rises, swells with the fuse and glows in its cracks, gland and eyes; its legs fold while under the ash
-		SetFactoryMeshOffset(RigOffset, 1.0f + (GlandSwell - 1.0f) * 0.5f);
+		SetFactoryMeshOffset(RigOffset, 1.0f + (GlandSwell - 1.0f) * 0.5f, CrawlerPeekPitch * Peek * (1.0f - Climb));
 		SetFactoryGlow(bDeadNow ? 0.0f : Glow);
-		GetFactoryMesh()->SetVisibility(Emergence > 0.02f || bDeadNow);
+		GetFactoryMesh()->SetVisibility(Emergence > 0.02f || Peek > 0.02f || bDeadNow);
 		if (!bDeadNow)
 		{
 			GetFactoryLegs()->SetCurl(1.0f - Climb);
@@ -546,7 +553,7 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	// The mound of ash shows only while the crawler is (partly) under it
 	Mound->SetVisibility(Emergence < 0.95f && !bDeadNow);
 	Mound->SetRelativeLocation(FVector(0.0f, 0.0f, -HalfHeight));
-	Mound->SetRelativeScale3D(FVector(130.0f, 120.0f, 40.0f * (1.0f - Emergence) + 4.0f) * (1.0f + 0.04f * FMath::Sin(Time * 9.0f)) / CrawlerShapeSize);
+	Mound->SetRelativeScale3D(FVector(130.0f, 120.0f, 40.0f * (1.0f - Emergence) * (1.0f - 0.65f * Peek) + 4.0f) * (1.0f + 0.04f * FMath::Sin(Time * 9.0f)) / CrawlerShapeSize);
 
 	// The code rig moves its own legs and claws; a factory mesh walks on the legs of the base class
 	if (!bFactory)

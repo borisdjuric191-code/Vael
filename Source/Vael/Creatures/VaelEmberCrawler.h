@@ -140,6 +140,9 @@ private:
 	/** How far the rig is out of the ground, 0 under it, 1 fully out */
 	float Emergence = 0.0f;
 
+	/** How far the back and the gland of a burrowed crawler show through the ash while it moves, 0 to 1 */
+	float Peek = 0.0f;
+
 	/** Seconds since the last claw attack, for the snap of the pincers; negative for none yet */
 	float SinceClawAttack = -1.0f;
 

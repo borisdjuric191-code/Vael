@@ -311,6 +311,35 @@ def abstands_gewichtung(obj, arm):
             gruppen[n].add([v.index], w / s, "REPLACE")
     log("Abstands-Gewichtung fertig:", len(obj.data.vertices), "Punkte auf", len(segs), "Knochen verteilt.")
 
+def beine_begrenzen(obj, arm, radius):
+    """Beinknochen dürfen nur Punkte bewegen, die wirklich am Bein liegen (näher als der Bein-Radius).
+    Alles weiter weg gehört zum Körper. Sonst hängt ein großer Hinterleib an den Hinterbeinen und
+    flattert bei jedem Schritt mit (Glutkönigin, 10. Oktober 2026)."""
+    mw, owm = arm.matrix_world, obj.matrix_world
+    segs = {b.name: (mw @ b.head_local, mw @ b.tail_local) for b in arm.data.bones if b.name.startswith("leg_")}
+    namen = {g.index: g.name for g in obj.vertex_groups}
+    body = obj.vertex_groups.get("body") or obj.vertex_groups.new(name="body")
+    geaendert = 0
+    for v in obj.data.vertices:
+        p = owm @ v.co
+        frei = 0.0
+        for g in list(v.groups):
+            n = namen[g.group]
+            if n not in segs or g.weight <= 0.0:
+                continue
+            a, b = segs[n]
+            ab = b - a; t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-9)))
+            dist = (p - (a + ab * t)).length
+            # Die Hüfte (coxa) liegt im Körper: dort enger, damit die Körperschale nicht mitdreht
+            r = radius * (.6 if n.endswith("_coxa") else 1.0)
+            halten = max(0.0, min(1.0, (1.5 * r - dist) / (.5 * r)))
+            if halten < 1.0:
+                frei += g.weight * (1.0 - halten)
+                obj.vertex_groups[g.group].add([v.index], g.weight * halten, "REPLACE")
+        if frei > 0.0:
+            body.add([v.index], frei, "ADD"); geaendert += 1
+    log(f"Beine begrenzt (Radius {radius:.2f} m): {geaendert} Punkte vom Bein an den Körper gegeben.")
+
 # ---------------------------------------------------------------- Schritt 2
 def binden(ordner):
     sb = lade_steckbrief(ordner)
@@ -329,6 +358,10 @@ def binden(ordner):
             abstands_gewichtung(obj, arm)
         else:
             log("automatisch gewichtet.", f"Knochen ohne Gewicht: {leer}" if leer else "Alle Knochen haben Gewicht.")
+    # Nur auf Wunsch (Steckbrief "bein_radius", Anteil der Körperlänge): abgenommene Kreaturen bleiben, wie sie sind
+    if sb.get("bein_radius"):
+        lo, hi = bbox_welt(obj)
+        beine_begrenzen(obj, arm, sb["bein_radius"] * (hi.y - lo.y))
     bpy.ops.wm.save_mainfile()
 
     os.makedirs(os.path.join(ordner, "04_export"), exist_ok=True)

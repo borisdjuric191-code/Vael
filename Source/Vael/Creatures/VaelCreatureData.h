@@ -801,11 +801,11 @@ public:
 
 	/** Seconds the shot flies; the mark on the ground warns for as long */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0.1))
-	float FlightTime = 1.0f;
+	float FlightTime = 0.6f;
 
 	/** Height of the arc above the higher end, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0))
-	float ShotApex = 380.0f;
+	float ShotApex = 60.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0))
 	float ShotDamage = 20.0f;
