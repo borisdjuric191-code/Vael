@@ -1,0 +1,28 @@
+{
+  "name": "Glutkönigin",
+  "name_datei": "Glutkoenigin",
+  "region": "Aschenmark",
+  "familie": "Vielbeiner",
+  "klasse": "boss",
+  "laenge_cm": 420,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "aussehen": "Brutmutter der Glutkriecher (Idee von Boris, 10. Oktober 2026): dieselbe Art, aber gut viermal so groß, schwer und schwerfällig. Riesiger, aufgeblähter Hinterleib, der von innen glüht; durch die gespannten Risse der Kruste sieht man Brutkammern, an der Spitze ein Legeorgan, aus dem junge Glutkriecher kommen. Kopf mit einem Kranz vieler glühender Augen und großen, gekrümmten Fangzähnen, auf dem Kopf ein kronenartiger Kamm aus Krustenplatten. Sechs dicke, gepanzerte Beine, die das Gewicht tragen, der Hinterleib schleift fast am Boden. Farben wie die Brut: Schwarz, Kohlegrau, Asche, Glut in Rissen, Augen und Hinterleib. Als Mark-Mutierte trägt sie tief im Hinterleib feine violette Adern.",
+  "schwaeche": ["Wasser"],
+  "verhaltensbausteine": ["Schläft", "Biss", "FeuerSalve", "RuftBrut", "Flammenring", "Ansturm"],
+  "warnsignale": {
+    "feuersalve": "Kehle glüht auf, Rauch aus dem Maul",
+    "flammenring": "Hinterleib pulsiert grell",
+    "ansturm": "scharrt mit den Vorderbeinen"
+  },
+  "tripo_prompt": "Stylized dark fantasy creature, hand-painted textures, readable silhouette from above. A huge brood mother of a burrowing ash crawler swarm, an insect queen with a massive swollen egg-laying abdomen far larger than the rest of its body, glowing molten orange from within through stretched cracks in its black and charcoal-grey ash crust, faint thin violet veins deep inside the abdomen, an ovipositor at the tip. Heavy armored thorax, head with a cluster of many small glowing ember eyes and two large curved fangs, a crown-like ridge of crust plates on the head. Six thick armored legs carrying the weight, the abdomen almost dragging on the ground. Heavy, slow and ponderous. Colors only black, charcoal, ash grey, with orange-red glow in the cracks, the eyes and the abdomen. Three-quarter view from the front left and slightly above, neutral pose, full body visible, plain light grey background.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D. Boss: höheres Polygonbudget, 4K-Texturen.",
+  "tripo_einstellungen": {
+    "texturqualitaet": "4K",
+    "beleuchtung_entfernen": true,
+    "pbr": true,
+    "topologie": "Dreieck",
+    "polygonanzahl": 50000,
+    "export": "FBX (Blender)"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "name": "Glutkriecher",
+  "name_datei": "Glutkriecher",
+  "region": "Aschenmark",
+  "familie": "Vielbeiner",
+  "klasse": "normal",
+  "laenge_cm": 120,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "aussehen": "Flacher, hundegroßer Gräber der Aschenmark. Körper aus überlappenden Krustenplatten in Schwarz, Kohlegrau und Asche, zwischen den Platten glühende Risse. Am Hinterleib eine geschwollene Glutdrüse wie eine Lunte, die vor der Explosion anschwillt. Kleiner Kopf mit glühenden Augen, vorn zwei kurze Zangen, sechs dünne gegliederte Beine. Glühen nur in Rissen, Drüse und Augen.",
+  "schwaeche": ["Wasser", "Erde (unter der Asche)"],
+  "verhaltensbausteine": ["GräbtSichEin", "Zündet"],
+  "warnsignale": {
+    "zuendung": "Drüse schwillt an und pulsiert heller, Zischen"
+  },
+  "tripo_prompt": "Stylized dark fantasy creature, hand-painted textures, readable silhouette from above. A low, flat, dog-sized burrowing ash crawler, a beetle-like insect with a compact segmented body covered in overlapping plates of black and charcoal-grey ash crust, thin cracks of molten orange glow between the plates. At its rear a swollen, glowing ember gland like a fuse, half hidden under the crust. Small armored head with two tiny glowing ember eyes, two short sharp pincer claws in front. Six thin segmented legs, all six planted on the ground. Colors only black, charcoal, ash grey, with orange-red glow in the cracks, the gland and the eyes. Dark and menacing, not cute. Three-quarter view from the front left and slightly above, neutral pose, full body visible, plain light grey background.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D, wie beim Spannhornkäfer.",
+  "tripo_einstellungen": {
+    "texturqualitaet": "2K",
+    "beleuchtung_entfernen": true,
+    "pbr": true,
+    "topologie": "Dreieck",
+    "polygonanzahl": 12000,
+    "export": "FBX (Blender)"
+  }
+}
