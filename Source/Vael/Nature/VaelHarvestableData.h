@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Engine/StaticMesh.h"
 #include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelHarvestableData.generated.h"
@@ -138,4 +139,13 @@ public:
 	/** Color of the crown, the cap or the crystals: the element's glow */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	FLinearColor GlowColor = FLinearColor(1.0f, 0.4f, 0.1f);
+
+	/** Model of the creature factory (Tools/Kreaturenfabrik, mode "requisite"), standing on its origin. Set: it replaces the placeholder shapes,
+	 *  every placed one turned, sized and tilted a little differently. Empty: the placeholder of engine shapes. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	/** Glow of the ember parts of the model (orange in its colors) while it grows untouched, through the master material */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float MeshGlow = 1.5f;
 };

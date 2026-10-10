@@ -172,6 +172,12 @@ AVaelHarvestable::AVaelHarvestable()
 	Drop->SetVisibility(false);
 	Drop->SetRelativeScale3D(FVector(DropSize / BasicShapeSize));
 
+	Model = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Model"));
+	Model->SetupAttachment(RootComponent);
+	Model->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Model->SetCanEverAffectNavigation(false);
+	Model->SetVisibility(false);
+
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
 	Glow->SetupAttachment(RootComponent);
 	Glow->SetAttenuationRadius(320.0f);
@@ -925,6 +931,63 @@ void AVaelHarvestable::RefreshLook()
 	{
 		DropMaterial->SetVectorParameterValue(TEXT("Color"), Data->GlowColor);
 	}
+
+	// A model of the creature factory replaces the placeholder shapes; a stone's base stays as its invisible collision
+	UStaticMesh* ModelMesh = Data->Mesh.IsNull() ? nullptr : Data->Mesh.LoadSynchronous();
+	if (ModelMesh == nullptr)
+	{
+		Model->SetVisibility(false);
+		return;
+	}
+
+	if (Model->GetStaticMesh() != ModelMesh)
+	{
+		Model->SetStaticMesh(ModelMesh);
+		ModelMaterial = Model->CreateAndSetMaterialInstanceDynamic(0);
+		VaryModel();
+	}
+
+	Base->SetVisibility(false);
+	Crown->SetVisibility(false);
+	Model->SetVisibility(!bAbsent);
+
+	// Picked plants leave a stub, mined stones stay but go cold; burning flares up, water cools the stone
+	Model->SetRelativeScale3D(bBare && !bStone ? ModelScale * FVector(1.0f, 1.0f, HarvestedStemShare) : ModelScale);
+
+	float ModelGlow = Data->MeshGlow;
+	if (bBare)
+	{
+		ModelGlow = 0.0f;
+	}
+	else if (bBurning)
+	{
+		ModelGlow = Data->MeshGlow * 4.0f;
+	}
+	else if (bShownCooled)
+	{
+		ModelGlow = 0.1f;
+	}
+
+	if (ModelMaterial != nullptr)
+	{
+		ModelMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ModelGlow);
+	}
+}
+
+void AVaelHarvestable::VaryModel()
+{
+	// The place decides: the same plant looks the same every time, its neighbour looks different
+	const FIntVector Cell(FMath::RoundToInt(GetActorLocation().X / 10.0f), FMath::RoundToInt(GetActorLocation().Y / 10.0f), 0);
+	FRandomStream Random(static_cast<int32>(GetTypeHash(Cell)));
+
+	const bool bStone = Data->Kind == EVaelHarvestKind::Stone;
+	const float Size = Random.FRandRange(0.85f, 1.15f);
+	const float Mirror = bStone && Random.FRand() < 0.5f ? -1.0f : 1.0f;
+	const float Tilt = bStone ? 6.0f : 4.0f;
+
+	ModelScale = FVector(Size * Mirror, Size, Size);
+	Model->SetRelativeRotation(FRotator(Random.FRandRange(-Tilt, Tilt), Random.FRandRange(0.0f, 360.0f), Random.FRandRange(-Tilt, Tilt)));
+	Model->SetRelativeScale3D(ModelScale);
 }
 
 #undef LOCTEXT_NAMESPACE

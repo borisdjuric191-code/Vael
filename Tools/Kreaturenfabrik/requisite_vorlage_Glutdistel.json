@@ -1,0 +1,9 @@
+{
+  "name": "Glutdistel",
+  "region": "Aschenmark",
+  "art": "Pflanze",
+  "harvest_asset": "DA_Harvest_Glutdistel",
+  "hoehe_cm": 80,
+  "dreiecke": 11177,
+  "variation": "zufällige Drehung, Größe ±15 %, leichte Neigung, bei Steinen manchmal gespiegelt (Boris, 10.10.2026)"
+}

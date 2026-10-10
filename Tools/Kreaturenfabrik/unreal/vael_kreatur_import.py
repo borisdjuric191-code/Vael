@@ -93,6 +93,59 @@ def importiere(ordner):
     log(f"Fertig: {sb['name']} liegt in {ziel}")
 
 
+def importiere_requisite(ordner):
+    """Pflanze, Pilz, Gestein oder andere Requisite (requisite.json, 04_export/SM_<Name>.fbx aus dem Blender-Modus 'requisite'):
+    festes Modell nach /Game/Vael/Requisiten/<Region>/<Name>/, Material-Instanz vom Master, und – falls angegeben –
+    im Ernte-Datensatz (harvest_asset) als Modell eingetragen."""
+    with open(os.path.join(ordner, "requisite.json"), encoding="utf-8") as f:
+        sb = json.load(f)
+    name, region = sb["name"], sb["region"]
+    fbx = os.path.join(ordner, "04_export", f"SM_{name}.fbx")
+    if not os.path.exists(fbx):
+        raise FileNotFoundError(f"{fbx} fehlt – zuerst das Blender-Skript ('requisite') ausführen.")
+    ziel = f"/Game/Vael/Requisiten/{region}/{name}"
+
+    ui = unreal.FbxImportUI()
+    ui.set_editor_property("import_mesh", True)
+    ui.set_editor_property("import_as_skeletal", False)
+    ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_STATIC_MESH)
+    ui.set_editor_property("import_materials", True)
+    ui.set_editor_property("import_textures", True)
+    ui.static_mesh_import_data.set_editor_property("combine_meshes", True)
+    ui.static_mesh_import_data.set_editor_property("auto_generate_collision", True)
+
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", fbx)
+    task.set_editor_property("destination_path", ziel)
+    task.set_editor_property("destination_name", f"SM_{name}")
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", True)
+    task.set_editor_property("options", ui)
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+
+    eal = unreal.EditorAssetLibrary
+    for p in eal.list_assets(ziel, recursive=False):
+        kurz = p.split(".")[-1]
+        if isinstance(eal.load_asset(p), unreal.Texture2D) and not kurz.startswith("T_"):
+            rest = kurz[len(name):].lstrip("_") if kurz.startswith(name) else kurz
+            eal.rename_asset(p, f"{ziel}/T_{name}_{rest}")
+
+    sm = eal.load_asset(f"{ziel}/SM_{name}")
+    if sm is None:
+        raise RuntimeError("Modell wurde nicht angelegt – Ausgabe-Log prüfen.")
+    material_anlegen(ziel, name, sm)
+
+    if sb.get("harvest_asset"):
+        daten = eal.load_asset(f"/Game/Vael/Nature/{sb['harvest_asset']}")
+        if daten is not None:
+            daten.set_editor_property("mesh", sm)
+            eal.save_asset(daten.get_path_name(), only_if_is_dirty=False)
+            log(f"Modell im Datensatz {sb['harvest_asset']} eingetragen")
+    eal.save_directory(ziel)
+    log(f"Fertig: {name} liegt in {ziel}")
+
+
 def textur_parameter(pfad):
     """Parameter des Master-Materials für eine Tripo-Textur, None für Texturen, die der Master nicht braucht"""
     n = pfad.split(".")[-1].lower()
@@ -133,15 +186,16 @@ def material_anlegen(ziel, name, skm):
     eal.save_asset(mi_pfad)
 
     # Jeder Slot außer dem leeren Mark-Slot bekommt die Instanz
-    mats = list(skm.get_editor_property("materials"))
+    eigenschaft = "static_materials" if isinstance(skm, unreal.StaticMesh) else "materials"
+    mats = list(skm.get_editor_property(eigenschaft))
     for index, slot in enumerate(mats):
         if "mark" not in str(slot.get_editor_property("material_slot_name")).lower():
             slot.set_editor_property("material_interface", mi)
             mats[index] = slot
     skm.modify()
-    skm.set_editor_property("materials", mats)
+    skm.set_editor_property(eigenschaft, mats)
     eal.save_asset(skm.get_path_name(), only_if_is_dirty=False)
-    belegt = [m.get_editor_property("material_interface").get_name() for m in skm.get_editor_property("materials")]
+    belegt = [m.get_editor_property("material_interface").get_name() for m in skm.get_editor_property(eigenschaft)]
     log(f"Slots: {belegt}")
     log(f"Material-Instanz angelegt: {mi_pfad}")
 
@@ -155,4 +209,8 @@ if __name__ == "__main__":
         ziel = f"/Game/Vael/Kreaturen/{sb['region']}/{sb['name_datei']}"
         material_anlegen(ziel, sb["name_datei"], unreal.EditorAssetLibrary.load_asset(f"{ziel}/SK_{sb['name_datei']}"))
     else:
-        importiere(ordner_waehlen())
+        ordner = ordner_waehlen()
+        if os.path.exists(os.path.join(ordner, "requisite.json")):
+            importiere_requisite(ordner)
+        else:
+            importiere(ordner)

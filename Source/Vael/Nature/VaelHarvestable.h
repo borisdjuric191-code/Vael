@@ -8,6 +8,7 @@
 #include "Player/VaelInteractable.h"
 #include "VaelHarvestable.generated.h"
 
+class UMaterialInstanceDynamic;
 class UPointLightComponent;
 class USoundAttenuation;
 class UStaticMesh;
@@ -42,6 +43,10 @@ class AVaelHarvestable : public AActor, public IVaelInteractable
 	/** Light of a glowing or burning crown */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UPointLightComponent> Glow;
+
+	/** Model of the creature factory, if the data names one; replaces the placeholder shapes */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> Model;
 
 protected:
 
@@ -180,6 +185,16 @@ private:
 
 	/** True while the look shows a cooled stone */
 	bool bShownCooled = false;
+
+	/** Material of the model, for its ember glow */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ModelMaterial;
+
+	/** Size of this one model: every placed one is a little different */
+	FVector ModelScale = FVector::OneVector;
+
+	/** Turns, sizes and tilts the model by its place, so neighbours differ but each one stays the same every time */
+	void VaryModel();
 
 	/** How strongly veins color towards the Mark, 0 to 1, and the yaw they stretch along */
 	float VeinStrength = 0.0f;

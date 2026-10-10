@@ -1,0 +1,9 @@
+{
+  "name": "Glutstein",
+  "region": "Aschenmark",
+  "art": "Gestein",
+  "harvest_asset": "DA_Harvest_Glutstein",
+  "hoehe_cm": 90,
+  "dreiecke": 7792,
+  "variation": "zufällige Drehung, Größe ±15 %, leichte Neigung, bei Steinen manchmal gespiegelt (Boris, 10.10.2026)"
+}

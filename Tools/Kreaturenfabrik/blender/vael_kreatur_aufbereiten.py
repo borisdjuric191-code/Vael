@@ -342,9 +342,61 @@ def binden(ordner):
     )
     log("exportiert:", ziel)
 
+def requisite(ordner):
+    """Pflanzen, Pilze, Gesteine und andere Requisiten: ohne Skelett, in einem Schritt.
+    Liest requisite.json (name, hoehe_cm), vereint die Teile, skaliert auf die Höhe, Ursprung unten mittig,
+    exportiert 04_export/SM_<Name>.fbx."""
+    with open(os.path.join(ordner, "requisite.json"), encoding="utf-8") as f:
+        sb = json.load(f)
+    name = sb["name"]
+    leere_szene()
+    importiere(finde_tripo_datei(ordner))
+    for a in armaturen():
+        bpy.data.objects.remove(a, do_unlink=True)
+    for o in [o for o in bpy.data.objects if o.type != "MESH"]:
+        bpy.data.objects.remove(o, do_unlink=True)
+
+    ms = meshes()
+    aktiv(ms[0], ms[1:])
+    if len(ms) > 1:
+        bpy.ops.object.join()
+    obj = bpy.context.view_layer.objects.active
+    obj.name = obj.data.name = f"SM_{name}"
+    obj.rotation_euler.z += math.radians(sb.get("drehung_z_grad", 0))
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+    # Maßstab: Höhe vom Boden bis zur höchsten Stelle = hoehe_cm
+    lo, hi = bbox_welt(obj)
+    obj.scale = ((sb["hoehe_cm"] / 100.0) / (hi.z - lo.z),) * 3
+    bpy.ops.object.transform_apply(scale=True)
+    lo, hi = bbox_welt(obj)
+    obj.data.transform(Matrix.Translation(-Vector(((lo.x + hi.x) / 2, (lo.y + hi.y) / 2, lo.z))))
+    obj.location = (0, 0, 0)
+
+    ziel = sb.get("budget_dreiecke", 15000)
+    n = dreiecke(obj)
+    if n > ziel:
+        mod = obj.modifiers.new("Budget", "DECIMATE")
+        mod.ratio = ziel / n
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    log(f"{name}: {dreiecke(obj)} Dreiecke, {sb['hoehe_cm']} cm hoch")
+    for i, slot in enumerate(obj.material_slots):
+        if slot.material:
+            slot.material.name = f"M_{name}" if i == 0 else f"M_{name}_{i}"
+
+    os.makedirs(os.path.join(ordner, "04_export"), exist_ok=True)
+    ziel_fbx = os.path.join(ordner, "04_export", f"SM_{name}.fbx")
+    aktiv(obj)
+    bpy.ops.export_scene.fbx(
+        filepath=ziel_fbx, use_selection=True, object_types={"MESH"},
+        apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL",
+        bake_anim=False, path_mode="COPY", embed_textures=True, mesh_smooth_type="FACE",
+    )
+    log("exportiert:", ziel_fbx)
+
 # ---------------------------------------------------------------- Einstieg
 if __name__ == "__main__":
     args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
-    if len(args) != 2 or args[0] not in ("vorbereiten", "binden"):
+    if len(args) != 2 or args[0] not in ("vorbereiten", "binden", "requisite"):
         print(__doc__); sys.exit(1)
-    {"vorbereiten": vorbereiten, "binden": binden}[args[0]](args[1])
+    {"vorbereiten": vorbereiten, "binden": binden, "requisite": requisite}[args[0]](args[1])
