@@ -39,6 +39,24 @@ DIALOGUES = [
         ],
         "max_hints_per_talk": 3,
     },
+    {
+        # Faktorin of the Gildenkontor (Storyleitfaden, "Akt I im Detail"): believes in the guild and does not know everything.
+        # Contracts and their lines are quests (Scripts/CreateQuestAssets.py, K*).
+        "asset": "DA_Dialogue_Maren",
+        "speaker_name": unreal.Text("Maren Holt"),
+        "intro_lines": [
+            unreal.Text("Überlebende aus Kesselgrund? Dann habt ihr Glück gehabt. Maren Holt, Faktorin der Gilde. Willkommen im Kontor."),
+            unreal.Text("Die Gilde zahlt für Arbeit, nicht für Mitleid. Wer Kontrakte erfüllt, bekommt Gildenmünzen, und für Münzen bekommt ihr bei mir Tränke und Vorräte."),
+            unreal.Text("Wenn das Land wieder sauber ist, kauft die Gilde es zu einem fairen Preis. Ein Neuanfang für alle. So hat es Kesselgrund nie gehabt."),
+        ],
+        "hints": [
+            hint(Condition.BOSS_ALIVE, "Solange die Königin im Krater brütet, kommt die Brut immer wieder. Die Gilde zahlt jeden, der sie kleinhält."),
+            hint(Condition.MARK_SOURCE_OPEN, "Das Leuchten im Osten? Halt dich fern davon. Die Gilde hat Leute, die sich darum kümmern. Irgendwann."),
+            hint(Condition.ALWAYS, "Der Orden erzählt viel über die Gilde. Brot verteilen ist leicht, wenn man nichts aufbauen muss."),
+            hint(Condition.BOSS_DEFEATED, "Die Königin ist tot? Dann wird das Land bald etwas wert sein. Gut gemacht, wirklich."),
+        ],
+        "max_hints_per_talk": 2,
+    },
 ]
 
 

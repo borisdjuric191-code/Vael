@@ -4,6 +4,9 @@
 #include "Engine/AssetManager.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
+#include "Items/VaelInventory.h"
+#include "Player/VaelCharacter.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 
@@ -203,8 +206,33 @@ void UVaelQuestSubsystem::Finish(const UVaelQuest* Quest)
 	Current.bDone = true;
 	Current.Step = Quest->Steps.Num();
 
+	++Current.TimesDone;
 	UE_LOG(LogVael, Log, TEXT("Quest %s done"), *Quest->QuestId.ToString());
-	UVaelNoticeSubsystem::Post(GetGameInstance(), FText::Format(LOCTEXT("QuestDone", "Auftrag erfüllt: {0}"), Quest->Title), FText::GetEmpty(), QuestNoticeColor, 4.0f);
+	const FText Reward = Quest->CoinReward > 0 ? FText::Format(LOCTEXT("QuestCoins", "+{0} Gildenmünzen für jeden"), Quest->CoinReward) : FText::GetEmpty();
+	UVaelNoticeSubsystem::Post(GetGameInstance(), FText::Format(Quest->bContract ? LOCTEXT("ContractDone", "Kontrakt erfüllt: {0}") : LOCTEXT("QuestDone", "Auftrag erfüllt: {0}"), Quest->Title),
+		Reward, QuestNoticeColor, 4.0f);
+
+	// Every player gets the full pay into their own purse
+	const UWorld* World = GetGameInstance() != nullptr ? GetGameInstance()->GetWorld() : nullptr;
+	if (Quest->CoinReward > 0 && World != nullptr)
+	{
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			const AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+			if (Player != nullptr)
+			{
+				Player->GetInventory()->AddCoins(Quest->CoinReward);
+			}
+		}
+	}
+
+	// A repeatable contract is offered again right away
+	if (Quest->bRepeatable)
+	{
+		Current.bDone = false;
+		Current.Step = 0;
+		Current.Count = 0;
+	}
 
 	for (const UVaelQuest* Follower : Quests)
 	{
@@ -220,7 +248,7 @@ void UVaelQuestSubsystem::Activate(const UVaelQuest* Quest)
 	Progress.FindOrAdd(Quest->QuestId).bActive = true;
 
 	UE_LOG(LogVael, Log, TEXT("Quest %s active"), *Quest->QuestId.ToString());
-	UVaelNoticeSubsystem::Post(GetGameInstance(), FText::Format(LOCTEXT("QuestNew", "Neuer Auftrag: {0}"), Quest->Title),
+	UVaelNoticeSubsystem::Post(GetGameInstance(), FText::Format(Quest->bContract ? LOCTEXT("ContractNew", "Neuer Kontrakt: {0}") : LOCTEXT("QuestNew", "Neuer Auftrag: {0}"), Quest->Title),
 		Quest->Steps[0].Objective, QuestNoticeColor, 4.5f);
 }
 

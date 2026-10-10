@@ -1026,7 +1026,9 @@ void AVaelHUD::DrawQuestLog(const AVaelPlayerController* PlayerController)
 		}
 
 		const FVaelQuestProgress Progress = Quests->GetProgress(Quest);
-		const FText Kind = Quest->bMainQuest ? LOCTEXT("QuestMain", "Hauptgeschichte") : LOCTEXT("QuestSide", "Nebenauftrag");
+		const FText Kind = Quest->bMainQuest ? LOCTEXT("QuestMain", "Hauptgeschichte")
+			: Quest->bContract ? FText::Format(LOCTEXT("QuestContract", "Kontrakt, {0} Münzen"), Quest->CoinReward)
+			: LOCTEXT("QuestSide", "Nebenauftrag");
 
 		DrawLabel(Quest->Title, Left + Padding, Y, 20.0f * S, Quest->bMainQuest ? QuestTitleColor : BoneColor);
 		DrawLabel(FText::Format(LOCTEXT("QuestGiver", "{0} · {1}"), Kind, Quest->GiverName), Left + Width - Padding, Y + 5.0f * S, 12.0f * S, DimColor, 1.0f);
@@ -1283,6 +1285,7 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 
 	DrawLabel(FText::Format(LOCTEXT("InventoryEyebrow", "AUSRÜSTUNG UND RUCKSACK · SPIELER {0}"), PlayerController->GetPlayerSlot() + 1), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
 	DrawLabel(LOCTEXT("InventoryTitle", "Inventar"), Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
+	DrawLabel(FText::Format(LOCTEXT("InventoryCoins", "{0} Gildenmünzen"), Inventory->GetCoins()), Left + Width - Padding, Top + 56.0f * S, 14.0f * S, QuestTitleColor, 1.0f);
 	DrawMenuTabs(PlayerController, Left + Width - Padding, Top + 22.0f * S);
 	DrawLabel(FText::Format(LOCTEXT("InventoryNote", "Rucksack: {0} von {1} Feldern belegt. Jedes Teil belegt ein Feld."), Inventory->GetBackpack().Num(), UVaelItemSettings::Get()->BackpackSize),
 		Left + Padding, Top + 88.0f * S, 13.0f * S, DimColor);

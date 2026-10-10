@@ -27,6 +27,10 @@ struct FVaelQuestProgress
 	/** How many of the current step's count are done */
 	UPROPERTY(BlueprintReadOnly, Category="Quest")
 	int32 Count = 0;
+
+	/** How often a repeatable contract was done */
+	UPROPERTY(BlueprintReadOnly, Category="Quest")
+	int32 TimesDone = 0;
 };
 
 /**

@@ -5,12 +5,13 @@
 #
 # The chain follows the Lore-Bibel, tab Storyleitfaden, "Akt I im Detail" (Ablauf). Talk targets are dialogue asset names,
 # kill targets the KindId of the creature data, reach targets the MarkerId of quest markers (Scripts/PlaceQuestMarkers.py).
-# The twist (Gildenspeicher, choice at the end of the act) and the Gildenkontor come in later packages.
+# The Gildenkontor (K*) are contracts of Maren Holt that pay guild coins. The twist (Gildenspeicher, choice) comes in a later package.
 
 import unreal
 
 FOLDER = "/Game/Vael/Story/Quests"
 EDDA = "DA_Dialogue_Edda"
+MAREN = "DA_Dialogue_Maren"
 
 Objective = unreal.VaelQuestObjective
 
@@ -117,6 +118,63 @@ QUESTS = [
             ]),
         ],
     },
+    # Gildenkontor (package 2): Edda sends the group to Maren, then the guild's contracts. Coins only come from contracts.
+    {
+        "asset": "DA_Quest_K0_DasKontor", "quest_id": "K0_DasKontor", "sort_order": 200, "main_quest": False, "prerequisite": "Q2_DieBrut",
+        "title": "Das Gildenkontor", "giver_name": "Edda",
+        "summary": "An der Straße aus der Aschenmark hat die Gilde einen befestigten Handelsposten. Dort zahlt man für Arbeit.",
+        "steps": [
+            step("Geh zum Gildenkontor im Süden", Objective.REACH, "Kontor"),
+            step("Sprich mit der Faktorin", Objective.TALK, MAREN, lines=[
+                "Ihr wollt Arbeit? Gut. Ich habe Kontrakte. Erfüllt sie, und die Gilde zahlt jedem von euch seinen Anteil.",
+            ]),
+        ],
+    },
+    {
+        "asset": "DA_Quest_K1_Brutpflege", "quest_id": "K1_Brutpflege", "sort_order": 210, "main_quest": False, "prerequisite": "K0_DasKontor",
+        "title": "Brut kleinhalten", "giver_name": "Maren Holt", "contract": True, "coin_reward": 6, "repeatable": True,
+        "summary": "Die Gilde zahlt für jeden Glutkriecher weniger auf den Feldern.",
+        "steps": [
+            step("Besiege Glutkriecher", Objective.KILL, "Glutkriecher", 8),
+            step("Hol deinen Lohn bei Maren", Objective.TALK, MAREN, lines=[
+                "Acht weniger. Die Gilde ist zufrieden. Euer Lohn.",
+            ]),
+        ],
+    },
+    {
+        "asset": "DA_Quest_K2_Glutsteine", "quest_id": "K2_Glutsteine", "sort_order": 220, "main_quest": False, "prerequisite": "K0_DasKontor",
+        "title": "Glutsteine für die Schmelze", "giver_name": "Maren Holt", "contract": True, "coin_reward": 5, "repeatable": True,
+        "summary": "Die Schmelzen der Gilde brauchen Steine, die Hitze halten. In der Aschenmark liegen sie einfach herum.",
+        "steps": [
+            step("Brich Glutsteine ab", Objective.GATHER, "Glutstein", 4),
+            step("Hol deinen Lohn bei Maren", Objective.TALK, MAREN, lines=[
+                "Die gehen mit dem nächsten Wagen raus. Hier, euer Anteil.",
+            ]),
+        ],
+    },
+    {
+        "asset": "DA_Quest_K3_Harpyien", "quest_id": "K3_Harpyien", "sort_order": 230, "main_quest": False, "prerequisite": "K1_Brutpflege",
+        "title": "Freier Himmel für die Wagen", "giver_name": "Maren Holt", "contract": True, "coin_reward": 6, "repeatable": True,
+        "summary": "Aschharpyien stürzen sich auf jeden Wagen der Gilde. Weniger Harpyien, mehr Vorräte.",
+        "steps": [
+            step("Hol Aschharpyien vom Himmel", Objective.KILL, "Aschharpyie", 4),
+            step("Hol deinen Lohn bei Maren", Objective.TALK, MAREN, lines=[
+                "Der letzte Wagen kam ohne Kratzer durch. Das ist euer Verdienst.",
+            ]),
+        ],
+    },
+    {
+        "asset": "DA_Quest_K4_Kraterrand", "quest_id": "K4_Kraterrand", "sort_order": 240, "main_quest": False, "prerequisite": "K2_Glutsteine",
+        "title": "Proben vom Kraterrand", "giver_name": "Maren Holt", "contract": True, "coin_reward": 10,
+        "summary": "Die Gilde will Rußquarz vom Kraterrand, für Messungen. Was sie messen will, sagt Maren nicht.",
+        "steps": [
+            step("Geh zum Krater im Nordosten", Objective.REACH, "Krater"),
+            step("Brich Rußquarz ab", Objective.GATHER, "Russquarz", 3),
+            step("Bring die Proben zu Maren", Objective.TALK, MAREN, lines=[
+                "Gut. Die gehen an die Messer der Gilde. Fragt mich nicht wofür, ich verkaufe nur Tränke.",
+            ]),
+        ],
+    },
 ]
 
 
@@ -149,6 +207,9 @@ def create_quests():
         quest.set_editor_property("giver_name", unreal.Text(values["giver_name"]))
         quest.set_editor_property("summary", unreal.Text(values["summary"]))
         quest.set_editor_property("steps", values["steps"])
+        quest.set_editor_property("contract", values.get("contract", False))
+        quest.set_editor_property("coin_reward", values.get("coin_reward", 0))
+        quest.set_editor_property("repeatable", values.get("repeatable", False))
 
         if unreal.EditorAssetLibrary.save_loaded_asset(quest, False):
             created += 1

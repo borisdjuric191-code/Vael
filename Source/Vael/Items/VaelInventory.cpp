@@ -134,6 +134,27 @@ bool UVaelInventory::IsBackpackFull() const
 	return Backpack.Num() >= UVaelItemSettings::Get()->BackpackSize;
 }
 
+void UVaelInventory::AddCoins(int32 Amount)
+{
+	if (Amount > 0)
+	{
+		GuildCoins += Amount;
+		OnInventoryChanged.Broadcast();
+	}
+}
+
+bool UVaelInventory::SpendCoins(int32 Amount)
+{
+	if (Amount < 0 || GuildCoins < Amount)
+	{
+		return false;
+	}
+
+	GuildCoins -= Amount;
+	OnInventoryChanged.Broadcast();
+	return true;
+}
+
 float UVaelInventory::GetStatTotal(EVaelItemStat Stat) const
 {
 	float Total = 0.0f;

@@ -96,5 +96,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Quest")
 	int32 SortOrder = 0;
 
+	/** A paid contract of the guild instead of a story quest; shown as "Kontrakt" */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Contract")
+	bool bContract = false;
+
+	/** Guild coins every player gets into their own purse when it is done */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Contract", meta = (ClampMin = 0))
+	int32 CoinReward = 0;
+
+	/** Offered again from the first step as soon as it is done */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Contract")
+	bool bRepeatable = false;
+
 	virtual FPrimaryAssetId GetPrimaryAssetId() const override;
 };

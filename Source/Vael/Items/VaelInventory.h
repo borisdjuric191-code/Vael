@@ -52,7 +52,16 @@ public:
 	/** True if a worn legendary item grants the tag */
 	bool HasGrantedTag(const FGameplayTag& Tag) const { return AppliedTags.HasTag(Tag); }
 
-	/** Called whenever something is taken, put on or taken off */
+	/** Guild coins of this player, earned only with guild contracts */
+	int32 GetCoins() const { return GuildCoins; }
+
+	/** Puts guild coins into the purse */
+	void AddCoins(int32 Amount);
+
+	/** Pays guild coins. Returns false, and pays nothing, if there aren't enough. */
+	bool SpendCoins(int32 Amount);
+
+	/** Called whenever something is taken, put on or taken off, or coins change */
 	FVaelOnInventoryChanged OnInventoryChanged;
 
 protected:
@@ -74,6 +83,9 @@ private:
 
 	UPROPERTY()
 	TArray<FVaelItem> Backpack;
+
+	UPROPERTY()
+	int32 GuildCoins = 0;
 
 	/** What the equipment currently adds, so it can be taken away again */
 	float AppliedMaxHealth = 0.0f;

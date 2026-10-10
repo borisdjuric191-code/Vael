@@ -21,6 +21,7 @@
 #include "Misc/OutputDevice.h"
 #include "Misc/Paths.h"
 #include "Misc/ScopeLock.h"
+#include "Items/VaelInventory.h"
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelRegion.h"
@@ -325,7 +326,7 @@ void AVaelSmokeTest::BeginPlay()
 		AVaelNpc* Edda = nullptr;
 		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
 		{
-			Edda = *It;
+			Edda = It->GetDisplayName().ToString().StartsWith(TEXT("Edda")) ? *It : Edda;
 		}
 
 		AVaelQuestMarker* Village = nullptr;
@@ -379,7 +380,7 @@ void AVaelSmokeTest::BeginPlay()
 		AVaelNpc* Edda = nullptr;
 		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
 		{
-			Edda = *It;
+			Edda = It->GetDisplayName().ToString().StartsWith(TEXT("Edda")) ? *It : Edda;
 		}
 
 		const UVaelQuest* Village = Quests != nullptr ? Quests->FindQuest(TEXT("Q3_Kesselgrund")) : nullptr;
@@ -407,6 +408,39 @@ void AVaelSmokeTest::BeginPlay()
 		const UVaelQuest* Last = Quests->FindQuest(TEXT("Q5_DieMutter"));
 		const bool bOk = bReachedByWalking && Last != nullptr && Quests->GetProgress(Last).bDone;
 		return FString::Printf(TEXT("%svillage marker %s; %s"), bOk ? TEXT("") : TEXT("FAILED: "), bReachedByWalking ? TEXT("reached by walking") : TEXT("NOT reached"), *Quests->Describe());
+	}, 0.1f });
+
+	// Gildenkontor: Maren takes the group in, a repeatable contract pays every player and is offered again
+	Steps.Add({ TEXT("Contracts"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+		AVaelNpc* Maren = nullptr;
+		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+		{
+			Maren = It->GetDisplayName().ToString().StartsWith(TEXT("Maren")) ? *It : Maren;
+		}
+
+		const UVaelQuest* Contract = Quests != nullptr ? Quests->FindQuest(TEXT("K1_Brutpflege")) : nullptr;
+		if (Player == nullptr || Maren == nullptr || Contract == nullptr)
+		{
+			return FString(TEXT("FAILED: no player, Maren or contract K1"));
+		}
+
+		const int32 CoinsBefore = Player->GetInventory()->GetCoins();
+		Quests->NotifyReach(TEXT("Kontor"));
+		SmokeTalk(Maren, Player);
+		for (int32 Kill = 0; Kill < Contract->Steps[0].Count; ++Kill)
+		{
+			Quests->NotifyKill(TEXT("Glutkriecher"));
+		}
+		SmokeTalk(Maren, Player);
+
+		const FVaelQuestProgress Progress = Quests->GetProgress(Contract);
+		const int32 Earned = Player->GetInventory()->GetCoins() - CoinsBefore;
+		const bool bOk = Earned == Contract->CoinReward && Progress.TimesDone == 1 && Progress.bActive && !Progress.bDone && Progress.Step == 0;
+		return FString::Printf(TEXT("%s%d coins earned, K1 done %d times, offered again: %s"), bOk ? TEXT("") : TEXT("FAILED: "), Earned, Progress.TimesDone,
+			Progress.bActive && !Progress.bDone ? TEXT("yes") : TEXT("no"));
 	}, 0.1f });
 
 	// Glowing stones: water lets out their heat and they stop giving fire, fire heats them up again

@@ -884,6 +884,114 @@ def dress_border(level_actors):
         if isinstance(actor, unreal.StaticMeshActor) and str(actor.get_folder_path()) == "Rand" and actor.get_actor_label().startswith("Rand "):
             hide_placeholder(actor)
 
+KONTOR = (26.0, 57.0)
+KONTOR_RADIUS = 4.2
+
+
+def dress_kontor(level_actors):
+    """Gildenkontor (step 11b package 2): a fortified trading post at the road out, south of the village, with Maren Holt"""
+    folder = "Kontor/Kulisse"
+    road_start, road_end = (30.0, 41.5), (KONTOR[0] + 0.6, KONTOR[1] - KONTOR_RADIUS)
+
+    def near_road(tile, margin):
+        dx, dy = road_end[0] - road_start[0], road_end[1] - road_start[1]
+        t = max(0.0, min(1.0, ((tile[0] - road_start[0]) * dx + (tile[1] - road_start[1]) * dy) / (dx * dx + dy * dy)))
+        return math.hypot(tile[0] - (road_start[0] + dx * t), tile[1] - (road_start[1] + dy * t)) < margin
+
+    # Scattered rocks, trees and dead wood in the way are hidden, not deleted; blockout shapes there lose their collision too
+    for actor in level_actors:
+        if not isinstance(actor, unreal.StaticMeshActor) or not str(actor.get_folder_path()).startswith("Streuung"):
+            continue
+        tile = tile_of(actor)
+        if math.hypot(tile[0] - KONTOR[0], tile[1] - KONTOR[1]) > KONTOR_RADIUS + 1.5 and not near_road(tile, 2.0):
+            continue
+        if unreal.Name(HIDDEN_TAG) not in actor.get_editor_property("tags"):
+            hide_placeholder(actor)
+        actor.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        counts["Kontor: versteckt"] = counts.get("Kontor: versteckt", 0) + 1
+
+    materials = {}
+    for actor in level_actors:
+        if isinstance(actor, unreal.StaticMeshActor):
+            label = actor.get_actor_label()
+            for key, wanted in (("road", "Weg 1"), ("floor", "Boden"), ("wall", "Mauer")):
+                if key not in materials and label == wanted:
+                    materials[key] = actor.static_mesh_component.get_material(0)
+
+    def cube(tile, size_x, size_y, height, label, base=0.0, yaw=0.0, material="wall", collision=True):
+        actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, world(tile[0], tile[1], base + height * 0.5), unreal.Rotator(0.0, 0.0, yaw))
+        actor.static_mesh_component.set_static_mesh(CUBE)
+        if materials.get(material) is not None:
+            actor.static_mesh_component.set_material(0, materials[material])
+        if not collision:
+            actor.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        actor.set_actor_scale3d(unreal.Vector(size_x * TILE / 100.0, size_y * TILE / 100.0, height / 100.0))
+        actor.set_folder_path(folder)
+        actor.set_actor_label(label)
+        actor.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+        counts[folder] = counts.get(folder, 0) + 1
+        return actor
+
+    # Road from the village well down to the gate, and trodden ground inside
+    length = math.hypot(road_end[0] - road_start[0], road_end[1] - road_start[1])
+    yaw = math.degrees(math.atan2(-(road_end[1] - road_start[1]), -(road_end[0] - road_start[0])))
+    cube(((road_start[0] + road_end[0]) * 0.5, (road_start[1] + road_end[1]) * 0.5), length + 1.0, 2.6, 2.0, "Weg zum Kontor", base=-0.5, yaw=yaw, material="road", collision=False)
+    cube(KONTOR, KONTOR_RADIUS * 1.8, KONTOR_RADIUS * 1.8, 2.0, "Boden", base=-0.8, material="floor", collision=False)
+
+    # Palisade on a square, the gate towards the road in the north
+    gate_angle = math.degrees(math.atan2(road_start[1] - KONTOR[1], road_start[0] - KONTOR[0]))
+    gate_half = 16.0
+    if mesh("SM_WoodenPost") is not None:
+        angle = gate_angle + gate_half
+        index = 0
+        while angle < gate_angle + 360.0 - gate_half:
+            place("SM_WoodenPost", ring(KONTOR, angle, KONTOR_RADIUS + rng.uniform(-0.04, 0.04)), folder + "/Palisade", "Pfahl {}".format(index),
+                  scale=2.4 * rng.uniform(0.95, 1.08), stretch=(1.05, 1.05, 1.0), yaw=rng.uniform(0.0, 360.0), sink=18.0)
+            angle += math.degrees(0.42 / KONTOR_RADIUS)
+            index += 1
+        for side in (-1.0, 1.0):
+            place("SM_WoodenPost", ring(KONTOR, gate_angle + side * gate_half, KONTOR_RADIUS), folder + "/Palisade", "Torpfosten", scale=3.2, sink=25.0)
+    segments = 22
+    span = (360.0 - 2.0 * gate_half) / segments
+    chord = 2.0 * KONTOR_RADIUS * TILE * math.sin(math.radians(span * 0.5)) + 12.0
+    for segment in range(segments):
+        middle = gate_angle + gate_half + span * (segment + 0.5)
+        blocker(ring(KONTOR, middle, KONTOR_RADIUS), chord, 45.0, 320.0, world_yaw(middle) + 90.0, folder + "/Palisade/Kollision", "Palisadenwand {}".format(segment))
+
+    # Store house at the back (placeholder walls until a guild building is chosen), a counter in front of it
+    back = ring(KONTOR, gate_angle + 180.0, 2.2)
+    cube(back, 3.6, 2.2, 260.0, "Lagerhaus", yaw=world_yaw(gate_angle) + 90.0)
+    cube(back, 4.0, 2.6, 30.0, "Lagerhaus Dach", base=260.0, yaw=world_yaw(gate_angle) + 90.0, material="road", collision=False)
+    counter = ring(KONTOR, gate_angle + 180.0, 0.6)
+    place("SM_OldWoodenTable", counter, folder, "Theke", scale=1.2, yaw=world_yaw(gate_angle) + 90.0)
+    place("SM_ManMade_Lantern_02", counter, folder, "Laterne auf der Theke", z=92.0, yaw=30.0)
+    place("SM_WoodenBox", ring(KONTOR, gate_angle + 130.0, 2.6), folder, "Kiste", scale=1.4, yaw=20.0)
+    place("SM_WoodenBox", ring(KONTOR, gate_angle + 130.0, 2.6), folder, "Kiste oben", z=70.0, scale=1.1, yaw=55.0)
+    place("SM_WoodenAmmoCrate", ring(KONTOR, gate_angle + 115.0, 3.2), folder, "Lange Kiste", yaw=world_yaw(gate_angle + 115.0))
+    place("SM_WoodenBarrelB", ring(KONTOR, gate_angle - 125.0, 2.8), folder, "Fass 1", yaw=10.0)
+    place("SM_WoodenBarrelC", ring(KONTOR, gate_angle - 140.0, 2.9), folder, "Fass 2", yaw=80.0)
+    place("SM_WoodenWheelbarrow", ring(KONTOR, gate_angle - 90.0, 3.0), folder, "Schubkarre", yaw=world_yaw(gate_angle))
+    place("SM_HorseHitchingPost", ring(KONTOR, gate_angle + 60.0, 3.3), folder, "Anbindebalken", yaw=world_yaw(gate_angle + 60.0) + 90.0)
+
+    light = actors.spawn_actor_from_class(unreal.VaelFireLight, world(counter[0], counter[1], 140.0), unreal.Rotator(0.0, 0.0, 0.0))
+    light.set_folder_path(folder)
+    light.set_actor_label("Licht der Theke")
+
+    # Maren behind the counter, facing the gate
+    behind = ring(KONTOR, gate_angle + 180.0, 1.15)
+    maren = actors.spawn_actor_from_class(unreal.VaelNpc, world(behind[0], behind[1], 92.0), unreal.Rotator(0.0, 0.0, world_yaw(gate_angle)))
+    maren.set_editor_property("dialogue", unreal.load_asset("/Game/Vael/Story/DA_Dialogue_Maren"))
+    maren.set_editor_property("robe_color", unreal.LinearColor(0.07, 0.1, 0.16, 1.0))
+    maren.set_folder_path("Kontor")
+    maren.set_actor_label("Maren Holt")
+
+    marker = actors.spawn_actor_from_class(unreal.VaelQuestMarker, world(KONTOR[0], KONTOR[1], 50.0), unreal.Rotator(0.0, 0.0, 0.0))
+    marker.set_editor_property("marker_id", unreal.Name("Kontor"))
+    marker.set_editor_property("radius", 650.0)
+    marker.set_folder_path("Quests")
+    marker.set_actor_label("Questziel Kontor")
+
+
 def place_scrolls():
     """Scrolls of the sealed formulas Act I gained with the spell list (step 10b); the places match the hints of the formulas"""
     element = unreal.VaelElement
@@ -955,6 +1063,8 @@ def dress():
         dress_border(level_actors)
     if not done("Schriftrollen"):
         place_scrolls()
+    if not done("Kontor/Kulisse"):
+        dress_kontor(level_actors)
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 
