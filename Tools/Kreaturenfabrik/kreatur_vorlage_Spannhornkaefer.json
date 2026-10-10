@@ -1,0 +1,30 @@
+{
+  "name": "Spannhornkäfer",
+  "name_datei": "Spannhornkaefer",
+  "region": "Wurzelforst",
+  "familie": "Vielbeiner",
+  "klasse": "normal",
+  "laenge_cm": 120,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "schwaeche": [
+    "Feuer"
+  ],
+  "verhaltensbausteine": [
+    "SpanntUndSchiesst"
+  ],
+  "warnsignale": {
+    "spannen": "Ratschen",
+    "eingerastet": "Klack"
+  },
+  "tripo_prompt": "Game concept art of a single creature for a dark fantasy action RPG, stylized hand-painted look, three-quarter view from the front left and slightly above, the creature stands naturally on the ground on all six legs, full body visible, plain light grey background. A large Hercules rhinoceros beetle with a compact, strong, unified body, dark and menacing, not cute. Head, horns, thorax and legs are beige with light brown tones; two smooth green wing cases with a central seam and a mottled camouflage pattern. Two wide horns grow from the sides of the head directly in front of the small eyes and sweep outward to the left and right like deer antlers with several tines. Between them a straight central horn with a groove along its top. Six strong legs in three pairs, all six planted on the ground, toothed shins.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D. Reiner Text zu 3D baut den Käfer aufrecht wie ein Sammlerstück.",
+  "tripo_einstellungen": {
+    "texturqualitaet": "2K",
+    "beleuchtung_entfernen": true,
+    "pbr": true,
+    "topologie": "Dreieck",
+    "polygonanzahl": 15000,
+    "export": "FBX (Blender)"
+  }
+}
