@@ -9,7 +9,9 @@
 
 class AVaelCharacter;
 class UMaterialInstanceDynamic;
+class UPoseableMeshComponent;
 class UStaticMeshComponent;
+class UVaelLegIKComponent;
 class UVaelCreatureData;
 class AVaelCreature;
 
@@ -202,6 +204,21 @@ protected:
 	/** Called whenever the color of the body changes, for creatures whose look is made of more than the body: the color with the Mark mixed in, and whether a hit flashes it */
 	virtual void OnBodyColorShown(const FLinearColor& Color, bool bHitFlash) {}
 
+	/** Jolts the legs of a factory mesh after a hit */
+	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
+
+	/** Mesh of the creature factory if the data names one, posed bone by bone; null for placeholder and code looks */
+	UPoseableMeshComponent* GetFactoryMesh() const { return FactoryMesh.Get(); }
+
+	/** Procedural legs of the factory mesh; null without one */
+	UVaelLegIKComponent* GetFactoryLegs() const { return FactoryLegs.Get(); }
+
+	/** Glow of the ember parts of the factory mesh, like a burning fuse; the rest glow is MeshGlow of the data */
+	void SetFactoryGlow(float Glow);
+
+	/** Moves and scales the factory mesh from its place on the bottom of the capsule, like sinking into the ground or swelling up */
+	void SetFactoryMeshOffset(const FVector& Offset, float Scale = 1.0f);
+
 private:
 
 	/** Values in use: the data asset, or the defaults of the data class without one */
@@ -233,6 +250,25 @@ private:
 	/** Material of the placeholder body */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> BodyMaterial;
+
+	/** Look of the creature factory: mesh, legs and the instance of the master material */
+	UPROPERTY(Transient)
+	TObjectPtr<UPoseableMeshComponent> FactoryMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelLegIKComponent> FactoryLegs;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> FactoryMaterial;
+
+	/** Place of the factory mesh on the bottom of the capsule */
+	FVector FactoryMeshBase = FVector::ZeroVector;
+
+	/** Seconds since death, for the legs curling up; negative while alive */
+	float FactoryDeathTime = -1.0f;
+
+	/** Swaps the placeholder body for the mesh of the creature factory if the data names one */
+	void SetupFactoryMesh();
 
 	/** Color of the body outside of hit flashes */
 	FLinearColor BodyColor = FLinearColor::Gray;

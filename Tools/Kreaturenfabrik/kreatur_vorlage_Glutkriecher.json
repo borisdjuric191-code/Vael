@@ -7,6 +7,7 @@
   "laenge_cm": 120,
   "drehung_z_grad": 0,
   "tripo_rig_verwenden": false,
+  "hoerner": false,
   "aussehen": "Flacher, hundegroßer Gräber der Aschenmark. Körper aus überlappenden Krustenplatten in Schwarz, Kohlegrau und Asche, zwischen den Platten glühende Risse. Am Hinterleib eine geschwollene Glutdrüse wie eine Lunte, die vor der Explosion anschwillt. Kleiner Kopf mit glühenden Augen, vorn zwei kurze Zangen, sechs dünne gegliederte Beine. Glühen nur in Rissen, Drüse und Augen.",
   "schwaeche": ["Wasser", "Erde (unter der Asche)"],
   "verhaltensbausteine": ["GräbtSichEin", "Zündet"],

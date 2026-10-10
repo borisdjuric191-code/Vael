@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelEmberCrawler.h"
+#include "Components/PoseableMeshComponent.h"
+#include "Creatures/VaelLegIKComponent.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
@@ -330,6 +332,14 @@ void AVaelEmberCrawler::BuildRig()
 	Rig->SetupAttachment(GetRootComponent());
 	Rig->RegisterComponent();
 
+	// With a mesh of the creature factory only the mound of ash is built; mesh and legs come from the base class
+	if (GetFactoryMesh() != nullptr)
+	{
+		Mound = VaelEffects::AddLookShape(this, CoreMaterial, CrawlerAshColor, 0.0f);
+		RefreshBodyColor();
+		return;
+	}
+
 	// A glowing gland in the rear, half hidden under plates of ash crust; thorax and head in front
 	Gland = AddRigPart(CoreMaterial, GlowColor, GlandGlow);
 	Gland->SetRelativeLocation(FVector(-28.0f, 0.0f, -24.0f));
@@ -382,14 +392,15 @@ void AVaelEmberCrawler::BuildRig()
 
 void AVaelEmberCrawler::OnBodyColorShown(const FLinearColor& Color, bool bHitFlash)
 {
-	if (Rig == nullptr)
-	{
-		return;
-	}
-
 	// The gland and the eyes glow in the color of the state, the crust takes a little of it
 	GlowColor = Color;
 	CrustColor = FMath::Lerp(CrawlerCrustColor, Color, 0.12f);
+
+	// A factory mesh shows its glow through the master material
+	if (Rig == nullptr || Gland == nullptr)
+	{
+		return;
+	}
 
 	const auto Paint = [bHitFlash](UStaticMeshComponent* Part, const FLinearColor& PartColor)
 	{
@@ -502,15 +513,34 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	const float Snap = SinceClawAttack >= 0.0f && SinceClawAttack < CrawlerSnapTime ? FMath::Sin(UE_PI * SinceClawAttack / CrawlerSnapTime) : 0.0f;
 	RigOffset.X += CrawlerLunge * Snap;
 
-	Rig->SetRelativeLocation(RigOffset);
-	Rig->SetRelativeRotation(GetBody()->GetRelativeRotation());
-
-	Gland->SetRelativeScale3D(CrawlerGlandSize * GlandSwell / CrawlerShapeSize);
-	VaelEffects::SetLookGlow(Gland, Glow);
-
-	for (UStaticMeshComponent* Eye : Eyes)
+	const bool bFactory = GetFactoryMesh() != nullptr;
+	if (bFactory)
 	{
-		VaelEffects::SetLookGlow(Eye, bDeadNow ? 0.0f : Glow * 1.5f + 1.0f);
+		// The mesh sinks and rises, swells with the fuse and glows in its cracks, gland and eyes; its legs fold while under the ash
+		SetFactoryMeshOffset(RigOffset, 1.0f + (GlandSwell - 1.0f) * 0.5f);
+		SetFactoryGlow(bDeadNow ? 0.0f : Glow);
+		GetFactoryMesh()->SetVisibility(Emergence > 0.02f || bDeadNow);
+		if (!bDeadNow)
+		{
+			GetFactoryLegs()->SetCurl(1.0f - Climb);
+		}
+		if (SinceClawAttack >= 0.0f && SinceClawAttack <= DeltaSeconds)
+		{
+			GetFactoryLegs()->AddBodyJolt(GetActorForwardVector() * 10.0f);
+		}
+	}
+	else
+	{
+		Rig->SetRelativeLocation(RigOffset);
+		Rig->SetRelativeRotation(GetBody()->GetRelativeRotation());
+
+		Gland->SetRelativeScale3D(CrawlerGlandSize * GlandSwell / CrawlerShapeSize);
+		VaelEffects::SetLookGlow(Gland, Glow);
+
+		for (UStaticMeshComponent* Eye : Eyes)
+		{
+			VaelEffects::SetLookGlow(Eye, bDeadNow ? 0.0f : Glow * 1.5f + 1.0f);
+		}
 	}
 
 	// The mound of ash shows only while the crawler is (partly) under it
@@ -518,57 +548,61 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	Mound->SetRelativeLocation(FVector(0.0f, 0.0f, -HalfHeight));
 	Mound->SetRelativeScale3D(FVector(130.0f, 120.0f, 40.0f * (1.0f - Emergence) + 4.0f) * (1.0f + 0.04f * FMath::Sin(Time * 9.0f)) / CrawlerShapeSize);
 
-	// Legs: a tripod gait whose steps follow the distance walked; three feet on the ground at any time
-	GaitPhase += Speed * DeltaSeconds / (CrawlerStride * 2.0f);
-
-	const float Ground = -HalfHeight - RigOffset.Z;
-	for (int32 LegIndex = 0; LegIndex < 6; ++LegIndex)
+	// The code rig moves its own legs and claws; a factory mesh walks on the legs of the base class
+	if (!bFactory)
 	{
-		const int32 Pair = LegIndex % 3;
-		const float Side = LegIndex < 3 ? -1.0f : 1.0f;
-		const float GroupOffset = (Pair + (Side > 0.0f ? 1 : 0)) % 2 == 0 ? 0.0f : 0.5f;
+		// Legs: a tripod gait whose steps follow the distance walked; three feet on the ground at any time
+		GaitPhase += Speed * DeltaSeconds / (CrawlerStride * 2.0f);
 
-		const FVector Hip(CrawlerHipX[Pair], CrawlerHipY * Side, -32.0f);
-		FVector Foot(CrawlerHipX[Pair] + CrawlerFootSpreadX[Pair], CrawlerFootY * Side, Ground);
-
-		if (bDeadNow)
+		const float Ground = -HalfHeight - RigOffset.Z;
+		for (int32 LegIndex = 0; LegIndex < 6; ++LegIndex)
 		{
-			// Curled in under the body
-			Foot = Hip + FVector(0.0f, 12.0f * Side, -6.0f);
+			const int32 Pair = LegIndex % 3;
+			const float Side = LegIndex < 3 ? -1.0f : 1.0f;
+			const float GroupOffset = (Pair + (Side > 0.0f ? 1 : 0)) % 2 == 0 ? 0.0f : 0.5f;
+
+			const FVector Hip(CrawlerHipX[Pair], CrawlerHipY * Side, -32.0f);
+			FVector Foot(CrawlerHipX[Pair] + CrawlerFootSpreadX[Pair], CrawlerFootY * Side, Ground);
+
+			if (bDeadNow)
+			{
+				// Curled in under the body
+				Foot = Hip + FVector(0.0f, 12.0f * Side, -6.0f);
+			}
+			else if (Speed > 10.0f)
+			{
+				const float Angle = UE_TWO_PI * (GaitPhase + GroupOffset);
+				Foot.X -= CrawlerStride * 0.5f * FMath::Cos(Angle);
+				Foot.Z += FMath::Max(0.0f, FMath::Sin(Angle)) * CrawlerStepLift;
+			}
+			else
+			{
+				// Standing: the legs twitch now and then
+				Foot.Z += FMath::Max(0.0f, FMath::Sin(Time * 3.0f + LegIndex * 1.7f) - 0.9f) * 40.0f;
+			}
+
+			const FVector Knee = (Hip + Foot) * 0.5f + FVector(0.0f, 12.0f * Side, bDeadNow ? 6.0f : CrawlerKneeHeight);
+
+			PlaceSegment(LegUpper[LegIndex], Hip, Knee, CrawlerUpperLegWidth);
+			PlaceSegment(LegLower[LegIndex], Knee, Foot, CrawlerLowerLegWidth);
 		}
-		else if (Speed > 10.0f)
+
+		// Claws: an arm forward from the head, a pincer that turns inwards to snap shut
+		for (int32 ClawIndex = 0; ClawIndex < 2; ++ClawIndex)
 		{
-			const float Angle = UE_TWO_PI * (GaitPhase + GroupOffset);
-			Foot.X -= CrawlerStride * 0.5f * FMath::Cos(Angle);
-			Foot.Z += FMath::Max(0.0f, FMath::Sin(Angle)) * CrawlerStepLift;
+			const float Side = ClawIndex == 0 ? -1.0f : 1.0f;
+			const FVector Shoulder(40.0f, 20.0f * Side, -36.0f);
+			const FVector Elbow(62.0f, 30.0f * Side, -40.0f);
+			const FVector PincerDirection = FVector(1.0f, -Side * (0.1f + 0.55f * (1.0f - Snap)), 0.0f).GetSafeNormal();
+			const float PincerLength = 26.0f;
+
+			PlaceSegment(ClawArms[ClawIndex], Shoulder, Elbow, 11.0f);
+
+			UStaticMeshComponent* Tip = ClawTips[ClawIndex];
+			Tip->SetRelativeLocation(Elbow + PincerDirection * PincerLength * 0.5f);
+			Tip->SetRelativeRotation(FRotationMatrix::MakeFromZ(PincerDirection).Rotator());
+			Tip->SetRelativeScale3D(FVector(12.0f, 12.0f, PincerLength) / CrawlerShapeSize);
 		}
-		else
-		{
-			// Standing: the legs twitch now and then
-			Foot.Z += FMath::Max(0.0f, FMath::Sin(Time * 3.0f + LegIndex * 1.7f) - 0.9f) * 40.0f;
-		}
-
-		const FVector Knee = (Hip + Foot) * 0.5f + FVector(0.0f, 12.0f * Side, bDeadNow ? 6.0f : CrawlerKneeHeight);
-
-		PlaceSegment(LegUpper[LegIndex], Hip, Knee, CrawlerUpperLegWidth);
-		PlaceSegment(LegLower[LegIndex], Knee, Foot, CrawlerLowerLegWidth);
-	}
-
-	// Claws: an arm forward from the head, a pincer that turns inwards to snap shut
-	for (int32 ClawIndex = 0; ClawIndex < 2; ++ClawIndex)
-	{
-		const float Side = ClawIndex == 0 ? -1.0f : 1.0f;
-		const FVector Shoulder(40.0f, 20.0f * Side, -36.0f);
-		const FVector Elbow(62.0f, 30.0f * Side, -40.0f);
-		const FVector PincerDirection = FVector(1.0f, -Side * (0.1f + 0.55f * (1.0f - Snap)), 0.0f).GetSafeNormal();
-		const float PincerLength = 26.0f;
-
-		PlaceSegment(ClawArms[ClawIndex], Shoulder, Elbow, 11.0f);
-
-		UStaticMeshComponent* Tip = ClawTips[ClawIndex];
-		Tip->SetRelativeLocation(Elbow + PincerDirection * PincerLength * 0.5f);
-		Tip->SetRelativeRotation(FRotationMatrix::MakeFromZ(PincerDirection).Rotator());
-		Tip->SetRelativeScale3D(FVector(12.0f, 12.0f, PincerLength) / CrawlerShapeSize);
 	}
 
 	// Dust behind the moving mound, sparks from the burning gland, steam from the doused one
@@ -605,7 +639,7 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 		Puff.Color = FMath::Lerp(GlowColor, FLinearColor(1.0f, 0.85f, 0.4f), 0.5f);
 		Puff.Glow = 6.0f;
 		Puff.bLandOnGround = false;
-		AVaelDebrisBurst::Spawn(this, Gland->GetComponentLocation(), Puff);
+		AVaelDebrisBurst::Spawn(this, GetGlandLocation(), Puff);
 	}
 	else if (State == EVaelCrawlerState::Doused)
 	{
@@ -621,8 +655,15 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 		Puff.Glow = 0.4f;
 		Puff.bSoft = true;
 		Puff.bLandOnGround = false;
-		AVaelDebrisBurst::Spawn(this, Gland->GetComponentLocation(), Puff);
+		AVaelDebrisBurst::Spawn(this, GetGlandLocation(), Puff);
 	}
 }
 
 #undef LOCTEXT_NAMESPACE
+
+FVector AVaelEmberCrawler::GetGlandLocation() const
+{
+	// The gland of a factory mesh sits at its rear, a little above the ground
+	return Gland != nullptr ? Gland->GetComponentLocation()
+		: GetActorLocation() - GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.7f;
+}

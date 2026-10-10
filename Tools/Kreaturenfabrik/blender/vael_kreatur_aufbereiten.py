@@ -42,8 +42,9 @@ VIELBEINER = {
     "body":   [(0, .40, .55), (0, .86, .55)],
     "head":   [(0, .36, .55), (0, .27, .55)],
     "horn_M": [(0, .29, .62), (0, .08, .70)],
-    "horn_L": [(-.12, .27, .60), (-.75, .02, .80)],
-    "horn_R": [(.12, .27, .60), (.75, .02, .80)],
+    # Die Kreatur schaut in Blender nach -Y: ihre linke Seite ist +X
+    "horn_L": [(.12, .27, .60), (.75, .02, .80)],
+    "horn_R": [(-.12, .27, .60), (-.75, .02, .80)],
     # je Bein: Hüfte, Knie, Fußgelenk, Fußspitze
     "legs": {
         "1": [(.37, .41, .45), (.65, .38, .75), (.78, .29, .30), (.82, .23, 0)],
@@ -171,7 +172,7 @@ def vorbereiten(ordner):
         if familie not in FAMILIEN_SKELETT:
             log(f"Für die Familie '{familie}' gibt es noch kein Vorlage-Skelett. Mesh ist trotzdem aufbereitet.")
         else:
-            baue_vorlage_skelett(obj, name, FAMILIEN_SKELETT[familie])
+            baue_vorlage_skelett(obj, name, FAMILIEN_SKELETT[familie], sb.get("hoerner", True))
 
     os.makedirs(os.path.join(ordner, "03_blender"), exist_ok=True)
     ziel_blend = os.path.join(ordner, "03_blender", f"{name}.blend")
@@ -179,7 +180,7 @@ def vorbereiten(ordner):
     log("gespeichert:", ziel_blend)
     log("Nächster Schritt: Datei in Blender öffnen, Knochen prüfen/zurechtrücken, dann 'binden' ausführen.")
 
-def passe_vielbeiner_an(obj, tpl):
+def passe_vielbeiner_an(obj, tpl, hoerner=True):
     """Sucht Füße, Knie, Horn-Spitzen und Kopf direkt im Mesh und schreibt die Vorlage darauf um.
     Funktioniert für jeden Sechsbeiner, der auf dem Boden steht und nach -Y schaut."""
     import copy
@@ -227,7 +228,7 @@ def passe_vielbeiner_an(obj, tpl):
         t["legs"][nr] = [n(huefte), n(knie), n(gelenk), n(fuss)]
 
     # 3) Geweih-Hörner: äußerste hohe Punkte links/rechts; Ansatz an der Körperflanke
-    for s, k in ((-1, "horn_L"), (1, "horn_R")):
+    for s, k in (() if not hoerner else ((1, "horn_L"), (-1, "horn_R"))):
         hoch = [p for p in V if p.z > lo.z + .45 * H and p.x * s > .4 * hw]
         if hoch:
             spitze = max(hoch, key=lambda p: abs(p.x) + .6 * (p.z - lo.z))
@@ -235,7 +236,7 @@ def passe_vielbeiner_an(obj, tpl):
             t[k] = [n(ansatz), n(spitze)]
     # 4) Mittelhorn: höchster Punkt nahe der Mitte in der vorderen Hälfte
     mitte_v = [p for p in V if abs(p.x) < .12 * hw and p.y < lo.y + .55 * L]
-    if mitte_v:
+    if mitte_v and hoerner:
         sp = max(mitte_v, key=lambda p: p.z)
         t["horn_M"] = [n(Vector((0, sp.y + .08 * L, lo.z + .62 * H))), n(sp)]
     # 5) Kopf: vorderster Punkt in der Mitte
@@ -247,9 +248,9 @@ def passe_vielbeiner_an(obj, tpl):
     log("Skelett an das Mesh angepasst (Füße, Knie, Hörner, Kopf gefunden).")
     return t
 
-def baue_vorlage_skelett(obj, name, tpl):
+def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
     if tpl is VIELBEINER:
-        tpl = passe_vielbeiner_an(obj, tpl)
+        tpl = passe_vielbeiner_an(obj, tpl, hoerner)
     lo, hi = bbox_welt(obj)
     hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
     vorne = lo.y   # Blender: Kreatur schaut nach -Y (Blender-Vorderansicht)
@@ -273,10 +274,11 @@ def baue_vorlage_skelett(obj, name, tpl):
     root = knochen("root", Vector((0, 0, 0)), Vector((0, 0, H * .2)))
     body = knochen("body", p(tpl["body"][0]), p(tpl["body"][1]), root)
     head = knochen("head", p(tpl["head"][0]), p(tpl["head"][1]), body)
-    for h in ("horn_M", "horn_L", "horn_R"):
+    for h in ("horn_M", "horn_L", "horn_R") if hoerner else ():
         knochen(h, p(tpl[h][0]), p(tpl[h][1]), head)
     for nr, (huefte, knie, gelenk, spitze) in tpl["legs"].items():
-        for seite, s in (("L", -1), ("R", 1)):
+        # Blick nach -Y: links ist +X
+        for seite, s in (("L", 1), ("R", -1)):
             m = lambda v: (v[0] * s, v[1], v[2])
             ansatz = p((m(huefte)[0] * .55, huefte[1], huefte[2]))
             c = knochen(f"leg_{seite}{nr}_coxa", ansatz, p(m(huefte)), body)

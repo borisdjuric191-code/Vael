@@ -308,3 +308,11 @@ void AVaelEmberQueen::CallBrood()
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void AVaelEmberQueen::OnBodyColorShown(const FLinearColor& Color, bool bHitFlash)
+{
+	// The mesh of the creature factory glows dim while she sleeps and fully once she is awake, like the placeholder body
+	const UVaelEmberQueenData* Data = GetData<UVaelEmberQueenData>();
+	const float Awake = Data->BodyColor.R > KINDA_SMALL_NUMBER ? FMath::Clamp(Color.R / Data->BodyColor.R, 0.0f, 2.0f) : 1.0f;
+	SetFactoryGlow(Data->MeshGlow * FMath::Max(Awake, 0.25f));
+}

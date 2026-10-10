@@ -52,16 +52,34 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 
 	Age += DeltaSeconds;
 
-	// Close camera on the first living creature, slightly from the front and above
+	// Optional console command once the player is there, underscores for spaces: -VaelShowcaseCmd=VaelSpawn_Glutkriecher_2
+	FString Command;
+	if (!bCommandDone && Age > 1.0f && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmd="), Command, false))
+	{
+		bCommandDone = true;
+		if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
+		{
+			PlayerController->ConsoleCommand(Command.TrimQuotes().Replace(TEXT("_"), TEXT(" ")), true);
+		}
+	}
+
+	// Close camera on the living creature closest to the player, slightly from the front and above
 	if (FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseCloseup")))
 	{
+		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
 		const AVaelCreature* Subject = nullptr;
-		for (TActorIterator<AVaelCreature> It(GetWorld()); It && Subject == nullptr; ++It)
+		float Closest = UE_BIG_NUMBER;
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It && PlayerPawn != nullptr; ++It)
 		{
-			Subject = !It->IsDead() ? *It : nullptr;
+			const float Distance = FVector::Dist(It->GetActorLocation(), PlayerPawn->GetActorLocation());
+			if (!It->IsDead() && Distance < Closest)
+			{
+				Subject = *It;
+				Closest = Distance;
+			}
 		}
 
-		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
 		if (Subject != nullptr && PlayerController != nullptr)
 		{
 			if (Closeup == nullptr)

@@ -54,6 +54,7 @@ protected:
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
 	virtual bool AlwaysShowStatusText() const override { return State != EVaelQueenState::Sleeping; }
 	virtual void Die() override;
+	virtual void OnBodyColorShown(const FLinearColor& Color, bool bHitFlash) override;
 
 private:
 

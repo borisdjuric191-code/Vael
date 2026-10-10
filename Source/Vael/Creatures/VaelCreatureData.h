@@ -122,6 +122,19 @@ public:
 	/** Placeholder color of the body */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
 	FLinearColor BodyColor = FLinearColor::Gray;
+
+	/** Mesh of the creature factory (Scripts in Tools/Kreaturenfabrik), facing +Y like the Unreal mannequin. Set: it replaces the placeholder look,
+	 *  and creatures of the family Vielbeiner walk on procedural legs. Empty: the placeholder or code look of the creature. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	TSoftObjectPtr<USkeletalMesh> Mesh;
+
+	/** Turn of the mesh around the up axis, so it faces the front of the creature */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	float MeshYaw = -90.0f;
+
+	/** Glow of the ember parts of the mesh (orange in its colors) at rest, 0 for none */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance", meta = (ClampMin = 0))
+	float MeshGlow = 0.0f;
 };
 
 /**
@@ -734,14 +747,6 @@ class UVaelHornBeetleData : public UVaelCreatureData
 public:
 
 	UVaelHornBeetleData();
-
-	/** Mesh of the creature factory, facing +Y like the Unreal mannequin */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
-	TSoftObjectPtr<USkeletalMesh> Mesh;
-
-	/** Turn of the mesh around the up axis, so it faces the front of the creature */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
-	float MeshYaw = -90.0f;
 
 	/** Tips of the side horns in the reference pose, component space of the mesh in cm (the thread runs between them) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")

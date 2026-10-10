@@ -37,14 +37,6 @@ class AVaelHornBeetle : public AVaelCreature
 {
 	GENERATED_BODY()
 
-	/** Mesh of the creature factory, posed bone by bone */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UPoseableMeshComponent> PoseMesh;
-
-	/** Procedural legs */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UVaelLegIKComponent> Legs;
-
 	/** The thread between the horn tips, shown while it is tensed */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> Thread;
@@ -65,7 +57,7 @@ public:
 	EVaelBeetleState GetBeetleState() const { return State; }
 
 	/** The legs, for tests */
-	const UVaelLegIKComponent* GetLegs() const { return Legs.Get(); }
+	const UVaelLegIKComponent* GetLegs() const { return GetFactoryLegs(); }
 
 	/** Shots fired so far, for tests */
 	int32 GetShotCount() const { return ShotCount; }
@@ -78,7 +70,6 @@ protected:
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
 	virtual void TickBehavior(float DeltaSeconds) override;
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
-	virtual void OnBodyColorShown(const FLinearColor& Color, bool bHitFlash) override;
 	virtual void Die() override;
 	virtual float GetStatusTextHeight() const override { return 120.0f; }
 
@@ -126,9 +117,6 @@ private:
 	/** Seconds the burned thread still glows */
 	float BurnGlow = 0.0f;
 
-	/** Seconds since the death, for curling up */
-	float DeathTime = -1.0f;
-
 	int32 ShotCount = 0;
 
 	/** Reference transforms of the horn bones in component space */
@@ -140,9 +128,8 @@ private:
 	/** Direction of the turn that spreads each side horn outwards */
 	float HornSpreadSign[2] = { 1.0f, -1.0f };
 
-	/** Material of the mesh: the Mark glow of the master material also shows hit flashes */
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInstanceDynamic> MeshMaterial;
+	/** Tips of the side horns in the reference pose, matched to the horn bones by their side */
+	FVector HornTips[2] = { FVector::ZeroVector, FVector::ZeroVector };
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ThreadMaterial;

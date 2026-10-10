@@ -63,6 +63,9 @@ protected:
 
 private:
 
+	/** Where sparks and steam leave the gland */
+	FVector GetGlandLocation() const;
+
 	/** Switches to a new state and updates the look */
 	void EnterState(EVaelCrawlerState NewState);
 

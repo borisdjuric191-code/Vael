@@ -12,6 +12,9 @@
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "Creatures/VaelCreatureData.h"
+#include "Creatures/VaelLegIKComponent.h"
+#include "Components/PoseableMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
@@ -136,6 +139,8 @@ void AVaelCreature::BeginPlay()
 
 	HomeLocation = GetActorLocation();
 
+	SetupFactoryMesh();
+
 	BodyMaterial = Body->CreateAndSetMaterialInstanceDynamic(0);
 	SetBodyColor(ActiveData->BodyColor);
 
@@ -177,6 +182,13 @@ float AVaelCreature::GetOutgoingDamageMultiplier() const
 void AVaelCreature::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// Dead factory creatures curl their legs up
+	if (FactoryDeathTime >= 0.0f && FactoryLegs != nullptr)
+	{
+		FactoryDeathTime += DeltaSeconds;
+		FactoryLegs->SetCurl(FactoryDeathTime / 0.45f);
+	}
 
 	if (bShowingHitFlash && GetWorld()->GetTimeSeconds() >= HitFlashEndTime)
 	{
@@ -383,6 +395,7 @@ void AVaelCreature::Die()
 	}
 
 	bDead = true;
+	FactoryDeathTime = 0.0f;
 
 	UE_LOG(LogVael, Log, TEXT("'%s' (%s) dies"), *GetNameSafe(this), *GetCreatureName().ToString());
 
@@ -715,6 +728,14 @@ void AVaelCreature::RefreshBodyColor()
 		BodyMaterial->SetVectorParameterValue(BodyColorParameter, bShowingHitFlash ? FLinearColor(1.0f, 0.9f, 0.75f) : ShownColor);
 	}
 
+	// The factory mesh shows the Mark and hits with the glow of the master material
+	if (FactoryMaterial != nullptr)
+	{
+		const bool bMarkedLook = bMarked || bServant;
+		FactoryMaterial->SetScalarParameterValue(TEXT("MarkStaerke"), bShowingHitFlash ? 2.5f : bMarkedLook ? 1.2f : 0.0f);
+		FactoryMaterial->SetVectorParameterValue(TEXT("MarkFarbe"), bShowingHitFlash ? FLinearColor(1.0f, 0.92f, 0.8f) : FLinearColor(0.55f, 0.12f, 1.0f));
+	}
+
 	OnBodyColorShown(ShownColor, bShowingHitFlash);
 }
 
@@ -846,4 +867,74 @@ void AVaelCreature::UpdateResearch(float DeltaSeconds)
 FName AVaelCreature::GetCompendiumId() const
 {
 	return ActiveData != nullptr ? ActiveData->CompendiumId : NAME_None;
+}
+
+void AVaelCreature::SetupFactoryMesh()
+{
+	USkeletalMesh* SkeletalMesh = ActiveData->Mesh.IsNull() ? nullptr : ActiveData->Mesh.LoadSynchronous();
+	if (SkeletalMesh == nullptr)
+	{
+		if (!ActiveData->Mesh.IsNull())
+		{
+			UE_LOG(LogVael, Warning, TEXT("'%s': mesh '%s' is missing, the creature keeps its placeholder look"), *GetNameSafe(this), *ActiveData->Mesh.ToString());
+		}
+		return;
+	}
+
+	// The mesh stands on the bottom of the capsule and replaces the placeholder body
+	FactoryMesh = NewObject<UPoseableMeshComponent>(this, TEXT("FactoryMesh"));
+	FactoryMesh->SetupAttachment(RootComponent);
+	FactoryMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	FactoryMesh->SetCastShadow(true);
+	FactoryMesh->RegisterComponent();
+	FactoryMesh->SetSkinnedAssetAndUpdate(SkeletalMesh);
+
+	FactoryMeshBase = FVector(0.0f, 0.0f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	FactoryMesh->SetRelativeLocationAndRotation(FactoryMeshBase, FRotator(0.0f, ActiveData->MeshYaw, 0.0f));
+	FactoryMaterial = FactoryMesh->CreateAndSetMaterialInstanceDynamic(0);
+	Body->SetVisibility(false);
+
+	// Legs of the family Vielbeiner: found by their bone names; other meshes stay as they are
+	FactoryLegs = NewObject<UVaelLegIKComponent>(this, TEXT("FactoryLegs"));
+
+	// Bigger creatures take longer and higher steps; the values of the component fit a beetle of about 1 m
+	const float Size = FMath::Clamp(ActiveData->CollisionRadius / 55.0f, 0.5f, 5.0f);
+	FactoryLegs->StepDistance *= Size;
+	FactoryLegs->StepHeight *= Size;
+	FactoryLegs->StepDuration *= FMath::Sqrt(Size);
+	FactoryLegs->MinStepDuration *= FMath::Sqrt(Size);
+	FactoryLegs->TraceUp *= Size;
+	FactoryLegs->TraceDown *= Size;
+	FactoryLegs->BodyBob *= Size;
+	FactoryLegs->RegisterComponent();
+	FactoryLegs->Setup(FactoryMesh);
+
+	SetFactoryGlow(ActiveData->MeshGlow);
+}
+
+void AVaelCreature::SetFactoryGlow(float Glow)
+{
+	if (FactoryMaterial != nullptr)
+	{
+		FactoryMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), Glow);
+	}
+}
+
+void AVaelCreature::SetFactoryMeshOffset(const FVector& Offset, float Scale)
+{
+	if (FactoryMesh != nullptr)
+	{
+		FactoryMesh->SetRelativeLocation(FactoryMeshBase + Offset);
+		FactoryMesh->SetRelativeScale3D(FVector(Scale));
+	}
+}
+
+void AVaelCreature::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
+{
+	Super::OnDamageTaken(Damage, DamageTags);
+
+	if (FactoryLegs != nullptr && Damage > 0.0f)
+	{
+		FactoryLegs->AddBodyJolt(FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), -0.6f).GetSafeNormal() * 5.0f);
+	}
 }

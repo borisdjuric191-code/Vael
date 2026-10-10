@@ -44,9 +44,6 @@ namespace
 	constexpr float BeetleSpreadSpeed = 14.0f;
 	constexpr float BeetleReleaseSpeed = 30.0f;
 
-	/** Seconds the corpse takes to curl up */
-	constexpr float BeetleCurlTime = 0.45f;
-
 	/** Colors of the thread: pale silk, glowing while it burns */
 	const FLinearColor BeetleThreadColor(0.86f, 0.82f, 0.7f);
 	const FLinearColor BeetleBurnColor(4.0f, 1.2f, 0.2f);
@@ -96,13 +93,6 @@ AVaelHornBeetle::AVaelHornBeetle()
 	// Turns on its own, slowly enough to be read
 	GetCharacterMovement()->bOrientRotationToMovement = false;
 
-	PoseMesh = CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("PoseMesh"));
-	PoseMesh->SetupAttachment(RootComponent);
-	PoseMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	PoseMesh->SetCastShadow(true);
-
-	Legs = CreateDefaultSubobject<UVaelLegIKComponent>(TEXT("Legs"));
-
 	Thread = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Thread"));
 	Thread->SetupAttachment(RootComponent);
 	Thread->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -136,18 +126,14 @@ void AVaelHornBeetle::BeginPlay()
 	const UVaelHornBeetleData* Data = GetData<UVaelHornBeetleData>();
 	ShotCooldown = RandomInRange(Data->FirstShotDelay);
 
-	// The mesh replaces the placeholder body; it stands on the bottom of the capsule
-	USkeletalMesh* SkeletalMesh = Data->Mesh.LoadSynchronous();
-	if (SkeletalMesh == nullptr)
+	// The base class has set up the mesh of the creature factory and its legs
+	const USkeletalMesh* SkeletalMesh = GetFactoryMesh() != nullptr ? Cast<USkeletalMesh>(GetFactoryMesh()->GetSkinnedAsset()) : nullptr;
+	if (SkeletalMesh == nullptr || GetFactoryLegs() == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("'%s': mesh '%s' is missing, the beetle keeps its placeholder"), *GetNameSafe(this), *Data->Mesh.ToString());
+		UE_LOG(LogVael, Warning, TEXT("'%s': the beetle has no mesh and stays still"), *GetNameSafe(this));
+		SetActorTickEnabled(false);
 		return;
 	}
-
-	GetBody()->SetVisibility(false);
-	PoseMesh->SetSkinnedAssetAndUpdate(SkeletalMesh);
-	PoseMesh->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), FRotator(0.0f, Data->MeshYaw, 0.0f));
-	MeshMaterial = PoseMesh->CreateAndSetMaterialInstanceDynamic(0);
 
 	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
 	const auto RestOf = [&RefSkeleton](FName Bone)
@@ -162,7 +148,11 @@ void AVaelHornBeetle::BeginPlay()
 
 	// Outwards is the turn that moves a horn tip further to the side it already stands on
 	const FTransform* RestHorns[2] = { &RestHornFirst, &RestHornSecond };
-	const FVector RestTips[2] = { Data->HornTipFirst, Data->HornTipSecond };
+	// Each horn gets the tip on its own side, whatever the bones are called
+	const bool bFirstOnTipSide = (RestHornFirst.GetLocation().X < 0.0f) == (Data->HornTipFirst.X < 0.0f);
+	HornTips[0] = bFirstOnTipSide ? Data->HornTipFirst : Data->HornTipSecond;
+	HornTips[1] = bFirstOnTipSide ? Data->HornTipSecond : Data->HornTipFirst;
+	const FVector* RestTips = HornTips;
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
 		const FVector Offset = RestTips[Side] - RestHorns[Side]->GetLocation();
@@ -170,8 +160,7 @@ void AVaelHornBeetle::BeginPlay()
 		HornSpreadSign[Side] = Moved * RestTips[Side].X > 0.0f ? 1.0f : -1.0f;
 	}
 
-	Legs->Setup(PoseMesh);
-	Legs->OnLegsPosed.AddUObject(this, &AVaelHornBeetle::PoseHorns);
+	GetFactoryLegs()->OnLegsPosed.AddUObject(this, &AVaelHornBeetle::PoseHorns);
 
 	ThreadMaterial = Thread->CreateAndSetMaterialInstanceDynamic(0);
 
@@ -199,7 +188,7 @@ void AVaelHornBeetle::EnterState(EVaelBeetleState NewState)
 	{
 	case EVaelBeetleState::Tension:
 		ClickCountdown = 0.0f;
-		Legs->SetExtraBodyTilt(FRotator(BeetleRearPitch, 0.0f, 0.0f));
+		GetFactoryLegs()->SetExtraBodyTilt(FRotator(BeetleRearPitch, 0.0f, 0.0f));
 		break;
 	case EVaelBeetleState::Locked:
 		SpreadTarget = 1.0f;
@@ -207,12 +196,12 @@ void AVaelHornBeetle::EnterState(EVaelBeetleState NewState)
 		break;
 	case EVaelBeetleState::Defenseless:
 		SpreadTarget = 0.0f;
-		Legs->SetExtraBodyTilt(FRotator(-4.0f, 0.0f, 0.0f));
+		GetFactoryLegs()->SetExtraBodyTilt(FRotator(-4.0f, 0.0f, 0.0f));
 		ShotCooldown = RandomInRange(Data->ShotInterval);
 		break;
 	default:
 		SpreadTarget = 0.0f;
-		Legs->SetExtraBodyTilt(FRotator::ZeroRotator);
+		GetFactoryLegs()->SetExtraBodyTilt(FRotator::ZeroRotator);
 		break;
 	}
 
@@ -221,7 +210,7 @@ void AVaelHornBeetle::EnterState(EVaelBeetleState NewState)
 
 void AVaelHornBeetle::StartTension()
 {
-	if (!IsDead())
+	if (!IsDead() && GetFactoryLegs() != nullptr)
 	{
 		ShotTarget = FindTarget(GetData<UVaelHornBeetleData>()->AggroRange);
 		EnterState(EVaelBeetleState::Tension);
@@ -351,13 +340,13 @@ void AVaelHornBeetle::Shoot()
 	Hit.Knockback = 250.0f;
 	AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Data->ShotRadius, Data->FlightTime, BeetleShotColor);
 
-	const FTransform Middle = PoseMesh->GetBoneTransformByName(BeetleHornMiddleBone, EBoneSpaces::ComponentSpace);
+	const FTransform Middle = GetFactoryMesh()->GetBoneTransformByName(BeetleHornMiddleBone, EBoneSpaces::ComponentSpace);
 	const FVector LocalTip = Middle.TransformPosition(RestHornMiddle.InverseTransformPosition(Data->MiddleHornTip));
-	AVaelArcShot::Lob(GetWorld(), PoseMesh->GetComponentTransform().TransformPosition(LocalTip), Ground, Data->FlightTime, Data->ShotApex, BeetleShotColor);
+	AVaelArcShot::Lob(GetWorld(), GetFactoryMesh()->GetComponentTransform().TransformPosition(LocalTip), Ground, Data->FlightTime, Data->ShotApex, BeetleShotColor);
 
 	// The horns snap back and the body recoils
 	SpreadShown = 1.15f;
-	Legs->AddBodyJolt(-GetActorForwardVector() * 9.0f);
+	GetFactoryLegs()->AddBodyJolt(-GetActorForwardVector() * 9.0f);
 	++ShotCount;
 
 	UE_LOG(LogVael, Verbose, TEXT("'%s' shoots at '%s'"), *GetNameSafe(this), *GetNameSafe(Target));
@@ -366,11 +355,6 @@ void AVaelHornBeetle::Shoot()
 void AVaelHornBeetle::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
 {
 	Super::OnDamageTaken(Damage, DamageTags);
-
-	if (Damage > 0.0f)
-	{
-		Legs->AddBodyJolt(FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), -0.6f).GetSafeNormal() * 5.0f);
-	}
 
 	// Fire on the tensed thread burns it through
 	if ((State == EVaelBeetleState::Tension || State == EVaelBeetleState::Locked) && DamageTags.HasTagExact(VaelTags::Element_Fire))
@@ -392,10 +376,12 @@ void AVaelHornBeetle::Die()
 {
 	Super::Die();
 
-	DeathTime = 0.0f;
 	Thread->SetVisibility(false);
 	SpreadTarget = 0.0f;
-	Legs->SetExtraBodyTilt(FRotator::ZeroRotator);
+	if (UVaelLegIKComponent* LegIK = GetFactoryLegs())
+	{
+		LegIK->SetExtraBodyTilt(FRotator::ZeroRotator);
+	}
 }
 
 void AVaelHornBeetle::PoseHorns()
@@ -403,37 +389,31 @@ void AVaelHornBeetle::PoseHorns()
 	const UVaelHornBeetleData* Data = GetData<UVaelHornBeetleData>();
 	const float DeltaSeconds = GetWorld()->GetDeltaSeconds();
 
-	if (DeathTime >= 0.0f)
-	{
-		DeathTime += DeltaSeconds;
-		Legs->SetCurl(DeathTime / BeetleCurlTime);
-	}
-
 	const bool bReleasing = SpreadShown > SpreadTarget;
 	SpreadShown = FMath::FInterpTo(SpreadShown, SpreadTarget, DeltaSeconds, bReleasing ? BeetleReleaseSpeed : BeetleSpreadSpeed);
 	Tremble = FMath::FInterpTo(Tremble, 0.0f, DeltaSeconds, 18.0f);
 
 	// The side horns swing outwards around the up axis of the body
-	const FTransform BodyNow = PoseMesh->GetBoneTransformByName(BeetleBodyBone, EBoneSpaces::ComponentSpace);
+	const FTransform BodyNow = GetFactoryMesh()->GetBoneTransformByName(BeetleBodyBone, EBoneSpaces::ComponentSpace);
 	const FVector Up = (BodyNow.GetRotation() * RestBody.GetRotation().Inverse()).RotateVector(FVector::UpVector);
 	const float Angle = FMath::DegreesToRadians(Data->HornSpread * SpreadShown + Tremble * 1.5f);
 
 	FVector Tips[2];
 	const FName HornBones[2] = { BeetleHornFirstBone, BeetleHornSecondBone };
 	const FTransform* RestHorns[2] = { &RestHornFirst, &RestHornSecond };
-	const FVector RestTips[2] = { Data->HornTipFirst, Data->HornTipSecond };
+	const FVector* RestTips = HornTips;
 
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
-		PoseMesh->ResetBoneTransformByName(HornBones[Side]);
-		FTransform Horn = PoseMesh->GetBoneTransformByName(HornBones[Side], EBoneSpaces::ComponentSpace);
+		GetFactoryMesh()->ResetBoneTransformByName(HornBones[Side]);
+		FTransform Horn = GetFactoryMesh()->GetBoneTransformByName(HornBones[Side], EBoneSpaces::ComponentSpace);
 
 		const FQuat Spread(Up, Angle * HornSpreadSign[Side]);
 
 		Horn.SetRotation(Spread * Horn.GetRotation());
-		PoseMesh->SetBoneTransformByName(HornBones[Side], Horn, EBoneSpaces::ComponentSpace);
+		GetFactoryMesh()->SetBoneTransformByName(HornBones[Side], Horn, EBoneSpaces::ComponentSpace);
 
-		Tips[Side] = PoseMesh->GetComponentTransform().TransformPosition(Horn.TransformPosition(RestHorns[Side]->InverseTransformPosition(RestTips[Side])));
+		Tips[Side] = GetFactoryMesh()->GetComponentTransform().TransformPosition(Horn.TransformPosition(RestHorns[Side]->InverseTransformPosition(RestTips[Side])));
 	}
 
 	// The thread runs between the tips while it is tensed, and glows for a moment when fire burns it
@@ -454,19 +434,6 @@ void AVaelHornBeetle::PoseHorns()
 			ThreadMaterial->SetVectorParameterValue(TEXT("Color"), BurnGlow > 0.0f ? BeetleBurnColor : BeetleThreadColor);
 		}
 	}
-}
-
-void AVaelHornBeetle::OnBodyColorShown(const FLinearColor& Color, bool bHitFlash)
-{
-	if (MeshMaterial == nullptr)
-	{
-		return;
-	}
-
-	// The Mark glow of the master material: violet for marked or raised beetles, a white flash for hits
-	const bool bMarkedLook = IsMarked() || IsOnPlayerSide();
-	MeshMaterial->SetScalarParameterValue(TEXT("MarkStaerke"), bHitFlash ? 2.5f : bMarkedLook ? 1.2f : 0.0f);
-	MeshMaterial->SetVectorParameterValue(TEXT("MarkFarbe"), bHitFlash ? FLinearColor(1.0f, 0.92f, 0.8f) : FLinearColor(0.55f, 0.12f, 1.0f));
 }
 
 void AVaelHornBeetle::PlayClick(bool bKlack)

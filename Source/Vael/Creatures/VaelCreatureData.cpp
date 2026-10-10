@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelCreatureData.h"
+#include "Engine/SkeletalMesh.h"
 #include "Creatures/VaelAshHarpy.h"
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
@@ -15,6 +16,8 @@ UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 	DisplayName = LOCTEXT("EmberCrawler", "Glutkriecher");
 	KindId = TEXT("Glutkriecher");
 	CompendiumId = TEXT("Glutkriecher");
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Glutkriecher/SK_Glutkriecher.SK_Glutkriecher")));
+	MeshGlow = 1.5f;
 	CreatureClass = AVaelEmberCrawler::StaticClass();
 
 	MaxHealth = 34.0f;
@@ -103,6 +106,8 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	DisplayName = LOCTEXT("EmberQueen", "Glutk\u00F6nigin");
 	KindId = TEXT("Glutkoenigin");
 	CompendiumId = TEXT("Glutkoenigin");
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Glutkoenigin/SK_Glutkoenigin.SK_Glutkoenigin")));
+	MeshGlow = 1.2f;
 	CreatureClass = AVaelEmberQueen::StaticClass();
 
 	MaxHealth = 1300.0f;
