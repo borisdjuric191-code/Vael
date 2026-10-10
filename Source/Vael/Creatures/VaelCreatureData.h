@@ -10,6 +10,7 @@
 #include "VaelCreatureData.generated.h"
 
 class AVaelCreature;
+class USkeletalMesh;
 
 /**
  *  Values of a kind of creature that every creature has.
@@ -717,4 +718,102 @@ public:
 	/** No new swarm while this many of its creatures still live */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 1))
 	int32 SwarmMaxAlive = 8;
+};
+
+/**
+ *  Spannhornkaefer (Wurzelforst, body family Vielbeiner): an artillery beetle. Keeps its distance, spreads its antler-like
+ *  horns with a ratcheting sound until the thread between their tips locks into the middle horn with a "Klack", then lobs
+ *  a shot in an arc at where the player stood, marked on the ground. Fire on the tensed thread burns it through; the beetle
+ *  is defenseless for a while. First creature of the creature factory: a Tripo mesh with procedural legs.
+ */
+UCLASS(BlueprintType)
+class UVaelHornBeetleData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelHornBeetleData();
+
+	/** Mesh of the creature factory, facing +Y like the Unreal mannequin */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	TSoftObjectPtr<USkeletalMesh> Mesh;
+
+	/** Turn of the mesh around the up axis, so it faces the front of the creature */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	float MeshYaw = -90.0f;
+
+	/** Tips of the side horns in the reference pose, component space of the mesh in cm (the thread runs between them) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	FVector HornTipFirst = FVector(-60.6f, 9.2f, 72.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	FVector HornTipSecond = FVector(60.8f, 5.4f, 73.8f);
+
+	/** Tip of the middle horn, where the shot leaves */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	FVector MiddleHornTip = FVector(0.2f, 58.7f, 60.8f);
+
+	/** Degrees each side horn swings outwards when fully spread */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance", meta = (ClampMin = 0, ClampMax = 60))
+	float HornSpread = 28.0f;
+
+	/** The beetle backs away from players closer than this, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Distance", meta = (ClampMin = 0))
+	float MinDistance = 550.0f;
+
+	/** The beetle walks towards players farther than this, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Distance", meta = (ClampMin = 0))
+	float MaxDistance = 900.0f;
+
+	/** Degrees per second the beetle turns */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Distance", meta = (ClampMin = 1))
+	float TurnSpeed = 220.0f;
+
+	/** Seconds until the first shot, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot")
+	FVector2D FirstShotDelay = FVector2D(1.0f, 2.2f);
+
+	/** Seconds between two shots, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot")
+	FVector2D ShotInterval = FVector2D(2.6f, 3.6f);
+
+	/** Shots only go at players closer than this, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0))
+	float ShotRange = 1250.0f;
+
+	/** Seconds of ratcheting while the horns spread */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0.1))
+	float TensionTime = 1.3f;
+
+	/** Seconds between two clicks of the ratchet */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0.02))
+	float ClickInterval = 0.12f;
+
+	/** Seconds between the "Klack" and the shot */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0))
+	float LockTime = 0.4f;
+
+	/** Seconds the shot flies; the mark on the ground warns for as long */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0.1))
+	float FlightTime = 1.0f;
+
+	/** Height of the arc above the higher end, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0))
+	float ShotApex = 380.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 0))
+	float ShotDamage = 20.0f;
+
+	/** Radius of the impact in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shot", meta = (ClampMin = 1))
+	float ShotRadius = 130.0f;
+
+	/** Seconds the beetle is defenseless after fire burned its thread */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Thread", meta = (ClampMin = 0))
+	float DefenselessTime = 4.0f;
+
+	/** Damage it takes while defenseless is multiplied by this */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Thread", meta = (ClampMin = 0))
+	float DefenselessDamageMultiplier = 1.5f;
 };

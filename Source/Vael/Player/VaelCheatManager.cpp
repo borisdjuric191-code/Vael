@@ -148,10 +148,14 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	{
 		Data = GetMutableDefault<UVaelSourceGuardianData>();
 	}
+	else if (Name.StartsWith(TEXT("spann")) || Name.StartsWith(TEXT("kaef")) || Name.StartsWith(TEXT("käf")) || Name.StartsWith(TEXT("beetle")))
+	{
+		Data = GetMutableDefault<UVaelHornBeetleData>();
+	}
 
 	if (Data == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Koenigin or Waechter."), *Kind);
+		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Koenigin, Waechter or Spannhornkaefer."), *Kind);
 		return;
 	}
 

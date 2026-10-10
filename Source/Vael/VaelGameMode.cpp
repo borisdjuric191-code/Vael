@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VaelGameMode.h"
+#include "Debug/VaelShowcase.h"
 #include "Debug/VaelSmokeTest.h"
 #include "Camera/VaelSharedCamera.h"
 #include "AbilitySystemComponent.h"
@@ -280,5 +281,10 @@ void AVaelGameMode::StartPlay()
 	if (AVaelSmokeTest::IsRequested())
 	{
 		GetWorld()->SpawnActor<AVaelSmokeTest>();
+	}
+
+	if (AVaelShowcase::IsRequested())
+	{
+		GetWorld()->SpawnActor<AVaelShowcase>();
 	}
 }

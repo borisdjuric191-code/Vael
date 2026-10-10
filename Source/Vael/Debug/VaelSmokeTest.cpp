@@ -8,6 +8,8 @@
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEmberQueen.h"
+#include "Creatures/VaelHornBeetle.h"
+#include "Creatures/VaelLegIKComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -183,6 +185,37 @@ void AVaelSmokeTest::BeginPlay()
 	for (UVaelCreatureData* Data : Only.IsEmpty() ? Creatures : TArray<UVaelCreatureData*>())
 	{
 		Steps.Add({ FString::Printf(TEXT("Creature %s"), *Data->DisplayName.ToString()), [this, Data]() { return PrepareArena(Data, 2); }, SmokeFightTime });
+	}
+
+	// The first creature of the creature factory: its legs walk, it shoots, and fire burns its thread
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Beetle arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelHornBeetleData>(), 1); }, 6.0f });
+		Steps.Add({ TEXT("Beetle"), [this]()
+		{
+			AVaelHornBeetle* Beetle = nullptr;
+			for (TActorIterator<AVaelHornBeetle> It(GetWorld()); It; ++It)
+			{
+				Beetle = !It->IsDead() ? *It : Beetle;
+			}
+			if (Beetle == nullptr)
+			{
+				return FString(TEXT("FAILED: no living beetle"));
+			}
+
+			const int32 NumLegs = Beetle->GetLegs()->GetNumLegs();
+			const int32 NumSteps = Beetle->GetLegs()->GetStepCount();
+			const int32 NumShots = Beetle->GetShotCount();
+
+			// Fire on the tensed thread
+			Beetle->StartTension();
+			UVaelCombatStatics::DealDamage(nullptr, Beetle, 1.0f, EVaelElement::Fire);
+			const bool bBurned = Beetle->GetBeetleState() == EVaelBeetleState::Defenseless;
+
+			const bool bOk = NumLegs == 6 && NumSteps > 0 && NumShots > 0 && bBurned;
+			return FString::Printf(TEXT("%s%d legs, %d steps, %d shots, fire on the thread: %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumLegs, NumSteps, NumShots,
+				bBurned ? TEXT("burned, defenseless") : TEXT("NOT burned"));
+		}, 0.1f });
 	}
 
 	// Every formula at fresh enemies: preachers, which neither run off nor blow themselves up

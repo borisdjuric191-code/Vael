@@ -5,6 +5,7 @@
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelPreacher.h"
+#include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelSourceGuardian.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -153,6 +154,25 @@ UVaelSourceGuardianData::UVaelSourceGuardianData()
 	MinItemRarity = EVaelRarity::Rare;
 
 	ScreamHealthShares = { 0.66f, 0.33f };
+}
+
+UVaelHornBeetleData::UVaelHornBeetleData()
+{
+	DisplayName = LOCTEXT("HornBeetle", "Spannhornkäfer");
+	CompendiumId = TEXT("Spannhornkaefer");
+	KindId = TEXT("Spannhornkaefer");
+	CreatureClass = AVaelHornBeetle::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Wurzelforst/Spannhornkaefer/SK_Spannhornkaefer.SK_Spannhornkaefer")));
+
+	MaxHealth = 70.0f;
+	MoveSpeed = 260.0f;
+	CollisionRadius = 55.0f;
+	CollisionHalfHeight = 55.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 1.5f);
+	KnockbackMultiplier = 0.6f;
+	AggroRange = 1500.0f;
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Spannfaden.DA_Material_Spannfaden"), 0.8f));
+	BodyColor = FLinearColor(0.72f, 0.62f, 0.45f);
 }
 
 #undef LOCTEXT_NAMESPACE

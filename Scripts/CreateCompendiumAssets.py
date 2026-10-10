@@ -96,6 +96,23 @@ ENTRIES = [
         "observe_seconds": 8.0,
         "study_count": 1,
     },
+    # First creature of the creature factory (Bestiarium row Spannhornkäfer, look by Boris 2026-10-10)
+    {
+        "asset": "DA_Compendium_Spannhornkaefer",
+        "subject_id": "Spannhornkaefer",
+        "book": Book.BESTIARY,
+        "sort_order": 110,
+        "display_name": unreal.Text("Spannhornkäfer"),
+        "region": unreal.Text("Wurzelforst"),
+        "glimpse": unreal.Text("Ein Käfer so groß wie ein Hund, grün gefleckt wie das Moos, mit Hörnern wie ein Hirschgeweih. Zwischen den Spitzen glänzt etwas Dünnes."),
+        "behaviour": unreal.Text("Hält Abstand. Dann spreizt er die Hörner, und zwischen ihren Spitzen spannt sich ein Faden; das ratscht hörbar, Kerbe für Kerbe. Mit einem Klack rastet der Faden am Mittelhorn ein, und was in dessen Rinne liegt, fliegt im Bogen dorthin, wo du eben noch gestanden hast. Wo es einschlagen wird, verfärbt sich vorher der Boden."),
+        "weakness": unreal.Text("Feuer brennt den gespannten Faden durch, dann steht er eine Weile wehrlos da und verträgt kaum etwas. Auch sonst nimmt er Feuer schlecht. Lässt oft seinen Spannfaden zurück."),
+        "uses": unreal.Text("Der Spannfaden ist zäher als jede Sehne. Ein Ingenieur bespannt damit seinen ersten richtigen Bogen, später eine Wurfmaschine. Ein Tamer, der den Faden im gespannten Moment durchtrennt, statt ihn zu verbrennen, hat einen Schützen, der nie verfehlt."),
+        "marked_form": unreal.Text("Gezeichnete Käfer spannen einen Faden, der violett glimmt. Was sie verschießen, zischt beim Einschlag."),
+        "albrun_note": unreal.Text("Wer spannt wie der Käfer, verfehlt nie, sagen die Jäger im Forst. Ich habe einem zugesehen, der drei Mal hintereinander denselben Pilz traf. Der Pilz hat es überlebt. Ich habe ihn trotzdem notiert."),
+        "observe_seconds": 7.0,
+        "study_count": 3,
+    },
 ]
 
 

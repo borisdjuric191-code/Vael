@@ -66,6 +66,14 @@ MATERIALS = [
         "region": unreal.Text("Mark"),
         "color": color("a24dff"),
     },
+    # Creatures of the creature factory
+    {
+        "asset": "DA_Material_Spannfaden",
+        "display_name": unreal.Text("Spannfaden"),
+        "description": unreal.Text("Der Faden zwischen den Hörnern eines Spannhornkäfers. Zäher als jede Sehne; Bogensehne für den Ingenieur."),
+        "region": unreal.Text("Wurzelforst"),
+        "color": color("d8cfb4"),
+    },
     # Plants, fungi and stones of the Aschenmark (Kompendium tab, "Arten der Regionen")
     {
         "asset": "DA_Material_Glutsamen",
