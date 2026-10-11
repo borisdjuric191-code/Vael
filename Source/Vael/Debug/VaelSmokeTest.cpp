@@ -31,6 +31,7 @@
 #include "World/VaelSafeZone.h"
 #include "Story/VaelNpc.h"
 #include "Story/VaelQuestMarker.h"
+#include "Story/VaelQuestObject.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
@@ -49,6 +50,9 @@ namespace
 		if (AVaelPlayerController* Controller = Player->GetController<AVaelPlayerController>())
 		{
 			Controller->EndDialogue();
+
+			// A trader opens their shop after the talk, which would keep the game paused
+			Controller->CloseGrimoire();
 		}
 	}
 
@@ -477,6 +481,67 @@ void AVaelSmokeTest::BeginPlay()
 		return FString::Printf(TEXT("%s%d coins earned, K1 done %d times, offered again: %s"), bOk ? TEXT("") : TEXT("FAILED: "), Earned, Progress.TimesDone,
 			Progress.bActive && !Progress.bDone ? TEXT("yes") : TEXT("no"));
 	}, 0.1f });
+
+	// The twist: the rumour, the proof in the Gildenspeicher, and the choice at the end of the act (kept in the camp, which changes nothing else)
+	const TFunction<FString()> TwistStep = [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+		AVaelNpc* Edda = nullptr;
+		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+		{
+			Edda = It->GetDisplayName().ToString().StartsWith(TEXT("Edda")) ? *It : Edda;
+		}
+
+		AVaelQuestObject* Proof = nullptr;
+		for (TActorIterator<AVaelQuestObject> It(GetWorld()); It; ++It)
+		{
+			Proof = It->GetEventName() == TEXT("BeweisGefunden") ? *It : Proof;
+		}
+
+		const UVaelQuest* Twist = Quests != nullptr ? Quests->FindQuest(TEXT("Q6_WasDieGildeWusste")) : nullptr;
+		const UVaelQuest* After = Quests != nullptr ? Quests->FindQuest(TEXT("E3_ZwischenDenStuehlen")) : nullptr;
+		AVaelPlayerController* Controller = Player != nullptr ? Player->GetController<AVaelPlayerController>() : nullptr;
+		if (Controller == nullptr || Edda == nullptr || Proof == nullptr || Twist == nullptr || After == nullptr || Twist->Steps.Num() < 4 || Twist->Steps[3].Choices.Num() < 3)
+		{
+			return FString(TEXT("FAILED: no player, Edda, proof in the Gildenspeicher, quest Q6 with three answers or quest E3"));
+		}
+
+		// The first half in one go, the talk with the answers in a step of its own: a dialogue only opens once the pause of the last one is over
+		if (Quests->GetProgress(Twist).Step < 3)
+		{
+			SmokeTalk(Edda, Player);
+			const bool bLocked = !Proof->CanInteract(Player);
+			Quests->NotifyReach(TEXT("Gildenspeicher"));
+			const bool bWanted = Proof->CanInteract(Player);
+			Proof->Interact(Player);
+			Controller->EndDialogue();
+
+			const bool bFound = bLocked && bWanted && Quests->GetProgress(Twist).Step == 3;
+			return FString::Printf(TEXT("%sproof %s, %s"), bFound ? TEXT("") : TEXT("FAILED: "), bLocked && bWanted ? TEXT("only usable when wanted") : TEXT("usable at the wrong time"),
+				Quests->GetProgress(Twist).Step == 3 ? TEXT("found") : TEXT("NOT found"));
+		}
+
+		// The talk offers the answers; closing it decides nothing
+		const bool bLocked = true, bWanted = true;
+		Edda->Interact(Player);
+		const int32 NumAnswers = Controller->GetChoiceLabels().Num();
+		Controller->EndDialogue();
+		const bool bUndecided = Quests->GetProgress(Twist).Step == 3 && !Quests->GetProgress(Twist).bDone;
+
+		TArray<FText> Reply;
+		const bool bChosen = Quests->Choose(Twist, 2, Reply);
+		const FVaelQuestChoice& Order = Twist->Steps[3].Choices[0];
+
+		const bool bOk = bLocked && bWanted && NumAnswers == 4 && bUndecided && bChosen && !Reply.IsEmpty() && Quests->GetProgress(Twist).bDone
+			&& Quests->HasFlag(TEXT("Beweis.Lager")) && Quests->GetProgress(After).bActive && FMath::IsNearlyEqual(Quests->GetGuildPriceFactor(), 1.0f)
+			&& Order.GuildPriceFactor > 1.0f && Order.AggroFactors.Contains(TEXT("Prediger"));
+		return FString::Printf(TEXT("%sproof %s, %d answers, undecided after closing: %s, kept in the camp: %s, follow-up %s"), bOk ? TEXT("") : TEXT("FAILED: "),
+			bLocked && bWanted ? TEXT("only usable when wanted") : TEXT("usable at the wrong time"), NumAnswers, bUndecided ? TEXT("yes") : TEXT("no"),
+			Quests->HasFlag(TEXT("Beweis.Lager")) ? TEXT("yes") : TEXT("no"), Quests->GetProgress(After).bActive ? TEXT("active") : TEXT("missing"));
+	};
+	Steps.Add({ TEXT("Twist"), TwistStep, 0.5f });
+	Steps.Add({ TEXT("Choice at the end of the act"), TwistStep, 0.1f });
 
 	// Healing potion from the start, Maren's shop, and the camp as a safe zone
 	Steps.Add({ TEXT("Potion and safe zone"), [this]()

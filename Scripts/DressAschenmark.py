@@ -1021,6 +1021,78 @@ def place_scrolls():
         scroll.set_actor_label(label)
         counts["Schriftrollen"] = counts.get("Schriftrollen", 0) + 1
 
+GUILD_STORE = (22.5, 47.5)
+
+
+def dress_guild_store(level_actors):
+    """Gildenspeicher (step 11b package 3): the guild's store house at the south-west edge of Kesselgrund, cleared out tidily
+    two weeks before the flood. Placeholder walls, open towards the road; the box at the back wall holds the proof."""
+    folder = "Dorf/Gildenspeicher/Kulisse"
+    half_x, half_y = 2.5, 2.0
+
+    # Scattered rocks, trees and dead wood in the way are hidden, not deleted; blockout shapes there lose their collision too
+    for actor in level_actors:
+        if not isinstance(actor, unreal.StaticMeshActor) or not str(actor.get_folder_path()).startswith("Streuung"):
+            continue
+        tile = tile_of(actor)
+        if abs(tile[0] - GUILD_STORE[0]) > half_x + 1.5 or abs(tile[1] - GUILD_STORE[1]) > half_y + 1.5:
+            continue
+        if unreal.Name(HIDDEN_TAG) not in actor.get_editor_property("tags"):
+            hide_placeholder(actor)
+        actor.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        counts["Gildenspeicher: versteckt"] = counts.get("Gildenspeicher: versteckt", 0) + 1
+
+    materials = {}
+    for actor in level_actors:
+        if isinstance(actor, unreal.StaticMeshActor):
+            label = actor.get_actor_label()
+            for key, wanted in (("floor", "Boden"), ("wall", "Mauer")):
+                if key not in materials and label == wanted:
+                    materials[key] = actor.static_mesh_component.get_material(0)
+
+    def cube(tile, size_x, size_y, height, label, base=0.0, material="wall", collision=True):
+        actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, world(tile[0], tile[1], base + height * 0.5), unreal.Rotator(0.0, 0.0, 0.0))
+        actor.static_mesh_component.set_static_mesh(CUBE)
+        if materials.get(material) is not None:
+            actor.static_mesh_component.set_material(0, materials[material])
+        if not collision:
+            actor.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        actor.set_actor_scale3d(unreal.Vector(size_x * TILE / 100.0, size_y * TILE / 100.0, height / 100.0))
+        actor.set_folder_path(folder)
+        actor.set_actor_label(label)
+        actor.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+        counts[folder] = counts.get(folder, 0) + 1
+        return actor
+
+    # Three walls and a swept floor; the east side towards the road is open
+    cube(GUILD_STORE, half_x * 2.0, half_y * 2.0, 2.0, "Boden", base=-0.8, material="floor", collision=False)
+    cube((GUILD_STORE[0] - half_x, GUILD_STORE[1]), 0.3, half_y * 2.0 + 0.3, 230.0, "Rueckwand")
+    cube((GUILD_STORE[0], GUILD_STORE[1] - half_y), half_x * 2.0, 0.3, 230.0, "Seitenwand Nord")
+    cube((GUILD_STORE[0], GUILD_STORE[1] + half_y), half_x * 2.0, 0.3, 230.0, "Seitenwand Sued")
+
+    # Tidily cleared: one empty crate and a forgotten barrel, nothing else
+    place("SM_WoodenBox", (GUILD_STORE[0] + 1.6, GUILD_STORE[1] - 1.3), folder, "Leere Kiste", scale=1.3, yaw=8.0)
+    place("SM_WoodenBarrelB", (GUILD_STORE[0] + 2.1, GUILD_STORE[1] + 1.4), folder, "Leeres Fass", yaw=40.0)
+
+    # The box with the eviction order and the Mark measurements, at the back wall
+    box = actors.spawn_actor_from_class(unreal.VaelQuestObject, world(GUILD_STORE[0] - half_x + 0.75, GUILD_STORE[1], 20.0), unreal.Rotator(0.0, 0.0, 90.0))
+    box.set_editor_property("event_name", unreal.Name("BeweisGefunden"))
+    box.set_editor_property("title", unreal.Text("Kassette im Gildenspeicher"))
+    box.set_editor_property("lines", [
+        unreal.Text("Der Speicher ist leer gefegt. Keine Eile, keine Spuren von Flucht: Hier wurde ordentlich geräumt."),
+        unreal.Text("In einer vergessenen Kassette liegt ein Räumungsbefehl mit Gildensiegel. Das Datum: zwei Wochen vor der Flut."),
+        unreal.Text("Darunter Messprotokolle. Die Mark-Werte unter Kesselgrund steigen von Blatt zu Blatt, und jemand hat jede Zahl abgezeichnet."),
+    ])
+    box.set_folder_path("Dorf/Gildenspeicher")
+    box.set_actor_label("Kassette der Gilde")
+
+    marker = actors.spawn_actor_from_class(unreal.VaelQuestMarker, world(GUILD_STORE[0] + 1.0, GUILD_STORE[1], 50.0), unreal.Rotator(0.0, 0.0, 0.0))
+    marker.set_editor_property("marker_id", unreal.Name("Gildenspeicher"))
+    marker.set_editor_property("radius", 480.0)
+    marker.set_folder_path("Quests")
+    marker.set_actor_label("Questziel Gildenspeicher")
+
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -1081,6 +1153,8 @@ def dress():
         dress_kontor(level_actors)
     if not done("Schutzzonen"):
         place_safe_zones(actors.get_all_level_actors())
+    if not done("Dorf/Gildenspeicher"):
+        dress_guild_store(level_actors)
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 

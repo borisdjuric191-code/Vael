@@ -28,6 +28,7 @@ class AVaelSharedCamera;
 class UVaelAutoAimComponent;
 class UVaelFormula;
 class UVaelShop;
+class UVaelQuest;
 class UInputMappingContext;
 class UInputAction;
 struct FInputActionValue;
@@ -153,6 +154,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> DialogueContinueAction;
 
+	/** Moves through the answers of a dialogue Input Action: W/S, arrow keys, left stick, D-pad */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> DialogueSelectAction;
+
 	/** Seconds between two steps while the selection is held in one direction */
 	UPROPERTY(EditAnywhere, Category="Input", meta = (ClampMin = 0.05))
 	float MenuRepeatInterval = 0.12f;
@@ -228,6 +233,18 @@ public:
 	/** The line shown right now */
 	FText GetDialogueLine() const { return DialogueLines.IsValidIndex(DialogueIndex) ? DialogueLines[DialogueIndex] : FText::GetEmpty(); }
 
+	/** After the lines of the current dialogue the player picks one of the answers of the quest's current step, or puts the decision off */
+	void OfferChoiceAfterDialogue(const UVaelQuest* Quest);
+
+	/** True while the answers of a quest are shown under the line */
+	bool IsChoosing() const;
+
+	/** Labels of the answers shown; the last one puts the decision off */
+	TArray<FText> GetChoiceLabels() const;
+
+	/** Answer the player has selected */
+	int32 GetChoiceSelection() const { return ChoiceSelection; }
+
 	/** Opens the grimoire and pauses the game. Returns false if another player has it open. */
 	bool OpenGrimoire(EVaelMenuPage Page = EVaelMenuPage::Formulas);
 
@@ -278,6 +295,7 @@ protected:
 	void OnSpyglassRaised();
 	void OnSpyglassLowered();
 	void OnDialogueContinue();
+	void OnDialogueSelect(const FInputActionValue& Value);
 
 	/** Tells the players what came of a cast */
 	void OnCastFinished(EVaelCastResult Result, const UVaelFormula* Formula);
@@ -351,6 +369,10 @@ protected:
 
 	/** Real time the dialogue started; the press that opened it must not skip the first line */
 	double DialogueStartTime = 0.0;
+
+	/** Quest whose current step asks for an answer at the end of the dialogue, and the answer selected */
+	TWeakObjectPtr<const UVaelQuest> ChoiceQuest;
+	int32 ChoiceSelection = 0;
 
 	/** Number of rows of the inventory page: equipment places and the items in the backpack */
 	int32 GetNumInventoryRows() const;

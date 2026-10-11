@@ -24,6 +24,33 @@ enum class EVaelQuestObjective : uint8
 	Event
 };
 
+/** One of the answers the players can give at the end of a talk, and what comes of it */
+USTRUCT(BlueprintType)
+struct FVaelQuestChoice
+{
+	GENERATED_BODY()
+
+	/** What the players say, shown in the list of answers */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Quest")
+	FText Label;
+
+	/** Flag the story remembers from then on, like "Beweis.Orden"; quests and people can ask for it */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Quest")
+	FName Flag;
+
+	/** What the person answers */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Quest", meta = (MultiLine = true))
+	TArray<FText> Lines;
+
+	/** Prices of the guild's traders are multiplied by this from then on */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Quest", meta = (ClampMin = 0.1))
+	float GuildPriceFactor = 1.0f;
+
+	/** From how far creatures of a kind notice the players from then on, as a factor per kind of creature, like Prediger 0.5 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Quest")
+	TMap<FName, float> AggroFactors;
+};
+
 /** One step of a quest */
 USTRUCT(BlueprintType)
 struct FVaelQuestStep
@@ -48,6 +75,10 @@ struct FVaelQuestStep
 	/** For a talk: what the person says. Empty: their first talk, or their usual hints */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Quest", meta = (MultiLine = true))
 	TArray<FText> Lines;
+
+	/** For a talk: answers the player picks one of after the lines. The step is only done once an answer is given. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Quest")
+	TArray<FVaelQuestChoice> Choices;
 };
 
 /**
@@ -87,6 +118,10 @@ public:
 	/** Quest that has to be done first; none: active from the start */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Quest")
 	FName Prerequisite;
+
+	/** Flag of the story that has to be set as well, like "Beweis.Gilde"; none: no flag needed */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Quest")
+	FName RequiredFlag;
 
 	/** The steps in order */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Quest")

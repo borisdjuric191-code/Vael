@@ -556,7 +556,12 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 		}
 	}
 
-	ForEachActivePlayer([this, &Nearest, &NearestDistance](AVaelCharacter* Player)
+	// After a decision of the group some kinds leave the players alone unless they come close or strike first
+	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+	const bool bUnhurt = GetHealth() >= GetMaxHealth();
+	const float NoticeDistance = Quests != nullptr && ActiveData != nullptr && bUnhurt ? MaxDistance * Quests->GetAggroFactor(ActiveData->KindId) : MaxDistance;
+
+	ForEachActivePlayer([this, &Nearest, &NearestDistance, NoticeDistance](AVaelCharacter* Player)
 	{
 		if (Cast<AVaelClayGolem>(Nearest) != nullptr)
 		{
@@ -582,7 +587,7 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 		}
 
 		const float Distance = GetDistanceTo2D(Player);
-		if (Distance < NearestDistance)
+		if (Distance < NearestDistance && Distance < NoticeDistance)
 		{
 			Nearest = Player;
 			NearestDistance = Distance;

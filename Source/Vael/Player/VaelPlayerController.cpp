@@ -31,6 +31,7 @@
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "TimerManager.h"
 #include "Vael.h"
@@ -147,6 +148,7 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnSpyglassLowered);
 			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnSpyglassLowered);
 			EnhancedInputComponent->BindAction(DialogueContinueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnDialogueContinue);
+			EnhancedInputComponent->BindAction(DialogueSelectAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnDialogueSelect);
 
 			for (int32 SlotIndex = 0; SlotIndex < MenuAssignActions.Num(); ++SlotIndex)
 			{
@@ -331,6 +333,22 @@ void AVaelPlayerController::CreateInputAssets()
 	for (const FKey& ContinueKey : { EKeys::E, EKeys::Enter, EKeys::SpaceBar, EKeys::LeftMouseButton, EKeys::Gamepad_FaceButton_Bottom, EKeys::Gamepad_LeftShoulder })
 	{
 		DialogueMappingContext->MapKey(DialogueContinueAction, ContinueKey);
+	}
+
+	// Answers at the end of a dialogue: up and down
+	DialogueSelectAction = CreateAction(TEXT("IA_DialogueSelect"), EInputActionValueType::Axis1D);
+	DialogueSelectAction->bTriggerWhenPaused = true;
+
+	UInputModifierDeadZone* SelectDeadZone = NewObject<UInputModifierDeadZone>(DialogueMappingContext);
+	SelectDeadZone->LowerThreshold = 0.5f;
+	DialogueMappingContext->MapKey(DialogueSelectAction, EKeys::Gamepad_LeftY).Modifiers.Add(SelectDeadZone);
+	for (const FKey& UpKey : { EKeys::W, EKeys::Up, EKeys::Gamepad_DPad_Up })
+	{
+		DialogueMappingContext->MapKey(DialogueSelectAction, UpKey);
+	}
+	for (const FKey& DownKey : { EKeys::S, EKeys::Down, EKeys::Gamepad_DPad_Down })
+	{
+		DialogueMappingContext->MapKey(DialogueSelectAction, DownKey).Modifiers.Add(NewObject<UInputModifierNegate>(DialogueMappingContext));
 	}
 
 	for (int32 SlotIndex = 0; SlotIndex < UE_ARRAY_COUNT(QuickSlotPadKeys); ++SlotIndex)
@@ -837,10 +855,11 @@ void AVaelPlayerController::OnMenuConfirm()
 	{
 		const FVaelShopOffer& Offer = OpenShop->Offers[ShopSelection];
 		const UVaelMaterial* Goods = Offer.Material.LoadSynchronous();
-		if (Goods != nullptr && VaelCharacter->GetInventory()->SpendCoins(Offer.Price))
+		const int32 Price = OpenShop->GetPrice(this, ShopSelection);
+		if (Goods != nullptr && VaelCharacter->GetInventory()->SpendCoins(Price))
 		{
 			VaelCharacter->GetMaterialBag()->AddMaterial(Goods, 1);
-			UE_LOG(LogVael, Log, TEXT("Player %d buys %s for %d coins"), PlayerSlot + 1, *Goods->DisplayName.ToString(), Offer.Price);
+			UE_LOG(LogVael, Log, TEXT("Player %d buys %s for %d coins"), PlayerSlot + 1, *Goods->DisplayName.ToString(), Price);
 		}
 		else
 		{
@@ -928,13 +947,83 @@ void AVaelPlayerController::OnDialogueContinue()
 		return;
 	}
 
+	// An answer is given: the person replies, or the decision is put off
+	if (IsChoosing())
+	{
+		TArray<FText> Reply;
+		UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+		const UVaelQuest* Quest = ChoiceQuest.Get();
+		ChoiceQuest.Reset();
+
+		if (Quests != nullptr && Quests->Choose(Quest, ChoiceSelection, Reply) && !Reply.IsEmpty())
+		{
+			DialogueLines = Reply;
+			DialogueIndex = 0;
+			DialogueStartTime = FPlatformTime::Seconds();
+			return;
+		}
+
+		EndDialogue();
+		return;
+	}
+
 	if (++DialogueIndex < DialogueLines.Num())
 	{
+		// The answers appear with the last line; a hasty press must not give one
+		if (IsChoosing())
+		{
+			DialogueStartTime = FPlatformTime::Seconds();
+		}
 		return;
 	}
 
 	// The last line was read
 	EndDialogue();
+}
+
+void AVaelPlayerController::OnDialogueSelect(const FInputActionValue& Value)
+{
+	if (IsChoosing() && !FMath::IsNearlyZero(Value.Get<float>()))
+	{
+		const int32 NumAnswers = GetChoiceLabels().Num();
+		ChoiceSelection = (ChoiceSelection + (Value.Get<float>() > 0.0f ? NumAnswers - 1 : 1)) % NumAnswers;
+	}
+}
+
+void AVaelPlayerController::OfferChoiceAfterDialogue(const UVaelQuest* Quest)
+{
+	if (!IsInDialogue() || Quest == nullptr)
+	{
+		return;
+	}
+
+	ChoiceQuest = Quest;
+
+	// Putting the decision off is selected first, so nothing is decided by accident
+	ChoiceSelection = GetChoiceLabels().Num() - 1;
+}
+
+bool AVaelPlayerController::IsChoosing() const
+{
+	return IsInDialogue() && ChoiceQuest.IsValid() && DialogueIndex == DialogueLines.Num() - 1;
+}
+
+TArray<FText> AVaelPlayerController::GetChoiceLabels() const
+{
+	TArray<FText> Labels;
+
+	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+	const FVaelQuestStep* Step = Quests != nullptr && ChoiceQuest.IsValid() ? Quests->GetCurrentStep(ChoiceQuest.Get()) : nullptr;
+	if (Step != nullptr)
+	{
+		for (const FVaelQuestChoice& Choice : Step->Choices)
+		{
+			Labels.Add(Choice.Label);
+		}
+	}
+
+	Labels.Add(NSLOCTEXT("VaelStory", "ChoiceLater", "Noch nicht entscheiden"));
+	return Labels;
 }
 
 void AVaelPlayerController::EndDialogue()
@@ -946,6 +1035,7 @@ void AVaelPlayerController::EndDialogue()
 
 	DialogueLines.Reset();
 	DialogueIndex = 0;
+	ChoiceQuest.Reset();
 
 	if (UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 	{

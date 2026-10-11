@@ -651,7 +651,8 @@ void AVaelHUD::DrawShop(const AVaelPlayerController* PlayerController)
 
 		const float RowY = ListTop + Index * RowHeight;
 		const bool bSelected = Index == PlayerController->GetShopSelection();
-		const bool bAffordable = Coins >= Offer.Price;
+		const int32 Price = Shop->GetPrice(this, Index);
+		const bool bAffordable = Coins >= Price;
 
 		if (bSelected)
 		{
@@ -662,7 +663,7 @@ void AVaelHUD::DrawShop(const AVaelPlayerController* PlayerController)
 		DrawDisc(FVector2D(Left + Padding + 6.0f * S, RowY + 11.0f * S), 6.0f * S, Goods->Color);
 		DrawLabel(Goods->DisplayName, Left + Padding + 22.0f * S, RowY + 2.0f * S, 16.0f * S, bAffordable ? BoneColor : DimColor);
 		DrawLabel(FText::Format(LOCTEXT("ShopOwned", "im Beutel: {0}"), Player->GetMaterialBag()->GetCount(Goods)), Left + Width * 0.55f, RowY + 5.0f * S, 12.0f * S, DimColor);
-		DrawLabel(FText::Format(LOCTEXT("ShopPrice", "{0} Münzen"), Offer.Price), Left + Width - Padding, RowY + 3.0f * S, 15.0f * S, bAffordable ? Rgb(232, 205, 140) : Rgb(140, 70, 60), 1.0f);
+		DrawLabel(FText::Format(LOCTEXT("ShopPrice", "{0} Münzen"), Price), Left + Width - Padding, RowY + 3.0f * S, 15.0f * S, bAffordable ? Rgb(232, 205, 140) : Rgb(140, 70, 60), 1.0f);
 	}
 
 	// What the selected thing is good for
@@ -1575,7 +1576,11 @@ void AVaelHUD::DrawDialogue(const AVaelPlayerController* PlayerController)
 	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 90));
 
 	const float Width = FMath::Min(760.0f * S, Canvas->ClipX - 32.0f * S);
-	const float Height = 160.0f * S;
+	// Answers to pick from make the panel taller
+	const TArray<FText> Answers = PlayerController->IsChoosing() ? PlayerController->GetChoiceLabels() : TArray<FText>();
+	const float AnswerHeight = 30.0f * S;
+
+	const float Height = 160.0f * S + Answers.Num() * AnswerHeight;
 	const float Left = (Canvas->ClipX - Width) * 0.5f;
 	const float Top = Canvas->ClipY - Height - 0.04f * Canvas->ClipY - PanelHeight * S;
 	const float Padding = 26.0f * S;
@@ -1586,6 +1591,28 @@ void AVaelHUD::DrawDialogue(const AVaelPlayerController* PlayerController)
 
 	DrawLabel(PlayerController->GetDialogueSpeaker(), Left + Padding, Top + 16.0f * S, 26.0f * S, EmberColor);
 	DrawLabel(PlayerController->GetDialogueLine(), Left + Padding, Top + 52.0f * S, 19.0f * S, BoneColor, 0.0f, Width - 2.0f * Padding);
+
+	if (!Answers.IsEmpty())
+	{
+		// The selected answer is lit, like a row of the shop
+		const float AnswersTop = Top + Height - 34.0f * S - Answers.Num() * AnswerHeight;
+		for (int32 Index = 0; Index < Answers.Num(); ++Index)
+		{
+			const float RowY = AnswersTop + Index * AnswerHeight;
+			const bool bSelected = Index == PlayerController->GetChoiceSelection();
+			if (bSelected)
+			{
+				DrawBox(Left + Padding - 8.0f * S, RowY - 2.0f * S, Width - 2.0f * Padding + 16.0f * S, AnswerHeight - 4.0f * S, Rgb(48, 34, 26));
+			}
+			DrawLabel(FText::Format(LOCTEXT("DialogueAnswer", "› {0}"), Answers[Index]), Left + Padding, RowY + 2.0f * S, 16.0f * S, bSelected ? BoneColor : DimColor);
+		}
+
+		const FText Pick = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("DialoguePickKeyboard", "W/S: wählen · Enter: antworten")
+			: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("DialoguePickPlayStation", "Stick: wählen · ✕: antworten")
+			: LOCTEXT("DialoguePickXbox", "Stick: wählen · A: antworten");
+		DrawLabel(Pick, Left + Width - Padding, Top + Height - 26.0f * S, 13.0f * S, DimColor, 1.0f);
+		return;
+	}
 
 	const FText Continue = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("DialogueKeyboard", "Weiter mit Klick, Enter oder E")
 		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("DialoguePlayStation", "Weiter mit ✕")

@@ -47,7 +47,7 @@ void UVaelQuestSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	// Quests without predecessor are there from the start, without a notice: the story begins with them
 	for (const UVaelQuest* Quest : Quests)
 	{
-		if (Quest->Prerequisite.IsNone())
+		if (Quest->Prerequisite.IsNone() && Quest->RequiredFlag.IsNone())
 		{
 			Progress.FindOrAdd(Quest->QuestId).bActive = true;
 		}
@@ -160,8 +160,24 @@ bool UVaelQuestSubsystem::IsWaitingForTalk(FName SpeakerKey) const
 	return false;
 }
 
-bool UVaelQuestSubsystem::TakeTalk(FName SpeakerKey, TArray<FText>& OutLines)
+bool UVaelQuestSubsystem::IsWaitingForEvent(FName EventName) const
 {
+	for (const UVaelQuest* Quest : GetOpenQuests())
+	{
+		const FVaelQuestStep* Step = GetCurrentStep(Quest);
+		if (Step->Type == EVaelQuestObjective::Event && Step->Target == EventName)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UVaelQuestSubsystem::TakeTalk(FName SpeakerKey, TArray<FText>& OutLines, const UVaelQuest*& OutChoiceQuest)
+{
+	OutChoiceQuest = nullptr;
+
 	// One talk finishes one step: the first quest that waits for this person
 	for (const UVaelQuest* Quest : GetOpenQuests())
 	{
@@ -169,12 +185,84 @@ bool UVaelQuestSubsystem::TakeTalk(FName SpeakerKey, TArray<FText>& OutLines)
 		if (Step->Type == EVaelQuestObjective::Talk && Step->Target == SpeakerKey)
 		{
 			OutLines = Step->Lines;
-			Advance(Quest);
+
+			// A talk that ends in a choice waits for the answer
+			if (!Step->Choices.IsEmpty())
+			{
+				OutChoiceQuest = Quest;
+			}
+			else
+			{
+				Advance(Quest);
+			}
 			return true;
 		}
 	}
 
 	return false;
+}
+
+bool UVaelQuestSubsystem::Choose(const UVaelQuest* Quest, int32 ChoiceIndex, TArray<FText>& OutLines)
+{
+	const FVaelQuestStep* Step = Quest != nullptr ? GetCurrentStep(Quest) : nullptr;
+	if (Step == nullptr || !Step->Choices.IsValidIndex(ChoiceIndex))
+	{
+		return false;
+	}
+
+	// Copied: advancing may finish the quest
+	const FVaelQuestChoice Choice = Step->Choices[ChoiceIndex];
+	UE_LOG(LogVael, Log, TEXT("Quest %s: answer '%s', flag %s"), *Quest->QuestId.ToString(), *Choice.Label.ToString(), *Choice.Flag.ToString());
+
+	GuildPriceFactor *= Choice.GuildPriceFactor;
+	for (const TPair<FName, float>& Factor : Choice.AggroFactors)
+	{
+		AggroFactors.FindOrAdd(Factor.Key, 1.0f) *= Factor.Value;
+	}
+
+	OutLines = Choice.Lines;
+
+	// The flag first, so the quests that follow see it
+	if (!Choice.Flag.IsNone())
+	{
+		Flags.Add(Choice.Flag);
+	}
+	Advance(Quest);
+	SetFlag(Choice.Flag);
+
+	return true;
+}
+
+void UVaelQuestSubsystem::SetFlag(FName Flag)
+{
+	if (Flag.IsNone())
+	{
+		return;
+	}
+
+	Flags.Add(Flag);
+
+	for (const UVaelQuest* Quest : Quests)
+	{
+		if (Quest->RequiredFlag == Flag && !GetProgress(Quest).bActive && IsUnlocked(Quest))
+		{
+			Activate(Quest);
+		}
+	}
+}
+
+float UVaelQuestSubsystem::GetAggroFactor(FName Kind) const
+{
+	const float* Factor = AggroFactors.Find(Kind);
+	return Factor != nullptr ? *Factor : 1.0f;
+}
+
+bool UVaelQuestSubsystem::IsUnlocked(const UVaelQuest* Quest) const
+{
+	const UVaelQuest* Before = Quest->Prerequisite.IsNone() ? nullptr : FindQuest(Quest->Prerequisite);
+	const FVaelQuestProgress BeforeProgress = GetProgress(Before);
+
+	return (Quest->Prerequisite.IsNone() || BeforeProgress.bDone || BeforeProgress.TimesDone > 0) && (Quest->RequiredFlag.IsNone() || HasFlag(Quest->RequiredFlag));
 }
 
 void UVaelQuestSubsystem::Advance(const UVaelQuest* Quest)
@@ -236,7 +324,7 @@ void UVaelQuestSubsystem::Finish(const UVaelQuest* Quest)
 
 	for (const UVaelQuest* Follower : Quests)
 	{
-		if (Follower->Prerequisite == Quest->QuestId && !GetProgress(Follower).bActive)
+		if (Follower->Prerequisite == Quest->QuestId && !GetProgress(Follower).bActive && IsUnlocked(Follower))
 		{
 			Activate(Follower);
 		}
@@ -281,6 +369,11 @@ FString UVaelQuestSubsystem::Describe() const
 		const FString State = Current.bDone ? TEXT("done") : !Current.bActive ? TEXT("waiting")
 			: FString::Printf(TEXT("step %d/%d (%d/%d)"), Current.Step + 1, Quest->Steps.Num(), Current.Count, Quest->Steps[Current.Step].Count);
 		Lines.Add(FString::Printf(TEXT("%s %s"), *Quest->QuestId.ToString(), *State));
+	}
+
+	for (const FName& Flag : Flags)
+	{
+		Lines.Add(FString::Printf(TEXT("flag %s"), *Flag.ToString()));
 	}
 
 	return FString::Join(Lines, TEXT(", "));

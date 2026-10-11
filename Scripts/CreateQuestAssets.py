@@ -5,7 +5,8 @@
 #
 # The chain follows the Lore-Bibel, tab Storyleitfaden, "Akt I im Detail" (Ablauf). Talk targets are dialogue asset names,
 # kill targets the KindId of the creature data, reach targets the MarkerId of quest markers (Scripts/PlaceQuestMarkers.py).
-# The Gildenkontor (K*) are contracts of Maren Holt that pay guild coins. The twist (Gildenspeicher, choice) comes in a later package.
+# The Gildenkontor (K*) are contracts of Maren Holt that pay guild coins. Q6 is the twist with the choice at the end of the act,
+# E* what comes of each answer.
 
 import unreal
 
@@ -16,13 +17,24 @@ MAREN = "DA_Dialogue_Maren"
 Objective = unreal.VaelQuestObjective
 
 
-def step(objective, kind, target="", count=1, lines=()):
+def choice(label, flag, lines=(), guild_price_factor=1.0, aggro_factors=None):
+    result = unreal.VaelQuestChoice()
+    result.set_editor_property("label", unreal.Text(label))
+    result.set_editor_property("flag", unreal.Name(flag))
+    result.set_editor_property("lines", [unreal.Text(line) for line in lines])
+    result.set_editor_property("guild_price_factor", guild_price_factor)
+    result.set_editor_property("aggro_factors", {unreal.Name(kind): factor for kind, factor in (aggro_factors or {}).items()})
+    return result
+
+
+def step(objective, kind, target="", count=1, lines=(), choices=()):
     result = unreal.VaelQuestStep()
     result.set_editor_property("objective", unreal.Text(objective))
     result.set_editor_property("type", kind)
     result.set_editor_property("target", unreal.Name(target))
     result.set_editor_property("count", count)
     result.set_editor_property("lines", [unreal.Text(line) for line in lines])
+    result.set_editor_property("choices", list(choices))
     return result
 
 
@@ -175,6 +187,78 @@ QUESTS = [
             ]),
         ],
     },
+    # The twist (package 3, Storyleitfaden "Wendung als Quest" and "Wahl am Aktende"): the rumour is true, and whoever gets the proof gains from it.
+    # The answers set a flag of the story; prices of the Kontor and the preachers' eagerness follow from the answer itself.
+    {
+        "asset": "DA_Quest_Q6_WasDieGildeWusste", "quest_id": "Q6_WasDieGildeWusste", "sort_order": 60, "main_quest": True, "prerequisite": "Q5_DieMutter",
+        "title": "Was die Gilde wusste", "giver_name": "Edda",
+        "summary": "Die Prediger erzählen, die Gilde habe von der Flut gewusst. Edda will die Wahrheit kennen, bevor der Orden sie für alle entscheidet.",
+        "steps": [
+            step("Sprich mit Edda über das Gerede", Objective.TALK, EDDA, lines=[
+                "Die Kutten erzählen es an jedem Feuer: Die Gilde habe gewusst, dass die Flut kommt.",
+                "Ich will das nicht glauben. Aber ihr Speicher am Dorfrand war leer, als wir nach Vorräten gesucht haben. Sauber leer, nicht geplündert.",
+                "Sieh nach, was sie zurückgelassen haben. Ich will es wissen, bevor der Orden es für uns entscheidet.",
+            ]),
+            step("Geh zum Gildenspeicher am Südwestrand von Kesselgrund", Objective.REACH, "Gildenspeicher"),
+            step("Durchsuch den Gildenspeicher", Objective.EVENT, "BeweisGefunden"),
+            step("Bring Edda, was du gefunden hast", Objective.TALK, EDDA, lines=[
+                "Zwei Wochen. Sie haben ihre Fässer gezählt und ihre Wagen beladen, und uns haben sie schlafen lassen.",
+                "Der Orden wird das von jedem Hügel schreien. Maren würde viel dafür zahlen, dass es verschwindet. Oder es bleibt hier, bei denen, die es betrifft.",
+                "Du hast es gefunden. Wem geben wir es?",
+            ], choices=[
+                choice("Dem Orden der Narbe", "Beweis.Orden", guild_price_factor=1.5, aggro_factors={"Prediger": 0.5}, lines=[
+                    "Dann wissen es morgen alle. Die Kutten werden mehr Zulauf haben als je zuvor.",
+                    "Sie werden dich dafür in Ruhe lassen. Die Gilde nicht.",
+                ]),
+                choice("Der Gilde", "Beweis.Gilde", lines=[
+                    "Du verkaufst es ihnen zurück.",
+                    "Ich verstehe es. Wir brauchen Vorräte. Aber sieh den Leuten hier eine Weile nicht in die Augen.",
+                ]),
+                choice("Es bleibt bei uns im Lager", "Beweis.Lager", lines=[
+                    "Dann bleibt es bei uns. Kein Gold, kein Segen.",
+                    "Aber wenn die Gilde eines Tages dieses Land kaufen will, lege ich ihr dieses Siegel auf den Tisch.",
+                ]),
+            ]),
+        ],
+    },
+    {
+        "asset": "DA_Quest_E1_DerPreisDerWahrheit", "quest_id": "E1_DerPreisDerWahrheit", "sort_order": 300, "main_quest": False,
+        "prerequisite": "Q6_WasDieGildeWusste", "required_flag": "Beweis.Orden",
+        "title": "Der Preis der Wahrheit", "giver_name": "Maren Holt",
+        "summary": "Der Orden trägt die Wahrheit über die Gilde durchs Land. Im Kontor hat man nicht vergessen, von wem er sie hat.",
+        "steps": [
+            step("Sieh nach, wie man dich im Kontor empfängt", Objective.TALK, MAREN, lines=[
+                "Ihr wart das. Der Befehl, die Protokolle, und jetzt predigen die Kutten damit vor meinem Tor.",
+                "Ich wusste nichts davon. Glaubt es oder lasst es.",
+                "Die Gilde verkauft weiter an euch. Aber nicht mehr zum alten Preis.",
+            ]),
+        ],
+    },
+    {
+        "asset": "DA_Quest_E2_Schweigegeld", "quest_id": "E2_Schweigegeld", "sort_order": 310, "main_quest": False,
+        "prerequisite": "Q6_WasDieGildeWusste", "required_flag": "Beweis.Gilde", "coin_reward": 40,
+        "title": "Schweigegeld", "giver_name": "Maren Holt",
+        "summary": "Die Gilde zahlt gut dafür, dass ein Räumungsbefehl und ein paar Messprotokolle nie gefunden wurden.",
+        "steps": [
+            step("Bring die Papiere zu Maren ins Kontor", Objective.TALK, MAREN, lines=[
+                "Zeigt her. … Das Siegel ist echt.",
+                "Ich wusste nichts davon. Aber ich weiß, was es wert ist, wenn es niemand liest.",
+                "Die Gilde zahlt gut für Ordnung. Zählt ruhig nach.",
+            ]),
+        ],
+    },
+    {
+        "asset": "DA_Quest_E3_ZwischenDenStuehlen", "quest_id": "E3_ZwischenDenStuehlen", "sort_order": 320, "main_quest": False,
+        "prerequisite": "Q6_WasDieGildeWusste", "required_flag": "Beweis.Lager",
+        "title": "Zwischen den Stühlen", "giver_name": "Maren Holt",
+        "summary": "Das Lager behält, was es weiß. Weder die Gilde noch der Orden wissen, woran sie mit euch sind.",
+        "steps": [
+            step("Sieh nach, wie man dich im Kontor empfängt", Objective.TALK, MAREN, lines=[
+                "Man hört, im alten Speicher habe jemand gewühlt. Und dass ihr etwas habt, das der Gilde gehört.",
+                "Behaltet es, wenn ihr müsst. Aber erwartet nicht, dass man euch hier noch traut. Die Kutten tun es auch nicht.",
+            ]),
+        ],
+    },
 ]
 
 
@@ -210,6 +294,7 @@ def create_quests():
         quest.set_editor_property("contract", values.get("contract", False))
         quest.set_editor_property("coin_reward", values.get("coin_reward", 0))
         quest.set_editor_property("repeatable", values.get("repeatable", False))
+        quest.set_editor_property("required_flag", unreal.Name(values.get("required_flag", "")))
 
         if unreal.EditorAssetLibrary.save_loaded_asset(quest, False):
             created += 1

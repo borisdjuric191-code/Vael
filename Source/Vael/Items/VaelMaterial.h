@@ -70,6 +70,13 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shop")
 	TArray<FVaelShopOffer> Offers;
+
+	/** A trader of the guild: the prices follow what the group decided about the guild */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shop")
+	bool bGuildPrices = true;
+
+	/** What an offer costs right now, in guild coins */
+	int32 GetPrice(const UObject* WorldContext, int32 OfferIndex) const;
 };
 
 /** One possible drop of a creature */

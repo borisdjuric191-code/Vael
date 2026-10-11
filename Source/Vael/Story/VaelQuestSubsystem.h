@@ -69,11 +69,30 @@ public:
 	/**
 	 *  A player talks to a person. If a quest waits for this talk, the step is done and its lines are handed out (they may be empty).
 	 *  Returns false if no quest waits for this person.
+	 *  A step with answers is not done yet: OutChoiceQuest is then the quest to hand to Choose once the player has picked one.
 	 */
-	bool TakeTalk(FName SpeakerKey, TArray<FText>& OutLines);
+	bool TakeTalk(FName SpeakerKey, TArray<FText>& OutLines, const UVaelQuest*& OutChoiceQuest);
+
+	/** The player gives an answer of the current step of the quest: its flag is set, the step is done, and the person's reply is handed out */
+	bool Choose(const UVaelQuest* Quest, int32 ChoiceIndex, TArray<FText>& OutLines);
 
 	/** True if a quest waits for a talk with this person; the HUD shows a "!" over them */
 	bool IsWaitingForTalk(FName SpeakerKey) const;
+
+	/** True if a quest waits for this to happen in the world */
+	bool IsWaitingForEvent(FName EventName) const;
+
+	/** Remembers a decision of the story, like "Beweis.Orden", and activates the quests that waited for it */
+	void SetFlag(FName Flag);
+
+	/** True if the story remembers this decision */
+	bool HasFlag(FName Flag) const { return Flags.Contains(Flag); }
+
+	/** What the guild's traders multiply their prices with, after the decisions of the group */
+	float GetGuildPriceFactor() const { return GuildPriceFactor; }
+
+	/** Factor on the distance from which creatures of a kind notice the players, after the decisions of the group */
+	float GetAggroFactor(FName Kind) const;
 
 	/** Every quest in its order: main quests first */
 	const TArray<TObjectPtr<UVaelQuest>>& GetQuests() const { return Quests; }
@@ -115,4 +134,14 @@ private:
 
 	UPROPERTY()
 	TMap<FName, FVaelQuestProgress> Progress;
+
+	/** True if the quest it follows is done and the flag it asks for is set */
+	bool IsUnlocked(const UVaelQuest* Quest) const;
+
+	/** Decisions the story remembers */
+	TSet<FName> Flags;
+
+	/** What the decisions made of the guild's prices and of how far creatures notice the players */
+	float GuildPriceFactor = 1.0f;
+	TMap<FName, float> AggroFactors;
 };

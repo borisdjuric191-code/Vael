@@ -99,7 +99,8 @@ void AVaelNpc::Interact(AVaelCharacter* Player)
 	// A quest waiting for this talk speaks first
 	TArray<FText> QuestLines;
 	UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
-	const bool bQuestTalk = Quests != nullptr && Quests->TakeTalk(GetSpeakerKey(), QuestLines);
+	const UVaelQuest* ChoiceQuest = nullptr;
+	const bool bQuestTalk = Quests != nullptr && Quests->TakeTalk(GetSpeakerKey(), QuestLines, ChoiceQuest);
 
 	// The first talk is the intro, later ones give the hints that fit now
 	TArray<FText> Lines;
@@ -121,6 +122,9 @@ void AVaelNpc::Interact(AVaelCharacter* Player)
 	}
 
 	PlayerController->StartDialogue(GetDisplayName(), Lines);
+
+	// A talk that asks the players to decide ends in a list of answers
+	PlayerController->OfferChoiceAfterDialogue(ChoiceQuest);
 
 	// A trader shows their goods once the talk is read
 	if (Shop != nullptr)
