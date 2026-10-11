@@ -10,6 +10,7 @@
 class UCapsuleComponent;
 class UStaticMeshComponent;
 class UVaelDialogue;
+class UVaelGossip;
 class UVaelShop;
 
 /**
@@ -44,6 +45,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")
 	TObjectPtr<UVaelShop> Shop;
 
+	/** Gerede: what the person mutters when players walk by. A person with gossip but no dialogue is a bystander nobody can talk to. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")
+	TObjectPtr<UVaelGossip> Gossip;
+
 	/** Color of the placeholder robe */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")
 	FLinearColor RobeColor = FLinearColor(0.32f, 0.24f, 0.16f);
@@ -65,6 +70,12 @@ public:
 	/** Name shown over the person */
 	FText GetDisplayName() const;
 
+	/** What the person mutters right now, empty while silent */
+	FText GetGossipLine() const;
+
+	/** Update: mutters now and then while players are near */
+	virtual void Tick(float DeltaSeconds) override;
+
 protected:
 
 	/** Registers the person as someone to talk to and colors the placeholder */
@@ -77,4 +88,9 @@ private:
 
 	/** Key under which the progress remembers the intro */
 	FName GetSpeakerKey() const;
+
+	/** Line of the gossip said last, the time it fades, and the time the next one may come */
+	int32 GossipIndex = INDEX_NONE;
+	float GossipEndTime = 0.0f;
+	float NextGossipTime = 0.0f;
 };

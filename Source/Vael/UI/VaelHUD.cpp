@@ -1558,6 +1558,13 @@ void AVaelHUD::DrawNpcMarkers()
 
 		DrawLabel(It->GetDisplayName(), Screen.X, Screen.Y, 13.0f * S, Rgb(246, 231, 166, 140), 0.5f);
 
+		// Gerede: what the person mutters, over the name
+		const FText Gossip = It->GetGossipLine();
+		if (!Gossip.IsEmpty())
+		{
+			DrawLabel(FText::Format(LOCTEXT("NpcGossip", "„{0}“"), Gossip), Screen.X, Screen.Y - 22.0f * S, 14.0f * S, Rgb(205, 189, 166, 220), 0.5f);
+		}
+
 		// Someone with news to tell carries a bobbing "!", like in the prototype
 		if (It->HasNews())
 		{

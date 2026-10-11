@@ -1093,6 +1093,41 @@ def dress_guild_store(level_actors):
     marker.set_actor_label("Questziel Gildenspeicher")
 
 
+def place_people():
+    """Step 11b package 4: Albrun with a sketch table in the camp, and bystanders who mutter (Gerede): two survivors, a guard at the Kontor"""
+    folder = "Lager/Kulisse/Albrun"
+    story = "/Game/Vael/Story/"
+
+    # Albrun's corner on the west side of the camp: the research station begins as a table with a lantern
+    place("SM_OldWoodenTable", (6.9, 54.5), folder, "Skizzentisch", yaw=115.0)
+    place("SM_ManMade_Lantern_02", (6.8, 54.35), folder, "Laterne auf dem Skizzentisch", z=83.0, yaw=20.0)
+    place("SM_Candles_02", (7.05, 54.75), folder, "Kerzen", scale=2.0, z=83.0)
+    place("SM_WoodenBox", (6.3, 55.3), folder, "Probenkiste", scale=1.1, yaw=35.0)
+    light = actors.spawn_actor_from_class(unreal.VaelFireLight, world(6.8, 54.35, 125.0), unreal.Rotator(0.0, 0.0, 0.0))
+    light.set_folder_path(folder)
+    light.set_actor_label("Laternenschein Albrun")
+
+    def person(label, tile, facing, robe, outliner, dialogue=None, gossip=None):
+        yaw = world_yaw(math.degrees(math.atan2(facing[1] - tile[1], facing[0] - tile[0])))
+        npc = actors.spawn_actor_from_class(unreal.VaelNpc, world(tile[0], tile[1], 92.0), unreal.Rotator(0.0, 0.0, yaw))
+        if dialogue is not None:
+            npc.set_editor_property("dialogue", unreal.load_asset(story + dialogue))
+        if gossip is not None:
+            npc.set_editor_property("gossip", unreal.load_asset(story + gossip))
+        npc.set_editor_property("robe_color", unreal.LinearColor(robe[0], robe[1], robe[2], 1.0))
+        npc.set_folder_path(outliner)
+        npc.set_actor_label(label)
+        counts["Leute"] = counts.get("Leute", 0) + 1
+
+    person("Albrun", (7.6, 54.0), CAMP, (0.16, 0.3, 0.2), "Lager", dialogue="DA_Dialogue_Albrun", gossip="DA_Gossip_Albrun")
+    person("Ueberlebende 1", (8.6, 51.4), CAMP, (0.3, 0.27, 0.22), "Lager/Leute", gossip="DA_Gossip_Lager")
+    person("Ueberlebende 2", (11.7, 55.3), CAMP, (0.26, 0.22, 0.2), "Lager/Leute", gossip="DA_Gossip_Lager")
+
+    # The guard stands just inside the gate of the Kontor, beside the way in
+    gate_angle = math.degrees(math.atan2(41.5 - KONTOR[1], 30.0 - KONTOR[0]))
+    person("Gildenwache", ring(KONTOR, gate_angle + 26.0, KONTOR_RADIUS - 0.8), KONTOR, (0.1, 0.13, 0.2), "Kontor/Leute", gossip="DA_Gossip_Kontor")
+
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -1155,6 +1190,8 @@ def dress():
         place_safe_zones(actors.get_all_level_actors())
     if not done("Dorf/Gildenspeicher"):
         dress_guild_store(level_actors)
+    if not done("Lager/Kulisse/Albrun"):
+        place_people()
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 

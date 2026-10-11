@@ -130,6 +130,20 @@ QUESTS = [
             ]),
         ],
     },
+    # Albrun at the camp (package 4): the first finished study of the compendium
+    {
+        "asset": "DA_Quest_A1_AlbrunsKompendium", "quest_id": "A1_AlbrunsKompendium", "sort_order": 130, "main_quest": False, "prerequisite": "Q1_NachDemFieber",
+        "title": "Albruns Kompendium", "giver_name": "Albrun",
+        "summary": "Im Lager sitzt jemand aus dem Hain über Büchern und will alles wissen: jedes Tier, jedes Kraut, jeden Pilz, jeden Stein.",
+        "steps": [
+            step("Sprich mit Albrun am Skizzentisch im Lager", Objective.TALK, "DA_Dialogue_Albrun"),
+            step("Bring Albrun drei Proben einer Art und lass sie untersuchen", Objective.EVENT, "Erforscht"),
+            step("Sprich noch einmal mit Albrun", Objective.TALK, "DA_Dialogue_Albrun", lines=[
+                "Der erste vollständige Eintrag. Albrun hat ihn zweimal gelesen, nur aus Freude.",
+                "Es gibt vier Bücher und sehr viele leere Seiten. Albrun hat Zeit. Ihr hoffentlich auch.",
+            ]),
+        ],
+    },
     # Gildenkontor (package 2): Edda sends the group to Maren, then the guild's contracts. Coins only come from contracts.
     {
         "asset": "DA_Quest_K0_DasKontor", "quest_id": "K0_DasKontor", "sort_order": 200, "main_quest": False, "prerequisite": "Q2_DieBrut",

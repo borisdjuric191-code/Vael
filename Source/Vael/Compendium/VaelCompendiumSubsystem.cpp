@@ -4,6 +4,7 @@
 #include "Engine/AssetManager.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
+#include "Story/VaelQuestSubsystem.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
 
@@ -191,7 +192,7 @@ void UVaelCompendiumSubsystem::AddSample(FName SubjectId)
 	Reach(SubjectId, EVaelResearchStage::Defeated);
 }
 
-int32 UVaelCompendiumSubsystem::StudyAtCamp()
+int32 UVaelCompendiumSubsystem::StudyAtCamp(TArray<FText>* OutNames)
 {
 	int32 NumResearched = 0;
 
@@ -202,10 +203,35 @@ int32 UVaelCompendiumSubsystem::StudyAtCamp()
 		{
 			Reach(Entry->SubjectId, EVaelResearchStage::Researched);
 			++NumResearched;
+
+			if (OutNames != nullptr)
+			{
+				OutNames->Add(Entry->DisplayName);
+			}
+
+			// Quests may wait for the first finished study
+			if (UVaelQuestSubsystem* Quests = GetGameInstance()->GetSubsystem<UVaelQuestSubsystem>())
+			{
+				Quests->NotifyEvent(TEXT("Erforscht"));
+			}
 		}
 	}
 
 	return NumResearched;
+}
+
+bool UVaelCompendiumSubsystem::CanStudy() const
+{
+	for (const UVaelCompendiumEntry* Entry : Entries)
+	{
+		const FVaelResearchProgress Current = GetProgress(Entry->SubjectId);
+		if (Current.Stage == EVaelResearchStage::Defeated && Current.Samples >= Entry->StudyCount)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void UVaelCompendiumSubsystem::SetStage(FName SubjectId, EVaelResearchStage Stage)

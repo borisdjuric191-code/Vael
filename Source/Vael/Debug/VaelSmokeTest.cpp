@@ -543,6 +543,43 @@ void AVaelSmokeTest::BeginPlay()
 	Steps.Add({ TEXT("Twist"), TwistStep, 0.5f });
 	Steps.Add({ TEXT("Choice at the end of the act"), TwistStep, 0.1f });
 
+	// Albrun at the camp studies the samples of the group; bystanders stand around for the gossip
+	Steps.Add({ TEXT("Albrun and bystanders"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+		UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+		AVaelNpc* Albrun = nullptr;
+		int32 NumPeople = 0;
+		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+		{
+			Albrun = It->GetDisplayName().ToString() == TEXT("Albrun") ? *It : Albrun;
+			++NumPeople;
+		}
+
+		const UVaelQuest* Study = Quests != nullptr ? Quests->FindQuest(TEXT("A1_AlbrunsKompendium")) : nullptr;
+		const TArray<const UVaelCompendiumEntry*> Beasts = Compendium != nullptr ? Compendium->GetEntries(UVaelCompendiumSubsystem::GetBooks()[0]) : TArray<const UVaelCompendiumEntry*>();
+		if (Player == nullptr || Albrun == nullptr || Study == nullptr || Beasts.IsEmpty())
+		{
+			return FString(TEXT("FAILED: no player, Albrun, quest A1 or bestiary entry"));
+		}
+
+		const UVaelCompendiumEntry* Entry = Beasts[0];
+		for (int32 Sample = 0; Sample < Entry->StudyCount; ++Sample)
+		{
+			Compendium->AddSample(Entry->SubjectId);
+		}
+
+		const bool bNews = Albrun->HasNews();
+		SmokeTalk(Albrun, Player);
+		const bool bResearched = Compendium->GetProgress(Entry->SubjectId).Stage == EVaelResearchStage::Researched;
+		const int32 QuestStep = Quests->GetProgress(Study).Step;
+
+		const bool bOk = bNews && bResearched && QuestStep == 2 && NumPeople >= 6;
+		return FString::Printf(TEXT("%s%s %s by Albrun, quest A1 at step %d of 3, %d people in the level"), bOk ? TEXT("") : TEXT("FAILED: "), *Entry->DisplayName.ToString(),
+			bResearched ? TEXT("researched") : TEXT("NOT researched"), QuestStep + 1, NumPeople);
+	}, 0.5f });
+
 	// Healing potion from the start, Maren's shop, and the camp as a safe zone
 	Steps.Add({ TEXT("Potion and safe zone"), [this]()
 	{

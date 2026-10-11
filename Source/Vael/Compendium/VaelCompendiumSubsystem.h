@@ -53,7 +53,10 @@ public:
 	void AddSample(FName SubjectId);
 
 	/** Studies the samples brought to the camp: every entry with enough of them is researched. Returns how many became researched. */
-	int32 StudyAtCamp();
+	int32 StudyAtCamp(TArray<FText>* OutNames = nullptr);
+
+	/** True if a study at the camp would research something right now */
+	bool CanStudy() const;
 
 	/** Raises an entry to a stage at once, for testing */
 	void SetStage(FName SubjectId, EVaelResearchStage Stage);

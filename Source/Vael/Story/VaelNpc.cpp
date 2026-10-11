@@ -11,7 +11,9 @@
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "Story/VaelDialogue.h"
+#include "Story/VaelGossip.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "World/VaelProgressSubsystem.h"
 
@@ -62,6 +64,46 @@ AVaelNpc::AVaelNpc()
 		Body->SetMaterial(0, ShapeMaterial.Object);
 		Head->SetMaterial(0, ShapeMaterial.Object);
 	}
+
+	// Only the gossip needs an update, and not often
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.TickInterval = 0.5f;
+}
+
+void AVaelNpc::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Gossip == nullptr || Now < NextGossipTime)
+	{
+		return;
+	}
+
+	// Somebody has to be near enough to hear it
+	bool bHeard = false;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+		bHeard |= Player != nullptr && !Player->IsDowned() && GetDistanceTo(Player) < Gossip->Range;
+	}
+	if (!bHeard)
+	{
+		return;
+	}
+
+	const int32 Picked = Gossip->PickLine(this, GossipIndex);
+	if (Picked != INDEX_NONE)
+	{
+		GossipIndex = Picked;
+		GossipEndTime = Now + Gossip->ShowSeconds;
+	}
+	NextGossipTime = Now + Gossip->ShowSeconds + FMath::FRandRange(Gossip->MinPause, FMath::Max(Gossip->MinPause, Gossip->MaxPause));
+}
+
+FText AVaelNpc::GetGossipLine() const
+{
+	return Gossip != nullptr && Gossip->Lines.IsValidIndex(GossipIndex) && GetWorld()->GetTimeSeconds() < GossipEndTime ? Gossip->Lines[GossipIndex].Line : FText::GetEmpty();
 }
 
 void AVaelNpc::BeginPlay()
@@ -116,6 +158,14 @@ void AVaelNpc::Interact(AVaelCharacter* Player)
 
 	Lines.Append(QuestLines);
 
+	// A researcher looks at the samples the group brought along
+	UVaelCompendiumSubsystem* Compendium = Dialogue->bStudiesSamples ? UVaelCompendiumSubsystem::Get(this) : nullptr;
+	TArray<FText> Studied;
+	if (Compendium != nullptr && Compendium->StudyAtCamp(&Studied) > 0 && !Dialogue->StudyDoneLine.IsEmpty())
+	{
+		Lines.Add(FText::Format(Dialogue->StudyDoneLine, FText::Join(FText::FromString(TEXT(", ")), Studied)));
+	}
+
 	if (Lines.IsEmpty())
 	{
 		Lines.Add(NSLOCTEXT("VaelStory", "NothingToSay", "…"));
@@ -142,14 +192,16 @@ bool AVaelNpc::HasNews() const
 {
 	const UVaelProgressSubsystem* Progress = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
 	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
+	const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
 
 	return Dialogue != nullptr && ((!Dialogue->IntroLines.IsEmpty() && Progress != nullptr && !Progress->HasHeardIntro(GetSpeakerKey()))
-		|| (Quests != nullptr && Quests->IsWaitingForTalk(GetSpeakerKey())));
+		|| (Quests != nullptr && Quests->IsWaitingForTalk(GetSpeakerKey()))
+		|| (Dialogue->bStudiesSamples && Compendium != nullptr && Compendium->CanStudy()));
 }
 
 FText AVaelNpc::GetDisplayName() const
 {
-	return Dialogue != nullptr ? Dialogue->SpeakerName : FText::GetEmpty();
+	return Dialogue != nullptr ? Dialogue->SpeakerName : Gossip != nullptr ? Gossip->SpeakerName : FText::GetEmpty();
 }
 
 FName AVaelNpc::GetSpeakerKey() const

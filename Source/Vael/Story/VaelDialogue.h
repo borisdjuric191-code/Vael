@@ -63,6 +63,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dialogue", meta = (ClampMin = 1))
 	int32 MaxHintsPerTalk = 3;
 
+	/** The person studies the samples of the compendium on every talk, like Albrun at the camp */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Research")
+	bool bStudiesSamples = false;
+
+	/** Said when the study researched something; {0} is the list of what */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Research", meta = (MultiLine = true, EditCondition = "bStudiesSamples"))
+	FText StudyDoneLine;
+
 	/** Hints whose condition holds right now, at most MaxHintsPerTalk */
 	TArray<FText> GatherHints(const UWorld* World) const;
 };
