@@ -340,6 +340,21 @@ def beine_begrenzen(obj, arm, radius):
             body.add([v.index], frei, "ADD"); geaendert += 1
     log(f"Beine begrenzt (Radius {radius:.2f} m): {geaendert} Punkte vom Bein an den Körper gegeben.")
 
+def beine_starr(obj, nummern):
+    """Beinpaare, die im Modell mit dem Körper verschmolzen sind, bewegen sich nicht mehr mit ihren Knochen:
+    ihr ganzes Gewicht geht an den Körper. Sonst zieht jeder Schritt die Haut des Körpers mit, an der das Bein klebt
+    (Hinterbeine der Glutkönigin am Hinterleib, 11. Oktober 2026)."""
+    body = obj.vertex_groups.get("body") or obj.vertex_groups.new(name="body")
+    starr = {g.index for g in obj.vertex_groups if any(g.name.startswith(f"leg_{s}{nr}_") for s in "LR" for nr in nummern)}
+    geaendert = 0
+    for v in obj.data.vertices:
+        frei = sum(g.weight for g in v.groups if g.group in starr)
+        if frei > 0.0:
+            for g in [g for g in v.groups if g.group in starr]:
+                obj.vertex_groups[g.group].remove([v.index])
+            body.add([v.index], frei, "ADD"); geaendert += 1
+    log(f"Beinpaare {', '.join(nummern)} starr: {geaendert} Punkte an den Körper gegeben.")
+
 # ---------------------------------------------------------------- Schritt 2
 def binden(ordner):
     sb = lade_steckbrief(ordner)
@@ -362,6 +377,9 @@ def binden(ordner):
     if sb.get("bein_radius"):
         lo, hi = bbox_welt(obj)
         beine_begrenzen(obj, arm, sb["bein_radius"] * (hi.y - lo.y))
+    # Ebenfalls nur auf Wunsch (Steckbrief "beine_starr", z. B. ["3"]): mit dem Körper verschmolzene Beinpaare
+    if sb.get("beine_starr"):
+        beine_starr(obj, [str(nr) for nr in sb["beine_starr"]])
     bpy.ops.wm.save_mainfile()
 
     os.makedirs(os.path.join(ordner, "04_export"), exist_ok=True)
