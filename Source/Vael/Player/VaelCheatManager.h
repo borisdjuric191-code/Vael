@@ -53,6 +53,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelStudy();
 
+	/** Throws the save game away and starts the level from the beginning */
+	UFUNCTION(Exec)
+	void VaelNeuesSpiel();
+
+	/** Writes the save game now */
+	UFUNCTION(Exec)
+	void VaelSpeichern();
+
 	/** Sets a compendium entry to a stage: 0 unknown to 4 researched; "Alle" for every entry. Example: VaelResearch Glutkriecher 4 */
 	UFUNCTION(Exec)
 	void VaelResearch(const FString& Name, int32 Stage);

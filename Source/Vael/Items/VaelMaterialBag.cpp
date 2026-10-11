@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/VaelMaterialBag.h"
+#include "Save/VaelSaveGame.h"
 #include "Items/VaelMaterial.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
@@ -101,3 +102,30 @@ void UVaelMaterialBag::GiveToGroup(const AActor* Source, const TArray<FVaelLootE
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void UVaelMaterialBag::WriteSave(FVaelSavedPlayer& Saved) const
+{
+	Saved.Materials.Reset();
+	for (const TPair<TObjectPtr<const UVaelMaterial>, int32>& Stack : Counts)
+	{
+		if (Stack.Key != nullptr && Stack.Value > 0)
+		{
+			Saved.Materials.Add(FSoftObjectPath(Stack.Key.Get()), Stack.Value);
+		}
+	}
+}
+
+void UVaelMaterialBag::ReadSave(const FVaelSavedPlayer& Saved)
+{
+	Counts.Reset();
+	for (const TPair<FSoftObjectPath, int32>& Stack : Saved.Materials)
+	{
+		// Materials that left the game since the save was written are dropped
+		if (const UVaelMaterial* Material = Cast<UVaelMaterial>(Stack.Key.TryLoad()))
+		{
+			Counts.Add(Material, Stack.Value);
+		}
+	}
+
+	OnMaterialsChanged.Broadcast();
+}

@@ -3,6 +3,7 @@
 #include "Creatures/VaelCreatureSpawner.h"
 #include "Components/BillboardComponent.h"
 #include "Creatures/VaelCreatureData.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Vael.h"
@@ -41,7 +42,14 @@ void AVaelCreatureSpawner::BeginPlay()
 		return;
 	}
 
-	GameMode->SpawnCreatureGroup(Data, GetActorLocation(), Count, Spread);
+	// A creature that exists once and was defeated in an earlier session stays away
+	const UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this);
+	if (Data->bUnique && Save != nullptr && Save->IsUniqueDefeated(Data->KindId))
+	{
+		return;
+	}
+
+	GameMode->SpawnCreatureGroup(Data, GetActorLocation(), Count, Spread, true);
 }
 
 bool AVaelCreatureSpawner::LevelHasSpawners(const UWorld* World)

@@ -20,6 +20,7 @@
 #include "Magic/VaelMagicSettings.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Story/VaelQuestSubsystem.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelFormulaScroll.h"
@@ -534,4 +535,21 @@ void UVaelCheatManager::VaelResearch(const FString& Name, int32 Stage)
 	}
 
 	UE_LOG(LogVael, Log, TEXT("VaelResearch: %s"), *Compendium->Describe());
+}
+
+void UVaelCheatManager::VaelNeuesSpiel()
+{
+	if (UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(GetWorld()))
+	{
+		Save->StartNewGame();
+	}
+}
+
+void UVaelCheatManager::VaelSpeichern()
+{
+	if (UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(GetWorld()))
+	{
+		Save->SaveNow();
+		UE_LOG(LogVael, Log, TEXT("VaelSpeichern: save game written"));
+	}
 }

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Story/VaelQuestSubsystem.h"
+#include "Save/VaelSaveGame.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Engine/AssetManager.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -267,6 +269,8 @@ bool UVaelQuestSubsystem::IsUnlocked(const UVaelQuest* Quest) const
 
 void UVaelQuestSubsystem::Advance(const UVaelQuest* Quest)
 {
+	UVaelSaveSubsystem::RequestSave(GetGameInstance());
+
 	FVaelQuestProgress& Current = Progress.FindOrAdd(Quest->QuestId);
 	const FVaelQuestStep& Step = Quest->Steps[Current.Step];
 
@@ -380,3 +384,28 @@ FString UVaelQuestSubsystem::Describe() const
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void UVaelQuestSubsystem::WriteSave(UVaelSaveGame& Save) const
+{
+	Save.QuestProgress = Progress;
+	Save.StoryFlags = Flags;
+	Save.GuildPriceFactor = GuildPriceFactor;
+	Save.AggroFactors = AggroFactors;
+}
+
+void UVaelQuestSubsystem::ReadSave(const UVaelSaveGame& Save)
+{
+	Progress = Save.QuestProgress;
+	Flags = Save.StoryFlags;
+	GuildPriceFactor = Save.GuildPriceFactor;
+	AggroFactors = Save.AggroFactors;
+
+	// Quiet, without notices: the start of the story, and quests that joined the game after the save was written
+	for (const UVaelQuest* Quest : Quests)
+	{
+		if (IsUnlocked(Quest))
+		{
+			Progress.FindOrAdd(Quest->QuestId).bActive = true;
+		}
+	}
+}

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Compendium/VaelCompendiumSubsystem.h"
+#include "Save/VaelSaveGame.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Engine/AssetManager.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -146,6 +148,7 @@ void UVaelCompendiumSubsystem::Reach(FName SubjectId, EVaelResearchStage Stage)
 	}
 
 	Current.Stage = Stage;
+	UVaelSaveSubsystem::RequestSave(GetGameInstance());
 
 	const FText StageWord = GetStageWord(Stage, Entry->Book);
 	UE_LOG(LogVael, Log, TEXT("Compendium: %s %s"), *Entry->DisplayName.ToString(), *StageWord.ToString());
@@ -252,3 +255,13 @@ FString UVaelCompendiumSubsystem::Describe() const
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void UVaelCompendiumSubsystem::WriteSave(UVaelSaveGame& Save) const
+{
+	Save.Research = Progress;
+}
+
+void UVaelCompendiumSubsystem::ReadSave(const UVaelSaveGame& Save)
+{
+	Progress = Save.Research;
+}

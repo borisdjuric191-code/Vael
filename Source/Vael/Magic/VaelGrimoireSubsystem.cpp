@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelGrimoireSubsystem.h"
+#include "Save/VaelSaveGame.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Engine/AssetManager.h"
 #include "Magic/VaelFormula.h"
 #include "Vael.h"
@@ -103,6 +105,7 @@ bool UVaelGrimoireSubsystem::LearnFormula(UVaelFormula* Formula, const FText& Re
 	}
 
 	KnownFormulas.Add(Formula);
+	UVaelSaveSubsystem::RequestSave(GetGameInstance());
 	OnFormulaLearned.Broadcast(Formula, Reason);
 
 	return true;
@@ -116,6 +119,7 @@ bool UVaelGrimoireSubsystem::AwakenMark(const FText& Reason)
 	}
 
 	bMarkAwakened = true;
+	UVaelSaveSubsystem::RequestSave(GetGameInstance());
 	UE_LOG(LogVael, Log, TEXT("The Mark awakens in the group"));
 
 	// Formulas that come with the Mark itself are known from now on
@@ -140,10 +144,49 @@ void UVaelGrimoireSubsystem::AddEcho(const UVaelFormula* Formula)
 	if (Formula != nullptr)
 	{
 		EchoedFormulas.Add(const_cast<UVaelFormula*>(Formula));
+		UVaelSaveSubsystem::RequestSave(GetGameInstance());
 	}
 }
 
 bool UVaelGrimoireSubsystem::HasEcho(const UVaelFormula* Formula) const
 {
 	return Formula != nullptr && EchoedFormulas.Contains(const_cast<UVaelFormula*>(Formula));
+}
+
+void UVaelGrimoireSubsystem::WriteSave(UVaelSaveGame& Save) const
+{
+	Save.KnownFormulas.Reset();
+	for (const UVaelFormula* Formula : KnownFormulas)
+	{
+		Save.KnownFormulas.Add(FSoftObjectPath(Formula));
+	}
+
+	Save.EchoedFormulas.Reset();
+	for (const UVaelFormula* Formula : EchoedFormulas)
+	{
+		Save.EchoedFormulas.Add(FSoftObjectPath(Formula));
+	}
+
+	Save.bMarkAwakened = bMarkAwakened;
+}
+
+void UVaelGrimoireSubsystem::ReadSave(const UVaelSaveGame& Save)
+{
+	KnownFormulas.Reset();
+	EchoedFormulas.Reset();
+	bMarkAwakened = Save.bMarkAwakened;
+
+	// Formulas that left the game since the save was written are dropped
+	for (UVaelFormula* Formula : Formulas)
+	{
+		const FSoftObjectPath Path(Formula);
+		if (Formula->Source == EVaelFormulaSource::Start || Save.KnownFormulas.Contains(Path))
+		{
+			KnownFormulas.Add(Formula);
+		}
+		if (Save.EchoedFormulas.Contains(Path))
+		{
+			EchoedFormulas.Add(Formula);
+		}
+	}
 }

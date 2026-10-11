@@ -10,6 +10,7 @@
 #include "VaelInventory.generated.h"
 
 class UAbilitySystemComponent;
+struct FVaelSavedPlayer;
 
 DECLARE_MULTICAST_DELEGATE(FVaelOnInventoryChanged);
 
@@ -60,6 +61,12 @@ public:
 
 	/** Pays guild coins. Returns false, and pays nothing, if there aren't enough. */
 	bool SpendCoins(int32 Amount);
+
+	/** Puts equipment, backpack and purse into the save of a player */
+	void WriteSave(FVaelSavedPlayer& Saved) const;
+
+	/** Takes equipment, backpack and purse from the save of a player */
+	void ReadSave(const FVaelSavedPlayer& Saved);
 
 	/** Called whenever something is taken, put on or taken off, or coins change */
 	FVaelOnInventoryChanged OnInventoryChanged;

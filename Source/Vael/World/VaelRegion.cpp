@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelRegion.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
@@ -52,6 +53,12 @@ void AVaelRegion::BeginPlay()
 	Weather = StartWeather;
 	WeatherTimeLeft = bCalmStart ? FMath::Max(Settings->CalmStartDuration, PickWeatherDuration()) : PickWeatherDuration();
 	LightningCooldown = FMath::FRandRange(Settings->LightningInterval.X, Settings->LightningInterval.Y);
+
+	// What an earlier session left of the region
+	if (const UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this))
+	{
+		Save->RestoreRegion(this);
+	}
 }
 
 void AVaelRegion::Tick(float DeltaSeconds)
@@ -393,3 +400,9 @@ bool AVaelRegion::HasPlayerInside() const
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void AVaelRegion::RestoreCorruption(float InCorruption, float InScarredCorruption)
+{
+	ScarredCorruption = FMath::Clamp(InScarredCorruption, 0.0f, 100.0f);
+	SetCorruption(InCorruption);
+}

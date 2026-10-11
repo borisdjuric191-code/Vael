@@ -7,6 +7,8 @@
 #include "Compendium/VaelCompendiumEntry.h"
 #include "VaelCompendiumSubsystem.generated.h"
 
+class UVaelSaveGame;
+
 /** How far the group has come with one entry */
 USTRUCT(BlueprintType)
 struct FVaelResearchProgress
@@ -78,6 +80,12 @@ public:
 
 	/** Share of an entry's observation already done, 0 to 1 */
 	float GetObservationShare(FName SubjectId) const;
+
+	/** Puts the research of the group into the save */
+	void WriteSave(UVaelSaveGame& Save) const;
+
+	/** Takes the research from the save; an empty save starts anew */
+	void ReadSave(const UVaelSaveGame& Save);
 
 	/** Every entry and how many of them reached each stage, for reports */
 	FString Describe() const;

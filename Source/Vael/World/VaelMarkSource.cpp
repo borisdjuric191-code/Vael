@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelMarkSource.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Combat/VaelGroundStrike.h"
@@ -70,6 +71,9 @@ void AVaelMarkSource::OnConstruction(const FTransform& Transform)
 void AVaelMarkSource::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Sealed in an earlier session
+	bSealed = UVaelSaveSubsystem::IsMarked(this);
 
 	RefreshLook();
 	UVaelInteractionSubsystem::Register(this);
@@ -216,6 +220,7 @@ bool AVaelMarkSource::Seal()
 	}
 
 	bSealed = true;
+	UVaelSaveSubsystem::Mark(this);
 	TimeInside.Reset();
 	NextAttack.Reset();
 	RefreshLook();

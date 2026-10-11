@@ -36,6 +36,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
 	FName KindId;
 
+	/** There is only one of this kind in the story, like the Glutkönigin: once defeated, spawners leave it out for good */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
+	bool bUnique = false;
+
 	/** Class spawned for this kind of creature by spawners and console commands */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
 	TSubclassOf<AVaelCreature> CreatureClass;

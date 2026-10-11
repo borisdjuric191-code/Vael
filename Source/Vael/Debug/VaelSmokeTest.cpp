@@ -32,6 +32,7 @@
 #include "Story/VaelNpc.h"
 #include "Story/VaelQuestMarker.h"
 #include "Story/VaelQuestObject.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
@@ -674,6 +675,21 @@ void AVaelSmokeTest::BeginPlay()
 		}
 
 		return Result;
+	}, 0.1f });
+
+	// Save game: everything written to memory, wiped and read back has to be the same (no file is touched)
+	Steps.Add({ TEXT("Save game"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this);
+		AVaelPlayerController* Controller = Player != nullptr ? Player->GetController<AVaelPlayerController>() : nullptr;
+		if (Controller == nullptr || Save == nullptr)
+		{
+			return FString(TEXT("FAILED: no player or save subsystem"));
+		}
+
+		Player->GetInventory()->AddCoins(7);
+		return Save->TestRoundTrip(Player, Controller->GetPlayerSlot());
 	}, 0.1f });
 
 	// The fights should have filled the bestiary: sighted, observed and defeated

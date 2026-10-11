@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/VaelChest.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -54,6 +55,9 @@ void AVaelChest::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Opened in an earlier session
+	bOpened = UVaelSaveSubsystem::IsMarked(this);
+
 	RefreshLook();
 	UVaelInteractionSubsystem::Register(this);
 }
@@ -74,6 +78,7 @@ void AVaelChest::Interact(AVaelCharacter* Player)
 
 	bOpened = true;
 	RefreshLook();
+	UVaelSaveSubsystem::Mark(this);
 
 	// Loot is personal: every player gets their own items, spread around the chest
 	TArray<AVaelCharacter*> Players;

@@ -20,6 +20,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Creatures/VaelCreatureSpawner.h"
 #include "World/VaelGround.h"
 
@@ -195,7 +196,7 @@ void AVaelGameMode::SpawnTestCreatures(const FVector& Center)
 	SpawnAtAngle(GetMutableDefault<UVaelPreacherData>(), 240.0f, 1);
 }
 
-int32 AVaelGameMode::SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread)
+int32 AVaelGameMode::SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel)
 {
 	int32 NumSpawned = 0;
 
@@ -206,8 +207,10 @@ int32 AVaelGameMode::SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& 
 		const FVector Offset = CreatureIndex == 0 ? FVector::ZeroVector : FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Spread;
 
 		FVector Ground;
-		if (AVaelCreature::FindGround(GetWorld(), Center + Offset, Ground) && AVaelCreature::SpawnCreature(GetWorld(), Data, Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f)) != nullptr)
+		AVaelCreature* Creature = AVaelCreature::FindGround(GetWorld(), Center + Offset, Ground) ? AVaelCreature::SpawnCreature(GetWorld(), Data, Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f)) : nullptr;
+		if (Creature != nullptr)
 		{
+			Creature->bOfTheLevel = bOfTheLevel;
 			++NumSpawned;
 		}
 	}
@@ -278,6 +281,16 @@ void AVaelGameMode::StartPlay()
 {
 	Super::StartPlay();
 
+	if (UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this))
+	{
+		Save->OnLevelStarted();
+
+		if (Save->WasLoaded())
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelPlayers", "SaveLoaded", "Spielstand geladen"), NSLOCTEXT("VaelPlayers", "SaveLoadedDetail", "Ihr erwacht am Lagerfeuer."), FLinearColor(FColor(232, 205, 140)), 4.0f);
+		}
+	}
+
 	if (AVaelSmokeTest::IsRequested())
 	{
 		GetWorld()->SpawnActor<AVaelSmokeTest>();
@@ -287,4 +300,26 @@ void AVaelGameMode::StartPlay()
 	{
 		GetWorld()->SpawnActor<AVaelShowcase>();
 	}
+}
+
+void AVaelGameMode::Logout(AController* Exiting)
+{
+	const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(Exiting);
+	UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this);
+	if (VaelController != nullptr && Save != nullptr)
+	{
+		Save->CapturePlayer(VaelController->GetPawn<AVaelCharacter>(), VaelController->GetPlayerSlot());
+	}
+
+	Super::Logout(Exiting);
+}
+
+void AVaelGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this))
+	{
+		Save->SaveNow();
+	}
+
+	Super::EndPlay(EndPlayReason);
 }

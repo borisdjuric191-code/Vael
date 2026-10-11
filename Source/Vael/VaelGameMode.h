@@ -37,6 +37,12 @@ public:
 	/** Spawns joining players next to the group instead of at the player start */
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
+	/** Notes what a leaving player owns, for the save game */
+	virtual void Logout(AController* Exiting) override;
+
+	/** Writes the save game when the level ends */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
 	/** Returns the camera shared by all players, spawning it on first use */
 	AVaelSharedCamera* GetSharedCamera();
 
@@ -46,8 +52,8 @@ public:
 	/** Called by a player who goes down. Once every player is down, the group wakes up at the start after a moment. */
 	void OnPlayerDowned(AVaelCharacter* Player);
 
-	/** Spawns creatures of one kind on the ground around a location. Returns the number spawned. */
-	int32 SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread);
+	/** Spawns creatures of one kind on the ground around a location; bOfTheLevel marks those a spawner of the level brings. Returns the number spawned. */
+	int32 SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel = false);
 
 protected:
 

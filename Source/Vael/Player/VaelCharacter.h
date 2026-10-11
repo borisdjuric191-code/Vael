@@ -214,6 +214,11 @@ protected:
 
 private:
 
+	/** Gives the character what the save game holds for its player slot, once */
+	void RestoreFromSave();
+
+	bool bRestoredFromSave = false;
+
 	/** Lets the element orbs show the queued elements */
 	void RefreshQueueOrbs();
 

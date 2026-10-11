@@ -9,6 +9,7 @@
 #include "Engine/World.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGrimoireSubsystem.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
@@ -99,6 +100,13 @@ void AVaelFormulaScroll::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// Picked up in an earlier session
+	if (UVaelSaveSubsystem::IsMarked(this))
+	{
+		Destroy();
+		return;
+	}
+
 	BaseMeshHeight = Mesh->GetRelativeLocation().Z;
 
 	PickupSphere->OnComponentBeginOverlap.AddDynamic(this, &AVaelFormulaScroll::OnPickupOverlap);
@@ -154,6 +162,9 @@ void AVaelFormulaScroll::PickUp(AActor* Player)
 	}
 
 	UE_LOG(LogVael, Log, TEXT("'%s' picks up scroll '%s' (%s)"), *GetNameSafe(Player), *Label.ToString(), Formula != nullptr ? *Formula->DisplayName.ToString() : TEXT("no formula"));
+
+	// Gone for good, in later sessions too
+	UVaelSaveSubsystem::Mark(this);
 
 	Destroy();
 }

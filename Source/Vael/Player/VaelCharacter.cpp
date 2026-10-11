@@ -34,6 +34,7 @@
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "Player/VaelPlayerController.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "World/VaelGround.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Compendium/VaelCompendiumSettings.h"
@@ -186,6 +187,8 @@ void AVaelCharacter::BeginPlay()
 
 	ElementComponent->OnQueueChanged.AddUObject(this, &AVaelCharacter::OnElementQueueChanged);
 	RefreshQueueOrbs();
+
+	RestoreFromSave();
 }
 
 void AVaelCharacter::RefreshHandEffect()
@@ -330,6 +333,22 @@ void AVaelCharacter::PossessedBy(AController* NewController)
 
 		UE_LOG(LogVael, Log, TEXT("Player slot %d controls '%s'"), VaelController->GetPlayerSlot(), *GetNameSafe(this));
 	}
+
+	RestoreFromSave();
+}
+
+void AVaelCharacter::RestoreFromSave()
+{
+	// Once, as soon as the character is set up and it is known which slot plays it; that order differs between the first player and those who join
+	const AVaelPlayerController* VaelController = GetController<AVaelPlayerController>();
+	const UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this);
+	if (bRestoredFromSave || !HasActorBegunPlay() || VaelController == nullptr || Save == nullptr)
+	{
+		return;
+	}
+
+	bRestoredFromSave = true;
+	Save->RestorePlayer(this, VaelController->GetPlayerSlot());
 }
 
 bool AVaelCharacter::StartDodge(const FVector& WorldDirection)

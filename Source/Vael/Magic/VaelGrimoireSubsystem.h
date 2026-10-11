@@ -8,6 +8,7 @@
 #include "VaelGrimoireSubsystem.generated.h"
 
 class UVaelFormula;
+class UVaelSaveGame;
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FVaelOnFormulaLearned, const UVaelFormula* /*Formula*/, const FText& /*Reason*/);
 
@@ -55,6 +56,12 @@ public:
 
 	/** Awakens the Mark for the whole group and teaches the formulas that come with it. Returns false if it was awake already. */
 	bool AwakenMark(const FText& Reason);
+
+	/** Puts what the group has learned into the save */
+	void WriteSave(UVaelSaveGame& Save) const;
+
+	/** Takes what the group has learned from the save, without telling anybody; an empty save leaves only the formulas known from the start */
+	void ReadSave(const UVaelSaveGame& Save);
 
 	/** True if the formula uses the Mark while it still sleeps, so it can't be cast */
 	bool IsBlockedByMark(const UVaelFormula* Formula) const;

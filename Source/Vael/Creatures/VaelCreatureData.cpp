@@ -105,6 +105,7 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 {
 	DisplayName = LOCTEXT("EmberQueen", "Glutk\u00F6nigin");
 	KindId = TEXT("Glutkoenigin");
+	bUnique = true;
 	CompendiumId = TEXT("Glutkoenigin");
 	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Glutkoenigin/SK_Glutkoenigin.SK_Glutkoenigin")));
 	MeshGlow = 1.2f;

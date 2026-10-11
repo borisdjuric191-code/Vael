@@ -7,6 +7,8 @@
 #include "Story/VaelQuest.h"
 #include "VaelQuestSubsystem.generated.h"
 
+class UVaelSaveGame;
+
 /** How far the group has come with one quest */
 USTRUCT(BlueprintType)
 struct FVaelQuestProgress
@@ -111,6 +113,12 @@ public:
 
 	/** Moves a quest to a step at once, for testing; a step past the last finishes it */
 	void SetStep(FName QuestId, int32 Step);
+
+	/** Puts the progress, the decisions and what came of them into the save */
+	void WriteSave(UVaelSaveGame& Save) const;
+
+	/** Takes all of it from the save; an empty save starts the story anew. Quests added to the game since are activated where their turn has come. */
+	void ReadSave(const UVaelSaveGame& Save);
 
 	/** Every quest and its state, for reports */
 	FString Describe() const;

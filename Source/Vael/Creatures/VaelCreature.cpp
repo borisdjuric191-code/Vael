@@ -41,6 +41,7 @@
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "World/VaelRegion.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "World/VaelSafeZone.h"
 #include "World/VaelWorldSettings.h"
 #include "World/VaelGround.h"
@@ -405,6 +406,13 @@ void AVaelCreature::Die()
 		TeachFormula(ActiveData->FormulaOnDeath, FText::Format(LOCTEXT("FormulaFromCorpse", "Im Leib von {0} liegt ein Fragment."), GetCreatureName()));
 
 		OnDied.Broadcast(this);
+
+		// A creature that exists once stays dead in later sessions
+		UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this);
+		if (bOfTheLevel && ActiveData->bUnique && Save != nullptr)
+		{
+			Save->MarkUniqueDefeated(ActiveData->KindId);
+		}
 
 		// Every marked creature that falls cleanses its region a little
 		if (bMarked)

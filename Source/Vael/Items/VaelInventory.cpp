@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/VaelInventory.h"
+#include "Save/VaelSaveGame.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/VaelAttributeSet.h"
@@ -242,4 +243,22 @@ void UVaelInventory::ApplyEquipment()
 UAbilitySystemComponent* UVaelInventory::GetAbilitySystem() const
 {
 	return UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(GetOwner());
+}
+
+void UVaelInventory::WriteSave(FVaelSavedPlayer& Saved) const
+{
+	Saved.Equipped = Equipped;
+	Saved.Backpack = Backpack;
+	Saved.GuildCoins = GuildCoins;
+}
+
+void UVaelInventory::ReadSave(const FVaelSavedPlayer& Saved)
+{
+	Equipped = Saved.Equipped;
+	Equipped.SetNum(static_cast<int32>(EVaelEquipSlot::Count));
+	Backpack = Saved.Backpack;
+	GuildCoins = Saved.GuildCoins;
+
+	ApplyEquipment();
+	OnInventoryChanged.Broadcast();
 }

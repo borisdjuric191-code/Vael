@@ -72,6 +72,9 @@ public:
 	/** Spawns the creature described by the data on the ground at the given location. Returns null if it can't be spawned. */
 	static AVaelCreature* SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation = FRotator::ZeroRotator);
 
+	/** True for creatures the level itself brought, by a spawner; only their death is remembered by the save game */
+	bool bOfTheLevel = false;
+
 	/** Raises the creature that fell last near the location, at most a few seconds ago, to fight for the caster for some seconds, like the Markgeburt. Returns null if nobody fell there. */
 	static AVaelCreature* RaiseFallen(APawn* Caster, const FVector& Location, float Lifetime);
 

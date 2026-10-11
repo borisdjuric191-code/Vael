@@ -86,6 +86,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Region")
 	float GetCorruption() const { return Corruption; }
 
+	/** Corruption that can no longer be cleansed */
+	float GetScarredCorruption() const { return ScarredCorruption; }
+
+	/** Sets corruption and scars as a save game had them */
+	void RestoreCorruption(float InCorruption, float InScarredCorruption);
+
 	/** Markkristalle a Mark source of this region asks as offering */
 	int32 GetOfferingCrystals() const { return OfferingCrystals; }
 

@@ -8,6 +8,7 @@
 
 class UVaelMaterial;
 struct FVaelLootEntry;
+struct FVaelSavedPlayer;
 
 DECLARE_MULTICAST_DELEGATE(FVaelOnMaterialsChanged);
 
@@ -53,6 +54,12 @@ public:
 
 	/** Rolls the loot once and puts a copy into the bag of every player, with a pickup label above the source */
 	static void GiveToGroup(const AActor* Source, const TArray<FVaelLootEntry>& Loot);
+
+	/** Puts the content of the bag into the save of a player */
+	void WriteSave(FVaelSavedPlayer& Saved) const;
+
+	/** Replaces the content of the bag with the save of a player */
+	void ReadSave(const FVaelSavedPlayer& Saved);
 
 	/** Called whenever the content of the bag changes */
 	FVaelOnMaterialsChanged OnMaterialsChanged;
