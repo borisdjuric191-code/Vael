@@ -1385,6 +1385,18 @@ def place_rollers():
         counts["Gegner/Aschenroller"] = counts.get("Gegner/Aschenroller", 0) + 1
 
 
+def place_dolls():
+    """Sichelpuppen in the fields north of the village, in pairs (Bestiarium: Aschenmark, Felder)"""
+    for index, tile in enumerate(((26.5, 14.5), (34.5, 12.5))):
+        spawner = actors.spawn_actor_from_class(unreal.VaelCreatureSpawner, world(tile[0], tile[1], 100.0), unreal.Rotator(0.0, 0.0, 0.0))
+        spawner.set_editor_property("creature_kind", unreal.VaelSickleDollData.static_class())
+        spawner.set_editor_property("count", 2)
+        spawner.set_editor_property("spread", 220.0)
+        spawner.set_folder_path("Gegner/Sichelpuppen")
+        spawner.set_actor_label("Sichelpuppen {}".format(index + 1))
+        counts["Gegner/Sichelpuppen"] = counts.get("Gegner/Sichelpuppen", 0) + 1
+
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -1453,6 +1465,8 @@ def dress():
         place_people()
     if not done("Gegner/Aschenroller"):
         place_rollers()
+    if not done("Gegner/Sichelpuppen"):
+        place_dolls()
     # A store built at its first place by an earlier run moves to the main road once
     if done("Dorf/Gildenspeicher") and not done("Dorf/Gildenspeicher/Kulisse/Mauern"):
         move_guild_store(level_actors)

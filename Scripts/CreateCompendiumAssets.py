@@ -96,6 +96,23 @@ ENTRIES = [
         "observe_seconds": 8.0,
         "study_count": 1,
     },
+    # Bestiarium row Sichelpuppe
+    {
+        "asset": "DA_Compendium_Sichelpuppe",
+        "subject_id": "Sichelpuppe",
+        "book": Book.BESTIARY,
+        "sort_order": 27,
+        "display_name": unreal.Text("Sichelpuppe"),
+        "region": unreal.Text("Aschenmark, Felder"),
+        "glimpse": unreal.Text("Eine Erntepuppe aus verkohltem Stroh, wie sie die Bauern aus der letzten Garbe binden. Sie steht nicht da, wo sie eben noch stand."),
+        "behaviour": unreal.Text("Bewegt sich in Rucken: ein paar schnelle Schritte, dann steht sie still wie ein Pfahl. Ist sie nah genug, hebt sie die Sicheln, am Boden glimmt ein Kreis, und sie wirbelt wie ein Kreisel hinter dir her. Danach taumelt sie einen Atemzug lang."),
+        "weakness": unreal.Text("Feuer kann ihr nichts mehr nehmen, sie ist schon verbrannt. Wasser aber saugt sie auf: Ein Guss, und sie sackt zu nassem Stroh zusammen und vertrÃ¤gt kaum etwas. Auch benommen nach dem Wirbeln ist sie leicht zu treffen. LÃ¤sst Glimmstroh zurÃ¼ck, selten eine Sichelklinge."),
+        "uses": unreal.Text("Glimmstroh hÃ¤lt Glut Ã¼ber Tage. Aus den Klingen baut ein Ingenieur einen Sichelkreisel, der als Falle im Gras liegt. Ein Tamer fÃ¤ngt sie, solange sie nach dem Wirbeln benommen ist."),
+        "marked_form": unreal.Text("Sie ist ein GeschÃ¶pf des Marks: Erst das Mark hat die Puppen aufstehen lassen. StÃ¤rker gezeichnete tragen violette Halme im Stroh und wirbeln lÃ¤nger."),
+        "albrun_note": unreal.Text("Die Bauern von Kesselgrund haben sie selbst geflochten, jedes Jahr eine, damit das Korn wiederkommt. Ihr Glaube ist lebendig geworden. Er hat nur vergessen, fÃ¼r wen."),
+        "observe_seconds": 6.0,
+        "study_count": 3,
+    },
     # Bestiarium row Aschenroller
     {
         "asset": "DA_Compendium_Aschenroller",

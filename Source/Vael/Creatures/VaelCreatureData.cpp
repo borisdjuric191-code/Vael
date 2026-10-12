@@ -7,6 +7,7 @@
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelPreacher.h"
+#include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelSourceGuardian.h"
 
@@ -199,6 +200,26 @@ UVaelAshRollerData::UVaelAshRollerData()
 	AggroRange = 1540.0f;
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rollpanzer.DA_Material_Rollpanzer"), 0.6f));
 	BodyColor = FLinearColor(0.17f, 0.14f, 0.12f);
+}
+
+UVaelSickleDollData::UVaelSickleDollData()
+{
+	DisplayName = LOCTEXT("SickleDoll", "Sichelpuppe");
+	CompendiumId = TEXT("Sichelpuppe");
+	KindId = TEXT("Sichelpuppe");
+	CreatureClass = AVaelSickleDoll::StaticClass();
+
+	// Light and quick; charred straw doesn't burn twice, but it drinks water
+	MaxHealth = 55.0f;
+	MoveSpeed = 330.0f;
+	CollisionRadius = 42.0f;
+	CollisionHalfHeight = 80.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 0.1f);
+	ElementMultipliers.Add(EVaelElement::Water, 1.5f);
+	AggroRange = 1400.0f;
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glimmstroh.DA_Material_Glimmstroh"), 0.6f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Sichelklinge.DA_Material_Sichelklinge"), 0.25f));
+	BodyColor = FLinearColor(0.13f, 0.1f, 0.07f);
 }
 
 #undef LOCTEXT_NAMESPACE

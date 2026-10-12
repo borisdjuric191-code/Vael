@@ -10,6 +10,7 @@
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelAshRoller.h"
+#include "Creatures/VaelSickleDoll.h"
 #include "Magic/VaelRockWall.h"
 #include "Creatures/VaelLegIKComponent.h"
 #include "Engine/GameInstance.h"
@@ -273,6 +274,31 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOnBack = Roller->GetRollerState() == EVaelRollerState::OnBack;
 			const bool bOk = RollsBeforeWall > 0 && bOnBack;
 			return FString::Printf(TEXT("%s%d rolls at the player, at the wall: %s"), bOk ? TEXT("") : TEXT("FAILED: "), RollsBeforeWall, bOnBack ? TEXT("on its back") : TEXT("NOT on its back"));
+		}, 0.1f });
+	}
+
+	// The sickle doll whirls at the player, and a hit of water lets it collapse
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Doll arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelSickleDollData>(), 1); }, 6.0f });
+		Steps.Add({ TEXT("Doll"), [this]()
+		{
+			AVaelSickleDoll* Doll = nullptr;
+			for (TActorIterator<AVaelSickleDoll> It(GetWorld()); It; ++It)
+			{
+				Doll = !It->IsDead() ? *It : Doll;
+			}
+			if (Doll == nullptr)
+			{
+				return FString(TEXT("FAILED: no living doll"));
+			}
+
+			const int32 NumWhirls = Doll->GetWhirlCount();
+			UVaelCombatStatics::DealDamage(nullptr, Doll, 1.0f, EVaelElement::Water);
+			const bool bSoaked = Doll->GetDollState() == EVaelDollState::Soaked;
+
+			const bool bOk = NumWhirls > 0 && bSoaked;
+			return FString::Printf(TEXT("%s%d whirls, water: %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumWhirls, bSoaked ? TEXT("collapsed") : TEXT("NOT collapsed"));
 		}, 0.1f });
 	}
 

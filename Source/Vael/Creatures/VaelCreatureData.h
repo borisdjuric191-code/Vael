@@ -901,3 +901,69 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shell", meta = (ClampMin = 0))
 	float OnBackDamageMultiplier = 1.75f;
 };
+
+/**
+ *  Sichelpuppe (Aschenmark, fields): a charred harvest doll of straw, woken by the Mark. Jerks towards the players, whirls
+ *  like a top with its sickles out and is dazed for a moment afterwards. Fire-proof; a hit of water lets it collapse into wet straw.
+ */
+UCLASS(BlueprintType)
+class UVaelSickleDollData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelSickleDollData();
+
+	/** Seconds it moves, and seconds it stands still between two jerks */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Jerks", meta = (ClampMin = 0.05))
+	float StepTime = 0.32f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Jerks", meta = (ClampMin = 0))
+	float PauseTime = 0.22f;
+
+	/** It starts to whirl at players closer than this, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl", meta = (ClampMin = 0))
+	float WhirlRange = 420.0f;
+
+	/** Seconds between two whirls, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl")
+	FVector2D WhirlInterval = FVector2D(1.2f, 2.0f);
+
+	/** Seconds it raises its sickles before it whirls */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl", meta = (ClampMin = 0))
+	float WindupTime = 0.55f;
+
+	/** Seconds a whirl lasts */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl", meta = (ClampMin = 0.1))
+	float WhirlTime = 2.2f;
+
+	/** Speed while whirling in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl", meta = (ClampMin = 0))
+	float WhirlSpeed = 420.0f;
+
+	/** Reach of the sickles from its middle, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl", meta = (ClampMin = 1))
+	float WhirlRadius = 150.0f;
+
+	/** Damage of each cut, and seconds between two cuts */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl", meta = (ClampMin = 0))
+	float CutDamage = 9.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Whirl", meta = (ClampMin = 0.05))
+	float CutInterval = 0.45f;
+
+	/** Seconds it is dazed after a whirl, and what damage it takes meanwhile is multiplied by */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dazed", meta = (ClampMin = 0))
+	float DazedTime = 1.6f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dazed", meta = (ClampMin = 0))
+	float DazedDamageMultiplier = 1.5f;
+
+	/** Seconds it lies collapsed after a hit of water, and what damage it takes meanwhile is multiplied by */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Soaked", meta = (ClampMin = 0))
+	float SoakedTime = 3.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Soaked", meta = (ClampMin = 0))
+	float SoakedDamageMultiplier = 1.5f;
+};

@@ -129,6 +129,10 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	{
 		Data = GetMutableDefault<UVaelEmberCrawlerData>();
 	}
+	else if (Name.StartsWith(TEXT("sichel")) || Name.StartsWith(TEXT("puppe")) || Name.StartsWith(TEXT("doll")))
+	{
+		Data = GetMutableDefault<UVaelSickleDollData>();
+	}
 	else if (Name.StartsWith(TEXT("aschenr")) || Name.StartsWith(TEXT("roll")))
 	{
 		Data = GetMutableDefault<UVaelAshRollerData>();
@@ -160,7 +164,7 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 
 	if (Data == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Koenigin, Waechter, Spannhornkaefer or Aschenroller."), *Kind);
+		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Koenigin, Waechter, Spannhornkaefer, Aschenroller or Sichelpuppe."), *Kind);
 		return;
 	}
 

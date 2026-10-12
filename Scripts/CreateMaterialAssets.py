@@ -83,6 +83,21 @@ MATERIALS = [
         "region": unreal.Text("Wurzelforst"),
         "color": color("d8cfb4"),
     },
+    # Bestiarium row Sichelpuppe
+    {
+        "asset": "DA_Material_Glimmstroh",
+        "display_name": unreal.Text("Glimmstroh"),
+        "description": unreal.Text("Verkohltes Stroh aus einer Sichelpuppe. Es glimmt weiter, ohne zu verbrennen."),
+        "region": unreal.Text("Aschenmark"),
+        "color": color("8a5a2e"),
+    },
+    {
+        "asset": "DA_Material_Sichelklinge",
+        "display_name": unreal.Text("Sichelklinge"),
+        "description": unreal.Text("Die Klinge einer Erntesichel, schartig und ruÃschwarz, aber scharf. Der Ingenieur baut daraus seinen Sichelkreisel."),
+        "region": unreal.Text("Aschenmark"),
+        "color": color("9aa0a8"),
+    },
     # Bestiarium row Aschenroller
     {
         "asset": "DA_Material_Rollpanzer",
