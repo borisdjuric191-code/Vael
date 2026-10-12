@@ -1128,6 +1128,251 @@ def place_people():
     person("Gildenwache", ring(KONTOR, gate_angle + 26.0, KONTOR_RADIUS - 0.8), KONTOR, (0.1, 0.13, 0.2), "Kontor/Leute", gossip="DA_Gossip_Kontor")
 
 
+MAIN_ROUTE = [(10.0, 52.0), (30.0, 41.0), (30.0, 40.0), (29.0, 20.0), (45.0, 17.0), (47.0, 16.0)]
+MAIN_ROAD_LABELS = ("Weg 1", "Weg 3", "Weg 4", "Weg 5")
+MAIN_ROAD_WIDTH = 3.8
+
+# The Gildenspeicher stands at the main road now: this far along its first stretch from the camp, on its southern side
+STORE_ALONG = 11.5
+STORE_HALF = (2.5, 1.75)
+
+
+def direction_yaw(dx, dy):
+    """Yaw in the world of a direction in tile space"""
+    return math.degrees(math.atan2(-dy, -dx))
+
+
+def store_frame():
+    """Middle of the Gildenspeicher and its axes in tile space: u along the road, v away from it"""
+    (ax, ay), (bx, by) = MAIN_ROUTE[0], MAIN_ROUTE[1]
+    length = math.hypot(bx - ax, by - ay)
+    u = ((bx - ax) / length, (by - ay) / length)
+    v = (-u[1], u[0])
+    offset = MAIN_ROAD_WIDTH * 0.5 + 0.9 + STORE_HALF[1]
+    centre = (ax + u[0] * STORE_ALONG + v[0] * offset, ay + u[1] * STORE_ALONG + v[1] * offset)
+    return centre, u, v
+
+
+def main_road_material(instances):
+    """A lighter, warmer instance of the path material for the way from the camp to the crater"""
+    name = "MI_Aschenmark_Hauptweg"
+    path = "{}/{}".format(DRESSING_FOLDER, name)
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        return unreal.load_asset(path)
+
+    parent = unreal.load_asset("{}/M_Vael_Boden".format(DRESSING_FOLDER))
+    if parent is None or "MI_Aschenmark_Weg" not in instances:
+        return None
+
+    library = unreal.MaterialEditingLibrary
+    instance = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, DRESSING_FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    library.set_material_instance_parent(instance, parent)
+    for key, texture in (("Albedo", surface("ForestGround", "D")), ("Normal", surface("ForestGround", "N")), ("Roughness", surface("ForestGround", "R")), ("Albedo2", surface("HeavyMud", "D"))):
+        library.set_material_instance_texture_parameter_value(instance, key, texture)
+    library.set_material_instance_vector_parameter_value(instance, "Tint", unreal.LinearColor(0.86, 0.70, 0.52, 1.0))
+    library.set_material_instance_vector_parameter_value(instance, "Tint2", unreal.LinearColor(0.70, 0.58, 0.45, 1.0))
+    for key, value in (("TileSize", 330.0), ("MacroSize", 2600.0), ("Desaturation", 0.2)):
+        library.set_material_instance_scalar_parameter_value(instance, key, value)
+    library.update_material_instance(instance)
+    unreal.EditorAssetLibrary.save_loaded_asset(instance, False)
+    return instance
+
+
+def dress_main_road(level_actors, instances, spawn_dressing):
+    """The way from the camp to the Glutkoenigin reads at a glance (Boris, 2026-10-12): wider and lighter than the side paths,
+    lined with stones, and a post with a lantern every few steps. Width and material are set on every run, the rest is placed once."""
+    folder = "Wege/Kulisse"
+    material = main_road_material(instances)
+
+    for actor in level_actors:
+        if isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label() in MAIN_ROAD_LABELS and str(actor.get_folder_path()) == "Wege":
+            scale = actor.get_actor_scale3d()
+            actor.set_actor_scale3d(unreal.Vector(scale.x, MAIN_ROAD_WIDTH * TILE / 100.0, scale.z))
+            if material is not None:
+                actor.static_mesh_component.set_material(0, material)
+
+    if not spawn_dressing:
+        return
+
+    local = random.Random(1291)
+    cylinder = unreal.load_asset("/Engine/BasicShapes/Cylinder.Cylinder")
+    store, _, _ = store_frame()
+
+    # Round patches close the gaps where the way bends
+    for index, corner in enumerate(MAIN_ROUTE[1:-1]):
+        patch = actors.spawn_actor_from_class(unreal.StaticMeshActor, world(corner[0], corner[1], -0.2), unreal.Rotator(0.0, 0.0, 0.0))
+        patch.static_mesh_component.set_static_mesh(cylinder)
+        patch.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        if material is not None:
+            patch.static_mesh_component.set_material(0, material)
+        patch.set_actor_scale3d(unreal.Vector(MAIN_ROAD_WIDTH * 1.08 * TILE / 100.0, MAIN_ROAD_WIDTH * 1.08 * TILE / 100.0, 0.02))
+        patch.set_folder_path(folder)
+        patch.set_actor_label("Wegbiegung {}".format(index + 1))
+        patch.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+        counts[folder] = counts.get(folder, 0) + 1
+
+    def side_road_near(tile):
+        """Where another path leaves the way, its edge stays open"""
+        for (ax, ay), (bx, by) in (ROADS[1], ((30.0, 41.5), (KONTOR[0] + 0.6, KONTOR[1] - KONTOR_RADIUS))):
+            dx, dy = bx - ax, by - ay
+            t = max(0.0, min(1.0, ((tile[0] - ax) * dx + (tile[1] - ay) * dy) / (dx * dx + dy * dy)))
+            if math.hypot(tile[0] - (ax + dx * t), tile[1] - (ay + dy * t)) < 2.0:
+                return True
+        return False
+
+    walked = 0.0
+    next_post = 4.0
+    post_side = 1.0
+    for (ax, ay), (bx, by) in zip(MAIN_ROUTE[:-1], MAIN_ROUTE[1:]):
+        length = math.hypot(bx - ax, by - ay)
+        u = ((bx - ax) / length, (by - ay) / length)
+        v = (-u[1], u[0])
+
+        # Stones along both edges
+        along = 0.4
+        while along < length:
+            for side in (-1.0, 1.0):
+                reach = MAIN_ROAD_WIDTH * 0.5 + local.uniform(0.0, 0.22)
+                tile = (ax + u[0] * along + v[0] * side * reach, ay + u[1] * along + v[1] * side * reach)
+                free = math.hypot(tile[0] - CAMP[0], tile[1] - CAMP[1]) > CAMP_RADIUS + 0.6 and not side_road_near(tile)
+                at_store_door = math.hypot(tile[0] - store[0], tile[1] - store[1]) < STORE_HALF[1] + 1.6
+                if free and not at_store_door and local.random() < 0.85:
+                    place("SM_MossyStonesPack_0{}".format(local.randint(0, 3)), tile, folder + "/Randsteine", "Randstein",
+                          scale=local.uniform(1.7, 2.8), yaw=local.uniform(0.0, 360.0), sink=4.0)
+            along += local.uniform(0.75, 1.15)
+
+        # Way posts with a lantern at the foot, left and right in turns
+        while next_post - walked < length:
+            at = next_post - walked
+            reach = MAIN_ROAD_WIDTH * 0.5 + 0.55
+            tile = (ax + u[0] * at + v[0] * post_side * reach, ay + u[1] * at + v[1] * post_side * reach)
+            if math.hypot(tile[0] - CAMP[0], tile[1] - CAMP[1]) > CAMP_RADIUS + 1.5 and not side_road_near(tile) and math.hypot(tile[0] - store[0], tile[1] - store[1]) > 4.5:
+                place("SM_WoodenPost", tile, folder + "/Wegpfosten", "Wegpfosten", scale=1.5, yaw=local.uniform(0.0, 360.0), pitch=local.uniform(-3.0, 3.0), sink=14.0)
+                lantern = (tile[0] + u[0] * 0.3, tile[1] + u[1] * 0.3)
+                place("SM_ManMade_Lantern_02", lantern, folder + "/Wegpfosten", "Weglaterne", scale=1.3, yaw=local.uniform(0.0, 360.0))
+                light = actors.spawn_actor_from_class(unreal.VaelFireLight, world(lantern[0], lantern[1], 70.0), unreal.Rotator(0.0, 0.0, 0.0))
+                light.set_folder_path(folder + "/Wegpfosten")
+                light.set_actor_label("Licht der Weglaterne")
+                light.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+                post_side = -post_side
+            next_post += 6.5
+        walked += length
+
+
+def move_guild_store(level_actors):
+    """The Gildenspeicher moves to the main road and becomes a house one can read (Boris, 2026-10-12): four low stone walls along the way,
+    a door towards it, posts at the corners. No roof, so the camera sees the box inside. Its actors are moved, none is deleted."""
+    folder = "Dorf/Gildenspeicher/Kulisse"
+    centre, u, v = store_frame()
+    half_x, half_y = STORE_HALF
+    yaw = direction_yaw(u[0], u[1])
+    wall_height, door = 165.0, 1.5
+
+    def at(a, b):
+        return (centre[0] + u[0] * a + v[0] * b, centre[1] + u[1] * a + v[1] * b)
+
+    # Scattered rocks, trees and dead wood in the way are hidden, not deleted; blockout shapes there lose their collision too
+    for actor in level_actors:
+        if not isinstance(actor, unreal.StaticMeshActor) or not str(actor.get_folder_path()).startswith("Streuung"):
+            continue
+        tile = tile_of(actor)
+        if math.hypot(tile[0] - centre[0], tile[1] - centre[1]) > half_x + 2.0:
+            continue
+        if unreal.Name(HIDDEN_TAG) not in actor.get_editor_property("tags"):
+            hide_placeholder(actor)
+        actor.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        counts["Gildenspeicher: versteckt"] = counts.get("Gildenspeicher: versteckt", 0) + 1
+
+    own = {}
+    for actor in level_actors:
+        if str(actor.get_folder_path()) in (folder, "Dorf/Gildenspeicher", "Quests"):
+            own[actor.get_actor_label()] = actor
+
+    def put(label, tile, z, actor_yaw=None, scale=None):
+        actor = own.get(label)
+        if actor is None:
+            notes.append("Gildenspeicher: {} fehlt".format(label))
+            return None
+        # Pack meshes keep their height: their origin isn't at their foot
+        actor.set_actor_location(world(tile[0], tile[1], actor.get_actor_location().z if z is None else z), False, False)
+        if actor_yaw is not None:
+            actor.set_actor_rotation(unreal.Rotator(0.0, 0.0, actor_yaw), False)
+        if scale is not None:
+            actor.set_actor_scale3d(scale)
+        return actor
+
+    def wall(label, middle, length, along_u, existing=True):
+        """A wall cube as collision, covered by rows of the dry-stone wall of the village"""
+        wall_yaw = yaw if along_u else yaw + 90.0
+        size = unreal.Vector(length * TILE / 100.0, 0.3 * TILE / 100.0, wall_height / 100.0)
+        if existing:
+            actor = put(label, middle, wall_height * 0.5, wall_yaw, size)
+        else:
+            actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, world(middle[0], middle[1], wall_height * 0.5), unreal.Rotator(0.0, 0.0, wall_yaw))
+            actor.static_mesh_component.set_static_mesh(CUBE)
+            actor.set_actor_scale3d(size)
+            actor.set_folder_path(folder)
+            actor.set_actor_label(label)
+            actor.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+        if actor is None:
+            return
+        if unreal.Name(HIDDEN_TAG) not in actor.get_editor_property("tags"):
+            hide_placeholder(actor)
+
+        axis = u if along_u else v
+        pieces = max(1, int(round(length * TILE / 150.0)))
+        step = length / pieces
+        row_height = 93.0 * 0.88 * 0.86
+        for row in range(int(round(wall_height / row_height))):
+            for piece in range(pieces):
+                shift = (piece + 0.5) * step - length * 0.5
+                spot = (middle[0] + axis[0] * shift, middle[1] + axis[1] * shift)
+                place("SM_MossyStoneWallC_02", spot, folder + "/Mauern", "Speichermauer", scale=0.88, stretch=(1.0, 1.45, 1.0),
+                      yaw=wall_yaw + rng.choice((0.0, 180.0)) + rng.uniform(-1.5, 1.5), z=row * row_height, sink=5.0 if row == 0 else 0.0)
+
+    put("Boden", centre, 0.2, yaw, unreal.Vector(half_x * 2.0 * TILE / 100.0, half_y * 2.0 * TILE / 100.0, 0.02))
+
+    # Back and sides are the three old walls; the front towards the way is new, with the door in its middle
+    front = (half_x * 2.0 - door) * 0.5
+    wall("Rueckwand", at(0.0, half_y), half_x * 2.0 + 0.3, True)
+    wall("Seitenwand Nord", at(-half_x, 0.0), half_y * 2.0, False)
+    wall("Seitenwand Sued", at(half_x, 0.0), half_y * 2.0, False)
+    wall("Vorderwand links", at(-(door + front) * 0.5, -half_y), front, True, existing=False)
+    wall("Vorderwand rechts", at((door + front) * 0.5, -half_y), front, True, existing=False)
+
+    # Posts at the corners and the door, a lantern beside it, trodden ground from the way to the threshold
+    for a, b in ((-half_x, -half_y), (half_x, -half_y), (-half_x, half_y), (half_x, half_y)):
+        place("SM_WoodenPost", at(a, b), folder, "Eckpfosten", scale=1.9, yaw=rng.uniform(0.0, 360.0), sink=18.0)
+    for side in (-1.0, 1.0):
+        place("SM_WoodenPost", at(side * door * 0.5, -half_y), folder, "Tuerpfosten", scale=1.6, yaw=rng.uniform(0.0, 360.0), sink=18.0)
+    place("SM_ManMade_Lantern_02", at(door * 0.5 + 0.45, -half_y - 0.45), folder, "Laterne an der Tuer", scale=1.3, yaw=40.0)
+    light = actors.spawn_actor_from_class(unreal.VaelFireLight, world(*at(door * 0.5 + 0.45, -half_y - 0.45), 70.0), unreal.Rotator(0.0, 0.0, 0.0))
+    light.set_folder_path(folder)
+    light.set_actor_label("Licht an der Tuer")
+
+    road_material = None
+    for actor in level_actors:
+        if isinstance(actor, unreal.StaticMeshActor) and actor.get_actor_label() == "Weg 1" and str(actor.get_folder_path()) == "Wege":
+            road_material = actor.static_mesh_component.get_material(0)
+    step_length = 0.9 + 0.5
+    threshold = actors.spawn_actor_from_class(unreal.StaticMeshActor, world(*at(0.0, -half_y - 0.9 * 0.5 + 0.1), 0.3), unreal.Rotator(0.0, 0.0, yaw))
+    threshold.static_mesh_component.set_static_mesh(CUBE)
+    threshold.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    if road_material is not None:
+        threshold.static_mesh_component.set_material(0, road_material)
+    threshold.set_actor_scale3d(unreal.Vector(door * TILE / 100.0, step_length * TILE / 100.0, 0.02))
+    threshold.set_folder_path(folder)
+    threshold.set_actor_label("Weg zur Tuer")
+    threshold.set_editor_property("tags", [unreal.Name(DRESSING_TAG)])
+
+    # Tidily cleared: the empty crate and the forgotten barrel in the corners by the door, the box with the proof at the back wall
+    put("Leere Kiste", at(-half_x + 0.8, -half_y + 0.8), None, yaw + 8.0)
+    put("Leeres Fass", at(half_x - 0.7, -half_y + 0.7), None)
+    put("Kassette der Gilde", at(0.0, half_y - 0.75), 20.0, yaw)
+    put("Questziel Gildenspeicher", centre, 50.0)
+    counts["Gildenspeicher am Weg"] = 1
+
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -1155,6 +1400,8 @@ def dress():
         lay_ground(level_actors, instances)
     except Exception as error:
         notes.append("ground materials failed: {}".format(error))
+
+    dress_main_road(level_actors, instances, not done("Wege/Kulisse"))
 
     if not done("Lager/Kulisse"):
         dress_camp()
@@ -1192,6 +1439,9 @@ def dress():
         dress_guild_store(level_actors)
     if not done("Lager/Kulisse/Albrun"):
         place_people()
+    # A store built at its first place by an earlier run moves to the main road once
+    if done("Dorf/Gildenspeicher") and not done("Dorf/Gildenspeicher/Kulisse/Mauern"):
+        move_guild_store(level_actors)
 
     saved = unreal.EditorLoadingAndSavingUtils.save_map(world_object, LEVEL_PATH)
 
