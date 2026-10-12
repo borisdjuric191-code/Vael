@@ -37,6 +37,9 @@ public:
 	/** Initialization */
 	virtual void BeginPlay() override;
 
+	/** Moves her body: breathing in her sleep, rising, and the signs before each of her attacks */
+	virtual void Tick(float DeltaSeconds) override;
+
 	/** What she is doing right now */
 	UFUNCTION(BlueprintPure, Category="Creature")
 	EVaelQueenState GetQueenState() const { return State; }
@@ -93,4 +96,15 @@ private:
 
 	/** Players the current charge has already hit */
 	TSet<TWeakObjectPtr<AActor>> ChargeHits;
+
+	/** Seconds since her last bite, volley and call of the brood, for the moves that go with them; large for none yet */
+	float SinceBite = 100.0f;
+	float SinceSpit = 100.0f;
+	float SinceBrood = 100.0f;
+
+	/** How awake her glow is, 0.25 asleep to 1, taken from the color of her body */
+	float AwakeGlow = 0.25f;
+
+	/** How far she has risen from her sleep, 0 lying to 1 standing */
+	float Risen = 0.0f;
 };

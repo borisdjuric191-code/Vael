@@ -8,6 +8,7 @@
 #include "Components/CapsuleComponent.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEmberCrawler.h"
+#include "Creatures/VaelLegIKComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -129,6 +130,7 @@ void AVaelEmberQueen::TickBehavior(float DeltaSeconds)
 		if (BiteCooldown <= 0.0f)
 		{
 			BiteCooldown = Data->BiteInterval;
+			SinceBite = 0.0f;
 			HitPlayer(Target, Data->BiteDamage, EVaelElement::Fire);
 		}
 	}
@@ -252,6 +254,8 @@ void AVaelEmberQueen::WakeUp()
 
 void AVaelEmberQueen::Spit(const AActor* Target, bool bSecondPhase)
 {
+	SinceSpit = 0.0f;
+
 	const UVaelEmberQueenData* Data = GetData<UVaelEmberQueenData>();
 
 	FVaelSpellHit Hit;
@@ -290,6 +294,8 @@ void AVaelEmberQueen::CallBrood()
 		return;
 	}
 
+	SinceBrood = 0.0f;
+
 	UVaelCreatureData* BroodData = Data->BroodData != nullptr ? Data->BroodData.Get() : GetMutableDefault<UVaelEmberCrawlerData>();
 
 	for (int32 BroodIndex = 0; BroodIndex < Data->BroodCount; ++BroodIndex)
@@ -313,6 +319,117 @@ void AVaelEmberQueen::OnBodyColorShown(const FLinearColor& Color, bool bHitFlash
 {
 	// The mesh of the creature factory glows dim while she sleeps and fully once she is awake, like the placeholder body
 	const UVaelEmberQueenData* Data = GetData<UVaelEmberQueenData>();
-	const float Awake = Data->BodyColor.R > KINDA_SMALL_NUMBER ? FMath::Clamp(Color.R / Data->BodyColor.R, 0.0f, 2.0f) : 1.0f;
-	SetFactoryGlow(Data->MeshGlow * FMath::Max(Awake, 0.25f));
+	AwakeGlow = FMath::Max(Data->BodyColor.R > KINDA_SMALL_NUMBER ? FMath::Clamp(Color.R / Data->BodyColor.R, 0.0f, 2.0f) : 1.0f, 0.25f);
+}
+
+void AVaelEmberQueen::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	UVaelLegIKComponent* Legs = GetFactoryLegs();
+	if (Legs == nullptr || IsDead())
+	{
+		return;
+	}
+
+	const UVaelEmberQueenData* Data = GetData<UVaelEmberQueenData>();
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Radius = Data->CollisionRadius;
+
+	SinceBite += DeltaSeconds;
+	SinceSpit += DeltaSeconds;
+	SinceBrood += DeltaSeconds;
+
+	// Asleep she lies on her belly with her legs drawn in; waking she heaves herself up
+	const float RiseTarget = State == EVaelQueenState::Sleeping ? 0.0f : State == EVaelQueenState::Waking ? FMath::Clamp(StateTime / FMath::Max(Data->WakeDuration, 0.1f), 0.0f, 1.0f) : 1.0f;
+	Risen = FMath::FInterpTo(Risen, RiseTarget, DeltaSeconds, 5.0f);
+
+	float Glow = Data->MeshGlow * AwakeGlow;
+	float Pitch = 0.0f;
+	float Sink = (1.0f - Risen) * Radius * 0.32f;
+
+	if (State == EVaelQueenState::Sleeping)
+	{
+		// Slow breath
+		Glow *= 0.8f + 0.35f * FMath::Sin(Time * 1.4f);
+		Sink += FMath::Sin(Time * 1.4f) * 3.0f;
+	}
+	else if (State == EVaelQueenState::Waking)
+	{
+		Glow *= 1.0f + 1.5f * Risen;
+		Sink += FMath::Sin(Time * 38.0f) * 2.5f * (1.0f - Risen);
+	}
+	else if (bCharging)
+	{
+		// Scrapes the ground and crouches, then throws herself forward
+		const float Windup = FMath::Clamp(ChargeTime / FMath::Max(Data->ChargeWindup, 0.05f), 0.0f, 1.0f);
+		if (ChargeTime < Data->ChargeWindup)
+		{
+			Pitch = 9.0f * Windup;
+			Sink += Radius * 0.1f * Windup;
+			if (FMath::Fmod(ChargeTime, 0.16f) < DeltaSeconds)
+			{
+				Legs->AddBodyJolt(GetActorForwardVector() * (FMath::Fmod(ChargeTime, 0.32f) < 0.16f ? -9.0f : 7.0f));
+			}
+			Glow *= 1.0f + Windup;
+		}
+		else
+		{
+			Pitch = -8.0f;
+			Glow *= 2.2f;
+		}
+	}
+	else
+	{
+		const bool bSecondPhase = IsInSecondPhase();
+
+		// Her throat glows and she rears before a volley, and snaps forward with it
+		const float SpitWarning = 0.45f;
+		if (SpitCooldown < SpitWarning)
+		{
+			const float Rear = 1.0f - FMath::Max(SpitCooldown, 0.0f) / SpitWarning;
+			Pitch += 11.0f * Rear;
+			Glow *= 1.0f + 1.2f * Rear;
+		}
+		else if (SinceSpit < 0.3f)
+		{
+			Pitch -= 7.0f * (1.0f - SinceSpit / 0.3f);
+		}
+
+		// A bite throws her head down and forward
+		if (SinceBite < 0.28f)
+		{
+			const float Snap = FMath::Sin(UE_PI * SinceBite / 0.28f);
+			Pitch -= 10.0f * Snap;
+			if (SinceBite <= DeltaSeconds)
+			{
+				Legs->AddBodyJolt(GetActorForwardVector() * 16.0f);
+			}
+		}
+
+		// Calling the brood she squats and her abdomen flares
+		if (SinceBrood < 0.7f)
+		{
+			const float Squat = FMath::Sin(UE_PI * SinceBrood / 0.7f);
+			Sink += Radius * 0.09f * Squat;
+			Pitch += 5.0f * Squat;
+			Glow *= 1.0f + 1.8f * Squat;
+		}
+
+		// Before a ring of flame her abdomen pulses, quicker and brighter
+		const float RingWarning = 1.0f;
+		if (bSecondPhase && RingCooldown < RingWarning)
+		{
+			const float Near = 1.0f - FMath::Max(RingCooldown, 0.0f) / RingWarning;
+			Glow *= 1.0f + (0.5f + 0.5f * FMath::Sin(Time * (14.0f + 22.0f * Near))) * 2.5f * Near;
+		}
+
+		// Breath of the fight, faster in the second phase
+		Glow *= 1.0f + 0.12f * FMath::Sin(Time * (bSecondPhase ? 5.0f : 2.6f));
+	}
+
+	Legs->SetCurl((1.0f - Risen) * 0.55f);
+	Legs->SetExtraBodyTilt(FRotator(Pitch, 0.0f, 0.0f));
+	SetFactoryMeshOffset(FVector(0.0f, 0.0f, -Sink));
+	SetFactoryGlow(Glow);
 }
