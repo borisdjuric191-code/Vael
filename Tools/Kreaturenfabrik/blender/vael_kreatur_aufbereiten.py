@@ -52,7 +52,15 @@ VIELBEINER = {
         "3": [(.46, .75, .45), (.76, .83, .75), (.79, .94, .30), (.85, 1.0, 0)],
     },
 }
-FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER}
+# Vorlage-Skelett Puppe (Sichelpuppe): steht auf einem Rock statt auf Beinen, Arme zur Seite gestreckt.
+# Körper senkrecht vom Boden bis zu den Schultern, Kopf darüber, je Arm zwei Knochen: Arm und Sichel.
+PUPPE = {
+    "body": [(0, .5, .03), (0, .5, .66)],
+    "head": [(0, .5, .72), (0, .5, .98)],
+    # je Arm: Schulter, Hand, Spitze der Sichel
+    "arms": [(.14, .5, .70), (.62, .5, .70), (1.0, .5, .72)],
+}
+FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE}
 
 # ---------------------------------------------------------------- Hilfen
 def log(*a): print("[Vael]", *a)
@@ -136,6 +144,8 @@ def vorbereiten(ordner):
     lo, hi = bbox_welt(obj)
     laenge_bu = hi.y - lo.y
     faktor = (sb["laenge_cm"] / 100.0) / laenge_bu       # Blender-Einheit = 1 m
+    if sb.get("hoehe_cm"):                                # aufrechte Kreaturen (Puppe): die Höhe zählt
+        faktor = (sb["hoehe_cm"] / 100.0) / (hi.z - lo.z)
     obj.scale = (faktor,) * 3
     bpy.ops.object.transform_apply(scale=True)
 
@@ -248,9 +258,34 @@ def passe_vielbeiner_an(obj, tpl, hoerner=True):
     log("Skelett an das Mesh angepasst (Füße, Knie, Hörner, Kopf gefunden).")
     return t
 
+def passe_puppe_an(obj, tpl):
+    """Sucht die Höhe der ausgestreckten Arme und die Hände im Mesh und schreibt die Vorlage darauf um."""
+    import copy
+    lo, hi = bbox_welt(obj)
+    hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
+    V = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    t = copy.deepcopy(tpl)
+    # Arme: alles, was weit seitlich und oberhalb des Rocks liegt
+    seitlich = sorted(p.z for p in V if abs(p.x) > .45 * hw and p.z > lo.z + .45 * H)
+    if len(seitlich) < 10:
+        log("Arme nicht sicher gefunden – nehme die Vorlage."); return tpl
+    arm_z = (seitlich[len(seitlich) // 2] - lo.z) / H
+    # Mitte des Körpers in der Tiefe: Schwerpunkt der Punkte nahe der Achse
+    achse = [p.y for p in V if abs(p.x) < .2 * hw]
+    cy = ((sum(achse) / len(achse)) - lo.y) / L if achse else .5
+    # Hand: dort, wo der Arm endet und die Sichel beginnt – der Arm ist dünn, die Sichel reicht hoch und tief
+    t["body"] = [(0, cy, .03), (0, cy, arm_z - .04)]
+    t["head"] = [(0, cy, arm_z + .03), (0, cy, .98)]
+    t["arms"] = [(.14, cy, arm_z), (.60, cy, arm_z), (1.0, cy, arm_z + .02)]
+    log(f"Skelett an die Puppe angepasst (Armhöhe {arm_z:.2f}, Körpermitte {cy:.2f}).")
+    return t
+
 def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
     if tpl is VIELBEINER:
         tpl = passe_vielbeiner_an(obj, tpl, hoerner)
+    if tpl is PUPPE:
+        tpl = passe_puppe_an(obj, tpl)
+        hoerner = False
     lo, hi = bbox_welt(obj)
     hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
     vorne = lo.y   # Blender: Kreatur schaut nach -Y (Blender-Vorderansicht)
@@ -276,7 +311,7 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
     head = knochen("head", p(tpl["head"][0]), p(tpl["head"][1]), body)
     for h in ("horn_M", "horn_L", "horn_R") if hoerner else ():
         knochen(h, p(tpl[h][0]), p(tpl[h][1]), head)
-    for nr, (huefte, knie, gelenk, spitze) in tpl["legs"].items():
+    for nr, (huefte, knie, gelenk, spitze) in tpl.get("legs", {}).items():
         # Blick nach -Y: links ist +X
         for seite, s in (("L", 1), ("R", -1)):
             m = lambda v: (v[0] * s, v[1], v[2])
@@ -285,6 +320,12 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
             f = knochen(f"leg_{seite}{nr}_femur", p(m(huefte)), p(m(knie)), c, True)
             t = knochen(f"leg_{seite}{nr}_tibia", p(m(knie)), p(m(gelenk)), f, True)
             knochen(f"leg_{seite}{nr}_foot", p(m(gelenk)), p(m(spitze)), t, True)
+    if "arms" in tpl:
+        schulter, hand, spitze = tpl["arms"]
+        for seite, s in (("L", 1), ("R", -1)):
+            m = lambda v: (v[0] * s, v[1], v[2])
+            a = knochen(f"arm_{seite}_upper", p(m(schulter)), p(m(hand)), body)
+            knochen(f"arm_{seite}_sickle", p(m(hand)), p(m(spitze)), a, True)
     bpy.ops.object.mode_set(mode="OBJECT")
     log(f"Vorlage-Skelett angelegt: {len(arm_data.bones)} Knochen")
 

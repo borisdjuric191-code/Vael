@@ -87,6 +87,12 @@ private:
 	/** Builds shell, belly, head, tail, feet and the lane on the ground */
 	void BuildRig();
 
+	/** Builds the placeholder look from engine shapes, used while the kind has no mesh of the creature factory */
+	void BuildShapes();
+
+	/** Poses the factory mesh: the roll, the turn onto its back, the legs drawn in */
+	void PoseFactoryMesh(class UPoseableMeshComponent* RollerMesh, float Rock, float Shiver);
+
 	/** Adds a part of the look to the rig */
 	UStaticMeshComponent* AddRigPart(const FLinearColor& Color, const TCHAR* MeshPath = nullptr);
 

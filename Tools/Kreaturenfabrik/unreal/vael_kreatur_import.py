@@ -42,6 +42,9 @@ def importiere(ordner):
         raise FileNotFoundError(f"{fbx} fehlt – zuerst das Blender-Skript ('binden') ausführen.")
     ziel = f"/Game/Vael/Kreaturen/{region}/{name}"
 
+    # Nur bei einem neuen Modell für eine vorhandene Kreatur werden die Texturen danach eigens aufgefrischt
+    schon_da = unreal.EditorAssetLibrary.does_asset_exist(f"{ziel}/SK_{name}")
+
     ui = unreal.FbxImportUI()
     ui.set_editor_property("import_mesh", True)
     ui.set_editor_property("import_as_skeletal", True)
@@ -73,12 +76,17 @@ def importiere(ordner):
         if isinstance(a, unreal.Texture2D) and not kurz.startswith("T_"):
             # Tripo-Namen wie "Spannhornkaefer_v3_basecolor" werden zu "T_Spannhornkaefer_basecolor"
             rest = kurz[len(name):].lstrip("_") if kurz.startswith(name) else kurz
+            # Tripo benennt nach dem Bildtitel ("armored_dinosaur_3d_model_basecolor"): nur die Art der Textur bleibt
+            art = next((a for a in ("basecolor", "normal", "roughness", "metallic") if rest.lower().endswith(a)), None)
+            if art is not None:
+                rest = art
             kopf, _, schwanz = rest.partition("_")
             if schwanz and kopf[:1] == "v" and kopf[1:].isdigit():
                 rest = schwanz
             eal.rename_asset(p, f"{ziel}/T_{name}_{rest}")
 
-    texturen_auffrischen(ordner, ziel, name)
+    if schon_da:
+        texturen_auffrischen(ordner, ziel, name)
 
     skm = eal.load_asset(f"{ziel}/SK_{name}")
     if skm is None:
@@ -214,7 +222,9 @@ def material_anlegen(ziel, name, skm):
     mi = eal.load_asset(mi_pfad) if eal.does_asset_exist(mi_pfad) else unreal.AssetToolsHelpers.get_asset_tools().create_asset(
         f"MI_{name}", ziel, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     unreal.MaterialEditingLibrary.set_material_instance_parent(mi, eal.load_asset(MASTER_MATERIAL))
-    for p in eal.list_assets(ziel, recursive=False):
+    # Liegt eine Textur doppelt vor, gewinnt die mit dem Fabriknamen T_<Name>_<Art>: sie kommt zuletzt an die Reihe
+    fabrikname = lambda p: p.split(".")[-1] in [f"T_{name}_{a}" for a in ("basecolor", "normal", "roughness", "metallic")]
+    for p in sorted(eal.list_assets(ziel, recursive=False), key=fabrikname):
         t = eal.load_asset(p)
         param = textur_parameter(p) if isinstance(t, unreal.Texture2D) else None
         if param is not None:

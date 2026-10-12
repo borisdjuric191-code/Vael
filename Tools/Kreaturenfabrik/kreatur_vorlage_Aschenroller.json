@@ -1,0 +1,19 @@
+{
+  "name": "Aschenroller",
+  "name_datei": "Aschenroller",
+  "region": "Aschenmark",
+  "familie": "Vielbeiner",
+  "klasse": "normal",
+  "laenge_cm": 170,
+  "drehung_z_grad": 90,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Gürteltier der Aschenmark, groß wie ein kräftiger Hund (Idee von Boris, 6. Oktober 2026; Entwurf 1 gewählt am 12. Oktober 2026). Rückenpanzer aus überlappenden Bändern harter Aschekruste in Kohlegrau und Schwarz, in den Fugen glimmt Glut. Kleiner spitzer Kopf mit langer Schnauze, heller weicher Bauch, vier kurze kräftige Beine mit Grabklauen, dicker gepanzerter Schwanz.",
+  "schwaeche": ["Fels in der Bahn (liegt dann auf dem Rücken)"],
+  "verhaltensbausteine": ["RolltEin", "RolltBahn", "LiegtAufDemRuecken"],
+  "warnsignale": {
+    "rollen": "rollt sich ein und zittert, am Boden glimmt die Bahn"
+  },
+  "tripo_prompt": "Game asset concept art for a dark fantasy action RPG, stylized hand-painted look, readable silhouette from above. An ash armadillo the size of a large dog, a stocky armored creature of a burnt volcanic wasteland. Its back is a dome of nine overlapping bands of hard ash-grey and charcoal crust plates with faint ember-orange glow in the grooves between the bands, like cooling lava under a crust. Small pointed head with a long snout and small ears, pale soft belly, four short sturdy legs with digging claws, a thick armored tail. Walking pose on all four legs, the four legs clearly separated from the body and from each other with visible space between them, belly raised off the ground. Colors only black, charcoal, ash grey and bone, with faint orange glow in the grooves. Heavy, calm, defensive. Three-quarter view from the front left and slightly above, neutral standing pose, full body visible, plain light grey background, no ground debris.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D."
+}

@@ -4,6 +4,8 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PoseableMeshComponent.h"
+#include "Creatures/VaelLegIKComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelCreatureData.h"
@@ -338,17 +340,10 @@ UStaticMeshComponent* AVaelAshRoller::AddRigPart(const FLinearColor& Color, cons
 	return Part;
 }
 
-void AVaelAshRoller::BuildRig()
+void AVaelAshRoller::BuildShapes()
 {
 	const float Radius = GetCapsuleComponent()->GetUnscaledCapsuleRadius();
 	const TCHAR* ConePath = TEXT("/Engine/BasicShapes/Cone.Cone");
-
-	// The placeholder body gives way to the rig; its colors still arrive through OnBodyColorShown
-	GetBody()->SetVisibility(false);
-
-	Rig = NewObject<USceneComponent>(this, TEXT("Rig"));
-	Rig->SetupAttachment(GetRootComponent());
-	Rig->RegisterComponent();
 
 	Shell = AddRigPart(ShellColor);
 	Shell->SetRelativeScale3D(FVector(Radius * 2.0f / RollerShapeSize));
@@ -384,6 +379,24 @@ void AVaelAshRoller::BuildRig()
 	{
 		Feet.Add(AddRigPart(ShellColor));
 	}
+}
+
+void AVaelAshRoller::BuildRig()
+{
+	const float Radius = GetCapsuleComponent()->GetUnscaledCapsuleRadius();
+	const TCHAR* ConePath = TEXT("/Engine/BasicShapes/Cone.Cone");
+
+	// The placeholder body gives way to the rig; its colors still arrive through OnBodyColorShown
+	GetBody()->SetVisibility(false);
+
+	Rig = NewObject<USceneComponent>(this, TEXT("Rig"));
+	Rig->SetupAttachment(GetRootComponent());
+	Rig->RegisterComponent();
+
+	if (GetFactoryMesh() == nullptr)
+	{
+		BuildShapes();
+	}
 
 	// The lane lies in the world, not on the roller
 	UMaterialInterface* CoreMaterial = nullptr;
@@ -408,7 +421,7 @@ void AVaelAshRoller::OnBodyColorShown(const FLinearColor& Color, bool bHitFlash)
 	ShellColor = Color;
 	bFlashing = bHitFlash;
 
-	if (Rig == nullptr)
+	if (Shell == nullptr)
 	{
 		return;
 	}
@@ -530,6 +543,12 @@ void AVaelAshRoller::Tick(float DeltaSeconds)
 	const float Rock = bOnBack ? FMath::Sin(Time * 5.0f) * 7.0f * FMath::Max(1.0f - StateTime * 0.4f, 0.25f) : 0.0f;
 	const float Shiver = State == EVaelRollerState::Curl ? FMath::Sin(Time * 45.0f) * 2.0f : 0.0f;
 
+	if (UPoseableMeshComponent* RollerMesh = GetFactoryMesh())
+	{
+		PoseFactoryMesh(RollerMesh, Rock, Shiver);
+		return;
+	}
+
 	Rig->SetRelativeScale3D(FVector(FMath::Lerp(RollerWalkLength, 1.0f, CurlShown), 1.0f, HeightScale));
 	Rig->SetRelativeLocation(FVector(Shiver, 0.0f, -Radius * (1.0f - HeightScale)));
 	Rig->SetRelativeRotation(FRotator(-SpinDegrees, 0.0f, FlipShown * 180.0f + Rock));
@@ -563,3 +582,25 @@ void AVaelAshRoller::Tick(float DeltaSeconds)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void AVaelAshRoller::PoseFactoryMesh(UPoseableMeshComponent* RollerMesh, float Rock, float Shiver)
+{
+	const UVaelAshRollerData* Data = GetData<UVaelAshRollerData>();
+	const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+
+	// The mesh turns around the middle of its body: rolling forward, and over onto its back
+	const float BodyHalfHeight = RollerMesh->GetSkinnedAsset() != nullptr ? RollerMesh->GetSkinnedAsset()->GetBounds().BoxExtent.Z : HalfHeight;
+	const FVector Middle(Shiver, 0.0f, -HalfHeight + BodyHalfHeight);
+	const FQuat Turn = FRotator(-SpinDegrees, 0.0f, FlipShown * 180.0f + Rock).Quaternion();
+
+	RollerMesh->SetRelativeLocationAndRotation(Middle + Turn.RotateVector(FVector(0.0f, 0.0f, -BodyHalfHeight)), Turn * FRotator(0.0f, Data->MeshYaw, 0.0f).Quaternion());
+
+	// Legs drawn in while it is a ball; on its back they paddle half curled
+	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
+	{
+		Legs->SetCurl(State == EVaelRollerState::OnBack ? 0.6f + 0.25f * FMath::Sin(GetWorld()->GetTimeSeconds() * 9.0f) : CurlShown);
+	}
+
+	// The embers in the grooves flare while it rolls
+	SetFactoryGlow(Data->MeshGlow * (1.0f + 2.5f * CurlShown));
+}

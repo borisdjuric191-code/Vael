@@ -189,6 +189,8 @@ UVaelAshRollerData::UVaelAshRollerData()
 	CompendiumId = TEXT("Aschenroller");
 	KindId = TEXT("Aschenroller");
 	CreatureClass = AVaelAshRoller::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Aschenroller/SK_Aschenroller.SK_Aschenroller")));
+	MeshGlow = 1.0f;
 
 	// A defender: tougher than the other creatures of the Aschenmark, and at home in the embers
 	MaxHealth = 90.0f;
@@ -208,6 +210,8 @@ UVaelSickleDollData::UVaelSickleDollData()
 	CompendiumId = TEXT("Sichelpuppe");
 	KindId = TEXT("Sichelpuppe");
 	CreatureClass = AVaelSickleDoll::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Sichelpuppe/SK_Sichelpuppe.SK_Sichelpuppe")));
+	MeshGlow = 1.2f;
 
 	// Light and quick; charred straw doesn't burn twice, but it drinks water
 	MaxHealth = 55.0f;

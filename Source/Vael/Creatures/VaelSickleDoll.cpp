@@ -1,10 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelSickleDoll.h"
+#include "AnimationRuntime.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelCreatureData.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -223,16 +226,9 @@ UStaticMeshComponent* AVaelSickleDoll::AddRigPart(const FLinearColor& Color, flo
 	return Part;
 }
 
-void AVaelSickleDoll::BuildRig()
+void AVaelSickleDoll::BuildShapes()
 {
 	const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
-
-	// The placeholder body gives way to the rig; its colors still arrive through OnBodyColorShown
-	GetBody()->SetVisibility(false);
-
-	Rig = NewObject<USceneComponent>(this, TEXT("Rig"));
-	Rig->SetupAttachment(GetRootComponent());
-	Rig->RegisterComponent();
 
 	// A skirt of bound straw, a chest, a head with two eyes the Mark lit
 	Skirt = AddRigPart(StrawColor, 0.0f, TEXT("/Engine/BasicShapes/Cone.Cone"));
@@ -251,6 +247,27 @@ void AVaelSickleDoll::BuildRig()
 		Eyes.Add(AddRigPart(DollEyeColor, 6.0f));
 		Arms.Add(AddRigPart(StrawColor));
 		Sickles.Add(AddRigPart(DollSteelColor));
+	}
+}
+
+void AVaelSickleDoll::BuildRig()
+{
+	const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+
+	// The placeholder body gives way to the rig; its colors still arrive through OnBodyColorShown
+	GetBody()->SetVisibility(false);
+
+	Rig = NewObject<USceneComponent>(this, TEXT("Rig"));
+	Rig->SetupAttachment(GetRootComponent());
+	Rig->RegisterComponent();
+
+	if (GetFactoryMesh() != nullptr)
+	{
+		SetupFactoryArms();
+	}
+	else
+	{
+		BuildShapes();
 	}
 
 	// The reach of the sickles lies on the ground and doesn't turn with the doll
@@ -271,7 +288,7 @@ void AVaelSickleDoll::OnBodyColorShown(const FLinearColor& Color, bool bHitFlash
 {
 	StrawColor = Color;
 
-	if (Rig == nullptr)
+	if (Skirt == nullptr)
 	{
 		return;
 	}
@@ -356,6 +373,12 @@ void AVaelSickleDoll::Tick(float DeltaSeconds)
 	const float HeightScale = FMath::Lerp(1.0f, DollCollapsedHeight, CollapseShown);
 	const float WidthScale = 1.0f + 0.45f * CollapseShown;
 
+	if (UPoseableMeshComponent* DollMesh = GetFactoryMesh())
+	{
+		PoseFactoryMesh(DollMesh, Lean, FVector(WidthScale, WidthScale, HeightScale), HeadDroop, Time);
+		return;
+	}
+
 	Rig->SetRelativeScale3D(FVector(WidthScale, WidthScale, HeightScale));
 	Rig->SetRelativeLocation(FVector(0.0f, 0.0f, -HalfHeight * (1.0f - HeightScale)));
 	Rig->SetRelativeRotation(Lean);
@@ -383,3 +406,60 @@ void AVaelSickleDoll::Tick(float DeltaSeconds)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+void AVaelSickleDoll::SetupFactoryArms()
+{
+	const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(GetFactoryMesh()->GetSkinnedAsset());
+	if (SkeletalMesh == nullptr)
+	{
+		return;
+	}
+
+	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
+	const FName ArmBones[2] = { TEXT("arm_L_upper"), TEXT("arm_R_upper") };
+	const FName SickleBones[2] = { TEXT("arm_L_sickle"), TEXT("arm_R_sickle") };
+
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const int32 ArmIndex = RefSkeleton.FindBoneIndex(ArmBones[Side]);
+		const int32 SickleIndex = RefSkeleton.FindBoneIndex(SickleBones[Side]);
+		if (ArmIndex == INDEX_NONE || SickleIndex == INDEX_NONE)
+		{
+			continue;
+		}
+
+		ArmBoneNames[Side] = ArmBones[Side];
+		RestArms[Side] = FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, ArmIndex);
+
+		// The arm hangs when its hand turns down around the axis the mesh looks along
+		const FVector Reach = FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, SickleIndex).GetLocation() - RestArms[Side].GetLocation();
+		ArmDownSign[Side] = FQuat(FVector::RightVector, 0.2f).RotateVector(Reach).Z < Reach.Z ? 1.0f : -1.0f;
+	}
+}
+
+void AVaelSickleDoll::PoseFactoryMesh(UPoseableMeshComponent* DollMesh, const FRotator& Lean, const FVector& Scale, float HeadDroop, float Time)
+{
+	const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+	const float MeshYaw = GetData<UVaelSickleDollData>()->MeshYaw;
+
+	// Spin, lean and collapse move the whole mesh on its foot
+	DollMesh->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -HalfHeight), Lean.Quaternion() * FRotator(0.0f, MeshYaw, 0.0f).Quaternion());
+	DollMesh->SetRelativeScale3D(Scale);
+
+	// The arms hang with the sickles down and fly out while it whirls; dazed they dangle
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		if (ArmBoneNames[Side].IsNone())
+		{
+			continue;
+		}
+
+		const float Dangle = HeadDroop * FMath::Sin(Time * 4.0f + Side * 1.3f) * 10.0f;
+		const float Twitch = (1.0f - ArmsShown) * FMath::Sign(FMath::Sin(Time * 11.0f + Side * 2.0f)) * 3.0f;
+		const float Down = FMath::DegreesToRadians((1.0f - ArmsShown) * 62.0f + Dangle + Twitch) * ArmDownSign[Side];
+
+		FTransform Arm = RestArms[Side];
+		Arm.SetRotation(FQuat(FVector::RightVector, Down) * RestArms[Side].GetRotation());
+		DollMesh->SetBoneTransformByName(ArmBoneNames[Side], Arm, EBoneSpaces::ComponentSpace);
+	}
+}

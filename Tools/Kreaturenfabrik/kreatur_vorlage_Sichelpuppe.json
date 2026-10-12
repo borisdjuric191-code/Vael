@@ -1,0 +1,20 @@
+{
+  "name": "Sichelpuppe",
+  "name_datei": "Sichelpuppe",
+  "region": "Aschenmark",
+  "familie": "Puppe",
+  "klasse": "normal",
+  "hoehe_cm": 175,
+  "laenge_cm": 100,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Erntepuppe aus verkohltem Stroh, wie die Bauern sie aus der letzten Garbe binden, vom Mark erweckt (Idee von Boris, 6. Oktober 2026; Entwurf 2 gewählt am 12. Oktober 2026). Glockenrock aus gebundenem Stroh mit Reifen statt Beinen, geschnürter Oberkörper, runder Kopf mit genähtem Mund und zwei violett glühenden Augen, Kranz aus verbrannten Ähren. Zwei dünne Stroharme, in jeder Hand eine rostige Erntesichel. Glutfunken im Stroh, ein paar violette Halme.",
+  "schwaeche": ["Wasser"],
+  "verhaltensbausteine": ["Ruckt", "Wirbelt", "Benommen", "SacktZusammen"],
+  "warnsignale": {
+    "wirbeln": "hebt die Sicheln, am Boden glimmt ein Kreis"
+  },
+  "tripo_prompt": "Game asset concept art for a dark fantasy action RPG, stylized hand-painted look, readable silhouette from above. A harvest doll come alive: a human-sized effigy bound from charred black straw sheaves, the kind farmers weave from the last sheaf of the harvest, awakened by a dark curse. A bell-shaped skirt of bound straw instead of legs, a tightly corded straw torso, a round head of wrapped straw with a sewn slit mouth and two small glowing violet eyes, a wreath of burnt wheat ears as a crown. Two long thin straw arms held out wide to both sides in a T-pose, clearly separated from the body, each hand gripping a rusty curved harvest sickle with the blades pointing outward. Glowing ember-orange specks smoulder inside the straw, a few faint violet strands woven through it. Colors only black, charcoal, burnt straw brown and rusty iron, with ember orange and a little violet. Eerie, jerky, puppet-like. Front three-quarter view from slightly above, full body visible, plain light grey background, no ground debris.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D."
+}

@@ -72,6 +72,20 @@ private:
 	/** Builds skirt, chest, head, arms, sickles and the ring on the ground */
 	void BuildRig();
 
+	/** Builds the placeholder look from engine shapes, used while the kind has no mesh of the creature factory */
+	void BuildShapes();
+
+	/** Finds the arm bones of the factory mesh and which way they hang */
+	void SetupFactoryArms();
+
+	/** Poses the factory mesh: spin, lean and collapse of the whole doll, and its arms */
+	void PoseFactoryMesh(class UPoseableMeshComponent* DollMesh, const FRotator& Lean, const FVector& Scale, float HeadDroop, float Time);
+
+	/** Arm bones of the factory mesh, their reference pose in component space, and the sign of the turn that lets them hang */
+	FName ArmBoneNames[2];
+	FTransform RestArms[2];
+	float ArmDownSign[2] = { 1.0f, -1.0f };
+
 	/** Adds a part of the look to the rig */
 	UStaticMeshComponent* AddRigPart(const FLinearColor& Color, float Glow = 0.0f, const TCHAR* MeshPath = nullptr);
 
