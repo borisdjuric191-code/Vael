@@ -9,6 +9,8 @@
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelHornBeetle.h"
+#include "Creatures/VaelAshRoller.h"
+#include "Magic/VaelRockWall.h"
 #include "Creatures/VaelLegIKComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -222,6 +224,55 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = NumLegs == 6 && NumSteps > 0 && NumShots > 0 && bBurned;
 			return FString::Printf(TEXT("%s%d legs, %d steps, %d shots, fire on the thread: %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumLegs, NumSteps, NumShots,
 				bBurned ? TEXT("burned, defenseless") : TEXT("NOT burned"));
+		}, 0.1f });
+	}
+
+	// The ash roller rolls at the player, and a rock wall in its lane throws it on its back
+	if (Only.IsEmpty())
+	{
+		const auto FindRoller = [this]()
+		{
+			AVaelAshRoller* Roller = nullptr;
+			for (TActorIterator<AVaelAshRoller> It(GetWorld()); It; ++It)
+			{
+				Roller = !It->IsDead() ? *It : Roller;
+			}
+			return Roller;
+		};
+
+		Steps.Add({ TEXT("Roller arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelAshRollerData>(), 1); }, 6.0f });
+		Steps.Add({ TEXT("Roller wall"), [this, FindRoller]()
+		{
+			AVaelAshRoller* Roller = FindRoller();
+			if (Roller == nullptr || GetPlayer() == nullptr)
+			{
+				return FString(TEXT("FAILED: no living roller"));
+			}
+
+			RollsBeforeWall = Roller->GetRollCount();
+
+			// Away from the player, so nobody stands in the lane
+			FVector Direction = (Roller->GetActorLocation() - GetPlayer()->GetActorLocation()).GetSafeNormal2D();
+			Direction = Direction.IsNearlyZero() ? FVector::ForwardVector : Direction;
+
+			FVector Ground = Roller->GetActorLocation() + Direction * 450.0f;
+			AVaelCreature::FindGround(GetWorld(), Ground, Ground);
+			AVaelRockWall::RaiseBlock(GetWorld(), Ground, Direction.Rotation().Yaw, 220.0f, 220.0f, 6.0f, GetPlayer());
+
+			Roller->StartRoll(Direction);
+			return FString::Printf(TEXT("%d rolls so far, wall raised in the lane"), RollsBeforeWall);
+		}, 2.5f });
+		Steps.Add({ TEXT("Roller"), [this, FindRoller]()
+		{
+			const AVaelAshRoller* Roller = FindRoller();
+			if (Roller == nullptr)
+			{
+				return FString(TEXT("FAILED: no living roller"));
+			}
+
+			const bool bOnBack = Roller->GetRollerState() == EVaelRollerState::OnBack;
+			const bool bOk = RollsBeforeWall > 0 && bOnBack;
+			return FString::Printf(TEXT("%s%d rolls at the player, at the wall: %s"), bOk ? TEXT("") : TEXT("FAILED: "), RollsBeforeWall, bOnBack ? TEXT("on its back") : TEXT("NOT on its back"));
 		}, 0.1f });
 	}
 

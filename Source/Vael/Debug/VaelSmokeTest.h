@@ -81,6 +81,9 @@ private:
 	mutable TArray<TWeakObjectPtr<class AVaelCreature>> ArenaCreatures;
 	mutable TArray<float> ArenaStartHealth;
 
+	/** Rolls of the ash roller before the wall was raised in its lane */
+	int32 RollsBeforeWall = 0;
+
 	/** Where the player stood when the check began */
 	FVector StartLocation = FVector::ZeroVector;
 	FRotator StartRotation = FRotator::ZeroRotator;

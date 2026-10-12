@@ -83,6 +83,14 @@ MATERIALS = [
         "region": unreal.Text("Wurzelforst"),
         "color": color("d8cfb4"),
     },
+    # Bestiarium row Aschenroller
+    {
+        "asset": "DA_Material_Rollpanzer",
+        "display_name": unreal.Text("Rollpanzer"),
+        "description": unreal.Text("Ein Band aus dem Panzer eines Aschenrollers, hart gebrannt von der Glut. Der Ingenieur baut daraus seinen Rammschild."),
+        "region": unreal.Text("Aschenmark"),
+        "color": color("6b5a4a"),
+    },
     # Plants, fungi and stones of the Aschenmark (Kompendium tab, "Arten der Regionen")
     {
         "asset": "DA_Material_Glutsamen",

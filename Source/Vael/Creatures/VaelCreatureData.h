@@ -826,3 +826,78 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Thread", meta = (ClampMin = 0))
 	float DefenselessDamageMultiplier = 1.5f;
 };
+
+/**
+ *  Aschenroller (Aschenmark): an armadillo in a shell of ash crust, a defender. Curls up, shows the lane it will take and
+ *  rolls down it through everything alive. Its shell shrugs off most hits while it is curled. If the roll ends at a rock
+ *  wall or any other solid thing, it lies stunned on its back and shows its soft belly.
+ */
+UCLASS(BlueprintType)
+class UVaelAshRollerData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelAshRollerData();
+
+	/** The roller walks towards players farther than this, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Distance", meta = (ClampMin = 0))
+	float PreferredDistance = 650.0f;
+
+	/** Share of the move speed while walking back home */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Distance", meta = (ClampMin = 0))
+	float ReturnSpeedScale = 0.6f;
+
+	/** Degrees per second the roller turns while walking */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Distance", meta = (ClampMin = 1))
+	float TurnSpeed = 200.0f;
+
+	/** Seconds until the first roll, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll")
+	FVector2D FirstRollDelay = FVector2D(0.8f, 1.8f);
+
+	/** Seconds between two rolls, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll")
+	FVector2D RollInterval = FVector2D(2.2f, 3.4f);
+
+	/** It only rolls at players closer than this, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll", meta = (ClampMin = 0))
+	float RollRange = 1300.0f;
+
+	/** Seconds it curls up and shows its lane before it rolls */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll", meta = (ClampMin = 0.1))
+	float CurlTime = 0.9f;
+
+	/** Speed of the roll in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll", meta = (ClampMin = 1))
+	float RollSpeed = 1250.0f;
+
+	/** Length of the lane in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll", meta = (ClampMin = 1))
+	float RollLength = 1500.0f;
+
+	/** Damage to every player the roll runs over */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll", meta = (ClampMin = 0))
+	float RollDamage = 18.0f;
+
+	/** Speed at which the roll throws players aside, in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll", meta = (ClampMin = 0))
+	float RollKnockback = 800.0f;
+
+	/** Seconds it needs to uncurl after a roll */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Roll", meta = (ClampMin = 0))
+	float UncurlTime = 0.6f;
+
+	/** Damage it takes while curled up or rolling is multiplied by this */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shell", meta = (ClampMin = 0))
+	float CurledDamageMultiplier = 0.35f;
+
+	/** Seconds it lies on its back after rolling into something solid */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shell", meta = (ClampMin = 0))
+	float OnBackTime = 4.0f;
+
+	/** Damage it takes while on its back is multiplied by this */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Shell", meta = (ClampMin = 0))
+	float OnBackDamageMultiplier = 1.75f;
+};

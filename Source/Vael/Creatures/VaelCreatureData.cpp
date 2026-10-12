@@ -3,6 +3,7 @@
 #include "Creatures/VaelCreatureData.h"
 #include "Engine/SkeletalMesh.h"
 #include "Creatures/VaelAshHarpy.h"
+#include "Creatures/VaelAshRoller.h"
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelPreacher.h"
@@ -179,6 +180,25 @@ UVaelHornBeetleData::UVaelHornBeetleData()
 	AggroRange = 1500.0f;
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Spannfaden.DA_Material_Spannfaden"), 0.8f));
 	BodyColor = FLinearColor(0.72f, 0.62f, 0.45f);
+}
+
+UVaelAshRollerData::UVaelAshRollerData()
+{
+	DisplayName = LOCTEXT("AshRoller", "Aschenroller");
+	CompendiumId = TEXT("Aschenroller");
+	KindId = TEXT("Aschenroller");
+	CreatureClass = AVaelAshRoller::StaticClass();
+
+	// A defender: tougher than the other creatures of the Aschenmark, and at home in the embers
+	MaxHealth = 90.0f;
+	MoveSpeed = 210.0f;
+	CollisionRadius = 60.0f;
+	CollisionHalfHeight = 60.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 0.5f);
+	KnockbackMultiplier = 0.5f;
+	AggroRange = 1540.0f;
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rollpanzer.DA_Material_Rollpanzer"), 0.6f));
+	BodyColor = FLinearColor(0.17f, 0.14f, 0.12f);
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -96,6 +96,23 @@ ENTRIES = [
         "observe_seconds": 8.0,
         "study_count": 1,
     },
+    # Bestiarium row Aschenroller
+    {
+        "asset": "DA_Compendium_Aschenroller",
+        "subject_id": "Aschenroller",
+        "book": Book.BESTIARY,
+        "sort_order": 25,
+        "display_name": unreal.Text("Aschenroller"),
+        "region": unreal.Text("Aschenmark"),
+        "glimpse": unreal.Text("Ein grauer Buckel aus Krustenbändern, der gemächlich durch die Asche trottet. Dann ist er plötzlich eine Kugel."),
+        "behaviour": unreal.Text("Rollt sich ein, zittert einen Atemzug lang, und auf dem Boden glimmt die Bahn, die er nehmen wird. Dann rollt er sie hinunter, schnurgerade, und wirft alles zur Seite, was darin steht. Am Ende rollt er sich auf und sucht sich die nächste Bahn."),
+        "weakness": unreal.Text("Eingerollt prallt fast alles an seinem Panzer ab, und Feuer stört ihn ohnehin kaum. Aber er kann nicht lenken: Endet die Bahn an einer Felswand oder einem Felsen, liegt er auf dem Rücken, zeigt den weichen Bauch und verträgt kaum etwas. Lässt oft ein Band seines Rollpanzers zurück."),
+        "uses": unreal.Text("Rollpanzer ist leicht und hart gebrannt. Ein Ingenieur baut daraus einen Rammschild, den er im Lauf vor sich herträgt. Ein Tamer, der ihn im Rollen stoppt und fängt, solange er auf dem Rücken liegt, hat einen Schild, der von selbst zurückkommt."),
+        "marked_form": unreal.Text("Gezeichnete Roller ziehen eine violett glimmende Spur durch die Asche, und ihre Bahnen sind länger, als ein Tier rollen sollte."),
+        "albrun_note": unreal.Text("Wer einen sieht, dessen Haus brennt nicht, sagen sie im Dorf. Das Dorf ist abgebrannt. Die Roller sind noch da. Ich würde sagen, der Spruch stimmt, nur nicht in der Richtung, in der man ihn gern hätte."),
+        "observe_seconds": 6.0,
+        "study_count": 3,
+    },
     # First creature of the creature factory (Bestiarium row Spannhornkäfer, look by Boris 2026-10-10)
     {
         "asset": "DA_Compendium_Spannhornkaefer",
