@@ -78,6 +78,8 @@ def importiere(ordner):
                 rest = schwanz
             eal.rename_asset(p, f"{ziel}/T_{name}_{rest}")
 
+    texturen_auffrischen(ordner, ziel, name)
+
     skm = eal.load_asset(f"{ziel}/SK_{name}")
     if skm is None:
         raise RuntimeError("Skelett-Mesh wurde nicht angelegt – Ausgabe-Log prüfen.")
@@ -144,6 +146,45 @@ def importiere_requisite(ordner):
             log(f"Modell im Datensatz {sb['harvest_asset']} eingetragen")
     eal.save_directory(ziel)
     log(f"Fertig: {name} liegt in {ziel}")
+
+
+def texturen_auffrischen(ordner, ziel, name):
+    """Bei einem neuen Modell für eine vorhandene Kreatur lässt der FBX-Import die alten T_<Name>_*-Texturen stehen.
+    Darum die Tripo-Texturen aus 02_tripo/*.fbm direkt über sie importieren (oder neu anlegen, falls sie fehlen)."""
+    quelle = os.path.join(ordner, "02_tripo")
+    if not os.path.isdir(quelle):
+        return
+    tasks = []
+    for unterordner in sorted(os.listdir(quelle)):
+        if not unterordner.lower().endswith(".fbm"):
+            continue
+        for datei in sorted(os.listdir(os.path.join(quelle, unterordner))):
+            stamm = os.path.splitext(datei)[0].lower()
+            art = next((a for a in ("basecolor", "normal", "roughness", "metallic") if stamm.endswith(a)), None)
+            if art is None:
+                continue
+            task = unreal.AssetImportTask()
+            task.set_editor_property("filename", os.path.join(quelle, unterordner, datei))
+            task.set_editor_property("destination_path", ziel)
+            task.set_editor_property("destination_name", f"T_{name}_{art}")
+            task.set_editor_property("replace_existing", True)
+            task.set_editor_property("automated", True)
+            task.set_editor_property("save", True)
+            tasks.append((art, task))
+    if not tasks:
+        return
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([t for _, t in tasks])
+    eal = unreal.EditorAssetLibrary
+    for art, _ in tasks:
+        textur = eal.load_asset(f"{ziel}/T_{name}_{art}")
+        if textur is None:
+            continue
+        if art == "normal":
+            textur.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_NORMALMAP)
+        if art != "basecolor":
+            textur.set_editor_property("srgb", False)
+        eal.save_asset(textur.get_path_name(), only_if_is_dirty=False)
+        log(f"Textur aufgefrischt: T_{name}_{art}")
 
 
 def textur_parameter(pfad):
