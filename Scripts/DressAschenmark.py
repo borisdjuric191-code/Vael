@@ -1373,6 +1373,18 @@ def move_guild_store(level_actors):
     counts["Gildenspeicher am Weg"] = 1
 
 
+def place_rollers():
+    """Aschenroller beside the rocky way to the crater, where the players can lure them into the rocks (Boris, 2026-10-12)"""
+    for index, tile in enumerate(((34.0, 21.6), (39.5, 14.9), (43.2, 19.9))):
+        spawner = actors.spawn_actor_from_class(unreal.VaelCreatureSpawner, world(tile[0], tile[1], 100.0), unreal.Rotator(0.0, 0.0, 0.0))
+        spawner.set_editor_property("creature_kind", unreal.VaelAshRollerData.static_class())
+        spawner.set_editor_property("count", 1)
+        spawner.set_editor_property("spread", 150.0)
+        spawner.set_folder_path("Gegner/Aschenroller")
+        spawner.set_actor_label("Aschenroller {}".format(index + 1))
+        counts["Gegner/Aschenroller"] = counts.get("Gegner/Aschenroller", 0) + 1
+
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -1439,6 +1451,8 @@ def dress():
         dress_guild_store(level_actors)
     if not done("Lager/Kulisse/Albrun"):
         place_people()
+    if not done("Gegner/Aschenroller"):
+        place_rollers()
     # A store built at its first place by an earlier run moves to the main road once
     if done("Dorf/Gildenspeicher") and not done("Dorf/Gildenspeicher/Kulisse/Mauern"):
         move_guild_store(level_actors)
