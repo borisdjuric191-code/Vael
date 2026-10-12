@@ -11,6 +11,7 @@
 
 class AVaelCreature;
 class USkeletalMesh;
+class UStaticMesh;
 
 /**
  *  Values of a kind of creature that every creature has.
@@ -840,6 +841,14 @@ class UVaelAshRollerData : public UVaelCreatureData
 public:
 
 	UVaelAshRollerData();
+
+	/** Model of the roller curled up into a ball (creature factory, mode requisite), shown while it curls and rolls instead of the walking mesh; empty: the walking mesh turns as a whole */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance")
+	TSoftObjectPtr<UStaticMesh> BallMesh;
+
+	/** Diameter the ball is shown at, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Appearance", meta = (ClampMin = 1))
+	float BallDiameter = 120.0f;
 
 	/** The roller walks towards players farther than this, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Distance", meta = (ClampMin = 0))

@@ -1,12 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelVeilMonkey.h"
+#include "AnimationRuntime.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Engine/OverlapResult.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -572,6 +574,8 @@ void AVaelVeilMonkey::BuildRig()
 		{
 			Shape->SetVisibility(false);
 		}
+
+		SetupLimbs();
 	}
 
 	RefreshBodyColor();
@@ -619,22 +623,11 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 	Rig->SetRelativeRotation(FRotator(bBlindedNow ? -25.0f : 0.0f, Twitch * 9.0f, Twitch * 6.0f));
 	Rig->SetRelativeScale3D(bDeadNow ? FVector(1.2f, 1.2f, 0.3f) : State == EVaelMonkeyState::Cling ? FVector(0.8f) : FVector::OneVector);
 
-	// A mesh of the creature factory keeps its crouch and is moved as a whole: it scurries in small hops
+	// A mesh of the creature factory is posed bone by bone
 	const bool bFactory = GetFactoryMesh() != nullptr;
 	if (bFactory)
 	{
-		const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
-		const float Speed = GetVelocity().Size2D();
-		HopPhase += Speed * DeltaSeconds / 55.0f;
-
-		const float Hop = bDeadNow || State == EVaelMonkeyState::Cling ? 0.0f : FMath::Abs(FMath::Sin(HopPhase * UE_PI)) * FMath::Min(Speed / 300.0f, 1.0f);
-		const float Breath = FMath::Sin(Time * 2.2f) * 1.2f;
-		const FRotator Pose(bBlindedNow ? -22.0f : -10.0f * Hop, Twitch * 9.0f, Twitch * 6.0f);
-		const FVector Scale = bDeadNow ? FVector(1.15f, 1.15f, 0.35f) : State == EVaelMonkeyState::Cling ? FVector(0.8f) : FVector(1.0f, 1.0f, 1.0f + 0.01f * Breath);
-
-		GetFactoryMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -HalfHeight + Hop * 14.0f), Pose.Quaternion() * FRotator(0.0f, GetData<UVaelVeilMonkeyData>()->MeshYaw, 0.0f).Quaternion());
-		GetFactoryMesh()->SetRelativeScale3D(Scale);
-		Rig->SetRelativeLocation(FVector(0.0f, 0.0f, Hop * 14.0f));
+		PoseFactoryMesh(DeltaSeconds, Twitch);
 	}
 
 	// Blinks now and then; blinded or dead the eyes are shut
@@ -647,7 +640,7 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 	EyesOpen = FMath::FInterpTo(EyesOpen, OpenTarget, DeltaSeconds, 30.0f);
 
 	// Bigger and more violet with the corruption
-	const float EyeSize = FMath::Lerp(15.0f, 21.0f, Aggression);
+	const float EyeSize = bFactory ? FMath::Lerp(8.5f, 12.5f, Aggression) : FMath::Lerp(15.0f, 21.0f, Aggression);
 	const FLinearColor EyeColor = FMath::Lerp(MonkeyEyeColor, MonkeyWildEyeColor, Aggression);
 
 	for (int32 Index = 0; Index < Eyes.Num(); ++Index)
@@ -655,7 +648,14 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 		const float Side = Index == 0 ? -1.0f : 1.0f;
 
 		UStaticMeshComponent* Eye = Eyes[Index];
-		Eye->SetRelativeLocation(bFactory ? FVector(31.0f, 8.5f * Side, 12.0f) : FVector(21.0f, 9.5f * Side, 15.0f));
+		if (bFactory && bHasLimbs)
+		{
+			Eye->SetWorldLocation(EyeSpots[Index]);
+		}
+		else
+		{
+			Eye->SetRelativeLocation(FVector(21.0f, 9.5f * Side, 15.0f));
+		}
 		Eye->SetRelativeScale3D(FVector(EyeSize * 0.6f, EyeSize, EyeSize * EyesOpen) / MonkeyShapeSize);
 		VaelEffects::SetLookGlow(Eye, 9.0f * EyesOpen);
 
@@ -678,6 +678,191 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 	Arm->SetRelativeLocation((Shoulder + Hand) * 0.5f);
 	Arm->SetRelativeRotation((Hand - Shoulder).Rotation());
 	Arm->SetRelativeScale3D(FVector(FVector::Dist(Shoulder, Hand) * 1.1f, 6.0f, 6.0f) / MonkeyShapeSize);
+}
+
+void AVaelVeilMonkey::SetupLimbs()
+{
+	const USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(GetFactoryMesh()->GetSkinnedAsset());
+	if (SkeletalMesh == nullptr)
+	{
+		return;
+	}
+
+	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
+	const auto RestOf = [&RefSkeleton](FName Bone, FTransform& OutRest)
+	{
+		const int32 Index = RefSkeleton.FindBoneIndex(Bone);
+		if (Index == INDEX_NONE)
+		{
+			return false;
+		}
+		OutRest = FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, Index);
+		return true;
+	};
+
+	const auto Find = [&RestOf](FVaelMonkeyLimb& Limb, const TCHAR* Upper, const TCHAR* Lower)
+	{
+		Limb.Upper = Upper;
+		Limb.Lower = Lower;
+		Limb.bFound = RestOf(Limb.Upper, Limb.RestUpper) && RestOf(Limb.Lower, Limb.RestLower);
+		return Limb.bFound;
+	};
+
+	// The first of each pair is the one on the side of +X of the mesh
+	bHasLimbs = RestOf(TEXT("body"), RestBody) && RestOf(TEXT("head"), RestHead);
+	bHasLimbs &= Find(Arms[0], TEXT("arm_L_upper"), TEXT("arm_L_lower")) && Find(Arms[1], TEXT("arm_R_upper"), TEXT("arm_R_lower"));
+	bHasLimbs &= Find(Legs[0], TEXT("leg_L_upper"), TEXT("leg_L_lower")) && Find(Legs[1], TEXT("leg_R_upper"), TEXT("leg_R_lower"));
+
+	if (!bHasLimbs)
+	{
+		UE_LOG(LogVael, Warning, TEXT("'%s': the mesh has no arms and legs to pose, it keeps its rest pose"), *GetNameSafe(this));
+	}
+}
+
+void AVaelVeilMonkey::PoseLimb(const FVaelMonkeyLimb& Limb, const FVector& Root, const FQuat& Turn, const FQuat& Bend)
+{
+	UPoseableMeshComponent* MonkeyMesh = GetFactoryMesh();
+
+	FTransform Upper = Limb.RestUpper;
+	Upper.SetLocation(Root);
+	Upper.SetRotation(Turn * Limb.RestUpper.GetRotation());
+	MonkeyMesh->SetBoneTransformByName(Limb.Upper, Upper, EBoneSpaces::ComponentSpace);
+
+	FTransform Lower = Limb.RestLower;
+	Lower.SetLocation(Root + Turn.RotateVector(Limb.RestLower.GetLocation() - Limb.RestUpper.GetLocation()));
+	Lower.SetRotation(Turn * Bend * Limb.RestLower.GetRotation());
+	MonkeyMesh->SetBoneTransformByName(Limb.Lower, Lower, EBoneSpaces::ComponentSpace);
+}
+
+void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
+{
+	UPoseableMeshComponent* MonkeyMesh = GetFactoryMesh();
+	const UVaelVeilMonkeyData* Data = GetData<UVaelVeilMonkeyData>();
+	const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Speed = GetVelocity().Size2D();
+	const bool bDeadNow = IsDead();
+	const bool bRunning = Speed > 40.0f && State != EVaelMonkeyState::Cling;
+
+	HopPhase += Speed * DeltaSeconds / 70.0f;
+
+	if (!bHasLimbs)
+	{
+		MonkeyMesh->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -HalfHeight), FRotator(0.0f, Data->MeshYaw, 0.0f));
+		return;
+	}
+
+	// The mesh looks along +Y and has its sides along X: leaning forward and swinging limbs are turns around X
+	const FVector SideAxis = FVector::ForwardVector;
+	const float ForwardTurn = FQuat(SideAxis, 0.2f).RotateVector(FVector::UpVector).Y > 0.0f ? 1.0f : -1.0f;
+
+	// How far it leans and crouches: sitting on its haunches in hiding, low and stretched on the run, flat in the leap
+	float LeanTarget = 38.0f;
+	float CrouchTarget = 1.0f;
+	switch (State)
+	{
+	case EVaelMonkeyState::Pounce:	LeanTarget = 70.0f; CrouchTarget = 0.25f; break;
+	case EVaelMonkeyState::Cling:	LeanTarget = 25.0f; CrouchTarget = 0.9f; break;
+	case EVaelMonkeyState::Blinded:	LeanTarget = 55.0f; CrouchTarget = 1.0f; break;
+	default:						LeanTarget = bRunning ? 58.0f : 38.0f; CrouchTarget = bRunning ? 0.7f : 1.0f; break;
+	}
+	if (bDeadNow)
+	{
+		LeanTarget = 85.0f;
+		CrouchTarget = 0.3f;
+	}
+
+	LeanShown = FMath::FInterpTo(LeanShown, LeanTarget, DeltaSeconds, 9.0f);
+	CrouchShown = FMath::FInterpTo(CrouchShown, CrouchTarget, DeltaSeconds, 9.0f);
+
+	const float Stride = bRunning ? FMath::Sin(HopPhase * UE_TWO_PI) : 0.0f;
+	const FVector Pelvis = RestBody.GetLocation();
+	const FQuat BodyTurn(SideAxis, FMath::DegreesToRadians(LeanShown + (bRunning ? FMath::Abs(Stride) * 6.0f : FMath::Sin(Time * 2.1f) * 1.5f)) * ForwardTurn);
+
+	// Legs: thighs forward, shins back; the body sinks by what the bent legs lose in height
+	float Drop = 0.0f;
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const FVaelMonkeyLimb& Leg = Legs[Side];
+		const FVector Hip = Leg.RestUpper.GetLocation();
+		const FVector Knee = Leg.RestLower.GetLocation();
+		const float Thigh = FVector::Dist(Hip, Knee);
+		const float Shin = FMath::Max(Knee.Z, 1.0f);
+
+		const float Swing = Stride * (Side == 0 ? 1.0f : -1.0f) * 28.0f;
+		const float ThighAngle = FMath::DegreesToRadians(CrouchShown * 62.0f + Swing);
+		const float KneeAngle = FMath::DegreesToRadians(CrouchShown * 118.0f + FMath::Max(Swing, 0.0f) * 0.8f);
+
+		// A leg points down, so the turn that brings its knee forward is the opposite of the one that leans the body forward
+		const FQuat Turn(SideAxis, -ThighAngle * ForwardTurn);
+		const FQuat Bend(SideAxis, KneeAngle * ForwardTurn);
+		PoseLimb(Leg, Pelvis + BodyTurn.RotateVector(Hip - Pelvis) * FVector(1.0f, 0.3f, 0.3f) + (Hip - Pelvis) * FVector(0.0f, 0.7f, 0.7f), Turn, Bend);
+
+		Drop = FMath::Max(Drop, (Thigh + Shin) - (Thigh * FMath::Cos(ThighAngle) + Shin * FMath::Cos(KneeAngle - ThighAngle)));
+	}
+
+	// The body leans forward around the pelvis; the head lifts again to look ahead
+	FTransform BodyPose = RestBody;
+	BodyPose.SetRotation(BodyTurn * RestBody.GetRotation());
+	MonkeyMesh->SetBoneTransformByName(TEXT("body"), BodyPose, EBoneSpaces::ComponentSpace);
+
+	const FQuat HeadTurn = FQuat(FVector::UpVector, FMath::DegreesToRadians(Twitch * 14.0f)) * FQuat(SideAxis, FMath::DegreesToRadians(LeanShown * (State == EVaelMonkeyState::Blinded ? 1.2f : 0.25f)) * ForwardTurn);
+	FTransform Head = RestHead;
+	Head.SetLocation(Pelvis + BodyTurn.RotateVector(RestHead.GetLocation() - Pelvis));
+	Head.SetRotation(HeadTurn * RestHead.GetRotation());
+	MonkeyMesh->SetBoneTransformByName(TEXT("head"), Head, EBoneSpaces::ComponentSpace);
+
+	// Arms: knuckles on the ground in hiding, paddling on the run, thrown forward in the leap, over the eyes when blinded.
+	// One long arm points at the player closest to death.
+	const AVaelCharacter* PointAt = State == EVaelMonkeyState::Hide && !bRunning && !bDeadNow ? Pointed.Get() : nullptr;
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const FVaelMonkeyLimb& ArmLimb = Arms[Side];
+		const float Out = ArmLimb.RestUpper.GetLocation().X < 0.0f ? -1.0f : 1.0f;
+
+		FVector Want(0.25f * Out, 0.45f, -1.0f);
+		switch (State)
+		{
+		case EVaelMonkeyState::Pounce:	Want = FVector(0.35f * Out, 1.0f, 0.25f); break;
+		case EVaelMonkeyState::Cling:	Want = FVector(-0.25f * Out, 1.0f, -0.1f); break;
+		case EVaelMonkeyState::Blinded:	Want = FVector(-0.15f * Out, 0.7f, 0.9f); break;
+		default:
+			if (bRunning)
+			{
+				Want = FVector(0.2f * Out, 0.35f - Stride * (Side == 0 ? 1.0f : -1.0f) * 0.75f, -1.0f);
+			}
+			break;
+		}
+
+		if (PointAt != nullptr && Side == 0)
+		{
+			const FVector Local = MonkeyMesh->GetComponentTransform().InverseTransformPositionNoScale(PointAt->GetActorLocation());
+			Want = (Local - ArmLimb.RestUpper.GetLocation()).GetSafeNormal() + FVector(0.0f, 0.0f, 0.12f);
+		}
+
+		ArmShown[Side] = FMath::VInterpTo(ArmShown[Side], Want.GetSafeNormal(), DeltaSeconds, 10.0f);
+
+		const FVector RestDirection = (ArmLimb.RestLower.GetLocation() - ArmLimb.RestUpper.GetLocation()).GetSafeNormal();
+		const FQuat Turn = FQuat::FindBetweenNormals(RestDirection, ArmShown[Side].GetSafeNormal());
+		PoseLimb(ArmLimb, Pelvis + BodyTurn.RotateVector(ArmLimb.RestUpper.GetLocation() - Pelvis), Turn, FQuat::Identity);
+	}
+
+	// The whole mesh: sunk onto its bent legs, bobbing on the run, small on a player's back, slumped when dead
+	const float Bob = bRunning ? FMath::Abs(FMath::Sin(HopPhase * UE_TWO_PI)) * 7.0f : 0.0f;
+	const FVector Scale = State == EVaelMonkeyState::Cling ? FVector(0.85f) : FVector::OneVector;
+
+	MonkeyMesh->SetRelativeScale3D(Scale);
+	MonkeyMesh->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -HalfHeight - Drop * Scale.Z + Bob),
+		FRotator(0.0f, Twitch * 9.0f, Twitch * 5.0f).Quaternion() * FRotator(0.0f, Data->MeshYaw, 0.0f).Quaternion());
+
+	// The eyes sit in the face, a little above the middle of the head
+	const float HeadHeight = FMath::Max(RestHead.GetLocation().Z, 1.0f);
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const FVector RestEye(RestHead.GetLocation().X + (Side == 0 ? 1.0f : -1.0f) * HeadHeight * 0.085f, RestHead.GetLocation().Y + HeadHeight * 0.16f, HeadHeight * 1.19f);
+		const FVector Posed = Head.GetLocation() + HeadTurn.RotateVector(RestEye - RestHead.GetLocation());
+		EyeSpots[Side] = MonkeyMesh->GetComponentTransform().TransformPosition(Posed);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -19,6 +19,7 @@
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -398,6 +399,21 @@ void AVaelAshRoller::BuildRig()
 		BuildShapes();
 	}
 
+	// The ball it becomes when it attacks: its own model, if the kind has one
+	if (UStaticMesh* BallModel = GetFactoryMesh() != nullptr ? VaelAssets::LoadOptional(GetData<UVaelAshRollerData>()->BallMesh) : nullptr)
+	{
+		Ball = NewObject<UStaticMeshComponent>(this, TEXT("Ball"));
+		Ball->SetupAttachment(GetRootComponent());
+		Ball->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Ball->SetStaticMesh(BallModel);
+		Ball->SetVisibility(false);
+		Ball->RegisterComponent();
+
+		BallMaterial = Ball->CreateAndSetMaterialInstanceDynamic(0);
+		BallMiddle = BallModel->GetBounds().Origin;
+		BallHalfSize = BallModel->GetBounds().BoxExtent.ComponentMax(FVector(1.0f));
+	}
+
 	// The lane lies in the world, not on the roller
 	UMaterialInterface* CoreMaterial = nullptr;
 	UMaterialInterface* GlowMaterial = nullptr;
@@ -595,6 +611,28 @@ void AVaelAshRoller::PoseFactoryMesh(UPoseableMeshComponent* RollerMesh, float R
 	const FQuat Turn = FRotator(-SpinDegrees, 0.0f, FlipShown * 180.0f + Rock).Quaternion();
 
 	RollerMesh->SetRelativeLocationAndRotation(Middle + Turn.RotateVector(FVector(0.0f, 0.0f, -BodyHalfHeight)), Turn * FRotator(0.0f, Data->MeshYaw, 0.0f).Quaternion());
+
+	// With a ball model the walking mesh gives way to it as soon as it has curled up
+	const bool bAsBall = Ball != nullptr && CurlShown > 0.5f && State != EVaelRollerState::OnBack;
+	RollerMesh->SetVisibility(!bAsBall);
+
+	if (Ball != nullptr)
+	{
+		const float BallRadius = Data->BallDiameter * 0.5f;
+		const float Grown = FMath::Lerp(0.6f, 1.0f, FMath::Clamp((CurlShown - 0.5f) * 2.0f, 0.0f, 1.0f));
+		const FVector BallScale = FVector(BallRadius) / BallHalfSize * Grown;
+		const FQuat BallTurn = FRotator(-SpinDegrees, 0.0f, 0.0f).Quaternion();
+
+		Ball->SetVisibility(bAsBall);
+		Ball->SetRelativeScale3D(BallScale);
+		Ball->SetRelativeRotation(BallTurn);
+		Ball->SetRelativeLocation(FVector(Shiver, 0.0f, -HalfHeight + BallRadius * Grown) - BallTurn.RotateVector(BallMiddle * BallScale));
+
+		if (BallMaterial != nullptr)
+		{
+			BallMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), State == EVaelRollerState::Roll ? 4.0f : 1.5f);
+		}
+	}
 
 	// Legs drawn in while it is a ball; on its back they paddle half curled
 	if (UVaelLegIKComponent* Legs = GetFactoryLegs())

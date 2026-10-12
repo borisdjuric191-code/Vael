@@ -136,6 +136,10 @@ private:
 	TArray<FVector> MoundSizes;
 	float MoundMeshSize = 100.0f;
 
+	/** How each clump lies at rest, and the time the mound has been churning: it only runs while the crawler ploughs on */
+	TArray<FRotator> MoundTurns;
+	float MoundChurn = 0.0f;
+
 	/** Builds the clumps of the mound */
 	void BuildMound(UMaterialInterface* Material);
 

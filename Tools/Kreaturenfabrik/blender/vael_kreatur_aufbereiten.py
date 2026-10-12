@@ -66,7 +66,17 @@ STARR = {
     "body": [(0, .55, .05), (0, .55, .55)],
     "head": [(0, .30, .60), (0, .15, .75)],
 }
-FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR}
+# Vorlage-Skelett Zweibeiner (Schleieraffe): steht aufrecht in A-Pose, Arme und Beine frei.
+# Körper, Kopf, je Arm Ober- und Unterarm, je Bein Ober- und Unterschenkel. "ketten": je Glied die Punkte der Gelenke.
+ZWEIBEINER = {
+    "body": [(0, .5, .42), (0, .5, .68)],
+    "head": [(0, .5, .72), (0, .5, .98)],
+    "ketten": {
+        "arm": [(.16, .5, .68), (.55, .5, .52), (1.0, .5, .36)],
+        "leg": [(.12, .5, .42), (.16, .45, .22), (.18, .5, .0)],
+    },
+}
+FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR, "Zweibeiner": ZWEIBEINER}
 
 # ---------------------------------------------------------------- Hilfen
 def log(*a): print("[Vael]", *a)
@@ -286,7 +296,45 @@ def passe_puppe_an(obj, tpl):
     log(f"Skelett an die Puppe angepasst (Armhöhe {arm_z:.2f}, Körpermitte {cy:.2f}).")
     return t
 
+def passe_zweibeiner_an(obj, tpl):
+    """Sucht Hände und Füße im Mesh (A-Pose, Blick nach -Y) und legt Schultern, Ellbogen, Hüften und Knie dazwischen."""
+    import copy
+    lo, hi = bbox_welt(obj)
+    hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
+    V = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    n = lambda p: (abs(p.x) / hw, (p.y - lo.y) / L, (p.z - lo.z) / H)   # Welt → normiert, auf die linke Seite (+X) gespiegelt
+    t = copy.deepcopy(tpl)
+    mittel = lambda ps: Vector((sum(abs(p.x) for p in ps) / len(ps), sum(p.y for p in ps) / len(ps), sum(p.z for p in ps) / len(ps)))
+
+    # Hände: die äußersten Punkte links und rechts; Füße: die tiefsten Punkte abseits der Mitte (ohne Schwanz)
+    haende = [p for p in V if abs(p.x) > .88 * hw]
+    fuesse = [p for p in V if p.z < lo.z + .04 * H and abs(p.x) > .06 * hw and abs(p.x) < .6 * hw]
+    if len(haende) < 6 or len(fuesse) < 6:
+        log("Hände oder Füße nicht sicher gefunden – nehme die Vorlage."); return tpl
+    hand, fuss = mittel(haende), mittel(fuesse)
+
+    # Körpermitte in der Tiefe und die Höhe der Schultern: dort, wo der Rumpf unter dem Kopf am breitesten ist
+    achse = [p.y for p in V if abs(p.x) < .1 * hw and p.z > lo.z + .3 * H]
+    cy = sum(achse) / len(achse) if achse else (lo.y + hi.y) / 2
+    schulter_z = hand.z + (hand.x - .16 * hw) * .75            # A-Pose: der Arm fällt nach außen ab
+    schulter_z = max(lo.z + .55 * H, min(schulter_z, lo.z + .74 * H))
+    schulter = Vector((.16 * hw, cy, schulter_z))
+    ellbogen = (schulter + hand) / 2
+    huefte = Vector((max(fuss.x * .7, .08 * hw), cy, lo.z + .42 * H))
+    knie = (huefte + Vector((fuss.x, cy, lo.z))) / 2; knie.y -= .04 * L   # Knie zeigen nach vorn
+    fussgelenk = Vector((fuss.x, cy, lo.z))
+
+    cyn = (cy - lo.y) / L
+    t["body"] = [(0, cyn, .42), (0, cyn, (schulter_z - lo.z) / H)]
+    t["head"] = [(0, cyn, (schulter_z - lo.z) / H + .04), (0, cyn, .98)]
+    t["ketten"] = {"arm": [n(schulter), n(ellbogen), n(hand)], "leg": [n(huefte), n(knie), n(fussgelenk)]}
+    log(f"Skelett an den Zweibeiner angepasst (Schulterhöhe {(schulter_z - lo.z) / H:.2f}, Hand bei {hand.x / hw:.2f}/{(hand.z - lo.z) / H:.2f}, Fuß bei {fuss.x / hw:.2f}).")
+    return t
+
 def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
+    if tpl is ZWEIBEINER:
+        tpl = passe_zweibeiner_an(obj, tpl)
+        hoerner = False
     if tpl is VIELBEINER:
         tpl = passe_vielbeiner_an(obj, tpl, hoerner)
     if tpl is PUPPE:
@@ -328,6 +376,12 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
             f = knochen(f"leg_{seite}{nr}_femur", p(m(huefte)), p(m(knie)), c, True)
             t = knochen(f"leg_{seite}{nr}_tibia", p(m(knie)), p(m(gelenk)), f, True)
             knochen(f"leg_{seite}{nr}_foot", p(m(gelenk)), p(m(spitze)), t, True)
+    for glied, punkte in tpl.get("ketten", {}).items():
+        # Blick nach -Y: links ist +X. Knochen heißen arm_L_upper, arm_L_lower, leg_R_upper …
+        for seite, s in (("L", 1), ("R", -1)):
+            m = lambda v: (v[0] * s, v[1], v[2])
+            oben = knochen(f"{glied}_{seite}_upper", p(m(punkte[0])), p(m(punkte[1])), body)
+            knochen(f"{glied}_{seite}_lower", p(m(punkte[1])), p(m(punkte[2])), oben, True)
     if "arms" in tpl:
         schulter, hand, spitze = tpl["arms"]
         for seite, s in (("L", 1), ("R", -1)):

@@ -153,6 +153,40 @@ private:
 	float EyesOpen = 1.0f;
 	float BlinkCountdown = 2.0f;
 
+	/** An arm or a leg of the factory mesh: its two bones and where they rest, in component space */
+	struct FVaelMonkeyLimb
+	{
+		FName Upper;
+		FName Lower;
+		FTransform RestUpper = FTransform::Identity;
+		FTransform RestLower = FTransform::Identity;
+		bool bFound = false;
+	};
+
+	/** Finds body, head, arms and legs of the factory mesh */
+	void SetupLimbs();
+
+	/** Poses the factory mesh: crouching, scurrying, pointing, leaping, clinging */
+	void PoseFactoryMesh(float DeltaSeconds, float Twitch);
+
+	/** Turns a limb at its root and bends it at its joint; the turns are in component space, relative to the rest pose */
+	void PoseLimb(const FVaelMonkeyLimb& Limb, const FVector& Root, const FQuat& Turn, const FQuat& Bend);
+
+	/** Left and right arm and leg, body and head of the factory mesh */
+	FVaelMonkeyLimb Arms[2];
+	FVaelMonkeyLimb Legs[2];
+	FTransform RestBody = FTransform::Identity;
+	FTransform RestHead = FTransform::Identity;
+	bool bHasLimbs = false;
+
+	/** Lean, crouch and the direction of each arm as shown, eased from frame to frame */
+	float LeanShown = 0.0f;
+	float CrouchShown = 1.0f;
+	FVector ArmShown[2] = { FVector(0.3f, 0.4f, -1.0f), FVector(-0.3f, 0.4f, -1.0f) };
+
+	/** Where the eyes of the factory mesh sit, in world space, set while posing */
+	FVector EyeSpots[2] = { FVector::ZeroVector, FVector::ZeroVector };
+
 	/** Progress of the hops of a factory mesh, grows with the way it runs */
 	float HopPhase = 0.0f;
 

@@ -565,6 +565,8 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 		}
 	}
 
+	// The clumps only churn while it ploughs on
+	MoundChurn += DeltaSeconds * Peek;
 	AnimateMound(Time, bDeadNow);
 
 	// The code rig moves its own legs and claws; a factory mesh walks on the legs of the base class
@@ -645,13 +647,32 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 		const FVector Forward = GetActorForwardVector();
 		const FVector Side = GetActorRightVector() * (FMath::RandBool() ? 1.0f : -1.0f);
 
-		// Clumps of ash fly up where it breaks the ground ahead
-		Puff.Count = 2;
-		Puff.Speed = 170.0f;
-		Puff.Lift = 280.0f;
-		Puff.RockShare = 0.3f;
+		// Clumps of ash fly up where it breaks the ground ahead: a few big ones that tumble far, many small ones, and dust
+		Puff.Count = 4;
+		Puff.Spread = 35.0f;
+		Puff.Speed = 230.0f;
+		Puff.Lift = 360.0f;
+		Puff.MinSize = 3.0f;
+		Puff.MaxSize = 9.0f;
+		Puff.Lifetime = 0.9f;
+		Puff.RockShare = 0.5f;
 		Puff.Color = CrawlerAshColor;
 		AVaelDebrisBurst::Spawn(this, Feet + Forward * 55.0f + Side * 30.0f, Puff);
+
+		FVaelDebris Dust;
+		Dust.Count = 2;
+		Dust.Spread = 40.0f;
+		Dust.Speed = 60.0f;
+		Dust.Lift = 90.0f;
+		Dust.Gravity = -60.0f;
+		Dust.Lifetime = 0.8f;
+		Dust.MinSize = 22.0f;
+		Dust.MaxSize = 42.0f;
+		Dust.Color = CrawlerAshColor * 2.2f;
+		Dust.Glow = 0.25f;
+		Dust.bSoft = true;
+		Dust.bLandOnGround = false;
+		AVaelDebrisBurst::Spawn(this, Feet + Forward * 30.0f - Side * 20.0f, Dust);
 
 		// Behind it stays a furrow of small heaps that sink back into the ash
 		FVaelDebris Furrow;
@@ -724,7 +745,8 @@ void AVaelEmberCrawler::BuildMound(UMaterialInterface* Material)
 
 		UStaticMeshComponent* Clump = VaelEffects::AddLookShape(this, Material, CrawlerAshColor * FMath::FRandRange(0.45f, 0.7f), 0.0f);
 		Clump->SetCastShadow(true);
-		Clump->SetRelativeRotation(FRotator(FMath::FRandRange(-20.0f, 20.0f), FMath::FRandRange(0.0f, 360.0f), FMath::FRandRange(-20.0f, 20.0f)));
+		MoundTurns.Add(FRotator(FMath::FRandRange(-20.0f, 20.0f), FMath::FRandRange(0.0f, 360.0f), FMath::FRandRange(-20.0f, 20.0f)));
+		Clump->SetRelativeRotation(MoundTurns.Last());
 		if (RockMesh != nullptr)
 		{
 			Clump->SetStaticMesh(RockMesh);
@@ -751,9 +773,15 @@ void AVaelEmberCrawler::AnimateMound(float Time, bool bDeadNow)
 		const float Ahead = FMath::Max(0.0f, Place.X) / FMath::Max(GetCapsuleComponent()->GetUnscaledCapsuleRadius(), 1.0f);
 		const float Size = Under * (bTop ? 1.0f - Peek : 1.0f + 0.4f * Peek * Ahead) * (1.0f + 0.08f * Peek * FMath::Sin(Time * 9.0f + Place.Z));
 
+		// Each clump is heaved up, rolls over and sinks back in its own rhythm, and is pushed out and drawn in again
+		const float Heave = FMath::Abs(FMath::Sin(MoundChurn * 5.5f + Place.Z)) * 11.0f * Peek;
+		const float Push = 1.0f + 0.14f * FMath::Sin(MoundChurn * 4.3f + Place.Z * 1.7f) * Peek;
+		const float Roll = MoundChurn * (ClumpIndex % 2 == 0 ? 150.0f : -110.0f);
+
 		UStaticMeshComponent* Clump = MoundClumps[ClumpIndex];
 		Clump->SetVisibility(Size > 0.05f && !bDeadNow);
-		Clump->SetRelativeLocation(FVector(Place.X, Place.Y, -HalfHeight + MoundSizes[ClumpIndex].Z * 0.25f * Size + FMath::Sin(Time * 8.0f + Place.Z) * 2.5f * Peek));
+		Clump->SetRelativeLocation(FVector(Place.X * Push, Place.Y * Push, -HalfHeight + MoundSizes[ClumpIndex].Z * 0.25f * Size + Heave));
+		Clump->SetRelativeRotation(MoundTurns[ClumpIndex] + FRotator(Roll, Roll * 0.4f, 0.0f));
 		Clump->SetRelativeScale3D(MoundSizes[ClumpIndex] * FMath::Max(Size, 0.01f) / MoundMeshSize);
 	}
 }

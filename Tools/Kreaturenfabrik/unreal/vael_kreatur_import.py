@@ -139,6 +139,9 @@ def importiere_requisite(ordner):
         kurz = p.split(".")[-1]
         if isinstance(eal.load_asset(p), unreal.Texture2D) and not kurz.startswith("T_"):
             rest = kurz[len(name):].lstrip("_") if kurz.startswith(name) else kurz
+            art = next((a for a in ("basecolor", "normal", "roughness", "metallic") if rest.lower().endswith(a)), None)
+            if art is not None:
+                rest = art
             eal.rename_asset(p, f"{ziel}/T_{name}_{rest}")
 
     sm = eal.load_asset(f"{ziel}/SM_{name}")

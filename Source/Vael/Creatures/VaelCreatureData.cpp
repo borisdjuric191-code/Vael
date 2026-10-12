@@ -2,6 +2,7 @@
 
 #include "Creatures/VaelCreatureData.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "Creatures/VaelAshHarpy.h"
 #include "Creatures/VaelAshRoller.h"
 #include "Creatures/VaelEmberCrawler.h"
@@ -191,6 +192,7 @@ UVaelAshRollerData::UVaelAshRollerData()
 	KindId = TEXT("Aschenroller");
 	CreatureClass = AVaelAshRoller::StaticClass();
 	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Aschenroller/SK_Aschenroller.SK_Aschenroller")));
+	BallMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Aschenmark/AschenrollerKugel/SM_AschenrollerKugel.SM_AschenrollerKugel")));
 	MeshGlow = 1.0f;
 
 	// A defender: tougher than the other creatures of the Aschenmark, and at home in the embers

@@ -156,6 +156,17 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> Feet;
 
+	/** The roller as a closed ball, shown instead of the walking mesh while it curls and rolls; null without a ball model */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> Ball;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> BallMaterial;
+
+	/** Middle and half size of the ball model at scale 1, in cm: it is turned around its middle and pressed into a true sphere */
+	FVector BallMiddle = FVector::ZeroVector;
+	FVector BallHalfSize = FVector(50.0f);
+
 	/** The lane on the ground and the brighter strip that fills it until the roll starts */
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> Lane;
