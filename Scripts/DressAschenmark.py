@@ -1154,24 +1154,49 @@ def store_frame():
 
 
 def main_road_material(instances):
-    """A lighter, warmer instance of the path material for the way from the camp to the crater"""
+    """The way from the camp to the crater: dry, sandy, trodden ground (Dry Sandy Mud of the Dark Ruins sample, Boris 2026-10-12),
+    lighter than the side paths. Without that surface in the project it falls back to a lighter tint of the path ground."""
     name = "MI_Aschenmark_Hauptweg"
     path = "{}/{}".format(DRESSING_FOLDER, name)
-    if unreal.EditorAssetLibrary.does_asset_exist(path):
-        return unreal.load_asset(path)
-
-    parent = unreal.load_asset("{}/M_Vael_Boden".format(DRESSING_FOLDER))
-    if parent is None or "MI_Aschenmark_Weg" not in instances:
-        return None
-
     library = unreal.MaterialEditingLibrary
-    instance = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, DRESSING_FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
-    library.set_material_instance_parent(instance, parent)
-    for key, texture in (("Albedo", surface("ForestGround", "D")), ("Normal", surface("ForestGround", "N")), ("Roughness", surface("ForestGround", "R")), ("Albedo2", surface("HeavyMud", "D"))):
+    sand = "/Game/MS/Surfaces/Dry_Sandy_Mud_wdunfjf/T_Dry_Sandy_Mud_wdunfjf_{}"
+    sand_albedo = unreal.load_asset(sand.format("D")) if unreal.EditorAssetLibrary.does_asset_exist(sand.format("D")) else None
+    sand_normal = unreal.load_asset(sand.format("N")) if unreal.EditorAssetLibrary.does_asset_exist(sand.format("N")) else None
+
+    # The sample ships them as 8K virtual textures; the ground material samples plain ones, and 2K is plenty from above
+    for texture in (sand_albedo, sand_normal):
+        if texture is not None and (texture.get_editor_property("virtual_texture_streaming") or texture.get_editor_property("max_texture_size") != 2048):
+            texture.set_editor_property("virtual_texture_streaming", False)
+            texture.set_editor_property("max_texture_size", 2048)
+            unreal.EditorAssetLibrary.save_loaded_asset(texture, False)
+            notes.append("converted {}".format(texture.get_name()))
+
+    if unreal.EditorAssetLibrary.does_asset_exist(path):
+        instance = unreal.load_asset(path)
+        # Already on the sand, or no sand to switch to: keep what is there, also what was tuned in the editor
+        if sand_albedo is None or library.get_material_instance_texture_parameter_value(instance, "Albedo") == sand_albedo:
+            return instance
+    else:
+        parent = unreal.load_asset("{}/M_Vael_Boden".format(DRESSING_FOLDER))
+        if parent is None or "MI_Aschenmark_Weg" not in instances:
+            return None
+        instance = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, DRESSING_FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        library.set_material_instance_parent(instance, parent)
+
+    if sand_albedo is not None:
+        textures = (("Albedo", sand_albedo), ("Normal", sand_normal or surface("ForestGround", "N")), ("Roughness", surface("ForestGround", "R")), ("Albedo2", surface("ForestGround", "D")))
+        colors = (("Tint", unreal.LinearColor(1.0, 0.9, 0.74, 1.0)), ("Tint2", unreal.LinearColor(0.78, 0.66, 0.5, 1.0)))
+        scalars = (("TileSize", 380.0), ("MacroSize", 2600.0), ("Desaturation", 0.1))
+    else:
+        textures = (("Albedo", surface("ForestGround", "D")), ("Normal", surface("ForestGround", "N")), ("Roughness", surface("ForestGround", "R")), ("Albedo2", surface("HeavyMud", "D")))
+        colors = (("Tint", unreal.LinearColor(0.86, 0.70, 0.52, 1.0)), ("Tint2", unreal.LinearColor(0.70, 0.58, 0.45, 1.0)))
+        scalars = (("TileSize", 330.0), ("MacroSize", 2600.0), ("Desaturation", 0.2))
+
+    for key, texture in textures:
         library.set_material_instance_texture_parameter_value(instance, key, texture)
-    library.set_material_instance_vector_parameter_value(instance, "Tint", unreal.LinearColor(0.86, 0.70, 0.52, 1.0))
-    library.set_material_instance_vector_parameter_value(instance, "Tint2", unreal.LinearColor(0.70, 0.58, 0.45, 1.0))
-    for key, value in (("TileSize", 330.0), ("MacroSize", 2600.0), ("Desaturation", 0.2)):
+    for key, color in colors:
+        library.set_material_instance_vector_parameter_value(instance, key, color)
+    for key, value in scalars:
         library.set_material_instance_scalar_parameter_value(instance, key, value)
     library.update_material_instance(instance)
     unreal.EditorAssetLibrary.save_loaded_asset(instance, False)

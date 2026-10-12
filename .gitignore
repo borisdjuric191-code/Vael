@@ -66,3 +66,6 @@ Content/Meshes/
 Content/Materials/
 Content/Effects/
 Content/PhysMat/
+
+# Surfaces copied from the Dark Ruins Megascans Sample (see Docs/Quellen.md)
+Content/MS/
