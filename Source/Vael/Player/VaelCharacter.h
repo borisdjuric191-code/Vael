@@ -146,6 +146,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dodge")
 	bool IsDodging() const { return bIsDodging; }
 
+	/** Weighs the player down, like a creature clinging to the back: walks at the share of the speed for the seconds. Call again to keep it up. */
+	void SetBurden(float SpeedMultiplier, float Duration);
+
 	/**
 	 *  Rushes on the wind like a dodge roll, just faster and regardless of the dodge cooldown.
 	 *  When the dash ends the burst hits everyone around within the radius. Returns false while down.
@@ -297,6 +300,10 @@ private:
 
 	/** True while a dodge roll is in progress */
 	bool bIsDodging = false;
+
+	/** Share of the walk speed while something weighs the player down, and the world time it lasts until */
+	float BurdenMultiplier = 1.0f;
+	float BurdenEndTime = 0.0f;
 
 	/** Speed of the current roll or dash in cm/s */
 	float CurrentDodgeSpeed = 0.0f;

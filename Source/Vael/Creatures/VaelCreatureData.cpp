@@ -10,6 +10,7 @@
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelSourceGuardian.h"
+#include "Creatures/VaelVeilMonkey.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -224,6 +225,26 @@ UVaelSickleDollData::UVaelSickleDollData()
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glimmstroh.DA_Material_Glimmstroh"), 0.6f));
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Sichelklinge.DA_Material_Sichelklinge"), 0.25f));
 	BodyColor = FLinearColor(0.13f, 0.1f, 0.07f);
+}
+
+UVaelVeilMonkeyData::UVaelVeilMonkeyData()
+{
+	DisplayName = LOCTEXT("VeilMonkey", "Schleieraffe");
+	CompendiumId = TEXT("Schleieraffe");
+	KindId = TEXT("Schleieraffe");
+	CreatureClass = AVaelVeilMonkey::StaticClass();
+
+	// Small, quick and frail; it lives on not being found
+	MaxHealth = 30.0f;
+	MoveSpeed = 520.0f;
+	CollisionRadius = 34.0f;
+	CollisionHalfHeight = 45.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 1.3f);
+	AggroRange = 1800.0f;
+	bCanBeMarked = false;
+	HealthOrbChance = 0.0f;
+	ManaOrbChance = 0.0f;
+	BodyColor = FLinearColor(0.03f, 0.03f, 0.035f);
 }
 
 #undef LOCTEXT_NAMESPACE

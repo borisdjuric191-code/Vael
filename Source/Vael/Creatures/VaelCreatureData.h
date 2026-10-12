@@ -967,3 +967,84 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Soaked", meta = (ClampMin = 0))
 	float SoakedDamageMultiplier = 1.5f;
 };
+
+/**
+ *  Schleieraffe (working title; idea of Boris, 2026-10-12): a shy nocturnal monkey with huge glowing eyes, wrapped in rags.
+ *  Lives everywhere, most of all in the Hain. It keeps a rock, trunk or wall between itself and the players; only its eyes show,
+ *  and it points at the player with the least life (the aye-aye as an omen of death). In healthy land it only watches and flees.
+ *  The more corrupted the region, the more of them come out, the wilder they look, and they leap onto players' backs (Aufhocker):
+ *  clinging on, slowing them and stealing materials. A dodge roll throws it off; fire and lightning blind its big eyes.
+ */
+UCLASS(BlueprintType)
+class UVaelVeilMonkeyData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelVeilMonkeyData();
+
+	/** Below this corruption of the region it only watches; at and above the second value it is as wild as it gets */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))
+	float CalmCorruption = 25.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))
+	float WildCorruption = 70.0f;
+
+	/** Share of the monkeys of a place that show themselves in healthy land; the rest come out as the corruption rises */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Corruption", meta = (ClampMin = 0, ClampMax = 1))
+	float PresenceInHealthyLand = 0.34f;
+
+	/** It looks for cover this far around itself, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hiding", meta = (ClampMin = 0))
+	float CoverSearchRadius = 1100.0f;
+
+	/** Things this small to this large (half their width in cm) count as cover */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hiding")
+	FVector2D CoverSize = FVector2D(35.0f, 450.0f);
+
+	/** A calm monkey flees from players closer than this, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hiding", meta = (ClampMin = 0))
+	float FleeDistance = 420.0f;
+
+	/** A wild monkey leaps at players closer than this, in cm; in between it grows with the corruption */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Pounce", meta = (ClampMin = 0))
+	float PounceRange = 430.0f;
+
+	/** Speed of the leap in cm/s, and the longest it lasts in seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Pounce", meta = (ClampMin = 0))
+	float PounceSpeed = 1000.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Pounce", meta = (ClampMin = 0.1))
+	float PounceTime = 0.7f;
+
+	/** Seconds between two leaps, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Pounce")
+	FVector2D PounceInterval = FVector2D(4.0f, 7.0f);
+
+	/** Seconds it clings on at the calmest and at the wildest */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cling")
+	FVector2D ClingTime = FVector2D(2.5f, 5.0f);
+
+	/** The player it clings to walks at this share of the speed */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cling", meta = (ClampMin = 0, ClampMax = 1))
+	float ClingSpeedMultiplier = 0.55f;
+
+	/** Seconds between two thefts while it clings, and how many of a material it takes at once */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cling", meta = (ClampMin = 0.1))
+	float StealInterval = 1.1f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cling", meta = (ClampMin = 1))
+	int32 StealCount = 2;
+
+	/** Damage of the bite when it lets go by itself */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cling", meta = (ClampMin = 0))
+	float BiteDamage = 6.0f;
+
+	/** Seconds fire or lightning blinds it, and what damage it takes meanwhile is multiplied by */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Light", meta = (ClampMin = 0))
+	float BlindedTime = 3.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Light", meta = (ClampMin = 0))
+	float BlindedDamageMultiplier = 1.6f;
+};

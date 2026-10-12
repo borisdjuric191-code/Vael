@@ -290,7 +290,8 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 
 	// Channeling a spell holds the mage back
 	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
-	GetCharacterMovement()->MaxWalkSpeed = bObserving ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f);
+	const float Burden = GetWorld()->GetTimeSeconds() < BurdenEndTime ? BurdenMultiplier : 1.0f;
+	GetCharacterMovement()->MaxWalkSpeed = bObserving ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden;
 
 	if (bObserving)
 	{
@@ -686,4 +687,10 @@ bool AVaelCharacter::DrinkPotion()
 
 	UE_LOG(LogVael, Log, TEXT("'%s' drinks %s, %d left"), *GetNameSafe(this), *Potion->DisplayName.ToString(), GetPotionCount());
 	return true;
+}
+
+void AVaelCharacter::SetBurden(float SpeedMultiplier, float Duration)
+{
+	BurdenMultiplier = FMath::Clamp(SpeedMultiplier, 0.0f, 1.0f);
+	BurdenEndTime = GetWorld()->GetTimeSeconds() + Duration;
 }

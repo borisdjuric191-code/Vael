@@ -11,6 +11,9 @@
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelAshRoller.h"
 #include "Creatures/VaelSickleDoll.h"
+#include "Creatures/VaelVeilMonkey.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
 #include "Magic/VaelRockWall.h"
 #include "Creatures/VaelLegIKComponent.h"
 #include "Engine/GameInstance.h"
@@ -299,6 +302,54 @@ void AVaelSmokeTest::BeginPlay()
 
 			const bool bOk = NumWhirls > 0 && bSoaked;
 			return FString::Printf(TEXT("%s%d whirls, water: %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumWhirls, bSoaked ? TEXT("collapsed") : TEXT("NOT collapsed"));
+		}, 0.1f });
+	}
+
+	// The veil monkey leaps onto the player's back and robs them; fire blinds it and the loot comes back
+	if (Only.IsEmpty())
+	{
+		const auto FindMonkey = [this]()
+		{
+			AVaelVeilMonkey* Monkey = nullptr;
+			for (TActorIterator<AVaelVeilMonkey> It(GetWorld()); It; ++It)
+			{
+				Monkey = !It->IsDead() ? *It : Monkey;
+			}
+			return Monkey;
+		};
+
+		Steps.Add({ TEXT("Monkey arena"), [this, FindMonkey]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelVeilMonkeyData>(), 1);
+			AVaelVeilMonkey* Monkey = FindMonkey();
+			AVaelCharacter* Player = GetPlayer();
+			const UVaelMaterial* Gland = LoadObject<UVaelMaterial>(nullptr, TEXT("/Game/Vael/Items/Materials/DA_Material_Glutdruese.DA_Material_Glutdruese"));
+			if (Monkey == nullptr || Player == nullptr || Gland == nullptr)
+			{
+				return FString(TEXT("FAILED: no monkey, player or material"));
+			}
+
+			Player->GetMaterialBag()->AddMaterial(Gland, 10);
+			Monkey->StartPounce(Player);
+			return Arena + TEXT(", leaps at the player");
+		}, 3.0f });
+		Steps.Add({ TEXT("Monkey"), [this, FindMonkey]()
+		{
+			AVaelVeilMonkey* Monkey = FindMonkey();
+			if (Monkey == nullptr)
+			{
+				return FString(TEXT("FAILED: no living monkey"));
+			}
+
+			const int32 NumThefts = Monkey->GetTheftCount();
+			const int32 NumCarried = Monkey->GetNumStolen();
+			UVaelCombatStatics::DealDamage(nullptr, Monkey, 1.0f, EVaelElement::Fire);
+			const bool bBlinded = Monkey->GetMonkeyState() == EVaelMonkeyState::Blinded;
+			const bool bReturned = Monkey->GetNumStolen() == 0;
+
+			const bool bOk = NumThefts > 0 && NumCarried > 0 && bBlinded && bReturned;
+			return FString::Printf(TEXT("%s%d thefts, carried %d, fire: %s, loot %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumThefts, NumCarried,
+				bBlinded ? TEXT("blinded") : TEXT("NOT blinded"), bReturned ? TEXT("given back") : TEXT("NOT given back"));
 		}, 0.1f });
 	}
 
