@@ -14,6 +14,8 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelMagicSettings.h"
+#include "VaelAssets.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelSpellEffects.h"
@@ -33,6 +35,16 @@ namespace
 	/** A burrowed crawler on the move lifts this share of its depth out of the ash, rear first by this pitch in degrees */
 	constexpr float CrawlerPeekShare = 0.5f;
 	constexpr float CrawlerPeekPitch = -14.0f;
+
+	/** A burrowed crawler on the move unfolds its legs this far, 0 folded to 1 walking */
+	constexpr float CrawlerPeekLegs = 0.55f;
+
+	/** Clumps of the mound: around the body, and on top of it while it lies in wait */
+	constexpr int32 CrawlerRimClumps = 13;
+	constexpr int32 CrawlerTopClumps = 3;
+
+	/** Size of the rock of the earth orb in cm */
+	constexpr float CrawlerRockMeshSize = 230.0f;
 
 	/** The crawler stops walking home closer than this, in cm */
 	constexpr float CrawlerHomeTolerance = 140.0f;
@@ -61,7 +73,7 @@ namespace
 	constexpr float CrawlerLunge = 14.0f;
 
 	/** Seconds between two puffs of dust while burrowed, sparks while the fuse burns, steam while doused */
-	constexpr float CrawlerDustInterval = 0.22f;
+	constexpr float CrawlerDustInterval = 0.14f;
 	constexpr float CrawlerSparkInterval = 0.1f;
 	constexpr float CrawlerSteamInterval = 0.18f;
 
@@ -339,7 +351,7 @@ void AVaelEmberCrawler::BuildRig()
 	// With a mesh of the creature factory only the mound of ash is built; mesh and legs come from the base class
 	if (GetFactoryMesh() != nullptr)
 	{
-		Mound = VaelEffects::AddLookShape(this, CoreMaterial, CrawlerAshColor, 0.0f);
+		BuildMound(CoreMaterial);
 		RefreshBodyColor();
 		return;
 	}
@@ -386,9 +398,7 @@ void AVaelEmberCrawler::BuildRig()
 		LegLower.Add(AddRigPart(CoreMaterial, CrustColor, 0.0f));
 	}
 
-	// The mound of ash that moves over the burrowed crawler
-	Mound = VaelEffects::AddLookShape(this, CoreMaterial, CrawlerAshColor, 0.0f);
-	Mound->SetVisibility(true);
+	BuildMound(CoreMaterial);
 
 	RefreshBodyColor();
 	AnimateRig(0.0f);
@@ -477,6 +487,10 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 
 	FVector RigOffset(0.0f, 0.0f, -(1.0f - Climb) * HalfHeight * 1.6f * (1.0f - CrawlerPeekShare * Peek) - (bDeadNow ? 12.0f : 0.0f));
 
+	// Ploughing through the ash it heaves with every stroke of its legs
+	const float Heave = Peek * (bDeadNow ? 0.0f : 1.0f);
+	RigOffset.Z += FMath::Sin(Time * 11.0f) * 3.5f * Heave;
+
 	// The fuse makes it swell and tremble faster and faster
 	float GlandSwell = 1.0f;
 	float Glow = 1.5f;
@@ -524,12 +538,13 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	if (bFactory)
 	{
 		// The mesh sinks and rises, swells with the fuse and glows in its cracks, gland and eyes; its legs fold while under the ash
-		SetFactoryMeshOffset(RigOffset, 1.0f + (GlandSwell - 1.0f) * 0.5f, CrawlerPeekPitch * Peek * (1.0f - Climb));
+		SetFactoryMeshOffset(RigOffset, 1.0f + (GlandSwell - 1.0f) * 0.5f, CrawlerPeekPitch * Peek * (1.0f - Climb) + FMath::Sin(Time * 5.5f) * 4.0f * Heave);
 		SetFactoryGlow(bDeadNow ? 0.0f : Glow);
 		GetFactoryMesh()->SetVisibility(Emergence > 0.02f || Peek > 0.02f || bDeadNow);
 		if (!bDeadNow)
 		{
-			GetFactoryLegs()->SetCurl(1.0f - Climb);
+			// The legs paddle beside the body while it ploughs on, and fold when it lies in wait
+			GetFactoryLegs()->SetCurl(1.0f - FMath::Max(Climb, CrawlerPeekLegs * Peek));
 		}
 		if (SinceClawAttack >= 0.0f && SinceClawAttack <= DeltaSeconds)
 		{
@@ -550,10 +565,7 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 		}
 	}
 
-	// The mound of ash shows only while the crawler is (partly) under it
-	Mound->SetVisibility(Emergence < 0.95f && !bDeadNow);
-	Mound->SetRelativeLocation(FVector(0.0f, 0.0f, -HalfHeight));
-	Mound->SetRelativeScale3D(FVector(130.0f, 120.0f, 40.0f * (1.0f - Emergence) * (1.0f - 0.65f * Peek) + 4.0f) * (1.0f + 0.04f * FMath::Sin(Time * 9.0f)) / CrawlerShapeSize);
+	AnimateMound(Time, bDeadNow);
 
 	// The code rig moves its own legs and claws; a factory mesh walks on the legs of the base class
 	if (!bFactory)
@@ -628,10 +640,31 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 	if (bBurrowed && Speed > 20.0f)
 	{
 		PuffCountdown = CrawlerDustInterval;
-		Puff.Speed = 90.0f;
-		Puff.Lift = 160.0f;
+
+		const FVector Feet = GetActorLocation() - FVector(0.0f, 0.0f, HalfHeight);
+		const FVector Forward = GetActorForwardVector();
+		const FVector Side = GetActorRightVector() * (FMath::RandBool() ? 1.0f : -1.0f);
+
+		// Clumps of ash fly up where it breaks the ground ahead
+		Puff.Count = 2;
+		Puff.Speed = 170.0f;
+		Puff.Lift = 280.0f;
+		Puff.RockShare = 0.3f;
 		Puff.Color = CrawlerAshColor;
-		AVaelDebrisBurst::Spawn(this, GetActorLocation() - FVector(0.0f, 0.0f, HalfHeight) - GetActorForwardVector() * 40.0f, Puff);
+		AVaelDebrisBurst::Spawn(this, Feet + Forward * 55.0f + Side * 30.0f, Puff);
+
+		// Behind it stays a furrow of small heaps that sink back into the ash
+		FVaelDebris Furrow;
+		Furrow.Count = 2;
+		Furrow.Spread = 30.0f;
+		Furrow.Speed = 25.0f;
+		Furrow.Lift = 50.0f;
+		Furrow.Lifetime = 2.4f;
+		Furrow.MinSize = 6.0f;
+		Furrow.MaxSize = 10.0f;
+		Furrow.RockShare = 0.6f;
+		Furrow.Color = CrawlerAshColor;
+		AVaelDebrisBurst::Spawn(this, Feet - Forward * 60.0f, Furrow);
 	}
 	else if (State == EVaelCrawlerState::Fuse)
 	{
@@ -673,4 +706,54 @@ FVector AVaelEmberCrawler::GetGlandLocation() const
 	// The gland of a factory mesh sits at its rear, a little above the ground
 	return Gland != nullptr ? Gland->GetComponentLocation()
 		: GetActorLocation() - GetActorForwardVector() * GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.7f;
+}
+
+void AVaelEmberCrawler::BuildMound(UMaterialInterface* Material)
+{
+	// Rough clumps instead of one smooth hill: the rock of the earth orb if the project has it, else spheres
+	UStaticMesh* RockMesh = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementOrbRockMesh);
+	MoundMeshSize = RockMesh != nullptr ? CrawlerRockMeshSize : CrawlerShapeSize;
+
+	const float Radius = GetCapsuleComponent()->GetUnscaledCapsuleRadius();
+
+	for (int32 ClumpIndex = 0; ClumpIndex < CrawlerRimClumps + CrawlerTopClumps; ++ClumpIndex)
+	{
+		const bool bTop = ClumpIndex >= CrawlerRimClumps;
+		const float Angle = bTop ? FMath::FRandRange(0.0f, UE_TWO_PI) : UE_TWO_PI * (ClumpIndex + FMath::FRandRange(-0.3f, 0.3f)) / CrawlerRimClumps;
+		const float Distance = bTop ? FMath::FRandRange(0.0f, Radius * 0.35f) : Radius * FMath::FRandRange(0.85f, 1.25f);
+
+		UStaticMeshComponent* Clump = VaelEffects::AddLookShape(this, Material, CrawlerAshColor * FMath::FRandRange(0.45f, 0.7f), 0.0f);
+		Clump->SetCastShadow(true);
+		Clump->SetRelativeRotation(FRotator(FMath::FRandRange(-20.0f, 20.0f), FMath::FRandRange(0.0f, 360.0f), FMath::FRandRange(-20.0f, 20.0f)));
+		if (RockMesh != nullptr)
+		{
+			Clump->SetStaticMesh(RockMesh);
+		}
+
+		MoundClumps.Add(Clump);
+		MoundPlaces.Add(FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, FMath::FRandRange(0.0f, UE_TWO_PI)));
+		MoundSizes.Add(bTop ? FVector(FMath::FRandRange(40.0f, 55.0f), FMath::FRandRange(36.0f, 50.0f), FMath::FRandRange(20.0f, 28.0f))
+			: FVector(FMath::FRandRange(20.0f, 38.0f), FMath::FRandRange(18.0f, 34.0f), FMath::FRandRange(9.0f, 17.0f)));
+	}
+}
+
+void AVaelEmberCrawler::AnimateMound(float Time, bool bDeadNow)
+{
+	const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+	const float Under = 1.0f - Emergence;
+
+	for (int32 ClumpIndex = 0; ClumpIndex < MoundClumps.Num(); ++ClumpIndex)
+	{
+		const FVector& Place = MoundPlaces[ClumpIndex];
+		const bool bTop = ClumpIndex >= CrawlerRimClumps;
+
+		// The clumps on top slide off when the back breaks through; those ahead pile up like a bow wave, and all of them work
+		const float Ahead = FMath::Max(0.0f, Place.X) / FMath::Max(GetCapsuleComponent()->GetUnscaledCapsuleRadius(), 1.0f);
+		const float Size = Under * (bTop ? 1.0f - Peek : 1.0f + 0.4f * Peek * Ahead) * (1.0f + 0.08f * Peek * FMath::Sin(Time * 9.0f + Place.Z));
+
+		UStaticMeshComponent* Clump = MoundClumps[ClumpIndex];
+		Clump->SetVisibility(Size > 0.05f && !bDeadNow);
+		Clump->SetRelativeLocation(FVector(Place.X, Place.Y, -HalfHeight + MoundSizes[ClumpIndex].Z * 0.25f * Size + FMath::Sin(Time * 8.0f + Place.Z) * 2.5f * Peek));
+		Clump->SetRelativeScale3D(MoundSizes[ClumpIndex] * FMath::Max(Size, 0.01f) / MoundMeshSize);
+	}
 }

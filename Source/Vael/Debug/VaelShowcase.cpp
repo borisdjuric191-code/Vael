@@ -4,6 +4,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
+#include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelHornBeetle.h"
 #include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"
@@ -54,7 +55,9 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 
 	// Optional console command once the player is there, underscores for spaces: -VaelShowcaseCmd=VaelSpawn_Glutkriecher_2
 	FString Command;
-	if (!bCommandDone && Age > 1.0f && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmd="), Command, false))
+	float CommandTime = 1.0f;
+	FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmdAt="), CommandTime);
+	if (!bCommandDone && Age > CommandTime && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmd="), Command, false))
 	{
 		bCommandDone = true;
 		if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
@@ -70,10 +73,14 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
 		const AVaelCreature* Subject = nullptr;
 		float Closest = UE_BIG_NUMBER;
+
+		// -VaelShowcaseKind=Glutkriecher looks only at creatures of that kind
+		FString OnlyKind;
+		FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseKind="), OnlyKind);
 		for (TActorIterator<AVaelCreature> It(GetWorld()); It && PlayerPawn != nullptr; ++It)
 		{
 			const float Distance = FVector::Dist(It->GetActorLocation(), PlayerPawn->GetActorLocation());
-			if (!It->IsDead() && Distance < Closest)
+			if (!It->IsDead() && Distance < Closest && (OnlyKind.IsEmpty() || It->GetCreatureData()->KindId.ToString().Contains(OnlyKind)))
 			{
 				Subject = *It;
 				Closest = Distance;

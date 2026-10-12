@@ -127,9 +127,20 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> ClawTips;
 
-	/** Mound of ash over the burrowed crawler */
+	/** Mound of ash over the burrowed crawler: rough clumps around it and on top of it */
 	UPROPERTY(Transient)
-	TObjectPtr<UStaticMeshComponent> Mound;
+	TArray<TObjectPtr<UStaticMeshComponent>> MoundClumps;
+
+	/** Place of each clump (X, Y) with the phase of its heaving (Z), its size in cm, and the size of the mesh they use */
+	TArray<FVector> MoundPlaces;
+	TArray<FVector> MoundSizes;
+	float MoundMeshSize = 100.0f;
+
+	/** Builds the clumps of the mound */
+	void BuildMound(UMaterialInterface* Material);
+
+	/** Lets the clumps heave, pile up ahead and fall away as the crawler shows more of itself */
+	void AnimateMound(float Time, bool bDeadNow);
 
 	/** State the look last showed, to notice when the crawler breaks out of the ground */
 	EVaelCrawlerState ShownState = EVaelCrawlerState::Burrowed;
