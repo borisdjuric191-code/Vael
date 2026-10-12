@@ -233,6 +233,7 @@ UVaelVeilMonkeyData::UVaelVeilMonkeyData()
 	CompendiumId = TEXT("Schleieraffe");
 	KindId = TEXT("Schleieraffe");
 	CreatureClass = AVaelVeilMonkey::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Schleieraffe/SK_Schleieraffe.SK_Schleieraffe")));
 
 	// Small, quick and frail; it lives on not being found
 	MaxHealth = 30.0f;
@@ -242,6 +243,8 @@ UVaelVeilMonkeyData::UVaelVeilMonkeyData()
 	ElementMultipliers.Add(EVaelElement::Fire, 1.3f);
 	AggroRange = 1800.0f;
 	bCanBeMarked = false;
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Schleierpelz.DA_Material_Schleierpelz"), 0.6f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glimmauge.DA_Material_Glimmauge"), 0.3f));
 	HealthOrbChance = 0.0f;
 	ManaOrbChance = 0.0f;
 	BodyColor = FLinearColor(0.03f, 0.03f, 0.035f);

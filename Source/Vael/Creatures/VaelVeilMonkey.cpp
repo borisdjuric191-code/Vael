@@ -2,12 +2,14 @@
 
 #include "Creatures/VaelVeilMonkey.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Engine/OverlapResult.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
@@ -18,6 +20,7 @@
 #include "UI/VaelCombatTextSubsystem.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
+#include "World/VaelFireLight.h"
 #include "World/VaelRegion.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -186,7 +189,7 @@ bool AVaelVeilMonkey::FindCover(const AVaelCharacter* From, float MinDistanceToP
 		FVector Spot = Bounds.Origin + Away * (HalfWidth + OwnRadius + 25.0f);
 		Spot.Z = Own.Z;
 
-		if (FVector::Dist2D(Spot, Seen) < MinDistanceToPlayer)
+		if (FVector::Dist2D(Spot, Seen) < MinDistanceToPlayer || IsNearLight(Spot))
 		{
 			continue;
 		}
@@ -255,6 +258,27 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 		AVaelCharacter* Nearest = FindNearestPlayer(NearestDistance);
 		Pointed = FindPointedPlayer();
 
+		// Whoever looks its way sees the eyes go out
+		bWatched = false;
+		ForEachActivePlayer([this, Data](AVaelCharacter* Player)
+		{
+			const FVector ToMonkey = (GetActorLocation() - Player->GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
+			bWatched |= ToMonkey.Size() < Data->WatchedDistance
+				&& FVector::DotProduct(Player->GetActorForwardVector().GetSafeNormal2D(), ToMonkey.GetSafeNormal()) > FMath::Cos(FMath::DegreesToRadians(Data->WatchedAngle));
+		});
+
+		// The lanterns and fires of the level, looked up now and then
+		LightCountdown -= DeltaSeconds;
+		if (LightCountdown <= 0.0f)
+		{
+			LightCountdown = 5.0f;
+			Lights.Reset();
+			for (TActorIterator<AVaelFireLight> It(GetWorld()); It; ++It)
+			{
+				Lights.Add(*It);
+			}
+		}
+
 		if (Nearest == nullptr || NearestDistance > Data->AggroRange)
 		{
 			if (FVector::Dist2D(GetActorLocation(), HomeLocation) > 150.0f)
@@ -269,7 +293,7 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 		const bool bFlees = Aggression <= 0.0f && NearestDistance < Data->FleeDistance;
 
 		PounceCooldown -= DeltaSeconds;
-		if (LeapRange > 0.0f && NearestDistance < LeapRange && PounceCooldown <= 0.0f && !IsBlinded())
+		if (LeapRange > 0.0f && NearestDistance < LeapRange && PounceCooldown <= 0.0f && !IsBlinded() && !IsNearLight(Nearest->GetActorLocation()))
 		{
 			StartPounce(Nearest);
 			break;
@@ -384,6 +408,19 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 		}
 		break;
 	}
+}
+
+bool AVaelVeilMonkey::IsNearLight(const FVector& Location) const
+{
+	const float Radius = GetData<UVaelVeilMonkeyData>()->LightAvoidRadius;
+	for (const TWeakObjectPtr<AActor>& Light : Lights)
+	{
+		if (Light.IsValid() && FVector::Dist2D(Light->GetActorLocation(), Location) < Radius)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 void AVaelVeilMonkey::LetGo()
@@ -528,6 +565,15 @@ void AVaelVeilMonkey::BuildRig()
 	Tail->SetRelativeRotation(FRotator(35.0f, 0.0f, 0.0f));
 	Tail->SetRelativeScale3D(FVector(46.0f, 5.0f, 5.0f) / MonkeyShapeSize);
 
+	// With a mesh of the creature factory only the glowing eyes of the code look stay, set into its face
+	if (GetFactoryMesh() != nullptr)
+	{
+		for (UStaticMeshComponent* Shape : { Torso.Get(), Hood.Get(), Arm.Get(), Tail.Get() })
+		{
+			Shape->SetVisibility(false);
+		}
+	}
+
 	RefreshBodyColor();
 }
 
@@ -573,13 +619,31 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 	Rig->SetRelativeRotation(FRotator(bBlindedNow ? -25.0f : 0.0f, Twitch * 9.0f, Twitch * 6.0f));
 	Rig->SetRelativeScale3D(bDeadNow ? FVector(1.2f, 1.2f, 0.3f) : State == EVaelMonkeyState::Cling ? FVector(0.8f) : FVector::OneVector);
 
+	// A mesh of the creature factory keeps its crouch and is moved as a whole: it scurries in small hops
+	const bool bFactory = GetFactoryMesh() != nullptr;
+	if (bFactory)
+	{
+		const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
+		const float Speed = GetVelocity().Size2D();
+		HopPhase += Speed * DeltaSeconds / 55.0f;
+
+		const float Hop = bDeadNow || State == EVaelMonkeyState::Cling ? 0.0f : FMath::Abs(FMath::Sin(HopPhase * UE_PI)) * FMath::Min(Speed / 300.0f, 1.0f);
+		const float Breath = FMath::Sin(Time * 2.2f) * 1.2f;
+		const FRotator Pose(bBlindedNow ? -22.0f : -10.0f * Hop, Twitch * 9.0f, Twitch * 6.0f);
+		const FVector Scale = bDeadNow ? FVector(1.15f, 1.15f, 0.35f) : State == EVaelMonkeyState::Cling ? FVector(0.8f) : FVector(1.0f, 1.0f, 1.0f + 0.01f * Breath);
+
+		GetFactoryMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -HalfHeight + Hop * 14.0f), Pose.Quaternion() * FRotator(0.0f, GetData<UVaelVeilMonkeyData>()->MeshYaw, 0.0f).Quaternion());
+		GetFactoryMesh()->SetRelativeScale3D(Scale);
+		Rig->SetRelativeLocation(FVector(0.0f, 0.0f, Hop * 14.0f));
+	}
+
 	// Blinks now and then; blinded or dead the eyes are shut
 	BlinkCountdown -= DeltaSeconds;
 	if (BlinkCountdown <= 0.0f)
 	{
 		BlinkCountdown = FMath::FRandRange(1.5f, 4.5f) * (1.0f - 0.6f * Aggression);
 	}
-	const float OpenTarget = bDeadNow || bBlindedNow ? 0.05f : BlinkCountdown < 0.12f ? 0.05f : 1.0f;
+	const float OpenTarget = bDeadNow || bBlindedNow || (bWatched && State == EVaelMonkeyState::Hide) ? 0.02f : BlinkCountdown < 0.12f ? 0.05f : 1.0f;
 	EyesOpen = FMath::FInterpTo(EyesOpen, OpenTarget, DeltaSeconds, 30.0f);
 
 	// Bigger and more violet with the corruption
@@ -591,7 +655,7 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 		const float Side = Index == 0 ? -1.0f : 1.0f;
 
 		UStaticMeshComponent* Eye = Eyes[Index];
-		Eye->SetRelativeLocation(FVector(21.0f, 9.5f * Side, 15.0f));
+		Eye->SetRelativeLocation(bFactory ? FVector(31.0f, 8.5f * Side, 12.0f) : FVector(21.0f, 9.5f * Side, 15.0f));
 		Eye->SetRelativeScale3D(FVector(EyeSize * 0.6f, EyeSize, EyeSize * EyesOpen) / MonkeyShapeSize);
 		VaelEffects::SetLookGlow(Eye, 9.0f * EyesOpen);
 

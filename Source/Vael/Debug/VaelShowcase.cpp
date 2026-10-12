@@ -80,7 +80,7 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		for (TActorIterator<AVaelCreature> It(GetWorld()); It && PlayerPawn != nullptr; ++It)
 		{
 			const float Distance = FVector::Dist(It->GetActorLocation(), PlayerPawn->GetActorLocation());
-			if (!It->IsDead() && Distance < Closest && (OnlyKind.IsEmpty() || It->GetCreatureData()->KindId.ToString().Contains(OnlyKind)))
+			if (!It->IsDead() && !It->IsHidden() && Distance < Closest && (OnlyKind.IsEmpty() || It->GetCreatureData()->KindId.ToString().Contains(OnlyKind)))
 			{
 				Subject = *It;
 				Closest = Distance;

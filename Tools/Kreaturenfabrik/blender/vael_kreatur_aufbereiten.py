@@ -60,7 +60,13 @@ PUPPE = {
     # je Arm: Schulter, Hand, Spitze der Sichel
     "arms": [(.14, .5, .70), (.62, .5, .70), (1.0, .5, .72)],
 }
-FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE}
+# Vorlage-Skelett Starr: nur Körper und Kopf. Für Kreaturen, deren Glieder das Skript (noch) nicht findet,
+# z. B. den kauernden Schleieraffen: das Modell bleibt in seiner Haltung, Unreal bewegt es als Ganzes (Hüpfen, Neigen).
+STARR = {
+    "body": [(0, .55, .05), (0, .55, .55)],
+    "head": [(0, .30, .60), (0, .15, .75)],
+}
+FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR}
 
 # ---------------------------------------------------------------- Hilfen
 def log(*a): print("[Vael]", *a)
@@ -285,6 +291,8 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
         tpl = passe_vielbeiner_an(obj, tpl, hoerner)
     if tpl is PUPPE:
         tpl = passe_puppe_an(obj, tpl)
+        hoerner = False
+    if tpl is STARR:
         hoerner = False
     lo, hi = bbox_welt(obj)
     hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z

@@ -83,6 +83,21 @@ MATERIALS = [
         "region": unreal.Text("Wurzelforst"),
         "color": color("d8cfb4"),
     },
+    # Bestiarium: Schleieraffe (Boris, 12. Oktober 2026: Sammler für den Tamer, Spürbrille und Beutel für den Ingenieur)
+    {
+        "asset": "DA_Material_Schleierpelz",
+        "display_name": unreal.Text("Schleierpelz"),
+        "description": unreal.Text("Rußschwarzes Fell voller eingenähter Taschen: Der Schleieraffe trägt darin, was er findet. Der Ingenieur näht daraus Futter für einen größeren Beutel."),
+        "region": unreal.Text("überall, vor allem im Hain"),
+        "color": color("2b2a2e"),
+    },
+    {
+        "asset": "DA_Material_Glimmauge",
+        "display_name": unreal.Text("Glimmauge"),
+        "description": unreal.Text("Die Linse aus dem Auge eines Schleieraffen. Sie sammelt das letzte Licht und zeigt, was im Dunkeln liegt. Der Ingenieur schleift daraus eine Spürbrille, die Materialien in der Umgebung sichtbar macht."),
+        "region": unreal.Text("überall, vor allem im Hain"),
+        "color": color("f2e68c"),
+    },
     # Bestiarium row Sichelpuppe
     {
         "asset": "DA_Material_Glimmstroh",

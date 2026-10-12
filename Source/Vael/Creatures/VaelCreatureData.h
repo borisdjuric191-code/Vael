@@ -1007,6 +1007,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hiding", meta = (ClampMin = 0))
 	float FleeDistance = 420.0f;
 
+	/** It shuts its eyes while a player this close looks its way, within this many degrees of where they face */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hiding", meta = (ClampMin = 0))
+	float WatchedDistance = 1300.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hiding", meta = (ClampMin = 0, ClampMax = 180))
+	float WatchedAngle = 28.0f;
+
+	/** It neither hides nor leaps this close to a lantern or fire light, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Light", meta = (ClampMin = 0))
+	float LightAvoidRadius = 500.0f;
+
 	/** A wild monkey leaps at players closer than this, in cm; in between it grows with the corruption */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Pounce", meta = (ClampMin = 0))
 	float PounceRange = 430.0f;

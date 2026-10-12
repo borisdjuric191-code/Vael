@@ -1422,6 +1422,18 @@ def place_dolls():
         counts["Gegner/Sichelpuppen"] = counts.get("Gegner/Sichelpuppen", 0) + 1
 
 
+def place_monkeys():
+    """Two Schleieraffen in the Aschenmark (Boris, 2026-10-12): among the ruins of the village and by the graves, where there is plenty to hide behind"""
+    for index, tile in enumerate(((24.5, 38.5), (36.0, 50.5))):
+        spawner = actors.spawn_actor_from_class(unreal.VaelCreatureSpawner, world(tile[0], tile[1], 100.0), unreal.Rotator(0.0, 0.0, 0.0))
+        spawner.set_editor_property("creature_kind", unreal.VaelVeilMonkeyData.static_class())
+        spawner.set_editor_property("count", 1)
+        spawner.set_editor_property("spread", 150.0)
+        spawner.set_folder_path("Gegner/Schleieraffen")
+        spawner.set_actor_label("Schleieraffe {}".format(index + 1))
+        counts["Gegner/Schleieraffen"] = counts.get("Gegner/Schleieraffen", 0) + 1
+
+
 # ---------------------------------------------------------------- Run
 
 def dress():
@@ -1492,6 +1504,8 @@ def dress():
         place_rollers()
     if not done("Gegner/Sichelpuppen"):
         place_dolls()
+    if not done("Gegner/Schleieraffen"):
+        place_monkeys()
     # A store built at its first place by an earlier run moves to the main road once
     if done("Dorf/Gildenspeicher") and not done("Dorf/Gildenspeicher/Kulisse/Mauern"):
         move_guild_store(level_actors)

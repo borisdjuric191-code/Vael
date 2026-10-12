@@ -102,6 +102,9 @@ private:
 	/** A place behind something solid, seen from the player; false if nothing fits */
 	bool FindCover(const AVaelCharacter* From, float MinDistanceToPlayer, FVector& OutHidePoint) const;
 
+	/** True if a lantern or another fire light burns close to the place: it stays out of their light */
+	bool IsNearLight(const FVector& Location) const;
+
 	/** Lets go of the player it clings to and stands beside them again */
 	void LetGo();
 
@@ -136,12 +139,22 @@ private:
 	TWeakObjectPtr<AVaelCharacter> Victim;
 	TWeakObjectPtr<AVaelCharacter> Pointed;
 
+	/** True while a player looks its way: it shuts its eyes and is gone in the dark */
+	bool bWatched = false;
+
+	/** Fire lights of the level, looked up now and then */
+	TArray<TWeakObjectPtr<AActor>> Lights;
+	float LightCountdown = 0.0f;
+
 	TArray<FVaelStolen> Loot;
 	int32 TheftCount = 0;
 
 	/** How far the eyes are open, 0 to 1, and seconds until the next blink */
 	float EyesOpen = 1.0f;
 	float BlinkCountdown = 2.0f;
+
+	/** Progress of the hops of a factory mesh, grows with the way it runs */
+	float HopPhase = 0.0f;
 
 	FLinearColor FurColor = FLinearColor::Black;
 

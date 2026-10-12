@@ -96,6 +96,23 @@ ENTRIES = [
         "observe_seconds": 8.0,
         "study_count": 1,
     },
+    # Bestiarium: Schleieraffe (Idee von Boris, festgelegt am 12. Oktober 2026)
+    {
+        "asset": "DA_Compendium_Schleieraffe",
+        "subject_id": "Schleieraffe",
+        "book": Book.BESTIARY,
+        "sort_order": 120,
+        "display_name": unreal.Text("Schleieraffe"),
+        "region": unreal.Text("überall, vor allem im Hain"),
+        "glimpse": unreal.Text("Zwei blasse Lichter hinter einem Felsen. Wenn du hinsiehst, sind sie fort. Wenn du wegsiehst, sind es vier."),
+        "behaviour": unreal.Text("Hält immer etwas zwischen sich und dir: einen Stein, einen Stamm, eine Mauer. Nur die Augen zeigen sich, und ein langer Finger, der auf den zeigt, dem es am schlechtesten geht. In gesundem Land schaut er bloß und flieht. Wo das Land krank ist, kommen mehr von ihnen, sie zucken, ihre Augen werden groß und violett, und sie springen dir auf den Rücken. Dann wirst du langsam, und dein Beutel wird leichter."),
+        "weakness": unreal.Text("Eine Rolle zur Seite schüttelt ihn ab. Feuer und Blitz sind zu hell für seine Augen: Er lässt los, lässt fallen, was er gestohlen hat, und hockt geblendet da. An Laternen und Feuer traut er sich nicht heran. Wer ihn erschlägt, bekommt seine Sachen zurück. Tränke rührt er nicht an."),
+        "uses": unreal.Text("Im Schleierpelz sind Taschen, im Glimmauge sitzt eine Linse für das letzte Licht. Ein Ingenieur näht aus dem einen ein Beutelfutter und schleift aus dem anderen eine Spürbrille, die zeigt, was in der Umgebung zu holen ist. Ein Tamer, der stehen bleibt und nicht hinsieht, bis er von selbst kommt, hat einen Sammler, der einsteckt, was am Weg liegt."),
+        "marked_form": unreal.Text("Er ist ein Tier, kein Geschöpf des Marks. Aber das Mark verändert ihn: größere Augen, violettes Glimmen, ein Finger mehr an jeder Hand. Je kränker das Land, desto weniger sieht er aus wie etwas, das es geben sollte."),
+        "albrun_note": unreal.Text("Die Leute sagen, die Schlafende sehe uns durch ihre Augen. Ich sage: Wer so große Augen hat, will einfach nichts verpassen. Mein Bleistift ist seit gestern weg. Ich notiere das als Beobachtung."),
+        "observe_seconds": 8.0,
+        "study_count": 3,
+    },
     # Bestiarium row Sichelpuppe
     {
         "asset": "DA_Compendium_Sichelpuppe",
