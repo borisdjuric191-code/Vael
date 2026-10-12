@@ -124,6 +124,10 @@ private:
 	float SpinDegrees = 0.0f;
 	float WalkedDistance = 0.0f;
 
+	/** Where it stood in the last frame, to measure the way it rolled and walked */
+	FVector LastLocation = FVector::ZeroVector;
+	bool bHasLastLocation = false;
+
 	/** Colors shown right now */
 	FLinearColor ShellColor = FLinearColor::Gray;
 	bool bFlashing = false;

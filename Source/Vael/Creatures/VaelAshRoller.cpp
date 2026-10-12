@@ -482,8 +482,6 @@ void AVaelAshRoller::UpdateLane()
 
 void AVaelAshRoller::Tick(float DeltaSeconds)
 {
-	const FVector Before = GetActorLocation();
-
 	Super::Tick(DeltaSeconds);
 
 	if (Rig == nullptr)
@@ -505,7 +503,10 @@ void AVaelAshRoller::Tick(float DeltaSeconds)
 
 	const bool bRolling = State == EVaelRollerState::Roll;
 	const bool bOnBack = State == EVaelRollerState::OnBack;
-	const float Moved = FVector::Dist2D(Before, GetActorLocation());
+	// The movement component moves the actor outside of this tick, so the way is measured from frame to frame
+	const float Moved = bHasLastLocation ? FVector::Dist2D(LastLocation, GetActorLocation()) : 0.0f;
+	LastLocation = GetActorLocation();
+	bHasLastLocation = true;
 
 	// The ball turns with the way it rolls; the feet swing with the way it walks
 	if (bRolling)

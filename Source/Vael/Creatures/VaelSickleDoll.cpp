@@ -353,8 +353,15 @@ void AVaelSickleDoll::Tick(float DeltaSeconds)
 		switch (State)
 		{
 		case EVaelDollState::Lurk:
-			Lean = FRotator(GetVelocity().Size2D() > 30.0f ? -12.0f : 0.0f, 0.0f, FMath::Sign(FMath::Sin(Time * 13.0f)) * 4.0f);
+		{
+			// Lurches from side to side like something that never learned to walk, with sudden jerks; stock-still in between
+			const bool bStepping = GetVelocity().Size2D() > 30.0f;
+			const float Lurch = FMath::Sin(Time * 9.0f) * 15.0f + FMath::Sign(FMath::Sin(Time * 23.0f)) * 5.0f;
+			const float Jerk = FMath::Sin(Time * 3.7f) > 0.82f ? FMath::Sign(FMath::Sin(Time * 41.0f)) * 12.0f : 0.0f;
+			Lean = bStepping ? FRotator(-16.0f + FMath::Sin(Time * 18.0f) * 6.0f, Jerk, Lurch) : FRotator(0.0f, Jerk * 0.6f, FMath::Sin(Time * 0.9f) * 2.0f);
+			HeadDroop = bStepping ? 0.35f : 0.0f;
 			break;
+		}
 		case EVaelDollState::Windup:
 			Lean = FRotator(10.0f * FMath::Min(StateTime / FMath::Max(Data->WindupTime, 0.01f), 1.0f), 0.0f, 0.0f);
 			break;

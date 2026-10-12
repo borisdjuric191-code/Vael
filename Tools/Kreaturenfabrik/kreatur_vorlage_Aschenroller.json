@@ -8,6 +8,7 @@
   "drehung_z_grad": 90,
   "tripo_rig_verwenden": false,
   "hoerner": false,
+  "bein_radius": 0.07,
   "aussehen": "Gürteltier der Aschenmark, groß wie ein kräftiger Hund (Idee von Boris, 6. Oktober 2026; Entwurf 1 gewählt am 12. Oktober 2026). Rückenpanzer aus überlappenden Bändern harter Aschekruste in Kohlegrau und Schwarz, in den Fugen glimmt Glut. Kleiner spitzer Kopf mit langer Schnauze, heller weicher Bauch, vier kurze kräftige Beine mit Grabklauen, dicker gepanzerter Schwanz.",
   "schwaeche": ["Fels in der Bahn (liegt dann auf dem Rücken)"],
   "verhaltensbausteine": ["RolltEin", "RolltBahn", "LiegtAufDemRuecken"],
