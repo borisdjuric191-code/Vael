@@ -350,6 +350,41 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = NumThefts > 0 && NumCarried > 0 && bBlinded && bReturned;
 			return FString::Printf(TEXT("%s%d thefts, carried %d, fire: %s, loot %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumThefts, NumCarried,
 				bBlinded ? TEXT("blinded") : TEXT("NOT blinded"), bReturned ? TEXT("given back") : TEXT("NOT given back"));
+		}, 1.0f });
+
+		// A block of rock in its way: it climbs over instead of walking around
+		Steps.Add({ TEXT("Monkey block"), [this, FindMonkey]()
+		{
+			AVaelVeilMonkey* Monkey = FindMonkey();
+			if (Monkey == nullptr || GetPlayer() == nullptr)
+			{
+				return FString(TEXT("FAILED: no living monkey"));
+			}
+
+			// Away from the player, so nobody stands behind the block
+			MonkeyClimbDirection = (Monkey->GetActorLocation() - GetPlayer()->GetActorLocation()).GetSafeNormal2D();
+			MonkeyClimbDirection = MonkeyClimbDirection.IsNearlyZero() ? FVector::ForwardVector : MonkeyClimbDirection;
+			MonkeyClimbStart = Monkey->GetActorLocation();
+
+			FVector Ground = MonkeyClimbStart + MonkeyClimbDirection * 120.0f;
+			AVaelCreature::FindGround(GetWorld(), Ground, Ground);
+			AVaelRockWall::RaiseBlock(GetWorld(), Ground, MonkeyClimbDirection.Rotation().Yaw, 120.0f, 120.0f, 8.0f, GetPlayer());
+
+			bMonkeyClimbStarted = Monkey->StartClimb(MonkeyClimbStart + MonkeyClimbDirection * 600.0f);
+			return FString::Printf(TEXT("block raised in its way, %s"), bMonkeyClimbStarted ? TEXT("starts to climb") : TEXT("does NOT climb"));
+		}, 1.6f });
+		Steps.Add({ TEXT("Monkey climb"), [this, FindMonkey]()
+		{
+			const AVaelVeilMonkey* Monkey = FindMonkey();
+			if (Monkey == nullptr)
+			{
+				return FString(TEXT("FAILED: no living monkey"));
+			}
+
+			const float Way = FVector::DotProduct(Monkey->GetActorLocation() - MonkeyClimbStart, MonkeyClimbDirection);
+			const bool bDone = Monkey->GetClimbCount() > 0 && Monkey->GetMonkeyState() != EVaelMonkeyState::Climb;
+			const bool bOk = bMonkeyClimbStarted && bDone && Way > 180.0f;
+			return FString::Printf(TEXT("%s%d climbs, %.0f cm beyond where it stood"), bOk ? TEXT("") : TEXT("FAILED: "), Monkey->GetClimbCount(), Way);
 		}, 0.1f });
 	}
 

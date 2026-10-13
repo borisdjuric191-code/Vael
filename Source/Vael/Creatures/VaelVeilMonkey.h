@@ -19,6 +19,8 @@ enum class EVaelMonkeyState : uint8
 	Dormant,
 	/** Keeps something between itself and the players, watches and points */
 	Hide,
+	/** Scrambles over a rock, a trunk or a piece of wall that stands in its way */
+	Climb,
 	/** Leaps at a player */
 	Pounce,
 	/** Clings to the back of a player, slows and robs them */
@@ -68,6 +70,12 @@ public:
 	/** Leaps at the player at once, whatever the corruption, for tests */
 	void StartPounce(AVaelCharacter* Victim);
 
+	/** Climbs over what stands between it and the goal, if it can; also for tests */
+	bool StartClimb(const FVector& Goal);
+
+	/** Things it has climbed over so far, for tests */
+	int32 GetClimbCount() const { return ClimbCount; }
+
 protected:
 
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
@@ -105,6 +113,9 @@ private:
 	/** True if a lantern or another fire light burns close to the place: it stays out of their light */
 	bool IsNearLight(const FVector& Location) const;
 
+	/** Looks at what blocks the straight way to the goal and starts to climb over it if it is low and narrow enough */
+	bool TryClimb(const FVector& Goal);
+
 	/** Lets go of the player it clings to and stands beside them again */
 	void LetGo();
 
@@ -130,6 +141,17 @@ private:
 	float PresenceCountdown = 0.0f;
 	float PounceCooldown = 0.0f;
 	float StealCountdown = 0.0f;
+
+	/** Seconds until it looks again for something to climb over */
+	float ClimbCooldown = 0.0f;
+
+	/** The way over the thing it climbs: up its face, across its top, down behind it; and the part it is on */
+	FVector ClimbPath[3] = { FVector::ZeroVector, FVector::ZeroVector, FVector::ZeroVector };
+	int32 ClimbLeg = 0;
+	int32 ClimbCount = 0;
+
+	/** How steeply the body points up or down while it climbs, in degrees, eased from frame to frame */
+	float ClimbPitchShown = 0.0f;
 
 	/** Where it wants to sit, and whether that is behind something */
 	FVector HidePoint = FVector::ZeroVector;

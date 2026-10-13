@@ -24,6 +24,7 @@
 #include "Vael.h"
 #include "World/VaelFireLight.h"
 #include "World/VaelRegion.h"
+#include "World/VaelSafeZone.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -41,6 +42,24 @@ namespace
 
 	/** Without cover it keeps this far from the players, in cm */
 	constexpr float MonkeyOpenDistance = 950.0f;
+
+	/** Seconds between two looks for something to climb over, and the rest after a climb */
+	constexpr float MonkeyClimbInterval = 0.25f;
+	constexpr float MonkeyClimbRest = 1.2f;
+
+	/** It starts to climb this close to the thing in its way, and feels for its top every so many cm */
+	constexpr float MonkeyClimbReach = 45.0f;
+	constexpr float MonkeyClimbSample = 20.0f;
+
+	/** Ground this far above or below its feet still counts as the ground behind the thing, in cm */
+	constexpr float MonkeyClimbStep = 25.0f;
+	constexpr float MonkeyClimbDrop = 150.0f;
+
+	/** It jumps down faster than it climbs up */
+	constexpr float MonkeyClimbDownSpeed = 1.7f;
+
+	/** Parts of the way over a thing: up, across, down */
+	constexpr int32 MonkeyClimbLegs = 3;
 
 	/** Diameter of the engine sphere in cm */
 	constexpr float MonkeyShapeSize = 100.0f;
@@ -102,6 +121,13 @@ void AVaelVeilMonkey::EnterState(EVaelMonkeyState NewState)
 	if (State == EVaelMonkeyState::Cling && NewState != EVaelMonkeyState::Cling)
 	{
 		LetGo();
+	}
+
+	// Thrown out of a climb it drops from where it is
+	if (State == EVaelMonkeyState::Climb && NewState != EVaelMonkeyState::Climb)
+	{
+		GetCharacterMovement()->SetMovementMode(MOVE_Falling);
+		ClimbCooldown = MonkeyClimbRest;
 	}
 
 	State = NewState;
@@ -281,9 +307,21 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 			}
 		}
 
+		// Now and then it looks whether something stands in its way that it can climb over
+		ClimbCooldown -= DeltaSeconds;
+		const auto ClimbsTowards = [this](const FVector& Goal)
+		{
+			if (ClimbCooldown > 0.0f)
+			{
+				return false;
+			}
+			ClimbCooldown = MonkeyClimbInterval;
+			return TryClimb(Goal);
+		};
+
 		if (Nearest == nullptr || NearestDistance > Data->AggroRange)
 		{
-			if (FVector::Dist2D(GetActorLocation(), HomeLocation) > 150.0f)
+			if (FVector::Dist2D(GetActorLocation(), HomeLocation) > 150.0f && !ClimbsTowards(HomeLocation))
 			{
 				MoveTowards(HomeLocation, Data->MoveSpeed * 0.4f);
 			}
@@ -318,11 +356,47 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 
 		if (FVector::Dist2D(GetActorLocation(), HidePoint) > MonkeyArriveDistance)
 		{
-			MoveTowards(HidePoint, Data->MoveSpeed * (bFlees ? 1.0f : 0.75f));
+			if (!ClimbsTowards(HidePoint))
+			{
+				MoveTowards(HidePoint, Data->MoveSpeed * (bFlees ? 1.0f : 0.75f));
+			}
 		}
 		else
 		{
 			FaceTowards((Pointed.IsValid() ? Pointed.Get() : Nearest)->GetActorLocation());
+		}
+		break;
+	}
+
+	case EVaelMonkeyState::Climb:
+	{
+		// Up the face, across the top and down behind it, faster on the way down
+		FVector Location = GetActorLocation();
+		float Step = Data->ClimbSpeed * (ClimbLeg >= 2 ? MonkeyClimbDownSpeed : 1.0f) * DeltaSeconds;
+
+		while (Step > 0.0f && ClimbLeg < MonkeyClimbLegs)
+		{
+			const FVector ToNext = ClimbPath[ClimbLeg] - Location;
+			const float Distance = ToNext.Size();
+			if (Distance <= Step)
+			{
+				Location = ClimbPath[ClimbLeg];
+				Step -= Distance;
+				++ClimbLeg;
+			}
+			else
+			{
+				Location += ToNext / Distance * Step;
+				Step = 0.0f;
+			}
+		}
+
+		SetActorLocation(Location);
+
+		if (ClimbLeg >= MonkeyClimbLegs)
+		{
+			++ClimbCount;
+			EnterState(EVaelMonkeyState::Hide);
 		}
 		break;
 	}
@@ -410,6 +484,124 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 		}
 		break;
 	}
+}
+
+bool AVaelVeilMonkey::StartClimb(const FVector& Goal)
+{
+	return !IsDead() && State != EVaelMonkeyState::Dormant && State != EVaelMonkeyState::Cling && State != EVaelMonkeyState::Climb && TryClimb(Goal);
+}
+
+bool AVaelVeilMonkey::TryClimb(const FVector& Goal)
+{
+	const UVaelVeilMonkeyData* Data = GetData<UVaelVeilMonkeyData>();
+	const float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const FVector Own = GetActorLocation();
+	const FVector Direction = (Goal - Own).GetSafeNormal2D();
+
+	if (Direction.IsNearlyZero() || !GetCharacterMovement()->IsMovingOnGround())
+	{
+		return false;
+	}
+
+	const UWorld* World = GetWorld();
+	const FCollisionObjectQueryParams Solid(ECC_WorldStatic);
+	const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelMonkeyClimb), false, this);
+	const float FeetZ = Own.Z - HalfHeight;
+
+	// Something squarely in the way: a slim body above what it simply steps onto
+	const float SlimRadius = Radius * 0.5f;
+	const FVector Chest = Own + FVector(0.0f, 0.0f, Data->ClimbHeight.X * 0.5f);
+	FHitResult Face;
+	if (!World->SweepSingleByObjectType(Face, Chest, Chest + Direction * (Radius + MonkeyClimbReach), FQuat::Identity, Solid,
+			FCollisionShape::MakeCapsule(SlimRadius, FMath::Max(HalfHeight - Data->ClimbHeight.X * 0.5f, SlimRadius)), QueryParams)
+		|| Face.bStartPenetrating || Face.ImpactNormal.Z > 0.6f
+		|| Face.GetComponent() == nullptr || Face.GetComponent()->GetCollisionResponseToChannel(ECC_Pawn) != ECR_Block)
+	{
+		return false;
+	}
+
+	// Feels for the top from above; false if the place is too high or has no ground
+	const float TraceTop = FeetZ + Data->ClimbHeight.Y + 5.0f;
+	const auto HeightAt = [World, &Solid, &QueryParams, TraceTop, FeetZ](const FVector& Spot, float& OutHeight)
+	{
+		FHitResult Top;
+		if (!World->LineTraceSingleByObjectType(Top, FVector(Spot.X, Spot.Y, TraceTop), FVector(Spot.X, Spot.Y, FeetZ - MonkeyClimbDrop), Solid, QueryParams) || Top.bStartPenetrating)
+		{
+			return false;
+		}
+		OutHeight = Top.ImpactPoint.Z;
+		return true;
+	};
+
+	// Its top just behind the face, then on along the way until the ground comes back
+	float TopZ = 0.0f;
+	if (!HeightAt(Face.ImpactPoint - Face.ImpactNormal.GetSafeNormal2D() * 3.0f, TopZ) || TopZ < FeetZ + Data->ClimbHeight.X)
+	{
+		return false;
+	}
+
+	const float FaceDistance = Face.Distance + SlimRadius;
+	FVector Landing = FVector::ZeroVector;
+	bool bLands = false;
+
+	for (float Depth = MonkeyClimbSample; Depth <= Data->ClimbMaxDepth && !bLands; Depth += MonkeyClimbSample)
+	{
+		float Height = 0.0f;
+		if (!HeightAt(Own + Direction * (FaceDistance + Depth), Height))
+		{
+			return false;
+		}
+
+		if (Height > FeetZ + MonkeyClimbStep)
+		{
+			TopZ = FMath::Max(TopZ, Height);
+			continue;
+		}
+
+		// Room to stand a little further on
+		Landing = Own + Direction * (FaceDistance + Depth + Radius + 10.0f);
+		if (!HeightAt(Landing, Height) || Height > FeetZ + MonkeyClimbStep)
+		{
+			return false;
+		}
+		Landing.Z = Height + HalfHeight + 2.0f;
+		bLands = true;
+	}
+
+	// Only if the goal lies behind the thing, and never into the light or a safe place
+	if (!bLands || FVector::Dist2D(Own, Goal) < FVector::Dist2D(Own, Landing) - Radius * 3.0f
+		|| IsNearLight(Landing) || AVaelSafeZone::IsSafe(World, Landing, Radius))
+	{
+		return false;
+	}
+
+	// Up the face, across the top, down behind it; nothing may stand in that way
+	const float Clear = TopZ + HalfHeight + 6.0f;
+	const FVector Foot = Own + Direction * FMath::Max(FaceDistance - Radius - 4.0f, 0.0f);
+	const FVector Up(Foot.X, Foot.Y, Clear);
+	const FVector Across(Landing.X, Landing.Y, Clear);
+	const FCollisionShape Trunk = FCollisionShape::MakeCapsule(FMath::Max(Radius - 4.0f, 1.0f), FMath::Max(HalfHeight - 4.0f, 1.0f));
+	const FVector Lift(0.0f, 0.0f, 10.0f);
+
+	if (World->SweepTestByObjectType(Foot + Lift, Up, FQuat::Identity, Solid, Trunk, QueryParams)
+		|| World->SweepTestByObjectType(Up, Across, FQuat::Identity, Solid, Trunk, QueryParams)
+		|| World->SweepTestByObjectType(Across, Landing + Lift, FQuat::Identity, Solid, Trunk, QueryParams))
+	{
+		return false;
+	}
+
+	ClimbPath[0] = Up;
+	ClimbPath[1] = Across;
+	ClimbPath[2] = Landing;
+	ClimbLeg = 0;
+
+	EnterState(EVaelMonkeyState::Climb);
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->SetMovementMode(MOVE_None);
+	SetActorRotation(FRotator(0.0f, Direction.Rotation().Yaw, 0.0f));
+
+	return true;
 }
 
 bool AVaelVeilMonkey::IsNearLight(const FVector& Location) const
@@ -515,7 +707,7 @@ void AVaelVeilMonkey::OnDamageTaken(float Damage, const FGameplayTagContainer& D
 
 void AVaelVeilMonkey::Die()
 {
-	if (State == EVaelMonkeyState::Cling)
+	if (State == EVaelMonkeyState::Cling || State == EVaelMonkeyState::Climb)
 	{
 		EnterState(EVaelMonkeyState::Hide);
 	}
@@ -620,7 +812,11 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 
 	// The wilder, the more it twitches
 	const float Twitch = bDeadNow ? 0.0f : Aggression * FMath::Sign(FMath::Sin(Time * 17.0f)) * FMath::Max(0.0f, FMath::Sin(Time * 2.3f));
-	Rig->SetRelativeRotation(FRotator(bBlindedNow ? -25.0f : 0.0f, Twitch * 9.0f, Twitch * 6.0f));
+	// Climbing, the body points up the face and down again behind it
+	const float ClimbPitch = State != EVaelMonkeyState::Climb || bDeadNow ? 0.0f : ClimbLeg == 0 ? 65.0f : ClimbLeg == 1 ? 0.0f : -50.0f;
+	ClimbPitchShown = FMath::FInterpTo(ClimbPitchShown, ClimbPitch, DeltaSeconds, 12.0f);
+
+	Rig->SetRelativeRotation(FRotator(bBlindedNow ? -25.0f : ClimbPitchShown, Twitch * 9.0f, Twitch * 6.0f));
 	Rig->SetRelativeScale3D(bDeadNow ? FVector(1.2f, 1.2f, 0.3f) : State == EVaelMonkeyState::Cling ? FVector(0.8f) : FVector::OneVector);
 
 	// A mesh of the creature factory is posed bone by bone
@@ -740,7 +936,8 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 	const UVaelVeilMonkeyData* Data = GetData<UVaelVeilMonkeyData>();
 	const float HalfHeight = GetCapsuleComponent()->GetUnscaledCapsuleHalfHeight();
 	const float Time = GetWorld()->GetTimeSeconds();
-	const float Speed = GetVelocity().Size2D();
+	// A climb moves it by hand, so it has no velocity to read
+	const float Speed = State == EVaelMonkeyState::Climb ? Data->ClimbSpeed : GetVelocity().Size2D();
 	const bool bDeadNow = IsDead();
 	const bool bRunning = Speed > 40.0f && State != EVaelMonkeyState::Cling;
 
@@ -761,6 +958,7 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 	float CrouchTarget = 1.0f;
 	switch (State)
 	{
+	case EVaelMonkeyState::Climb:	LeanTarget = 66.0f; CrouchTarget = 0.6f; break;
 	case EVaelMonkeyState::Pounce:	LeanTarget = 70.0f; CrouchTarget = 0.25f; break;
 	case EVaelMonkeyState::Cling:	LeanTarget = 25.0f; CrouchTarget = 0.9f; break;
 	case EVaelMonkeyState::Blinded:	LeanTarget = 55.0f; CrouchTarget = 1.0f; break;
@@ -823,6 +1021,7 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 		FVector Want(0.25f * Out, 0.45f, -1.0f);
 		switch (State)
 		{
+		case EVaelMonkeyState::Climb:	Want = FVector(0.3f * Out, 1.0f, 0.2f + Stride * (Side == 0 ? 1.0f : -1.0f) * 0.7f); break;
 		case EVaelMonkeyState::Pounce:	Want = FVector(0.35f * Out, 1.0f, 0.25f); break;
 		case EVaelMonkeyState::Cling:	Want = FVector(-0.25f * Out, 1.0f, -0.1f); break;
 		case EVaelMonkeyState::Blinded:	Want = FVector(-0.15f * Out, 0.7f, 0.9f); break;
@@ -853,7 +1052,7 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 
 	MonkeyMesh->SetRelativeScale3D(Scale);
 	MonkeyMesh->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, -HalfHeight - Drop * Scale.Z + Bob),
-		FRotator(0.0f, Twitch * 9.0f, Twitch * 5.0f).Quaternion() * FRotator(0.0f, Data->MeshYaw, 0.0f).Quaternion());
+		FRotator(ClimbPitchShown, Twitch * 9.0f, Twitch * 5.0f).Quaternion() * FRotator(0.0f, Data->MeshYaw, 0.0f).Quaternion());
 
 	// The eyes sit in the face, a little above the middle of the head
 	const float HeadHeight = FMath::Max(RestHead.GetLocation().Z, 1.0f);

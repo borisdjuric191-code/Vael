@@ -1023,6 +1023,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hiding", meta = (ClampMin = 0, ClampMax = 180))
 	float WatchedAngle = 28.0f;
 
+	/** It climbs over things this low to this high that stand in its way, in cm; lower ones it steps onto, higher ones it walks around */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Climbing")
+	FVector2D ClimbHeight = FVector2D(35.0f, 230.0f);
+
+	/** Things deeper than this it doesn't climb over, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Climbing", meta = (ClampMin = 0))
+	float ClimbMaxDepth = 450.0f;
+
+	/** Speed of the climb in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Climbing", meta = (ClampMin = 1))
+	float ClimbSpeed = 420.0f;
+
 	/** It neither hides nor leaps this close to a lantern or fire light, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Light", meta = (ClampMin = 0))
 	float LightAvoidRadius = 500.0f;
