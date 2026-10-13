@@ -65,6 +65,19 @@ namespace
 	constexpr float WaterBurstFlash = 5.0f;
 	constexpr float WaterBurstShake = 0.12f;
 
+	/** Tidal wave: pieces of the crest side by side, drops of spray and seconds each one flies, seconds between two drops and two splashes at its foot */
+	constexpr int32 TidalSegments = 7;
+	constexpr int32 TidalDropCount = 30;
+	constexpr float TidalDropLifetime = 0.6f;
+	constexpr float TidalDropGravity = 900.0f;
+	constexpr float TidalShedInterval = 0.025f;
+	constexpr float TidalSplashInterval = 0.12f;
+
+	/** Its height and thickness as share of its half width, and how far its ends hang back */
+	constexpr float TidalHeightShare = 0.85f;
+	constexpr float TidalThicknessShare = 0.55f;
+	constexpr float TidalSweepShare = 0.3f;
+
 	/** The pointed stone: number of rocks it is made of, its length and thickness as shares of the collision radius, its spin in degrees per second */
 	constexpr int32 RockShardParts = 3;
 	constexpr float RockShardLengthShare = 2.6f;
@@ -401,6 +414,37 @@ void AVaelSpellProjectile::BuildLook()
 
 		AddLookLight(Bright, 3.0f);
 	}
+	else if (Look == EVaelProjectileLook::TidalWave)
+	{
+		const FLinearColor Deep = SpellColor * FLinearColor(0.2f, 0.45f, 0.85f);
+		const FLinearColor Bright = FMath::Lerp(SpellColor, FLinearColor::White, 0.35f);
+		const FLinearColor Foam = FMath::Lerp(SpellColor, FLinearColor::White, 0.85f);
+
+		// A wall of dark water side by side, a foaming crest on top of every piece, one pale sheen over all of it
+		for (int32 SegmentIndex = 0; SegmentIndex < TidalSegments; ++SegmentIndex)
+		{
+			LookShapes.Add(AddLookShape(CoreMaterial, Deep, 0.6f));
+		}
+		for (int32 SegmentIndex = 0; SegmentIndex < TidalSegments; ++SegmentIndex)
+		{
+			LookShapes.Add(AddLookShape(CoreMaterial, Foam, 1.6f));
+		}
+		LookShapes.Add(AddLookShape(GlowMaterial, Bright, 1.2f, 1.0f));
+
+		// Spray thrown off the crest
+		for (int32 DropIndex = 0; DropIndex < TidalDropCount; ++DropIndex)
+		{
+			LoosePieces.Add(AddLookShape(CoreMaterial, Foam, 1.2f, 0.0f, true));
+		}
+
+		LooseSize = Radius * 0.09f / (PlaceholderSphereRadius * 2.0f);
+		LooseLifetime = TidalDropLifetime;
+		LooseGravity = TidalDropGravity;
+		LooseDrag = 1.6f;
+		bLooseFlicker = false;
+
+		AddLookLight(Bright, 5.0f);
+	}
 	else if (Look == EVaelProjectileLook::RockShard)
 	{
 		// The rock of the earth orb; brown spheres stand in for it while the pack isn't installed
@@ -612,6 +656,10 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 
 		case EVaelProjectileLook::MarkShard:
 			AnimateMarkShard(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::TidalWave:
+			AnimateTidalWave(Time, DeltaSeconds);
 			break;
 
 		default:
@@ -905,6 +953,78 @@ void AVaelSpellProjectile::AnimateWaterOrb(float Time)
 	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.1f * FMath::Sin(Wave)));
 }
 
+float AVaelSpellProjectile::GetFootHeight() const
+{
+	const FVector Center = GetActorLocation();
+
+	FHitResult GroundHit;
+	return VaelGround::TraceGround(GetWorld(), Center, Center - FVector(0.0f, 0.0f, 400.0f), GroundHit, this) ? GroundHit.Location.Z - Center.Z : -90.0f;
+}
+
+void AVaelSpellProjectile::AnimateTidalWave(float Time, float DeltaSeconds)
+{
+	const float Radius = SpellRadius;
+	const float Unit = PlaceholderSphereRadius * 2.0f;
+	const float Foot = GetFootHeight();
+	const float SegmentWidth = 2.0f * Radius / TidalSegments;
+
+	// The crest stands on the ground across the flight, highest and furthest ahead in the middle, and rolls along its length
+	for (int32 SegmentIndex = 0; SegmentIndex < TidalSegments; ++SegmentIndex)
+	{
+		const float Across = SegmentIndex / (TidalSegments - 1.0f) * 2.0f - 1.0f;
+		const float Roll = FMath::Sin(Time * 9.0f + SegmentIndex * 0.9f);
+		const float Height = Radius * TidalHeightShare * (1.0f - 0.4f * Across * Across) * (1.0f + 0.07f * Roll);
+		const float Ahead = -Radius * TidalSweepShare * Across * Across;
+		const float Side = Across * Radius * 0.9f;
+
+		UStaticMeshComponent* Body = LookShapes[SegmentIndex];
+		Body->SetRelativeLocation(FVector(Ahead, Side, Foot + Height * 0.5f));
+		Body->SetRelativeScale3D(FVector(Radius * TidalThicknessShare, SegmentWidth * 1.7f, Height) / Unit);
+
+		// The foam leans over the front of the wall, about to break
+		UStaticMeshComponent* Crest = LookShapes[TidalSegments + SegmentIndex];
+		Crest->SetRelativeLocation(FVector(Ahead + Radius * 0.2f, Side, Foot + Height * 0.95f));
+		Crest->SetRelativeScale3D(FVector(Radius * 0.42f, SegmentWidth * 1.5f, Height * 0.3f * (1.0f + 0.2f * Roll)) / Unit);
+	}
+
+	UStaticMeshComponent* Sheen = LookShapes[TidalSegments * 2];
+	Sheen->SetRelativeLocation(FVector(Radius * 0.1f, 0.0f, Foot + Radius * TidalHeightShare * 0.45f));
+	Sheen->SetRelativeScale3D(FVector(Radius * 0.75f, Radius * 2.1f, Radius * TidalHeightShare) / Unit);
+
+	LookLight->SetRelativeLocation(FVector(Radius * 0.3f, 0.0f, Foot + Radius * 0.5f));
+	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.15f * FMath::Sin(Time * 9.0f)));
+
+	const FVector Center = GetActorLocation();
+	const FVector Forward = GetActorForwardVector();
+	const FVector Right = GetActorRightVector();
+	const float Speed = Movement->Velocity.Size();
+
+	// Spray flies off the crest: up and back, a little to the sides
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = TidalShedInterval * FMath::FRandRange(0.6f, 1.5f);
+
+		const float Across = FMath::FRandRange(-1.0f, 1.0f);
+		const float Height = Radius * TidalHeightShare * (1.0f - 0.4f * Across * Across);
+
+		ShedPiece(Center + Right * Across * Radius * 0.9f + FVector(0.0f, 0.0f, Foot + Height),
+			Forward * Speed * FMath::FRandRange(0.35f, 0.7f) + Right * FMath::FRandRange(-120.0f, 120.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(180.0f, 420.0f)));
+	}
+
+	// And it splashes along its foot where it has just passed
+	NextSplashCountdown -= DeltaSeconds;
+	if (NextSplashCountdown <= 0.0f)
+	{
+		NextSplashCountdown = TidalSplashInterval;
+
+		if (UNiagaraSystem* Splash = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->SplashEffect))
+		{
+			VaelEffects::SpawnAt(this, Splash, Center + Right * FMath::FRandRange(-0.85f, 0.85f) * Radius - Forward * Radius * 0.3f + FVector(0.0f, 0.0f, Foot + 15.0f), FRotator::ZeroRotator, SpellColor, Radius);
+		}
+	}
+}
+
 void AVaelSpellProjectile::AnimateWaterBurst()
 {
 	if (!bBurst)
@@ -957,6 +1077,29 @@ void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
 		for (int32 EmberIndex = 0; bHitSomething && EmberIndex < SparkImpactEmbers; ++EmberIndex)
 		{
 			ShedPiece(Center, FMath::VRand() * SparkEmberSpread * FMath::FRandRange(1.2f, 2.6f) + FVector(0.0f, 0.0f, 140.0f));
+		}
+	}
+	else if (Look == EVaelProjectileLook::TidalWave)
+	{
+		// The wave breaks and falls apart: its water is thrown on ahead and up along its whole width
+		LookLight->SetVisibility(false);
+
+		const FVector Forward = GetActorForwardVector();
+		const FVector Right = GetActorRightVector();
+		const float Foot = GetFootHeight();
+		UNiagaraSystem* Splash = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->SplashEffect);
+
+		for (int32 DropIndex = 0; DropIndex < LoosePieces.Num(); ++DropIndex)
+		{
+			const float Across = FMath::FRandRange(-1.0f, 1.0f);
+			const FVector Place = Center + Right * Across * Radius * 0.9f + FVector(0.0f, 0.0f, Foot + Radius * FMath::FRandRange(0.1f, TidalHeightShare));
+
+			ShedPiece(Place, Forward * FMath::FRandRange(200.0f, 520.0f) + Right * FMath::FRandRange(-160.0f, 160.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(120.0f, 380.0f)));
+
+			if (Splash != nullptr && DropIndex % 6 == 0)
+			{
+				VaelEffects::SpawnAt(this, Splash, Center + Right * Across * Radius * 0.9f + FVector(0.0f, 0.0f, Foot + 15.0f), FRotator::ZeroRotator, SpellColor, Radius);
+			}
 		}
 	}
 	else if (Look == EVaelProjectileLook::WaterOrb)

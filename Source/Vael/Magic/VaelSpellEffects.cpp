@@ -72,6 +72,17 @@ FVaelLoadedEffects VaelEffects::Load(EVaelElement Element, const FVaelSpellEffec
 	Loaded.ImpactSound = LoadFirst(Override ? &Override->ImpactSound : nullptr, ForElement ? &ForElement->ImpactSound : nullptr, Default.ImpactSound);
 	Loaded.Color = MagicSettings->GetElementColor(Element);
 
+	// The spacing belongs to the ground effect that was found
+	for (const FVaelSpellEffects* Source : { Override, ForElement, &Default })
+	{
+		if (Source != nullptr && Loaded.Ground != nullptr && Source->GroundEffect.ToSoftObjectPath() == FSoftObjectPath(Loaded.Ground))
+		{
+			Loaded.GroundSpacing = Source->GroundSpacing;
+			Loaded.GroundScale = Source->GroundScale;
+			break;
+		}
+	}
+
 	return Loaded;
 }
 

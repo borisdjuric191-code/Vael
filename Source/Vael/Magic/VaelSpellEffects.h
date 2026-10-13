@@ -39,6 +39,14 @@ struct FVaelSpellEffects
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Effects")
 	TSoftObjectPtr<UNiagaraSystem> GroundEffect;
 
+	/** For a ground effect of fixed size that doesn't know Radius: it is repeated all over the patch, one every this many cm. 0: one in the middle. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Effects", meta = (ClampMin = 0))
+	float GroundSpacing = 0.0f;
+
+	/** Size of each of the repeated ground effects */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Effects", meta = (ClampMin = 0.1))
+	float GroundScale = 1.0f;
+
 	/** Sound when the spell is released */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Effects")
 	TSoftObjectPtr<USoundBase> CastSound;
@@ -65,6 +73,10 @@ struct FVaelLoadedEffects
 
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraSystem> Ground;
+
+	/** How the ground effect is repeated over a patch, from where the effect itself comes from */
+	float GroundSpacing = 0.0f;
+	float GroundScale = 1.0f;
 
 	UPROPERTY(Transient)
 	TObjectPtr<USoundBase> CastSound;

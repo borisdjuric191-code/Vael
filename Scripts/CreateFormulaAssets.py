@@ -200,6 +200,7 @@ FORMULAS = [
         "status_duration": 7.0,
         "cone_range": 4.4 * TILE,
         "cone_half_angle": 54.4,
+        "cone_look": unreal.VaelConeLook.WATER_WAVE,
     },
     {
         "asset": "DA_Formula_Felswand",
@@ -274,6 +275,7 @@ FORMULAS = [
         "projectile_lifetime": 1.25,
         "projectile_pierce": 99,
         "projectile_passes_walls": True,
+        "projectile_look": unreal.VaelProjectileLook.TIDAL_WAVE,
     },
     {
         "asset": "DA_Formula_Erdbeben",

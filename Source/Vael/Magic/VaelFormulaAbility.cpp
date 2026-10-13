@@ -620,12 +620,13 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	const bool bHasSpray = VaelEffects::SpawnAt(Caster, Effects.Cast, Origin, AimDirection.Rotation(), Effects.Color, Formula.ConeRange) != nullptr;
 
 	// The cone's own look blows out of the hand together with the spray, as far as the cone reaches from the caster
-	if (Formula.ConeLook == EVaelConeLook::WindGust)
+	if (Formula.ConeLook != EVaelConeLook::Plain)
 	{
 		const FVector Hand = GetProjectileStart(Caster, AimDirection);
 		const float HandAhead = FVector::DotProduct(Hand - Origin, AimDirection);
 
-		AVaelSpellGust::Spawn(Caster, Hand, AimDirection, Formula.ConeRange - HandAhead, Formula.ConeHalfAngle, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
+		AVaelSpellGust::Spawn(Caster, Hand, AimDirection, Formula.ConeRange - HandAhead, Formula.ConeHalfAngle, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement),
+			Formula.ConeLook == EVaelConeLook::WaterWave);
 		return;
 	}
 

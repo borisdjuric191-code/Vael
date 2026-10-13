@@ -161,6 +161,13 @@ private:
 	void AnimateLavaBall(float Time, float DeltaSeconds);
 	void AnimateLavaBurst();
 	void AnimateMarkShard(float Time, float DeltaSeconds);
+	void AnimateTidalWave(float Time, float DeltaSeconds);
+
+	/** Height of the ground below the projectile, relative to it, in cm */
+	float GetFootHeight() const;
+
+	/** Seconds until a tidal wave splashes again at its foot */
+	float NextSplashCountdown = 0.0f;
 
 	/** Adds a cone to the look, pointed like a crystal */
 	UStaticMeshComponent* AddLookCone(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim = 0.0f, bool bLoose = false);

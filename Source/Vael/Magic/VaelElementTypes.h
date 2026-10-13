@@ -85,7 +85,9 @@ enum class EVaelProjectileLook : uint8
 	/** A glowing core under tumbling plates of crust that drips lava and splashes it all around where it bursts, like the Lavaball */
 	LavaBall,
 	/** A crooked black splinter with a twitching violet edge whose motes rise instead of fall, like the Marksplitter */
-	MarkShard
+	MarkShard,
+	/** A wide rolling crest of water with foam on top that throws spray behind it and splashes along its foot, like the Flutwelle */
+	TidalWave
 };
 
 /** What rises out of the ground where a strike of a spell lands */
@@ -119,7 +121,9 @@ enum class EVaelConeLook : uint8
 	/** Only the outline of the cone */
 	Plain,
 	/** A curved wall of pressure rolls along the cone with streaks of wind and kicks up dust, like the Windstoß */
-	WindGust
+	WindGust,
+	/** A curved wall of water with a foaming crest rolls along the cone, throws up drops and mist and splashes where it passes, like the Welle */
+	WaterWave
 };
 
 /** What a patch on the ground does to the enemies of its creator standing in it */

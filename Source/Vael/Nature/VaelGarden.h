@@ -178,10 +178,10 @@ public:
 	TArray<TSoftObjectPtr<UStaticMesh>> GreenMeshes;
 
 	UPROPERTY(config, EditAnywhere, Category="Green", meta = (ClampMin = 0))
-	float GreenTuftsPerSquareMeter = 0.25f;
+	float GreenTuftsPerSquareMeter = 0.4f;
 
 	UPROPERTY(config, EditAnywhere, Category="Green", meta = (ClampMin = 0))
-	int32 GreenMaxTufts = 160;
+	int32 GreenMaxTufts = 260;
 
 	/** Width of a tuft in cm, between these two; every model is sized to it, whatever size it was made in */
 	UPROPERTY(config, EditAnywhere, Category="Green")

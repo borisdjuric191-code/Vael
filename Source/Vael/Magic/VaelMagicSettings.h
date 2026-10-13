@@ -208,6 +208,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UNiagaraSystem> HandEffect;
 
+	/** Small splash where a wave of water passes, played once at many places */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UNiagaraSystem> SplashEffect;
+
 	/** Solid, glowing material of the element orbs above the head; gets Color and Glow. Without it they use the plain engine material. */
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UMaterialInterface> ElementOrbCoreMaterial;

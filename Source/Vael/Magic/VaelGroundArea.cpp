@@ -11,6 +11,7 @@
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
+#include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -23,6 +24,9 @@ namespace
 {
 	/** Radius of the engine cylinder mesh used as placeholder */
 	constexpr float PlaceholderCylinderRadius = 50.0f;
+
+	/** A ground effect of fixed size is repeated at most this often over one patch */
+	constexpr int32 MaxRepeatedVisuals = 20;
 
 	/** Seconds between two damage steps of an area */
 	constexpr float DamageStepInterval = 0.5f;
@@ -390,6 +394,8 @@ FLinearColor AVaelGroundArea::GetLookColor() const
 void AVaelGroundArea::SpawnVisual()
 {
 	UNiagaraSystem* Visual = VisualOverride;
+	float Spacing = 0.0f;
+	float Scale = 1.0f;
 
 	if (Visual == nullptr)
 	{
@@ -408,12 +414,41 @@ void AVaelGroundArea::SpawnVisual()
 		if (Visual == nullptr)
 		{
 			const EVaelElement LookElement = Effect == EVaelGroundEffect::Blind || Effect == EVaelGroundEffect::Veil ? EVaelElement::Water : Effect == EVaelGroundEffect::Slow ? EVaelElement::Earth : Element;
-			Visual = VaelEffects::Load(LookElement).Ground;
+			const FVaelLoadedEffects Loaded = VaelEffects::Load(LookElement);
+			Visual = Loaded.Ground;
+			Spacing = Loaded.GroundSpacing;
+			Scale = Loaded.GroundScale;
 		}
 	}
 
-	if (VaelEffects::Attach(Visual, Disc, NAME_None, GetLookColor(), Radius) != nullptr)
+	UNiagaraComponent* Middle = VaelEffects::Attach(Visual, Disc, NAME_None, GetLookColor(), Radius);
+	if (Middle == nullptr)
 	{
-		Disc->SetVisibility(false);
+		return;
+	}
+
+	Disc->SetVisibility(false);
+
+	if (Spacing <= 0.0f)
+	{
+		return;
+	}
+
+	// An effect of fixed size is repeated all over the patch, so a big fire is many flames and not one small one
+	Middle->SetWorldScale3D(FVector(Scale));
+
+	const int32 NumMore = FMath::Clamp(FMath::RoundToInt(FMath::Square(Radius / Spacing) * 1.2f) - 1, 0, MaxRepeatedVisuals);
+	for (int32 Index = 0; Index < NumMore; ++Index)
+	{
+		// Evenly over the disc, in a spiral from the middle outwards, each one nudged a little
+		const float Share = FMath::Sqrt((Index + 1.0f) / NumMore);
+		const float Angle = (Index + 1) * 2.39996f;
+		const FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Share * FMath::Max(Radius - Spacing * 0.4f, 0.0f) + FVector(FMath::FRandRange(-0.15f, 0.15f), FMath::FRandRange(-0.15f, 0.15f), 0.0f) * Spacing;
+
+		if (UNiagaraComponent* More = VaelEffects::Attach(Visual, Disc, NAME_None, GetLookColor(), Radius))
+		{
+			More->SetWorldLocation(Disc->GetComponentLocation() + Offset);
+			More->SetWorldScale3D(FVector(Scale * FMath::FRandRange(0.8f, 1.15f)));
+		}
 	}
 }

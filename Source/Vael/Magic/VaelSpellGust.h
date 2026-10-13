@@ -25,7 +25,7 @@ public:
 	AVaelSpellGust();
 
 	/** Spawns a gust at the hand blowing in a horizontal direction */
-	static AVaelSpellGust* Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color);
+	static AVaelSpellGust* Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color, bool bWater = false);
 
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
@@ -51,6 +51,16 @@ private:
 	float Range = 450.0f;
 	float HalfAngle = 45.0f;
 	FLinearColor GustColor = FLinearColor::White;
+
+	/** True for a wave of water instead of a gust of air: a solid wall with a foaming crest, drops and mist instead of dust, splashes where it passes */
+	bool bWater = false;
+
+	/** Seconds the wall takes to the end of the cone, and its thickness in cm */
+	float WaveTime = 0.38f;
+	float WaveThickness = 22.0f;
+
+	/** Which of the drops have splashed already */
+	TBitArray<> DustSplashed;
 
 	/** Height of the ground below the hand, relative to the gust */
 	float GroundHeight = -90.0f;

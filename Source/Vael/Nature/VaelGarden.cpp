@@ -115,9 +115,10 @@ UVaelGardenSettings::UVaelGardenSettings()
 	AddGreen(StyleHex, TEXT("SM_Fol_Grass_Clump_2"));
 	AddGreen(StyleHex, TEXT("SM_Fol_Grass_Clump_3"));
 	AddGreen(StyleHex, TEXT("SM_Fol_Flower_Clump_1"));
+	AddGreen(StyleHex, TEXT("SM_Fol_Flower_Clump_2"));
 	AddGreen(StyleHex, TEXT("SM_Fol_Flower_Clump_3"));
+	AddGreen(StyleHex, TEXT("SM_Fol_Flower_Clump_4"));
 	AddGreen(TEXT("Megascans/3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_00"));
-	AddGreen(TEXT("Megascans/3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_02"));
 }
 
 UVaelGardenSubsystem* UVaelGardenSubsystem::Get(const UObject* WorldContext)

@@ -6,7 +6,10 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
+#include "NiagaraSystem.h"
+#include "VaelAssets.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -21,7 +24,12 @@ namespace
 
 	/** The wall of air starts at this share of the reach and arrives at the end of the cone after this many seconds */
 	constexpr float GustWaveStartShare = 0.12f;
-	constexpr float GustWaveTime = 0.38f;
+	constexpr float GustWaveSeconds = 0.38f;
+
+	/** A wall of water rolls slower, is thicker and stands this much higher than a wall of air */
+	constexpr float GustWaterSeconds = 0.5f;
+	constexpr float GustWaterThickness = 46.0f;
+	constexpr float GustWaterHeightScale = 0.8f;
 
 	/** Pieces side by side along the arc of the wall, its thickness in cm, its height as share of the reach at the start and the end */
 	constexpr int32 GustWaveSegments = 9;
@@ -47,6 +55,9 @@ namespace
 	/** Every this many pieces of dust one is a soft puff that rises and swells instead of falling */
 	constexpr int32 GustPuffEvery = 4;
 
+	/** Every this many drops of a wave of water one splashes where it flies up */
+	constexpr int32 GustSplashEvery = 3;
+
 	/** Brightness of the light on the wall of air in candela */
 	constexpr float GustLightIntensity = 6.0f;
 }
@@ -57,7 +68,7 @@ AVaelSpellGust::AVaelSpellGust()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color)
+AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color, bool bWater)
 {
 	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
 	const FVector BlowDirection = Direction.GetSafeNormal2D();
@@ -74,6 +85,9 @@ AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, c
 		Gust->Range = FMath::Max(Range, 50.0f);
 		Gust->HalfAngle = HalfAngle;
 		Gust->GustColor = Color;
+		Gust->bWater = bWater;
+		Gust->WaveTime = bWater ? GustWaterSeconds : GustWaveSeconds;
+		Gust->WaveThickness = bWater ? GustWaterThickness : GustWaveThickness;
 		Gust->FinishSpawning(SpawnTransform);
 	}
 
@@ -97,21 +111,31 @@ void AVaelSpellGust::BeginPlay()
 		GroundHeight = GroundHit.Location.Z - Hand.Z;
 	}
 
-	const FLinearColor Bright = FMath::Lerp(GustColor, FLinearColor::White, 0.3f);
+	const FLinearColor Bright = FMath::Lerp(GustColor, FLinearColor::White, bWater ? 0.8f : 0.3f);
 	const FLinearColor Ash(0.42f, 0.36f, 0.28f);
+	const FLinearColor Deep = GustColor * FLinearColor(0.2f, 0.45f, 0.85f);
 
 	HandRing = VaelEffects::AddLookShape(this, GlowMaterial, Bright, 2.2f, 1.0f);
 
-	// The wall only shines at its edges, so it reads as clear air pressed together
 	for (int32 SegmentIndex = 0; SegmentIndex < GustWaveSegments; ++SegmentIndex)
 	{
-		WaveFront.Add(VaelEffects::AddLookShape(this, GlowMaterial, Bright, 1.4f, 1.0f));
-		WaveBack.Add(VaelEffects::AddLookShape(this, GlowMaterial, GustColor, 0.5f, 0.6f));
+		if (bWater)
+		{
+			// A solid wall of dark water runs ahead, its pale foam rolls behind it
+			WaveFront.Add(VaelEffects::AddLookShape(this, CoreMaterial, Deep, 0.6f, 0.0f));
+			WaveBack.Add(VaelEffects::AddLookShape(this, CoreMaterial, Bright, 1.4f, 0.0f));
+		}
+		else
+		{
+			// The wall only shines at its edges, so it reads as clear air pressed together
+			WaveFront.Add(VaelEffects::AddLookShape(this, GlowMaterial, Bright, 1.4f, 1.0f));
+			WaveBack.Add(VaelEffects::AddLookShape(this, GlowMaterial, GustColor, 0.5f, 0.6f));
+		}
 	}
 
 	for (int32 StreakIndex = 0; StreakIndex < GustStreakCount; ++StreakIndex)
 	{
-		Streaks.Add(VaelEffects::AddLookShape(this, GlowMaterial, Bright, 3.5f, 0.0f));
+		Streaks.Add(VaelEffects::AddLookShape(this, GlowMaterial, Bright, bWater ? 1.8f : 3.5f, 0.0f));
 		StreakYaws.Add(FMath::FRandRange(-HalfAngle, HalfAngle) * 0.85f);
 		StreakHeights.Add(GroundHeight + FMath::FRandRange(25.0f, Range * GustWaveEndHeight * 0.9f));
 		StreakStarts.Add(FMath::FRandRange(0.0f, GustStreakLatestStart));
@@ -127,7 +151,10 @@ void AVaelSpellGust::BeginPlay()
 		const FVector Side(-Out.Y, Out.X, 0.0f);
 		const float Distance = Range * FMath::FRandRange(0.2f, 0.85f);
 
-		Dust.Add(bPuff ? VaelEffects::AddLookShape(this, GlowMaterial, FLinearColor(0.55f, 0.52f, 0.48f), 0.35f, 0.3f) : VaelEffects::AddLookShape(this, CoreMaterial, Ash, 0.0f, 0.0f));
+		// Water throws drops and mist where air kicks up grains and dust
+		Dust.Add(bPuff
+			? VaelEffects::AddLookShape(this, GlowMaterial, bWater ? Bright : FLinearColor(0.55f, 0.52f, 0.48f), 0.35f, 0.3f)
+			: VaelEffects::AddLookShape(this, CoreMaterial, bWater ? Bright : Ash, bWater ? 1.0f : 0.0f, 0.0f));
 		DustOrigins.Add(Out * Distance + FVector(0.0f, 0.0f, GroundHeight + 3.0f));
 		DustStarts.Add(GetWaveArrival(Distance) + FMath::FRandRange(0.0f, 0.03f));
 		DustSizes.Add(bPuff ? FMath::FRandRange(30.0f, 50.0f) : FMath::FRandRange(5.0f, 12.0f));
@@ -135,6 +162,8 @@ void AVaelSpellGust::BeginPlay()
 			? Out * FMath::FRandRange(120.0f, 220.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(40.0f, 90.0f))
 			: Out * FMath::FRandRange(220.0f, 480.0f) + Side * FMath::FRandRange(-60.0f, 60.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(160.0f, 340.0f)));
 	}
+
+	DustSplashed.Init(false, Dust.Num());
 
 	WaveLight = NewObject<UPointLightComponent>(this);
 	WaveLight->SetupAttachment(RootComponent);
@@ -152,7 +181,7 @@ void AVaelSpellGust::BeginPlay()
 float AVaelSpellGust::GetWaveDistance(float Time) const
 {
 	// Fast out of the hand, slowing towards the end of the cone
-	const float Progress = FMath::Clamp(Time / GustWaveTime, 0.0f, 1.0f);
+	const float Progress = FMath::Clamp(Time / WaveTime, 0.0f, 1.0f);
 	const float Eased = 1.0f - FMath::Square(1.0f - Progress);
 
 	return Range * FMath::Lerp(GustWaveStartShare, 1.0f, Eased);
@@ -162,7 +191,7 @@ float AVaelSpellGust::GetWaveArrival(float Distance) const
 {
 	const float Eased = FMath::Clamp((Distance / Range - GustWaveStartShare) / (1.0f - GustWaveStartShare), 0.0f, 1.0f);
 
-	return (1.0f - FMath::Sqrt(1.0f - Eased)) * GustWaveTime;
+	return (1.0f - FMath::Sqrt(1.0f - Eased)) * WaveTime;
 }
 
 void AVaelSpellGust::Tick(float DeltaSeconds)
@@ -172,7 +201,7 @@ void AVaelSpellGust::Tick(float DeltaSeconds)
 	Elapsed += DeltaSeconds;
 
 	// Gone once the wall has blown out and the last dust has settled
-	if (Elapsed >= GustWaveTime + GustStreakLatestStart + GustDustLifetime)
+	if (Elapsed >= WaveTime + GustStreakLatestStart + GustDustLifetime)
 	{
 		Destroy();
 		return;
@@ -203,7 +232,7 @@ void AVaelSpellGust::AnimateHandRing()
 
 void AVaelSpellGust::AnimateWave()
 {
-	const float Progress = Elapsed / GustWaveTime;
+	const float Progress = Elapsed / WaveTime;
 	const bool bVisible = Progress < 1.0f;
 
 	for (int32 SegmentIndex = 0; SegmentIndex < GustWaveSegments; ++SegmentIndex)
@@ -222,7 +251,7 @@ void AVaelSpellGust::AnimateWave()
 	// Comes up quickly, fades over the last stretch of the cone
 	const float Fade = FMath::Clamp(Elapsed / 0.05f, 0.0f, 1.0f) * (1.0f - FMath::SmoothStep(0.55f, 1.0f, Progress));
 	const float Distance = GetWaveDistance(Elapsed);
-	const float Height = Range * FMath::Lerp(GustWaveStartHeight, GustWaveEndHeight, FMath::Clamp(Progress, 0.0f, 1.0f));
+	const float Height = Range * FMath::Lerp(GustWaveStartHeight, GustWaveEndHeight, FMath::Clamp(Progress, 0.0f, 1.0f)) * (bWater ? GustWaterHeightScale : 1.0f);
 
 	const float Spread = HalfAngle * 0.92f;
 	const float Step = FMath::DegreesToRadians(2.0f * Spread / (GustWaveSegments - 1));
@@ -242,13 +271,13 @@ void AVaelSpellGust::AnimateWave()
 		UStaticMeshComponent* Front = WaveFront[SegmentIndex];
 		Front->SetRelativeLocation(Out * SegmentDistance + FVector(0.0f, 0.0f, GroundHeight + SegmentHeight * 0.5f));
 		Front->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
-		Front->SetRelativeScale3D(FVector(GustWaveThickness, Width, SegmentHeight) / GustSphereSize);
+		Front->SetRelativeScale3D(FVector(WaveThickness, Width, SegmentHeight) / GustSphereSize);
 		VaelEffects::SetLookGlow(Front, 1.4f * Fade);
 
 		UStaticMeshComponent* Back = WaveBack[SegmentIndex];
 		Back->SetRelativeLocation(Out * SegmentDistance * GustWaveBackShare + FVector(0.0f, 0.0f, GroundHeight + SegmentHeight * 0.4f));
 		Back->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
-		Back->SetRelativeScale3D(FVector(GustWaveThickness * 1.6f, Width * GustWaveBackShare, SegmentHeight * 0.8f) / GustSphereSize);
+		Back->SetRelativeScale3D(FVector(WaveThickness * 1.6f, Width * GustWaveBackShare, SegmentHeight * 0.8f) / GustSphereSize);
 		VaelEffects::SetLookGlow(Back, 0.5f * Fade);
 	}
 
@@ -293,6 +322,18 @@ void AVaelSpellGust::AnimateDust()
 		if (Age <= 0.0f || Age >= GustDustLifetime)
 		{
 			continue;
+		}
+
+		// The wave splashes where it throws up every few of its drops
+		if (bWater && !DustSplashed[DustIndex])
+		{
+			DustSplashed[DustIndex] = true;
+
+			if (DustIndex % GustSplashEvery == 1)
+			{
+				VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->SplashEffect), GetActorTransform().TransformPosition(DustOrigins[DustIndex] + FVector(0.0f, 0.0f, 12.0f)),
+					FRotator::ZeroRotator, GustColor, Range);
+			}
 		}
 
 		// Flung off by the wall, slowed by the air; grains fall back to the ground, puffs drift up
