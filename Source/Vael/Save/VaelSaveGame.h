@@ -144,6 +144,10 @@ public:
 	UPROPERTY()
 	TArray<FVaelSavedPlant> SownPlants;
 
+	/** Seconds the garden has been played; the green around a plant grows by it */
+	UPROPERTY()
+	float GardenClock = 0.0f;
+
 	// Players by slot, 0 to 3
 
 	UPROPERTY()

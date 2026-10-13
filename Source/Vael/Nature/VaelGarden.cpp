@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Nature/VaelGarden.h"
+#include "Components/DecalComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelCreature.h"
@@ -19,6 +21,8 @@
 #include "UI/VaelNoticeSubsystem.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Vael.h"
+#include "VaelAssets.h"
+#include "World/VaelGround.h"
 #include "World/VaelRegion.h"
 
 #define LOCTEXT_NAMESPACE "VaelGarden"
@@ -31,6 +35,20 @@ namespace
 	/** Height of the pot in cm, and how big the grown plant is shown in it */
 	constexpr float GardenPotHeight = 45.0f;
 	constexpr float GardenPotPlantScale = 0.55f;
+
+	/** The green is projected this far up and down from the ground in cm, so it also climbs the foot of walls */
+	constexpr float GreenDepth = 160.0f;
+
+	/** Seconds between two looks at how far the green should reach, and how fast it follows, in cm per second at least */
+	constexpr float GreenAskInterval = 0.5f;
+	constexpr float GreenFollowSpeed = 25.0f;
+
+	/** Tufts sprout once the green has passed them by this share, keep this far from the plant in cm,
+	 *  stand at most this much higher or lower than it and take this many seconds to grow up */
+	constexpr float TuftBehindEdge = 0.85f;
+	constexpr float TuftMinDistance = 45.0f;
+	constexpr float TuftMaxHeightDifference = 120.0f;
+	constexpr float TuftGrowSeconds = 3.0f;
 
 	const FLinearColor GardenNoticeColor(0.6f, 1.0f, 0.55f);
 	const FLinearColor GardenSproutColor(0.35f, 0.9f, 0.4f);
@@ -77,6 +95,20 @@ UVaelGardenSettings::UVaelGardenSettings()
 	Add(TEXT("Windhalm"), LOCTEXT("Windhalm", "Windhalm"), 0.8f, FLinearColor(0.4f, 0.95f, 1.0f), 1700.0f);
 	Add(TEXT("Schlotwinde"), LOCTEXT("Schlotwinde", "Schlotwinde"), 0.7f, FLinearColor(1.0f, 0.8f, 0.2f), 1900.0f);
 	Add(TEXT("Hainschoessling"), LOCTEXT("Hainschoessling", "Hainschössling"), 0.15f, FLinearColor(1.0f, 0.88f, 0.4f), 3200.0f);
+
+	// The green around sown plants: a decal made by Scripts/CreateGardenMaterials.py, and moss and grass of the Megascans pack
+	GreenMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/M_Vael_Gruen.M_Vael_Gruen")));
+
+	const auto AddGreen = [this](const TCHAR* Folder, const TCHAR* Name)
+	{
+		GreenMeshes.Add(TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/Megascans/%s/%s.%s"), Folder, Name, Name))));
+	};
+
+	AddGreen(TEXT("3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_00"));
+	AddGreen(TEXT("3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_02"));
+	AddGreen(TEXT("3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_05"));
+	AddGreen(TEXT("3D_Plants/ThatchingGrass"), TEXT("SM_ThatchingGrass00_V2"));
+	AddGreen(TEXT("3D_Plants/ThatchingGrass"), TEXT("SM_ThatchingGrass00_V10"));
 }
 
 UVaelGardenSubsystem* UVaelGardenSubsystem::Get(const UObject* WorldContext)
@@ -234,6 +266,7 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 	Saved.Plant = Picked->Id;
 	Saved.Location = Ground;
 	Saved.Yaw = Yaw;
+	Saved.SownAt = Clock;
 
 	// Every plant takes a little of the corruption out of its land
 	if (AVaelRegion* Region = AVaelRegion::GetRegionAt(World, Ground))
@@ -283,8 +316,69 @@ void UVaelGardenSubsystem::OnLevelStarted(UWorld* World)
 	}
 }
 
+float UVaelGardenSubsystem::GetGreenRadius(const UWorld* World, const FVector& PlantLocation) const
+{
+	if (World == nullptr)
+	{
+		return 0.0f;
+	}
+
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+	const FName Level = GardenLevelName(World);
+
+	// The plant itself tells how long the green has grown, the others near it how far it is carried
+	float Age = 0.0f;
+	int32 NumNeighbours = 0;
+	for (const FVaelSavedPlant& Plant : Sown)
+	{
+		if (Plant.Level != Level)
+		{
+			continue;
+		}
+
+		const float Distance = FVector::Dist2D(Plant.Location, PlantLocation);
+		if (Distance < 1.0f)
+		{
+			Age = FMath::Max(Clock - Plant.SownAt, 0.0f);
+		}
+		else if (Distance < Settings->GreenLinkDistance)
+		{
+			++NumNeighbours;
+		}
+	}
+
+	// Quick at first, so sowing shows at once; then slowly, so coming back later is worth it
+	const float Radius = Age < Settings->GreenQuickSeconds
+		? FMath::InterpEaseOut(Settings->GreenStartRadius, Settings->GreenQuickRadius, Age / Settings->GreenQuickSeconds, 2.0f)
+		: FMath::Lerp(Settings->GreenQuickRadius, Settings->GreenFullRadius, FMath::Clamp((Age - Settings->GreenQuickSeconds) / Settings->GreenSlowSeconds, 0.0f, 1.0f));
+
+	return Radius * (1.0f + Settings->GreenNeighbourBonus * FMath::Min(NumNeighbours, Settings->GreenMaxNeighbours));
+}
+
+float UVaelGardenSubsystem::GetMaxGreenRadius()
+{
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+	return FMath::Max(Settings->GreenFullRadius, Settings->GreenQuickRadius) * (1.0f + Settings->GreenNeighbourBonus * Settings->GreenMaxNeighbours);
+}
+
+void UVaelGardenSubsystem::Tick(float DeltaTime)
+{
+	const UWorld* World = GetTickableGameObjectWorld();
+	if (World != nullptr && World->IsGameWorld() && World->HasBegunPlay())
+	{
+		Clock += DeltaTime;
+	}
+}
+
+UWorld* UVaelGardenSubsystem::GetTickableGameObjectWorld() const
+{
+	const UGameInstance* GameInstance = GetGameInstance();
+	return GameInstance != nullptr ? GameInstance->GetWorld() : nullptr;
+}
+
 void UVaelGardenSubsystem::WriteSave(UVaelSaveGame& Save) const
 {
+	Save.GardenClock = Clock;
 	Save.ResearchedPlants = Researched;
 	Save.SownPlants = Sown;
 	Save.PotPlant = PotPlant;
@@ -297,6 +391,7 @@ void UVaelGardenSubsystem::ReadSave(const UVaelSaveGame& Save)
 	Sown = Save.SownPlants;
 	PotPlant = Save.PotPlant;
 	PotSecondsLeft = Save.PotSecondsLeft;
+	Clock = Save.GardenClock;
 }
 
 AVaelSeedPot::AVaelSeedPot()
@@ -503,6 +598,15 @@ AVaelSownPlant::AVaelSownPlant()
 	Glow->SetIntensity(0.0f);
 	Glow->SetAttenuationRadius(450.0f);
 	Glow->SetCastShadows(false);
+
+	// Looks down at the ground; its size is its scale, so the model growing and swaying doesn't move it
+	Green = CreateDefaultSubobject<UDecalComponent>(TEXT("Green"));
+	Green->SetupAttachment(Model);
+	Green->SetUsingAbsoluteRotation(true);
+	Green->SetUsingAbsoluteScale(true);
+	Green->SetRelativeRotation(FRotator(-90.0f, 0.0f, 0.0f));
+	Green->DecalSize = FVector(GreenDepth, GardenShapeSize, GardenShapeSize);
+	Green->SetVisibility(false);
 }
 
 AVaelSownPlant* AVaelSownPlant::Plant(UWorld* World, FName InPlantId, const FVector& GroundLocation, float Yaw, bool bGrown)
@@ -519,6 +623,7 @@ AVaelSownPlant* AVaelSownPlant::Plant(UWorld* World, FName InPlantId, const FVec
 		Sown->PlantId = InPlantId;
 		Sown->BaseYaw = Yaw;
 		Sown->Age = bGrown ? UVaelGardenSettings::Get()->GrowSeconds : 0.0f;
+		Sown->bInstantGreen = bGrown;
 
 		// The same plant looks the same every time: its size hangs on its place
 		FRandomStream Random(GetTypeHash(GroundLocation.GridSnap(10.0f)));
@@ -541,6 +646,126 @@ void AVaelSownPlant::BeginPlay()
 	}
 
 	Model->SetRelativeScale3D(FVector(0.01f));
+
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+
+	if (UMaterialInterface* GreenMaterial = VaelAssets::LoadOptional(Settings->GreenMaterial))
+	{
+		Green->SetDecalMaterial(GreenMaterial);
+		Green->SetWorldRotation(FRotator(-90.0f, BaseYaw, 0.0f));
+		Green->SetVisibility(true);
+	}
+
+	// Grass and moss, one component per model that exists
+	for (const TSoftObjectPtr<UStaticMesh>& GreenMesh : Settings->GreenMeshes)
+	{
+		UStaticMesh* Mesh = VaelAssets::LoadOptional(GreenMesh);
+		if (Mesh == nullptr)
+		{
+			continue;
+		}
+
+		UInstancedStaticMeshComponent* Component = NewObject<UInstancedStaticMeshComponent>(this);
+		Component->SetStaticMesh(Mesh);
+		Component->SetMobility(EComponentMobility::Movable);
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetCanEverAffectNavigation(false);
+		Component->SetCastShadow(false);
+		Component->SetUsingAbsoluteLocation(true);
+		Component->SetUsingAbsoluteRotation(true);
+		Component->SetUsingAbsoluteScale(true);
+		Component->SetupAttachment(RootComponent);
+		Component->RegisterComponent();
+		Tufts.Add(Component);
+	}
+
+	// Where tufts can sprout, the same every time for the same place, sorted from the plant outwards
+	if (!Tufts.IsEmpty())
+	{
+		const float MaxRadius = UVaelGardenSubsystem::GetMaxGreenRadius();
+		const int32 NumSpots = FMath::Min(FMath::RoundToInt(UE_PI * FMath::Square(MaxRadius / 100.0f) * Settings->GreenTuftsPerSquareMeter), Settings->GreenMaxTufts);
+
+		FRandomStream Random(GetTypeHash(GetActorLocation().GridSnap(10.0f)) + 17);
+		TuftSpots.Reserve(NumSpots);
+		for (int32 Index = 0; Index < NumSpots; ++Index)
+		{
+			const float Angle = Random.FRandRange(0.0f, UE_TWO_PI);
+
+			FVaelTuftSpot& Spot = TuftSpots.AddDefaulted_GetRef();
+			Spot.Distance = FMath::Max(FMath::Sqrt(Random.FRand()) * MaxRadius, TuftMinDistance);
+			Spot.Offset = FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Spot.Distance;
+			Spot.Yaw = Random.FRandRange(0.0f, 360.0f);
+			Spot.Scale = Random.FRandRange(Settings->GreenTuftScale.X, Settings->GreenTuftScale.Y);
+			Spot.Mesh = Random.RandRange(0, Tufts.Num() - 1);
+		}
+
+		TuftSpots.Sort([](const FVaelTuftSpot& A, const FVaelTuftSpot& B) { return A.Distance < B.Distance; });
+	}
+}
+
+void AVaelSownPlant::UpdateGreen(float DeltaSeconds)
+{
+	// The garden knows how far the green should reach; the shown green follows it, so a new neighbour doesn't make it jump
+	GreenAskCountdown -= DeltaSeconds;
+	if (GreenAskCountdown <= 0.0f)
+	{
+		GreenAskCountdown = GreenAskInterval;
+
+		const UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+		GreenTarget = Garden != nullptr ? Garden->GetGreenRadius(GetWorld(), GetActorLocation()) : 0.0f;
+
+		// A plant that stood here before the session shows its green at once
+		if (bInstantGreen)
+		{
+			GreenRadius = GreenTarget;
+		}
+	}
+
+	GreenRadius = FMath::FInterpConstantTo(GreenRadius, GreenTarget, DeltaSeconds, FMath::Max(GreenFollowSpeed, FMath::Abs(GreenTarget - GreenRadius) * 0.5f));
+	Green->SetWorldScale3D(FVector(1.0f, GreenRadius / GardenShapeSize, GreenRadius / GardenShapeSize));
+
+	// Tufts sprout where the green has arrived, a few at a time
+	const FVector Origin = GetActorLocation();
+	const int32 MaxNew = bInstantGreen ? TuftSpots.Num() : 2;
+	for (int32 NumNew = 0; NumNew < MaxNew && TuftSpots.IsValidIndex(NextTuft) && TuftSpots[NextTuft].Distance <= GreenRadius * TuftBehindEdge; ++NumNew, ++NextTuft)
+	{
+		const FVaelTuftSpot& Spot = TuftSpots[NextTuft];
+		const FVector Place = Origin + FVector(Spot.Offset.X, Spot.Offset.Y, 0.0f);
+
+		FHitResult GroundHit;
+		if (!VaelGround::TraceGround(GetWorld(), Place + FVector(0.0f, 0.0f, 300.0f), Place - FVector(0.0f, 0.0f, 600.0f), GroundHit)
+			|| FMath::Abs(GroundHit.Location.Z - Origin.Z) > TuftMaxHeightDifference || GroundHit.ImpactNormal.Z < 0.8f)
+		{
+			continue;
+		}
+
+		FVaelGrowingTuft& Tuft = GrowingTufts.AddDefaulted_GetRef();
+		Tuft.Mesh = Spot.Mesh;
+		Tuft.Grown = FTransform(FRotator(0.0f, Spot.Yaw, 0.0f), GroundHit.Location, FVector(Spot.Scale));
+		Tuft.Age = bInstantGreen ? TuftGrowSeconds : 0.0f;
+
+		FTransform Start = Tuft.Grown;
+		Start.SetScale3D(FVector(0.01f));
+		Tuft.Instance = Tufts[Tuft.Mesh]->AddInstance(Start, true);
+	}
+
+	bInstantGreen = false;
+
+	for (int32 Index = GrowingTufts.Num() - 1; Index >= 0; --Index)
+	{
+		FVaelGrowingTuft& Tuft = GrowingTufts[Index];
+		Tuft.Age += DeltaSeconds;
+
+		const float Grown = FMath::Clamp(Tuft.Age / TuftGrowSeconds, 0.0f, 1.0f);
+		FTransform Shown = Tuft.Grown;
+		Shown.SetScale3D(Tuft.Grown.GetScale3D() * FMath::InterpEaseOut(0.01f, 1.0f, Grown, 2.0f));
+		Tufts[Tuft.Mesh]->UpdateInstanceTransform(Tuft.Instance, Shown, true, true);
+
+		if (Grown >= 1.0f)
+		{
+			GrowingTufts.RemoveAtSwap(Index);
+		}
+	}
 }
 
 void AVaelSownPlant::Tick(float DeltaSeconds)
@@ -557,6 +782,8 @@ void AVaelSownPlant::Tick(float DeltaSeconds)
 	Model->SetRelativeScale3D(FVector(Size * SizeScale));
 	Model->SetRelativeRotation(FRotator(FMath::Sin(Phase) * 2.5f, BaseYaw, FMath::Sin(Phase * 0.7f) * 2.0f));
 	Glow->SetIntensity(GlowStrength * Grown * (0.8f + 0.2f * FMath::Sin(Age * 2.1f)));
+
+	UpdateGreen(DeltaSeconds);
 }
 
 #undef LOCTEXT_NAMESPACE

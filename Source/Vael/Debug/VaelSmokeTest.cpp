@@ -944,7 +944,24 @@ void AVaelSmokeTest::BeginPlay()
 		const bool bOk = bGrowing && bResearched && bSown;
 		return FString::Printf(TEXT("%spot: %s, %s %s, a seed of it %s"), bOk ? TEXT("") : TEXT("FAILED: "), bGrowing ? TEXT("seed grows") : TEXT("does NOT grow"),
 			*Kind.ToString(), bResearched ? TEXT("researched") : TEXT("NOT researched"), bSown ? TEXT("sown") : TEXT("NOT sown"));
-	}, 0.5f });
+	}, 8.0f });
+
+	// Green spreads around what was sown, and tufts sprout in it
+	Steps.Add({ TEXT("Green"), [this]()
+	{
+		int32 NumPlants = 0;
+		int32 NumTufts = 0;
+		float Radius = 0.0f;
+		for (TActorIterator<AVaelSownPlant> It(GetWorld()); It; ++It)
+		{
+			++NumPlants;
+			NumTufts += It->GetNumTufts();
+			Radius = FMath::Max(Radius, It->GetGreenRadius());
+		}
+
+		const bool bOk = NumPlants > 0 && Radius > UVaelGardenSettings::Get()->GreenStartRadius;
+		return FString::Printf(TEXT("%s%d sown plants, green reaches %.0f cm, %d tufts"), bOk ? TEXT("") : TEXT("FAILED: "), NumPlants, Radius, NumTufts);
+	}, 0.1f });
 
 	Steps.Add({ TEXT("Harvest"), Harvest, 0.1f });
 	Steps.Add({ TEXT("Corrupt the region"), [SetRegionCorruption]() { return SetRegionCorruption(70.0f, false); }, 1.5f });
