@@ -21,6 +21,7 @@
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 #include "Save/VaelSaveSubsystem.h"
+#include "Nature/VaelGarden.h"
 #include "Creatures/VaelCreatureSpawner.h"
 #include "World/VaelGround.h"
 
@@ -284,6 +285,12 @@ void AVaelGameMode::StartPlay()
 	if (UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this))
 	{
 		Save->OnLevelStarted();
+
+		// The pot beside Albrun and what the players have sown
+		if (UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this))
+		{
+			Garden->OnLevelStarted(GetWorld());
+		}
 
 		if (Save->WasLoaded())
 		{

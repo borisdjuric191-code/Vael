@@ -25,6 +25,7 @@
 #include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelCheatManager.h"
+#include "Nature/VaelGarden.h"
 #include "Player/VaelInteractable.h"
 #include "GameFramework/InputDeviceSubsystem.h"
 #include "Kismet/GameplayStatics.h"
@@ -130,6 +131,8 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCast);
 			EnhancedInputComponent->BindAction(ClearQueueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnClearQueue);
 			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnInteract);
+			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnSowHoldEnd);
+			EnhancedInputComponent->BindAction(ClearQueueAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnSowHoldEnd);
 			EnhancedInputComponent->BindAction(PotionAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnPotion);
 
 			for (int32 SlotIndex = 0; SlotIndex < QuickSlotActions.Num(); ++SlotIndex)
@@ -364,6 +367,8 @@ void AVaelPlayerController::CreateInputAssets()
 
 void AVaelPlayerController::PlayerTick(float DeltaTime)
 {
+	UpdateSowHold();
+
 	PreviousMoveDirection = MoveDirection;
 	MoveDirection = FVector::ZeroVector;
 
@@ -517,6 +522,20 @@ void AVaelPlayerController::OnCast()
 
 void AVaelPlayerController::OnClearQueue()
 {
+	// On the gamepad a player who carries seeds and stands in peace sows by holding L1 / LB; a short tap acts when the button is let go
+	const AVaelCharacter* Sower = GetPawn<AVaelCharacter>();
+	if (Sower != nullptr && GetInputGlyphs() != EVaelInputGlyphs::Keyboard && Sower->GetElementComponent()->GetQueue().IsEmpty() && CanStartSowing())
+	{
+		SowHoldStart = GetWorld()->GetTimeSeconds();
+		bSowHoldDeferred = true;
+		return;
+	}
+
+	DiscardOrDrink();
+}
+
+void AVaelPlayerController::DiscardOrDrink()
+{
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	if (VaelCharacter == nullptr)
 	{
@@ -540,6 +559,63 @@ void AVaelPlayerController::OnInteract()
 	if (IVaelInteractable* Interactable = Cast<IVaelInteractable>(UVaelInteractionSubsystem::FindNearest(VaelCharacter)))
 	{
 		Interactable->Interact(VaelCharacter);
+		return;
+	}
+
+	// Nothing to use: held, the button sows a seed
+	SowHoldStart = GetWorld()->GetTimeSeconds();
+	bSowHoldDeferred = false;
+}
+
+bool AVaelPlayerController::CanStartSowing() const
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	const UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+	if (VaelCharacter == nullptr || Garden == nullptr || VaelCharacter->IsDowned() || !Garden->CanSow(VaelCharacter))
+	{
+		return false;
+	}
+
+	// Not in a fight: there the button keeps doing what it always does
+	const float CombatRange = UVaelItemSettings::Get()->InteractCombatRange;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), VaelCharacter->GetActorLocation()) < CombatRange)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void AVaelPlayerController::UpdateSowHold()
+{
+	if (SowHoldStart < 0.0f || GetWorld()->GetTimeSeconds() - SowHoldStart < UVaelGardenSettings::Get()->SowHoldSeconds)
+	{
+		return;
+	}
+
+	// Held long enough: the seed goes into the ground, and the tap the button would have meant is dropped
+	SowHoldStart = -1.0f;
+	bSowHoldDeferred = false;
+
+	if (UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this))
+	{
+		Garden->Sow(GetPawn<AVaelCharacter>());
+	}
+}
+
+void AVaelPlayerController::OnSowHoldEnd()
+{
+	const bool bWasTap = SowHoldStart >= 0.0f && bSowHoldDeferred;
+	SowHoldStart = -1.0f;
+	bSowHoldDeferred = false;
+
+	// Let go early: L1 / LB does what a tap always did
+	if (bWasTap)
+	{
+		DiscardOrDrink();
 	}
 }
 

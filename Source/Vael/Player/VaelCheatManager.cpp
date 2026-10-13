@@ -18,6 +18,7 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Nature/VaelGarden.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "Save/VaelSaveSubsystem.h"
@@ -579,5 +580,30 @@ void UVaelCheatManager::VaelSpeichern()
 	{
 		Save->SaveNow();
 		UE_LOG(LogVael, Log, TEXT("VaelSpeichern: save game written"));
+	}
+}
+
+void UVaelCheatManager::VaelSaat(const FString& What)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+	if (Player == nullptr || Garden == nullptr)
+	{
+		return;
+	}
+
+	if (What.StartsWith(TEXT("all"), ESearchCase::IgnoreCase))
+	{
+		for (const FVaelSeedPlant& Plant : UVaelGardenSettings::Get()->Plants)
+		{
+			Garden->Research(Plant.Id, Player);
+		}
+		return;
+	}
+
+	if (const UVaelMaterial* Seed = UVaelGardenSettings::Get()->SurpriseSeed.LoadSynchronous())
+	{
+		Player->GetMaterialBag()->AddMaterial(Seed, 5);
 	}
 }

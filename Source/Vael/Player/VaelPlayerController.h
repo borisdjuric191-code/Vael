@@ -281,6 +281,22 @@ protected:
 	void OnElement(EVaelElement Element);
 	void OnCast();
 	void OnClearQueue();
+
+	/** Discards queued elements, or drinks a potion on the gamepad when none are queued */
+	void DiscardOrDrink();
+
+	/** True if the player carries a seed they can sow and no fight is going on */
+	bool CanStartSowing() const;
+
+	/** Sows once the button was held long enough */
+	void UpdateSowHold();
+
+	/** The held button was let go */
+	void OnSowHoldEnd();
+
+	/** Game time at which the button that sows was pressed, negative while it is not held; and whether its tap still has to act when it is let go */
+	float SowHoldStart = -1.0f;
+	bool bSowHoldDeferred = false;
 	void OnInteract();
 	void OnPotion();
 	void OnQuickSlot(int32 SlotIndex);

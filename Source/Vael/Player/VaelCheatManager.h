@@ -27,6 +27,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelLearnAll();
 
+	/** Seed garden: gives the player five surprise seeds; with "alles" every plant is researched and its seeds are handed out. Example: VaelSaat alles */
+	UFUNCTION(Exec)
+	void VaelSaat(const FString& What);
+
 	/** Puts a condition on everything the player can hurt: Wet, Burning or Frozen, for the given seconds. Example: VaelStatus Wet 5 */
 	UFUNCTION(Exec)
 	void VaelStatus(const FString& Status, float Duration);

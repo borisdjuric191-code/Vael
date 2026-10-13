@@ -12,6 +12,7 @@
 #include "Creatures/VaelAshRoller.h"
 #include "Creatures/VaelBloodMoth.h"
 #include "Creatures/VaelDraculaupe.h"
+#include "Nature/VaelGarden.h"
 #include "Nature/VaelRainBloom.h"
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelVeilMonkey.h"
@@ -909,6 +910,41 @@ void AVaelSmokeTest::BeginPlay()
 
 		return FString::Printf(TEXT("%s%d sprouted in the rain, %d of them carry seeds"), NumSprouted > 0 ? TEXT("") : TEXT("FAILED: "), NumSprouted, NumSeeded);
 	}, 0.1f });
+
+	// A surprise seed goes into Albrun's pot, grows, is researched; then one of its seeds is sown
+	Steps.Add({ TEXT("Garden"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+		AVaelSeedPot* Pot = nullptr;
+		for (TActorIterator<AVaelSeedPot> It(GetWorld()); It; ++It)
+		{
+			Pot = *It;
+		}
+
+		const UVaelMaterial* Surprise = UVaelGardenSettings::Get()->SurpriseSeed.LoadSynchronous();
+		if (Player == nullptr || Garden == nullptr || Pot == nullptr || Surprise == nullptr)
+		{
+			return FString::Printf(TEXT("FAILED: %s"), Pot == nullptr ? TEXT("no pot beside Albrun") : TEXT("no player, garden or surprise seed"));
+		}
+
+		const int32 KnownBefore = Garden->GetNumResearched();
+		Player->GetMaterialBag()->AddMaterial(Surprise, 1);
+		Pot->Interact(Player);
+		const bool bGrowing = Pot->GetPotState() == EVaelPotState::Growing;
+		const FName Kind = Garden->PotPlant;
+
+		Pot->FinishGrowing();
+		Pot->Interact(Player);
+		const bool bResearched = Garden->GetNumResearched() == KnownBefore + 1 && Garden->IsResearched(Kind);
+
+		const int32 SownBefore = Garden->GetNumSown();
+		const bool bSown = Garden->Sow(Player) != nullptr && Garden->GetNumSown() == SownBefore + 1;
+
+		const bool bOk = bGrowing && bResearched && bSown;
+		return FString::Printf(TEXT("%spot: %s, %s %s, a seed of it %s"), bOk ? TEXT("") : TEXT("FAILED: "), bGrowing ? TEXT("seed grows") : TEXT("does NOT grow"),
+			*Kind.ToString(), bResearched ? TEXT("researched") : TEXT("NOT researched"), bSown ? TEXT("sown") : TEXT("NOT sown"));
+	}, 0.5f });
 
 	Steps.Add({ TEXT("Harvest"), Harvest, 0.1f });
 	Steps.Add({ TEXT("Corrupt the region"), [SetRegionCorruption]() { return SetRegionCorruption(70.0f, false); }, 1.5f });

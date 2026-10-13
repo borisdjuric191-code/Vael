@@ -6,6 +6,7 @@
 #include "GameFramework/SaveGame.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Items/VaelItemTypes.h"
+#include "Nature/VaelGarden.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "World/VaelWeatherTypes.h"
 #include "VaelSaveGame.generated.h"
@@ -125,6 +126,23 @@ public:
 	/** Regions by "Level.Actor" */
 	UPROPERTY()
 	TMap<FName, FVaelSavedRegion> Regions;
+
+	// Seed garden
+
+	/** Plants Albrun has researched, by their id */
+	UPROPERTY()
+	TSet<FName> ResearchedPlants;
+
+	/** What grows in the pot, none while it is empty, and the seconds it still needs */
+	UPROPERTY()
+	FName PotPlant;
+
+	UPROPERTY()
+	float PotSecondsLeft = 0.0f;
+
+	/** Plants the players have sown */
+	UPROPERTY()
+	TArray<FVaelSavedPlant> SownPlants;
 
 	// Players by slot, 0 to 3
 
