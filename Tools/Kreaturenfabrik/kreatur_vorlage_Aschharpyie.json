@@ -1,0 +1,19 @@
+{
+  "name": "Aschharpyie",
+  "name_datei": "Aschharpyie",
+  "region": "Aschenmark",
+  "familie": "Fluegler",
+  "klasse": "normal",
+  "laenge_cm": 95,
+  "spannweite_cm": 220,
+  "drehung_z_grad": 7,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Aasvogel der Aschenmark, groß wie ein Geier (Entwurf 2 gewählt am 13. Oktober 2026). Kahler, faltiger Hexenkopf mit Hakenschnabel und fahlen Augen, zerzauster Kragen aus Rußfedern am langen nackten Hals. Zwei breite, zerschlissene Flügel aus rußschwarzen und aschgrauen Federn, an den Spitzen glimmt Glut. Hagerer Leib, zwei lange nackte Beine mit großen Greifklauen, kurzer Schwanzfächer.",
+  "schwaeche": ["Erde", "Luft (wirft sie aus der Bahn)"],
+  "verhaltensbausteine": ["Kreist", "Sturzflug", "Schwarm"],
+  "warnsignale": {
+    "sturzflug": "hängt in der Luft, richtet sich auf und legt die Flügel an"
+  },
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Multi-Views (vorn, links, rechts, hinten) -> Multi-View zu 3D."
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Harpyien-Älteste",
+  "name_datei": "HarpyienAelteste",
+  "region": "Aschenmark",
+  "familie": "Fluegler",
+  "klasse": "elite",
+  "laenge_cm": 150,
+  "spannweite_cm": 300,
+  "drehung_z_grad": 6,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Die Älteste eines Harpyienschwarms (Entwurf 1 gewählt am 13. Oktober 2026): doppelt so groß wie ihre Töchter, schwer und breitbrüstig. Vernarbter kahler Kopf mit rissigem Hakenschnabel, ein Auge milchig blind, eine Krone aus langen knochenweißen Kielen. Dicker Kragen aus Ruß- und Graufedern, darin gestohlener Tand und kleine Knochen. Riesige zerschlissene Flügel, viele Federn bis auf den Kiel verbrannt, Glut an den Kanten.",
+  "schwaeche": ["Erde"],
+  "verhaltensbausteine": ["Kreist", "Sturzflug", "Kreischt (ruft den Schwarm)"],
+  "warnsignale": {
+    "sturzflug": "hängt in der Luft, richtet sich auf und legt die Flügel an",
+    "kreischen": "reißt den Kopf hoch und spreizt die Krone"
+  },
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Multi-Views (vorn, links, rechts, hinten) -> Multi-View zu 3D."
+}

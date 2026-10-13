@@ -103,4 +103,52 @@ private:
 
 	/** Current height of the body above the capsule */
 	float BodyHeight = 0.0f;
+
+	/** A wing or a leg of the factory mesh: its two bones and where they rest, in component space */
+	struct FVaelHarpyLimb
+	{
+		FName Upper;
+		FName Lower;
+		FTransform RestUpper = FTransform::Identity;
+		FTransform RestLower = FTransform::Identity;
+	};
+
+	/** Finds body, head, tail, wings and legs of the factory mesh */
+	void SetupBones();
+
+	/** Poses the factory mesh: gliding, hanging in the air before a dive, diving with folded wings, climbing, falling */
+	void PoseFactoryMesh(float DeltaSeconds);
+
+	/** Turns a limb at its root and bends it at its joint; the turns are in component space, relative to the rest pose */
+	void PoseLimb(const FVaelHarpyLimb& Limb, const FQuat& Turn, const FQuat& Bend);
+
+	/** Turns a single bone around its own root, relative to the rest pose */
+	void PoseBone(FName Bone, const FTransform& Rest, const FQuat& Turn);
+
+	/** Left and right wing and leg, head and tail of the factory mesh */
+	FVaelHarpyLimb Wings[2];
+	FVaelHarpyLimb Legs[2];
+	FTransform RestHead = FTransform::Identity;
+	FTransform RestTail = FTransform::Identity;
+	bool bHasBones = false;
+
+	/** Height of the middle of the mesh above its feet, in cm: it leans around this point */
+	float MeshMiddle = 0.0f;
+
+	/** Progress of the wing beat in beats, and what is shown, eased from frame to frame: lean forward in degrees,
+	 *  how far the wings are folded back (0 to 1), how high they are held in degrees, how far they beat in degrees,
+	 *  how far the legs trail behind in degrees and the roll of a tumbling or falling body in degrees */
+	float FlapPhase = 0.0f;
+	float LeanShown = 0.0f;
+	float FoldShown = 0.0f;
+	float RaiseShown = 0.0f;
+	float BeatShown = 20.0f;
+	float LegTrailShown = 0.0f;
+	float RollShown = 0.0f;
+
+	/** Seconds since it died, for the fall */
+	float DeadTime = 0.0f;
+
+	/** World time until which the head is thrown up in a screech */
+	float ScreechEndTime = -1.0f;
 };

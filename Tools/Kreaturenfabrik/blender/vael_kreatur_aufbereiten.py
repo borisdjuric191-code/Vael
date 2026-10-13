@@ -76,7 +76,18 @@ ZWEIBEINER = {
         "leg": [(.12, .5, .42), (.16, .45, .22), (.18, .5, .0)],
     },
 }
-FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR, "Zweibeiner": ZWEIBEINER}
+# Vorlage-Skelett Flügler (Aschharpyie): hängt aufrecht in der Luft, Flügel zur Seite gebreitet, Beine frei nach unten,
+# Kopf nach vorn, Schwanzfächer nach hinten unten. Je Flügel Arm und Hand, je Bein Ober- und Unterschenkel, ein Schwanzknochen.
+FLUEGLER = {
+    "body": [(0, .5, .50), (0, .5, .80)],
+    "head": [(0, .35, .74), (0, .06, .62)],
+    "tail": [(0, .62, .48), (0, .95, .22)],
+    "ketten": {
+        "wing": [(.13, .5, .72), (.56, .5, .78), (1.0, .5, .75)],
+        "leg":  [(.10, .5, .48), (.11, .45, .26), (.12, .5, .03)],
+    },
+}
+FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR, "Zweibeiner": ZWEIBEINER, "Fluegler": FLUEGLER}
 
 # ---------------------------------------------------------------- Hilfen
 def log(*a): print("[Vael]", *a)
@@ -162,6 +173,8 @@ def vorbereiten(ordner):
     faktor = (sb["laenge_cm"] / 100.0) / laenge_bu       # Blender-Einheit = 1 m
     if sb.get("hoehe_cm"):                                # aufrechte Kreaturen (Puppe): die Höhe zählt
         faktor = (sb["hoehe_cm"] / 100.0) / (hi.z - lo.z)
+    if sb.get("spannweite_cm"):                           # Flügler: die Spannweite zählt
+        faktor = (sb["spannweite_cm"] / 100.0) / (hi.x - lo.x)
     obj.scale = (faktor,) * 3
     bpy.ops.object.transform_apply(scale=True)
 
@@ -331,7 +344,62 @@ def passe_zweibeiner_an(obj, tpl):
     log(f"Skelett an den Zweibeiner angepasst (Schulterhöhe {(schulter_z - lo.z) / H:.2f}, Hand bei {hand.x / hw:.2f}/{(hand.z - lo.z) / H:.2f}, Fuß bei {fuss.x / hw:.2f}).")
     return t
 
+def passe_fluegler_an(obj, tpl):
+    """Sucht Flügelspitzen, Füße, Schnabel und Schwanz im Mesh (Flügel gebreitet, Blick nach -Y) und legt die Gelenke
+    dazwischen. Jede Seite für sich: Tripo-Modelle sind selten genau spiegelgleich. Die Punkte kommen als Weltkoordinaten zurück."""
+    import copy
+    lo, hi = bbox_welt(obj)
+    hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
+    V = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    mittel = lambda ps: sum(ps, Vector()) / len(ps)
+    t = copy.deepcopy(tpl)
+
+    # Rumpf: Punkte nahe der Achse oberhalb der Beine; Beine: alles Tiefe, das nicht zum Schwanz hinten gehört
+    rumpf = [p for p in V if abs(p.x) < .12 * hw and p.z > lo.z + .5 * H]
+    cy = mittel(rumpf).y if rumpf else 0
+    # Beine: unter dem Rumpf, nahe der Achse, nicht hinten beim Schwanz (hängende Schwungfedern und der Schwanz reichen oft tiefer als die Füße)
+    unten = [p for p in V if p.z < lo.z + .42 * H and abs(p.x) < .3 * hw and p.y < cy + .2 * L]
+    if len(rumpf) < 10 or len(unten) < 10:
+        log("Rumpf oder Füße nicht sicher gefunden – nehme die Vorlage."); return tpl
+    cy = mittel(rumpf).y
+    xm = mittel(unten).x                                   # Mitte zwischen den Füßen
+    huefte_z = lo.z + .5 * H
+    schnabel = mittel(sorted(V, key=lambda p: p.y)[:30])
+    hinten = [p for p in V if p.y > lo.y + .88 * L and p.z < lo.z + .5 * H]
+    schwanz = mittel(hinten) if len(hinten) >= 6 else Vector((0, hi.y, lo.z + .25 * H))
+    schwanz_ab = cy + .35 * (schwanz.y - cy)               # hinter dieser Linie beginnt der Schwanz
+
+    wing, leg = {}, {}
+    for seite, s in (("L", 1), ("R", -1)):
+        spitze = [p for p in V if p.x * s > .9 * hw]
+        hand = [p for p in V if .5 * hw < p.x * s < .62 * hw]
+        hand.sort(key=lambda p: -p.z); hand = hand[:max(6, len(hand) // 3)]   # der Knochen läuft an der Oberkante des Flügels
+        ansatz = [p for p in V if .12 * hw < p.x * s < .24 * hw and p.z > lo.z + .5 * H]
+        bein = [p for p in unten if (p.x - xm) * s > 0]
+        if min(len(spitze), len(hand), len(ansatz), len(bein)) < 6:
+            log(f"Flügel oder Bein {seite} nicht sicher gefunden – nehme die Vorlage."); return tpl
+        a = mittel(ansatz)
+        wing[seite] = [Vector((s * .13 * hw, a.y, a.z)), mittel(hand), mittel(spitze)]
+        bein.sort(key=lambda p: p.z)
+        fuss = mittel(bein[:max(6, len(bein) // 10)])
+        knie_z = (fuss.z + huefte_z) / 2
+        knie_pts = [p for p in bein if abs(p.z - knie_z) < .05 * H]
+        knie = mittel(knie_pts) if len(knie_pts) >= 4 else (fuss + Vector((fuss.x, cy, huefte_z))) / 2
+        leg[seite] = [Vector((knie.x, cy, huefte_z)), knie, fuss]
+
+    schulter_z = (wing["L"][0].z + wing["R"][0].z) / 2
+    t["body"] = [Vector((0, cy, huefte_z)), Vector((0, cy, schulter_z + .05 * H))]
+    t["head"] = [Vector((0, cy - .25 * (cy - schnabel.y), schnabel.z + .12 * H)), schnabel]
+    t["tail"] = [Vector((xm, schwanz_ab, huefte_z)), schwanz]
+    t["ketten"] = {"wing": wing, "leg": leg}
+    log(f"Skelett an den Flügler angepasst (Schulterhöhe {(schulter_z - lo.z) / H:.2f}, Flügelspitzen bei "
+        f"{wing['L'][2].x:.2f}/{wing['R'][2].x:.2f} m, Füße bei {leg['L'][2].x:.2f}/{leg['R'][2].x:.2f} m, Schnabel {(schnabel.y - lo.y) / L:.2f}).")
+    return t
+
 def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
+    if tpl is FLUEGLER:
+        tpl = passe_fluegler_an(obj, tpl)
+        hoerner = False
     if tpl is ZWEIBEINER:
         tpl = passe_zweibeiner_an(obj, tpl)
         hoerner = False
@@ -346,7 +414,8 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
     hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
     vorne = lo.y   # Blender: Kreatur schaut nach -Y (Blender-Vorderansicht)
 
-    def p(n):  # normiert → Welt
+    def p(n):  # normiert → Welt; Weltpunkte (Vector) bleiben, wie sie sind
+        if isinstance(n, Vector): return n.copy()
         x, y, z = n
         return Vector((x * hw, vorne + y * L, z * H))
 
@@ -379,9 +448,14 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
     for glied, punkte in tpl.get("ketten", {}).items():
         # Blick nach -Y: links ist +X. Knochen heißen arm_L_upper, arm_L_lower, leg_R_upper …
         for seite, s in (("L", 1), ("R", -1)):
-            m = lambda v: (v[0] * s, v[1], v[2])
-            oben = knochen(f"{glied}_{seite}_upper", p(m(punkte[0])), p(m(punkte[1])), body)
-            knochen(f"{glied}_{seite}_lower", p(m(punkte[1])), p(m(punkte[2])), oben, True)
+            if isinstance(punkte, dict):   # je Seite eigene Weltpunkte (Flügler)
+                pk = punkte[seite]
+            else:
+                pk = [(v[0] * s, v[1], v[2]) for v in punkte]
+            oben = knochen(f"{glied}_{seite}_upper", p(pk[0]), p(pk[1]), body)
+            knochen(f"{glied}_{seite}_lower", p(pk[1]), p(pk[2]), oben, True)
+    if "tail" in tpl:
+        knochen("tail", p(tpl["tail"][0]), p(tpl["tail"][1]), body)
     if "arms" in tpl:
         schulter, hand, spitze = tpl["arms"]
         for seite, s in (("L", 1), ("R", -1)):

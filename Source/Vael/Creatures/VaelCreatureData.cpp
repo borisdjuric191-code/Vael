@@ -50,6 +50,7 @@ UVaelAshHarpyData::UVaelAshHarpyData()
 	ElementMultipliers.Add(EVaelElement::Earth, 1.4f);
 	ElementMultipliers.Add(EVaelElement::Air, 1.2f);
 	AggroRange = 1400.0f;
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Aschharpyie/SK_Aschharpyie.SK_Aschharpyie")));
 	FormulaOnWitnessedDive = { EVaelElement::Earth, EVaelElement::Air };
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Russfeder.DA_Material_Russfeder"), 0.5f));
 	BodyColor = FLinearColor(0.15f, 0.13f, 0.12f);
@@ -60,6 +61,7 @@ UVaelHarpyElderData::UVaelHarpyElderData()
 	DisplayName = LOCTEXT("HarpyElder", "Harpyien-\u00C4lteste");
 	KindId = TEXT("HarpyienAelteste");
 	CompendiumId = TEXT("HarpyienAelteste");
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/HarpyienAelteste/SK_HarpyienAelteste.SK_HarpyienAelteste")));
 
 	MaxHealth = 180.0f;
 	MoveSpeed = 532.0f;
