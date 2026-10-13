@@ -26,6 +26,8 @@
 #include "Player/VaelCharacter.h"
 #include "TimerManager.h"
 #include "Vael.h"
+#include "UI/VaelCombatTextSubsystem.h"
+#include "World/VaelGround.h"
 #include "World/VaelRegion.h"
 
 #define LOCTEXT_NAMESPACE "VaelNature"
@@ -84,6 +86,17 @@ namespace
 	constexpr float VeinStretch = 1.8f;
 	constexpr float VeinTwitchEvery = 17.0f;
 	constexpr float VeinTwitchSeconds = 0.35f;
+
+	/** What grows around a plant with the rain keeps this far from other plants in cm, needs this much free room,
+	 *  ground about this flat and at most this much higher or lower than the plant; this many places are tried for each */
+	constexpr float OffshootSpacing = 110.0f;
+	constexpr float OffshootFreeRadius = 40.0f;
+	constexpr float OffshootMinGroundNormalZ = 0.85f;
+	constexpr float OffshootMaxHeightDifference = 150.0f;
+	constexpr int32 OffshootTriesPerPlant = 8;
+
+	/** Text over a plant that was picked in the rain without seeds */
+	const FLinearColor NoSeedsColor(0.6f, 0.62f, 0.55f);
 
 	/** A cooled glowing stone shows this grey */
 	const FLinearColor CooledStoneColor(0.09f, 0.08f, 0.075f);
@@ -303,6 +316,11 @@ void AVaelHarvestable::Interact(AVaelCharacter* Player)
 		UVaelMaterialBag::GiveToGroup(this, Data->SeedLoot);
 		bSeeded = false;
 	}
+	else if (Data->Trait == EVaelHarvestTrait::RainSprout && !Data->SeedLoot.IsEmpty())
+	{
+		// So nobody carries plain moss to the pot and wonders
+		UVaelCombatTextSubsystem::PostPickup(this, LOCTEXT("NoSeeds", "Ohne Samenkapseln"), NoSeedsColor);
+	}
 
 	if (UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this))
 	{
@@ -317,6 +335,67 @@ void AVaelHarvestable::Interact(AVaelCharacter* Player)
 	BecomeBare();
 
 	UE_LOG(LogVael, Log, TEXT("'%s' (%s) gathered by player %d"), *GetNameSafe(this), *Data->CompendiumId.ToString(), Player != nullptr ? Player->GetPlayerNumber() : 0);
+}
+
+void AVaelHarvestable::GrowOffshoots()
+{
+	GrowOffshootsWithin(Data->PatchCount, OffshootSpacing, Data->PatchRadius);
+	GrowOffshootsWithin(Data->StrayCount, Data->PatchRadius, Data->StrayRadius);
+}
+
+void AVaelHarvestable::GrowOffshootsWithin(int32 Count, float MinRadius, float MaxRadius)
+{
+	UWorld* World = GetWorld();
+	if (Count <= 0 || MaxRadius <= 0.0f)
+	{
+		return;
+	}
+
+	const FVector Origin = GetActorLocation();
+	int32 NumGrown = 0;
+
+	for (int32 Try = 0; Try < Count * OffshootTriesPerPlant && NumGrown < Count; ++Try)
+	{
+		const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		const float Distance = FMath::FRandRange(FMath::Min(MinRadius, MaxRadius), MaxRadius);
+		const FVector Spot = Origin + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Distance;
+
+		// Flat ground at about the height of the plant: not on roofs, not down a cliff
+		FHitResult GroundHit;
+		if (!VaelGround::TraceGround(World, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 2000.0f), GroundHit)
+			|| GroundHit.ImpactNormal.Z < OffshootMinGroundNormalZ || FMath::Abs(GroundHit.Location.Z - Origin.Z) > OffshootMaxHeightDifference)
+		{
+			continue;
+		}
+
+		// Room to stand there and to reach it: not inside walls, rocks or trees
+		const FVector Ground = GroundHit.Location;
+		if (World->OverlapBlockingTestByChannel(Ground + FVector(0.0f, 0.0f, OffshootFreeRadius + 25.0f), FQuat::Identity, ECC_Pawn, FCollisionShape::MakeSphere(OffshootFreeRadius)))
+		{
+			continue;
+		}
+
+		// Not on top of another plant or stone
+		bool bCrowded = false;
+		for (TActorIterator<AVaelHarvestable> It(World); It && !bCrowded; ++It)
+		{
+			bCrowded = FVector::Dist2D(It->GetActorLocation(), Ground) < OffshootSpacing;
+		}
+		if (bCrowded)
+		{
+			continue;
+		}
+
+		const FTransform SpawnTransform(FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), Ground);
+		AVaelHarvestable* Offshoot = World->SpawnActorDeferred<AVaelHarvestable>(GetClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (Offshoot != nullptr)
+		{
+			Offshoot->Data = Data;
+			Offshoot->bOffshoot = true;
+			Offshoot->FinishSpawning(SpawnTransform);
+			++NumGrown;
+		}
+	}
 }
 
 void AVaelHarvestable::BecomeBare()
@@ -490,13 +569,31 @@ void AVaelHarvestable::UpdateSurroundings()
 				bSeeded = FMath::FRand() < Data->TraitAmount;
 				bHarvested = false;
 				GetWorldTimerManager().ClearTimer(RegrowTimer);
+
+				if (!bOffshoot)
+				{
+					GrowOffshoots();
+				}
 			}
 			SproutEndTime = Now + Data->TraitDuration;
 		}
 		else if (bSprouted && Now >= SproutEndTime)
 		{
+			// What grew around a plant with the rain goes with it
+			if (bOffshoot)
+			{
+				Destroy();
+				return;
+			}
+
 			bSprouted = false;
 			bSeeded = false;
+		}
+		else if (bOffshoot && !bSprouted)
+		{
+			// The rain was over before it could sprout
+			Destroy();
+			return;
 		}
 
 		bSoaked = bRaining;

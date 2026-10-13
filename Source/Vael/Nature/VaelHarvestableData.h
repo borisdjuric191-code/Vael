@@ -131,6 +131,20 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait")
 	FLinearColor TraitColor = FLinearColor(0.6f, 0.2f, 1.0f);
 
+	/** A plant that sprouts with the rain grows this many more of its kind close around it with every rain, within this many cm: its patch */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0))
+	int32 PatchCount = 3;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0))
+	float PatchRadius = 280.0f;
+
+	/** And this many more scattered far around it, within this many cm; they stand somewhere else with every rain */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0))
+	int32 StrayCount = 4;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0))
+	float StrayRadius = 3000.0f;
+
 	/** Height of the placeholder in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 5))
 	float Height = 70.0f;

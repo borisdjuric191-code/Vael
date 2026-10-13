@@ -170,6 +170,15 @@ private:
 	bool bSprouted = false;
 	bool bSeeded = false;
 
+	/** Lets more of its kind grow around it for this rain: a patch close by and strays far around */
+	void GrowOffshoots();
+
+	/** Grows offshoots of the count within the radius around it, each on free ground at about its own height */
+	void GrowOffshootsWithin(int32 Count, float MinRadius, float MaxRadius);
+
+	/** True if it grew around another plant with the rain; it is gone for good once it withers */
+	bool bOffshoot = false;
+
 	/** Game time at which a sprouted plant withers once the rain is over */
 	float SproutEndTime = -1.0f;
 

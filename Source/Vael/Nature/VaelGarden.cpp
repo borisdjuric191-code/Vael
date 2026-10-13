@@ -405,8 +405,8 @@ void AVaelSeedPot::Interact(AVaelCharacter* Player)
 		const UVaelMaterial* Seed = Settings->SurpriseSeed.LoadSynchronous();
 		if (Seed == nullptr || Player->GetMaterialBag() == nullptr || !Player->GetMaterialBag()->RemoveMaterial(Seed, 1))
 		{
-			UVaelNoticeSubsystem::Post(this, LOCTEXT("PotNoSeed", "Der Topf ist leer"),
-				LOCTEXT("PotNoSeedDetail", "Überraschungssaat trägt der Keimpelz, der mit dem Regen sprießt. Nicht jeder trägt Kapseln."), GardenNoticeColor, 5.0f);
+			UVaelNoticeSubsystem::Post(this, LOCTEXT("PotNoSeed", "Keine Überraschungssaat dabei"),
+				LOCTEXT("PotNoSeedDetail", "Sie steckt nur im Keimpelz mit hellen Samenkapseln. Er sprießt mit dem Regen, etwa jeder zweite trägt Kapseln."), GardenNoticeColor, 5.0f);
 			return;
 		}
 
