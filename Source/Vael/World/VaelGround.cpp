@@ -4,6 +4,7 @@
 #include "Components/PrimitiveComponent.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
+#include "GameFramework/Actor.h"
 #include "GameFramework/Pawn.h"
 
 namespace VaelGround
@@ -38,5 +39,19 @@ namespace VaelGround
 		}
 
 		return false;
+	}
+
+	void RefuseDecals(AActor* Actor)
+	{
+		if (Actor == nullptr)
+		{
+			return;
+		}
+
+		TInlineComponentArray<UPrimitiveComponent*> Components(Actor);
+		for (UPrimitiveComponent* Component : Components)
+		{
+			Component->SetReceivesDecals(false);
+		}
 	}
 }

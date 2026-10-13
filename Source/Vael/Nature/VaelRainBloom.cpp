@@ -82,6 +82,7 @@ void AVaelRainBloom::BeginPlay()
 	}
 
 	Model->SetRelativeScale3D(FVector(0.01f));
+	Model->SetReceivesDecals(false);
 	BaseYaw = GetActorRotation().Yaw;
 	Glow->SetLightColor(Kind.GlowColor);
 

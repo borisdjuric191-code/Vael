@@ -234,6 +234,9 @@ void AVaelHarvestable::BeginPlay()
 
 	UVaelInteractionSubsystem::Register(this);
 
+	// The green of the seed garden grows around it, not over it
+	VaelGround::RefuseDecals(this);
+
 	// Spread the looks of many harvestables over their intervals
 	FTimerManager& Timers = GetWorldTimerManager();
 	Timers.SetTimer(ResearchTimer, this, &AVaelHarvestable::UpdateResearch, HarvestableResearchInterval, true, FMath::FRandRange(0.0f, HarvestableResearchInterval));

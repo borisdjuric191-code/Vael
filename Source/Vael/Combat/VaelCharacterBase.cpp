@@ -6,6 +6,7 @@
 #include "Combat/VaelGameplayEffects.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelGameplayTags.h"
+#include "World/VaelGround.h"
 
 AVaelCharacterBase::AVaelCharacterBase()
 {
@@ -38,6 +39,9 @@ void AVaelCharacterBase::HandleHealthChanged(const FOnAttributeChangeData& Chang
 void AVaelCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Characters walk over the green of the seed garden without turning green
+	VaelGround::RefuseDecals(this);
 
 	if (ManaRegenPerSecond > 0.0f)
 	{

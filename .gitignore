@@ -58,6 +58,14 @@ Desktop.ini
 Content/Fab/
 Content/Megaplant_Library/
 Content/Rock_Collection_04/
+Content/Free_Spells/
+Content/__ExternalActors__/Free_Spells/
+Content/__ExternalObjects__/Free_Spells/
+Content/Basic_VFX/
+Content/FreeNiagaraPack/
+Content/NiagaraExamples/
+Content/StyleHex_Studio/
+Content/Stylized_Tree_Pack/
 
 # Migrated from the Medieval Village Megascans Sample (keeps its original folder names).
 # Vael's own assets live under Content/Vael/, never in these folders.

@@ -122,6 +122,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Region")
 	FText GetRegionName() const { return RegionName; }
 
+	/** Ground the region covers in square meters, 0 if it covers the whole level */
+	float GetArea() const;
+
 	/** Name of a weather shown to the players */
 	static FText GetWeatherName(EVaelWeather InWeather);
 

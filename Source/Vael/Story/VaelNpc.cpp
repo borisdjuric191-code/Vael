@@ -15,6 +15,7 @@
 #include "Story/VaelDialogue.h"
 #include "Story/VaelGossip.h"
 #include "Story/VaelQuestSubsystem.h"
+#include "World/VaelGround.h"
 #include "World/VaelProgressSubsystem.h"
 
 namespace
@@ -109,6 +110,8 @@ FText AVaelNpc::GetGossipLine() const
 void AVaelNpc::BeginPlay()
 {
 	Super::BeginPlay();
+
+	VaelGround::RefuseDecals(this);
 
 	if (UMaterialInstanceDynamic* RobeMaterial = Body->CreateAndSetMaterialInstanceDynamic(0))
 	{

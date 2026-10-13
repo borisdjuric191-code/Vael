@@ -143,6 +143,17 @@ bool AVaelRegion::Contains(const FVector& Location) const
 	return FMath::Abs(Local.X) <= Extent.X && FMath::Abs(Local.Y) <= Extent.Y && FMath::Abs(Local.Z) <= Extent.Z;
 }
 
+float AVaelRegion::GetArea() const
+{
+	if (bCoversWholeLevel)
+	{
+		return 0.0f;
+	}
+
+	const FVector Extent = Bounds->GetScaledBoxExtent();
+	return 4.0f * Extent.X * Extent.Y / 10000.0f;
+}
+
 void AVaelRegion::AddCorruption(float Amount)
 {
 	SetCorruption(Corruption + Amount);

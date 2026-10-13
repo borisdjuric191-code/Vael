@@ -129,9 +129,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Sowing", meta = (ClampMin = 0.1))
 	float GrowSeconds = 6.0f;
 
-	/** Corruption every sown plant takes from its region, once */
+	/** A region is clean once plants stand this many cm apart all over it: every sown plant takes its share of that from the
+	 *  corruption of its region, once. A plant sown closer to another one takes less, as it covers less new ground. */
+	UPROPERTY(config, EditAnywhere, Category="Sowing", meta = (ClampMin = 100))
+	float CleanseSpacing = 800.0f;
+
+	/** Corruption a sown plant takes from a region without bounds, which has no area to reckon with */
 	UPROPERTY(config, EditAnywhere, Category="Sowing", meta = (ClampMin = 0))
-	float CleansePerPlant = 0.3f;
+	float CleansePerPlant = 0.8f;
 
 	/** The plants a surprise seed can become */
 	UPROPERTY(config, EditAnywhere, Category="Plants")
@@ -178,9 +183,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Green", meta = (ClampMin = 0))
 	int32 GreenMaxTufts = 160;
 
-	/** Size of a tuft, between these two */
+	/** Width of a tuft in cm, between these two; every model is sized to it, whatever size it was made in */
 	UPROPERTY(config, EditAnywhere, Category="Green")
-	FVector2D GreenTuftScale = FVector2D(0.6f, 1.1f);
+	FVector2D GreenTuftWidth = FVector2D(35.0f, 70.0f);
 };
 
 /**
@@ -365,6 +370,9 @@ public:
 	float GetGreenRadius() const { return GreenRadius; }
 	int32 GetNumTufts() const { return NextTuft; }
 
+	/** Lets its tufts within the radius around the location vanish, so they don't hide what was sown there */
+	void ClearTuftsNear(const FVector& Location, float Radius);
+
 	virtual void Tick(float DeltaSeconds) override;
 
 protected:
@@ -398,4 +406,7 @@ private:
 	int32 NextTuft = 0;
 
 	TArray<FVaelGrowingTuft> GrowingTufts;
+
+	/** Width of each tuft model as it was made, in cm */
+	TArray<float> TuftModelWidths;
 };

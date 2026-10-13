@@ -13,6 +13,8 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Nature/VaelHarvestable.h"
+#include "Nature/VaelRainBloom.h"
 #include "Player/VaelCharacter.h"
 #include "Save/VaelSaveGame.h"
 #include "Save/VaelSaveSubsystem.h"
@@ -46,7 +48,10 @@ namespace
 	/** Tufts sprout once the green has passed them by this share, keep this far from the plant in cm,
 	 *  stand at most this much higher or lower than it and take this many seconds to grow up */
 	constexpr float TuftBehindEdge = 0.85f;
-	constexpr float TuftMinDistance = 45.0f;
+	constexpr float TuftMinDistance = 90.0f;
+
+	/** Tufts keep this far in cm from everything that is sown or can be gathered, so nothing is overgrown */
+	constexpr float TuftClearance = 90.0f;
 	constexpr float TuftMaxHeightDifference = 120.0f;
 	constexpr float TuftGrowSeconds = 3.0f;
 
@@ -248,6 +253,17 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 		}
 	}
 
+	// How much new ground it covers: all of its share if no other plant stands within the spacing, less the closer the nearest one
+	float NearestPlant = Settings->CleanseSpacing;
+	for (const FVaelSavedPlant& Other : Sown)
+	{
+		if (Other.Level == Level)
+		{
+			NearestPlant = FMath::Min(NearestPlant, FVector::Dist2D(Other.Location, Ground));
+		}
+	}
+	const float NewGround = FMath::Square(NearestPlant / Settings->CleanseSpacing);
+
 	if (!Bag->RemoveMaterial(PickedSeed, 1))
 	{
 		return nullptr;
@@ -271,7 +287,18 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 	// Every plant takes a little of the corruption out of its land
 	if (AVaelRegion* Region = AVaelRegion::GetRegionAt(World, Ground))
 	{
-		Region->AddCorruption(-Settings->CleansePerPlant);
+		// Plants at the spacing all over the region take all of its corruption
+		const float Area = Region->GetArea();
+		const float FullShare = Area > 0.0f ? 100.0f * FMath::Square(Settings->CleanseSpacing / 100.0f) / Area : Settings->CleansePerPlant;
+		Region->AddCorruption(-FullShare * NewGround);
+
+		UE_LOG(LogVael, Log, TEXT("Garden: %s sown, region of %.0f m2, takes %.2f of its corruption (%.0f %% new ground)"), *Picked->Id.ToString(), Area, FullShare * NewGround, NewGround * 100.0f);
+	}
+
+	// Nothing may hide the new plant: tufts of its neighbours make room
+	for (TActorIterator<AVaelSownPlant> It(World); It; ++It)
+	{
+		It->ClearTuftsNear(Ground, TuftClearance);
 	}
 
 	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("Sown", "{0} gesät"), Picked->DisplayName), Picked->GlowColor);
@@ -646,6 +673,7 @@ void AVaelSownPlant::BeginPlay()
 	}
 
 	Model->SetRelativeScale3D(FVector(0.01f));
+	Model->SetReceivesDecals(false);
 
 	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
 
@@ -677,6 +705,9 @@ void AVaelSownPlant::BeginPlay()
 		Component->SetupAttachment(RootComponent);
 		Component->RegisterComponent();
 		Tufts.Add(Component);
+
+		const FVector Extent = Mesh->GetBounds().BoxExtent;
+		TuftModelWidths.Add(FMath::Max(2.0f * FMath::Max(Extent.X, Extent.Y), 1.0f));
 	}
 
 	// Where tufts can sprout, the same every time for the same place, sorted from the plant outwards
@@ -695,11 +726,41 @@ void AVaelSownPlant::BeginPlay()
 			Spot.Distance = FMath::Max(FMath::Sqrt(Random.FRand()) * MaxRadius, TuftMinDistance);
 			Spot.Offset = FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Spot.Distance;
 			Spot.Yaw = Random.FRandRange(0.0f, 360.0f);
-			Spot.Scale = Random.FRandRange(Settings->GreenTuftScale.X, Settings->GreenTuftScale.Y);
 			Spot.Mesh = Random.RandRange(0, Tufts.Num() - 1);
+			Spot.Scale = Random.FRandRange(Settings->GreenTuftWidth.X, Settings->GreenTuftWidth.Y) / TuftModelWidths[Spot.Mesh];
 		}
 
 		TuftSpots.Sort([](const FVaelTuftSpot& A, const FVaelTuftSpot& B) { return A.Distance < B.Distance; });
+	}
+}
+
+void AVaelSownPlant::ClearTuftsNear(const FVector& Location, float Radius)
+{
+	for (int32 MeshIndex = 0; MeshIndex < Tufts.Num(); ++MeshIndex)
+	{
+		UInstancedStaticMeshComponent* Component = Tufts[MeshIndex];
+		bool bChanged = false;
+
+		for (int32 Instance = 0; Instance < Component->GetInstanceCount(); ++Instance)
+		{
+			// Shrunk to nothing instead of removed, so the others keep their numbers
+			FTransform Shown;
+			if (!Component->GetInstanceTransform(Instance, Shown, true) || FVector::Dist2D(Shown.GetLocation(), Location) >= Radius)
+			{
+				continue;
+			}
+
+			Shown.SetScale3D(FVector(0.001f));
+			Component->UpdateInstanceTransform(Instance, Shown, true, false);
+			bChanged = true;
+
+			GrowingTufts.RemoveAllSwap([MeshIndex, Instance](const FVaelGrowingTuft& Tuft) { return Tuft.Mesh == MeshIndex && Tuft.Instance == Instance; });
+		}
+
+		if (bChanged)
+		{
+			Component->MarkRenderStateDirty();
+		}
 	}
 }
 
@@ -735,6 +796,25 @@ void AVaelSownPlant::UpdateGreen(float DeltaSeconds)
 		FHitResult GroundHit;
 		if (!VaelGround::TraceGround(GetWorld(), Place + FVector(0.0f, 0.0f, 300.0f), Place - FVector(0.0f, 0.0f, 600.0f), GroundHit)
 			|| FMath::Abs(GroundHit.Location.Z - Origin.Z) > TuftMaxHeightDifference || GroundHit.ImpactNormal.Z < 0.8f)
+		{
+			continue;
+		}
+
+		// The green grows around what is sown or can be gathered, never over it
+		bool bTaken = false;
+		for (TActorIterator<AVaelSownPlant> It(GetWorld()); It && !bTaken; ++It)
+		{
+			bTaken = FVector::Dist2D(It->GetActorLocation(), GroundHit.Location) < TuftClearance;
+		}
+		for (TActorIterator<AVaelHarvestable> It(GetWorld()); It && !bTaken; ++It)
+		{
+			bTaken = FVector::Dist2D(It->GetActorLocation(), GroundHit.Location) < TuftClearance;
+		}
+		for (TActorIterator<AVaelRainBloom> It(GetWorld()); It && !bTaken; ++It)
+		{
+			bTaken = FVector::Dist2D(It->GetActorLocation(), GroundHit.Location) < TuftClearance;
+		}
+		if (bTaken)
 		{
 			continue;
 		}
