@@ -85,6 +85,11 @@ AVaelCharacter::AVaelCharacter()
 		GetMesh()->SetAnimInstanceClass(PlaceholderAnimClass.Class);
 	}
 
+	// The head of a base look is its own part; it follows the bones of the body
+	HeadMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("HeadMesh"));
+	HeadMesh->SetupAttachment(GetMesh());
+	HeadMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	// Create the player marker from engine placeholder assets
 	PlayerMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlayerMarker"));
 
@@ -139,6 +144,23 @@ AVaelCharacter::AVaelCharacter()
 	PrimaryActorTick.bStartWithTickEnabled = true;
 }
 
+void AVaelCharacter::SetBaseLook(int32 LookIndex)
+{
+	LookIndex = FMath::Clamp(LookIndex, 0, 1);
+
+	USkeletalMesh* Body = VaelAssets::LoadOptional(BodyMeshes[LookIndex]);
+	USkeletalMesh* Head = VaelAssets::LoadOptional(HeadMeshes[LookIndex]);
+	if (Body == nullptr || Head == nullptr)
+	{
+		return;
+	}
+
+	GetMesh()->SetSkeletalMesh(Body);
+	HeadMesh->SetSkeletalMesh(Head);
+	HeadMesh->SetLeaderPoseComponent(GetMesh());
+	BaseLook = LookIndex;
+}
+
 void AVaelCharacter::BeginPlay()
 {
 	Super::BeginPlay();
@@ -147,6 +169,11 @@ void AVaelCharacter::BeginPlay()
 	if (UClass* AnimClass = VaelAssets::LoadOptionalClass(MageAnimClass))
 	{
 		GetMesh()->SetAnimInstanceClass(AnimClass);
+	}
+
+	if (BaseLook < 0)
+	{
+		SetBaseLook(0);
 	}
 
 	LoadedDodgeMontage = VaelAssets::LoadOptional(DodgeMontage);
@@ -324,6 +351,12 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 void AVaelCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
+
+	// Players take turns between the two base looks until they can choose: odd slots get the woman
+	if (const AVaelPlayerController* LookOwner = Cast<AVaelPlayerController>(NewController))
+	{
+		SetBaseLook(LookOwner->GetPlayerSlot() % 2);
+	}
 
 	const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(NewController);
 	const AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();

@@ -12,6 +12,8 @@ class UAnimInstance;
 class UAnimMontage;
 class UNiagaraComponent;
 class UPointLightComponent;
+class USkeletalMesh;
+class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UVaelElementComponent;
 class UVaelElementOrbitComponent;
@@ -32,6 +34,10 @@ private:
 	/** Placeholder disc at the character's feet showing the player color */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> PlayerMarker;
+
+	/** Head of the base look: its own mesh that follows the bones of the body */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USkeletalMeshComponent> HeadMesh;
 
 	/** Element queue and formula casting */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -96,6 +102,18 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftClassPtr<UAnimInstance> MageAnimClass = TSoftClassPtr<UAnimInstance>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/ABP_Mage.ABP_Mage_C")));
 
+	/** Body of the two base looks of the mage in the starting robe (creature factory, humans), male and female. Empty or missing: the template mannequin stays. */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftObjectPtr<USkeletalMesh> BodyMeshes[2] = {
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierMann/SK_MagierMann_Koerper.SK_MagierMann_Koerper"))),
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierFrau/SK_MagierFrau_Koerper.SK_MagierFrau_Koerper"))) };
+
+	/** Head of each base look: its own part on the same skeleton, so faces can be swapped later */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftObjectPtr<USkeletalMesh> HeadMeshes[2] = {
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierMann/SK_MagierMann_Kopf.SK_MagierMann_Kopf"))),
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierFrau/SK_MagierFrau_Kopf.SK_MagierFrau_Kopf"))) };
+
 	/** Seconds nothing can hurt the player after a hit */
 	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 0))
 	float HitInvulnerability = 0.35f;
@@ -145,6 +163,12 @@ public:
 	/** True while a dodge roll is in progress */
 	UFUNCTION(BlueprintPure, Category="Dodge")
 	bool IsDodging() const { return bIsDodging; }
+
+	/** Gives the character one of the base looks: 0 the man, 1 the woman. Body and head are separate parts. */
+	void SetBaseLook(int32 LookIndex);
+
+	/** The base look it wears, -1 while it still shows the template mannequin */
+	int32 GetBaseLook() const { return BaseLook; }
 
 	/** Weighs the player down, like a creature clinging to the back: walks at the share of the speed for the seconds. Call again to keep it up. */
 	void SetBurden(float SpeedMultiplier, float Duration);
@@ -216,6 +240,8 @@ protected:
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
 
 private:
+
+	int32 BaseLook = -1;
 
 	/** Gives the character what the save game holds for its player slot, once */
 	void RestoreFromSave();

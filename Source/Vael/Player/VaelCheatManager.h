@@ -31,6 +31,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelSaat(const FString& What);
 
+	/** Switches the base look of the player: "Mann" or "Frau". Example: VaelGestalt Frau */
+	UFUNCTION(Exec)
+	void VaelGestalt(const FString& Look);
+
 	/** Puts a condition on everything the player can hurt: Wet, Burning or Frozen, for the given seconds. Example: VaelStatus Wet 5 */
 	UFUNCTION(Exec)
 	void VaelStatus(const FString& Status, float Duration);

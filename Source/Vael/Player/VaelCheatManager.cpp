@@ -607,3 +607,12 @@ void UVaelCheatManager::VaelSaat(const FString& What)
 		Player->GetMaterialBag()->AddMaterial(Seed, 5);
 	}
 }
+
+void UVaelCheatManager::VaelGestalt(const FString& Look)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	if (AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
+	{
+		Player->SetBaseLook(Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase) ? 1 : 0);
+	}
+}
