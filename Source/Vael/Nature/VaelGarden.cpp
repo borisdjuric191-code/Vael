@@ -106,14 +106,18 @@ UVaelGardenSettings::UVaelGardenSettings()
 
 	const auto AddGreen = [this](const TCHAR* Folder, const TCHAR* Name)
 	{
-		GreenMeshes.Add(TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/Megascans/%s/%s.%s"), Folder, Name, Name))));
+		GreenMeshes.Add(TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/%s/%s.%s"), Folder, Name, Name))));
 	};
 
-	AddGreen(TEXT("3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_00"));
-	AddGreen(TEXT("3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_02"));
-	AddGreen(TEXT("3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_05"));
-	AddGreen(TEXT("3D_Plants/ThatchingGrass"), TEXT("SM_ThatchingGrass00_V2"));
-	AddGreen(TEXT("3D_Plants/ThatchingGrass"), TEXT("SM_ThatchingGrass00_V10"));
+	// Mostly grass, some moss and flowers; models that are missing are left out
+	const TCHAR* StyleHex = TEXT("StyleHex_Studio/Free_Packs/FREE_Stylized_Grass_Flowers_Foliage/Meshes");
+	AddGreen(StyleHex, TEXT("SM_Fol_Grass_Clump_1"));
+	AddGreen(StyleHex, TEXT("SM_Fol_Grass_Clump_2"));
+	AddGreen(StyleHex, TEXT("SM_Fol_Grass_Clump_3"));
+	AddGreen(StyleHex, TEXT("SM_Fol_Flower_Clump_1"));
+	AddGreen(StyleHex, TEXT("SM_Fol_Flower_Clump_3"));
+	AddGreen(TEXT("Megascans/3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_00"));
+	AddGreen(TEXT("Megascans/3D_Assets/IcelandicMossClusters"), TEXT("SM_IcelandicMossClusters_02"));
 }
 
 UVaelGardenSubsystem* UVaelGardenSubsystem::Get(const UObject* WorldContext)
