@@ -13,6 +13,7 @@
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
+#include "TimerManager.h"
 #include "VaelAssets.h"
 
 const FName VaelEffects::ColorParameter(TEXT("Color"));
@@ -22,6 +23,10 @@ const FName VaelEffects::IntensityParameter(TEXT("Intensity"));
 
 namespace
 {
+	/** How long a one-shot effect may emit, and when it is removed at the latest, in seconds */
+	const float OneShotEmitSeconds = 0.6f;
+	const float OneShotRemoveSeconds = 6.0f;
+
 	/** The first entry that exists: the override, the one of the element, the default */
 	template<typename T>
 	T* LoadFirst(const TSoftObjectPtr<T>* Override, const TSoftObjectPtr<T>* ForElement, const TSoftObjectPtr<T>& Default)
@@ -82,6 +87,30 @@ UNiagaraComponent* VaelEffects::SpawnAt(const UObject* WorldContext, UNiagaraSys
 	{
 		SetCommonParameters(Component, Color, Radius);
 		Component->Activate();
+
+		// A one-shot effect must end even if it was built looping in the editor: it stops emitting, its particles
+		// live out and the component destroys itself; whatever is still there long after that is removed
+		if (UWorld* World = Component->GetWorld())
+		{
+			const TWeakObjectPtr<UNiagaraComponent> WeakComponent(Component);
+			FTimerHandle StopHandle;
+			World->GetTimerManager().SetTimer(StopHandle, FTimerDelegate::CreateLambda([WeakComponent]()
+			{
+				if (WeakComponent.IsValid())
+				{
+					WeakComponent->Deactivate();
+				}
+			}), OneShotEmitSeconds, false);
+
+			FTimerHandle RemoveHandle;
+			World->GetTimerManager().SetTimer(RemoveHandle, FTimerDelegate::CreateLambda([WeakComponent]()
+			{
+				if (WeakComponent.IsValid())
+				{
+					WeakComponent->DestroyComponent();
+				}
+			}), OneShotRemoveSeconds, false);
+		}
 	}
 
 	return Component;
