@@ -297,6 +297,13 @@ void AVaelHarvestable::Interact(AVaelCharacter* Player)
 
 	UVaelMaterialBag::GiveToGroup(this, Data->Loot);
 
+	// The seeds of this rain go with the first picking
+	if (bSeeded)
+	{
+		UVaelMaterialBag::GiveToGroup(this, Data->SeedLoot);
+		bSeeded = false;
+	}
+
 	if (UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this))
 	{
 		Compendium->AddSample(Data->CompendiumId);
@@ -460,12 +467,41 @@ void AVaelHarvestable::UpdateSurroundings()
 	const bool bWasAbsent = bAbsent;
 	const bool bWasWilted = bWilted;
 	const bool bWasSoaked = bSoaked;
+	const bool bWasSprouted = bSprouted;
+	const bool bWasSeeded = bSeeded;
 	const float OldPurity = Purity;
 
 	bAbsent = Corruption < Data->MinCorruption;
 	bWilted = !bAbsent && Corruption > Data->MaxCorruption;
 	bSoaked = Data->Trait == EVaelHarvestTrait::RainSoak && Region != nullptr && Region->GetWeather() == EVaelWeather::Rain;
 	Purity = 1.0f - Corruption / 100.0f;
+
+	// Sprouts with every rain, fresh each time; only some rains let it carry seeds. It withers a while after the rain.
+	if (Data->Trait == EVaelHarvestTrait::RainSprout)
+	{
+		const bool bRaining = Region != nullptr && Region->GetWeather() == EVaelWeather::Rain;
+		const float Now = GetWorld()->GetTimeSeconds();
+
+		if (bRaining)
+		{
+			if (!bSprouted)
+			{
+				bSprouted = true;
+				bSeeded = FMath::FRand() < Data->TraitAmount;
+				bHarvested = false;
+				GetWorldTimerManager().ClearTimer(RegrowTimer);
+			}
+			SproutEndTime = Now + Data->TraitDuration;
+		}
+		else if (bSprouted && Now >= SproutEndTime)
+		{
+			bSprouted = false;
+			bSeeded = false;
+		}
+
+		bSoaked = bRaining;
+		bAbsent |= !bSprouted;
+	}
 
 	// The Mark's own crystal only grows while its source is open
 	if (Data->Trait == EVaelHarvestTrait::NeedsOpenSource)
@@ -475,7 +511,7 @@ void AVaelHarvestable::UpdateSurroundings()
 	}
 
 	const bool bFollowsPurity = Data->Trait == EVaelHarvestTrait::PurityGlow || Data->Trait == EVaelHarvestTrait::PurityClarity;
-	if (bAbsent != bWasAbsent || bWilted != bWasWilted || bSoaked != bWasSoaked || IsCooled() != bShownCooled
+	if (bAbsent != bWasAbsent || bWilted != bWasWilted || bSoaked != bWasSoaked || bSprouted != bWasSprouted || bSeeded != bWasSeeded || IsCooled() != bShownCooled
 		|| (bFollowsPurity && !FMath::IsNearlyEqual(Purity, OldPurity, 0.01f)))
 	{
 		RefreshLook();
@@ -934,6 +970,14 @@ void AVaelHarvestable::RefreshLook()
 
 	// A model of the creature factory replaces the placeholder shapes; a stone's base stays as its invisible collision
 	UStaticMesh* ModelMesh = Data->Mesh.IsNull() ? nullptr : Data->Mesh.LoadSynchronous();
+	if (bSeeded && !bHarvested && !Data->SeedMesh.IsNull())
+	{
+		// Carrying seeds it shows them: players see from afar which one is worth the way
+		if (UStaticMesh* SeedModel = Data->SeedMesh.LoadSynchronous())
+		{
+			ModelMesh = SeedModel;
+		}
+	}
 	if (ModelMesh == nullptr)
 	{
 		Model->SetVisibility(false);

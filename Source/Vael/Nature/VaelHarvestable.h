@@ -74,6 +74,9 @@ public:
 	/** True if it grows here now: not gathered, not wilted, and the region is corrupted enough for it */
 	bool IsAvailable() const { return Data != nullptr && !bHarvested && !bAbsent && !bWilted; }
 
+	/** True while a plant that sprouts with the rain carries seeds, for tests */
+	bool IsSeeded() const { return bSeeded; }
+
 	/** True if a mage at the location can draw the element from it */
 	bool ProvidesElement(EVaelElement Element, const FVector& Location) const;
 
@@ -162,6 +165,13 @@ private:
 
 	/** True while it rains on a plant that soaks up rain */
 	bool bSoaked = false;
+
+	/** A plant that sprouts with the rain: true from the first drops until it withers, and whether this rain let it carry seeds */
+	bool bSprouted = false;
+	bool bSeeded = false;
+
+	/** Game time at which a sprouted plant withers once the rain is over */
+	float SproutEndTime = -1.0f;
 
 	/** Share from 0 to 1 of the purity of its region, for the glow */
 	float Purity = 1.0f;

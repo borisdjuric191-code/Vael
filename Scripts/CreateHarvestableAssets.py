@@ -43,7 +43,7 @@ HARVESTABLES = [
      "loot": [loot("DA_Material_Rauchblase", 1.0, 1, 1)], "regrow_seconds": 90.0, "height": 70.0, "base_color": color("2a2622"), "glow_color": color("9aa3a8")},
     {"asset": "DA_Harvest_Laternenglocke", "display_name": unreal.Text("Laternenglocke"), "compendium_id": "Laternenglocke", "kind": Kind.PLANT,
      "loot": [loot("DA_Material_Glockenglut", 1.0, 1, 1)], "regrow_seconds": 120.0, "height": 100.0, "base_color": color("5e5852"), "glow_color": color("ffb259")},
-    {"asset": "DA_Harvest_Russmoos", "display_name": unreal.Text("Rußmoos"), "compendium_id": "Russmoos", "kind": Kind.PLANT,
+    {"asset": "DA_Harvest_Russmoos", "display_name": unreal.Text("Keimpelz"), "compendium_id": "Russmoos", "kind": Kind.PLANT,
      "loot": [loot("DA_Material_Russmoos", 1.0, 1, 3)], "regrow_seconds": 60.0, "height": 25.0, "base_color": color("2b2b27"), "glow_color": color("4d5a3a")},
     {"asset": "DA_Harvest_Fleischkelch", "display_name": unreal.Text("Fleischkelch"), "compendium_id": "Fleischkelch", "kind": Kind.PLANT,
      "loot": [loot("DA_Material_Kelchfleisch", 1.0, 1, 1)], "regrow_seconds": 180.0, "height": 110.0, "base_color": color("6b2e3a"), "glow_color": color("a24dff")},
@@ -76,7 +76,8 @@ TRAITS = {
     "DA_Harvest_Aschblase": {"element_source": True, "source_element": Element.AIR, "source_radius": 250.0,
                              "trait": Trait.BURST_ON_HIT, "trait_radius": 260.0, "trait_duration": 5.0},
     "DA_Harvest_Laternenglocke": {"trait": Trait.PURITY_GLOW, "trait_color": color("8a6cff")},
-    "DA_Harvest_Russmoos": {"trait": Trait.RAIN_SOAK, "trait_color": color("2f4a26")},
+    # Keimpelz (the former Russmoos, renamed 2026-10-13; asset and ids keep the old name): sprouts with every rain, half of them carry seeds
+    "DA_Harvest_Russmoos": {"trait": Trait.RAIN_SPROUT, "trait_color": color("2f4a26"), "trait_amount": 0.5, "trait_duration": 120.0},
     "DA_Harvest_Fleischkelch": {"min_corruption": 50.0, "trait": Trait.BREATHING},
     # Package 3: fungi and stones
     "DA_Harvest_Pfeifenmorchel": {"trait": Trait.STORM_WHISTLE, "trait_interval": 6.0, "trait_duration": 45.0},

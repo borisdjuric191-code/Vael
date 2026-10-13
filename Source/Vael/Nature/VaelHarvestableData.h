@@ -50,7 +50,10 @@ enum class EVaelHarvestTrait : uint8
 	/** Clouded in its glow color in a sick region, clear in the trait color in a pure one (Russquarz) */
 	PurityClarity,
 	/** Only there while an open Mark source lies within the trait radius (Markdruse) */
-	NeedsOpenSource
+	NeedsOpenSource,
+	/** Sprouts with every rain and withers the trait duration after it; with the trait amount as chance (0 to 1) a rain lets it carry seeds:
+	 *  then it shows its seed model and gives its seed loot as well (Keimpelz) */
+	RainSprout
 };
 
 /**
@@ -144,6 +147,14 @@ public:
 	 *  every placed one turned, sized and tilted a little differently. Empty: the placeholder of engine shapes. */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	/** Model shown instead while it carries seeds (trait RainSprout) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UStaticMesh> SeedMesh;
+
+	/** What gathering it gives every player on top of its loot while it carries seeds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Harvest")
+	TArray<FVaelLootEntry> SeedLoot;
 
 	/** Glow of the ember parts of the model (orange in its colors) while it grows untouched, through the master material */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))

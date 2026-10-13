@@ -880,6 +880,36 @@ void AVaelSmokeTest::BeginPlay()
 	}, 7.0f });
 
 	Steps.Add({ TEXT("Cleanse the region"), [SetRegionCorruption]() { return SetRegionCorruption(0.0f, true); }, 1.5f });
+
+	// Rain lets the Keimpelz sprout, and about half of them carry seeds
+	Steps.Add({ TEXT("Rain"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		AVaelRegion* Region = Player != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), Player->GetActorLocation()) : nullptr;
+		if (Region == nullptr)
+		{
+			return FString(TEXT("no region"));
+		}
+
+		Region->SetWeather(EVaelWeather::Rain);
+		return FString(TEXT("rain"));
+	}, 6.0f });
+	Steps.Add({ TEXT("Keimpelz"), [this]()
+	{
+		int32 NumSprouted = 0;
+		int32 NumSeeded = 0;
+		for (TActorIterator<AVaelHarvestable> It(GetWorld()); It; ++It)
+		{
+			if (It->GetCompendiumId() == TEXT("Russmoos"))
+			{
+				NumSprouted += It->IsAvailable() ? 1 : 0;
+				NumSeeded += It->IsSeeded() ? 1 : 0;
+			}
+		}
+
+		return FString::Printf(TEXT("%s%d sprouted in the rain, %d of them carry seeds"), NumSprouted > 0 ? TEXT("") : TEXT("FAILED: "), NumSprouted, NumSeeded);
+	}, 0.1f });
+
 	Steps.Add({ TEXT("Harvest"), Harvest, 0.1f });
 	Steps.Add({ TEXT("Corrupt the region"), [SetRegionCorruption]() { return SetRegionCorruption(70.0f, false); }, 1.5f });
 

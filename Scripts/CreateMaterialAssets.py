@@ -180,10 +180,17 @@ MATERIALS = [
     },
     {
         "asset": "DA_Material_Russmoos",
-        "display_name": unreal.Text("Rußmoos"),
-        "description": unreal.Text("Schwarzgraues Moos von toten Stämmen. Futter, mit dem Tiere rein wachsen."),
+        "display_name": unreal.Text("Keimpelz"),
+        "description": unreal.Text("Grüner Moospelz, der mit dem Regen aus der Asche kommt. Futter, mit dem Tiere rein wachsen."),
         "region": unreal.Text("Aschenmark"),
         "color": color("5c6648"),
+    },
+    {
+        "asset": "DA_Material_Ueberraschungssaat",
+        "display_name": unreal.Text("Überraschungssaat"),
+        "description": unreal.Text("Samenkapseln vom Keimpelz. Niemand weiß, was daraus wird, bevor Albrun sie im Topf gezogen hat."),
+        "region": unreal.Text("Aschenmark"),
+        "color": color("9be36a"),
     },
     {
         "asset": "DA_Material_Kelchfleisch",
