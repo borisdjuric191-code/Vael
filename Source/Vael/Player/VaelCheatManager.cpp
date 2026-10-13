@@ -125,7 +125,23 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	const FString Name = Kind.ToLower();
 	UVaelCreatureData* Data = nullptr;
 
-	if (Name.StartsWith(TEXT("glut")) || Name.StartsWith(TEXT("krie")) || Name.StartsWith(TEXT("crawl")))
+	if (Name.StartsWith(TEXT("taufal")) || Name.StartsWith(TEXT("dewm")))
+	{
+		Data = GetMutableDefault<UVaelDewMothData>();
+	}
+	else if (Name.StartsWith(TEXT("tau")))
+	{
+		Data = GetMutableDefault<UVaelTauraupeData>();
+	}
+	else if (Name.StartsWith(TEXT("nosf")) || Name.StartsWith(TEXT("falter")) || Name.StartsWith(TEXT("blutf")) || Name.StartsWith(TEXT("moth")))
+	{
+		Data = GetMutableDefault<UVaelBloodMothData>();
+	}
+	else if (Name.StartsWith(TEXT("drac")) || Name.StartsWith(TEXT("raupe")) || Name.StartsWith(TEXT("cater")))
+	{
+		Data = GetMutableDefault<UVaelDraculaupeData>();
+	}
+	else if (Name.StartsWith(TEXT("glut")) || Name.StartsWith(TEXT("krie")) || Name.StartsWith(TEXT("crawl")))
 	{
 		Data = GetMutableDefault<UVaelEmberCrawlerData>();
 	}

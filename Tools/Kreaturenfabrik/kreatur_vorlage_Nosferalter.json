@@ -1,0 +1,14 @@
+{
+  "name": "Nosferalter",
+  "name_datei": "Nosferalter",
+  "region": "Wurzelforst",
+  "familie": "Falter",
+  "klasse": "normal",
+  "laenge_cm": 60,
+  "spannweite_cm": 190,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Der Falter der Draculaupe (Entwurf 1, ohne hängende Tropfen: das Blut tropft im Spiel als Effekt). Körpermitte blaugrün, Flügel nach außen blutrot und zerrissen, rote Augen, gefiederte Fühler, langer Saugrüssel.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D."
+}

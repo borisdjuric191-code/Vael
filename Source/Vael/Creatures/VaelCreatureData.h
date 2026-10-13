@@ -7,6 +7,7 @@
 #include "Items/VaelItemTypes.h"
 #include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
+#include "Nature/VaelRainBloom.h"
 #include "VaelCreatureData.generated.h"
 
 class AVaelCreature;
@@ -1079,4 +1080,174 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Light", meta = (ClampMin = 0))
 	float BlindedDamageMultiplier = 1.6f;
+};
+
+/**
+ *  Draculaupe: a slow caterpillar that does no harm itself. The moment it touches a player it spins itself into a cocoon,
+ *  and its alarm calls every other caterpillar near to that player. A moth hatches from the cocoon after a few seconds
+ *  unless the cocoon is destroyed first, which takes a lot of damage.
+ */
+UCLASS()
+class UVaelDraculaupeData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelDraculaupeData();
+
+	/** True if it crawls towards players it notices; false: it only wanders around its home */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior")
+	bool bSeeksPlayers = true;
+
+	/** It touches a player closer than this beyond the two bodies, in cm; a player in a dodge roll can't be touched */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Touch", meta = (ClampMin = 0))
+	float TouchReach = 18.0f;
+
+	/** True if its touch calls the other caterpillars */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Touch")
+	bool bAlarms = true;
+
+	/** The alarm reaches caterpillars within this distance, in cm, and they crawl this much faster */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Touch", meta = (ClampMin = 0))
+	float AlarmRadius = 2000.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Touch", meta = (ClampMin = 1))
+	float AlarmSpeedMultiplier = 1.5f;
+
+	/** Seconds from the touch until the moth hatches */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cocoon", meta = (ClampMin = 0.5))
+	float CocoonTime = 10.0f;
+
+	/** Damage the cocoon takes is multiplied by this: it needs a lot */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cocoon", meta = (ClampMin = 0))
+	float CocoonDamageMultiplier = 0.22f;
+
+	/** Model of the cocoon (creature factory, mode requisite) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cocoon")
+	TSoftObjectPtr<UStaticMesh> CocoonMesh;
+
+	/** Color of the threads it spins */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cocoon")
+	FLinearColor ThreadColor = FLinearColor(0.72f, 0.68f, 0.6f);
+
+	/** What a destroyed cocoon gives besides the loot of the caterpillar */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cocoon")
+	TArray<FVaelLootEntry> CocoonLoot;
+
+	/** The moth that hatches */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Cocoon")
+	TSubclassOf<UVaelCreatureData> MothData;
+};
+
+/**
+ *  Tauraupe: the healed Draculaupe of a pure land. It wanders instead of seeking players and calls no others;
+ *  touched, it spins a white cocoon from which a Taufalter hatches.
+ *  Only a different set of default values for the caterpillar.
+ */
+UCLASS()
+class UVaelTauraupeData : public UVaelDraculaupeData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelTauraupeData();
+};
+
+/**
+ *  Nosferalter: the moth of the Draculaupe. It rises above the player its caterpillar touched, follows them and circles,
+ *  and for a while single drops of blood fall around it and hurt whoever they hit. Where drops soak the earth, flowers grow now and then.
+ *  It can be fought in the air, but takes far more damage than the cocoon. When its rain is spent it flies off.
+ */
+UCLASS()
+class UVaelBloodMothData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelBloodMothData();
+
+	/** Height of the body above the ground, in cm; the collision stays low so spells still hit */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flight", meta = (ClampMin = 0))
+	float FlightHeight = 260.0f;
+
+	/** Radius of its circle above the player in cm, and its speed in radians per second */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flight", meta = (ClampMin = 0))
+	float CircleRadius = 230.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flight")
+	float CircleSpeed = 1.0f;
+
+	/** Wing beats per second and how far the wings swing, in degrees */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flight", meta = (ClampMin = 0))
+	float FlapsPerSecond = 2.6f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Flight", meta = (ClampMin = 0))
+	float FlapAngle = 40.0f;
+
+	/** Seconds its rain lasts, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain")
+	FVector2D RainTime = FVector2D(30.0f, 60.0f);
+
+	/** Drops fall within this distance around the moth, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain", meta = (ClampMin = 0))
+	float RainRadius = 380.0f;
+
+	/** Seconds between two drops, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain")
+	FVector2D DropInterval = FVector2D(0.3f, 0.7f);
+
+	/** Seconds a drop falls, and how close to where it lands it hits, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain", meta = (ClampMin = 0.1))
+	float DropFallTime = 0.75f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain", meta = (ClampMin = 0))
+	float DropRadius = 90.0f;
+
+	/** Damage of a drop; with healing rain the health it gives instead */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain", meta = (ClampMin = 0))
+	float DropAmount = 6.0f;
+
+	/** True for the rain of the healed moth: its drops heal */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain")
+	bool bHealingRain = false;
+
+	/** Color of the drops */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Rain")
+	FLinearColor DropColor = FLinearColor(0.55f, 0.01f, 0.02f);
+
+	/** Chance from 0 to 1 that a flower grows where a drop lands, and how many one rain lets grow at most */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Blooms", meta = (ClampMin = 0, ClampMax = 1))
+	float BloomChance = 0.09f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Blooms", meta = (ClampMin = 0))
+	int32 MaxBlooms = 5;
+
+	/** Seconds a flower stands before it wilts, picked at random in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Blooms")
+	FVector2D BloomLifetime = FVector2D(120.0f, 180.0f);
+
+	/** Flowers keep at least this far from each other, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Blooms", meta = (ClampMin = 0))
+	float BloomSpacing = 260.0f;
+
+	/** The kinds of flowers its rain lets grow, weighed by their chance */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Blooms")
+	TArray<FVaelRainBloomKind> Blooms;
+};
+
+/**
+ *  Taufalter: the moth of the Tauraupe. Its rain is water that heals, and only the good flowers grow under it.
+ *  Only a different set of default values for the moth.
+ */
+UCLASS()
+class UVaelDewMothData : public UVaelBloodMothData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelDewMothData();
 };

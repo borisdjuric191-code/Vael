@@ -5,6 +5,8 @@
 #include "Engine/StaticMesh.h"
 #include "Creatures/VaelAshHarpy.h"
 #include "Creatures/VaelAshRoller.h"
+#include "Creatures/VaelBloodMoth.h"
+#include "Creatures/VaelDraculaupe.h"
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelPreacher.h"
@@ -252,6 +254,119 @@ UVaelVeilMonkeyData::UVaelVeilMonkeyData()
 	HealthOrbChance = 0.0f;
 	ManaOrbChance = 0.0f;
 	BodyColor = FLinearColor(0.03f, 0.03f, 0.035f);
+}
+
+UVaelDraculaupeData::UVaelDraculaupeData()
+{
+	DisplayName = LOCTEXT("Draculaupe", "Draculaupe");
+	CompendiumId = TEXT("Draculaupe");
+	KindId = TEXT("Draculaupe");
+	CreatureClass = AVaelDraculaupe::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Wurzelforst/Draculaupe/SK_Draculaupe.SK_Draculaupe")));
+	CocoonMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Wurzelforst/DraculaupeKokon/SM_DraculaupeKokon.SM_DraculaupeKokon")));
+	MothData = UVaelBloodMothData::StaticClass();
+
+	// Slow and frail; its cocoon is what takes the damage
+	MaxHealth = 45.0f;
+	MoveSpeed = 150.0f;
+	CollisionRadius = 42.0f;
+	CollisionHalfHeight = 42.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 1.4f);
+	AggroRange = 1100.0f;
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rotnoppe.DA_Material_Rotnoppe"), 0.6f));
+	CocoonLoot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Kokonseide.DA_Material_Kokonseide"), 1.0f, 1, 2));
+	HealthOrbChance = 0.0f;
+	ManaOrbChance = 0.0f;
+	BodyColor = FLinearColor(0.35f, 0.6f, 0.5f);
+}
+
+UVaelTauraupeData::UVaelTauraupeData()
+{
+	DisplayName = LOCTEXT("Tauraupe", "Tauraupe");
+	CompendiumId = TEXT("Tauraupe");
+	KindId = TEXT("Tauraupe");
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Wurzelforst/Tauraupe/SK_Tauraupe.SK_Tauraupe")));
+	CocoonMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Wurzelforst/TauraupeKokon/SM_TauraupeKokon.SM_TauraupeKokon")));
+	MothData = UVaelDewMothData::StaticClass();
+
+	// Harmless: it wanders on its hind end, slower still, and calls nobody
+	MoveSpeed = 90.0f;
+	bSeeksPlayers = false;
+	bAlarms = false;
+	ThreadColor = FLinearColor(0.95f, 0.97f, 1.0f);
+	Loot.Reset();
+	bCanBeMarked = false;
+}
+
+UVaelBloodMothData::UVaelBloodMothData()
+{
+	DisplayName = LOCTEXT("BloodMoth", "Nosferalter");
+	CompendiumId = TEXT("Nosferalter");
+	KindId = TEXT("Nosferalter");
+	CreatureClass = AVaelBloodMoth::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Wurzelforst/Nosferalter/SK_Nosferalter.SK_Nosferalter")));
+
+	// Far tougher than the cocoon it came from
+	MaxHealth = 320.0f;
+	MoveSpeed = 520.0f;
+	CollisionRadius = 55.0f;
+	CollisionHalfHeight = 60.0f;
+	ElementMultipliers.Add(EVaelElement::Air, 1.3f);
+	ElementMultipliers.Add(EVaelElement::Fire, 1.2f);
+	KnockbackMultiplier = 0.6f;
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Blutschuppen.DA_Material_Blutschuppen"), 1.0f, 1, 2));
+	HealthOrbChance = 0.0f;
+	ManaOrbChance = 0.0f;
+	BodyColor = FLinearColor(0.5f, 0.05f, 0.08f);
+
+	const auto AddBloom = [this](EVaelBloomKind Kind, const FText& Name, const TCHAR* MeshPath, float Chance)
+	{
+		FVaelRainBloomKind& Bloom = Blooms.AddDefaulted_GetRef();
+		Bloom.Kind = Kind;
+		Bloom.DisplayName = Name;
+		Bloom.Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(MeshPath));
+		Bloom.Chance = Chance;
+		return &Bloom;
+	};
+
+	// The bad kinds are the common ones
+	FVaelRainBloomKind* Thorn = AddBloom(EVaelBloomKind::Thorn, LOCTEXT("ThornBloom", "Dornkelch"), TEXT("/Game/Vael/Requisiten/Wurzelforst/Dornkelch/SM_Dornkelch.SM_Dornkelch"), 0.40f);
+	Thorn->Radius = 170.0f;
+	Thorn->Amount = 4.0f;
+	Thorn->Interval = 1.0f;
+
+	FVaelRainBloomKind* Slumber = AddBloom(EVaelBloomKind::Slumber, LOCTEXT("SlumberBloom", "Schlummerkelch"), TEXT("/Game/Vael/Requisiten/Wurzelforst/Schlummerkelch/SM_Schlummerkelch.SM_Schlummerkelch"), 0.30f);
+	Slumber->Radius = 210.0f;
+	Slumber->Amount = 0.3f;
+
+	FVaelRainBloomKind* Heal = AddBloom(EVaelBloomKind::Heal, LOCTEXT("HealBloom", "Heilkelch"), TEXT("/Game/Vael/Requisiten/Wurzelforst/Heilkelch/SM_Heilkelch.SM_Heilkelch"), 0.18f);
+	Heal->Amount = 25.0f;
+	Heal->GlowColor = FLinearColor(1.0f, 0.95f, 0.75f);
+
+	FVaelRainBloomKind* Harvest = AddBloom(EVaelBloomKind::Harvest, LOCTEXT("HarvestBloom", "Erntekelch"), TEXT("/Game/Vael/Requisiten/Wurzelforst/Erntekelch/SM_Erntekelch.SM_Erntekelch"), 0.12f);
+	Harvest->Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Kelchkapsel.DA_Material_Kelchkapsel"), 1.0f, 1, 2));
+}
+
+UVaelDewMothData::UVaelDewMothData()
+{
+	DisplayName = LOCTEXT("DewMoth", "Taufalter");
+	CompendiumId = TEXT("Taufalter");
+	KindId = TEXT("Taufalter");
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Wurzelforst/Taufalter/SK_Taufalter.SK_Taufalter")));
+
+	// Its rain heals, and only the good flowers grow under it
+	bHealingRain = true;
+	DropAmount = 4.0f;
+	DropColor = FLinearColor(0.55f, 0.85f, 1.0f);
+	Loot.Reset();
+	bCanBeMarked = false;
+	BodyColor = FLinearColor(0.4f, 0.75f, 0.7f);
+
+	Blooms.RemoveAll([](const FVaelRainBloomKind& Bloom) { return Bloom.Kind == EVaelBloomKind::Thorn || Bloom.Kind == EVaelBloomKind::Slumber; });
+	for (FVaelRainBloomKind& Bloom : Blooms)
+	{
+		Bloom.Chance = Bloom.Kind == EVaelBloomKind::Heal ? 0.6f : 0.4f;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

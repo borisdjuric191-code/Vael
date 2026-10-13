@@ -1,0 +1,14 @@
+{
+  "name": "Draculaupe",
+  "name_datei": "Draculaupe",
+  "region": "Wurzelforst",
+  "familie": "Raupe",
+  "klasse": "normal",
+  "laenge_cm": 110,
+  
+  "drehung_z_grad": 90,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Dicke, langsame Raupe, vom Mark verdorben (Idee von Boris, 13. Oktober 2026; Entwurf 2). Blassgrüner bis blaugrüner, weicher Leib; rote Saugnoppen an der Bauchseite, rote Äuglein, zwei kleine Fangzähne.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D."
+}

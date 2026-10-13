@@ -1,0 +1,14 @@
+{
+  "name": "Taufalter",
+  "name_datei": "Taufalter",
+  "region": "Wurzelforst",
+  "familie": "Falter",
+  "klasse": "normal",
+  "laenge_cm": 60,
+  "spannweite_cm": 190,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Der Falter der Tauraupe (Entwurf 2): blaugrüner Pelzleib, Flügel von Blaugrün nach schimmerndem Weißblau, Tautropfen an den Spitzen, gefiederte Fühler.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D."
+}

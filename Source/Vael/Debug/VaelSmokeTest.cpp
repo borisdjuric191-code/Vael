@@ -10,6 +10,9 @@
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelAshRoller.h"
+#include "Creatures/VaelBloodMoth.h"
+#include "Creatures/VaelDraculaupe.h"
+#include "Nature/VaelRainBloom.h"
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelVeilMonkey.h"
 #include "Items/VaelMaterial.h"
@@ -385,6 +388,59 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bDone = Monkey->GetClimbCount() > 0 && Monkey->GetMonkeyState() != EVaelMonkeyState::Climb;
 			const bool bOk = bMonkeyClimbStarted && bDone && Way > 180.0f;
 			return FString::Printf(TEXT("%s%d climbs, %.0f cm beyond where it stood"), bOk ? TEXT("") : TEXT("FAILED: "), Monkey->GetClimbCount(), Way);
+		}, 0.1f });
+	}
+
+	// A caterpillar touches the player: it spins itself in and calls the other; a moth hatches and rains
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Caterpillar arena"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelDraculaupeData>(), 2);
+			AVaelCharacter* Player = GetPlayer();
+
+			AVaelDraculaupe* First = nullptr;
+			AVaelDraculaupe* Second = nullptr;
+			for (TActorIterator<AVaelDraculaupe> It(GetWorld()); It; ++It)
+			{
+				if (!It->IsDead())
+				{
+					Second = First;
+					First = *It;
+				}
+			}
+			if (First == nullptr || Second == nullptr || Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no two caterpillars"));
+			}
+
+			AVaelBloodMoth::ResetFirstHarvest();
+			First->Touch(Player);
+
+			const bool bOk = First->GetCaterpillarState() == EVaelCaterpillarState::Cocoon && Second->IsAlarmed();
+			return FString::Printf(TEXT("%s%s, one touches the player: %s, the other: %s"), bOk ? TEXT("") : TEXT("FAILED: "), *Arena,
+				First->GetCaterpillarState() == EVaelCaterpillarState::Cocoon ? TEXT("cocoon") : TEXT("NO cocoon"), Second->IsAlarmed() ? TEXT("alarmed") : TEXT("NOT alarmed"));
+		}, 24.0f });
+		Steps.Add({ TEXT("Moth"), [this]()
+		{
+			int32 NumMoths = 0;
+			int32 NumDrops = 0;
+			int32 NumBlooms = 0;
+			for (TActorIterator<AVaelBloodMoth> It(GetWorld()); It; ++It)
+			{
+				++NumMoths;
+				NumDrops += It->GetDropCount();
+				NumBlooms += It->GetBloomCount();
+			}
+
+			int32 NumHarvest = 0;
+			for (TActorIterator<AVaelRainBloom> It(GetWorld()); It; ++It)
+			{
+				NumHarvest += It->GetBloomKind() == EVaelBloomKind::Harvest ? 1 : 0;
+			}
+
+			const bool bOk = NumMoths > 0 && NumDrops > 0;
+			return FString::Printf(TEXT("%s%d moths hatched, %d drops landed, %d flowers grew, %d of them to harvest"), bOk ? TEXT("") : TEXT("FAILED: "), NumMoths, NumDrops, NumBlooms, NumHarvest);
 		}, 0.1f });
 	}
 

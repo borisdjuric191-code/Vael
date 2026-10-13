@@ -87,7 +87,21 @@ FLUEGLER = {
         "leg":  [(.10, .5, .48), (.11, .45, .26), (.12, .5, .03)],
     },
 }
-FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR, "Zweibeiner": ZWEIBEINER, "Fluegler": FLUEGLER}
+# Vorlage-Skelett Falter (Nosferalter, Taufalter): hängt aufrecht, Blick nach -Y, vier Flügel flach zur Seite gebreitet.
+# Je Seite ein Flügelknochen-Paar (innen, außen) für Vorder- und Hinterflügel zusammen; die Beine sind zu klein für Knochen.
+FALTER = {
+    "body": [(0, .5, .25), (0, .5, .62)],
+    "head": [(0, .5, .64), (0, .5, .82)],
+    "ketten": {"wing": [(.07, .5, .55), (.5, .5, .55), (1.0, .5, .55)]},
+}
+# Vorlage-Skelett Raupe (Draculaupe): liegt der Länge nach, Kopf bei -Y. Eine Kette von Rückenknochen von hinten nach vorn:
+# body (Hinterende), seg_2 … seg_5, head. "spine" wird aus dem Mesh gelesen.
+RAUPE = {
+    "body": [(0, 1.0, .3), (0, .84, .3)],
+    "head": [(0, .16, .3), (0, 0, .3)],
+    "spine": 6,
+}
+FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR, "Zweibeiner": ZWEIBEINER, "Fluegler": FLUEGLER, "Falter": FALTER, "Raupe": RAUPE}
 
 # ---------------------------------------------------------------- Hilfen
 def log(*a): print("[Vael]", *a)
@@ -396,7 +410,54 @@ def passe_fluegler_an(obj, tpl):
         f"{wing['L'][2].x:.2f}/{wing['R'][2].x:.2f} m, Füße bei {leg['L'][2].x:.2f}/{leg['R'][2].x:.2f} m, Schnabel {(schnabel.y - lo.y) / L:.2f}).")
     return t
 
+def passe_falter_an(obj, tpl):
+    """Legt Körper und Flügelknochen in die Ebene der Flügel (Blick nach -Y)."""
+    import copy
+    lo, hi = bbox_welt(obj)
+    hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
+    V = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    aussen = [p for p in V if abs(p.x) > .4 * hw]
+    rumpf = [p for p in V if abs(p.x) < .1 * hw]
+    if len(aussen) < 10 or len(rumpf) < 10:
+        log("Flügel nicht sicher gefunden – nehme die Vorlage."); return tpl
+    fy = (sum(p.y for p in aussen) / len(aussen) - lo.y) / L          # Tiefe der Flügelebene
+    fz = (sum(p.z for p in aussen) / len(aussen) - lo.z) / H          # mittlere Höhe der Flügel
+    ry = (sum(p.y for p in rumpf) / len(rumpf) - lo.y) / L            # Tiefe der Körpermitte
+    t = copy.deepcopy(tpl)
+    t["body"] = [(0, ry, .25), (0, ry, .62)]
+    t["head"] = [(0, ry, .64), (0, ry, .82)]
+    t["ketten"] = {"wing": [(.07, fy, fz), (.5, fy, fz), (1.0, fy, fz)]}
+    log(f"Skelett an den Falter angepasst (Flügelebene {fy:.2f}, Flügelhöhe {fz:.2f}, Körpermitte {ry:.2f}).")
+    return t
+
+def passe_raupe_an(obj, tpl):
+    """Schneidet die Raupe der Länge nach in Scheiben und legt die Rückenknochen durch deren Mitten (als Weltpunkte, hinten → vorn)."""
+    import copy
+    lo, hi = bbox_welt(obj)
+    L = hi.y - lo.y
+    V = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    n = tpl["spine"]
+    punkte = []
+    for k in range(n + 1):
+        y = hi.y - L * (.03 + .94 * k / n)
+        scheibe = [p for p in V if abs(p.y - y) < L * .09]
+        if len(scheibe) < 3:
+            log("Raupe nicht sicher gefunden – nehme die Vorlage."); return tpl
+        punkte.append(Vector((sum(p.x for p in scheibe) / len(scheibe), y, sum(p.z for p in scheibe) / len(scheibe))))
+    t = copy.deepcopy(tpl)
+    t["body"] = [punkte[0], punkte[1]]
+    t["head"] = [punkte[n - 1], punkte[n]]
+    t["spine"] = punkte[2:n]            # Gelenke zwischen body und head
+    log(f"Skelett an die Raupe angepasst ({n} Rückenknochen, Kopfhöhe {(punkte[n].z - lo.z) / (hi.z - lo.z):.2f}).")
+    return t
+
 def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
+    if tpl is FALTER:
+        tpl = passe_falter_an(obj, tpl)
+        hoerner = False
+    if tpl is RAUPE:
+        tpl = passe_raupe_an(obj, tpl)
+        hoerner = False
     if tpl is FLUEGLER:
         tpl = passe_fluegler_an(obj, tpl)
         hoerner = False
@@ -433,7 +494,13 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
 
     root = knochen("root", Vector((0, 0, 0)), Vector((0, 0, H * .2)))
     body = knochen("body", p(tpl["body"][0]), p(tpl["body"][1]), root)
-    head = knochen("head", p(tpl["head"][0]), p(tpl["head"][1]), body)
+    # Raupe: Rückenknochen zwischen Körper (hinten) und Kopf, als Kette
+    vor_kopf = body
+    if isinstance(tpl.get("spine"), list):
+        gelenke = [p(tpl["body"][1])] + [p(g) for g in tpl["spine"]]
+        for i in range(len(gelenke) - 1):
+            vor_kopf = knochen(f"seg_{i + 2}", gelenke[i], gelenke[i + 1], vor_kopf, True)
+    head = knochen("head", p(tpl["head"][0]), p(tpl["head"][1]), vor_kopf)
     for h in ("horn_M", "horn_L", "horn_R") if hoerner else ():
         knochen(h, p(tpl[h][0]), p(tpl[h][1]), head)
     for nr, (huefte, knie, gelenk, spitze) in tpl.get("legs", {}).items():

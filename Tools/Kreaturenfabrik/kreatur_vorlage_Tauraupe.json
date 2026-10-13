@@ -1,0 +1,14 @@
+{
+  "name": "Tauraupe",
+  "name_datei": "Tauraupe",
+  "region": "Wurzelforst",
+  "familie": "Starr",
+  "klasse": "normal",
+  "laenge_cm": 60,
+  "hoehe_cm": 75,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "aussehen": "Die geheilte Draculaupe (Entwurf 2): blassgrün bis blaugrün, perlweiße Noppen, dunkelblaue freundliche Augen, keine Zähne. Sitzt aufgerichtet und schiebt sich mit dem Hinterleib voran.",
+  "tripo_weg": "Konzeptbild (Tripo-Bildgenerator) -> Bild zu 3D."
+}
