@@ -24,6 +24,7 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Vael.h"
 #include "VaelAssets.h"
+#include "TimerManager.h"
 #include "World/VaelGround.h"
 #include "World/VaelRegion.h"
 
@@ -321,6 +322,9 @@ void UVaelGardenSubsystem::OnLevelStarted(UWorld* World)
 
 	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
 
+	// The green lies on the land, not on what comes and goes on it: creatures, spells, loot
+	World->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &UVaelGardenSubsystem::OnActorSpawned));
+
 	// The pot stands beside its keeper
 	for (TActorIterator<AVaelNpc> It(World); It; ++It)
 	{
@@ -346,6 +350,23 @@ void UVaelGardenSubsystem::OnLevelStarted(UWorld* World)
 			AVaelSownPlant::Plant(World, Saved.Plant, Saved.Location, Saved.Yaw, true);
 		}
 	}
+}
+
+void UVaelGardenSubsystem::OnActorSpawned(AActor* Actor)
+{
+	UWorld* World = Actor != nullptr ? Actor->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return;
+	}
+
+	// A moment later, once it has built everything it is made of
+	const TWeakObjectPtr<AActor> WeakActor(Actor);
+	FTimerHandle Handle;
+	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateLambda([WeakActor]()
+	{
+		VaelGround::RefuseDecals(WeakActor.Get());
+	}), 0.05f, false);
 }
 
 float UVaelGardenSubsystem::GetGreenRadius(const UWorld* World, const FVector& PlantLocation) const

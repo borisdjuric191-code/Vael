@@ -51,7 +51,10 @@ namespace VaelGround
 		TInlineComponentArray<UPrimitiveComponent*> Components(Actor);
 		for (UPrimitiveComponent* Component : Components)
 		{
-			Component->SetReceivesDecals(false);
+			if (Component->bReceivesDecals)
+			{
+				Component->SetReceivesDecals(false);
+			}
 		}
 	}
 }

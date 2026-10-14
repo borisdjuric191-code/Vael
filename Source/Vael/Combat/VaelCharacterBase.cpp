@@ -6,6 +6,7 @@
 #include "Combat/VaelGameplayEffects.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelGameplayTags.h"
+#include "TimerManager.h"
 #include "World/VaelGround.h"
 
 AVaelCharacterBase::AVaelCharacterBase()
@@ -40,8 +41,12 @@ void AVaelCharacterBase::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Characters walk over the green of the seed garden without turning green
+	// Characters walk over the green of the seed garden without turning green; looked at again and again,
+	// as models, cocoons and other parts are added long after the start
 	VaelGround::RefuseDecals(this);
+
+	FTimerHandle DecalTimer;
+	GetWorldTimerManager().SetTimer(DecalTimer, FTimerDelegate::CreateWeakLambda(this, [this]() { VaelGround::RefuseDecals(this); }), 1.0f, true, FMath::FRandRange(0.05f, 1.0f));
 
 	if (ManaRegenPerSecond > 0.0f)
 	{

@@ -63,9 +63,6 @@ UVaelMagicSettings::UVaelMagicSettings()
 
 	FVaelSpellEffects& FireEffects = ElementEffects.Add(EVaelElement::Fire);
 	FireEffects.ImpactEffect = PackEffect(TEXT("NiagaraExamples/FX_Explosions"), TEXT("NS_Explosion_Small"));
-	FireEffects.GroundEffect = PackEffect(TEXT("NiagaraExamples/FX_Misc"), TEXT("NS_Fire"));
-	FireEffects.GroundSpacing = 95.0f;
-	FireEffects.GroundScale = 1.6f;
 
 	SplashEffect = PackEffect(TEXT("NiagaraExamples/FX_Misc"), TEXT("NS_Bubble_Burst"));
 

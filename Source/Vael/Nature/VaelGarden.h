@@ -247,6 +247,9 @@ public:
 
 private:
 
+	/** Whatever appears in the level while playing stays free of the green on the ground */
+	void OnActorSpawned(AActor* Actor);
+
 	TSet<FName> Researched;
 	TArray<FVaelSavedPlant> Sown;
 
