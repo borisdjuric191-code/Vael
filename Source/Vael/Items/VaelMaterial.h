@@ -88,6 +88,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Potion", meta = (ClampMin = 0, ClampMax = 1))
 	float HealFraction = 0.0f;
 
+	/** After the heal it keeps healing: this share of the maximum health, spread evenly over these seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Potion", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "HealFraction > 0"))
+	float RegenFraction = 0.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Potion", meta = (ClampMin = 0, EditCondition = "HealFraction > 0"))
+	float RegenSeconds = 0.0f;
+
 	bool IsPotion() const { return HealFraction > 0.0f; }
 };
 

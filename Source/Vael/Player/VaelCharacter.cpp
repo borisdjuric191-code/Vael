@@ -718,8 +718,30 @@ bool AVaelCharacter::DrinkPotion()
 	UVaelCombatTextSubsystem::PostPickup(this, FText::Format(NSLOCTEXT("VaelItems", "PotionHeal", "+{0} Leben"), FText::AsNumber(FMath::RoundToInt(Amount))), FLinearColor(FColor(120, 230, 120)));
 	NextPotionTime = GetWorld()->GetTimeSeconds() + UVaelItemSettings::Get()->PotionCooldown;
 
+	// Then it keeps healing a little for a while; a new potion starts the regeneration over
+	if (Potion->RegenFraction > 0.0f && Potion->RegenSeconds > 0.0f)
+	{
+		PotionRegenPerSecond = GetMaxHealth() * Potion->RegenFraction / Potion->RegenSeconds;
+		PotionRegenEndTime = GetWorld()->GetTimeSeconds() + Potion->RegenSeconds;
+		GetWorldTimerManager().SetTimer(PotionRegenTimer, this, &AVaelCharacter::TickPotionRegen, 1.0f, true);
+	}
+
 	UE_LOG(LogVael, Log, TEXT("'%s' drinks %s, %d left"), *GetNameSafe(this), *Potion->DisplayName.ToString(), GetPotionCount());
 	return true;
+}
+
+void AVaelCharacter::TickPotionRegen()
+{
+	if (GetWorld()->GetTimeSeconds() > PotionRegenEndTime || bDowned)
+	{
+		GetWorldTimerManager().ClearTimer(PotionRegenTimer);
+		return;
+	}
+
+	if (GetHealth() < GetMaxHealth())
+	{
+		UVaelCombatStatics::Heal(this, PotionRegenPerSecond);
+	}
 }
 
 void AVaelCharacter::SetBurden(float SpeedMultiplier, float Duration)

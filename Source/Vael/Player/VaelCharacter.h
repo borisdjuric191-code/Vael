@@ -286,6 +286,14 @@ private:
 	/** World time from which the next potion can be drunk */
 	float NextPotionTime = 0.0f;
 
+	/** Health the regeneration after a potion gives back per second, and the world time it lasts until */
+	float PotionRegenPerSecond = 0.0f;
+	float PotionRegenEndTime = 0.0f;
+	FTimerHandle PotionRegenTimer;
+
+	/** Gives back a second's worth of the potion's regeneration */
+	void TickPotionRegen();
+
 	/** Seconds a teammate has helped so far */
 	float ReviveProgress = 0.0f;
 

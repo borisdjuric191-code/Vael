@@ -36,17 +36,17 @@ def loot(material, chance=1.0, min_count=1, max_count=1):
 HARVESTABLES = [
     # Plants
     {"asset": "DA_Harvest_Glutdistel", "display_name": unreal.Text("Glutdistel"), "compendium_id": "Glutdistel", "kind": Kind.PLANT,
-     "loot": [loot("DA_Material_Glutsamen", 1.0, 1, 2)], "regrow_seconds": 90.0, "height": 80.0, "base_color": color("1a1512"), "glow_color": color("ff7a2e")},
+     "loot": [loot("DA_Material_Glutsamen", 1.0, 1, 2), loot("DA_Material_Distelflaum", 1.0, 1, 1)], "regrow_seconds": 90.0, "height": 80.0, "base_color": color("1a1512"), "glow_color": color("ff7a2e")},
     {"asset": "DA_Harvest_Traenenkelch", "display_name": unreal.Text("Tränenkelch"), "compendium_id": "Traenenkelch", "kind": Kind.PLANT,
-     "loot": [loot("DA_Material_Kelchtau", 1.0, 1, 2)], "regrow_seconds": 120.0, "height": 90.0, "base_color": color("4a4640"), "glow_color": color("bfe3ff")},
+     "loot": [loot("DA_Material_Kelchtau", 1.0, 1, 2), loot("DA_Material_Traenenglitzer", 1.0, 1, 1)], "regrow_seconds": 120.0, "height": 90.0, "base_color": color("4a4640"), "glow_color": color("bfe3ff")},
     {"asset": "DA_Harvest_Aschblase", "display_name": unreal.Text("Aschblase"), "compendium_id": "Aschblase", "kind": Kind.PLANT,
      "loot": [loot("DA_Material_Rauchblase", 1.0, 1, 1)], "regrow_seconds": 90.0, "height": 70.0, "base_color": color("2a2622"), "glow_color": color("9aa3a8")},
     {"asset": "DA_Harvest_Laternenglocke", "display_name": unreal.Text("Laternenglocke"), "compendium_id": "Laternenglocke", "kind": Kind.PLANT,
      "loot": [loot("DA_Material_Glockenglut", 1.0, 1, 1)], "regrow_seconds": 120.0, "height": 100.0, "base_color": color("5e5852"), "glow_color": color("ffb259")},
     {"asset": "DA_Harvest_Russmoos", "display_name": unreal.Text("Keimpelz"), "compendium_id": "Russmoos", "kind": Kind.PLANT,
-     "loot": [loot("DA_Material_Russmoos", 1.0, 1, 3)], "regrow_seconds": 60.0, "height": 25.0, "base_color": color("2b2b27"), "glow_color": color("4d5a3a")},
+     "loot": [loot("DA_Material_Russmoos", 1.0, 1, 3), loot("DA_Material_Pelzwasser", 1.0, 1, 1)], "regrow_seconds": 60.0, "height": 25.0, "base_color": color("2b2b27"), "glow_color": color("4d5a3a")},
     {"asset": "DA_Harvest_Fleischkelch", "display_name": unreal.Text("Fleischkelch"), "compendium_id": "Fleischkelch", "kind": Kind.PLANT,
-     "loot": [loot("DA_Material_Kelchfleisch", 1.0, 1, 1)], "regrow_seconds": 180.0, "height": 110.0, "base_color": color("6b2e3a"), "glow_color": color("a24dff")},
+     "loot": [loot("DA_Material_Kelchschleim", 1.0, 1, 1), loot("DA_Material_Verdauungssaeure", 1.0, 1, 1)], "regrow_seconds": 180.0, "height": 110.0, "base_color": color("6b2e3a"), "glow_color": color("a24dff")},
     # Fungi
     {"asset": "DA_Harvest_Pfeifenmorchel", "display_name": unreal.Text("Pfeifenmorchel"), "compendium_id": "Pfeifenmorchel", "kind": Kind.FUNGUS,
      "loot": [loot("DA_Material_Pfeifensporen", 1.0, 1, 2)], "regrow_seconds": 120.0, "height": 60.0, "base_color": color("5a3a2a"), "glow_color": color("b0442a")},

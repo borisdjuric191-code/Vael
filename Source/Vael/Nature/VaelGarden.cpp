@@ -665,7 +665,7 @@ bool AVaelSeedPot::CanInteract(const AVaelCharacter* Player) const
 
 FText AVaelSeedPot::GetInteractPrompt() const
 {
-	return GetPotState() == EVaelPotState::Ready ? LOCTEXT("PotLook", "Pflanze im Topf ansehen") : LOCTEXT("PotPlant", "Überraschungssaat einpflanzen");
+	return GetPotState() == EVaelPotState::Ready ? LOCTEXT("PotLook", "Pflanze im Topf ansehen") : LOCTEXT("PotPlant", "Keimsaat einpflanzen");
 }
 
 void AVaelSeedPot::Interact(AVaelCharacter* Player)
@@ -685,7 +685,7 @@ void AVaelSeedPot::Interact(AVaelCharacter* Player)
 		const UVaelMaterial* Seed = Settings->SurpriseSeed.LoadSynchronous();
 		if (Seed == nullptr || Player->GetMaterialBag() == nullptr || !Player->GetMaterialBag()->RemoveMaterial(Seed, 1))
 		{
-			UVaelNoticeSubsystem::Post(this, LOCTEXT("PotNoSeed", "Keine Überraschungssaat dabei"),
+			UVaelNoticeSubsystem::Post(this, LOCTEXT("PotNoSeed", "Keine Keimsaat dabei"),
 				LOCTEXT("PotNoSeedDetail", "Sie steckt nur im Keimpelz mit hellen Samenkapseln. Er sprießt mit dem Regen, etwa jeder zweite trägt Kapseln."), GardenNoticeColor, 5.0f);
 			return;
 		}
