@@ -963,6 +963,50 @@ void AVaelSmokeTest::BeginPlay()
 		return FString::Printf(TEXT("%s%d sown plants, green reaches %.0f cm, %d tufts"), bOk ? TEXT("") : TEXT("FAILED: "), NumPlants, Radius, NumTufts);
 	}, 0.1f });
 
+	// A marked sower grows the shadow form; the grown plant is harvested once and gives its ingredients
+	Steps.Add({ TEXT("Garden forms"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+		UAbilitySystemComponent* AbilitySystem = Player != nullptr ? Player->GetAbilitySystemComponent() : nullptr;
+		AVaelSownPlant* Grown = nullptr;
+		for (TActorIterator<AVaelSownPlant> It(GetWorld()); It && Grown == nullptr; ++It)
+		{
+			Grown = It->IsGrown() && !It->IsHarvested() ? *It : nullptr;
+		}
+		if (Garden == nullptr || AbilitySystem == nullptr || Grown == nullptr)
+		{
+			return FString(TEXT("FAILED: no player, garden or grown plant"));
+		}
+
+		const bool bFormsRight = !UVaelGardenSubsystem::RollShadowForm(0.0f) && UVaelGardenSubsystem::RollShadowForm(100.0f);
+
+		// Sown a few steps aside, by a player deep in the Mark
+		const int32 ShadowBefore = Garden->GetNumShadow();
+		const float CorruptionBefore = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
+		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), 100.0f);
+		const FVector Home = Player->GetActorLocation();
+		Player->SetActorLocation(Home + Player->GetActorRightVector() * 400.0f);
+		const AVaelSownPlant* ShadowPlant = Garden->CanSow(Player) ? Garden->Sow(Player) : nullptr;
+		Player->SetActorLocation(Home);
+		const bool bShadowSown = ShadowPlant == nullptr || (ShadowPlant->IsShadowForm() && Garden->GetNumShadow() == ShadowBefore + 1);
+		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), CorruptionBefore);
+
+		// Harvested once, never twice
+		const FVaelSeedPlant* Kind = UVaelGardenSubsystem::FindPlant(Grown->GetPlantId());
+		const UVaelMaterial* First = Kind != nullptr && !Kind->LightHarvest.IsEmpty() ? (Grown->IsShadowForm() ? Kind->ShadowHarvest[0] : Kind->LightHarvest[0]).LoadSynchronous() : nullptr;
+		const int32 Before = First != nullptr ? Player->GetMaterialBag()->GetCount(First) : 0;
+		const bool bHarvested = Garden->Harvest(Grown, Player) && Grown->IsHarvested();
+		const int32 Got = First != nullptr ? Player->GetMaterialBag()->GetCount(First) - Before : 0;
+		const bool bOnce = !Garden->Harvest(Grown, Player) && !Grown->CanInteract(Player);
+
+		const bool bOk = bFormsRight && bShadowSown && bHarvested && Got > 0 && bOnce;
+		return FString::Printf(TEXT("%sforms follow the sower: %s; shadow form %s; %s harvested: %s, %d %s; second harvest %s"), bOk ? TEXT("") : TEXT("FAILED: "),
+			bFormsRight ? TEXT("yes") : TEXT("NO"), ShadowPlant == nullptr ? TEXT("not tried (no seed left)") : bShadowSown ? TEXT("sown") : TEXT("NOT sown"),
+			*Grown->GetFormName().ToString(), bHarvested ? TEXT("yes") : TEXT("NO"), Got, First != nullptr ? *First->DisplayName.ToString() : TEXT("(no ingredient)"),
+			bOnce ? TEXT("refused") : TEXT("NOT refused"));
+	}, 0.1f });
+
 	Steps.Add({ TEXT("Harvest"), Harvest, 0.1f });
 	Steps.Add({ TEXT("Corrupt the region"), [SetRegionCorruption]() { return SetRegionCorruption(70.0f, false); }, 1.5f });
 

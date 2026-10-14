@@ -114,4 +114,35 @@ def create_green():
         unreal.log("Vael: created {}".format(material.get_path_name()))
 
 
+def create_shadow_form():
+    """Overlay over a plant sown in its shadow form: darkens it to violet, with deep red where it turns away from the eye"""
+    material = new_material("M_Vael_Schattenform")
+    if material is None:
+        return
+
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MODULATE)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+
+    violet = expression(material, unreal.MaterialExpressionVectorParameter, -700, -100)
+    violet.set_editor_property("parameter_name", "Color")
+    violet.set_editor_property("default_value", unreal.LinearColor(0.32, 0.10, 0.45, 1.0))
+    red = expression(material, unreal.MaterialExpressionVectorParameter, -700, 120)
+    red.set_editor_property("parameter_name", "ColorEdge")
+    red.set_editor_property("default_value", unreal.LinearColor(0.75, 0.06, 0.10, 1.0))
+    edge = expression(material, unreal.MaterialExpressionFresnel, -700, 330)
+    edge.set_editor_property("exponent", 2.5)
+
+    tint = expression(material, unreal.MaterialExpressionLinearInterpolate, -330, 50)
+    library.connect_material_expressions(violet, "", tint, "A")
+    library.connect_material_expressions(red, "", tint, "B")
+    library.connect_material_expressions(edge, "", tint, "Alpha")
+
+    library.connect_material_property(tint, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+
+    library.recompile_material(material)
+    if unreal.EditorAssetLibrary.save_loaded_asset(material, False):
+        unreal.log("Vael: created {}".format(material.get_path_name()))
+
+
 create_green()
+create_shadow_form()

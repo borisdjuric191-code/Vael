@@ -300,6 +300,102 @@ MATERIALS = [
 ]
 
 
+# Ingredients of the witch's kitchen (Lore-Bibel, tabs Herbarium "Ernte" and Rezeptbuch): kind, element and way.
+# New ones are created; on the materials above, only the ingredient fields still at the class default are filled in.
+K = unreal.VaelIngredientKind
+E = unreal.VaelElement
+W = unreal.VaelWay
+
+INGREDIENTS = [
+    # asset name, shown name, what it does, color, kind, element (None = none), way
+    # Seed plants, light forms
+    ("Glimmblatt", "Glimmblatt", "Blatt des Glimmklees, die Ränder glimmen warm. Wärmt und schützt vor Feuer.", "ffa040", K.LEAF, E.FIRE, W.LIGHT),
+    ("Glimmstaub", "Glimmstaub", "Goldener Staub vom Glimmklee. Für langsame Regeneration.", "e8c060", K.DUST, E.EARTH, W.LIGHT),
+    ("Blatttau", "Blatttau", "Klares Wasser aus den Schalen des Taublatts. Basis der Licht-Tränke.", "8fd8ff", K.DEW, E.WATER, W.LIGHT),
+    ("Silberhalm", "Silberhalm", "Zähe Silberfaser des Windhalms. Für Schleuderbänder und Befiederung.", "cfe0e8", K.FIBER, E.AIR, W.LIGHT),
+    ("Halmsamen", "Halmsamen", "Leichte Samen des Windhalms, die der Wind trägt. Machen schnell.", "d8eef0", K.SEED, E.AIR, W.LIGHT),
+    ("Trichterpollen", "Trichterpollen", "Gelber Pollen aus den Trichtern der Schlotwinde. Verstärkt Schutz.", "ffd84a", K.POLLEN, E.EARTH, W.LIGHT),
+    ("Rankenfaser", "Rankenfaser", "Ranke der Schlotwinde. Für Netze und Bindungen.", "7fae4a", K.FIBER, E.EARTH, W.LIGHT),
+    ("Russbluetenblatt", "Rußblütenblatt", "Samtig schwarzes Blütenblatt der Rußrose. Heilt.", "3a3a40", K.PETAL, E.WATER, W.LIGHT),
+    ("RosenherzNektar", "Rosenherz-Nektar", "Nektar aus dem hellgrünen Herz der Rußrose. Verstärkt Heilung.", "9cf0a0", K.NECTAR, E.WATER, W.LIGHT),
+    ("Sternmilch", "Sternmilch", "Heller Saft des Milchsterns. Basis der Statustränke; der Ingenieur macht Latex daraus.", "f4f2ff", K.SAP, E.WATER, W.LIGHT),
+    ("Sternpollen", "Sternpollen", "Glitzernder Pollen des Milchsterns. Verlängert Wirkungen.", "d8d0ff", K.GLITTER, E.AIR, W.LIGHT),
+    ("Knistersamen", "Knistersamen", "Samen des Funkenmohns, sie knistern leise. Zünder und Brandmunition.", "ff7a2e", K.SEED, E.FIRE, W.LIGHT),
+    ("Mohnbluetenblatt", "Mohnblütenblatt", "Orangerotes Blütenblatt des Funkenmohns. Schützt vor Feuer.", "ff5a2a", K.PETAL, E.FIRE, W.LIGHT),
+    ("Hainblatt", "Hainblatt", "Das eine leuchtende Blatt des Hainschösslings. Reinigt und trifft Markwesen hart.", "ffe27a", K.LEAF, E.EARTH, W.LIGHT),
+    ("Lichttropfen", "Lichttropfen", "Ein Tropfen reines Licht vom Hainschössling. Der stärkste Licht-Verstärker.", "fff4c0", K.GLITTER, E.WATER, W.LIGHT),
+    ("Traenenglitzer", "Tränenglitzer", "Glitzer aus den Tropfen des Tränenkelchs. Heilt die Gruppe und reinigt.", "d0f0ff", K.GLITTER, E.WATER, W.LIGHT),
+    # Seed plants, shadow forms
+    ("Schwelblatt", "Schwelblatt", "Violett schwelendes Blatt des Schwelklees. Zehrt und erschöpft Gegner.", "7a3a8c", K.LEAF, E.FIRE, W.SHADOW),
+    ("Schwelstaub", "Schwelstaub", "Staub des Schwelklees. Ein Schwelbrand, der lange brennt.", "8c3a5a", K.DUST, E.FIRE, W.SHADOW),
+    ("Faultau", "Faultau", "Trübes, violettes Wasser aus dem Faulblatt. Basis der Gifte.", "6a4a8a", K.DEW, E.WATER, W.SHADOW),
+    ("Fluesterfaser", "Flüsterfaser", "Faser des Flüsterhalms. Munition daraus verwirrt.", "8a7aa0", K.FIBER, E.AIR, W.SHADOW),
+    ("Raunsamen", "Raunsamen", "Samen des Flüsterhalms, die leise raunen. Verwirren.", "6a5a80", K.SEED, E.AIR, W.SHADOW),
+    ("Wuergranke", "Würgranke", "Dornige violette Ranke der Würgwinde. Fesselt.", "5a2a5a", K.FIBER, E.EARTH, W.SHADOW),
+    ("Dornpollen", "Dornpollen", "Spitzer Pollen der Würgwinde. Lässt bluten.", "a02a4a", K.POLLEN, E.EARTH, W.SHADOW),
+    ("Blutblatt", "Blutblatt", "Dunkelrotes Blütenblatt der Blutrose. Raubt Leben.", "8a1020", K.PETAL, E.WATER, W.SHADOW),
+    ("Blutnektar", "Blutnektar", "Nektar der Blutrose. Verstärkt Schattenwirkungen.", "b01830", K.NECTAR, E.WATER, W.SHADOW),
+    ("Gallmilch", "Gallmilch", "Bitterer, dunkler Saft des Gallsterns. Basis der Flüche; wird zu schwarzem Latex.", "3a2a40", K.SAP, E.WATER, W.SHADOW),
+    ("Gallpollen", "Gallpollen", "Schwarz glitzernder Pollen des Gallsterns. Verlängert Schattenwirkungen.", "5a3a6a", K.GLITTER, E.AIR, W.SHADOW),
+    ("Schwarzfunken", "Schwarzfunken", "Samen des Schwarzmohns mit violetten Funken. Ihr Feuer lässt sich kaum löschen.", "6a2a8a", K.SEED, E.FIRE, W.SHADOW),
+    ("Schwarzmohnblatt", "Schwarzmohnblatt", "Schwarzes Blütenblatt des Schwarzmohns. Für die Brandphiole.", "2a1a2a", K.PETAL, E.FIRE, W.SHADOW),
+    ("Narbenholz", "Narbenholz", "Verdrehtes, violett geadertes Holz des Narbentriebs. Ein späterer Waffenkern.", "4a2a4a", K.FIBER, E.EARTH, W.SHADOW),
+    ("Narbensaft", "Narbensaft", "Saft des Narbentriebs. Der stärkste Schatten-Verstärker.", "7a1a4a", K.SAP, E.EARTH, W.SHADOW),
+    ("Kelchschleim", "Kelchschleim", "Schleim aus dem Fleischkelch. Für Gift und Fluch.", "9a4a7a", K.SAP, E.EARTH, W.SHADOW),
+    ("Verdauungssaeure", "Verdauungssäure", "Säure aus dem Magen des Fleischkelchs. Zerfrisst Rüstung.", "a0c040", K.SAP, E.EARTH, W.SHADOW),
+    # Wild plants
+    ("Distelflaum", "Distelflaum", "Flaum der Glutdistel, fängt sofort Feuer. Für Brandmunition.", "e0a080", K.FIBER, E.FIRE, W.NEUTRAL),
+    ("Pelzwasser", "Pelzwasser", "Regenwasser, aus dem Keimpelz gedrückt. Basis der Basistränke für alle.", "a0d0b0", K.DEW, E.WATER, W.NEUTRAL),
+]
+
+# Materials that exist already and are ingredients too: kind, element (None = none), way
+EXISTING_INGREDIENTS = {
+    "DA_Material_Glutsamen": (K.SEED, E.FIRE, W.NEUTRAL),
+    "DA_Material_Glockenglut": (K.EMBER, E.FIRE, W.NEUTRAL),
+    "DA_Material_Rauchblase": (K.DUST, E.AIR, W.NEUTRAL),
+    "DA_Material_Russmoos": (K.FIBER, E.EARTH, W.NEUTRAL),
+    "DA_Material_Ueberraschungssaat": (K.SEED, None, W.NEUTRAL),
+    "DA_Material_Kelchtau": (K.DEW, E.WATER, W.LIGHT),
+    "DA_Material_Pfeifensporen": (K.CATALYST, E.AIR, W.NEUTRAL),
+    "DA_Material_Staeublingspulver": (K.CATALYST, E.EARTH, W.NEUTRAL),
+    "DA_Material_Myzelprobe": (K.CATALYST, E.EARTH, W.NEUTRAL),
+    "DA_Material_Schlacke": (K.PART, E.EARTH, W.NEUTRAL),
+    "DA_Material_Glutstein": (K.PART, E.FIRE, W.NEUTRAL),
+    "DA_Material_Russquarz": (K.PART, E.EARTH, W.NEUTRAL),
+    "DA_Material_Markkristall": (K.PART, E.MARK, W.SHADOW),
+    "DA_Material_Glutdruese": (K.PART, E.FIRE, W.NEUTRAL),
+    "DA_Material_Russfeder": (K.PART, E.AIR, W.NEUTRAL),
+    "DA_Material_Aeltestenschwinge": (K.PART, E.AIR, W.NEUTRAL),
+}
+
+
+def ingredient_fields(kind, element, way):
+    fields = {"kind": kind, "way": way}
+    if element is not None:
+        fields["has_element"] = True
+        fields["element"] = element
+    return fields
+
+
+for definition in MATERIALS:
+    if definition["asset"] in EXISTING_INGREDIENTS:
+        definition.update(ingredient_fields(*EXISTING_INGREDIENTS.pop(definition["asset"])))
+
+for missing in EXISTING_INGREDIENTS:
+    unreal.log_warning("Vael: ingredient {} is not in the material list".format(missing))
+
+for asset, name, description, hex_code, kind, element, way in INGREDIENTS:
+    definition = {
+        "asset": "DA_Material_" + asset,
+        "display_name": unreal.Text(name),
+        "description": unreal.Text(description),
+        "region": unreal.Text("Aschenmark"),
+        "color": color(hex_code),
+    }
+    definition.update(ingredient_fields(kind, element, way))
+    MATERIALS.append(definition)
+
+
 def comparable(value):
     """Brings Unreal values into a form that can be compared with =="""
     if isinstance(value, unreal.Text):

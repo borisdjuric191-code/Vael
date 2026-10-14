@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Nature/VaelGarden.h"
+#include "AbilitySystemComponent.h"
+#include "Combat/VaelAttributeSet.h"
 #include "Components/DecalComponent.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/PointLightComponent.h"
@@ -80,27 +82,54 @@ UVaelGardenSettings::UVaelGardenSettings()
 {
 	SurpriseSeed = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Ueberraschungssaat.DA_Material_Ueberraschungssaat")));
 
-	const auto Add = [this](const TCHAR* Id, const FText& Name, float Chance, const FLinearColor& Glow, float Strength)
+	const auto Ingredient = [](const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Items/Materials/DA_Material_%s.DA_Material_%s"), Name, Name)));
+	};
+
+	const auto Add = [this, &Ingredient](const TCHAR* Id, const FText& Name, const FText& ShadowName, EVaelPlantRarity Rarity, float Chance, const FLinearColor& Glow, float Strength,
+		std::initializer_list<const TCHAR*> LightHarvest, std::initializer_list<const TCHAR*> ShadowHarvest)
 	{
 		FVaelSeedPlant& Plant = Plants.AddDefaulted_GetRef();
 		Plant.Id = Id;
 		Plant.DisplayName = Name;
+		Plant.ShadowName = ShadowName;
+		Plant.Rarity = Rarity;
 		Plant.Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Requisiten/Aschenmark/%s/SM_%s.SM_%s"), Id, Id, Id)));
 		Plant.Seed = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Items/Materials/DA_Material_Samen_%s.DA_Material_Samen_%s"), Id, Id)));
 		Plant.Chance = Chance;
 		Plant.GlowColor = Glow;
 		Plant.GlowStrength = Strength;
+
+		for (const TCHAR* Harvest : LightHarvest)
+		{
+			Plant.LightHarvest.Add(Ingredient(Harvest));
+		}
+		for (const TCHAR* Harvest : ShadowHarvest)
+		{
+			Plant.ShadowHarvest.Add(Ingredient(Harvest));
+		}
 	};
 
-	// The common ones first; the grove sapling is the rare prize
-	Add(TEXT("Glimmklee"), LOCTEXT("Glimmklee", "Glimmklee"), 1.0f, FLinearColor(1.0f, 0.62f, 0.15f), 1800.0f);
-	Add(TEXT("Russrose"), LOCTEXT("Russrose", "Rußrose"), 0.8f, FLinearColor(0.2f, 1.0f, 0.5f), 1700.0f);
-	Add(TEXT("Taublatt"), LOCTEXT("Taublatt", "Taublatt"), 0.9f, FLinearColor(0.3f, 0.85f, 1.0f), 1800.0f);
-	Add(TEXT("Milchstern"), LOCTEXT("Milchstern", "Milchstern"), 0.8f, FLinearColor(0.85f, 0.8f, 1.0f), 2000.0f);
-	Add(TEXT("Funkenmohn"), LOCTEXT("Funkenmohn", "Funkenmohn"), 0.8f, FLinearColor(1.0f, 0.4f, 0.1f), 2000.0f);
-	Add(TEXT("Windhalm"), LOCTEXT("Windhalm", "Windhalm"), 0.8f, FLinearColor(0.4f, 0.95f, 1.0f), 1700.0f);
-	Add(TEXT("Schlotwinde"), LOCTEXT("Schlotwinde", "Schlotwinde"), 0.7f, FLinearColor(1.0f, 0.8f, 0.2f), 1900.0f);
-	Add(TEXT("Hainschoessling"), LOCTEXT("Hainschoessling", "Hainschössling"), 0.15f, FLinearColor(1.0f, 0.88f, 0.4f), 3200.0f);
+	// The common ones first; the grove sapling is the rare prize. Shadow forms and harvest as in the Herbarium of the Lore-Bibel.
+	Add(TEXT("Glimmklee"), LOCTEXT("Glimmklee", "Glimmklee"), LOCTEXT("Schwelklee", "Schwelklee"), EVaelPlantRarity::Common, 1.0f, FLinearColor(1.0f, 0.62f, 0.15f), 1800.0f,
+		{ TEXT("Glimmblatt"), TEXT("Glimmstaub") }, { TEXT("Schwelblatt"), TEXT("Schwelstaub") });
+	Add(TEXT("Russrose"), LOCTEXT("Russrose", "Rußrose"), LOCTEXT("Blutrose", "Blutrose"), EVaelPlantRarity::Special, 0.8f, FLinearColor(0.2f, 1.0f, 0.5f), 1700.0f,
+		{ TEXT("Russbluetenblatt"), TEXT("RosenherzNektar") }, { TEXT("Blutblatt"), TEXT("Blutnektar") });
+	Add(TEXT("Taublatt"), LOCTEXT("Taublatt", "Taublatt"), LOCTEXT("Faulblatt", "Faulblatt"), EVaelPlantRarity::Common, 0.9f, FLinearColor(0.3f, 0.85f, 1.0f), 1800.0f,
+		{ TEXT("Blatttau") }, { TEXT("Faultau") });
+	Add(TEXT("Milchstern"), LOCTEXT("Milchstern", "Milchstern"), LOCTEXT("Gallstern", "Gallstern"), EVaelPlantRarity::Special, 0.8f, FLinearColor(0.85f, 0.8f, 1.0f), 2000.0f,
+		{ TEXT("Sternmilch"), TEXT("Sternpollen") }, { TEXT("Gallmilch"), TEXT("Gallpollen") });
+	Add(TEXT("Funkenmohn"), LOCTEXT("Funkenmohn", "Funkenmohn"), LOCTEXT("Schwarzmohn", "Schwarzmohn"), EVaelPlantRarity::Special, 0.8f, FLinearColor(1.0f, 0.4f, 0.1f), 2000.0f,
+		{ TEXT("Knistersamen"), TEXT("Mohnbluetenblatt") }, { TEXT("Schwarzfunken"), TEXT("Schwarzmohnblatt") });
+	Add(TEXT("Windhalm"), LOCTEXT("Windhalm", "Windhalm"), LOCTEXT("Fluesterhalm", "Flüsterhalm"), EVaelPlantRarity::Common, 0.8f, FLinearColor(0.4f, 0.95f, 1.0f), 1700.0f,
+		{ TEXT("Silberhalm"), TEXT("Halmsamen") }, { TEXT("Fluesterfaser"), TEXT("Raunsamen") });
+	Add(TEXT("Schlotwinde"), LOCTEXT("Schlotwinde", "Schlotwinde"), LOCTEXT("Wuergwinde", "Würgwinde"), EVaelPlantRarity::Common, 0.7f, FLinearColor(1.0f, 0.8f, 0.2f), 1900.0f,
+		{ TEXT("Trichterpollen"), TEXT("Rankenfaser") }, { TEXT("Wuergranke"), TEXT("Dornpollen") });
+	Add(TEXT("Hainschoessling"), LOCTEXT("Hainschoessling", "Hainschössling"), LOCTEXT("Narbentrieb", "Narbentrieb"), EVaelPlantRarity::Legendary, 0.15f, FLinearColor(1.0f, 0.88f, 0.4f), 3200.0f,
+		{ TEXT("Hainblatt"), TEXT("Lichttropfen") }, { TEXT("Narbenholz"), TEXT("Narbensaft") });
+
+	ShadowOverlay = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/M_Vael_Schattenform.M_Vael_Schattenform")));
 
 	// The green around sown plants: a decal made by Scripts/CreateGardenMaterials.py, and moss and grass of the Megascans pack
 	GreenMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/M_Vael_Gruen.M_Vael_Gruen")));
@@ -275,8 +304,11 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 		return nullptr;
 	}
 
+	// The seed takes on what is in the one who sows it
+	const bool bShadow = Picked->HasShadowForm() && RollShadowForm(Player->GetCorruption());
+
 	const float Yaw = FMath::FRandRange(0.0f, 360.0f);
-	AVaelSownPlant* Plant = AVaelSownPlant::Plant(World, Picked->Id, Ground, Yaw, false);
+	AVaelSownPlant* Plant = AVaelSownPlant::Plant(World, Picked->Id, Ground, Yaw, false, bShadow);
 	if (Plant == nullptr)
 	{
 		Bag->AddMaterial(PickedSeed, 1);
@@ -289,9 +321,11 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 	Saved.Location = Ground;
 	Saved.Yaw = Yaw;
 	Saved.SownAt = Clock;
+	Saved.bShadow = bShadow;
 
-	// Every plant takes a little of the corruption out of its land
-	if (AVaelRegion* Region = AVaelRegion::GetRegionAt(World, Ground))
+	// Every light plant takes a little of the corruption out of its land; a shadow form tames the Mark but doesn't heal it
+	AVaelRegion* Region = bShadow ? nullptr : AVaelRegion::GetRegionAt(World, Ground);
+	if (Region != nullptr)
 	{
 		// Plants at the spacing all over the region take all of its corruption
 		const float Area = Region->GetArea();
@@ -307,10 +341,108 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 		It->ClearTuftsNear(Ground, TuftClearance);
 	}
 
-	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("Sown", "{0} gesät"), Picked->DisplayName), Picked->GlowColor);
+	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("Sown", "{0} gesät"), Plant->GetFormName()), bShadow ? Settings->ShadowGlowColor : Picked->GlowColor);
 	UVaelSaveSubsystem::RequestSave(Player);
 
 	return Plant;
+}
+
+bool UVaelGardenSubsystem::RollShadowForm(float SowerCorruption)
+{
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+	if (SowerCorruption < Settings->LightBelowCorruption)
+	{
+		return false;
+	}
+	if (SowerCorruption > Settings->ShadowAboveCorruption)
+	{
+		return true;
+	}
+
+	// In between the seed doesn't know whom it belongs to
+	return FMath::RandBool();
+}
+
+bool UVaelGardenSubsystem::Harvest(AVaelSownPlant* Plant, AVaelCharacter* Player)
+{
+	if (Plant == nullptr || Player == nullptr || !Plant->IsGrown() || Plant->IsHarvested())
+	{
+		return false;
+	}
+
+	const FVaelSeedPlant* Kind = FindPlant(Plant->GetPlantId());
+	FVaelSavedPlant* Saved = FindSown(Plant->GetWorld(), Plant->GetActorLocation());
+	if (Kind == nullptr || Saved == nullptr)
+	{
+		return false;
+	}
+
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+	const bool bShadow = Plant->IsShadowForm();
+
+	// The light way is lucky now and then: a fairy-kissed harvest glitters and gives twice
+	const bool bFairyKissed = !bShadow && FMath::FRand() < Settings->FairyKissChance;
+	const int32 Count = bFairyKissed ? 2 : 1;
+
+	TArray<FVaelLootEntry> Loot;
+	for (const TSoftObjectPtr<UVaelMaterial>& Harvest : bShadow ? Kind->ShadowHarvest : Kind->LightHarvest)
+	{
+		Loot.Add(GardenSeeds(Harvest, Count));
+	}
+
+	// Common plants often give a seed back, special ones sometimes, rarer ones never
+	const float SeedChance = Kind->Rarity == EVaelPlantRarity::Common ? Settings->SeedReturnCommon
+		: Kind->Rarity == EVaelPlantRarity::Special ? Settings->SeedReturnSpecial : 0.0f;
+	if (FMath::FRand() < SeedChance)
+	{
+		Loot.Add(GardenSeeds(Kind->Seed, 1));
+	}
+
+	UVaelMaterialBag::GiveToGroup(Plant, Loot);
+
+	if (bFairyKissed)
+	{
+		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("FairyKissed", "Feengeküsst: doppelte Ernte"));
+	}
+
+	// The shadow way has its price: the Mark stings the hand that picks it
+	if (bShadow && FMath::FRand() < Settings->MarkStingChance)
+	{
+		if (UAbilitySystemComponent* AbilitySystem = Player->GetAbilitySystemComponent())
+		{
+			const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
+			AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + Settings->MarkStingCorruption, 100.0f));
+		}
+		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("MarkSting", "Markstich"));
+	}
+
+	Saved->bHarvested = true;
+	Plant->MarkHarvested();
+
+	UE_LOG(LogVael, Log, TEXT("Garden: %s harvested (%s%s)"), *Plant->GetFormName().ToString(), bShadow ? TEXT("shadow") : TEXT("light"), bFairyKissed ? TEXT(", fairy-kissed") : TEXT(""));
+	UVaelSaveSubsystem::RequestSave(Player);
+	return true;
+}
+
+int32 UVaelGardenSubsystem::GetNumShadow() const
+{
+	return Sown.FilterByPredicate([](const FVaelSavedPlant& Plant) { return Plant.bShadow; }).Num();
+}
+
+int32 UVaelGardenSubsystem::GetNumHarvested() const
+{
+	return Sown.FilterByPredicate([](const FVaelSavedPlant& Plant) { return Plant.bHarvested; }).Num();
+}
+
+FVaelSavedPlant* UVaelGardenSubsystem::FindSown(const UWorld* World, const FVector& Location)
+{
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	const FName Level = GardenLevelName(World);
+	return Sown.FindByPredicate([&Level, &Location](const FVaelSavedPlant& Plant) { return Plant.Level == Level && FVector::Dist2D(Plant.Location, Location) < 1.0f; });
 }
 
 void UVaelGardenSubsystem::OnLevelStarted(UWorld* World)
@@ -347,7 +479,7 @@ void UVaelGardenSubsystem::OnLevelStarted(UWorld* World)
 	{
 		if (Saved.Level == Level)
 		{
-			AVaelSownPlant::Plant(World, Saved.Plant, Saved.Location, Saved.Yaw, true);
+			AVaelSownPlant::Plant(World, Saved.Plant, Saved.Location, Saved.Yaw, true, Saved.bShadow, Saved.bHarvested);
 		}
 	}
 }
@@ -662,7 +794,7 @@ AVaelSownPlant::AVaelSownPlant()
 	Green->SetVisibility(false);
 }
 
-AVaelSownPlant* AVaelSownPlant::Plant(UWorld* World, FName InPlantId, const FVector& GroundLocation, float Yaw, bool bGrown)
+AVaelSownPlant* AVaelSownPlant::Plant(UWorld* World, FName InPlantId, const FVector& GroundLocation, float Yaw, bool bGrown, bool bShadow, bool bHarvested)
 {
 	if (World == nullptr || UVaelGardenSubsystem::FindPlant(InPlantId) == nullptr)
 	{
@@ -674,6 +806,9 @@ AVaelSownPlant* AVaelSownPlant::Plant(UWorld* World, FName InPlantId, const FVec
 	if (Sown != nullptr)
 	{
 		Sown->PlantId = InPlantId;
+		Sown->bShadow = bShadow;
+		Sown->bHarvested = bHarvested;
+		Sown->SpentShare = bHarvested ? 1.0f : 0.0f;
 		Sown->BaseYaw = Yaw;
 		Sown->Age = bGrown ? UVaelGardenSettings::Get()->GrowSeconds : 0.0f;
 		Sown->bInstantGreen = bGrown;
@@ -703,12 +838,32 @@ void AVaelSownPlant::BeginPlay()
 
 	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
 
+	// The shadow form: violet with deep red edges, a violet light, and marked land instead of green
+	UMaterialInterface* ShadowOverlay = bShadow ? VaelAssets::LoadOptional(Settings->ShadowOverlay) : nullptr;
+	if (bShadow)
+	{
+		Model->SetOverlayMaterial(ShadowOverlay);
+		Glow->SetLightColor(Settings->ShadowGlowColor);
+	}
+
 	if (UMaterialInterface* GreenMaterial = VaelAssets::LoadOptional(Settings->GreenMaterial))
 	{
-		Green->SetDecalMaterial(GreenMaterial);
+		if (bShadow)
+		{
+			UMaterialInstanceDynamic* Marked = UMaterialInstanceDynamic::Create(GreenMaterial, this);
+			Marked->SetVectorParameterValue(TEXT("Color"), Settings->ShadowGreenColor);
+			Marked->SetVectorParameterValue(TEXT("ColorLight"), Settings->ShadowGreenColorLight);
+			Green->SetDecalMaterial(Marked);
+		}
+		else
+		{
+			Green->SetDecalMaterial(GreenMaterial);
+		}
 		Green->SetWorldRotation(FRotator(-90.0f, BaseYaw, 0.0f));
 		Green->SetVisibility(true);
 	}
+
+	UVaelInteractionSubsystem::Register(this);
 
 	// Grass and moss, one component per model that exists
 	for (const TSoftObjectPtr<UStaticMesh>& GreenMesh : Settings->GreenMeshes)
@@ -729,6 +884,7 @@ void AVaelSownPlant::BeginPlay()
 		Component->SetUsingAbsoluteRotation(true);
 		Component->SetUsingAbsoluteScale(true);
 		Component->SetupAttachment(RootComponent);
+		Component->SetOverlayMaterial(ShadowOverlay);
 		Component->RegisterComponent();
 		Tufts.Add(Component);
 
@@ -758,6 +914,50 @@ void AVaelSownPlant::BeginPlay()
 
 		TuftSpots.Sort([](const FVaelTuftSpot& A, const FVaelTuftSpot& B) { return A.Distance < B.Distance; });
 	}
+}
+
+void AVaelSownPlant::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UVaelInteractionSubsystem::Unregister(this);
+	Super::EndPlay(EndPlayReason);
+}
+
+bool AVaelSownPlant::IsGrown() const
+{
+	return Age >= UVaelGardenSettings::Get()->GrowSeconds;
+}
+
+FText AVaelSownPlant::GetFormName() const
+{
+	const FVaelSeedPlant* Kind = UVaelGardenSubsystem::FindPlant(PlantId);
+	if (Kind == nullptr)
+	{
+		return FText::GetEmpty();
+	}
+	return bShadow && Kind->HasShadowForm() ? Kind->ShadowName : Kind->DisplayName;
+}
+
+void AVaelSownPlant::MarkHarvested()
+{
+	bHarvested = true;
+}
+
+bool AVaelSownPlant::CanInteract(const AVaelCharacter* Player) const
+{
+	return IsGrown() && !bHarvested;
+}
+
+void AVaelSownPlant::Interact(AVaelCharacter* Player)
+{
+	if (UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this))
+	{
+		Garden->Harvest(this, Player);
+	}
+}
+
+FText AVaelSownPlant::GetInteractPrompt() const
+{
+	return FText::Format(LOCTEXT("HarvestPrompt", "{0} ernten"), GetFormName());
 }
 
 void AVaelSownPlant::ClearTuftsNear(const FVector& Location, float Radius)
@@ -885,9 +1085,15 @@ void AVaelSownPlant::Tick(float DeltaSeconds)
 	const float Size = FMath::InterpEaseOut(0.02f, 1.0f, Grown, 2.5f) * (1.0f + FMath::Sin(Grown * UE_PI) * 0.12f);
 	const float Phase = Age * 1.4f + GetActorLocation().X * 0.013f;
 
-	Model->SetRelativeScale3D(FVector(Size * SizeScale));
+	// Once harvested it shrinks a little and its light settles low, over a second
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+	SpentShare = FMath::FInterpConstantTo(SpentShare, bHarvested ? 1.0f : 0.0f, DeltaSeconds, 1.0f);
+	const float SpentSize = FMath::Lerp(1.0f, Settings->HarvestedScale, SpentShare);
+	const float SpentGlow = FMath::Lerp(1.0f, Settings->HarvestedGlow, SpentShare);
+
+	Model->SetRelativeScale3D(FVector(Size * SizeScale * SpentSize));
 	Model->SetRelativeRotation(FRotator(FMath::Sin(Phase) * 2.5f, BaseYaw, FMath::Sin(Phase * 0.7f) * 2.0f));
-	Glow->SetIntensity(GlowStrength * Grown * (0.8f + 0.2f * FMath::Sin(Age * 2.1f)));
+	Glow->SetIntensity(GlowStrength * Grown * SpentGlow * (0.8f + 0.2f * FMath::Sin(Age * 2.1f)));
 
 	UpdateGreen(DeltaSeconds);
 }

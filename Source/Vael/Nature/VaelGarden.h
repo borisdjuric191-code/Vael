@@ -21,6 +21,16 @@ class UStaticMeshComponent;
 class UVaelMaterial;
 class UVaelSaveGame;
 
+/** How rare a seed plant is (Herbarium: 4 common, 3 special, 2 rare, 1 legendary per region) */
+UENUM(BlueprintType)
+enum class EVaelPlantRarity : uint8
+{
+	Common		UMETA(DisplayName = "häufig"),
+	Special		UMETA(DisplayName = "besonders"),
+	Rare		UMETA(DisplayName = "selten"),
+	Legendary	UMETA(DisplayName = "legendär")
+};
+
 /** One kind of plant that can grow from the surprise seed of the Keimpelz */
 USTRUCT(BlueprintType)
 struct FVaelSeedPlant
@@ -31,8 +41,25 @@ struct FVaelSeedPlant
 	UPROPERTY(config, EditAnywhere, Category="Plant")
 	FName Id;
 
+	/** Name of the light form */
 	UPROPERTY(config, EditAnywhere, Category="Plant")
 	FText DisplayName;
+
+	/** Name of the shadow form, which grows when a marked player sows it; empty if the plant has none */
+	UPROPERTY(config, EditAnywhere, Category="Plant")
+	FText ShadowName;
+
+	UPROPERTY(config, EditAnywhere, Category="Plant")
+	EVaelPlantRarity Rarity = EVaelPlantRarity::Common;
+
+	/** What one harvest gives of the light form and of the shadow form, one of each */
+	UPROPERTY(config, EditAnywhere, Category="Plant")
+	TArray<TSoftObjectPtr<UVaelMaterial>> LightHarvest;
+
+	UPROPERTY(config, EditAnywhere, Category="Plant")
+	TArray<TSoftObjectPtr<UVaelMaterial>> ShadowHarvest;
+
+	bool HasShadowForm() const { return !ShadowName.IsEmpty(); }
 
 	/** Model of the creature factory (mode "requisite") */
 	UPROPERTY(config, EditAnywhere, Category="Plant")
@@ -76,6 +103,14 @@ struct FVaelSavedPlant
 	/** Garden clock at which it was sown, in seconds */
 	UPROPERTY()
 	float SownAt = 0.0f;
+
+	/** Grew in its shadow form, as the one who sowed it was marked */
+	UPROPERTY()
+	bool bShadow = false;
+
+	/** Has been harvested; a plant carries only once */
+	UPROPERTY()
+	bool bHarvested = false;
 };
 
 /**
@@ -137,6 +172,53 @@ public:
 	/** Corruption a sown plant takes from a region without bounds, which has no area to reckon with */
 	UPROPERTY(config, EditAnywhere, Category="Sowing", meta = (ClampMin = 0))
 	float CleansePerPlant = 0.8f;
+
+	/** The seed takes on what is in the one who sows it: below this much of their own corruption the light form grows,
+	 *  above the second the shadow form, in between either at even odds */
+	UPROPERTY(config, EditAnywhere, Category="Forms", meta = (ClampMin = 0, ClampMax = 100))
+	float LightBelowCorruption = 30.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Forms", meta = (ClampMin = 0, ClampMax = 100))
+	float ShadowAboveCorruption = 70.0f;
+
+	/** Laid over the model and the grass of a shadow form: a modulating material with the parameters Color and ColorEdge */
+	UPROPERTY(config, EditAnywhere, Category="Forms")
+	TSoftObjectPtr<UMaterialInterface> ShadowOverlay;
+
+	/** The marked land around a shadow form: near black at the ground, violet above, and the light of the plant */
+	UPROPERTY(config, EditAnywhere, Category="Forms")
+	FLinearColor ShadowGreenColor = FLinearColor(0.02f, 0.004f, 0.03f);
+
+	UPROPERTY(config, EditAnywhere, Category="Forms")
+	FLinearColor ShadowGreenColorLight = FLinearColor(0.16f, 0.02f, 0.10f);
+
+	UPROPERTY(config, EditAnywhere, Category="Forms")
+	FLinearColor ShadowGlowColor = FLinearColor(0.6f, 0.08f, 0.85f);
+
+	/** Chance that a harvest gives a seed back, for common and for special plants (rarer ones never do) */
+	UPROPERTY(config, EditAnywhere, Category="Harvest", meta = (ClampMin = 0, ClampMax = 1))
+	float SeedReturnCommon = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Harvest", meta = (ClampMin = 0, ClampMax = 1))
+	float SeedReturnSpecial = 0.25f;
+
+	/** Luck of the light way: a fairy-kissed harvest glitters and gives twice */
+	UPROPERTY(config, EditAnywhere, Category="Harvest", meta = (ClampMin = 0, ClampMax = 1))
+	float FairyKissChance = 0.1f;
+
+	/** Risk of the shadow way: harvesting a shadow form may sting, and the harvester's own corruption grows by this much */
+	UPROPERTY(config, EditAnywhere, Category="Harvest", meta = (ClampMin = 0, ClampMax = 1))
+	float MarkStingChance = 0.1f;
+
+	UPROPERTY(config, EditAnywhere, Category="Harvest", meta = (ClampMin = 0))
+	float MarkStingCorruption = 1.0f;
+
+	/** A harvested plant stays standing this much smaller and with this share of its light; it never carries again */
+	UPROPERTY(config, EditAnywhere, Category="Harvest", meta = (ClampMin = 0.1, ClampMax = 1))
+	float HarvestedScale = 0.7f;
+
+	UPROPERTY(config, EditAnywhere, Category="Harvest", meta = (ClampMin = 0, ClampMax = 1))
+	float HarvestedGlow = 0.25f;
 
 	/** The plants a surprise seed can become */
 	UPROPERTY(config, EditAnywhere, Category="Plants")
@@ -222,6 +304,17 @@ public:
 	/** Sows one seed of a researched plant in front of the player. Returns null if they have none or there is no room. */
 	AVaelSownPlant* Sow(AVaelCharacter* Player);
 
+	/** The form a seed takes in the hands of a sower with this much corruption of their own: true for the shadow form */
+	static bool RollShadowForm(float SowerCorruption);
+
+	/** Harvests a grown plant for the group: its ingredients, perhaps a seed back, and the luck or risk of its way.
+	 *  Returns false if it can't be harvested (still growing, or harvested before). */
+	bool Harvest(AVaelSownPlant* Plant, AVaelCharacter* Player);
+
+	/** Number of sown plants in their shadow form and of harvested ones, for tests */
+	int32 GetNumShadow() const;
+	int32 GetNumHarvested() const;
+
 	/** A level has started: puts the pot beside its keeper and lets the plants sown there stand again */
 	void OnLevelStarted(UWorld* World);
 
@@ -249,6 +342,9 @@ private:
 
 	/** Whatever appears in the level while playing stays free of the green on the ground */
 	void OnActorSpawned(AActor* Actor);
+
+	/** The saved entry of the plant standing at the location in that world, null if there is none */
+	FVaelSavedPlant* FindSown(const UWorld* World, const FVector& Location);
 
 	TSet<FName> Researched;
 	TArray<FVaelSavedPlant> Sown;
@@ -340,9 +436,12 @@ struct FVaelTuftSpot
 	int32 Mesh = 0;
 };
 
-/** A plant grown from a seed a player has sown. It grows up, glows and stays for good; green spreads around it, and grass and moss sprout in it. */
+/**
+ *  A plant grown from a seed a player has sown. It grows up, glows and stays for good; green spreads around it, and grass and moss sprout in it.
+ *  In its shadow form it is violet and the land around it turns marked instead of green. Once grown it can be harvested a single time.
+ */
 UCLASS()
-class AVaelSownPlant : public AActor
+class AVaelSownPlant : public AActor, public IVaelInteractable
 {
 	GENERATED_BODY()
 
@@ -365,9 +464,24 @@ public:
 	AVaelSownPlant();
 
 	/** Lets a plant stand at a place on the ground; grown at once if it was sown in an earlier session */
-	static AVaelSownPlant* Plant(UWorld* World, FName PlantId, const FVector& GroundLocation, float Yaw, bool bGrown);
+	static AVaelSownPlant* Plant(UWorld* World, FName PlantId, const FVector& GroundLocation, float Yaw, bool bGrown, bool bShadow = false, bool bHarvested = false);
 
 	FName GetPlantId() const { return PlantId; }
+	bool IsShadowForm() const { return bShadow; }
+	bool IsHarvested() const { return bHarvested; }
+	bool IsGrown() const;
+
+	/** Name of the form that grew */
+	FText GetFormName() const;
+
+	/** It has been harvested: it stays, smaller and dimmer, and never carries again */
+	void MarkHarvested();
+
+	//~Begin IVaelInteractable
+	virtual bool CanInteract(const AVaelCharacter* Player) const override;
+	virtual void Interact(AVaelCharacter* Player) override;
+	virtual FText GetInteractPrompt() const override;
+	//~End IVaelInteractable
 
 	/** How far its green reaches now in cm, and how many tufts stand in it, for tests */
 	float GetGreenRadius() const { return GreenRadius; }
@@ -381,10 +495,16 @@ public:
 protected:
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
 
 	FName PlantId = NAME_None;
+	bool bShadow = false;
+	bool bHarvested = false;
+
+	/** How far it has settled into its harvested look, 0 to 1 */
+	float SpentShare = 0.0f;
 
 	/** Seconds since it was sown */
 	float Age = 0.0f;

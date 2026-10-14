@@ -4,7 +4,41 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Magic/VaelElementTypes.h"
 #include "VaelMaterial.generated.h"
+
+/** What kind of crafting ingredient a material is; recipes ask for kinds, not for one certain plant */
+UENUM(BlueprintType)
+enum class EVaelIngredientKind : uint8
+{
+	/** Not an ingredient of the witch's kitchen, like a potion */
+	None			UMETA(DisplayName = "Keine Zutat"),
+	Petal			UMETA(DisplayName = "Blütenblatt"),
+	Leaf			UMETA(DisplayName = "Blatt"),
+	Pollen			UMETA(DisplayName = "Pollen"),
+	Nectar			UMETA(DisplayName = "Nektar"),
+	Sap				UMETA(DisplayName = "Saft"),
+	Dew				UMETA(DisplayName = "Tau"),
+	Seed			UMETA(DisplayName = "Samen"),
+	Fiber			UMETA(DisplayName = "Faser"),
+	Dust			UMETA(DisplayName = "Staub"),
+	Glitter			UMETA(DisplayName = "Glitzer"),
+	Ember			UMETA(DisplayName = "Glut"),
+	/** Fungi change the form of a brew, like a cloud or incense */
+	Catalyst		UMETA(DisplayName = "Katalysator"),
+	/** Ores and parts of creatures the engineer builds with */
+	Part			UMETA(DisplayName = "Bauteil")
+};
+
+/** How an ingredient works: pure, marked, both at once, or open to everyone */
+UENUM(BlueprintType)
+enum class EVaelWay : uint8
+{
+	Neutral		UMETA(DisplayName = "neutral"),
+	Light		UMETA(DisplayName = "Licht"),
+	Shadow		UMETA(DisplayName = "Schatten"),
+	Twilight	UMETA(DisplayName = "Zwielicht")
+};
 
 /**
  *  A crafting material: an ore, a plant or a part of a creature, like a Glutdruese or a Markkristall.
@@ -32,6 +66,23 @@ public:
 	/** Color of its label and placeholder look */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Material")
 	FLinearColor Color = FLinearColor(0.91f, 0.82f, 0.61f);
+
+	/** What kind of ingredient it is in the witch's kitchen; None for materials that are no ingredient */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ingredient")
+	EVaelIngredientKind Kind = EVaelIngredientKind::None;
+
+	/** The element it carries, if any */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ingredient")
+	bool bHasElement = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ingredient", meta = (EditCondition = "bHasElement"))
+	EVaelElement Element = EVaelElement::Fire;
+
+	/** Light, shadow, twilight or neutral; the way of a brew follows from its ingredients */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ingredient")
+	EVaelWay Way = EVaelWay::Neutral;
+
+	bool IsIngredient() const { return Kind != EVaelIngredientKind::None; }
 
 	/** Share of the maximum health a potion heals when drunk with the potion button; 0 for materials that are no potion */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Potion", meta = (ClampMin = 0, ClampMax = 1))
