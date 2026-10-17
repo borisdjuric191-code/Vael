@@ -256,7 +256,7 @@ public:
 
 	/** Water a puddle needs before mages can draw from it and it wets those standing in it; 1 is one Wassergeschoss */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0))
-	float PuddleWaterToCount = 3.0f;
+	float PuddleWaterToCount = 2.5f;
 
 	/** Most water one puddle holds */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0))
@@ -264,7 +264,7 @@ public:
 
 	/** Water a puddle loses per second; rain keeps it */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0))
-	float PuddleDryPerSecond = 0.06f;
+	float PuddleDryPerSecond = 0.04f;
 
 	/** How much faster puddles dry in a drought */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 1))
