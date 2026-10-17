@@ -117,6 +117,87 @@ namespace
 		return bChanged;
 	}
 
+	/** Writes one value of a parameter store as text */
+	FString ParameterValueText(const FNiagaraParameterStore& Store, const FNiagaraVariableWithOffset& Parameter)
+	{
+		const FNiagaraTypeDefinition& Type = Parameter.GetType();
+		const int32 Size = Type.GetSize();
+		const uint8* Data = Store.GetParameterData(Parameter.Offset, Size);
+		if (Data == nullptr)
+		{
+			return TEXT("?");
+		}
+
+		if (Type == FNiagaraTypeDefinition::GetFloatDef())
+		{
+			return FString::SanitizeFloat(*reinterpret_cast<const float*>(Data));
+		}
+		if (Type == FNiagaraTypeDefinition::GetIntDef())
+		{
+			return FString::FromInt(*reinterpret_cast<const int32*>(Data));
+		}
+		if (Type == FNiagaraTypeDefinition::GetBoolDef())
+		{
+			return *reinterpret_cast<const int32*>(Data) != 0 ? TEXT("true") : TEXT("false");
+		}
+		if (Size % sizeof(float) == 0 && Size <= 4 * sizeof(float))
+		{
+			// Vectors, colors and positions are floats in a row
+			TArray<FString> Parts;
+			for (int32 Index = 0; Index < Size / int32(sizeof(float)); ++Index)
+			{
+				Parts.Add(FString::SanitizeFloat(reinterpret_cast<const float*>(Data)[Index]));
+			}
+			return FString::Printf(TEXT("(%s)"), *FString::Join(Parts, TEXT(", ")));
+		}
+
+		return FString::Printf(TEXT("<%d bytes>"), Size);
+	}
+
+	/** Lists how an emitter is set up: space, sim target, renderers and the constant inputs of its modules */
+	void DumpEmitter(const FVersionedNiagaraEmitterData* EmitterData, const FString& Label, TArray<FString>& Report)
+	{
+		if (EmitterData == nullptr)
+		{
+			return;
+		}
+
+		Report.Add(FString::Printf(TEXT("  %s: local space %s, %s"), *Label, EmitterData->bLocalSpace ? TEXT("yes") : TEXT("no"),
+			EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim ? TEXT("GPU") : TEXT("CPU")));
+
+		for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
+		{
+			if (const UNiagaraSpriteRendererProperties* Sprite = Cast<UNiagaraSpriteRendererProperties>(Renderer))
+			{
+				Report.Add(FString::Printf(TEXT("    sprite: enabled %s, alignment %d, facing %d, sort %d, sort hint %d"), Sprite->GetIsEnabled() ? TEXT("yes") : TEXT("no"),
+					int32(Sprite->Alignment), int32(Sprite->FacingMode), int32(Sprite->SortMode), Sprite->SortOrderHint));
+			}
+		}
+
+		const TPair<const TCHAR*, const UNiagaraScript*> Scripts[] =
+		{
+			{ TEXT("emitter spawn"), EmitterData->EmitterSpawnScriptProps.Script },
+			{ TEXT("emitter update"), EmitterData->EmitterUpdateScriptProps.Script },
+			{ TEXT("particle spawn"), EmitterData->SpawnScriptProps.Script },
+			{ TEXT("particle update"), EmitterData->UpdateScriptProps.Script },
+		};
+
+		for (const TPair<const TCHAR*, const UNiagaraScript*>& Script : Scripts)
+		{
+			if (Script.Value == nullptr)
+			{
+				continue;
+			}
+
+			Report.Add(FString::Printf(TEXT("    %s:"), Script.Key));
+			const FNiagaraParameterStore& Store = Script.Value->RapidIterationParameters;
+			for (const FNiagaraVariableWithOffset& Parameter : Store.ReadParameterVariables())
+			{
+				Report.Add(FString::Printf(TEXT("      %s = %s"), *Parameter.GetName().ToString(), *ParameterValueText(Store, Parameter)));
+			}
+		}
+	}
+
 	bool SaveAsset(UObject* Asset, TArray<FString>& Report)
 	{
 		UPackage* Package = Asset->GetOutermost();
@@ -146,6 +227,7 @@ int32 UVaelWaterKitCommandlet::Main(const FString& Params)
 {
 #if WITH_EDITOR
 	const bool bDryRun = Params.Contains(TEXT("-DryRun"));
+	const bool bDump = Params.Contains(TEXT("-Dump"));
 	TArray<FString> Report;
 	int32 Errors = 0;
 
@@ -219,6 +301,12 @@ int32 UVaelWaterKitCommandlet::Main(const FString& Params)
 			}
 
 			bChanged |= CheckRenderers(Handle.GetEmitterData(), HandleName, LoadParticleMaterial(Rule->Material), bDryRun, Report);
+
+			if (bDump)
+			{
+				Report.Add(FString::Printf(TEXT("  %s: enabled %s"), *HandleName, Handle.GetIsEnabled() ? TEXT("yes") : TEXT("no")));
+				DumpEmitter(Handle.GetEmitterData(), HandleName, Report);
+			}
 		}
 
 		if (bChanged)

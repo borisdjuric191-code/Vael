@@ -240,5 +240,5 @@ public:
 
 	/** Size of the burst compared to the ball: 1 is made for a ball of 1 m and shrinks and grows with it */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit", meta = (ClampMin = 0))
-	float WaterOrbImpactScale = 1.0f;
+	float WaterOrbImpactScale = 0.6f;
 };

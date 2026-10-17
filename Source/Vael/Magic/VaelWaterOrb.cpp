@@ -30,6 +30,9 @@ AVaelWaterOrb::AVaelWaterOrb()
 	Particles = CreateDefaultSubobject<UNiagaraComponent>(TEXT("Particles"));
 	Particles->SetupAttachment(Pivot);
 
+	// Ball and particles share their middle, so the see-through ball would often be drawn over its own bubbles
+	Particles->TranslucencySortPriority = 1;
+
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
 	Glow->SetupAttachment(Pivot);
 	Glow->SetAttenuationRadius(400.0f);
