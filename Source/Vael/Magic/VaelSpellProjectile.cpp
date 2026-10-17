@@ -1355,9 +1355,14 @@ void AVaelSpellProjectile::BurstWaterOrb(bool bHitSomething)
 		BurstComponent->SetVariableLinearColor(AVaelWaterOrb::WaterColorParameter, WaterSource->ParticleColor);
 	}
 
+	// How much water splashes goes with the cross section of the ball (the engine sphere is 1 m across), not with the burst size
+	const float Diameter = Scale * 100.0f;
+	const float WaterAmount = FMath::Min(FMath::Square(Diameter / FMath::Max(MagicSettings->WaterAmountReferenceDiameter, 1.0f)) * (bHitSomething ? 1.0f : 0.6f), MagicSettings->MaxWaterAmount);
+	BurstComponent->SetVariableFloat(AVaelWaterOrb::WaterAmountParameter, WaterAmount);
+
 	BurstComponent->Activate(true);
 
-	UE_LOG(LogVael, Verbose, TEXT("%s bursts with %s"), *GetName(), *Burst->GetName());
+	UE_LOG(LogVael, Verbose, TEXT("%s bursts with %s, water amount %.2f"), *GetName(), *Burst->GetName(), WaterAmount);
 }
 
 void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond, EVaelGroundEffect Effect)

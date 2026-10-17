@@ -83,6 +83,9 @@ public:
 	/** Name of the Niagara user parameter that receives the particle color */
 	static const FName WaterColorParameter;
 
+	/** Name of the Niagara user parameter that says how much water splashes: 1 for the mage's Wassergeschoss, more for bigger balls */
+	static const FName WaterAmountParameter;
+
 private:
 
 	/** Applies the source to ball, light and particles */

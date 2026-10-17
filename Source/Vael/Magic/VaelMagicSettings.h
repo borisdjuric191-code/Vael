@@ -241,4 +241,12 @@ public:
 	/** Size of the burst compared to the ball: 1 is made for a ball of 1 m and shrinks and grows with it */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit", meta = (ClampMin = 0))
 	float WaterOrbImpactScale = 0.6f;
+
+	/** Diameter in cm of a ball of water that splashes with User.WaterAmount 1 (the mage's Wassergeschoss is about 57 cm); bigger balls splash more by their cross section */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit", meta = (ClampMin = 1, Units = "cm"))
+	float WaterAmountReferenceDiameter = 57.0f;
+
+	/** Most water one burst may get, so a huge ball cannot flood the screen with particles */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit", meta = (ClampMin = 0))
+	float MaxWaterAmount = 8.0f;
 };

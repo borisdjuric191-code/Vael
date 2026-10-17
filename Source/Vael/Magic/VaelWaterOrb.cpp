@@ -9,6 +9,7 @@
 #include "UObject/ConstructorHelpers.h"
 
 const FName AVaelWaterOrb::WaterColorParameter(TEXT("User.WaterColor"));
+const FName AVaelWaterOrb::WaterAmountParameter(TEXT("User.WaterAmount"));
 
 AVaelWaterOrb::AVaelWaterOrb()
 {
