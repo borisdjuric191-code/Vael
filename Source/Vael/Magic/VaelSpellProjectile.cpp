@@ -1340,8 +1340,8 @@ void AVaelSpellProjectile::BurstWaterOrb(bool bHitSomething)
 	const float Diameter = Scale * 100.0f;
 	const float WaterAmount = FMath::Min(FMath::Square(Diameter / FMath::Max(MagicSettings->WaterAmountReferenceDiameter, 1.0f)) * (bHitSomething ? 1.0f : 0.6f), MagicSettings->MaxWaterAmount);
 
-	// The water stays on the ground; enough of it in one place becomes water of the environment
-	AVaelWaterPuddle::AddSplash(GetWorld(), Location, WaterAmount, WaterSource, GetInstigator());
+	// The water comes down with the drops and stays on the ground; enough of it in one place becomes water of the environment
+	AVaelWaterPuddle::PourSplash(GetWorld(), Location, WaterAmount, WaterSource, GetInstigator());
 
 	UNiagaraSystem* Burst = VaelAssets::LoadOptional(MagicSettings->WaterOrbImpactEffect);
 	if (Burst == nullptr)

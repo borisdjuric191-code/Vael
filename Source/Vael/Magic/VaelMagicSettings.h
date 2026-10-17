@@ -277,4 +277,12 @@ public:
 	/** Seconds those who step out of a deep puddle stay wet */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0, Units = "s"))
 	float PuddleWetDuration = 2.0f;
+
+	/** Seconds after the burst until the first water reaches the ground */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0, Units = "s"))
+	float PuddleFirstDropDelay = 0.25f;
+
+	/** Seconds after the burst until the last drops thrown out have landed */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0, Units = "s"))
+	float PuddleLastDropDelay = 0.75f;
 };

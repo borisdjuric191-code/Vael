@@ -12,8 +12,9 @@ class UStaticMeshComponent;
 class UVaelElementSource;
 
 /**
- *  Water left on the ground where balls of water burst. Every splash adds a flat blob of the water's own material;
- *  splashes close to each other flow together into one puddle. A puddle slowly dries out.
+ *  Water left on the ground where balls of water burst. The water arrives with the falling drops, a little later and spread around;
+ *  it runs down off ledges and rocks and spreads around obstacles instead of through them. Water landing on or beside a puddle
+ *  makes it bigger, blobs that grow into each other flow together. A puddle slowly dries out.
  *  Only once enough water has gathered does it count as water of the environment: mages standing in it draw water,
  *  and it wets the enemies of whoever made it while they stand in it.
  */
@@ -28,12 +29,15 @@ private:
 	UPROPERTY()
 	TObjectPtr<UStaticMesh> BlobMesh;
 
-	/** One flat blob per splash that didn't land on an existing one */
+	/** Flat blobs of water that together make the puddle */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> Blobs;
 
 	/** Water in every blob, in User.WaterAmount units: 1 is one Wassergeschoss */
 	TArray<float> BlobWater;
+
+	/** Radius every blob shows right now; it follows its water smoothly */
+	TArray<float> BlobShownRadius;
 
 	/** Whose water this is */
 	UPROPERTY(Transient)
@@ -48,12 +52,18 @@ public:
 	/** Constructor */
 	AVaelWaterPuddle();
 
-	/** Dries the puddle and wets those standing in it */
+	/** Dries the puddle, lets the blobs grow and shrink and wets those standing in it */
 	virtual void Tick(float DeltaSeconds) override;
 
 	/**
-	 *  Lets water fall to the ground below a location: joins a puddle of the same water and side close by, or starts a new one.
-	 *  The instigator decides whose enemies the puddle wets. Returns the puddle, or null if there is no ground below.
+	 *  Lets the water of a burst ball rain down around a location: a part straight below it, the rest spread around as drops,
+	 *  each landing a moment later. The instigator decides whose enemies the puddles wet.
+	 */
+	static void PourSplash(UWorld* World, const FVector& Location, float Amount, UVaelElementSource* InSource, APawn* InInstigator);
+
+	/**
+	 *  Lets water fall to the ground below a location right now: joins the puddles of the same water and side close by, or starts a new one.
+	 *  Returns the puddle, or null if there is no ground below.
 	 */
 	static AVaelWaterPuddle* AddSplash(UWorld* World, const FVector& Location, float Amount, UVaelElementSource* InSource, APawn* InInstigator);
 
@@ -71,14 +81,32 @@ public:
 
 private:
 
-	/** Pours water onto the puddle: onto the blob it lands on, or as a new blob next to the others */
-	void AddWater(const FVector& GroundLocation, float Amount);
+	/** True if the puddle may take water of this source from this instigator */
+	bool Accepts(const UVaelElementSource* InSource, const APawn* InInstigator) const;
+
+	/** Takes over all blobs of another puddle, which is then gone */
+	void Absorb(AVaelWaterPuddle* Other);
+
+	/** Pours water onto the puddle: onto the blob it lands on or beside, or as a new blob */
+	void AddWater(const FVector& GroundLocation, float Amount, int32 SpillDepth = 0);
+
+	/** Adds a blob holding the given water */
+	int32 AddBlob(const FVector& GroundLocation, float Water, float ShownRadius);
+
+	/** Removes a blob */
+	void RemoveBlob(int32 Index);
+
+	/** Keeps a blob out of obstacles: water that has no room spills over to a free spot beside it */
+	void FitBlob(int32 Index, int32 SpillDepth);
+
+	/** Lets blobs that have grown into each other flow together where there is room for the joined blob */
+	void MergeBlobs();
 
 	/** Radius in cm of a blob holding the given water */
 	static float GetBlobRadius(float Water);
 
-	/** Sizes a blob after its water */
-	void RefreshBlob(int32 Index);
+	/** Water a blob of the given radius holds */
+	static float GetBlobWater(float Radius);
 
 	/** Seconds since the last wetting step */
 	float WetStepTime = 0.0f;
