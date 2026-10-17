@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelWaterPuddle.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelMarkSource.h"
 #include "World/VaelRegion.h"
@@ -36,6 +37,12 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		{
 			return true;
 		}
+	}
+
+	// Puddles left by balls of water, once enough has gathered
+	if (Element == EVaelElement::Water && AVaelWaterPuddle::IsDeepWaterAt(World, Location))
+	{
+		return true;
 	}
 
 	// Plants and stones that carry an element, like the Glutdistel or the Traenenkelch

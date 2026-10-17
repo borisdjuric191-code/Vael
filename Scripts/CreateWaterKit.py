@@ -93,7 +93,7 @@ def try_set(target, key, value):
 
 
 # Bumped whenever a graph of this script changes; a master material without the current version gets its graph rebuilt
-KIT_VERSION = 4.0
+KIT_VERSION = 5.0
 
 # Water normal map from the engine's example content, always there
 WAVE_NORMAL = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n.water_n"
@@ -150,6 +150,8 @@ def build_water_material():
     # Soft edge where the water meets the ground or a body; foam gathers there and a little on the rim
     depth = g.node(unreal.MaterialExpressionDepthFade, 5)
     try_set(depth, "fade_distance_default", 40.0)
+    # Flat water like puddles needs a much shorter fade, or it vanishes into the ground it lies on
+    g.link(g.scalar("ContactFade", 40.0), depth, "FadeDistance")
     contact = g.one_minus(4, depth)
     foam_noise = g.node(unreal.MaterialExpressionNoise, 5, scale=0.05, levels=3, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX, output_min=0.0, output_max=1.0)
     foam_base = g.add(4, contact, g.mul(4, fresnel, g.const(0.3)))

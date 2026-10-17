@@ -249,4 +249,32 @@ public:
 	/** Most water one burst may get, so a huge ball cannot flood the screen with particles */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit", meta = (ClampMin = 0))
 	float MaxWaterAmount = 8.0f;
+
+	/** Radius in cm of the puddle one Wassergeschoss leaves; more water covers more ground */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 1, Units = "cm"))
+	float PuddleRadiusPerWater = 55.0f;
+
+	/** Water a puddle needs before mages can draw from it and it wets those standing in it; 1 is one Wassergeschoss */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0))
+	float PuddleWaterToCount = 3.0f;
+
+	/** Most water one puddle holds */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0))
+	float PuddleMaxWater = 15.0f;
+
+	/** Water a puddle loses per second; rain keeps it */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0))
+	float PuddleDryPerSecond = 0.06f;
+
+	/** How much faster puddles dry in a drought */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 1))
+	float PuddleDroughtDryMultiplier = 2.5f;
+
+	/** Water landing this close to the edge of a puddle flows into it, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0, Units = "cm"))
+	float PuddleMergeDistance = 40.0f;
+
+	/** Seconds those who step out of a deep puddle stay wet */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0, Units = "s"))
+	float PuddleWetDuration = 2.0f;
 };

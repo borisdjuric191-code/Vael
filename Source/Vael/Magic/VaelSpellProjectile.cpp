@@ -14,6 +14,7 @@
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterOrb.h"
+#include "Magic/VaelWaterPuddle.h"
 #include "Nature/VaelHarvestable.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -1334,6 +1335,14 @@ void AVaelSpellProjectile::BurstWaterOrb(bool bHitSomething)
 	WaterOrb = nullptr;
 
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+
+	// How much water splashes goes with the cross section of the ball (the engine sphere is 1 m across), not with the burst size
+	const float Diameter = Scale * 100.0f;
+	const float WaterAmount = FMath::Min(FMath::Square(Diameter / FMath::Max(MagicSettings->WaterAmountReferenceDiameter, 1.0f)) * (bHitSomething ? 1.0f : 0.6f), MagicSettings->MaxWaterAmount);
+
+	// The water stays on the ground; enough of it in one place becomes water of the environment
+	AVaelWaterPuddle::AddSplash(GetWorld(), Location, WaterAmount, WaterSource, GetInstigator());
+
 	UNiagaraSystem* Burst = VaelAssets::LoadOptional(MagicSettings->WaterOrbImpactEffect);
 	if (Burst == nullptr)
 	{
@@ -1355,9 +1364,6 @@ void AVaelSpellProjectile::BurstWaterOrb(bool bHitSomething)
 		BurstComponent->SetVariableLinearColor(AVaelWaterOrb::WaterColorParameter, WaterSource->ParticleColor);
 	}
 
-	// How much water splashes goes with the cross section of the ball (the engine sphere is 1 m across), not with the burst size
-	const float Diameter = Scale * 100.0f;
-	const float WaterAmount = FMath::Min(FMath::Square(Diameter / FMath::Max(MagicSettings->WaterAmountReferenceDiameter, 1.0f)) * (bHitSomething ? 1.0f : 0.6f), MagicSettings->MaxWaterAmount);
 	BurstComponent->SetVariableFloat(AVaelWaterOrb::WaterAmountParameter, WaterAmount);
 
 	BurstComponent->Activate(true);
