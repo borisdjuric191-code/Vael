@@ -1,0 +1,372 @@
+# Creates the water kit, part 1 (Designbibel, section "Wasser"): one master material for all water surfaces and bodies,
+# one particle material for the Niagara sprites, their instances, the water sources as data and BP_WaterOrb.
+#
+# - Only creates what is missing; existing assets are never changed, except that the two master materials get their graph
+#   rebuilt when it is older than KIT_VERSION (instances keep working). Assets starting with NE_Water_ or NS_Water_
+#   belong to Boris (Niagara) and are never touched.
+# - Everything lives under /Game/VFX/Water (Materials, Niagara, Sources, Blueprints).
+#
+# Run with the editor closed:
+#   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="C:/Projekte/Vael/Scripts/CreateWaterKit.py" -EnablePlugins=PythonScriptPlugin
+
+import unreal
+
+ROOT = "/Game/VFX/Water"
+MATERIALS = ROOT + "/Materials"
+SOURCES = ROOT + "/Sources"
+BLUEPRINTS = ROOT + "/Blueprints"
+
+library = unreal.MaterialEditingLibrary
+tools = unreal.AssetToolsHelpers.get_asset_tools()
+assets = unreal.EditorAssetLibrary
+created = []
+
+
+# ---------------------------------------------------------------- Graph helpers
+
+class Graph:
+    """Places material expressions in columns, so the graph stays readable when Boris opens it"""
+
+    def __init__(self, material):
+        self.material = material
+        self.row = {}
+
+    def node(self, expression_class, column, **properties):
+        y = self.row.get(column, 0)
+        self.row[column] = y + 130
+        expression = library.create_material_expression(self.material, expression_class, -320 * column, y)
+        for key, value in properties.items():
+            expression.set_editor_property(key, value)
+        return expression
+
+    def scalar(self, name, default, column=6):
+        return self.node(unreal.MaterialExpressionScalarParameter, column, parameter_name=name, default_value=default)
+
+    def color(self, name, default, column=6):
+        return self.node(unreal.MaterialExpressionVectorParameter, column, parameter_name=name, default_value=default)
+
+    def const(self, value, column=5):
+        return self.node(unreal.MaterialExpressionConstant, column, r=value)
+
+    def link(self, source, target, target_input, source_output=""):
+        if not library.connect_material_expressions(source, source_output, target, target_input):
+            unreal.log_error("Vael water kit: could not connect {} -> {}.{}".format(source.get_name(), target.get_name(), target_input))
+
+    def op(self, expression_class, column, a, b=None, a_input="A", b_input="B", **properties):
+        expression = self.node(expression_class, column, **properties)
+        self.link(a, expression, a_input)
+        if b is not None:
+            self.link(b, expression, b_input)
+        return expression
+
+    def mul(self, column, a, b):
+        return self.op(unreal.MaterialExpressionMultiply, column, a, b)
+
+    def add(self, column, a, b):
+        return self.op(unreal.MaterialExpressionAdd, column, a, b)
+
+    def sub(self, column, a, b):
+        return self.op(unreal.MaterialExpressionSubtract, column, a, b)
+
+    def div(self, column, a, b):
+        return self.op(unreal.MaterialExpressionDivide, column, a, b)
+
+    def lerp(self, column, a, b, alpha):
+        expression = self.op(unreal.MaterialExpressionLinearInterpolate, column, a, b)
+        self.link(alpha, expression, "Alpha")
+        return expression
+
+    def one_minus(self, column, a):
+        return self.op(unreal.MaterialExpressionOneMinus, column, a, a_input="")
+
+    def saturate(self, column, a):
+        return self.op(unreal.MaterialExpressionSaturate, column, a, a_input="")
+
+
+def try_set(target, key, value):
+    try:
+        target.set_editor_property(key, value)
+        return True
+    except Exception as error:
+        unreal.log_warning("Vael water kit: could not set {} on {}: {}".format(key, target.get_name(), error))
+        return False
+
+
+# Bumped whenever a graph of this script changes; a master material without the current version gets its graph rebuilt
+KIT_VERSION = 3.0
+
+
+def new_material(name):
+    """A new master material, or one of this kit whose graph is older than the script (its parameters keep their names, so instances stay valid)"""
+    path = "{}/{}".format(MATERIALS, name)
+    if assets.does_asset_exist(path):
+        material = unreal.load_asset(path)
+        if "KitVersion" in [str(parameter) for parameter in library.get_scalar_parameter_names(material)]:
+            if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= KIT_VERSION:
+                return None
+        library.delete_all_material_expressions(material)
+        created.append(path + " (graph rebuilt)")
+        return material
+    created.append(path)
+    return tools.create_asset(name, MATERIALS, unreal.Material, unreal.MaterialFactoryNew())
+
+
+
+# ---------------------------------------------------------------- M_Water
+
+def build_water_material():
+    """Translucent surface: wobbling surface, Fresnel rim, slight refraction, soft edges where it meets geometry"""
+    material = new_material("M_Water")
+    if material is None:
+        return unreal.load_asset(MATERIALS + "/M_Water")
+
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    try_set(material, "translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_SURFACE_PER_PIXEL_LIGHTING)
+    try_set(material, "refraction_method", unreal.RefractionMode.RM_INDEX_OF_REFRACTION)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, column=8)
+    deep = g.color("DeepColor", unreal.LinearColor(0.02, 0.12, 0.35, 1.0))
+    shallow = g.color("ShallowColor", unreal.LinearColor(0.25, 0.65, 1.0, 1.0))
+    murk = g.scalar("Murkiness", 0.2)
+    emissive_strength = g.scalar("EmissiveStrength", 0.5)
+    wobble_strength = g.scalar("WobbleStrength", 4.0)
+    wobble_speed = g.scalar("WobbleSpeed", 0.6)
+    refraction = g.scalar("Refraction", 0.2)
+    fresnel_power = g.scalar("FresnelPower", 3.0)
+    foam_amount = g.scalar("FoamAmount", 0.2)
+    wetness = g.scalar("Wetness", 0.9)
+
+    # Rim: Fresnel brightens the edge towards the shallow color
+    fresnel = g.node(unreal.MaterialExpressionFresnel, 5)
+    g.link(fresnel_power, fresnel, "ExponentIn")
+    body = g.lerp(4, shallow, deep, murk)
+    rim = g.lerp(3, body, shallow, fresnel)
+
+    # Soft edge where the water meets the ground or a body; foam gathers there and a little on the rim
+    depth = g.node(unreal.MaterialExpressionDepthFade, 5)
+    try_set(depth, "fade_distance_default", 40.0)
+    contact = g.one_minus(4, depth)
+    foam_noise = g.node(unreal.MaterialExpressionNoise, 5, scale=0.05, levels=3, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX, output_min=0.0, output_max=1.0)
+    foam_base = g.add(4, contact, g.mul(4, fresnel, g.const(0.3)))
+    foam = g.saturate(2, g.mul(3, g.mul(3, foam_base, foam_amount), foam_noise))
+    white = g.node(unreal.MaterialExpressionConstant3Vector, 3, constant=unreal.LinearColor(0.9, 0.95, 1.0, 1.0))
+    base_color = g.lerp(1, rim, white, foam)
+
+    emissive = g.mul(1, g.mul(2, shallow, emissive_strength), g.add(2, fresnel, g.const(0.4)))
+
+    # Clear water lets more through; the rim and foam are more solid; the soft edge fades it out at contacts
+    body_opacity = g.lerp(3, g.const(0.3), g.const(0.95), murk)
+    opacity = g.mul(1, g.saturate(2, g.add(2, g.add(3, body_opacity, g.mul(3, fresnel, g.const(0.35))), foam)), depth)
+
+    roughness = g.lerp(1, g.const(0.6), g.const(0.03), wetness)
+    specular = g.lerp(1, g.const(0.3), g.const(0.9), wetness)
+    index_of_refraction = g.add(1, refraction, g.const(1.0))
+
+    # Wobble: animated noise moves the surface along its normal
+    world_position = g.node(unreal.MaterialExpressionWorldPosition, 5)
+    time = g.node(unreal.MaterialExpressionTime, 5)
+    drift = g.mul(4, g.mul(4, time, wobble_speed), g.const(100.0))
+    wobble_noise = g.node(unreal.MaterialExpressionNoise, 3, scale=0.015, levels=2, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX, output_min=-1.0, output_max=1.0)
+    g.link(g.add(4, world_position, drift), wobble_noise, "")
+    normal = g.node(unreal.MaterialExpressionVertexNormalWS, 3)
+    offset = g.mul(1, g.mul(2, normal, wobble_noise), wobble_strength)
+
+    for expression, target in ((base_color, unreal.MaterialProperty.MP_BASE_COLOR), (emissive, unreal.MaterialProperty.MP_EMISSIVE_COLOR),
+                               (opacity, unreal.MaterialProperty.MP_OPACITY), (roughness, unreal.MaterialProperty.MP_ROUGHNESS),
+                               (specular, unreal.MaterialProperty.MP_SPECULAR), (index_of_refraction, unreal.MaterialProperty.MP_REFRACTION),
+                               (offset, unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)):
+        if not library.connect_material_property(expression, "", target):
+            unreal.log_error("Vael water kit: could not connect M_Water output {}".format(target))
+
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
+# ---------------------------------------------------------------- M_Water_Particle
+
+def build_particle_material():
+    """Soft round sprite in the particle color; drop, bubble ring and mist are all instances. Fades out by itself before the particle dies."""
+    material = new_material("M_Water_Particle")
+    if material is None:
+        return unreal.load_asset(MATERIALS + "/M_Water_Particle")
+
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    try_set(material, "used_with_niagara_sprites", True)
+    try_set(material, "used_with_particle_sprites", True)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, column=8)
+    edge_softness = g.scalar("EdgeSoftness", 0.25)
+    inner_opacity = g.scalar("InnerOpacity", 1.0)
+    ring_amount = g.scalar("RingAmount", 0.0)
+    ring_radius = g.scalar("RingRadius", 0.8)
+    ring_width = g.scalar("RingWidth", 0.15)
+    highlight_strength = g.scalar("HighlightStrength", 0.0)
+    highlight_size = g.scalar("HighlightSize", 0.3)
+    cloudiness = g.scalar("Cloudiness", 0.0)
+    cloud_scale = g.scalar("CloudScale", 3.0)
+    opacity_scale = g.scalar("Opacity", 1.0)
+    brightness = g.scalar("Brightness", 1.5)
+    fade_out_start = g.scalar("FadeOutStart", 0.6)
+    fade_in_end = g.scalar("FadeInEnd", 0.05)
+
+    # Distance from the middle of the sprite: 0 in the middle, 1 at the edge of the disc
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 6)
+    middle = g.node(unreal.MaterialExpressionConstant2Vector, 6, r=0.5, g=0.5)
+    distance = g.mul(4, g.op(unreal.MaterialExpressionDistance, 5, uv, middle), g.const(2.0))
+
+    disc = g.saturate(3, g.div(4, g.one_minus(4, distance), edge_softness))
+    ring_offset = g.op(unreal.MaterialExpressionAbs, 4, g.sub(4, distance, ring_radius), a_input="")
+    ring = g.saturate(3, g.one_minus(3, g.div(3, ring_offset, ring_width)))
+    shape = g.op(unreal.MaterialExpressionMax, 2, g.mul(3, disc, inner_opacity), g.mul(3, ring, ring_amount))
+
+    # Glint up and to the left, like light on a drop
+    glint_spot = g.node(unreal.MaterialExpressionConstant2Vector, 6, r=0.36, g=0.32)
+    glint_distance = g.mul(4, g.op(unreal.MaterialExpressionDistance, 5, uv, glint_spot), g.const(2.0))
+    glint_falloff = g.saturate(3, g.one_minus(3, g.div(4, glint_distance, highlight_size)))
+    glint = g.mul(2, g.mul(3, glint_falloff, glint_falloff), highlight_strength)
+
+    # Clouds for the mist, different for every particle
+    random = g.node(unreal.MaterialExpressionParticleRandom, 6)
+    cloud_position = g.op(unreal.MaterialExpressionAppendVector, 4, g.mul(5, uv, cloud_scale), g.mul(5, random, g.const(10.0)))
+    cloud_noise = g.node(unreal.MaterialExpressionNoise, 3, scale=1.0, levels=3, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX, output_min=0.0, output_max=1.0)
+    g.link(cloud_position, cloud_noise, "")
+    cloud = g.lerp(2, g.const(1.0), cloud_noise, cloudiness)
+
+    # Fades in quickly at birth and out over the last part of its life
+    life = g.node(unreal.MaterialExpressionParticleRelativeTime, 6)
+    fade_out = g.one_minus(2, g.saturate(3, g.div(4, g.sub(5, life, fade_out_start), g.one_minus(5, fade_out_start))))
+    fade_in = g.saturate(3, g.div(4, life, fade_in_end))
+    fade = g.mul(1, fade_out, fade_in)
+
+    particle_color = g.node(unreal.MaterialExpressionParticleColor, 6)
+    alpha = g.node(unreal.MaterialExpressionMultiply, 2)
+    g.link(particle_color, alpha, "A", "A")
+    g.link(opacity_scale, alpha, "B")
+    body = g.mul(1, g.mul(1, g.mul(2, alpha, shape), cloud), fade)
+    soft = g.node(unreal.MaterialExpressionDepthFade, 2)
+    try_set(soft, "fade_distance_default", 15.0)
+    opacity = g.mul(0, g.saturate(1, g.add(1, body, g.mul(1, glint, fade))), soft)
+
+    tinted = g.node(unreal.MaterialExpressionMultiply, 2)
+    g.link(particle_color, tinted, "A", "")
+    g.link(brightness, tinted, "B")
+    emissive = g.add(0, tinted, glint)
+
+    library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
+
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
+# ---------------------------------------------------------------- Instances
+
+def make_instance(parent, name, scalars=None, colors=None):
+    path = "{}/{}".format(MATERIALS, name)
+    if assets.does_asset_exist(path):
+        return unreal.load_asset(path)
+    instance = tools.create_asset(name, MATERIALS, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    library.set_material_instance_parent(instance, parent)
+    for key, value in (scalars or {}).items():
+        library.set_material_instance_scalar_parameter_value(instance, key, value)
+    for key, value in (colors or {}).items():
+        library.set_material_instance_vector_parameter_value(instance, key, unreal.LinearColor(value[0], value[1], value[2], 1.0))
+    library.update_material_instance(instance)
+    assets.save_loaded_asset(instance, False)
+    created.append(path)
+    return instance
+
+
+def water_look(deep, shallow, murk, emissive, wobble, speed, refraction, fresnel, foam, wetness):
+    return {"colors": {"DeepColor": deep, "ShallowColor": shallow},
+            "scalars": {"Murkiness": murk, "EmissiveStrength": emissive, "WobbleStrength": wobble, "WobbleSpeed": speed,
+                        "Refraction": refraction, "FresnelPower": fresnel, "FoamAmount": foam, "Wetness": wetness}}
+
+
+def build_instances(water, particle):
+    looks = {
+        # Clear, glowing in the blue of Geist
+        "MI_Water_Spell_Mage": water_look((0.02, 0.12, 0.35), (0.25, 0.65, 1.0), 0.1, 1.2, 5.0, 0.8, 0.25, 3.0, 0.15, 1.0),
+        # Still, dark, cold greenish, murky
+        "MI_Water_Pond": water_look((0.005, 0.02, 0.018), (0.06, 0.14, 0.11), 0.75, 0.0, 0.5, 0.2, 0.1, 5.0, 0.05, 0.95),
+        # Moving, a little lighter, foam at stones
+        "MI_Water_Stream": water_look((0.02, 0.06, 0.06), (0.2, 0.35, 0.33), 0.4, 0.0, 1.5, 1.5, 0.15, 4.0, 0.5, 1.0),
+        # Thin, nearly clear drops
+        "MI_Water_Rain": water_look((0.3, 0.35, 0.4), (0.7, 0.78, 0.85), 0.05, 0.05, 0.5, 2.0, 0.3, 2.0, 0.0, 1.0),
+        # Black-violet, thick, hardly any light
+        "MI_Water_Mark": water_look((0.01, 0.0, 0.015), (0.12, 0.02, 0.18), 0.95, 0.08, 3.0, 0.15, 0.05, 6.0, 0.05, 0.7),
+        # Murky green, hardly glowing
+        "MI_Water_Swamp": water_look((0.01, 0.025, 0.005), (0.12, 0.18, 0.05), 0.85, 0.02, 0.8, 0.25, 0.05, 5.0, 0.15, 0.8),
+    }
+    instances = {}
+    for name, look in looks.items():
+        instances[name] = make_instance(water, name, look["scalars"], look["colors"])
+
+    # Clear drop with a bright glint; bubble ring, nearly see-through inside; soft cloudy mist at about 30 %
+    make_instance(particle, "MI_Water_Particle_Drop", {"EdgeSoftness": 0.2, "InnerOpacity": 0.85, "RingAmount": 0.5, "RingRadius": 0.82, "RingWidth": 0.18,
+                                                       "HighlightStrength": 1.2, "HighlightSize": 0.32, "Opacity": 0.9, "Brightness": 1.4})
+    make_instance(particle, "MI_Water_Particle_Bubble", {"EdgeSoftness": 0.15, "InnerOpacity": 0.06, "RingAmount": 1.0, "RingRadius": 0.8, "RingWidth": 0.14,
+                                                         "HighlightStrength": 0.8, "HighlightSize": 0.22, "Opacity": 0.85, "Brightness": 1.6})
+    make_instance(particle, "MI_Water_Particle_Mist", {"EdgeSoftness": 1.0, "InnerOpacity": 1.0, "RingAmount": 0.0, "HighlightStrength": 0.0,
+                                                       "Cloudiness": 0.7, "CloudScale": 2.5, "Opacity": 0.3, "Brightness": 1.0, "FadeInEnd": 0.15})
+    return instances
+
+
+# ---------------------------------------------------------------- Sources and orb
+
+def make_source(name, label, material, glow, particle, viscosity):
+    path = "{}/{}".format(SOURCES, name)
+    if assets.does_asset_exist(path):
+        return unreal.load_asset(path)
+    factory = unreal.DataAssetFactory()
+    factory.set_editor_property("data_asset_class", unreal.VaelElementSource)
+    source = tools.create_asset(name, SOURCES, unreal.VaelElementSource, factory)
+    source.set_editor_property("source_name", unreal.Text(label))
+    source.set_editor_property("element", unreal.VaelElement.WATER)
+    source.set_editor_property("material", material)
+    source.set_editor_property("glow_color", unreal.LinearColor(*glow))
+    source.set_editor_property("particle_color", unreal.LinearColor(*particle))
+    source.set_editor_property("viscosity", viscosity)
+    assets.save_loaded_asset(source, False)
+    created.append(path)
+    return source
+
+
+def build_orb(mage_source):
+    path = "{}/BP_WaterOrb".format(BLUEPRINTS)
+    if assets.does_asset_exist(path):
+        return
+    factory = unreal.BlueprintFactory()
+    factory.set_editor_property("parent_class", unreal.VaelWaterOrb)
+    blueprint = tools.create_asset("BP_WaterOrb", BLUEPRINTS, unreal.Blueprint, factory)
+    unreal.BlueprintEditorLibrary.compile_blueprint(blueprint)
+    defaults = unreal.get_default_object(unreal.BlueprintEditorLibrary.generated_class(blueprint))
+    defaults.set_editor_property("source", mage_source)
+    unreal.BlueprintEditorLibrary.compile_blueprint(blueprint)
+    assets.save_loaded_asset(blueprint, False)
+    created.append(path)
+
+
+def main():
+    for folder in (MATERIALS, ROOT + "/Niagara", SOURCES, BLUEPRINTS):
+        assets.make_directory(folder)
+
+    water = build_water_material()
+    particle = build_particle_material()
+    instances = build_instances(water, particle)
+
+    mage = make_source("DA_ElementSource_Water_Mage", "Zauberwasser (Magier)", instances["MI_Water_Spell_Mage"], (0.15, 0.55, 1.0, 1.0), (0.45, 0.8, 1.0, 0.8), 0.0)
+    make_source("DA_ElementSource_Water_Mark", "Mark-Wasser", instances["MI_Water_Mark"], (0.25, 0.03, 0.35, 1.0), (0.18, 0.03, 0.25, 0.9), 0.85)
+    make_source("DA_ElementSource_Water_Swamp", "Sumpfwasser", instances["MI_Water_Swamp"], (0.08, 0.12, 0.03, 1.0), (0.25, 0.32, 0.12, 0.75), 0.4)
+
+    build_orb(mage)
+    unreal.log("Vael water kit: created {} assets: {}".format(len(created), ", ".join(path.split("/")[-1] for path in created)))
+
+
+main()
