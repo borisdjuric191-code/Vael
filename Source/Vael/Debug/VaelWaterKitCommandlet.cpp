@@ -32,6 +32,7 @@ namespace
 
 	const FWaterEmitterRule EmitterRules[] =
 	{
+		{ TEXT("DropHit"), TEXT("MI_Water_Particle_Drop") },
 		{ TEXT("Bubbles"), TEXT("MI_Water_Particle_Bubble") },
 		{ TEXT("Droplets"), TEXT("MI_Water_Particle_Drop") },
 		{ TEXT("Splash"), TEXT("MI_Water_Particle_Drop") },
@@ -155,15 +156,39 @@ namespace
 	}
 
 	/** Lists how an emitter is set up: space, sim target, renderers and the constant inputs of its modules */
-	void DumpEmitter(const FVersionedNiagaraEmitterData* EmitterData, const FString& Label, TArray<FString>& Report)
+	void DumpEmitter(const UNiagaraSystem* System, const FVersionedNiagaraEmitterData* EmitterData, const FString& Label, TArray<FString>& Report)
 	{
 		if (EmitterData == nullptr)
 		{
 			return;
 		}
 
-		Report.Add(FString::Printf(TEXT("  %s: local space %s, %s"), *Label, EmitterData->bLocalSpace ? TEXT("yes") : TEXT("no"),
-			EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim ? TEXT("GPU") : TEXT("CPU")));
+		Report.Add(FString::Printf(TEXT("  %s: local space %s, %s, persistent IDs %s"), *Label, EmitterData->bLocalSpace ? TEXT("yes") : TEXT("no"),
+			EmitterData->SimTarget == ENiagaraSimTarget::GPUComputeSim ? TEXT("GPU") : TEXT("CPU"), EmitterData->bRequiresPersistentIDs ? TEXT("yes") : TEXT("no")));
+
+		for (const FNiagaraEventScriptProperties& Handler : EmitterData->GetEventHandlers())
+		{
+			// The emitter the events come from, by its id in the system
+			FString SourceName = Handler.SourceEmitterID.ToString();
+			for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+			{
+				if (Handle.GetId() == Handler.SourceEmitterID)
+				{
+					SourceName = Handle.GetName().ToString();
+				}
+			}
+
+			Report.Add(FString::Printf(TEXT("    event handler: %s from %s, mode %d, spawn %u (random %s, min %u), max events per frame %u"), *Handler.SourceEventName.ToString(), *SourceName,
+				int32(Handler.ExecutionMode), Handler.SpawnNumber, Handler.bRandomSpawnNumber ? TEXT("yes") : TEXT("no"), Handler.MinSpawnNumber, Handler.MaxEventsPerFrame));
+
+			if (Handler.Script != nullptr)
+			{
+				for (const FNiagaraVariableWithOffset& Parameter : Handler.Script->RapidIterationParameters.ReadParameterVariables())
+				{
+					Report.Add(FString::Printf(TEXT("      %s = %s"), *Parameter.GetName().ToString(), *ParameterValueText(Handler.Script->RapidIterationParameters, Parameter)));
+				}
+			}
+		}
 
 		for (const UNiagaraRendererProperties* Renderer : EmitterData->GetRenderers())
 		{
@@ -302,10 +327,28 @@ int32 UVaelWaterKitCommandlet::Main(const FString& Params)
 
 			bChanged |= CheckRenderers(Handle.GetEmitterData(), HandleName, LoadParticleMaterial(Rule->Material), bDryRun, Report);
 
+			// The particles only get the color of the source if one of the compiled scripts reads it
+			bool bReadsWaterColor = false;
+			if (const FVersionedNiagaraEmitterData* EmitterData = Handle.GetEmitterData())
+			{
+				TArray<UNiagaraScript*> Scripts;
+				EmitterData->GetScripts(Scripts, false, true);
+				for (const UNiagaraScript* Script : Scripts)
+				{
+					for (const FNiagaraVariable& Parameter : Script->GetVMExecutableData().Parameters.Parameters)
+					{
+						bReadsWaterColor |= Parameter.GetName() == WaterColorName;
+					}
+				}
+			}
+
+			Report.Add(FString::Printf(TEXT("  %s: %s"), *HandleName, bReadsWaterColor ? TEXT("reads User.WaterColor") : TEXT("ERROR: does not read User.WaterColor, stays white")));
+			Errors += bReadsWaterColor ? 0 : 1;
+
 			if (bDump)
 			{
 				Report.Add(FString::Printf(TEXT("  %s: enabled %s"), *HandleName, Handle.GetIsEnabled() ? TEXT("yes") : TEXT("no")));
-				DumpEmitter(Handle.GetEmitterData(), HandleName, Report);
+				DumpEmitter(System, Handle.GetEmitterData(), HandleName, Report);
 			}
 		}
 
