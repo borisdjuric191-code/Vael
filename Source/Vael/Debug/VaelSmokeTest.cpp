@@ -160,6 +160,7 @@ void AVaelSmokeTest::BeginPlay()
 		GetMutableDefault<UVaelAshHarpyData>(),
 		GetMutableDefault<UVaelHarpyElderData>(),
 		GetMutableDefault<UVaelPreacherData>(),
+		GetMutableDefault<UVaelMarkWaterPreacherData>(),
 		GetMutableDefault<UVaelEmberQueenData>(),
 		GetMutableDefault<UVaelSourceGuardianData>(),
 	};

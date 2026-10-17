@@ -14,6 +14,8 @@ class UNiagaraSystem;
 class UPointLightComponent;
 class UProjectileMovementComponent;
 class USphereComponent;
+class AVaelWaterOrb;
+class UVaelElementSource;
 class UStaticMesh;
 class UStaticMeshComponent;
 
@@ -65,11 +67,15 @@ public:
 	/** Chooses the look of the projectile; it plays together with a trail effect. Has to be called before FinishSpawning. */
 	void SetLook(EVaelProjectileLook InLook) { Look = InLook; }
 
+	/** Whose water a projectile with the look of a ball of water is, null for the water of the mages. Has to be called before FinishSpawning. */
+	void SetWaterSource(UVaelElementSource* InSource) { WaterSource = InSource; }
+
 	/** Makes the projectile burst where its flight ends, hitting everyone around. Has to be called before FinishSpawning. */
 	void SetExplosion(const FVaelSpellHit& InExplosionHit, float Radius);
 
-	/** Spawns a projectile of the default class flying in a horizontal direction, for attacks of creatures. A fire radius above 0 leaves a fire where it ends. */
-	static AVaelSpellProjectile* Launch(APawn* Attacker, const FVector& Location, const FVector& Direction, const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color, float FireRadius = 0.0f, float FireLifetime = 0.0f, float FireDamagePerSecond = 0.0f);
+	/** Spawns a projectile of the default class flying in a horizontal direction, for attacks of creatures. A fire radius above 0 leaves a fire where it ends.
+	 *  With a water source it flies as a ball of water of that source. */
+	static AVaelSpellProjectile* Launch(APawn* Attacker, const FVector& Location, const FVector& Direction, const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color, float FireRadius = 0.0f, float FireLifetime = 0.0f, float FireDamagePerSecond = 0.0f, UVaelElementSource* InWaterSource = nullptr);
 
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
@@ -87,6 +93,9 @@ protected:
 
 	/** Starts the trail */
 	virtual void BeginPlay() override;
+
+	/** Takes the ball of water along */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** Called when the projectile touches something it can pass through, like a character */
 	UFUNCTION()
@@ -144,6 +153,20 @@ private:
 
 	/** Builds the look of the projectile from glowing spheres: the spark or the ball of water */
 	void BuildLook();
+
+	/** Lets the projectile fly as the ball of water of the water kit. Returns false if the kit is missing, then the look of glowing spheres stays. */
+	bool SpawnWaterOrb();
+
+	/** The ball of water disappears and bursts where the flight ends, in the color of its source */
+	void BurstWaterOrb(bool bHitSomething);
+
+	/** Whose water the ball is, null for the water of the mages */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelElementSource> WaterSource;
+
+	/** Ball of water of the water kit flying along, null while the projectile has another look */
+	UPROPERTY(Transient)
+	TObjectPtr<AVaelWaterOrb> WaterOrb;
 
 	/** Adds a sphere to the look. Loose pieces are shed later and then move on their own. */
 	UStaticMeshComponent* AddLookShape(UMaterialInterface* Material, const FLinearColor& ShapeColor, float Glow, float Rim = 0.0f, bool bLoose = false, UStaticMesh* OwnMesh = nullptr);

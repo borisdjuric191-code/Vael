@@ -7,9 +7,11 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelCharacter.h"
+#include "VaelAssets.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -127,8 +129,16 @@ void AVaelPreacher::ShootBolt(const AActor* Target)
 	Hit.Damage = Data->BoltDamage;
 	Hit.Element = EVaelElement::Mark;
 
+	// Mark water still hurts as Mark, but leaves its target wet
+	UVaelElementSource* WaterSource = VaelAssets::LoadOptional(Data->BoltWaterSource);
+	if (WaterSource != nullptr)
+	{
+		Hit.Status = EVaelStatus::Wet;
+		Hit.StatusDuration = Data->BoltWetDuration;
+	}
+
 	AVaelSpellProjectile::Launch(this, GetAttackLocation(Direction), Direction, Hit, Data->BoltSpeed, Data->BoltRadius, Data->BoltLifetime,
-		UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark));
+		UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 0.0f, 0.0f, 0.0f, WaterSource);
 }
 
 void AVaelPreacher::StartSpikeLine(const AActor* Target)

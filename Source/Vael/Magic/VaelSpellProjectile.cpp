@@ -11,10 +11,14 @@
 #include "Engine/StaticMesh.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelWaterOrb.h"
 #include "Nature/VaelHarvestable.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
 #include "Vael.h"
 #include "VaelAssets.h"
@@ -1251,6 +1255,13 @@ void AVaelSpellProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// The ball of water of the water kit brings its own bubbles and drops instead of the trail and the glowing spheres
+	if (Look == EVaelProjectileLook::WaterOrb && SpawnWaterOrb())
+	{
+		Mesh->SetVisibility(false);
+		return;
+	}
+
 	// The trail replaces the plain placeholder sphere, but plays together with a look of its own
 	if (VaelEffects::Attach(Effects.Trail, Collision, NAME_None, Effects.Color, SpellRadius) != nullptr)
 	{
@@ -1258,6 +1269,95 @@ void AVaelSpellProjectile::BeginPlay()
 	}
 
 	BuildLook();
+}
+
+void AVaelSpellProjectile::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (WaterOrb != nullptr)
+	{
+		WaterOrb->Destroy();
+		WaterOrb = nullptr;
+	}
+
+	Super::EndPlay(EndPlayReason);
+}
+
+bool AVaelSpellProjectile::SpawnWaterOrb()
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	UClass* OrbClass = VaelAssets::LoadOptionalClass(MagicSettings->WaterOrbClass);
+	if (OrbClass == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("Water orb %s is missing, the ball of water keeps its old look"), *MagicSettings->WaterOrbClass.ToString());
+		return false;
+	}
+
+	if (WaterSource == nullptr)
+	{
+		WaterSource = VaelAssets::LoadOptional(MagicSettings->MageWaterSource);
+	}
+
+	// The ball is 1 m across and as large as the old look
+	const float Scale = SpellRadius * WaterOrbSizeShare / PlaceholderSphereRadius;
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = GetInstigator();
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	WaterOrb = GetWorld()->SpawnActor<AVaelWaterOrb>(OrbClass, FTransform(GetActorRotation(), GetActorLocation(), FVector(Scale)), SpawnParams);
+	if (WaterOrb == nullptr)
+	{
+		return false;
+	}
+
+	WaterOrb->AttachToActor(this, FAttachmentTransformRules::KeepWorldTransform);
+	if (WaterSource != nullptr)
+	{
+		WaterOrb->SetSource(WaterSource);
+	}
+
+	// Its own burst replaces the impact effect of the element, the sound stays
+	Effects.Trail = nullptr;
+	Effects.Impact = nullptr;
+
+	UE_LOG(LogVael, Verbose, TEXT("%s flies as %s of %s"), *GetName(), *WaterOrb->GetName(), *GetNameSafe(WaterSource));
+	return true;
+}
+
+void AVaelSpellProjectile::BurstWaterOrb(bool bHitSomething)
+{
+	const FVector Location = WaterOrb->GetActorLocation();
+	const float Scale = WaterOrb->GetActorScale3D().X;
+
+	WaterOrb->Destroy();
+	WaterOrb = nullptr;
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	UNiagaraSystem* Burst = VaelAssets::LoadOptional(MagicSettings->WaterOrbImpactEffect);
+	if (Burst == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("Burst %s of the water orb is missing"), *MagicSettings->WaterOrbImpactEffect.ToString());
+		return;
+	}
+
+	// A ball that just runs out in the air falls apart more quietly; the color is set before the first particle is born
+	const float BurstScale = Scale * MagicSettings->WaterOrbImpactScale * (bHitSomething ? 1.0f : 0.6f);
+	UNiagaraComponent* BurstComponent = UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Burst, Location, GetActorRotation(), FVector(BurstScale), true, false);
+	if (BurstComponent == nullptr)
+	{
+		UE_LOG(LogVael, Verbose, TEXT("%s: no burst spawned, effects are off"), *GetName());
+		return;
+	}
+
+	if (WaterSource != nullptr)
+	{
+		BurstComponent->SetVariableLinearColor(AVaelWaterOrb::WaterColorParameter, WaterSource->ParticleColor);
+	}
+
+	BurstComponent->Activate(true);
+
+	UE_LOG(LogVael, Verbose, TEXT("%s bursts with %s"), *GetName(), *Burst->GetName());
 }
 
 void AVaelSpellProjectile::SetImpactArea(EVaelElement Element, float Radius, float Lifetime, float DamagePerSecond, EVaelGroundEffect Effect)
@@ -1281,7 +1381,7 @@ void AVaelSpellProjectile::SetExplosion(const FVaelSpellHit& InExplosionHit, flo
 	ExplosionRadius = Radius;
 }
 
-AVaelSpellProjectile* AVaelSpellProjectile::Launch(APawn* Attacker, const FVector& Location, const FVector& Direction, const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color, float FireRadius, float FireLifetime, float FireDamagePerSecond)
+AVaelSpellProjectile* AVaelSpellProjectile::Launch(APawn* Attacker, const FVector& Location, const FVector& Direction, const FVaelSpellHit& InHit, float Speed, float Radius, float Lifetime, const FLinearColor& Color, float FireRadius, float FireLifetime, float FireDamagePerSecond, UVaelElementSource* InWaterSource)
 {
 	UWorld* World = Attacker != nullptr ? Attacker->GetWorld() : nullptr;
 	const FVector FlightDirection = Direction.GetSafeNormal2D();
@@ -1298,6 +1398,13 @@ AVaelSpellProjectile* AVaelSpellProjectile::Launch(APawn* Attacker, const FVecto
 		Projectile->InitSpell(InHit, Speed, Radius, Lifetime, 0, Color);
 		Projectile->SetImpactArea(EVaelElement::Fire, FireRadius, FireLifetime, FireDamagePerSecond);
 		Projectile->SetEffects(VaelEffects::Load(InHit.Element));
+
+		if (InWaterSource != nullptr)
+		{
+			Projectile->SetLook(EVaelProjectileLook::WaterOrb);
+			Projectile->SetWaterSource(InWaterSource);
+		}
+
 		Projectile->FinishSpawning(SpawnTransform);
 	}
 
@@ -1335,6 +1442,11 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 		{
 			AVaelGroundArea::SpawnArea(GetWorld(), GroundHit.Location + FVector(0.0f, 0.0f, 2.0f), ImpactElement, ImpactRadius, ImpactLifetime, ImpactDamagePerSecond, GetInstigator(), true, ImpactEffect, ImpactAreaVisual);
 		}
+	}
+
+	if (WaterOrb != nullptr)
+	{
+		BurstWaterOrb(bHitSomething);
 	}
 
 	// A projectile with a look of its own stays for a moment, so its embers can glow out or its water can burst

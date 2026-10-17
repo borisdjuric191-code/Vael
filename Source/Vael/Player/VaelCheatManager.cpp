@@ -166,6 +166,10 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	{
 		Data = GetMutableDefault<UVaelHarpyElderData>();
 	}
+	else if (Name.StartsWith(TEXT("markp")) || Name.StartsWith(TEXT("markw")))
+	{
+		Data = GetMutableDefault<UVaelMarkWaterPreacherData>();
+	}
 	else if (Name.StartsWith(TEXT("pred")) || Name.StartsWith(TEXT("preach")))
 	{
 		Data = GetMutableDefault<UVaelPreacherData>();
@@ -185,7 +189,7 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 
 	if (Data == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Koenigin, Waechter, Spannhornkaefer, Aschenroller, Sichelpuppe or Schleieraffe."), *Kind);
+		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger, Koenigin, Waechter, Spannhornkaefer, Aschenroller, Sichelpuppe or Schleieraffe."), *Kind);
 		return;
 	}
 

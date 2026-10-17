@@ -3,6 +3,8 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Animation/AnimMontage.h"
 #include "Engine/StaticMesh.h"
+#include "Magic/VaelElementSource.h"
+#include "Magic/VaelWaterOrb.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
@@ -83,6 +85,11 @@ UVaelMagicSettings::UVaelMagicSettings()
 	ElementOrbCoreMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/M_Vael_Kugel.M_Vael_Kugel")));
 	ElementOrbGlowMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/M_Vael_Schein.M_Vael_Schein")));
 	ElementOrbRockMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Rock_Collection_04/Meshes/Rock_03/StaticMeshes/SM_Rock_03.SM_Rock_03")));
+
+	// The water kit under Content/VFX/Water
+	WaterOrbClass = TSoftClassPtr<AVaelWaterOrb>(FSoftObjectPath(TEXT("/Game/VFX/Water/Blueprints/BP_WaterOrb.BP_WaterOrb_C")));
+	WaterOrbImpactEffect = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/VFX/Water/Niagara/NS_Water_OrbImpact.NS_Water_OrbImpact")));
+	MageWaterSource = TSoftObjectPtr<UVaelElementSource>(FSoftObjectPath(TEXT("/Game/VFX/Water/Sources/DA_ElementSource_Water_Mage.DA_ElementSource_Water_Mage")));
 }
 
 UAnimMontage* UVaelMagicSettings::FindCastMontage(EVaelSpellDelivery Delivery) const

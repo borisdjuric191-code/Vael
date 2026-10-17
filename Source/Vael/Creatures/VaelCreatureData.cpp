@@ -10,6 +10,7 @@
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelPreacher.h"
+#include "Magic/VaelElementSource.h"
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelSourceGuardian.h"
@@ -107,6 +108,15 @@ UVaelPreacherData::UVaelPreacherData()
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Ordenssiegel.DA_Material_Ordenssiegel"), 1.0f));
 	ItemDropChance = 0.4f;
 	BodyColor = FLinearColor(0.27f, 0.05f, 0.1f);
+}
+
+UVaelMarkWaterPreacherData::UVaelMarkWaterPreacherData()
+{
+	DisplayName = LOCTEXT("MarkWaterPreacher", "Markwasser-Prediger (Test)");
+	KindId = TEXT("PredigerMarkwasser");
+	BodyColor = FLinearColor(0.08f, 0.02f, 0.12f);
+
+	BoltWaterSource = TSoftObjectPtr<UVaelElementSource>(FSoftObjectPath(TEXT("/Game/VFX/Water/Sources/DA_ElementSource_Water_Mark.DA_ElementSource_Water_Mark")));
 }
 
 UVaelEmberQueenData::UVaelEmberQueenData()

@@ -12,6 +12,8 @@ class UAnimMontage;
 class UMaterialInterface;
 class UNiagaraSystem;
 class UStaticMesh;
+class UVaelElementSource;
+class AVaelWaterOrb;
 
 /**
  *  Rules of the magic system that apply to every formula.
@@ -223,4 +225,20 @@ public:
 	/** Rock of the earth orb. Without it the orb is a brown sphere. */
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UStaticMesh> ElementOrbRockMesh;
+
+	/** Ball of water from the water kit that water projectiles fly as (BP_WaterOrb). Without it they keep their look of glowing spheres. */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit")
+	TSoftClassPtr<AVaelWaterOrb> WaterOrbClass;
+
+	/** Burst where a ball of water ends (NS_Water_OrbImpact); gets the particle color of the source as User.WaterColor */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit")
+	TSoftObjectPtr<UNiagaraSystem> WaterOrbImpactEffect;
+
+	/** Whose water the mages cast */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit")
+	TSoftObjectPtr<UVaelElementSource> MageWaterSource;
+
+	/** Size of the burst compared to the ball: 1 is made for a ball of 1 m and shrinks and grows with it */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit", meta = (ClampMin = 0))
+	float WaterOrbImpactScale = 1.0f;
 };

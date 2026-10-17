@@ -77,6 +77,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Water Orb")
 	void SetSource(UVaelElementSource* NewSource);
 
+	/** Bubbles, drops and mist around the ball */
+	UNiagaraComponent* GetParticles() const { return Particles; }
+
 	/** Name of the Niagara user parameter that receives the particle color */
 	static const FName WaterColorParameter;
 

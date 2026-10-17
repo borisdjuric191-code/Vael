@@ -40,7 +40,7 @@ public:
 	void VaelStatus(const FString& Status, float Duration);
 
 	/**
-	 *  Spawns creatures 8 m in front of the player: Glutkriecher, Aschharpyie, Aelteste, Prediger, Koenigin, Waechter or Spannhornkaefer.
+	 *  Spawns creatures 8 m in front of the player: Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger (test of the water kit), Koenigin, Waechter or Spannhornkaefer.
 	 *  Example: VaelSpawn Koenigin 1
 	 */
 	UFUNCTION(Exec)

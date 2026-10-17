@@ -13,6 +13,7 @@
 class AVaelCreature;
 class USkeletalMesh;
 class UStaticMesh;
+class UVaelElementSource;
 
 /**
  *  Values of a kind of creature that every creature has.
@@ -452,6 +453,28 @@ public:
 	/** Formula learned by watching a spike line from close by */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formulas")
 	TArray<EVaelElement> FormulaOnWitnessedSpikes;
+
+	/** Whose water the bolts are: with a source the preacher shoots balls of water of the water kit that make wet. Empty for bolts of Mark. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bolt")
+	TSoftObjectPtr<UVaelElementSource> BoltWaterSource;
+
+	/** Seconds a ball of water keeps its target wet */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bolt", meta = (ClampMin = 0))
+	float BoltWetDuration = 5.0f;
+};
+
+/**
+ *  Test variant of the preacher for the water kit: shoots balls of black-violet Mark water instead of bolts,
+ *  so they can be compared with the water of the mages. Spawned with the cheat VaelSpawn Markprediger.
+ */
+UCLASS(BlueprintType)
+class UVaelMarkWaterPreacherData : public UVaelPreacherData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelMarkWaterPreacherData();
 };
 
 /**
