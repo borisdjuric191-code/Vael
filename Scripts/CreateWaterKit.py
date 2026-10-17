@@ -93,7 +93,10 @@ def try_set(target, key, value):
 
 
 # Bumped whenever a graph of this script changes; a master material without the current version gets its graph rebuilt
-KIT_VERSION = 3.0
+KIT_VERSION = 4.0
+
+# Water normal map from the engine's example content, always there
+WAVE_NORMAL = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n.water_n"
 
 
 def new_material(name):
@@ -154,7 +157,34 @@ def build_water_material():
     white = g.node(unreal.MaterialExpressionConstant3Vector, 3, constant=unreal.LinearColor(0.9, 0.95, 1.0, 1.0))
     base_color = g.lerp(1, rim, white, foam)
 
-    emissive = g.mul(1, g.mul(2, shallow, emissive_strength), g.add(2, fresnel, g.const(0.4)))
+    # Small waves: two layers of a water normal map drift across each other; they bend the light (refraction), break up the
+    # highlights and the Fresnel rim, and where their crests meet a little light sparkles inside
+    wave_strength = g.scalar("WaveStrength", 0.6)
+    wave_tiling = g.scalar("WaveTiling", 2.0)
+    wave_speed = g.scalar("WaveSpeed", 0.06)
+    sparkle = g.scalar("Sparkle", 0.5)
+    wave_texture = g.node(unreal.MaterialExpressionTextureObjectParameter, 7, parameter_name="WaveNormal", texture=unreal.load_asset(WAVE_NORMAL), sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    wave_uv = g.mul(6, g.node(unreal.MaterialExpressionTextureCoordinate, 7), wave_tiling)
+    wave_time = g.mul(6, g.node(unreal.MaterialExpressionTime, 7), wave_speed)
+    waves = []
+    for scale, direction in ((1.0, (1.0, 0.35)), (1.7, (-0.6, 0.8))):
+        drift = g.mul(5, wave_time, g.node(unreal.MaterialExpressionConstant2Vector, 6, r=direction[0], g=direction[1]))
+        uv = g.add(5, g.mul(5, wave_uv, g.const(scale, column=6)), drift)
+        sample = g.node(unreal.MaterialExpressionTextureSample, 4, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+        g.link(wave_texture, sample, "Tex")
+        g.link(uv, sample, "UVs")
+        waves.append(sample)
+    wave_sum = g.add(3, waves[0], waves[1])
+    flat = g.node(unreal.MaterialExpressionConstant3Vector, 3, constant=unreal.LinearColor(0.0, 0.0, 1.0, 1.0))
+    wave_normal = g.lerp(2, flat, wave_sum, wave_strength)
+
+    crest = g.node(unreal.MaterialExpressionComponentMask, 3, r=True, g=False, b=False, a=False)
+    g.link(wave_sum, crest, "")
+    crest_light = g.saturate(2, g.sub(3, g.op(unreal.MaterialExpressionAbs, 3, crest, a_input=""), g.const(0.9)))
+    shimmer = g.mul(2, g.mul(2, crest_light, sparkle), g.const(3.0))
+
+    emissive_body = g.mul(1, g.mul(2, shallow, emissive_strength), g.add(2, fresnel, g.const(0.4)))
+    emissive = g.add(1, emissive_body, g.mul(2, shallow, shimmer))
 
     # Clear water lets more through; the rim and foam are more solid; the soft edge fades it out at contacts
     body_opacity = g.lerp(3, g.const(0.3), g.const(0.95), murk)
@@ -175,6 +205,7 @@ def build_water_material():
 
     for expression, target in ((base_color, unreal.MaterialProperty.MP_BASE_COLOR), (emissive, unreal.MaterialProperty.MP_EMISSIVE_COLOR),
                                (opacity, unreal.MaterialProperty.MP_OPACITY), (roughness, unreal.MaterialProperty.MP_ROUGHNESS),
+                               (wave_normal, unreal.MaterialProperty.MP_NORMAL),
                                (specular, unreal.MaterialProperty.MP_SPECULAR), (index_of_refraction, unreal.MaterialProperty.MP_REFRACTION),
                                (offset, unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)):
         if not library.connect_material_property(expression, "", target):
