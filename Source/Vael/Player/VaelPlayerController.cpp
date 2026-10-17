@@ -365,6 +365,18 @@ void AVaelPlayerController::CreateInputAssets()
 	}
 }
 
+void AVaelPlayerController::GetStreamingSourceLocationAndRotation(FVector& OutLocation, FRotator& OutRotation) const
+{
+	if (const APawn* ControlledPawn = GetPawn())
+	{
+		OutLocation = ControlledPawn->GetActorLocation();
+		OutRotation = ControlledPawn->GetActorRotation();
+		return;
+	}
+
+	Super::GetStreamingSourceLocationAndRotation(OutLocation, OutRotation);
+}
+
 void AVaelPlayerController::PlayerTick(float DeltaTime)
 {
 	UpdateSowHold();

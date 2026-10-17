@@ -52,8 +52,8 @@ public:
 	/** Called by a player who goes down. Once every player is down, the group wakes up at the start after a moment. */
 	void OnPlayerDowned(AVaelCharacter* Player);
 
-	/** Spawns creatures of one kind on the ground around a location; bOfTheLevel marks those a spawner of the level brings. Returns the number spawned. */
-	int32 SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel = false);
+	/** Spawns creatures of one kind on the ground around a location; bOfTheLevel marks those a spawner of the level brings, Level is where they belong (see AVaelCreature::SpawnCreature). Returns the number spawned. */
+	int32 SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel = false, ULevel* Level = nullptr);
 
 protected:
 

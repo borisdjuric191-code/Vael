@@ -268,6 +268,9 @@ protected:
 	/** Update */
 	virtual void PlayerTick(float DeltaTime) override;
 
+	/** In an open world the land streams in around the player's figure, not around the shared camera high above the group */
+	virtual void GetStreamingSourceLocationAndRotation(FVector& OutLocation, FRotator& OutRotation) const override;
+
 	/** Creates the input actions and maps them to keys */
 	void CreateInputAssets();
 

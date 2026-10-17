@@ -40,9 +40,17 @@ public:
 	/** Constructor */
 	AVaelCreatureSpawner();
 
-	/** True if the level has at least one spawner, which makes it a real level instead of the test level */
+	/** True if the level has at least one spawner or is an open world, which makes it a real level instead of the test level */
 	static bool LevelHasSpawners(const UWorld* World);
 
 	/** Spawns the creatures */
 	virtual void BeginPlay() override;
+
+private:
+
+	/** Spawns the creatures once the ground below has loaded; in an open world it can stream in a moment after the spawner */
+	void SpawnWhenGroundIsThere();
+
+	/** Times the ground was looked for */
+	int32 GroundTries = 0;
 };

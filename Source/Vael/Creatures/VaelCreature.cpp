@@ -270,7 +270,7 @@ void AVaelCreature::Tick(float DeltaSeconds)
 
 TArray<AVaelCreature::FVaelFallenCreature> AVaelCreature::RecentlyFallen;
 
-AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation)
+AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation, ULevel* Level)
 {
 	if (World == nullptr || Data == nullptr || Data->CreatureClass == nullptr)
 	{
@@ -279,7 +279,12 @@ AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Da
 
 	const FTransform SpawnTransform(FRotator(0.0f, Rotation.Yaw, 0.0f), GroundLocation + FVector(0.0f, 0.0f, Data->CollisionHalfHeight + 2.0f));
 
-	AVaelCreature* Creature = World->SpawnActorDeferred<AVaelCreature>(Data->CreatureClass, SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn);
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	SpawnParams.bDeferConstruction = true;
+	SpawnParams.OverrideLevel = Level;
+
+	AVaelCreature* Creature = World->SpawnActor<AVaelCreature>(Data->CreatureClass, SpawnTransform, SpawnParams);
 	if (Creature != nullptr)
 	{
 		Creature->CreatureData = Data;

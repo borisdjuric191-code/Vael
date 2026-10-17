@@ -69,8 +69,8 @@ public:
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Spawns the creature described by the data on the ground at the given location. Returns null if it can't be spawned. */
-	static AVaelCreature* SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation = FRotator::ZeroRotator);
+	/** Spawns the creature described by the data on the ground at the given location. Returns null if it can't be spawned. A level makes it belong there, so it goes away when that part of an open world unloads. */
+	static AVaelCreature* SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation = FRotator::ZeroRotator, ULevel* Level = nullptr);
 
 	/** True for creatures the level itself brought, by a spawner; only their death is remembered by the save game */
 	bool bOfTheLevel = false;

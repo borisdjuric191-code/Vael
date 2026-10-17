@@ -7,6 +7,7 @@
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Debug/VaelShowcase.h"
 #include "Debug/VaelSmokeTest.h"
+#include "Debug/VaelStreamTest.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -49,7 +50,7 @@ void UVaelSaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Collection.InitializeDependency<UVaelProgressSubsystem>();
 	Collection.InitializeDependency<UVaelGardenSubsystem>();
 
-	bEnabled = !FParse::Param(FCommandLine::Get(), TEXT("VaelNoSave")) && !AVaelSmokeTest::IsRequested() && !AVaelShowcase::IsRequested();
+	bEnabled = !FParse::Param(FCommandLine::Get(), TEXT("VaelNoSave")) && !AVaelSmokeTest::IsRequested() && !AVaelShowcase::IsRequested() && !AVaelStreamTest::IsRequested();
 
 	if (bEnabled && UGameplayStatics::DoesSaveGameExist(SaveSlotName, 0))
 	{

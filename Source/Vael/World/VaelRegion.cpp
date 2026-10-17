@@ -41,6 +41,11 @@ AVaelRegion::AVaelRegion()
 
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
+
+#if WITH_EDITORONLY_DATA
+	// In an open world the region and its corruption stay loaded even when nobody is near
+	bIsSpatiallyLoaded = false;
+#endif
 }
 
 void AVaelRegion::BeginPlay()
