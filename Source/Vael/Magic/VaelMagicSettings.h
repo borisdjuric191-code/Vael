@@ -240,11 +240,11 @@ public:
 
 	/** Thickness of the jet against the round ball of the same size: lower is slimmer and looks like more pressure */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0.2, ClampMax = 1))
-	float WaterBoltThickness = 0.55f;
+	float WaterBoltThickness = 0.5f;
 
 	/** Turns of the white spiral of spray that winds around the jet and widens behind it; 0 for none */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
-	float WaterBoltSpiralTurns = 2.5f;
+	float WaterBoltSpiralTurns = 0.0f;
 
 	/** Degrees per second the spiral turns around the jet, so it seems to drill forward */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")
@@ -252,7 +252,7 @@ public:
 
 	/** White spray on the rim of the bolt, the FoamAmount of the water material */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
-	float WaterBoltFoam = 1.5f;
+	float WaterBoltFoam = 1.2f;
 
 	/** How wide the bright rim of the bolt is, the FresnelPower of the water material: lower is wider */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0.1))
@@ -260,11 +260,11 @@ public:
 
 	/** At least this much of the deep color of the water shows in the body of the bolt, so it reads as water and not as a pale ball; clear sources get deeper, murky ones keep theirs */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0, ClampMax = 1))
-	float WaterBoltMinMurkiness = 0.85f;
+	float WaterBoltMinMurkiness = 0.95f;
 
 	/** Most glow the body of the bolt gets from its source; the magic water glows strongly on the floating ball, which makes a fast bolt pale */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
-	float WaterBoltMaxEmissive = 0.35f;
+	float WaterBoltMaxEmissive = 0.15f;
 
 	/** Effect around the head of the bolt, gets User.WaterColor */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")

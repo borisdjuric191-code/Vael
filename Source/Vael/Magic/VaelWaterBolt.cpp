@@ -20,7 +20,7 @@ namespace
 	constexpr float BallRadius = 50.0f;
 
 	/** Length of the round nose against the radius of the jet: a little pointed, not a bulging ball */
-	constexpr float NoseLength = 1.3f;
+	constexpr float NoseLength = 1.6f;
 
 	/** Points around the jet and along its nose and body */
 	constexpr int32 NumAround = 24;
@@ -42,18 +42,18 @@ namespace
 	constexpr float SpiralReach = 0.85f;
 
 	/** How quickly and how much the jet flickers in length, and pulses in width like the strokes of a pump */
-	constexpr float FlickerSpeed = 16.0f;
-	constexpr float FlickerAmount = 0.09f;
-	constexpr float PulseAmount = 0.04f;
+	constexpr float FlickerSpeed = 22.0f;
+	constexpr float FlickerAmount = 0.14f;
+	constexpr float PulseAmount = 0.07f;
 
 	/** Degrees per second the bolt turns around its flight axis */
-	constexpr float RollSpeed = 220.0f;
+	constexpr float RollSpeed = 400.0f;
 
 	/** The surface wobbles less than on the floating ball, so the shape stays clean at speed */
 	constexpr float BoltWobble = 1.5f;
 
 	/** A bolt mirrors the sky less than the floating ball, so its body keeps its color in bright light */
-	constexpr float BoltWetness = 0.6f;
+	constexpr float BoltWetness = 0.45f;
 
 	/** The spiral is foamed up until it is white spray, bright over its whole width */
 	constexpr float SpiralFoam = 40.0f;
