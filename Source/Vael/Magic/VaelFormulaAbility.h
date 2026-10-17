@@ -99,6 +99,9 @@ protected:
 
 private:
 
+	/** Size of a wave of water while it is cast, swollen by the water around the caster; 1 for every other formula */
+	float WaveSizeScale = 1.0f;
+
 	/** The cast animation reached its cast point */
 	UFUNCTION()
 	void OnCastPoint(FGameplayEventData Payload);

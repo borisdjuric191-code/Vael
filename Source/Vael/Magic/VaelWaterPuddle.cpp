@@ -321,6 +321,30 @@ AVaelWaterPuddle* AVaelWaterPuddle::AddSplash(UWorld* World, const FVector& Loca
 	return Puddle;
 }
 
+float AVaelWaterPuddle::DrainAround(UWorld* World, const FVector& Location, float Reach)
+{
+	if (World == nullptr)
+	{
+		return 0.0f;
+	}
+
+	// The blobs keep their place and shrink away smoothly; the puddle is gone once all of them have
+	float Drawn = 0.0f;
+	for (TActorIterator<AVaelWaterPuddle> It(World); It; ++It)
+	{
+		for (int32 Index = 0; Index < It->GetNumBlobs(); ++Index)
+		{
+			if (FVector::Dist2D(It->BlobCenters[Index], Location) <= Reach && FMath::Abs(It->BlobCenters[Index].Z - Location.Z) <= Reach * 0.5f)
+			{
+				Drawn += It->BlobWater[Index];
+				It->BlobWater[Index] = 0.0f;
+			}
+		}
+	}
+
+	return Drawn;
+}
+
 bool AVaelWaterPuddle::IsDeepWaterAt(const UWorld* World, const FVector& Location)
 {
 	if (World == nullptr)
@@ -394,13 +418,24 @@ void AVaelWaterPuddle::Tick(float DeltaSeconds)
 	// Every blob shrinks by the same share, so the puddle keeps its shape while it dries; the blobs follow their water smoothly
 	const float Water = GetWater();
 	const float Keep = Water > 0.0f ? FMath::Max(Water - DryPerSecond * DeltaSeconds, 0.0f) / Water : 0.0f;
-	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
+	float LargestShown = 0.0f;
+	for (int32 Index = BlobCenters.Num() - 1; Index >= 0; --Index)
 	{
 		BlobWater[Index] *= Keep;
 
 		const float Shown = FMath::FInterpTo(BlobShownRadius[Index], GetBlobRadius(BlobWater[Index]), DeltaSeconds, BlobGrowSpeed);
 		bSurfaceDirty |= FMath::Abs(Shown - BlobShownRadius[Index]) > KINDA_SMALL_NUMBER;
 		BlobShownRadius[Index] = Shown;
+
+		// A blob drawn away by a wave is gone once it has shrunk away
+		if (BlobWater[Index] <= KINDA_SMALL_NUMBER && Shown < MinBlobRadius * 0.5f && BlobCenters.Num() > 1)
+		{
+			RemoveBlob(Index);
+			bSurfaceDirty = true;
+			continue;
+		}
+
+		LargestShown = FMath::Max(LargestShown, Shown);
 	}
 
 	// The outline is painted a few times a second at most, growing and drying are slow enough for that
@@ -410,7 +445,8 @@ void AVaelWaterPuddle::Tick(float DeltaSeconds)
 		RefreshSurface();
 	}
 
-	if (Water * Keep < DriedOutWater)
+	// Water drawn away all at once still shrinks away before the puddle is gone
+	if (Water * Keep < DriedOutWater && LargestShown < MinBlobRadius)
 	{
 		UE_LOG(LogVael, Verbose, TEXT("Puddle %s has dried out"), *GetName());
 		Destroy();

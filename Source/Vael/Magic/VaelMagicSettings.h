@@ -333,4 +333,32 @@ public:
 	/** Material of the water surface of a puddle (M_Water_Puddle); it takes the look of the source's water and is cut out by the painted outline */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle")
 	TSoftObjectPtr<UMaterialInterface> PuddleMaterial;
+
+	/** How far around the caster a wave of water (Welle, Flutwelle) draws water from puddles, ponds and water plants, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 0))
+	float WaveSwellRadius = 800.0f;
+
+	/** Water around the caster at which a wave reaches its full size and damage, in User.WaterAmount units (1 is one Wassergeschoss) */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 0.1))
+	float WaveSwellFullWater = 6.0f;
+
+	/** Size of a wave with all the water it can use, against one without: reach and width of the Welle, width of the Flutwelle */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 1))
+	float WaveSwellMaxSize = 2.0f;
+
+	/** Damage of a wave with all the water it can use, against one without */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 1))
+	float WaveSwellMaxDamage = 1.75f;
+
+	/** Water rain adds around the caster */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 0))
+	float WaveSwellRainWater = 3.0f;
+
+	/** Water every square meter of a pond or other patch of water on the ground adds; ponds are never used up */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 0))
+	float WaveSwellPondWaterPerSquareMeter = 0.4f;
+
+	/** Water every water plant (like the Traenenkelch) adds */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 0))
+	float WaveSwellPlantWater = 1.5f;
 };

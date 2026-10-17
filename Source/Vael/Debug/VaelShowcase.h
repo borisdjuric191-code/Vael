@@ -48,6 +48,9 @@ private:
 	/** Age at which the command runs again, if it repeats */
 	float NextCommandAge = 0.0f;
 
+	/** Steps of the command run so far */
+	int32 NumCommandsRun = 0;
+
 	/** Close camera that follows a creature, if asked for */
 	UPROPERTY(Transient)
 	TObjectPtr<class ACameraActor> Closeup;

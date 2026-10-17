@@ -77,3 +77,46 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 
 	return false;
 }
+
+float UVaelEnvironmentStatics::DrawWaveWater(const AActor* Caster)
+{
+	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return 0.0f;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const FVector Location = Caster->GetActorLocation();
+	const float Reach = MagicSettings->WaveSwellRadius;
+
+	// Puddles give all their water within reach, and lose it
+	float Water = AVaelWaterPuddle::DrainAround(World, Location, Reach);
+
+	// Ponds and other water on the ground give by their size
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		if (It->ProvidesElement(EVaelElement::Water) && It->IsInRange(Location, Reach))
+		{
+			Water += UE_PI * FMath::Square(It->GetRadius() / 100.0f) * MagicSettings->WaveSwellPondWaterPerSquareMeter;
+		}
+	}
+
+	// Water plants like the Traenenkelch
+	for (TActorIterator<AVaelHarvestable> It(World); It; ++It)
+	{
+		if (FVector::Dist2D(It->GetActorLocation(), Location) <= Reach && It->ProvidesElement(EVaelElement::Water, It->GetActorLocation()))
+		{
+			Water += MagicSettings->WaveSwellPlantWater;
+		}
+	}
+
+	// Rain fills the air with water
+	const AVaelRegion* Region = AVaelRegion::GetRegionAt(World, Location);
+	if (Region != nullptr && Region->GetWeather() == EVaelWeather::Rain)
+	{
+		Water += MagicSettings->WaveSwellRainWater;
+	}
+
+	return FMath::Clamp(Water / MagicSettings->WaveSwellFullWater, 0.0f, 1.0f);
+}

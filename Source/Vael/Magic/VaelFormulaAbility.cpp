@@ -22,6 +22,7 @@
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelClayGolem.h"
 #include "Magic/VaelElementComponent.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelGroundArea.h"
@@ -47,6 +48,9 @@ namespace
 {
 	/** Distance in front of the caster at which projectiles appear */
 	constexpr float ProjectileSpawnDistance = 75.0f;
+
+	/** Widest half angle a wave of water swollen by the water around may open to, in degrees */
+	constexpr float MaxSwollenConeHalfAngle = 80.0f;
 
 	/** Ground areas aimed with a gamepad: enemies up to this distance and angle off the aim direction are targeted (prototype: 9 tiles) */
 	constexpr float AutoTargetRange = 1260.0f;
@@ -297,6 +301,20 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 		VaelEffects::SpawnAt(Caster, Effects.Cast, CastLocation, GetAimDirection(Caster).Rotation(), Effects.Color, 0.0f);
 	}
 
+	// Waves of water swell with the water around the caster and draw the puddles into themselves
+	WaveSizeScale = 1.0f;
+	const bool bWaterWave = (Formula.Delivery == EVaelSpellDelivery::Cone && Formula.ConeLook == EVaelConeLook::WaterWave)
+		|| (Formula.Delivery == EVaelSpellDelivery::Projectile && Formula.ProjectileLook == EVaelProjectileLook::TidalWave);
+	if (bWaterWave)
+	{
+		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+		const float Swell = UVaelEnvironmentStatics::DrawWaveWater(Caster);
+		WaveSizeScale = FMath::Lerp(1.0f, MagicSettings->WaveSwellMaxSize, Swell);
+		Power *= FMath::Lerp(1.0f, MagicSettings->WaveSwellMaxDamage, Swell);
+
+		UE_LOG(LogVael, Log, TEXT("'%s' swells %.0f %% from the water around: size x%.2f, power %.2f"), *Formula.GetName(), Swell * 100.0f, WaveSizeScale, Power);
+	}
+
 	switch (Formula.Delivery)
 	{
 	case EVaelSpellDelivery::Projectile:
@@ -414,7 +432,7 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 				Projectile->SetHomingTarget(HomingTargets[ProjectileIndex % HomingTargets.Num()], Formula.ProjectileHoming);
 			}
 
-			Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius, Formula.ProjectileLifetime, Formula.ProjectilePierce,
+			Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius * WaveSizeScale, Formula.ProjectileLifetime, Formula.ProjectilePierce,
 				UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
 
 			Projectile->SetEffects(Formula.LoadEffects(), VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
@@ -574,9 +592,13 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 		return;
 	}
 
+	// A wave of water swollen by the water around reaches further and wider
+	const float ConeRange = Formula.ConeRange * WaveSizeScale;
+	const float ConeHalfAngle = FMath::Min(Formula.ConeHalfAngle * FMath::Sqrt(WaveSizeScale), MaxSwollenConeHalfAngle);
+
 	const FVector Origin = Caster->GetActorLocation();
 	const FVector AimDirection = GetAimDirection(Caster);
-	const float MinCosine = FMath::Cos(FMath::DegreesToRadians(Formula.ConeHalfAngle));
+	const float MinCosine = FMath::Cos(FMath::DegreesToRadians(ConeHalfAngle));
 
 	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
 	const FVaelLoadedEffects Effects = Formula.LoadEffects();
@@ -584,17 +606,17 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	// Wind carries fires on, water puts them out
 	if (Formula.DamageElement == EVaelElement::Air)
 	{
-		AVaelGroundArea::SpreadFires(Cast<APawn>(Caster), Origin, AimDirection, Formula.ConeRange, Formula.ConeHalfAngle);
+		AVaelGroundArea::SpreadFires(Cast<APawn>(Caster), Origin, AimDirection, ConeRange, ConeHalfAngle);
 	}
 	else if (Formula.DamageElement == EVaelElement::Water)
 	{
-		AVaelGroundArea::ExtinguishFires(World, Origin + AimDirection * Formula.ConeRange * 0.5f, Formula.ConeRange * 0.5f);
+		AVaelGroundArea::ExtinguishFires(World, Origin + AimDirection * ConeRange * 0.5f, ConeRange * 0.5f);
 	}
 
 	// Collect every pawn in reach, then keep those inside the cone
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellCone), false, Caster);
-	World->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(Formula.ConeRange), QueryParams);
+	World->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(ConeRange), QueryParams);
 
 	TSet<AActor*> HitActors;
 	for (const FOverlapResult& Overlap : Overlaps)
@@ -617,7 +639,7 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	}
 
 	// The spray of the cone is the one-shot cast effect, its radius the reach
-	const bool bHasSpray = VaelEffects::SpawnAt(Caster, Effects.Cast, Origin, AimDirection.Rotation(), Effects.Color, Formula.ConeRange) != nullptr;
+	const bool bHasSpray = VaelEffects::SpawnAt(Caster, Effects.Cast, Origin, AimDirection.Rotation(), Effects.Color, ConeRange) != nullptr;
 
 	// The cone's own look blows out of the hand together with the spray, as far as the cone reaches from the caster
 	if (Formula.ConeLook != EVaelConeLook::Plain)
@@ -625,7 +647,7 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 		const FVector Hand = GetProjectileStart(Caster, AimDirection);
 		const float HandAhead = FVector::DotProduct(Hand - Origin, AimDirection);
 
-		AVaelSpellGust::Spawn(Caster, Hand, AimDirection, Formula.ConeRange - HandAhead, Formula.ConeHalfAngle, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement),
+		AVaelSpellGust::Spawn(Caster, Hand, AimDirection, ConeRange - HandAhead, ConeHalfAngle, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement),
 			Formula.ConeLook == EVaelConeLook::WaterWave);
 		return;
 	}
@@ -637,8 +659,8 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 
 #if ENABLE_DRAW_DEBUG
 	// Placeholder look while no trail effect exists
-	const float HalfAngle = FMath::DegreesToRadians(Formula.ConeHalfAngle);
-	DrawDebugCone(World, Origin, AimDirection, Formula.ConeRange, HalfAngle, FMath::DegreesToRadians(8.0f), 16,
+	const float HalfAngle = FMath::DegreesToRadians(ConeHalfAngle);
+	DrawDebugCone(World, Origin, AimDirection, ConeRange, HalfAngle, FMath::DegreesToRadians(8.0f), 16,
 		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true), false, 0.25f, 0, 3.0f);
 #endif
 }

@@ -69,9 +69,14 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		NextCommandAge = Age + CommandEvery;
 		if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
 		{
-			// Several commands joined by +, like VaelLearnAll+VaelCast_WWW_-15
+			// Steps joined by ~ run one per repeat, the last one again and again, like VaelCast_W_-15~VaelCast_W_-15~VaelCast_WWW_-15
+			TArray<FString> Steps;
+			Command.TrimQuotes().ParseIntoArray(Steps, TEXT("~"));
+			const FString Step = Steps.IsEmpty() ? FString() : Steps[FMath::Min(NumCommandsRun++, Steps.Num() - 1)];
+
+			// Several commands of one step joined by +, like VaelLearnAll+VaelCast_WWW_-15
 			TArray<FString> Commands;
-			Command.TrimQuotes().ParseIntoArray(Commands, TEXT("+"));
+			Step.ParseIntoArray(Commands, TEXT("+"));
 			for (const FString& Single : Commands)
 			{
 				PlayerController->ConsoleCommand(Single.Replace(TEXT("_"), TEXT(" ")), true);

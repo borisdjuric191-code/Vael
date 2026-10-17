@@ -25,4 +25,10 @@ public:
 	 */
 	UFUNCTION(BlueprintPure, Category="Vael|Magic")
 	static bool IsElementInEnvironment(const AActor* Caster, EVaelElement Element);
+
+	/**
+	 *  How much a wave of water swells from the water around the caster, from 0 (none) to 1 (full size and damage):
+	 *  puddles, ponds, water plants and rain within reach. The puddles are drawn into the wave and drain away; ponds and plants stay.
+	 */
+	static float DrawWaveWater(const AActor* Caster);
 };

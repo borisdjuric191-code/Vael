@@ -70,6 +70,9 @@ public:
 	 */
 	static AVaelWaterPuddle* AddSplash(UWorld* World, const FVector& Location, float Amount, UVaelElementSource* InSource, APawn* InInstigator);
 
+	/** Draws all water lying within reach of a location out of every puddle, like a wave of water sucking it up; returns the water drawn */
+	static float DrainAround(UWorld* World, const FVector& Location, float Reach);
+
 	/** True if a puddle that holds enough water to count lies under the location */
 	static bool IsDeepWaterAt(const UWorld* World, const FVector& Location);
 
