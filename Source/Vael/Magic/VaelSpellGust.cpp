@@ -4,10 +4,14 @@
 #include "Components/PointLightComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelElementSource.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelWaterBolt.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
 #include "World/VaelGround.h"
@@ -165,6 +169,40 @@ void AVaelSpellGust::BeginPlay()
 
 	DustSplashed.Init(false, Dust.Num());
 
+	// The water of the water kit as the bolt shows it: a dark wall, white spray rolling behind it, drops of the same water
+	const UVaelElementSource* WaterSource = bWater ? VaelAssets::LoadOptional(UVaelMagicSettings::Get()->MageWaterSource) : nullptr;
+	UMaterialInstanceDynamic* Jet = WaterSource != nullptr ? AVaelWaterBolt::CreateJetMaterial(WaterSource->Material, this) : nullptr;
+	UMaterialInstanceDynamic* Spray = WaterSource != nullptr ? AVaelWaterBolt::CreateJetMaterial(WaterSource->Material, this, true) : nullptr;
+	if (Jet != nullptr && Spray != nullptr)
+	{
+		// One curved wall in place of the pieces, bent like the cone; the first piece wears it, the others stay hidden
+		static TWeakObjectPtr<UStaticMesh> WaveMesh;
+		static float WaveMeshAngle = -1.0f;
+		const float Spread = FMath::DegreesToRadians(HalfAngle * 0.92f);
+		if (!WaveMesh.IsValid() || WaveMeshAngle != Spread)
+		{
+			WaveMesh = AVaelWaterBolt::BuildWaveMesh(100.0f * FMath::Sin(Spread), 100.0f * (1.0f - FMath::Cos(Spread)), 20.0f);
+			WaveMeshAngle = Spread;
+		}
+
+		bKitWater = true;
+		WaveFront[0]->SetStaticMesh(WaveMesh.Get());
+		WaveFront[0]->SetMaterial(0, Jet);
+		for (int32 SegmentIndex = 0; SegmentIndex < WaveFront.Num(); ++SegmentIndex)
+		{
+			WaveFront[SegmentIndex]->SetHiddenInGame(SegmentIndex > 0);
+			WaveBack[SegmentIndex]->SetHiddenInGame(true);
+		}
+
+		for (int32 DustIndex = 0; DustIndex < Dust.Num(); ++DustIndex)
+		{
+			if (DustIndex % GustPuffEvery != 0)
+			{
+				Dust[DustIndex]->SetMaterial(0, Spray);
+			}
+		}
+	}
+
 	WaveLight = NewObject<UPointLightComponent>(this);
 	WaveLight->SetupAttachment(RootComponent);
 	WaveLight->SetMobility(EComponentMobility::Movable);
@@ -265,7 +303,8 @@ void AVaelSpellGust::AnimateWave()
 		const FVector Out(FMath::Cos(Radians), FMath::Sin(Radians), 0.0f);
 
 		const float SegmentDistance = Distance * (1.0f - 0.06f * FMath::Abs(Across));
-		const float SegmentHeight = Height * (1.0f - 0.35f * Across * Across);
+		// The water of the kit cannot fade its glow, it sinks into the ground instead
+		const float SegmentHeight = Height * (1.0f - 0.35f * Across * Across) * (bKitWater ? FMath::Max(Fade, 0.01f) : 1.0f);
 		const float Width = SegmentDistance * Step * 1.8f + 10.0f;
 
 		UStaticMeshComponent* Front = WaveFront[SegmentIndex];
@@ -279,6 +318,14 @@ void AVaelSpellGust::AnimateWave()
 		Back->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
 		Back->SetRelativeScale3D(FVector(WaveThickness * 1.6f, Width * GustWaveBackShare, SegmentHeight * 0.8f) / GustSphereSize);
 		VaelEffects::SetLookGlow(Back, 0.5f * Fade);
+	}
+
+	// The wall of the water kit is one piece that widens with the cone and sinks away at its end
+	if (bKitWater)
+	{
+		WaveFront[0]->SetRelativeLocation(FVector(Distance, 0.0f, GroundHeight));
+		WaveFront[0]->SetRelativeRotation(FRotator::ZeroRotator);
+		WaveFront[0]->SetRelativeScale3D(FVector(Distance, Distance, Height * FMath::Max(Fade, 0.01f)) / 100.0f);
 	}
 
 	WaveLight->SetRelativeLocation(FVector(Distance, 0.0f, GroundHeight + Height * 0.5f));

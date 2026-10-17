@@ -55,6 +55,9 @@ private:
 	/** True for a wave of water instead of a gust of air: a solid wall with a foaming crest, drops and mist instead of dust, splashes where it passes */
 	bool bWater = false;
 
+	/** True once the wave wears the water of the water kit; it then sinks away instead of fading its glow */
+	bool bKitWater = false;
+
 	/** Seconds the wall takes to the end of the cone, and its thickness in cm */
 	float WaveTime = 0.38f;
 	float WaveThickness = 22.0f;

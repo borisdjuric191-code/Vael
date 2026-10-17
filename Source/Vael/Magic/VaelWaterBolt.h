@@ -7,6 +7,7 @@
 #include "VaelWaterBolt.generated.h"
 
 class UMaterialInstanceDynamic;
+class UMaterialInterface;
 class UNiagaraComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -50,6 +51,18 @@ public:
 
 	/** Gives the bolt its shape and its effects */
 	virtual void BeginPlay() override;
+
+	/**
+	 *  The water of a source as the bolt shows it: deep and dark, little glow, foam on the rim; with bSpray foamed up to white spray.
+	 *  Waves of water use it too, so all shots of water look alike. Null without a source material.
+	 */
+	static UMaterialInstanceDynamic* CreateJetMaterial(UMaterialInterface* SourceMaterial, UObject* Outer, bool bSpray = false);
+
+	/**
+	 *  Builds one wall of water for waves: 100 cm high, standing on its foot at Z 0, facing along X, with a crest that leans forward to break.
+	 *  It runs from -HalfWidth to HalfWidth across, its ends lower, thinner and swept back by Sweep; Thickness is its depth front to back in cm.
+	 */
+	static UStaticMesh* BuildWaveMesh(float HalfWidth, float Sweep, float Thickness);
 
 protected:
 

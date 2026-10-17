@@ -69,7 +69,13 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		NextCommandAge = Age + CommandEvery;
 		if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
 		{
-			PlayerController->ConsoleCommand(Command.TrimQuotes().Replace(TEXT("_"), TEXT(" ")), true);
+			// Several commands joined by +, like VaelLearnAll+VaelCast_WWW_-15
+			TArray<FString> Commands;
+			Command.TrimQuotes().ParseIntoArray(Commands, TEXT("+"));
+			for (const FString& Single : Commands)
+			{
+				PlayerController->ConsoleCommand(Single.Replace(TEXT("_"), TEXT(" ")), true);
+			}
 		}
 	}
 
@@ -160,6 +166,33 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
 			}
 
+			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
+			if (PlayerController->GetViewTarget() != Closeup)
+			{
+				PlayerController->SetViewTarget(Closeup);
+			}
+		}
+	}
+
+	// -VaelShowcaseBehind: camera low behind the player, looking where they aim, for spells that roll over the ground
+	if (FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseBehind")))
+	{
+		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+		if (PlayerPawn != nullptr)
+		{
+			if (Closeup == nullptr)
+			{
+				Closeup = GetWorld()->SpawnActor<ACameraActor>();
+				Closeup->GetCameraComponent()->SetFieldOfView(70.0f);
+				Closeup->GetCameraComponent()->bConstrainAspectRatio = false;
+				Closeup->GetCameraComponent()->PostProcessSettings.bOverride_MotionBlurAmount = true;
+				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
+			}
+
+			const FVector Aim = FRotator(0.0f, PlayerController->GetControlRotation().Yaw, 0.0f).Vector();
+			const FVector Eye = PlayerPawn->GetActorLocation() - Aim * 380.0f + FVector(0.0f, 0.0f, 260.0f);
+			const FVector Focus = PlayerPawn->GetActorLocation() + Aim * 350.0f;
 			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
 			if (PlayerController->GetViewTarget() != Closeup)
 			{

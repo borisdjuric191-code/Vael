@@ -219,6 +219,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> LookShapes;
 
+	/** True once the tidal wave rolls as one wall in the water of the water kit instead of its pieces */
+	bool bKitWaterWave = false;
+
 	/** Embers or drops; each one moves on its own once it has been shed */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> LoosePieces;

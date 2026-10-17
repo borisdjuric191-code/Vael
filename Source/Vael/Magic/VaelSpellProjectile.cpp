@@ -13,6 +13,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelWaterBolt.h"
 #include "Magic/VaelWaterOrb.h"
 #include "Magic/VaelWaterPuddle.h"
 #include "Nature/VaelHarvestable.h"
@@ -440,6 +441,34 @@ void AVaelSpellProjectile::BuildLook()
 		for (int32 DropIndex = 0; DropIndex < TidalDropCount; ++DropIndex)
 		{
 			LoosePieces.Add(AddLookShape(CoreMaterial, Foam, 1.2f, 0.0f, true));
+		}
+
+		// The water of the water kit as the bolt shows it: a dark wall, white spray on the crest, no pale sheen over it
+		const UVaelElementSource* TidalSource = WaterSource != nullptr ? WaterSource.Get() : VaelAssets::LoadOptional(MagicSettings->MageWaterSource);
+		UMaterialInstanceDynamic* Jet = TidalSource != nullptr ? AVaelWaterBolt::CreateJetMaterial(TidalSource->Material, this) : nullptr;
+		UMaterialInstanceDynamic* Spray = TidalSource != nullptr ? AVaelWaterBolt::CreateJetMaterial(TidalSource->Material, this, true) : nullptr;
+		if (Jet != nullptr && Spray != nullptr)
+		{
+			// One wall of water in place of the pieces: the first one wears it, the others and the sheen stay hidden
+			static TWeakObjectPtr<UStaticMesh> TidalMesh;
+			if (!TidalMesh.IsValid())
+			{
+				TidalMesh = AVaelWaterBolt::BuildWaveMesh(90.0f, TidalSweepShare * 100.0f, TidalThicknessShare * 100.0f);
+			}
+
+			bKitWaterWave = true;
+			LookShapes[0]->SetStaticMesh(TidalMesh.Get());
+			LookShapes[0]->SetMaterial(0, Jet);
+			for (int32 ShapeIndex = 1; ShapeIndex < LookShapes.Num(); ++ShapeIndex)
+			{
+				LookShapes[ShapeIndex]->SetHiddenInGame(true);
+			}
+
+			// The spray thrown off the crest is white
+			for (UStaticMeshComponent* Drop : LoosePieces)
+			{
+				Drop->SetMaterial(0, Spray);
+			}
 		}
 
 		LooseSize = Radius * 0.09f / (PlaceholderSphereRadius * 2.0f);
@@ -990,6 +1019,16 @@ void AVaelSpellProjectile::AnimateTidalWave(float Time, float DeltaSeconds)
 		UStaticMeshComponent* Crest = LookShapes[TidalSegments + SegmentIndex];
 		Crest->SetRelativeLocation(FVector(Ahead + Radius * 0.2f, Side, Foot + Height * 0.95f));
 		Crest->SetRelativeScale3D(FVector(Radius * 0.42f, SegmentWidth * 1.5f, Height * 0.3f * (1.0f + 0.2f * Roll)) / Unit);
+	}
+
+	// The wall of the water kit rolls as one piece
+	if (bKitWaterWave)
+	{
+		const float Roll = FMath::Sin(Time * 9.0f);
+		const float Height = Radius * TidalHeightShare * (1.0f + 0.07f * Roll);
+		LookShapes[0]->SetRelativeLocation(FVector(0.0f, 0.0f, Foot));
+		LookShapes[0]->SetRelativeRotation(FRotator::ZeroRotator);
+		LookShapes[0]->SetRelativeScale3D(FVector(Radius * (1.0f + 0.05f * Roll), Radius, Height) / 100.0f);
 	}
 
 	UStaticMeshComponent* Sheen = LookShapes[TidalSegments * 2];

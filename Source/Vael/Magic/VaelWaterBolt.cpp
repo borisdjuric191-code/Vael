@@ -136,24 +136,11 @@ void AVaelWaterBolt::ApplySource()
 	}
 
 	// White spray foams on the rim, so the water reads even at speed
-	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	if (BoltMaterial == nullptr || BoltMaterial->Parent != BoltSource->Material)
 	{
-		BoltMaterial = UMaterialInstanceDynamic::Create(BoltSource->Material, this);
+		BoltMaterial = CreateJetMaterial(BoltSource->Material, this);
 	}
 
-	BoltMaterial->SetScalarParameterValue(TEXT("FoamAmount"), MagicSettings->WaterBoltFoam);
-	BoltMaterial->SetScalarParameterValue(TEXT("FresnelPower"), MagicSettings->WaterBoltFresnelPower);
-	BoltMaterial->SetScalarParameterValue(TEXT("WobbleStrength"), BoltWobble);
-	BoltMaterial->SetScalarParameterValue(TEXT("Wetness"), BoltWetness);
-
-	float Murkiness = 0.0f;
-	BoltSource->Material->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("Murkiness")), Murkiness);
-	BoltMaterial->SetScalarParameterValue(TEXT("Murkiness"), FMath::Max(Murkiness, MagicSettings->WaterBoltMinMurkiness));
-
-	float Emissive = 0.0f;
-	BoltSource->Material->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("EmissiveStrength")), Emissive);
-	BoltMaterial->SetScalarParameterValue(TEXT("EmissiveStrength"), FMath::Min(Emissive, MagicSettings->WaterBoltMaxEmissive));
 	GetBall()->SetMaterial(0, BoltMaterial);
 
 	// The spiral is the same water, foamed up to white spray
@@ -165,15 +152,44 @@ void AVaelWaterBolt::ApplySource()
 
 	if (SpiralMaterial == nullptr || SpiralMaterial->Parent != BoltSource->Material)
 	{
-		SpiralMaterial = UMaterialInstanceDynamic::Create(BoltSource->Material, this);
+		SpiralMaterial = CreateJetMaterial(BoltSource->Material, this, true);
 	}
 
-	SpiralMaterial->SetScalarParameterValue(TEXT("FoamAmount"), SpiralFoam);
-	SpiralMaterial->SetScalarParameterValue(TEXT("FresnelPower"), SpiralFresnelPower);
-	SpiralMaterial->SetScalarParameterValue(TEXT("WobbleStrength"), 0.0f);
-	SpiralMaterial->SetScalarParameterValue(TEXT("Murkiness"), 0.0f);
 	Spiral->SetMaterial(0, SpiralMaterial);
 	Spiral->SetVisibility(true);
+}
+
+UMaterialInstanceDynamic* AVaelWaterBolt::CreateJetMaterial(UMaterialInterface* SourceMaterial, UObject* Outer, bool bSpray)
+{
+	if (SourceMaterial == nullptr)
+	{
+		return nullptr;
+	}
+
+	UMaterialInstanceDynamic* Jet = UMaterialInstanceDynamic::Create(SourceMaterial, Outer);
+	if (bSpray)
+	{
+		Jet->SetScalarParameterValue(TEXT("FoamAmount"), SpiralFoam);
+		Jet->SetScalarParameterValue(TEXT("FresnelPower"), SpiralFresnelPower);
+		Jet->SetScalarParameterValue(TEXT("WobbleStrength"), 0.0f);
+		Jet->SetScalarParameterValue(TEXT("Murkiness"), 0.0f);
+		return Jet;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	Jet->SetScalarParameterValue(TEXT("FoamAmount"), MagicSettings->WaterBoltFoam);
+	Jet->SetScalarParameterValue(TEXT("FresnelPower"), MagicSettings->WaterBoltFresnelPower);
+	Jet->SetScalarParameterValue(TEXT("WobbleStrength"), BoltWobble);
+	Jet->SetScalarParameterValue(TEXT("Wetness"), BoltWetness);
+
+	float Murkiness = 0.0f;
+	SourceMaterial->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("Murkiness")), Murkiness);
+	Jet->SetScalarParameterValue(TEXT("Murkiness"), FMath::Max(Murkiness, MagicSettings->WaterBoltMinMurkiness));
+
+	float Emissive = 0.0f;
+	SourceMaterial->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("EmissiveStrength")), Emissive);
+	Jet->SetScalarParameterValue(TEXT("EmissiveStrength"), FMath::Min(Emissive, MagicSettings->WaterBoltMaxEmissive));
+	return Jet;
 }
 
 void AVaelWaterBolt::UpdateMotion(float DeltaSeconds)
@@ -294,6 +310,50 @@ UStaticMesh* AVaelWaterBolt::BuildSpiralMesh(float TailLength, float Thickness, 
 			const FVector3f Normal = Out * FMath::Cos(Angle) + Side * FMath::Sin(Angle);
 			Positions.Add(Here + Normal * Tube);
 			Normals.Add(Normal);
+		}
+	}
+
+	return BuildRingMesh(RingPositions, RingNormals);
+}
+
+UStaticMesh* AVaelWaterBolt::BuildWaveMesh(float HalfWidth, float Sweep, float Thickness)
+{
+	// Cross-section of a breaking wave, in shares of its depth (X) and height (Z): up the gentle back, over the crest,
+	// out to the tip of the lip, under it and down the steep face; the last edge closes it along the ground
+	static const FVector2f Profile[] = {
+		{ -0.5f, 0.0f }, { -0.4f, 0.45f }, { -0.22f, 0.85f }, { 0.0f, 1.0f }, { 0.22f, 0.95f },
+		{ 0.4f, 0.75f }, { 0.27f, 0.62f }, { 0.17f, 0.35f }, { 0.27f, 0.0f } };
+	constexpr int32 NumProfile = UE_ARRAY_COUNT(Profile);
+	constexpr int32 NumAcross = 25;
+
+	// Outward at every point: the profile runs clockwise, so outward is to the left of each edge
+	FVector2f ProfileNormals[NumProfile];
+	for (int32 Point = 0; Point < NumProfile; ++Point)
+	{
+		const FVector2f Before = Profile[Point] - Profile[(Point + NumProfile - 1) % NumProfile];
+		const FVector2f After = Profile[(Point + 1) % NumProfile] - Profile[Point];
+		const FVector2f Normal = FVector2f(-Before.Y, Before.X).GetSafeNormal() + FVector2f(-After.Y, After.X).GetSafeNormal();
+		ProfileNormals[Point] = Normal.GetSafeNormal();
+	}
+
+	TArray<TArray<FVector3f>> RingPositions;
+	TArray<TArray<FVector3f>> RingNormals;
+	for (int32 Ring = 0; Ring < NumAcross; ++Ring)
+	{
+		const float Across = Ring / (NumAcross - 1.0f) * 2.0f - 1.0f;
+
+		// Highest in the middle, falling away to nothing at both ends
+		const float Shrink = FMath::Pow(FMath::Max(1.0f - Across * Across, 0.0f), 0.35f);
+		const float Height = 100.0f * Shrink * (1.0f - 0.3f * Across * Across);
+		const float Depth = Thickness * Shrink;
+		const float Back = -Sweep * Across * Across;
+
+		TArray<FVector3f>& Positions = RingPositions.AddDefaulted_GetRef();
+		TArray<FVector3f>& Normals = RingNormals.AddDefaulted_GetRef();
+		for (int32 Point = 0; Point < NumProfile; ++Point)
+		{
+			Positions.Add(FVector3f(Back + Profile[Point].X * Depth, Across * HalfWidth, Profile[Point].Y * Height));
+			Normals.Add(FVector3f(ProfileNormals[Point].X * 100.0f, 0.0f, ProfileNormals[Point].Y * FMath::Max(Thickness, 1.0f)).GetSafeNormal());
 		}
 	}
 
