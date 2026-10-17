@@ -88,6 +88,9 @@ UVaelMagicSettings::UVaelMagicSettings()
 
 	// The water kit under Content/VFX/Water
 	WaterOrbClass = TSoftClassPtr<AVaelWaterOrb>(FSoftObjectPath(TEXT("/Game/VFX/Water/Blueprints/BP_WaterOrb.BP_WaterOrb_C")));
+	PuddleMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/VFX/Water/Materials/M_Water_Puddle.M_Water_Puddle")));
+	WaterBoltClass = TSoftClassPtr<AVaelWaterOrb>(FSoftObjectPath(TEXT("/Script/Vael.VaelWaterBolt")));
+	WaterBoltHeadEffect = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/VFX/Water/Niagara/NS_Water_Orb.NS_Water_Orb")));
 	WaterOrbImpactEffect = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/VFX/Water/Niagara/NS_Water_OrbImpact.NS_Water_OrbImpact")));
 	MageWaterSource = TSoftObjectPtr<UVaelElementSource>(FSoftObjectPath(TEXT("/Game/VFX/Water/Sources/DA_ElementSource_Water_Mage.DA_ElementSource_Water_Mage")));
 }

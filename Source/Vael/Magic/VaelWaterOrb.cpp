@@ -74,7 +74,11 @@ void AVaelWaterOrb::ApplySource()
 void AVaelWaterOrb::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	UpdateMotion(DeltaSeconds);
+}
 
+void AVaelWaterOrb::UpdateMotion(float DeltaSeconds)
+{
 	// Thick water moves slower
 	const float Speed = 1.0f - 0.6f * (Source != nullptr ? Source->Viscosity : 0.0f);
 	MotionTime += DeltaSeconds * Speed;

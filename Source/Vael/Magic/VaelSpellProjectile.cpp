@@ -1286,7 +1286,14 @@ void AVaelSpellProjectile::EndPlay(const EEndPlayReason::Type EndPlayReason)
 bool AVaelSpellProjectile::SpawnWaterOrb()
 {
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	UClass* OrbClass = VaelAssets::LoadOptionalClass(MagicSettings->WaterOrbClass);
+
+	// Shots fly as a jet of water if there is one, else as the ball
+	UClass* OrbClass = VaelAssets::LoadOptionalClass(MagicSettings->WaterBoltClass);
+	if (OrbClass == nullptr)
+	{
+		OrbClass = VaelAssets::LoadOptionalClass(MagicSettings->WaterOrbClass);
+	}
+
 	if (OrbClass == nullptr)
 	{
 		UE_LOG(LogVael, Warning, TEXT("Water orb %s is missing, the ball of water keeps its old look"), *MagicSettings->WaterOrbClass.ToString());

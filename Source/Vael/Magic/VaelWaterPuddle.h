@@ -7,8 +7,8 @@
 #include "VaelWaterPuddle.generated.h"
 
 class UMaterialInstanceDynamic;
-class UStaticMesh;
 class UStaticMeshComponent;
+class UTexture2D;
 class UVaelElementSource;
 
 /**
@@ -25,13 +25,16 @@ class AVaelWaterPuddle : public AActor
 
 private:
 
-	/** Mesh of a blob: the engine sphere, pressed flat */
-	UPROPERTY()
-	TObjectPtr<UStaticMesh> BlobMesh;
+	/** One flat surface of water over the whole puddle; its outline is painted into the mask */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UStaticMeshComponent> Surface;
 
-	/** Flat blobs of water that together make the puddle */
+	/** Outline of the puddle seen from above: the blobs flow into each other like drops of mercury, 0.5 is the edge */
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMeshComponent>> Blobs;
+	TObjectPtr<UTexture2D> Mask;
+
+	/** Middle of every blob on the ground; the blobs are where the water lies, the surface joins them into one */
+	TArray<FVector> BlobCenters;
 
 	/** Water in every blob, in User.WaterAmount units: 1 is one Wassergeschoss */
 	TArray<float> BlobWater;
@@ -107,6 +110,21 @@ private:
 
 	/** Water a blob of the given radius holds */
 	static float GetBlobWater(float Radius);
+
+	/** Places the surface over all blobs and paints their outline into the mask */
+	void RefreshSurface();
+
+	/** Makes the material of the surface from the source, and the mask it is cut out with */
+	void CreateSurfaceMaterial();
+
+	/** Seconds since the outline was last painted */
+	float RepaintTime = 0.0f;
+
+	/** Number of blobs */
+	int32 GetNumBlobs() const { return BlobCenters.Num(); }
+
+	/** True if the surface has to be painted again */
+	bool bSurfaceDirty = true;
 
 	/** Seconds since the last wetting step */
 	float WetStepTime = 0.0f;

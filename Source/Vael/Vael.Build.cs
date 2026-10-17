@@ -24,7 +24,9 @@ public class Vael : ModuleRules
 			"GameplayAbilities",
 			"GameplayTags",
 			"GameplayTasks",
-			"DeveloperSettings"
+			"DeveloperSettings",
+			"MeshDescription",
+			"StaticMeshDescription"
 		});
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "RenderCore" });

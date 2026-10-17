@@ -86,10 +86,18 @@ public:
 	/** Name of the Niagara user parameter that says how much water splashes: 1 for the mage's Wassergeschoss, more for bigger balls */
 	static const FName WaterAmountParameter;
 
-private:
+protected:
 
 	/** Applies the source to ball, light and particles */
-	void ApplySource();
+	virtual void ApplySource();
+
+	/** Moves the pivot: the ball bobs and turns */
+	virtual void UpdateMotion(float DeltaSeconds);
+
+	USceneComponent* GetPivot() const { return Pivot; }
+	UStaticMeshComponent* GetBall() const { return Ball; }
+	UPointLightComponent* GetGlow() const { return Glow; }
+	UVaelElementSource* GetSource() const { return Source; }
 
 	/** Seconds the orb has been moving */
 	float MotionTime = 0.0f;

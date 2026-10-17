@@ -6,6 +6,8 @@
 #include "Camera/CameraComponent.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelHornBeetle.h"
+#include "Magic/VaelWaterBolt.h"
+#include "Magic/VaelWaterPuddle.h"
 #include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"
 #include "HAL/PlatformMisc.h"
@@ -53,13 +55,18 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 
 	Age += DeltaSeconds;
 
-	// Optional console command once the player is there, underscores for spaces: -VaelShowcaseCmd=VaelSpawn_Glutkriecher_2
+	// Optional console command once the player is there, underscores for spaces: -VaelShowcaseCmd=VaelSpawn_Glutkriecher_2;
+	// -VaelShowcaseCmdEvery=<seconds> repeats it, like a spell cast again and again
 	FString Command;
 	float CommandTime = 1.0f;
+	float CommandEvery = 0.0f;
 	FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmdAt="), CommandTime);
-	if (!bCommandDone && Age > CommandTime && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmd="), Command, false))
+	FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmdEvery="), CommandEvery);
+	const bool bCommandDue = !bCommandDone ? Age > CommandTime : CommandEvery > 0.0f && Age > NextCommandAge;
+	if (bCommandDue && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCmd="), Command, false))
 	{
 		bCommandDone = true;
+		NextCommandAge = Age + CommandEvery;
 		if (APlayerController* PlayerController = GetWorld()->GetFirstPlayerController())
 		{
 			PlayerController->ConsoleCommand(Command.TrimQuotes().Replace(TEXT("_"), TEXT(" ")), true);
@@ -94,10 +101,65 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 				Closeup = GetWorld()->SpawnActor<ACameraActor>();
 				Closeup->GetCameraComponent()->SetFieldOfView(50.0f);
 				Closeup->GetCameraComponent()->bConstrainAspectRatio = false;
+				Closeup->GetCameraComponent()->PostProcessSettings.bOverride_MotionBlurAmount = true;
+				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
 			}
 
 			const FVector Focus = Subject->GetActorLocation();
 			const FVector Eye = Focus + Subject->GetActorRotation().RotateVector(FVector(260.0f, -200.0f, 170.0f));
+			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
+			if (PlayerController->GetViewTarget() != Closeup)
+			{
+				PlayerController->SetViewTarget(Closeup);
+			}
+		}
+	}
+
+	// -VaelShowcaseWater: close camera on a jet of water in flight, from its side; without one on the biggest puddle, from above
+	// -VaelShowcaseWater=Puddle looks only at the puddle
+	FString WaterView;
+	const bool bWaterView = FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseWater")) || FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseWater="), WaterView);
+	if (bWaterView)
+	{
+		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+
+		FVector Eye = FVector::ZeroVector;
+		FVector Focus = FVector::ZeroVector;
+		bool bFound = false;
+		for (TActorIterator<AVaelWaterBolt> It(GetWorld()); It && WaterView != TEXT("Puddle"); ++It)
+		{
+			Focus = It->GetActorLocation();
+			const FVector Side = FVector::CrossProduct(It->GetActorForwardVector(), FVector::UpVector).GetSafeNormal();
+			Eye = Focus + Side * 220.0f + FVector(0.0f, 0.0f, 140.0f) - It->GetActorForwardVector() * 60.0f;
+			bFound = true;
+		}
+
+		if (!bFound)
+		{
+			float Most = 0.0f;
+			for (TActorIterator<AVaelWaterPuddle> It(GetWorld()); It; ++It)
+			{
+				if (It->GetWater() > Most)
+				{
+					Most = It->GetWater();
+					Focus = It->GetActorLocation();
+					Eye = Focus + FVector(-330.0f, -150.0f, 420.0f);
+					bFound = true;
+				}
+			}
+		}
+
+		if (bFound && PlayerController != nullptr)
+		{
+			if (Closeup == nullptr)
+			{
+				Closeup = GetWorld()->SpawnActor<ACameraActor>();
+				Closeup->GetCameraComponent()->SetFieldOfView(50.0f);
+				Closeup->GetCameraComponent()->bConstrainAspectRatio = false;
+				Closeup->GetCameraComponent()->PostProcessSettings.bOverride_MotionBlurAmount = true;
+				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
+			}
+
 			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
 			if (PlayerController->GetViewTarget() != Closeup)
 			{

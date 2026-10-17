@@ -93,10 +93,13 @@ def try_set(target, key, value):
 
 
 # Bumped whenever a graph of this script changes; a master material without the current version gets its graph rebuilt
-KIT_VERSION = 5.0
+KIT_VERSION = 5.1
 
 # Water normal map from the engine's example content, always there
 WAVE_NORMAL = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n.water_n"
+
+# Plain white: without a painted mask the puddle material shows its whole plane
+PUDDLE_MASK_DEFAULT = "/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"
 
 
 def new_material(name):
@@ -117,11 +120,13 @@ def new_material(name):
 
 # ---------------------------------------------------------------- M_Water
 
-def build_water_material():
-    """Translucent surface: wobbling surface, Fresnel rim, slight refraction, soft edges where it meets geometry"""
-    material = new_material("M_Water")
+def build_water_material(name="M_Water", puddle=False):
+    """Translucent surface: wobbling surface, Fresnel rim, slight refraction, soft edges where it meets geometry.
+    The puddle variant lies on a flat plane: its outline comes from the mask texture PuddleMask that the game paints
+    (0.5 is the edge), placed in the world by MaskOrigin and MaskSize; its waves are laid out in the world, so they keep their size while it grows."""
+    material = new_material(name)
     if material is None:
-        return unreal.load_asset(MATERIALS + "/M_Water")
+        return unreal.load_asset(MATERIALS + "/" + name)
 
     material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
     material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
@@ -155,6 +160,28 @@ def build_water_material():
     contact = g.one_minus(4, depth)
     foam_noise = g.node(unreal.MaterialExpressionNoise, 5, scale=0.05, levels=3, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX, output_min=0.0, output_max=1.0)
     foam_base = g.add(4, contact, g.mul(4, fresnel, g.const(0.3)))
+
+    world_xy = None
+    puddle_mask = None
+    if puddle:
+        # Where the puddle is: the painted mask, laid over the world; a soft edge around 0.5 and a band of foam along it
+        world_xy = g.node(unreal.MaterialExpressionComponentMask, 7, r=True, g=True, b=False, a=False)
+        g.link(g.node(unreal.MaterialExpressionWorldPosition, 8), world_xy, "")
+        mask_origin = g.node(unreal.MaterialExpressionComponentMask, 7, r=True, g=True, b=False, a=False)
+        g.link(g.color("MaskOrigin", unreal.LinearColor(0.0, 0.0, 0.0, 0.0), column=8), mask_origin, "")
+        mask_uv = g.div(6, g.sub(6, world_xy, mask_origin), g.scalar("MaskSize", 100.0, column=7))
+        mask_texture = g.node(unreal.MaterialExpressionTextureObjectParameter, 7, parameter_name="PuddleMask", texture=unreal.load_asset(PUDDLE_MASK_DEFAULT))
+        mask_sample = g.node(unreal.MaterialExpressionTextureSample, 5)
+        g.link(mask_texture, mask_sample, "Tex")
+        g.link(mask_uv, mask_sample, "UVs")
+        field = g.node(unreal.MaterialExpressionComponentMask, 4, r=True, g=False, b=False, a=False)
+        g.link(mask_sample, field, "")
+        edge_softness = g.scalar("EdgeSoftness", 0.08)
+        puddle_mask = g.saturate(3, g.div(4, g.sub(4, field, g.sub(5, g.const(0.5), edge_softness)), g.mul(5, edge_softness, g.const(2.0))))
+        edge_offset = g.op(unreal.MaterialExpressionAbs, 4, g.sub(4, field, g.const(0.5)), a_input="")
+        edge_band = g.saturate(3, g.one_minus(3, g.div(4, edge_offset, g.scalar("EdgeFoamWidth", 0.12))))
+        foam_base = g.add(3, foam_base, g.mul(3, edge_band, g.scalar("EdgeFoam", 0.5)))
+
     foam = g.saturate(2, g.mul(3, g.mul(3, foam_base, foam_amount), foam_noise))
     white = g.node(unreal.MaterialExpressionConstant3Vector, 3, constant=unreal.LinearColor(0.9, 0.95, 1.0, 1.0))
     base_color = g.lerp(1, rim, white, foam)
@@ -166,7 +193,8 @@ def build_water_material():
     wave_speed = g.scalar("WaveSpeed", 0.06)
     sparkle = g.scalar("Sparkle", 0.5)
     wave_texture = g.node(unreal.MaterialExpressionTextureObjectParameter, 7, parameter_name="WaveNormal", texture=unreal.load_asset(WAVE_NORMAL), sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
-    wave_uv = g.mul(6, g.node(unreal.MaterialExpressionTextureCoordinate, 7), wave_tiling)
+    wave_base = g.mul(7, world_xy, g.const(1.0 / 150.0, column=8)) if puddle else g.node(unreal.MaterialExpressionTextureCoordinate, 7)
+    wave_uv = g.mul(6, wave_base, wave_tiling)
     wave_time = g.mul(6, g.node(unreal.MaterialExpressionTime, 7), wave_speed)
     waves = []
     for scale, direction in ((1.0, (1.0, 0.35)), (1.7, (-0.6, 0.8))):
@@ -191,10 +219,15 @@ def build_water_material():
     # Clear water lets more through; the rim and foam are more solid; the soft edge fades it out at contacts
     body_opacity = g.lerp(3, g.const(0.3), g.const(0.95), murk)
     opacity = g.mul(1, g.saturate(2, g.add(2, g.add(3, body_opacity, g.mul(3, fresnel, g.const(0.35))), foam)), depth)
+    if puddle:
+        opacity = g.mul(0, opacity, puddle_mask)
 
     roughness = g.lerp(1, g.const(0.6), g.const(0.03), wetness)
     specular = g.lerp(1, g.const(0.3), g.const(0.9), wetness)
     index_of_refraction = g.add(1, refraction, g.const(1.0))
+    if puddle:
+        # Outside the outline the plane must not bend the light either, or its square shows
+        index_of_refraction = g.lerp(0, g.const(1.0), index_of_refraction, puddle_mask)
 
     # Wobble: animated noise moves the surface along its normal
     world_position = g.node(unreal.MaterialExpressionWorldPosition, 5)
@@ -391,6 +424,7 @@ def main():
         assets.make_directory(folder)
 
     water = build_water_material()
+    build_water_material("M_Water_Puddle", puddle=True)
     particle = build_particle_material()
     instances = build_instances(water, particle)
 

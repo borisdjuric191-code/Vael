@@ -5,25 +5,40 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialInstance.h"
 #include "TimerManager.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 #include "World/VaelGround.h"
 #include "World/VaelRegion.h"
 
 namespace
 {
-	/** Radius of the engine sphere */
-	constexpr float SphereMeshRadius = 50.0f;
+	/** Size of the engine plane */
+	constexpr float PlaneMeshSize = 100.0f;
 
-	/** Height of a blob in cm; half of it sinks into the ground */
-	constexpr float BlobHeight = 4.0f;
+	/** The surface of a puddle floats this many cm over the ground */
+	constexpr float SurfaceLift = 1.0f;
+
+	/** Texels along each side of the outline mask */
+	constexpr int32 MaskResolution = 64;
+
+	/** Seconds between two paintings of the outline at most */
+	constexpr float RepaintInterval = 0.05f;
+
+	/** A blob pulls water up to this many of its radii away; two blobs flow together once their edges come this close */
+	constexpr float FieldReach = 1.6f;
+
+	/** What one blob pulls at its own edge */
+	constexpr float EdgeField = (1.0f - 1.0f / (FieldReach * FieldReach)) * (1.0f - 1.0f / (FieldReach * FieldReach));
 
 	/** How far down water looks for ground to land on */
 	constexpr float GroundSearchDistance = 500.0f;
@@ -38,10 +53,15 @@ namespace
 	constexpr int32 MaxBlobs = 16;
 
 	/** The soft edge of the water material fades within this many cm of the ground, so a flat blob doesn't vanish into it */
-	constexpr float PuddleContactFade = 1.5f;
+	constexpr float PuddleContactFade = 0.3f;
 
 	/** A puddle barely wobbles */
 	constexpr float PuddleWobble = 0.4f;
+
+	/** Look of water on the ground: little glow, some of its deep color, a crisp edge */
+	constexpr float PuddleMaxEmissive = 0.2f;
+	constexpr float PuddleMinMurkiness = 0.35f;
+	constexpr float PuddleEdgeSoftness = 0.04f;
 
 	/** How fast a blob grows or shrinks towards the size of its water */
 	constexpr float BlobGrowSpeed = 5.0f;
@@ -150,8 +170,65 @@ AVaelWaterPuddle::AVaelWaterPuddle()
 
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> SphereMesh(TEXT("/Engine/BasicShapes/Sphere.Sphere"));
-	BlobMesh = SphereMesh.Object;
+	// The engine plane is 1 m across and faces up
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMesh(TEXT("/Engine/BasicShapes/Plane.Plane"));
+	Surface = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Surface"));
+	Surface->SetupAttachment(RootComponent);
+	Surface->SetStaticMesh(PlaneMesh.Object);
+	Surface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Surface->SetCastShadow(false);
+	Surface->SetUsingAbsoluteLocation(true);
+	Surface->SetUsingAbsoluteRotation(true);
+	Surface->SetUsingAbsoluteScale(true);
+	Surface->SetVisibility(false);
+}
+
+void AVaelWaterPuddle::CreateSurfaceMaterial()
+{
+	if (Source == nullptr || Source->Material == nullptr)
+	{
+		return;
+	}
+
+	// The puddle material with the look of the source's water; without it the source's own material over the whole plane
+	UMaterialInterface* PuddleMaterial = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->PuddleMaterial);
+	if (PuddleMaterial != nullptr)
+	{
+		Material = UMaterialInstanceDynamic::Create(PuddleMaterial, this);
+		if (UMaterialInstance* SourceInstance = Cast<UMaterialInstance>(Source->Material))
+		{
+			Material->CopyParameterOverrides(SourceInstance);
+		}
+	}
+	else
+	{
+		UE_LOG(LogVael, Warning, TEXT("Puddle material %s is missing, puddles show as squares"), *UVaelMagicSettings::Get()->PuddleMaterial.ToString());
+		Material = UMaterialInstanceDynamic::Create(Source->Material, this);
+	}
+
+	Material->SetScalarParameterValue(TEXT("ContactFade"), PuddleContactFade);
+	Material->SetScalarParameterValue(TEXT("WobbleStrength"), PuddleWobble);
+
+	// Water on the ground hardly glows and shows more of its deep color than a ball of it in the air
+	float Emissive = 0.0f;
+	float Murkiness = 0.0f;
+	Source->Material->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("EmissiveStrength")), Emissive);
+	Source->Material->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("Murkiness")), Murkiness);
+	Material->SetScalarParameterValue(TEXT("EmissiveStrength"), FMath::Min(Emissive, PuddleMaxEmissive));
+	Material->SetScalarParameterValue(TEXT("Murkiness"), FMath::Max(Murkiness, PuddleMinMurkiness));
+	Material->SetScalarParameterValue(TEXT("EdgeSoftness"), PuddleEdgeSoftness);
+	Surface->SetMaterial(0, Material);
+
+	Mask = UTexture2D::CreateTransient(MaskResolution, MaskResolution, PF_B8G8R8A8);
+	if (Mask != nullptr)
+	{
+		Mask->SRGB = false;
+		Mask->Filter = TF_Bilinear;
+		Mask->AddressX = TA_Clamp;
+		Mask->AddressY = TA_Clamp;
+		Mask->UpdateResource();
+		Material->SetTextureParameterValue(TEXT("PuddleMask"), Mask);
+	}
 }
 
 void AVaelWaterPuddle::PourSplash(UWorld* World, const FVector& Location, float Amount, UVaelElementSource* InSource, APawn* InInstigator)
@@ -237,12 +314,7 @@ AVaelWaterPuddle* AVaelWaterPuddle::AddSplash(UWorld* World, const FVector& Loca
 		}
 
 		Puddle->Source = InSource;
-		if (InSource != nullptr && InSource->Material != nullptr)
-		{
-			Puddle->Material = UMaterialInstanceDynamic::Create(InSource->Material, Puddle);
-			Puddle->Material->SetScalarParameterValue(TEXT("ContactFade"), PuddleContactFade);
-			Puddle->Material->SetScalarParameterValue(TEXT("WobbleStrength"), PuddleWobble);
-		}
+		Puddle->CreateSurfaceMaterial();
 	}
 
 	Puddle->AddWater(GroundLocation, Amount);
@@ -285,9 +357,9 @@ bool AVaelWaterPuddle::IsDeepEnough() const
 
 bool AVaelWaterPuddle::Covers(const FVector& Location, float ExtraDistance) const
 {
-	for (int32 Index = 0; Index < Blobs.Num(); ++Index)
+	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
 	{
-		if (FVector::DistSquared2D(Location, Blobs[Index]->GetComponentLocation()) <= FMath::Square(GetBlobRadius(BlobWater[Index]) + ExtraDistance))
+		if (FVector::DistSquared2D(Location, BlobCenters[Index]) <= FMath::Square(GetBlobRadius(BlobWater[Index]) + ExtraDistance))
 		{
 			return true;
 		}
@@ -322,14 +394,20 @@ void AVaelWaterPuddle::Tick(float DeltaSeconds)
 	// Every blob shrinks by the same share, so the puddle keeps its shape while it dries; the blobs follow their water smoothly
 	const float Water = GetWater();
 	const float Keep = Water > 0.0f ? FMath::Max(Water - DryPerSecond * DeltaSeconds, 0.0f) / Water : 0.0f;
-	for (int32 Index = 0; Index < Blobs.Num(); ++Index)
+	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
 	{
 		BlobWater[Index] *= Keep;
-		BlobShownRadius[Index] = FMath::FInterpTo(BlobShownRadius[Index], GetBlobRadius(BlobWater[Index]), DeltaSeconds, BlobGrowSpeed);
 
-		// Slightly oval, so neighbouring blobs read as one puddle and not as coins
-		const float Radius = FMath::Max(BlobShownRadius[Index], 0.1f);
-		Blobs[Index]->SetWorldScale3D(FVector(Radius * 1.15f, Radius * 0.9f, BlobHeight * 0.5f) / SphereMeshRadius);
+		const float Shown = FMath::FInterpTo(BlobShownRadius[Index], GetBlobRadius(BlobWater[Index]), DeltaSeconds, BlobGrowSpeed);
+		bSurfaceDirty |= FMath::Abs(Shown - BlobShownRadius[Index]) > KINDA_SMALL_NUMBER;
+		BlobShownRadius[Index] = Shown;
+	}
+
+	// The outline is painted a few times a second at most, growing and drying are slow enough for that
+	RepaintTime += DeltaSeconds;
+	if (bSurfaceDirty && RepaintTime >= RepaintInterval)
+	{
+		RefreshSurface();
 	}
 
 	if (Water * Keep < DriedOutWater)
@@ -369,21 +447,21 @@ void AVaelWaterPuddle::Absorb(AVaelWaterPuddle* Other)
 		return;
 	}
 
-	for (int32 Index = 0; Index < Other->Blobs.Num(); ++Index)
+	for (int32 Index = 0; Index < Other->BlobCenters.Num(); ++Index)
 	{
-		if (Blobs.Num() < MaxBlobs)
+		if (BlobCenters.Num() < MaxBlobs)
 		{
-			AddBlob(Other->Blobs[Index]->GetComponentLocation(), Other->BlobWater[Index], Other->BlobShownRadius[Index]);
+			AddBlob(Other->BlobCenters[Index], Other->BlobWater[Index], Other->BlobShownRadius[Index]);
 		}
 		else
 		{
-			AddWater(Other->Blobs[Index]->GetComponentLocation(), Other->BlobWater[Index], MaxSpillDepth);
+			AddWater(Other->BlobCenters[Index], Other->BlobWater[Index], MaxSpillDepth);
 		}
 	}
 
 	UE_LOG(LogVael, Verbose, TEXT("Puddle %s flows into %s"), *Other->GetName(), *GetName());
 
-	Other->Blobs.Reset();
+	Other->BlobCenters.Reset();
 	Other->BlobWater.Reset();
 	Other->BlobShownRadius.Reset();
 	Other->Destroy();
@@ -403,9 +481,9 @@ void AVaelWaterPuddle::AddWater(const FVector& GroundLocation, float Amount, int
 	// Water that lands on or beside a blob makes it bigger, as if it had landed in its middle; otherwise it starts a blob of its own
 	int32 Nearest = INDEX_NONE;
 	float NearestGap = TNumericLimits<float>::Max();
-	for (int32 Index = 0; Index < Blobs.Num(); ++Index)
+	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
 	{
-		const float Gap = FVector::Dist2D(GroundLocation, Blobs[Index]->GetComponentLocation()) - GetBlobRadius(BlobWater[Index]);
+		const float Gap = FVector::Dist2D(GroundLocation, BlobCenters[Index]) - GetBlobRadius(BlobWater[Index]);
 		if (Gap < NearestGap)
 		{
 			Nearest = Index;
@@ -415,13 +493,13 @@ void AVaelWaterPuddle::AddWater(const FVector& GroundLocation, float Amount, int
 
 	// Water spilled around an obstacle must not run back into the blob it came from
 	const float JoinDistance = SpillDepth > 0 ? 0.0f : MagicSettings->PuddleMergeDistance;
-	const bool bJoinsBlob = Nearest != INDEX_NONE && (NearestGap <= JoinDistance || Blobs.Num() >= MaxBlobs);
+	const bool bJoinsBlob = Nearest != INDEX_NONE && (NearestGap <= JoinDistance || BlobCenters.Num() >= MaxBlobs);
 	if (bJoinsBlob)
 	{
 		// The blob drifts a little towards where the water came in, but keeps its height on the ground
-		const FVector Center = Blobs[Nearest]->GetComponentLocation();
+		const FVector Center = BlobCenters[Nearest];
 		const float Share = Amount / (BlobWater[Nearest] + Amount);
-		Blobs[Nearest]->SetWorldLocation(FVector(FMath::Lerp(FVector2D(Center), FVector2D(GroundLocation), Share * 0.5f), Center.Z));
+		BlobCenters[Nearest] = (FVector(FMath::Lerp(FVector2D(Center), FVector2D(GroundLocation), Share * 0.5f), Center.Z));
 		BlobWater[Nearest] += Amount;
 	}
 	else
@@ -431,44 +509,109 @@ void AVaelWaterPuddle::AddWater(const FVector& GroundLocation, float Amount, int
 
 	FitBlob(Nearest, SpillDepth);
 	MergeBlobs();
+	bSurfaceDirty = true;
 
-	UE_LOG(LogVael, Verbose, TEXT("Puddle %s holds %.2f water in %d blobs%s"), *GetName(), GetWater(), Blobs.Num(), IsDeepEnough() ? TEXT(", deep enough to count") : TEXT(""));
+	UE_LOG(LogVael, Verbose, TEXT("Puddle %s holds %.2f water in %d blobs%s"), *GetName(), GetWater(), BlobCenters.Num(), IsDeepEnough() ? TEXT(", deep enough to count") : TEXT(""));
 }
 
 int32 AVaelWaterPuddle::AddBlob(const FVector& GroundLocation, float Water, float ShownRadius)
 {
-	UStaticMeshComponent* Blob = NewObject<UStaticMeshComponent>(this);
-	Blob->SetStaticMesh(BlobMesh);
-	Blob->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Blob->SetCastShadow(false);
-	Blob->SetupAttachment(RootComponent);
-	Blob->RegisterComponent();
-	Blob->SetWorldLocationAndRotation(GroundLocation, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f));
-	Blob->SetWorldScale3D(FVector(FMath::Max(ShownRadius, 0.1f) / SphereMeshRadius));
-
-	if (Material != nullptr)
-	{
-		Blob->SetMaterial(0, Material);
-	}
-
-	Blobs.Add(Blob);
+	BlobCenters.Add(GroundLocation);
 	BlobWater.Add(Water);
 	BlobShownRadius.Add(ShownRadius);
-	return Blobs.Num() - 1;
+	bSurfaceDirty = true;
+	return BlobCenters.Num() - 1;
 }
 
 void AVaelWaterPuddle::RemoveBlob(int32 Index)
 {
-	Blobs[Index]->DestroyComponent();
-	Blobs.RemoveAt(Index);
+	BlobCenters.RemoveAt(Index);
 	BlobWater.RemoveAt(Index);
 	BlobShownRadius.RemoveAt(Index);
+	bSurfaceDirty = true;
+}
+
+void AVaelWaterPuddle::RefreshSurface()
+{
+	bSurfaceDirty = false;
+	RepaintTime = 0.0f;
+
+	if (BlobCenters.Num() == 0 || Material == nullptr)
+	{
+		Surface->SetVisibility(false);
+		return;
+	}
+
+	// A square over all blobs with room for the water that joins them; the surface lies at the height of most of the water
+	FBox2D Bounds(ForceInit);
+	float Height = 0.0f;
+	float Weight = 0.0f;
+	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
+	{
+		const FVector2D Center(BlobCenters[Index]);
+		const float Reach = BlobShownRadius[Index] * FieldReach + 10.0f;
+		Bounds += Center - FVector2D(Reach);
+		Bounds += Center + FVector2D(Reach);
+		Height += BlobCenters[Index].Z * (BlobWater[Index] + 0.01f);
+		Weight += BlobWater[Index] + 0.01f;
+	}
+
+	const FVector2D Middle = Bounds.GetCenter();
+	const float Size = FMath::Max(Bounds.GetSize().GetMax(), 1.0f);
+	const FVector2D Origin = Middle - FVector2D(Size * 0.5f);
+
+	Surface->SetWorldLocationAndRotation(FVector(Middle, Height / Weight + SurfaceLift), FRotator::ZeroRotator);
+	Surface->SetWorldScale3D(FVector(Size / PlaneMeshSize, Size / PlaneMeshSize, 1.0f));
+	Surface->SetVisibility(true);
+
+	Material->SetVectorParameterValue(TEXT("MaskOrigin"), FLinearColor(Origin.X, Origin.Y, 0.0f, 0.0f));
+	Material->SetScalarParameterValue(TEXT("MaskSize"), Size);
+
+	if (Mask == nullptr || Mask->GetResource() == nullptr)
+	{
+		return;
+	}
+
+	// Every blob pulls the water towards it, the closer the stronger and not beyond its reach; where the pulls add up to a lone blob's edge or more there is water.
+	// So blobs close to each other flow together into one puddle with a soft, round outline, like drops of mercury.
+	const float TexelSize = Size / MaskResolution;
+	uint8* Pixels = new uint8[MaskResolution * MaskResolution * 4];
+	for (int32 Row = 0; Row < MaskResolution; ++Row)
+	{
+		for (int32 Column = 0; Column < MaskResolution; ++Column)
+		{
+			const FVector2D Point = Origin + FVector2D(Column + 0.5f, Row + 0.5f) * TexelSize;
+
+			float Field = 0.0f;
+			for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
+			{
+				const float Reach = BlobShownRadius[Index] * FieldReach;
+				const float Share = FVector2D::DistSquared(Point, FVector2D(BlobCenters[Index])) / FMath::Max(Reach * Reach, 1.0f);
+				Field += FMath::Square(FMath::Max(1.0f - Share, 0.0f));
+			}
+
+			// The edge of a lone blob is written as one half, which the material takes as the edge
+			const uint8 Value = static_cast<uint8>(FMath::Clamp(FMath::RoundToInt(Field / (2.0f * EdgeField) * 255.0f), 0, 255));
+			uint8* Pixel = Pixels + (Row * MaskResolution + Column) * 4;
+			Pixel[0] = Value;
+			Pixel[1] = Value;
+			Pixel[2] = Value;
+			Pixel[3] = 255;
+		}
+	}
+
+	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, MaskResolution, MaskResolution);
+	Mask->UpdateTextureRegions(0, 1, Region, MaskResolution * 4, 4, Pixels, [](uint8* Data, const FUpdateTextureRegion2D* Regions)
+	{
+		delete[] Data;
+		delete Regions;
+	});
 }
 
 void AVaelWaterPuddle::FitBlob(int32 Index, int32 SpillDepth)
 {
 	const UWorld* World = GetWorld();
-	const FVector Center = Blobs[Index]->GetComponentLocation();
+	const FVector Center = BlobCenters[Index];
 	const float Wanted = GetBlobRadius(BlobWater[Index]);
 	const float Free = FindFreeRadius(World, Center, Wanted);
 	if (Free >= Wanted * 0.95f)
@@ -512,12 +655,12 @@ void AVaelWaterPuddle::MergeBlobs()
 	while (bMerged)
 	{
 		bMerged = false;
-		for (int32 First = 0; First < Blobs.Num() && !bMerged; ++First)
+		for (int32 First = 0; First < BlobCenters.Num() && !bMerged; ++First)
 		{
-			for (int32 Second = First + 1; Second < Blobs.Num() && !bMerged; ++Second)
+			for (int32 Second = First + 1; Second < BlobCenters.Num() && !bMerged; ++Second)
 			{
-				const FVector FirstCenter = Blobs[First]->GetComponentLocation();
-				const FVector SecondCenter = Blobs[Second]->GetComponentLocation();
+				const FVector FirstCenter = BlobCenters[First];
+				const FVector SecondCenter = BlobCenters[Second];
 				const float Overlap = GetBlobRadius(BlobWater[First]) + GetBlobRadius(BlobWater[Second]) - FVector::Dist2D(FirstCenter, SecondCenter);
 				if (Overlap < (GetBlobRadius(BlobWater[First]) + GetBlobRadius(BlobWater[Second])) * 0.3f)
 				{
@@ -533,7 +676,7 @@ void AVaelWaterPuddle::MergeBlobs()
 					continue;
 				}
 
-				Blobs[First]->SetWorldLocation(Joined);
+				BlobCenters[First] = Joined;
 				BlobWater[First] = Water;
 				BlobShownRadius[First] = FMath::Max(BlobShownRadius[First], BlobShownRadius[Second]);
 				RemoveBlob(Second);

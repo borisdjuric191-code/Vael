@@ -12,6 +12,7 @@
  *  -VaelShowcase=<number of shots> and -VaelShowcaseInterval=<seconds between them>, like -VaelShowcase=8 -VaelShowcaseInterval=1.5. Pictures land in Saved/Screenshots.
  *  -VaelShowcaseFire=<second> burns the thread of every horn beetle that tenses at that time, to see the burned state.
  *  -VaelShowcaseCloseup follows the creature closest to the player with a close camera instead of the game camera.
+ *  -VaelShowcaseWater looks closely at a jet of water in flight, or else at the biggest puddle. -VaelShowcaseCmdEvery=<seconds> repeats the command.
  */
 UCLASS()
 class AVaelShowcase : public AActor
@@ -43,6 +44,9 @@ private:
 	float FireTime = -1.0f;
 	float Age = 0.0f;
 	bool bCommandDone = false;
+
+	/** Age at which the command runs again, if it repeats */
+	float NextCommandAge = 0.0f;
 
 	/** Close camera that follows a creature, if asked for */
 	UPROPERTY(Transient)

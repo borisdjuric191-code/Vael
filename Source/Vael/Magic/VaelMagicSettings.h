@@ -230,6 +230,38 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Water Kit")
 	TSoftClassPtr<AVaelWaterOrb> WaterOrbClass;
 
+	/** Shot of water like a jet from a water gun that water projectiles fly as instead of the ball; empty: they fly as the ball */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")
+	TSoftClassPtr<AVaelWaterOrb> WaterBoltClass;
+
+	/** Length of the tail behind the round head, in head radii */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0.5))
+	float WaterBoltTailLength = 4.5f;
+
+	/** White spray on the rim of the bolt, the FoamAmount of the water material */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
+	float WaterBoltFoam = 1.5f;
+
+	/** How wide the bright rim of the bolt is, the FresnelPower of the water material: lower is wider */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0.1))
+	float WaterBoltFresnelPower = 3.5f;
+
+	/** At least this much of the deep color of the water shows in the body of the bolt, so it reads as water and not as a pale ball; clear sources get deeper, murky ones keep theirs */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0, ClampMax = 1))
+	float WaterBoltMinMurkiness = 0.85f;
+
+	/** Most glow the body of the bolt gets from its source; the magic water glows strongly on the floating ball, which makes a fast bolt pale */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
+	float WaterBoltMaxEmissive = 0.35f;
+
+	/** Effect around the head of the bolt, gets User.WaterColor */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")
+	TSoftObjectPtr<UNiagaraSystem> WaterBoltHeadEffect;
+
+	/** Spray the bolt leaves behind along its flight (world space), gets User.WaterColor; empty for none */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")
+	TSoftObjectPtr<UNiagaraSystem> WaterBoltTrailEffect;
+
 	/** Burst where a ball of water ends (NS_Water_OrbImpact); gets the particle color of the source as User.WaterColor */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit")
 	TSoftObjectPtr<UNiagaraSystem> WaterOrbImpactEffect;
@@ -285,4 +317,8 @@ public:
 	/** Seconds after the burst until the last drops thrown out have landed */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle", meta = (ClampMin = 0, Units = "s"))
 	float PuddleLastDropDelay = 0.75f;
+
+	/** Material of the water surface of a puddle (M_Water_Puddle); it takes the look of the source's water and is cut out by the painted outline */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Puddle")
+	TSoftObjectPtr<UMaterialInterface> PuddleMaterial;
 };
