@@ -234,9 +234,21 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")
 	TSoftClassPtr<AVaelWaterOrb> WaterBoltClass;
 
-	/** Length of the tail behind the round head, in head radii */
+	/** Length of the jet behind its round nose, in radii of the ball of the same size */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0.5))
-	float WaterBoltTailLength = 4.5f;
+	float WaterBoltTailLength = 6.5f;
+
+	/** Thickness of the jet against the round ball of the same size: lower is slimmer and looks like more pressure */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0.2, ClampMax = 1))
+	float WaterBoltThickness = 0.55f;
+
+	/** Turns of the white spiral of spray that winds around the jet and widens behind it; 0 for none */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
+	float WaterBoltSpiralTurns = 2.5f;
+
+	/** Degrees per second the spiral turns around the jet, so it seems to drill forward */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")
+	float WaterBoltSpiralSpin = 720.0f;
 
 	/** White spray on the rim of the bolt, the FoamAmount of the water material */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
