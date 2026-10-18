@@ -390,6 +390,13 @@ void AVaelPlayerController::PlayerTick(float DeltaTime)
 {
 	UpdateSowHold();
 
+	// L1 alone of a Floromant: no R1 came, so it drinks
+	if (PendingDrinkTime >= 0.0f && GetWorld()->GetTimeSeconds() >= PendingDrinkTime)
+	{
+		PendingDrinkTime = -1.0f;
+		DiscardOrDrink();
+	}
+
 	PreviousMoveDirection = MoveDirection;
 	MoveDirection = FVector::ZeroVector;
 
@@ -497,16 +504,26 @@ void AVaelPlayerController::OnElement(EVaelElement Element)
 		}
 	}
 
-	// A Floromant picks a seed with the same buttons: fire the Glutdistel, earth the Wurzelwand, water the Tränenkelch
+	// A Floromant acts with the same buttons: Circle calls the garden, Square sows, Cross grips with roots, Triangle leaps, R1 with L1 overgrows
 	if (VaelCharacter->IsFloromant())
 	{
 		UVaelFloromantComponent* Floromant = VaelCharacter->GetFloromant();
+		UpdateFacing();
 		switch (Element)
 		{
-		case EVaelElement::Fire:	Floromant->SelectSeed(EVaelSeedKind::Thistle); break;
-		case EVaelElement::Earth:	Floromant->SelectSeed(EVaelSeedKind::RootWall); break;
-		case EVaelElement::Water:	Floromant->SelectSeed(EVaelSeedKind::Chalice); break;
-		default:					break;
+		case EVaelElement::Fire:	Floromant->CallGarden(); break;
+		case EVaelElement::Water:	Floromant->Sow(GetFloromantAim()); break;
+		case EVaelElement::Earth:	Floromant->RootGrip(GetFloromantAim()); break;
+		case EVaelElement::Air:		Floromant->RootLeap(GetFloromantAim()); break;
+		case EVaelElement::Mark:
+			if (GetInputGlyphs() == EVaelInputGlyphs::Keyboard || IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || PendingDrinkTime >= 0.0f)
+			{
+				PendingDrinkTime = -1.0f;
+				Floromant->Overgrow();
+			}
+			break;
+		default:
+			break;
 		}
 		return;
 	}
@@ -554,7 +571,7 @@ void AVaelPlayerController::OnCast()
 
 		if (VaelCharacter->IsFloromant())
 		{
-			ThrowSeed();
+			VaelCharacter->GetFloromant()->ThornWhip(GetFloromantAim());
 			return;
 		}
 
@@ -562,12 +579,12 @@ void AVaelPlayerController::OnCast()
 	}
 }
 
-void AVaelPlayerController::ThrowSeed()
+FVector AVaelPlayerController::GetFloromantAim() const
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	if (VaelCharacter == nullptr)
 	{
-		return;
+		return FVector::ZeroVector;
 	}
 
 	// Where the mouse points; with the gamepad onto the enemy the aim is locked on, or a few steps ahead
@@ -578,12 +595,26 @@ void AVaelPlayerController::ThrowSeed()
 		AimLocation = Target != nullptr ? Target->GetActorLocation()
 			: VaelCharacter->GetActorLocation() + UVaelFormulaAbility::GetAimDirection(VaelCharacter) * UVaelFloromantSettings::Get()->ThrowRange * 0.6f;
 	}
-
-	VaelCharacter->GetFloromant()->ThrowSeed(AimLocation);
+	return AimLocation;
 }
 
 void AVaelPlayerController::OnClearQueue()
 {
+	const AVaelCharacter* Floromant = GetPawn<AVaelCharacter>();
+	if (Floromant != nullptr && Floromant->IsFloromant() && GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
+	{
+		if (IsInputKeyDown(EKeys::Gamepad_RightShoulder))
+		{
+			Floromant->GetFloromant()->Overgrow();
+			return;
+		}
+		if (!CanStartSowing())
+		{
+			PendingDrinkTime = GetWorld()->GetTimeSeconds() + 0.15f;
+			return;
+		}
+	}
+
 	// On the gamepad a player who carries seeds and stands in peace sows by holding L1 / LB; a short tap acts when the button is let go
 	const AVaelCharacter* Sower = GetPawn<AVaelCharacter>();
 	if (Sower != nullptr && GetInputGlyphs() != EVaelInputGlyphs::Keyboard && Sower->GetElementComponent()->GetQueue().IsEmpty() && CanStartSowing())
@@ -850,7 +881,13 @@ EVaelInputGlyphs AVaelPlayerController::GetInputGlyphs() const
 void AVaelPlayerController::OnQuickSlot(int32 SlotIndex)
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter != nullptr && !VaelCharacter->IsFloromant() && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned() && !UGameplayStatics::IsGamePaused(this))
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->SelectBelt(SlotIndex);
+		return;
+	}
+
+	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned() && !UGameplayStatics::IsGamePaused(this))
 	{
 		// Bring the aim up to date so the spell flies where the player points right now
 		UpdateFacing();

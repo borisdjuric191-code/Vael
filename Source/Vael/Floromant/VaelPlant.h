@@ -4,7 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "Combat/VaelCharacterBase.h"
-#include "Floromant/VaelFloromantSettings.h"
+#include "GameFramework/Actor.h"
+#include "Floromant/VaelPlantData.h"
 #include "VaelPlant.generated.h"
 
 class AVaelCharacter;
@@ -14,12 +15,21 @@ class UMaterialInstanceDynamic;
 class UProceduralMeshComponent;
 class UStaticMeshComponent;
 
+/** Builds gnarled roots and vines as tubes, for the wall, the grip and the whip */
+namespace VaelRoots
+{
+	/** Adds one root along the curve: thick at its start, thinner along it (to a point for spikes), knotted */
+	void AddRoot(TArray<FVector>& Vertices, TArray<FVector>& Normals, TArray<FVector2D>& UVs, TArray<int32>& Triangles,
+		TFunctionRef<FVector(float)> PointAt, float Thickness, bool bPointed, float Seed);
+}
+
 /**
- *  A plant grown by a Floromant from a seed. Grows out of the ground in a second or two, sways in the wind, acts once grown
- *  and withers when its time is over or its health is gone. Only the fire of enemies hurts it, never other players.
+ *  A plant of the Floromant. Sown plants grow out of the ground in a second or two, sway and stand still until the Ruf des Gartens
+ *  makes them act for a few seconds; Wuchern turns them into their giant form. Plants growing wild in the world answer the call too:
+ *  for them an invisible plant acts in their place. Only the fire of enemies hurts a plant, never other players.
  *  All its movement is procedural: the material fades it in from the bottom up and sways it, the code pops its size, squashes and flashes it.
  */
-UCLASS(abstract)
+UCLASS()
 class AVaelPlant : public AVaelCharacterBase
 {
 	GENERATED_BODY()
@@ -35,17 +45,26 @@ public:
 	/** Constructor */
 	AVaelPlant();
 
-	/** Grows a plant of the seed on the ground at the location for the Floromant, facing the yaw. Returns null if it can't be spawned. */
-	static AVaelPlant* GrowPlant(EVaelSeedKind Kind, AVaelCharacter* Gardener, const FVector& GroundLocation, float Yaw);
+	/** Grows a sown plant on the ground for the Floromant, in its light or shadow form. Returns null if it can't be spawned. */
+	static AVaelPlant* GrowPlant(UVaelPlantData* Data, AVaelCharacter* Gardener, const FVector& GroundLocation, float Yaw, bool bShadow);
+
+	/** Lets a plant growing wild in the world act: an invisible plant does it in its place for the seconds */
+	static AVaelPlant* ActForWildPlant(UVaelPlantData* Data, AVaelCharacter* Caller, const FVector& GroundLocation, bool bShadow, float Duration, bool bGiant);
 
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
 
-	/** Seed the plant grew from */
-	EVaelSeedKind GetKind() const { return Kind; }
+	/** Makes the plant act for the seconds, in its light or shadow form */
+	void Call(float Duration, bool bActAsShadow);
 
-	/** Floromant who grew it */
+	/** Turns it into its giant form for the seconds: bigger and stronger */
+	void MakeGiant(float Duration);
+
+	UVaelPlantData* GetData() const { return Data; }
 	AVaelCharacter* GetGardener() const { return Gardener.Get(); }
+	bool IsShadowForm() const { return bShadow; }
+	bool IsWild() const { return bWild; }
+	bool IsActing() const { return CallTimeLeft > 0.0f; }
 
 	/** Lets the plant wither and vanish */
 	void Wither();
@@ -56,9 +75,13 @@ public:
 	/** Share of its health left, for the health bar */
 	float GetHealthFraction() const { return GetMaxHealth() > 0.0f ? GetHealth() / GetMaxHealth() : 0.0f; }
 
+	/** For the smoke test: shots fired, and pulses that reached an ally or an enemy */
+	int32 GetShotCount() const { return ShotCount; }
+	int32 GetPulseCount() const { return PulseCount; }
+
 	//~Begin AVaelCharacterBase
 	virtual bool IsOnPlayerSide() const override { return true; }
-	virtual bool IsDefeated() const override { return bWithering; }
+	virtual bool IsDefeated() const override { return bWithering || bWild; }
 	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const override;
 	virtual void ApplyKnockback(const FVector& Direction, float Speed) override {}
 	virtual void ApplyPull(const FVector& Location, float Speed, float DeltaSeconds) override {}
@@ -70,158 +93,185 @@ protected:
 	/** Builds the look and starts to grow */
 	virtual void BeginPlay() override;
 
-	/** Withers at zero health, flashes when hurt */
+	/** Withers at zero health, ducks when hurt */
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
 
-	/** Shapes the look: by default the model of the plant, scaled to its height and set on the ground */
-	virtual void BuildLook();
+private:
 
-	/** What the plant does each frame once it has grown */
-	virtual void TickGrown(float DeltaSeconds) {}
+	/** The model scaled to its height, set on the ground, its material and the shadow overlay */
+	void BuildLook();
 
-	/** Called once when it starts to wither */
-	virtual void OnWither() {}
+	/** What it does each frame while it acts */
+	void TickCall(float DeltaSeconds);
 
-	/** Height of the ground below the plant in world space */
-	float GetGroundZ() const { return GroundZ; }
-
-	/** Look and values of its seed */
-	const FVaelPlantLook& GetLook() const;
+	/** Sets how far it has grown in, the flash, the squash and the giant form on the materials and the model */
+	void UpdateLook(float DeltaSeconds);
 
 	/** Lets the plant glow up in its colour for the seconds; a telegraph before it acts */
 	void Flash(float Seconds, float Strength = 1.0f);
 
-	/** Squash of the plant: below 1 it ducks and widens, above 1 it stretches up. Lean tips it forwards in degrees. Both ease back on their own. */
+	/** Squash: below 1 it ducks and widens, above 1 it stretches up; lean tips it forwards in degrees. Both ease back on their own. */
 	void Squash(float Amount, float LeanDegrees = 0.0f);
-
-	/** Gives a material to the parts of the look; each gets its own instance, so it can grow in and flash */
-	void UseMaterial(UPrimitiveComponent* Part, UMaterialInterface* Material);
 
 	/** Nearest living enemy within the range, null if there is none */
 	AVaelCreature* FindEnemy(float Range) const;
 
-	/** Part of the look that pops, squashes and leans: the model, or the roots of the wall */
+	/** Living enemies and players on their feet within the radius */
+	TArray<AVaelCreature*> FindEnemies(float Radius) const;
+	TArray<AVaelCharacter*> FindAllies(float Radius) const;
+
+	/** Shoots a seed of fire or a pollen dart at the enemy */
+	void Shoot(AActor* Target, bool bFire);
+
+	/** Soft puffs of light around it, the visible pulse of an effect */
+	void Puff(const FLinearColor& Color, float Spread, int32 Count, float Lift) const;
+
+	/** Effect strength now: stronger in the giant form */
+	float GetPower() const;
+	EVaelPlantEffect GetActiveEffect() const;
+	FLinearColor GetColor() const;
+
 	UPROPERTY(Transient)
-	TObjectPtr<USceneComponent> GrowingPart;
+	TObjectPtr<UVaelPlantData> Data;
 
-	/** Size of the growing part once grown, as its relative scale */
-	FVector GrownScale = FVector::OneVector;
-
-	/** Seconds since it was planted */
-	float Age = 0.0f;
-
-private:
-
-	/** Sets how far it has grown in, the flash and the squash on the materials and the model */
-	void UpdateLook(float DeltaSeconds);
-
-	EVaelSeedKind Kind = EVaelSeedKind::Thistle;
 	TWeakObjectPtr<AVaelCharacter> Gardener;
+	bool bShadow = false;
+	bool bWild = false;
 
 	/** World height of the ground it grows from */
 	float GroundZ = 0.0f;
+
+	/** Seconds since it was planted, seconds it still acts and whether it acts in its shadow form, seconds of the giant form left */
+	float Age = 0.0f;
+	float CallTimeLeft = 0.0f;
+	bool bActAsShadow = false;
+	float GiantTimeLeft = 0.0f;
+	float GiantAmount = 0.0f;
+
+	/** Seconds until the next pulse or shot, and whether the start of the call has been handled */
+	float PulseCountdown = 0.0f;
+	bool bCallStarted = false;
+	bool bWindingUp = false;
+	TWeakObjectPtr<AActor> WindupTarget;
+	int32 ShotCount = 0;
+	int32 PulseCount = 0;
+
+	/** Part of the look that pops, squashes and leans, and its size once grown */
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> GrowingPart;
+	FVector GrownScale = FVector::OneVector;
 
 	/** Instances of the material of every part */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> Materials;
 
-	/** Flash: strength now and how fast it fades */
 	float FlashStrength = 0.0f;
 	float FlashFade = 1.0f;
-
-	/** Squash and lean now; they ease back to 1 and 0 */
 	float SquashAmount = 1.0f;
 	float LeanAmount = 0.0f;
 
-	/** True once it withers, and seconds since then */
 	bool bWithering = false;
 	float WitherTime = 0.0f;
 };
 
-/** Glutdistel: turns towards the nearest enemy and shoots seeds of fire that burst where they hit */
+/** A wall of vines a Schlotwinde raises across the way to the enemies: holds back enemies, players walk through, shots fly through its gaps */
 UCLASS()
-class AVaelThistlePlant : public AVaelPlant
+class AVaelVineWall : public AActor
 {
 	GENERATED_BODY()
 
-public:
-
-	/** Seeds of fire shot so far */
-	int32 GetShotCount() const { return ShotCount; }
-
-protected:
-
-	virtual void TickGrown(float DeltaSeconds) override;
-
-private:
-
-	/** Shoots a seed of fire at the enemy */
-	void Shoot(AActor* Target);
-
-	int32 ShotCount = 0;
-
-	/** Seconds until the next shot, and the enemy the coming shot is aimed at while it winds up */
-	float ShotCountdown = 0.3f;
-	bool bWindingUp = false;
-	TWeakObjectPtr<AActor> WindupTarget;
-};
-
-/** Wurzelwand: a wall of roots across the throw that holds back enemies; players walk through, and shots of both sides fly through its gaps */
-UCLASS()
-class AVaelRootWallPlant : public AVaelPlant
-{
-	GENERATED_BODY()
-
-	/** Holds back the enemies */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBoxComponent> Barrier;
 
-	/** The roots, built in code */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UProceduralMeshComponent> Roots;
 
 public:
 
-	/** Constructor */
-	AVaelRootWallPlant();
+	AVaelVineWall();
+
+	/** Raises a wall on the ground, across the yaw, for the seconds; bigger for a giant plant */
+	static AVaelVineWall* Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float Lifetime, float Scale, APawn* InInstigator);
+
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** True while the wall holds back enemies */
 	bool IsHolding() const;
 
-protected:
-
-	virtual void BuildLook() override;
-	virtual void TickGrown(float DeltaSeconds) override;
-	virtual void OnWither() override;
-
 private:
 
-	/** Lets every player walk through the wall */
+	void Build(float Scale);
 	void LetPlayersThrough();
 
-	/** Seconds until the players are looked at again; one who joins late passes too */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> Material;
+
+	float Age = 0.0f;
+	float Lifetime = 8.0f;
+	float GroundZ = 0.0f;
 	float PassCountdown = 0.0f;
 };
 
-/** Tränenkelch: heals every ally around it in pulses */
+/** Wurzelgriff: roots shoot out of the ground at a spot, bind the enemies there and choke them */
 UCLASS()
-class AVaelChalicePlant : public AVaelPlant
+class AVaelRootGrip : public AActor
 {
 	GENERATED_BODY()
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> Roots;
+
 public:
 
-	/** Pulses that reached at least one ally so far, hurt or not */
-	int32 GetPulsesReachingAllies() const { return PulsesReachingAllies; }
+	AVaelRootGrip();
 
-protected:
+	static AVaelRootGrip* Spawn(AVaelCharacter* Caster, const FVector& GroundLocation);
 
-	virtual void TickGrown(float DeltaSeconds) override;
+	virtual void Tick(float DeltaSeconds) override;
+
+	/** Enemies it has held, for the smoke test */
+	int32 GetHeldCount() const { return HeldCount; }
 
 private:
 
-	/** Seconds until the next pulse */
-	float PulseCountdown = 0.0f;
+	void Build();
 
-	int32 PulsesReachingAllies = 0;
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> Material;
+
+	TWeakObjectPtr<AVaelCharacter> Caster;
+	float Age = 0.0f;
+	float GroundZ = 0.0f;
+	float TickCountdown = 0.0f;
+	int32 HeldCount = 0;
+};
+
+/** Dornenpeitsche: a thorny vine lashes from the hand to the target and back */
+UCLASS()
+class AVaelThornWhip : public AActor
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> Vine;
+
+public:
+
+	AVaelThornWhip();
+
+	static AVaelThornWhip* Lash(AActor* Caster, const FVector& From, const FVector& To);
+
+	virtual void Tick(float DeltaSeconds) override;
+
+private:
+
+	void Rebuild();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> Material;
+
+	FVector Start = FVector::ZeroVector;
+	FVector End = FVector::ZeroVector;
+	float Age = 0.0f;
+	float Seed = 0.0f;
 };

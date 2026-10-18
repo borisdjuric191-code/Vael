@@ -322,8 +322,11 @@ protected:
 	void OnToggleInventory();
 	void OnToggleHero();
 
-	/** Throws the picked seed of a Floromant where the player aims */
-	void ThrowSeed();
+	/** Where a Floromant aims on the ground: the mouse, the enemy the gamepad aim is locked on, or a few steps ahead */
+	FVector GetFloromantAim() const;
+
+	/** Game time at which L1 drinks a potion for a Floromant, negative while nothing waits: a short wait lets L1 + R1 become Wuchern */
+	float PendingDrinkTime = -1.0f;
 	void OnSpyglassRaised();
 	void OnSpyglassLowered();
 	void OnDialogueContinue();

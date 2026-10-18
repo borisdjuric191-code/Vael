@@ -2,6 +2,7 @@
 
 #include "Floromant/VaelPlant.h"
 #include "AbilitySystemComponent.h"
+#include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -10,13 +11,16 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Floromant/VaelFloromantSettings.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelGroundArea.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Nature/VaelGarden.h"
 #include "Player/VaelCharacter.h"
 #include "ProceduralMeshComponent.h"
 #include "Vael.h"
@@ -39,13 +43,25 @@ namespace
 	/** Grow height the material gets once the plant has grown: far above any plant */
 	constexpr float FullyGrownHeight = 100000.0f;
 
-	/** How fast squash and lean ease back, per second */
+	/** How fast squash, lean and the giant form ease, per second */
 	constexpr float SquashRecovery = 7.0f;
+	constexpr float GiantEase = 3.0f;
 
-	/** Degrees per second a thistle turns towards its enemy */
-	constexpr float ThistleTurnSpeed = 240.0f;
+	/** Degrees per second a shooting plant turns towards its enemy */
+	constexpr float PlantTurnSpeed = 240.0f;
 
-	/** Rings along each root of the wall and corners around each ring */
+	/** Seconds between two pulses of an effect around the plant */
+	constexpr float PulseInterval = 1.0f;
+
+	/** Shots of fire seeds and pollen darts: seconds between them, seconds of glowing and ducking before, speed, burst */
+	constexpr float FireSeedInterval = 1.2f;
+	constexpr float FireSeedWindup = 0.35f;
+	constexpr float PollenInterval = 0.7f;
+	constexpr float PollenWindup = 0.18f;
+	constexpr float ShotSpeed = 1400.0f;
+	constexpr float FireSeedBurstRadius = 160.0f;
+
+	/** Rings along each root and corners around each ring */
 	constexpr int32 RootRings = 14;
 	constexpr int32 RootSides = 6;
 
@@ -56,6 +72,7 @@ namespace
 	const FName GrowColorParameter(TEXT("GrowColor"));
 	const FName FlashParameter(TEXT("Flash"));
 	const FName FlashColorParameter(TEXT("FlashColor"));
+	const FName TintParameter(TEXT("Tint"));
 
 	/** Ease that swings a little beyond 1 before it settles: the pop of a plant shooting up */
 	float EaseOutBack(float X)
@@ -65,7 +82,61 @@ namespace
 		const float T = X - 1.0f;
 		return 1.0f + C3 * T * T * T + C1 * T * T;
 	}
+
+	/** Material of roots and vines with its own instance */
+	UMaterialInstanceDynamic* MakeRootMaterial(UObject* Outer, float GroundZ, float Height)
+	{
+		UMaterialInterface* Material = VaelAssets::LoadOptional(UVaelFloromantSettings::Get()->RootMaterial);
+		if (Material == nullptr)
+		{
+			Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
+		}
+		UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, Outer);
+		Instance->SetScalarParameterValue(GroundZParameter, GroundZ);
+		Instance->SetScalarParameterValue(PlantHeightParameter, Height);
+		return Instance;
+	}
 }
+
+void VaelRoots::AddRoot(TArray<FVector>& Vertices, TArray<FVector>& Normals, TArray<FVector2D>& UVs, TArray<int32>& Triangles,
+	TFunctionRef<FVector(float)> PointAt, float Thickness, bool bPointed, float Seed)
+{
+	const int32 First = Vertices.Num();
+	for (int32 RingIndex = 0; RingIndex <= RootRings; ++RingIndex)
+	{
+		const float Along = RingIndex / static_cast<float>(RootRings);
+		const FVector Center = PointAt(Along);
+		const FVector Forward = (PointAt(FMath::Min(Along + 0.02f, 1.0f)) - PointAt(FMath::Max(Along - 0.02f, 0.0f))).GetSafeNormal();
+		FVector Right = FVector::CrossProduct(Forward, FVector::UpVector);
+		Right = Right.IsNearlyZero() ? FVector::RightVector : Right.GetSafeNormal();
+		const FVector Up = FVector::CrossProduct(Right, Forward);
+
+		// Thick at the start, thin at the tip of a spike; knots along the way
+		const float Taper = bPointed ? FMath::Lerp(1.0f, 0.15f, Along) : 1.0f - 0.45f * FMath::Sin(Along * UE_PI);
+		const float Knot = 1.0f + 0.25f * FMath::Max(0.0f, FMath::Sin(Along * 13.0f + Seed));
+
+		for (int32 SideIndex = 0; SideIndex < RootSides; ++SideIndex)
+		{
+			const float Angle = SideIndex * 2.0f * UE_PI / RootSides;
+			const FVector Out = Right * FMath::Cos(Angle) + Up * FMath::Sin(Angle);
+			Vertices.Add(Center + Out * Thickness * Taper * Knot);
+			Normals.Add(Out);
+			UVs.Add(FVector2D(SideIndex / static_cast<float>(RootSides), Along * 2.0f));
+		}
+	}
+
+	for (int32 RingIndex = 0; RingIndex < RootRings; ++RingIndex)
+	{
+		for (int32 SideIndex = 0; SideIndex < RootSides; ++SideIndex)
+		{
+			const int32 A = First + RingIndex * RootSides + SideIndex;
+			const int32 B = First + RingIndex * RootSides + (SideIndex + 1) % RootSides;
+			Triangles.Append({ A, B, A + RootSides, B, B + RootSides, A + RootSides });
+		}
+	}
+}
+
+// ---------------------------------------------------------------- Plant
 
 AVaelPlant::AVaelPlant()
 {
@@ -95,42 +166,62 @@ AVaelPlant::AVaelPlant()
 	PrimaryActorTick.bStartWithTickEnabled = true;
 }
 
-AVaelPlant* AVaelPlant::GrowPlant(EVaelSeedKind Kind, AVaelCharacter* Gardener, const FVector& GroundLocation, float Yaw)
+AVaelPlant* AVaelPlant::GrowPlant(UVaelPlantData* InData, AVaelCharacter* InGardener, const FVector& GroundLocation, float Yaw, bool bInShadow)
 {
-	UWorld* World = Gardener != nullptr ? Gardener->GetWorld() : nullptr;
-	if (World == nullptr)
+	UWorld* World = InGardener != nullptr ? InGardener->GetWorld() : nullptr;
+	if (World == nullptr || InData == nullptr)
 	{
 		return nullptr;
 	}
 
-	TSubclassOf<AVaelPlant> PlantClass;
-	switch (Kind)
-	{
-	case EVaelSeedKind::RootWall:	PlantClass = AVaelRootWallPlant::StaticClass(); break;
-	case EVaelSeedKind::Chalice:	PlantClass = AVaelChalicePlant::StaticClass(); break;
-	default:						PlantClass = AVaelThistlePlant::StaticClass(); break;
-	}
-
 	const FTransform SpawnTransform(FRotator(0.0f, Yaw, 0.0f), GroundLocation + FVector(0.0f, 0.0f, PlantCapsuleHalfHeight));
-	AVaelPlant* Plant = World->SpawnActorDeferred<AVaelPlant>(PlantClass, SpawnTransform, Gardener, Gardener, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	AVaelPlant* Plant = World->SpawnActorDeferred<AVaelPlant>(AVaelPlant::StaticClass(), SpawnTransform, InGardener, InGardener, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	if (Plant == nullptr)
 	{
 		return nullptr;
 	}
 
-	Plant->Kind = Kind;
-	Plant->Gardener = Gardener;
+	Plant->Data = InData;
+	Plant->Gardener = InGardener;
+	Plant->bShadow = bInShadow;
 	Plant->GroundZ = GroundLocation.Z;
-	Plant->StartingHealth = UVaelFloromantSettings::Get()->GetPlant(Kind).Health;
+	Plant->StartingHealth = InData->Health;
 	Plant->FinishSpawning(SpawnTransform);
 
-	UE_LOG(LogVael, Log, TEXT("'%s' grows %s"), *GetNameSafe(Gardener), *Plant->GetLook().DisplayName.ToString());
+	UE_LOG(LogVael, Log, TEXT("'%s' grows %s"), *GetNameSafe(InGardener), *InData->GetName(bInShadow).ToString());
 	return Plant;
 }
 
-const FVaelPlantLook& AVaelPlant::GetLook() const
+AVaelPlant* AVaelPlant::ActForWildPlant(UVaelPlantData* InData, AVaelCharacter* Caller, const FVector& GroundLocation, bool bInShadow, float Duration, bool bGiant)
 {
-	return UVaelFloromantSettings::Get()->GetPlant(Kind);
+	UWorld* World = Caller != nullptr ? Caller->GetWorld() : nullptr;
+	if (World == nullptr || InData == nullptr)
+	{
+		return nullptr;
+	}
+
+	const FTransform SpawnTransform(GroundLocation + FVector(0.0f, 0.0f, PlantCapsuleHalfHeight));
+	AVaelPlant* Plant = World->SpawnActorDeferred<AVaelPlant>(AVaelPlant::StaticClass(), SpawnTransform, Caller, Caller, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (Plant == nullptr)
+	{
+		return nullptr;
+	}
+
+	// Invisible, untouchable and already grown: the wild plant itself stays as it is
+	Plant->Data = InData;
+	Plant->Gardener = Caller;
+	Plant->bShadow = bInShadow;
+	Plant->bWild = true;
+	Plant->GroundZ = GroundLocation.Z;
+	Plant->Age = UVaelFloromantSettings::Get()->GrowTime;
+	Plant->FinishSpawning(SpawnTransform);
+	Plant->Call(Duration, bInShadow);
+	if (bGiant)
+	{
+		Plant->MakeGiant(Duration);
+	}
+	Plant->SetLifeSpan(Duration + 0.5f);
+	return Plant;
 }
 
 void AVaelPlant::BeginPlay()
@@ -139,6 +230,13 @@ void AVaelPlant::BeginPlay()
 
 	GetCharacterMovement()->DisableMovement();
 	GetCharacterMovement()->SetComponentTickEnabled(false);
+
+	if (bWild)
+	{
+		Body->SetVisibility(false);
+		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		return;
+	}
 
 	BuildLook();
 	UpdateLook(0.0f);
@@ -157,29 +255,12 @@ void AVaelPlant::BeginPlay()
 	Earth.Color = FLinearColor(0.11f, 0.075f, 0.05f);
 	Earth.RockShare = 0.15f;
 	AVaelDebrisBurst::Spawn(this, Ground, Earth);
-
-	FVaelDebris Sparks;
-	Sparks.Count = 10;
-	Sparks.Spread = 30.0f;
-	Sparks.Speed = 60.0f;
-	Sparks.Lift = 160.0f;
-	Sparks.Gravity = -120.0f;
-	Sparks.Drag = 1.2f;
-	Sparks.Lifetime = 1.0f;
-	Sparks.MinSize = 3.0f;
-	Sparks.MaxSize = 6.0f;
-	Sparks.Color = GetLook().Color;
-	Sparks.Glow = 3.0f;
-	Sparks.bSoft = true;
-	Sparks.bLandOnGround = false;
-	AVaelDebrisBurst::Spawn(this, Ground + FVector(0.0f, 0.0f, 20.0f), Sparks);
+	Puff(GetColor(), 30.0f, 10, 160.0f);
 }
 
 void AVaelPlant::BuildLook()
 {
-	const FVaelPlantLook& Look = GetLook();
-
-	UStaticMesh* PlantMesh = VaelAssets::LoadOptional(Look.Mesh);
+	UStaticMesh* PlantMesh = VaelAssets::LoadOptional(Data->Mesh);
 	if (PlantMesh == nullptr)
 	{
 		// Placeholder while the model is missing: a stretched sphere
@@ -191,35 +272,71 @@ void AVaelPlant::BuildLook()
 
 	// Scaled to its height with a little variation, standing with its lowest point on the ground, turned at random
 	const FBox Bounds = PlantMesh != nullptr ? PlantMesh->GetBoundingBox() : FBox(FVector(-50.0f), FVector(50.0f));
-	const float Scale = Look.Height / FMath::Max(Bounds.GetSize().Z, 1.0f) * FMath::FRandRange(0.92f, 1.08f);
+	const float Scale = Data->Height / FMath::Max(Bounds.GetSize().Z, 1.0f) * FMath::FRandRange(0.92f, 1.08f);
 	GrownScale = FVector(Scale);
 
 	const FVector Center = Bounds.GetCenter();
 	Body->SetRelativeLocation(FVector(-Center.X * Scale, -Center.Y * Scale, GroundZ - GetActorLocation().Z - Bounds.Min.Z * Scale));
 	Body->SetRelativeRotation(FRotator(FMath::FRandRange(-4.0f, 4.0f), FMath::FRandRange(0.0f, 360.0f), FMath::FRandRange(-4.0f, 4.0f)));
 
-	UseMaterial(Body, VaelAssets::LoadOptional(Look.Material));
+	if (UMaterialInterface* Material = VaelAssets::LoadOptional(Data->Material))
+	{
+		UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
+		Instance->SetScalarParameterValue(GroundZParameter, GroundZ);
+		Instance->SetScalarParameterValue(PlantHeightParameter, Data->Height);
+		Instance->SetVectorParameterValue(GrowColorParameter, GetColor());
+		Instance->SetVectorParameterValue(FlashColorParameter, GetColor());
+		if (bShadow)
+		{
+			// The shadow form: the same plant, darkened and drained towards violet
+			Instance->SetVectorParameterValue(TintParameter, FLinearColor(0.45f, 0.32f, 0.55f));
+		}
+		for (int32 MaterialIndex = 0; MaterialIndex < FMath::Max(Body->GetNumMaterials(), 1); ++MaterialIndex)
+		{
+			Body->SetMaterial(MaterialIndex, Instance);
+		}
+		Materials.Add(Instance);
+	}
+
+	// The shadow overlay of the garden on top, like on the shadow forms growing there
+	if (bShadow)
+	{
+		if (UMaterialInterface* Overlay = VaelAssets::LoadOptional(UVaelGardenSettings::Get()->ShadowOverlay))
+		{
+			Body->SetOverlayMaterial(Overlay);
+		}
+	}
 }
 
-void AVaelPlant::UseMaterial(UPrimitiveComponent* Part, UMaterialInterface* Material)
+FLinearColor AVaelPlant::GetColor() const
 {
-	if (Part == nullptr || Material == nullptr)
-	{
-		return;
-	}
+	return Data == nullptr ? FLinearColor::White : (bShadow || bActAsShadow) ? Data->ShadowColor : Data->Color;
+}
 
-	const FVaelPlantLook& Look = GetLook();
-	UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Material, this);
-	Instance->SetScalarParameterValue(GroundZParameter, GroundZ);
-	Instance->SetScalarParameterValue(PlantHeightParameter, Look.Height);
-	Instance->SetVectorParameterValue(GrowColorParameter, Look.Color);
-	Instance->SetVectorParameterValue(FlashColorParameter, Look.Color);
+EVaelPlantEffect AVaelPlant::GetActiveEffect() const
+{
+	return Data != nullptr ? Data->GetEffect(bActAsShadow) : EVaelPlantEffect::None;
+}
 
-	for (int32 MaterialIndex = 0; MaterialIndex < FMath::Max(Part->GetNumMaterials(), 1); ++MaterialIndex)
-	{
-		Part->SetMaterial(MaterialIndex, Instance);
-	}
-	Materials.Add(Instance);
+float AVaelPlant::GetPower() const
+{
+	const float Giant = FMath::Lerp(1.0f, UVaelFloromantSettings::Get()->GiantPower, GiantAmount);
+	return Data != nullptr ? Data->Power * Giant : 0.0f;
+}
+
+void AVaelPlant::Call(float Duration, bool bInActAsShadow)
+{
+	CallTimeLeft = FMath::Max(CallTimeLeft, Duration);
+	bActAsShadow = bInActAsShadow;
+	bCallStarted = false;
+	PulseCountdown = 0.0f;
+	Flash(0.5f, 1.2f);
+	Squash(1.12f);
+}
+
+void AVaelPlant::MakeGiant(float Duration)
+{
+	GiantTimeLeft = FMath::Max(GiantTimeLeft, Duration);
 }
 
 void AVaelPlant::Tick(float DeltaSeconds)
@@ -227,7 +344,12 @@ void AVaelPlant::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	Age += DeltaSeconds;
-	UpdateLook(DeltaSeconds);
+	GiantTimeLeft = FMath::Max(0.0f, GiantTimeLeft - DeltaSeconds);
+	GiantAmount = FMath::FInterpTo(GiantAmount, GiantTimeLeft > 0.0f ? 1.0f : 0.0f, DeltaSeconds, GiantEase);
+	if (!bWild)
+	{
+		UpdateLook(DeltaSeconds);
+	}
 
 	if (bWithering)
 	{
@@ -239,12 +361,13 @@ void AVaelPlant::Tick(float DeltaSeconds)
 		return;
 	}
 
-	if (Age >= UVaelFloromantSettings::Get()->GrowTime)
+	if (CallTimeLeft > 0.0f && Age >= UVaelFloromantSettings::Get()->GrowTime)
 	{
-		TickGrown(DeltaSeconds);
+		TickCall(DeltaSeconds);
+		CallTimeLeft -= DeltaSeconds;
 	}
 
-	if (Age >= GetLook().Lifetime)
+	if (!bWild && Data != nullptr && Age >= Data->Lifetime)
 	{
 		Wither();
 	}
@@ -252,22 +375,28 @@ void AVaelPlant::Tick(float DeltaSeconds)
 
 void AVaelPlant::UpdateLook(float DeltaSeconds)
 {
-	const FVaelPlantLook& Look = GetLook();
+	if (Data == nullptr)
+	{
+		return;
+	}
+
 	const float Growth = FMath::Clamp(Age / UVaelFloromantSettings::Get()->GrowTime, 0.0f, 1.0f);
 	const float Wilt = bWithering ? FMath::Clamp(WitherTime / WitherDuration, 0.0f, 1.0f) : 0.0f;
+	const float Giant = FMath::Lerp(1.0f, UVaelFloromantSettings::Get()->GiantScale, GiantAmount);
 
 	// The mask fades the plant in from the bottom up while it grows and takes it back from the top when it withers
-	float GrowHeight = Growth < 1.0f ? FMath::SmoothStep(0.0f, 1.0f, Growth) * Look.Height * GrowMaskOvershoot : FullyGrownHeight;
+	float GrowHeight = Growth < 1.0f ? FMath::SmoothStep(0.0f, 1.0f, Growth) * Data->Height * GrowMaskOvershoot : FullyGrownHeight;
 	if (bWithering)
 	{
-		GrowHeight = (1.0f - Wilt) * Look.Height * GrowMaskOvershoot;
+		GrowHeight = (1.0f - Wilt) * Data->Height * Giant * GrowMaskOvershoot;
 	}
 
 	FlashStrength = FMath::Max(0.0f, FlashStrength - DeltaSeconds * FlashFade);
 	for (UMaterialInstanceDynamic* Material : Materials)
 	{
 		Material->SetScalarParameterValue(GrowHeightParameter, GrowHeight);
-		Material->SetScalarParameterValue(FlashParameter, FlashStrength);
+		Material->SetScalarParameterValue(FlashParameter, FlashStrength + (IsActing() ? 0.05f + 0.04f * FMath::Sin(Age * 7.0f) : 0.0f));
+		Material->SetScalarParameterValue(PlantHeightParameter, Data->Height * Giant);
 	}
 
 	// Size: pops up while it grows, swinging a little beyond its size; squashes and leans for its actions; sinks when it withers
@@ -279,7 +408,7 @@ void AVaelPlant::UpdateLook(float DeltaSeconds)
 		const float Pop = Growth < 1.0f ? FMath::Lerp(GrowStartScale, 1.0f, EaseOutBack(Growth)) : 1.0f;
 		const float Sink = 1.0f - 0.35f * Wilt;
 		const float Wide = 1.0f / FMath::Sqrt(FMath::Max(SquashAmount, 0.1f));
-		GrowingPart->SetRelativeScale3D(GrownScale * Pop * Sink * FVector(Wide, Wide, SquashAmount));
+		GrowingPart->SetRelativeScale3D(GrownScale * Pop * Sink * Giant * FVector(Wide, Wide, SquashAmount));
 
 		FRotator Rotation = GrowingPart->GetRelativeRotation();
 		Rotation.Pitch = -LeanAmount;
@@ -308,7 +437,10 @@ void AVaelPlant::Wither()
 
 	bWithering = true;
 	WitherTime = 0.0f;
-	OnWither();
+	if (bWild)
+	{
+		return;
+	}
 
 	// Dry leaves fall off
 	FVaelDebris Leaves;
@@ -322,7 +454,7 @@ void AVaelPlant::Wither()
 	Leaves.MinSize = 3.0f;
 	Leaves.MaxSize = 7.0f;
 	Leaves.Color = FLinearColor(0.16f, 0.1f, 0.05f);
-	AVaelDebrisBurst::Spawn(this, FVector(GetActorLocation().X, GetActorLocation().Y, GroundZ + GetLook().Height * 0.6f), Leaves);
+	AVaelDebrisBurst::Spawn(this, FVector(GetActorLocation().X, GetActorLocation().Y, GroundZ + (Data != nullptr ? Data->Height : 80.0f) * 0.6f), Leaves);
 }
 
 void AVaelPlant::OnHealthChanged(float OldValue, float NewValue)
@@ -336,7 +468,7 @@ void AVaelPlant::OnHealthChanged(float OldValue, float NewValue)
 
 	if (NewValue <= 0.0f)
 	{
-		UE_LOG(LogVael, Log, TEXT("%s of '%s' burns down"), *GetLook().DisplayName.ToString(), *GetNameSafe(Gardener.Get()));
+		UE_LOG(LogVael, Log, TEXT("%s of '%s' burns down"), Data != nullptr ? *Data->GetName(bShadow).ToString() : TEXT("plant"), *GetNameSafe(Gardener.Get()));
 		Wither();
 		return;
 	}
@@ -347,7 +479,7 @@ void AVaelPlant::OnHealthChanged(float OldValue, float NewValue)
 float AVaelPlant::GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const
 {
 	// Only the fire of enemies harms a plant; other players can't hurt it anyway
-	return DamageTags.HasTag(VaelTags::GetElementTag(EVaelElement::Fire)) ? 1.0f : 0.0f;
+	return !bWild && DamageTags.HasTag(VaelTags::GetElementTag(EVaelElement::Fire)) ? 1.0f : 0.0f;
 }
 
 AVaelCreature* AVaelPlant::FindEnemy(float Range) const
@@ -368,67 +500,276 @@ AVaelCreature* AVaelPlant::FindEnemy(float Range) const
 	return Nearest;
 }
 
-// ---------------------------------------------------------------- Glutdistel
-
-void AVaelThistlePlant::TickGrown(float DeltaSeconds)
+TArray<AVaelCreature*> AVaelPlant::FindEnemies(float Radius) const
 {
-	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
-	ShotCountdown -= DeltaSeconds;
-
-	AActor* Target = bWindingUp ? WindupTarget.Get() : FindEnemy(Settings->ThistleRange);
-
-	// Turns towards its enemy
-	if (Target != nullptr)
+	TArray<AVaelCreature*> Enemies;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
 	{
-		const float TargetYaw = (Target->GetActorLocation() - GetActorLocation()).Rotation().Yaw;
-		SetActorRotation(FRotator(0.0f, FMath::FixedTurn(GetActorRotation().Yaw, TargetYaw, ThistleTurnSpeed * DeltaSeconds), 0.0f));
-	}
-
-	if (!bWindingUp)
-	{
-		if (ShotCountdown > Settings->ThistleWindup)
+		if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < Radius)
 		{
-			return;
+			Enemies.Add(*It);
 		}
-
-		if (Target == nullptr)
-		{
-			// Waits ready to shoot until an enemy comes close
-			ShotCountdown = Settings->ThistleWindup;
-			return;
-		}
-
-		// Before it shoots it glows up and ducks, so everyone sees the shot coming
-		bWindingUp = true;
-		WindupTarget = Target;
-		Flash(Settings->ThistleWindup + 0.15f, 1.3f);
-		Squash(0.8f);
-		return;
 	}
-
-	if (ShotCountdown > 0.0f)
-	{
-		return;
-	}
-
-	bWindingUp = false;
-	ShotCountdown = Settings->ThistleShotInterval;
-
-	if (Target != nullptr)
-	{
-		Shoot(Target);
-	}
+	return Enemies;
 }
 
-void AVaelThistlePlant::Shoot(AActor* Target)
+TArray<AVaelCharacter*> AVaelPlant::FindAllies(float Radius) const
+{
+	TArray<AVaelCharacter*> Allies;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+		if (Player != nullptr && !Player->IsDowned() && FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) < Radius)
+		{
+			Allies.Add(Player);
+		}
+	}
+	return Allies;
+}
+
+void AVaelPlant::Puff(const FLinearColor& Color, float Spread, int32 Count, float Lift) const
+{
+	FVaelDebris Drops;
+	Drops.Count = Count;
+	Drops.Spread = Spread;
+	Drops.Speed = 30.0f;
+	Drops.Lift = Lift;
+	Drops.Gravity = -140.0f;
+	Drops.Drag = 1.0f;
+	Drops.Lifetime = 1.0f;
+	Drops.MinSize = 4.0f;
+	Drops.MaxSize = 8.0f;
+	Drops.Color = Color;
+	Drops.Glow = 2.5f;
+	Drops.bSoft = true;
+	Drops.bLandOnGround = false;
+	AVaelDebrisBurst::Spawn(this, FVector(GetActorLocation().X, GetActorLocation().Y, GroundZ + 15.0f), Drops);
+}
+
+void AVaelPlant::TickCall(float DeltaSeconds)
 {
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
-	const FVaelPlantLook& Look = GetLook();
+	const EVaelPlantEffect Effect = GetActiveEffect();
+	const float Power = GetPower();
+	const float Radius = Data->Radius * FMath::Lerp(1.0f, Settings->GiantScale, GiantAmount * 0.5f);
+	const FVector Ground(GetActorLocation().X, GetActorLocation().Y, GroundZ);
+	AVaelCharacter* Floromant = Gardener.Get();
 
-	// Snaps forwards and spits the seed from its head, flying flat at the height of the head
+	// Effects that happen once at the start of the call
+	if (!bCallStarted)
+	{
+		bCallStarted = true;
+		switch (Effect)
+		{
+		case EVaelPlantEffect::VineWall:
+		{
+			// Across the way to the nearest enemy, or ahead of the Floromant
+			const AActor* Enemy = FindEnemy(Radius * 2.0f);
+			const FVector Toward = Enemy != nullptr ? Enemy->GetActorLocation() - GetActorLocation() : (Floromant != nullptr ? Floromant->GetActorForwardVector() : GetActorForwardVector());
+			const FVector Direction = Toward.GetSafeNormal2D();
+			AVaelVineWall::Raise(GetWorld(), Ground + Direction * 160.0f, Direction.Rotation().Yaw, Settings->WallLifetime * FMath::Max(1.0f, CallTimeLeft / Settings->CallDuration),
+				FMath::Lerp(1.0f, Settings->GiantScale, GiantAmount), this);
+			++PulseCount;
+			break;
+		}
+		case EVaelPlantEffect::Smoke:
+			AVaelGroundArea::SpawnArea(GetWorld(), Ground, EVaelElement::Water, Radius * 0.7f, CallTimeLeft + 1.0f, 0.0f, this, false, EVaelGroundEffect::Blind);
+			++PulseCount;
+			break;
+		case EVaelPlantEffect::PoisonPool:
+			AVaelGroundArea::SpawnArea(GetWorld(), Ground, EVaelElement::Earth, Radius * 0.5f, CallTimeLeft + 2.0f, Power, this, false, EVaelGroundEffect::Slow);
+			++PulseCount;
+			break;
+		case EVaelPlantEffect::FireBurst:
+			Flash(0.5f, 2.0f);
+			Squash(0.75f);
+			PulseCountdown = 0.5f;
+			break;
+		default:
+			break;
+		}
+	}
+
+	// Shooting plants turn to their enemy, glow up and duck before each shot
+	if (Effect == EVaelPlantEffect::FireSeeds || Effect == EVaelPlantEffect::PollenDarts)
+	{
+		const bool bFire = Effect == EVaelPlantEffect::FireSeeds;
+		const float Interval = bFire ? FireSeedInterval : PollenInterval;
+		const float Windup = bFire ? FireSeedWindup : PollenWindup;
+		PulseCountdown -= DeltaSeconds;
+
+		AActor* Target = bWindingUp ? WindupTarget.Get() : FindEnemy(Radius * 2.2f);
+		if (Target != nullptr)
+		{
+			const float TargetYaw = (Target->GetActorLocation() - GetActorLocation()).Rotation().Yaw;
+			SetActorRotation(FRotator(0.0f, FMath::FixedTurn(GetActorRotation().Yaw, TargetYaw, PlantTurnSpeed * DeltaSeconds), 0.0f));
+		}
+
+		if (!bWindingUp)
+		{
+			if (PulseCountdown > Windup || Target == nullptr)
+			{
+				PulseCountdown = FMath::Max(PulseCountdown, Target == nullptr ? Windup : 0.0f);
+				return;
+			}
+			bWindingUp = true;
+			WindupTarget = Target;
+			Flash(Windup + 0.15f, 1.3f);
+			Squash(0.8f);
+			return;
+		}
+
+		if (PulseCountdown > 0.0f)
+		{
+			return;
+		}
+		bWindingUp = false;
+		PulseCountdown = Interval;
+		if (Target != nullptr)
+		{
+			Shoot(Target, bFire);
+		}
+		return;
+	}
+
+	// Everything else pulses around the plant
+	PulseCountdown -= DeltaSeconds;
+	if (PulseCountdown > 0.0f)
+	{
+		return;
+	}
+	PulseCountdown = PulseInterval;
+
+	const TArray<AVaelCreature*> Enemies = FindEnemies(Radius);
+	const TArray<AVaelCharacter*> Allies = FindAllies(Radius);
+	bool bReached = false;
+
+	switch (Effect)
+	{
+	case EVaelPlantEffect::BlindAndSaft:
+		for (AVaelCreature* Enemy : Enemies)
+		{
+			Enemy->ApplyBlind(1.6f);
+		}
+		if (Floromant != nullptr)
+		{
+			UAbilitySystemComponent* AbilitySystem = Floromant->GetAbilitySystemComponent();
+			AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), FMath::Min(Floromant->GetMaxMana(), Floromant->GetMana() + Power * 0.5f));
+		}
+		bReached = true;
+		break;
+	case EVaelPlantEffect::WetAndSlow:
+		for (AVaelCreature* Enemy : Enemies)
+		{
+			UVaelCombatStatics::ApplyStatus(this, Enemy, EVaelStatus::Wet, 4.0f);
+			UVaelCombatStatics::ApplyStatus(this, Enemy, EVaelStatus::Slowed, 2.0f);
+		}
+		bReached = !Enemies.IsEmpty();
+		break;
+	case EVaelPlantEffect::HealAllies:
+		for (AVaelCharacter* Ally : Allies)
+		{
+			UVaelCombatStatics::Heal(Ally, Power);
+		}
+		bReached = !Allies.IsEmpty();
+		break;
+	case EVaelPlantEffect::Cleanse:
+		for (AVaelCharacter* Ally : Allies)
+		{
+			for (const EVaelStatus Status : { EVaelStatus::Burning, EVaelStatus::Wet, EVaelStatus::Frozen, EVaelStatus::Slowed })
+			{
+				UVaelCombatStatics::RemoveStatus(Ally, Status);
+			}
+			UVaelCombatStatics::Heal(Ally, Power * 0.3f);
+		}
+		bReached = !Allies.IsEmpty();
+		break;
+	case EVaelPlantEffect::FireBurst:
+	{
+		FVaelSpellHit Hit;
+		Hit.Damage = Power * 2.5f;
+		Hit.Element = EVaelElement::Fire;
+		Hit.Knockback = 400.0f;
+		UVaelCombatStatics::ApplySpellHitInRadius(this, GetActorLocation(), Radius * 0.6f, Hit);
+		AVaelGroundArea::SpawnArea(GetWorld(), Ground, EVaelElement::Fire, Radius * 0.45f, 5.0f, Power * 0.6f, this);
+		FVaelDebris Sparks;
+		Sparks.Count = 24;
+		Sparks.Spread = 30.0f;
+		Sparks.Speed = 520.0f;
+		Sparks.Lift = 300.0f;
+		Sparks.Lifetime = 0.7f;
+		Sparks.MinSize = 3.0f;
+		Sparks.MaxSize = 8.0f;
+		Sparks.Color = FLinearColor(1.0f, 0.45f, 0.1f);
+		Sparks.Glow = 5.0f;
+		Sparks.bSoft = true;
+		AVaelDebrisBurst::Spawn(this, Ground + FVector(0.0f, 0.0f, 40.0f), Sparks);
+		++PulseCount;
+		CallTimeLeft = 0.0f;
+		Wither();
+		return;
+	}
+	case EVaelPlantEffect::Confuse:
+		for (AVaelCreature* Enemy : Enemies)
+		{
+			UVaelCombatStatics::ApplyStatus(this, Enemy, EVaelStatus::Fevered, 3.0f);
+		}
+		bReached = !Enemies.IsEmpty();
+		break;
+	case EVaelPlantEffect::Hold:
+		for (AVaelCreature* Enemy : FindEnemies(Radius * 0.6f))
+		{
+			Enemy->ApplyStun(1.1f);
+			UVaelCombatStatics::DealDamage(this, Enemy, Power * 0.3f, EVaelElement::Earth);
+			bReached = true;
+		}
+		break;
+	case EVaelPlantEffect::LifeSteal:
+		for (AVaelCreature* Enemy : Enemies)
+		{
+			UVaelCombatStatics::DealDamage(this, Enemy, Power, EVaelElement::Earth);
+			if (Floromant != nullptr)
+			{
+				UVaelCombatStatics::Heal(Floromant, Power * 0.6f);
+			}
+		}
+		bReached = !Enemies.IsEmpty();
+		break;
+	case EVaelPlantEffect::Weaken:
+		for (AVaelCreature* Enemy : Enemies)
+		{
+			UVaelCombatStatics::ApplyStatus(this, Enemy, EVaelStatus::Marked, 4.0f);
+		}
+		bReached = !Enemies.IsEmpty();
+		break;
+	case EVaelPlantEffect::Sleep:
+		for (AVaelCreature* Enemy : FindEnemies(Radius * 0.7f))
+		{
+			Enemy->ApplyStun(2.5f);
+			bReached = true;
+		}
+		PulseCountdown = 2.0f;
+		break;
+	default:
+		break;
+	}
+
+	PulseCount += bReached ? 1 : 0;
+	if (!bWild)
+	{
+		Flash(0.5f, bReached ? 0.45f : 0.2f);
+		Squash(1.07f);
+	}
+	Puff(GetColor(), Radius * 0.8f, 12, 110.0f);
+}
+
+void AVaelPlant::Shoot(AActor* Target, bool bFire)
+{
+	// Snaps forwards and spits from its head, flying flat at the height of the head
 	Squash(1.18f, 14.0f);
 
-	const FVector Muzzle = FVector(GetActorLocation().X, GetActorLocation().Y, GetGroundZ() + Look.Height * 0.8f) + GetActorForwardVector() * 25.0f;
+	const float Height = (Data != nullptr ? Data->Height : 80.0f) * FMath::Lerp(1.0f, UVaelFloromantSettings::Get()->GiantScale, GiantAmount);
+	const FVector Muzzle = FVector(GetActorLocation().X, GetActorLocation().Y, GroundZ + FMath::Min(Height * 0.8f, 140.0f)) + GetActorForwardVector() * 25.0f;
 	FVector Direction = Target->GetActorLocation() - Muzzle;
 	Direction.Z = 0.0f;
 	if (Direction.IsNearlyZero())
@@ -437,76 +778,84 @@ void AVaelThistlePlant::Shoot(AActor* Target)
 	}
 
 	FVaelSpellHit Hit;
-	Hit.Damage = Settings->ThistleDamage;
-	Hit.Element = EVaelElement::Fire;
-
-	FVaelSpellHit Burst;
-	Burst.Damage = Settings->ThistleBurstDamage;
-	Burst.Element = EVaelElement::Fire;
+	Hit.Damage = GetPower();
+	Hit.Element = bFire ? EVaelElement::Fire : EVaelElement::Air;
 
 	const FTransform SpawnTransform(Direction.Rotation(), Muzzle);
-	AVaelSpellProjectile* Seed = GetWorld()->SpawnActorDeferred<AVaelSpellProjectile>(AVaelSpellProjectile::StaticClass(), SpawnTransform, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-	if (Seed == nullptr)
+	AVaelSpellProjectile* Shot = GetWorld()->SpawnActorDeferred<AVaelSpellProjectile>(AVaelSpellProjectile::StaticClass(), SpawnTransform, this, this, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (Shot == nullptr)
 	{
 		return;
 	}
 
-	Seed->InitSpell(Hit, Settings->ThistleShotSpeed, 14.0f, Settings->ThistleRange * 1.2f / Settings->ThistleShotSpeed, 0, Look.Color);
-	Seed->SetExplosion(Burst, Settings->ThistleBurstRadius);
-	Seed->SetEffects(VaelEffects::Load(EVaelElement::Fire));
-	Seed->FinishSpawning(SpawnTransform);
+	const float Range = (Data != nullptr ? Data->Radius : 400.0f) * 2.4f;
+	Shot->InitSpell(Hit, ShotSpeed, bFire ? 14.0f : 9.0f, Range / ShotSpeed, 0, GetColor());
+	if (bFire)
+	{
+		FVaelSpellHit Burst;
+		Burst.Damage = GetPower() * 0.8f;
+		Burst.Element = EVaelElement::Fire;
+		Shot->SetExplosion(Burst, FireSeedBurstRadius);
+	}
+	Shot->SetEffects(VaelEffects::Load(Hit.Element));
+	Shot->FinishSpawning(SpawnTransform);
 	++ShotCount;
-
-	// A puff of embers at its head
-	FVaelDebris Embers;
-	Embers.Count = 8;
-	Embers.Spread = 10.0f;
-	Embers.Speed = 160.0f;
-	Embers.Lift = 120.0f;
-	Embers.Gravity = -60.0f;
-	Embers.Lifetime = 0.45f;
-	Embers.MinSize = 2.0f;
-	Embers.MaxSize = 5.0f;
-	Embers.Color = Look.Color;
-	Embers.Glow = 4.0f;
-	Embers.bSoft = true;
-	Embers.bLandOnGround = false;
-	AVaelDebrisBurst::Spawn(this, Muzzle, Embers);
 }
 
-// ---------------------------------------------------------------- Wurzelwand
+// ---------------------------------------------------------------- Vine wall
 
-AVaelRootWallPlant::AVaelRootWallPlant()
+AVaelVineWall::AVaelVineWall()
 {
 	// Holds back pawns only; players are let through one by one, shots and the camera pass anyway
 	Barrier = CreateDefaultSubobject<UBoxComponent>(TEXT("Barrier"));
-	Barrier->SetupAttachment(RootComponent);
+	RootComponent = Barrier;
 	Barrier->SetCollisionObjectType(ECC_WorldDynamic);
 	Barrier->SetCollisionResponseToAllChannels(ECR_Ignore);
 	Barrier->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 	Barrier->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Barrier->CanCharacterStepUpOn = ECB_No;
+	Barrier->SetMobility(EComponentMobility::Movable);
 
 	Roots = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Roots"));
 	Roots->SetupAttachment(RootComponent);
 	Roots->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-	Body->SetVisibility(false);
+	PrimaryActorTick.bCanEverTick = true;
 }
 
-void AVaelRootWallPlant::BuildLook()
+AVaelVineWall* AVaelVineWall::Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float InLifetime, float Scale, APawn* InInstigator)
+{
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	FActorSpawnParameters Parameters;
+	Parameters.Instigator = InInstigator;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AVaelVineWall* Wall = World->SpawnActor<AVaelVineWall>(GroundLocation, FRotator(0.0f, Yaw, 0.0f), Parameters);
+	if (Wall != nullptr)
+	{
+		Wall->GroundZ = GroundLocation.Z;
+		Wall->Lifetime = InLifetime;
+		Wall->Build(Scale);
+	}
+	return Wall;
+}
+
+void AVaelVineWall::Build(float Scale)
 {
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
-	const float Length = Settings->WallLength;
-	const float Height = Settings->WallHeight;
+	const float Length = Settings->WallLength * Scale;
+	const float Height = Settings->WallHeight * Scale;
 	const float Thickness = Settings->WallThickness;
-	const float GroundOffset = GetGroundZ() - GetActorLocation().Z;
 
-	// The wall stands across the throw: along the right of the plant
+	// The wall stands across the yaw: along the right of the actor
 	Barrier->SetBoxExtent(FVector(Thickness * 0.5f, Length * 0.5f, Height * 0.5f));
-	Barrier->SetRelativeLocation(FVector(0.0f, 0.0f, GroundOffset + Height * 0.5f));
+	Roots->SetRelativeLocation(FVector(0.0f, 0.0f, -Height * 0.5f));
+	SetActorLocation(GetActorLocation() + FVector(0.0f, 0.0f, Height * 0.5f));
 
-	// Roots break out of the ground: arches that cross each other and spikes that rise and curl, all of them gnarled
+	// Vines break out of the ground: arches that cross each other and spikes that rise and curl
 	TArray<FVector> Vertices;
 	TArray<FVector> Normals;
 	TArray<FVector2D> UVs;
@@ -521,82 +870,55 @@ void AVaelRootWallPlant::BuildLook()
 		const float Span = Length * FMath::FRandRange(0.14f, 0.3f);
 		const float Top = Height * FMath::FRandRange(bSpike ? 0.7f : 0.3f, bSpike ? 1.05f : 0.8f);
 		const float Side = FMath::FRandRange(-0.35f, 0.35f) * Thickness;
-		const float Thick = FMath::FRandRange(bSpike ? 9.0f : 8.0f, bSpike ? 15.0f : 13.0f);
 		const float Seed = FMath::FRandRange(0.0f, 100.0f);
 		const float Direction = FMath::RandBool() ? 1.0f : -1.0f;
 
-		auto PointAt = [&](float Along)
+		VaelRoots::AddRoot(Vertices, Normals, UVs, Triangles, [&](float Along)
 		{
 			if (bSpike)
 			{
-				// Rises out of the ground and curls over at the top
 				const float Curl = FMath::Square(Along) * 0.35f * Top * Direction;
 				return FVector(Side + FMath::Sin(Along * 5.0f + Seed) * 6.0f, CenterY + Curl, Along * Top);
 			}
-
-			// An arch out of the ground and back into it, leaning a little
 			const float Y = CenterY + (Along - 0.5f) * Span * Direction;
 			const float Z = FMath::Sin(Along * UE_PI) * Top;
 			return FVector(Side + FMath::Sin(Along * 7.0f + Seed) * 8.0f + (Along - 0.5f) * 14.0f, Y, Z - 8.0f);
-		};
-
-		const int32 First = Vertices.Num();
-		for (int32 RingIndex = 0; RingIndex <= RootRings; ++RingIndex)
-		{
-			const float Along = RingIndex / static_cast<float>(RootRings);
-			const FVector Center = PointAt(Along);
-			const FVector Forward = (PointAt(FMath::Min(Along + 0.02f, 1.0f)) - PointAt(FMath::Max(Along - 0.02f, 0.0f))).GetSafeNormal();
-			FVector Right = FVector::CrossProduct(Forward, FVector::UpVector);
-			Right = Right.IsNearlyZero() ? FVector::RightVector : Right.GetSafeNormal();
-			const FVector Up = FVector::CrossProduct(Right, Forward);
-
-			// Thick where it leaves the ground, thin at the tip of a spike; knots along the way
-			const float Taper = bSpike ? FMath::Lerp(1.0f, 0.15f, Along) : 1.0f - 0.45f * FMath::Sin(Along * UE_PI);
-			const float Knot = 1.0f + 0.25f * FMath::Max(0.0f, FMath::Sin(Along * 13.0f + Seed));
-
-			for (int32 SideIndex = 0; SideIndex < RootSides; ++SideIndex)
-			{
-				const float Angle = SideIndex * 2.0f * UE_PI / RootSides;
-				const FVector Out = Right * FMath::Cos(Angle) + Up * FMath::Sin(Angle);
-				Vertices.Add(Center + Out * Thick * Taper * Knot);
-				Normals.Add(Out);
-				UVs.Add(FVector2D(SideIndex / static_cast<float>(RootSides), Along * Top / 60.0f));
-			}
-		}
-
-		for (int32 RingIndex = 0; RingIndex < RootRings; ++RingIndex)
-		{
-			for (int32 SideIndex = 0; SideIndex < RootSides; ++SideIndex)
-			{
-				const int32 A = First + RingIndex * RootSides + SideIndex;
-				const int32 B = First + RingIndex * RootSides + (SideIndex + 1) % RootSides;
-				Triangles.Append({ A, B, A + RootSides, B, B + RootSides, A + RootSides });
-			}
-		}
+		}, FMath::FRandRange(bSpike ? 9.0f : 8.0f, bSpike ? 15.0f : 13.0f) * FMath::Sqrt(Scale), bSpike, Seed);
 	}
 
 	Roots->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, TArray<FLinearColor>(), TArray<FProcMeshTangent>(), false);
-	Roots->SetRelativeLocation(FVector(0.0f, 0.0f, GroundOffset));
-	GrowingPart = Roots;
-	GrownScale = FVector::OneVector;
-
-	UMaterialInterface* Material = VaelAssets::LoadOptional(GetLook().Material);
-	if (Material == nullptr)
-	{
-		Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-	}
-	UseMaterial(Roots, Material);
-
-	// The whole wall is a target for the fire of enemies, not only its middle
-	GetCapsuleComponent()->SetCapsuleSize(FMath::Min(Length * 0.5f, Thickness), PlantCapsuleHalfHeight);
+	Material = MakeRootMaterial(this, GroundZ, Height);
+	Roots->SetMaterial(0, Material);
 }
 
-void AVaelRootWallPlant::TickGrown(float DeltaSeconds)
+void AVaelVineWall::Tick(float DeltaSeconds)
 {
-	if (Barrier->GetCollisionEnabled() == ECollisionEnabled::NoCollision)
+	Super::Tick(DeltaSeconds);
+
+	Age += DeltaSeconds;
+	const float Grow = FMath::Clamp(Age / 0.6f, 0.0f, 1.0f);
+	const float Wilt = FMath::Clamp((Age - Lifetime) / 0.7f, 0.0f, 1.0f);
+	const float Height = UVaelFloromantSettings::Get()->WallHeight * 2.0f;
+
+	if (Material != nullptr)
+	{
+		Material->SetScalarParameterValue(GrowHeightParameter, Wilt > 0.0f ? (1.0f - Wilt) * Height : Grow < 1.0f ? Grow * Height : FullyGrownHeight);
+	}
+
+	// Holds once it has grown, lets go when it withers
+	if (Grow >= 1.0f && Wilt <= 0.0f && Barrier->GetCollisionEnabled() == ECollisionEnabled::NoCollision)
 	{
 		LetPlayersThrough();
 		Barrier->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+	if (Wilt > 0.0f)
+	{
+		Barrier->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (Wilt >= 1.0f)
+	{
+		Destroy();
+		return;
 	}
 
 	PassCountdown -= DeltaSeconds;
@@ -607,78 +929,200 @@ void AVaelRootWallPlant::TickGrown(float DeltaSeconds)
 	}
 }
 
-void AVaelRootWallPlant::LetPlayersThrough()
+bool AVaelVineWall::IsHolding() const
+{
+	return Barrier->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
+}
+
+void AVaelVineWall::LetPlayersThrough()
 {
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
-		const APlayerController* PlayerController = It->Get();
-		if (const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
+		if (const AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr)
 		{
 			Player->GetCapsuleComponent()->IgnoreActorWhenMoving(this, true);
 		}
 	}
 }
 
-bool AVaelRootWallPlant::IsHolding() const
+// ---------------------------------------------------------------- Root grip
+
+AVaelRootGrip::AVaelRootGrip()
 {
-	return Barrier->GetCollisionEnabled() != ECollisionEnabled::NoCollision;
+	Roots = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Roots"));
+	RootComponent = Roots;
+	Roots->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	PrimaryActorTick.bCanEverTick = true;
 }
 
-void AVaelRootWallPlant::OnWither()
+AVaelRootGrip* AVaelRootGrip::Spawn(AVaelCharacter* InCaster, const FVector& GroundLocation)
 {
-	Barrier->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	UWorld* World = InCaster != nullptr ? InCaster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	FActorSpawnParameters Parameters;
+	Parameters.Instigator = InCaster;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AVaelRootGrip* Grip = World->SpawnActor<AVaelRootGrip>(GroundLocation, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), Parameters);
+	if (Grip != nullptr)
+	{
+		Grip->Caster = InCaster;
+		Grip->GroundZ = GroundLocation.Z;
+		Grip->Build();
+	}
+	return Grip;
 }
 
-// ---------------------------------------------------------------- Tränenkelch
-
-void AVaelChalicePlant::TickGrown(float DeltaSeconds)
+void AVaelRootGrip::Build()
 {
+	// Roots around the spot that rise and curl inwards over it, like fingers closing
+	const float Radius = UVaelFloromantSettings::Get()->GripRadius;
+	TArray<FVector> Vertices;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<int32> Triangles;
+
+	constexpr int32 NumRoots = 9;
+	for (int32 RootIndex = 0; RootIndex < NumRoots; ++RootIndex)
+	{
+		const float Angle = RootIndex * 2.0f * UE_PI / NumRoots + FMath::FRandRange(-0.2f, 0.2f);
+		const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+		const float Reach = Radius * FMath::FRandRange(0.55f, 0.95f);
+		const float Top = FMath::FRandRange(110.0f, 170.0f);
+		const float Seed = FMath::FRandRange(0.0f, 100.0f);
+		VaelRoots::AddRoot(Vertices, Normals, UVs, Triangles, [&](float Along)
+		{
+			// Out of the ground at the rim, up and over towards the middle
+			const float Inward = FMath::Lerp(Reach, Reach * 0.15f, FMath::Square(Along));
+			return Out * Inward + FVector(0.0f, 0.0f, FMath::Sin(Along * UE_PI * 0.85f) * Top) + FVector(FMath::Sin(Along * 6.0f + Seed) * 6.0f, 0.0f, 0.0f);
+		}, FMath::FRandRange(9.0f, 14.0f), true, Seed);
+	}
+
+	Roots->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, TArray<FLinearColor>(), TArray<FProcMeshTangent>(), false);
+	Material = MakeRootMaterial(this, GroundZ, 170.0f);
+	Roots->SetMaterial(0, Material);
+
+	FVaelDebris Earth;
+	Earth.Count = 22;
+	Earth.Spread = Radius * 0.8f;
+	Earth.Speed = 200.0f;
+	Earth.Lift = 420.0f;
+	Earth.Lifetime = 0.8f;
+	Earth.Color = FLinearColor(0.11f, 0.075f, 0.05f);
+	Earth.RockShare = 0.2f;
+	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Earth);
+}
+
+void AVaelRootGrip::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	Age += DeltaSeconds;
+	const float Grow = FMath::Clamp(Age / 0.3f, 0.0f, 1.0f);
+	const float Wilt = FMath::Clamp((Age - Settings->GripDuration) / 0.5f, 0.0f, 1.0f);
+	if (Material != nullptr)
+	{
+		Material->SetScalarParameterValue(GrowHeightParameter, Wilt > 0.0f ? (1.0f - Wilt) * 200.0f : Grow < 1.0f ? Grow * 200.0f : FullyGrownHeight);
+	}
+	if (Wilt >= 1.0f)
+	{
+		Destroy();
+		return;
+	}
 
-	PulseCountdown -= DeltaSeconds;
-	if (PulseCountdown > 0.0f)
+	// Holds and chokes every enemy inside, a little each half second
+	TickCountdown -= DeltaSeconds;
+	if (Wilt > 0.0f || TickCountdown > 0.0f)
 	{
 		return;
 	}
-	PulseCountdown = Settings->ChalicePulseInterval;
+	TickCountdown = 0.5f;
 
-	// Heals every player on their feet within the radius
-	int32 NumHealed = 0;
-	int32 NumReached = 0;
-	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	AActor* Attacker = Caster.IsValid() ? static_cast<AActor*>(Caster.Get()) : this;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
 	{
-		const APlayerController* PlayerController = It->Get();
-		AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
-		if (Player != nullptr && !Player->IsDowned() && FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) < Settings->ChaliceRadius)
+		if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < Settings->GripRadius)
 		{
-			++NumReached;
-			if (Player->GetHealth() < Player->GetMaxHealth())
-			{
-				UVaelCombatStatics::Heal(Player, Settings->ChaliceHealPerSecond * Settings->ChalicePulseInterval);
-				++NumHealed;
-			}
+			It->ApplyStun(0.6f);
+			UVaelCombatStatics::DealDamage(Attacker, *It, Settings->GripDamagePerSecond * 0.5f, EVaelElement::Earth);
+			++HeldCount;
 		}
 	}
+}
 
-	PulsesReachingAllies += NumReached > 0 ? 1 : 0;
+// ---------------------------------------------------------------- Thorn whip
 
-	// Each pulse it breathes out: a soft glow, a small stretch and drops of light that rise over the healing ground
-	Flash(0.6f, NumHealed > 0 ? 0.9f : 0.4f);
-	Squash(1.07f);
+AVaelThornWhip::AVaelThornWhip()
+{
+	Vine = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Vine"));
+	RootComponent = Vine;
+	Vine->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Vine->SetUsingAbsoluteLocation(true);
+	Vine->SetUsingAbsoluteRotation(true);
+	PrimaryActorTick.bCanEverTick = true;
+}
 
-	FVaelDebris Drops;
-	Drops.Count = 14;
-	Drops.Spread = Settings->ChaliceRadius * 0.85f;
-	Drops.Speed = 20.0f;
-	Drops.Lift = 110.0f;
-	Drops.Gravity = -140.0f;
-	Drops.Drag = 1.0f;
-	Drops.Lifetime = 1.1f;
-	Drops.MinSize = 4.0f;
-	Drops.MaxSize = 8.0f;
-	Drops.Color = GetLook().Color;
-	Drops.Glow = 2.5f;
-	Drops.bSoft = true;
-	Drops.bLandOnGround = false;
-	AVaelDebrisBurst::Spawn(this, FVector(GetActorLocation().X, GetActorLocation().Y, GetGroundZ() + 10.0f), Drops);
+AVaelThornWhip* AVaelThornWhip::Lash(AActor* Caster, const FVector& From, const FVector& To)
+{
+	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	AVaelThornWhip* Whip = World->SpawnActor<AVaelThornWhip>(From, FRotator::ZeroRotator);
+	if (Whip != nullptr)
+	{
+		Whip->Start = From;
+		Whip->End = To;
+		Whip->Seed = FMath::FRandRange(0.0f, 100.0f);
+		Whip->Material = MakeRootMaterial(Whip, From.Z - 200.0f, 400.0f);
+		// Fresh green with pink thorns instead of the brown of old roots
+		Whip->Material->SetVectorParameterValue(TintParameter, FLinearColor(0.18f, 0.32f, 0.08f));
+		Whip->Material->SetVectorParameterValue(GrowColorParameter, FLinearColor(1.0f, 0.4f, 0.7f));
+		Whip->Rebuild();
+		Whip->SetLifeSpan(0.45f);
+	}
+	return Whip;
+}
+
+void AVaelThornWhip::Rebuild()
+{
+	// Lashes out fast and pulls back a little slower; a wave runs along it
+	const float Out = FMath::Clamp(Age / 0.12f, 0.0f, 1.0f);
+	const float Back = FMath::Clamp((Age - 0.18f) / 0.25f, 0.0f, 1.0f);
+	const float Reach = FMath::Max(0.05f, Out * (1.0f - Back));
+	const FVector Side = FVector::CrossProduct(End - Start, FVector::UpVector).GetSafeNormal();
+
+	TArray<FVector> Vertices;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<int32> Triangles;
+	VaelRoots::AddRoot(Vertices, Normals, UVs, Triangles, [&](float Along)
+	{
+		const float T = Along * Reach;
+		const float Wave = FMath::Sin(T * UE_PI * 3.0f - Age * 40.0f) * 20.0f * FMath::Sin(T * UE_PI);
+		return FMath::Lerp(Start, End, T) + Side * Wave + FVector(0.0f, 0.0f, FMath::Sin(T * UE_PI) * 40.0f);
+	}, 5.0f, true, Seed);
+
+	if (Vine->GetNumSections() == 0)
+	{
+		Vine->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, TArray<FLinearColor>(), TArray<FProcMeshTangent>(), false);
+		Vine->SetMaterial(0, Material);
+	}
+	else
+	{
+		Vine->UpdateMeshSection_LinearColor(0, Vertices, Normals, UVs, TArray<FLinearColor>(), TArray<FProcMeshTangent>());
+	}
+}
+
+void AVaelThornWhip::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	Age += DeltaSeconds;
+	Rebuild();
 }

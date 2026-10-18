@@ -4,10 +4,10 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Floromant/VaelFloromantSettings.h"
 #include "VaelSeed.generated.h"
 
 class AVaelCharacter;
+class UVaelPlantData;
 class UPointLightComponent;
 class UStaticMeshComponent;
 
@@ -27,7 +27,7 @@ public:
 	AVaelSeed();
 
 	/** Throws a seed from the hand of the Floromant to the ground location. Returns null if it can't be spawned. */
-	static AVaelSeed* Throw(AVaelCharacter* Gardener, EVaelSeedKind Kind, const FVector& From, const FVector& GroundTarget);
+	static AVaelSeed* Throw(AVaelCharacter* Gardener, UVaelPlantData* Plant, bool bShadow, const FVector& From, const FVector& GroundTarget);
 
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
@@ -42,7 +42,10 @@ private:
 	/** Grows the plant where the seed lands */
 	void Land();
 
-	EVaelSeedKind Kind = EVaelSeedKind::Thistle;
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelPlantData> Plant;
+
+	bool bShadow = false;
 	TWeakObjectPtr<AVaelCharacter> Gardener;
 
 	/** Where it was thrown from and where it lands, and the yaw of the throw */

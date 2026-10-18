@@ -62,9 +62,6 @@ namespace
 	const FLinearColor SaftColor = Rgb(214, 92, 160);
 	const FLinearColor SaftBackColor = Rgb(46, 14, 34);
 
-	/** Seeds of the Floromant in the order of their buttons, and the element button each one shares */
-	const EVaelSeedKind LegendSeeds[] = { EVaelSeedKind::Thistle, EVaelSeedKind::Chalice, EVaelSeedKind::RootWall };
-	const EVaelElement SeedButtons[] = { EVaelElement::Fire, EVaelElement::Water, EVaelElement::Earth };
 
 	/** Order of the elements in the legend and the queue */
 	const EVaelElement LegendElements[] = { EVaelElement::Fire, EVaelElement::Water, EVaelElement::Earth, EVaelElement::Air, EVaelElement::Mark };
@@ -1506,37 +1503,21 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 
 void AVaelHUD::DrawSeedLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth)
 {
+	// Fallback while WBP_SpielerHUD is missing: the seed belt and the plants standing
 	const float S = UiScale;
-	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
-	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	const UVaelFloromantComponent* Floromant = Player->GetFloromant();
-	const EVaelSeedKind Picked = Floromant->GetSelectedSeed();
-
-	// The three seeds on the buttons they share with the elements of the mage; the picked one in its colour
-	const float Spacing = 64.0f * S;
-	const float Radius = 10.5f * S;
-	for (int32 SeedIndex = 0; SeedIndex < UE_ARRAY_COUNT(LegendSeeds); ++SeedIndex)
+	const int32 NumSeeds = Floromant->GetBeltSize();
+	const float Spacing = 70.0f * S;
+	for (int32 Index = 0; Index < NumSeeds; ++Index)
 	{
-		const EVaelSeedKind Seed = LegendSeeds[SeedIndex];
-		const FVaelPlantLook& Look = Settings->GetPlant(Seed);
-		const FVector2D Center(CenterX + (SeedIndex - 1) * Spacing, Y + 37.0f * S);
-		const bool bPicked = Seed == Picked;
-
-		DrawElementButton(Glyphs, SeedButtons[SeedIndex], Center, Radius, bPicked ? 1.0f : 0.45f);
-		if (bPicked)
-		{
-			DrawRing(Center, Radius + 4.0f * S, Look.Color, 2.0f * S);
-		}
-		DrawLabel(Look.DisplayName, Center.X, Center.Y + 14.0f * S, 11.0f * S, bPicked ? BoneColor : DimColor, 0.5f);
+		const FVector2D Center(CenterX + (Index - (NumSeeds - 1) * 0.5f) * Spacing, Y + 40.0f * S);
+		const bool bPicked = Index == Floromant->GetBeltSelection();
+		DrawDisc(Center, 9.0f * S, Floromant->GetBeltColor(Index) * (bPicked ? 1.0f : 0.45f));
+		DrawLabel(Floromant->GetBeltName(Index), Center.X, Center.Y + 13.0f * S, 11.0f * S, bPicked ? BoneColor : DimColor, 0.5f);
 	}
 
-	const FVaelPlantLook& PickedLook = Settings->GetPlant(Picked);
-	const bool bEnoughSaft = Player->GetMana() >= PickedLook.SaftCost;
-	DrawLabel(FText::Format(LOCTEXT("SeedThrow", "{0} \u00B7 {1} Saft \u00B7 {2}: werfen"), PickedLook.DisplayName, FText::AsNumber(FMath::RoundToInt(PickedLook.SaftCost)), GetCastButtonName(Glyphs)),
-		CenterX, Y + 81.0f * S, 14.0f * S, bEnoughSaft ? BoneColor : Rgb(158, 143, 125), 0.5f, InnerWidth);
-
-	DrawLabel(FText::Format(LOCTEXT("PlantCount", "Pflanzen {0} / {1}"), Floromant->GetNumPlants(), Settings->MaxPlants),
-		CenterX, Y + 106.0f * S, 13.0f * S, Rgb(150, 214, 140), 0.5f, InnerWidth);
+	DrawLabel(FText::Format(LOCTEXT("PlantCount", "Pflanzen {0} / {1}"), Floromant->GetNumPlants(), UVaelFloromantSettings::Get()->MaxPlants),
+		CenterX, Y + 90.0f * S, 13.0f * S, Rgb(150, 214, 140), 0.5f, InnerWidth);
 }
 
 void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)

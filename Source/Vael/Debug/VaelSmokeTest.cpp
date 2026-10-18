@@ -49,6 +49,7 @@
 #include "Player/VaelCharacter.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelPlant.h"
+#include "Floromant/VaelPlantData.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
@@ -278,12 +279,13 @@ void AVaelSmokeTest::BeginPlay()
 		}, 0.1f });
 	}
 
-	// The Floromant: a thrown thistle shoots at a crawler, the chalice heals, the wall of roots holds; only fire hurts the plants
+	// The Floromant: sows from the belt, calls the garden: the Glutdistel shoots at a crawler, the Rußrose heals, the Schlotwinde raises a wall;
+	// the root grip holds; only fire hurts the plants
 	if (Only.IsEmpty())
 	{
 		Steps.Add({ TEXT("Floromant garden"), [this]()
 		{
-			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 1);
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 2);
 			AVaelCharacter* Player = GetPlayer();
 			if (Player == nullptr)
 			{
@@ -295,50 +297,77 @@ void AVaelSmokeTest::BeginPlay()
 			const FVector Forward = Player->GetActorForwardVector();
 			const FVector Feet = Player->GetActorLocation() - FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight());
 
-			// The thistle flies as a seed, the other two are planted at once
-			Floromant->SelectSeed(EVaelSeedKind::Thistle);
-			const bool bThrown = Floromant->ThrowSeed(Feet + Forward * 250.0f);
-			Floromant->PlantSeed(EVaelSeedKind::Chalice, Feet - Forward * 120.0f, 0.0f);
-			Floromant->PlantSeed(EVaelSeedKind::RootWall, Feet + Forward.RotateAngleAxis(90.0f, FVector::UpVector) * 400.0f, Forward.Rotation().Yaw);
-
-			return FString::Printf(TEXT("%s, Floromantin, Saft %.0f, thistle seed %s"), *Arena, Player->GetMana(), bThrown ? TEXT("thrown") : TEXT("NOT thrown"));
-		}, 6.0f });
+			// A seed flies from the belt (Rußrose), the thistle and the bindweed are planted at once, so they have grown when the crawlers come
+			Floromant->SelectBelt(1);
+			const bool bSown = Floromant->Sow(Feet - Forward * 150.0f);
+			Floromant->PlantSeed(UVaelFloromantComponent::FindPlantData(TEXT("Glutdistel")), false, Feet + Forward * 150.0f, Forward.Rotation().Yaw);
+			Floromant->PlantSeed(UVaelFloromantComponent::FindPlantData(TEXT("Schlotwinde")), false, Feet + Forward.RotateAngleAxis(90.0f, FVector::UpVector) * 300.0f, Forward.Rotation().Yaw);
+			return FString::Printf(TEXT("%s, Floromantin, Saft %.0f, Russrose %s"), *Arena, Player->GetMana(), bSown ? TEXT("sown") : TEXT("NOT sown"));
+		}, 1.6f });
+		Steps.Add({ TEXT("Floromant call"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			const int32 NumActing = Floromant->CallGarden();
+			AVaelCreature* Crawler = nullptr;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Crawler = !It->IsDead() ? *It : Crawler;
+			}
+			const bool bGrip = Crawler != nullptr && Floromant->RootGrip(Crawler->GetActorLocation());
+			const float CrawlerDistance = Crawler != nullptr ? FVector::Dist2D(Crawler->GetActorLocation(), Player->GetActorLocation()) : -1.0f;
+			return FString::Printf(TEXT("%s%d plants act, root grip %s, crawler %.0f cm away, Saft %.0f"), NumActing >= 3 ? TEXT("") : TEXT("FAILED: "), NumActing,
+				bGrip ? TEXT("at the crawler") : TEXT("NOT cast"), CrawlerDistance, Player->GetMana());
+		}, 2.4f });
 		Steps.Add({ TEXT("Floromant"), [this]()
 		{
 			AVaelCharacter* Player = GetPlayer();
-			const AVaelThistlePlant* Thistle = nullptr;
-			AVaelChalicePlant* Chalice = nullptr;
-			const AVaelRootWallPlant* Wall = nullptr;
+			AVaelPlant* Thistle = nullptr;
+			AVaelPlant* Rose = nullptr;
 			for (TActorIterator<AVaelPlant> It(GetWorld()); It; ++It)
 			{
-				Thistle = Thistle != nullptr ? Thistle : Cast<AVaelThistlePlant>(*It);
-				Chalice = Chalice != nullptr ? Chalice : Cast<AVaelChalicePlant>(*It);
-				Wall = Wall != nullptr ? Wall : Cast<AVaelRootWallPlant>(*It);
+				const FName Id = It->GetData() != nullptr && !It->IsWild() ? It->GetData()->PlantId : NAME_None;
+				Thistle = Id == TEXT("Glutdistel") ? *It : Thistle;
+				Rose = Id == TEXT("Russrose") ? *It : Rose;
 			}
-			if (Player == nullptr || Thistle == nullptr || Chalice == nullptr || Wall == nullptr)
+			const AVaelVineWall* Wall = nullptr;
+			for (TActorIterator<AVaelVineWall> It(GetWorld()); It; ++It)
 			{
-				return FString::Printf(TEXT("FAILED: plants missing (thistle %d, chalice %d, wall %d)"), Thistle != nullptr, Chalice != nullptr, Wall != nullptr);
+				Wall = *It;
+			}
+			int32 NumHeld = 0;
+			for (TActorIterator<AVaelRootGrip> It(GetWorld()); It; ++It)
+			{
+				NumHeld += It->GetHeldCount();
+			}
+			if (Player == nullptr || Thistle == nullptr || Rose == nullptr)
+			{
+				return FString::Printf(TEXT("FAILED: plants missing (Glutdistel %d, Russrose %d)"), Thistle != nullptr, Rose != nullptr);
 			}
 
 			const int32 NumPlants = Player->GetFloromant()->GetNumPlants();
 			const int32 NumShots = Thistle->GetShotCount();
-			const int32 NumPulses = Chalice->GetPulsesReachingAllies();
-			const bool bHolding = Wall->IsHolding();
+			const int32 NumPulses = Rose->GetPulseCount();
+			const bool bHolding = Wall != nullptr && Wall->IsHolding();
 
 			// Earth leaves a plant alone, fire hurts it
-			const float Before = Chalice->GetHealth();
-			UVaelCombatStatics::DealDamage(nullptr, Chalice, 5.0f, EVaelElement::Earth);
-			const bool bEarthHarmless = FMath::IsNearlyEqual(Chalice->GetHealth(), Before);
-			UVaelCombatStatics::DealDamage(nullptr, Chalice, 5.0f, EVaelElement::Fire);
-			const bool bFireHurts = Chalice->GetHealth() < Before;
+			const float Before = Rose->GetHealth();
+			UVaelCombatStatics::DealDamage(nullptr, Rose, 5.0f, EVaelElement::Earth);
+			const bool bEarthHarmless = FMath::IsNearlyEqual(Rose->GetHealth(), Before);
+			UVaelCombatStatics::DealDamage(nullptr, Rose, 5.0f, EVaelElement::Fire);
+			const bool bFireHurts = Rose->GetHealth() < Before;
 
 			// Back to the mage: the plants wither, mana is full again
 			Player->SetHero(EVaelHeroClass::Mage, false);
 			const bool bMage = !Player->IsFloromant() && Player->GetMaxMana() > 0.0f && FMath::IsNearlyEqual(Player->GetMana(), Player->GetMaxMana());
 
-			const bool bOk = NumPlants == 3 && NumShots > 0 && NumPulses > 0 && bHolding && bEarthHarmless && bFireHurts && bMage;
-			return FString::Printf(TEXT("%s%d plants, thistle %d shots, chalice %d pulses on the player, wall %s, earth %s, fire %s, back to mage %s"), bOk ? TEXT("") : TEXT("FAILED: "),
-				NumPlants, NumShots, NumPulses, bHolding ? TEXT("holds") : TEXT("does NOT hold"), bEarthHarmless ? TEXT("harmless") : TEXT("HURTS"),
+			const bool bOk = NumPlants == 3 && NumShots > 0 && NumPulses > 0 && bHolding && NumHeld > 0 && bEarthHarmless && bFireHurts && bMage;
+			return FString::Printf(TEXT("%s%d plants, Glutdistel %d shots, Russrose %d pulses, vine wall %s, root grip held %d times, earth %s, fire %s, back to mage %s"), bOk ? TEXT("") : TEXT("FAILED: "),
+				NumPlants, NumShots, NumPulses, bHolding ? TEXT("holds") : TEXT("does NOT hold"), NumHeld, bEarthHarmless ? TEXT("harmless") : TEXT("HURTS"),
 				bFireHurts ? TEXT("hurts") : TEXT("does NOT hurt"), bMage ? TEXT("ok") : TEXT("FAILED"));
 		}, 1.0f });
 	}

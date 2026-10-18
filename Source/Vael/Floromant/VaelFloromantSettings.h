@@ -7,10 +7,10 @@
 #include "VaelFloromantSettings.generated.h"
 
 class UMaterialInterface;
-class UStaticMesh;
-class UTexture2D;
+class USkeletalMesh;
+class UVaelPlantData;
 
-/** The two classes a player can play: the mage of the elements and the Floromant, a fairy who throws seeds that grow into plants */
+/** The two classes a player can play: the mage of the elements and the Floromant, a fairy who sows plants and calls them to act */
 UENUM(BlueprintType)
 enum class EVaelHeroClass : uint8
 {
@@ -28,64 +28,9 @@ enum class EVaelPath : uint8
 	Twilight
 };
 
-/** The seeds of the Floromant; each grows into its own plant */
-UENUM(BlueprintType)
-enum class EVaelSeedKind : uint8
-{
-	/** Glutdistel: a shooter that spits seeds of fire which burst */
-	Thistle,
-	/** Wurzelwand: a wall of roots that holds enemies back */
-	RootWall,
-	/** Tränenkelch: a chalice that heals allies around it */
-	Chalice,
-
-	Count UMETA(Hidden)
-};
-
-static_assert(static_cast<int32>(EVaelSeedKind::Count) == 3, "UVaelFloromantSettings::Plants holds one plant per seed");
-
-/** Look and values of one plant */
-USTRUCT(BlueprintType)
-struct FVaelPlantLook
-{
-	GENERATED_BODY()
-
-	/** Name shown to the players */
-	UPROPERTY(EditAnywhere, Category="Plant")
-	FText DisplayName;
-
-	/** Model of the plant; empty for the wall of roots, which is built from roots in code */
-	UPROPERTY(EditAnywhere, Category="Plant")
-	TSoftObjectPtr<UStaticMesh> Mesh;
-
-	/** Material of the plant, an instance of M_Floromant_Pflanze, so it can grow in, sway and flash */
-	UPROPERTY(EditAnywhere, Category="Plant")
-	TSoftObjectPtr<UMaterialInterface> Material;
-
-	/** Height of the grown plant in cm; the model is scaled to it */
-	UPROPERTY(EditAnywhere, Category="Plant", meta = (ClampMin = 10))
-	float Height = 120.0f;
-
-	/** Saft a seed costs */
-	UPROPERTY(EditAnywhere, Category="Plant", meta = (ClampMin = 0))
-	float SaftCost = 30.0f;
-
-	/** Health of the plant; it takes damage from the fire of enemies only */
-	UPROPERTY(EditAnywhere, Category="Plant", meta = (ClampMin = 1))
-	float Health = 80.0f;
-
-	/** Seconds the plant lives before it withers */
-	UPROPERTY(EditAnywhere, Category="Plant", meta = (ClampMin = 1))
-	float Lifetime = 20.0f;
-
-	/** Colour of the seed, the glow while it grows and the flash before it acts */
-	UPROPERTY(EditAnywhere, Category="Plant")
-	FLinearColor Color = FLinearColor(1.0f, 0.35f, 0.65f);
-};
-
 /**
- *  Values of the Floromant, the fifth class: Saft, seeds and the three test plants.
- *  Shown in the project settings under Vael Floromant.
+ *  Values of the Floromant, the fifth class: body, Saft, seed belt, the Ruf des Gartens and the other abilities.
+ *  Shown in the project settings under Vael Floromant. The plants themselves are data assets DA_Pflanze_<Id>.
  */
 UCLASS(config=Game, defaultconfig, meta = (DisplayName = "Vael Floromant"))
 class UVaelFloromantSettings : public UDeveloperSettings
@@ -100,17 +45,14 @@ public:
 	/** Returns the settings */
 	static const UVaelFloromantSettings* Get() { return GetDefault<UVaelFloromantSettings>(); }
 
-	/** Look and values of a plant */
-	const FVaelPlantLook& GetPlant(EVaelSeedKind Kind) const;
-
 	// --- Body
 
 	/** Body and head of the Floromant, male and female, on the skeleton of the mage */
 	UPROPERTY(config, EditAnywhere, Category="Body")
-	TSoftObjectPtr<class USkeletalMesh> BodyMeshes[2];
+	TSoftObjectPtr<USkeletalMesh> BodyMeshes[2];
 
 	UPROPERTY(config, EditAnywhere, Category="Body")
-	TSoftObjectPtr<class USkeletalMesh> HeadMeshes[2];
+	TSoftObjectPtr<USkeletalMesh> HeadMeshes[2];
 
 	/** Material of the wings, an instance of M_Floromant_Fluegel with the picture of one wing */
 	UPROPERTY(config, EditAnywhere, Category="Body")
@@ -124,12 +66,24 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Body")
 	FVector WingRoot = FVector(-14.0f, 5.0f, 48.0f);
 
-	/** Wing beats per second while standing and while walking */
+	/** Wing beats per second while standing and while moving */
 	UPROPERTY(config, EditAnywhere, Category="Body", meta = (ClampMin = 0))
-	float WingBeatIdle = 0.6f;
+	float WingBeatIdle = 1.1f;
 
 	UPROPERTY(config, EditAnywhere, Category="Body", meta = (ClampMin = 0))
-	float WingBeatMoving = 1.6f;
+	float WingBeatMoving = 2.4f;
+
+	// --- Hovering
+
+	/** The Floromant doesn't walk, it hovers: height above the ground in cm, how far it bobs and how fast */
+	UPROPERTY(config, EditAnywhere, Category="Hovering", meta = (ClampMin = 0))
+	float HoverHeight = 25.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hovering", meta = (ClampMin = 0))
+	float HoverBob = 5.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hovering", meta = (ClampMin = 0))
+	float HoverBobSpeed = 1.4f;
 
 	// --- Saft
 
@@ -143,85 +97,131 @@ public:
 
 	// --- Seeds
 
-	/** The plants, by seed: Glutdistel, Wurzelwand, Tränenkelch */
+	/** The four seeds of the seed belt, picked with the d-pad and sown with Square */
 	UPROPERTY(config, EditAnywhere, Category="Seeds")
-	FVaelPlantLook Plants[3];
+	TArray<TSoftObjectPtr<UVaelPlantData>> SeedBelt;
+
+	/** Folder of the plant data DA_Pflanze_<Id>; plants in the world answer the call by their id */
+	UPROPERTY(config, EditAnywhere, Category="Seeds")
+	FString PlantDataFolder = TEXT("/Game/Vael/Characters/Floromant/Pflanzen");
 
 	/** Most plants one Floromant can have at once; a new one makes the oldest wither */
 	UPROPERTY(config, EditAnywhere, Category="Seeds", meta = (ClampMin = 1))
 	int32 MaxPlants = 4;
 
-	/** How far a seed is thrown at most, in cm */
+	/** How far a seed is thrown at most, how long it flies, the seconds between two throws, and how long a plant grows, in cm and seconds */
 	UPROPERTY(config, EditAnywhere, Category="Seeds", meta = (ClampMin = 100))
 	float ThrowRange = 700.0f;
 
-	/** Seconds a seed flies */
 	UPROPERTY(config, EditAnywhere, Category="Seeds", meta = (ClampMin = 0.1))
 	float SeedFlightTime = 0.45f;
 
-	/** Seconds between two throws */
 	UPROPERTY(config, EditAnywhere, Category="Seeds", meta = (ClampMin = 0))
 	float ThrowCooldown = 0.5f;
 
-	/** Seconds a plant needs to grow out of the seed */
 	UPROPERTY(config, EditAnywhere, Category="Seeds", meta = (ClampMin = 0.1))
 	float GrowTime = 1.4f;
 
-	// --- Glutdistel
+	// --- Ruf des Gartens (Circle)
 
-	/** Distance at which the thistle finds enemies, in cm */
-	UPROPERTY(config, EditAnywhere, Category="Glutdistel", meta = (ClampMin = 0))
-	float ThistleRange = 900.0f;
+	/** Own and wild plants within this many cm act */
+	UPROPERTY(config, EditAnywhere, Category="Ruf des Gartens", meta = (ClampMin = 0))
+	float CallRadius = 800.0f;
 
-	/** Seconds between two shots */
-	UPROPERTY(config, EditAnywhere, Category="Glutdistel", meta = (ClampMin = 0.1))
-	float ThistleShotInterval = 1.6f;
+	/** Seconds they act, and seconds until the next call */
+	UPROPERTY(config, EditAnywhere, Category="Ruf des Gartens", meta = (ClampMin = 0.1))
+	float CallDuration = 4.0f;
 
-	/** Seconds it glows and draws back before it shoots, so players see the shot coming */
-	UPROPERTY(config, EditAnywhere, Category="Glutdistel", meta = (ClampMin = 0))
-	float ThistleWindup = 0.35f;
+	UPROPERTY(config, EditAnywhere, Category="Ruf des Gartens", meta = (ClampMin = 0))
+	float CallCooldown = 3.0f;
 
-	/** Damage of the seed of fire where it hits and of its burst around it */
-	UPROPERTY(config, EditAnywhere, Category="Glutdistel", meta = (ClampMin = 0))
-	float ThistleDamage = 9.0f;
+	/** Corruption of the region for each light form a Floromant of shadow spoils with the call */
+	UPROPERTY(config, EditAnywhere, Category="Ruf des Gartens", meta = (ClampMin = 0))
+	float SpoilCorruption = 0.5f;
 
-	UPROPERTY(config, EditAnywhere, Category="Glutdistel", meta = (ClampMin = 0))
-	float ThistleBurstDamage = 7.0f;
+	// --- Wurzelgriff (Cross)
 
-	UPROPERTY(config, EditAnywhere, Category="Glutdistel", meta = (ClampMin = 0))
-	float ThistleBurstRadius = 160.0f;
+	/** Saft, cooldown, radius at the aim point, seconds it holds, damage per second while it chokes */
+	UPROPERTY(config, EditAnywhere, Category="Wurzelgriff", meta = (ClampMin = 0))
+	float GripCost = 25.0f;
 
-	/** Speed of the seed of fire in cm/s */
-	UPROPERTY(config, EditAnywhere, Category="Glutdistel", meta = (ClampMin = 1))
-	float ThistleShotSpeed = 1300.0f;
+	UPROPERTY(config, EditAnywhere, Category="Wurzelgriff", meta = (ClampMin = 0))
+	float GripCooldown = 6.0f;
 
-	// --- Wurzelwand
+	UPROPERTY(config, EditAnywhere, Category="Wurzelgriff", meta = (ClampMin = 0))
+	float GripRadius = 230.0f;
 
-	/** Length of the wall across the throw, its height and its thickness, in cm */
-	UPROPERTY(config, EditAnywhere, Category="Wurzelwand", meta = (ClampMin = 50))
+	UPROPERTY(config, EditAnywhere, Category="Wurzelgriff", meta = (ClampMin = 0))
+	float GripDuration = 2.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Wurzelgriff", meta = (ClampMin = 0))
+	float GripDamagePerSecond = 7.0f;
+
+	// --- Wurzelsprung (Triangle)
+
+	/** Saft, cooldown and how far the Floromant can leap to one of its plants */
+	UPROPERTY(config, EditAnywhere, Category="Wurzelsprung", meta = (ClampMin = 0))
+	float LeapCost = 15.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Wurzelsprung", meta = (ClampMin = 0))
+	float LeapCooldown = 5.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Wurzelsprung", meta = (ClampMin = 0))
+	float LeapRange = 1600.0f;
+
+	// --- Wuchern (L1 + R1)
+
+	/** Saft, cooldown, radius and seconds the plants around grow into their giant form and act */
+	UPROPERTY(config, EditAnywhere, Category="Wuchern", meta = (ClampMin = 0))
+	float OvergrowthCost = 40.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Wuchern", meta = (ClampMin = 0))
+	float OvergrowthCooldown = 30.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Wuchern", meta = (ClampMin = 0))
+	float OvergrowthRadius = 800.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Wuchern", meta = (ClampMin = 0))
+	float OvergrowthDuration = 10.0f;
+
+	/** Size and strength of the giant form */
+	UPROPERTY(config, EditAnywhere, Category="Wuchern", meta = (ClampMin = 1))
+	float GiantScale = 1.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Wuchern", meta = (ClampMin = 1))
+	float GiantPower = 1.5f;
+
+	// --- Dornenpeitsche (basic attack, R2)
+
+	/** Reach, damage and seconds between two lashes */
+	UPROPERTY(config, EditAnywhere, Category="Dornenpeitsche", meta = (ClampMin = 0))
+	float WhipRange = 420.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Dornenpeitsche", meta = (ClampMin = 0))
+	float WhipDamage = 11.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Dornenpeitsche", meta = (ClampMin = 0))
+	float WhipCooldown = 0.55f;
+
+	// --- Vine wall (Schlotwinde)
+
+	/** Length of the wall across, its height and thickness, how many vines make it and how long it stands, in cm and seconds */
+	UPROPERTY(config, EditAnywhere, Category="Vine Wall", meta = (ClampMin = 50))
 	float WallLength = 420.0f;
 
-	UPROPERTY(config, EditAnywhere, Category="Wurzelwand", meta = (ClampMin = 20))
+	UPROPERTY(config, EditAnywhere, Category="Vine Wall", meta = (ClampMin = 20))
 	float WallHeight = 150.0f;
 
-	UPROPERTY(config, EditAnywhere, Category="Wurzelwand", meta = (ClampMin = 10))
+	UPROPERTY(config, EditAnywhere, Category="Vine Wall", meta = (ClampMin = 10))
 	float WallThickness = 70.0f;
 
-	/** Roots that make up the wall */
-	UPROPERTY(config, EditAnywhere, Category="Wurzelwand", meta = (ClampMin = 2, ClampMax = 24))
+	UPROPERTY(config, EditAnywhere, Category="Vine Wall", meta = (ClampMin = 2, ClampMax = 24))
 	int32 WallRoots = 14;
 
-	// --- Tränenkelch
+	UPROPERTY(config, EditAnywhere, Category="Vine Wall", meta = (ClampMin = 1))
+	float WallLifetime = 8.0f;
 
-	/** Radius of the healing around the chalice in cm */
-	UPROPERTY(config, EditAnywhere, Category="Traenenkelch", meta = (ClampMin = 0))
-	float ChaliceRadius = 380.0f;
-
-	/** Health it gives every ally inside per second */
-	UPROPERTY(config, EditAnywhere, Category="Traenenkelch", meta = (ClampMin = 0))
-	float ChaliceHealPerSecond = 6.0f;
-
-	/** Seconds between two pulses of healing */
-	UPROPERTY(config, EditAnywhere, Category="Traenenkelch", meta = (ClampMin = 0.1))
-	float ChalicePulseInterval = 1.0f;
+	/** Material of roots and vines (wall, grip, whip), an instance of M_Floromant_Pflanze */
+	UPROPERTY(config, EditAnywhere, Category="Vine Wall")
+	TSoftObjectPtr<UMaterialInterface> RootMaterial;
 };

@@ -31,6 +31,7 @@
 #include "UI/VaelHUD.h"
 #include "Player/VaelPlayerController.h"
 #include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelPlantData.h"
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "VaelGameMode.h"
@@ -758,20 +759,64 @@ void UVaelCheatManager::VaelSamen(const FString& Seed, float Metres)
 	}
 
 	UVaelFloromantComponent* Floromant = Player->GetFloromant();
-	if (Seed.StartsWith(TEXT("d"), ESearchCase::IgnoreCase) || Seed.StartsWith(TEXT("g"), ESearchCase::IgnoreCase))
+	for (int32 Index = 0; Index < Floromant->GetBeltSize(); ++Index)
 	{
-		Floromant->SelectSeed(EVaelSeedKind::Thistle);
-	}
-	else if (Seed.StartsWith(TEXT("w"), ESearchCase::IgnoreCase))
-	{
-		Floromant->SelectSeed(EVaelSeedKind::RootWall);
-	}
-	else if (Seed.StartsWith(TEXT("k"), ESearchCase::IgnoreCase) || Seed.StartsWith(TEXT("t"), ESearchCase::IgnoreCase))
-	{
-		Floromant->SelectSeed(EVaelSeedKind::Chalice);
+		if (!Seed.IsEmpty() && Floromant->GetBeltName(Index).ToString().StartsWith(Seed, ESearchCase::IgnoreCase))
+		{
+			Floromant->SelectBelt(Index);
+		}
 	}
 
 	// Saft for tests: the cheat never fails for lack of it
 	Player->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Player->GetMaxMana());
-	Floromant->ThrowSeed(Player->GetActorLocation() + Player->GetActorForwardVector() * FMath::Max(Metres, 1.2f) * 100.0f);
+	Floromant->Sow(Player->GetActorLocation() + Player->GetActorForwardVector() * FMath::Max(Metres, 1.2f) * 100.0f);
+}
+
+void UVaelCheatManager::VaelPflanze(const FString& PlantId, float Metres, const FString& Form)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	UVaelPlantData* Data = UVaelFloromantComponent::FindPlantData(FName(*PlantId));
+	if (Player == nullptr || Data == nullptr)
+	{
+		return;
+	}
+
+	FVector Ground = Player->GetActorLocation() + Player->GetActorForwardVector() * FMath::Max(Metres, 1.0f) * 100.0f;
+	AVaelCreature::FindGround(GetWorld(), Ground, Ground);
+	Player->GetFloromant()->PlantSeed(Data, Form.StartsWith(TEXT("s"), ESearchCase::IgnoreCase), Ground, Player->GetActorRotation().Yaw);
+}
+
+void UVaelCheatManager::VaelFaehigkeit(const FString& Ability, float Metres)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr || !Player->IsFloromant())
+	{
+		return;
+	}
+
+	Player->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Player->GetMaxMana());
+	UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	const FVector Aim = Player->GetActorLocation() + Player->GetActorForwardVector() * FMath::Max(Metres, 1.2f) * 100.0f;
+	if (Ability.StartsWith(TEXT("r"), ESearchCase::IgnoreCase))
+	{
+		Floromant->CallGarden();
+	}
+	else if (Ability.StartsWith(TEXT("g"), ESearchCase::IgnoreCase))
+	{
+		Floromant->RootGrip(Aim);
+	}
+	else if (Ability.StartsWith(TEXT("s"), ESearchCase::IgnoreCase))
+	{
+		Floromant->RootLeap(Aim);
+	}
+	else if (Ability.StartsWith(TEXT("w"), ESearchCase::IgnoreCase))
+	{
+		Floromant->Overgrow();
+	}
+	else
+	{
+		Floromant->ThornWhip(Aim);
+	}
 }

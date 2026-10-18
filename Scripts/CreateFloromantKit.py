@@ -302,18 +302,72 @@ def prop_textures(folder, name):
     }
 
 
+# ---------------------------------------------------------------- Plants of the Floromant (DA_Pflanze_<Id>)
+
+PLANT_FOLDER = "/Game/Vael/Characters/Floromant/Pflanzen"
+E = None   # filled in main: unreal.VaelPlantEffect
+
+# Same ids as the seed plants of the garden; light form, shadow form, what each does on the Ruf des Gartens, look and values.
+# Colours: light form like its glow in the garden, shadow form drained and dark. Values first guesses, tuned in the data assets.
+PLANTS = [
+    # id, light name, shadow name, light effect, shadow effect, height, colour, shadow colour, sow, call, health, power, radius
+    ("Glutdistel", "Glutdistel", "", "FIRE_SEEDS", "NONE", 110.0, (1.0, 0.32, 0.12), (0.5, 0.2, 0.3), 35.0, 7.0, 70.0, 9.0, 400.0),
+    ("Glimmklee", "Glimmklee", "Schwelklee", "BLIND_AND_SAFT", "SMOKE", 55.0, (1.0, 0.62, 0.15), (0.5, 0.38, 0.6), 20.0, 5.0, 50.0, 10.0, 380.0),
+    ("Taublatt", "Taublatt", "Faulblatt", "WET_AND_SLOW", "POISON_POOL", 70.0, (0.3, 0.85, 1.0), (0.45, 0.7, 0.2), 20.0, 5.0, 60.0, 6.0, 380.0),
+    ("Windhalm", "Windhalm", "Fl\u00fcsterhalm", "POLLEN_DARTS", "CONFUSE", 110.0, (0.4, 0.95, 1.0), (0.6, 0.4, 0.8), 25.0, 6.0, 55.0, 7.0, 420.0),
+    ("Schlotwinde", "Schlotwinde", "W\u00fcrgwinde", "VINE_WALL", "HOLD", 120.0, (1.0, 0.8, 0.2), (0.5, 0.3, 0.55), 30.0, 8.0, 90.0, 8.0, 320.0),
+    ("Russrose", "Ru\u00dfrose", "Blutrose", "HEAL_ALLIES", "LIFE_STEAL", 80.0, (0.2, 1.0, 0.5), (0.75, 0.1, 0.2), 35.0, 8.0, 60.0, 7.0, 400.0),
+    ("Milchstern", "Milchstern", "Gallstern", "CLEANSE", "WEAKEN", 70.0, (0.85, 0.8, 1.0), (0.55, 0.6, 0.2), 25.0, 6.0, 50.0, 6.0, 420.0),
+    ("Funkenmohn", "Funkenmohn", "Schwarzmohn", "FIRE_BURST", "SLEEP", 75.0, (1.0, 0.4, 0.1), (0.25, 0.15, 0.35), 30.0, 8.0, 40.0, 10.0, 380.0),
+]
+
+
+def make_plants(plant_material):
+    effects = unreal.VaelPlantEffect
+    props = "/Game/Vael/Requisiten/Aschenmark"
+    for (pid, light, shadow, light_effect, shadow_effect, height, color, shadow_color, sow, call, health, power, radius) in PLANTS:
+        mi = make_instance(plant_material, "MI_Floromant_" + pid, prop_textures(props, pid), {"WindStrength": 2.0})
+        path = "{}/DA_Pflanze_{}".format(PLANT_FOLDER, pid)
+        if assets.does_asset_exist(path):
+            continue
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelPlantData)
+        data = tools.create_asset("DA_Pflanze_" + pid, PLANT_FOLDER, unreal.VaelPlantData, factory)
+        data.set_editor_property("plant_id", pid)
+        data.set_editor_property("light_name", unreal.Text(light.encode().decode("unicode_escape")))
+        data.set_editor_property("shadow_name", unreal.Text(shadow.encode().decode("unicode_escape")))
+        data.set_editor_property("light_effect", getattr(effects, light_effect))
+        data.set_editor_property("shadow_effect", getattr(effects, shadow_effect))
+        mesh = unreal.load_asset("{}/{}/SM_{}".format(props, pid, pid))
+        if mesh is not None:
+            data.set_editor_property("mesh", mesh)
+        data.set_editor_property("material", mi)
+        data.set_editor_property("height", height)
+        data.set_editor_property("color", unreal.LinearColor(color[0], color[1], color[2], 1.0))
+        data.set_editor_property("shadow_color", unreal.LinearColor(shadow_color[0], shadow_color[1], shadow_color[2], 1.0))
+        data.set_editor_property("sow_cost", sow)
+        data.set_editor_property("call_cost", call)
+        data.set_editor_property("health", health)
+        data.set_editor_property("power", power)
+        data.set_editor_property("radius", radius)
+        assets.save_loaded_asset(data, False)
+        created.append(path)
+
+
 def main():
     plant = build_plant_material()
     make_instance(plant, "MI_Floromant_Glutdistel", prop_textures("/Game/Vael/Requisiten/Aschenmark", "Glutdistel"), {"WindStrength": 2.5})
     # No Tränenkelch model yet: the Heilkelch stands in, a little cooler in colour
     make_instance(plant, "MI_Floromant_Traenenkelch", prop_textures("/Game/Vael/Requisiten/Wurzelforst", "Heilkelch"), {"WindStrength": 2.0}, {"Tint": (0.9, 1.0, 1.05)})
     make_instance(plant, "MI_Floromant_Wurzel", None, ROOT_SCALARS, ROOT_COLORS)
+    make_plants(plant)
 
     picture = import_wing_picture()
     wing = build_wing_material(picture)
     make_instance(wing, "MI_Floromant_Fluegel")
 
     assets.save_directory(FOLDER)
+    assets.save_directory(PLANT_FOLDER)
     unreal.log("[Vael] Floromant kit: " + (", ".join(created) if created else "nothing to do"))
 
 

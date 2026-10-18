@@ -5,6 +5,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/World.h"
 #include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelFloromantSettings.h"
+#include "Floromant/VaelPlantData.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Player/VaelCharacter.h"
 
@@ -29,7 +31,7 @@ AVaelSeed::AVaelSeed()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-AVaelSeed* AVaelSeed::Throw(AVaelCharacter* InGardener, EVaelSeedKind InKind, const FVector& From, const FVector& GroundTarget)
+AVaelSeed* AVaelSeed::Throw(AVaelCharacter* InGardener, UVaelPlantData* InPlant, bool bInShadow, const FVector& From, const FVector& GroundTarget)
 {
 	UWorld* World = InGardener != nullptr ? InGardener->GetWorld() : nullptr;
 	if (World == nullptr)
@@ -41,7 +43,8 @@ AVaelSeed* AVaelSeed::Throw(AVaelCharacter* InGardener, EVaelSeedKind InKind, co
 	AVaelSeed* Seed = World->SpawnActorDeferred<AVaelSeed>(AVaelSeed::StaticClass(), SpawnTransform, InGardener, InGardener, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	if (Seed != nullptr)
 	{
-		Seed->Kind = InKind;
+		Seed->Plant = InPlant;
+		Seed->bShadow = bInShadow;
 		Seed->Gardener = InGardener;
 		Seed->Start = From;
 		Seed->Target = GroundTarget;
@@ -55,7 +58,7 @@ void AVaelSeed::BeginPlay()
 {
 	Super::BeginPlay();
 
-	const FLinearColor Color = UVaelFloromantSettings::Get()->GetPlant(Kind).Color;
+	const FLinearColor Color = Plant == nullptr ? FLinearColor::White : bShadow ? Plant->ShadowColor : Plant->Color;
 	Light->SetLightColor(Color);
 
 	// A dark husk with a glowing kernel in the colour of its plant
@@ -102,7 +105,7 @@ void AVaelSeed::Land()
 	{
 		if (UVaelFloromantComponent* Floromant = Thrower->GetFloromant())
 		{
-			Floromant->PlantSeed(Kind, Target, ThrowYaw);
+			Floromant->PlantSeed(Plant, bShadow, Target, ThrowYaw);
 		}
 	}
 

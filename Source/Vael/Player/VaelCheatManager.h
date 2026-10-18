@@ -47,9 +47,17 @@ public:
 	UFUNCTION(Exec)
 	void VaelKlasse(const FString& Class, const FString& Look);
 
-	/** Floromant: throws the picked seed, or the named one ("Distel", "Wand", "Kelch"), the given metres ahead. Example: VaelSamen Kelch 4 */
+	/** Floromant: sows the seed of the belt whose name starts like the word, or the picked one, the given metres ahead. Example: VaelSamen Russ 4 */
 	UFUNCTION(Exec)
 	void VaelSamen(const FString& Seed, float Metres);
+
+	/** Floromant: grows any plant by its id at once, the given metres ahead; "schatten" for its shadow form. Example: VaelPflanze Funkenmohn 3 schatten */
+	UFUNCTION(Exec)
+	void VaelPflanze(const FString& PlantId, float Metres, const FString& Form = TEXT(""));
+
+	/** Floromant: uses an ability: "Ruf", "Griff", "Sprung", "Wuchern" or "Peitsche", aimed the given metres ahead. Example: VaelFaehigkeit Ruf */
+	UFUNCTION(Exec)
+	void VaelFaehigkeit(const FString& Ability, float Metres = 4.0f);
 
 	/** Lets another local player join as if a controller had pressed Start, to test co-op without a second controller; optionally as "Magier" or "Floromant", "Mann" or "Frau". Example: VaelMitspieler Magier Mann */
 	/** Shows the panel of the player in the look of another class: "Magier", "Tamer", "Ingenieur", "Prophet", "Floromant"; nothing for the own class. Example: VaelHudKlasse Prophet */
