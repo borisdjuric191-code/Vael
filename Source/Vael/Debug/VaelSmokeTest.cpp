@@ -15,6 +15,7 @@
 #include "Creatures/VaelDraculaupe.h"
 #include "Nature/VaelGarden.h"
 #include "Nature/VaelRainBloom.h"
+#include "Magic/VaelWaterPuddle.h"
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelVeilMonkey.h"
 #include "Items/VaelMaterial.h"
@@ -875,6 +876,23 @@ void AVaelSmokeTest::BeginPlay()
 		}
 
 		return FString::Printf(TEXT("%s%d sprouted in the rain, %d of them carry seeds"), NumSprouted > 0 ? TEXT("") : TEXT("FAILED: "), NumSprouted, NumSeeded);
+	}, 0.1f });
+
+	// Rain water gathers into a few puddles around the player
+	Steps.Add({ TEXT("Rain puddles"), [this]()
+	{
+		int32 NumPuddles = 0;
+		float Water = 0.0f;
+		for (TActorIterator<AVaelWaterPuddle> It(GetWorld()); It; ++It)
+		{
+			if (It->GetInstigator() == nullptr)
+			{
+				++NumPuddles;
+				Water += It->GetWater();
+			}
+		}
+
+		return FString::Printf(TEXT("%s%d rain puddles holding %.1f water"), NumPuddles > 0 ? TEXT("") : TEXT("FAILED: "), NumPuddles, Water);
 	}, 0.1f });
 
 	// A surprise seed goes into Albrun's pot, grows, is researched; then one of its seeds is sown

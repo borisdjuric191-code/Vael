@@ -13,9 +13,13 @@
 #include "GameFramework/PlayerController.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelElementSource.h"
+#include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelWaterPuddle.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
+#include "VaelAssets.h"
 #include "World/VaelLightningStrike.h"
 #include "World/VaelProgressSubsystem.h"
 #include "World/VaelWorldSettings.h"
@@ -320,6 +324,8 @@ EVaelWeather AVaelRegion::PickNextWeather() const
 
 void AVaelRegion::TickRain(float DeltaSeconds)
 {
+	TickRainPuddles(DeltaSeconds);
+
 	WetnessRefreshTime -= DeltaSeconds;
 	if (WetnessRefreshTime > 0.0f)
 	{
@@ -337,6 +343,34 @@ void AVaelRegion::TickRain(float DeltaSeconds)
 		if (!bWarded && !It->IsDefeated() && (It->IsA<AVaelCharacter>() || It->IsA<AVaelCreature>()) && Contains(It->GetActorLocation()))
 		{
 			UVaelCombatStatics::ApplyStatus(nullptr, *It, EVaelStatus::Wet, WetDuration);
+		}
+	}
+}
+
+void AVaelRegion::TickRainPuddles(float DeltaSeconds)
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	RainPuddleTime -= DeltaSeconds;
+	if (RainPuddleTime > 0.0f)
+	{
+		return;
+	}
+
+	RainPuddleTime = MagicSettings->RainPuddleInterval;
+
+	UVaelElementSource* RainSource = VaelAssets::LoadOptional(MagicSettings->RainWaterSource);
+	if (RainSource == nullptr)
+	{
+		return;
+	}
+
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APlayerController* PlayerController = It->Get();
+		const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+		if (Player != nullptr && Contains(Player->GetActorLocation()))
+		{
+			AVaelWaterPuddle::GatherRain(GetWorld(), Player->GetActorLocation(), MagicSettings->RainPuddleReach, MagicSettings->RainPuddleWater, RainSource);
 		}
 	}
 }

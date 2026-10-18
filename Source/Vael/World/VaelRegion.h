@@ -142,6 +142,9 @@ private:
 	/** Keeps players and creatures in the region wet */
 	void TickRain(float DeltaSeconds);
 
+	/** Lets rain water gather into puddles around the players in the region */
+	void TickRainPuddles(float DeltaSeconds);
+
 	/** Dries everybody in the region */
 	void TickDrought(float DeltaSeconds);
 
@@ -174,6 +177,9 @@ private:
 
 	/** Seconds until wetness is refreshed or dried again */
 	float WetnessRefreshTime = 0.0f;
+
+	/** Seconds until rain water gathers again */
+	float RainPuddleTime = 0.0f;
 
 	/** Real time of the last lightning strike */
 	double LastLightningTime = -100.0;

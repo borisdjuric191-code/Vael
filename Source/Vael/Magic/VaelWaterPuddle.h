@@ -70,6 +70,12 @@ public:
 	 */
 	static AVaelWaterPuddle* AddSplash(UWorld* World, const FVector& Location, float Amount, UVaelElementSource* InSource, APawn* InInstigator);
 
+	/**
+	 *  Lets one drop of rain water gather on the ground within reach of a location: mostly onto a rain puddle already lying there,
+	 *  sometimes into a new one, never into a pond. Rain puddles belong to nobody.
+	 */
+	static void GatherRain(UWorld* World, const FVector& Location, float Reach, float Amount, UVaelElementSource* RainSource);
+
 	/** Draws all water lying within reach of a location out of every puddle, like a wave of water sucking it up; returns the water drawn */
 	static float DrainAround(UWorld* World, const FVector& Location, float Reach);
 

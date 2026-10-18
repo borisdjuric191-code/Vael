@@ -361,4 +361,28 @@ public:
 	/** Water every water plant (like the Traenenkelch) adds */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave Swell", meta = (ClampMin = 0))
 	float WaveSwellPlantWater = 1.5f;
+
+	/** Water rain gathers into puddles on the ground; nobody made it, so it wets everyone standing in it. Empty: rain leaves no puddles */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Rain Puddles")
+	TSoftObjectPtr<UVaelElementSource> RainWaterSource;
+
+	/** Seconds between two drops of rain water gathering around every player */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Rain Puddles", meta = (ClampMin = 0.05, Units = "s"))
+	float RainPuddleInterval = 0.8f;
+
+	/** Water of one such drop, in User.WaterAmount units (1 is one Wassergeschoss) */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Rain Puddles", meta = (ClampMin = 0))
+	float RainPuddleWater = 0.5f;
+
+	/** How far around a player rain water gathers, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Rain Puddles", meta = (ClampMin = 0, Units = "cm"))
+	float RainPuddleReach = 1500.0f;
+
+	/** Most rain puddles around one player; once there are this many, rain only makes them bigger */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Rain Puddles", meta = (ClampMin = 1))
+	int32 RainPuddleMaxNearby = 5;
+
+	/** Share of the drops that land on a rain puddle already lying there instead of starting a new one */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Rain Puddles", meta = (ClampMin = 0, ClampMax = 1))
+	float RainPuddleGrowShare = 0.75f;
 };

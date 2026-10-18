@@ -10,6 +10,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelElementSource.h"
+#include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInstance.h"
@@ -42,6 +43,12 @@ namespace
 
 	/** How far down water looks for ground to land on */
 	constexpr float GroundSearchDistance = 500.0f;
+
+	/** Rain water falls from this many cm over the higher of the player and the spot it lands on, so it lands on roofs and runs off them */
+	constexpr float RainDropHeight = 300.0f;
+
+	/** Rain water landing this close to a pond goes into the pond */
+	constexpr float RainPondMargin = 100.0f;
 
 	/** Seconds between two wetting steps */
 	constexpr float WetStepInterval = 0.5f;
@@ -319,6 +326,49 @@ AVaelWaterPuddle* AVaelWaterPuddle::AddSplash(UWorld* World, const FVector& Loca
 
 	Puddle->AddWater(GroundLocation, Amount);
 	return Puddle;
+}
+
+void AVaelWaterPuddle::GatherRain(UWorld* World, const FVector& Location, float Reach, float Amount, UVaelElementSource* RainSource)
+{
+	if (World == nullptr || RainSource == nullptr || Amount <= 0.0f)
+	{
+		return;
+	}
+
+	TArray<AVaelWaterPuddle*> Nearby;
+	for (TActorIterator<AVaelWaterPuddle> It(World); It; ++It)
+	{
+		if (!It->IsActorBeingDestroyed() && It->Accepts(RainSource, nullptr) && It->GetNumBlobs() > 0 && FVector::Dist2D(It->GetActorLocation(), Location) <= Reach)
+		{
+			Nearby.Add(*It);
+		}
+	}
+
+	// Rain gathers in a few places that grow, instead of wetting every spot a little
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	FVector DropLocation;
+	if (Nearby.Num() >= MagicSettings->RainPuddleMaxNearby || (Nearby.Num() > 0 && FMath::FRand() < MagicSettings->RainPuddleGrowShare))
+	{
+		const AVaelWaterPuddle* Puddle = Nearby[FMath::RandHelper(Nearby.Num())];
+		const int32 Blob = FMath::RandHelper(Puddle->GetNumBlobs());
+		const FVector2D Offset = FMath::RandPointInCircle(Puddle->BlobShownRadius[Blob]);
+		DropLocation = Puddle->BlobCenters[Blob] + FVector(Offset, 0.0f);
+	}
+	else
+	{
+		DropLocation = Location + FVector(FMath::RandPointInCircle(Reach), 0.0f);
+	}
+
+	// Ponds already hold their water
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		if (It->ProvidesElement(EVaelElement::Water) && It->IsInRange(DropLocation, RainPondMargin))
+		{
+			return;
+		}
+	}
+
+	AddSplash(World, FVector(DropLocation.X, DropLocation.Y, FMath::Max(DropLocation.Z, Location.Z) + RainDropHeight), Amount, RainSource, nullptr);
 }
 
 float AVaelWaterPuddle::DrainAround(UWorld* World, const FVector& Location, float Reach)

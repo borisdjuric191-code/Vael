@@ -108,7 +108,7 @@ def new_material(name):
     if assets.does_asset_exist(path):
         material = unreal.load_asset(path)
         if "KitVersion" in [str(parameter) for parameter in library.get_scalar_parameter_names(material)]:
-            if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= KIT_VERSION:
+            if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= KIT_VERSION - 0.001:  # stored as float32, 5.1 reads back as 5.0999
                 return None
         library.delete_all_material_expressions(material)
         created.append(path + " (graph rebuilt)")
@@ -431,6 +431,7 @@ def main():
     mage = make_source("DA_ElementSource_Water_Mage", "Zauberwasser (Magier)", instances["MI_Water_Spell_Mage"], (0.15, 0.55, 1.0, 1.0), (0.45, 0.8, 1.0, 0.8), 0.0)
     make_source("DA_ElementSource_Water_Mark", "Mark-Wasser", instances["MI_Water_Mark"], (0.25, 0.03, 0.35, 1.0), (0.18, 0.03, 0.25, 0.9), 0.85)
     make_source("DA_ElementSource_Water_Swamp", "Sumpfwasser", instances["MI_Water_Swamp"], (0.08, 0.12, 0.03, 1.0), (0.25, 0.32, 0.12, 0.75), 0.4)
+    make_source("DA_ElementSource_Water_Rain", "Regenwasser", instances["MI_Water_Rain"], (0.2, 0.26, 0.32, 1.0), (0.6, 0.68, 0.75, 0.6), 0.0)
 
     build_orb(mage)
     unreal.log("Vael water kit: created {} assets: {}".format(len(created), ", ".join(path.split("/")[-1] for path in created)))
