@@ -71,6 +71,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> BadgeMaterial;
 
+	/** Painted glass, metal and claw of the life vessel, over the liquid; without it the drawn placeholder and the claw silhouette show */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> LifeVesselPicture;
+
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UTexture2D> ClawTexture;
 
@@ -155,6 +159,9 @@ private:
 	/** Builds the fonts from the font faces */
 	void BuildFonts();
 
+	/** A small round button: its ground and the painted rim of the class where there is one */
+	void PaintMedallion(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, float Radius, const FLinearColor& Tint) const;
+
 	/** Painting helpers, all in design pixels of the panel */
 	void PaintBox(FSlateWindowElementList& Out, int32 Layer, const FSlateBrush* Brush, const FVector2f& Position, const FVector2f& Size, const FLinearColor& Tint = FLinearColor::White) const;
 	void PaintText(FSlateWindowElementList& Out, int32 Layer, const FText& Text, const FSlateFontInfo& Font, const FVector2f& Position, const FLinearColor& Color, float Alignment = 0.0f, float MaxWidth = 0.0f) const;
@@ -221,4 +228,7 @@ private:
 	EVaelPath Path = EVaelPath::None;
 	float DodgeLeft = 0.0f;
 	bool bHasPlayer = false;
+
+	/** True while the frame of the class is the painted one: its corners and middle are part of the picture */
+	bool bPaintedFrame = false;
 };

@@ -38,10 +38,10 @@ namespace
 
 	/** Layout of the panel in design pixels, from its top left corner */
 	constexpr float FrameTop = 28.0f;
-	constexpr float VesselSize = 168.0f;
+	constexpr float VesselSize = 182.0f;
 	constexpr float ClawSize = 178.0f;
-	const FVector2f LifeCenter(92.0f, 136.0f);
-	const FVector2f ClassCenter(788.0f, 136.0f);
+	const FVector2f LifeCenter(94.0f, 132.0f);
+	const FVector2f ClassCenter(786.0f, 132.0f);
 	constexpr float SlotSize = 76.0f;
 	constexpr float SlotGap = 6.0f;
 	constexpr float SlotTop = 116.0f;
@@ -51,6 +51,9 @@ namespace
 	constexpr float TailTop = 212.0f;
 	constexpr float TailHeight = 14.0f;
 	constexpr float CornerSize = 34.0f;
+
+	/** Painted vessels are rendered a little larger than their mask, with room for the claw; see Tools/HUD/vael_hud_gemalt.py */
+	constexpr float VesselPictureScale = 1.16f;
 
 	/** Margin to the edge of the screen and between stacked panels */
 	constexpr float ScreenMargin = 20.0f;
@@ -67,6 +70,7 @@ namespace
 	const FName LightParameter(TEXT("Light"));
 	const FName ShadowParameter(TEXT("Shadow"));
 	const FName TwilightParameter(TEXT("Twilight"));
+	const FName GlassAmountParameter(TEXT("GlassAmount"));
 
 	/** Colour from 8 bit sRGB values */
 	FLinearColor Hex(uint8 R, uint8 G, uint8 B, uint8 A = 255)
@@ -92,6 +96,7 @@ UVaelPlayerHUDWidget::UVaelPlayerHUDWidget(const FObjectInitializer& ObjectIniti
 	: Super(ObjectInitializer)
 {
 	LifeVesselMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Gefaess_Leben"));
+	LifeVesselPicture = HudAsset<UTexture2D>(TEXT("T_HUD_Gemalt_Leben"), TEXT("Gemalt"));
 	CooldownMaterial = HudAsset<UMaterialInterface>(TEXT("M_HUD_Wisch"));
 	TailMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Schwanz"));
 	MedallionMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Medaillon"));
@@ -128,7 +133,7 @@ void UVaelPlayerHUDWidget::NativeConstruct()
 	BuildFonts();
 
 	// Shared pictures, loaded once so painting only looks them up
-	for (const TSoftObjectPtr<UTexture2D>& Texture : { ClawTexture, ClawThornsTexture, DragonHeadTexture, PathTextures[0], PathTextures[1], PathTextures[2],
+	for (const TSoftObjectPtr<UTexture2D>& Texture : { LifeVesselPicture, ClawTexture, ClawThornsTexture, DragonHeadTexture, PathTextures[0], PathTextures[1], PathTextures[2],
 		PotionIcon, DodgeIcon, SeedIcon, MenuIcons[0], MenuIcons[1], MenuIcons[2] })
 	{
 		GetTextureBrush(Texture);
@@ -138,6 +143,12 @@ void UVaelPlayerHUDWidget::NativeConstruct()
 	{
 		LifeVesselInstance = UMaterialInstanceDynamic::Create(Life, this);
 		SetMaterialBrush(LifeVesselBrush, LifeVesselInstance);
+
+		// The painted glass lies over the liquid: the drawn glass steps back
+		if (FindTextureBrush(LifeVesselPicture) != nullptr)
+		{
+			LifeVesselInstance->SetScalarParameterValue(GlassAmountParameter, 0.0f);
+		}
 	}
 	if (UMaterialInterface* Tail = VaelAssets::LoadOptional(TailMaterial))
 	{
@@ -241,17 +252,37 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 		return;
 	}
 
-	if (UMaterialInterface* Frame = VaelAssets::LoadOptional(Data->FrameMaterial))
+	// The painted frame where there is one, laid into its material for the veins and the ways; the drawn one otherwise
+	UTexture2D* FramePicture = VaelAssets::LoadOptional(Data->FramePicture);
+	UMaterialInterface* FramePictureMaterial = VaelAssets::LoadOptional(Data->FramePictureMaterial);
+	if (FramePicture != nullptr && FramePictureMaterial != nullptr)
+	{
+		FrameInstance = UMaterialInstanceDynamic::Create(FramePictureMaterial, this);
+		FrameInstance->SetTextureParameterValue(TEXT("Picture"), FramePicture);
+		if (UTexture2D* FrameMask = VaelAssets::LoadOptional(Data->FrameMask))
+		{
+			FrameInstance->SetTextureParameterValue(TEXT("Mask"), FrameMask);
+		}
+		bPaintedFrame = true;
+	}
+	else if (UMaterialInterface* Frame = VaelAssets::LoadOptional(Data->FrameMaterial))
 	{
 		FrameInstance = UMaterialInstanceDynamic::Create(Frame, this);
+		bPaintedFrame = false;
 	}
 	SetMaterialBrush(FrameBrush, FrameInstance);
 
 	if (UMaterialInterface* Vessel = VaelAssets::LoadOptional(Data->VesselMaterial))
 	{
 		ClassVesselInstance = UMaterialInstanceDynamic::Create(Vessel, this);
+		if (GetTextureBrush(Data->VesselPicture) != nullptr)
+		{
+			ClassVesselInstance->SetScalarParameterValue(GlassAmountParameter, 0.0f);
+		}
 	}
 	SetMaterialBrush(ClassVesselBrush, ClassVesselInstance);
+	GetTextureBrush(Data->SlotPicture);
+	GetTextureBrush(Data->MedallionPicture);
 	SetMaterialBrush(SlotBrush, VaelAssets::LoadOptional(Data->SlotMaterial));
 
 	GetTextureBrush(Data->CornerOrnament);
@@ -473,6 +504,20 @@ void UVaelPlayerHUDWidget::PaintText(FSlateWindowElementList& Out, int32 Layer, 
 	FSlateDrawElement::MakeText(Out, Layer + 1, GetCachedGeometry().ToPaintGeometry(Size, FSlateLayoutTransform(TopLeft)), Text, Font, ESlateDrawEffect::None, Color);
 }
 
+void UVaelPlayerHUDWidget::PaintMedallion(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, float Radius, const FLinearColor& Tint) const
+{
+	const FSlateBrush* Painted = ShownData != nullptr ? FindTextureBrush(ShownData->MedallionPicture) : nullptr;
+	if (Painted == nullptr)
+	{
+		PaintBox(Out, Layer, &MedallionBrush, Center - FVector2f(Radius), FVector2f(Radius * 2.0f), Tint);
+		return;
+	}
+
+	// Dark ground inside, the painted rim of the class around it
+	PaintBox(Out, Layer, &MedallionBrush, Center - FVector2f(Radius * 0.85f), FVector2f(Radius * 1.7f), FLinearColor(0.2f, 0.18f, 0.16f));
+	PaintBox(Out, Layer + 1, Painted, Center - FVector2f(Radius * 1.2f), FVector2f(Radius * 2.4f));
+}
+
 void UVaelPlayerHUDWidget::PaintLines(FSlateWindowElementList& Out, int32 Layer, const TArray<FVector2f>& Points, const FLinearColor& Color, float Thickness) const
 {
 	FSlateDrawElement::MakeLines(Out, Layer, GetCachedGeometry().ToPaintGeometry(), Points, ESlateDrawEffect::None, Color, true, Thickness);
@@ -570,7 +615,8 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	PaintBox(OutDrawElements, L, &FrameBrush, O + FVector2f(0.0f, FrameTop), FVector2f(PanelWidth, PanelHeight - FrameTop));
 
 	// Corner and centre ornaments
-	if (const FSlateBrush* Corner = FindTextureBrush(ShownData->CornerOrnament))
+	const FSlateBrush* Corner = bPaintedFrame ? nullptr : FindTextureBrush(ShownData->CornerOrnament);
+	if (Corner != nullptr)
 	{
 		for (const FVector2f& At : { FVector2f(-8.0f, FrameTop - 8.0f), FVector2f(PanelWidth - CornerSize + 8.0f, FrameTop - 8.0f),
 			FVector2f(-8.0f, PanelHeight - CornerSize + 6.0f), FVector2f(PanelWidth - CornerSize + 8.0f, PanelHeight - CornerSize + 6.0f) })
@@ -578,18 +624,28 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 			PaintBox(OutDrawElements, L + 4, Corner, O + At, FVector2f(CornerSize), Frame);
 		}
 	}
-	PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->CenterOrnament), O + FVector2f(PanelWidth * 0.5f - 22.0f, FrameTop - 22.0f), FVector2f(44.0f), Frame);
+	if (!bPaintedFrame)
+	{
+		PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->CenterOrnament), O + FVector2f(PanelWidth * 0.5f - 22.0f, FrameTop - 22.0f), FVector2f(44.0f), Frame);
+	}
 
 	// The vessels, each held by a claw of the Urdrachin; on the way of shadow the claws grow thorns
 	const FLinearColor ClawColor(0.11f, 0.085f, 0.07f, 1.0f);
-	for (const FVector2f& Center : { LifeCenter, ClassCenter })
+	const FSlateBrush* Pictures[] = { FindTextureBrush(LifeVesselPicture), FindTextureBrush(ShownData->VesselPicture) };
+	const FVector2f Centers[] = { LifeCenter, ClassCenter };
+	for (int32 Index = 0; Index < 2; ++Index)
 	{
-		const FVector2f ClawAt = O + Center - FVector2f(ClawSize * 0.5f, ClawSize * 0.5f - 6.0f);
-		PaintBox(OutDrawElements, L + 1, FindTextureBrush(ClawTexture), ClawAt, FVector2f(ClawSize), ClawColor);
+		const FVector2f ClawAt = O + Centers[Index] - FVector2f(ClawSize * 0.5f, ClawSize * 0.5f - 6.0f);
+		if (Pictures[Index] == nullptr)
+		{
+			PaintBox(OutDrawElements, L + 1, FindTextureBrush(ClawTexture), ClawAt, FVector2f(ClawSize), ClawColor);
+		}
 		if (Path == EVaelPath::Shadow)
 		{
-			PaintBox(OutDrawElements, L + 1, FindTextureBrush(ClawThornsTexture), ClawAt, FVector2f(ClawSize), FLinearColor(0.2f, 0.14f, 0.24f));
+			PaintBox(OutDrawElements, L + 4, FindTextureBrush(ClawThornsTexture), ClawAt, FVector2f(ClawSize), FLinearColor(0.2f, 0.14f, 0.24f));
 		}
+		const float PictureSize = VesselSize * VesselPictureScale;
+		PaintBox(OutDrawElements, L + 3, Pictures[Index], O + Centers[Index] - FVector2f(PictureSize * 0.5f), FVector2f(PictureSize));
 	}
 	PaintBox(OutDrawElements, L + 2, &LifeVesselBrush, O + LifeCenter - FVector2f(VesselSize * 0.5f), FVector2f(VesselSize));
 	PaintBox(OutDrawElements, L + 2, &ClassVesselBrush, O + ClassCenter - FVector2f(VesselSize * 0.5f), FVector2f(VesselSize));
@@ -598,7 +654,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 
 	// Level badge on the class vessel
 	const FVector2f LevelAt = O + ClassCenter + FVector2f(52.0f, -70.0f);
-	PaintBox(OutDrawElements, L + 3, &MedallionBrush, LevelAt - FVector2f(17.0f), FVector2f(34.0f), Frame);
+	PaintMedallion(OutDrawElements, L + 4, LevelAt, 17.0f, Frame);
 	PaintText(OutDrawElements, L + 5, LevelText, NumberFont, LevelAt - FVector2f(0.0f, 11.0f), TextColor, 0.5f);
 
 	// Class name, player and level, the sworn way
@@ -615,8 +671,8 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
 		const FVector2f At = O + FVector2f(548.0f + Index * 34.0f, FrameTop);
-		PaintBox(OutDrawElements, L + 3, &MedallionBrush, At - FVector2f(14.0f), FVector2f(28.0f), Frame);
-		PaintBox(OutDrawElements, L + 4, FindTextureBrush(MenuIcons[Index]), At - FVector2f(9.0f), FVector2f(18.0f), TextColor);
+		PaintMedallion(OutDrawElements, L + 3, At, 14.0f, Frame);
+		PaintBox(OutDrawElements, L + 5, FindTextureBrush(MenuIcons[Index]), At - FVector2f(9.0f), FVector2f(18.0f), TextColor);
 	}
 
 	// Strip above the abilities: element queue and quick slots, or the seed belt
@@ -665,13 +721,20 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	{
 		const FSlotState& State = Slots[Index];
 		const FVector2f At = O + FVector2f(BarLeft + Index * (SlotSize + SlotGap), SlotTop);
-		PaintBox(OutDrawElements, L + 2, &SlotBrush, At, FVector2f(SlotSize), State.bLit ? FLinearColor(1.4f, 1.3f, 1.15f) : FLinearColor::White);
+		// With a painted rim the drawn slot is only the dark ground inside it
+		const bool bPaintedSlot = FindTextureBrush(ShownData->SlotPicture) != nullptr;
+		const float Inset = bPaintedSlot ? 7.0f : 0.0f;
+		PaintBox(OutDrawElements, L + 2, &SlotBrush, At + FVector2f(Inset), FVector2f(SlotSize - 2.0f * Inset), bPaintedSlot ? FLinearColor(0.25f, 0.22f, 0.2f) : State.bLit ? FLinearColor(1.4f, 1.3f, 1.15f) : FLinearColor::White);
 		const FLinearColor IconTint = State.IconColor * (State.bDim ? 0.35f : 1.0f);
 		PaintBox(OutDrawElements, L + 3, State.Icon, At + FVector2f(14.0f), FVector2f(SlotSize - 28.0f), IconTint);
+		if (const FSlateBrush* Rim = FindTextureBrush(ShownData->SlotPicture))
+		{
+			PaintBox(OutDrawElements, L + 4, Rim, At - FVector2f(5.0f), FVector2f(SlotSize + 10.0f), State.bLit ? FLinearColor(1.5f, 1.4f, 1.25f) : FLinearColor::White);
+		}
 
 		if (State.CooldownLeft > 0.0f && CooldownBrushes.IsValidIndex(Index))
 		{
-			PaintBox(OutDrawElements, L + 4, &CooldownBrushes[Index], At + FVector2f(4.0f), FVector2f(SlotSize - 8.0f));
+			PaintBox(OutDrawElements, L + 5, &CooldownBrushes[Index], At + FVector2f(4.0f), FVector2f(SlotSize - 8.0f));
 			PaintText(OutDrawElements, L + 6, FText::AsNumber(FMath::CeilToInt(State.CooldownLeft)), NumberFont, At + FVector2f(SlotSize * 0.5f, SlotSize * 0.5f - 12.0f), TextColor, 0.5f);
 		}
 
@@ -681,17 +744,17 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 
 	// Potion and dodge as round buttons beside the vessels
 	const FVector2f PotionAt = O + FVector2f(160.0f, 190.0f);
-	PaintBox(OutDrawElements, L + 3, &MedallionBrush, PotionAt - FVector2f(18.0f), FVector2f(36.0f), Frame);
-	PaintBox(OutDrawElements, L + 4, FindTextureBrush(PotionIcon), PotionAt - FVector2f(11.0f), FVector2f(22.0f), Hex(0xD9, 0x57, 0x4A));
+	PaintMedallion(OutDrawElements, L + 3, PotionAt, 18.0f, Frame);
+	PaintBox(OutDrawElements, L + 5, FindTextureBrush(PotionIcon), PotionAt - FVector2f(11.0f), FVector2f(22.0f), Hex(0xD9, 0x57, 0x4A));
 	PaintBox(OutDrawElements, L + 5, &BadgeBrush, PotionAt + FVector2f(6.0f, -22.0f), FVector2f(16.0f));
 	PaintText(OutDrawElements, L + 6, PotionText, SmallFont, PotionAt + FVector2f(14.0f, -22.0f), GroundColor, 0.5f);
 
 	const FVector2f DodgeAt = O + FVector2f(718.0f, 190.0f);
-	PaintBox(OutDrawElements, L + 3, &MedallionBrush, DodgeAt - FVector2f(17.0f), FVector2f(34.0f), Frame);
-	PaintBox(OutDrawElements, L + 4, FindTextureBrush(DodgeIcon), DodgeAt - FVector2f(11.0f), FVector2f(22.0f), TextColor);
+	PaintMedallion(OutDrawElements, L + 3, DodgeAt, 17.0f, Frame);
+	PaintBox(OutDrawElements, L + 5, FindTextureBrush(DodgeIcon), DodgeAt - FVector2f(11.0f), FVector2f(22.0f), TextColor);
 	if (DodgeLeft > 0.0f)
 	{
-		PaintBox(OutDrawElements, L + 5, &DodgeCooldownBrush, DodgeAt - FVector2f(15.0f), FVector2f(30.0f));
+		PaintBox(OutDrawElements, L + 6, &DodgeCooldownBrush, DodgeAt - FVector2f(15.0f), FVector2f(30.0f));
 	}
 
 	// Experience: the tail of the Urdrachin, from the end ornament of the class to a small dragon head

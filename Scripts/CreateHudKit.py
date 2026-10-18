@@ -18,6 +18,7 @@ import unreal
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHAPES = os.path.join(HERE, "Data", "HUD")
+PAINTED = os.path.join(HERE, "Data", "HUD", "Gemalt")
 FONTS = os.path.join(HERE, "Data", "Fonts")
 HUD = "/Game/Vael/UI/HUD"
 FONT_FOLDER = "/Game/Vael/UI/Fonts"
@@ -28,7 +29,7 @@ tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 created = []
 
-KIT_VERSION = 1.3
+KIT_VERSION = 1.5
 
 
 def srgb(hex_color, a=1.0):
@@ -198,13 +199,14 @@ def build_vessel(default_mask):
     surface_color = g.color("SurfaceColor", srgb("D9574A"))
     surface_color2 = g.color("SurfaceColor2", srgb("F2D98A"))
     glass_color = g.color("GlassColor", rgb(0.5, 0.52, 0.55))
+    glass_amount = g.scalar("GlassAmount", 1.0)
 
     uv, u, v = uv_parts(g)
     sample = g.node(unreal.MaterialExpressionTextureSample, 9, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     g.link(mask_tex, sample, "Tex")
     g.link(uv, sample, "UVs")
     inner = g.channel(8, sample, "R")
-    glass = g.channel(8, sample, "G")
+    glass = g.mul(7, g.channel(8, sample, "G"), glass_amount)
     crack_mask = g.channel(8, sample, "B")
     alpha = g.channel(8, sample, "A")
 
@@ -318,6 +320,73 @@ def build_frame(default_veins):
     color = g.lerp(2, color, g.mul(3, vein_color, g.const(1.2)), g.mul(3, g.mul(4, veins, inside), vein_strength))
 
     return finish(material, g, color, g.mul(2, inside, opacity_value))
+
+
+# ---------------------------------------------------------------- Painted frame
+
+def build_painted_frame(default_picture, default_mask, default_veins):
+    """The frame rendered in Blender, laid into a material: Nid veins creep over its panel with the corruption, the way of shadow turns
+    it to dark iron with violet gems that glow brighter with corruption, the way of light warms it, twilight goes from one to the other"""
+    material, g = ui_material("M_HUD_Rahmen_Bild")
+    if material is None:
+        return load("M_HUD_Rahmen_Bild")
+
+    picture = g.node(unreal.MaterialExpressionTextureObjectParameter, 11, parameter_name="Picture", texture=default_picture)
+    mask_tex = g.node(unreal.MaterialExpressionTextureObjectParameter, 11, parameter_name="Mask", texture=default_mask,
+                      sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    vein_tex = g.node(unreal.MaterialExpressionTextureObjectParameter, 11, parameter_name="Veins", texture=default_veins,
+                      sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    corruption = g.scalar("Corruption", 0.0)
+    light = g.scalar("Light", 0.0)
+    shadow = g.scalar("Shadow", 0.0)
+    twilight = g.scalar("Twilight", 0.0)
+    vein_color = g.color("VeinColor", srgb("9B5DE5"))
+    vein_strength = g.scalar("VeinStrength", 0.6)
+
+    uv, u, v = uv_parts(g)
+    sample = g.node(unreal.MaterialExpressionTextureSample, 9)
+    g.link(picture, sample, "Tex")
+    g.link(uv, sample, "UVs")
+    color = g.mask(8, sample, r=True, g=True, b=True, source_output="RGB") if hasattr(g, "mask") else None
+    if color is None:
+        color = g.node(unreal.MaterialExpressionComponentMask, 8, r=True, g=True, b=True, a=False)
+        g.link(sample, color, "", "RGB")
+    alpha = g.channel(8, sample, "A")
+    mask = g.node(unreal.MaterialExpressionTextureSample, 9, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    g.link(mask_tex, mask, "Tex")
+    g.link(uv, mask, "UVs")
+    # The render shades the mask a little, so its channels are cut clean
+    panel = g.sharp(7, g.sub(8, g.channel(9, mask, "R"), g.const(0.25)), 4.0)
+    gems = g.sharp(7, g.sub(8, g.channel(9, mask, "G"), g.const(0.5)), 5.0)
+
+    lit = g.add(7, light, g.mul(7, twilight, g.one_minus(8, u)))
+    dark = g.add(7, shadow, g.mul(7, twilight, u))
+
+    # Shadow: drained to dark iron
+    grey = g.op(unreal.MaterialExpressionDotProduct, 7, color, g.const3(rgb(0.3, 0.59, 0.11), 8))
+    iron = g.mul(6, grey, g.const3(rgb(0.55, 0.52, 0.62), 7))
+    color = g.lerp(5, color, g.mul(6, iron, g.const(0.75)), g.mul(6, dark, g.const(0.85)))
+    # Light: a warm glow over everything
+    color = g.add(5, color, g.mul(6, g.const3(rgb(0.35, 0.25, 0.12), 7), g.mul(6, lit, g.const(0.45))))
+    # Gems turn violet on the way of shadow and glow with corruption
+    glow = g.mul(5, vein_color, g.add(6, g.const(0.6), g.mul(6, corruption, g.const(2.0))))
+    color = g.lerp(4, color, glow, g.mul(5, gems, dark))
+
+    # Nid veins over the panel
+    time = g.node(unreal.MaterialExpressionTime, 10)
+    vs1 = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    g.link(vein_tex, vs1, "Tex")
+    g.link(uv, vs1, "UVs")
+    vs2 = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    g.link(vein_tex, vs2, "Tex")
+    g.link(g.sub(9, g.const2(1.0, 1.0), uv), vs2, "UVs")
+    vein1 = g.mul(6, g.channel(7, vs1, "R"), g.sharp(6, g.sub(7, corruption, g.channel(7, vs1, "G")), 25.0))
+    second = g.sub(7, g.mul(7, corruption, g.const(2.0)), g.const(1.0))
+    vein2 = g.mul(6, g.channel(7, vs2, "R"), g.sharp(6, g.sub(7, second, g.channel(7, vs2, "G")), 25.0))
+    pulse = g.add(5, g.const(0.8), g.mul(5, g.sin(6, g.mul(6, time, g.const(2.5))), g.const(0.2)))
+    veins = g.sat(4, g.mul(4, g.mul(5, g.add(5, vein1, vein2), g.add(5, g.const(1.0), g.mul(5, dark, g.const(0.6)))), pulse))
+    color = g.lerp(3, color, g.mul(4, vein_color, g.const(1.2)), g.mul(4, g.mul(5, veins, panel), vein_strength))
+    return finish(material, g, color, alpha)
 
 
 # ---------------------------------------------------------------- Slot, medallion and badge
@@ -459,7 +528,7 @@ def build_window():
 
 # ---------------------------------------------------------------- Imports
 
-def import_files(folder, prefix_filter, destination, srgb_on=False):
+def import_files(folder, prefix_filter, destination, srgb_on=False, compressed=False):
     loaded = {}
     for file in sorted(os.listdir(folder)):
         if not file.lower().endswith(".png") or not file.startswith(prefix_filter):
@@ -479,7 +548,7 @@ def import_files(folder, prefix_filter, destination, srgb_on=False):
             if texture is None:
                 unreal.log_error("Vael HUD kit: could not import " + file)
                 continue
-            texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
+            texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT if compressed else unreal.TextureCompressionSettings.TC_EDITOR_ICON)
             texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
             texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
             texture.set_editor_property("srgb", srgb_on)
@@ -604,6 +673,30 @@ def class_data(spec, shapes, symbols, vessel, frame, slot):
     created.append(path)
 
 
+PAINTED_CLASSES = {
+    "Magier": {"frame": "T_HUD_Gemalt_Rahmen_Magier", "vessel": "T_HUD_Gemalt_Gefaess_Magier", "slot": "T_HUD_Gemalt_Feld_Magier", "medallion": "T_HUD_Gemalt_Medaillon_Magier"},
+    "Floromant": {"frame": "T_HUD_Gemalt_Rahmen_Floromant", "vessel": "T_HUD_Gemalt_Gefaess_Floromant", "slot": "T_HUD_Gemalt_Feld_Floromant", "medallion": "T_HUD_Gemalt_Medaillon_Floromant"},
+}
+
+
+def apply_painted(painted, painted_frame, veins):
+    """Enters the painted pieces into the data of the classes that have them; only these fields are touched"""
+    for name, pieces in PAINTED_CLASSES.items():
+        data = unreal.load_asset("{}/DA_HUDKlasse_{}".format(CLASS_FOLDER, name))
+        if data is None or pieces["frame"] not in painted:
+            continue
+        mi = instance(painted_frame, "MI_HUD_Rahmen_Bild_" + name, None, None,
+                      {"Picture": painted[pieces["frame"]], "Mask": painted[pieces["frame"] + "_Maske"], "Veins": veins})
+        data.set_editor_property("frame_picture", painted[pieces["frame"]])
+        data.set_editor_property("frame_mask", painted[pieces["frame"] + "_Maske"])
+        data.set_editor_property("frame_picture_material", mi)
+        data.set_editor_property("vessel_picture", painted[pieces["vessel"]])
+        data.set_editor_property("slot_picture", painted[pieces["slot"]])
+        data.set_editor_property("medallion_picture", painted[pieces["medallion"]])
+        assets.save_loaded_asset(data, False)
+        created.append("DA_HUDKlasse_{} (painted pieces)".format(name))
+
+
 def widget_blueprint():
     path = HUD + "/WBP_SpielerHUD"
     if assets.does_asset_exist(path):
@@ -622,6 +715,13 @@ def widget_blueprint():
 def main():
     # Fonts: made by a game run with -VaelMakeFonts (font faces need the UI system, see VaelScriptStatics::MakeFontAssets)
     shapes = import_files(SHAPES, "T_HUD_", HUD + "/Formen")
+    painted = {}
+    if os.path.isdir(PAINTED):
+        painted.update(import_files(PAINTED, "T_HUD_Gemalt_", HUD + "/Gemalt", srgb_on=True, compressed=True))
+        # The masks of the frames are data, not colour
+        for key in [k for k in painted if k.endswith("_Maske")]:
+            painted[key].set_editor_property("srgb", False)
+            assets.save_loaded_asset(painted[key], False)
     symbols = import_files(SHAPES, "T_Symbol_", HUD + "/Symbole")
 
     vessel = build_vessel(shapes["T_HUD_Gefaess_Leben"])
@@ -642,6 +742,10 @@ def main():
 
     for spec in CLASSES:
         class_data(spec, shapes, symbols, vessel, frame, slot)
+
+    if painted:
+        painted_frame = build_painted_frame(painted["T_HUD_Gemalt_Rahmen_Magier"], painted["T_HUD_Gemalt_Rahmen_Magier_Maske"], shapes["T_HUD_Adern"])
+        apply_painted(painted, painted_frame, shapes["T_HUD_Adern"])
 
     widget_blueprint()
     assets.save_directory("/Game/Vael/UI")

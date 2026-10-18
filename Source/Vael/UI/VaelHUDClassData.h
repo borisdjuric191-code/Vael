@@ -147,6 +147,29 @@ public:
 	UPROPERTY(EditAnywhere, Category="Look")
 	TSoftObjectPtr<UTexture2D> ClassIcon;
 
+	/** Painted pieces (rendered in Blender by Tools/HUD/vael_hud_gemalt.py); each one, where set, takes the place of the drawn placeholder.
+	 *  The frame with its mask (red: the panel inside, green: gems, seals and blossoms that glow on the way of shadow) goes into FramePictureMaterial. */
+	UPROPERTY(EditAnywhere, Category="Painted")
+	TSoftObjectPtr<UTexture2D> FramePicture;
+
+	UPROPERTY(EditAnywhere, Category="Painted")
+	TSoftObjectPtr<UTexture2D> FrameMask;
+
+	/** Material for the painted frame, an instance of M_HUD_Rahmen_Bild */
+	UPROPERTY(EditAnywhere, Category="Painted")
+	TSoftObjectPtr<UMaterialInterface> FramePictureMaterial;
+
+	/** Glass, metal and claw of the class vessel; the liquid is painted behind it from the vessel material */
+	UPROPERTY(EditAnywhere, Category="Painted")
+	TSoftObjectPtr<UTexture2D> VesselPicture;
+
+	/** Rim of the ability slots and of the small round buttons */
+	UPROPERTY(EditAnywhere, Category="Painted")
+	TSoftObjectPtr<UTexture2D> SlotPicture;
+
+	UPROPERTY(EditAnywhere, Category="Painted")
+	TSoftObjectPtr<UTexture2D> MedallionPicture;
+
 	UPROPERTY(EditAnywhere, Category="Abilities")
 	TArray<FVaelHUDAbilitySlot> Abilities;
 
