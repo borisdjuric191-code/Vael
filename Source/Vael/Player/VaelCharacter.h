@@ -374,6 +374,12 @@ private:
 	/** Mesh scale outside of a dodge roll */
 	FVector DefaultMeshScale = FVector::OneVector;
 
+	/** Place of the mesh on the ground; the Floromant hovers above it */
+	FVector DefaultMeshLocation = FVector::ZeroVector;
+
+	/** Lets a Floromant hover with a gentle bob, a mage stand on the ground */
+	void UpdateHover();
+
 	/** Walking speed while not channeling a spell */
 	float DefaultWalkSpeed = 0.0f;
 

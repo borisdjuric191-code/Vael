@@ -32,6 +32,14 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Speed = GroundVelocity.Size();
 	bIsMoving = Speed > MovingThreshold;
 
+	// The Floromant hovers instead of walking: its legs stay still while it glides
+	const bool bHovering = Character->IsFloromant();
+	if (bHovering)
+	{
+		Speed = 0.0f;
+		bIsMoving = false;
+	}
+
 	// Keep the last direction while standing, so the blend doesn't jump back to forward
 	if (bIsMoving)
 	{
@@ -41,7 +49,7 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
 	bIsFalling = Movement != nullptr && Movement->IsFalling();
 
-	bIsDodging = Character->IsDodging();
+	bIsDodging = Character->IsDodging() && !bHovering;
 	bIsDowned = Character->IsDowned();
 
 	const UAbilitySystemComponent* AbilitySystem = Character->GetAbilitySystemComponent();

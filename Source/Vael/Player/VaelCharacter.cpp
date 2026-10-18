@@ -24,6 +24,7 @@
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelElementOrbitComponent.h"
 #include "Magic/VaelGameplayTags.h"
@@ -228,6 +229,7 @@ void AVaelCharacter::BeginPlay()
 	LoadedSpellDashMontage = VaelAssets::LoadOptional(SpellDashMontage);
 
 	DefaultMeshScale = GetMesh()->GetRelativeScale3D();
+	DefaultMeshLocation = GetMesh()->GetRelativeLocation();
 	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 
 	// Every player starts with a few healing potions in the bag
@@ -346,6 +348,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	FlickerHandLight();
+	UpdateHover();
 
 #if ENABLE_DRAW_DEBUG
 	if (bShowStatusText)
@@ -521,6 +524,25 @@ void AVaelCharacter::ShowDashBurst()
 #endif
 }
 
+void AVaelCharacter::UpdateHover()
+{
+	if (!IsFloromant() || bDowned)
+	{
+		if (!bDowned && !GetMesh()->GetRelativeLocation().Equals(DefaultMeshLocation))
+		{
+			GetMesh()->SetRelativeLocation(DefaultMeshLocation);
+		}
+		return;
+	}
+
+	// A little above the ground, rising and sinking slowly; collision and walking stay as for every class
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Bob = FMath::Sin(Time * Settings->HoverBobSpeed * 2.0f * UE_PI + GetUniqueID()) * Settings->HoverBob;
+	GetMesh()->SetRelativeLocation(DefaultMeshLocation + FVector(0.0f, 0.0f, Settings->HoverHeight + Bob));
+	Wings->SetRelativeLocation(FVector(0.0f, 0.0f, Settings->HoverHeight + Bob));
+}
+
 void AVaelCharacter::BeginRollLook(UAnimMontage* Montage, float Duration)
 {
 	// The body rolls the way it moves; it turns back to the aim direction afterwards
@@ -528,6 +550,31 @@ void AVaelCharacter::BeginRollLook(UAnimMontage* Montage, float Duration)
 	SetActorRotation(DodgeDirection.Rotation());
 
 	ActiveRollMontage = nullptr;
+
+	// A Floromant doesn't roll: a quick beat of the wings carries it aside in a cloud of pink and turquoise petals
+	if (IsFloromant())
+	{
+		Wings->Burst(Duration + 0.15f);
+		for (const FLinearColor& Color : { FLinearColor(0.82f, 0.4f, 0.6f), FLinearColor(0.31f, 0.7f, 0.66f) })
+		{
+			FVaelDebris Petals;
+			Petals.Count = 10;
+			Petals.Spread = 30.0f;
+			Petals.Speed = 160.0f;
+			Petals.Lift = 140.0f;
+			Petals.Gravity = 120.0f;
+			Petals.Drag = 2.5f;
+			Petals.Lifetime = 0.9f;
+			Petals.MinSize = 3.0f;
+			Petals.MaxSize = 6.0f;
+			Petals.Color = Color;
+			Petals.Glow = 1.5f;
+			Petals.bSoft = true;
+			Petals.bLandOnGround = false;
+			AVaelDebrisBurst::Spawn(this, GetActorLocation() - DodgeDirection * 40.0f, Petals);
+		}
+		return;
+	}
 
 	if (Montage != nullptr && Duration > 0.0f && PlayAnimMontage(Montage, Montage->GetPlayLength() / Duration) > 0.0f)
 	{

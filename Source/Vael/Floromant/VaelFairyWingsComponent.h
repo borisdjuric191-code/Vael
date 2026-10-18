@@ -30,6 +30,9 @@ public:
 	/** Grows or folds the wings away */
 	void SetWingsShown(bool bShown);
 
+	/** A few quick, strong beats, like when the Floromant darts aside */
+	void Burst(float Seconds = 0.45f) { BurstTimeLeft = Seconds; }
+
 	/** Lets the wings shine faintly in the colour, for example the colour of the picked seed; 0 strength for none */
 	void SetGlow(const FLinearColor& Color, float Strength);
 
@@ -52,6 +55,9 @@ private:
 
 	/** Angle of the beat, advanced by the beat rate */
 	float BeatPhase = 0.0f;
+
+	/** Seconds of quick, strong beats left */
+	float BurstTimeLeft = 0.0f;
 
 	bool bShown = false;
 };

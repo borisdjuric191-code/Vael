@@ -133,11 +133,13 @@ void UVaelFairyWingsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	const AActor* Owner = GetOwner();
 	const bool bMoving = Owner != nullptr && Owner->GetVelocity().Size2D() > WingWalkSpeed;
-	BeatPhase += DeltaTime * 2.0f * UE_PI * (bMoving ? Settings->WingBeatMoving : Settings->WingBeatIdle);
+	BurstTimeLeft = FMath::Max(0.0f, BurstTimeLeft - DeltaTime);
+	const float Burst = BurstTimeLeft > 0.0f ? 1.0f : 0.0f;
+	BeatPhase += DeltaTime * 2.0f * UE_PI * (bMoving ? Settings->WingBeatMoving : Settings->WingBeatIdle) * (1.0f + 3.0f * Burst);
 
 	// The wings open and fold back around their hinges; the beat is quick on the way back and lingers when open, like a moth
 	const float Beat = FMath::Sin(BeatPhase);
-	const float Swing = WingRestAngle + WingBeatAngle * (Beat > 0.0f ? Beat : Beat * 0.6f);
+	const float Swing = WingRestAngle + WingBeatAngle * (1.0f + 0.8f * Burst) * (Beat > 0.0f ? Beat : Beat * 0.6f);
 	const float Flutter = 3.0f * FMath::Sin(BeatPhase * 2.3f);
 
 	for (int32 Side = 0; Side < Hinges.Num(); ++Side)
