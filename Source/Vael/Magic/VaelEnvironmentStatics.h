@@ -31,4 +31,11 @@ public:
 	 *  puddles, ponds, water plants and rain within reach. The puddles are drawn into the wave and drain away; ponds and plants stay.
 	 */
 	static float DrawWaveWater(const AActor* Caster);
+
+	/**
+	 *  Where a mage draws the water of the environment from, for the strand that runs up to the orb: a water plant nearby,
+	 *  else the water the mage stands in, a little ahead of the feet. Gives the color of that water before it turns into spell water.
+	 *  False if there is no such water.
+	 */
+	static bool FindWaterDrawPoint(const AActor* Caster, FVector& OutLocation, FLinearColor& OutColor);
 };

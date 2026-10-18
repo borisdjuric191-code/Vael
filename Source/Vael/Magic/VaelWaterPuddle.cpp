@@ -397,20 +397,25 @@ float AVaelWaterPuddle::DrainAround(UWorld* World, const FVector& Location, floa
 
 bool AVaelWaterPuddle::IsDeepWaterAt(const UWorld* World, const FVector& Location)
 {
+	return FindDeepWaterAt(World, Location) != nullptr;
+}
+
+AVaelWaterPuddle* AVaelWaterPuddle::FindDeepWaterAt(const UWorld* World, const FVector& Location)
+{
 	if (World == nullptr)
 	{
-		return false;
+		return nullptr;
 	}
 
 	for (TActorIterator<AVaelWaterPuddle> It(World); It; ++It)
 	{
 		if (It->IsDeepEnough() && It->Covers(Location))
 		{
-			return true;
+			return *It;
 		}
 	}
 
-	return false;
+	return nullptr;
 }
 
 float AVaelWaterPuddle::GetWater() const

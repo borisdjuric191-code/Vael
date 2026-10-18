@@ -82,6 +82,12 @@ public:
 	/** True if a puddle that holds enough water to count lies under the location */
 	static bool IsDeepWaterAt(const UWorld* World, const FVector& Location);
 
+	/** The puddle holding enough water to count that lies under the location, or null */
+	static AVaelWaterPuddle* FindDeepWaterAt(const UWorld* World, const FVector& Location);
+
+	/** Whose water this is */
+	const UVaelElementSource* GetSource() const { return Source; }
+
 	/** Water in the whole puddle, in User.WaterAmount units */
 	float GetWater() const;
 

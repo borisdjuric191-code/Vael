@@ -385,4 +385,16 @@ public:
 	/** Share of the drops that land on a rain puddle already lying there instead of starting a new one */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Rain Puddles", meta = (ClampMin = 0, ClampMax = 1))
 	float RainPuddleGrowShare = 0.75f;
+
+	/** Seconds the strand of water stays that runs from a pond, puddle or water plant up to a water orb drawn from it */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Draw Strand", meta = (ClampMin = 0.1, Units = "s"))
+	float WaterDrawStrandTime = 1.0f;
+
+	/** Color of the strand where it leaves a pond or water plant: dark pond water that turns into bright spell water on its way up */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Draw Strand")
+	FLinearColor WaterDrawPondColor = FLinearColor(0.012f, 0.035f, 0.04f);
+
+	/** How far from the feet the strand leaves the water when the mage stands in it, in cm, so it bends visibly up to the orb */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Draw Strand", meta = (ClampMin = 0, Units = "cm"))
+	float WaterDrawFootOffset = 170.0f;
 };

@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "Magic/VaelElementSource.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterPuddle.h"
@@ -119,4 +120,55 @@ float UVaelEnvironmentStatics::DrawWaveWater(const AActor* Caster)
 	}
 
 	return FMath::Clamp(Water / MagicSettings->WaveSwellFullWater, 0.0f, 1.0f);
+}
+
+bool UVaelEnvironmentStatics::FindWaterDrawPoint(const AActor* Caster, FVector& OutLocation, FLinearColor& OutColor)
+{
+	const UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return false;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const FVector Location = Caster->GetActorLocation();
+	const FVector Feet = Location - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight());
+	const FVector Ahead = Feet + Caster->GetActorForwardVector().GetSafeNormal2D() * MagicSettings->WaterDrawFootOffset;
+	OutColor = MagicSettings->WaterDrawPondColor;
+
+	// A water plant is the most visible place to draw from: the strand leaves its cup
+	for (TActorIterator<AVaelHarvestable> It(World); It; ++It)
+	{
+		if (It->ProvidesElement(EVaelElement::Water, Location))
+		{
+			OutLocation = It->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
+			return true;
+		}
+	}
+
+	// A pond: ahead of the feet if the water reaches that far, else towards its middle
+	for (TActorIterator<AVaelGroundArea> It(World); It; ++It)
+	{
+		if (It->ProvidesElement(EVaelElement::Water) && It->IsInRange(Location))
+		{
+			const FVector Middle(It->GetActorLocation().X, It->GetActorLocation().Y, Feet.Z);
+			const FVector Inward = Feet + (Middle - Feet).GetClampedToMaxSize2D(MagicSettings->WaterDrawFootOffset);
+			OutLocation = It->IsInRange(Ahead) ? Ahead : Inward;
+			return true;
+		}
+	}
+
+	// A puddle shows its own water, darkened like water lying on the ground
+	if (const AVaelWaterPuddle* Puddle = AVaelWaterPuddle::FindDeepWaterAt(World, Location))
+	{
+		OutLocation = Puddle->Covers(Ahead) ? Ahead : Feet;
+		if (const UVaelElementSource* Source = Puddle->GetSource())
+		{
+			OutColor = Source->ParticleColor * 0.15f;
+			OutColor.A = 1.0f;
+		}
+		return true;
+	}
+
+	return false;
 }

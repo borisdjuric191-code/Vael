@@ -23,6 +23,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelCast(const FString& Elements, float AimYaw);
 
+	/** Queues elements without casting them, letters as in VaelCast; the orbs stay above the head. Example: VaelQueue W */
+	UFUNCTION(Exec)
+	void VaelQueue(const FString& Elements);
+
+	/** Puts the player on the ground at a place of the level, in meters. Example: VaelTeleport 31 6 (shallow water of the pond in Aschenmark) */
+	UFUNCTION(Exec)
+	void VaelTeleport(float X, float Y);
+
 	/** Adds every formula of the game to the grimoire, sealed ones included */
 	UFUNCTION(Exec)
 	void VaelLearnAll();

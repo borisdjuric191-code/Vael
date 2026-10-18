@@ -37,6 +37,28 @@
 #include "World/VaelRegion.h"
 #include "Magic/VaelGameplayTags.h"
 
+namespace
+{
+	/** Queues the elements named by the letters of the prototype into an empty queue */
+	void QueueLetters(UVaelElementComponent& ElementComponent, const FString& Elements)
+	{
+		ElementComponent.ClearQueue();
+
+		for (const TCHAR Letter : Elements.ToUpper())
+		{
+			switch (Letter)
+			{
+			case TEXT('F'): ElementComponent.AddElement(EVaelElement::Fire); break;
+			case TEXT('W'): ElementComponent.AddElement(EVaelElement::Water); break;
+			case TEXT('E'): ElementComponent.AddElement(EVaelElement::Earth); break;
+			case TEXT('L'): ElementComponent.AddElement(EVaelElement::Air); break;
+			case TEXT('M'): ElementComponent.AddElement(EVaelElement::Mark); break;
+			default: break;
+			}
+		}
+	}
+}
+
 void UVaelCheatManager::VaelCast(const FString& Elements, float AimYaw)
 {
 	APlayerController* PlayerController = GetOuterAPlayerController();
@@ -47,26 +69,41 @@ void UVaelCheatManager::VaelCast(const FString& Elements, float AimYaw)
 	}
 
 	UVaelElementComponent* ElementComponent = VaelCharacter->GetElementComponent();
-	ElementComponent->ClearQueue();
-
-	for (const TCHAR Letter : Elements.ToUpper())
-	{
-		switch (Letter)
-		{
-		case TEXT('F'): ElementComponent->AddElement(EVaelElement::Fire); break;
-		case TEXT('W'): ElementComponent->AddElement(EVaelElement::Water); break;
-		case TEXT('E'): ElementComponent->AddElement(EVaelElement::Earth); break;
-		case TEXT('L'): ElementComponent->AddElement(EVaelElement::Air); break;
-		case TEXT('M'): ElementComponent->AddElement(EVaelElement::Mark); break;
-		default: break;
-		}
-	}
+	QueueLetters(*ElementComponent, Elements);
 
 	PlayerController->SetControlRotation(FRotator(0.f, AimYaw, 0.f));
 
 	const EVaelCastResult Result = ElementComponent->CastQueue();
 
 	UE_LOG(LogVael, Log, TEXT("VaelCast %s: %s, mana now %.1f"), *Elements, *UEnum::GetValueAsString(Result), VaelCharacter->GetMana());
+}
+
+void UVaelCheatManager::VaelQueue(const FString& Elements)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter != nullptr)
+	{
+		QueueLetters(*VaelCharacter->GetElementComponent(), Elements);
+	}
+}
+
+void UVaelCheatManager::VaelTeleport(float X, float Y)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	APawn* Pawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (Pawn == nullptr)
+	{
+		return;
+	}
+
+	// Down from high above onto whatever ground is there
+	const FVector Above(X * 100.0f, Y * 100.0f, 50000.0f);
+	FHitResult Hit;
+	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelTeleport), false, Pawn);
+	const float GroundZ = GetWorld()->LineTraceSingleByChannel(Hit, Above, Above - FVector(0.0f, 0.0f, 100000.0f), ECC_Visibility, QueryParams) ? Hit.ImpactPoint.Z : 0.0f;
+
+	Pawn->TeleportTo(FVector(Above.X, Above.Y, GroundZ + Pawn->GetSimpleCollisionHalfHeight() + 5.0f), Pawn->GetActorRotation());
 }
 
 void UVaelCheatManager::VaelLearnAll()
