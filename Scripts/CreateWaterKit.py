@@ -93,7 +93,7 @@ def try_set(target, key, value):
 
 
 # Bumped whenever a graph of this script changes; a master material without the current version gets its graph rebuilt
-KIT_VERSION = 5.1
+KIT_VERSION = 5.2
 
 # Water normal map from the engine's example content, always there
 WAVE_NORMAL = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n.water_n"
@@ -223,7 +223,8 @@ def build_water_material(name="M_Water", puddle=False):
         opacity = g.mul(0, opacity, puddle_mask)
 
     roughness = g.lerp(1, g.const(0.6), g.const(0.03), wetness)
-    specular = g.lerp(1, g.const(0.3), g.const(0.9), wetness)
+    # SpecularScale tones the reflection down without making the surface rough, for water in shade like a well
+    specular = g.mul(0, g.lerp(1, g.const(0.3), g.const(0.9), wetness), g.scalar("SpecularScale", 1.0))
     index_of_refraction = g.add(1, refraction, g.const(1.0))
     if puddle:
         # Outside the outline the plane must not bend the light either, or its square shows
@@ -369,8 +370,12 @@ def build_instances(water, particle):
         "MI_Water_Mark": water_look((0.01, 0.0, 0.015), (0.12, 0.02, 0.18), 0.95, 0.08, 3.0, 0.15, 0.05, 6.0, 0.05, 0.7),
         # Murky green, hardly glowing
         "MI_Water_Swamp": water_look((0.01, 0.025, 0.005), (0.12, 0.18, 0.05), 0.85, 0.02, 0.8, 0.25, 0.05, 5.0, 0.15, 0.8),
+        # Deep, black-green and cold, a faint film of ash, smooth but reflecting little; never glows like spell water
+        "MI_Water_Well": water_look((0.003, 0.01, 0.009), (0.015, 0.04, 0.035), 0.92, 0.0, 0.0, 0.1, 0.08, 5.0, 0.04, 1.0),
     }
     instances = {}
+    # The well water lies still in a narrow shaft: hardly any waves, a short soft edge against the stones
+    looks["MI_Water_Well"]["scalars"].update({"WaveStrength": 0.15, "WaveTiling": 3.5, "WaveSpeed": 0.02, "Sparkle": 0.1, "ContactFade": 8.0, "SpecularScale": 0.15})
     for name, look in looks.items():
         instances[name] = make_instance(water, name, look["scalars"], look["colors"])
 
@@ -432,6 +437,7 @@ def main():
     make_source("DA_ElementSource_Water_Mark", "Mark-Wasser", instances["MI_Water_Mark"], (0.25, 0.03, 0.35, 1.0), (0.18, 0.03, 0.25, 0.9), 0.85)
     make_source("DA_ElementSource_Water_Swamp", "Sumpfwasser", instances["MI_Water_Swamp"], (0.08, 0.12, 0.03, 1.0), (0.25, 0.32, 0.12, 0.75), 0.4)
     make_source("DA_ElementSource_Water_Rain", "Regenwasser", instances["MI_Water_Rain"], (0.2, 0.26, 0.32, 1.0), (0.6, 0.68, 0.75, 0.6), 0.0)
+    make_source("DA_ElementSource_Water_Well", "Brunnenwasser", instances["MI_Water_Well"], (0.05, 0.12, 0.12, 1.0), (0.15, 0.25, 0.25, 0.8), 0.1)
 
     build_orb(mage)
     unreal.log("Vael water kit: created {} assets: {}".format(len(created), ", ".join(path.split("/")[-1] for path in created)))

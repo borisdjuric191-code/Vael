@@ -179,6 +179,38 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		}
 	}
 
+	// -VaelShowcaseEye=X,Y,Z -VaelShowcaseFocus=X,Y,Z: fixed camera at a world place in cm, for things the game camera can't see well
+	FString EyeText;
+	FString FocusText;
+	if (FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseEye="), EyeText, false) && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseFocus="), FocusText, false))
+	{
+		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		TArray<FString> EyeParts;
+		TArray<FString> FocusParts;
+		EyeText.ParseIntoArray(EyeParts, TEXT(","));
+		FocusText.ParseIntoArray(FocusParts, TEXT(","));
+
+		if (PlayerController != nullptr && EyeParts.Num() == 3 && FocusParts.Num() == 3)
+		{
+			if (Closeup == nullptr)
+			{
+				Closeup = GetWorld()->SpawnActor<ACameraActor>();
+				Closeup->GetCameraComponent()->SetFieldOfView(50.0f);
+				Closeup->GetCameraComponent()->bConstrainAspectRatio = false;
+				Closeup->GetCameraComponent()->PostProcessSettings.bOverride_MotionBlurAmount = true;
+				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
+			}
+
+			const FVector Eye(FCString::Atof(*EyeParts[0]), FCString::Atof(*EyeParts[1]), FCString::Atof(*EyeParts[2]));
+			const FVector Focus(FCString::Atof(*FocusParts[0]), FCString::Atof(*FocusParts[1]), FCString::Atof(*FocusParts[2]));
+			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
+			if (PlayerController->GetViewTarget() != Closeup)
+			{
+				PlayerController->SetViewTarget(Closeup);
+			}
+		}
+	}
+
 	// -VaelShowcaseBehind: camera low behind the player, looking where they aim, for spells that roll over the ground
 	if (FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseBehind")))
 	{
