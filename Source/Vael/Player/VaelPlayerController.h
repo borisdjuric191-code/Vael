@@ -20,6 +20,8 @@ enum class EVaelMenuPage : uint8
 	Compendium,
 	/** The quests of the group */
 	Quests,
+	/** Class and body of the player: mage or Floromant, man or woman */
+	Hero,
 	/** A trader's goods, only reached by talking to the trader; not part of the page ring */
 	Shop
 };
@@ -138,6 +140,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> MenuConfirmAction;
 
+	/** Open the page of class and body Input Action: K */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> HeroAction;
+
 	/** Open the inventory Input Action: I */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> InventoryAction;
@@ -205,6 +211,9 @@ public:
 
 	/** Row of the compendium page the player has selected */
 	int32 GetCompendiumSelection() const { return CompendiumSelection; }
+
+	/** Row of the page of class and body the player has selected, in the order of UVaelHeroSubsystem::GetListedChoice */
+	int32 GetHeroSelection() const { return HeroSelection; }
 
 	/** Row of the shop page the player has selected */
 	int32 GetShopSelection() const { return ShopSelection; }
@@ -311,6 +320,10 @@ protected:
 	void OnMenuPage(const FInputActionValue& Value);
 	void OnMenuConfirm();
 	void OnToggleInventory();
+	void OnToggleHero();
+
+	/** Throws the picked seed of a Floromant where the player aims */
+	void ThrowSeed();
 	void OnSpyglassRaised();
 	void OnSpyglassLowered();
 	void OnDialogueContinue();
@@ -373,6 +386,9 @@ protected:
 
 	/** Row of the compendium page the player has selected, counting through the books in order */
 	int32 CompendiumSelection = 0;
+
+	/** Selected row of the page of class and body */
+	int32 HeroSelection = 0;
 
 	/** Selected row of the shop page, and the shop it shows */
 	int32 ShopSelection = 0;

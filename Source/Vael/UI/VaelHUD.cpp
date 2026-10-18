@@ -27,6 +27,9 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
+#include "Player/VaelHeroSubsystem.h"
+#include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelPlant.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "VaelGameMode.h"
@@ -50,6 +53,14 @@ namespace
 	const FLinearColor EmberColor = Rgb(232, 105, 44);
 	const FLinearColor SlotColor = Rgb(34, 26, 22);
 	const FLinearColor GlyphColor = Rgb(20, 13, 11);
+
+	/** Saft of the Floromant in place of the mana of the mage */
+	const FLinearColor SaftColor = Rgb(214, 92, 160);
+	const FLinearColor SaftBackColor = Rgb(46, 14, 34);
+
+	/** Seeds of the Floromant in the order of their buttons, and the element button each one shares */
+	const EVaelSeedKind LegendSeeds[] = { EVaelSeedKind::Thistle, EVaelSeedKind::Chalice, EVaelSeedKind::RootWall };
+	const EVaelElement SeedButtons[] = { EVaelElement::Fire, EVaelElement::Water, EVaelElement::Earth };
 
 	/** Order of the elements in the legend and the queue */
 	const EVaelElement LegendElements[] = { EVaelElement::Fire, EVaelElement::Water, EVaelElement::Earth, EVaelElement::Air, EVaelElement::Mark };
@@ -199,8 +210,9 @@ void AVaelHUD::DrawPlayerPanel(const AVaelPlayerController* PlayerController, co
 	const float OrbY = Y + Height * 0.5f + 4.0f * S;
 	DrawOrb(FVector2D(X + OrbRadius + 12.0f * S, OrbY), OrbRadius, Player->GetHealth() / FMath::Max(Player->GetMaxHealth(), 1.0f),
 		Player->IsDowned() ? Rgb(85, 85, 85) : Rgb(163, 36, 43), Rgb(42, 13, 14), FText::AsNumber(FMath::CeilToInt(Player->GetHealth())));
+	const bool bFloromant = Player->IsFloromant();
 	DrawOrb(FVector2D(X + Width - OrbRadius - 12.0f * S, OrbY), OrbRadius, Player->GetMana() / FMath::Max(Player->GetMaxMana(), 1.0f),
-		Rgb(42, 95, 184), Rgb(13, 24, 48), FText::AsNumber(FMath::FloorToInt(Player->GetMana())));
+		bFloromant ? SaftColor : Rgb(42, 95, 184), bFloromant ? SaftBackColor : Rgb(13, 24, 48), FText::AsNumber(FMath::FloorToInt(Player->GetMana())));
 
 	const float CenterX = X + Width * 0.5f;
 	const float InnerWidth = Width - (OrbRadius * 2.0f + 24.0f * S) * 2.0f;
@@ -214,6 +226,14 @@ void AVaelHUD::DrawPlayerPanel(const AVaelPlayerController* PlayerController, co
 	const int32 NumPotions = Player->GetPotionCount();
 	DrawLabel(FText::Format(LOCTEXT("PotionCount", "{0} \u00B7 Tr\u00E4nke {1}"), PotionButton, NumPotions), X + 8.0f * S, Y + 7.0f * S, 12.0f * S,
 		NumPotions > 0 ? Rgb(150, 214, 140) : Rgb(108, 94, 82));
+
+	// A Floromant shows seeds instead of elements, queue and quick slots
+	if (bFloromant)
+	{
+		DrawLabel(LOCTEXT("SaftLabel", "Saft"), X + Width - 8.0f * S, Y + 7.0f * S, 12.0f * S, SaftColor, 1.0f);
+		DrawSeedLegend(PlayerController, Player, CenterX, Y, InnerWidth);
+		return;
+	}
 
 	// Legend: which button queues which element; Mark stays dim while it sleeps
 	const UVaelGrimoireSubsystem* LegendGrimoire = GetGrimoire();
@@ -434,6 +454,26 @@ void AVaelHUD::DrawCreatureHealthBars()
 		DrawConditionDot(EVaelStatus::Burning, Rgb(255, 122, 46));
 		DrawConditionDot(EVaelStatus::Frozen, Rgb(191, 232, 255));
 	}
+
+	// Plants of the Floromant that fire has hurt, in their green
+	for (TActorIterator<AVaelPlant> It(GetWorld()); It; ++It)
+	{
+		const AVaelPlant* Plant = *It;
+		if (Plant->IsWithering() || Plant->GetHealthFraction() >= 1.0f)
+		{
+			continue;
+		}
+
+		const FVector ScreenPosition = Canvas->Project(Plant->GetActorLocation() + FVector(0.0f, 0.0f, 110.0f));
+		if (ScreenPosition.Z <= 0.0f)
+		{
+			continue;
+		}
+
+		const float Left = ScreenPosition.X - Width * 0.4f;
+		DrawBox(Left - 1.0f * S, ScreenPosition.Y - 1.0f * S, Width * 0.8f + 2.0f * S, Height + 2.0f * S, Rgb(13, 9, 10, 200));
+		DrawBox(Left, ScreenPosition.Y, Width * 0.8f * FMath::Clamp(Plant->GetHealthFraction(), 0.0f, 1.0f), Height, Rgb(120, 200, 110));
+	}
 }
 
 void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
@@ -466,6 +506,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 	if (PlayerController->GetMenuPage() == EVaelMenuPage::Shop)
 	{
 		DrawShop(PlayerController);
+		return;
+	}
+
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Hero)
+	{
+		DrawHeroPage(PlayerController);
 		return;
 	}
 
@@ -1335,6 +1381,7 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 	// Right aligned, last page first: the pages, then the switch buttons; the open page is lit
 	const TPair<EVaelMenuPage, FText> Pages[] =
 	{
+		{ EVaelMenuPage::Hero, LOCTEXT("TabHero", "GESTALT") },
 		{ EVaelMenuPage::Quests, LOCTEXT("TabQuests", "AUFTRÄGE") },
 		{ EVaelMenuPage::Compendium, LOCTEXT("TabCompendium", "KOMPENDIUM") },
 		{ EVaelMenuPage::Inventory, LOCTEXT("TabInventory", "INVENTAR") },
@@ -1349,6 +1396,102 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 	}
 
 	DrawLabel(Switch, X, Y, 13.0f * S, Rgb(201, 180, 138), 1.0f);
+}
+
+void AVaelHUD::DrawSeedLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth)
+{
+	const float S = UiScale;
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	const EVaelSeedKind Picked = Floromant->GetSelectedSeed();
+
+	// The three seeds on the buttons they share with the elements of the mage; the picked one in its colour
+	const float Spacing = 64.0f * S;
+	const float Radius = 10.5f * S;
+	for (int32 SeedIndex = 0; SeedIndex < UE_ARRAY_COUNT(LegendSeeds); ++SeedIndex)
+	{
+		const EVaelSeedKind Seed = LegendSeeds[SeedIndex];
+		const FVaelPlantLook& Look = Settings->GetPlant(Seed);
+		const FVector2D Center(CenterX + (SeedIndex - 1) * Spacing, Y + 37.0f * S);
+		const bool bPicked = Seed == Picked;
+
+		DrawElementButton(Glyphs, SeedButtons[SeedIndex], Center, Radius, bPicked ? 1.0f : 0.45f);
+		if (bPicked)
+		{
+			DrawRing(Center, Radius + 4.0f * S, Look.Color, 2.0f * S);
+		}
+		DrawLabel(Look.DisplayName, Center.X, Center.Y + 14.0f * S, 11.0f * S, bPicked ? BoneColor : DimColor, 0.5f);
+	}
+
+	const FVaelPlantLook& PickedLook = Settings->GetPlant(Picked);
+	const bool bEnoughSaft = Player->GetMana() >= PickedLook.SaftCost;
+	DrawLabel(FText::Format(LOCTEXT("SeedThrow", "{0} \u00B7 {1} Saft \u00B7 {2}: werfen"), PickedLook.DisplayName, FText::AsNumber(FMath::RoundToInt(PickedLook.SaftCost)), GetCastButtonName(Glyphs)),
+		CenterX, Y + 81.0f * S, 14.0f * S, bEnoughSaft ? BoneColor : Rgb(158, 143, 125), 0.5f, InnerWidth);
+
+	DrawLabel(FText::Format(LOCTEXT("PlantCount", "Pflanzen {0} / {1}"), Floromant->GetNumPlants(), Settings->MaxPlants),
+		CenterX, Y + 106.0f * S, 13.0f * S, Rgb(150, 214, 140), 0.5f, InnerWidth);
+}
+
+void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)
+{
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+	const float S = UiScale;
+
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 168));
+
+	const float RowHeight = 58.0f * S;
+	const int32 NumRows = UVaelHeroSubsystem::NumListedChoices;
+	const float Width = FMath::Min(GrimoireWidth * S, Canvas->ClipX - 32.0f * S);
+	const float Height = 150.0f * S + NumRows * RowHeight + 50.0f * S;
+	const float Left = (Canvas->ClipX - Width) * 0.5f;
+	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
+	const float Padding = 28.0f * S;
+
+	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawFrame(Left, Top, Width, Height, RimColor);
+	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
+
+	DrawLabel(FText::Format(LOCTEXT("HeroEyebrow", "KLASSE UND K\u00D6RPER \u00B7 SPIELER {0}"), PlayerController->GetPlayerSlot() + 1), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
+	DrawLabel(LOCTEXT("HeroTitle", "Gestalt"), Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
+	DrawMenuTabs(PlayerController, Left + Width - Padding, Top + 22.0f * S);
+
+	const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("HeroConfirmKeyboard", "Enter")
+		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("HeroConfirmPlayStation", "Kreuz") : LOCTEXT("HeroConfirmXbox", "A");
+	DrawLabel(FText::Format(LOCTEXT("HeroNote", "Zeile w\u00E4hlen, {0} \u00FCbernimmt sofort. Gilt f\u00FCr diesen Spielplatz, bis jemand anderes gew\u00E4hlt wird."), Confirm),
+		Left + Padding, Top + 88.0f * S, 13.0f * S, DimColor, 0.0f, Width - 2.0f * Padding);
+
+	const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+	const FText Descriptions[] =
+	{
+		LOCTEXT("HeroMage", "Geist \u00B7 w\u00E4hlt Elemente und wirkt Formeln"),
+		LOCTEXT("HeroMage", "Geist \u00B7 w\u00E4hlt Elemente und wirkt Formeln"),
+		LOCTEXT("HeroFloromant", "Wuchs \u00B7 wirft Samen, die zu Pflanzen wachsen: Glutdistel, Wurzelwand, Tr\u00E4nenkelch"),
+		LOCTEXT("HeroFloromant", "Wuchs \u00B7 wirft Samen, die zu Pflanzen wachsen: Glutdistel, Wurzelwand, Tr\u00E4nenkelch"),
+	};
+
+	for (int32 Row = 0; Row < NumRows; ++Row)
+	{
+		const FVaelHeroChoice Choice = UVaelHeroSubsystem::GetListedChoice(Row);
+		const float RowTop = Top + 130.0f * S + Row * RowHeight;
+		const bool bSelected = Row == PlayerController->GetHeroSelection();
+		const bool bPlayed = Player != nullptr && Player->GetHeroClass() == Choice.Class && Player->GetBaseLook() == (Choice.bFemale ? 1 : 0);
+		const FLinearColor ClassColor = Choice.Class == EVaelHeroClass::Floromant ? SaftColor : Rgb(42, 95, 184);
+
+		DrawBox(Left + Padding, RowTop, Width - 2.0f * Padding, RowHeight - 6.0f * S, bSelected ? Rgb(52, 38, 30) : Rgb(29, 22, 19));
+		DrawBox(Left + Padding, RowTop, 4.0f * S, RowHeight - 6.0f * S, ClassColor);
+		if (bSelected)
+		{
+			DrawFrame(Left + Padding, RowTop, Width - 2.0f * Padding, RowHeight - 6.0f * S, EmberColor);
+		}
+
+		DrawLabel(UVaelHeroSubsystem::GetChoiceName(Choice), Left + Padding + 16.0f * S, RowTop + 7.0f * S, 20.0f * S, bSelected ? BoneColor : DimColor);
+		DrawLabel(Descriptions[Row], Left + Padding + 16.0f * S, RowTop + 31.0f * S, 12.0f * S, DimColor, 0.0f, Width - 2.0f * Padding - 140.0f * S);
+		if (bPlayed)
+		{
+			DrawLabel(LOCTEXT("HeroPlayed", "gespielt"), Left + Width - Padding - 12.0f * S, RowTop + 10.0f * S, 13.0f * S, Rgb(150, 214, 140), 1.0f);
+		}
+	}
 }
 
 void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)

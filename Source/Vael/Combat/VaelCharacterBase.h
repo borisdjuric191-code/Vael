@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "AbilitySystemInterface.h"
+#include "ActiveGameplayEffectHandle.h"
 #include "GameFramework/Character.h"
 #include "GameplayTagContainer.h"
 #include "Magic/VaelElementTypes.h"
@@ -75,6 +76,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Attributes")
 	float GetMaxMana() const;
 
+	/** Changes the mana regained per second, for example when a player turns into another class */
+	void SetManaRegen(float PerSecond);
+
 	/** Corruption by the Mark, 0 to 100 */
 	UFUNCTION(BlueprintPure, Category="Attributes")
 	float GetCorruption() const;
@@ -131,4 +135,7 @@ private:
 
 	/** Forwards health changes to OnHealthChanged */
 	void HandleHealthChanged(const FOnAttributeChangeData& ChangeData);
+
+	/** Effect that regains mana over time, invalid while there is none */
+	FActiveGameplayEffectHandle ManaRegenHandle;
 };

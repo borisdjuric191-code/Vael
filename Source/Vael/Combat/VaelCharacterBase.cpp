@@ -48,13 +48,26 @@ void AVaelCharacterBase::BeginPlay()
 	FTimerHandle DecalTimer;
 	GetWorldTimerManager().SetTimer(DecalTimer, FTimerDelegate::CreateWeakLambda(this, [this]() { VaelGround::RefuseDecals(this); }), 1.0f, true, FMath::FRandRange(0.05f, 1.0f));
 
+	SetManaRegen(ManaRegenPerSecond);
+}
+
+void AVaelCharacterBase::SetManaRegen(float PerSecond)
+{
+	ManaRegenPerSecond = PerSecond;
+
+	if (ManaRegenHandle.IsValid())
+	{
+		AbilitySystemComponent->RemoveActiveGameplayEffect(ManaRegenHandle);
+		ManaRegenHandle.Invalidate();
+	}
+
 	if (ManaRegenPerSecond > 0.0f)
 	{
 		const FGameplayEffectSpecHandle RegenSpec = AbilitySystemComponent->MakeOutgoingSpec(UVaelGE_ManaRegen::StaticClass(), 1.0f, AbilitySystemComponent->MakeEffectContext());
 		if (RegenSpec.IsValid())
 		{
 			RegenSpec.Data->SetSetByCallerMagnitude(VaelTags::SetByCaller_Mana, ManaRegenPerSecond * UVaelGE_ManaRegen::StepInterval);
-			AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*RegenSpec.Data);
+			ManaRegenHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*RegenSpec.Data);
 		}
 	}
 }

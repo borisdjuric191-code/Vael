@@ -27,6 +27,9 @@
 #include "Magic/VaelFormulaScroll.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelCharacter.h"
+#include "Player/VaelHeroSubsystem.h"
+#include "Player/VaelPlayerController.h"
+#include "Floromant/VaelFloromantComponent.h"
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "VaelGameMode.h"
@@ -656,4 +659,80 @@ void UVaelCheatManager::VaelGestalt(const FString& Look)
 	{
 		Player->SetBaseLook(Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase) ? 1 : 0);
 	}
+}
+
+void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(PlayerController);
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	FVaelHeroChoice Choice;
+	Choice.Class = Class.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage;
+	Choice.bFemale = Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase);
+
+	// Remembered for the slot like a choice on the page "Gestalt"
+	if (UVaelHeroSubsystem* Heroes = VaelController != nullptr ? UVaelHeroSubsystem::Get(Player) : nullptr)
+	{
+		Heroes->SetChoice(VaelController->GetPlayerSlot(), Choice);
+	}
+	Player->SetHero(Choice.Class, Choice.bFemale);
+}
+
+void UVaelCheatManager::VaelMitspieler(const FString& Class, const FString& Look)
+{
+	UGameInstance* GameInstance = GetWorld() != nullptr ? GetWorld()->GetGameInstance() : nullptr;
+	if (GameInstance == nullptr || GameInstance->GetNumLocalPlayers() >= AVaelGameMode::MaxLocalPlayers)
+	{
+		return;
+	}
+
+	// A class named here is kept for the slot the new player will most likely get: the next one
+	UVaelHeroSubsystem* Heroes = UVaelHeroSubsystem::Get(GetWorld());
+	if (!Class.IsEmpty() && Heroes != nullptr)
+	{
+		FVaelHeroChoice Choice;
+		Choice.Class = Class.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage;
+		Choice.bFemale = Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase);
+		Heroes->SetChoice(GameInstance->GetNumLocalPlayers(), Choice);
+	}
+
+	// The next free controller number, like a controller that pressed Start
+	FString Error;
+	if (GameInstance->CreateLocalPlayer(GameInstance->GetNumLocalPlayers(), Error, true) == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelMitspieler: %s"), *Error);
+	}
+}
+
+void UVaelCheatManager::VaelSamen(const FString& Seed, float Metres)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr || !Player->IsFloromant())
+	{
+		return;
+	}
+
+	UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	if (Seed.StartsWith(TEXT("d"), ESearchCase::IgnoreCase) || Seed.StartsWith(TEXT("g"), ESearchCase::IgnoreCase))
+	{
+		Floromant->SelectSeed(EVaelSeedKind::Thistle);
+	}
+	else if (Seed.StartsWith(TEXT("w"), ESearchCase::IgnoreCase))
+	{
+		Floromant->SelectSeed(EVaelSeedKind::RootWall);
+	}
+	else if (Seed.StartsWith(TEXT("k"), ESearchCase::IgnoreCase) || Seed.StartsWith(TEXT("t"), ESearchCase::IgnoreCase))
+	{
+		Floromant->SelectSeed(EVaelSeedKind::Chalice);
+	}
+
+	// Saft for tests: the cheat never fails for lack of it
+	Player->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Player->GetMaxMana());
+	Floromant->ThrowSeed(Player->GetActorLocation() + Player->GetActorForwardVector() * FMath::Max(Metres, 1.2f) * 100.0f);
 }

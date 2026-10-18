@@ -15,7 +15,9 @@ Ablauf:
 Aufruf:
   blender -b -P vael_mensch_aufbereiten.py -- "C:\\Projekte\\Vael_Quellen\\MagierMann"
 
-Der Ordner enthält mensch.json (name, optional drehung_z_grad, hals_z_cm) und 02_tripo\\ mit dem Tripo-Export.
+Der Ordner enthält mensch.json (name, optional drehung_z_grad, hals_z_cm, kopf_farbtest) und 02_tripo\\ mit dem Tripo-Export.
+kopf_farbtest (Standard true): am Hals entscheidet die Farbe, blauer Stoff bleibt am Körper. Für Figuren ohne blauen
+Stoff (Floromant) false: dann teilt nur die Höhe.
 """
 import bpy, bmesh, json, math, os, sys
 from mathutils import Vector, Matrix
@@ -214,11 +216,11 @@ def farbe_lesen(obj):
     return None
 
 
-def teile(obj, hals_z, name):
+def teile(obj, hals_z, name, farbtest=True):
     """Trennt den Kopf als eigenes Objekt ab. Gibt (Körper, Kopf) zurück.
     Weit über dem Halsansatz ist alles Kopf, weit darunter alles Körper. Dazwischen entscheidet die Farbe:
     Haut und Bart gehören zum Kopf, der Stoff von Kragen und zurückgeschlagener Kapuze bleibt am Körper."""
-    farbe = farbe_lesen(obj)
+    farbe = farbe_lesen(obj) if farbtest else None
     V = [obj.matrix_world @ v.co for v in obj.data.vertices]
     schaedel = [p for p in V if p.z > hals_z + .10 * CM]
     ax, ay = sum(p.x for p in schaedel) / len(schaedel), sum(p.y for p in schaedel) / len(schaedel)
@@ -300,7 +302,7 @@ def main(ordner):
             slot.material.name = f"M_{name}" if i == 0 else f"M_{name}_{i}"
 
     hals = finde_hals(obj, arm, sb)
-    koerper, kopf = teile(obj, hals, name)
+    koerper, kopf = teile(obj, hals, name, sb.get("kopf_farbtest", True))
 
     os.makedirs(os.path.join(ordner, "03_blender"), exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ordner, "03_blender", f"{name}.blend"))

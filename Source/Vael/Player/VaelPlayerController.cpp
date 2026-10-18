@@ -24,6 +24,9 @@
 #include "World/VaelSafeZone.h"
 #include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
+#include "Player/VaelHeroSubsystem.h"
+#include "Floromant/VaelFloromantComponent.h"
+#include "Magic/VaelFormulaAbility.h"
 #include "Player/VaelCheatManager.h"
 #include "Nature/VaelGarden.h"
 #include "Player/VaelInteractable.h"
@@ -147,6 +150,7 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(MenuPageAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuPage);
 			EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuConfirm);
 			EnhancedInputComponent->BindAction(InventoryAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnToggleInventory);
+			EnhancedInputComponent->BindAction(HeroAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnToggleHero);
 			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnSpyglassRaised);
 			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnSpyglassLowered);
 			EnhancedInputComponent->BindAction(SpyglassAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnSpyglassLowered);
@@ -288,6 +292,11 @@ void AVaelPlayerController::CreateInputAssets()
 	InventoryAction = CreateAction(TEXT("IA_Inventory"), EInputActionValueType::Boolean);
 	InventoryAction->bTriggerWhenPaused = true;
 	MappingContext->MapKey(InventoryAction, EKeys::I);
+
+	// The page of class and body opens directly with K; on the gamepad it is a page of the menu
+	HeroAction = CreateAction(TEXT("IA_Hero"), EInputActionValueType::Boolean);
+	HeroAction->bTriggerWhenPaused = true;
+	MappingContext->MapKey(HeroAction, EKeys::K);
 
 	// The spyglass is held up while the button is held
 	SpyglassAction = CreateAction(TEXT("IA_Spyglass"), EInputActionValueType::Boolean);
@@ -488,6 +497,20 @@ void AVaelPlayerController::OnElement(EVaelElement Element)
 		}
 	}
 
+	// A Floromant picks a seed with the same buttons: fire the Glutdistel, earth the Wurzelwand, water the Tränenkelch
+	if (VaelCharacter->IsFloromant())
+	{
+		UVaelFloromantComponent* Floromant = VaelCharacter->GetFloromant();
+		switch (Element)
+		{
+		case EVaelElement::Fire:	Floromant->SelectSeed(EVaelSeedKind::Thistle); break;
+		case EVaelElement::Earth:	Floromant->SelectSeed(EVaelSeedKind::RootWall); break;
+		case EVaelElement::Water:	Floromant->SelectSeed(EVaelSeedKind::Chalice); break;
+		default:					break;
+		}
+		return;
+	}
+
 	VaelCharacter->GetElementComponent()->AddElement(Element);
 }
 
@@ -528,8 +551,35 @@ void AVaelPlayerController::OnCast()
 	{
 		// Bring the aim up to date so the spell flies where the player points right now
 		UpdateFacing();
+
+		if (VaelCharacter->IsFloromant())
+		{
+			ThrowSeed();
+			return;
+		}
+
 		VaelCharacter->GetElementComponent()->CastQueue();
 	}
+}
+
+void AVaelPlayerController::ThrowSeed()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr)
+	{
+		return;
+	}
+
+	// Where the mouse points; with the gamepad onto the enemy the aim is locked on, or a few steps ahead
+	FVector AimLocation;
+	if (!GetMouseAimLocation(AimLocation))
+	{
+		const AActor* Target = GetAimTarget();
+		AimLocation = Target != nullptr ? Target->GetActorLocation()
+			: VaelCharacter->GetActorLocation() + UVaelFormulaAbility::GetAimDirection(VaelCharacter) * UVaelFloromantSettings::Get()->ThrowRange * 0.6f;
+	}
+
+	VaelCharacter->GetFloromant()->ThrowSeed(AimLocation);
 }
 
 void AVaelPlayerController::OnClearQueue()
@@ -800,7 +850,7 @@ EVaelInputGlyphs AVaelPlayerController::GetInputGlyphs() const
 void AVaelPlayerController::OnQuickSlot(int32 SlotIndex)
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned() && !UGameplayStatics::IsGamePaused(this))
+	if (VaelCharacter != nullptr && !VaelCharacter->IsFloromant() && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned() && !UGameplayStatics::IsGamePaused(this))
 	{
 		// Bring the aim up to date so the spell flies where the player points right now
 		UpdateFacing();
@@ -842,6 +892,13 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 	bGrimoireOpen = true;
 	MenuPage = Page;
 	NextNavigateTime = 0.0;
+
+	// The page of class and body starts on what the player plays
+	if (const UVaelHeroSubsystem* Heroes = UVaelHeroSubsystem::Get(this))
+	{
+		const FVaelHeroChoice Current = Heroes->GetChoice(PlayerSlot);
+		HeroSelection = (Current.Class == EVaelHeroClass::Floromant ? 2 : 0) + (Current.bFemale ? 1 : 0);
+	}
 	InputSubsystem->AddMappingContext(MenuMappingContext, 1);
 	UGameplayStatics::SetGamePaused(this, true);
 
@@ -899,6 +956,12 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 		return;
 	}
 
+	if (MenuPage == EVaelMenuPage::Hero)
+	{
+		HeroSelection = FMath::Clamp(HeroSelection + Step, 0, UVaelHeroSubsystem::NumListedChoices - 1);
+		return;
+	}
+
 	if (MenuPage == EVaelMenuPage::Shop)
 	{
 		const int32 NumOffers = OpenShop.IsValid() ? OpenShop->Offers.Num() : 0;
@@ -928,7 +991,7 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 	if (bGrimoireOpen && MenuPage != EVaelMenuPage::Shop)
 	{
 		// The pages in a ring: right goes on, left goes back
-		const int32 NumPages = static_cast<int32>(EVaelMenuPage::Quests) + 1;
+		const int32 NumPages = static_cast<int32>(EVaelMenuPage::Hero) + 1;
 		const int32 Step = Value.Get<float>() < 0.0f ? NumPages - 1 : 1;
 		MenuPage = static_cast<EVaelMenuPage>((static_cast<int32>(MenuPage) + Step) % NumPages);
 	}
@@ -953,6 +1016,19 @@ void AVaelPlayerController::OnMenuConfirm()
 		{
 			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelItems", "NotEnoughCoins", "Nicht genug Gildenmünzen"), FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
 		}
+		return;
+	}
+
+	// Class and body: the choice is kept for the slot and taken on at once
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Hero && VaelCharacter != nullptr)
+	{
+		const FVaelHeroChoice Choice = UVaelHeroSubsystem::GetListedChoice(HeroSelection);
+		if (UVaelHeroSubsystem* Heroes = UVaelHeroSubsystem::Get(this))
+		{
+			Heroes->SetChoice(PlayerSlot, Choice);
+		}
+		GetPawn<AVaelCharacter>()->SetHero(Choice.Class, Choice.bFemale);
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelHero", "HeroChosen", "Spieler {0} spielt jetzt: {1}"), PlayerSlot + 1, UVaelHeroSubsystem::GetChoiceName(Choice)), FText::GetEmpty(), FLinearColor(FColor(201, 180, 138)), 2.5f);
 		return;
 	}
 
@@ -993,6 +1069,22 @@ void AVaelPlayerController::OnToggleInventory()
 	else
 	{
 		MenuPage = EVaelMenuPage::Inventory;
+	}
+}
+
+void AVaelPlayerController::OnToggleHero()
+{
+	if (!bGrimoireOpen)
+	{
+		OpenGrimoire(EVaelMenuPage::Hero);
+	}
+	else if (MenuPage == EVaelMenuPage::Hero)
+	{
+		CloseGrimoire();
+	}
+	else if (MenuPage != EVaelMenuPage::Shop)
+	{
+		MenuPage = EVaelMenuPage::Hero;
 	}
 }
 

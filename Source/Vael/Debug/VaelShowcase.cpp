@@ -248,6 +248,34 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		}
 	}
 
+	// -VaelShowcaseHero: close camera on the first player from the front, for body and wings; =Back from behind, =Far a step back for the plants around them
+	FString HeroView;
+	if (FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseHero")) || FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseHero="), HeroView))
+	{
+		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+		if (PlayerPawn != nullptr)
+		{
+			if (Closeup == nullptr)
+			{
+				Closeup = GetWorld()->SpawnActor<ACameraActor>();
+				Closeup->GetCameraComponent()->SetFieldOfView(50.0f);
+				Closeup->GetCameraComponent()->bConstrainAspectRatio = false;
+				Closeup->GetCameraComponent()->PostProcessSettings.bOverride_MotionBlurAmount = true;
+				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
+			}
+
+			const FVector Offset = HeroView == TEXT("Back") ? FVector(-300.0f, 140.0f, 120.0f) : HeroView == TEXT("Far") ? FVector(700.0f, -520.0f, 520.0f) : FVector(300.0f, -140.0f, 90.0f);
+			const FVector Focus = PlayerPawn->GetActorLocation() + (HeroView == TEXT("Far") ? PlayerPawn->GetActorForwardVector() * 250.0f : FVector(0.0f, 0.0f, 20.0f));
+			const FVector Eye = PlayerPawn->GetActorLocation() + FRotator(0.0f, PlayerPawn->GetActorRotation().Yaw, 0.0f).RotateVector(Offset);
+			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
+			if (PlayerController->GetViewTarget() != Closeup)
+			{
+				PlayerController->SetViewTarget(Closeup);
+			}
+		}
+	}
+
 	// Fire on every tensed thread at the given time
 	if (FireTime >= 0.0f && Age >= FireTime)
 	{

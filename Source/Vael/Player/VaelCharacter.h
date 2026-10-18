@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Floromant/VaelFloromantSettings.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelCharacter.generated.h"
 
@@ -17,6 +18,8 @@ class USkeletalMeshComponent;
 class UStaticMeshComponent;
 class UVaelElementComponent;
 class UVaelElementOrbitComponent;
+class UVaelFairyWingsComponent;
+class UVaelFloromantComponent;
 class UVaelInventory;
 class UVaelMaterialBag;
 
@@ -54,6 +57,14 @@ private:
 	/** The queued elements, circling above the head */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelElementOrbitComponent> ElementOrbit;
+
+	/** Seeds and plants while the player plays a Floromant */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVaelFloromantComponent> Floromant;
+
+	/** Moth wings of the Floromant, hidden while the player plays a mage */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVaelFairyWingsComponent> Wings;
 
 	/** Light at the casting hand in the color of the newest queued element */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -164,8 +175,15 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dodge")
 	bool IsDodging() const { return bIsDodging; }
 
-	/** Gives the character one of the base looks: 0 the man, 1 the woman. Body and head are separate parts. */
+	/** Gives the character one of the base looks of its class: 0 the man, 1 the woman. Body and head are separate parts. */
 	void SetBaseLook(int32 LookIndex);
+
+	/** Turns the character into a mage or a Floromant, man or woman: body, wings, Saft or mana and what the buttons do */
+	void SetHero(EVaelHeroClass InClass, bool bFemale);
+
+	/** Class the player plays */
+	EVaelHeroClass GetHeroClass() const { return HeroClass; }
+	bool IsFloromant() const { return HeroClass == EVaelHeroClass::Floromant; }
 
 	/** The base look it wears, -1 while it still shows the template mannequin */
 	int32 GetBaseLook() const { return BaseLook; }
@@ -225,6 +243,9 @@ public:
 	/** Returns the marker component **/
 	UStaticMeshComponent* GetPlayerMarker() const { return PlayerMarker.Get(); }
 
+	/** Returns the seeds and plants of the Floromant **/
+	UVaelFloromantComponent* GetFloromant() const { return Floromant.Get(); }
+
 	/** Returns the element queue **/
 	UVaelElementComponent* GetElementComponent() const { return ElementComponent.Get(); }
 
@@ -242,6 +263,17 @@ protected:
 private:
 
 	int32 BaseLook = -1;
+
+	/** Class the player plays, and whether it was set yet */
+	EVaelHeroClass HeroClass = EVaelHeroClass::Mage;
+	bool bHeroSet = false;
+
+	/** Mana regained per second as a mage; the Floromant has its own Saft */
+	float MageManaRegen = 0.0f;
+
+	/** Colour of the player, applied again when the body changes */
+	FLinearColor PlayerColor = FLinearColor::White;
+	bool bHasPlayerColor = false;
 
 	/** Gives the character what the save game holds for its player slot, once */
 	void RestoreFromSave();

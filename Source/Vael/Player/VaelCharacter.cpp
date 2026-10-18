@@ -17,6 +17,8 @@
 #include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Floromant/VaelFairyWingsComponent.h"
+#include "Floromant/VaelFloromantComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Items/VaelInventory.h"
 #include "Items/VaelItemSettings.h"
@@ -33,6 +35,7 @@
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
+#include "Player/VaelHeroSubsystem.h"
 #include "Player/VaelPlayerController.h"
 #include "Save/VaelSaveSubsystem.h"
 #include "World/VaelGround.h"
@@ -114,6 +117,7 @@ AVaelCharacter::AVaelCharacter()
 
 	// Mana regeneration of the browser prototype
 	ManaRegenPerSecond = 13.0f;
+	MageManaRegen = ManaRegenPerSecond;
 
 	// Create the element queue
 	ElementComponent = CreateDefaultSubobject<UVaelElementComponent>(TEXT("ElementQueue"));
@@ -127,6 +131,13 @@ AVaelCharacter::AVaelCharacter()
 	// Create the circle of element orbs above the head
 	ElementOrbit = CreateDefaultSubobject<UVaelElementOrbitComponent>(TEXT("ElementOrbit"));
 	ElementOrbit->SetupAttachment(RootComponent);
+
+	// Create the seeds and plants and the wings of the Floromant; both rest while the player plays a mage
+	Floromant = CreateDefaultSubobject<UVaelFloromantComponent>(TEXT("Floromant"));
+
+	Wings = CreateDefaultSubobject<UVaelFairyWingsComponent>(TEXT("Wings"));
+	Wings->SetupAttachment(RootComponent);
+	Wings->SetVisibility(false, true);
 
 	// Create the light at the casting hand; it moves to the hand socket when the game starts
 	HandLight = CreateDefaultSubobject<UPointLightComponent>(TEXT("HandLight"));
@@ -146,19 +157,56 @@ AVaelCharacter::AVaelCharacter()
 
 void AVaelCharacter::SetBaseLook(int32 LookIndex)
 {
-	LookIndex = FMath::Clamp(LookIndex, 0, 1);
+	SetHero(HeroClass, LookIndex == 1);
+}
 
-	USkeletalMesh* Body = VaelAssets::LoadOptional(BodyMeshes[LookIndex]);
-	USkeletalMesh* Head = VaelAssets::LoadOptional(HeadMeshes[LookIndex]);
-	if (Body == nullptr || Head == nullptr)
+void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
+{
+	const int32 LookIndex = bFemale ? 1 : 0;
+	const bool bFloromant = InClass == EVaelHeroClass::Floromant;
+	const UVaelFloromantSettings* FloromantSettings = UVaelFloromantSettings::Get();
+
+	// Body and head of the class; while they are missing the body stays as it is
+	USkeletalMesh* Body = VaelAssets::LoadOptional(bFloromant ? FloromantSettings->BodyMeshes[LookIndex] : BodyMeshes[LookIndex]);
+	USkeletalMesh* Head = VaelAssets::LoadOptional(bFloromant ? FloromantSettings->HeadMeshes[LookIndex] : HeadMeshes[LookIndex]);
+	if (Body != nullptr && Head != nullptr)
+	{
+		GetMesh()->SetSkeletalMesh(Body);
+		HeadMesh->SetSkeletalMesh(Head);
+		HeadMesh->SetLeaderPoseComponent(GetMesh());
+		BaseLook = LookIndex;
+
+		if (bHasPlayerColor)
+		{
+			SetPlayerColor(PlayerColor);
+		}
+	}
+
+	if (bHeroSet && HeroClass == InClass)
 	{
 		return;
 	}
 
-	GetMesh()->SetSkeletalMesh(Body);
-	HeadMesh->SetSkeletalMesh(Head);
-	HeadMesh->SetLeaderPoseComponent(GetMesh());
-	BaseLook = LookIndex;
+	// A new class: nothing queued or grown stays, the wings come or go, Saft or mana fills up
+	if (bHeroSet && HeroClass == EVaelHeroClass::Floromant)
+	{
+		Floromant->WitherAll();
+	}
+
+	HeroClass = InClass;
+	bHeroSet = true;
+
+	ElementComponent->ClearQueue();
+	ElementOrbit->SetVisibility(!bFloromant, true);
+	Wings->SetWingsShown(bFloromant);
+
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
+	const float MaxMana = bFloromant ? FloromantSettings->MaxSaft : StartingMana;
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetMaxManaAttribute(), MaxMana);
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), MaxMana);
+	SetManaRegen(bFloromant ? FloromantSettings->SaftPerSecond : MageManaRegen);
+
+	UE_LOG(LogVael, Log, TEXT("'%s' plays the %s"), *GetNameSafe(this), bFloromant ? TEXT("Floromant") : TEXT("mage"));
 }
 
 void AVaelCharacter::BeginPlay()
@@ -171,9 +219,9 @@ void AVaelCharacter::BeginPlay()
 		GetMesh()->SetAnimInstanceClass(AnimClass);
 	}
 
-	if (BaseLook < 0)
+	if (!bHeroSet)
 	{
-		SetBaseLook(0);
+		SetHero(EVaelHeroClass::Mage, false);
 	}
 
 	LoadedDodgeMontage = VaelAssets::LoadOptional(DodgeMontage);
@@ -352,10 +400,12 @@ void AVaelCharacter::PossessedBy(AController* NewController)
 {
 	Super::PossessedBy(NewController);
 
-	// Players take turns between the two base looks until they can choose: odd slots get the woman
-	if (const AVaelPlayerController* LookOwner = Cast<AVaelPlayerController>(NewController))
+	// Class and body the slot has chosen on the page "Gestalt"
+	const AVaelPlayerController* LookOwner = Cast<AVaelPlayerController>(NewController);
+	if (const UVaelHeroSubsystem* Heroes = LookOwner != nullptr ? UVaelHeroSubsystem::Get(this) : nullptr)
 	{
-		SetBaseLook(LookOwner->GetPlayerSlot() % 2);
+		const FVaelHeroChoice Choice = Heroes->GetChoice(LookOwner->GetPlayerSlot());
+		SetHero(Choice.Class, Choice.bFemale);
 	}
 
 	const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(NewController);
@@ -492,6 +542,9 @@ void AVaelCharacter::BeginRollLook(UAnimMontage* Montage, float Duration)
 
 void AVaelCharacter::SetPlayerColor(const FLinearColor& Color)
 {
+	PlayerColor = Color;
+	bHasPlayerColor = true;
+
 	if (UMaterialInstanceDynamic* MarkerMaterial = PlayerMarker->CreateAndSetMaterialInstanceDynamic(0))
 	{
 		MarkerMaterial->SetVectorParameterValue(MarkerColorParameter, Color);

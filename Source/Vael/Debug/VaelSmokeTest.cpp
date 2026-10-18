@@ -47,6 +47,8 @@
 #include "Save/VaelSaveSubsystem.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "Player/VaelCharacter.h"
+#include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelPlant.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
@@ -274,6 +276,71 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = NumWhirls > 0 && bSoaked;
 			return FString::Printf(TEXT("%s%d whirls, water: %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumWhirls, bSoaked ? TEXT("collapsed") : TEXT("NOT collapsed"));
 		}, 0.1f });
+	}
+
+	// The Floromant: a thrown thistle shoots at a crawler, the chalice heals, the wall of roots holds; only fire hurts the plants
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Floromant garden"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 1);
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			const FVector Forward = Player->GetActorForwardVector();
+			const FVector Feet = Player->GetActorLocation() - FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight());
+
+			// The thistle flies as a seed, the other two are planted at once
+			Floromant->SelectSeed(EVaelSeedKind::Thistle);
+			const bool bThrown = Floromant->ThrowSeed(Feet + Forward * 250.0f);
+			Floromant->PlantSeed(EVaelSeedKind::Chalice, Feet - Forward * 120.0f, 0.0f);
+			Floromant->PlantSeed(EVaelSeedKind::RootWall, Feet + Forward.RotateAngleAxis(90.0f, FVector::UpVector) * 400.0f, Forward.Rotation().Yaw);
+
+			return FString::Printf(TEXT("%s, Floromantin, Saft %.0f, thistle seed %s"), *Arena, Player->GetMana(), bThrown ? TEXT("thrown") : TEXT("NOT thrown"));
+		}, 6.0f });
+		Steps.Add({ TEXT("Floromant"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			const AVaelThistlePlant* Thistle = nullptr;
+			AVaelChalicePlant* Chalice = nullptr;
+			const AVaelRootWallPlant* Wall = nullptr;
+			for (TActorIterator<AVaelPlant> It(GetWorld()); It; ++It)
+			{
+				Thistle = Thistle != nullptr ? Thistle : Cast<AVaelThistlePlant>(*It);
+				Chalice = Chalice != nullptr ? Chalice : Cast<AVaelChalicePlant>(*It);
+				Wall = Wall != nullptr ? Wall : Cast<AVaelRootWallPlant>(*It);
+			}
+			if (Player == nullptr || Thistle == nullptr || Chalice == nullptr || Wall == nullptr)
+			{
+				return FString::Printf(TEXT("FAILED: plants missing (thistle %d, chalice %d, wall %d)"), Thistle != nullptr, Chalice != nullptr, Wall != nullptr);
+			}
+
+			const int32 NumPlants = Player->GetFloromant()->GetNumPlants();
+			const int32 NumShots = Thistle->GetShotCount();
+			const int32 NumPulses = Chalice->GetPulsesReachingAllies();
+			const bool bHolding = Wall->IsHolding();
+
+			// Earth leaves a plant alone, fire hurts it
+			const float Before = Chalice->GetHealth();
+			UVaelCombatStatics::DealDamage(nullptr, Chalice, 5.0f, EVaelElement::Earth);
+			const bool bEarthHarmless = FMath::IsNearlyEqual(Chalice->GetHealth(), Before);
+			UVaelCombatStatics::DealDamage(nullptr, Chalice, 5.0f, EVaelElement::Fire);
+			const bool bFireHurts = Chalice->GetHealth() < Before;
+
+			// Back to the mage: the plants wither, mana is full again
+			Player->SetHero(EVaelHeroClass::Mage, false);
+			const bool bMage = !Player->IsFloromant() && Player->GetMaxMana() > 0.0f && FMath::IsNearlyEqual(Player->GetMana(), Player->GetMaxMana());
+
+			const bool bOk = NumPlants == 3 && NumShots > 0 && NumPulses > 0 && bHolding && bEarthHarmless && bFireHurts && bMage;
+			return FString::Printf(TEXT("%s%d plants, thistle %d shots, chalice %d pulses on the player, wall %s, earth %s, fire %s, back to mage %s"), bOk ? TEXT("") : TEXT("FAILED: "),
+				NumPlants, NumShots, NumPulses, bHolding ? TEXT("holds") : TEXT("does NOT hold"), bEarthHarmless ? TEXT("harmless") : TEXT("HURTS"),
+				bFireHurts ? TEXT("hurts") : TEXT("does NOT hurt"), bMage ? TEXT("ok") : TEXT("FAILED"));
+		}, 1.0f });
 	}
 
 	// The veil monkey leaps onto the player's back and robs them; fire blinds it and the loot comes back

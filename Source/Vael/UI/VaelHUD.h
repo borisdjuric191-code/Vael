@@ -93,6 +93,12 @@ private:
 	/** Page of a trader: goods, prices, the purse and what the bag holds of each */
 	void DrawShop(const AVaelPlayerController* PlayerController);
 
+	/** Page of class and body: mage or Floromant, man or woman */
+	void DrawHeroPage(const AVaelPlayerController* PlayerController);
+
+	/** Middle of the panel of a Floromant: the seeds on their buttons, the picked one and the plants standing */
+	void DrawSeedLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth);
+
 	/** Draws a closed book of the compendium series: cover in its color, strap and seal; lit if it is the open one */
 	void DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float Width, float Height, bool bLit);
 

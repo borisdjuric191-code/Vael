@@ -5,6 +5,7 @@ Vael – Kreaturenfabrik, Menschen (Unreal-Import)
 Importiert die Teile eines Menschen (04_export/SK_<Name>_Koerper.fbx und SK_<Name>_Kopf.fbx aus vael_mensch_aufbereiten.py)
 auf das vorhandene Unreal-Skelett SK_Mannequin, damit alle Menschen dieselben Animationen benutzen:
   /Game/Vael/Characters/Menschen/<Name>/SK_<Name>_Koerper, SK_<Name>_Kopf, T_<Name>_*, MI_<Name>
+  (mit "ordner" in mensch.json ein anderer Elternordner, z. B. "/Game/Vael/Characters/Floromant")
 
 Ausführen bei geschlossenem Editor:
   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="<diese Datei> C:/Projekte/Vael_Quellen/MagierMann"
@@ -21,8 +22,9 @@ def log(msg): unreal.log(f"[Vael] {msg}")
 
 def importiere(ordner):
     with open(os.path.join(ordner, "mensch.json"), encoding="utf-8") as f:
-        name = json.load(f)["name"]
-    ziel = f"/Game/Vael/Characters/Menschen/{name}"
+        sb = json.load(f)
+    name = sb["name"]
+    ziel = f"{sb.get('ordner', '/Game/Vael/Characters/Menschen')}/{name}"
     eal = unreal.EditorAssetLibrary
     skelett = eal.load_asset(SKELETT)
     if skelett is None:

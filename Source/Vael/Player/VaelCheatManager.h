@@ -43,6 +43,18 @@ public:
 	UFUNCTION(Exec)
 	void VaelGestalt(const FString& Look);
 
+	/** Turns the player into a mage or a Floromant: "Magier" or "Floromant", then "Mann" or "Frau". Example: VaelKlasse Floromant Frau */
+	UFUNCTION(Exec)
+	void VaelKlasse(const FString& Class, const FString& Look);
+
+	/** Floromant: throws the picked seed, or the named one ("Distel", "Wand", "Kelch"), the given metres ahead. Example: VaelSamen Kelch 4 */
+	UFUNCTION(Exec)
+	void VaelSamen(const FString& Seed, float Metres);
+
+	/** Lets another local player join as if a controller had pressed Start, to test co-op without a second controller; optionally as "Magier" or "Floromant", "Mann" or "Frau". Example: VaelMitspieler Magier Mann */
+	UFUNCTION(Exec)
+	void VaelMitspieler(const FString& Class = TEXT(""), const FString& Look = TEXT(""));
+
 	/** Puts a condition on everything the player can hurt: Wet, Burning or Frozen, for the given seconds. Example: VaelStatus Wet 5 */
 	UFUNCTION(Exec)
 	void VaelStatus(const FString& Status, float Duration);
