@@ -15,6 +15,7 @@ class UPointLightComponent;
 class UProjectileMovementComponent;
 class USphereComponent;
 class AVaelWaterOrb;
+class AVaelWaterWave;
 class UVaelElementSource;
 class UStaticMesh;
 class UStaticMeshComponent;
@@ -221,6 +222,9 @@ private:
 
 	/** True once the tidal wave rolls as one wall in the water of the water kit instead of its pieces */
 	bool bKitWaterWave = false;
+
+	/** The breaking wave the Flutwelle shows instead of its pieces; it crashes on its own when the spell ends */
+	TWeakObjectPtr<AVaelWaterWave> RealWave;
 
 	/** Embers or drops; each one moves on its own once it has been shed */
 	UPROPERTY(Transient)

@@ -397,4 +397,28 @@ public:
 	/** How far from the feet the strand leaves the water when the mage stands in it, in cm, so it bends visibly up to the orb */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Draw Strand", meta = (ClampMin = 0, Units = "cm"))
 	float WaterDrawFootOffset = 170.0f;
+
+	/** Material of water in motion that is built as a mesh: waves, the drawn strand, their spray and drops (M_Water_Wave and its instances) */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave")
+	TSoftObjectPtr<UMaterialInterface> WaveMaterial;
+
+	/** Seconds the Welle needs to roll to the end of its cone; it breaks on the way and runs out as foam afterwards */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave", meta = (ClampMin = 0.2, Units = "s"))
+	float WaveRollTime = 0.85f;
+
+	/** Height of the Welle at its full size, as a share of its reach */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave", meta = (ClampMin = 0.05))
+	float WaveHeightShare = 0.2f;
+
+	/** Height of the Flutwelle compared to its width (radius of the spell) */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave", meta = (ClampMin = 0.1))
+	float TidalHeightShare = 1.15f;
+
+	/** How wild the Welle is: 0 smooth and even, 1 torn crest and much spray */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave", meta = (ClampMin = 0, ClampMax = 1.5))
+	float WaveViolence = 0.6f;
+
+	/** How wild the Flutwelle is, see WaveViolence */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave", meta = (ClampMin = 0, ClampMax = 1.5))
+	float TidalViolence = 1.0f;
 };

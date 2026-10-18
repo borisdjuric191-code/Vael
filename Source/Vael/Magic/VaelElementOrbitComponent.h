@@ -9,6 +9,7 @@
 
 class UMaterialInterface;
 class UPointLightComponent;
+class UProceduralMeshComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 class UVaelElementComponent;
@@ -36,12 +37,15 @@ struct FVaelElementOrb
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> Trail;
 
-	/** Beads of the strand of water that runs from a pond or water plant up to an orb drawn from it, from the water to the orb */
+	/** Tube of water that runs from a pond or water plant up to an orb drawn from it, with its bubbles; null when there is none */
 	UPROPERTY()
-	TArray<TObjectPtr<UStaticMeshComponent>> Strand;
+	TObjectPtr<UProceduralMeshComponent> Strand;
 
 	/** Where the strand leaves the water */
 	FVector StrandStart = FVector::ZeroVector;
+
+	/** A random number per strand, so its churning differs */
+	float StrandSeed = 0.0f;
 
 	/** Light of the orb, null for elements that don't shine */
 	UPROPERTY()
@@ -116,7 +120,7 @@ private:
 	/** Adds a shape to an orb. Without a material the mesh keeps its own. */
 	UStaticMeshComponent* AddShape(USceneComponent* Parent, UStaticMesh* Mesh, UMaterialInterface* Material, const FLinearColor& Color, float Glow, float Rim = 0.0f);
 
-	/** Builds the strand of an orb drawn from water: its beads run from the dark color of that water to bright spell water */
+	/** Builds the strand of an orb drawn from water: a tube that runs from the dark color of that water to bright spell water */
 	void BuildStrand(FVaelElementOrb& Orb, const FLinearColor& WaterColor);
 
 	/** Lets the strand shoot up from the water to the orb, flow and drain away again; removes it once it is gone */

@@ -14,6 +14,7 @@
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterBolt.h"
+#include "Magic/VaelWaterWave.h"
 #include "Magic/VaelWaterOrb.h"
 #include "Magic/VaelWaterPuddle.h"
 #include "Nature/VaelHarvestable.h"
@@ -478,6 +479,17 @@ void AVaelSpellProjectile::BuildLook()
 		bLooseFlicker = false;
 
 		AddLookLight(Bright, 5.0f);
+
+		// A real breaking wave rides with the spell in place of all of it
+		RealWave = AVaelWaterWave::SpawnCarried(this, Radius * 1.3f, Radius * MagicSettings->TidalHeightShare, GetFootHeight(), MagicSettings->TidalViolence);
+		if (RealWave.IsValid())
+		{
+			for (UStaticMeshComponent* Shape : LookShapes)
+			{
+				Shape->SetHiddenInGame(true);
+			}
+			LookLight->SetVisibility(false);
+		}
 	}
 	else if (Look == EVaelProjectileLook::RockShard)
 	{
@@ -997,6 +1009,12 @@ float AVaelSpellProjectile::GetFootHeight() const
 
 void AVaelSpellProjectile::AnimateTidalWave(float Time, float DeltaSeconds)
 {
+	// The real wave moves and sprays on its own
+	if (RealWave.IsValid())
+	{
+		return;
+	}
+
 	const float Radius = SpellRadius;
 	const float Unit = PlaceholderSphereRadius * 2.0f;
 	const float Foot = GetFootHeight();
@@ -1127,6 +1145,13 @@ void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
 	{
 		// The wave breaks and falls apart: its water is thrown on ahead and up along its whole width
 		LookLight->SetVisibility(false);
+
+		if (AVaelWaterWave* Wave = RealWave.Get())
+		{
+			Wave->Crash();
+			RealWave.Reset();
+			return;
+		}
 
 		const FVector Forward = GetActorForwardVector();
 		const FVector Right = GetActorRightVector();

@@ -7,6 +7,7 @@
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelHornBeetle.h"
 #include "Magic/VaelWaterBolt.h"
+#include "Magic/VaelWaterWave.h"
 #include "Magic/VaelWaterPuddle.h"
 #include "GameFramework/PlayerController.h"
 #include "EngineUtils.h"
@@ -137,7 +138,16 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		FVector Eye = FVector::ZeroVector;
 		FVector Focus = FVector::ZeroVector;
 		bool bFound = false;
-		for (TActorIterator<AVaelWaterBolt> It(GetWorld()); It && WaterView != TEXT("Puddle"); ++It)
+
+		// -VaelShowcaseWater=Wave follows a breaking wave from the side and a little ahead
+		for (TActorIterator<AVaelWaterWave> It(GetWorld()); It && WaterView == TEXT("Wave"); ++It)
+		{
+			Focus = It->GetActorLocation() + FVector(0.0f, 0.0f, 90.0f);
+			Eye = Focus + It->GetActorRightVector() * 650.0f + It->GetActorForwardVector() * 420.0f + FVector(0.0f, 0.0f, 330.0f);
+			bFound = true;
+		}
+
+		for (TActorIterator<AVaelWaterBolt> It(GetWorld()); It && WaterView != TEXT("Puddle") && WaterView != TEXT("Wave"); ++It)
 		{
 			Focus = It->GetActorLocation();
 			const FVector Side = FVector::CrossProduct(It->GetActorForwardVector(), FVector::UpVector).GetSafeNormal();
@@ -145,7 +155,7 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 			bFound = true;
 		}
 
-		if (!bFound)
+		if (!bFound && WaterView != TEXT("Wave"))
 		{
 			float Most = 0.0f;
 			for (TActorIterator<AVaelWaterPuddle> It(GetWorld()); It; ++It)

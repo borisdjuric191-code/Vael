@@ -11,6 +11,7 @@
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelWaterBolt.h"
+#include "Magic/VaelWaterWave.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
@@ -113,6 +114,19 @@ void AVaelSpellGust::BeginPlay()
 	if (VaelGround::TraceGround(GetWorld(), Hand, Hand - FVector(0.0f, 0.0f, 400.0f), GroundHit, GetInstigator()))
 	{
 		GroundHeight = GroundHit.Location.Z - Hand.Z;
+	}
+
+	// Water rolls out as a real breaking wave that looks after itself; this actor has nothing left to show
+	if (bWater)
+	{
+		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+		if (AVaelWaterWave::SpawnCone(GetWorld(), Hand + FVector(0.0f, 0.0f, GroundHeight), GetActorRotation(), Range, HalfAngle * 0.92f,
+			MagicSettings->WaveRollTime, Range * MagicSettings->WaveHeightShare, MagicSettings->WaveViolence) != nullptr)
+		{
+			SetActorTickEnabled(false);
+			SetLifeSpan(0.1f);
+			return;
+		}
 	}
 
 	const FLinearColor Bright = FMath::Lerp(GustColor, FLinearColor::White, bWater ? 0.8f : 0.3f);

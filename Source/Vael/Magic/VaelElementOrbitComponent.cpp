@@ -11,6 +11,9 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Camera/PlayerCameraManager.h"
+#include "GameFramework/PlayerController.h"
+#include "ProceduralMeshComponent.h"
 #include "VaelAssets.h"
 
 namespace
@@ -41,8 +44,13 @@ namespace
 	constexpr float OrbitDropTime = 1.3f;
 	constexpr float OrbitDropDistance = 55.0f;
 
-	/** Number of beads of the strand of drawn water, how high its arc bends and how far it winds sideways in cm */
-	constexpr int32 OrbitStrandBeadCount = 30;
+	/** Rings and sides of the tube of drawn water; how high its arc bends and how far it winds sideways in cm */
+	constexpr int32 OrbitStrandRings = 40;
+	constexpr int32 OrbitStrandSides = 10;
+
+	/** Tiny bubbles racing up inside the strand, and drops it spits out where it leaves the water */
+	constexpr int32 OrbitStrandBubbles = 26;
+	constexpr int32 OrbitStrandSpits = 10;
 	constexpr float OrbitStrandArc = 70.0f;
 	constexpr float OrbitStrandWind = 14.0f;
 
@@ -204,19 +212,32 @@ void UVaelElementOrbitComponent::AddLight(FVaelElementOrb& Orb, const FLinearCol
 
 void UVaelElementOrbitComponent::BuildStrand(FVaelElementOrb& Orb, const FLinearColor& WaterColor)
 {
-	for (int32 BeadIndex = 0; BeadIndex < OrbitStrandBeadCount; ++BeadIndex)
+	UMaterialInterface* WaveMaterial = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->WaveMaterial);
+	if (WaveMaterial == nullptr)
 	{
-		// Dark water leaves the pond and lights up the closer it comes to the orb
-		const float Along = BeadIndex / (OrbitStrandBeadCount - 1.0f);
-		const float Light = FMath::Pow(Along, 1.5f);
-		UStaticMeshComponent* Bead = AddShape(this, SphereMesh, CoreMaterial, FMath::Lerp(WaterColor, OrbitWaterSheen, Light), FMath::Lerp(0.1f, 1.8f, Light));
-
-		// The strand lies in the world between the water and the orb, not on the circle
-		Bead->SetUsingAbsoluteLocation(true);
-		Bead->SetUsingAbsoluteScale(true);
-		Bead->SetWorldLocation(Orb.StrandStart);
-		Orb.Strand.Add(Bead);
+		return;
 	}
+
+	// A tube of water built anew every frame, lying in the world between the water and the orb, not on the circle
+	Orb.Strand = NewObject<UProceduralMeshComponent>(GetOwner());
+	Orb.Strand->SetupAttachment(this);
+	Orb.Strand->SetUsingAbsoluteLocation(true);
+	Orb.Strand->SetUsingAbsoluteRotation(true);
+	Orb.Strand->SetUsingAbsoluteScale(true);
+	Orb.Strand->SetWorldTransform(FTransform::Identity);
+	Orb.Strand->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Orb.Strand->SetCastShadow(false);
+	Orb.Strand->RegisterComponent();
+
+	// It leaves the pond in the dark water of the pond and turns into spell water on its way up
+	if (UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(WaveMaterial, this))
+	{
+		Material->SetVectorParameterValue(TEXT("DeepColor"), WaterColor);
+		Orb.Strand->SetMaterial(0, Material);
+		Orb.Strand->SetMaterial(1, Material);
+	}
+
+	Orb.StrandSeed = FMath::FRandRange(0.0f, 100.0f);
 }
 
 void UVaelElementOrbitComponent::AnimateStrand(FVaelElementOrb& Orb, float Time)
@@ -226,20 +247,13 @@ void UVaelElementOrbitComponent::AnimateStrand(FVaelElementOrb& Orb, float Time)
 
 	if (Progress >= 1.0f)
 	{
-		for (UStaticMeshComponent* Bead : Orb.Strand)
-		{
-			if (Bead != nullptr)
-			{
-				Bead->DestroyComponent();
-			}
-		}
-
-		Orb.Strand.Reset();
+		Orb.Strand->DestroyComponent();
+		Orb.Strand = nullptr;
 		return;
 	}
 
 	// The head shoots up from the water, at the end the tail leaves the water and the rest drains into the orb
-	const float Head = FMath::SmoothStep(0.0f, OrbitStrandRise, Progress);
+	const float Head = FMath::Max(FMath::SmoothStep(0.0f, OrbitStrandRise, Progress), 0.02f);
 	const float Tail = FMath::SmoothStep(1.0f - OrbitStrandDrain, 1.0f, Progress);
 
 	// An arc from the water up to the orb that winds sideways like a rope being pulled
@@ -247,34 +261,127 @@ void UVaelElementOrbitComponent::AnimateStrand(FVaelElementOrb& Orb, float Time)
 	const FVector End = Orb.Pivot->GetComponentLocation();
 	const FVector Bend = (Start + End) * 0.5f + FVector(0.0f, 0.0f, OrbitStrandArc);
 	const FVector Side = FVector::CrossProduct(End - Start, FVector::UpVector).GetSafeNormal();
-	const float BeadSpacing = 1.0f / (OrbitStrandBeadCount - 1.0f);
+	const float Length = FVector::Dist(Start, End) / 100.0f;
+	const float Seed = Orb.StrandSeed;
 
-	for (int32 BeadIndex = 0; BeadIndex < Orb.Strand.Num(); ++BeadIndex)
+	auto PointAt = [&](float Along)
 	{
-		UStaticMeshComponent* Bead = Orb.Strand[BeadIndex];
-		const float Along = BeadIndex * BeadSpacing;
+		const float Rest = 1.0f - Along;
+		const float Winding = OrbitStrandWind * FMath::Sin(Along * UE_PI * 3.0f - Age * 8.0f) * FMath::Sin(Along * UE_PI);
+		return Start * Rest * Rest + Bend * 2.0f * Rest * Along + End * Along * Along + Side * Winding;
+	};
 
-		// Soft ends where the strand grows and drains
-		const float Shown = FMath::Clamp((Head - Along) / (2.0f * BeadSpacing), 0.0f, 1.0f) * FMath::Clamp((Along - Tail) / (2.0f * BeadSpacing), 0.0f, 1.0f);
-		if (Shown <= 0.0f)
+	TArray<FVector> Vertices;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<FLinearColor> Colors;
+	Vertices.Reserve((OrbitStrandRings + 1) * OrbitStrandSides);
+
+	// Rings around the curve from the tail to the head; water is never round: every ring bulges and churns
+	for (int32 RingIndex = 0; RingIndex <= OrbitStrandRings; ++RingIndex)
+	{
+		const float Share = RingIndex / static_cast<float>(OrbitStrandRings);
+		const float Along = FMath::Lerp(Tail, Head, Share);
+		const FVector Center = PointAt(Along);
+		const FVector Forward = (PointAt(FMath::Min(Along + 0.01f, 1.0f)) - PointAt(FMath::Max(Along - 0.01f, 0.0f))).GetSafeNormal();
+		const FVector Right = FVector::CrossProduct(Forward, FVector::UpVector).GetSafeNormal();
+		const FVector Up = FVector::CrossProduct(Right, Forward);
+
+		// Thick where it leaves the water, thin where it pours into the orb, both ends closing; swells run up towards the orb
+		const float Taper = FMath::Min(1.0f, Share * 6.0f + 0.35f) * FMath::Min(1.0f, (1.0f - Share) * 8.0f + 0.1f);
+		const float Radius = Orb.Size * 100.0f * FMath::Lerp(0.5f, 0.18f, Along) * Taper
+			* (1.0f + 0.35f * FMath::Sin(Along * 16.0f - Age * 13.0f) + 0.25f * FMath::PerlinNoise1D(Along * 23.0f - Age * 17.0f + Seed));
+
+		for (int32 SideIndex = 0; SideIndex < OrbitStrandSides; ++SideIndex)
 		{
-			Bead->SetWorldScale3D(FVector(KINDA_SMALL_NUMBER));
-			continue;
+			const float Angle = SideIndex * 2.0f * UE_PI / OrbitStrandSides;
+			const float Churn = 1.0f + 0.5f * FMath::PerlinNoise2D(FVector2D(Along * 9.0f - Age * 7.0f + Seed, Angle * 1.3f + Seed));
+			const FVector Out = Right * FMath::Cos(Angle) + Up * FMath::Sin(Angle);
+
+			Vertices.Add(Center + Out * Radius * Churn);
+			Normals.Add(Out);
+			UVs.Add(FVector2D(Angle / (2.0f * UE_PI) * 0.6f, Along * Length - Age * 2.5f));
+
+			// Dark pond water below, bright spell water above, white churned in all along; thin at the very ends
+			Colors.Add(FLinearColor(FMath::Pow(Along, 1.2f), 0.25f + 0.5f * Along, 0.0f, 0.95f * FMath::Min(1.0f, Taper * 1.5f)));
+		}
+	}
+
+	TArray<int32> Triangles;
+	for (int32 RingIndex = 0; RingIndex < OrbitStrandRings; ++RingIndex)
+	{
+		for (int32 SideIndex = 0; SideIndex < OrbitStrandSides; ++SideIndex)
+		{
+			const int32 A = RingIndex * OrbitStrandSides + SideIndex;
+			const int32 B = RingIndex * OrbitStrandSides + (SideIndex + 1) % OrbitStrandSides;
+			Triangles.Append({ A, B, A + OrbitStrandSides, B, B + OrbitStrandSides, A + OrbitStrandSides });
+		}
+	}
+
+	// Tiny bubbles race up inside the water, a few drops spit out where it leaves the pond
+	TArray<FVector> DotVertices;
+	TArray<FVector> DotNormals;
+	TArray<FVector2D> DotUVs;
+	TArray<FLinearColor> DotColors;
+	TArray<int32> DotTriangles;
+
+	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+	const FVector Camera = PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr ? PlayerController->PlayerCameraManager->GetCameraLocation() : End + FVector(-600.0f, 0.0f, 900.0f);
+
+	for (int32 DotIndex = 0; DotIndex < OrbitStrandBubbles + OrbitStrandSpits; ++DotIndex)
+	{
+		const bool bSpit = DotIndex >= OrbitStrandBubbles;
+		const float Random = FMath::Frac(FMath::Sin(DotIndex * 12.9898f + Seed) * 43758.5453f);
+		const float Random2 = FMath::Frac(Random * 7.31f + 0.17f);
+
+		FVector Center;
+		float Size;
+		float Alpha = 0.9f;
+		if (!bSpit)
+		{
+			const float Along = FMath::Frac(Random + Age * (0.8f + Random2 * 0.6f));
+			if (Along < Tail || Along > Head)
+			{
+				Alpha = 0.0f;
+			}
+			const float Angle = Random2 * 2.0f * UE_PI;
+			Center = PointAt(Along) + FVector(FMath::Cos(Angle), FMath::Sin(Angle), FMath::Sin(Angle * 2.0f)) * Orb.Size * 100.0f * 0.18f * Random;
+			Size = FMath::Lerp(0.5f, 1.4f, Random2);
+		}
+		else
+		{
+			const float Life = FMath::Frac(Random + Age * 2.2f);
+			const FVector Throw(FMath::Cos(Random2 * 6.28f) * 60.0f, FMath::Sin(Random2 * 6.28f) * 60.0f, 160.0f + 120.0f * Random);
+			Center = Start + Throw * Life * 0.5f - FVector(0.0f, 0.0f, 490.0f * FMath::Square(Life * 0.5f));
+			Size = FMath::Lerp(0.8f, 2.2f, Random);
+			Alpha = Progress < 0.75f ? 0.85f * (1.0f - Life) : 0.0f;
 		}
 
-		const float Rest = 1.0f - Along;
-		const FVector Point = Start * Rest * Rest + Bend * 2.0f * Rest * Along + End * Along * Along;
-		const FVector Tangent = (Bend - Start) * Rest + (End - Bend) * Along;
-		const float Winding = OrbitStrandWind * FMath::Sin(Along * UE_PI * 3.0f - Age * 8.0f) * FMath::Sin(Along * UE_PI);
+		const FVector ToCamera = (Camera - Center).GetSafeNormal();
+		const FVector DotRight = FVector::CrossProduct(FVector::UpVector, ToCamera).GetSafeNormal() * Size * 0.5f;
+		const FVector DotUp = FVector::CrossProduct(ToCamera, DotRight).GetSafeNormal() * Size * 0.5f;
+		const int32 First = DotVertices.Num();
 
-		// Swells run up the strand towards the orb, so the water is seen flowing into it
-		const float Swell = 1.0f + 0.35f * FMath::Sin(Along * 18.0f - Age * 15.0f);
-		const float Thickness = Orb.Size * FMath::Lerp(0.8f, 0.38f, Along) * Swell * Shown;
-
-		Bead->SetWorldLocation(Point + Side * Winding);
-		Bead->SetWorldRotation(Tangent.Rotation());
-		Bead->SetWorldScale3D(FVector(Thickness * 1.7f, Thickness, Thickness));
+		DotVertices.Append({ Center - DotRight - DotUp, Center + DotRight - DotUp, Center + DotRight + DotUp, Center - DotRight + DotUp });
+		DotUVs.Append({ FVector2D(0.0f, 0.0f), FVector2D(1.0f, 0.0f), FVector2D(1.0f, 1.0f), FVector2D(0.0f, 1.0f) });
+		for (int32 Corner = 0; Corner < 4; ++Corner)
+		{
+			DotNormals.Add(ToCamera);
+			DotColors.Add(FLinearColor(1.0f, 0.8f, 1.0f, Alpha));
+		}
+		DotTriangles.Append({ First, First + 2, First + 1, First, First + 3, First + 2 });
 	}
+
+	const TArray<FProcMeshTangent> NoTangents;
+	if (Orb.Strand->GetNumSections() == 0)
+	{
+		Orb.Strand->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, Colors, NoTangents, false);
+		Orb.Strand->CreateMeshSection_LinearColor(1, DotVertices, DotTriangles, DotNormals, DotUVs, DotColors, NoTangents, false);
+		return;
+	}
+
+	Orb.Strand->UpdateMeshSection_LinearColor(0, Vertices, Normals, UVs, Colors, NoTangents);
+	Orb.Strand->UpdateMeshSection_LinearColor(1, DotVertices, DotNormals, DotUVs, DotColors, NoTangents);
 }
 
 void UVaelElementOrbitComponent::BuildOrb(FVaelElementOrb& Orb)
@@ -363,12 +470,9 @@ void UVaelElementOrbitComponent::DestroyOrb(FVaelElementOrb& Orb)
 		}
 	}
 
-	for (UStaticMeshComponent* Shape : Orb.Strand)
+	if (Orb.Strand != nullptr)
 	{
-		if (Shape != nullptr)
-		{
-			Shape->DestroyComponent();
-		}
+		Orb.Strand->DestroyComponent();
 	}
 
 	if (Orb.Light != nullptr)
@@ -447,7 +551,7 @@ void UVaelElementOrbitComponent::TickComponent(float DeltaTime, ELevelTick TickT
 			break;
 		}
 
-		if (!Orb.Strand.IsEmpty())
+		if (Orb.Strand != nullptr)
 		{
 			AnimateStrand(Orb, Time);
 		}

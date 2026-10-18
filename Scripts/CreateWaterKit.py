@@ -93,7 +93,7 @@ def try_set(target, key, value):
 
 
 # Bumped whenever a graph of this script changes; a master material without the current version gets its graph rebuilt
-KIT_VERSION = 5.2
+KIT_VERSION = 5.5
 
 # Water normal map from the engine's example content, always there
 WAVE_NORMAL = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n.water_n"
@@ -246,6 +246,124 @@ def build_water_material(name="M_Water", puddle=False):
                                (offset, unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)):
         if not library.connect_material_property(expression, "", target):
             unreal.log_error("Vael water kit: could not connect M_Water output {}".format(target))
+
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
+# ---------------------------------------------------------------- M_Water_Wave
+
+# Look of the mage's waves; also applied by Scripts/TuneWaterWave.py to an instance that exists already
+WAVE_MAGE_SCALARS = {"EmissiveStrength": 0.1, "FoamScale": 2.2, "FoamBoil": 0.6, "BodyOpacity": 0.95, "EdgeRagged": 0.9, "Specular": 0.1, "Roughness": 0.2, "NormalStrength": 0.4, "ContactFade": 6.0}
+WAVE_MAGE_COLORS = {"DeepColor": (0.002, 0.012, 0.045), "MidColor": (0.004, 0.06, 0.18), "CrestColor": (0.12, 0.42, 0.6), "FoamColor": (0.9, 0.95, 1.0)}
+
+
+def build_wave_material():
+    """Water in motion that the game builds as a mesh every frame: waves, the strand drawn from a pond, spray and drops.
+    The vertex colour says what each point is: R how high in the wave (dark blue at its foot, pale at the crest),
+    G how much foam, B 1 for a drop (a soft round dot from its UV), A how solid (low values tear into ragged edges).
+    UVs are in metres and scroll with the water, so the boiling foam flows with it."""
+    material = new_material("M_Water_Wave")
+    if material is None:
+        return unreal.load_asset(MATERIALS + "/M_Water_Wave")
+
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    material.set_editor_property("two_sided", True)
+    try_set(material, "translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_SURFACE_PER_PIXEL_LIGHTING)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, column=8)
+    deep = g.color("DeepColor", unreal.LinearColor(0.003, 0.02, 0.07, 1.0))
+    middle = g.color("MidColor", unreal.LinearColor(0.01, 0.12, 0.26, 1.0))
+    crest = g.color("CrestColor", unreal.LinearColor(0.3, 0.65, 0.85, 1.0))
+    foam_color = g.color("FoamColor", unreal.LinearColor(0.9, 0.95, 1.0, 1.0))
+    foam_scale = g.scalar("FoamScale", 2.2)
+    foam_boil = g.scalar("FoamBoil", 0.6)
+    foam_sharpness = g.scalar("FoamSharpness", 4.0)
+    body_opacity = g.scalar("BodyOpacity", 0.93)
+    edge_ragged = g.scalar("EdgeRagged", 0.9)
+    normal_strength = g.scalar("NormalStrength", 0.5)
+    normal_tiling = g.scalar("NormalTiling", 1.5)
+    emissive_strength = g.scalar("EmissiveStrength", 0.12)
+    specular_value = g.scalar("Specular", 0.25)
+    smooth = g.scalar("Roughness", 0.06)
+    contact_fade = g.scalar("ContactFade", 6.0)
+
+    vertex = g.node(unreal.MaterialExpressionVertexColor, 7)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
+    time = g.node(unreal.MaterialExpressionTime, 7)
+
+    def channel(name):
+        """One channel of the vertex colour, through a multiply by 1 so the other helpers can take it"""
+        single = g.node(unreal.MaterialExpressionMultiply, 6, const_b=1.0)
+        g.link(vertex, single, "A", name)
+        return single
+
+    height = channel("R")
+    foam = channel("G")
+    drop = channel("B")
+    solid_alpha = channel("A")
+
+    # Boiling foam: two layers of ridged noise drift through time at different sizes; the ridges make a lace of thin foam veins,
+    # stretched along the flow (V) like the streaks foam draws over a wave
+    stretch = g.node(unreal.MaterialExpressionConstant2Vector, 7, r=1.0, g=0.6)
+    noise_values = []
+    for size, boil, offset, levels, column in ((1.0, 1.0, 0.0, 4, 4), (2.7, 1.7, 7.0, 3, 4)):
+        position = g.op(unreal.MaterialExpressionAppendVector, 5, g.mul(6, g.mul(6, uv, stretch), g.mul(6, foam_scale, g.const(size, column=7))),
+                        g.add(6, g.mul(6, time, g.mul(6, foam_boil, g.const(boil, column=7))), g.const(offset, column=7)))
+        noise = g.node(unreal.MaterialExpressionNoise, column, scale=1.0, levels=levels, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX, output_min=0.0, output_max=1.0)
+        g.link(position, noise, "")
+        ridge = g.one_minus(4, g.op(unreal.MaterialExpressionAbs, 4, g.sub(4, g.mul(4, noise, g.const(2.0)), g.const(1.0)), a_input=""))
+        thin = g.node(unreal.MaterialExpressionPower, 3, const_exponent=6.0)
+        g.link(ridge, thin, "Base")
+        noise_values.append((noise, thin))
+    # Blotchy noise tears the thin parts; the thin lace of ridges draws the foam veins
+    churn = g.add(3, g.mul(3, noise_values[0][0], g.const(0.6)), g.mul(3, noise_values[1][0], g.const(0.4)))
+    lace = g.add(3, g.mul(3, noise_values[0][1], g.const(0.6)), g.mul(3, noise_values[1][1], g.const(0.4)))
+    foam_pattern = g.add(2, g.mul(3, lace, g.const(0.65)), g.mul(3, churn, g.const(0.35)))
+
+    foam_mask = g.saturate(2, g.mul(2, g.sub(2, g.add(3, foam, foam_pattern), g.const(1.0)), foam_sharpness))
+
+    # Dark blue at the foot, deep turquoise in the body, pale blue-white at the crest, foam on top
+    lower = g.lerp(3, deep, middle, g.saturate(4, g.mul(4, height, g.const(1.7))))
+    body = g.lerp(2, lower, crest, g.saturate(3, g.mul(3, g.sub(4, height, g.const(0.55)), g.const(2.2))))
+    base_color = g.lerp(1, body, foam_color, foam_mask)
+
+    # Thin parts tear into ragged edges; drops are soft round dots
+    torn = g.saturate(2, g.add(2, g.mul(3, g.sub(3, solid_alpha, g.mul(4, g.one_minus(4, churn), edge_ragged)), g.const(4.0)),
+                                 g.mul(3, solid_alpha, g.one_minus(4, edge_ragged))))
+    ragged = g.lerp(1, torn, solid_alpha, drop)
+    dot_distance = g.mul(3, g.op(unreal.MaterialExpressionDistance, 4, uv, g.node(unreal.MaterialExpressionConstant2Vector, 5, r=0.5, g=0.5)), g.const(2.0))
+    dot = g.saturate(2, g.mul(2, g.one_minus(3, dot_distance), g.const(2.5)))
+    shape = g.lerp(1, g.const(1.0), dot, drop)
+
+    soft = g.node(unreal.MaterialExpressionDepthFade, 2)
+    try_set(soft, "fade_distance_default", 25.0)
+    g.link(contact_fade, soft, "FadeDistance")
+    opacity = g.mul(0, g.mul(1, g.mul(1, g.saturate(2, g.add(2, body_opacity, g.mul(3, foam_mask, g.const(0.5)))), ragged), shape), soft)
+
+    # Ripples over the moving water; foam is rough and flat
+    wave_texture = g.node(unreal.MaterialExpressionTextureObjectParameter, 7, parameter_name="WaveNormal", texture=unreal.load_asset(WAVE_NORMAL), sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    ripples = []
+    for scale, direction in ((1.0, (0.3, 1.0)), (1.9, (-0.7, 0.6))):
+        drift = g.mul(5, g.mul(5, time, g.const(0.08)), g.node(unreal.MaterialExpressionConstant2Vector, 6, r=direction[0], g=direction[1]))
+        sample = g.node(unreal.MaterialExpressionTextureSample, 4, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+        g.link(wave_texture, sample, "Tex")
+        g.link(g.add(5, g.mul(5, g.mul(6, uv, normal_tiling), g.const(scale)), drift), sample, "UVs")
+        ripples.append(sample)
+    flat = g.node(unreal.MaterialExpressionConstant3Vector, 3, constant=unreal.LinearColor(0.0, 0.0, 1.0, 1.0))
+    normal = g.lerp(2, flat, g.add(3, ripples[0], ripples[1]), g.mul(3, normal_strength, g.one_minus(3, foam_mask)))
+
+    roughness = g.lerp(1, smooth, g.const(0.6), foam_mask)
+    emissive = g.mul(1, base_color, g.mul(2, emissive_strength, g.add(3, height, g.const(0.3))))
+
+    for expression, target in ((base_color, unreal.MaterialProperty.MP_BASE_COLOR), (emissive, unreal.MaterialProperty.MP_EMISSIVE_COLOR),
+                               (opacity, unreal.MaterialProperty.MP_OPACITY), (roughness, unreal.MaterialProperty.MP_ROUGHNESS),
+                               (normal, unreal.MaterialProperty.MP_NORMAL), (specular_value, unreal.MaterialProperty.MP_SPECULAR)):
+        if not library.connect_material_property(expression, "", target):
+            unreal.log_error("Vael water kit: could not connect M_Water_Wave output {}".format(target))
 
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)
@@ -432,6 +550,10 @@ def main():
     build_water_material("M_Water_Puddle", puddle=True)
     particle = build_particle_material()
     instances = build_instances(water, particle)
+
+    # Waves, the drawn strand and their spray: dark blue foot, turquoise body, pale crest, white foam; glows a little as spell water does
+    wave = build_wave_material()
+    make_instance(wave, "MI_Water_Wave_Mage", WAVE_MAGE_SCALARS, WAVE_MAGE_COLORS)
 
     mage = make_source("DA_ElementSource_Water_Mage", "Zauberwasser (Magier)", instances["MI_Water_Spell_Mage"], (0.15, 0.55, 1.0, 1.0), (0.45, 0.8, 1.0, 0.8), 0.0)
     make_source("DA_ElementSource_Water_Mark", "Mark-Wasser", instances["MI_Water_Mark"], (0.25, 0.03, 0.35, 1.0), (0.18, 0.03, 0.25, 0.9), 0.85)
