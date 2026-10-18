@@ -181,6 +181,20 @@ public:
 	/** Turns the character into a mage or a Floromant, man or woman: body, wings, Saft or mana and what the buttons do */
 	void SetHero(EVaelHeroClass InClass, bool bFemale);
 
+	/** Level of the player and the share of the way to the next one (placeholder progression: experience from defeated creatures) */
+	int32 GetLevel() const { return Level; }
+	float GetExperienceFraction() const;
+
+	/** Gives experience; enough of it raises the level */
+	void AddExperience(float Amount);
+
+	/** The way the player has sworn to, none before the oath */
+	EVaelPath GetPath() const { return Path; }
+	void SetPath(EVaelPath InPath) { Path = InPath; }
+
+	/** Share of the dodge cooldown still to wait, 0 when a roll is possible */
+	float GetDodgeCooldownFraction() const;
+
 	/** Class the player plays */
 	EVaelHeroClass GetHeroClass() const { return HeroClass; }
 	bool IsFloromant() const { return HeroClass == EVaelHeroClass::Floromant; }
@@ -267,6 +281,14 @@ private:
 	/** Class the player plays, and whether it was set yet */
 	EVaelHeroClass HeroClass = EVaelHeroClass::Mage;
 	bool bHeroSet = false;
+
+	/** Level, experience gathered towards the next one and the sworn way */
+	int32 Level = 1;
+	float Experience = 0.0f;
+	EVaelPath Path = EVaelPath::None;
+
+	/** Experience the next level needs */
+	float GetExperienceForNextLevel() const { return 100.0f + 60.0f * (Level - 1); }
 
 	/** Mana regained per second as a mage; the Floromant has its own Saft */
 	float MageManaRegen = 0.0f;

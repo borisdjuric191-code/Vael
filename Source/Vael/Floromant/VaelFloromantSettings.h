@@ -18,6 +18,16 @@ enum class EVaelHeroClass : uint8
 	Floromant
 };
 
+/** The way a hero has sworn to at the end of Act II; none before the oath */
+UENUM(BlueprintType)
+enum class EVaelPath : uint8
+{
+	None,
+	Light,
+	Shadow,
+	Twilight
+};
+
 /** The seeds of the Floromant; each grows into its own plant */
 UENUM(BlueprintType)
 enum class EVaelSeedKind : uint8

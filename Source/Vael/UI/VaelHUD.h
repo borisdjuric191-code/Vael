@@ -33,6 +33,9 @@ public:
 	/** Draws everything */
 	virtual void DrawHUD() override;
 
+	/** Lets the panel of a player show the look of another class, like "Tamer"; empty for the own class */
+	static void SetPanelPreview(const UObject* WorldContext, int32 PlayerSlot, const FString& ClassName);
+
 protected:
 
 	/** Initialization */
@@ -95,6 +98,23 @@ private:
 
 	/** Page of class and body: mage or Floromant, man or woman */
 	void DrawHeroPage(const AVaelPlayerController* PlayerController);
+
+	/** Kinds of menu windows: parchment for knowledge, dark iron for the system, the class material for the character */
+	enum class EVaelWindow : uint8 { Parchment, Iron, Class };
+
+	/** Background of a menu window in its material; a dark box while the material is missing */
+	void DrawWindow(EVaelWindow Kind, float X, float Y, float Width, float Height, const class AVaelPlayerController* PlayerController);
+
+	/** Instances of the window materials, by kind */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UMaterialInstanceDynamic>> WindowMaterials;
+
+	/** Keeps one panel widget per player; returns false while WBP_SpielerHUD is missing, then the old panels are drawn */
+	bool SyncPlayerWidgets(const TArray<const class AVaelPlayerController*>& PlayerControllers);
+
+	/** Panel widgets of the players */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UVaelPlayerHUDWidget>> PlayerWidgets;
 
 	/** Middle of the panel of a Floromant: the seeds on their buttons, the picked one and the plants standing */
 	void DrawSeedLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth);

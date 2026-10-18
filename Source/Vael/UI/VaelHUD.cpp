@@ -28,6 +28,10 @@
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 #include "Player/VaelHeroSubsystem.h"
+#include "UI/VaelPlayerHUDWidget.h"
+#include "VaelAssets.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Blueprint/UserWidget.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelPlant.h"
 #include "UI/VaelNoticeSubsystem.h"
@@ -149,7 +153,7 @@ void AVaelHUD::DrawHUD()
 
 	PlayerControllers.Sort([](const AVaelPlayerController& A, const AVaelPlayerController& B) { return A.GetPlayerSlot() < B.GetPlayerSlot(); });
 
-	const int32 NumPanels = PlayerControllers.Num();
+	const int32 NumPanels = SyncPlayerWidgets(PlayerControllers) ? 0 : PlayerControllers.Num();
 	if (NumPanels > 0)
 	{
 		const float Gap = 12.0f * UiScale;
@@ -189,6 +193,72 @@ void AVaelHUD::DrawHUD()
 		{
 			DrawDialogue(PlayerController);
 			break;
+		}
+	}
+}
+
+bool AVaelHUD::SyncPlayerWidgets(const TArray<const AVaelPlayerController*>& PlayerControllers)
+{
+	UClass* WidgetClass = VaelAssets::LoadOptionalClass(UVaelUISettings::Get()->PlayerHUDWidget);
+	if (WidgetClass == nullptr || !WidgetClass->IsChildOf(UVaelPlayerHUDWidget::StaticClass()))
+	{
+		WidgetClass = UVaelPlayerHUDWidget::StaticClass();
+	}
+
+	// Menus and dialogues are painted under the widgets: the panels step aside while one is open
+	bool bMenuOpen = false;
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		bMenuOpen |= PlayerController->IsGrimoireOpen() || PlayerController->IsInDialogue();
+	}
+
+	PlayerWidgets.RemoveAll([&PlayerControllers](const TObjectPtr<UVaelPlayerHUDWidget>& Widget)
+	{
+		const bool bGone = Widget == nullptr || !PlayerControllers.Contains(Widget->GetPlayer());
+		if (bGone && Widget != nullptr)
+		{
+			Widget->RemoveFromParent();
+		}
+		return bGone;
+	});
+
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		const bool bHasWidget = PlayerWidgets.ContainsByPredicate([PlayerController](const TObjectPtr<UVaelPlayerHUDWidget>& Widget) { return Widget->GetPlayer() == PlayerController; });
+		if (!bHasWidget)
+		{
+			if (UVaelPlayerHUDWidget* Widget = CreateWidget<UVaelPlayerHUDWidget>(GetOwningPlayerController(), WidgetClass))
+			{
+				Widget->SetPlayer(const_cast<AVaelPlayerController*>(PlayerController));
+				Widget->AddToViewport(-10);
+				PlayerWidgets.Add(Widget);
+			}
+		}
+	}
+
+	for (UVaelPlayerHUDWidget* Widget : PlayerWidgets)
+	{
+		Widget->SetVisibility(bMenuOpen ? ESlateVisibility::Collapsed : ESlateVisibility::HitTestInvisible);
+	}
+
+	return !PlayerWidgets.IsEmpty();
+}
+
+void AVaelHUD::SetPanelPreview(const UObject* WorldContext, int32 PlayerSlot, const FString& ClassName)
+{
+	const UWorld* World = WorldContext != nullptr ? WorldContext->GetWorld() : nullptr;
+	const APlayerController* First = World != nullptr ? World->GetFirstPlayerController() : nullptr;
+	const AVaelHUD* Hud = First != nullptr ? Cast<AVaelHUD>(First->GetHUD()) : nullptr;
+	if (Hud == nullptr)
+	{
+		return;
+	}
+
+	for (UVaelPlayerHUDWidget* Widget : Hud->PlayerWidgets)
+	{
+		if (Widget->GetPlayer() != nullptr && Widget->GetPlayer()->GetPlayerSlot() == PlayerSlot)
+		{
+			Widget->SetPreviewClass(ClassName);
 		}
 	}
 }
@@ -532,7 +602,7 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
 	const float Padding = 28.0f * S;
 
-	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawWindow(EVaelWindow::Parchment, Left, Top, Width, Height, PlayerController);
 	DrawFrame(Left, Top, Width, Height, RimColor);
 	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
 
@@ -676,7 +746,7 @@ void AVaelHUD::DrawShop(const AVaelPlayerController* PlayerController)
 	const float Top = (Canvas->ClipY - Height) * 0.5f;
 	const float Padding = 28.0f * S;
 
-	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawWindow(EVaelWindow::Iron, Left, Top, Width, Height, PlayerController);
 	DrawFrame(Left, Top, Width, Height, RimColor);
 	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
 
@@ -823,6 +893,42 @@ void AVaelHUD::DrawQuickSlotLabel(EVaelInputGlyphs Glyphs, int32 SlotIndex, cons
 	const float Half = Size * 0.45f;
 
 	DrawPolygon({ Center + Forward * Half, Center - Forward * Half * 0.7f + Side * Half, Center - Forward * Half * 0.7f - Side * Half }, Color);
+}
+
+void AVaelHUD::DrawWindow(EVaelWindow Kind, float X, float Y, float Width, float Height, const AVaelPlayerController* PlayerController)
+{
+	// Parchment for knowledge, dark iron with gold filigree for the system, the material of the class for the character
+	const TCHAR* Names[] = { TEXT("MI_HUD_Fenster_Pergament"), TEXT("MI_HUD_Fenster_Eisen"), TEXT("MI_HUD_Fenster_Klasse") };
+	const int32 Index = static_cast<int32>(Kind);
+	if (WindowMaterials.Num() < 3)
+	{
+		WindowMaterials.SetNum(3);
+	}
+
+	if (WindowMaterials[Index] == nullptr)
+	{
+		const FString Path = FString::Printf(TEXT("/Game/Vael/UI/HUD/%s.%s"), Names[Index], Names[Index]);
+		if (UMaterialInterface* Parent = Cast<UMaterialInterface>(VaelAssets::LoadOptional(FSoftObjectPath(Path))))
+		{
+			WindowMaterials[Index] = UMaterialInstanceDynamic::Create(Parent, this);
+		}
+	}
+
+	UMaterialInstanceDynamic* Window = WindowMaterials[Index];
+	if (Window == nullptr)
+	{
+		DrawBox(X, Y, Width, Height, Rgb(23, 17, 15));
+		return;
+	}
+
+	Window->SetScalarParameterValue(TEXT("Aspect"), Width / FMath::Max(Height, 1.0f));
+	if (Kind == EVaelWindow::Class)
+	{
+		const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+		const FLinearColor ClassColor = Player != nullptr && Player->IsFloromant() ? FLinearColor(FColor(0xC9, 0x7A, 0x9E)) : FLinearColor(FColor(0x4A, 0x74, 0xA8));
+		Window->SetVectorParameterValue(TEXT("ClassColor"), ClassColor);
+	}
+	DrawMaterialSimple(Window, X, Y, Width, Height);
 }
 
 void AVaelHUD::DrawBox(float X, float Y, float Width, float Height, const FLinearColor& Color)
@@ -1131,7 +1237,7 @@ void AVaelHUD::DrawQuestLog(const AVaelPlayerController* PlayerController)
 	const float Bottom = Top + Height - Padding;
 	const float TextWidth = Width - 2.0f * Padding;
 
-	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawWindow(EVaelWindow::Parchment, Left, Top, Width, Height, PlayerController);
 	DrawFrame(Left, Top, Width, Height, RimColor);
 	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
 
@@ -1448,7 +1554,7 @@ void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)
 	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
 	const float Padding = 28.0f * S;
 
-	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawWindow(EVaelWindow::Class, Left, Top, Width, Height, PlayerController);
 	DrawFrame(Left, Top, Width, Height, RimColor);
 	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
 
@@ -1511,7 +1617,7 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
 	const float Padding = 28.0f * S;
 
-	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawWindow(EVaelWindow::Class, Left, Top, Width, Height, PlayerController);
 	DrawFrame(Left, Top, Width, Height, RimColor);
 	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
 
@@ -1735,7 +1841,7 @@ void AVaelHUD::DrawDialogue(const AVaelPlayerController* PlayerController)
 	const float Top = Canvas->ClipY - Height - 0.04f * Canvas->ClipY - PanelHeight * S;
 	const float Padding = 26.0f * S;
 
-	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawWindow(EVaelWindow::Parchment, Left, Top, Width, Height, PlayerController);
 	DrawFrame(Left, Top, Width, Height, RimColor);
 	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
 
@@ -1926,7 +2032,7 @@ void AVaelHUD::DrawCompendium(const AVaelPlayerController* PlayerController)
 	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
 	const float Padding = 28.0f * S;
 
-	DrawBox(Left, Top, Width, Height, Rgb(23, 17, 15));
+	DrawWindow(EVaelWindow::Parchment, Left, Top, Width, Height, PlayerController);
 	DrawFrame(Left, Top, Width, Height, RimColor);
 	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
 

@@ -47,6 +47,9 @@ void AVaelShowcase::BeginPlay()
 	FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseFire="), FireTime);
 	Countdown = ShowcaseWarmUp;
 
+	// Pictures of the menus are taken while the game is paused
+	SetTickableWhenPaused(true);
+
 	UE_LOG(LogVael, Display, TEXT("Showcase: %d pictures every %.1f s"), NumShots, Interval);
 }
 
@@ -302,7 +305,8 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		return;
 	}
 
-	FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("Showcase_%02d"), ShotsTaken + 1), false, false);
+	// The panels of the players are widgets on top of the game picture: they only show in the picture with the UI
+	FScreenshotRequest::RequestScreenshot(FString::Printf(TEXT("Showcase_%02d"), ShotsTaken + 1), true, false);
 	++ShotsTaken;
 	Countdown = Interval;
 }

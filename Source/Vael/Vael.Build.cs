@@ -21,6 +21,7 @@ public class Vael : ModuleRules
 			"Niagara",
 			"UMG",
 			"Slate",
+			"SlateCore",
 			"GameplayAbilities",
 			"GameplayTags",
 			"GameplayTasks",

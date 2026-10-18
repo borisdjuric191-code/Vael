@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VaelGameMode.h"
+#include "VaelScriptStatics.h"
 #include "Debug/VaelShowcase.h"
 #include "Debug/VaelSmokeTest.h"
 #include "Debug/VaelStreamTest.h"
@@ -313,6 +314,15 @@ void AVaelGameMode::StartPlay()
 	{
 		GetWorld()->SpawnActor<AVaelStreamTest>();
 	}
+
+#if WITH_EDITOR
+	// -VaelMakeFonts: makes the font assets of the HUD from Scripts/Data/Fonts and quits; font faces need the UI system, which scripts without a window lack
+	if (FParse::Param(FCommandLine::Get(), TEXT("VaelMakeFonts")))
+	{
+		UVaelScriptStatics::MakeFontAssets();
+		FPlatformMisc::RequestExit(false);
+	}
+#endif
 }
 
 void AVaelGameMode::Logout(AController* Exiting)

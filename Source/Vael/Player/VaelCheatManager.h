@@ -52,6 +52,23 @@ public:
 	void VaelSamen(const FString& Seed, float Metres);
 
 	/** Lets another local player join as if a controller had pressed Start, to test co-op without a second controller; optionally as "Magier" or "Floromant", "Mann" or "Frau". Example: VaelMitspieler Magier Mann */
+	/** Shows the panel of the player in the look of another class: "Magier", "Tamer", "Ingenieur", "Prophet", "Floromant"; nothing for the own class. Example: VaelHudKlasse Prophet */
+	UFUNCTION(Exec)
+	void VaelHudKlasse(const FString& ClassName = TEXT(""));
+
+	/** Sets the sworn way of the player: "Licht", "Schatten", "Zwielicht" or "Keiner" (before the oath). Example: VaelWeg Schatten */
+	UFUNCTION(Exec)
+	void VaelWeg(const FString& Way);
+
+	/** Gives the player experience. Example: VaelErfahrung 80 */
+	UFUNCTION(Exec)
+	void VaelErfahrung(float Amount);
+
+	/** Opens a page of the menu: "Formeln", "Inventar", "Kompendium", "Auftraege" or "Gestalt". Example: VaelMenue Inventar */
+	UFUNCTION(Exec)
+	void VaelMenue(const FString& Page);
+
+	/** Lets another local player join as if a controller had pressed Start, to test co-op without a second controller; optionally as "Magier" or "Floromant", "Mann" or "Frau". Example: VaelMitspieler Magier Mann */
 	UFUNCTION(Exec)
 	void VaelMitspieler(const FString& Class = TEXT(""), const FString& Look = TEXT(""));
 

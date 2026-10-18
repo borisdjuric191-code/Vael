@@ -28,6 +28,7 @@
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelHeroSubsystem.h"
+#include "UI/VaelHUD.h"
 #include "Player/VaelPlayerController.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Vael.h"
@@ -681,6 +682,44 @@ void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)
 		Heroes->SetChoice(VaelController->GetPlayerSlot(), Choice);
 	}
 	Player->SetHero(Choice.Class, Choice.bFemale);
+}
+
+void UVaelCheatManager::VaelHudKlasse(const FString& ClassName)
+{
+	if (const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		AVaelHUD::SetPanelPreview(VaelController, VaelController->GetPlayerSlot(), ClassName);
+	}
+}
+
+void UVaelCheatManager::VaelWeg(const FString& Way)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	if (AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
+	{
+		Player->SetPath(Way.StartsWith(TEXT("l"), ESearchCase::IgnoreCase) ? EVaelPath::Light : Way.StartsWith(TEXT("s"), ESearchCase::IgnoreCase) ? EVaelPath::Shadow
+			: Way.StartsWith(TEXT("z"), ESearchCase::IgnoreCase) ? EVaelPath::Twilight : EVaelPath::None);
+	}
+}
+
+void UVaelCheatManager::VaelErfahrung(float Amount)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	if (AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
+	{
+		Player->AddExperience(Amount);
+	}
+}
+
+void UVaelCheatManager::VaelMenue(const FString& Page)
+{
+	if (AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		const EVaelMenuPage Open = Page.StartsWith(TEXT("i"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Inventory : Page.StartsWith(TEXT("k"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Compendium
+			: Page.StartsWith(TEXT("a"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Quests : Page.StartsWith(TEXT("g"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Hero : EVaelMenuPage::Formulas;
+		VaelController->CloseGrimoire();
+		VaelController->OpenGrimoire(Open);
+	}
 }
 
 void UVaelCheatManager::VaelMitspieler(const FString& Class, const FString& Look)

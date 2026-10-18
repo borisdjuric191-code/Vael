@@ -6,6 +6,8 @@
 #include "Engine/DeveloperSettings.h"
 #include "VaelUISettings.generated.h"
 
+class UUserWidget;
+
 /** Button symbols the HUD shows for an input device */
 UENUM(BlueprintType)
 enum class EVaelInputGlyphs : uint8
@@ -151,4 +153,12 @@ public:
 	/** How far a staggering body tips over, in degrees */
 	UPROPERTY(config, EditAnywhere, Category="Hit Feedback", meta = (ClampMin = 0, ClampMax = 45))
 	float StaggerTilt = 14.0f;
+
+	/** Panel of each player at the bottom of the screen: WBP_SpielerHUD, made from UVaelPlayerHUDWidget. Without it the old panel is drawn. */
+	UPROPERTY(config, EditAnywhere, Category="Player HUD")
+	TSoftClassPtr<UUserWidget> PlayerHUDWidget = TSoftClassPtr<UUserWidget>(FSoftObjectPath(TEXT("/Game/Vael/UI/HUD/WBP_SpielerHUD.WBP_SpielerHUD_C")));
+
+	/** Folder of the look of each class, DA_HUDKlasse_<Klasse> */
+	UPROPERTY(config, EditAnywhere, Category="Player HUD")
+	FString HUDClassFolder = TEXT("/Game/Vael/UI/HUD/Klassen");
 };

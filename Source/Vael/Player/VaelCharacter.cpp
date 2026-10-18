@@ -797,6 +797,28 @@ void AVaelCharacter::TickPotionRegen()
 	}
 }
 
+float AVaelCharacter::GetExperienceFraction() const
+{
+	return FMath::Clamp(Experience / GetExperienceForNextLevel(), 0.0f, 1.0f);
+}
+
+void AVaelCharacter::AddExperience(float Amount)
+{
+	Experience += FMath::Max(Amount, 0.0f);
+	while (Experience >= GetExperienceForNextLevel())
+	{
+		Experience -= GetExperienceForNextLevel();
+		++Level;
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelPlayers", "LevelUp", "Spieler {0} erreicht Stufe {1}"), GetPlayerNumber(), Level), FText::GetEmpty(), FLinearColor(FColor(232, 205, 140)), 3.0f);
+	}
+}
+
+float AVaelCharacter::GetDodgeCooldownFraction() const
+{
+	const float Left = NextDodgeTime - GetWorld()->GetTimeSeconds();
+	return DodgeCooldown > 0.0f ? FMath::Clamp(Left / DodgeCooldown, 0.0f, 1.0f) : 0.0f;
+}
+
 void AVaelCharacter::SetBurden(float SpeedMultiplier, float Duration)
 {
 	BurdenMultiplier = FMath::Clamp(SpeedMultiplier, 0.0f, 1.0f);

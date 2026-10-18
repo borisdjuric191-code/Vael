@@ -117,3 +117,23 @@ void UVaelFloromantComponent::WitherAll()
 	}
 	Plants.Reset();
 }
+
+FText UVaelFloromantComponent::GetBeltName(int32 Index) const
+{
+	return UVaelFloromantSettings::Get()->GetPlant(static_cast<EVaelSeedKind>(Index)).DisplayName;
+}
+
+FLinearColor UVaelFloromantComponent::GetBeltColor(int32 Index) const
+{
+	return UVaelFloromantSettings::Get()->GetPlant(static_cast<EVaelSeedKind>(Index)).Color;
+}
+
+float UVaelFloromantComponent::GetCooldownLeft(EVaelHUDAbility Ability) const
+{
+	return Ability == EVaelHUDAbility::Sow ? FMath::Max(0.0f, NextThrowTime - GetWorld()->GetTimeSeconds()) : 0.0f;
+}
+
+float UVaelFloromantComponent::GetCooldownDuration(EVaelHUDAbility Ability) const
+{
+	return Ability == EVaelHUDAbility::Sow ? UVaelFloromantSettings::Get()->ThrowCooldown : 0.0f;
+}

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Floromant/VaelFloromantSettings.h"
+#include "UI/VaelHUDClassData.h"
 #include "VaelFloromantComponent.generated.h"
 
 class AVaelCharacter;
@@ -42,6 +43,16 @@ public:
 
 	/** Lets every plant of this Floromant wither, for example when the player turns back into a mage */
 	void WitherAll();
+
+	/** The seed belt for the HUD: number of seeds, the picked one, name and colour of each */
+	int32 GetBeltSize() const { return static_cast<int32>(EVaelSeedKind::Count); }
+	int32 GetBeltSelection() const { return static_cast<int32>(SelectedSeed); }
+	FText GetBeltName(int32 Index) const;
+	FLinearColor GetBeltColor(int32 Index) const;
+
+	/** Seconds until the ability can be used again, and its whole cooldown; 0 for abilities without one */
+	float GetCooldownLeft(EVaelHUDAbility Ability) const;
+	float GetCooldownDuration(EVaelHUDAbility Ability) const;
 
 private:
 

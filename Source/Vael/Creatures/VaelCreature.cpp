@@ -412,6 +412,15 @@ void AVaelCreature::Die()
 
 		OnDied.Broadcast(this);
 
+		// Every player earns experience from it (placeholder progression until the Adernbaum exists)
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			if (AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr)
+			{
+				Player->AddExperience(GetMaxHealth() * 0.4f);
+			}
+		}
+
 		// A creature that exists once stays dead in later sessions
 		UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this);
 		if (bOfTheLevel && ActiveData->bUnique && Save != nullptr)
