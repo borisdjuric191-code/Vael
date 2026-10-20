@@ -208,19 +208,20 @@ F_HAIN, F_MOOR, F_SAUM, F_KAMM, F_GRAT, F_FAENGE, F_WEG = (
 
 # ===== 3 Ewiger Hain =====
 ux, uy = 290, 470; gu = g(ux, uy)
-prim("Cylinder", ux, uy, gu + 41, (32, 32, 90), "Urstamm", "Urstamm_Stamm", F_HAIN + "/Urstamm", tags=["TRIPO_1"])
-prim("Sphere", ux, uy, gu + 100, (130, 130, 60), "Krone", "Urstamm_Krone", F_HAIN + "/Kronen", tags=["KRONE"])
-for i, (ox, oy) in enumerate([(-22, -10), (20, 14), (6, -24)]):
-    prim("Sphere", ux + ox, uy + oy, gu + 88, (70, 70, 35), "KroneHell", f"Urstamm_Krone_{i+1}", F_HAIN + "/Kronen", tags=["KRONE"])
+# Halbe Groesse seit 2026-10-21: 48 m hoch, 16 m Stamm (war 90 x 32 m)
+prim("Cylinder", ux, uy, gu + 22, (16, 16, 48), "Urstamm", "Urstamm_Stamm", F_HAIN + "/Urstamm", tags=["TRIPO_1"])
+prim("Sphere", ux, uy, gu + 54, (66, 66, 30), "Krone", "Urstamm_Krone", F_HAIN + "/Kronen", tags=["KRONE"])
+for i, (ox, oy) in enumerate([(-11, -5), (10, 7), (3, -12)]):
+    prim("Sphere", ux + ox, uy + oy, gu + 47, (36, 36, 18), "KroneHell", f"Urstamm_Krone_{i+1}", F_HAIN + "/Kronen", tags=["KRONE"])
 roots = [(190, 430), (200, 540), (300, 590), (400, 560), (420, 440), (360, 370), (250, 360), (180, 490), (340, 610), (225, 395)]
 for i, (ex, ey) in enumerate(roots):
-    ddx, ddy = ex - ux, ey - uy; dist = math.hypot(ddx, ddy)
+    ddx, ddy = (ex - ux) * 0.5, (ey - uy) * 0.5; dist = math.hypot(ddx, ddy)
     mxp, myp = ux + ddx * 0.55, uy + ddy * 0.55
     length = dist * 2 * 0.9
     yaw = math.degrees(math.atan2(ddy, ddx))
-    prim("Cube", mxp, myp, g(mxp, myp) + 1.5, (length, 8, 5), "Wurzel", f"Urstamm_Wurzel_{i+1:02d}", F_HAIN + "/Urstamm",
+    prim("Cube", mxp, myp, g(mxp, myp) + 0.8, (length, 4, 2.5), "Wurzel", f"Urstamm_Wurzel_{i+1:02d}", F_HAIN + "/Urstamm",
          rot=(-2.5, yaw, 0), tags=["TRIPO_1"])
-light(ux, uy, gu + 30, (0.75, 1.0, 0.6), 8000, 120, "Urstamm_Licht", F_HAIN + "/Urstamm")
+light(ux, uy, gu + 16, (0.75, 1.0, 0.6), 8000, 60, "Urstamm_Licht", F_HAIN + "/Urstamm")
 
 # Eihoehle
 ex_, ey_ = 225, 540; ge = g(ex_, ey_)
@@ -261,7 +262,7 @@ def hain_ok(px, py):
 hain_trees = scatter(24, hain_ok, 26, seed=11, box=(120, 330, 520, 640))
 for i, (px, py) in enumerate(hain_trees):
     gg = g(px, py); r = np.random.default_rng(100 + i)
-    dia, h, cd = r.uniform(8, 14), r.uniform(40, 60), r.uniform(28, 44)
+    dia, h, cd = r.uniform(5, 8), r.uniform(20, 30), r.uniform(16, 26)  # war 8-14, 40-60, 28-44 (Urbaum bleibt das Groesste)
     prim("Cylinder", px, py, gg + h / 2 - 2, (dia, dia, h), "Rinde", f"Riesenbaum_{i+1:02d}_Stamm", F_HAIN + "/Riesenbaeume", tags=["TRIPO_2"])
     prim("Sphere", px, py, gg + h + cd * 0.2, (cd, cd, cd * 0.55), "Krone", f"Riesenbaum_{i+1:02d}_Krone", F_HAIN + "/Kronen", tags=["KRONE"])
     # Brettwurzeln
@@ -282,7 +283,7 @@ for i, a in enumerate(hain_trees):
 for k, (i, j) in enumerate(pairs):
     a, b = hain_trees[i], hain_trees[j]
     mxp, myp = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
-    z = min(g(*a), g(*b)) + 18
+    z = min(g(*a), g(*b)) + 12
     prim("Cube", mxp, myp, z, (math.hypot(b[0] - a[0], b[1] - a[1]) * 2 - 10, 2.5, 0.5), "Holz", f"Haengesteg_{k+1}",
          F_HAIN + "/Haengestege", rot=(0, math.degrees(math.atan2(b[1] - a[1], b[0] - a[0])), 0))
 # Wurzel-Kit verstreut
@@ -395,7 +396,7 @@ shrooms = shroom_pts + scatter(22, kamm_ok, 22, seed=61, box=(130, 120, 560, 380
 mats = ["Pilz_Tuerkis", "Pilz_Orange", "Pilz_Rot", "Pilz_Tuerkis"]
 for i, (px, py) in enumerate(shrooms):
     gg = g(px, py); r = np.random.default_rng(900 + i)
-    sd, h = r.uniform(3, 7), r.uniform(12, 35); cd = sd * r.uniform(3.5, 6)
+    sd, h = r.uniform(2, 4.5), r.uniform(8, 18); cd = sd * r.uniform(3.5, 6)  # war 3-7, 12-35
     prim("Cylinder", px, py, gg + h / 2 - 1, (sd, sd, h), "Pilzstiel", f"Riesenpilz_{i+1:02d}_Stiel", F_KAMM + "/Riesenpilze", tags=["TRIPO_3"])
     prim("Sphere", px, py, gg + h, (cd, cd, cd * 0.3), mats[i % 4], f"Riesenpilz_{i+1:02d}_Hut", F_KAMM + "/Riesenpilze", tags=["TRIPO_3"])
     if mats[i % 4] == "Pilz_Tuerkis" and i % 2 == 0:
