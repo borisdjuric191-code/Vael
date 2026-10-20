@@ -1,7 +1,8 @@
 # Brings textures into the Wurzelforst blockout (region II), like DressAschenmark did for Aschenmark.
 #
 # - The ground (M_WF_Zonenkarte, which wf_blockout.py lays on the landscape) is rebuilt: forest floor laid by world
-#   position, mud where the ground lies low by the water, rock on steep slopes, sand on the campaign path, all tinted
+#   position (each layer sampled twice, turned, against the tile look), mud at the waterline, rock on steep slopes,
+#   brown forest floor only on the campaign path, green meadow and moss everywhere else in the forest, all tinted
 #   by the zone map so the regions stay readable. Hain (and partly Kammweg and moor) get the Fab root moss floor,
 #   the Forstsaum a meadow of uncut grass with clover patches.
 # - Plants grow by themselves near the camera (landscape grass, GT_WF_* in .../Blockout/Gras): ferns, sorrel and balsam
@@ -101,8 +102,11 @@ SURFACES = {
     "Moos": ("moss", 300.0, 0.8), "Krone": ("moss", 500.0, 0.7), "KroneHell": ("moss", 500.0, 0.7),
     "MangroveKrone": ("moss", 400.0, 0.7), "Seerose": ("moss", 150.0, 0.5),
     "Pilzstiel": ("mud", 200.0, 0.4), "Pilz_Orange": ("mud", 300.0, 0.35), "Pilz_Rot": ("mud", 300.0, 0.35),
-    "Pilz_Tuerkis": ("mud", 300.0, 0.35), "Weg": ("sand", 300.0, 1.0),
+    "Pilz_Tuerkis": ("mud", 300.0, 0.35), "Weg": ("forest", 300.0, 1.0),
 }
+
+# Colours that differ from what wf_blockout.py gives: the path stripes are brown forest floor, not sand
+COLORS = {"Weg": (0.30, 0.21, 0.13)}
 
 library = unreal.MaterialEditingLibrary
 assets = unreal.EditorAssetLibrary
@@ -164,8 +168,9 @@ class Graph:
         return expression
 
     def sample(self, texture, uvs, column):
+        # Shared sampler: the ground uses more textures than the 16 own samplers a material may have
         expression = self.node(unreal.MaterialExpressionTextureSample, column, texture=texture,
-                               sampler_type=sampler_of(texture))
+                               sampler_type=sampler_of(texture), sampler_source=unreal.SamplerSourceMode.SSM_WRAP_WORLD_GROUP_SETTINGS)
         self.link(uvs, expression, "UVs")
         return expression
 
@@ -213,7 +218,7 @@ def zone_weights(g, zone, linear, column):
     chroma = g.op(unreal.MaterialExpressionDivide, column, zone,
                   g.op(unreal.MaterialExpressionAdd, column + 1, total, g.const(0.001, column + 2)))
     weights = {}
-    for name in PLANT_ZONES:
+    for name in PLANT_ZONES + ("jaw",):
         own = zone_chroma(name, linear)
         gap = min(sum((a - b) ** 2 for a, b in zip(own, zone_chroma(other, linear))) ** 0.5 for other in ZONE_COLORS if other != name)
         reach = max(gap * 0.5, 0.01)
@@ -310,64 +315,103 @@ def build_ground(material, textures, grass_types):
     zone = g.mask(g.sample(zone_texture, zone_uv, 10), 9, r=True, g=True, b=True)
     weights = zone_weights(g, zone, zone_texture.get_editor_property("srgb"), 12)
 
-    # Ground textures laid by world position; the forest floor at two sizes against repeating
+    # Ground textures laid by world position
     tile = g.scalar("KachelBoden", 400.0, 12)
 
     def uv(factor):
         size = g.op(unreal.MaterialExpressionMultiply, 11, tile, g.const(factor, 12))
         return g.op(unreal.MaterialExpressionDivide, 10, plane, size)
 
-    near_uv = uv(1.0)
-    forest = g.lerp(g.sample(textures["forest"], near_uv, 9), g.sample(textures["forest"], uv(3.37), 9), g.const(0.45, 9), 8)
+    # Against the tile look: every layer is sampled twice, once straight and once turned, shifted and a bit larger,
+    # and the two blend in irregular patches, so the square repeat of the scan breaks up.
+    # Unconnected, the noise nodes read the world position themselves.
+    swap_noise = g.node(unreal.MaterialExpressionNoise, 10, scale=0.0011, levels=2, output_min=0.0, output_max=1.0, quality=1)
+    swap = g.saturate(g.op(unreal.MaterialExpressionAdd, 8, g.op(unreal.MaterialExpressionMultiply, 9,
+                                                                  g.op(unreal.MaterialExpressionSubtract, 10, swap_noise, g.const(0.5, 11)),
+                                                                  g.const(3.0, 10)), g.const(0.5, 9)), 7)
+
+    def detiled(key, factor):
+        straight = uv(factor)
+        turned = g.node(unreal.MaterialExpressionRotator, 9, speed=0.9, center_x=0.5, center_y=0.5)
+        g.link(g.op(unreal.MaterialExpressionAdd, 10, g.op(unreal.MaterialExpressionMultiply, 11, straight, g.const(0.79, 12)),
+                    g.node(unreal.MaterialExpressionConstant2Vector, 11, r=0.37, g=0.61)), turned, "Coordinate")
+        g.link(g.const(1.0, 10), turned, "Time")
+        return g.lerp(g.sample(textures[key], straight, 8), g.sample(textures[key], turned, 8), swap, 7), straight
+
+    forest, forest_uv = detiled("forest", 1.0)
     mud = g.sample(textures["mud"], uv(0.9), 9)
-    sand = g.sample(textures["sand"], uv(0.8), 9)
     rock_object = g.node(unreal.MaterialExpressionTextureObject, 10, texture=textures["rock"])
     rock = g.world_aligned(rock_object, g.scalar("KachelFels", 900.0, 11), 8)
-    rootmoss_uv = uv(0.7)
-    # Root moss at two sizes too: one size alone shows its moss stripes repeating
-    rootmoss = g.lerp(g.sample(textures["rootmoss"], rootmoss_uv, 9), g.sample(textures["rootmoss"], uv(2.3), 9), g.const(0.4, 9), 8)
-    meadow_uv = uv(0.55)
-    grass = g.sample(textures["grass"], meadow_uv, 9)
-    clover_uv = uv(0.65)
-    clover = g.sample(textures["clover"], clover_uv, 9)
+    rootmoss, rootmoss_uv = detiled("rootmoss", 0.7)
+    grass, meadow_uv = detiled("grass", 0.55)
+    clover, clover_uv = detiled("clover", 0.65)
 
     # Large soft patches so the meadows and moss beds don't look like one carpet
-    # Unconnected, the noise reads the world position itself
     noise = g.node(unreal.MaterialExpressionNoise, 9, scale=0.0006, levels=3, output_min=0.0, output_max=1.0, quality=1)
     clover_patch = g.saturate(g.op(unreal.MaterialExpressionMultiply, 8, g.op(unreal.MaterialExpressionSubtract, 9, noise, g.const(0.5, 10)),
                                    g.const(5.0, 9)), 7)
     meadow = g.lerp(grass, clover, clover_patch, 7)
 
-    # Hain: root and moss floor (partly also on the Kammweg and in the moor); Forstsaum: meadow with clover patches
-    moss_share = g.saturate(g.op(unreal.MaterialExpressionAdd, 8, weights["hain"],
-                                 g.op(unreal.MaterialExpressionMultiply, 9,
-                                      g.op(unreal.MaterialExpressionAdd, 10, weights["kamm"], weights["moor"]), g.const(0.5, 10))), 7)
-    meadow_share = g.op(unreal.MaterialExpressionMultiply, 7, weights["saum"],
-                        g.saturate(g.op(unreal.MaterialExpressionAdd, 8, noise, g.const(0.25, 9)), 8))
-    ground = g.lerp(forest, rootmoss, g.op(unreal.MaterialExpressionMultiply, 7, moss_share, g.scalar("Wurzelmoos", 0.7, 8)), 7)
-    ground = g.lerp(ground, meadow, meadow_share, 7)
+    # Green moss beds: the root moss turned green, in patches, mostly in the Hain and the moor
+    moss_grey = g.node(unreal.MaterialExpressionDesaturation, 7)
+    g.link(rootmoss, moss_grey)
+    g.link(g.const(1.0, 8), moss_grey, "Fraction")
+    moss_green = g.op(unreal.MaterialExpressionMultiply, 6, moss_grey,
+                      g.mask(g.node(unreal.MaterialExpressionVectorParameter, 8, parameter_name="MoosFarbe",
+                                    default_value=unreal.LinearColor(0.75, 1.25, 0.42, 1.0)), 7, r=True, g=True, b=True))
+    mossy = g.lerp(rootmoss, moss_green, g.scalar("MoosGruen", 0.65, 7), 6)
+    zone_moss = g.op(unreal.MaterialExpressionAdd, 8, g.op(unreal.MaterialExpressionMultiply, 9, weights["hain"], g.const(0.6, 10)),
+                     g.op(unreal.MaterialExpressionAdd, 9, g.op(unreal.MaterialExpressionMultiply, 10, weights["moor"], g.const(0.5, 11)),
+                          g.op(unreal.MaterialExpressionMultiply, 10, weights["kamm"], g.const(0.35, 11))))
+    moss_share = g.op(unreal.MaterialExpressionMultiply, 7, g.saturate(zone_moss, 7),
+                      g.saturate(g.op(unreal.MaterialExpressionSubtract, 8, g.op(unreal.MaterialExpressionMultiply, 9, noise, g.const(2.2, 10)),
+                                      g.const(0.5, 9)), 8))
+    green = g.lerp(meadow, mossy, moss_share, 6)
 
-    # Wet mud where the ground lies low by the water (the moor lies at about half a metre)
+    # The whole forest is green; the brown forest floor is left for the paths, the ash edge, the fangs and the high
+    # ridge tops. (Asked by what is NOT green: where two zone colours blend, the mix can look like a third zone.)
+    not_green = g.saturate(g.op(unreal.MaterialExpressionAdd, 7, g.op(unreal.MaterialExpressionAdd, 8, weights["asche"], weights["jaw"]),
+                                g.saturate(g.op(unreal.MaterialExpressionDivide, 8,
+                                                g.op(unreal.MaterialExpressionSubtract, 9, height, g.scalar("GruenBis", 4500.0, 10)),
+                                                g.const(1500.0, 9)), 8)), 7)
+    green_share = g.op(unreal.MaterialExpressionMultiply, 6, one_minus(g, not_green, 7), g.scalar("GruenAnteil", 1.0, 7))
+    plant_zones = g.op(unreal.MaterialExpressionAdd, 7, g.op(unreal.MaterialExpressionAdd, 8, weights["hain"], weights["saum"]),
+                       g.op(unreal.MaterialExpressionAdd, 8, weights["moor"], weights["kamm"]))
+    # Green ground that belongs to no plant zone (the blends) gets the meadow plants of the Forstsaum
+    leftover = g.saturate(g.op(unreal.MaterialExpressionSubtract, 6, green_share, plant_zones), 5)
+    ground = g.lerp(forest, green, green_share, 5)
+
+    # Wet mud only right at the waterline
     wet = g.saturate(g.op(unreal.MaterialExpressionDivide, 8,
-                          g.op(unreal.MaterialExpressionSubtract, 9, g.scalar("NassBis", 150.0, 10), height),
-                          g.const(120.0, 9)), 7)
-    ground = g.lerp(ground, mud, wet, 7)
+                          g.op(unreal.MaterialExpressionSubtract, 9, g.scalar("NassBis", 70.0, 10), height),
+                          g.const(50.0, 9)), 7)
+    ground = g.lerp(ground, mud, wet, 5)
 
     # Rock where the slope is steep
     normal_z = g.mask(g.node(unreal.MaterialExpressionVertexNormalWS, 9), 8, b=True)
     steep = g.saturate(g.op(unreal.MaterialExpressionMultiply, 7,
                             g.op(unreal.MaterialExpressionSubtract, 8, g.scalar("FelsAb", 0.8, 9), normal_z),
                             g.const(6.0, 8)), 6)
-    ground = g.lerp(ground, g.mask(rock, 7, r=True, g=True, b=True), steep, 6)
+    ground = g.lerp(ground, g.mask(rock, 7, r=True, g=True, b=True), steep, 5)
 
-    # Sand on the campaign path: the zone map paints it in one light colour
+    # Brown trodden forest floor on the campaign path (the zone map paints it in one light colour), with a ragged edge
     path_color = g.node(unreal.MaterialExpressionConstant3Vector, 8, constant=unreal.LinearColor(0.485, 0.381, 0.195, 1.0))
     distance = g.node(unreal.MaterialExpressionDistance, 7)
     g.link(zone, distance, "A")
     g.link(path_color, distance, "B")
-    path = g.saturate(g.op(unreal.MaterialExpressionDivide, 6,
-                           g.op(unreal.MaterialExpressionSubtract, 7, g.const(0.16, 8), distance), g.const(0.06, 7)), 5)
-    ground = g.lerp(ground, sand, path, 5)
+    ragged = g.op(unreal.MaterialExpressionMultiply, 7, g.op(unreal.MaterialExpressionSubtract, 8, swap_noise, g.const(0.5, 9)), g.const(0.07, 8))
+    path = g.saturate(g.op(unreal.MaterialExpressionDivide, 5,
+                           g.op(unreal.MaterialExpressionAdd, 6, g.op(unreal.MaterialExpressionSubtract, 7, g.scalar("WegBreite", 0.19, 8), distance),
+                                ragged),
+                           g.const(0.05, 6)), 4)
+    # The forest floor scan alone reads grey like gravel: warmed to earth brown
+    path_grey = g.node(unreal.MaterialExpressionDesaturation, 5)
+    g.link(g.lerp(forest, mud, g.const(0.3, 6), 6), path_grey)
+    g.link(g.const(1.0, 6), path_grey, "Fraction")
+    earth = g.op(unreal.MaterialExpressionMultiply, 4, path_grey,
+                 g.mask(g.node(unreal.MaterialExpressionVectorParameter, 6, parameter_name="WegFarbe",
+                               default_value=unreal.LinearColor(0.95, 0.62, 0.36, 1.0)), 5, r=True, g=True, b=True))
+    ground = g.lerp(ground, earth, path, 4)
 
     # Tinted by the zone colour, so Hain, Moor, Kammweg, Grat and the Nid spring stay what they are on the map
     grey = g.node(unreal.MaterialExpressionDesaturation, 4)
@@ -375,11 +419,16 @@ def build_ground(material, textures, grass_types):
     g.link(g.scalar("Entsaettigung", 0.6, 5), grey, "Fraction")
     tinted = g.op(unreal.MaterialExpressionMultiply, 3, g.op(unreal.MaterialExpressionMultiply, 4, grey, zone),
                   g.scalar("ZonenHelligkeit", 1.4, 4))
-    albedo = g.lerp(ground, tinted, g.scalar("ZonenAnteil", 0.3, 3), 2)
+    albedo = g.lerp(ground, tinted, g.op(unreal.MaterialExpressionMultiply, 3, g.scalar("ZonenAnteil", 0.3, 4), one_minus(g, path, 4)), 2)
 
-    normal = g.lerp(g.sample(textures["forest_normal"], near_uv, 4), g.sample(textures["rootmoss_normal"], rootmoss_uv, 4), moss_share, 3)
-    meadow_normal = g.lerp(g.sample(textures["grass_normal"], meadow_uv, 4), g.sample(textures["clover_normal"], clover_uv, 4), clover_patch, 3)
-    normal = g.lerp(normal, meadow_normal, meadow_share, 2)
+    # Big light and dark areas over hundreds of metres, so wide views don't look even
+    macro = g.node(unreal.MaterialExpressionNoise, 3, scale=0.00012, levels=2, output_min=0.8, output_max=1.12, quality=1)
+    albedo = g.op(unreal.MaterialExpressionMultiply, 1, albedo, macro)
+
+    green_normal = g.lerp(g.lerp(g.sample(textures["grass_normal"], meadow_uv, 5), g.sample(textures["clover_normal"], clover_uv, 5), clover_patch, 4),
+                          g.sample(textures["rootmoss_normal"], rootmoss_uv, 5), moss_share, 3)
+    normal = g.lerp(g.sample(textures["forest_normal"], forest_uv, 4), green_normal,
+                    g.op(unreal.MaterialExpressionMultiply, 3, green_share, one_minus(g, path, 4)), 2)
     rough = g.node(unreal.MaterialExpressionLinearInterpolate, 3, const_a=0.92, const_b=0.45)
     g.link(wet, rough, "Alpha")
 
@@ -400,7 +449,7 @@ def build_ground(material, textures, grass_types):
                                  g.op(unreal.MaterialExpressionMultiply, 5,
                                       g.op(unreal.MaterialExpressionAdd, 6, weights["hain"], weights["saum"]), g.const(0.5, 6))), 3)
     grass_weights = {
-        "Hain": weights["hain"], "Saum": weights["saum"], "Moor": weights["moor"], "Kamm": weights["kamm"], "Asche": weights["asche"],
+        "Hain": weights["hain"], "Saum": g.op(unreal.MaterialExpressionAdd, 2, weights["saum"], leftover), "Moor": weights["moor"], "Kamm": weights["kamm"], "Asche": weights["asche"],
     }
     output = g.node(unreal.MaterialExpressionLandscapeGrassOutput, 0)
     inputs = []
@@ -463,6 +512,8 @@ def dress_instances(textures):
         library.set_material_instance_scalar_parameter_value(instance, "Kachel", tile)
         library.set_material_instance_scalar_parameter_value(instance, "Muster", strength)
         library.set_material_instance_scalar_parameter_value(instance, "Aufhellung", BRIGHTEN.get(key, 2.2))
+        if name in COLORS:
+            library.set_material_instance_vector_parameter_value(instance, "Farbe", unreal.LinearColor(*COLORS[name], 1.0))
         library.update_material_instance(instance)
         assets.save_loaded_asset(instance, False)
         count += 1
