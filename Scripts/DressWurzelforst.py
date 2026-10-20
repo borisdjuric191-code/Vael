@@ -2,7 +2,12 @@
 #
 # - The ground (M_WF_Zonenkarte, which wf_blockout.py lays on the landscape) is rebuilt: forest floor laid by world
 #   position, mud where the ground lies low by the water, rock on steep slopes, sand on the campaign path, all tinted
-#   by the zone map so the regions stay readable.
+#   by the zone map so the regions stay readable. Hain (and partly Kammweg and moor) get the Fab root moss floor,
+#   the Forstsaum a meadow of uncut grass with clover patches.
+# - Plants grow by themselves near the camera (landscape grass, GT_WF_* in .../Blockout/Gras): ferns, sorrel and balsam
+#   in Hain, Saum, Moor and Kammweg, reeds along the shore, dry grass at the ash edge. The ground material says where
+#   (zone, not on the path, not on steep or wet ground). Needs grass.GrassMap.UseRuntimeGeneration=1 (DefaultEngine.ini).
+#   Master materials of these plants get the instancing usage, otherwise the game shows them grey.
 # - The grey box master M_WF_Graubox gets a texture laid over the world (bark, rock, moss ...); every MI_WF_* instance
 #   picks its texture and how strongly it shows ("Muster", 0 = plain colour as before).
 # - The level template's own sun, sky light, atmosphere and fog (folder "Lighting") are switched off, the blockout brings its own.
@@ -40,7 +45,50 @@ TEXTURES = {
     "rock": "/Game/Rock_Collection_04/Meshes/Rock_01/Textures/T_Rock_01_A",
     "bark": "/Game/Stylized_Tree_Pack/Textures/Stylized_Bark_Texture/T_Stylized_Bark_1_COLOR",
     "moss": "/Game/Megascans/3D_Assets/IcelandicMossClusters/T_IcelandicMossClusters_A",
+    "rootmoss": "/Game/Fab/Megascans/Surfaces/Nordic_Forest_Ground_Root_Moss_Coarse_xiekec0/Low/xiekec0_tier_3/Textures/T_xiekec0_1K_B",
+    "rootmoss_normal": "/Game/Fab/Megascans/Surfaces/Nordic_Forest_Ground_Root_Moss_Coarse_xiekec0/Low/xiekec0_tier_3/Textures/T_xiekec0_1K_N",
+    "grass": "/Game/Fab/Megascans/Surfaces/Uncut_Grass_oeeb70/Low/oeeb70_tier_3/Textures/T_oeeb70_1K_B",
+    "grass_normal": "/Game/Fab/Megascans/Surfaces/Uncut_Grass_oeeb70/Low/oeeb70_tier_3/Textures/T_oeeb70_1K_N",
+    "clover": "/Game/Fab/Megascans/Surfaces/Clover_Patches_on_Grass_sgmkajak/Raw/sgmkajak_tier_0/Textures/T_sgmkajak_8K_B",
+    "clover_normal": "/Game/Fab/Megascans/Surfaces/Clover_Patches_on_Grass_sgmkajak/Raw/sgmkajak_tier_0/Textures/T_sgmkajak_8K_N",
 }
+
+# Zone colours of T_WF_Zonenkarte.png (wf_generator.py); the ground and the plants read the zones from them
+ZONE_COLORS = {
+    "saum": "6e6448", "moor": "3e6b55", "hain": "3f7f45", "kamm": "3b6670", "grat": "6a6d60", "asche": "7a4a2a",
+    "jaw": "4a5f78", "grat_hoch": "9a9c90", "lagune": "2f6f74", "nid": "5a3a7a", "weg": "b9a77a",
+}
+PLANT_ZONES = ("hain", "saum", "moor", "kamm", "asche")
+
+# Plants the landscape grows by itself near the camera (LandscapeGrassType per zone).
+# Per mesh group: density per 100 m2, scale range, cast shadow
+GRASS_FOLDER = "/Game/Vael/Wurzelforst/Blockout/Gras"
+FERN = "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Raw/wdvlditia_tier_0/StaticMeshes/SM_wdvlditia_Var"
+SORREL = "/Game/Fab/Megascans/Plants/Wood_Sorrel_wcwmchzja/Raw/wcwmchzja_tier_0/StaticMeshes/SM_wcwmchzja_Var"
+BALSAM = "/Game/Fab/Megascans/Plants/Small_Balsam_xefmcgrqx/Raw/xefmcgrqx_tier_0/StaticMeshes/SM_xefmcgrqx_Var"
+REED = "/Game/Megaplant_Library/Plant_Dry_Common_Reeds/Instances/"
+THATCH = "/Game/Megascans/3D_Plants/ThatchingGrass/"
+GRASS_MESHES = {
+    "fern": [FERN + v for v in "ABCDEFGHI"],
+    "sorrel": [SORREL + v for v in "ACDEFGH"],
+    "balsam": [BALSAM + v for v in "BCDEFGH"],
+    "reed": [REED + "Leaf_Dry_Common_Reed_0{}".format(i) for i in range(10)],
+    "reed_flower": [REED + "Flower_Dry_Common_Reed_01", REED + "Flower_Dry_Common_Reed_02"],
+    "thatch": [THATCH + "SM_ThatchingGrass00_V{}".format(v) for v in (2, 6, 10)],
+    "dry": ["/Game/Megascans/3D_Plants/DryPlantSetB/SM_DryPlantSet01_V0{}".format(v) for v in (1, 2, 6)]
+           + ["/Game/Megascans/3D_Plants/DryPlant/SM_DryPlant00_V1"],
+}
+GRASS_TYPES = {
+    "Hain": [("fern", 9.0, (0.8, 1.3), True), ("sorrel", 60.0, (1.0, 1.8), False), ("balsam", 14.0, (1.0, 1.6), False)],
+    "Saum": [("thatch", 45.0, (0.8, 1.3), False), ("sorrel", 25.0, (1.0, 1.6), False), ("balsam", 12.0, (1.0, 1.5), False),
+             ("fern", 2.0, (0.7, 1.1), True)],
+    "Moor": [("fern", 3.0, (0.7, 1.1), True), ("sorrel", 20.0, (1.0, 1.6), False)],
+    "Kamm": [("balsam", 12.0, (1.0, 1.6), False), ("sorrel", 30.0, (1.0, 1.6), False), ("fern", 4.0, (0.8, 1.2), True)],
+    "Ufer": [("reed", 120.0, (1.6, 2.6), False), ("reed_flower", 25.0, (1.8, 2.8), False)],
+    # Ash edge towards the Aschenmark: dry grass and withered stalks, like over there
+    "Asche": [("thatch", 30.0, (0.8, 1.2), False), ("dry", 6.0, (0.8, 1.2), False)],
+}
+GRASS_CULL = (5000, 7000)  # start and end of the fade-out in cm; the shared camera zooms out to 45 m for four players
 
 # How much a texture brightens the colour it lies on (its grey is about 1 / this); the stylized bark is light
 BRIGHTEN = {"bark": 1.1}
@@ -147,8 +195,106 @@ def has_parameter(material, name):
 
 # ---------------------------------------------------------------- Ground
 
-def build_ground(material, textures):
+def zone_chroma(name, linear):
+    """Zone colour divided by its brightness, so the hill shading baked into the map drops out"""
+    hex_color = ZONE_COLORS[name]
+    rgb = [int(hex_color[i:i + 2], 16) / 255.0 for i in (0, 2, 4)]
+    if linear:
+        rgb = [c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in rgb]
+    total = sum(rgb)
+    return [c / total for c in rgb]
+
+
+def zone_weights(g, zone, linear, column):
+    """0..1 per plant zone: 1 near the zone's own colour, 0 halfway to the next zone colour and beyond"""
+    total = g.node(unreal.MaterialExpressionDotProduct, column + 1)
+    g.link(zone, total, "A")
+    g.link(g.node(unreal.MaterialExpressionConstant3Vector, column + 2, constant=unreal.LinearColor(1.0, 1.0, 1.0, 1.0)), total, "B")
+    chroma = g.op(unreal.MaterialExpressionDivide, column, zone,
+                  g.op(unreal.MaterialExpressionAdd, column + 1, total, g.const(0.001, column + 2)))
+    weights = {}
+    for name in PLANT_ZONES:
+        own = zone_chroma(name, linear)
+        gap = min(sum((a - b) ** 2 for a, b in zip(own, zone_chroma(other, linear))) ** 0.5 for other in ZONE_COLORS if other != name)
+        reach = max(gap * 0.5, 0.01)
+        distance = g.node(unreal.MaterialExpressionDistance, column - 1)
+        g.link(chroma, distance, "A")
+        g.link(g.node(unreal.MaterialExpressionConstant3Vector, column, constant=unreal.LinearColor(own[0], own[1], own[2], 1.0)), distance, "B")
+        weights[name] = g.saturate(g.op(unreal.MaterialExpressionSubtract, column - 2, g.const(1.5, column - 1),
+                                        g.op(unreal.MaterialExpressionDivide, column - 1, distance, g.const(reach, column))), column - 3)
+    return weights
+
+
+def grass_mesh(path):
+    mesh = unreal.load_asset(path)
+    if mesh is None:
+        notes.append("missing grass mesh " + path)
+    return mesh
+
+
+def allow_instancing(meshes):
+    """Grass and scattered pieces are drawn as instances; a master material without that usage shows the grey default
+    material in the game (the editor would set the flag by itself when the level is opened). Returns the masters set."""
+    changed = []
+    for mesh in meshes:
+        for slot in mesh.static_materials:
+            if slot.material_interface is None:
+                continue
+            base = slot.material_interface.get_base_material()
+            if base.get_editor_property("used_with_instanced_static_meshes"):
+                continue
+            result = library.set_material_usage(base, unreal.MaterialUsage.MATUSAGE_INSTANCED_STATIC_MESHES)
+            if (result[0] if isinstance(result, tuple) else result) or base.get_editor_property("used_with_instanced_static_meshes"):
+                library.recompile_material(base)
+                assets.save_loaded_asset(base, False)
+                changed.append(base.get_name())
+    return changed
+
+
+def make_grass_types():
+    """One LandscapeGrassType per zone; the ground material says where each grows"""
+    grass_types = {}
+    instanced = []
+    for name, groups in GRASS_TYPES.items():
+        asset_name = "GT_WF_" + name
+        path = "{}/{}".format(GRASS_FOLDER, asset_name)
+        if assets.does_asset_exist(path):
+            grass_type = unreal.load_asset(path)
+        else:
+            grass_type = unreal.AssetToolsHelpers.get_asset_tools().create_asset(asset_name, GRASS_FOLDER, unreal.LandscapeGrassType,
+                                                                                 unreal.LandscapeGrassTypeFactory())
+        varieties = []
+        for key, density, scale, shadow in groups:
+            meshes = [m for m in (grass_mesh(p) for p in GRASS_MESHES[key]) if m is not None]
+            instanced.extend(meshes)
+            for mesh in meshes:
+                variety = unreal.GrassVariety()
+                variety.set_editor_property("grass_mesh", mesh)
+                variety.set_editor_property("grass_density", unreal.PerPlatformFloat(default=density / len(meshes)))
+                variety.set_editor_property("start_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL[0]))
+                variety.set_editor_property("end_cull_distance", unreal.PerPlatformInt(default=GRASS_CULL[1]))
+                variety.set_editor_property("scaling", unreal.GrassScaling.UNIFORM)
+                variety.set_editor_property("scale_x", unreal.FloatInterval(scale[0], scale[1]))
+                variety.set_editor_property("random_rotation", True)
+                variety.set_editor_property("align_to_surface", True)
+                variety.set_editor_property("placement_jitter", 1.0)
+                variety.set_editor_property("cast_dynamic_shadow", shadow)
+                variety.set_editor_property("cast_contact_shadow", True)
+                varieties.append(variety)
+        grass_type.set_editor_property("grass_varieties", varieties)
+        assets.save_loaded_asset(grass_type, False)
+        grass_types[name] = grass_type
+    for master in allow_instancing(instanced):
+        notes.append("instancing allowed on " + master)
+    return grass_types
+
+
+def build_ground(material, textures, grass_types):
     library.delete_all_material_expressions(material)
+    # The grass output is not removed with the other nodes, and a material may hold only one
+    for expression in list(unreal.ObjectIterator(unreal.MaterialExpressionLandscapeGrassOutput)):
+        if expression.get_outer() == material:
+            library.delete_material_expression(material, expression)
     g = Graph(material)
 
     position = g.node(unreal.MaterialExpressionWorldPosition, 14)
@@ -160,7 +306,9 @@ def build_ground(material, textures):
                            default_value=unreal.LinearColor(MAP_ORIGIN[0], MAP_ORIGIN[1], 0.0, 0.0)), 12, r=True, g=True)
     zone_uv = g.op(unreal.MaterialExpressionDivide, 11, g.op(unreal.MaterialExpressionSubtract, 12, plane, origin),
                    g.scalar("Kartengroesse", MAP_SIZE, 12))
-    zone = g.mask(g.sample(unreal.load_asset(ZONE_TEXTURE), zone_uv, 10), 9, r=True, g=True, b=True)
+    zone_texture = unreal.load_asset(ZONE_TEXTURE)
+    zone = g.mask(g.sample(zone_texture, zone_uv, 10), 9, r=True, g=True, b=True)
+    weights = zone_weights(g, zone, zone_texture.get_editor_property("srgb"), 12)
 
     # Ground textures laid by world position; the forest floor at two sizes against repeating
     tile = g.scalar("KachelBoden", 400.0, 12)
@@ -175,12 +323,35 @@ def build_ground(material, textures):
     sand = g.sample(textures["sand"], uv(0.8), 9)
     rock_object = g.node(unreal.MaterialExpressionTextureObject, 10, texture=textures["rock"])
     rock = g.world_aligned(rock_object, g.scalar("KachelFels", 900.0, 11), 8)
+    rootmoss_uv = uv(0.7)
+    # Root moss at two sizes too: one size alone shows its moss stripes repeating
+    rootmoss = g.lerp(g.sample(textures["rootmoss"], rootmoss_uv, 9), g.sample(textures["rootmoss"], uv(2.3), 9), g.const(0.4, 9), 8)
+    meadow_uv = uv(0.55)
+    grass = g.sample(textures["grass"], meadow_uv, 9)
+    clover_uv = uv(0.65)
+    clover = g.sample(textures["clover"], clover_uv, 9)
+
+    # Large soft patches so the meadows and moss beds don't look like one carpet
+    # Unconnected, the noise reads the world position itself
+    noise = g.node(unreal.MaterialExpressionNoise, 9, scale=0.0006, levels=3, output_min=0.0, output_max=1.0, quality=1)
+    clover_patch = g.saturate(g.op(unreal.MaterialExpressionMultiply, 8, g.op(unreal.MaterialExpressionSubtract, 9, noise, g.const(0.5, 10)),
+                                   g.const(5.0, 9)), 7)
+    meadow = g.lerp(grass, clover, clover_patch, 7)
+
+    # Hain: root and moss floor (partly also on the Kammweg and in the moor); Forstsaum: meadow with clover patches
+    moss_share = g.saturate(g.op(unreal.MaterialExpressionAdd, 8, weights["hain"],
+                                 g.op(unreal.MaterialExpressionMultiply, 9,
+                                      g.op(unreal.MaterialExpressionAdd, 10, weights["kamm"], weights["moor"]), g.const(0.5, 10))), 7)
+    meadow_share = g.op(unreal.MaterialExpressionMultiply, 7, weights["saum"],
+                        g.saturate(g.op(unreal.MaterialExpressionAdd, 8, noise, g.const(0.25, 9)), 8))
+    ground = g.lerp(forest, rootmoss, g.op(unreal.MaterialExpressionMultiply, 7, moss_share, g.scalar("Wurzelmoos", 0.7, 8)), 7)
+    ground = g.lerp(ground, meadow, meadow_share, 7)
 
     # Wet mud where the ground lies low by the water (the moor lies at about half a metre)
     wet = g.saturate(g.op(unreal.MaterialExpressionDivide, 8,
                           g.op(unreal.MaterialExpressionSubtract, 9, g.scalar("NassBis", 150.0, 10), height),
                           g.const(120.0, 9)), 7)
-    ground = g.lerp(forest, mud, wet, 7)
+    ground = g.lerp(ground, mud, wet, 7)
 
     # Rock where the slope is steep
     normal_z = g.mask(g.node(unreal.MaterialExpressionVertexNormalWS, 9), 8, b=True)
@@ -204,17 +375,54 @@ def build_ground(material, textures):
     g.link(g.scalar("Entsaettigung", 0.6, 5), grey, "Fraction")
     tinted = g.op(unreal.MaterialExpressionMultiply, 3, g.op(unreal.MaterialExpressionMultiply, 4, grey, zone),
                   g.scalar("ZonenHelligkeit", 1.4, 4))
-    albedo = g.lerp(ground, tinted, g.scalar("ZonenAnteil", 0.7, 3), 2)
+    albedo = g.lerp(ground, tinted, g.scalar("ZonenAnteil", 0.3, 3), 2)
 
-    normal = g.sample(textures["forest_normal"], near_uv, 3)
+    normal = g.lerp(g.sample(textures["forest_normal"], near_uv, 4), g.sample(textures["rootmoss_normal"], rootmoss_uv, 4), moss_share, 3)
+    meadow_normal = g.lerp(g.sample(textures["grass_normal"], meadow_uv, 4), g.sample(textures["clover_normal"], clover_uv, 4), clover_patch, 3)
+    normal = g.lerp(normal, meadow_normal, meadow_share, 2)
     rough = g.node(unreal.MaterialExpressionLinearInterpolate, 3, const_a=0.92, const_b=0.45)
     g.link(wet, rough, "Alpha")
 
     library.connect_material_property(albedo, "", unreal.MaterialProperty.MP_BASE_COLOR)
-    library.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    library.connect_material_property(normal, "", unreal.MaterialProperty.MP_NORMAL)
     library.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
     library.connect_material_property(g.const(0.25, 2), "", unreal.MaterialProperty.MP_SPECULAR)
+
+    # Plants: only on dry, flat ground off the path; reeds in a band along the shore
+    open_ground = g.op(unreal.MaterialExpressionMultiply, 4, one_minus(g, steep, 5), one_minus(g, path, 5))
+    dry = g.saturate(g.op(unreal.MaterialExpressionDivide, 5, g.op(unreal.MaterialExpressionSubtract, 6, height, g.const(20.0, 7)),
+                          g.const(30.0, 6)), 4)
+    plant_ground = g.op(unreal.MaterialExpressionMultiply, 3, open_ground, dry)
+    shore = g.op(unreal.MaterialExpressionMultiply, 4,
+                 g.saturate(g.op(unreal.MaterialExpressionDivide, 5, g.op(unreal.MaterialExpressionAdd, 6, height, g.const(40.0, 7)), g.const(30.0, 6)), 4),
+                 g.saturate(g.op(unreal.MaterialExpressionDivide, 5, g.op(unreal.MaterialExpressionSubtract, 6, g.const(130.0, 7), height), g.const(60.0, 6)), 4))
+    shore_zone = g.saturate(g.op(unreal.MaterialExpressionAdd, 4, weights["moor"],
+                                 g.op(unreal.MaterialExpressionMultiply, 5,
+                                      g.op(unreal.MaterialExpressionAdd, 6, weights["hain"], weights["saum"]), g.const(0.5, 6))), 3)
+    grass_weights = {
+        "Hain": weights["hain"], "Saum": weights["saum"], "Moor": weights["moor"], "Kamm": weights["kamm"], "Asche": weights["asche"],
+    }
+    output = g.node(unreal.MaterialExpressionLandscapeGrassOutput, 0)
+    inputs = []
+    for name in GRASS_TYPES:
+        grass_input = unreal.GrassInput()
+        grass_input.set_editor_property("name", name)
+        grass_input.set_editor_property("grass_type", grass_types[name])
+        inputs.append(grass_input)
+    output.set_editor_property("grass_types", inputs)
+    for name in GRASS_TYPES:
+        if name == "Ufer":
+            weight = g.op(unreal.MaterialExpressionMultiply, 1, g.op(unreal.MaterialExpressionMultiply, 2, shore, shore_zone), open_ground)
+        else:
+            weight = g.op(unreal.MaterialExpressionMultiply, 1, grass_weights[name], plant_ground)
+        g.link(weight, output, name)
     library.recompile_material(material)
+
+
+def one_minus(g, source, column):
+    expression = g.node(unreal.MaterialExpressionOneMinus, column)
+    g.link(source, expression)
+    return expression
 
 
 # ---------------------------------------------------------------- Grey box
@@ -313,7 +521,7 @@ def main():
         log("run wf_blockout.py first, its materials are missing")
         return
 
-    build_ground(ground, textures)
+    build_ground(ground, textures, make_grass_types())
     assets.save_loaded_asset(ground, False)
     build_greybox(greybox, textures)
     assets.save_loaded_asset(greybox, False)

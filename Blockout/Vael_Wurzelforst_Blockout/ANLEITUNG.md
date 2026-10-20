@@ -112,4 +112,18 @@ Das Skript im Vael-Projekt legt Texturen über den Blockout. Es läuft ohne Ober
 - **Wasser:** `MI_WF_Wasser_Teich` (MI_Water_Pond, dunkler und mit Wellen für 4 km).
 - **Licht:** Die zweite Sonne aus der Level-Vorlage (Ordner „Lighting“) wird ausgeschaltet, nicht gelöscht. Ein Post-Process-Volume „Stimmung_Wurzelforst“ senkt die Belichtung.
 
+- **Pflanzen:** Farne, Sauerklee und Springkraut, Schilf am Ufer und trockenes Gras am Aschenrand wachsen von selbst um die Kamera (Landschaftsgras `GT_WF_*` im Ordner `Blockout/Gras`). Wo sie wachsen, bestimmt das Bodenmaterial nach Zone. Nicht auf dem Weg, an Steilhängen und im Wasser.
+- **Boden:** Im Hain liegt Wurzelmoos, im Forstsaum Wiese mit Kleeflecken (Fab-Oberflächen).
+
 Nach einem erneuten Lauf von `wf_blockout.py` das Texturen-Skript sicherheitshalber noch einmal ausführen.
+
+## Kulisse verteilen (Scripts/ScatterWurzelforst.py)
+
+Danach verteilt das zweite Skript Felsen, Moosfelsen, Steine, Wurzeln, Moospolster, umgestürzte Stämme, Äste, Stümpfe, tote Stämme, Moosböschungen und Totbüsche nach Zone, etwa 20 000 Stück.
+
+- Pro Mesh steht ein Actor `Streu_…` mit vielen Instanzen im Outliner-Ordner `Wurzelforst/_Kulisse/<Art>`, Tag `WF_Streu`.
+- Abstand halten sie zu den Graubox-Platzhaltern, zum Kampagnenweg und zum Spielerstart. Im Wasser stehen nur Stümpfe und Stämme in den Moorlagunen.
+- Erneut ausführen ersetzt nur die eigenen `WF_Streu`-Actors (gleiches Ergebnis). Einzelne Instanzen kann man im Editor verschieben oder löschen; nach einem erneuten Lauf sind solche Handänderungen weg.
+- Dichte je Zone steht oben im Skript unter `DENSITY` (Stück pro Hektar).
+
+Beide Skripte laufen ohne Oberfläche, der Editor muss zu sein. Die Pakete (Fab, Megascans, Rock Collection) liegen nicht in Git, sie müssen auf dem Rechner vorhanden sein.
