@@ -1,0 +1,33 @@
+{
+  "_hinweis": "Koordinaten in Pixeln des 2D-Kartenentwurfs (1600 x 1100), 1 Pixel = 2 m. x nach rechts, y nach unten. Kurvenstuecke: [Kontrollpunkt1 x, y, Kontrollpunkt2 x, y, Endpunkt x, y]; Geraden: [x, y]. Nach jeder Aenderung: python wf_generator.py ausfuehren.",
+  "kueste_wurzelforst": {
+    "_hinweis": "Umriss von Ruecken und Schwanz der Urdrachin: aussen von der Aschenmark nach Norden, ueber den Schwanzgrat zur Schwanzspitze, innen am Ringsee zurueck.",
+    "start": [260, 1100],
+    "stuecke": [
+      [160, 900, 120, 600, 200, 400],
+      [260, 250, 380, 140, 560, 110],
+      [760, 80, 980, 90, 1150, 130],
+      [1210, 145, 1250, 175, 1240, 210],
+      [1225, 240, 1170, 245, 1120, 235],
+      [960, 210, 760, 215, 600, 250],
+      [500, 290, 470, 380, 480, 500],
+      [490, 640, 520, 780, 600, 900],
+      [640, 960, 670, 1040, 690, 1100]
+    ]
+  },
+  "anschluss_aschenmark": [[255, 1085], [695, 1085], [820, 1280], [560, 1420], [300, 1400], [200, 1260]],
+  "kiefer_sturmzinnen": {
+    "start": [1600, 40],
+    "stuecke": [
+      [1440, 90],
+      [1380, 120, 1345, 170, 1350, 225],
+      [1355, 270, 1400, 300, 1470, 310],
+      [1600, 330], [1820, 330], [1820, 40]
+    ]
+  },
+  "flachwasser_buchten": [[560, 760, 90, 190], [540, 520, 60, 80]],
+  "lagunen_pfuhlmoor": [[260, 660, 70, 28], [385, 725, 92, 34], [225, 775, 52, 22], [430, 640, 40, 17], [330, 815, 62, 20], [470, 800, 38, 40]],
+  "watt_die_faenge": [1318, 232, 95, 48],
+  "gratlinie": [[500, 200], [560, 190], [620, 172], [850, 150], [1080, 165], [1238, 208], [1300, 215]],
+  "kampagnenweg": [[420, 1080], [360, 930], [300, 760], [330, 620], [390, 520], [330, 440], [370, 320], [430, 220], [620, 172], [850, 150], [1080, 165], [1238, 208]]
+}
