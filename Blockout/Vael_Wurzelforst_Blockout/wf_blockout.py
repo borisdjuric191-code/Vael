@@ -24,7 +24,7 @@ import unreal
 # ------------------------------------------------------------------
 # Euer eigenes Wassermaterial (Objektpfad), z. B. "/Game/Vael/FX/Wasser/MI_Teich".
 # Leer lassen = graues Platzhalter-Wasser.
-WASSER_MATERIAL = "/Game/VFX/Water/Materials/MI_Water_Pond"
+WASSER_MATERIAL = "/Game/Vael/Wurzelforst/Blockout/Materialien/MI_WF_Wasser_Teich"  # MI_Water_Pond mit Wellen fuer 4 km (Scripts/DressWurzelforst.py)
 
 # Fertige Modelle fuer die Tripo-Platzhalter (Objektpfade). Leer = Graubox-Formen.
 # Ist ein Pfad eingetragen, setzt das Skript pro Baum/Pilz/... EIN Modell statt der Einzelteile:

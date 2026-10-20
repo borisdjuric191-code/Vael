@@ -102,3 +102,14 @@ Wenn ein Tripo-Modell fertig ist, den Pfad oben in `wf_blockout.py` bei `MODELLE
 - Die Riesenpilze tragen ihre Farbe als Tag (`FARBE_Pilz_Tuerkis` usw.), damit sie später das passende Material bekommen.
 
 Schnell ausprobieren geht auch im Python-Ausgabelog: `platzhalter_ersetzen("TRIPO_3", "/Game/Vael/Wurzelforst/Modelle/SM_Riesenpilz_A")` baut einmal mit diesem Modell neu, ohne es dauerhaft einzutragen.
+
+## Texturen (Scripts/DressWurzelforst.py)
+
+Das Skript im Vael-Projekt legt Texturen über den Blockout. Es läuft ohne Oberfläche, der Editor muss dafür geschlossen sein.
+
+- **Boden:** Waldboden, Schlamm am Wasser, Fels an steilen Hängen und Sand auf dem Kampagnenweg, eingefärbt nach Zone.
+- **Platzhalter:** Rinde, Fels und Moos auf den Graubox-Formen. Pro `MI_WF_*` bestimmen die Parameter `Textur`, `Kachel` und `Muster`, wie stark die Textur zu sehen ist. Bei `Muster` 0 bleibt die reine Farbe.
+- **Wasser:** `MI_WF_Wasser_Teich` (MI_Water_Pond, dunkler und mit Wellen für 4 km).
+- **Licht:** Die zweite Sonne aus der Level-Vorlage (Ordner „Lighting“) wird ausgeschaltet, nicht gelöscht. Ein Post-Process-Volume „Stimmung_Wurzelforst“ senkt die Belichtung.
+
+Nach einem erneuten Lauf von `wf_blockout.py` das Texturen-Skript sicherheitshalber noch einmal ausführen.
