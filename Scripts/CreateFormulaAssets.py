@@ -427,6 +427,7 @@ FORMULAS = [
         "strike_delay": 0.45,
         "strike_radius": 1.6 * TILE,
         "strike_shake": 0.3,
+        "strike_look": unreal.VaelStrikeLook.GEYSER,
     },
     {
         "asset": "DA_Formula_Magmariss",
@@ -820,6 +821,7 @@ FORMULAS = [
         "status_duration": 6.0,
         "cone_range": 4.0 * TILE,
         "cone_half_angle": 40.0,
+        "cone_look": unreal.VaelConeLook.WATER_WAVE,
     },
     {
         "asset": "DA_Formula_SchreiDerSchlafenden",

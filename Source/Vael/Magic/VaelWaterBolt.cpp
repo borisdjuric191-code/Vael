@@ -9,10 +9,12 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
+#include "ProceduralMeshComponent.h"
 #include "StaticMeshAttributes.h"
 #include "StaticMeshOperations.h"
 #include "UObject/Package.h"
 #include "VaelAssets.h"
+#include "World/VaelGround.h"
 
 namespace
 {
@@ -59,6 +61,21 @@ namespace
 	constexpr float SpiralFoam = 40.0f;
 	constexpr float SpiralFresnelPower = 0.5f;
 
+	/** Real water: points around the jet, rings along its nose and body */
+	constexpr int32 JetAround = 20;
+	constexpr int32 JetNoseRings = 7;
+	constexpr int32 JetBodyRings = 30;
+
+	/** Real water: drops in the pool, their size in cm and how long they fly */
+	constexpr int32 JetDropCount = 150;
+	constexpr float JetDropMinSize = 0.9f;
+	constexpr float JetDropMaxSize = 3.6f;
+	constexpr float JetDropMinLife = 0.3f;
+	constexpr float JetDropMaxLife = 0.7f;
+
+	/** Real water: how fast the foam streams back along the jet, m/s */
+	constexpr float JetFoamFlow = 3.0f;
+
 	/** Last meshes built and the shape they were built for, shared by all bolts */
 	TWeakObjectPtr<UStaticMesh> CachedBoltMesh;
 	TWeakObjectPtr<UStaticMesh> CachedSpiralMesh;
@@ -79,6 +96,23 @@ AVaelWaterBolt::AVaelWaterBolt()
 
 	// The spray is drawn over the jet it winds around
 	Spiral->TranslucencySortPriority = 2;
+
+	Jet = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("Jet"));
+	Jet->SetupAttachment(GetPivot());
+	Jet->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Jet->SetCastShadow(false);
+	Jet->SetVisibility(false);
+
+	// The drops stay where they were shed, so they live in world space
+	JetDrops = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("JetDrops"));
+	JetDrops->SetupAttachment(RootComponent);
+	JetDrops->SetUsingAbsoluteLocation(true);
+	JetDrops->SetUsingAbsoluteRotation(true);
+	JetDrops->SetUsingAbsoluteScale(true);
+	JetDrops->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	JetDrops->SetCastShadow(false);
+	JetDrops->SetVisibility(false);
+	JetDrops->TranslucencySortPriority = 1;
 
 	// No bobbing, a shot flies straight
 	BobHeight = 0.0f;
@@ -101,7 +135,19 @@ void AVaelWaterBolt::BeginPlay()
 	GetBall()->SetStaticMesh(BoltMesh);
 	Spiral->SetStaticMesh(CachedSpiralMesh.Get());
 
-	if (GetParticles()->GetAsset() == nullptr)
+	// Real water: the jet and its drops are built every frame from the wave material, so it looks like the Welle; its own drops replace the head effect
+	UMaterialInterface* WaveMaterial = MagicSettings->bWaterBoltRealWater ? VaelAssets::LoadOptional(MagicSettings->WaveMaterial) : nullptr;
+	if (WaveMaterial != nullptr)
+	{
+		bRealWater = true;
+		Seed = FMath::FRandRange(1.0f, 100.0f);
+		Drops.Init(JetDropCount);
+		Jet->SetMaterial(0, WaveMaterial);
+		JetDrops->SetMaterial(0, WaveMaterial);
+		Jet->SetVisibility(true);
+		JetDrops->SetVisibility(true);
+	}
+	else if (GetParticles()->GetAsset() == nullptr)
 	{
 		GetParticles()->SetAsset(VaelAssets::LoadOptional(MagicSettings->WaterBoltHeadEffect));
 	}
@@ -128,6 +174,14 @@ void AVaelWaterBolt::ApplySource()
 	}
 
 	Trail->SetVariableLinearColor(WaterColorParameter, BoltSource->ParticleColor);
+
+	// Real water draws itself; the smooth jet and the spiral stay hidden
+	if (bRealWater)
+	{
+		GetBall()->SetVisibility(false);
+		Spiral->SetVisibility(false);
+		return;
+	}
 
 	if (BoltSource->Material == nullptr || GetBall()->GetStaticMesh() != BoltMesh || BoltMesh == nullptr)
 	{
@@ -204,6 +258,11 @@ void AVaelWaterBolt::UpdateMotion(float DeltaSeconds)
 		Direction = GetPivot()->GetForwardVector();
 	}
 
+	if (bHasLastLocation && DeltaSeconds > 0.0f)
+	{
+		Velocity = (Location - LastLocation) / DeltaSeconds;
+	}
+
 	LastLocation = Location;
 	bHasLastLocation = true;
 
@@ -218,6 +277,144 @@ void AVaelWaterBolt::UpdateMotion(float DeltaSeconds)
 
 	// The spiral turns around the jet, so it seems to drill forward
 	Spiral->SetRelativeRotation(FRotator(0.0f, 0.0f, MotionTime * UVaelMagicSettings::Get()->WaterBoltSpiralSpin));
+
+	if (bRealWater)
+	{
+		Jet->SetRelativeScale3D(FVector(Flicker, Pulse, Pulse));
+		UpdateJetDrops(DeltaSeconds);
+		BuildJet();
+	}
+}
+
+void AVaelWaterBolt::BuildJet()
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const float Violence = MagicSettings->WaterBoltViolence;
+	const float Radius = BallRadius * MagicSettings->WaterBoltThickness;
+	const float Length = BallRadius * MagicSettings->WaterBoltTailLength;
+	constexpr int32 Rings = JetNoseRings + 1 + JetBodyRings;
+	constexpr int32 Rows = JetAround + 1;
+
+	JetSection.Reset(Rings * Rows);
+
+	// The outline from the front tip back: a round nose, then a body that stays thick for a while and tapers to a torn end
+	FVector2D Outline[Rings];
+	float Tails[Rings];
+	for (int32 Ring = 0; Ring < Rings; ++Ring)
+	{
+		Tails[Ring] = 0.0f;
+		if (Ring <= JetNoseRings)
+		{
+			const float Angle = HALF_PI * Ring / JetNoseRings;
+			Outline[Ring] = FVector2D(Radius * NoseLength * FMath::Cos(Angle), Radius * FMath::Sin(Angle));
+		}
+		else
+		{
+			Tails[Ring] = static_cast<float>(Ring - JetNoseRings) / JetBodyRings;
+			Outline[Ring] = FVector2D(-Tails[Ring] * Length, Radius * FMath::Pow(FMath::Max(1.0f - FMath::Pow(Tails[Ring], 1.6f), 0.0f), 0.9f));
+		}
+	}
+
+	float Along = 0.0f;
+	for (int32 Ring = 0; Ring < Rings; ++Ring)
+	{
+		const float Tail = Tails[Ring];
+		Along += Ring > 0 ? FVector2D::Distance(Outline[Ring], Outline[Ring - 1]) / 100.0f : 0.0f;
+
+		// Outward at right angles to the outline, straight ahead at the tip and straight back at the end
+		const FVector2D Slope = (Outline[FMath::Min(Ring + 1, Rings - 1)] - Outline[FMath::Max(Ring - 1, 0)]).GetSafeNormal();
+
+		// The tail whips about and breaks up more the further back it is
+		const float Whip = Tail * Tail * Radius * 0.7f * Violence;
+		const FVector Sway(0.0f, Whip * VaelWaterMesh::Noise(Tail * 2.0f - MotionTime * 4.0f, Seed), Whip * VaelWaterMesh::Noise(Seed * 1.3f, Tail * 2.0f - MotionTime * 4.0f));
+		const float Torn = Violence * (0.1f + 0.4f * Tail);
+
+		// Pale foaming water pressed together at the nose, a darker body that foams up again and tears where it runs out
+		const float Light = Ring <= JetNoseRings ? FMath::Lerp(1.0f, 0.55f, static_cast<float>(Ring) / JetNoseRings) : FMath::Lerp(0.45f, 0.8f, Tail);
+		const float Foam = Ring <= JetNoseRings ? FMath::Lerp(0.8f, 0.35f, static_cast<float>(Ring) / JetNoseRings) : 0.25f + 0.65f * FMath::Pow(Tail, 1.4f);
+		const float Alpha = 0.95f * (1.0f - FMath::SmoothStep(0.5f, 1.0f, Tail));
+
+		for (int32 Step = 0; Step < Rows; ++Step)
+		{
+			const float Angle = UE_TWO_PI * Step / JetAround;
+			const float Cos = FMath::Cos(Angle);
+			const float Sin = FMath::Sin(Angle);
+			const float Lump = 1.0f + Torn * VaelWaterMesh::Noise(Cos * 1.2f + Tail * 6.0f - MotionTime * 9.0f + Seed, Sin * 1.2f + Seed * 0.5f);
+			const float PointRadius = Outline[Ring].Y * FMath::Max(Lump, 0.2f);
+
+			FVector Normal(Slope.Y, -Slope.X * Cos, -Slope.X * Sin);
+			if (Ring == 0)
+			{
+				Normal = FVector::ForwardVector;
+			}
+			else if (Ring == Rings - 1)
+			{
+				Normal = FVector::BackwardVector;
+			}
+
+			const int32 Index = Ring * Rows + Step;
+			JetSection.Vertices[Index] = FVector(Outline[Ring].X, PointRadius * Cos, PointRadius * Sin) + Sway;
+			JetSection.Normals[Index] = Normal.GetSafeNormal();
+			JetSection.UVs[Index] = FVector2D(Angle * Radius / 100.0f, Along + MotionTime * JetFoamFlow);
+			JetSection.Colors[Index] = FLinearColor(Light, Foam, 0.0f, Alpha);
+		}
+	}
+
+	const FVector CameraLocation = VaelWaterMesh::GetCameraLocation(GetWorld(), GetActorLocation() + FVector(-600.0f, 0.0f, 900.0f));
+	Drops.Build(DropSection, FTransform::Identity, CameraLocation, 1.0f, 0.4f);
+
+	// The jet is created anew every frame, its back drawn before its front
+	const FVector ToCamera = Jet->GetComponentTransform().InverseTransformVectorNoScale(CameraLocation - GetActorLocation());
+	VaelWaterMesh::BuildViewSortedTubeTriangles(Rings, JetAround, FVector::RightVector, FVector::UpVector, ToCamera, JetSection.Triangles);
+	JetSection.Apply(Jet, 0, true);
+
+	const bool bCreate = !bJetCreated;
+	if (bCreate)
+	{
+		Drops.BuildTriangles(DropSection);
+		bJetCreated = true;
+	}
+
+	DropSection.Apply(JetDrops, 0, bCreate);
+}
+
+void AVaelWaterBolt::UpdateJetDrops(float DeltaSeconds)
+{
+	if (DeltaSeconds <= 0.0f)
+	{
+		return;
+	}
+
+	// The drops fall until they hit the ground under the bolt
+	const FVector Location = GetActorLocation();
+	FHitResult GroundHit;
+	const float GroundZ = VaelGround::TraceGround(GetWorld(), Location, Location - FVector(0.0f, 0.0f, 1000.0f), GroundHit, this) ? GroundHit.Location.Z : Location.Z - 1000.0f;
+	Drops.Update(DeltaSeconds, GroundZ);
+
+	// The body and the tail shed drops that keep some of the bolt's speed and fall away in arcs
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const float Radius = BallRadius * MagicSettings->WaterBoltThickness;
+	const float Length = BallRadius * MagicSettings->WaterBoltTailLength;
+	const FTransform& JetTransform = Jet->GetComponentTransform();
+
+	Drops.Debt = FMath::Min(Drops.Debt + MagicSettings->WaterBoltDropRate * DeltaSeconds, 10.0f);
+	for (; Drops.Debt >= 1.0f; Drops.Debt -= 1.0f)
+	{
+		const float Tail = FMath::FRandRange(0.15f, 0.9f);
+		const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		const FVector Out(0.0f, FMath::Cos(Angle), FMath::Sin(Angle));
+		const FVector Local = FVector(-Tail * Length, 0.0f, 0.0f) + Out * Radius * (1.0f - Tail);
+
+		const FVector WorldOut = JetTransform.TransformVectorNoScale(Out);
+		const FVector DropVelocity = Velocity * FMath::FRandRange(0.1f, 0.35f) + WorldOut * FMath::FRandRange(60.0f, 180.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(30.0f, 120.0f));
+		const bool bClump = FMath::FRand() < 0.1f;
+		const float Size = FMath::Lerp(JetDropMinSize, JetDropMaxSize, FMath::Pow(FMath::FRand(), 2.5f)) * (bClump ? 1.6f : 1.0f);
+
+		if (!Drops.Throw(JetTransform.TransformPosition(Local), DropVelocity, FMath::FRandRange(JetDropMinLife, JetDropMaxLife), Size, bClump))
+		{
+			break;
+		}
+	}
 }
 
 UStaticMesh* AVaelWaterBolt::BuildBoltMesh(float TailLength, float Thickness)

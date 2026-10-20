@@ -4,11 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "Magic/VaelWaterOrb.h"
+#include "Magic/VaelWaterMesh.h"
 #include "VaelWaterBolt.generated.h"
 
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UNiagaraComponent;
+class UProceduralMeshComponent;
 class UStaticMesh;
 class UStaticMeshComponent;
 
@@ -31,6 +33,14 @@ private:
 	/** White spiral of spray around the jet */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> Spiral;
+
+	/** The jet as real water, rebuilt every frame: lumpy, foaming at the nose, torn at the tail (Water Kit|Bolt bWaterBoltRealWater) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> Jet;
+
+	/** Drops the real-water jet sheds, in world space */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UProceduralMeshComponent> JetDrops;
 
 	/** The jet mesh, shared by all bolts of the same shape */
 	UPROPERTY(Transient)
@@ -82,6 +92,29 @@ private:
 
 	/** Builds a tube mesh from rings of points with their outward normals; every ring has the same number of points */
 	static UStaticMesh* BuildRingMesh(const TArray<TArray<FVector3f>>& RingPositions, const TArray<TArray<FVector3f>>& RingNormals);
+
+	/** Builds the real-water jet for this frame, pointing along X of the pivot */
+	void BuildJet();
+
+	/** Sheds new drops from the body and tail of the jet and moves the flying ones */
+	void UpdateJetDrops(float DeltaSeconds);
+
+	/** True while the bolt is drawn as real water with the wave material */
+	bool bRealWater = false;
+
+	/** A random number per bolt, so no two look alike */
+	float Seed = 0.0f;
+
+	/** Velocity of the bolt, cm/s */
+	FVector Velocity = FVector::ZeroVector;
+
+	/** Jet, drops and their mesh sections */
+	FVaelWaterDrops Drops;
+	FVaelWaveSection JetSection;
+	FVaelWaveSection DropSection;
+
+	/** True once the mesh sections exist and are only updated */
+	bool bJetCreated = false;
 
 	/** Where the bolt was last frame, to find its direction */
 	FVector LastLocation = FVector::ZeroVector;

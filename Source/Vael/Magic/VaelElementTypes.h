@@ -99,7 +99,9 @@ enum class EVaelStrikeLook : uint8
 	/** A cluster of pale, leaning bone spikes over a violet glow, shards and motes rise, like the Knochendornen */
 	BoneSpikes,
 	/** A cluster of dark rock spikes with glowing edges over molten ground, lava splashes up, like the Magmariss */
-	MagmaSpikes
+	MagmaSpikes,
+	/** A column of boiling water bursts out of the ground, foams over at its top, rains down and runs out as a foaming ring, like the Geysir */
+	Geyser
 };
 
 /** Own look of a burst around the caster, shown together with its impact effect */

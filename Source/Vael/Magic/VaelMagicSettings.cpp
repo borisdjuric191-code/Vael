@@ -95,6 +95,7 @@ UVaelMagicSettings::UVaelMagicSettings()
 	MageWaterSource = TSoftObjectPtr<UVaelElementSource>(FSoftObjectPath(TEXT("/Game/VFX/Water/Sources/DA_ElementSource_Water_Mage.DA_ElementSource_Water_Mage")));
 	RainWaterSource = TSoftObjectPtr<UVaelElementSource>(FSoftObjectPath(TEXT("/Game/VFX/Water/Sources/DA_ElementSource_Water_Rain.DA_ElementSource_Water_Rain")));
 	WaveMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/VFX/Water/Materials/MI_Water_Wave_Mage.MI_Water_Wave_Mage")));
+	MarkWaveMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/VFX/Water/Materials/MI_Water_Wave_Mark.MI_Water_Wave_Mark")));
 }
 
 UAnimMontage* UVaelMagicSettings::FindCastMontage(EVaelSpellDelivery Delivery) const

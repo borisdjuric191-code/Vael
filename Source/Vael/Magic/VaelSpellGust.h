@@ -24,8 +24,8 @@ public:
 	/** Constructor */
 	AVaelSpellGust();
 
-	/** Spawns a gust at the hand blowing in a horizontal direction */
-	static AVaelSpellGust* Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color, bool bWater = false);
+	/** Spawns a gust at the hand blowing in a horizontal direction; a wave of water rolls as Mark blood with bBlood */
+	static AVaelSpellGust* Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color, bool bWater = false, bool bBlood = false);
 
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
@@ -54,6 +54,9 @@ private:
 
 	/** True for a wave of water instead of a gust of air: a solid wall with a foaming crest, drops and mist instead of dust, splashes where it passes */
 	bool bWater = false;
+
+	/** The wave of water is Mark blood */
+	bool bBlood = false;
 
 	/** True once the wave wears the water of the water kit; it then sinks away instead of fading its glow */
 	bool bKitWater = false;

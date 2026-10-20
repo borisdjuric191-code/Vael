@@ -10,6 +10,7 @@
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelWaterGeyser.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -298,6 +299,14 @@ void AVaelGroundStrike::Strike()
 		const FVector Sky = Ground + FVector(FMath::FRandRange(-150.0f, 150.0f), FMath::FRandRange(-150.0f, 150.0f), StrikeLightningHeight);
 
 		AVaelLightningBolt::Spawn(GetOwner(), Sky, Ground, UVaelMagicSettings::Get()->GetElementColor(Hit.Element), 0.3f, 1.6f, true);
+	}
+	else if (Look == EVaelStrikeLook::Geyser)
+	{
+		// A column of water that looks after itself; the plain spike only while the water kit is missing
+		if (AVaelWaterGeyser::Spawn(GetWorld(), GetActorLocation(), Radius, GetInstigator()) == nullptr)
+		{
+			Spike->SetVisibility(true);
+		}
 	}
 	else if (Look != EVaelStrikeLook::Spike)
 	{

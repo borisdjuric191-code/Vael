@@ -258,6 +258,10 @@ def build_water_material(name="M_Water", puddle=False):
 WAVE_MAGE_SCALARS = {"EmissiveStrength": 0.1, "FoamScale": 2.2, "FoamBoil": 0.6, "BodyOpacity": 0.95, "EdgeRagged": 0.9, "Specular": 0.1, "Roughness": 0.2, "NormalStrength": 0.4, "ContactFade": 6.0}
 WAVE_MAGE_COLORS = {"DeepColor": (0.002, 0.012, 0.045), "MidColor": (0.004, 0.06, 0.18), "CrestColor": (0.12, 0.42, 0.6), "FoamColor": (0.9, 0.95, 1.0)}
 
+# Look of the Blutflut: thick Mark blood, black-red at its foot, violet-red at the crest, mauve froth; glows a little more than spell water
+WAVE_MARK_SCALARS = {"EmissiveStrength": 0.22, "FoamScale": 1.8, "FoamBoil": 0.45, "BodyOpacity": 0.98, "EdgeRagged": 0.8, "Specular": 0.15, "Roughness": 0.12, "NormalStrength": 0.35, "ContactFade": 6.0}
+WAVE_MARK_COLORS = {"DeepColor": (0.012, 0.0, 0.006), "MidColor": (0.09, 0.004, 0.025), "CrestColor": (0.3, 0.035, 0.16), "FoamColor": (0.5, 0.28, 0.42)}
+
 
 def build_wave_material():
     """Water in motion that the game builds as a mesh every frame: waves, the strand drawn from a pond, spray and drops.
@@ -554,6 +558,7 @@ def main():
     # Waves, the drawn strand and their spray: dark blue foot, turquoise body, pale crest, white foam; glows a little as spell water does
     wave = build_wave_material()
     make_instance(wave, "MI_Water_Wave_Mage", WAVE_MAGE_SCALARS, WAVE_MAGE_COLORS)
+    make_instance(wave, "MI_Water_Wave_Mark", WAVE_MARK_SCALARS, WAVE_MARK_COLORS)
 
     mage = make_source("DA_ElementSource_Water_Mage", "Zauberwasser (Magier)", instances["MI_Water_Spell_Mage"], (0.15, 0.55, 1.0, 1.0), (0.45, 0.8, 1.0, 0.8), 0.0)
     make_source("DA_ElementSource_Water_Mark", "Mark-Wasser", instances["MI_Water_Mark"], (0.25, 0.03, 0.35, 1.0), (0.18, 0.03, 0.25, 0.9), 0.85)

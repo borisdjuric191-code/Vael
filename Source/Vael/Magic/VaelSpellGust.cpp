@@ -73,7 +73,7 @@ AVaelSpellGust::AVaelSpellGust()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color, bool bWater)
+AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, const FVector& Direction, float Range, float HalfAngle, const FLinearColor& Color, bool bWater, bool bBlood)
 {
 	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
 	const FVector BlowDirection = Direction.GetSafeNormal2D();
@@ -91,6 +91,7 @@ AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, c
 		Gust->HalfAngle = HalfAngle;
 		Gust->GustColor = Color;
 		Gust->bWater = bWater;
+		Gust->bBlood = bBlood;
 		Gust->WaveTime = bWater ? GustWaterSeconds : GustWaveSeconds;
 		Gust->WaveThickness = bWater ? GustWaterThickness : GustWaveThickness;
 		Gust->FinishSpawning(SpawnTransform);
@@ -121,7 +122,7 @@ void AVaelSpellGust::BeginPlay()
 	{
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 		if (AVaelWaterWave::SpawnCone(GetWorld(), Hand + FVector(0.0f, 0.0f, GroundHeight), GetActorRotation(), Range, HalfAngle * 0.92f,
-			MagicSettings->WaveRollTime, Range * MagicSettings->WaveHeightShare, MagicSettings->WaveViolence) != nullptr)
+			MagicSettings->WaveRollTime, Range * MagicSettings->WaveHeightShare, MagicSettings->WaveViolence, bBlood ? VaelAssets::LoadOptional(MagicSettings->MarkWaveMaterial) : nullptr) != nullptr)
 		{
 			SetActorTickEnabled(false);
 			SetLifeSpan(0.1f);

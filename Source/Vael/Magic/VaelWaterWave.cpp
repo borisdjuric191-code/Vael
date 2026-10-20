@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelWaterWave.h"
-#include "Camera/PlayerCameraManager.h"
 #include "Engine/World.h"
-#include "GameFramework/PlayerController.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInterface.h"
 #include "VaelAssets.h"
@@ -122,52 +120,10 @@ namespace
 		return Result;
 	}
 
-	/** Perlin noise from -1 to 1 */
 	float WaveNoise(float X, float Y)
 	{
-		return FMath::Clamp(FMath::PerlinNoise2D(FVector2D(X, Y)) * 1.4f, -1.0f, 1.0f);
+		return VaelWaterMesh::Noise(X, Y);
 	}
-
-	/** Normals of a grid of Columns x Rows vertices, row by row within each column */
-	void ComputeGridNormals(const TArray<FVector>& Vertices, int32 Columns, int32 Rows, TArray<FVector>& OutNormals)
-	{
-		for (int32 Column = 0; Column < Columns; ++Column)
-		{
-			for (int32 Row = 0; Row < Rows; ++Row)
-			{
-				const FVector& Next = Vertices[FMath::Min(Column + 1, Columns - 1) * Rows + Row];
-				const FVector& Previous = Vertices[FMath::Max(Column - 1, 0) * Rows + Row];
-				const FVector& Up = Vertices[Column * Rows + FMath::Min(Row + 1, Rows - 1)];
-				const FVector& Down = Vertices[Column * Rows + FMath::Max(Row - 1, 0)];
-
-				const FVector Normal = FVector::CrossProduct(Up - Down, Next - Previous).GetSafeNormal();
-				OutNormals[Column * Rows + Row] = Normal.IsNearlyZero() ? FVector::UpVector : Normal;
-			}
-		}
-	}
-
-	/** Triangles of a grid of Columns x Rows vertices */
-	void BuildGridTriangles(int32 Columns, int32 Rows, TArray<int32>& OutTriangles)
-	{
-		OutTriangles.Reset();
-		for (int32 Column = 0; Column < Columns - 1; ++Column)
-		{
-			for (int32 Row = 0; Row < Rows - 1; ++Row)
-			{
-				const int32 A = Column * Rows + Row;
-				const int32 B = (Column + 1) * Rows + Row;
-				OutTriangles.Append({ A, A + 1, B, B, A + 1, B + 1 });
-			}
-		}
-	}
-}
-
-void FVaelWaveSection::Reset(int32 NumVertices)
-{
-	Vertices.SetNumZeroed(NumVertices);
-	Normals.SetNumZeroed(NumVertices);
-	UVs.SetNumZeroed(NumVertices);
-	Colors.SetNumZeroed(NumVertices);
 }
 
 AVaelWaterWave::AVaelWaterWave()
@@ -181,10 +137,15 @@ AVaelWaterWave::AVaelWaterWave()
 	RootComponent = Mesh;
 }
 
-AVaelWaterWave* AVaelWaterWave::SpawnCone(UWorld* World, const FVector& Origin, const FRotator& Facing, float InRange, float HalfAngle, float InRollTime, float InHeight, float InViolence)
+AVaelWaterWave* AVaelWaterWave::SpawnCone(UWorld* World, const FVector& Origin, const FRotator& Facing, float InRange, float HalfAngle, float InRollTime, float InHeight, float InViolence,
+	UMaterialInterface* Material)
 {
-	UMaterialInterface* Material = World != nullptr ? VaelAssets::LoadOptional(UVaelMagicSettings::Get()->WaveMaterial) : nullptr;
-	if (Material == nullptr)
+	if (Material == nullptr && World != nullptr)
+	{
+		Material = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->WaveMaterial);
+	}
+
+	if (Material == nullptr || World == nullptr)
 	{
 		return nullptr;
 	}
@@ -199,7 +160,7 @@ AVaelWaterWave* AVaelWaterWave::SpawnCone(UWorld* World, const FVector& Origin, 
 		Wave->RollTime = InRollTime;
 		Wave->MaxHeight = InHeight;
 		Wave->Violence = InViolence;
-		Wave->Drops.SetNum(WaveConeDrops);
+		Wave->Drops.Init(WaveConeDrops);
 		for (int32 Section = 0; Section < 3; ++Section)
 		{
 			Wave->Mesh->SetMaterial(Section, Material);
@@ -232,7 +193,7 @@ AVaelWaterWave* AVaelWaterWave::SpawnCarried(AActor* InCarrier, float InHalfWidt
 		Wave->HalfWidth = InHalfWidth;
 		Wave->MaxHeight = InHeight;
 		Wave->Violence = InViolence;
-		Wave->Drops.SetNum(WaveCarriedDrops);
+		Wave->Drops.Init(WaveCarriedDrops);
 		for (int32 Section = 0; Section < 3; ++Section)
 		{
 			Wave->Mesh->SetMaterial(Section, Material);
@@ -255,23 +216,17 @@ void AVaelWaterWave::Crash()
 
 	// The whole crest is thrown forward and up at once
 	const FTransform& Transform = GetActorTransform();
-	int32 Thrown = 0;
-	for (FVaelWaveDrop& Drop : Drops)
+	for (int32 Thrown = 0; Thrown < WaveCrashDrops && !LipTips.IsEmpty(); ++Thrown)
 	{
-		if (Drop.Lifetime > 0.0f || Thrown >= WaveCrashDrops || LipTips.IsEmpty())
-		{
-			continue;
-		}
-
 		const int32 Column = FMath::RandRange(0, LipTips.Num() - 1);
 		const FVector Forward = Transform.TransformVectorNoScale(LipForwards[Column]);
-		Drop.Location = Transform.TransformPosition(LipTips[Column]) + FMath::VRand() * 15.0f;
-		Drop.Velocity = Forward * FMath::FRandRange(250.0f, 650.0f) + FMath::VRand() * 120.0f + FVector(0.0f, 0.0f, FMath::FRandRange(200.0f, 600.0f));
-		Drop.Age = 0.0f;
-		Drop.Lifetime = FMath::FRandRange(0.6f, 1.2f);
-		Drop.bClump = FMath::FRand() < WaveClumpShare * 2.0f;
-		Drop.Size = FMath::Lerp(WaveDropMinSize, WaveCarriedDropMaxSize, FMath::Pow(FMath::FRand(), 2.0f)) * (Drop.bClump ? 1.8f : 1.0f);
-		++Thrown;
+		const bool bClump = FMath::FRand() < WaveClumpShare * 2.0f;
+		const FVector DropVelocity = Forward * FMath::FRandRange(250.0f, 650.0f) + FMath::VRand() * 120.0f + FVector(0.0f, 0.0f, FMath::FRandRange(200.0f, 600.0f));
+		const float Size = FMath::Lerp(WaveDropMinSize, WaveCarriedDropMaxSize, FMath::Pow(FMath::FRand(), 2.0f)) * (bClump ? 1.8f : 1.0f);
+		if (!Drops.Throw(Transform.TransformPosition(LipTips[Column]) + FMath::VRand() * 15.0f, DropVelocity, FMath::FRandRange(0.6f, 1.2f), Size, bClump))
+		{
+			break;
+		}
 	}
 }
 
@@ -464,81 +419,24 @@ void AVaelWaterWave::BuildMesh()
 		}
 	}
 
-	ComputeGridNormals(Sheet.Vertices, Columns, Rows, Sheet.Normals);
-	ComputeGridNormals(Spray.Vertices, Columns, WaveSprayRows, Spray.Normals);
+	VaelWaterMesh::ComputeGridNormals(Sheet.Vertices, Columns, Rows, Sheet.Normals);
+	VaelWaterMesh::ComputeGridNormals(Spray.Vertices, Columns, WaveSprayRows, Spray.Normals);
 
-	// Drops: a quad facing the camera for every slot of the pool, stretched along the flight of the bigger lumps
-	DropMesh.Reset(Drops.Num() * 4);
-	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
-	const FVector CameraLocation = PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr ? PlayerController->PlayerCameraManager->GetCameraLocation() : GetActorLocation() + FVector(-600.0f, 0.0f, 900.0f);
-	const FTransform& Transform = GetActorTransform();
+	const FVector CameraLocation = VaelWaterMesh::GetCameraLocation(GetWorld(), GetActorLocation() + FVector(-600.0f, 0.0f, 900.0f));
+	Drops.Build(DropMesh, GetActorTransform(), CameraLocation, Fade);
 
-	for (int32 DropIndex = 0; DropIndex < Drops.Num(); ++DropIndex)
+	const bool bCreate = !bMeshCreated;
+	if (bCreate)
 	{
-		const FVaelWaveDrop& Drop = Drops[DropIndex];
-		const int32 First = DropIndex * 4;
-		const FVector Center = Transform.InverseTransformPosition(Drop.Location);
-
-		static const FVector2D Corners[4] = { FVector2D(0.0f, 0.0f), FVector2D(1.0f, 0.0f), FVector2D(1.0f, 1.0f), FVector2D(0.0f, 1.0f) };
-		if (Drop.Lifetime <= 0.0f)
-		{
-			for (int32 Corner = 0; Corner < 4; ++Corner)
-			{
-				DropMesh.Vertices[First + Corner] = Center;
-				DropMesh.UVs[First + Corner] = Corners[Corner];
-				DropMesh.Normals[First + Corner] = FVector::UpVector;
-			}
-			continue;
-		}
-
-		const FVector ToCamera = Transform.InverseTransformVectorNoScale(CameraLocation - Drop.Location).GetSafeNormal();
-		const FVector Flight = Transform.InverseTransformVectorNoScale(Drop.Velocity);
-		const FVector Along = Flight.GetSafeNormal().IsNearlyZero() ? FVector::UpVector : Flight.GetSafeNormal();
-		FVector Side = FVector::CrossProduct(Along, ToCamera).GetSafeNormal();
-		if (Side.IsNearlyZero())
-		{
-			Side = FVector::RightVector;
-		}
-
-		const float Stretch = 1.0f + Flight.Size() / (Drop.bClump ? 260.0f : 600.0f);
-		const FVector HalfSide = Side * Drop.Size * 0.5f;
-		const FVector HalfAlong = Along * Drop.Size * 0.5f * Stretch;
-		const float Life = Drop.Age / Drop.Lifetime;
-		const FLinearColor Color(1.0f, Drop.bClump ? 0.75f : 0.5f, 1.0f, Fade * FMath::Pow(1.0f - Life, 0.6f));
-
-		const FVector Positions[4] = { Center - HalfSide - HalfAlong, Center + HalfSide - HalfAlong, Center + HalfSide + HalfAlong, Center - HalfSide + HalfAlong };
-		for (int32 Corner = 0; Corner < 4; ++Corner)
-		{
-			DropMesh.Vertices[First + Corner] = Positions[Corner];
-			DropMesh.UVs[First + Corner] = Corners[Corner];
-			DropMesh.Normals[First + Corner] = ToCamera;
-			DropMesh.Colors[First + Corner] = Color;
-		}
-	}
-
-	const TArray<FProcMeshTangent> NoTangents;
-	if (!bMeshCreated)
-	{
-		BuildGridTriangles(Columns, Rows, Sheet.Triangles);
-		BuildGridTriangles(Columns, WaveSprayRows, Spray.Triangles);
-
-		DropMesh.Triangles.Reset();
-		for (int32 DropIndex = 0; DropIndex < Drops.Num(); ++DropIndex)
-		{
-			const int32 First = DropIndex * 4;
-			DropMesh.Triangles.Append({ First, First + 2, First + 1, First, First + 3, First + 2 });
-		}
-
-		Mesh->CreateMeshSection_LinearColor(0, Sheet.Vertices, Sheet.Triangles, Sheet.Normals, Sheet.UVs, Sheet.Colors, NoTangents, false);
-		Mesh->CreateMeshSection_LinearColor(1, Spray.Vertices, Spray.Triangles, Spray.Normals, Spray.UVs, Spray.Colors, NoTangents, false);
-		Mesh->CreateMeshSection_LinearColor(2, DropMesh.Vertices, DropMesh.Triangles, DropMesh.Normals, DropMesh.UVs, DropMesh.Colors, NoTangents, false);
+		VaelWaterMesh::BuildGridTriangles(Columns, Rows, Sheet.Triangles);
+		VaelWaterMesh::BuildGridTriangles(Columns, WaveSprayRows, Spray.Triangles);
+		Drops.BuildTriangles(DropMesh);
 		bMeshCreated = true;
-		return;
 	}
 
-	Mesh->UpdateMeshSection_LinearColor(0, Sheet.Vertices, Sheet.Normals, Sheet.UVs, Sheet.Colors, NoTangents);
-	Mesh->UpdateMeshSection_LinearColor(1, Spray.Vertices, Spray.Normals, Spray.UVs, Spray.Colors, NoTangents);
-	Mesh->UpdateMeshSection_LinearColor(2, DropMesh.Vertices, DropMesh.Normals, DropMesh.UVs, DropMesh.Colors, NoTangents);
+	Sheet.Apply(Mesh, 0, bCreate);
+	Spray.Apply(Mesh, 1, bCreate);
+	DropMesh.Apply(Mesh, 2, bCreate);
 }
 
 void AVaelWaterWave::UpdateDrops(float DeltaSeconds)
@@ -548,35 +446,16 @@ void AVaelWaterWave::UpdateDrops(float DeltaSeconds)
 		return;
 	}
 
-	const FTransform& Transform = GetActorTransform();
-	const float GroundZ = GetActorLocation().Z;
+	// Flying: slowed by the air, falling, gone when it lands or its time is up
+	Drops.Update(DeltaSeconds, GetActorLocation().Z, WaveDropGravity, WaveDropDrag);
 
 	// The breaking crest throws drops, more the wilder the wave
+	const FTransform& Transform = GetActorTransform();
 	const float Rate = (bCarried ? WaveCarriedDropRate : WaveConeDropRate) * Violence * FMath::SmoothStep(0.25f, 0.6f, Break) * (1.0f - 0.7f * Collapse) * Fade;
-	DropDebt += Rate * DeltaSeconds;
+	Drops.Debt = FMath::Min(Drops.Debt + Rate * DeltaSeconds, 20.0f);
 
-	for (FVaelWaveDrop& Drop : Drops)
+	for (; Drops.Debt >= 1.0f; Drops.Debt -= 1.0f)
 	{
-		if (Drop.Lifetime > 0.0f)
-		{
-			// Flying: slowed by the air, falling, gone when it lands or its time is up
-			Drop.Velocity.Z -= WaveDropGravity * DeltaSeconds;
-			Drop.Velocity *= FMath::Exp(-WaveDropDrag * DeltaSeconds);
-			Drop.Location += Drop.Velocity * DeltaSeconds;
-			Drop.Age += DeltaSeconds;
-			if (Drop.Age >= Drop.Lifetime || Drop.Location.Z < GroundZ - 5.0f)
-			{
-				Drop.Lifetime = 0.0f;
-			}
-			continue;
-		}
-
-		if (DropDebt < 1.0f)
-		{
-			continue;
-		}
-		DropDebt -= 1.0f;
-
 		// From a random place on the lip, where the crest is breaking
 		const int32 Column = FMath::RandRange(0, LipTips.Num() - 1);
 		if (LipBreaks[Column] < 0.25f)
@@ -588,14 +467,13 @@ void AVaelWaterWave::UpdateDrops(float DeltaSeconds)
 		const FVector Side = FVector::CrossProduct(FVector::UpVector, Forward);
 		const float Lift = LipHeights[Column] / FMath::Max(MaxHeight, 1.0f);
 
-		Drop.Location = Transform.TransformPosition(LipTips[Column]) + FMath::VRand() * 8.0f;
-		Drop.Velocity = Forward * Speed * FMath::FRandRange(0.3f, 0.85f) + Forward * FMath::FRandRange(0.0f, 150.0f)
+		const FVector DropVelocity = Forward * Speed * FMath::FRandRange(0.3f, 0.85f) + Forward * FMath::FRandRange(0.0f, 150.0f)
 			+ Side * FMath::FRandRange(-90.0f, 90.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(120.0f, 420.0f) * (0.6f + 0.6f * Violence) * Lift);
-		Drop.Age = 0.0f;
-		Drop.Lifetime = FMath::FRandRange(0.45f, 1.0f);
-		Drop.bClump = FMath::FRand() < WaveClumpShare;
-		Drop.Size = FMath::Lerp(WaveDropMinSize, bCarried ? WaveCarriedDropMaxSize : WaveConeDropMaxSize, FMath::Pow(FMath::FRand(), 2.5f)) * (Drop.bClump ? 1.8f : 1.0f);
+		const bool bClump = FMath::FRand() < WaveClumpShare;
+		const float Size = FMath::Lerp(WaveDropMinSize, bCarried ? WaveCarriedDropMaxSize : WaveConeDropMaxSize, FMath::Pow(FMath::FRand(), 2.5f)) * (bClump ? 1.8f : 1.0f);
+		if (!Drops.Throw(Transform.TransformPosition(LipTips[Column]) + FMath::VRand() * 8.0f, DropVelocity, FMath::FRandRange(0.45f, 1.0f), Size, bClump))
+		{
+			break;
+		}
 	}
-
-	DropDebt = FMath::Min(DropDebt, 20.0f);
 }

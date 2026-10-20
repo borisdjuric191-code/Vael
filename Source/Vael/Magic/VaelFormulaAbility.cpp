@@ -303,8 +303,9 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 
 	// Waves of water swell with the water around the caster and draw the puddles into themselves
 	WaveSizeScale = 1.0f;
-	const bool bWaterWave = (Formula.Delivery == EVaelSpellDelivery::Cone && Formula.ConeLook == EVaelConeLook::WaterWave)
-		|| (Formula.Delivery == EVaelSpellDelivery::Projectile && Formula.ProjectileLook == EVaelProjectileLook::TidalWave);
+	const bool bWaterWave = ((Formula.Delivery == EVaelSpellDelivery::Cone && Formula.ConeLook == EVaelConeLook::WaterWave)
+		|| (Formula.Delivery == EVaelSpellDelivery::Projectile && Formula.ProjectileLook == EVaelProjectileLook::TidalWave))
+		&& Formula.DamageElement == EVaelElement::Water;
 	if (bWaterWave)
 	{
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
@@ -648,7 +649,7 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 		const float HandAhead = FVector::DotProduct(Hand - Origin, AimDirection);
 
 		AVaelSpellGust::Spawn(Caster, Hand, AimDirection, ConeRange - HandAhead, ConeHalfAngle, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement),
-			Formula.ConeLook == EVaelConeLook::WaterWave);
+			Formula.ConeLook == EVaelConeLook::WaterWave, Formula.DamageElement == EVaelElement::Mark);
 		return;
 	}
 
@@ -973,6 +974,8 @@ void UVaelFormulaAbility::CallStrike(const UVaelFormula& Formula, AActor* Caster
 		if (Strike != nullptr)
 		{
 			Strike->SetAftermath(MakeAftermath(Formula, Power), Formula.StrikeShake);
+			Strike->SetLook(Formula.StrikeLook);
+			Strike->SetLook(Formula.StrikeLook);
 		}
 	}
 }

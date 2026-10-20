@@ -309,6 +309,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Strike && StrikeCount > 1"))
 	float StrikeScatter = 0.0f;
 
+	/** What rises out of the ground where each strike lands */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Strike", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Strike"))
+	EVaelStrikeLook StrikeLook = EVaelStrikeLook::Spike;
+
 	/** Speed of the dash in cm/s */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Dash", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Dash"))
 	float DashSpeed = 2100.0f;

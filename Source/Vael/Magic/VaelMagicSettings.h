@@ -421,4 +421,36 @@ public:
 	/** How wild the Flutwelle is, see WaveViolence */
 	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave", meta = (ClampMin = 0, ClampMax = 1.5))
 	float TidalViolence = 1.0f;
+
+	/** Material of waves of Mark blood (MI_Water_Wave_Mark), used by cone waves of the Mark like the Blutflut; without it they roll as spell water */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Wave")
+	TSoftObjectPtr<UMaterialInterface> MarkWaveMaterial;
+
+	/** The Wassergeschoss is built as real water with the wave material (lumpy jet, foaming nose, torn tail, falling drops); off: the smooth jet in the source material */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt")
+	bool bWaterBoltRealWater = true;
+
+	/** Drops the real-water bolt sheds per second from its tail; they fall in arcs behind it */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0))
+	float WaterBoltDropRate = 110.0f;
+
+	/** How lumpy and torn the real-water bolt is: 0 a smooth jet, 1 boiling and breaking up behind the nose */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Bolt", meta = (ClampMin = 0, ClampMax = 1.5))
+	float WaterBoltViolence = 0.7f;
+
+	/** Height of the column of the Geysir, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Geyser", meta = (ClampMin = 50, Units = "cm"))
+	float GeyserHeight = 520.0f;
+
+	/** Seconds from the eruption until the column has fallen back and its water has run out */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Geyser", meta = (ClampMin = 0.3, Units = "s"))
+	float GeyserTime = 1.7f;
+
+	/** How wild the Geysir is: 0 a smooth column, 1 a boiling, torn column with much spray */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Geyser", meta = (ClampMin = 0, ClampMax = 1.5))
+	float GeyserViolence = 1.0f;
+
+	/** Water the Geysir leaves on the ground as a puddle, in User.WaterAmount units (1 is one Wassergeschoss); 0 for none */
+	UPROPERTY(config, EditAnywhere, Category="Water Kit|Geyser", meta = (ClampMin = 0))
+	float GeyserPuddleWater = 3.0f;
 };

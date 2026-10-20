@@ -5,32 +5,10 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "ProceduralMeshComponent.h"
+#include "Magic/VaelWaterMesh.h"
 #include "VaelWaterWave.generated.h"
 
-/** A drop of spray thrown off a wave, in world space; a lifetime of 0 marks a free slot */
-struct FVaelWaveDrop
-{
-	FVector Location = FVector::ZeroVector;
-	FVector Velocity = FVector::ZeroVector;
-	float Age = 0.0f;
-	float Lifetime = 0.0f;
-	float Size = 0.0f;
-
-	/** A bigger lump of water that stretches along its flight */
-	bool bClump = false;
-};
-
-/** Vertices of one section of the wave mesh, kept between frames so the mesh is only updated */
-struct FVaelWaveSection
-{
-	TArray<FVector> Vertices;
-	TArray<FVector> Normals;
-	TArray<FVector2D> UVs;
-	TArray<FLinearColor> Colors;
-	TArray<int32> Triangles;
-
-	void Reset(int32 NumVertices);
-};
+class UMaterialInterface;
 
 /**
  *  A wave of water as in nature, built as a mesh every frame: a long back, a steep face and a lip that curls over and breaks,
@@ -54,9 +32,10 @@ public:
 
 	/**
 	 *  Welle: rolls out from Origin (on the ground) along Facing, over HalfAngle degrees to each side, and reaches Range after RollTime seconds.
-	 *  Null without the wave material.
+	 *  Material is the water it is made of, the mage's wave material when null. Null without a material.
 	 */
-	static AVaelWaterWave* SpawnCone(UWorld* World, const FVector& Origin, const FRotator& Facing, float Range, float HalfAngle, float RollTime, float Height, float Violence);
+	static AVaelWaterWave* SpawnCone(UWorld* World, const FVector& Origin, const FRotator& Facing, float Range, float HalfAngle, float RollTime, float Height, float Violence,
+		UMaterialInterface* Material = nullptr);
 
 	/** Flutwelle: rides along with Carrier, HalfWidth to each side, its foot Foot cm above (below) the carrier. Null without the wave material. */
 	static AVaelWaterWave* SpawnCarried(AActor* Carrier, float HalfWidth, float Height, float Foot, float Violence);
@@ -131,10 +110,7 @@ private:
 	TArray<float> LipHeights;
 
 	/** Flying drops, a fixed pool */
-	TArray<FVaelWaveDrop> Drops;
-
-	/** Drops owed to the crest from the last frames */
-	float DropDebt = 0.0f;
+	FVaelWaterDrops Drops;
 
 	/** Sheet, spray veil and drops */
 	FVaelWaveSection Sheet;
