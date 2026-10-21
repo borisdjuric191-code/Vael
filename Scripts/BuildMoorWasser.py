@@ -341,7 +341,7 @@ def build_cypress_material():
                                           "RGB", unreal.MaterialProperty.MP_NORMAL)
     if rough is not None:
         library.connect_material_property(g.mask(g.node(unreal.MaterialExpressionTextureSample, 4, texture=rough,
-                                                        sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR), 3, g=False, b=False),
+                                                        sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR), 3, g=False, b=False),
                                           "", unreal.MaterialProperty.MP_ROUGHNESS)
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)

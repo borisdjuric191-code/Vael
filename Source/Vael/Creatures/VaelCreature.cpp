@@ -474,10 +474,15 @@ void AVaelCreature::Die()
 	SetLifeSpan(FMath::Max(CorpseDuration, 0.01f));
 }
 
+TArray<FVaelLootEntry> AVaelCreature::GetLoot() const
+{
+	return ActiveData->Loot;
+}
+
 void AVaelCreature::DropLoot()
 {
 	// Materials: rolled once, every player gets their own copy straight into the bag
-	TArray<FVaelLootEntry> Entries = ActiveData->Loot;
+	TArray<FVaelLootEntry> Entries = GetLoot();
 	if (bMarked)
 	{
 		Entries.Add(UVaelWorldSettings::Get()->MarkedLoot);

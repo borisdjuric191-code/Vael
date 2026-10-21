@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Combat/VaelCharacterBase.h"
+#include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelCreature.generated.h"
 
@@ -108,6 +109,9 @@ public:
 	virtual void ApplyBlind(float Duration) override;
 	//~End AVaelCharacterBase
 
+	/** True while the auto aim must pass it by, like a lynx lying hidden in ambush */
+	virtual bool IsHiddenFromAim() const { return false; }
+
 	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */
 	virtual bool IsBossFightActive() const { return false; }
 
@@ -151,6 +155,9 @@ protected:
 
 	/** Gives every player their copy of the dropped materials and leaves health and mana orbs on the ground */
 	void DropLoot();
+
+	/** Materials it drops: those of its data; a creature with more than one form may drop others */
+	virtual TArray<FVaelLootEntry> GetLoot() const;
 
 	/** Returns the creature data as its subclass. Never null after PostInitializeComponents. */
 	template <typename DataType>

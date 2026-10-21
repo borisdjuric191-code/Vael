@@ -96,7 +96,10 @@ class Graph:
 
     def adern(self, spalte, skala_name, skala, schaerfe):
         """Thin wavy vein lines: where gradient noise on the pre-skinned position crosses zero"""
-        pos = self.node(unreal.MaterialExpressionPreSkinnedPosition, spalte + 2)
+        # Pre-skinned position exists only in the vertex shader: handed to the pixel shader by an interpolator
+        roh = self.node(unreal.MaterialExpressionPreSkinnedPosition, spalte + 3)
+        pos = self.node(unreal.MaterialExpressionVertexInterpolator, spalte + 2)
+        self.link(roh, pos)
         rauschen = self.node(unreal.MaterialExpressionNoise, spalte + 1, scale=1.0, levels=3, output_min=-1.0, output_max=1.0,
                              noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX, turbulence=False)
         self.link(self.mal(spalte + 2, pos, self.skalar(skala_name, skala, spalte + 3)), rauschen)
@@ -171,7 +174,7 @@ def kamm():
     schatten = g.mix(g.farbe("Schwarzviolett", (0.035, 0.005, 0.05), 6), g.farbe("Tiefrot", (0.32, 0.0, 0.02), 6), spitze, 4)
     farbe = g.mal(2, g.mix(licht, schatten, verderbnis, 3), blatt_farbe)
     leuchten = g.mal(1, g.mal(2, adern, g.farbe("Aderfarbe", (0.55, 0.08, 1.0), 3)), g.mal(2, verderbnis, g.skalar("AderLeuchten", 5.0, 3)))
-    deckung = g.maske(blatt, 2, "a")
+    deckung = g.maske(blatt, 2, "r", "A")  # the sample's default output is RGB: alpha from its own output
     return fertig(m, [(farbe, unreal.MaterialProperty.MP_BASE_COLOR, ""), (leuchten, unreal.MaterialProperty.MP_EMISSIVE_COLOR, ""),
                       (g.k(0.6, 1), unreal.MaterialProperty.MP_ROUGHNESS, ""), (deckung, unreal.MaterialProperty.MP_OPACITY_MASK, "")])
 

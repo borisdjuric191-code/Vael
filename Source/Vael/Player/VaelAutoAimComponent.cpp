@@ -15,7 +15,7 @@ UVaelAutoAimComponent::UVaelAutoAimComponent()
 bool UVaelAutoAimComponent::IsValidTarget(const AActor* Candidate, const APawn* Player, float MaxDistance)
 {
 	const AVaelCreature* Creature = Cast<AVaelCreature>(Candidate);
-	return Creature != nullptr && !Creature->IsDead() && !Creature->IsOnPlayerSide() && UVaelCombatStatics::CanDamage(Player, Creature)
+	return Creature != nullptr && !Creature->IsDead() && !Creature->IsOnPlayerSide() && !Creature->IsHiddenFromAim() && UVaelCombatStatics::CanDamage(Player, Creature)
 		&& FVector::Dist2D(Creature->GetActorLocation(), Player->GetActorLocation()) <= MaxDistance;
 }
 

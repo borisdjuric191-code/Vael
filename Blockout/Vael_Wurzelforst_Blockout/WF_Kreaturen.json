@@ -1,0 +1,325 @@
+{
+ "_hinweis": "Kreaturen des Wurzelforsts, Gruppen in Welt-cm (x, y, Bodenhoehe). Erzeugt von wf_kreaturen.py",
+ "gruppen": [
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -104800.0,
+    -94600.0,
+    802.3
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -73600.0,
+    -75600.0,
+    799.2
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -93400.0,
+    -77200.0,
+    907.8
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -121800.0,
+    -64200.0,
+    750.8
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -83200.0,
+    -88600.0,
+    793.8
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -83400.0,
+    7200.0,
+    495.3
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -33000.0,
+    33600.0,
+    405.5
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -108000.0,
+    -58000.0,
+    796.1
+   ]
+  },
+  {
+   "art": "Rankenluchs",
+   "anzahl": 3,
+   "streuung_cm": 260.0,
+   "ort": [
+    -58400.0,
+    6000.0,
+    490.6
+   ]
+  },
+  {
+   "art": "Spannhornkaefer",
+   "anzahl": 2,
+   "streuung_cm": 220.0,
+   "ort": [
+    -97200.0,
+    -55000.0,
+    793.8
+   ]
+  },
+  {
+   "art": "Spannhornkaefer",
+   "anzahl": 2,
+   "streuung_cm": 220.0,
+   "ort": [
+    -111200.0,
+    -84200.0,
+    899.2
+   ]
+  },
+  {
+   "art": "Spannhornkaefer",
+   "anzahl": 2,
+   "streuung_cm": 220.0,
+   "ort": [
+    -69200.0,
+    -116800.0,
+    2587.5
+   ]
+  },
+  {
+   "art": "Spannhornkaefer",
+   "anzahl": 2,
+   "streuung_cm": 220.0,
+   "ort": [
+    -82000.0,
+    -55000.0,
+    735.9
+   ]
+  },
+  {
+   "art": "Spannhornkaefer",
+   "anzahl": 2,
+   "streuung_cm": 220.0,
+   "ort": [
+    -55200.0,
+    -129600.0,
+    3450.0
+   ]
+  },
+  {
+   "art": "Spannhornkaefer",
+   "anzahl": 2,
+   "streuung_cm": 220.0,
+   "ort": [
+    -62200.0,
+    -144200.0,
+    4007.8
+   ]
+  },
+  {
+   "art": "Spannhornkaefer",
+   "anzahl": 2,
+   "streuung_cm": 220.0,
+   "ort": [
+    -101600.0,
+    -112200.0,
+    2083.6
+   ]
+  },
+  {
+   "art": "Schleieraffe",
+   "anzahl": 1,
+   "streuung_cm": 0.0,
+   "ort": [
+    -65800.0,
+    -58400.0,
+    460.2
+   ]
+  },
+  {
+   "art": "Schleieraffe",
+   "anzahl": 1,
+   "streuung_cm": 0.0,
+   "ort": [
+    -79400.0,
+    -100600.0,
+    945.3
+   ]
+  },
+  {
+   "art": "Schleieraffe",
+   "anzahl": 1,
+   "streuung_cm": 0.0,
+   "ort": [
+    -106600.0,
+    14400.0,
+    506.2
+   ]
+  },
+  {
+   "art": "Schleieraffe",
+   "anzahl": 1,
+   "streuung_cm": 0.0,
+   "ort": [
+    -70200.0,
+    20400.0,
+    496.1
+   ]
+  },
+  {
+   "art": "Schleieraffe",
+   "anzahl": 1,
+   "streuung_cm": 0.0,
+   "ort": [
+    -116800.0,
+    -96600.0,
+    621.9
+   ]
+  },
+  {
+   "art": "Schleieraffe",
+   "anzahl": 1,
+   "streuung_cm": 0.0,
+   "ort": [
+    -40600.0,
+    22400.0,
+    444.5
+   ]
+  },
+  {
+   "art": "Schleieraffe",
+   "anzahl": 1,
+   "streuung_cm": 0.0,
+   "ort": [
+    -62200.0,
+    33800.0,
+    535.2
+   ]
+  },
+  {
+   "art": "Tauraupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -53600.0,
+    26600.0,
+    495.3
+   ]
+  },
+  {
+   "art": "Tauraupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -47800.0,
+    11000.0,
+    474.2
+   ]
+  },
+  {
+   "art": "Tauraupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -100800.0,
+    26000.0,
+    514.1
+   ]
+  },
+  {
+   "art": "Tauraupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -109600.0,
+    32600.0,
+    463.3
+   ]
+  },
+  {
+   "art": "Tauraupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -123000.0,
+    -79600.0,
+    624.2
+   ]
+  },
+  {
+   "art": "Draculaupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -82000.0,
+    -19600.0,
+    47.7
+   ]
+  },
+  {
+   "art": "Draculaupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -83600.0,
+    -33800.0,
+    47.7
+   ]
+  },
+  {
+   "art": "Draculaupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -91800.0,
+    -20000.0,
+    46.9
+   ]
+  },
+  {
+   "art": "Draculaupe",
+   "anzahl": 3,
+   "streuung_cm": 200.0,
+   "ort": [
+    -74200.0,
+    -32600.0,
+    53.9
+   ]
+  }
+ ]
+}

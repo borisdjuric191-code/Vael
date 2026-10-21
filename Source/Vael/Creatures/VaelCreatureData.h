@@ -11,6 +11,8 @@
 #include "VaelCreatureData.generated.h"
 
 class AVaelCreature;
+class UAnimSequence;
+class UMaterialInterface;
 class USkeletalMesh;
 class UStaticMesh;
 class UVaelElementSource;
@@ -1103,6 +1105,136 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Light", meta = (ClampMin = 0))
 	float BlindedDamageMultiplier = 1.6f;
+};
+
+/**
+ *  Rankenluchs: a lynx grown through with plants, hunting in packs of three in the Wurzelforst. It lies in ambush flat on
+ *  the ground, sunk into the undergrowth so only its back and the swaying leaf crest show, and can't be aimed at then.
+ *  A player coming close or a hit wakes it, and its pack wakes a moment later. It hunts like any cat: runs in from the
+ *  flanks, pounces, bites and backs off to circle again. No magic (rope-like vines are kept for the pack leader).
+ *  In a region at or above ShadowCorruption it shows its shadow form (ash grey, black violet, glowing violet veins).
+ *  Its look are the baked animations of SK_Rankenluchs (Desktop/Vael_Rankenluchs scripts), not the creature factory.
+ */
+UCLASS(BlueprintType)
+class UVaelRankenluchsData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelRankenluchsData();
+
+	/** Its skeletal mesh with the material slots body, Kamm and Augen */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<USkeletalMesh> LuchsMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> IdleAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> CamouflageAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> WakeAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> PounceAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> WalkAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> RunAnimation;
+
+	/** Speeds in cm/s at which the walk and the run animation play at their own pace; faster or slower plays them faster or slower */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float WalkAnimationSpeed = 140.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float RunAnimationSpeed = 520.0f;
+
+	/** How deep the lying lynx sinks into the undergrowth while in ambush, in cm: only the back and the crest stay up */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambush", meta = (ClampMin = 0))
+	float AmbushSink = 26.0f;
+
+	/** A player closer than this wakes it, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambush", meta = (ClampMin = 0))
+	float WakeRange = 700.0f;
+
+	/** Lynxes this close to one that wakes belong to its pack and wake too, after a delay in seconds picked in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambush", meta = (ClampMin = 0))
+	float PackRange = 1600.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambush")
+	FVector2D PackWakeDelay = FVector2D(0.3f, 0.8f);
+
+	/** Without a target this long it goes home and lies in ambush again, in seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambush", meta = (ClampMin = 0))
+	float LoseInterestTime = 6.0f;
+
+	/** Walking speed (stalking, circling, going home) in cm/s; the run is MoveSpeed */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float WalkSpeed = 230.0f;
+
+	/** Pack members come in from the side, this many degrees apart around the prey */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0, ClampMax = 120))
+	float FlankAngle = 55.0f;
+
+	/** It pounces on prey between these distances, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt")
+	FVector2D PounceRange = FVector2D(260.0f, 700.0f);
+
+	/** Speed of the leap in cm/s; the leap is the middle part of the pounce animation */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float PounceSpeed = 1150.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float PounceDamage = 13.0f;
+
+	/** After landing it bites prey this close, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float BiteRange = 160.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float BiteDamage = 6.0f;
+
+	/** Seconds between two pounces, picked in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt")
+	FVector2D PounceInterval = FVector2D(2.5f, 4.0f);
+
+	/** After an attack it backs off this far while circling, for seconds picked in the range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float RetreatDistance = 480.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt")
+	FVector2D RetreatTime = FVector2D(1.0f, 1.7f);
+
+	/** The last of its pack flees below this share of its health and hides in ambush: for CaptureWindow seconds the Tamer
+	 *  can bind it there (capture condition "Letzter des Rudels", Boris 2026-10-21) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Capture", meta = (ClampMin = 0, ClampMax = 1))
+	float FleeHealthShare = 0.3f;
+
+	/** How far it flees before it hides, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Capture", meta = (ClampMin = 0))
+	float FleeDistance = 900.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Capture", meta = (ClampMin = 0))
+	float CaptureWindow = 8.0f;
+
+	/** Materials in the light form and in the shadow form (the Loot of the creature data is not used) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TArray<FVaelLootEntry> LightLoot;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TArray<FVaelLootEntry> ShadowLoot;
+
+	/** At this corruption of its region (percent) and above it shows its shadow form */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))
+	float ShadowCorruption = 55.0f;
+
+	/** Seconds the change between light and shadow form takes */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Corruption", meta = (ClampMin = 0))
+	float FormChangeTime = 1.5f;
 };
 
 /**

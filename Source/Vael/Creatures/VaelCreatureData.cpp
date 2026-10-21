@@ -15,6 +15,8 @@
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelSourceGuardian.h"
 #include "Creatures/VaelVeilMonkey.h"
+#include "Creatures/VaelRankenluchs.h"
+#include "Animation/AnimSequence.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -241,6 +243,37 @@ UVaelSickleDollData::UVaelSickleDollData()
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glimmstroh.DA_Material_Glimmstroh"), 0.6f));
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Sichelklinge.DA_Material_Sichelklinge"), 0.25f));
 	BodyColor = FLinearColor(0.13f, 0.1f, 0.07f);
+}
+
+UVaelRankenluchsData::UVaelRankenluchsData()
+{
+	DisplayName = LOCTEXT("Rankenluchs", "Rankenluchs");
+	KindId = TEXT("Rankenluchs");
+	CreatureClass = AVaelRankenluchs::StaticClass();
+	const TCHAR* Folder = TEXT("/Game/Vael/Kreaturen/Rankenluchs/");
+	LuchsMesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(FString(Folder) + TEXT("SK_Rankenluchs.SK_Rankenluchs")));
+	const auto Animation = [Folder](const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(FString::Printf(TEXT("%sA_Rankenluchs_%s.A_Rankenluchs_%s"), Folder, Name, Name)));
+	};
+	IdleAnimation = Animation(TEXT("Stehen_Idle"));
+	CamouflageAnimation = Animation(TEXT("Tarn_Ruhe"));
+	WakeAnimation = Animation(TEXT("Erwachen"));
+	PounceAnimation = Animation(TEXT("Sprung_Angriff"));
+	WalkAnimation = Animation(TEXT("Laufen"));
+	RunAnimation = Animation(TEXT("Rennen"));
+
+	// A big cat: quick, not tough; plant through and through, so fire hurts a little more
+	MaxHealth = 90.0f;
+	MoveSpeed = 560.0f;
+	CollisionRadius = 40.0f;
+	CollisionHalfHeight = 45.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 1.25f);
+	AggroRange = 1800.0f;
+	BodyColor = FLinearColor(0.35f, 0.45f, 0.2f);
+	// Only the crest leaf, for the Ingenieur (Boris 2026-10-21)
+	LightLoot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rankenkammblatt.DA_Material_Rankenkammblatt"), 0.6f));
+	ShadowLoot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Nidblatt.DA_Material_Nidblatt"), 0.6f));
 }
 
 UVaelVeilMonkeyData::UVaelVeilMonkeyData()

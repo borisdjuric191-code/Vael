@@ -126,6 +126,21 @@ MATERIALS = [
         "region": unreal.Text("überall, vor allem im Hain"),
         "color": color("f2e68c"),
     },
+    # Bestiarium: Rankenluchs (Boris, 21. Oktober 2026: nur das Kammblatt, in Licht- und Schattenform, für den Ingenieur)
+    {
+        "asset": "DA_Material_Rankenkammblatt",
+        "display_name": unreal.Text("Rankenkammblatt"),
+        "description": unreal.Text("Ein breites Blatt aus dem Rückenkamm eines Rankenluchses. Es wiegt sich weiter, auch wenn kein Wind geht. Der Ingenieur näht daraus Tarnplanen, unter denen seine Fallen für Gegner unsichtbar werden, und befiedert damit leise Pfeile."),
+        "region": unreal.Text("Wurzelforst"),
+        "color": color("3f8f2e"),
+    },
+    {
+        "asset": "DA_Material_Nidblatt",
+        "display_name": unreal.Text("Nidblatt"),
+        "description": unreal.Text("Ein Kammblatt aus der Schattenform des Rankenluchses: schwarzviolett, die Spitze tiefrot, in den Adern glimmt es violett. Es hat Nid aufgesogen. Der Ingenieur hebt es für Arbeiten mit Nid auf."),
+        "region": unreal.Text("Wurzelforst, wo die Verderbnis hoch ist"),
+        "color": color("2a0f33"),
+    },
     # Bestiarium row Sichelpuppe
     {
         "asset": "DA_Material_Glimmstroh",
