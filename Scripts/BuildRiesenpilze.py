@@ -2,9 +2,10 @@
 # L_Wurzelforst_Blockout: the 28 Riesenpilze and the 4 Pilzinseln, each with a few small ones of its kind around it.
 #
 # - Material M_WF_Riesenpilz: the Tripo picture split by colour into cap (coral), glow (turquoise blisters, gills, tendril
-#   tips) and stem (ivory). Each part can be recoloured; the glow parts shine. The hanging tendrils sway slowly
-#   (World Position Offset, only away from the stem and more towards their tips).
-# - Colour variants as instances MI_WF_Riesenpilz_<Name>; violet stays free for Nid.
+#   tips) and stem (ivory). Each part can be recoloured; the glow parts shine. Moss and dirt on the stem, most on the
+#   roots near the ground. Only the hanging tendrils sway slowly (World Position Offset: away from the stem, under the
+#   cap and above their tips' height, so stem, foot and roots stand still).
+# - Colour variants as instances MI_WF_Riesenpilz_<Name>, mixed at random (Boris); violet stays free for Nid.
 # - Every mushroom different: size, wider or narrower cap, slight lean, its turn, sunk a little into the ground.
 # - Collision only on the stem: capsules along the stem profile measured by
 #   Tools/Kreaturenfabrik/blender/vael_pilz_vermessen.py; players walk under the cap and through the tendrils.
@@ -29,6 +30,7 @@ KIT = os.path.join(ROOT, "Blockout", "Vael_Wurzelforst_Blockout")
 MUSHROOM_DATA = os.path.join(os.path.dirname(ROOT), "Vael_Quellen", "Riesenpilz", "03_analyse", "pilz.json")
 MATERIAL_FOLDER = "/Game/Vael/Wurzelforst/Blockout/Materialien"
 MUSHROOM = "/Game/Vael/Requisiten/Wurzelforst/Riesenpilz"
+MOSS_TEXTURE = "/Game/Megascans/3D_Assets/IcelandicMossClusters/T_IcelandicMossClusters_A"
 TAG = "WF_Riesenpilz"
 HIDE_TAG = "WF_RiesenpilzVerdeckt"
 FOLDER = "Wurzelforst/4_Kammweg/Riesenpilze_Modell"
@@ -50,8 +52,6 @@ VARIANTS = {
     "Giftgelb": ((0.95, 0.80, 0.08), (0.05, 0.75, 1.00), (0.85, 0.90, 0.75), 1.0),
     "Tiefsee": ((0.08, 0.30, 0.85), (1.00, 0.45, 0.65), (0.82, 0.86, 0.88), 1.0),
 }
-# The grey box colours as a hint, the rest by chance
-BOX_HINT = {"Pilz_Tuerkis": "Koralle", "Pilz_Orange": "Glut", "Pilz_Rot": "Blutkappe"}
 
 library = unreal.MaterialEditingLibrary
 assets = unreal.EditorAssetLibrary
@@ -144,6 +144,15 @@ class Graph:
     def sample(self, texture, column, sampler=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR):
         return self.node(unreal.MaterialExpressionTextureSample, column, texture=texture, sampler_type=sampler)
 
+    def world_aligned(self, texture, size, column):
+        texture_object = self.node(unreal.MaterialExpressionTextureObject, column + 1, texture=texture)
+        call = self.node(unreal.MaterialExpressionMaterialFunctionCall, column)
+        call.set_material_function(unreal.load_asset("/Engine/Functions/Engine_MaterialFunctions01/Texturing/WorldAlignedTexture"))
+        self.link(texture_object, call, "TextureObject")
+        size3 = self.mul(column + 1, size, self.node(unreal.MaterialExpressionConstant3Vector, column + 2, constant=unreal.LinearColor(1.0, 1.0, 1.0, 1.0)))
+        self.link(size3, call, "TextureSize")
+        return self.mask(call, column - 1)
+
 
 def texture(path):
     loaded = unreal.load_asset(path)
@@ -169,7 +178,11 @@ def build_material(shape):
     blue = g.mask(picture, 11, r=False, g=False)
     cyan = g.sub(10, g.mul(10, g.add(11, green, blue), g.const(0.5, 11)), red)
     glow_share = g.saturate(g.mul(8, g.sub(9, cyan, g.scalar("LeuchtSchwelle", 0.12, 10)), g.const(5.0, 9)), 7)
-    cap_share = g.saturate(g.mul(8, g.sub(9, g.sub(10, red, green), g.scalar("HutSchwelle", 0.12, 10)), g.const(4.0, 9)), 7)
+    # Pink also sits on the roots at the foot: only up at the cap does pink count as cap, below it is stem
+    local = g.node(unreal.MaterialExpressionLocalPosition, 14)
+    local_z = g.mask(local, 13, r=False, g=False)
+    up_high = g.saturate(g.div(9, g.sub(10, local_z, g.const(shape["hut_unterseite_cm"] * 0.8, 11)), g.const(40.0, 10)), 8)
+    cap_share = g.mul(6, g.saturate(g.mul(8, g.sub(9, g.sub(10, red, green), g.scalar("HutSchwelle", 0.12, 10)), g.const(4.0, 9)), 7), up_high)
 
     # Recolour: brightness of the picture times the new colour, so shading and detail stay
     light = g.mul(7, g.grey(picture, 8), g.const(1.8, 8))
@@ -178,16 +191,32 @@ def build_material(shape):
     cap_colour = g.color("HutFarbe", VARIANTS["Koralle"][0], 7)
     glow_colour = g.color("LeuchtFarbe", VARIANTS["Koralle"][1], 7)
     with_cap = g.lerp(stem, g.lerp(picture, g.mul(6, light, cap_colour), recolour, 5), cap_share, 4)
-    albedo = g.lerp(with_cap, g.lerp(picture, g.mul(6, light, glow_colour), recolour, 5), glow_share, 3)
+    coloured = g.lerp(with_cap, g.lerp(picture, g.mul(6, light, glow_colour), recolour, 5), glow_share, 3)
+
+    # Moss and dirt on the stem only, most on the roots near the ground, ragged by the moss picture and some noise
+    stem_share = g.saturate(g.sub(4, g.sub(5, g.const(1.0, 6), cap_share), glow_share), 3)
+    low = g.saturate(g.sub(4, g.const(1.0, 5), g.div(5, local_z, g.scalar("MoosHoehe", 380.0, 6))), 3)
+    moss_picture = g.grey(g.world_aligned(texture(MOSS_TEXTURE), g.const(180.0, 12), 9), 8)
+    noise = g.node(unreal.MaterialExpressionNoise, 9, scale=0.02, levels=2, output_min=0.0, output_max=1.0,
+                   noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_TEX)
+    g.link(g.node(unreal.MaterialExpressionWorldPosition, 10), noise)
+    normal_z = g.mask(g.node(unreal.MaterialExpressionVertexNormalWS, 9), 8, r=False, g=False, b=True)
+    facing_up = g.saturate(g.mul(6, g.sub(7, normal_z, g.const(0.2, 8)), g.const(2.0, 7)), 5)
+    patches = g.saturate(g.mul(5, g.add(6, g.mul(7, noise, g.const(1.2, 8)), g.mul(7, facing_up, g.const(0.6, 8))), g.add(6, low, g.mul(7, low, low))), 4)
+    moss_share = g.mul(2, g.mul(3, stem_share, patches), g.scalar("Moos", 1.0, 3))
+    moss = g.mul(4, g.mul(5, moss_picture, g.const(1.6, 6)), g.color("MoosFarbe", (0.20, 0.36, 0.08), 6))
+    dirt_share = g.mul(2, g.mul(3, stem_share, g.saturate(g.sub(4, g.const(1.0, 5), g.div(5, local_z, g.scalar("SchmutzHoehe", 220.0, 6))), 3)),
+                       g.scalar("Schmutz", 0.8, 3))
+    dirty = g.lerp(coloured, g.mul(2, coloured, g.color("SchmutzFarbe", (0.38, 0.30, 0.22), 3)), dirt_share, 1)
+    albedo = g.lerp(dirty, moss, moss_share, 0)
 
     # Glow on the turquoise parts; a soft pulse so the forest breathes
     time = g.node(unreal.MaterialExpressionTime, 8)
     pulse = g.add(5, g.mul(6, g.one(unreal.MaterialExpressionSine, 6, g.mul(7, time, g.const(0.7, 8))), g.const(0.2, 7)), g.const(1.0, 6))
     emissive = g.mul(2, g.mul(3, g.mul(4, glow_share, glow_colour), g.scalar("LeuchtStaerke", 4.0, 4)), pulse)
 
-    # Tendril sway: local position (works for instances), distance from the stem axis, how far below the cap
-    local = g.node(unreal.MaterialExpressionLocalPosition, 14)
-    local_z = g.mask(local, 13, r=False, g=False)
+    # Tendril sway: local position (works for instances), distance from the stem axis, how far below the cap;
+    # nothing moves below the tendril tips, so the foot sheath and the roots stand still
     under_cap = g.scalar("HutUnterseite", shape["hut_unterseite_cm"], 14)
     height_share = g.saturate(g.div(12, local_z, under_cap), 11)
     bottom = g.node(unreal.MaterialExpressionConstant2Vector, 13, r=shape["stiel_unten_cm"][0] / 1.0, g=shape["stiel_unten_cm"][1] / 1.0)
@@ -198,7 +227,8 @@ def build_material(shape):
     stem_radius = g.scalar("StielRadius", shape["stiel_radius_cm"], 10)
     outside = g.saturate(g.div(7, g.sub(8, away, g.mul(9, stem_radius, g.const(1.8, 10))), stem_radius), 6)
     hanging = g.saturate(g.div(7, g.sub(8, under_cap, local_z), g.mul(8, under_cap, g.const(0.45, 9))), 6)
-    bend = g.mul(4, g.mul(5, outside, g.mul(5, hanging, hanging)), g.scalar("FadenSchwingen", 35.0, 5))
+    above_tips = g.saturate(g.div(7, g.sub(8, local_z, g.scalar("FadenUnten", shape["faden_unten_cm"] - 100.0, 9)), g.const(60.0, 8)), 6)
+    bend = g.mul(4, g.mul(5, g.mul(6, outside, above_tips), g.mul(5, hanging, hanging)), g.scalar("FadenSchwingen", 35.0, 5))
     world = g.node(unreal.MaterialExpressionWorldPosition, 9)
     place = g.mul(7, g.add(8, g.mask(world, 9, g=False, b=False), g.mask(world, 9, r=False, b=False)), g.const(0.003, 8))
     phase = g.add(6, g.mul(7, time, g.scalar("FadenTempo", 0.8, 8)), place)
@@ -398,7 +428,6 @@ def main():
     names = list(VARIANTS)
     counts = {"giant": 0, "island": 0, "small": 0, "no_ground": 0, "giant_ground": 0, "giant_no_ground": 0, "miss": 0, "steep": 0}
 
-    caps = {p["n"][:-len("_Hut")]: p["mat"] for p in boxes if p["n"].startswith("Riesenpilz_") and p["n"].endswith("_Hut")}
     for prim in boxes:
         name = prim["n"]
         island = name.startswith("Pilzinsel_") and name.endswith("_Pilzstiel")
@@ -413,13 +442,11 @@ def main():
         counts["giant_ground" if hit else "giant_no_ground"] += 1
         if island:
             height = ISLAND_HEIGHT_CM * rng.uniform(0.9, 1.1)
-            variant = "Koralle"
+            variant = rng.choice(names)
             counts["island"] += 1
         else:
             height = min(max(stem_height * HEIGHT_SHARE, HEIGHT_MIN_CM), HEIGHT_MAX_CM)
-            variant = BOX_HINT.get(caps.get(name[:-len("_Stiel")]), "") or rng.choice(names)
-            if rng.random() < 0.35:
-                variant = rng.choice(names)
+            variant = rng.choice(names)
             counts["giant"] += 1
         place_one(place, instances, variant, x, y, ground_z, height, model, 5.0)
 
@@ -433,8 +460,7 @@ def main():
                 counts["no_ground"] += 1
                 counts["miss" if spot is None else "steep"] += 1
                 continue
-            small_variant = variant if rng.random() < 0.7 else rng.choice(names)
-            place_one(place, instances, small_variant, sx, sy, spot[0].z, rng.uniform(*SMALL_HEIGHT_CM), model, 12.0)
+            place_one(place, instances, rng.choice(names), sx, sy, spot[0].z, rng.uniform(*SMALL_HEIGHT_CM), model, 12.0)
             counts["small"] += 1
 
     total = place.spawn()

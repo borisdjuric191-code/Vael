@@ -64,6 +64,11 @@ def main(ordner):
             i += richtung
     scheiben = [{"z0": i * band, "z1": (i + 1) * band, "mitte": gefunden[i][0], "radius": gefunden[i][1]} for i in sorted(gefunden)]
     hut_unterseite = scheiben[-1]["z1"]
+    # Lowest tendril tip: above the narrowest stem slice (no tendrils reach down there), away from the stem, under the cap
+    achse = {i: gefunden[i] for i in gefunden}
+    spitzen = [p.z for p in punkte if start * band <= p.z < hut_unterseite
+               and (Vector((p.x, p.y)) - achse[min(int(p.z / band), max(achse))][0]).length > stiel_radius * 1.8]
+    faden_unten = (min(spitzen) if spitzen else start * band) - 0.2
 
     unten, oben = scheiben[0]["mitte"], scheiben[-1]["mitte"]
     daten = {
@@ -71,6 +76,7 @@ def main(ordner):
         "hut_unterseite_cm": round(hut_unterseite * 100, 1),
         "hut_radius_cm": round(hut_radius * 100, 1),
         "stiel_radius_cm": round(stiel_radius * 100, 1),
+        "faden_unten_cm": round(faden_unten * 100, 1),
         "stiel_unten_cm": [round(unten.x * 100, 1), round(unten.y * 100, 1)],
         "stiel_oben_cm": [round(oben.x * 100, 1), round(oben.y * 100, 1)],
         # Stem from the foot up: height, centre and radius of every slice; Scripts/BuildRiesenpilze.py puts capsules along it
