@@ -7,6 +7,7 @@
 #include "VaelUISettings.generated.h"
 
 class UUserWidget;
+class UVaelWorldMap;
 
 /** Button symbols the HUD shows for an input device */
 UENUM(BlueprintType)
@@ -161,4 +162,20 @@ public:
 	/** Folder of the look of each class, DA_HUDKlasse_<Klasse> */
 	UPROPERTY(config, EditAnywhere, Category="Player HUD")
 	FString HUDClassFolder = TEXT("/Game/Vael/UI/HUD/Klassen");
+
+	/** Map of each level, by the name of the level (like L_Wurzelforst_Blockout); a level without one shows no mini map */
+	UPROPERTY(config, EditAnywhere, Category="Map")
+	TMap<FName, TSoftObjectPtr<UVaelWorldMap>> LevelMaps;
+
+	/** Width and height of the mini map in the top right corner, on a 1080 pixel high screen */
+	UPROPERTY(config, EditAnywhere, Category="Map", meta = (ClampMin = 80))
+	float MiniMapSize = 250.0f;
+
+	/** World distance from the middle of the mini map to its edge, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Map", meta = (ClampMin = 1000))
+	float MiniMapRange = 12000.0f;
+
+	/** Share of the screen height the open big map fills */
+	UPROPERTY(config, EditAnywhere, Category="Map", meta = (ClampMin = 0.3, ClampMax = 1))
+	float BigMapScreenShare = 0.8f;
 };

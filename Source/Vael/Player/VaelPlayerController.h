@@ -116,6 +116,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> GrimoireAction;
 
+	/** Open and close the big map Input Action: View / Create button or M */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MapAction;
+
 	/** Mapping context active while the grimoire is open, above the game controls */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputMappingContext> MenuMappingContext;
@@ -199,6 +203,12 @@ public:
 
 	/** True while this player has the grimoire open */
 	bool IsGrimoireOpen() const { return bGrimoireOpen; }
+
+	/** True while this player has the big map open; the game goes on under it */
+	bool IsMapOpen() const { return bMapOpen; }
+
+	/** Opens or closes the big map; it stays shut while the grimoire is open */
+	void ToggleMap();
 
 	/** Index of the selected formula in the grimoire, in the order of all formulas */
 	int32 GetGrimoireSelection() const { return GrimoireSelection; }
@@ -313,6 +323,7 @@ protected:
 	void OnPotion();
 	void OnQuickSlot(int32 SlotIndex);
 	void OnToggleGrimoire();
+
 	void OnMenuNavigate(const FInputActionValue& Value);
 	void OnMenuNavigateReleased();
 	void OnMenuClose();
@@ -377,6 +388,9 @@ protected:
 
 	/** True while this player has the grimoire open */
 	bool bGrimoireOpen = false;
+
+	/** True while this player has the big map open */
+	bool bMapOpen = false;
 
 	/** Selected row of the grimoire */
 	int32 GrimoireSelection = 0;

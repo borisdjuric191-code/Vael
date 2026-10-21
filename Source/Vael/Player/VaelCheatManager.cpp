@@ -111,6 +111,14 @@ void UVaelCheatManager::VaelTeleport(float X, float Y)
 	Pawn->TeleportTo(FVector(Above.X, Above.Y, GroundZ + Pawn->GetSimpleCollisionHalfHeight() + 5.0f), Pawn->GetActorRotation());
 }
 
+void UVaelCheatManager::VaelKarte()
+{
+	if (AVaelPlayerController* PlayerController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		PlayerController->ToggleMap();
+	}
+}
+
 void UVaelCheatManager::VaelLearnAll()
 {
 	const UGameInstance* GameInstance = GetWorld() != nullptr ? GetWorld()->GetGameInstance() : nullptr;

@@ -144,6 +144,7 @@ void AVaelPlayerController::SetupInputComponent()
 			}
 
 			EnhancedInputComponent->BindAction(GrimoireAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnToggleGrimoire);
+			EnhancedInputComponent->BindAction(MapAction, ETriggerEvent::Started, this, &AVaelPlayerController::ToggleMap);
 			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnMenuNavigate);
 			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnMenuNavigateReleased);
 			EnhancedInputComponent->BindAction(MenuCloseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuClose);
@@ -282,11 +283,17 @@ void AVaelPlayerController::CreateInputAssets()
 		MappingContext->MapKey(QuickSlotAction, QuickSlotKeyboardKeys[SlotIndex]);
 	}
 
-	// The grimoire opens and closes while the game is paused
+	// The grimoire opens and closes while the game is paused; on the controller with Options / Menu, like the menu in Diablo.
+	// (Start lets a controller without a player join; once it plays, the same button opens its grimoire.)
 	GrimoireAction = CreateAction(TEXT("IA_Grimoire"), EInputActionValueType::Boolean);
 	GrimoireAction->bTriggerWhenPaused = true;
-	MappingContext->MapKey(GrimoireAction, EKeys::Gamepad_Special_Left);
+	MappingContext->MapKey(GrimoireAction, EKeys::Gamepad_Special_Right);
 	MappingContext->MapKey(GrimoireAction, EKeys::Tab);
+
+	// The big map: View / Create, like the map in Diablo, or M
+	MapAction = CreateAction(TEXT("IA_Map"), EInputActionValueType::Boolean);
+	MappingContext->MapKey(MapAction, EKeys::Gamepad_Special_Left);
+	MappingContext->MapKey(MapAction, EKeys::M);
 
 	// The inventory page of the same menu opens directly with I
 	InventoryAction = CreateAction(TEXT("IA_Inventory"), EInputActionValueType::Boolean);
@@ -907,6 +914,11 @@ void AVaelPlayerController::OnToggleGrimoire()
 	}
 }
 
+void AVaelPlayerController::ToggleMap()
+{
+	bMapOpen = !bMapOpen && !bGrimoireOpen;
+}
+
 bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 {
 	if (bGrimoireOpen || GetPawn<AVaelCharacter>() == nullptr)
@@ -927,6 +939,7 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 	}
 
 	bGrimoireOpen = true;
+	bMapOpen = false;
 	MenuPage = Page;
 	NextNavigateTime = 0.0;
 

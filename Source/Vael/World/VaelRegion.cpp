@@ -23,6 +23,8 @@
 #include "World/VaelLightningStrike.h"
 #include "World/VaelProgressSubsystem.h"
 #include "World/VaelWorldSettings.h"
+#include "UI/VaelUISettings.h"
+#include "UI/VaelWorldMap.h"
 
 #define LOCTEXT_NAMESPACE "VaelWorld"
 
@@ -130,6 +132,17 @@ AVaelRegion* AVaelRegion::GetRegionAt(UWorld* World, const FVector& Location)
 		if (WholeLevel != nullptr)
 		{
 			WholeLevel->bCoversWholeLevel = true;
+
+			// Named after the map of the level, if it has one
+			const FName LevelName(*UWorld::RemovePIEPrefix(World->GetMapName()));
+			if (const TSoftObjectPtr<UVaelWorldMap>* MapEntry = UVaelUISettings::Get()->LevelMaps.Find(LevelName))
+			{
+				const UVaelWorldMap* Map = VaelAssets::LoadOptional(*MapEntry);
+				if (Map != nullptr && !Map->Title.IsEmpty())
+				{
+					WholeLevel->RegionName = Map->Title;
+				}
+			}
 			WholeLevel->FinishSpawning(FTransform::Identity);
 
 			UE_LOG(LogVael, Log, TEXT("No region in the level, '%s' covers all of it"), *WholeLevel->RegionName.ToString());

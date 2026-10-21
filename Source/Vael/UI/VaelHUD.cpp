@@ -10,6 +10,15 @@
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
 #include "Engine/Font.h"
+#include "Engine/FontFace.h"
+#include "Engine/Texture2D.h"
+#include "Fonts/CompositeFont.h"
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Rendering/SlateRenderer.h"
+#include "Camera/PlayerCameraManager.h"
+#include "UI/VaelWorldMap.h"
+#include "World/VaelSafeZone.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
@@ -72,6 +81,18 @@ namespace
 	/** Points around a circle */
 	constexpr int32 CircleSides = 28;
 
+	/** Slate font sizes are points: a text height of one pixel is three quarters of a point */
+	constexpr float PointsPerPixel = 0.75f;
+
+	/** Fonts of the painted HUD (OFL), the same as the player panels */
+	const TCHAR* TextFontPath = TEXT("/Game/Vael/UI/Fonts/AlegreyaSans-Regular.AlegreyaSans-Regular");
+	const TCHAR* TitleFontPath = TEXT("/Game/Vael/UI/Fonts/IMFeENsc28P.IMFeENsc28P");
+
+	/** Colors of the map */
+	const FLinearColor MapNameColor = Rgb(246, 236, 212);
+	const FLinearColor MapNewsColor = Rgb(255, 207, 107);
+	const FLinearColor MapCampColor = Rgb(150, 220, 140);
+
 	FLinearColor WithAlpha(FLinearColor Color, float Alpha)
 	{
 		Color.A *= Alpha;
@@ -84,6 +105,28 @@ void AVaelHUD::BeginPlay()
 	Super::BeginPlay();
 
 	Font = GEngine != nullptr ? GEngine->GetLargeFont() : nullptr;
+
+	// The fonts of the painted HUD; without them the engine font is drawn as before
+	const auto MakeComposite = [this](const TCHAR* Path) -> TSharedPtr<const FCompositeFont>
+	{
+		UFontFace* Face = Cast<UFontFace>(VaelAssets::LoadOptional(FSoftObjectPath(Path)));
+		if (Face == nullptr)
+		{
+			return nullptr;
+		}
+		FontFaces.Add(Face);
+		TSharedRef<FCompositeFont> Composite = MakeShared<FCompositeFont>();
+		Composite->DefaultTypeface.Fonts.Add_GetRef(FTypefaceEntry(TEXT("Regular"))).Font = FFontData(Face);
+		return Composite;
+	};
+	TextFont = MakeComposite(TextFontPath);
+	TitleFont = MakeComposite(TitleFontPath);
+	if (TextFont.IsValid())
+	{
+		RuntimeFont = NewObject<UFont>(this);
+		RuntimeFont->FontCacheType = EFontCacheType::Runtime;
+		RuntimeFont->CompositeFont = *TextFont;
+	}
 
 	if (UVaelGrimoireSubsystem* Grimoire = GetGrimoire())
 	{
@@ -131,13 +174,6 @@ void AVaelHUD::DrawHUD()
 	Canvas->TextSize(Font, TEXT("Ag"), FontWidth, FontBaseHeight);
 	FontBaseHeight = FMath::Max(FontBaseHeight, 1.0f);
 
-	DrawWeather();
-	DrawCreatureHealthBars();
-	DrawCombatTexts();
-	DrawRegionInfo();
-	DrawQuestTracker();
-
-	// One panel per player, side by side at the bottom
 	TArray<const AVaelPlayerController*> PlayerControllers;
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 	{
@@ -149,6 +185,18 @@ void AVaelHUD::DrawHUD()
 	}
 
 	PlayerControllers.Sort([](const AVaelPlayerController& A, const AVaelPlayerController& B) { return A.GetPlayerSlot() < B.GetPlayerSlot(); });
+
+	DrawWeather();
+	DrawCreatureHealthBars();
+	DrawCombatTexts();
+
+	// Top right: the mini map, under it the region and the quests
+	const float CornerGap = 10.0f * UiScale;
+	const float MapBottom = DrawMiniMap(PlayerControllers, 16.0f * UiScale);
+	const float RegionBottom = DrawRegionInfo(MapBottom > 16.0f * UiScale ? MapBottom + CornerGap : MapBottom);
+	DrawQuestTracker(RegionBottom + CornerGap);
+
+	// One panel per player, side by side at the bottom
 
 	const int32 NumPanels = SyncPlayerWidgets(PlayerControllers) ? 0 : PlayerControllers.Num();
 	if (NumPanels > 0)
@@ -174,6 +222,20 @@ void AVaelHUD::DrawHUD()
 	float NoticeTop = 70.0f * UiScale;
 	DrawBossBar(NoticeTop);
 	DrawNotices(NoticeTop);
+
+	// The big map of whoever opened it, unless the grimoire covers everything anyway
+	const bool bAnyGrimoire = PlayerControllers.ContainsByPredicate([](const AVaelPlayerController* PlayerController) { return PlayerController->IsGrimoireOpen(); });
+	if (!bAnyGrimoire)
+	{
+		for (const AVaelPlayerController* PlayerController : PlayerControllers)
+		{
+			if (PlayerController->IsMapOpen())
+			{
+				DrawBigMap(PlayerController, PlayerControllers);
+				break;
+			}
+		}
+	}
 
 	for (const AVaelPlayerController* PlayerController : PlayerControllers)
 	{
@@ -714,8 +776,8 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 	DrawLabel(FText::Format(LOCTEXT("KnownCount", "{0} von {1} Formeln bekannt"), NumKnown, Formulas.Num()), Left + Padding, FooterY, 13.0f * S, DimColor);
 
 	const FText CloseHint = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("CloseKeyboard", "W / S: w\u00E4hlen \u00B7 Z X C V: belegen \u00B7 Tab / Esc: schlie\u00DFen")
-		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ClosePlayStation", "Linker Stick: w\u00E4hlen \u00B7 Steuerkreuz: belegen \u00B7 \u25CB / Create: schlie\u00DFen")
-		: LOCTEXT("CloseXbox", "Linker Stick: w\u00E4hlen \u00B7 Steuerkreuz: belegen \u00B7 B / Ansicht: schlie\u00DFen");
+		: Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ClosePlayStation", "Linker Stick: w\u00E4hlen \u00B7 Steuerkreuz: belegen \u00B7 \u25CB / Options: schlie\u00DFen")
+		: LOCTEXT("CloseXbox", "Linker Stick: w\u00E4hlen \u00B7 Steuerkreuz: belegen \u00B7 B / Men\u00FC: schlie\u00DFen");
 	DrawLabel(CloseHint, Left + Width - Padding, FooterY, 13.0f * S, DimColor, 1.0f);
 
 	DrawMaterialBag(Player, Left, Top, Width, Height);
@@ -1041,6 +1103,18 @@ void AVaelHUD::DrawSegment(const FVector2D& Start, const FVector2D& End, const F
 	Canvas->DrawItem(Line);
 }
 
+FSlateFontInfo AVaelHUD::GetSlateFont(float PixelHeight) const
+{
+	const TSharedPtr<const FCompositeFont>& Composite = bTitleText && TitleFont.IsValid() ? TitleFont : TextFont;
+	return FSlateFontInfo(Composite, FMath::Max(1.0f, PixelHeight * PointsPerPixel));
+}
+
+void AVaelHUD::DrawTitle(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float Alignment, float MaxWidth)
+{
+	TGuardValue<bool> TitleGuard(bTitleText, true);
+	DrawLabel(Text, X, Y, PixelHeight, Color, Alignment, MaxWidth);
+}
+
 void AVaelHUD::DrawLabel(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float Alignment, float MaxWidth)
 {
 	if (Text.IsEmpty() || Color.A <= 0.0f)
@@ -1049,6 +1123,29 @@ void AVaelHUD::DrawLabel(const FText& Text, float X, float Y, float PixelHeight,
 	}
 
 	FString String = Text.ToString();
+
+	// The fonts of the painted HUD, drawn sharp at their size
+	if (TextFont.IsValid() && RuntimeFont != nullptr && FSlateApplication::IsInitialized())
+	{
+		const FSlateFontInfo SlateFont = GetSlateFont(PixelHeight);
+		const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		float TextWidth = Measure->Measure(String, SlateFont).X;
+		if (MaxWidth > 0.0f && TextWidth > MaxWidth)
+		{
+			while (String.Len() > 1 && TextWidth > MaxWidth)
+			{
+				String.LeftChopInline(1);
+				TextWidth = Measure->Measure(String + TEXT("..."), SlateFont).X;
+			}
+			String += TEXT("...");
+		}
+
+		FCanvasTextItem SlateText(FVector2D(X - TextWidth * Alignment, Y), FText::FromString(String), SlateFont, Color);
+		SlateText.Font = RuntimeFont;
+		SlateText.EnableShadow(FLinearColor(0.0f, 0.0f, 0.0f, 0.85f * Color.A), FVector2D(1.0f, 1.0f) * FMath::Max(1.0f, FMath::RoundToFloat(PixelHeight / 14.0f)));
+		Canvas->DrawItem(SlateText);
+		return;
+	}
 	const float Scale = GetTextScale(PixelHeight);
 
 	float Width = 0.0f;
@@ -1074,6 +1171,11 @@ void AVaelHUD::DrawLabel(const FText& Text, float X, float Y, float PixelHeight,
 
 float AVaelHUD::MeasureLabel(const FText& Text, float PixelHeight)
 {
+	if (TextFont.IsValid() && RuntimeFont != nullptr && FSlateApplication::IsInitialized())
+	{
+		return FSlateApplication::Get().GetRenderer()->GetFontMeasureService()->Measure(Text.ToString(), GetSlateFont(PixelHeight)).X;
+	}
+
 	const float Scale = GetTextScale(PixelHeight);
 
 	float Width = 0.0f;
@@ -1103,8 +1205,8 @@ FText AVaelHUD::GetGrimoireButtonName(EVaelInputGlyphs Glyphs)
 	switch (Glyphs)
 	{
 	case EVaelInputGlyphs::Keyboard: return LOCTEXT("GrimoireKeyboard", "Tab");
-	case EVaelInputGlyphs::PlayStation: return LOCTEXT("GrimoirePlayStation", "Create");
-	default: return LOCTEXT("GrimoireXbox", "Ansicht");
+	case EVaelInputGlyphs::PlayStation: return LOCTEXT("GrimoirePlayStation", "Options");
+	default: return LOCTEXT("GrimoireXbox", "Menü");
 	}
 }
 
@@ -1141,35 +1243,36 @@ UVaelGrimoireSubsystem* AVaelHUD::GetGrimoire() const
 	return GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
 }
 
-void AVaelHUD::DrawRegionInfo()
+float AVaelHUD::DrawRegionInfo(float Top)
 {
 	// The region the first player stands in
 	const APawn* FirstPawn = GetOwningPawn();
 	const AVaelRegion* Region = FirstPawn != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), FirstPawn->GetActorLocation()) : nullptr;
 	if (Region == nullptr)
 	{
-		return;
+		return Top;
 	}
 
+	// As wide as the mini map above it
 	const float S = UiScale;
-	const float Width = 240.0f * S;
-	const float Height = 92.0f * S;
+	const float Width = FMath::Max(240.0f, UVaelUISettings::Get()->MiniMapSize) * S;
+	const float Height = 104.0f * S;
 	const float Left = Canvas->ClipX - Width - 16.0f * S;
-	const float Top = 16.0f * S;
 	const float Padding = 12.0f * S;
 
-	DrawBox(Left, Top, Width, Height, Rgb(13, 9, 10, 173));
+	DrawBox(Left, Top, Width, Height, Rgb(13, 9, 10, 190));
 	DrawFrame(Left, Top, Width, Height, RimColor);
 
-	DrawLabel(Region->GetRegionName(), Left + Padding, Top + 8.0f * S, 20.0f * S, BoneColor, 0.0f, Width - 2.0f * Padding);
-	DrawLabel(FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}"), AVaelRegion::GetWeatherName(Region->GetWeather())), Left + Padding, Top + 36.0f * S, 13.0f * S, Rgb(205, 189, 166));
+	DrawTitle(Region->GetRegionName(), Left + Padding, Top + 6.0f * S, 24.0f * S, BoneColor, 0.0f, Width - 2.0f * Padding);
+	DrawLabel(FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}"), AVaelRegion::GetWeatherName(Region->GetWeather())), Left + Padding, Top + 40.0f * S, 16.0f * S, Rgb(222, 208, 186));
 
 	const int32 Corruption = FMath::RoundToInt(Region->GetCorruption());
-	DrawLabel(FText::Format(LOCTEXT("CorruptionLine", "Verderbnis der Region: {0} %"), Corruption), Left + Padding, Top + 56.0f * S, 13.0f * S, Rgb(205, 189, 166));
+	DrawLabel(FText::Format(LOCTEXT("CorruptionLine", "Verderbnis der Region: {0} %"), Corruption), Left + Padding, Top + 62.0f * S, 16.0f * S, Rgb(222, 208, 186));
 
 	const float BarWidth = Width - 2.0f * Padding;
-	DrawBox(Left + Padding, Top + Height - 12.0f * S, BarWidth, 5.0f * S, Rgb(42, 31, 46));
-	DrawBox(Left + Padding, Top + Height - 12.0f * S, BarWidth * Region->GetCorruption() / 100.0f, 5.0f * S, Rgb(162, 77, 255));
+	DrawBox(Left + Padding, Top + Height - 13.0f * S, BarWidth, 5.0f * S, Rgb(42, 31, 46));
+	DrawBox(Left + Padding, Top + Height - 13.0f * S, BarWidth * Region->GetCorruption() / 100.0f, 5.0f * S, Rgb(162, 77, 255));
+	return Top + Height;
 }
 
 namespace
@@ -1184,7 +1287,7 @@ namespace
 	const FLinearColor QuestTitleColor(FLinearColor(FColor(232, 205, 140)));
 }
 
-void AVaelHUD::DrawQuestTracker()
+void AVaelHUD::DrawQuestTracker(float Top)
 {
 	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
 	if (Quests == nullptr)
@@ -1200,18 +1303,18 @@ void AVaelHUD::DrawQuestTracker()
 
 	// Under the region box, right aligned like it; at most three quests
 	const float S = UiScale;
-	const float Width = 240.0f * S;
+	const float Width = FMath::Max(240.0f, UVaelUISettings::Get()->MiniMapSize) * S;
 	const float Right = Canvas->ClipX - 16.0f * S;
-	float Y = 16.0f * S + 92.0f * S + 12.0f * S;
+	float Y = Top;
 
 	for (int32 Index = 0; Index < FMath::Min(Open.Num(), 3); ++Index)
 	{
 		const UVaelQuest* Quest = Open[Index];
 		const FVaelQuestStep* Step = Quests->GetCurrentStep(Quest);
 
-		DrawLabel(Quest->Title, Right, Y, 14.0f * S, Quest->bMainQuest ? QuestTitleColor : DimColor, 1.0f, Width);
-		DrawLabel(GetObjectiveLine(*Step, Quests->GetProgress(Quest)), Right, Y + 18.0f * S, 13.0f * S, BoneColor, 1.0f, Width);
-		Y += 42.0f * S;
+		DrawLabel(Quest->Title, Right, Y, 17.0f * S, Quest->bMainQuest ? QuestTitleColor : Rgb(196, 180, 164), 1.0f, Width);
+		DrawLabel(GetObjectiveLine(*Step, Quests->GetProgress(Quest)), Right, Y + 21.0f * S, 16.0f * S, BoneColor, 1.0f, Width);
+		Y += 48.0f * S;
 	}
 }
 
@@ -2309,6 +2412,301 @@ void AVaelHUD::DrawObservation(const TArray<const AVaelPlayerController*>& Playe
 
 			DrawLabel(Share >= 1.0f ? LOCTEXT("Observed", "beobachtet") : LOCTEXT("Observing", "beobachten …"), Center.X, Center.Y + Radius + 4.0f * S, 11.0f * S, SpyglassColor, 0.5f);
 		}
+	}
+}
+
+// ---------------------------------------------------------------- Map
+
+FVector2D AVaelHUD::FMapView::ToScreen(const FVector2D& World) const
+{
+	const FVector2D Offset = World - Center;
+	return Origin + FVector2D(FVector2D::DotProduct(Offset, Right), -FVector2D::DotProduct(Offset, Up)) * PixelsPerCm;
+}
+
+FVector2D AVaelHUD::FMapView::ToWorld(const FVector2D& Screen) const
+{
+	const FVector2D Offset = (Screen - Origin) / PixelsPerCm;
+	return Center + Right * Offset.X - Up * Offset.Y;
+}
+
+const UVaelWorldMap* AVaelHUD::GetLevelMap()
+{
+	if (!bLevelMapLookedUp)
+	{
+		bLevelMapLookedUp = true;
+		const FName LevelName(*UWorld::RemovePIEPrefix(GetWorld()->GetMapName()));
+		if (const TSoftObjectPtr<UVaelWorldMap>* Entry = UVaelUISettings::Get()->LevelMaps.Find(LevelName))
+		{
+			LevelMap = VaelAssets::LoadOptional(*Entry);
+			MapPicture = LevelMap != nullptr ? VaelAssets::LoadOptional(LevelMap->Picture) : nullptr;
+		}
+	}
+
+	return MapPicture != nullptr ? LevelMap.Get() : nullptr;
+}
+
+AVaelHUD::FMapView AVaelHUD::MakeMapView(const FVector2D& Center, const FVector2D& Origin, float PixelsPerCm) const
+{
+	FMapView View;
+	View.Center = Center;
+	View.Origin = Origin;
+	View.PixelsPerCm = PixelsPerCm;
+
+	// Up on the screen is where the camera looks, flat on the ground
+	const APlayerController* PlayerController = GetOwningPlayerController();
+	const float Yaw = PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr ? PlayerController->PlayerCameraManager->GetCameraRotation().Yaw : 0.0f;
+	View.Up = FVector2D(FMath::Cos(FMath::DegreesToRadians(Yaw)), FMath::Sin(FMath::DegreesToRadians(Yaw)));
+	View.Right = FVector2D(-View.Up.Y, View.Up.X);
+	return View;
+}
+
+void AVaelHUD::DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha)
+{
+	const FTexture* Resource = MapPicture != nullptr ? MapPicture->GetResource() : nullptr;
+	if (Resource == nullptr || LevelMap == nullptr)
+	{
+		return;
+	}
+
+	// The picture is laid by the world points under the corners, so any turn and scale of the view works
+	FVector2D PictureCorners[4];
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		PictureCorners[Index] = LevelMap->WorldToPicture(View.ToWorld(Corners[Index]));
+	}
+
+	const FLinearColor Tint(1.0f, 1.0f, 1.0f, Alpha);
+	const int32 Order[2][3] = { { 0, 1, 2 }, { 0, 2, 3 } };
+	TArray<FCanvasUVTri> Triangles;
+	for (const auto& Triangle : Order)
+	{
+		FCanvasUVTri& Tri = Triangles.AddDefaulted_GetRef();
+		Tri.V0_Pos = Corners[Triangle[0]];
+		Tri.V1_Pos = Corners[Triangle[1]];
+		Tri.V2_Pos = Corners[Triangle[2]];
+		Tri.V0_UV = PictureCorners[Triangle[0]];
+		Tri.V1_UV = PictureCorners[Triangle[1]];
+		Tri.V2_UV = PictureCorners[Triangle[2]];
+		Tri.V0_Color = Tint;
+		Tri.V1_Color = Tint;
+		Tri.V2_Color = Tint;
+	}
+
+	FCanvasTriangleItem Picture(Triangles, Resource);
+	Picture.BlendMode = SE_BLEND_Translucent;
+	Canvas->DrawItem(Picture);
+}
+
+void AVaelHUD::DrawMapMarkers(const FMapView& View, const TArray<const AVaelPlayerController*>& PlayerControllers, float MarkerScale, const FBox2D* Clip)
+{
+	const float S = UiScale * MarkerScale;
+	const FLinearColor Outline = Rgb(13, 9, 10, 230);
+	const auto IsInside = [Clip](const FVector2D& Point, float Margin)
+	{
+		return Clip == nullptr || (Point.X >= Clip->Min.X + Margin && Point.X <= Clip->Max.X - Margin && Point.Y >= Clip->Min.Y + Margin && Point.Y <= Clip->Max.Y - Margin);
+	};
+
+	// Safe camps: a green ring as wide as the camp
+	for (TActorIterator<AVaelSafeZone> It(GetWorld()); It; ++It)
+	{
+		const FVector2D Point = View.ToScreen(FVector2D(It->GetActorLocation()));
+		if (IsInside(Point, 6.0f * S))
+		{
+			DrawRing(Point, FMath::Max(5.0f * S, It->GetRadius() * View.PixelsPerCm), WithAlpha(MapCampColor, 0.85f), 2.0f * S);
+		}
+	}
+
+	// People: small light dots, gold with a "!" when they have news
+	for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+	{
+		const FVector2D Point = View.ToScreen(FVector2D(It->GetActorLocation()));
+		if (!IsInside(Point, 4.0f * S))
+		{
+			continue;
+		}
+
+		if (It->HasNews())
+		{
+			DrawDisc(Point, 5.0f * S, Outline);
+			DrawDisc(Point, 3.5f * S, MapNewsColor);
+			DrawTitle(LOCTEXT("MapNews", "!"), Point.X, Point.Y - 24.0f * S, 18.0f * S, MapNewsColor, 0.5f);
+		}
+		else
+		{
+			DrawDisc(Point, 3.5f * S, Outline);
+			DrawDisc(Point, 2.5f * S, BoneColor);
+		}
+	}
+
+	// Players: arrows in their colours pointing where they look; on the mini map kept at the rim when they are outside it
+	const AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		const APawn* Pawn = PlayerController->GetPawn();
+		if (Pawn == nullptr)
+		{
+			continue;
+		}
+
+		const FVector2D Feet(Pawn->GetActorLocation());
+		FVector2D Point = View.ToScreen(Feet);
+		if (Clip != nullptr)
+		{
+			Point.X = FMath::Clamp(Point.X, Clip->Min.X + 8.0f * S, Clip->Max.X - 8.0f * S);
+			Point.Y = FMath::Clamp(Point.Y, Clip->Min.Y + 8.0f * S, Clip->Max.Y - 8.0f * S);
+		}
+
+		const FVector2D Forward = (View.ToScreen(Feet + FVector2D(Pawn->GetActorForwardVector()) * 100.0f) - View.ToScreen(Feet)).GetSafeNormal();
+		const FVector2D Side(-Forward.Y, Forward.X);
+		const FLinearColor Color = GameMode != nullptr ? GameMode->GetPlayerColor(PlayerController->GetPlayerSlot()) : BoneColor;
+		const float Half = 9.0f * S;
+		const float Rim = 2.0f * S;
+		DrawPolygon({ Point + Forward * (Half + Rim), Point - Forward * (Half * 0.7f + Rim) + Side * (Half + Rim), Point - Forward * (Half * 0.7f + Rim) - Side * (Half + Rim) }, Outline);
+		DrawPolygon({ Point + Forward * Half, Point - Forward * Half * 0.7f + Side * Half, Point - Forward * Half * 0.7f - Side * Half }, Color);
+	}
+}
+
+float AVaelHUD::DrawMiniMap(const TArray<const AVaelPlayerController*>& PlayerControllers, float Top)
+{
+	const UVaelWorldMap* Map = GetLevelMap();
+	if (Map == nullptr)
+	{
+		return Top;
+	}
+
+	const UVaelUISettings* Settings = UVaelUISettings::Get();
+	const float S = UiScale;
+	const float Size = Settings->MiniMapSize * S;
+	const float Left = Canvas->ClipX - Size - 16.0f * S;
+
+	// Centred on the middle of the group, like the shared camera
+	FVector2D Center = FVector2D::ZeroVector;
+	int32 NumPlayers = 0;
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		if (const APawn* Pawn = PlayerController->GetPawn())
+		{
+			Center += FVector2D(Pawn->GetActorLocation());
+			++NumPlayers;
+		}
+	}
+	if (NumPlayers == 0)
+	{
+		return Top;
+	}
+	Center /= NumPlayers;
+
+	const FVector2D Origin(Left + Size * 0.5f, Top + Size * 0.5f);
+	const FMapView View = MakeMapView(Center, Origin, Size * 0.5f / Settings->MiniMapRange);
+
+	DrawBox(Left - 4.0f * S, Top - 4.0f * S, Size + 8.0f * S, Size + 8.0f * S, Rgb(13, 9, 10, 220));
+	const FVector2D Corners[4] = { FVector2D(Left, Top), FVector2D(Left + Size, Top), FVector2D(Left + Size, Top + Size), FVector2D(Left, Top + Size) };
+	DrawMapPicture(View, Corners, 1.0f);
+	DrawFrame(Left, Top, Size, Size, RimColor, 2.0f * S);
+	DrawFrame(Left - 4.0f * S, Top - 4.0f * S, Size + 8.0f * S, Size + 8.0f * S, Rgb(42, 31, 25), 1.0f * S);
+
+	const FBox2D Clip(FVector2D(Left, Top), FVector2D(Left + Size, Top + Size));
+	DrawMapMarkers(View, PlayerControllers, 1.0f, &Clip);
+
+	// North on the rim: the map turns with the camera
+	const FVector2D NorthDirection = (View.ToScreen(Center + FVector2D(0.0f, -1000.0f)) - Origin).GetSafeNormal();
+	const float Reach = (Size * 0.5f - 11.0f * S) / FMath::Max(FMath::Abs(NorthDirection.X), FMath::Abs(NorthDirection.Y));
+	const FVector2D North = Origin + NorthDirection * Reach;
+	DrawDisc(North, 9.0f * S, Rgb(13, 9, 10, 230));
+	DrawTitle(LOCTEXT("MapNorth", "N"), North.X, North.Y - 9.0f * S, 16.0f * S, EmberColor, 0.5f);
+
+	// Which button opens the whole map
+	DrawLabel(FText::Format(LOCTEXT("MiniMapHint", "{0}: Karte"), GetMapButtonName(PlayerControllers[0]->GetInputGlyphs())),
+		Left + Size - 6.0f * S, Top + Size - 22.0f * S, 14.0f * S, WithAlpha(BoneColor, 0.85f), 1.0f);
+
+	return Top + Size + 4.0f * S;
+}
+
+void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const TArray<const AVaelPlayerController*>& PlayerControllers)
+{
+	const UVaelWorldMap* Map = GetLevelMap();
+	if (Map == nullptr)
+	{
+		return;
+	}
+
+	const float S = UiScale;
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 170));
+
+	// A large panel; the land in it turned like the camera and the mini map, as big as the panel allows
+	const float MapPanelHeight = Canvas->ClipY * UVaelUISettings::Get()->BigMapScreenShare;
+	const float MapPanelWidth = FMath::Min(Canvas->ClipX - 64.0f * S, MapPanelHeight * 1.6f);
+	const FVector2D PanelMin((Canvas->ClipX - MapPanelWidth) * 0.5f, (Canvas->ClipY - MapPanelHeight) * 0.5f + 14.0f * S);
+	const FVector2D PanelMax = PanelMin + FVector2D(MapPanelWidth, MapPanelHeight);
+
+	const bool bHasFocus = Map->FocusMax.X > Map->FocusMin.X && Map->FocusMax.Y > Map->FocusMin.Y;
+	const FVector2D FocusMin = bHasFocus ? Map->FocusMin : Map->WorldMin;
+	const FVector2D FocusMax = bHasFocus ? Map->FocusMax : Map->WorldMin + FVector2D(Map->WorldSize);
+	const FVector2D PanelCenter = (PanelMin + PanelMax) * 0.5f;
+	FMapView View = MakeMapView((FocusMin + FocusMax) * 0.5f, PanelCenter, 1.0f);
+	FVector2D Extent = FVector2D::ZeroVector;
+	for (const FVector2D& Corner : { FocusMin, FVector2D(FocusMax.X, FocusMin.Y), FocusMax, FVector2D(FocusMin.X, FocusMax.Y) })
+	{
+		Extent = FVector2D::Max(Extent, (View.ToScreen(Corner) - PanelCenter).GetAbs());
+	}
+	View.PixelsPerCm = FMath::Min((MapPanelWidth * 0.5f - 12.0f * S) / FMath::Max(Extent.X, 1.0f), (MapPanelHeight * 0.5f - 12.0f * S) / FMath::Max(Extent.Y, 1.0f));
+
+	DrawBox(PanelMin.X - 6.0f * S, PanelMin.Y - 6.0f * S, MapPanelWidth + 12.0f * S, MapPanelHeight + 12.0f * S, Rgb(13, 9, 10, 235));
+	const FVector2D Corners[4] = { PanelMin, FVector2D(PanelMax.X, PanelMin.Y), PanelMax, FVector2D(PanelMin.X, PanelMax.Y) };
+	DrawMapPicture(View, Corners, 1.0f);
+	DrawFrame(PanelMin.X, PanelMin.Y, MapPanelWidth, MapPanelHeight, RimColor, 2.0f * S);
+	DrawFrame(PanelMin.X - 6.0f * S, PanelMin.Y - 6.0f * S, MapPanelWidth + 12.0f * S, MapPanelHeight + 12.0f * S, Rgb(42, 31, 25), 1.0f * S);
+
+	// Names of the areas and places: areas large and bright, places small and a little dimmer.
+	// The big names first; a smaller one that would overlap a name already written moves below it.
+	const FBox2D Clip(PanelMin, PanelMax);
+	TArray<const FVaelMapLabel*> Labels;
+	for (const FVaelMapLabel& Label : Map->Labels)
+	{
+		Labels.Add(&Label);
+	}
+	Labels.StableSort([](const FVaelMapLabel& A, const FVaelMapLabel& B) { return A.Size > B.Size; });
+	TArray<FBox2D> Written;
+	for (const FVaelMapLabel* Label : Labels)
+	{
+		const FVector2D Point = View.ToScreen(Label->Location);
+		if (!Clip.IsInside(Point))
+		{
+			continue;
+		}
+
+		const float Height = (Label->Size >= 2 ? 32.0f : Label->Size == 1 ? 24.0f : 16.0f) * S;
+		float HalfWidth = 0.0f;
+		{
+			TGuardValue<bool> TitleGuard(bTitleText, true);
+			HalfWidth = MeasureLabel(Label->Name, Height) * 0.5f;
+		}
+		FBox2D Box(FVector2D(Point.X - HalfWidth, Point.Y - Height * 0.5f), FVector2D(Point.X + HalfWidth, Point.Y + Height * 0.6f));
+		for (const FBox2D& Other : Written)
+		{
+			if (Box.Intersect(Other))
+			{
+				Box = Box.ShiftBy(FVector2D(0.0f, Other.Max.Y - Box.Min.Y + 2.0f * S));
+			}
+		}
+		Written.Add(Box);
+		DrawTitle(Label->Name, Point.X, Box.Min.Y, Height, Label->Size == 0 ? WithAlpha(MapNameColor, 0.85f) : MapNameColor, 0.5f);
+	}
+
+	DrawMapMarkers(View, PlayerControllers, 1.25f, &Clip);
+
+	DrawTitle(Map->Title, Canvas->ClipX * 0.5f, PanelMin.Y - 50.0f * S, 38.0f * S, BoneColor, 0.5f);
+	DrawLabel(FText::Format(LOCTEXT("BigMapClose", "{0}: Karte schließen"), GetMapButtonName(PlayerController->GetInputGlyphs())),
+		PanelMax.X, PanelMin.Y - 30.0f * S, 17.0f * S, BoneColor, 1.0f);
+}
+
+FText AVaelHUD::GetMapButtonName(EVaelInputGlyphs Glyphs)
+{
+	switch (Glyphs)
+	{
+	case EVaelInputGlyphs::Keyboard: return LOCTEXT("MapKeyboard", "M");
+	case EVaelInputGlyphs::PlayStation: return LOCTEXT("MapPlayStation", "Create");
+	default: return LOCTEXT("MapXbox", "Ansicht");
 	}
 }
 

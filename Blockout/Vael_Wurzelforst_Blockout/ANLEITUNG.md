@@ -165,3 +165,12 @@ Der Urbaum ist das Tripo-Modell `SM_Urbaum` (MODELLE `TRIPO_1`), die Wurzelböge
 Die Graubox-Kronen und das grüne Platzhalterlicht schaltet es aus. Alles Neue hat den Tag `WF_Urbaum` im Ordner `Wurzelforst/3_Ewiger_Hain/Urbaum`. Nach `wf_blockout.py` das Skript erneut ausführen.
 
 Beide Skripte laufen ohne Oberfläche, der Editor muss zu sein. Die Pakete (Fab, Megascans, Rock Collection) liegen nicht in Git, sie müssen auf dem Rechner vorhanden sein.
+
+## Karte im Spiel (wf_karte.py)
+
+Die Minikarte oben rechts und die große Karte (Taste M, am Controller Create/Ansicht) zeigen das Kartenbild dieses Kits.
+
+1. `wf_karte.py` mit Python (numpy, scipy, pillow) ausführen. Es malt `T_WF_Karte.png` aus Zonen- und Höhenkarte, mit Wasser, Kronen, Kampagnenweg und den kleinen Pfaden, und schreibt `WF_Karte.json` mit den Namen der Orte.
+2. `Scripts/CreateWorldMaps.py` ohne Editor ausführen. Es macht daraus `/Game/Vael/UI/Karten/T_Karte_Wurzelforst` und `DA_Karte_Wurzelforst`.
+
+Welches Level welche Karte zeigt, steht in den Projekteinstellungen unter Game › Vael UI › Map › Level Maps (`Config/DefaultGame.ini`). Dort lassen sich auch die Größe der Minikarte und ihr Ausschnitt einstellen. Nach Änderungen am Gelände, an den Pfaden oder den Namen beide Schritte wiederholen.

@@ -15,12 +15,17 @@ class AVaelPlayerController;
 class UFont;
 class UVaelFormula;
 class UVaelGrimoireSubsystem;
+class UVaelWorldMap;
+class UTexture2D;
+struct FCompositeFont;
+struct FSlateFontInfo;
 
 /**
  *  HUD of the shared screen, drawn by the first local player for everybody, like the browser prototype:
  *  one panel per player at the bottom with health, mana, element legend in the symbols of the player's device,
  *  element queue and quick slots; a health bar for a boss at the top, notices below it,
- *  small health bars over hurt creatures and the grimoire while a player has it open.
+ *  small health bars over hurt creatures and the grimoire while a player has it open;
+ *  in the top right corner the mini map of the level, below it the region and the quests; the big map while a player has it open.
  *  Drawn with the canvas only, no widget assets needed.
  */
 UCLASS()
@@ -143,10 +148,46 @@ private:
 	/** Name of the place an item is worn at */
 	static FText GetItemSlotName(EVaelItemSlot Slot);
 
-	void DrawRegionInfo();
+	/** Region box with name, weather and corruption at the top right, from Top down; returns the Y below it */
+	float DrawRegionInfo(float Top);
 
 	/** The open quests under the region box, main story first */
-	void DrawQuestTracker();
+	void DrawQuestTracker(float Top);
+
+	/** Where and how a map is drawn: the world point in the middle, its place on screen, the scale and the screen directions in the world */
+	struct FMapView
+	{
+		FVector2D Center = FVector2D::ZeroVector;
+		FVector2D Origin = FVector2D::ZeroVector;
+		float PixelsPerCm = 1.0f;
+		/** World direction of screen up (the camera looks along it) and of screen right */
+		FVector2D Up = FVector2D(1.0f, 0.0f);
+		FVector2D Right = FVector2D(0.0f, 1.0f);
+
+		FVector2D ToScreen(const FVector2D& World) const;
+		FVector2D ToWorld(const FVector2D& Screen) const;
+	};
+
+	/** The map of this level, null if the level has none (Project Settings > Vael UI > Level Maps) */
+	const UVaelWorldMap* GetLevelMap();
+
+	/** Map view turned like the camera, so up on the map is up on the screen */
+	FMapView MakeMapView(const FVector2D& Center, const FVector2D& Origin, float PixelsPerCm) const;
+
+	/** The mini map in the top right corner, centred on the group; returns the Y below it, or the top if the level has no map */
+	float DrawMiniMap(const TArray<const AVaelPlayerController*>& PlayerControllers, float Top);
+
+	/** The whole map of the level over the screen, with the names of the places, while a player has it open */
+	void DrawBigMap(const AVaelPlayerController* PlayerController, const TArray<const AVaelPlayerController*>& PlayerControllers);
+
+	/** Draws the part of the map picture that lies under the four screen corners (clockwise) */
+	void DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha);
+
+	/** Players as arrows in their colours, people with news and safe camps; with a box, markers outside it are left off or, players, kept at its edge */
+	void DrawMapMarkers(const FMapView& View, const TArray<const AVaelPlayerController*>& PlayerControllers, float MarkerScale, const FBox2D* Clip);
+
+	/** Name of the button that opens the map, for the device */
+	static FText GetMapButtonName(EVaelInputGlyphs Glyphs);
 	void DrawCombatTexts();
 	void DrawWeather();
 
@@ -167,6 +208,9 @@ private:
 	/** Draws text with its top at Y. Alignment: 0 left of X, 0.5 centered on X, 1 right of X. Shortens the text to the maximum width. */
 	void DrawLabel(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float Alignment = 0.0f, float MaxWidth = 0.0f);
 
+	/** Like DrawLabel, in the title font (IM Fell English SC) */
+	void DrawTitle(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float Alignment = 0.0f, float MaxWidth = 0.0f);
+
 	/** Width of a text at the given height in pixels */
 	float MeasureLabel(const FText& Text, float PixelHeight);
 
@@ -184,9 +228,36 @@ private:
 	/** Pixels per HUD unit for the current canvas */
 	float UiScale = 1.0f;
 
-	/** Font used for all text */
+	/** Font used for all text while the font faces below are missing */
 	UPROPERTY(Transient)
 	TObjectPtr<UFont> Font;
+
+	/** Text and title fonts of the painted HUD (Alegreya Sans, IM Fell English SC): sharp at every size, unlike the scaled engine font */
+	TSharedPtr<const FCompositeFont> TextFont;
+	TSharedPtr<const FCompositeFont> TitleFont;
+
+	/** Keeps the loaded font faces */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UObject>> FontFaces;
+
+	/** Font of the runtime font cache: canvas text drawn with a Slate font still needs a font of that cache type */
+	UPROPERTY(Transient)
+	TObjectPtr<UFont> RuntimeFont;
+
+	/** True while DrawTitle draws */
+	bool bTitleText = false;
+
+	/** Slate font for a text height in pixels, in the title font while bTitleText is set */
+	FSlateFontInfo GetSlateFont(float PixelHeight) const;
+
+	/** Map of the level and its picture, looked up once */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelWorldMap> LevelMap;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> MapPicture;
+
+	bool bLevelMapLookedUp = false;
 
 	/** Height of the font at scale 1, in pixels */
 	float FontBaseHeight = 1.0f;

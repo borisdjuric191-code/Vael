@@ -1,0 +1,98 @@
+{
+ "title": "Wurzelforst",
+ "world_min": [
+  -201600.0,
+  -201600.0
+ ],
+ "world_size": 403400.0,
+ "focus_min": [
+  -152538.05078125,
+  -185826.4296875
+ ],
+ "focus_max": [
+  217739.02734375,
+  134616.56640625
+ ],
+ "labels": [
+  {
+   "name": "Forstsaum",
+   "size": 1,
+   "world": [
+    -85600.0,
+    20400.0
+   ]
+  },
+  {
+   "name": "Pfuhlmoor",
+   "size": 1,
+   "world": [
+    -95600.0,
+    -33600.0
+   ]
+  },
+  {
+   "name": "Ewiger Hain",
+   "size": 2,
+   "world": [
+    -103600.0,
+    -77600.0
+   ]
+  },
+  {
+   "name": "Kammweg",
+   "size": 1,
+   "world": [
+    -87600.0,
+    -119600.0
+   ]
+  },
+  {
+   "name": "Schwanzgrat",
+   "size": 1,
+   "world": [
+    8400.0,
+    -141600.0
+   ]
+  },
+  {
+   "name": "Die Fänge",
+   "size": 1,
+   "world": [
+    99400.0,
+    -125600.0
+   ]
+  },
+  {
+   "name": "Zu den Sturmzinnen",
+   "size": 0,
+   "world": [
+    130400.0,
+    -123600.0
+   ]
+  },
+  {
+   "name": "Nid-Quelle",
+   "size": 0,
+   "world": [
+    -83200.0,
+    -26400.0
+   ]
+  },
+  {
+   "name": "Eihöhle",
+   "size": 0,
+   "world": [
+    -116600.0,
+    -63600.0
+   ]
+  },
+  {
+   "name": "Drachensicht",
+   "size": 0,
+   "world": [
+    40400.0,
+    -141200.0
+   ]
+  }
+ ]
+}

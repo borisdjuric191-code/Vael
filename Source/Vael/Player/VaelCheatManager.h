@@ -31,6 +31,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelTeleport(float X, float Y);
 
+	/** Opens or closes the big map of the first player, like its button */
+	UFUNCTION(Exec)
+	void VaelKarte();
+
 	/** Adds every formula of the game to the grimoire, sealed ones included */
 	UFUNCTION(Exec)
 	void VaelLearnAll();
