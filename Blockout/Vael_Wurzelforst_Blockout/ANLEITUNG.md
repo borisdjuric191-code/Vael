@@ -112,10 +112,36 @@ Das Skript im Vael-Projekt legt Texturen über den Blockout. Es läuft ohne Ober
 - **Wasser:** `MI_WF_Wasser_Teich` (MI_Water_Pond, dunkler und mit Wellen für 4 km).
 - **Licht:** Die zweite Sonne aus der Level-Vorlage (Ordner „Lighting“) wird ausgeschaltet, nicht gelöscht. Ein Post-Process-Volume „Stimmung_Wurzelforst“ senkt die Belichtung.
 
-- **Pflanzen:** Farne, Sauerklee und Springkraut, Schilf am Ufer und trockenes Gras am Aschenrand wachsen von selbst um die Kamera (Landschaftsgras `GT_WF_*` im Ordner `Blockout/Gras`). Wo sie wachsen, bestimmt das Bodenmaterial nach Zone. Nicht auf dem Weg, an Steilhängen und im Wasser.
+- **Pflanzen:** Farne, Sauerklee, Veilchenklee, Springkraut, Bodenefeu, vereinzelt Holunderbüsche und kleine Palmen (im Hain), Schilf am Ufer und trockenes Gras am Aschenrand wachsen von selbst um die Kamera (Landschaftsgras `GT_WF_*` im Ordner `Blockout/Gras`). Wo sie wachsen, bestimmt das Bodenmaterial nach Zone. Nicht auf dem Weg, an Steilhängen und im Wasser.
 - **Boden:** Im Hain liegt Wurzelmoos, im Forstsaum Wiese mit Kleeflecken (Fab-Oberflächen).
 
 Nach einem erneuten Lauf von `wf_blockout.py` das Texturen-Skript sicherheitshalber noch einmal ausführen.
+
+## Kleine Pfade und Dickicht (wf_pfade.py)
+
+Neben dem Kampagnenweg gibt es rund 57 kleine Pfade mit zusammen etwa 6 km Länge. Sie laufen vom Weg zu den Feenhöhlen, den Moos-Hütten, den Stammbrücken, dem Feenkreis, der Eihöhle, dem Urstamm und einigen Farnfeldern, dazu Wildpfade tief in den Wald.
+
+- Sie schlängeln sich um Stämme und Felsen, meiden Steilhänge und Wasser und treffen sich zu einem kleinen Netz.
+- Der Boden darauf ist Wurzelmoos (Fab „Nordic Forest Ground Root Moss“): bräunlich-grün, etwa 1,3–2,9 m breit, unregelmäßig, in der Mitte etwas ausgetreten.
+- Rechts und links wachsen Farne bis an den Rand. Auf dem Pfad selbst liegen keine Steine oder Äste.
+- **Dickicht:** Um jeden Stamm, Pilzstiel und Wurzelbogen wachsen dichte Farne, Holunder, kleine Palmen, Springkraut, Veilchenklee und Efeu, um den Urstamm bis etwa 40 m weit. Ein Streifen davon säumt auch die Pfade.
+
+Das Skript läuft ohne Unreal mit Python (numpy, scipy, pillow) und schreibt diese Dateien:
+- `WF_Pfade.json`
+- `T_WF_Pfade.png` (Abstand zum Pfad)
+- `T_WF_Dickicht.png`
+
+`DressWurzelforst.py` importiert die beiden Bilder bei jedem Lauf nach `Blockout/`. `ScatterWurzelforst.py` hält die Pfade frei. Im Material `M_WF_Zonenkarte` lässt sich das Aussehen einstellen:
+
+| Parameter | Wirkung | Standard |
+|---|---|---|
+| `PfadBreite` | halbe Breite in cm | 90 |
+| `PfadFarbe` | Farbe des Pfadbodens | — |
+| `PfadMoos` | grünes Moos im Pfad | — |
+| `PfadGetreten` | ausgetretene Mitte | — |
+| `PfadFrei` | pflanzenfreier Rand in cm | 120 |
+
+Die Pilzhöhle hat keinen Pfad, ihr Hügel steht im Weg.
 
 ## Kulisse verteilen (Scripts/ScatterWurzelforst.py)
 
@@ -134,7 +160,7 @@ Der Urbaum ist das Tripo-Modell `SM_Urbaum` (MODELLE `TRIPO_1`), die Wurzelböge
 - Krone aus Ästen (Old Tree Branch), Holunderlaub und Palmwedeln.
 - Efeu und Moospolster an Stamm und Wurzeln.
 - Rund 440 Lichterblüten mit warmem Leuchten und 16 sanfte Lichter.
-- Farne, Holunder, Springkraut und Klee am Fuß.
+- Farne, Holunder, Springkraut und Klee am Fuß, dazwischen hellblaues Taublatt (eigenes, nass glänzendes Material `M_WF_Taublatt`) einzeln oder in kleinen Gruppen zwischen den Wurzeln.
 
 Die Graubox-Kronen und das grüne Platzhalterlicht schaltet es aus. Alles Neue hat den Tag `WF_Urbaum` im Ordner `Wurzelforst/3_Ewiger_Hain/Urbaum`. Nach `wf_blockout.py` das Skript erneut ausführen.
 

@@ -9,6 +9,8 @@
 #   in Hain, Saum, Moor and Kammweg, reeds along the shore, dry grass at the ash edge. The ground material says where
 #   (zone, not on the path, not on steep or wet ground). Needs grass.GrassMap.UseRuntimeGeneration=1 (DefaultEngine.ini).
 #   Master materials of these plants get the instancing usage, otherwise the game shows them grey.
+# - Small winding trails with the root moss floor and dense thickets around the trunks and along the trail edges, from
+#   the kit's T_WF_Pfade.png / T_WF_Dickicht.png (wf_pfade.py), imported into .../Blockout on every run.
 # - The grey box master M_WF_Graubox gets a texture laid over the world (bark, rock, moss ...); every MI_WF_* instance
 #   picks its texture and how strongly it shows ("Muster", 0 = plain colour as before).
 # - The level template's own sun, sky light, atmosphere and fog (folder "Lighting") are switched off, the blockout brings its own.
@@ -19,6 +21,8 @@
 #
 # Run with the editor closed:
 #   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="C:/Projekte/Vael/Scripts/DressWurzelforst.py" -EnablePlugins=PythonScriptPlugin
+
+import os
 
 import unreal
 
@@ -67,10 +71,19 @@ GRASS_FOLDER = "/Game/Vael/Wurzelforst/Blockout/Gras"
 FERN = "/Game/Fab/Megascans/Plants/Lady_Fern_wdvlditia/Raw/wdvlditia_tier_0/StaticMeshes/SM_wdvlditia_Var"
 SORREL = "/Game/Fab/Megascans/Plants/Wood_Sorrel_wcwmchzja/Raw/wcwmchzja_tier_0/StaticMeshes/SM_wcwmchzja_Var"
 BALSAM = "/Game/Fab/Megascans/Plants/Small_Balsam_xefmcgrqx/Raw/xefmcgrqx_tier_0/StaticMeshes/SM_xefmcgrqx_Var"
+VIOLET = "/Game/Fab/Megascans/Plants/Violet_Wood_Sorrel_uchkajuia/Low/uchkajuia_tier_3/StaticMeshes/SM_uchkajuia_Var"
+IVY = "/Game/Fab/Megascans/Plants/English_Ivy_xfcnebhqx/Low/xfcnebhqx_tier_3/StaticMeshes/SM_xfcnebhqx_Var"
+ELDER = "/Game/Fab/Megascans/Plants/Elderberry_wfzobb2ia/Raw/wfzobb2ia_tier_0/StaticMeshes/SM_wfzobb2ia_Var"
+PALM = "/Game/Fab/Megascans/Plants/Alexandra_Palm_ukgkcilia/Low/ukgkcilia_tier_3/StaticMeshes/SM_ukgkcilia_Var"
 REED = "/Game/Megaplant_Library/Plant_Dry_Common_Reeds/Instances/"
 THATCH = "/Game/Megascans/3D_Plants/ThatchingGrass/"
 GRASS_MESHES = {
     "fern": [FERN + v for v in "ABCDEFGHI"],
+    "fern_big": [FERN + v for v in "AEFH"],
+    "violet": [VIOLET + v for v in "ABCDEFGH"],
+    "ivy": [IVY + v for v in "AEFG"],  # the flat ground runners (B, C, D climb)
+    "elder": [ELDER + v for v in "ACDEFG"],
+    "palm": [PALM + v for v in "ABCD"],
     "sorrel": [SORREL + v for v in "ACDEFGH"],
     "balsam": [BALSAM + v for v in "BCDEFGH"],
     "reed": [REED + "Leaf_Dry_Common_Reed_0{}".format(i) for i in range(10)],
@@ -80,16 +93,30 @@ GRASS_MESHES = {
            + ["/Game/Megascans/3D_Plants/DryPlant/SM_DryPlant00_V1"],
 }
 GRASS_TYPES = {
-    "Hain": [("fern", 9.0, (0.8, 1.3), True), ("sorrel", 60.0, (1.0, 1.8), False), ("balsam", 14.0, (1.0, 1.6), False)],
-    "Saum": [("thatch", 45.0, (0.8, 1.3), False), ("sorrel", 25.0, (1.0, 1.6), False), ("balsam", 12.0, (1.0, 1.5), False),
-             ("fern", 2.0, (0.7, 1.1), True)],
-    "Moor": [("fern", 3.0, (0.7, 1.1), True), ("sorrel", 20.0, (1.0, 1.6), False)],
-    "Kamm": [("balsam", 12.0, (1.0, 1.6), False), ("sorrel", 30.0, (1.0, 1.6), False), ("fern", 4.0, (0.8, 1.2), True)],
+    "Hain": [("fern", 22.0, (0.9, 1.5), True), ("sorrel", 50.0, (1.0, 1.8), False), ("violet", 30.0, (1.4, 2.4), False),
+             ("balsam", 18.0, (1.0, 1.7), False), ("ivy", 14.0, (1.0, 1.6), False), ("elder", 1.2, (1.0, 1.8), True),
+             ("palm", 0.5, (1.0, 1.5), True)],
+    "Saum": [("thatch", 45.0, (0.8, 1.3), False), ("sorrel", 25.0, (1.0, 1.6), False), ("balsam", 16.0, (1.0, 1.6), False),
+             ("violet", 12.0, (1.4, 2.2), False), ("fern", 4.0, (0.7, 1.2), True), ("elder", 0.6, (1.0, 1.6), True)],
+    "Moor": [("fern", 6.0, (0.8, 1.3), True), ("sorrel", 20.0, (1.0, 1.6), False), ("violet", 10.0, (1.4, 2.2), False),
+             ("ivy", 10.0, (1.0, 1.5), False)],
+    "Kamm": [("balsam", 14.0, (1.0, 1.7), False), ("sorrel", 30.0, (1.0, 1.6), False), ("violet", 18.0, (1.4, 2.4), False),
+             ("fern", 7.0, (0.8, 1.3), True), ("elder", 0.8, (1.0, 1.6), True)],
+    # Dense undergrowth around the trunks and along the trail edges (T_WF_Dickicht from wf_pfade.py)
+    "Dickicht": [("fern_big", 45.0, (1.3, 2.0), True), ("fern", 45.0, (1.1, 1.7), True), ("elder", 12.0, (1.3, 2.2), True),
+                 ("palm", 5.0, (1.1, 1.8), True), ("balsam", 40.0, (1.2, 1.9), False), ("violet", 50.0, (1.6, 2.6), False),
+                 ("ivy", 40.0, (1.2, 1.8), False)],
     "Ufer": [("reed", 120.0, (1.6, 2.6), False), ("reed_flower", 25.0, (1.8, 2.8), False)],
     # Ash edge towards the Aschenmark: dry grass and withered stalks, like over there
     "Asche": [("thatch", 30.0, (0.8, 1.2), False), ("dry", 6.0, (0.8, 1.2), False)],
 }
 GRASS_CULL = (5000, 7000)  # start and end of the fade-out in cm; the shared camera zooms out to 45 m for four players
+
+# Small trails and thickets (Blockout kit, wf_pfade.py): imported as grey textures over the whole landscape
+KIT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Blockout", "Vael_Wurzelforst_Blockout")
+MASK_FOLDER = "/Game/Vael/Wurzelforst/Blockout"
+MASKS = {"trails": ("T_WF_Pfade.png", "T_WF_Pfade"), "thicket": ("T_WF_Dickicht.png", "T_WF_Dickicht")}
+TRAIL_RANGE = 1000.0  # cm of distance T_WF_Pfade.png stores as 0..1 (PFAD_REICHWEITE_M)
 
 # How much a texture brightens the colour it lies on (its grey is about 1 / this); the stylized bark is light
 BRIGHTEN = {"bark": 1.1}
@@ -187,6 +214,8 @@ class Graph:
 
 def sampler_of(texture):
     compression = texture.get_editor_property("compression_settings")
+    if compression == unreal.TextureCompressionSettings.TC_GRAYSCALE:
+        return unreal.MaterialSamplerType.SAMPLERTYPE_GRAYSCALE if texture.get_editor_property("srgb") else unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE
     if compression == unreal.TextureCompressionSettings.TC_NORMALMAP:
         return unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL
     if compression == unreal.TextureCompressionSettings.TC_MASKS:
@@ -228,6 +257,37 @@ def zone_weights(g, zone, linear, column):
         weights[name] = g.saturate(g.op(unreal.MaterialExpressionSubtract, column - 2, g.const(1.5, column - 1),
                                         g.op(unreal.MaterialExpressionDivide, column - 1, distance, g.const(reach, column))), column - 3)
     return weights
+
+
+def import_masks():
+    """Trail distance and thicket maps from the kit, imported anew on every run (linear grey, no compression)"""
+    loaded = {}
+    tools = unreal.AssetToolsHelpers.get_asset_tools()
+    for key, (file_name, asset_name) in MASKS.items():
+        source = os.path.join(KIT, file_name)
+        if not os.path.isfile(source):
+            notes.append("missing {}: run wf_pfade.py in the kit first".format(file_name))
+            loaded[key] = None
+            continue
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", source)
+        task.set_editor_property("destination_path", MASK_FOLDER)
+        task.set_editor_property("destination_name", asset_name)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("save", False)
+        tools.import_asset_tasks([task])
+        texture = unreal.load_asset("{}/{}".format(MASK_FOLDER, asset_name))
+        texture.set_editor_property("srgb", False)
+        texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_GRAYSCALE)
+        texture.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
+        texture.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+        # No mip maps: the grass weights are drawn at 2 m per pixel and would read a blurred mip, where a trail's
+        # distance never gets near 0 and the ferns stand on it
+        texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        assets.save_loaded_asset(texture, False)
+        loaded[key] = texture
+    return loaded
 
 
 def grass_mesh(path):
@@ -294,7 +354,7 @@ def make_grass_types():
     return grass_types
 
 
-def build_ground(material, textures, grass_types):
+def build_ground(material, textures, grass_types, masks):
     library.delete_all_material_expressions(material)
     # The grass output is not removed with the other nodes, and a material may hold only one
     for expression in list(unreal.ObjectIterator(unreal.MaterialExpressionLandscapeGrassOutput)):
@@ -413,13 +473,49 @@ def build_ground(material, textures, grass_types):
                                default_value=unreal.LinearColor(0.95, 0.62, 0.36, 1.0)), 5, r=True, g=True, b=True))
     ground = g.lerp(ground, earth, path, 4)
 
+    # Small trails: the brown-green root moss floor, unevenly wide, a bit trodden down the middle
+    if masks.get("trails") is not None:
+        trail_distance = g.op(unreal.MaterialExpressionMultiply, 7, g.mask(g.sample(masks["trails"], zone_uv, 9), 8, r=True),
+                              g.const(TRAIL_RANGE, 8))
+        fine_noise = g.node(unreal.MaterialExpressionNoise, 9, scale=0.012, levels=2, output_min=-1.0, output_max=1.0, quality=1)
+        half_width = g.op(unreal.MaterialExpressionAdd, 6,
+                          g.op(unreal.MaterialExpressionMultiply, 7, g.scalar("PfadBreite", 90.0, 8),
+                               g.op(unreal.MaterialExpressionAdd, 8, g.const(0.7, 9), g.op(unreal.MaterialExpressionMultiply, 9, swap, g.const(0.6, 10)))),
+                          g.op(unreal.MaterialExpressionMultiply, 7, fine_noise, g.const(14.0, 8)))
+        trail = g.saturate(g.op(unreal.MaterialExpressionDivide, 5, g.op(unreal.MaterialExpressionSubtract, 6, half_width, trail_distance),
+                                g.const(25.0, 6)), 4)
+        trodden = g.saturate(g.op(unreal.MaterialExpressionDivide, 5,
+                                  g.op(unreal.MaterialExpressionSubtract, 6, g.op(unreal.MaterialExpressionMultiply, 7, half_width, g.const(0.45, 8)),
+                                       trail_distance), g.const(30.0, 6)), 4)
+        # The raw scan reads orange from above: a third of the greened moss in it and a cooler tint, so it stays brown-green
+        trail_floor = g.op(unreal.MaterialExpressionMultiply, 4, g.lerp(rootmoss, mossy, g.scalar("PfadMoos", 0.15, 6), 5),
+                           g.mask(g.node(unreal.MaterialExpressionVectorParameter, 6, parameter_name="PfadFarbe",
+                                         default_value=unreal.LinearColor(0.72, 0.7, 0.5, 1.0)), 5, r=True, g=True, b=True))
+        trail_floor = g.lerp(trail_floor, earth, g.op(unreal.MaterialExpressionMultiply, 4, trodden, g.scalar("PfadGetreten", 0.45, 5)), 3)
+        ground = g.lerp(ground, trail_floor, trail, 3)
+        # Plants keep well off the trail floor: a fern grows up to 2 m to each side of where it stands, and the grass
+        # weights are read on the 2 m landscape grid
+        trail_clear = g.saturate(g.op(unreal.MaterialExpressionDivide, 5,
+                                      g.op(unreal.MaterialExpressionSubtract, 6, g.op(unreal.MaterialExpressionAdd, 7, half_width,
+                                                                                     g.scalar("PfadFrei", 120.0, 8)),
+                                           trail_distance), g.const(60.0, 6)), 4)
+    else:
+        trail = g.const(0.0, 4)
+        trail_clear = trail
+    bare = g.node(unreal.MaterialExpressionMax, 3)
+    g.link(path, bare, "A")
+    g.link(trail, bare, "B")
+    no_plants = g.node(unreal.MaterialExpressionMax, 3)
+    g.link(path, no_plants, "A")
+    g.link(trail_clear, no_plants, "B")
+
     # Tinted by the zone colour, so Hain, Moor, Kammweg, Grat and the Nid spring stay what they are on the map
     grey = g.node(unreal.MaterialExpressionDesaturation, 4)
     g.link(ground, grey)
     g.link(g.scalar("Entsaettigung", 0.6, 5), grey, "Fraction")
     tinted = g.op(unreal.MaterialExpressionMultiply, 3, g.op(unreal.MaterialExpressionMultiply, 4, grey, zone),
                   g.scalar("ZonenHelligkeit", 1.4, 4))
-    albedo = g.lerp(ground, tinted, g.op(unreal.MaterialExpressionMultiply, 3, g.scalar("ZonenAnteil", 0.3, 4), one_minus(g, path, 4)), 2)
+    albedo = g.lerp(ground, tinted, g.op(unreal.MaterialExpressionMultiply, 3, g.scalar("ZonenAnteil", 0.3, 4), one_minus(g, bare, 4)), 2)
 
     # Big light and dark areas over hundreds of metres, so wide views don't look even
     macro = g.node(unreal.MaterialExpressionNoise, 3, scale=0.00012, levels=2, output_min=0.8, output_max=1.12, quality=1)
@@ -429,6 +525,7 @@ def build_ground(material, textures, grass_types):
                           g.sample(textures["rootmoss_normal"], rootmoss_uv, 5), moss_share, 3)
     normal = g.lerp(g.sample(textures["forest_normal"], forest_uv, 4), green_normal,
                     g.op(unreal.MaterialExpressionMultiply, 3, green_share, one_minus(g, path, 4)), 2)
+    normal = g.lerp(normal, g.sample(textures["rootmoss_normal"], rootmoss_uv, 3), trail, 1)
     rough = g.node(unreal.MaterialExpressionLinearInterpolate, 3, const_a=0.92, const_b=0.45)
     g.link(wet, rough, "Alpha")
 
@@ -438,7 +535,7 @@ def build_ground(material, textures, grass_types):
     library.connect_material_property(g.const(0.25, 2), "", unreal.MaterialProperty.MP_SPECULAR)
 
     # Plants: only on dry, flat ground off the path; reeds in a band along the shore
-    open_ground = g.op(unreal.MaterialExpressionMultiply, 4, one_minus(g, steep, 5), one_minus(g, path, 5))
+    open_ground = g.op(unreal.MaterialExpressionMultiply, 4, one_minus(g, steep, 5), one_minus(g, no_plants, 5))
     dry = g.saturate(g.op(unreal.MaterialExpressionDivide, 5, g.op(unreal.MaterialExpressionSubtract, 6, height, g.const(20.0, 7)),
                           g.const(30.0, 6)), 4)
     plant_ground = g.op(unreal.MaterialExpressionMultiply, 3, open_ground, dry)
@@ -450,6 +547,7 @@ def build_ground(material, textures, grass_types):
                                       g.op(unreal.MaterialExpressionAdd, 6, weights["hain"], weights["saum"]), g.const(0.5, 6))), 3)
     grass_weights = {
         "Hain": weights["hain"], "Saum": g.op(unreal.MaterialExpressionAdd, 2, weights["saum"], leftover), "Moor": weights["moor"], "Kamm": weights["kamm"], "Asche": weights["asche"],
+        "Dickicht": g.mask(g.sample(masks["thicket"], zone_uv, 3), 2, r=True) if masks.get("thicket") is not None else g.const(0.0, 2),
     }
     output = g.node(unreal.MaterialExpressionLandscapeGrassOutput, 0)
     inputs = []
@@ -572,7 +670,7 @@ def main():
         log("run wf_blockout.py first, its materials are missing")
         return
 
-    build_ground(ground, textures, make_grass_types())
+    build_ground(ground, textures, make_grass_types(), import_masks())
     assets.save_loaded_asset(ground, False)
     build_greybox(greybox, textures)
     assets.save_loaded_asset(greybox, False)

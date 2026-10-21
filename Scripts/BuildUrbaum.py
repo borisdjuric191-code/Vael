@@ -8,7 +8,8 @@
 # - Crown: Old Tree Branch arms from every branch end, crowned with large clusters of elderberry leaves, a few palm
 #   fronds bursting out; ivy climbing the trunk, moss pads on roots and branches.
 # - Lichterblueten (lantern blossoms) hanging irregularly under the crown, warm glow from the material, a few soft lights.
-# - Foot: ferns, sorrel and violet wood sorrel between the roots, moss over the seams where root meets ground.
+# - Foot: ferns, sorrel and violet wood sorrel between the roots, the light blue Taublatt (own wet material M_WF_Taublatt)
+#   alone or in small groups, moss over the seams where root meets ground.
 # - The grey box crowns of the Urstamm and its green placeholder light are switched off (not deleted).
 # Everything it adds is tagged WF_Urbaum (Outliner folder Wurzelforst/3_Ewiger_Hain/Urbaum); rerunning replaces only that.
 # Rerun it after wf_blockout.py (which puts the tree back to its default spot and material).
@@ -45,6 +46,7 @@ PACKS = {
     "balsam": FAB + "/Plants/Small_Balsam_xefmcgrqx",
     "moss": "/Game/Megascans/3D_Assets/IcelandicMossClusters",
 }
+DEW = TRIPO.replace("/Wurzelforst", "/Aschenmark") + "/Taublatt"  # the light blue dew plant with water in its cups
 BARK_DETAIL = FAB + "/3D/Old_Tree_Branch_whnnajh/Raw/whnnajh_tier_0/Textures/T_whnnajh_8K_B"
 MOSS_TEXTURE = "/Game/Megascans/3D_Assets/IcelandicMossClusters/T_IcelandicMossClusters_A"
 
@@ -195,6 +197,28 @@ def build_bark_material():
     return material
 
 
+def build_dew_material():
+    """The Taublatt's own colours, wet and glowing a little blue (its Tripo master can't be drawn as instances)"""
+    material = new_material("M_WF_Taublatt")
+    material.set_editor_property("used_with_instanced_static_meshes", True)
+    g = Graph(material)
+    base = g.op(unreal.MaterialExpressionMultiply, 6, g.mask(g.sample(texture(DEW + "/T_Taublatt_basecolor"), 8), 7),
+                g.color("TauFarbe", (1.0, 1.08, 1.2), 8))
+    glow = g.op(unreal.MaterialExpressionMultiply, 4, g.op(unreal.MaterialExpressionMultiply, 5, base, g.scalar("TauLeuchten", 0.6, 6)),
+                g.lerp(g.const(0.7, 6), g.const(1.3, 6), g.node(unreal.MaterialExpressionPerInstanceRandom, 6), 5))
+    normal_map = g.sample(texture(DEW + "/T_Taublatt_normal"), 4, sampler=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    rough = g.op(unreal.MaterialExpressionMultiply, 3, g.mask(g.sample(texture(DEW + "/T_Taublatt_roughness"), 5,
+                                                                      sampler=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR), 4, g=False, b=False),
+                 g.scalar("Nass", 0.55, 4))
+    library.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(normal_map, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    library.connect_material_property(rough, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
 def build_lantern_material():
     """The blossom's own petals, lit warm from inside; every blossom a little brighter or dimmer"""
     material = new_material("M_WF_Lichterbluete")
@@ -318,6 +342,7 @@ def main():
     data = json.load(open(TREE_DATA, encoding="utf-8"))
     bark = build_bark_material()
     lantern_material = build_lantern_material()
+    dew_material = build_dew_material()
     tree.static_mesh_component.set_material(0, bark)
 
     # True size (48 m) and standing on the ground at the trunk: wf_blockout.py sizes it by the grey box, whose long roots
@@ -451,6 +476,25 @@ def main():
             put("Moos", rng.choice(meshes["moss"]), location - unreal.Vector(0, 0, 8), rot_from_z(normal, rng.uniform(0, 360)),
                 rng.uniform(200, 380), cull=0.0, shadow=False)
 
+    # Taublatt between the roots, alone or in twos and threes, standing up out of the moss (its clod sunk into the ground)
+    dew = unreal.load_asset(DEW + "/SM_Taublatt")
+    dew_count = 0
+    if dew is not None:
+        spots = [s for s in foot_spots if trunk_radius * 1.25 < s[2] < reach * 0.95]
+        rng.shuffle(spots)
+        for location, normal, r in spots[:24]:
+            for _ in range(rng.choice((1, 2, 2, 3))):
+                a = rng.uniform(0, 2 * math.pi)
+                d = rng.uniform(0, 220)
+                hit = trace(unreal.Vector(location.x + math.cos(a) * d, location.y + math.sin(a) * d, location.z + 600),
+                            unreal.Vector(location.x + math.cos(a) * d, location.y + math.sin(a) * d, location.z - 600))
+                spot = hit[0] if hit and hit[2] == landscape else location
+                size = rng.uniform(160, 300)
+                upright = (normal * 0.35 + unreal.Vector(0, 0, 0.65)).normal()
+                put("Taublatt", dew, spot - unreal.Vector(0, 0, size * 0.12), rot_from_z(upright, rng.uniform(0, 360)), size,
+                    cull=0.0, shadow=True, material=dew_material)
+                dew_count += 1
+
     # Lantern blossoms hanging under the leaf clusters at irregular depths; their stem tip is the origin's top
     hung = 0
     light_spots = []
@@ -488,8 +532,8 @@ def main():
         lights += 1
 
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL_PATH)
-    log("Urbaum dressed: {} pieces ({} lantern blossoms, {} moss pads on the tree), {} lights, {} grey box crowns hidden, {} old pieces removed".format(
-        total, hung, moss_on_tree, lights, hidden, removed))
+    log("Urbaum dressed: {} pieces ({} lantern blossoms, {} Taublatt, {} moss pads on the tree), {} lights, {} grey box crowns hidden, {} old pieces removed".format(
+        total, hung, dew_count, moss_on_tree, lights, hidden, removed))
     for note in notes:
         log("NOTE " + note)
 

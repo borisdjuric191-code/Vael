@@ -3,7 +3,8 @@
 # grass) are not placed here: the landscape grows them itself near the camera (DressWurzelforst.py, GT_WF_*).
 #
 # - Reads the zones and heights from the blockout kit (T_WF_Zonenkarte.png, WF_Hoehenkarte_2017.png) and keeps
-#   clear of the grey box placeholders (WF_Platzhalter.json), the campaign path and the player start.
+#   clear of the grey box placeholders (WF_Platzhalter.json), the campaign path, the small trails (WF_Pfade.json)
+#   and the player start.
 # - One AVaelScatterField per mesh (many instances in one actor), folder "Wurzelforst/_Kulisse/<kind>", tag WF_Streu.
 #   Rerunning first removes its own WF_Streu actors and scatters anew (same seed = same result).
 #   The placeholders and everything else in the level stay as they are.
@@ -214,6 +215,24 @@ def placeholder_cells(terrain, prims, offset):
     return taken
 
 
+def trail_cells(kit):
+    """Map pixels the small trails of wf_pfade.py cross (one pixel to each side)"""
+    cells = set()
+    source = os.path.join(kit, "WF_Pfade.json")
+    if not os.path.isfile(source):
+        return cells
+    for trail in json.load(open(source, encoding="utf-8"))["pfade"]:
+        points = trail["punkte"]
+        for (ax, ay), (bx, by) in zip(points, points[1:]):
+            steps = int(math.hypot(bx - ax, by - ay) * 2) + 1
+            for k in range(steps + 1):
+                x, y = ax + (bx - ax) * k / steps, ay + (by - ay) * k / steps
+                for a in (-1, 0, 1):
+                    for b in (-1, 0, 1):
+                        cells.add((int(round(x)) + a, int(round(y)) + b))
+    return cells
+
+
 def path_distance(px, py, route):
     """Distance in map pixels to the campaign path (route in grid pixels)"""
     best = 1e9
@@ -256,7 +275,7 @@ def allow_instancing(meshes):
     return changed
 
 
-def scatter(terrain, taken, route, start, meshes, rng):
+def scatter(terrain, taken, trails, route, start, meshes, rng):
     """Returns {(kind, mesh name): [transforms]}"""
     sizes = {}
     for name, mesh in meshes.items():
@@ -312,6 +331,10 @@ def scatter(terrain, taken, route, start, meshes, rng):
             ci, cj = int(round(px)), int(round(py))
             if any((ci + a, cj + b) in taken for a in range(-reach, reach + 1) for b in range(-reach, reach + 1)):
                 continue
+            # Nothing on the small trails; what blocks keeps its whole size off them
+            free = reach if blocks else 0
+            if any((ci + a, cj + b) in trails for a in range(-free, free + 1) for b in range(-free, free + 1)):
+                continue
 
             yaw = rng.uniform(0.0, 360.0)
             if tilt:
@@ -357,7 +380,7 @@ def main():
     meshes = load_meshes()
     missing = sorted({n for kind in KINDS.values() for n in kind[0]} - set(meshes))
     allowed = allow_instancing(meshes.values())
-    placed = scatter(terrain, taken, route, start, meshes, random.Random(SEED))
+    placed = scatter(terrain, taken, trail_cells(KIT), route, start, meshes, random.Random(SEED))
 
     total = 0
     per_kind = {}
