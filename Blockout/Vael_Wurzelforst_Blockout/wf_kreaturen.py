@@ -30,11 +30,12 @@ ZONE_COLORS = {
 }
 # kind: (zones, how many groups, creatures per group, spread cm, min metres between groups, colour in the preview)
 ARTEN = {
-    "Rankenluchs": (("hain", "saum"), 9, 3, 260.0, 130.0, (230, 120, 40)),
-    "Spannhornkaefer": (("hain", "kamm"), 7, 2, 220.0, 110.0, (60, 160, 230)),
-    "Schleieraffe": (("saum", "hain"), 7, 1, 0.0, 120.0, (200, 60, 200)),
-    "Tauraupe": (("hain", "saum"), 5, 3, 200.0, 110.0, (90, 220, 200)),
-    "Draculaupe": (("moor",), 4, 3, 200.0, 90.0, (200, 20, 40)),
+    # Boris 2026-10-22: ten times as many as at first (players had to look for fights); the healed Tauraupe stays rare
+    "Rankenluchs": (("hain", "saum"), 90, 3, 260.0, 38.0, (230, 120, 40)),
+    "Spannhornkaefer": (("hain", "kamm"), 70, 2, 220.0, 32.0, (60, 160, 230)),
+    "Schleieraffe": (("saum", "hain"), 70, 1, 0.0, 30.0, (200, 60, 200)),
+    "Tauraupe": (("hain", "saum"), 8, 3, 200.0, 60.0, (90, 220, 200)),
+    "Draculaupe": (("moor",), 40, 3, 200.0, 34.0, (200, 20, 40)),
 }
 
 
@@ -108,10 +109,12 @@ def main():
         elif kind == "Draculaupe":
             nid = next(p for p in data["prims"] if p["n"] == "NidQuelle_Becken")
             nid_m = np.hypot(xs - nid["l"][0] / CM_PER_PX, ys - nid["l"][1] / CM_PER_PX) * 2.0
-            ok &= (nid_m > 40.0) & (nid_m < 260.0)
-            score -= nid_m / 300.0
-        candidates = np.argwhere(ok)
-        order = np.argsort(-score[ok])
+            ok &= nid_m > 40.0
+            score -= nid_m / 4000.0
+        # Preferred spots first (thickets beside trails and so on), then anywhere in the kind's zones
+        loose = base_ok & in_zone & ~ok
+        candidates = np.concatenate([np.argwhere(ok), np.argwhere(loose)])
+        order = np.concatenate([np.argsort(-score[ok]), len(np.argwhere(ok)) + np.argsort(-score[loose])])
         placed = 0
         for idx in order:
             y, x = candidates[idx]
