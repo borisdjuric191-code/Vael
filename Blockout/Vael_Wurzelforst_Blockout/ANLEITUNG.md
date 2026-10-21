@@ -189,4 +189,18 @@ Die Lagunen des Pfuhlmoors sind eine trübe, zugewachsene Oase mit einem Hauch G
    - lauernde Augen (`AVaelLurkingEyes`): Sie tauchen ab und zu auf, schauen den nächsten Spieler an, blinzeln und tauchen ab, sobald jemand näher als 8 m kommt,
    - Seichtwasser (Wasser-Bodenflächen, unsichtbar): Wer hineinwatet, wird nass, und der Magier kann dort Wasser ziehen.
 
-Alles hat den Tag `WF_Moor` im Ordner `Wurzelforst/2_Pfuhlmoor/Moorwasser` und wird beim erneuten Ausführen ersetzt. Ein Graubox-Ersatz für die Mangroven fehlt noch (Tripo).
+   - Rohrkolben zwischen dem Schilf, Schachtelhalm am Ufer, Sumpfkresse im Flachwasser, Sumpfzypressen-Wurzeln, Schwarzerlen (große und junge) am Ufer,
+   - etwas klareres Wasser um die Mangrovenfüße (`T_WF_MoorKlar.png`), damit die Wurzeln unter der Oberfläche durchschimmern.
+
+Alles hat den Tag `WF_Moor` im Ordner `Wurzelforst/2_Pfuhlmoor/Moorwasser` und wird beim erneuten Ausführen ersetzt.
+
+## Mangroven (Scripts/BuildMangroven.py)
+
+Die Mangrove ist das Tripo-Modell `SM_Mangrove` (Quelle `Vael_Quellen/Mangrove`, Astenden in `Scripts/Data/Mangrove_baum.json`). Das Skript setzt sie an die 56 Graubox-Mangroven (die nur ausgeschaltet werden):
+
+- jede anders: Größe, wie tief sie einsinkt, leichte Neigung und Drehung; etwa jede achte ist tot (grau, kahl, schiefer, tiefer eingesunken),
+- Material `M_WF_Mangrove`: dunkle, nasse Rinde unter der Wasserlinie, Algenrand genau an der Wasserlinie, Moos oben; `MI_WF_Mangrove_Tot` für die toten,
+- dünne Krone aus Holunderlaub an den Astenden, Efeu hängt wie Vorhänge herunter,
+- Kollision auf der echten Form (auch bei den Wurzelbögen): Man läuft zwischen den Wurzeln und unter den Bögen durch.
+
+Reihenfolge: `wf_moor.py` → `BuildMoorWasser.py` → `BuildMangroven.py`. Alles hat den Tag `WF_Mangrove`.

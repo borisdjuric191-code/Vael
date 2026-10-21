@@ -255,6 +255,10 @@ def allow_instancing(meshes):
             if slot.material_interface is None:
                 continue
             base = slot.material_interface.get_base_material()
+            # Only project materials: engine and plugin content must never be changed (give such meshes an own material)
+            if not base.get_path_name().startswith("/Game/"):
+                notes.append("not instancing-enabled (outside /Game): " + base.get_path_name())
+                continue
             if not base.get_editor_property("used_with_instanced_static_meshes"):
                 library.set_material_usage(base, unreal.MaterialUsage.MATUSAGE_INSTANCED_STATIC_MESHES)
                 library.recompile_material(base)

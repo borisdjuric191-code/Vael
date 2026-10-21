@@ -7,8 +7,10 @@
 #   where duckweed and algae float and where the deep holes are. Slow waves, and now and then rings spread
 #   on the water from nothing, more of them over the deep holes.
 # - Rembrandt water lilies in loose rafts (the grey box lily discs are switched off, not deleted).
-# - Reed belts along the shore with gaps (dry Megascans stalks and thatching grass, a few whole Megaplant reeds),
-#   Matted Pratia creeping over the wet banks and burdock clumps a little higher up.
+# - Reed belts along the shore with gaps (dry Megascans stalks and thatching grass, a few whole Megaplant reeds and
+#   bulrushes), Matted Pratia and horsetail on the wet banks, burdock a little higher up, bog marshcress in the shallows,
+#   swamp cypress root knots at the shore, black alders on the banks.
+# - Clear water around the mangrove feet (T_WF_MoorKlar), so their roots show under the surface (BuildMangroven.py places them).
 # - Dead wood: dead pines standing in the water, fallen trunks half sunk from the bank into the water, stumps and roots.
 # - Low mist over every lagoon (local fog volumes) and a few pale will-o'-the-wisp lights over the deep holes.
 # - Lurking eyes (AVaelLurkingEyes) at the holes and in deep water: they surface now and then and sink when someone comes close.
@@ -45,7 +47,14 @@ PACKS = {
     "lily": FAB + "/Rembrandt_Water_Lily_uc2kajgia",
     "pratia": FAB + "/Matted_Pratia_uegjcflia",
     "klette": FAB + "/Greater_Burdock_xh5pdgiqx",
+    "kresse": FAB + "/Bog_Marshcress_theqfivr",
+    "schachtelhalm": "/Game/Fab/Horsetail_grass",
+    "zypresse": "/Game/Fab/Photorealistic_Swamp_Cypress_Roots_-_Nanite_Ready__Free_",
 }
+ALDERS = ["/Game/BlackAlder/Geometry/SimpleWind/SM_BlackAlder_Forest_{:02d}".format(i) for i in range(1, 10)]
+YOUNG_ALDERS = ["/Game/BlackAlder/Geometry/SimpleWind/SM_BlackAlder_Sapling_{:02d}".format(i) for i in range(1, 7)]
+HORSETAIL_TEXTURE = "/Game/Fab/Horsetail_grass/horsetail_grass/Textures/horsetail_grass_texture_0"
+BULRUSH = ["/Game/Megaplant_Library/Plant_Bulrush/Plant_Bulrush_01/Plant_Common_Bulrush_01_" + v for v in "ABCD"]
 STALKS = [MEGASCANS + "/3D_Plants/DryPlantSetB/SM_DryPlantSet01_V09", MEGASCANS + "/3D_Plants/DryPlantSetB/SM_DryPlantSet01_V10",
           MEGASCANS + "/3D_Plants/DryPlantSetB/SM_DryPlantSet01_V11", MEGASCANS + "/3D_Plants/DryPlantSetB/SM_DryPlantSet01_V12",
           MEGASCANS + "/3D_Plants/ThatchingGrass/SM_ThatchingGrass00_V10", MEGASCANS + "/3D_Plants/ThatchingGrass/SM_ThatchingGrass00_V2",
@@ -183,22 +192,22 @@ def new_material(name):
     return unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, MATERIAL_FOLDER, unreal.Material, unreal.MaterialFactoryNew())
 
 
-def import_mask():
-    """The moor map of the kit, imported anew on every run (linear, its four channels kept apart)"""
-    source = os.path.join(KIT, "T_WF_Moor.png")
+def import_mask(name="T_WF_Moor", compression=unreal.TextureCompressionSettings.TC_MASKS):
+    """A map of the kit, imported anew on every run (linear; the moor map keeps its four channels apart)"""
+    source = os.path.join(KIT, name + ".png")
     if not os.path.isfile(source):
         return None
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", source)
     task.set_editor_property("destination_path", ASSET_FOLDER)
-    task.set_editor_property("destination_name", "T_WF_Moor")
+    task.set_editor_property("destination_name", name)
     task.set_editor_property("automated", True)
     task.set_editor_property("replace_existing", True)
     task.set_editor_property("save", False)
     unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
-    texture = unreal.load_asset(ASSET_FOLDER + "/T_WF_Moor")
+    texture = unreal.load_asset(ASSET_FOLDER + "/" + name)
     texture.set_editor_property("srgb", False)
-    texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_MASKS)
+    texture.set_editor_property("compression_settings", compression)
     texture.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
     texture.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
     texture.set_editor_property("never_stream", True)
@@ -206,7 +215,7 @@ def import_mask():
     return texture
 
 
-def build_water_material(mask_texture, origin, size):
+def build_water_material(mask_texture, origin, size, clear_texture=None):
     """Murky moor water over the lagoons: colour by depth, near black holes, duckweed floating on top, slow waves and rings"""
     material = new_material("M_WF_Moorwasser")
     material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
@@ -281,6 +290,14 @@ def build_water_material(mask_texture, origin, size):
     g.link(g.scalar("Kontakt", 25.0, 5), contact, "FadeDistance")
     body = g.lerp(g.scalar("TruebUfer", 0.88, 6), g.const(0.96, 6), depth, 5)
     opacity = g.mul(2, g.mul(3, g.lerp(body, g.const(1.0, 4), weed_alpha, 3), water_here), contact)
+    if clear_texture is not None:
+        # Clear around the mangrove feet: the roots show under the surface, the water there a little greener
+        clear_sample = g.node(unreal.MaterialExpressionTextureSample, 9, texture=clear_texture,
+                              sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_GRAYSCALE)
+        g.link(uv, clear_sample, "UVs")
+        clear = g.mul(4, g.mask(clear_sample, 8, r=True, g=False, b=False), g.sub(5, g.const(1.0, 6), weed_alpha))
+        opacity = g.lerp(opacity, g.mul(2, opacity, g.scalar("KlarDeckkraft", 0.72, 3)), clear, 1)
+        base = g.lerp(base, g.color("KlarFarbe", (0.012, 0.03, 0.018), 4), g.mul(3, clear, g.const(0.6, 4)), 2)
 
     roughness = g.lerp(g.scalar("Glanz", 0.25, 4), g.const(0.75, 4), weed_alpha, 3)
     for expression, target in ((base, unreal.MaterialProperty.MP_BASE_COLOR), (normal, unreal.MaterialProperty.MP_NORMAL),
@@ -288,6 +305,44 @@ def build_water_material(mask_texture, origin, size):
                                (g.scalar("Spiegelung", 0.1, 3), unreal.MaterialProperty.MP_SPECULAR)):
         if not library.connect_material_property(expression, "", target):
             notes.append("could not connect {}".format(target))
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
+def build_horsetail_material():
+    """The horsetail pack comes with the engine's unlit glTF material: an own lit one with its texture"""
+    source = unreal.load_asset(HORSETAIL_TEXTURE)
+    if source is None:
+        return None
+    material = new_material("M_WF_Schachtelhalm")
+    material.set_editor_property("used_with_instanced_static_meshes", True)
+    g = Graph(material)
+    color = g.mul(2, g.mask(g.node(unreal.MaterialExpressionTextureSample, 4, texture=source), 3), g.color("Farbe", (0.85, 0.95, 0.8), 3))
+    library.connect_material_property(color, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.const(0.8, 2), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
+def build_cypress_material():
+    """The cypress root pack's material sits on the engine's FBX material: an own one with the pack's textures"""
+    folder = PACKS["zypresse"]
+    base_color, normal, rough = (unreal.load_asset(folder + "/T_SwampCypress_" + suffix) for suffix in ("BC", "N", "R"))
+    if base_color is None:
+        return None
+    material = new_material("M_WF_Zypressenwurzel")
+    material.set_editor_property("used_with_instanced_static_meshes", True)
+    g = Graph(material)
+    library.connect_material_property(g.mask(g.node(unreal.MaterialExpressionTextureSample, 4, texture=base_color), 3), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    if normal is not None:
+        library.connect_material_property(g.node(unreal.MaterialExpressionTextureSample, 3, texture=normal, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL),
+                                          "RGB", unreal.MaterialProperty.MP_NORMAL)
+    if rough is not None:
+        library.connect_material_property(g.mask(g.node(unreal.MaterialExpressionTextureSample, 4, texture=rough,
+                                                        sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR), 3, g=False, b=False),
+                                          "", unreal.MaterialProperty.MP_ROUGHNESS)
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)
     return material
@@ -334,6 +389,10 @@ def allow_instancing(meshes):
             if slot.material_interface is None:
                 continue
             base = slot.material_interface.get_base_material()
+            # Only project materials: engine and plugin content must never be changed (give such meshes an own material)
+            if not base.get_path_name().startswith("/Game/"):
+                notes.append("not instancing-enabled (outside /Game): " + base.get_path_name())
+                continue
             if not base.get_editor_property("used_with_instanced_static_meshes"):
                 library.set_material_usage(base, unreal.MaterialUsage.MATUSAGE_INSTANCED_STATIC_MESHES)
                 library.recompile_material(base)
@@ -348,16 +407,19 @@ class Placer:
         self.instances = {}
         self.settings = {}
 
-    def add(self, kind, mesh, location, rotation, scale, shadow=True):
+    def add(self, kind, mesh, location, rotation, scale, shadow=True, material=None):
         key = mesh.get_path_name()
         self.instances.setdefault(key, (mesh, kind, []))[2].append(unreal.Transform(location, rotation, unreal.Vector(scale, scale, scale)))
-        self.settings[key] = shadow
+        self.settings[key] = (shadow, material)
 
     def spawn(self):
         total = 0
         for key, (mesh, kind, transforms) in sorted(self.instances.items()):
             field = actors.spawn_actor_from_class(unreal.VaelScatterField, transforms[0].translation, unreal.Rotator(0.0, 0.0, 0.0))
-            field.setup_field(mesh, 0.0, self.settings[key], False)
+            shadow, material = self.settings[key]
+            field.setup_field(mesh, 0.0, shadow, False)
+            if material is not None:
+                field.instances.set_material(0, material)
             field.add_scatter_instances(transforms)
             field.set_actor_label("Moor_{}_{}".format(kind, mesh.get_name()))
             field.set_folder_path(FOLDER)
@@ -420,7 +482,7 @@ def main():
         return
     origin = data["maske"]["ursprung_cm"]
     size = data["maske"]["groesse_cm"]
-    water_material = build_water_material(mask, origin, size)
+    water_material = build_water_material(mask, origin, size, import_mask("T_WF_MoorKlar", unreal.TextureCompressionSettings.TC_GRAYSCALE))
     plane = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(origin[0] + size / 2, origin[1] + size / 2, water_z + WATER_LIFT),
                                           unreal.Rotator(0.0, 0.0, 0.0))
     component = plane.static_mesh_component
@@ -439,9 +501,14 @@ def main():
     roots = load_all(ROOTS)
     reeds = load_all(REEDS)
     dead_pines = load_all(DEAD_PINES)
-    allow_instancing([m for group in meshes.values() for m in group] + stalks + fallen + stumps + roots)
+    bulrush = load_all(BULRUSH)
+    alders = load_all(ALDERS)
+    young_alders = load_all(YOUNG_ALDERS)
+    allow_instancing([m for group in meshes.values() for m in group] + stalks + fallen + stumps + roots + alders + young_alders)
     place = Placer()
     counts = {}
+    horsetail_material = build_horsetail_material()
+    cypress_material = build_cypress_material()
 
     def count(kind):
         counts[kind] = counts.get(kind, 0) + 1
@@ -457,7 +524,11 @@ def main():
     whole = 0
     for x, y, z, size_value, yaw, kind in data["schilf"]:
         if kind == "megaplant" and reeds and whole < MEGAPLANT_REEDS:
-            spawn_skeletal(rng.choice(reeds), unreal.Vector(x, y, z - 5.0), yaw, size_value, "Moor_Schilf_{:03d}".format(whole + 1))
+            # Every other whole plant a bulrush with its brown cobs
+            if bulrush and whole % 2 == 1:
+                spawn_skeletal(rng.choice(bulrush), unreal.Vector(x, y, z - 5.0), yaw, size_value * 1.4, "Moor_Rohrkolben_{:03d}".format(whole + 1))
+            else:
+                spawn_skeletal(rng.choice(reeds), unreal.Vector(x, y, z - 5.0), yaw, size_value, "Moor_Schilf_{:03d}".format(whole + 1))
             whole += 1
             count("Schilfpflanzen")
         elif stalks:
@@ -475,9 +546,30 @@ def main():
         if not meshes.get(kind):
             continue
         mesh = meshes[kind][rng.randrange(len(meshes[kind]))]
-        place.add("Pratia" if kind == "pratia" else "Klette", mesh, unreal.Vector(x, y, z - 2.0), unreal.Rotator(0.0, 0.0, yaw), scale,
-                  shadow=(kind == "klette"))
+        place.add(kind.capitalize(), mesh, unreal.Vector(x, y, z - 2.0), unreal.Rotator(0.0, 0.0, yaw), scale,
+                  shadow=(kind == "klette"), material=horsetail_material if kind == "schachtelhalm" else None)
         count(kind)
+
+    # Bog marshcress in the shallows: rooted on the floor, its leaves just above the surface
+    for x, y, z, scale, yaw in data.get("kresse", []):
+        if meshes["kresse"]:
+            mesh = meshes["kresse"][rng.randrange(len(meshes["kresse"]))]
+            place.add("Kresse", mesh, unreal.Vector(x, y, max(z, water_z - 12.0)), unreal.Rotator(0.0, 0.0, yaw), scale, shadow=False)
+            count("Sumpfkresse")
+
+    # Swamp cypress root knots at the shore and around the mangrove feet, half in the water
+    for x, y, z, scale, yaw in data.get("zypressenwurzeln", []):
+        if meshes["zypresse"]:
+            place.add("Zypressenwurzel", meshes["zypresse"][0], unreal.Vector(x, y, z - 25.0 * scale),
+                      unreal.Rotator(rng.uniform(-6, 6), rng.uniform(-6, 6), yaw), scale, material=cypress_material)
+            count("Zypressenwurzeln")
+
+    # Black alders on the banks, young ones nearer the water
+    for x, y, z, scale, yaw, kind in data.get("erlen", []):
+        pool = alders if kind == "erle" else young_alders
+        if pool:
+            place.add("Erle", pool[rng.randrange(len(pool))], unreal.Vector(x, y, z - 10.0), unreal.Rotator(0.0, 0.0, yaw), scale)
+            count("Erlen" if kind == "erle" else "junge Erlen")
 
     # Dead wood
     pines = 0

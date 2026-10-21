@@ -7,7 +7,9 @@ Works from the height map (the lagoons are the water below 0 inside the lagoon e
                     G  duckweed and algae: patches in the bays and along the shore, none in the deep holes
                     B  deep holes: a few near black spots where the nixies will lurk (more ripples there)
                     A  water: the lagoons grown a few metres onto the land (the landscape hides that part), 0 elsewhere
-  WF_Moor.json      the places for BuildMoorWasser.py, in world cm: lily pads, reed belts, bank plants, dead wood, mist, the lurking spots
+  T_WF_MoorKlar.png 2048 x 2048 grey over the same square: clear water around the mangrove feet, so their roots show
+  WF_Moor.json      the places for BuildMoorWasser.py, in world cm: lily pads, reed belts, bank plants, alders, dead wood, mist, the lurking spots,
+                    the mangroves at their grey box trunks
                     and the circles of shallow water (wet, a water source for spells)
 
 Kept clear: the trails and the campaign path at the shore, the log bridges, the Nid spring and the moss huts.
@@ -260,12 +262,84 @@ def main():
             if window.mean() > 0.35 and nid_m[iy, ix] > 25:
                 wet_circles.append(world(ix, iy))
 
+    # ---- Second pass (own random stream, so everything above stays where it was) ----
+    more_rng = np.random.default_rng(SEED + 2)
+
+    # Mangroves at their grey box trunks: ground height, whether they stand in water, a seed for their look
+    mangroves = []
+    stems = [p for p in data["prims"] if p["n"].startswith("Mangrove_") and p["n"].endswith("_Stamm")]
+    for p in stems:
+        mx, my = p["l"][0] / CM_PER_PX, p["l"][1] / CM_PER_PX
+        ground = float(ndimage.map_coordinates(heights.astype(np.float32), [[my], [mx]], order=1)[0])
+        mangroves.append({"name": p["n"][:-len("_Stamm")], "ort": [round(mx * CM_PER_PX + MAP_ORIGIN, 1), round(my * CM_PER_PX + MAP_ORIGIN, 1),
+                                                                    round(ground, 1)],
+                          "im_wasser": ground < -10.0, "zufall": round(float(more_rng.random()), 3)})
+    stem_px = [((p["l"][0] / CM_PER_PX - left) / edge * MASK_SIZE, (p["l"][1] / CM_PER_PX - top) / edge * MASK_SIZE) for p in stems]
+
+    # Clear water around the mangrove feet: the roots show under the surface there (grey, 0..1)
+    clear = np.zeros(h.shape, np.float32)
+    for sx, sy in stem_px:
+        radius_px = 8.0 / m_per_px
+        clear = np.maximum(clear, np.clip(1.0 - np.hypot(xs - sx, ys - sy) / radius_px, 0, 1) ** 0.7)
+    clear *= (0.7 + 0.3 * fbm(h.shape, [8], more_rng)) * wet * (1 - holes)
+    Image.fromarray((np.clip(clear, 0, 1) * 255).astype(np.uint8), "L").save(os.path.join(HERE, "T_WF_MoorKlar.png"))
+
+    def near_stem(x, y, metres):
+        return any(math.hypot(x - sx, y - sy) * m_per_px < metres for sx, sy in stem_px)
+
+    # Wider ring around the lagoons for the trees of the banks
+    wide = np.zeros(h.shape, bool)
+    for cx, cy, rx, ry in lagoons:
+        wide |= ((map_x - cx) / (rx * 1.9)) ** 2 + ((map_y - cy) / (ry * 2.4)) ** 2 < 1.0
+    outside_m = ndimage.distance_transform_edt(~wet) * m_per_px
+    bank_patches = fbm(h.shape, [10, 30], more_rng)
+
+    # Horsetail in patches right at the water; bog marshcress floating in the shallows
+    for y, x in more_rng.permutation(np.argwhere(~wet & (outside_m < 4) & (bank_patches > 0.5) & (way_m > 2.5) & (nid_m > 20) & near))[:1800]:
+        if clear_of_things(x, y, 0):
+            bank.append(world(x, y) + [round(float(more_rng.uniform(2.5, 5.0)), 2), round(float(more_rng.uniform(0, 360)), 1), "schachtelhalm"])
+    cress = []
+    for y, x in more_rng.permutation(np.argwhere(wet & (inside_m < 3.5) & (bank_patches > 0.42) & (holes < 0.1) & (nid_m > 30)))[:2600]:
+        if clear_of_things(x, y, 0):
+            cress.append(world(x, y) + [round(float(more_rng.uniform(1.5, 3.5)), 2), round(float(more_rng.uniform(0, 360)), 1)])
+
+    # Black alders on the banks, a few metres up from the water, young ones nearer; none against a mangrove or on a way
+    alders = []
+    for y, x in more_rng.permutation(np.argwhere(~wet & (outside_m > 7) & (outside_m < 30) & wide & (way_m > 6) & (h > 30)))[:3000]:
+        if len([a for a in alders if a[-1] == "erle"]) >= 60:
+            break
+        if near_stem(x, y, 9) or not clear_of_things(x, y, 5):
+            continue
+        if any(math.hypot(x - ax, y - ay) * m_per_px < 11 for ax, ay, _ in [(a[5], a[6], 0) for a in alders if a[-1] == "erle"]):
+            continue
+        alders.append(world(x, y) + [round(float(more_rng.uniform(0.8, 1.1)), 2), round(float(more_rng.uniform(0, 360)), 1), int(x), int(y), "erle"])
+    for y, x in more_rng.permutation(np.argwhere(~wet & (outside_m > 1.5) & (outside_m < 10) & (bank_patches > 0.55) & (way_m > 3) & near))[:140]:
+        if not near_stem(x, y, 4) and clear_of_things(x, y, 1):
+            alders.append(world(x, y) + [round(float(more_rng.uniform(0.8, 1.3)), 2), round(float(more_rng.uniform(0, 360)), 1), int(x), int(y), "erle_jung"])
+    alders = [a[:5] + [a[7]] for a in alders]
+
+    # Swamp cypress root knots: at the shore and in the water around the mangrove feet
+    knots = []
+    for y, x in more_rng.permutation(np.argwhere((wet & (inside_m < 2)) | (~wet & (outside_m < 1.5) & near)))[:400]:
+        if len(knots) >= 50:
+            break
+        if (way_m[y, x] > 4) and clear_of_things(x, y, 2) and not any(math.hypot(x - kx, y - ky) * m_per_px < 12 for kx, ky in [(k[5], k[6]) for k in knots]):
+            knots.append(world(x, y) + [round(float(more_rng.uniform(1.2, 2.4)), 2), round(float(more_rng.uniform(0, 360)), 1), int(x), int(y)])
+    for sx, sy in stem_px:
+        for _ in range(int(more_rng.integers(1, 4))):
+            a, r = more_rng.uniform(0, 2 * math.pi), more_rng.uniform(4, 8) / m_per_px
+            x, y = int(sx + math.cos(a) * r), int(sy + math.sin(a) * r)
+            if 0 <= x < MASK_SIZE and 0 <= y < MASK_SIZE and wet[y, x]:
+                knots.append(world(x, y) + [round(float(more_rng.uniform(1.0, 2.0)), 2), round(float(more_rng.uniform(0, 360)), 1), x, y])
+    knots = [k[:5] for k in knots]
+
     out = {
         "_hinweis": "Moorwasser im Pfuhlmoor, Orte in Welt-cm (x, y, Bodenhoehe). Erzeugt von wf_moor.py, gelesen von Scripts/BuildMoorWasser.py",
         "maske": {"ursprung_cm": [left * CM_PER_PX + MAP_ORIGIN, top * CM_PER_PX + MAP_ORIGIN], "groesse_cm": edge * CM_PER_PX},
         "wasserspiegel_cm": 0.0,
         "seerosen": lilies, "schilf": reeds, "ufer": bank, "totholz": deadwood, "lauerstellen": lurk, "nebel": mist,
         "seichtwasser_radius_cm": 1800.0, "seichtwasser": wet_circles,
+        "mangroven": mangroves, "kresse": cress, "erlen": alders, "zypressenwurzeln": knots,
     }
     with open(os.path.join(HERE, "WF_Moor.json"), "w", encoding="utf-8") as f:
         json.dump(out, f, indent=0, ensure_ascii=False)
@@ -294,6 +368,7 @@ def main():
         x, y = to_px(spot)
         draw.ellipse((x - 3, y - 3, x + 3, y + 3), outline=(230, 240, 80))
     image.save(os.path.join(HERE, "..", "..", "Saved", "WF_Moor_Vorschau.png"))
+    print("{} mangroves ({} in water), {} cress, {} alders, {} cypress knots".format(len(mangroves), sum(m["im_wasser"] for m in mangroves), len(cress), len(alders), len(knots)))
     print("moor: {} lagoon parts, {} lily pads in {} rafts, {} reeds, {} bank plants, {} dead wood, {} lurking spots, {} shallow circles".format(
         count, len(lilies), rafts, len(reeds), len(bank), len(deadwood), len(lurk), len(wet_circles)))
 

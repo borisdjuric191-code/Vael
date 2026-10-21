@@ -1,13 +1,13 @@
-# Caps all textures under /Game/Fab to a maximum size (default 2048) and saves only the changed ones.
+# Caps all textures of the Fab packs (/Game/Fab and the packs Fab installs in their own folders) to a maximum size (default 2048) and saves only the changed ones.
 # Run headless with the editor closed:
 #   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script=Scripts/CapFabTextures.py -unattended -nosplash
 import unreal
 
-ROOT = "/Game/Fab"
+ROOTS = ["/Game/Fab", "/Game/BlackAlder", "/Game/Megaplant_Library"]
 MAX_SIZE = 2048
 
 registry = unreal.AssetRegistryHelpers.get_asset_registry()
-assets = registry.get_assets_by_path(ROOT, recursive=True)
+assets = [a for root in ROOTS for a in registry.get_assets_by_path(root, recursive=True)]
 
 changed, skipped, small = [], 0, 0
 for data in assets:
