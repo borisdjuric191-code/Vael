@@ -364,7 +364,8 @@ def main():
     for (kind_name, mesh_name), transforms in sorted(placed.items()):
         _, _, _, _, blocks, cull, shadow, _, _, _ = KINDS[kind_name]
         field = actors.spawn_actor_from_class(unreal.VaelScatterField, transforms[0].translation, unreal.Rotator(0.0, 0.0, 0.0))
-        field.setup_field(meshes[mesh_name], float(cull), shadow, blocks)
+        # Cull distances on these instances hid small pieces even right in front of the camera: drawn at any distance for now
+        field.setup_field(meshes[mesh_name], 0.0, shadow, blocks)
         field.add_scatter_instances(transforms)
         field.set_actor_label("Streu_{}_{}".format(kind_name, mesh_name.replace("SM_", "")))
         field.set_folder_path("{}/{}".format(FOLDER, kind_name))

@@ -31,16 +31,18 @@ WASSER_MATERIAL = "/Game/Vael/Wurzelforst/Blockout/Materialien/MI_WF_Wasser_Teic
 # Fuss auf den Boden, Hoehe (bzw. Laenge beim Wurzelbogen) wie der Platzhalter, Drehung leicht zufaellig.
 # Mehrere Varianten als Liste, z. B. "TRIPO_2": ["/Game/.../SM_Riesenbaum_A", "/Game/.../SM_Riesenbaum_B"].
 MODELLE = {
-    "TRIPO_1": "",  # Urstamm: Stamm und Wurzelbasis (1x, ersetzt Stamm + 10 Wurzeln)
+    "TRIPO_1": "/Game/Vael/Requisiten/Wurzelforst/Urbaum/SM_Urbaum",  # Urstamm: Stamm und Wurzelbasis (1x, ersetzt Stamm + 10 Wurzeln)
     "TRIPO_2": "",  # Riesenbaum, modular (54x im Hain und Forstsaum, ersetzt Stamm + Brettwurzeln)
     "TRIPO_3": "",  # Riesenpilz (32x am Kammweg, ersetzt Stiel + Hut; Farbe spaeter ueber Material)
     "TRIPO_4": "",  # Mangrove mit Stelzwurzeln (56x im Pfuhlmoor, ersetzt Stamm + Stelzen)
-    "TRIPO_5": "",  # Wurzelbogen (34x im Hain)
+    "TRIPO_5": "/Game/Vael/Requisiten/Wurzelforst/Wurzelbogen/SM_Wurzelbogen",  # Wurzelbogen (34x im Hain)
 }
 # Woran die Groesse des Modells ausgerichtet wird: "hoehe" oder "laenge" (laengste waagrechte Seite)
 MODELL_MASS = {"TRIPO_1": "hoehe", "TRIPO_2": "hoehe", "TRIPO_3": "hoehe", "TRIPO_4": "hoehe", "TRIPO_5": "laenge"}
 # Diese Modelle behalten die Drehung des Platzhalters (Richtung ist wichtig), alle anderen drehen sich zufaellig
 MODELL_DREHUNG_BEHALTEN = ("TRIPO_5",)
+# Diese Modelle stehen mittig auf dem groessten Teil (dem Stamm), nicht in der Mitte aller Teile (die Wurzeln sind ungleich lang)
+MODELL_MITTE_STAMM = ("TRIPO_1",)
 
 # Ordner mit wf_blockout.py, WF_Platzhalter.json und T_WF_Zonenkarte.png
 try:
@@ -356,10 +358,18 @@ def spawne_modelle(prims):
             ist = box.max.z - box.min.z
         s = soll / max(ist, 1.0)
 
+        groesstes = max(teile, key=lambda p: p["s"][0] * p["s"][1] * p["s"][2])
         if tag in MODELL_DREHUNG_BEHALTEN:
-            r = list(max(teile, key=lambda p: p["s"][0] * p["s"][1] * p["s"][2])["r"])
+            r = list(groesstes["r"])
+            # Laengliche Modelle: die lange Seite des Modells laeuft entlang der langen Seite des Platzhalters (dessen X)
+            if MODELL_MASS.get(tag) == "laenge" and box.max.y - box.min.y > box.max.x - box.min.x:
+                r[1] += 90
         else:
             r = [0, zlib.crc32(name.encode("utf-8")) % 360, 0]
+        if tag in MODELL_MITTE_STAMM:
+            gl, gh = teil_box(groesstes)
+            lo[0], hi[0] = gl[0], gh[0]
+            lo[1], hi[1] = gl[1], gh[1]
 
         # Fuss-Mitte des Modells auf die Fuss-Mitte der Platzhalter-Teile setzen
         yaw = math.radians(r[1])

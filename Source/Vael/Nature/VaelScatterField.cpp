@@ -18,7 +18,9 @@ void AVaelScatterField::SetupField(UStaticMesh* Mesh, float CullDistance, bool b
 {
 	Instances->ClearInstances();
 	Instances->SetStaticMesh(Mesh);
-	Instances->SetCullDistances(0, FMath::Max(0, FMath::RoundToInt(CullDistance)));
+	// Fade out only over the last fifth before the cull distance (a start of 0 would thin the field out from right in front of the camera)
+	const int32 End = FMath::Max(0, FMath::RoundToInt(CullDistance));
+	Instances->SetCullDistances(FMath::RoundToInt(End * 0.8f), End);
 	Instances->SetCastShadow(bCastShadow);
 	Instances->SetCollisionEnabled(bCollide ? ECollisionEnabled::QueryAndPhysics : ECollisionEnabled::NoCollision);
 	Instances->SetCollisionProfileName(bCollide ? UCollisionProfile::BlockAll_ProfileName : UCollisionProfile::NoCollision_ProfileName);

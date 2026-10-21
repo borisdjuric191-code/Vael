@@ -126,4 +126,16 @@ Danach verteilt das zweite Skript Felsen, Moosfelsen, Steine, Wurzeln, Moospolst
 - Erneut ausführen ersetzt nur die eigenen `WF_Streu`-Actors (gleiches Ergebnis). Einzelne Instanzen kann man im Editor verschieben oder löschen; nach einem erneuten Lauf sind solche Handänderungen weg.
 - Dichte je Zone steht oben im Skript unter `DENSITY` (Stück pro Hektar).
 
+## Urbaum (Scripts/BuildUrbaum.py)
+
+Der Urbaum ist das Tripo-Modell `SM_Urbaum` (MODELLE `TRIPO_1`), die Wurzelbögen sind `SM_Wurzelbogen` (`TRIPO_5`). Das Skript schmückt den Baum danach aus:
+
+- Material mit feiner Rinde, Moos obenauf und einem Fuß, der ins Bodenmoos übergeht.
+- Krone aus Ästen (Old Tree Branch), Holunderlaub und Palmwedeln.
+- Efeu und Moospolster an Stamm und Wurzeln.
+- Rund 440 Lichterblüten mit warmem Leuchten und 16 sanfte Lichter.
+- Farne, Holunder, Springkraut und Klee am Fuß.
+
+Die Graubox-Kronen und das grüne Platzhalterlicht schaltet es aus. Alles Neue hat den Tag `WF_Urbaum` im Ordner `Wurzelforst/3_Ewiger_Hain/Urbaum`. Nach `wf_blockout.py` das Skript erneut ausführen.
+
 Beide Skripte laufen ohne Oberfläche, der Editor muss zu sein. Die Pakete (Fab, Megascans, Rock Collection) liegen nicht in Git, sie müssen auf dem Rechner vorhanden sein.
