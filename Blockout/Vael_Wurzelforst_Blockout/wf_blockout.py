@@ -33,7 +33,7 @@ WASSER_MATERIAL = "/Game/Vael/Wurzelforst/Blockout/Materialien/MI_WF_Wasser_Teic
 MODELLE = {
     "TRIPO_1": "/Game/Vael/Requisiten/Wurzelforst/Urbaum/SM_Urbaum",  # Urstamm: Stamm und Wurzelbasis (1x, ersetzt Stamm + 10 Wurzeln)
     "TRIPO_2": "",  # Riesenbaum, modular (54x im Hain und Forstsaum, ersetzt Stamm + Brettwurzeln)
-    "TRIPO_3": "",  # Riesenpilz (32x am Kammweg, ersetzt Stiel + Hut; Farbe spaeter ueber Material)
+    "TRIPO_3": "",  # Riesenpilz (32x am Kammweg): bleibt leer, Scripts/BuildRiesenpilze.py setzt SM_Riesenpilz mit Farbvarianten und kleinen Pilzen
     "TRIPO_4": "",  # Mangrove mit Stelzwurzeln (56x im Pfuhlmoor, ersetzt Stamm + Stelzen)
     "TRIPO_5": "/Game/Vael/Requisiten/Wurzelforst/Wurzelbogen/SM_Wurzelbogen",  # Wurzelbogen (34x im Hain)
 }
