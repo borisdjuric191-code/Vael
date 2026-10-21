@@ -174,3 +174,19 @@ Die Minikarte oben rechts und die große Karte (Taste M, am Controller Create/An
 2. `Scripts/CreateWorldMaps.py` ohne Editor ausführen. Es macht daraus `/Game/Vael/UI/Karten/T_Karte_Wurzelforst` und `DA_Karte_Wurzelforst`.
 
 Welches Level welche Karte zeigt, steht in den Projekteinstellungen unter Game › Vael UI › Map › Level Maps (`Config/DefaultGame.ini`). Dort lassen sich auch die Größe der Minikarte und ihr Ausschnitt einstellen. Nach Änderungen am Gelände, an den Pfaden oder den Namen beide Schritte wiederholen.
+
+## Moorwasser im Pfuhlmoor (wf_moor.py, Scripts/BuildMoorWasser.py)
+
+Die Lagunen des Pfuhlmoors sind eine trübe, zugewachsene Oase mit einem Hauch Gefahr.
+
+1. `wf_moor.py` mit Python (numpy, scipy, pillow) ausführen. Es schreibt `T_WF_Moor.png` (wo Wasser ist, wie tief, Entengrütze und Algen, tiefe Löcher) und `WF_Moor.json` mit allen Orten samt Bodenhöhe. Eine Vorschau landet in `Saved/WF_Moor_Vorschau.png`.
+2. `Scripts/BuildMoorWasser.py` ohne Editor ausführen. Es baut:
+   - eigenes Moorwasser `M_WF_Moorwasser` über dem Meer: am Ufer oliv, in der Mitte dunkel, fast schwarze Löcher, Algenteppiche, langsame Wellen und ab und zu Ringe auf dem Wasser ohne Ursache,
+   - Seerosen (Rembrandt Water Lily) in losen Gruppen; die Graubox-Seerosen werden nur ausgeschaltet,
+   - Schilfgürtel mit Lücken (Halme, Reetgras, einzelne Megaplant-Schilfpflanzen), Matted Pratia am nassen Ufer, Kletten weiter oben,
+   - tote Kiefern im Wasser, umgestürzte Stämme vom Ufer ins Wasser, Stümpfe und Wurzeln,
+   - flachen Nebel über jeder Lagune und ein paar blasse Irrlichter,
+   - lauernde Augen (`AVaelLurkingEyes`): Sie tauchen ab und zu auf, schauen den nächsten Spieler an, blinzeln und tauchen ab, sobald jemand näher als 8 m kommt,
+   - Seichtwasser (Wasser-Bodenflächen, unsichtbar): Wer hineinwatet, wird nass, und der Magier kann dort Wasser ziehen.
+
+Alles hat den Tag `WF_Moor` im Ordner `Wurzelforst/2_Pfuhlmoor/Moorwasser` und wird beim erneuten Ausführen ersetzt. Ein Graubox-Ersatz für die Mangroven fehlt noch (Tripo).

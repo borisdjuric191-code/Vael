@@ -399,7 +399,11 @@ def build_ground(material, textures, grass_types, masks):
         return g.lerp(g.sample(textures[key], straight, 8), g.sample(textures[key], turned, 8), swap, 7), straight
 
     forest, forest_uv = detiled("forest", 1.0)
-    mud = g.sample(textures["mud"], uv(0.9), 9)
+    # The heavy mud texture is pale grey: darkened to the wet brown of moor banks at the waterline (the trails keep the raw one)
+    raw_mud = g.sample(textures["mud"], uv(0.9), 10)
+    mud = g.op(unreal.MaterialExpressionMultiply, 8, g.mask(raw_mud, 9, r=True, g=True, b=True),
+               g.mask(g.node(unreal.MaterialExpressionVectorParameter, 10, parameter_name="SchlammFarbe",
+                             default_value=unreal.LinearColor(0.42, 0.36, 0.26, 1.0)), 9, r=True, g=True, b=True))
     rock_object = g.node(unreal.MaterialExpressionTextureObject, 10, texture=textures["rock"])
     rock = g.world_aligned(rock_object, g.scalar("KachelFels", 900.0, 11), 8)
     rootmoss, rootmoss_uv = detiled("rootmoss", 0.7)
@@ -466,7 +470,7 @@ def build_ground(material, textures, grass_types, masks):
                            g.const(0.05, 6)), 4)
     # The forest floor scan alone reads grey like gravel: warmed to earth brown
     path_grey = g.node(unreal.MaterialExpressionDesaturation, 5)
-    g.link(g.lerp(forest, mud, g.const(0.3, 6), 6), path_grey)
+    g.link(g.lerp(forest, raw_mud, g.const(0.3, 6), 6), path_grey)
     g.link(g.const(1.0, 6), path_grey, "Fraction")
     earth = g.op(unreal.MaterialExpressionMultiply, 4, path_grey,
                  g.mask(g.node(unreal.MaterialExpressionVectorParameter, 6, parameter_name="WegFarbe",

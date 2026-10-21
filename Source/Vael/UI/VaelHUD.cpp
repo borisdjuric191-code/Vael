@@ -82,7 +82,7 @@ namespace
 	constexpr int32 CircleSides = 28;
 
 	/** Slate font sizes are points: a text height of one pixel is three quarters of a point */
-	constexpr float PointsPerPixel = 0.75f;
+	constexpr float HudFontPointsPerPixel = 0.75f;
 
 	/** Fonts of the painted HUD (OFL), the same as the player panels */
 	const TCHAR* TextFontPath = TEXT("/Game/Vael/UI/Fonts/AlegreyaSans-Regular.AlegreyaSans-Regular");
@@ -1106,7 +1106,7 @@ void AVaelHUD::DrawSegment(const FVector2D& Start, const FVector2D& End, const F
 FSlateFontInfo AVaelHUD::GetSlateFont(float PixelHeight) const
 {
 	const TSharedPtr<const FCompositeFont>& Composite = bTitleText && TitleFont.IsValid() ? TitleFont : TextFont;
-	return FSlateFontInfo(Composite, FMath::Max(1.0f, PixelHeight * PointsPerPixel));
+	return FSlateFontInfo(Composite, FMath::Max(1.0f, PixelHeight * HudFontPointsPerPixel));
 }
 
 void AVaelHUD::DrawTitle(const FText& Text, float X, float Y, float PixelHeight, const FLinearColor& Color, float Alignment, float MaxWidth)
