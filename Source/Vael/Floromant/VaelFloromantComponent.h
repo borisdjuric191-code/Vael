@@ -110,6 +110,18 @@ public:
 	/** Lets both hands turn back into hands at once */
 	void ClearHands();
 
+	// --- Keimpelz: the moss pelt that reloads the plant bars
+
+	/** Keimpelz in the pelt now, and its share of the most it holds */
+	float GetKeimpelz() const { return Keimpelz; }
+	float GetKeimpelzFraction() const;
+
+	/** Adds Keimpelz to the pelt, for example from picking it after rain */
+	void AddKeimpelz(float Amount);
+
+	virtual void BeginPlay() override;
+	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
 	// --- Placeholders of the new controls, not built yet
 
 	/** L2 / R2 (Q / E): the hand takes root as a tower */
@@ -118,8 +130,8 @@ public:
 	/** L1 + R1 + Cross (both mouse buttons + Space): the hands cross; a tap shoots fast, holding charges */
 	void CrossHands(bool bCharged);
 
-	/** Triangle held (R): reloads the plant bars with Keimpelz */
-	void ReloadHands();
+	/** Triangle held (R): fills the plant bars of both hands from the Keimpelz pelt, as far as it reaches. Returns the shots reloaded. */
+	int32 ReloadHands();
 
 	/** Touchpad (Tab): Herbarium and repertoire */
 	void OpenHerbarium();
@@ -137,6 +149,9 @@ private:
 	TObjectPtr<UVaelPlantArmComponent> RightHand;
 
 	int32 HandBeltSelection = 0;
+
+	/** Keimpelz in the pelt */
+	float Keimpelz = 0.0f;
 
 	/** Character the component belongs to */
 	AVaelCharacter* GetCharacter() const;

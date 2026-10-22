@@ -51,6 +51,7 @@
 #include "Floromant/VaelPlant.h"
 #include "Floromant/VaelPlantArmComponent.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlantData.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
@@ -438,13 +439,34 @@ void AVaelSmokeTest::BeginPlay()
 
 			Floromant->SetHandFiring(true, false);
 			Floromant->SetHandFiring(false, false);
+
+			// Reloading from the Keimpelz pelt: it pays for the missing shots, the bars are full once the stalks have drawn it in
+			PlantArmKeimpelz = Floromant->GetKeimpelz();
+			const int32 Reloaded = Floromant->ReloadHands();
+
+			const bool bOk = Fired >= 10 && Stance > 0.5f && Damage > 0.0f && Reloaded == Fired;
+			return FString::Printf(TEXT("%s%d shots from both hands, stance %.2f, %.0f damage, %d shots reloading from %.0f Keimpelz"), bOk ? TEXT("") : TEXT("FAILED: "),
+				Fired, Stance, Damage, Reloaded, PlantArmKeimpelz);
+		}, UVaelFloromantSettings::Get()->ReloadTime + 0.3f });
+		Steps.Add({ TEXT("Keimpelz reload"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			const int32 Missing = Floromant->GetHand(true)->GetMissingShots() + Floromant->GetHand(false)->GetMissingShots();
+			const float Used = PlantArmKeimpelz - Floromant->GetKeimpelz();
+
+			// Back to the mage: the hands are bare again
 			Player->SetHero(EVaelHeroClass::Mage, false);
 			const bool bCleared = Floromant->GetHand(true)->GetPlant() == nullptr && Floromant->GetHand(false)->GetPlant() == nullptr;
 
-			const bool bOk = Fired >= 10 && Stance > 0.5f && Damage > 0.0f && bCleared;
-			return FString::Printf(TEXT("%s%d shots from both hands, stance %.2f, %.0f damage, hands %s after the mage"), bOk ? TEXT("") : TEXT("FAILED: "),
-				Fired, Stance, Damage, bCleared ? TEXT("bare") : TEXT("NOT bare"));
-		}, 0.5f });
+			const bool bOk = Missing == 0 && Used > 5.0f && bCleared;
+			return FString::Printf(TEXT("%sbars %s, %.0f Keimpelz used, hands %s after the mage"), bOk ? TEXT("") : TEXT("FAILED: "),
+				Missing == 0 ? TEXT("full") : TEXT("NOT full"), Used, bCleared ? TEXT("bare") : TEXT("NOT bare"));
+		}, 0.2f });
 	}
 
 	// The veil monkey leaps onto the player's back and robs them; fire blinds it and the loot comes back

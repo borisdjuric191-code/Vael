@@ -18,6 +18,10 @@ SOURCE, OUT, NAME = args[0], args[1], args[2]
 COUNT = int(args[3]) if len(args) > 3 else 3
 CUT = float(args[4]) if len(args) > 4 else 0.45
 TRIANGLES = int(args[5]) if len(args) > 5 else 700
+# "kopf": the stalks end in a head (Glutdistel); it is cut off into its own mesh SM_<name>_Kopf, so the arm can stretch the stalk
+# without stretching the head
+HEADS = len(args) > 6 and args[6] == "kopf"
+HEAD_SIZE_M = 0.10
 # Length of every stalk in cm; the arm stretches it along its spline anyway
 LENGTH_CM = 100.0
 BINS = 14
@@ -136,20 +140,24 @@ def reduce(obj):
     log(f"{obj.name}: {sum(len(p.vertices) - 2 for p in obj.data.polygons)} triangles")
 
 
-def paint_ramp(obj):
-    """Vertex colour R (and G, B) from 0 at the base to 1 at the tip, A = 1; the same in UV channel 1"""
+def paint_ramp(obj, constant=None):
+    """Vertex colour R (and G, B) from 0 at the base to 1 at the tip, A = 1; the same in UV channel 1. A head gets one value for all of it."""
     mesh = obj.data
     height = max(v.co.z for v in mesh.vertices) or 1.0
+
+    def ramp(loop):
+        return constant if constant is not None else max(0.0, min(1.0, mesh.vertices[loop.vertex_index].co.z / height))
+
     attr = mesh.color_attributes.new("Col", "BYTE_COLOR", "CORNER")
     for loop in mesh.loops:
-        t = max(0.0, min(1.0, mesh.vertices[loop.vertex_index].co.z / height))
+        t = ramp(loop)
         attr.data[loop.index].color = (t, t, t, 1.0)
     mesh.color_attributes.active_color = attr
 
     # The same ramp in a second UV channel (U = V = ramp): UVs always come through the import, vertex colours not with every importer
     uv = mesh.uv_layers.new(name="Verlauf")
     for loop in mesh.loops:
-        t = max(0.0, min(1.0, mesh.vertices[loop.vertex_index].co.z / height))
+        t = ramp(loop)
         uv.data[loop.index].uv = (t, t)
 
 
@@ -217,12 +225,87 @@ for s, h, o in candidates:
     if all(o is not b[2] for b in best):
         bpy.data.objects.remove(o)
 
+def split_head(obj):
+    """Cuts the head off the top of a straightened stalk: the lowest slice from where on the piece stays much wider than the
+    stem. The stalk keeps the rest and is stretched to its length again; the head gets its pivot at its bottom and HEAD_SIZE_M
+    height. Returns the head, or None if the stalk has none."""
+    mesh = obj.data
+    length = max(v.co.z for v in mesh.vertices)
+    slices = 24
+    widths = [0.0] * slices
+    for v in mesh.vertices:
+        b = min(slices - 1, int(v.co.z / length * slices))
+        widths[b] = max(widths[b], math.hypot(v.co.x, v.co.y))
+    stem = sorted(widths[:slices // 2])[slices // 4] or 0.01
+
+    start = None
+    for b in range(slices - 1, -1, -1):
+        if widths[b] > 2.5 * stem:
+            start = b
+        elif start is not None:
+            break
+    if start is None or start < slices // 3:
+        return None
+    cut_z = start / slices * length
+
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    head_mesh = bpy.data.meshes.new(obj.name + "_Kopf")
+    head_bm = bm.copy()
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if sum(v.co.z for v in f.verts) / len(f.verts) >= cut_z], context="FACES")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(mesh)
+    bm.free()
+    bmesh.ops.delete(head_bm, geom=[f for f in head_bm.faces if sum(v.co.z for v in f.verts) / len(f.verts) < cut_z], context="FACES")
+    bmesh.ops.delete(head_bm, geom=[v for v in head_bm.verts if not v.link_faces], context="VERTS")
+    head_bm.to_mesh(head_mesh)
+    head_bm.free()
+
+    # The stalk below the head stands 1 m long again
+    stalk_length = max(v.co.z for v in mesh.vertices) or 1.0
+    for v in mesh.vertices:
+        v.co *= LENGTH_CM * 0.01 / stalk_length
+    mesh.update()
+
+    # The head: pivot at the middle of its bottom, HEAD_SIZE_M high
+    head = bpy.data.objects.new(obj.name + "_Kopf", head_mesh)
+    bpy.context.scene.collection.objects.link(head)
+    zs = [v.co.z for v in head_mesh.vertices]
+    bottom = [v.co for v in head_mesh.vertices if v.co.z < min(zs) + (max(zs) - min(zs)) * 0.15]
+    mid = sum(bottom, Vector()) / len(bottom)
+    size = (max(zs) - min(zs)) or 1.0
+    for v in head_mesh.vertices:
+        v.co = (v.co - Vector((mid.x, mid.y, min(zs)))) * (HEAD_SIZE_M / size)
+    head_mesh.update()
+    log(f"{obj.name}: head cut off at {cut_z / length:.2f} of the length")
+    return head
+
+
 stalks = []
+heads = []
 for s, h, obj in best:
+    if HEADS:
+        head = split_head(obj)
+        if head is not None:
+            reduce(head)
+            paint_ramp(head, constant=0.97)
+            heads.append(head)
     reduce(obj)
     paint_ramp(obj)
     stalks.append(obj)
-preview(stalks)
+preview(stalks + heads[:1])
 for i, stalk in enumerate(stalks, start=1):
     export(stalk, i)
+if heads:
+    # The fullest head goes on the fingertips
+    best_head = max(heads, key=lambda o: len(o.data.vertices))
+    bpy.ops.object.select_all(action="DESELECT")
+    best_head.select_set(True)
+    bpy.context.view_layer.objects.active = best_head
+    best_head.name = f"SM_{NAME}_Kopf"
+    best_head.data.name = best_head.name
+    path = os.path.join(OUT, best_head.name + ".fbx")
+    bpy.ops.export_scene.fbx(filepath=path, use_selection=True, apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL",
+                             mesh_smooth_type="FACE", colors_type="LINEAR", path_mode="COPY", embed_textures=False, add_leaf_bones=False)
+    log(f"exported {path}")
 log("done")

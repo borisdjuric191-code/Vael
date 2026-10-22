@@ -63,6 +63,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
 	float FingerThickness = 0.45f;
 
+	/** Thickness of the stalks of the arm (winding and wild), compared with their usual size */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float ArmThickness = 1.0f;
+
 	/** Stalks that wind around the forearm in half a turn */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 8))
 	int32 WrapCount = 4;
@@ -138,6 +142,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shots", meta = (ClampMin = 0))
 	float ShotSpread = 3.0f;
 
+	/** Shots that burst where they land, like the seeds of the Glutdistel in the garden: radius in cm (0 = no burst) and damage */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shots", meta = (ClampMin = 0))
+	float BurstRadius = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shots", meta = (ClampMin = 0))
+	float BurstDamage = 0.0f;
+
 	/** Saft every shot takes */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shots", meta = (ClampMin = 0))
 	float SaftPerShot = 0.8f;
@@ -146,9 +157,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shots", meta = (ClampMin = 1))
 	int32 BarSize = 40;
 
-	/** Until reloading with Keimpelz exists: shots per second the bar regains while the hand doesn't fire, after a short pause */
+	/** Shots per second the bar regains by itself while the hand doesn't fire, after a short pause; 0 (Boris: the bar only fills with Keimpelz) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shots", meta = (ClampMin = 0))
-	float BarRefillPerSecond = 5.0f;
+	float BarRefillPerSecond = 0.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shots", meta = (ClampMin = 0))
 	float BarRefillDelay = 1.0f;

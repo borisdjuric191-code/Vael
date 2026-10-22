@@ -26,17 +26,32 @@ assets = unreal.EditorAssetLibrary
 created = []
 notes = []
 
-KIT_VERSION = 1.2
+KIT_VERSION = 1.4
 
 FLAT_NORMAL = "/Engine/EngineMaterials/FlatNormal.FlatNormal"
 GREY = "/Engine/ArtTools/RenderToTexture/Textures/127grey.127grey"
 
-# Plant id: (finger stalks, arm stalks, material values)
+# Plant id: stalks of the fingers and the arm (numbers of SM_<Id>_Halm_<n>), a head on the fingertips (SM_<Id>_Kopf),
+# values of the material instance (scalars, and colours as tuples) and of the data asset (only set when it is created)
 ARMS = {
     "Windhalm": {
         "finger": [1, 2],
         "arm": [3],
+        "head": False,
         "values": {},
+        "data": {},
+    },
+    # Long thin thorny stems ending in the glowing heads; the heads fire seeds that burst in flames, like the plant in the garden
+    "Glutdistel": {
+        "finger": [1, 3],
+        "arm": [1, 3],
+        "head": True,
+        "values": {"Silber": 0.3, "Grundton": (0.13, 0.11, 0.11), "Leuchten": 0.04, "Glut": 5.0, "Leuchtfarbe": (1.0, 0.33, 0.06),
+                   "Metall": 0.1, "Rauheit": 0.6},
+        "data": {"shot_element": "FIRE", "fire_interval": 0.2, "shot_damage": 5.0, "shot_speed": 1500.0, "shot_radius": 10.0,
+                 "burst_radius": 90.0, "burst_damage": 3.0, "finger_length": 45.0, "finger_thickness": 0.2, "tip_size": 14.0,
+                 "arm_thickness": 0.35,
+                 "rest_wind": 0.2},
     },
 }
 
@@ -126,12 +141,15 @@ class Graph:
 # ---------------------------------------------------------------- Stalk meshes
 
 def import_stalk(plant, index):
-    name = "SM_{}_Halm_{}".format(plant, index)
+    return import_mesh(plant, "SM_{}_Halm_{}".format(plant, index), 50.0)
+
+
+def import_mesh(plant, name, min_height):
     path = "{}/{}/{}".format(FOLDER, plant, name)
     if assets.does_asset_exist(path):
         existing = unreal.load_asset(path)
-        # Stalks are 100 cm long; the first export came out a hundred times too small
-        if existing.get_bounding_box().max.z > 50.0:
+        # Stalks are 100 cm long, heads 10 cm; the first export came out a hundred times too small
+        if existing.get_bounding_box().max.z > min_height:
             return existing
         notes.append(name + " was imported at the wrong scale, imported again")
         assets.delete_asset(path)
@@ -239,7 +257,12 @@ def build_stalk_material():
     resting = g.mul(5, g.mul(6, glow_color, along), g.scalar("Leuchten", 0.12, 6))
     tip = g.mul(7, ramp2, ramp2)
     flash = g.mul(5, g.mul(6, glow_color, tip), g.mul(6, g.scalar("Aufleuchten", 0.0, 7), g.const(8.0, 7)))
-    emissive = g.add(4, resting, flash)
+    # Glut: the reddish parts of the picture shine in their own colour (the embers of the Glutdistel); 0 for other plants
+    red = g.mask(picture, 8, r=True, g=False, b=False)
+    green = g.mask(picture, 8, r=False, g=True, b=False)
+    ember = g.saturate(g.mul(6, g.sub(7, g.sub(8, red, green), g.const(0.18, 8)), g.const(4.0, 7)), 5)
+    embers = g.mul(4, g.mul(5, picture_rgb, ember), g.scalar("Glut", 0.0, 5))
+    emissive = g.add(3, g.add(4, resting, flash), embers)
 
     # Growing from the base to the tip
     grow = g.mul(5, g.scalar("Wuchs", 1.0, 6), g.const(1.06, 6))
@@ -292,7 +315,10 @@ def make_instance(parent, plant, values):
     instance = tools.create_asset(name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     library.set_material_instance_parent(instance, parent)
     for key, value in values.items():
-        library.set_material_instance_scalar_parameter_value(instance, key, value)
+        if isinstance(value, tuple):
+            library.set_material_instance_vector_parameter_value(instance, key, unreal.LinearColor(value[0], value[1], value[2], 1.0))
+        else:
+            library.set_material_instance_scalar_parameter_value(instance, key, value)
     picture = unreal.load_asset("{}/{}/T_{}_basecolor".format(PROPS, plant, plant))
     if picture is not None:
         library.set_material_instance_texture_parameter_value(instance, "Textur", picture)
@@ -306,7 +332,7 @@ def make_instance(parent, plant, values):
 
 # ---------------------------------------------------------------- DA_Pflanzenarm_<Id>
 
-def make_arm(plant, finger_meshes, arm_meshes, material):
+def make_arm(plant, finger_meshes, arm_meshes, head, material, values):
     path = "{}/DA_Pflanzenarm_{}".format(FOLDER, plant)
     if assets.does_asset_exist(path):
         return
@@ -319,6 +345,10 @@ def make_arm(plant, finger_meshes, arm_meshes, material):
     data.set_editor_property("finger_meshes", [m for m in finger_meshes if m is not None])
     data.set_editor_property("arm_meshes", [m for m in arm_meshes if m is not None])
     data.set_editor_property("material", material)
+    if head is not None:
+        data.set_editor_property("tip_mesh", head)
+    for key, value in values.items():
+        data.set_editor_property(key, getattr(unreal.VaelElement, value) if key == "shot_element" else value)
     assets.save_loaded_asset(data, False)
     created.append(path)
 
@@ -328,12 +358,13 @@ def main():
     for plant, arm in ARMS.items():
         fingers = [import_stalk(plant, i) for i in arm["finger"]]
         others = [import_stalk(plant, i) for i in arm["arm"]]
+        head = import_mesh(plant, "SM_{}_Kopf".format(plant), 5.0) if arm["head"] else None
         instance = make_instance(stalk_material, plant, arm["values"])
-        for mesh in fingers + others:
+        for mesh in fingers + others + [head]:
             if mesh is not None:
                 mesh.set_material(0, instance)
                 assets.save_loaded_asset(mesh, False)
-        make_arm(plant, fingers, others, instance)
+        make_arm(plant, fingers, others, head, instance, arm["data"])
 
     for line in created:
         log("created " + line)

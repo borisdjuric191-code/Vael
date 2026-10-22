@@ -9,6 +9,8 @@
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelSpellEffects.h"
@@ -129,8 +131,27 @@ void UVaelPlantArmComponent::RefillBar(int32 Shots)
 	}
 }
 
+int32 UVaelPlantArmComponent::GetMissingShots() const
+{
+	return Plant != nullptr && !bChanging ? FMath::Max(0, Plant->BarSize - FMath::CeilToInt32(BarShots)) : 0;
+}
+
+void UVaelPlantArmComponent::StartReload(int32 Shots, float Duration)
+{
+	ReloadShots = Shots;
+	ReloadDuration = FMath::Max(Duration, 0.05f);
+	ReloadTimeLeft = ReloadDuration;
+}
+
 void UVaelPlantArmComponent::Clear()
 {
+	if (KeimpelzPad != nullptr)
+	{
+		KeimpelzPad->DestroyComponent();
+		KeimpelzPad = nullptr;
+	}
+	ReloadShots = 0;
+	ReloadTimeLeft = 0.0f;
 	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks })
 	{
 		for (USplineMeshComponent* Stalk : *Stalks)
@@ -254,6 +275,18 @@ void UVaelPlantArmComponent::BuildStalks()
 		WildStalks.Add(MakeStalk(ArmMeshes[(Index + 1 + Offset) % ArmMeshes.Num()], ArmMaterial));
 	}
 
+	// The Keimpelz pad on the forearm
+	if (UStaticMesh* PadMesh = VaelAssets::LoadOptional(UVaelFloromantSettings::Get()->KeimpelzPadMesh))
+	{
+		KeimpelzPad = NewObject<UStaticMeshComponent>(GetOwner());
+		KeimpelzPad->SetMobility(EComponentMobility::Movable);
+		KeimpelzPad->SetStaticMesh(PadMesh);
+		KeimpelzPad->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		KeimpelzPad->SetCanEverAffectNavigation(false);
+		KeimpelzPad->SetupAttachment(GetBody());
+		KeimpelzPad->RegisterComponent();
+	}
+
 	Muzzles.Init(FVector::ZeroVector, NumFingers);
 	MuzzleDirections.Init(FVector::ForwardVector, NumFingers);
 	Flashes.Init(0.0f, NumFingers);
@@ -308,6 +341,22 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	{
 		Stance = FMath::FInterpTo(Stance, 0.0f, DeltaTime, 8.0f);
 		return;
+	}
+
+	// A reload ends: the stalks have drawn the moss in, the bar is full again and every tip flares up
+	if (ReloadTimeLeft > 0.0f)
+	{
+		ReloadTimeLeft -= DeltaTime;
+		if (ReloadTimeLeft <= 0.0f)
+		{
+			ReloadTimeLeft = 0.0f;
+			RefillBar(ReloadShots);
+			ReloadShots = 0;
+			for (float& Flash : Flashes)
+			{
+				Flash = 1.0f;
+			}
+		}
 	}
 
 	const bool bFiringNow = IsFiring() && Grow >= 1.0f;
@@ -396,8 +445,8 @@ void UVaelPlantArmComponent::UpdateStalks()
 		const float Sideways = 4.0f * Radius * Plant->WrapTurns * 2.0f;
 		USplineMeshComponent* Stalk = WrapStalks[Index];
 		Stalk->SetStartAndEnd(WrapStart + Out0 * Radius, Axis * WrapLength + Around0 * Sideways, Wrist + Out1 * Radius * 0.8f, Axis * WrapLength + Around1 * Sideways, false);
-		Stalk->SetStartScale(FVector2D(0.6f), false);
-		Stalk->SetEndScale(FVector2D(0.45f), false);
+		Stalk->SetStartScale(FVector2D(0.6f * Plant->ArmThickness), false);
+		Stalk->SetEndScale(FVector2D(0.45f * Plant->ArmThickness), false);
 		Stalk->SetStartRoll(A0, false);
 		Stalk->SetEndRoll(A1, false);
 		Stalk->UpdateMesh();
@@ -417,12 +466,16 @@ void UVaelPlantArmComponent::UpdateStalks()
 
 		USplineMeshComponent* Stalk = WildStalks[Index];
 		Stalk->SetStartAndEnd(Start, UpperAxis * Length, Start + Direction * Length, Direction * Length * 1.4f, false);
-		Stalk->SetStartScale(FVector2D(0.5f), false);
-		Stalk->SetEndScale(FVector2D(0.35f), false);
+		Stalk->SetStartScale(FVector2D(0.5f * Plant->ArmThickness), false);
+		Stalk->SetEndScale(FVector2D(0.35f * Plant->ArmThickness), false);
 		Stalk->SetStartRoll(Shape.Y, false);
 		Stalk->SetEndRoll(Shape.Y + 1.2f, false);
 		Stalk->UpdateMesh();
 	}
+
+	// The Keimpelz pad lies on top of the forearm, where the camera above sees it
+	const FVector Top = (FVector::UpVector - Axis * FVector::DotProduct(FVector::UpVector, Axis)).GetSafeNormal();
+	UpdatePad(Elbow, Wrist, Top.IsNearlyZero() ? U : Top);
 
 	// The axis the tips twirl around in the material
 	ArmMaterial->SetVectorParameterValue(ArmPointParameter, FLinearColor(BodyTransform.TransformPosition(Elbow)));
@@ -477,7 +530,7 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 	FireTime += DeltaTime;
 
 	AVaelCharacter* Character = GetCharacter();
-	if (Character->IsDowned() || Character->IsDodging() || FireCountdown > 0.0f || Stance < 0.6f)
+	if (Character->IsDowned() || Character->IsDodging() || IsReloading() || FireCountdown > 0.0f || Stance < 0.6f)
 	{
 		return;
 	}
@@ -539,6 +592,39 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	}
 
 	Shot->InitSpell(Hit, Plant->ShotSpeed, Plant->ShotRadius, Plant->ShotRange / Plant->ShotSpeed, 0, Plant->GetColor(bShadow));
+	if (Plant->BurstRadius > 0.0f)
+	{
+		FVaelSpellHit Burst;
+		Burst.Damage = Plant->BurstDamage;
+		Burst.Element = Plant->ShotElement;
+		Shot->SetExplosion(Burst, Plant->BurstRadius);
+	}
 	Shot->SetEffects(VaelEffects::Load(Plant->ShotElement));
 	Shot->FinishSpawning(SpawnTransform);
+}
+
+// ---------------------------------------------------------------- Keimpelz
+
+void UVaelPlantArmComponent::UpdatePad(const FVector& Elbow, const FVector& Wrist, const FVector& Out)
+{
+	if (KeimpelzPad == nullptr)
+	{
+		return;
+	}
+
+	// The fuller the pelt, the bigger the pad; while the stalks draw it in it shrinks and swells back
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const AVaelCharacter* Character = GetCharacter();
+	const float Fill = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetKeimpelzFraction() : 1.0f;
+	const float Progress = IsReloading() ? 1.0f - ReloadTimeLeft / ReloadDuration : 0.0f;
+	const float Draw = 1.0f - 0.45f * FMath::Sin(Progress * UE_PI);
+
+	// The moss is a flat clump: its widest side gives the size
+	const float MeshHeight = FMath::Max(KeimpelzPad->GetStaticMesh()->GetBoundingBox().GetSize().GetMax(), 1.0f);
+	const float Scale = Settings->KeimpelzPadSize / MeshHeight * FMath::Lerp(0.3f, 1.0f, Fill) * Grow * Draw;
+
+	const FVector Place = FMath::Lerp(Elbow, Wrist, 0.55f) + Out * Plant->WrapRadius * 0.6f;
+	KeimpelzPad->SetRelativeLocationAndRotation(Place, FRotationMatrix::MakeFromZX(Out, Wrist - Elbow).Rotator());
+	KeimpelzPad->SetRelativeScale3D(FVector(Scale * 1.3f, Scale, Scale * 0.7f));
+	KeimpelzPad->SetVisibility(Scale > 0.01f);
 }

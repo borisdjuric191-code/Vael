@@ -55,9 +55,13 @@ public:
 	UFUNCTION(Exec)
 	void VaelSamen(const FString& Seed, float Metres);
 
-	/** Floromant: lays the picked plant of the seed belt of the hands on "links", "rechts" or "beide" hands. Example: VaelHand beide */
+	/** Floromant: lays the picked plant of the seed belt of the hands, or the one whose name starts like the word, on "links", "rechts" or "beide" hands. Example: VaelHand beide Glut */
 	UFUNCTION(Exec)
-	void VaelHand(const FString& Hands);
+	void VaelHand(const FString& Hands, const FString& Plant = TEXT(""));
+
+	/** Floromant: reloads the hands from the Keimpelz pelt; with a number sets the pelt to that share in percent first. Example: VaelNachladen 50 */
+	UFUNCTION(Exec)
+	void VaelNachladen(float Percent = -1.0f);
 
 	/** Floromant: holds the fire button of "links", "rechts" or "beide" hands, or lets go with "aus". Example: VaelFeuern beide */
 	UFUNCTION(Exec)

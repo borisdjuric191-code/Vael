@@ -39,7 +39,26 @@ namespace
 
 UVaelFloromantComponent::UVaelFloromantComponent()
 {
-	PrimaryComponentTick.bCanEverTick = false;
+	// Only the Keimpelz pelt grows back over time
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.TickInterval = 0.2f;
+}
+
+void UVaelFloromantComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	Keimpelz = UVaelFloromantSettings::Get()->KeimpelzMax;
+}
+
+void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	const AVaelCharacter* Character = GetCharacter();
+	if (Character != nullptr && Character->IsFloromant() && !Character->IsDowned())
+	{
+		AddKeimpelz(UVaelFloromantSettings::Get()->KeimpelzGrowPerSecond * DeltaTime);
+	}
 }
 
 AVaelCharacter* UVaelFloromantComponent::GetCharacter() const
@@ -592,9 +611,55 @@ void UVaelFloromantComponent::CrossHands(bool bCharged)
 	ShowNotBuilt(bCharged ? NSLOCTEXT("VaelFloromant", "CrossCharged", "Kreuzen, aufgeladen") : NSLOCTEXT("VaelFloromant", "Cross", "Kreuzschuss"));
 }
 
-void UVaelFloromantComponent::ReloadHands()
+float UVaelFloromantComponent::GetKeimpelzFraction() const
 {
-	ShowNotBuilt(NSLOCTEXT("VaelFloromant", "Reload", "Keimpelz nachladen"));
+	return FMath::Clamp(Keimpelz / FMath::Max(UVaelFloromantSettings::Get()->KeimpelzMax, 1.0f), 0.0f, 1.0f);
+}
+
+void UVaelFloromantComponent::AddKeimpelz(float Amount)
+{
+	Keimpelz = FMath::Clamp(Keimpelz + Amount, 0.0f, UVaelFloromantSettings::Get()->KeimpelzMax);
+}
+
+int32 UVaelFloromantComponent::ReloadHands()
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr || Character->IsDowned())
+	{
+		return 0;
+	}
+
+	// What each hand lacks, as far as the pelt reaches; the hand that is emptier first
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	TArray<UVaelPlantArmComponent*> Hands;
+	for (UVaelPlantArmComponent* Hand : { LeftHand.Get(), RightHand.Get() })
+	{
+		if (Hand != nullptr && Hand->GetMissingShots() > 0 && !Hand->IsReloading())
+		{
+			Hands.Add(Hand);
+		}
+	}
+	Hands.Sort([](const UVaelPlantArmComponent& A, const UVaelPlantArmComponent& B) { return A.GetMissingShots() > B.GetMissingShots(); });
+
+	int32 Reloaded = 0;
+	for (UVaelPlantArmComponent* Hand : Hands)
+	{
+		const int32 Affordable = Settings->KeimpelzPerShot > 0.0f ? FMath::FloorToInt32(Keimpelz / Settings->KeimpelzPerShot) : Hand->GetMissingShots();
+		const int32 Shots = FMath::Min(Hand->GetMissingShots(), Affordable);
+		if (Shots <= 0)
+		{
+			break;
+		}
+		Keimpelz -= Shots * Settings->KeimpelzPerShot;
+		Hand->StartReload(Shots, Settings->ReloadTime);
+		Reloaded += Shots;
+	}
+
+	if (Reloaded == 0 && !Hands.IsEmpty())
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoKeimpelz", "Kein Keimpelz"), FLinearColor(FColor(158, 143, 125)));
+	}
+	return Reloaded;
 }
 
 void UVaelFloromantComponent::OpenHerbarium()

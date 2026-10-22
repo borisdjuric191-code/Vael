@@ -8,6 +8,7 @@
 
 class UMaterialInterface;
 class USkeletalMesh;
+class UStaticMesh;
 class UVaelPlantData;
 class UVaelPlantArmData;
 
@@ -250,4 +251,37 @@ public:
 	/** Seconds the d-pad down is held to drink a healing potion instead of paging the belt */
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0.1, ClampMax = 2))
 	float PotionHoldTime = 0.4f;
+
+	// --- Keimpelz: a moss pelt the Floromant carries; it grows back slowly, harvested Keimpelz fills it at once, reloading the hands takes from it
+
+	/** Most Keimpelz the pelt holds, and how much it has at the start */
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 1))
+	float KeimpelzMax = 100.0f;
+
+	/** Keimpelz the pelt grows back per second */
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 0))
+	float KeimpelzGrowPerSecond = 1.0f;
+
+	/** Keimpelz one shot of a plant bar costs when reloading */
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 0))
+	float KeimpelzPerShot = 1.0f;
+
+	/** Keimpelz a Floromant gets from picking a Keimpelz in the world (after rain) */
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 0))
+	float KeimpelzPerHarvest = 40.0f;
+
+	/** Compendium id of the Keimpelz in the world (the former Rußmoos keeps its old id) */
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz")
+	FName KeimpelzHarvestId = TEXT("Russmoos");
+
+	/** Seconds a reload takes; the hands can't fire meanwhile */
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 0.05))
+	float ReloadTime = 0.6f;
+
+	/** The moss pad on the forearm that shows the pelt, and its size in cm when the pelt is full */
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz")
+	TSoftObjectPtr<UStaticMesh> KeimpelzPadMesh;
+
+	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 1))
+	float KeimpelzPadSize = 16.0f;
 };

@@ -87,6 +87,9 @@ private:
 	/** Health of all enemies when the plant arms started firing */
 	float PlantArmEnemyHealth = 0.0f;
 
+	/** Keimpelz in the pelt right before the reload */
+	float PlantArmKeimpelz = 0.0f;
+
 	/** Where the veil monkey stood before the block in its way, which way the block lies and whether it started to climb */
 	FVector MonkeyClimbStart = FVector::ZeroVector;
 	FVector MonkeyClimbDirection = FVector::ForwardVector;

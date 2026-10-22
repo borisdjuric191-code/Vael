@@ -24,6 +24,8 @@
 #include "Materials/MaterialInterface.h"
 #include "Nature/VaelHarvestableData.h"
 #include "Player/VaelCharacter.h"
+#include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelFloromantSettings.h"
 #include "TimerManager.h"
 #include "Vael.h"
 #include "UI/VaelCombatTextSubsystem.h"
@@ -312,6 +314,12 @@ void AVaelHarvestable::Interact(AVaelCharacter* Player)
 	}
 
 	UVaelMaterialBag::GiveToGroup(this, Data->Loot);
+
+	// A Floromant who picks Keimpelz fills its own pelt with it
+	if (Player != nullptr && Player->IsFloromant() && Data->CompendiumId == UVaelFloromantSettings::Get()->KeimpelzHarvestId)
+	{
+		Player->GetFloromant()->AddKeimpelz(UVaelFloromantSettings::Get()->KeimpelzPerHarvest);
+	}
 
 	// The seeds of this rain go with the first picking
 	if (bSeeded)

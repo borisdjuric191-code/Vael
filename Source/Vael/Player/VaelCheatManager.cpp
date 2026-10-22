@@ -32,6 +32,8 @@
 #include "Player/VaelPlayerController.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelPlantData.h"
+#include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelFloromantSettings.h"
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "VaelGameMode.h"
@@ -833,7 +835,7 @@ void UVaelCheatManager::VaelFaehigkeit(const FString& Ability, float Metres)
 	}
 }
 
-void UVaelCheatManager::VaelHand(const FString& Hands)
+void UVaelCheatManager::VaelHand(const FString& Hands, const FString& Plant)
 {
 	const APlayerController* PlayerController = GetOuterAPlayerController();
 	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
@@ -843,6 +845,15 @@ void UVaelCheatManager::VaelHand(const FString& Hands)
 	}
 
 	UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	for (int32 Index = 0; !Plant.IsEmpty() && Index < Floromant->GetHandBeltSize(); ++Index)
+	{
+		const UVaelPlantArmData* Data = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
+		if (Data != nullptr && Data->GetDisplayName(false).ToString().StartsWith(Plant, ESearchCase::IgnoreCase))
+		{
+			break;
+		}
+		Floromant->PageHandBelt(1);
+	}
 	const bool bBoth = Hands.IsEmpty() || Hands.Equals(TEXT("beide"), ESearchCase::IgnoreCase);
 	if (bBoth || Hands.Equals(TEXT("links"), ESearchCase::IgnoreCase))
 	{
@@ -868,4 +879,22 @@ void UVaelCheatManager::VaelFeuern(const FString& Hands)
 	const bool bBoth = Hands.IsEmpty() || Hands.Equals(TEXT("beide"), ESearchCase::IgnoreCase);
 	Floromant->SetHandFiring(true, !bOff && (bBoth || Hands.Equals(TEXT("links"), ESearchCase::IgnoreCase)));
 	Floromant->SetHandFiring(false, !bOff && (bBoth || Hands.Equals(TEXT("rechts"), ESearchCase::IgnoreCase)));
+}
+
+void UVaelCheatManager::VaelNachladen(float Percent)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr || !Player->IsFloromant())
+	{
+		return;
+	}
+
+	UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	if (Percent >= 0.0f)
+	{
+		Floromant->AddKeimpelz(Percent / 100.0f * UVaelFloromantSettings::Get()->KeimpelzMax - Floromant->GetKeimpelz());
+	}
+	const int32 Shots = Floromant->ReloadHands();
+	UE_LOG(LogVael, Display, TEXT("VaelNachladen: %d shots reloaded, Keimpelz %.0f left"), Shots, Floromant->GetKeimpelz());
 }

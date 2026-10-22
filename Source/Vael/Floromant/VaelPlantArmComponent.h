@@ -57,6 +57,13 @@ public:
 	/** Fills the plant bar, for reloading */
 	void RefillBar(int32 Shots);
 
+	/** Shots the bar lacks to be full */
+	int32 GetMissingShots() const;
+
+	/** Draws the moss pad of the forearm into the stalks: the bar gains the shots once the reload is over; no firing meanwhile */
+	void StartReload(int32 Shots, float Duration);
+	bool IsReloading() const { return ReloadTimeLeft > 0.0f; }
+
 	/** Removes all stalks at once, for example when the player becomes a mage */
 	void Clear();
 
@@ -127,6 +134,18 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ArmMaterial;
+
+	/** The Keimpelz pad on the back of the forearm; its size shows how much the pelt holds */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> KeimpelzPad;
+
+	/** Places the pad and sizes it by the pelt; it shrinks while the stalks draw it in */
+	void UpdatePad(const FVector& Elbow, const FVector& Wrist, const FVector& Out);
+
+	/** Shots that come with the reload under way, its seconds left and its whole length */
+	int32 ReloadShots = 0;
+	float ReloadTimeLeft = 0.0f;
+	float ReloadDuration = 0.0f;
 
 	/** Random roll, angle and length of every arm stalk, fixed when they grow */
 	TArray<FVector> WildShapes;
