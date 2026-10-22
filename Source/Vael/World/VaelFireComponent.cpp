@@ -22,6 +22,7 @@ namespace
 	const FName CoverParameter(TEXT("Deckkraft"));
 	const FName FlowParameter(TEXT("Richtung"));
 	const FName SizeParameter(TEXT("Groesse"));
+	const FName NormalFlowParameter(TEXT("NormalFluss"));
 
 	/** Size of a spark card in cm */
 	constexpr float SparkSize = 1.8f;
@@ -43,10 +44,13 @@ namespace
 		TArray<FVector2D> UVs;
 		TArray<FVector2D> Sizes;
 		TArray<FLinearColor> Colors;
+		TArray<FVector> Normals;
 
-		void Add(const FVector& Base, float Width, float Height, const FLinearColor& Color)
+		/** The normal is the way the flame licks when the material follows the normals (a ball of fire) */
+		void Add(const FVector& Base, float Width, float Height, const FLinearColor& Color, const FVector& Normal)
 		{
 			const int32 First = Vertices.Num();
+			Normals.Append({ Normal, Normal, Normal, Normal });
 			Vertices.Append({ Base, Base, Base, Base });
 			UVs.Append({ FVector2D(0.0f, 0.0f), FVector2D(1.0f, 0.0f), FVector2D(1.0f, 1.0f), FVector2D(0.0f, 1.0f) });
 			Sizes.Append({ FVector2D(Width, Height), FVector2D(Width, Height), FVector2D(Width, Height), FVector2D(Width, Height) });
@@ -61,6 +65,7 @@ UVaelFireSettings::UVaelFireSettings()
 	FlameMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer"));
 	SparkMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Funken"));
 	ScorchMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Brandfleck"));
+	SmokeMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Rauch"));
 }
 
 UVaelFireComponent::UVaelFireComponent(const FObjectInitializer& ObjectInitializer)
@@ -92,11 +97,21 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 	{
 		FlameMaterial = UMaterialInstanceDynamic::Create(VaelAssets::LoadOptional(Settings->FlameMaterial), this);
 		SparkMaterial = UMaterialInstanceDynamic::Create(VaelAssets::LoadOptional(Settings->SparkMaterial), this);
+		if (UMaterialInterface* SmokeBase = VaelAssets::LoadOptional(Settings->SmokeMaterial))
+		{
+			SmokeMaterial = UMaterialInstanceDynamic::Create(SmokeBase, this);
+		}
 	}
 	FlameMaterial->SetScalarParameterValue(HeatParameter, Shape.Heat);
 	FlameMaterial->SetScalarParameterValue(SmokeParameter, Shape.Smoke);
 	FlameMaterial->SetScalarParameterValue(SpeedParameter, Shape.Speed);
 	SparkMaterial->SetScalarParameterValue(SparkHeightParameter, Shape.Height * 1.6f);
+	FlameMaterial->SetScalarParameterValue(NormalFlowParameter, Shape.bBall ? Shape.BallSpread : 0.0f);
+	if (SmokeMaterial != nullptr)
+	{
+		SmokeMaterial->SetScalarParameterValue(SmokeParameter, Shape.Smoke);
+		SmokeMaterial->SetScalarParameterValue(SpeedParameter, Shape.Speed);
+	}
 	BuildCards();
 
 	// A charred patch under the fire, or on the wall it burns on
@@ -146,35 +161,68 @@ void UVaelFireComponent::BuildCards()
 	FCards Flames;
 	TArray<FVector> SparkBases;
 	FRandomStream Random(FMath::Rand());
+
+	// Places a point on the burning patch: along the wall, on the disc, or on the ball; returns how far out from the middle (0 to 1)
+	const auto PlaceOnPatch = [&](float Spread, FVector& OutBase, FVector& OutNormal)
+	{
+		OutNormal = FVector::UpVector;
+		if (Shape.bBall)
+		{
+			OutNormal = Random.GetUnitVector();
+			OutBase = OutNormal * Shape.Radius * Random.FRandRange(0.4f, 0.8f);
+			return 0.3f;
+		}
+		if (bWall)
+		{
+			const float Offset = Random.FRandRange(-1.0f, 1.0f) * Spread;
+			OutBase = Along * Offset * Shape.Radius + Out * Random.FRandRange(4.0f, 10.0f) + FVector(0.0f, 0.0f, Random.FRandRange(-0.25f, 0.15f) * Shape.Radius);
+			return FMath::Abs(Offset);
+		}
+		const float Share = FMath::Sqrt(Random.FRand()) * Spread;
+		const float Angle = Random.FRandRange(0.0f, 2.0f * UE_PI);
+		OutBase = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Share * Shape.Radius;
+		return Share;
+	};
+
 	for (int32 Index = 0; Index < NumTongues; ++Index)
 	{
 		FVector Base;
-		float FromMiddle;
-		if (bWall)
+		FVector Normal;
+		float FromMiddle = PlaceOnPatch(0.85f, Base, Normal);
+		if (Index == 0 && !bWall && !Shape.bBall)
 		{
-			const float Offset = Random.FRandRange(-1.0f, 1.0f);
-			FromMiddle = FMath::Abs(Offset);
-			Base = Along * Offset * Shape.Radius + Out * Random.FRandRange(4.0f, 10.0f) + FVector(0.0f, 0.0f, Random.FRandRange(-0.25f, 0.15f) * Shape.Radius);
-		}
-		else
-		{
-			// The first ones in the middle, the others spread out evenly with a little jitter
-			const float Share = Index == 0 ? 0.0f : FMath::Sqrt(Index / static_cast<float>(NumTongues)) * Random.FRandRange(0.8f, 1.05f);
-			const float Angle = Index * 2.39996f + Random.FRandRange(-0.3f, 0.3f);
-			FromMiddle = FMath::Min(Share, 1.0f);
-			Base = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Share * Shape.Radius * 0.85f;
+			Base = FVector::ZeroVector;
+			FromMiddle = 0.0f;
 		}
 
 		const float Middle = 1.0f - 0.45f * FromMiddle;
-		const float Height = Shape.Height * Middle * Random.FRandRange(0.6f, 1.0f);
-		const float Width = Height * Random.FRandRange(0.5f, 0.68f);
+		const float Height = Shape.Height * Middle * Random.FRandRange(0.55f, 1.0f);
+		const float Width = Height * Random.FRandRange(0.38f, 0.55f);
+
 		// The foot sits in the ground, so the ground hides the round bottom of the card and the flame grows out of it
 		Base.Z -= bWall ? 4.0f : Shape.bFloating ? 0.0f : Height * 0.18f;
-		Flames.Add(Base, Width, Height, FLinearColor(Random.FRand(), 0.7f + 0.4f * Middle, 0.0f, 1.0f));
+		Flames.Add(Base, Width, Height, FLinearColor(Random.FRand(), 0.7f + 0.4f * Middle, 0.0f, 1.0f), Normal);
 		SparkBases.Add(Base + FVector(0.0f, 0.0f, Height * 0.25f));
 	}
+
+	// A bed of broad, low flames that hold on to the ground or the wall, so the fire burns as one patch and not as single tongues
+	if (!Shape.bFloating)
+	{
+		const int32 NumBed = FMath::Clamp(NumTongues / 2, 3, 12);
+		for (int32 Index = 0; Index < NumBed; ++Index)
+		{
+			FVector Base;
+			FVector Normal;
+			PlaceOnPatch(0.7f, Base, Normal);
+			const float Height = Shape.Height * Random.FRandRange(0.25f, 0.4f);
+			const float Width = FMath::Max(Shape.Radius * Random.FRandRange(0.8f, 1.2f), Height * 0.9f);
+			Base.Z -= bWall ? 2.0f : Height * 0.22f;
+			Flames.Add(Base, Width, Height, FLinearColor(Random.FRand(), 0.9f, 0.0f, 1.0f), Normal);
+		}
+	}
+
 	ClearAllMeshSections();
-	CreateMeshSection_LinearColor(0, Flames.Vertices, Flames.Triangles, TArray<FVector>(), Flames.UVs, Flames.Sizes, TArray<FVector2D>(), TArray<FVector2D>(),
+	CreateMeshSection_LinearColor(0, Flames.Vertices, Flames.Triangles, Flames.Normals, Flames.UVs, Flames.Sizes, TArray<FVector2D>(), TArray<FVector2D>(),
 		Flames.Colors, TArray<FProcMeshTangent>(), false);
 	SetMaterial(0, FlameMaterial);
 
@@ -186,11 +234,30 @@ void UVaelFireComponent::BuildCards()
 		for (int32 Index = 0; Index < NumSparks; ++Index)
 		{
 			const FVector Base = SparkBases[Index % SparkBases.Num()] + FVector(Random.FRandRange(-6.0f, 6.0f), Random.FRandRange(-6.0f, 6.0f), 0.0f);
-			Sparks.Add(Base, SparkSize, SparkSize, FLinearColor(Random.FRand(), Random.FRand(), Random.FRandRange(0.5f, 1.3f), 1.0f));
+			Sparks.Add(Base, SparkSize, SparkSize, FLinearColor(Random.FRand(), Random.FRand(), Random.FRandRange(0.5f, 1.3f), 1.0f), FVector::UpVector);
 		}
-		CreateMeshSection_LinearColor(1, Sparks.Vertices, Sparks.Triangles, TArray<FVector>(), Sparks.UVs, Sparks.Sizes, TArray<FVector2D>(), TArray<FVector2D>(),
+		CreateMeshSection_LinearColor(1, Sparks.Vertices, Sparks.Triangles, Sparks.Normals, Sparks.UVs, Sparks.Sizes, TArray<FVector2D>(), TArray<FVector2D>(),
 			Sparks.Colors, TArray<FProcMeshTangent>(), false);
 		SetMaterial(1, SparkMaterial);
+	}
+
+	// A column of dark smoke above a smoky fire
+	if (Shape.Smoke > 0.3f && SmokeMaterial != nullptr)
+	{
+		FCards Smoke;
+		const int32 NumPuffs = FMath::Clamp(NumTongues / 4, 1, 5);
+		for (int32 Index = 0; Index < NumPuffs; ++Index)
+		{
+			FVector Base;
+			FVector Normal;
+			PlaceOnPatch(0.4f, Base, Normal);
+			Base.Z = (Shape.bBall ? 0.0f : Shape.Height * 0.4f) + Random.FRandRange(-0.1f, 0.1f) * Shape.Height;
+			const float Height = Shape.Height * Random.FRandRange(1.4f, 2.0f);
+			Smoke.Add(Base, Shape.Radius * 1.1f + Shape.Height * 0.35f, Height, FLinearColor(Random.FRand(), 0.0f, 0.0f, 1.0f), FVector::UpVector);
+		}
+		CreateMeshSection_LinearColor(2, Smoke.Vertices, Smoke.Triangles, Smoke.Normals, Smoke.UVs, Smoke.Sizes, TArray<FVector2D>(), TArray<FVector2D>(),
+			Smoke.Colors, TArray<FProcMeshTangent>(), false);
+		SetMaterial(2, SmokeMaterial);
 	}
 }
 
@@ -251,6 +318,10 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	{
 		FlameMaterial->SetScalarParameterValue(StrengthParameter, Strength);
 		SparkMaterial->SetScalarParameterValue(StrengthParameter, Strength);
+		if (SmokeMaterial != nullptr)
+		{
+			SmokeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
+		}
 	}
 
 	// The light flickers with the flames: a slow breath and a quick restless flutter
@@ -289,7 +360,7 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 void UVaelFireComponent::SetFlowDirection(const FVector& Direction)
 {
 	const FLinearColor Value(Direction.GetSafeNormal());
-	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get() })
+	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get(), SmokeMaterial.Get() })
 	{
 		if (Material != nullptr)
 		{
@@ -300,7 +371,7 @@ void UVaelFireComponent::SetFlowDirection(const FVector& Direction)
 
 void UVaelFireComponent::SetSizeScale(float Scale)
 {
-	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get() })
+	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get(), SmokeMaterial.Get() })
 	{
 		if (Material != nullptr)
 		{

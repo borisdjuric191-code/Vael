@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelElementOrbitComponent.h"
+#include "World/VaelFireComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -393,19 +394,25 @@ void UVaelElementOrbitComponent::BuildOrb(FVaelElementOrb& Orb)
 	switch (Orb.Element)
 	{
 	case EVaelElement::Fire:
-		// A small glowing ball in a flickering halo that drags its flames behind
-		Orb.Parts.Add(AddShape(Orb.Pivot, SphereMesh, CoreMaterial, OrbitFireCore, 14.0f));
-		Orb.Parts.Add(AddShape(Orb.Pivot, SphereMesh, GlowMaterial, OrbitFireCore, 2.5f));
-
-		for (int32 FlameIndex = 0; FlameIndex < OrbitFlameCount; ++FlameIndex)
+		// A small glowing core in a ball of living flames of the fire kit that lick out all around and up
+		Orb.Parts.Add(AddShape(Orb.Pivot, SphereMesh, CoreMaterial, FLinearColor(1.0f, 0.42f, 0.08f), 2.2f));
+		Orb.Parts.Add(AddShape(Orb.Pivot, SphereMesh, GlowMaterial, FLinearColor(0.7f, 0.12f, 0.02f), 0.6f));
 		{
-			const FLinearColor FlameColor = FMath::Lerp(OrbitFireCore, OrbitFireFlame, (FlameIndex + 1.0f) / OrbitFlameCount);
-			UStaticMeshComponent* Flame = AddShape(this, SphereMesh, GlowMaterial, FlameColor, 3.0f - FlameIndex * 0.35f);
-
-			// Flames stay behind in the world instead of turning with the circle
-			Flame->SetUsingAbsoluteLocation(true);
-			Flame->SetWorldLocation(GetComponentLocation());
-			Orb.Trail.Add(Flame);
+			Orb.Flames = NewObject<UVaelFireComponent>(GetOwner());
+			Orb.Flames->SetupAttachment(Orb.Pivot);
+			Orb.Flames->RegisterComponent();
+			FVaelFireShape Shape;
+			Shape.Radius = Orb.Size * 50.0f * 0.9f;
+			Shape.Height = Orb.Size * 50.0f * 4.2f;
+			Shape.BallSpread = 0.4f;
+			Shape.Heat = 1.2f;
+			Shape.Smoke = 0.25f;
+			Shape.Speed = 1.8f;
+			Shape.Tongues = 12;
+			Shape.bBall = true;
+			Shape.bFloating = true;
+			Shape.bLight = false;
+			Orb.Flames->Ignite(Shape, 0.2f);
 		}
 
 		AddLight(Orb, OrbitFireCore, 7.0f);
@@ -454,6 +461,11 @@ void UVaelElementOrbitComponent::BuildOrb(FVaelElementOrb& Orb)
 
 void UVaelElementOrbitComponent::DestroyOrb(FVaelElementOrb& Orb)
 {
+	if (Orb.Flames != nullptr)
+	{
+		Orb.Flames->DestroyComponent();
+	}
+
 	for (UStaticMeshComponent* Shape : Orb.Parts)
 	{
 		if (Shape != nullptr)
@@ -562,20 +574,13 @@ void UVaelElementOrbitComponent::AnimateFire(FVaelElementOrb& Orb, int32 Index, 
 {
 	const float Flicker = FMath::PerlinNoise1D(Time * 6.0f + Index * 13.7f);
 
-	Orb.Parts[0]->SetRelativeScale3D(FVector(Orb.Size * 0.8f * Grow * (1.0f + 0.08f * FMath::Sin(Time * 17.0f + Index))));
-	Orb.Parts[1]->SetRelativeScale3D(FVector(Orb.Size * 1.7f * Grow * (1.0f + 0.2f * Flicker)));
+	Orb.Parts[0]->SetRelativeScale3D(FVector(Orb.Size * 0.55f * Grow * (1.0f + 0.08f * FMath::Sin(Time * 17.0f + Index))));
+	Orb.Parts[1]->SetRelativeScale3D(FVector(Orb.Size * 0.95f * Grow * (1.0f + 0.2f * Flicker)));
 
-	// Each flame chases the one before it and rises a little, so the fire trails behind the orb and licks upwards
-	FVector Target = Orb.Pivot->GetComponentLocation();
-	for (int32 FlameIndex = 0; FlameIndex < Orb.Trail.Num(); ++FlameIndex)
+	// The flames grow with the orb and lick up more than out
+	if (Orb.Flames != nullptr)
 	{
-		UStaticMeshComponent* Flame = Orb.Trail[FlameIndex];
-		const FVector Location = FMath::VInterpTo(Flame->GetComponentLocation(), Target + FVector(0.0f, 0.0f, 1.5f), DeltaTime, OrbitFlameFollowSpeed - FlameIndex * 1.5f);
-
-		Flame->SetWorldLocation(Location);
-		Flame->SetRelativeScale3D(FVector(Orb.Size * Grow * (1.25f - 0.2f * FlameIndex) * (1.0f + 0.18f * FMath::Sin(Time * 21.0f + FlameIndex * 2.3f + Index))));
-
-		Target = Location;
+		Orb.Flames->SetSizeScale(Grow * (1.0f + 0.1f * Flicker));
 	}
 
 	Orb.Light->SetIntensity(Orb.LightIntensity * Grow * (1.0f + 0.3f * Flicker));

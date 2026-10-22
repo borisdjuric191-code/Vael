@@ -239,6 +239,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelFireComponent> TrailFlames;
 
+	/** A body of flames that lick out all around a ball of fire, like the Feuerball */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelFireComponent> BallFlames;
+
 	/** Where it was stopped, to light a fire on the ground or on the wall it hit */
 	FHitResult StopHit;
 	bool bHasStopHit = false;

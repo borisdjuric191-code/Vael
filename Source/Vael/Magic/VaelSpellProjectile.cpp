@@ -411,7 +411,7 @@ void AVaelSpellProjectile::BuildLook()
 	else if (Look == EVaelProjectileLook::Fireball)
 	{
 		// A white-yellow core in a dark red shell of embers
-		LookShapes.Add(AddLookShape(CoreMaterial, FLinearColor(1.0f, 0.55f, 0.12f), 5.0f));
+		LookShapes.Add(AddLookShape(CoreMaterial, FLinearColor(1.0f, 0.45f, 0.08f), 3.0f));
 		LookShapes.Add(AddLookShape(GlowMaterial, FLinearColor(0.75f, 0.12f, 0.015f), 2.2f));
 
 		// A coat of flames of the fire kit that lick backwards and up, with dark smoke at their tips
@@ -428,6 +428,23 @@ void AVaelSpellProjectile::BuildLook()
 		Flames.bFloating = true;
 		Flames.bLight = false;
 		TrailFlames->Ignite(Flames, 0.05f);
+
+		// The ball itself: flames lick out all around it
+		BallFlames = NewObject<UVaelFireComponent>(this);
+		BallFlames->SetupAttachment(RootComponent);
+		BallFlames->RegisterComponent();
+		FVaelFireShape Ball;
+		Ball.Radius = Radius * 0.75f;
+		Ball.Height = Radius * 1.35f;
+		Ball.Heat = 1.3f;
+		Ball.Smoke = 0.2f;
+		Ball.Speed = 2.0f;
+		Ball.Tongues = 26;
+		Ball.bBall = true;
+		Ball.BallSpread = 0.45f;
+		Ball.bFloating = true;
+		Ball.bLight = false;
+		BallFlames->Ignite(Ball, 0.05f);
 
 		// Sparks it throws off in flight
 		for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
@@ -1571,6 +1588,10 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 	{
 		TrailFlames->Extinguish(0.2f, true);
 	}
+	if (BallFlames != nullptr)
+	{
+		BallFlames->Extinguish(0.15f, true);
+	}
 	if (bHitSomething)
 	{
 		LightImpactFire();
@@ -1694,6 +1715,11 @@ void AVaelSpellProjectile::AnimateFireball(float Time, float DeltaSeconds)
 	{
 		TrailFlames->SetFlowDirection(-Forward + FVector(0.0f, 0.0f, 0.45f + 0.1f * Swirl));
 		TrailFlames->SetSizeScale(1.0f + 0.12f * Flicker);
+	}
+	if (BallFlames != nullptr)
+	{
+		BallFlames->SetFlowDirection(-Forward + FVector(0.0f, 0.0f, 0.6f));
+		BallFlames->SetSizeScale(1.0f + 0.1f * Swirl);
 	}
 
 	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.35f * Flicker));

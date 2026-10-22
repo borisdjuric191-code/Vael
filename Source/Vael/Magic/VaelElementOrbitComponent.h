@@ -47,6 +47,10 @@ struct FVaelElementOrb
 	/** A random number per strand, so its churning differs */
 	float StrandSeed = 0.0f;
 
+	/** Living flames of the fire kit around a fire orb */
+	UPROPERTY()
+	TObjectPtr<class UVaelFireComponent> Flames;
+
 	/** Light of the orb, null for elements that don't shine */
 	UPROPERTY()
 	TObjectPtr<UPointLightComponent> Light;

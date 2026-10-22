@@ -37,6 +37,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Materials")
 	TSoftObjectPtr<UMaterialInterface> ScorchMaterial;
 
+	UPROPERTY(config, EditAnywhere, Category="Materials")
+	TSoftObjectPtr<UMaterialInterface> SmokeMaterial;
+
 	/** Most fires that cast light at once; the others burn without */
 	UPROPERTY(config, EditAnywhere, Category="Light", meta = (ClampMin = 0))
 	int32 MaxLitFires = 12;
@@ -50,13 +53,13 @@ public:
 
 	/** Flame tongues per square metre of fire, and the fewest and most one fire has */
 	UPROPERTY(config, EditAnywhere, Category="Flames", meta = (ClampMin = 0.1))
-	float TonguesPerSquareMetre = 14.0f;
+	float TonguesPerSquareMetre = 24.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Flames", meta = (ClampMin = 1))
 	int32 MinTongues = 3;
 
 	UPROPERTY(config, EditAnywhere, Category="Flames", meta = (ClampMin = 1))
-	int32 MaxTongues = 40;
+	int32 MaxTongues = 60;
 
 	/** Seconds a scorch mark stays after its fire went out, while its embers die down */
 	UPROPERTY(config, EditAnywhere, Category="Scorch", meta = (ClampMin = 0))
@@ -102,6 +105,14 @@ struct FVaelFireShape
 	/** A fire in the air (on a projectile): its feet don't sink into the ground */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")
 	bool bFloating = false;
+
+	/** A ball of fire: the tongues sit on a sphere of Radius and lick outwards all around (and along the flow) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")
+	bool bBall = false;
+
+	/** How much the flames of a ball lick outwards (1) instead of along the flow direction (0) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0, ClampMax = 1))
+	float BallSpread = 0.6f;
 
 	/** Number of flame tongues, 0 to let the size decide */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0))
@@ -168,6 +179,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> SparkMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SmokeMaterial;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ScorchMaterial;

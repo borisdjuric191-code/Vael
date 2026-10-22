@@ -20,7 +20,7 @@ import unreal
 
 FOLDER = "/Game/Vael/Effects/Feuer"
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Feuer")
-KIT_VERSION = 2.0
+KIT_VERSION = 3.2
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -112,7 +112,12 @@ class Graph:
     def sample(self, texture, uv, c, channel):
         expression = self.node(unreal.MaterialExpressionTextureSample, c, texture=texture, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
         self.link(uv, expression, "UVs")
-        return self.mask(expression, c - 1, r=channel == "R", g=channel == "G", b=channel == "B", a=channel == "A")
+        if channel == "A":
+            # Alpha has its own output on the sample; the RGB output has no fourth channel to mask
+            single = self.node(unreal.MaterialExpressionMultiply, c - 1, const_b=1.0)
+            self.link(expression, single, "A", "A")
+            return single
+        return self.mask(expression, c - 1, r=channel == "R", g=channel == "G", b=channel == "B")
 
 
 def import_noise():
@@ -162,7 +167,10 @@ def billboard(g, u, v, c):
     nudge = g.node(unreal.MaterialExpressionConstant3Vector, c + 4, constant=unreal.LinearColor(0.001, 0.0007, 0.0, 1.0))
     to_camera = g.one(unreal.MaterialExpressionNormalize, c + 2, g.add(c + 3, g.sub(c + 3, camera, base), nudge))
     # The way the flames lick: straight up for a fire on the ground, backwards for a burning projectile
-    up = g.one(unreal.MaterialExpressionNormalize, c + 2, g.vector("Richtung", (0.0, 0.0, 1.0), c + 4))
+    # NormalFluss 1 lets each card lick along its own normal instead: the flames of a ball of fire point out all around
+    along_normal = g.node(unreal.MaterialExpressionVertexNormalWS, c + 5)
+    flow = g.lerp(c + 3, g.vector("Richtung", (0.0, 0.0, 1.0), c + 5), along_normal, g.scalar("NormalFluss", 0.0, c + 5))
+    up = g.one(unreal.MaterialExpressionNormalize, c + 2, g.add(c + 3, flow, g.node(unreal.MaterialExpressionConstant3Vector, c + 4, constant=unreal.LinearColor(0.0, 0.0, 0.001, 1.0))))
     grow = g.scalar("Groesse", 1.0, c + 4)
     width = g.mul(c + 1, width, grow)
     height = g.mul(c + 1, height, grow)
@@ -190,56 +198,101 @@ def build_flame(noise):
     material.set_editor_property("used_with_static_lighting", False)
 
     g = Graph(material)
-    g.scalar("KitVersion", KIT_VERSION, 20)
-    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 19)
-    u = g.mask(uv, 18, r=True, g=False, b=False)
-    v = g.mask(uv, 18, r=False, g=True, b=False)
-    vertex = g.node(unreal.MaterialExpressionVertexColor, 19)
-    phase = g.mask(vertex, 18, r=True, g=False, b=False)
-    tongue_heat = g.mask(vertex, 18, r=False, g=True, b=False)
-    time = g.mul(17, g.node(unreal.MaterialExpressionTime, 18), g.scalar("Tempo", 1.2, 18))
+    g.scalar("KitVersion", KIT_VERSION, 30)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 29)
+    u = g.mask(uv, 28, r=True, g=False, b=False)
+    v = g.mask(uv, 28, r=False, g=True, b=False)
+    vertex = g.node(unreal.MaterialExpressionVertexColor, 29)
+    phase = g.mask(vertex, 28, r=True, g=False, b=False)
+    tongue_heat = g.mask(vertex, 28, r=False, g=True, b=False)
+    time = g.mul(27, g.node(unreal.MaterialExpressionTime, 28), g.scalar("Tempo", 1.2, 28))
 
-    # Three noises rising through the tongue at different speeds
-    coarse = g.sample(noise, scrolling_uv(g, u, v, phase, time, 0.6, 0.7, 0.55, 3.7, 14), 13, "R")
-    middle = g.sample(noise, scrolling_uv(g, u, v, phase, time, 1.1, 1.3, 1.1, 5.3, 14), 13, "G")
-    fine = g.sample(noise, scrolling_uv(g, u, v, phase, time, 2.0, 2.4, 1.9, 1.9, 14), 13, "B")
+    # Two slow noises bend the space the flame is drawn in (domain warping): the tongue wavers, snakes and curls
+    warp_a = g.sub(21, g.sample(noise, scrolling_uv(g, u, v, phase, time, 0.5, 0.55, 0.45, 3.7, 23), 22, "R"), g.const(0.5, 22))
+    warp_b = g.sub(21, g.sample(noise, scrolling_uv(g, u, v, phase, time, 0.9, 0.9, 0.8, 5.3, 23), 22, "G"), g.const(0.5, 22))
+    rising = g.power(20, v, g.const(1.1, 21))
+    wu = g.add(18, u, g.add(19, g.mul(20, warp_a, g.mul(21, rising, g.const(0.4, 22))), g.mul(20, warp_b, g.const(0.12, 21))))
+    wv = g.add(18, v, g.mul(19, warp_b, g.const(0.1, 20)))
 
-    # The tongue bends and snakes, more towards its tip
-    bend = g.mul(11, g.sub(12, coarse, g.const(0.5, 13)), g.mul(12, g.power(13, v, g.const(1.2, 14)), g.const(0.55, 13)))
-    snake = g.mul(11, g.sin(12, g.add(13, g.add(14, g.mul(15, time, g.const(1.7, 16)), g.mul(15, phase, g.const(6.28, 16))), g.mul(14, v, g.const(3.0, 15)))),
-                  g.mul(12, v, g.const(0.07, 13)))
-    across = g.add(10, u, g.add(11, bend, snake))
-    distance = g.mul(9, g.abs(10, g.sub(11, across, g.const(0.5, 12))), g.const(2.0, 10))
+    # Details in the warped space: fine flicker, small licks and tall streaks the tip tears into
+    fine = g.sample(noise, scrolling_uv(g, wu, wv, phase, time, 2.2, 2.0, 1.7, 1.9, 15), 14, "B")
+    licks = g.sample(noise, scrolling_uv(g, wu, wv, phase, time, 3.5, 3.2, 2.4, 1.1, 15), 14, "G")
+    streaks = g.sample(noise, scrolling_uv(g, wu, wv, phase, time, 1.6, 0.6, 1.25, 2.3, 15), 14, "A")
+    snake = g.mul(17, g.sin(18, g.add(19, g.add(20, g.mul(21, time, g.const(1.7, 22)), g.mul(21, phase, g.const(6.28, 22))), g.mul(20, v, g.const(3.0, 21)))),
+                  g.mul(18, v, g.const(0.05, 19)))
+    distance = g.mul(12, g.abs(13, g.sub(14, g.add(15, wu, snake), g.const(0.5, 15))), g.const(2.0, 13))
 
-    # Round at the base, pointed at the tip
-    width = g.mul(9, g.power(10, g.sat(11, g.sub(12, g.const(1.0, 13), v)), g.const(0.6, 11)), g.const(0.62, 10))
-    shape = g.sat(8, g.mul(9, g.sub(10, width, distance), g.const(3.5, 10)))
+    # A soft body, broad below and narrow above
+    width = g.mul(11, g.power(12, g.sat(13, g.sub(14, g.const(1.0, 15), v)), g.const(0.5, 13)), g.const(0.7, 12))
+    shape = g.sat(10, g.mul(11, g.sub(12, width, distance), g.const(2.2, 12)))
 
-    # Heat: the core of the tongue is hottest, noise eats the edges, the top cools down
-    body = g.mul(7, g.mul(8, shape, g.sub(9, g.const(1.15, 10), v)), g.mul(8, tongue_heat, g.scalar("Hitze", 1.0, 9)))
-    eaten = g.add(7, g.mul(8, g.sub(9, middle, g.const(0.5, 10)), g.const(0.55, 9)), g.mul(8, g.sub(9, fine, g.const(0.5, 10)), g.const(0.25, 9)))
-    flicker = g.add(7, g.const(0.85, 8), g.mul(8, g.sin(9, g.add(10, g.mul(11, time, g.const(9.0, 12)), g.mul(11, phase, g.const(20.0, 12)))), g.const(0.15, 9)))
-    heat = g.sat(5, g.mul(6, g.sub(7, g.add(8, body, eaten), g.mul(8, v, g.const(0.25, 9))), flicker))
+    # Heat: hottest low in the core, details eat the edges, and towards the top the flame tears into separate licks
+    body = g.mul(9, g.mul(10, shape, g.sub(11, g.const(1.2, 12), v)), g.mul(10, tongue_heat, g.scalar("Hitze", 1.0, 11)))
+    detail = g.add(9, g.mul(10, g.sub(11, fine, g.const(0.5, 12)), g.const(0.5, 11)), g.mul(10, g.sub(11, licks, g.const(0.5, 12)), g.const(0.35, 11)))
+    tear = g.ramp(9, g.add(10, g.sub(11, streaks, g.mul(12, v, g.const(0.85, 13))), g.const(0.45, 12)), 0.0, 0.3)
+    flicker = g.add(9, g.const(0.88, 10), g.mul(10, g.sin(11, g.add(12, g.mul(13, time, g.const(9.0, 14)), g.mul(13, phase, g.const(20.0, 14)))), g.const(0.12, 11)))
+    heat = g.sat(6, g.mul(7, g.mul(8, g.sub(9, g.add(10, body, detail), g.mul(10, v, g.const(0.2, 11))), tear), flicker))
 
-    # Colours from the dark red-orange edge over orange to the white-yellow core
-    edge = g.vector("Rand", (0.55, 0.06, 0.01), 6)
-    middle_colour = g.vector("Mitte", (1.0, 0.3, 0.025), 6)
-    core = g.vector("Kern", (1.0, 0.74, 0.32), 6)
-    colour = g.lerp(3, g.lerp(4, edge, middle_colour, g.ramp(5, heat, 0.3, 0.62)), core, g.ramp(4, heat, 0.74, 0.98))
-    glow = g.mul(2, colour, g.mul(3, g.add(4, heat, g.const(0.15, 5)), g.scalar("Leuchtkraft", 2.2, 4)))
+    # Colours: deep red at the edges, orange in the body, yellow and nearly white deep in the core
+    edge = g.vector("Rand", (0.45, 0.05, 0.01), 8)
+    middle_colour = g.vector("Mitte", (1.0, 0.27, 0.02), 8)
+    core = g.vector("Kern", (1.0, 0.58, 0.16), 8)
+    white = g.vector("Weiss", (1.0, 0.9, 0.62), 8)
+    colour = g.lerp(4, g.lerp(5, g.lerp(6, edge, middle_colour, g.ramp(7, heat, 0.15, 0.45)), core, g.ramp(6, heat, 0.62, 0.9)), white, g.ramp(5, heat, 0.96, 1.0))
+    glow = g.mul(3, colour, g.add(4, g.mul(5, g.power(6, heat, g.const(1.3, 7)), g.scalar("Leuchtkraft", 1.7, 6)), g.const(0.1, 5)))
 
-    # Smoke: the cool top of the tongue darkens what lies behind it
-    smoke = g.mul(4, g.mul(5, shape, g.ramp(6, v, 0.4, 0.9)), g.mul(5, coarse, g.scalar("Dunkel", 0.6, 6)))
-    burning = g.ramp(3, heat, 0.06, 0.28)
+    # A little dark smoke at the cool tips; the smoke column itself has its own cards
+    smoke = g.mul(5, g.mul(6, shape, g.ramp(7, v, 0.5, 1.0)), g.mul(6, warp_a, g.scalar("Dunkel", 0.6, 7)))
+    burning = g.ramp(4, heat, 0.03, 0.35)
     strength = g.scalar("Staerke", 1.0, 3)
-    # Soft at the foot, so the tongues grow out of the ground; the dark smoke only where nothing burns, so no dark seam at the edges
-    foot = g.ramp(3, v, 0.08, 0.42)
-    emissive = g.mul(1, g.lerp(2, g.vector("Rauch", (0.03, 0.02, 0.015), 3), glow, g.ramp(3, heat, 0.0, 0.06)), strength)
-    opacity = g.mul(1, g.mul(2, g.sat(3, g.add(4, burning, g.mul(5, smoke, g.const(0.3, 6)))), foot), strength)
+    foot = g.ramp(3, v, 0.06, 0.4)
+    emissive = g.mul(1, g.lerp(2, g.vector("Rauch", (0.03, 0.02, 0.015), 3), glow, g.ramp(3, heat, 0.0, 0.05)), strength)
+    opacity = g.mul(1, g.mul(2, g.sat(3, g.add(4, burning, g.mul(5, g.sat(6, smoke), g.const(0.25, 6)))), foot), strength)
 
     library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
-    library.connect_material_property(billboard(g, u, v, 26), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    library.connect_material_property(billboard(g, u, v, 36), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
+def build_smoke(noise):
+    """Dark smoke billowing up above a fire, slower than the flames, lit a little orange from below"""
+    material = new_material("M_Feuer_Rauch")
+    if material is None:
+        return unreal.load_asset(FOLDER + "/M_Feuer_Rauch")
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    material.set_editor_property("two_sided", True)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, 30)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 29)
+    u = g.mask(uv, 28, r=True, g=False, b=False)
+    v = g.mask(uv, 28, r=False, g=True, b=False)
+    vertex = g.node(unreal.MaterialExpressionVertexColor, 29)
+    phase = g.mask(vertex, 28, r=True, g=False, b=False)
+    time = g.mul(27, g.node(unreal.MaterialExpressionTime, 28), g.scalar("Tempo", 1.2, 28))
+
+    warp = g.sub(21, g.sample(noise, scrolling_uv(g, u, v, phase, time, 0.5, 0.5, 0.18, 2.9, 23), 22, "R"), g.const(0.5, 22))
+    wu = g.add(18, u, g.mul(19, warp, g.mul(20, v, g.const(0.5, 21))))
+    billows = g.sample(noise, scrolling_uv(g, wu, v, phase, time, 1.2, 1.0, 0.3, 4.1, 15), 14, "G")
+    wisps = g.sample(noise, scrolling_uv(g, wu, v, phase, time, 1.8, 0.6, 0.42, 1.7, 15), 14, "A")
+
+    # A soft column that widens as it rises, fading in above the flames and out at the top
+    distance = g.mul(12, g.abs(13, g.sub(14, wu, g.const(0.5, 15))), g.const(2.0, 13))
+    width = g.add(11, g.const(0.45, 12), g.mul(12, v, g.const(0.45, 13)))
+    column = g.sat(10, g.mul(11, g.sub(12, width, distance), g.const(1.6, 12)))
+    fade = g.mul(9, g.ramp(10, v, 0.0, 0.25), g.sat(10, g.sub(11, g.const(1.0, 12), v)))
+    density = g.mul(7, g.mul(8, column, fade), g.mul(8, g.add(9, g.mul(10, billows, g.const(0.7, 11)), g.mul(10, wisps, g.const(0.5, 11))), g.scalar("Dunkel", 0.6, 9)))
+    lit = g.mul(5, g.vector("Glutlicht", (0.5, 0.12, 0.02), 7), g.sat(6, g.sub(7, g.const(0.35, 8), v)))
+    colour = g.add(4, g.vector("Rauch", (0.035, 0.03, 0.026), 6), lit)
+    strength = g.scalar("Staerke", 1.0, 3)
+
+    library.connect_material_property(g.mul(2, colour, strength), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(g.mul(2, g.sat(3, g.mul(4, density, g.const(0.8, 5))), strength), "", unreal.MaterialProperty.MP_OPACITY)
+    library.connect_material_property(billboard(g, u, v, 36), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)
     return material
@@ -336,6 +389,7 @@ def main():
         log("NOTE noise picture missing, run Tools/Feuer/feuer_texturen.py first")
         return
     build_flame(noise)
+    build_smoke(noise)
     build_sparks()
     build_scorch(noise)
     for line in made:
