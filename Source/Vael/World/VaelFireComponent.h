@@ -50,6 +50,54 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Materials")
 	TSoftObjectPtr<UMaterialInterface> BallFlipbook;
 
+	/** Simulated fire as a real volume (Tools/Feuer/feuer_volumen.py, Scripts/CreateFireVolumes.py): fires on the ground and
+	 *  burning balls burn as a body of whirling flame seen from every side instead of cards */
+	UPROPERTY(config, EditAnywhere, Category="Volumes")
+	bool bUseVolumes = true;
+
+	/** A fire on the ground (SVT_Feuer_Brand) */
+	UPROPERTY(config, EditAnywhere, Category="Volumes")
+	TSoftObjectPtr<UMaterialInterface> VolumeFire;
+
+	/** A burning ball (SVT_Feuer_Kugel) */
+	UPROPERTY(config, EditAnywhere, Category="Volumes")
+	TSoftObjectPtr<UMaterialInterface> VolumeBall;
+
+	/** Centimetres per simulated metre for each centimetre of the fire's radius: the simulated fire is half a metre wide in
+	 *  radius, the simulated ball a quarter of a metre */
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0.1))
+	float VolumeScalePerRadius = 1.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0.1))
+	float BallVolumeScalePerRadius = 4.0f;
+
+	/** Height of the foot of the simulated fire above the floor of its domain, in simulated metres */
+	UPROPERTY(config, EditAnywhere, Category="Volumes")
+	float VolumeFloor = 0.1f;
+
+	/** Scale at which the volume material glows and smokes as it is set; bigger fires are made thinner, smaller ones denser */
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 1))
+	float VolumeReferenceScale = 100.0f;
+
+	/** Height of the simulated ball's middle above the ground of its domain, in simulated metres */
+	UPROPERTY(config, EditAnywhere, Category="Volumes")
+	float BallVolumeCentre = 0.65f;
+
+	/** Frames per second the volume plays at */
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 1))
+	float VolumeFrameRate = 24.0f;
+
+	/** Most fires that burn as volumes at once; the others burn as cards */
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
+	int32 MaxVolumeFires = 10;
+
+	/** Smaller fires stay cards: a few centimetres of flame show no whirls, and the volumes are kept for the big fires */
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
+	float MinVolumeRadius = 30.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
+	float MinBallVolumeRadius = 12.0f;
+
 	/** Most fires that cast light at once; the others burn without */
 	UPROPERTY(config, EditAnywhere, Category="Light", meta = (ClampMin = 0))
 	int32 MaxLitFires = 12;
@@ -193,6 +241,31 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> SmokeMaterial;
 
+	/** The fire as a real volume, when it burns as one */
+	UPROPERTY(Transient)
+	TObjectPtr<class UHeterogeneousVolumeComponent> Volume;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> VolumeMaterial;
+
+	/** Makes the volume of the fire, if this fire burns as one */
+	void BuildVolume();
+
+	/** Gives back the volume, so another fire may burn as one */
+	void ReleaseVolume();
+
+	/** Sets the volume on the ground of the fire or around the middle of the ball */
+	void PlaceVolume();
+
+	/** Scale of the volume at full size */
+	float VolumeScale = 1.0f;
+
+	/** Scale of the volume at its present size */
+	float VolumeSize = 1.0f;
+
+	/** Height of the volume in simulated metres, once its first frame told it */
+	float VolumeHeight = 0.0f;
+
 	/** The broad fire of the bed under the flames */
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> BedMaterial;
@@ -221,4 +294,7 @@ private:
 
 	/** Fires that hold a light now */
 	static int32 NumLitFires;
+
+	/** Fires that burn as volumes at the moment */
+	static int32 NumVolumeFires;
 };

@@ -2,6 +2,7 @@
 
 #include "World/VaelFireComponent.h"
 #include "Components/DecalComponent.h"
+#include "Components/HeterogeneousVolumeComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -9,6 +10,7 @@
 #include "VaelAssets.h"
 
 int32 UVaelFireComponent::NumLitFires = 0;
+int32 UVaelFireComponent::NumVolumeFires = 0;
 
 namespace
 {
@@ -23,6 +25,7 @@ namespace
 	const FName FlowParameter(TEXT("Richtung"));
 	const FName SizeParameter(TEXT("Groesse"));
 	const FName NormalFlowParameter(TEXT("NormalFluss"));
+	const FName DensityParameter(TEXT("Dichte"));
 
 	/** Size of a spark card in cm */
 	constexpr float SparkSize = 1.8f;
@@ -33,6 +36,11 @@ namespace
 	TSoftObjectPtr<T> FireAsset(const TCHAR* Name)
 	{
 		return TSoftObjectPtr<T>(FSoftObjectPath(FString::Printf(TEXT("%s/%s.%s"), *FireFolder, Name, Name)));
+	}
+
+	TSoftObjectPtr<UMaterialInterface> VolumeAsset(const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(FString::Printf(TEXT("%s/Volumen/%s.%s"), *FireFolder, Name, Name)));
 	}
 
 	/** The cards of one fire: all four corners of a card sit on its base point; the material unfolds it towards the camera
@@ -69,6 +77,8 @@ UVaelFireSettings::UVaelFireSettings()
 	FlameFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Flamme"));
 	FireFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Feuer"));
 	BallFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Kugel"));
+	VolumeFire = VolumeAsset(TEXT("MI_Feuer_Volumen_Brand"));
+	VolumeBall = VolumeAsset(TEXT("MI_Feuer_Volumen_Kugel"));
 }
 
 UVaelFireComponent::UVaelFireComponent(const FObjectInitializer& ObjectInitializer)
@@ -123,6 +133,7 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 		SmokeMaterial->SetScalarParameterValue(SpeedParameter, Shape.Speed);
 	}
 	BuildCards();
+	BuildVolume();
 
 	// A charred patch under the fire, or on the wall it burns on
 	if (Shape.bScorch && Scorch == nullptr)
@@ -148,6 +159,68 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 		TakeLight();
 	}
 	SetComponentTickEnabled(true);
+}
+
+void UVaelFireComponent::BuildVolume()
+{
+	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+	if (Volume == nullptr)
+	{
+		// Fires on walls stay cards: the volume would burn half inside the wall
+		if (!Settings->bUseVolumes || !Shape.WallNormal.IsNearlyZero() || NumVolumeFires >= Settings->MaxVolumeFires
+			|| Shape.Radius < (Shape.bBall ? Settings->MinBallVolumeRadius : Settings->MinVolumeRadius))
+		{
+			return;
+		}
+		UMaterialInterface* Base = VaelAssets::LoadOptional(Shape.bBall ? Settings->VolumeBall : Settings->VolumeFire);
+		if (Base == nullptr)
+		{
+			return;
+		}
+		Volume = NewObject<UHeterogeneousVolumeComponent>(GetOwner());
+		Volume->SetupAttachment(this);
+		Volume->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Volume->SetCastShadow(false);
+		Volume->bPlaying = true;
+		Volume->bLooping = true;
+		Volume->bPivotAtCentroid = true;
+		Volume->FrameRate = Settings->VolumeFrameRate;
+		Volume->RegisterComponent();
+		Volume->SetMaterial(0, Base);
+		VolumeMaterial = Volume->MaterialInstanceDynamic;
+		if (VolumeMaterial == nullptr)
+		{
+			Volume->DestroyComponent();
+			Volume = nullptr;
+			return;
+		}
+		// Every fire starts somewhere else in the loop and turns another way, so no two burn alike
+		Volume->Frame = FMath::FRandRange(Volume->StartFrame, Volume->EndFrame);
+		Volume->SetRelativeRotation(FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f));
+		VolumeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
+		++NumVolumeFires;
+	}
+
+	// The volume plays in simulated metres; its frames carry the size of a voxel and the place of the domain
+	VolumeScale = Shape.Radius * (Shape.bBall ? Settings->BallVolumeScalePerRadius : Settings->VolumeScalePerRadius);
+	VolumeMaterial->SetScalarParameterValue(DensityParameter, Settings->VolumeReferenceScale / FMath::Max(VolumeScale, 1.0f));
+	SetSizeScale(1.0f);
+
+	// The volume is the flame now: the cards keep only the sparks, the volume brings its own smoke
+	SetMeshSectionVisible(0, false);
+	SetMeshSectionVisible(2, false);
+	SetMeshSectionVisible(3, false);
+}
+
+void UVaelFireComponent::ReleaseVolume()
+{
+	if (Volume != nullptr)
+	{
+		Volume->DestroyComponent();
+		Volume = nullptr;
+		VolumeMaterial = nullptr;
+		NumVolumeFires = FMath::Max(0, NumVolumeFires - 1);
+	}
 }
 
 void UVaelFireComponent::Extinguish(float FadeOut, bool bInDestroyWhenOut)
@@ -310,6 +383,8 @@ void UVaelFireComponent::TakeLight()
 	Light->SetIntensity(0.0f);
 	Light->SetAttenuationRadius(300.0f + Shape.Radius * 7.0f);
 	Light->SetCastShadows(false);
+	// The light sits inside the flames: it would light up the smoke of its own fire volume like fog
+	Light->SetVolumetricScatteringIntensity(0.0f);
 	Light->RegisterComponent();
 }
 
@@ -326,6 +401,7 @@ void UVaelFireComponent::ReleaseLight()
 void UVaelFireComponent::OnUnregister()
 {
 	ReleaseLight();
+	ReleaseVolume();
 	if (Scorch != nullptr)
 	{
 		Scorch->DestroyComponent();
@@ -351,6 +427,10 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		{
 			SmokeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
 		}
+		if (VolumeMaterial != nullptr)
+		{
+			VolumeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
+		}
 	}
 
 	// The light flickers with the flames: a slow breath and a quick restless flutter
@@ -364,6 +444,16 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		{
 			ReleaseLight();
 		}
+	}
+
+	// The size of a voxel arrives with the first frame, so the foot of the fire is set on the ground once it is known
+	if (Volume != nullptr)
+	{
+		PlaceVolume();
+	}
+	if (Volume != nullptr && Strength <= 0.0f && TargetStrength <= 0.0f)
+	{
+		ReleaseVolume();
 	}
 
 	// The scorch mark glows while the fire burns, its embers die down after, then it fades away
@@ -406,5 +496,31 @@ void UVaelFireComponent::SetSizeScale(float Scale)
 		{
 			Material->SetScalarParameterValue(SizeParameter, Scale);
 		}
+	}
+	if (Volume != nullptr)
+	{
+		VolumeSize = VolumeScale * Scale;
+		Volume->SetRelativeScale3D(FVector(VolumeSize));
+		PlaceVolume();
+	}
+}
+
+void UVaelFireComponent::PlaceVolume()
+{
+	// The volume turns around its middle; lift it so the foot of the fire, or the middle of the ball, sits on this component
+	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+	const float Height = Volume->VolumeResolution.Z * Volume->FrameTransform.GetScale3D().Z;
+	const float Lift = (Height * 0.5f - (Shape.bBall ? Settings->BallVolumeCentre : Settings->VolumeFloor)) * VolumeSize;
+	if (!FMath::IsNearlyEqual(Height, VolumeHeight))
+	{
+		// The volume marches its rays in steps of a voxel, which it works out from its bounds when its render state is made:
+		// made before the first frame arrived, the steps are as wide as a whole fire and it shows as a pale haze
+		VolumeHeight = Height;
+		Volume->UpdateBounds();
+		Volume->MarkRenderStateDirty();
+	}
+	if (!FMath::IsNearlyEqual(Volume->GetRelativeLocation().Z, Lift, 0.5f))
+	{
+		Volume->SetRelativeLocation(FVector(0.0f, 0.0f, Lift));
 	}
 }
