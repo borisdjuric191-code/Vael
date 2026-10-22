@@ -193,4 +193,16 @@ public:
 	/** Damage of marked creatures is multiplied by this */
 	UPROPERTY(config, EditAnywhere, Category="Corruption|Marked Creatures", meta = (ClampMin = 1))
 	float MarkedDamageMultiplier = 1.5f;
+
+	/** Creatures farther than this from every player (cm) update less often, they are off screen */
+	UPROPERTY(config, EditAnywhere, Category="Performance|Far Creatures", meta = (ClampMin = 0))
+	float FarCreatureDistance = 5000.0f;
+
+	/** Seconds between updates of a far creature; 0 updates it every frame like the others */
+	UPROPERTY(config, EditAnywhere, Category="Performance|Far Creatures", meta = (ClampMin = 0, ClampMax = 1))
+	float FarCreatureTickInterval = 0.25f;
+
+	/** Seconds after being hurt in which a creature always updates every frame, even when far */
+	UPROPERTY(config, EditAnywhere, Category="Performance|Far Creatures", meta = (ClampMin = 0))
+	float FarCreatureHurtGrace = 5.0f;
 };

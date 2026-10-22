@@ -156,6 +156,57 @@ void AVaelCreature::BeginPlay()
 	}
 }
 
+void AVaelCreature::UpdateTickRate(float DeltaSeconds)
+{
+	TickRateCountdown -= DeltaSeconds;
+	if (TickRateCountdown > 0.0f)
+	{
+		return;
+	}
+	TickRateCountdown = 0.3f;
+
+	const UVaelWorldSettings* WorldSettings = UVaelWorldSettings::Get();
+
+	// Servants, staggering bodies and creatures that were hurt lately stay smooth
+	bool bFar = WorldSettings->FarCreatureTickInterval > 0.0f && !bServant && StaggerLength <= 0.0f
+		&& GetWorld()->GetTimeSeconds() - LastHurtTime > WorldSettings->FarCreatureHurtGrace;
+
+	if (bFar)
+	{
+		// Without any active player nothing counts as far
+		const float FarDistanceSquared = FMath::Square(WorldSettings->FarCreatureDistance);
+		bool bAnyPlayer = false;
+		ForEachActivePlayer([this, &bFar, &bAnyPlayer, FarDistanceSquared](AVaelCharacter* Player)
+		{
+			bAnyPlayer = true;
+			if (FVector::DistSquared2D(GetActorLocation(), Player->GetActorLocation()) < FarDistanceSquared)
+			{
+				bFar = false;
+			}
+		});
+		bFar = bFar && bAnyPlayer;
+	}
+
+	if (bFar == bTickingFar)
+	{
+		return;
+	}
+	bTickingFar = bFar;
+
+	// The actor, its movement, animation and legs all follow the same rate
+	const float Interval = bFar ? WorldSettings->FarCreatureTickInterval : 0.0f;
+	SetActorTickInterval(Interval);
+
+	TInlineComponentArray<UActorComponent*> Components(this);
+	for (UActorComponent* Component : Components)
+	{
+		if (Component->PrimaryComponentTick.bCanEverTick)
+		{
+			Component->SetComponentTickInterval(Interval);
+		}
+	}
+}
+
 void AVaelCreature::SetMarked()
 {
 	if (bMarked || bDead)
@@ -183,6 +234,8 @@ float AVaelCreature::GetOutgoingDamageMultiplier() const
 void AVaelCreature::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	UpdateTickRate(DeltaSeconds);
 
 	// Dead factory creatures curl their legs up
 	if (FactoryDeathTime >= 0.0f && FactoryLegs != nullptr)

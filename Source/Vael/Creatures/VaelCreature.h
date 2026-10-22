@@ -238,6 +238,13 @@ private:
 	/** Tells the compendium when players see or watch this creature, a few times per second */
 	void UpdateResearch(float DeltaSeconds);
 
+	/** Lets creatures far from every player update less often, checked a few times per second */
+	void UpdateTickRate(float DeltaSeconds);
+
+	/** Seconds until the next check of the tick rate, and whether the creature is updating slowly */
+	float TickRateCountdown = 0.0f;
+	bool bTickingFar = false;
+
 	/** Seconds until the next look of the compendium, and when the creature was last hurt */
 	float ResearchCountdown = 0.0f;
 	float LastHurtTime = -1000.0f;
