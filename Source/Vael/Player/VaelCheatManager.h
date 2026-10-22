@@ -63,6 +63,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelNachladen(float Percent = -1.0f);
 
+	/** Lights a fire the given metres from the figure towards the camera, with the radius in cm; "wand" lights it on the nearest wall ahead instead. Example: VaelBrand 50 3 */
+	UFUNCTION(Exec)
+	void VaelBrand(float Radius = 45.0f, float Metres = 3.0f, const FString& Where = TEXT(""));
+
 	/** Floromant: holds the fire button of "links", "rechts" or "beide" hands, or lets go with "aus". Example: VaelFeuern beide */
 	UFUNCTION(Exec)
 	void VaelFeuern(const FString& Hands);

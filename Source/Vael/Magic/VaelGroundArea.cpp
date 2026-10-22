@@ -19,6 +19,7 @@
 #include "VaelAssets.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
+#include "World/VaelFireSpot.h"
 
 namespace
 {
@@ -391,11 +392,35 @@ FLinearColor AVaelGroundArea::GetLookColor() const
 	return Effect == EVaelGroundEffect::Blind ? MagicSettings->SteamColor : MagicSettings->GetElementColor(Element);
 }
 
+void AVaelGroundArea::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (FireLook.IsValid())
+	{
+		FireLook->PutOut(EndPlayReason == EEndPlayReason::Destroyed ? 0.7f : 0.01f);
+	}
+	Super::EndPlay(EndPlayReason);
+}
+
 void AVaelGroundArea::SpawnVisual()
 {
 	UNiagaraSystem* Visual = VisualOverride;
 	float Spacing = 0.0f;
 	float Scale = 1.0f;
+
+	// A fire is made of living flames of the fire kit: a bed of tongues with sparks, light and a scorch mark
+	if (Visual == nullptr && Element == EVaelElement::Fire && Effect == EVaelGroundEffect::None)
+	{
+		FVaelFireShape Shape;
+		Shape.Radius = Radius;
+		Shape.Height = FMath::Clamp(Radius * 1.9f, 60.0f, 220.0f);
+		Shape.bScorch = true;
+		FireLook = AVaelFireSpot::Spawn(GetWorld(), GetActorLocation(), Shape, 0.0f);
+		if (FireLook.IsValid())
+		{
+			Disc->SetVisibility(false);
+			return;
+		}
+	}
 
 	if (Visual == nullptr)
 	{

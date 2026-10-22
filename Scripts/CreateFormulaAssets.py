@@ -132,6 +132,7 @@ FORMULAS = [
         "applied_status": Status.BURNING,
         "status_duration": 3.0,
         "status_damage_per_second": 8.0,
+        "projectile_look": unreal.VaelProjectileLook.FIREBALL,
         "projectile_speed": 12.0 * TILE,
         "projectile_radius": 0.3 * TILE,
         "projectile_lifetime": 1.1,

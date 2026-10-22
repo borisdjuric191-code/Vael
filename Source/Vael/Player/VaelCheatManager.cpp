@@ -34,6 +34,7 @@
 #include "Floromant/VaelPlantData.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelFloromantSettings.h"
+#include "World/VaelFireSpot.h"
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "VaelGameMode.h"
@@ -897,4 +898,48 @@ void UVaelCheatManager::VaelNachladen(float Percent)
 	}
 	const int32 Shots = Floromant->ReloadHands();
 	UE_LOG(LogVael, Display, TEXT("VaelNachladen: %d shots reloaded, Keimpelz %.0f left"), Shots, Floromant->GetKeimpelz());
+}
+
+void UVaelCheatManager::VaelBrand(float Radius, float Metres, const FString& Where)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* Player = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	FVaelFireShape Shape;
+	Shape.Radius = FMath::Max(Radius, 5.0f);
+	Shape.Height = Shape.Radius * 2.3f;
+	Shape.bScorch = true;
+	// Towards the camera, so the fire is in the picture whichever way the figure faces; "wand" looks for a wall ahead
+	const bool bWall = Where.Equals(TEXT("wand"), ESearchCase::IgnoreCase);
+	const FVector ToCamera = PlayerController->PlayerCameraManager != nullptr ? (PlayerController->PlayerCameraManager->GetCameraLocation() - Player->GetActorLocation()).GetSafeNormal2D() : -Player->GetActorForwardVector();
+	const FVector Forward = bWall ? Player->GetActorForwardVector() : ToCamera;
+	FVector Location = Player->GetActorLocation() + Forward * Metres * 100.0f;
+
+	FHitResult Hit;
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(VaelBrand), false, Player);
+	if (bWall)
+	{
+		// The first wall ahead
+		if (GetWorld()->LineTraceSingleByChannel(Hit, Player->GetActorLocation(), Player->GetActorLocation() + Forward * 3000.0f, ECC_Visibility, Query))
+		{
+			Location = Hit.ImpactPoint;
+			Shape.WallNormal = Hit.ImpactNormal;
+		}
+	}
+	else if (GetWorld()->LineTraceSingleByChannel(Hit, Location + FVector(0.0f, 0.0f, 300.0f), Location - FVector(0.0f, 0.0f, 600.0f), ECC_Visibility, Query))
+	{
+		Location = Hit.ImpactPoint;
+	}
+	if (Where.Equals(TEXT("stoss"), ESearchCase::IgnoreCase))
+	{
+		// The blast of a Feuerball, a metre above the ground
+		AVaelFireSpot::SpawnBurst(GetWorld(), Location + FVector(0.0f, 0.0f, 100.0f), Shape.Radius);
+		return;
+	}
+	AVaelFireSpot::Spawn(GetWorld(), Location, Shape, 0.0f);
+	UE_LOG(LogVael, Display, TEXT("VaelBrand: fire of %.0f cm at %s, player at %s"), Shape.Radius, *Location.ToCompactString(), *Player->GetActorLocation().ToCompactString());
 }

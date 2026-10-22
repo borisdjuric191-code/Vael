@@ -97,7 +97,7 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
 		TArray<FString> Parts;
 		PlayerViewText.ParseIntoArray(Parts, TEXT(","));
-		if (PlayerPawn != nullptr && Parts.Num() == 3)
+		if (PlayerPawn != nullptr && (Parts.Num() == 3 || Parts.Num() == 6))
 		{
 			if (Closeup == nullptr)
 			{
@@ -107,9 +107,12 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 				Closeup->GetCameraComponent()->PostProcessSettings.bOverride_MotionBlurAmount = true;
 				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
 			}
-			const FVector Focus = PlayerPawn->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
+			// Three more numbers move the point it looks at, in the same frame: 300,0,40 looks at a fire 3 m ahead
+			const FRotator Frame(0.0f, PlayerPawn->GetActorRotation().Yaw, 0.0f);
+			const FVector FocusOffset = Parts.Num() == 6 ? FVector(FCString::Atof(*Parts[3]), FCString::Atof(*Parts[4]), FCString::Atof(*Parts[5])) : FVector(0.0f, 0.0f, 40.0f);
+			const FVector Focus = PlayerPawn->GetActorLocation() + Frame.RotateVector(FocusOffset);
 			const FVector Offset(FCString::Atof(*Parts[0]), FCString::Atof(*Parts[1]), FCString::Atof(*Parts[2]));
-			const FVector Eye = Focus + FRotator(0.0f, PlayerPawn->GetActorRotation().Yaw, 0.0f).RotateVector(Offset);
+			const FVector Eye = Focus + Frame.RotateVector(Offset);
 			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
 			if (PlayerController->GetViewTarget() != Closeup)
 			{

@@ -39,7 +39,7 @@ namespace
 	const FName WindParameter(TEXT("Wind"));
 	const FName SpinParameter(TEXT("Spin"));
 	const FName ShadowParameter(TEXT("Schatten"));
-	const FName FlashParameter(TEXT("Aufleuchten"));
+	const FName TipFlashParameter(TEXT("Aufleuchten"));
 	const FName PhaseParameter(TEXT("Zeitversatz"));
 	const FName ArmPointParameter(TEXT("ArmPunkt"));
 	const FName ArmAxisParameter(TEXT("ArmAchse"));
@@ -560,7 +560,7 @@ void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
 		Material->SetScalarParameterValue(GrowParameter, Grow);
 		Material->SetScalarParameterValue(WindParameter, Wind * (1.0f - Fan * 0.7f));
 		Material->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
-		Material->SetScalarParameterValue(FlashParameter, Flashes[Finger]);
+		Material->SetScalarParameterValue(TipFlashParameter, Flashes[Finger]);
 	}
 
 	ArmMaterial->SetScalarParameterValue(GrowParameter, Grow);

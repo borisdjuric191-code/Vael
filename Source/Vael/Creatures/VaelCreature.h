@@ -296,6 +296,15 @@ private:
 	/** True while the body shows the flash color */
 	bool bShowingHitFlash = false;
 
+	/** While it burns: little flames on its bones or body and a red glow that pulses (fire kit) */
+	void UpdateBurning();
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UVaelFireComponent>> BurnFlames;
+
+	/** Strength of the red glow of burning, 0 when it doesn't burn */
+	float BurnGlow = 0.0f;
+
 	/** World time until which the creature can't act */
 	float StunEndTime = 0.0f;
 

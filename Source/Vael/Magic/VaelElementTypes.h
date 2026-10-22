@@ -87,7 +87,9 @@ enum class EVaelProjectileLook : uint8
 	/** A crooked black splinter with a twitching violet edge whose motes rise instead of fall, like the Marksplitter */
 	MarkShard,
 	/** A wide rolling crest of water with foam on top that throws spray behind it and splashes along its foot, like the Flutwelle */
-	TidalWave
+	TidalWave,
+	/** A swirling ball of fire: a glowing core in a coat of flames that lick backwards, smoke and sparks behind it; it bursts in a blast of flames, like the Feuerball */
+	Fireball
 };
 
 /** What rises out of the ground where a strike of a spell lands */

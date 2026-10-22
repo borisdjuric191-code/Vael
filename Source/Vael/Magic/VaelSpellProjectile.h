@@ -178,6 +178,7 @@ private:
 	/** Moves the look: the flying shapes, the loose pieces, and what plays out after the flight */
 	void AnimateLook(float DeltaSeconds);
 	void AnimateSpark(float Time, float DeltaSeconds);
+	void AnimateFireball(float Time, float DeltaSeconds);
 	void AnimateWaterOrb(float Time);
 	void AnimateWaterBurst();
 	void AnimateRock(float Time, float DeltaSeconds);
@@ -233,6 +234,17 @@ private:
 	/** Light of the look */
 	UPROPERTY(Transient)
 	TObjectPtr<UPointLightComponent> LookLight;
+
+	/** Living flames of the fire kit that lick backwards from a burning projectile, like the Funke */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelFireComponent> TrailFlames;
+
+	/** Where it was stopped, to light a fire on the ground or on the wall it hit */
+	FHitResult StopHit;
+	bool bHasStopHit = false;
+
+	/** A burning projectile leaves a little fire where it hits: on the ground, or on a wall rising up from the scorch mark */
+	void LightImpactFire();
 
 	/** Engine cone for the crystals of the look */
 	UPROPERTY()

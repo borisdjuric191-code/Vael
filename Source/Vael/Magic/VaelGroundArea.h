@@ -128,4 +128,12 @@ private:
 
 	/** Seconds since the last damage step */
 	float DamageStepTime = 0.0f;
+
+	/** The living flames of a fire area (fire kit); they die down on their own when the area ends */
+	TWeakObjectPtr<class AVaelFireSpot> FireLook;
+
+protected:
+
+	/** Lets the flames die down instead of vanishing with the area */
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 };

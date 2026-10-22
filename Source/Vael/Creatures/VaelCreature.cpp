@@ -45,6 +45,8 @@
 #include "World/VaelSafeZone.h"
 #include "World/VaelWorldSettings.h"
 #include "World/VaelGround.h"
+#include "World/VaelFireComponent.h"
+#include "Components/SkeletalMeshComponent.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -249,6 +251,8 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		bShowingHitFlash = false;
 		RefreshBodyColor();
 	}
+
+	UpdateBurning();
 
 	// A staggering body tips over and rights itself again
 	if (StaggerLength > 0.0f)
@@ -804,21 +808,25 @@ void AVaelCreature::SetBodyColor(const FLinearColor& Color)
 void AVaelCreature::RefreshBodyColor()
 {
 	// Marked creatures carry the violet of the Mark
-	const FLinearColor ShownColor = bServant ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.7f)
+	const FLinearColor RestColor = bServant ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.7f)
 		: bMarked ? FMath::Lerp(BodyColor, FLinearColor(0.38f, 0.06f, 1.0f), 0.45f)
 		: BodyColor;
+
+	// A burning body glows red in pulses
+	const FLinearColor ShownColor = FMath::Lerp(RestColor, FLinearColor(1.0f, 0.18f, 0.03f), FMath::Clamp(BurnGlow * 0.45f, 0.0f, 0.6f));
 
 	if (BodyMaterial != nullptr)
 	{
 		BodyMaterial->SetVectorParameterValue(BodyColorParameter, bShowingHitFlash ? FLinearColor(1.0f, 0.9f, 0.75f) : ShownColor);
 	}
 
-	// The factory mesh shows the Mark and hits with the glow of the master material
+	// The factory mesh shows the Mark, hits and burning with the glow of the master material
 	if (FactoryMaterial != nullptr)
 	{
 		const bool bMarkedLook = bMarked || bServant;
-		FactoryMaterial->SetScalarParameterValue(TEXT("MarkStaerke"), bShowingHitFlash ? 2.5f : bMarkedLook ? 1.2f : 0.0f);
-		FactoryMaterial->SetVectorParameterValue(TEXT("MarkFarbe"), bShowingHitFlash ? FLinearColor(1.0f, 0.92f, 0.8f) : FLinearColor(0.55f, 0.12f, 1.0f));
+		const bool bBurnLook = !bShowingHitFlash && BurnGlow > 0.0f;
+		FactoryMaterial->SetScalarParameterValue(TEXT("MarkStaerke"), bShowingHitFlash ? 2.5f : bBurnLook ? BurnGlow : bMarkedLook ? 1.2f : 0.0f);
+		FactoryMaterial->SetVectorParameterValue(TEXT("MarkFarbe"), bShowingHitFlash ? FLinearColor(1.0f, 0.92f, 0.8f) : bBurnLook ? FLinearColor(1.0f, 0.22f, 0.04f) : FLinearColor(0.55f, 0.12f, 1.0f));
 	}
 
 	OnBodyColorShown(ShownColor, bShowingHitFlash);
@@ -1022,4 +1030,62 @@ void AVaelCreature::OnDamageTaken(float Damage, const FGameplayTagContainer& Dam
 	{
 		FactoryLegs->AddBodyJolt(FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), -0.6f).GetSafeNormal() * 5.0f);
 	}
+}
+
+void AVaelCreature::UpdateBurning()
+{
+	const bool bBurning = !bDead && UVaelCombatStatics::HasStatus(this, EVaelStatus::Burning);
+	if (!bBurning)
+	{
+		if (!BurnFlames.IsEmpty() || BurnGlow > 0.0f)
+		{
+			for (UVaelFireComponent* Flame : BurnFlames)
+			{
+				if (Flame != nullptr)
+				{
+					Flame->Extinguish(0.5f, true);
+				}
+			}
+			BurnFlames.Reset();
+			BurnGlow = 0.0f;
+			RefreshBodyColor();
+		}
+		return;
+	}
+
+	// Little flames on a few bones spread over the body, or on a few points of the plain body
+	if (BurnFlames.IsEmpty())
+	{
+		USkinnedMeshComponent* Skinned = FactoryMesh != nullptr ? static_cast<USkinnedMeshComponent*>(FactoryMesh) : FindComponentByClass<USkeletalMeshComponent>();
+		const float Size = FMath::Max(GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.38f, 7.0f);
+		const int32 NumBones = Skinned != nullptr ? Skinned->GetNumBones() : 0;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			UVaelFireComponent* Flame = NewObject<UVaelFireComponent>(this);
+			if (NumBones > 2)
+			{
+				const int32 Bone = FMath::Clamp(FMath::RoundToInt32(NumBones * (0.25f + 0.25f * Index)) + FMath::RandRange(-1, 1), 1, NumBones - 1);
+				Flame->SetupAttachment(Skinned, Skinned->GetBoneName(Bone));
+			}
+			else
+			{
+				const FVector Extent = Body->Bounds.BoxExtent;
+				Flame->SetupAttachment(Body);
+				Flame->SetRelativeLocation(FVector(FMath::FRandRange(-0.5f, 0.5f) * Extent.X, FMath::FRandRange(-0.5f, 0.5f) * Extent.Y, FMath::FRandRange(0.0f, 0.6f) * Extent.Z));
+			}
+			Flame->RegisterComponent();
+
+			FVaelFireShape Shape;
+			Shape.Radius = Size * FMath::FRandRange(0.7f, 1.1f);
+			Shape.Height = Shape.Radius * 2.8f;
+			Shape.Smoke = 0.4f;
+			Shape.bLight = Index == 0;
+			Flame->Ignite(Shape, 0.25f);
+			BurnFlames.Add(Flame);
+		}
+	}
+
+	// The red glow breathes quickly, like embers under the skin
+	BurnGlow = 0.35f + 0.2f * FMath::Sin(GetWorld()->GetTimeSeconds() * 7.0f + GetUniqueID());
+	RefreshBodyColor();
 }

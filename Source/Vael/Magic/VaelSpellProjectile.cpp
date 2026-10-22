@@ -26,6 +26,8 @@
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "World/VaelGround.h"
+#include "World/VaelFireComponent.h"
+#include "World/VaelFireSpot.h"
 
 namespace
 {
@@ -35,12 +37,8 @@ namespace
 	/** Camera shake of a spell explosion, as in the prototype */
 	constexpr float ExplosionShake = 0.2f;
 
-	/** The spark is this many times longer and thinner than the collision radius of its projectile */
-	constexpr float SparkLengthShare = 2.4f;
+	/** Size of the sparks a Funke sheds, compared with the collision radius of its projectile */
 	constexpr float SparkThicknessShare = 0.42f;
-
-	/** Pieces of the tail behind the spark */
-	constexpr int32 SparkTailCount = 3;
 
 	/** Embers a spark can have in the air at once, seconds between two and seconds each one glows */
 	constexpr int32 SparkEmberCount = 12;
@@ -368,14 +366,33 @@ void AVaelSpellProjectile::BuildLook()
 		const FLinearColor Hot = FMath::Lerp(SpellColor, FLinearColor::White, 0.45f);
 		const FLinearColor Dying = SpellColor * FLinearColor(1.0f, 0.45f, 0.3f);
 
-		// A white-hot streak in a halo of its color, with a tail that thins out behind it
-		LookShapes.Add(AddLookShape(CoreMaterial, Hot, 18.0f));
-		LookShapes.Add(AddLookShape(GlowMaterial, SpellColor, 3.0f));
-
-		for (int32 TailIndex = 0; TailIndex < SparkTailCount; ++TailIndex)
+		// A burning arrowhead: a white-hot point inside a dark red-glowing head, both pointing along the flight
+		UStaticMeshComponent* Point = AddLookShape(CoreMaterial, Hot, 18.0f);
+		UStaticMeshComponent* Head = AddLookShape(GlowMaterial, FLinearColor(0.75f, 0.12f, 0.02f), 4.0f);
+		for (UStaticMeshComponent* Piece : { Point, Head })
 		{
-			LookShapes.Add(AddLookShape(GlowMaterial, FMath::Lerp(SpellColor, Dying, (TailIndex + 1.0f) / SparkTailCount), 2.6f - TailIndex * 0.5f));
+			if (ConeMesh != nullptr)
+			{
+				Piece->SetStaticMesh(ConeMesh);
+			}
+			Piece->SetRelativeRotation(FRotator(-90.0f, 0.0f, 0.0f));
+			LookShapes.Add(Piece);
 		}
+
+		// Flames of the fire kit lick backwards from it: orange and white outside, orange-red burning inside
+		TrailFlames = NewObject<UVaelFireComponent>(this);
+		TrailFlames->SetupAttachment(RootComponent);
+		TrailFlames->RegisterComponent();
+		FVaelFireShape Flames;
+		Flames.Radius = Radius * 0.3f;
+		Flames.Height = Radius * 4.5f;
+		Flames.Heat = 1.25f;
+		Flames.Smoke = 0.25f;
+		Flames.Speed = 2.6f;
+		Flames.Tongues = 6;
+		Flames.bFloating = true;
+		Flames.bLight = false;
+		TrailFlames->Ignite(Flames, 0.05f);
 
 		// Embers the spark sheds in flight
 		for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
@@ -390,6 +407,40 @@ void AVaelSpellProjectile::BuildLook()
 		bLooseFlicker = true;
 
 		AddLookLight(SpellColor, 9.0f);
+	}
+	else if (Look == EVaelProjectileLook::Fireball)
+	{
+		// A white-yellow core in a dark red shell of embers
+		LookShapes.Add(AddLookShape(CoreMaterial, FLinearColor(1.0f, 0.55f, 0.12f), 5.0f));
+		LookShapes.Add(AddLookShape(GlowMaterial, FLinearColor(0.75f, 0.12f, 0.015f), 2.2f));
+
+		// A coat of flames of the fire kit that lick backwards and up, with dark smoke at their tips
+		TrailFlames = NewObject<UVaelFireComponent>(this);
+		TrailFlames->SetupAttachment(RootComponent);
+		TrailFlames->RegisterComponent();
+		FVaelFireShape Flames;
+		Flames.Radius = Radius * 0.55f;
+		Flames.Height = Radius * 3.4f;
+		Flames.Heat = 1.3f;
+		Flames.Smoke = 0.8f;
+		Flames.Speed = 2.2f;
+		Flames.Tongues = 12;
+		Flames.bFloating = true;
+		Flames.bLight = false;
+		TrailFlames->Ignite(Flames, 0.05f);
+
+		// Sparks it throws off in flight
+		for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
+		{
+			LoosePieces.Add(AddLookShape(GlowMaterial, FLinearColor(1.0f, 0.4f, 0.06f), 5.0f, 0.0f, true));
+		}
+		LooseSize = Radius * 0.3f / (PlaceholderSphereRadius * 2.0f);
+		LooseLifetime = SparkEmberLifetime;
+		LooseGravity = SparkEmberGravity;
+		LooseDrag = 2.2f;
+		bLooseFlicker = true;
+
+		AddLookLight(FLinearColor(1.0f, 0.45f, 0.12f), 16.0f);
 	}
 	else if (Look == EVaelProjectileLook::WaterOrb)
 	{
@@ -708,6 +759,10 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 			AnimateTidalWave(Time, DeltaSeconds);
 			break;
 
+		case EVaelProjectileLook::Fireball:
+			AnimateFireball(Time, DeltaSeconds);
+			break;
+
 		default:
 			break;
 		}
@@ -942,34 +997,38 @@ void AVaelSpellProjectile::ShedOnPierce(const FVector& Location)
 void AVaelSpellProjectile::AnimateSpark(float Time, float DeltaSeconds)
 {
 	const float Radius = SpellRadius;
-	const float Length = Radius * SparkLengthShare / (PlaceholderSphereRadius * 2.0f);
-	const float Thickness = Radius * SparkThicknessShare / (PlaceholderSphereRadius * 2.0f);
 	const float Flicker = FMath::PerlinNoise1D(Time * 14.0f);
 
-	// The streak lies along the flight; core and halo flicker against each other
-	LookShapes[0]->SetRelativeScale3D(FVector(Length, Thickness, Thickness) * (1.0f + 0.1f * Flicker));
-	LookShapes[1]->SetRelativeScale3D(FVector(Length * 1.5f, Thickness * 2.6f, Thickness * 2.6f) * (1.0f - 0.15f * Flicker));
-
-	for (int32 TailIndex = 0; TailIndex < SparkTailCount; ++TailIndex)
+	// It leaves the hand slower and speeds up over its first moments; the flames behind it grow with the speed
+	const float SpeedShare = FMath::Lerp(0.6f, 1.0f, FMath::SmoothStep(0.0f, 0.28f, GetGameTimeSinceCreation()));
+	const FVector Forward = GetActorForwardVector();
+	if (!bFlightEnded && Movement->MaxSpeed > 0.0f)
 	{
-		const float Thin = 1.0f - (TailIndex + 1.0f) / (SparkTailCount + 1.5f);
-		const float Waver = FMath::Sin(Time * 26.0f + TailIndex * 1.9f);
+		Movement->Velocity = Forward * Movement->MaxSpeed * SpeedShare;
+	}
 
-		UStaticMeshComponent* Piece = LookShapes[2 + TailIndex];
-		Piece->SetRelativeLocation(FVector(-Radius * SparkLengthShare * 0.55f * (TailIndex + 1.0f), Waver * Radius * 0.07f, 0.0f));
-		Piece->SetRelativeScale3D(FVector(Length * 0.9f, Thickness * 2.0f * Thin, Thickness * 2.0f * Thin) * (1.0f + 0.12f * Waver));
+	// The arrowhead: a cone of 100 cm with a base of 100 cm, its point along the flight; the hot point flickers inside
+	const float Length = Radius * 2.4f / 100.0f;
+	const float Width = Radius * 0.55f / 100.0f;
+	LookShapes[0]->SetRelativeScale3D(FVector(Width * 0.45f, Width * 0.45f, Length * 0.75f) * (1.0f + 0.12f * Flicker));
+	LookShapes[0]->SetRelativeLocation(FVector(Radius * 0.35f, 0.0f, 0.0f));
+	LookShapes[1]->SetRelativeScale3D(FVector(Width, Width, Length) * (1.0f - 0.08f * Flicker));
+
+	// Flames lick backwards (and a little up), longer and wilder the faster it flies
+	if (TrailFlames != nullptr)
+	{
+		TrailFlames->SetFlowDirection(-Forward + FVector(0.0f, 0.0f, 0.25f));
+		TrailFlames->SetSizeScale(0.55f + 0.65f * SpeedShare + 0.08f * Flicker);
 	}
 
 	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.3f * Flicker));
 
-	// Shed the next ember: it leaves the spark sideways, keeps a little of the flight speed and falls
+	// Small sparks fly out of it: they leave it sideways, keep a little of the flight speed and fall
 	NextShedCountdown -= DeltaSeconds;
 	if (NextShedCountdown <= 0.0f)
 	{
 		NextShedCountdown = SparkEmberInterval * FMath::FRandRange(0.6f, 1.5f);
-
-		const FVector Forward = GetActorForwardVector();
-		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.2f, 1.2f),
+		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.2f, 1.6f),
 			Forward * Movement->Velocity.Size() * SparkEmberForwardShare + FMath::VRand() * SparkEmberSpread * FMath::FRandRange(0.4f, 1.0f) + FVector(0.0f, 0.0f, 60.0f));
 	}
 }
@@ -1131,7 +1190,7 @@ void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
 		Shape->SetVisibility(false);
 	}
 
-	if (Look == EVaelProjectileLook::Spark)
+	if (Look == EVaelProjectileLook::Spark || Look == EVaelProjectileLook::Fireball)
 	{
 		// The embers already in the air glow out; a hit throws a last handful in all directions
 		LookLight->SetVisibility(false);
@@ -1302,6 +1361,8 @@ void AVaelSpellProjectile::OnStopped(const FHitResult& ImpactResult)
 {
 	UE_LOG(LogVael, Verbose, TEXT("'%s' stopped by '%s' (%s) after %.0f cm"), *GetNameSafe(this), *GetNameSafe(ImpactResult.GetActor()), *GetNameSafe(ImpactResult.GetComponent()),
 		FVector::Dist(ImpactResult.TraceStart, ImpactResult.Location));
+	StopHit = ImpactResult;
+	bHasStopHit = true;
 	EndFlight(true);
 }
 
@@ -1505,6 +1566,16 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 		Explode();
 	}
 
+	// The flames behind a burning projectile die down; where it hit, a little fire burns on
+	if (TrailFlames != nullptr)
+	{
+		TrailFlames->Extinguish(0.2f, true);
+	}
+	if (bHitSomething)
+	{
+		LightImpactFire();
+	}
+
 	// A projectile that just runs out in the air fizzles without an impact
 	if (bHitSomething || ExplosionRadius > 0.0f)
 	{
@@ -1550,6 +1621,13 @@ void AVaelSpellProjectile::Explode()
 
 	UVaelHitFeedbackSubsystem::Shake(this, ExplosionShake);
 
+	// Fire bursts in a blast of flames of the fire kit
+	if (ExplosionHit.Element == EVaelElement::Fire)
+	{
+		AVaelFireSpot::SpawnBurst(World, Center, ExplosionRadius);
+		UE_LOG(LogVael, Verbose, TEXT("'%s' bursts in flames at %s"), *GetNameSafe(this), *Center.ToCompactString());
+	}
+
 #if ENABLE_DRAW_DEBUG
 	// Placeholder look while neither an impact effect nor a look of its own exists
 	if (Effects.Impact == nullptr && LookShapes.IsEmpty())
@@ -1569,4 +1647,62 @@ void AVaelSpellProjectile::SetHomingTarget(AActor* Target, float Acceleration)
 	Movement->bIsHomingProjectile = true;
 	Movement->HomingAccelerationMagnitude = Acceleration;
 	Movement->HomingTargetComponent = Target->GetRootComponent();
+}
+
+void AVaelSpellProjectile::LightImpactFire()
+{
+	// Only fire burns on, and only where it hit the world (a creature burns by its status instead)
+	const bool bBurning = Hit.Element == EVaelElement::Fire || (ExplosionRadius > 0.0f && ExplosionHit.Element == EVaelElement::Fire);
+	if (!bBurning || !bHasStopHit || Cast<APawn>(StopHit.GetActor()) != nullptr)
+	{
+		return;
+	}
+
+	FVaelFireShape Shape;
+	Shape.bScorch = true;
+	const bool bWall = FMath::Abs(StopHit.ImpactNormal.Z) < 0.6f;
+
+	// A patch that burns on the ground already comes with its own flames; a wall burns where it was hit
+	if (!bWall && ImpactRadius > 0.0f && ImpactElement == EVaelElement::Fire)
+	{
+		return;
+	}
+	Shape.Radius = ImpactRadius > 0.0f ? ImpactRadius * 0.7f : FMath::Max(SpellRadius * (ExplosionRadius > 0.0f ? 2.2f : 1.3f), 20.0f);
+	Shape.Height = Shape.Radius * 2.4f;
+	if (bWall)
+	{
+		Shape.WallNormal = StopHit.ImpactNormal;
+	}
+	const float BurnTime = ImpactRadius > 0.0f ? ImpactLifetime : ExplosionRadius > 0.0f ? 4.0f : 2.5f;
+	AVaelFireSpot::Spawn(GetWorld(), StopHit.ImpactPoint, Shape, BurnTime);
+}
+
+void AVaelSpellProjectile::AnimateFireball(float Time, float DeltaSeconds)
+{
+	const float Radius = SpellRadius;
+	const float Flicker = FMath::PerlinNoise1D(Time * 9.0f);
+	const float Swirl = FMath::PerlinNoise1D(Time * 5.0f + 3.1f);
+
+	// Core and shell breathe against each other
+	const float Unit = 1.0f / (PlaceholderSphereRadius * 2.0f);
+	LookShapes[0]->SetRelativeScale3D(FVector(Radius * 0.6f * Unit) * (1.0f + 0.12f * Flicker));
+	LookShapes[1]->SetRelativeScale3D(FVector(Radius * 1.5f * Unit) * (1.0f - 0.08f * Flicker + 0.05f * Swirl));
+
+	// The coat of flames lags behind the flight and rises
+	const FVector Forward = GetActorForwardVector();
+	if (TrailFlames != nullptr)
+	{
+		TrailFlames->SetFlowDirection(-Forward + FVector(0.0f, 0.0f, 0.45f + 0.1f * Swirl));
+		TrailFlames->SetSizeScale(1.0f + 0.12f * Flicker);
+	}
+
+	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.35f * Flicker));
+
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = SparkEmberInterval * FMath::FRandRange(0.5f, 1.2f);
+		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.3f, 1.4f),
+			Forward * Movement->Velocity.Size() * SparkEmberForwardShare + FMath::VRand() * SparkEmberSpread * FMath::FRandRange(0.5f, 1.2f) + FVector(0.0f, 0.0f, 90.0f));
+	}
 }
