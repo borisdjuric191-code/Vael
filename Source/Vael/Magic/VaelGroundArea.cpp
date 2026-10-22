@@ -396,7 +396,14 @@ void AVaelGroundArea::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (FireLook.IsValid())
 	{
-		FireLook->PutOut(EndPlayReason == EEndPlayReason::Destroyed ? 0.7f : 0.01f);
+		if (EndPlayReason == EEndPlayReason::Destroyed)
+		{
+			FireLook->ReleaseUser();
+		}
+		else
+		{
+			FireLook->PutOut(0.01f);
+		}
 	}
 	Super::EndPlay(EndPlayReason);
 }
@@ -414,7 +421,8 @@ void AVaelGroundArea::SpawnVisual()
 		Shape.Radius = Radius;
 		Shape.Height = FMath::Clamp(Radius * 1.9f, 60.0f, 220.0f);
 		Shape.bScorch = true;
-		FireLook = AVaelFireSpot::Spawn(GetWorld(), GetActorLocation(), Shape, 0.0f);
+		// Fires laid next to each other (a Feuerstrahl sweeping over the ground) share one burning patch instead of flickering on top of each other
+		FireLook = AVaelFireSpot::SpawnOrJoin(GetWorld(), GetActorLocation(), Shape, 0.0f, true);
 		if (FireLook.IsValid())
 		{
 			Disc->SetVisibility(false);

@@ -1695,7 +1695,7 @@ void AVaelSpellProjectile::LightImpactFire()
 		Shape.WallNormal = StopHit.ImpactNormal;
 	}
 	const float BurnTime = ImpactRadius > 0.0f ? ImpactLifetime : ExplosionRadius > 0.0f ? 4.0f : 2.5f;
-	AVaelFireSpot::Spawn(GetWorld(), StopHit.ImpactPoint, Shape, BurnTime);
+	AVaelFireSpot::SpawnOrJoin(GetWorld(), StopHit.ImpactPoint, Shape, BurnTime, false);
 }
 
 void AVaelSpellProjectile::AnimateFireball(float Time, float DeltaSeconds)

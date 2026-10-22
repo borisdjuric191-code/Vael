@@ -35,6 +35,13 @@ public:
 	/** Lights a fire where something burning landed; a wall normal makes it a fire on the wall */
 	static AVaelFireSpot* Spawn(UWorld* World, const FVector& Location, const FVaelFireShape& InShape, float InBurnTime);
 
+	/** Lights a fire, or joins one that already burns this close: that one burns on (at least for the burn time) instead of
+	 *  a second fire flickering on top of it. With bUser the caller holds it, until it calls ReleaseUser. */
+	static AVaelFireSpot* SpawnOrJoin(UWorld* World, const FVector& Location, const FVaelFireShape& InShape, float InBurnTime, bool bUser);
+
+	/** Someone who keeps the fire burning lets go; the last one puts it out */
+	void ReleaseUser();
+
 	/** A blast of flames where something burning explodes: they bloom out wide in a moment and are gone */
 	static AVaelFireSpot* SpawnBurst(UWorld* World, const FVector& Location, float Radius);
 
@@ -52,6 +59,9 @@ private:
 
 	float Age = 0.0f;
 	bool bPutOut = false;
+
+	/** Who keep it burning (fire areas); it goes out when the last one lets go and its burn time is over */
+	int32 Users = 0;
 
 	/** A blast: blooms out over its burn time instead of burning steadily */
 	bool bBurst = false;

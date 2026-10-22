@@ -20,7 +20,7 @@ import unreal
 
 FOLDER = "/Game/Vael/Effects/Feuer"
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Feuer")
-KIT_VERSION = 3.2
+KIT_VERSION = 4.4
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -383,6 +383,122 @@ def build_scorch(noise):
     return material
 
 
+FLIPBOOKS = ("Flamme", "Feuer", "Kugel")
+FLIPBOOK_COLUMNS = 8
+
+
+def import_flipbook(kind):
+    """A flipbook of simulated fire (Tools/Feuer/feuer_simulation.py): 8 x 8 frames, RGB the glowing fire, A its coverage"""
+    name = "T_Feuer_Flipbook_" + kind
+    path = FOLDER + "/" + name
+    source = os.path.join(DATA, name + ".png")
+    if not os.path.exists(source):
+        notes.append("missing " + source)
+        return None
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", source)
+    task.set_editor_property("destination_path", FOLDER)
+    task.set_editor_property("destination_name", name)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", True)
+    tools.import_asset_tasks([task])
+    texture = unreal.load_asset(path)
+    if texture is not None:
+        # The frames must not bleed into each other when the texture gets smaller
+        texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_EFFECTS)
+        assets.save_loaded_asset(texture, False)
+        made.append(path)
+    return texture
+
+
+def build_flipbook_material(default_texture, noise):
+    """Plays a flipbook of simulated fire on a card that faces the camera, frames blended softly, each card at its own
+    moment (vertex colour R); a little extra wavering on top. Staerke fades it, Hitze brightens it."""
+    material = new_material("M_Feuer_Flipbook")
+    if material is None:
+        return unreal.load_asset(FOLDER + "/M_Feuer_Flipbook")
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    material.set_editor_property("two_sided", True)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, 30)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 29)
+    u = g.mask(uv, 28, r=True, g=False, b=False)
+    v = g.mask(uv, 28, r=False, g=True, b=False)
+    vertex = g.node(unreal.MaterialExpressionVertexColor, 29)
+    phase = g.mask(vertex, 28, r=True, g=False, b=False)
+    time = g.node(unreal.MaterialExpressionTime, 28)
+
+    # Which frame: each card runs through the 64 frames on its own, starting at its phase
+    frames = float(FLIPBOOK_COLUMNS * FLIPBOOK_COLUMNS)
+    position = g.mul(24, g.frac(25, g.add(26, g.mul(27, time, g.mul(28, g.scalar("Bildrate", 24.0, 29), g.const(1.0 / frames, 29))), phase)), g.const(frames, 25))
+    frame_a = g.one(unreal.MaterialExpressionFloor, 23, position)
+    blend = g.sub(22, position, frame_a)
+    frame_b = g.sub(22, g.add(23, frame_a, g.const(1.0, 24)), g.mul(23, g.one(unreal.MaterialExpressionFloor, 24, g.mul(25, g.add(26, frame_a, g.const(1.0, 27)), g.const(1.0 / frames, 26))), g.const(frames, 24)))
+
+    # A little extra wavering, more towards the top
+    waver = g.mul(20, g.sub(21, g.sample(noise, scrolling_uv(g, u, v, phase, time, 0.8, 0.8, 0.9, 3.3, 23), 22, "R"), g.const(0.5, 22)), g.mul(21, v, g.const(0.06, 22)))
+    cu = g.sat(19, g.add(20, u, waver))
+    cv = g.sat(19, g.sub(20, g.const(1.0, 21), v))
+
+    def frame_uv(frame, c):
+        column = g.sub(c + 2, frame, g.mul(c + 3, g.one(unreal.MaterialExpressionFloor, c + 4, g.mul(c + 5, frame, g.const(1.0 / FLIPBOOK_COLUMNS, c + 5))), g.const(float(FLIPBOOK_COLUMNS), c + 4)))
+        row = g.one(unreal.MaterialExpressionFloor, c + 2, g.mul(c + 3, frame, g.const(1.0 / FLIPBOOK_COLUMNS, c + 3)))
+        x = g.mul(c + 1, g.add(c + 2, column, cu), g.const(1.0 / FLIPBOOK_COLUMNS, c + 2))
+        y = g.mul(c + 1, g.add(c + 2, row, cv), g.const(1.0 / FLIPBOOK_COLUMNS, c + 2))
+        return g.append(c, x, y)
+
+    def flipbook_sample(frame_coordinates, c):
+        expression = g.node(unreal.MaterialExpressionTextureSampleParameter2D, c, parameter_name="Flipbook", texture=default_texture,
+                            sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+        g.link(frame_coordinates, expression, "UVs")
+        return expression
+
+    sample_a = flipbook_sample(frame_uv(frame_a, 14), 13)
+    sample_b = flipbook_sample(frame_uv(frame_b, 14), 13)
+    colour = g.lerp(10, g.mask(sample_a, 11), g.mask(sample_b, 11), blend)
+    alpha_a = g.node(unreal.MaterialExpressionMultiply, 11, const_b=1.0)
+    g.link(sample_a, alpha_a, "A", "A")
+    alpha_b = g.node(unreal.MaterialExpressionMultiply, 11, const_b=1.0)
+    g.link(sample_b, alpha_b, "A", "A")
+    alpha = g.lerp(10, alpha_a, alpha_b, blend)
+
+    strength = g.scalar("Staerke", 1.0, 4)
+    # A ragged, soft foot: noise shifts where the fire fades in, so no straight edge of the simulated source shows
+    ragged = g.sample(noise, scrolling_uv(g, u, v, phase, time, 2.5, 1.0, 0.35, 4.7, 9), 8, "G")
+    foot = g.ramp(5, g.add(6, v, g.mul(7, g.sub(8, ragged, g.const(0.5, 9)), g.const(0.22, 8))), 0.05, 0.3)
+    emissive = g.mul(2, g.mul(3, colour, g.mul(4, g.scalar("Hitze", 1.0, 5), g.scalar("Leuchtkraft", 2.0, 5))), strength)
+    # Soft at the top too, so a flame that reaches the edge of its frame never ends in a cut
+    top = g.sat(4, g.mul(5, g.sub(6, g.const(1.0, 7), v), g.const(2.6, 6)))
+    opacity = g.mul(2, g.mul(3, alpha, g.mul(4, foot, top)), strength)
+
+    library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
+    library.connect_material_property(billboard(g, u, v, 36), "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
+def flipbook_instance(parent, kind, texture, values):
+    name = "MI_Feuer_" + kind
+    path = FOLDER + "/" + name
+    instance = unreal.load_asset(path) if assets.does_asset_exist(path) else None
+    if instance is None:
+        instance = tools.create_asset(name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        library.set_material_instance_parent(instance, parent)
+        for key, value in values.items():
+            library.set_material_instance_scalar_parameter_value(instance, key, value)
+        made.append(path)
+    if texture is not None:
+        library.set_material_instance_texture_parameter_value(instance, "Flipbook", texture)
+    assets.save_loaded_asset(instance, False)
+    return instance
+
+
 def main():
     noise = import_noise()
     if noise is None:
@@ -390,6 +506,12 @@ def main():
         return
     build_flame(noise)
     build_smoke(noise)
+
+    # Simulated fire: one flipbook material, an instance per kind of flipbook
+    books = {kind: import_flipbook(kind) for kind in FLIPBOOKS}
+    flipbook = build_flipbook_material(books.get("Flamme"), noise)
+    for kind in FLIPBOOKS:
+        flipbook_instance(flipbook, kind, books[kind], {"Leuchtkraft": {"Flamme": 1.3, "Feuer": 1.2, "Kugel": 1.8}[kind]})
     build_sparks()
     build_scorch(noise)
     for line in made:

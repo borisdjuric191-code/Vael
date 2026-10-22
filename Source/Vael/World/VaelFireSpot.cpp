@@ -3,6 +3,7 @@
 #include "World/VaelFireSpot.h"
 #include "Engine/World.h"
 #include "Vael.h"
+#include "EngineUtils.h"
 
 AVaelFireSpot::AVaelFireSpot()
 {
@@ -82,7 +83,7 @@ void AVaelFireSpot::Tick(float DeltaSeconds)
 	{
 		Fire->SetSizeScale(0.3f + 1.1f * FMath::Sqrt(FMath::Clamp(Age / 0.6f, 0.0f, 1.0f)));
 	}
-	if (BurnTime > 0.0f && Age >= BurnTime)
+	if (BurnTime > 0.0f && Age >= BurnTime && Users == 0)
 	{
 		PutOut();
 	}
@@ -91,5 +92,50 @@ void AVaelFireSpot::Tick(float DeltaSeconds)
 	if (bPutOut && !Fire->IsBurning() && Age > BurnTime + UVaelFireSettings::Get()->ScorchLinger + 1.0f)
 	{
 		Destroy();
+	}
+}
+
+AVaelFireSpot* AVaelFireSpot::SpawnOrJoin(UWorld* World, const FVector& Location, const FVaelFireShape& InShape, float InBurnTime, bool bUser)
+{
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	// A fire close by of the same kind (ground or wall) takes it over
+	const bool bWall = !InShape.WallNormal.IsNearlyZero();
+	for (TActorIterator<AVaelFireSpot> It(World); It; ++It)
+	{
+		AVaelFireSpot* Spot = *It;
+		if (Spot->bBurst || Spot->bPutOut || Spot->Shape.WallNormal.IsNearlyZero() == bWall
+			|| FVector::Dist(Spot->GetActorLocation(), Location) > FMath::Max(Spot->Shape.Radius, InShape.Radius) * 0.9f)
+		{
+			continue;
+		}
+		if (Spot->BurnTime > 0.0f)
+		{
+			Spot->BurnTime = InBurnTime > 0.0f ? FMath::Max(Spot->BurnTime, Spot->Age + InBurnTime) : 0.0f;
+		}
+		if (bUser)
+		{
+			++Spot->Users;
+		}
+		return Spot;
+	}
+
+	AVaelFireSpot* Spot = Spawn(World, Location, InShape, InBurnTime);
+	if (Spot != nullptr && bUser)
+	{
+		Spot->Users = 1;
+	}
+	return Spot;
+}
+
+void AVaelFireSpot::ReleaseUser()
+{
+	Users = FMath::Max(0, Users - 1);
+	if (Users == 0 && (BurnTime <= 0.0f || Age >= BurnTime))
+	{
+		PutOut(0.7f);
 	}
 }

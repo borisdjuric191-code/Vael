@@ -66,6 +66,9 @@ UVaelFireSettings::UVaelFireSettings()
 	SparkMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Funken"));
 	ScorchMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Brandfleck"));
 	SmokeMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Rauch"));
+	FlameFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Flamme"));
+	FireFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Feuer"));
+	BallFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Kugel"));
 }
 
 UVaelFireComponent::UVaelFireComponent(const FObjectInitializer& ObjectInitializer)
@@ -95,7 +98,13 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
 	if (FlameMaterial == nullptr)
 	{
-		FlameMaterial = UMaterialInstanceDynamic::Create(VaelAssets::LoadOptional(Settings->FlameMaterial), this);
+		// Simulated fire where its flipbook exists, else the drawn flames
+		UMaterialInterface* Flipbook = VaelAssets::LoadOptional(InShape.bBall ? Settings->BallFlipbook : Settings->FlameFlipbook);
+		FlameMaterial = UMaterialInstanceDynamic::Create(Flipbook != nullptr ? Flipbook : VaelAssets::LoadOptional(Settings->FlameMaterial), this);
+		if (UMaterialInterface* BedBase = VaelAssets::LoadOptional(Settings->FireFlipbook))
+		{
+			BedMaterial = UMaterialInstanceDynamic::Create(BedBase, this);
+		}
 		SparkMaterial = UMaterialInstanceDynamic::Create(VaelAssets::LoadOptional(Settings->SparkMaterial), this);
 		if (UMaterialInterface* SmokeBase = VaelAssets::LoadOptional(Settings->SmokeMaterial))
 		{
@@ -106,7 +115,8 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 	FlameMaterial->SetScalarParameterValue(SmokeParameter, Shape.Smoke);
 	FlameMaterial->SetScalarParameterValue(SpeedParameter, Shape.Speed);
 	SparkMaterial->SetScalarParameterValue(SparkHeightParameter, Shape.Height * 1.6f);
-	FlameMaterial->SetScalarParameterValue(NormalFlowParameter, Shape.bBall ? Shape.BallSpread : 0.0f);
+	const bool bBallFlipbook = Shape.bBall && FlameMaterial->Parent == VaelAssets::LoadOptional(Settings->BallFlipbook);
+	FlameMaterial->SetScalarParameterValue(NormalFlowParameter, Shape.bBall && !bBallFlipbook ? Shape.BallSpread : 0.0f);
 	if (SmokeMaterial != nullptr)
 	{
 		SmokeMaterial->SetScalarParameterValue(SmokeParameter, Shape.Smoke);
@@ -184,7 +194,18 @@ void UVaelFireComponent::BuildCards()
 		return Share;
 	};
 
-	for (int32 Index = 0; Index < NumTongues; ++Index)
+	// A burning ball: the flipbook shows the ball with its flames, so a few large cards on its middle are enough.
+	// The simulated ball is 28 % of the frame high and sits at 35 % of its height.
+	const bool bBallFlipbook = Shape.bBall && FlameMaterial != nullptr && FlameMaterial->Parent == VaelAssets::LoadOptional(Settings->BallFlipbook);
+	for (int32 Index = 0; bBallFlipbook && Index < FMath::Min(NumTongues, 3); ++Index)
+	{
+		const float Size = Shape.Radius * 2.0f / 0.28f * Random.FRandRange(0.92f, 1.08f);
+		const FVector Base = Random.GetUnitVector() * Shape.Radius * 0.08f - FVector(0.0f, 0.0f, Size * 0.35f);
+		Flames.Add(Base, Size, Size, FLinearColor(Random.FRand(), 1.0f, 0.0f, 1.0f), FVector::UpVector);
+		SparkBases.Add(FVector::ZeroVector);
+	}
+
+	for (int32 Index = 0; !bBallFlipbook && Index < NumTongues; ++Index)
 	{
 		FVector Base;
 		FVector Normal;
@@ -197,34 +218,38 @@ void UVaelFireComponent::BuildCards()
 
 		const float Middle = 1.0f - 0.45f * FromMiddle;
 		const float Height = Shape.Height * Middle * Random.FRandRange(0.55f, 1.0f);
-		const float Width = Height * Random.FRandRange(0.38f, 0.55f);
+		// The flipbook frames are square with the flame in their middle
+		const float Width = Height * Random.FRandRange(0.85f, 1.0f);
 
 		// The foot sits in the ground, so the ground hides the round bottom of the card and the flame grows out of it
-		Base.Z -= bWall ? 4.0f : Shape.bFloating ? 0.0f : Height * 0.18f;
+		Base.Z -= bWall ? Height * 0.05f : Shape.bFloating ? 0.0f : Height * 0.03f;
 		Flames.Add(Base, Width, Height, FLinearColor(Random.FRand(), 0.7f + 0.4f * Middle, 0.0f, 1.0f), Normal);
 		SparkBases.Add(Base + FVector(0.0f, 0.0f, Height * 0.25f));
-	}
-
-	// A bed of broad, low flames that hold on to the ground or the wall, so the fire burns as one patch and not as single tongues
-	if (!Shape.bFloating)
-	{
-		const int32 NumBed = FMath::Clamp(NumTongues / 2, 3, 12);
-		for (int32 Index = 0; Index < NumBed; ++Index)
-		{
-			FVector Base;
-			FVector Normal;
-			PlaceOnPatch(0.7f, Base, Normal);
-			const float Height = Shape.Height * Random.FRandRange(0.25f, 0.4f);
-			const float Width = FMath::Max(Shape.Radius * Random.FRandRange(0.8f, 1.2f), Height * 0.9f);
-			Base.Z -= bWall ? 2.0f : Height * 0.22f;
-			Flames.Add(Base, Width, Height, FLinearColor(Random.FRand(), 0.9f, 0.0f, 1.0f), Normal);
-		}
 	}
 
 	ClearAllMeshSections();
 	CreateMeshSection_LinearColor(0, Flames.Vertices, Flames.Triangles, Flames.Normals, Flames.UVs, Flames.Sizes, TArray<FVector2D>(), TArray<FVector2D>(),
 		Flames.Colors, TArray<FProcMeshTangent>(), false);
 	SetMaterial(0, FlameMaterial);
+
+	// A bed of broad simulated fire that clings to the ground or the wall, so the fire burns as one patch and not as single tongues
+	if (!Shape.bFloating && BedMaterial != nullptr && Shape.Radius > 110.0f)
+	{
+		FCards Bed;
+		const int32 NumBed = FMath::Clamp(NumTongues / 2, 1, 6);
+		for (int32 Index = 0; Index < NumBed; ++Index)
+		{
+			FVector Base;
+			FVector Normal;
+			PlaceOnPatch(Index == 0 ? 0.0f : 0.6f, Base, Normal);
+			const float Size = FMath::Max(Shape.Radius * Random.FRandRange(1.6f, 2.1f), Shape.Height * 0.55f);
+			Base.Z -= bWall ? Size * 0.05f : Size * 0.03f;
+			Bed.Add(Base, Size, Size * 1.1f, FLinearColor(Random.FRand(), 1.0f, 0.0f, 1.0f), Normal);
+		}
+		CreateMeshSection_LinearColor(3, Bed.Vertices, Bed.Triangles, Bed.Normals, Bed.UVs, Bed.Sizes, TArray<FVector2D>(), TArray<FVector2D>(),
+			Bed.Colors, TArray<FProcMeshTangent>(), false);
+		SetMaterial(3, BedMaterial);
+	}
 
 	// Sparks: tiny cards that the material lifts, each in its own loop
 	if (Shape.bSparks)
@@ -318,6 +343,10 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	{
 		FlameMaterial->SetScalarParameterValue(StrengthParameter, Strength);
 		SparkMaterial->SetScalarParameterValue(StrengthParameter, Strength);
+		if (BedMaterial != nullptr)
+		{
+			BedMaterial->SetScalarParameterValue(StrengthParameter, Strength);
+		}
 		if (SmokeMaterial != nullptr)
 		{
 			SmokeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
@@ -360,7 +389,7 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 void UVaelFireComponent::SetFlowDirection(const FVector& Direction)
 {
 	const FLinearColor Value(Direction.GetSafeNormal());
-	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get(), SmokeMaterial.Get() })
+	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get(), SmokeMaterial.Get(), BedMaterial.Get() })
 	{
 		if (Material != nullptr)
 		{
@@ -371,7 +400,7 @@ void UVaelFireComponent::SetFlowDirection(const FVector& Direction)
 
 void UVaelFireComponent::SetSizeScale(float Scale)
 {
-	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get(), SmokeMaterial.Get() })
+	for (UMaterialInstanceDynamic* Material : { FlameMaterial.Get(), SparkMaterial.Get(), SmokeMaterial.Get(), BedMaterial.Get() })
 	{
 		if (Material != nullptr)
 		{

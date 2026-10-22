@@ -402,7 +402,7 @@ void UVaelElementOrbitComponent::BuildOrb(FVaelElementOrb& Orb)
 			Orb.Flames->SetupAttachment(Orb.Pivot);
 			Orb.Flames->RegisterComponent();
 			FVaelFireShape Shape;
-			Shape.Radius = Orb.Size * 50.0f * 0.9f;
+			Shape.Radius = Orb.Size * 50.0f * 1.5f;
 			Shape.Height = Orb.Size * 50.0f * 4.2f;
 			Shape.BallSpread = 0.4f;
 			Shape.Heat = 1.2f;
@@ -412,6 +412,7 @@ void UVaelElementOrbitComponent::BuildOrb(FVaelElementOrb& Orb)
 			Shape.bBall = true;
 			Shape.bFloating = true;
 			Shape.bLight = false;
+			Shape.bSparks = false;
 			Orb.Flames->Ignite(Shape, 0.2f);
 		}
 

@@ -40,6 +40,16 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Materials")
 	TSoftObjectPtr<UMaterialInterface> SmokeMaterial;
 
+	/** Simulated fire played as flipbooks (Tools/Feuer/feuer_simulation.py): a single flame, a broad fire, a burning ball */
+	UPROPERTY(config, EditAnywhere, Category="Materials")
+	TSoftObjectPtr<UMaterialInterface> FlameFlipbook;
+
+	UPROPERTY(config, EditAnywhere, Category="Materials")
+	TSoftObjectPtr<UMaterialInterface> FireFlipbook;
+
+	UPROPERTY(config, EditAnywhere, Category="Materials")
+	TSoftObjectPtr<UMaterialInterface> BallFlipbook;
+
 	/** Most fires that cast light at once; the others burn without */
 	UPROPERTY(config, EditAnywhere, Category="Light", meta = (ClampMin = 0))
 	int32 MaxLitFires = 12;
@@ -53,13 +63,13 @@ public:
 
 	/** Flame tongues per square metre of fire, and the fewest and most one fire has */
 	UPROPERTY(config, EditAnywhere, Category="Flames", meta = (ClampMin = 0.1))
-	float TonguesPerSquareMetre = 24.0f;
+	float TonguesPerSquareMetre = 5.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Flames", meta = (ClampMin = 1))
-	int32 MinTongues = 3;
+	int32 MinTongues = 1;
 
 	UPROPERTY(config, EditAnywhere, Category="Flames", meta = (ClampMin = 1))
-	int32 MaxTongues = 60;
+	int32 MaxTongues = 16;
 
 	/** Seconds a scorch mark stays after its fire went out, while its embers die down */
 	UPROPERTY(config, EditAnywhere, Category="Scorch", meta = (ClampMin = 0))
@@ -182,6 +192,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> SmokeMaterial;
+
+	/** The broad fire of the bed under the flames */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BedMaterial;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ScorchMaterial;
