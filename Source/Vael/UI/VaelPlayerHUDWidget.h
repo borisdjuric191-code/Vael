@@ -97,6 +97,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UTexture2D> SeedIcon;
 
+	/** The furry green bar of the Floromant's Keimpelz pelt over the top of the panel, an instance of M_HUD_Pelz */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UMaterialInterface> KeimpelzBarMaterial;
+
 	/** Round menu buttons at the edge: Adernbaum, Rezeptbuch, Karte */
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UTexture2D> MenuIcons[3];
@@ -131,6 +135,8 @@ private:
 		float CooldownLeft = 0.0f;
 		bool bLit = false;
 		bool bDim = false;
+		/** The wipe shows a share, not seconds (the plant bar of a hand, a reload) */
+		bool bNoSeconds = false;
 	};
 
 	struct FStripEntry
@@ -193,6 +199,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> DodgeCooldownInstance;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> KeimpelzBarInstance;
+
 	/** Pictures loaded for the brushes */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> LoadedResources;
@@ -206,6 +215,7 @@ private:
 	FSlateBrush MedallionBrush;
 	FSlateBrush BadgeBrush;
 	FSlateBrush DodgeCooldownBrush;
+	FSlateBrush KeimpelzBarBrush;
 	TArray<FSlateBrush> CooldownBrushes;
 
 	FSlateFontInfo TitleFont;
@@ -223,6 +233,10 @@ private:
 	FText PotionText;
 	FText HealthText;
 	FText ResourceText;
+
+	/** The Keimpelz pelt of a Floromant: shown at all, and its number */
+	bool bShowKeimpelz = false;
+	FText KeimpelzText;
 	EVaelInputGlyphs Glyphs = EVaelInputGlyphs::Keyboard;
 	int32 PlayerSlot = 0;
 	EVaelPath Path = EVaelPath::None;

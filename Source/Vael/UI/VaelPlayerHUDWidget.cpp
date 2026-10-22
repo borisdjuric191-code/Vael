@@ -8,6 +8,8 @@
 #include "Fonts/CompositeFont.h"
 #include "Fonts/FontMeasure.h"
 #include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelPlantArmComponent.h"
+#include "Floromant/VaelPlantArmData.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelElementComponent.h"
@@ -110,6 +112,7 @@ UVaelPlayerHUDWidget::UVaelPlayerHUDWidget(const FObjectInitializer& ObjectIniti
 	PotionIcon = HudAsset<UTexture2D>(TEXT("T_Symbol_Trank"), TEXT("Symbole"));
 	DodgeIcon = HudAsset<UTexture2D>(TEXT("T_Symbol_Ausweichen"), TEXT("Symbole"));
 	SeedIcon = HudAsset<UTexture2D>(TEXT("T_Symbol_Saat"), TEXT("Symbole"));
+	KeimpelzBarMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Pelz"));
 	MenuIcons[0] = HudAsset<UTexture2D>(TEXT("T_Symbol_Adernbaum"), TEXT("Symbole"));
 	MenuIcons[1] = HudAsset<UTexture2D>(TEXT("T_Symbol_Rezeptbuch"), TEXT("Symbole"));
 	MenuIcons[2] = HudAsset<UTexture2D>(TEXT("T_Symbol_Karte"), TEXT("Symbole"));
@@ -162,6 +165,11 @@ void UVaelPlayerHUDWidget::NativeConstruct()
 	{
 		DodgeCooldownInstance = UMaterialInstanceDynamic::Create(Wipe, this);
 		SetMaterialBrush(DodgeCooldownBrush, DodgeCooldownInstance);
+	}
+	if (UMaterialInterface* Pelt = VaelAssets::LoadOptional(KeimpelzBarMaterial))
+	{
+		KeimpelzBarInstance = UMaterialInstanceDynamic::Create(Pelt, this);
+		SetMaterialBrush(KeimpelzBarBrush, KeimpelzBarInstance);
 	}
 }
 
@@ -415,6 +423,46 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 				State.Name = QueuedFormula->DisplayName;
 			}
 			break;
+		case EVaelHUDAbility::HandLeft:
+		case EVaelHUDAbility::HandRight:
+		{
+			// The plant on the hand in its colour; the dark wipe shows how empty its plant bar is
+			const UVaelPlantArmComponent* Hand = Floromant != nullptr ? Floromant->FindHand(Ability.Ability == EVaelHUDAbility::HandLeft) : nullptr;
+			const UVaelPlantArmData* HandPlant = Hand != nullptr ? Hand->GetPlant() : nullptr;
+			if (HandPlant != nullptr)
+			{
+				const bool bShadowForm = Path == EVaelPath::Shadow;
+				State.Name = HandPlant->GetDisplayName(bShadowForm);
+				State.IconColor = HandPlant->GetColor(bShadowForm);
+				State.bLit = Hand->IsFiring();
+				State.CooldownLeft = 1.0f - Hand->GetBarFraction();
+				Total = 1.0f;
+			}
+			else
+			{
+				State.bDim = true;
+			}
+			State.bNoSeconds = true;
+			break;
+		}
+		case EVaelHUDAbility::Reload:
+		{
+			// Lights while a hand lacks shots and the pelt can fill it; the wipe runs while the stalks draw the moss in
+			const UVaelPlantArmComponent* Hands[] = { Floromant != nullptr ? Floromant->FindHand(true) : nullptr, Floromant != nullptr ? Floromant->FindHand(false) : nullptr };
+			for (const UVaelPlantArmComponent* Hand : Hands)
+			{
+				if (Hand != nullptr)
+				{
+					State.CooldownLeft = FMath::Max(State.CooldownLeft, Hand->GetReloadLeft());
+					State.bLit = State.bLit || Hand->GetMissingShots() > 0;
+				}
+			}
+			State.bLit = State.bLit && Floromant->GetKeimpelz() >= 1.0f;
+			State.bDim = Floromant == nullptr || Floromant->GetKeimpelz() < 1.0f;
+			Total = 1.0f;
+			State.bNoSeconds = true;
+			break;
+		}
 		case EVaelHUDAbility::Placeholder:
 			break;
 		default:
@@ -467,6 +515,30 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			Entry.Label = Floromant->GetBeltName(Index);
 		}
 		StripLabel = Floromant->GetBeltName(Floromant->GetBeltSelection());
+	}
+	else if (ShownData->Strip == EVaelHUDStrip::HandBelt && Floromant != nullptr)
+	{
+		// The seed belt of the hands: the picked plant is laid on a hand with the d-pad left / right
+		const bool bShadowForm = Path == EVaelPath::Shadow;
+		for (int32 Index = 0; Index < Floromant->GetHandBeltSize(); ++Index)
+		{
+			const UVaelPlantArmData* BeltPlant = Floromant->GetHandBeltPlant(Index);
+			FStripEntry& Entry = Strip.AddDefaulted_GetRef();
+			Entry.bFilled = BeltPlant != nullptr;
+			Entry.Color = BeltPlant != nullptr ? BeltPlant->GetColor(bShadowForm) : FLinearColor::Gray;
+			Entry.bPicked = Index == Floromant->GetHandBeltSelection();
+			Entry.Label = BeltPlant != nullptr ? BeltPlant->GetDisplayName(bShadowForm) : FText::GetEmpty();
+		}
+		const UVaelPlantArmData* Picked = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
+		StripLabel = Picked != nullptr ? Picked->GetDisplayName(bShadowForm) : FText::GetEmpty();
+	}
+
+	// The Keimpelz pelt of a Floromant, as a furry bar over the panel that shrinks to the left and grows back to the right
+	bShowKeimpelz = bPlayable && Character->IsFloromant() && Floromant != nullptr && KeimpelzBarInstance != nullptr;
+	if (bShowKeimpelz)
+	{
+		KeimpelzBarInstance->SetScalarParameterValue(FillParameter, Floromant->GetKeimpelzFraction());
+		KeimpelzText = FText::AsNumber(FMath::FloorToInt(Floromant->GetKeimpelz()));
 	}
 }
 
@@ -582,6 +654,8 @@ void UVaelPlayerHUDWidget::PaintButton(FSlateWindowElementList& Out, int32 Layer
 		case EVaelHUDButton::R2:		Label = Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("R2", "R2") : LOCTEXT("RT", "RT"); break;
 		case EVaelHUDButton::L1:		Label = Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("L1", "L1") : LOCTEXT("LB", "LB"); break;
 		case EVaelHUDButton::L1R1:		Label = Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("L1R1", "L1+R1") : LOCTEXT("LBRB", "LB+RB"); break;
+		case EVaelHUDButton::L2:		Label = Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("L2", "L2") : LOCTEXT("LT", "LT"); break;
+		case EVaelHUDButton::L2R2:		Label = Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("L2R2", "L2+R2") : LOCTEXT("LTRT", "LT+RT"); break;
 		case EVaelHUDButton::DPad:		Label = LOCTEXT("DPad", "✥"); break;
 		}
 	}
@@ -667,6 +741,15 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		PaintBox(OutDrawElements, L + 4, FindTextureBrush(PathTextures[Way]), O + FVector2f(648.0f, FrameTop + 10.0f), FVector2f(30.0f), WayColor);
 	}
 
+	// The Keimpelz pelt over the top of the panel, its number in the middle
+	if (bShowKeimpelz)
+	{
+		const FVector2f BarAt = O + FVector2f(196.0f, -20.0f);
+		const FVector2f BarSize(488.0f, 40.0f);
+		PaintBox(OutDrawElements, L + 6, &KeimpelzBarBrush, BarAt, BarSize);
+		PaintText(OutDrawElements, L + 7, KeimpelzText, NumberFont, BarAt + FVector2f(BarSize.X * 0.5f, 7.0f), TextColor, 0.5f);
+	}
+
 	// Round menu buttons on the upper edge: Adernbaum, Rezeptbuch, Karte
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
@@ -681,7 +764,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	const float BarLeft = PanelWidth * 0.5f - BarWidth * 0.5f;
 	if (!Strip.IsEmpty())
 	{
-		const bool bSeeds = ShownData->Strip == EVaelHUDStrip::SeedBelt;
+		const bool bSeeds = ShownData->Strip == EVaelHUDStrip::SeedBelt || ShownData->Strip == EVaelHUDStrip::HandBelt;
 		const float Dot = bSeeds ? 20.0f : 16.0f;
 		const float Step = Dot + 6.0f;
 		for (int32 Index = 0; Index < Strip.Num(); ++Index)
@@ -735,7 +818,10 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		if (State.CooldownLeft > 0.0f && CooldownBrushes.IsValidIndex(Index))
 		{
 			PaintBox(OutDrawElements, L + 5, &CooldownBrushes[Index], At + FVector2f(4.0f), FVector2f(SlotSize - 8.0f));
-			PaintText(OutDrawElements, L + 6, FText::AsNumber(FMath::CeilToInt(State.CooldownLeft)), NumberFont, At + FVector2f(SlotSize * 0.5f, SlotSize * 0.5f - 12.0f), TextColor, 0.5f);
+			if (!State.bNoSeconds)
+			{
+				PaintText(OutDrawElements, L + 6, FText::AsNumber(FMath::CeilToInt(State.CooldownLeft)), NumberFont, At + FVector2f(SlotSize * 0.5f, SlotSize * 0.5f - 12.0f), TextColor, 0.5f);
+			}
 		}
 
 		PaintButton(OutDrawElements, L + 5, State.Button, State.KeyboardKey, At + FVector2f(SlotSize - 10.0f, SlotSize - 10.0f), 13.0f);

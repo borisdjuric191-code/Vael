@@ -21,7 +21,9 @@ enum class EVaelHUDButton : uint8
 	R2,
 	L1,
 	L1R1,
-	DPad
+	DPad,
+	L2,
+	L2R2
 };
 
 /** What an ability slot shows the state of */
@@ -42,7 +44,12 @@ enum class EVaelHUDAbility : uint8
 	RootGrip,
 	RootLeap,
 	Overgrowth,
-	ThornWhip
+	ThornWhip,
+	/** A hand of the Floromant: the plant on it, its colour, and how empty its plant bar is */
+	HandLeft,
+	HandRight,
+	/** Reloading the hands from the Keimpelz pelt */
+	Reload
 };
 
 /** What the small strip above the abilities shows */
@@ -53,7 +60,9 @@ enum class EVaelHUDStrip : uint8
 	/** The queued elements and the quick slots of the mage */
 	ElementQueue,
 	/** The four seeds of the Floromant's seed belt */
-	SeedBelt
+	SeedBelt,
+	/** The plants of the seed belt of the Floromant's hands */
+	HandBelt
 };
 
 /** What fills the class vessel */

@@ -622,11 +622,12 @@ CLASSES = [
      "liquid": "5B3D84", "liquid2": "E1BD52", "surface": "8A67B8", "surface2": "F5DE96", "glass": "C9A443", "bud": 0.0, "preview": True, "two": True,
      "abilities": [("Segen", "Prophet", B.R2, "LMT", A.PLACEHOLDER), ("Fluch", "Prophet", B.CIRCLE, "1", A.PLACEHOLDER), ("Weissagung", "Prophet", B.SQUARE, "2", A.PLACEHOLDER),
                    ("Licht", "Prophet", B.CROSS, "3", A.PLACEHOLDER), ("Schatten", "Prophet", B.TRIANGLE, "4", A.PLACEHOLDER), ("Gel\u00fcbde", "Prophet", B.L1R1, "5", A.PLACEHOLDER)]},
-    {"name": "Floromant", "title": "Floromant", "resource": "Saft", "frame": "C97A9E", "accent": "4FB3A9", "strip": unreal.VaelHUDStrip.SEED_BELT,
+    {"name": "Floromant", "title": "Floromant", "resource": "Saft", "frame": "C97A9E", "accent": "4FB3A9", "strip": unreal.VaelHUDStrip.HAND_BELT,
      "vessel": {"LiquidBottom": 0.88, "LiquidTop": 0.34}, "liquid": "D0679A", "surface": "F0A5C6", "glass": "4FB3A9", "bud": 1.0,
-     "abilities": [("Dornenpeitsche", "Dornenpeitsche", B.R2, "LMT", A.THORN_WHIP), ("Ruf des Gartens", "RufDesGartens", B.CIRCLE, "1", A.GARDEN_CALL),
-                   ("S\u00e4en", "Saeen", B.SQUARE, "2", A.SOW), ("Wurzelgriff", "Wurzelgriff", B.CROSS, "3", A.ROOT_GRIP),
-                   ("Wurzelsprung", "Wurzelsprung", B.TRIANGLE, "4", A.ROOT_LEAP), ("Wuchern", "Wuchern", B.L1R1, "5", A.OVERGROWTH)]},
+     # Own controls since 2026-10-22 (UpdateFloromantHud.py changes an existing asset the same way)
+     "abilities": [("Linke Hand", "Saat", B.L1, "LMT", A.HAND_LEFT), ("Rechte Hand", "Saat", B.R1, "RMT", A.HAND_RIGHT),
+                   ("Dornenpeitsche", "Dornenpeitsche", B.SQUARE, "F", A.THORN_WHIP), ("Wurzelsprung", "Wurzelsprung", B.CROSS, "Leer", A.ROOT_LEAP),
+                   ("Ruf des Gartens", "Wuchern", B.L2R2, "Q+E", A.OVERGROWTH), ("Keimpelz", "Saeen", B.TRIANGLE, "R", A.RELOAD)]},
 ]
 
 

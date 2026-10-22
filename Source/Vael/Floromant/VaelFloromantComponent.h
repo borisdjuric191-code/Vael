@@ -98,6 +98,9 @@ public:
 	/** The hand, made when first asked for */
 	UVaelPlantArmComponent* GetHand(bool bLeft);
 
+	/** The hand if it was made already, else null */
+	UVaelPlantArmComponent* FindHand(bool bLeft) const { return bLeft ? LeftHand.Get() : RightHand.Get(); }
+
 	/** True while a hand fires; the Floromant has landed and braces itself */
 	bool IsFiring() const;
 

@@ -64,6 +64,9 @@ public:
 	void StartReload(int32 Shots, float Duration);
 	bool IsReloading() const { return ReloadTimeLeft > 0.0f; }
 
+	/** Share of the reload still to go, 1 right after it started, 0 when it is done */
+	float GetReloadLeft() const { return ReloadDuration > 0.0f ? ReloadTimeLeft / ReloadDuration : 0.0f; }
+
 	/** Removes all stalks at once, for example when the player becomes a mage */
 	void Clear();
 
