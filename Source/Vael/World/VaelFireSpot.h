@@ -35,9 +35,12 @@ public:
 	/** Lights a fire where something burning landed; a wall normal makes it a fire on the wall */
 	static AVaelFireSpot* Spawn(UWorld* World, const FVector& Location, const FVaelFireShape& InShape, float InBurnTime);
 
-	/** Lights a fire, or joins one that already burns this close: that one burns on (at least for the burn time) instead of
-	 *  a second fire flickering on top of it. With bUser the caller holds it, until it calls ReleaseUser. */
+	/** Lights a fire, or joins one that already burns this close: that one takes the fire in, grows and burns on (at least
+	 *  for the burn time) instead of a second fire burning beside it. With bUser the caller holds it, until it calls ReleaseUser. */
 	static AVaelFireSpot* SpawnOrJoin(UWorld* World, const FVector& Location, const FVaelFireShape& InShape, float InBurnTime, bool bUser);
+
+	/** Fire landed on this patch: it grows by part of it, moves a little towards where it landed and burns on */
+	void Feed(const FVector& Location, float Radius);
 
 	/** Someone who keeps the fire burning lets go; the last one puts it out */
 	void ReleaseUser();
@@ -65,4 +68,12 @@ private:
 
 	/** A blast: blooms out over its burn time instead of burning steadily */
 	bool bBurst = false;
+
+	/** Size it was lit with, the size it grows towards, and where its middle moves to */
+	float BaseRadius = 0.0f;
+	float TargetRadius = 0.0f;
+	FVector TargetLocation = FVector::ZeroVector;
+
+	/** Seconds since it was last fed */
+	float SinceFed = 0.0f;
 };

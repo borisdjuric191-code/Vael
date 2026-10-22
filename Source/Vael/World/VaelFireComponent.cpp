@@ -26,6 +26,8 @@ namespace
 	const FName SizeParameter(TEXT("Groesse"));
 	const FName NormalFlowParameter(TEXT("NormalFluss"));
 	const FName DensityParameter(TEXT("Dichte"));
+	const FName GrowthParameter(TEXT("Wachstum"));
+	const FName FrontParameter(TEXT("Front"));
 
 	/** Size of a spark card in cm */
 	constexpr float SparkSize = 1.8f;
@@ -77,8 +79,14 @@ UVaelFireSettings::UVaelFireSettings()
 	FlameFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Flamme"));
 	FireFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Feuer"));
 	BallFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Kugel"));
-	VolumeFire = VolumeAsset(TEXT("MI_Feuer_Volumen_Brand"));
-	VolumeBall = VolumeAsset(TEXT("MI_Feuer_Volumen_Kugel"));
+	RootMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Brandadern"));
+
+	// Embers, a fire, a big fire: each simulated on a bed of its own size
+	GroundVolumes = {
+		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Glut")), 0.32f, 45.0f },
+		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Brand")), 0.6f, 140.0f },
+		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Gross")), 1.1f, 100000.0f } };
+	BallVolume = { VolumeAsset(TEXT("MI_Feuer_Volumen_Kugel")), 0.25f, 100000.0f };
 }
 
 UVaelFireComponent::UVaelFireComponent(const FObjectInitializer& ObjectInitializer)
@@ -135,22 +143,26 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 	BuildCards();
 	BuildVolume();
 
-	// A charred patch under the fire, or on the wall it burns on
+	// A charred patch under the fire, or on the wall it burns on. On the ground the fire spreads in burning roots that
+	// creep outwards from where it started
 	if (Shape.bScorch && Scorch == nullptr)
 	{
-		if (UMaterialInterface* ScorchBase = VaelAssets::LoadOptional(Settings->ScorchMaterial))
+		const bool bWall = !Shape.WallNormal.IsNearlyZero();
+		UMaterialInterface* RootBase = bWall ? nullptr : VaelAssets::LoadOptional(Settings->RootMaterial);
+		if (UMaterialInterface* ScorchBase = RootBase != nullptr ? RootBase : VaelAssets::LoadOptional(Settings->ScorchMaterial))
 		{
 			ScorchMaterial = UMaterialInstanceDynamic::Create(ScorchBase, this);
 			Scorch = NewObject<UDecalComponent>(GetOwner());
 			Scorch->SetDecalMaterial(ScorchMaterial);
 			Scorch->SetupAttachment(this);
 			Scorch->SetUsingAbsoluteRotation(true);
-			const bool bWall = !Shape.WallNormal.IsNearlyZero();
-			const float Size = Shape.Radius * 1.35f;
+			const float Size = Shape.Radius * (RootBase != nullptr ? Settings->RootReach : 1.35f);
 			Scorch->DecalSize = FVector(40.0f, Size, bWall ? Size * 1.3f : Size);
 			Scorch->RegisterComponent();
 			Scorch->SetWorldRotation(bWall ? (-Shape.WallNormal).Rotation() : FRotator(-90.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f));
 			Scorch->SetRelativeLocation(bWall ? FVector(0.0f, 0.0f, Shape.Radius * 0.3f) : FVector::ZeroVector);
+			RootGrowth = 0.1f;
+			SinceFed = 0.0f;
 		}
 	}
 
@@ -161,50 +173,102 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 	SetComponentTickEnabled(true);
 }
 
-void UVaelFireComponent::BuildVolume()
+const FVaelFireVolumeKind* UVaelFireComponent::PickVolumeKind(int32& OutIndex) const
 {
 	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+	OutIndex = INDEX_NONE;
+	// Fires on walls stay cards: the volume would burn half inside the wall
+	if (!Settings->bUseVolumes || !Shape.WallNormal.IsNearlyZero()
+		|| Shape.Radius < (Shape.bBall ? Settings->MinBallVolumeRadius : Settings->MinVolumeRadius))
+	{
+		return nullptr;
+	}
+	if (Shape.bBall)
+	{
+		return &Settings->BallVolume;
+	}
+	for (int32 Index = 0; Index < Settings->GroundVolumes.Num(); ++Index)
+	{
+		if (Shape.Radius <= Settings->GroundVolumes[Index].UpToRadius || Index == Settings->GroundVolumes.Num() - 1)
+		{
+			OutIndex = Index;
+			return &Settings->GroundVolumes[Index];
+		}
+	}
+	return nullptr;
+}
+
+UHeterogeneousVolumeComponent* UVaelFireComponent::MakeVolume(const FVaelFireVolumeKind& Kind)
+{
+	UMaterialInterface* Base = VaelAssets::LoadOptional(Kind.Material);
+	if (Base == nullptr)
+	{
+		return nullptr;
+	}
+	UHeterogeneousVolumeComponent* Made = NewObject<UHeterogeneousVolumeComponent>(GetOwner());
+	Made->SetupAttachment(this);
+	Made->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Made->SetCastShadow(false);
+	Made->bPlaying = true;
+	Made->bLooping = true;
+	Made->bPivotAtCentroid = true;
+	Made->FrameRate = UVaelFireSettings::Get()->VolumeFrameRate;
+	Made->RegisterComponent();
+	Made->SetMaterial(0, Base);
+	if (Made->MaterialInstanceDynamic == nullptr)
+	{
+		Made->DestroyComponent();
+		return nullptr;
+	}
+	// Every fire starts somewhere else in the loop and turns another way, so no two burn alike
+	Made->Frame = FMath::FRandRange(Made->StartFrame, Made->EndFrame);
+	Made->SetRelativeRotation(FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f));
+	Made->MaterialInstanceDynamic->SetScalarParameterValue(StrengthParameter, 0.0f);
+	++NumVolumeFires;
+	return Made;
+}
+
+void UVaelFireComponent::BuildVolume()
+{
+	int32 Stage = INDEX_NONE;
+	const FVaelFireVolumeKind* Kind = PickVolumeKind(Stage);
+	if (Kind == nullptr)
+	{
+		return;
+	}
+
+	const bool bNewStage = Volume == nullptr || Stage != VolumeStage;
+	if (bNewStage && (Volume != nullptr || NumVolumeFires < UVaelFireSettings::Get()->MaxVolumeFires))
+	{
+		if (UHeterogeneousVolumeComponent* Made = MakeVolume(*Kind))
+		{
+			// The stage the fire grew out of fades while the new one comes up; a stage still fading goes at once
+			if (OldVolume != nullptr)
+			{
+				OldVolume->DestroyComponent();
+				NumVolumeFires = FMath::Max(0, NumVolumeFires - 1);
+			}
+			OldVolume = Volume;
+			OldVolumeMaterial = VolumeMaterial;
+			OldVolumeSize = VolumeSize;
+			OldVolumeHeight = VolumeHeight;
+			VolumeBlend = OldVolume != nullptr ? 0.0f : 1.0f;
+			Volume = Made;
+			VolumeMaterial = Made->MaterialInstanceDynamic;
+			VolumeStage = Stage;
+			VolumeHeight = 0.0f;
+		}
+	}
 	if (Volume == nullptr)
 	{
-		// Fires on walls stay cards: the volume would burn half inside the wall
-		if (!Settings->bUseVolumes || !Shape.WallNormal.IsNearlyZero() || NumVolumeFires >= Settings->MaxVolumeFires
-			|| Shape.Radius < (Shape.bBall ? Settings->MinBallVolumeRadius : Settings->MinVolumeRadius))
-		{
-			return;
-		}
-		UMaterialInterface* Base = VaelAssets::LoadOptional(Shape.bBall ? Settings->VolumeBall : Settings->VolumeFire);
-		if (Base == nullptr)
-		{
-			return;
-		}
-		Volume = NewObject<UHeterogeneousVolumeComponent>(GetOwner());
-		Volume->SetupAttachment(this);
-		Volume->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		Volume->SetCastShadow(false);
-		Volume->bPlaying = true;
-		Volume->bLooping = true;
-		Volume->bPivotAtCentroid = true;
-		Volume->FrameRate = Settings->VolumeFrameRate;
-		Volume->RegisterComponent();
-		Volume->SetMaterial(0, Base);
-		VolumeMaterial = Volume->MaterialInstanceDynamic;
-		if (VolumeMaterial == nullptr)
-		{
-			Volume->DestroyComponent();
-			Volume = nullptr;
-			return;
-		}
-		// Every fire starts somewhere else in the loop and turns another way, so no two burn alike
-		Volume->Frame = FMath::FRandRange(Volume->StartFrame, Volume->EndFrame);
-		Volume->SetRelativeRotation(FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f));
-		VolumeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
-		++NumVolumeFires;
+		return;
 	}
 
 	// The volume plays in simulated metres; its frames carry the size of a voxel and the place of the domain
-	VolumeScale = Shape.Radius * (Shape.bBall ? Settings->BallVolumeScalePerRadius : Settings->VolumeScalePerRadius);
-	VolumeMaterial->SetScalarParameterValue(DensityParameter, Settings->VolumeReferenceScale / FMath::Max(VolumeScale, 1.0f));
-	SetSizeScale(1.0f);
+	VolumeBedRadius = Kind->BedRadius;
+	VolumeScale = Shape.Radius / FMath::Max(VolumeBedRadius, 0.01f);
+	VolumeMaterial->SetScalarParameterValue(DensityParameter, UVaelFireSettings::Get()->VolumeReferenceScale / FMath::Max(VolumeScale, 1.0f));
+	SetSizeScale(SizeScale);
 
 	// The volume is the flame now: the cards keep only the sparks, the volume brings its own smoke
 	SetMeshSectionVisible(0, false);
@@ -214,13 +278,59 @@ void UVaelFireComponent::BuildVolume()
 
 void UVaelFireComponent::ReleaseVolume()
 {
-	if (Volume != nullptr)
+	for (UHeterogeneousVolumeComponent* Which : { Volume.Get(), OldVolume.Get() })
 	{
-		Volume->DestroyComponent();
-		Volume = nullptr;
-		VolumeMaterial = nullptr;
-		NumVolumeFires = FMath::Max(0, NumVolumeFires - 1);
+		if (Which != nullptr)
+		{
+			Which->DestroyComponent();
+			NumVolumeFires = FMath::Max(0, NumVolumeFires - 1);
+		}
 	}
+	Volume = nullptr;
+	VolumeMaterial = nullptr;
+	OldVolume = nullptr;
+	OldVolumeMaterial = nullptr;
+	VolumeStage = INDEX_NONE;
+}
+
+void UVaelFireComponent::SetRadius(float NewRadius)
+{
+	if (FMath::IsNearlyEqual(NewRadius, Shape.Radius, 0.5f))
+	{
+		return;
+	}
+	const float Grown = NewRadius / FMath::Max(Shape.Radius, 1.0f);
+	Shape.Radius = NewRadius;
+	Shape.Height *= Grown;
+	int32 Stage = INDEX_NONE;
+	if (Volume != nullptr || PickVolumeKind(Stage) != nullptr)
+	{
+		BuildVolume();
+	}
+	if (Volume == nullptr)
+	{
+		BuildCards();
+	}
+	if (Scorch != nullptr)
+	{
+		const bool bWall = !Shape.WallNormal.IsNearlyZero();
+		const float Size = Shape.Radius * (ScorchMaterial != nullptr && ScorchMaterial->Parent == VaelAssets::LoadOptional(UVaelFireSettings::Get()->RootMaterial)
+			? UVaelFireSettings::Get()->RootReach : 1.35f);
+		Scorch->DecalSize = FVector(40.0f, Size, bWall ? Size * 1.3f : Size);
+		Scorch->MarkRenderStateDirty();
+	}
+	if (Light != nullptr)
+	{
+		Light->SetAttenuationRadius(300.0f + Shape.Radius * 7.0f);
+		Light->SetRelativeLocation(FVector(0.0f, 0.0f, Shape.Height * 0.45f) + Shape.WallNormal * 25.0f);
+	}
+	SparkMaterial->SetScalarParameterValue(SparkHeightParameter, Shape.Height * 1.6f);
+	UpdateBounds();
+}
+
+void UVaelFireComponent::Feed()
+{
+	SinceFed = 0.0f;
 }
 
 void UVaelFireComponent::Extinguish(float FadeOut, bool bInDestroyWhenOut)
@@ -427,10 +537,6 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		{
 			SmokeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
 		}
-		if (VolumeMaterial != nullptr)
-		{
-			VolumeMaterial->SetScalarParameterValue(StrengthParameter, Strength);
-		}
 	}
 
 	// The light flickers with the flames: a slow breath and a quick restless flutter
@@ -446,14 +552,44 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		}
 	}
 
+	// A new stage comes up while the one the fire grew out of fades away
+	if (OldVolume != nullptr)
+	{
+		VolumeBlend = FMath::Min(1.0f, VolumeBlend + DeltaTime / UVaelFireSettings::Get()->StageBlendSeconds);
+		OldVolumeMaterial->SetScalarParameterValue(StrengthParameter, Strength * (1.0f - VolumeBlend));
+		PlaceVolume(OldVolume, OldVolumeSize, OldVolumeHeight);
+		if (VolumeBlend >= 1.0f)
+		{
+			OldVolume->DestroyComponent();
+			OldVolume = nullptr;
+			OldVolumeMaterial = nullptr;
+			NumVolumeFires = FMath::Max(0, NumVolumeFires - 1);
+		}
+	}
+	if (VolumeMaterial != nullptr)
+	{
+		VolumeMaterial->SetScalarParameterValue(StrengthParameter, Strength * VolumeBlend);
+	}
+
 	// The size of a voxel arrives with the first frame, so the foot of the fire is set on the ground once it is known
 	if (Volume != nullptr)
 	{
-		PlaceVolume();
+		PlaceVolume(Volume, VolumeSize, VolumeHeight);
 	}
 	if (Volume != nullptr && Strength <= 0.0f && TargetStrength <= 0.0f)
 	{
 		ReleaseVolume();
+	}
+
+	// The roots creep outwards at full pace while the fire is fed, slow down when nothing more comes and stop when it is out
+	SinceFed += DeltaTime;
+	const UVaelFireSettings* RootSettings = UVaelFireSettings::Get();
+	const float Pace = TargetStrength > 0.0f ? FMath::Exp(-SinceFed / RootSettings->RootSlowdownSeconds) : 0.0f;
+	RootGrowth = FMath::Min(1.0f, RootGrowth + DeltaTime * Pace / RootSettings->RootGrowSeconds);
+	if (ScorchMaterial != nullptr)
+	{
+		ScorchMaterial->SetScalarParameterValue(GrowthParameter, RootGrowth);
+		ScorchMaterial->SetScalarParameterValue(FrontParameter, RootGrowth < 1.0f ? Pace * Strength : 0.0f);
 	}
 
 	// The scorch mark glows while the fire burns, its embers die down after, then it fades away
@@ -497,30 +633,31 @@ void UVaelFireComponent::SetSizeScale(float Scale)
 			Material->SetScalarParameterValue(SizeParameter, Scale);
 		}
 	}
+	SizeScale = Scale;
 	if (Volume != nullptr)
 	{
 		VolumeSize = VolumeScale * Scale;
 		Volume->SetRelativeScale3D(FVector(VolumeSize));
-		PlaceVolume();
+		PlaceVolume(Volume, VolumeSize, VolumeHeight);
 	}
 }
 
-void UVaelFireComponent::PlaceVolume()
+void UVaelFireComponent::PlaceVolume(UHeterogeneousVolumeComponent* Which, float Size, float& KnownHeight)
 {
 	// The volume turns around its middle; lift it so the foot of the fire, or the middle of the ball, sits on this component
 	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
-	const float Height = Volume->VolumeResolution.Z * Volume->FrameTransform.GetScale3D().Z;
-	const float Lift = (Height * 0.5f - (Shape.bBall ? Settings->BallVolumeCentre : Settings->VolumeFloor)) * VolumeSize;
-	if (!FMath::IsNearlyEqual(Height, VolumeHeight))
+	const float Height = Which->VolumeResolution.Z * Which->FrameTransform.GetScale3D().Z;
+	const float Lift = (Height * 0.5f - (Shape.bBall ? Settings->BallVolumeCentre : Settings->VolumeFloor)) * Size;
+	if (!FMath::IsNearlyEqual(Height, KnownHeight))
 	{
 		// The volume marches its rays in steps of a voxel, which it works out from its bounds when its render state is made:
 		// made before the first frame arrived, the steps are as wide as a whole fire and it shows as a pale haze
-		VolumeHeight = Height;
-		Volume->UpdateBounds();
-		Volume->MarkRenderStateDirty();
+		KnownHeight = Height;
+		Which->UpdateBounds();
+		Which->MarkRenderStateDirty();
 	}
-	if (!FMath::IsNearlyEqual(Volume->GetRelativeLocation().Z, Lift, 0.5f))
+	if (!FMath::IsNearlyEqual(Which->GetRelativeLocation().Z, Lift, 0.5f))
 	{
-		Volume->SetRelativeLocation(FVector(0.0f, 0.0f, Lift));
+		Which->SetRelativeLocation(FVector(0.0f, 0.0f, Lift));
 	}
 }

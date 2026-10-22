@@ -60,7 +60,31 @@ AVaelFireSpot* AVaelFireSpot::SpawnBurst(UWorld* World, const FVector& Location,
 void AVaelFireSpot::BeginPlay()
 {
 	Super::BeginPlay();
+	BaseRadius = Shape.Radius;
+	TargetRadius = Shape.Radius;
+	TargetLocation = GetActorLocation();
 	Fire->Ignite(Shape, 0.35f);
+}
+
+void AVaelFireSpot::Feed(const FVector& Location, float Radius)
+{
+	if (bBurst || bPutOut)
+	{
+		return;
+	}
+	// It grows by part of the area of the fire it takes in, and its middle moves a little towards it
+	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+	const float Before = FMath::Square(TargetRadius);
+	const float Added = Settings->FeedShare * FMath::Square(Radius);
+	TargetRadius = FMath::Min(Settings->MaxHerdRadius, FMath::Sqrt(Before + Added));
+	// A placed fire (a campfire) and a fire on a wall stay where they are
+	const FVector Towards(Location.X, Location.Y, TargetLocation.Z);
+	if (BurnTime > 0.0f && Shape.WallNormal.IsNearlyZero())
+	{
+		TargetLocation = FMath::Lerp(TargetLocation, Towards, 0.4f * Added / FMath::Max(Before + Added, 1.0f));
+	}
+	SinceFed = 0.0f;
+	Fire->Feed();
 }
 
 void AVaelFireSpot::PutOut(float FadeOut)
@@ -77,15 +101,33 @@ void AVaelFireSpot::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	Age += DeltaSeconds;
+	SinceFed += DeltaSeconds;
 
 	// A blast blooms out fast and keeps growing a little while it dies
 	if (bBurst)
 	{
 		Fire->SetSizeScale(0.3f + 1.1f * FMath::Sqrt(FMath::Clamp(Age / 0.6f, 0.0f, 1.0f)));
 	}
+	else if (!bPutOut)
+	{
+		// A Brandherd grows towards what it was fed; left alone it shrinks slowly and burns down calmly. A placed fire
+		// shrinks back to its own size, a spawned one further, before it goes out
+		const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+		if (SinceFed > Settings->HerdHoldSeconds)
+		{
+			const float Smallest = BaseRadius * (BurnTime > 0.0f ? Settings->HerdShrinkTo : 1.0f);
+			TargetRadius = FMath::Max(Smallest, TargetRadius - Settings->HerdShrinkSpeed * DeltaSeconds);
+		}
+		const float Radius = FMath::FInterpConstantTo(Fire->GetShape().Radius, TargetRadius, DeltaSeconds, Settings->HerdGrowSpeed);
+		Fire->SetRadius(Radius);
+		if (!GetActorLocation().Equals(TargetLocation, 1.0f))
+		{
+			SetActorLocation(FMath::VInterpConstantTo(GetActorLocation(), TargetLocation, DeltaSeconds, Settings->HerdGrowSpeed * 0.5f));
+		}
+	}
 	if (BurnTime > 0.0f && Age >= BurnTime && Users == 0)
 	{
-		PutOut();
+		PutOut(2.5f);
 	}
 
 	// Gone once the flames are out and the scorch mark has cooled
@@ -108,7 +150,8 @@ AVaelFireSpot* AVaelFireSpot::SpawnOrJoin(UWorld* World, const FVector& Location
 	{
 		AVaelFireSpot* Spot = *It;
 		if (Spot->bBurst || Spot->bPutOut || Spot->Shape.WallNormal.IsNearlyZero() == bWall
-			|| FVector::Dist(Spot->GetActorLocation(), Location) > FMath::Max(Spot->Shape.Radius, InShape.Radius) * 0.9f)
+				|| (bWall ? FVector::Dist(Spot->GetActorLocation(), Location) : FVector::Dist2D(Spot->GetActorLocation(), Location))
+				> Spot->Fire->GetShape().Radius + InShape.Radius * 0.6f)
 		{
 			continue;
 		}
@@ -116,6 +159,7 @@ AVaelFireSpot* AVaelFireSpot::SpawnOrJoin(UWorld* World, const FVector& Location
 		{
 			Spot->BurnTime = InBurnTime > 0.0f ? FMath::Max(Spot->BurnTime, Spot->Age + InBurnTime) : 0.0f;
 		}
+		Spot->Feed(Location, InShape.Radius);
 		if (bUser)
 		{
 			++Spot->Users;
@@ -136,6 +180,6 @@ void AVaelFireSpot::ReleaseUser()
 	Users = FMath::Max(0, Users - 1);
 	if (Users == 0 && (BurnTime <= 0.0f || Age >= BurnTime))
 	{
-		PutOut(0.7f);
+		PutOut(2.0f);
 	}
 }

@@ -63,7 +63,7 @@ public:
 	UFUNCTION(Exec)
 	void VaelNachladen(float Percent = -1.0f);
 
-	/** Lights a fire the given metres from the figure towards the camera, with the radius in cm; "wand" lights it on the nearest wall ahead instead. Example: VaelBrand 50 3 */
+	/** Lights a fire the given metres from the figure towards the camera, with the radius in cm; "wand" lights it on the nearest wall ahead instead. It burns 25 s; called again on the same spot it feeds that fire, which grows as a Brandherd. Example: VaelBrand 50 3 */
 	UFUNCTION(Exec)
 	void VaelBrand(float Radius = 45.0f, float Metres = 3.0f, const FString& Where = TEXT(""));
 

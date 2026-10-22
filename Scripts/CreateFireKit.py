@@ -10,6 +10,8 @@
 # - M_Feuer_Funken: sparks on tiny cards that rise by World Position Offset, sway and fade, each in its own time
 #   (vertex colour R phase, G speed, B height share); Hoehe = how high they fly in cm.
 # - M_Feuer_Brandfleck: deferred decal of a scorch mark, charred and cracked, its embers glow and die down (Glut 1 -> 0).
+# - M_Feuer_Brandadern: deferred decal of a ground fire: thick burning roots (T_Feuer_Adern, Tools/Feuer/feuer_adern.py) creep
+#   outwards up to Wachstum, their front glows (Front), the ground chars around them, the embers die down with Glut.
 # Only creates what is missing; masters are rebuilt when they are older than KIT_VERSION.
 #
 # Run with the editor closed:
@@ -20,7 +22,7 @@ import unreal
 
 FOLDER = "/Game/Vael/Effects/Feuer"
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "Feuer")
-KIT_VERSION = 4.4
+KIT_VERSION = 4.6
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -383,6 +385,79 @@ def build_scorch(noise):
     return material
 
 
+def import_roots():
+    """The burning roots a ground fire spreads along (Tools/Feuer/feuer_adern.py)"""
+    path = FOLDER + "/T_Feuer_Adern"
+    source = os.path.join(DATA, "T_Feuer_Adern.png")
+    if assets.does_asset_exist(path) and "-FeuerNeu" not in unreal.SystemLibrary.get_command_line():
+        return unreal.load_asset(path)
+    if not os.path.exists(source):
+        notes.append("missing " + source)
+        return None
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", source)
+    task.set_editor_property("destination_path", FOLDER)
+    task.set_editor_property("destination_name", "T_Feuer_Adern")
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", True)
+    tools.import_asset_tasks([task])
+    texture = unreal.load_asset(path)
+    if texture is not None:
+        texture.set_editor_property("srgb", False)
+        texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_MASKS)
+        assets.save_loaded_asset(texture, False)
+        made.append(path)
+    return texture
+
+
+def build_roots(noise, roots):
+    """Deferred decal of a ground fire: thick burning roots that creep outwards from the middle up to Wachstum (0..1), their
+    creeping front glows brightest (Front), the ground around them chars; the embers die down with Glut"""
+    material = new_material("M_Feuer_Brandadern")
+    if material is None or roots is None:
+        return
+    material.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, 20)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 19)
+    picture = g.node(unreal.MaterialExpressionTextureSample, 17, texture=roots, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+    g.link(uv, picture, "UVs")
+    vein = g.mask(picture, 16, r=True, g=False, b=False)
+    arrival = g.mask(picture, 16, r=False, g=True, b=False)
+    halo = g.mask(picture, 16, r=False, g=False, b=True)
+    heat = g.node(unreal.MaterialExpressionMultiply, 16, const_b=1.0)
+    g.link(picture, heat, "A", "A")
+
+    # Only what the fire has reached yet; its front is a soft edge that creeps outwards along the roots
+    grow = g.scalar("Wachstum", 1.0, 15)
+    reached = g.sat(12, g.mul(13, g.sub(14, grow, arrival), g.const(10.0, 14)))
+    front = g.mul(10, g.sat(11, g.sub(12, g.const(1.0, 13), g.mul(13, g.abs(14, g.sub(15, grow, arrival)), g.const(7.0, 14)))), vein)
+
+    # The roots are rough and crusted, not smooth tubes
+    crust = g.sample(noise, g.mul(15, uv, g.const(2.3, 16)), 14, "B")
+    body = g.mul(10, g.mul(11, vein, reached), g.add(12, g.const(0.7, 13), g.mul(13, crust, g.const(0.6, 14))))
+    charred = g.sat(9, g.add(10, g.mul(11, g.mul(12, halo, reached), g.const(1.8, 12)), g.mul(11, body, g.const(1.5, 12))))
+    cover = g.mul(7, g.sat(8, charred), g.scalar("Deckkraft", 0.9, 8))
+    colour = g.lerp(7, g.vector("Asche", (0.06, 0.045, 0.035), 8), g.vector("Russ", (0.008, 0.006, 0.005), 8), g.sat(8, g.mul(9, body, g.const(2.0, 10))))
+
+    # The embers in the roots breathe; thick roots glow hotter than the thin tips, the creeping front brightest
+    time = g.node(unreal.MaterialExpressionTime, 16)
+    pulse = g.ramp(11, g.sample(noise, g.add(14, g.mul(15, uv, g.const(0.7, 16)), g.mul(15, time, g.const(0.04, 16))), 13, "G"), 0.25, 0.75)
+    ember = g.mul(6, g.mul(7, body, g.add(8, g.const(0.3, 9), g.mul(9, heat, g.const(1.1, 10)))), g.add(8, g.const(0.35, 9), pulse))
+    blaze = g.mul(6, front, g.scalar("Front", 0.0, 8))
+    glow = g.mul(4, g.vector("Glutfarbe", (1.0, 0.22, 0.02), 5), g.mul(5, g.add(6, g.mul(7, ember, g.const(0.9, 8)), g.mul(7, blaze, g.const(2.0, 8))), g.scalar("Glut", 1.0, 6)))
+
+    library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.const(1.0, 3), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(cover, "", unreal.MaterialProperty.MP_OPACITY)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+
+
 FLIPBOOKS = ("Flamme", "Feuer", "Kugel")
 FLIPBOOK_COLUMNS = 8
 
@@ -514,6 +589,7 @@ def main():
         flipbook_instance(flipbook, kind, books[kind], {"Leuchtkraft": {"Flamme": 1.3, "Feuer": 1.2, "Kugel": 1.8}[kind]})
     build_sparks()
     build_scorch(noise)
+    build_roots(noise, import_roots())
     for line in made:
         log("made " + line)
     for line in notes:

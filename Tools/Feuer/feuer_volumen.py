@@ -3,13 +3,18 @@ Feuer-Baukasten in 3D: simulates fire in Blender (Mantaflow) and writes it as a 
 imports as an animated Sparse Volume Texture and renders as a real volume (UHeterogeneousVolumeComponent). Seen from any side,
 the fire is a body of flame and smoke, not a picture on a card.
 
-Kinds:
-  brand   a fire on the ground fed by a few logs and an uneven bed of embers: lively, whirling, licking (campfires, burning patches)
+Kinds (a Brandherd grows through the first three as it is fed):
+  glut    a low bed of embers with small calm licks (a fire that starts or dies down)
+  brand   a fire on a few logs and a bed of embers (campfires, burning patches)
+  gross   a wide burning patch with many clumps of fuel (a big fire that was fed a lot)
   kugel   a ball whose whole surface burns (the fire orb over the head, the Feuerball)
+All burn calmly at their foot; a moving turbulence field makes the tongues wind and whip and tear apart at their tips.
+Every domain is so big the flames never touch its walls, and its floor lies 0.1 m under the foot of the fire.
 
-Every frame becomes <output>/<kind>/vdb/feuer_<kind>_<nnnn>.vdb with only the grids the game needs, in this order:
-density (smoke), flame, temperature. Unreal puts the first into attributes A and the next ones into attributes B.
-A preview of a few frames, seen from above at the angle of the game camera, goes to <output>/<kind>/vorschau.png.
+The loop is seamless: the last frames are blended into the first ones. Every frame becomes
+<output>/<kind>/vdb/feuer_<kind>_<nnnn>.vdb with the grids density (smoke) and flame, in this order: Unreal puts the first
+into attributes A and the second into attributes B. A preview of a few frames, seen from above at the angle of the game
+camera, goes to <output>/<kind>/vorschau.png.
 
 Run: blender -b -P feuer_volumen.py -- <kind> <output folder> [resolution] [frames]
 """
@@ -22,9 +27,18 @@ KIND = args[0]
 OUT = os.path.join(args[1], KIND)
 RESOLUTION = int(args[2]) if len(args) > 2 else 112
 FRAMES = int(args[3]) if len(args) > 3 else 96
-WARMUP = 40
+BLEND = FRAMES // 4
+WARMUP = 50
 os.makedirs(os.path.join(OUT, "vdb"), exist_ok=True)
 random.seed(11)
+
+# Domain size and middle, and how far the turbulence reaches, per kind
+DOMAINS = {
+    "glut": ((1.4, 1.4, 1.4), (0, 0, 0.6), 0.18),
+    "brand": ((2.4, 2.4, 2.8), (0, 0, 1.3), 0.3),
+    "gross": ((4.0, 4.0, 3.6), (0, 0, 1.7), 0.45),
+    "kugel": ((1.6, 1.6, 2.0), (0, 0, 0.9), 0.2),
+}
 
 
 def log(text):
@@ -39,7 +53,7 @@ def scene_setup():
     return scene
 
 
-def fuel_settings(obj, fuel, surface):
+def fuel_settings(obj, fuel, surface, density=0.06):
     flow = obj.modifiers.new("Feuer", "FLUID")
     flow.fluid_type = "FLOW"
     s = flow.flow_settings
@@ -48,16 +62,34 @@ def fuel_settings(obj, fuel, surface):
     s.flow_source = "MESH"
     s.surface_distance = surface
     s.fuel_amount = fuel
-    s.density = 0.3
-    s.temperature = 3.0
+    # Little smoke: the fire is the body, the smoke only a thin veil above it
+    s.density = density
+    s.temperature = 2.0
     s.smoke_color = (0.12, 0.11, 0.1)
     # Uneven fuel breaks the fire into separate tongues
     noise = bpy.data.textures.new("Brennstoff_" + obj.name, type="CLOUDS")
-    noise.noise_scale = 0.08
+    noise.noise_scale = 0.12
     s.use_texture = True
     s.noise_texture = noise
     s.texture_size = 1.0
     return s
+
+
+def add_log(x, y, z, angle, radius, length, fuel):
+    bpy.ops.mesh.primitive_cylinder_add(radius=radius, depth=length, location=(x, y, z), rotation=(math.pi / 2, 0, angle), vertices=12)
+    fuel_settings(bpy.context.active_object, fuel, 1.0)
+    return bpy.context.active_object
+
+
+def add_bed(radius, height, fuel, surface):
+    bpy.ops.mesh.primitive_ico_sphere_add(radius=1.0, location=(0, 0, 0.0), subdivisions=4)
+    bed = bpy.context.active_object
+    bed.scale = (radius, radius, height)
+    # An uneven, ragged bed: the fire does not burn as a disc
+    for vertex in bed.data.vertices:
+        vertex.co *= random.uniform(0.75, 1.15)
+    fuel_settings(bed, fuel, surface)
+    return bed
 
 
 def make_sources():
@@ -65,34 +97,61 @@ def make_sources():
     if KIND == "kugel":
         bpy.ops.mesh.primitive_uv_sphere_add(radius=0.25, location=(0, 0, 0.55), segments=32, ring_count=16)
         ball = bpy.context.active_object
-        s = fuel_settings(ball, 1.2, 0.6)
+        s = fuel_settings(ball, 1.1, 0.6, 0.04)
         s.use_initial_velocity = True
-        s.velocity_normal = 0.5
+        s.velocity_normal = 0.4
         sources.append(ball)
-        size, centre = (1.4, 1.4, 1.8), (0, 0, 0.8)
+    elif KIND == "glut":
+        sources.append(add_bed(0.3, 0.05, 0.55, 1.2))
+        for index in range(3):
+            angle = index * 2.1 + random.uniform(-0.4, 0.4)
+            sources.append(add_log(math.cos(angle) * 0.1, math.sin(angle) * 0.1, 0.03, angle + math.pi / 2, 0.035, 0.3, random.uniform(0.6, 0.9)))
+    elif KIND == "gross":
+        sources.append(add_bed(1.0, 0.08, 0.8, 1.5))
+        for index in range(11):
+            angle = random.uniform(0, math.tau)
+            reach = math.sqrt(random.uniform(0.0, 1.0)) * 0.8
+            sources.append(add_log(math.cos(angle) * reach, math.sin(angle) * reach, 0.06, random.uniform(0, math.pi),
+                                   random.uniform(0.05, 0.09), random.uniform(0.4, 0.8), random.uniform(0.9, 1.4)))
     else:
-        # A few logs lying crossed over each other, and a low uneven bed of embers between them
         for index in range(6):
             angle = index * math.pi / 3 + random.uniform(-0.3, 0.3)
-            bpy.ops.mesh.primitive_cylinder_add(radius=random.uniform(0.05, 0.08), depth=random.uniform(0.6, 0.9),
-                                                location=(math.cos(angle) * 0.18, math.sin(angle) * 0.18, 0.08 + 0.05 * (index % 2)),
-                                                rotation=(math.pi / 2, 0, angle + math.pi / 2), vertices=12)
-            log_ = bpy.context.active_object
-            fuel_settings(log_, random.uniform(1.0, 1.6), 1.0)
-            sources.append(log_)
-        bpy.ops.mesh.primitive_ico_sphere_add(radius=0.3, location=(0, 0, 0.0), subdivisions=3)
-        bed = bpy.context.active_object
-        bed.scale = (1.0, 1.0, 0.25)
-        fuel_settings(bed, 0.8, 1.5)
-        sources.append(bed)
-        size, centre = (2.2, 2.2, 2.4), (0, 0, 1.1)
+            sources.append(add_log(math.cos(angle) * 0.18, math.sin(angle) * 0.18, 0.08 + 0.05 * (index % 2), angle + math.pi / 2,
+                                   random.uniform(0.05, 0.08), random.uniform(0.6, 0.9), random.uniform(1.0, 1.4)))
+        sources.append(add_bed(0.4, 0.08, 0.7, 1.5))
 
+    size, centre, _ = DOMAINS[KIND]
     bpy.ops.mesh.primitive_cube_add(location=centre)
     domain = bpy.context.active_object
     domain.name = "Domaene"
     domain.scale = (size[0] / 2, size[1] / 2, size[2] / 2)
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
     return sources, domain
+
+
+def add_turbulence(scene):
+    """A turbulence field that drifts up through the fire and turns: the tongues wind and whip, never twice the same"""
+    size, centre, reach = DOMAINS[KIND]
+    bpy.ops.object.effector_add(type="TURBULENCE", location=(0, 0, 0))
+    field = bpy.context.active_object
+    field.field.strength = 4.5 if KIND != "glut" else 2.0
+    field.field.size = reach
+    field.field.flow = 0.0
+    field.field.noise = 0.2
+    # The foot stays calm: the field works from a little above the ground upwards
+    field.field.use_min_distance = False
+    last = WARMUP + FRAMES
+    field.location = (0, 0, 0)
+    field.rotation_euler = (0, 0, 0)
+    field.keyframe_insert("location", frame=1)
+    field.keyframe_insert("rotation_euler", frame=1)
+    field.location = (reach * 0.7, -reach * 0.5, -size[2] * 0.6)
+    field.rotation_euler = (0.4, 0.2, 2.5)
+    field.keyframe_insert("location", frame=last)
+    field.keyframe_insert("rotation_euler", frame=last)
+    for curve in field.animation_data.action.fcurves if hasattr(field.animation_data.action, "fcurves") else []:
+        for point in curve.keyframe_points:
+            point.interpolation = "LINEAR"
 
 
 def setup_domain(domain):
@@ -107,19 +166,20 @@ def setup_domain(domain):
     d.cache_frame_start = 1
     d.cache_frame_end = WARMUP + FRAMES
     d.use_noise = False
-    # Lively: strong whirls in the flames, buoyant hot air, fuel that burns at a middle pace
-    d.vorticity = 0.55
-    d.alpha = 0.35
-    d.beta = 2.4
-    d.burning_rate = 0.8 if KIND == "brand" else 0.95
-    d.flame_smoke = 0.7
-    d.flame_vorticity = 1.6
+    # Calm: hot air rises gently, the body of the fire barely whirls; the tips get their life from the turbulence and a fuel
+    # that burns quickly, so they tear off as separate licks
+    d.vorticity = 0.25
+    d.alpha = 0.0
+    d.beta = 1.9
+    d.burning_rate = 0.85 if KIND != "glut" else 1.1
+    d.flame_smoke = 0.25
+    d.flame_vorticity = 0.9
     d.flame_ignition = 1.2
-    d.flame_max_temp = 2.4
+    d.flame_max_temp = 2.2
     d.flame_smoke_color = (0.1, 0.09, 0.08)
     d.use_dissolve_smoke = True
-    d.dissolve_speed = 22
-    d.time_scale = 1.0
+    d.dissolve_speed = 12
+    d.time_scale = 0.85
     return d
 
 
@@ -130,20 +190,43 @@ def bake(domain):
     log("baked")
 
 
-def export_volumes(cache):
-    """Writes the frames after the warm-up with only density, flame and temperature"""
-    data = os.path.join(cache, "data")
-    written = 0
-    for index in range(FRAMES):
-        source = os.path.join(data, "fluid_data_{:04d}.vdb".format(WARMUP + 1 + index))
-        if not os.path.exists(source):
-            continue
-        grids, meta = openvdb.readAll(source)
-        by_name = {g.name: g for g in grids}
-        keep = [by_name[name] for name in ("density", "flame", "temperature") if name in by_name]
-        openvdb.write(os.path.join(OUT, "vdb", "feuer_{}_{:04d}.vdb".format(KIND, index + 1)), grids=keep)
-        written += 1
-    log("exported {} volumes".format(written))
+def read_frame(cache, frame, shape):
+    """Density and flame of a frame of the cache as dense arrays, and the transform of its grids"""
+    grids, _ = openvdb.readAll(os.path.join(cache, "data", "fluid_data_{:04d}.vdb".format(frame)))
+    by_name = {g.name: g for g in grids}
+    arrays = {}
+    for name in ("density", "flame"):
+        array = np.zeros(shape, dtype=np.float32)
+        if name in by_name:
+            by_name[name].copyToArray(array, ijk=(0, 0, 0))
+        arrays[name] = array
+    return arrays, by_name["density"].transform
+
+
+def export_volumes(cache, domain):
+    """Writes a seamless loop of FRAMES - BLEND frames: the first BLEND frames are blended with the frames after the loop"""
+    size = DOMAINS[KIND][0]
+    voxel = max(size) / RESOLUTION
+    shape = tuple(int(round(side / voxel)) + 2 for side in size)
+    length = FRAMES - BLEND
+    for index in range(length):
+        frame, transform = read_frame(cache, WARMUP + 1 + index, shape)
+        if index < BLEND:
+            weight = index / BLEND
+            later, _ = read_frame(cache, WARMUP + 1 + length + index, shape)
+            frame = {name: frame[name] * weight + later[name] * (1.0 - weight) for name in frame}
+        # A trace of smoke in two far corners: the volume then always spans the whole domain, so Unreal knows where its floor is
+        frame["density"][0, 0, 0] = 0.003
+        frame["density"][-1, -1, -1] = 0.003
+        grids = []
+        for name in ("density", "flame"):
+            grid = openvdb.FloatGrid()
+            grid.copyFromArray(frame[name], ijk=(0, 0, 0), tolerance=0.002)
+            grid.name = name
+            grid.transform = transform
+            grids.append(grid)
+        openvdb.write(os.path.join(OUT, "vdb", "feuer_{}_{:04d}.vdb".format(KIND, index + 1)), grids=grids)
+    log("exported {} volumes, resolution {}".format(length, shape))
 
 
 def preview(scene, sources, domain):
@@ -182,7 +265,8 @@ def preview(scene, sources, domain):
     domain.data.materials.clear()
     domain.data.materials.append(mat)
 
-    bpy.ops.mesh.primitive_plane_add(size=6, location=(0, 0, 0))
+    size = DOMAINS[KIND][0]
+    bpy.ops.mesh.primitive_plane_add(size=size[0] * 3, location=(0, 0, 0))
     ground = bpy.context.active_object
     ground_mat = bpy.data.materials.new("Boden")
     ground_mat.diffuse_color = (0.12, 0.09, 0.06, 1)
@@ -190,8 +274,9 @@ def preview(scene, sources, domain):
 
     cam = bpy.data.objects.new("Kamera", bpy.data.cameras.new("Kamera"))
     scene.collection.objects.link(cam)
-    cam.location = (0, -3.6, 3.4)
-    cam.rotation_euler = (math.radians(50), 0, 0)
+    far = size[2] / 2.4
+    cam.location = (0, -3.6 * far, 3.4 * far)
+    cam.rotation_euler = (math.radians(55), 0, 0)
     scene.camera = cam
     world = bpy.data.worlds.new("Dunkel")
     world.use_nodes = True
@@ -218,10 +303,18 @@ def preview(scene, sources, domain):
     log("preview " + image.filepath_raw)
 
 
+
+if os.environ.get("FEUER_NUR_EXPORT"):
+    # Only writes the volumes again from a cache baked before
+    export_volumes(os.path.join(OUT, "cache"), None)
+    log("done")
+    sys.exit(0)
+
 scene = scene_setup()
 sources, domain = make_sources()
+add_turbulence(scene)
 settings = setup_domain(domain)
 bake(domain)
-export_volumes(settings.cache_directory)
+export_volumes(settings.cache_directory, domain)
 preview(scene, sources, domain)
 log("done")

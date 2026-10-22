@@ -12,6 +12,25 @@ class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UPointLightComponent;
 
+/** One simulated fire played as a volume */
+USTRUCT(BlueprintType)
+struct FVaelFireVolumeKind
+{
+	GENERATED_BODY()
+
+	/** Volume material instance with its Sparse Volume Texture (MI_Feuer_Volumen_<Kind>) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")
+	TSoftObjectPtr<UMaterialInterface> Material;
+
+	/** Radius of the burning bed in the simulation, in simulated metres: a fire of radius R cm is scaled to R / BedRadius */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0.01))
+	float BedRadius = 0.5f;
+
+	/** Biggest fire in cm of radius shown with this stage; bigger fires blend into the next one */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0))
+	float UpToRadius = 100000.0f;
+};
+
 /** Values of the fire kit (Feuer-Baukasten): its materials and how many fires may light up their surroundings at once */
 UCLASS(config=Game, defaultconfig, meta = (DisplayName = "Vael Fire"))
 class UVaelFireSettings : public UDeveloperSettings
@@ -55,37 +74,34 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Volumes")
 	bool bUseVolumes = true;
 
-	/** A fire on the ground (SVT_Feuer_Brand) */
+	/** The stages a fire on the ground burns in, smallest first: embers, a fire, a big fire. A fire that grows past the
+	 *  radius of a stage blends into the next one */
 	UPROPERTY(config, EditAnywhere, Category="Volumes")
-	TSoftObjectPtr<UMaterialInterface> VolumeFire;
+	TArray<FVaelFireVolumeKind> GroundVolumes;
 
 	/** A burning ball (SVT_Feuer_Kugel) */
 	UPROPERTY(config, EditAnywhere, Category="Volumes")
-	TSoftObjectPtr<UMaterialInterface> VolumeBall;
-
-	/** Centimetres per simulated metre for each centimetre of the fire's radius: the simulated fire is half a metre wide in
-	 *  radius, the simulated ball a quarter of a metre */
-	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0.1))
-	float VolumeScalePerRadius = 1.5f;
-
-	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0.1))
-	float BallVolumeScalePerRadius = 4.0f;
+	FVaelFireVolumeKind BallVolume;
 
 	/** Height of the foot of the simulated fire above the floor of its domain, in simulated metres */
 	UPROPERTY(config, EditAnywhere, Category="Volumes")
 	float VolumeFloor = 0.1f;
 
+	/** Height of the simulated ball's middle above the floor of its domain, in simulated metres */
+	UPROPERTY(config, EditAnywhere, Category="Volumes")
+	float BallVolumeCentre = 0.65f;
+
 	/** Scale at which the volume material glows and smokes as it is set; bigger fires are made thinner, smaller ones denser */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 1))
 	float VolumeReferenceScale = 100.0f;
 
-	/** Height of the simulated ball's middle above the ground of its domain, in simulated metres */
-	UPROPERTY(config, EditAnywhere, Category="Volumes")
-	float BallVolumeCentre = 0.65f;
-
-	/** Frames per second the volume plays at */
+	/** Frames per second the volume plays at: a little slower than simulated, so the fire burns calmly */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 1))
-	float VolumeFrameRate = 24.0f;
+	float VolumeFrameRate = 20.0f;
+
+	/** Seconds a fire takes to blend from one stage into the next */
+	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0.05))
+	float StageBlendSeconds = 1.2f;
 
 	/** Most fires that burn as volumes at once; the others burn as cards */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
@@ -93,10 +109,26 @@ public:
 
 	/** Smaller fires stay cards: a few centimetres of flame show no whirls, and the volumes are kept for the big fires */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
-	float MinVolumeRadius = 30.0f;
+	float MinVolumeRadius = 15.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
 	float MinBallVolumeRadius = 12.0f;
+
+	/** Burning roots under a fire on the ground (M_Feuer_Brandadern): they creep outwards from the middle */
+	UPROPERTY(config, EditAnywhere, Category="Roots")
+	TSoftObjectPtr<UMaterialInterface> RootMaterial;
+
+	/** How far the roots reach compared with the radius of the fire */
+	UPROPERTY(config, EditAnywhere, Category="Roots", meta = (ClampMin = 0.5))
+	float RootReach = 2.4f;
+
+	/** Seconds the roots take to creep out all the way while the fire is fed */
+	UPROPERTY(config, EditAnywhere, Category="Roots", meta = (ClampMin = 0.1))
+	float RootGrowSeconds = 7.0f;
+
+	/** Seconds after the last feeding over which the creeping slows down to a halt */
+	UPROPERTY(config, EditAnywhere, Category="Roots", meta = (ClampMin = 0.1))
+	float RootSlowdownSeconds = 4.0f;
 
 	/** Most fires that cast light at once; the others burn without */
 	UPROPERTY(config, EditAnywhere, Category="Light", meta = (ClampMin = 0))
@@ -122,6 +154,29 @@ public:
 	/** Seconds a scorch mark stays after its fire went out, while its embers die down */
 	UPROPERTY(config, EditAnywhere, Category="Scorch", meta = (ClampMin = 0))
 	float ScorchLinger = 18.0f;
+
+	/** A Brandherd: fire that lands on a burning patch feeds it instead of burning beside it. The patch grows by the area of
+	 *  the fire it takes in (this share of it), up to the biggest radius in cm */
+	UPROPERTY(config, EditAnywhere, Category="Brandherd", meta = (ClampMin = 0))
+	float FeedShare = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Brandherd", meta = (ClampMin = 1))
+	float MaxHerdRadius = 320.0f;
+
+	/** How fast it grows towards its new size, in cm of radius per second */
+	UPROPERTY(config, EditAnywhere, Category="Brandherd", meta = (ClampMin = 1))
+	float HerdGrowSpeed = 60.0f;
+
+	/** Seconds it keeps its size after the last feeding; then it shrinks slowly (cm per second) to this share of the size it
+	 *  was lit with, and burns down calmly */
+	UPROPERTY(config, EditAnywhere, Category="Brandherd", meta = (ClampMin = 0))
+	float HerdHoldSeconds = 6.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Brandherd", meta = (ClampMin = 0))
+	float HerdShrinkSpeed = 8.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Brandherd", meta = (ClampMin = 0, ClampMax = 1))
+	float HerdShrinkTo = 0.6f;
 };
 
 /** Shape of one fire */
@@ -208,6 +263,13 @@ public:
 	/** Size of the flames compared with their shape, for flames that grow and shrink like the tail of a speeding spark */
 	void SetSizeScale(float Scale);
 
+	/** Grows or shrinks the burning patch to this radius in cm: the flames, the roots under them and the light grow with it,
+	 *  and a fire on the ground passes into its next stage (embers, fire, big fire) when it outgrows one */
+	void SetRadius(float NewRadius);
+
+	/** Fire was added: the roots under it creep on at full pace, and slow down again when nothing more comes */
+	void Feed();
+
 	/** Strength of the fire, 0 to 1, and whether it still burns */
 	float GetStrength() const { return Strength; }
 	bool IsBurning() const { return TargetStrength > 0.0f || Strength > 0.0f; }
@@ -248,14 +310,37 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> VolumeMaterial;
 
-	/** Makes the volume of the fire, if this fire burns as one */
+	/** The volume of the stage the fire grew out of, while it fades away */
+	UPROPERTY(Transient)
+	TObjectPtr<class UHeterogeneousVolumeComponent> OldVolume;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> OldVolumeMaterial;
+
+	/** Makes the volume of the fire, if this fire burns as one, or changes it to the stage that fits its size */
 	void BuildVolume();
 
-	/** Gives back the volume, so another fire may burn as one */
+	/** Makes a volume of one kind of simulated fire, nullptr if there is none */
+	class UHeterogeneousVolumeComponent* MakeVolume(const FVaelFireVolumeKind& Kind);
+
+	/** Gives back the volumes, so other fires may burn as ones */
 	void ReleaseVolume();
 
 	/** Sets the volume on the ground of the fire or around the middle of the ball */
-	void PlaceVolume();
+	void PlaceVolume(class UHeterogeneousVolumeComponent* Which, float Size, float& KnownHeight);
+
+	/** The kind of simulated fire that fits the shape now: the ball, or a stage on the ground; nullptr for none */
+	const FVaelFireVolumeKind* PickVolumeKind(int32& OutIndex) const;
+
+	/** Stage the volume shows (index into GroundVolumes, INDEX_NONE for the ball or no volume) */
+	int32 VolumeStage = INDEX_NONE;
+
+	/** How far the new volume has blended in over the old one, 0 to 1 */
+	float VolumeBlend = 1.0f;
+
+	/** Simulated metres of the bed of the kind shown: the volume's scale is the radius over it */
+	float VolumeBedRadius = 0.5f;
+	float OldVolumeSize = 1.0f;
 
 	/** Scale of the volume at full size */
 	float VolumeScale = 1.0f;
@@ -263,8 +348,16 @@ private:
 	/** Scale of the volume at its present size */
 	float VolumeSize = 1.0f;
 
-	/** Height of the volume in simulated metres, once its first frame told it */
+	/** Present size compared with the shape, as SetSizeScale set it */
+	float SizeScale = 1.0f;
+
+	/** Height of the volumes in simulated metres, once their first frame told it */
 	float VolumeHeight = 0.0f;
+	float OldVolumeHeight = 0.0f;
+
+	/** How far the burning roots have crept out (0 to 1), and seconds since the fire was last fed */
+	float RootGrowth = 0.0f;
+	float SinceFed = 0.0f;
 
 	/** The broad fire of the bed under the flames */
 	UPROPERTY(Transient)
