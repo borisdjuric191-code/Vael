@@ -5,6 +5,10 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Player/VaelCharacter.h"
+#include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelFloromantSettings.h"
+#include "Animation/AnimNodeBase.h"
+#include "BonePose.h"
 
 void UVaelAnimInstance::NativeInitializeAnimation()
 {
@@ -32,8 +36,16 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Speed = GroundVelocity.Size();
 	bIsMoving = Speed > MovingThreshold;
 
-	// The Floromant hovers instead of walking: its legs stay still while it glides
-	const bool bHovering = Character->IsFloromant();
+	// The plant arms of a Floromant: it stretches out the firing arms and leans back
+	const UVaelFloromantComponent* Floromant = Character->IsFloromant() ? Character->GetFloromant() : nullptr;
+	PlantArmStance[0] = Floromant != nullptr ? Floromant->GetStance(true) : 0.0f;
+	PlantArmStance[1] = Floromant != nullptr ? Floromant->GetStance(false) : 0.0f;
+	const UVaelFloromantSettings* FloromantSettings = UVaelFloromantSettings::Get();
+	PlantArmLean = FloromantSettings->FiringLean * FMath::Max(PlantArmStance[0], PlantArmStance[1]);
+	PlantArmReach = FloromantSettings->FiringArmReach;
+
+	// The Floromant hovers instead of walking: its legs stay still while it glides; once it has landed to fire, it walks
+	const bool bHovering = Character->IsFloromant() && FMath::Max(PlantArmStance[0], PlantArmStance[1]) < 0.5f;
 	if (bHovering)
 	{
 		Speed = 0.0f;
@@ -54,4 +66,106 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	const UAbilitySystemComponent* AbilitySystem = Character->GetAbilitySystemComponent();
 	bIsCasting = AbilitySystem != nullptr && (AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Casting) || AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling));
+}
+
+// ---------------------------------------------------------------- Proxy
+
+void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds)
+{
+	FAnimInstanceProxy::PreUpdate(InAnimInstance, DeltaSeconds);
+
+	const UVaelAnimInstance* Instance = CastChecked<UVaelAnimInstance>(InAnimInstance);
+	ArmStance[0] = Instance->PlantArmStance[0];
+	ArmStance[1] = Instance->PlantArmStance[1];
+	LeanDegrees = Instance->PlantArmLean;
+	ArmReach = Instance->PlantArmReach;
+}
+
+bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode)
+{
+	// The graph of the animation blueprint as always
+	EvaluateAnimationNode_WithRoot(Output, InRootNode);
+
+	if (InRootNode != GetRootNode() || (ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER))
+	{
+		return true;
+	}
+
+	const FBoneContainer& Bones = Output.Pose.GetBoneContainer();
+	const auto Find = [&Bones](const TCHAR* Name)
+	{
+		const int32 MeshIndex = Bones.GetPoseBoneIndexForBoneName(FName(Name));
+		return MeshIndex == INDEX_NONE ? FCompactPoseBoneIndex(INDEX_NONE) : Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
+	};
+
+	FCSPose<FCompactPose> Pose;
+	Pose.InitPose(Output.Pose);
+
+	// Turns one bone by a rotation in component space, around its own joint; its children follow
+	const auto Turn = [&Pose](FCompactPoseBoneIndex Bone, const FQuat& Rotation)
+	{
+		if (Bone == INDEX_NONE)
+		{
+			return;
+		}
+		FTransform Transform = Pose.GetComponentSpaceTransform(Bone);
+		Transform.SetRotation((Rotation * Transform.GetRotation()).GetNormalized());
+		TArray<FBoneTransform> Changed = { FBoneTransform(Bone, Transform) };
+		Pose.LocalBlendCSBoneTransforms(Changed, 1.0f);
+	};
+
+	// Points a bone towards a direction, as far as the weight says
+	const auto Aim = [&Pose, &Turn](FCompactPoseBoneIndex Bone, FCompactPoseBoneIndex Child, const FVector& Direction, float Weight)
+	{
+		if (Bone == INDEX_NONE || Child == INDEX_NONE || Weight <= 0.0f)
+		{
+			return;
+		}
+		const FVector Current = (Pose.GetComponentSpaceTransform(Child).GetLocation() - Pose.GetComponentSpaceTransform(Bone).GetLocation()).GetSafeNormal();
+		if (Current.IsNearlyZero())
+		{
+			return;
+		}
+		const FQuat Full = FQuat::FindBetweenNormals(Current, Direction);
+		Turn(Bone, FQuat::Slerp(FQuat::Identity, Full, Weight));
+	};
+
+	// Leaning back over the three bones of the spine; the body faces +Y in the space of the mesh, so turning around +X tips it back
+	const FQuat LeanStep(FVector::XAxisVector, FMath::DegreesToRadians(LeanDegrees / 3.0f));
+	for (const TCHAR* Spine : { TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03") })
+	{
+		Turn(Find(Spine), LeanStep);
+	}
+
+	// The firing arms straight out towards the aim, a little apart, upper arm, forearm and hand in turn
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const float Weight = FMath::SmoothStep(0.0f, 1.0f, ArmStance[Side]) * ArmReach;
+		if (Weight <= 0.0f)
+		{
+			continue;
+		}
+
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		const FCompactPoseBoneIndex Upper = Find(*FString::Printf(TEXT("upperarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Lower = Find(*FString::Printf(TEXT("lowerarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Hand = Find(*FString::Printf(TEXT("hand_%s"), Suffix));
+		const FCompactPoseBoneIndex Middle = Find(*FString::Printf(TEXT("middle_01_%s"), Suffix));
+		if (Upper == INDEX_NONE)
+		{
+			continue;
+		}
+
+		const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+		const FVector Direction = FVector(Outward * 0.12f, 1.0f, -0.04f).GetSafeNormal();
+
+		Aim(Upper, Lower, Direction, Weight);
+		Aim(Lower, Hand, Direction, Weight);
+		Aim(Hand, Middle, Direction, Weight);
+	}
+
+	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(MoveTemp(Pose), Output.Pose);
+	return true;
 }

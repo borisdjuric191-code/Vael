@@ -9,6 +9,7 @@
 class UMaterialInterface;
 class USkeletalMesh;
 class UVaelPlantData;
+class UVaelPlantArmData;
 
 /** The two classes a player can play: the mage of the elements and the Floromant, a fairy who sows plants and calls them to act */
 UENUM(BlueprintType)
@@ -224,4 +225,29 @@ public:
 	/** Material of roots and vines (wall, grip, whip), an instance of M_Floromant_Pflanze */
 	UPROPERTY(config, EditAnywhere, Category="Vine Wall")
 	TSoftObjectPtr<UMaterialInterface> RootMaterial;
+
+	// --- Plant arms
+
+	/** The seed belt of the hands: plants from the repertoire that can be laid on a hand (d-pad up / down picks, left / right lays it on that hand) */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms")
+	TArray<TSoftObjectPtr<UVaelPlantArmData>> HandBelt;
+
+	/** Walking speed while a hand fires: the Floromant lands and braces itself */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 1))
+	float FiringMoveSpeedScale = 0.45f;
+
+	/** Degrees the body leans back while firing, and how far the firing arm is stretched towards the aim (0 to 1) */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 40))
+	float FiringLean = 14.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 1))
+	float FiringArmReach = 1.0f;
+
+	/** Seconds L2 and R2 (Q and E) wait for the other one, so pressing both doesn't set a single tower first */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 0.5))
+	float TowerChordDelay = 0.1f;
+
+	/** Seconds the d-pad down is held to drink a healing potion instead of paging the belt */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0.1, ClampMax = 2))
+	float PotionHoldTime = 0.4f;
 };

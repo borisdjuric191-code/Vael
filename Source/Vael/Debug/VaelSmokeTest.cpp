@@ -49,6 +49,8 @@
 #include "Player/VaelCharacter.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelPlant.h"
+#include "Floromant/VaelPlantArmComponent.h"
+#include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelPlantData.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
@@ -370,6 +372,79 @@ void AVaelSmokeTest::BeginPlay()
 				NumPlants, NumShots, NumPulses, bHolding ? TEXT("holds") : TEXT("does NOT hold"), NumHeld, bEarthHarmless ? TEXT("harmless") : TEXT("HURTS"),
 				bFireHurts ? TEXT("hurts") : TEXT("does NOT hurt"), bMage ? TEXT("ok") : TEXT("FAILED"));
 		}, 1.0f });
+
+		// Plant arms: the Windhalm grows on both hands, they fire at crawlers, the fingers take turns and the bars run down
+		const auto EnemyHealth = [this]()
+		{
+			float Health = 0.0f;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Health += It->IsDead() ? 0.0f : It->GetHealth();
+			}
+			return Health;
+		};
+		Steps.Add({ TEXT("Plant arm grows"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 2);
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			Floromant->PutOnHand(true);
+			Floromant->PutOnHand(false);
+			const UVaelPlantArmData* Plant = Floromant->GetHand(true)->GetPlant();
+			return FString::Printf(TEXT("%s%s, %s on both hands"), Plant != nullptr ? TEXT("") : TEXT("FAILED: "), *Arena, Plant != nullptr ? *Plant->GetName() : TEXT("nothing"));
+		}, 0.8f });
+		Steps.Add({ TEXT("Plant arm fires"), [this, EnemyHealth]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+
+			// Faces the nearest crawler, so the aim points at it
+			const AVaelCreature* Crawler = nullptr;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Crawler = !It->IsDead() ? *It : Crawler;
+			}
+			if (Crawler != nullptr)
+			{
+				Player->SetActorRotation(FRotator(0.0f, (Crawler->GetActorLocation() - Player->GetActorLocation()).Rotation().Yaw, 0.0f));
+			}
+			PlantArmEnemyHealth = EnemyHealth();
+			Player->GetFloromant()->SetHandFiring(true, true);
+			Player->GetFloromant()->SetHandFiring(false, true);
+			return FString::Printf(TEXT("firing, enemies have %.0f health"), PlantArmEnemyHealth);
+		}, 2.0f });
+		Steps.Add({ TEXT("Plant arm"), [this, EnemyHealth]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			const UVaelPlantArmComponent* Left = Floromant->GetHand(true);
+			const UVaelPlantArmComponent* Right = Floromant->GetHand(false);
+			const UVaelPlantArmData* Plant = Left->GetPlant();
+			const int32 Fired = Plant != nullptr ? (Plant->BarSize - Left->GetBarShots()) + (Plant->BarSize - Right->GetBarShots()) : 0;
+			const float Stance = FMath::Min(Left->GetStance(), Right->GetStance());
+			const float Damage = PlantArmEnemyHealth - EnemyHealth();
+
+			Floromant->SetHandFiring(true, false);
+			Floromant->SetHandFiring(false, false);
+			Player->SetHero(EVaelHeroClass::Mage, false);
+			const bool bCleared = Floromant->GetHand(true)->GetPlant() == nullptr && Floromant->GetHand(false)->GetPlant() == nullptr;
+
+			const bool bOk = Fired >= 10 && Stance > 0.5f && Damage > 0.0f && bCleared;
+			return FString::Printf(TEXT("%s%d shots from both hands, stance %.2f, %.0f damage, hands %s after the mage"), bOk ? TEXT("") : TEXT("FAILED: "),
+				Fired, Stance, Damage, bCleared ? TEXT("bare") : TEXT("NOT bare"));
+		}, 0.5f });
 	}
 
 	// The veil monkey leaps onto the player's back and robs them; fire blinds it and the loot comes back

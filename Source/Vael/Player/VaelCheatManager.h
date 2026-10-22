@@ -55,6 +55,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelSamen(const FString& Seed, float Metres);
 
+	/** Floromant: lays the picked plant of the seed belt of the hands on "links", "rechts" or "beide" hands. Example: VaelHand beide */
+	UFUNCTION(Exec)
+	void VaelHand(const FString& Hands);
+
+	/** Floromant: holds the fire button of "links", "rechts" or "beide" hands, or lets go with "aus". Example: VaelFeuern beide */
+	UFUNCTION(Exec)
+	void VaelFeuern(const FString& Hands);
+
 	/** Floromant: grows any plant by its id at once, the given metres ahead; "schatten" for its shadow form. Example: VaelPflanze Funkenmohn 3 schatten */
 	UFUNCTION(Exec)
 	void VaelPflanze(const FString& PlantId, float Metres, const FString& Form = TEXT(""));

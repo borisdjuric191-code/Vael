@@ -2,6 +2,7 @@
 
 #include "Floromant/VaelFloromantSettings.h"
 #include "Engine/SkeletalMesh.h"
+#include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelPlantData.h"
 #include "Materials/MaterialInterface.h"
 
@@ -33,4 +34,7 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	{
 		SeedBelt.Add(AssetAt<UVaelPlantData>(PlantDataFolder, FString(TEXT("DA_Pflanze_")) + Id));
 	}
+
+	// The hands start with the Windhalm; DA_Pflanzenarm_<Id> are made by Scripts/CreatePflanzenarmKit.py
+	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Windhalm")));
 }

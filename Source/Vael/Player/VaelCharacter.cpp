@@ -369,7 +369,8 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 	// Channeling a spell holds the mage back
 	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
 	const float Burden = GetWorld()->GetTimeSeconds() < BurdenEndTime ? BurdenMultiplier : 1.0f;
-	GetCharacterMovement()->MaxWalkSpeed = bObserving ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden;
+	const float Bracing = IsFloromant() ? Floromant->GetMoveSpeedScale() : 1.0f;
+	GetCharacterMovement()->MaxWalkSpeed = bObserving ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing;
 
 	if (bObserving)
 	{
@@ -539,8 +540,12 @@ void AVaelCharacter::UpdateHover()
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	const float Time = GetWorld()->GetTimeSeconds();
 	const float Bob = FMath::Sin(Time * Settings->HoverBobSpeed * 2.0f * UE_PI + GetUniqueID()) * Settings->HoverBob;
-	GetMesh()->SetRelativeLocation(DefaultMeshLocation + FVector(0.0f, 0.0f, Settings->HoverHeight + Bob));
-	Wings->SetRelativeLocation(FVector(0.0f, 0.0f, Settings->HoverHeight + Bob));
+
+	// While a hand fires it lands and braces itself
+	const float Landed = FMath::Max(Floromant->GetStance(true), Floromant->GetStance(false));
+	const float Height = (Settings->HoverHeight + Bob) * (1.0f - Landed);
+	GetMesh()->SetRelativeLocation(DefaultMeshLocation + FVector(0.0f, 0.0f, Height));
+	Wings->SetRelativeLocation(FVector(0.0f, 0.0f, Height));
 }
 
 void AVaelCharacter::BeginRollLook(UAnimMontage* Montage, float Duration)

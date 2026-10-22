@@ -10,11 +10,14 @@
 class AVaelCharacter;
 class AVaelPlant;
 class UVaelPlantData;
+class UVaelPlantArmComponent;
+class UVaelPlantArmData;
 
 /**
- *  What a player does as Floromant, on the buttons of the mage:
- *  R2 Dornenpeitsche, Circle Ruf des Gartens, Square sows the seed picked on the seed belt (d-pad), Cross Wurzelgriff,
- *  Triangle Wurzelsprung to an own plant, L1 + R1 Wuchern. Up to four own plants stand at once.
+ *  What a player does as Floromant, on its own controls (IMC_Floromant, see AVaelPlayerController):
+ *  the hands turn into plants of the seed belt and fire while L1 / R1 are held, Square Dornenpeitsche, Cross Wurzelsprung
+ *  to an own plant, L2 + R2 together Ruf des Gartens (plants grow into their giant form). Up to four own plants stand at once.
+ *  Sowing, Wurzelgriff and the old call of the garden stay in the code but have no button any more.
  *  Saft is the mana of the character, shown in its place, and flows back slowly.
  */
 UCLASS()
@@ -76,7 +79,64 @@ public:
 	/** Plant data of a plant of the garden or the world by its id, like "Glimmklee"; null if there is none */
 	static UVaelPlantData* FindPlantData(FName PlantId);
 
+	// --- Plant arms: the seed belt picks a plant of the repertoire and lays it on a hand, which turns into it and fires
+
+	/** Plants of the seed belt of the hands */
+	int32 GetHandBeltSize() const;
+	UVaelPlantArmData* GetHandBeltPlant(int32 Index) const;
+	int32 GetHandBeltSelection() const { return HandBeltSelection; }
+
+	/** Pages through the seed belt of the hands, +1 down, -1 up */
+	void PageHandBelt(int32 Step);
+
+	/** Lays the picked plant on a hand */
+	void PutOnHand(bool bLeft);
+
+	/** Holds or lets go of the fire button of a hand */
+	void SetHandFiring(bool bLeft, bool bFiring);
+
+	/** The hand, made when first asked for */
+	UVaelPlantArmComponent* GetHand(bool bLeft);
+
+	/** True while a hand fires; the Floromant has landed and braces itself */
+	bool IsFiring() const;
+
+	/** How far each arm is stretched out to fire, 0 to 1 */
+	float GetStance(bool bLeft) const;
+
+	/** Share of the walking speed left while firing */
+	float GetMoveSpeedScale() const;
+
+	/** Lets both hands turn back into hands at once */
+	void ClearHands();
+
+	// --- Placeholders of the new controls, not built yet
+
+	/** L2 / R2 (Q / E): the hand takes root as a tower */
+	void RootTower(bool bLeft);
+
+	/** L1 + R1 + Cross (both mouse buttons + Space): the hands cross; a tap shoots fast, holding charges */
+	void CrossHands(bool bCharged);
+
+	/** Triangle held (R): reloads the plant bars with Keimpelz */
+	void ReloadHands();
+
+	/** Touchpad (Tab): Herbarium and repertoire */
+	void OpenHerbarium();
+
 private:
+
+	/** Tells the player a control has no ability behind it yet */
+	void ShowNotBuilt(const FText& Name) const;
+
+	/** The two hands, made when first needed */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelPlantArmComponent> LeftHand;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelPlantArmComponent> RightHand;
+
+	int32 HandBeltSelection = 0;
 
 	/** Character the component belongs to */
 	AVaelCharacter* GetCharacter() const;

@@ -4,9 +4,25 @@
 
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
+#include "Animation/AnimInstanceProxy.h"
 #include "VaelAnimInstance.generated.h"
 
 class AVaelCharacter;
+
+/** Runs the animation graph and then bends the body for the plant arms of the Floromant (on the animation worker thread) */
+struct FVaelAnimProxy : public FAnimInstanceProxy
+{
+	FVaelAnimProxy() = default;
+	explicit FVaelAnimProxy(UAnimInstance* Instance) : FAnimInstanceProxy(Instance) {}
+
+	virtual void PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds) override;
+	virtual bool Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode) override;
+
+	/** Copied from the instance: how far each arm is stretched out (left, right), lean back in degrees, reach of the arms */
+	float ArmStance[2] = { 0.0f, 0.0f };
+	float LeanDegrees = 0.0f;
+	float ArmReach = 1.0f;
+};
 
 /**
  *  Base of the animation blueprints of the player characters.
@@ -52,12 +68,21 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Movement", meta = (ClampMin = 0))
 	float MovingThreshold = 5.0f;
 
+	/** How far each arm of a Floromant is stretched out to fire (0 left, 1 right), 0 to 1, and how far it leans back in degrees */
+	float PlantArmStance[2] = { 0.0f, 0.0f };
+	float PlantArmLean = 0.0f;
+	float PlantArmReach = 1.0f;
+
 public:
 
 	//~Begin UAnimInstance
 	virtual void NativeInitializeAnimation() override;
 	virtual void NativeUpdateAnimation(float DeltaSeconds) override;
+	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override { return new FVaelAnimProxy(this); }
+	virtual void DestroyAnimInstanceProxy(FAnimInstanceProxy* InProxy) override { delete static_cast<FVaelAnimProxy*>(InProxy); }
 	//~End UAnimInstance
+
+	friend struct FVaelAnimProxy;
 
 private:
 

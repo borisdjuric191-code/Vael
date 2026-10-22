@@ -832,3 +832,40 @@ void UVaelCheatManager::VaelFaehigkeit(const FString& Ability, float Metres)
 		Floromant->ThornWhip(Aim);
 	}
 }
+
+void UVaelCheatManager::VaelHand(const FString& Hands)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr || !Player->IsFloromant())
+	{
+		return;
+	}
+
+	UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	const bool bBoth = Hands.IsEmpty() || Hands.Equals(TEXT("beide"), ESearchCase::IgnoreCase);
+	if (bBoth || Hands.Equals(TEXT("links"), ESearchCase::IgnoreCase))
+	{
+		Floromant->PutOnHand(true);
+	}
+	if (bBoth || Hands.Equals(TEXT("rechts"), ESearchCase::IgnoreCase))
+	{
+		Floromant->PutOnHand(false);
+	}
+}
+
+void UVaelCheatManager::VaelFeuern(const FString& Hands)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr || !Player->IsFloromant())
+	{
+		return;
+	}
+
+	UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	const bool bOff = Hands.Equals(TEXT("aus"), ESearchCase::IgnoreCase);
+	const bool bBoth = Hands.IsEmpty() || Hands.Equals(TEXT("beide"), ESearchCase::IgnoreCase);
+	Floromant->SetHandFiring(true, !bOff && (bBoth || Hands.Equals(TEXT("links"), ESearchCase::IgnoreCase)));
+	Floromant->SetHandFiring(false, !bOff && (bBoth || Hands.Equals(TEXT("rechts"), ESearchCase::IgnoreCase)));
+}

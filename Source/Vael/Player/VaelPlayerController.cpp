@@ -26,6 +26,7 @@
 #include "Player/VaelCharacter.h"
 #include "Player/VaelHeroSubsystem.h"
 #include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelFloromantSettings.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Player/VaelCheatManager.h"
 #include "Nature/VaelGarden.h"
@@ -110,6 +111,8 @@ void AVaelPlayerController::SetupInputComponent()
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
 			Subsystem->AddMappingContext(MappingContext, 0);
+			bFloromantControls.Reset();
+			UpdateClassControls();
 		}
 
 		// Set up action bindings
@@ -162,6 +165,26 @@ void AVaelPlayerController::SetupInputComponent()
 			{
 				EnhancedInputComponent->BindAction(MenuAssignActions[SlotIndex], ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuAssign, SlotIndex);
 			}
+
+			// Floromant
+			for (const bool bLeftHand : { true, false })
+			{
+				UInputAction* Fire = bLeftHand ? FireLeftAction : FireRightAction;
+				EnhancedInputComponent->BindAction(Fire, ETriggerEvent::Started, this, &AVaelPlayerController::OnFireHand, bLeftHand, true);
+				EnhancedInputComponent->BindAction(Fire, ETriggerEvent::Completed, this, &AVaelPlayerController::OnFireHand, bLeftHand, false);
+				EnhancedInputComponent->BindAction(Fire, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnFireHand, bLeftHand, false);
+				EnhancedInputComponent->BindAction(bLeftHand ? TowerLeftAction : TowerRightAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnTower, bLeftHand);
+				EnhancedInputComponent->BindAction(bLeftHand ? PutLeftAction : PutRightAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnPutOnHand, bLeftHand);
+			}
+			EnhancedInputComponent->BindAction(CrossAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCrossStarted);
+			EnhancedInputComponent->BindAction(CrossAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnCrossEnded);
+			EnhancedInputComponent->BindAction(LeapAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnLeap);
+			EnhancedInputComponent->BindAction(BeltUpAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPageBelt, -1);
+			EnhancedInputComponent->BindAction(BeltDownAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPageBelt, 1);
+			EnhancedInputComponent->BindAction(FloromantPotionAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPotion);
+			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnReload);
+			EnhancedInputComponent->BindAction(WhipAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnWhip);
+			EnhancedInputComponent->BindAction(HerbariumAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnHerbarium);
 		}
 		else
 		{
@@ -190,7 +213,12 @@ void AVaelPlayerController::CreateInputAssets()
 	DodgeAction = CreateAction(TEXT("IA_Dodge"), EInputActionValueType::Boolean);
 	LeaveAction = CreateAction(TEXT("IA_Leave"), EInputActionValueType::Boolean);
 
+	// Shared by every class: moving, aiming, leaving, map, inventory and the page of class and body
 	MappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VaelPlayer"));
+
+	// Each class plays differently: the mage has its own layout, the Floromant its own; only one of the two is active
+	MageMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Magier"));
+	FloromantMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Floromant"));
 
 	// WASD: a key press arrives on the X axis, swizzle moves it to Y, negate flips the sign
 	MappingContext->MapKey(MoveKeyboardAction, EKeys::D);
@@ -227,8 +255,8 @@ void AVaelPlayerController::CreateInputAssets()
 	MapStick(AimStickAction, EKeys::Gamepad_Right2D, true);
 
 	// Dodge roll
-	MappingContext->MapKey(DodgeAction, EKeys::Gamepad_LeftTrigger);
-	MappingContext->MapKey(DodgeAction, EKeys::SpaceBar);
+	MageMappingContext->MapKey(DodgeAction, EKeys::Gamepad_LeftTrigger);
+	MageMappingContext->MapKey(DodgeAction, EKeys::SpaceBar);
 
 	// Leave co-op by holding Circle / B
 	UInputTriggerHold* HoldTrigger = NewObject<UInputTriggerHold>(MappingContext);
@@ -249,26 +277,26 @@ void AVaelPlayerController::CreateInputAssets()
 		UInputAction* ElementAction = CreateAction(ElementActionNames[ElementIndex], EInputActionValueType::Boolean);
 		ElementActions.Add(ElementAction);
 
-		MappingContext->MapKey(ElementAction, ElementPadKeys[ElementIndex]);
-		MappingContext->MapKey(ElementAction, ElementKeyboardKeys[ElementIndex]);
+		MageMappingContext->MapKey(ElementAction, ElementPadKeys[ElementIndex]);
+		MageMappingContext->MapKey(ElementAction, ElementKeyboardKeys[ElementIndex]);
 	}
 
 	// Cast and discard the queued elements
 	CastAction = CreateAction(TEXT("IA_Cast"), EInputActionValueType::Boolean);
-	MappingContext->MapKey(CastAction, EKeys::Gamepad_RightTrigger);
-	MappingContext->MapKey(CastAction, EKeys::LeftMouseButton);
+	MageMappingContext->MapKey(CastAction, EKeys::Gamepad_RightTrigger);
+	MageMappingContext->MapKey(CastAction, EKeys::LeftMouseButton);
 
 	ClearQueueAction = CreateAction(TEXT("IA_ClearQueue"), EInputActionValueType::Boolean);
-	MappingContext->MapKey(ClearQueueAction, EKeys::Gamepad_LeftShoulder);
-	MappingContext->MapKey(ClearQueueAction, EKeys::RightMouseButton);
+	MageMappingContext->MapKey(ClearQueueAction, EKeys::Gamepad_LeftShoulder);
+	MageMappingContext->MapKey(ClearQueueAction, EKeys::RightMouseButton);
 
 	// Interact: E; on the gamepad the earth button (Cross / A) interacts instead when something is close and no fight is going on
 	InteractAction = CreateAction(TEXT("IA_Interact"), EInputActionValueType::Boolean);
-	MappingContext->MapKey(InteractAction, EKeys::E);
+	MageMappingContext->MapKey(InteractAction, EKeys::E);
 
 	// Healing potion: Q; on the gamepad L1 / LB drinks while no element is queued
 	PotionAction = CreateAction(TEXT("IA_Potion"), EInputActionValueType::Boolean);
-	MappingContext->MapKey(PotionAction, EKeys::Q);
+	MageMappingContext->MapKey(PotionAction, EKeys::Q);
 
 	// Quick slots on Z, X, C, V and the d-pad clockwise from up, like the browser prototype
 	const FKey QuickSlotPadKeys[] = { EKeys::Gamepad_DPad_Up, EKeys::Gamepad_DPad_Right, EKeys::Gamepad_DPad_Down, EKeys::Gamepad_DPad_Left };
@@ -279,16 +307,16 @@ void AVaelPlayerController::CreateInputAssets()
 		UInputAction* QuickSlotAction = CreateAction(*FString::Printf(TEXT("IA_QuickSlot%d"), SlotIndex + 1), EInputActionValueType::Boolean);
 		QuickSlotActions.Add(QuickSlotAction);
 
-		MappingContext->MapKey(QuickSlotAction, QuickSlotPadKeys[SlotIndex]);
-		MappingContext->MapKey(QuickSlotAction, QuickSlotKeyboardKeys[SlotIndex]);
+		MageMappingContext->MapKey(QuickSlotAction, QuickSlotPadKeys[SlotIndex]);
+		MageMappingContext->MapKey(QuickSlotAction, QuickSlotKeyboardKeys[SlotIndex]);
 	}
 
 	// The grimoire opens and closes while the game is paused; on the controller with Options / Menu, like the menu in Diablo.
 	// (Start lets a controller without a player join; once it plays, the same button opens its grimoire.)
 	GrimoireAction = CreateAction(TEXT("IA_Grimoire"), EInputActionValueType::Boolean);
 	GrimoireAction->bTriggerWhenPaused = true;
-	MappingContext->MapKey(GrimoireAction, EKeys::Gamepad_Special_Right);
-	MappingContext->MapKey(GrimoireAction, EKeys::Tab);
+	MageMappingContext->MapKey(GrimoireAction, EKeys::Gamepad_Special_Right);
+	MageMappingContext->MapKey(GrimoireAction, EKeys::Tab);
 
 	// The big map: View / Create, like the map in Diablo, or M
 	MapAction = CreateAction(TEXT("IA_Map"), EInputActionValueType::Boolean);
@@ -307,8 +335,10 @@ void AVaelPlayerController::CreateInputAssets()
 
 	// The spyglass is held up while the button is held
 	SpyglassAction = CreateAction(TEXT("IA_Spyglass"), EInputActionValueType::Boolean);
-	MappingContext->MapKey(SpyglassAction, EKeys::Gamepad_LeftThumbstick);
-	MappingContext->MapKey(SpyglassAction, EKeys::F);
+	MageMappingContext->MapKey(SpyglassAction, EKeys::Gamepad_LeftThumbstick);
+	MageMappingContext->MapKey(SpyglassAction, EKeys::F);
+
+	CreateFloromantInput();
 
 	// Menu controls, only active while the grimoire is open
 	MenuMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VaelMenu"));
@@ -381,6 +411,129 @@ void AVaelPlayerController::CreateInputAssets()
 	}
 }
 
+void AVaelPlayerController::CreateFloromantInput()
+{
+	const auto CreateAction = [this](const TCHAR* Name, EInputActionValueType ValueType = EInputActionValueType::Boolean)
+	{
+		UInputAction* Action = NewObject<UInputAction>(this, Name);
+		Action->ValueType = ValueType;
+		return Action;
+	};
+	UInputMappingContext* Context = FloromantMappingContext;
+	const float PotionHoldTime = UVaelFloromantSettings::Get()->PotionHoldTime;
+
+	// The hands fire while their button is held
+	FireLeftAction = CreateAction(TEXT("IA_Flo_FeuerLinks"));
+	Context->MapKey(FireLeftAction, EKeys::Gamepad_LeftShoulder);
+	Context->MapKey(FireLeftAction, EKeys::LeftMouseButton);
+
+	FireRightAction = CreateAction(TEXT("IA_Flo_FeuerRechts"));
+	Context->MapKey(FireRightAction, EKeys::Gamepad_RightShoulder);
+	Context->MapKey(FireRightAction, EKeys::RightMouseButton);
+
+	// Cross and Space: crossing while both hands fire, otherwise the leap (or using what is close by); the handlers decide
+	CrossAction = CreateAction(TEXT("IA_Flo_Kreuzen"));
+	Context->MapKey(CrossAction, EKeys::Gamepad_FaceButton_Bottom);
+	Context->MapKey(CrossAction, EKeys::SpaceBar);
+
+	LeapAction = CreateAction(TEXT("IA_Flo_Wurzelsprung"));
+	Context->MapKey(LeapAction, EKeys::Gamepad_FaceButton_Bottom);
+	Context->MapKey(LeapAction, EKeys::SpaceBar);
+
+	// Towers on the triggers and Q / E; both at once call the garden (they wait a moment for each other in UpdateTowerChord)
+	TowerLeftAction = CreateAction(TEXT("IA_Flo_TurmLinks"));
+	Context->MapKey(TowerLeftAction, EKeys::Gamepad_LeftTrigger);
+	Context->MapKey(TowerLeftAction, EKeys::Q);
+
+	TowerRightAction = CreateAction(TEXT("IA_Flo_TurmRechts"));
+	Context->MapKey(TowerRightAction, EKeys::Gamepad_RightTrigger);
+	Context->MapKey(TowerRightAction, EKeys::E);
+
+	// Seed belt: d-pad up / down and the mouse wheel page, d-pad left / right and 1 / 2 lay the plant on a hand.
+	// D-pad down only pages when tapped; held, it drinks a healing potion.
+	BeltUpAction = CreateAction(TEXT("IA_Flo_GuertelHoch"));
+	Context->MapKey(BeltUpAction, EKeys::Gamepad_DPad_Up).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
+	Context->MapKey(BeltUpAction, EKeys::MouseScrollUp).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
+
+	BeltDownAction = CreateAction(TEXT("IA_Flo_GuertelRunter"));
+	UInputTriggerTap* BeltTap = NewObject<UInputTriggerTap>(Context);
+	BeltTap->TapReleaseTimeThreshold = PotionHoldTime;
+	Context->MapKey(BeltDownAction, EKeys::Gamepad_DPad_Down).Triggers.Add(BeltTap);
+	Context->MapKey(BeltDownAction, EKeys::MouseScrollDown).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
+
+	FloromantPotionAction = CreateAction(TEXT("IA_Flo_Heiltrank"));
+	UInputTriggerHold* PotionHold = NewObject<UInputTriggerHold>(Context);
+	PotionHold->HoldTimeThreshold = PotionHoldTime;
+	PotionHold->bIsOneShot = true;
+	Context->MapKey(FloromantPotionAction, EKeys::Gamepad_DPad_Down).Triggers.Add(PotionHold);
+	Context->MapKey(FloromantPotionAction, EKeys::H).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
+
+	PutLeftAction = CreateAction(TEXT("IA_Flo_AufLinks"));
+	Context->MapKey(PutLeftAction, EKeys::Gamepad_DPad_Left);
+	Context->MapKey(PutLeftAction, EKeys::One);
+
+	PutRightAction = CreateAction(TEXT("IA_Flo_AufRechts"));
+	Context->MapKey(PutRightAction, EKeys::Gamepad_DPad_Right);
+	Context->MapKey(PutRightAction, EKeys::Two);
+
+	// Reloading with Keimpelz: Triangle or R held
+	ReloadAction = CreateAction(TEXT("IA_Flo_Nachladen"));
+	for (const FKey& ReloadKey : { EKeys::Gamepad_FaceButton_Top, EKeys::R })
+	{
+		UInputTriggerHold* ReloadHold = NewObject<UInputTriggerHold>(Context);
+		ReloadHold->HoldTimeThreshold = 0.35f;
+		ReloadHold->bIsOneShot = true;
+		Context->MapKey(ReloadAction, ReloadKey).Triggers.Add(ReloadHold);
+	}
+
+	// Dodge on Circle and Shift; holding Circle still leaves co-op (shared controls)
+	Context->MapKey(DodgeAction, EKeys::Gamepad_FaceButton_Right);
+	Context->MapKey(DodgeAction, EKeys::LeftShift);
+
+	WhipAction = CreateAction(TEXT("IA_Flo_Dornenpeitsche"));
+	Context->MapKey(WhipAction, EKeys::Gamepad_FaceButton_Left);
+	Context->MapKey(WhipAction, EKeys::F);
+
+	// Herbarium and repertoire: the touchpad, Tab on the keyboard. A PS5 controller on the PC (DS4Windows) has no own
+	// touchpad button for games; its touchpad click can be set to Tab there.
+	HerbariumAction = CreateAction(TEXT("IA_Flo_Herbarium"));
+	HerbariumAction->bTriggerWhenPaused = true;
+	Context->MapKey(HerbariumAction, EKeys::Tab);
+
+	// The menu on Options / Menu and Escape (the Floromant has no grimoire; its plant book comes later), spyglass on L3 and V,
+	// use what is close by with G (on the gamepad Cross does it outside of fights)
+	Context->MapKey(GrimoireAction, EKeys::Gamepad_Special_Right);
+	Context->MapKey(GrimoireAction, EKeys::Escape);
+	Context->MapKey(SpyglassAction, EKeys::Gamepad_LeftThumbstick);
+	Context->MapKey(SpyglassAction, EKeys::V);
+	Context->MapKey(InteractAction, EKeys::G);
+}
+
+void AVaelPlayerController::UpdateClassControls()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = IsLocalPlayerController() ? ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()) : nullptr;
+	if (VaelCharacter == nullptr || Subsystem == nullptr || MageMappingContext == nullptr)
+	{
+		return;
+	}
+
+	const bool bFloromant = VaelCharacter->IsFloromant();
+	if (bFloromantControls.IsSet() && bFloromantControls.GetValue() == bFloromant)
+	{
+		return;
+	}
+	bFloromantControls = bFloromant;
+
+	Subsystem->RemoveMappingContext(bFloromant ? MageMappingContext : FloromantMappingContext);
+	Subsystem->AddMappingContext(bFloromant ? FloromantMappingContext : MageMappingContext, 0);
+
+	// Nothing held carries over into the other class
+	bFireHeld[0] = bFireHeld[1] = false;
+	CrossStartTime = -1.0f;
+	TowerPressTime[0] = TowerPressTime[1] = -1.0f;
+}
+
 void AVaelPlayerController::GetStreamingSourceLocationAndRotation(FVector& OutLocation, FRotator& OutRotation) const
 {
 	if (const APawn* ControlledPawn = GetPawn())
@@ -396,13 +549,8 @@ void AVaelPlayerController::GetStreamingSourceLocationAndRotation(FVector& OutLo
 void AVaelPlayerController::PlayerTick(float DeltaTime)
 {
 	UpdateSowHold();
-
-	// L1 alone of a Floromant: no R1 came, so it drinks
-	if (PendingDrinkTime >= 0.0f && GetWorld()->GetTimeSeconds() >= PendingDrinkTime)
-	{
-		PendingDrinkTime = -1.0f;
-		DiscardOrDrink();
-	}
+	UpdateClassControls();
+	UpdateTowerChord();
 
 	PreviousMoveDirection = MoveDirection;
 	MoveDirection = FVector::ZeroVector;
@@ -511,30 +659,6 @@ void AVaelPlayerController::OnElement(EVaelElement Element)
 		}
 	}
 
-	// A Floromant acts with the same buttons: Circle calls the garden, Square sows, Cross grips with roots, Triangle leaps, R1 with L1 overgrows
-	if (VaelCharacter->IsFloromant())
-	{
-		UVaelFloromantComponent* Floromant = VaelCharacter->GetFloromant();
-		UpdateFacing();
-		switch (Element)
-		{
-		case EVaelElement::Fire:	Floromant->CallGarden(); break;
-		case EVaelElement::Water:	Floromant->Sow(GetFloromantAim()); break;
-		case EVaelElement::Earth:	Floromant->RootGrip(GetFloromantAim()); break;
-		case EVaelElement::Air:		Floromant->RootLeap(GetFloromantAim()); break;
-		case EVaelElement::Mark:
-			if (GetInputGlyphs() == EVaelInputGlyphs::Keyboard || IsInputKeyDown(EKeys::Gamepad_LeftShoulder) || PendingDrinkTime >= 0.0f)
-			{
-				PendingDrinkTime = -1.0f;
-				Floromant->Overgrow();
-			}
-			break;
-		default:
-			break;
-		}
-		return;
-	}
-
 	VaelCharacter->GetElementComponent()->AddElement(Element);
 }
 
@@ -575,13 +699,6 @@ void AVaelPlayerController::OnCast()
 	{
 		// Bring the aim up to date so the spell flies where the player points right now
 		UpdateFacing();
-
-		if (VaelCharacter->IsFloromant())
-		{
-			VaelCharacter->GetFloromant()->ThornWhip(GetFloromantAim());
-			return;
-		}
-
 		VaelCharacter->GetElementComponent()->CastQueue();
 	}
 }
@@ -605,23 +722,156 @@ FVector AVaelPlayerController::GetFloromantAim() const
 	return AimLocation;
 }
 
-void AVaelPlayerController::OnClearQueue()
+// ---------------------------------------------------------------- Floromant controls
+
+void AVaelPlayerController::OnFireHand(bool bLeft, bool bHeld)
 {
-	const AVaelCharacter* Floromant = GetPawn<AVaelCharacter>();
-	if (Floromant != nullptr && Floromant->IsFloromant() && GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
+	bFireHeld[bLeft ? 0 : 1] = bHeld;
+
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr || !VaelCharacter->IsFloromant())
 	{
-		if (IsInputKeyDown(EKeys::Gamepad_RightShoulder))
+		return;
+	}
+	if (bHeld)
+	{
+		UpdateFacing();
+	}
+	VaelCharacter->GetFloromant()->SetHandFiring(bLeft, bHeld);
+}
+
+void AVaelPlayerController::OnCrossStarted()
+{
+	// Only while both hands fire; alone the button leaps
+	CrossStartTime = AreBothHandsHeld() ? GetWorld()->GetTimeSeconds() : -1.0f;
+}
+
+void AVaelPlayerController::OnCrossEnded()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (CrossStartTime < 0.0f || VaelCharacter == nullptr || !VaelCharacter->IsFloromant())
+	{
+		CrossStartTime = -1.0f;
+		return;
+	}
+
+	// A tap is a fast cross shot, holding charges it
+	const bool bCharged = GetWorld()->GetTimeSeconds() - CrossStartTime >= 0.3f;
+	CrossStartTime = -1.0f;
+	VaelCharacter->GetFloromant()->CrossHands(bCharged);
+}
+
+void AVaelPlayerController::OnLeap()
+{
+	// While both hands fire the button crosses them instead
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (AreBothHandsHeld() || VaelCharacter == nullptr || !VaelCharacter->IsFloromant() || VaelCharacter->IsDodging() || VaelCharacter->IsDowned())
+	{
+		return;
+	}
+
+	// On the gamepad it uses what is close by outside of fights, like the earth button of the mage
+	if (GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
+	{
+		if (IVaelInteractable* Interactable = Cast<IVaelInteractable>(GetPadInteractTarget()))
 		{
-			Floromant->GetFloromant()->Overgrow();
-			return;
-		}
-		if (!CanStartSowing())
-		{
-			PendingDrinkTime = GetWorld()->GetTimeSeconds() + 0.15f;
+			Interactable->Interact(VaelCharacter);
 			return;
 		}
 	}
 
+	UpdateFacing();
+	VaelCharacter->GetFloromant()->RootLeap(GetFloromantAim());
+}
+
+void AVaelPlayerController::OnTower(bool bLeft)
+{
+	TowerPressTime[bLeft ? 0 : 1] = GetWorld()->GetTimeSeconds();
+}
+
+void AVaelPlayerController::UpdateTowerChord()
+{
+	if (TowerPressTime[0] < 0.0f && TowerPressTime[1] < 0.0f)
+	{
+		return;
+	}
+
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr || !VaelCharacter->IsFloromant() || VaelCharacter->IsDowned())
+	{
+		TowerPressTime[0] = TowerPressTime[1] = -1.0f;
+		return;
+	}
+
+	// Both buttons within the wait: the Ruf des Gartens, every plant around grows into its giant form
+	UVaelFloromantComponent* Floromant = VaelCharacter->GetFloromant();
+	if (TowerPressTime[0] >= 0.0f && TowerPressTime[1] >= 0.0f)
+	{
+		TowerPressTime[0] = TowerPressTime[1] = -1.0f;
+		Floromant->Overgrow();
+		return;
+	}
+
+	// One alone, once the other didn't come: a single tower
+	const float Now = GetWorld()->GetTimeSeconds();
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		if (TowerPressTime[Side] >= 0.0f && Now - TowerPressTime[Side] >= UVaelFloromantSettings::Get()->TowerChordDelay)
+		{
+			TowerPressTime[Side] = -1.0f;
+			Floromant->RootTower(Side == 0);
+		}
+	}
+}
+
+void AVaelPlayerController::OnPageBelt(int32 Step)
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->PageHandBelt(Step);
+	}
+}
+
+void AVaelPlayerController::OnPutOnHand(bool bLeft)
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->PutOnHand(bLeft);
+	}
+}
+
+void AVaelPlayerController::OnReload()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->ReloadHands();
+	}
+}
+
+void AVaelPlayerController::OnWhip()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant() && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned())
+	{
+		UpdateFacing();
+		VaelCharacter->GetFloromant()->ThornWhip(GetFloromantAim());
+	}
+}
+
+void AVaelPlayerController::OnHerbarium()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->OpenHerbarium();
+	}
+}
+
+void AVaelPlayerController::OnClearQueue()
+{
 	// On the gamepad a player who carries seeds and stands in peace sows by holding L1 / LB; a short tap acts when the button is let go
 	const AVaelCharacter* Sower = GetPawn<AVaelCharacter>();
 	if (Sower != nullptr && GetInputGlyphs() != EVaelInputGlyphs::Keyboard && Sower->GetElementComponent()->GetQueue().IsEmpty() && CanStartSowing())
@@ -888,12 +1138,6 @@ EVaelInputGlyphs AVaelPlayerController::GetInputGlyphs() const
 void AVaelPlayerController::OnQuickSlot(int32 SlotIndex)
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
-	{
-		VaelCharacter->GetFloromant()->SelectBelt(SlotIndex);
-		return;
-	}
-
 	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned() && !UGameplayStatics::IsGamePaused(this))
 	{
 		// Bring the aim up to date so the spell flies where the player points right now

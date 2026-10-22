@@ -89,6 +89,35 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		}
 	}
 
+	// -VaelShowcasePlayerView=X,Y,Z: close camera on the player from a place in its own frame (cm, X ahead, Y right), like 220,-140,60
+	FString PlayerViewText;
+	if (FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcasePlayerView="), PlayerViewText, false))
+	{
+		APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+		TArray<FString> Parts;
+		PlayerViewText.ParseIntoArray(Parts, TEXT(","));
+		if (PlayerPawn != nullptr && Parts.Num() == 3)
+		{
+			if (Closeup == nullptr)
+			{
+				Closeup = GetWorld()->SpawnActor<ACameraActor>();
+				Closeup->GetCameraComponent()->SetFieldOfView(50.0f);
+				Closeup->GetCameraComponent()->bConstrainAspectRatio = false;
+				Closeup->GetCameraComponent()->PostProcessSettings.bOverride_MotionBlurAmount = true;
+				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
+			}
+			const FVector Focus = PlayerPawn->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f);
+			const FVector Offset(FCString::Atof(*Parts[0]), FCString::Atof(*Parts[1]), FCString::Atof(*Parts[2]));
+			const FVector Eye = Focus + FRotator(0.0f, PlayerPawn->GetActorRotation().Yaw, 0.0f).RotateVector(Offset);
+			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
+			if (PlayerController->GetViewTarget() != Closeup)
+			{
+				PlayerController->SetViewTarget(Closeup);
+			}
+		}
+	}
+
 	// Close camera on the living creature closest to the player, slightly from the front and above
 	if (FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseCloseup")))
 	{

@@ -1,0 +1,544 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "Floromant/VaelPlantArmComponent.h"
+#include "AbilitySystemComponent.h"
+#include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelCombatStatics.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Components/SplineMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "Floromant/VaelPlantArmData.h"
+#include "Magic/VaelFormulaAbility.h"
+#include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelSpellProjectile.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "NiagaraSystem.h"
+#include "Player/VaelCharacter.h"
+#include "UI/VaelCombatTextSubsystem.h"
+#include "World/VaelSafeZone.h"
+#include "VaelAssets.h"
+
+namespace
+{
+	/** Fingers from thumb to little finger, as the bones of the body are named */
+	const TCHAR* const FingerNames[] = { TEXT("thumb"), TEXT("index"), TEXT("middle"), TEXT("ring"), TEXT("pinky") };
+	constexpr int32 NumFingers = UE_ARRAY_COUNT(FingerNames);
+
+	/** Length of the stalk meshes along +Z, in cm (Tools/Pflanzenarm/halme_zerlegen.py) */
+	constexpr float StalkMeshLength = 100.0f;
+
+	/** Material parameters of M_Halm */
+	const FName GrowParameter(TEXT("Wuchs"));
+	const FName WindParameter(TEXT("Wind"));
+	const FName SpinParameter(TEXT("Spin"));
+	const FName ShadowParameter(TEXT("Schatten"));
+	const FName FlashParameter(TEXT("Aufleuchten"));
+	const FName PhaseParameter(TEXT("Zeitversatz"));
+	const FName ArmPointParameter(TEXT("ArmPunkt"));
+	const FName ArmAxisParameter(TEXT("ArmAchse"));
+
+	/** Any direction across the given one */
+	FVector Across(const FVector& Direction)
+	{
+		const FVector Side = FVector::CrossProduct(Direction, FVector::UpVector);
+		return Side.IsNearlyZero() ? FVector::ForwardVector : Side.GetSafeNormal();
+	}
+}
+
+UVaelPlantArmComponent::UVaelPlantArmComponent()
+{
+	PrimaryComponentTick.bCanEverTick = true;
+	PrimaryComponentTick.TickGroup = TG_PostUpdateWork;
+}
+
+AVaelCharacter* UVaelPlantArmComponent::GetCharacter() const
+{
+	return Cast<AVaelCharacter>(GetOwner());
+}
+
+USkeletalMeshComponent* UVaelPlantArmComponent::GetBody() const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	return Character != nullptr ? Character->GetMesh() : nullptr;
+}
+
+FName UVaelPlantArmComponent::Bone(const TCHAR* Name) const
+{
+	return FName(FString::Printf(TEXT("%s_%s"), Name, bLeft ? TEXT("l") : TEXT("r")));
+}
+
+FVector UVaelPlantArmComponent::BoneLocation(const TCHAR* Name) const
+{
+	return GetBody()->GetSocketTransform(Bone(Name), RTS_Component).GetLocation();
+}
+
+// ---------------------------------------------------------------- Plant
+
+void UVaelPlantArmComponent::SetPlant(UVaelPlantArmData* InPlant)
+{
+	if (InPlant == (bChanging ? NextPlant.Get() : Plant.Get()))
+	{
+		return;
+	}
+
+	// The stalks there are wither back into the hand first; the new plant grows once they are gone
+	NextPlant = InPlant;
+	bChanging = true;
+	if (Plant == nullptr)
+	{
+		Grow = 0.0f;
+	}
+}
+
+UVaelPlantArmData* UVaelPlantArmComponent::GetPlant() const
+{
+	return bChanging ? NextPlant.Get() : Plant.Get();
+}
+
+void UVaelPlantArmComponent::SetFiring(bool bInFiring)
+{
+	if (bInFiring && !bFiring)
+	{
+		FireTime = 0.0f;
+	}
+	bFiring = bInFiring;
+}
+
+bool UVaelPlantArmComponent::IsFiring() const
+{
+	return bFiring && Plant != nullptr && !bChanging;
+}
+
+int32 UVaelPlantArmComponent::GetBarShots() const
+{
+	return FMath::FloorToInt32(BarShots);
+}
+
+float UVaelPlantArmComponent::GetBarFraction() const
+{
+	return Plant != nullptr ? FMath::Clamp(BarShots / FMath::Max(Plant->BarSize, 1), 0.0f, 1.0f) : 0.0f;
+}
+
+void UVaelPlantArmComponent::RefillBar(int32 Shots)
+{
+	if (Plant != nullptr)
+	{
+		BarShots = FMath::Min<float>(BarShots + Shots, Plant->BarSize);
+	}
+}
+
+void UVaelPlantArmComponent::Clear()
+{
+	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks })
+	{
+		for (USplineMeshComponent* Stalk : *Stalks)
+		{
+			if (Stalk != nullptr)
+			{
+				Stalk->DestroyComponent();
+			}
+		}
+		Stalks->Reset();
+	}
+	for (UStaticMeshComponent* Tip : FingerTips)
+	{
+		if (Tip != nullptr)
+		{
+			Tip->DestroyComponent();
+		}
+	}
+	FingerTips.Reset();
+	FingerMaterials.Reset();
+	ArmMaterial = nullptr;
+	Plant = nullptr;
+	NextPlant = nullptr;
+	bChanging = false;
+	Grow = 0.0f;
+	Stance = 0.0f;
+}
+
+void UVaelPlantArmComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	Clear();
+	Super::EndPlay(EndPlayReason);
+}
+
+USplineMeshComponent* UVaelPlantArmComponent::MakeStalk(UStaticMesh* Mesh, UMaterialInstanceDynamic* Material)
+{
+	USplineMeshComponent* Stalk = NewObject<USplineMeshComponent>(GetOwner());
+	Stalk->SetMobility(EComponentMobility::Movable);
+	Stalk->SetForwardAxis(ESplineMeshAxis::Z, false);
+	Stalk->SetStaticMesh(Mesh);
+	Stalk->SetMaterial(0, Material);
+	Stalk->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Stalk->SetCanEverAffectNavigation(false);
+	Stalk->SetupAttachment(GetBody());
+	Stalk->RegisterComponent();
+	return Stalk;
+}
+
+void UVaelPlantArmComponent::BuildStalks()
+{
+	UVaelPlantArmData* Data = Plant;
+	Plant = nullptr;
+	Clear();
+	Plant = Data;
+	if (Plant == nullptr || GetBody() == nullptr)
+	{
+		return;
+	}
+
+	UMaterialInterface* BaseMaterial = VaelAssets::LoadOptional(Plant->Material);
+	TArray<UStaticMesh*> FingerMeshes;
+	for (const TSoftObjectPtr<UStaticMesh>& Mesh : Plant->FingerMeshes)
+	{
+		if (UStaticMesh* Loaded = VaelAssets::LoadOptional(Mesh))
+		{
+			FingerMeshes.Add(Loaded);
+		}
+	}
+	TArray<UStaticMesh*> ArmMeshes;
+	for (const TSoftObjectPtr<UStaticMesh>& Mesh : Plant->ArmMeshes)
+	{
+		if (UStaticMesh* Loaded = VaelAssets::LoadOptional(Mesh))
+		{
+			ArmMeshes.Add(Loaded);
+		}
+	}
+	if (ArmMeshes.IsEmpty())
+	{
+		ArmMeshes = FingerMeshes;
+	}
+	if (FingerMeshes.IsEmpty())
+	{
+		return;
+	}
+
+	// The left hand starts with another stalk, so the two hands don't look mirrored
+	const int32 Offset = bLeft ? 1 : 0;
+	for (int32 Finger = 0; Finger < NumFingers; ++Finger)
+	{
+		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+		Material->SetScalarParameterValue(PhaseParameter, Finger * 1.3f + Offset * 0.7f);
+		FingerMaterials.Add(Material);
+		FingerStalks.Add(MakeStalk(FingerMeshes[(Finger + Offset) % FingerMeshes.Num()], Material));
+
+		if (UStaticMesh* TipMesh = VaelAssets::LoadOptional(Plant->TipMesh))
+		{
+			UStaticMeshComponent* Tip = NewObject<UStaticMeshComponent>(GetOwner());
+			Tip->SetMobility(EComponentMobility::Movable);
+			Tip->SetStaticMesh(TipMesh);
+			Tip->SetMaterial(0, Material);
+			Tip->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Tip->SetupAttachment(GetBody());
+			Tip->RegisterComponent();
+			FingerTips.Add(Tip);
+		}
+	}
+
+	ArmMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+	ArmMaterial->SetScalarParameterValue(PhaseParameter, Offset * 2.1f);
+	for (int32 Index = 0; Index < Plant->WrapCount; ++Index)
+	{
+		WrapStalks.Add(MakeStalk(ArmMeshes[(Index + Offset) % ArmMeshes.Num()], ArmMaterial));
+	}
+
+	// Wild stalks: where on the upper arm, at which angle around it, how long, each a little different
+	FRandomStream Random(GetOwner()->GetUniqueID() * 2 + Offset);
+	WildShapes.Reset();
+	for (int32 Index = 0; Index < Plant->WildCount; ++Index)
+	{
+		WildShapes.Add(FVector(Random.FRandRange(0.2f, 1.0f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.6f, 1.2f)));
+		WildStalks.Add(MakeStalk(ArmMeshes[(Index + 1 + Offset) % ArmMeshes.Num()], ArmMaterial));
+	}
+
+	Muzzles.Init(FVector::ZeroVector, NumFingers);
+	MuzzleDirections.Init(FVector::ForwardVector, NumFingers);
+	Flashes.Init(0.0f, NumFingers);
+	BarShots = Plant->BarSize;
+	FireCountdown = 0.0f;
+	NextFinger = 0;
+	SpinTurns = 0.0f;
+	SpinRate = 0.0f;
+	Fan = 0.0f;
+
+	// A short burst while the hand turns
+	const FVector Hand = GetBody()->GetSocketLocation(Bone(TEXT("hand")));
+	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow;
+	UNiagaraSystem* Burst = VaelAssets::LoadOptional(Plant->GrowEffect);
+	if (Burst == nullptr)
+	{
+		Burst = VaelEffects::Load(Plant->ShotElement).Cast;
+	}
+	VaelEffects::SpawnAt(this, Burst, Hand, FRotator::ZeroRotator, Plant->GetColor(bShadow), 40.0f);
+}
+
+// ---------------------------------------------------------------- Update
+
+void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+{
+	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+
+	if (GetBody() == nullptr)
+	{
+		return;
+	}
+
+	// Wither and grow: the old plant goes back into the hand, then the new one comes out
+	const float GrowSpeed = 1.0f / FMath::Max(Plant != nullptr ? Plant->GrowTime : 0.4f, 0.01f);
+	if (bChanging)
+	{
+		Grow = FMath::Max(0.0f, Grow - GrowSpeed * DeltaTime);
+		if (Grow <= 0.0f)
+		{
+			bChanging = false;
+			Plant = NextPlant;
+			NextPlant = nullptr;
+			BuildStalks();
+		}
+	}
+	else if (Plant != nullptr)
+	{
+		Grow = FMath::Min(1.0f, Grow + GrowSpeed * DeltaTime);
+	}
+
+	if (Plant == nullptr || FingerStalks.IsEmpty())
+	{
+		Stance = FMath::FInterpTo(Stance, 0.0f, DeltaTime, 8.0f);
+		return;
+	}
+
+	const bool bFiringNow = IsFiring() && Grow >= 1.0f;
+	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
+	Fan = FMath::FInterpTo(Fan, bFiringNow ? 1.0f : 0.0f, DeltaTime, 10.0f);
+
+	UpdateFiring(DeltaTime);
+	UpdateStalks();
+	UpdateMaterials(DeltaTime);
+}
+
+void UVaelPlantArmComponent::UpdateStalks()
+{
+	const USkeletalMeshComponent* Body = GetBody();
+	const FTransform BodyTransform = Body->GetComponentTransform();
+
+	const FVector Shoulder = BoneLocation(TEXT("upperarm"));
+	const FVector Elbow = BoneLocation(TEXT("lowerarm"));
+	const FVector Wrist = BoneLocation(TEXT("hand"));
+	const FVector Axis = (Wrist - Elbow).GetSafeNormal();
+	const FVector U = Across(Axis);
+	const FVector V = FVector::CrossProduct(Axis, U);
+	const float Radius = Plant->WrapRadius;
+
+	// The middle line of the hand, from the wrist through the middle finger
+	const FVector HandAxis = (BoneLocation(TEXT("middle_03")) - Wrist).GetSafeNormal();
+	const float FanRadians = FMath::DegreesToRadians(Plant->FanAngle) * Fan;
+
+	// Fingers: from the forearm past the fingertip into a long stalk
+	for (int32 Finger = 0; Finger < FingerStalks.Num(); ++Finger)
+	{
+		const FString Name = FingerNames[Finger];
+		const FVector Root = BoneLocation(*(Name + TEXT("_01")));
+		const FVector Middle = BoneLocation(*(Name + TEXT("_02")));
+		const FVector Last = BoneLocation(*(Name + TEXT("_03")));
+		const FVector Tip = Last + (Last - Middle).GetSafeNormal() * 2.0f;
+
+		// The finger points along itself at rest; while firing all stalks turn along the stretched arm and fan away from the middle of the hand
+		const FVector Along = (Axis + HandAxis).GetSafeNormal();
+		FVector Direction = FMath::Lerp((Tip - Root).GetSafeNormal(), Along, Stance * 0.85f).GetSafeNormal();
+		const FVector Outward = (Direction - HandAxis * FVector::DotProduct(Direction, HandAxis)).GetSafeNormal();
+		if (!Outward.IsNearlyZero() && FanRadians > 0.0f)
+		{
+			Direction = (Direction * FMath::Cos(FanRadians) + Outward * FMath::Sin(FanRadians)).GetSafeNormal();
+		}
+
+		// It comes out of the forearm on the side of its finger
+		const FVector OnArm = FMath::Lerp(Wrist, Elbow, Plant->FingerRootReach);
+		const FVector Side = Root - (Elbow + Axis * FVector::DotProduct(Root - Elbow, Axis));
+		const FVector Start = OnArm + Side.GetSafeNormal() * Radius * 0.8f;
+		const FVector End = Tip + Direction * Plant->FingerLength;
+		const float Span = FVector::Dist(Start, End);
+
+		USplineMeshComponent* Stalk = FingerStalks[Finger];
+		Stalk->SetStartAndEnd(Start, Axis * Span * 0.8f, End, Direction * Span * 0.8f, false);
+		Stalk->SetStartScale(FVector2D(Plant->FingerThickness * 0.7f), false);
+		Stalk->SetEndScale(FVector2D(Plant->FingerThickness), false);
+		Stalk->SetStartRoll(Finger * 1.1f, false);
+		Stalk->SetEndRoll(Finger * 1.1f + 0.8f, false);
+		Stalk->UpdateMesh();
+
+		if (FingerTips.IsValidIndex(Finger))
+		{
+			FingerTips[Finger]->SetRelativeLocationAndRotation(End, FRotationMatrix::MakeFromZ(Direction).Rotator());
+			FingerTips[Finger]->SetRelativeScale3D(FVector(Plant->TipSize / 10.0f * Grow));
+		}
+
+		Muzzles[Finger] = BodyTransform.TransformPosition(End);
+		MuzzleDirections[Finger] = BodyTransform.TransformVectorNoScale(Direction);
+	}
+
+	// Winding stalks: half a turn around the forearm, from a little above the elbow to the wrist
+	const FVector WrapStart = FMath::Lerp(Elbow, Shoulder, 0.15f);
+	const float WrapLength = FVector::Dist(WrapStart, Wrist);
+	const float TurnRadians = Plant->WrapTurns * 2.0f * UE_PI;
+	for (int32 Index = 0; Index < WrapStalks.Num(); ++Index)
+	{
+		const float A0 = Index * 2.0f * UE_PI / WrapStalks.Num() + (bLeft ? 0.6f : 0.0f) + SpinTurns * 2.0f * UE_PI * (bLeft ? -1.0f : 1.0f);
+		const float A1 = A0 + TurnRadians;
+		const FVector Out0 = U * FMath::Cos(A0) + V * FMath::Sin(A0);
+		const FVector Out1 = U * FMath::Cos(A1) + V * FMath::Sin(A1);
+		const FVector Around0 = -U * FMath::Sin(A0) + V * FMath::Cos(A0);
+		const FVector Around1 = -U * FMath::Sin(A1) + V * FMath::Cos(A1);
+
+		// Tangents with 4 x radius across follow a half circle closely
+		const float Sideways = 4.0f * Radius * Plant->WrapTurns * 2.0f;
+		USplineMeshComponent* Stalk = WrapStalks[Index];
+		Stalk->SetStartAndEnd(WrapStart + Out0 * Radius, Axis * WrapLength + Around0 * Sideways, Wrist + Out1 * Radius * 0.8f, Axis * WrapLength + Around1 * Sideways, false);
+		Stalk->SetStartScale(FVector2D(0.6f), false);
+		Stalk->SetEndScale(FVector2D(0.45f), false);
+		Stalk->SetStartRoll(A0, false);
+		Stalk->SetEndRoll(A1, false);
+		Stalk->UpdateMesh();
+	}
+
+	// Wild stalks: out of the upper arm, down over the elbow and off into nothing
+	const FVector UpperAxis = (Elbow - Shoulder).GetSafeNormal();
+	const FVector UpperU = Across(UpperAxis);
+	const FVector UpperV = FVector::CrossProduct(UpperAxis, UpperU);
+	for (int32 Index = 0; Index < WildStalks.Num(); ++Index)
+	{
+		const FVector& Shape = WildShapes[Index];
+		const FVector Out = UpperU * FMath::Cos(Shape.Y) + UpperV * FMath::Sin(Shape.Y);
+		const FVector Start = FMath::Lerp(Elbow, Shoulder, Plant->UpperArmReach * Shape.X) + Out * Radius * 1.2f;
+		const FVector Direction = (UpperAxis * 0.8f + Out * 0.6f).GetSafeNormal();
+		const float Length = Plant->WildLength * Shape.Z;
+
+		USplineMeshComponent* Stalk = WildStalks[Index];
+		Stalk->SetStartAndEnd(Start, UpperAxis * Length, Start + Direction * Length, Direction * Length * 1.4f, false);
+		Stalk->SetStartScale(FVector2D(0.5f), false);
+		Stalk->SetEndScale(FVector2D(0.35f), false);
+		Stalk->SetStartRoll(Shape.Y, false);
+		Stalk->SetEndRoll(Shape.Y + 1.2f, false);
+		Stalk->UpdateMesh();
+	}
+
+	// The axis the tips twirl around in the material
+	ArmMaterial->SetVectorParameterValue(ArmPointParameter, FLinearColor(BodyTransform.TransformPosition(Elbow)));
+	ArmMaterial->SetVectorParameterValue(ArmAxisParameter, FLinearColor(BodyTransform.TransformVectorNoScale(Axis)));
+}
+
+void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
+{
+	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow;
+
+	// The winding stalks spin faster the longer the hand fires, and slow down again after
+	const float TargetRate = IsFiring() ? Plant->SpinSpeed * FMath::Clamp(FireTime / Plant->SpinRampTime, 0.0f, 1.0f) : 0.0f;
+	SpinRate = FMath::FInterpTo(SpinRate, TargetRate, DeltaTime, IsFiring() ? 6.0f : 2.0f);
+	SpinTurns = FMath::Fmod(SpinTurns + SpinRate * DeltaTime, 1000.0f);
+
+	const float Wind = Plant->RestWind * (1.0f + Fan);
+	for (int32 Finger = 0; Finger < FingerMaterials.Num(); ++Finger)
+	{
+		Flashes[Finger] = FMath::Max(0.0f, Flashes[Finger] - DeltaTime * 8.0f);
+
+		UMaterialInstanceDynamic* Material = FingerMaterials[Finger];
+		Material->SetScalarParameterValue(GrowParameter, Grow);
+		Material->SetScalarParameterValue(WindParameter, Wind * (1.0f - Fan * 0.7f));
+		Material->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+		Material->SetScalarParameterValue(FlashParameter, Flashes[Finger]);
+	}
+
+	ArmMaterial->SetScalarParameterValue(GrowParameter, Grow);
+	ArmMaterial->SetScalarParameterValue(WindParameter, Wind);
+	// The spiral itself turns in UpdateStalks; in the material the tips lag behind, the faster it turns the more
+	ArmMaterial->SetScalarParameterValue(SpinParameter, SpinRate * 0.15f);
+	ArmMaterial->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+}
+
+// ---------------------------------------------------------------- Shots
+
+void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
+{
+	const float Now = GetWorld()->GetTimeSeconds();
+	FireCountdown = FMath::Max(0.0f, FireCountdown - DeltaTime);
+
+	if (!IsFiring() || Grow < 1.0f)
+	{
+		// Until reloading with Keimpelz exists, a resting hand slowly fills its bar
+		if (Now - LastShotTime > Plant->BarRefillDelay)
+		{
+			BarShots = FMath::Min<float>(Plant->BarSize, BarShots + Plant->BarRefillPerSecond * DeltaTime);
+		}
+		return;
+	}
+
+	FireTime += DeltaTime;
+
+	AVaelCharacter* Character = GetCharacter();
+	if (Character->IsDowned() || Character->IsDodging() || FireCountdown > 0.0f || Stance < 0.6f)
+	{
+		return;
+	}
+
+	// Nothing fires in the camp, like the spells of the mage
+	if (AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation()))
+	{
+		return;
+	}
+
+	if (BarShots < 1.0f)
+	{
+		return;
+	}
+
+	if (Character->GetMana() < Plant->SaftPerShot)
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
+		FireCountdown = 0.6f;
+		return;
+	}
+
+	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
+	BarShots -= 1.0f;
+	LastShotTime = Now;
+	FireCountdown = Plant->FireInterval;
+
+	// The fingers fire in turn, from thumb to little finger
+	Shoot(NextFinger);
+	NextFinger = (NextFinger + 1) % NumFingers;
+}
+
+void UVaelPlantArmComponent::Shoot(int32 Finger)
+{
+	AVaelCharacter* Character = GetCharacter();
+	Flashes[Finger] = 1.0f;
+
+	// Out of the fingertip towards where the player aims, flat over the ground
+	const FVector Muzzle = Muzzles[Finger];
+	FVector Direction = UVaelFormulaAbility::GetAimDirection(Character);
+	Direction.Z = 0.0f;
+	Direction = Direction.GetSafeNormal();
+	if (Direction.IsNearlyZero())
+	{
+		Direction = Character->GetActorForwardVector();
+	}
+	Direction = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Direction);
+
+	FVaelSpellHit Hit;
+	Hit.Damage = Plant->ShotDamage;
+	Hit.Element = Plant->ShotElement;
+
+	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const FTransform SpawnTransform(Direction.Rotation(), Muzzle);
+	AVaelSpellProjectile* Shot = GetWorld()->SpawnActorDeferred<AVaelSpellProjectile>(AVaelSpellProjectile::StaticClass(), SpawnTransform, Character, Character, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (Shot == nullptr)
+	{
+		return;
+	}
+
+	Shot->InitSpell(Hit, Plant->ShotSpeed, Plant->ShotRadius, Plant->ShotRange / Plant->ShotSpeed, 0, Plant->GetColor(bShadow));
+	Shot->SetEffects(VaelEffects::Load(Plant->ShotElement));
+	Shot->FinishSpawning(SpawnTransform);
+}

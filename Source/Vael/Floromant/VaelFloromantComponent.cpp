@@ -9,6 +9,8 @@
 #include "EngineUtils.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlant.h"
+#include "Floromant/VaelPlantArmComponent.h"
+#include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelPlantData.h"
 #include "Floromant/VaelSeed.h"
 #include "Magic/VaelDebrisBurst.h"
@@ -466,6 +468,8 @@ int32 UVaelFloromantComponent::GetNumPlants() const
 
 void UVaelFloromantComponent::WitherAll()
 {
+	ClearHands();
+
 	for (const TWeakObjectPtr<AVaelPlant>& Plant : Plants)
 	{
 		if (Plant.IsValid())
@@ -474,4 +478,126 @@ void UVaelFloromantComponent::WitherAll()
 		}
 	}
 	Plants.Reset();
+}
+
+// ---------------------------------------------------------------- Plant arms
+
+int32 UVaelFloromantComponent::GetHandBeltSize() const
+{
+	return UVaelFloromantSettings::Get()->HandBelt.Num();
+}
+
+UVaelPlantArmData* UVaelFloromantComponent::GetHandBeltPlant(int32 Index) const
+{
+	const TArray<TSoftObjectPtr<UVaelPlantArmData>>& Belt = UVaelFloromantSettings::Get()->HandBelt;
+	return Belt.IsValidIndex(Index) ? VaelAssets::LoadOptional(Belt[Index]) : nullptr;
+}
+
+void UVaelFloromantComponent::PageHandBelt(int32 Step)
+{
+	const int32 Size = GetHandBeltSize();
+	if (Size == 0)
+	{
+		return;
+	}
+	HandBeltSelection = (HandBeltSelection + Step % Size + Size) % Size;
+
+	// Shows which plant is picked now
+	if (AVaelCharacter* Character = GetCharacter())
+	{
+		if (const UVaelPlantArmData* Plant = GetHandBeltPlant(HandBeltSelection))
+		{
+			UVaelCombatTextSubsystem::PostPickup(Character, Plant->GetDisplayName(GrowsShadowForms()), Plant->GetColor(GrowsShadowForms()));
+		}
+	}
+}
+
+void UVaelFloromantComponent::PutOnHand(bool bLeft)
+{
+	UVaelPlantArmData* Plant = GetHandBeltPlant(HandBeltSelection);
+	AVaelCharacter* Character = GetCharacter();
+	if (Plant == nullptr || Character == nullptr || Character->IsDowned())
+	{
+		return;
+	}
+	GetHand(bLeft)->SetPlant(Plant);
+}
+
+UVaelPlantArmComponent* UVaelFloromantComponent::GetHand(bool bLeft)
+{
+	TObjectPtr<UVaelPlantArmComponent>& Hand = bLeft ? LeftHand : RightHand;
+	if (Hand == nullptr && GetOwner() != nullptr)
+	{
+		Hand = NewObject<UVaelPlantArmComponent>(GetOwner(), bLeft ? TEXT("PlantArmLeft") : TEXT("PlantArmRight"));
+		Hand->SetHand(bLeft);
+		Hand->RegisterComponent();
+	}
+	return Hand;
+}
+
+void UVaelFloromantComponent::SetHandFiring(bool bLeft, bool bFiring)
+{
+	// A bare hand has nothing to fire; it doesn't need to exist for that
+	UVaelPlantArmComponent* Hand = bLeft ? LeftHand : RightHand;
+	if (Hand != nullptr)
+	{
+		Hand->SetFiring(bFiring);
+	}
+}
+
+bool UVaelFloromantComponent::IsFiring() const
+{
+	return (LeftHand != nullptr && LeftHand->IsFiring()) || (RightHand != nullptr && RightHand->IsFiring());
+}
+
+float UVaelFloromantComponent::GetStance(bool bLeft) const
+{
+	const UVaelPlantArmComponent* Hand = bLeft ? LeftHand : RightHand;
+	return Hand != nullptr ? Hand->GetStance() : 0.0f;
+}
+
+float UVaelFloromantComponent::GetMoveSpeedScale() const
+{
+	const float Stance = FMath::Max(GetStance(true), GetStance(false));
+	return FMath::Lerp(1.0f, UVaelFloromantSettings::Get()->FiringMoveSpeedScale, Stance);
+}
+
+void UVaelFloromantComponent::ClearHands()
+{
+	for (UVaelPlantArmComponent* Hand : { LeftHand.Get(), RightHand.Get() })
+	{
+		if (Hand != nullptr)
+		{
+			Hand->Clear();
+		}
+	}
+}
+
+void UVaelFloromantComponent::ShowNotBuilt(const FText& Name) const
+{
+	if (AVaelCharacter* Character = GetCharacter())
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, FText::Format(NSLOCTEXT("VaelFloromant", "NotBuilt", "{0} (kommt noch)"), Name), FLinearColor(FColor(158, 143, 125)));
+	}
+	UE_LOG(LogVael, Log, TEXT("'%s': %s is not built yet"), *GetNameSafe(GetOwner()), *Name.ToString());
+}
+
+void UVaelFloromantComponent::RootTower(bool bLeft)
+{
+	ShowNotBuilt(bLeft ? NSLOCTEXT("VaelFloromant", "TowerLeft", "Turm links") : NSLOCTEXT("VaelFloromant", "TowerRight", "Turm rechts"));
+}
+
+void UVaelFloromantComponent::CrossHands(bool bCharged)
+{
+	ShowNotBuilt(bCharged ? NSLOCTEXT("VaelFloromant", "CrossCharged", "Kreuzen, aufgeladen") : NSLOCTEXT("VaelFloromant", "Cross", "Kreuzschuss"));
+}
+
+void UVaelFloromantComponent::ReloadHands()
+{
+	ShowNotBuilt(NSLOCTEXT("VaelFloromant", "Reload", "Keimpelz nachladen"));
+}
+
+void UVaelFloromantComponent::OpenHerbarium()
+{
+	ShowNotBuilt(NSLOCTEXT("VaelFloromant", "Herbarium", "Herbarium"));
 }

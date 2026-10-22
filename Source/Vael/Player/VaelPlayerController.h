@@ -39,6 +39,7 @@ struct FInputActionValue;
  *  Player controller for direct twin-stick style controls.
  *  Left stick or WASD moves, right stick or mouse aims, the character turns towards the aim direction.
  *  Face buttons or 1-4 queue elements, right trigger or left click casts them.
+ *  Each class plays differently: the shared controls (IMC_VaelPlayer) carry the layout of the class played (IMC_Magier or IMC_Floromant).
  *  Input actions and their key mappings are created in code, no input assets are needed.
  */
 UCLASS()
@@ -155,6 +156,66 @@ protected:
 	/** Spyglass Input Action, held: left stick click or F */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> SpyglassAction;
+
+	/** Controls only the mage has (elements, casting, quick slots, potion, interact, dodge, grimoire, spyglass); the classes without own controls use them too */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputMappingContext> MageMappingContext;
+
+	/** Controls of the Floromant, a layout of its own: the hands fire, take root as towers and get their plants from the seed belt */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputMappingContext> FloromantMappingContext;
+
+	/** Floromant: fire the left / right hand while held (L1 / R1, left / right mouse button) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> FireLeftAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> FireRightAction;
+
+	/** Floromant: cross both hands while both fire (Cross, Space); tapped a fast shot, held a charged one */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> CrossAction;
+
+	/** Floromant: the left / right hand takes root as a tower (L2 / R2, Q / E); both together are the Ruf des Gartens */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> TowerLeftAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> TowerRightAction;
+
+	/** Floromant: page up / down through the seed belt (d-pad up / down tapped, mouse wheel) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> BeltUpAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> BeltDownAction;
+
+	/** Floromant: lay the picked plant on the left / right hand (d-pad left / right, 1 / 2) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PutLeftAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> PutRightAction;
+
+	/** Floromant: reload with Keimpelz (Triangle held, R held) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> ReloadAction;
+
+	/** Floromant: Wurzelsprung to an own plant, or use what is close by outside of fights (Cross, Space) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> LeapAction;
+
+	/** Floromant: Dornenpeitsche (Square, F) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> WhipAction;
+
+	/** Floromant: Herbarium and repertoire (touchpad, Tab) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> HerbariumAction;
+
+	/** Floromant: healing potion (d-pad down held, H) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> FloromantPotionAction;
 
 	/** Input Mapping Context while a dialogue is shown */
 	UPROPERTY(Transient)
@@ -293,6 +354,9 @@ protected:
 	/** Creates the input actions and maps them to keys */
 	void CreateInputAssets();
 
+	/** Creates the actions of the Floromant and its own layout; part of CreateInputAssets */
+	void CreateFloromantInput();
+
 	/** Input handlers */
 	void OnMoveKeyboard(const FInputActionValue& Value);
 	void OnMoveGamepad(const FInputActionValue& Value);
@@ -336,8 +400,34 @@ protected:
 	/** Where a Floromant aims on the ground: the mouse, the enemy the gamepad aim is locked on, or a few steps ahead */
 	FVector GetFloromantAim() const;
 
-	/** Game time at which L1 drinks a potion for a Floromant, negative while nothing waits: a short wait lets L1 + R1 become Wuchern */
-	float PendingDrinkTime = -1.0f;
+	/** Puts the controls of the class the pawn plays now in place */
+	void UpdateClassControls();
+
+	/** True while the controls of the Floromant are in place, false for those of the mage; unset before the first pawn */
+	TOptional<bool> bFloromantControls;
+
+	/** Floromant input handlers */
+	void OnFireHand(bool bLeft, bool bHeld);
+	void OnCrossStarted();
+	void OnCrossEnded();
+	void OnTower(bool bLeft);
+	void OnPageBelt(int32 Step);
+	void OnPutOnHand(bool bLeft);
+	void OnReload();
+	void OnLeap();
+	void OnWhip();
+	void OnHerbarium();
+
+	/** True while both fire buttons of the Floromant are held; Cross then crosses instead of leaping */
+	bool AreBothHandsHeld() const { return bFireHeld[0] && bFireHeld[1]; }
+
+	/** Which fire buttons are held (left, right), when Cross started crossing (negative while not), and when each tower button was pressed (negative while none waits) */
+	bool bFireHeld[2] = { false, false };
+	float CrossStartTime = -1.0f;
+	float TowerPressTime[2] = { -1.0f, -1.0f };
+
+	/** Sets single towers once the wait for the other tower button is over, or calls the garden if both came */
+	void UpdateTowerChord();
 	void OnSpyglassRaised();
 	void OnSpyglassLowered();
 	void OnDialogueContinue();
