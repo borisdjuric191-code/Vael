@@ -78,6 +78,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	TSoftObjectPtr<class UNiagaraSystem> BallNiagara;
 
+	/** For fire spells: the burning trail of a projectile (Funke, Feuerball) and the blast where something burning explodes.
+	 *  The trail system is attached to the projectile and follows it */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TSoftObjectPtr<class UNiagaraSystem> TrailNiagara;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TSoftObjectPtr<class UNiagaraSystem> BurstNiagara;
+
 	/** Flames as 3D tongues (Tools/Feuer/feuer_zunge.py, Scripts/CreateFireTongues.py): meshes that lick, sway and tear off at
 	 *  the tip. A Brandherd grows them along the arms of an invisible star, a campfire burns as a ring, a ball all around */
 	UPROPERTY(config, EditAnywhere, Category="Tongues")
@@ -287,6 +295,10 @@ struct FVaelFireShape
 	/** How much the flames of a ball lick outwards (1) instead of along the flow direction (0) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0, ClampMax = 1))
 	float BallSpread = 0.6f;
+
+	/** A blast of flames where something burning explodes (AVaelFireSpot::SpawnBurst) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")
+	bool bBurst = false;
 
 	/** A campfire: burns as the calm campfire simulation, not as a Brandherd */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")

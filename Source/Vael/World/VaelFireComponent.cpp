@@ -263,12 +263,10 @@ bool UVaelFireComponent::BuildNiagaraFire()
 	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
 	if (NiagaraFire == nullptr)
 	{
-		// The trail of a projectile has no fire of its own
-		if (Shape.bFloating && !Shape.bBall)
-		{
-			return false;
-		}
-		UNiagaraSystem* System = VaelAssets::LoadOptional(Shape.bBall ? Settings->BallNiagara : Settings->GroundNiagara);
+		// A ball, a blast, the trail of a projectile, or a fire on the ground or a wall
+		const TSoftObjectPtr<UNiagaraSystem>& Wanted = Shape.bBall ? Settings->BallNiagara : Shape.bBurst ? Settings->BurstNiagara
+			: Shape.bFloating ? Settings->TrailNiagara : Settings->GroundNiagara;
+		UNiagaraSystem* System = VaelAssets::LoadOptional(Wanted);
 		if (System == nullptr)
 		{
 			return false;

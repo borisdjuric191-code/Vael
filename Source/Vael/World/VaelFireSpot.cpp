@@ -48,6 +48,7 @@ AVaelFireSpot* AVaelFireSpot::SpawnBurst(UWorld* World, const FVector& Location,
 	Shape.Speed = 2.4f;
 	Shape.Tongues = 18;
 	Shape.bFloating = true;
+	Shape.bBurst = true;
 	AVaelFireSpot* Spot = Spawn(World, Location, Shape, 0.6f);
 	if (Spot != nullptr)
 	{
