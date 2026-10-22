@@ -332,9 +332,15 @@ def make_instance(parent, plant, values):
 
 # ---------------------------------------------------------------- DA_Pflanzenarm_<Id>
 
-def make_arm(plant, finger_meshes, arm_meshes, head, material, values):
+def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values):
     path = "{}/DA_Pflanzenarm_{}".format(FOLDER, plant)
     if assets.does_asset_exist(path):
+        # Fields that came later are filled in while they are still empty
+        data = unreal.load_asset(path)
+        if vine is not None and len(data.get_editor_property("vine_meshes")) == 0:
+            data.set_editor_property("vine_meshes", [vine])
+            assets.save_loaded_asset(data, False)
+            created.append(path + " (vines)")
         return
     factory = unreal.DataAssetFactory()
     factory.set_editor_property("data_asset_class", unreal.VaelPlantArmData)
@@ -347,6 +353,8 @@ def make_arm(plant, finger_meshes, arm_meshes, head, material, values):
     data.set_editor_property("material", material)
     if head is not None:
         data.set_editor_property("tip_mesh", head)
+    if vine is not None:
+        data.set_editor_property("vine_meshes", [vine])
     for key, value in values.items():
         data.set_editor_property(key, getattr(unreal.VaelElement, value) if key == "shot_element" else value)
     assets.save_loaded_asset(data, False)
@@ -359,12 +367,14 @@ def main():
         fingers = [import_stalk(plant, i) for i in arm["finger"]]
         others = [import_stalk(plant, i) for i in arm["arm"]]
         head = import_mesh(plant, "SM_{}_Kopf".format(plant), 5.0) if arm["head"] else None
+        # The vine for the overgrowth while aiming, from Tools/Pflanzenarm/ranke_bauen.py
+        vine = import_mesh(plant, "SM_{}_Ranke".format(plant), 50.0)
         instance = make_instance(stalk_material, plant, arm["values"])
-        for mesh in fingers + others + [head]:
+        for mesh in fingers + others + [head, vine]:
             if mesh is not None:
                 mesh.set_material(0, instance)
                 assets.save_loaded_asset(mesh, False)
-        make_arm(plant, fingers, others, head, instance, arm["data"])
+        make_arm(plant, fingers, others, head, vine, instance, arm["data"])
 
     for line in created:
         log("created " + line)

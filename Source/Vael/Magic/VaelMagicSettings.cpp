@@ -57,25 +57,8 @@ UVaelMagicSettings::UVaelMagicSettings()
 	DefaultEffects.CastSound = Sound(TEXT("SFX_Vael_Cast"));
 	DefaultEffects.ImpactSound = Sound(TEXT("SFX_Vael_Impact"));
 
-	// Effects of the free Fab packs (Docs/Quellen.md) per element, until a spell gets its own; a pack that is missing leaves the default
-	const auto PackEffect = [](const TCHAR* Folder, const TCHAR* Name)
-	{
-		return TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(FString::Printf(TEXT("/Game/%s/%s.%s"), Folder, Name, Name)));
-	};
-
-	FVaelSpellEffects& FireEffects = ElementEffects.Add(EVaelElement::Fire);
-	FireEffects.ImpactEffect = PackEffect(TEXT("NiagaraExamples/FX_Explosions"), TEXT("NS_Explosion_Small"));
-
-	SplashEffect = PackEffect(TEXT("NiagaraExamples/FX_Misc"), TEXT("NS_Bubble_Burst"));
-
-	FVaelSpellEffects& WaterEffects = ElementEffects.Add(EVaelElement::Water);
-	WaterEffects.ImpactEffect = PackEffect(TEXT("NiagaraExamples/FX_Misc"), TEXT("NS_Bubble_Burst"));
-
-	FVaelSpellEffects& EarthEffects = ElementEffects.Add(EVaelElement::Earth);
-	EarthEffects.ImpactEffect = PackEffect(TEXT("NiagaraExamples/FX_Explosions"), TEXT("NS_Dirt_Explosion_Small"));
-
-	FVaelSpellEffects& AirEffects = ElementEffects.Add(EVaelElement::Air);
-	AirEffects.ImpactEffect = PackEffect(TEXT("Free_Spells/VFX_Niagara"), TEXT("NS_Free_Spells_Shockwave"));
+	// Every effect is made for Vael itself (Boris 2026-10-22): no effects of other packs. Until an element gets its own,
+	// its impacts use the default Vael impact, tinted in the colour of the element.
 
 	SteamEffect = Effect(TEXT("NS_Vael_Steam"));
 	MudEffect = Effect(TEXT("NS_Vael_Mud"));

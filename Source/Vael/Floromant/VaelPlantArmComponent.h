@@ -135,6 +135,35 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ArmMaterial;
 
+	/** Overgrowth while aiming: vines over forearm and upper arm, more wild stalks, more Keimpelz pads; first the forearm
+	 *  grows (material A), then the upper arm (material B) */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> ForearmVines;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> UpperArmVines;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> OvergrowthWild;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> OvergrowthPads;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> OvergrowthMaterialA;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> OvergrowthMaterialB;
+
+	/** 0 = only the plant of the hand, 1 = the whole arm overrun */
+	float Overgrowth = 0.0f;
+
+	/** Moves the vines, wild stalks and pads of the overgrowth to the bones */
+	void UpdateOvergrowth(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist);
+
+	/** Random shape of each overgrowth stalk: where on the arm, angle, length */
+	TArray<FVector> OvergrowthShapes;
+
 	/** The Keimpelz pad on the back of the forearm; its size shows how much the pelt holds */
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> KeimpelzPad;

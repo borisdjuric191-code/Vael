@@ -28,6 +28,9 @@ namespace
 	const TCHAR* const FingerNames[] = { TEXT("thumb"), TEXT("index"), TEXT("middle"), TEXT("ring"), TEXT("pinky") };
 	constexpr int32 NumFingers = UE_ARRAY_COUNT(FingerNames);
 
+	/** Length of each finger stalk compared with the plant's finger length: the middle ones reach farthest */
+	constexpr float FingerLengthShares[] = { 0.75f, 1.0f, 1.15f, 0.95f, 0.8f };
+
 	/** Length of the stalk meshes along +Z, in cm (Tools/Pflanzenarm/halme_zerlegen.py) */
 	constexpr float StalkMeshLength = 100.0f;
 
@@ -152,7 +155,7 @@ void UVaelPlantArmComponent::Clear()
 	}
 	ReloadShots = 0;
 	ReloadTimeLeft = 0.0f;
-	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks })
+	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks, &ForearmVines, &UpperArmVines, &OvergrowthWild })
 	{
 		for (USplineMeshComponent* Stalk : *Stalks)
 		{
@@ -163,14 +166,20 @@ void UVaelPlantArmComponent::Clear()
 		}
 		Stalks->Reset();
 	}
-	for (UStaticMeshComponent* Tip : FingerTips)
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads })
 	{
-		if (Tip != nullptr)
+		for (UStaticMeshComponent* Piece : *Pieces)
 		{
-			Tip->DestroyComponent();
+			if (Piece != nullptr)
+			{
+				Piece->DestroyComponent();
+			}
 		}
+		Pieces->Reset();
 	}
-	FingerTips.Reset();
+	OvergrowthMaterialA = nullptr;
+	OvergrowthMaterialB = nullptr;
+	Overgrowth = 0.0f;
 	FingerMaterials.Reset();
 	ArmMaterial = nullptr;
 	Plant = nullptr;
@@ -287,6 +296,47 @@ void UVaelPlantArmComponent::BuildStalks()
 		KeimpelzPad->RegisterComponent();
 	}
 
+	// Overgrowth while aiming: vines climbing the arm, more wild stalks and more Keimpelz, each with its own growing material
+	TArray<UStaticMesh*> VineMeshes;
+	for (const TSoftObjectPtr<UStaticMesh>& Mesh : Plant->VineMeshes)
+	{
+		if (UStaticMesh* Loaded = VaelAssets::LoadOptional(Mesh))
+		{
+			VineMeshes.Add(Loaded);
+		}
+	}
+	OvergrowthMaterialA = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+	OvergrowthMaterialB = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+	OvergrowthMaterialA->SetScalarParameterValue(PhaseParameter, 0.4f + Offset);
+	OvergrowthMaterialB->SetScalarParameterValue(PhaseParameter, 1.7f + Offset);
+	for (int32 Index = 0; Index < Plant->VineCount && !VineMeshes.IsEmpty(); ++Index)
+	{
+		ForearmVines.Add(MakeStalk(VineMeshes[(Index + Offset) % VineMeshes.Num()], OvergrowthMaterialA));
+		UpperArmVines.Add(MakeStalk(VineMeshes[(Index + 1 + Offset) % VineMeshes.Num()], OvergrowthMaterialB));
+	}
+	OvergrowthShapes.Reset();
+	for (int32 Index = 0; Index < Plant->OvergrowthWildCount; ++Index)
+	{
+		OvergrowthShapes.Add(FVector(Random.FRandRange(0.0f, 1.0f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.6f, 1.3f)));
+		OvergrowthWild.Add(MakeStalk(ArmMeshes[(Index + Offset) % ArmMeshes.Num()], OvergrowthMaterialB));
+	}
+	if (UStaticMesh* PadMesh = VaelAssets::LoadOptional(UVaelFloromantSettings::Get()->KeimpelzPadMesh))
+	{
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			UStaticMeshComponent* Pad = NewObject<UStaticMeshComponent>(GetOwner());
+			Pad->SetMobility(EComponentMobility::Movable);
+			Pad->SetStaticMesh(PadMesh);
+			Pad->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Pad->SetCanEverAffectNavigation(false);
+			Pad->SetupAttachment(GetBody());
+			Pad->RegisterComponent();
+			Pad->SetVisibility(false);
+			OvergrowthPads.Add(Pad);
+		}
+	}
+	Overgrowth = 0.0f;
+
 	Muzzles.Init(FVector::ZeroVector, NumFingers);
 	MuzzleDirections.Init(FVector::ForwardVector, NumFingers);
 	Flashes.Init(0.0f, NumFingers);
@@ -363,6 +413,11 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 	Fan = FMath::FInterpTo(Fan, bFiringNow ? 1.0f : 0.0f, DeltaTime, 10.0f);
 
+	// While the hand aims the plant overruns the whole arm; it falls back more slowly when the hand rests
+	Overgrowth = bFiringNow
+		? FMath::Min(1.0f, Overgrowth + DeltaTime / Plant->OvergrowthTime)
+		: FMath::Max(0.0f, Overgrowth - DeltaTime / Plant->OvergrowthFadeTime);
+
 	UpdateFiring(DeltaTime);
 	UpdateStalks();
 	UpdateMaterials(DeltaTime);
@@ -394,9 +449,13 @@ void UVaelPlantArmComponent::UpdateStalks()
 		const FVector Last = BoneLocation(*(Name + TEXT("_03")));
 		const FVector Tip = Last + (Last - Middle).GetSafeNormal() * 2.0f;
 
-		// The finger points along itself at rest; while firing all stalks turn along the stretched arm and fan away from the middle of the hand
+		// The finger points along itself at rest; while firing the stalks turn along the stretched arm and fan away from the
+		// middle of the hand, each bent its own way and of its own length, so they don't stand stiffly ahead
 		const FVector Along = (Axis + HandAxis).GetSafeNormal();
-		FVector Direction = FMath::Lerp((Tip - Root).GetSafeNormal(), Along, Stance * 0.85f).GetSafeNormal();
+		FVector Direction = FMath::Lerp((Tip - Root).GetSafeNormal(), Along, Stance * 0.65f).GetSafeNormal();
+		const float CurlAngle = Finger * 1.257f + (bLeft ? 0.9f : 0.0f);
+		const FVector Curl = (U * FMath::Cos(CurlAngle) + V * FMath::Sin(CurlAngle)) * (0.25f + 0.2f * Stance);
+		const float LengthShare = FingerLengthShares[Finger];
 		const FVector Outward = (Direction - HandAxis * FVector::DotProduct(Direction, HandAxis)).GetSafeNormal();
 		if (!Outward.IsNearlyZero() && FanRadians > 0.0f)
 		{
@@ -407,11 +466,11 @@ void UVaelPlantArmComponent::UpdateStalks()
 		const FVector OnArm = FMath::Lerp(Wrist, Elbow, Plant->FingerRootReach);
 		const FVector Side = Root - (Elbow + Axis * FVector::DotProduct(Root - Elbow, Axis));
 		const FVector Start = OnArm + Side.GetSafeNormal() * Radius * 0.8f;
-		const FVector End = Tip + Direction * Plant->FingerLength;
+		const FVector End = Tip + (Direction + Curl * 0.5f).GetSafeNormal() * Plant->FingerLength * LengthShare;
 		const float Span = FVector::Dist(Start, End);
 
 		USplineMeshComponent* Stalk = FingerStalks[Finger];
-		Stalk->SetStartAndEnd(Start, Axis * Span * 0.8f, End, Direction * Span * 0.8f, false);
+		Stalk->SetStartAndEnd(Start, Axis * Span * 0.8f, End, (Direction - Curl).GetSafeNormal() * Span * 0.9f, false);
 		Stalk->SetStartScale(FVector2D(Plant->FingerThickness * 0.7f), false);
 		Stalk->SetEndScale(FVector2D(Plant->FingerThickness), false);
 		Stalk->SetStartRoll(Finger * 1.1f, false);
@@ -476,6 +535,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 	// The Keimpelz pad lies on top of the forearm, where the camera above sees it
 	const FVector Top = (FVector::UpVector - Axis * FVector::DotProduct(FVector::UpVector, Axis)).GetSafeNormal();
 	UpdatePad(Elbow, Wrist, Top.IsNearlyZero() ? U : Top);
+	UpdateOvergrowth(Shoulder, Elbow, Wrist);
 
 	// The axis the tips twirl around in the material
 	ArmMaterial->SetVectorParameterValue(ArmPointParameter, FLinearColor(BodyTransform.TransformPosition(Elbow)));
@@ -627,4 +687,105 @@ void UVaelPlantArmComponent::UpdatePad(const FVector& Elbow, const FVector& Wris
 	KeimpelzPad->SetRelativeLocationAndRotation(Place, FRotationMatrix::MakeFromZX(Out, Wrist - Elbow).Rotator());
 	KeimpelzPad->SetRelativeScale3D(FVector(Scale * 1.3f, Scale, Scale * 0.7f));
 	KeimpelzPad->SetVisibility(Scale > 0.01f);
+}
+
+// ---------------------------------------------------------------- Overgrowth
+
+void UVaelPlantArmComponent::UpdateOvergrowth(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist)
+{
+	const bool bShown = Overgrowth > 0.0f;
+	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &ForearmVines, &UpperArmVines, &OvergrowthWild })
+	{
+		for (USplineMeshComponent* Stalk : *Stalks)
+		{
+			Stalk->SetVisibility(bShown);
+		}
+	}
+	for (UStaticMeshComponent* Pad : OvergrowthPads)
+	{
+		Pad->SetVisibility(bShown);
+	}
+	if (!bShown || OvergrowthMaterialA == nullptr)
+	{
+		return;
+	}
+
+	// First the forearm is overrun, then the upper arm
+	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow;
+	for (UMaterialInstanceDynamic* Material : { OvergrowthMaterialA.Get(), OvergrowthMaterialB.Get() })
+	{
+		const bool bUpper = Material == OvergrowthMaterialB;
+		Material->SetScalarParameterValue(GrowParameter, FMath::Clamp(Overgrowth * 2.0f - (bUpper ? 1.0f : 0.0f), 0.0f, 1.0f));
+		Material->SetScalarParameterValue(WindParameter, Plant->RestWind * 0.6f);
+		Material->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+	}
+
+	const FVector LowerAxis = (Elbow - Wrist).GetSafeNormal();
+	const FVector UpperAxis = (Shoulder - Elbow).GetSafeNormal();
+	const float Radius = Plant->WrapRadius * 1.5f;
+	const float Thickness = Plant->VineThickness;
+
+	// A vine winds a third of a turn along one bone, from one joint to the next, a little beyond
+	const auto Wind = [Radius, Thickness](USplineMeshComponent* Vine, const FVector& From, const FVector& To, const FVector& Axis, float Angle, float StartScale, float EndScale)
+	{
+		const FVector U = Across(Axis);
+		const FVector V = FVector::CrossProduct(Axis, U);
+		const float Turn = 0.35f * 2.0f * UE_PI;
+		const FVector Out0 = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
+		const FVector Out1 = U * FMath::Cos(Angle + Turn) + V * FMath::Sin(Angle + Turn);
+		const FVector Around0 = -U * FMath::Sin(Angle) + V * FMath::Cos(Angle);
+		const FVector Around1 = -U * FMath::Sin(Angle + Turn) + V * FMath::Cos(Angle + Turn);
+		const float Length = FVector::Dist(From, To);
+		const float Sideways = 4.0f * Radius * 0.35f * 2.0f;
+		Vine->SetStartAndEnd(From + Out0 * Radius, Axis * Length + Around0 * Sideways, To + Out1 * Radius, Axis * Length + Around1 * Sideways, false);
+		Vine->SetStartScale(FVector2D(StartScale * Thickness), false);
+		Vine->SetEndScale(FVector2D(EndScale * Thickness), false);
+		Vine->SetStartRoll(Angle, false);
+		Vine->SetEndRoll(Angle + Turn, false);
+		Vine->UpdateMesh();
+	};
+
+	for (int32 Index = 0; Index < ForearmVines.Num(); ++Index)
+	{
+		const float Angle = Index * 2.0f * UE_PI / ForearmVines.Num() + (bLeft ? 1.1f : 0.3f);
+		Wind(ForearmVines[Index], Wrist - LowerAxis * 4.0f, Elbow + LowerAxis * 3.0f, LowerAxis, Angle, 1.3f, 1.0f);
+		Wind(UpperArmVines[Index], Elbow - UpperAxis * 3.0f, FMath::Lerp(Elbow, Shoulder, 1.08f), UpperAxis, Angle + 0.35f * 2.0f * UE_PI, 1.1f, 0.7f);
+	}
+
+	// Wild stalks out of the upper arm and the shoulder, sticking out and back like heavy armament
+	const FVector U = Across(UpperAxis);
+	const FVector V = FVector::CrossProduct(UpperAxis, U);
+	for (int32 Index = 0; Index < OvergrowthWild.Num(); ++Index)
+	{
+		const FVector& Shape = OvergrowthShapes[Index];
+		const FVector Out = U * FMath::Cos(Shape.Y) + V * FMath::Sin(Shape.Y);
+		const FVector Start = FMath::Lerp(Elbow, Shoulder, 0.3f + 0.75f * Shape.X) + Out * Radius;
+		const FVector Direction = (Out * 0.8f + UpperAxis * 0.5f).GetSafeNormal();
+		const float Length = Plant->OvergrowthWildLength * Shape.Z;
+
+		USplineMeshComponent* Stalk = OvergrowthWild[Index];
+		Stalk->SetStartAndEnd(Start, Out * Length, Start + Direction * Length, Direction * Length * 1.3f, false);
+		Stalk->SetStartScale(FVector2D(0.6f * Plant->ArmThickness), false);
+		Stalk->SetEndScale(FVector2D(0.4f * Plant->ArmThickness), false);
+		Stalk->SetStartRoll(Shape.Y, false);
+		Stalk->SetEndRoll(Shape.Y + 1.5f, false);
+		Stalk->UpdateMesh();
+	}
+
+	// More Keimpelz: over the elbow, on the upper arm and on the shoulder, sized by the pelt
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Fill = GetCharacter()->GetFloromant() != nullptr ? GetCharacter()->GetFloromant()->GetKeimpelzFraction() : 1.0f;
+	const FVector Top = (FVector::UpVector - UpperAxis * FVector::DotProduct(FVector::UpVector, UpperAxis)).GetSafeNormal();
+	const FVector Places[] = { Elbow, FMath::Lerp(Elbow, Shoulder, 0.55f), Shoulder };
+	const float Sizes[] = { 1.2f, 1.4f, 1.6f };
+	for (int32 Index = 0; Index < OvergrowthPads.Num(); ++Index)
+	{
+		UStaticMeshComponent* Pad = OvergrowthPads[Index];
+		const float MeshSize = FMath::Max(Pad->GetStaticMesh()->GetBoundingBox().GetSize().GetMax(), 1.0f);
+		const float Appear = FMath::Clamp(Overgrowth * 3.0f - Index * 0.6f, 0.0f, 1.0f);
+		const float Scale = Settings->KeimpelzPadSize * Sizes[Index] / MeshSize * FMath::Lerp(0.3f, 1.0f, Fill) * Appear;
+		const FVector Out = (Top.IsNearlyZero() ? U : Top);
+		Pad->SetRelativeLocationAndRotation(Places[Index] + Out * Radius * 0.8f, FRotationMatrix::MakeFromZX(Out, UpperAxis).Rotator());
+		Pad->SetRelativeScale3D(FVector(Scale * 1.3f, Scale, Scale * 0.7f));
+	}
 }

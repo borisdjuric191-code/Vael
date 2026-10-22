@@ -110,6 +110,33 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0.01))
 	float GrowTime = 0.4f;
 
+	// --- Overgrowth: while the hand aims, the plant overruns the whole arm like heavy armament
+
+	/** Thick twisted vines (SM_<Id>_Ranke) that climb from the wrist over the elbow up to the shoulder */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Overgrowth")
+	TArray<TSoftObjectPtr<UStaticMesh>> VineMeshes;
+
+	/** Vines around the arm, and their thickness compared with the mesh */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Overgrowth", meta = (ClampMin = 0, ClampMax = 6))
+	int32 VineCount = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Overgrowth", meta = (ClampMin = 0))
+	float VineThickness = 1.0f;
+
+	/** More wild stalks out of upper arm and shoulder, and their length in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Overgrowth", meta = (ClampMin = 0, ClampMax = 10))
+	int32 OvergrowthWildCount = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Overgrowth", meta = (ClampMin = 0))
+	float OvergrowthWildLength = 45.0f;
+
+	/** Seconds the overgrowth needs to cover the arm when the hand starts to aim, and to fall back when it stops */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Overgrowth", meta = (ClampMin = 0.05))
+	float OvergrowthTime = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Overgrowth", meta = (ClampMin = 0.05))
+	float OvergrowthFadeTime = 0.8f;
+
 	/** Burst while the hand turns; empty uses the burst of the element of the shots */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UNiagaraSystem> GrowEffect;
