@@ -162,7 +162,11 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 	{
 		RootGrowth = 0.12f;
 	}
-	BuildTongues();
+	// Boris' own Niagara fire when there is one, else the tongues
+	if (!BuildNiagaraFire())
+	{
+		BuildTongues();
+	}
 
 	// A charred patch under the fire, or on the wall it burns on. On the ground the fire spreads in burning roots that
 	// creep outwards from where it started
@@ -252,6 +256,35 @@ UHeterogeneousVolumeComponent* UVaelFireComponent::MakeVolume(const FVaelFireVol
 	Made->MaterialInstanceDynamic->SetScalarParameterValue(StrengthParameter, 0.0f);
 	++NumVolumeFires;
 	return Made;
+}
+
+bool UVaelFireComponent::BuildNiagaraFire()
+{
+	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+	if (NiagaraFire == nullptr)
+	{
+		// The trail of a projectile has no fire of its own
+		if (Shape.bFloating && !Shape.bBall)
+		{
+			return false;
+		}
+		UNiagaraSystem* System = VaelAssets::LoadOptional(Shape.bBall ? Settings->BallNiagara : Settings->GroundNiagara);
+		if (System == nullptr)
+		{
+			return false;
+		}
+		NiagaraFire = UNiagaraFunctionLibrary::SpawnSystemAttached(System, this, NAME_None, FVector::ZeroVector, FRotator::ZeroRotator,
+			EAttachLocation::KeepRelativeOffset, false, false);
+		if (NiagaraFire == nullptr)
+		{
+			return false;
+		}
+		NiagaraFire->SetVariableFloat(TEXT("Staerke"), Strength);
+		NiagaraFire->Activate(true);
+	}
+	NiagaraFire->SetVariableFloat(TEXT("Radius"), Shape.Radius * SizeScale);
+	NiagaraFire->SetVariableFloat(TEXT("Hoehe"), Shape.Height * SizeScale);
+	return true;
 }
 
 bool UVaelFireComponent::BuildLiveFire()
@@ -397,6 +430,10 @@ void UVaelFireComponent::SetRadius(float NewRadius)
 	SparkMaterial->SetScalarParameterValue(SparkHeightParameter, Shape.Height * 1.6f);
 	UpdateBounds();
 	UpdateTongues();
+	if (NiagaraFire != nullptr)
+	{
+		BuildNiagaraFire();
+	}
 }
 
 void UVaelFireComponent::Feed()
@@ -787,6 +824,11 @@ void UVaelFireComponent::OnUnregister()
 		}
 	}
 	Tongues.Reset();
+	if (NiagaraFire != nullptr)
+	{
+		NiagaraFire->DestroyComponent();
+		NiagaraFire = nullptr;
+	}
 	if (Scorch != nullptr)
 	{
 		Scorch->DestroyComponent();
@@ -870,6 +912,14 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	{
 		TongueMaterial->SetScalarParameterValue(StrengthParameter, Strength);
 	}
+	if (NiagaraFire != nullptr)
+	{
+		NiagaraFire->SetVariableFloat(TEXT("Staerke"), Strength);
+		if (Strength <= 0.0f && TargetStrength <= 0.0f && NiagaraFire->IsActive())
+		{
+			NiagaraFire->Deactivate();
+		}
+	}
 	if (!Tongues.IsEmpty() && Strength > 0.0f)
 	{
 		UpdateTongues(DeltaTime);
@@ -923,6 +973,10 @@ void UVaelFireComponent::SetSizeScale(float Scale)
 	}
 	SizeScale = Scale;
 	UpdateTongues();
+	if (NiagaraFire != nullptr)
+	{
+		BuildNiagaraFire();
+	}
 	if (Volume != nullptr)
 	{
 		VolumeSize = VolumeScale * Scale;

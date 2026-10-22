@@ -69,6 +69,15 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Materials")
 	TSoftObjectPtr<UMaterialInterface> BallFlipbook;
 
+	/** Fire built by Boris in Niagara: when set, every fire on the ground or a wall (GroundNiagara) and every burning ball
+	 *  (BallNiagara) burns as this system instead of the tongues. It gets the user parameters Radius and Hoehe (cm) and Staerke
+	 *  (0..1, fades in and out); the system is spawned at the foot of the fire and points up */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TSoftObjectPtr<class UNiagaraSystem> GroundNiagara;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TSoftObjectPtr<class UNiagaraSystem> BallNiagara;
+
 	/** Flames as 3D tongues (Tools/Feuer/feuer_zunge.py, Scripts/CreateFireTongues.py): meshes that lick, sway and tear off at
 	 *  the tip. A Brandherd grows them along the arms of an invisible star, a campfire burns as a ring, a ball all around */
 	UPROPERTY(config, EditAnywhere, Category="Tongues")
@@ -410,6 +419,13 @@ private:
 
 	/** Growth the tongues were last put for */
 	float TonguesGrowth = -1.0f;
+
+	/** Boris' Niagara fire, when the settings name one */
+	UPROPERTY(Transient)
+	TObjectPtr<class UNiagaraComponent> NiagaraFire;
+
+	/** Starts Boris' Niagara fire, true if it burns */
+	bool BuildNiagaraFire();
 
 	/** The live simulated fire, for a fire with bLive */
 	UPROPERTY(Transient)
