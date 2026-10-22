@@ -915,6 +915,8 @@ void UVaelCheatManager::VaelBrand(float Radius, float Metres, const FString& Whe
 	Shape.bScorch = true;
 	// Towards the camera, so the fire is in the picture whichever way the figure faces; "wand" looks for a wall ahead
 	const bool bWall = Where.Equals(TEXT("wand"), ESearchCase::IgnoreCase);
+	// "live" simulates the fire while the game runs (test of NiagaraFluids)
+	Shape.bLive = Where.Equals(TEXT("live"), ESearchCase::IgnoreCase);
 	const FVector ToCamera = PlayerController->PlayerCameraManager != nullptr ? (PlayerController->PlayerCameraManager->GetCameraLocation() - Player->GetActorLocation()).GetSafeNormal2D() : -Player->GetActorForwardVector();
 	const FVector Forward = bWall ? Player->GetActorForwardVector() : ToCamera;
 	FVector Location = Player->GetActorLocation() + Forward * Metres * 100.0f;

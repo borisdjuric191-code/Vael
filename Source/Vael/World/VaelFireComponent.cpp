@@ -3,6 +3,10 @@
 #include "World/VaelFireComponent.h"
 #include "Components/DecalComponent.h"
 #include "Components/HeterogeneousVolumeComponent.h"
+#include "NiagaraComponent.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Vael.h"
 #include "Components/PointLightComponent.h"
 #include "Engine/World.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -80,6 +84,7 @@ UVaelFireSettings::UVaelFireSettings()
 	FireFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Feuer"));
 	BallFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Kugel"));
 	RootMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Brandadern"));
+	LiveFireSystem = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Feuer/Live/NS_Feuer_Live.NS_Feuer_Live")));
 
 	// Embers, a fire, a big fire: each simulated on a bed of its own size
 	GroundVolumes = {
@@ -228,8 +233,52 @@ UHeterogeneousVolumeComponent* UVaelFireComponent::MakeVolume(const FVaelFireVol
 	return Made;
 }
 
+bool UVaelFireComponent::BuildLiveFire()
+{
+	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+	if (LiveFire == nullptr)
+	{
+		UNiagaraSystem* System = VaelAssets::LoadOptional(Settings->LiveFireSystem);
+		if (System == nullptr)
+		{
+			return false;
+		}
+		LiveFire = UNiagaraFunctionLibrary::SpawnSystemAttached(System, this, NAME_None, FVector::ZeroVector, FRotator::ZeroRotator,
+			EAttachLocation::KeepRelativeOffset, false, false);
+		if (LiveFire == nullptr)
+		{
+			return false;
+		}
+		// Which knobs the simulation offers, to tune it from here
+		TArray<FNiagaraVariable> Knobs;
+		LiveFire->GetOverrideParameters().GetUserParameters(Knobs);
+		for (const FNiagaraVariable& Knob : Knobs)
+		{
+			UE_LOG(LogVael, Display, TEXT("Live fire parameter %s (%s)"), *Knob.GetName().ToString(), *Knob.GetType().GetName());
+		}
+
+		// The simulated space is sized to the fire it is lit with; the solver works on a grid of this many cells along its
+		// longest side
+		LiveFire->SetVariableBool(TEXT("DrawBounds"), false);
+		LiveFire->SetVariableInt(TEXT("ResolutionMaxAxis"), Settings->LiveResolution);
+		LiveFire->SetVariableVec3(TEXT("WorldSpaceSize"), FVector(Shape.Radius * Settings->LiveSizePerRadius, Shape.Radius * Settings->LiveSizePerRadius,
+			Shape.Radius * Settings->LiveSizePerRadius * 1.3f));
+		LiveFire->Activate(true);
+	}
+
+	// The simulation is the flame: the cards keep only the sparks
+	SetMeshSectionVisible(0, false);
+	SetMeshSectionVisible(2, false);
+	SetMeshSectionVisible(3, false);
+	return true;
+}
+
 void UVaelFireComponent::BuildVolume()
 {
+	if (Shape.bLive && BuildLiveFire())
+	{
+		return;
+	}
 	int32 Stage = INDEX_NONE;
 	const FVaelFireVolumeKind* Kind = PickVolumeKind(Stage);
 	if (Kind == nullptr)
@@ -512,6 +561,11 @@ void UVaelFireComponent::OnUnregister()
 {
 	ReleaseLight();
 	ReleaseVolume();
+	if (LiveFire != nullptr)
+	{
+		LiveFire->DestroyComponent();
+		LiveFire = nullptr;
+	}
 	if (Scorch != nullptr)
 	{
 		Scorch->DestroyComponent();
@@ -579,6 +633,11 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	if (Volume != nullptr && Strength <= 0.0f && TargetStrength <= 0.0f)
 	{
 		ReleaseVolume();
+	}
+	if (LiveFire != nullptr && TargetStrength <= 0.0f && LiveFire->IsActive())
+	{
+		// The simulation stops feeding its fire and lets it burn out by itself
+		LiveFire->Deactivate();
 	}
 
 	// The roots creep outwards at full pace while the fire is fed, slow down when nothing more comes and stop when it is out

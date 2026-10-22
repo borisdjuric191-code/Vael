@@ -114,6 +114,17 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
 	float MinBallVolumeRadius = 12.0f;
 
+	/** Test of a fire simulated while the game runs (NiagaraFluids 3D gas, Scripts/CreateLiveFire.py), for fires with bLive */
+	UPROPERTY(config, EditAnywhere, Category="Live")
+	TSoftObjectPtr<class UNiagaraSystem> LiveFireSystem;
+
+	/** Width of the simulated space compared with the radius of the fire, and cells of its grid along the longest side */
+	UPROPERTY(config, EditAnywhere, Category="Live", meta = (ClampMin = 1))
+	float LiveSizePerRadius = 4.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Live", meta = (ClampMin = 16))
+	int32 LiveResolution = 96;
+
 	/** Burning roots under a fire on the ground (M_Feuer_Brandadern): they creep outwards from the middle */
 	UPROPERTY(config, EditAnywhere, Category="Roots")
 	TSoftObjectPtr<UMaterialInterface> RootMaterial;
@@ -227,6 +238,10 @@ struct FVaelFireShape
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0, ClampMax = 1))
 	float BallSpread = 0.6f;
 
+	/** Simulated live while the game runs (a test of NiagaraFluids) instead of a baked volume */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")
+	bool bLive = false;
+
 	/** Number of flame tongues, 0 to let the size decide */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0))
 	int32 Tongues = 0;
@@ -316,6 +331,13 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> OldVolumeMaterial;
+
+	/** The live simulated fire, for a fire with bLive */
+	UPROPERTY(Transient)
+	TObjectPtr<class UNiagaraComponent> LiveFire;
+
+	/** Starts the live simulated fire, true if it runs */
+	bool BuildLiveFire();
 
 	/** Makes the volume of the fire, if this fire burns as one, or changes it to the stage that fits its size */
 	void BuildVolume();
