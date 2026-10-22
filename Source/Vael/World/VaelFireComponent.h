@@ -91,6 +91,13 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 1))
 	float MinTongueSpacing = 14.0f;
 
+	/** Seconds a tongue lives, before a new one grows in its place (shortest and longest) */
+	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 0.1))
+	float TongueLifeMin = 0.9f;
+
+	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 0.1))
+	float TongueLifeMax = 1.7f;
+
 	/** Width of a tongue compared with its height (the mesh is 30 cm wide for 100 cm) */
 	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 0.1))
 	float TongueWidth = 1.7f;
@@ -387,12 +394,19 @@ private:
 		float Yaw = 0.0f;
 		int32 Mesh = 0;
 		float Along = 0.0f;
+
+		/** Its life: a tongue grows out of the ground, dances, its tip tears off and rises, it fades, and a new one grows in its
+		 *  place, a little apart and turned another way */
+		float Age = 0.0f;
+		float Life = 1.0f;
+		float Size = 1.0f;
+		FVector Shift = FVector::ZeroVector;
 	};
 	TArray<FTongue> TongueSpots;
 
-	/** Lays out the tongues for the shape, and puts them where the fire has reached now */
+	/** Lays out the tongues for the shape, and lets them live: where the fire has reached, each in its own time */
 	void BuildTongues();
-	void UpdateTongues();
+	void UpdateTongues(float DeltaTime = 0.0f);
 
 	/** Growth the tongues were last put for */
 	float TonguesGrowth = -1.0f;

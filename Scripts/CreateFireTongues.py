@@ -5,7 +5,9 @@
 # - M_Feuer_Zunge: unlit, translucent. Two noises drift up the tongue; towards the tip they eat it away, so it licks and
 #   tears off in pieces; the foot stays whole. Yellow-white in the middle of the body, orange, deep red at its outline and
 #   tip. The tongue sways calmly (World Position Offset, more towards the tip), each instance in its own rhythm
-#   (PerInstanceRandom). Parameters: Staerke (fade in/out), Leuchtkraft, Tempo, Reissen (how much of the tip tears off),
+#   (PerInstanceRandom); a wave runs up it so it winds like a ribbon. The game sets per instance: how much it shows, how far
+#   through its life it is (older tongues tear more), its size. Parameters: Staerke, Leuchtkraft, Tempo, Reissen, Kante
+#   (softness of the torn edge), Wellen, Schwung,
 #   Schwanken (cm of sway at the tip), Rand/Mitte/Kern.
 # Creates what is missing; the material is rebuilt when it is older than KIT_VERSION.
 #
@@ -19,7 +21,7 @@ import unreal
 FOLDER = "/Game/Vael/Effects/Feuer/Zunge"
 NOISE = "/Game/Vael/Effects/Feuer/T_Feuer_Rauschen"
 TONGUES = ("SM_Feuer_Zunge_0", "SM_Feuer_Zunge_1", "SM_Feuer_Zunge_2")
-KIT_VERSION = 1.2
+KIT_VERSION = 2.1
 SOURCE = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "Vael_Quellen", "Feuer3D", "zunge")
 
 library = unreal.MaterialEditingLibrary
@@ -126,6 +128,11 @@ class Graph:
     def sin(self, c, a): return self.one(unreal.MaterialExpressionSine, c, a, period=6.283185)
     def cos(self, c, a): return self.one(unreal.MaterialExpressionCosine, c, a, period=6.283185)
 
+    def power(self, c, a, exponent):
+        expression = self.node(unreal.MaterialExpressionPower, c, const_exponent=exponent)
+        self.link(a, expression, "Base")
+        return expression
+
     def ramp(self, c, x, low, high):
         return self.sat(c, self.mul(c + 1, self.sub(c + 2, x, self.const(low, c + 3)), self.const(1.0 / (high - low), c + 2)))
 
@@ -164,17 +171,22 @@ def build_material(noise):
     u = g.mask(uv, 21, "R")
     v = g.mask(uv, 21, "G")
     phase = g.node(unreal.MaterialExpressionPerInstanceRandom, 22)
-    time = g.mul(20, g.node(unreal.MaterialExpressionTime, 21), g.scalar("Tempo", 0.35, 21))
+    time = g.mul(20, g.node(unreal.MaterialExpressionTime, 21), g.scalar("Tempo", 0.2, 21))
+    # Set by the game for every tongue: how much it shows, how far through its life it is, its size (1 = 100 cm high)
+    shows = g.node(unreal.MaterialExpressionPerInstanceCustomData, 22, data_index=0)
+    life = g.node(unreal.MaterialExpressionPerInstanceCustomData, 22, data_index=1)
+    size = g.node(unreal.MaterialExpressionPerInstanceCustomData, 22, data_index=2, const_default_value=1.0)
 
-    # Two noises drift up the tongue, each instance from its own place
-    coarse = g.sample(noise, g.append(18, g.add(19, u, g.mul(20, phase, g.const(7.0, 21))), g.sub(19, g.mul(20, v, g.const(0.7, 21)), time)), 17, "G")
-    fine = g.sample(noise, g.append(18, g.sub(19, g.mul(20, u, g.const(2.0, 21)), phase), g.sub(19, g.mul(20, v, g.const(1.4, 21)), g.mul(20, time, g.const(1.6, 21)))), 17, "B")
+    # Two noises drift up the tongue, stretched along it, so it breaks into long ribbons; each instance from its own place
+    coarse = g.sample(noise, g.append(18, g.add(19, g.mul(20, u, g.const(1.5, 21)), g.mul(20, phase, g.const(7.0, 21))), g.sub(19, g.mul(20, v, g.const(0.45, 21)), time)), 17, "G")
+    fine = g.sample(noise, g.append(18, g.sub(19, g.mul(20, u, g.const(3.0, 21)), phase), g.sub(19, g.mul(20, v, g.const(0.9, 21)), g.mul(20, time, g.const(1.6, 21)))), 17, "B")
     n = g.add(15, g.mul(16, coarse, g.const(0.7, 16)), g.mul(16, fine, g.const(0.3, 16)))
 
-    # Towards the tip the noise eats the tongue away: it licks, and pieces tear off; the foot stays whole
-    eaten = g.mul(13, g.sub(14, v, g.const(0.05, 15)), g.scalar("Reissen", 1.35, 15))
-    whole = g.sat(11, g.mul(12, g.sub(13, n, eaten), g.const(7.0, 13)))
-    opacity = g.mul(9, whole, g.scalar("Staerke", 1.0, 10))
+    # Towards the tip the noise eats the tongue away: it licks, and ribbons tear off; the older the tongue, the more; the
+    # foot stays whole
+    eaten = g.mul(13, g.sub(14, v, g.const(0.05, 15)), g.add(14, g.scalar("Reissen", 1.2, 15), g.mul(15, life, g.const(0.6, 16))))
+    whole = g.sat(11, g.mul(12, g.sub(13, n, eaten), g.scalar("Kante", 3.0, 13)))
+    opacity = g.mul(9, g.mul(10, whole, shows), g.scalar("Staerke", 1.0, 10))
 
     # Hot in the middle of the body, cooler at its outline and towards its tip
     fresnel = g.node(unreal.MaterialExpressionFresnel, 14, exponent=1.6)
@@ -184,15 +196,16 @@ def build_material(noise):
     edge = g.vector("Rand", (0.55, 0.03, 0.0), 10)
     middle = g.vector("Mitte", (1.0, 0.22, 0.0), 10)
     core = g.vector("Kern", (1.0, 0.6, 0.12), 10)
-    colour = g.lerp(6, g.lerp(7, edge, middle, g.ramp(8, heat, 0.12, 0.45)), core, g.ramp(7, heat, 0.55, 0.9))
-    glow = g.mul(4, g.mul(5, colour, g.scalar("Leuchtkraft", 1.5, 6)), g.scalar("Staerke", 1.0, 6))
+    colour = g.lerp(6, g.lerp(7, edge, middle, g.ramp(8, heat, 0.08, 0.35)), core, g.ramp(7, heat, 0.4, 0.8))
+    glow = g.mul(4, g.mul(5, colour, g.scalar("Leuchtkraft", 1.8, 6)), g.scalar("Staerke", 1.0, 6))
 
-    # A calm sway, stronger towards the tip, each tongue in its own rhythm
-    swing = g.mul(16, g.node(unreal.MaterialExpressionTime, 17), g.scalar("Schwung", 1.1, 17))
-    beat = g.add(15, swing, g.add(16, g.mul(17, phase, g.const(6.283, 18)), g.mul(17, v, g.const(2.2, 18))))
-    reach = g.mul(14, g.mul(15, v, v), g.scalar("Schwanken", 6.0, 15))
-    sway_x = g.mul(12, g.sin(13, beat), reach)
-    sway_y = g.mul(12, g.cos(13, g.mul(14, beat, g.const(0.73, 15))), g.mul(13, reach, g.const(0.6, 14)))
+    # A wave runs up the tongue from its foot to its tip: it winds and whips like a ribbon, more and more towards the tip,
+    # each tongue in its own rhythm; the sway is in cm for a tongue of 100 cm and grows with its size
+    swing = g.mul(16, g.node(unreal.MaterialExpressionTime, 17), g.scalar("Schwung", 1.2, 17))
+    wave = g.add(15, g.sub(16, g.mul(17, v, g.scalar("Wellen", 2.6, 18)), swing), g.mul(16, phase, g.const(6.283, 17)))
+    reach = g.mul(13, g.mul(14, g.power(15, v, 1.6), g.scalar("Schwanken", 14.0, 15)), size)
+    sway_x = g.mul(12, g.sin(13, wave), reach)
+    sway_y = g.mul(12, g.sin(13, g.add(14, g.mul(15, wave, g.const(0.7, 16)), g.const(1.7, 15))), g.mul(13, reach, g.const(0.8, 14)))
     offset = g.append(10, g.append(11, sway_x, sway_y), g.const(0.0, 11))
 
     library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)

@@ -431,6 +431,7 @@ void UVaelFireComponent::BuildTongues()
 				Instances->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 				Instances->SetCastShadow(false);
 				Instances->SetCanEverAffectNavigation(false);
+				Instances->NumCustomDataFloats = 3;
 				Instances->RegisterComponent();
 				Tongues.Add(Instances);
 			}
@@ -453,6 +454,9 @@ void UVaelFireComponent::BuildTongues()
 		Tongue.Yaw = Random.FRandRange(0.0f, 360.0f);
 		Tongue.Mesh = Random.RandRange(0, Tongues.Num() - 1);
 		Tongue.Along = Along;
+		Tongue.Life = Random.FRandRange(UVaelFireSettings::Get()->TongueLifeMin, UVaelFireSettings::Get()->TongueLifeMax);
+		// Every tongue at another moment of its life, so they never rise and fall together
+		Tongue.Age = Random.FRandRange(0.0f, Tongue.Life);
 		TongueSpots.Add(Tongue);
 	};
 
@@ -528,30 +532,56 @@ void UVaelFireComponent::BuildTongues()
 	UpdateTongues();
 }
 
-void UVaelFireComponent::UpdateTongues()
+void UVaelFireComponent::UpdateTongues(float DeltaTime)
 {
 	if (Tongues.IsEmpty())
 	{
 		return;
 	}
-	const float Width = UVaelFireSettings::Get()->TongueWidth;
+	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
 	TArray<TArray<FTransform>> Placed;
+	TArray<TArray<float>> Data;
 	Placed.SetNum(Tongues.Num());
-	for (const FTongue& Tongue : TongueSpots)
+	Data.SetNum(Tongues.Num());
+	for (FTongue& Tongue : TongueSpots)
 	{
+		// One life after another: each new tongue grows a little apart from the last, turned another way, of its own size
+		Tongue.Age += DeltaTime;
+		if (Tongue.Age >= Tongue.Life)
+		{
+			Tongue.Age -= Tongue.Life;
+			Tongue.Life = FMath::FRandRange(Settings->TongueLifeMin, Settings->TongueLifeMax);
+			Tongue.Yaw = FMath::FRandRange(0.0f, 360.0f);
+			Tongue.Size = FMath::FRandRange(0.8f, 1.15f);
+			Tongue.Shift = FVector(FMath::FRandRange(-0.06f, 0.06f), FMath::FRandRange(-0.06f, 0.06f), 0.0f);
+		}
+		const float Life = Tongue.Age / Tongue.Life;
+		// It shoots up out of the ground, sways at full size, then stretches, thins and lifts off as its tip tears away
+		const float Grown = FMath::SmoothStep(0.0f, 0.22f, Life);
+		const float Leaving = FMath::SmoothStep(0.62f, 1.0f, Life);
+		const float Fade = 1.0f - FMath::SmoothStep(0.8f, 1.0f, Life);
+
 		// A tongue on an arm of the star comes up once the creeping fire has reached it
 		const float Shown = Tongue.Along <= 0.0f ? 1.0f : FMath::Clamp((RootGrowth - Tongue.Along) * 6.0f, 0.0f, 1.0f);
-		const float Height = FMath::Max(Tongue.Height * Shape.Height * Shown * SizeScale, 0.1f);
-		const FQuat Turn = FRotationMatrix::MakeFromZ(Tongue.Up).ToQuat() * FQuat(FVector::UpVector, FMath::DegreesToRadians(Tongue.Yaw));
+		const float Height = FMath::Max(Tongue.Height * Tongue.Size * Shape.Height * Shown * SizeScale * Grown * (1.0f + 0.35f * Leaving), 0.1f);
 		const float Scale = Height / 100.0f;
-		// The foot sits a little in the ground, so the round bottom of the tongue does not show
-		Placed[Tongue.Mesh].Add(FTransform(Turn, Tongue.Foot * Shape.Radius * SizeScale - Tongue.Up * Height * 0.08f, FVector(Scale * Width, Scale * Width, Scale)));
+		const float Thin = Settings->TongueWidth * (0.75f + 0.25f * Grown) * (1.0f - 0.45f * Leaving);
+		const FQuat Turn = FRotationMatrix::MakeFromZ(Tongue.Up).ToQuat() * FQuat(FVector::UpVector, FMath::DegreesToRadians(Tongue.Yaw));
+		// The foot sits a little in the ground, so the round bottom does not show; a leaving tongue rises off the ground
+		const FVector Foot = (Tongue.Foot + Tongue.Shift) * Shape.Radius * SizeScale + Tongue.Up * Height * (0.45f * Leaving - 0.08f);
+		Placed[Tongue.Mesh].Add(FTransform(Turn, Foot, FVector(Scale * Thin, Scale * Thin, Scale)));
+		// For the material: how much it shows, how far through its life, how big it is (for its sway in cm)
+		Data[Tongue.Mesh].Append({ Fade * Shown, Life, Scale });
 	}
 	for (int32 Index = 0; Index < Tongues.Num(); ++Index)
 	{
 		if (!Placed[Index].IsEmpty())
 		{
-			Tongues[Index]->BatchUpdateInstancesTransforms(0, Placed[Index], false, true);
+			Tongues[Index]->BatchUpdateInstancesTransforms(0, Placed[Index], false, false);
+			for (int32 Instance = 0; Instance < Placed[Index].Num(); ++Instance)
+			{
+				Tongues[Index]->SetCustomData(Instance, TArrayView<const float>(Data[Index].GetData() + Instance * 3, 3), Instance == Placed[Index].Num() - 1);
+			}
 		}
 	}
 	TonguesGrowth = RootGrowth;
@@ -840,9 +870,9 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	{
 		TongueMaterial->SetScalarParameterValue(StrengthParameter, Strength);
 	}
-	if (!Tongues.IsEmpty() && FMath::Abs(RootGrowth - TonguesGrowth) > 0.004f)
+	if (!Tongues.IsEmpty() && Strength > 0.0f)
 	{
-		UpdateTongues();
+		UpdateTongues(DeltaTime);
 	}
 	if (ScorchMaterial != nullptr)
 	{
