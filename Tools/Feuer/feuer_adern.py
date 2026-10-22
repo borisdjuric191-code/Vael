@@ -1,56 +1,23 @@
 """
 Feuer-Baukasten: makes the picture of the burning roots a ground fire spreads along (Scripts/Data/Feuer/T_Feuer_Adern.png).
-From the middle, a star of thick roots grows outwards in winding steps, with a few short thick side arms.
+The star of roots comes from feuer_wurzeln.py, the same the simulated fire burns out of (feuer_volumen.py).
   R  the veins: 1 on the middle line of a vein, falling off over its width
   G  when the fire gets there: the way along the roots from the middle to the nearest vein, 0 in the middle, 1 at the far tips
   B  the charred halo around the veins
   A  heat: 1 on the thick trunks near the middle, 0 at the thin tips
 The material (M_Feuer_Brandadern) lets the veins appear up to its Wachstum, so the fire creeps outwards along them.
-  The arms are thick and uneven, a star from the middle outwards; the middle itself is one burning knot.
 Run: blender -b -P feuer_adern.py -- <output folder>
 """
 import bpy, sys, os, math
 import numpy as np
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from feuer_wurzeln import root_segments
+
 OUT = sys.argv[sys.argv.index("--") + 1]
 SIZE = 512
-rng = np.random.default_rng(41)
 
-STEP = 0.022
-segments = []  # x0, y0, x1, y1, thickness, way at the start, way at the end
-
-
-def grow(x, y, angle, thickness, way, length, depth):
-    """One thick arm of the star: winds a little, tapers from its root to its tip, now and then a short thick side arm"""
-    turn = 0.0
-    start_way = way
-    start_thickness = thickness
-    while way - start_way < length and math.hypot(x, y) < 0.95:
-        # It keeps turning a little the way it turned before, but stays on its way outwards
-        turn = turn * 0.75 + rng.normal(0.0, 0.16)
-        angle += turn * 0.4
-        outwards = math.atan2(y, x)
-        angle += math.atan2(math.sin(outwards - angle), math.cos(outwards - angle)) * 0.12
-        nx, ny = x + math.cos(angle) * STEP, y + math.sin(angle) * STEP
-        # Thick and uneven: swells and narrows along the way, thins out only towards the tip
-        along = (way - start_way) / length
-        swell = 1.0 + 0.25 * math.sin(way * 23.0 + depth * 1.7) * rng.uniform(0.6, 1.0)
-        thickness = start_thickness * (1.0 - along) ** 0.55 * swell + 0.006
-        segments.append((x, y, nx, ny, thickness, way, way + STEP))
-        x, y, way = nx, ny, way + STEP
-        if depth < 2 and along > 0.12 and rng.random() < 0.08:
-            side = 1.0 if rng.random() < 0.5 else -1.0
-            remaining = length - (way - start_way)
-            grow(x, y, angle + side * rng.uniform(0.5, 0.9), thickness * 0.7, way, remaining * rng.uniform(0.35, 0.7), depth + 1)
-
-
-# A star of uneven arms: some long, some short, all thick at the middle
-arms = 6
-for index in range(arms):
-    start_angle = index * math.tau / arms + rng.uniform(-0.35, 0.35)
-    grow(0.0, 0.0, start_angle, rng.uniform(0.045, 0.07), 0.0, rng.uniform(0.6, 0.95), 0)
-
-seg = np.array(segments, dtype=np.float32)
+seg = root_segments()
 longest = seg[:, 6].max()
 print("FEUER", len(seg), "segments, longest way", longest)
 

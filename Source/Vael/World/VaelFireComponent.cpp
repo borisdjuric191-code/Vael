@@ -3,6 +3,8 @@
 #include "World/VaelFireComponent.h"
 #include "Components/DecalComponent.h"
 #include "Components/HeterogeneousVolumeComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "NiagaraComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
@@ -32,6 +34,9 @@ namespace
 	const FName DensityParameter(TEXT("Dichte"));
 	const FName GrowthParameter(TEXT("Wachstum"));
 	const FName FrontParameter(TEXT("Front"));
+
+	/** Stage number of the campfire volume, apart from the stages of a Brandherd */
+	constexpr int32 CampfireStage = 100;
 
 	/** Size of a spark card in cm */
 	constexpr float SparkSize = 1.8f;
@@ -83,14 +88,20 @@ UVaelFireSettings::UVaelFireSettings()
 	FlameFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Flamme"));
 	FireFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Feuer"));
 	BallFlipbook = FireAsset<UMaterialInterface>(TEXT("MI_Feuer_Kugel"));
-	RootMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Brandadern"));
+	RootMaterial = FireAsset<UMaterialInterface>(TEXT("M_Feuer_Brandschatten"));
+	TongueMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Feuer/Zunge/M_Feuer_Zunge.M_Feuer_Zunge")));
+	for (const TCHAR* Name : { TEXT("SM_Feuer_Zunge_0"), TEXT("SM_Feuer_Zunge_1"), TEXT("SM_Feuer_Zunge_2") })
+	{
+		TongueMeshes.Add(TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Effects/Feuer/Zunge/%s.%s"), Name, Name))));
+	}
 	LiveFireSystem = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Feuer/Live/NS_Feuer_Live.NS_Feuer_Live")));
 
 	// Embers, a fire, a big fire: each simulated on a bed of its own size
 	GroundVolumes = {
-		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Glut")), 0.32f, 45.0f },
+		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Glut")), 0.35f, 45.0f },
 		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Brand")), 0.6f, 140.0f },
 		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Gross")), 1.1f, 100000.0f } };
+	CampfireVolume = { VolumeAsset(TEXT("MI_Feuer_Volumen_Lager")), 0.7f, 100000.0f };
 	BallVolume = { VolumeAsset(TEXT("MI_Feuer_Volumen_Kugel")), 0.25f, 100000.0f };
 }
 
@@ -147,6 +158,11 @@ void UVaelFireComponent::Ignite(const FVaelFireShape& InShape, float FadeIn)
 	}
 	BuildCards();
 	BuildVolume();
+	if (RootGrowth <= 0.0f)
+	{
+		RootGrowth = 0.12f;
+	}
+	BuildTongues();
 
 	// A charred patch under the fire, or on the wall it burns on. On the ground the fire spreads in burning roots that
 	// creep outwards from where it started
@@ -182,8 +198,8 @@ const FVaelFireVolumeKind* UVaelFireComponent::PickVolumeKind(int32& OutIndex) c
 {
 	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
 	OutIndex = INDEX_NONE;
-	// Fires on walls stay cards: the volume would burn half inside the wall
-	if (!Settings->bUseVolumes || !Shape.WallNormal.IsNearlyZero()
+	// The trail of a projectile has no volume: a simulated fire cannot be dragged along that fast
+	if (!Settings->bUseVolumes || (Shape.bFloating && !Shape.bBall)
 		|| Shape.Radius < (Shape.bBall ? Settings->MinBallVolumeRadius : Settings->MinVolumeRadius))
 	{
 		return nullptr;
@@ -191,6 +207,11 @@ const FVaelFireVolumeKind* UVaelFireComponent::PickVolumeKind(int32& OutIndex) c
 	if (Shape.bBall)
 	{
 		return &Settings->BallVolume;
+	}
+	if (Shape.bCampfire)
+	{
+		OutIndex = CampfireStage;
+		return &Settings->CampfireVolume;
 	}
 	for (int32 Index = 0; Index < Settings->GroundVolumes.Num(); ++Index)
 	{
@@ -375,11 +396,165 @@ void UVaelFireComponent::SetRadius(float NewRadius)
 	}
 	SparkMaterial->SetScalarParameterValue(SparkHeightParameter, Shape.Height * 1.6f);
 	UpdateBounds();
+	UpdateTongues();
 }
 
 void UVaelFireComponent::Feed()
 {
 	SinceFed = 0.0f;
+}
+
+void UVaelFireComponent::BuildTongues()
+{
+	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
+	// The trail of a projectile has no tongues of its own
+	if (!Settings->bUseTongues || (Shape.bFloating && !Shape.bBall))
+	{
+		return;
+	}
+	if (Tongues.IsEmpty())
+	{
+		UMaterialInterface* Base = VaelAssets::LoadOptional(Settings->TongueMaterial);
+		if (Base == nullptr)
+		{
+			return;
+		}
+		TongueMaterial = UMaterialInstanceDynamic::Create(Base, this);
+		for (const TSoftObjectPtr<UStaticMesh>& MeshAsset : Settings->TongueMeshes)
+		{
+			if (UStaticMesh* Mesh = VaelAssets::LoadOptional(MeshAsset))
+			{
+				UInstancedStaticMeshComponent* Instances = NewObject<UInstancedStaticMeshComponent>(GetOwner());
+				Instances->SetupAttachment(this);
+				Instances->SetStaticMesh(Mesh);
+				Instances->SetMaterial(0, TongueMaterial);
+				Instances->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Instances->SetCastShadow(false);
+				Instances->SetCanEverAffectNavigation(false);
+				Instances->RegisterComponent();
+				Tongues.Add(Instances);
+			}
+		}
+		if (Tongues.IsEmpty())
+		{
+			return;
+		}
+	}
+
+	// Feet in units of the radius and heights in units of the height of the shape, so the fire can grow without moving them
+	TongueSpots.Reset();
+	FRandomStream Random(FMath::Rand());
+	auto Add = [this, &Random](const FVector& Foot, const FVector& Up, float Height, float Along)
+	{
+		FTongue Tongue;
+		Tongue.Foot = Foot;
+		Tongue.Up = Up.GetSafeNormal();
+		Tongue.Height = Height;
+		Tongue.Yaw = Random.FRandRange(0.0f, 360.0f);
+		Tongue.Mesh = Random.RandRange(0, Tongues.Num() - 1);
+		Tongue.Along = Along;
+		TongueSpots.Add(Tongue);
+	};
+
+	const bool bWall = !Shape.WallNormal.IsNearlyZero();
+	if (Shape.bBall)
+	{
+		// All around the ball, licking outwards and a little upwards
+		const int32 Count = FMath::Clamp(FMath::RoundToInt32(Shape.Radius / 3.0f), 8, 20);
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const FVector Out = Random.GetUnitVector();
+			Add(Out * 0.55f, Out + FVector(0.0f, 0.0f, 0.5f), Random.FRandRange(0.5f, 0.8f), 0.0f);
+		}
+	}
+	else if (bWall)
+	{
+		// A row in front of the burn mark, rising straight up, tallest in the middle
+		const FVector Out = FVector(Shape.WallNormal.X, Shape.WallNormal.Y, 0.0f).GetSafeNormal();
+		const FVector Along = FVector::CrossProduct(FVector::UpVector, Out).GetSafeNormal();
+		const int32 Count = FMath::Clamp(FMath::RoundToInt32(Shape.Radius / 18.0f), 3, 9);
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const float Offset = Count > 1 ? Index / float(Count - 1) * 2.0f - 1.0f : 0.0f;
+			Add(Along * Offset * 0.8f + Out * Random.FRandRange(0.15f, 0.35f), FVector::UpVector, (1.0f - 0.45f * FMath::Abs(Offset)) * Random.FRandRange(0.75f, 1.0f), 0.0f);
+		}
+	}
+	else if (!Shape.bScorch)
+	{
+		// A campfire, or the fire on a burning creature: a ring of tongues around a tall one
+		Add(FVector::ZeroVector, FVector::UpVector, 0.9f, 0.0f);
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			const float Angle = Index * UE_TWO_PI / 3.0f + Random.FRandRange(-0.4f, 0.4f);
+			Add(FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * 0.18f, FVector::UpVector, Random.FRandRange(0.65f, 0.8f), 0.0f);
+		}
+		for (int32 Index = 0; Index < 6; ++Index)
+		{
+			const float Angle = Index * UE_TWO_PI / 6.0f + Random.FRandRange(-0.3f, 0.3f);
+			Add(FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Random.FRandRange(0.35f, 0.5f), FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * 0.15f + FVector::UpVector,
+				Random.FRandRange(0.4f, 0.6f), 0.0f);
+		}
+	}
+	else
+	{
+		// A Brandherd: an invisible star of uneven arms creeps outwards; the tongues stand on its arms, tall at the middle,
+		// smaller towards the tips, and come up as the fire reaches them
+		Add(FVector::ZeroVector, FVector::UpVector, 0.9f, 0.0f);
+		Add(FVector(0.12f, 0.05f, 0.0f), FVector::UpVector, 0.75f, 0.0f);
+		const float Spacing = FMath::Max(Settings->TongueSpacing, Settings->MinTongueSpacing / FMath::Max(Shape.Radius, 1.0f));
+		for (int32 Arm = 0; Arm < Settings->StarArms; ++Arm)
+		{
+			float Angle = Arm * UE_TWO_PI / Settings->StarArms + Random.FRandRange(-0.35f, 0.35f);
+			const float Length = Random.FRandRange(0.6f, 1.0f);
+			FVector Position = FVector::ZeroVector;
+			for (float Way = Spacing; Way <= Length; Way += Spacing)
+			{
+				Angle += Random.FRandRange(-0.3f, 0.3f);
+				Position += FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Spacing;
+				const float Out = Way / Length;
+				Add(Position, FVector::UpVector, (1.0f - 0.6f * Out) * Random.FRandRange(0.7f, 1.0f), Way);
+			}
+		}
+	}
+	for (UInstancedStaticMeshComponent* Instances : Tongues)
+	{
+		Instances->ClearInstances();
+	}
+	for (const FTongue& Tongue : TongueSpots)
+	{
+		Tongues[Tongue.Mesh]->AddInstance(FTransform::Identity);
+	}
+	TonguesGrowth = -1.0f;
+	UpdateTongues();
+}
+
+void UVaelFireComponent::UpdateTongues()
+{
+	if (Tongues.IsEmpty())
+	{
+		return;
+	}
+	const float Width = UVaelFireSettings::Get()->TongueWidth;
+	TArray<TArray<FTransform>> Placed;
+	Placed.SetNum(Tongues.Num());
+	for (const FTongue& Tongue : TongueSpots)
+	{
+		// A tongue on an arm of the star comes up once the creeping fire has reached it
+		const float Shown = Tongue.Along <= 0.0f ? 1.0f : FMath::Clamp((RootGrowth - Tongue.Along) * 6.0f, 0.0f, 1.0f);
+		const float Height = FMath::Max(Tongue.Height * Shape.Height * Shown * SizeScale, 0.1f);
+		const FQuat Turn = FRotationMatrix::MakeFromZ(Tongue.Up).ToQuat() * FQuat(FVector::UpVector, FMath::DegreesToRadians(Tongue.Yaw));
+		const float Scale = Height / 100.0f;
+		// The foot sits a little in the ground, so the round bottom of the tongue does not show
+		Placed[Tongue.Mesh].Add(FTransform(Turn, Tongue.Foot * Shape.Radius * SizeScale - Tongue.Up * Height * 0.08f, FVector(Scale * Width, Scale * Width, Scale)));
+	}
+	for (int32 Index = 0; Index < Tongues.Num(); ++Index)
+	{
+		if (!Placed[Index].IsEmpty())
+		{
+			Tongues[Index]->BatchUpdateInstancesTransforms(0, Placed[Index], false, true);
+		}
+	}
+	TonguesGrowth = RootGrowth;
 }
 
 void UVaelFireComponent::Extinguish(float FadeOut, bool bInDestroyWhenOut)
@@ -516,6 +691,14 @@ void UVaelFireComponent::BuildCards()
 			Smoke.Colors, TArray<FProcMeshTangent>(), false);
 		SetMaterial(2, SmokeMaterial);
 	}
+
+	// Flames on cards are gone (Boris 2026-10-22): the flames are simulated volumes, the cards keep only the sparks
+	if (!Settings->bCardFlames)
+	{
+		SetMeshSectionVisible(0, false);
+		SetMeshSectionVisible(2, false);
+		SetMeshSectionVisible(3, false);
+	}
 }
 
 FBoxSphereBounds UVaelFireComponent::CalcBounds(const FTransform& LocalToWorld) const
@@ -566,6 +749,14 @@ void UVaelFireComponent::OnUnregister()
 		LiveFire->DestroyComponent();
 		LiveFire = nullptr;
 	}
+	for (UInstancedStaticMeshComponent* Instances : Tongues)
+	{
+		if (Instances != nullptr)
+		{
+			Instances->DestroyComponent();
+		}
+	}
+	Tongues.Reset();
 	if (Scorch != nullptr)
 	{
 		Scorch->DestroyComponent();
@@ -593,11 +784,11 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		}
 	}
 
-	// The light flickers with the flames: a slow breath and a quick restless flutter
+	// The light breathes calmly with the flames, with only a faint flutter
 	if (Light != nullptr)
 	{
 		const float Time = GetWorld()->GetTimeSeconds() + FlickerPhase;
-		const float Flicker = 1.0f + 0.18f * FMath::Sin(Time * 2.3f) + 0.12f * FMath::Sin(Time * 7.9f + 1.3f) + 0.08f * FMath::Sin(Time * 17.0f);
+		const float Flicker = 1.0f + 0.07f * FMath::Sin(Time * 1.3f) + 0.04f * FMath::Sin(Time * 3.7f + 1.3f) + 0.015f * FMath::Sin(Time * 9.0f);
 		const float Size = FMath::Sqrt(Shape.Radius / 50.0f) * Shape.Heat;
 		Light->SetIntensity(UVaelFireSettings::Get()->LightIntensity * Size * Strength * Flicker);
 		if (Strength <= 0.0f && TargetStrength <= 0.0f)
@@ -645,6 +836,14 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	const UVaelFireSettings* RootSettings = UVaelFireSettings::Get();
 	const float Pace = TargetStrength > 0.0f ? FMath::Exp(-SinceFed / RootSettings->RootSlowdownSeconds) : 0.0f;
 	RootGrowth = FMath::Min(1.0f, RootGrowth + DeltaTime * Pace / RootSettings->RootGrowSeconds);
+	if (TongueMaterial != nullptr)
+	{
+		TongueMaterial->SetScalarParameterValue(StrengthParameter, Strength);
+	}
+	if (!Tongues.IsEmpty() && FMath::Abs(RootGrowth - TonguesGrowth) > 0.004f)
+	{
+		UpdateTongues();
+	}
 	if (ScorchMaterial != nullptr)
 	{
 		ScorchMaterial->SetScalarParameterValue(GrowthParameter, RootGrowth);
@@ -693,6 +892,7 @@ void UVaelFireComponent::SetSizeScale(float Scale)
 		}
 	}
 	SizeScale = Scale;
+	UpdateTongues();
 	if (Volume != nullptr)
 	{
 		VolumeSize = VolumeScale * Scale;
@@ -707,6 +907,8 @@ void UVaelFireComponent::PlaceVolume(UHeterogeneousVolumeComponent* Which, float
 	const UVaelFireSettings* Settings = UVaelFireSettings::Get();
 	const float Height = Which->VolumeResolution.Z * Which->FrameTransform.GetScale3D().Z;
 	const float Lift = (Height * 0.5f - (Shape.bBall ? Settings->BallVolumeCentre : Settings->VolumeFloor)) * Size;
+	// A fire on a wall rises in front of it from the burn mark
+	const FVector Out = FVector(Shape.WallNormal.X, Shape.WallNormal.Y, 0.0f).GetSafeNormal() * Shape.Radius * 0.6f;
 	if (!FMath::IsNearlyEqual(Height, KnownHeight))
 	{
 		// The volume marches its rays in steps of a voxel, which it works out from its bounds when its render state is made:
@@ -715,8 +917,9 @@ void UVaelFireComponent::PlaceVolume(UHeterogeneousVolumeComponent* Which, float
 		Which->UpdateBounds();
 		Which->MarkRenderStateDirty();
 	}
-	if (!FMath::IsNearlyEqual(Which->GetRelativeLocation().Z, Lift, 0.5f))
+	const FVector Place = Out + FVector(0.0f, 0.0f, Lift);
+	if (!Which->GetRelativeLocation().Equals(Place, 0.5f))
 	{
-		Which->SetRelativeLocation(FVector(0.0f, 0.0f, Lift));
+		Which->SetRelativeLocation(Place);
 	}
 }

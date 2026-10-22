@@ -69,10 +69,40 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Materials")
 	TSoftObjectPtr<UMaterialInterface> BallFlipbook;
 
+	/** Flames as 3D tongues (Tools/Feuer/feuer_zunge.py, Scripts/CreateFireTongues.py): meshes that lick, sway and tear off at
+	 *  the tip. A Brandherd grows them along the arms of an invisible star, a campfire burns as a ring, a ball all around */
+	UPROPERTY(config, EditAnywhere, Category="Tongues")
+	bool bUseTongues = true;
+
+	UPROPERTY(config, EditAnywhere, Category="Tongues")
+	TArray<TSoftObjectPtr<class UStaticMesh>> TongueMeshes;
+
+	UPROPERTY(config, EditAnywhere, Category="Tongues")
+	TSoftObjectPtr<UMaterialInterface> TongueMaterial;
+
+	/** Arms of the star of a Brandherd, and the space between two tongues along an arm compared with the radius (at least
+	 *  the given cm) */
+	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 1))
+	int32 StarArms = 6;
+
+	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 0.05))
+	float TongueSpacing = 0.24f;
+
+	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 1))
+	float MinTongueSpacing = 14.0f;
+
+	/** Width of a tongue compared with its height (the mesh is 30 cm wide for 100 cm) */
+	UPROPERTY(config, EditAnywhere, Category="Tongues", meta = (ClampMin = 0.1))
+	float TongueWidth = 1.7f;
+
+	/** Flames, smoke and ember bed drawn on cards, the old 2D fire; off, the cards keep only the sparks */
+	UPROPERTY(config, EditAnywhere, Category="Materials")
+	bool bCardFlames = false;
+
 	/** Simulated fire as a real volume (Tools/Feuer/feuer_volumen.py, Scripts/CreateFireVolumes.py): fires on the ground and
 	 *  burning balls burn as a body of whirling flame seen from every side instead of cards */
 	UPROPERTY(config, EditAnywhere, Category="Volumes")
-	bool bUseVolumes = true;
+	bool bUseVolumes = false;
 
 	/** The stages a fire on the ground burns in, smallest first: embers, a fire, a big fire. A fire that grows past the
 	 *  radius of a stage blends into the next one */
@@ -82,6 +112,10 @@ public:
 	/** A burning ball (SVT_Feuer_Kugel) */
 	UPROPERTY(config, EditAnywhere, Category="Volumes")
 	FVaelFireVolumeKind BallVolume;
+
+	/** A campfire, a fire placed in a level: a few logs over embers, burning calmly (SVT_Feuer_Lager) */
+	UPROPERTY(config, EditAnywhere, Category="Volumes")
+	FVaelFireVolumeKind CampfireVolume;
 
 	/** Height of the foot of the simulated fire above the floor of its domain, in simulated metres */
 	UPROPERTY(config, EditAnywhere, Category="Volumes")
@@ -97,7 +131,7 @@ public:
 
 	/** Frames per second the volume plays at: a little slower than simulated, so the fire burns calmly */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 1))
-	float VolumeFrameRate = 20.0f;
+	float VolumeFrameRate = 16.0f;
 
 	/** Seconds a fire takes to blend from one stage into the next */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0.05))
@@ -105,14 +139,14 @@ public:
 
 	/** Most fires that burn as volumes at once; the others burn as cards */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
-	int32 MaxVolumeFires = 10;
+	int32 MaxVolumeFires = 16;
 
 	/** Smaller fires stay cards: a few centimetres of flame show no whirls, and the volumes are kept for the big fires */
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
-	float MinVolumeRadius = 15.0f;
+	float MinVolumeRadius = 6.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Volumes", meta = (ClampMin = 0))
-	float MinBallVolumeRadius = 12.0f;
+	float MinBallVolumeRadius = 5.0f;
 
 	/** Test of a fire simulated while the game runs (NiagaraFluids 3D gas, Scripts/CreateLiveFire.py), for fires with bLive */
 	UPROPERTY(config, EditAnywhere, Category="Live")
@@ -125,13 +159,13 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Live", meta = (ClampMin = 16))
 	int32 LiveResolution = 96;
 
-	/** Burning roots under a fire on the ground (M_Feuer_Brandadern): they creep outwards from the middle */
+	/** The charred shadow of the roots under a fire on the ground (M_Feuer_Brandschatten): it creeps outwards from the middle */
 	UPROPERTY(config, EditAnywhere, Category="Roots")
 	TSoftObjectPtr<UMaterialInterface> RootMaterial;
 
 	/** How far the roots reach compared with the radius of the fire */
 	UPROPERTY(config, EditAnywhere, Category="Roots", meta = (ClampMin = 0.5))
-	float RootReach = 2.4f;
+	float RootReach = 1.6f;
 
 	/** Seconds the roots take to creep out all the way while the fire is fed */
 	UPROPERTY(config, EditAnywhere, Category="Roots", meta = (ClampMin = 0.1))
@@ -238,6 +272,10 @@ struct FVaelFireShape
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire", meta = (ClampMin = 0, ClampMax = 1))
 	float BallSpread = 0.6f;
 
+	/** A campfire: burns as the calm campfire simulation, not as a Brandherd */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")
+	bool bCampfire = false;
+
 	/** Simulated live while the game runs (a test of NiagaraFluids) instead of a baked volume */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Fire")
 	bool bLive = false;
@@ -331,6 +369,33 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> OldVolumeMaterial;
+
+	/** One instanced mesh per kind of tongue */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UInstancedStaticMeshComponent>> Tongues;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> TongueMaterial;
+
+	/** Where a tongue stands: its foot, the way it points, its full height, which mesh, and how far along an arm of the star
+	 *  it stands (it shows once the fire has crept that far; 0 for always) */
+	struct FTongue
+	{
+		FVector Foot = FVector::ZeroVector;
+		FVector Up = FVector::UpVector;
+		float Height = 100.0f;
+		float Yaw = 0.0f;
+		int32 Mesh = 0;
+		float Along = 0.0f;
+	};
+	TArray<FTongue> TongueSpots;
+
+	/** Lays out the tongues for the shape, and puts them where the fire has reached now */
+	void BuildTongues();
+	void UpdateTongues();
+
+	/** Growth the tongues were last put for */
+	float TonguesGrowth = -1.0f;
 
 	/** The live simulated fire, for a fire with bLive */
 	UPROPERTY(Transient)

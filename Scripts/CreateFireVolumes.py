@@ -4,7 +4,7 @@
 #
 # - SVT_Feuer_<Kind>: the OpenVDB sequence <source>/<kind>/vdb/feuer_<kind>_0001.vdb ... Attributes A holds the density
 #   (smoke), Attributes B the flame (the default assignment of the importer, in the order the grids are written).
-#   Kinds: Glut, Brand, Gross (the stages a fire on the ground grows through) and Kugel.
+#   Kinds: Lager (a campfire), Glut, Brand, Gross (the stages a Brandherd grows through) and Kugel.
 # - M_Feuer_Volumen: volume material. The flame glows deep red at its edges, orange in its body and yellow-white in its core;
 #   the smoke darkens and absorbs. Two drifting noises blow the volume sideways, more towards the tips (Wehen, Tempo), so the
 #   tongues wind and whip. Parameters: Leuchtkraft, Rauch, Staerke (fade in/out), Dichte (set by the game for the size),
@@ -20,8 +20,8 @@ import sys
 import unreal
 
 FOLDER = "/Game/Vael/Effects/Feuer/Volumen"
-KINDS = ("Glut", "Brand", "Gross", "Kugel")
-KIT_VERSION = 2.3
+KINDS = ("Lager", "Glut", "Brand", "Gross", "Kugel")
+KIT_VERSION = 3.1
 SOURCE = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "Vael_Quellen", "Feuer3D")
 
 library = unreal.MaterialEditingLibrary
@@ -175,14 +175,14 @@ def build_material(default_volume, noise):
     g.link(g.sub(22, local, g.mask_out(bounds, 23, "Min")), uvw, "A")
     g.link(g.mask_out(bounds, 22, "Extents"), uvw, "B")
     if noise is not None:
-        time = g.mul(21, g.node(unreal.MaterialExpressionTime, 22), g.scalar("Tempo", 0.1, 22))
+        time = g.mul(21, g.node(unreal.MaterialExpressionTime, 22), g.scalar("Tempo", 0.06, 22))
         u = g.mask(uvw, 20, "R")
         v = g.mask(uvw, 20, "G")
         w = g.mask(uvw, 20, "B")
         rising = g.sub(19, g.mul(19, w, g.const(0.9, 20)), time)
         push_x = g.noise_at(noise, g.append(18, g.mul(19, v, g.const(1.3, 20)), rising), 17)
         push_y = g.noise_at(noise, g.append(18, g.add(19, g.mul(19, u, g.const(1.3, 20)), g.const(0.37, 20)), g.mul(19, rising, g.const(1.13, 20))), 17)
-        reach = g.mul(16, g.mul(17, w, w), g.scalar("Wehen", 0.06, 17))
+        reach = g.mul(16, g.mul(17, w, w), g.scalar("Wehen", 0.03, 17))
         offset = g.append(15, g.append(16, g.mul(16, g.sub(17, push_x, g.const(0.5, 18)), reach), g.mul(16, g.sub(17, push_y, g.const(0.5, 18)), reach)), g.const(0.0, 16))
         # The first input of the sample is its coordinates (by name the editing library does not find it)
         g.link(g.add(15, uvw, offset), sample, "")
@@ -191,20 +191,23 @@ def build_material(default_volume, noise):
     density = g.mask(sample, 12, "R", "Attributes A")
     flame = g.mask(sample, 12, "R", "Attributes B")
 
-    # The flame in the colours of fire, brightest in its core
-    edge = g.vector("Rand", (0.22, 0.015, 0.0), 10)
-    middle = g.vector("Mitte", (0.9, 0.16, 0.01), 10)
-    core = g.vector("Kern", (1.0, 0.45, 0.08), 10)
-    colour = g.lerp(6, g.lerp(7, edge, middle, g.ramp(8, flame, 0.1, 0.45)), core, g.ramp(7, flame, 0.55, 0.95))
-    # Dichte is set by the game for the size of the fire: light and smoke add up along the way through the volume, so a big
-    # fire would glow white and a small one faint
+    # The flame is a body with an outline (Boris 2026-10-22: clean shapes like drawn fire, no glowing haze): beyond the
+    # outline it is dense, so the eye sees its surface and not the light of the whole depth added up. It glows in the colours
+    # of fire, deep red at its edge, orange in its body, yellow-white in its hottest core; the glow is as strong as the body is
+    # dense, so a body of any size shines alike
+    edge = g.vector("Rand", (0.45, 0.02, 0.0), 10)
+    middle = g.vector("Mitte", (1.0, 0.2, 0.0), 10)
+    core = g.vector("Kern", (1.0, 0.55, 0.1), 10)
+    colour = g.lerp(6, g.lerp(7, edge, middle, g.ramp(8, flame, 0.25, 0.5)), core, g.ramp(7, flame, 0.6, 0.95))
+    # Staerke fades the fire; Dichte is set by the game for the size of the fire
     strength = g.mul(5, g.scalar("Staerke", 1.0, 6), g.scalar("Dichte", 1.0, 6))
-    # The faint warmth around the flames does not glow, so the tongues stand out sharp and not as a haze
-    tongues = g.ramp(7, flame, 0.3, 0.9)
-    glow = g.mul(4, g.mul(5, colour, g.mul(6, g.mul(7, tongues, tongues), g.scalar("Leuchtkraft", 2.5, 7))), strength)
+    outline = g.scalar("Kontur", 0.2, 9)
+    body = g.sat(7, g.mul(8, g.sub(9, flame, outline), g.const(8.0, 9)))
+    solid = g.mul(5, body, g.scalar("Koerper", 6.0, 6))
+    glow = g.mul(4, g.mul(5, colour, g.mul(6, solid, g.scalar("Leuchtkraft", 1.3, 7))), strength)
 
-    # Smoke darkens and absorbs; the flame itself is a little dense too, so it has body
-    extinction = g.mul(4, g.add(5, g.mul(6, density, g.scalar("Rauch", 2.0, 7)), g.mul(6, flame, g.const(0.6, 7))), strength)
+    # A thin veil of smoke darkens above it
+    extinction = g.mul(4, g.add(5, g.mul(6, density, g.scalar("Rauch", 0.8, 7)), solid), strength)
     albedo = g.node(unreal.MaterialExpressionConstant3Vector, 4, constant=unreal.LinearColor(0.004, 0.0035, 0.003, 1.0))
 
     library.connect_material_property(albedo, "", unreal.MaterialProperty.MP_BASE_COLOR)

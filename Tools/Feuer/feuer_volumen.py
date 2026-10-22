@@ -3,12 +3,12 @@ Feuer-Baukasten in 3D: simulates fire in Blender (Mantaflow) and writes it as a 
 imports as an animated Sparse Volume Texture and renders as a real volume (UHeterogeneousVolumeComponent). Seen from any side,
 the fire is a body of flame and smoke, not a picture on a card.
 
-Kinds (a Brandherd grows through the first three as it is fed):
-  glut    a low bed of embers with small calm licks (a fire that starts or dies down)
-  brand   a fire on a few logs and a bed of embers (campfires, burning patches)
-  gross   a wide burning patch with many clumps of fuel (a big fire that was fed a lot)
+Kinds:
+  lager   a campfire: a few logs over a bed of embers
+  glut, brand, gross   the stages a Brandherd grows through as it is fed: the fire comes out of a star of roots on the ground
+          (feuer_wurzeln.py, the same star the picture under it shows), the bigger the stage the further the roots reach
   kugel   a ball whose whole surface burns (the fire orb over the head, the Feuerball)
-All burn calmly at their foot; a moving turbulence field makes the tongues wind and whip and tear apart at their tips.
+All burn calmly; a slow turbulence field makes the tongues wind and tear apart at their tips.
 Every domain is so big the flames never touch its walls, and its floor lies 0.1 m under the foot of the fire.
 
 The loop is seamless: the last frames are blended into the first ones. Every frame becomes
@@ -22,6 +22,9 @@ import bpy, sys, os, math, random
 import numpy as np
 import openvdb
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from feuer_wurzeln import root_segments
+
 args = sys.argv[sys.argv.index("--") + 1:]
 KIND = args[0]
 OUT = os.path.join(args[1], KIND)
@@ -34,11 +37,15 @@ random.seed(11)
 
 # Domain size and middle, and how far the turbulence reaches, per kind
 DOMAINS = {
-    "glut": ((1.4, 1.4, 1.4), (0, 0, 0.6), 0.18),
-    "brand": ((2.4, 2.4, 2.8), (0, 0, 1.3), 0.3),
-    "gross": ((4.0, 4.0, 3.6), (0, 0, 1.7), 0.45),
+    "lager": ((2.0, 2.0, 2.4), (0, 0, 1.1), 0.3),
+    "glut": ((1.4, 1.4, 1.3), (0, 0, 0.55), 0.18),
+    "brand": ((2.2, 2.2, 2.2), (0, 0, 1.0), 0.3),
+    "gross": ((3.6, 3.6, 3.0), (0, 0, 1.4), 0.45),
     "kugel": ((1.6, 1.6, 2.0), (0, 0, 0.9), 0.2),
 }
+
+# Radius of the star of roots of a Brandherd, per stage, in metres
+STARS = {"glut": 0.35, "brand": 0.6, "gross": 1.1}
 
 
 def log(text):
@@ -92,6 +99,42 @@ def add_bed(radius, height, fuel, surface):
     return bed
 
 
+def add_roots(star_radius, fuel):
+    """The star of roots (feuer_wurzeln.py) as one flat mesh of thick strands on the ground: the fire comes out of them"""
+    vertices, faces = [], []
+    segments = root_segments()
+    # The longest arm reaches the full radius of the star
+    star_radius /= float(np.max(np.hypot(segments[:, 2], segments[:, 3])))
+    for x0, y0, x1, y1, thick, _, _ in segments:
+        # A low box along each piece of a root, a little wider than the root, overlapping the next piece
+        dx, dy = x1 - x0, y1 - y0
+        length = math.hypot(dx, dy)
+        ux, uy = dx / length, dy / length
+        # Never thinner than a few cells of the simulation, so the tips burn too
+        half = max(thick * star_radius * 1.4, 0.05 * star_radius)
+        ax, ay = x0 * star_radius - ux * half * 0.5, y0 * star_radius - uy * half * 0.5
+        bx, by = x1 * star_radius + ux * half * 0.5, y1 * star_radius + uy * half * 0.5
+        height = max(0.02, half * 0.8)
+        first = len(vertices)
+        for px, py in ((ax, ay), (bx, by)):
+            for side in (-1.0, 1.0):
+                vertices.append((px - uy * half * side, py + ux * half * side, 0.0))
+                vertices.append((px - uy * half * side, py + ux * half * side, height))
+        # Corners: 0/1 start left low/high, 2/3 start right, 4/5 end left, 6/7 end right
+        faces += [(first + 0, first + 2, first + 6, first + 4), (first + 1, first + 5, first + 7, first + 3),
+                  (first + 0, first + 4, first + 5, first + 1), (first + 2, first + 3, first + 7, first + 6),
+                  (first + 0, first + 1, first + 3, first + 2), (first + 4, first + 6, first + 7, first + 5)]
+    mesh = bpy.data.meshes.new("Wurzeln")
+    mesh.from_pydata(vertices, [], faces)
+    roots = bpy.data.objects.new("Wurzeln", mesh)
+    bpy.context.scene.collection.objects.link(roots)
+    s = fuel_settings(roots, fuel, 1.2)
+    # The shape of the roots breaks the fire up by itself; a noise over the whole star would blot out whole arms
+    s.use_texture = False
+    print("FEUER3D roots reach", max(abs(v[0]) for v in vertices), "m")
+    return roots
+
+
 def make_sources():
     sources = []
     if KIND == "kugel":
@@ -101,24 +144,16 @@ def make_sources():
         s.use_initial_velocity = True
         s.velocity_normal = 0.4
         sources.append(ball)
-    elif KIND == "glut":
-        sources.append(add_bed(0.3, 0.05, 0.55, 1.2))
-        for index in range(3):
-            angle = index * 2.1 + random.uniform(-0.4, 0.4)
-            sources.append(add_log(math.cos(angle) * 0.1, math.sin(angle) * 0.1, 0.03, angle + math.pi / 2, 0.035, 0.3, random.uniform(0.6, 0.9)))
-    elif KIND == "gross":
-        sources.append(add_bed(1.0, 0.08, 0.8, 1.5))
-        for index in range(11):
-            angle = random.uniform(0, math.tau)
-            reach = math.sqrt(random.uniform(0.0, 1.0)) * 0.8
-            sources.append(add_log(math.cos(angle) * reach, math.sin(angle) * reach, 0.06, random.uniform(0, math.pi),
-                                   random.uniform(0.05, 0.09), random.uniform(0.4, 0.8), random.uniform(0.9, 1.4)))
-    else:
+    elif KIND == "lager":
+        # A campfire: a few logs crossed over a bed of embers, burning calmly
         for index in range(6):
             angle = index * math.pi / 3 + random.uniform(-0.3, 0.3)
             sources.append(add_log(math.cos(angle) * 0.18, math.sin(angle) * 0.18, 0.08 + 0.05 * (index % 2), angle + math.pi / 2,
-                                   random.uniform(0.05, 0.08), random.uniform(0.6, 0.9), random.uniform(1.0, 1.4)))
-        sources.append(add_bed(0.4, 0.08, 0.7, 1.5))
+                                   random.uniform(0.05, 0.08), random.uniform(0.6, 0.9), random.uniform(1.0, 1.3)))
+        sources.append(add_bed(0.35, 0.08, 0.7, 1.5))
+    else:
+        # A Brandherd: the fire comes out of the star of roots, the bigger the stage the further they reach
+        sources.append(add_roots(STARS[KIND], 1.1 if KIND != "glut" else 0.8))
 
     size, centre, _ = DOMAINS[KIND]
     bpy.ops.mesh.primitive_cube_add(location=centre)
@@ -134,7 +169,7 @@ def add_turbulence(scene):
     size, centre, reach = DOMAINS[KIND]
     bpy.ops.object.effector_add(type="TURBULENCE", location=(0, 0, 0))
     field = bpy.context.active_object
-    field.field.strength = 4.5 if KIND != "glut" else 2.0
+    field.field.strength = 1.6 if KIND != "glut" else 0.9
     field.field.size = reach
     field.field.flow = 0.0
     field.field.noise = 0.2
@@ -168,18 +203,18 @@ def setup_domain(domain):
     d.use_noise = False
     # Calm: hot air rises gently, the body of the fire barely whirls; the tips get their life from the turbulence and a fuel
     # that burns quickly, so they tear off as separate licks
-    d.vorticity = 0.25
+    d.vorticity = 0.15
     d.alpha = 0.0
-    d.beta = 1.9
-    d.burning_rate = 0.85 if KIND != "glut" else 1.1
+    d.beta = 1.6
+    d.burning_rate = 0.9 if KIND in ("lager", "kugel") else 1.3
     d.flame_smoke = 0.25
-    d.flame_vorticity = 0.9
+    d.flame_vorticity = 0.5
     d.flame_ignition = 1.2
     d.flame_max_temp = 2.2
     d.flame_smoke_color = (0.1, 0.09, 0.08)
     d.use_dissolve_smoke = True
     d.dissolve_speed = 12
-    d.time_scale = 0.85
+    d.time_scale = 0.7
     return d
 
 

@@ -12,10 +12,11 @@ AVaelFireSpot::AVaelFireSpot()
 	Fire = CreateDefaultSubobject<UVaelFireComponent>(TEXT("Fire"));
 	RootComponent = Fire;
 
-	// A campfire: a broad bed of flames, sparks and light
+	// A campfire: a broad bed of flames, sparks and light, burning calmly
 	Shape.Radius = 45.0f;
 	Shape.Height = 110.0f;
 	Shape.bScorch = false;
+	Shape.bCampfire = true;
 }
 
 AVaelFireSpot* AVaelFireSpot::Spawn(UWorld* World, const FVector& Location, const FVaelFireShape& InShape, float InBurnTime)

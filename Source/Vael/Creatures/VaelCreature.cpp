@@ -1053,36 +1053,33 @@ void AVaelCreature::UpdateBurning()
 		return;
 	}
 
-	// Little flames on a few bones spread over the body, or on a few points of the plain body
+	// One body of flame on the middle of the body (a simulated volume each, so not more than one per creature)
 	if (BurnFlames.IsEmpty())
 	{
 		USkinnedMeshComponent* Skinned = FactoryMesh != nullptr ? static_cast<USkinnedMeshComponent*>(FactoryMesh) : FindComponentByClass<USkeletalMeshComponent>();
-		const float Size = FMath::Max(GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.38f, 7.0f);
+		const float Size = FMath::Max(GetCapsuleComponent()->GetScaledCapsuleRadius() * 0.7f, 10.0f);
 		const int32 NumBones = Skinned != nullptr ? Skinned->GetNumBones() : 0;
-		for (int32 Index = 0; Index < 3; ++Index)
+		UVaelFireComponent* Flame = NewObject<UVaelFireComponent>(this);
+		if (NumBones > 2)
 		{
-			UVaelFireComponent* Flame = NewObject<UVaelFireComponent>(this);
-			if (NumBones > 2)
-			{
-				const int32 Bone = FMath::Clamp(FMath::RoundToInt32(NumBones * (0.25f + 0.25f * Index)) + FMath::RandRange(-1, 1), 1, NumBones - 1);
-				Flame->SetupAttachment(Skinned, Skinned->GetBoneName(Bone));
-			}
-			else
-			{
-				const FVector Extent = Body->Bounds.BoxExtent;
-				Flame->SetupAttachment(Body);
-				Flame->SetRelativeLocation(FVector(FMath::FRandRange(-0.5f, 0.5f) * Extent.X, FMath::FRandRange(-0.5f, 0.5f) * Extent.Y, FMath::FRandRange(0.0f, 0.6f) * Extent.Z));
-			}
-			Flame->RegisterComponent();
-
-			FVaelFireShape Shape;
-			Shape.Radius = Size * FMath::FRandRange(0.7f, 1.1f);
-			Shape.Height = Shape.Radius * 2.8f;
-			Shape.Smoke = 0.4f;
-			Shape.bLight = Index == 0;
-			Flame->Ignite(Shape, 0.25f);
-			BurnFlames.Add(Flame);
+			const int32 Bone = FMath::Clamp(NumBones / 2, 1, NumBones - 1);
+			Flame->SetupAttachment(Skinned, Skinned->GetBoneName(Bone));
 		}
+		else
+		{
+			const FVector Extent = Body->Bounds.BoxExtent;
+			Flame->SetupAttachment(Body);
+			Flame->SetRelativeLocation(FVector(0.0f, 0.0f, 0.2f * Extent.Z));
+		}
+		Flame->RegisterComponent();
+
+		FVaelFireShape Shape;
+		Shape.Radius = Size * FMath::FRandRange(0.7f, 1.1f);
+		Shape.Height = Shape.Radius * 2.8f;
+		Shape.Smoke = 0.4f;
+		Shape.bLight = true;
+		Flame->Ignite(Shape, 0.25f);
+		BurnFlames.Add(Flame);
 	}
 
 	// The red glow breathes quickly, like embers under the skin
