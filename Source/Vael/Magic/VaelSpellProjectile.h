@@ -71,6 +71,9 @@ public:
 	/** Whose water a projectile with the look of a ball of water is, null for the water of the mages. Has to be called before FinishSpawning. */
 	void SetWaterSource(UVaelElementSource* InSource) { WaterSource = InSource; }
 
+	/** Lets the ball of water water the plants within the radius where it bursts (Taublatt), with the amount of water. Before FinishSpawning. */
+	void SetWatersPlants(float Radius, float Amount) { WaterPlantsRadius = Radius; WaterPlantsAmount = Amount; }
+
 	/** Makes the projectile burst where its flight ends, hitting everyone around. Has to be called before FinishSpawning. */
 	void SetExplosion(const FVaelSpellHit& InExplosionHit, float Radius);
 
@@ -164,6 +167,10 @@ private:
 	/** Whose water the ball is, null for the water of the mages */
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelElementSource> WaterSource;
+
+	/** Radius in cm and amount of the watering where the ball bursts, 0 for none */
+	float WaterPlantsRadius = 0.0f;
+	float WaterPlantsAmount = 0.0f;
 
 	/** Ball of water of the water kit flying along, null while the projectile has another look */
 	UPROPERTY(Transient)

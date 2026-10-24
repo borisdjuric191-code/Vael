@@ -93,7 +93,7 @@ private:
 	/** Fires the next finger if it is time */
 	void UpdateFiring(float DeltaTime);
 
-	/** One shot from the finger */
+	/** One shot from the finger; -1 shoots out of the barrel */
 	void Shoot(int32 Finger);
 
 	USplineMeshComponent* MakeStalk(UStaticMesh* Mesh, UMaterialInstanceDynamic* Material);
@@ -173,6 +173,50 @@ private:
 
 	/** Places the pad and sizes it by the pelt; it shrinks while the stalks draw it in */
 	void UpdatePad(const FVector& Elbow, const FVector& Wrist, const FVector& Out);
+
+	// --- Funnel leaves, pump and water (Taublatt)
+
+	/** Funnel leaves along the arm, and where each sits: share of the way from shoulder to hand, angle around the arm, size */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> Leaves;
+
+	TArray<FVector> LeafShapes;
+
+	/** Opens the leaves at rest and lays them against the arm while aiming; the pump wave swells them in turn */
+	void UpdateLeaves(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist);
+
+	/** Where the pump wave is now on the way from shoulder (0) to hand (1); far outside while there is none */
+	float GetPumpPosition() const;
+
+	/** How much the wave swells something at the share of the way */
+	float GetPumpSwell(float Share) const;
+
+	/** Starts a pump wave at the shoulder; a looping one keeps coming while the jet runs */
+	void StartPump(bool bLoop);
+
+	float PumpStartTime = -100.0f;
+	bool bPumpLoop = false;
+
+	/** Taps and holds of a water hand: a tap pumps one Tauperle, holding turns into the jet */
+	void UpdateWaterFiring(float DeltaTime);
+
+	/** Ends the jet, letting it tear off the barrel */
+	void StopJet();
+
+	UPROPERTY(Transient)
+	TObjectPtr<class AVaelSapJet> Jet;
+
+	/** Seconds the button has been held, whether this press has pumped its shot, and when the pumped shot leaves the barrel */
+	float HoldTime = 0.0f;
+	bool bPumpedThisPress = false;
+	float PendingShotTime = -1.0f;
+
+	/** 0 = funnels on their stalks, 1 = nested into the barrel in front of the hand */
+	float Barrel = 0.0f;
+
+	/** The front of the barrel and the aim, in world space */
+	FVector BarrelMuzzle = FVector::ZeroVector;
+	FVector BarrelDirection = FVector::ForwardVector;
 
 	/** Shots that come with the reload under way, its seconds left and its whole length */
 	int32 ReloadShots = 0;

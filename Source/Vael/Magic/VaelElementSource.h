@@ -44,4 +44,8 @@ public:
 	/** 0 runs freely like clear water, 1 is thick and slow like Mark water; slows wobbling and movement of the look */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
 	float Viscosity = 0.0f;
+
+	/** Instance of M_Water_Wave for jets of real water from this source (Wassergeschoss, Taublatt); empty takes the mage's */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
+	TObjectPtr<UMaterialInterface> WaveMaterial;
 };

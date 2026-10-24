@@ -175,9 +175,14 @@ void AVaelWaterBolt::ApplySource()
 
 	Trail->SetVariableLinearColor(WaterColorParameter, BoltSource->ParticleColor);
 
-	// Real water draws itself; the smooth jet and the spiral stay hidden
+	// Real water draws itself; the smooth jet and the spiral stay hidden. A source with its own wave colours paints it
 	if (bRealWater)
 	{
+		if (BoltSource->WaveMaterial != nullptr)
+		{
+			Jet->SetMaterial(0, BoltSource->WaveMaterial);
+			JetDrops->SetMaterial(0, BoltSource->WaveMaterial);
+		}
 		GetBall()->SetVisibility(false);
 		Spiral->SetVisibility(false);
 		return;

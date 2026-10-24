@@ -30,7 +30,7 @@ namespace
 	/** Points across a vein */
 	constexpr int32 VeinAcross = 7;
 
-	const FName FlowParameter(TEXT("Fliessen"));
+	const FName NidFlowParameter(TEXT("Fliessen"));
 
 	template<typename T>
 	TSoftObjectPtr<T> NidAsset(const TCHAR* Name)
@@ -211,7 +211,7 @@ void AVaelNidVeins::BuildMesh()
 		if (UMaterialInterface* Base = VaelAssets::LoadOptional(LiquidMaterial))
 		{
 			UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this);
-			Material->SetScalarParameterValue(FlowParameter, FlowSpeed / 100.0f);
+			Material->SetScalarParameterValue(NidFlowParameter, FlowSpeed / 100.0f);
 			Veins->SetMaterial(0, Material);
 		}
 	}
@@ -223,7 +223,7 @@ void AVaelNidVeins::BuildMesh()
 		if (UMaterialInterface* Base = VaelAssets::LoadOptional(RidgeMaterial))
 		{
 			UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, this);
-			Material->SetScalarParameterValue(FlowParameter, FlowSpeed / 100.0f);
+			Material->SetScalarParameterValue(NidFlowParameter, FlowSpeed / 100.0f);
 			Veins->SetMaterial(Section, Material);
 		}
 	}

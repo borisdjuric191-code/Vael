@@ -53,6 +53,25 @@ ARMS = {
                  "arm_thickness": 0.35,
                  "rest_wind": 0.2},
     },
+    # Boris 2026-10-24: funnel leaves loose along the arm, the cup facing the hand; while aiming they lie against the arm, a pump
+    # wave runs down and the finger funnels nest into a barrel. Tap = Tauperle, hold = jet that pushes back. Turquoise plant
+    # water that heals no one and waters plants. Stalks and funnel come from Tools/Pflanzenarm/taublatt_trichter.py
+    "Taublatt": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": "Trichter",
+        "leaf": "Trichter",
+        "values": {"Silber": 0.08, "Leuchten": 0.18, "Leuchtfarbe": (0.3, 1.0, 0.85), "Metall": 0.05, "Rauheit": 0.25},
+        "data": {"shot_element": "WATER", "fire_interval": 0.3, "shot_damage": 6.0, "shot_speed": 1400.0, "shot_radius": 11.0,
+                 "shot_range": 1000.0, "shot_spread": 1.0, "saft_per_shot": 1.0, "bar_size": 30,
+                 "finger_length": 28.0, "finger_thickness": 0.4, "tip_size": 13.0, "fan_angle": 0.0,
+                 "arm_thickness": 0.45, "rest_wind": 0.25, "wild_count": 2,
+                 "leaf_count": 6, "leaf_size": 13.0, "leaf_open_angle": 55.0, "fingers_form_barrel": True, "barrel_spacing": 6.0,
+                 "pump_wave_time": 0.22, "pump_swell": 0.35,
+                 "water_source": "/Game/VFX/Water/Sources/DA_ElementSource_Water_Taublatt",
+                 "shot_status": "WET", "shot_status_duration": 4.0, "water_radius": 180.0, "water_per_shot": 1.0,
+                 "jet_hold_time": 0.3},
+    },
 }
 
 
@@ -216,6 +235,10 @@ def new_material(name):
             if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= KIT_VERSION - 0.001:
                 return None
         library.delete_all_material_expressions(material)
+        # Nodes of older graphs survive that in the commandlet; with two parameters of one name the older default wins
+        for expression in list(unreal.ObjectIterator(unreal.MaterialExpression)):
+            if expression.get_outer() == material:
+                library.delete_material_expression(material, expression)
         created.append(path + " (graph rebuilt)")
         return material
     created.append(path)
@@ -332,7 +355,21 @@ def make_instance(parent, plant, values):
 
 # ---------------------------------------------------------------- DA_Pflanzenarm_<Id>
 
-def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values):
+def data_value(key, value):
+    """A value of the data asset as Unreal wants it: enums by name, assets by path"""
+    if key == "shot_element":
+        return getattr(unreal.VaelElement, value)
+    if key == "shot_status":
+        return getattr(unreal.VaelStatus, value)
+    if isinstance(value, str) and value.startswith("/Game/"):
+        loaded = unreal.load_asset(value)
+        if loaded is None:
+            notes.append("missing " + value)
+        return loaded
+    return value
+
+
+def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, leaf=None):
     path = "{}/DA_Pflanzenarm_{}".format(FOLDER, plant)
     if assets.does_asset_exist(path):
         # Fields that came later are filled in while they are still empty
@@ -355,8 +392,10 @@ def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values):
         data.set_editor_property("tip_mesh", head)
     if vine is not None:
         data.set_editor_property("vine_meshes", [vine])
+    if leaf is not None:
+        data.set_editor_property("leaf_mesh", leaf)
     for key, value in values.items():
-        data.set_editor_property(key, getattr(unreal.VaelElement, value) if key == "shot_element" else value)
+        data.set_editor_property(key, data_value(key, value))
     assets.save_loaded_asset(data, False)
     created.append(path)
 
@@ -366,15 +405,18 @@ def main():
     for plant, arm in ARMS.items():
         fingers = [import_stalk(plant, i) for i in arm["finger"]]
         others = [import_stalk(plant, i) for i in arm["arm"]]
-        head = import_mesh(plant, "SM_{}_Kopf".format(plant), 5.0) if arm["head"] else None
+        # The head on the fingertips: SM_<Id>_Kopf, or a piece of its own name (the Taublatt's funnel)
+        head_name = arm["head"] if isinstance(arm["head"], str) else "Kopf"
+        head = import_mesh(plant, "SM_{}_{}".format(plant, head_name), 5.0) if arm["head"] else None
+        leaf = head if arm.get("leaf") == head_name else (import_mesh(plant, "SM_{}_{}".format(plant, arm["leaf"]), 5.0) if arm.get("leaf") else None)
         # The vine for the overgrowth while aiming, from Tools/Pflanzenarm/ranke_bauen.py
         vine = import_mesh(plant, "SM_{}_Ranke".format(plant), 50.0)
         instance = make_instance(stalk_material, plant, arm["values"])
-        for mesh in fingers + others + [head, vine]:
+        for mesh in fingers + others + [head, vine, leaf]:
             if mesh is not None:
                 mesh.set_material(0, instance)
                 assets.save_loaded_asset(mesh, False)
-        make_arm(plant, fingers, others, head, vine, instance, arm["data"])
+        make_arm(plant, fingers, others, head, vine, instance, arm["data"], leaf)
 
     for line in created:
         log("created " + line)

@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DeveloperSettings.h"
 #include "GameFramework/Actor.h"
+#include "Nature/VaelWaterable.h"
 #include "Player/VaelInteractable.h"
 #include "Subsystems/GameInstanceSubsystem.h"
 #include "Tickable.h"
@@ -163,6 +164,17 @@ public:
 	/** Seconds a sown plant takes to grow up */
 	UPROPERTY(config, EditAnywhere, Category="Sowing", meta = (ClampMin = 0.1))
 	float GrowSeconds = 6.0f;
+
+	/** Seconds of growing one Tauperle of water saves a plant that is still growing (a jet gives it bit by bit) */
+	UPROPERTY(config, EditAnywhere, Category="Watering", meta = (ClampMin = 0))
+	float WaterGrowSeconds = 1.5f;
+
+	/** How much brighter a freshly watered plant glows, and how long it glistens in seconds */
+	UPROPERTY(config, EditAnywhere, Category="Watering", meta = (ClampMin = 0))
+	float WateredGlow = 1.2f;
+
+	UPROPERTY(config, EditAnywhere, Category="Watering", meta = (ClampMin = 0.1))
+	float WateredSeconds = 3.0f;
 
 	/** A region is clean once plants stand this many cm apart all over it: every sown plant takes its share of that from the
 	 *  corruption of its region, once. A plant sown closer to another one takes less, as it covers less new ground. */
@@ -441,7 +453,7 @@ struct FVaelTuftSpot
  *  In its shadow form it is violet and the land around it turns marked instead of green. Once grown it can be harvested a single time.
  */
 UCLASS()
-class AVaelSownPlant : public AActor, public IVaelInteractable
+class AVaelSownPlant : public AActor, public IVaelInteractable, public IVaelWaterable
 {
 	GENERATED_BODY()
 
@@ -483,6 +495,12 @@ public:
 	virtual FText GetInteractPrompt() const override;
 	//~End IVaelInteractable
 
+	/** Watered: a growing plant grows faster, every plant glistens and glows brighter for a moment */
+	virtual void ReceiveWater(float Amount, AActor* Giver) override;
+
+	/** How freshly it was watered, 1 right after a Tauperle, 0 when dry again */
+	float GetWatered() const { return Watered; }
+
 	/** How far its green reaches now in cm, and how many tufts stand in it, for tests */
 	float GetGreenRadius() const { return GreenRadius; }
 	int32 GetNumTufts() const { return NextTuft; }
@@ -505,6 +523,9 @@ private:
 
 	/** How far it has settled into its harvested look, 0 to 1 */
 	float SpentShare = 0.0f;
+
+	/** Glistening after being watered, 1 down to 0 */
+	float Watered = 0.0f;
 
 	/** Seconds since it was sown */
 	float Age = 0.0f;

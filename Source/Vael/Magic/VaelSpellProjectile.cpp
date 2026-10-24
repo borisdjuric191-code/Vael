@@ -17,6 +17,7 @@
 #include "Magic/VaelWaterWave.h"
 #include "Magic/VaelWaterOrb.h"
 #include "Magic/VaelWaterPuddle.h"
+#include "Nature/VaelWaterable.h"
 #include "Nature/VaelHarvestable.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -1491,6 +1492,10 @@ void AVaelSpellProjectile::BurstWaterOrb(bool bHitSomething)
 
 	// The water comes down with the drops and stays on the ground; enough of it in one place becomes water of the environment
 	AVaelWaterPuddle::PourSplash(GetWorld(), Location, WaterAmount, WaterSource, GetInstigator());
+	if (WaterPlantsRadius > 0.0f)
+	{
+		VaelWatering::WaterAround(GetWorld(), Location, WaterPlantsRadius, WaterPlantsAmount, GetInstigator());
+	}
 
 	UNiagaraSystem* Burst = VaelAssets::LoadOptional(MagicSettings->WaterOrbImpactEffect);
 	if (Burst == nullptr)

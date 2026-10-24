@@ -12,6 +12,8 @@
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelSapJet.h"
+#include "Magic/VaelElementSource.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelSpellProjectile.h"
@@ -166,7 +168,15 @@ void UVaelPlantArmComponent::Clear()
 		}
 		Stalks->Reset();
 	}
-	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads })
+	StopJet();
+	PumpStartTime = -100.0f;
+	bPumpLoop = false;
+	HoldTime = 0.0f;
+	bPumpedThisPress = false;
+	PendingShotTime = -1.0f;
+	Barrel = 0.0f;
+	LeafShapes.Reset();
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves })
 	{
 		for (UStaticMeshComponent* Piece : *Pieces)
 		{
@@ -337,6 +347,25 @@ void UVaelPlantArmComponent::BuildStalks()
 	}
 	Overgrowth = 0.0f;
 
+	// Funnel leaves along the arm, from the shoulder to the wrist, each turned its own way round the arm
+	if (UStaticMesh* LeafMesh = VaelAssets::LoadOptional(Plant->LeafMesh))
+	{
+		for (int32 Index = 0; Index < Plant->LeafCount; ++Index)
+		{
+			const float Share = (Index + 0.5f) / Plant->LeafCount;
+			LeafShapes.Add(FVector(FMath::Clamp(Share + Random.FRandRange(-0.04f, 0.04f), 0.08f, 0.92f), Index * 2.4f + Random.FRandRange(-0.4f, 0.4f) + Offset, Random.FRandRange(0.8f, 1.15f)));
+			UStaticMeshComponent* Leaf = NewObject<UStaticMeshComponent>(GetOwner());
+			Leaf->SetMobility(EComponentMobility::Movable);
+			Leaf->SetStaticMesh(LeafMesh);
+			Leaf->SetMaterial(0, ArmMaterial);
+			Leaf->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Leaf->SetCanEverAffectNavigation(false);
+			Leaf->SetupAttachment(GetBody());
+			Leaf->RegisterComponent();
+			Leaves.Add(Leaf);
+		}
+	}
+
 	Muzzles.Init(FVector::ZeroVector, NumFingers);
 	MuzzleDirections.Init(FVector::ForwardVector, NumFingers);
 	Flashes.Init(0.0f, NumFingers);
@@ -409,17 +438,28 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		}
 	}
 
-	const bool bFiringNow = IsFiring() && Grow >= 1.0f;
+	// A water hand keeps aiming until its pumped shot is out and its jet has torn off
+	const bool bWaterHand = !Plant->WaterSource.IsNull();
+	const bool bFiringNow = (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr))) && Grow >= 1.0f;
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 	Fan = FMath::FInterpTo(Fan, bFiringNow ? 1.0f : 0.0f, DeltaTime, 10.0f);
+	Barrel = Plant->bFingersFormBarrel ? FMath::FInterpTo(Barrel, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 14.0f : 6.0f) : 0.0f;
 
 	// While the hand aims the plant overruns the whole arm; it falls back more slowly when the hand rests
 	Overgrowth = bFiringNow
 		? FMath::Min(1.0f, Overgrowth + DeltaTime / Plant->OvergrowthTime)
 		: FMath::Max(0.0f, Overgrowth - DeltaTime / Plant->OvergrowthFadeTime);
 
-	UpdateFiring(DeltaTime);
+	// The stalks first, so the barrel is where the water leaves
 	UpdateStalks();
+	if (bWaterHand)
+	{
+		UpdateWaterFiring(DeltaTime);
+	}
+	else
+	{
+		UpdateFiring(DeltaTime);
+	}
 	UpdateMaterials(DeltaTime);
 }
 
@@ -439,6 +479,20 @@ void UVaelPlantArmComponent::UpdateStalks()
 	// The middle line of the hand, from the wrist through the middle finger
 	const FVector HandAxis = (BoneLocation(TEXT("middle_03")) - Wrist).GetSafeNormal();
 	const float FanRadians = FMath::DegreesToRadians(Plant->FanAngle) * Fan;
+
+	// The barrel: the finger heads nest into each other in a line in front of the hand, towards where the player aims, each
+	// funnel's foot inside the cup of the one before; the stems behind them bend in from the forearm
+	FVector AimLocal = HandAxis;
+	if (Barrel > 0.0f)
+	{
+		FVector Aim = UVaelFormulaAbility::GetAimDirection(GetCharacter());
+		Aim.Z = 0.0f;
+		Aim = Aim.IsNearlyZero() ? GetCharacter()->GetActorForwardVector() : Aim.GetSafeNormal();
+		AimLocal = BodyTransform.InverseTransformVectorNoScale(Aim).GetSafeNormal();
+	}
+	const FVector BarrelBase = BoneLocation(TEXT("middle_01")) + AimLocal * 4.0f;
+	// From the hand outwards: index, middle, ring, little finger, thumb in front
+	const int32 BarrelRank[] = { 4, 0, 1, 2, 3 };
 
 	// Fingers: from the forearm past the fingertip into a long stalk
 	for (int32 Finger = 0; Finger < FingerStalks.Num(); ++Finger)
@@ -466,7 +520,13 @@ void UVaelPlantArmComponent::UpdateStalks()
 		const FVector OnArm = FMath::Lerp(Wrist, Elbow, Plant->FingerRootReach);
 		const FVector Side = Root - (Elbow + Axis * FVector::DotProduct(Root - Elbow, Axis));
 		const FVector Start = OnArm + Side.GetSafeNormal() * Radius * 0.8f;
-		const FVector End = Tip + (Direction + Curl * 0.5f).GetSafeNormal() * Plant->FingerLength * LengthShare;
+		FVector End = Tip + (Direction + Curl * 0.5f).GetSafeNormal() * Plant->FingerLength * LengthShare;
+		if (Barrel > 0.0f)
+		{
+			const FVector InBarrel = BarrelBase + AimLocal * Plant->BarrelSpacing * BarrelRank[Finger];
+			End = FMath::Lerp(End, InBarrel, Barrel);
+			Direction = FMath::Lerp(Direction, AimLocal, Barrel).GetSafeNormal();
+		}
 		const float Span = FVector::Dist(Start, End);
 
 		USplineMeshComponent* Stalk = FingerStalks[Finger];
@@ -486,6 +546,20 @@ void UVaelPlantArmComponent::UpdateStalks()
 		Muzzles[Finger] = BodyTransform.TransformPosition(End);
 		MuzzleDirections[Finger] = BodyTransform.TransformVectorNoScale(Direction);
 	}
+
+	// The water leaves at the rim of the front funnel; the pump wave swells the funnels of the barrel as it passes
+	const FVector BarrelFront = BarrelBase + AimLocal * (Plant->BarrelSpacing * (NumFingers - 1) + Plant->TipSize);
+	BarrelMuzzle = BodyTransform.TransformPosition(BarrelFront);
+	BarrelDirection = BodyTransform.TransformVectorNoScale(AimLocal);
+	if (Barrel > 0.0f)
+	{
+		for (int32 Finger = 0; Finger < FingerTips.Num(); ++Finger)
+		{
+			const float Share = 1.0f + 0.04f * BarrelRank[Finger];
+			FingerTips[Finger]->SetRelativeScale3D(FVector(Plant->TipSize / 10.0f * Grow * (1.0f + GetPumpSwell(Share) * Barrel)));
+		}
+	}
+	UpdateLeaves(Shoulder, Elbow, Wrist);
 
 	// Winding stalks: half a turn around the forearm, from a little above the elbow to the wrist
 	const FVector WrapStart = FMath::Lerp(Elbow, Shoulder, 0.15f);
@@ -626,10 +700,21 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 void UVaelPlantArmComponent::Shoot(int32 Finger)
 {
 	AVaelCharacter* Character = GetCharacter();
-	Flashes[Finger] = 1.0f;
+	const bool bBarrel = !Flashes.IsValidIndex(Finger);
+	if (bBarrel)
+	{
+		for (float& Flash : Flashes)
+		{
+			Flash = 0.6f;
+		}
+	}
+	else
+	{
+		Flashes[Finger] = 1.0f;
+	}
 
-	// Out of the fingertip towards where the player aims, flat over the ground
-	const FVector Muzzle = Muzzles[Finger];
+	// Out of the fingertip, or the front of the barrel, towards where the player aims, flat over the ground
+	const FVector Muzzle = bBarrel ? BarrelMuzzle : Muzzles[Finger];
 	FVector Direction = UVaelFormulaAbility::GetAimDirection(Character);
 	Direction.Z = 0.0f;
 	Direction = Direction.GetSafeNormal();
@@ -642,6 +727,8 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	FVaelSpellHit Hit;
 	Hit.Damage = Plant->ShotDamage;
 	Hit.Element = Plant->ShotElement;
+	Hit.Status = Plant->ShotStatus;
+	Hit.StatusDuration = Plant->ShotStatusDuration;
 
 	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
 	const FTransform SpawnTransform(Direction.Rotation(), Muzzle);
@@ -658,6 +745,13 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 		Burst.Damage = Plant->BurstDamage;
 		Burst.Element = Plant->ShotElement;
 		Shot->SetExplosion(Burst, Plant->BurstRadius);
+	}
+	// Water hands shoot balls of their own real water, which waters the plants where it bursts
+	if (UVaelElementSource* Source = VaelAssets::LoadOptional(Plant->WaterSource))
+	{
+		Shot->SetLook(EVaelProjectileLook::WaterOrb);
+		Shot->SetWaterSource(Source);
+		Shot->SetWatersPlants(Plant->WaterRadius, Plant->WaterPerShot);
 	}
 	Shot->SetEffects(VaelEffects::Load(Plant->ShotElement));
 	Shot->FinishSpawning(SpawnTransform);
@@ -788,4 +882,165 @@ void UVaelPlantArmComponent::UpdateOvergrowth(const FVector& Shoulder, const FVe
 		Pad->SetRelativeLocationAndRotation(Places[Index] + Out * Radius * 0.8f, FRotationMatrix::MakeFromZX(Out, UpperAxis).Rotator());
 		Pad->SetRelativeScale3D(FVector(Scale * 1.3f, Scale, Scale * 0.7f));
 	}
+}
+
+// ---------------------------------------------------------------- Funnel leaves and pump (Taublatt)
+
+float UVaelPlantArmComponent::GetPumpPosition() const
+{
+	const float Wave = (GetWorld()->GetTimeSeconds() - PumpStartTime) / FMath::Max(Plant->PumpWaveTime, 0.05f);
+	if (Wave < 0.0f || (!bPumpLoop && Wave > 1.3f))
+	{
+		return -10.0f;
+	}
+	// It runs from a little before the shoulder to a little past the barrel
+	return (bPumpLoop ? FMath::Frac(Wave) : Wave) * 1.3f - 0.1f;
+}
+
+float UVaelPlantArmComponent::GetPumpSwell(float Share) const
+{
+	const float Distance = (Share - GetPumpPosition()) / 0.13f;
+	return Plant->PumpSwell * FMath::Exp(-Distance * Distance);
+}
+
+void UVaelPlantArmComponent::StartPump(bool bLoop)
+{
+	PumpStartTime = GetWorld()->GetTimeSeconds();
+	bPumpLoop = bLoop;
+}
+
+void UVaelPlantArmComponent::UpdateLeaves(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist)
+{
+	if (Leaves.IsEmpty())
+	{
+		return;
+	}
+
+	// The way from the shoulder to the hand: the upper arm takes the first part, the forearm the rest
+	const float Upper = FVector::Dist(Shoulder, Elbow);
+	const float Lower = FVector::Dist(Elbow, Wrist);
+	const float UpperShare = Upper / FMath::Max(Upper + Lower, 1.0f);
+	const float Open = FMath::DegreesToRadians(Plant->LeafOpenAngle) * (1.0f - Stance) + FMath::DegreesToRadians(8.0f) * Stance;
+	const float Radius = Plant->WrapRadius * FMath::Lerp(1.3f, 0.75f, Stance);
+
+	for (int32 Index = 0; Index < Leaves.Num(); ++Index)
+	{
+		const FVector& Shape = LeafShapes[Index];
+		const bool bOnUpper = Shape.X < UpperShare;
+		const FVector From = bOnUpper ? Shoulder : Elbow;
+		const FVector To = bOnUpper ? Elbow : Wrist;
+		const float Along = bOnUpper ? Shape.X / FMath::Max(UpperShare, 0.01f) : (Shape.X - UpperShare) / FMath::Max(1.0f - UpperShare, 0.01f);
+		const FVector Axis = (To - From).GetSafeNormal();
+		const FVector U = Across(Axis);
+		const FVector V = FVector::CrossProduct(Axis, U);
+		const FVector Out = U * FMath::Cos(Shape.Y) + V * FMath::Sin(Shape.Y);
+
+		// The cup looks towards the hand: open at rest it stands off the arm, while aiming it lies flat against it
+		const FVector Opening = (Axis * FMath::Cos(Open) + Out * FMath::Sin(Open)).GetSafeNormal();
+		const float Swell = 1.0f + GetPumpSwell(Shape.X);
+		const float Size = Plant->LeafSize / 10.0f * Shape.Z * Grow * Swell;
+
+		UStaticMeshComponent* Leaf = Leaves[Index];
+		Leaf->SetRelativeLocationAndRotation(FMath::Lerp(From, To, Along) + Out * Radius, FRotationMatrix::MakeFromZX(Opening, Out).Rotator());
+		Leaf->SetRelativeScale3D(FVector(Size, Size, Size * FMath::Lerp(1.0f, 0.85f, Stance)));
+		Leaf->SetVisibility(Size > 0.01f);
+	}
+}
+
+// ---------------------------------------------------------------- Water: Tauperle and jet
+
+void UVaelPlantArmComponent::StopJet()
+{
+	if (Jet != nullptr)
+	{
+		Jet->Stop();
+		Jet = nullptr;
+	}
+	bPumpLoop = false;
+}
+
+void UVaelPlantArmComponent::UpdateWaterFiring(float DeltaTime)
+{
+	const float Now = GetWorld()->GetTimeSeconds();
+	FireCountdown = FMath::Max(0.0f, FireCountdown - DeltaTime);
+	AVaelCharacter* Character = GetCharacter();
+
+	// What stops the water: no hand, a dodge, a reload, the camp
+	const bool bBlocked = Grow < 1.0f || Character->IsDowned() || Character->IsDodging() || IsReloading() || AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation());
+	if (bBlocked)
+	{
+		StopJet();
+		PendingShotTime = -1.0f;
+		HoldTime = 0.0f;
+		return;
+	}
+
+	// The pumped Tauperle leaves the barrel when the wave arrives at the hand
+	if (PendingShotTime >= 0.0f && Now >= PendingShotTime)
+	{
+		PendingShotTime = -1.0f;
+		if (BarShots >= 1.0f && Character->GetMana() >= Plant->SaftPerShot)
+		{
+			Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
+			BarShots -= 1.0f;
+			LastShotTime = Now;
+			Shoot(-1);
+		}
+	}
+
+	if (!IsFiring())
+	{
+		StopJet();
+		HoldTime = 0.0f;
+		bPumpedThisPress = false;
+		return;
+	}
+	HoldTime += DeltaTime;
+
+	// A press pumps one Tauperle: the wave runs from the shoulder down, the shot leaves when it reaches the barrel
+	if (!bPumpedThisPress && FireCountdown <= 0.0f)
+	{
+		bPumpedThisPress = true;
+		if (BarShots < 1.0f)
+		{
+			return;
+		}
+		if (Character->GetMana() < Plant->SaftPerShot)
+		{
+			UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
+			return;
+		}
+		StartPump(false);
+		PendingShotTime = Now + Plant->PumpWaveTime;
+		FireCountdown = FMath::Max(Plant->FireInterval, Plant->PumpWaveTime);
+	}
+
+	// Held long enough it turns into the jet, the pump going on and on; it costs bar and Saft every second, and sputters out when they are gone
+	if (Plant->JetHoldTime <= 0.0f || HoldTime < Plant->JetHoldTime || PendingShotTime >= 0.0f)
+	{
+		return;
+	}
+	const float BarCost = Plant->JetShotsPerSecond * DeltaTime;
+	const float SaftCost = Plant->JetSaftPerSecond * DeltaTime;
+	if (BarShots < BarCost || Character->GetMana() < SaftCost)
+	{
+		StopJet();
+		return;
+	}
+	if (Jet == nullptr)
+	{
+		Jet = AVaelSapJet::StartJet(Character, Plant, BarrelMuzzle, BarrelDirection);
+		StartPump(true);
+	}
+	if (Jet == nullptr)
+	{
+		return;
+	}
+	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - SaftCost);
+	BarShots -= BarCost;
+	LastShotTime = Now;
+
+	// Each wave arriving at the barrel pushes the jet harder for a moment
+	const float Arrival = FMath::Exp(-FMath::Square((GetPumpPosition() - 1.0f) / 0.15f));
+	Jet->Aim(BarrelMuzzle, BarrelDirection, Arrival);
 }

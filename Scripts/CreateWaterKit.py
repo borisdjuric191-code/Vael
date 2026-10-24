@@ -261,6 +261,9 @@ WAVE_MAGE_COLORS = {"DeepColor": (0.002, 0.012, 0.045), "MidColor": (0.004, 0.06
 # Look of the Blutflut: thick Mark blood, black-red at its foot, violet-red at the crest, mauve froth; glows a little more than spell water
 WAVE_MARK_SCALARS = {"EmissiveStrength": 0.22, "FoamScale": 1.8, "FoamBoil": 0.45, "BodyOpacity": 0.98, "EdgeRagged": 0.8, "Specular": 0.15, "Roughness": 0.12, "NormalStrength": 0.35, "ContactFade": 6.0}
 WAVE_MARK_COLORS = {"DeepColor": (0.012, 0.0, 0.006), "MidColor": (0.09, 0.004, 0.025), "CrestColor": (0.3, 0.035, 0.16), "FoamColor": (0.5, 0.28, 0.42)}
+# Taublatt: turquoise body, pale mint crest, glows a little more than the mage water
+WAVE_TAUBLATT_SCALARS = dict(WAVE_MAGE_SCALARS, EmissiveStrength=0.2)
+WAVE_TAUBLATT_COLORS = {"DeepColor": (0.001, 0.02, 0.018), "MidColor": (0.005, 0.1, 0.085), "CrestColor": (0.2, 0.66, 0.55), "FoamColor": (0.88, 1.0, 0.94)}
 
 
 def build_wave_material():
@@ -494,6 +497,8 @@ def build_instances(water, particle):
         "MI_Water_Swamp": water_look((0.01, 0.025, 0.005), (0.12, 0.18, 0.05), 0.85, 0.02, 0.8, 0.25, 0.05, 5.0, 0.15, 0.8),
         # Deep, black-green and cold, a faint film of ash, smooth but reflecting little; never glows like spell water
         "MI_Water_Well": water_look((0.003, 0.01, 0.009), (0.015, 0.04, 0.035), 0.92, 0.0, 0.0, 0.1, 0.08, 5.0, 0.04, 1.0),
+        # The water of the Taublatt arm: plant water, turquoise and clear with a soft glow, clearly not the blue of the mage
+        "MI_Water_Taublatt": water_look((0.0, 0.07, 0.065), (0.25, 0.95, 0.82), 0.1, 1.0, 4.0, 1.0, 0.25, 3.0, 0.2, 1.0),
     }
     instances = {}
     # The well water lies still in a narrow shaft: hardly any waves, a short soft edge against the stones
@@ -559,12 +564,17 @@ def main():
     wave = build_wave_material()
     make_instance(wave, "MI_Water_Wave_Mage", WAVE_MAGE_SCALARS, WAVE_MAGE_COLORS)
     make_instance(wave, "MI_Water_Wave_Mark", WAVE_MARK_SCALARS, WAVE_MARK_COLORS)
+    wave_taublatt = make_instance(wave, "MI_Water_Wave_Taublatt", WAVE_TAUBLATT_SCALARS, WAVE_TAUBLATT_COLORS)
 
     mage = make_source("DA_ElementSource_Water_Mage", "Zauberwasser (Magier)", instances["MI_Water_Spell_Mage"], (0.15, 0.55, 1.0, 1.0), (0.45, 0.8, 1.0, 0.8), 0.0)
     make_source("DA_ElementSource_Water_Mark", "Mark-Wasser", instances["MI_Water_Mark"], (0.25, 0.03, 0.35, 1.0), (0.18, 0.03, 0.25, 0.9), 0.85)
     make_source("DA_ElementSource_Water_Swamp", "Sumpfwasser", instances["MI_Water_Swamp"], (0.08, 0.12, 0.03, 1.0), (0.25, 0.32, 0.12, 0.75), 0.4)
     make_source("DA_ElementSource_Water_Rain", "Regenwasser", instances["MI_Water_Rain"], (0.2, 0.26, 0.32, 1.0), (0.6, 0.68, 0.75, 0.6), 0.0)
     make_source("DA_ElementSource_Water_Well", "Brunnenwasser", instances["MI_Water_Well"], (0.05, 0.12, 0.12, 1.0), (0.15, 0.25, 0.25, 0.8), 0.1)
+    taublatt = make_source("DA_ElementSource_Water_Taublatt", "Tauwasser (Taublatt)", instances["MI_Water_Taublatt"], (0.15, 0.85, 0.7, 1.0), (0.45, 1.0, 0.85, 0.8), 0.05)
+    if taublatt.get_editor_property("wave_material") is None:
+        taublatt.set_editor_property("wave_material", wave_taublatt)
+        assets.save_loaded_asset(taublatt, False)
 
     build_orb(mage)
     unreal.log("Vael water kit: created {} assets: {}".format(len(created), ", ".join(path.split("/")[-1] for path in created)))

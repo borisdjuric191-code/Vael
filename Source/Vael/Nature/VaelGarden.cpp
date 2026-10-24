@@ -825,6 +825,7 @@ AVaelSownPlant* AVaelSownPlant::Plant(UWorld* World, FName InPlantId, const FVec
 void AVaelSownPlant::BeginPlay()
 {
 	Super::BeginPlay();
+	VaelWatering::Register(this);
 
 	if (const FVaelSeedPlant* Kind = UVaelGardenSubsystem::FindPlant(PlantId))
 	{
@@ -919,7 +920,18 @@ void AVaelSownPlant::BeginPlay()
 void AVaelSownPlant::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	UVaelInteractionSubsystem::Unregister(this);
+	VaelWatering::Unregister(this);
 	Super::EndPlay(EndPlayReason);
+}
+
+void AVaelSownPlant::ReceiveWater(float Amount, AActor* Giver)
+{
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+	if (!IsGrown())
+	{
+		Age = FMath::Min(Age + Amount * Settings->WaterGrowSeconds, Settings->GrowSeconds);
+	}
+	Watered = FMath::Min(1.0f, Watered + Amount);
 }
 
 bool AVaelSownPlant::IsGrown() const
@@ -1091,9 +1103,13 @@ void AVaelSownPlant::Tick(float DeltaSeconds)
 	const float SpentSize = FMath::Lerp(1.0f, Settings->HarvestedScale, SpentShare);
 	const float SpentGlow = FMath::Lerp(1.0f, Settings->HarvestedGlow, SpentShare);
 
-	Model->SetRelativeScale3D(FVector(Size * SizeScale * SpentSize));
+	// Freshly watered it swells a little and glows brighter, then dries over a few seconds
+	Watered = FMath::Max(0.0f, Watered - DeltaSeconds / Settings->WateredSeconds);
+	const float WateredSwell = 1.0f + 0.06f * Watered;
+
+	Model->SetRelativeScale3D(FVector(Size * SizeScale * SpentSize * WateredSwell));
 	Model->SetRelativeRotation(FRotator(FMath::Sin(Phase) * 2.5f, BaseYaw, FMath::Sin(Phase * 0.7f) * 2.0f));
-	Glow->SetIntensity(GlowStrength * Grown * SpentGlow * (0.8f + 0.2f * FMath::Sin(Age * 2.1f)));
+	Glow->SetIntensity(GlowStrength * Grown * SpentGlow * (0.8f + 0.2f * FMath::Sin(Age * 2.1f)) * (1.0f + Settings->WateredGlow * Watered));
 
 	UpdateGreen(DeltaSeconds);
 }

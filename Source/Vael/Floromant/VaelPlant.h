@@ -6,6 +6,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "GameFramework/Actor.h"
 #include "Floromant/VaelPlantData.h"
+#include "Nature/VaelWaterable.h"
 #include "VaelPlant.generated.h"
 
 class AVaelCharacter;
@@ -30,7 +31,7 @@ namespace VaelRoots
  *  All its movement is procedural: the material fades it in from the bottom up and sways it, the code pops its size, squashes and flashes it.
  */
 UCLASS()
-class AVaelPlant : public AVaelCharacterBase
+class AVaelPlant : public AVaelCharacterBase, public IVaelWaterable
 {
 	GENERATED_BODY()
 
@@ -88,10 +89,15 @@ public:
 	virtual bool CanReceiveStatus(EVaelStatus Status) const override { return Status == EVaelStatus::Burning; }
 	//~End AVaelCharacterBase
 
+	/** Watered it gets some health back and glistens; wild plants are not there to be watered */
+	virtual void ReceiveWater(float Amount, AActor* Giver) override;
+
 protected:
 
 	/** Builds the look and starts to grow */
 	virtual void BeginPlay() override;
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/** Withers at zero health, ducks when hurt */
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;

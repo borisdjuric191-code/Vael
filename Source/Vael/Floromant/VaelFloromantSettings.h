@@ -284,4 +284,8 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 1))
 	float KeimpelzPadSize = 16.0f;
+
+	/** Health a plant of the Floromant gets back from one Tauperle of water (a jet gives it bit by bit); the water heals no one else */
+	UPROPERTY(config, EditAnywhere, Category="Watering", meta = (ClampMin = 0))
+	float PlantWaterHealth = 6.0f;
 };

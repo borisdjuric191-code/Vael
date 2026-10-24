@@ -240,6 +240,7 @@ void AVaelPlant::BeginPlay()
 
 	BuildLook();
 	UpdateLook(0.0f);
+	VaelWatering::Register(this);
 
 	// Earth sprays up where it breaks out of the ground, with a few sparks in its colour
 	const FVector Ground(GetActorLocation().X, GetActorLocation().Y, GroundZ);
@@ -414,6 +415,22 @@ void AVaelPlant::UpdateLook(float DeltaSeconds)
 		Rotation.Pitch = -LeanAmount;
 		GrowingPart->SetRelativeRotation(Rotation);
 	}
+}
+
+void AVaelPlant::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	VaelWatering::Unregister(this);
+	Super::EndPlay(EndPlayReason);
+}
+
+void AVaelPlant::ReceiveWater(float Amount, AActor* Giver)
+{
+	if (bWild || bWithering)
+	{
+		return;
+	}
+	UVaelCombatStatics::Heal(this, Amount * UVaelFloromantSettings::Get()->PlantWaterHealth);
+	Flash(0.4f, FMath::Min(0.25f + Amount, 0.6f));
 }
 
 void AVaelPlant::Flash(float Seconds, float Strength)

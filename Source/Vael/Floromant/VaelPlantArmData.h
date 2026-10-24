@@ -10,6 +10,7 @@
 class UMaterialInterface;
 class UNiagaraSystem;
 class UStaticMesh;
+class UVaelElementSource;
 class UVaelPlantData;
 
 /**
@@ -140,6 +141,100 @@ public:
 	/** Burst while the hand turns; empty uses the burst of the element of the shots */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UNiagaraSystem> GrowEffect;
+
+	// --- Funnel leaves (Taublatt, Boris 2026-10-24): loose and open along the arm at rest, the cup facing the hand; while aiming
+	// they lie against the arm and a pump wave runs through them from the shoulder to the hand; the heads of the fingers nest
+	// into each other in front of the hand and form the barrel
+
+	/** Leaf along the arm, a funnel with its foot at the pivot and its opening up (+Z); none for plants without */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels")
+	TSoftObjectPtr<UStaticMesh> LeafMesh;
+
+	/** Leaves along forearm and upper arm, their height in cm, and how far they stand off the arm at rest in degrees */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0, ClampMax = 12))
+	int32 LeafCount = 0;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 1))
+	float LeafSize = 14.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0, ClampMax = 90))
+	float LeafOpenAngle = 55.0f;
+
+	/** While aiming the finger heads gather in front of the hand into a barrel, each one nested into the one before it */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels")
+	bool bFingersFormBarrel = false;
+
+	/** Distance between two funnels of the barrel, in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0))
+	float BarrelSpacing = 7.0f;
+
+	/** Seconds the pump wave takes from the shoulder to the hand; a tapped shot leaves the barrel when the wave arrives */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0.05))
+	float PumpWaveTime = 0.22f;
+
+	/** How much a leaf swells while the wave passes it */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0))
+	float PumpSwell = 0.35f;
+
+	// --- Water: the shots are Tauperlen of the source's water; holding the button turns them into a jet that pushes enemies back.
+	// The water heals no one; it waters plants (Boris 2026-10-24)
+
+	/** Water of the shots; set, the shots fly as balls of real water of this source and burst into its puddles */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Water")
+	TSoftObjectPtr<UVaelElementSource> WaterSource;
+
+	/** Condition the shots and the jet leave, and its seconds (Wet: lightning of the mage hits twice as hard) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Water")
+	EVaelStatus ShotStatus = EVaelStatus::None;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Water", meta = (ClampMin = 0))
+	float ShotStatusDuration = 4.0f;
+
+	/** Radius in cm in which a burst shot waters plants, and how much (1 = a full Tauperle); 0 for plants whose shots don't water */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Water", meta = (ClampMin = 0))
+	float WaterRadius = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Water", meta = (ClampMin = 0))
+	float WaterPerShot = 1.0f;
+
+	/** Seconds the button has to be held before the shots turn into the jet; 0 = no jet */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
+	float JetHoldTime = 0.0f;
+
+	/** Damage per second, reach and half width of the jet in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
+	float JetDamagePerSecond = 8.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 50))
+	float JetRange = 850.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 5))
+	float JetHalfWidth = 45.0f;
+
+	/** Speed in cm/s at which the jet pushes enemies away, again and again while they stand in it */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
+	float JetPush = 450.0f;
+
+	/** Shots of the plant bar and Saft the jet uses per second */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
+	float JetShotsPerSecond = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
+	float JetSaftPerSecond = 3.0f;
+
+	/** Water the jet gives the plants it touches per second (1 = a Tauperle) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
+	float JetWaterPerSecond = 2.0f;
+
+	/** Radius of the jet at the barrel and where it ends, in cm, and turns of its spiral per metre */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 1))
+	float JetStartRadius = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 1))
+	float JetEndRadius = 10.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
+	float JetSpiralTurns = 0.8f;
 
 	// --- Shots
 
