@@ -254,13 +254,24 @@ def main():
         points = []
         open_metres = 0.0
         for index, vein in enumerate(veins):
-            for x, y, z, width, along, is_open in vein:
+            for at, (x, y, z, width, along, is_open) in enumerate(vein):
+                # The ground at both edges of the ridge (1.3 widths), so the vein follows a slope across (AVaelNidVeins: Side is
+                # up x forward, left is Y = -1)
+                bx, by = vein[max(at - 1, 0)][:2]
+                ax, ay = vein[min(at + 1, len(vein) - 1)][:2]
+                forward = math.hypot(ax - bx, ay - by) or 1.0
+                side_x, side_y = -(ay - by) / forward, (ax - bx) / forward
+                reach = width * 0.65
+                ground_left = terrain.height(x - side_x * reach, y - side_y * reach) - z
+                ground_right = terrain.height(x + side_x * reach, y + side_y * reach) - z
                 point = unreal.VaelNidVeinPoint()
                 point.set_editor_property("location", unreal.Vector(x, y, z))
                 point.set_editor_property("width", width)
                 point.set_editor_property("along", along)
                 point.set_editor_property("open", is_open)
                 point.set_editor_property("vein", index)
+                point.set_editor_property("ground_left", ground_left)
+                point.set_editor_property("ground_right", ground_right)
                 points.append(point)
                 open_metres += STEP / 100.0 if is_open else 0.0
         x, y = net["at"]

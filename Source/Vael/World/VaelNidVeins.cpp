@@ -19,7 +19,7 @@ namespace
 	constexpr float VeinStep = 100.0f;
 
 	/** Profile across a vein: the liquid bulges a little above the ground, its edges sink into it */
-	constexpr float LiquidBulge = 0.03f;
+	constexpr float LiquidBulge = 0.05f;
 	constexpr float LiquidSink = 0.12f;
 
 	/** A vein under the ground only swells it, a little wider than the vein */
@@ -161,9 +161,15 @@ void AVaelNidVeins::BuildMesh()
 				for (int32 Across = 0; Across < VeinAcross; ++Across)
 				{
 					const float Y = Across / float(VeinAcross - 1) * 2.0f - 1.0f;
-					const float Height = Width * (Bulge * (1.0f - Y * Y) - Sink * Y * Y);
+					// The ground across the vein, a curve through its centre and both sampled edges (at the ridge's width)
+					const float G = Y * Wider / RidgeWidth;
+					const float Tilt = (Point.GroundRight - Point.GroundLeft) * 0.5f;
+					const float Hollow = (Point.GroundRight + Point.GroundLeft) * 0.5f;
+					const float Height = G * Tilt + G * G * Hollow + Width * (Bulge * (1.0f - Y * Y) - Sink * Y * Y);
+					// Rise per cm sideways, of the ground and of the profile
+					const float Slope = ((Tilt + 2.0f * G * Hollow) * Wider / RidgeWidth - Width * 2.0f * Y * (Bulge + Sink)) * 2.0f / FMath::Max(Width, 1.0f);
 					Strip.Vertices.Add(Point.Location - Origin + Side * Y * Width * 0.5f + FVector(0.0f, 0.0f, Height));
-					Strip.Normals.Add((FVector::UpVector + Side * 4.0f * Y * (Bulge + Sink)).GetSafeNormal());
+					Strip.Normals.Add((FVector::UpVector - Side * Slope).GetSafeNormal());
 					// u across the vein, v along its way from the spring in metres; UV1: its width in metres, and which vein it is
 					Strip.UV0.Add(FVector2D((Y + 1.0f) * 0.5f, Point.Along / 100.0f));
 					Strip.UV1.Add(FVector2D(Point.Width / 100.0f, BranchRandom));

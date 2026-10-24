@@ -45,6 +45,14 @@ struct FVaelNidVeinPoint
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nid")
 	int32 Vein = 0;
+
+	/** Ground height left and right of the point in cm, relative to Location, at the edges of the ridge (1.3 widths), so the
+	 *  vein lies in the ground across a slope instead of sinking into it with one side */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nid")
+	float GroundLeft = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Nid")
+	float GroundRight = 0.0f;
 };
 
 UCLASS()

@@ -21,7 +21,7 @@ import unreal
 FOLDER = "/Game/Vael/Nid"
 NOISE = "/Game/Vael/Effects/Feuer/T_Feuer_Rauschen"
 WAVES = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n.water_n"
-KIT_VERSION = 1.2
+KIT_VERSION = 1.6
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -111,6 +111,10 @@ def new_material(name):
                 library.get_material_default_scalar_parameter_value(material, "KitVersion") >= KIT_VERSION - 0.001:
             return None
         library.delete_all_material_expressions(material)
+        # Nodes of older graphs survive that in the commandlet; with two parameters of one name the older default wins
+        for expression in list(unreal.ObjectIterator(unreal.MaterialExpression)):
+            if expression.get_outer() == material:
+                library.delete_material_expression(material, expression)
         made.append(path + " (graph rebuilt)")
         return material
     made.append(path)
@@ -163,7 +167,7 @@ def build_liquid(noise, waves):
     streak = g.sample(noise, g.mul(18, flowing, g.const(0.12, 19)), 17, "R")
     centre = g.sub(16, g.const(1.0, 17), g.abs(17, g.mul(18, g.sub(19, u, g.const(0.5, 20)), g.const(2.0, 20))))
     deep = g.mul(14, centre, g.ramp(15, width, 0.2, 1.4))
-    body = g.lerp(12, g.lerp(13, g.vector("Farbe", (0.1, 0.007, 0.035), 14), g.vector("Tief", (0.045, 0.004, 0.03), 14), deep), g.vector("Rot", (0.17, 0.012, 0.03), 13), g.mul(13, g.ramp(14, streak, 0.6, 0.9), g.const(0.6, 14)))
+    body = g.lerp(12, g.lerp(13, g.vector("Farbe", (0.09, 0.008, 0.014), 14), g.vector("Tief", (0.04, 0.004, 0.012), 14), deep), g.vector("Rot", (0.16, 0.014, 0.012), 13), g.mul(13, g.ramp(14, streak, 0.6, 0.9), g.const(0.6, 14)))
 
     # A dark crust where it touches the ground
     crust = g.sub(14, g.const(1.0, 15), g.ramp(15, centre, 0.05, 0.3))
@@ -179,19 +183,19 @@ def build_liquid(noise, waves):
     nibble = g.sample(noise, g.mul(18, flowing, g.const(0.5, 19)), 17, "R")
     ragged = g.sub(9, g.add(10, centre, g.mul(11, g.sub(12, nibble, g.const(0.5, 13)), g.const(0.5, 12))), g.const(0.12, 10))
 
-    colour = g.lerp(8, g.lerp(9, body, g.vector("Kruste", (0.025, 0.01, 0.018), 10), crust), g.vector("Schaumfarbe", (0.42, 0.26, 0.36), 10), foam)
-    roughness = g.lerp(8, g.lerp(9, g.const(0.28, 10), g.const(0.85, 10), crust), g.const(0.6, 10), foam)
+    colour = g.lerp(8, g.lerp(9, body, g.vector("Kruste", (0.025, 0.01, 0.018), 10), crust), g.vector("Schaumfarbe", (0.3, 0.2, 0.19), 10), foam)
+    roughness = g.lerp(8, g.lerp(9, g.const(0.38, 10), g.const(0.85, 10), crust), g.const(0.6, 10), foam)
     normal = g.lerp(8, waves_normal, g.node(unreal.MaterialExpressionConstant3Vector, 10, constant=unreal.LinearColor(0, 0, 1, 1)), g.sat(9, g.add(10, crust, foam)))
 
     # It glows faintly violet from inside, breathing slowly; foam and crust do not glow
     breath = g.add(12, g.const(0.7, 13), g.mul(13, g.sin(14, g.add(15, g.mul(16, time, g.const(0.25, 17)), g.mul(16, v, g.const(0.03, 17)))), g.const(0.3, 14)))
-    glow = g.mul(6, g.mul(7, g.vector("Glut", (0.3, 0.03, 0.55), 8), g.scalar("Leuchten", 0.15, 8)),
+    glow = g.mul(6, g.mul(7, g.vector("Glut", (0.28, 0.015, 0.22), 8), g.scalar("Leuchten", 0.08, 8)),
                  g.mul(7, g.mul(8, centre, breath), g.sub(8, g.const(1.0, 9), g.sat(9, g.add(10, foam, crust)))))
 
     finish(material, {
         unreal.MaterialProperty.MP_BASE_COLOR: colour,
         unreal.MaterialProperty.MP_ROUGHNESS: roughness,
-        unreal.MaterialProperty.MP_SPECULAR: g.const(0.35, 3),
+        unreal.MaterialProperty.MP_SPECULAR: g.const(0.08, 3),
         unreal.MaterialProperty.MP_NORMAL: normal,
         unreal.MaterialProperty.MP_EMISSIVE_COLOR: glow,
         unreal.MaterialProperty.MP_OPACITY_MASK: ragged,
@@ -210,7 +214,7 @@ def build_ridge(noise):
     colour = g.lerp(10, g.vector("Erde", (0.05, 0.035, 0.03), 11), g.vector("Ader", (0.05, 0.015, 0.035), 11), g.mul(11, centre, g.add(12, g.const(0.5, 13), g.mul(13, dirt, g.const(0.5, 14)))))
     # A faint violet pulse runs along the vein under the ground, away from the spring like its liquid
     pulse = g.sat(10, g.mul(11, g.sin(12, g.sub(13, g.mul(14, v, g.const(0.15, 15)), g.mul(14, time, g.scalar("Fliessen", 0.12, 15)))), g.const(1.5, 12)))
-    glow = g.mul(6, g.mul(7, g.vector("Glut", (0.45, 0.05, 0.85), 8), g.scalar("Leuchten", 0.05, 8)), g.mul(7, g.mul(8, centre, centre), pulse))
+    glow = g.mul(6, g.mul(7, g.vector("Glut", (0.35, 0.02, 0.4), 8), g.scalar("Leuchten", 0.05, 8)), g.mul(7, g.mul(8, centre, centre), pulse))
     finish(material, {
         unreal.MaterialProperty.MP_BASE_COLOR: colour,
         unreal.MaterialProperty.MP_ROUGHNESS: g.const(0.9, 3),
@@ -229,8 +233,8 @@ def build_bubble():
     fresnel = g.node(unreal.MaterialExpressionFresnel, 20, exponent=2.0)
     # The skin thins as the bubble swells: lighter, more violet before it bursts
     thin = g.ramp(15, life, 0.4, 1.0)
-    colour = g.lerp(10, g.vector("Farbe", (0.12, 0.01, 0.045), 11), g.vector("Duenn", (0.3, 0.08, 0.3), 11), thin)
-    glow = g.mul(6, g.vector("Glut", (0.45, 0.05, 0.85), 7), g.mul(7, g.add(8, g.mul(9, fresnel, g.const(0.6, 10)), g.mul(9, thin, g.const(0.4, 10))), g.scalar("Leuchten", 0.5, 8)))
+    colour = g.lerp(10, g.vector("Farbe", (0.12, 0.01, 0.045), 11), g.vector("Duenn", (0.3, 0.08, 0.16), 11), thin)
+    glow = g.mul(6, g.vector("Glut", (0.45, 0.04, 0.42), 7), g.mul(7, g.add(8, g.mul(9, fresnel, g.const(0.6, 10)), g.mul(9, thin, g.const(0.4, 10))), g.scalar("Leuchten", 0.5, 8)))
     finish(material, {
         unreal.MaterialProperty.MP_BASE_COLOR: colour,
         unreal.MaterialProperty.MP_ROUGHNESS: g.const(0.08, 3),
