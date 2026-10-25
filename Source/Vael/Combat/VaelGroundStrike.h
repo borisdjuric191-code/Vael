@@ -76,7 +76,8 @@ public:
 	void SetAftermath(const FVaelStrikeAftermath& InAftermath, float InShake = 0.0f);
 
 	/** Chooses what rises where the strike lands instead of the plain spike. Call right after spawning. */
-	void SetLook(EVaelStrikeLook InLook) { Look = InLook; }
+	/** Sets the look; hail needs no warning on the ground, its storm cloud and volleys show where it falls */
+	void SetLook(EVaelStrikeLook InLook);
 
 private:
 

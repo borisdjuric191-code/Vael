@@ -6,6 +6,7 @@
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Components/PointLightComponent.h"
 #include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelIceShards.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
@@ -134,6 +135,16 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVecto
 
 	GroundStrike->FinishSpawning(SpawnTransform);
 	return GroundStrike;
+}
+
+void AVaelGroundStrike::SetLook(EVaelStrikeLook InLook)
+{
+	Look = InLook;
+	if (Look == EVaelStrikeLook::Hail)
+	{
+		WarningDisc->SetVisibility(false);
+		WarningFill->SetVisibility(false);
+	}
 }
 
 void AVaelGroundStrike::SetAftermath(const FVaelStrikeAftermath& InAftermath, float InShake)
@@ -322,6 +333,9 @@ void AVaelGroundStrike::Strike()
 		Shards.Color = UVaelMagicSettings::Get()->HailColor;
 		Shards.Glow = 0.6f;
 		AVaelDebrisBurst::Spawn(this, GetActorLocation() + FVector(0.0f, 0.0f, 8.0f), Shards);
+
+		// and lies on as broken ice that fire can melt into water
+		AVaelIceShards::Spawn(GetWorld(), GetActorLocation(), Radius * 0.55f, GetInstigator());
 	}
 	else if (Look != EVaelStrikeLook::Spike)
 	{

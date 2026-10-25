@@ -380,6 +380,23 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 10))
 	int32 HailMaxLances = 160;
 
+	/** Broken ice each strike leaves (AVaelIceShards): how many shards, seconds it lies before it has thawed away;
+	 *  fire this close melts it in IceMeltSeconds into a puddle of IceMeltWater (as much as a Geysir leaves: 3) */
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
+	int32 IceShardCount = 12;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 1))
+	float IceLieSeconds = 20.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	float IceMeltFireReach = 150.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0.1))
+	float IceMeltSeconds = 1.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
+	float IceMeltWater = 1.2f;
+
 	/** A dust devil cast in one's own sand storm swallows it (in StormGatherSeconds) and becomes a giant: reach and look in
 	 *  times its radius, times the debris, damage, pull, and speed (slower) */
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0.1))
