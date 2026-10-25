@@ -113,6 +113,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UNiagaraComponent>> JetFlames;
 
+	/** Radius of the fire core cylinder, 0 while the placeholder shows */
+	float CoreRadius = 0.0f;
+
 	/** World time at which the beam ends */
 	float EndTime = 0.0f;
 

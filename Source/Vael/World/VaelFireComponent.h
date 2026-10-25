@@ -113,6 +113,42 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	TMap<FName, float> JetFloats;
 
+	/** Small burst of flames where a Funke hits, played once */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TSoftObjectPtr<class UNiagaraSystem> SparkHitNiagara;
+
+	/** Mushroom cloud of the Feuerball (AVaelFireMushroom): its puffs of burning smoke, their color (alpha = thickness),
+	 *  its height in burst radii, seconds the stem climbs, rings of its cap, seconds between stem puffs and the drift of the smoke */
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom")
+	TSoftObjectPtr<class UNiagaraSystem> MushroomSmoke;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom")
+	FLinearColor MushroomSmokeColor = FLinearColor(0.22f, 0.17f, 0.14f, 0.9f);
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.5"))
+	float MushroomHeightShare = 3.2f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.2"))
+	float MushroomRiseSeconds = 1.1f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="1"))
+	int32 MushroomCapRings = 3;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.02"))
+	float MushroomPuffInterval = 0.06f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom")
+	float MushroomWindSpeed = 2.5f;
+
+	/** Material of the core of a fire beam (Feuerstrahl): a cylinder of concentrated fire, white in the middle,
+	 *  yellow, orange and black to the edge (M_Vael_Feuerstrahl from Scripts/CreateFireBeam.py) */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TSoftObjectPtr<UMaterialInterface> BeamCoreMaterial;
+
+	/** Thickness of that core in cm (radius) */
+	UPROPERTY(config, EditAnywhere, Category="Niagara", meta=(ClampMin="2"))
+	float BeamCoreRadius = 26.0f;
+
 	/** Wind speed given to flying fire and the jet, for the pack parameter "Wind Speed" */
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	float FlightWindSpeed = 6.0f;

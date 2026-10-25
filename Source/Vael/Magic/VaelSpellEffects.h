@@ -52,10 +52,10 @@ struct FVaelPackTuning
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
 	FVector2D ScaleRange = FVector2D(0.25f, 4.0f);
 
-	/** Float parameters that get the scale instead of the component, for systems with their own size parameters
-	 *  (world-space emitters ignore the component scale for their sprites) */
+	/** Float parameters that get the scale instead of the component, each times its value here (1 for the multipliers
+	 *  of the fire pack, a size in cm for others); world-space emitters ignore the component scale for their sprites */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
-	TArray<FName> ScaleParameters;
+	TMap<FName, float> ScaleParameters;
 };
 
 /**

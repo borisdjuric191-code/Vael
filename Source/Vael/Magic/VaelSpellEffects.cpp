@@ -97,9 +97,9 @@ void VaelEffects::ApplyPackTuning(UNiagaraComponent* Component, const FLinearCol
 			{
 				Component->SetWorldScale3D(FVector(Scale));
 			}
-			for (const FName& Name : Tuning.ScaleParameters)
+			for (const TPair<FName, float>& Parameter : Tuning.ScaleParameters)
 			{
-				Component->SetVariableFloat(Name, Scale);
+				Component->SetVariableFloat(Parameter.Key, Parameter.Value * Scale);
 			}
 		}
 		return;

@@ -29,6 +29,7 @@
 #include "World/VaelGround.h"
 #include "World/VaelFireComponent.h"
 #include "World/VaelFireSpot.h"
+#include "World/VaelFireMushroom.h"
 
 namespace
 {
@@ -1616,6 +1617,12 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 	if (bHitSomething)
 	{
 		LightImpactFire();
+
+		// A spark bursts in a small puff of flames where it hits
+		if (Look == EVaelProjectileLook::Spark)
+		{
+			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelFireSettings::Get()->SparkHitNiagara), GetActorLocation(), FRotator::ZeroRotator, SpellColor, SpellRadius);
+		}
 	}
 
 	// A projectile that just runs out in the air fizzles without an impact
@@ -1667,6 +1674,12 @@ void AVaelSpellProjectile::Explode()
 	if (ExplosionHit.Element == EVaelElement::Fire)
 	{
 		AVaelFireSpot::SpawnBurst(World, Center, ExplosionRadius);
+
+		// A Feuerball sends up a mushroom cloud of burning smoke
+		if (Look == EVaelProjectileLook::Fireball)
+		{
+			AVaelFireMushroom::Spawn(World, Center, ExplosionRadius);
+		}
 		UE_LOG(LogVael, Verbose, TEXT("'%s' bursts in flames at %s"), *GetNameSafe(this), *Center.ToCompactString());
 	}
 

@@ -211,11 +211,21 @@ public:
 	int32 WhirlFunnelPieces = 170;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
-	int32 WhirlStormPieces = 220;
+	int32 WhirlStormPieces = 500;
+
+	/** Body of dust of a whirl: seconds between two dust clouds (the dust burst of a rock wall) in a funnel and in a storm, their size in whirl radii */
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
+	float WhirlFunnelDustInterval = 0.07f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
+	float WhirlStormDustInterval = 0.035f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
+	float WhirlDustSize = 0.35f;
 
 	/** Mist veil (Nebelschleier): balls of steam in its cloud, its turn in degrees per second, seconds between two shreds tearing off and their drift (pack wind speed) */
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 2))
-	int32 VeilBalls = 8;
+	int32 VeilBalls = 12;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	float VeilTurnSpeed = 14.0f;

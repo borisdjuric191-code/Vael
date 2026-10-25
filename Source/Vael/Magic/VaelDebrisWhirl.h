@@ -78,4 +78,5 @@ private:
 	bool bFunnel = false;
 	FLinearColor DustColor = FLinearColor::Gray;
 	float NextDustCountdown = 0.0f;
+	float NextBodyCountdown = 0.0f;
 };

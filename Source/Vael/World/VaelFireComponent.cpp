@@ -115,6 +115,13 @@ UVaelFireSettings::UVaelFireSettings()
 	TrailNiagara = PackFire(TEXT("Fire_Windy"), TEXT("NS_FireWindy_Common"));
 	BurstNiagara = PackFire(TEXT("Fire_Big"), TEXT("NS_FireBig"));
 	JetNiagara = PackFire(TEXT("Fire_Windy"), TEXT("NS_FireWindy_Common"));
+	const auto Copy = [](const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Effects/Paket/%s.%s"), Name, Name)));
+	};
+	SparkHitNiagara = Copy(TEXT("NS_Vael_Funke_Treffer"));
+	MushroomSmoke = Copy(TEXT("NS_Vael_Feuerpilz_Rauch"));
+	BeamCoreMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Feuer/M_Vael_Feuerstrahl.M_Vael_Feuerstrahl")));
 
 	// A calm ball: flames live a third as long, rise slowly, no sparks flying off; the trail and the jet stream fast and short
 	FlyingBallFloats = { { TEXT("LifeTime Common"), 0.3f }, { TEXT("Velocity Common"), 0.35f }, { TEXT("Spawn Rate Common"), 1.6f }, { TEXT("Drag Common"), 2.0f } };

@@ -80,22 +80,41 @@ UVaelMagicSettings::UVaelMagicSettings()
 
 	// Fire (the systems are set in the fire settings). All of them simulate in world space and size their sprites by their own
 	// parameters, which are multipliers of 1; "Fire overlay color" is the brightness of the flames (2 in the pack, darker for Vael)
-	const TArray<FName> FireSizes = { TEXT("Emitter Size Common"), TEXT("Fire Size Common"), TEXT("Sprite Size Common"), TEXT("Smoke Size Common") };
+	const TMap<FName, float> FireSizes = { { TEXT("Emitter Size Common"), 1.0f }, { TEXT("Fire Size Common"), 1.0f }, { TEXT("Sprite Size Common"), 1.0f }, { TEXT("Smoke Size Common"), 1.0f } };
 	FVaelPackTuning* GroundFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Common/NS_FireCommon")), 60.0f, {}, {});
 	GroundFire->ScaleParameters = FireSizes;
 	GroundFire->Colors.Add(TEXT("Fire overlay color"), FLinearColor(1.25f, 1.15f, 1.05f, 1.0f));
 	GroundFire->Colors.Add(TEXT("Smoke color"), FLinearColor(0.35f, 0.33f, 0.32f, 0.55f));
+	// A little smaller and calmer: slower flames, fewer of them (Boris 2026-10-25, the campfire)
+	GroundFire->ReferenceRadius = 80.0f;
+	GroundFire->Floats = { { TEXT("Velocity Common"), 0.7f }, { TEXT("Spawn Rate Common"), 0.8f }, { TEXT("Drag Common"), 1.3f } };
 	FVaelPackTuning* BallFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Small/NS_FireSmall_var1")), 25.0f, {}, {});
 	BallFire->ScaleParameters = FireSizes;
+	// Balls of fire a little redder at the edge
+	BallFire->Colors.Add(TEXT("Fire overlay color"), FLinearColor(1.15f, 0.72f, 0.55f, 1.0f));
+
+	// Burst where a Funke hits: a copy of the small fire, short and thrown outwards
+	FVaelPackTuning* SparkHit = Tune(Pack(TEXT("Vael/Effects/Paket/NS_Vael_Funke_Treffer")), 20.0f, {}, {});
+	SparkHit->ScaleParameters = FireSizes;
+	SparkHit->Floats = { { TEXT("LifeTime Common"), 0.45f }, { TEXT("Velocity Common"), 2.6f }, { TEXT("Spawn Rate Common"), 4.0f } };
+
+	// Mushroom cloud of the Feuerball: a copy of the common fire, its smoke in the color the mushroom gives, thick and long
+	FVaelPackTuning* Mushroom = Tune(Pack(TEXT("Vael/Effects/Paket/NS_Vael_Feuerpilz_Rauch")), 60.0f, { TEXT("Smoke color") }, {});
+	Mushroom->ScaleParameters = FireSizes;
+	Mushroom->Floats = { { TEXT("LifeTime Smoke"), 2.2f }, { TEXT("LifeTime Fire"), 0.6f }, { TEXT("Spawn Rate Common"), 1.6f }, { TEXT("Velocity Common"), 0.8f } };
 	FVaelPackTuning* TrailFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Windy/NS_FireWindy_Common")), 30.0f, {}, {});
 	TrailFire->ScaleParameters = FireSizes;
 	FVaelPackTuning* BigFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Big/NS_FireBig")), 120.0f, {}, {});
 	BigFire->ScaleParameters = FireSizes;
 
 	// Steam: the grey-scale smoke of the fire pack without its flames, in the pale steam color
-	SteamEffect = Pack(TEXT("Fire_Solution_FX/Fire_Common/NS_FireCommon_GrayScale"));
-	Tune(SteamEffect, 60.0f, { TEXT("Smoke color"), TEXT("Smoke Light color") },
-		{ TEXT("Small_Fire"), TEXT("Fire_Light"), TEXT("Small_Fire001"), TEXT("Sparks"), TEXT("Main_Fire") })->ColorScale = 1.2f;
+	// The smoke plume of NiagaraExamples: soft light puffs in any color (the smoke of the fire pack is made for fire and
+	// stays dark and orange-lit). Sized by its sprite size in cm: scaling the component only spreads world-space puffs thin
+	SteamEffect = Pack(TEXT("NiagaraExamples/FX_Smoke/NS_Smoke_Plume"));
+	FVaelPackTuning* Steam = Tune(SteamEffect, 100.0f, { TEXT("Smoke Color") }, {});
+	Steam->ScaleParameters = { { TEXT("Sprite Size"), 110.0f } };
+	Steam->ScaleRange = FVector2D(0.5f, 3.5f);
+	Steam->Floats = { { TEXT("SpawnRate"), 16.0f } };
 
 	// Dust: the dirt explosion without its fire flash and sparks, in the color of the debris; puffs of the gravel footstep without stones and print
 	DustBurstEffect = Pack(TEXT("NiagaraExamples/FX_Explosions/NS_Dirt_Explosion_Small"));
@@ -126,7 +145,7 @@ UVaelMagicSettings::UVaelMagicSettings()
 	// Storms and whirlwinds (Sandsturm, Staubteufel): the air aura, its smoke, spiral and wave in the color of the spell
 	FVaelPackTuning* Storm = Tune(Pack(TEXT("Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Air")), 150.0f,
 		{ TEXT("Color_Smoke"), TEXT("Color_Spiral1"), TEXT("Color_Wave"), TEXT("Color_Sparks1") }, {});
-	Storm->ScaleParameters = { TEXT("Scale_All") };
+	Storm->ScaleParameters = { { TEXT("Scale_All"), 1.0f } };
 	BeamEffect = Effect(TEXT("NS_Vael_Beam"));
 	HandEffect = Effect(TEXT("NS_Vael_Hand"));
 

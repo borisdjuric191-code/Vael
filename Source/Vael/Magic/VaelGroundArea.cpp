@@ -97,8 +97,12 @@ void AVaelGroundArea::BeginPlay()
 	// Only areas that hurt somebody or lay a condition on them need to tick
 	SetActorTickEnabled((DamagePerSecond > 0.0f || GetInflictedStatus() != EVaelStatus::None) && GetInstigator() != nullptr);
 
-	// The real look replaces the placeholder disc as soon as the effect exists
+	// The real look replaces the placeholder disc as soon as the effect exists; a mist veil turns, so it ticks too
 	SpawnVisual();
+	if (VeilSpin != nullptr)
+	{
+		SetActorTickEnabled(true);
+	}
 }
 
 void AVaelGroundArea::Tick(float DeltaSeconds)
@@ -432,10 +436,12 @@ bool AVaelGroundArea::BuildVeil(UNiagaraSystem* Steam)
 	{
 		const bool bHigh = Index % 2 == 1;
 		const float Angle = Index * UE_TWO_PI / MagicSettings->VeilBalls;
-		const float Reach = Radius * (bHigh ? 0.45f : 0.8f);
-		const FVector Place(FMath::Cos(Angle) * Reach, FMath::Sin(Angle) * Reach, bHigh ? Radius * 0.55f : Radius * 0.15f);
-		if (UNiagaraComponent* Ball = VaelEffects::Attach(Steam, VeilSpin, NAME_None, GetLookColor(), Radius * 0.4f))
+		const float Reach = Radius * (bHigh ? 0.28f : 0.55f);
+		const FVector Place(FMath::Cos(Angle) * Reach, FMath::Sin(Angle) * Reach, bHigh ? Radius * 0.45f : Radius * 0.1f);
+		if (UNiagaraComponent* Ball = VaelEffects::Attach(Steam, VeilSpin, NAME_None, GetLookColor(), Radius * 0.6f))
 		{
+			// The plume allows only a few of itself at once; the veil needs all its balls
+			Ball->SetAllowScalability(false);
 			Ball->SetUsingAbsoluteLocation(false);
 			Ball->SetRelativeLocation(Place);
 			VaelFire::SetWind(Ball, FVector::ZeroVector, 0.0f);

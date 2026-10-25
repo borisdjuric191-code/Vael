@@ -19,6 +19,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
+#include "VaelAssets.h"
 #include "World/VaelFireComponent.h"
 #include "World/VaelGround.h"
 
@@ -109,7 +110,8 @@ void AVaelSpellBeam::BeginPlay()
 		{
 			// Narrow at the hands, widening towards the end
 			const float Share = (Index + 0.5f) / NumFlames;
-			if (UNiagaraComponent* Flame = VaelEffects::Attach(Settings.Jet, Mesh, NAME_None, Settings.Color, FMath::Lerp(BeamLookRadius, Settings.HalfWidth, Share)))
+			// Not destroyed when it stops: a flame behind a wall starts again once the beam reaches past it
+			if (UNiagaraComponent* Flame = VaelEffects::Attach(Settings.Jet, Mesh, NAME_None, Settings.Color, FMath::Lerp(BeamLookRadius, Settings.HalfWidth, Share), false))
 			{
 				Flame->SetUsingAbsoluteLocation(true);
 				Flame->SetUsingAbsoluteRotation(true);
@@ -120,7 +122,15 @@ void AVaelSpellBeam::BeginPlay()
 				JetFlames.Add(Flame);
 			}
 		}
-		Mesh->SetVisibility(JetFlames.IsEmpty());
+
+		// The core: a cylinder of concentrated fire inside the flames
+		CoreRadius = 0.0f;
+		if (UMaterialInterface* CoreMaterial = VaelAssets::LoadOptional(FireSettings->BeamCoreMaterial))
+		{
+			Mesh->SetMaterial(0, CoreMaterial);
+			CoreRadius = FireSettings->BeamCoreRadius;
+		}
+		Mesh->SetVisibility(JetFlames.IsEmpty() || CoreRadius > 0.0f);
 	}
 	VisualComponent = JetFlames.IsEmpty() ? VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, BeamLookRadius) : nullptr;
 	if (VisualComponent != nullptr)
@@ -268,5 +278,6 @@ void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, 
 
 	// The cylinder stands on its axis, which is turned into the aim direction
 	Mesh->SetWorldLocationAndRotation(Start + Direction * VisibleLength * 0.5f, FRotationMatrix::MakeFromZ(Direction).Rotator());
-	Mesh->SetWorldScale3D(FVector(BeamLookRadius / BeamPlaceholderCylinderRadius, BeamLookRadius / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
+	const float LookRadius = CoreRadius > 0.0f ? CoreRadius : BeamLookRadius;
+	Mesh->SetWorldScale3D(FVector(LookRadius / BeamPlaceholderCylinderRadius, LookRadius / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
 }

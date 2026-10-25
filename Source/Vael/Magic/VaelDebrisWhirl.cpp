@@ -116,6 +116,20 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		Instances->MarkRenderStateDirty();
 	}
 
+	// The body: clouds of dust like those falling off a rock wall, all over the shape of the whirl, carried round with it
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	NextBodyCountdown -= DeltaTime;
+	while (NextBodyCountdown <= 0.0f)
+	{
+		NextBodyCountdown += bFunnel ? MagicSettings->WhirlFunnelDustInterval : MagicSettings->WhirlStormDustInterval;
+		FPiece Spot;
+		Spot.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		Spot.Height = FMath::FRandRange(0.0f, Height * (bFunnel ? 0.9f : 0.7f));
+		Spot.Offset = FMath::FRandRange(-0.3f, 0.05f);
+		const FVector Place = GetComponentTransform().TransformPosition(PlaceOf(Spot));
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(MagicSettings->DustBurstEffect), Place, FRotator::ZeroRotator, DustColor, Radius * MagicSettings->WhirlDustSize);
+	}
+
 	// Dust swirls up at the bottom
 	NextDustCountdown -= DeltaTime;
 	if (NextDustCountdown <= 0.0f)
