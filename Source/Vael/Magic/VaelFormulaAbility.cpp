@@ -43,6 +43,7 @@
 #include "Vael.h"
 #include "VaelAssets.h"
 #include "World/VaelFireComponent.h"
+#include "Magic/VaelHailStorm.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -1005,6 +1006,8 @@ void UVaelFormulaAbility::CallStrike(const UVaelFormula& Formula, AActor* Caster
 		UE_LOG(LogVael, Log, TEXT("%s falls wider in mist"), *Formula.DisplayName.ToString());
 	}
 	const int32 NumStrikes = FMath::CeilToInt(Formula.StrikeCount * Spread);
+	TArray<FVector> StrikePoints;
+	TArray<float> StrikeDelays;
 
 	for (int32 StrikeIndex = 0; StrikeIndex < NumStrikes; ++StrikeIndex)
 	{
@@ -1027,13 +1030,22 @@ void UVaelFormulaAbility::CallStrike(const UVaelFormula& Formula, AActor* Caster
 			Location.Z -= Caster->GetSimpleCollisionHalfHeight();
 		}
 
-		AVaelGroundStrike* Strike = AVaelGroundStrike::SpawnStrike(Caster, Location, Hit, Formula.StrikeRadius, Formula.StrikeDelay + Formula.StrikeInterval * StrikeIndex, Color);
+		const float Delay = Formula.StrikeDelay + Formula.StrikeInterval * StrikeIndex;
+		AVaelGroundStrike* Strike = AVaelGroundStrike::SpawnStrike(Caster, Location, Hit, Formula.StrikeRadius, Delay, Color);
 		if (Strike != nullptr)
 		{
 			Strike->SetAftermath(MakeAftermath(Formula, Power), Formula.StrikeShake);
 			Strike->SetLook(Formula.StrikeLook);
-			Strike->SetLook(Formula.StrikeLook);
 		}
+		StrikePoints.Add(Location);
+		StrikeDelays.Add(Delay);
+	}
+
+	// Hail comes from a storm cloud over the whole patch, its lances landing on the strikes
+	if (Formula.StrikeLook == EVaelStrikeLook::Hail && !StrikePoints.IsEmpty())
+	{
+		const FVector Center(Target.X, Target.Y, StrikePoints[0].Z);
+		AVaelHailStorm::Spawn(Caster, Center, Formula.StrikeScatter * Spread + Formula.StrikeRadius, StrikePoints, StrikeDelays);
 	}
 }
 

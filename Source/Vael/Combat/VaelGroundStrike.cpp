@@ -308,6 +308,21 @@ void AVaelGroundStrike::Strike()
 			Spike->SetVisibility(true);
 		}
 	}
+	else if (Look == EVaelStrikeLook::Hail)
+	{
+		// The hail storm (AVaelHailStorm) brings the lances down; here the ice they bring shatters over the ground
+		FVaelDebris Shards;
+		Shards.Count = 14;
+		Shards.Spread = Radius * 0.5f;
+		Shards.Speed = 320.0f;
+		Shards.Lift = 260.0f;
+		Shards.Lifetime = 0.7f;
+		Shards.MinSize = 3.0f;
+		Shards.MaxSize = 8.0f;
+		Shards.Color = UVaelMagicSettings::Get()->HailColor;
+		Shards.Glow = 0.6f;
+		AVaelDebrisBurst::Spawn(this, GetActorLocation() + FVector(0.0f, 0.0f, 8.0f), Shards);
+	}
 	else if (Look != EVaelStrikeLook::Spike)
 	{
 		BuildSpikeCluster();

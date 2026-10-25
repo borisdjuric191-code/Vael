@@ -103,7 +103,9 @@ enum class EVaelStrikeLook : uint8
 	/** A cluster of dark rock spikes with glowing edges over molten ground, lava splashes up, like the Magmariss */
 	MagmaSpikes,
 	/** A column of boiling water bursts out of the ground, foams over at its top, rains down and runs out as a foaming ring, like the Geysir */
-	Geyser
+	Geyser,
+	/** No spike: a dark storm cloud gathers above and lances of ice rain down, a volley shattering where each strike lands, like the Hagelsturm */
+	Hail
 };
 
 /** Own look of a burst around the caster, shown together with its impact effect */

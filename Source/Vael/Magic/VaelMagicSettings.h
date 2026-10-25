@@ -335,6 +335,51 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
 	float MistSpreadScale = 1.5f;
 
+	/** Hagelsturm (AVaelHailStorm): its dark storm cloud (cards of MI_Vael_Wolke_Sturm) this high above the ground, of this many cards;
+	 *  lances of ice falling all over the patch (per second), how fast and how slanted, their length and width in cm, their colour;
+	 *  a volley of this many on each strike, spread this far; splinters on every n-th landing; lances at most in the air */
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	TSoftObjectPtr<UMaterialInterface> StormCloudMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	TSoftObjectPtr<UMaterialInterface> HailIceMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	float HailCloudHeight = 650.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
+	int32 HailCloudCards = 34;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
+	float HailRate = 70.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 100))
+	float HailSpeed = 1800.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	FVector2D HailSlant = FVector2D(0.22f, 0.08f);
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	FVector2D HailLength = FVector2D(30.0f, 55.0f);
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	float HailWidth = 6.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	FLinearColor HailColor = FLinearColor(0.72f, 0.88f, 1.0f);
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
+	int32 HailVolley = 12;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail")
+	float HailVolleySpread = 70.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 1))
+	int32 HailSplinterEvery = 3;
+
+	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 10))
+	int32 HailMaxLances = 160;
+
 	/** A dust devil cast in one's own sand storm swallows it (in StormGatherSeconds) and becomes a giant: reach and look in
 	 *  times its radius, times the debris, damage, pull, and speed (slower) */
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0.1))

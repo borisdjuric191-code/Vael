@@ -127,6 +127,8 @@ UVaelMagicSettings::UVaelMagicSettings()
 	// Mist and steam of Vael's own mist kit (Scripts/CreateMistSandKit.py)
 	CloudCardMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/MI_Vael_Wolke_Weiss.MI_Vael_Wolke_Weiss")));
 	SandCardMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/MI_Vael_Wolke_Sand.MI_Vael_Wolke_Sand")));
+	StormCloudMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/MI_Vael_Wolke_Sturm.MI_Vael_Wolke_Sturm")));
+	HailIceMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/M_Vael_Hageleis.M_Vael_Hageleis")));
 	WhirlMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/M_Vael_Sandwirbel.M_Vael_Sandwirbel")));
 
 	// Debris of sand storms and dust devils (Boris 2026-10-25: many grains, small stones and twigs of the Megascans packs, dark and small)

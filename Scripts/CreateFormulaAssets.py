@@ -509,6 +509,7 @@ FORMULAS = [
         "strike_count": 7,
         "strike_interval": 0.3,
         "strike_scatter": 2.2 * TILE,
+        "strike_look": unreal.VaelStrikeLook.HAIL,
     },
     {
         "asset": "DA_Formula_Gewitter",

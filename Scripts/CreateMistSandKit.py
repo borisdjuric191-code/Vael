@@ -13,7 +13,7 @@
 
 import unreal
 
-KIT_VERSION = "2.5"
+KIT_VERSION = "2.7"
 FOLDER = "/Game/Vael/Effects/Nebel"
 
 # The rolling dust cloud of the NiagaraExamples dirt explosion: an 8x8 looping flipbook (R light, G opacity)
@@ -370,9 +370,10 @@ def build_cards():
 
 
 def build_card_instances():
-    """White cloud for mist and steam, sand for the whirls"""
+    """White cloud for mist and steam, sand for the whirls, dark storm cloud for the hail"""
     for name, colour, glow, shadow in (("MI_Vael_Wolke_Weiss", (0.95, 0.96, 0.98), 0.55, 0.72),
-                                       ("MI_Vael_Wolke_Sand", (0.72, 0.54, 0.34), 0.2, 0.6)):
+                                       ("MI_Vael_Wolke_Sand", (0.72, 0.54, 0.34), 0.2, 0.6),
+                                       ("MI_Vael_Wolke_Sturm", (0.3, 0.33, 0.4), 0.06, 0.35)):
         path = "{}/{}".format(FOLDER, name)
         instance = unreal.load_asset(path)
         if instance is None:
@@ -388,6 +389,23 @@ def build_card_instances():
         unreal.log("Vael: built {}".format(path))
 
 
+def build_ice():
+    """M_Vael_Hageleis: the lances of ice of the Hagelsturm (instanced): pale, glowing a little, bright at the rim"""
+    material = fresh_material("M_Vael_Hageleis")
+    if material is None:
+        return
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    try_set(material, "used_with_instanced_static_meshes", True)
+    g = Graph(material)
+    tint = g.color("Farbe", unreal.LinearColor(0.72, 0.88, 1.0, 1.0))
+    glow = g.scalar("Leuchten", 1.4)
+    rim = g.node(unreal.MaterialExpressionFresnel, 2, exponent=2.5)
+    colour = g.mul(0, g.mul(1, tint, glow), g.add(1, g.const(0.7), g.mul(1, rim, g.const(1.6))))
+    library.connect_material_property(colour, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    finish(material, "M_Vael_Hageleis")
+
+
+build_ice()
 build_mist()
 build_sand()
 build_instances()
