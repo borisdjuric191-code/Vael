@@ -7,7 +7,7 @@ Format: `- [Datum] Doc → Abschnitt: Eintrag`
 
 ## Offen
 
-- [2026-10-25] Aufgaben → Entscheidungen: Optik Luftelement (Vorschlag im Chat vom 2026-10-25: unsichtbare Luft, sichtbar durch Flimmern, helle Windstriche und Mitgerissenes der Region) bestätigen.
+- [2026-10-25] Aufgaben → Erledigt (Entscheidung): Optik Luftelement = Flimmern (Luftverzerrung), helle Windschlieren und Mitgerissenes der Region (in der Aschenmark Asche und Sand), Boris 2026-10-25, gebaut in 0f0927c.
 - [2026-10-25] Aufgaben → Testrunde A Optik: Feuer kommt jetzt nur aus Fire_Solution_FX (Boden NS_FireCommon, Kugel NS_FireSmall_var1, Schweif NS_FireWindy_Common, Explosion NS_FireBig). Größe stimmt? Stellschraube: Projekteinstellungen → Vael Magic → Pack Tunings → Reference Radius.
 - [2026-10-25] Aufgaben → Testrunde A Optik: Staub bei Felsscherben, Steinwall, Lehmgolem, Bodenschock (Staubwolke aus NiagaraExamples) und Staubspur hinter Aschenroller/Glutkriecher. Zu viel/zu wenig?
 - [2026-10-25] Aufgaben → Testrunde A Optik: Dampfwolke = weißer Rauch des Feuerpakets ohne Flammen. Sandsturm und Staubteufel = Luft-Aura aus Free_Spells in Erdfarbe.
@@ -28,3 +28,5 @@ Format: `- [Datum] Doc → Abschnitt: Eintrag`
 - [2026-10-25] Aufgaben → Testrunde C Spielsysteme: die sechs Nebel-/Dampf-Reaktionen oben im Spiel ausprobieren (im Log stehen Zeilen wie „splits in mist“, „runs on through steam“).
 - [2026-10-25] Aufgaben → Später: ungenutzte Kopie Content/Vael/Effects/Paket/NS_Vael_Dampf im Editor löschen (für Claude gesperrt).
 - [2026-10-25] Aufgaben → Erledigt: alte Feuer-Volumen und Live-Feuer gelöscht (cda0e1f). Boris: Ordner C:\Projekte\Vael_Quellen\Feuer und Feuer3D (14 GB) selbst löschen, falls noch da.
+- [2026-10-25] Aufgaben → Testrunde A Optik (Luft, 0f0927c): Windstoß = Druckwelle aus flimmernder Luft, 13 sich kräuselnde Windschlieren, aufgewirbelte Asche und Sand, ein paar Steinchen. Böe = Schlieren kreisen um dich, Spur aus Flimmern und Staub, am Ende ein Flimmerring mit Schlieren nach außen. Wirbelsturm = flimmernder Trichter (verbiegt den Boden dahinter), dünne weiße Fahnen, Schlieren auf der Spirale. Zu schwach/zu stark? Stellschrauben: Projekteinstellungen → Vael Magic → Effects|Air.
+- [2026-10-25] Aufgaben → Testrunde A Optik: Wirbelsturm über ein Feuer schicken → Feuerwirbel, Flammen steigen die Spirale hoch (nicht im Bild geprüft). Böe-Spur nur im Stand geprüft: beim echten Sprint durchs Gelände ansehen.
