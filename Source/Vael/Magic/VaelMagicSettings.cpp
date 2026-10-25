@@ -9,6 +9,7 @@
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
 #include "VaelAssets.h"
+#include "Misc/Paths.h"
 
 UVaelMagicSettings::UVaelMagicSettings()
 {
@@ -57,11 +58,48 @@ UVaelMagicSettings::UVaelMagicSettings()
 	DefaultEffects.CastSound = Sound(TEXT("SFX_Vael_Cast"));
 	DefaultEffects.ImpactSound = Sound(TEXT("SFX_Vael_Impact"));
 
-	// Every effect is made for Vael itself (Boris 2026-10-22): no effects of other packs. Until an element gets its own,
-	// its impacts use the default Vael impact, tinted in the colour of the element.
+	// Until an element gets its own, its impacts use the default Vael impact, tinted in the colour of the element.
 
-	SteamEffect = Effect(TEXT("NS_Vael_Steam"));
 	MudEffect = Effect(TEXT("NS_Vael_Mud"));
+
+	// Effects of bought packs (Boris 2026-10-25: only what fits our idea of the spells), each fitted by a tuning
+	const auto Pack = [](const TCHAR* Path)
+	{
+		const FString Name = FPaths::GetBaseFilename(Path);
+		return TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(FString::Printf(TEXT("/Game/%s.%s"), Path, *Name)));
+	};
+	const auto Tune = [this](const TSoftObjectPtr<UNiagaraSystem>& System, float ReferenceRadius, TArray<FName> ColorParameters, TArray<FName> EmittersOff)
+	{
+		FVaelPackTuning& Tuning = PackTunings.AddDefaulted_GetRef();
+		Tuning.System = System;
+		Tuning.ReferenceRadius = ReferenceRadius;
+		Tuning.ColorParameters = MoveTemp(ColorParameters);
+		Tuning.EmittersOff = MoveTemp(EmittersOff);
+		return &Tuning;
+	};
+
+	// Fire (the systems are set in the fire settings)
+	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Common/NS_FireCommon")), 60.0f, {}, {});
+	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Small/NS_FireSmall_var1")), 25.0f, {}, {});
+	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Windy/NS_FireWindy_Common")), 30.0f, {}, {});
+	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Big/NS_FireBig")), 120.0f, {}, {});
+
+	// Steam: the grey-scale smoke of the fire pack without its flames, in the pale steam color
+	SteamEffect = Pack(TEXT("Fire_Solution_FX/Fire_Common/NS_FireCommon_GrayScale"));
+	Tune(SteamEffect, 60.0f, { TEXT("Smoke color"), TEXT("Smoke Light color") },
+		{ TEXT("Small_Fire"), TEXT("Fire_Light"), TEXT("Small_Fire001"), TEXT("Sparks"), TEXT("Main_Fire") })->ColorScale = 1.2f;
+
+	// Dust: the dirt explosion without its fire flash and sparks, in the color of the debris; puffs of the gravel footstep without stones and print
+	DustBurstEffect = Pack(TEXT("NiagaraExamples/FX_Explosions/NS_Dirt_Explosion_Small"));
+	Tune(DustBurstEffect, 100.0f, { TEXT("Dust Color"), TEXT("Dirt Color") },
+		{ TEXT("Explosion"), TEXT("SparkDebris"), TEXT("NE_PostProcess"), TEXT("Decal_Light_Flash") });
+	DustPuffEffect = Pack(TEXT("NiagaraExamples/FX_Footstep/NS_Footstep_Gravel"));
+	Tune(DustPuffEffect, 30.0f, {}, { TEXT("Rocks"), TEXT("FootprintBase") });
+
+	// Storms and whirlwinds (Sandsturm, Staubteufel): the air aura, its smoke, spiral and wave in the color of the spell
+	FVaelPackTuning* Storm = Tune(Pack(TEXT("Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Air")), 150.0f,
+		{ TEXT("Color_Smoke"), TEXT("Color_Spiral1"), TEXT("Color_Wave"), TEXT("Color_Sparks1") }, {});
+	Storm->ScaleParameter = TEXT("Scale_All");
 	BeamEffect = Effect(TEXT("NS_Vael_Beam"));
 	HandEffect = Effect(TEXT("NS_Vael_Hand"));
 

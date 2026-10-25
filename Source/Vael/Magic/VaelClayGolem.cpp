@@ -120,6 +120,7 @@ void AVaelClayGolem::BeginPlay()
 	Dust.Lift = 360.0f;
 	Dust.Color = WetClay;
 	Dust.RockShare = 0.2f;
+	Dust.bDust = true;
 	AVaelDebrisBurst::Spawn(this, GetActorLocation() - FVector(0.0f, 0.0f, GolemCapsuleHalfHeight), Dust);
 
 	Tick(0.0f);
@@ -181,6 +182,7 @@ void AVaelClayGolem::Stamp()
 	Dust.Speed = 300.0f;
 	Dust.Lift = 260.0f;
 	Dust.Color = FLinearColor(0.36f, 0.26f, 0.17f);
+	Dust.bDust = true;
 	AVaelDebrisBurst::Spawn(this, Feet, Dust);
 }
 

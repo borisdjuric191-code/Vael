@@ -40,6 +40,9 @@ struct FVaelDebris
 	/** True for soft puffs of the additive glow material, false for solid pieces */
 	bool bSoft = false;
 
+	/** True for dust and ash: soft puffs become the dust puff of the magic settings, bursts of five pieces and more also throw up its dust cloud */
+	bool bDust = false;
+
 	/** True if the pieces stop on the ground below the burst instead of falling through it */
 	bool bLandOnGround = true;
 };

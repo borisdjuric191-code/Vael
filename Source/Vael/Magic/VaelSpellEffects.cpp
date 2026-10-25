@@ -54,6 +54,55 @@ namespace
 	{
 		Component->SetVariableLinearColor(VaelEffects::ColorParameter, Color);
 		Component->SetVariableFloat(VaelEffects::RadiusParameter, Radius);
+		VaelEffects::ApplyPackTuning(Component, Color, Radius);
+	}
+}
+
+void VaelEffects::ApplyPackTuning(UNiagaraComponent* Component, const FLinearColor& Color, float Radius)
+{
+	const UNiagaraSystem* System = Component != nullptr ? Component->GetAsset() : nullptr;
+	if (System == nullptr)
+	{
+		return;
+	}
+
+	const FSoftObjectPath Path(System);
+	for (const FVaelPackTuning& Tuning : UVaelMagicSettings::Get()->PackTunings)
+	{
+		if (Tuning.System.ToSoftObjectPath() != Path)
+		{
+			continue;
+		}
+
+		for (const FName& Name : Tuning.ColorParameters)
+		{
+			Component->SetVariableLinearColor(Name, Color * Tuning.ColorScale);
+		}
+		for (const TPair<FName, float>& Value : Tuning.Floats)
+		{
+			Component->SetVariableFloat(Value.Key, Value.Value);
+		}
+		for (const TPair<FName, FLinearColor>& Value : Tuning.Colors)
+		{
+			Component->SetVariableLinearColor(Value.Key, Value.Value);
+		}
+		for (const FName& Emitter : Tuning.EmittersOff)
+		{
+			Component->SetEmitterEnable(Emitter, false);
+		}
+		if (Tuning.ReferenceRadius > 0.0f && Radius > 0.0f)
+		{
+			const float Scale = FMath::Clamp(Radius / Tuning.ReferenceRadius, Tuning.ScaleRange.X, FMath::Max(Tuning.ScaleRange.X, Tuning.ScaleRange.Y));
+			if (Tuning.ScaleParameter.IsNone())
+			{
+				Component->SetWorldScale3D(FVector(Scale));
+			}
+			else
+			{
+				Component->SetVariableFloat(Tuning.ScaleParameter, Scale);
+			}
+		}
+		return;
 	}
 }
 

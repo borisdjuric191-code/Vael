@@ -14,6 +14,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "VaelAssets.h"
+#include "Magic/VaelSpellEffects.h"
 
 int32 UVaelFireComponent::NumLitFires = 0;
 int32 UVaelFireComponent::NumVolumeFires = 0;
@@ -94,15 +95,16 @@ UVaelFireSettings::UVaelFireSettings()
 	{
 		TongueMeshes.Add(TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Effects/Feuer/Zunge/%s.%s"), Name, Name))));
 	}
-	LiveFireSystem = TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Feuer/Live/NS_Feuer_Live.NS_Feuer_Live")));
 
-	// Embers, a fire, a big fire: each simulated on a bed of its own size
-	GroundVolumes = {
-		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Glut")), 0.35f, 45.0f },
-		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Brand")), 0.6f, 140.0f },
-		{ VolumeAsset(TEXT("MI_Feuer_Volumen_Gross")), 1.1f, 100000.0f } };
-	CampfireVolume = { VolumeAsset(TEXT("MI_Feuer_Volumen_Lager")), 0.7f, 100000.0f };
-	BallVolume = { VolumeAsset(TEXT("MI_Feuer_Volumen_Kugel")), 0.25f, 100000.0f };
+	// All fire comes from the pack Fire_Solution_FX (Boris 2026-10-25); its tunings in the magic settings size it
+	const auto PackFire = [](const TCHAR* Folder, const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(FString::Printf(TEXT("/Game/Fire_Solution_FX/%s/%s.%s"), Folder, Name, Name)));
+	};
+	GroundNiagara = PackFire(TEXT("Fire_Common"), TEXT("NS_FireCommon"));
+	BallNiagara = PackFire(TEXT("Fire_Small"), TEXT("NS_FireSmall_var1"));
+	TrailNiagara = PackFire(TEXT("Fire_Windy"), TEXT("NS_FireWindy_Common"));
+	BurstNiagara = PackFire(TEXT("Fire_Big"), TEXT("NS_FireBig"));
 }
 
 UVaelFireComponent::UVaelFireComponent(const FObjectInitializer& ObjectInitializer)
@@ -282,12 +284,8 @@ bool UVaelFireComponent::BuildNiagaraFire()
 	}
 	NiagaraFire->SetVariableFloat(TEXT("Radius"), Shape.Radius * SizeScale);
 	NiagaraFire->SetVariableFloat(TEXT("Hoehe"), Shape.Height * SizeScale);
-	if (Settings->NiagaraReferenceRadius > 0.0f)
-	{
-		const float Scale = FMath::Clamp(Shape.Radius * SizeScale / Settings->NiagaraReferenceRadius,
-			Settings->NiagaraScaleRange.X, FMath::Max(Settings->NiagaraScaleRange.X, Settings->NiagaraScaleRange.Y));
-		NiagaraFire->SetRelativeScale3D(FVector(Scale));
-	}
+	// A fire of a pack doesn't know Radius and Hoehe: its tuning in the magic settings sizes it
+	VaelEffects::ApplyPackTuning(NiagaraFire, FLinearColor::White, Shape.Radius * SizeScale);
 	return true;
 }
 
@@ -919,7 +917,8 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	if (NiagaraFire != nullptr)
 	{
 		NiagaraFire->SetVariableFloat(TEXT("Staerke"), Strength);
-		if (Strength <= 0.0f && TargetStrength <= 0.0f && NiagaraFire->IsActive())
+		// Going out: it stops emitting at once, so the flames of a pack system die down on their own
+		if (TargetStrength <= 0.0f && NiagaraFire->IsActive())
 		{
 			NiagaraFire->Deactivate();
 		}

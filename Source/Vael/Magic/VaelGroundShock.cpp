@@ -180,6 +180,7 @@ void AVaelGroundShock::BuildMarkPulse()
 	Shards.Lifetime = 0.9f;
 	Shards.Color = Void;
 	Shards.bLandOnGround = false;
+	Shards.bDust = true;
 	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Shards);
 
 	FVaelDebris Motes;
@@ -255,6 +256,7 @@ void AVaelGroundShock::AnimateQuake()
 			Dust.MaxSize = 10.0f;
 			Dust.MinSize = 5.0f;
 			Dust.RockShare = 0.2f;
+			Dust.bDust = true;
 			AVaelDebrisBurst::Spawn(this, GetActorTransform().TransformPosition(RockPlaces[RockIndex] * FVector(1.0f, 1.0f, 0.0f)), Dust);
 		}
 

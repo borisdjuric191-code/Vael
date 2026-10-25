@@ -118,6 +118,7 @@ void AVaelRockWall::BeginPlay()
 	Dust.Lift = 380.0f;
 	Dust.Lifetime = 0.7f;
 	Dust.RockShare = 0.2f;
+	Dust.bDust = true;
 	AVaelDebrisBurst::Spawn(this, GetActorLocation() - FVector(0.0f, 0.0f, FullHeight * 0.5f), Dust);
 }
 
@@ -245,6 +246,7 @@ void AVaelRockWall::LifeSpanExpired()
 	Rubble.MinSize = 8.0f;
 	Rubble.MaxSize = 16.0f;
 	Rubble.RockShare = 0.35f;
+	Rubble.bDust = true;
 	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Rubble);
 }
 

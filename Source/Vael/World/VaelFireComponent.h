@@ -85,15 +85,6 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	TSoftObjectPtr<class UNiagaraSystem> BurstNiagara;
-
-	/** For pack systems that ignore Radius/Hoehe: the fire radius (cm) at which the system looks right unscaled.
-	 *  The Niagara component is scaled by Radius / this; 0 = never scale (own systems read Radius themselves) */
-	UPROPERTY(config, EditAnywhere, Category="Niagara", meta=(ClampMin="0"))
-	float NiagaraReferenceRadius = 0.0f;
-
-	UPROPERTY(config, EditAnywhere, Category="Niagara", meta=(ClampMin="0.05"))
-	FVector2D NiagaraScaleRange = FVector2D(0.3f, 4.0f);
-
 	/** Flames as 3D tongues (Tools/Feuer/feuer_zunge.py, Scripts/CreateFireTongues.py): meshes that lick, sway and tear off at
 	 *  the tip. A Brandherd grows them along the arms of an invisible star, a campfire burns as a ring, a ball all around */
 	UPROPERTY(config, EditAnywhere, Category="Tongues")

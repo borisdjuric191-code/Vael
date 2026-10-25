@@ -202,6 +202,18 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UNiagaraSystem> MudEffect;
 
+	/** Dust thrown up where something heavy hits the ground (rock shards, stamps, rocks breaking out); gets the dust color and the spread */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UNiagaraSystem> DustBurstEffect;
+
+	/** Small puff of dust or ash behind rolling and crawling things; without it they puff spheres of the glow material */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UNiagaraSystem> DustPuffEffect;
+
+	/** How effects of bought packs are fitted to Vael (color, size, emitters off), wherever they are used */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TArray<FVaelPackTuning> PackTunings;
+
 	/** Beam between two points, for the fire beam and the jumps of the chain lightning. Gets the user parameter BeamEnd (a position). */
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UNiagaraSystem> BeamEffect;

@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
+#include "NiagaraSystem.h"
 #include "VaelAssets.h"
 #include "World/VaelGround.h"
 
@@ -36,6 +37,21 @@ AVaelDebrisBurst* AVaelDebrisBurst::Spawn(const UObject* WorldContext, const FVe
 
 	FActorSpawnParameters Parameters;
 	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	// Dust of a pack: bursts of five pieces and more throw up a cloud, soft puffs become the pack's puff instead of glowing spheres
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const FLinearColor DustColor = Debris.Glow > 0.0f ? Debris.Color * 0.5f : Debris.Color;
+	if (Debris.bDust && Debris.bSoft)
+	{
+		if (VaelEffects::SpawnAt(World, VaelAssets::LoadOptional(MagicSettings->DustPuffEffect), Location, FRotator::ZeroRotator, DustColor, FMath::Max(Debris.Spread, Debris.MaxSize)) != nullptr)
+		{
+			return nullptr;
+		}
+	}
+	else if (Debris.bDust && Debris.Count >= 5)
+	{
+		VaelEffects::SpawnAt(World, VaelAssets::LoadOptional(MagicSettings->DustBurstEffect), Location, FRotator::ZeroRotator, DustColor, FMath::Max(Debris.Spread, 30.0f));
+	}
 
 	AVaelDebrisBurst* Burst = World->SpawnActor<AVaelDebrisBurst>(AVaelDebrisBurst::StaticClass(), FTransform(Location), Parameters);
 	if (Burst != nullptr)

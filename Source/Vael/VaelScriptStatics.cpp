@@ -10,6 +10,29 @@
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "Vael.h"
+#include "NiagaraSystem.h"
+#include "NiagaraEmitterHandle.h"
+
+FString UVaelScriptStatics::DescribeNiagaraSystem(UNiagaraSystem* System)
+{
+	if (System == nullptr)
+	{
+		return TEXT("none");
+	}
+
+	FString Text;
+	TArray<FNiagaraVariable> Parameters;
+	System->GetExposedParameters().GetParameters(Parameters);
+	for (const FNiagaraVariable& Parameter : Parameters)
+	{
+		Text += FString::Printf(TEXT("  param %s : %s\n"), *Parameter.GetName().ToString(), *Parameter.GetType().GetName());
+	}
+	for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
+	{
+		Text += FString::Printf(TEXT("  emitter %s%s\n"), *Handle.GetName().ToString(), Handle.GetIsEnabled() ? TEXT("") : TEXT(" (off)"));
+	}
+	return Text;
+}
 
 FGameplayTagContainer UVaelScriptStatics::MakeTagContainer(const TArray<FName>& TagNames)
 {

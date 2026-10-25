@@ -672,6 +672,7 @@ void AVaelEmberCrawler::AnimateRig(float DeltaSeconds)
 		Dust.Glow = 0.25f;
 		Dust.bSoft = true;
 		Dust.bLandOnGround = false;
+		Dust.bDust = true;
 		AVaelDebrisBurst::Spawn(this, Feet + Forward * 30.0f - Side * 20.0f, Dust);
 
 		// Behind it stays a furrow of small heaps that sink back into the ash

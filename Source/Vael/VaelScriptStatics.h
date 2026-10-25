@@ -23,6 +23,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Vael|Scripts")
 	static FGameplayTagContainer MakeTagContainer(const TArray<FName>& TagNames);
 
+	/** One line per user parameter (name and type) and per emitter of a Niagara system, to see what a pack effect can be fed */
+	UFUNCTION(BlueprintCallable, Category="Vael|Scripts")
+	static FString DescribeNiagaraSystem(class UNiagaraSystem* System);
+
 #if WITH_EDITOR
 	/** Makes a font face asset from a TrueType file without the import dialog, which a script without a window can't show.
 	 *  The font is kept inside the asset. Save it from the script afterwards. Asset path like /Game/Vael/UI/Fonts/AlegreyaSans-Regular */

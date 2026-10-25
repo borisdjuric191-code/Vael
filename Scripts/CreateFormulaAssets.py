@@ -16,6 +16,9 @@ import unreal
 FOLDER = "/Game/Vael/Magic/Formulas"
 TILE = 140.0
 
+# Look of storms and whirlwinds from the Free_Spells pack, tinted by its tuning in the magic settings
+AIR_AURA = "/Game/Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Air.NS_Free_Spells_Aura_Air"
+
 Element = unreal.VaelElement
 Source = unreal.VaelFormulaSource
 Delivery = unreal.VaelSpellDelivery
@@ -332,6 +335,7 @@ FORMULAS = [
         "damage": 12.0,
         "knockback": 1.2 * TILE,
         "beam_damage_step": 6.0,
+        "effects": unreal.VaelSpellEffects(trail_effect=unreal.load_asset(AIR_AURA)),
         "aura_radius": 3.0 * TILE,
         "aura_duration": 4.2,
         "aura_blind_duration": 0.4,
@@ -557,6 +561,7 @@ FORMULAS = [
         "damage_element": Element.EARTH,
         "damage": 8.0,
         "beam_damage_step": 6.0,
+        "effects": unreal.VaelSpellEffects(trail_effect=unreal.load_asset(AIR_AURA)),
         "vortex_speed": 4.2 * TILE,
         "vortex_radius": 1.5 * TILE,
         "vortex_lifetime": 5.0,
@@ -1005,6 +1010,8 @@ def comparable(value):
         return [comparable(item) for item in value]
     if isinstance(value, float):
         return round(value, 3)
+    if isinstance(value, unreal.StructBase):
+        return value.export_text()
     return value
 
 

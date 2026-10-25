@@ -15,6 +15,49 @@ class USoundBase;
 class UStaticMeshComponent;
 
 /**
+ *  How a Niagara system of a bought pack is fitted to Vael: it doesn't know our parameters Color and Radius, so this says
+ *  which of its own parameters get the color, what it is fixed to, which of its emitters stay off and how it is sized.
+ *  Applied to the system wherever it is spawned, whichever slot it sits in.
+ */
+USTRUCT(BlueprintType)
+struct FVaelPackTuning
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
+	TSoftObjectPtr<UNiagaraSystem> System;
+
+	/** Color parameters of the system that get the color of the effect (the element, steam, dust …), times ColorScale */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
+	TArray<FName> ColorParameters;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack", meta = (ClampMin = 0))
+	float ColorScale = 1.0f;
+
+	/** Fixed values of its own parameters */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
+	TMap<FName, float> Floats;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
+	TMap<FName, FLinearColor> Colors;
+
+	/** Emitters that don't fit, like the fire flash of an earth explosion */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
+	TArray<FName> EmittersOff;
+
+	/** The radius in cm the system has unscaled; it is scaled by Radius / this. 0: keeps its size */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack", meta = (ClampMin = 0))
+	float ReferenceRadius = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
+	FVector2D ScaleRange = FVector2D(0.25f, 4.0f);
+
+	/** Float parameter that gets the scale instead of the component, for systems with their own size parameter */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Pack")
+	FName ScaleParameter;
+};
+
+/**
  *  Effects and sounds of a spell, made in the editor. Every entry is optional.
  *  Effects get the user parameters Color (the color of the element) and Radius (the reach of the spell in cm) if they have them.
  */
@@ -106,6 +149,9 @@ namespace VaelEffects
 
 	/** Attaches a lasting effect to a component, for example a trail to a projectile. Without auto destroy it can be switched off and on again. Returns null if there is no effect. */
 	UNiagaraComponent* Attach(UNiagaraSystem* System, USceneComponent* Parent, FName SocketName, const FLinearColor& Color, float Radius, bool bAutoDestroy = true);
+
+	/** Fits a spawned effect from a pack to Vael if the magic settings have a tuning for its system (call before Activate) */
+	void ApplyPackTuning(UNiagaraComponent* Component, const FLinearColor& Color, float Radius);
 
 	/** Plays a sound once at a location, if there is one */
 	void PlaySound(const UObject* WorldContext, USoundBase* Sound, const FVector& Location);

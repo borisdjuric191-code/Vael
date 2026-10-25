@@ -541,6 +541,7 @@ void AVaelAshRoller::Tick(float DeltaSeconds)
 			Dust.MaxSize = 30.0f;
 			Dust.Color = RollerAshColor;
 			Dust.bSoft = true;
+			Dust.bDust = true;
 			AVaelDebrisBurst::Spawn(this, GetActorLocation() - FVector(0.0f, 0.0f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), Dust);
 		}
 	}
