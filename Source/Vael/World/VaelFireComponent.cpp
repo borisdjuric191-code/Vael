@@ -282,6 +282,12 @@ bool UVaelFireComponent::BuildNiagaraFire()
 	}
 	NiagaraFire->SetVariableFloat(TEXT("Radius"), Shape.Radius * SizeScale);
 	NiagaraFire->SetVariableFloat(TEXT("Hoehe"), Shape.Height * SizeScale);
+	if (Settings->NiagaraReferenceRadius > 0.0f)
+	{
+		const float Scale = FMath::Clamp(Shape.Radius * SizeScale / Settings->NiagaraReferenceRadius,
+			Settings->NiagaraScaleRange.X, FMath::Max(Settings->NiagaraScaleRange.X, Settings->NiagaraScaleRange.Y));
+		NiagaraFire->SetRelativeScale3D(FVector(Scale));
+	}
 	return true;
 }
 
