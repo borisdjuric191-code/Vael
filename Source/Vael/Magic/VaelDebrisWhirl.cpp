@@ -186,13 +186,16 @@ void UVaelDebrisWhirlComponent::UpdateShells()
 			// The whirl sways: the higher, the further its middle swings round
 			FPiece Point;
 			Point.Height = Height * Ring / NumRings;
-			Point.Offset = FMath::Lerp(0.05f, -0.3f, Inner);
 			const float Up = float(Ring) / NumRings;
+			// and breathes: bulges run up the shells like gusts
+			Point.Offset = FMath::Lerp(0.05f, -0.3f, Inner) + 0.07f * FMath::Sin(Age * 3.1f - Up * 6.0f + Shell);
 			const FVector Sway = FVector(FMath::Sin(Age * 1.7f + Up * 2.0f), FMath::Cos(Age * 1.3f + Up * 2.6f), 0.0f) * Radius * MagicSettings->WhirlSway * Up;
 			for (int32 Segment = 0; Segment <= NumSegments; ++Segment)
 			{
+				// The outline is not round: a lopsided ripple runs round the shell
 				Point.Angle = Segment * UE_TWO_PI / NumSegments;
-				ShellVertices[Index++] = PlaceOf(Point) + Sway;
+				const float Ripple = 1.0f + 0.06f * FMath::Sin(Point.Angle * 3.0f + Age * 2.2f + Up * 3.0f);
+				ShellVertices[Index++] = PlaceOf(Point) * FVector(Ripple, Ripple, 1.0f) + Sway;
 			}
 		}
 	}

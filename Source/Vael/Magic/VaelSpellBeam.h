@@ -141,7 +141,12 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<class UPointLightComponent>> BeamLights;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> SourceGlow;
+
 	float ImpactCountdown = 0.0f;
+	float SparkCountdown = 0.0f;
+	float SplashCountdown = 0.0f;
 
 	/** World time at which the beam ends */
 	float EndTime = 0.0f;

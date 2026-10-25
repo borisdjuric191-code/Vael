@@ -178,13 +178,30 @@ public:
 	float BeamFlowSpeed = 7.5f;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
-	float BeamSourceRadius = 22.0f;
+	float BeamSourceRadius = 35.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
-	float BeamImpactRadius = 40.0f;
+	float BeamImpactRadius = 55.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam", meta=(ClampMin="0.03"))
 	float BeamImpactInterval = 0.12f;
+
+	/** Where it hits: seconds between handfuls of sparks and how many in each, seconds between splashes of flame (BurstNiagara) */
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam", meta=(ClampMin="0.02"))
+	float BeamSparkInterval = 0.05f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam", meta=(ClampMin="1"))
+	int32 BeamSparksPerBurst = 5;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam", meta=(ClampMin="0.05"))
+	float BeamSplashInterval = 0.35f;
+
+	/** The beam leaves this far in front of the caster and this high above their middle, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamHandReach = 60.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamHandHeight = 15.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam", meta=(ClampMin="0"))
 	int32 BeamLights = 3;

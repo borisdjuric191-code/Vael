@@ -13,7 +13,7 @@
 
 import unreal
 
-KIT_VERSION = "1.6"
+KIT_VERSION = "1.8"
 FOLDER = "/Game/Vael/Effects/Nebel"
 
 library = unreal.MaterialEditingLibrary
@@ -136,8 +136,8 @@ def build_mist():
     tint = g.color("Farbe", unreal.LinearColor(0.9, 0.92, 0.95, 1.0))
     density = g.scalar("Dichte", 1.0)
     size = g.scalar("Groesse", 0.0045)
-    drift = g.scalar("Treiben", 9.0)
-    wisps = g.scalar("Schwaden", 0.35)
+    drift = g.scalar("Treiben", 1.6)
+    wisps = g.scalar("Schwaden", 0.45)
     ball = g.scalar("Kugel", 0.0)
     glow = g.scalar("Eigenlicht", 0.18)
     contact = g.scalar("Kontakt", 35.0)
@@ -151,7 +151,7 @@ def build_mist():
     # Billows: two layers of soft noise drifting slowly through the world at different sizes and ways
     flow = g.mul(6, time, drift)
     billows = []
-    for scale, way, column in ((1.0, (1.0, 0.6, 0.15), 5), (2.6, (-1.3, 0.9, 0.25), 5)):
+    for scale, way, column in ((1.0, (1.0, 0.6, 0.1), 5), (2.6, (0.7, 0.4, 0.18), 5)):
         moved = g.add(5, g.mul(5, world, g.mul(5, size, g.const(scale))), g.mul(5, flow, g.vec3(way[0], way[1], way[2])))
         billows.append(g.noise(4, g.mul(4, moved, g.const(1.0)), levels=4))
     mixed = g.add(3, g.mul(3, billows[0], g.const(0.65)), g.mul(3, billows[1], g.const(0.35)))
@@ -163,15 +163,15 @@ def build_mist():
     wisp_noise = g.noise(4, g.add(4, stretched, g.mul(4, flow, g.vec3(0.7, 0.2, 0.1))), levels=3)
 
     # The blanket: dense where the vertex colour says so, its billows tearing its edge; wisps faint and streaky above it
-    ground = g.saturate(2, g.mul(2, dense, g.sub(2, g.mul(2, cloud, g.const(1.8)), g.const(0.2))))
-    veils = g.mul(2, g.saturate(2, g.mul(2, dense, g.sub(2, g.mul(2, wisp_noise, g.const(1.7)), g.const(0.65)))), wisps)
+    ground = g.saturate(2, g.mul(2, dense, g.add(2, g.mul(2, cloud, g.const(1.4)), g.const(0.35))))
+    veils = g.mul(2, g.saturate(2, g.mul(2, dense, g.sub(2, g.mul(2, wisp_noise, g.const(1.4)), g.const(0.25)))), wisps)
     layered = g.lerp(1, ground, veils, wisp)
 
     # A ball of steam: thick at the rim where the eye looks through much of it, thin in the middle
     rim = g.node(unreal.MaterialExpressionFresnel, 3, exponent=1.5)
     # (the very edge thins out again, so the ball has no hard outline like a bubble of glass)
     edge_soft = g.saturate(2, g.mul(2, g.sub(2, g.const(1.0), g.op(unreal.MaterialExpressionPower, 2, rim, a_input="Base", const_exponent=4.0)), g.const(2.5)))
-    shell = g.saturate(2, g.mul(2, g.mul(2, g.add(2, g.const(0.5), g.mul(2, rim, g.const(0.8))), edge_soft), g.sub(2, g.mul(2, cloud, g.const(1.5)), g.const(0.1))))
+    shell = g.saturate(2, g.mul(2, g.mul(2, g.add(2, g.const(0.8), g.mul(2, rim, g.const(0.6))), edge_soft), g.sub(2, g.mul(2, cloud, g.const(1.5)), g.const(0.1))))
     shape = g.lerp(1, layered, shell, ball)
 
     # A ball bulges into billows: its surface pushed out and in along its normal by slow noise, so its outline is a cloud, not a sphere
@@ -187,7 +187,7 @@ def build_mist():
     library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
 
     # White, a little darker in the hollows between the billows, with a faint light of its own so it stays white in shade
-    shade = g.lerp(1, g.const(0.78), g.const(1.05), cloud)
+    shade = g.lerp(1, g.const(0.9), g.const(1.05), cloud)
     colour = g.mul(0, tint, shade)
     library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(g.mul(0, tint, glow), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
@@ -206,12 +206,12 @@ def build_sand():
     try_set(material, "translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_VOLUMETRIC_NON_DIRECTIONAL)
 
     g = Graph(material)
-    sand = g.color("Farbe", unreal.LinearColor(0.42, 0.3, 0.18, 1.0))
+    sand = g.color("Farbe", unreal.LinearColor(0.55, 0.36, 0.17, 1.0))
     dark = g.color("Schatten", unreal.LinearColor(0.16, 0.11, 0.07, 1.0))
     spin = g.scalar("Wirbeln", 1.6)
     rise = g.scalar("Steigen", 0.5)
     streaks = g.scalar("Streifen", 3.0)
-    density = g.scalar("Dichte", 0.85)
+    density = g.scalar("Dichte", 0.6)
     contact = g.scalar("Kontakt", 40.0)
 
     uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
@@ -227,7 +227,11 @@ def build_sand():
 
     # Sand races round (U) and climbs (V); inner shells race faster. Streaks are long around and short up: bands of blown sand
     speed = g.mul(5, spin, g.add(5, g.const(1.0), g.mul(5, inner, g.const(0.8))))
-    racing = g.mul(5, g.sub(5, around, g.mul(5, time, speed)), streaks)
+    # The streaks wind up the whirl like a screw (Verdrehung), and race fastest low down where the whirl is tight
+    twist = g.scalar("Verdrehung", 0.7)
+    tight = g.sub(5, g.const(1.5), g.mul(5, up, g.const(0.7)))
+    wound = g.add(5, around, g.mul(5, up, twist))
+    racing = g.mul(5, g.sub(5, wound, g.mul(5, time, g.mul(5, speed, tight))), streaks)
     climbing = g.mul(5, g.sub(5, up, g.mul(5, time, rise)), g.const(9.0))
     position = g.append(4, g.append(4, racing, climbing), g.mul(4, time, g.const(0.4)))
     coarse = g.noise(3, position, levels=4)
@@ -252,15 +256,20 @@ def build_sand():
 def build_instances():
     """MI_Vael_Dampfkugel: the mist as a ball of steam"""
     path = FOLDER + "/MI_Vael_Dampfkugel"
-    if assets.does_asset_exist(path):
+    instance = unreal.load_asset(path)
+    if instance is None:
+        factory = unreal.MaterialInstanceConstantFactoryNew()
+        instance = tools.create_asset("MI_Vael_Dampfkugel", FOLDER, unreal.MaterialInstanceConstant, factory)
+        instance.set_editor_property("parent", unreal.load_asset(FOLDER + "/M_Vael_Nebel"))
+    elif assets.get_metadata_tag(instance, "VaelKit") == KIT_VERSION:
         return
-    factory = unreal.MaterialInstanceConstantFactoryNew()
-    instance = tools.create_asset("MI_Vael_Dampfkugel", FOLDER, unreal.MaterialInstanceConstant, factory)
-    instance.set_editor_property("parent", unreal.load_asset(FOLDER + "/M_Vael_Nebel"))
+    # Thick and dense, slowly churning
     library.set_material_instance_scalar_parameter_value(instance, "Kugel", 1.0)
-    library.set_material_instance_scalar_parameter_value(instance, "Dichte", 0.95)
+    library.set_material_instance_scalar_parameter_value(instance, "Dichte", 1.7)
+    library.set_material_instance_scalar_parameter_value(instance, "Treiben", 1.0)
+    assets.set_metadata_tag(instance, "VaelKit", KIT_VERSION)
     assets.save_loaded_asset(instance, False)
-    unreal.log("Vael: created {}".format(path))
+    unreal.log("Vael: built {}".format(path))
 
 
 build_mist()

@@ -21,6 +21,7 @@
 #include "NiagaraComponent.h"
 #include "VaelAssets.h"
 #include "Components/PointLightComponent.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "World/VaelFireComponent.h"
 #include "World/VaelGround.h"
 
@@ -178,6 +179,23 @@ void AVaelSpellBeam::BeginPlay()
 				(bSource ? SourceFlames : ImpactFlames) = Flames;
 			}
 
+			// The source: a white-hot ball of the same fire at the hands
+			SourceGlow = NewObject<UStaticMeshComponent>(this);
+			SourceGlow->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+			SourceGlow->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			SourceGlow->SetCastShadow(false);
+			SourceGlow->SetupAttachment(Mesh);
+			SourceGlow->SetUsingAbsoluteLocation(true);
+			SourceGlow->SetUsingAbsoluteRotation(true);
+			SourceGlow->SetUsingAbsoluteScale(true);
+			SourceGlow->RegisterComponent();
+			SourceGlow->SetMaterial(0, CoreMaterial);
+			if (UMaterialInstanceDynamic* GlowMaterial = SourceGlow->CreateAndSetMaterialInstanceDynamic(0))
+			{
+				GlowMaterial->SetScalarParameterValue(TEXT("Hitze"), FireSettings->BeamCoreHeat);
+				GlowMaterial->SetScalarParameterValue(TEXT("Kacheln"), 2.0f);
+			}
+
 			// Light along the beam
 			for (int32 Index = 0; Index < FireSettings->BeamLights; ++Index)
 			{
@@ -312,9 +330,12 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 	}
 }
 
-void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, float Length)
+void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, float Length)
 {
-	const float VisibleLength = FMath::Max(Length, 1.0f);
+	// It leaves from in front of the hands, not from inside the body
+	const UVaelFireSettings* HandSettings = UVaelFireSettings::Get();
+	const FVector Start = Body + Direction * HandSettings->BeamHandReach + FVector(0.0f, 0.0f, HandSettings->BeamHandHeight);
+	const float VisibleLength = FMath::Max(Length - HandSettings->BeamHandReach, 1.0f);
 
 	if (VisualComponent != nullptr)
 	{
@@ -367,14 +388,44 @@ void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, 
 		const FVector End = Start + Direction * VisibleLength;
 		SourceFlames->SetWorldLocation(Start);
 		ImpactFlames->SetWorldLocation(End - Direction * 20.0f);
+		if (SourceGlow != nullptr)
+		{
+			SourceGlow->SetWorldLocation(Start);
+			SourceGlow->SetWorldScale3D(FVector(FireSettings->BeamSourceRadius * 0.8f / 50.0f * Throb));
+		}
 		for (int32 Index = 0; Index < BeamLights.Num(); ++Index)
 		{
 			BeamLights[Index]->SetWorldLocation(Start + Direction * VisibleLength * (Index + 0.5f) / BeamLights.Num() + FVector(0.0f, 0.0f, 40.0f));
 			BeamLights[Index]->SetIntensity(FireSettings->BeamLightIntensity * Throb);
 		}
 
-		// Where it hits, fire keeps bursting and spraying back
-		ImpactCountdown -= GetWorld()->GetDeltaSeconds();
+		// Where it hits, sparks shoot out all the time, flames splash up now and then, and fire keeps bursting and spraying back
+		const float DeltaSeconds = GetWorld()->GetDeltaSeconds();
+		SparkCountdown -= DeltaSeconds;
+		if (SparkCountdown <= 0.0f)
+		{
+			SparkCountdown = FireSettings->BeamSparkInterval;
+			FVaelDebris Sparks;
+			Sparks.Count = FireSettings->BeamSparksPerBurst;
+			Sparks.Spread = 20.0f;
+			Sparks.Speed = 650.0f;
+			Sparks.Lift = 420.0f;
+			Sparks.Gravity = 900.0f;
+			Sparks.Drag = 1.2f;
+			Sparks.Lifetime = 0.55f;
+			Sparks.MinSize = 2.5f;
+			Sparks.MaxSize = 6.0f;
+			Sparks.Color = FLinearColor(1.0f, 0.55f, 0.12f);
+			Sparks.Glow = 12.0f;
+			AVaelDebrisBurst::Spawn(this, End - Direction * 25.0f, Sparks);
+		}
+		SplashCountdown -= DeltaSeconds;
+		if (SplashCountdown <= 0.0f)
+		{
+			SplashCountdown = FireSettings->BeamSplashInterval;
+			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(FireSettings->BurstNiagara), End - Direction * 30.0f, FRotator::ZeroRotator, Settings.Color, FireSettings->BeamImpactRadius * 1.2f);
+		}
+		ImpactCountdown -= DeltaSeconds;
 		if (ImpactCountdown <= 0.0f)
 		{
 			ImpactCountdown = FireSettings->BeamImpactInterval;

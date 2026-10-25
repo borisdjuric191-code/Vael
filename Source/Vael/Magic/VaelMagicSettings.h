@@ -215,13 +215,13 @@ public:
 
 	/** Body of dust of a whirl: seconds between two dust clouds (the dust burst of a rock wall) in a funnel and in a storm, their size in whirl radii */
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlFunnelDustInterval = 0.2f;
+	float WhirlFunnelDustInterval = 0.3f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlStormDustInterval = 0.1f;
+	float WhirlStormDustInterval = 0.18f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
-	float WhirlDustSize = 0.22f;
+	float WhirlDustSize = 0.12f;
 
 	/** The body of a whirl: shells of whirling sand (M_Vael_Sandwirbel) nested in each other, each rings x segments points,
 	 *  swaying this many whirl radii at their top */
@@ -271,16 +271,16 @@ public:
 	int32 MistSegments = 36;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.2))
-	float MistReachShare = 1.05f;
+	float MistReachShare = 1.7f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
-	TArray<float> MistLayerHeights = { 3.0f, 14.0f, 26.0f, 38.0f, 65.0f, 100.0f };
+	TArray<float> MistLayerHeights = { 3.0f, 12.0f, 22.0f, 34.0f, 60.0f, 95.0f, 135.0f, 180.0f };
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
 	float MistBlanketHeight = 45.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
-	float VeilPullSeconds = 1.8f;
+	float VeilPullSeconds = 4.5f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
 	float MistFadeSeconds = 1.2f;
@@ -294,7 +294,7 @@ public:
 	float SteamBallLift = 0.45f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
-	float VeilTurnSpeed = 14.0f;
+	float VeilTurnSpeed = 4.0f;
 
 	/** Dust thrown up where something heavy hits the ground (rock shards, stamps, rocks breaking out); gets the dust color and the spread */
 	UPROPERTY(config, EditAnywhere, Category="Effects")

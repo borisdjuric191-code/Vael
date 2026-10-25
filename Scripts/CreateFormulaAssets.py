@@ -169,7 +169,7 @@ FORMULAS = [
         "source": Source.FREE,
         "delivery": Delivery.GROUND_AREA,
         "damage_element": Element.WATER,
-        "area_range": 7.0 * TILE,
+        "area_range": 0.0,  # around the caster (Boris 2026-10-25)
         "area_radius": 2.4 * TILE,
         "area_lifetime": 4.8,
         "area_damage_per_second": 7.0,

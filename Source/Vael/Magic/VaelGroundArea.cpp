@@ -434,7 +434,7 @@ bool AVaelGroundArea::BuildVeil()
 		{
 			return false;
 		}
-		for (const float Share : { 1.0f, 0.82f })
+		for (const float Share : { 1.0f, 0.88f, 0.76f, 0.62f })
 		{
 			UStaticMeshComponent* Ball = NewObject<UStaticMeshComponent>(this);
 			Ball->SetStaticMesh(Sphere);
@@ -447,7 +447,9 @@ bool AVaelGroundArea::BuildVeil()
 			// The engine sphere is 100 cm across; the ball sits on the ground, a little sunk into it
 			Ball->SetWorldLocation(Center + FVector(0.0f, 0.0f, Radius * Share * MagicSettings->SteamBallLift));
 			Ball->SetWorldScale3D(FVector(Radius * Share / 50.0f));
+			Ball->SetWorldRotation(FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f));
 			SteamBalls.Add(Ball);
+			SteamBallScales.Add(FVector(Radius * Share / 50.0f));
 		}
 		Disc->SetVisibility(false);
 		return true;
@@ -508,7 +510,7 @@ bool AVaelGroundArea::BuildVeil()
 				Normals.Add(FVector::UpVector);
 				UVs.Add(FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Distance / 100.0f);
 				MistDistances.Add(Distance);
-				MistWisps.Add(bWisp);
+				MistStrengths.Add(bWisp ? FMath::GetMappedRangeValueClamped(FVector2D(MagicSettings->MistBlanketHeight, 200.0f), FVector2D(0.9f, 0.3f), Lift) : 1.0f);
 				MistColors.Add(FLinearColor(0.0f, bWisp ? 1.0f : 0.0f, 0.0f, 1.0f));
 			}
 		}
@@ -539,7 +541,9 @@ void AVaelGroundArea::UpdateVeil(float DeltaSeconds)
 	// The ball of steam turns slowly, its two shells against each other
 	for (int32 Index = 0; Index < SteamBalls.Num(); ++Index)
 	{
-		SteamBalls[Index]->AddLocalRotation(FRotator(0.0f, (Index == 0 ? 1.0f : -1.4f) * MagicSettings->VeilTurnSpeed * DeltaSeconds, 0.0f));
+		SteamBalls[Index]->AddLocalRotation(FRotator(0.0f, (Index % 2 == 0 ? 1.0f : -1.3f) * MagicSettings->VeilTurnSpeed * DeltaSeconds, 0.0f));
+		// It billows: each shell swells and shrinks slowly, out of step with the others
+		SteamBalls[Index]->SetWorldScale3D(SteamBallScales[Index] * (1.0f + 0.05f * FMath::Sin(CloudAge * 1.1f + Index * 1.7f)));
 	}
 	if (MistMesh == nullptr)
 	{
@@ -557,10 +561,10 @@ void AVaelGroundArea::UpdateVeil(float DeltaSeconds)
 	for (int32 Index = 0; Index < MistColors.Num(); ++Index)
 	{
 		const float Distance = MistDistances[Index];
-		const float Behind = MistWisps[Index] ? Front - EdgeWidth * 0.5f : Front;
+		const float Behind = MistStrengths[Index] < 1.0f ? Front - EdgeWidth * 0.5f : Front;
 		const float Edge = FMath::Clamp((Behind - Distance) / EdgeWidth, 0.0f, 1.0f);
 		const float Inner = FMath::Lerp(1.0f, 0.55f, Distance / Reach);
-		MistColors[Index].R = Edge * Inner * Fade;
+		MistColors[Index].R = Edge * Inner * Fade * MistStrengths[Index];
 	}
 	// (with the points again: without them the new colours are not taken over)
 	MistMesh->UpdateMeshSection_LinearColor(0, MistVertices, TArray<FVector>(), TArray<FVector2D>(), MistColors, TArray<FProcMeshTangent>());

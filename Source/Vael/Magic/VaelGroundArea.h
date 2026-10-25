@@ -143,7 +143,8 @@ private:
 
 	/** Per vertex of the blanket: its distance from the middle in cm and whether it belongs to the wisps */
 	TArray<float> MistDistances;
-	TArray<bool> MistWisps;
+	TArray<float> MistStrengths;
+	TArray<FVector> SteamBallScales;
 	TArray<FLinearColor> MistColors;
 	TArray<FVector> MistVertices;
 
