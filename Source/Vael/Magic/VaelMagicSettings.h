@@ -213,12 +213,12 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
 	int32 WhirlStormPieces = 500;
 
-	/** Body of dust of a whirl: seconds between two dust clouds (the dust burst of a rock wall) in a funnel and in a storm, their size in whirl radii */
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlFunnelDustInterval = 0.3f;
+	/** Body of dust of a whirl: seconds between two dust clouds (the dust burst of a rock wall) in a funnel and in a storm (0: none, the sand cards are the body), their size in whirl radii */
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	float WhirlFunnelDustInterval = 0.0f;
 
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlStormDustInterval = 0.18f;
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	float WhirlStormDustInterval = 0.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
 	float WhirlDustSize = 0.12f;
@@ -228,8 +228,15 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UMaterialInterface> WhirlMaterial;
 
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
-	int32 WhirlShells = 3;
+	/** Cards of rolling sand (SandCardMaterial) racing up a funnel and round a storm: the body of the whirl */
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	int32 WhirlFunnelCards = 70;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	int32 WhirlStormCards = 130;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	int32 WhirlShells = 0;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 2))
 	int32 WhirlShellRings = 14;
@@ -258,51 +265,89 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	float WhirlBandTurnSpeed = 4.5f;
 
-	/** Mist veil (Nebelschleier): a blanket of M_Vael_Nebel creeping over the ground. Its mesh has rings x segments points
-	 *  reaching this many area radii out; one layer at each height in cm above the ground, those above MistBlanketHeight are
-	 *  the see-through wisps. Seconds the front creeps out, seconds it thins away at the end */
+	/** Cloud cards (UVaelCloudCardsComponent): white cloud for mist and steam, sand for the whirls (instances of M_Vael_Wolkenkarte) */
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
-	TSoftObjectPtr<UMaterialInterface> MistMaterial;
+	TSoftObjectPtr<UMaterialInterface> CloudCardMaterial;
 
-	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 2))
-	int32 MistRings = 9;
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	TSoftObjectPtr<UMaterialInterface> SandCardMaterial;
 
-	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 6))
-	int32 MistSegments = 36;
+	/** Mist veil (Nebelschleier): flat cards of cloud as a blanket over the ground, one every MistCardSpacing cm, reaching this
+	 *  many area radii out, lying up to MistBlanketHeight high; this share of them carries a see-through wisp above, up to 2 m.
+	 *  Seconds the mist wells out, cm it drifts with the air, seconds it thins away at the end */
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 30))
+	float MistCardSpacing = 110.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.2))
 	float MistReachShare = 1.7f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
-	TArray<float> MistLayerHeights = { 3.0f, 12.0f, 22.0f, 34.0f, 60.0f, 95.0f, 135.0f, 180.0f };
-
-	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
 	float MistBlanketHeight = 45.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0, ClampMax = 1))
+	float MistWispShare = 0.45f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
 	float VeilPullSeconds = 4.5f;
 
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	float MistDrift = 40.0f;
+
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
 	float MistFadeSeconds = 1.2f;
-
-	/** Steam (Dampfwolke): a ball of the same substance (MI_Vael_Dampfkugel) over the area, its middle this many radii above
-	 *  the ground, turning this many degrees per second */
-	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
-	TSoftObjectPtr<UMaterialInterface> SteamBallMaterial;
-
-	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
-	float SteamBallLift = 0.45f;
-
-	/** Puffs of steam bulging out of the ball, so it is fluffy */
-	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0))
-	int32 SteamPuffs = 16;
 
 	/** The mist veil swells to this many times its size when water or fire is close by */
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 1))
 	float MistSourceSwell = 1.5f;
 
+	/** Steam (Dampfwolke): a ball of this many cloud cards, its middle this many radii above the ground, churning this fast.
+	 *  Enemies in it get wet after SteamWetDelay seconds, for SteamWetSeconds */
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 4))
+	int32 SteamCards = 60;
+
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
-	float VeilTurnSpeed = 4.0f;
+	float SteamBallLift = 0.45f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	float SteamChurn = 0.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0))
+	float SteamWetDelay = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
+	float SteamWetSeconds = 4.0f;
+
+	/** Reactions of steam and mist (Boris 2026-10-25): lightning jumping in steam gains this many more jumps (random, once per cast);
+	 *  ice shot into mist splits into this many shards, each with this share of the damage, fanned this many degrees apart;
+	 *  hail into mist falls over this many times the patch */
+	UPROPERTY(config, EditAnywhere, Category="Reactions")
+	FIntPoint CloudChainBonus = FIntPoint(1, 3);
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
+	int32 MistSplitCount = 3;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0.05))
+	float MistSplitShare = 0.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions")
+	float MistSplitFan = 14.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
+	float MistSpreadScale = 1.5f;
+
+	/** Wind (air cones) blows steam and mist this many cm on and leaves them this share of the time they had left */
+	UPROPERTY(config, EditAnywhere, Category="Reactions")
+	float WindCloudPush = 350.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0, ClampMax = 1))
+	float WindCloudLifeShare = 0.5f;
+
+	/** Fire lit inside mist turns the mist there to a small cloud of steam (radius cm, seconds) instead of burning */
+	UPROPERTY(config, EditAnywhere, Category="Reactions")
+	float MistFireSteamRadius = 170.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions")
+	float MistFireSteamSeconds = 3.0f;
 
 	/** Dust thrown up where something heavy hits the ground (rock shards, stamps, rocks breaking out); gets the dust color and the spread */
 	UPROPERTY(config, EditAnywhere, Category="Effects")

@@ -445,6 +445,12 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 				Projectile->SetPassesWalls();
 			}
 
+			// Ice shot into mist splits into a fan of shards
+			if (Formula.MistBonus == EVaelMistBonus::Split)
+			{
+				Projectile->SetMistSplit();
+			}
+
 			if (Formula.Delivery == EVaelSpellDelivery::Explosion)
 			{
 				Projectile->SetExplosion(Formula.MakeExplosionHit(Power), Formula.ExplosionRadius);
@@ -548,9 +554,21 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 		return;
 	}
 
-	for (int32 NumHit = 0; NumHit < Formula.ChainMaxTargets && Target != nullptr; ++NumHit)
+	// Lightning that jumps into or out of steam runs on through the wet air: once per cast it gains a few more jumps
+	int32 MaxTargets = Formula.ChainMaxTargets;
+	bool bCloudBonus = false;
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+
+	for (int32 NumHit = 0; NumHit < MaxTargets && Target != nullptr; ++NumHit)
 	{
 		const FVector TargetLocation = Target->GetActorLocation();
+		if (Formula.bLightning && !bCloudBonus && (AVaelGroundArea::FindEffectAt(World, LinkStart, EVaelGroundEffect::Blind) != nullptr
+			|| AVaelGroundArea::FindEffectAt(World, TargetLocation, EVaelGroundEffect::Blind) != nullptr))
+		{
+			bCloudBonus = true;
+			MaxTargets += FMath::RandRange(MagicSettings->CloudChainBonus.X, MagicSettings->CloudChainBonus.Y);
+			UE_LOG(LogVael, Log, TEXT("%s runs on through steam: up to %d jumps"), *Formula.DisplayName.ToString(), MaxTargets);
+		}
 
 		DrawBolt(LinkStart, TargetLocation, 0.25f);
 		VaelEffects::PlayImpact(Caster, Effects, TargetLocation, Target->GetSimpleCollisionRadius());
@@ -579,7 +597,7 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 			}
 		}
 
-		if (Target == nullptr && Formula.bChainTurnsOnCaster && NumHit + 1 < Formula.ChainMaxTargets)
+		if (Target == nullptr && Formula.bChainTurnsOnCaster && NumHit + 1 < MaxTargets)
 		{
 			StrikeCaster(LinkStart);
 		}
@@ -609,6 +627,8 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	if (Formula.DamageElement == EVaelElement::Air)
 	{
 		AVaelGroundArea::SpreadFires(Cast<APawn>(Caster), Origin, AimDirection, ConeRange, ConeHalfAngle);
+		// and blows steam and mist away
+		AVaelGroundArea::BlowClouds(World, Origin, AimDirection, ConeRange, ConeHalfAngle, UVaelMagicSettings::Get()->WindCloudPush);
 	}
 	else if (Formula.DamageElement == EVaelElement::Water)
 	{
@@ -957,13 +977,22 @@ void UVaelFormulaAbility::CallStrike(const UVaelFormula& Formula, AActor* Caster
 	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
 	const FLinearColor Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
 
-	for (int32 StrikeIndex = 0; StrikeIndex < Formula.StrikeCount; ++StrikeIndex)
+	// Hail aimed into mist finds more water in the air: it falls over a larger patch, with as many more stones
+	float Spread = 1.0f;
+	if (Formula.MistBonus == EVaelMistBonus::Spread && AVaelGroundArea::FindEffectAt(World, Target, EVaelGroundEffect::Veil) != nullptr)
+	{
+		Spread = UVaelMagicSettings::Get()->MistSpreadScale;
+		UE_LOG(LogVael, Log, TEXT("%s falls wider in mist"), *Formula.DisplayName.ToString());
+	}
+	const int32 NumStrikes = FMath::CeilToInt(Formula.StrikeCount * Spread);
+
+	for (int32 StrikeIndex = 0; StrikeIndex < NumStrikes; ++StrikeIndex)
 	{
 		// A single strike lands exactly where it was aimed, the strikes of a storm scatter around that point
 		FVector Location = Target;
 		if (Formula.StrikeCount > 1 && Formula.StrikeScatter > 0.0f)
 		{
-			const FVector2D Offset = FMath::RandPointInCircle(Formula.StrikeScatter);
+			const FVector2D Offset = FMath::RandPointInCircle(Formula.StrikeScatter * Spread);
 			Location += FVector(Offset.X, Offset.Y, 0.0f);
 		}
 

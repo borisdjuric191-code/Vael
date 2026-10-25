@@ -89,6 +89,15 @@ public:
 	/** Carries the fires inside a cone further in its direction. Returns the number of new fires. */
 	static int32 SpreadFires(APawn* Caster, const FVector& Origin, const FVector& Direction, float Range, float HalfAngleDegrees);
 
+	/** The area with this effect that a location lies in (steam: Blind, mist: Veil), null if none */
+	static AVaelGroundArea* FindEffectAt(const UWorld* World, const FVector& Location, EVaelGroundEffect InEffect);
+
+	/** Fire in mist: if the location lies in mist, the mist there boils into a small cloud of steam and the fire doesn't burn (true) */
+	static bool QuenchInMist(UWorld* World, const FVector& Location);
+
+	/** Wind blows the steam and mist inside a cone on by Distance cm and makes them thin away sooner. Returns how many moved */
+	static int32 BlowClouds(const UWorld* World, const FVector& Origin, const FVector& Direction, float Range, float HalfAngleDegrees, float Distance);
+
 	/** True if a location is inside the area or closer to its edge than the extra distance */
 	bool IsInRange(const FVector& Location, float ExtraDistance = 0.0f) const;
 
@@ -132,32 +141,38 @@ private:
 	/** The living flames of a fire area (fire kit); they die down on their own when the area ends */
 	TWeakObjectPtr<class AVaelFireSpot> FireLook;
 
-	/** Mist veil: a heavy blanket of mist about 40 cm thick creeping over the ground from the middle, see-through wisps
-	 *  above it (a mesh grown over the ground, M_Vael_Nebel). Steam: a ball of the same white substance over the area
-	 *  that only lets the silhouettes inside show (MI_Vael_Dampfkugel) */
+	/** Mist veil: a heavy blanket of mist lying flat over the ground and welling out from the middle, see-through wisps
+	 *  above it up to about 2 m. Steam: a fluffy ball of cloud over the area that only lets silhouettes show.
+	 *  Both are soft cards of rolling cloud (UVaelCloudCardsComponent, MI_Vael_Wolke_Weiss) */
 	UPROPERTY(Transient)
-	TObjectPtr<class UProceduralMeshComponent> MistMesh;
+	TObjectPtr<class UVaelCloudCardsComponent> CloudCards;
 
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMeshComponent>> SteamBalls;
+	/** Per card: where it rests (frame of the area), its distance from the middle, how strong it is, its size and its own phase */
+	TArray<FVector> CardPlaces;
+	TArray<float> CardDistances;
+	TArray<float> CardStrengths;
+	TArray<float> CardSizes;
+	TArray<float> CardPhases;
 
-	/** Per vertex of the blanket: its distance from the middle in cm and whether it belongs to the wisps */
-	TArray<float> MistDistances;
-	TArray<float> MistStrengths;
-	TArray<FVector> SteamBallScales;
-	TArray<FLinearColor> MistColors;
-	TArray<FVector> MistVertices;
+	/** True for the ball of steam, false for the mist veil */
+	bool bSteamCloud = false;
 
 	float CloudAge = 0.0f;
 
 	/** True for steam cast around its caster: it goes along with them */
 	bool bFollowsInstigator = false;
 
-	/** Builds the mist blanket or the ball of steam; false without their materials */
+	/** Seconds each one has spent in the steam: after a moment in it, it gets wet */
+	TMap<TWeakObjectPtr<AActor>, float> SteamTimes;
+
+	/** Builds the mist blanket or the ball of steam; false without their material */
 	bool BuildVeil();
 
-	/** Lets the blanket creep out and fade at the end, turns the ball of steam */
+	/** Lets the blanket well out and fade at the end, churns the ball of steam */
 	void UpdateVeil(float DeltaSeconds);
+
+	/** Wets whoever has been in the steam long enough */
+	void WetInSteam(float DeltaSeconds);
 
 protected:
 

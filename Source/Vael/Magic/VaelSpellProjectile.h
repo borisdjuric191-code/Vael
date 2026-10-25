@@ -68,6 +68,9 @@ public:
 	/** Chooses the look of the projectile; it plays together with a trail effect. Has to be called before FinishSpawning. */
 	void SetLook(EVaelProjectileLook InLook) { Look = InLook; }
 
+	/** Lets it split into a fan of shards the first time it flies into mist (Frostlanze) */
+	void SetMistSplit();
+
 	/** Whose water a projectile with the look of a ball of water is, null for the water of the mages. Has to be called before FinishSpawning. */
 	void SetWaterSource(UVaelElementSource* InSource) { WaterSource = InSource; }
 
@@ -150,6 +153,12 @@ private:
 	/** Trail, impact effect and sound */
 	UPROPERTY(Transient)
 	FVaelLoadedEffects Effects;
+
+	/** True while it may still split in mist */
+	bool bMistSplit = false;
+
+	/** Splits into the fan of shards: it flies on as the middle one, the others start beside it */
+	void SplitInMist();
 
 	/** Own look of the patch left on the ground, null for the one from the magic settings */
 	UPROPERTY(Transient)

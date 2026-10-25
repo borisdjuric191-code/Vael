@@ -95,4 +95,10 @@ private:
 	TArray<TObjectPtr<class UNiagaraComponent>> Bands;
 
 	TArray<FPiece> BandPaths;
+
+	/** The body of the whirl: cards of rolling sand on the spiral (Scale is how solid each one is) */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelCloudCardsComponent> SandCards;
+
+	TArray<FPiece> CardPaths;
 };

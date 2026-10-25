@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelFireSpot.h"
+#include "Magic/VaelGroundArea.h"
 #include "Engine/World.h"
 #include "Vael.h"
 #include "EngineUtils.h"
@@ -142,6 +143,12 @@ void AVaelFireSpot::Tick(float DeltaSeconds)
 AVaelFireSpot* AVaelFireSpot::SpawnOrJoin(UWorld* World, const FVector& Location, const FVaelFireShape& InShape, float InBurnTime, bool bUser)
 {
 	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	// Fire in mist boils the mist into steam instead of burning (a fire area handing over its look is already past that)
+	if (!bUser && AVaelGroundArea::QuenchInMist(World, Location))
 	{
 		return nullptr;
 	}

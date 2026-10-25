@@ -273,6 +273,11 @@ void AVaelSpellProjectile::Tick(float DeltaSeconds)
 		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), SpellRadius);
 	}
 
+	if (bMistSplit && !bFlightEnded && AVaelGroundArea::FindEffectAt(GetWorld(), GetActorLocation(), EVaelGroundEffect::Veil) != nullptr)
+	{
+		SplitInMist();
+	}
+
 	if (!LookShapes.IsEmpty())
 	{
 		AnimateLook(DeltaSeconds);
@@ -1414,6 +1419,56 @@ void AVaelSpellProjectile::OnStopped(const FHitResult& ImpactResult)
 void AVaelSpellProjectile::LifeSpanExpired()
 {
 	EndFlight(false);
+}
+
+void AVaelSpellProjectile::SetMistSplit()
+{
+	bMistSplit = true;
+	PrimaryActorTick.bStartWithTickEnabled = true;
+	if (HasActorBegunPlay())
+	{
+		SetActorTickEnabled(true);
+	}
+}
+
+void AVaelSpellProjectile::SplitInMist()
+{
+	bMistSplit = false;
+	UE_LOG(LogVael, Log, TEXT("'%s' splits in mist"), *GetNameSafe(this));
+	UWorld* World = GetWorld();
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const int32 Count = FMath::Max(MagicSettings->MistSplitCount, 1);
+
+	// Every shard carries a share of the damage, this one too
+	Hit.Damage *= MagicSettings->MistSplitShare;
+	if (Count < 2 || World == nullptr)
+	{
+		return;
+	}
+
+	const FVector Velocity = GetVelocity();
+	const float Speed = Velocity.Size();
+	const FVector Forward = Speed > 1.0f ? Velocity / Speed : GetActorForwardVector();
+	const float Life = GetLifeSpan() > 0.0f ? GetLifeSpan() : 1.0f;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		// Fanned evenly around the flight; this projectile is the one in the middle
+		const float Yaw = (Index - (Count - 1) * 0.5f) * MagicSettings->MistSplitFan;
+		if (FMath::IsNearlyZero(Yaw))
+		{
+			continue;
+		}
+		const FVector Direction = Forward.RotateAngleAxis(Yaw, FVector::UpVector);
+		const FTransform Start(Direction.Rotation(), GetActorLocation());
+		AVaelSpellProjectile* Shard = World->SpawnActorDeferred<AVaelSpellProjectile>(GetClass(), Start, GetOwner(), GetInstigator(), ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (Shard != nullptr)
+		{
+			Shard->InitSpell(Hit, Speed, SpellRadius, Life, RemainingPierce, SpellColor);
+			Shard->SetEffects(Effects, ImpactAreaVisual);
+			Shard->SetLook(Look);
+			Shard->FinishSpawning(Start);
+		}
+	}
 }
 
 void AVaelSpellProjectile::SetEffects(const FVaelLoadedEffects& InEffects, UNiagaraSystem* InImpactAreaVisual)

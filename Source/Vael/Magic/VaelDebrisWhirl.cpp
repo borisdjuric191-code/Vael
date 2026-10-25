@@ -8,6 +8,7 @@
 #include "Magic/VaelSpellEffects.h"
 #include "NiagaraComponent.h"
 #include "ProceduralMeshComponent.h"
+#include "Magic/VaelCloudCards.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
@@ -36,6 +37,30 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	BuildShells();
+
+	// Cards of rolling sand on the spiral: they start spread over the whole height, each at its own pace
+	if (UMaterialInterface* SandMaterial = VaelAssets::LoadOptional(MagicSettings->SandCardMaterial))
+	{
+		SandCards = NewObject<UVaelCloudCardsComponent>(GetOwner());
+		SandCards->SetupAttachment(this);
+		SandCards->SetUsingAbsoluteScale(true);
+		SandCards->RegisterComponent();
+		SandCards->SetWorldScale3D(FVector::OneVector);
+		SandCards->Init(SandMaterial);
+		const int32 NumCards = bFunnel ? MagicSettings->WhirlFunnelCards : MagicSettings->WhirlStormCards;
+		for (int32 Index = 0; Index < NumCards; ++Index)
+		{
+			FPiece Path;
+			Path.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+			Path.Height = Height * (Index + FMath::FRand()) / NumCards;
+			Path.AngularSpeed = FMath::FRandRange(2.4f, 3.6f) * (bFunnel ? 1.3f : 1.0f);
+			Path.RiseSpeed = Height * FMath::FRandRange(0.25f, 0.45f);
+			Path.Offset = FMath::FRandRange(-0.25f, 0.1f);
+			Path.Scale = FMath::FRandRange(0.45f, 0.8f);
+			SandCards->AddCard(PlaceOf(Path), Radius, 0.0f);
+			CardPaths.Add(Path);
+		}
+	}
 	float TotalShare = 0.0f;
 	TArray<const FVaelWhirlPiece*> Loaded;
 	TArray<UStaticMesh*> Meshes;
@@ -113,7 +138,7 @@ void UVaelDebrisWhirlComponent::BuildShells()
 {
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	UMaterialInterface* Material = VaelAssets::LoadOptional(MagicSettings->WhirlMaterial);
-	if (Material == nullptr)
+	if (Material == nullptr || MagicSettings->WhirlShells <= 0)
 	{
 		return;
 	}
@@ -255,12 +280,35 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		Instances->MarkRenderStateDirty();
 	}
 
-	// The body: clouds of dust like those falling off a rock wall, all over the shape of the whirl, carried round with it
-	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	NextBodyCountdown -= DeltaTime;
-	while (NextBodyCountdown <= 0.0f)
+	// The body: cards of rolling sand racing round and up the spiral, overlapping into one mass
+	if (SandCards != nullptr)
 	{
-		NextBodyCountdown += bFunnel ? MagicSettings->WhirlFunnelDustInterval : MagicSettings->WhirlStormDustInterval;
+		for (int32 Index = 0; Index < CardPaths.Num(); ++Index)
+		{
+			FPiece& Path = CardPaths[Index];
+			Path.Angle += Path.AngularSpeed * DeltaTime;
+			Path.Height += Path.RiseSpeed * DeltaTime;
+			if (Path.Height > Height)
+			{
+				Path.Height -= Height;
+			}
+			const float Up = Path.Height / Height;
+			const FVector Sway = FVector(FMath::Sin(Age * 1.7f + Up * 2.0f), FMath::Cos(Age * 1.3f + Up * 2.6f), 0.0f) * Radius * UVaelMagicSettings::Get()->WhirlSway * Up;
+			// Thin at the bottom and the top, a funnel's cards wider the higher they are
+			const float Solid = FMath::Pow(FMath::Sin(Up * UE_PI), 0.7f) * Path.Scale;
+			const float Size = Radius * (bFunnel ? FMath::Lerp(0.5f, 1.1f, Up) : 0.85f);
+			SandCards->SetCard(Index, PlaceOf(Path) + Sway, Size, Solid);
+		}
+		SandCards->Commit();
+	}
+
+	// Clouds of dust like those falling off a rock wall, all over the shape of the whirl (0: none)
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const float BodyInterval = bFunnel ? MagicSettings->WhirlFunnelDustInterval : MagicSettings->WhirlStormDustInterval;
+	NextBodyCountdown -= DeltaTime;
+	while (BodyInterval > 0.0f && NextBodyCountdown <= 0.0f)
+	{
+		NextBodyCountdown += BodyInterval;
 		// On one of the turning spiral arms, twisted further the higher it is, so the clouds draw the whirl and don't hide it
 		FPiece Spot;
 		const int32 Arm = FMath::RandRange(0, MagicSettings->WhirlArms - 1);

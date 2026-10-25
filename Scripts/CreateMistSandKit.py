@@ -13,11 +13,12 @@
 
 import unreal
 
-KIT_VERSION = "2.1"
+KIT_VERSION = "2.5"
 FOLDER = "/Game/Vael/Effects/Nebel"
 
 # The rolling dust cloud of the NiagaraExamples dirt explosion: an 8x8 looping flipbook (R light, G opacity)
 DUST_ATLAS = "/Game/NiagaraExamples/Textures/Sprites/T_ExplosionRoil_EOO_Loop"
+DUST_NORMALS = "/Game/NiagaraExamples/Textures/Sprites/T_ExplosionRoil_Normals_Loop"
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -267,7 +268,7 @@ def build_sand():
     atlas_uv = g.mul(2, g.add(2, inside, g.append(2, column_index, row_index)), g.const(0.125))
     dust = g.node(unreal.MaterialExpressionTextureSample, 1, texture=unreal.load_asset(DUST_ATLAS))
     g.link(atlas_uv, dust, "UVs")
-    dust_alpha = g.channel(1, dust, "G")
+    dust_alpha = g.channel(1, dust, "A")
     dust_light = g.channel(1, dust, "R")
     billows = g.mul(1, dust_alpha, g.scalar("StaubDeckkraft", 1.1))
 
@@ -304,6 +305,91 @@ def build_instances():
     unreal.log("Vael: built {}".format(path))
 
 
+def build_cards():
+    """M_Vael_Wolkenkarte: one soft card of a cloud for the cloud cards the game lays out (UVaelCloudCardsComponent):
+    the rolling cloud of the NiagaraExamples dirt explosion, lit by its own normals, any colour.
+    Per card (instance custom data): 0 the frame it starts on, 1 how solid it is, 2 how bright"""
+    material = fresh_material("M_Vael_Wolkenkarte")
+    if material is None:
+        return
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    material.set_editor_property("two_sided", True)
+    try_set(material, "translucency_lighting_mode", unreal.TranslucencyLightingMode.TLM_SURFACE_PER_PIXEL_LIGHTING)
+    try_set(material, "used_with_instanced_static_meshes", True)
+
+    g = Graph(material)
+    tint = g.color("Farbe", unreal.LinearColor(0.92, 0.93, 0.95, 1.0))
+    shadow = g.scalar("Schatten", 0.55)
+    glow = g.scalar("Eigenlicht", 0.2)
+    density = g.scalar("Dichte", 1.0)
+    rate = g.scalar("Tempo", 10.0)
+    contact = g.scalar("Kontakt", 60.0)
+
+    def custom(index):
+        return g.node(unreal.MaterialExpressionPerInstanceCustomData, 7, data_index=index, const_default_value=[0.0, 1.0, 1.0][index])
+
+    start = custom(0)
+    solid = custom(1)
+    bright = custom(2)
+    time = g.node(unreal.MaterialExpressionTime, 7)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
+
+    # The frame this card shows now, and where it lies in the 8x8 atlas
+    frame = g.op(unreal.MaterialExpressionFmod, 5, g.op(unreal.MaterialExpressionFloor, 5, g.add(5, g.mul(5, time, rate), start), a_input=""), g.const(64.0))
+    column_index = g.op(unreal.MaterialExpressionFmod, 4, frame, g.const(8.0))
+    row_index = g.op(unreal.MaterialExpressionFloor, 4, g.mul(4, frame, g.const(0.125)), a_input="")
+    atlas_uv = g.mul(3, g.add(3, uv, g.append(3, column_index, row_index)), g.const(0.125))
+
+    roil = g.node(unreal.MaterialExpressionTextureSample, 2, texture=unreal.load_asset(DUST_ATLAS))
+    g.link(atlas_uv, roil, "UVs")
+    normals = g.node(unreal.MaterialExpressionTextureSample, 2, texture=unreal.load_asset(DUST_NORMALS))
+    try_set(normals, "sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    g.link(atlas_uv, normals, "UVs")
+    light = g.channel(1, roil, "R")
+    alpha = g.channel(1, roil, "A")
+
+    soft = g.node(unreal.MaterialExpressionDepthFade, 1)
+    try_set(soft, "fade_distance_default", 60.0)
+    g.link(contact, soft, "FadeDistance")
+    # Cards close to the camera fade out, so a cloud the camera looks through never veils the whole picture
+    # (as the engine's camera depth fade: 0 up to 250 cm from the camera, full 350 cm further)
+    depth = g.node(unreal.MaterialExpressionPixelDepth, 2)
+    near = g.saturate(1, g.mul(1, g.sub(1, depth, g.const(250.0)), g.const(1.0 / 350.0)))
+    opacity = g.saturate(0, g.mul(0, g.mul(0, g.mul(0, g.mul(0, alpha, solid), density), soft), near))
+    library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
+
+    lifted = g.saturate(1, g.mul(1, light, g.const(1.7)))
+    shaded = g.mul(0, g.mul(0, tint, g.lerp(1, shadow, g.const(1.0), lifted)), bright)
+    library.connect_material_property(shaded, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.mul(0, g.mul(0, tint, glow), g.add(0, g.const(0.4), lifted)), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(normals, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    library.connect_material_property(g.const(1.0, column=0), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(g.const(0.0, column=0), "", unreal.MaterialProperty.MP_SPECULAR)
+    finish(material, "M_Vael_Wolkenkarte")
+
+
+def build_card_instances():
+    """White cloud for mist and steam, sand for the whirls"""
+    for name, colour, glow, shadow in (("MI_Vael_Wolke_Weiss", (0.95, 0.96, 0.98), 0.55, 0.72),
+                                       ("MI_Vael_Wolke_Sand", (0.72, 0.54, 0.34), 0.2, 0.6)):
+        path = "{}/{}".format(FOLDER, name)
+        instance = unreal.load_asset(path)
+        if instance is None:
+            instance = tools.create_asset(name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            instance.set_editor_property("parent", unreal.load_asset(FOLDER + "/M_Vael_Wolkenkarte"))
+        elif assets.get_metadata_tag(instance, "VaelKit") == KIT_VERSION:
+            continue
+        library.set_material_instance_vector_parameter_value(instance, "Farbe", unreal.LinearColor(colour[0], colour[1], colour[2], 1.0))
+        library.set_material_instance_scalar_parameter_value(instance, "Eigenlicht", glow)
+        library.set_material_instance_scalar_parameter_value(instance, "Schatten", shadow)
+        assets.set_metadata_tag(instance, "VaelKit", KIT_VERSION)
+        assets.save_loaded_asset(instance, False)
+        unreal.log("Vael: built {}".format(path))
+
+
 build_mist()
 build_sand()
 build_instances()
+build_cards()
+build_card_instances()

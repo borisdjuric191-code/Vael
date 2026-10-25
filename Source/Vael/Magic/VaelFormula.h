@@ -14,6 +14,17 @@ class AVaelSpellProjectile;
 class UAnimMontage;
 class UVaelFormulaAbility;
 
+/** What mist (Nebelschleier) does to a formula cast into it */
+UENUM(BlueprintType)
+enum class EVaelMistBonus : uint8
+{
+	None,
+	/** Its projectile splits into a fan of shards, each with part of the damage (Frostlanze) */
+	Split,
+	/** Its strikes fall over a larger patch (Hagelsturm) */
+	Spread
+};
+
 /**
  *  A formula of the mage: the combination of elements that triggers it and what it does.
  *  The order of the elements doesn't matter, Fire + Earth is the same formula as Earth + Fire.
@@ -117,6 +128,10 @@ public:
 	/** Auras and whirlwinds: a whirl of real debris (grit, pebbles, twigs) instead of the effect, like the Sandsturm and the Staubteufel */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Effects")
 	bool bDebrisWhirl = false;
+
+	/** What happens when it is cast into mist (amounts in the magic settings) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Reactions")
+	EVaelMistBonus MistBonus = EVaelMistBonus::None;
 
 	/** Loads the effects of the formula, tinted in the color of its damage element */
 	FVaelLoadedEffects LoadEffects() const;
