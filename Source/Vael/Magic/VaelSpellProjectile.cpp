@@ -395,6 +395,22 @@ void AVaelSpellProjectile::BuildLook()
 		Flames.bLight = false;
 		TrailFlames->Ignite(Flames, 0.05f);
 
+		// A dense burning head around the point, so the spark has the body of a shot and not only a streak
+		BallFlames = NewObject<UVaelFireComponent>(this);
+		BallFlames->SetupAttachment(RootComponent);
+		BallFlames->RegisterComponent();
+		FVaelFireShape HeadFlames;
+		HeadFlames.Radius = Radius * 0.55f;
+		HeadFlames.Height = Radius * 1.1f;
+		HeadFlames.Heat = 1.35f;
+		HeadFlames.Smoke = 0.1f;
+		HeadFlames.Tongues = 14;
+		HeadFlames.bBall = true;
+		HeadFlames.BallSpread = 0.35f;
+		HeadFlames.bFloating = true;
+		HeadFlames.bLight = false;
+		BallFlames->Ignite(HeadFlames, 0.05f);
+
 		// Embers the spark sheds in flight
 		for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
 		{

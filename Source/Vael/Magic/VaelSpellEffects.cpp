@@ -93,13 +93,13 @@ void VaelEffects::ApplyPackTuning(UNiagaraComponent* Component, const FLinearCol
 		if (Tuning.ReferenceRadius > 0.0f && Radius > 0.0f)
 		{
 			const float Scale = FMath::Clamp(Radius / Tuning.ReferenceRadius, Tuning.ScaleRange.X, FMath::Max(Tuning.ScaleRange.X, Tuning.ScaleRange.Y));
-			if (Tuning.ScaleParameter.IsNone())
+			if (Tuning.ScaleParameters.IsEmpty())
 			{
 				Component->SetWorldScale3D(FVector(Scale));
 			}
-			else
+			for (const FName& Name : Tuning.ScaleParameters)
 			{
-				Component->SetVariableFloat(Tuning.ScaleParameter, Scale);
+				Component->SetVariableFloat(Name, Scale);
 			}
 		}
 		return;

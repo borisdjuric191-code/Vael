@@ -114,6 +114,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Effects")
 	FVaelSpellEffects Effects;
 
+	/** Auras and whirlwinds: a whirl of real debris (grit, pebbles, twigs) instead of the effect, like the Sandsturm and the Staubteufel */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Effects")
+	bool bDebrisWhirl = false;
+
 	/** Loads the effects of the formula, tinted in the color of its damage element */
 	FVaelLoadedEffects LoadEffects() const;
 

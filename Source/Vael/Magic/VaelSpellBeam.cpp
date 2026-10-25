@@ -19,6 +19,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
+#include "World/VaelFireComponent.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -99,8 +100,29 @@ void AVaelSpellBeam::BeginPlay()
 		Material->SetVectorParameterValue(TEXT("Color"), Settings.Color);
 	}
 
-	// The beam effect replaces the placeholder cylinder as soon as it exists
-	VisualComponent = VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, BeamLookRadius);
+	// A jet of pack fire along the whole reach, or else the beam effect, replaces the placeholder cylinder as soon as it exists
+	if (Settings.Jet != nullptr)
+	{
+		const UVaelFireSettings* FireSettings = UVaelFireSettings::Get();
+		const int32 NumFlames = FMath::Clamp(FMath::CeilToInt(Settings.Length / FireSettings->JetSpacing), 1, 16);
+		for (int32 Index = 0; Index < NumFlames; ++Index)
+		{
+			// Narrow at the hands, widening towards the end
+			const float Share = (Index + 0.5f) / NumFlames;
+			if (UNiagaraComponent* Flame = VaelEffects::Attach(Settings.Jet, Mesh, NAME_None, Settings.Color, FMath::Lerp(BeamLookRadius, Settings.HalfWidth, Share)))
+			{
+				Flame->SetUsingAbsoluteLocation(true);
+				Flame->SetUsingAbsoluteRotation(true);
+				for (const TPair<FName, float>& Value : FireSettings->JetFloats)
+				{
+					Flame->SetVariableFloat(Value.Key, Value.Value);
+				}
+				JetFlames.Add(Flame);
+			}
+		}
+		Mesh->SetVisibility(JetFlames.IsEmpty());
+	}
+	VisualComponent = JetFlames.IsEmpty() ? VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, BeamLookRadius) : nullptr;
 	if (VisualComponent != nullptr)
 	{
 		VisualComponent->SetUsingAbsoluteLocation(true);
@@ -227,6 +249,21 @@ void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, 
 	{
 		VisualComponent->SetWorldLocationAndRotation(Start, Direction.Rotation());
 		VisualComponent->SetVariableVec3(VaelEffects::BeamEndParameter, Start + Direction * VisibleLength);
+	}
+
+	// The jet flames spread along the reach up to the wall, their wind blowing outwards; those behind a wall stop emitting
+	const float Spacing = UVaelFireSettings::Get()->JetSpacing;
+	for (int32 Index = 0; Index < JetFlames.Num(); ++Index)
+	{
+		UNiagaraComponent* Flame = JetFlames[Index];
+		const float Along = (Index + 0.5f) * Spacing;
+		Flame->SetWorldLocation(Start + Direction * FMath::Min(Along, VisibleLength));
+		VaelFire::SetWind(Flame, Direction * 100.0f, UVaelFireSettings::Get()->FlightWindSpeed);
+		const bool bReaches = Along - Spacing * 0.5f < VisibleLength;
+		if (bReaches != Flame->IsActive())
+		{
+			bReaches ? Flame->Activate() : Flame->Deactivate();
+		}
 	}
 
 	// The cylinder stands on its axis, which is turned into the aim direction

@@ -48,6 +48,9 @@ struct FVaelBeamSettings
 	/** Effect of the beam; gets the user parameter BeamEnd. Null for the placeholder cylinder. */
 	UNiagaraSystem* Visual = nullptr;
 
+	/** Fire of a pack streaming along the beam instead of the effect (Feuerstrahl), repeated along it with its wind along the beam */
+	UNiagaraSystem* Jet = nullptr;
+
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
 };
@@ -105,6 +108,10 @@ private:
 	/** The beam effect, null while the placeholder cylinder shows */
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> VisualComponent;
+
+	/** The flames of the jet, from the hands outwards */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UNiagaraComponent>> JetFlames;
 
 	/** World time at which the beam ends */
 	float EndTime = 0.0f;

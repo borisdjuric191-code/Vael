@@ -38,6 +38,9 @@ struct FVaelAuraSettings
 	/** Look of the spell; gets the user parameters Color and Radius. Null for the placeholder. */
 	UNiagaraSystem* Visual = nullptr;
 
+	/** True for a sand storm: real debris whirls instead of the effect */
+	bool bDebrisWhirl = false;
+
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
 };
@@ -89,6 +92,10 @@ private:
 	/** The effect of the storm, null while the placeholder shows */
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> VisualComponent;
+
+	/** The debris of a sand storm */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelDebrisWhirlComponent> Whirl;
 
 	/** World time at which the storm ends */
 	float EndTime = 0.0f;

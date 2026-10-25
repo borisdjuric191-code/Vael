@@ -13,6 +13,7 @@
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelDebrisWhirl.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
@@ -126,11 +127,22 @@ void AVaelSpellVortex::BeginPlay()
 	const float LookScale = Settings.Radius * VortexLookRadiusShare / VortexPlaceholderConeRadius;
 	Mesh->SetRelativeScale3D(FVector(LookScale, LookScale, VortexLookHeight / VortexPlaceholderConeHeight));
 
-	// The effect replaces the placeholder cone as soon as it exists
-	VisualComponent = VaelEffects::Attach(Settings.Visual, RootComponent, NAME_None, Settings.Color, Settings.Radius);
-	if (VisualComponent != nullptr)
+	// A dust devil carries real debris; any other whirl shows its effect. Either replaces the placeholder cone.
+	if (Settings.bDebrisWhirl)
 	{
+		Whirl = NewObject<UVaelDebrisWhirlComponent>(this);
+		Whirl->SetupAttachment(RootComponent);
+		Whirl->RegisterComponent();
+		Whirl->Build(Settings.Radius, true, Settings.Color);
 		Mesh->SetVisibility(false);
+	}
+	else
+	{
+		VisualComponent = VaelEffects::Attach(Settings.Visual, RootComponent, NAME_None, Settings.Color, Settings.Radius);
+		if (VisualComponent != nullptr)
+		{
+			Mesh->SetVisibility(false);
+		}
 	}
 
 	RefreshColor();
@@ -149,7 +161,7 @@ void AVaelSpellVortex::Tick(float DeltaSeconds)
 
 #if ENABLE_DRAW_DEBUG
 	// Placeholder: the reach on the ground
-	if (VisualComponent == nullptr)
+	if (VisualComponent == nullptr && Whirl == nullptr)
 	{
 		DrawDebugCircle(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 5.0f), Settings.Radius, 32, (bFiery ? Settings.FireColor : Settings.Color).ToFColor(true),
 			false, -1.0f, 0, 4.0f, FVector::ForwardVector, FVector::RightVector, false);

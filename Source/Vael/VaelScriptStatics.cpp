@@ -12,6 +12,10 @@
 #include "Vael.h"
 #include "NiagaraSystem.h"
 #include "NiagaraEmitterHandle.h"
+#include "NiagaraEmitter.h"
+#include "NiagaraRendererProperties.h"
+#include "NiagaraScript.h"
+#include "Materials/MaterialInterface.h"
 
 FString UVaelScriptStatics::DescribeNiagaraSystem(UNiagaraSystem* System)
 {
@@ -20,16 +24,84 @@ FString UVaelScriptStatics::DescribeNiagaraSystem(UNiagaraSystem* System)
 		return TEXT("none");
 	}
 
+	// A value of a parameter store as text, for the plain types
+	const auto ValueOf = [](const FNiagaraParameterStore& Store, const FNiagaraVariable& Variable) -> FString
+	{
+		const FNiagaraTypeDefinition& Type = Variable.GetType();
+		const uint8* Data = Store.GetParameterData(Variable);
+		if (Data == nullptr)
+		{
+			return TEXT("?");
+		}
+		if (Type == FNiagaraTypeDefinition::GetFloatDef())
+		{
+			return FString::SanitizeFloat(*reinterpret_cast<const float*>(Data));
+		}
+		if (Type == FNiagaraTypeDefinition::GetIntDef())
+		{
+			return FString::FromInt(*reinterpret_cast<const int32*>(Data));
+		}
+		if (Type == FNiagaraTypeDefinition::GetBoolDef())
+		{
+			return reinterpret_cast<const FNiagaraBool*>(Data)->GetValue() ? TEXT("true") : TEXT("false");
+		}
+		if (Type == FNiagaraTypeDefinition::GetVec3Def() || Type == FNiagaraTypeDefinition::GetPositionDef())
+		{
+			return reinterpret_cast<const FVector3f*>(Data)->ToString();
+		}
+		if (Type == FNiagaraTypeDefinition::GetVec2Def())
+		{
+			return reinterpret_cast<const FVector2f*>(Data)->ToString();
+		}
+		if (Type == FNiagaraTypeDefinition::GetColorDef() || Type == FNiagaraTypeDefinition::GetVec4Def())
+		{
+			return reinterpret_cast<const FLinearColor*>(Data)->ToString();
+		}
+		return Type.GetName();
+	};
+
 	FString Text;
 	TArray<FNiagaraVariable> Parameters;
 	System->GetExposedParameters().GetParameters(Parameters);
 	for (const FNiagaraVariable& Parameter : Parameters)
 	{
-		Text += FString::Printf(TEXT("  param %s : %s\n"), *Parameter.GetName().ToString(), *Parameter.GetType().GetName());
+		Text += FString::Printf(TEXT("  param %s : %s = %s\n"), *Parameter.GetName().ToString(), *Parameter.GetType().GetName(), *ValueOf(System->GetExposedParameters(), Parameter));
 	}
 	for (const FNiagaraEmitterHandle& Handle : System->GetEmitterHandles())
 	{
 		Text += FString::Printf(TEXT("  emitter %s%s\n"), *Handle.GetName().ToString(), Handle.GetIsEnabled() ? TEXT("") : TEXT(" (off)"));
+		const FVersionedNiagaraEmitterData* Data = Handle.GetEmitterData();
+		if (Data == nullptr)
+		{
+			continue;
+		}
+		Text += FString::Printf(TEXT("    %s, %s space\n"), Data->SimTarget == ENiagaraSimTarget::GPUComputeSim ? TEXT("GPU") : TEXT("CPU"), Data->bLocalSpace ? TEXT("local") : TEXT("world"));
+		for (const UNiagaraRendererProperties* Renderer : Data->GetRenderers())
+		{
+			TArray<UMaterialInterface*> Materials;
+			Renderer->GetUsedMaterials(nullptr, Materials);
+			FString Names;
+			for (const UMaterialInterface* Material : Materials)
+			{
+				Names += Material != nullptr ? Material->GetPathName() + TEXT(" ") : TEXT("");
+			}
+			Text += FString::Printf(TEXT("    renderer %s %s\n"), *Renderer->GetClass()->GetName(), *Names);
+		}
+		// The module inputs typed in by hand; inputs linked to a user parameter don't show here
+		for (const UNiagaraScript* Script : { Data->SpawnScriptProps.Script.Get(), Data->UpdateScriptProps.Script.Get() })
+		{
+			if (Script == nullptr)
+			{
+				continue;
+			}
+			TArray<FNiagaraVariable> Inputs;
+			Script->RapidIterationParameters.GetParameters(Inputs);
+			for (const FNiagaraVariable& Input : Inputs)
+			{
+				const FString Name = Input.GetName().ToString().Replace(*(TEXT("Constants.") + Handle.GetName().ToString() + TEXT(".")), TEXT(""));
+				Text += FString::Printf(TEXT("    %s %s = %s\n"), Script == Data->SpawnScriptProps.Script ? TEXT("spawn") : TEXT("update"), *Name, *ValueOf(Script->RapidIterationParameters, Input));
+			}
+		}
 	}
 	return Text;
 }

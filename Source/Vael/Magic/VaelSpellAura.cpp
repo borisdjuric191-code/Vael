@@ -11,6 +11,7 @@
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelDebrisWhirl.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
@@ -103,12 +104,21 @@ void AVaelSpellAura::Restart(const FVaelAuraSettings& InSettings)
 	}
 
 	// The effect replaces the placeholder disc and rings as soon as it exists
-	if (VisualComponent == nullptr)
+	// A sand storm carries real debris instead (it keeps its own size, not the flat one of the disc)
+	if (Settings.bDebrisWhirl && Whirl == nullptr)
+	{
+		Whirl = NewObject<UVaelDebrisWhirlComponent>(this);
+		Whirl->SetupAttachment(Mesh);
+		Whirl->SetUsingAbsoluteScale(true);
+		Whirl->RegisterComponent();
+		Whirl->Build(Settings.Radius, false, Settings.Color);
+	}
+	else if (VisualComponent == nullptr && !Settings.bDebrisWhirl)
 	{
 		VisualComponent = VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, Settings.Radius);
 	}
 
-	Mesh->SetVisibility(VisualComponent == nullptr);
+	Mesh->SetVisibility(VisualComponent == nullptr && Whirl == nullptr);
 }
 
 void AVaelSpellAura::Tick(float DeltaSeconds)
@@ -130,7 +140,7 @@ void AVaelSpellAura::Tick(float DeltaSeconds)
 	HitEnemies(DeltaSeconds);
 
 #if ENABLE_DRAW_DEBUG
-	if (VisualComponent != nullptr)
+	if (VisualComponent != nullptr || Whirl != nullptr)
 	{
 		return;
 	}

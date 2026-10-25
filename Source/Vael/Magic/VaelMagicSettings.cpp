@@ -78,11 +78,19 @@ UVaelMagicSettings::UVaelMagicSettings()
 		return &Tuning;
 	};
 
-	// Fire (the systems are set in the fire settings)
-	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Common/NS_FireCommon")), 60.0f, {}, {});
-	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Small/NS_FireSmall_var1")), 25.0f, {}, {});
-	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Windy/NS_FireWindy_Common")), 30.0f, {}, {});
-	Tune(Pack(TEXT("Fire_Solution_FX/Fire_Big/NS_FireBig")), 120.0f, {}, {});
+	// Fire (the systems are set in the fire settings). All of them simulate in world space and size their sprites by their own
+	// parameters, which are multipliers of 1; "Fire overlay color" is the brightness of the flames (2 in the pack, darker for Vael)
+	const TArray<FName> FireSizes = { TEXT("Emitter Size Common"), TEXT("Fire Size Common"), TEXT("Sprite Size Common"), TEXT("Smoke Size Common") };
+	FVaelPackTuning* GroundFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Common/NS_FireCommon")), 60.0f, {}, {});
+	GroundFire->ScaleParameters = FireSizes;
+	GroundFire->Colors.Add(TEXT("Fire overlay color"), FLinearColor(1.25f, 1.15f, 1.05f, 1.0f));
+	GroundFire->Colors.Add(TEXT("Smoke color"), FLinearColor(0.35f, 0.33f, 0.32f, 0.55f));
+	FVaelPackTuning* BallFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Small/NS_FireSmall_var1")), 25.0f, {}, {});
+	BallFire->ScaleParameters = FireSizes;
+	FVaelPackTuning* TrailFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Windy/NS_FireWindy_Common")), 30.0f, {}, {});
+	TrailFire->ScaleParameters = FireSizes;
+	FVaelPackTuning* BigFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Big/NS_FireBig")), 120.0f, {}, {});
+	BigFire->ScaleParameters = FireSizes;
 
 	// Steam: the grey-scale smoke of the fire pack without its flames, in the pale steam color
 	SteamEffect = Pack(TEXT("Fire_Solution_FX/Fire_Common/NS_FireCommon_GrayScale"));
@@ -96,10 +104,29 @@ UVaelMagicSettings::UVaelMagicSettings()
 	DustPuffEffect = Pack(TEXT("NiagaraExamples/FX_Footstep/NS_Footstep_Gravel"));
 	Tune(DustPuffEffect, 30.0f, {}, { TEXT("Rocks"), TEXT("FootprintBase") });
 
+	// Debris of sand storms and dust devils (Boris 2026-10-25: many grains, small stones and twigs of the Megascans packs, dark and small)
+	const auto Piece = [this](const TCHAR* Path, float MinSize, float MaxSize, float Share)
+	{
+		FVaelWhirlPiece& Kind = WhirlPieces.AddDefaulted_GetRef();
+		const FString Name = FPaths::GetBaseFilename(Path);
+		Kind.Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/%s.%s"), Path, *Name)));
+		Kind.MinSize = MinSize;
+		Kind.MaxSize = MaxSize;
+		Kind.Share = Share;
+	};
+	Piece(TEXT("Megascans/3D_Assets/CoalA/SM_CoalA"), 0.8f, 1.8f, 0.3f);
+	Piece(TEXT("Megascans/3D_Assets/CoalB/SM_CoalB"), 1.5f, 3.5f, 0.22f);
+	Piece(TEXT("Megascans/3D_Assets/HovsBeachRock/SM_HovsBeachRock"), 2.5f, 6.0f, 0.16f);
+	Piece(TEXT("Rock_Collection_04/Meshes/Rock_03/StaticMeshes/SM_Rock_03"), 3.0f, 7.0f, 0.1f);
+	Piece(TEXT("Megascans/3D_Assets/Branch/SM_Branch_00"), 10.0f, 22.0f, 0.06f);
+	Piece(TEXT("Megascans/3D_Assets/Branch/SM_Branch_01"), 8.0f, 18.0f, 0.06f);
+	Piece(TEXT("Megascans/3D_Assets/WoodBranchA/SM_WoodBranchA"), 12.0f, 26.0f, 0.04f);
+	Piece(TEXT("Megascans/3D_Assets/Branch/SM_Branch_02"), 6.0f, 14.0f, 0.06f);
+
 	// Storms and whirlwinds (Sandsturm, Staubteufel): the air aura, its smoke, spiral and wave in the color of the spell
 	FVaelPackTuning* Storm = Tune(Pack(TEXT("Free_Spells/VFX_Niagara/NS_Free_Spells_Aura_Air")), 150.0f,
 		{ TEXT("Color_Smoke"), TEXT("Color_Spiral1"), TEXT("Color_Wave"), TEXT("Color_Sparks1") }, {});
-	Storm->ScaleParameter = TEXT("Scale_All");
+	Storm->ScaleParameters = { TEXT("Scale_All") };
 	BeamEffect = Effect(TEXT("NS_Vael_Beam"));
 	HandEffect = Effect(TEXT("NS_Vael_Hand"));
 

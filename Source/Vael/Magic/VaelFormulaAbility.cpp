@@ -42,6 +42,7 @@
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
 #include "VaelAssets.h"
+#include "World/VaelFireComponent.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -809,6 +810,10 @@ void UVaelFormulaAbility::StartBeam(const UVaelFormula& Formula, AActor* Caster,
 	Beam.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
 	Beam.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
 	Beam.Visual = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BeamEffect);
+	if (Formula.DamageElement == EVaelElement::Fire)
+	{
+		Beam.Jet = VaelAssets::LoadOptional(UVaelFireSettings::Get()->JetNiagara);
+	}
 
 	AVaelSpellBeam::StartBeam(Cast<APawn>(Caster), Beam);
 }
@@ -866,6 +871,7 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 	Vortex.Color = MagicSettings->GetElementColor(Formula.DamageElement);
 	Vortex.FireColor = MagicSettings->GetElementColor(EVaelElement::Fire);
 	Vortex.Visual = Formula.LoadEffects().Trail;
+	Vortex.bDebrisWhirl = Formula.bDebrisWhirl;
 
 	const FVector AimDirection = GetAimDirection(Caster);
 
@@ -886,6 +892,7 @@ void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster,
 	Aura.SelfDamagePerSecond = Formula.AuraSelfDamagePerSecond;
 	Aura.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
 	Aura.Visual = Formula.LoadEffects().Trail;
+	Aura.bDebrisWhirl = Formula.bDebrisWhirl;
 
 	AVaelSpellAura::StartAura(Cast<APawn>(Caster), Aura);
 }

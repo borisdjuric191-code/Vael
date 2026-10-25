@@ -59,6 +59,9 @@ struct FVaelVortexSettings
 	/** Look of the spell; gets the user parameters Color and Radius. Null for the placeholder. */
 	UNiagaraSystem* Visual = nullptr;
 
+	/** True for a dust devil: real debris whirls instead of the effect */
+	bool bDebrisWhirl = false;
+
 	/** Placeholder colors */
 	FLinearColor Color = FLinearColor::White;
 	FLinearColor FireColor = FLinearColor(1.0f, 0.54f, 0.24f);
@@ -129,6 +132,10 @@ private:
 	/** The effect of the whirlwind, null while the placeholder cone shows */
 	UPROPERTY(Transient)
 	TObjectPtr<UNiagaraComponent> VisualComponent;
+
+	/** The debris of a dust devil */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelDebrisWhirlComponent> Whirl;
 
 	/** Seconds until the next fire */
 	float NextFireCountdown = 0.0f;

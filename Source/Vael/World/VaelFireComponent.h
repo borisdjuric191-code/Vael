@@ -31,6 +31,14 @@ struct FVaelFireVolumeKind
 	float UpToRadius = 100000.0f;
 };
 
+class UNiagaraComponent;
+
+namespace VaelFire
+{
+	/** Sets the wind of a pack fire (direction in cm, its length the strength the pack expects, about 100) */
+	void SetWind(UNiagaraComponent* Fire, const FVector& Direction, float Speed);
+}
+
 /** Values of the fire kit (Feuer-Baukasten): its materials and how many fires may light up their surroundings at once */
 UCLASS(config=Game, defaultconfig, meta = (DisplayName = "Vael Fire"))
 class UVaelFireSettings : public UDeveloperSettings
@@ -85,6 +93,29 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	TSoftObjectPtr<class UNiagaraSystem> BurstNiagara;
+
+	/** Pack fire simulates in world space: a ball that flies (element orb, Feuerball) leaves flames hanging in the air.
+	 *  These values of its own parameters keep it a calm ball whose flames die quickly behind it as a short tail */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TMap<FName, float> FlyingBallFloats;
+
+	/** Same for the trail of a projectile; its wind is turned against the flight every frame so the flames stream backwards */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TMap<FName, float> TrailFloats;
+
+	/** Flames streaming out of the hands along a fire beam (Feuerstrahl), one every JetSpacing cm, their wind blowing along the beam */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TSoftObjectPtr<class UNiagaraSystem> JetNiagara;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara", meta=(ClampMin="20"))
+	float JetSpacing = 140.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	TMap<FName, float> JetFloats;
+
+	/** Wind speed given to flying fire and the jet, for the pack parameter "Wind Speed" */
+	UPROPERTY(config, EditAnywhere, Category="Niagara")
+	float FlightWindSpeed = 6.0f;
 	/** Flames as 3D tongues (Tools/Feuer/feuer_zunge.py, Scripts/CreateFireTongues.py): meshes that lick, sway and tear off at
 	 *  the tip. A Brandherd grows them along the arms of an invisible star, a campfire burns as a ring, a ball all around */
 	UPROPERTY(config, EditAnywhere, Category="Tongues")
@@ -434,6 +465,9 @@ private:
 	/** Boris' Niagara fire, when the settings name one */
 	UPROPERTY(Transient)
 	TObjectPtr<class UNiagaraComponent> NiagaraFire;
+
+	/** Where flying fire was last frame, to turn its wind against the flight */
+	FVector LastFlightLocation = FVector::ZeroVector;
 
 	/** Starts Boris' Niagara fire, true if it burns */
 	bool BuildNiagaraFire();

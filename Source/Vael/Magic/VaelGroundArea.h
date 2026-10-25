@@ -132,6 +132,18 @@ private:
 	/** The living flames of a fire area (fire kit); they die down on their own when the area ends */
 	TWeakObjectPtr<class AVaelFireSpot> FireLook;
 
+	/** Mist veil: the ball of cloud turns slowly on this, and every now and then a shred of mist tears off and drifts away */
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> VeilSpin;
+
+	float NextShredCountdown = 0.0f;
+
+	/** Builds the ball of cloud of a mist veil; false without the steam effect */
+	bool BuildVeil(class UNiagaraSystem* Steam);
+
+	/** Turns the veil and lets a shred go */
+	void UpdateVeil(float DeltaSeconds);
+
 protected:
 
 	/** Lets the flames die down instead of vanishing with the area */

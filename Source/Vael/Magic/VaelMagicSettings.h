@@ -6,6 +6,7 @@
 #include "Engine/DeveloperSettings.h"
 #include "Magic/VaelElementTypes.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelDebrisWhirl.h"
 #include "VaelMagicSettings.generated.h"
 
 class UAnimMontage;
@@ -201,6 +202,29 @@ public:
 	/** Look of mud on the ground; without it mud uses the ground effect of earth */
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	TSoftObjectPtr<UNiagaraSystem> MudEffect;
+
+	/** Pieces the debris whirl of sand storms and dust devils carries, and how many a funnel and a storm has */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TArray<FVaelWhirlPiece> WhirlPieces;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
+	int32 WhirlFunnelPieces = 170;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
+	int32 WhirlStormPieces = 220;
+
+	/** Mist veil (Nebelschleier): balls of steam in its cloud, its turn in degrees per second, seconds between two shreds tearing off and their drift (pack wind speed) */
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 2))
+	int32 VeilBalls = 8;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	float VeilTurnSpeed = 14.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.1))
+	float VeilShredInterval = 0.9f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	float VeilShredDrift = 3.0f;
 
 	/** Dust thrown up where something heavy hits the ground (rock shards, stamps, rocks breaking out); gets the dust color and the spread */
 	UPROPERTY(config, EditAnywhere, Category="Effects")

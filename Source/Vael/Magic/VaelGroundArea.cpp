@@ -20,6 +20,7 @@
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
 #include "World/VaelFireSpot.h"
+#include "World/VaelFireComponent.h"
 
 namespace
 {
@@ -103,6 +104,11 @@ void AVaelGroundArea::BeginPlay()
 void AVaelGroundArea::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	if (VeilSpin != nullptr)
+	{
+		UpdateVeil(DeltaSeconds);
+	}
 
 	DamageStepTime += DeltaSeconds;
 	if (DamageStepTime < DamageStepInterval)
@@ -408,6 +414,63 @@ void AVaelGroundArea::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
+bool AVaelGroundArea::BuildVeil(UNiagaraSystem* Steam)
+{
+	if (Steam == nullptr)
+	{
+		return false;
+	}
+
+	VeilSpin = NewObject<USceneComponent>(this);
+	VeilSpin->SetupAttachment(RootComponent);
+	VeilSpin->RegisterComponent();
+
+	// Two rings of mist balls make a shell around the middle: a wide low one and a narrow high one, each ball turned on the shell
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const FVector Center = GetActorLocation();
+	for (int32 Index = 0; Index < MagicSettings->VeilBalls; ++Index)
+	{
+		const bool bHigh = Index % 2 == 1;
+		const float Angle = Index * UE_TWO_PI / MagicSettings->VeilBalls;
+		const float Reach = Radius * (bHigh ? 0.45f : 0.8f);
+		const FVector Place(FMath::Cos(Angle) * Reach, FMath::Sin(Angle) * Reach, bHigh ? Radius * 0.55f : Radius * 0.15f);
+		if (UNiagaraComponent* Ball = VaelEffects::Attach(Steam, VeilSpin, NAME_None, GetLookColor(), Radius * 0.4f))
+		{
+			Ball->SetUsingAbsoluteLocation(false);
+			Ball->SetRelativeLocation(Place);
+			VaelFire::SetWind(Ball, FVector::ZeroVector, 0.0f);
+		}
+	}
+	VeilSpin->SetWorldLocation(Center);
+	Disc->SetVisibility(false);
+	NextShredCountdown = 0.5f;
+	return true;
+}
+
+void AVaelGroundArea::UpdateVeil(float DeltaSeconds)
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	VeilSpin->AddLocalRotation(FRotator(0.0f, MagicSettings->VeilTurnSpeed * DeltaSeconds, 0.0f));
+
+	NextShredCountdown -= DeltaSeconds;
+	if (NextShredCountdown > 0.0f)
+	{
+		return;
+	}
+	NextShredCountdown = FMath::FRandRange(0.6f, 1.2f) * MagicSettings->VeilShredInterval;
+
+	// A shred tears off the edge and drifts outwards with the turn, rising a little
+	const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+	const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+	const FVector Along(-Out.Y, Out.X, 0.0f);
+	UNiagaraSystem* Steam = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
+	if (UNiagaraComponent* Shred = VaelEffects::SpawnAt(this, Steam, GetActorLocation() + Out * Radius * 0.85f + FVector(0.0f, 0.0f, Radius * FMath::FRandRange(0.1f, 0.5f)),
+		FRotator::ZeroRotator, GetLookColor(), Radius * 0.25f))
+	{
+		VaelFire::SetWind(Shred, (Out + Along * 0.6f + FVector(0.0f, 0.0f, 0.25f)).GetSafeNormal() * 100.0f, MagicSettings->VeilShredDrift);
+	}
+}
+
 void AVaelGroundArea::SpawnVisual()
 {
 	UNiagaraSystem* Visual = VisualOverride;
@@ -438,6 +501,10 @@ void AVaelGroundArea::SpawnVisual()
 		if (Effect == EVaelGroundEffect::Blind || Effect == EVaelGroundEffect::Veil)
 		{
 			Visual = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
+			if (Effect == EVaelGroundEffect::Veil && BuildVeil(Visual))
+			{
+				return;
+			}
 		}
 		else if (Effect == EVaelGroundEffect::Slow)
 		{

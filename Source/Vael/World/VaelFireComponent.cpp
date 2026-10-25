@@ -16,6 +16,15 @@
 #include "VaelAssets.h"
 #include "Magic/VaelSpellEffects.h"
 
+void VaelFire::SetWind(UNiagaraComponent* Fire, const FVector& Direction, float Speed)
+{
+	// The pack spells the names differently in its systems
+	Fire->SetVariableVec3(TEXT("Wind Direction"), Direction);
+	Fire->SetVariableVec3(TEXT("Wind_Direction"), Direction);
+	Fire->SetVariableFloat(TEXT("Wind Speed"), Speed);
+	Fire->SetVariableFloat(TEXT("WInd_Speed"), Speed);
+}
+
 int32 UVaelFireComponent::NumLitFires = 0;
 int32 UVaelFireComponent::NumVolumeFires = 0;
 
@@ -105,6 +114,12 @@ UVaelFireSettings::UVaelFireSettings()
 	BallNiagara = PackFire(TEXT("Fire_Small"), TEXT("NS_FireSmall_var1"));
 	TrailNiagara = PackFire(TEXT("Fire_Windy"), TEXT("NS_FireWindy_Common"));
 	BurstNiagara = PackFire(TEXT("Fire_Big"), TEXT("NS_FireBig"));
+	JetNiagara = PackFire(TEXT("Fire_Windy"), TEXT("NS_FireWindy_Common"));
+
+	// A calm ball: flames live a third as long, rise slowly, no sparks flying off; the trail and the jet stream fast and short
+	FlyingBallFloats = { { TEXT("LifeTime Common"), 0.3f }, { TEXT("Velocity Common"), 0.35f }, { TEXT("Spawn Rate Common"), 1.6f }, { TEXT("Drag Common"), 2.0f } };
+	TrailFloats = { { TEXT("LifeTime Common"), 0.35f }, { TEXT("LifeTime Fire"), 0.35f }, { TEXT("LifeTime Smoke"), 0.3f }, { TEXT("Spawn Rate Common"), 1.8f } };
+	JetFloats = { { TEXT("LifeTime Common"), 0.45f }, { TEXT("LifeTime Fire"), 0.45f }, { TEXT("LifeTime Smoke"), 0.25f }, { TEXT("Velocity Common"), 2.5f }, { TEXT("Spawn Rate Common"), 2.0f } };
 }
 
 UVaelFireComponent::UVaelFireComponent(const FObjectInitializer& ObjectInitializer)
@@ -281,11 +296,24 @@ bool UVaelFireComponent::BuildNiagaraFire()
 		}
 		NiagaraFire->SetVariableFloat(TEXT("Staerke"), Strength);
 		NiagaraFire->Activate(true);
+		LastFlightLocation = GetComponentLocation();
 	}
 	NiagaraFire->SetVariableFloat(TEXT("Radius"), Shape.Radius * SizeScale);
 	NiagaraFire->SetVariableFloat(TEXT("Hoehe"), Shape.Height * SizeScale);
 	// A fire of a pack doesn't know Radius and Hoehe: its tuning in the magic settings sizes it
 	VaelEffects::ApplyPackTuning(NiagaraFire, FLinearColor::White, Shape.Radius * SizeScale);
+	if (Shape.bFloating)
+	{
+		for (const TPair<FName, float>& Value : Shape.bBall ? Settings->FlyingBallFloats : Settings->TrailFloats)
+		{
+			NiagaraFire->SetVariableFloat(Value.Key, Value.Value);
+		}
+		if (Shape.bBall)
+		{
+			NiagaraFire->SetEmitterEnable(TEXT("Sparks_0"), false);
+			NiagaraFire->SetEmitterEnable(TEXT("Sparks_Emitter"), false);
+		}
+	}
 	return true;
 }
 
@@ -844,6 +872,17 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	Strength = FMath::FInterpConstantTo(Strength, TargetStrength, DeltaTime, FadeSpeed);
+
+	// Flying fire of a pack: its wind blows against the flight, so the flames stream back as a tail
+	if (NiagaraFire != nullptr && Shape.bFloating && DeltaTime > 0.0f)
+	{
+		// Measured from its own movement: an element orb circles the head while its owner may stand still
+		const FVector Flight = (GetComponentLocation() - LastFlightLocation) / DeltaTime;
+		LastFlightLocation = GetComponentLocation();
+		const FVector Wind = Flight.SizeSquared() > FMath::Square(50.0f) ? -Flight.GetSafeNormal() * 100.0f : FVector::ZeroVector;
+		VaelFire::SetWind(NiagaraFire, Wind, Wind.IsZero() ? 0.0f : UVaelFireSettings::Get()->FlightWindSpeed);
+	}
+
 	if (FlameMaterial != nullptr)
 	{
 		FlameMaterial->SetScalarParameterValue(StrengthParameter, Strength);
