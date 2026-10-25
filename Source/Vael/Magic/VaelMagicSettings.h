@@ -215,13 +215,30 @@ public:
 
 	/** Body of dust of a whirl: seconds between two dust clouds (the dust burst of a rock wall) in a funnel and in a storm, their size in whirl radii */
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlFunnelDustInterval = 0.12f;
+	float WhirlFunnelDustInterval = 0.2f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlStormDustInterval = 0.06f;
+	float WhirlStormDustInterval = 0.1f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
 	float WhirlDustSize = 0.22f;
+
+	/** The body of a whirl: shells of whirling sand (M_Vael_Sandwirbel) nested in each other, each rings x segments points,
+	 *  swaying this many whirl radii at their top */
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	TSoftObjectPtr<UMaterialInterface> WhirlMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
+	int32 WhirlShells = 3;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 2))
+	int32 WhirlShellRings = 14;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 6))
+	int32 WhirlShellSegments = 32;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	float WhirlSway = 0.12f;
 
 	/** Spiral arms the dust clouds of a whirl sit on (they turn at WhirlBandTurnSpeed) */
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
@@ -241,28 +258,43 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	float WhirlBandTurnSpeed = 4.5f;
 
-	/** Mist veil (Nebelschleier): balls of steam in its cloud, its turn in degrees per second, seconds between two shreds tearing off and their drift (pack wind speed) */
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 2))
-	int32 VeilBalls = 15;
+	/** Mist veil (Nebelschleier): a blanket of M_Vael_Nebel creeping over the ground. Its mesh has rings x segments points
+	 *  reaching this many area radii out; one layer at each height in cm above the ground, those above MistBlanketHeight are
+	 *  the see-through wisps. Seconds the front creeps out, seconds it thins away at the end */
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	TSoftObjectPtr<UMaterialInterface> MistMaterial;
 
-	/** The veil's clouds start this many area radii out, draw in over these seconds and settle as a blanket this many radii around the middle */
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.1))
-	float VeilStartShare = 1.6f;
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 2))
+	int32 MistRings = 9;
 
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.1))
-	float VeilPullSeconds = 1.6f;
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 6))
+	int32 MistSegments = 36;
 
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
-	float VeilBlanketShare = 0.4f;
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.2))
+	float MistReachShare = 1.05f;
 
-	UPROPERTY(config, EditAnywhere, Category="Effects")
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	TArray<float> MistLayerHeights = { 3.0f, 14.0f, 26.0f, 38.0f, 65.0f, 100.0f };
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	float MistBlanketHeight = 45.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
+	float VeilPullSeconds = 1.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
+	float MistFadeSeconds = 1.2f;
+
+	/** Steam (Dampfwolke): a ball of the same substance (MI_Vael_Dampfkugel) over the area, its middle this many radii above
+	 *  the ground, turning this many degrees per second */
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	TSoftObjectPtr<UMaterialInterface> SteamBallMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
+	float SteamBallLift = 0.45f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
 	float VeilTurnSpeed = 14.0f;
-
-	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.1))
-	float VeilShredInterval = 0.9f;
-
-	UPROPERTY(config, EditAnywhere, Category="Effects")
-	float VeilShredDrift = 3.0f;
 
 	/** Dust thrown up where something heavy hits the ground (rock shards, stamps, rocks breaking out); gets the dust color and the spread */
 	UPROPERTY(config, EditAnywhere, Category="Effects")

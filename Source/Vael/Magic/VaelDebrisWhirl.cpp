@@ -7,6 +7,8 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
 #include "NiagaraComponent.h"
+#include "ProceduralMeshComponent.h"
+#include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
 
@@ -33,6 +35,7 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 	DustColor = InDustColor;
 
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	BuildShells();
 	float TotalShare = 0.0f;
 	TArray<const FVaelWhirlPiece*> Loaded;
 	TArray<UStaticMesh*> Meshes;
@@ -106,6 +109,95 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 	}
 }
 
+void UVaelDebrisWhirlComponent::BuildShells()
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	UMaterialInterface* Material = VaelAssets::LoadOptional(MagicSettings->WhirlMaterial);
+	if (Material == nullptr)
+	{
+		return;
+	}
+	Shells = NewObject<UProceduralMeshComponent>(GetOwner());
+	Shells->SetupAttachment(this);
+	Shells->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Shells->SetCastShadow(false);
+	Shells->RegisterComponent();
+
+	// Each shell a tube following the shape of the whirl, inner shells narrower; U goes round in turns, V up.
+	// The seam gets its own column of points so U can run on without jumping back
+	const int32 NumRings = MagicSettings->WhirlShellRings;
+	const int32 NumSegments = MagicSettings->WhirlShellSegments;
+	TArray<int32> Triangles;
+	TArray<FVector2D> UVs;
+	TArray<FLinearColor> Colors;
+	for (int32 Shell = 0; Shell < MagicSettings->WhirlShells; ++Shell)
+	{
+		const float Inner = MagicSettings->WhirlShells > 1 ? float(Shell) / (MagicSettings->WhirlShells - 1) : 0.0f;
+		const int32 First = ShellVertices.Num();
+		for (int32 Ring = 0; Ring <= NumRings; ++Ring)
+		{
+			const float Up = float(Ring) / NumRings;
+			for (int32 Segment = 0; Segment <= NumSegments; ++Segment)
+			{
+				ShellVertices.Add(FVector::ZeroVector);
+				UVs.Add(FVector2D(float(Segment) / NumSegments * (2.0f + Shell), Up));
+				// Thin at the bottom and the top, the inner shells denser
+				const float Solid = FMath::Pow(FMath::Sin(Up * UE_PI), 0.6f) * FMath::Lerp(0.55f, 1.0f, Inner) * (bFunnel ? 1.0f : FMath::Lerp(1.0f, 0.5f, Up));
+				Colors.Add(FLinearColor(Inner, 0.0f, 0.0f, Solid));
+			}
+		}
+		for (int32 Ring = 0; Ring < NumRings; ++Ring)
+		{
+			for (int32 Segment = 0; Segment < NumSegments; ++Segment)
+			{
+				const int32 A = First + Ring * (NumSegments + 1) + Segment;
+				const int32 C = A + NumSegments + 1;
+				Triangles.Append({ A, C, A + 1, A + 1, C, C + 1 });
+			}
+		}
+	}
+	UpdateShells();
+
+	// Normals point out from the middle (a lit material needs them, or the shells don't show at all)
+	TArray<FVector> Normals;
+	for (const FVector& Vertex : ShellVertices)
+	{
+		Normals.Add(FVector(Vertex.X, Vertex.Y, 0.0f).GetSafeNormal(UE_SMALL_NUMBER, FVector::UpVector));
+	}
+	Shells->CreateMeshSection_LinearColor(0, ShellVertices, Triangles, Normals, UVs, Colors, TArray<FProcMeshTangent>(), false);
+	Shells->SetMaterial(0, Material);
+}
+
+void UVaelDebrisWhirlComponent::UpdateShells()
+{
+	if (ShellVertices.IsEmpty())
+	{
+		return;
+	}
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const int32 NumRings = MagicSettings->WhirlShellRings;
+	const int32 NumSegments = MagicSettings->WhirlShellSegments;
+	int32 Index = 0;
+	for (int32 Shell = 0; Shell < MagicSettings->WhirlShells; ++Shell)
+	{
+		const float Inner = MagicSettings->WhirlShells > 1 ? float(Shell) / (MagicSettings->WhirlShells - 1) : 0.0f;
+		for (int32 Ring = 0; Ring <= NumRings; ++Ring)
+		{
+			// The whirl sways: the higher, the further its middle swings round
+			FPiece Point;
+			Point.Height = Height * Ring / NumRings;
+			Point.Offset = FMath::Lerp(0.05f, -0.3f, Inner);
+			const float Up = float(Ring) / NumRings;
+			const FVector Sway = FVector(FMath::Sin(Age * 1.7f + Up * 2.0f), FMath::Cos(Age * 1.3f + Up * 2.6f), 0.0f) * Radius * MagicSettings->WhirlSway * Up;
+			for (int32 Segment = 0; Segment <= NumSegments; ++Segment)
+			{
+				Point.Angle = Segment * UE_TWO_PI / NumSegments;
+				ShellVertices[Index++] = PlaceOf(Point) + Sway;
+			}
+		}
+	}
+}
+
 FVector UVaelDebrisWhirlComponent::PlaceOf(const FPiece& Piece) const
 {
 	// A funnel narrows towards the ground, a storm bulges in the middle of its band
@@ -119,6 +211,12 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	Age += DeltaTime;
+
+	if (Shells != nullptr)
+	{
+		UpdateShells();
+		Shells->UpdateMeshSection_LinearColor(0, ShellVertices, TArray<FVector>(), TArray<FVector2D>(), TArray<FLinearColor>(), TArray<FProcMeshTangent>());
+	}
 
 	// The bands race round and up and start again at the bottom
 	for (int32 Index = 0; Index < Bands.Num(); ++Index)

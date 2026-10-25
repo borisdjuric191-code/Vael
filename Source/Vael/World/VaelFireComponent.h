@@ -156,6 +156,42 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Niagara", meta=(ClampMin="10"))
 	float BeamCoreTileLength = 120.0f;
 
+	/** Layers of the fire beam (as in the prototype): the glow around it and the core in it, each in radii of the body, their heat
+	 *  and the glow's opacity; how fast the fire streams; balls of fire at its source and where it hits (radius cm); seconds between
+	 *  bursts at the end; lights along it and their brightness */
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamGlowShare = 1.9f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamCoreShare = 0.38f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamGlowHeat = 0.55f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamCoreHeat = 1.9f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamGlowOpacity = 0.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamFlowSpeed = 7.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamSourceRadius = 22.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamImpactRadius = 40.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam", meta=(ClampMin="0.03"))
+	float BeamImpactInterval = 0.12f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam", meta=(ClampMin="0"))
+	int32 BeamLights = 3;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Beam")
+	float BeamLightIntensity = 22.0f;
+
 	/** Wind speed given to flying fire and the jet, for the pack parameter "Wind Speed" */
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	float FlightWindSpeed = 6.0f;

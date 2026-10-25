@@ -6,11 +6,11 @@ Bump KIT_VERSION to rebuild it.
 """
 import unreal
 
-KIT_VERSION = "1.6"
+KIT_VERSION = "1.7"
 PATH = "/Game/Vael/Effects/Feuer/M_Vael_Feuerstrahl"
 
 # How fast the licks race along the beam, and how much they are stretched along it (lower is longer)
-FLOW_SPEED = 3.5
+FLOW_SPEED = 7.5
 STRETCH = 0.35
 
 mel = unreal.MaterialEditingLibrary
@@ -78,7 +78,7 @@ def build():
     time = node(material, unreal.MaterialExpressionTime, -2000, 950)
     rush = node(material, unreal.MaterialExpressionMultiply, -1800, 950)
     link(time, rush, "A")
-    link(constant(material, FLOW_SPEED, -2000, 1050), rush, "B")
+    link(node(material, unreal.MaterialExpressionScalarParameter, -2000, 1050, parameter_name="Tempo", default_value=FLOW_SPEED), rush, "B")
     racing = node(material, unreal.MaterialExpressionSubtract, -1300, 700)
     link(stretched, racing, "A")
     link(rush, racing, "B")
@@ -101,8 +101,12 @@ def build():
     link(constant(material, 0.75, -1300, 120), boost, "B")
     link(boost, heat_raw, "A")
     link(noise, heat_raw, "B")
+    # "Hitze": each layer of the beam its own (the outer glow cool, the core white-hot)
+    heated = node(material, unreal.MaterialExpressionMultiply, -650, 200)
+    link(heat_raw, heated, "A")
+    link(node(material, unreal.MaterialExpressionScalarParameter, -800, 300, parameter_name="Hitze", default_value=1.0), heated, "B")
     heat = node(material, unreal.MaterialExpressionSaturate, -600, 100)
-    link(heat_raw, heat, "")
+    link(heated, heat, "")
 
     # Thirds of the heat: black to orange, orange to yellow, yellow to white
     thirds = node(material, unreal.MaterialExpressionMultiply, -700, 100)
@@ -141,8 +145,11 @@ def build():
     opacity_raw = node(material, unreal.MaterialExpressionMultiply, -200, 500)
     link(heat, opacity_raw, "A")
     link(constant(material, 2.2, -350, 600), opacity_raw, "B")
+    thinned = node(material, unreal.MaterialExpressionMultiply, -100, 600)
+    link(opacity_raw, thinned, "A")
+    link(node(material, unreal.MaterialExpressionScalarParameter, -250, 700, parameter_name="Deckkraft", default_value=1.0), thinned, "B")
     opacity = node(material, unreal.MaterialExpressionSaturate, 0, 500)
-    link(opacity_raw, opacity, "")
+    link(thinned, opacity, "")
     mel.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
 
     mel.recompile_material(material)

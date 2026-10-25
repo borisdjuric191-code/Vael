@@ -20,6 +20,7 @@
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
 #include "VaelAssets.h"
+#include "Components/PointLightComponent.h"
 #include "World/VaelFireComponent.h"
 #include "World/VaelGround.h"
 
@@ -135,6 +136,61 @@ void AVaelSpellBeam::BeginPlay()
 			CoreMaterialInstance = Mesh->CreateAndSetMaterialInstanceDynamic(0);
 			CoreRadius = FireSettings->BeamCoreRadius;
 			Mesh->SetVisibility(true);
+
+			// As in the prototype: a wide, cool, see-through glow around the body of flames and a thin white-hot core in it
+			for (const bool bOuter : { true, false })
+			{
+				UStaticMeshComponent* Layer = NewObject<UStaticMeshComponent>(this);
+				Layer->SetStaticMesh(Mesh->GetStaticMesh());
+				Layer->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Layer->SetCastShadow(false);
+				Layer->SetupAttachment(Mesh);
+				Layer->SetUsingAbsoluteLocation(true);
+				Layer->SetUsingAbsoluteRotation(true);
+				Layer->SetUsingAbsoluteScale(true);
+				Layer->RegisterComponent();
+				Layer->SetMaterial(0, CoreMaterial);
+				UMaterialInstanceDynamic* LayerMaterial = Layer->CreateAndSetMaterialInstanceDynamic(0);
+				LayerMaterial->SetScalarParameterValue(TEXT("Hitze"), bOuter ? FireSettings->BeamGlowHeat : FireSettings->BeamCoreHeat);
+				LayerMaterial->SetScalarParameterValue(TEXT("Deckkraft"), bOuter ? FireSettings->BeamGlowOpacity : 1.0f);
+				LayerMaterial->SetScalarParameterValue(TEXT("Tempo"), FireSettings->BeamFlowSpeed * (bOuter ? 0.7f : 1.4f));
+				(bOuter ? OuterLayer : InnerLayer) = Layer;
+				LayerMaterials.Add(LayerMaterial);
+			}
+			CoreMaterialInstance->SetScalarParameterValue(TEXT("Tempo"), FireSettings->BeamFlowSpeed);
+
+			// Its source: a calm ball of fire at the hands; its end: fire bursting where it hits
+			for (const bool bSource : { true, false })
+			{
+				UVaelFireComponent* Flames = NewObject<UVaelFireComponent>(this);
+				Flames->SetupAttachment(Mesh);
+				Flames->SetUsingAbsoluteLocation(true);
+				Flames->SetUsingAbsoluteRotation(true);
+				Flames->SetUsingAbsoluteScale(true);
+				Flames->RegisterComponent();
+				FVaelFireShape Ball;
+				Ball.Radius = bSource ? FireSettings->BeamSourceRadius : FireSettings->BeamImpactRadius;
+				Ball.Height = Ball.Radius * 2.0f;
+				Ball.bBall = true;
+				Ball.bFloating = true;
+				Ball.bLight = false;
+				Flames->Ignite(Ball, 0.1f);
+				(bSource ? SourceFlames : ImpactFlames) = Flames;
+			}
+
+			// Light along the beam
+			for (int32 Index = 0; Index < FireSettings->BeamLights; ++Index)
+			{
+				UPointLightComponent* Light = NewObject<UPointLightComponent>(this);
+				Light->SetupAttachment(Mesh);
+				Light->SetUsingAbsoluteLocation(true);
+				Light->SetUsingAbsoluteScale(true);
+				Light->SetLightColor(FLinearColor(1.0f, 0.45f, 0.12f));
+				Light->SetAttenuationRadius(450.0f);
+				Light->SetCastShadows(false);
+				Light->RegisterComponent();
+				BeamLights.Add(Light);
+			}
 		}
 	}
 	VisualComponent = JetFlames.IsEmpty() && CoreRadius <= 0.0f ? VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, BeamLookRadius) : nullptr;
@@ -282,12 +338,51 @@ void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, 
 	}
 
 	// The cylinder stands on its axis, which is turned into the aim direction
-	Mesh->SetWorldLocationAndRotation(Start + Direction * VisibleLength * 0.5f, FRotationMatrix::MakeFromZ(Direction).Rotator());
 	const float LookRadius = CoreRadius > 0.0f ? CoreRadius : BeamLookRadius;
 	if (CoreMaterialInstance != nullptr)
 	{
 		// The fire texture repeats along the beam at its own size, however long the beam is
 		CoreMaterialInstance->SetScalarParameterValue(TEXT("Kacheln"), VisibleLength / UVaelFireSettings::Get()->BeamCoreTileLength);
 	}
-	Mesh->SetWorldScale3D(FVector(LookRadius / BeamPlaceholderCylinderRadius, LookRadius / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
+	// A fire beam throbs: its thickness flickers fast, as in the prototype
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Throb = CoreRadius > 0.0f ? 1.0f + 0.14f * FMath::Sin(Time * 40.0f) + 0.07f * FMath::Sin(Time * 23.0f + 1.3f) : 1.0f;
+	const FRotator Along = FRotationMatrix::MakeFromZ(Direction).Rotator();
+	const auto Stretch = [&](UStaticMeshComponent* Cylinder, float Thickness)
+	{
+		Cylinder->SetWorldLocationAndRotation(Start + Direction * VisibleLength * 0.5f, Along);
+		Cylinder->SetWorldScale3D(FVector(Thickness / BeamPlaceholderCylinderRadius, Thickness / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
+	};
+	Stretch(Mesh, LookRadius * Throb);
+	if (OuterLayer != nullptr)
+	{
+		const UVaelFireSettings* FireSettings = UVaelFireSettings::Get();
+		Stretch(OuterLayer, LookRadius * FireSettings->BeamGlowShare * (1.0f + 0.1f * FMath::Sin(Time * 31.0f + 0.4f)));
+		Stretch(InnerLayer, LookRadius * FireSettings->BeamCoreShare * Throb);
+		for (UMaterialInstanceDynamic* LayerMaterial : LayerMaterials)
+		{
+			LayerMaterial->SetScalarParameterValue(TEXT("Kacheln"), VisibleLength / FireSettings->BeamCoreTileLength);
+		}
+
+		const FVector End = Start + Direction * VisibleLength;
+		SourceFlames->SetWorldLocation(Start);
+		ImpactFlames->SetWorldLocation(End - Direction * 20.0f);
+		for (int32 Index = 0; Index < BeamLights.Num(); ++Index)
+		{
+			BeamLights[Index]->SetWorldLocation(Start + Direction * VisibleLength * (Index + 0.5f) / BeamLights.Num() + FVector(0.0f, 0.0f, 40.0f));
+			BeamLights[Index]->SetIntensity(FireSettings->BeamLightIntensity * Throb);
+		}
+
+		// Where it hits, fire keeps bursting and spraying back
+		ImpactCountdown -= GetWorld()->GetDeltaSeconds();
+		if (ImpactCountdown <= 0.0f)
+		{
+			ImpactCountdown = FireSettings->BeamImpactInterval;
+			if (UNiagaraComponent* Burst = VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(FireSettings->SparkHitNiagara), End + FMath::VRand() * 15.0f, FRotator::ZeroRotator,
+				Settings.Color, FireSettings->BeamImpactRadius))
+			{
+				VaelFire::SetWind(Burst, (-Direction + FVector(0.0f, 0.0f, 0.8f)).GetSafeNormal() * 100.0f, UVaelFireSettings::Get()->FlightWindSpeed);
+			}
+		}
+	}
 }

@@ -68,6 +68,15 @@ private:
 	/** Where a piece is at its height and angle */
 	FVector PlaceOf(const FPiece& Piece) const;
 
+	/** Builds the shells of whirling sand, and lays their points again as the whirl sways */
+	void BuildShells();
+	void UpdateShells();
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UProceduralMeshComponent> Shells;
+
+	TArray<FVector> ShellVertices;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UInstancedStaticMeshComponent>> Kinds;
 

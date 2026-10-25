@@ -21,6 +21,8 @@
 #include "World/VaelWorldSettings.h"
 #include "World/VaelFireSpot.h"
 #include "World/VaelFireComponent.h"
+#include "World/VaelGround.h"
+#include "ProceduralMeshComponent.h"
 
 namespace
 {
@@ -99,7 +101,7 @@ void AVaelGroundArea::BeginPlay()
 
 	// The real look replaces the placeholder disc as soon as the effect exists; a mist veil turns, so it ticks too
 	SpawnVisual();
-	if (VeilSpin != nullptr)
+	if (MistMesh != nullptr || !SteamBalls.IsEmpty())
 	{
 		SetActorTickEnabled(true);
 	}
@@ -109,7 +111,7 @@ void AVaelGroundArea::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
-	if (VeilSpin != nullptr)
+	if (MistMesh != nullptr || !SteamBalls.IsEmpty())
 	{
 		UpdateVeil(DeltaSeconds);
 	}
@@ -418,83 +420,150 @@ void AVaelGroundArea::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	Super::EndPlay(EndPlayReason);
 }
 
-bool AVaelGroundArea::BuildVeil(UNiagaraSystem* Steam)
+bool AVaelGroundArea::BuildVeil()
 {
-	if (Steam == nullptr)
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const FVector Center = GetActorLocation();
+
+	// Steam: a ball of the white substance over the area, two shells turning against each other
+	if (Effect == EVaelGroundEffect::Blind)
+	{
+		UMaterialInterface* BallMaterial = VaelAssets::LoadOptional(MagicSettings->SteamBallMaterial);
+		UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+		if (BallMaterial == nullptr || Sphere == nullptr)
+		{
+			return false;
+		}
+		for (const float Share : { 1.0f, 0.82f })
+		{
+			UStaticMeshComponent* Ball = NewObject<UStaticMeshComponent>(this);
+			Ball->SetStaticMesh(Sphere);
+			Ball->SetMaterial(0, BallMaterial);
+			Ball->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Ball->SetCastShadow(false);
+			Ball->SetupAttachment(RootComponent);
+			Ball->SetUsingAbsoluteScale(true);
+			Ball->RegisterComponent();
+			// The engine sphere is 100 cm across; the ball sits on the ground, a little sunk into it
+			Ball->SetWorldLocation(Center + FVector(0.0f, 0.0f, Radius * Share * MagicSettings->SteamBallLift));
+			Ball->SetWorldScale3D(FVector(Radius * Share / 50.0f));
+			SteamBalls.Add(Ball);
+		}
+		Disc->SetVisibility(false);
+		return true;
+	}
+
+	// The mist veil: rings of points over the ground, each layer of the blanket and of the wisps above at its own height
+	UMaterialInterface* MistMaterial = VaelAssets::LoadOptional(MagicSettings->MistMaterial);
+	if (MistMaterial == nullptr)
 	{
 		return false;
 	}
+	MistMesh = NewObject<UProceduralMeshComponent>(this);
+	MistMesh->SetupAttachment(RootComponent);
+	MistMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	MistMesh->SetCastShadow(false);
+	// Its own size and turn: the disc it hangs on is scaled to the radius and pressed flat
+	MistMesh->SetUsingAbsoluteScale(true);
+	MistMesh->RegisterComponent();
+	MistMesh->SetUsingAbsoluteRotation(true);
+	MistMesh->SetWorldScale3D(FVector::OneVector);
+	MistMesh->SetWorldRotation(FRotator::ZeroRotator);
 
-	VeilSpin = NewObject<USceneComponent>(this);
-	VeilSpin->SetupAttachment(RootComponent);
-	VeilSpin->RegisterComponent();
+	const int32 NumRings = MagicSettings->MistRings;
+	const int32 NumSegments = MagicSettings->MistSegments;
+	const float Reach = Radius * MagicSettings->MistReachShare;
 
-	// Balls of cloud on three rings of a dome over the area: wide and low, middle, narrow and high. Steam sits on the
-	// edge of its area; the veil's balls start far outside and draw in to a thick blanket close around the middle
-	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	const bool bVeil = Effect == EVaelGroundEffect::Veil;
-	const float Shell = bVeil ? MagicSettings->VeilBlanketShare : 0.9f;
-	const int32 NumBalls = MagicSettings->VeilBalls;
-	for (int32 Index = 0; Index < NumBalls; ++Index)
+	// The ground under each point of the rings, found once
+	TArray<float> GroundHeights;
+	for (int32 Ring = 0; Ring <= NumRings; ++Ring)
 	{
-		const int32 Ring = Index % 3;
-		const float Angle = Index * UE_TWO_PI / NumBalls + Ring * 0.5f;
-		const float Up = Ring * 0.4f;
-		const float Reach = Radius * Shell * FMath::Cos(Up * UE_HALF_PI);
-		const FVector Direction(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
-		const FVector Settled = Direction * Reach + FVector(0.0f, 0.0f, Radius * Shell * FMath::Sin(Up * UE_HALF_PI) + Radius * 0.05f);
-		const FVector Start = bVeil ? Direction * Radius * MagicSettings->VeilStartShare + FVector(0.0f, 0.0f, Settled.Z * 0.5f) : Settled;
-		if (UNiagaraComponent* Ball = VaelEffects::Attach(Steam, VeilSpin, NAME_None, GetLookColor(), Radius * (bVeil ? 0.55f : 0.45f)))
+		for (int32 Segment = 0; Segment < NumSegments; ++Segment)
 		{
-			// The plume allows only a few of itself at once; the cloud needs all its balls
-			Ball->SetAllowScalability(false);
-			Ball->SetUsingAbsoluteLocation(false);
-			Ball->SetRelativeLocation(Start);
-			CloudBalls.Add(Ball);
-			CloudFrom.Add(Start);
-			CloudTo.Add(Settled);
+			const float Angle = Segment * UE_TWO_PI / NumSegments;
+			const FVector Place = Center + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Reach * Ring / NumRings;
+			FHitResult GroundHit;
+			const bool bFound = VaelGround::TraceGround(GetWorld(), Place + FVector(0.0f, 0.0f, 150.0f), Place - FVector(0.0f, 0.0f, 300.0f), GroundHit, GetInstigator());
+			GroundHeights.Add(bFound ? GroundHit.Location.Z - Center.Z : 0.0f);
 		}
 	}
-	VeilSpin->SetWorldLocation(GetActorLocation());
+
+	TArray<FVector> Vertices;
+	TArray<int32> Triangles;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<FProcMeshTangent> Tangents;
+	for (int32 Layer = 0; Layer < MagicSettings->MistLayerHeights.Num(); ++Layer)
+	{
+		const float Lift = MagicSettings->MistLayerHeights[Layer];
+		const bool bWisp = Lift > MagicSettings->MistBlanketHeight;
+		const int32 First = Vertices.Num();
+		for (int32 Ring = 0; Ring <= NumRings; ++Ring)
+		{
+			for (int32 Segment = 0; Segment < NumSegments; ++Segment)
+			{
+				const float Angle = Segment * UE_TWO_PI / NumSegments;
+				const float Distance = Reach * Ring / NumRings;
+				Vertices.Add(FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, GroundHeights[Ring * NumSegments + Segment] + Lift));
+				Normals.Add(FVector::UpVector);
+				UVs.Add(FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Distance / 100.0f);
+				MistDistances.Add(Distance);
+				MistWisps.Add(bWisp);
+				MistColors.Add(FLinearColor(0.0f, bWisp ? 1.0f : 0.0f, 0.0f, 1.0f));
+			}
+		}
+		for (int32 Ring = 0; Ring < NumRings; ++Ring)
+		{
+			for (int32 Segment = 0; Segment < NumSegments; ++Segment)
+			{
+				const int32 A = First + Ring * NumSegments + Segment;
+				const int32 B = First + Ring * NumSegments + (Segment + 1) % NumSegments;
+				const int32 C = A + NumSegments;
+				const int32 D = B + NumSegments;
+				Triangles.Append({ A, C, B, B, C, D });
+			}
+		}
+	}
+	MistMesh->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, MistColors, Tangents, false);
+	MistVertices = MoveTemp(Vertices);
+	MistMesh->SetMaterial(0, MistMaterial);
 	Disc->SetVisibility(false);
-	NextShredCountdown = bVeil ? MagicSettings->VeilPullSeconds : UE_BIG_NUMBER;
 	return true;
 }
 
 void AVaelGroundArea::UpdateVeil(float DeltaSeconds)
 {
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	VeilSpin->AddLocalRotation(FRotator(0.0f, MagicSettings->VeilTurnSpeed * DeltaSeconds, 0.0f));
-
-	// The clouds draw in, fast at first and settling softly; moving, they leave their mist behind as streaks
 	CloudAge += DeltaSeconds;
-	const float Pull = FMath::Clamp(CloudAge / MagicSettings->VeilPullSeconds, 0.0f, 1.0f);
-	const float Eased = 1.0f - FMath::Square(1.0f - Pull);
-	for (int32 Index = 0; Index < CloudBalls.Num(); ++Index)
-	{
-		if (CloudBalls[Index] != nullptr && CloudFrom[Index] != CloudTo[Index])
-		{
-			CloudBalls[Index]->SetRelativeLocation(FMath::Lerp(CloudFrom[Index], CloudTo[Index], Eased));
-		}
-	}
 
-	NextShredCountdown -= DeltaSeconds;
-	if (NextShredCountdown > 0.0f)
+	// The ball of steam turns slowly, its two shells against each other
+	for (int32 Index = 0; Index < SteamBalls.Num(); ++Index)
+	{
+		SteamBalls[Index]->AddLocalRotation(FRotator(0.0f, (Index == 0 ? 1.0f : -1.4f) * MagicSettings->VeilTurnSpeed * DeltaSeconds, 0.0f));
+	}
+	if (MistMesh == nullptr)
 	{
 		return;
 	}
-	NextShredCountdown = FMath::FRandRange(0.6f, 1.2f) * MagicSettings->VeilShredInterval;
 
-	// A shred tears off the edge and drifts outwards with the turn, rising a little
-	const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
-	const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
-	const FVector Along(-Out.Y, Out.X, 0.0f);
-	UNiagaraSystem* Steam = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
-	if (UNiagaraComponent* Shred = VaelEffects::SpawnAt(this, Steam, GetActorLocation() + Out * Radius * 0.85f + FVector(0.0f, 0.0f, Radius * FMath::FRandRange(0.1f, 0.5f)),
-		FRotator::ZeroRotator, GetLookColor(), Radius * 0.25f))
+	// The front creeps out fast at first and slows; the blanket is densest near the middle and thins out at its edge,
+	// and in the last moments the whole veil thins away. The wisps follow the blanket a little behind
+	const float Creep = FMath::Clamp(CloudAge / MagicSettings->VeilPullSeconds, 0.0f, 1.0f);
+	const float Reach = Radius * MagicSettings->MistReachShare;
+	const float Front = Reach * (1.0f - FMath::Square(1.0f - Creep));
+	const float Remaining = GetLifeSpan() > 0.0f ? GetLifeSpan() : 1.0f;
+	const float Fade = FMath::Clamp(Remaining / MagicSettings->MistFadeSeconds, 0.0f, 1.0f);
+	const float EdgeWidth = Reach * 0.3f;
+	for (int32 Index = 0; Index < MistColors.Num(); ++Index)
 	{
-		VaelFire::SetWind(Shred, (Out + Along * 0.6f + FVector(0.0f, 0.0f, 0.25f)).GetSafeNormal() * 100.0f, MagicSettings->VeilShredDrift);
+		const float Distance = MistDistances[Index];
+		const float Behind = MistWisps[Index] ? Front - EdgeWidth * 0.5f : Front;
+		const float Edge = FMath::Clamp((Behind - Distance) / EdgeWidth, 0.0f, 1.0f);
+		const float Inner = FMath::Lerp(1.0f, 0.55f, Distance / Reach);
+		MistColors[Index].R = Edge * Inner * Fade;
 	}
+	// (with the points again: without them the new colours are not taken over)
+	MistMesh->UpdateMeshSection_LinearColor(0, MistVertices, TArray<FVector>(), TArray<FVector2D>(), MistColors, TArray<FProcMeshTangent>());
 }
 
 void AVaelGroundArea::SpawnVisual()
@@ -527,7 +596,7 @@ void AVaelGroundArea::SpawnVisual()
 		if (Effect == EVaelGroundEffect::Blind || Effect == EVaelGroundEffect::Veil)
 		{
 			Visual = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
-			if (BuildVeil(Visual))
+			if (BuildVeil())
 			{
 				return;
 			}

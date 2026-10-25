@@ -132,25 +132,27 @@ private:
 	/** The living flames of a fire area (fire kit); they die down on their own when the area ends */
 	TWeakObjectPtr<class AVaelFireSpot> FireLook;
 
-	/** Steam and mist veil: a sphere of cloud over the area turning slowly on this. The veil's clouds draw in from all sides
-	 *  into a thick blanket around the middle, and every now and then a shred of mist tears off and drifts away */
+	/** Mist veil: a heavy blanket of mist about 40 cm thick creeping over the ground from the middle, see-through wisps
+	 *  above it (a mesh grown over the ground, M_Vael_Nebel). Steam: a ball of the same white substance over the area
+	 *  that only lets the silhouettes inside show (MI_Vael_Dampfkugel) */
 	UPROPERTY(Transient)
-	TObjectPtr<USceneComponent> VeilSpin;
+	TObjectPtr<class UProceduralMeshComponent> MistMesh;
 
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<class UNiagaraComponent>> CloudBalls;
+	TArray<TObjectPtr<UStaticMeshComponent>> SteamBalls;
 
-	/** Where each ball of cloud starts and where it settles, in the frame of the spin */
-	TArray<FVector> CloudFrom;
-	TArray<FVector> CloudTo;
+	/** Per vertex of the blanket: its distance from the middle in cm and whether it belongs to the wisps */
+	TArray<float> MistDistances;
+	TArray<bool> MistWisps;
+	TArray<FLinearColor> MistColors;
+	TArray<FVector> MistVertices;
 
 	float CloudAge = 0.0f;
-	float NextShredCountdown = 0.0f;
 
-	/** Builds the sphere of cloud of steam or a mist veil; false without the steam effect */
-	bool BuildVeil(class UNiagaraSystem* Steam);
+	/** Builds the mist blanket or the ball of steam; false without their materials */
+	bool BuildVeil();
 
-	/** Turns the cloud, draws the veil in and lets a shred go */
+	/** Lets the blanket creep out and fade at the end, turns the ball of steam */
 	void UpdateVeil(float DeltaSeconds);
 
 protected:

@@ -122,6 +122,27 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UMaterialInstanceDynamic> CoreMaterialInstance;
 
+	/** Fire beam: the wide glow around it and the white-hot core in it, the fire at its source and where it hits, its lights */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> OuterLayer;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> InnerLayer;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UMaterialInstanceDynamic>> LayerMaterials;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelFireComponent> SourceFlames;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelFireComponent> ImpactFlames;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UPointLightComponent>> BeamLights;
+
+	float ImpactCountdown = 0.0f;
+
 	/** World time at which the beam ends */
 	float EndTime = 0.0f;
 
