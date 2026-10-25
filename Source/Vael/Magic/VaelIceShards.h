@@ -26,6 +26,9 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Sets all ice within Width of the line melting, like a fire beam sweeping over it */
+	static void MeltAlong(const UWorld* World, const FVector& Start, const FVector& End, float Width);
+
 private:
 
 	void Build();

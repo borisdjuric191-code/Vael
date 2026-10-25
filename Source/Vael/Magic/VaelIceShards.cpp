@@ -6,7 +6,11 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
+#include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelElementSource.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelSpellEffects.h"
+#include "NiagaraSystem.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterPuddle.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -77,6 +81,19 @@ void AVaelIceShards::Build()
 	}
 }
 
+void AVaelIceShards::MeltAlong(const UWorld* World, const FVector& Start, const FVector& End, float Width)
+{
+	for (TActorIterator<AVaelIceShards> It(World); World != nullptr && It; ++It)
+	{
+		// (on the ground plane: a beam runs at chest height over ice lying on the ground)
+		const FVector Flat(1.0f, 1.0f, 0.0f);
+		if (It->MeltAge < 0.0f && FMath::PointDistToSegment(It->GetActorLocation() * Flat, Start * Flat, End * Flat) <= Width + It->Radius)
+		{
+			It->MeltAge = 0.0f;
+		}
+	}
+}
+
 bool AVaelIceShards::IsFireClose() const
 {
 	const UWorld* World = GetWorld();
@@ -120,8 +137,24 @@ void AVaelIceShards::Tick(float DeltaSeconds)
 		Size = 1.0f - FMath::Clamp(MeltAge / MagicSettings->IceMeltSeconds, 0.0f, 1.0f);
 		if (Size <= 0.0f)
 		{
-			AVaelWaterPuddle::AddSplash(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 30.0f), MagicSettings->IceMeltWater, nullptr, GetInstigator());
-			UE_LOG(LogVael, Log, TEXT("Hail ice melts into a puddle at %s"), *GetActorLocation().ToCompactString());
+			// It hisses: a puff of steam and a splash of drops, then the water runs together on the ground
+			const FVector Ground = GetActorLocation();
+			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(MagicSettings->SteamEffect), Ground + FVector(0.0f, 0.0f, 20.0f), FRotator::ZeroRotator, MagicSettings->SteamColor, Radius * 0.6f);
+			FVaelDebris Drops;
+			Drops.Count = 8;
+			Drops.Spread = Radius * 0.4f;
+			Drops.Speed = 180.0f;
+			Drops.Lift = 220.0f;
+			Drops.Lifetime = 0.45f;
+			Drops.MinSize = 2.0f;
+			Drops.MaxSize = 4.0f;
+			Drops.Color = FLinearColor(0.45f, 0.7f, 0.95f);
+			Drops.Glow = 0.3f;
+			AVaelDebrisBurst::Spawn(this, Ground + FVector(0.0f, 0.0f, 10.0f), Drops);
+			// (as the mage's water: a puddle without a source has no look and stays invisible)
+			UVaelElementSource* MageWater = VaelAssets::LoadOptional(MagicSettings->MageWaterSource);
+			const AVaelWaterPuddle* Puddle = AVaelWaterPuddle::AddSplash(GetWorld(), Ground + FVector(0.0f, 0.0f, 30.0f), MagicSettings->IceMeltWater, MageWater, GetInstigator());
+			UE_LOG(LogVael, Log, TEXT("Hail ice melts into %s (water %.1f) at %s"), *GetNameSafe(Puddle), Puddle != nullptr ? Puddle->GetWater() : 0.0f, *Ground.ToCompactString());
 			Destroy();
 			return;
 		}

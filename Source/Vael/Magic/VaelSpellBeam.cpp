@@ -22,6 +22,7 @@
 #include "VaelAssets.h"
 #include "Components/PointLightComponent.h"
 #include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelIceShards.h"
 #include "World/VaelFireComponent.h"
 #include "World/VaelGround.h"
 
@@ -277,6 +278,12 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 	}
 
 	UpdateLook(Start, Direction, Length);
+
+	// A fire beam melts the hail ice it sweeps over
+	if (Settings.bFireCore)
+	{
+		AVaelIceShards::MeltAlong(World, Start, Start + Direction * Length, Settings.HalfWidth);
+	}
 
 	// Damage collects on everyone close to the middle line of the beam
 	for (TActorIterator<AVaelCharacterBase> It(World); It; ++It)

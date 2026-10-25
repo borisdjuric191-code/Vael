@@ -381,7 +381,7 @@ public:
 	int32 HailMaxLances = 160;
 
 	/** Broken ice each strike leaves (AVaelIceShards): how many shards, seconds it lies before it has thawed away;
-	 *  fire this close melts it in IceMeltSeconds into a puddle of IceMeltWater (as much as a Geysir leaves: 3) */
+	 *  fire this close (or a fire beam sweeping over it) melts it in IceMeltSeconds into a puddle of IceMeltWater (2.5: enough to draw on, a Geysir leaves 3) */
 	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
 	int32 IceShardCount = 12;
 
@@ -389,13 +389,13 @@ public:
 	float IceLieSeconds = 20.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Hail")
-	float IceMeltFireReach = 150.0f;
+	float IceMeltFireReach = 220.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0.1))
 	float IceMeltSeconds = 1.5f;
 
 	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
-	float IceMeltWater = 1.2f;
+	float IceMeltWater = 2.5f;
 
 	/** A dust devil cast in one's own sand storm swallows it (in StormGatherSeconds) and becomes a giant: reach and look in
 	 *  times its radius, times the debris, damage, pull, and speed (slower) */
