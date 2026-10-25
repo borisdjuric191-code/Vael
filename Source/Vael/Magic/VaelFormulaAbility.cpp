@@ -898,6 +898,26 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 
 	// A whirl that doesn't wander opens at the aimed point, one that does starts in front of the caster
 	const FVector Location = Formula.VortexSpeed > 0.0f ? Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance : FindGroundTarget(Caster, Formula.AreaRange);
+
+	// A dust devil cast inside the caster's own sand storm swallows the storm and goes off as a giant (Boris 2026-10-25):
+	// bigger, longer by the time the storm had left, stronger, pulling harder, but slower
+	if (Formula.bDebrisWhirl)
+	{
+		if (AVaelSpellAura* Storm = AVaelSpellAura::FindSandStorm(Cast<APawn>(Caster)))
+		{
+			const UVaelMagicSettings* Reactions = UVaelMagicSettings::Get();
+			const float StormLeft = Storm->GatherInto(Location);
+			Vortex.Radius *= Reactions->StormDevilArea;
+			Vortex.LookScale = Reactions->StormDevilLook / Reactions->StormDevilArea;
+			Vortex.PieceShare = Reactions->StormDevilPieces;
+			Vortex.GrowSeconds = Reactions->StormGatherSeconds + 0.3f;
+			Vortex.Lifetime += StormLeft;
+			Vortex.DamagePerSecond *= Reactions->StormDevilDamage;
+			Vortex.PullSpeed *= Reactions->StormDevilPull;
+			Vortex.Speed *= Reactions->StormDevilSpeed;
+			UE_LOG(LogVael, Log, TEXT("%s swallows the sand storm (%.1f s left) and grows into a giant"), *Formula.DisplayName.ToString(), StormLeft);
+		}
+	}
 	AVaelSpellVortex::Launch(Cast<APawn>(Caster), Location, AimDirection, Vortex);
 }
 

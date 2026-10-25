@@ -45,7 +45,10 @@ public:
 	UVaelDebrisWhirlComponent();
 
 	/** Fills the whirl; Radius in cm at its widest, Color of its dust */
-	void Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor);
+	void Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor, float InPieceShare = 1.0f);
+
+	/** How far the whirl has drawn together (0) or swollen out (1): it is drawn into a dust devil, or grows */
+	void SetGather(float InGather) { Gather = InGather; }
 
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
@@ -83,6 +86,10 @@ private:
 	TArray<FPiece> Pieces;
 
 	float Radius = 100.0f;
+	float Gather = 1.0f;
+
+	/** Times as many pieces and cards as usual (a giant dust devil carries more) */
+	float PieceShare = 1.0f;
 	float Height = 300.0f;
 	bool bFunnel = false;
 	FLinearColor DustColor = FLinearColor::Gray;

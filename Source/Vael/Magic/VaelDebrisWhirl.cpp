@@ -28,9 +28,10 @@ UVaelDebrisWhirlComponent::UVaelDebrisWhirlComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor)
+void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor, float InPieceShare)
 {
 	Radius = InRadius;
+	PieceShare = InPieceShare;
 	bFunnel = bInFunnel;
 	Height = Radius * (bFunnel ? WhirlFunnelHeightShare : WhirlStormHeightShare);
 	DustColor = InDustColor;
@@ -47,7 +48,7 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 		SandCards->RegisterComponent();
 		SandCards->SetWorldScale3D(FVector::OneVector);
 		SandCards->Init(SandMaterial);
-		const int32 NumCards = bFunnel ? MagicSettings->WhirlFunnelCards : MagicSettings->WhirlStormCards;
+		const int32 NumCards = FMath::RoundToInt((bFunnel ? MagicSettings->WhirlFunnelCards : MagicSettings->WhirlStormCards) * PieceShare);
 		for (int32 Index = 0; Index < NumCards; ++Index)
 		{
 			FPiece Path;
@@ -56,7 +57,8 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 			Path.AngularSpeed = FMath::FRandRange(2.4f, 3.6f) * (bFunnel ? 1.3f : 1.0f);
 			Path.RiseSpeed = Height * FMath::FRandRange(0.25f, 0.45f);
 			Path.Offset = FMath::FRandRange(-0.25f, 0.1f);
-			Path.Scale = FMath::FRandRange(0.45f, 0.8f);
+			// (a giant carrying more sand is also denser)
+			Path.Scale = FMath::FRandRange(0.45f, 0.8f) * FMath::Min(1.0f + (PieceShare - 1.0f) * 0.4f, 1.6f);
 			SandCards->AddCard(PlaceOf(Path), Radius, 0.0f);
 			CardPaths.Add(Path);
 		}
@@ -105,7 +107,7 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 		}
 	}
 
-	const int32 Count = bFunnel ? MagicSettings->WhirlFunnelPieces : MagicSettings->WhirlStormPieces;
+	const int32 Count = FMath::RoundToInt((bFunnel ? MagicSettings->WhirlFunnelPieces : MagicSettings->WhirlStormPieces) * PieceShare);
 	for (int32 Index = 0; !Kinds.IsEmpty() && Index < Count; ++Index)
 	{
 		// The kinds in their shares, spread evenly over the pieces
@@ -231,8 +233,9 @@ FVector UVaelDebrisWhirlComponent::PlaceOf(const FPiece& Piece) const
 	// A funnel narrows towards the ground, a storm bulges in the middle of its band
 	const float Up = Piece.Height / Height;
 	const float Reach = bFunnel ? FMath::Lerp(0.18f, 1.0f, FMath::Pow(Up, 0.8f)) : FMath::Lerp(0.7f, 1.0f, FMath::Sin(Up * UE_PI));
-	const float Distance = Radius * FMath::Max(Reach + Piece.Offset, 0.05f);
-	return FVector(FMath::Cos(Piece.Angle) * Distance, FMath::Sin(Piece.Angle) * Distance, Piece.Height);
+	// The whole whirl shrinks towards its middle while it is drawn in, and swells out while it grows
+	const float Distance = Radius * FMath::Max(Reach + Piece.Offset, 0.05f) * Gather;
+	return FVector(FMath::Cos(Piece.Angle) * Distance, FMath::Sin(Piece.Angle) * Distance, Piece.Height * Gather);
 }
 
 void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -273,7 +276,7 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 			Piece.Offset = FMath::FRandRange(-0.25f, 0.2f);
 		}
 		Piece.Tumble += Piece.TumbleSpeed * DeltaTime;
-		Kinds[Piece.Kind]->UpdateInstanceTransform(Piece.Instance, FTransform(Piece.Tumble, PlaceOf(Piece), FVector(Piece.Scale)), false, false, true);
+		Kinds[Piece.Kind]->UpdateInstanceTransform(Piece.Instance, FTransform(Piece.Tumble, PlaceOf(Piece), FVector(Piece.Scale * FMath::Max(Gather, 0.15f))), false, false, true);
 	}
 	for (UInstancedStaticMeshComponent* Instances : Kinds)
 	{
@@ -297,7 +300,7 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 			// Thin at the bottom and the top, a funnel's cards wider the higher they are
 			const float Solid = FMath::Pow(FMath::Sin(Up * UE_PI), 0.7f) * Path.Scale;
 			const float Size = Radius * (bFunnel ? FMath::Lerp(0.5f, 1.1f, Up) : 0.85f);
-			SandCards->SetCard(Index, PlaceOf(Path) + Sway, Size, Solid);
+			SandCards->SetCard(Index, PlaceOf(Path) + Sway * Gather, Size * FMath::Lerp(0.3f, 1.0f, Gather), Solid);
 		}
 		SandCards->Commit();
 	}

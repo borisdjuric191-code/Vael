@@ -12,6 +12,7 @@
 #include "GameFramework/Pawn.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelDebrisWhirl.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
@@ -121,6 +122,31 @@ void AVaelSpellAura::Restart(const FVaelAuraSettings& InSettings)
 	Mesh->SetVisibility(VisualComponent == nullptr && Whirl == nullptr);
 }
 
+AVaelSpellAura* AVaelSpellAura::FindSandStorm(const APawn* Caster)
+{
+	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	for (TActorIterator<AVaelSpellAura> It(World); World != nullptr && It; ++It)
+	{
+		if (It->GetInstigator() == Caster && It->Settings.bDebrisWhirl && !It->bGathering && !It->IsActorBeingDestroyed())
+		{
+			return *It;
+		}
+	}
+	return nullptr;
+}
+
+float AVaelSpellAura::GatherInto(const FVector& Target)
+{
+	const float Now = GetWorld()->GetTimeSeconds();
+	const float Left = FMath::Max(EndTime - Now, 0.0f);
+	bGathering = true;
+	GatherFrom = GetActorLocation();
+	GatherTarget = Target;
+	GatherStart = Now;
+	EndTime = Now + UVaelMagicSettings::Get()->StormGatherSeconds;
+	return Left;
+}
+
 void AVaelSpellAura::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
@@ -130,6 +156,18 @@ void AVaelSpellAura::Tick(float DeltaSeconds)
 	if (Caster == nullptr || Caster->IsDefeated() || GetWorld()->GetTimeSeconds() >= EndTime)
 	{
 		Destroy();
+		return;
+	}
+
+	// Drawn into a dust devil: it spirals over to it, shrinking, and hurts nobody any more
+	if (bGathering)
+	{
+		const float Share = FMath::Clamp((GetWorld()->GetTimeSeconds() - GatherStart) / UVaelMagicSettings::Get()->StormGatherSeconds, 0.0f, 1.0f);
+		SetActorLocationAndRotation(FMath::Lerp(GatherFrom, GatherTarget, Share * Share), FRotator(0.0f, GetActorRotation().Yaw + AuraSpinDegreesPerSecond * 3.0f * DeltaSeconds, 0.0f));
+		if (Whirl != nullptr)
+		{
+			Whirl->SetGather(1.0f - Share);
+		}
 		return;
 	}
 

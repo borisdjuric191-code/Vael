@@ -133,7 +133,8 @@ void AVaelSpellVortex::BeginPlay()
 		Whirl = NewObject<UVaelDebrisWhirlComponent>(this);
 		Whirl->SetupAttachment(RootComponent);
 		Whirl->RegisterComponent();
-		Whirl->Build(Settings.Radius, true, Settings.Color);
+		Whirl->Build(Settings.Radius * Settings.LookScale, true, Settings.Color, Settings.PieceShare);
+		Whirl->SetGather(Settings.GrowSeconds > 0.0f ? 0.25f : 1.0f);
 		Mesh->SetVisibility(false);
 	}
 	else
@@ -151,6 +152,13 @@ void AVaelSpellVortex::BeginPlay()
 void AVaelSpellVortex::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// A giant swells up out of the storm it swallowed
+	if (Whirl != nullptr && Settings.GrowSeconds > 0.0f)
+	{
+		const float Grow = FMath::Clamp(GetGameTimeSinceCreation() / Settings.GrowSeconds, 0.0f, 1.0f);
+		Whirl->SetGather(FMath::Lerp(0.25f, 1.0f, 1.0f - FMath::Square(1.0f - Grow)));
+	}
 
 	Move(DeltaSeconds);
 	CatchFire();

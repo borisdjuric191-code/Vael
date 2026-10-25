@@ -62,6 +62,12 @@ struct FVaelVortexSettings
 	/** True for a dust devil: real debris whirls instead of the effect */
 	bool bDebrisWhirl = false;
 
+	/** A giant dust devil that swallowed a sand storm: its whirl looks this many times its radius, carries this many times
+	 *  the debris and swells up over these seconds */
+	float LookScale = 1.0f;
+	float PieceShare = 1.0f;
+	float GrowSeconds = 0.0f;
+
 	/** Placeholder colors */
 	FLinearColor Color = FLinearColor::White;
 	FLinearColor FireColor = FLinearColor(1.0f, 0.54f, 0.24f);

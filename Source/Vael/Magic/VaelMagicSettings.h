@@ -288,7 +288,7 @@ public:
 	float MistWispShare = 0.45f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0.1))
-	float VeilPullSeconds = 4.5f;
+	float VeilPullSeconds = 2.5f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
 	float MistDrift = 40.0f;
@@ -334,6 +334,29 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
 	float MistSpreadScale = 1.5f;
+
+	/** A dust devil cast in one's own sand storm swallows it (in StormGatherSeconds) and becomes a giant: reach and look in
+	 *  times its radius, times the debris, damage, pull, and speed (slower) */
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0.1))
+	float StormGatherSeconds = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
+	float StormDevilArea = 2.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
+	float StormDevilLook = 3.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
+	float StormDevilPieces = 2.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
+	float StormDevilDamage = 1.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
+	float StormDevilPull = 1.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0.1))
+	float StormDevilSpeed = 0.6f;
 
 	/** Wind (air cones) blows steam and mist this many cm on and leaves them this share of the time they had left */
 	UPROPERTY(config, EditAnywhere, Category="Reactions")

@@ -70,6 +70,12 @@ public:
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** The sand storm the caster has whirling around them now, null if none */
+	static AVaelSpellAura* FindSandStorm(const APawn* Caster);
+
+	/** The storm is drawn into a dust devil starting at the target: it spirals in, shrinking, and is gone. Returns the seconds it had left */
+	float GatherInto(const FVector& Target);
+
 protected:
 
 	/** Starts the duration and sizes the placeholder */
@@ -99,4 +105,10 @@ private:
 
 	/** World time at which the storm ends */
 	float EndTime = 0.0f;
+
+	/** While it is drawn into a dust devil: from where to where, and since when */
+	bool bGathering = false;
+	FVector GatherFrom = FVector::ZeroVector;
+	FVector GatherTarget = FVector::ZeroVector;
+	float GatherStart = 0.0f;
 };
