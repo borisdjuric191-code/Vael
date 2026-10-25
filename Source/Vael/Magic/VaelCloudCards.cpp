@@ -95,3 +95,11 @@ void UVaelCloudCardsComponent::Commit()
 	}
 	Instances->BatchUpdateInstancesTransforms(0, Transforms, true, true, true);
 }
+
+void UVaelCloudCardsComponent::SetBrightness(int32 Index, float Brightness)
+{
+	if (Cards.IsValidIndex(Index) && Instances != nullptr)
+	{
+		Instances->SetCustomDataValue(Index, 2, Brightness, false);
+	}
+}

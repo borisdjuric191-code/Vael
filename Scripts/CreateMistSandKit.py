@@ -13,7 +13,7 @@
 
 import unreal
 
-KIT_VERSION = "3.7"
+KIT_VERSION = "3.9"
 FOLDER = "/Game/Vael/Effects/Nebel"
 
 # The rolling dust cloud of the NiagaraExamples dirt explosion: an 8x8 looping flipbook (R light, G opacity)
@@ -463,8 +463,9 @@ def build_air_cards():
 
 
 def build_streak():
-    """M_Vael_Windschliere: a thin bright band of wind on the ribbons the game builds (UVaelWindStreaksComponent):
-    U along it (0 at its head), V across; vertex colour A how strong. Soft across, frayed along, faster than the eye"""
+    """M_Vael_Windschliere: a thin band of wind on the ribbons the game builds (UVaelWindStreaksComponent):
+    U along it (0 at its head), V across; vertex colour A how strong. Not a bright line: a torn veil of ash and grit,
+    pale where it is thick and sooty where it frays (Farbe/Schatten); a fire whirl turns it into embers"""
     material = fresh_material("M_Vael_Windschliere")
     if material is None:
         return
@@ -472,9 +473,10 @@ def build_streak():
     material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     material.set_editor_property("two_sided", True)
     g = Graph(material)
-    tint = g.color("Farbe", unreal.LinearColor(0.86, 0.95, 1.0, 1.0))
-    glow = g.scalar("Leuchten", 1.5)
-    strength = g.scalar("Deckkraft", 0.7)
+    tint = g.color("Farbe", unreal.LinearColor(0.5, 0.47, 0.42, 1.0))
+    shadow = g.color("Schatten", unreal.LinearColor(0.07, 0.06, 0.05, 1.0))
+    glow = g.scalar("Leuchten", 1.0)
+    strength = g.scalar("Deckkraft", 0.6)
     uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
     time = g.node(unreal.MaterialExpressionTime, 7)
     vertex = g.node(unreal.MaterialExpressionVertexColor, 7)
@@ -483,21 +485,70 @@ def build_streak():
     g.link(uv, along, "")
     across = g.node(unreal.MaterialExpressionComponentMask, 6, r=False, g=True, b=False, a=False)
     g.link(uv, across, "")
-    # Soft across: brightest in the middle line
+    # Thin core across, no hard edge
     middle = g.op(unreal.MaterialExpressionOneMinus, 5, g.op(unreal.MaterialExpressionAbs, 5, g.sub(5, g.mul(5, across, g.const(2.0)), g.const(1.0)), a_input=""), a_input="")
-    soft = g.saturate(4, g.mul(4, middle, g.const(1.4)))
-    # Frayed along: noise racing down the band tears it into wisps; it thins towards its tail
-    fray = g.noise(4, g.append(4, g.append(4, g.mul(4, g.sub(4, along, g.mul(4, time, g.const(2.5))), g.const(6.0)), g.mul(4, across, g.const(2.0))), g.mul(4, time, g.const(0.7))), levels=3)
-    torn = g.saturate(3, g.mul(3, g.sub(3, fray, g.const(0.1)), g.const(2.2)))
+    soft = g.saturate(4, g.mul(4, g.mul(4, middle, middle), g.const(1.6)))
+    # Torn along: noise racing down the band leaves only shreds; it thins towards its tail
+    fray = g.noise(4, g.append(4, g.append(4, g.mul(4, g.sub(4, along, g.mul(4, time, g.const(2.5))), g.const(7.0)), g.mul(4, across, g.const(3.0))), g.mul(4, time, g.const(0.7))), levels=4)
+    torn = g.saturate(3, g.mul(3, g.sub(3, fray, g.const(0.3)), g.const(2.6)))
     tail = g.op(unreal.MaterialExpressionOneMinus, 3, along, a_input="")
     opacity = g.saturate(0, g.mul(0, g.mul(0, g.mul(0, g.mul(0, soft, torn), tail), fade), strength))
     library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
-    library.connect_material_property(g.mul(0, tint, glow), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # Grit: pale ash in the thick of the shreds, soot at their frayed ends
+    grit = g.saturate(2, g.mul(2, g.sub(2, fray, g.const(0.25)), g.const(1.8)))
+    library.connect_material_property(g.mul(0, g.lerp(1, shadow, tint, grit), glow), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     finish(material, "M_Vael_Windschliere")
+
+
+FIRE_ATLAS = "/Game/Fire_Solution_FX/Textures/T_FireAtlas_Fire_Details"
+
+
+def build_fire_cards():
+    """M_Vael_Feuerkarte: a card of billowing fire for the fire whirl (instanced like the cloud cards: custom data 0 start
+    frame, 1 how strong, 2 how hot). Plays the 4x4 flipbook T_FireAtlas_Fire_Details of the fire pack, added onto the
+    picture; round mask so no frame edge shows, faded close to the camera"""
+    material = fresh_material("M_Vael_Feuerkarte")
+    if material is None:
+        return
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    material.set_editor_property("two_sided", True)
+    try_set(material, "used_with_instanced_static_meshes", True)
+    g = Graph(material)
+    glow = g.scalar("Leuchten", 2.2)
+    rate = g.scalar("Tempo", 18.0)
+    tint = g.color("Farbe", unreal.LinearColor(1.0, 0.62, 0.3, 1.0))
+
+    def custom(index):
+        return g.node(unreal.MaterialExpressionPerInstanceCustomData, 7, data_index=index, const_default_value=[0.0, 1.0, 1.0][index])
+
+    start = custom(0)
+    solid = custom(1)
+    heat = custom(2)
+    time = g.node(unreal.MaterialExpressionTime, 7)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
+    frame = g.op(unreal.MaterialExpressionFmod, 5, g.op(unreal.MaterialExpressionFloor, 5, g.add(5, g.mul(5, time, rate), start), a_input=""), g.const(16.0))
+    column_index = g.op(unreal.MaterialExpressionFmod, 4, frame, g.const(4.0))
+    row_index = g.op(unreal.MaterialExpressionFloor, 4, g.mul(4, frame, g.const(0.25)), a_input="")
+    atlas_uv = g.mul(3, g.add(3, uv, g.append(3, column_index, row_index)), g.const(0.25))
+    fire = g.node(unreal.MaterialExpressionTextureSample, 2, texture=unreal.load_asset(FIRE_ATLAS))
+    g.link(atlas_uv, fire, "UVs")
+    try_set(fire, "mip_value_mode", unreal.TextureMipValueMode.TMVM_MIP_BIAS)
+    try_set(fire, "const_mip_value", -1)
+    colour = g.node(unreal.MaterialExpressionComponentMask, 2, r=True, g=True, b=True, a=False)
+    g.link(fire, colour, "", "RGB")
+    centre = g.node(unreal.MaterialExpressionConstant2Vector, 3, r=0.5, g=0.5)
+    round_mask = g.saturate(1, g.mul(1, g.sub(1, g.const(0.5), g.op(unreal.MaterialExpressionDistance, 2, uv, centre)), g.const(2.5)))
+    depth = g.node(unreal.MaterialExpressionPixelDepth, 2)
+    near = g.saturate(1, g.mul(1, g.sub(1, depth, g.const(250.0)), g.const(1.0 / 350.0)))
+    amount = g.mul(1, g.mul(1, g.mul(1, solid, heat), round_mask), near)
+    library.connect_material_property(g.mul(0, g.mul(0, g.mul(0, colour, tint), glow), amount), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    finish(material, "M_Vael_Feuerkarte")
 
 
 build_air_cards()
 build_streak()
+build_fire_cards()
 build_ice()
 build_mist()
 build_sand()

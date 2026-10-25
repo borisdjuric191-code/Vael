@@ -15,11 +15,13 @@
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelDebrisWhirl.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Nature/VaelHarvestable.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
+#include "World/VaelFireSpot.h"
 #include "World/VaelGround.h"
 
 #define LOCTEXT_NAMESPACE "VaelMagic"
@@ -38,9 +40,6 @@ namespace
 
 	/** Turns per second of the placeholder */
 	constexpr float VortexSpinDegreesPerSecond = 540.0f;
-
-	/** A fire whose edge is this close to the middle of the whirlwind lights it (prototype: 0.8 tiles) */
-	constexpr float VortexCatchFireDistance = 112.0f;
 
 	/** Walls are looked for at this height above the ground */
 	constexpr float VortexWallSearchHeight = 60.0f;
@@ -208,9 +207,37 @@ void AVaelSpellVortex::Move(float DeltaSeconds)
 	SetActorLocation(GroundHit.Location);
 }
 
+bool AVaelSpellVortex::IsTouchingFire() const
+{
+	// Any fire under the inner half of the whirl, or a little beyond it: fire spells on the ground, campfires and patches
+	// of burning ground, burning plants like the Glutdistel
+	UWorld* World = GetWorld();
+	const FVector Here = GetActorLocation();
+	const float Reach = Settings.Radius * 0.5f + UVaelMagicSettings::Get()->FireWhirlCatchReach;
+	if (AVaelGroundArea::IsFireNear(World, Here, Reach))
+	{
+		return true;
+	}
+	for (TActorIterator<AVaelFireSpot> It(World); It; ++It)
+	{
+		if (FVector::Dist2D(It->GetActorLocation(), Here) <= Reach + It->Shape.Radius)
+		{
+			return true;
+		}
+	}
+	for (TActorIterator<AVaelHarvestable> It(World); It; ++It)
+	{
+		if (FVector::Dist2D(It->GetActorLocation(), Here) <= Reach && It->ProvidesElement(EVaelElement::Fire, It->GetActorLocation()))
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void AVaelSpellVortex::CatchFire()
 {
-	if (bFiery || !AVaelGroundArea::IsFireNear(GetWorld(), GetActorLocation(), VortexCatchFireDistance))
+	if (bFiery || !IsTouchingFire())
 	{
 		return;
 	}

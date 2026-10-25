@@ -11,6 +11,8 @@
 #include "Magic/VaelCloudCards.h"
 #include "Magic/VaelWindStreaks.h"
 #include "World/VaelFireComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
@@ -396,23 +398,10 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		Streaks->Commit();
 	}
 
-	// A fire whirl: flames ride up the spiral
+	// A fire whirl
 	if (bFiery)
 	{
-		FireCountdown -= DeltaTime;
-		while (FireCountdown <= 0.0f)
-		{
-			FireCountdown += 0.07f;
-			FPiece Spot;
-			Spot.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
-			Spot.Height = FMath::FRandRange(0.0f, Height * 0.8f);
-			Spot.Offset = FMath::FRandRange(-0.2f, 0.05f);
-			if (UNiagaraComponent* Flame = VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelFireSettings::Get()->BallNiagara), GetComponentTransform().TransformPosition(PlaceOf(Spot)),
-				FRotator::ZeroRotator, FLinearColor::White, Radius * 0.35f))
-			{
-				VaelFire::SetWind(Flame, FVector(0.0f, 0.0f, 100.0f), 3.0f);
-			}
-		}
+		TickFire(DeltaTime);
 	}
 
 	// Clouds of dust like those falling off a rock wall, all over the shape of the whirl (0: none)
@@ -441,5 +430,158 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		const float Distance = Radius * FMath::FRandRange(bFunnel ? 0.1f : 0.6f, bFunnel ? 0.5f : 1.0f);
 		const FVector Place = GetComponentTransform().TransformPosition(FVector(FMath::Cos(Angle) * Distance, FMath::Sin(Angle) * Distance, 0.0f));
 		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustPuffEffect), Place, FRotator::ZeroRotator, DustColor, Radius * 0.3f);
+	}
+}
+
+void UVaelDebrisWhirlComponent::SetFiery(bool bInFiery)
+{
+	if (bInFiery && !bFiery)
+	{
+		bFiery = true;
+		BuildFire();
+	}
+	bFiery = bInFiery;
+}
+
+void UVaelDebrisWhirlComponent::BuildFire()
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	FireAge = 0.0f;
+
+	const auto MakeCards = [this](UMaterialInterface* Material) -> UVaelCloudCardsComponent*
+	{
+		if (Material == nullptr)
+		{
+			return nullptr;
+		}
+		UVaelCloudCardsComponent* Cards = NewObject<UVaelCloudCardsComponent>(GetOwner());
+		Cards->SetupAttachment(this);
+		Cards->SetUsingAbsoluteScale(true);
+		Cards->RegisterComponent();
+		Cards->SetWorldScale3D(FVector::OneVector);
+		Cards->Init(Material);
+		return Cards;
+	};
+
+	// Billowing fire all up the spiral, thickest low down
+	FireCards = MakeCards(VaelAssets::LoadOptional(MagicSettings->FireCardMaterial));
+	for (int32 Index = 0; FireCards != nullptr && Index < MagicSettings->FireWhirlCards; ++Index)
+	{
+		FPiece Path;
+		Path.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		Path.Height = Height * FMath::Square((Index + FMath::FRand()) / MagicSettings->FireWhirlCards);
+		Path.AngularSpeed = FMath::FRandRange(2.8f, 4.2f);
+		Path.RiseSpeed = Height * FMath::FRandRange(0.45f, 0.7f);
+		Path.Offset = FMath::FRandRange(-0.25f, 0.05f);
+		Path.Scale = FMath::FRandRange(0.6f, 1.0f);
+		FireCards->AddCard(PlaceOf(Path), Radius * 0.6f, 0.0f);
+		FirePaths.Add(Path);
+	}
+
+	// Dark smoke rolling off its top
+	SmokeCards = MakeCards(VaelAssets::LoadOptional(MagicSettings->AshCardMaterial));
+	for (int32 Index = 0; SmokeCards != nullptr && Index < MagicSettings->FireWhirlSmoke; ++Index)
+	{
+		FPiece Path;
+		Path.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		Path.Height = Height * FMath::Lerp(0.6f, 1.5f, (Index + FMath::FRand()) / MagicSettings->FireWhirlSmoke);
+		Path.AngularSpeed = FMath::FRandRange(1.2f, 2.0f);
+		Path.RiseSpeed = Height * FMath::FRandRange(0.2f, 0.35f);
+		Path.Offset = FMath::FRandRange(0.0f, 0.3f);
+		Path.Scale = FMath::FRandRange(0.5f, 0.85f);
+		SmokeCards->AddCard(PlaceOf(Path), Radius, 0.0f);
+		SmokeCards->SetBrightness(Index, 0.3f);
+		SmokePaths.Add(Path);
+	}
+
+	// The white wisps burn away; the streaks glow as embers
+	if (WispCards != nullptr)
+	{
+		WispCards->SetVisibility(false);
+	}
+	if (Streaks != nullptr)
+	{
+		if (UMaterialInstanceDynamic* Embers = Streaks->CreateDynamicMaterialInstance(0))
+		{
+			Embers->SetVectorParameterValue(TEXT("Farbe"), MagicSettings->FireWhirlStreakColor);
+			Embers->SetVectorParameterValue(TEXT("Schatten"), MagicSettings->FireWhirlStreakColor * 0.25f);
+			Embers->SetScalarParameterValue(TEXT("Leuchten"), MagicSettings->FireWhirlStreakGlow);
+			Embers->SetScalarParameterValue(TEXT("Deckkraft"), 0.9f);
+		}
+	}
+
+	FireLight = NewObject<UPointLightComponent>(GetOwner());
+	FireLight->SetupAttachment(this);
+	FireLight->RegisterComponent();
+	FireLight->SetRelativeLocation(FVector(0.0f, 0.0f, Height * 0.35f));
+	FireLight->SetLightColor(FLinearColor(1.0f, 0.45f, 0.15f));
+	FireLight->SetAttenuationRadius(Radius * 5.0f);
+	FireLight->SetCastShadows(false);
+	FireLight->SetIntensity(0.0f);
+}
+
+void UVaelDebrisWhirlComponent::TickFire(float DeltaTime)
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	FireAge += DeltaTime;
+	// The fire climbs the whirl over its first half second
+	const float Catch = FMath::Clamp(FireAge / 0.5f, 0.0f, 1.0f);
+
+	if (FireCards != nullptr)
+	{
+		for (int32 Index = 0; Index < FirePaths.Num(); ++Index)
+		{
+			FPiece& Path = FirePaths[Index];
+			Path.Angle += Path.AngularSpeed * DeltaTime;
+			Path.Height += Path.RiseSpeed * DeltaTime;
+			if (Path.Height > Height)
+			{
+				Path.Height -= Height;
+			}
+			const float Up = Path.Height / Height;
+			const float Reached = FMath::Clamp((Catch * 1.2f - Up) * 4.0f, 0.0f, 1.0f);
+			FireCards->SetCard(Index, PlaceOf(Path), Radius * FMath::Lerp(0.36f, 0.62f, Up) * Gather,
+				FMath::Pow(FMath::Sin(FMath::Max(Up, 0.04f) * UE_PI), 0.5f) * Path.Scale * Reached);
+			// Hottest low down, dull red where it turns to smoke
+			FireCards->SetBrightness(Index, FMath::Lerp(1.3f, 0.45f, Up) * MagicSettings->FireWhirlHeat);
+		}
+		FireCards->Commit();
+	}
+
+	if (SmokeCards != nullptr)
+	{
+		const float Top = Height * 1.6f;
+		for (int32 Index = 0; Index < SmokePaths.Num(); ++Index)
+		{
+			FPiece& Path = SmokePaths[Index];
+			Path.Angle += Path.AngularSpeed * DeltaTime;
+			Path.Height += Path.RiseSpeed * DeltaTime;
+			if (Path.Height > Top)
+			{
+				Path.Height = Height * 0.6f;
+			}
+			// Thickens above the fire, thins out as it climbs away
+			const float Climb = FMath::Clamp((Path.Height - Height * 0.6f) / (Top - Height * 0.6f), 0.0f, 1.0f);
+			SmokeCards->SetCard(Index, PlaceOf(Path), Radius * FMath::Lerp(0.8f, 1.4f, Climb) * Gather, FMath::Sin(Climb * UE_PI) * Path.Scale * Catch);
+		}
+		SmokeCards->Commit();
+	}
+
+	if (FireLight != nullptr)
+	{
+		const float Flicker = 0.8f + 0.12f * FMath::Sin(FireAge * 23.0f) + 0.08f * FMath::Sin(FireAge * 41.0f + 1.3f);
+		FireLight->SetIntensity(MagicSettings->FireWhirlLight * Catch * Flicker);
+	}
+
+	// Sparks flung out of it now and then
+	FireCountdown -= DeltaTime;
+	if (FireCountdown <= 0.0f)
+	{
+		FireCountdown = FMath::FRandRange(0.2f, 0.4f);
+		FPiece Spot;
+		Spot.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		Spot.Height = FMath::FRandRange(0.1f, 0.7f) * Height;
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelFireSettings::Get()->SparkHitNiagara), GetComponentTransform().TransformPosition(PlaceOf(Spot)),
+			FRotator::ZeroRotator, FLinearColor::White, Radius * 0.3f);
 	}
 }

@@ -32,6 +32,9 @@ public:
 	/** Moves, sizes and fades a card */
 	void SetCard(int32 Index, const FVector& Place, float Size, float Solid);
 
+	/** Changes how bright a card is (for fire cards: how hot) */
+	void SetBrightness(int32 Index, float Brightness);
+
 	/** Turns the cards to the camera and sends everything to the renderer */
 	void Commit();
 

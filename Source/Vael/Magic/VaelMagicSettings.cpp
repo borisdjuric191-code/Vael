@@ -131,6 +131,7 @@ UVaelMagicSettings::UVaelMagicSettings()
 	HailIceMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/M_Vael_Hageleis.M_Vael_Hageleis")));
 	AirCardMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/M_Vael_Luftkarte.M_Vael_Luftkarte")));
 	AshCardMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/MI_Vael_Wolke_Asche.MI_Vael_Wolke_Asche")));
+	FireCardMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/M_Vael_Feuerkarte.M_Vael_Feuerkarte")));
 	StreakMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/M_Vael_Windschliere.M_Vael_Windschliere")));
 	WhirlMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/M_Vael_Sandwirbel.M_Vael_Sandwirbel")));
 

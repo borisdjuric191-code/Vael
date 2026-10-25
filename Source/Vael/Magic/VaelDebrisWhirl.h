@@ -47,8 +47,8 @@ public:
 	/** Fills the whirl; Radius in cm at its widest, Color of its dust */
 	void Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor, float InPieceShare = 1.0f, bool bInAir = false);
 
-	/** A whirlwind turned fire whirl: flames ride up its spiral */
-	void SetFiery(bool bInFiery) { bFiery = bInFiery; }
+	/** A whirlwind turned fire whirl: billowing fire rides up its spiral under dark smoke, its streaks turn to embers, it glows */
+	void SetFiery(bool bInFiery);
 
 	/** How far the whirl has drawn together (0) or swollen out (1): it is drawn into a dust devil, or grows */
 	void SetGather(float InGather) { Gather = InGather; }
@@ -124,4 +124,22 @@ private:
 	bool bAir = false;
 	bool bFiery = false;
 	float FireCountdown = 0.0f;
+
+	/** The fire whirl: its fire and smoke cards on the spiral, its light, seconds since it caught fire */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelCloudCardsComponent> FireCards;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelCloudCardsComponent> SmokeCards;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UPointLightComponent> FireLight;
+
+	TArray<FPiece> FirePaths;
+	TArray<FPiece> SmokePaths;
+	float FireAge = 0.0f;
+
+	/** Fills the cards and the light of the fire whirl, and moves them */
+	void BuildFire();
+	void TickFire(float DeltaTime);
 };

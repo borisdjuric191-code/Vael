@@ -390,6 +390,33 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
 	float AirWhirlDebris = 0.3f;
 
+	/** Feuerwirbel: cards of billowing fire on the spiral (M_Vael_Feuerkarte, the fire pack's flipbook), cards of dark smoke
+	 *  above it, how bright the fire glows, the colour and glow its streaks turn to (embers), its light and how far a fire may
+	 *  be from the edge of the whirl to catch it */
+	UPROPERTY(config, EditAnywhere, Category="Air")
+	TSoftObjectPtr<UMaterialInterface> FireCardMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 FireWhirlCards = 60;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 FireWhirlSmoke = 12;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	float FireWhirlHeat = 1.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Air")
+	FLinearColor FireWhirlStreakColor = FLinearColor(1.0f, 0.38f, 0.08f);
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	float FireWhirlStreakGlow = 6.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	float FireWhirlLight = 40000.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	float FireWhirlCatchReach = 120.0f;
+
 	/** Hagelsturm (AVaelHailStorm): its dark storm cloud (cards of MI_Vael_Wolke_Sturm) this high above the ground, of this many cards;
 	 *  lances of ice falling all over the patch (per second), how fast and how slanted, their length and width in cm, their colour;
 	 *  a volley of this many on each strike, spread this far; splinters on every n-th landing; lances at most in the air */

@@ -117,6 +117,9 @@ private:
 	/** Turns into a fire whirl over a fire */
 	void CatchFire();
 
+	/** True while a fire burns under or close to the whirl */
+	bool IsTouchingFire() const;
+
 	/** Drags in and hurts everyone inside */
 	void HitEnemies(float DeltaSeconds);
 
