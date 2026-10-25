@@ -13,8 +13,11 @@
 
 import unreal
 
-KIT_VERSION = "1.8"
+KIT_VERSION = "2.1"
 FOLDER = "/Game/Vael/Effects/Nebel"
+
+# The rolling dust cloud of the NiagaraExamples dirt explosion: an 8x8 looping flipbook (R light, G opacity)
+DUST_ATLAS = "/Game/NiagaraExamples/Textures/Sprites/T_ExplosionRoil_EOO_Loop"
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -171,7 +174,7 @@ def build_mist():
     rim = g.node(unreal.MaterialExpressionFresnel, 3, exponent=1.5)
     # (the very edge thins out again, so the ball has no hard outline like a bubble of glass)
     edge_soft = g.saturate(2, g.mul(2, g.sub(2, g.const(1.0), g.op(unreal.MaterialExpressionPower, 2, rim, a_input="Base", const_exponent=4.0)), g.const(2.5)))
-    shell = g.saturate(2, g.mul(2, g.mul(2, g.add(2, g.const(0.8), g.mul(2, rim, g.const(0.6))), edge_soft), g.sub(2, g.mul(2, cloud, g.const(1.5)), g.const(0.1))))
+    shell = g.saturate(2, g.mul(2, g.mul(2, g.add(2, g.const(0.45), g.mul(2, rim, g.const(0.9))), edge_soft), g.sub(2, g.mul(2, cloud, g.const(1.5)), g.const(0.1))))
     shape = g.lerp(1, layered, shell, ball)
 
     # A ball bulges into billows: its surface pushed out and in along its normal by slow noise, so its outline is a cloud, not a sphere
@@ -187,7 +190,7 @@ def build_mist():
     library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
 
     # White, a little darker in the hollows between the billows, with a faint light of its own so it stays white in shade
-    shade = g.lerp(1, g.const(0.9), g.const(1.05), cloud)
+    shade = g.lerp(1, g.const(0.78), g.const(1.08), cloud)
     colour = g.mul(0, tint, shade)
     library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(g.mul(0, tint, glow), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
@@ -211,7 +214,7 @@ def build_sand():
     spin = g.scalar("Wirbeln", 1.6)
     rise = g.scalar("Steigen", 0.5)
     streaks = g.scalar("Streifen", 3.0)
-    density = g.scalar("Dichte", 0.6)
+    density = g.scalar("Dichte", 0.75)
     contact = g.scalar("Kontakt", 40.0)
 
     uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
@@ -240,13 +243,42 @@ def build_sand():
 
     # Torn bands: only the dense parts of the noise hold sand, the rest is air
     bands = g.saturate(1, g.mul(1, g.sub(1, grain, g.const(0.38)), g.const(2.6)))
+
+    # Billows of dust: the rolling dust cloud of the NiagaraExamples dirt explosion (an 8x8 looping flipbook) laid on the
+    # shells in tiles that race round with the sand; each tile plays from its own frame, so they don't billow in step
+    puffs_around = g.scalar("StaubRund", 5.0)
+    puffs_up = g.scalar("StaubHoch", 3.0)
+    puff_rate = g.scalar("StaubTempo", 18.0)
+    tile_u = g.mul(5, g.sub(5, wound, g.mul(5, time, g.mul(5, speed, tight))), puffs_around)
+    tile_v = g.mul(5, g.sub(5, up, g.mul(5, time, rise)), puffs_up)
+    tiles = g.append(4, tile_u, tile_v)
+    cell = g.op(unreal.MaterialExpressionFloor, 4, tiles, a_input="")
+    inside = g.op(unreal.MaterialExpressionFrac, 4, tiles, a_input="")
+    # (a floor has no channel outputs: masks pick its two numbers)
+    cell_u = g.node(unreal.MaterialExpressionComponentMask, 4, r=True, g=False, b=False, a=False)
+    g.link(cell, cell_u, "")
+    cell_v = g.node(unreal.MaterialExpressionComponentMask, 4, r=False, g=True, b=False, a=False)
+    g.link(cell, cell_v, "")
+    seed = g.add(4, g.mul(4, cell_u, g.const(7.0)), g.mul(4, cell_v, g.const(13.0)))
+    frame_raw = g.add(3, g.mul(3, time, puff_rate), seed)
+    frame = g.op(unreal.MaterialExpressionFmod, 3, g.op(unreal.MaterialExpressionFloor, 3, frame_raw, a_input=""), g.const(64.0))
+    column_index = g.op(unreal.MaterialExpressionFmod, 3, frame, g.const(8.0))
+    row_index = g.op(unreal.MaterialExpressionFloor, 3, g.mul(3, frame, g.const(0.125)), a_input="")
+    atlas_uv = g.mul(2, g.add(2, inside, g.append(2, column_index, row_index)), g.const(0.125))
+    dust = g.node(unreal.MaterialExpressionTextureSample, 1, texture=unreal.load_asset(DUST_ATLAS))
+    g.link(atlas_uv, dust, "UVs")
+    dust_alpha = g.channel(1, dust, "G")
+    dust_light = g.channel(1, dust, "R")
+    billows = g.mul(1, dust_alpha, g.scalar("StaubDeckkraft", 1.1))
+
     soft = g.node(unreal.MaterialExpressionDepthFade, 1)
     try_set(soft, "fade_distance_default", 40.0)
     g.link(contact, soft, "FadeDistance")
-    opacity = g.saturate(0, g.mul(0, g.mul(0, g.mul(0, bands, solid), density), soft))
+    body = g.saturate(1, g.add(1, g.mul(1, bands, g.const(0.45)), billows))
+    opacity = g.saturate(0, g.mul(0, g.mul(0, g.mul(0, body, solid), density), soft))
     library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
 
-    colour = g.lerp(0, dark, sand, grain)
+    colour = g.lerp(0, dark, sand, g.saturate(0, g.add(0, g.mul(0, grain, g.const(0.5)), g.mul(0, dust_light, g.const(0.7)))))
     library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(g.const(1.0, column=0), "", unreal.MaterialProperty.MP_ROUGHNESS)
     library.connect_material_property(g.const(0.0, column=0), "", unreal.MaterialProperty.MP_SPECULAR)
@@ -265,7 +297,7 @@ def build_instances():
         return
     # Thick and dense, slowly churning
     library.set_material_instance_scalar_parameter_value(instance, "Kugel", 1.0)
-    library.set_material_instance_scalar_parameter_value(instance, "Dichte", 1.7)
+    library.set_material_instance_scalar_parameter_value(instance, "Dichte", 1.05)
     library.set_material_instance_scalar_parameter_value(instance, "Treiben", 1.0)
     assets.set_metadata_tag(instance, "VaelKit", KIT_VERSION)
     assets.save_loaded_asset(instance, False)

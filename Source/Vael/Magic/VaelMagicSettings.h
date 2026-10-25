@@ -293,6 +293,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
 	float SteamBallLift = 0.45f;
 
+	/** Puffs of steam bulging out of the ball, so it is fluffy */
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 0))
+	int32 SteamPuffs = 16;
+
+	/** The mist veil swells to this many times its size when water or fire is close by */
+	UPROPERTY(config, EditAnywhere, Category="Effects|Mist", meta = (ClampMin = 1))
+	float MistSourceSwell = 1.5f;
+
 	UPROPERTY(config, EditAnywhere, Category="Effects|Mist")
 	float VeilTurnSpeed = 4.0f;
 

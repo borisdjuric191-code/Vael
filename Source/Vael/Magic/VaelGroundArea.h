@@ -150,6 +150,9 @@ private:
 
 	float CloudAge = 0.0f;
 
+	/** True for steam cast around its caster: it goes along with them */
+	bool bFollowsInstigator = false;
+
 	/** Builds the mist blanket or the ball of steam; false without their materials */
 	bool BuildVeil();
 

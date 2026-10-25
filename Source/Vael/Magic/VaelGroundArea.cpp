@@ -22,6 +22,7 @@
 #include "World/VaelFireSpot.h"
 #include "World/VaelFireComponent.h"
 #include "World/VaelGround.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "ProceduralMeshComponent.h"
 
 namespace
@@ -114,6 +115,13 @@ void AVaelGroundArea::Tick(float DeltaSeconds)
 	if (MistMesh != nullptr || !SteamBalls.IsEmpty())
 	{
 		UpdateVeil(DeltaSeconds);
+	}
+
+	// A cloud of steam cast around its caster goes along with them
+	if (!SteamBalls.IsEmpty() && bFollowsInstigator && GetInstigator() != nullptr)
+	{
+		const APawn* Caster = GetInstigator();
+		SetActorLocation(Caster->GetActorLocation() - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight() - 2.0f));
 	}
 
 	DamageStepTime += DeltaSeconds;
@@ -425,9 +433,12 @@ bool AVaelGroundArea::BuildVeil()
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	const FVector Center = GetActorLocation();
 
-	// Steam: a ball of the white substance over the area, two shells turning against each other
+	// Steam: a ball of the white substance over the area, shells turning against each other. Laid at the caster's feet
+	// it is theirs and follows them
 	if (Effect == EVaelGroundEffect::Blind)
 	{
+		const APawn* Caster = GetInstigator();
+		bFollowsInstigator = Caster != nullptr && FVector::Dist2D(Caster->GetActorLocation(), Center) < Radius * 0.25f;
 		UMaterialInterface* BallMaterial = VaelAssets::LoadOptional(MagicSettings->SteamBallMaterial);
 		UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
 		if (BallMaterial == nullptr || Sphere == nullptr)
@@ -451,8 +462,40 @@ bool AVaelGroundArea::BuildVeil()
 			SteamBalls.Add(Ball);
 			SteamBallScales.Add(FVector(Radius * Share / 50.0f));
 		}
+
+		// Puffs of steam bulge out of the ball all over, so it is a fluffy cloud and not one round body
+		const FVector Middle = Center + FVector(0.0f, 0.0f, Radius * MagicSettings->SteamBallLift);
+		for (int32 Index = 0; Index < MagicSettings->SteamPuffs; ++Index)
+		{
+			// Spread evenly over the upper part of the ball (golden angle), each a little different in size
+			const float Height = FMath::Lerp(-0.15f, 0.95f, (Index + 0.5f) / MagicSettings->SteamPuffs);
+			const float Around = Index * 2.39996f;
+			const float Across = FMath::Sqrt(1.0f - FMath::Square(Height));
+			const FVector Out(FMath::Cos(Around) * Across, FMath::Sin(Around) * Across, Height);
+			const float Size = Radius * FMath::FRandRange(0.32f, 0.48f);
+
+			UStaticMeshComponent* Puff = NewObject<UStaticMeshComponent>(this);
+			Puff->SetStaticMesh(Sphere);
+			Puff->SetMaterial(0, BallMaterial);
+			Puff->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Puff->SetCastShadow(false);
+			Puff->SetupAttachment(RootComponent);
+			Puff->SetUsingAbsoluteScale(true);
+			Puff->RegisterComponent();
+			Puff->SetWorldLocation(Middle + Out * Radius * 0.82f);
+			Puff->SetWorldScale3D(FVector(Size / 50.0f));
+			SteamBalls.Add(Puff);
+			SteamBallScales.Add(FVector(Size / 50.0f));
+		}
 		Disc->SetVisibility(false);
 		return true;
+	}
+
+	// Water or fire close by feed the mist: it swells to half again its size (Boris 2026-10-25)
+	if (UVaelEnvironmentStatics::IsElementInEnvironment(GetInstigator(), EVaelElement::Water) || UVaelEnvironmentStatics::IsElementInEnvironment(GetInstigator(), EVaelElement::Fire))
+	{
+		Radius *= MagicSettings->MistSourceSwell;
+		RefreshLook();
 	}
 
 	// The mist veil: rings of points over the ground, each layer of the blanket and of the wisps above at its own height
@@ -550,11 +593,11 @@ void AVaelGroundArea::UpdateVeil(float DeltaSeconds)
 		return;
 	}
 
-	// The front creeps out fast at first and slows; the blanket is densest near the middle and thins out at its edge,
+	// The front wells out evenly; the blanket is densest near the middle and thins out at its edge,
 	// and in the last moments the whole veil thins away. The wisps follow the blanket a little behind
 	const float Creep = FMath::Clamp(CloudAge / MagicSettings->VeilPullSeconds, 0.0f, 1.0f);
 	const float Reach = Radius * MagicSettings->MistReachShare;
-	const float Front = Reach * (1.0f - FMath::Square(1.0f - Creep));
+	const float Front = Reach * Creep;
 	const float Remaining = GetLifeSpan() > 0.0f ? GetLifeSpan() : 1.0f;
 	const float Fade = FMath::Clamp(Remaining / MagicSettings->MistFadeSeconds, 0.0f, 1.0f);
 	const float EdgeWidth = Reach * 0.3f;
