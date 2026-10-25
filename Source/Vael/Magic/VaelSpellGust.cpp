@@ -10,6 +10,7 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Magic/VaelAirBlast.h"
 #include "Magic/VaelWaterBolt.h"
 #include "Magic/VaelWaterWave.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -79,6 +80,13 @@ AVaelSpellGust* AVaelSpellGust::Spawn(AActor* Caster, const FVector& Location, c
 	const FVector BlowDirection = Direction.GetSafeNormal2D();
 	if (World == nullptr || BlowDirection.IsNearlyZero())
 	{
+		return nullptr;
+	}
+
+	// Wind is shown by what it does to the world: shimmering air, streaks, dust torn up (AVaelAirBlast)
+	if (!bWater && !bBlood && VaelAssets::LoadOptional(UVaelMagicSettings::Get()->AirCardMaterial) != nullptr)
+	{
+		AVaelAirBlast::SpawnBlast(Caster, Location, BlowDirection, Range, HalfAngle);
 		return nullptr;
 	}
 

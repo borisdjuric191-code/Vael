@@ -13,7 +13,7 @@
 
 import unreal
 
-KIT_VERSION = "2.7"
+KIT_VERSION = "3.7"
 FOLDER = "/Game/Vael/Effects/Nebel"
 
 # The rolling dust cloud of the NiagaraExamples dirt explosion: an 8x8 looping flipbook (R light, G opacity)
@@ -373,7 +373,8 @@ def build_card_instances():
     """White cloud for mist and steam, sand for the whirls, dark storm cloud for the hail"""
     for name, colour, glow, shadow in (("MI_Vael_Wolke_Weiss", (0.95, 0.96, 0.98), 0.55, 0.72),
                                        ("MI_Vael_Wolke_Sand", (0.72, 0.54, 0.34), 0.2, 0.6),
-                                       ("MI_Vael_Wolke_Sturm", (0.3, 0.33, 0.4), 0.06, 0.35)):
+                                       ("MI_Vael_Wolke_Sturm", (0.3, 0.33, 0.4), 0.06, 0.35),
+                                       ("MI_Vael_Wolke_Asche", (0.5, 0.48, 0.46), 0.12, 0.55)):
         path = "{}/{}".format(FOLDER, name)
         instance = unreal.load_asset(path)
         if instance is None:
@@ -405,6 +406,98 @@ def build_ice():
     finish(material, "M_Vael_Hageleis")
 
 
+def build_air_cards():
+    """M_Vael_Luftkarte: a card of moving air for the wind spells: it bends what lies behind it like shimmering heat,
+    cool and faintly white-turquoise, in the shape of the rolling cloud (same atlas and custom data as M_Vael_Wolkenkarte)"""
+    material = fresh_material("M_Vael_Luftkarte")
+    if material is None:
+        return
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    material.set_editor_property("two_sided", True)
+    try_set(material, "used_with_instanced_static_meshes", True)
+    try_set(material, "refraction_method", unreal.RefractionMode.RM_PIXEL_NORMAL_OFFSET)
+
+    g = Graph(material)
+    tint = g.color("Farbe", unreal.LinearColor(0.84, 0.93, 1.0, 1.0))
+    bend = g.scalar("Verzerrung", 0.8)
+    breath = g.scalar("Hauch", 0.1)
+    rate = g.scalar("Tempo", 16.0)
+
+    def custom(index):
+        return g.node(unreal.MaterialExpressionPerInstanceCustomData, 7, data_index=index, const_default_value=[0.0, 1.0, 1.0][index])
+
+    start = custom(0)
+    solid = custom(1)
+    time = g.node(unreal.MaterialExpressionTime, 7)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
+    frame = g.op(unreal.MaterialExpressionFmod, 5, g.op(unreal.MaterialExpressionFloor, 5, g.add(5, g.mul(5, time, rate), start), a_input=""), g.const(64.0))
+    column_index = g.op(unreal.MaterialExpressionFmod, 4, frame, g.const(8.0))
+    row_index = g.op(unreal.MaterialExpressionFloor, 4, g.mul(4, frame, g.const(0.125)), a_input="")
+    atlas_uv = g.mul(3, g.add(3, uv, g.append(3, column_index, row_index)), g.const(0.125))
+    roil = g.node(unreal.MaterialExpressionTextureSample, 2, texture=unreal.load_asset(DUST_ATLAS))
+    g.link(atlas_uv, roil, "UVs")
+    normals = g.node(unreal.MaterialExpressionTextureSample, 2, texture=unreal.load_asset(DUST_NORMALS))
+    try_set(normals, "sampler_type", unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    g.link(atlas_uv, normals, "UVs")
+    # (sharper mips: on small cards the blurred atlas frames would run together into a round lens)
+    for sample in (roil, normals):
+        try_set(sample, "mip_value_mode", unreal.TextureMipValueMode.TMVM_MIP_BIAS)
+        try_set(sample, "const_mip_value", -2)
+    # (a round mask on top: on small cards the atlas mips bleed and the frame would show as a square)
+    centre = g.node(unreal.MaterialExpressionConstant2Vector, 3, r=0.5, g=0.5)
+    round_mask = g.saturate(1, g.mul(1, g.sub(1, g.const(0.5), g.op(unreal.MaterialExpressionDistance, 2, uv, centre)), g.const(2.2)))
+    alpha = g.mul(1, g.mul(1, g.channel(1, roil, "A"), solid), round_mask)
+
+    # The bend follows the billows of the cloud; a breath of colour so it reads on dark ground too
+    # (outside the cloud the normal is flat, or the whole square card would bend the picture)
+    bent = g.node(unreal.MaterialExpressionComponentMask, 1, r=True, g=True, b=True, a=False)
+    g.link(normals, bent, "", "RGB")
+    library.connect_material_property(g.lerp(0, g.vec3(0.0, 0.0, 1.0), bent, g.saturate(1, g.mul(1, alpha, g.const(1.5)))), "", unreal.MaterialProperty.MP_NORMAL)
+    library.connect_material_property(g.add(0, g.const(1.0), g.mul(0, alpha, bend)), "", unreal.MaterialProperty.MP_REFRACTION)
+    depth = g.node(unreal.MaterialExpressionPixelDepth, 2)
+    near = g.saturate(1, g.mul(1, g.sub(1, depth, g.const(250.0)), g.const(1.0 / 350.0)))
+    library.connect_material_property(g.saturate(0, g.mul(0, g.mul(0, alpha, breath), near)), "", unreal.MaterialProperty.MP_OPACITY)
+    library.connect_material_property(g.mul(0, tint, g.const(1.2)), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    finish(material, "M_Vael_Luftkarte")
+
+
+def build_streak():
+    """M_Vael_Windschliere: a thin bright band of wind on the ribbons the game builds (UVaelWindStreaksComponent):
+    U along it (0 at its head), V across; vertex colour A how strong. Soft across, frayed along, faster than the eye"""
+    material = fresh_material("M_Vael_Windschliere")
+    if material is None:
+        return
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    material.set_editor_property("two_sided", True)
+    g = Graph(material)
+    tint = g.color("Farbe", unreal.LinearColor(0.86, 0.95, 1.0, 1.0))
+    glow = g.scalar("Leuchten", 1.5)
+    strength = g.scalar("Deckkraft", 0.7)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
+    time = g.node(unreal.MaterialExpressionTime, 7)
+    vertex = g.node(unreal.MaterialExpressionVertexColor, 7)
+    fade = g.channel(6, vertex, "A")
+    along = g.node(unreal.MaterialExpressionComponentMask, 6, r=True, g=False, b=False, a=False)
+    g.link(uv, along, "")
+    across = g.node(unreal.MaterialExpressionComponentMask, 6, r=False, g=True, b=False, a=False)
+    g.link(uv, across, "")
+    # Soft across: brightest in the middle line
+    middle = g.op(unreal.MaterialExpressionOneMinus, 5, g.op(unreal.MaterialExpressionAbs, 5, g.sub(5, g.mul(5, across, g.const(2.0)), g.const(1.0)), a_input=""), a_input="")
+    soft = g.saturate(4, g.mul(4, middle, g.const(1.4)))
+    # Frayed along: noise racing down the band tears it into wisps; it thins towards its tail
+    fray = g.noise(4, g.append(4, g.append(4, g.mul(4, g.sub(4, along, g.mul(4, time, g.const(2.5))), g.const(6.0)), g.mul(4, across, g.const(2.0))), g.mul(4, time, g.const(0.7))), levels=3)
+    torn = g.saturate(3, g.mul(3, g.sub(3, fray, g.const(0.1)), g.const(2.2)))
+    tail = g.op(unreal.MaterialExpressionOneMinus, 3, along, a_input="")
+    opacity = g.saturate(0, g.mul(0, g.mul(0, g.mul(0, g.mul(0, soft, torn), tail), fade), strength))
+    library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)
+    library.connect_material_property(g.mul(0, tint, glow), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    finish(material, "M_Vael_Windschliere")
+
+
+build_air_cards()
+build_streak()
 build_ice()
 build_mist()
 build_sand()

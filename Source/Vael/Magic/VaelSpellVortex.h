@@ -62,6 +62,9 @@ struct FVaelVortexSettings
 	/** True for a dust devil: real debris whirls instead of the effect */
 	bool bDebrisWhirl = false;
 
+	/** True for a whirlwind of air (Wirbelsturm): shimmering air, white wisps and streaks instead of the effect */
+	bool bAirWhirl = false;
+
 	/** A giant dust devil that swallowed a sand storm: its whirl looks this many times its radius, carries this many times
 	 *  the debris and swells up over these seconds */
 	float LookScale = 1.0f;

@@ -45,7 +45,10 @@ public:
 	UVaelDebrisWhirlComponent();
 
 	/** Fills the whirl; Radius in cm at its widest, Color of its dust */
-	void Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor, float InPieceShare = 1.0f);
+	void Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor, float InPieceShare = 1.0f, bool bInAir = false);
+
+	/** A whirlwind turned fire whirl: flames ride up its spiral */
+	void SetFiery(bool bInFiery) { bFiery = bInFiery; }
 
 	/** How far the whirl has drawn together (0) or swollen out (1): it is drawn into a dust devil, or grows */
 	void SetGather(float InGather) { Gather = InGather; }
@@ -108,4 +111,17 @@ private:
 	TObjectPtr<class UVaelCloudCardsComponent> SandCards;
 
 	TArray<FPiece> CardPaths;
+
+	/** A whirlwind of air: white wisps and streaks of wind on its spiral, flames once it turns fire whirl */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelCloudCardsComponent> WispCards;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelWindStreaksComponent> Streaks;
+
+	TArray<FPiece> WispPaths;
+	TArray<FPiece> StreakPaths;
+	bool bAir = false;
+	bool bFiery = false;
+	float FireCountdown = 0.0f;
 };

@@ -9,6 +9,8 @@
 #include "NiagaraComponent.h"
 #include "ProceduralMeshComponent.h"
 #include "Magic/VaelCloudCards.h"
+#include "Magic/VaelWindStreaks.h"
+#include "World/VaelFireComponent.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
@@ -28,10 +30,11 @@ UVaelDebrisWhirlComponent::UVaelDebrisWhirlComponent()
 	PrimaryComponentTick.bCanEverTick = true;
 }
 
-void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor, float InPieceShare)
+void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLinearColor& InDustColor, float InPieceShare, bool bInAir)
 {
 	Radius = InRadius;
 	PieceShare = InPieceShare;
+	bAir = bInAir;
 	bFunnel = bInFunnel;
 	Height = Radius * (bFunnel ? WhirlFunnelHeightShare : WhirlStormHeightShare);
 	DustColor = InDustColor;
@@ -40,7 +43,8 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 	BuildShells();
 
 	// Cards of rolling sand on the spiral: they start spread over the whole height, each at its own pace
-	if (UMaterialInterface* SandMaterial = VaelAssets::LoadOptional(MagicSettings->SandCardMaterial))
+	// A whirlwind of air: cards of shimmering air instead of sand, as many as the settings give, whatever its debris
+	if (UMaterialInterface* SandMaterial = VaelAssets::LoadOptional(bAir ? MagicSettings->AirCardMaterial : MagicSettings->SandCardMaterial))
 	{
 		SandCards = NewObject<UVaelCloudCardsComponent>(GetOwner());
 		SandCards->SetupAttachment(this);
@@ -48,7 +52,7 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 		SandCards->RegisterComponent();
 		SandCards->SetWorldScale3D(FVector::OneVector);
 		SandCards->Init(SandMaterial);
-		const int32 NumCards = FMath::RoundToInt((bFunnel ? MagicSettings->WhirlFunnelCards : MagicSettings->WhirlStormCards) * PieceShare);
+		const int32 NumCards = bAir ? MagicSettings->AirWhirlShimmer : FMath::RoundToInt((bFunnel ? MagicSettings->WhirlFunnelCards : MagicSettings->WhirlStormCards) * PieceShare);
 		for (int32 Index = 0; Index < NumCards; ++Index)
 		{
 			FPiece Path;
@@ -63,6 +67,50 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 			CardPaths.Add(Path);
 		}
 	}
+	// A whirlwind of air also carries white wisps up its spiral and streaks of wind racing round it
+	if (bAir)
+	{
+		if (UMaterialInterface* WispMaterial = VaelAssets::LoadOptional(MagicSettings->CloudCardMaterial))
+		{
+			WispCards = NewObject<UVaelCloudCardsComponent>(GetOwner());
+			WispCards->SetupAttachment(this);
+			WispCards->SetUsingAbsoluteScale(true);
+			WispCards->RegisterComponent();
+			WispCards->SetWorldScale3D(FVector::OneVector);
+			WispCards->Init(WispMaterial);
+			for (int32 Index = 0; Index < MagicSettings->AirWhirlWisps; ++Index)
+			{
+				FPiece Path;
+				Path.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+				Path.Height = Height * (Index + FMath::FRand()) / MagicSettings->AirWhirlWisps;
+				Path.AngularSpeed = FMath::FRandRange(2.6f, 3.8f);
+				Path.RiseSpeed = Height * FMath::FRandRange(0.3f, 0.5f);
+				Path.Offset = FMath::FRandRange(-0.15f, 0.15f);
+				Path.Scale = FMath::FRandRange(0.07f, 0.15f);
+				WispCards->AddCard(PlaceOf(Path), Radius * 0.7f, 0.0f);
+				WispPaths.Add(Path);
+			}
+		}
+		if (UMaterialInterface* StreakMaterial = VaelAssets::LoadOptional(MagicSettings->StreakMaterial))
+		{
+			Streaks = NewObject<UVaelWindStreaksComponent>(GetOwner());
+			Streaks->SetupAttachment(this);
+			Streaks->RegisterComponent();
+			Streaks->Init(StreakMaterial);
+			for (int32 Index = 0; Index < MagicSettings->AirWhirlStreaks; ++Index)
+			{
+				FPiece Path;
+				Path.Angle = Index * UE_TWO_PI / FMath::Max(MagicSettings->AirWhirlStreaks, 1);
+				Path.Height = Height * FMath::FRand();
+				Path.AngularSpeed = FMath::FRandRange(4.0f, 5.5f);
+				Path.RiseSpeed = Height * FMath::FRandRange(0.35f, 0.55f);
+				Path.Offset = FMath::FRandRange(-0.05f, 0.15f);
+				Streaks->AddStreak(GetComponentTransform().TransformPosition(PlaceOf(Path)), MagicSettings->AirStreakWidth, Radius * 2.2f);
+				StreakPaths.Add(Path);
+			}
+		}
+	}
+
 	float TotalShare = 0.0f;
 	TArray<const FVaelWhirlPiece*> Loaded;
 	TArray<UStaticMesh*> Meshes;
@@ -303,6 +351,68 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 			SandCards->SetCard(Index, PlaceOf(Path) + Sway * Gather, Size * FMath::Lerp(0.3f, 1.0f, Gather), Solid);
 		}
 		SandCards->Commit();
+	}
+
+	// White wisps ride up a whirlwind's spiral, streaks race round it and start again at the bottom
+	const auto Advance = [this](FPiece& Path, float Delta)
+	{
+		Path.Angle += Path.AngularSpeed * Delta;
+		Path.Height += Path.RiseSpeed * Delta;
+		const bool bWrapped = Path.Height > Height;
+		if (bWrapped)
+		{
+			Path.Height -= Height;
+		}
+		return bWrapped;
+	};
+	if (WispCards != nullptr)
+	{
+		for (int32 Index = 0; Index < WispPaths.Num(); ++Index)
+		{
+			FPiece& Path = WispPaths[Index];
+			Advance(Path, DeltaTime);
+			const float Up = Path.Height / Height;
+			WispCards->SetCard(Index, PlaceOf(Path), Radius * FMath::Lerp(0.35f, 0.65f, Up) * Gather, FMath::Pow(FMath::Sin(Up * UE_PI), 0.8f) * Path.Scale);
+		}
+		WispCards->Commit();
+	}
+	if (Streaks != nullptr)
+	{
+		for (int32 Index = 0; Index < StreakPaths.Num(); ++Index)
+		{
+			// The trail is laid along the spiral the head came up, so it bends smoothly however far the head moves in a frame
+			FPiece& Path = StreakPaths[Index];
+			Advance(Path, DeltaTime);
+			TArray<FVector> Trail;
+			FPiece Back = Path;
+			for (int32 Point = 0; Point < 16 && Back.Height >= 0.0f; ++Point)
+			{
+				Trail.Add(GetComponentTransform().TransformPosition(PlaceOf(Back)));
+				Back.Angle -= Path.AngularSpeed * 0.022f;
+				Back.Height -= Path.RiseSpeed * 0.022f;
+			}
+			Streaks->SetTrail(Index, MoveTemp(Trail), FMath::Sin(Path.Height / Height * UE_PI) * Gather);
+		}
+		Streaks->Commit();
+	}
+
+	// A fire whirl: flames ride up the spiral
+	if (bFiery)
+	{
+		FireCountdown -= DeltaTime;
+		while (FireCountdown <= 0.0f)
+		{
+			FireCountdown += 0.07f;
+			FPiece Spot;
+			Spot.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+			Spot.Height = FMath::FRandRange(0.0f, Height * 0.8f);
+			Spot.Offset = FMath::FRandRange(-0.2f, 0.05f);
+			if (UNiagaraComponent* Flame = VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelFireSettings::Get()->BallNiagara), GetComponentTransform().TransformPosition(PlaceOf(Spot)),
+				FRotator::ZeroRotator, FLinearColor::White, Radius * 0.35f))
+			{
+				VaelFire::SetWind(Flame, FVector(0.0f, 0.0f, 100.0f), 3.0f);
+			}
+		}
 	}
 
 	// Clouds of dust like those falling off a rock wall, all over the shape of the whirl (0: none)

@@ -894,6 +894,7 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 	Vortex.FireColor = MagicSettings->GetElementColor(EVaelElement::Fire);
 	Vortex.Visual = Formula.LoadEffects().Trail;
 	Vortex.bDebrisWhirl = Formula.bDebrisWhirl;
+	Vortex.bAirWhirl = Formula.DamageElement == EVaelElement::Air && !Formula.bDebrisWhirl;
 
 	const FVector AimDirection = GetAimDirection(Caster);
 

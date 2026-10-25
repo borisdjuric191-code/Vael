@@ -24,6 +24,7 @@
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "Magic/VaelAirBlast.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelElementOrbitComponent.h"
@@ -486,6 +487,12 @@ bool AVaelCharacter::StartSpellDash(const FVector& WorldDirection, float Speed, 
 	DodgeEndTime = GetWorld()->GetTimeSeconds() + Duration;
 
 	BeginRollLook(LoadedSpellDashMontage != nullptr ? LoadedSpellDashMontage : LoadedDodgeMontage, Duration);
+
+	// Riding on the wind: streaks wrap the body, shimmer and dust are left along the path
+	if (InDashBurst.Element == EVaelElement::Air)
+	{
+		AVaelAirBlast::SpawnTrail(this, Duration);
+	}
 
 	return true;
 }

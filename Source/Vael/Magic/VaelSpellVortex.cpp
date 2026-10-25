@@ -14,6 +14,7 @@
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelDebrisWhirl.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
@@ -128,12 +129,12 @@ void AVaelSpellVortex::BeginPlay()
 	Mesh->SetRelativeScale3D(FVector(LookScale, LookScale, VortexLookHeight / VortexPlaceholderConeHeight));
 
 	// A dust devil carries real debris; any other whirl shows its effect. Either replaces the placeholder cone.
-	if (Settings.bDebrisWhirl)
+	if (Settings.bDebrisWhirl || Settings.bAirWhirl)
 	{
 		Whirl = NewObject<UVaelDebrisWhirlComponent>(this);
 		Whirl->SetupAttachment(RootComponent);
 		Whirl->RegisterComponent();
-		Whirl->Build(Settings.Radius * Settings.LookScale, true, Settings.Color, Settings.PieceShare);
+		Whirl->Build(Settings.Radius * Settings.LookScale, true, Settings.Color, Settings.bAirWhirl ? UVaelMagicSettings::Get()->AirWhirlDebris : Settings.PieceShare, Settings.bAirWhirl);
 		Whirl->SetGather(Settings.GrowSeconds > 0.0f ? 0.25f : 1.0f);
 		Mesh->SetVisibility(false);
 	}
@@ -215,6 +216,10 @@ void AVaelSpellVortex::CatchFire()
 	}
 
 	bFiery = true;
+	if (Whirl != nullptr)
+	{
+		Whirl->SetFiery(true);
+	}
 	RefreshColor();
 
 	UVaelCombatTextSubsystem::PostReaction(this, LOCTEXT("FireWhirl", "Feuerwirbel!"));

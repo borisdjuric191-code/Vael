@@ -335,6 +335,61 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 1))
 	float MistSpreadScale = 1.5f;
 
+	/** Wind spells (AVaelAirBlast, Boris 2026-10-25): cards of shimmering air (M_Vael_Luftkarte), ash cards beside the sand ones,
+	 *  the band material of the wind streaks and their width in cm; shimmer cards and streaks of a cone, of a ring and of a
+	 *  rider's trail; dust cards torn up by a blast and how solid; pebble bursts at most per blast */
+	UPROPERTY(config, EditAnywhere, Category="Air")
+	TSoftObjectPtr<UMaterialInterface> AirCardMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Air")
+	TSoftObjectPtr<UMaterialInterface> AshCardMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Air")
+	TSoftObjectPtr<UMaterialInterface> StreakMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 1))
+	float AirStreakWidth = 11.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirConeShimmer = 9;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirConeStreaks = 13;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirRingShimmer = 14;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirRingStreaks = 18;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 2))
+	int32 AirTrailShimmer = 16;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirTrailStreaks = 6;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirDustCards = 12;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0, ClampMax = 1))
+	float AirDustSolid = 0.55f;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirPebbleBursts = 3;
+
+	/** Wirbelsturm: shimmer cards and white wisps on its spiral, streaks racing round it, share of the debris a dust devil carries */
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirWhirlShimmer = 50;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirWhirlWisps = 14;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	int32 AirWhirlStreaks = 8;
+
+	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 0))
+	float AirWhirlDebris = 0.3f;
+
 	/** Hagelsturm (AVaelHailStorm): its dark storm cloud (cards of MI_Vael_Wolke_Sturm) this high above the ground, of this many cards;
 	 *  lances of ice falling all over the patch (per second), how fast and how slanted, their length and width in cm, their colour;
 	 *  a volley of this many on each strike, spread this far; splinters on every n-th landing; lances at most in the air */
