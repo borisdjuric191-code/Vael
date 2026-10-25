@@ -6,6 +6,7 @@
 #include "Engine/World.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
+#include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
 
@@ -51,13 +52,33 @@ void UVaelDebrisWhirlComponent::Build(float InRadius, bool bInFunnel, const FLin
 			TotalShare += Kind.Share;
 		}
 	}
-	if (Kinds.IsEmpty() || TotalShare <= 0.0f)
+	if (TotalShare <= 0.0f)
 	{
-		return;
+		Kinds.Reset();
+	}
+
+	// Bands of sand racing round and up: the steam plume in the color of the dust, its trail left in the air draws the spiral
+	UNiagaraSystem* Sand = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
+	const int32 NumBands = bFunnel ? MagicSettings->WhirlFunnelBands : MagicSettings->WhirlStormBands;
+	for (int32 Index = 0; Sand != nullptr && Index < NumBands; ++Index)
+	{
+		if (UNiagaraComponent* Band = VaelEffects::Attach(Sand, this, NAME_None, DustColor, Radius * MagicSettings->WhirlBandSize, false))
+		{
+			Band->SetAllowScalability(false);
+			FPiece Path;
+			Path.Angle = Index * UE_TWO_PI / NumBands;
+			Path.Height = Height * (Index % 3) / 3.0f;
+			Path.AngularSpeed = MagicSettings->WhirlBandTurnSpeed * (bFunnel ? 1.3f : 1.0f);
+			Path.RiseSpeed = Height * 0.5f;
+			Path.Offset = -0.1f;
+			Band->SetRelativeLocation(PlaceOf(Path));
+			Bands.Add(Band);
+			BandPaths.Add(Path);
+		}
 	}
 
 	const int32 Count = bFunnel ? MagicSettings->WhirlFunnelPieces : MagicSettings->WhirlStormPieces;
-	for (int32 Index = 0; Index < Count; ++Index)
+	for (int32 Index = 0; !Kinds.IsEmpty() && Index < Count; ++Index)
 	{
 		// The kinds in their shares, spread evenly over the pieces
 		float Pick = (Index + 0.5f) / Count * TotalShare;
@@ -97,6 +118,23 @@ FVector UVaelDebrisWhirlComponent::PlaceOf(const FPiece& Piece) const
 void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	Age += DeltaTime;
+
+	// The bands race round and up and start again at the bottom
+	for (int32 Index = 0; Index < Bands.Num(); ++Index)
+	{
+		FPiece& Path = BandPaths[Index];
+		Path.Angle += Path.AngularSpeed * DeltaTime;
+		Path.Height += Path.RiseSpeed * DeltaTime;
+		if (Path.Height > Height)
+		{
+			Path.Height = 0.0f;
+		}
+		if (Bands[Index] != nullptr)
+		{
+			Bands[Index]->SetRelativeLocation(PlaceOf(Path));
+		}
+	}
 
 	for (FPiece& Piece : Pieces)
 	{
@@ -122,9 +160,11 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 	while (NextBodyCountdown <= 0.0f)
 	{
 		NextBodyCountdown += bFunnel ? MagicSettings->WhirlFunnelDustInterval : MagicSettings->WhirlStormDustInterval;
+		// On one of the turning spiral arms, twisted further the higher it is, so the clouds draw the whirl and don't hide it
 		FPiece Spot;
-		Spot.Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		const int32 Arm = FMath::RandRange(0, MagicSettings->WhirlArms - 1);
 		Spot.Height = FMath::FRandRange(0.0f, Height * (bFunnel ? 0.9f : 0.7f));
+		Spot.Angle = Arm * UE_TWO_PI / MagicSettings->WhirlArms + Age * MagicSettings->WhirlBandTurnSpeed + Spot.Height / Height * 2.2f + FMath::FRandRange(-0.15f, 0.15f);
 		Spot.Offset = FMath::FRandRange(-0.3f, 0.05f);
 		const FVector Place = GetComponentTransform().TransformPosition(PlaceOf(Spot));
 		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(MagicSettings->DustBurstEffect), Place, FRotator::ZeroRotator, DustColor, Radius * MagicSettings->WhirlDustSize);

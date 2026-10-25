@@ -122,17 +122,22 @@ void AVaelSpellBeam::BeginPlay()
 				JetFlames.Add(Flame);
 			}
 		}
+		Mesh->SetVisibility(JetFlames.IsEmpty());
+	}
 
-		// The core: a cylinder of concentrated fire inside the flames
-		CoreRadius = 0.0f;
+	// A fire beam is a cylinder of concentrated, streaming fire
+	if (Settings.bFireCore)
+	{
+		const UVaelFireSettings* FireSettings = UVaelFireSettings::Get();
 		if (UMaterialInterface* CoreMaterial = VaelAssets::LoadOptional(FireSettings->BeamCoreMaterial))
 		{
 			Mesh->SetMaterial(0, CoreMaterial);
+			CoreMaterialInstance = Mesh->CreateAndSetMaterialInstanceDynamic(0);
 			CoreRadius = FireSettings->BeamCoreRadius;
+			Mesh->SetVisibility(true);
 		}
-		Mesh->SetVisibility(JetFlames.IsEmpty() || CoreRadius > 0.0f);
 	}
-	VisualComponent = JetFlames.IsEmpty() ? VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, BeamLookRadius) : nullptr;
+	VisualComponent = JetFlames.IsEmpty() && CoreRadius <= 0.0f ? VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, BeamLookRadius) : nullptr;
 	if (VisualComponent != nullptr)
 	{
 		VisualComponent->SetUsingAbsoluteLocation(true);
@@ -279,5 +284,10 @@ void AVaelSpellBeam::UpdateLook(const FVector& Start, const FVector& Direction, 
 	// The cylinder stands on its axis, which is turned into the aim direction
 	Mesh->SetWorldLocationAndRotation(Start + Direction * VisibleLength * 0.5f, FRotationMatrix::MakeFromZ(Direction).Rotator());
 	const float LookRadius = CoreRadius > 0.0f ? CoreRadius : BeamLookRadius;
+	if (CoreMaterialInstance != nullptr)
+	{
+		// The fire texture repeats along the beam at its own size, however long the beam is
+		CoreMaterialInstance->SetScalarParameterValue(TEXT("Kacheln"), VisibleLength / UVaelFireSettings::Get()->BeamCoreTileLength);
+	}
 	Mesh->SetWorldScale3D(FVector(LookRadius / BeamPlaceholderCylinderRadius, LookRadius / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
 }

@@ -429,27 +429,35 @@ bool AVaelGroundArea::BuildVeil(UNiagaraSystem* Steam)
 	VeilSpin->SetupAttachment(RootComponent);
 	VeilSpin->RegisterComponent();
 
-	// Two rings of mist balls make a shell around the middle: a wide low one and a narrow high one, each ball turned on the shell
+	// Balls of cloud on three rings of a dome over the area: wide and low, middle, narrow and high. Steam sits on the
+	// edge of its area; the veil's balls start far outside and draw in to a thick blanket close around the middle
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	const FVector Center = GetActorLocation();
-	for (int32 Index = 0; Index < MagicSettings->VeilBalls; ++Index)
+	const bool bVeil = Effect == EVaelGroundEffect::Veil;
+	const float Shell = bVeil ? MagicSettings->VeilBlanketShare : 0.9f;
+	const int32 NumBalls = MagicSettings->VeilBalls;
+	for (int32 Index = 0; Index < NumBalls; ++Index)
 	{
-		const bool bHigh = Index % 2 == 1;
-		const float Angle = Index * UE_TWO_PI / MagicSettings->VeilBalls;
-		const float Reach = Radius * (bHigh ? 0.28f : 0.55f);
-		const FVector Place(FMath::Cos(Angle) * Reach, FMath::Sin(Angle) * Reach, bHigh ? Radius * 0.45f : Radius * 0.1f);
-		if (UNiagaraComponent* Ball = VaelEffects::Attach(Steam, VeilSpin, NAME_None, GetLookColor(), Radius * 0.6f))
+		const int32 Ring = Index % 3;
+		const float Angle = Index * UE_TWO_PI / NumBalls + Ring * 0.5f;
+		const float Up = Ring * 0.4f;
+		const float Reach = Radius * Shell * FMath::Cos(Up * UE_HALF_PI);
+		const FVector Direction(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+		const FVector Settled = Direction * Reach + FVector(0.0f, 0.0f, Radius * Shell * FMath::Sin(Up * UE_HALF_PI) + Radius * 0.05f);
+		const FVector Start = bVeil ? Direction * Radius * MagicSettings->VeilStartShare + FVector(0.0f, 0.0f, Settled.Z * 0.5f) : Settled;
+		if (UNiagaraComponent* Ball = VaelEffects::Attach(Steam, VeilSpin, NAME_None, GetLookColor(), Radius * (bVeil ? 0.55f : 0.45f)))
 		{
-			// The plume allows only a few of itself at once; the veil needs all its balls
+			// The plume allows only a few of itself at once; the cloud needs all its balls
 			Ball->SetAllowScalability(false);
 			Ball->SetUsingAbsoluteLocation(false);
-			Ball->SetRelativeLocation(Place);
-			VaelFire::SetWind(Ball, FVector::ZeroVector, 0.0f);
+			Ball->SetRelativeLocation(Start);
+			CloudBalls.Add(Ball);
+			CloudFrom.Add(Start);
+			CloudTo.Add(Settled);
 		}
 	}
-	VeilSpin->SetWorldLocation(Center);
+	VeilSpin->SetWorldLocation(GetActorLocation());
 	Disc->SetVisibility(false);
-	NextShredCountdown = 0.5f;
+	NextShredCountdown = bVeil ? MagicSettings->VeilPullSeconds : UE_BIG_NUMBER;
 	return true;
 }
 
@@ -457,6 +465,18 @@ void AVaelGroundArea::UpdateVeil(float DeltaSeconds)
 {
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	VeilSpin->AddLocalRotation(FRotator(0.0f, MagicSettings->VeilTurnSpeed * DeltaSeconds, 0.0f));
+
+	// The clouds draw in, fast at first and settling softly; moving, they leave their mist behind as streaks
+	CloudAge += DeltaSeconds;
+	const float Pull = FMath::Clamp(CloudAge / MagicSettings->VeilPullSeconds, 0.0f, 1.0f);
+	const float Eased = 1.0f - FMath::Square(1.0f - Pull);
+	for (int32 Index = 0; Index < CloudBalls.Num(); ++Index)
+	{
+		if (CloudBalls[Index] != nullptr && CloudFrom[Index] != CloudTo[Index])
+		{
+			CloudBalls[Index]->SetRelativeLocation(FMath::Lerp(CloudFrom[Index], CloudTo[Index], Eased));
+		}
+	}
 
 	NextShredCountdown -= DeltaSeconds;
 	if (NextShredCountdown > 0.0f)
@@ -507,7 +527,7 @@ void AVaelGroundArea::SpawnVisual()
 		if (Effect == EVaelGroundEffect::Blind || Effect == EVaelGroundEffect::Veil)
 		{
 			Visual = VaelAssets::LoadOptional(MagicSettings->SteamEffect);
-			if (Effect == EVaelGroundEffect::Veil && BuildVeil(Visual))
+			if (BuildVeil(Visual))
 			{
 				return;
 			}

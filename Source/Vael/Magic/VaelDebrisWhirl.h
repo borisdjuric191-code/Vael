@@ -79,4 +79,11 @@ private:
 	FLinearColor DustColor = FLinearColor::Gray;
 	float NextDustCountdown = 0.0f;
 	float NextBodyCountdown = 0.0f;
+	float Age = 0.0f;
+
+	/** Bands of sand that race round and up the whirl, their trails drawing its spiral; each is a piece without a mesh */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UNiagaraComponent>> Bands;
+
+	TArray<FPiece> BandPaths;
 };

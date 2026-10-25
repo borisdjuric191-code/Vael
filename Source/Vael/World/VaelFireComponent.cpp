@@ -114,7 +114,8 @@ UVaelFireSettings::UVaelFireSettings()
 	BallNiagara = PackFire(TEXT("Fire_Small"), TEXT("NS_FireSmall_var1"));
 	TrailNiagara = PackFire(TEXT("Fire_Windy"), TEXT("NS_FireWindy_Common"));
 	BurstNiagara = PackFire(TEXT("Fire_Big"), TEXT("NS_FireBig"));
-	JetNiagara = PackFire(TEXT("Fire_Windy"), TEXT("NS_FireWindy_Common"));
+	// No flames along the fire beam (Boris 2026-10-25): it is a cylinder of fire, flames only where it hits
+	JetNiagara = nullptr;
 	const auto Copy = [](const TCHAR* Name)
 	{
 		return TSoftObjectPtr<UNiagaraSystem>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Effects/Paket/%s.%s"), Name, Name)));

@@ -101,7 +101,8 @@ UVaelMagicSettings::UVaelMagicSettings()
 	// Mushroom cloud of the Feuerball: a copy of the common fire, its smoke in the color the mushroom gives, thick and long
 	FVaelPackTuning* Mushroom = Tune(Pack(TEXT("Vael/Effects/Paket/NS_Vael_Feuerpilz_Rauch")), 60.0f, { TEXT("Smoke color") }, {});
 	Mushroom->ScaleParameters = FireSizes;
-	Mushroom->Floats = { { TEXT("LifeTime Smoke"), 2.2f }, { TEXT("LifeTime Fire"), 0.6f }, { TEXT("Spawn Rate Common"), 1.6f }, { TEXT("Velocity Common"), 0.8f } };
+	// It shoots up fast and lives long, so the moment it emits towers into a rearing cloud
+	Mushroom->Floats = { { TEXT("LifeTime Smoke"), 3.2f }, { TEXT("LifeTime Fire"), 1.0f }, { TEXT("Spawn Rate Common"), 3.0f }, { TEXT("Velocity Common"), 3.0f }, { TEXT("Drag Common"), 0.6f } };
 	FVaelPackTuning* TrailFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Windy/NS_FireWindy_Common")), 30.0f, {}, {});
 	TrailFire->ScaleParameters = FireSizes;
 	FVaelPackTuning* BigFire = Tune(Pack(TEXT("Fire_Solution_FX/Fire_Big/NS_FireBig")), 120.0f, {}, {});

@@ -117,25 +117,29 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	TSoftObjectPtr<class UNiagaraSystem> SparkHitNiagara;
 
-	/** Mushroom cloud of the Feuerball (AVaelFireMushroom): its puffs of burning smoke, their color (alpha = thickness),
-	 *  its height in burst radii, seconds the stem climbs, rings of its cap, seconds between stem puffs and the drift of the smoke */
+	/** What a Feuerball leaves (AVaelFireMushroom): its cloud of burning smoke, the smoke color (alpha = thickness),
+	 *  how high the last surge starts in burst radii, seconds over which the surges come, how many, and the stir of the smoke */
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom")
 	TSoftObjectPtr<class UNiagaraSystem> MushroomSmoke;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom")
 	FLinearColor MushroomSmokeColor = FLinearColor(0.22f, 0.17f, 0.14f, 0.9f);
 
-	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.5"))
-	float MushroomHeightShare = 3.2f;
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0"))
+	float MushroomHeightShare = 0.8f;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.2"))
-	float MushroomRiseSeconds = 1.1f;
+	float MushroomRiseSeconds = 0.7f;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="1"))
-	int32 MushroomCapRings = 3;
+	int32 MushroomSurges = 2;
 
-	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.02"))
-	float MushroomPuffInterval = 0.06f;
+	/** The burning patch it leaves: radius in burst radii, seconds it burns */
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.1"))
+	float MushroomPatchShare = 0.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom", meta=(ClampMin="0.5"))
+	float MushroomPatchSeconds = 6.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Niagara|Mushroom")
 	float MushroomWindSpeed = 2.5f;
@@ -145,9 +149,12 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Niagara")
 	TSoftObjectPtr<UMaterialInterface> BeamCoreMaterial;
 
-	/** Thickness of that core in cm (radius) */
+	/** Thickness of that core in cm (radius), and the length in cm over which its fire texture repeats once */
 	UPROPERTY(config, EditAnywhere, Category="Niagara", meta=(ClampMin="2"))
-	float BeamCoreRadius = 26.0f;
+	float BeamCoreRadius = 18.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Niagara", meta=(ClampMin="10"))
+	float BeamCoreTileLength = 120.0f;
 
 	/** Wind speed given to flying fire and the jet, for the pack parameter "Wind Speed" */
 	UPROPERTY(config, EditAnywhere, Category="Niagara")

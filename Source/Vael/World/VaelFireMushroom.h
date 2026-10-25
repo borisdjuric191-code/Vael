@@ -7,9 +7,9 @@
 #include "VaelFireMushroom.generated.h"
 
 /**
- *  The mushroom cloud of burning smoke a Feuerball sends up where it bursts: a stem of fire and smoke climbs fast,
- *  then a cap of dark smoke rolls out at its top and curls down. Built from puffs of the pack fire
- *  (UVaelFireSettings::MushroomSmoke), each emitting a moment and left to drift on its wind.
+ *  What a Feuerball leaves where it bursts: a burning patch on the ground and a cloud of fire and smoke that rears up
+ *  out of it in two surges, the second higher than the first. Built from the pack fire (UVaelFireSettings::MushroomSmoke),
+ *  each surge emitting a moment and left to climb.
  */
 UCLASS()
 class AVaelFireMushroom : public AActor
@@ -20,18 +20,17 @@ public:
 
 	AVaelFireMushroom();
 
-	/** Sends up a mushroom cloud from a burst of this radius in cm */
+	/** Lights the patch and sends up the cloud from a burst of this radius in cm */
 	static AVaelFireMushroom* Spawn(UWorld* World, const FVector& Location, float BurstRadius);
 
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
 
-	/** Puffs a moment of smoke at a place, its wind blowing that way */
-	void Puff(const FVector& Place, const FVector& Wind, float Size, bool bBurning);
+	/** One surge of burning smoke at a height above the ground, in cm */
+	void Surge(float Height, float Size);
 
 	float Radius = 150.0f;
 	float Age = 0.0f;
-	float NextStemCountdown = 0.0f;
-	int32 CapRingsDone = 0;
+	int32 SurgesDone = 0;
 };

@@ -380,14 +380,16 @@ void AVaelSpellProjectile::BuildLook()
 			Piece->SetRelativeRotation(FRotator(-90.0f, 0.0f, 0.0f));
 			LookShapes.Add(Piece);
 		}
+		// The stub of shaft behind the head, charred and glowing
+		LookShapes.Add(AddLookShape(GlowMaterial, FLinearColor(0.35f, 0.07f, 0.02f), 1.5f));
 
-		// Flames of the fire kit lick backwards from it: orange and white outside, orange-red burning inside
+		// Flames of the fire kit lick backwards from it, short: it is a shot, not a comet
 		TrailFlames = NewObject<UVaelFireComponent>(this);
 		TrailFlames->SetupAttachment(RootComponent);
 		TrailFlames->RegisterComponent();
 		FVaelFireShape Flames;
 		Flames.Radius = Radius * 0.3f;
-		Flames.Height = Radius * 4.5f;
+		Flames.Height = Radius * 2.0f;
 		Flames.Heat = 1.25f;
 		Flames.Smoke = 0.25f;
 		Flames.Speed = 2.6f;
@@ -1042,12 +1044,20 @@ void AVaelSpellProjectile::AnimateSpark(float Time, float DeltaSeconds)
 		Movement->Velocity = Forward * Movement->MaxSpeed * SpeedShare;
 	}
 
-	// The arrowhead: a cone of 100 cm with a base of 100 cm, its point along the flight; the hot point flickers inside
-	const float Length = Radius * 2.4f / 100.0f;
-	const float Width = Radius * 0.55f / 100.0f;
-	LookShapes[0]->SetRelativeScale3D(FVector(Width * 0.45f, Width * 0.45f, Length * 0.75f) * (1.0f + 0.12f * Flicker));
-	LookShapes[0]->SetRelativeLocation(FVector(Radius * 0.35f, 0.0f, 0.0f));
-	LookShapes[1]->SetRelativeScale3D(FVector(Width, Width, Length) * (1.0f - 0.08f * Flicker));
+	// The arrowhead of a bow's arrow: a broad, flat, short blade (a cone of 100 cm with a base of 100 cm, pressed flat),
+	// its point along the flight, the hot core flickering inside, a burning stub of shaft behind it
+	const float Length = Radius * 1.25f / 100.0f;
+	const float Width = Radius * 0.95f / 100.0f;
+	const float Flat = 0.32f;
+	// (turned to point forward, the cone's own X stands upright: thin there, so the iso camera sees the broad blade from above)
+	LookShapes[0]->SetRelativeScale3D(FVector(Width * 0.5f * Flat, Width * 0.5f, Length * 0.7f) * (1.0f + 0.12f * Flicker));
+	LookShapes[0]->SetRelativeLocation(FVector(Radius * 0.2f, 0.0f, 0.0f));
+	LookShapes[1]->SetRelativeScale3D(FVector(Width * Flat, Width, Length) * (1.0f - 0.06f * Flicker));
+	if (LookShapes.IsValidIndex(2))
+	{
+		LookShapes[2]->SetRelativeScale3D(FVector(Radius * 1.6f, Radius * 0.16f, Radius * 0.16f) / (PlaceholderSphereRadius * 2.0f));
+		LookShapes[2]->SetRelativeLocation(FVector(-Radius * 0.85f, 0.0f, 0.0f));
+	}
 
 	// Flames lick backwards (and a little up), longer and wilder the faster it flies
 	if (TrailFlames != nullptr)
@@ -1673,12 +1683,14 @@ void AVaelSpellProjectile::Explode()
 	// Fire bursts in a blast of flames of the fire kit
 	if (ExplosionHit.Element == EVaelElement::Fire)
 	{
-		AVaelFireSpot::SpawnBurst(World, Center, ExplosionRadius);
-
-		// A Feuerball sends up a mushroom cloud of burning smoke
+		// A Feuerball leaves a burning patch with a cloud of fire and smoke rearing up, other fire just blasts
 		if (Look == EVaelProjectileLook::Fireball)
 		{
 			AVaelFireMushroom::Spawn(World, Center, ExplosionRadius);
+		}
+		else
+		{
+			AVaelFireSpot::SpawnBurst(World, Center, ExplosionRadius);
 		}
 		UE_LOG(LogVael, Verbose, TEXT("'%s' bursts in flames at %s"), *GetNameSafe(this), *Center.ToCompactString());
 	}

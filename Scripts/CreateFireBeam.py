@@ -6,8 +6,12 @@ Bump KIT_VERSION to rebuild it.
 """
 import unreal
 
-KIT_VERSION = "1.1"
+KIT_VERSION = "1.6"
 PATH = "/Game/Vael/Effects/Feuer/M_Vael_Feuerstrahl"
+
+# How fast the licks race along the beam, and how much they are stretched along it (lower is longer)
+FLOW_SPEED = 3.5
+STRETCH = 0.35
 
 mel = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -21,7 +25,8 @@ def node(material, kind, x, y, **props):
 
 
 def link(source, target, target_input, source_output=""):
-    mel.connect_material_expressions(source, source_output, target, target_input)
+    if not mel.connect_material_expressions(source, source_output, target, target_input):
+        unreal.log_error("Vael: could not link {} -> {}.{}".format(source.get_name(), target.get_name(), target_input))
 
 
 def constant(material, value, x, y):
@@ -53,35 +58,57 @@ def build():
     middle = node(material, unreal.MaterialExpressionOneMinus, -1200, 0)
     link(fresnel, middle, "")
 
-    # Churning fire: noise drifting through world space
-    world = node(material, unreal.MaterialExpressionWorldPosition, -1800, 300)
-    shrink = node(material, unreal.MaterialExpressionDivide, -1600, 300)
-    link(world, shrink, "A")
-    link(constant(material, 45.0, -1800, 420), shrink, "B")
-    time = node(material, unreal.MaterialExpressionTime, -1800, 520)
-    drift = node(material, unreal.MaterialExpressionMultiply, -1600, 520)
-    link(time, drift, "A")
-    link(constant(material, 3.0, -1800, 620), drift, "B")
-    moved = node(material, unreal.MaterialExpressionAdd, -1400, 380)
-    link(shrink, moved, "A")
-    link(drift, moved, "B")
-    noise = node(material, unreal.MaterialExpressionNoise, -1200, 380, scale=1.0, levels=4, turbulence=True, output_min=-0.5, output_max=0.45)
-    link(moved, noise, "Position")
+    # Streaks of fire racing outwards: noise in the frame of the cylinder (U around it, V along it), stretched along
+    # the beam so it tears into long licks, its repeats along the beam set by the beam from its length ("Kacheln")
+    tiles = node(material, unreal.MaterialExpressionScalarParameter, -2000, 800, parameter_name="Kacheln", default_value=6.0)
+    uv = node(material, unreal.MaterialExpressionTextureCoordinate, -2000, 600)
+    around = node(material, unreal.MaterialExpressionComponentMask, -1800, 560, r=True, g=False, b=False, a=False)
+    link(uv, around, "")
+    along = node(material, unreal.MaterialExpressionComponentMask, -1800, 680, r=False, g=True, b=False, a=False)
+    link(uv, along, "")
+    around_scaled = node(material, unreal.MaterialExpressionMultiply, -1600, 560)
+    link(around, around_scaled, "A")
+    link(constant(material, 7.0, -1800, 760), around_scaled, "B")
+    along_scaled = node(material, unreal.MaterialExpressionMultiply, -1600, 700)
+    link(along, along_scaled, "A")
+    link(tiles, along_scaled, "B")
+    stretched = node(material, unreal.MaterialExpressionMultiply, -1450, 700)
+    link(along_scaled, stretched, "A")
+    link(constant(material, STRETCH, -1600, 820), stretched, "B")
+    time = node(material, unreal.MaterialExpressionTime, -2000, 950)
+    rush = node(material, unreal.MaterialExpressionMultiply, -1800, 950)
+    link(time, rush, "A")
+    link(constant(material, FLOW_SPEED, -2000, 1050), rush, "B")
+    racing = node(material, unreal.MaterialExpressionSubtract, -1300, 700)
+    link(stretched, racing, "A")
+    link(rush, racing, "B")
+    churn = node(material, unreal.MaterialExpressionMultiply, -1800, 1100)
+    link(time, churn, "A")
+    link(constant(material, 0.6, -2000, 1150), churn, "B")
+    flat = node(material, unreal.MaterialExpressionAppendVector, -1150, 620)
+    link(around_scaled, flat, "A")
+    link(racing, flat, "B")
+    position = node(material, unreal.MaterialExpressionAppendVector, -1000, 700)
+    link(flat, position, "A")
+    link(churn, position, "B")
+    noise = node(material, unreal.MaterialExpressionNoise, -850, 700, scale=1.0, levels=5, turbulence=True, output_min=-0.6, output_max=0.55)
+    link(position, noise, "")
 
-    # Heat: high in the middle, torn by the noise
-    heat_raw = node(material, unreal.MaterialExpressionAdd, -1000, 100)
+    # Heat: high in the middle line, torn into licks by the streaks
+    heat_raw = node(material, unreal.MaterialExpressionAdd, -700, 100)
     boost = node(material, unreal.MaterialExpressionMultiply, -1100, 0)
     link(middle, boost, "A")
-    link(constant(material, 0.95, -1300, 120), boost, "B")
+    link(constant(material, 0.75, -1300, 120), boost, "B")
     link(boost, heat_raw, "A")
     link(noise, heat_raw, "B")
-    heat = node(material, unreal.MaterialExpressionSaturate, -850, 100)
+    heat = node(material, unreal.MaterialExpressionSaturate, -600, 100)
     link(heat_raw, heat, "")
 
     # Thirds of the heat: black to orange, orange to yellow, yellow to white
     thirds = node(material, unreal.MaterialExpressionMultiply, -700, 100)
     link(heat, thirds, "A")
-    link(constant(material, 3.0, -850, 220), thirds, "B")
+    # (white only where the heat is nearly full: 2.4 instead of 3 thirds)
+    link(constant(material, 2.4, -850, 220), thirds, "B")
 
     def band(offset, y):
         shifted = node(material, unreal.MaterialExpressionSubtract, -550, y)
@@ -92,9 +119,9 @@ def build():
         return clamped
 
     black = color(material, (0.0, 0.0, 0.0), -420, -300)
-    orange = color(material, (3.2, 0.55, 0.03), -420, -200)
-    yellow = color(material, (6.0, 3.2, 0.35), -420, -100)
-    white = color(material, (10.0, 9.0, 7.0), -420, 400)
+    orange = color(material, (2.0, 0.32, 0.02), -420, -200)
+    yellow = color(material, (3.6, 1.6, 0.15), -420, -100)
+    white = color(material, (6.0, 5.0, 3.8), -420, 400)
 
     first = node(material, unreal.MaterialExpressionLinearInterpolate, -200, -250)
     link(black, first, "A")

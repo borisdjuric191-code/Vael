@@ -51,6 +51,9 @@ struct FVaelBeamSettings
 	/** Fire of a pack streaming along the beam instead of the effect (Feuerstrahl), repeated along it with its wind along the beam */
 	UNiagaraSystem* Jet = nullptr;
 
+	/** True for a fire beam: its body is a cylinder of streaming fire (UVaelFireSettings::BeamCoreMaterial) */
+	bool bFireCore = false;
+
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
 };
@@ -115,6 +118,9 @@ private:
 
 	/** Radius of the fire core cylinder, 0 while the placeholder shows */
 	float CoreRadius = 0.0f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> CoreMaterialInstance;
 
 	/** World time at which the beam ends */
 	float EndTime = 0.0f;

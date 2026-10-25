@@ -215,17 +215,45 @@ public:
 
 	/** Body of dust of a whirl: seconds between two dust clouds (the dust burst of a rock wall) in a funnel and in a storm, their size in whirl radii */
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlFunnelDustInterval = 0.07f;
+	float WhirlFunnelDustInterval = 0.12f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.01))
-	float WhirlStormDustInterval = 0.035f;
+	float WhirlStormDustInterval = 0.06f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
-	float WhirlDustSize = 0.35f;
+	float WhirlDustSize = 0.22f;
+
+	/** Spiral arms the dust clouds of a whirl sit on (they turn at WhirlBandTurnSpeed) */
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 1))
+	int32 WhirlArms = 3;
+
+	/** Bands of sand (steam plume in dust color) that race round and up a whirl: how many in a funnel and a storm (0: none,
+	 *  their long-lived mist hazed the whole storm over), their size in whirl radii, their turn in radians per second */
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	int32 WhirlFunnelBands = 0;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0))
+	int32 WhirlStormBands = 0;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
+	float WhirlBandSize = 0.3f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects")
+	float WhirlBandTurnSpeed = 4.5f;
 
 	/** Mist veil (Nebelschleier): balls of steam in its cloud, its turn in degrees per second, seconds between two shreds tearing off and their drift (pack wind speed) */
 	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 2))
-	int32 VeilBalls = 12;
+	int32 VeilBalls = 15;
+
+	/** The veil's clouds start this many area radii out, draw in over these seconds and settle as a blanket this many radii around the middle */
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.1))
+	float VeilStartShare = 1.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.1))
+	float VeilPullSeconds = 1.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Effects", meta = (ClampMin = 0.05))
+	float VeilBlanketShare = 0.4f;
 
 	UPROPERTY(config, EditAnywhere, Category="Effects")
 	float VeilTurnSpeed = 14.0f;

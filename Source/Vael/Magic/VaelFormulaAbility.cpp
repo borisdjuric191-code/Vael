@@ -813,6 +813,7 @@ void UVaelFormulaAbility::StartBeam(const UVaelFormula& Formula, AActor* Caster,
 	if (Formula.DamageElement == EVaelElement::Fire)
 	{
 		Beam.Jet = VaelAssets::LoadOptional(UVaelFireSettings::Get()->JetNiagara);
+		Beam.bFireCore = true;
 	}
 
 	AVaelSpellBeam::StartBeam(Cast<APawn>(Caster), Beam);

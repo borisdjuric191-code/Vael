@@ -132,16 +132,25 @@ private:
 	/** The living flames of a fire area (fire kit); they die down on their own when the area ends */
 	TWeakObjectPtr<class AVaelFireSpot> FireLook;
 
-	/** Mist veil: the ball of cloud turns slowly on this, and every now and then a shred of mist tears off and drifts away */
+	/** Steam and mist veil: a sphere of cloud over the area turning slowly on this. The veil's clouds draw in from all sides
+	 *  into a thick blanket around the middle, and every now and then a shred of mist tears off and drifts away */
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> VeilSpin;
 
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UNiagaraComponent>> CloudBalls;
+
+	/** Where each ball of cloud starts and where it settles, in the frame of the spin */
+	TArray<FVector> CloudFrom;
+	TArray<FVector> CloudTo;
+
+	float CloudAge = 0.0f;
 	float NextShredCountdown = 0.0f;
 
-	/** Builds the ball of cloud of a mist veil; false without the steam effect */
+	/** Builds the sphere of cloud of steam or a mist veil; false without the steam effect */
 	bool BuildVeil(class UNiagaraSystem* Steam);
 
-	/** Turns the veil and lets a shred go */
+	/** Turns the cloud, draws the veil in and lets a shred go */
 	void UpdateVeil(float DeltaSeconds);
 
 protected:
