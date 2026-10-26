@@ -187,6 +187,8 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnReload);
 			EnhancedInputComponent->BindAction(WhipAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnWhip);
 			EnhancedInputComponent->BindAction(HerbariumAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnHerbarium);
+			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnRise, true);
+			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnRise, false);
 		}
 		else
 		{
@@ -501,6 +503,11 @@ void AVaelPlayerController::CreateFloromantInput()
 	HerbariumAction = CreateAction(TEXT("IA_Flo_Herbarium"));
 	HerbariumAction->bTriggerWhenPaused = true;
 	Context->MapKey(HerbariumAction, EKeys::Tab);
+
+	// Rising high: pressing the right stick (R3), Left Ctrl on the keyboard
+	RiseAction = CreateAction(TEXT("IA_Flo_Steigen"));
+	Context->MapKey(RiseAction, EKeys::Gamepad_RightThumbstick);
+	Context->MapKey(RiseAction, EKeys::LeftControl);
 
 	// The menu on Options / Menu and Escape (the Floromant has no grimoire; its plant book comes later), spyglass on L3 and V,
 	// use what is close by with G (on the gamepad Cross does it outside of fights)
@@ -911,6 +918,29 @@ void AVaelPlayerController::OnWhip()
 	{
 		UpdateFacing();
 		VaelCharacter->GetFloromant()->ThornWhip(GetFloromantAim());
+	}
+}
+
+void AVaelPlayerController::OnRise(bool bPressed)
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr || !VaelCharacter->IsFloromant())
+	{
+		return;
+	}
+
+	// A press switches between hovering and up high; or, set so in the project settings, she stays up only while it is held
+	UVaelFloromantComponent* Floromant = VaelCharacter->GetFloromant();
+	if (UVaelFloromantSettings::Get()->bRiseToggles)
+	{
+		if (bPressed)
+		{
+			Floromant->ToggleRise();
+		}
+	}
+	else
+	{
+		Floromant->SetRiseHeld(bPressed);
 	}
 }
 

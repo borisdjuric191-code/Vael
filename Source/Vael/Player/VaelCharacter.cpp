@@ -42,6 +42,7 @@
 #include "Player/VaelPlayerController.h"
 #include "Save/VaelSaveSubsystem.h"
 #include "World/VaelGround.h"
+#include "World/VaelRegion.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Compendium/VaelCompendiumSettings.h"
 #include "UI/VaelCombatTextSubsystem.h"
@@ -567,12 +568,26 @@ void AVaelCharacter::UpdateHover(float DeltaSeconds)
 	const float Landed = FMath::Max(Floromant->GetStance(true), Floromant->GetStance(false));
 	const float Flying = 1.0f - Landed;
 
-	// A little above the ground, rising and sinking slowly, higher when she flies fast; collision and walking stay as for every class
+	// A little above the ground, rising and sinking slowly, higher when she flies fast, high up on R3; soaked wings carry her lower.
+	// Collision and walking stay as for every class
+	const float Rise = Floromant->GetRise();
+	const float Soaked = Floromant->GetWingWetness();
 	const float Bob = FMath::Sin(Time * Settings->HoverBobSpeed * 2.0f * UE_PI + GetUniqueID()) * Settings->HoverBob * (1.0f - 0.6f * FlightSpeedShare);
-	const float Height = (Settings->HoverHeight + Bob + Settings->FlightRise * FlightSpeedShare) * Flying;
+	const float Height = (Settings->HoverHeight + Bob + Settings->FlightRise * FlightSpeedShare + Settings->RiseHeight * FMath::SmoothStep(0.0f, 1.0f, Rise))
+		* (1.0f - Settings->SoakedHeightLoss * Soaked) * Flying;
 
-	// The body tips into the way she flies and further while she speeds up or turns; the lean is a horizontal vector, its length the degrees
-	FVector TargetLean = Velocity / TopSpeed * Settings->FlightLean + FlightAccel / Settings->FlightAccelReference * Settings->FlightAccelLean;
+	// The wind pushes her about in the air, harder up high; on the ground she stands against it
+	const FVector Wind = AVaelRegion::GetWindAt(GetWorld(), GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
+	const float WindShare = FMath::Min(Wind.Size() / Settings->WindReference, 1.5f) * Flying;
+	if (!Wind.IsNearlyZero() && Flying > 0.0f && !bIsDodging)
+	{
+		AddActorWorldOffset(Wind * Settings->WindDrift * (1.0f + Rise) * Flying * Delta, true);
+	}
+
+	// The body tips into the way she flies and further while she speeds up or turns, and leans into the wind; the lean is a
+	// horizontal vector, its length the degrees
+	FVector TargetLean = Velocity / TopSpeed * Settings->FlightLean + FlightAccel / Settings->FlightAccelReference * Settings->FlightAccelLean
+		- Wind.GetSafeNormal() * Settings->WindLean * FMath::Min(WindShare, 1.0f);
 	TargetLean = TargetLean.GetClampedToMaxSize(Settings->FlightMaxLean) * Flying;
 	FlightLean = FMath::VInterpTo(FlightLean, TargetLean, Delta, Settings->FlightLeanSpeed);
 
@@ -609,7 +624,7 @@ void AVaelCharacter::UpdateHover(float DeltaSeconds)
 	}
 	const FQuat WingTilt = ActorRotation.Inverse() * Tilt * ActorRotation;
 	Wings->SetRelativeLocationAndRotation(Pivot + WingTilt.RotateVector(FVector(0.0f, 0.0f, Height) - Pivot), WingTilt);
-	Wings->SetFlight(FlightSpeedShare * Flying, Brake * Flying);
+	Wings->SetFlight(FlightSpeedShare * Flying, Brake * Flying, Soaked, WindShare);
 
 	UpdateFlightShadow(Height, Landed);
 }
@@ -878,6 +893,28 @@ float AVaelCharacter::GetIncomingDamageMultiplier(const FGameplayTagContainer& D
 {
 	// Nothing hurts players in a safe zone like the camp
 	return AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation()) ? 0.0f : Super::GetIncomingDamageMultiplier(DamageTags);
+}
+
+bool AVaelCharacter::IsAboveGround() const
+{
+	return IsFloromant() && !bDowned && Floromant->IsUpHigh();
+}
+
+void AVaelCharacter::ApplyKnockback(const FVector& Direction, float Speed)
+{
+	// A rooted Floromant stands anchored in the earth
+	if (!(IsFloromant() && Floromant->IsRooted()))
+	{
+		Super::ApplyKnockback(Direction, Speed);
+	}
+}
+
+void AVaelCharacter::ApplyPull(const FVector& Location, float Speed, float DeltaSeconds)
+{
+	if (!(IsFloromant() && Floromant->IsRooted()))
+	{
+		Super::ApplyPull(Location, Speed, DeltaSeconds);
+	}
 }
 
 int32 AVaelCharacter::GetPotionCount() const

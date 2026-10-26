@@ -103,6 +103,9 @@ public:
 	/** Incoming damage carrying the given tags (element tags among them) is multiplied by this */
 	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const { return 1.0f; }
 
+	/** True while the character flies high, out of reach of what lies on the ground (burning, wet or poisoned fields) */
+	virtual bool IsAboveGround() const { return false; }
+
 	/** True while nothing can hurt the character, for example during a dodge roll */
 	/** True for players and the servants they summon, false for their enemies */
 	virtual bool IsOnPlayerSide() const { return IsPlayerControlled(); }

@@ -250,6 +250,9 @@ public:
 	virtual bool IsInvulnerable() const override;
 	virtual bool IsDefeated() const override { return bDowned; }
 	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const override;
+	virtual bool IsAboveGround() const override;
+	virtual void ApplyKnockback(const FVector& Direction, float Speed) override;
+	virtual void ApplyPull(const FVector& Location, float Speed, float DeltaSeconds) override;
 	//~End AVaelCharacterBase
 
 	/** Tints the character and its marker */

@@ -51,6 +51,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelKlasse(const FString& Class, const FString& Look);
 
+	/** Floromant: rises high or sinks back, like R3 */
+	UFUNCTION(Exec)
+	void VaelSteigen();
+
 	/** Floromant: sows the seed of the belt whose name starts like the word, or the picked one, the given metres ahead. Example: VaelSamen Russ 4 */
 	UFUNCTION(Exec)
 	void VaelSamen(const FString& Seed, float Metres);

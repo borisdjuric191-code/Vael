@@ -5,8 +5,10 @@
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Magic/VaelElementSource.h"
+#include "Player/VaelCharacter.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterPuddle.h"
 #include "Materials/MaterialInterface.h"
@@ -179,6 +181,10 @@ void AVaelSapJet::UpdateHits(float DeltaSeconds)
 		PushCountdown = PushInterval;
 	}
 
+	// A rooted Floromant pumps harder
+	const AVaelCharacter* Character = Cast<AVaelCharacter>(Gardener);
+	const float Power = Character != nullptr && Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
+
 	FVaelSpellHit Hit;
 	Hit.Element = EVaelElement::Water;
 	Hit.Status = Plant->ShotStatus;
@@ -203,7 +209,7 @@ void AVaelSapJet::UpdateHits(float DeltaSeconds)
 			continue;
 		}
 
-		const float Dealt = CollectedDamage.Add(Target, Plant->JetDamagePerSecond * DeltaSeconds, DamageStep);
+		const float Dealt = CollectedDamage.Add(Target, Plant->JetDamagePerSecond * Power * DeltaSeconds, DamageStep);
 		if (Dealt > 0.0f)
 		{
 			Hit.Damage = Dealt;

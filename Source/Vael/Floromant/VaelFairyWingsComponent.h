@@ -37,8 +37,11 @@ public:
 	/** Lets the wings shine faintly in the colour, for example the colour of the picked seed; 0 strength for none */
 	void SetGlow(const FLinearColor& Color, float Strength);
 
-	/** How fast she flies (0 to 1 of her top speed) and how hard she brakes (0 to 1), told every frame by the character */
-	void SetFlight(float InSpeedShare, float InBrake) { SpeedShare = InSpeedShare; Brake = InBrake; }
+	/**
+	 *  Told every frame by the character: how fast she flies (0 to 1 of her top speed), how hard she brakes (0 to 1),
+	 *  how wet the wings are (0 to 1; wet they hang heavy, darken and cannot glide) and how hard the wind blows (1 full)
+	 */
+	void SetFlight(float InSpeedShare, float InBrake, float InWetness, float InWind);
 
 	/** 0 while the wings beat, 1 while they are held open to glide */
 	float GetGlide() const { return Glide; }
@@ -69,6 +72,11 @@ private:
 	/** Told by the character: share of top speed and how hard it brakes */
 	float SpeedShare = 0.0f;
 	float Brake = 0.0f;
+	float Wetness = 0.0f;
+	float Wind = 0.0f;
+
+	/** Wetness last shown in the colour of the wings */
+	float ShownWetness = 0.0f;
 
 	/** Gliding: how far the wings are held open, seconds of steady fast flight, seconds until the next beats and of beats left */
 	float Glide = 0.0f;

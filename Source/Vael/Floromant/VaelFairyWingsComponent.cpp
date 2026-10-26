@@ -30,6 +30,8 @@ namespace
 	/** Material parameters of M_Floromant_Fluegel */
 	const FName WingGlowParameter(TEXT("Glow"));
 	const FName WingGlowColorParameter(TEXT("GlowColor"));
+	const FName WingTintParameter(TEXT("Tint"));
+	const FName WingLightThroughParameter(TEXT("LightThrough"));
 }
 
 UVaelFairyWingsComponent::UVaelFairyWingsComponent()
@@ -56,6 +58,23 @@ void UVaelFairyWingsComponent::SetGlow(const FLinearColor& Color, float Strength
 	{
 		WingMaterial->SetVectorParameterValue(WingGlowColorParameter, Color);
 		WingMaterial->SetScalarParameterValue(WingGlowParameter, Strength);
+	}
+}
+
+void UVaelFairyWingsComponent::SetFlight(float InSpeedShare, float InBrake, float InWetness, float InWind)
+{
+	SpeedShare = InSpeedShare;
+	Brake = InBrake;
+	Wetness = InWetness;
+	Wind = InWind;
+
+	// Soaked, the thin membrane darkens and lets less light through
+	if (WingMaterial != nullptr && !FMath::IsNearlyEqual(Wetness, ShownWetness, 0.02f))
+	{
+		ShownWetness = Wetness;
+		const float Shade = FMath::Lerp(1.0f, 0.42f, Wetness);
+		WingMaterial->SetVectorParameterValue(WingTintParameter, FLinearColor(Shade, Shade, Shade * 1.05f, 1.0f));
+		WingMaterial->SetScalarParameterValue(WingLightThroughParameter, FMath::Lerp(0.8f, 0.35f, Wetness));
 	}
 }
 
@@ -135,12 +154,14 @@ void UVaelFairyWingsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	const bool bMoving = Owner != nullptr && Owner->GetVelocity().Size2D() > WingWalkSpeed;
 	BurstTimeLeft = FMath::Max(0.0f, BurstTimeLeft - DeltaTime);
 	const float Burst = BurstTimeLeft > 0.0f ? 1.0f : 0.0f;
+	// Wet wings are heavy: they beat faster to keep her up
 	const float BeatRate = (bMoving ? FMath::Lerp(Settings->WingBeatIdle, Settings->WingBeatMoving, FMath::Max(SpeedShare, 0.5f)) : Settings->WingBeatIdle)
-		* (1.0f + 3.0f * Burst) * (1.0f + 0.8f * Brake);
+		* (1.0f + 3.0f * Burst) * (1.0f + 0.8f * Brake) * (1.0f + 0.35f * Wetness);
 	BeatPhase += DeltaTime * 2.0f * UE_PI * BeatRate;
 
-	// Steady fast flight: the wings stop and hold open, and every few seconds two beats keep her up; braking or darting beats again
-	const bool bSteady = SpeedShare > 0.75f && Brake < 0.2f && Burst <= 0.0f;
+	// Steady fast flight: the wings stop and hold open, and every few seconds two beats keep her up; braking or darting beats again.
+	// Soaked wings cannot glide
+	const bool bSteady = SpeedShare > 0.75f && Brake < 0.2f && Burst <= 0.0f && Wetness < 0.5f;
 	SteadyTime = bSteady ? SteadyTime + DeltaTime : 0.0f;
 	PumpTimeLeft = FMath::Max(0.0f, PumpTimeLeft - DeltaTime);
 	NextPumpTime -= DeltaTime;
@@ -154,14 +175,16 @@ void UVaelFairyWingsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 
 	// The wings open and fold back around their hinges; the beat is quick on the way back and lingers when open, like a moth
 	const float Beat = FMath::Sin(BeatPhase);
-	const float Strength = (1.0f + 0.8f * Burst) * (1.0f + 0.6f * Brake);
-	const float BeatSwing = WingRestAngle + WingBeatAngle * Strength * (Beat > 0.0f ? Beat : Beat * 0.6f);
-	const float BeatFlutter = 3.0f * FMath::Sin(BeatPhase * 2.3f);
+	// Wet they hang lower and beat shorter; in the wind they shake
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Strength = (1.0f + 0.8f * Burst) * (1.0f + 0.6f * Brake) * (1.0f - 0.3f * Wetness);
+	const float WindShake = Wind * (2.5f * FMath::Sin(Time * 17.0f) + 1.5f * FMath::Sin(Time * 29.0f + 1.3f));
+	const float BeatSwing = WingRestAngle * (1.0f - 0.35f * Wetness) + WingBeatAngle * Strength * (Beat > 0.0f ? Beat : Beat * 0.6f) + WindShake;
+	const float BeatFlutter = 3.0f * FMath::Sin(BeatPhase * 2.3f) - 6.0f * Wetness + WindShake * 0.6f;
 
 	// Gliding they are spread wide and tilted up a little, only trembling in the wind of the flight
-	const float Time = GetWorld()->GetTimeSeconds();
-	const float GlideSwing = WingRestAngle + WingBeatAngle * 0.9f + 1.2f * FMath::Sin(Time * 11.0f);
-	const float GlideFlutter = 5.0f + 1.0f * FMath::Sin(Time * 7.3f);
+	const float GlideSwing = WingRestAngle + WingBeatAngle * 0.9f + 1.2f * FMath::Sin(Time * 11.0f) + WindShake;
+	const float GlideFlutter = 5.0f + 1.0f * FMath::Sin(Time * 7.3f) + WindShake * 0.6f;
 	const float Swing = FMath::Lerp(BeatSwing, GlideSwing, Glide);
 	const float Flutter = FMath::Lerp(BeatFlutter, GlideFlutter, Glide);
 

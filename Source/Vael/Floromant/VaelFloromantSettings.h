@@ -139,6 +139,71 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Flight")
 	FVector2D GlidePumpInterval = FVector2D(1.6f, 3.2f);
 
+	// --- Rising, rooting, wind and rain
+
+	/** R3 (Left Ctrl): she rises high above the ground, out of reach of everything on it (fire, water, fields); true = a press switches, false = only while held */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rise")
+	bool bRiseToggles = true;
+
+	/** Extra height in cm up high, seconds to get there, Saft per second it costs and share of the speed she flies with up there */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rise", meta = (ClampMin = 0))
+	float RiseHeight = 130.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rise", meta = (ClampMin = 0.05))
+	float RiseTime = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rise", meta = (ClampMin = 0))
+	float RiseSaftPerSecond = 3.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rise", meta = (ClampMin = 0))
+	float RiseMoveSpeedScale = 1.15f;
+
+	/** Seconds she must stand firing on the spot before her feet take root, and how long the roots take to grow and to let go */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
+	float RootDelay = 1.2f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0.05))
+	float RootGrowTime = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
+	float UprootTime = 0.3f;
+
+	/** Rooted: her hands hit this much harder, the earth gives Saft per second, and nothing pushes her away */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 1))
+	float RootedHandPower = 1.25f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
+	float RootedSaftPerSecond = 5.0f;
+
+	/** Roots that grow out of each foot, and how far they reach in cm */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 1, ClampMax = 8))
+	int32 RootsPerFoot = 4;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 5))
+	float RootLength = 45.0f;
+
+	/** Seconds in rain (or wet from a spell) until her wings are soaked, and until they are dry again */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Weather", meta = (ClampMin = 0.1))
+	float WingSoakTime = 5.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Weather", meta = (ClampMin = 0.1))
+	float WingDryTime = 12.0f;
+
+	/** Soaked wings carry her this much lower (share of the height), and she cannot glide with them */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Weather", meta = (ClampMin = 0, ClampMax = 1))
+	float SoakedHeightLoss = 0.5f;
+
+	/** Share of the wind that pushes her while she hovers (twice that up high, none while she stands), and degrees she leans into a full wind */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Weather", meta = (ClampMin = 0, ClampMax = 1))
+	float WindDrift = 0.18f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Weather", meta = (ClampMin = 0, ClampMax = 30))
+	float WindLean = 8.0f;
+
+	/** Wind in cm/s that counts as full wind for leaning and the flutter of the wings */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Weather", meta = (ClampMin = 1))
+	float WindReference = 500.0f;
+
 	/** Soft shadow under her that tells how high she flies: decal M_Floromant_Schatten, radius in cm on the ground and darkness */
 	UPROPERTY(config, EditAnywhere, Category="Flight")
 	TSoftObjectPtr<UMaterialInterface> ShadowMaterial;

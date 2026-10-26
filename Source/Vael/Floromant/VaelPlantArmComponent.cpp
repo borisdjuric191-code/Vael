@@ -724,8 +724,11 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	}
 	Direction = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Direction);
 
+	// Rooted in the earth, her hands hit harder
+	const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
+
 	FVaelSpellHit Hit;
-	Hit.Damage = Plant->ShotDamage;
+	Hit.Damage = Plant->ShotDamage * Power;
 	Hit.Element = Plant->ShotElement;
 	Hit.Status = Plant->ShotStatus;
 	Hit.StatusDuration = Plant->ShotStatusDuration;
@@ -742,7 +745,7 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	if (Plant->BurstRadius > 0.0f)
 	{
 		FVaelSpellHit Burst;
-		Burst.Damage = Plant->BurstDamage;
+		Burst.Damage = Plant->BurstDamage * Power;
 		Burst.Element = Plant->ShotElement;
 		Shot->SetExplosion(Burst, Plant->BurstRadius);
 	}

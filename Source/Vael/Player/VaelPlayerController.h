@@ -213,6 +213,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> HerbariumAction;
 
+	/** Floromant: rise high or sink back (R3, Left Ctrl) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> RiseAction;
+
 	/** Floromant: healing potion (d-pad down held, H) */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> FloromantPotionAction;
@@ -427,6 +431,7 @@ protected:
 	void OnLeap();
 	void OnWhip();
 	void OnHerbarium();
+	void OnRise(bool bPressed);
 
 	/** True while both fire buttons of the Floromant are held; Cross then crosses instead of leaping */
 	bool AreBothHandsHeld() const { return bFireHeld[0] && bFireHeld[1]; }

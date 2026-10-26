@@ -779,6 +779,16 @@ void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)
 	Player->SetHero(Choice.Class, Choice.bFemale);
 }
 
+void UVaelCheatManager::VaelSteigen()
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		Player->GetFloromant()->ToggleRise();
+	}
+}
+
 void UVaelCheatManager::VaelHudKlasse(const FString& ClassName)
 {
 	if (const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))

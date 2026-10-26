@@ -147,7 +147,7 @@ void AVaelGroundArea::Tick(float DeltaSeconds)
 
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
-		if (!IsInRange(It->GetActorLocation()))
+		if (!IsInRange(It->GetActorLocation()) || It->IsAboveGround())
 		{
 			continue;
 		}
@@ -383,7 +383,8 @@ void AVaelGroundArea::GetEffectsOn(const AActor* Victim, bool& bOutBlinded, floa
 	OutSpeedMultiplier = 1.0f;
 
 	const UWorld* World = Victim != nullptr ? Victim->GetWorld() : nullptr;
-	if (World == nullptr)
+	const AVaelCharacterBase* VictimCharacter = Cast<AVaelCharacterBase>(Victim);
+	if (World == nullptr || (VictimCharacter != nullptr && VictimCharacter->IsAboveGround()))
 	{
 		return;
 	}

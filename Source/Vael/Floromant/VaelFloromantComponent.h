@@ -122,6 +122,28 @@ public:
 	/** Adds Keimpelz to the pelt, for example from picking it after rain */
 	void AddKeimpelz(float Amount);
 
+	// --- Flight: hovering is quick and safe, landing gives fire power; up high she is out of reach of the ground, rooted she hits hardest
+
+	/** R3: rise high or sink back; with bRiseToggles off it follows the button */
+	void ToggleRise();
+	void SetRiseHeld(bool bHeld);
+
+	/** How far she has risen up high, 0 to 1 */
+	float GetRise() const { return Rise; }
+
+	/** True while she is up high and nothing on the ground reaches her */
+	bool IsUpHigh() const { return Rise > 0.5f; }
+
+	/** How far the roots of her feet have grown, 0 to 1; rooted she stands anchored */
+	float GetRootGrowth() const { return RootGrowth; }
+	bool IsRooted() const { return RootGrowth > 0.0f; }
+
+	/** How wet her wings are, 0 dry to 1 soaked */
+	float GetWingWetness() const { return WingWetness; }
+
+	/** Strength of her hands: stronger while rooted */
+	float GetHandPower() const;
+
 	virtual void BeginPlay() override;
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
@@ -155,6 +177,26 @@ private:
 
 	/** Keimpelz in the pelt */
 	float Keimpelz = 0.0f;
+
+	/** Rising, rooting and wet wings, once per frame */
+	void TickFlight(float DeltaTime);
+
+	/** Grows or pulls back the roots of the feet */
+	void UpdateFootRoots();
+
+	/** Roots of her feet while she stands rooted, made when first needed */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelFootRootsComponent> FootRoots;
+
+	bool bRiseWanted = false;
+	float Rise = 0.0f;
+
+	/** Seconds she has stood firing on the spot, growth of the roots, seconds of letting go left (negative while not letting go) */
+	float StillFiringTime = 0.0f;
+	float RootGrowth = 0.0f;
+	float UprootTimeLeft = -1.0f;
+
+	float WingWetness = 0.0f;
 
 	/** Character the component belongs to */
 	AVaelCharacter* GetCharacter() const;

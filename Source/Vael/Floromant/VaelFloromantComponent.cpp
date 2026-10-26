@@ -8,7 +8,11 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Floromant/VaelFloromantSettings.h"
+#include "Floromant/VaelFootRootsComponent.h"
 #include "Floromant/VaelPlant.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Magic/VaelGameplayTags.h"
+#include "World/VaelLocalWeather.h"
 #include "Floromant/VaelPlantArmComponent.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelPlantData.h"
@@ -59,6 +63,146 @@ void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	{
 		AddKeimpelz(UVaelFloromantSettings::Get()->KeimpelzGrowPerSecond * DeltaTime);
 	}
+
+	TickFlight(DeltaTime);
+}
+
+// ---------------------------------------------------------------- Flight
+
+void UVaelFloromantComponent::ToggleRise()
+{
+	const AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr || !Character->IsFloromant() || Character->IsDowned())
+	{
+		return;
+	}
+	bRiseWanted = !bRiseWanted;
+}
+
+void UVaelFloromantComponent::SetRiseHeld(bool bHeld)
+{
+	const AVaelCharacter* Character = GetCharacter();
+	bRiseWanted = bHeld && Character != nullptr && Character->IsFloromant() && !Character->IsDowned();
+}
+
+float UVaelFloromantComponent::GetHandPower() const
+{
+	return FMath::Lerp(1.0f, UVaelFloromantSettings::Get()->RootedHandPower, RootGrowth);
+}
+
+void UVaelFloromantComponent::TickFlight(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr)
+	{
+		return;
+	}
+
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const bool bWasRooted = IsRooted();
+
+	if (!Character->IsFloromant() || Character->IsDowned())
+	{
+		bRiseWanted = false;
+		Rise = 0.0f;
+		StillFiringTime = 0.0f;
+		RootGrowth = 0.0f;
+		UprootTimeLeft = -1.0f;
+		WingWetness = 0.0f;
+	}
+	else
+	{
+		const float Stance = FMath::Max(GetStance(true), GetStance(false));
+		UAbilitySystemComponent* AbilitySystem = Character->GetAbilitySystemComponent();
+
+		// Firing brings her down: fire power is on the ground. Up high costs Saft; without it she sinks back
+		if (Stance > 0.3f)
+		{
+			bRiseWanted = false;
+		}
+		if (bRiseWanted)
+		{
+			const float Cost = Settings->RiseSaftPerSecond * DeltaTime;
+			if (Character->GetMana() < Cost)
+			{
+				bRiseWanted = false;
+			}
+			else if (AbilitySystem != nullptr && Cost > 0.0f)
+			{
+				AbilitySystem->ApplyModToAttribute(UVaelAttributeSet::GetManaAttribute(), EGameplayModOp::Additive, -Cost);
+			}
+		}
+		Rise = FMath::FInterpConstantTo(Rise, bRiseWanted ? 1.0f : 0.0f, DeltaTime, 1.0f / Settings->RiseTime);
+
+		// Standing on the spot while a hand fires, her feet take root; moving, darting or ceasing fire pulls them out again
+		const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
+		const bool bWantsToMove = Movement != nullptr && Movement->GetCurrentAcceleration().SizeSquared() > 1.0f;
+		const bool bLetGo = Stance < 0.5f || bWantsToMove || Character->IsDodging();
+		if (RootGrowth <= 0.0f)
+		{
+			const bool bStill = Stance >= 0.9f && !bLetGo && Character->GetVelocity().Size2D() < 40.0f;
+			StillFiringTime = bStill ? StillFiringTime + DeltaTime : 0.0f;
+			if (StillFiringTime >= Settings->RootDelay)
+			{
+				RootGrowth = KINDA_SMALL_NUMBER;
+				UprootTimeLeft = -1.0f;
+			}
+		}
+		else
+		{
+			if (bLetGo && UprootTimeLeft < 0.0f)
+			{
+				UprootTimeLeft = Settings->UprootTime;
+			}
+			if (UprootTimeLeft >= 0.0f)
+			{
+				UprootTimeLeft -= DeltaTime;
+				RootGrowth = FMath::Max(KINDA_SMALL_NUMBER, RootGrowth - DeltaTime / FMath::Max(Settings->UprootTime, 0.05f));
+				if (UprootTimeLeft <= 0.0f)
+				{
+					RootGrowth = 0.0f;
+					StillFiringTime = 0.0f;
+					UprootTimeLeft = -1.0f;
+				}
+			}
+			else
+			{
+				RootGrowth = FMath::Min(1.0f, RootGrowth + DeltaTime / Settings->RootGrowTime);
+			}
+		}
+
+		// Rain soaks the wings, and so does water a spell left on her; they dry slowly
+		const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), Character->GetActorLocation());
+		const bool bRain = (Region != nullptr && (Region->GetWeather() == EVaelWeather::Rain || Region->GetWeather() == EVaelWeather::Storm))
+			|| AVaelLocalWeather::IsRainingAt(GetWorld(), Character->GetActorLocation());
+		const bool bWet = bRain || (AbilitySystem != nullptr && AbilitySystem->HasMatchingGameplayTag(VaelTags::Status_Wet));
+		WingWetness = FMath::FInterpConstantTo(WingWetness, bWet ? 1.0f : 0.0f, DeltaTime, 1.0f / (bWet ? Settings->WingSoakTime : Settings->WingDryTime));
+	}
+
+	// Rooted, the earth gives her Saft
+	if (bWasRooted != IsRooted() && Character->IsFloromant())
+	{
+		Character->SetManaRegen(Settings->SaftPerSecond + (IsRooted() ? Settings->RootedSaftPerSecond : 0.0f));
+	}
+
+	UpdateFootRoots();
+}
+
+void UVaelFloromantComponent::UpdateFootRoots()
+{
+	if (FootRoots == nullptr)
+	{
+		if (!IsRooted() || GetOwner() == nullptr)
+		{
+			return;
+		}
+		FootRoots = NewObject<UVaelFootRootsComponent>(GetOwner(), TEXT("FootRoots"));
+		FootRoots->SetupAttachment(GetOwner()->GetRootComponent());
+		FootRoots->RegisterComponent();
+	}
+
+	AVaelCharacter* Character = GetCharacter();
+	FootRoots->SetGrowth(Character != nullptr ? Character->GetMesh() : nullptr, RootGrowth);
 }
 
 AVaelCharacter* UVaelFloromantComponent::GetCharacter() const
@@ -577,8 +721,14 @@ float UVaelFloromantComponent::GetStance(bool bLeft) const
 
 float UVaelFloromantComponent::GetMoveSpeedScale() const
 {
+	// Rooted she stands anchored; up high she flies a little faster
+	if (IsRooted())
+	{
+		return 0.0f;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	const float Stance = FMath::Max(GetStance(true), GetStance(false));
-	return FMath::Lerp(1.0f, UVaelFloromantSettings::Get()->FiringMoveSpeedScale, Stance);
+	return FMath::Lerp(1.0f, Settings->FiringMoveSpeedScale, Stance) * FMath::Lerp(1.0f, Settings->RiseMoveSpeedScale, Rise);
 }
 
 void UVaelFloromantComponent::ClearHands()
