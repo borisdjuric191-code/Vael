@@ -1,22 +1,24 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelEnvironmentStatics.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/OverlapResult.h"
+#include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelElementSource.h"
+#include "Magic/VaelRockWall.h"
+#include "Magic/VaelRockWear.h"
+#include "World/VaelFireSpot.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterPuddle.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelMarkSource.h"
 #include "World/VaelRegion.h"
-
-namespace
-{
-	/** Half height of the slab around the caster that is searched for rock; low enough to miss the floor */
-	constexpr float EarthSearchHalfHeight = 30.0f;
-}
 
 bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVaelElement Element)
 {
@@ -40,10 +42,25 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		}
 	}
 
-	// Puddles left by balls of water, once enough has gathered
-	if (Element == EVaelElement::Water && AVaelWaterPuddle::IsDeepWaterAt(World, Location))
+	// Campfires and Brandherde
+	if (Element == EVaelElement::Fire && FindFireSpot(Caster) != nullptr)
 	{
 		return true;
+	}
+
+	// Puddles left by balls of water, once enough has gathered, and ash rain that brings water everywhere
+	if (Element == EVaelElement::Water)
+	{
+		if (AVaelWaterPuddle::IsDeepWaterAt(World, Location))
+		{
+			return true;
+		}
+
+		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
+		if (Region != nullptr && Region->GetWeather() == EVaelWeather::Rain)
+		{
+			return true;
+		}
 	}
 
 	// Plants and stones that carry an element, like the Glutdistel or the Traenenkelch
@@ -68,15 +85,239 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		return AVaelMarkSource::FindOpenSourceAt(World, Location) != nullptr;
 	}
 
+	// Rock that isn't worn out; plain ground doesn't count
 	if (Element == EVaelElement::Earth)
 	{
-		const FCollisionShape Slab = FCollisionShape::MakeBox(FVector(MagicSettings->EarthSourceDistance, MagicSettings->EarthSourceDistance, EarthSearchHalfHeight));
-		const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelEarthSource), false, Caster);
-
-		return World->OverlapAnyTestByObjectType(Location, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), Slab, QueryParams);
+		UPrimitiveComponent* Rock = nullptr;
+		int32 Item = INDEX_NONE;
+		FVector Point;
+		return FindRock(Caster, Rock, Item, Point);
 	}
 
 	return false;
+}
+
+AVaelFireSpot* UVaelEnvironmentStatics::FindFireSpot(const AActor* Caster)
+{
+	const UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+
+	const FVector Location = Caster->GetActorLocation();
+	const float Margin = UVaelMagicSettings::Get()->FireSourceMargin;
+
+	AVaelFireSpot* Nearest = nullptr;
+	float NearestGap = UE_BIG_NUMBER;
+	for (TActorIterator<AVaelFireSpot> It(World); It; ++It)
+	{
+		if (!It->CanGiveFire() || FMath::Abs(It->GetActorLocation().Z - Location.Z) > Margin + 200.0f)
+		{
+			continue;
+		}
+
+		const float Gap = FVector::Dist2D(It->GetActorLocation(), Location) - It->GetFire()->GetShape().Radius;
+		if (Gap <= Margin && Gap < NearestGap)
+		{
+			Nearest = *It;
+			NearestGap = Gap;
+		}
+	}
+
+	return Nearest;
+}
+
+bool UVaelEnvironmentStatics::IsRock(const UPrimitiveComponent* Component)
+{
+	if (Component == nullptr)
+	{
+		return false;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const AActor* Owner = Component->GetOwner();
+	if (Component->ComponentHasTag(MagicSettings->NoEarthSourceTag) || (Owner != nullptr && Owner->ActorHasTag(MagicSettings->NoEarthSourceTag)))
+	{
+		return false;
+	}
+
+	// Raised rock walls and anything tagged as earth
+	if (Component->ComponentHasTag(MagicSettings->EarthSourceTag) || (Owner != nullptr && (Owner->ActorHasTag(MagicSettings->EarthSourceTag) || Owner->IsA<AVaelRockWall>())))
+	{
+		return true;
+	}
+
+	// Placed or scattered rock, known by the name of its mesh
+	const UStaticMeshComponent* MeshComponent = Cast<UStaticMeshComponent>(Component);
+	const UStaticMesh* Mesh = MeshComponent != nullptr ? MeshComponent->GetStaticMesh() : nullptr;
+	if (Mesh == nullptr)
+	{
+		return false;
+	}
+
+	const FString MeshName = Mesh->GetName();
+	for (const FString& Word : MagicSettings->EarthSourceMeshWords)
+	{
+		if (!Word.IsEmpty() && MeshName.Contains(Word, ESearchCase::IgnoreCase))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool UVaelEnvironmentStatics::FindRock(const AActor* Caster, UPrimitiveComponent*& OutRock, int32& OutItem, FVector& OutPoint)
+{
+	const UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return false;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const UVaelRockWear* Wear = UVaelRockWear::Get(Caster);
+	const FVector Location = Caster->GetActorLocation();
+
+	// A slab from just above the feet to the hips: low stones count, the ground under the feet doesn't
+	const float HalfHeight = Caster->GetSimpleCollisionHalfHeight();
+	const FVector SlabCenter = Location - FVector(0.0f, 0.0f, HalfHeight * 0.4f);
+	const FCollisionShape Slab = FCollisionShape::MakeBox(FVector(MagicSettings->EarthSourceDistance, MagicSettings->EarthSourceDistance, HalfHeight * 0.5f));
+	const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelEarthSource), false, Caster);
+
+	TArray<FOverlapResult> Overlaps;
+	World->OverlapMultiByObjectType(Overlaps, SlabCenter, FQuat::Identity, FCollisionObjectQueryParams(ECC_WorldStatic), Slab, QueryParams);
+
+	float NearestDistance = UE_BIG_NUMBER;
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		UPrimitiveComponent* Component = Overlap.GetComponent();
+		if (!IsRock(Component))
+		{
+			continue;
+		}
+
+		// One rock of a scattered set is its own rock
+		const UInstancedStaticMeshComponent* Instances = Cast<UInstancedStaticMeshComponent>(Component);
+		const int32 Item = Instances != nullptr ? Overlap.ItemIndex : INDEX_NONE;
+		if (Wear != nullptr && Wear->IsWornOut(Component, Item))
+		{
+			continue;
+		}
+
+		// The side of the rock facing the caster, at the height of the hands where it can be reached
+		FVector Point;
+		FTransform InstanceTransform;
+		if (Instances != nullptr && Instances->GetStaticMesh() != nullptr && Instances->GetInstanceTransform(Item, InstanceTransform, true))
+		{
+			const FBox Box = Instances->GetStaticMesh()->GetBoundingBox().TransformBy(InstanceTransform);
+			Point = Box.GetClosestPointTo(FVector(Location.X, Location.Y, FMath::Clamp(Location.Z, Box.Min.Z, Box.Max.Z)));
+		}
+		else if (Component->GetClosestPointOnCollision(Location, Point) < 0.0f)
+		{
+			Point = Component->Bounds.GetBox().GetClosestPointTo(Location);
+		}
+
+		const float Distance = FVector::DistSquared(Point, Location);
+		if (Distance < NearestDistance)
+		{
+			NearestDistance = Distance;
+			OutRock = Component;
+			OutItem = Item;
+			OutPoint = Point;
+		}
+	}
+
+	return NearestDistance < UE_BIG_NUMBER;
+}
+
+FVaelElementDraw UVaelEnvironmentStatics::DrawFromEnvironment(AActor* Caster, EVaelElement Element)
+{
+	FVaelElementDraw Draw;
+	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return Draw;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const FVector Location = Caster->GetActorLocation();
+
+	switch (Element)
+	{
+	case EVaelElement::Earth:
+	{
+		UPrimitiveComponent* Rock = nullptr;
+		int32 Item = INDEX_NONE;
+		if (!FindRock(Caster, Rock, Item, Draw.From))
+		{
+			break;
+		}
+		Draw.bHasPoint = true;
+
+		// Chunks break out of the rock towards the mage; a rock that has given its last earth crumbles in a cloud of dust
+		UVaelRockWear* Wear = UVaelRockWear::Get(Caster);
+		const bool bWornOut = Wear != nullptr && Wear->Wear(Rock, Item) <= 0;
+
+		FVaelDebris Debris;
+		Debris.Count = bWornOut ? 14 : 6;
+		Debris.Spread = bWornOut ? 45.0f : 20.0f;
+		Debris.Speed = bWornOut ? 260.0f : 160.0f;
+		Debris.Lift = bWornOut ? 320.0f : 220.0f;
+		Debris.Lifetime = bWornOut ? 1.1f : 0.7f;
+		Debris.MinSize = 5.0f;
+		Debris.MaxSize = bWornOut ? 18.0f : 12.0f;
+		Debris.RockShare = 0.3f;
+		Debris.bDust = true;
+		AVaelDebrisBurst::Spawn(Caster, Draw.From, Debris);
+
+		if (bWornOut)
+		{
+			FVaelDebris Dust;
+			Dust.Count = 1;
+			Dust.Spread = 90.0f;
+			Dust.MaxSize = 90.0f;
+			Dust.bSoft = true;
+			Dust.bDust = true;
+			AVaelDebrisBurst::Spawn(Caster, Draw.From, Dust);
+		}
+		break;
+	}
+
+	case EVaelElement::Fire:
+		if (AVaelFireSpot* Spot = FindFireSpot(Caster))
+		{
+			Draw.bHasPoint = true;
+			Draw.From = Spot->GetActorLocation() + FVector(0.0f, 0.0f, Spot->GetFire()->GetShape().Height * 0.4f);
+			Spot->GiveFire();
+		}
+		break;
+
+	case EVaelElement::Water:
+		if (FindWaterDrawPoint(Caster, Draw.From, Draw.Color))
+		{
+			Draw.bHasPoint = true;
+		}
+		else
+		{
+			// Ash rain: the water gathers from the wet ground ahead of the feet
+			Draw.bHasPoint = true;
+			Draw.From = Location - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight()) + Caster->GetActorForwardVector().GetSafeNormal2D() * MagicSettings->WaterDrawFootOffset;
+			Draw.Color = MagicSettings->WaterDrawPondColor;
+		}
+
+		if (AVaelWaterPuddle* Puddle = AVaelWaterPuddle::FindDeepWaterAt(World, Location))
+		{
+			Puddle->DrainSome(Draw.From, MagicSettings->PuddleDrawWater);
+		}
+		break;
+
+	default:
+		break;
+	}
+
+	return Draw;
 }
 
 float UVaelEnvironmentStatics::DrawWaveWater(const AActor* Caster)

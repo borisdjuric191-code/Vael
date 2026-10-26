@@ -13,6 +13,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelElementComponent.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Magic/VaelMagicSettings.h"
@@ -484,6 +485,24 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	Strip.Reset();
 	QuickSlots.Reset();
 	StripLabel = FText::GetEmpty();
+	if (ShownData->Strip != EVaelHUDStrip::ElementQueue || !bPlayable)
+	{
+		NearbyElements.Reset();
+	}
+	else if (GetWorld()->GetTimeSeconds() >= NextNearbyCheck)
+	{
+		// Elements the surroundings give right now: drawn from there they make the formula cheaper and stronger
+		NextNearbyCheck = GetWorld()->GetTimeSeconds() + 0.25f;
+		NearbyElements.Reset();
+		for (const EVaelElement Element : { EVaelElement::Fire, EVaelElement::Water, EVaelElement::Earth, EVaelElement::Air, EVaelElement::Mark })
+		{
+			if ((Element != EVaelElement::Mark || (Grimoire != nullptr && Grimoire->IsMarkAwakened())) && UVaelEnvironmentStatics::IsElementInEnvironment(Character, Element))
+			{
+				NearbyElements.Add(MagicSettings->GetElementColor(Element));
+			}
+		}
+	}
+
 	if (ShownData->Strip == EVaelHUDStrip::ElementQueue)
 	{
 		for (int32 Index = 0; Index < Elements->GetNumSlots(); ++Index)
@@ -786,6 +805,13 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 			PaintButton(OutDrawElements, L + 4, EVaelHUDButton::DPad, FText::GetEmpty(), O + FVector2f(BarLeft + Strip.Num() * Step + 8.0f, StripTop + Dot * 0.5f), 9.0f);
 		}
 		PaintText(OutDrawElements, L + 5, StripLabel, SmallFont, O + FVector2f(BarLeft + Strip.Num() * Step + (bSeeds ? 24.0f : 6.0f), StripTop + 1.0f), Dim);
+
+		// Small glowing badges left of the queue for the elements the surroundings give right now
+		for (int32 Index = 0; Index < NearbyElements.Num(); ++Index)
+		{
+			const FVector2f At = O + FVector2f(BarLeft - 8.0f - (Index + 1) * 13.0f, StripTop + 3.0f);
+			PaintBox(OutDrawElements, L + 4, &BadgeBrush, At, FVector2f(10.0f), NearbyElements[Index] * 1.4f);
+		}
 
 		for (int32 Index = 0; Index < QuickSlots.Num(); ++Index)
 		{

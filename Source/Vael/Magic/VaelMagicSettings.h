@@ -105,9 +105,53 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
 	float FireSourceMargin = 168.0f;
 
-	/** Rock or walls within this distance provide the earth element, in cm */
+	/** Rock within this distance provides the earth element, in cm */
 	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
 	float EarthSourceDistance = 170.0f;
+
+	/** Placed meshes whose name holds one of these words are rock that gives earth (case does not matter); plain ground never does */
+	UPROPERTY(config, EditAnywhere, Category="Environment")
+	TArray<FString> EarthSourceMeshWords = { TEXT("Rock"), TEXT("Boulder"), TEXT("Stone"), TEXT("Stein"), TEXT("Fels"), TEXT("Cliff"), TEXT("Ruin"), TEXT("Granite"), TEXT("Coal") };
+
+	/** Actors or components with this tag give earth whatever their mesh is called */
+	UPROPERTY(config, EditAnywhere, Category="Environment")
+	FName EarthSourceTag = TEXT("VaelEarth");
+
+	/** Actors or components with this tag never give earth, even if their mesh name says rock */
+	UPROPERTY(config, EditAnywhere, Category="Environment")
+	FName NoEarthSourceTag = TEXT("VaelNoEarth");
+
+	/** Times a rock gives earth before it is worn out */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 1))
+	int32 EarthRockUses = 4;
+
+	/** Seconds a worn out rock needs before it gives earth again; 0 for never */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
+	float EarthRockRecoverSeconds = 240.0f;
+
+	/** Share of its size a fire loses each time a mage draws fire from it */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0, ClampMax = 1))
+	float FireDrawShare = 0.15f;
+
+	/** A placed fire (campfire) never burns lower than this share of its size */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0, ClampMax = 1))
+	float FireDrawPlacedFloor = 0.4f;
+
+	/** A placed fire drawn low grows back by this many cm per second */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
+	float FireDrawRegrowSpeed = 3.0f;
+
+	/** A spawned fire (Brandherd) goes out once drawn below this share of the size it was lit with */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0, ClampMax = 1))
+	float FireDrawPutOutShare = 0.35f;
+
+	/** Water a puddle loses each time a mage draws water from it; 1 is one Wassergeschoss */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
+	float PuddleDrawWater = 1.0f;
+
+	/** Seconds the drawn element needs to fly from its source to the orb */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0.05))
+	float DrawFlightTime = 0.45f;
 
 	/** Chance to discover a free formula when its elements are combined for the first time */
 	UPROPERTY(config, EditAnywhere, Category="Discovery", meta = (ClampMin = 0, ClampMax = 1))

@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "GameplayAbilitySpecHandle.h"
 #include "Magic/VaelElementTypes.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "VaelElementComponent.generated.h"
 
 class UAbilitySystemComponent;
@@ -74,6 +75,9 @@ public:
 	/** True if the element in the given slot was drawn from the environment when it was queued */
 	bool IsFromEnvironment(int32 SlotIndex) const { return QueueFromEnvironment.IsValidIndex(SlotIndex) && QueueFromEnvironment[SlotIndex]; }
 
+	/** Where the element in the given slot was drawn from, for the look that carries it to its orb */
+	FVaelElementDraw GetDraw(int32 SlotIndex) const { return QueueDraws.IsValidIndex(SlotIndex) ? QueueDraws[SlotIndex] : FVaelElementDraw(); }
+
 	/** Number of elements the queue can hold */
 	int32 GetNumSlots() const { return FMath::Clamp(UnlockedSlots, 1, VaelElements::MaxQueueSlots); }
 
@@ -123,6 +127,9 @@ private:
 
 	/** For every queued element, whether it was drawn from the environment */
 	TArray<bool> QueueFromEnvironment;
+
+	/** For every queued element, where it was drawn from */
+	TArray<FVaelElementDraw> QueueDraws;
 
 	UAbilitySystemComponent* GetAbilitySystem() const;
 	UVaelGrimoireSubsystem* GetGrimoire() const;

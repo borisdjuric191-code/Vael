@@ -2,6 +2,7 @@
 
 #include "World/VaelFireSpot.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Engine/World.h"
 #include "Vael.h"
 #include "EngineUtils.h"
@@ -90,6 +91,28 @@ void AVaelFireSpot::Feed(const FVector& Location, float Radius)
 	Fire->Feed();
 }
 
+void AVaelFireSpot::GiveFire()
+{
+	if (!CanGiveFire())
+	{
+		return;
+	}
+
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	TargetRadius *= 1.0f - MagicSettings->FireDrawShare;
+	SinceFed = 0.0f;
+
+	// A campfire keeps a small fire, a Brandherd drawn too low dies
+	if (BurnTime <= 0.0f)
+	{
+		TargetRadius = FMath::Max(TargetRadius, BaseRadius * MagicSettings->FireDrawPlacedFloor);
+	}
+	else if (TargetRadius < BaseRadius * MagicSettings->FireDrawPutOutShare)
+	{
+		PutOut(1.0f);
+	}
+}
+
 void AVaelFireSpot::PutOut(float FadeOut)
 {
 	if (!bPutOut)
@@ -119,7 +142,15 @@ void AVaelFireSpot::Tick(float DeltaSeconds)
 		if (SinceFed > Settings->HerdHoldSeconds)
 		{
 			const float Smallest = BaseRadius * (BurnTime > 0.0f ? Settings->HerdShrinkTo : 1.0f);
-			TargetRadius = FMath::Max(Smallest, TargetRadius - Settings->HerdShrinkSpeed * DeltaSeconds);
+			if (TargetRadius > Smallest)
+			{
+				TargetRadius = FMath::Max(Smallest, TargetRadius - Settings->HerdShrinkSpeed * DeltaSeconds);
+			}
+			else if (BurnTime <= 0.0f)
+			{
+				// A campfire mages drew from grows back to its own size
+				TargetRadius = FMath::Min(BaseRadius, TargetRadius + UVaelMagicSettings::Get()->FireDrawRegrowSpeed * DeltaSeconds);
+			}
 		}
 		const float Radius = FMath::FInterpConstantTo(Fire->GetShape().Radius, TargetRadius, DeltaSeconds, Settings->HerdGrowSpeed);
 		Fire->SetRadius(Radius);

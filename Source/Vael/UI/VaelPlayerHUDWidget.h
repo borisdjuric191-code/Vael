@@ -228,6 +228,10 @@ private:
 	TArray<FStripEntry> Strip;
 	TArray<FStripEntry> QuickSlots;
 	FText StripLabel;
+
+	/** Colors of the elements the surroundings give right now, looked up a few times a second */
+	TArray<FLinearColor> NearbyElements;
+	float NextNearbyCheck = 0.0f;
 	FText PlayerLine;
 	FText LevelText;
 	FText PotionText;

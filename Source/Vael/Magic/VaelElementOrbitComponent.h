@@ -47,6 +47,16 @@ struct FVaelElementOrb
 	/** A random number per strand, so its churning differs */
 	float StrandSeed = 0.0f;
 
+	/** Chunks of rock torn out of a rock, or a flame pulled out of a fire, flying from there to an orb drawn from it; gone once they arrive */
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> Flyers;
+
+	UPROPERTY()
+	TObjectPtr<class UVaelFireComponent> FlyingFlame;
+
+	/** Where the flyers left their source */
+	FVector FlightStart = FVector::ZeroVector;
+
 	/** Living flames of the fire kit around a fire orb */
 	UPROPERTY()
 	TObjectPtr<class UVaelFireComponent> Flames;
@@ -129,6 +139,12 @@ private:
 
 	/** Lets the strand shoot up from the water to the orb, flow and drain away again; removes it once it is gone */
 	void AnimateStrand(FVaelElementOrb& Orb, float Time);
+
+	/** Sends chunks of rock or a flame from where the element was drawn to the orb */
+	void BuildFlight(FVaelElementOrb& Orb, const FVector& From);
+
+	/** Flies them along an arc into the orb; removes them once they are there */
+	void AnimateFlight(FVaelElementOrb& Orb, float Time);
 
 	/** Adds the light of an orb */
 	void AddLight(FVaelElementOrb& Orb, const FLinearColor& Color, float Intensity);

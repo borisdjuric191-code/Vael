@@ -51,6 +51,12 @@ public:
 	/** Lets it die down now */
 	void PutOut(float FadeOut = 0.8f);
 
+	/** True while a mage can draw fire from it: burning, not a blast, not dying down */
+	bool CanGiveFire() const { return !bBurst && !bPutOut; }
+
+	/** A mage draws fire from it: it burns lower. A campfire grows back to its size after a while, a Brandherd drawn too low goes out */
+	void GiveFire();
+
 	UVaelFireComponent* GetFire() const { return Fire; }
 
 protected:

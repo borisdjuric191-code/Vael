@@ -79,6 +79,9 @@ public:
 	/** Draws all water lying within reach of a location out of every puddle, like a wave of water sucking it up; returns the water drawn */
 	static float DrainAround(UWorld* World, const FVector& Location, float Reach);
 
+	/** A mage draws some water out of the puddle, from the blobs closest to the location first; returns the water drawn */
+	float DrainSome(const FVector& Location, float Amount);
+
 	/** True if a puddle that holds enough water to count lies under the location */
 	static bool IsDeepWaterAt(const UWorld* World, const FVector& Location);
 

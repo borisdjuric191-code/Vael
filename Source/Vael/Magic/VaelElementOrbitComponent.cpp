@@ -69,6 +69,10 @@ namespace
 	/** Largest side of the rock mesh in cm, to bring it to the size of an orb */
 	constexpr float OrbitRockSize = 240.0f;
 
+	/** Chunks torn out of a rock that fly to an earth orb, and how high their arc bends in cm */
+	constexpr int32 OrbitFlightChunks = 3;
+	constexpr float OrbitFlightArc = 60.0f;
+
 	/** Material parameters */
 	const FName OrbitColorParameter(TEXT("Color"));
 	const FName OrbitGlowParameter(TEXT("Glow"));
@@ -158,13 +162,19 @@ void UVaelElementOrbitComponent::ShowQueue(const UVaelElementComponent& Elements
 
 		BuildOrb(Orb);
 
-		// Water drawn from the surroundings rises from that water to the orb
-		FVector StrandStart;
-		FLinearColor WaterColor;
-		if (Orb.Element == EVaelElement::Water && Orb.bFromEnvironment && UVaelEnvironmentStatics::FindWaterDrawPoint(GetOwner(), StrandStart, WaterColor))
+		// Water drawn from the surroundings rises from that water to the orb, rock and fire fly over from where they were torn out
+		const FVaelElementDraw Draw = Elements.GetDraw(Index);
+		if (Orb.bFromEnvironment && Draw.bHasPoint)
 		{
-			Orb.StrandStart = StrandStart;
-			BuildStrand(Orb, WaterColor);
+			if (Orb.Element == EVaelElement::Water)
+			{
+				Orb.StrandStart = Draw.From;
+				BuildStrand(Orb, Draw.Color);
+			}
+			else if (Orb.Element == EVaelElement::Earth || Orb.Element == EVaelElement::Fire)
+			{
+				BuildFlight(Orb, Draw.From);
+			}
 		}
 	}
 }
@@ -385,6 +395,98 @@ void UVaelElementOrbitComponent::AnimateStrand(FVaelElementOrb& Orb, float Time)
 	Orb.Strand->UpdateMeshSection_LinearColor(1, DotVertices, DotNormals, DotUVs, DotColors, NoTangents);
 }
 
+void UVaelElementOrbitComponent::BuildFlight(FVaelElementOrb& Orb, const FVector& From)
+{
+	Orb.FlightStart = From;
+
+	if (Orb.Element == EVaelElement::Fire)
+	{
+		// A tongue of the fire it came from, rolled into a ball
+		Orb.FlyingFlame = NewObject<UVaelFireComponent>(GetOwner());
+		Orb.FlyingFlame->SetupAttachment(this);
+		Orb.FlyingFlame->SetUsingAbsoluteLocation(true);
+		Orb.FlyingFlame->SetWorldLocation(From);
+		Orb.FlyingFlame->RegisterComponent();
+		FVaelFireShape Shape;
+		Shape.Radius = 14.0f;
+		Shape.Height = 34.0f;
+		Shape.BallSpread = 0.5f;
+		Shape.Heat = 1.3f;
+		Shape.Smoke = 0.3f;
+		Shape.Speed = 2.2f;
+		Shape.Tongues = 8;
+		Shape.bBall = true;
+		Shape.bFloating = true;
+		Shape.bLight = false;
+		Shape.bSparks = false;
+		Orb.FlyingFlame->Ignite(Shape, 0.05f);
+		return;
+	}
+
+	// Chunks of the rock, each its own size and tumble
+	for (int32 ChunkIndex = 0; ChunkIndex < OrbitFlightChunks; ++ChunkIndex)
+	{
+		UStaticMeshComponent* Chunk = RockMesh != nullptr ? AddShape(this, RockMesh, nullptr, OrbitEarthRock, 0.0f) : AddShape(this, SphereMesh, CoreMaterial, OrbitEarthRock, 0.0f);
+		Chunk->SetUsingAbsoluteLocation(true);
+		Chunk->SetUsingAbsoluteScale(true);
+		Chunk->SetWorldLocation(From);
+		Orb.Flyers.Add(Chunk);
+	}
+}
+
+void UVaelElementOrbitComponent::AnimateFlight(FVaelElementOrb& Orb, float Time)
+{
+	const float Progress = (Time - Orb.BirthTime) / UVaelMagicSettings::Get()->DrawFlightTime;
+	if (Progress >= 1.0f)
+	{
+		for (UStaticMeshComponent* Chunk : Orb.Flyers)
+		{
+			Chunk->DestroyComponent();
+		}
+		Orb.Flyers.Reset();
+
+		if (Orb.FlyingFlame != nullptr)
+		{
+			Orb.FlyingFlame->DestroyComponent();
+			Orb.FlyingFlame = nullptr;
+		}
+		return;
+	}
+
+	// An arc from the source up into the orb, quick at the start, slowing as it arrives
+	const FVector Start = Orb.FlightStart;
+	const FVector End = Orb.Pivot->GetComponentLocation();
+	const FVector Bend = (Start + End) * 0.5f + FVector(0.0f, 0.0f, OrbitFlightArc);
+	const FVector Side = FVector::CrossProduct(End - Start, FVector::UpVector).GetSafeNormal();
+	const float Along = 1.0f - FMath::Square(1.0f - Progress);
+
+	auto PointAt = [&](float At, float Sway)
+	{
+		const float Rest = 1.0f - At;
+		return Start * Rest * Rest + Bend * 2.0f * Rest * At + End * At * At + Side * Sway * FMath::Sin(At * UE_PI);
+	};
+
+	if (Orb.FlyingFlame != nullptr)
+	{
+		Orb.FlyingFlame->SetWorldLocation(PointAt(Along, 0.0f));
+		Orb.FlyingFlame->SetSizeScale(FMath::Lerp(1.0f, 0.4f, Along));
+	}
+
+	// The chunks fly a little apart and shrink as they melt into the orb
+	const float RockScale = RockMesh != nullptr ? OrbitSphereDiameter / OrbitRockSize : 1.0f;
+	for (int32 ChunkIndex = 0; ChunkIndex < Orb.Flyers.Num(); ++ChunkIndex)
+	{
+		const float Delay = ChunkIndex * 0.08f;
+		const float ChunkAlong = FMath::Clamp((Along - Delay) / (1.0f - Delay), 0.0f, 1.0f);
+		const float Sway = (ChunkIndex - (Orb.Flyers.Num() - 1) * 0.5f) * 22.0f;
+
+		UStaticMeshComponent* Chunk = Orb.Flyers[ChunkIndex];
+		Chunk->SetWorldLocation(PointAt(ChunkAlong, Sway));
+		Chunk->SetWorldRotation(FRotator(Time * 260.0f + ChunkIndex * 90.0f, Time * 190.0f, ChunkIndex * 40.0f));
+		Chunk->SetWorldScale3D(FVector(RockScale * (0.12f + 0.04f * ChunkIndex) * (1.0f - 0.7f * ChunkAlong)));
+	}
+}
+
 void UVaelElementOrbitComponent::BuildOrb(FVaelElementOrb& Orb)
 {
 	Orb.Pivot = NewObject<USceneComponent>(GetOwner());
@@ -488,6 +590,19 @@ void UVaelElementOrbitComponent::DestroyOrb(FVaelElementOrb& Orb)
 		Orb.Strand->DestroyComponent();
 	}
 
+	for (UStaticMeshComponent* Chunk : Orb.Flyers)
+	{
+		if (Chunk != nullptr)
+		{
+			Chunk->DestroyComponent();
+		}
+	}
+
+	if (Orb.FlyingFlame != nullptr)
+	{
+		Orb.FlyingFlame->DestroyComponent();
+	}
+
 	if (Orb.Light != nullptr)
 	{
 		Orb.Light->DestroyComponent();
@@ -567,6 +682,11 @@ void UVaelElementOrbitComponent::TickComponent(float DeltaTime, ELevelTick TickT
 		if (Orb.Strand != nullptr)
 		{
 			AnimateStrand(Orb, Time);
+		}
+
+		if (!Orb.Flyers.IsEmpty() || Orb.FlyingFlame != nullptr)
+		{
+			AnimateFlight(Orb, Time);
 		}
 	}
 }

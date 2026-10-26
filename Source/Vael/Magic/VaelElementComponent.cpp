@@ -111,8 +111,11 @@ bool UVaelElementComponent::AddElement(EVaelElement Element)
 	}
 
 	// Where the element comes from is decided at the moment it is queued, not when the formula is cast
+	// The source gives some of itself right then: rock breaks, a fire burns lower, a puddle shrinks
+	const bool bFromEnvironment = UVaelEnvironmentStatics::IsElementInEnvironment(GetOwner(), Element);
 	Queue.Add(Element);
-	QueueFromEnvironment.Add(UVaelEnvironmentStatics::IsElementInEnvironment(GetOwner(), Element));
+	QueueFromEnvironment.Add(bFromEnvironment);
+	QueueDraws.Add(bFromEnvironment ? UVaelEnvironmentStatics::DrawFromEnvironment(GetOwner(), Element) : FVaelElementDraw());
 	OnQueueChanged.Broadcast();
 
 	return true;
@@ -124,6 +127,7 @@ void UVaelElementComponent::ClearQueue()
 	{
 		Queue.Reset();
 		QueueFromEnvironment.Reset();
+		QueueDraws.Reset();
 		OnQueueChanged.Broadcast();
 	}
 }
@@ -327,16 +331,25 @@ EVaelCastResult UVaelElementComponent::CastQuickSlot(int32 SlotIndex)
 		else
 		{
 			// Whether an element comes from the environment is decided right now
-			int32 NumEnvironmentElements = 0;
+			TArray<EVaelElement> EnvironmentElements;
 			for (const EVaelElement Element : Formula->Elements)
 			{
-				NumEnvironmentElements += UVaelEnvironmentStatics::IsElementInEnvironment(GetOwner(), Element) ? 1 : 0;
+				if (UVaelEnvironmentStatics::IsElementInEnvironment(GetOwner(), Element))
+				{
+					EnvironmentElements.Add(Element);
+				}
 			}
 
-			Result = ActivateFormula(Formula, Formula->Elements.Num(), NumEnvironmentElements, true);
+			Result = ActivateFormula(Formula, Formula->Elements.Num(), EnvironmentElements.Num(), true);
 
 			if (Result == EVaelCastResult::Success)
 			{
+				// The sources give some of themselves, like when the elements are queued
+				for (const EVaelElement Element : EnvironmentElements)
+				{
+					UVaelEnvironmentStatics::DrawFromEnvironment(GetOwner(), Element);
+				}
+
 				// Worn gear can shorten the cooldown
 				const UVaelInventory* Inventory = GetOwner()->FindComponentByClass<UVaelInventory>();
 				const float CooldownReduction = Inventory != nullptr ? FMath::Clamp(Inventory->GetStatTotal(EVaelItemStat::QuickCooldown) / 100.0f, 0.0f, 0.9f) : 0.0f;
@@ -424,6 +437,7 @@ EVaelCastResult UVaelElementComponent::FinishCast(EVaelCastResult Result, const 
 
 	Queue.Reset();
 	QueueFromEnvironment.Reset();
+	QueueDraws.Reset();
 	OnQueueChanged.Broadcast();
 	OnCastFinished.Broadcast(Result, Formula);
 

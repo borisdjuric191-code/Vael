@@ -395,6 +395,31 @@ float AVaelWaterPuddle::DrainAround(UWorld* World, const FVector& Location, floa
 	return Drawn;
 }
 
+float AVaelWaterPuddle::DrainSome(const FVector& Location, float Amount)
+{
+	TArray<int32> Order;
+	for (int32 Index = 0; Index < GetNumBlobs(); ++Index)
+	{
+		Order.Add(Index);
+	}
+	Order.Sort([this, &Location](int32 A, int32 B) { return FVector::DistSquared2D(BlobCenters[A], Location) < FVector::DistSquared2D(BlobCenters[B], Location); });
+
+	// The blobs shrink away smoothly like under a wave
+	float Drawn = 0.0f;
+	for (const int32 Index : Order)
+	{
+		const float Take = FMath::Min(BlobWater[Index], Amount - Drawn);
+		BlobWater[Index] -= Take;
+		Drawn += Take;
+		if (Drawn >= Amount)
+		{
+			break;
+		}
+	}
+
+	return Drawn;
+}
+
 bool AVaelWaterPuddle::IsDeepWaterAt(const UWorld* World, const FVector& Location)
 {
 	return FindDeepWaterAt(World, Location) != nullptr;
