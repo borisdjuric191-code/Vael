@@ -22,6 +22,7 @@
 #include "VaelAssets.h"
 #include "World/VaelLightningStrike.h"
 #include "World/VaelProgressSubsystem.h"
+#include "World/VaelWeatherRain.h"
 #include "World/VaelWeatherWind.h"
 #include "World/VaelWorldSettings.h"
 #include "UI/VaelUISettings.h"
@@ -133,6 +134,20 @@ void AVaelRegion::TickWind(float DeltaSeconds)
 	{
 		WindLook->Destroy();
 		WindLook = nullptr;
+	}
+
+	// The rain sets in and stops over a few seconds; a storm pours harder
+	const float TargetRain = Weather == EVaelWeather::Rain ? 1.0f : Weather == EVaelWeather::Storm ? 1.4f : 0.0f;
+	RainStrength = FMath::FInterpConstantTo(RainStrength, TargetRain, DeltaSeconds, 0.35f);
+	const bool bRaining = RainStrength > 0.01f && HasPlayerInside();
+	if (bRaining && RainLook == nullptr)
+	{
+		RainLook = AVaelWeatherRain::Spawn(this);
+	}
+	else if (!bRaining && RainLook != nullptr)
+	{
+		RainLook->Destroy();
+		RainLook = nullptr;
 	}
 }
 

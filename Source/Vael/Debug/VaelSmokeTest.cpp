@@ -40,6 +40,7 @@
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelRegion.h"
+#include "World/VaelWeatherRain.h"
 #include "World/VaelWeatherWind.h"
 #include "Magic/VaelEnvironmentStatics.h"
 #include "World/VaelSafeZone.h"
@@ -1086,6 +1087,19 @@ void AVaelSmokeTest::BeginPlay()
 		Region->SetWeather(EVaelWeather::Rain);
 		return FString(TEXT("rain"));
 	}, 6.0f });
+	Steps.Add({ TEXT("Rain falls"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		const AVaelRegion* Region = Player != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), Player->GetActorLocation()) : nullptr;
+		int32 NumLooks = 0;
+		for (TActorIterator<AVaelWeatherRain> It(GetWorld()); It; ++It)
+		{
+			++NumLooks;
+		}
+		const float Strength = Region != nullptr ? Region->GetRainStrength() : 0.0f;
+		const bool bOk = Strength > 0.5f && NumLooks == 1;
+		return FString::Printf(TEXT("%srain strength %.2f, %d rain looks"), bOk ? TEXT("") : TEXT("FAILED: "), Strength, NumLooks);
+	}, 0.1f });
 	Steps.Add({ TEXT("Keimpelz"), [this]()
 	{
 		int32 NumSprouted = 0;

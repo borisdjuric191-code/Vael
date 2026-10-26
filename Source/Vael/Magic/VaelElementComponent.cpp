@@ -182,9 +182,10 @@ EVaelCastResult UVaelElementComponent::CastQueue()
 
 	const int32 NumEnvironmentElements = QueueFromEnvironment.FilterByPredicate([](bool bFromEnvironment) { return bFromEnvironment; }).Num();
 
-	// A Böe can be kept going for as long as the cast button stays down (Boris 2026-10-26)
+	// A Böe can be kept going for as long as the cast button stays down, but only while the wind blows (wind or storm, Boris 2026-10-26)
 	const EVaelCastResult Result = ActivateFormula(Formula, Queue.Num(), NumEnvironmentElements, false);
-	const bool bHoldable = Formula->Delivery == EVaelSpellDelivery::Dash && Formula->DamageElement == EVaelElement::Air && !Formula->bLightning;
+	const bool bHoldable = Formula->Delivery == EVaelSpellDelivery::Dash && Formula->DamageElement == EVaelElement::Air && !Formula->bLightning
+		&& !AVaelRegion::GetWindAt(GetWorld(), GetOwner()->GetActorLocation()).IsNearlyZero();
 	HeldFormula = Result == EVaelCastResult::Success && bHoldable ? Formula : nullptr;
 	HeldJumps = 0;
 
@@ -218,11 +219,15 @@ EVaelCastResult UVaelElementComponent::CastHeld()
 	HeldSize = 1.0f;
 	PendingCast = FVaelPendingCast();
 
-	// Out of mana the jumps stop
+	// Out of mana the jumps stop, and once the wind has died down
 	if (Result != EVaelCastResult::Success)
 	{
 		HeldFormula = nullptr;
 		OnCastFinished.Broadcast(Result, Formula);
+	}
+	else if (AVaelRegion::GetWindAt(GetWorld(), GetOwner()->GetActorLocation()).IsNearlyZero())
+	{
+		HeldFormula = nullptr;
 	}
 
 	return Result;

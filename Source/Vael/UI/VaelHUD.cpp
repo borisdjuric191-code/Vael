@@ -1418,7 +1418,6 @@ void AVaelHUD::DrawWeather()
 
 	const EVaelWeather Weather = Region->GetWeather();
 	const double Now = FPlatformTime::Seconds();
-	const float Time = static_cast<float>(FMath::Fmod(Now, 1000.0));
 
 	// Placeholder until there are particles: a drought bleaches the land in a warm glare
 	if (Weather == EVaelWeather::Drought)
@@ -1426,28 +1425,11 @@ void AVaelHUD::DrawWeather()
 		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(255, 170, 80, 28));
 	}
 
-	// A darker sky and falling streaks of ash rain
+	// A darker sky under the rain; the rain itself falls in the world (AVaelWeatherRain)
 	if (Weather == EVaelWeather::Rain || Weather == EVaelWeather::Storm)
 	{
 		const bool bStorm = Weather == EVaelWeather::Storm;
-		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, bStorm ? Rgb(10, 14, 24, 70) : Rgb(20, 26, 34, 45));
-
-		const int32 NumStreaks = bStorm ? 140 : 90;
-		const float Length = (bStorm ? 46.0f : 30.0f) * UiScale;
-		const float Slant = bStorm ? 0.45f : 0.12f;
-		const FLinearColor StreakColor = bStorm ? Rgb(200, 210, 225, 70) : Rgb(170, 185, 200, 60);
-
-		for (int32 StreakIndex = 0; StreakIndex < NumStreaks; ++StreakIndex)
-		{
-			// Every streak has its own fixed column and speed and loops from top to bottom
-			const float Seed = FMath::Frac(FMath::Sin(StreakIndex * 12.9898f) * 43758.5453f);
-			const float Speed = (bStorm ? 1.6f : 1.0f) * (0.7f + 0.6f * Seed);
-			const float Progress = FMath::Frac(Time * Speed * 0.9f + Seed * 7.0f);
-			const float X = FMath::Frac(Seed * 3.7f + StreakIndex * 0.618f) * (Canvas->ClipX + Canvas->ClipY * Slant) - Canvas->ClipY * Slant * Progress;
-			const float Y = Progress * (Canvas->ClipY + Length) - Length;
-
-			DrawSegment(FVector2D(X, Y), FVector2D(X - Length * Slant, Y + Length), StreakColor, 1.5f * UiScale);
-		}
+		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, bStorm ? Rgb(10, 14, 24, 60) : Rgb(20, 26, 34, 35));
 	}
 
 	// A flash across the screen when lightning strikes

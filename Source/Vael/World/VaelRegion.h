@@ -137,6 +137,9 @@ public:
 	/** The wind at a location in cm/s, zero where it doesn't blow */
 	static FVector GetWindAt(UWorld* World, const FVector& Location);
 
+	/** How hard it rains: 0 dry, 1 ash rain, more in a storm; rises and dies down over a few seconds */
+	float GetRainStrength() const { return RainStrength; }
+
 	/** Real time of the last lightning strike, for the flash on screen */
 	double GetLastLightningTime() const { return LastLightningTime; }
 
@@ -177,6 +180,12 @@ private:
 	/** Look of the wind around the players, while it blows */
 	UPROPERTY(Transient)
 	TObjectPtr<class AVaelWeatherWind> WindLook;
+
+	/** How hard it rains, and the look of the rain around the players while it does */
+	float RainStrength = 0.0f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class AVaelWeatherRain> RainLook;
 
 	/** True if at least one player stands in the region */
 	bool HasPlayerInside() const;

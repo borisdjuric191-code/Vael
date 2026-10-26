@@ -63,6 +63,69 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Weather|Rain", meta = (ClampMin = 0))
 	float RainWetDuration = 1.0f;
 
+	/** Look of the rain around the players (AVaelWeatherRain), made of the water of the water kit: drops falling at once in rain and in a storm */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	int32 RainDrops = 700;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	int32 StormRainDrops = 1100;
+
+	/** Half size of the square around the players the rain fills, and how high above the ground the drops start, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 100))
+	float RainReach = 1700.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 100))
+	float RainHeight = 1000.0f;
+
+	/** Speed of a falling drop in cm/s, and the share of the wind that blows it aslant */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	float RainFallSpeed = 1400.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	float RainWindShare = 0.6f;
+
+	/** Length and width of the streak a falling drop draws, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 1))
+	float RainStreakLength = 60.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0.1))
+	float RainStreakWidth = 1.3f;
+
+	/** How see-through the rain is (BodyOpacity of the water material) and how much it glows in the dark */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0, ClampMax = 1))
+	float RainOpacity = 0.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	float RainGlow = 0.45f;
+
+	/** Colors of the rain water, dark to pale */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look")
+	FLinearColor RainDeepColor = FLinearColor(0.12f, 0.15f, 0.18f);
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look")
+	FLinearColor RainCrestColor = FLinearColor(0.62f, 0.7f, 0.78f);
+
+	/** Drops thrown up where a drop hits the ground, and the share of hits that leave a ring on plain ground (always on puddles) */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	int32 RainSplashDrops = 3;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0, ClampMax = 1))
+	float RainRingShare = 0.3f;
+
+	/** Water kit splashes (NS_Water_OrbImpact, tiny) per second around the players, for crowns and spray; 0 for none */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	float RainKitSplashesPerSecond = 4.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	float RainKitSplashScale = 0.12f;
+
+	/** Veils of rain: pale mist cards drifting through the rain */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0))
+	int32 RainVeils = 6;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0, ClampMax = 1))
+	float RainVeilSolid = 0.07f;
+
 	/** Seconds a fire lasts in a drought, as a multiple of its normal lifetime */
 	UPROPERTY(config, EditAnywhere, Category="Weather|Drought", meta = (ClampMin = 1))
 	float DroughtFireLifetimeMultiplier = 1.6f;
