@@ -28,6 +28,9 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	/** Copied from the instance: how the flying body hangs in the air */
 	FVaelFlightPose Flight;
 
+	/** Copied from the instance: how far each shield hand is raised (left, right) */
+	float Shield[2] = { 0.0f, 0.0f };
+
 private:
 
 	/** Tips the body, lets the legs dangle and swing, bends the knees and points the toes */
@@ -85,6 +88,9 @@ protected:
 
 	/** How the body of a flying Floromant hangs in the air, from the character */
 	FVaelFlightPose FlightPose;
+
+	/** How far each shield hand of a Floromant is raised before the face (left, right) */
+	float ShieldStance[2] = { 0.0f, 0.0f };
 
 public:
 

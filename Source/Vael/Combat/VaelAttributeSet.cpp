@@ -2,6 +2,7 @@
 
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCharacterBase.h"
+#include "Floromant/VaelGlimmDome.h"
 #include "GameplayEffectExtension.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
@@ -61,6 +62,9 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 		{
 			Damage *= Attacker->GetOutgoingDamageMultiplier();
 		}
+
+		// The glass dome of a Glimmklee swallows enemy fire and makes the fire of her side burn hotter
+		Damage = AVaelGlimmDome::ScaleFireDamage(Target, Data.EffectSpec.GetContext().GetInstigator(), Damage, DamageTags);
 
 		if (Damage > 0.0f)
 		{

@@ -9,6 +9,7 @@
 #include "EngineUtils.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelFootRootsComponent.h"
+#include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelPlant.h"
 #include "Floromant/VaelPlantTower.h"
 #include "Floromant/VaelRootRunner.h"
@@ -72,6 +73,60 @@ void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType
 
 	TickFlight(DeltaTime);
 	UpdateCrossKnot(DeltaTime);
+	TickShield(DeltaTime);
+}
+
+float UVaelFloromantComponent::GetShieldStance(bool bLeft) const
+{
+	const UVaelPlantArmComponent* Hand = FindHand(bLeft);
+	return Hand != nullptr ? Hand->GetShieldStance() : 0.0f;
+}
+
+void UVaelFloromantComponent::TickShield(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	UVaelPlantArmComponent* Raised = nullptr;
+	bool bOtherFires = false;
+	for (const bool bLeft : { true, false })
+	{
+		UVaelPlantArmComponent* Hand = FindHand(bLeft);
+		if (Hand != nullptr && Hand->GetPlant() != nullptr && Hand->GetPlant()->bShield && Hand->GetShieldStance() > 0.6f)
+		{
+			Raised = Hand;
+			bOtherFires = GetStance(!bLeft) > 0.5f;
+		}
+	}
+
+	// The dome stands while the hand is up and the Saft lasts; nothing grows in the camp
+	const bool bCanHold = Raised != nullptr && Character != nullptr && Character->IsFloromant() && !Character->IsDowned()
+		&& !AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation());
+	const UVaelPlantArmData* Shield = Raised != nullptr ? Raised->GetPlant() : nullptr;
+	const float Cost = Shield != nullptr ? Shield->ShieldSaftPerSecond * DeltaTime : 0.0f;
+	if (!bCanHold || Character->GetMana() < Cost)
+	{
+		if (AVaelGlimmDome* Dome = ShieldDome.Get())
+		{
+			Dome->Lower();
+		}
+		ShieldDome = nullptr;
+		return;
+	}
+	Character->GetAbilitySystemComponent()->ApplyModToAttribute(UVaelAttributeSet::GetManaAttribute(), EGameplayModOp::Additive, -Cost);
+
+	AVaelGlimmDome* Dome = ShieldDome.Get();
+	if (Dome == nullptr)
+	{
+		Dome = AVaelGlimmDome::Raise(Character, Character, Shield, EVaelSymbiosis::None, Shield->ShieldRadius, Character->GetPath() == EVaelPath::Shadow);
+		ShieldDome = Dome;
+	}
+
+	// Anchored (Boris 2026-10-26): while the other hand fires, or rooted, the dome is bigger and holds and burns better
+	if (Dome != nullptr)
+	{
+		const float Anchored = bOtherFires || IsRooted() ? 1.0f : 0.0f;
+		Dome->SetAnchored(Anchored);
+		Dome->SetTargetRadius(Shield->ShieldRadius * FMath::Lerp(1.0f, Shield->AnchoredRadiusScale, Anchored));
+	}
 }
 
 // ---------------------------------------------------------------- Flight

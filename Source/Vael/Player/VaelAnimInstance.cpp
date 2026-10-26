@@ -40,6 +40,8 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	const UVaelFloromantComponent* Floromant = Character->IsFloromant() ? Character->GetFloromant() : nullptr;
 	PlantArmStance[0] = Floromant != nullptr ? Floromant->GetStance(true) : 0.0f;
 	PlantArmStance[1] = Floromant != nullptr ? Floromant->GetStance(false) : 0.0f;
+	ShieldStance[0] = Floromant != nullptr ? Floromant->GetShieldStance(true) : 0.0f;
+	ShieldStance[1] = Floromant != nullptr ? Floromant->GetShieldStance(false) : 0.0f;
 	const UVaelFloromantSettings* FloromantSettings = UVaelFloromantSettings::Get();
 	PlantArmLean = FloromantSettings->FiringLean * FMath::Max(PlantArmStance[0], PlantArmStance[1]);
 	PlantArmReach = FloromantSettings->FiringArmReach;
@@ -82,6 +84,8 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	LeanDegrees = Instance->PlantArmLean;
 	ArmReach = Instance->PlantArmReach;
 	Flight = Instance->FlightPose;
+	Shield[0] = Instance->ShieldStance[0];
+	Shield[1] = Instance->ShieldStance[1];
 }
 
 namespace
@@ -166,7 +170,8 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	EvaluateAnimationNode_WithRoot(Output, InRootNode);
 
 	const bool bFlying = Flight.Weight > KINDA_SMALL_NUMBER;
-	if (InRootNode != GetRootNode() || (!bFlying && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER))
+	const bool bShielding = Shield[0] > KINDA_SMALL_NUMBER || Shield[1] > KINDA_SMALL_NUMBER;
+	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER))
 	{
 		return true;
 	}
@@ -234,6 +239,32 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 		Aim(Upper, Lower, Direction, Weight);
 		Aim(Lower, Hand, Direction, Weight);
 		Aim(Hand, Middle, Direction, Weight);
+	}
+
+	// A shield hand (Glimmklee): the elbow comes forward, the forearm stands up before face and chest, the back of the hand forward
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const float Weight = FMath::SmoothStep(0.0f, 1.0f, Shield[Side]);
+		if (Weight <= 0.0f)
+		{
+			continue;
+		}
+
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		const FCompactPoseBoneIndex Upper = Find(*FString::Printf(TEXT("upperarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Lower = Find(*FString::Printf(TEXT("lowerarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Hand = Find(*FString::Printf(TEXT("hand_%s"), Suffix));
+		const FCompactPoseBoneIndex Middle = Find(*FString::Printf(TEXT("middle_01_%s"), Suffix));
+		if (Upper == INDEX_NONE)
+		{
+			continue;
+		}
+
+		const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+		Aim(Upper, Lower, FVector(Outward * 0.3f, 0.75f, -0.5f).GetSafeNormal(), Weight);
+		Aim(Lower, Hand, FVector(-Outward * 0.45f, 0.3f, 0.85f).GetSafeNormal(), Weight);
+		Aim(Hand, Middle, FVector(-Outward * 0.2f, 0.15f, 1.0f).GetSafeNormal(), Weight);
 	}
 
 	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(MoveTemp(Pose), Output.Pose);

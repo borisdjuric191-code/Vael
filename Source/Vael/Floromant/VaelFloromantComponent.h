@@ -107,6 +107,9 @@ public:
 	/** How far each arm is stretched out to fire, 0 to 1 */
 	float GetStance(bool bLeft) const;
 
+	/** How far a shield hand is raised before the face, 0 to 1 */
+	float GetShieldStance(bool bLeft) const;
+
 	/** Share of the walking speed left while firing */
 	float GetMoveSpeedScale() const;
 
@@ -195,6 +198,12 @@ private:
 
 	/** Her feet on the ground, where the roots start */
 	FVector GetFeet() const;
+
+	/** Raises, grows and lowers the glass dome while a shield hand is held; it costs Saft per second */
+	void TickShield(float DeltaTime);
+
+	/** The glass dome of her raised Glimmklee hand */
+	TWeakObjectPtr<class AVaelGlimmDome> ShieldDome;
 
 	/** Keeps the knot of the crossed hands between them while it shows */
 	void UpdateCrossKnot(float DeltaTime);

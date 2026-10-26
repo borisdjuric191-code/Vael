@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelEnvironmentStatics.h"
+#include "Floromant/VaelGlimmDome.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/OverlapResult.h"
@@ -45,6 +46,12 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 
 	// Campfires and Brandherde
 	if (Element == EVaelElement::Fire && FindFireSpot(Caster) != nullptr)
+	{
+		return true;
+	}
+
+	// The warm glass dome of a Glimmklee (Boris 2026-10-26)
+	if (Element == EVaelElement::Fire && AVaelGlimmDome::IsFireSourceAt(World, Location))
 	{
 		return true;
 	}

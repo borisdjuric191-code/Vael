@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Floromant/VaelFloromantSettings.h"
+#include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelSymbiosisKnotComponent.h"
 #include "Magic/VaelDebrisBurst.h"
@@ -80,6 +81,12 @@ AVaelPlantTower* AVaelPlantTower::PlantTower(AVaelCharacter* Gardener, UVaelPlan
 	Tower->LookDirection = Gardener->GetActorForwardVector();
 	Tower->FinishSpawning(SpawnTransform);
 	Tower->Build();
+
+	// A Glimmklee tower doesn't fire: it holds a smaller glass dome around itself
+	if (InPlant->bShield)
+	{
+		Tower->Dome = AVaelGlimmDome::Raise(Gardener, Tower, InPlant, EVaelSymbiosis::None, InPlant->TowerShieldRadius, Tower->bShadow);
+	}
 
 	// Earth breaks open where it goes in
 	FVaelDebris Earth;
@@ -200,6 +207,10 @@ void AVaelPlantTower::Wither()
 		return;
 	}
 	bWithering = true;
+	if (AVaelGlimmDome* Glass = Dome.Get())
+	{
+		Glass->Lower();
+	}
 
 	// Grown together they wither together
 	if (AVaelPlantTower* Other = Partner.Get())
@@ -297,6 +308,26 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 	Other->LifeLeft = LifeLeft;
 	FireCountdown = Settings->SymbiosisGrowTime;
 
+	// A pair with a Glimmklee raises one dome of the pair over both towers instead of the single domes
+	if (VaelSymbiosis::HasDome(Symbiosis))
+	{
+		for (AVaelPlantTower* Tower : { this, Other })
+		{
+			if (AVaelGlimmDome* Glass = Tower->Dome.Get())
+			{
+				Glass->Lower();
+			}
+			Tower->Dome = nullptr;
+		}
+		const UVaelPlantArmData* Glimm = Plant->bShield ? Plant.Get() : Other->Plant.Get();
+		const float Radius = Symbiosis == EVaelSymbiosis::Lichtkuppel ? 400.0f : 300.0f;
+		Dome = AVaelGlimmDome::Raise(GetGardener(), this, Glimm, Symbiosis, Radius, bShadow);
+		if (AVaelGlimmDome* Glass = Dome.Get())
+		{
+			Glass->SetAnchored(1.0f);
+		}
+	}
+
 	Knot = NewObject<UVaelSymbiosisKnotComponent>(this, TEXT("SymbiosisKnot"));
 	Knot->SetupAttachment(RootComponent);
 	Knot->RegisterComponent();
@@ -336,6 +367,30 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 	AVaelCharacter* Gardener = GetGardener();
 	if (Gardener == nullptr || Goal == nullptr)
 	{
+		return;
+	}
+
+	// A Glimmklee tower alone only holds its dome
+	if (Symbiosis == EVaelSymbiosis::None && Plant->bShield)
+	{
+		return;
+	}
+
+	// A pair with a Glimmklee works through its dome; the other plant fires its own shots out of the knot, the burning glass hotter
+	if (VaelSymbiosis::HasDome(Symbiosis) && Partner.IsValid())
+	{
+		const UVaelPlantArmData* Shooter = Plant->bShield ? Partner->Plant.Get() : Plant.Get();
+		if (Shooter == nullptr || Shooter->bShield)
+		{
+			return;
+		}
+		const FVector Middle = (GetCrown() + Partner->GetCrown()) * 0.5f - FVector(0.0f, 0.0f, 35.0f);
+		const float Hotter = Symbiosis == EVaelSymbiosis::Glutglas ? 1.5f : 1.0f;
+		VaelSymbiosis::FireShot(Gardener, Shooter, Middle, (Goal->GetActorLocation() - Middle).GetSafeNormal(), Power * Hotter, bShadow, UVaelFloromantSettings::Get()->TowerShotScale);
+		if (Knot != nullptr)
+		{
+			Knot->Flash();
+		}
 		return;
 	}
 

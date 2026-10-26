@@ -176,6 +176,49 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0))
 	float PumpSwell = 0.35f;
 
+	// --- Shield (Glimmklee, Boris 2026-10-26): no shots; held, the forearm is raised before the face with the back of the hand
+	// forward, clover overgrows the arm and a large, barely visible glass dome rises around her. She keeps hovering.
+	// Enemy fire inside is weaker, own fire and the mage's stronger, and the dome is a fire source and a light
+
+	/** The hand is a shield instead of a weapon */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield")
+	bool bShield = false;
+
+	/** Radius of the dome in cm, and around a tower */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 50, EditCondition = "bShield"))
+	float ShieldRadius = 250.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 50, EditCondition = "bShield"))
+	float TowerShieldRadius = 150.0f;
+
+	/** Saft per second while the dome stands, and Saft for every point of enemy fire it swallows */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 0, EditCondition = "bShield"))
+	float ShieldSaftPerSecond = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 0, EditCondition = "bShield"))
+	float AbsorbSaftShare = 0.5f;
+
+	/** Damage of enemy fire inside, and of own and allied fire cast from inside */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bShield"))
+	float EnemyFireScale = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 1, EditCondition = "bShield"))
+	float AlliedFireScale = 1.25f;
+
+	/** Anchored (the other hand fires, or she is rooted): the dome grows by this much and holds and burns better (Boris 2026-10-26) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 1, EditCondition = "bShield"))
+	float AnchoredRadiusScale = 1.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bShield"))
+	float AnchoredEnemyFireScale = 0.35f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (ClampMin = 1, EditCondition = "bShield"))
+	float AnchoredAlliedFireScale = 1.4f;
+
+	/** Warm colour of the glass and its light */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (EditCondition = "bShield"))
+	FLinearColor ShieldColor = FLinearColor(1.0f, 0.78f, 0.4f);
+
 	// --- Rose (Taublatt, Boris 2026-10-26): instead of heads on the fingertips large petals sit at the hand like an open
 	// blossom; while aiming they fold shut like the petals of a rose and leave a hole in the middle that the shots leave through
 

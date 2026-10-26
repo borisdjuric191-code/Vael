@@ -6,6 +6,7 @@
 #   GroundZ and PlantHeight are set by the game for each plant.
 # - M_Floromant_Fluegel: thin, translucent-looking wing (two-sided foliage shading), the picture's alpha cuts the outline and the holes.
 # - M_Floromant_Schatten: soft dark blob decal under the flying Floromant, so her height reads from the camera.
+# - M_Floromant_Glaskugel: the glass dome of the Glimmklee shield, glowing at its rim (Color, Glow, Opacity, Inner).
 # - Only creates what is missing, except that the two master materials get their graph rebuilt when it is older than KIT_VERSION.
 # - Everything lives under /Game/Vael/Characters/Floromant/Materialien.
 #
@@ -23,7 +24,7 @@ tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 created = []
 
-KIT_VERSION = 1.1
+KIT_VERSION = 1.2
 
 WHITE = "/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"
 FLAT_NORMAL = "/Engine/EngineMaterials/FlatNormal.FlatNormal"
@@ -287,6 +288,45 @@ def build_shadow_material():
     return material
 
 
+# ---------------------------------------------------------------- M_Floromant_Glaskugel
+
+def build_glass_material():
+    """The dome of the Glimmklee (Boris 2026-10-26): a large, barely visible glass sphere that glows warm at its rim and
+    shimmers faintly; as Schwelklee the game makes it a dark, thick smoke dome (Color, Opacity, Glow)"""
+    material = new_material("M_Floromant_Glaskugel")
+    if material is None:
+        return unreal.load_asset(FOLDER + "/M_Floromant_Glaskugel")
+
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    material.set_editor_property("two_sided", False)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, column=8)
+    color = g.color("Color", unreal.LinearColor(1.0, 0.78, 0.4, 1.0), column=4)
+    glow = g.scalar("Glow", 3.0, column=4)
+    opacity = g.scalar("Opacity", 0.45, column=4)
+    inner = g.scalar("Inner", 0.04, column=4)
+
+    # Bright at the rim where the eye looks along the glass, nearly clear in the middle
+    rim = g.node(unreal.MaterialExpressionFresnel, 6, exponent=3.0, base_reflect_fraction=0.0)
+
+    # A faint shimmer drifting over the glass
+    world = g.node(unreal.MaterialExpressionWorldPosition, 8)
+    time = g.node(unreal.MaterialExpressionTime, 8)
+    drift = g.mul(7, time, g.node(unreal.MaterialExpressionConstant3Vector, 7, constant=unreal.LinearColor(18.0, 11.0, 25.0, 0.0)))
+    shimmer = g.node(unreal.MaterialExpressionNoise, 6, scale=0.02, levels=2, output_min=0.0, output_max=1.0)
+    g.link(g.add(6, world, drift), shimmer, "")
+
+    edge = g.add(5, g.mul(5, rim, g.const(1.0, column=5)), g.mul(5, shimmer, g.const(0.25, column=5)))
+    g.output(g.mul(3, g.mul(3, color, glow), g.add(4, edge, inner)), unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    g.output(g.saturate(3, g.add(3, g.mul(3, edge, opacity), g.mul(3, inner, g.const(0.5, column=3)))), unreal.MaterialProperty.MP_OPACITY)
+
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
 # ---------------------------------------------------------------- Instances
 
 def texture_fits(path, normal):
@@ -398,6 +438,7 @@ def main():
     make_instance(wing, "MI_Floromant_Fluegel")
 
     build_shadow_material()
+    build_glass_material()
 
     assets.save_directory(FOLDER)
     assets.save_directory(PLANT_FOLDER)

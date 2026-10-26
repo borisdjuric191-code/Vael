@@ -50,6 +50,9 @@ public:
 	/** How far the arm is stretched out to fire, 0 to 1, smoothed; drives the pose */
 	float GetStance() const { return Stance; }
 
+	/** How far a shield hand (Glimmklee) is raised before the face, 0 to 1 */
+	float GetShieldStance() const { return ShieldStance; }
+
 	/** Shots left in the plant bar, and the share of the bar */
 	int32 GetBarShots() const;
 	float GetBarFraction() const;
@@ -277,6 +280,7 @@ private:
 	float LastShotTime = -100.0f;
 
 	float Stance = 0.0f;
+	float ShieldStance = 0.0f;
 	float Fan = 0.0f;
 	float SpinTurns = 0.0f;
 	float SpinRate = 0.0f;

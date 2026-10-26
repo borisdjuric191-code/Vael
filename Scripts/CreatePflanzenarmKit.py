@@ -74,6 +74,19 @@ ARMS = {
                  "shot_status": "WET", "shot_status_duration": 4.0, "water_radius": 180.0, "water_per_shot": 1.0,
                  "jet_hold_time": 0.3},
     },
+    # Boris 2026-10-26: the shield hand. No shots; held, the forearm comes up before the face and clover overgrows the arm, a
+    # glass dome rises around her. Golden stalks with flame buds from halme_zerlegen.py (kopf), the clover leaf from
+    # Tools/Pflanzenarm/glimmklee_blatt.py, the vine from ranke_bauen.py
+    "Glimmklee": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": True,
+        "leaf": "Blatt",
+        "values": {"Silber": 0.1, "Leuchten": 0.14, "Leuchtfarbe": (1.0, 0.75, 0.3), "Metall": 0.05, "Rauheit": 0.5},
+        "data": {"shield": True, "finger_length": 22.0, "finger_thickness": 0.22, "tip_size": 8.0, "fan_angle": 0.0,
+                 "arm_thickness": 0.3, "rest_wind": 0.3, "wild_count": 2,
+                 "leaf_count": 10, "leaf_size": 10.0, "leaf_open_angle": 35.0},
+    },
 }
 
 

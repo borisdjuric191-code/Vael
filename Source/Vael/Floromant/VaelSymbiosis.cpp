@@ -1,7 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Floromant/VaelSymbiosis.h"
+#include "AbilitySystemComponent.h"
+#include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCharacterBase.h"
+#include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelLightningBolt.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
 #include "Engine/World.h"
@@ -103,6 +107,22 @@ namespace VaelSymbiosis
 		{
 			return EVaelSymbiosis::Dampfstoss;
 		}
+		if (Is(TEXT("Glimmklee"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Lichtkuppel;
+		}
+		if (Is(TEXT("Glimmklee"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Glutglas;
+		}
+		if (Is(TEXT("Glimmklee"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::Funkelwind;
+		}
+		if (Is(TEXT("Glimmklee"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Tauglocke;
+		}
 		return EVaelSymbiosis::None;
 	}
 
@@ -116,6 +136,10 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Funkenflug:	return NSLOCTEXT("VaelSymbiosis", "Funkenflug", "Funkenflug");
 		case EVaelSymbiosis::Spruehregen:	return NSLOCTEXT("VaelSymbiosis", "Spruehregen", "Sprühregen");
 		case EVaelSymbiosis::Dampfstoss:	return NSLOCTEXT("VaelSymbiosis", "Dampfstoss", "Dampfstoß");
+		case EVaelSymbiosis::Lichtkuppel:	return NSLOCTEXT("VaelSymbiosis", "Lichtkuppel", "Lichtkuppel");
+		case EVaelSymbiosis::Glutglas:		return NSLOCTEXT("VaelSymbiosis", "Glutglas", "Glutglas");
+		case EVaelSymbiosis::Funkelwind:	return NSLOCTEXT("VaelSymbiosis", "Funkelwind", "Funkelwind");
+		case EVaelSymbiosis::Tauglocke:		return NSLOCTEXT("VaelSymbiosis", "Tauglocke", "Tauglocke");
 		default:							return FText::GetEmpty();
 		}
 	}
@@ -130,8 +154,17 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Funkenflug:	return FLinearColor(1.0f, 0.6f, 0.2f);
 		case EVaelSymbiosis::Spruehregen:	return FLinearColor(0.55f, 0.9f, 1.0f);
 		case EVaelSymbiosis::Dampfstoss:	return FLinearColor(0.9f, 0.9f, 0.95f);
+		case EVaelSymbiosis::Lichtkuppel:	return FLinearColor(1.0f, 0.9f, 0.55f);
+		case EVaelSymbiosis::Glutglas:		return FLinearColor(1.0f, 0.5f, 0.15f);
+		case EVaelSymbiosis::Funkelwind:	return FLinearColor(0.85f, 1.0f, 0.6f);
+		case EVaelSymbiosis::Tauglocke:		return FLinearColor(0.4f, 0.95f, 0.9f);
 		default:							return FLinearColor::White;
 		}
+	}
+
+	bool HasDome(EVaelSymbiosis Kind)
+	{
+		return Kind == EVaelSymbiosis::Lichtkuppel || Kind == EVaelSymbiosis::Glutglas || Kind == EVaelSymbiosis::Funkelwind || Kind == EVaelSymbiosis::Tauglocke;
 	}
 
 	float GetTowerInterval(EVaelSymbiosis Kind)
@@ -261,6 +294,119 @@ namespace VaelSymbiosis
 			{
 				Shot->SetExplosion(Scald, 160.0f * FMath::Sqrt(Grown));
 				Shot->SetImpactArea(EVaelElement::Water, 230.0f * FMath::Sqrt(Grown), 6.0f, 4.0f * Power, EVaelGroundEffect::Blind);
+				Shot->FinishSpawning(FTransform(Ahead.Rotation(), Origin));
+			}
+			break;
+		}
+		case EVaelSymbiosis::Lichtkuppel:
+		{
+			// A flash of light: every enemy around is blinded, and each one gives Saft
+			const float Reach = 600.0f * FMath::Sqrt(Grown);
+			int32 Blinded = 0;
+			for (TActorIterator<AVaelCharacterBase> It(Instigator->GetWorld()); It; ++It)
+			{
+				if (UVaelCombatStatics::CanDamage(Instigator, *It) && FVector::Dist2D(It->GetActorLocation(), Origin) < Reach)
+				{
+					It->ApplyBlind(2.0f * Grown);
+					++Blinded;
+				}
+			}
+			if (const AVaelCharacterBase* Gardener = Cast<AVaelCharacterBase>(Instigator))
+			{
+				Gardener->GetAbilitySystemComponent()->ApplyModToAttribute(UVaelAttributeSet::GetManaAttribute(), EGameplayModOp::Additive, 2.0f * Blinded);
+			}
+			FVaelDebris Light;
+			Light.Count = 40;
+			Light.Spread = 30.0f;
+			Light.Speed = Reach * 1.4f;
+			Light.Lift = 30.0f;
+			Light.Gravity = -40.0f;
+			Light.Drag = 2.0f;
+			Light.Lifetime = 0.7f;
+			Light.MinSize = 4.0f;
+			Light.MaxSize = 9.0f;
+			Light.Color = Color;
+			Light.Glow = 6.0f;
+			Light.bSoft = true;
+			Light.bLandOnGround = false;
+			AVaelDebrisBurst::Spawn(Instigator, Origin, Light);
+			break;
+		}
+		case EVaelSymbiosis::Glutglas:
+		{
+			// The clover bundles the light of the glowing heads into a short, burning sun beam
+			const UVaelPlantArmData* Fire = Pick(TEXT("Glutdistel"));
+			const FVector Flat = Ahead.GetSafeNormal2D();
+			const float Reach = 900.0f * FMath::Sqrt(Grown);
+			FVaelSpellHit Beam;
+			Beam.Damage = Fire->ShotDamage * 4.0f * Power * Grown;
+			Beam.Element = EVaelElement::Fire;
+			Beam.Status = EVaelStatus::Burning;
+			Beam.StatusDuration = 3.0f;
+			for (TActorIterator<AVaelCharacterBase> It(Instigator->GetWorld()); It; ++It)
+			{
+				const FVector To = (It->GetActorLocation() - Origin) * FVector(1.0f, 1.0f, 0.0f);
+				const float Along = FVector::DotProduct(To, Flat);
+				const float Across = (To - Flat * Along).Size();
+				if (Along > 0.0f && Along < Reach && Across < 60.0f && UVaelCombatStatics::CanDamage(Instigator, *It))
+				{
+					UVaelCombatStatics::ApplySpellHit(Instigator, *It, Beam, Flat);
+				}
+			}
+			AVaelLightningBolt::Spawn(Instigator, Origin, Origin + Flat * Reach, Color, 0.35f, 2.2f, false);
+			break;
+		}
+		case EVaelSymbiosis::Funkelwind:
+		{
+			// A fan of glittering pollen that blinds everything in front
+			const UVaelPlantArmData* Wind = Pick(TEXT("Windhalm"));
+			const FVector Flat = Ahead.GetSafeNormal2D();
+			const float Reach = 700.0f * FMath::Sqrt(Grown);
+			FVaelSpellHit Pollen;
+			Pollen.Damage = Wind->ShotDamage * Power * Grown;
+			Pollen.Element = Wind->ShotElement;
+			for (TActorIterator<AVaelCharacterBase> It(Instigator->GetWorld()); It; ++It)
+			{
+				const FVector To = (It->GetActorLocation() - Origin) * FVector(1.0f, 1.0f, 0.0f);
+				if (To.Size() < Reach && FVector::DotProduct(To.GetSafeNormal(), Flat) > FMath::Cos(FMath::DegreesToRadians(35.0f)) && UVaelCombatStatics::CanDamage(Instigator, *It))
+				{
+					It->ApplyBlind(2.5f * Grown);
+					UVaelCombatStatics::ApplySpellHit(Instigator, *It, Pollen, Flat);
+				}
+			}
+			for (int32 Puff = -2; Puff <= 2; ++Puff)
+			{
+				FVaelDebris Glitter;
+				Glitter.Count = 10;
+				Glitter.Spread = 20.0f;
+				Glitter.Speed = Reach * 1.2f;
+				Glitter.Lift = 20.0f;
+				Glitter.Gravity = 20.0f;
+				Glitter.Drag = 2.5f;
+				Glitter.Lifetime = 0.9f;
+				Glitter.MinSize = 2.0f;
+				Glitter.MaxSize = 5.0f;
+				Glitter.Color = Color;
+				Glitter.Glow = 4.0f;
+				Glitter.bSoft = true;
+				Glitter.bLandOnGround = false;
+				AVaelDebrisBurst::Spawn(Instigator, Origin + SymbiosisTurn(Flat, Puff * 14.0f) * 30.0f, Glitter);
+			}
+			break;
+		}
+		case EVaelSymbiosis::Tauglocke:
+		{
+			// A drop of dew that breaks the light: where it bursts a shimmering mist blinds and soaks
+			const UVaelPlantArmData* Water = Pick(TEXT("Taublatt"));
+			FVaelSpellHit Hit;
+			Hit.Damage = Water->ShotDamage * 1.5f * Power * Grown;
+			Hit.Element = EVaelElement::Water;
+			Hit.Status = EVaelStatus::Wet;
+			Hit.StatusDuration = 6.0f;
+			if (AVaelSpellProjectile* Shot = SymbiosisProjectile(Instigator, Water, Origin, Ahead, Hit, Water->ShotRadius * 1.6f, 0, Color, true))
+			{
+				Shot->SetExplosion(Hit, 180.0f * FMath::Sqrt(Grown));
+				Shot->SetImpactArea(EVaelElement::Water, 200.0f * FMath::Sqrt(Grown), 3.0f, 0.0f, EVaelGroundEffect::Blind);
 				Shot->FinishSpawning(FTransform(Ahead.Rotation(), Origin));
 			}
 			break;

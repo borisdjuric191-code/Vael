@@ -435,6 +435,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0.1))
 	float CrossShowTime = 0.8f;
 
+	/** Glass of the Glimmklee dome, M_Floromant_Glaskugel (made by Scripts/CreateFloromantKit.py) */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis")
+	TSoftObjectPtr<UMaterialInterface> GlassMaterial;
+
 	/** Root net: rooted, the Ruf des Gartens runs as a wave through roots under the ground from her feet; its speed in cm/s
 	 *  and how much farther it reaches than the call */
 	UPROPERTY(config, EditAnywhere, Category="Towers|Root Net", meta = (ClampMin = 100))

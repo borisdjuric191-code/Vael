@@ -27,7 +27,16 @@ enum class EVaelSymbiosis : uint8
 	/** Windhalm + Taublatt: a spray of fine drops in a wide fan, everything gets wet, plants get watered */
 	Spruehregen,
 	/** Glutdistel + Taublatt: a ball of water hitting glowing seeds bursts into a cloud of scalding steam that blinds */
-	Dampfstoss
+	Dampfstoss,
+	// Glimmklee (Boris 2026-10-26): towers grow a dome of the pair, crossed hands act at once
+	/** Glimmklee + Glimmklee: a big dome over both towers that flares and blinds / a flash that blinds everything around, Saft per blinded enemy */
+	Lichtkuppel,
+	/** Glimmklee + Glutdistel: a burning-glass dome, own fire much hotter and enemies inside burn / a short focused sun beam */
+	Glutglas,
+	/** Glimmklee + Windhalm: glittering pollen in the dome turns every enemy shot aside / a fan of pollen that blinds */
+	Funkelwind,
+	/** Glimmklee + Taublatt: a dew dome where enemy fire goes out, enemies get wet, plants are watered / a prism drop that blinds and soaks */
+	Tauglocke
 };
 
 namespace VaelSymbiosis
@@ -43,6 +52,9 @@ namespace VaelSymbiosis
 
 	/** Seconds between two attacks of a fused tower */
 	float GetTowerInterval(EVaelSymbiosis Kind);
+
+	/** True for the pairs with a Glimmklee: fused towers raise a dome of the pair */
+	bool HasDome(EVaelSymbiosis Kind);
 
 	/**
 	 *  Lets the pair act once from the origin towards the direction (flat over the ground). Power multiplies the damage

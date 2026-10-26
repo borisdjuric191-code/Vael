@@ -30,6 +30,7 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	WingMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("MI_Floromant_Fluegel"));
 	RootMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("MI_Floromant_Wurzel"));
 	ShadowMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("M_Floromant_Schatten"));
+	GlassMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("M_Floromant_Glaskugel"));
 
 	// A shooter, a healer, a wall and a helper on the belt to start with; every plant with a model can go there
 	for (const TCHAR* Id : { TEXT("Glutdistel"), TEXT("Russrose"), TEXT("Schlotwinde"), TEXT("Glimmklee") })
@@ -41,6 +42,7 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Windhalm")));
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Glutdistel")));
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Taublatt")));
+	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Glimmklee")));
 
 	// The moss of the Keimpelz from the world, as a pad on the forearm
 	KeimpelzPadMesh = AssetAt<UStaticMesh>(TEXT("/Game/Vael/Requisiten/Aschenmark/Keimpelz"), TEXT("SM_Keimpelz"));
