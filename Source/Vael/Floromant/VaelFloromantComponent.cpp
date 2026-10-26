@@ -83,6 +83,18 @@ float UVaelFloromantComponent::GetShieldStance(bool bLeft) const
 	return Hand != nullptr ? Hand->GetShieldStance() : 0.0f;
 }
 
+bool UVaelFloromantComponent::IsMortarHand(bool bLeft) const
+{
+	const UVaelPlantArmComponent* Hand = FindHand(bLeft);
+	return Hand != nullptr && Hand->IsMortar();
+}
+
+float UVaelFloromantComponent::GetMortarDraw(bool bLeft) const
+{
+	const UVaelPlantArmComponent* Hand = FindHand(bLeft);
+	return Hand != nullptr ? Hand->GetMortarDraw() : 0.0f;
+}
+
 void UVaelFloromantComponent::TickShield(float DeltaTime)
 {
 	AVaelCharacter* Character = GetCharacter();

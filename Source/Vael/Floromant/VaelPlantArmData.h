@@ -293,6 +293,90 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (EditCondition = "bVineArm"))
 	FLinearColor BloodColor = FLinearColor(0.85f, 0.05f, 0.08f);
 
+	// --- Mortar (Funkenmohn, Boris 2026-10-26): the whole hand is a closed poppy bud (the petals of the Rose section, shut). Held,
+	// the arm is a mortar: stretched out and aiming up, and the longer the button is held the further it draws back to the
+	// shoulder, the further the capsule flies and the bigger it is. Let go, the bud bursts open and throws a seed capsule in an
+	// arc; where it lands it bursts in a cluster of sparks and leaves a small burning patch (a fire source for the mage).
+	// Schwarzmohn: black capsules of sleep pollen, enemies in the cloud grow drowsy and then fall asleep until they are hurt
+
+	/** The hand is a mortar that throws capsules */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar")
+	bool bMortar = false;
+
+	/** The seed capsule in the bud and in flight, standing on +Z from its foot, 10 cm high */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (EditCondition = "bMortar"))
+	TSoftObjectPtr<UStaticMesh> CapsuleMesh;
+
+	/** Seconds the button has to be held for the farthest, biggest throw */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0.1, EditCondition = "bMortar"))
+	float ChargeTime = 1.2f;
+
+	/** How far a tapped and a fully charged capsule flies, in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 100, EditCondition = "bMortar"))
+	float MinThrow = 450.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 100, EditCondition = "bMortar"))
+	float MaxThrow = 1300.0f;
+
+	/** Size of the capsule in cm, tapped and fully charged */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 1, EditCondition = "bMortar"))
+	float CapsuleSize = 9.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 1, EditCondition = "bMortar"))
+	float MaxCapsuleSize = 17.0f;
+
+	/** Radius and damage of the burst, tapped and fully charged */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 10, EditCondition = "bMortar"))
+	float CapsuleBurstRadius = 130.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 10, EditCondition = "bMortar"))
+	float MaxCapsuleBurstRadius = 250.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float CapsuleDamage = 12.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float MaxCapsuleDamage = 28.0f;
+
+	/** Seconds a landed capsule glows before it bursts */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float FuseTime = 0.5f;
+
+	/** The burning patch left behind: seconds and damage per second */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float PatchSeconds = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float PatchDamagePerSecond = 4.0f;
+
+	/** Saft of a fully charged throw on top of the Saft per shot, and seconds before the bud can throw again */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float ChargeSaftCost = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float ThrowInterval = 0.4f;
+
+	/** Rooted in the earth the capsule splits in flight into this many */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 1, ClampMax = 6, EditCondition = "bMortar"))
+	int32 RootedSplit = 3;
+
+	/** Schwarzmohn: seconds the sleep cloud hangs, seconds in it until an enemy falls asleep, and how long it sleeps */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float SleepCloudSeconds = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float DrowsySeconds = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 0, EditCondition = "bMortar"))
+	float SleepSeconds = 4.0f;
+
+	/** Ember glow of the capsule and the sparks, violet of the sleep pollen */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (EditCondition = "bMortar"))
+	FLinearColor EmberColor = FLinearColor(1.0f, 0.42f, 0.08f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (EditCondition = "bMortar"))
+	FLinearColor SleepColor = FLinearColor(0.45f, 0.2f, 0.75f);
+
 	// --- Rose (Taublatt, Boris 2026-10-26): instead of heads on the fingertips large petals sit at the hand like an open
 	// blossom; while aiming they fold shut like the petals of a rose and leave a hole in the middle that the shots leave through
 

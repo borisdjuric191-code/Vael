@@ -115,6 +115,8 @@ public:
 	virtual void ApplyStun(float Duration) override;
 	virtual void ApplyPull(const FVector& Location, float Speed, float DeltaSeconds) override;
 	virtual void ApplyBlind(float Duration) override;
+	virtual void ApplySleep(float Duration) override;
+	virtual bool IsAsleep() const override;
 	//~End AVaelCharacterBase
 
 	/** True while the auto aim must pass it by, like a lynx lying hidden in ambush */
@@ -318,6 +320,9 @@ private:
 
 	/** World time until which the creature can't act */
 	float StunEndTime = 0.0f;
+
+	/** World time until which it sleeps (Schwarzmohn); being hurt wakes it */
+	float SleepEndTime = 0.0f;
 
 	/** True once the creature has died */
 	bool bDead = false;

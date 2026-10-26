@@ -26,6 +26,8 @@
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "World/VaelSafeZone.h"
+#include "World/VaelGround.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "VaelAssets.h"
 
 namespace
@@ -209,9 +211,31 @@ void UVaelPlantArmComponent::Clear()
 		}
 		bArmHidden = false;
 	}
+	// The mortar: the hand comes out of the bud again
+	if (bHandHidden)
+	{
+		if (USkeletalMeshComponent* Body = GetBody())
+		{
+			Body->UnHideBoneByName(Bone(TEXT("hand")));
+		}
+		bHandHidden = false;
+	}
+	if (BudCapsule != nullptr)
+	{
+		BudCapsule->DestroyComponent();
+		BudCapsule = nullptr;
+	}
+	BudCapsuleMaterial = nullptr;
+	Charge = 0.0f;
+	bCharging = false;
+	bThrowQueued = false;
+	ThrowCountdown = 0.0f;
+	ThrowHold = 0.0f;
+	BudOpen = 0.0f;
+	MortarDraw = 0.0f;
 	TetherTarget = nullptr;
 	Tether = 0.0f;
-	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses })
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses, &TargetDots })
 	{
 		for (UStaticMeshComponent* Piece : *Pieces)
 		{
@@ -438,6 +462,46 @@ void UVaelPlantArmComponent::BuildStalks()
 		}
 	}
 
+	// The mortar (Funkenmohn): the hand vanishes into the shut bud, a capsule glows inside it, a ring on the ground shows the aim
+	if (Plant->bMortar)
+	{
+		GetBody()->HideBoneByName(Bone(TEXT("hand")), EPhysBodyOp::PBO_None);
+		bHandHidden = true;
+
+		BudCapsule = NewObject<UStaticMeshComponent>(GetOwner());
+		BudCapsule->SetMobility(EComponentMobility::Movable);
+		BudCapsule->SetStaticMesh(VaelAssets::LoadOptional(Plant->CapsuleMesh));
+		BudCapsule->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		BudCapsule->SetCanEverAffectNavigation(false);
+		BudCapsule->SetupAttachment(GetBody());
+		BudCapsule->RegisterComponent();
+		BudCapsuleMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+		BudCapsule->SetMaterial(0, BudCapsuleMaterial);
+
+		HeartLight = NewObject<UPointLightComponent>(GetOwner());
+		HeartLight->SetupAttachment(GetBody());
+		HeartLight->SetMobility(EComponentMobility::Movable);
+		HeartLight->SetIntensityUnits(ELightUnits::Candelas);
+		HeartLight->SetIntensity(0.0f);
+		HeartLight->SetLightColor(Plant->EmberColor);
+		HeartLight->SetAttenuationRadius(220.0f);
+		HeartLight->SetCastShadows(false);
+		HeartLight->RegisterComponent();
+
+		UMaterialInterface* Core = nullptr;
+		UMaterialInterface* Glow = nullptr;
+		VaelEffects::LoadLookMaterials(Core, Glow);
+		for (int32 Index = 0; Index < UVaelFloromantSettings::Get()->MortarRingDots; ++Index)
+		{
+			UStaticMeshComponent* Dot = VaelEffects::AddLookShape(GetOwner(), Glow, Plant->EmberColor, 4.0f);
+			Dot->SetUsingAbsoluteLocation(true);
+			Dot->SetUsingAbsoluteRotation(true);
+			Dot->SetUsingAbsoluteScale(true);
+			Dot->SetVisibility(false);
+			TargetDots.Add(Dot);
+		}
+	}
+
 	Muzzles.Init(FVector::ZeroVector, NumFingers);
 	MuzzleDirections.Init(FVector::ForwardVector, NumFingers);
 	Flashes.Init(0.0f, NumFingers);
@@ -533,13 +597,21 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	const bool bWaterHand = !Plant->WaterSource.IsNull();
 	const bool bShieldHand = Plant->bShield;
 	const bool bShieldUp = bShieldHand && IsFiring() && Grow >= 1.0f;
-	const bool bFiringNow = !bShieldHand && (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr))) && Grow >= 1.0f;
+	// A mortar hand keeps the arm up until its throw is out
+	const bool bMortarHand = Plant->bMortar;
+	const bool bFiringNow = !bShieldHand && (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr)) || (bMortarHand && (bThrowQueued || ThrowHold > 0.0f))) && Grow >= 1.0f;
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 
 	// A shield hand doesn't aim: the forearm comes up before the face, and the clover overgrows the arm as if it fired
 	ShieldStance = FMath::FInterpTo(ShieldStance, bShieldUp ? 1.0f : 0.0f, DeltaTime, bShieldUp ? 10.0f : 6.0f);
 	Fan = FMath::FInterpTo(Fan, bFiringNow ? 1.0f : 0.0f, DeltaTime, 10.0f);
 	Barrel = Plant->bFingersFormBarrel || HasRose() ? FMath::FInterpTo(Barrel, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 14.0f : 6.0f) : 0.0f;
+	// The bud stays shut; it only bursts open for a moment when it throws
+	if (bMortarHand)
+	{
+		BudOpen = FMath::FInterpTo(BudOpen, 0.0f, DeltaTime, 5.0f);
+		Barrel = 1.0f - BudOpen;
+	}
 
 	// While the hand aims the plant overruns the whole arm; it falls back more slowly when the hand rests
 	Overgrowth = bFiringNow || bShieldUp
@@ -555,6 +627,10 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	else if (bWaterHand)
 	{
 		UpdateWaterFiring(DeltaTime);
+	}
+	else if (bMortarHand)
+	{
+		UpdateMortarFiring(DeltaTime);
 	}
 	else
 	{
@@ -583,11 +659,17 @@ void UVaelPlantArmComponent::UpdateStalks()
 	// The barrel: the finger heads nest into each other in a line in front of the hand, towards where the player aims, each
 	// funnel's foot inside the cup of the one before; the stems behind them bend in from the forearm
 	FVector AimLocal = HandAxis;
-	if (Barrel > 0.0f)
+	if (Barrel > 0.0f || Plant->bMortar)
 	{
 		FVector Aim = UVaelFormulaAbility::GetAimDirection(GetCharacter());
 		Aim.Z = 0.0f;
 		Aim = Aim.IsNearlyZero() ? GetCharacter()->GetActorForwardVector() : Aim.GetSafeNormal();
+		// The mortar aims up into the sky, so the capsule leaves in its arc
+		if (Plant->bMortar)
+		{
+			const float Pitch = FMath::DegreesToRadians(UVaelFloromantSettings::Get()->MortarArmPitch);
+			Aim = Aim * FMath::Cos(Pitch) + FVector::UpVector * FMath::Sin(Pitch);
+		}
 		AimLocal = BodyTransform.InverseTransformVectorNoScale(Aim).GetSafeNormal();
 	}
 	const FVector BarrelBase = BoneLocation(TEXT("middle_01")) + AimLocal * 4.0f;
@@ -595,10 +677,21 @@ void UVaelPlantArmComponent::UpdateStalks()
 	const int32 BarrelRank[] = { 4, 0, 1, 2, 3 };
 
 	// A rose sits on the hand along the middle line of the hand; folding shut it turns towards the aim. The finger stalks are
-	// short and end in its foot, like the green under a blossom
+	// short and end in its foot, like the green under a blossom. The bud of the mortar takes the whole hand in, from the wrist,
+	// and turns to the sky as the arm comes up
 	const bool bRose = !Petals.IsEmpty();
-	const FVector RoseAxis = FMath::Lerp(HandAxis, AimLocal, Barrel).GetSafeNormal();
-	const FVector RoseBase = BoneLocation(TEXT("middle_01")) + RoseAxis * 2.0f;
+	const FVector RoseAxis = FMath::Lerp(HandAxis, AimLocal, Plant->bMortar ? Stance : Barrel).GetSafeNormal();
+	const FVector RoseBase = Plant->bMortar ? Wrist - RoseAxis * 1.0f : BoneLocation(TEXT("middle_01")) + RoseAxis * 2.0f;
+	if (BudCapsule != nullptr)
+	{
+		const float Size = FMath::Lerp(Plant->CapsuleSize, Plant->MaxCapsuleSize, Charge) * 0.8f;
+		BudCapsule->SetRelativeLocationAndRotation(RoseBase + RoseAxis * Plant->PetalSize * 0.2f, FRotationMatrix::MakeFromZ(RoseAxis).Rotator());
+		BudCapsule->SetRelativeScale3D(FVector(Size / 10.0f * Grow * (ThrowCountdown > 0.0f ? 1.0f - ThrowCountdown / FMath::Max(Plant->ThrowInterval, 0.01f) : 1.0f)));
+		if (HeartLight != nullptr)
+		{
+			HeartLight->SetRelativeLocation(RoseBase + RoseAxis * Plant->PetalSize * 0.5f);
+		}
+	}
 
 	// Fingers: from the forearm past the fingertip into a long stalk
 	for (int32 Finger = 0; Finger < FingerStalks.Num(); ++Finger)
@@ -842,6 +935,160 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 
 	// The plant's own shot: a burning seed head, a blade of grass, a Tauperle of its water (VaelSymbiosis::FireShot)
 	VaelSymbiosis::FireShot(Character, Plant, Muzzle, Direction, Power, Character->GetPath() == EVaelPath::Shadow);
+}
+
+// ---------------------------------------------------------------- Mortar (Funkenmohn)
+
+bool UVaelPlantArmComponent::IsMortar() const
+{
+	return Plant != nullptr && Plant->bMortar && !bChanging;
+}
+
+FVector UVaelPlantArmComponent::GetThrowTarget(float WithCharge) const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	Aim.Z = 0.0f;
+	Aim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
+	const FVector Flat = Character->GetActorLocation() + Aim * FMath::Lerp(Plant->MinThrow, Plant->MaxThrow, WithCharge);
+	FHitResult Hit;
+	if (VaelGround::TraceGround(GetWorld(), Flat + FVector(0.0f, 0.0f, 400.0f), Flat - FVector(0.0f, 0.0f, 800.0f), Hit, Character))
+	{
+		return Hit.ImpactPoint;
+	}
+	return Flat - FVector(0.0f, 0.0f, Character->GetSimpleCollisionHalfHeight());
+}
+
+void UVaelPlantArmComponent::UpdateMortarFiring(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	ThrowCountdown = FMath::Max(0.0f, ThrowCountdown - DeltaTime);
+	ThrowHold = FMath::Max(0.0f, ThrowHold - DeltaTime);
+
+	// Held: the arm stretches out and up, then the longer it is held the further it draws back and the further it will throw
+	const bool bHeld = IsFiring() && Grow >= 1.0f && !Character->IsDowned() && !IsReloading();
+	if (bHeld)
+	{
+		if (!bCharging)
+		{
+			bCharging = true;
+			Charge = 0.0f;
+			FireTime = 0.0f;
+		}
+		FireTime += DeltaTime;
+		if (Stance > 0.6f)
+		{
+			Charge = FMath::Min(1.0f, Charge + DeltaTime / FMath::Max(Plant->ChargeTime, 0.1f));
+		}
+	}
+	else if (bCharging)
+	{
+		// Let go: the throw leaves as soon as the arm is up (at once after a long hold, a moment later after a tap)
+		bCharging = false;
+		bThrowQueued = !Character->IsDowned();
+		QueuedCharge = Charge;
+	}
+
+	if (bThrowQueued && Stance >= 0.6f && ThrowCountdown <= 0.0f && !Character->IsDodging())
+	{
+		bThrowQueued = false;
+		ThrowNow(QueuedCharge);
+		Charge = 0.0f;
+	}
+
+	// The arm springs forward when it throws and draws back slowly while charging
+	MortarDraw = FMath::FInterpTo(MortarDraw, bCharging ? Charge * UVaelFloromantSettings::Get()->MortarDrawBack : 0.0f, DeltaTime, bCharging ? 8.0f : 22.0f);
+
+	// The bud glows hotter the more it is charged, and flares open when it throws
+	const float Heat = 0.12f + 0.7f * (bCharging ? Charge : 0.0f) + BudOpen;
+	ArmMaterial->SetScalarParameterValue(TipFlashParameter, Heat * 0.1f);
+	if (BudCapsuleMaterial != nullptr)
+	{
+		BudCapsuleMaterial->SetScalarParameterValue(GrowParameter, Grow);
+		BudCapsuleMaterial->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+		BudCapsuleMaterial->SetScalarParameterValue(TipFlashParameter, Heat * 0.35f);
+	}
+	if (HeartLight != nullptr)
+	{
+		HeartLight->SetLightColor(bShadow ? Plant->SleepColor : Plant->EmberColor);
+		HeartLight->SetIntensity(Grow * (0.8f + 4.0f * Heat));
+	}
+
+	// A ring of embers on the ground shows where the capsule will land and how wide it bursts
+	const bool bShowRing = bCharging && Stance > 0.6f && !AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation());
+	if (bShowRing)
+	{
+		const FVector Target = GetThrowTarget(Charge);
+		const float Radius = FMath::Lerp(Plant->CapsuleBurstRadius, Plant->MaxCapsuleBurstRadius, Charge);
+		const float DotSize = UVaelFloromantSettings::Get()->MortarRingDotSize;
+		const float Spin = GetWorld()->GetTimeSeconds() * 0.6f;
+		const FLinearColor Color = bShadow ? Plant->SleepColor : Plant->EmberColor;
+		for (int32 Index = 0; Index < TargetDots.Num(); ++Index)
+		{
+			const float Angle = 2.0f * UE_PI * Index / TargetDots.Num() + Spin;
+			UStaticMeshComponent* Dot = TargetDots[Index];
+			Dot->SetWorldLocation(Target + FVector(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, 4.0f));
+			Dot->SetWorldScale3D(FVector(DotSize / 100.0f, DotSize / 100.0f, DotSize / 250.0f));
+			if (UMaterialInstanceDynamic* DotMaterial = Cast<UMaterialInstanceDynamic>(Dot->GetMaterial(0)))
+			{
+				DotMaterial->SetVectorParameterValue(VaelEffects::LookColorParameter, Color);
+			}
+			Dot->SetVisibility(true);
+		}
+	}
+	else
+	{
+		for (UStaticMeshComponent* Dot : TargetDots)
+		{
+			Dot->SetVisibility(false);
+		}
+	}
+}
+
+bool UVaelPlantArmComponent::ThrowNow(float WithCharge)
+{
+	AVaelCharacter* Character = GetCharacter();
+
+	// Nothing is thrown in the camp, like the spells of the mage
+	if (AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation()) || BarShots < 1.0f)
+	{
+		return false;
+	}
+	const float Cost = Plant->SaftPerShot + Plant->ChargeSaftCost * WithCharge;
+	if (Character->GetMana() < Cost)
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
+		return false;
+	}
+	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Cost);
+	BarShots -= 1.0f;
+	LastShotTime = GetWorld()->GetTimeSeconds();
+	ThrowCountdown = Plant->ThrowInterval;
+	ThrowHold = 0.35f;
+	BudOpen = 1.0f;
+
+	// Out of the opening bud to where the ring lay; rooted in the earth it hits harder and breaks into several in the air
+	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
+	const float Power = Floromant != nullptr ? Floromant->GetHandPower() : 1.0f;
+	const int32 Split = Floromant != nullptr && Floromant->IsRooted() ? Plant->RootedSplit : 0;
+	VaelSymbiosis::ThrowCapsule(Character, Plant, BarrelMuzzle, GetThrowTarget(WithCharge), WithCharge, Power, Character->GetPath() == EVaelPath::Shadow, Split);
+
+	// Petals and sparks fly off the bud as it bursts open
+	FVaelDebris Burst;
+	Burst.Count = 10;
+	Burst.Spread = 50.0f;
+	Burst.Speed = 160.0f;
+	Burst.Lift = 120.0f;
+	Burst.Gravity = 300.0f;
+	Burst.Lifetime = 0.5f;
+	Burst.MinSize = 2.0f;
+	Burst.MaxSize = 4.0f;
+	Burst.Color = Character->GetPath() == EVaelPath::Shadow ? Plant->SleepColor : Plant->EmberColor;
+	Burst.Glow = 6.0f;
+	Burst.bLandOnGround = false;
+	AVaelDebrisBurst::Spawn(this, BarrelMuzzle, Burst);
+	return true;
 }
 
 // ---------------------------------------------------------------- Keimpelz

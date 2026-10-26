@@ -96,6 +96,12 @@ public:
 	/** Takes away the sight of the character for some seconds, so it starts no attacks. Only creatures can be blinded. */
 	virtual void ApplyBlind(float Duration) {}
 
+	/** Puts the character to sleep for some seconds: it can't act until the time is over or it is hurt (Schwarzmohn). Only creatures sleep. */
+	virtual void ApplySleep(float Duration) {}
+
+	/** True while it sleeps */
+	virtual bool IsAsleep() const { return false; }
+
 	/** Names of the conditions the character has right now, for display. Empty if there are none. */
 	UFUNCTION(BlueprintPure, Category="Combat")
 	FText GetStatusText() const;

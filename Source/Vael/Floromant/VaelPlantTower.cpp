@@ -417,7 +417,7 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		}
 		const FVector Middle = (GetCrown() + Partner->GetCrown()) * 0.5f - FVector(0.0f, 0.0f, 35.0f);
 		const float Hotter = Symbiosis == EVaelSymbiosis::Glutglas ? 1.5f : 1.0f;
-		VaelSymbiosis::FireShot(Gardener, Shooter, Middle, (Goal->GetActorLocation() - Middle).GetSafeNormal(), Power * Hotter, bShadow, UVaelFloromantSettings::Get()->TowerShotScale);
+		VaelSymbiosis::FireShot(Gardener, Shooter, Middle, (Goal->GetActorLocation() - Middle).GetSafeNormal(), Power * Hotter, bShadow, UVaelFloromantSettings::Get()->TowerShotScale, 1.0f, FVector::Dist2D(Middle, Goal->GetActorLocation()));
 		if (Symbiosis == EVaelSymbiosis::Aschenrose && !bShadow)
 		{
 			VaelRoseCare::HealAround(Gardener, GetActorLocation(), 600.0f, 0.02f * Power);
@@ -434,7 +434,7 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		// The pair acts out of the knot between both towers
 		const FVector Middle = (GetCrown() + Partner->GetCrown()) * 0.5f - FVector(0.0f, 0.0f, 35.0f);
 		const FVector Way = Goal->GetActorLocation() - Middle;
-		VaelSymbiosis::Fire(Gardener, Symbiosis, Plant, Partner->Plant, Middle, Way, Power, 0.0f, bShadow);
+		VaelSymbiosis::Fire(Gardener, Symbiosis, Plant, Partner->Plant, Middle, Way, Power, 0.0f, bShadow, Way.Size2D());
 		if (Knot != nullptr)
 		{
 			Knot->Flash();
@@ -445,7 +445,8 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 	const FVector Muzzle = GetCrown() + FVector(0.0f, 0.0f, 15.0f) + LookDirection * 20.0f;
 	const FVector Spread = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Goal->GetActorLocation() - Muzzle);
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
-	VaelSymbiosis::FireShot(Gardener, Plant, Muzzle, Spread.GetSafeNormal(), Power, bShadow, Settings->TowerShotScale);
+	// A Mohnmörser throws its capsule to where the enemy stands
+	VaelSymbiosis::FireShot(Gardener, Plant, Muzzle, Spread.GetSafeNormal(), Power, bShadow, Settings->TowerShotScale, 1.0f, Spread.Size2D());
 }
 
 void AVaelPlantTower::UpdateLook(float DeltaSeconds)

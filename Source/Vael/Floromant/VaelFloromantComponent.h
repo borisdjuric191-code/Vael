@@ -110,6 +110,10 @@ public:
 	/** How far a shield hand is raised before the face, 0 to 1 */
 	float GetShieldStance(bool bLeft) const;
 
+	/** True for a mortar hand (Funkenmohn), and how far it is drawn back to the shoulder while charging, 0 to 1 */
+	bool IsMortarHand(bool bLeft) const;
+	float GetMortarDraw(bool bLeft) const;
+
 	/** Share of the walking speed left while firing */
 	float GetMoveSpeedScale() const;
 

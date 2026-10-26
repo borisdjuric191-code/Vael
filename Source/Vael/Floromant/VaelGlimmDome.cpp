@@ -95,6 +95,7 @@ AVaelGlimmDome* AVaelGlimmDome::Raise(APawn* InOwner, AActor* InCenter, const UV
 	case EVaelSymbiosis::Funkelwind:	Color = FLinearColor(0.85f, 1.0f, 0.6f); break;
 	case EVaelSymbiosis::Tauglocke:		Color = FLinearColor(0.4f, 0.95f, 0.9f); break;
 	case EVaelSymbiosis::Glashaus:		Color = FLinearColor(0.55f, 1.0f, 0.5f); break;
+	case EVaelSymbiosis::Glutblase:		Color = FLinearColor(1.0f, 0.6f, 0.25f); break;
 	default: break;
 	}
 	if (UMaterialInterface* Material = VaelAssets::LoadOptional(UVaelFloromantSettings::Get()->GlassMaterial))

@@ -42,6 +42,12 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	PlantArmStance[1] = Floromant != nullptr ? Floromant->GetStance(false) : 0.0f;
 	ShieldStance[0] = Floromant != nullptr ? Floromant->GetShieldStance(true) : 0.0f;
 	ShieldStance[1] = Floromant != nullptr ? Floromant->GetShieldStance(false) : 0.0f;
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		bMortarArm[Side] = Floromant != nullptr && Floromant->IsMortarHand(Side == 0);
+		MortarDraw[Side] = Floromant != nullptr ? Floromant->GetMortarDraw(Side == 0) : 0.0f;
+	}
+	MortarPitch = UVaelFloromantSettings::Get()->MortarArmPitch;
 	const UVaelFloromantSettings* FloromantSettings = UVaelFloromantSettings::Get();
 	PlantArmLean = FloromantSettings->FiringLean * FMath::Max(PlantArmStance[0], PlantArmStance[1]);
 	PlantArmReach = FloromantSettings->FiringArmReach;
@@ -86,6 +92,12 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	Flight = Instance->FlightPose;
 	Shield[0] = Instance->ShieldStance[0];
 	Shield[1] = Instance->ShieldStance[1];
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		bMortar[Side] = Instance->bMortarArm[Side];
+		Draw[Side] = Instance->MortarDraw[Side];
+	}
+	MortarPitch = Instance->MortarPitch;
 }
 
 namespace
@@ -234,6 +246,20 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 
 		const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
 		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+		// A mortar arm (Funkenmohn, Boris 2026-10-26): stretched out and up towards the sky; the longer it charges the further it
+		// draws back to the shoulder, the elbow out to the side and the forearm folded up, the bud still pointing along the arc
+		if (bMortar[Side])
+		{
+			const float Pitch = FMath::DegreesToRadians(MortarPitch);
+			const FVector Up = FVector(Outward * 0.12f, FMath::Cos(Pitch), FMath::Sin(Pitch)).GetSafeNormal();
+			const FVector UpperDrawn = FVector(Outward * 0.8f, 0.35f, 0.1f).GetSafeNormal();
+			const FVector LowerDrawn = FVector(-Outward * 0.35f, 0.25f, 0.9f).GetSafeNormal();
+			Aim(Upper, Lower, FMath::Lerp(Up, UpperDrawn, Draw[Side]).GetSafeNormal(), Weight);
+			Aim(Lower, Hand, FMath::Lerp(Up, LowerDrawn, Draw[Side]).GetSafeNormal(), Weight);
+			Aim(Hand, Middle, Up, Weight);
+			continue;
+		}
+
 		const FVector Direction = FVector(Outward * 0.12f, 1.0f, -0.04f).GetSafeNormal();
 
 		Aim(Upper, Lower, Direction, Weight);

@@ -413,6 +413,22 @@ void AVaelCreature::ApplyPull(const FVector& Location, float Speed, float DeltaS
 	}
 }
 
+void AVaelCreature::ApplySleep(float Duration)
+{
+	if (!bDead && Duration > 0.0f)
+	{
+		// Sleep holds it like a stun, as long as nothing hurts it
+		const float Seconds = Duration * ActiveData->StunMultiplier;
+		SleepEndTime = FMath::Max(SleepEndTime, GetWorld()->GetTimeSeconds() + Seconds);
+		Stun(Seconds);
+	}
+}
+
+bool AVaelCreature::IsAsleep() const
+{
+	return !bDead && GetWorld()->GetTimeSeconds() < SleepEndTime;
+}
+
 void AVaelCreature::ApplyBlind(float Duration)
 {
 	if (!bDead)
@@ -1041,6 +1057,13 @@ void AVaelCreature::SetFactoryMeshOffset(const FVector& Offset, float Scale, flo
 void AVaelCreature::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
 {
 	Super::OnDamageTaken(Damage, DamageTags);
+
+	// Being hurt wakes a sleeping creature at once
+	if (Damage > 0.0f && IsAsleep())
+	{
+		SleepEndTime = 0.0f;
+		StunEndTime = FMath::Min(StunEndTime, GetWorld()->GetTimeSeconds());
+	}
 
 	if (FactoryLegs != nullptr && Damage > 0.0f)
 	{

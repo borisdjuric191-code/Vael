@@ -99,6 +99,21 @@ ARMS = {
         "data": {"vine_arm": True, "arm_vine_count": 7, "arm_vine_length": 80.0, "arm_vine_thickness": 0.75, "shoulder_rose_size": 40.0,
                  "rest_wind": 0.2},
     },
+    # Boris 2026-10-26: the whole hand is a shut poppy bud; held, the arm is a mortar aiming up that draws back the longer it charges
+    # and throws a glowing seed capsule in an arc (Schwarzmohn: sleep pollen). Petal and capsule from
+    # Tools/Pflanzenarm/funkenmohn_knospe.py, stalks from halme_zerlegen.py, the vine from ranke_bauen.py
+    "Funkenmohn": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": False,
+        "petal": "Bluetenblatt",
+        "capsule": "Kapsel",
+        "values": {"Silber": 0.0, "Leuchten": 0.05, "Glut": 0.9, "Leuchtfarbe": (1.0, 0.42, 0.08), "Metall": 0.05, "Rauheit": 0.5},
+        "data": {"mortar": True, "shot_element": "FIRE", "fire_interval": 0.7, "shot_range": 1300.0, "saft_per_shot": 2.0, "bar_size": 24,
+                 "finger_length": 10.0, "finger_thickness": 0.3, "fan_angle": 0.0, "arm_thickness": 0.4, "wild_count": 2,
+                 "rest_wind": 0.25, "inner_petals": 4, "outer_petals": 5, "petal_size": 15.0, "rose_open_angle": 70.0,
+                 "rose_closed_angle": 22.0, "rose_hole_radius": 0.5},
+    },
 }
 
 
@@ -446,8 +461,9 @@ def main():
         vine = import_mesh(plant, "SM_{}_Ranke".format(plant), 50.0)
         petal = import_mesh(plant, "SM_{}_{}".format(plant, arm["petal"]), 5.0) if arm.get("petal") else None
         shoulder = import_mesh(plant, "SM_{}_{}".format(plant, arm["shoulder"]), 5.0) if arm.get("shoulder") else None
+        capsule = import_mesh(plant, "SM_{}_{}".format(plant, arm["capsule"]), 5.0) if arm.get("capsule") else None
         instance = make_instance(stalk_material, plant, arm["values"])
-        for mesh in fingers + others + [head, vine, leaf, petal]:
+        for mesh in fingers + others + [head, vine, leaf, petal, capsule]:
             if mesh is not None:
                 mesh.set_material(0, instance)
                 assets.save_loaded_asset(mesh, False)
@@ -460,6 +476,11 @@ def main():
             data = unreal.load_asset("{}/DA_Pflanzenarm_{}".format(FOLDER, plant))
             if data is not None and data.get_editor_property("shoulder_mesh") is None:
                 data.set_editor_property("shoulder_mesh", shoulder)
+                assets.save_loaded_asset(data, False)
+        if capsule is not None:
+            data = unreal.load_asset("{}/DA_Pflanzenarm_{}".format(FOLDER, plant))
+            if data is not None and data.get_editor_property("capsule_mesh") is None:
+                data.set_editor_property("capsule_mesh", capsule)
                 assets.save_loaded_asset(data, False)
 
     for line in created:

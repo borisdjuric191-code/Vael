@@ -31,6 +31,11 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	/** Copied from the instance: how far each shield hand is raised (left, right) */
 	float Shield[2] = { 0.0f, 0.0f };
 
+	/** Copied from the instance: which arms are mortars, how far each is drawn back, and how far up they aim in degrees */
+	bool bMortar[2] = { false, false };
+	float Draw[2] = { 0.0f, 0.0f };
+	float MortarPitch = 42.0f;
+
 private:
 
 	/** Tips the body, lets the legs dangle and swing, bends the knees and points the toes */
@@ -91,6 +96,11 @@ protected:
 
 	/** How far each shield hand of a Floromant is raised before the face (left, right) */
 	float ShieldStance[2] = { 0.0f, 0.0f };
+
+	/** Mortar hands of a Floromant (Funkenmohn): which arms are mortars, how far each is drawn back, and how far up they aim in degrees */
+	bool bMortarArm[2] = { false, false };
+	float MortarDraw[2] = { 0.0f, 0.0f };
+	float MortarPitch = 42.0f;
 
 public:
 

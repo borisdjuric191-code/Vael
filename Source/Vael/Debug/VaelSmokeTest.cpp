@@ -474,6 +474,87 @@ void AVaelSmokeTest::BeginPlay()
 			return FString::Printf(TEXT("%sbars %s, %.0f Keimpelz used, hands %s after the mage"), bOk ? TEXT("") : TEXT("FAILED: "),
 				Missing == 0 ? TEXT("full") : TEXT("NOT full"), Used, bCleared ? TEXT("bare") : TEXT("NOT bare"));
 		}, 0.2f });
+
+		// The Funkenmohn (Boris 2026-10-26): both hands become mortar buds, a tap throws a capsule at the crawlers in an arc,
+		// then the crossed hands throw the Mohnfeuerwerk
+		Steps.Add({ TEXT("Mortar hands"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 3);
+			AVaelCharacter* Player = GetPlayer();
+			UVaelPlantArmData* Poppy = LoadObject<UVaelPlantArmData>(nullptr, TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm/DA_Pflanzenarm_Funkenmohn.DA_Pflanzenarm_Funkenmohn"));
+			if (Player == nullptr || Poppy == nullptr)
+			{
+				return FString(TEXT("FAILED: no player or no DA_Pflanzenarm_Funkenmohn"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			Player->GetFloromant()->GetHand(true)->SetPlant(Poppy);
+			Player->GetFloromant()->GetHand(false)->SetPlant(Poppy);
+			return FString::Printf(TEXT("%s, Funkenmohn on both hands, capsule %s"), *Arena, Poppy->CapsuleMesh.IsNull() ? TEXT("MISSING") : TEXT("set"));
+		}, 1.0f });
+		Steps.Add({ TEXT("Mortar tap"), [this, EnemyHealth]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			const AVaelCreature* Crawler = nullptr;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Crawler = !It->IsDead() ? *It : Crawler;
+			}
+			if (Crawler != nullptr)
+			{
+				Player->SetActorRotation(FRotator(0.0f, (Crawler->GetActorLocation() - Player->GetActorLocation()).Rotation().Yaw, 0.0f));
+			}
+			PlantArmEnemyHealth = EnemyHealth();
+			Player->GetFloromant()->SetHandFiring(true, true);
+			return FString::Printf(TEXT("tapping, enemies have %.0f health, crawler %.0f cm away"), PlantArmEnemyHealth,
+				Crawler != nullptr ? FVector::Dist2D(Crawler->GetActorLocation(), Player->GetActorLocation()) : 0.0f);
+		}, 0.15f });
+		Steps.Add({ TEXT("Mortar release"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			Player->GetFloromant()->SetHandFiring(true, false);
+			return FString(TEXT("let go"));
+		}, 2.4f });
+		Steps.Add({ TEXT("Mortar"), [this, EnemyHealth]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			UVaelPlantArmComponent* Left = Player->GetFloromant()->GetHand(true);
+			const int32 Thrown = Left->GetPlant() != nullptr ? Left->GetPlant()->BarSize - Left->GetBarShots() : 0;
+			const float Damage = PlantArmEnemyHealth - EnemyHealth();
+
+			// Crossed: both hands held, the pair throws its giant capsule
+			PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 3);
+			PlantArmEnemyHealth = EnemyHealth();
+			Player->GetFloromant()->SetHandFiring(true, true);
+			Player->GetFloromant()->SetHandFiring(false, true);
+			Player->GetFloromant()->CrossHands(false);
+			const bool bOk = Thrown == 1 && Damage > 0.0f;
+			return FString::Printf(TEXT("%s%d capsule thrown, %.0f damage; crossing the hands"), bOk ? TEXT("") : TEXT("FAILED: "), Thrown, Damage);
+		}, 3.0f });
+		Steps.Add({ TEXT("Mohnfeuerwerk"), [this, EnemyHealth]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			const float Damage = PlantArmEnemyHealth - EnemyHealth();
+			Player->GetFloromant()->SetHandFiring(true, false);
+			Player->GetFloromant()->SetHandFiring(false, false);
+			Player->SetHero(EVaelHeroClass::Mage, false);
+			return FString::Printf(TEXT("%s%.0f damage from the firework"), Damage > 0.0f ? TEXT("") : TEXT("FAILED: "), Damage);
+		}, 0.2f });
 	}
 
 	// The veil monkey leaps onto the player's back and robs them; fire blinds it and the loot comes back

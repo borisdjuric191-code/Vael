@@ -8,6 +8,7 @@
 #include "Magic/VaelLightningBolt.h"
 #include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelRoseHeart.h"
+#include "Floromant/VaelPoppyCapsule.h"
 #include "GameFramework/PlayerController.h"
 #include "Player/VaelCharacter.h"
 #include "TimerManager.h"
@@ -164,6 +165,30 @@ namespace VaelSymbiosis
 		{
 			return EVaelSymbiosis::Glashaus;
 		}
+		if (Is(TEXT("Funkenmohn"), TEXT("Funkenmohn")))
+		{
+			return EVaelSymbiosis::Mohnfeuerwerk;
+		}
+		if (Is(TEXT("Funkenmohn"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Zuendschnur;
+		}
+		if (Is(TEXT("Funkenmohn"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::Funkenwirbel;
+		}
+		if (Is(TEXT("Funkenmohn"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Gewittermohn;
+		}
+		if (Is(TEXT("Funkenmohn"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Glutblase;
+		}
+		if (Is(TEXT("Funkenmohn"), TEXT("Russrose")))
+		{
+			return EVaelSymbiosis::Brandsalbe;
+		}
 		return EVaelSymbiosis::None;
 	}
 
@@ -186,6 +211,12 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Aschenrose:	return NSLOCTEXT("VaelSymbiosis", "Aschenrose", "Aschenrose");
 		case EVaelSymbiosis::Rosentau:		return NSLOCTEXT("VaelSymbiosis", "Rosentau", "Rosentau");
 		case EVaelSymbiosis::Glashaus:		return NSLOCTEXT("VaelSymbiosis", "Glashaus", "Glashaus");
+		case EVaelSymbiosis::Mohnfeuerwerk:	return NSLOCTEXT("VaelSymbiosis", "Mohnfeuerwerk", "Mohnfeuerwerk");
+		case EVaelSymbiosis::Zuendschnur:	return NSLOCTEXT("VaelSymbiosis", "Zuendschnur", "Zündschnur");
+		case EVaelSymbiosis::Funkenwirbel:	return NSLOCTEXT("VaelSymbiosis", "Funkenwirbel", "Funkenwirbel");
+		case EVaelSymbiosis::Gewittermohn:	return NSLOCTEXT("VaelSymbiosis", "Gewittermohn", "Gewittermohn");
+		case EVaelSymbiosis::Glutblase:		return NSLOCTEXT("VaelSymbiosis", "Glutblase", "Glutblase");
+		case EVaelSymbiosis::Brandsalbe:	return NSLOCTEXT("VaelSymbiosis", "Brandsalbe", "Brandsalbe");
 		default:							return FText::GetEmpty();
 		}
 	}
@@ -209,6 +240,12 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Aschenrose:	return FLinearColor(0.9f, 0.55f, 0.25f);
 		case EVaelSymbiosis::Rosentau:		return FLinearColor(0.35f, 0.95f, 0.8f);
 		case EVaelSymbiosis::Glashaus:		return FLinearColor(0.6f, 1.0f, 0.55f);
+		case EVaelSymbiosis::Mohnfeuerwerk:	return FLinearColor(1.0f, 0.4f, 0.1f);
+		case EVaelSymbiosis::Zuendschnur:	return FLinearColor(1.0f, 0.3f, 0.05f);
+		case EVaelSymbiosis::Funkenwirbel:	return FLinearColor(1.0f, 0.55f, 0.2f);
+		case EVaelSymbiosis::Gewittermohn:	return FLinearColor(0.55f, 0.75f, 1.0f);
+		case EVaelSymbiosis::Glutblase:		return FLinearColor(1.0f, 0.65f, 0.25f);
+		case EVaelSymbiosis::Brandsalbe:	return FLinearColor(1.0f, 0.7f, 0.35f);
 		default:							return FLinearColor::White;
 		}
 	}
@@ -217,6 +254,12 @@ namespace VaelSymbiosis
 	{
 		return Kind == EVaelSymbiosis::Lichtkuppel || Kind == EVaelSymbiosis::Glutglas || Kind == EVaelSymbiosis::Funkelwind || Kind == EVaelSymbiosis::Tauglocke
 			|| Kind == EVaelSymbiosis::Glashaus;
+	}
+
+	bool IsPoppy(EVaelSymbiosis Kind)
+	{
+		return Kind == EVaelSymbiosis::Mohnfeuerwerk || Kind == EVaelSymbiosis::Zuendschnur || Kind == EVaelSymbiosis::Funkenwirbel || Kind == EVaelSymbiosis::Gewittermohn
+			|| Kind == EVaelSymbiosis::Glutblase || Kind == EVaelSymbiosis::Brandsalbe;
 	}
 
 	bool HasRose(EVaelSymbiosis Kind)
@@ -279,11 +322,17 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Glutbusch:		return 2.2f;
 		case EVaelSymbiosis::Quellrose:		return 2.0f;
 		case EVaelSymbiosis::Dampfstoss:	return 3.0f;
+		case EVaelSymbiosis::Mohnfeuerwerk:	return 2.4f;
+		case EVaelSymbiosis::Zuendschnur:	return 2.6f;
+		case EVaelSymbiosis::Funkenwirbel:	return 4.0f;
+		case EVaelSymbiosis::Gewittermohn:	return 2.6f;
+		case EVaelSymbiosis::Glutblase:		return 3.5f;
+		case EVaelSymbiosis::Brandsalbe:	return 6.0f;
 		default:							return 1.4f;
 		}
 	}
 
-	void Fire(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* A, const UVaelPlantArmData* B, const FVector& Origin, const FVector& Direction, float Power, float Charge, bool bShadow)
+	void Fire(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* A, const UVaelPlantArmData* B, const FVector& Origin, const FVector& Direction, float Power, float Charge, bool bShadow, float Reach)
 	{
 		if (Instigator == nullptr || A == nullptr || B == nullptr || Kind == EVaelSymbiosis::None)
 		{
@@ -608,16 +657,146 @@ namespace VaelSymbiosis
 			}
 			break;
 		}
+		case EVaelSymbiosis::Mohnfeuerwerk:
+		case EVaelSymbiosis::Zuendschnur:
+		case EVaelSymbiosis::Funkenwirbel:
+		case EVaelSymbiosis::Gewittermohn:
+		case EVaelSymbiosis::Glutblase:
+		case EVaelSymbiosis::Brandsalbe:
+		{
+			// Every pair of the Funkenmohn throws in an arc: to where the tower aims, else to the enemy ahead or far ahead
+			const UVaelPlantArmData* Poppy = Pick(TEXT("Funkenmohn"));
+			const UVaelPlantArmData* Other = Poppy == A ? B : A;
+			const FVector Flat = Ahead.GetSafeNormal2D().IsNearlyZero() ? Instigator->GetActorForwardVector() : Ahead.GetSafeNormal2D();
+			FVector Target = Origin + Flat * (Reach > 0.0f ? Reach : FMath::Lerp(800.0f, 1200.0f, Charge));
+			if (Reach <= 0.0f)
+			{
+				if (const AActor* Enemy = FindTarget(Instigator, Origin + Flat * 900.0f, 550.0f))
+				{
+					Target = Enemy->GetActorLocation();
+				}
+			}
+			const float Wide = FMath::Sqrt(Grown);
+			const bool bTower = Reach > 0.0f;
+
+			FVaelPoppyThrow Throw;
+			Throw.Size = Poppy->MaxCapsuleSize * 1.3f;
+			Throw.Radius = Poppy->MaxCapsuleBurstRadius * Wide;
+			Throw.Damage = Poppy->MaxCapsuleDamage * Power * Grown;
+			Throw.Fuse = Poppy->FuseTime;
+			Throw.PatchSeconds = Poppy->PatchSeconds;
+			Throw.PatchDamagePerSecond = Poppy->PatchDamagePerSecond * Power;
+			switch (Kind)
+			{
+			case EVaelSymbiosis::Mohnfeuerwerk:
+				if (bTower)
+				{
+					// A salvo: three capsules one after the other around the target
+					for (int32 Index = 0; Index < 3; ++Index)
+					{
+						FVaelPoppyThrow Shell = Throw;
+						Shell.Burst = EVaelPoppyBurst::Sparks;
+						Shell.Size = Poppy->CapsuleSize * 1.2f;
+						Shell.Radius = Poppy->CapsuleBurstRadius * 1.2f;
+						Shell.Damage = Poppy->CapsuleDamage * 1.3f * Power;
+						Shell.Delay = Index * 0.22f;
+						const FVector Spot = Target + (Index == 0 ? FVector::ZeroVector : FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), 0.0f) * 160.0f);
+						AVaelPoppyCapsule::Throw(Instigator, Poppy, Origin, Spot, Shell, bShadow);
+					}
+					return;
+				}
+				// One giant capsule that bursts into many small ones
+				Throw.Burst = EVaelPoppyBurst::Firework;
+				Throw.Size = Poppy->MaxCapsuleSize * 1.8f;
+				Throw.Scatter = Charge > 0.5f ? 10 : 7;
+				Throw.Radius = Poppy->CapsuleBurstRadius * Wide;
+				break;
+			case EVaelSymbiosis::Zuendschnur:
+			{
+				// A row of poppies sprouting out of the ground from her to the target, bursting one after the other
+				const FVector From = Origin + Flat * 120.0f;
+				const float Length = FVector::Dist2D(From, Target);
+				const int32 Links = FMath::Clamp(FMath::RoundToInt32(Length / 110.0f), 3, Charge > 0.5f ? 12 : 8);
+				for (int32 Index = 0; Index < Links; ++Index)
+				{
+					FVaelPoppyThrow Link = Throw;
+					Link.Burst = EVaelPoppyBurst::Fuse;
+					Link.Size = Poppy->CapsuleSize;
+					Link.Radius = Poppy->CapsuleBurstRadius * 0.9f * Wide;
+					Link.Damage = Poppy->CapsuleDamage * 0.8f * Power * Grown;
+					Link.Fuse = 0.25f;
+					Link.Delay = Index * 0.12f;
+					Link.PatchSeconds = Index % 2 == 0 ? Poppy->PatchSeconds * 0.75f : 0.0f;
+					const FVector Spot = FMath::Lerp(From, Target, (Index + 1.0f) / Links) + FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), 0.0f) * 20.0f;
+					AVaelPoppyCapsule::Throw(Instigator, Poppy, Spot, Spot, Link, bShadow);
+				}
+				return;
+			}
+			case EVaelSymbiosis::Funkenwirbel:
+				Throw.Burst = EVaelPoppyBurst::Whirl;
+				Throw.Radius = Poppy->MaxCapsuleBurstRadius * 0.9f * Wide;
+				Throw.Linger = 3.0f + 1.5f * Charge;
+				break;
+			case EVaelSymbiosis::Gewittermohn:
+				Throw.Burst = EVaelPoppyBurst::Storm;
+				Throw.Radius = Poppy->CapsuleBurstRadius * 1.3f * Wide;
+				Throw.Damage = Poppy->MaxCapsuleDamage * 0.8f * Power * Grown;
+				Throw.Linger = 0.8f;
+				break;
+			case EVaelSymbiosis::Glutblase:
+				Throw.Burst = EVaelPoppyBurst::Bubble;
+				Throw.Radius = 200.0f * Wide;
+				Throw.Linger = 1.5f;
+				Throw.Partner = Other;
+				break;
+			default:
+				Throw.Burst = EVaelPoppyBurst::Salve;
+				Throw.Radius = 260.0f * Wide;
+				Throw.Damage = Poppy->CapsuleDamage * Power;
+				Throw.Linger = 5.0f;
+				break;
+			}
+			AVaelPoppyCapsule::Throw(Instigator, Poppy, Origin, Target, Throw, bShadow);
+			break;
+		}
 		default:
 			break;
 		}
 	}
 
-	bool FireShot(APawn* Instigator, const UVaelPlantArmData* Plant, const FVector& Muzzle, const FVector& Direction, float Power, bool bShadow, float SizeScale, float DamageScale)
+	void ThrowCapsule(APawn* Instigator, const UVaelPlantArmData* Plant, const FVector& Muzzle, const FVector& Target, float Charge, float Power, bool bShadow, int32 Split, float SizeScale)
+	{
+		if (Plant == nullptr)
+		{
+			return;
+		}
+		FVaelPoppyThrow Throw;
+		Throw.Burst = EVaelPoppyBurst::Sparks;
+		Throw.Size = FMath::Lerp(Plant->CapsuleSize, Plant->MaxCapsuleSize, Charge) * SizeScale;
+		Throw.Radius = FMath::Lerp(Plant->CapsuleBurstRadius, Plant->MaxCapsuleBurstRadius, Charge) * FMath::Sqrt(SizeScale);
+		Throw.Damage = FMath::Lerp(Plant->CapsuleDamage, Plant->MaxCapsuleDamage, Charge) * Power;
+		Throw.Fuse = Plant->FuseTime;
+		Throw.PatchSeconds = Plant->PatchSeconds;
+		Throw.PatchDamagePerSecond = Plant->PatchDamagePerSecond * Power;
+		Throw.Split = Split;
+		Throw.Drowsy = Plant->DrowsySeconds;
+		Throw.Sleep = Plant->SleepSeconds * FMath::Lerp(1.0f, 1.4f, Charge);
+		AVaelPoppyCapsule::Throw(Instigator, Plant, Muzzle, Target, Throw, bShadow);
+	}
+
+	bool FireShot(APawn* Instigator, const UVaelPlantArmData* Plant, const FVector& Muzzle, const FVector& Direction, float Power, bool bShadow, float SizeScale, float DamageScale, float Reach)
 	{
 		if (Instigator == nullptr || Plant == nullptr)
 		{
 			return false;
+		}
+
+		// The Funkenmohn throws its capsule in an arc to the target instead of shooting straight
+		if (Plant->bMortar)
+		{
+			const FVector Flat = Direction.GetSafeNormal2D();
+			ThrowCapsule(Instigator, Plant, Muzzle, Muzzle + Flat * (Reach > 0.0f ? Reach : Plant->MinThrow), 0.3f, Power * DamageScale, bShadow, 0, SizeScale);
+			return true;
 		}
 
 		FVaelSpellHit Hit;

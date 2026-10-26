@@ -371,6 +371,21 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 1))
 	float FiringArmReach = 1.0f;
 
+	/** Mortar hand (Funkenmohn, Boris 2026-10-26): degrees the stretched arm aims up above the ground, and how far it draws back
+	 *  to the shoulder when fully charged (0 = stays stretched, 1 = the hand at the shoulder) */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms|Mortar", meta = (ClampMin = 0, ClampMax = 80))
+	float MortarArmPitch = 42.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms|Mortar", meta = (ClampMin = 0, ClampMax = 1))
+	float MortarDrawBack = 0.85f;
+
+	/** Dots of the ring that shows where the capsule will land, and their size in cm */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms|Mortar", meta = (ClampMin = 0, ClampMax = 32))
+	int32 MortarRingDots = 14;
+
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms|Mortar", meta = (ClampMin = 1))
+	float MortarRingDotSize = 6.0f;
+
 	/** Seconds L2 and R2 (Q and E) wait for the other one, so pressing both doesn't set a single tower first */
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 0.5))
 	float TowerChordDelay = 0.1f;

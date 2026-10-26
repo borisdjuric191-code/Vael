@@ -53,6 +53,10 @@ public:
 	/** How far a shield hand (Glimmklee) is raised before the face, 0 to 1 */
 	float GetShieldStance() const { return ShieldStance; }
 
+	/** True for a mortar hand (Funkenmohn); how far it is drawn back to the shoulder while charging, 0 to 1, smoothed */
+	bool IsMortar() const;
+	float GetMortarDraw() const { return MortarDraw; }
+
 	/** Shots left in the plant bar, and the share of the bar */
 	int32 GetBarShots() const;
 	float GetBarFraction() const;
@@ -304,6 +308,42 @@ private:
 	FVector RoseAwayPoint = FVector::ZeroVector;
 	float RoseAway = -1.0f;
 	FVector RoseLocation = FVector::ZeroVector;
+
+	// --- Mortar (Funkenmohn): the hand is a shut bud; held it charges and draws back, let go it throws a capsule
+
+	/** Charges while the button is held, throws when it is let go, shows where the capsule will land */
+	void UpdateMortarFiring(float DeltaTime);
+
+	/** Throws the capsule out of the bud with the charge; false when there is no Saft, no shot in the bar, or it is the camp */
+	bool ThrowNow(float WithCharge);
+
+	/** Where a throw with the charge lands, on the ground */
+	FVector GetThrowTarget(float WithCharge) const;
+
+	/** The capsule sitting in the bud, its material, and the dots of the ring on the ground where it will land */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> BudCapsule;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BudCapsuleMaterial;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> TargetDots;
+
+	/** True while the bone of the hand is hidden inside the bud */
+	bool bHandHidden = false;
+
+	/** Charge of this press (0 to 1), whether the press is being held, a throw waiting for the arm to come up, and its charge */
+	float Charge = 0.0f;
+	bool bCharging = false;
+	bool bThrowQueued = false;
+	float QueuedCharge = 0.0f;
+
+	/** Seconds until the bud can throw again, seconds the arm stays up after a throw, how far the bud has burst open */
+	float ThrowCountdown = 0.0f;
+	float ThrowHold = 0.0f;
+	float BudOpen = 0.0f;
+	float MortarDraw = 0.0f;
 
 	/** Places the petals around the rose's foot and axis (space of the body mesh); returns where the shots leave */
 	FVector UpdateRose(const FVector& Base, const FVector& Axis);
