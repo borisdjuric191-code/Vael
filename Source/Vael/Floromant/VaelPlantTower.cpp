@@ -32,13 +32,6 @@ namespace
 	/** Length of the stalk meshes along +Z, in cm (Tools/Pflanzenarm) */
 	constexpr float TowerStalkMeshLength = 100.0f;
 
-	/** Any direction across the given one */
-	FVector TowerAcross(const FVector& Direction)
-	{
-		const FVector Side = FVector::CrossProduct(Direction, FVector::UpVector);
-		return Side.IsNearlyZero() ? FVector::ForwardVector : Side.GetSafeNormal();
-	}
-
 	/** The first mesh of the lists that can be loaded */
 	UStaticMesh* TowerFirstMesh(std::initializer_list<const TArray<TSoftObjectPtr<UStaticMesh>>*> Lists, int32 Pick = 0)
 	{
@@ -208,8 +201,78 @@ void AVaelPlantTower::Build()
 
 FVector AVaelPlantTower::GetCrown() const
 {
-	const float Height = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI);
-	return GetActorLocation() + FVector(0.0f, 0.0f, Height);
+	// The column bends as a bow of constant curve: its length stays, the crown sinks and moves out the more it bends
+	const float Length = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI);
+	const float Angle = Bend.Size();
+	if (Angle < KINDA_SMALL_NUMBER)
+	{
+		return GetActorLocation() + FVector(0.0f, 0.0f, Length);
+	}
+	const FVector Out = Bend / Angle;
+	return GetActorLocation() + Out * Length * (1.0f - FMath::Cos(Angle)) / Angle + FVector::UpVector * Length * FMath::Sin(Angle) / Angle;
+}
+
+FVector AVaelPlantTower::GetCrownAxis() const
+{
+	const float Angle = Bend.Size();
+	return Angle < KINDA_SMALL_NUMBER ? FVector::UpVector : (FVector::UpVector * FMath::Cos(Angle) + Bend / Angle * FMath::Sin(Angle));
+}
+
+bool AVaelPlantTower::AimsLikeHydra() const
+{
+	return Symbiosis == EVaelSymbiosis::None && !Plant->bShield && !Plant->bVineArm && !Plant->bMortar;
+}
+
+void AVaelPlantTower::UpdateBend(float DeltaSeconds)
+{
+	// A long frame must not blow the spring up
+	const float Step = FMath::Min(DeltaSeconds, 0.04f);
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Seed = GetUniqueID() * 0.37f;
+
+	// The crown turns towards what it fires at
+	const AActor* Goal = Target.Get();
+	if (Goal != nullptr)
+	{
+		const FVector Way = (Goal->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+		if (!Way.IsNearlyZero())
+		{
+			LookDirection = FMath::VInterpNormalRotationTo(LookDirection, Way, Step, 150.0f);
+		}
+	}
+	AimBlend = FMath::FInterpTo(AimBlend, Goal != nullptr && !bWithering ? 1.0f : 0.0f, Step, 4.0f);
+	BudOpen = FMath::Max(0.0f, BudOpen - Step * 1.6f);
+
+	// Where it wants to lean: a shooter bows its neck far towards the target, a Mohnmörser only a little, shield and rose stand
+	// upright and rock gently in the air; all of them wander a little so they look alive
+	float Lean = 0.0f;
+	float Wander = 0.05f;
+	if (AimsLikeHydra())
+	{
+		Lean = FMath::Lerp(0.12f, 0.95f, AimBlend);
+	}
+	else if (Plant->bMortar)
+	{
+		Lean = FMath::Lerp(0.05f, 0.25f, AimBlend);
+		Wander = 0.06f;
+	}
+	else if (Plant->bShield || Plant->bVineArm)
+	{
+		Wander = 0.11f;
+	}
+	const FVector Rock(FMath::Sin(Time * 0.9f + Seed) + 0.4f * FMath::Sin(Time * 2.1f + Seed * 2.3f), FMath::Cos(Time * 0.7f + Seed * 1.7f) + 0.4f * FMath::Sin(Time * 1.7f + Seed), 0.0f);
+	const FVector Rest = LookDirection * Lean + Rock * Wander;
+
+	// A damped spring: turning, the kick of a shot and the swing of a throw overshoot a little and settle
+	const float Stiffness = 32.0f;
+	const float Damping = 4.5f;
+	BendVelocity += ((Rest - Bend) * Stiffness - BendVelocity * Damping) * Step;
+	Bend += BendVelocity * Step;
+	Bend.Z = 0.0f;
+	if (Bend.Size() > 1.25f)
+	{
+		Bend = Bend.GetSafeNormal() * 1.25f;
+	}
 }
 
 void AVaelPlantTower::Wither()
@@ -278,7 +341,13 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 			const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 			AActor* Goal = AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation()) ? nullptr : VaelSymbiosis::FindTarget(GetGardener(), GetActorLocation(), Plant->ShotRange);
 			Target = Goal;
-			if (Goal != nullptr)
+			// A shooter fires only once its crown looks at the target, like a Hydra
+			const FVector GoalWay = Goal != nullptr ? (Goal->GetActorLocation() - GetActorLocation()).GetSafeNormal2D() : FVector::ZeroVector;
+			if (Goal != nullptr && AimsLikeHydra() && (FVector::DotProduct(LookDirection, GoalWay) < 0.95f || AimBlend < 0.7f))
+			{
+				FireCountdown = 0.05f;
+			}
+			else if (Goal != nullptr)
 			{
 				Fire(Goal, 1.0f);
 				FireCountdown = Symbiosis != EVaelSymbiosis::None ? VaelSymbiosis::GetTowerInterval(Symbiosis) : Plant->FireInterval * Settings->TowerFireIntervalScale;
@@ -442,50 +511,57 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		return;
 	}
 
-	const FVector Muzzle = GetCrown() + FVector(0.0f, 0.0f, 15.0f) + LookDirection * 20.0f;
+	// The shot leaves the crown where it looks
+	const FVector Axis = GetCrownAxis();
+	const FVector Muzzle = GetCrown() + Axis * (CrownStalks.IsEmpty() ? 20.0f : Plant->FingerLength * 1.1f);
 	const FVector Spread = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Goal->GetActorLocation() - Muzzle);
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	// A Mohnmörser throws its capsule to where the enemy stands
 	VaelSymbiosis::FireShot(Gardener, Plant, Muzzle, Spread.GetSafeNormal(), Power, bShadow, Settings->TowerShotScale, 1.0f, Spread.Size2D());
+
+	// A shooter's neck kicks back; a Mohnmörser swings forward with the throw, opens its bud and rocks back and forth
+	if (Plant->bMortar)
+	{
+		BendVelocity += LookDirection * 5.5f;
+		BudOpen = 1.0f;
+	}
+	else
+	{
+		BendVelocity -= LookDirection * FMath::Clamp(2.0f * Plant->FireInterval, 0.6f, 2.5f);
+	}
 }
 
 void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 {
-	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	UpdateBend(DeltaSeconds);
+
 	const FVector Base = GetActorLocation();
 	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
 	const FVector Crown = GetCrown();
-	const float Height = FMath::Max(Crown.Z - Base.Z, 1.0f);
+	const float Height = FMath::Max(UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(Shown * UE_HALF_PI), 1.0f);
 	const float Time = GetWorld()->GetTimeSeconds();
 
-	// The crown turns a little towards what it fires at
-	if (const AActor* Goal = Target.Get())
-	{
-		const FVector Way = (Goal->GetActorLocation() - Crown).GetSafeNormal2D();
-		if (!Way.IsNearlyZero())
-		{
-			LookDirection = FMath::VInterpNormalRotationTo(LookDirection, Way, DeltaSeconds, 120.0f);
-		}
-	}
-	const FVector Axis = (FVector::UpVector + LookDirection * 0.3f).GetSafeNormal();
-	const FVector U = TowerAcross(Axis);
-	const FVector V = FVector::CrossProduct(Axis, U);
+	// The frame of the crown turns smoothly with the bend of the column (no flip when it stands upright)
+	const FVector Axis = GetCrownAxis();
+	const FQuat Tilt = FQuat::FindBetweenNormals(FVector::UpVector, Axis);
+	const FVector U = Tilt.RotateVector(FVector::ForwardVector);
+	const FVector V = Tilt.RotateVector(FVector::RightVector);
 
-	// Column: the vines wind round each other up to the crown
+	// Column: the vines wind round each other up to the crown, following the bow of the bend
 	const FTransform& Transform = GetActorTransform();
 	for (int32 Index = 0; Index < Column.Num(); ++Index)
 	{
 		const float A0 = Index * 2.0f * UE_PI / Column.Num() + GetUniqueID() * 0.3f;
 		const float A1 = A0 + UE_PI * 0.8f;
 		const FVector Out0(FMath::Cos(A0), FMath::Sin(A0), 0.0f);
-		const FVector Out1(FMath::Cos(A1), FMath::Sin(A1), 0.0f);
+		const FVector Out1 = U * FMath::Cos(A1) + V * FMath::Sin(A1);
 		const FVector Around0(-FMath::Sin(A0), FMath::Cos(A0), 0.0f);
-		const FVector Around1(-FMath::Sin(A1), FMath::Cos(A1), 0.0f);
+		const FVector Around1 = V * FMath::Cos(A1) - U * FMath::Sin(A1);
 		const FVector Start = Base + Out0 * 16.0f - FVector(0.0f, 0.0f, 6.0f);
 		const FVector End = Crown + Out1 * 7.0f;
 		USplineMeshComponent* Vine = Column[Index];
 		Vine->SetStartAndEnd(Transform.InverseTransformPosition(Start), Transform.InverseTransformVectorNoScale(FVector::UpVector * Height * 1.1f + Around0 * Height * 0.5f),
-			Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(FVector::UpVector * Height * 0.9f + Around1 * Height * 0.4f), false);
+			Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(Axis * Height * 0.9f + Around1 * Height * 0.4f), false);
 		Vine->SetStartScale(FVector2D(3.0f), false);
 		Vine->SetEndScale(FVector2D(1.8f), false);
 		Vine->SetStartRoll(A0, false);
@@ -498,7 +574,9 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	{
 		const float Angle = Index * 2.0f * UE_PI / CrownStalks.Num() + 0.4f;
 		const FVector Out = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
-		const FVector Direction = (Axis * 0.75f + Out * 0.65f + Out * 0.06f * FMath::Sin(Time * 1.3f + Index)).GetSafeNormal();
+		// Aiming, the stalks gather forward like the fingers of the hand
+		const float Fan = FMath::Lerp(0.65f, 0.3f, AimBlend);
+		const FVector Direction = (Axis * 0.75f + Out * Fan + Out * 0.06f * FMath::Sin(Time * 1.3f + Index)).GetSafeNormal();
 		const float Length = Plant->FingerLength * 1.3f * Shown;
 		const FVector End = Crown + Direction * Length;
 		USplineMeshComponent* Stalk = CrownStalks[Index];
@@ -521,9 +599,11 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		CrownPieces[0]->SetWorldLocationAndRotation(Crown - Axis * 6.0f, FRotationMatrix::MakeFromZ(Axis).Rotator());
 		CrownPieces[0]->SetWorldScale3D(FVector(Plant->ShoulderRoseSize * 1.6f / 10.0f * Shown * Beat));
 	}
-	// Crown of petals: the rose stands open on top, breathing, the inner ring half shut
+	// Crown of petals: the rose stands open on top, breathing, the inner ring half shut; aiming it closes round the hole it fires
+	// from like the hand; the poppy of a Mohnmörser stays a shut bud that bursts open at each throw
 	else if (CrownStalks.IsEmpty())
 	{
+		const float Open = Plant->bMortar ? FMath::Lerp(0.15f, 1.0f, FMath::Sqrt(BudOpen)) : FMath::Lerp(1.0f, 0.55f, AimBlend);
 		for (int32 Index = 0; Index < CrownPieces.Num(); ++Index)
 		{
 			const bool bInner = Index < Plant->InnerPetals;
@@ -531,7 +611,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 			const int32 InRing = bInner ? Index : Index - Plant->InnerPetals;
 			const float Angle = 2.0f * UE_PI * (InRing + (bInner ? 0.0f : 0.5f)) / FMath::Max(Count, 1);
 			const float Size = Plant->PetalSize * 1.8f * (bInner ? 0.72f : 1.0f);
-			const float Lean = FMath::DegreesToRadians((bInner ? 15.0f : Plant->RoseOpenAngle * 0.8f) + 4.0f * FMath::Sin(Time * 1.5f + Index));
+			const float Lean = FMath::DegreesToRadians((bInner ? 15.0f : Plant->RoseOpenAngle * 0.8f) * Open + 4.0f * FMath::Sin(Time * 1.5f + Index));
 			const FVector Out = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
 			const FVector Up = (Axis * FMath::Cos(Lean) + Out * FMath::Sin(Lean)).GetSafeNormal();
 			const FVector Outside = (Out - Up * FVector::DotProduct(Out, Up)).GetSafeNormal();

@@ -104,7 +104,24 @@ private:
 	/** Glass dome of a Glimmklee tower, or of a pair with a Glimmklee */
 	TWeakObjectPtr<class AVaelGlimmDome> Dome;
 
+	/** Direction of the crown on top of the bent column */
+	FVector GetCrownAxis() const;
+
+	/** Lets the column bend like a spring towards where it should lean (aim, sway), kicked by its shots */
+	void UpdateBend(float DeltaSeconds);
+
+	/** True for the plants that bend their column towards the target and shoot where the crown looks (like a Hydra) */
+	bool AimsLikeHydra() const;
+
 	/** Where the crown looks, eased towards the target */
 	FVector LookDirection = FVector::ForwardVector;
 	TWeakObjectPtr<AActor> Target;
+
+	/** Bend of the column: flat direction times the angle in radians, and its speed (Boris 2026-10-26) */
+	FVector Bend = FVector::ZeroVector;
+	FVector BendVelocity = FVector::ZeroVector;
+
+	/** 0 to 1 while the tower aims at a target; the bud of a Mohnmörser opening at a throw */
+	float AimBlend = 0.0f;
+	float BudOpen = 0.0f;
 };
