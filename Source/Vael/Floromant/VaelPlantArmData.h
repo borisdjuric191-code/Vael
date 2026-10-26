@@ -151,7 +151,7 @@ public:
 	TSoftObjectPtr<UStaticMesh> LeafMesh;
 
 	/** Leaves along forearm and upper arm, their height in cm, and how far they stand off the arm at rest in degrees */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0, ClampMax = 12))
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0, ClampMax = 24))
 	int32 LeafCount = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 1))

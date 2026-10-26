@@ -80,12 +80,13 @@ ARMS = {
     "Glimmklee": {
         "finger": [1, 2],
         "arm": [1, 2],
-        "head": True,
+        # Boris 2026-10-26: no long stalks, many glowing clover leaves (the fingertips end in a leaf, see TuneGlimmklee.py)
+        "head": "Blatt",
         "leaf": "Blatt",
-        "values": {"Silber": 0.1, "Leuchten": 0.14, "Leuchtfarbe": (1.0, 0.75, 0.3), "Metall": 0.05, "Rauheit": 0.5},
-        "data": {"shield": True, "finger_length": 22.0, "finger_thickness": 0.22, "tip_size": 8.0, "fan_angle": 0.0,
-                 "arm_thickness": 0.3, "rest_wind": 0.3, "wild_count": 2,
-                 "leaf_count": 10, "leaf_size": 10.0, "leaf_open_angle": 35.0},
+        "values": {"Silber": 0.0, "Leuchten": 0.3, "Leuchtfarbe": (0.35, 1.0, 0.15), "Glut": 2.0, "Metall": 0.05, "Rauheit": 0.5},
+        "data": {"shield": True, "finger_length": 7.0, "finger_thickness": 0.18, "tip_size": 12.0, "fan_angle": 0.0,
+                 "arm_thickness": 0.3, "rest_wind": 0.3, "wild_count": 0, "overgrowth_wild_count": 0, "vine_count": 2,
+                 "vine_thickness": 0.6, "leaf_count": 18, "leaf_size": 12.0, "leaf_open_angle": 30.0},
     },
 }
 
