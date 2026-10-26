@@ -320,10 +320,10 @@ public:
 
 	/** Size of the capsule in cm, tapped and fully charged */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 1, EditCondition = "bMortar"))
-	float CapsuleSize = 9.0f;
+	float CapsuleSize = 18.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 1, EditCondition = "bMortar"))
-	float MaxCapsuleSize = 17.0f;
+	float MaxCapsuleSize = 32.0f;
 
 	/** Radius and damage of the burst, tapped and fully charged */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (ClampMin = 10, EditCondition = "bMortar"))

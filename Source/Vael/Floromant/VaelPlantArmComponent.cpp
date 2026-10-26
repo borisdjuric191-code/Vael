@@ -684,7 +684,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 	const FVector RoseBase = Plant->bMortar ? Wrist - RoseAxis * 1.0f : BoneLocation(TEXT("middle_01")) + RoseAxis * 2.0f;
 	if (BudCapsule != nullptr)
 	{
-		const float Size = FMath::Lerp(Plant->CapsuleSize, Plant->MaxCapsuleSize, Charge) * 0.8f;
+		const float Size = FMath::Lerp(Plant->CapsuleSize, Plant->MaxCapsuleSize, Charge) * 0.42f;
 		BudCapsule->SetRelativeLocationAndRotation(RoseBase + RoseAxis * Plant->PetalSize * 0.2f, FRotationMatrix::MakeFromZ(RoseAxis).Rotator());
 		BudCapsule->SetRelativeScale3D(FVector(Size / 10.0f * Grow * (ThrowCountdown > 0.0f ? 1.0f - ThrowCountdown / FMath::Max(Plant->ThrowInterval, 0.01f) : 1.0f)));
 		if (HeartLight != nullptr)
