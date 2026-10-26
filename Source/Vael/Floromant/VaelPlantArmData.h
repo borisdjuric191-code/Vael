@@ -176,6 +176,34 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels", meta = (ClampMin = 0))
 	float PumpSwell = 0.35f;
 
+	// --- Rose (Taublatt, Boris 2026-10-26): instead of heads on the fingertips large petals sit at the hand like an open
+	// blossom; while aiming they fold shut like the petals of a rose and leave a hole in the middle that the shots leave through
+
+	/** Petal of the rose, growing up (+Z) from its foot at the pivot, its inner side -X; set, it replaces the heads and the barrel */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rose")
+	TSoftObjectPtr<UStaticMesh> PetalMesh;
+
+	/** Petals of the inner and of the outer ring, height of the outer petals in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rose", meta = (ClampMin = 0, ClampMax = 12))
+	int32 InnerPetals = 5;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rose", meta = (ClampMin = 0, ClampMax = 12))
+	int32 OuterPetals = 7;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rose", meta = (ClampMin = 1))
+	float PetalSize = 15.0f;
+
+	/** Degrees the petals lean outwards while open, and inwards when folded shut */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rose", meta = (ClampMin = 0, ClampMax = 90))
+	float RoseOpenAngle = 65.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rose", meta = (ClampMin = 0, ClampMax = 60))
+	float RoseClosedAngle = 14.0f;
+
+	/** Radius of the hole the shots leave through, in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Rose", meta = (ClampMin = 0))
+	float RoseHoleRadius = 3.0f;
+
 	// --- Water: the shots are Tauperlen of the source's water; holding the button turns them into a jet that pushes enemies back.
 	// The water heals no one; it waters plants (Boris 2026-10-24)
 

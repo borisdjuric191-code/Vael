@@ -176,7 +176,8 @@ void UVaelPlantArmComponent::Clear()
 	PendingShotTime = -1.0f;
 	Barrel = 0.0f;
 	LeafShapes.Reset();
-	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves })
+	PetalShapes.Reset();
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals })
 	{
 		for (UStaticMeshComponent* Piece : *Pieces)
 		{
@@ -265,7 +266,9 @@ void UVaelPlantArmComponent::BuildStalks()
 		FingerMaterials.Add(Material);
 		FingerStalks.Add(MakeStalk(FingerMeshes[(Finger + Offset) % FingerMeshes.Num()], Material));
 
-		if (UStaticMesh* TipMesh = VaelAssets::LoadOptional(Plant->TipMesh))
+		// A rose takes the place of the heads
+		UStaticMesh* TipMesh = HasRose() ? nullptr : VaelAssets::LoadOptional(Plant->TipMesh);
+		if (TipMesh != nullptr)
 		{
 			UStaticMeshComponent* Tip = NewObject<UStaticMeshComponent>(GetOwner());
 			Tip->SetMobility(EComponentMobility::Movable);
@@ -366,6 +369,29 @@ void UVaelPlantArmComponent::BuildStalks()
 		}
 	}
 
+	// The rose at the hand: an inner ring of smaller petals and an outer ring of large ones, set off against each other
+	if (UStaticMesh* PetalMesh = HasRose() ? VaelAssets::LoadOptional(Plant->PetalMesh) : nullptr)
+	{
+		for (int32 Ring = 0; Ring < 2; ++Ring)
+		{
+			const int32 Count = Ring == 0 ? Plant->InnerPetals : Plant->OuterPetals;
+			for (int32 Index = 0; Index < Count; ++Index)
+			{
+				const float Angle = 2.0f * UE_PI * (Index + 0.5f * Ring) / FMath::Max(Count, 1) + Random.FRandRange(-0.12f, 0.12f) + Offset * 0.4f;
+				PetalShapes.Add(FVector(Ring, Angle, Random.FRandRange(0.88f, 1.1f)));
+				UStaticMeshComponent* Petal = NewObject<UStaticMeshComponent>(GetOwner());
+				Petal->SetMobility(EComponentMobility::Movable);
+				Petal->SetStaticMesh(PetalMesh);
+				Petal->SetMaterial(0, ArmMaterial);
+				Petal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Petal->SetCanEverAffectNavigation(false);
+				Petal->SetupAttachment(GetBody());
+				Petal->RegisterComponent();
+				Petals.Add(Petal);
+			}
+		}
+	}
+
 	Muzzles.Init(FVector::ZeroVector, NumFingers);
 	MuzzleDirections.Init(FVector::ForwardVector, NumFingers);
 	Flashes.Init(0.0f, NumFingers);
@@ -396,6 +422,18 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	if (GetBody() == nullptr)
 	{
 		return;
+	}
+
+	// After a tower the plant grows back into the hand
+	if (RegrowTimeLeft > 0.0f)
+	{
+		RegrowTimeLeft -= DeltaTime;
+		if (RegrowTimeLeft <= 0.0f)
+		{
+			RegrowTimeLeft = 0.0f;
+			SetPlant(RegrowPlant);
+			RegrowPlant = nullptr;
+		}
 	}
 
 	// Wither and grow: the old plant goes back into the hand, then the new one comes out
@@ -443,7 +481,7 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	const bool bFiringNow = (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr))) && Grow >= 1.0f;
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 	Fan = FMath::FInterpTo(Fan, bFiringNow ? 1.0f : 0.0f, DeltaTime, 10.0f);
-	Barrel = Plant->bFingersFormBarrel ? FMath::FInterpTo(Barrel, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 14.0f : 6.0f) : 0.0f;
+	Barrel = Plant->bFingersFormBarrel || HasRose() ? FMath::FInterpTo(Barrel, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 14.0f : 6.0f) : 0.0f;
 
 	// While the hand aims the plant overruns the whole arm; it falls back more slowly when the hand rests
 	Overgrowth = bFiringNow
@@ -494,6 +532,12 @@ void UVaelPlantArmComponent::UpdateStalks()
 	// From the hand outwards: index, middle, ring, little finger, thumb in front
 	const int32 BarrelRank[] = { 4, 0, 1, 2, 3 };
 
+	// A rose sits on the hand along the middle line of the hand; folding shut it turns towards the aim. The finger stalks are
+	// short and end in its foot, like the green under a blossom
+	const bool bRose = !Petals.IsEmpty();
+	const FVector RoseAxis = FMath::Lerp(HandAxis, AimLocal, Barrel).GetSafeNormal();
+	const FVector RoseBase = BoneLocation(TEXT("middle_01")) + RoseAxis * 2.0f;
+
 	// Fingers: from the forearm past the fingertip into a long stalk
 	for (int32 Finger = 0; Finger < FingerStalks.Num(); ++Finger)
 	{
@@ -521,7 +565,14 @@ void UVaelPlantArmComponent::UpdateStalks()
 		const FVector Side = Root - (Elbow + Axis * FVector::DotProduct(Root - Elbow, Axis));
 		const FVector Start = OnArm + Side.GetSafeNormal() * Radius * 0.8f;
 		FVector End = Tip + (Direction + Curl * 0.5f).GetSafeNormal() * Plant->FingerLength * LengthShare;
-		if (Barrel > 0.0f)
+		if (bRose)
+		{
+			FVector Out = Root - RoseBase;
+			Out = (Out - RoseAxis * FVector::DotProduct(Out, RoseAxis)).GetSafeNormal();
+			End = RoseBase + Out * Plant->RoseHoleRadius * 1.6f - RoseAxis * 1.5f;
+			Direction = RoseAxis;
+		}
+		else if (Barrel > 0.0f)
 		{
 			const FVector InBarrel = BarrelBase + AimLocal * Plant->BarrelSpacing * BarrelRank[Finger];
 			End = FMath::Lerp(End, InBarrel, Barrel);
@@ -548,7 +599,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 	}
 
 	// The water leaves at the rim of the front funnel; the pump wave swells the funnels of the barrel as it passes
-	const FVector BarrelFront = BarrelBase + AimLocal * (Plant->BarrelSpacing * (NumFingers - 1) + Plant->TipSize);
+	const FVector BarrelFront = bRose ? UpdateRose(RoseBase, RoseAxis) : BarrelBase + AimLocal * (Plant->BarrelSpacing * (NumFingers - 1) + Plant->TipSize);
 	BarrelMuzzle = BodyTransform.TransformPosition(BarrelFront);
 	BarrelDirection = BodyTransform.TransformVectorNoScale(AimLocal);
 	if (Barrel > 0.0f)
@@ -904,6 +955,63 @@ float UVaelPlantArmComponent::GetPumpSwell(float Share) const
 {
 	const float Distance = (Share - GetPumpPosition()) / 0.13f;
 	return Plant->PumpSwell * FMath::Exp(-Distance * Distance);
+}
+
+void UVaelPlantArmComponent::PlantAway(float Seconds)
+{
+	RegrowPlant = bChanging ? NextPlant.Get() : Plant.Get();
+	RegrowDuration = FMath::Max(Seconds, 0.01f);
+	RegrowTimeLeft = RegrowDuration;
+	SetFiring(false);
+	SetPlant(nullptr);
+}
+
+FVector UVaelPlantArmComponent::GetHandLocation() const
+{
+	const USkeletalMeshComponent* Body = GetBody();
+	return Body != nullptr ? Body->GetSocketLocation(Bone(TEXT("hand"))) : FVector::ZeroVector;
+}
+
+bool UVaelPlantArmComponent::HasRose() const
+{
+	return Plant != nullptr && !Plant->PetalMesh.IsNull();
+}
+
+FVector UVaelPlantArmComponent::UpdateRose(const FVector& Base, const FVector& Axis)
+{
+	const FVector U = Across(Axis);
+	const FVector V = FVector::CrossProduct(Axis, U);
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Hole = Plant->RoseHoleRadius;
+
+	for (int32 Index = 0; Index < Petals.Num(); ++Index)
+	{
+		const FVector& Shape = PetalShapes[Index];
+		const bool bInner = Shape.X < 0.5f;
+		const float Size = Plant->PetalSize * (bInner ? 0.72f : 1.0f) * Shape.Z;
+
+		// Open they lean out like a blossom and breathe a little; shut they lean in, the inner ring around the hole, the outer
+		// ring wrapped over it, all of them twisted a little round the axis like the petals of a rose
+		const float Open = FMath::DegreesToRadians(Plant->RoseOpenAngle * (bInner ? 0.75f : 1.0f) + 3.0f * FMath::Sin(Time * 1.7f + Index));
+		const float Shut = -FMath::DegreesToRadians(Plant->RoseClosedAngle * (bInner ? 1.25f : 0.7f));
+		const float Lean = FMath::Lerp(Open, Shut, Barrel);
+		const FVector Out = U * FMath::Cos(Shape.Y) + V * FMath::Sin(Shape.Y);
+		const FVector Round = FVector::CrossProduct(Axis, Out);
+
+		// The foot stands far enough out that the tips of the shut inner ring leave the hole open
+		const float FootRadius = bInner ? Hole + Size * FMath::Sin(-Shut) * 0.9f : Hole + Size * 0.45f;
+		const FVector Foot = Base + Out * FootRadius * FMath::Lerp(0.6f, 1.0f, Barrel) - Axis * (bInner ? 0.0f : 1.5f);
+		const FVector Up = (Axis * FMath::Cos(Lean) + Out * FMath::Sin(Lean) + Round * 0.18f * Barrel).GetSafeNormal();
+		const FVector Outside = (Out - Up * FVector::DotProduct(Out, Up)).GetSafeNormal();
+
+		// The pump wave swells the petals as it reaches the hand
+		const float Swell = 1.0f + GetPumpSwell(1.0f + 0.03f * Shape.X) * Barrel;
+		Petals[Index]->SetRelativeLocationAndRotation(Foot, FRotationMatrix::MakeFromXZ(Outside, Up).Rotator());
+		Petals[Index]->SetRelativeScale3D(FVector(Size / 10.0f * Grow * Swell));
+	}
+
+	// The shots leave through the hole at the front of the rose
+	return Base + Axis * Plant->PetalSize * 0.85f;
 }
 
 void UVaelPlantArmComponent::StartPump(bool bLoop)

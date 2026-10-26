@@ -61,6 +61,8 @@ ARMS = {
         "arm": [1, 2],
         "head": "Trichter",
         "leaf": "Trichter",
+        # Boris 2026-10-26: no funnels on long stalks at the hand, but a rose of large petals that folds shut around a hole
+        "petal": "Bluetenblatt",
         "values": {"Silber": 0.08, "Leuchten": 0.18, "Leuchtfarbe": (0.3, 1.0, 0.85), "Metall": 0.05, "Rauheit": 0.25},
         "data": {"shot_element": "WATER", "fire_interval": 0.3, "shot_damage": 6.0, "shot_speed": 1400.0, "shot_radius": 11.0,
                  "shot_range": 1000.0, "shot_spread": 1.0, "saft_per_shot": 1.0, "bar_size": 30,
@@ -369,7 +371,7 @@ def data_value(key, value):
     return value
 
 
-def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, leaf=None):
+def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, leaf=None, petal=None):
     path = "{}/DA_Pflanzenarm_{}".format(FOLDER, plant)
     if assets.does_asset_exist(path):
         # Fields that came later are filled in while they are still empty
@@ -378,6 +380,10 @@ def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, lea
             data.set_editor_property("vine_meshes", [vine])
             assets.save_loaded_asset(data, False)
             created.append(path + " (vines)")
+        if petal is not None and data.get_editor_property("petal_mesh") is None:
+            data.set_editor_property("petal_mesh", petal)
+            assets.save_loaded_asset(data, False)
+            created.append(path + " (rose)")
         return
     factory = unreal.DataAssetFactory()
     factory.set_editor_property("data_asset_class", unreal.VaelPlantArmData)
@@ -394,6 +400,8 @@ def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, lea
         data.set_editor_property("vine_meshes", [vine])
     if leaf is not None:
         data.set_editor_property("leaf_mesh", leaf)
+    if petal is not None:
+        data.set_editor_property("petal_mesh", petal)
     for key, value in values.items():
         data.set_editor_property(key, data_value(key, value))
     assets.save_loaded_asset(data, False)
@@ -411,12 +419,13 @@ def main():
         leaf = head if arm.get("leaf") == head_name else (import_mesh(plant, "SM_{}_{}".format(plant, arm["leaf"]), 5.0) if arm.get("leaf") else None)
         # The vine for the overgrowth while aiming, from Tools/Pflanzenarm/ranke_bauen.py
         vine = import_mesh(plant, "SM_{}_Ranke".format(plant), 50.0)
+        petal = import_mesh(plant, "SM_{}_{}".format(plant, arm["petal"]), 5.0) if arm.get("petal") else None
         instance = make_instance(stalk_material, plant, arm["values"])
-        for mesh in fingers + others + [head, vine, leaf]:
+        for mesh in fingers + others + [head, vine, leaf, petal]:
             if mesh is not None:
                 mesh.set_material(0, instance)
                 assets.save_loaded_asset(mesh, False)
-        make_arm(plant, fingers, others, head, vine, instance, arm["data"], leaf)
+        make_arm(plant, fingers, others, head, vine, instance, arm["data"], leaf, petal)
 
     for line in created:
         log("created " + line)

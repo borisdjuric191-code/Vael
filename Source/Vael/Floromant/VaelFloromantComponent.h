@@ -149,10 +149,15 @@ public:
 
 	// --- Placeholders of the new controls, not built yet
 
-	/** L2 / R2 (Q / E): the hand takes root as a tower */
+	/** L2 / R2 (Q / E): the plant of the hand goes into the ground ahead and grows into a tower; the arm grows back meanwhile.
+	 *  Two towers close together fuse into a symbiosis */
 	void RootTower(bool bLeft);
 
-	/** L1 + R1 + Cross (both mouse buttons + Space): the hands cross; a tap shoots fast, holding charges */
+	/** Towers of this Floromant standing now */
+	int32 GetNumTowers() const;
+
+	/** L1 + R1 + Cross (both mouse buttons + Space): the arms of both firing hands grow together and the pair acts at once
+	 *  (symbiosis at the player); a tap acts fast, holding acts bigger */
 	void CrossHands(bool bCharged);
 
 	/** Triangle held (R): fills the plant bars of both hands from the Keimpelz pelt, as far as it reaches. Returns the shots reloaded. */
@@ -177,6 +182,22 @@ private:
 
 	/** Keimpelz in the pelt */
 	float Keimpelz = 0.0f;
+
+	/** Towers standing, oldest first */
+	TArray<TWeakObjectPtr<class AVaelPlantTower>> Towers;
+
+	/** Knot of the crossed hands, how long it still shows, and the way it faced */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelSymbiosisKnotComponent> CrossKnot;
+
+	float CrossShowLeft = 0.0f;
+	FVector CrossAim = FVector::ForwardVector;
+
+	/** Her feet on the ground, where the roots start */
+	FVector GetFeet() const;
+
+	/** Keeps the knot of the crossed hands between them while it shows */
+	void UpdateCrossKnot(float DeltaTime);
 
 	/** Rising, rooting and wet wings, once per frame */
 	void TickFlight(float DeltaTime);
@@ -211,7 +232,7 @@ private:
 	bool GrowsShadowForms() const;
 
 	/** Makes plants within the radius act; with bGiant they also grow into their giant form. Returns how many act. */
-	int32 CallPlants(float Radius, float Duration, bool bGiant, bool bPaySaft);
+	int32 CallPlants(float Radius, float Duration, bool bGiant, bool bPaySaft, bool bRootWave = false);
 
 	int32 BeltSelection = 0;
 

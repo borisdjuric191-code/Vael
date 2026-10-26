@@ -55,6 +55,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelSteigen();
 
+	/** Floromant: the plant of the "links" or "rechts" hand goes into the ground as a tower, like L2 / R2. Example: VaelTurm links */
+	UFUNCTION(Exec)
+	void VaelTurm(const FString& Hand);
+
+	/** Floromant: crosses both hands into their symbiosis, like L1 + R1 + Cross; "lang" for a held cross. Example: VaelKreuzen lang */
+	UFUNCTION(Exec)
+	void VaelKreuzen(const FString& Held = TEXT(""));
+
 	/** Floromant: sows the seed of the belt whose name starts like the word, or the picked one, the given metres ahead. Example: VaelSamen Russ 4 */
 	UFUNCTION(Exec)
 	void VaelSamen(const FString& Seed, float Metres);

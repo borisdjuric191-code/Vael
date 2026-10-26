@@ -379,6 +379,74 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0.1, ClampMax = 2))
 	float PotionHoldTime = 0.4f;
 
+	// --- Towers (L2 / R2, Boris 2026-10-26): the arm plant is stuck into the ground and grows into a tower that fires on its
+	// own; the arm grows back before it is a plant hand again. Two towers close together fuse into a symbiosis
+
+	/** Height of a tower in cm, how far ahead of her it is planted, seconds it stands and Saft it costs */
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 50))
+	float TowerHeight = 200.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0))
+	float TowerPlantDistance = 110.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
+	float TowerLifetime = 20.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0))
+	float TowerSaftCost = 15.0f;
+
+	/** Seconds the arm needs to grow back after it went into the ground */
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0))
+	float TowerRegrowTime = 6.0f;
+
+	/** Towers a player can have standing at once; a new one makes the oldest wither */
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1, ClampMax = 6))
+	int32 MaxTowers = 2;
+
+	/** A tower fires the shot of its plant this many times slower than the hand, and a little bigger */
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
+	float TowerFireIntervalScale = 3.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0.1))
+	float TowerShotScale = 1.25f;
+
+	/** Two towers closer than this (cm, from foot to foot) grow together into a symbiosis; small, so towers can stand apart on purpose */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 50))
+	float SymbiosisRadius = 300.0f;
+
+	/** Seconds the fused tower stands longer, and seconds the vines need to grow together */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0))
+	float SymbiosisLifetimeBonus = 8.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0.05))
+	float SymbiosisGrowTime = 1.0f;
+
+	/** Crossing the hands (L1 + R1 + Cross): Saft it costs, more for a held cross, and shots it takes from each bar */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0))
+	float CrossSaftCost = 12.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0))
+	float CrossChargedSaftCost = 20.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0))
+	int32 CrossBarShots = 3;
+
+	/** Seconds the knot of the crossed hands stays at the hands */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0.1))
+	float CrossShowTime = 0.8f;
+
+	/** Root net: rooted, the Ruf des Gartens runs as a wave through roots under the ground from her feet; its speed in cm/s
+	 *  and how much farther it reaches than the call */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Root Net", meta = (ClampMin = 100))
+	float RootWaveSpeed = 1400.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Root Net", meta = (ClampMin = 1))
+	float RootNetReach = 1.5f;
+
+	/** A tower the wave reaches fires at once, this much stronger */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Root Net", meta = (ClampMin = 1))
+	float RootWaveTowerPower = 1.5f;
+
 	// --- Keimpelz: a moss pelt the Floromant carries; it grows back slowly, harvested Keimpelz fills it at once, reloading the hands takes from it
 
 	/** Most Keimpelz the pelt holds, and how much it has at the start */

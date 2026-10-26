@@ -70,6 +70,19 @@ public:
 	/** Removes all stalks at once, for example when the player becomes a mage */
 	void Clear();
 
+	/** The plant goes into the ground as a tower: the hand is bare until the plant has grown back after the seconds */
+	void PlantAway(float Seconds);
+
+	/** True while the plant grows back after a tower; share of the wait left (1 just planted, 0 grown back) */
+	bool IsRegrowing() const { return RegrowTimeLeft > 0.0f; }
+	float GetRegrowLeft() const { return RegrowDuration > 0.0f ? RegrowTimeLeft / RegrowDuration : 0.0f; }
+
+	/** The plant that grows back after a tower, changed when another one is laid on the regrowing hand */
+	void SetRegrowPlant(UVaelPlantArmData* InPlant) { RegrowPlant = InPlant; }
+
+	/** Where the hand is in world space, for the knot of crossed hands */
+	FVector GetHandLocation() const;
+
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 protected:
@@ -114,6 +127,13 @@ private:
 	TObjectPtr<UVaelPlantArmData> NextPlant;
 
 	bool bChanging = false;
+
+	/** The plant that grows back after a tower, and seconds until it does */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelPlantArmData> RegrowPlant;
+
+	float RegrowTimeLeft = 0.0f;
+	float RegrowDuration = 0.0f;
 
 	/** 0 = bare hand, 1 = grown plant */
 	float Grow = 0.0f;
@@ -211,8 +231,22 @@ private:
 	bool bPumpedThisPress = false;
 	float PendingShotTime = -1.0f;
 
-	/** 0 = funnels on their stalks, 1 = nested into the barrel in front of the hand */
+	/** 0 = funnels on their stalks, 1 = nested into the barrel in front of the hand; for a rose: 0 open, 1 folded shut */
 	float Barrel = 0.0f;
+
+	// --- Rose (Taublatt): petals at the hand, open at rest, folded shut around a hole while aiming
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> Petals;
+
+	/** Every petal: ring (0 inner, 1 outer), angle around the rose, own size share */
+	TArray<FVector> PetalShapes;
+
+	/** True for a plant whose hand carries a rose */
+	bool HasRose() const;
+
+	/** Places the petals around the rose's foot and axis (space of the body mesh); returns where the shots leave */
+	FVector UpdateRose(const FVector& Base, const FVector& Axis);
 
 	/** The front of the barrel and the aim, in world space */
 	FVector BarrelMuzzle = FVector::ZeroVector;

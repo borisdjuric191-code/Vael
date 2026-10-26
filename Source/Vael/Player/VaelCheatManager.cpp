@@ -779,6 +779,26 @@ void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)
 	Player->SetHero(Choice.Class, Choice.bFemale);
 }
 
+void UVaelCheatManager::VaelTurm(const FString& Hand)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		Player->GetFloromant()->RootTower(!Hand.StartsWith(TEXT("r"), ESearchCase::IgnoreCase));
+	}
+}
+
+void UVaelCheatManager::VaelKreuzen(const FString& Held)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		Player->GetFloromant()->CrossHands(Held.StartsWith(TEXT("l"), ESearchCase::IgnoreCase));
+	}
+}
+
 void UVaelCheatManager::VaelSteigen()
 {
 	const APlayerController* PlayerController = GetOuterAPlayerController();

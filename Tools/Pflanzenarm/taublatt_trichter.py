@@ -10,6 +10,8 @@ their necks use. The source file is only read, never written.
   on one side (+X), a drop hanging at the lip. Pivot in the middle of the neck's foot, the opening up (+Z), 10 cm high like
   the heads of the other arms. Ramp 0.97 everywhere (the material treats it as the tip).
 - SM_Taublatt_Halm_1/2: stems 100 cm long on +Z, gently bent, thin, with a few knots, ramp from 0 at the base to 1 at the tip.
+- SM_Taublatt_Bluetenblatt: a broad cupped rose petal, 10 cm high on +Z, inner side -X; the hand closes them into a rose
+  with a hole to fire through.
 
 Run:
   blender -b -P taublatt_trichter.py -- <source fbx> <output folder>
@@ -180,6 +182,51 @@ def build_stem(region, material, index):
     return obj
 
 
+def build_petal(region, material):
+    """SM_Taublatt_Bluetenblatt (Boris 2026-10-26): a broad rose petal for the rose at the hand that folds shut and leaves a
+    hole to fire through. Grows from a narrow foot at the pivot up along +Z, 10 cm high, rounded at the top; cupped so its
+    inner side faces -X (the middle of the rose), the upper rim rolled back outwards (+X) like the petals of a rose."""
+    centre, spread = region
+    mesh = bpy.data.meshes.new(f"SM_{NAME}_Bluetenblatt")
+    bm = bmesh.new()
+    uv_layer = bm.loops.layers.uv.new("UVMap")
+    rows, columns = 16, 12
+    h = FUNNEL_HEIGHT
+
+    grid = []
+    for r in range(rows + 1):
+        t = r / rows
+        half = h * max(0.06, 0.48 * math.sqrt(max(0.0, 1.0 - ((t - 0.62) / 0.62) ** 2)))
+        row = []
+        for c in range(columns + 1):
+            s = c / columns * 2.0 - 1.0
+            # Cupped across, sides lowered at the top so the crown is round, the rim rolled back
+            x = -0.20 * h * s * s * (0.35 + 0.65 * t) + 0.07 * h * t ** 4 + 0.06 * h * abs(s) ** 4 * t ** 3 + 0.05 * h * math.sin(t * math.pi)
+            z = t * h - 0.14 * h * s * s * t ** 3
+            row.append(bm.verts.new((x, s * half, z)))
+        grid.append(row)
+    for r in range(rows):
+        for c in range(columns):
+            face = bm.faces.new((grid[r][c], grid[r][c + 1], grid[r + 1][c + 1], grid[r + 1][c]))
+            for k, loop in enumerate(face.loops):
+                row_index = r + (1 if k >= 2 else 0)
+                column_index = c + (1 if k in (1, 2) else 0)
+                u = centre.x + (column_index / columns - 0.5) * spread.x
+                v = centre.y + (row_index / rows - 0.5) * spread.y
+                loop[uv_layer].uv = (u, v)
+
+    bm.normal_update()
+    bm.to_mesh(mesh)
+    bm.free()
+    if material is not None:
+        mesh.materials.append(material)
+    obj = bpy.data.objects.new(mesh.name, mesh)
+    bpy.context.scene.collection.objects.link(obj)
+    paint_ramp(obj, constant=0.97)
+    log(f"{obj.name}: {len(mesh.polygons)} faces")
+    return obj
+
+
 def paint_ramp(obj, constant=None):
     """Ramp from 0 at the base to 1 at the tip in vertex colour R and UV channel 1, as halme_zerlegen.py paints it"""
     mesh = obj.data
@@ -229,10 +276,28 @@ def preview(objects):
         obj.rotation_euler = (0.0, 0.0, 0.0)
 
 
+def preview_petal(petal):
+    """The petal alone, big, seen from its inner side, as <output>/Taublatt_bluetenblatt.png"""
+    scene = bpy.context.scene
+    hidden = [o for o in scene.objects if o.type == "MESH" and o is not petal]
+    for obj in hidden:
+        obj.hide_render = True
+    petal.scale = (8.0, 8.0, 8.0)
+    petal.rotation_euler = (0.0, 0.0, math.radians(-120))
+    scene.render.filepath = os.path.join(OUT, NAME + "_bluetenblatt.png")
+    bpy.ops.render.render(write_still=True)
+    petal.scale = (1.0, 1.0, 1.0)
+    petal.rotation_euler = (0.0, 0.0, 0.0)
+    for obj in hidden:
+        obj.hide_render = False
+
+
 bpy.ops.wm.read_factory_settings(use_empty=True)
 funnel_region, stem_region, picture = uv_regions()
 pieces = [build_funnel(funnel_region, picture), build_stem(stem_region, picture, 1), build_stem(stem_region, picture, 2)]
+petal = build_petal(funnel_region, picture)
 preview(pieces)
-for piece in pieces:
+preview_petal(petal)
+for piece in pieces + [petal]:
     export(piece)
 log("done")
