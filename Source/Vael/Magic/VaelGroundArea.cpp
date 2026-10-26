@@ -17,6 +17,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Vael.h"
 #include "VaelAssets.h"
+#include "World/VaelWeatherRain.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
 #include "World/VaelFireSpot.h"
@@ -489,8 +490,28 @@ FLinearColor AVaelGroundArea::GetLookColor() const
 	return Effect == EVaelGroundEffect::Blind ? MagicSettings->SteamColor : MagicSettings->GetElementColor(Element);
 }
 
+void AVaelGroundArea::ShowRain()
+{
+	// The rain itself is the look: no disc, no effect of its element
+	Disc->SetVisibility(false);
+	TArray<UNiagaraComponent*> Visuals;
+	GetComponents<UNiagaraComponent>(Visuals);
+	for (UNiagaraComponent* Visual : Visuals)
+	{
+		Visual->DestroyComponent();
+	}
+
+	RainLook = AVaelWeatherRain::SpawnPatch(GetWorld(), GetActorLocation(), Radius, Lifetime > 0.0f ? Lifetime : 9.0f);
+}
+
 void AVaelGroundArea::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+	// A called rain stops with its area
+	if (RainLook.IsValid())
+	{
+		RainLook->StopPatch();
+	}
+
 	if (FireLook.IsValid())
 	{
 		if (EndPlayReason == EEndPlayReason::Destroyed)

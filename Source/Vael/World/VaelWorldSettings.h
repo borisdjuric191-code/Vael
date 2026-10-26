@@ -126,6 +126,19 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Look", meta = (ClampMin = 0, ClampMax = 1))
 	float RainVeilSolid = 0.07f;
 
+	/** The Regenruf rains in the same look on its patch, out of a dark cloud this high: drops per square meter, crown splashes per second, parts of its cloud */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Regenruf", meta = (ClampMin = 100))
+	float RainCallHeight = 650.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Regenruf", meta = (ClampMin = 0))
+	float RainCallDropsPerSquareMeter = 7.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Regenruf", meta = (ClampMin = 0))
+	float RainCallKitSplashesPerSecond = 6.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Rain|Regenruf", meta = (ClampMin = 0))
+	int32 RainCallCloudCards = 14;
+
 	/** Seconds a fire lasts in a drought, as a multiple of its normal lifetime */
 	UPROPERTY(config, EditAnywhere, Category="Weather|Drought", meta = (ClampMin = 1))
 	float DroughtFireLifetimeMultiplier = 1.6f;

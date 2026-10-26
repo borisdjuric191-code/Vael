@@ -74,6 +74,9 @@ public:
 	/** Spawns an area on the ground. The instigator decides who its damage hurts. */
 	static AVaelGroundArea* SpawnArea(UWorld* World, const FVector& Location, EVaelElement InElement, float InRadius, float InLifetime, float InDamagePerSecond, APawn* InInstigator, bool bInExtinguishable = true, EVaelGroundEffect InEffect = EVaelGroundEffect::None, UNiagaraSystem* InVisual = nullptr);
 
+	/** The area is a called rain (Regenruf): it rains on it in the look of the weather rain, out of a dark cloud, instead of the placeholder */
+	void ShowRain();
+
 	/** Finds what the areas the actor stands in do to it: whether it is blinded and how fast it can walk (1 for normal speed) */
 	static void GetEffectsOn(const AActor* Victim, bool& bOutBlinded, float& OutSpeedMultiplier);
 
@@ -140,6 +143,9 @@ private:
 
 	/** The living flames of a fire area (fire kit); they die down on their own when the area ends */
 	TWeakObjectPtr<class AVaelFireSpot> FireLook;
+
+	/** The rain falling on a called rain; it stops with the area */
+	TWeakObjectPtr<class AVaelWeatherRain> RainLook;
 
 	/** Mist veil: a heavy blanket of mist lying flat over the ground and welling out from the middle, see-through wisps
 	 *  above it up to about 2 m. Steam: a fluffy ball of cloud over the area that only lets silhouettes show.

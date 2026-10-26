@@ -30,6 +30,12 @@ public:
 	/** Lets the rain of the region fall around its players */
 	static AVaelWeatherRain* Spawn(AVaelRegion* InRegion);
 
+	/** The same rain on one round patch for some seconds, out of a dark cloud above it (the Regenruf) */
+	static AVaelWeatherRain* SpawnPatch(UWorld* World, const FVector& Center, float Radius, float Lifetime);
+
+	/** A rain on a patch stops now: the last drops still fall, the cloud thins away */
+	void StopPatch() { PatchLifetime = FMath::Min(PatchLifetime, PatchAge + 1.0f); }
+
 	virtual void Tick(float DeltaSeconds) override;
 
 private:
@@ -83,7 +89,27 @@ private:
 	/** Builds the mesh of all drops, splashes and rings for this frame */
 	void BuildMesh(const FVector& Fall, float Shown);
 
+	/** How hard it rains right now (1 is ash rain), the wind blowing it, how far around the middle and from how high it falls */
+	float GetStrength() const;
+	FVector GetWind() const;
+	float GetReach() const;
+	float GetHeight() const;
+
 	TWeakObjectPtr<AVaelRegion> Region;
+
+	/** Rain on one patch instead of around the players: its middle on the ground, radius, seconds it rains and has rained */
+	bool bPatch = false;
+	FVector PatchCenter = FVector::ZeroVector;
+	float PatchRadius = 500.0f;
+	float PatchLifetime = 9.0f;
+	float PatchAge = 0.0f;
+
+	/** The dark cloud over a patch of rain, where its parts float and how big they are */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelCloudCardsComponent> Cloud;
+
+	TArray<FVector> CloudPlaces;
+	TArray<float> CloudSizes;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UProceduralMeshComponent> Water;

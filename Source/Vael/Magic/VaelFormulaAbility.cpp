@@ -722,8 +722,15 @@ void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* C
 		Location.Z -= Caster->GetSimpleCollisionHalfHeight();
 	}
 
-	AVaelGroundArea::SpawnArea(World, Location + FVector(0.0f, 0.0f, 2.0f), Formula.DamageElement, Formula.AreaRadius * SwellScale, Formula.AreaLifetime,
+	AVaelGroundArea* Area = AVaelGroundArea::SpawnArea(World, Location + FVector(0.0f, 0.0f, 2.0f), Formula.DamageElement, Formula.AreaRadius * SwellScale, Formula.AreaLifetime,
 		Formula.AreaDamagePerSecond * Power, Cast<APawn>(Caster), true, Formula.AreaEffect, VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
+
+	// Water called down by the air is rain: the Regenruf rains on its patch in the look of the weather rain
+	const bool bRainCall = Formula.DamageElement == EVaelElement::Water && Formula.AreaEffect == EVaelGroundEffect::None && Formula.Elements.Contains(EVaelElement::Air);
+	if (Area != nullptr && bRainCall)
+	{
+		Area->ShowRain();
+	}
 
 	// Steam puts out the fires it covers
 	if (Formula.DamageElement == EVaelElement::Water)
