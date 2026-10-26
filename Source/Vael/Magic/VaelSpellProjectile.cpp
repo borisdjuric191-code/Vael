@@ -33,6 +33,9 @@
 #include "World/VaelFireComponent.h"
 #include "World/VaelFireSpot.h"
 #include "World/VaelFireMushroom.h"
+#include "Magic/VaelAirBlast.h"
+#include "Magic/VaelCloudCards.h"
+#include "Magic/VaelWindStreaks.h"
 
 namespace
 {
@@ -734,6 +737,117 @@ void AVaelSpellProjectile::BuildLook()
 
 		AddLookLight(SpellColor, 6.0f);
 	}
+	else if (Look == EVaelProjectileLook::ThistleSeed)
+	{
+		// The seed head itself, tumbling in a small ball of flames that lick back; a glowing core stands in without the mesh
+		LookShapes.Add(LookMesh != nullptr ? AddLookShape(CoreMaterial, SpellColor, 0.0f, 0.0f, false, LookMesh) : AddLookShape(CoreMaterial, SpellColor, 4.0f));
+
+		BallFlames = NewObject<UVaelFireComponent>(this);
+		BallFlames->SetupAttachment(RootComponent);
+		BallFlames->RegisterComponent();
+		FVaelFireShape HeadFlames;
+		HeadFlames.Radius = Radius * 0.7f;
+		HeadFlames.Height = Radius * 1.3f;
+		HeadFlames.Heat = 1.2f;
+		HeadFlames.Smoke = 0.15f;
+		HeadFlames.Tongues = 10;
+		HeadFlames.bBall = true;
+		HeadFlames.BallSpread = 0.3f;
+		HeadFlames.bFloating = true;
+		HeadFlames.bLight = false;
+		BallFlames->Ignite(HeadFlames, 0.05f);
+
+		TrailFlames = NewObject<UVaelFireComponent>(this);
+		TrailFlames->SetupAttachment(RootComponent);
+		TrailFlames->RegisterComponent();
+		FVaelFireShape Flames;
+		Flames.Radius = Radius * 0.3f;
+		Flames.Height = Radius * 1.6f;
+		Flames.Heat = 1.15f;
+		Flames.Smoke = 0.3f;
+		Flames.Speed = 2.4f;
+		Flames.Tongues = 5;
+		Flames.bFloating = true;
+		Flames.bLight = false;
+		TrailFlames->Ignite(Flames, 0.05f);
+
+		// Glowing thistledown that drifts up behind it; on a hit the same motes fly out as sparks
+		for (int32 MoteIndex = 0; MoteIndex < 16; ++MoteIndex)
+		{
+			LoosePieces.Add(AddLookShape(GlowMaterial, FLinearColor(1.0f, 0.62f, 0.25f), 6.0f, 0.0f, true));
+		}
+		LooseSize = Radius * 0.18f / (PlaceholderSphereRadius * 2.0f);
+		LooseLifetime = 0.9f;
+		LooseGravity = -60.0f;
+		LooseDrag = 2.5f;
+		bLooseFlicker = true;
+
+		AddLookLight(FLinearColor(1.0f, 0.45f, 0.12f), 7.0f);
+	}
+	else if (Look == EVaelProjectileLook::GrassDart)
+	{
+		// A blade of the Windhalm; a cone stands in without the mesh
+		UStaticMeshComponent* Blade = LookMesh != nullptr ? AddLookShape(CoreMaterial, SpellColor, 0.0f, 0.0f, false, LookMesh) : AddLookCone(CoreMaterial, SpellColor, 1.5f);
+		LookShapes.Add(Blade);
+		const bool bBurning = Hit.Element == EVaelElement::Fire;
+
+		// The streak of ash behind it, of embers when it burns
+		if (UMaterialInterface* StreakMaterial = VaelAssets::LoadOptional(MagicSettings->StreakMaterial))
+		{
+			UMaterialInstanceDynamic* StreakLook = UMaterialInstanceDynamic::Create(StreakMaterial, this);
+			if (bBurning)
+			{
+				StreakLook->SetVectorParameterValue(TEXT("Farbe"), FLinearColor(1.0f, 0.35f, 0.06f));
+				StreakLook->SetScalarParameterValue(TEXT("Leuchten"), 6.0f);
+			}
+			ShotStreak = NewObject<UVaelWindStreaksComponent>(this);
+			ShotStreak->SetupAttachment(RootComponent);
+			ShotStreak->RegisterComponent();
+			ShotStreak->Init(StreakLook);
+			ShotStreakIndex = ShotStreak->AddStreak(GetActorLocation(), Radius * 1.4f, Radius * 30.0f);
+		}
+
+		// The air shimmers at its point
+		if (UMaterialInterface* AirMaterial = VaelAssets::LoadOptional(MagicSettings->AirCardMaterial))
+		{
+			ShotShimmer = NewObject<UVaelCloudCardsComponent>(this);
+			ShotShimmer->SetupAttachment(RootComponent);
+			ShotShimmer->SetUsingAbsoluteLocation(true);
+			ShotShimmer->SetUsingAbsoluteRotation(true);
+			ShotShimmer->RegisterComponent();
+			ShotShimmer->SetWorldTransform(FTransform::Identity);
+			ShotShimmer->Init(AirMaterial);
+			ShotShimmer->AddCard(GetActorLocation(), Radius * 5.0f, 0.45f);
+		}
+
+		if (bBurning)
+		{
+			TrailFlames = NewObject<UVaelFireComponent>(this);
+			TrailFlames->SetupAttachment(RootComponent);
+			TrailFlames->RegisterComponent();
+			FVaelFireShape Flames;
+			Flames.Radius = Radius * 0.25f;
+			Flames.Height = Radius * 1.4f;
+			Flames.Heat = 1.2f;
+			Flames.Smoke = 0.1f;
+			Flames.Speed = 2.6f;
+			Flames.Tongues = 4;
+			Flames.bFloating = true;
+			Flames.bLight = false;
+			TrailFlames->Ignite(Flames, 0.05f);
+		}
+
+		// Pollen glittering off it, or sparks when it burns
+		for (int32 MoteIndex = 0; MoteIndex < 12; ++MoteIndex)
+		{
+			LoosePieces.Add(AddLookShape(GlowMaterial, bBurning ? FLinearColor(1.0f, 0.5f, 0.15f) : FLinearColor(0.95f, 0.9f, 0.55f), bBurning ? 6.0f : 3.0f, 0.0f, true));
+		}
+		LooseSize = Radius * 0.12f / (PlaceholderSphereRadius * 2.0f);
+		LooseLifetime = 0.8f;
+		LooseGravity = 120.0f;
+		LooseDrag = 1.5f;
+		bLooseFlicker = true;
+	}
 	else
 	{
 		return;
@@ -820,6 +934,14 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 
 		case EVaelProjectileLook::Fireball:
 			AnimateFireball(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::ThistleSeed:
+			AnimateThistleSeed(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::GrassDart:
+			AnimateGrassDart(Time, DeltaSeconds);
 			break;
 
 		default:
@@ -1100,6 +1222,79 @@ void AVaelSpellProjectile::AnimateSpark(float Time, float DeltaSeconds)
 	}
 }
 
+void AVaelSpellProjectile::AnimateThistleSeed(float Time, float DeltaSeconds)
+{
+	const float Radius = SpellRadius;
+	const FVector Forward = GetActorForwardVector();
+	const float Flicker = FMath::PerlinNoise1D(Time * 12.0f);
+
+	// The seed head tumbles; the head of the Glutdistel is 10 cm across
+	UStaticMeshComponent* Head = LookShapes[0];
+	const float Size = Radius * 1.8f / (LookMesh != nullptr ? 10.0f : PlaceholderSphereRadius * 2.0f);
+	Head->SetRelativeScale3D(FVector(Size * (1.0f + 0.06f * Flicker)));
+	Head->SetRelativeRotation(FRotator(Time * 380.0f, Time * 240.0f, Time * 150.0f));
+
+	if (TrailFlames != nullptr)
+	{
+		TrailFlames->SetFlowDirection(-Forward + FVector(0.0f, 0.0f, 0.3f));
+	}
+	LookLight->SetIntensity(LookLightIntensity * (1.0f + 0.3f * Flicker));
+
+	// Thistledown comes off it and drifts up, glowing out
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = 0.06f * FMath::FRandRange(0.6f, 1.5f);
+		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.3f, 1.2f), FMath::VRand() * 50.0f + FVector(0.0f, 0.0f, 30.0f));
+	}
+}
+
+void AVaelSpellProjectile::AnimateGrassDart(float Time, float DeltaSeconds)
+{
+	const float Radius = SpellRadius;
+	const FVector Forward = GetActorForwardVector();
+	const float Length = Radius * 5.5f;
+
+	// The blade points along the flight (the stalk stands on its own +Z, 100 cm long) and turns round it like a dart
+	UStaticMeshComponent* Blade = LookShapes[0];
+	const FQuat Spin(FVector::XAxisVector, FMath::DegreesToRadians(Time * 720.0f));
+	if (LookMesh != nullptr)
+	{
+		Blade->SetRelativeRotation(Spin * FRotator(-90.0f, 0.0f, 0.0f).Quaternion());
+		Blade->SetRelativeScale3D(FVector(0.7f, 0.7f, Length / 100.0f));
+		Blade->SetRelativeLocation(FVector(-Length * 0.6f, 0.0f, 0.0f));
+	}
+	else
+	{
+		PlaceCone(Blade, FVector(-Length * 0.6f, 0.0f, 0.0f), FVector::XAxisVector, Length, Radius * 0.4f);
+	}
+
+	// The streak follows its tail, the shimmer sits at its point
+	const FVector Here = GetActorLocation();
+	if (ShotStreak != nullptr && ShotStreakIndex != INDEX_NONE)
+	{
+		ShotStreak->MoveHead(ShotStreakIndex, Here - Forward * Length * 0.5f, 1.0f);
+		ShotStreak->Commit();
+	}
+	if (ShotShimmer != nullptr)
+	{
+		ShotShimmer->SetCard(0, Here + Forward * Length * 0.3f, Radius * 5.0f, 0.45f);
+		ShotShimmer->Commit();
+	}
+	if (TrailFlames != nullptr)
+	{
+		TrailFlames->SetFlowDirection(-Forward);
+	}
+
+	// Pollen glitters off it
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = 0.07f * FMath::FRandRange(0.6f, 1.5f);
+		ShedPiece(Here - Forward * Length * FMath::FRandRange(0.1f, 0.6f), FMath::VRand() * 40.0f + Forward * Movement->Velocity.Size() * 0.05f);
+	}
+}
+
 void AVaelSpellProjectile::AnimateWaterOrb(float Time)
 {
 	const float Radius = SpellRadius;
@@ -1265,6 +1460,37 @@ void AVaelSpellProjectile::BeginAfterglow(bool bHitSomething)
 		for (int32 EmberIndex = 0; bHitSomething && EmberIndex < SparkImpactEmbers; ++EmberIndex)
 		{
 			ShedPiece(Center, FMath::VRand() * SparkEmberSpread * FMath::FRandRange(1.2f, 2.6f) + FVector(0.0f, 0.0f, 140.0f));
+		}
+	}
+	else if (Look == EVaelProjectileLook::ThistleSeed)
+	{
+		// The seed bursts: its thorns and glowing down fly out as sparks
+		LookLight->SetVisibility(false);
+		for (int32 MoteIndex = 0; bHitSomething && MoteIndex < 10; ++MoteIndex)
+		{
+			ShedPiece(Center, FMath::VRand() * FMath::FRandRange(200.0f, 420.0f) + FVector(0.0f, 0.0f, 150.0f));
+		}
+	}
+	else if (Look == EVaelProjectileLook::GrassDart)
+	{
+		// The streak and the shimmer fade where it ends; on a hit a small ring of wind and a puff of pollen
+		if (ShotStreak != nullptr && ShotStreakIndex != INDEX_NONE)
+		{
+			ShotStreak->MoveHead(ShotStreakIndex, Center, 0.0f);
+			ShotStreak->Commit();
+		}
+		if (ShotShimmer != nullptr)
+		{
+			ShotShimmer->SetCard(0, Center, Radius * 5.0f, 0.0f);
+			ShotShimmer->Commit();
+		}
+		if (bHitSomething)
+		{
+			AVaelAirBlast::SpawnBlast(GetInstigator(), Center, GetActorForwardVector(), Radius * 16.0f, 180.0f);
+			for (int32 MoteIndex = 0; MoteIndex < 8; ++MoteIndex)
+			{
+				ShedPiece(Center, FMath::VRand() * FMath::FRandRange(80.0f, 200.0f) + FVector(0.0f, 0.0f, 60.0f));
+			}
 		}
 	}
 	else if (Look == EVaelProjectileLook::TidalWave)
@@ -1701,7 +1927,7 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 		LightImpactFire();
 
 		// A spark bursts in a small puff of flames where it hits
-		if (Look == EVaelProjectileLook::Spark)
+		if (Look == EVaelProjectileLook::Spark || Look == EVaelProjectileLook::ThistleSeed)
 		{
 			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelFireSettings::Get()->SparkHitNiagara), GetActorLocation(), FRotator::ZeroRotator, SpellColor, SpellRadius);
 		}

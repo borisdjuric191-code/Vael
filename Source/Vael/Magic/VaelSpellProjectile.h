@@ -68,6 +68,10 @@ public:
 	/** Chooses the look of the projectile; it plays together with a trail effect. Has to be called before FinishSpawning. */
 	void SetLook(EVaelProjectileLook InLook) { Look = InLook; }
 
+	/** Mesh that flies as the projectile for the looks of the plant shots: the seed head of a Glutdistel, a stalk of the Windhalm.
+	 *  Keeps its own material. Has to be called before FinishSpawning. */
+	void SetLookMesh(UStaticMesh* InMesh) { LookMesh = InMesh; }
+
 	/** Lets it split into a fan of shards the first time it flies into mist (Frostlanze) */
 	void SetMistSplit();
 
@@ -203,6 +207,21 @@ private:
 	void AnimateLavaBurst();
 	void AnimateMarkShard(float Time, float DeltaSeconds);
 	void AnimateTidalWave(float Time, float DeltaSeconds);
+	void AnimateThistleSeed(float Time, float DeltaSeconds);
+	void AnimateGrassDart(float Time, float DeltaSeconds);
+
+	/** Mesh of the plant shot, null for the other looks */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMesh> LookMesh;
+
+	/** Streak of ash (or embers) behind a grass dart, its index, and the shimmer of the air at its point */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelWindStreaksComponent> ShotStreak;
+
+	int32 ShotStreakIndex = INDEX_NONE;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelCloudCardsComponent> ShotShimmer;
 
 	/** Height of the ground below the projectile, relative to it, in cm */
 	float GetFootHeight() const;

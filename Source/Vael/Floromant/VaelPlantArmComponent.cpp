@@ -13,6 +13,7 @@
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelSapJet.h"
+#include "Floromant/VaelSymbiosis.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelSpellEffects.h"
@@ -787,37 +788,8 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	// Rooted in the earth, her hands hit harder
 	const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
 
-	FVaelSpellHit Hit;
-	Hit.Damage = Plant->ShotDamage * Power;
-	Hit.Element = Plant->ShotElement;
-	Hit.Status = Plant->ShotStatus;
-	Hit.StatusDuration = Plant->ShotStatusDuration;
-
-	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
-	const FTransform SpawnTransform(Direction.Rotation(), Muzzle);
-	AVaelSpellProjectile* Shot = GetWorld()->SpawnActorDeferred<AVaelSpellProjectile>(AVaelSpellProjectile::StaticClass(), SpawnTransform, Character, Character, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
-	if (Shot == nullptr)
-	{
-		return;
-	}
-
-	Shot->InitSpell(Hit, Plant->ShotSpeed, Plant->ShotRadius, Plant->ShotRange / Plant->ShotSpeed, 0, Plant->GetColor(bShadow));
-	if (Plant->BurstRadius > 0.0f)
-	{
-		FVaelSpellHit Burst;
-		Burst.Damage = Plant->BurstDamage * Power;
-		Burst.Element = Plant->ShotElement;
-		Shot->SetExplosion(Burst, Plant->BurstRadius);
-	}
-	// Water hands shoot balls of their own real water, which waters the plants where it bursts
-	if (UVaelElementSource* Source = VaelAssets::LoadOptional(Plant->WaterSource))
-	{
-		Shot->SetLook(EVaelProjectileLook::WaterOrb);
-		Shot->SetWaterSource(Source);
-		Shot->SetWatersPlants(Plant->WaterRadius, Plant->WaterPerShot);
-	}
-	Shot->SetEffects(VaelEffects::Load(Plant->ShotElement));
-	Shot->FinishSpawning(SpawnTransform);
+	// The plant's own shot: a burning seed head, a blade of grass, a Tauperle of its water (VaelSymbiosis::FireShot)
+	VaelSymbiosis::FireShot(Character, Plant, Muzzle, Direction, Power, Character->GetPath() == EVaelPath::Shadow);
 }
 
 // ---------------------------------------------------------------- Keimpelz

@@ -57,7 +57,23 @@ namespace
 		{
 			return nullptr;
 		}
-		Shot->InitSpell(Hit, Plant->ShotSpeed, Radius, Plant->ShotRange / Plant->ShotSpeed, Pierce, Color);
+
+		// The plant's own shot (Boris 2026-10-26): the Glutdistel throws its burning seed head, the Windhalm a blade like a
+		// dart that pushes a little
+		FVaelSpellHit PlantHit = Hit;
+		const FName Id = SymbiosisPlantId(Plant);
+		if (Id == TEXT("Glutdistel"))
+		{
+			Shot->SetLook(EVaelProjectileLook::ThistleSeed);
+			Shot->SetLookMesh(VaelAssets::LoadOptional(Plant->TipMesh));
+		}
+		else if (Id == TEXT("Windhalm"))
+		{
+			Shot->SetLook(EVaelProjectileLook::GrassDart);
+			Shot->SetLookMesh(Plant->FingerMeshes.IsEmpty() ? nullptr : VaelAssets::LoadOptional(Plant->FingerMeshes[0]));
+			PlantHit.Knockback = FMath::Max(PlantHit.Knockback, 160.0f);
+		}
+		Shot->InitSpell(PlantHit, Plant->ShotSpeed, Radius, Plant->ShotRange / Plant->ShotSpeed, Pierce, Color);
 		if (bWater)
 		{
 			if (UVaelElementSource* Source = VaelAssets::LoadOptional(Plant->WaterSource))

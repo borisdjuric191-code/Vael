@@ -89,7 +89,12 @@ enum class EVaelProjectileLook : uint8
 	/** A wide rolling crest of water with foam on top that throws spray behind it and splashes along its foot, like the Flutwelle */
 	TidalWave,
 	/** A swirling ball of fire: a glowing core in a coat of flames that lick backwards, smoke and sparks behind it; it bursts in a blast of flames, like the Feuerball */
-	Fireball
+	Fireball,
+	/** The seed head of the Glutdistel itself, tumbling in a small ball of flames, shedding glowing thistledown; it bursts in thorns and sparks */
+	ThistleSeed,
+	/** A sharp blade of the Windhalm flying like a dart and turning round its flight, a streak of ash behind it (embers when it burns),
+	 *  the air shimmering at its point, pollen glittering off it; it ends in a small ring of wind */
+	GrassDart
 };
 
 /** What rises out of the ground where a strike of a spell lands */
