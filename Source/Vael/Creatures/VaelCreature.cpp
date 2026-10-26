@@ -46,6 +46,7 @@
 #include "World/VaelWorldSettings.h"
 #include "World/VaelGround.h"
 #include "World/VaelFireComponent.h"
+#include "World/VaelTimeOfDay.h"
 #include "Components/SkeletalMeshComponent.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -643,7 +644,13 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 	// After a decision of the group some kinds leave the players alone unless they come close or strike first
 	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
 	const bool bUnhurt = GetHealth() >= GetMaxHealth();
-	const float NoticeDistance = Quests != nullptr && ActiveData != nullptr && bUnhurt ? MaxDistance * Quests->GetAggroFactor(ActiveData->KindId) : MaxDistance;
+	// By day or by night some kinds notice far more or far less: the Glutkriecher hunts warm bodies in the cold night, the Harpyie sleeps on her roost
+	const float TimeScale = GetTimeOfDayAwareness();
+	if (Nearest == nullptr)
+	{
+		NearestDistance = MaxDistance * TimeScale;
+	}
+	const float NoticeDistance = (Quests != nullptr && ActiveData != nullptr && bUnhurt ? MaxDistance * Quests->GetAggroFactor(ActiveData->KindId) : MaxDistance) * TimeScale;
 
 	ForEachActivePlayer([this, &Nearest, &NearestDistance, NoticeDistance](AVaelCharacter* Player)
 	{
@@ -684,6 +691,15 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 	}
 
 	return Nearest;
+}
+
+float AVaelCreature::GetTimeOfDayAwareness() const
+{
+	if (ActiveData == nullptr)
+	{
+		return 1.0f;
+	}
+	return FMath::Lerp(ActiveData->DayAwareness, ActiveData->NightAwareness, UVaelTimeOfDay::NightFactorOf(this));
 }
 
 void AVaelCreature::ForEachActivePlayer(TFunctionRef<void(AVaelCharacter*)> Function) const

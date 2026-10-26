@@ -87,6 +87,7 @@ AVaelEmberCrawler::AVaelEmberCrawler()
 {
 	// Embers in its body heat the air around it; a swarm of them can stir up a thermal
 	AirHeatPerSecond = 0.5f;
+	NightAirHeatScale = 1.5f;
 }
 
 void AVaelEmberCrawler::BeginPlay()

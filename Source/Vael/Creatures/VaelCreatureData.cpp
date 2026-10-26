@@ -22,6 +22,9 @@
 
 UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 {
+	// Dozes under the ash by day; in the cold night every warm body stands out
+	DayAwareness = 0.7f;
+	NightAwareness = 1.4f;
 	DisplayName = LOCTEXT("EmberCrawler", "Glutkriecher");
 	KindId = TEXT("Glutkriecher");
 	CompendiumId = TEXT("Glutkriecher");
@@ -43,6 +46,9 @@ UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 
 UVaelAshHarpyData::UVaelAshHarpyData()
 {
+	// Hunts by day, sleeps on her roost at night
+	DayAwareness = 1.0f;
+	NightAwareness = 0.4f;
 	DisplayName = LOCTEXT("AshHarpy", "Aschharpyie");
 	KindId = TEXT("Aschharpyie");
 	CompendiumId = TEXT("Aschharpyie");
@@ -123,6 +129,9 @@ UVaelMarkWaterPreacherData::UVaelMarkWaterPreacherData()
 
 UVaelEmberQueenData::UVaelEmberQueenData()
 {
+	// Sleeps deeply by day, restless at night
+	DayAwareness = 0.6f;
+	NightAwareness = 1.2f;
 	DisplayName = LOCTEXT("EmberQueen", "Glutk\u00F6nigin");
 	KindId = TEXT("Glutkoenigin");
 	bUnique = true;
@@ -184,6 +193,9 @@ UVaelSourceGuardianData::UVaelSourceGuardianData()
 
 UVaelHornBeetleData::UVaelHornBeetleData()
 {
+	// Hunts in daylight; at night its thread glints in the moon
+	DayAwareness = 1.0f;
+	NightAwareness = 0.7f;
 	DisplayName = LOCTEXT("HornBeetle", "Spannhornkäfer");
 	CompendiumId = TEXT("Spannhornkaefer");
 	KindId = TEXT("Spannhornkaefer");
@@ -203,6 +215,9 @@ UVaelHornBeetleData::UVaelHornBeetleData()
 
 UVaelAshRollerData::UVaelAshRollerData()
 {
+	// Trots about by day, sleeps curled up at night
+	DayAwareness = 1.0f;
+	NightAwareness = 0.4f;
 	DisplayName = LOCTEXT("AshRoller", "Aschenroller");
 	CompendiumId = TEXT("Aschenroller");
 	KindId = TEXT("Aschenroller");
@@ -225,6 +240,9 @@ UVaelAshRollerData::UVaelAshRollerData()
 
 UVaelSickleDollData::UVaelSickleDollData()
 {
+	// Stands still as straw by day; at night it is never where it was
+	DayAwareness = 0.5f;
+	NightAwareness = 1.4f;
 	DisplayName = LOCTEXT("SickleDoll", "Sichelpuppe");
 	CompendiumId = TEXT("Sichelpuppe");
 	KindId = TEXT("Sichelpuppe");
@@ -247,6 +265,9 @@ UVaelSickleDollData::UVaelSickleDollData()
 
 UVaelRankenluchsData::UVaelRankenluchsData()
 {
+	// A night hunter
+	DayAwareness = 0.8f;
+	NightAwareness = 1.3f;
 	DisplayName = LOCTEXT("Rankenluchs", "Rankenluchs");
 	KindId = TEXT("Rankenluchs");
 	CreatureClass = AVaelRankenluchs::StaticClass();
@@ -278,6 +299,9 @@ UVaelRankenluchsData::UVaelRankenluchsData()
 
 UVaelVeilMonkeyData::UVaelVeilMonkeyData()
 {
+	// Shows itself at dusk and in the night
+	DayAwareness = 0.6f;
+	NightAwareness = 1.3f;
 	DisplayName = LOCTEXT("VeilMonkey", "Schleieraffe");
 	CompendiumId = TEXT("Schleieraffe");
 	KindId = TEXT("Schleieraffe");
@@ -301,6 +325,9 @@ UVaelVeilMonkeyData::UVaelVeilMonkeyData()
 
 UVaelDraculaupeData::UVaelDraculaupeData()
 {
+	// Crawls out at night
+	DayAwareness = 0.8f;
+	NightAwareness = 1.2f;
 	DisplayName = LOCTEXT("Draculaupe", "Draculaupe");
 	CompendiumId = TEXT("Draculaupe");
 	KindId = TEXT("Draculaupe");
@@ -325,6 +352,9 @@ UVaelDraculaupeData::UVaelDraculaupeData()
 
 UVaelTauraupeData::UVaelTauraupeData()
 {
+	// Belongs to the dew of the morning
+	DayAwareness = 1.0f;
+	NightAwareness = 0.8f;
 	DisplayName = LOCTEXT("Tauraupe", "Tauraupe");
 	CompendiumId = TEXT("Tauraupe");
 	KindId = TEXT("Tauraupe");
@@ -343,6 +373,9 @@ UVaelTauraupeData::UVaelTauraupeData()
 
 UVaelBloodMothData::UVaelBloodMothData()
 {
+	// Flies at night, drawn to light
+	DayAwareness = 0.6f;
+	NightAwareness = 1.4f;
 	DisplayName = LOCTEXT("BloodMoth", "Nosferalter");
 	CompendiumId = TEXT("Nosferalter");
 	KindId = TEXT("Nosferalter");
@@ -392,6 +425,9 @@ UVaelBloodMothData::UVaelBloodMothData()
 
 UVaelDewMothData::UVaelDewMothData()
 {
+	// Flies in the morning dew, rests at night
+	DayAwareness = 1.0f;
+	NightAwareness = 0.6f;
 	DisplayName = LOCTEXT("DewMoth", "Taufalter");
 	CompendiumId = TEXT("Taufalter");
 	KindId = TEXT("Taufalter");

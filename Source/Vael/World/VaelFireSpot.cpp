@@ -7,6 +7,13 @@
 #include "World/VaelWorldSettings.h"
 #include "Engine/World.h"
 #include "Vael.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Combat/VaelCharacterBase.h"
+#include "Combat/VaelCombatStatics.h"
+#include "GameFramework/PlayerController.h"
+#include "TimerManager.h"
+#include "World/VaelSafeZone.h"
+#include "World/VaelTimeOfDay.h"
 #include "EngineUtils.h"
 
 AVaelFireSpot::AVaelFireSpot()
@@ -70,6 +77,72 @@ void AVaelFireSpot::BeginPlay()
 	TargetRadius = Shape.Radius;
 	TargetLocation = GetActorLocation();
 	Fire->Ignite(Shape, 0.35f);
+
+	// A placed campfire can be rested at
+	if (BurnTime <= 0.0f && Shape.WallNormal.IsNearlyZero())
+	{
+		UVaelInteractionSubsystem::Register(this);
+	}
+}
+
+void AVaelFireSpot::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UVaelInteractionSubsystem::Unregister(this);
+	Super::EndPlay(EndPlayReason);
+}
+
+bool AVaelFireSpot::CanInteract(const AVaelCharacter* Player) const
+{
+	// Only in a safe camp, only once the day is ending
+	const UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(this);
+	const bool bEvening = Clock != nullptr && (Clock->GetPhase() == EVaelDayPhase::Dusk || Clock->GetPhase() == EVaelDayPhase::Night);
+	return BurnTime <= 0.0f && Users == 0 && CanGiveFire() && bEvening && AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation(), 300.0f);
+}
+
+FText AVaelFireSpot::GetInteractPrompt() const
+{
+	return NSLOCTEXT("VaelWorld", "RestAtFire", "Bis zum Morgen rasten");
+}
+
+void AVaelFireSpot::Interact(AVaelCharacter* Player)
+{
+	if (!CanInteract(Player))
+	{
+		return;
+	}
+
+	// The picture fades to black, the night passes, everybody wakes rested at dawn
+	UWorld* World = GetWorld();
+	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (It->Get() != nullptr && It->Get()->PlayerCameraManager != nullptr)
+		{
+			It->Get()->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, 1.0f, FLinearColor::Black, false, true);
+		}
+	}
+
+	FTimerHandle Handle;
+	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(World, [World]()
+	{
+		if (UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(World))
+		{
+			Clock->SkipToDawn();
+		}
+		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
+		{
+			APlayerController* PlayerController = It->Get();
+			if (AVaelCharacterBase* Rested = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacterBase>() : nullptr)
+			{
+				UVaelCombatStatics::Heal(Rested, Rested->GetMaxHealth());
+			}
+			if (PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr)
+			{
+				PlayerController->PlayerCameraManager->StartCameraFade(1.0f, 0.0f, 1.5f, FLinearColor::Black, false, false);
+			}
+		}
+	}), 1.3f, false);
+
+	UE_LOG(LogVael, Log, TEXT("The group rests at the fire until the morning"));
 }
 
 void AVaelFireSpot::Feed(const FVector& Location, float Radius)

@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Player/VaelInteractable.h"
 #include "World/VaelFireComponent.h"
 #include "VaelFireSpot.generated.h"
 
@@ -12,7 +13,7 @@
  *  lands, on the ground or on a wall. Lives for a while (or for ever), then dies down and leaves its scorch mark to cool.
  */
 UCLASS()
-class AVaelFireSpot : public AActor
+class AVaelFireSpot : public AActor, public IVaelInteractable
 {
 	GENERATED_BODY()
 
@@ -59,9 +60,15 @@ public:
 
 	UVaelFireComponent* GetFire() const { return Fire; }
 
+	/** A campfire in a safe camp: at dusk and at night the group can rest at it until the morning */
+	virtual bool CanInteract(const AVaelCharacter* Player) const override;
+	virtual void Interact(AVaelCharacter* Player) override;
+	virtual FText GetInteractPrompt() const override;
+
 protected:
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Tick(float DeltaSeconds) override;
 
 private:

@@ -26,6 +26,7 @@
 #include "Vael.h"
 #include "World/VaelProgressSubsystem.h"
 #include "World/VaelRegion.h"
+#include "World/VaelTimeOfDay.h"
 
 namespace
 {
@@ -49,6 +50,7 @@ void UVaelSaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Collection.InitializeDependency<UVaelCompendiumSubsystem>();
 	Collection.InitializeDependency<UVaelProgressSubsystem>();
 	Collection.InitializeDependency<UVaelGardenSubsystem>();
+	Collection.InitializeDependency<UVaelTimeOfDay>();
 
 	bEnabled = !FParse::Param(FCommandLine::Get(), TEXT("VaelNoSave")) && !AVaelSmokeTest::IsRequested() && !AVaelShowcase::IsRequested() && !AVaelStreamTest::IsRequested();
 
@@ -146,6 +148,7 @@ void UVaelSaveSubsystem::Collect()
 	GameInstance->GetSubsystem<UVaelCompendiumSubsystem>()->WriteSave(*Current);
 	GameInstance->GetSubsystem<UVaelProgressSubsystem>()->WriteSave(*Current);
 	GameInstance->GetSubsystem<UVaelGardenSubsystem>()->WriteSave(*Current);
+	GameInstance->GetSubsystem<UVaelTimeOfDay>()->WriteSave(*Current);
 
 	// Slots of players who are not in the level right now keep what they had
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
@@ -175,6 +178,7 @@ void UVaelSaveSubsystem::ApplyToGroup() const
 	GameInstance->GetSubsystem<UVaelCompendiumSubsystem>()->ReadSave(*Current);
 	GameInstance->GetSubsystem<UVaelProgressSubsystem>()->ReadSave(*Current);
 	GameInstance->GetSubsystem<UVaelGardenSubsystem>()->ReadSave(*Current);
+	GameInstance->GetSubsystem<UVaelTimeOfDay>()->ReadSave(*Current);
 }
 
 FName UVaelSaveSubsystem::GetActorKey(const AActor* Actor)

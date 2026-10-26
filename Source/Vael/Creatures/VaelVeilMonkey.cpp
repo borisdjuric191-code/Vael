@@ -25,6 +25,8 @@
 #include "World/VaelFireLight.h"
 #include "World/VaelRegion.h"
 #include "World/VaelSafeZone.h"
+#include "World/VaelTimeOfDay.h"
+#include "World/VaelTimeSettings.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
 
@@ -853,7 +855,8 @@ void AVaelVeilMonkey::Tick(float DeltaSeconds)
 			Eye->SetRelativeLocation(FVector(21.0f, 9.5f * Side, 15.0f));
 		}
 		Eye->SetRelativeScale3D(FVector(EyeSize * 0.6f, EyeSize, EyeSize * EyesOpen) / MonkeyShapeSize);
-		VaelEffects::SetLookGlow(Eye, 9.0f * EyesOpen);
+		// In the night the eyes burn brighter, the first thing anybody sees of it
+		VaelEffects::SetLookGlow(Eye, 9.0f * EyesOpen * FMath::Lerp(1.0f, UVaelTimeSettings::Get()->NightGlow, UVaelTimeOfDay::NightFactorOf(this)));
 
 		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Eye->GetMaterial(0)))
 		{

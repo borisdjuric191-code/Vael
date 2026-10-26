@@ -102,6 +102,12 @@ private:
 	/** Shapes, sizes and colors the placeholder for its kind and state */
 	void RefreshLook();
 
+	/** Its glow is this many times as bright now: more in the night */
+	float NightGlowScale() const;
+
+	/** Night factor its look was last shown for */
+	float ShownNight = -1.0f;
+
 	/** Grown back: can be gathered again */
 	void Regrow();
 

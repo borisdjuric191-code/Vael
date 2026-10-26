@@ -45,6 +45,7 @@
 #include "World/VaelRegion.h"
 #include "World/VaelAtmosphere.h"
 #include "World/VaelLocalWeather.h"
+#include "World/VaelTimeOfDay.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGameplayTags.h"
 
@@ -324,6 +325,23 @@ void UVaelCheatManager::VaelGlyphs(const FString& Glyphs)
 	// Only for this session; the lasting choice is in the project settings under Vael UI
 	GetMutableDefault<UVaelUISettings>()->GamepadGlyphs = static_cast<EVaelGamepadGlyphPreference>(Value);
 	UE_LOG(LogVael, Log, TEXT("VaelGlyphs: %s"), *Glyphs);
+}
+
+void UVaelCheatManager::VaelTime(float Hour)
+{
+	if (UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(GetWorld()))
+	{
+		Clock->SetHour(Hour);
+		UE_LOG(LogVael, Display, TEXT("VaelTime: %.1f h, %s, night %.2f"), Clock->GetHour(), *UEnum::GetValueAsString(Clock->GetPhase()), Clock->GetNightFactor());
+	}
+}
+
+void UVaelCheatManager::VaelTimeSpeed(float Speed)
+{
+	if (UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(GetWorld()))
+	{
+		Clock->SetSpeed(Speed);
+	}
 }
 
 void UVaelCheatManager::VaelAir(const FString& Kind, float Amount)

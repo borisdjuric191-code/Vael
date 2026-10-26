@@ -48,6 +48,7 @@
 #include "VaelGameMode.h"
 #include "World/VaelRegion.h"
 #include "World/VaelLocalWeather.h"
+#include "World/VaelTimeOfDay.h"
 
 #define LOCTEXT_NAMESPACE "VaelHUD"
 
@@ -1265,7 +1266,15 @@ float AVaelHUD::DrawRegionInfo(float Top)
 	DrawFrame(Left, Top, Width, Height, RimColor);
 
 	DrawTitle(Region->GetRegionName(), Left + Padding, Top + 6.0f * S, 24.0f * S, BoneColor, 0.0f, Width - 2.0f * Padding);
-	DrawLabel(FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}"), AVaelRegion::GetWeatherName(Region->GetWeather())), Left + Padding, Top + 40.0f * S, 16.0f * S, Rgb(222, 208, 186));
+	// The weather and the time of day, like "Wetter: Klar · Nacht 23:10"
+	FText TimeText = FText::GetEmpty();
+	if (const UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(this))
+	{
+		const FText PhaseNames[] = { LOCTEXT("PhaseDawn", "Morgen"), LOCTEXT("PhaseDay", "Tag"), LOCTEXT("PhaseDusk", "Abend"), LOCTEXT("PhaseNight", "Nacht") };
+		const int32 Minutes = FMath::FloorToInt(Clock->GetHour() * 60.0f);
+		TimeText = FText::Format(LOCTEXT("TimeLine", " · {0} {1}:{2}"), PhaseNames[static_cast<int32>(Clock->GetPhase())], FText::AsNumber(Minutes / 60), FText::FromString(FString::Printf(TEXT("%02d"), Minutes % 60)));
+	}
+	DrawLabel(FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}{1}"), AVaelRegion::GetWeatherName(Region->GetWeather()), TimeText), Left + Padding, Top + 40.0f * S, 16.0f * S, Rgb(222, 208, 186));
 
 	const int32 Corruption = FMath::RoundToInt(Region->GetCorruption());
 	DrawLabel(FText::Format(LOCTEXT("CorruptionLine", "Verderbnis der Region: {0} %"), Corruption), Left + Padding, Top + 62.0f * S, 16.0f * S, Rgb(222, 208, 186));

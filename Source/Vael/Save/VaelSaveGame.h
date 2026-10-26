@@ -148,6 +148,13 @@ public:
 	UPROPERTY()
 	float GardenClock = 0.0f;
 
+	/** Seconds since the dawn of the current day, -1 for a new game (the start hour); and whether the first night has come */
+	UPROPERTY()
+	float TimeOfDaySeconds = -1.0f;
+
+	UPROPERTY()
+	bool bDayCycleIntroduced = false;
+
 	// Players by slot, 0 to 3
 
 	UPROPERTY()

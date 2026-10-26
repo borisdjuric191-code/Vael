@@ -62,6 +62,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Creature", meta = (ClampMin = 0))
 	float AirHeatPerSecond = 0.0f;
 
+	/** Its heat is this many times as strong in the deep night (the Glutkönigin grows restless) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Creature", meta = (ClampMin = 0))
+	float NightAirHeatScale = 1.0f;
+
 	/** Constructor */
 	AVaelCreature();
 
@@ -169,6 +173,9 @@ protected:
 
 	/** Returns what the creature goes for: a golem of a mage drawing it in, else the closest player who isn't down and can be seen; null if none is within the distance */
 	AActor* FindTarget(float MaxDistance, float* OutDistance = nullptr) const;
+
+	/** How far it notices players right now against its usual range, from its data: by day and by night */
+	float GetTimeOfDayAwareness() const;
 
 	/** Calls the function for every player in the level who isn't down */
 	void ForEachActivePlayer(TFunctionRef<void(AVaelCharacter*)> Function) const;

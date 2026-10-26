@@ -31,6 +31,8 @@
 #include "UI/VaelCombatTextSubsystem.h"
 #include "World/VaelGround.h"
 #include "World/VaelRegion.h"
+#include "World/VaelTimeOfDay.h"
+#include "World/VaelTimeSettings.h"
 
 #define LOCTEXT_NAMESPACE "VaelNature"
 
@@ -314,6 +316,17 @@ void AVaelHarvestable::Interact(AVaelCharacter* Player)
 	}
 
 	UVaelMaterialBag::GiveToGroup(this, Data->Loot);
+
+	// Picked in the morning dew, a healing plant gives more (the Tränenkelch: Morgentau)
+	const UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(this);
+	if (Data->Trait == EVaelHarvestTrait::HealingDrip && Clock != nullptr && Clock->GetPhase() == EVaelDayPhase::Dawn)
+	{
+		for (int32 Extra = 1; Extra < UVaelTimeSettings::Get()->DawnDewYield; ++Extra)
+		{
+			UVaelMaterialBag::GiveToGroup(this, Data->Loot);
+		}
+		UVaelCombatTextSubsystem::PostPickup(this, LOCTEXT("MorningDew", "Morgentau"), Data->GlowColor);
+	}
 
 	// A Floromant who picks Keimpelz fills its own pelt with it
 	if (Player != nullptr && Player->IsFloromant() && Data->CompendiumId == UVaelFloromantSettings::Get()->KeimpelzHarvestId)
@@ -738,6 +751,14 @@ void AVaelHarvestable::Tick(float DeltaSeconds)
 		return;
 	}
 
+	// The glow follows the night as it falls and lifts
+	const float Night = UVaelTimeOfDay::NightFactorOf(this);
+	if (FMath::Abs(Night - ShownNight) > 0.05f)
+	{
+		ShownNight = Night;
+		RefreshLook();
+	}
+
 	const float Now = GetWorld()->GetTimeSeconds();
 	const bool bAvailable = IsAvailable();
 
@@ -1053,7 +1074,7 @@ void AVaelHarvestable::RefreshLook()
 	else if (bCrownShown && Data->Trait == EVaelHarvestTrait::PurityGlow)
 	{
 		Glow->SetLightColor(CrownColor);
-		Glow->SetIntensity(FMath::Lerp(SickGlowIntensity, PureGlowIntensity, FMath::Clamp(Purity, 0.0f, 1.0f)));
+		Glow->SetIntensity(FMath::Lerp(SickGlowIntensity, PureGlowIntensity, FMath::Clamp(Purity, 0.0f, 1.0f)) * NightGlowScale());
 		Glow->SetVisibility(true);
 	}
 	else
@@ -1122,8 +1143,14 @@ void AVaelHarvestable::RefreshLook()
 
 	if (ModelMaterial != nullptr)
 	{
-		ModelMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ModelGlow);
+		// Whatever glows shines brighter in the night
+		ModelMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ModelGlow * NightGlowScale());
 	}
+}
+
+float AVaelHarvestable::NightGlowScale() const
+{
+	return FMath::Lerp(1.0f, UVaelTimeSettings::Get()->NightGlow, UVaelTimeOfDay::NightFactorOf(this));
 }
 
 void AVaelHarvestable::VaryModel()

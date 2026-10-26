@@ -42,6 +42,8 @@
 #include "World/VaelRegion.h"
 #include "World/VaelAtmosphere.h"
 #include "World/VaelLocalWeather.h"
+#include "World/VaelSky.h"
+#include "World/VaelTimeOfDay.h"
 #include "World/VaelWeatherRain.h"
 #include "World/VaelWeatherWind.h"
 #include "Magic/VaelEnvironmentStatics.h"
@@ -1102,6 +1104,35 @@ void AVaelSmokeTest::BeginPlay()
 		const bool bOk = Strength > 0.5f && NumLooks == 1;
 		return FString::Printf(TEXT("%srain strength %.2f, %d rain looks"), bOk ? TEXT("") : TEXT("FAILED: "), Strength, NumLooks);
 	}, 0.1f });
+
+	// Day and night: the clock jumps into the night, the sky follows, the Prophet's shadow comes easier
+	Steps.Add({ TEXT("Night falls"), [this]()
+	{
+		UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(GetWorld());
+		if (Clock == nullptr)
+		{
+			return FString(TEXT("FAILED: no clock"));
+		}
+		Clock->SetHour(23.0f);
+		return FString(TEXT("23:00"));
+	}, 1.0f });
+	Steps.Add({ TEXT("Night"), [this]()
+	{
+		UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(GetWorld());
+		int32 NumSkies = 0;
+		for (TActorIterator<AVaelSky> It(GetWorld()); It; ++It)
+		{
+			++NumSkies;
+		}
+		const float Night = Clock != nullptr ? Clock->GetNightFactor() : 0.0f;
+		const float Shadow = Clock != nullptr ? Clock->GetPathGain(EVaelPath::Shadow) : 0.0f;
+		const bool bOk = NumSkies == 1 && Night > 0.99f && Shadow > 1.0f && Clock->GetPhase() == EVaelDayPhase::Night;
+		if (Clock != nullptr)
+		{
+			Clock->SetHour(12.0f);
+		}
+		return FString::Printf(TEXT("%s%d skies, night %.2f, shadow gain %.2f; back to noon"), bOk ? TEXT("") : TEXT("FAILED: "), NumSkies, Night, Shadow);
+	}, 0.5f });
 
 	// The air: enough steam over one place rains down as a shower, enough heat rises as a thermal that gives air
 	const auto FindLocalWeathers = [this](EVaelLocalWeather Kind)

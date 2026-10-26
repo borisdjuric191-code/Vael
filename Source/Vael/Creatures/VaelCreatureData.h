@@ -124,6 +124,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))
 	float AggroRange = 1540.0f;
 
+	/** How far it notices players by day and in the deep night, as a share of its ranges (Boris 2026-10-26: animals react to the time of day) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior|Time of Day", meta = (ClampMin = 0))
+	float DayAwareness = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior|Time of Day", meta = (ClampMin = 0))
+	float NightAwareness = 1.0f;
+
 	/** Elements of the formula the players learn when they kill the creature, empty for none */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Formulas")
 	TArray<EVaelElement> FormulaOnDeath;

@@ -17,6 +17,7 @@
 #include "World/VaelGround.h"
 #include "World/VaelLocalWeather.h"
 #include "World/VaelRegion.h"
+#include "World/VaelTimeOfDay.h"
 #include "World/VaelWorldSettings.h"
 
 namespace
@@ -177,12 +178,13 @@ void UVaelAtmosphere::Gather(float Step)
 		Add(World, It->GetActorLocation(), EVaelAir::Cold, Settings->IceCold * Step);
 	}
 
-	// Hot creatures like the Glutkriecher and the Glutkönigin heat the air around them
+	// Hot creatures like the Glutkriecher and the Glutkönigin heat the air around them, the queen far more at night
+	const float NightFactor = UVaelTimeOfDay::NightFactorOf(World);
 	for (TActorIterator<AVaelCreature> It(World); It; ++It)
 	{
 		if (It->AirHeatPerSecond > 0.0f && !It->IsDefeated())
 		{
-			Add(World, It->GetActorLocation(), EVaelAir::Heat, It->AirHeatPerSecond * Step);
+			Add(World, It->GetActorLocation(), EVaelAir::Heat, It->AirHeatPerSecond * FMath::Lerp(1.0f, It->NightAirHeatScale, NightFactor) * Step);
 		}
 	}
 }

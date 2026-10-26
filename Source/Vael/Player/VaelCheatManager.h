@@ -154,6 +154,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelLocalWeather(const FString& Kind);
 
+	/** Sets the clock to an hour (dawn 5–7, day 7–19, dusk 19–21, night 21–5). Example: VaelTime 22 */
+	UFUNCTION(Exec)
+	void VaelTime(float Hour);
+
+	/** Runs the clock this many times as fast, 1 for normal. Example: VaelTimeSpeed 30 */
+	UFUNCTION(Exec)
+	void VaelTimeSpeed(float Speed);
+
 	/** Sets the corruption of the region the player stands in, 0 to 100. Creatures spawned afterwards may be marked. Example: VaelCorruption 80 */
 	UFUNCTION(Exec)
 	void VaelCorruption(float Corruption);
