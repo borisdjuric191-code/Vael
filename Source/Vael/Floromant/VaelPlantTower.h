@@ -18,8 +18,8 @@ class UVaelSymbiosisKnotComponent;
  *  A tower of the Floromant (L2 / R2, Boris 2026-10-26): she sticks the plant of a hand into the ground and it grows into a
  *  column of its twisted vines with the plant's crown on top (finger stalks, heads or the open rose), which fires the shot of
  *  its plant at the closest enemy, slower and a little bigger than the hand.
- *  Two towers whose feet stand closer than the symbiosis radius grow together: vines of both reach to a knot between them,
- *  and from then on the pair acts as one (VaelSymbiosis), standing a while longer.
+ *  Two towers whose feet stand closer than the symbiosis radius grow together: they lean in and twist into one trunk with a mixed
+ *  blossom of both crowns on top, and from then on the pair acts as one (VaelSymbiosis), standing a while longer.
  */
 UCLASS()
 class AVaelPlantTower : public AActor
@@ -112,6 +112,21 @@ private:
 
 	/** True for the plants that bend their column towards the target and shoot where the crown looks (like a Hydra) */
 	bool AimsLikeHydra() const;
+
+	/**
+	 *  The shared trunk of a symbiosis (Boris 2026-10-26): both towers lean in, their columns meet in the middle and twist round
+	 *  each other into one trunk twice as thick, which carries both crowns up as one mixed blossom. False while not fused.
+	 *  Center is the foot of the trunk, Bend the leader's, Fuse how far it has grown together (0 to 1).
+	 */
+	bool GetTrunk(FVector& OutCenter, FVector& OutBend, float& OutLength, float& OutFuse) const;
+
+	/** Crown and its direction of the tower standing alone */
+	FVector GetOwnCrown() const;
+	FVector GetOwnCrownAxis() const;
+
+	/** Twisted pieces of each column vine up the shared trunk, made when the tower fuses */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> Braid;
 
 	/** Where the crown looks, eased towards the target */
 	FVector LookDirection = FVector::ForwardVector;

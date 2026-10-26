@@ -434,7 +434,7 @@ public:
 	float SymbiosisLifetimeBonus = 8.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0.05))
-	float SymbiosisGrowTime = 1.0f;
+	float SymbiosisGrowTime = 1.8f;
 
 	/** Crossing the hands (L1 + R1 + Cross): Saft it costs, more for a held cross, and shots it takes from each bar */
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0))

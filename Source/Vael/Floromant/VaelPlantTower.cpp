@@ -32,6 +32,67 @@ namespace
 	/** Length of the stalk meshes along +Z, in cm (Tools/Pflanzenarm) */
 	constexpr float TowerStalkMeshLength = 100.0f;
 
+	/** Shared trunk of a symbiosis: how much taller than a tower, where on it the legs of both towers meet, how often the two
+	 *  strands twist round each other above, and the pieces each vine is split into up the trunk */
+	constexpr float TrunkHeightScale = 1.3f;
+	constexpr float TrunkMerge = 0.3f;
+	constexpr float TrunkTwist = 3.0f * UE_PI;
+	constexpr int32 TrunkPieces = 3;
+
+	/** Part of the fusion in which the towers lean in until their tops meet; the trunk already grows up meanwhile, so the crowns
+	 *  hardly sink on their way into the blossom */
+	constexpr float TrunkGather = 0.5f;
+
+	float TrunkGatherAlpha(float Fuse)
+	{
+		return FMath::SmoothStep(0.0f, TrunkGather, Fuse);
+	}
+
+	/** How far up the trunk has grown */
+	float TrunkTop(float Fuse)
+	{
+		return TrunkMerge + (1.0f - TrunkMerge) * FMath::SmoothStep(0.1f, 1.0f, Fuse);
+	}
+
+	/** Point and direction of the trunk's middle line at T (0 foot, 1 top), bent as a bow like a single column */
+	FVector TrunkPoint(const FVector& Center, const FVector& Bend, float Length, float T)
+	{
+		const float Angle = Bend.Size();
+		if (Angle < KINDA_SMALL_NUMBER)
+		{
+			return Center + FVector::UpVector * Length * T;
+		}
+		return Center + Bend / Angle * Length * (1.0f - FMath::Cos(Angle * T)) / Angle + FVector::UpVector * Length * FMath::Sin(Angle * T) / Angle;
+	}
+
+	FVector TrunkTangent(const FVector& Bend, float T)
+	{
+		const float Angle = Bend.Size();
+		return Angle < KINDA_SMALL_NUMBER ? FVector::UpVector : FVector::UpVector * FMath::Cos(Angle * T) + Bend / Angle * FMath::Sin(Angle * T);
+	}
+
+	/** One vine of a tower's strand: the two strands (Phase 0 and pi) wind round the middle line, the vines of each round their
+	 *  strand twice as fast; at the top they draw together into the blossom */
+	FVector TrunkVine(const FVector& Center, const FVector& Bend, float Length, float T, float Phase, int32 Index, int32 Count)
+	{
+		const FVector Middle = TrunkPoint(Center, Bend, Length, T);
+		const FQuat Tilt = FQuat::FindBetweenNormals(FVector::UpVector, TrunkTangent(Bend, T));
+		const FVector U = Tilt.RotateVector(FVector::ForwardVector);
+		const FVector V = Tilt.RotateVector(FVector::RightVector);
+		const float Narrow = 1.0f - 0.6f * FMath::SmoothStep(0.8f, 1.0f, T);
+		const float Up = T - TrunkMerge;
+		const float StrandAngle = Phase + TrunkTwist * Up;
+		const float VineAngle = Index * 2.0f * UE_PI / FMath::Max(Count, 1) + 2.0f * TrunkTwist * Up;
+		return Middle + (U * FMath::Cos(StrandAngle) + V * FMath::Sin(StrandAngle)) * 14.0f * Narrow + (U * FMath::Cos(VineAngle) + V * FMath::Sin(VineAngle)) * 7.0f * Narrow;
+	}
+
+	/** Derivative of a trunk vine by T */
+	FVector TrunkVineSlope(const FVector& Center, const FVector& Bend, float Length, float T, float Phase, int32 Index, int32 Count)
+	{
+		constexpr float Step = 0.01f;
+		return (TrunkVine(Center, Bend, Length, T + Step, Phase, Index, Count) - TrunkVine(Center, Bend, Length, T - Step, Phase, Index, Count)) / (2.0f * Step);
+	}
+
 	/** The first mesh of the lists that can be loaded */
 	UStaticMesh* TowerFirstMesh(std::initializer_list<const TArray<TSoftObjectPtr<UStaticMesh>>*> Lists, int32 Pick = 0)
 	{
@@ -199,7 +260,48 @@ void AVaelPlantTower::Build()
 	}
 }
 
+bool AVaelPlantTower::GetTrunk(FVector& OutCenter, FVector& OutBend, float& OutLength, float& OutFuse) const
+{
+	const AVaelPlantTower* Other = Partner.Get();
+	if (Symbiosis == EVaelSymbiosis::None || Other == nullptr)
+	{
+		return false;
+	}
+	const AVaelPlantTower* Leader = bLeads ? this : Other;
+	OutFuse = Leader->FuseGrow;
+	OutCenter = (GetActorLocation() + Other->GetActorLocation()) * 0.5f;
+	OutBend = Leader->Bend;
+	const float Shown = FMath::Clamp(FMath::Min(Grow, Other->Grow), 0.0f, 1.0f);
+	OutLength = UVaelFloromantSettings::Get()->TowerHeight * TrunkHeightScale * FMath::Sin(Shown * UE_HALF_PI);
+	return OutFuse > 0.0f;
+}
+
 FVector AVaelPlantTower::GetCrown() const
+{
+	// Fused, the crown rides the top of the shared trunk as part of the mixed blossom
+	FVector Center, TrunkBend;
+	float Length = 0.0f;
+	float Fuse = 0.0f;
+	if (GetTrunk(Center, TrunkBend, Length, Fuse))
+	{
+		return FMath::Lerp(GetOwnCrown(), TrunkPoint(Center, TrunkBend, Length, TrunkTop(Fuse)), TrunkGatherAlpha(Fuse));
+	}
+	return GetOwnCrown();
+}
+
+FVector AVaelPlantTower::GetCrownAxis() const
+{
+	FVector Center, TrunkBend;
+	float Length = 0.0f;
+	float Fuse = 0.0f;
+	if (GetTrunk(Center, TrunkBend, Length, Fuse))
+	{
+		return FMath::Lerp(GetOwnCrownAxis(), TrunkTangent(TrunkBend, TrunkTop(Fuse)), TrunkGatherAlpha(Fuse)).GetSafeNormal();
+	}
+	return GetOwnCrownAxis();
+}
+
+FVector AVaelPlantTower::GetOwnCrown() const
 {
 	// The column bends as a bow of constant curve: its length stays, the crown sinks and moves out the more it bends
 	const float Length = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI);
@@ -212,7 +314,7 @@ FVector AVaelPlantTower::GetCrown() const
 	return GetActorLocation() + Out * Length * (1.0f - FMath::Cos(Angle)) / Angle + FVector::UpVector * Length * FMath::Sin(Angle) / Angle;
 }
 
-FVector AVaelPlantTower::GetCrownAxis() const
+FVector AVaelPlantTower::GetOwnCrownAxis() const
 {
 	const float Angle = Bend.Size();
 	return Angle < KINDA_SMALL_NUMBER ? FVector::UpVector : (FVector::UpVector * FMath::Cos(Angle) + Bend / Angle * FMath::Sin(Angle));
@@ -247,7 +349,12 @@ void AVaelPlantTower::UpdateBend(float DeltaSeconds)
 	// upright and rock gently in the air; all of them wander a little so they look alive
 	float Lean = 0.0f;
 	float Wander = 0.05f;
-	if (AimsLikeHydra())
+	if (Symbiosis != EVaelSymbiosis::None)
+	{
+		// The shared trunk (bent by the leader) bows its blossom towards the target, less than a single neck
+		Lean = FMath::Lerp(0.06f, 0.45f, AimBlend);
+	}
+	else if (AimsLikeHydra())
 	{
 		Lean = FMath::Lerp(0.12f, 0.95f, AimBlend);
 	}
@@ -375,9 +482,28 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 
 	if (Knot != nullptr && Partner.IsValid())
 	{
+		const float Before = FuseGrow;
 		FuseGrow = bWithering ? FMath::Min(FuseGrow, Grow) : FMath::Min(1.0f, FuseGrow + DeltaSeconds / UVaelFloromantSettings::Get()->SymbiosisGrowTime);
-		const FVector Middle = (GetCrown() + Partner->GetCrown()) * 0.5f - FVector(0.0f, 0.0f, 35.0f);
-		Knot->Update(GetCrown() - FVector(0.0f, 0.0f, 30.0f), Partner->GetCrown() - FVector(0.0f, 0.0f, 30.0f), Middle, FuseGrow);
+
+		// The moment both columns meet in the middle: a flash in the colour of the pair and a puff of both plants' pieces
+		if (Before < TrunkGather && FuseGrow >= TrunkGather)
+		{
+			Knot->Flash();
+			FVaelDebris Burst;
+			Burst.Count = 22;
+			Burst.Spread = 30.0f;
+			Burst.Speed = 260.0f;
+			Burst.Lift = 180.0f;
+			Burst.Lifetime = 1.1f;
+			Burst.MinSize = 3.0f;
+			Burst.MaxSize = 7.0f;
+			Burst.Color = VaelSymbiosis::GetColor(Symbiosis);
+			AVaelDebrisBurst::Spawn(GetGardener(), GetCrown(), Burst);
+		}
+
+		// The knot is the glowing heart in the middle of the mixed blossom; its own vines are not needed any more
+		const FVector Heart = GetCrown() + GetCrownAxis() * 8.0f;
+		Knot->Update(Heart, Heart, Heart, FuseGrow);
 	}
 }
 
@@ -418,6 +544,20 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 		if (AVaelGlimmDome* Glass = Dome.Get())
 		{
 			Glass->SetAnchored(1.0f);
+		}
+	}
+
+	// Each tower gets the pieces its vines twist up the shared trunk with
+	for (AVaelPlantTower* Tower : { this, Other })
+	{
+		for (const USplineMeshComponent* Vine : Tower->Column)
+		{
+			for (int32 Piece = 0; Piece < TrunkPieces; ++Piece)
+			{
+				USplineMeshComponent* Strand = Tower->MakeStalk(Vine->GetStaticMesh());
+				Strand->SetVisibility(false);
+				Tower->Braid.Add(Strand);
+			}
 		}
 	}
 
@@ -484,7 +624,7 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		{
 			return;
 		}
-		const FVector Middle = (GetCrown() + Partner->GetCrown()) * 0.5f - FVector(0.0f, 0.0f, 35.0f);
+		const FVector Middle = GetCrown() + GetCrownAxis() * 25.0f;
 		const float Hotter = Symbiosis == EVaelSymbiosis::Glutglas ? 1.5f : 1.0f;
 		VaelSymbiosis::FireShot(Gardener, Shooter, Middle, (Goal->GetActorLocation() - Middle).GetSafeNormal(), Power * Hotter, bShadow, UVaelFloromantSettings::Get()->TowerShotScale, 1.0f, FVector::Dist2D(Middle, Goal->GetActorLocation()));
 		if (Symbiosis == EVaelSymbiosis::Aschenrose && !bShadow)
@@ -494,19 +634,21 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		if (Knot != nullptr)
 		{
 			Knot->Flash();
+			BendVelocity -= LookDirection * 1.2f;
 		}
 		return;
 	}
 
 	if (Symbiosis != EVaelSymbiosis::None && Partner.IsValid())
 	{
-		// The pair acts out of the knot between both towers
-		const FVector Middle = (GetCrown() + Partner->GetCrown()) * 0.5f - FVector(0.0f, 0.0f, 35.0f);
+		// The pair acts out of the mixed blossom on top of the shared trunk
+		const FVector Middle = GetCrown() + GetCrownAxis() * 25.0f;
 		const FVector Way = Goal->GetActorLocation() - Middle;
 		VaelSymbiosis::Fire(Gardener, Symbiosis, Plant, Partner->Plant, Middle, Way, Power, 0.0f, bShadow, Way.Size2D());
 		if (Knot != nullptr)
 		{
 			Knot->Flash();
+			BendVelocity -= LookDirection * 1.2f;
 		}
 		return;
 	}
@@ -541,13 +683,27 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	const float Height = FMath::Max(UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(Shown * UE_HALF_PI), 1.0f);
 	const float Time = GetWorld()->GetTimeSeconds();
 
-	// The frame of the crown turns smoothly with the bend of the column (no flip when it stands upright)
+	// Fused: the shared trunk, how far the column has leaned in (Gather) and how far the twisted trunk has grown up (Top)
+	FVector TrunkCenter, TrunkBend;
+	float TrunkLength = 0.0f;
+	float Fuse = 0.0f;
+	const bool bFused = GetTrunk(TrunkCenter, TrunkBend, TrunkLength, Fuse);
+	const float Gather = bFused ? TrunkGatherAlpha(Fuse) : 0.0f;
+	const float Top = TrunkTop(Fuse);
+	const float Phase = bLeads ? 0.0f : UE_PI;
+
+	// The crown grows bigger in the mixed blossom
+	const float Bloom = Shown * (1.0f + 0.3f * Gather);
+
+	// The frame of the crown turns smoothly with the bend of the column (no flip when it stands upright); in the blossom the
+	// second crown turns half a step so the pieces of both plants sit between each other
 	const FVector Axis = GetCrownAxis();
-	const FQuat Tilt = FQuat::FindBetweenNormals(FVector::UpVector, Axis);
+	const FQuat Tilt = FQuat::FindBetweenNormals(FVector::UpVector, Axis) * FQuat(FVector::UpVector, bLeads ? 0.0f : 0.6f * Gather);
 	const FVector U = Tilt.RotateVector(FVector::ForwardVector);
 	const FVector V = Tilt.RotateVector(FVector::RightVector);
 
-	// Column: the vines wind round each other up to the crown, following the bow of the bend
+	// Column: the vines wind round each other up to the crown, following the bow of the bend; fused, they lean in to the foot of
+	// the shared trunk and twist up it round the vines of the other tower
 	const FTransform& Transform = GetActorTransform();
 	for (int32 Index = 0; Index < Column.Num(); ++Index)
 	{
@@ -558,15 +714,58 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		const FVector Around0(-FMath::Sin(A0), FMath::Cos(A0), 0.0f);
 		const FVector Around1 = V * FMath::Cos(A1) - U * FMath::Sin(A1);
 		const FVector Start = Base + Out0 * 16.0f - FVector(0.0f, 0.0f, 6.0f);
-		const FVector End = Crown + Out1 * 7.0f;
+		FVector StartTangent = FVector::UpVector * Height * 1.1f + Around0 * Height * 0.5f;
+		FVector End = Crown + Out1 * 7.0f;
+		FVector EndTangent = Axis * Height * 0.9f + Around1 * Height * 0.4f;
+		float EndScale = 1.8f;
+
+		if (bFused)
+		{
+			const FVector Merge = TrunkVine(TrunkCenter, TrunkBend, TrunkLength, TrunkMerge, Phase, Index, Column.Num());
+			const float Span = FVector::Dist(Start, Merge);
+			End = FMath::Lerp(End, Merge, Gather);
+			StartTangent = FMath::Lerp(StartTangent, (FVector::UpVector * 0.8f + (Merge - Start).GetSafeNormal2D() * 0.5f) * Span, Gather);
+			EndTangent = FMath::Lerp(EndTangent, TrunkVineSlope(TrunkCenter, TrunkBend, TrunkLength, TrunkMerge, Phase, Index, Column.Num()).GetSafeNormal() * Span, Gather);
+			EndScale = FMath::Lerp(1.8f, 2.4f, Gather);
+		}
+
 		USplineMeshComponent* Vine = Column[Index];
-		Vine->SetStartAndEnd(Transform.InverseTransformPosition(Start), Transform.InverseTransformVectorNoScale(FVector::UpVector * Height * 1.1f + Around0 * Height * 0.5f),
-			Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(Axis * Height * 0.9f + Around1 * Height * 0.4f), false);
+		Vine->SetStartAndEnd(Transform.InverseTransformPosition(Start), Transform.InverseTransformVectorNoScale(StartTangent),
+			Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(EndTangent), false);
 		Vine->SetStartScale(FVector2D(3.0f), false);
-		Vine->SetEndScale(FVector2D(1.8f), false);
+		Vine->SetEndScale(FVector2D(EndScale), false);
 		Vine->SetStartRoll(A0, false);
 		Vine->SetEndRoll(A1 + 2.0f, false);
 		Vine->UpdateMesh();
+
+		// Up the trunk, in pieces, as far as it has grown
+		for (int32 Piece = 0; Piece < TrunkPieces; ++Piece)
+		{
+			if (!Braid.IsValidIndex(Index * TrunkPieces + Piece))
+			{
+				break;
+			}
+			USplineMeshComponent* Strand = Braid[Index * TrunkPieces + Piece];
+			const bool bShow = bFused && Top > TrunkMerge + 0.01f;
+			Strand->SetVisibility(bShow);
+			if (!bShow)
+			{
+				continue;
+			}
+			const float T0 = TrunkMerge + (Top - TrunkMerge) * Piece / TrunkPieces;
+			const float T1 = TrunkMerge + (Top - TrunkMerge) * (Piece + 1) / TrunkPieces;
+			const FVector P0 = TrunkVine(TrunkCenter, TrunkBend, TrunkLength, T0, Phase, Index, Column.Num());
+			const FVector P1 = TrunkVine(TrunkCenter, TrunkBend, TrunkLength, T1, Phase, Index, Column.Num());
+			const FVector S0 = TrunkVineSlope(TrunkCenter, TrunkBend, TrunkLength, T0, Phase, Index, Column.Num()) * (T1 - T0);
+			const FVector S1 = TrunkVineSlope(TrunkCenter, TrunkBend, TrunkLength, T1, Phase, Index, Column.Num()) * (T1 - T0);
+			Strand->SetStartAndEnd(Transform.InverseTransformPosition(P0), Transform.InverseTransformVectorNoScale(S0),
+				Transform.InverseTransformPosition(P1), Transform.InverseTransformVectorNoScale(S1), false);
+			Strand->SetStartScale(FVector2D(FMath::Lerp(2.4f, 1.3f, (T0 - TrunkMerge) / (1.0f - TrunkMerge))), false);
+			Strand->SetEndScale(FVector2D(FMath::Lerp(2.4f, 1.3f, (T1 - TrunkMerge) / (1.0f - TrunkMerge))), false);
+			Strand->SetStartRoll(A0 + Piece * 2.0f, false);
+			Strand->SetEndRoll(A0 + Piece * 2.0f + 2.0f, false);
+			Strand->UpdateMesh();
+		}
 	}
 
 	// Crown of stalks: they fan up and out of the top, each ending in its head
@@ -577,7 +776,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		// Aiming, the stalks gather forward like the fingers of the hand
 		const float Fan = FMath::Lerp(0.65f, 0.3f, AimBlend);
 		const FVector Direction = (Axis * 0.75f + Out * Fan + Out * 0.06f * FMath::Sin(Time * 1.3f + Index)).GetSafeNormal();
-		const float Length = Plant->FingerLength * 1.3f * Shown;
+		const float Length = Plant->FingerLength * 1.3f * Bloom;
 		const FVector End = Crown + Direction * Length;
 		USplineMeshComponent* Stalk = CrownStalks[Index];
 		Stalk->SetStartAndEnd(Transform.InverseTransformPosition(Crown), Transform.InverseTransformVectorNoScale(Axis * Length),
@@ -588,7 +787,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		if (CrownPieces.IsValidIndex(Index))
 		{
 			CrownPieces[Index]->SetWorldLocationAndRotation(End, FRotationMatrix::MakeFromZ(Direction).Rotator());
-			CrownPieces[Index]->SetWorldScale3D(FVector(Plant->TipSize * 1.6f / 10.0f * Shown));
+			CrownPieces[Index]->SetWorldScale3D(FVector(Plant->TipSize * 1.6f / 10.0f * Bloom));
 		}
 	}
 
@@ -597,7 +796,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	{
 		const float Beat = 1.0f + 0.06f * FMath::Square(FMath::Sin(Time * 3.0f));
 		CrownPieces[0]->SetWorldLocationAndRotation(Crown - Axis * 6.0f, FRotationMatrix::MakeFromZ(Axis).Rotator());
-		CrownPieces[0]->SetWorldScale3D(FVector(Plant->ShoulderRoseSize * 1.6f / 10.0f * Shown * Beat));
+		CrownPieces[0]->SetWorldScale3D(FVector(Plant->ShoulderRoseSize * 1.6f / 10.0f * Bloom * Beat));
 	}
 	// Crown of petals: the rose stands open on top, breathing, the inner ring half shut; aiming it closes round the hole it fires
 	// from like the hand; the poppy of a Mohnmörser stays a shut bud that bursts open at each throw
@@ -615,9 +814,9 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 			const FVector Out = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
 			const FVector Up = (Axis * FMath::Cos(Lean) + Out * FMath::Sin(Lean)).GetSafeNormal();
 			const FVector Outside = (Out - Up * FVector::DotProduct(Out, Up)).GetSafeNormal();
-			const FVector Foot = Crown + Out * (bInner ? 6.0f : 11.0f) * Shown;
+			const FVector Foot = Crown + Out * (bInner ? 6.0f : 11.0f) * Bloom;
 			CrownPieces[Index]->SetWorldLocationAndRotation(Foot, FRotationMatrix::MakeFromXZ(Outside, Up).Rotator());
-			CrownPieces[Index]->SetWorldScale3D(FVector(Size / 10.0f * Shown));
+			CrownPieces[Index]->SetWorldScale3D(FVector(Size / 10.0f * Bloom));
 		}
 	}
 }

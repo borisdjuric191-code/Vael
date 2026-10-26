@@ -50,12 +50,18 @@ namespace
 			OutSize = Plant->TipSize * 1.3f;
 			return Head;
 		}
+		// The Rußrose: a small rose like the one on the shoulder
+		if (UStaticMesh* Rose = Plant->bVineArm ? VaelAssets::LoadOptional(Plant->ShoulderMesh) : nullptr)
+		{
+			OutSize = Plant->ShoulderRoseSize * 0.4f;
+			return Rose;
+		}
 		for (const TSoftObjectPtr<UStaticMesh>& Mesh : Plant->FingerMeshes)
 		{
 			if (UStaticMesh* Loaded = VaelAssets::LoadOptional(Mesh))
 			{
-				// Stalks are 100 cm long; a quarter of one
-				OutSize = 25.0f;
+				// Pieces are scaled as if their mesh were 10 cm; stalks are 100 cm long, so a quarter of one is 2.5
+				OutSize = 2.5f;
 				return Loaded;
 			}
 		}
