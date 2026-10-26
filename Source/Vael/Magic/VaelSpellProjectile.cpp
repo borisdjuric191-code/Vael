@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/ProjectileMovementComponent.h"
+#include "World/VaelAtmosphere.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGroundArea.h"
@@ -1713,6 +1714,9 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 
 		// Plants that burst on a hit, like the Aschblase, feel it
 		AVaelHarvestable::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit.Element : Hit.Element);
+
+		// and the air: fire heats it, water wets it
+		UVaelAtmosphere::NotifySpellImpact(this, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit.Element : Hit.Element);
 	}
 
 	if (ImpactRadius > 0.0f)

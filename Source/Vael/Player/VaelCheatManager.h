@@ -146,6 +146,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelWeather(const FString& Weather);
 
+	/** Adds heat, moisture or cold to the air where the player stands (Hitze, Feuchte, Kaelte) and shows what the air holds there. Example: VaelAir Feuchte 100 */
+	UFUNCTION(Exec)
+	void VaelAir(const FString& Kind, float Amount = 50.0f);
+
+	/** Lets a local weather break out where the player stands: Schauer, Gewitter, Aufwind, Windfront, Nebel or Graupel. Example: VaelLocalWeather Gewitter */
+	UFUNCTION(Exec)
+	void VaelLocalWeather(const FString& Kind);
+
 	/** Sets the corruption of the region the player stands in, 0 to 100. Creatures spawned afterwards may be marked. Example: VaelCorruption 80 */
 	UFUNCTION(Exec)
 	void VaelCorruption(float Corruption);

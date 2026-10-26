@@ -166,12 +166,11 @@ void AVaelWeatherWind::Tick(float DeltaSeconds)
 	}
 
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	const FVector Wind = WindRegion->GetWind();
-	const FVector Direction = WindRegion->GetWindDirection();
-	const FVector Side(-Direction.Y, Direction.X, 0.0f);
-
-	// How hard it blows right now against the plain wind weather: gusts bring more and stronger streaks
-	const float Share = FMath::Clamp(Wind.Size() / FMath::Max(UVaelWorldSettings::Get()->WindSpeed, 1.0f), 0.0f, 1.5f);
+	// The wind where each gust is: the weather of the region and local weathers like a thermal or a wind front; new gusts start upwind of the players
+	UWorld* World = GetWorld();
+	const FVector MiddleWind = AVaelRegion::GetWindAt(World, Middle);
+	const FVector Direction = MiddleWind.SizeSquared() > 1.0f ? MiddleWind.GetSafeNormal2D() : WindRegion->GetWindDirection();
+	const float FullWind = FMath::Max(UVaelWorldSettings::Get()->WindSpeed, 1.0f);
 
 	for (int32 Index = 0; Index < StreakGusts.Num(); ++Index)
 	{
@@ -186,6 +185,12 @@ void AVaelWeatherWind::Tick(float DeltaSeconds)
 			}
 			continue;
 		}
+
+		const FVector Wind = AVaelRegion::GetWindAt(World, Gust.Place);
+		const FVector Side = FVector(-Wind.Y, Wind.X, 0.0f).GetSafeNormal();
+
+		// How hard it blows here against the plain wind weather: gusts bring more and stronger streaks
+		const float Share = FMath::Clamp(Wind.Size() / FullWind, 0.0f, 1.5f);
 
 		// Racing over the land, weaving a little across the wind and up and down
 		Gust.Place += Wind * WindStreakSpeedShare * DeltaSeconds;
@@ -216,6 +221,9 @@ void AVaelWeatherWind::Tick(float DeltaSeconds)
 			{
 				Restart(Gust, Middle, Direction, MinLife, MaxLife);
 			}
+
+			const FVector Wind = AVaelRegion::GetWindAt(World, Gust.Place);
+			const float Share = FMath::Clamp(Wind.Size() / FullWind, 0.0f, 1.5f);
 
 			// Torn off the ground, it rolls downwind, rises a little and spreads out as it thins
 			Gust.Place += Wind * WindDustSpeedShare * DeltaSeconds;

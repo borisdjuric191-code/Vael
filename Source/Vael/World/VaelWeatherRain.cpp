@@ -65,7 +65,7 @@ AVaelWeatherRain* AVaelWeatherRain::Spawn(AVaelRegion* InRegion)
 	return Rain;
 }
 
-AVaelWeatherRain* AVaelWeatherRain::SpawnPatch(UWorld* World, const FVector& Center, float Radius, float Lifetime)
+AVaelWeatherRain* AVaelWeatherRain::SpawnPatch(UWorld* World, const FVector& Center, float Radius, float Lifetime, bool bInHeavy)
 {
 	if (World == nullptr)
 	{
@@ -81,6 +81,9 @@ AVaelWeatherRain* AVaelWeatherRain::SpawnPatch(UWorld* World, const FVector& Cen
 		Rain->PatchCenter = Center;
 		Rain->PatchRadius = Radius;
 		Rain->PatchLifetime = Lifetime;
+		Rain->bHeavy = bInHeavy;
+		// A patch wider than the view rains like the weather around the players, only inside it
+		Rain->bWide = Radius > UVaelWorldSettings::Get()->RainReach * 0.6f;
 		Rain->Build();
 	}
 
@@ -109,13 +112,13 @@ FVector AVaelWeatherRain::GetWind() const
 
 float AVaelWeatherRain::GetReach() const
 {
-	return bPatch ? PatchRadius : UVaelWorldSettings::Get()->RainReach;
+	return IsSmallPatch() ? PatchRadius : UVaelWorldSettings::Get()->RainReach;
 }
 
 float AVaelWeatherRain::GetHeight() const
 {
 	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
-	return bPatch ? Settings->RainCallHeight : Settings->RainHeight;
+	return IsSmallPatch() ? Settings->RainCallHeight : Settings->RainHeight;
 }
 
 void AVaelWeatherRain::Build()
@@ -149,7 +152,7 @@ void AVaelWeatherRain::Build()
 	}
 
 	// A called rain falls out of a dark cloud, like the one of the Hagelsturm
-	UMaterialInterface* StormCloud = bPatch ? VaelAssets::LoadOptional(MagicSettings->StormCloudMaterial) : nullptr;
+	UMaterialInterface* StormCloud = IsSmallPatch() ? VaelAssets::LoadOptional(MagicSettings->StormCloudMaterial) : nullptr;
 	if (StormCloud != nullptr)
 	{
 		Cloud = NewObject<UVaelCloudCardsComponent>(this);
@@ -171,7 +174,7 @@ void AVaelWeatherRain::Build()
 		}
 	}
 
-	UMaterialInterface* CloudMaterial = !bPatch ? VaelAssets::LoadOptional(MagicSettings->CloudCardMaterial) : nullptr;
+	UMaterialInterface* CloudMaterial = !IsSmallPatch() ? VaelAssets::LoadOptional(MagicSettings->CloudCardMaterial) : nullptr;
 	if (CloudMaterial != nullptr)
 	{
 		Veils = NewObject<UVaelCloudCardsComponent>(this);
@@ -188,7 +191,7 @@ void AVaelWeatherRain::Build()
 	FVector Middle;
 	FindMiddle(Middle);
 	const int32 NumPatchDrops = FMath::Clamp(FMath::RoundToInt(UE_PI * FMath::Square(PatchRadius / 100.0f) * Settings->RainCallDropsPerSquareMeter), 40, 1500);
-	Drops.SetNum(bPatch ? NumPatchDrops : FMath::Max(Settings->RainDrops, Settings->StormRainDrops));
+	Drops.SetNum(IsSmallPatch() ? NumPatchDrops : bPatch ? (bHeavy ? Settings->StormRainDrops : Settings->RainDrops) : FMath::Max(Settings->RainDrops, Settings->StormRainDrops));
 	Splashes.SetNum(RainMaxSplashes);
 	for (FSplash& Splash : Splashes)
 	{
@@ -231,7 +234,7 @@ void AVaelWeatherRain::Build()
 
 bool AVaelWeatherRain::FindMiddle(FVector& OutMiddle) const
 {
-	if (bPatch)
+	if (IsSmallPatch())
 	{
 		OutMiddle = PatchCenter;
 		return true;
@@ -267,12 +270,19 @@ void AVaelWeatherRain::Restart(FDrop& Drop, const FVector& Middle, const FVector
 	const float Reach = GetReach();
 	const float PatchAngle = FMath::FRandRange(0.0f, UE_TWO_PI);
 	const float PatchOut = Reach * FMath::Sqrt(FMath::FRand());
-	const FVector Land = bPatch ? Middle + FVector(FMath::Cos(PatchAngle) * PatchOut, FMath::Sin(PatchAngle) * PatchOut, 0.0f)
+	const FVector Land = IsSmallPatch() ? Middle + FVector(FMath::Cos(PatchAngle) * PatchOut, FMath::Sin(PatchAngle) * PatchOut, 0.0f)
 		: Middle + FVector(FMath::FRandRange(-Reach, Reach), FMath::FRandRange(-Reach, Reach), 0.0f);
 
+	// A wide patch only rains inside its circle: drops falling outside wait for their next turn
+	if (bWide && FVector::DistSquared2D(Land, PatchCenter) > FMath::Square(PatchRadius))
+	{
+		Drop.bWaiting = true;
+		return;
+	}
+
 	FHitResult GroundHit;
-	const float SearchUp = bPatch ? 400.0f : 1500.0f;
-	Drop.GroundZ = VaelGround::TraceGround(GetWorld(), Land + FVector(0.0f, 0.0f, SearchUp), Land - FVector(0.0f, 0.0f, 3000.0f), GroundHit) ? GroundHit.Location.Z : Middle.Z - (bPatch ? 0.0f : 90.0f);
+	const float SearchUp = IsSmallPatch() ? 400.0f : 1500.0f;
+	Drop.GroundZ = VaelGround::TraceGround(GetWorld(), Land + FVector(0.0f, 0.0f, SearchUp), Land - FVector(0.0f, 0.0f, 3000.0f), GroundHit) ? GroundHit.Location.Z : Middle.Z - (IsSmallPatch() ? 0.0f : 90.0f);
 
 	const float RainHeight = GetHeight();
 	const float Height = bAnyHeight ? FMath::FRandRange(0.0f, RainHeight) : RainHeight * FMath::FRandRange(0.85f, 1.0f);
@@ -366,7 +376,11 @@ void AVaelWeatherRain::Tick(float DeltaSeconds)
 		{
 			Drop.bWaiting = false;
 			// A called rain starts high up out of its cloud, the weather anywhere on the way down
-			Restart(Drop, Middle, Fall, !bPatch);
+			Restart(Drop, Middle, Fall, !bPatch || bWide);
+			if (Drop.bWaiting)
+			{
+				continue;
+			}
 		}
 
 		Drop.Head += Fall * Drop.Speed * DeltaSeconds;
@@ -383,7 +397,7 @@ void AVaelWeatherRain::Tick(float DeltaSeconds)
 			}
 		}
 		// Players walked off: the rain follows them
-		else if (!bPatch && (FMath::Abs(Drop.Head.X - Middle.X) > Reach * 1.3f || FMath::Abs(Drop.Head.Y - Middle.Y) > Reach * 1.3f))
+		else if (!IsSmallPatch() && (FMath::Abs(Drop.Head.X - Middle.X) > Reach * 1.3f || FMath::Abs(Drop.Head.Y - Middle.Y) > Reach * 1.3f))
 		{
 			Restart(Drop, Middle, Fall, true);
 		}
@@ -405,7 +419,7 @@ void AVaelWeatherRain::Tick(float DeltaSeconds)
 	}
 
 	// Now and then a crown splash of the water kit close to the players, or all over a called rain
-	const float KitRate = bPatch ? Settings->RainCallKitSplashesPerSecond : Settings->RainKitSplashesPerSecond;
+	const float KitRate = IsSmallPatch() ? Settings->RainCallKitSplashesPerSecond : Settings->RainKitSplashesPerSecond;
 	UNiagaraSystem* KitSplash = KitRate > 0.0f ? VaelAssets::LoadOptional(UVaelMagicSettings::Get()->WaterOrbImpactEffect) : nullptr;
 	KitSplashCredit += KitRate * FMath::Min(Strength, 1.0f) * DeltaSeconds;
 	while (KitSplash != nullptr && KitSplashCredit >= 1.0f)
@@ -413,8 +427,12 @@ void AVaelWeatherRain::Tick(float DeltaSeconds)
 		KitSplashCredit -= 1.0f;
 		const float SpotAngle = FMath::FRandRange(0.0f, UE_TWO_PI);
 		const float SpotOut = Reach * FMath::Sqrt(FMath::FRand());
-		const FVector Spot = bPatch ? Middle + FVector(FMath::Cos(SpotAngle) * SpotOut, FMath::Sin(SpotAngle) * SpotOut, 0.0f)
+		const FVector Spot = IsSmallPatch() ? Middle + FVector(FMath::Cos(SpotAngle) * SpotOut, FMath::Sin(SpotAngle) * SpotOut, 0.0f)
 			: Middle + FVector(FMath::FRandRange(-Reach, Reach) * 0.5f, FMath::FRandRange(-Reach, Reach) * 0.5f, 0.0f);
+		if (bWide && FVector::DistSquared2D(Spot, PatchCenter) > FMath::Square(PatchRadius))
+		{
+			continue;
+		}
 		FHitResult GroundHit;
 		if (!VaelGround::TraceGround(GetWorld(), Spot + FVector(0.0f, 0.0f, 600.0f), Spot - FVector(0.0f, 0.0f, 1200.0f), GroundHit))
 		{

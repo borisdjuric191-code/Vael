@@ -58,6 +58,10 @@ protected:
 
 public:
 
+	/** Heat it gives off into the air every second while alive (UVaelAtmosphere): enough of it lets a weather break out, like a thermal over a nest of Glutkriecher */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Creature", meta = (ClampMin = 0))
+	float AirHeatPerSecond = 0.0f;
+
 	/** Constructor */
 	AVaelCreature();
 

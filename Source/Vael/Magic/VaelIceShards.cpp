@@ -17,7 +17,9 @@
 #include "Materials/MaterialInterface.h"
 #include "Vael.h"
 #include "VaelAssets.h"
+#include "World/VaelAtmosphere.h"
 #include "World/VaelFireSpot.h"
+#include "World/VaelWorldSettings.h"
 
 namespace
 {
@@ -46,6 +48,8 @@ AVaelIceShards* AVaelIceShards::Spawn(UWorld* World, const FVector& Ground, floa
 	{
 		Ice->Radius = InRadius;
 		Ice->Build();
+		// Fresh ice cools the air at once, and a little more for as long as it lies
+		UVaelAtmosphere::Add(World, Ground, EVaelAir::Cold, UVaelWorldSettings::Get()->HailIceCold * FMath::Clamp(InRadius / 80.0f, 0.3f, 2.0f));
 	}
 	return Ice;
 }
@@ -140,6 +144,7 @@ void AVaelIceShards::Tick(float DeltaSeconds)
 			// It hisses: a puff of steam and a splash of drops, then the water runs together on the ground
 			const FVector Ground = GetActorLocation();
 			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(MagicSettings->SteamEffect), Ground + FVector(0.0f, 0.0f, 20.0f), FRotator::ZeroRotator, MagicSettings->SteamColor, Radius * 0.6f);
+			UVaelAtmosphere::Add(this, Ground, EVaelAir::Moisture, UVaelWorldSettings::Get()->IceMeltMoisture);
 			FVaelDebris Drops;
 			Drops.Count = 8;
 			Drops.Spread = Radius * 0.4f;

@@ -47,6 +47,7 @@
 #include "UI/VaelCombatTextSubsystem.h"
 #include "VaelGameMode.h"
 #include "World/VaelRegion.h"
+#include "World/VaelLocalWeather.h"
 
 #define LOCTEXT_NAMESPACE "VaelHUD"
 
@@ -1426,7 +1427,7 @@ void AVaelHUD::DrawWeather()
 	}
 
 	// A darker sky under the rain; the rain itself falls in the world (AVaelWeatherRain)
-	if (Weather == EVaelWeather::Rain || Weather == EVaelWeather::Storm)
+	if (Weather == EVaelWeather::Rain || Weather == EVaelWeather::Storm || AVaelLocalWeather::IsRainingAt(GetWorld(), FirstPawn->GetActorLocation()))
 	{
 		const bool bStorm = Weather == EVaelWeather::Storm;
 		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, bStorm ? Rgb(10, 14, 24, 60) : Rgb(20, 26, 34, 35));

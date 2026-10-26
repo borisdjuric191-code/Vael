@@ -15,6 +15,8 @@
 #include "Nature/VaelHarvestable.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
+#include "World/VaelAtmosphere.h"
+#include "World/VaelWorldSettings.h"
 
 namespace
 {
@@ -97,6 +99,7 @@ int32 UVaelCombatStatics::ApplySpellHitInRadius(AActor* Attacker, const FVector&
 
 	// Plants that burst on a hit, like the Aschblase, are caught by blasts as well
 	AVaelHarvestable::NotifySpellImpact(World, Center, Radius, Hit.Element);
+	UVaelAtmosphere::NotifySpellImpact(World, Center, Radius, Hit.Element);
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellRadius), false, Attacker);
@@ -231,6 +234,12 @@ void UVaelCombatStatics::ApplyStatus(AActor* Attacker, AActor* Target, EVaelStat
 	if (TargetAbilitySystem == nullptr || !StatusTag.IsValid() || Duration <= 0.0f)
 	{
 		return;
+	}
+
+	// Something freezing cools the air around it
+	if (Status == EVaelStatus::Frozen && !TargetAbilitySystem->HasMatchingGameplayTag(StatusTag))
+	{
+		UVaelAtmosphere::Add(Target, Target->GetActorLocation(), EVaelAir::Cold, UVaelWorldSettings::Get()->FreezeCold);
 	}
 
 	const AVaelCharacterBase* TargetCharacter = Cast<AVaelCharacterBase>(Target);

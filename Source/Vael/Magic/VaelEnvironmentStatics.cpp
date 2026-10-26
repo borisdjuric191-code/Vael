@@ -13,6 +13,7 @@
 #include "Magic/VaelRockWall.h"
 #include "Magic/VaelRockWear.h"
 #include "World/VaelFireSpot.h"
+#include "World/VaelLocalWeather.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterPuddle.h"
@@ -57,7 +58,7 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		}
 
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
-		if (Region != nullptr && Region->GetWeather() == EVaelWeather::Rain)
+		if ((Region != nullptr && Region->GetWeather() == EVaelWeather::Rain) || AVaelLocalWeather::IsRainingAt(World, Location))
 		{
 			return true;
 		}
@@ -72,11 +73,11 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		}
 	}
 
-	// Wind and storms fill the whole region with air
+	// Wind and storms fill the whole region with air, a thermal, a wind front or a thunderstorm the patch they blow on
 	if (Element == EVaelElement::Air)
 	{
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
-		return Region != nullptr && (Region->GetWeather() == EVaelWeather::Storm || Region->GetWeather() == EVaelWeather::Wind);
+		return (Region != nullptr && (Region->GetWeather() == EVaelWeather::Storm || Region->GetWeather() == EVaelWeather::Wind)) || !AVaelLocalWeather::GetWindAt(World, Location).IsNearlyZero();
 	}
 
 	// Open Mark sources let mages draw the Mark, once it has awakened in them
@@ -355,7 +356,7 @@ float UVaelEnvironmentStatics::DrawWaveWater(const AActor* Caster)
 
 	// Rain fills the air with water
 	const AVaelRegion* Region = AVaelRegion::GetRegionAt(World, Location);
-	if (Region != nullptr && Region->GetWeather() == EVaelWeather::Rain)
+	if ((Region != nullptr && Region->GetWeather() == EVaelWeather::Rain) || AVaelLocalWeather::IsRainingAt(World, Location))
 	{
 		Water += MagicSettings->WaveSwellRainWater;
 	}

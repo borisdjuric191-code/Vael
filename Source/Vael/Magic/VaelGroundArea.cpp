@@ -17,6 +17,7 @@
 #include "Materials/MaterialInterface.h"
 #include "Vael.h"
 #include "VaelAssets.h"
+#include "World/VaelAtmosphere.h"
 #include "World/VaelWeatherRain.h"
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
@@ -224,6 +225,7 @@ int32 AVaelGroundArea::ExtinguishFires(const UWorld* World, const FVector& Locat
 		if (Area->Element == EVaelElement::Fire && Area->bExtinguishable && Area->IsInRange(Location, InRadius))
 		{
 			UE_LOG(LogVael, Verbose, TEXT("Fire '%s' is put out"), *GetNameSafe(Area));
+			UVaelAtmosphere::Add(World, Area->GetActorLocation(), EVaelAir::Moisture, UVaelWorldSettings::Get()->QuenchMoisture);
 
 			Area->Destroy();
 			++NumExtinguished;
@@ -254,6 +256,7 @@ bool AVaelGroundArea::QuenchInMist(UWorld* World, const FVector& Location)
 	}
 	// The steam blinds the enemies of whoever laid the mist
 	UE_LOG(LogVael, Log, TEXT("Fire boils mist into steam at %s"), *Location.ToCompactString());
+	UVaelAtmosphere::Add(World, Location, EVaelAir::Moisture, UVaelWorldSettings::Get()->QuenchMoisture);
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	if (FindEffectAt(World, Location, EVaelGroundEffect::Blind) == nullptr)
 	{

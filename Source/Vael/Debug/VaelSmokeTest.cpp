@@ -40,6 +40,8 @@
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelRegion.h"
+#include "World/VaelAtmosphere.h"
+#include "World/VaelLocalWeather.h"
 #include "World/VaelWeatherRain.h"
 #include "World/VaelWeatherWind.h"
 #include "Magic/VaelEnvironmentStatics.h"
@@ -1100,6 +1102,55 @@ void AVaelSmokeTest::BeginPlay()
 		const bool bOk = Strength > 0.5f && NumLooks == 1;
 		return FString::Printf(TEXT("%srain strength %.2f, %d rain looks"), bOk ? TEXT("") : TEXT("FAILED: "), Strength, NumLooks);
 	}, 0.1f });
+
+	// The air: enough steam over one place rains down as a shower, enough heat rises as a thermal that gives air
+	const auto FindLocalWeathers = [this](EVaelLocalWeather Kind)
+	{
+		int32 Count = 0;
+		for (TActorIterator<AVaelLocalWeather> It(GetWorld()); It; ++It)
+		{
+			Count += It->GetKind() == Kind ? 1 : 0;
+		}
+		return Count;
+	};
+	const auto ClearLocalWeathers = [this]()
+	{
+		for (TActorIterator<AVaelLocalWeather> It(GetWorld()); It; ++It)
+		{
+			It->Destroy();
+		}
+	};
+	Steps.Add({ TEXT("Air gathers steam"), [this]()
+	{
+		const AVaelCharacter* Player = GetPlayer();
+		if (Player == nullptr)
+		{
+			return FString(TEXT("no player"));
+		}
+		UVaelAtmosphere::Add(GetWorld(), Player->GetActorLocation(), EVaelAir::Moisture, 100.0f);
+		return FString(TEXT("100 moisture"));
+	}, 1.5f });
+	Steps.Add({ TEXT("Shower"), [this, FindLocalWeathers, ClearLocalWeathers]()
+	{
+		const AVaelCharacter* Player = GetPlayer();
+		const int32 NumShowers = FindLocalWeathers(EVaelLocalWeather::Shower);
+		const bool bRaining = Player != nullptr && AVaelLocalWeather::IsRainingAt(GetWorld(), Player->GetActorLocation());
+		ClearLocalWeathers();
+		if (Player != nullptr)
+		{
+			UVaelAtmosphere::Add(GetWorld(), Player->GetActorLocation(), EVaelAir::Heat, 200.0f);
+		}
+		return FString::Printf(TEXT("%s%d showers, raining on the player: %s; 200 heat added"), NumShowers == 1 ? TEXT("") : TEXT("FAILED: "), NumShowers, bRaining ? TEXT("yes") : TEXT("no (still rising)"));
+	}, 6.0f });
+	Steps.Add({ TEXT("Thermal"), [this, FindLocalWeathers, ClearLocalWeathers]()
+	{
+		const AVaelCharacter* Player = GetPlayer();
+		const int32 NumThermals = FindLocalWeathers(EVaelLocalWeather::Thermal);
+		const FVector Wind = Player != nullptr ? AVaelLocalWeather::GetWindAt(GetWorld(), Player->GetActorLocation() + FVector(1200.0f, 0.0f, 0.0f)) : FVector::ZeroVector;
+		ClearLocalWeathers();
+		const bool bOk = NumThermals == 1 && Wind.Size() > 50.0f;
+		return FString::Printf(TEXT("%s%d thermals, wind 12 m off the middle %.0f cm/s"), bOk ? TEXT("") : TEXT("FAILED: "), NumThermals, Wind.Size());
+	}, 0.5f });
 	Steps.Add({ TEXT("Keimpelz"), [this]()
 	{
 		int32 NumSprouted = 0;

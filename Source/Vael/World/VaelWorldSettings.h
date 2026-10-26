@@ -222,6 +222,111 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Weather|Storm", meta = (ClampMin = 0))
 	float LightningCreatureDamage = 30.0f;
 
+	/** The air remembers heat, moisture and cold (UVaelAtmosphere) in cells of this size in cm; a weather breaks out over 3 by 3 cells */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere", meta = (ClampMin = 200))
+	float AirCellSize = 1000.0f;
+
+	/** Share of what the air holds that fades every second; in rain moisture fades at half, in a drought at twice, in wind everything faster */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere", meta = (ClampMin = 0, ClampMax = 1))
+	float AirFadePerSecond = 0.04f;
+
+	/** What must gather over 3 by 3 cells for each weather to break out. Not too easy (Boris 2026-10-26): it is meant to be worked for, or to come out of a big fight */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float ShowerMoisture = 90.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float ThunderstormMoisture = 80.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float ThunderstormHeat = 90.0f;
+
+	/** A thermal needs much heat and dry air: no more moisture than this */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float ThermalHeat = 140.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 0))
+	float ThermalMaxMoisture = 40.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float WindFrontHeat = 80.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float WindFrontCold = 60.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float ColdFogCold = 60.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float ColdFogMoisture = 45.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float GraupelCold = 110.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Thresholds", meta = (ClampMin = 1))
+	float GraupelMoisture = 80.0f;
+
+	/** Size and length of a weather that breaks out, how many at once at most, and the share of the gathered air left after it */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 300))
+	float LocalWeatherRadius = 3500.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 1))
+	float LocalWeatherLifetime = 30.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 1))
+	int32 MaxLocalWeathers = 3;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 0, ClampMax = 1))
+	float AirLeftAfterWeather = 0.25f;
+
+	/** Wind of a thermal (pulling in), of a wind front and the gusts of a thunderstorm, in cm/s */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 0))
+	float ThermalWind = 380.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 0))
+	float WindFrontWind = 600.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 0))
+	float ThunderstormWind = 350.0f;
+
+	/** Graupel lances per second near each player inside, and the damage of one to whoever it hits */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 0))
+	float GraupelPerSecond = 3.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Events", meta = (ClampMin = 0))
+	float GraupelDamage = 4.0f;
+
+	/** What adds to the air by itself, per second: a Brandherd per meter of its radius (a campfire this share of it), a cloud of steam or mist, broken ice */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float FireHeatPerMeter = 1.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0, ClampMax = 1))
+	float CampfireHeatShare = 0.1f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float SteamMoisture = 3.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float IceCold = 1.5f;
+
+	/** What adds to the air at once: fire and water spells where they hit, ice melting into steam, water putting out a fire, ice laid by hail, something freezing */
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float FireImpactHeat = 4.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float WaterImpactMoisture = 2.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float IceMeltMoisture = 10.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float QuenchMoisture = 6.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float HailIceCold = 5.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Atmosphere|Sources", meta = (ClampMin = 0))
+	float FreezeCold = 8.0f;
+
 	/** Corruption of a region at the start, 0 to 100, for regions that don't set their own */
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))
 	float DefaultCorruption = 0.0f;

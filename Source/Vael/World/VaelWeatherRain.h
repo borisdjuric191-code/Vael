@@ -31,7 +31,7 @@ public:
 	static AVaelWeatherRain* Spawn(AVaelRegion* InRegion);
 
 	/** The same rain on one round patch for some seconds, out of a dark cloud above it (the Regenruf) */
-	static AVaelWeatherRain* SpawnPatch(UWorld* World, const FVector& Center, float Radius, float Lifetime);
+	static AVaelWeatherRain* SpawnPatch(UWorld* World, const FVector& Center, float Radius, float Lifetime, bool bInHeavy = false);
 
 	/** A rain on a patch stops now: the last drops still fall, the cloud thins away */
 	void StopPatch() { PatchLifetime = FMath::Min(PatchLifetime, PatchAge + 1.0f); }
@@ -103,6 +103,13 @@ private:
 	float PatchRadius = 500.0f;
 	float PatchLifetime = 9.0f;
 	float PatchAge = 0.0f;
+
+	/** A patch wider than the view, raining around the players only inside its circle; a heavy one (thunderstorm) with the drops of a storm */
+	bool bWide = false;
+	bool bHeavy = false;
+
+	/** A patch small enough to be rained on whole, out of its own cloud (the Regenruf) */
+	bool IsSmallPatch() const { return bPatch && !bWide; }
 
 	/** The dark cloud over a patch of rain, where its parts float and how big they are */
 	UPROPERTY(Transient)

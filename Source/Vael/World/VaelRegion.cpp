@@ -22,6 +22,7 @@
 #include "VaelAssets.h"
 #include "World/VaelLightningStrike.h"
 #include "World/VaelProgressSubsystem.h"
+#include "World/VaelLocalWeather.h"
 #include "World/VaelWeatherRain.h"
 #include "World/VaelWeatherWind.h"
 #include "World/VaelWorldSettings.h"
@@ -107,8 +108,9 @@ void AVaelRegion::Tick(float DeltaSeconds)
 
 FVector AVaelRegion::GetWindAt(UWorld* World, const FVector& Location)
 {
+	// The wind of the weather, and of local weathers the air broke out into (a thermal, a wind front, a thunderstorm)
 	const AVaelRegion* Region = GetRegionAt(World, Location);
-	return Region != nullptr ? Region->GetWind() : FVector::ZeroVector;
+	return (Region != nullptr ? Region->GetWind() : FVector::ZeroVector) + AVaelLocalWeather::GetWindAt(World, Location);
 }
 
 void AVaelRegion::TickWind(float DeltaSeconds)
@@ -125,7 +127,14 @@ void AVaelRegion::TickWind(float DeltaSeconds)
 	WindGust = FMath::Lerp(Settings->WindGustRange.X, Settings->WindGustRange.Y, Gust);
 
 	// Ash, sand and streaks drift over the land around the players while it blows
-	const bool bBlowing = WindStrength > 1.0f && HasPlayerInside();
+	// also while a local weather blows around one of the players
+	bool bLocalWind = false;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It && !bLocalWind; ++It)
+	{
+		const APawn* Pawn = It->Get() != nullptr ? It->Get()->GetPawn() : nullptr;
+		bLocalWind = Pawn != nullptr && Contains(Pawn->GetActorLocation()) && !AVaelLocalWeather::GetWindAt(GetWorld(), Pawn->GetActorLocation()).IsNearlyZero();
+	}
+	const bool bBlowing = (WindStrength > 1.0f && HasPlayerInside()) || bLocalWind;
 	if (bBlowing && WindLook == nullptr)
 	{
 		WindLook = AVaelWeatherWind::Spawn(this);

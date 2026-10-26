@@ -43,6 +43,9 @@
 #include "Combat/VaelAttributeSet.h"
 #include "World/VaelMarkSource.h"
 #include "World/VaelRegion.h"
+#include "World/VaelAtmosphere.h"
+#include "World/VaelLocalWeather.h"
+#include "World/VaelWorldSettings.h"
 #include "Magic/VaelGameplayTags.h"
 
 namespace
@@ -321,6 +324,60 @@ void UVaelCheatManager::VaelGlyphs(const FString& Glyphs)
 	// Only for this session; the lasting choice is in the project settings under Vael UI
 	GetMutableDefault<UVaelUISettings>()->GamepadGlyphs = static_cast<EVaelGamepadGlyphPreference>(Value);
 	UE_LOG(LogVael, Log, TEXT("VaelGlyphs: %s"), *Glyphs);
+}
+
+void UVaelCheatManager::VaelAir(const FString& Kind, float Amount)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	UVaelAtmosphere* Air = UVaelAtmosphere::Get(GetWorld());
+	if (PlayerPawn == nullptr || Air == nullptr)
+	{
+		return;
+	}
+
+	const FString Name = Kind.ToLower();
+	const EVaelAir AirKind = Name.StartsWith(TEXT("h")) ? EVaelAir::Heat : Name.StartsWith(TEXT("f")) || Name.StartsWith(TEXT("m")) ? EVaelAir::Moisture : EVaelAir::Cold;
+	UVaelAtmosphere::Add(GetWorld(), PlayerPawn->GetActorLocation(), AirKind, Amount);
+
+	const FVaelAirCell Cell = Air->Sample(PlayerPawn->GetActorLocation());
+	UE_LOG(LogVael, Display, TEXT("VaelAir: heat %.0f, moisture %.0f, cold %.0f around the player"), Cell.Heat, Cell.Moisture, Cell.Cold);
+}
+
+void UVaelCheatManager::VaelLocalWeather(const FString& Kind)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (PlayerPawn == nullptr)
+	{
+		return;
+	}
+
+	const FString Name = Kind.ToLower();
+	EVaelLocalWeather LocalKind = EVaelLocalWeather::Shower;
+	if (Name.StartsWith(TEXT("gew")) || Name.StartsWith(TEXT("thu")))
+	{
+		LocalKind = EVaelLocalWeather::Thunderstorm;
+	}
+	else if (Name.StartsWith(TEXT("auf")) || Name.StartsWith(TEXT("the")))
+	{
+		LocalKind = EVaelLocalWeather::Thermal;
+	}
+	else if (Name.StartsWith(TEXT("win")))
+	{
+		LocalKind = EVaelLocalWeather::WindFront;
+	}
+	else if (Name.StartsWith(TEXT("neb")) || Name.StartsWith(TEXT("fog")))
+	{
+		LocalKind = EVaelLocalWeather::ColdFog;
+	}
+	else if (Name.StartsWith(TEXT("gra")))
+	{
+		LocalKind = EVaelLocalWeather::Graupel;
+	}
+
+	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
+	AVaelLocalWeather::Spawn(GetWorld(), LocalKind, PlayerPawn->GetActorLocation(), Settings->LocalWeatherRadius, Settings->LocalWeatherLifetime, PlayerPawn->GetActorForwardVector());
 }
 
 void UVaelCheatManager::VaelWeather(const FString& Weather)

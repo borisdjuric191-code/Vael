@@ -34,6 +34,8 @@ namespace
 
 AVaelEmberQueen::AVaelEmberQueen()
 {
+	// The queen glows hotter than any of her brood; with her fires she heats the whole fight
+	AirHeatPerSecond = 3.0f;
 }
 
 void AVaelEmberQueen::BeginPlay()
