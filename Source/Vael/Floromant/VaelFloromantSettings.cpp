@@ -29,6 +29,7 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	HeadMeshes[1] = AssetAt<USkeletalMesh>(Bodies / TEXT("FloromantinFrau"), TEXT("SK_FloromantinFrau_Kopf"));
 	WingMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("MI_Floromant_Fluegel"));
 	RootMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("MI_Floromant_Wurzel"));
+	ShadowMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("M_Floromant_Schatten"));
 
 	// A shooter, a healer, a wall and a helper on the belt to start with; every plant with a model can go there
 	for (const TCHAR* Id : { TEXT("Glutdistel"), TEXT("Russrose"), TEXT("Schlotwinde"), TEXT("Glimmklee") })

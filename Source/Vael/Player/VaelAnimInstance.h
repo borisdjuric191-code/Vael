@@ -5,11 +5,13 @@
 #include "CoreMinimal.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimInstanceProxy.h"
+#include "BonePose.h"
+#include "Floromant/VaelFlightPose.h"
 #include "VaelAnimInstance.generated.h"
 
 class AVaelCharacter;
 
-/** Runs the animation graph and then bends the body for the plant arms of the Floromant (on the animation worker thread) */
+/** Runs the animation graph and then bends the body for the flight and the plant arms of the Floromant (on the animation worker thread) */
 struct FVaelAnimProxy : public FAnimInstanceProxy
 {
 	FVaelAnimProxy() = default;
@@ -22,6 +24,14 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	float ArmStance[2] = { 0.0f, 0.0f };
 	float LeanDegrees = 0.0f;
 	float ArmReach = 1.0f;
+
+	/** Copied from the instance: how the flying body hangs in the air */
+	FVaelFlightPose Flight;
+
+private:
+
+	/** Tips the body, lets the legs dangle and swing, bends the knees and points the toes */
+	void ApplyFlight(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 };
 
 /**
@@ -72,6 +82,9 @@ protected:
 	float PlantArmStance[2] = { 0.0f, 0.0f };
 	float PlantArmLean = 0.0f;
 	float PlantArmReach = 1.0f;
+
+	/** How the body of a flying Floromant hangs in the air, from the character */
+	FVaelFlightPose FlightPose;
 
 public:
 

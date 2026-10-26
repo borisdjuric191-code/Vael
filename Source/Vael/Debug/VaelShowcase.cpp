@@ -89,6 +89,17 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		}
 	}
 
+	// -VaelShowcaseFly=<yaw>: the first player flies (or walks) that way for 2.5 s and stops for 1.5 s, again and again, to see lean and braking
+	float FlyYaw = 0.0f;
+	if (FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseFly="), FlyYaw) && FMath::Fmod(Age, 4.0f) < 2.5f)
+	{
+		const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		if (APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr)
+		{
+			PlayerPawn->AddMovementInput(FRotator(0.0f, FlyYaw, 0.0f).Vector());
+		}
+	}
+
 	// -VaelShowcasePlayerView=X,Y,Z: close camera on the player from a place in its own frame (cm, X ahead, Y right), like 220,-140,60
 	FString PlayerViewText;
 	if (FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcasePlayerView="), PlayerViewText, false))

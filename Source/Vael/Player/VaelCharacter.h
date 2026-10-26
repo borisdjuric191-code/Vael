@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Floromant/VaelFlightPose.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelCharacter.generated.h"
@@ -22,6 +23,7 @@ class UVaelFairyWingsComponent;
 class UVaelFloromantComponent;
 class UVaelInventory;
 class UVaelMaterialBag;
+class UDecalComponent;
 
 /**
  *  A directly controlled player character seen from the shared isometric camera.
@@ -260,6 +262,9 @@ public:
 	/** Returns the seeds and plants of the Floromant **/
 	UVaelFloromantComponent* GetFloromant() const { return Floromant.Get(); }
 
+	/** Returns how the body of a flying Floromant hangs in the air; weight 0 for a mage */
+	const FVaelFlightPose& GetFlightPose() const { return FlightPose; }
+
 	/** Returns the element queue **/
 	UVaelElementComponent* GetElementComponent() const { return ElementComponent.Get(); }
 
@@ -377,8 +382,27 @@ private:
 	/** Place of the mesh on the ground; the Floromant hovers above it */
 	FVector DefaultMeshLocation = FVector::ZeroVector;
 
-	/** Lets a Floromant hover with a gentle bob, a mage stand on the ground */
-	void UpdateHover();
+	/** Lets a Floromant hover with a gentle bob and fly with lean, dangling legs and a shadow; a mage stands on the ground */
+	void UpdateHover(float DeltaSeconds);
+
+	/** Places the soft shadow under a flying Floromant, made the first time it is needed */
+	void UpdateFlightShadow(float Height, float Landed);
+
+	/** Soft shadow under a flying Floromant */
+	UPROPERTY(Transient)
+	TObjectPtr<UDecalComponent> FlightShadow;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> FlightShadowMaterial;
+
+	/** Flight state of the Floromant, smoothed over the frames; vectors in the world */
+	FVaelFlightPose FlightPose;
+	FVector FlightLastVelocity = FVector::ZeroVector;
+	FVector FlightAccel = FVector::ZeroVector;
+	FVector FlightLean = FVector::ZeroVector;
+	FVector FlightLegLag = FVector::ZeroVector;
+	FVector FlightLegLagSpeed = FVector::ZeroVector;
+	float FlightSpeedShare = 0.0f;
 
 	/** Walking speed while not channeling a spell */
 	float DefaultWalkSpeed = 0.0f;

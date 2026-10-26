@@ -87,6 +87,68 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Hovering", meta = (ClampMin = 0))
 	float HoverBobSpeed = 1.4f;
 
+	// --- Flight
+
+	/** Degrees the body tips into the way it flies at full speed, and how far more while it speeds up, brakes or turns */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 45))
+	float FlightLean = 14.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 45))
+	float FlightAccelLean = 10.0f;
+
+	/** Change of speed in cm/s per second that counts as hard speeding up or braking */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 1))
+	float FlightAccelReference = 1800.0f;
+
+	/** Most degrees the body ever tips, and how quickly it follows (higher = quicker) */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 60))
+	float FlightMaxLean = 26.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0.1))
+	float FlightLeanSpeed = 6.0f;
+
+	/** Extra height in cm at full speed: she rises a little when she flies fast and sinks back when she stops */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0))
+	float FlightRise = 18.0f;
+
+	/** Degrees the dangling legs trail behind at full speed */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 60))
+	float FlightLegTrail = 14.0f;
+
+	/** How the legs swing after when the body tips: spring stiffness and damping (low damping = more swinging) */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 1))
+	float FlightLegStiffness = 40.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0))
+	float FlightLegDamping = 5.0f;
+
+	/** Slow paddling of the hanging legs in degrees, the bend of the knees and how far the toes point down */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 45))
+	float FlightLegKick = 6.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 90))
+	float FlightKneeBend = 18.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 90))
+	float FlightFootPoint = 28.0f;
+
+	/** Seconds of steady fast flight before the wings stop beating and she glides, and seconds between the beats that keep her up */
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0))
+	float GlideDelay = 0.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight")
+	FVector2D GlidePumpInterval = FVector2D(1.6f, 3.2f);
+
+	/** Soft shadow under her that tells how high she flies: decal M_Floromant_Schatten, radius in cm on the ground and darkness */
+	UPROPERTY(config, EditAnywhere, Category="Flight")
+	TSoftObjectPtr<UMaterialInterface> ShadowMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0))
+	float ShadowRadius = 34.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight", meta = (ClampMin = 0, ClampMax = 1))
+	float ShadowStrength = 0.55f;
+
 	// --- Saft
 
 	/** Most Saft the Floromant can hold */

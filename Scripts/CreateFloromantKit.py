@@ -5,6 +5,7 @@
 #   Flash lets it glow up in FlashColor (the telegraph before it acts), World Position Offset sways it in the wind, more towards the top.
 #   GroundZ and PlantHeight are set by the game for each plant.
 # - M_Floromant_Fluegel: thin, translucent-looking wing (two-sided foliage shading), the picture's alpha cuts the outline and the holes.
+# - M_Floromant_Schatten: soft dark blob decal under the flying Floromant, so her height reads from the camera.
 # - Only creates what is missing, except that the two master materials get their graph rebuilt when it is older than KIT_VERSION.
 # - Everything lives under /Game/Vael/Characters/Floromant/Materialien.
 #
@@ -256,6 +257,36 @@ def build_wing_material(picture):
     return material
 
 
+# ---------------------------------------------------------------- M_Floromant_Schatten
+
+def build_shadow_material():
+    material = new_material("M_Floromant_Schatten")
+    if material is None:
+        return unreal.load_asset(FOLDER + "/M_Floromant_Schatten")
+
+    material.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, column=8)
+    strength = g.scalar("Strength", 0.55, column=3)
+    softness = g.scalar("Softness", 1.6, column=4)
+
+    # A soft dark blob: full in the middle, fading towards the edge; the game makes it wider and fainter the higher she flies
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 7)
+    middle = g.node(unreal.MaterialExpressionConstant2Vector, 7, r=0.5, g=0.5)
+    distance = g.mul(5, g.op(unreal.MaterialExpressionLength, 5, g.sub(6, uv, middle), a_input=""), g.const(2.0, column=5))
+    inside = g.saturate(4, g.sub(4, g.const(1.0, column=4), distance))
+    falloff = g.op(unreal.MaterialExpressionPower, 3, inside, softness, a_input="Base", b_input="Exp")
+
+    g.output(g.node(unreal.MaterialExpressionConstant3Vector, 2, constant=unreal.LinearColor(0.0, 0.0, 0.0, 0.0)), unreal.MaterialProperty.MP_BASE_COLOR)
+    g.output(g.mul(2, falloff, strength), unreal.MaterialProperty.MP_OPACITY)
+
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
 # ---------------------------------------------------------------- Instances
 
 def texture_fits(path, normal):
@@ -365,6 +396,8 @@ def main():
     picture = import_wing_picture()
     wing = build_wing_material(picture)
     make_instance(wing, "MI_Floromant_Fluegel")
+
+    build_shadow_material()
 
     assets.save_directory(FOLDER)
     assets.save_directory(PLANT_FOLDER)

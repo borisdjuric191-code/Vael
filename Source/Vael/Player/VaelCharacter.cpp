@@ -10,6 +10,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "AbilitySystemComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/DecalComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -349,7 +350,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	FlickerHandLight();
-	UpdateHover();
+	UpdateHover(DeltaSeconds);
 
 #if ENABLE_DRAW_DEBUG
 	if (bShowStatusText)
@@ -532,27 +533,116 @@ void AVaelCharacter::ShowDashBurst()
 #endif
 }
 
-void AVaelCharacter::UpdateHover()
+void AVaelCharacter::UpdateHover(float DeltaSeconds)
 {
 	if (!IsFloromant() || bDowned)
 	{
+		FlightPose = FVaelFlightPose();
 		if (!bDowned && !GetMesh()->GetRelativeLocation().Equals(DefaultMeshLocation))
 		{
 			GetMesh()->SetRelativeLocation(DefaultMeshLocation);
 		}
+		if (FlightShadow != nullptr && FlightShadow->IsVisible())
+		{
+			FlightShadow->SetVisibility(false);
+		}
 		return;
 	}
 
-	// A little above the ground, rising and sinking slowly; collision and walking stay as for every class
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	const float Time = GetWorld()->GetTimeSeconds();
-	const float Bob = FMath::Sin(Time * Settings->HoverBobSpeed * 2.0f * UE_PI + GetUniqueID()) * Settings->HoverBob;
+	// A hitch must not throw the leg pendulum out of its swing
+	const float Delta = FMath::Clamp(DeltaSeconds, 0.001f, 1.0f / 30.0f);
 
-	// While a hand fires it lands and braces itself
+	// How fast she flies and how her speed changes; speeding up, braking and turning all tip her body
+	const FVector Velocity = GetVelocity() * FVector(1.0f, 1.0f, 0.0f);
+	const float TopSpeed = FMath::Max(DefaultWalkSpeed, 1.0f);
+	FlightAccel = FMath::VInterpTo(FlightAccel, (Velocity - FlightLastVelocity) / Delta, Delta, 6.0f);
+	FlightLastVelocity = Velocity;
+	FlightSpeedShare = FMath::FInterpTo(FlightSpeedShare, FMath::Min(Velocity.Size() / TopSpeed, 1.0f), Delta, 4.0f);
+	const float Brake = Velocity.IsNearlyZero(1.0f) && FlightAccel.IsNearlyZero(50.0f) ? 0.0f
+		: FMath::Clamp(-(FlightAccel | Velocity.GetSafeNormal()) / Settings->FlightAccelReference, 0.0f, 1.0f);
+
+	// While a hand fires she lands and braces herself
 	const float Landed = FMath::Max(Floromant->GetStance(true), Floromant->GetStance(false));
-	const float Height = (Settings->HoverHeight + Bob) * (1.0f - Landed);
+	const float Flying = 1.0f - Landed;
+
+	// A little above the ground, rising and sinking slowly, higher when she flies fast; collision and walking stay as for every class
+	const float Bob = FMath::Sin(Time * Settings->HoverBobSpeed * 2.0f * UE_PI + GetUniqueID()) * Settings->HoverBob * (1.0f - 0.6f * FlightSpeedShare);
+	const float Height = (Settings->HoverHeight + Bob + Settings->FlightRise * FlightSpeedShare) * Flying;
+
+	// The body tips into the way she flies and further while she speeds up or turns; the lean is a horizontal vector, its length the degrees
+	FVector TargetLean = Velocity / TopSpeed * Settings->FlightLean + FlightAccel / Settings->FlightAccelReference * Settings->FlightAccelLean;
+	TargetLean = TargetLean.GetClampedToMaxSize(Settings->FlightMaxLean) * Flying;
+	FlightLean = FMath::VInterpTo(FlightLean, TargetLean, Delta, Settings->FlightLeanSpeed);
+
+	// The legs hang like a pendulum: they lag behind the tipping body and swing past before they settle
+	const FVector LegPull = (FlightLean - FlightLegLag) * Settings->FlightLegStiffness - FlightLegLagSpeed * Settings->FlightLegDamping;
+	FlightLegLagSpeed += LegPull * Delta;
+	FlightLegLag += FlightLegLagSpeed * Delta;
+
+	// Worked out in the world, handed on in the space of the mesh (animation) and of the actor (wings)
+	const FVector LeanAxis = FVector::CrossProduct(FVector::UpVector, FlightLean);
+	const FQuat Tilt = LeanAxis.IsNearlyZero(0.001f) ? FQuat::Identity : FQuat(LeanAxis.GetSafeNormal(), FMath::DegreesToRadians(FlightLean.Size()));
+	const FQuat MeshRotation = GetMesh()->GetComponentQuat();
+	const FQuat ActorRotation = GetActorQuat();
+
+	FlightPose.Weight = Flying;
+	FlightPose.Tilt = MeshRotation.Inverse() * Tilt * MeshRotation;
+	const FVector LegSwing = (FlightLean - FlightLegLag) - Velocity / TopSpeed * Settings->FlightLegTrail * Flying;
+	FlightPose.LegSwing = MeshRotation.UnrotateVector(LegSwing);
+	// Slow paddling of the legs in turn while she hovers, quieter in fast flight when they trail behind
+	const float Paddle = Settings->FlightLegKick * Flying * (1.0f - 0.5f * FlightSpeedShare);
+	const float PaddlePhase = Time * 0.65f * 2.0f * UE_PI + GetUniqueID() * 0.7f;
+	FlightPose.LegKick[0] = Paddle * FMath::Sin(PaddlePhase);
+	FlightPose.LegKick[1] = -Paddle * FMath::Sin(PaddlePhase + 0.4f);
+	FlightPose.KneeBend = Settings->FlightKneeBend * Flying * (1.0f + 0.25f * FMath::Sin(PaddlePhase * 0.7f) + 0.4f * FlightSpeedShare);
+	FlightPose.FootPoint = Settings->FlightFootPoint * Flying;
+
 	GetMesh()->SetRelativeLocation(DefaultMeshLocation + FVector(0.0f, 0.0f, Height));
-	Wings->SetRelativeLocation(FVector(0.0f, 0.0f, Height));
+
+	// The wings sit on her back, so they tip with the body around the pelvis
+	FVector Pivot(0.0f, 0.0f, Height);
+	if (GetMesh()->DoesSocketExist(TEXT("pelvis")))
+	{
+		Pivot = GetMesh()->GetSocketTransform(TEXT("pelvis"), RTS_Actor).GetLocation();
+	}
+	const FQuat WingTilt = ActorRotation.Inverse() * Tilt * ActorRotation;
+	Wings->SetRelativeLocationAndRotation(Pivot + WingTilt.RotateVector(FVector(0.0f, 0.0f, Height) - Pivot), WingTilt);
+	Wings->SetFlight(FlightSpeedShare * Flying, Brake * Flying);
+
+	UpdateFlightShadow(Height, Landed);
+}
+
+void AVaelCharacter::UpdateFlightShadow(float Height, float Landed)
+{
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	if (FlightShadow == nullptr)
+	{
+		UMaterialInterface* Material = VaelAssets::LoadOptional(Settings->ShadowMaterial);
+		if (Material == nullptr)
+		{
+			return;
+		}
+
+		FlightShadowMaterial = UMaterialInstanceDynamic::Create(Material, this);
+		FlightShadow = NewObject<UDecalComponent>(this, TEXT("FlightShadow"));
+		FlightShadow->SetDecalMaterial(FlightShadowMaterial);
+		FlightShadow->DecalSize = FVector(30.0f, Settings->ShadowRadius, Settings->ShadowRadius);
+		FlightShadow->SetupAttachment(RootComponent);
+		FlightShadow->SetUsingAbsoluteRotation(true);
+		FlightShadow->SetUsingAbsoluteScale(true);
+		FlightShadow->RegisterComponent();
+		FlightShadow->SetWorldRotation(FRotator(-90.0f, 0.0f, 0.0f));
+	}
+
+	// Under the feet, a box that reaches a little into the ground and not up to the dangling legs; wider and fainter the higher she flies
+	const float Feet = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	const float Widen = 1.0f + Height / 120.0f;
+	FlightShadow->SetWorldScale3D(FVector(1.0f, Widen, Widen));
+	FlightShadow->SetRelativeLocation(FVector(0.0f, 0.0f, -Feet - 10.0f));
+	FlightShadow->SetVisibility(true);
+	FlightShadowMaterial->SetScalarParameterValue(TEXT("Strength"), Settings->ShadowStrength * (1.0f - Height / 250.0f) * (1.0f - 0.5f * Landed));
 }
 
 void AVaelCharacter::BeginRollLook(UAnimMontage* Montage, float Duration)

@@ -44,6 +44,8 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	PlantArmLean = FloromantSettings->FiringLean * FMath::Max(PlantArmStance[0], PlantArmStance[1]);
 	PlantArmReach = FloromantSettings->FiringArmReach;
 
+	FlightPose = Character->GetFlightPose();
+
 	// The Floromant hovers instead of walking: its legs stay still while it glides; once it has landed to fire, it walks
 	const bool bHovering = Character->IsFloromant() && FMath::Max(PlantArmStance[0], PlantArmStance[1]) < 0.5f;
 	if (bHovering)
@@ -79,30 +81,20 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	ArmStance[1] = Instance->PlantArmStance[1];
 	LeanDegrees = Instance->PlantArmLean;
 	ArmReach = Instance->PlantArmReach;
+	Flight = Instance->FlightPose;
 }
 
-bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode)
+namespace
 {
-	// The graph of the animation blueprint as always
-	EvaluateAnimationNode_WithRoot(Output, InRootNode);
-
-	if (InRootNode != GetRootNode() || (ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER))
-	{
-		return true;
-	}
-
-	const FBoneContainer& Bones = Output.Pose.GetBoneContainer();
-	const auto Find = [&Bones](const TCHAR* Name)
+	/** Index of a bone in the evaluated pose, none when the skeleton lacks it */
+	FCompactPoseBoneIndex FindPoseBone(const FBoneContainer& Bones, const TCHAR* Name)
 	{
 		const int32 MeshIndex = Bones.GetPoseBoneIndexForBoneName(FName(Name));
 		return MeshIndex == INDEX_NONE ? FCompactPoseBoneIndex(INDEX_NONE) : Bones.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
-	};
+	}
 
-	FCSPose<FCompactPose> Pose;
-	Pose.InitPose(Output.Pose);
-
-	// Turns one bone by a rotation in component space, around its own joint; its children follow
-	const auto Turn = [&Pose](FCompactPoseBoneIndex Bone, const FQuat& Rotation)
+	/** Turns one bone by a rotation in component space, around its own joint; its children follow */
+	void TurnPoseBone(FCSPose<FCompactPose>& Pose, FCompactPoseBoneIndex Bone, const FQuat& Rotation)
 	{
 		if (Bone == INDEX_NONE)
 		{
@@ -112,7 +104,85 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 		Transform.SetRotation((Rotation * Transform.GetRotation()).GetNormalized());
 		TArray<FBoneTransform> Changed = { FBoneTransform(Bone, Transform) };
 		Pose.LocalBlendCSBoneTransforms(Changed, 1.0f);
-	};
+	}
+
+	/** Way from a bone to its child in component space, zero when either is missing */
+	FVector PoseBoneDirection(FCSPose<FCompactPose>& Pose, FCompactPoseBoneIndex Bone, FCompactPoseBoneIndex Child)
+	{
+		if (Bone == INDEX_NONE || Child == INDEX_NONE)
+		{
+			return FVector::ZeroVector;
+		}
+		return (Pose.GetComponentSpaceTransform(Child).GetLocation() - Pose.GetComponentSpaceTransform(Bone).GetLocation()).GetSafeNormal();
+	}
+
+	/** Swings a bone so the end of its child moves towards a direction by the degrees */
+	void SwingPoseBone(FCSPose<FCompactPose>& Pose, FCompactPoseBoneIndex Bone, FCompactPoseBoneIndex Child, const FVector& Towards, float Degrees)
+	{
+		const FVector Current = PoseBoneDirection(Pose, Bone, Child);
+		const FVector Axis = FVector::CrossProduct(Current, Towards);
+		if (Current.IsNearlyZero() || Axis.IsNearlyZero(0.001f) || FMath::IsNearlyZero(Degrees))
+		{
+			return;
+		}
+		TurnPoseBone(Pose, Bone, FQuat(Axis.GetSafeNormal(), FMath::DegreesToRadians(Degrees)));
+	}
+}
+
+void FVaelAnimProxy::ApplyFlight(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	// The whole body tips around the pelvis into the way she flies
+	TurnPoseBone(Pose, FindPoseBone(Bones, TEXT("pelvis")), Flight.Tilt);
+
+	// The body faces +Y in the space of the mesh; after the tip
+	const FVector Forward = Flight.Tilt.RotateVector(FVector::YAxisVector);
+	const FVector Down = Flight.Tilt.RotateVector(-FVector::ZAxisVector);
+
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		const FCompactPoseBoneIndex Thigh = FindPoseBone(Bones, *FString::Printf(TEXT("thigh_%s"), Suffix));
+		const FCompactPoseBoneIndex Calf = FindPoseBone(Bones, *FString::Printf(TEXT("calf_%s"), Suffix));
+		const FCompactPoseBoneIndex Foot = FindPoseBone(Bones, *FString::Printf(TEXT("foot_%s"), Suffix));
+		const FCompactPoseBoneIndex Ball = FindPoseBone(Bones, *FString::Printf(TEXT("ball_%s"), Suffix));
+		if (Thigh == INDEX_NONE)
+		{
+			continue;
+		}
+
+		// Dangling: the legs swing out the way the pendulum says and paddle slowly in turn
+		const FVector Swing = Flight.LegSwing + Forward * Flight.LegKick[Side] * Flight.Weight;
+		SwingPoseBone(Pose, Thigh, Calf, Swing.GetSafeNormal(), Swing.Size());
+
+		// Knees a little bent, the shins hang back; the toes point down like a dancer's
+		SwingPoseBone(Pose, Calf, Foot, -Forward, Flight.KneeBend);
+		SwingPoseBone(Pose, Foot, Ball, Down, Flight.FootPoint);
+	}
+}
+
+bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode)
+{
+	// The graph of the animation blueprint as always
+	EvaluateAnimationNode_WithRoot(Output, InRootNode);
+
+	const bool bFlying = Flight.Weight > KINDA_SMALL_NUMBER;
+	if (InRootNode != GetRootNode() || (!bFlying && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER))
+	{
+		return true;
+	}
+
+	const FBoneContainer& Bones = Output.Pose.GetBoneContainer();
+	const auto Find = [&Bones](const TCHAR* Name) { return FindPoseBone(Bones, Name); };
+
+	FCSPose<FCompactPose> Pose;
+	Pose.InitPose(Output.Pose);
+
+	if (bFlying)
+	{
+		ApplyFlight(Pose, Bones);
+	}
+
+	const auto Turn = [&Pose](FCompactPoseBoneIndex Bone, const FQuat& Rotation) { TurnPoseBone(Pose, Bone, Rotation); };
 
 	// Points a bone towards a direction, as far as the weight says
 	const auto Aim = [&Pose, &Turn](FCompactPoseBoneIndex Bone, FCompactPoseBoneIndex Child, const FVector& Direction, float Weight)
@@ -121,7 +191,7 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 		{
 			return;
 		}
-		const FVector Current = (Pose.GetComponentSpaceTransform(Child).GetLocation() - Pose.GetComponentSpaceTransform(Bone).GetLocation()).GetSafeNormal();
+		const FVector Current = PoseBoneDirection(Pose, Bone, Child);
 		if (Current.IsNearlyZero())
 		{
 			return;

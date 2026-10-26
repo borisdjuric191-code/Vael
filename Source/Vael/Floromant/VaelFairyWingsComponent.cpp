@@ -135,12 +135,35 @@ void UVaelFairyWingsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	const bool bMoving = Owner != nullptr && Owner->GetVelocity().Size2D() > WingWalkSpeed;
 	BurstTimeLeft = FMath::Max(0.0f, BurstTimeLeft - DeltaTime);
 	const float Burst = BurstTimeLeft > 0.0f ? 1.0f : 0.0f;
-	BeatPhase += DeltaTime * 2.0f * UE_PI * (bMoving ? Settings->WingBeatMoving : Settings->WingBeatIdle) * (1.0f + 3.0f * Burst);
+	const float BeatRate = (bMoving ? FMath::Lerp(Settings->WingBeatIdle, Settings->WingBeatMoving, FMath::Max(SpeedShare, 0.5f)) : Settings->WingBeatIdle)
+		* (1.0f + 3.0f * Burst) * (1.0f + 0.8f * Brake);
+	BeatPhase += DeltaTime * 2.0f * UE_PI * BeatRate;
+
+	// Steady fast flight: the wings stop and hold open, and every few seconds two beats keep her up; braking or darting beats again
+	const bool bSteady = SpeedShare > 0.75f && Brake < 0.2f && Burst <= 0.0f;
+	SteadyTime = bSteady ? SteadyTime + DeltaTime : 0.0f;
+	PumpTimeLeft = FMath::Max(0.0f, PumpTimeLeft - DeltaTime);
+	NextPumpTime -= DeltaTime;
+	if (SteadyTime > Settings->GlideDelay && NextPumpTime <= 0.0f)
+	{
+		PumpTimeLeft = 2.0f / FMath::Max(BeatRate, 0.1f);
+		NextPumpTime = PumpTimeLeft + FMath::FRandRange(Settings->GlidePumpInterval.X, Settings->GlidePumpInterval.Y);
+	}
+	const bool bGliding = SteadyTime > Settings->GlideDelay && PumpTimeLeft <= 0.0f;
+	Glide = FMath::FInterpTo(Glide, bGliding ? 1.0f : 0.0f, DeltaTime, bGliding ? 3.0f : 7.0f);
 
 	// The wings open and fold back around their hinges; the beat is quick on the way back and lingers when open, like a moth
 	const float Beat = FMath::Sin(BeatPhase);
-	const float Swing = WingRestAngle + WingBeatAngle * (1.0f + 0.8f * Burst) * (Beat > 0.0f ? Beat : Beat * 0.6f);
-	const float Flutter = 3.0f * FMath::Sin(BeatPhase * 2.3f);
+	const float Strength = (1.0f + 0.8f * Burst) * (1.0f + 0.6f * Brake);
+	const float BeatSwing = WingRestAngle + WingBeatAngle * Strength * (Beat > 0.0f ? Beat : Beat * 0.6f);
+	const float BeatFlutter = 3.0f * FMath::Sin(BeatPhase * 2.3f);
+
+	// Gliding they are spread wide and tilted up a little, only trembling in the wind of the flight
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float GlideSwing = WingRestAngle + WingBeatAngle * 0.9f + 1.2f * FMath::Sin(Time * 11.0f);
+	const float GlideFlutter = 5.0f + 1.0f * FMath::Sin(Time * 7.3f);
+	const float Swing = FMath::Lerp(BeatSwing, GlideSwing, Glide);
+	const float Flutter = FMath::Lerp(BeatFlutter, GlideFlutter, Glide);
 
 	for (int32 Side = 0; Side < Hinges.Num(); ++Side)
 	{
