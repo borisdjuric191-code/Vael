@@ -34,6 +34,10 @@ namespace
 	const TCHAR* const FingerNames[] = { TEXT("thumb"), TEXT("index"), TEXT("middle"), TEXT("ring"), TEXT("pinky") };
 	constexpr int32 NumFingers = UE_ARRAY_COUNT(FingerNames);
 
+	/** Pieces of spline per vine of a vine arm, and how often the vines wind round each other from shoulder to tip */
+	constexpr int32 VineArmSegments = 4;
+	constexpr float VineArmTwistTurns = 1.6f;
+
 	/** Length of each finger stalk compared with the plant's finger length: the middle ones reach farthest */
 	constexpr float FingerLengthShares[] = { 0.75f, 1.0f, 1.15f, 0.95f, 0.8f };
 
@@ -1025,9 +1029,11 @@ void UVaelPlantArmComponent::BuildVineArm()
 	FRandomStream Random(GetOwner()->GetUniqueID() * 3 + (bLeft ? 1 : 0));
 	for (int32 Index = 0; Index < Plant->ArmVineCount; ++Index)
 	{
-		ArmVineShapes.Add(FVector(Index * 2.0f * UE_PI / Plant->ArmVineCount + Random.FRandRange(-0.3f, 0.3f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.75f, 1.15f)));
-		ArmVines.Add(MakeStalk(VineMesh, ArmMaterial));
-		ArmVines.Add(MakeStalk(VineMesh, ArmMaterial));
+		ArmVineShapes.Add(FVector(Index * 2.0f * UE_PI / Plant->ArmVineCount + Random.FRandRange(-0.15f, 0.15f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.85f, 1.15f)));
+		for (int32 Segment = 0; Segment < VineArmSegments; ++Segment)
+		{
+			ArmVines.Add(MakeStalk(VineMesh, ArmMaterial));
+		}
 	}
 
 	// The rose on the shoulder with its glowing heart
@@ -1168,36 +1174,68 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	const FVector HeldPoint = Held != nullptr ? BodyTransform.InverseTransformPosition(Held->GetActorLocation() + FVector(0.0f, 0.0f, 20.0f)) : Wrist;
 	const FVector Up = BodyTransform.InverseTransformVectorNoScale(FVector::UpVector);
 	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
-	for (int32 Index = 0; Index * 2 + 1 < ArmVines.Num(); ++Index)
+
+	// The vines braid round each other like the strands of a rope, so together they make one thick arm (Boris 2026-10-26);
+	// the bundle sways as a whole, only towards the end the strands come apart and whip on their own
+	const int32 NumVines = ArmVineShapes.Num();
+	FVector TetherCurve[3] = { Shoulder, Shoulder, Shoulder };
+	for (int32 Index = 0; Index < NumVines; ++Index)
 	{
 		const FVector& Shape = ArmVineShapes[Index];
-		const FVector Out = U * FMath::Cos(Shape.X) + V * FMath::Sin(Shape.X);
-		const FVector Whip = U * FMath::Cos(Shape.X + 1.6f) + V * FMath::Sin(Shape.X + 1.6f);
 		const float Length = Plant->ArmVineLength * Shape.Z * Shown;
-		const FVector Start = Shoulder + Out * 4.0f;
-		FVector Middle = FMath::Lerp(Shoulder, Elbow, 0.9f) + Out * 7.0f + Whip * 8.0f * FMath::Sin(Time * 3.1f + Shape.Y);
-		FVector Tip = Shoulder + ArmAxis * Length + Out * 14.0f + Whip * 20.0f * FMath::Sin(Time * 4.3f + Shape.Y * 1.7f);
+		const FVector Reach = Shoulder + ArmAxis * Length;
+		const FVector Sway = (U * FMath::Sin(Time * 1.7f) + V * FMath::Cos(Time * 1.3f)) * 6.0f;
+		const bool bHolds = Index < Plant->TetherVines && Tether > 0.0f;
 
-		// The holding vines shoot out to who they hold, in an arc
-		if (Index < Plant->TetherVines && Tether > 0.0f)
+		// Where a holding vine goes: an arc from the shoulder to who it holds
+		const FVector To = HeldPoint + (U * FMath::Cos(Shape.X) + V * FMath::Sin(Shape.X)) * 8.0f;
+		const FVector Arc = (Shoulder + To) * 0.5f + Up * (40.0f + 10.0f * Index) + U * 10.0f * FMath::Sin(Time * 6.0f + Index);
+		if (Index == 0)
 		{
-			const FVector To = HeldPoint + Out * 10.0f;
-			const FVector Arc = (Shoulder + To) * 0.5f + Up * (40.0f + 10.0f * Index) + Out * 15.0f + Whip * 6.0f * FMath::Sin(Time * 6.0f + Index);
-			Middle = FMath::Lerp(Middle, Arc, Tether);
-			Tip = FMath::Lerp(Tip, To, Tether);
+			TetherCurve[1] = Arc;
+			TetherCurve[2] = To;
 		}
 
-		USplineMeshComponent* First = ArmVines[Index * 2];
-		USplineMeshComponent* Second = ArmVines[Index * 2 + 1];
-		const FVector Bend = (Tip - Start) * 0.5f;
-		First->SetStartAndEnd(Start, (Middle - Start), Middle, Bend, false);
-		Second->SetStartAndEnd(Middle, Bend, Tip, (Tip - Middle), false);
-		for (USplineMeshComponent* Piece : { First, Second })
+		FVector Points[VineArmSegments + 1];
+		for (int32 Point = 0; Point <= VineArmSegments; ++Point)
 		{
-			Piece->SetStartScale(FVector2D(Plant->ArmVineThickness * (Piece == First ? 1.0f : 0.75f)), false);
-			Piece->SetEndScale(FVector2D(Plant->ArmVineThickness * (Piece == First ? 0.75f : 0.35f)), false);
-			Piece->SetStartRoll(Shape.Y, false);
-			Piece->SetEndRoll(Shape.Y + 1.5f, false);
+			const float T = Point / static_cast<float>(VineArmSegments);
+
+			// Along the arm, bent through the elbow; each strand winds round the middle line
+			const FVector Along = FMath::Lerp(FMath::Lerp(Shoulder, Elbow, T), FMath::Lerp(Elbow, Reach, T), T);
+			const float Angle = Shape.X + T * VineArmTwistTurns * 2.0f * UE_PI + Time * 0.5f;
+			const FVector Around = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
+			const float Radius = FMath::Lerp(5.5f, 3.5f, T) + 12.0f * FMath::Pow(T, 3.0f);
+			const FVector Whip = (U * FMath::Cos(Shape.X + 1.6f) + V * FMath::Sin(Shape.X + 1.6f)) * 16.0f * FMath::Square(T) * FMath::Sin(Time * 4.0f + Shape.Y);
+			FVector Here = Along + Around * Radius + Sway * T + Whip;
+
+			// The holding vines shoot out to who they hold
+			if (bHolds)
+			{
+				const FVector OnArc = FMath::Lerp(FMath::Lerp(Shoulder, Arc, T), FMath::Lerp(Arc, To, T), T) + Around * 3.0f * (1.0f - T);
+				Here = FMath::Lerp(Here, OnArc, Tether * FMath::SmoothStep(0.0f, 0.35f, T));
+			}
+			Points[Point] = Here;
+		}
+
+		for (int32 Segment = 0; Segment < VineArmSegments; ++Segment)
+		{
+			USplineMeshComponent* Piece = ArmVines.IsValidIndex(Index * VineArmSegments + Segment) ? ArmVines[Index * VineArmSegments + Segment].Get() : nullptr;
+			if (Piece == nullptr)
+			{
+				continue;
+			}
+			const FVector& From = Points[Segment];
+			const FVector& Next = Points[Segment + 1];
+			const FVector StartTangent = (Next - Points[FMath::Max(Segment - 1, 0)]) * (Segment == 0 ? 1.0f : 0.5f);
+			const FVector EndTangent = (Points[FMath::Min(Segment + 2, VineArmSegments)] - From) * (Segment + 1 == VineArmSegments ? 1.0f : 0.5f);
+			Piece->SetStartAndEnd(From, StartTangent, Next, EndTangent, false);
+			const float T0 = Segment / static_cast<float>(VineArmSegments);
+			const float T1 = (Segment + 1) / static_cast<float>(VineArmSegments);
+			Piece->SetStartScale(FVector2D(Plant->ArmVineThickness * FMath::Lerp(1.0f, 0.3f, T0)), false);
+			Piece->SetEndScale(FVector2D(Plant->ArmVineThickness * FMath::Lerp(1.0f, 0.3f, T1)), false);
+			Piece->SetStartRoll(Shape.Y + T0 * 4.0f, false);
+			Piece->SetEndRoll(Shape.Y + T1 * 4.0f, false);
 			Piece->UpdateMesh();
 		}
 	}
@@ -1205,11 +1243,12 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	ArmMaterial->SetScalarParameterValue(WindParameter, Plant->RestWind);
 	ArmMaterial->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
 
-	// --- The rose sits big on the shoulder, looking up and out; it wanders off for the heart shot and grows back
+	// --- The rose stands nearly upright against the shoulder, its foot grown into it, its face turned out to the side
+	// (Boris 2026-10-26: it must touch the shoulder, not float above it); it wanders off for the heart shot and grows back
 	const FVector Chest = BoneLocation(TEXT("spine_03"));
 	FVector Outward = (Shoulder - Chest) * FVector(1.0f, 0.0f, 0.0f);
 	Outward = Outward.IsNearlyZero() ? U : Outward.GetSafeNormal();
-	const FVector Home = Shoulder + Up * 8.0f + Outward * 6.0f;
+	const FVector Home = Shoulder + Up * 3.0f + Outward * 1.5f;
 	FVector Place = Home;
 	float RoseScale = Plant->ShoulderRoseSize / 10.0f * Shown * FMath::SmoothStep(0.0f, 1.0f, RoseGrow);
 	if (RoseAway >= 0.0f)
@@ -1233,7 +1272,8 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	RoseLocation = Place;
 	if (ShoulderRose != nullptr)
 	{
-		ShoulderRose->SetRelativeLocationAndRotation(Place, FRotationMatrix::MakeFromZ(Up * 0.7f + Outward * 0.5f + BodyTransform.InverseTransformVectorNoScale(Character->GetActorForwardVector()) * 0.3f).Rotator());
+		const FVector Facing = (Outward * 0.85f + Up * 0.35f + BodyTransform.InverseTransformVectorNoScale(Character->GetActorForwardVector()) * 0.15f).GetSafeNormal();
+		ShoulderRose->SetRelativeLocationAndRotation(Place, FRotationMatrix::MakeFromZX(Facing, Up).Rotator());
 		ShoulderRose->SetRelativeScale3D(FVector(FMath::Max(RoseScale, 0.001f)));
 		ShoulderRose->SetVisibility(RoseScale > 0.01f);
 	}
@@ -1241,12 +1281,12 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	// The heart glows, beating harder while it heals
 	const FLinearColor Glow = bShadow ? Plant->BloodColor : Plant->HeartColor;
 	const float Beat = 1.0f + (bHolding ? 0.8f : 0.2f) * FMath::Square(FMath::Sin(Time * (bHolding ? 7.0f : 2.5f)));
-	HeartLight->SetRelativeLocation(Place + Up * 6.0f);
+	HeartLight->SetRelativeLocation(Place + Outward * 12.0f);
 	HeartLight->SetLightColor(Glow);
 	HeartLight->SetIntensity(3.5f * Beat * RoseScale / FMath::Max(Plant->ShoulderRoseSize / 10.0f, 0.01f));
 
 	// Beats run along the first holding vine: to the ally, or from the enemy back to her
-	const bool bShowPulses = Tether > 0.9f && ArmVines.Num() >= 2;
+	const bool bShowPulses = Tether > 0.9f;
 	for (int32 Index = 0; Index < TetherPulses.Num(); ++Index)
 	{
 		UStaticMeshComponent* Pulse = TetherPulses[Index];
@@ -1257,10 +1297,7 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 		}
 		float Along = FMath::Fmod(Time * 1.4f + Index / static_cast<float>(TetherPulses.Num()), 1.0f);
 		Along = bShadow ? 1.0f - Along : Along;
-		const FVector P0 = ArmVines[0]->GetStartPosition();
-		const FVector P1 = ArmVines[0]->GetEndPosition();
-		const FVector P2 = ArmVines[1]->GetEndPosition();
-		const FVector Point = FMath::Lerp(FMath::Lerp(P0, P1, Along), FMath::Lerp(P1, P2, Along), Along);
+		const FVector Point = FMath::Lerp(FMath::Lerp(TetherCurve[0], TetherCurve[1], Along), FMath::Lerp(TetherCurve[1], TetherCurve[2], Along), Along);
 		Pulse->SetRelativeLocation(Point);
 		Pulse->SetRelativeScale3D(FVector(0.09f * (1.0f + 0.3f * FMath::Sin(Time * 12.0f + Index))));
 		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Pulse->GetMaterial(0)))
