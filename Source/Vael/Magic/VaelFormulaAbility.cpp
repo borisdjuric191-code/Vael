@@ -145,6 +145,8 @@ void UVaelFormulaAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 	// The element component forgets the cast right after activation, the animation takes longer
 	CastFormula = Formula;
 	CastPower = ElementComponent->GetPendingCast().Power;
+	CastSourceShare = ElementComponent->GetPendingCast().SourceShare;
+	CastSizeScale = ElementComponent->GetPendingCast().SizeScale;
 	bSpellReleased = false;
 	bCastAnimated = false;
 	bWaitingForChannel = false;
@@ -304,7 +306,7 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 	}
 
 	// Waves of water swell with the water around the caster and draw the puddles into themselves
-	WaveSizeScale = 1.0f;
+	SwellScale = 1.0f;
 	const bool bWaterWave = ((Formula.Delivery == EVaelSpellDelivery::Cone && Formula.ConeLook == EVaelConeLook::WaterWave)
 		|| (Formula.Delivery == EVaelSpellDelivery::Projectile && Formula.ProjectileLook == EVaelProjectileLook::TidalWave))
 		&& Formula.DamageElement == EVaelElement::Water;
@@ -312,11 +314,20 @@ void UVaelFormulaAbility::ExecuteFormula(const UVaelFormula& Formula, AActor* Ca
 	{
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 		const float Swell = UVaelEnvironmentStatics::DrawWaveWater(Caster);
-		WaveSizeScale = FMath::Lerp(1.0f, MagicSettings->WaveSwellMaxSize, Swell);
+		SwellScale = FMath::Lerp(1.0f, MagicSettings->WaveSwellMaxSize, Swell);
 		Power *= FMath::Lerp(1.0f, MagicSettings->WaveSwellMaxDamage, Swell);
 
-		UE_LOG(LogVael, Log, TEXT("'%s' swells %.0f %% from the water around: size x%.2f, power %.2f"), *Formula.GetName(), Swell * 100.0f, WaveSizeScale, Power);
+		UE_LOG(LogVael, Log, TEXT("'%s' swells %.0f %% from the water around: size x%.2f, power %.2f"), *Formula.GetName(), Swell * 100.0f, SwellScale, Power);
 	}
+	else if (CastSourceShare > 0.0f)
+	{
+		// Every other spell swells by the share of its elements drawn from fire, rock, wind and water around (Boris 2026-10-26)
+		SwellScale = FMath::Lerp(1.0f, UVaelMagicSettings::Get()->SourceSwellSize, CastSourceShare);
+		UE_LOG(LogVael, Log, TEXT("'%s' swells %.0f %% from its sources: size x%.2f, power %.2f"), *Formula.GetName(), CastSourceShare * 100.0f, SwellScale, Power);
+	}
+
+	// A held Böe presses the air harder with every jump
+	SwellScale *= CastSizeScale;
 
 	switch (Formula.Delivery)
 	{
@@ -435,7 +446,7 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 				Projectile->SetHomingTarget(HomingTargets[ProjectileIndex % HomingTargets.Num()], Formula.ProjectileHoming);
 			}
 
-			Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius * WaveSizeScale, Formula.ProjectileLifetime, Formula.ProjectilePierce,
+			Projectile->InitSpell(Formula.MakeSpellHit(Power), Formula.ProjectileSpeed, Formula.ProjectileRadius * SwellScale, Formula.ProjectileLifetime, Formula.ProjectilePierce,
 				UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement));
 
 			Projectile->SetEffects(Formula.LoadEffects(), VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
@@ -454,11 +465,11 @@ void UVaelFormulaAbility::FireProjectile(const UVaelFormula& Formula, AActor* Ca
 
 			if (Formula.Delivery == EVaelSpellDelivery::Explosion)
 			{
-				Projectile->SetExplosion(Formula.MakeExplosionHit(Power), Formula.ExplosionRadius);
+				Projectile->SetExplosion(Formula.MakeExplosionHit(Power), Formula.ExplosionRadius * SwellScale);
 
 				if (Formula.AreaRadius > 0.0f)
 				{
-					Projectile->SetImpactArea(Formula.DamageElement, Formula.AreaRadius, Formula.AreaLifetime, Formula.AreaDamagePerSecond * Power, Formula.AreaEffect);
+					Projectile->SetImpactArea(Formula.DamageElement, Formula.AreaRadius * SwellScale, Formula.AreaLifetime, Formula.AreaDamagePerSecond * Power, Formula.AreaEffect);
 				}
 			}
 
@@ -614,14 +625,16 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	}
 
 	// A wave of water swollen by the water around reaches further and wider
-	const float ConeRange = Formula.ConeRange * WaveSizeScale;
-	const float ConeHalfAngle = FMath::Min(Formula.ConeHalfAngle * FMath::Sqrt(WaveSizeScale), MaxSwollenConeHalfAngle);
+	const float ConeRange = Formula.ConeRange * SwellScale;
+	const float ConeHalfAngle = FMath::Min(Formula.ConeHalfAngle * FMath::Sqrt(SwellScale), MaxSwollenConeHalfAngle);
 
 	const FVector Origin = Caster->GetActorLocation();
 	const FVector AimDirection = GetAimDirection(Caster);
 	const float MinCosine = FMath::Cos(FMath::DegreesToRadians(ConeHalfAngle));
 
-	const FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+	// A swollen cone pushes further, like a Windstoß drawn from the wind
+	FVaelSpellHit Hit = Formula.MakeSpellHit(Power);
+	Hit.Knockback *= SwellScale;
 	const FVaelLoadedEffects Effects = Formula.LoadEffects();
 
 	// Wind carries fires on, water puts them out
@@ -709,20 +722,23 @@ void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* C
 		Location.Z -= Caster->GetSimpleCollisionHalfHeight();
 	}
 
-	AVaelGroundArea::SpawnArea(World, Location + FVector(0.0f, 0.0f, 2.0f), Formula.DamageElement, Formula.AreaRadius, Formula.AreaLifetime,
+	AVaelGroundArea::SpawnArea(World, Location + FVector(0.0f, 0.0f, 2.0f), Formula.DamageElement, Formula.AreaRadius * SwellScale, Formula.AreaLifetime,
 		Formula.AreaDamagePerSecond * Power, Cast<APawn>(Caster), true, Formula.AreaEffect, VaelAssets::LoadOptional(Formula.Effects.GroundEffect));
 
 	// Steam puts out the fires it covers
 	if (Formula.DamageElement == EVaelElement::Water)
 	{
-		AVaelGroundArea::ExtinguishFires(World, Location, Formula.AreaRadius);
+		AVaelGroundArea::ExtinguishFires(World, Location, Formula.AreaRadius * SwellScale);
 	}
 }
 
 void UVaelFormulaAbility::StartDash(const UVaelFormula& Formula, AActor* Caster, float Power)
 {
+	// A swollen jump lands with a wider ring of wind that pushes further
 	AVaelCharacter* Player = Cast<AVaelCharacter>(Caster);
-	if (Player != nullptr && Player->StartSpellDash(GetAimDirection(Caster), Formula.DashSpeed, Formula.DashDuration, Formula.MakeSpellHit(Power), Formula.DashBurstRadius))
+	FVaelSpellHit Burst = Formula.MakeSpellHit(Power);
+	Burst.Knockback *= SwellScale;
+	if (Player != nullptr && Player->StartSpellDash(GetAimDirection(Caster), Formula.DashSpeed, Formula.DashDuration, Burst, Formula.DashBurstRadius * SwellScale))
 	{
 		Player->SetInvulnerableFor(Formula.DashInvulnerability);
 	}
@@ -824,9 +840,9 @@ void UVaelFormulaAbility::StartBeam(const UVaelFormula& Formula, AActor* Caster,
 	Beam.DamageStep = Formula.BeamDamageStep;
 	Beam.Duration = Formula.BeamDuration;
 	Beam.Length = Formula.BeamLength;
-	Beam.HalfWidth = Formula.BeamHalfWidth;
+	Beam.HalfWidth = Formula.BeamHalfWidth * SwellScale;
 	Beam.FireInterval = Formula.AreaRadius > 0.0f ? Formula.BeamFireInterval : 0.0f;
-	Beam.FireRadius = Formula.AreaRadius;
+	Beam.FireRadius = Formula.AreaRadius * SwellScale;
 	Beam.FireLifetime = Formula.AreaLifetime;
 	Beam.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
 	Beam.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
@@ -844,7 +860,7 @@ void UVaelFormulaAbility::HitNova(const UVaelFormula& Formula, AActor* Caster, f
 {
 	const FVector Center = Caster->GetActorLocation();
 
-	UVaelCombatStatics::ApplySpellHitInRadius(Caster, Center, Formula.NovaRadius, Formula.MakeSpellHit(Power));
+	UVaelCombatStatics::ApplySpellHitInRadius(Caster, Center, Formula.NovaRadius * SwellScale, Formula.MakeSpellHit(Power));
 	UVaelHitFeedbackSubsystem::Shake(Caster, Formula.NovaShake);
 
 	// The burst on the ground around the caster is the impact effect, its radius the reach
@@ -852,17 +868,17 @@ void UVaelFormulaAbility::HitNova(const UVaelFormula& Formula, AActor* Caster, f
 	const FVaelLoadedEffects Effects = Formula.LoadEffects();
 	VaelEffects::PlaySound(Caster, Effects.ImpactSound, Center);
 
-	const bool bHasImpact = VaelEffects::SpawnAt(Caster, Effects.Impact, Feet, FRotator::ZeroRotator, Effects.Color, Formula.NovaRadius) != nullptr;
+	const bool bHasImpact = VaelEffects::SpawnAt(Caster, Effects.Impact, Feet, FRotator::ZeroRotator, Effects.Color, Formula.NovaRadius * SwellScale) != nullptr;
 
 	// The burst's own look runs over the ground together with the impact effect
-	if (AVaelGroundShock::Spawn(Caster, Feet, Formula.NovaRadius, Formula.NovaLook, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement)) != nullptr || bHasImpact)
+	if (AVaelGroundShock::Spawn(Caster, Feet, Formula.NovaRadius * SwellScale, Formula.NovaLook, UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement)) != nullptr || bHasImpact)
 	{
 		return;
 	}
 
 #if ENABLE_DRAW_DEBUG
 	// Placeholder look while no impact effect exists
-	DrawDebugCircle(Caster->GetWorld(), Center - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight() - 5.0f), Formula.NovaRadius, 48,
+	DrawDebugCircle(Caster->GetWorld(), Center - FVector(0.0f, 0.0f, Caster->GetSimpleCollisionHalfHeight() - 5.0f), Formula.NovaRadius * SwellScale, 48,
 		UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement).ToFColor(true), false, 0.4f, 0, 8.0f, FVector::ForwardVector, FVector::RightVector, false);
 #endif
 }
@@ -920,6 +936,16 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 			UE_LOG(LogVael, Log, TEXT("%s swallows the sand storm (%.1f s left) and grows into a giant"), *Formula.DisplayName.ToString(), StormLeft);
 		}
 	}
+	// A whirlwind drawn from the air around grows like the giant dust devil: wider, pulling harder, slower
+	else if (Vortex.bAirWhirl && CastSourceShare > 0.0f)
+	{
+		const float Area = FMath::Lerp(1.0f, MagicSettings->SourceWhirlArea, CastSourceShare);
+		Vortex.Radius *= Area;
+		Vortex.GrowSeconds = 0.6f;
+		Vortex.PullSpeed *= FMath::Lerp(1.0f, MagicSettings->SourceWhirlPull, CastSourceShare);
+		Vortex.Speed *= FMath::Lerp(1.0f, MagicSettings->SourceWhirlSpeed, CastSourceShare);
+		UE_LOG(LogVael, Log, TEXT("%s grows from the air around: area x%.2f"), *Formula.DisplayName.ToString(), Area);
+	}
 	AVaelSpellVortex::Launch(Cast<APawn>(Caster), Location, AimDirection, Vortex);
 }
 
@@ -929,7 +955,7 @@ void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster,
 	Aura.Hit = Formula.MakeSpellHit(Power);
 	Aura.DamagePerSecond = Formula.Damage * Power;
 	Aura.DamageStep = Formula.BeamDamageStep;
-	Aura.Radius = Formula.AuraRadius;
+	Aura.Radius = Formula.AuraRadius * SwellScale;
 	Aura.Duration = Formula.AuraDuration;
 	Aura.BlindDuration = Formula.AuraBlindDuration;
 	Aura.SelfDamagePerSecond = Formula.AuraSelfDamagePerSecond;
@@ -973,7 +999,7 @@ void UVaelFormulaAbility::CallSpikeLine(const UVaelFormula& Formula, AActor* Cas
 			break;
 		}
 
-		AVaelGroundStrike* Spike = AVaelGroundStrike::SpawnStrike(CasterPawn, GroundHit.Location, Hit, Formula.SpikeRadius, Formula.SpikeStagger * SpikeIndex, Color);
+		AVaelGroundStrike* Spike = AVaelGroundStrike::SpawnStrike(CasterPawn, GroundHit.Location, Hit, Formula.SpikeRadius * SwellScale, Formula.SpikeStagger * SpikeIndex, Color);
 		if (Spike != nullptr)
 		{
 			Spike->SetLook(Formula.SpikeLook);
@@ -1032,7 +1058,7 @@ void UVaelFormulaAbility::CallStrike(const UVaelFormula& Formula, AActor* Caster
 		}
 
 		const float Delay = Formula.StrikeDelay + Formula.StrikeInterval * StrikeIndex;
-		AVaelGroundStrike* Strike = AVaelGroundStrike::SpawnStrike(Caster, Location, Hit, Formula.StrikeRadius, Delay, Color);
+		AVaelGroundStrike* Strike = AVaelGroundStrike::SpawnStrike(Caster, Location, Hit, Formula.StrikeRadius * SwellScale, Delay, Color);
 		if (Strike != nullptr)
 		{
 			Strike->SetAftermath(MakeAftermath(Formula, Power), Formula.StrikeShake);

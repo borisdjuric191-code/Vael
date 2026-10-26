@@ -366,7 +366,17 @@ protected:
 	void OnLeave();
 	void OnElement(EVaelElement Element);
 	void OnCast();
+	void OnCastReleased();
 	void OnClearQueue();
+
+	/** Keeps a held Böe jumping while the cast button stays down */
+	void UpdateHeldCast();
+
+	/** True while the cast button is down after a cast; whether the jump of the last cast has started, when it was cast, when the next may go */
+	bool bCastHeld = false;
+	bool bHeldJumpStarted = false;
+	float HeldCastTime = 0.0f;
+	float NextHeldCastTime = 0.0f;
 
 	/** Discards queued elements, or drinks a potion on the gamepad when none are queued */
 	void DiscardOrDrink();

@@ -99,8 +99,14 @@ protected:
 
 private:
 
-	/** Size of a wave of water while it is cast, swollen by the water around the caster; 1 for every other formula */
-	float WaveSizeScale = 1.0f;
+	/** Size of the spell while it is cast: swollen by the elements drawn from sources, a wave of water by the water around the caster */
+	float SwellScale = 1.0f;
+
+	/** Share of the elements of the cast drawn from sources, 0 to 1 */
+	float CastSourceShare = 0.0f;
+
+	/** Extra size the cast brings along, for the jumps of a held Böe */
+	float CastSizeScale = 1.0f;
 
 	/** The cast animation reached its cast point */
 	UFUNCTION()

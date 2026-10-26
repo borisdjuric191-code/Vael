@@ -52,7 +52,11 @@ struct FVaelElementOrb
 	TArray<TObjectPtr<UStaticMeshComponent>> Flyers;
 
 	UPROPERTY()
-	TObjectPtr<class UVaelFireComponent> FlyingFlame;
+	TArray<TObjectPtr<class UVaelFireComponent>> FlyingFlames;
+
+	/** Streaks of wind that spiral in from all around and wind themselves into an air orb drawn from the wind */
+	UPROPERTY()
+	TObjectPtr<class UVaelWindStreaksComponent> Swirl;
 
 	/** Where the flyers left their source */
 	FVector FlightStart = FVector::ZeroVector;
@@ -145,6 +149,10 @@ private:
 
 	/** Flies them along an arc into the orb; removes them once they are there */
 	void AnimateFlight(FVaelElementOrb& Orb, float Time);
+
+	/** Streaks of wind that spiral in from a wide ring and wind themselves into an air orb drawn from the wind */
+	void BuildSwirl(FVaelElementOrb& Orb);
+	void AnimateSwirl(FVaelElementOrb& Orb, float Time);
 
 	/** Adds the light of an orb */
 	void AddLight(FVaelElementOrb& Orb, const FLinearColor& Color, float Intensity);

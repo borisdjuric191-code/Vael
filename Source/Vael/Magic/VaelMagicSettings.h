@@ -93,13 +93,42 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0))
 	int32 MaxFireSpreads = 3;
 
-	/** Extra power per element drawn from the environment while the caster is free of Mark */
+	/** Extra power when all elements of a formula are drawn from the environment, while the caster is free of Mark; part of it for part of them */
 	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
-	float EnvironmentPowerBonusPure = 0.45f;
+	float EnvironmentPowerBonusPure = 0.25f;
 
-	/** Extra power per element drawn from the environment once the caster is corrupted by Mark */
+	/** The same once the caster is corrupted by Mark */
 	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
-	float EnvironmentPowerBonusCorrupted = 0.22f;
+	float EnvironmentPowerBonusCorrupted = 0.125f;
+
+	/** Spells drawn wholly from the environment are this much bigger (reach, radius, push); part of it for part of their elements.
+	 *  Waves of water swell by the water around instead. */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 1))
+	float SourceSwellSize = 1.4f;
+
+	/** A whirlwind drawn wholly from the air grows like the giant dust devil: area, pull and speed */
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 1))
+	float SourceWhirlArea = 2.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))
+	float SourceWhirlPull = 1.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0.1))
+	float SourceWhirlSpeed = 0.8f;
+
+	/** A Böe held on the cast button jumps again and again (Boris 2026-10-26); every jump up to this many adds power and the size of its ring of wind */
+	UPROPERTY(config, EditAnywhere, Category="Air|Held Gust", meta = (ClampMin = 0))
+	int32 HeldGustMaxJumps = 4;
+
+	UPROPERTY(config, EditAnywhere, Category="Air|Held Gust", meta = (ClampMin = 0))
+	float HeldGustPowerStep = 0.15f;
+
+	UPROPERTY(config, EditAnywhere, Category="Air|Held Gust", meta = (ClampMin = 0))
+	float HeldGustSizeStep = 0.15f;
+
+	/** Seconds between the end of one jump and the next */
+	UPROPERTY(config, EditAnywhere, Category="Air|Held Gust", meta = (ClampMin = 0))
+	float HeldGustPause = 0.08f;
 
 	/** A fire provides the fire element up to this distance beyond its edge, in cm */
 	UPROPERTY(config, EditAnywhere, Category="Environment", meta = (ClampMin = 0))

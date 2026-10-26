@@ -93,7 +93,7 @@ void AVaelFireSpot::Feed(const FVector& Location, float Radius)
 	Fire->Feed();
 }
 
-void AVaelFireSpot::GiveFire()
+void AVaelFireSpot::GiveFire(const FVector& Towards)
 {
 	if (!CanGiveFire())
 	{
@@ -103,6 +103,9 @@ void AVaelFireSpot::GiveFire()
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	TargetRadius *= 1.0f - MagicSettings->FireDrawShare;
 	SinceFed = 0.0f;
+
+	// The flames are pulled towards the mage while their tongues tear off
+	Fire->PullTowards(Towards - GetActorLocation(), MagicSettings->DrawFlightTime * 1.6f);
 
 	// A campfire keeps a small fire, a Brandherd drawn too low dies
 	if (BurnTime <= 0.0f)

@@ -182,7 +182,56 @@ EVaelCastResult UVaelElementComponent::CastQueue()
 
 	const int32 NumEnvironmentElements = QueueFromEnvironment.FilterByPredicate([](bool bFromEnvironment) { return bFromEnvironment; }).Num();
 
-	return FinishCast(ActivateFormula(Formula, Queue.Num(), NumEnvironmentElements, false), Formula);
+	// A Böe can be kept going for as long as the cast button stays down (Boris 2026-10-26)
+	const EVaelCastResult Result = ActivateFormula(Formula, Queue.Num(), NumEnvironmentElements, false);
+	const bool bHoldable = Formula->Delivery == EVaelSpellDelivery::Dash && Formula->DamageElement == EVaelElement::Air && !Formula->bLightning;
+	HeldFormula = Result == EVaelCastResult::Success && bHoldable ? Formula : nullptr;
+	HeldJumps = 0;
+
+	return FinishCast(Result, Formula);
+}
+
+EVaelCastResult UVaelElementComponent::CastHeld()
+{
+	UVaelFormula* Formula = HeldFormula;
+	const UAbilitySystemComponent* AbilitySystem = GetAbilitySystem();
+	if (Formula == nullptr || AbilitySystem == nullptr || AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling))
+	{
+		return EVaelCastResult::Blocked;
+	}
+
+	// Every jump presses the air harder: a wider ring that hits harder, up to a limit
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	HeldJumps = FMath::Min(HeldJumps + 1, MagicSettings->HeldGustMaxJumps);
+	HeldPower = 1.0f + HeldJumps * MagicSettings->HeldGustPowerStep;
+	HeldSize = 1.0f + HeldJumps * MagicSettings->HeldGustSizeStep;
+
+	// The air is drawn anew for every jump: in wind it comes from all around
+	int32 NumEnvironmentElements = 0;
+	for (const EVaelElement Element : Formula->Elements)
+	{
+		NumEnvironmentElements += UVaelEnvironmentStatics::IsElementInEnvironment(GetOwner(), Element) ? 1 : 0;
+	}
+
+	const EVaelCastResult Result = ActivateFormula(Formula, Formula->Elements.Num(), NumEnvironmentElements, false);
+	HeldPower = 1.0f;
+	HeldSize = 1.0f;
+	PendingCast = FVaelPendingCast();
+
+	// Out of mana the jumps stop
+	if (Result != EVaelCastResult::Success)
+	{
+		HeldFormula = nullptr;
+		OnCastFinished.Broadcast(Result, Formula);
+	}
+
+	return Result;
+}
+
+void UVaelElementComponent::ReleaseHeld()
+{
+	HeldFormula = nullptr;
+	HeldJumps = 0;
 }
 
 EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, int32 NumElements, int32 NumEnvironmentElements, bool bFromQuickSlot)
@@ -196,15 +245,17 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 
-	// Elements drawn from the environment make the formula cheaper and stronger.
-	// Casters touched by the Mark get the smaller bonus: the pure path is the stronger one here.
+	// Elements drawn from the environment make the formula cheaper, and bigger and stronger by the share of its elements drawn
+	// (Boris 2026-10-26: all from sources is 1.25 times as strong). Casters touched by the Mark get the smaller bonus: the pure path is the stronger one here.
 	const bool bPure = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute()) < 1.0f;
 	PendingCast.ManaCost = MagicSettings->GetManaCost(NumElements, NumEnvironmentElements);
+	PendingCast.SourceShare = NumElements > 0 ? FMath::Clamp(static_cast<float>(NumEnvironmentElements) / NumElements, 0.0f, 1.0f) : 0.0f;
 
 	// Worn gear can make the environment give more
 	const UVaelInventory* Inventory = GetOwner()->FindComponentByClass<UVaelInventory>();
 	const float GearEnvironmentFactor = 1.0f + (Inventory != nullptr ? Inventory->GetStatTotal(EVaelItemStat::EnvironmentPower) / 100.0f : 0.0f);
-	PendingCast.Power = 1.0f + NumEnvironmentElements * (bPure ? MagicSettings->EnvironmentPowerBonusPure : MagicSettings->EnvironmentPowerBonusCorrupted) * GearEnvironmentFactor;
+	PendingCast.Power = (1.0f + PendingCast.SourceShare * (bPure ? MagicSettings->EnvironmentPowerBonusPure : MagicSettings->EnvironmentPowerBonusCorrupted) * GearEnvironmentFactor) * HeldPower;
+	PendingCast.SizeScale = HeldSize;
 
 	// Quick slots trade cost and power for speed
 	if (bFromQuickSlot)

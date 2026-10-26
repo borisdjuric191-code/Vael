@@ -21,6 +21,12 @@ struct FVaelPendingCast
 
 	/** Strength of the cast, 1 is normal */
 	float Power = 1.0f;
+
+	/** Share of the formula's elements drawn from the environment, 0 to 1: the spell swells by it */
+	float SourceShare = 0.0f;
+
+	/** Extra size on top of that, for a held Böe that pushes harder with every jump */
+	float SizeScale = 1.0f;
 };
 
 DECLARE_MULTICAST_DELEGATE(FVaelOnElementQueueChanged);
@@ -59,6 +65,15 @@ public:
 	/** Casts the formula on a quick slot: costs more mana, hits a bit weaker and the slot has to cool down. The queue stays as it is. */
 	UFUNCTION(BlueprintCallable, Category="Magic")
 	EVaelCastResult CastQuickSlot(int32 SlotIndex);
+
+	/** True while a Böe just cast can be kept going by holding the cast button */
+	bool CanCastHeld() const { return HeldFormula != nullptr; }
+
+	/** The cast button is still held after a Böe: it jumps again, a little harder each time. Stops when the mana runs out. */
+	EVaelCastResult CastHeld();
+
+	/** The cast button was let go: a held Böe ends */
+	void ReleaseHeld();
 
 	/** Puts a known formula on a quick slot, or empties the slot with null. A formula on another slot moves over. */
 	void AssignQuickSlot(int32 SlotIndex, UVaelFormula* Formula);
@@ -130,6 +145,16 @@ private:
 
 	/** For every queued element, where it was drawn from */
 	TArray<FVaelElementDraw> QueueDraws;
+
+	/** The Böe being held, and how many jumps it has made since it was cast */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelFormula> HeldFormula;
+
+	int32 HeldJumps = 0;
+
+	/** Strength and size the next activation gets on top, for the jumps of a held Böe */
+	float HeldPower = 1.0f;
+	float HeldSize = 1.0f;
 
 	UAbilitySystemComponent* GetAbilitySystem() const;
 	UVaelGrimoireSubsystem* GetGrimoire() const;

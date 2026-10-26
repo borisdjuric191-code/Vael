@@ -10,6 +10,7 @@
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelWindStreaks.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Camera/PlayerCameraManager.h"
@@ -72,6 +73,16 @@ namespace
 	/** Chunks torn out of a rock that fly to an earth orb, and how high their arc bends in cm */
 	constexpr int32 OrbitFlightChunks = 3;
 	constexpr float OrbitFlightArc = 60.0f;
+
+	/** Flames pulled out of a fire one after the other, each leaving this share of the flight after the one before */
+	constexpr int32 OrbitFlightFlames = 4;
+	constexpr float OrbitFlameStagger = 0.18f;
+
+	/** Streaks of wind spiralling into an air orb drawn from the wind: how many, how far out they start in cm, how often they go round, seconds */
+	constexpr int32 OrbitSwirlStreaks = 5;
+	constexpr float OrbitSwirlRadius = 170.0f;
+	constexpr float OrbitSwirlTurns = 1.6f;
+	constexpr float OrbitSwirlTime = 0.75f;
 
 	/** Material parameters */
 	const FName OrbitColorParameter(TEXT("Color"));
@@ -175,6 +186,12 @@ void UVaelElementOrbitComponent::ShowQueue(const UVaelElementComponent& Elements
 			{
 				BuildFlight(Orb, Draw.From);
 			}
+		}
+
+		// Air of the wind comes from all around: streaks spiral in and wind themselves into the orb
+		if (Orb.Element == EVaelElement::Air && Orb.bFromEnvironment)
+		{
+			BuildSwirl(Orb);
 		}
 	}
 }
@@ -401,25 +418,30 @@ void UVaelElementOrbitComponent::BuildFlight(FVaelElementOrb& Orb, const FVector
 
 	if (Orb.Element == EVaelElement::Fire)
 	{
-		// A tongue of the fire it came from, rolled into a ball
-		Orb.FlyingFlame = NewObject<UVaelFireComponent>(GetOwner());
-		Orb.FlyingFlame->SetupAttachment(this);
-		Orb.FlyingFlame->SetUsingAbsoluteLocation(true);
-		Orb.FlyingFlame->SetWorldLocation(From);
-		Orb.FlyingFlame->RegisterComponent();
-		FVaelFireShape Shape;
-		Shape.Radius = 14.0f;
-		Shape.Height = 34.0f;
-		Shape.BallSpread = 0.5f;
-		Shape.Heat = 1.3f;
-		Shape.Smoke = 0.3f;
-		Shape.Speed = 2.2f;
-		Shape.Tongues = 8;
-		Shape.bBall = true;
-		Shape.bFloating = true;
-		Shape.bLight = false;
-		Shape.bSparks = false;
-		Orb.FlyingFlame->Ignite(Shape, 0.05f);
+		// Tongues torn off the fire it came from, one after the other: a stream of flames pulled up into the orb, the first the biggest
+		for (int32 FlameIndex = 0; FlameIndex < OrbitFlightFlames; ++FlameIndex)
+		{
+			UVaelFireComponent* Flame = NewObject<UVaelFireComponent>(GetOwner());
+			Flame->SetupAttachment(this);
+			Flame->SetUsingAbsoluteLocation(true);
+			Flame->SetWorldLocation(From);
+			Flame->RegisterComponent();
+			FVaelFireShape Shape;
+			Shape.Radius = 14.0f - FlameIndex * 2.0f;
+			Shape.Height = 34.0f - FlameIndex * 5.0f;
+			Shape.BallSpread = 0.5f;
+			Shape.Heat = 1.3f;
+			Shape.Smoke = 0.3f;
+			Shape.Speed = 2.2f;
+			Shape.Tongues = 8;
+			Shape.bBall = true;
+			Shape.bFloating = true;
+			Shape.bLight = FlameIndex == 0;
+			Shape.bSparks = FlameIndex == 0;
+			Flame->Ignite(Shape, 0.05f);
+			Flame->SetSizeScale(KINDA_SMALL_NUMBER);
+			Orb.FlyingFlames.Add(Flame);
+		}
 		return;
 	}
 
@@ -436,7 +458,9 @@ void UVaelElementOrbitComponent::BuildFlight(FVaelElementOrb& Orb, const FVector
 
 void UVaelElementOrbitComponent::AnimateFlight(FVaelElementOrb& Orb, float Time)
 {
-	const float Progress = (Time - Orb.BirthTime) / UVaelMagicSettings::Get()->DrawFlightTime;
+	// A stream of flames takes longer than a throw of rock: the last flame leaves the fire later
+	const bool bStream = !Orb.FlyingFlames.IsEmpty();
+	const float Progress = (Time - Orb.BirthTime) / (UVaelMagicSettings::Get()->DrawFlightTime * (bStream ? 1.0f + OrbitFlameStagger * (OrbitFlightFlames - 1) : 1.0f));
 	if (Progress >= 1.0f)
 	{
 		for (UStaticMeshComponent* Chunk : Orb.Flyers)
@@ -445,11 +469,11 @@ void UVaelElementOrbitComponent::AnimateFlight(FVaelElementOrb& Orb, float Time)
 		}
 		Orb.Flyers.Reset();
 
-		if (Orb.FlyingFlame != nullptr)
+		for (UVaelFireComponent* Flame : Orb.FlyingFlames)
 		{
-			Orb.FlyingFlame->DestroyComponent();
-			Orb.FlyingFlame = nullptr;
+			Flame->DestroyComponent();
 		}
+		Orb.FlyingFlames.Reset();
 		return;
 	}
 
@@ -466,10 +490,17 @@ void UVaelElementOrbitComponent::AnimateFlight(FVaelElementOrb& Orb, float Time)
 		return Start * Rest * Rest + Bend * 2.0f * Rest * At + End * At * At + Side * Sway * FMath::Sin(At * UE_PI);
 	};
 
-	if (Orb.FlyingFlame != nullptr)
+	// Each flame swells as it tears off the fire, races up the arc a little behind the one before and shrinks into the orb
+	const float Total = 1.0f + OrbitFlameStagger * (OrbitFlightFlames - 1);
+	for (int32 FlameIndex = 0; FlameIndex < Orb.FlyingFlames.Num(); ++FlameIndex)
 	{
-		Orb.FlyingFlame->SetWorldLocation(PointAt(Along, 0.0f));
-		Orb.FlyingFlame->SetSizeScale(FMath::Lerp(1.0f, 0.4f, Along));
+		const float Own = FMath::Clamp(Progress * Total - FlameIndex * OrbitFlameStagger, 0.0f, 1.0f);
+		const float FlameAlong = 1.0f - FMath::Square(1.0f - Own);
+		const float Sway = FMath::Sin(FlameIndex * 2.3f + Time * 9.0f) * 10.0f;
+
+		UVaelFireComponent* Flame = Orb.FlyingFlames[FlameIndex];
+		Flame->SetWorldLocation(PointAt(FlameAlong, Sway));
+		Flame->SetSizeScale(Own <= 0.0f || Own >= 1.0f ? KINDA_SMALL_NUMBER : FMath::Min(Own * 6.0f, 1.0f) * FMath::Lerp(1.0f, 0.35f, FlameAlong));
 	}
 
 	// The chunks fly a little apart and shrink as they melt into the orb
@@ -485,6 +516,54 @@ void UVaelElementOrbitComponent::AnimateFlight(FVaelElementOrb& Orb, float Time)
 		Chunk->SetWorldRotation(FRotator(Time * 260.0f + ChunkIndex * 90.0f, Time * 190.0f, ChunkIndex * 40.0f));
 		Chunk->SetWorldScale3D(FVector(RockScale * (0.12f + 0.04f * ChunkIndex) * (1.0f - 0.7f * ChunkAlong)));
 	}
+}
+
+void UVaelElementOrbitComponent::BuildSwirl(FVaelElementOrb& Orb)
+{
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	UMaterialInterface* StreakMaterial = VaelAssets::LoadOptional(MagicSettings->StreakMaterial);
+	if (StreakMaterial == nullptr)
+	{
+		return;
+	}
+
+	Orb.Swirl = NewObject<UVaelWindStreaksComponent>(GetOwner());
+	Orb.Swirl->SetupAttachment(this);
+	Orb.Swirl->RegisterComponent();
+	Orb.Swirl->Init(StreakMaterial);
+
+	// Each streak starts at its own side of a wide ring around the mage, low down
+	const FVector Middle = GetComponentLocation();
+	for (int32 StreakIndex = 0; StreakIndex < OrbitSwirlStreaks; ++StreakIndex)
+	{
+		const float Angle = StreakIndex * UE_TWO_PI / OrbitSwirlStreaks;
+		Orb.Swirl->AddStreak(Middle + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * OrbitSwirlRadius - FVector(0.0f, 0.0f, 120.0f),
+			MagicSettings->AirStreakWidth * 0.8f, 160.0f);
+	}
+}
+
+void UVaelElementOrbitComponent::AnimateSwirl(FVaelElementOrb& Orb, float Time)
+{
+	const float Progress = (Time - Orb.BirthTime) / OrbitSwirlTime;
+	if (Progress >= 1.0f)
+	{
+		Orb.Swirl->DestroyComponent();
+		Orb.Swirl = nullptr;
+		return;
+	}
+
+	// The ring draws in and rises while it turns, faster and faster, until every streak has wound itself into the orb
+	const FVector Middle = GetComponentLocation();
+	const FVector Target = Orb.Pivot->GetComponentLocation();
+	const float Eased = Progress * Progress * (3.0f - 2.0f * Progress);
+	for (int32 StreakIndex = 0; StreakIndex < OrbitSwirlStreaks; ++StreakIndex)
+	{
+		const float Angle = StreakIndex * UE_TWO_PI / OrbitSwirlStreaks + Eased * OrbitSwirlTurns * UE_TWO_PI;
+		const float Radius = OrbitSwirlRadius * (1.0f - Eased);
+		const FVector Around = FMath::Lerp(Middle - FVector(0.0f, 0.0f, 120.0f), Target, Eased);
+		Orb.Swirl->MoveHead(StreakIndex, Around + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Radius, FMath::Sin(FMath::Min(Progress * 1.3f, 1.0f) * UE_PI));
+	}
+	Orb.Swirl->Commit();
 }
 
 void UVaelElementOrbitComponent::BuildOrb(FVaelElementOrb& Orb)
@@ -598,9 +677,17 @@ void UVaelElementOrbitComponent::DestroyOrb(FVaelElementOrb& Orb)
 		}
 	}
 
-	if (Orb.FlyingFlame != nullptr)
+	for (UVaelFireComponent* Flame : Orb.FlyingFlames)
 	{
-		Orb.FlyingFlame->DestroyComponent();
+		if (Flame != nullptr)
+		{
+			Flame->DestroyComponent();
+		}
+	}
+
+	if (Orb.Swirl != nullptr)
+	{
+		Orb.Swirl->DestroyComponent();
 	}
 
 	if (Orb.Light != nullptr)
@@ -684,9 +771,14 @@ void UVaelElementOrbitComponent::TickComponent(float DeltaTime, ELevelTick TickT
 			AnimateStrand(Orb, Time);
 		}
 
-		if (!Orb.Flyers.IsEmpty() || Orb.FlyingFlame != nullptr)
+		if (!Orb.Flyers.IsEmpty() || !Orb.FlyingFlames.IsEmpty())
 		{
 			AnimateFlight(Orb, Time);
+		}
+
+		if (Orb.Swirl != nullptr)
+		{
+			AnimateSwirl(Orb, Time);
 		}
 	}
 }

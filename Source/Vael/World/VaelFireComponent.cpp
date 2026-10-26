@@ -476,6 +476,12 @@ void UVaelFireComponent::SetRadius(float NewRadius)
 	}
 }
 
+void UVaelFireComponent::PullTowards(const FVector& Direction, float Seconds)
+{
+	PullDirection = (Direction.GetSafeNormal2D() + FVector(0.0f, 0.0f, 0.4f)).GetSafeNormal();
+	PullTimeLeft = Seconds;
+}
+
 void UVaelFireComponent::Feed()
 {
 	SinceFed = 0.0f;
@@ -891,6 +897,15 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		LastFlightLocation = GetComponentLocation();
 		const FVector Wind = Flight.SizeSquared() > FMath::Square(50.0f) ? -Flight.GetSafeNormal() * 100.0f : FVector::ZeroVector;
 		VaelFire::SetWind(NiagaraFire, Wind, Wind.IsZero() ? 0.0f : UVaelFireSettings::Get()->FlightWindSpeed);
+	}
+	else if (NiagaraFire != nullptr && PullTimeLeft > 0.0f)
+	{
+		// Pulled towards a mage drawing fire from it, harder than any wind, then back to the wind of the weather
+		PullTimeLeft -= DeltaTime;
+		const float Pull = FMath::Clamp(PullTimeLeft * 3.0f, 0.0f, 1.0f);
+		VaelFire::SetWind(NiagaraFire, PullDirection * 100.0f, Pull * UVaelWorldSettings::Get()->WindFireLean * 2.0f);
+		WindCheckTime = 0.0f;
+		bLeaningInWind = true;
 	}
 	else if (NiagaraFire != nullptr && Shape.WallNormal.IsNearlyZero())
 	{

@@ -135,6 +135,8 @@ void AVaelPlayerController::SetupInputComponent()
 			}
 
 			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCast);
+			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnCastReleased);
+			EnhancedInputComponent->BindAction(CastAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnCastReleased);
 			EnhancedInputComponent->BindAction(ClearQueueAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnClearQueue);
 			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnInteract);
 			EnhancedInputComponent->BindAction(InteractAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnSowHoldEnd);
@@ -551,6 +553,7 @@ void AVaelPlayerController::PlayerTick(float DeltaTime)
 	UpdateSowHold();
 	UpdateClassControls();
 	UpdateTowerChord();
+	UpdateHeldCast();
 
 	PreviousMoveDirection = MoveDirection;
 	MoveDirection = FVector::ZeroVector;
@@ -700,6 +703,56 @@ void AVaelPlayerController::OnCast()
 		// Bring the aim up to date so the spell flies where the player points right now
 		UpdateFacing();
 		VaelCharacter->GetElementComponent()->CastQueue();
+		bCastHeld = true;
+		bHeldJumpStarted = false;
+		HeldCastTime = GetWorld()->GetTimeSeconds();
+	}
+}
+
+void AVaelPlayerController::OnCastReleased()
+{
+	bCastHeld = false;
+	if (const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	{
+		VaelCharacter->GetElementComponent()->ReleaseHeld();
+	}
+}
+
+void AVaelPlayerController::UpdateHeldCast()
+{
+	// A held Böe jumps again a moment after the last jump ends, towards where the player aims then
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelElementComponent* Elements = VaelCharacter != nullptr ? VaelCharacter->GetElementComponent() : nullptr;
+	if (!bCastHeld || Elements == nullptr || !Elements->CanCastHeld() || VaelCharacter->IsDowned() || UGameplayStatics::IsGamePaused(this))
+	{
+		return;
+	}
+
+	// Wait for the jump of the last cast to start (after its cast animation) and to end
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (VaelCharacter->IsDodging())
+	{
+		bHeldJumpStarted = true;
+		NextHeldCastTime = Now + UVaelMagicSettings::Get()->HeldGustPause;
+		return;
+	}
+
+	if (!bHeldJumpStarted)
+	{
+		// A jump that never came (blocked, cast cut short) ends the hold
+		if (Now - HeldCastTime > 1.5f)
+		{
+			Elements->ReleaseHeld();
+		}
+		return;
+	}
+
+	if (Now >= NextHeldCastTime)
+	{
+		UpdateFacing();
+		bHeldJumpStarted = false;
+		HeldCastTime = Now;
+		Elements->CastHeld();
 	}
 }
 

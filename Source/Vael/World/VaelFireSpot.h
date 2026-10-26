@@ -54,8 +54,8 @@ public:
 	/** True while a mage can draw fire from it: burning, not a blast, not dying down */
 	bool CanGiveFire() const { return !bBurst && !bPutOut; }
 
-	/** A mage draws fire from it: it burns lower. A campfire grows back to its size after a while, a Brandherd drawn too low goes out */
-	void GiveFire();
+	/** A mage at Towards draws fire from it: the flames lean to them and it burns lower. A campfire grows back to its size after a while, a Brandherd drawn too low goes out */
+	void GiveFire(const FVector& Towards);
 
 	UVaelFireComponent* GetFire() const { return Fire; }
 

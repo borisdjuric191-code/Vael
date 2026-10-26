@@ -242,7 +242,10 @@ void AVaelSpellProjectile::InitSpell(const FVaelSpellHit& InHit, float Speed, fl
 	SpellColor = Color;
 
 	// Water puts out the fires it flies over, which has to be checked every frame
-	PrimaryActorTick.bStartWithTickEnabled = Hit.Element == EVaelElement::Water;
+	// as is the wind of the weather that blows it aside
+	const AActor* Shooter = GetInstigator();
+	PrimaryActorTick.bStartWithTickEnabled = Hit.Element == EVaelElement::Water
+		|| (Shooter != nullptr && !AVaelRegion::GetWindAt(GetWorld(), Shooter->GetActorLocation()).IsNearlyZero());
 
 	SpellRadius = Radius;
 	Collision->SetSphereRadius(FMath::Min(Radius, ProjectileWallProbeRadius));

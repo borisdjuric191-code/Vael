@@ -290,7 +290,7 @@ FVaelElementDraw UVaelEnvironmentStatics::DrawFromEnvironment(AActor* Caster, EV
 		{
 			Draw.bHasPoint = true;
 			Draw.From = Spot->GetActorLocation() + FVector(0.0f, 0.0f, Spot->GetFire()->GetShape().Height * 0.4f);
-			Spot->GiveFire();
+			Spot->GiveFire(Location);
 		}
 		break;
 

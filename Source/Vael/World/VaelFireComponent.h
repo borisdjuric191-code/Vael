@@ -477,6 +477,9 @@ public:
 	/** Fire was added: the roots under it creep on at full pace, and slow down again when nothing more comes */
 	void Feed();
 
+	/** A mage draws fire out of it: the flames lean hard towards them for a moment */
+	void PullTowards(const FVector& Direction, float Seconds);
+
 	/** Strength of the fire, 0 to 1, and whether it still burns */
 	float GetStrength() const { return Strength; }
 	bool IsBurning() const { return TargetStrength > 0.0f || Strength > 0.0f; }
@@ -568,6 +571,10 @@ private:
 	/** Seconds until fire on the ground looks up the wind of the weather again, and whether it leans in it now */
 	float WindCheckTime = 0.0f;
 	bool bLeaningInWind = false;
+
+	/** Where a mage drawing fire pulls the flames, and for how many seconds more */
+	FVector PullDirection = FVector::ZeroVector;
+	float PullTimeLeft = 0.0f;
 
 	/** Starts Boris' Niagara fire, true if it burns */
 	bool BuildNiagaraFire();
