@@ -235,7 +235,7 @@ void UVaelPlantArmComponent::Clear()
 	MortarDraw = 0.0f;
 	TetherTarget = nullptr;
 	Tether = 0.0f;
-	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses, &TargetDots })
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses, &TargetDots, &ChargeOrbs })
 	{
 		for (UStaticMeshComponent* Piece : *Pieces)
 		{
@@ -505,6 +505,39 @@ void UVaelPlantArmComponent::BuildStalks()
 	Muzzles.Init(FVector::ZeroVector, NumFingers);
 	MuzzleDirections.Init(FVector::ForwardVector, NumFingers);
 	Flashes.Init(0.0f, NumFingers);
+	TipCharges.Init(0.0f, NumFingers);
+	TipRegrow.Init(1.0f, NumFingers);
+	TipKicks.Init(0.0f, NumFingers);
+
+	// The glow ball each fingertip charges in before it fires
+	if (ShootsFromFingers())
+	{
+		UMaterialInterface* Core = nullptr;
+		UMaterialInterface* Glow = nullptr;
+		VaelEffects::LoadLookMaterials(Core, Glow);
+		for (int32 Finger = 0; Finger < NumFingers; ++Finger)
+		{
+			UStaticMeshComponent* Orb = VaelEffects::AddLookShape(GetOwner(), Glow, VaelSymbiosis::GetPlantColor(Plant, false), 0.0f);
+			Orb->SetUsingAbsoluteLocation(true);
+			Orb->SetUsingAbsoluteRotation(true);
+			Orb->SetUsingAbsoluteScale(true);
+			Orb->SetVisibility(false);
+			ChargeOrbs.Add(Orb);
+		}
+	}
+	// A water hand: the drop that swells in the hole of the rose while the pump wave runs down the arm
+	else if (!Plant->WaterSource.IsNull())
+	{
+		UMaterialInterface* Core = nullptr;
+		UMaterialInterface* Glow = nullptr;
+		VaelEffects::LoadLookMaterials(Core, Glow);
+		UStaticMeshComponent* Drop = VaelEffects::AddLookShape(GetOwner(), Core, VaelSymbiosis::GetPlantColor(Plant, false), 1.5f, 2.0f);
+		Drop->SetUsingAbsoluteLocation(true);
+		Drop->SetUsingAbsoluteRotation(true);
+		Drop->SetUsingAbsoluteScale(true);
+		Drop->SetVisibility(false);
+		ChargeOrbs.Add(Drop);
+	}
 	BarShots = Plant->BarSize;
 	FireCountdown = 0.0f;
 	NextFinger = 0;
@@ -627,6 +660,18 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	else if (bWaterHand)
 	{
 		UpdateWaterFiring(DeltaTime);
+
+		// The Tauperle swells in the hole of the rose as the pump wave comes down, and is gone when it leaves
+		if (UStaticMeshComponent* Drop = ChargeOrbs.IsEmpty() ? nullptr : ChargeOrbs[0].Get())
+		{
+			const float Swell = PendingShotTime >= 0.0f ? FMath::Clamp(1.0f - (PendingShotTime - GetWorld()->GetTimeSeconds()) / FMath::Max(Plant->PumpWaveTime, 0.05f), 0.1f, 1.0f) : 0.0f;
+			Drop->SetVisibility(Swell > 0.0f && Jet == nullptr);
+			if (Swell > 0.0f)
+			{
+				Drop->SetWorldLocation(BarrelMuzzle - BarrelDirection * 3.0f);
+				Drop->SetWorldScale3D(FVector(FMath::Lerp(2.0f, 9.0f, Swell) / 100.0f));
+			}
+		}
 	}
 	else if (bMortarHand)
 	{
@@ -635,6 +680,7 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	else
 	{
 		UpdateFiring(DeltaTime);
+		UpdateCharge(DeltaTime);
 	}
 	UpdateMaterials(DeltaTime);
 }
@@ -733,6 +779,11 @@ void UVaelPlantArmComponent::UpdateStalks()
 			End = FMath::Lerp(End, InBarrel, Barrel);
 			Direction = FMath::Lerp(Direction, AimLocal, Barrel).GetSafeNormal();
 		}
+		// The finger whose turn it is draws back like a bowstring, and snaps forward with its shot
+		if (TipCharges.IsValidIndex(Finger))
+		{
+			End += Direction * (TipKicks[Finger] * 5.0f - TipCharges[Finger] * 3.0f);
+		}
 		const float Span = FVector::Dist(Start, End);
 
 		USplineMeshComponent* Stalk = FingerStalks[Finger];
@@ -745,8 +796,11 @@ void UVaelPlantArmComponent::UpdateStalks()
 
 		if (FingerTips.IsValidIndex(Finger))
 		{
+			// The head swells while it charges; after its shot it is gone and grows again
+			const float Regrown = TipRegrow.IsValidIndex(Finger) ? FMath::SmoothStep(0.0f, 1.0f, TipRegrow[Finger]) : 1.0f;
+			const float Swell = TipCharges.IsValidIndex(Finger) ? 1.0f + 0.35f * TipCharges[Finger] : 1.0f;
 			FingerTips[Finger]->SetRelativeLocationAndRotation(End, FRotationMatrix::MakeFromZ(Direction).Rotator());
-			FingerTips[Finger]->SetRelativeScale3D(FVector(Plant->TipSize / 10.0f * Grow));
+			FingerTips[Finger]->SetRelativeScale3D(FVector(FMath::Max(Plant->TipSize / 10.0f * Grow * Regrown * Swell, 0.001f)));
 		}
 
 		Muzzles[Finger] = BodyTransform.TransformPosition(End);
@@ -840,7 +894,7 @@ void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
 		Material->SetScalarParameterValue(GrowParameter, Grow);
 		Material->SetScalarParameterValue(WindParameter, Wind * (1.0f - Fan * 0.7f));
 		Material->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
-		Material->SetScalarParameterValue(TipFlashParameter, Flashes[Finger]);
+		Material->SetScalarParameterValue(TipFlashParameter, FMath::Max(Flashes[Finger], TipCharges.IsValidIndex(Finger) ? TipCharges[Finger] : 0.0f));
 	}
 
 	ArmMaterial->SetScalarParameterValue(GrowParameter, Grow);
@@ -903,6 +957,44 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 	NextFinger = (NextFinger + 1) % NumFingers;
 }
 
+bool UVaelPlantArmComponent::ShootsFromFingers() const
+{
+	return Plant != nullptr && !Plant->bShield && !Plant->bMortar && !Plant->bVineArm && Plant->WaterSource.IsNull() && !HasRose() && !Plant->bFingersFormBarrel;
+}
+
+void UVaelPlantArmComponent::UpdateCharge(float DeltaTime)
+{
+	if (!ShootsFromFingers() || TipCharges.Num() != NumFingers)
+	{
+		return;
+	}
+
+	// A head is back before the finger's next turn comes round
+	const float RegrowSeconds = FMath::Max(Plant->FireInterval * NumFingers * 0.8f, 0.25f);
+	const bool bAiming = IsFiring() && Grow >= 1.0f && Stance > 0.3f && !IsReloading();
+	for (int32 Finger = 0; Finger < NumFingers; ++Finger)
+	{
+		TipRegrow[Finger] = FMath::Min(1.0f, TipRegrow[Finger] + DeltaTime / RegrowSeconds);
+		TipKicks[Finger] = FMath::Max(0.0f, TipKicks[Finger] - DeltaTime * 7.0f);
+
+		// The finger whose turn it is charges up over the pause before its shot
+		const float Goal = bAiming && Finger == NextFinger ? FMath::Clamp(1.0f - FireCountdown / FMath::Max(Plant->FireInterval, 0.01f), 0.25f, 1.0f) : 0.0f;
+		TipCharges[Finger] = FMath::FInterpTo(TipCharges[Finger], Goal, DeltaTime, Goal > TipCharges[Finger] ? 30.0f : 12.0f);
+
+		if (UStaticMeshComponent* Orb = ChargeOrbs.IsValidIndex(Finger) ? ChargeOrbs[Finger].Get() : nullptr)
+		{
+			const float Glow = TipCharges[Finger];
+			Orb->SetVisibility(Glow > 0.03f);
+			if (Glow > 0.03f)
+			{
+				Orb->SetWorldLocation(Muzzles[Finger] + MuzzleDirections[Finger] * Plant->TipSize * 0.4f);
+				Orb->SetWorldScale3D(FVector(FMath::Min(Plant->TipSize * 1.6f, 9.0f) * Glow / 100.0f));
+				VaelEffects::SetLookGlow(Orb, 4.0f * Glow);
+			}
+		}
+	}
+}
+
 void UVaelPlantArmComponent::Shoot(int32 Finger)
 {
 	AVaelCharacter* Character = GetCharacter();
@@ -913,10 +1005,17 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 		{
 			Flash = 0.6f;
 		}
+		// A splash of the plant where the Tauperle leaves the rose
+		VaelSymbiosis::MuzzlePuff(this, Plant, BarrelMuzzle, Character->GetPath() == EVaelPath::Shadow, 1.4f);
 	}
 	else
 	{
 		Flashes[Finger] = 1.0f;
+		// The head itself is the shot: it flies off, the stalk snaps forward and a puff of the plant is left in the air
+		TipRegrow[Finger] = 0.0f;
+		TipKicks[Finger] = 1.0f;
+		TipCharges[Finger] = 0.0f;
+		VaelSymbiosis::MuzzlePuff(this, Plant, Muzzles[Finger], Character->GetPath() == EVaelPath::Shadow);
 	}
 
 	// Out of the fingertip, or the front of the barrel, towards where the player aims, flat over the ground

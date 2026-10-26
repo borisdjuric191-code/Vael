@@ -196,13 +196,13 @@ void UVaelSymbiosisKnotComponent::Update(const FVector& StartA, const FVector& S
 		const FVector Direction = Spin.RotateVector(Out);
 		Pieces[Index]->SetVisibility(Tangle > 0.01f);
 		Pieces[Index]->SetWorldLocationAndRotation(Knot + Direction * 4.0f * Tangle, FRotationMatrix::MakeFromZ(Direction).Rotator());
-		Pieces[Index]->SetWorldScale3D(FVector(Shape.W / 10.0f * Tangle * (1.0f + 0.35f * FlashLeft)));
+		Pieces[Index]->SetWorldScale3D(FVector(Shape.W / 10.0f * Tangle * (1.0f + 0.35f * FlashLeft + 0.3f * Charge)));
 	}
 
 	if (Glow != nullptr)
 	{
 		Glow->SetWorldLocation(Knot);
-		Glow->SetIntensity(KnotLightIntensity * Tangle * (1.0f + 1.5f * FlashLeft + 0.15f * FMath::Sin(Time * 3.0f)));
+		Glow->SetIntensity(KnotLightIntensity * Tangle * (1.0f + 1.5f * FlashLeft + 2.0f * Charge + 0.15f * FMath::Sin(Time * 3.0f)));
 	}
 }
 

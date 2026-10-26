@@ -34,6 +34,9 @@ public:
 	/** Flares the glow of the knot, when the pair acts */
 	void Flash() { FlashLeft = 1.0f; }
 
+	/** How far the pair has charged its next attack (0 to 1): the heart swells and glows brighter */
+	void SetCharge(float InCharge) { Charge = InCharge; }
+
 	/** Removes everything */
 	void Clear();
 
@@ -61,5 +64,6 @@ private:
 
 	FLinearColor GlowColor = FLinearColor::White;
 	float FlashLeft = 0.0f;
+	float Charge = 0.0f;
 	int32 VinesPerSide = 0;
 };

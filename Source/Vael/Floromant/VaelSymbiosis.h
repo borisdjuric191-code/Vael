@@ -103,6 +103,12 @@ namespace VaelSymbiosis
 	 *  fly further and burst bigger, Split breaks it up in the air (rooted), the scales make it bigger or stronger */
 	void ThrowCapsule(APawn* Instigator, const UVaelPlantArmData* Plant, const FVector& Muzzle, const FVector& Target, float Charge, float Power, bool bShadow, int32 Split = 0, float SizeScale = 1.0f);
 
+	/** Colour the parts of a plant glow in before they fire, and of the puff where its shot leaves (Boris 2026-10-26) */
+	FLinearColor GetPlantColor(const UVaelPlantArmData* Plant, bool bShadow);
+
+	/** A small glowing puff of the plant where one of its shots leaves: flakes of thistle down, pollen, drops or sparks */
+	void MuzzlePuff(const UObject* WorldContext, const UVaelPlantArmData* Plant, const FVector& Location, bool bShadow, float Scale = 1.0f);
+
 	/** The living enemy of the instigator closest to the location within the range, null if there is none */
 	AActor* FindTarget(APawn* Instigator, const FVector& Location, float Range);
 }

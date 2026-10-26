@@ -367,6 +367,24 @@ private:
 	/** Flash of every fingertip, 1 right after its shot */
 	TArray<float> Flashes;
 
+	/**
+	 *  Where a shot leaves, clear for everyone (Boris 2026-10-26): the finger whose turn it is next glows up in a ball of its
+	 *  plant's colour and pulls back (Charge), its head flies off as the shot and grows again (TipRegrow 0 gone to 1 there), the
+	 *  stalk snaps forward (Kick)
+	 */
+	TArray<float> TipCharges;
+	TArray<float> TipRegrow;
+	TArray<float> TipKicks;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> ChargeOrbs;
+
+	/** True for the hands that shoot from their fingertips one after the other (Glutdistel, Windhalm) */
+	bool ShootsFromFingers() const;
+
+	/** Glow balls of the charging fingers */
+	void UpdateCharge(float DeltaTime);
+
 	bool bFiring = false;
 	float FireTime = 0.0f;
 	float FireCountdown = 0.0f;

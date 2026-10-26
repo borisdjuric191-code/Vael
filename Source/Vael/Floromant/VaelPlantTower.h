@@ -124,6 +124,34 @@ private:
 	FVector GetOwnCrown() const;
 	FVector GetOwnCrownAxis() const;
 
+	/**
+	 *  The crown stalks fire in turn like the fingers of the hand (Boris 2026-10-26): aiming they draw together into a bundle, the
+	 *  stalk whose turn it is glows up in a ball and draws back, its head flies off as the shot and grows again
+	 */
+	TArray<float> StalkCharges;
+	TArray<float> StalkRegrow;
+	TArray<float> StalkKicks;
+	TArray<FVector> StalkTips;
+	TArray<FVector> StalkDirections;
+	int32 NextStalk = 0;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> ChargeOrbs;
+
+	/** Charging, regrowing and the glow balls of the crown stalks */
+	void UpdateStalkShots(float DeltaSeconds);
+
+	/**
+	 *  The mixed blossom charges before the pair acts (only on the leader): the parts of both plants light up, sparks of light
+	 *  run from them into the heart, the heart swells and fires
+	 */
+	float PairCharge = 0.0f;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> StreamOrbs;
+
+	void UpdatePairCharge(float DeltaSeconds);
+
 	/** Twisted pieces of each column vine up the shared trunk, made when the tower fuses */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USplineMeshComponent>> Braid;

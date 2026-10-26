@@ -12,6 +12,7 @@
 #include "Floromant/VaelRoseHeart.h"
 #include "Floromant/VaelSymbiosisKnotComponent.h"
 #include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
@@ -243,8 +244,29 @@ void AVaelPlantTower::Build()
 	}
 
 	UStaticMesh* TipMesh = VaelAssets::LoadOptional(Plant->TipMesh);
+	StalkCharges.Init(0.0f, TowerCrownStalks);
+	StalkRegrow.Init(1.0f, TowerCrownStalks);
+	StalkKicks.Init(0.0f, TowerCrownStalks);
+	StalkTips.Init(GetActorLocation(), TowerCrownStalks);
+	StalkDirections.Init(FVector::UpVector, TowerCrownStalks);
+	UMaterialInterface* GlowMaterial = nullptr;
+	if (!Plant->bShield)
+	{
+		UMaterialInterface* Core = nullptr;
+		VaelEffects::LoadLookMaterials(Core, GlowMaterial);
+	}
 	for (int32 Index = 0; Index < TowerCrownStalks; ++Index)
 	{
+		// The glow ball the head charges in before it fires (a Glimmklee tower doesn't fire)
+		if (GlowMaterial != nullptr)
+		{
+			UStaticMeshComponent* Orb = VaelEffects::AddLookShape(this, GlowMaterial, VaelSymbiosis::GetPlantColor(Plant, bShadow), 0.0f);
+			Orb->SetUsingAbsoluteLocation(true);
+			Orb->SetUsingAbsoluteRotation(true);
+			Orb->SetUsingAbsoluteScale(true);
+			Orb->SetVisibility(false);
+			ChargeOrbs.Add(Orb);
+		}
 		CrownStalks.Add(MakeStalk(TowerFirstMesh({ &Plant->FingerMeshes, &Plant->ArmMeshes }, Index)));
 		if (TipMesh != nullptr)
 		{
@@ -478,6 +500,8 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 		}
 	}
 
+	UpdatePairCharge(DeltaSeconds);
+	UpdateStalkShots(DeltaSeconds);
 	UpdateLook(DeltaSeconds);
 
 	if (Knot != nullptr && Partner.IsValid())
@@ -561,6 +585,22 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 		}
 	}
 
+	// The sparks that run into the heart of the blossom while the pair charges
+	{
+		UMaterialInterface* Core = nullptr;
+		UMaterialInterface* GlowMaterial = nullptr;
+		VaelEffects::LoadLookMaterials(Core, GlowMaterial);
+		for (int32 Index = 0; Index < 10; ++Index)
+		{
+			UStaticMeshComponent* Orb = VaelEffects::AddLookShape(this, GlowMaterial, VaelSymbiosis::GetColor(Symbiosis), 0.0f);
+			Orb->SetUsingAbsoluteLocation(true);
+			Orb->SetUsingAbsoluteRotation(true);
+			Orb->SetUsingAbsoluteScale(true);
+			Orb->SetVisibility(false);
+			StreamOrbs.Add(Orb);
+		}
+	}
+
 	Knot = NewObject<UVaelSymbiosisKnotComponent>(this, TEXT("SymbiosisKnot"));
 	Knot->SetupAttachment(RootComponent);
 	Knot->RegisterComponent();
@@ -635,6 +675,8 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		{
 			Knot->Flash();
 			BendVelocity -= LookDirection * 1.2f;
+			VaelSymbiosis::MuzzlePuff(this, Plant, Middle, bShadow, 1.6f);
+			VaelSymbiosis::MuzzlePuff(this, Partner->Plant, Middle, bShadow, 1.6f);
 		}
 		return;
 	}
@@ -649,13 +691,28 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		{
 			Knot->Flash();
 			BendVelocity -= LookDirection * 1.2f;
+			VaelSymbiosis::MuzzlePuff(this, Plant, Middle, bShadow, 1.6f);
+			VaelSymbiosis::MuzzlePuff(this, Partner->Plant, Middle, bShadow, 1.6f);
 		}
 		return;
 	}
 
-	// The shot leaves the crown where it looks
+	// The shot leaves the head whose turn it is, which flies off as the shot; without stalks the crown where it looks
 	const FVector Axis = GetCrownAxis();
-	const FVector Muzzle = GetCrown() + Axis * (CrownStalks.IsEmpty() ? 20.0f : Plant->FingerLength * 1.1f);
+	FVector Muzzle = GetCrown() + Axis * 20.0f;
+	if (StalkTips.IsValidIndex(NextStalk) && !CrownStalks.IsEmpty())
+	{
+		Muzzle = StalkTips[NextStalk];
+		StalkRegrow[NextStalk] = 0.0f;
+		StalkKicks[NextStalk] = 1.0f;
+		StalkCharges[NextStalk] = 0.0f;
+		VaelSymbiosis::MuzzlePuff(this, Plant, Muzzle, bShadow, 1.3f);
+		NextStalk = (NextStalk + 1) % StalkTips.Num();
+	}
+	else if (Plant->bMortar)
+	{
+		VaelSymbiosis::MuzzlePuff(this, Plant, Muzzle, bShadow, 1.6f);
+	}
 	const FVector Spread = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Goal->GetActorLocation() - Muzzle);
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	// A Mohnmörser throws its capsule to where the enemy stands
@@ -670,6 +727,97 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 	else
 	{
 		BendVelocity -= LookDirection * FMath::Clamp(2.0f * Plant->FireInterval, 0.6f, 2.5f);
+	}
+}
+
+void AVaelPlantTower::UpdateStalkShots(float DeltaSeconds)
+{
+	if (StalkCharges.IsEmpty())
+	{
+		return;
+	}
+	const float Interval = FMath::Max(Plant->FireInterval * UVaelFloromantSettings::Get()->TowerFireIntervalScale, 0.05f);
+	const float RegrowSeconds = FMath::Max(Interval * StalkCharges.Num() * 0.8f, 0.3f);
+	const bool bAiming = AimsLikeHydra() && !bWithering && Grow >= 1.0f && Target.IsValid();
+	for (int32 Index = 0; Index < StalkCharges.Num(); ++Index)
+	{
+		StalkRegrow[Index] = FMath::Min(1.0f, StalkRegrow[Index] + DeltaSeconds / RegrowSeconds);
+		StalkKicks[Index] = FMath::Max(0.0f, StalkKicks[Index] - DeltaSeconds * 6.0f);
+
+		// The head whose turn it is charges up over the pause before its shot; in the blossom all heads charge with the pair
+		const AVaelPlantTower* Leader = Symbiosis != EVaelSymbiosis::None ? (bLeads ? this : Partner.Get()) : nullptr;
+		const float Shared = Leader != nullptr ? Leader->PairCharge * 0.8f : 0.0f;
+		const float Goal = FMath::Max(Shared, bAiming && Index == NextStalk ? FMath::Clamp(1.0f - FireCountdown / Interval, 0.25f, 1.0f) : 0.0f);
+		StalkCharges[Index] = FMath::FInterpTo(StalkCharges[Index], Goal, DeltaSeconds, Goal > StalkCharges[Index] ? 20.0f : 10.0f);
+
+		if (UStaticMeshComponent* Orb = ChargeOrbs.IsValidIndex(Index) ? ChargeOrbs[Index].Get() : nullptr)
+		{
+			const float Glow = StalkCharges[Index];
+			Orb->SetVisibility(Glow > 0.03f);
+			if (Glow > 0.03f)
+			{
+				Orb->SetWorldLocation(StalkTips[Index] + StalkDirections[Index] * FMath::Min(Plant->TipSize, 12.0f) * 0.6f);
+				Orb->SetWorldScale3D(FVector(FMath::Min(Plant->TipSize * 1.6f, 16.0f) * Glow / 100.0f));
+				VaelEffects::SetLookGlow(Orb, 4.0f * Glow);
+			}
+		}
+	}
+}
+
+void AVaelPlantTower::UpdatePairCharge(float DeltaSeconds)
+{
+	AVaelPlantTower* Other = Partner.Get();
+	if (!bLeads || Other == nullptr || Symbiosis == EVaelSymbiosis::None)
+	{
+		return;
+	}
+
+	// It charges over the last stretch before the pair acts, and falls off after
+	const float Lead = FMath::Min(VaelSymbiosis::GetTowerInterval(Symbiosis), 0.9f);
+	const bool bReady = !bWithering && FuseGrow >= 1.0f && Target.IsValid();
+	const float Goal = bReady ? FMath::Clamp(1.0f - FireCountdown / Lead, 0.0f, 1.0f) : 0.0f;
+	PairCharge = FMath::FInterpTo(PairCharge, Goal, DeltaSeconds, Goal > PairCharge ? 14.0f : 8.0f);
+	if (Knot != nullptr)
+	{
+		Knot->SetCharge(PairCharge);
+	}
+
+	// Where the light comes from: the heads of the crown stalks of both towers, or a ring round the blossom for roses and petals
+	const FVector Heart = GetCrown() + GetCrownAxis() * 8.0f;
+	TArray<FVector, TInlineAllocator<12>> Sources;
+	for (const AVaelPlantTower* Tower : { static_cast<const AVaelPlantTower*>(this), static_cast<const AVaelPlantTower*>(Other) })
+	{
+		if (!Tower->StalkTips.IsEmpty() && !Tower->CrownStalks.IsEmpty())
+		{
+			Sources.Append(Tower->StalkTips);
+		}
+		else
+		{
+			for (int32 Index = 0; Index < 4; ++Index)
+			{
+				const float Angle = Index * UE_HALF_PI + (Tower == this ? 0.0f : 0.8f);
+				Sources.Add(Heart + FVector(FMath::Cos(Angle), FMath::Sin(Angle), -0.3f) * 30.0f);
+			}
+		}
+	}
+
+	// Sparks run from them into the heart, faster the fuller the charge
+	const float Time = GetWorld()->GetTimeSeconds();
+	for (int32 Index = 0; Index < StreamOrbs.Num(); ++Index)
+	{
+		UStaticMeshComponent* Orb = StreamOrbs[Index];
+		Orb->SetVisibility(PairCharge > 0.05f && !Sources.IsEmpty());
+		if (PairCharge <= 0.05f || Sources.IsEmpty())
+		{
+			continue;
+		}
+		const float Way = FMath::Frac(Time * (1.2f + 1.5f * PairCharge) + Index * 0.37f);
+		const FVector Source = Sources[Index % Sources.Num()];
+		// A little arc outwards on the way in
+		const FVector Bow = (Source - Heart).GetSafeNormal() * 10.0f * FMath::Sin(Way * UE_PI);
+		Orb->SetWorldLocation(FMath::Lerp(Source, Heart, Way * Way) + Bow);
+		Orb->SetWorldScale3D(FVector((2.0f + 3.0f * (1.0f - Way)) * PairCharge / 100.0f));
+		VaelEffects::SetLookGlow(Orb, 5.0f * PairCharge);
 	}
 }
 
@@ -773,10 +921,12 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	{
 		const float Angle = Index * 2.0f * UE_PI / CrownStalks.Num() + 0.4f;
 		const FVector Out = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
-		// Aiming, the stalks gather forward like the fingers of the hand
-		const float Fan = FMath::Lerp(0.65f, 0.3f, AimBlend);
+		// Aiming, the stalks draw together into a bundle towards the target like the fingers of the hand; the one whose turn it
+		// is draws back while it charges and snaps forward with its shot
+		const float Fan = FMath::Lerp(0.65f, 0.1f, AimBlend);
 		const FVector Direction = (Axis * 0.75f + Out * Fan + Out * 0.06f * FMath::Sin(Time * 1.3f + Index)).GetSafeNormal();
-		const float Length = Plant->FingerLength * 1.3f * Bloom;
+		const float Pull = StalkCharges.IsValidIndex(Index) ? StalkKicks[Index] * 0.2f - StalkCharges[Index] * 0.15f : 0.0f;
+		const float Length = Plant->FingerLength * 1.3f * Bloom * (1.0f + Pull);
 		const FVector End = Crown + Direction * Length;
 		USplineMeshComponent* Stalk = CrownStalks[Index];
 		Stalk->SetStartAndEnd(Transform.InverseTransformPosition(Crown), Transform.InverseTransformVectorNoScale(Axis * Length),
@@ -784,10 +934,18 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		Stalk->SetStartScale(FVector2D(Plant->FingerThickness * 1.8f), false);
 		Stalk->SetEndScale(FVector2D(Plant->FingerThickness * 1.4f), false);
 		Stalk->UpdateMesh();
+		if (StalkTips.IsValidIndex(Index))
+		{
+			StalkTips[Index] = End;
+			StalkDirections[Index] = Direction;
+		}
 		if (CrownPieces.IsValidIndex(Index))
 		{
+			// The head swells while it charges; after its shot it is gone and grows again
+			const float Regrown = StalkRegrow.IsValidIndex(Index) ? FMath::SmoothStep(0.0f, 1.0f, StalkRegrow[Index]) : 1.0f;
+			const float Swell = StalkCharges.IsValidIndex(Index) ? 1.0f + 0.35f * StalkCharges[Index] : 1.0f;
 			CrownPieces[Index]->SetWorldLocationAndRotation(End, FRotationMatrix::MakeFromZ(Direction).Rotator());
-			CrownPieces[Index]->SetWorldScale3D(FVector(Plant->TipSize * 1.6f / 10.0f * Bloom));
+			CrownPieces[Index]->SetWorldScale3D(FVector(FMath::Max(Plant->TipSize * 1.6f / 10.0f * Bloom * Regrown * Swell, 0.001f)));
 		}
 	}
 

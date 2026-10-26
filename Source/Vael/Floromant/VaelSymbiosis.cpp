@@ -846,4 +846,39 @@ namespace VaelSymbiosis
 		}
 		return Best;
 	}
+
+	FLinearColor GetPlantColor(const UVaelPlantArmData* Plant, bool bShadow)
+	{
+		if (Plant == nullptr)
+		{
+			return FLinearColor::White;
+		}
+		if (Plant->bMortar)
+		{
+			return bShadow ? Plant->SleepColor : Plant->EmberColor;
+		}
+		return Plant->GetColor(bShadow);
+	}
+
+	void MuzzlePuff(const UObject* WorldContext, const UVaelPlantArmData* Plant, const FVector& Location, bool bShadow, float Scale)
+	{
+		if (Plant == nullptr)
+		{
+			return;
+		}
+		FVaelDebris Puff;
+		Puff.Count = FMath::RoundToInt(7.0f * Scale);
+		Puff.Spread = 4.0f * Scale;
+		Puff.Speed = 140.0f * Scale;
+		Puff.Lift = 60.0f;
+		Puff.Gravity = 120.0f;
+		Puff.Drag = 3.0f;
+		Puff.Lifetime = 0.35f;
+		Puff.MinSize = 1.5f;
+		Puff.MaxSize = 3.5f * Scale;
+		Puff.Color = GetPlantColor(Plant, bShadow);
+		Puff.Glow = 5.0f;
+		Puff.bLandOnGround = false;
+		AVaelDebrisBurst::Spawn(WorldContext, Location, Puff);
+	}
 }
