@@ -22,6 +22,7 @@
 #include "VaelAssets.h"
 #include "World/VaelLightningStrike.h"
 #include "World/VaelProgressSubsystem.h"
+#include "World/VaelWeatherWind.h"
 #include "World/VaelWorldSettings.h"
 #include "UI/VaelUISettings.h"
 #include "UI/VaelWorldMap.h"
@@ -43,7 +44,7 @@ AVaelRegion::AVaelRegion()
 	RootComponent = Bounds;
 
 	RegionName = LOCTEXT("DefaultRegionName", "Aschenmark");
-	AvailableWeathers = { EVaelWeather::Clear, EVaelWeather::Rain, EVaelWeather::Storm, EVaelWeather::Drought };
+	AvailableWeathers = { EVaelWeather::Clear, EVaelWeather::Rain, EVaelWeather::Storm, EVaelWeather::Drought, EVaelWeather::Wind };
 
 	PrimaryActorTick.bCanEverTick = true;
 	PrimaryActorTick.bStartWithTickEnabled = true;
@@ -98,6 +99,40 @@ void AVaelRegion::Tick(float DeltaSeconds)
 		break;
 	default:
 		break;
+	}
+
+	TickWind(DeltaSeconds);
+}
+
+FVector AVaelRegion::GetWindAt(UWorld* World, const FVector& Location)
+{
+	const AVaelRegion* Region = GetRegionAt(World, Location);
+	return Region != nullptr ? Region->GetWind() : FVector::ZeroVector;
+}
+
+void AVaelRegion::TickWind(float DeltaSeconds)
+{
+	// The wind rises over a few seconds when the weather brings it and dies down when it goes
+	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
+	const float TargetStrength = Weather == EVaelWeather::Wind ? Settings->WindSpeed : Weather == EVaelWeather::Storm ? Settings->StormWindSpeed : 0.0f;
+	const float RiseSpeed = FMath::Max(Settings->WindSpeed, Settings->StormWindSpeed) / Settings->WindRiseTime;
+	WindStrength = FMath::FInterpConstantTo(WindStrength, TargetStrength, DeltaSeconds, RiseSpeed);
+
+	// Gusts swell and drop without a rhythm
+	const float GustTime = GetWorld()->GetTimeSeconds() * Settings->WindGustsPerMinute / 60.0f;
+	const float Gust = 0.5f + 0.5f * FMath::Clamp(FMath::PerlinNoise1D(GustTime) * 1.6f, -1.0f, 1.0f);
+	WindGust = FMath::Lerp(Settings->WindGustRange.X, Settings->WindGustRange.Y, Gust);
+
+	// Ash, sand and streaks drift over the land around the players while it blows
+	const bool bBlowing = WindStrength > 1.0f && HasPlayerInside();
+	if (bBlowing && WindLook == nullptr)
+	{
+		WindLook = AVaelWeatherWind::Spawn(this);
+	}
+	else if (!bBlowing && WindLook != nullptr)
+	{
+		WindLook->Destroy();
+		WindLook = nullptr;
 	}
 }
 
@@ -212,6 +247,14 @@ void AVaelRegion::SetWeather(EVaelWeather NewWeather)
 		return;
 	}
 
+	// A new wind comes from a new side; a storm rising out of the wind keeps its direction
+	const bool bWindBefore = Weather == EVaelWeather::Wind || Weather == EVaelWeather::Storm;
+	if (!bWindBefore || WindStrength <= 1.0f)
+	{
+		const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		WindDirection = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+	}
+
 	Weather = NewWeather;
 	WetnessRefreshTime = 0.0f;
 
@@ -275,6 +318,14 @@ void AVaelRegion::AnnounceWeather()
 		Color = FLinearColor(FColor(240, 176, 96));
 		break;
 
+	case EVaelWeather::Wind:
+		Title = LOCTEXT("WindStarts", "Wind kommt auf");
+		Detail = bFirstTime
+			? LOCTEXT("WindExplained", "Luft liegt überall in der Umgebung und ist billiger und stärker. Geschosse werden abgetrieben, Feuer und Wirbel ziehen mit dem Wind: zielt gegen ihn etwas vor.")
+			: LOCTEXT("WindShort", "Luft überall, Geschosse treiben ab.");
+		Color = FLinearColor(FColor(196, 214, 220));
+		break;
+
 	default:
 		Title = LOCTEXT("SkyClears", "Der Himmel klart auf");
 		break;
@@ -290,6 +341,7 @@ FText AVaelRegion::GetWeatherName(EVaelWeather InWeather)
 	case EVaelWeather::Rain: return LOCTEXT("WeatherRain", "Ascheregen");
 	case EVaelWeather::Storm: return LOCTEXT("WeatherStorm", "Sturm");
 	case EVaelWeather::Drought: return LOCTEXT("WeatherDrought", "D\u00FCrre");
+	case EVaelWeather::Wind: return LOCTEXT("WeatherWind", "Wind");
 	default: return LOCTEXT("WeatherClear", "Klarer Himmel");
 	}
 }

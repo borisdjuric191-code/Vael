@@ -350,9 +350,13 @@ void UVaelCheatManager::VaelWeather(const FString& Weather)
 	{
 		Region->SetWeather(EVaelWeather::Drought);
 	}
+	else if (Name.StartsWith(TEXT("w")))
+	{
+		Region->SetWeather(EVaelWeather::Wind);
+	}
 	else
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelWeather: use Klar, Regen, Sturm or Duerre"));
+		UE_LOG(LogVael, Warning, TEXT("VaelWeather: use Klar, Regen, Sturm, Duerre or Wind"));
 	}
 }
 

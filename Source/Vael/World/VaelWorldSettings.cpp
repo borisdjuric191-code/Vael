@@ -9,11 +9,13 @@ UVaelWorldSettings::UVaelWorldSettings()
 	WeatherWeightsPure.Add(EVaelWeather::Rain, 2.5f);
 	WeatherWeightsPure.Add(EVaelWeather::Storm, 1.0f);
 	WeatherWeightsPure.Add(EVaelWeather::Drought, 1.0f);
+	WeatherWeightsPure.Add(EVaelWeather::Wind, 1.5f);
 
 	WeatherWeightsCorrupted.Add(EVaelWeather::Clear, 0.3f);
 	WeatherWeightsCorrupted.Add(EVaelWeather::Rain, 2.5f);
 	WeatherWeightsCorrupted.Add(EVaelWeather::Storm, 2.5f);
 	WeatherWeightsCorrupted.Add(EVaelWeather::Drought, 1.5f);
+	WeatherWeightsCorrupted.Add(EVaelWeather::Wind, 1.5f);
 
 	// Rain favors water; drought is the mirror image: fire gains what water gains in the rain, water loses it
 	const auto AddModifier = [this](EVaelWeather Weather, EVaelElement Element, float ManaCostMultiplier, float PowerMultiplier)

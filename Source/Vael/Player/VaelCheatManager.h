@@ -142,7 +142,7 @@ public:
 	UFUNCTION(Exec)
 	void VaelGlyphs(const FString& Glyphs);
 
-	/** Changes the weather of the region the player stands in: Klar, Regen, Sturm or Duerre. Example: VaelWeather Sturm */
+	/** Changes the weather of the region the player stands in: Klar, Regen, Sturm, Duerre or Wind. Example: VaelWeather Sturm */
 	UFUNCTION(Exec)
 	void VaelWeather(const FString& Weather);
 

@@ -40,6 +40,8 @@
 #include "Items/VaelMaterialBag.h"
 #include "Nature/VaelHarvestable.h"
 #include "World/VaelRegion.h"
+#include "World/VaelWeatherWind.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "World/VaelSafeZone.h"
 #include "Story/VaelNpc.h"
 #include "Story/VaelQuestMarker.h"
@@ -1041,6 +1043,35 @@ void AVaelSmokeTest::BeginPlay()
 	}, 7.0f });
 
 	Steps.Add({ TEXT("Cleanse the region"), [SetRegionCorruption]() { return SetRegionCorruption(0.0f, true); }, 1.5f });
+
+	// Wind: it rises, blows from one side, gives air everywhere and shows around the player
+	Steps.Add({ TEXT("Wind"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		AVaelRegion* Region = Player != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), Player->GetActorLocation()) : nullptr;
+		if (Region == nullptr)
+		{
+			return FString(TEXT("no region"));
+		}
+
+		Region->SetWeather(EVaelWeather::Wind);
+		return FString(TEXT("wind"));
+	}, 5.0f });
+	Steps.Add({ TEXT("Wind blows"), [this]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		const AVaelRegion* Region = Player != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), Player->GetActorLocation()) : nullptr;
+		const float Speed = Region != nullptr ? Region->GetWind().Size() : 0.0f;
+		const bool bAir = UVaelEnvironmentStatics::IsElementInEnvironment(Player, EVaelElement::Air);
+		int32 NumLooks = 0;
+		for (TActorIterator<AVaelWeatherWind> It(GetWorld()); It; ++It)
+		{
+			++NumLooks;
+		}
+
+		const bool bOk = Speed > 100.0f && bAir && NumLooks == 1;
+		return FString::Printf(TEXT("%swind %.0f cm/s, air nearby %s, %d wind looks"), bOk ? TEXT("") : TEXT("FAILED: "), Speed, bAir ? TEXT("yes") : TEXT("no"), NumLooks);
+	}, 0.1f });
 
 	// Rain lets the Keimpelz sprout, and about half of them carry seeds
 	Steps.Add({ TEXT("Rain"), [this]()

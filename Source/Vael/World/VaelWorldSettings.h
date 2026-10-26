@@ -67,6 +67,54 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Weather|Drought", meta = (ClampMin = 1))
 	float DroughtFireLifetimeMultiplier = 1.6f;
 
+	/** Speed of the wind in cm/s in the wind weather and in a storm; it blows from one side for the whole weather window */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	float WindSpeed = 450.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	float StormWindSpeed = 650.0f;
+
+	/** Gusts: the wind swings between these shares of its speed, this many times a minute or so */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind")
+	FVector2D WindGustRange = FVector2D(0.55f, 1.25f);
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	float WindGustsPerMinute = 9.0f;
+
+	/** Seconds the wind needs to rise when the weather starts and to die down when it ends */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0.1))
+	float WindRiseTime = 4.0f;
+
+	/** Missiles are pushed by this share of the wind every second, sideways, at the same speed */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	float WindMissileDrift = 0.35f;
+
+	/** Whirlwinds drift with this share of the wind */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	float WindWhirlDrift = 0.3f;
+
+	/** Brandherde creep downwind with this share of the wind (campfires stay); their flames lean with it */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	float WindFireDrift = 0.04f;
+
+	/** Pack parameter "Wind Speed" of fire in full wind */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	float WindFireLean = 4.0f;
+
+	/** Wind streaks, ash and sand cards drifting over the land around the players in full wind */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	int32 WindStreakCount = 14;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	int32 WindAshCount = 12;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
+	int32 WindSandCount = 8;
+
+	/** Half size of the square around the players the wind look fills, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 100))
+	float WindLookReach = 1500.0f;
+
 	/** Seconds between two lightning strikes in a storm, picked at random in this range */
 	UPROPERTY(config, EditAnywhere, Category="Weather|Storm")
 	FVector2D LightningInterval = FVector2D(3.5f, 6.0f);

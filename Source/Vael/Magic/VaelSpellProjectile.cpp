@@ -10,6 +10,8 @@
 #include "Engine/World.h"
 #include "Engine/StaticMesh.h"
 #include "GameFramework/ProjectileMovementComponent.h"
+#include "World/VaelRegion.h"
+#include "World/VaelWorldSettings.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
@@ -271,6 +273,17 @@ void AVaelSpellProjectile::Tick(float DeltaSeconds)
 	if (Hit.Element == EVaelElement::Water && !bFlightEnded)
 	{
 		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), SpellRadius);
+	}
+
+	// The wind of the weather blows it aside a little; it keeps its speed
+	if (!bFlightEnded && Movement != nullptr && Movement->IsActive())
+	{
+		const float Speed = Movement->Velocity.Size();
+		const FVector Wind = AVaelRegion::GetWindAt(GetWorld(), GetActorLocation());
+		if (Speed > 1.0f && !Wind.IsNearlyZero())
+		{
+			Movement->Velocity = (Movement->Velocity + Wind * UVaelWorldSettings::Get()->WindMissileDrift * DeltaSeconds).GetSafeNormal() * Speed;
+		}
 	}
 
 	if (bMistSplit && !bFlightEnded && AVaelGroundArea::FindEffectAt(GetWorld(), GetActorLocation(), EVaelGroundEffect::Veil) != nullptr)

@@ -128,6 +128,15 @@ public:
 	/** Name of a weather shown to the players */
 	static FText GetWeatherName(EVaelWeather InWeather);
 
+	/** The wind blowing in the region right now in cm/s, flat and gusting; zero unless the weather is wind or storm */
+	FVector GetWind() const { return WindDirection * WindStrength * WindGust; }
+
+	/** Direction the wind blows towards, flat; kept for the whole weather window */
+	FVector GetWindDirection() const { return WindDirection; }
+
+	/** The wind at a location in cm/s, zero where it doesn't blow */
+	static FVector GetWindAt(UWorld* World, const FVector& Location);
+
 	/** Real time of the last lightning strike, for the flash on screen */
 	double GetLastLightningTime() const { return LastLightningTime; }
 
@@ -156,6 +165,18 @@ private:
 
 	/** Lets lightning fall near the players in the region */
 	void TickStorm(float DeltaSeconds);
+
+	/** Lets the wind rise or die down with the weather and gust; shows it while it blows */
+	void TickWind(float DeltaSeconds);
+
+	/** Direction of the wind, its speed without gusts in cm/s (rising and dying down) and the gust share on top */
+	FVector WindDirection = FVector::ForwardVector;
+	float WindStrength = 0.0f;
+	float WindGust = 1.0f;
+
+	/** Look of the wind around the players, while it blows */
+	UPROPERTY(Transient)
+	TObjectPtr<class AVaelWeatherWind> WindLook;
 
 	/** True if at least one player stands in the region */
 	bool HasPlayerInside() const;

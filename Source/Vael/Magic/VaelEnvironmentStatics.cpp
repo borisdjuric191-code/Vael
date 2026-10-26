@@ -72,11 +72,11 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		}
 	}
 
-	// A storm fills the whole region with air
+	// Wind and storms fill the whole region with air
 	if (Element == EVaelElement::Air)
 	{
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
-		return Region != nullptr && Region->GetWeather() == EVaelWeather::Storm;
+		return Region != nullptr && (Region->GetWeather() == EVaelWeather::Storm || Region->GetWeather() == EVaelWeather::Wind);
 	}
 
 	// Open Mark sources let mages draw the Mark, once it has awakened in them

@@ -3,6 +3,8 @@
 #include "World/VaelFireSpot.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
+#include "World/VaelRegion.h"
+#include "World/VaelWorldSettings.h"
 #include "Engine/World.h"
 #include "Vael.h"
 #include "EngineUtils.h"
@@ -151,6 +153,11 @@ void AVaelFireSpot::Tick(float DeltaSeconds)
 				// A campfire mages drew from grows back to its own size
 				TargetRadius = FMath::Min(BaseRadius, TargetRadius + UVaelMagicSettings::Get()->FireDrawRegrowSpeed * DeltaSeconds);
 			}
+		}
+		// A Brandherd creeps downwind; campfires and fires on walls stay
+		if (BurnTime > 0.0f && Shape.WallNormal.IsNearlyZero())
+		{
+			TargetLocation += AVaelRegion::GetWindAt(GetWorld(), TargetLocation) * UVaelWorldSettings::Get()->WindFireDrift * DeltaSeconds;
 		}
 		const float Radius = FMath::FInterpConstantTo(Fire->GetShape().Radius, TargetRadius, DeltaSeconds, Settings->HerdGrowSpeed);
 		Fire->SetRadius(Radius);

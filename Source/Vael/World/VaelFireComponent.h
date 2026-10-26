@@ -565,6 +565,10 @@ private:
 	/** Where flying fire was last frame, to turn its wind against the flight */
 	FVector LastFlightLocation = FVector::ZeroVector;
 
+	/** Seconds until fire on the ground looks up the wind of the weather again, and whether it leans in it now */
+	float WindCheckTime = 0.0f;
+	bool bLeaningInWind = false;
+
 	/** Starts Boris' Niagara fire, true if it burns */
 	bool BuildNiagaraFire();
 

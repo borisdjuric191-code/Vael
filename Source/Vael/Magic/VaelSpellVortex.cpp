@@ -23,6 +23,8 @@
 #include "Vael.h"
 #include "World/VaelFireSpot.h"
 #include "World/VaelGround.h"
+#include "World/VaelRegion.h"
+#include "World/VaelWorldSettings.h"
 
 #define LOCTEXT_NAMESPACE "VaelMagic"
 
@@ -181,7 +183,9 @@ void AVaelSpellVortex::Move(float DeltaSeconds)
 {
 	UWorld* World = GetWorld();
 	const FVector Location = GetActorLocation();
-	const FVector NextLocation = Location + Velocity * DeltaSeconds;
+	// The wind of the weather carries it along
+	const FVector Drift = AVaelRegion::GetWindAt(World, Location) * UVaelWorldSettings::Get()->WindWhirlDrift;
+	const FVector NextLocation = Location + (Velocity + Drift) * DeltaSeconds;
 
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellVortex), false, this);
 	QueryParams.AddIgnoredActor(GetInstigator());

@@ -15,6 +15,8 @@
 #include "Materials/MaterialInterface.h"
 #include "VaelAssets.h"
 #include "Magic/VaelSpellEffects.h"
+#include "World/VaelRegion.h"
+#include "World/VaelWorldSettings.h"
 
 void VaelFire::SetWind(UNiagaraComponent* Fire, const FVector& Direction, float Speed)
 {
@@ -889,6 +891,23 @@ void UVaelFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		LastFlightLocation = GetComponentLocation();
 		const FVector Wind = Flight.SizeSquared() > FMath::Square(50.0f) ? -Flight.GetSafeNormal() * 100.0f : FVector::ZeroVector;
 		VaelFire::SetWind(NiagaraFire, Wind, Wind.IsZero() ? 0.0f : UVaelFireSettings::Get()->FlightWindSpeed);
+	}
+	else if (NiagaraFire != nullptr && Shape.WallNormal.IsNearlyZero())
+	{
+		// Fire on the ground leans with the wind of the weather, looked up a few times a second
+		WindCheckTime -= DeltaTime;
+		if (WindCheckTime <= 0.0f)
+		{
+			WindCheckTime = 0.3f;
+			const UVaelWorldSettings* WorldSettings = UVaelWorldSettings::Get();
+			const FVector Wind = AVaelRegion::GetWindAt(GetWorld(), GetComponentLocation());
+			const float Share = Wind.Size() / FMath::Max(WorldSettings->WindSpeed, 1.0f);
+			if (Share > 0.05f || bLeaningInWind)
+			{
+				VaelFire::SetWind(NiagaraFire, Share > 0.05f ? Wind.GetSafeNormal() * 100.0f : FVector::ZeroVector, Share * WorldSettings->WindFireLean);
+				bLeaningInWind = Share > 0.05f;
+			}
+		}
 	}
 
 	if (FlameMaterial != nullptr)
