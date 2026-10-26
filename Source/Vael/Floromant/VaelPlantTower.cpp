@@ -9,6 +9,7 @@
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelRoseHeart.h"
 #include "Floromant/VaelSymbiosisKnotComponent.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -159,7 +160,18 @@ void AVaelPlantTower::Build()
 		Column.Add(MakeStalk(TowerFirstMesh({ &Plant->VineMeshes, &Plant->ArmMeshes, &Plant->FingerMeshes }, Index)));
 	}
 
-	// The crown: the open rose of the Taublatt, or the finger stalks with their heads
+	// The crown: the big rose of the Rußrose with its heart, the open rose of the Taublatt, or the finger stalks with their heads
+	if (UStaticMesh* RoseMesh = Plant->bVineArm ? VaelAssets::LoadOptional(Plant->ShoulderMesh) : nullptr)
+	{
+		UStaticMeshComponent* Rose = NewObject<UStaticMeshComponent>(this);
+		Rose->SetMobility(EComponentMobility::Movable);
+		Rose->SetStaticMesh(RoseMesh);
+		Rose->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Rose->SetupAttachment(RootComponent);
+		Rose->RegisterComponent();
+		CrownPieces.Add(Rose);
+		return;
+	}
 	if (UStaticMesh* PetalMesh = VaelAssets::LoadOptional(Plant->PetalMesh))
 	{
 		for (int32 Index = 0; Index < Plant->InnerPetals + Plant->OuterPetals; ++Index)
@@ -278,6 +290,18 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 		}
 	}
 
+	// A Rußrose tower, or the leader of a rose pair, beats with care every two seconds
+	const bool bBeats = !bWithering && Grow >= 1.0f && ((Symbiosis == EVaelSymbiosis::None && Plant->bVineArm) || (VaelSymbiosis::HasRose(Symbiosis) && bLeads));
+	if (bBeats)
+	{
+		RoseBeatCountdown -= DeltaSeconds;
+		if (RoseBeatCountdown <= 0.0f)
+		{
+			RoseBeatCountdown = 2.0f;
+			VaelSymbiosis::RoseBeat(GetGardener(), Symbiosis, GetActorLocation(), 1.0f, bShadow);
+		}
+	}
+
 	UpdateLook(DeltaSeconds);
 
 	if (Knot != nullptr && Partner.IsValid())
@@ -355,6 +379,11 @@ void AVaelPlantTower::FireNow(float Power)
 		}
 		return;
 	}
+	// A rose beats at once, stronger
+	if ((Symbiosis == EVaelSymbiosis::None && Plant->bVineArm) || VaelSymbiosis::HasRose(Symbiosis))
+	{
+		VaelSymbiosis::RoseBeat(GetGardener(), Symbiosis, GetActorLocation(), Power, bShadow);
+	}
 	if (AActor* Goal = VaelSymbiosis::FindTarget(GetGardener(), GetActorLocation(), Plant->ShotRange))
 	{
 		Target = Goal;
@@ -370,23 +399,29 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		return;
 	}
 
-	// A Glimmklee tower alone only holds its dome
-	if (Symbiosis == EVaelSymbiosis::None && Plant->bShield)
+	// A Glimmklee or Rußrose tower alone doesn't shoot: it holds its dome or beats with care
+	if (Symbiosis == EVaelSymbiosis::None && (Plant->bShield || Plant->bVineArm))
 	{
 		return;
 	}
 
-	// A pair with a Glimmklee works through its dome; the other plant fires its own shots out of the knot, the burning glass hotter
-	if (VaelSymbiosis::HasDome(Symbiosis) && Partner.IsValid())
+	// A pair with a Glimmklee works through its dome, one with a Rußrose through its heartbeat; the other plant fires its own
+	// shots out of the knot, the burning glass hotter, and the seeds of the Aschenrose heal the allies near the tower
+	if ((VaelSymbiosis::HasDome(Symbiosis) || VaelSymbiosis::HasRose(Symbiosis)) && Partner.IsValid())
 	{
-		const UVaelPlantArmData* Shooter = Plant->bShield ? Partner->Plant.Get() : Plant.Get();
-		if (Shooter == nullptr || Shooter->bShield)
+		const UVaelPlantArmData* Other = Partner->Plant.Get();
+		const UVaelPlantArmData* Shooter = !Plant->bShield && !Plant->bVineArm ? Plant.Get() : (Other != nullptr && !Other->bShield && !Other->bVineArm ? Other : nullptr);
+		if (Shooter == nullptr)
 		{
 			return;
 		}
 		const FVector Middle = (GetCrown() + Partner->GetCrown()) * 0.5f - FVector(0.0f, 0.0f, 35.0f);
 		const float Hotter = Symbiosis == EVaelSymbiosis::Glutglas ? 1.5f : 1.0f;
 		VaelSymbiosis::FireShot(Gardener, Shooter, Middle, (Goal->GetActorLocation() - Middle).GetSafeNormal(), Power * Hotter, bShadow, UVaelFloromantSettings::Get()->TowerShotScale);
+		if (Symbiosis == EVaelSymbiosis::Aschenrose && !bShadow)
+		{
+			VaelRoseCare::HealAround(Gardener, GetActorLocation(), 600.0f, 0.02f * Power);
+		}
 		if (Knot != nullptr)
 		{
 			Knot->Flash();
@@ -478,8 +513,15 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		}
 	}
 
+	// The big rose of the Rußrose on top, beating with its heart
+	if (Plant->bVineArm && CrownPieces.Num() == 1)
+	{
+		const float Beat = 1.0f + 0.06f * FMath::Square(FMath::Sin(Time * 3.0f));
+		CrownPieces[0]->SetWorldLocationAndRotation(Crown - Axis * 6.0f, FRotationMatrix::MakeFromZ(Axis).Rotator());
+		CrownPieces[0]->SetWorldScale3D(FVector(Plant->ShoulderRoseSize * 1.6f / 10.0f * Shown * Beat));
+	}
 	// Crown of petals: the rose stands open on top, breathing, the inner ring half shut
-	if (CrownStalks.IsEmpty())
+	else if (CrownStalks.IsEmpty())
 	{
 		for (int32 Index = 0; Index < CrownPieces.Num(); ++Index)
 		{

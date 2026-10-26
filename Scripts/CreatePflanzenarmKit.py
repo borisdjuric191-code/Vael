@@ -88,6 +88,17 @@ ARMS = {
                  "arm_thickness": 0.3, "rest_wind": 0.3, "wild_count": 0, "overgrowth_wild_count": 0, "vine_count": 2,
                  "vine_thickness": 0.6, "leaf_count": 18, "leaf_size": 12.0, "leaf_open_angle": 30.0},
     },
+    # Boris 2026-10-26 (inspired by Hanami): a big rose on the shoulder, the whole arm whipping thorn vines that take hold of an
+    # ally and heal (Blutrose: drain an enemy). The blossom from Tools/Pflanzenarm/russrose_bluete.py, the vine from ranke_bauen.py
+    "Russrose": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": False,
+        "shoulder": "Bluete",
+        "values": {"Silber": 0.0, "Leuchten": 0.03, "Grundton": (1.0, 1.0, 1.0), "Leuchtfarbe": (0.25, 1.0, 0.5), "Metall": 0.1, "Rauheit": 0.45},
+        "data": {"vine_arm": True, "arm_vine_count": 7, "arm_vine_length": 80.0, "arm_vine_thickness": 0.75, "shoulder_rose_size": 40.0,
+                 "rest_wind": 0.2},
+    },
 }
 
 
@@ -429,17 +440,27 @@ def main():
         others = [import_stalk(plant, i) for i in arm["arm"]]
         # The head on the fingertips: SM_<Id>_Kopf, or a piece of its own name (the Taublatt's funnel)
         head_name = arm["head"] if isinstance(arm["head"], str) else "Kopf"
-        head = import_mesh(plant, "SM_{}_{}".format(plant, head_name), 5.0) if arm["head"] else None
-        leaf = head if arm.get("leaf") == head_name else (import_mesh(plant, "SM_{}_{}".format(plant, arm["leaf"]), 5.0) if arm.get("leaf") else None)
+        head = import_mesh(plant, "SM_{}_{}".format(plant, head_name), 1.0) if arm["head"] else None
+        leaf = head if arm.get("leaf") == head_name else (import_mesh(plant, "SM_{}_{}".format(plant, arm["leaf"]), 1.0) if arm.get("leaf") else None)
         # The vine for the overgrowth while aiming, from Tools/Pflanzenarm/ranke_bauen.py
         vine = import_mesh(plant, "SM_{}_Ranke".format(plant), 50.0)
         petal = import_mesh(plant, "SM_{}_{}".format(plant, arm["petal"]), 5.0) if arm.get("petal") else None
+        shoulder = import_mesh(plant, "SM_{}_{}".format(plant, arm["shoulder"]), 5.0) if arm.get("shoulder") else None
         instance = make_instance(stalk_material, plant, arm["values"])
         for mesh in fingers + others + [head, vine, leaf, petal]:
             if mesh is not None:
                 mesh.set_material(0, instance)
                 assets.save_loaded_asset(mesh, False)
+        # The blossom keeps the colours of its own picture with the glowing heart, through the plant's stalk material
+        if shoulder is not None:
+            shoulder.set_material(0, instance)
+            assets.save_loaded_asset(shoulder, False)
         make_arm(plant, fingers, others, head, vine, instance, arm["data"], leaf, petal)
+        if shoulder is not None:
+            data = unreal.load_asset("{}/DA_Pflanzenarm_{}".format(FOLDER, plant))
+            if data is not None and data.get_editor_property("shoulder_mesh") is None:
+                data.set_editor_property("shoulder_mesh", shoulder)
+                assets.save_loaded_asset(data, False)
 
     for line in created:
         log("created " + line)

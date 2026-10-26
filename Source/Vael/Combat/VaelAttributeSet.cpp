@@ -66,6 +66,12 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 		// The glass dome of a Glimmklee swallows enemy fire and makes the fire of her side burn hotter
 		Damage = AVaelGlimmDome::ScaleFireDamage(Target, Data.EffectSpec.GetContext().GetInstigator(), Damage, DamageTags);
 
+		// The heart shield of a Rußrose swallows it first
+		if (AVaelCharacter* Player = Cast<AVaelCharacter>(Target))
+		{
+			Damage = Player->AbsorbIncoming(Damage);
+		}
+
 		if (Damage > 0.0f)
 		{
 			if (Target != nullptr)

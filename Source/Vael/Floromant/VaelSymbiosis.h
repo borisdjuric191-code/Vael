@@ -36,7 +36,18 @@ enum class EVaelSymbiosis : uint8
 	/** Glimmklee + Windhalm: glittering pollen in the dome turns every enemy shot aside / a fan of pollen that blinds */
 	Funkelwind,
 	/** Glimmklee + Taublatt: a dew dome where enemy fire goes out, enemies get wet, plants are watered / a prism drop that blinds and soaks */
-	Tauglocke
+	Tauglocke,
+	// Rußrose (Boris 2026-10-26): towers beat with healing, crossed hands care at once
+	/** Rußrose + Rußrose: a strong heartbeat that heals far and helps the fallen up / both shoulder roses grow into one and shoot their heart */
+	Rosenherz,
+	/** Rußrose + Windhalm: the wind carries rose petals to every ally far around / a fan of petals that heals allies and cuts enemies */
+	Bluetensturm,
+	/** Rußrose + Glutdistel: the glowing seeds heal the allies near where they burn / burning seeds that heal allies where they burst */
+	Aschenrose,
+	/** Rußrose + Taublatt: dew that takes burning, wetness and frost off allies and heals plants (no player healing from water) */
+	Rosentau,
+	/** Rußrose + Glimmklee: the dome becomes a greenhouse where allies heal slowly / a heart shield around the most hurt ally */
+	Glashaus
 };
 
 namespace VaelSymbiosis
@@ -55,6 +66,12 @@ namespace VaelSymbiosis
 
 	/** True for the pairs with a Glimmklee: fused towers raise a dome of the pair */
 	bool HasDome(EVaelSymbiosis Kind);
+
+	/** True for the pairs with a Rußrose: fused towers beat with care every few seconds */
+	bool HasRose(EVaelSymbiosis Kind);
+
+	/** What a fused tower of a rose pair does at each beat, around the place; Power from the root net */
+	void RoseBeat(APawn* Instigator, EVaelSymbiosis Kind, const FVector& Center, float Power, bool bShadow);
 
 	/**
 	 *  Lets the pair act once from the origin towards the direction (flat over the ground). Power multiplies the damage

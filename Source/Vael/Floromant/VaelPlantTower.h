@@ -99,6 +99,7 @@ private:
 	float Grow = 0.0f;
 	float LifeLeft = 0.0f;
 	float FireCountdown = 0.5f;
+	float RoseBeatCountdown = 1.0f;
 
 	/** Glass dome of a Glimmklee tower, or of a pair with a Glimmklee */
 	TWeakObjectPtr<class AVaelGlimmDome> Dome;

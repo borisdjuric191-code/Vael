@@ -10,6 +10,7 @@
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelFootRootsComponent.h"
 #include "Floromant/VaelGlimmDome.h"
+#include "Floromant/VaelRoseHeart.h"
 #include "Floromant/VaelPlant.h"
 #include "Floromant/VaelPlantTower.h"
 #include "Floromant/VaelRootRunner.h"
@@ -948,6 +949,13 @@ void UVaelFloromantComponent::CrossHands(bool bCharged)
 		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoPair", "Diese beiden wachsen nicht zusammen"), FLinearColor(FColor(158, 143, 125)));
 		return;
 	}
+
+	// Two Rußrosen (Boris 2026-10-26): both roses wander from the shoulders, grow into one before her and shoot their heart
+	if (Kind == EVaelSymbiosis::Rosenherz)
+	{
+		ShootRoseHeart(Left, Right);
+		return;
+	}
 	if (Left->GetBarShots() < Settings->CrossBarShots || Right->GetBarShots() < Settings->CrossBarShots)
 	{
 		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "BarsEmpty", "Pflanzenleisten zu leer"), FLinearColor(FColor(158, 143, 125)));
@@ -979,6 +987,48 @@ void UVaelFloromantComponent::CrossHands(bool bCharged)
 	CrossShowLeft = Settings->CrossShowTime;
 	CrossAim = Aim;
 	UVaelCombatTextSubsystem::PostPickup(Character, VaelSymbiosis::GetName(Kind), VaelSymbiosis::GetColor(Kind));
+}
+
+void UVaelFloromantComponent::ShootRoseHeart(UVaelPlantArmComponent* Left, UVaelPlantArmComponent* Right)
+{
+	AVaelCharacter* Character = GetCharacter();
+	const UVaelPlantArmData* Rose = Left->GetPlant();
+	if (!Left->IsRoseReady() || !Right->IsRoseReady())
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "RosesGrowing", "Die Rosen wachsen noch nach"), FLinearColor(FColor(158, 143, 125)));
+		return;
+	}
+	if (!Use(EVaelHUDAbility::Placeholder, Rose->HeartSaftCost))
+	{
+		return;
+	}
+
+	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	Aim.Z = 0.0f;
+	Aim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
+	const FVector Merge = Character->GetActorLocation() + Aim * 80.0f + FVector(0.0f, 0.0f, 50.0f);
+	Left->SendRoseTo(Merge);
+	Right->SendRoseTo(Merge);
+
+	// Once the roses have met, the heart flies: to a fallen ally first, else to the one hurt most in front; alone back to her
+	AVaelCharacter* Ally = VaelRoseCare::FindHurtAlly(Character, Character->GetActorLocation(), 1800.0f, false, true, Aim);
+	TWeakObjectPtr<AVaelCharacter> WeakCharacter = Character;
+	TWeakObjectPtr<AVaelCharacter> WeakAlly = Ally;
+	TWeakObjectPtr<const UVaelPlantArmData> WeakRose = Rose;
+	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	FTimerHandle Timer;
+	Character->GetWorldTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([WeakCharacter, WeakAlly, WeakRose, Merge, Aim, bShadow]()
+	{
+		AVaelCharacter* Gardener = WeakCharacter.Get();
+		const UVaelPlantArmData* Data = WeakRose.Get();
+		if (Gardener == nullptr || Data == nullptr)
+		{
+			return;
+		}
+		AVaelRoseHeart::Shoot(Gardener, Merge, WeakAlly.Get(), Aim, Data->HeartHealShare, Data->HeartReviveShare, Data->HeartSpeed,
+			bShadow ? Data->BloodColor : Data->HeartColor, VaelAssets::LoadOptional(Data->ShoulderMesh), Data->ShoulderRoseSize * 1.6f);
+	}), 0.35f, false);
+	UVaelCombatTextSubsystem::PostPickup(Character, VaelSymbiosis::GetName(EVaelSymbiosis::Rosenherz), VaelSymbiosis::GetColor(EVaelSymbiosis::Rosenherz));
 }
 
 void UVaelFloromantComponent::UpdateCrossKnot(float DeltaTime)

@@ -219,6 +219,80 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shield", meta = (EditCondition = "bShield"))
 	FLinearColor ShieldColor = FLinearColor(1.0f, 0.78f, 0.4f);
 
+	// --- Vine arm (Rußrose, Boris 2026-10-26, inspired by Hanami): a big rose sits on the shoulder, and the whole arm from the
+	// shoulder down becomes freely whipping thorn vines. Held, vines shoot out, take hold of the most hurt ally and heal them
+	// (herself at half without one); as Blutrose they take hold of an enemy and drain its life into her. She keeps hovering.
+	// Both arms crossed: the two roses wander forward, grow into one and shoot their green heart at an ally (revives the fallen)
+
+	/** The arm becomes thorn vines from the shoulder, with the rose on the shoulder */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm")
+	bool bVineArm = false;
+
+	/** The rose on the shoulder, growing up (+Z) from its foot, 10 cm across; and its size there in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (EditCondition = "bVineArm"))
+	TSoftObjectPtr<UStaticMesh> ShoulderMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 1, EditCondition = "bVineArm"))
+	float ShoulderRoseSize = 40.0f;
+
+	/** Vines the arm is made of, their length in cm and thickness compared with the vine mesh */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 1, ClampMax = 12, EditCondition = "bVineArm"))
+	int32 ArmVineCount = 7;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 10, EditCondition = "bVineArm"))
+	float ArmVineLength = 75.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, EditCondition = "bVineArm"))
+	float ArmVineThickness = 0.7f;
+
+	/** How far the vines reach for an ally, and how many take hold */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 100, EditCondition = "bVineArm"))
+	float TetherRange = 900.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 1, ClampMax = 6, EditCondition = "bVineArm"))
+	int32 TetherVines = 3;
+
+	/** Health healed per second while the vines hold an ally, the share for herself without one, and Saft per second */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, EditCondition = "bVineArm"))
+	float HealPerSecond = 9.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bVineArm"))
+	float SelfHealShare = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, EditCondition = "bVineArm"))
+	float VineSaftPerSecond = 4.0f;
+
+	/** Blutrose: damage per second to the held enemy, and the share of it that flows back as her health */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, EditCondition = "bVineArm"))
+	float DrainPerSecond = 8.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bVineArm"))
+	float DrainHealShare = 0.7f;
+
+	/** Heart shot: share of the ally's health it heals, the health a fallen ally gets back, Saft, flight speed in cm/s, and the
+	 *  seconds the roses need to grow back on the shoulders */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bVineArm"))
+	float HeartHealShare = 0.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bVineArm"))
+	float HeartReviveShare = 0.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, EditCondition = "bVineArm"))
+	float HeartSaftCost = 25.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 100, EditCondition = "bVineArm"))
+	float HeartSpeed = 1300.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (ClampMin = 0, EditCondition = "bVineArm"))
+	float RoseRegrowTime = 8.0f;
+
+	/** Green of the heart and its glow, red of the Blutrose */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (EditCondition = "bVineArm"))
+	FLinearColor HeartColor = FLinearColor(0.25f, 1.0f, 0.55f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Vine Arm", meta = (EditCondition = "bVineArm"))
+	FLinearColor BloodColor = FLinearColor(0.85f, 0.05f, 0.08f);
+
 	// --- Rose (Taublatt, Boris 2026-10-26): instead of heads on the fingertips large petals sit at the hand like an open
 	// blossom; while aiming they fold shut like the petals of a rose and leave a hole in the middle that the shots leave through
 

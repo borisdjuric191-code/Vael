@@ -14,6 +14,9 @@
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelSapJet.h"
 #include "Floromant/VaelSymbiosis.h"
+#include "Floromant/VaelRoseHeart.h"
+#include "Components/PointLightComponent.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelSpellEffects.h"
@@ -178,7 +181,33 @@ void UVaelPlantArmComponent::Clear()
 	Barrel = 0.0f;
 	LeafShapes.Reset();
 	PetalShapes.Reset();
-	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals })
+
+	// The vine arm: the vines and the rose go, the arm of the body comes back
+	for (USplineMeshComponent* Vine : ArmVines)
+	{
+		if (Vine != nullptr)
+		{
+			Vine->DestroyComponent();
+		}
+	}
+	ArmVines.Reset();
+	ArmVineShapes.Reset();
+	if (HeartLight != nullptr)
+	{
+		HeartLight->DestroyComponent();
+		HeartLight = nullptr;
+	}
+	if (bArmHidden)
+	{
+		if (USkeletalMeshComponent* Body = GetBody())
+		{
+			Body->UnHideBoneByName(Bone(TEXT("upperarm")));
+		}
+		bArmHidden = false;
+	}
+	TetherTarget = nullptr;
+	Tether = 0.0f;
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses })
 	{
 		for (UStaticMeshComponent* Piece : *Pieces)
 		{
@@ -188,6 +217,11 @@ void UVaelPlantArmComponent::Clear()
 			}
 		}
 		Pieces->Reset();
+	}
+	if (ShoulderRose != nullptr)
+	{
+		ShoulderRose->DestroyComponent();
+		ShoulderRose = nullptr;
 	}
 	OvergrowthMaterialA = nullptr;
 	OvergrowthMaterialB = nullptr;
@@ -229,6 +263,13 @@ void UVaelPlantArmComponent::BuildStalks()
 	Plant = Data;
 	if (Plant == nullptr || GetBody() == nullptr)
 	{
+		return;
+	}
+
+	// The Rußrose has no hand any more: the whole arm becomes vines with the rose on the shoulder
+	if (Plant->bVineArm)
+	{
+		BuildVineArm();
 		return;
 	}
 
@@ -453,6 +494,13 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	else if (Plant != nullptr)
 	{
 		Grow = FMath::Min(1.0f, Grow + GrowSpeed * DeltaTime);
+	}
+
+	if (Plant != nullptr && Plant->bVineArm && !ArmVines.IsEmpty())
+	{
+		Stance = 0.0f;
+		UpdateVineArm(DeltaTime);
+		return;
 	}
 
 	if (Plant == nullptr || FingerStalks.IsEmpty())
@@ -951,6 +999,276 @@ FVector UVaelPlantArmComponent::GetHandLocation() const
 {
 	const USkeletalMeshComponent* Body = GetBody();
 	return Body != nullptr ? Body->GetSocketLocation(Bone(TEXT("hand"))) : FVector::ZeroVector;
+}
+
+// ---------------------------------------------------------------- Vine arm (Rußrose)
+
+void UVaelPlantArmComponent::BuildVineArm()
+{
+	USkeletalMeshComponent* Body = GetBody();
+	UMaterialInterface* BaseMaterial = VaelAssets::LoadOptional(Plant->Material);
+	ArmMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+	ArmMaterial->SetScalarParameterValue(PhaseParameter, bLeft ? 1.3f : 0.0f);
+
+	// The arm of the body goes; the vines take its place from the shoulder
+	Body->HideBoneByName(Bone(TEXT("upperarm")), EPhysBodyOp::PBO_None);
+	bArmHidden = true;
+
+	UStaticMesh* VineMesh = nullptr;
+	for (const TArray<TSoftObjectPtr<UStaticMesh>>* List : { &Plant->VineMeshes, &Plant->ArmMeshes, &Plant->FingerMeshes })
+	{
+		for (const TSoftObjectPtr<UStaticMesh>& Mesh : *List)
+		{
+			VineMesh = VineMesh != nullptr ? VineMesh : VaelAssets::LoadOptional(Mesh);
+		}
+	}
+	FRandomStream Random(GetOwner()->GetUniqueID() * 3 + (bLeft ? 1 : 0));
+	for (int32 Index = 0; Index < Plant->ArmVineCount; ++Index)
+	{
+		ArmVineShapes.Add(FVector(Index * 2.0f * UE_PI / Plant->ArmVineCount + Random.FRandRange(-0.3f, 0.3f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.75f, 1.15f)));
+		ArmVines.Add(MakeStalk(VineMesh, ArmMaterial));
+		ArmVines.Add(MakeStalk(VineMesh, ArmMaterial));
+	}
+
+	// The rose on the shoulder with its glowing heart
+	if (UStaticMesh* RoseMesh = VaelAssets::LoadOptional(Plant->ShoulderMesh))
+	{
+		ShoulderRose = NewObject<UStaticMeshComponent>(GetOwner());
+		ShoulderRose->SetMobility(EComponentMobility::Movable);
+		ShoulderRose->SetStaticMesh(RoseMesh);
+		ShoulderRose->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ShoulderRose->SetCanEverAffectNavigation(false);
+		ShoulderRose->SetupAttachment(Body);
+		ShoulderRose->RegisterComponent();
+	}
+	HeartLight = NewObject<UPointLightComponent>(GetOwner());
+	HeartLight->SetupAttachment(Body);
+	HeartLight->SetMobility(EComponentMobility::Movable);
+	HeartLight->SetIntensityUnits(ELightUnits::Candelas);
+	HeartLight->SetIntensity(0.0f);
+	HeartLight->SetAttenuationRadius(260.0f);
+	HeartLight->SetCastShadows(false);
+	HeartLight->RegisterComponent();
+
+	// Beats of light (or blood) running along a holding vine
+	UMaterialInterface* Core = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementOrbCoreMaterial);
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		UStaticMeshComponent* Pulse = NewObject<UStaticMeshComponent>(GetOwner());
+		Pulse->SetMobility(EComponentMobility::Movable);
+		Pulse->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+		Pulse->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Pulse->SetCastShadow(false);
+		Pulse->SetupAttachment(Body);
+		Pulse->RegisterComponent();
+		Pulse->SetVisibility(false);
+		if (Core != nullptr)
+		{
+			Pulse->SetMaterial(0, UMaterialInstanceDynamic::Create(Core, this));
+		}
+		TetherPulses.Add(Pulse);
+	}
+
+	RoseGrow = 1.0f;
+	RoseAway = -1.0f;
+	Tether = 0.0f;
+	TetherTarget = nullptr;
+
+	// The bar still counts for crossing with another plant
+	BarShots = Plant->BarSize;
+}
+
+bool UVaelPlantArmComponent::IsRoseReady() const
+{
+	return Plant != nullptr && Plant->bVineArm && Grow >= 1.0f && RoseGrow >= 1.0f && RoseAway < 0.0f && ShoulderRose != nullptr;
+}
+
+void UVaelPlantArmComponent::SendRoseTo(const FVector& WorldPoint)
+{
+	RoseAwayPoint = WorldPoint;
+	RoseAway = 0.0f;
+}
+
+FVector UVaelPlantArmComponent::GetRoseLocation() const
+{
+	const USkeletalMeshComponent* Body = GetBody();
+	return Body != nullptr ? Body->GetComponentTransform().TransformPosition(RoseLocation) : FVector::ZeroVector;
+}
+
+void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
+{
+	USkeletalMeshComponent* Body = GetBody();
+	AVaelCharacter* Character = GetCharacter();
+	const FTransform BodyTransform = Body->GetComponentTransform();
+	const float Time = GetWorld()->GetTimeSeconds();
+	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+
+	// --- Holding: the vines reach for the most hurt ally (herself without one), or as Blutrose for an enemy
+	const bool bHolding = IsFiring() && Grow >= 1.0f && !Character->IsDowned()
+		&& !AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation()) && Character->GetMana() >= Plant->VineSaftPerSecond * DeltaTime;
+	RetargetCountdown -= DeltaTime;
+	if (!bHolding)
+	{
+		TetherTarget = nullptr;
+	}
+	else if (RetargetCountdown <= 0.0f || !TetherTarget.IsValid())
+	{
+		RetargetCountdown = 0.3f;
+		FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+		if (bShadow)
+		{
+			TetherTarget = VaelSymbiosis::FindTarget(Character, Character->GetActorLocation(), Plant->TetherRange);
+		}
+		else
+		{
+			AVaelCharacter* Ally = VaelRoseCare::FindHurtAlly(Character, Character->GetActorLocation(), Plant->TetherRange, false, false, Aim);
+			TetherTarget = Ally != nullptr ? static_cast<AActor*>(Ally) : static_cast<AActor*>(Character);
+		}
+	}
+	AActor* Held = TetherTarget.Get();
+	const bool bReachOut = Held != nullptr && Held != Character;
+	Tether = FMath::FInterpConstantTo(Tether, bReachOut ? 1.0f : 0.0f, DeltaTime, bReachOut ? 6.0f : 4.0f);
+
+	if (bHolding && Held != nullptr)
+	{
+		Character->GetAbilitySystemComponent()->ApplyModToAttribute(UVaelAttributeSet::GetManaAttribute(), EGameplayModOp::Additive, -Plant->VineSaftPerSecond * DeltaTime);
+		const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
+		CareGathered += (bShadow ? Plant->DrainPerSecond : Plant->HealPerSecond * (Held == Character ? Plant->SelfHealShare : 1.0f)) * Power * DeltaTime;
+		CareCountdown -= DeltaTime;
+		if (CareCountdown <= 0.0f && (Held == Character || Tether > 0.8f))
+		{
+			CareCountdown = 0.25f;
+			if (bShadow)
+			{
+				FVaelSpellHit Drain;
+				Drain.Damage = CareGathered;
+				Drain.Element = EVaelElement::Earth;
+				UVaelCombatStatics::ApplySpellHit(Character, Held, Drain, FVector::ZeroVector);
+				UVaelCombatStatics::Heal(Character, CareGathered * Plant->DrainHealShare);
+			}
+			else
+			{
+				UVaelCombatStatics::Heal(Held, CareGathered);
+			}
+			CareGathered = 0.0f;
+		}
+	}
+	else
+	{
+		CareGathered = 0.0f;
+	}
+
+	// --- The vines: they hang from the shoulder along where the arm would be, each whipping in its own time
+	const FVector Shoulder = BoneLocation(TEXT("upperarm"));
+	const FVector Elbow = BoneLocation(TEXT("lowerarm"));
+	const FVector Wrist = BoneLocation(TEXT("hand"));
+	const FVector ArmAxis = (Wrist - Shoulder).GetSafeNormal();
+	const FVector U = Across(ArmAxis);
+	const FVector V = FVector::CrossProduct(ArmAxis, U);
+	const FVector HeldPoint = Held != nullptr ? BodyTransform.InverseTransformPosition(Held->GetActorLocation() + FVector(0.0f, 0.0f, 20.0f)) : Wrist;
+	const FVector Up = BodyTransform.InverseTransformVectorNoScale(FVector::UpVector);
+	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
+	for (int32 Index = 0; Index * 2 + 1 < ArmVines.Num(); ++Index)
+	{
+		const FVector& Shape = ArmVineShapes[Index];
+		const FVector Out = U * FMath::Cos(Shape.X) + V * FMath::Sin(Shape.X);
+		const FVector Whip = U * FMath::Cos(Shape.X + 1.6f) + V * FMath::Sin(Shape.X + 1.6f);
+		const float Length = Plant->ArmVineLength * Shape.Z * Shown;
+		const FVector Start = Shoulder + Out * 4.0f;
+		FVector Middle = FMath::Lerp(Shoulder, Elbow, 0.9f) + Out * 7.0f + Whip * 8.0f * FMath::Sin(Time * 3.1f + Shape.Y);
+		FVector Tip = Shoulder + ArmAxis * Length + Out * 14.0f + Whip * 20.0f * FMath::Sin(Time * 4.3f + Shape.Y * 1.7f);
+
+		// The holding vines shoot out to who they hold, in an arc
+		if (Index < Plant->TetherVines && Tether > 0.0f)
+		{
+			const FVector To = HeldPoint + Out * 10.0f;
+			const FVector Arc = (Shoulder + To) * 0.5f + Up * (40.0f + 10.0f * Index) + Out * 15.0f + Whip * 6.0f * FMath::Sin(Time * 6.0f + Index);
+			Middle = FMath::Lerp(Middle, Arc, Tether);
+			Tip = FMath::Lerp(Tip, To, Tether);
+		}
+
+		USplineMeshComponent* First = ArmVines[Index * 2];
+		USplineMeshComponent* Second = ArmVines[Index * 2 + 1];
+		const FVector Bend = (Tip - Start) * 0.5f;
+		First->SetStartAndEnd(Start, (Middle - Start), Middle, Bend, false);
+		Second->SetStartAndEnd(Middle, Bend, Tip, (Tip - Middle), false);
+		for (USplineMeshComponent* Piece : { First, Second })
+		{
+			Piece->SetStartScale(FVector2D(Plant->ArmVineThickness * (Piece == First ? 1.0f : 0.75f)), false);
+			Piece->SetEndScale(FVector2D(Plant->ArmVineThickness * (Piece == First ? 0.75f : 0.35f)), false);
+			Piece->SetStartRoll(Shape.Y, false);
+			Piece->SetEndRoll(Shape.Y + 1.5f, false);
+			Piece->UpdateMesh();
+		}
+	}
+	ArmMaterial->SetScalarParameterValue(GrowParameter, Shown);
+	ArmMaterial->SetScalarParameterValue(WindParameter, Plant->RestWind);
+	ArmMaterial->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+
+	// --- The rose sits big on the shoulder, looking up and out; it wanders off for the heart shot and grows back
+	const FVector Chest = BoneLocation(TEXT("spine_03"));
+	FVector Outward = (Shoulder - Chest) * FVector(1.0f, 0.0f, 0.0f);
+	Outward = Outward.IsNearlyZero() ? U : Outward.GetSafeNormal();
+	const FVector Home = Shoulder + Up * 8.0f + Outward * 6.0f;
+	FVector Place = Home;
+	float RoseScale = Plant->ShoulderRoseSize / 10.0f * Shown * FMath::SmoothStep(0.0f, 1.0f, RoseGrow);
+	if (RoseAway >= 0.0f)
+	{
+		RoseAway += DeltaTime / 0.35f;
+		Place = FMath::Lerp(Home, BodyTransform.InverseTransformPosition(RoseAwayPoint), FMath::SmoothStep(0.0f, 1.0f, FMath::Min(RoseAway, 1.0f)));
+		if (RoseAway >= 1.0f)
+		{
+			RoseAway = -1.0f;
+			RoseGrow = 0.0f;
+		}
+	}
+	else if (RoseGrow < 1.0f)
+	{
+		RoseGrow = FMath::Min(1.0f, RoseGrow + DeltaTime / FMath::Max(Plant->RoseRegrowTime, 0.1f));
+	}
+	if (RoseAway >= 0.0f)
+	{
+		RoseScale = Plant->ShoulderRoseSize / 10.0f;
+	}
+	RoseLocation = Place;
+	if (ShoulderRose != nullptr)
+	{
+		ShoulderRose->SetRelativeLocationAndRotation(Place, FRotationMatrix::MakeFromZ(Up * 0.7f + Outward * 0.5f + BodyTransform.InverseTransformVectorNoScale(Character->GetActorForwardVector()) * 0.3f).Rotator());
+		ShoulderRose->SetRelativeScale3D(FVector(FMath::Max(RoseScale, 0.001f)));
+		ShoulderRose->SetVisibility(RoseScale > 0.01f);
+	}
+
+	// The heart glows, beating harder while it heals
+	const FLinearColor Glow = bShadow ? Plant->BloodColor : Plant->HeartColor;
+	const float Beat = 1.0f + (bHolding ? 0.8f : 0.2f) * FMath::Square(FMath::Sin(Time * (bHolding ? 7.0f : 2.5f)));
+	HeartLight->SetRelativeLocation(Place + Up * 6.0f);
+	HeartLight->SetLightColor(Glow);
+	HeartLight->SetIntensity(3.5f * Beat * RoseScale / FMath::Max(Plant->ShoulderRoseSize / 10.0f, 0.01f));
+
+	// Beats run along the first holding vine: to the ally, or from the enemy back to her
+	const bool bShowPulses = Tether > 0.9f && ArmVines.Num() >= 2;
+	for (int32 Index = 0; Index < TetherPulses.Num(); ++Index)
+	{
+		UStaticMeshComponent* Pulse = TetherPulses[Index];
+		Pulse->SetVisibility(bShowPulses);
+		if (!bShowPulses)
+		{
+			continue;
+		}
+		float Along = FMath::Fmod(Time * 1.4f + Index / static_cast<float>(TetherPulses.Num()), 1.0f);
+		Along = bShadow ? 1.0f - Along : Along;
+		const FVector P0 = ArmVines[0]->GetStartPosition();
+		const FVector P1 = ArmVines[0]->GetEndPosition();
+		const FVector P2 = ArmVines[1]->GetEndPosition();
+		const FVector Point = FMath::Lerp(FMath::Lerp(P0, P1, Along), FMath::Lerp(P1, P2, Along), Along);
+		Pulse->SetRelativeLocation(Point);
+		Pulse->SetRelativeScale3D(FVector(0.09f * (1.0f + 0.3f * FMath::Sin(Time * 12.0f + Index))));
+		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Pulse->GetMaterial(0)))
+		{
+			Material->SetVectorParameterValue(TEXT("Color"), Glow);
+			Material->SetScalarParameterValue(TEXT("Glow"), 10.0f);
+		}
+	}
 }
 
 bool UVaelPlantArmComponent::HasRose() const

@@ -86,6 +86,20 @@ public:
 	/** Where the hand is in world space, for the knot of crossed hands */
 	FVector GetHandLocation() const;
 
+	// --- Vine arm (Rußrose)
+
+	/** True while the rose sits grown on the shoulder, ready to wander forward for the heart shot */
+	bool IsRoseReady() const;
+
+	/** The rose leaves the shoulder and wanders to the place (world space), where it vanishes into the big rose; it grows back */
+	void SendRoseTo(const FVector& WorldPoint);
+
+	/** Where the rose sits on the shoulder, in world space */
+	FVector GetRoseLocation() const;
+
+	/** Who the vines hold right now: an ally they heal, an enemy they drain, or null */
+	AActor* GetTetherTarget() const { return TetherTarget.Get(); }
+
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 protected:
@@ -247,6 +261,49 @@ private:
 
 	/** True for a plant whose hand carries a rose */
 	bool HasRose() const;
+
+	// --- Vine arm (Rußrose): the arm is hidden, thorn vines whip from the shoulder, a big rose sits on it
+
+	/** Builds the vines, the shoulder rose, its light and the pulses, and hides the arm of the body */
+	void BuildVineArm();
+
+	/** Moves the vines and the rose, holds an ally or an enemy while the button is held and heals or drains */
+	void UpdateVineArm(float DeltaTime);
+
+	/** Two pieces of spline per vine: shoulder to middle, middle to tip */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> ArmVines;
+
+	/** Every vine: angle round the arm, phase of its whipping, share of the length */
+	TArray<FVector> ArmVineShapes;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ShoulderRose;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UPointLightComponent> HeartLight;
+
+	/** Glowing beats running along a holding vine */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> TetherPulses;
+
+	/** True while the bone of the arm is hidden */
+	bool bArmHidden = false;
+
+	/** Who the vines hold, how far they have reached out (0 to 1), seconds until they look for someone again */
+	TWeakObjectPtr<AActor> TetherTarget;
+	float Tether = 0.0f;
+	float RetargetCountdown = 0.0f;
+
+	/** Healing or draining gathered over the frames, given out a few times a second */
+	float CareGathered = 0.0f;
+	float CareCountdown = 0.0f;
+
+	/** The rose: grown on the shoulder (0 to 1), and while it wanders off: where to and how far it has come (negative while home) */
+	float RoseGrow = 1.0f;
+	FVector RoseAwayPoint = FVector::ZeroVector;
+	float RoseAway = -1.0f;
+	FVector RoseLocation = FVector::ZeroVector;
 
 	/** Places the petals around the rose's foot and axis (space of the body mesh); returns where the shots leave */
 	FVector UpdateRose(const FVector& Base, const FVector& Axis);

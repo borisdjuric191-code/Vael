@@ -205,6 +205,9 @@ private:
 	/** The glass dome of her raised Glimmklee hand */
 	TWeakObjectPtr<class AVaelGlimmDome> ShieldDome;
 
+	/** Two Rußrose arms crossed: the roses wander forward, grow into one and shoot the green heart */
+	void ShootRoseHeart(UVaelPlantArmComponent* Left, UVaelPlantArmComponent* Right);
+
 	/** Keeps the knot of the crossed hands between them while it shows */
 	void UpdateCrossKnot(float DeltaTime);
 

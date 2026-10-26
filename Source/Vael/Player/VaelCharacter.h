@@ -233,6 +233,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	void Revive(float Health, float InvulnerableSeconds);
 
+	/** Helps a fallen player up by the seconds, like a teammate standing next to them (the heartbeat of a Rosenherz) */
+	void AddReviveProgress(float Seconds);
+
+	/** A heart shield of the Rußrose: swallows this much damage within the seconds (Glashaus) */
+	void AddHeartShield(float Amount, float Seconds);
+
+	/** Takes damage off the heart shield first; returns what is left for the health */
+	float AbsorbIncoming(float Damage);
+
 	/** Nothing can hurt the player for the given seconds */
 	UFUNCTION(BlueprintCallable, Category="Combat")
 	void SetInvulnerableFor(float Seconds);
@@ -397,6 +406,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<class UMaterialInstanceDynamic> FlightShadowMaterial;
+
+	/** Damage the heart shield still swallows, and until when */
+	float HeartShieldLeft = 0.0f;
+	float HeartShieldEndTime = 0.0f;
 
 	/** Flight state of the Floromant, smoothed over the frames; vectors in the world */
 	FVaelFlightPose FlightPose;

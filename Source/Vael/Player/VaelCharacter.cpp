@@ -827,6 +827,32 @@ void AVaelCharacter::Revive(float Health, float InvulnerableSeconds)
 	UE_LOG(LogVael, Log, TEXT("Player %d is back on their feet"), GetPlayerNumber());
 }
 
+void AVaelCharacter::AddReviveProgress(float Seconds)
+{
+	if (bDowned)
+	{
+		ReviveProgress += Seconds;
+	}
+}
+
+void AVaelCharacter::AddHeartShield(float Amount, float Seconds)
+{
+	HeartShieldLeft = FMath::Max(HeartShieldLeft, Amount);
+	HeartShieldEndTime = GetWorld()->GetTimeSeconds() + Seconds;
+}
+
+float AVaelCharacter::AbsorbIncoming(float Damage)
+{
+	if (HeartShieldLeft <= 0.0f || GetWorld()->GetTimeSeconds() > HeartShieldEndTime)
+	{
+		HeartShieldLeft = 0.0f;
+		return Damage;
+	}
+	const float Swallowed = FMath::Min(Damage, HeartShieldLeft);
+	HeartShieldLeft -= Swallowed;
+	return Damage - Swallowed;
+}
+
 void AVaelCharacter::TickRevive(float DeltaSeconds)
 {
 	// A teammate on their feet next to the downed player helps them up

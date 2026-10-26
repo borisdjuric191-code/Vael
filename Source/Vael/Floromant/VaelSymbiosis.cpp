@@ -6,6 +6,11 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelLightningBolt.h"
+#include "Floromant/VaelGlimmDome.h"
+#include "Floromant/VaelRoseHeart.h"
+#include "GameFramework/PlayerController.h"
+#include "Player/VaelCharacter.h"
+#include "TimerManager.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
 #include "Engine/World.h"
@@ -139,6 +144,26 @@ namespace VaelSymbiosis
 		{
 			return EVaelSymbiosis::Tauglocke;
 		}
+		if (Is(TEXT("Russrose"), TEXT("Russrose")))
+		{
+			return EVaelSymbiosis::Rosenherz;
+		}
+		if (Is(TEXT("Russrose"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::Bluetensturm;
+		}
+		if (Is(TEXT("Russrose"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Aschenrose;
+		}
+		if (Is(TEXT("Russrose"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Rosentau;
+		}
+		if (Is(TEXT("Russrose"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Glashaus;
+		}
 		return EVaelSymbiosis::None;
 	}
 
@@ -156,6 +181,11 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Glutglas:		return NSLOCTEXT("VaelSymbiosis", "Glutglas", "Glutglas");
 		case EVaelSymbiosis::Funkelwind:	return NSLOCTEXT("VaelSymbiosis", "Funkelwind", "Funkelwind");
 		case EVaelSymbiosis::Tauglocke:		return NSLOCTEXT("VaelSymbiosis", "Tauglocke", "Tauglocke");
+		case EVaelSymbiosis::Rosenherz:		return NSLOCTEXT("VaelSymbiosis", "Rosenherz", "Rosenherz");
+		case EVaelSymbiosis::Bluetensturm:	return NSLOCTEXT("VaelSymbiosis", "Bluetensturm", "Blütensturm");
+		case EVaelSymbiosis::Aschenrose:	return NSLOCTEXT("VaelSymbiosis", "Aschenrose", "Aschenrose");
+		case EVaelSymbiosis::Rosentau:		return NSLOCTEXT("VaelSymbiosis", "Rosentau", "Rosentau");
+		case EVaelSymbiosis::Glashaus:		return NSLOCTEXT("VaelSymbiosis", "Glashaus", "Glashaus");
 		default:							return FText::GetEmpty();
 		}
 	}
@@ -174,13 +204,72 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Glutglas:		return FLinearColor(1.0f, 0.5f, 0.15f);
 		case EVaelSymbiosis::Funkelwind:	return FLinearColor(0.85f, 1.0f, 0.6f);
 		case EVaelSymbiosis::Tauglocke:		return FLinearColor(0.4f, 0.95f, 0.9f);
+		case EVaelSymbiosis::Rosenherz:		return FLinearColor(0.25f, 1.0f, 0.55f);
+		case EVaelSymbiosis::Bluetensturm:	return FLinearColor(0.55f, 0.95f, 0.6f);
+		case EVaelSymbiosis::Aschenrose:	return FLinearColor(0.9f, 0.55f, 0.25f);
+		case EVaelSymbiosis::Rosentau:		return FLinearColor(0.35f, 0.95f, 0.8f);
+		case EVaelSymbiosis::Glashaus:		return FLinearColor(0.6f, 1.0f, 0.55f);
 		default:							return FLinearColor::White;
 		}
 	}
 
 	bool HasDome(EVaelSymbiosis Kind)
 	{
-		return Kind == EVaelSymbiosis::Lichtkuppel || Kind == EVaelSymbiosis::Glutglas || Kind == EVaelSymbiosis::Funkelwind || Kind == EVaelSymbiosis::Tauglocke;
+		return Kind == EVaelSymbiosis::Lichtkuppel || Kind == EVaelSymbiosis::Glutglas || Kind == EVaelSymbiosis::Funkelwind || Kind == EVaelSymbiosis::Tauglocke
+			|| Kind == EVaelSymbiosis::Glashaus;
+	}
+
+	bool HasRose(EVaelSymbiosis Kind)
+	{
+		return Kind == EVaelSymbiosis::Rosenherz || Kind == EVaelSymbiosis::Bluetensturm || Kind == EVaelSymbiosis::Aschenrose || Kind == EVaelSymbiosis::Rosentau
+			|| Kind == EVaelSymbiosis::Glashaus;
+	}
+
+	void RoseBeat(APawn* Instigator, EVaelSymbiosis Kind, const FVector& Center, float Power, bool bShadow)
+	{
+		AVaelCharacter* Gardener = Cast<AVaelCharacter>(Instigator);
+		if (Gardener == nullptr)
+		{
+			return;
+		}
+		// The Blutrose drains instead of healing, the farther the stronger the pair
+		if (bShadow)
+		{
+			VaelRoseCare::DrainAround(Gardener, Center, Kind == EVaelSymbiosis::Rosenherz ? 800.0f : 500.0f, 6.0f * Power, 0.5f);
+			return;
+		}
+		switch (Kind)
+		{
+		case EVaelSymbiosis::Rosenherz:
+		{
+			// A strong heartbeat: heals far, and the fallen around get up sooner
+			VaelRoseCare::HealAround(Gardener, Center, 800.0f, 0.08f * Power);
+			for (FConstPlayerControllerIterator It = Gardener->GetWorld()->GetPlayerControllerIterator(); It; ++It)
+			{
+				AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+				if (Player != nullptr && Player->IsDowned() && FVector::Dist2D(Player->GetActorLocation(), Center) < 800.0f)
+				{
+					Player->AddReviveProgress(1.0f);
+				}
+			}
+			break;
+		}
+		case EVaelSymbiosis::Bluetensturm:
+			VaelRoseCare::HealAround(Gardener, Center, 1000.0f, 0.05f * Power);
+			break;
+		case EVaelSymbiosis::Rosentau:
+			VaelRoseCare::CleanseAround(Gardener, Center, 600.0f, 15.0f * Power);
+			break;
+		case EVaelSymbiosis::Glashaus:
+			VaelRoseCare::HealAround(Gardener, Center, 300.0f, 0.05f * Power);
+			break;
+		case EVaelSymbiosis::None:
+			// A single Rußrose tower
+			VaelRoseCare::HealAround(Gardener, Center, 500.0f, 0.06f * Power);
+			break;
+		default:
+			break;
+		}
 	}
 
 	float GetTowerInterval(EVaelSymbiosis Kind)
@@ -424,6 +513,98 @@ namespace VaelSymbiosis
 				Shot->SetExplosion(Hit, 180.0f * FMath::Sqrt(Grown));
 				Shot->SetImpactArea(EVaelElement::Water, 200.0f * FMath::Sqrt(Grown), 3.0f, 0.0f, EVaelGroundEffect::Blind);
 				Shot->FinishSpawning(FTransform(Ahead.Rotation(), Origin));
+			}
+			break;
+		}
+		case EVaelSymbiosis::Bluetensturm:
+		case EVaelSymbiosis::Rosentau:
+		{
+			// A fan in front: petals that heal allies and cut enemies, or dew that cleanses allies and heals plants
+			const bool bPetals = Kind == EVaelSymbiosis::Bluetensturm;
+			const FVector Flat = Ahead.GetSafeNormal2D();
+			const float Reach = 800.0f * FMath::Sqrt(Grown);
+			const UVaelPlantArmData* Wind = Pick(TEXT("Windhalm"));
+			for (TActorIterator<AVaelCharacterBase> It(Instigator->GetWorld()); It; ++It)
+			{
+				const FVector To = (It->GetActorLocation() - Origin) * FVector(1.0f, 1.0f, 0.0f);
+				if (To.Size() > Reach || FVector::DotProduct(To.GetSafeNormal(), Flat) < FMath::Cos(FMath::DegreesToRadians(32.0f)))
+				{
+					continue;
+				}
+				if (AVaelCharacter* Player = Cast<AVaelCharacter>(*It))
+				{
+					if (bPetals)
+					{
+						UVaelCombatStatics::Heal(Player, Player->GetMaxHealth() * 0.15f * Power * Grown);
+					}
+					else
+					{
+						VaelRoseCare::CleanseAround(Player, Player->GetActorLocation(), 60.0f, 0.0f);
+					}
+					VaelRoseCare::Petals(Instigator, Origin, Player->GetActorLocation(), false, 6);
+				}
+				else if (bPetals && UVaelCombatStatics::CanDamage(Instigator, *It))
+				{
+					FVaelSpellHit Cut;
+					Cut.Damage = Wind->ShotDamage * 2.0f * Power * Grown;
+					Cut.Element = Wind->ShotElement;
+					UVaelCombatStatics::ApplySpellHit(Instigator, *It, Cut, Flat);
+				}
+			}
+			if (!bPetals)
+			{
+				VaelRoseCare::CleanseAround(Instigator, Origin + Flat * Reach * 0.5f, Reach * 0.5f, 20.0f * Power * Grown);
+			}
+			for (int32 Puff = -2; Puff <= 2; ++Puff)
+			{
+				VaelRoseCare::Petals(Instigator, Origin, Origin + SymbiosisTurn(Flat, Puff * 13.0f) * Reach * 0.4f, false, 6);
+			}
+			break;
+		}
+		case EVaelSymbiosis::Aschenrose:
+		{
+			// Glowing seeds that burn the enemies; where they come down, the allies around heal
+			const UVaelPlantArmData* Fire = Pick(TEXT("Glutdistel"));
+			const FVector Flat = Ahead.GetSafeNormal2D();
+			FVaelSpellHit Hit;
+			Hit.Damage = Fire->ShotDamage * 1.4f * Power * Grown;
+			Hit.Element = EVaelElement::Fire;
+			for (int32 Index = -1; Index <= 1; ++Index)
+			{
+				const FVector Way = SymbiosisTurn(Flat, Index * 14.0f);
+				if (AVaelSpellProjectile* Shot = SymbiosisProjectile(Instigator, Fire, Origin, Way, Hit, Fire->ShotRadius * 1.3f, 0, Color, false))
+				{
+					Shot->FinishSpawning(FTransform(Way.Rotation(), Origin));
+				}
+			}
+			TWeakObjectPtr<APawn> WeakGardener = Instigator;
+			const FVector Landing = Origin + Flat * 600.0f;
+			const float HealShare = 0.1f * Power * Grown;
+			FTimerHandle Timer;
+			Instigator->GetWorldTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([WeakGardener, Landing, HealShare]()
+			{
+				if (APawn* Gardener = WeakGardener.Get())
+				{
+					VaelRoseCare::HealAround(Gardener, Landing, 350.0f, HealShare);
+				}
+			}), 600.0f / FMath::Max(Fire->ShotSpeed, 100.0f), false);
+			break;
+		}
+		case EVaelSymbiosis::Glashaus:
+		{
+			// A heart shield around the ally who needs it most, herself without one
+			AVaelCharacter* Gardener = Cast<AVaelCharacter>(Instigator);
+			AVaelCharacter* Ally = VaelRoseCare::FindHurtAlly(Gardener, Origin, 1200.0f, true, false, Ahead);
+			Ally = Ally != nullptr ? Ally : Gardener;
+			if (Ally != nullptr)
+			{
+				Ally->AddHeartShield(Ally->GetMaxHealth() * 0.3f * Power * Grown, 6.0f);
+				const UVaelPlantArmData* Glimm = A->bShield ? A : B;
+				if (AVaelGlimmDome* Bubble = AVaelGlimmDome::Raise(Gardener, Ally, Glimm, EVaelSymbiosis::Glashaus, 95.0f, bShadow))
+				{
+					Bubble->SetLifeSpan(6.0f);
+				}
+				VaelRoseCare::Petals(Instigator, Origin, Ally->GetActorLocation(), false, 10);
 			}
 			break;
 		}
