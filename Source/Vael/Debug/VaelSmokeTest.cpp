@@ -54,6 +54,7 @@
 #include "Save/VaelSaveSubsystem.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "Player/VaelCharacter.h"
+#include "Floromant/VaelBindweedLasso.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelPlant.h"
 #include "Floromant/VaelPlantArmComponent.h"
@@ -554,6 +555,98 @@ void AVaelSmokeTest::BeginPlay()
 			Player->GetFloromant()->SetHandFiring(false, false);
 			Player->SetHero(EVaelHeroClass::Mage, false);
 			return FString::Printf(TEXT("%s%.0f damage from the firework"), Damage > 0.0f ? TEXT("") : TEXT("FAILED: "), Damage);
+		}, 0.2f });
+
+		// The Schlotwinde (Boris 2026-10-27): held, a tendril lassos a sickle doll and holds it; let go, the doll is yanked to her;
+		// then the crossed hands raise the Windenzaun hedge
+		Steps.Add({ TEXT("Lasso hands"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelSickleDollData>(), 1);
+			AVaelCharacter* Player = GetPlayer();
+			UVaelPlantArmData* Vine = LoadObject<UVaelPlantArmData>(nullptr, TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm/DA_Pflanzenarm_Schlotwinde.DA_Pflanzenarm_Schlotwinde"));
+			if (Player == nullptr || Vine == nullptr)
+			{
+				return FString(TEXT("FAILED: no player or no DA_Pflanzenarm_Schlotwinde"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			Player->GetFloromant()->GetHand(true)->SetPlant(Vine);
+			Player->GetFloromant()->GetHand(false)->SetPlant(Vine);
+			return FString::Printf(TEXT("%s, Schlotwinde on both hands, lasso %s, trumpet %s"), *Arena, Vine->bLasso ? TEXT("on") : TEXT("OFF"),
+				Vine->LeafMesh.IsNull() ? TEXT("MISSING") : TEXT("set"));
+		}, 1.0f });
+		Steps.Add({ TEXT("Lasso hold"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			const AVaelCreature* Doll = nullptr;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Doll = !It->IsDead() ? *It : Doll;
+			}
+			if (Doll != nullptr)
+			{
+				Player->SetActorRotation(FRotator(0.0f, (Doll->GetActorLocation() - Player->GetActorLocation()).Rotation().Yaw, 0.0f));
+				LassoStartDistance = FVector::Dist2D(Doll->GetActorLocation(), Player->GetActorLocation());
+			}
+			Player->GetFloromant()->SetHandFiring(true, true);
+			return FString::Printf(TEXT("holding, doll %.0f cm away"), LassoStartDistance);
+		}, 1.2f });
+		Steps.Add({ TEXT("Lasso release"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			int32 Holding = 0;
+			for (TActorIterator<AVaelBindweedLasso> It(GetWorld()); It; ++It)
+			{
+				Holding += It->IsHolding() ? 1 : 0;
+			}
+			Player->GetFloromant()->SetHandFiring(true, false);
+			return FString::Printf(TEXT("%s%d lasso holding, let go"), Holding > 0 ? TEXT("") : TEXT("FAILED: "), Holding);
+		}, 1.2f });
+		Steps.Add({ TEXT("Lasso"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			float Distance = 0.0f;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Distance = !It->IsDead() ? FVector::Dist2D(It->GetActorLocation(), Player->GetActorLocation()) : Distance;
+			}
+
+			// Crossed: both hands held, the pair raises its hedge
+			Player->GetFloromant()->SetHandFiring(true, true);
+			Player->GetFloromant()->SetHandFiring(false, true);
+			Player->GetFloromant()->CrossHands(false);
+			const bool bOk = Distance < FMath::Min(LassoStartDistance - 80.0f, 220.0f);
+			return FString::Printf(TEXT("%sdoll yanked from %.0f to %.0f cm; crossing the hands"), bOk ? TEXT("") : TEXT("FAILED: "), LassoStartDistance, Distance);
+		}, 1.0f });
+		Steps.Add({ TEXT("Windenzaun"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			int32 Walls = 0;
+			for (TActorIterator<AVaelVineWall> It(GetWorld()); It; ++It)
+			{
+				++Walls;
+				// Out of the way of the next steps
+				It->Destroy();
+			}
+			Player->GetFloromant()->SetHandFiring(true, false);
+			Player->GetFloromant()->SetHandFiring(false, false);
+			Player->SetHero(EVaelHeroClass::Mage, false);
+			return FString::Printf(TEXT("%s%d hedge standing"), Walls > 0 ? TEXT("") : TEXT("FAILED: "), Walls);
 		}, 0.2f });
 	}
 

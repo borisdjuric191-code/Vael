@@ -60,7 +60,23 @@ enum class EVaelSymbiosis : uint8
 	/** Funkenmohn + Glimmklee: a glass bubble full of sparks shuts the enemies in, then bursts */
 	Glutblase,
 	/** Funkenmohn + Rußrose: a field of embers that burns out wounds: allies heal slowly, enemies burn */
-	Brandsalbe
+	Brandsalbe,
+	// Schlotwinde (Boris 2026-10-27): the pairs catch and hold with lassos of bindweed (VaelBindweedLasso)
+	/** Schlotwinde + Schlotwinde: a hedge of bindweed across the way that holds back enemies */
+	Windenzaun,
+	/** Schlotwinde + Windhalm: the lassos whirl the enemies around and fling them away */
+	Wirbelwinde,
+	/** Schlotwinde + Glutdistel: a burning lash in a wide fan, and the enemy it wraps burns while it is held */
+	Glutpeitsche,
+	/** Schlotwinde + Taublatt: a wet net of vines thrown where the enemies stand catches them all and soaks them */
+	Taunetz,
+	/** Schlotwinde + Glimmklee: a bower of vines over the dome catches enemy shots and tangles who comes in / a glittering
+	 *  noose catches up to three ahead and blinds them */
+	Laube,
+	/** Schlotwinde + Rußrose: the vines grab the most hurt ally, pull them to her and heal them */
+	Rankenrettung,
+	/** Schlotwinde + Funkenmohn: the vine wraps the enemy, a poppy capsule blooms on it and bursts */
+	Haftmohn
 };
 
 namespace VaelSymbiosis
@@ -95,6 +111,9 @@ namespace VaelSymbiosis
 	 *  tower knows it); 0 lets the pairs that throw look for a target ahead.
 	 */
 	void Fire(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* A, const UVaelPlantArmData* B, const FVector& Origin, const FVector& Direction, float Power, float Charge, bool bShadow, float Reach = 0.0f);
+
+	/** The pairs of the Schlotwinde (Vine) with the other plant: lassos, hedges and nets; Reach above 0 means a tower acts */
+	void FireBindweed(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* Vine, const UVaelPlantArmData* Other, const FVector& Origin, const FVector& Ahead, float Power, float Charge, bool bShadow, float Reach);
 
 	/** One shot of a plant as its hand fires it; the scales make it bigger or stronger. Returns false if it could not be spawned */
 	bool FireShot(APawn* Instigator, const UVaelPlantArmData* Plant, const FVector& Muzzle, const FVector& Direction, float Power, bool bShadow, float SizeScale = 1.0f, float DamageScale = 1.0f, float Reach = 0.0f);

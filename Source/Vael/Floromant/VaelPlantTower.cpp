@@ -6,6 +6,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Floromant/VaelBindweedLasso.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelPlantArmData.h"
@@ -344,7 +345,7 @@ FVector AVaelPlantTower::GetOwnCrownAxis() const
 
 bool AVaelPlantTower::AimsLikeHydra() const
 {
-	return Symbiosis == EVaelSymbiosis::None && !Plant->bShield && !Plant->bVineArm && !Plant->bMortar;
+	return Symbiosis == EVaelSymbiosis::None && !Plant->bShield && !Plant->bVineArm && !Plant->bMortar && !Plant->bLasso;
 }
 
 void AVaelPlantTower::UpdateBend(float DeltaSeconds)
@@ -468,7 +469,7 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 		if (FireCountdown <= 0.0f)
 		{
 			const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
-			AActor* Goal = AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation()) ? nullptr : VaelSymbiosis::FindTarget(GetGardener(), GetActorLocation(), Plant->ShotRange);
+			AActor* Goal = AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation()) ? nullptr : VaelSymbiosis::FindTarget(GetGardener(), GetActorLocation(), Symbiosis == EVaelSymbiosis::None && Plant->bLasso ? Plant->SnareRange : Plant->ShotRange);
 			Target = Goal;
 			// A shooter fires only once its crown looks at the target, like a Hydra
 			const FVector GoalWay = Goal != nullptr ? (Goal->GetActorLocation() - GetActorLocation()).GetSafeNormal2D() : FVector::ZeroVector;
@@ -479,7 +480,7 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 			else if (Goal != nullptr)
 			{
 				Fire(Goal, 1.0f);
-				FireCountdown = Symbiosis != EVaelSymbiosis::None ? VaelSymbiosis::GetTowerInterval(Symbiosis) : Plant->FireInterval * Settings->TowerFireIntervalScale;
+				FireCountdown = Symbiosis != EVaelSymbiosis::None ? VaelSymbiosis::GetTowerInterval(Symbiosis) : (Plant->bLasso ? Plant->SnareInterval : Plant->FireInterval * Settings->TowerFireIntervalScale);
 			}
 			else
 			{
@@ -651,6 +652,25 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 	// A Glimmklee or Rußrose tower alone doesn't shoot: it holds its dome or beats with care
 	if (Symbiosis == EVaelSymbiosis::None && (Plant->bShield || Plant->bVineArm))
 	{
+		return;
+	}
+
+	// Windenfalle: tendrils crawl over the ground from the foot to the enemies around and hold them a while
+	if (Symbiosis == EVaelSymbiosis::None && Plant->bLasso)
+	{
+		FVaelLassoSpec Spec;
+		Spec.HoldSeconds = Plant->SnareHold;
+		Spec.bOverGround = true;
+		Spec.DamagePerSecond = bShadow ? Plant->StrangleDamagePerSecond : 0.0f;
+		Spec.DamageGrowth = bShadow ? Plant->StrangleGrowth : 0.0f;
+		Spec.Power = Power;
+		Spec.Color = bShadow ? Plant->StrangleColor : Plant->PollenColor;
+		for (AActor* Caught : AVaelBindweedLasso::FindTargets(Gardener, GetActorLocation(), FVector::ZeroVector, Plant->SnareRange, 180.0f, Plant->SnareTargets))
+		{
+			AVaelBindweedLasso::Throw(Gardener, Plant, GetActorLocation() + FVector(0.0f, 0.0f, 5.0f), Caught, Spec, bShadow);
+		}
+		BendVelocity -= LookDirection * 1.5f;
+		VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 1.5f);
 		return;
 	}
 

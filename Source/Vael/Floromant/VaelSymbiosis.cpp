@@ -6,7 +6,10 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelLightningBolt.h"
+#include "Floromant/VaelBindweedLasso.h"
 #include "Floromant/VaelGlimmDome.h"
+#include "Floromant/VaelPlant.h"
+#include "World/VaelGround.h"
 #include "Floromant/VaelRoseHeart.h"
 #include "Floromant/VaelPoppyCapsule.h"
 #include "GameFramework/PlayerController.h"
@@ -189,6 +192,34 @@ namespace VaelSymbiosis
 		{
 			return EVaelSymbiosis::Brandsalbe;
 		}
+		if (Is(TEXT("Schlotwinde"), TEXT("Schlotwinde")))
+		{
+			return EVaelSymbiosis::Windenzaun;
+		}
+		if (Is(TEXT("Schlotwinde"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::Wirbelwinde;
+		}
+		if (Is(TEXT("Schlotwinde"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Glutpeitsche;
+		}
+		if (Is(TEXT("Schlotwinde"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Taunetz;
+		}
+		if (Is(TEXT("Schlotwinde"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Laube;
+		}
+		if (Is(TEXT("Schlotwinde"), TEXT("Russrose")))
+		{
+			return EVaelSymbiosis::Rankenrettung;
+		}
+		if (Is(TEXT("Schlotwinde"), TEXT("Funkenmohn")))
+		{
+			return EVaelSymbiosis::Haftmohn;
+		}
 		return EVaelSymbiosis::None;
 	}
 
@@ -217,6 +248,13 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Gewittermohn:	return NSLOCTEXT("VaelSymbiosis", "Gewittermohn", "Gewittermohn");
 		case EVaelSymbiosis::Glutblase:		return NSLOCTEXT("VaelSymbiosis", "Glutblase", "Glutblase");
 		case EVaelSymbiosis::Brandsalbe:	return NSLOCTEXT("VaelSymbiosis", "Brandsalbe", "Brandsalbe");
+		case EVaelSymbiosis::Windenzaun:	return NSLOCTEXT("VaelSymbiosis", "Windenzaun", "Windenzaun");
+		case EVaelSymbiosis::Wirbelwinde:	return NSLOCTEXT("VaelSymbiosis", "Wirbelwinde", "Wirbelwinde");
+		case EVaelSymbiosis::Glutpeitsche:	return NSLOCTEXT("VaelSymbiosis", "Glutpeitsche", "Glutpeitsche");
+		case EVaelSymbiosis::Taunetz:		return NSLOCTEXT("VaelSymbiosis", "Taunetz", "Taunetz");
+		case EVaelSymbiosis::Laube:			return NSLOCTEXT("VaelSymbiosis", "Laube", "Laube");
+		case EVaelSymbiosis::Rankenrettung:	return NSLOCTEXT("VaelSymbiosis", "Rankenrettung", "Rankenrettung");
+		case EVaelSymbiosis::Haftmohn:		return NSLOCTEXT("VaelSymbiosis", "Haftmohn", "Haftmohn");
 		default:							return FText::GetEmpty();
 		}
 	}
@@ -246,6 +284,13 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Gewittermohn:	return FLinearColor(0.55f, 0.75f, 1.0f);
 		case EVaelSymbiosis::Glutblase:		return FLinearColor(1.0f, 0.65f, 0.25f);
 		case EVaelSymbiosis::Brandsalbe:	return FLinearColor(1.0f, 0.7f, 0.35f);
+		case EVaelSymbiosis::Windenzaun:	return FLinearColor(1.0f, 0.8f, 0.25f);
+		case EVaelSymbiosis::Wirbelwinde:	return FLinearColor(0.85f, 0.95f, 0.45f);
+		case EVaelSymbiosis::Glutpeitsche:	return FLinearColor(1.0f, 0.45f, 0.1f);
+		case EVaelSymbiosis::Taunetz:		return FLinearColor(0.4f, 0.95f, 0.75f);
+		case EVaelSymbiosis::Laube:			return FLinearColor(1.0f, 0.9f, 0.45f);
+		case EVaelSymbiosis::Rankenrettung:	return FLinearColor(0.5f, 1.0f, 0.45f);
+		case EVaelSymbiosis::Haftmohn:		return FLinearColor(1.0f, 0.55f, 0.15f);
 		default:							return FLinearColor::White;
 		}
 	}
@@ -253,7 +298,7 @@ namespace VaelSymbiosis
 	bool HasDome(EVaelSymbiosis Kind)
 	{
 		return Kind == EVaelSymbiosis::Lichtkuppel || Kind == EVaelSymbiosis::Glutglas || Kind == EVaelSymbiosis::Funkelwind || Kind == EVaelSymbiosis::Tauglocke
-			|| Kind == EVaelSymbiosis::Glashaus;
+			|| Kind == EVaelSymbiosis::Glashaus || Kind == EVaelSymbiosis::Laube;
 	}
 
 	bool IsPoppy(EVaelSymbiosis Kind)
@@ -265,7 +310,7 @@ namespace VaelSymbiosis
 	bool HasRose(EVaelSymbiosis Kind)
 	{
 		return Kind == EVaelSymbiosis::Rosenherz || Kind == EVaelSymbiosis::Bluetensturm || Kind == EVaelSymbiosis::Aschenrose || Kind == EVaelSymbiosis::Rosentau
-			|| Kind == EVaelSymbiosis::Glashaus;
+			|| Kind == EVaelSymbiosis::Glashaus || Kind == EVaelSymbiosis::Rankenrettung;
 	}
 
 	void RoseBeat(APawn* Instigator, EVaelSymbiosis Kind, const FVector& Center, float Power, bool bShadow)
@@ -328,6 +373,13 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Gewittermohn:	return 2.6f;
 		case EVaelSymbiosis::Glutblase:		return 3.5f;
 		case EVaelSymbiosis::Brandsalbe:	return 6.0f;
+		case EVaelSymbiosis::Windenzaun:	return 7.0f;
+		case EVaelSymbiosis::Wirbelwinde:	return 3.5f;
+		case EVaelSymbiosis::Glutpeitsche:	return 3.0f;
+		case EVaelSymbiosis::Taunetz:		return 4.0f;
+		case EVaelSymbiosis::Laube:			return 4.0f;
+		case EVaelSymbiosis::Rankenrettung:	return 4.0f;
+		case EVaelSymbiosis::Haftmohn:		return 3.0f;
 		default:							return 1.4f;
 		}
 	}
@@ -759,6 +811,122 @@ namespace VaelSymbiosis
 			AVaelPoppyCapsule::Throw(Instigator, Poppy, Origin, Target, Throw, bShadow);
 			break;
 		}
+		case EVaelSymbiosis::Windenzaun:
+		case EVaelSymbiosis::Wirbelwinde:
+		case EVaelSymbiosis::Glutpeitsche:
+		case EVaelSymbiosis::Taunetz:
+		case EVaelSymbiosis::Laube:
+		case EVaelSymbiosis::Rankenrettung:
+		case EVaelSymbiosis::Haftmohn:
+			FireBindweed(Instigator, Kind, Pick(TEXT("Schlotwinde")), A == Pick(TEXT("Schlotwinde")) ? B : A, Origin, Ahead, Power * Grown, Charge, bShadow, Reach);
+			break;
+		default:
+			break;
+		}
+	}
+
+	void FireBindweed(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* Vine, const UVaelPlantArmData* Other, const FVector& Origin, const FVector& Ahead, float Power, float Charge, bool bShadow, float Reach)
+	{
+		UWorld* World = Instigator->GetWorld();
+		const bool bTower = Reach > 0.0f;
+		FVaelLassoSpec Spec;
+		Spec.Power = Power;
+		Spec.Color = GetColor(Kind);
+		Spec.DamagePerSecond = bShadow ? Vine->StrangleDamagePerSecond : 0.0f;
+		Spec.DamageGrowth = bShadow ? Vine->StrangleGrowth : 0.0f;
+		const auto LassoAll = [&](const TArray<AActor*>& Targets)
+		{
+			for (AActor* Target : Targets)
+			{
+				AVaelBindweedLasso::Throw(Instigator, Vine, Origin, Target, Spec, bShadow);
+			}
+		};
+
+		switch (Kind)
+		{
+		case EVaelSymbiosis::Windenzaun:
+		{
+			// A hedge of bindweed across the way, a few steps ahead, on the ground
+			FHitResult Ground;
+			const FVector Ahead2 = Origin + Ahead.GetSafeNormal2D() * (bTower ? FMath::Min(Reach * 0.5f, 400.0f) : 250.0f);
+			const FVector Foot = VaelGround::TraceGround(World, Ahead2 + FVector(0.0f, 0.0f, 300.0f), Ahead2 - FVector(0.0f, 0.0f, 1500.0f), Ground, Instigator)
+				? Ground.ImpactPoint : Instigator->GetActorLocation() + Ahead.GetSafeNormal2D() * 250.0f;
+			AVaelVineWall::Raise(World, Foot, Ahead.GetSafeNormal2D().Rotation().Yaw, 6.0f, 1.0f + 0.4f * Charge, Instigator);
+			break;
+		}
+		case EVaelSymbiosis::Wirbelwinde:
+			// The vines catch everyone around, whirl them a moment and fling them away
+			Spec.HoldSeconds = 0.6f;
+			Spec.OnEnd = EVaelLassoEnd::Fling;
+			LassoAll(AVaelBindweedLasso::FindTargets(Instigator, Origin, FVector::ZeroVector, 450.0f + 150.0f * Charge, 180.0f, 5));
+			break;
+		case EVaelSymbiosis::Glutpeitsche:
+		{
+			// A burning lash in a wide fan; the nearest one is wrapped and keeps burning while it is held
+			FVaelSpellHit Hit;
+			Hit.Damage = Vine->WhipDamage * 1.4f * Power;
+			Hit.Element = EVaelElement::Fire;
+			Hit.Knockback = Vine->WhipKnockback * 0.6f;
+			Hit.Status = EVaelStatus::Burning;
+			Hit.StatusDuration = 3.0f;
+			const TArray<AActor*> Lashed = AVaelBindweedLasso::FindTargets(Instigator, Origin, Ahead, Vine->WhipReach * 1.4f + (bTower ? Reach * 0.5f : 0.0f), 55.0f, 10);
+			for (AActor* Target : Lashed)
+			{
+				UVaelCombatStatics::ApplySpellHit(Instigator, Target, Hit, (Target->GetActorLocation() - Origin).GetSafeNormal2D());
+			}
+			Spec.HoldSeconds = 2.0f;
+			Spec.Status = EVaelStatus::Burning;
+			LassoAll(AVaelBindweedLasso::FindTargets(Instigator, Origin, Ahead, Vine->LassoRange, Vine->LassoHalfAngle, 1));
+			MuzzlePuff(Instigator, Other, Origin, bShadow, 2.0f);
+			break;
+		}
+		case EVaelSymbiosis::Taunetz:
+		{
+			// A wet net thrown to where the enemies stand: it catches all of them there and soaks them
+			const TArray<AActor*> First = AVaelBindweedLasso::FindTargets(Instigator, Origin, Ahead, Vine->LassoRange, 45.0f, 1);
+			if (First.IsEmpty())
+			{
+				break;
+			}
+			Spec.HoldSeconds = 2.5f;
+			Spec.Status = EVaelStatus::Wet;
+			LassoAll(AVaelBindweedLasso::FindTargets(Instigator, First[0]->GetActorLocation(), FVector::ZeroVector, 250.0f + 100.0f * Charge, 180.0f, 6));
+			break;
+		}
+		case EVaelSymbiosis::Laube:
+			// A glittering noose catches up to three ahead and blinds them
+			Spec.HoldSeconds = 2.0f;
+			Spec.BlindSeconds = 2.0f;
+			LassoAll(AVaelBindweedLasso::FindTargets(Instigator, Origin, Ahead, Vine->LassoRange * 0.8f, 40.0f, 3));
+			break;
+		case EVaelSymbiosis::Rankenrettung:
+		{
+			// The vines grab the most hurt ally, pull them to her and heal them; alone she heals herself a little
+			AVaelCharacter* Gardener = Cast<AVaelCharacter>(Instigator);
+			AVaelCharacter* Ally = Gardener != nullptr ? VaelRoseCare::FindHurtAlly(Gardener, Origin, 1100.0f, false, true) : nullptr;
+			if (Ally == nullptr)
+			{
+				VaelRoseCare::HealAround(Instigator, Instigator->GetActorLocation(), 60.0f, 0.1f * Power);
+				break;
+			}
+			Spec.HoldSeconds = 0.2f;
+			Spec.OnEnd = bTower ? EVaelLassoEnd::Release : EVaelLassoEnd::Yank;
+			Spec.Color = FLinearColor(0.4f, 1.0f, 0.5f);
+			AVaelBindweedLasso::Throw(Instigator, Vine, Origin, Ally, Spec, bShadow);
+			VaelRoseCare::HealAround(Instigator, Ally->GetActorLocation(), 60.0f, 0.15f * Power);
+			if (Ally->IsDowned())
+			{
+				Ally->AddReviveProgress(0.5f);
+			}
+			break;
+		}
+		case EVaelSymbiosis::Haftmohn:
+			// The vine wraps the enemy, a poppy capsule blooms on it and bursts a moment later
+			Spec.HoldSeconds = 1.0f;
+			Spec.OnEnd = EVaelLassoEnd::Bloom;
+			Spec.BloomPlant = Other;
+			LassoAll(AVaelBindweedLasso::FindTargets(Instigator, Origin, Ahead, Vine->LassoRange, 45.0f, bTower ? 1 : 4));
+			break;
 		default:
 			break;
 		}
@@ -789,6 +957,23 @@ namespace VaelSymbiosis
 		if (Instigator == nullptr || Plant == nullptr)
 		{
 			return false;
+		}
+
+		// The Schlotwinde catches the nearest enemy ahead with a lasso and holds it a while
+		if (Plant->bLasso)
+		{
+			const TArray<AActor*> Targets = AVaelBindweedLasso::FindTargets(Instigator, Muzzle, Direction, Reach > 0.0f ? Reach + 100.0f : Plant->LassoRange, Plant->LassoHalfAngle, 1);
+			if (Targets.IsEmpty())
+			{
+				return false;
+			}
+			FVaelLassoSpec Spec;
+			Spec.HoldSeconds = Plant->SnareHold;
+			Spec.DamagePerSecond = bShadow ? Plant->StrangleDamagePerSecond : 0.0f;
+			Spec.DamageGrowth = bShadow ? Plant->StrangleGrowth : 0.0f;
+			Spec.Power = Power * DamageScale;
+			Spec.Color = bShadow ? Plant->StrangleColor : Plant->PollenColor;
+			return AVaelBindweedLasso::Throw(Instigator, Plant, Muzzle, Targets[0], Spec, bShadow) != nullptr;
 		}
 
 		// The Funkenmohn throws its capsule in an arc to the target instead of shooting straight

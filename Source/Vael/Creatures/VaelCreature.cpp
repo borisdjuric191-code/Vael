@@ -1125,3 +1125,8 @@ void AVaelCreature::UpdateBurning()
 	BurnGlow = 0.35f + 0.2f * FMath::Sin(GetWorld()->GetTimeSeconds() * 7.0f + GetUniqueID());
 	RefreshBodyColor();
 }
+
+bool AVaelCreature::IsHeavy() const
+{
+	return ActiveData == nullptr || ActiveData->PullMultiplier < 0.5f || ActiveData->CollisionRadius > 90.0f || IsBossFightActive();
+}

@@ -12,6 +12,7 @@
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelBindweedLasso.h"
 #include "Floromant/VaelSapJet.h"
 #include "Floromant/VaelSymbiosis.h"
 #include "Floromant/VaelRoseHeart.h"
@@ -160,6 +161,10 @@ void UVaelPlantArmComponent::StartReload(int32 Shots, float Duration)
 
 void UVaelPlantArmComponent::Clear()
 {
+	ReleaseLassos(false);
+	bLassoHeld = false;
+	bLassoThrown = false;
+	WhipTime = -1.0f;
 	if (KeimpelzPad != nullptr)
 	{
 		KeimpelzPad->DestroyComponent();
@@ -167,7 +172,7 @@ void UVaelPlantArmComponent::Clear()
 	}
 	ReloadShots = 0;
 	ReloadTimeLeft = 0.0f;
-	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks, &ForearmVines, &UpperArmVines, &OvergrowthWild })
+	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks, &ForearmVines, &UpperArmVines, &OvergrowthWild, &Tendrils })
 	{
 		for (USplineMeshComponent* Stalk : *Stalks)
 		{
@@ -235,7 +240,7 @@ void UVaelPlantArmComponent::Clear()
 	MortarDraw = 0.0f;
 	TetherTarget = nullptr;
 	Tether = 0.0f;
-	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses, &TargetDots, &ChargeOrbs })
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses, &TargetDots, &ChargeOrbs, &TendrilTips })
 	{
 		for (UStaticMeshComponent* Piece : *Pieces)
 		{
@@ -525,6 +530,43 @@ void UVaelPlantArmComponent::BuildStalks()
 			ChargeOrbs.Add(Orb);
 		}
 	}
+	// A lasso hand: the long tendrils hanging from the fingers (world space, they reach far out of the hand), a heart leaf at each end
+	else if (Plant->bLasso)
+	{
+		UStaticMesh* TendrilMesh = nullptr;
+		for (const TSoftObjectPtr<UStaticMesh>& Mesh : Plant->FingerMeshes)
+		{
+			TendrilMesh = VaelAssets::LoadOptional(Mesh) != nullptr ? VaelAssets::LoadOptional(Mesh) : TendrilMesh;
+		}
+		UStaticMesh* LeafMesh = VaelAssets::LoadOptional(Plant->TipMesh);
+		UMaterialInstanceDynamic* TendrilMaterial = FingerMaterials.IsEmpty() ? nullptr : FingerMaterials[0].Get();
+		for (int32 Tendril = 0; Tendril < Plant->TendrilCount; ++Tendril)
+		{
+			for (int32 Piece = 0; Piece < 4; ++Piece)
+			{
+				USplineMeshComponent* Stalk = MakeStalk(TendrilMesh, TendrilMaterial);
+				Stalk->SetUsingAbsoluteLocation(true);
+				Stalk->SetUsingAbsoluteRotation(true);
+				Stalk->SetUsingAbsoluteScale(true);
+				Stalk->SetWorldTransform(FTransform::Identity);
+				Tendrils.Add(Stalk);
+			}
+			if (LeafMesh != nullptr)
+			{
+				UStaticMeshComponent* Tip = NewObject<UStaticMeshComponent>(GetOwner());
+				Tip->SetMobility(EComponentMobility::Movable);
+				Tip->SetStaticMesh(LeafMesh);
+				Tip->SetMaterial(0, TendrilMaterial);
+				Tip->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Tip->SetUsingAbsoluteLocation(true);
+				Tip->SetUsingAbsoluteRotation(true);
+				Tip->SetUsingAbsoluteScale(true);
+				Tip->SetupAttachment(GetBody());
+				Tip->RegisterComponent();
+				TendrilTips.Add(Tip);
+			}
+		}
+	}
 	// A water hand: the drop that swells in the hole of the rose while the pump wave runs down the arm
 	else if (!Plant->WaterSource.IsNull())
 	{
@@ -632,7 +674,9 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	const bool bShieldUp = bShieldHand && IsFiring() && Grow >= 1.0f;
 	// A mortar hand keeps the arm up until its throw is out
 	const bool bMortarHand = Plant->bMortar;
-	const bool bFiringNow = !bShieldHand && (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr)) || (bMortarHand && (bThrowQueued || ThrowHold > 0.0f))) && Grow >= 1.0f;
+	const bool bLassoHand = Plant->bLasso;
+	const bool bFiringNow = !bShieldHand && (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr)) || (bMortarHand && (bThrowQueued || ThrowHold > 0.0f))
+		|| (bLassoHand && (!Lassos.IsEmpty() || WhipTime >= 0.0f))) && Grow >= 1.0f;
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 
 	// A shield hand doesn't aim: the forearm comes up before the face, and the clover overgrows the arm as if it fired
@@ -676,6 +720,11 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	else if (bMortarHand)
 	{
 		UpdateMortarFiring(DeltaTime);
+	}
+	else if (bLassoHand)
+	{
+		UpdateLassoFiring(DeltaTime);
+		UpdateTendrils(DeltaTime);
 	}
 	else
 	{
@@ -959,7 +1008,7 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 
 bool UVaelPlantArmComponent::ShootsFromFingers() const
 {
-	return Plant != nullptr && !Plant->bShield && !Plant->bMortar && !Plant->bVineArm && Plant->WaterSource.IsNull() && !HasRose() && !Plant->bFingersFormBarrel;
+	return Plant != nullptr && !Plant->bShield && !Plant->bMortar && !Plant->bVineArm && !Plant->bLasso && Plant->WaterSource.IsNull() && !HasRose() && !Plant->bFingersFormBarrel;
 }
 
 void UVaelPlantArmComponent::UpdateCharge(float DeltaTime)
@@ -1034,6 +1083,236 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 
 	// The plant's own shot: a burning seed head, a blade of grass, a Tauperle of its water (VaelSymbiosis::FireShot)
 	VaelSymbiosis::FireShot(Character, Plant, Muzzle, Direction, Power, Character->GetPath() == EVaelPath::Shadow);
+}
+
+// ---------------------------------------------------------------- Lasso (Schlotwinde)
+
+void UVaelPlantArmComponent::ReleaseLassos(bool bWithEnd)
+{
+	for (const TWeakObjectPtr<AVaelBindweedLasso>& Lasso : Lassos)
+	{
+		if (AVaelBindweedLasso* Out = Lasso.Get())
+		{
+			if (bWithEnd)
+			{
+				Out->Finish();
+			}
+			else
+			{
+				Out->Finish(EVaelLassoEnd::Release);
+			}
+		}
+	}
+	Lassos.Reset();
+}
+
+void UVaelPlantArmComponent::UpdateLassoFiring(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	FireCountdown = FMath::Max(0.0f, FireCountdown - DeltaTime);
+	Lassos.RemoveAll([](const TWeakObjectPtr<AVaelBindweedLasso>& Lasso) { return !Lasso.IsValid() || Lasso->IsDone(); });
+
+	// The lassos come out of the fingers wherever the hand moves
+	const FVector Fingers = Muzzles.IsValidIndex(1) ? Muzzles[1] : Character->GetActorLocation();
+	for (const TWeakObjectPtr<AVaelBindweedLasso>& Lasso : Lassos)
+	{
+		Lasso->SetStart(Fingers);
+	}
+
+	const bool bCamp = AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation());
+	const bool bPressed = IsFiring() && Grow >= 1.0f && !Character->IsDowned() && !Character->IsDodging() && !IsReloading() && !bCamp;
+	if (bPressed)
+	{
+		if (!bLassoHeld)
+		{
+			bLassoHeld = true;
+			bLassoThrown = false;
+			LassoHoldTime = 0.0f;
+		}
+		LassoHoldTime += DeltaTime;
+
+		// Held long enough: a tendril shoots out as a lasso (rooted: one for each of the nearest enemies ahead)
+		if (!bLassoThrown && LassoHoldTime >= Plant->LassoHoldDelay && Stance > 0.6f)
+		{
+			bLassoThrown = true;
+			if (Character->GetMana() < Plant->SaftPerShot)
+			{
+				UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
+				return;
+			}
+			const UVaelFloromantComponent* Floromant = Character->GetFloromant();
+			const int32 Count = Floromant != nullptr && Floromant->IsRooted() ? Plant->RootedLassos : 1;
+			FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+			Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
+			const TArray<AActor*> Targets = AVaelBindweedLasso::FindTargets(Character, Character->GetActorLocation(), Aim, Plant->LassoRange, Plant->LassoHalfAngle, Count);
+			if (Targets.IsEmpty())
+			{
+				// Nothing to catch: the tendrils lash at the air
+				Whip();
+				return;
+			}
+			Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
+			FVaelLassoSpec Spec;
+			Spec.OnEnd = bShadow ? EVaelLassoEnd::Slam : EVaelLassoEnd::Yank;
+			Spec.DamagePerSecond = bShadow ? Plant->StrangleDamagePerSecond : 0.0f;
+			Spec.DamageGrowth = bShadow ? Plant->StrangleGrowth : 0.0f;
+			Spec.Power = Floromant != nullptr ? Floromant->GetHandPower() : 1.0f;
+			Spec.Color = bShadow ? Plant->StrangleColor : Plant->PollenColor;
+			for (AActor* Target : Targets)
+			{
+				if (AVaelBindweedLasso* Lasso = AVaelBindweedLasso::Throw(Character, Plant, Fingers, Target, Spec, bShadow))
+				{
+					Lassos.Add(Lasso);
+				}
+			}
+			VaelSymbiosis::MuzzlePuff(this, Plant, Fingers, bShadow, 1.2f);
+		}
+
+		// Holding costs Saft every second; when it runs out the vines let go on their own
+		if (!Lassos.IsEmpty())
+		{
+			const float Cost = Plant->LassoSaftPerSecond * DeltaTime;
+			if (Character->GetMana() < Cost)
+			{
+				ReleaseLassos(true);
+			}
+			else
+			{
+				Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Cost);
+			}
+		}
+		return;
+	}
+
+	if (bLassoHeld)
+	{
+		bLassoHeld = false;
+		// Let go: the lassos yank (or slam); a short tap lashes the fan
+		if (!Lassos.IsEmpty())
+		{
+			ReleaseLassos(true);
+		}
+		else if (!bLassoThrown && LassoHoldTime < Plant->LassoHoldDelay && !Character->IsDowned() && !bCamp)
+		{
+			Whip();
+		}
+	}
+}
+
+void UVaelPlantArmComponent::Whip()
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (FireCountdown > 0.0f || Character->GetMana() < Plant->SaftPerShot)
+	{
+		return;
+	}
+	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
+	FireCountdown = Plant->FireInterval;
+	WhipTime = 0.0f;
+	WhipSide = -WhipSide;
+
+	// Everyone in the fan ahead is lashed: hurt, pushed back and interrupted
+	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
+	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
+	FVaelSpellHit Hit;
+	Hit.Damage = Plant->WhipDamage * (Floromant != nullptr ? Floromant->GetHandPower() : 1.0f);
+	Hit.Element = EVaelElement::Earth;
+	Hit.Knockback = Plant->WhipKnockback;
+	Hit.StunDuration = Plant->WhipStun;
+	for (AActor* Target : AVaelBindweedLasso::FindTargets(Character, Character->GetActorLocation(), Aim, Plant->WhipReach, Plant->WhipHalfAngle, 12))
+	{
+		UVaelCombatStatics::ApplySpellHit(Character, Target, Hit, (Target->GetActorLocation() - Character->GetActorLocation()).GetSafeNormal2D());
+	}
+}
+
+void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
+{
+	if (Tendrils.IsEmpty() || Muzzles.Num() < 4)
+	{
+		return;
+	}
+	AVaelCharacter* Character = GetCharacter();
+	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const float Time = GetWorld()->GetTimeSeconds();
+	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, Aim).GetSafeNormal();
+
+	// The lash swings across the fan in a moment and falls back
+	const float LashSeconds = 0.28f;
+	const float Before = WhipTime;
+	if (WhipTime >= 0.0f)
+	{
+		WhipTime += DeltaTime / LashSeconds;
+		if (WhipTime >= 1.0f)
+		{
+			WhipTime = -1.0f;
+		}
+	}
+	const bool bPuff = Before >= 0.0f && Before < 0.45f && (WhipTime >= 0.45f || WhipTime < 0.0f);
+	const float Lash = WhipTime >= 0.0f ? FMath::Sin(WhipTime * UE_PI) : 0.0f;
+	const float SwingAngle = WhipTime >= 0.0f ? FMath::DegreesToRadians(Plant->WhipHalfAngle) * WhipSide * FMath::Cos(WhipTime * UE_PI) : 0.0f;
+
+	const int32 Pieces = Tendrils.Num() / FMath::Max(Plant->TendrilCount, 1);
+	for (int32 Tendril = 0; Tendril < Plant->TendrilCount; ++Tendril)
+	{
+		// From the index, middle and ring finger; the first one is the lasso while one is out
+		const int32 Finger = 1 + Tendril % 3;
+		const FVector Root = Muzzles[Finger];
+		const FVector Out = MuzzleDirections[Finger].GetSafeNormal();
+		const bool bIsLasso = Tendril == 0 && !Lassos.IsEmpty();
+		const float Spread = (Tendril - (Plant->TendrilCount - 1) * 0.5f) * 0.18f;
+		const FVector Lashing = (FMath::Cos(SwingAngle + Spread) * Aim + FMath::Sin(SwingAngle + Spread) * Side).GetSafeNormal();
+		const float Length = Plant->TendrilLength * (1.0f + Lash * (Plant->WhipReach * 0.75f / Plant->TendrilLength - 1.0f));
+
+		const auto PointAt = [&](float S)
+		{
+			// At rest they droop from the fingertips and sway; aiming they reach forward; lashing they swing straight across the fan
+			const FVector Hanging = Root + Out * Length * S * 0.35f + FVector(0.0f, 0.0f, -Length * S * S * 0.75f);
+			const FVector Reaching = Root + Aim * Length * S * 1.1f - FVector(0.0f, 0.0f, Length * 0.12f * S * S);
+			const FVector Lashed = Root + Lashing * Length * S;
+			FVector Point = FMath::Lerp(FMath::Lerp(Hanging, Reaching, Stance), Lashed, Lash);
+			Point += Side * 7.0f * S * FMath::Sin(Time * 3.0f + S * 6.0f + Tendril * 2.1f) * (1.0f - Lash);
+			return Point;
+		};
+
+		for (int32 Piece = 0; Piece < Pieces; ++Piece)
+		{
+			USplineMeshComponent* Stalk = Tendrils[Tendril * Pieces + Piece];
+			Stalk->SetVisibility(!bIsLasso && Grow > 0.01f);
+			if (bIsLasso)
+			{
+				continue;
+			}
+			const float A = Piece / static_cast<float>(Pieces) * Grow;
+			const float B = (Piece + 1) / static_cast<float>(Pieces) * Grow;
+			const FVector P0 = PointAt(A);
+			const FVector P1 = PointAt(B);
+			const float Span = FVector::Dist(P0, P1);
+			Stalk->SetStartAndEnd(P0, (PointAt(A + 0.02f) - PointAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * Span,
+				P1, (PointAt(B + 0.02f) - PointAt(B - 0.02f)).GetSafeNormal() * Span, false);
+			Stalk->SetStartScale(FVector2D(Plant->TendrilThickness * FMath::Lerp(1.0f, 0.5f, A)), false);
+			Stalk->SetEndScale(FVector2D(Plant->TendrilThickness * FMath::Lerp(1.0f, 0.5f, B)), false);
+			Stalk->SetStartRoll(Piece * 1.4f + Tendril, false);
+			Stalk->SetEndRoll(Piece * 1.4f + Tendril + 1.2f, false);
+			Stalk->UpdateMesh();
+		}
+		if (TendrilTips.IsValidIndex(Tendril))
+		{
+			const FVector End = PointAt(Grow);
+			TendrilTips[Tendril]->SetVisibility(!bIsLasso && Grow > 0.01f);
+			TendrilTips[Tendril]->SetWorldLocationAndRotation(End, FRotationMatrix::MakeFromZ((End - PointAt(Grow * 0.9f)).GetSafeNormal()).Rotator());
+			TendrilTips[Tendril]->SetWorldScale3D(FVector(Plant->TipSize / 10.0f * Grow));
+
+			// Where the lash cracks, a puff of golden pollen (green for the Würgwinde)
+			if (bPuff && !bIsLasso)
+			{
+				VaelSymbiosis::MuzzlePuff(this, Plant, End, bShadow, 1.2f);
+			}
+		}
+	}
 }
 
 // ---------------------------------------------------------------- Mortar (Funkenmohn)

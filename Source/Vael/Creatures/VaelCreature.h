@@ -122,6 +122,9 @@ public:
 	/** True while the auto aim must pass it by, like a lynx lying hidden in ambush */
 	virtual bool IsHiddenFromAim() const { return false; }
 
+	/** True for creatures too big or heavy to be yanked by a lasso (bosses, whatever stands firm against pulls): she flies to them instead */
+	bool IsHeavy() const;
+
 	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */
 	virtual bool IsBossFightActive() const { return false; }
 

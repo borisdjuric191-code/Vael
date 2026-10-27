@@ -114,6 +114,21 @@ ARMS = {
                  "rest_wind": 0.25, "inner_petals": 4, "outer_petals": 5, "petal_size": 15.0, "rose_open_angle": 70.0,
                  "rose_closed_angle": 22.0, "rose_hole_radius": 0.5},
     },
+    # Boris 2026-10-27: the hand stays, bindweed winds from the wrist to the shoulder with golden trumpets that turn forward like
+    # horns while aiming, and three long tendrils hang from the fingers: tapped they lash a fan, held one shoots out as a lasso.
+    # Stems, trumpet and heart leaf from Tools/Pflanzenarm/schlotwinde_trichter.py (the Tripo bush is too tangled to cut), the
+    # vine from ranke_bauen.py
+    "Schlotwinde": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": "Blatt",
+        "leaf": "Trichter",
+        "values": {"Silber": 0.0, "Leuchten": 0.06, "Leuchtfarbe": (1.0, 0.75, 0.2), "Metall": 0.05, "Rauheit": 0.5},
+        "data": {"lasso": True, "shot_element": "EARTH", "fire_interval": 0.45, "saft_per_shot": 2.0, "bar_size": 40, "shot_range": 900.0,
+                 "finger_length": 14.0, "finger_thickness": 1.0, "tip_size": 9.0, "fan_angle": 10.0, "arm_thickness": 1.3,
+                 "wrap_count": 4, "wrap_turns": 1.2, "wild_count": 2, "rest_wind": 0.3,
+                 "leaf_count": 7, "leaf_size": 11.0, "leaf_open_angle": 60.0},
+    },
 }
 
 

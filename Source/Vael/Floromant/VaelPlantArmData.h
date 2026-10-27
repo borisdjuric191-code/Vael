@@ -377,6 +377,103 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (EditCondition = "bMortar"))
 	FLinearColor SleepColor = FLinearColor(0.45f, 0.2f, 0.75f);
 
+	// --- Lasso (Schlotwinde, Boris 2026-10-27): the hand stays, bindweed winds from the wrist to the shoulder with golden trumpets
+	// that turn forward like horns while aiming, and three long tendrils hang from the fingers. Tapped, the tendrils lash a fan in
+	// front of her (knock back, interrupt, a puff of golden pollen). Held, a tendril shoots out as a lasso, wraps the enemy and holds
+	// it (costs Saft every second); let go, small enemies are yanked to her and stunned, while big ones and bosses pull HER to them.
+	// Rooted she catches three. Würgwinde (shadow): the lasso strangles, harder the longer it holds, and let go slams the enemy down
+
+	/** The hand whips and lassos with tendrils */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso")
+	bool bLasso = false;
+
+	/** The long tendrils hanging from the fingers, their length at rest and thickness */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 1, ClampMax = 5, EditCondition = "bLasso"))
+	int32 TendrilCount = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 10, EditCondition = "bLasso"))
+	float TendrilLength = 65.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.1, EditCondition = "bLasso"))
+	float TendrilThickness = 1.6f;
+
+	/** Seconds the button must be held before the lasso shoots instead of the whip */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.05, EditCondition = "bLasso"))
+	float LassoHoldDelay = 0.22f;
+
+	/** The whip: reach, half the angle of its fan, damage, push, and the moment it interrupts */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 50, EditCondition = "bLasso"))
+	float WhipReach = 380.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 5, ClampMax = 90, EditCondition = "bLasso"))
+	float WhipHalfAngle = 40.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float WhipDamage = 9.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float WhipKnockback = 320.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float WhipStun = 0.35f;
+
+	/** The lasso: how far it reaches and how wide it looks for a target ahead, Saft every second it holds */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 100, EditCondition = "bLasso"))
+	float LassoRange = 900.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 5, ClampMax = 90, EditCondition = "bLasso"))
+	float LassoHalfAngle = 30.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float LassoSaftPerSecond = 3.0f;
+
+	/** Let go: speed a small enemy is yanked in and how long it is stunned; speed she flies to a big one */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 100, EditCondition = "bLasso"))
+	float YankSpeed = 2200.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float YankStun = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 100, EditCondition = "bLasso"))
+	float FlyToSpeed = 1800.0f;
+
+	/** Enemies a rooted hand catches at once */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 1, ClampMax = 6, EditCondition = "bLasso"))
+	int32 RootedLassos = 3;
+
+	/** Würgwinde: strangling damage per second at the start and how much it grows every second held; the slam's damage and stun */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float StrangleDamagePerSecond = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float StrangleGrowth = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float SlamDamage = 12.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, EditCondition = "bLasso"))
+	float SlamStun = 1.5f;
+
+	/** Tower "Windenfalle": tendrils crawl over the ground to this many enemies within the range and hold them, again and again */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 1, ClampMax = 6, EditCondition = "bLasso"))
+	int32 SnareTargets = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 100, EditCondition = "bLasso"))
+	float SnareRange = 600.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.1, EditCondition = "bLasso"))
+	float SnareHold = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.5, EditCondition = "bLasso"))
+	float SnareInterval = 4.0f;
+
+	/** Gold of the pollen and of the glow; the dark green of the Würgwinde */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (EditCondition = "bLasso"))
+	FLinearColor PollenColor = FLinearColor(1.0f, 0.78f, 0.2f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (EditCondition = "bLasso"))
+	FLinearColor StrangleColor = FLinearColor(0.15f, 0.45f, 0.1f);
+
 	// --- Rose (Taublatt, Boris 2026-10-26): instead of heads on the fingertips large petals sit at the hand like an open
 	// blossom; while aiming they fold shut like the petals of a rose and leave a hole in the middle that the shots leave through
 

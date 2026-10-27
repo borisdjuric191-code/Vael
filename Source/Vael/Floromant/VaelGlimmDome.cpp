@@ -96,6 +96,7 @@ AVaelGlimmDome* AVaelGlimmDome::Raise(APawn* InOwner, AActor* InCenter, const UV
 	case EVaelSymbiosis::Tauglocke:		Color = FLinearColor(0.4f, 0.95f, 0.9f); break;
 	case EVaelSymbiosis::Glashaus:		Color = FLinearColor(0.55f, 1.0f, 0.5f); break;
 	case EVaelSymbiosis::Glutblase:		Color = FLinearColor(1.0f, 0.6f, 0.25f); break;
+	case EVaelSymbiosis::Laube:			Color = FLinearColor(1.0f, 0.88f, 0.4f); break;
 	default: break;
 	}
 	if (UMaterialInterface* Material = VaelAssets::LoadOptional(UVaelFloromantSettings::Get()->GlassMaterial))
@@ -186,8 +187,8 @@ void AVaelGlimmDome::Tick(float DeltaSeconds)
 		return;
 	}
 
-	// Funkelwind: the pollen turns every enemy shot that comes into the dome aside
-	if (Pair == EVaelSymbiosis::Funkelwind)
+	// Funkelwind: the pollen turns every enemy shot that comes into the dome aside; the vines of the Laube catch them
+	if (Pair == EVaelSymbiosis::Funkelwind || Pair == EVaelSymbiosis::Laube)
 	{
 		for (TActorIterator<AVaelSpellProjectile> It(GetWorld()); It; ++It)
 		{
@@ -250,6 +251,10 @@ void AVaelGlimmDome::Pulse()
 			break;
 		case EVaelSymbiosis::Tauglocke:
 			UVaelCombatStatics::ApplyStatus(DomeOwner, *It, EVaelStatus::Wet, 3.0f);
+			break;
+		case EVaelSymbiosis::Laube:
+			// The vines of the bower tangle who comes in
+			UVaelCombatStatics::ApplyStatus(DomeOwner, *It, EVaelStatus::Slowed, 1.5f);
 			break;
 		case EVaelSymbiosis::Lichtkuppel:
 			if (bFlare)

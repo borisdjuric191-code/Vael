@@ -345,6 +345,39 @@ private:
 	float BudOpen = 0.0f;
 	float MortarDraw = 0.0f;
 
+	// --- Lasso (Schlotwinde): long tendrils hang from the fingers; tapped they lash a fan, held one shoots out as a lasso
+
+	/** Whips on a tap, throws the lasso on a hold, yanks (or slams) when let go */
+	void UpdateLassoFiring(float DeltaTime);
+
+	/** The fan of lashing tendrils in front of her */
+	void Whip();
+
+	/** Moves the hanging, aiming or lashing tendrils (world space) */
+	void UpdateTendrils(float DeltaTime);
+
+	/** Lets every lasso go, with its end or simply */
+	void ReleaseLassos(bool bWithEnd);
+
+	/** Pieces of the tendrils (TendrilCount chains of pieces) and the leaves at their ends */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> Tendrils;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> TendrilTips;
+
+	/** The lassos out now */
+	TArray<TWeakObjectPtr<class AVaelBindweedLasso>> Lassos;
+
+	/** The press is held, for how long, and whether this press has thrown its lasso already */
+	bool bLassoHeld = false;
+	float LassoHoldTime = 0.0f;
+	bool bLassoThrown = false;
+
+	/** How far the lash has swung (0 to 1, negative while none), and to which side it swings this time */
+	float WhipTime = -1.0f;
+	float WhipSide = 1.0f;
+
 	/** Places the petals around the rose's foot and axis (space of the body mesh); returns where the shots leave */
 	FVector UpdateRose(const FVector& Base, const FVector& Axis);
 
