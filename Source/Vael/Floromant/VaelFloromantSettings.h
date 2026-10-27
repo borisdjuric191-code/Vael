@@ -158,9 +158,29 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rise", meta = (ClampMin = 0))
 	float RiseMoveSpeedScale = 1.15f;
 
-	/** Seconds she must stand firing on the spot before her feet take root, and how long the roots take to grow and to let go */
+	/** Seconds she must stand firing on the spot before her feet take root, and how long the roots take to grow and to let go.
+	 *  Boris 2026-10-27: rooting is a choice on Square now; RootDelay only matters with bAutoRoot */
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
 	float RootDelay = 1.2f;
+
+	/** Rooting by itself while she fires on the spot (the old way) instead of only on Square */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting")
+	bool bAutoRoot = false;
+
+	/** Rooted in rain or by water (Boris 2026-10-27): the Keimpelz grows this many times faster, and the plant bars fill by
+	 *  themselves with this many shots per second */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 1))
+	float RootedWetKeimpelzScale = 4.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
+	float RootedWetShotsPerSecond = 1.5f;
+
+	/** Dodging while rooted with no tower to dive to tears the roots out: she is this much slower for the seconds after */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
+	float TearOutSeconds = 0.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0, ClampMax = 1))
+	float TearOutMoveSpeedScale = 0.5f;
 
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0.05))
 	float RootGrowTime = 0.5f;
@@ -449,6 +469,28 @@ public:
 	/** Seconds the knot of the crossed hands stays at the hands */
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0.1))
 	float CrossShowTime = 0.8f;
+
+	/** Kreuzschuss on its own button (Boris 2026-10-27): the hands stop firing and grow together, the knot swells for this many
+	 *  seconds before the pair acts; held longer it charges up to a full cross at the second time. She is slower meanwhile */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0.05))
+	float CrossChargeTime = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0.1))
+	float CrossFullChargeTime = 1.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis", meta = (ClampMin = 0, ClampMax = 1))
+	float CrossMoveSpeedScale = 0.5f;
+
+	/** Turmruf (L2 + R2, Boris 2026-10-27): her towers within the call grow into their giant form for the seconds, taller, and
+	 *  fire this many times as often */
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
+	float TowerCallSeconds = 6.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
+	float TowerCallFireScale = 2.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
+	float TowerCallSizeScale = 1.35f;
 
 	/** Glass of the Glimmklee dome, M_Floromant_Glaskugel (made by Scripts/CreateFloromantKit.py) */
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis")

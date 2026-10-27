@@ -59,9 +59,22 @@ public:
 	UFUNCTION(Exec)
 	void VaelTurm(const FString& Hand);
 
-	/** Floromant: crosses both hands into their symbiosis, like L1 + R1 + Cross; "lang" for a held cross. Example: VaelKreuzen lang */
+	/** Floromant: the Kreuzschuss, like Cross: the hands cross and charge, and let go after the seconds (0 = the short charge).
+	 *  Example: VaelKreuzen 1.5 */
 	UFUNCTION(Exec)
-	void VaelKreuzen(const FString& Held = TEXT(""));
+	void VaelKreuzen(float Seconds = 0.0f);
+
+	/** Floromant: takes root or lets go, like Square */
+	UFUNCTION(Exec)
+	void VaelWurzeln();
+
+	/** Floromant: the plants of both hands change sides, like Triangle tapped */
+	UFUNCTION(Exec)
+	void VaelTauschen();
+
+	/** Floromant: the Turmruf, like L2 + R2 */
+	UFUNCTION(Exec)
+	void VaelTurmruf();
 
 	/** Floromant: sows the seed of the belt whose name starts like the word, or the picked one, the given metres ahead. Example: VaelSamen Russ 4 */
 	UFUNCTION(Exec)

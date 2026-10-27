@@ -789,13 +789,61 @@ void UVaelCheatManager::VaelTurm(const FString& Hand)
 	}
 }
 
-void UVaelCheatManager::VaelKreuzen(const FString& Held)
+
+void UVaelCheatManager::VaelKreuzen(float Seconds)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr || !Player->IsFloromant())
+	{
+		return;
+	}
+	// Pressed now, let go after the seconds; the short charge runs out by itself after an early release
+	UVaelFloromantComponent* Floromant = Player->GetFloromant();
+	Floromant->StartCross();
+	if (Seconds <= 0.0f)
+	{
+		Floromant->ReleaseCross();
+		return;
+	}
+	TWeakObjectPtr<UVaelFloromantComponent> WeakFloromant = Floromant;
+	FTimerHandle Timer;
+	Player->GetWorldTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([WeakFloromant]()
+	{
+		if (UVaelFloromantComponent* Held = WeakFloromant.Get())
+		{
+			Held->ReleaseCross();
+		}
+	}), Seconds, false);
+}
+
+void UVaelCheatManager::VaelWurzeln()
 {
 	const APlayerController* PlayerController = GetOuterAPlayerController();
 	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
 	if (Player != nullptr && Player->IsFloromant())
 	{
-		Player->GetFloromant()->CrossHands(Held.StartsWith(TEXT("l"), ESearchCase::IgnoreCase));
+		Player->GetFloromant()->ToggleRoot();
+	}
+}
+
+void UVaelCheatManager::VaelTauschen()
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		Player->GetFloromant()->SwapHands();
+	}
+}
+
+void UVaelCheatManager::VaelTurmruf()
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		Player->GetFloromant()->Overgrow();
 	}
 }
 

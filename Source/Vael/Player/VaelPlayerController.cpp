@@ -180,12 +180,13 @@ void AVaelPlayerController::SetupInputComponent()
 			}
 			EnhancedInputComponent->BindAction(CrossAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCrossStarted);
 			EnhancedInputComponent->BindAction(CrossAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnCrossEnded);
-			EnhancedInputComponent->BindAction(LeapAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnLeap);
+			EnhancedInputComponent->BindAction(CrossAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnCrossEnded);
+			EnhancedInputComponent->BindAction(SwapAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnSwapHands);
 			EnhancedInputComponent->BindAction(BeltUpAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPageBelt, -1);
 			EnhancedInputComponent->BindAction(BeltDownAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPageBelt, 1);
 			EnhancedInputComponent->BindAction(FloromantPotionAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPotion);
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnReload);
-			EnhancedInputComponent->BindAction(WhipAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnWhip);
+			EnhancedInputComponent->BindAction(RootAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnRoot);
 			EnhancedInputComponent->BindAction(HerbariumAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnHerbarium);
 			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnRise, true);
 			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnRise, false);
@@ -435,14 +436,11 @@ void AVaelPlayerController::CreateFloromantInput()
 	Context->MapKey(FireRightAction, EKeys::Gamepad_RightShoulder);
 	Context->MapKey(FireRightAction, EKeys::RightMouseButton);
 
-	// Cross and Space: crossing while both hands fire, otherwise the leap (or using what is close by); the handlers decide
+	// Cross and Space (Boris 2026-10-27): the Kreuzschuss, held to charge it; outside of fights it uses what is close by, and held
+	// it sows (on the keyboard G does both)
 	CrossAction = CreateAction(TEXT("IA_Flo_Kreuzen"));
 	Context->MapKey(CrossAction, EKeys::Gamepad_FaceButton_Bottom);
 	Context->MapKey(CrossAction, EKeys::SpaceBar);
-
-	LeapAction = CreateAction(TEXT("IA_Flo_Wurzelsprung"));
-	Context->MapKey(LeapAction, EKeys::Gamepad_FaceButton_Bottom);
-	Context->MapKey(LeapAction, EKeys::SpaceBar);
 
 	// Towers on the triggers and Q / E; both at once call the garden (they wait a moment for each other in UpdateTowerChord)
 	TowerLeftAction = CreateAction(TEXT("IA_Flo_TurmLinks"));
@@ -480,23 +478,30 @@ void AVaelPlayerController::CreateFloromantInput()
 	Context->MapKey(PutRightAction, EKeys::Gamepad_DPad_Right);
 	Context->MapKey(PutRightAction, EKeys::Two);
 
-	// Reloading with Keimpelz: Triangle or R held
+	// Reloading with Keimpelz: Triangle or R held; tapped, the plants of both hands change sides
 	ReloadAction = CreateAction(TEXT("IA_Flo_Nachladen"));
+	SwapAction = CreateAction(TEXT("IA_Flo_Tauschen"));
 	for (const FKey& ReloadKey : { EKeys::Gamepad_FaceButton_Top, EKeys::R })
 	{
 		UInputTriggerHold* ReloadHold = NewObject<UInputTriggerHold>(Context);
 		ReloadHold->HoldTimeThreshold = 0.35f;
 		ReloadHold->bIsOneShot = true;
 		Context->MapKey(ReloadAction, ReloadKey).Triggers.Add(ReloadHold);
+
+		UInputTriggerTap* SwapTap = NewObject<UInputTriggerTap>(Context);
+		SwapTap->TapReleaseTimeThreshold = 0.3f;
+		Context->MapKey(SwapAction, ReloadKey).Triggers.Add(SwapTap);
 	}
 
-	// Dodge on Circle and Shift; holding Circle still leaves co-op (shared controls)
+	// Dodge on Circle and Shift; holding Circle still leaves co-op (shared controls). Rooted, the dodge dives through the roots to
+	// a tower, or tears them out
 	Context->MapKey(DodgeAction, EKeys::Gamepad_FaceButton_Right);
 	Context->MapKey(DodgeAction, EKeys::LeftShift);
 
-	WhipAction = CreateAction(TEXT("IA_Flo_Dornenpeitsche"));
-	Context->MapKey(WhipAction, EKeys::Gamepad_FaceButton_Left);
-	Context->MapKey(WhipAction, EKeys::F);
+	// Taking root is a choice (Boris 2026-10-27): Square or F roots her feet and lets them go; the Dornenpeitsche gave way to it
+	RootAction = CreateAction(TEXT("IA_Flo_Verwurzeln"));
+	Context->MapKey(RootAction, EKeys::Gamepad_FaceButton_Left);
+	Context->MapKey(RootAction, EKeys::F);
 
 	// Herbarium and repertoire: the touchpad, Tab on the keyboard. A PS5 controller on the PC (DS4Windows) has no own
 	// touchpad button for games; its touchpad click can be set to Tab there.
@@ -539,7 +544,7 @@ void AVaelPlayerController::UpdateClassControls()
 
 	// Nothing held carries over into the other class
 	bFireHeld[0] = bFireHeld[1] = false;
-	CrossStartTime = -1.0f;
+	bCrossUses = false;
 	TowerPressTime[0] = TowerPressTime[1] = -1.0f;
 }
 
@@ -626,7 +631,20 @@ void AVaelPlayerController::OnDodge()
 	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
 	{
 		// The move input of this frame may not have been handled yet
-		VaelCharacter->StartDodge(MoveDirection.IsNearlyZero() ? PreviousMoveDirection : MoveDirection);
+		const FVector Direction = MoveDirection.IsNearlyZero() ? PreviousMoveDirection : MoveDirection;
+
+		// Rooted, the Floromant dives through the roots to the tower that way; with none in reach the dodge tears the roots out
+		if (VaelCharacter->IsFloromant() && VaelCharacter->GetFloromant()->IsRooted() && !VaelCharacter->IsDowned())
+		{
+			UVaelFloromantComponent* Floromant = VaelCharacter->GetFloromant();
+			const FVector Toward = VaelCharacter->GetActorLocation() + Direction.GetSafeNormal2D() * UVaelFloromantSettings::Get()->LeapRange * 0.5f;
+			if (Floromant->RootDive(Toward))
+			{
+				return;
+			}
+			Floromant->TearOut();
+		}
+		VaelCharacter->StartDodge(Direction);
 	}
 }
 
@@ -800,48 +818,91 @@ void AVaelPlayerController::OnFireHand(bool bLeft, bool bHeld)
 	VaelCharacter->GetFloromant()->SetHandFiring(bLeft, bHeld);
 }
 
+bool AVaelPlayerController::IsInFight() const
+{
+	const APawn* PlayerPawn = GetPawn();
+	if (PlayerPawn == nullptr)
+	{
+		return false;
+	}
+	const float CombatRange = UVaelItemSettings::Get()->InteractCombatRange;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), PlayerPawn->GetActorLocation()) < CombatRange)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 void AVaelPlayerController::OnCrossStarted()
 {
-	// Only while both hands fire; alone the button leaps
-	CrossStartTime = AreBothHandsHeld() ? GetWorld()->GetTimeSeconds() : -1.0f;
-}
-
-void AVaelPlayerController::OnCrossEnded()
-{
-	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (CrossStartTime < 0.0f || VaelCharacter == nullptr || !VaelCharacter->IsFloromant())
-	{
-		CrossStartTime = -1.0f;
-		return;
-	}
-
-	// A tap is a fast cross shot, holding charges it
-	const bool bCharged = GetWorld()->GetTimeSeconds() - CrossStartTime >= 0.3f;
-	CrossStartTime = -1.0f;
-	VaelCharacter->GetFloromant()->CrossHands(bCharged);
-}
-
-void AVaelPlayerController::OnLeap()
-{
-	// While both hands fire the button crosses them instead
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (AreBothHandsHeld() || VaelCharacter == nullptr || !VaelCharacter->IsFloromant() || VaelCharacter->IsDodging() || VaelCharacter->IsDowned())
+	bCrossUses = false;
+	if (VaelCharacter == nullptr || !VaelCharacter->IsFloromant() || VaelCharacter->IsDodging() || VaelCharacter->IsDowned())
 	{
 		return;
 	}
 
-	// On the gamepad it uses what is close by outside of fights, like the earth button of the mage
-	if (GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
+	// Outside of fights the button uses what is close by (on the gamepad, like the earth button of the mage), and held it sows
+	if (!IsInFight())
 	{
-		if (IVaelInteractable* Interactable = Cast<IVaelInteractable>(GetPadInteractTarget()))
+		if (GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
 		{
-			Interactable->Interact(VaelCharacter);
+			if (IVaelInteractable* Interactable = Cast<IVaelInteractable>(GetPadInteractTarget()))
+			{
+				bCrossUses = true;
+				Interactable->Interact(VaelCharacter);
+				return;
+			}
+		}
+		if (CanStartSowing())
+		{
+			bCrossUses = true;
+			SowHoldStart = GetWorld()->GetTimeSeconds();
+			bSowHoldDeferred = false;
 			return;
 		}
 	}
 
+	// The Kreuzschuss: the hands stop firing and grow together while it charges
 	UpdateFacing();
-	VaelCharacter->GetFloromant()->RootLeap(GetFloromantAim());
+	VaelCharacter->GetFloromant()->StartCross();
+}
+
+void AVaelPlayerController::OnCrossEnded()
+{
+	// A press that used or sowed ends here; let go early, nothing was sown
+	if (bCrossUses)
+	{
+		bCrossUses = false;
+		SowHoldStart = -1.0f;
+		return;
+	}
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->ReleaseCross();
+	}
+}
+
+void AVaelPlayerController::OnSwapHands()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant() && !VaelCharacter->IsDowned())
+	{
+		VaelCharacter->GetFloromant()->SwapHands();
+	}
+}
+
+void AVaelPlayerController::OnRoot()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->ToggleRoot();
+	}
 }
 
 void AVaelPlayerController::OnTower(bool bLeft)
@@ -908,16 +969,6 @@ void AVaelPlayerController::OnReload()
 	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
 	{
 		VaelCharacter->GetFloromant()->ReloadHands();
-	}
-}
-
-void AVaelPlayerController::OnWhip()
-{
-	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant() && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned())
-	{
-		UpdateFacing();
-		VaelCharacter->GetFloromant()->ThornWhip(GetFloromantAim());
 	}
 }
 
@@ -1010,16 +1061,7 @@ bool AVaelPlayerController::CanStartSowing() const
 	}
 
 	// Not in a fight: there the button keeps doing what it always does
-	const float CombatRange = UVaelItemSettings::Get()->InteractCombatRange;
-	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
-	{
-		if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), VaelCharacter->GetActorLocation()) < CombatRange)
-		{
-			return false;
-		}
-	}
-
-	return true;
+	return !IsInFight();
 }
 
 void AVaelPlayerController::UpdateSowHold()

@@ -16,6 +16,7 @@
 #include "Floromant/VaelRootRunner.h"
 #include "Floromant/VaelSymbiosis.h"
 #include "Floromant/VaelSymbiosisKnotComponent.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "TimerManager.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -73,8 +74,216 @@ void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	}
 
 	TickFlight(DeltaTime);
+	TickWetRoots(DeltaTime);
+	TickCross(DeltaTime);
 	UpdateCrossKnot(DeltaTime);
 	TickShield(DeltaTime);
+
+	// The crossed hands swell every frame while they charge and show; otherwise a few times a second is enough
+	SetComponentTickInterval(bCrossCharging || CrossShowLeft > 0.0f ? 0.0f : 0.2f);
+}
+
+void UVaelFloromantComponent::ToggleRoot()
+{
+	const AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr || !Character->IsFloromant() || Character->IsDowned() || Character->IsDodging())
+	{
+		return;
+	}
+	// Up high there is no ground to root in: she comes down first
+	bRiseWanted = false;
+	bRootWanted = !bRootWanted;
+	UE_LOG(LogVael, Log, TEXT("'%s' %s"), *GetNameSafe(Character), bRootWanted ? TEXT("takes root") : TEXT("lets go of the ground"));
+}
+
+void UVaelFloromantComponent::TearOut()
+{
+	if (!bRootWanted && RootGrowth <= 0.0f)
+	{
+		return;
+	}
+	// Torn out at once by the dodge: a puff of earth, and she staggers on slower for a moment
+	bRootWanted = false;
+	RootGrowth = 0.0f;
+	TornTimeLeft = UVaelFloromantSettings::Get()->TearOutSeconds;
+	if (AVaelCharacter* Character = GetCharacter())
+	{
+		FVaelDebris Earth;
+		Earth.Count = 10;
+		Earth.Spread = 25.0f;
+		Earth.Speed = 160.0f;
+		Earth.Lift = 220.0f;
+		Earth.Lifetime = 0.6f;
+		Earth.Color = FLinearColor(0.11f, 0.075f, 0.05f);
+		AVaelDebrisBurst::Spawn(Character, GetFeet(), Earth);
+		Character->SetManaRegen(UVaelFloromantSettings::Get()->SaftPerSecond);
+	}
+}
+
+void UVaelFloromantComponent::TickWetRoots(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr || !Character->IsFloromant() || RootGrowth < 1.0f)
+	{
+		WetShots = 0.0f;
+		return;
+	}
+
+	// Rooted where it rains or by water, the earth is wet and feeds her (Boris 2026-10-27)
+	const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), Character->GetActorLocation());
+	const bool bRain = (Region != nullptr && (Region->GetWeather() == EVaelWeather::Rain || Region->GetWeather() == EVaelWeather::Storm))
+		|| AVaelLocalWeather::IsRainingAt(GetWorld(), Character->GetActorLocation());
+	if (!bRain && !UVaelEnvironmentStatics::IsElementInEnvironment(Character, EVaelElement::Water))
+	{
+		WetShots = 0.0f;
+		return;
+	}
+
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	AddKeimpelz(Settings->KeimpelzGrowPerSecond * (Settings->RootedWetKeimpelzScale - 1.0f) * DeltaTime);
+	WetShots += Settings->RootedWetShotsPerSecond * DeltaTime;
+	while (WetShots >= 1.0f)
+	{
+		WetShots -= 1.0f;
+		for (const bool bLeft : { true, false })
+		{
+			if (UVaelPlantArmComponent* Hand = FindHand(bLeft))
+			{
+				Hand->RefillBar(1);
+			}
+		}
+	}
+
+	// Drops of water rise along her roots, so it shows that the ground feeds her
+	WetPuffCountdown -= DeltaTime;
+	if (WetPuffCountdown <= 0.0f)
+	{
+		WetPuffCountdown = 0.8f;
+		FVaelDebris Drops;
+		Drops.Count = 8;
+		Drops.Spread = 35.0f;
+		Drops.Speed = 30.0f;
+		Drops.Lift = 140.0f;
+		Drops.Gravity = -60.0f;
+		Drops.Lifetime = 0.9f;
+		Drops.MinSize = 1.5f;
+		Drops.MaxSize = 3.0f;
+		Drops.Color = FloromantTurquoise;
+		Drops.Glow = 3.0f;
+		Drops.bLandOnGround = false;
+		AVaelDebrisBurst::Spawn(Character, GetFeet(), Drops);
+	}
+}
+
+void UVaelFloromantComponent::SwapHands()
+{
+	UVaelPlantArmComponent* Left = FindHand(true);
+	UVaelPlantArmComponent* Right = FindHand(false);
+	const AVaelCharacter* Character = GetCharacter();
+	if (Left == nullptr || Right == nullptr || Character == nullptr || !Character->IsFloromant() || bCrossCharging)
+	{
+		return;
+	}
+	UVaelPlantArmData* LeftPlant = Left->GetPlant();
+	UVaelPlantArmData* RightPlant = Right->GetPlant();
+	if (LeftPlant == RightPlant)
+	{
+		return;
+	}
+	Left->SetPlant(RightPlant);
+	Right->SetPlant(LeftPlant);
+}
+
+void UVaelFloromantComponent::StartCross()
+{
+	AVaelCharacter* Character = GetCharacter();
+	UVaelPlantArmComponent* Left = FindHand(true);
+	UVaelPlantArmComponent* Right = FindHand(false);
+	if (Character == nullptr || !Character->IsFloromant() || Character->IsDowned() || bCrossCharging || Left == nullptr || Right == nullptr
+		|| Left->GetPlant() == nullptr || Right->GetPlant() == nullptr || Left->IsRegrowing() || Right->IsRegrowing())
+	{
+		return;
+	}
+	const EVaelSymbiosis Kind = VaelSymbiosis::Find(Left->GetPlant(), Right->GetPlant());
+	if (Kind == EVaelSymbiosis::None)
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoPair", "Diese beiden wachsen nicht zusammen"), FLinearColor(FColor(158, 143, 125)));
+		return;
+	}
+
+	// The hands stop firing and grow towards each other; the knot between them swells while it charges
+	bCrossCharging = true;
+	bCrossHeld = true;
+	CrossChargeAge = 0.0f;
+	Left->SetCrossing(true);
+	Right->SetCrossing(true);
+	if (CrossKnot == nullptr)
+	{
+		CrossKnot = NewObject<UVaelSymbiosisKnotComponent>(GetOwner(), TEXT("CrossKnot"));
+		CrossKnot->SetupAttachment(GetOwner()->GetRootComponent());
+		CrossKnot->RegisterComponent();
+	}
+	CrossKnot->Setup(Left->GetPlant(), Right->GetPlant(), VaelSymbiosis::GetColor(Kind), Character->GetPath() == EVaelPath::Shadow);
+	CrossShowLeft = 0.0f;
+	SetComponentTickInterval(0.0f);
+}
+
+void UVaelFloromantComponent::ReleaseCross()
+{
+	bCrossHeld = false;
+}
+
+void UVaelFloromantComponent::TickCross(float DeltaTime)
+{
+	if (!bCrossCharging)
+	{
+		return;
+	}
+	AVaelCharacter* Character = GetCharacter();
+	UVaelPlantArmComponent* Left = FindHand(true);
+	UVaelPlantArmComponent* Right = FindHand(false);
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const auto Stop = [&]()
+	{
+		bCrossCharging = false;
+		for (UVaelPlantArmComponent* Hand : { Left, Right })
+		{
+			if (Hand != nullptr)
+			{
+				Hand->SetCrossing(false);
+			}
+		}
+	};
+	if (Character == nullptr || Left == nullptr || Right == nullptr || Character->IsDowned() || Character->IsDodging() || Left->GetPlant() == nullptr || Right->GetPlant() == nullptr)
+	{
+		Stop();
+		if (CrossKnot != nullptr)
+		{
+			CrossKnot->Clear();
+		}
+		return;
+	}
+
+	CrossChargeAge += DeltaTime;
+	const float Charge = FMath::Clamp((CrossChargeAge - Settings->CrossChargeTime) / FMath::Max(Settings->CrossFullChargeTime - Settings->CrossChargeTime, 0.05f), 0.0f, 1.0f);
+
+	// The vines grow from both hands into the knot over the short charge; held on, it swells and glows brighter
+	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	Aim.Z = 0.0f;
+	CrossAim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
+	if (CrossKnot != nullptr)
+	{
+		const FVector Knot = (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + CrossAim * 40.0f;
+		CrossKnot->SetCharge(Charge);
+		CrossKnot->Update(Left->GetHandLocation(), Right->GetHandLocation(), Knot, FMath::Min(1.0f, CrossChargeAge / Settings->CrossChargeTime));
+	}
+
+	// Let go and charged at least the short time: the pair acts; held on it stays at full charge while she aims
+	if (!bCrossHeld && CrossChargeAge >= Settings->CrossChargeTime)
+	{
+		Stop();
+		CrossHands(Charge);
+	}
 }
 
 float UVaelFloromantComponent::GetShieldStance(bool bLeft) const
@@ -182,6 +391,7 @@ void UVaelFloromantComponent::TickFlight(float DeltaTime)
 		Rise = 0.0f;
 		StillFiringTime = 0.0f;
 		RootGrowth = 0.0f;
+		bRootWanted = false;
 		UprootTimeLeft = -1.0f;
 		WingWetness = 0.0f;
 	}
@@ -209,42 +419,27 @@ void UVaelFloromantComponent::TickFlight(float DeltaTime)
 		}
 		Rise = FMath::FInterpConstantTo(Rise, bRiseWanted ? 1.0f : 0.0f, DeltaTime, 1.0f / Settings->RiseTime);
 
-		// Standing on the spot while a hand fires, her feet take root; moving, darting or ceasing fire pulls them out again
-		const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
-		const bool bWantsToMove = Movement != nullptr && Movement->GetCurrentAcceleration().SizeSquared() > 1.0f;
-		const bool bLetGo = Stance < 0.5f || bWantsToMove || Character->IsDodging();
-		if (RootGrowth <= 0.0f)
+		// Square roots her feet and lets them go (Boris 2026-10-27, a choice now); the old way roots her by itself while she
+		// fires on the spot. Rooted she stays where she is; the dodge dives through the roots or tears them out
+		if (Settings->bAutoRoot)
 		{
-			const bool bStill = Stance >= 0.9f && !bLetGo && Character->GetVelocity().Size2D() < 40.0f;
+			const UCharacterMovementComponent* Movement = Character->GetCharacterMovement();
+			const bool bWantsToMove = Movement != nullptr && Movement->GetCurrentAcceleration().SizeSquared() > 1.0f;
+			const bool bStill = Stance >= 0.9f && !bWantsToMove && !Character->IsDodging() && Character->GetVelocity().Size2D() < 40.0f;
 			StillFiringTime = bStill ? StillFiringTime + DeltaTime : 0.0f;
-			if (StillFiringTime >= Settings->RootDelay)
-			{
-				RootGrowth = KINDA_SMALL_NUMBER;
-				UprootTimeLeft = -1.0f;
-			}
+			bRootWanted = bRootWanted ? !(Stance < 0.5f || bWantsToMove || Character->IsDodging()) : StillFiringTime >= Settings->RootDelay;
 		}
-		else
+		if (bRootWanted)
 		{
-			if (bLetGo && UprootTimeLeft < 0.0f)
-			{
-				UprootTimeLeft = Settings->UprootTime;
-			}
-			if (UprootTimeLeft >= 0.0f)
-			{
-				UprootTimeLeft -= DeltaTime;
-				RootGrowth = FMath::Max(KINDA_SMALL_NUMBER, RootGrowth - DeltaTime / FMath::Max(Settings->UprootTime, 0.05f));
-				if (UprootTimeLeft <= 0.0f)
-				{
-					RootGrowth = 0.0f;
-					StillFiringTime = 0.0f;
-					UprootTimeLeft = -1.0f;
-				}
-			}
-			else
-			{
-				RootGrowth = FMath::Min(1.0f, RootGrowth + DeltaTime / Settings->RootGrowTime);
-			}
+			UprootTimeLeft = -1.0f;
+			RootGrowth = FMath::Min(1.0f, FMath::Max(RootGrowth, KINDA_SMALL_NUMBER) + DeltaTime / Settings->RootGrowTime);
 		}
+		else if (RootGrowth > 0.0f)
+		{
+			RootGrowth = FMath::Max(0.0f, RootGrowth - DeltaTime / FMath::Max(Settings->UprootTime, 0.05f));
+			StillFiringTime = 0.0f;
+		}
+		TornTimeLeft = FMath::Max(0.0f, TornTimeLeft - DeltaTime);
 
 		// Rain soaks the wings, and so does water a spell left on her; they dry slowly
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), Character->GetActorLocation());
@@ -618,11 +813,9 @@ int32 UVaelFloromantComponent::Overgrow()
 	const bool bRootNet = IsRooted();
 	const float Radius = Settings->OvergrowthRadius * (bRootNet ? Settings->RootNetReach : 1.0f);
 	const int32 NumActing = CallPlants(Radius, Settings->OvergrowthDuration, true, false, bRootNet);
-	if (!bRootNet)
-	{
-		return NumActing;
-	}
 
+	// Turmruf (Boris 2026-10-27): her towers grow into their giant form; rooted the call reaches them through the roots and they
+	// fire at once as it arrives
 	AVaelCharacter* Character = GetCharacter();
 	int32 NumTowers = 0;
 	for (TActorIterator<AVaelPlantTower> It(GetWorld()); It; ++It)
@@ -631,18 +824,25 @@ int32 UVaelFloromantComponent::Overgrow()
 		{
 			continue;
 		}
+		++NumTowers;
+		if (!bRootNet)
+		{
+			It->CallUp(Settings->TowerCallSeconds);
+			continue;
+		}
 		TWeakObjectPtr<AVaelPlantTower> Tower = *It;
 		const float Power = Settings->RootWaveTowerPower;
-		AVaelRootRunner::Run(Character, GetFeet(), It->GetActorLocation(), Settings->RootWaveSpeed, FloromantTurquoise, [Tower, Power]()
+		const float Seconds = Settings->TowerCallSeconds;
+		AVaelRootRunner::Run(Character, GetFeet(), It->GetActorLocation(), Settings->RootWaveSpeed, FloromantTurquoise, [Tower, Power, Seconds]()
 		{
 			if (AVaelPlantTower* Reached = Tower.Get())
 			{
+				Reached->CallUp(Seconds);
 				Reached->FireNow(Power);
 			}
 		});
-		++NumTowers;
 	}
-	UE_LOG(LogVael, Log, TEXT("'%s' calls through the root net: %d plants, %d towers"), *GetNameSafe(Character), NumActing, NumTowers);
+	UE_LOG(LogVael, Log, TEXT("'%s' calls her towers%s: %d plants, %d towers"), *GetNameSafe(Character), bRootNet ? TEXT(" through the root net") : TEXT(""), NumActing, NumTowers);
 	return NumActing + NumTowers;
 }
 
@@ -708,6 +908,59 @@ bool UVaelFloromantComponent::RootLeap(const FVector& AimLocation)
 	Character->TeleportTo(To, (-Back).Rotation());
 	Character->SetInvulnerableFor(0.4f);
 	AVaelDebrisBurst::Spawn(Character, To - FVector(0.0f, 0.0f, Character->GetSimpleCollisionHalfHeight()), Earth);
+	return true;
+}
+
+bool UVaelFloromantComponent::RootDive(const FVector& AimLocation)
+{
+	AVaelCharacter* Character = GetCharacter();
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	if (Character == nullptr || !IsRooted())
+	{
+		return false;
+	}
+
+	// Her standing tower within reach nearest to where she aims (Boris 2026-10-27: towers are her anchors now)
+	AVaelPlantTower* Goal = nullptr;
+	float Best = UE_BIG_NUMBER;
+	for (const TWeakObjectPtr<AVaelPlantTower>& Standing : Towers)
+	{
+		if (Standing.IsValid() && Standing->IsStanding() && FVector::Dist2D(Standing->GetActorLocation(), Character->GetActorLocation()) < Settings->LeapRange)
+		{
+			const float Distance = FVector::Dist2D(Standing->GetActorLocation(), AimLocation);
+			if (Distance < Best)
+			{
+				Best = Distance;
+				Goal = Standing.Get();
+			}
+		}
+	}
+	if (Goal == nullptr || !Use(EVaelHUDAbility::RootLeap, Settings->LeapCost))
+	{
+		return false;
+	}
+
+	// Into the ground here, along a root under the earth, out of the ground beside the tower on the side she came from; her roots
+	// grow again where she comes up, so she stays rooted
+	const FVector From = Character->GetActorLocation();
+	const FVector Back = (From - Goal->GetActorLocation()).GetSafeNormal2D();
+	const FVector To = Goal->GetActorLocation() + Back * 90.0f + FVector(0.0f, 0.0f, Character->GetSimpleCollisionHalfHeight());
+
+	FVaelDebris Earth;
+	Earth.Count = 14;
+	Earth.Spread = 30.0f;
+	Earth.Speed = 220.0f;
+	Earth.Lift = 380.0f;
+	Earth.Lifetime = 0.7f;
+	Earth.Color = FLinearColor(0.11f, 0.075f, 0.05f);
+	AVaelDebrisBurst::Spawn(Character, GetFeet(), Earth);
+	AVaelRootRunner::Run(Character, GetFeet(), Goal->GetActorLocation(), Settings->RootWaveSpeed * 2.0f, FloromantTurquoise, []() {});
+
+	Character->TeleportTo(To, (-Back).Rotation());
+	Character->SetInvulnerableFor(0.4f);
+	RootGrowth = FMath::Min(RootGrowth, 0.3f);
+	AVaelDebrisBurst::Spawn(Character, To - FVector(0.0f, 0.0f, Character->GetSimpleCollisionHalfHeight()), Earth);
+	UE_LOG(LogVael, Log, TEXT("'%s' dives through the roots to '%s'"), *GetNameSafe(Character), *GetNameSafe(Goal));
 	return true;
 }
 
@@ -868,7 +1121,9 @@ float UVaelFloromantComponent::GetMoveSpeedScale() const
 	}
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	const float Stance = FMath::Max(GetStance(true), GetStance(false));
-	return FMath::Lerp(1.0f, Settings->FiringMoveSpeedScale, Stance) * FMath::Lerp(1.0f, Settings->RiseMoveSpeedScale, Rise);
+	// Charging the crossed hands, or staggering on after the roots were torn out, she is slower
+	const float Burdened = (bCrossCharging ? Settings->CrossMoveSpeedScale : 1.0f) * (TornTimeLeft > 0.0f ? Settings->TearOutMoveSpeedScale : 1.0f);
+	return FMath::Lerp(1.0f, Settings->FiringMoveSpeedScale, Stance) * FMath::Lerp(1.0f, Settings->RiseMoveSpeedScale, Rise) * Burdened;
 }
 
 void UVaelFloromantComponent::ClearHands()
@@ -943,7 +1198,7 @@ int32 UVaelFloromantComponent::GetNumTowers() const
 	return Count;
 }
 
-void UVaelFloromantComponent::CrossHands(bool bCharged)
+void UVaelFloromantComponent::CrossHands(float Charge)
 {
 	// The arms of both firing hands grow into each other: the pair acts at the player, out of a knot between the hands
 	AVaelCharacter* Character = GetCharacter();
@@ -973,7 +1228,7 @@ void UVaelFloromantComponent::CrossHands(bool bCharged)
 		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "BarsEmpty", "Pflanzenleisten zu leer"), FLinearColor(FColor(158, 143, 125)));
 		return;
 	}
-	if (!Use(EVaelHUDAbility::Placeholder, bCharged ? Settings->CrossChargedSaftCost : Settings->CrossSaftCost))
+	if (!Use(EVaelHUDAbility::Placeholder, FMath::Lerp(Settings->CrossSaftCost, Settings->CrossChargedSaftCost, Charge)))
 	{
 		return;
 	}
@@ -985,7 +1240,7 @@ void UVaelFloromantComponent::CrossHands(bool bCharged)
 	Aim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
 	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
 	const FVector Knot = (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + Aim * 45.0f;
-	VaelSymbiosis::Fire(Character, Kind, Left->GetPlant(), Right->GetPlant(), Knot, Aim, GetHandPower(), bCharged ? 1.0f : 0.0f, bShadow);
+	VaelSymbiosis::Fire(Character, Kind, Left->GetPlant(), Right->GetPlant(), Knot, Aim, GetHandPower(), Charge, bShadow);
 
 	// The knot stays a moment between the hands
 	if (CrossKnot == nullptr)

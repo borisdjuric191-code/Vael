@@ -41,6 +41,9 @@ public:
 	/** Lets it wither and vanish */
 	void Wither();
 
+	/** Turmruf: grows into its giant form for the seconds, taller and firing faster */
+	void CallUp(float Seconds);
+
 	/** Fires at once, stronger, like when the wave of the root net reaches it */
 	void FireNow(float Power);
 
@@ -166,5 +169,9 @@ private:
 
 	/** 0 to 1 while the tower aims at a target; the bud of a Mohnmörser opening at a throw */
 	float AimBlend = 0.0f;
+
+	/** Seconds of the Turmruf left, and how far it has grown into its giant form (0 to 1) */
+	float CallLeft = 0.0f;
+	float Giant = 0.0f;
 	float BudOpen = 0.0f;
 };

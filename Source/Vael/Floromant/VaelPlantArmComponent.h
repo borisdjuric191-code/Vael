@@ -47,6 +47,9 @@ public:
 	/** True while the button is held and the hand is a plant */
 	bool IsFiring() const;
 
+	/** While the hands are crossed for the Kreuzschuss they hold still and aim instead of firing */
+	void SetCrossing(bool bInCrossing) { bCrossing = bInCrossing; }
+
 	/** How far the arm is stretched out to fire, 0 to 1, smoothed; drives the pose */
 	float GetStance() const { return Stance; }
 
@@ -419,6 +422,7 @@ private:
 	void UpdateCharge(float DeltaTime);
 
 	bool bFiring = false;
+	bool bCrossing = false;
 	float FireTime = 0.0f;
 	float FireCountdown = 0.0f;
 	int32 NextFinger = 0;

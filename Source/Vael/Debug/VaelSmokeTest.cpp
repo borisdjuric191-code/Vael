@@ -648,6 +648,56 @@ void AVaelSmokeTest::BeginPlay()
 			Player->SetHero(EVaelHeroClass::Mage, false);
 			return FString::Printf(TEXT("%s%d hedge standing"), Walls > 0 ? TEXT("") : TEXT("FAILED: "), Walls);
 		}, 0.2f });
+
+		// The new controls (Boris 2026-10-27): Square roots her feet, Cross charges the Kreuzschuss for a moment and lets it go
+		Steps.Add({ TEXT("Root and cross"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			UVaelPlantArmData* Vine = LoadObject<UVaelPlantArmData>(nullptr, TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm/DA_Pflanzenarm_Schlotwinde.DA_Pflanzenarm_Schlotwinde"));
+			if (Player == nullptr || Vine == nullptr)
+			{
+				return FString(TEXT("FAILED: no player or no DA_Pflanzenarm_Schlotwinde"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			Floromant->GetHand(true)->SetPlant(Vine);
+			Floromant->GetHand(false)->SetPlant(Vine);
+			Floromant->ToggleRoot();
+			return FString(TEXT("rooting, Schlotwinde on both hands"));
+		}, 1.0f });
+		Steps.Add({ TEXT("Kreuzschuss"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			Floromant->StartCross();
+			const bool bCharging = Floromant->IsCrossCharging();
+			Floromant->ReleaseCross();
+			return FString::Printf(TEXT("%s%s, cross %s"), Floromant->IsRooted() ? TEXT("") : TEXT("FAILED: "), Floromant->IsRooted() ? TEXT("rooted") : TEXT("NOT rooted"),
+				bCharging ? TEXT("charging") : TEXT("NOT charging"));
+		}, 1.0f });
+		Steps.Add({ TEXT("Kreuzschuss done"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			int32 Walls = 0;
+			for (TActorIterator<AVaelVineWall> It(GetWorld()); It; ++It)
+			{
+				++Walls;
+				It->Destroy();
+			}
+			const bool bOk = Walls > 0 && !Floromant->IsCrossCharging();
+			Floromant->ToggleRoot();
+			Player->SetHero(EVaelHeroClass::Mage, false);
+			return FString::Printf(TEXT("%sthe charged cross raised %d hedge"), bOk ? TEXT("") : TEXT("FAILED: "), Walls);
+		}, 0.2f });
 	}
 
 	// The veil monkey leaps onto the player's back and robs them; fire blinds it and the loot comes back

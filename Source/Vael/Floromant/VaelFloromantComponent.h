@@ -15,9 +15,10 @@ class UVaelPlantArmData;
 
 /**
  *  What a player does as Floromant, on its own controls (IMC_Floromant, see AVaelPlayerController):
- *  the hands turn into plants of the seed belt and fire while L1 / R1 are held, Square Dornenpeitsche, Cross Wurzelsprung
- *  to an own plant, L2 + R2 together Ruf des Gartens (plants grow into their giant form). Up to four own plants stand at once.
- *  Sowing, Wurzelgriff and the old call of the garden stay in the code but have no button any more.
+ *  the hands turn into plants of the seed belt and fire while L1 / R1 are held, L2 / R2 plant towers, both together the Turmruf
+ *  (towers grow into their giant form). Since Boris 2026-10-27: Square takes root, Cross the Kreuzschuss (charged while held;
+ *  outside of fights it uses and sows), Circle while rooted dives through the roots to a tower, Triangle tapped swaps the hands.
+ *  Sowing of the own plants, Wurzelgriff, Wurzelsprung to plants and the Dornenpeitsche stay in the code but have no button.
  *  Saft is the mana of the character, shown in its place, and flows back slowly.
  */
 UCLASS()
@@ -57,7 +58,8 @@ public:
 	/** Triangle: leaps to the own plant nearest to the aim point */
 	bool RootLeap(const FVector& AimLocation);
 
-	/** L1 + R1: every plant around grows into its giant form and acts */
+	/** L2 + R2, Turmruf: her towers around grow into their giant form and fire faster (rooted: through the root net, farther),
+	 *  and her own plants around act */
 	int32 Overgrow();
 
 	/** R2: a thorny vine lashes ahead */
@@ -163,9 +165,27 @@ public:
 	/** Towers of this Floromant standing now */
 	int32 GetNumTowers() const;
 
-	/** L1 + R1 + Cross (both mouse buttons + Space): the arms of both firing hands grow together and the pair acts at once
-	 *  (symbiosis at the player); a tap acts fast, holding acts bigger */
-	void CrossHands(bool bCharged);
+	/** The arms of both hands grow together and the pair acts at once (symbiosis at the player); Charge 0 to 1 acts bigger */
+	void CrossHands(float Charge);
+
+	/** Cross (Space), Kreuzschuss (Boris 2026-10-27): pressed, both hands stop firing and grow together, the knot swells; let go
+	 *  (or once the short charge is over if it was let go early) the pair acts, bigger the longer it was held */
+	void StartCross();
+	void ReleaseCross();
+
+	/** True while the hands are crossed and charging; they don't fire meanwhile */
+	bool IsCrossCharging() const { return bCrossCharging; }
+
+	/** Square (F): her feet take root, or let go (Boris 2026-10-27: rooting is a choice now) */
+	void ToggleRoot();
+
+	/** Circle while rooted: dives through the roots to her tower nearest the aim and comes up there still rooted. False if no
+	 *  tower is in reach; then the dodge tears the roots out (TearOut) */
+	bool RootDive(const FVector& AimLocation);
+	void TearOut();
+
+	/** Triangle tapped (R tapped): the plants of both hands change sides */
+	void SwapHands();
 
 	/** Triangle held (R): fills the plant bars of both hands from the Keimpelz pelt, as far as it reaches. Returns the shots reloaded. */
 	int32 ReloadHands();
@@ -232,6 +252,25 @@ private:
 	float StillFiringTime = 0.0f;
 	float RootGrowth = 0.0f;
 	float UprootTimeLeft = -1.0f;
+
+	/** She wants to stand rooted (Square), and seconds she is still slowed after tearing the roots out */
+	bool bRootWanted = false;
+	float TornTimeLeft = 0.0f;
+
+	/** Rooted in rain or by water: shots the bars have gathered towards the next whole one, and when the next drops show */
+	float WetShots = 0.0f;
+	float WetPuffCountdown = 0.0f;
+
+	/** Rooted in rain or by water the earth feeds her: faster Keimpelz, bars filling by themselves */
+	void TickWetRoots(float DeltaTime);
+
+	/** The Kreuzschuss being charged: since when, whether the button is still held */
+	bool bCrossCharging = false;
+	bool bCrossHeld = false;
+	float CrossChargeAge = 0.0f;
+
+	/** Charging the crossed hands, every frame while it runs */
+	void TickCross(float DeltaTime);
 
 	float WingWetness = 0.0f;
 

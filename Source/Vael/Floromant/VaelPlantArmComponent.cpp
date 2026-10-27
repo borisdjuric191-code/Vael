@@ -126,7 +126,7 @@ void UVaelPlantArmComponent::SetFiring(bool bInFiring)
 
 bool UVaelPlantArmComponent::IsFiring() const
 {
-	return bFiring && Plant != nullptr && !bChanging;
+	return bFiring && !bCrossing && Plant != nullptr && !bChanging;
 }
 
 int32 UVaelPlantArmComponent::GetBarShots() const
@@ -676,7 +676,7 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	const bool bMortarHand = Plant->bMortar;
 	const bool bLassoHand = Plant->bLasso;
 	const bool bFiringNow = !bShieldHand && (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr)) || (bMortarHand && (bThrowQueued || ThrowHold > 0.0f))
-		|| (bLassoHand && (!Lassos.IsEmpty() || WhipTime >= 0.0f))) && Grow >= 1.0f;
+		|| (bLassoHand && (!Lassos.IsEmpty() || WhipTime >= 0.0f)) || bCrossing) && Grow >= 1.0f;
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 
 	// A shield hand doesn't aim: the forearm comes up before the face, and the clover overgrows the arm as if it fired

@@ -201,13 +201,13 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> ReloadAction;
 
-	/** Floromant: Wurzelsprung to an own plant, or use what is close by outside of fights (Cross, Space) */
+	/** Floromant: the plants of both hands change sides (Triangle tapped, R tapped) */
 	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> LeapAction;
+	TObjectPtr<UInputAction> SwapAction;
 
-	/** Floromant: Dornenpeitsche (Square, F) */
+	/** Floromant: take root or let go (Square, F) */
 	UPROPERTY(Transient)
-	TObjectPtr<UInputAction> WhipAction;
+	TObjectPtr<UInputAction> RootAction;
 
 	/** Floromant: Herbarium and repertoire (touchpad, Tab) */
 	UPROPERTY(Transient)
@@ -428,17 +428,18 @@ protected:
 	void OnPageBelt(int32 Step);
 	void OnPutOnHand(bool bLeft);
 	void OnReload();
-	void OnLeap();
-	void OnWhip();
+	void OnSwapHands();
+	void OnRoot();
 	void OnHerbarium();
 	void OnRise(bool bPressed);
 
-	/** True while both fire buttons of the Floromant are held; Cross then crosses instead of leaping */
-	bool AreBothHandsHeld() const { return bFireHeld[0] && bFireHeld[1]; }
+	/** True while an enemy is close: then Cross is the Kreuzschuss, otherwise it uses what is close by or sows */
+	bool IsInFight() const;
 
-	/** Which fire buttons are held (left, right), when Cross started crossing (negative while not), and when each tower button was pressed (negative while none waits) */
+	/** Which fire buttons are held (left, right), whether this press of Cross uses or sows instead of crossing, and when each
+	 *  tower button was pressed (negative while none waits) */
 	bool bFireHeld[2] = { false, false };
-	float CrossStartTime = -1.0f;
+	bool bCrossUses = false;
 	float TowerPressTime[2] = { -1.0f, -1.0f };
 
 	/** Sets single towers once the wait for the other tower button is over, or calls the garden if both came */

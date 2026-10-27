@@ -295,7 +295,8 @@ bool AVaelPlantTower::GetTrunk(FVector& OutCenter, FVector& OutBend, float& OutL
 	OutCenter = (GetActorLocation() + Other->GetActorLocation()) * 0.5f;
 	OutBend = Leader->Bend;
 	const float Shown = FMath::Clamp(FMath::Min(Grow, Other->Grow), 0.0f, 1.0f);
-	OutLength = UVaelFloromantSettings::Get()->TowerHeight * TrunkHeightScale * FMath::Sin(Shown * UE_HALF_PI);
+	const float Grown = 1.0f + (UVaelFloromantSettings::Get()->TowerCallSizeScale - 1.0f) * FMath::Max(Giant, Other->Giant);
+	OutLength = UVaelFloromantSettings::Get()->TowerHeight * TrunkHeightScale * FMath::Sin(Shown * UE_HALF_PI) * Grown;
 	return OutFuse > 0.0f;
 }
 
@@ -327,7 +328,8 @@ FVector AVaelPlantTower::GetCrownAxis() const
 FVector AVaelPlantTower::GetOwnCrown() const
 {
 	// The column bends as a bow of constant curve: its length stays, the crown sinks and moves out the more it bends
-	const float Length = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI);
+	const float Length = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI)
+		* (1.0f + (UVaelFloromantSettings::Get()->TowerCallSizeScale - 1.0f) * Giant);
 	const float Angle = Bend.Size();
 	if (Angle < KINDA_SMALL_NUMBER)
 	{
@@ -465,7 +467,8 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 	const bool bActs = !bWithering && Grow >= 1.0f && (Symbiosis == EVaelSymbiosis::None || bLeads);
 	if (bActs)
 	{
-		FireCountdown -= DeltaSeconds;
+		// Called up by the Turmruf it fires faster
+		FireCountdown -= DeltaSeconds * (1.0f + (UVaelFloromantSettings::Get()->TowerCallFireScale - 1.0f) * Giant);
 		if (FireCountdown <= 0.0f)
 		{
 			const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
@@ -500,6 +503,10 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 			VaelSymbiosis::RoseBeat(GetGardener(), Symbiosis, GetActorLocation(), 1.0f, bShadow);
 		}
 	}
+
+	// The giant form of the Turmruf grows in and fades again
+	CallLeft = FMath::Max(0.0f, CallLeft - DeltaSeconds);
+	Giant = FMath::FInterpTo(Giant, CallLeft > 0.0f && !bWithering ? 1.0f : 0.0f, DeltaSeconds, 3.0f);
 
 	UpdatePairCharge(DeltaSeconds);
 	UpdateStalkShots(DeltaSeconds);
@@ -848,7 +855,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	const FVector Base = GetActorLocation();
 	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
 	const FVector Crown = GetCrown();
-	const float Height = FMath::Max(UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(Shown * UE_HALF_PI), 1.0f);
+	const float Height = FMath::Max(UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(Shown * UE_HALF_PI) * (1.0f + (UVaelFloromantSettings::Get()->TowerCallSizeScale - 1.0f) * Giant), 1.0f);
 	const float Time = GetWorld()->GetTimeSeconds();
 
 	// Fused: the shared trunk, how far the column has leaned in (Gather) and how far the twisted trunk has grown up (Top)
@@ -861,7 +868,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	const float Phase = bLeads ? 0.0f : UE_PI;
 
 	// The crown grows bigger in the mixed blossom
-	const float Bloom = Shown * (1.0f + 0.3f * Gather);
+	const float Bloom = Shown * (1.0f + 0.3f * Gather) * (1.0f + 0.3f * Giant);
 
 	// The frame of the crown turns smoothly with the bend of the column (no flip when it stands upright); in the blossom the
 	// second crown turns half a step so the pieces of both plants sit between each other
@@ -997,4 +1004,21 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 			CrownPieces[Index]->SetWorldScale3D(FVector(Size / 10.0f * Bloom));
 		}
 	}
+}
+
+void AVaelPlantTower::CallUp(float Seconds)
+{
+	if (bWithering)
+	{
+		return;
+	}
+	// The pair grows up together, and the call keeps it standing at least that long
+	CallLeft = FMath::Max(CallLeft, Seconds);
+	LifeLeft = FMath::Max(LifeLeft, Seconds);
+	if (AVaelPlantTower* Other = Partner.Get())
+	{
+		Other->CallLeft = FMath::Max(Other->CallLeft, Seconds);
+		Other->LifeLeft = FMath::Max(Other->LifeLeft, Seconds);
+	}
+	VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 2.5f);
 }
