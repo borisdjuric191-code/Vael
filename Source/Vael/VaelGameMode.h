@@ -37,6 +37,10 @@ public:
 	/** Spawns joining players next to the group instead of at the player start */
 	virtual void RestartPlayer(AController* NewPlayer) override;
 
+	/** Spawns the player's figure even where the spot is tight: it is moved out of the way instead of failing (a joining player
+	 *  without a figure could never get one, since Start then counts them as already playing) */
+	virtual APawn* SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform) override;
+
 	/** Notes what a leaving player owns, for the save game */
 	virtual void Logout(AController* Exiting) override;
 

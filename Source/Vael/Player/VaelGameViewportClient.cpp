@@ -45,6 +45,18 @@ bool UVaelGameViewportClient::TryJoinLocalPlayer(FPlatformUserId PlatformUser)
 	}
 
 	// Every device belongs to one platform user and every platform user gets at most one player
+	// A player who joined but got no figure (it found no room) gets one now, beside the group
+	if (const ULocalPlayer* Existing = PlatformUser.IsValid() ? CurrentGameInstance->FindLocalPlayerFromPlatformUserId(PlatformUser) : nullptr)
+	{
+		APlayerController* Controller = Existing->PlayerController;
+		if (Controller != nullptr && Controller->GetPawn() == nullptr)
+		{
+			UE_LOG(LogVael, Log, TEXT("Start pressed by platform user %d: playing without a figure, it is spawned again"), PlatformUser.GetInternalId());
+			CurrentWorld->GetAuthGameMode<AVaelGameMode>()->RestartPlayer(Controller);
+			return true;
+		}
+	}
+
 	if (!PlatformUser.IsValid() || CurrentGameInstance->FindLocalPlayerFromPlatformUserId(PlatformUser) != nullptr)
 	{
 		UE_LOG(LogVael, Log, TEXT("Start pressed by platform user %d: %s"), PlatformUser.GetInternalId(), PlatformUser.IsValid() ? TEXT("already plays") : TEXT("no valid user"));

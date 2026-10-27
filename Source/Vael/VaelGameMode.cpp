@@ -74,11 +74,22 @@ void AVaelGameMode::RestartPlayer(AController* NewPlayer)
 			const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(NewPlayer);
 			const int32 PlayerSlot = VaelController != nullptr ? FMath::Max(VaelController->GetPlayerSlot(), 0) : 0;
 
-			// Each slot gets its own spot around the anchor
-			const float Angle = FMath::DegreesToRadians(90.0f * PlayerSlot);
-			const FVector Offset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * JoinSpawnRadius;
+			// Each slot gets its own spot around the anchor; where rocks or walls stand there, the next free spot around it
+			const APawn* PawnDefaults = GetDefaultPawnClassForController(NewPlayer) != nullptr ? GetDefaultPawnClassForController(NewPlayer)->GetDefaultObject<APawn>() : nullptr;
+			FVector Spot = Anchor->GetActorLocation();
+			for (int32 Try = 0; Try < 8; ++Try)
+			{
+				const float Angle = FMath::DegreesToRadians(90.0f * PlayerSlot + 45.0f * Try);
+				FVector Candidate = Anchor->GetActorLocation() + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * JoinSpawnRadius;
+				if (PawnDefaults == nullptr || GetWorld()->FindTeleportSpot(PawnDefaults, Candidate, Anchor->GetActorRotation()))
+				{
+					Spot = Candidate;
+					break;
+				}
+			}
 
-			RestartPlayerAtTransform(NewPlayer, FTransform(Anchor->GetActorRotation(), Anchor->GetActorLocation() + Offset));
+			RestartPlayerAtTransform(NewPlayer, FTransform(Anchor->GetActorRotation(), Spot));
+			UE_LOG(LogVael, Log, TEXT("'%s' joins at slot %d: %s"), *GetNameSafe(NewPlayer), PlayerSlot, NewPlayer->GetPawn() != nullptr ? TEXT("figure spawned") : TEXT("NO figure"));
 			return;
 		}
 	}
@@ -345,4 +356,19 @@ void AVaelGameMode::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	}
 
 	Super::EndPlay(EndPlayReason);
+}
+
+APawn* AVaelGameMode::SpawnDefaultPawnAtTransform_Implementation(AController* NewPlayer, const FTransform& SpawnTransform)
+{
+	FActorSpawnParameters SpawnInfo;
+	SpawnInfo.Instigator = GetInstigator();
+	SpawnInfo.ObjectFlags |= RF_Transient;
+	SpawnInfo.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	UClass* PawnClass = GetDefaultPawnClassForController(NewPlayer);
+	APawn* ResultPawn = GetWorld()->SpawnActor<APawn>(PawnClass, SpawnTransform, SpawnInfo);
+	if (ResultPawn == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("No figure for '%s' at %s"), *GetNameSafe(NewPlayer), *SpawnTransform.GetLocation().ToCompactString());
+	}
+	return ResultPawn;
 }
