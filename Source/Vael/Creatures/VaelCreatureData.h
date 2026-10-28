@@ -1322,7 +1322,7 @@ public:
 	float WaveLength = 260.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
-	float WaveWidth = 32.0f;
+	float WaveWidth = 42.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float WaveRamp = 110.0f;
@@ -1338,14 +1338,15 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float Acceleration = 3000.0f;
 
-	/** Scale of the crest, body fins and crown while it crawls (on top of their folding in the animation): drawn in
+	/** Scale of the crest, body fins and crown while it crawls (on top of their folding in the animation): drawn in a
+	 *  little as they fade away (M_Pfuhlnatter_Koerper hides them; drawn in further their roots stretch into sheets)
 	 *  completely, the body smooth (Boris 2026-10-28); rearing up, everything spreads (wow); coiled round prey the fins
 	 *  open to FinCoiledScale and the crown fully */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
-	float FinFlatScale = 0.1f;
+	float FinFlatScale = 0.6f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
-	float CrownFlatScale = 0.06f;
+	float CrownFlatScale = 0.65f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
 	float FinCoiledScale = 0.6f;
@@ -1384,11 +1385,16 @@ public:
 	FVector2D CoilHeight = FVector2D(15.0f, 170.0f);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
-	float CoilGap = 22.0f;
+	float CoilGap = 17.0f;
 
 	/** At the top of its coils the head draws back this far from its prey (cm) and looks it in the eyes */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
 	float HeadGap = 50.0f;
+
+	/** How much it raises its head and front while hunting (share of the cobra arch it rears to spit): a low arch, the
+	 *  head carried above the ground; lying still a third of it */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
+	float HeadRaise = 0.28f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.05))
 	float WrapTime = 1.1f;

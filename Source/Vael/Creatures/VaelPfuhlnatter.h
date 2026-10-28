@@ -162,6 +162,13 @@ private:
 	float CoilStartAngle = 0.0f;
 	float CoilSense = 1.0f;
 
+	/** Where its neck was when it began to coil: the head runs from there onto the coil */
+	FVector CoilEntry = FVector::ZeroVector;
+
+	/** Breathing (radians) and the slow shift of the waves while it lies still */
+	float Breath = 0.0f;
+	float IdleShift = 0.0f;
+
 	/** Side it circles its prey on while it waits to strike again */
 	float CircleSide = 1.0f;
 

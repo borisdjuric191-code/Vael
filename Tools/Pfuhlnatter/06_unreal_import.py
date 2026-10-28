@@ -69,6 +69,8 @@ def neu_importieren():
     ui.set_editor_property("import_animations", False)
     ui.set_editor_property("skeleton", eal.load_asset(ZIEL + "/SK_Pfuhlnatter_Skeleton"))
     ui.skeletal_mesh_import_data.set_editor_property("import_morph_targets", False)
+    # The fin mask of 03_skelett.py is in the vertex colour (M_Pfuhlnatter_Koerper hides drawn-in membranes with it)
+    ui.skeletal_mesh_import_data.set_editor_property("vertex_color_import_option", unreal.VertexColorImportOption.REPLACE)
     ui.skeletal_mesh_import_data.set_editor_property("convert_scene", True)
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", os.path.join(EXPORT, "SK_Pfuhlnatter.fbx"))
@@ -95,6 +97,8 @@ def modell():
     ui.set_editor_property("import_animations", True)
     ui.set_editor_property("create_physics_asset", True)
     ui.skeletal_mesh_import_data.set_editor_property("import_morph_targets", False)
+    # The fin mask of 03_skelett.py is in the vertex colour (M_Pfuhlnatter_Koerper hides drawn-in membranes with it)
+    ui.skeletal_mesh_import_data.set_editor_property("vertex_color_import_option", unreal.VertexColorImportOption.REPLACE)
     ui.skeletal_mesh_import_data.set_editor_property("convert_scene", True)
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", os.path.join(EXPORT, "SK_Pfuhlnatter.fbx"))
@@ -135,7 +139,9 @@ def material():
         return
     if skm.get_editor_property("physics_asset") is None:
         unreal.get_editor_subsystem(unreal.SkeletalMeshEditorSubsystem).create_physics_asset(skm)
-    if eal.does_asset_exist(MASTER):
+    if eal.does_asset_exist(ZIEL + "/M_Pfuhlnatter_Koerper"):
+        log("M_Pfuhlnatter_Koerper vorhanden: 09_unreal_koerpermaterial.py setzt es erneut")
+    elif eal.does_asset_exist(MASTER):
         mi_pfad = ZIEL + "/MI_Pfuhlnatter"
         mi = eal.load_asset(mi_pfad) if eal.does_asset_exist(mi_pfad) else unreal.AssetToolsHelpers.get_asset_tools().create_asset(
             "MI_Pfuhlnatter", ZIEL, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())

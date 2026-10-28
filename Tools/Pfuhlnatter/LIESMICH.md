@@ -13,6 +13,7 @@ Alles in Blender selbst gebaut: Skelett, faltbare Flossen, Animationen (Boris 20
 | 06a_unreal_aufraeumen.py | alte Animationen vor einem frischen Import entfernen (Mesh, Skelett, Physik halten sich gegenseitig fest: im Editor löschen) |
 | 07_unreal_giftmaterial.py | M_Pfuhlnatter_Gift (erste Giftpfützen, seit 08 nicht mehr benutzt) |
 | 08_unreal_giftwasser.py | MI_Water_Gift (M_Water in Giftgrün) + DA_ElementSource_Gift (bPoison): Spuckkugeln und Giftpfützen wie das Wasser-Kit |
+| 09_unreal_koerpermaterial.py | M_Pfuhlnatter_Koerper: Tripo-Texturen, Kehlenglühen, blendet eingezogene Flossenhäute über die Vertex-Farbe aus (nach 06 ausführen) |
 | 06_unreal_import.py | Import nach /Game/Vael/Kreaturen/Pfuhlnatter, A_Pfuhlnatter_<Aktion>, MI_Pfuhlnatter (M_Kreatur_Master) |
 
 Blender: `blender -b --factory-startup -P Tools/Pfuhlnatter/<skript>`. Unreal-Skripte bei geschlossenem Editor über

@@ -53,7 +53,7 @@ def main():
     bpy.ops.export_scene.fbx(
         filepath=ziel, use_selection=True, object_types={"ARMATURE", "MESH"},
         apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL",
-        add_leaf_bones=False, mesh_smooth_type="FACE", path_mode="STRIP", embed_textures=False,
+        add_leaf_bones=False, mesh_smooth_type="FACE", path_mode="STRIP", embed_textures=False, colors_type="LINEAR",
         bake_anim=True, bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False,
         bake_anim_force_startend_keying=True, bake_anim_simplify_factor=0.0,
     )

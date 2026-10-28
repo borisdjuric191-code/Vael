@@ -313,6 +313,20 @@ def main():
     bpy.ops.object.vertex_group_limit_total(group_select_mode="ALL", limit=4)
     bpy.ops.object.vertex_group_normalize_all(lock_active=False)
     bpy.ops.object.mode_set(mode="OBJECT")
+
+    # How much of each vertex is fin (its weights on fin and crown bones), as the red of a vertex colour: the body
+    # material hides the membranes while they are drawn in, so no stretched skin is left where they fold away
+    flossen_gruppen = {g.index for g in obj.vertex_groups if g.name.startswith(("flosse_", "krone_"))}
+    farbe = obj.data.color_attributes.new(name="Flosse", type="BYTE_COLOR", domain="POINT")
+    werte = np.zeros(len(obj.data.vertices))
+    for v in obj.data.vertices:
+        werte[v.index] = sum(g.weight for g in v.groups if g.group in flossen_gruppen)
+    # Pale membrane standing out of the body counts too, whatever bone holds it (petals under the throat)
+    werte = np.where(~koerper & (abstand > radius_hier * 1.05) & ~zahn, 1.0, werte)
+    farbe.data.foreach_set("color", np.column_stack([werte, np.zeros_like(werte), np.zeros_like(werte), np.ones_like(werte)]).ravel())
+    obj.data.color_attributes.active_color = farbe
+    obj.data.color_attributes.render_color_index = obj.data.color_attributes.find("Flosse")
+    print("[Pfuhlnatter] Flossenfarbe: %d Vertices mehr Flosse als Koerper" % int((werte > 0.5).sum()))
     mod = obj.modifiers.new("Skelett", "ARMATURE")
     mod.object = arm
     obj.parent = arm

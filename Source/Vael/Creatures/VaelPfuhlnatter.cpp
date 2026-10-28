@@ -237,7 +237,8 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 		const FVector Along = (Path[FMath::Min(Point + 1, Path.Num() - 1)] - Path[FMath::Max(Point - 1, 0)]).GetSafeNormal2D();
 		const FVector Side = FVector::CrossProduct(FVector::UpVector, Along);
 		const float Grow = FMath::SmoothStep(0.0f, Data->WaveRamp * Data->BodyScale, BehindHead) * (1.0f - FMath::Clamp(PathLift[Point] / 20.0f, 0.0f, 1.0f));
-		const float Swing = Data->WaveWidth * Data->BodyScale * Grow * FMath::Sin(2.0f * PI * PathRun[Point] / WaveLength);
+		// Lying still it never freezes: the waves breathe a little wider and narrower and slowly shift along the body
+		const float Swing = Data->WaveWidth * Data->BodyScale * Grow * (1.0f + 0.12f * FMath::Sin(Breath)) * FMath::Sin(2.0f * PI * PathRun[Point] / WaveLength + IdleShift);
 		Wavy[Point] = Path[Point] + Side * Swing + FVector(0.0f, 0.0f, PathLift[Point]);
 	}
 
@@ -282,6 +283,32 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 	if (Rear > 0.0f)
 	{
 		RearUp(Joints);
+	}
+
+	// The tail's tip is never still: it curls slowly to and fro
+	const float Time = GetWorld()->GetTimeSeconds();
+	const int32 TailJoints = FMath::Min(6, NumJoints - 2);
+	for (int32 Joint = 0; Joint < TailJoints; ++Joint)
+	{
+		const FVector Along = (Joints[Joint + 1] - Joints[Joint]).GetSafeNormal2D();
+		const float Tip = FMath::Square(1.0f - static_cast<float>(Joint) / TailJoints);
+		Joints[Joint] += FVector::CrossProduct(FVector::UpVector, Along) * FMath::Sin(Time * 1.7f + Joint * 0.5f) * 14.0f * Data->BodyScale * Tip;
+	}
+
+	// Coiled round its prey, squeezes run along the coils as waves: each turn presses in and lets up after the one before
+	if (State == EVaelSnakeState::Constrict && StateTime > Data->WrapTime)
+	{
+		const float Hold = FMath::Clamp((StateTime - Data->WrapTime) / 0.4f, 0.0f, 1.0f);
+		for (int32 Joint = 0; Joint < NumJoints; ++Joint)
+		{
+			const float Lift = Joints[Joint].Z - GetMesh()->GetComponentLocation().Z;
+			if (Lift > 15.0f)
+			{
+				const FVector In = (CoilCentre - Joints[Joint]).GetSafeNormal2D();
+				const float Press = 0.5f + 0.5f * FMath::Sin(Time * 5.0f - Joint * 0.55f);
+				Joints[Joint] += (In * 5.0f + FVector(0.0f, 0.0f, 2.0f)) * Press * Hold * Data->BodyScale;
+			}
+		}
 	}
 
 	// Into the mesh's space: X and Y where the joints go, Z the height above the ground (added to the pose's own)
@@ -367,6 +394,7 @@ void AVaelPfuhlnatter::EnterState(EVaelSnakeState NewState)
 		CoilStartAngle = FMath::Atan2(FromPrey.Y, FromPrey.X);
 		const float Cross = FVector::CrossProduct(FromPrey.GetSafeNormal2D(), GetActorForwardVector().GetSafeNormal2D()).Z;
 		CoilSense = Cross >= 0.0f ? 1.0f : -1.0f;
+		CoilEntry = GetNeckLocation();
 		break;
 	}
 
@@ -504,14 +532,19 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 			EnterState(EVaelSnakeState::Release);
 			break;
 		}
-		// The head winds up round the prey and the body follows its path into coils; held, they tighten in pulses
-		const float Wound = FMath::Clamp(StateTime / FMath::Max(Data->WrapTime, 0.05f), 0.0f, 1.0f);
-		const float Squeeze = StateTime > Data->WrapTime ? FMath::Abs(FMath::Sin((StateTime - Data->WrapTime) * PI / FMath::Max(Data->SqueezeInterval, 0.1f))) : 0.0f;
-		const float Radius = (Player->GetCapsuleComponent()->GetScaledCapsuleRadius() + Data->CoilGap * Data->BodyScale) * (1.0f - 0.08f * Squeeze);
+		// The head winds up round the prey and the body follows its path into coils (the squeezing waves are laid on in
+		// LayBodyOnPath); it eases into the wrap and out of it, like a body getting going and settling
+		const float Linear = FMath::Clamp(StateTime / FMath::Max(Data->WrapTime, 0.05f), 0.0f, 1.0f);
+		const float Wound = Linear * Linear * (3.0f - 2.0f * Linear) * 0.6f + Linear * 0.4f;
+		const float Radius = Player->GetCapsuleComponent()->GetScaledCapsuleRadius() + Data->CoilGap * Data->BodyScale;
 		const float Angle = CoilStartAngle + CoilSense * Wound * Data->CoilTurns * 2.0f * PI;
-		// At the top the head draws back a little from its prey and looks it in the eyes
+		// At the top the head draws back a little from its prey and looks it in the eyes, swaying slowly
 		const float Back = FMath::SmoothStep(Data->WrapTime, Data->WrapTime + 0.45f, StateTime);
-		Lead = CoilCentre + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * (Radius + Data->HeadGap * Data->BodyScale * Back);
+		const float Sway = FMath::Sin(StateTime * 1.4f) * 0.12f * Back;
+		const FVector OnCoil = CoilCentre + FVector(FMath::Cos(Angle + Sway), FMath::Sin(Angle + Sway), 0.0f) * (Radius + Data->HeadGap * Data->BodyScale * Back);
+		// From where its head was onto the coil, not in one jump
+		const float Join = FMath::SmoothStep(0.0f, 0.2f, StateTime);
+		Lead = FMath::Lerp(CoilEntry, OnCoil, Join);
 		LeadLift = FMath::Lerp(Data->CoilHeight.X, Data->CoilHeight.Y, Wound) * Data->BodyScale;
 		FaceTowards(CoilCentre);
 
@@ -545,7 +578,9 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 		{
 			Prey = FindTarget(Data->AggroRange * 1.2f) != nullptr ? Prey : nullptr;
 		}
-		Rear = StateTime < Down ? FMath::SmoothStep(0.0f, 1.0f, StateTime / FMath::Max(Up, 0.05f)) : 1.0f - FMath::SmoothStep(Down, End, StateTime);
+		// From its hunting arch up into the cobra pose and back down to it
+		Rear = StateTime < Down ? FMath::Lerp(Data->HeadRaise, 1.0f, FMath::SmoothStep(0.0f, 1.0f, StateTime / FMath::Max(Up, 0.05f)))
+			: FMath::Lerp(1.0f, Data->HeadRaise, FMath::SmoothStep(Down, End, StateTime));
 		if (StateTime < Strike)
 		{
 			Thrust = -0.6f * FMath::SmoothStep(Up * 0.5f, Strike, StateTime);
@@ -567,7 +602,7 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 		}
 		if (StateTime >= End || (!Prey.IsValid() && StateTime < Strike))
 		{
-			Rear = 0.0f;
+			Rear = Data->HeadRaise;
 			Thrust = 0.0f;
 			ThroatGlow = 0.0f;
 			StrikeCooldown = RandomInRange(Data->StrikeInterval);
@@ -657,16 +692,29 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	if (!IsDead())
 	{
 		AddPathPoint(Lead, LeadLift);
+
+		// Breathing, and lying still the waves slowly shift along the body as it settles
+		Breath += DeltaSeconds * 0.9f;
+		if (GetVelocity().Size2D() < 20.0f && (State == EVaelSnakeState::Lurk || State == EVaelSnakeState::Hunt))
+		{
+			IdleShift += DeltaSeconds * 0.22f;
+		}
 	}
 	LayBodyOnPath();
 
-	// The head always looks at its prey, whichever way it crawls; coiled, at its face
+	// The head always looks at its prey, whichever way it crawls; coiled, at its face; lying still, it looks about slowly
 	const AActor* Watched = Held.IsValid() ? static_cast<AActor*>(Held.Get()) : Prey.Get();
 	const bool bWatch = Watched != nullptr && !IsDead() && State != EVaelSnakeState::Lurk;
-	LookWeight = FMath::FInterpTo(LookWeight, bWatch ? 1.0f : 0.0f, DeltaSeconds, 4.0f);
-	if (Watched != nullptr)
+	const bool bLookAbout = !bWatch && !IsDead() && State == EVaelSnakeState::Lurk;
+	LookWeight = FMath::FInterpTo(LookWeight, bWatch ? 1.0f : (bLookAbout ? 0.6f : 0.0f), DeltaSeconds, 4.0f);
+	if (Watched != nullptr && bWatch)
 	{
 		LookPoint = Watched->GetActorLocation() + FVector(0.0f, 0.0f, Held.IsValid() ? 70.0f : 0.0f);
+	}
+	else if (bLookAbout)
+	{
+		const float Glance = FMath::Sin(Breath * 0.35f) * 40.0f + FMath::Sin(Breath * 0.9f) * 10.0f;
+		LookPoint = GetNeckLocation() + GetActorForwardVector().RotateAngleAxis(Glance, FVector::UpVector) * 400.0f + FVector(0.0f, 0.0f, 30.0f);
 	}
 	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, LookWeight);
 
@@ -690,10 +738,14 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	{
 		SkinMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ThroatGlow * 3.0f);
 		SkinMaterial->SetVectorParameterValue(TEXT("GlutFarbe"), Data->PoisonColor);
+		// Membranes drawn in fade away (M_Pfuhlnatter_Koerper), so no stretched skin is left where they fold
+		SkinMaterial->SetScalarParameterValue(TEXT("FlossenVerbergen"), FMath::SmoothStep(0.15f, 0.85f, FinDraw));
 	}
 	if (State != EVaelSnakeState::Spit)
 	{
-		Rear = FMath::FInterpTo(Rear, 0.0f, DeltaSeconds, 6.0f);
+		// Hunting it carries its head a little raised, its neck in a low arch; lying still, almost flat
+		const bool bHunting = State == EVaelSnakeState::Hunt || State == EVaelSnakeState::Rush || State == EVaelSnakeState::Wallow;
+		Rear = FMath::FInterpTo(Rear, bHunting ? Data->HeadRaise : (State == EVaelSnakeState::Lurk ? Data->HeadRaise * 0.35f : 0.0f), DeltaSeconds, 3.0f);
 		ThroatGlow = 0.0f;
 	}
 }
