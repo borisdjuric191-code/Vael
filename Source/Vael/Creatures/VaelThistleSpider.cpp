@@ -321,9 +321,7 @@ void AVaelThistleSeedling::BeginPlay()
 {
 	Super::BeginPlay();
 
-	const float Spread = GetData<UVaelThistleSeedlingData>()->SwarmSpread;
-	const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
-	SwarmOffset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * FMath::FRandRange(0.3f, 1.0f) * Spread;
+	PlaceAngle = FMath::FRandRange(0.0f, UE_TWO_PI);
 	LeapCooldown = FMath::FRandRange(0.2f, 0.8f);
 	FireSpreadCountdown = FMath::FRandRange(0.0f, FireSpreadInterval);
 }
@@ -370,6 +368,13 @@ void AVaelThistleSeedling::TickBehavior(float DeltaSeconds)
 		{
 			bLeaping = false;
 			LandPauseLeft = Data->LandPause;
+			PlaceTime = 0.0f;
+			// Its new place is where it landed, a little shifted, so the next leap comes back through from this side
+			if (Target != nullptr)
+			{
+				const FVector Away = GetActorLocation() - Target->GetActorLocation();
+				PlaceAngle = FMath::Atan2(Away.Y, Away.X) + FMath::FRandRange(-0.6f, 0.6f);
+			}
 			if (Legs != nullptr)
 			{
 				Legs->SetCurl(0.0f);
@@ -391,14 +396,28 @@ void AVaelThistleSeedling::TickBehavior(float DeltaSeconds)
 	{
 		return;
 	}
-	if (Distance <= Data->LeapRange && LeapCooldown <= 0.0f && !IsBlinded() && GetCharacterMovement()->IsMovingOnGround())
+	// Its place on the ring around the target; far away it just runs at the target from the side of its place
+	const FVector Place = Target->GetActorLocation() + FVector(FMath::Cos(PlaceAngle), FMath::Sin(PlaceAngle), 0.0f) * Data->SurroundRadius;
+	const float ToPlace = FVector::Dist2D(GetActorLocation(), Place);
+	const bool bAtPlace = ToPlace < 90.0f;
+	if (Distance < Data->SurroundRadius * 1.8f)
+	{
+		PlaceTime += DeltaSeconds;
+	}
+	const bool bReady = LeapCooldown <= 0.0f && !IsBlinded() && GetCharacterMovement()->IsMovingOnGround();
+	if (bReady && Distance <= Data->LeapRange && (bAtPlace || PlaceTime > Data->PlaceTimeout))
 	{
 		StartLeap(Target);
 		return;
 	}
-	// From its own side of the target until close, then straight in
-	const FVector Goal = Distance > Data->LeapRange ? Target->GetActorLocation() + SwarmOffset : Target->GetActorLocation();
-	MoveTowards(Goal, Data->MoveSpeed);
+	if (!bAtPlace)
+	{
+		MoveTowards(Place, Data->MoveSpeed);
+	}
+	else
+	{
+		FaceTowards(Target->GetActorLocation());
+	}
 }
 
 void AVaelThistleSeedling::StartLeap(const AActor* Target)
@@ -408,18 +427,20 @@ void AVaelThistleSeedling::StartLeap(const AActor* Target)
 	const float Distance = Direction.Size();
 	Direction = Direction.GetSafeNormal();
 
-	// Through the target: aim beyond it; the arc lands after LeapTime
+	// Up to chest height and through the target, landing on its other side
 	const float Gravity = -GetCharacterMovement()->GetGravityZ();
-	const FVector Velocity = Direction * ((Distance + Data->LeapOvershoot) / Data->LeapTime) + FVector(0.0f, 0.0f, 0.5f * Gravity * Data->LeapTime);
+	const float Up = FMath::Sqrt(2.0f * Gravity * Data->LeapApex);
+	const float AirTime = 2.0f * Up / Gravity;
+	const float Across = Distance + Data->SurroundRadius * Data->LeapThrough;
 	FaceTowards(Target->GetActorLocation());
-	LaunchCharacter(Velocity, true, true);
+	LaunchCharacter(Direction * (Across / AirTime) + FVector(0.0f, 0.0f, Up), true, true);
 
 	bLeaping = true;
 	++LeapCount;
 	bLeapHit = false;
 	LeapClock = 0.0f;
 	LeapTarget = const_cast<AActor*>(Target);
-	LeapCooldown = Data->LeapTime + RandomInRange(Data->LeapInterval);
+	LeapCooldown = AirTime + RandomInRange(Data->LeapInterval);
 	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
 	{
 		Legs->SetCurl(0.8f);

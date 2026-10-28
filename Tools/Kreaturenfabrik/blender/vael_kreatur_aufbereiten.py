@@ -325,8 +325,8 @@ def passe_vielbeiner_an(obj, tpl, hoerner=True):
     return t
 
 def passe_spinne_an(obj, tpl):
-    """Spinne: sucht die vier Füße einer Seite (+X) im Mesh, nach vorn bis hinten geordnet, setzt die Hüften
-    strahlenförmig um die Brust hinter dem Kopf und das Knie auf den höchsten Punkt des Beins.
+    """Spinne: sucht die vier Füße einer Seite (+X) im Mesh, nach vorn bis hinten geordnet, und folgt jedem Bein von
+    der Brust hinter dem Kopf bis zum Fuß: Hüfte, Knie (höchster Punkt) und Fußgelenk liegen auf seiner Mittellinie.
     Das Modell muss symmetrische Beine haben (vael_beine_spiegeln.py) und nach -Y schauen."""
     import copy
     lo, hi = bbox_welt(obj)
@@ -357,25 +357,43 @@ def passe_spinne_an(obj, tpl):
     t["head"] = [n(Vector((0, kp.y + .14 * L, kp.z))), n(kp)]
     t["body"] = [n(Vector((0, brust.y, lo.z + .40 * H))), n(Vector((0, hi.y - .08 * L, lo.z + .55 * H)))]
 
-    def abstand_xy(q, a, b):
-        a2, b2, q2 = Vector((a.x, a.y)), Vector((b.x, b.y)), Vector((q.x, q.y))
-        ab = b2 - a2; s_ = max(0.0, min(1.0, (q2 - a2).dot(ab) / max(ab.length_squared, 1e-9)))
-        return (q2 - (a2 + ab * s_)).length, s_
+    # Jedes Bein liegt in seinem eigenen Winkelbereich um die Brust. Darin wird seine Mittellinie Scheibe für Scheibe
+    # vom Fuß bis zum Körper gesucht (Median der Punkte, damit einzelne Dornen sie nicht verziehen); Knie = höchster
+    # Punkt der Linie, Hüfte = wo sie im Körper verschwindet. Vorher saßen Knie und Hüfte geschätzt, die Oberschenkel
+    # lagen neben ihren Knochen und verzerrten beim Laufen (Distelspinne, 28. Oktober 2026).
+    def median(werte):
+        werte = sorted(werte); return werte[len(werte) // 2]
 
     t["legs"] = {}
     for i, g in enumerate(gruppen):
         fuss = Vector((g["m"].x, g["m"].y, lo.z))
-        richtung = Vector((fuss.x, fuss.y - brust.y, 0)).normalized()
-        huefte = brust + richtung * (.22 * hw); huefte.z = lo.z + .30 * H
-        kand = []
+        winkel = math.atan2(fuss.y - brust.y, fuss.x - brust.x)
+        r_fuss = math.hypot(fuss.x - brust.x, fuss.y - brust.y)
+        sektor = []
         for q in V:
-            if not (lo.z + .15 * H < q.z < lo.z + .8 * H):
-                continue
-            d, s_ = abstand_xy(q, huefte, fuss)
-            if d < .06 * max(2 * hw, L) and .15 < s_ < .8:
-                kand.append(q)
-        knie = max(kand, key=lambda q: q.z) if kand else huefte.lerp(fuss, .4) + Vector((0, 0, .3 * H))
-        gelenk = knie.lerp(fuss, .55); gelenk.z = max(lo.z + .10 * H, min(gelenk.z, lo.z + .35 * H))
+            d = (math.atan2(q.y - brust.y, q.x - brust.x) - winkel + math.pi) % (2 * math.pi) - math.pi
+            if abs(d) < math.radians(9) and q.x > .1 * hw and q.z < lo.z + .7 * H:
+                sektor.append((math.hypot(q.x - brust.x, q.y - brust.y), q))
+        linie = []
+        scheiben = 14
+        for k in range(scheiben):
+            r0, r1 = r_fuss * k / scheiben, r_fuss * (k + 1) / scheiben
+            lage = [q for r, q in sektor if r0 <= r < r1]
+            if len(lage) >= 3:
+                # Die Unterkante der Scheibe: das Bein, nicht die Dornen und Schuppen darüber
+                tief = sorted(lage, key=lambda q: q.z)[:max(3, len(lage) // 3)]
+                linie.append(Vector((median([q.x for q in tief]), median([q.y for q in tief]), median([q.z for q in tief]))))
+        aussen = [p for p in linie if math.hypot(p.x - brust.x, p.y - brust.y) > .25 * r_fuss]
+        if len(aussen) < 4:
+            log(f"Bein {i + 1}: Mittellinie nicht gefunden – nehme die Schätzung.")
+            richtung = Vector((fuss.x, fuss.y - brust.y, 0)).normalized()
+            huefte = brust + richtung * (.22 * hw); huefte.z = lo.z + .30 * H
+            knie = huefte.lerp(fuss, .4) + Vector((0, 0, .3 * H))
+        else:
+            huefte = aussen[0]
+            knie = max(aussen, key=lambda p: p.z)
+        nach_knie = [p for p in aussen if math.hypot(p.x - brust.x, p.y - brust.y) > math.hypot(knie.x - brust.x, knie.y - brust.y)]
+        gelenk = nach_knie[len(nach_knie) // 2] if nach_knie else knie.lerp(fuss, .55)
         t["legs"][str(i + 1)] = [n(huefte), n(knie), n(gelenk), n(fuss)]
     log(f"Spinnen-Skelett angepasst: {len(t['legs'])} Beinpaare, Brust bei y {n(brust)[1]:.2f}.")
     return t
@@ -672,7 +690,10 @@ def beine_nach_bereich(obj, arm, bereich):
     knie]: Anteile der halben Breite bzw. der Höhe wie in vael_beine_spiegeln.py. Ein Punkt gehört zu den Beinen, wenn
     |x| > mitte und z < knie und (z < unter_koerper oder Abstand zur Hochachse > koerper_radius). Beinpunkte gehören nur
     den Knochen eines Beins ihrer Seite, alle anderen nur Körper und Kopf."""
-    mitte, unter, radius, knie = bereich
+    mitte, unter, radius, knie = bereich[:4]
+    # Optional 5.: so nah (Anteil der halben Breite) muss ein Punkt an einem Beinknochen liegen, um zum Bein zu gehören.
+    # Die Krallendornen der Distelspinne stehen so weit und so hoch ab wie die Knie, gehören aber zum Rumpf.
+    bein_dicke = bereich[4] if len(bereich) > 4 else None
     lo, hi = bbox_welt(obj)
     hw, H = (hi.x - lo.x) / 2, hi.z - lo.z
     cx, cy = (lo.x + hi.x) / 2, (lo.y + hi.y) / 2
@@ -684,6 +705,23 @@ def beine_nach_bereich(obj, arm, bereich):
         ab = b - a; t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-9)))
         return (p - (a + ab * t)).length
 
+    # Pinke/rote Stellen der Textur (die Dornspitzen) gehören nie zum Bein: die Beine sind grüne Stängel
+    rot = set()
+    bild = next((n.image for s in obj.material_slots if s.material and s.material.node_tree
+                 for n in s.material.node_tree.nodes if n.type == "TEX_IMAGE" and n.image and "basecolor" in n.image.name.lower()), None)
+    uv = obj.data.uv_layers.active
+    if bild is not None and uv is not None:
+        import numpy as np
+        bw, bh = bild.size
+        pixel = np.empty(bw * bh * 4, dtype=np.float32)
+        bild.pixels.foreach_get(pixel)
+        pixel = pixel.reshape(bh, bw, 4)
+        for schleife in obj.data.loops:
+            u, w = uv.data[schleife.index].uv
+            r, g, b = pixel[min(max(int(w * bh), 0), bh - 1), min(max(int(u * bw), 0), bw - 1), :3]
+            if r > g + .12 and r > b:
+                rot.add(schleife.vertex_index)
+
     obj.vertex_groups.clear()
     gruppen = {n: obj.vertex_groups.new(name=n) for n in segs}
     obj.vertex_groups.new(name="root")
@@ -691,7 +729,17 @@ def beine_nach_bereich(obj, arm, bereich):
     for v in obj.data.vertices:
         p = owm @ v.co
         x, z = p.x - cx, p.z - lo.z
-        am_bein = abs(x) > mitte * hw and z < knie * H and (z < unter * H or math.hypot(x, p.y - cy) > radius * hw)
+        if bein_dicke is not None:
+            # Die Beinknochen liegen auf der Mittellinie der Beine (passe_spinne_an): was nah an Oberschenkel,
+            # Unterschenkel oder Fuß liegt, ist Bein, auch der Oberschenkel zwischen Rumpf und Knie
+            seite = "L" if x > 0 else "R"
+            # ... aber nichts, was im Rumpf selbst liegt (über seiner Unterkante, innerhalb von 80 % seines Radius):
+            # dort liegen die Flanken mit ihren Dornen dicht an den Oberschenkeln der Hinterbeine
+            im_rumpf = z > unter * H and math.hypot(x, p.y - cy) < .8 * radius * hw
+            am_bein = abs(x) > mitte * hw and z < knie * H and not im_rumpf and v.index not in rot and min(
+                abstand(p, a, b) for n, (a, b) in segs.items() if n.startswith(f"leg_{seite}") and not n.endswith("_coxa")) < bein_dicke * hw
+        else:
+            am_bein = abs(x) > mitte * hw and z < knie * H and (z < unter * H or math.hypot(x, p.y - cy) > radius * hw)
         if am_bein:
             seite = "L" if x > 0 else "R"   # Blick nach -Y: links ist +X
             kandidaten = {n: s for n, s in segs.items() if n.startswith(f"leg_{seite}")}

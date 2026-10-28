@@ -84,9 +84,11 @@ private:
 };
 
 /**
- *  Distelsämling: a seed spider of a burst Distelspinne, the same model small. Runs at the nearest player from its own
- *  side of the swarm, and close to it leaps at the player in an arc, legs tucked, aiming through: touching a player in
- *  the air hurts (Boris 2026-10-28). Lands, crouches a moment, runs on. Burning ones set those near them on fire.
+ *  Distelsämling: a seed spider of a burst Distelspinne, the same model small. The swarm surrounds the nearest player:
+ *  each runs to its own place on a ring around them and leaps from there up to chest height, legs tucked, through the
+ *  player to the other side; touching a player in the air hurts (Boris 2026-10-28). Lands, crouches a moment, takes a
+ *  new place where it landed and leaps back, so a standing player is jumped through from all sides. Burning ones set
+ *  those near them on fire.
  *  Values in UVaelThistleSeedlingData.
  */
 UCLASS()
@@ -115,8 +117,9 @@ private:
 	/** Launches the leap at the target, through it */
 	void StartLeap(const AActor* Target);
 
-	/** Where around its target it runs to, so the swarm surrounds instead of queueing */
-	FVector SwarmOffset = FVector::ZeroVector;
+	/** Its place on the ring around its target (angle in radians) and how long it has been running for it */
+	float PlaceAngle = 0.0f;
+	float PlaceTime = 0.0f;
 	float LeapCooldown = 0.0f;
 	float FireSpreadCountdown = 0.0f;
 

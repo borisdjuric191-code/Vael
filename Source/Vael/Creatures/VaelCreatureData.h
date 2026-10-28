@@ -1538,17 +1538,26 @@ public:
 
 	UVaelThistleSeedlingData();
 
-	/** Within this distance of its target it leaps at it, in cm (Boris 2026-10-28: they jump at the player and through) */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
-	float LeapRange = 380.0f;
+	/** The swarm surrounds its target: each seedling runs to its own place on a ring this far around it, in cm, and
+	 *  leaps from there through the target to the other side, then from there back (Boris 2026-10-28) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 50))
+	float SurroundRadius = 300.0f;
 
-	/** Seconds a leap is in the air */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0.1))
-	float LeapTime = 0.45f;
-
-	/** It aims this far beyond its target, so it flies through, in cm */
+	/** It leaps from where it is once its place takes longer than this to reach, as long as the target is this close, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
-	float LeapOvershoot = 140.0f;
+	float LeapRange = 450.0f;
+
+	/** Seconds it may run for its place before it leaps from where it is */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
+	float PlaceTimeout = 2.0f;
+
+	/** Top of the leap above its feet: chest height of the players, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 10))
+	float LeapApex = 130.0f;
+
+	/** Share of the ring radius it lands beyond its target, on the other side */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
+	float LeapThrough = 0.8f;
 
 	/** Damage when a leaping seedling touches a player, once per leap */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
@@ -1561,10 +1570,6 @@ public:
 	/** Seconds it crouches after landing before it runs on */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
 	float LandPause = 0.35f;
-
-	/** How far the swarm spreads around its target, so they don't all run in one line, in cm */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 0))
-	float SwarmSpread = 120.0f;
 
 	/** A burning seedling sets others within this distance on fire, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Fire", meta = (ClampMin = 0))
