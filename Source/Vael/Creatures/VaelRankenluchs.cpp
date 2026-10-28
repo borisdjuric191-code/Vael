@@ -54,8 +54,9 @@ void AVaelRankenluchs::BeginPlay()
 	}
 	GetBody()->SetVisibility(false);
 	GetMesh()->SetSkeletalMesh(LynxMesh);
+	GetMesh()->SetRelativeScale3D(FVector(Data->BodyScale));
 	MeshBaseZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-	GetMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, MeshBaseZ - Data->AmbushSink), FRotator::ZeroRotator);
+	GetMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, MeshBaseZ - Data->AmbushSink * Data->BodyScale), FRotator::ZeroRotator);
 	GetMesh()->InitAnim(true);
 	Animator = Cast<UVaelSequenceAnimInstance>(GetMesh()->GetAnimInstance());
 
@@ -224,7 +225,7 @@ void AVaelRankenluchs::Move(const FVector& Direction, float Speed)
 	MoveInDirection(Direction, Speed);
 	const bool bRun = Speed > (Data->WalkSpeed + Data->MoveSpeed) * 0.5f;
 	UAnimSequence* Gait = bRun ? RunSequence : WalkSequence;
-	const float Rate = FMath::Clamp(Speed / (bRun ? Data->RunAnimationSpeed : Data->WalkAnimationSpeed), 0.4f, 2.0f);
+	const float Rate = FMath::Clamp(Speed / ((bRun ? Data->RunAnimationSpeed : Data->WalkAnimationSpeed) * Data->BodyScale), 0.4f, 2.0f);
 	PlayAnimation(Gait, true, GaitBlend, Rate);
 	if (Animator != nullptr && Animator->GetCurrent() == Gait)
 	{
@@ -429,7 +430,7 @@ void AVaelRankenluchs::Tick(float DeltaSeconds)
 		SunkTarget = 1.0f - FMath::Clamp(StateTime / FMath::Max(StateDuration * 0.6f, 0.1f), 0.0f, 1.0f);
 	}
 	Sunk = FMath::FInterpTo(Sunk, SunkTarget, DeltaSeconds, State == EVaelLynxState::Waking ? 20.0f : 3.0f);
-	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, MeshBaseZ - Data->AmbushSink * Sunk));
+	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, MeshBaseZ - Data->AmbushSink * Data->BodyScale * Sunk));
 
 	// Light or shadow form after the corruption of its region
 	FormCheckCountdown -= DeltaSeconds;

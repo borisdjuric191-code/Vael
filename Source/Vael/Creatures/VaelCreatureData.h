@@ -1153,7 +1153,12 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UAnimSequence> RunAnimation;
 
-	/** Speeds in cm/s at which the walk and the run animation play at their own pace; faster or slower plays them faster or slower */
+	/** Size of the lynx compared with the model (0.70 m at the shoulder). Boris 2026-10-28: too small to read its crest and vines,
+	 *  so 1.57 makes it 1.1 m at the shoulder and about 2 m long; steps, ambush sinking and the bite grow with it */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0.2))
+	float BodyScale = 1.57f;
+
+	/** Speeds in cm/s at which the walk and the run animation play at their own pace (at the model's size; a bigger lynx takes longer steps) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float WalkAnimationSpeed = 140.0f;
 

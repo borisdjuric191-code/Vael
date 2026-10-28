@@ -1,8 +1,9 @@
-# Puts the creature spawners of the Wurzelforst into L_Wurzelforst_Blockout, at the places of the kit's wf_kreaturen.py:
-# packs of three Rankenluchs in ambush in the thickets beside the trails, pairs of Spannhornkaefer in the Hain and on the
-# Kammweg, single Schleieraffen in the forest, Tauraupen (the light form) in the Hain and Forstsaum and Draculaupen
-# near the Nid spring in the Pfuhlmoor. Each group is one AVaelCreatureSpawner (the creatures appear when the
-# level starts, on the ground found there).
+# Puts the fixed creature spawners of the Wurzelforst into L_Wurzelforst_Blockout, at the places of the kit's
+# wf_kreaturen.py: only the special kinds now, Tauraupen (the light form) in the Hain and Forstsaum and Draculaupen near
+# the Nid spring in the Pfuhlmoor. The common enemies (Rankenluchs, Spannhornkaefer, Schleieraffe) come Diablo-like ahead
+# of the walking group from the encounter director (Scripts/PlaceWurzelforstEncounters.py, Boris 2026-10-28), so their
+# fixed groups are skipped. Each group is one AVaelCreatureSpawner (the creatures appear when the level starts, on the
+# ground found there).
 # Everything it adds is tagged WF_Kreaturen (Outliner folder Wurzelforst/Kreaturen); rerunning replaces only that.
 #
 # Run with the editor closed, after the kit's wf_kreaturen.py:
@@ -18,9 +19,6 @@ KIT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 
 TAG = "WF_Kreaturen"
 FOLDER = "Wurzelforst/Kreaturen"
 ARTEN = {
-    "Rankenluchs": unreal.VaelRankenluchsData,
-    "Spannhornkaefer": unreal.VaelHornBeetleData,
-    "Schleieraffe": unreal.VaelVeilMonkeyData,
     "Tauraupe": unreal.VaelTauraupeData,
     "Draculaupe": unreal.VaelDraculaupeData,
 }
@@ -44,6 +42,8 @@ def main():
     counts = {}
     for i, gruppe in enumerate(data["gruppen"]):
         art = gruppe["art"]
+        if art not in ARTEN:
+            continue
         x, y, z = gruppe["ort"]
         spawner = actors.spawn_actor_from_class(unreal.VaelCreatureSpawner, unreal.Vector(x, y, z + 100.0), unreal.Rotator(0.0, 0.0, 0.0))
         spawner.set_editor_property("creature_kind", ARTEN[art].static_class())
@@ -56,7 +56,7 @@ def main():
 
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL_PATH)
     log("spawners placed: {} groups ({}); {} old ones removed".format(
-        len(data["gruppen"]), ", ".join("{} {}".format(v, k) for k, v in sorted(counts.items())), removed))
+        sum(1 for g in data["gruppen"] if g["art"] in ARTEN), ", ".join("{} {}".format(v, k) for k, v in sorted(counts.items())), removed))
 
 
 main()

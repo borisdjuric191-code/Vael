@@ -287,8 +287,11 @@ UVaelRankenluchsData::UVaelRankenluchsData()
 	// A big cat: quick, not tough; plant through and through, so fire hurts a little more
 	MaxHealth = 90.0f;
 	MoveSpeed = 560.0f;
-	CollisionRadius = 40.0f;
-	CollisionHalfHeight = 45.0f;
+	// For the lynx at BodyScale 1.57 (1.1 m at the shoulder)
+	CollisionRadius = 62.0f;
+	CollisionHalfHeight = 70.0f;
+	BiteRange = 210.0f;
+	PounceRange = FVector2D(320.0f, 800.0f);
 	ElementMultipliers.Add(EVaelElement::Fire, 1.25f);
 	AggroRange = 1800.0f;
 	BodyColor = FLinearColor(0.35f, 0.45f, 0.2f);

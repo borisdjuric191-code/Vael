@@ -6,6 +6,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
+#include "Creatures/VaelEncounterDirector.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -295,6 +296,17 @@ void UVaelCheatManager::VaelScroll(const FString& Elements, float Distance)
 	AVaelFormulaScroll::SpawnScroll(GetWorld(), Ground, ScrollElements, NSLOCTEXT("VaelCheats", "TestScroll", "Test-Schriftrolle"));
 
 	UE_LOG(LogVael, Log, TEXT("VaelScroll: scroll for %s laid out"), *Elements);
+}
+
+void UVaelCheatManager::VaelBegegnung()
+{
+	AVaelEncounterDirector* Director = AVaelEncounterDirector::Get(GetWorld());
+	if (Director == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelBegegnung: this level has no encounter director"));
+		return;
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelBegegnung: %d creatures sent"), Director->SpawnPackNow());
 }
 
 void UVaelCheatManager::VaelKillAll()

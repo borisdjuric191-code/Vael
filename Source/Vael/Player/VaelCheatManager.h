@@ -136,6 +136,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelSpawn(const FString& Kind, int32 Count);
 
+	/** Makes the encounter director of the level send a pack ahead of the group right now */
+	UFUNCTION(Exec)
+	void VaelBegegnung();
+
 	/**
 	 *  Lays a scroll in front of the player, 3 m unless a distance in cm is given, that teaches the formula of the elements, letters as in VaelCast.
 	 *  Example: VaelScroll EEE
