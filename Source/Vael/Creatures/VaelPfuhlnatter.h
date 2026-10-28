@@ -8,6 +8,7 @@
 
 class AVaelCharacter;
 class UAnimSequence;
+class UMaterialInstanceDynamic;
 class UVaelSequenceAnimInstance;
 
 /** What a Pfuhlnatter is doing */
@@ -23,16 +24,21 @@ enum class EVaelSnakeState : uint8
 	/** Winds itself round its prey, which can't move, and squeezes */
 	Constrict,
 	/** Lets go: the coils sink to the ground, then it slithers on */
-	Release
+	Release,
+	/** Rears its front up, trembles with its fins open and its throat glowing, spits a gob of poison and lays down again */
+	Spit,
+	/** Wallows in a puddle of its poison and heals */
+	Wallow
 };
 
 /**
  *  Pfuhlnatter: the sea-serpent-like water snake of the Wurzelforst moor, on the baked animations of SK_Pfuhlnatter.
- *  It always slithers: its head swings along a wavy path and the spine is laid onto the path the head took, so the body
- *  follows every curve like a real snake's; crest and fins lie flat while it crawls. In reach it darts in, coils round
- *  its prey (which can't move meanwhile) and squeezes until it lets go or a hit makes it (co-op rescue).
- *  Values in UVaelPfuhlnatterData. Poison spit (reared, trembling) and wallowing in its puddles come next; then
- *  swimming, growth with age, rain roaming, shedding, brood and taming.
+ *  It always slithers: its head goes straight and calm, the spine is laid onto the path the head took in waves that
+ *  stand on the ground, so the body winds behind it through every curve; crest and fins lie flat while it crawls.
+ *  It picks its attacks: a spit (it rears up like a cobra, trembles with its fins open and its throat glowing, and spits
+ *  a gob of poison that leaves a puddle), or it darts in, coils round its prey (which can't move meanwhile) and squeezes
+ *  until it lets go or a hit makes it (co-op rescue). Hurt, it wallows in a puddle of its poison to heal.
+ *  Values in UVaelPfuhlnatterData. Swimming, growth with age, rain roaming, shedding, brood and taming come later.
  */
 UCLASS()
 class AVaelPfuhlnatter : public AVaelCreature
@@ -57,8 +63,13 @@ public:
 	UFUNCTION(BlueprintPure, Category="Pfuhlnatter")
 	EVaelSnakeState GetSnakeState() const { return State; }
 
-	/** Times it has coiled round prey so far, for tests */
+	/** Times it has coiled round prey, spat and wallowed so far, for tests */
 	int32 GetConstrictCount() const { return ConstrictCount; }
+	int32 GetSpitCount() const { return SpitCount; }
+	int32 GetWallowCount() const { return WallowCount; }
+
+	/** For tests: its next attack is a spit (true) or a coil */
+	void SetNextAttackSpit(bool bSpit) { bNextSpit = bSpit; StrikeCooldown = 0.0f; }
 
 	/** The player it holds right now, if any */
 	AVaelCharacter* GetHeldPlayer() const { return Held.Get(); }
@@ -89,6 +100,18 @@ private:
 	/** Holds or frees the player it coils round */
 	void HoldPlayer(AVaelCharacter* Player);
 	void FreePlayer();
+
+	/** Lifts the front joints off the path into a cobra's arch (Rear 0..1), leaning forward by Thrust (-1 back .. 1 strike) */
+	void RearUp(TArrayView<FVector> Joints) const;
+
+	/** Spits the gob: lobbed from the head to where the prey will be */
+	void SpitPoison();
+
+	/** Its next attack after a strike: spit or coil */
+	void PickNextAttack();
+
+	/** Turns on the spot towards a point, calmly */
+	void TurnTowards(const FVector& Location, float DeltaSeconds);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelSequenceAnimInstance> Animator;
@@ -141,4 +164,25 @@ private:
 
 	/** Side it circles its prey on while it waits to strike again */
 	float CircleSide = 1.0f;
+
+	/** Its body's material, for the glowing throat before a spit */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> SkinMaterial;
+
+	/** How far it is reared (0 lying .. 1 up), and the neck's lean (-1 drawn back .. 1 striking) */
+	float Rear = 0.0f;
+	float Thrust = 0.0f;
+	float ThroatGlow = 0.0f;
+	bool bSpat = false;
+	bool bNextSpit = false;
+	int32 SpitCount = 0;
+
+	/** Fins spread back to their rest pose (0 folded as crawling .. 1 spread) */
+	float FinOpen = 0.0f;
+	TArray<float> FinOpens;
+
+	/** The puddle it wallows in, and where it is in its round through it */
+	TWeakObjectPtr<class AVaelPoisonPuddle> WallowPuddle;
+	float WallowAngle = 0.0f;
+	int32 WallowCount = 0;
 };

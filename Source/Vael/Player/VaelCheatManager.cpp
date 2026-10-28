@@ -8,6 +8,7 @@
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEncounterDirector.h"
 #include "Creatures/VaelRankenluchs.h"
+#include "Creatures/VaelPfuhlnatter.h"
 #include "Creatures/VaelThistleSpider.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -282,6 +283,17 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 			if (FVector::Dist2D(It->GetActorLocation(), Center) < 1500.0f)
 			{
 				It->WakeUp(FMath::FRandRange(0.0f, 0.4f));
+			}
+		}
+	}
+	// "NatterSpuck" makes them spit as their first attack, to watch the rearing, the gob and the puddle
+	if (Name.EndsWith(TEXT("spuck")))
+	{
+		for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
+		{
+			if (FVector::Dist2D(It->GetActorLocation(), Center) < 1500.0f)
+			{
+				It->SetNextAttackSpit(true);
 			}
 		}
 	}

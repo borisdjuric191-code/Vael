@@ -3,13 +3,16 @@
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Animation/AnimSequence.h"
 #include "AnimationRuntime.h"
+#include "Combat/VaelArcShot.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Creatures/VaelCreatureData.h"
+#include "Creatures/VaelPoisonPuddle.h"
 #include "Creatures/VaelSequenceAnimInstance.h"
 #include "Engine/SkeletalMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Player/VaelCharacter.h"
 
 namespace
@@ -108,8 +111,56 @@ void AVaelPfuhlnatter::BeginPlay()
 	}
 	Lead = Neck;
 	LeadLift = 0.0f;
+	FinOpens.Init(0.0f, FinBones.Num());
+	SkinMaterial = GetMesh()->CreateDynamicMaterialInstance(0);
+	PickNextAttack();
 
 	EnterState(EVaelSnakeState::Lurk);
+}
+
+void AVaelPfuhlnatter::PickNextAttack()
+{
+	bNextSpit = FMath::FRand() < GetData<UVaelPfuhlnatterData>()->SpitChance;
+}
+
+void AVaelPfuhlnatter::RearUp(TArrayView<FVector> Joints) const
+{
+	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
+	const int32 NumJoints = Joints.Num();
+	const int32 Count = FMath::Clamp(Data->RearJoints, 2, NumJoints - 1);
+	const int32 Base = NumJoints - 1 - Count;
+	// The arch rises steeply from its base and bends forward at the top like a cobra's; it leans back to draw breath
+	// and forward to strike, and quivers a little
+	const FVector Ahead = (LookWeight > 0.1f ? LookPoint - Joints[Base] : Joints[NumJoints - 1] - Joints[Base]).GetSafeNormal2D();
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+	const float Time = GetWorld()->GetTimeSeconds();
+	FVector Point = Joints[Base];
+	for (int32 Step = 1; Step <= Count; ++Step)
+	{
+		const float Along = static_cast<float>(Step) / Count;
+		const float Pitch = FMath::Lerp(82.0f, -8.0f, FMath::Pow(Along, 1.1f)) - Thrust * 32.0f * Along;
+		const FVector Direction = (Ahead * FMath::Cos(FMath::DegreesToRadians(Pitch)) + FVector::UpVector * FMath::Sin(FMath::DegreesToRadians(Pitch))).GetSafeNormal();
+		Point += Direction * SpineLengths[Base + Step - 1];
+		const FVector Quiver = Side * FMath::Sin(Time * 2.0f * PI * 11.0f + Step) * 1.2f * Along * Rear;
+		Joints[Base + Step] = FMath::Lerp(Joints[Base + Step], Point + Quiver, FMath::SmoothStep(0.0f, 1.0f, Rear));
+	}
+}
+
+void AVaelPfuhlnatter::SpitPoison()
+{
+	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
+	AActor* Target = Prey.Get();
+	if (Target == nullptr)
+	{
+		return;
+	}
+	// From the mouth to where the prey will be when the gob comes down
+	const FVector Mouth = GetMesh()->GetSocketLocation(TEXT("kopf")) + GetActorForwardVector() * 30.0f;
+	const FVector Landing = Target->GetActorLocation() + Target->GetVelocity() * FVector(1.0f, 1.0f, 0.0f) * Data->SpitFlightTime * Data->SpitLeadShare;
+	const FLinearColor Color = Data->PoisonColor;
+	AVaelArcShot::Lob(GetWorld(), Mouth, Landing, Data->SpitFlightTime, Data->SpitApex, Color, 26.0f);
+	AVaelPoisonPuddle::Spit(GetWorld(), Landing, Data->SpitFlightTime, this);
+	++SpitCount;
 }
 
 void AVaelPfuhlnatter::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -217,6 +268,10 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 		}
 		Joints[Joint] = Current;
 	}
+	if (Rear > 0.0f)
+	{
+		RearUp(Joints);
+	}
 
 	// Into the mesh's space: X and Y where the joints go, Z the height above the ground (added to the pose's own)
 	const FTransform& ToWorld = GetMesh()->GetComponentTransform();
@@ -294,6 +349,15 @@ void AVaelPfuhlnatter::EnterState(EVaelSnakeState NewState)
 		FreePlayer();
 		break;
 
+	case EVaelSnakeState::Spit:
+		bSpat = false;
+		break;
+
+	case EVaelSnakeState::Wallow:
+		++WallowCount;
+		WallowAngle = FMath::FRandRange(0.0f, 2.0f * PI);
+		break;
+
 	default:
 		break;
 	}
@@ -345,7 +409,21 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 		}
 		NoPreyTime = 0.0f;
 		const FVector ToPrey = (Target->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
-		if (StrikeCooldown <= 0.0f && Distance <= Data->RushRange && !IsBlinded())
+		if (StrikeCooldown <= 0.0f && GetMaxHealth() > 0.0f && GetHealth() < Data->WallowHealthShare * GetMaxHealth())
+		{
+			// Hurt: off to a puddle of its poison to heal, if there is one
+			if (AVaelPoisonPuddle* Puddle = AVaelPoisonPuddle::FindNearest(GetWorld(), GetActorLocation(), Data->WallowRange))
+			{
+				WallowPuddle = Puddle;
+				EnterState(EVaelSnakeState::Wallow);
+				break;
+			}
+		}
+		if (StrikeCooldown <= 0.0f && bNextSpit && Distance >= Data->SpitRange.X && Distance <= Data->SpitRange.Y && !IsBlinded())
+		{
+			EnterState(EVaelSnakeState::Spit);
+		}
+		else if (StrikeCooldown <= 0.0f && (!bNextSpit || Distance < Data->SpitRange.X) && Distance <= Data->RushRange && !IsBlinded())
 		{
 			EnterState(EVaelSnakeState::Rush);
 		}
@@ -424,9 +502,99 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 		{
 			StrikeCooldown = RandomInRange(Data->StrikeInterval);
 			CircleSide = FMath::RandBool() ? 1.0f : -1.0f;
+			PickNextAttack();
 			EnterState(EVaelSnakeState::Hunt);
 		}
 		break;
+
+	case EVaelSnakeState::Spit:
+	{
+		// Rears up, draws back trembling while its throat glows, strikes forward and spits, holds, lays down
+		const float Up = Data->RearTime;
+		const float Strike = Up + Data->TellTime;
+		const float Down = Strike + 0.5f;
+		const float End = Down + 0.45f;
+		if (Prey.IsValid() && StateTime < Strike)
+		{
+			Prey = FindTarget(Data->AggroRange * 1.2f) != nullptr ? Prey : nullptr;
+		}
+		Rear = StateTime < Down ? FMath::SmoothStep(0.0f, 1.0f, StateTime / FMath::Max(Up, 0.05f)) : 1.0f - FMath::SmoothStep(Down, End, StateTime);
+		if (StateTime < Strike)
+		{
+			Thrust = -0.6f * FMath::SmoothStep(Up * 0.5f, Strike, StateTime);
+			ThroatGlow = FMath::SmoothStep(Up * 0.6f, Strike, StateTime);
+		}
+		else
+		{
+			Thrust = StateTime < Strike + 0.12f ? FMath::Lerp(-0.6f, 1.0f, (StateTime - Strike) / 0.12f) : FMath::Lerp(1.0f, 0.0f, FMath::Clamp((StateTime - Strike - 0.12f) / 0.4f, 0.0f, 1.0f));
+			ThroatGlow = FMath::Max(0.0f, 1.0f - (StateTime - Strike) / 0.3f);
+		}
+		if (AActor* Target = Prey.Get())
+		{
+			TurnTowards(Target->GetActorLocation(), DeltaSeconds);
+		}
+		if (!bSpat && StateTime >= Strike + 0.08f)
+		{
+			bSpat = true;
+			SpitPoison();
+		}
+		if (StateTime >= End || (!Prey.IsValid() && StateTime < Strike))
+		{
+			Rear = 0.0f;
+			Thrust = 0.0f;
+			ThroatGlow = 0.0f;
+			StrikeCooldown = RandomInRange(Data->StrikeInterval);
+			CircleSide = FMath::RandBool() ? 1.0f : -1.0f;
+			PickNextAttack();
+			EnterState(EVaelSnakeState::Hunt);
+		}
+		break;
+	}
+
+	case EVaelSnakeState::Wallow:
+	{
+		AVaelPoisonPuddle* Puddle = WallowPuddle.Get();
+		if (Puddle == nullptr || Puddle->GetPoisonState() != EVaelPoisonState::Liquid || StateTime > Data->WallowTime + 4.0f
+			|| GetHealth() >= GetMaxHealth())
+		{
+			StrikeCooldown = RandomInRange(Data->StrikeInterval) * 0.5f;
+			EnterState(EVaelSnakeState::Hunt);
+			break;
+		}
+		const FVector Middle = Puddle->GetMiddle();
+		if (!Puddle->Covers(GetActorLocation(), 20.0f))
+		{
+			// On its way there
+			Slither(Middle - GetActorLocation(), Data->RushSpeed * 0.8f, DeltaSeconds);
+			break;
+		}
+		// Rolls round through the poison and soaks it up
+		WallowAngle += DeltaSeconds * 1.6f;
+		const float Round = FMath::Max(Puddle->GetRadius() * 0.45f, 60.0f);
+		Slither(Middle + FVector(FMath::Cos(WallowAngle), FMath::Sin(WallowAngle), 0.0f) * Round - GetActorLocation(), Data->CrawlSpeed * 0.6f, DeltaSeconds);
+		const float Got = Puddle->Drain(Data->WallowDrainPerSecond * DeltaSeconds);
+		if (Got > 0.0f)
+		{
+			UVaelCombatStatics::Heal(this, Data->HealPerSecond * DeltaSeconds * (Puddle->IsCorrupted() ? Data->CorruptHealMultiplier : 1.0f));
+		}
+		if (StateTime > Data->WallowTime)
+		{
+			StrikeCooldown = RandomInRange(Data->StrikeInterval) * 0.5f;
+			EnterState(EVaelSnakeState::Hunt);
+		}
+		break;
+	}
+	}
+}
+
+void AVaelPfuhlnatter::TurnTowards(const FVector& Location, float DeltaSeconds)
+{
+	const FVector To = (Location - GetActorLocation()).GetSafeNormal2D();
+	if (!To.IsNearlyZero())
+	{
+		const float Step = 180.0f * DeltaSeconds;
+		const float Delta = FMath::Clamp(FMath::FindDeltaAngleDegrees(GetActorRotation().Yaw, To.Rotation().Yaw), -Step, Step);
+		SetActorRotation(FRotator(0.0f, GetActorRotation().Yaw + Delta, 0.0f));
 	}
 }
 
@@ -475,15 +643,32 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	}
 	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, LookWeight);
 
-	// Crest and fins lie flat while it crawls; coiled round prey the crown opens again
-	const float DrawTarget = State == EVaelSnakeState::Constrict ? 0.0f : 1.0f;
-	FinDraw = FMath::FInterpTo(FinDraw, DrawTarget, DeltaSeconds, 5.0f);
+	// Crest and fins lie flat while it crawls; coiled round prey the crown opens again; reared to spit, everything
+	// spreads and quivers
+	const bool bReared = State == EVaelSnakeState::Spit && Rear > 0.3f;
+	const float DrawTarget = State == EVaelSnakeState::Constrict || bReared ? 0.0f : 1.0f;
+	FinDraw = FMath::FInterpTo(FinDraw, DrawTarget, DeltaSeconds, bReared ? 8.0f : 5.0f);
+	FinOpen = FMath::FInterpTo(FinOpen, bReared ? 1.0f : (State == EVaelSnakeState::Constrict ? 0.5f : 0.0f), DeltaSeconds, bReared ? 6.0f : 4.0f);
 	for (int32 Index = 0; Index < FinBones.Num(); ++Index)
 	{
 		const float Flat = FinIsCrown[Index] ? Data->CrownFlatScale : Data->FinFlatScale;
-		FinScales[Index] = FMath::Lerp(FinIsCrown[Index] ? 1.0f : Data->FinCoiledScale, Flat, FinDraw);
+		const float Spread = bReared || FinIsCrown[Index] ? 1.0f : Data->FinCoiledScale;
+		FinScales[Index] = FMath::Lerp(Spread, Flat, FinDraw);
+		FinOpens[Index] = FinIsCrown[Index] || bReared ? FinOpen : 0.0f;
 	}
-	Animator->SetBoneScales(FinBones, FinScales);
+	Animator->SetBoneScales(FinBones, FinScales, FinOpens, Data->TrembleAngle * FinOpen * (bReared ? 1.0f : 0.0f), GetWorld()->GetTimeSeconds());
+
+	// The throat glows in the poison's colour before it spits
+	if (SkinMaterial != nullptr)
+	{
+		SkinMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ThroatGlow * 3.0f);
+		SkinMaterial->SetVectorParameterValue(TEXT("GlutFarbe"), Data->PoisonColor);
+	}
+	if (State != EVaelSnakeState::Spit)
+	{
+		Rear = FMath::FInterpTo(Rear, 0.0f, DeltaSeconds, 6.0f);
+		ThroatGlow = 0.0f;
+	}
 }
 
 void AVaelPfuhlnatter::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)

@@ -15,6 +15,7 @@
 #include "Nature/VaelHarvestable.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
+#include "Creatures/VaelPoisonPuddle.h"
 #include "World/VaelAtmosphere.h"
 #include "World/VaelWorldSettings.h"
 
@@ -100,6 +101,8 @@ int32 UVaelCombatStatics::ApplySpellHitInRadius(AActor* Attacker, const FVector&
 	// Plants that burst on a hit, like the Aschblase, are caught by blasts as well
 	AVaelHarvestable::NotifySpellImpact(World, Center, Radius, Hit.Element);
 	UVaelAtmosphere::NotifySpellImpact(World, Center, Radius, Hit.Element);
+	// Poison puddles of the Pfuhlnatter: water washes them away, ice freezes them, fire boils them off
+	AVaelPoisonPuddle::NotifySpellImpact(World, Center, Radius, Hit);
 
 	TArray<FOverlapResult> Overlaps;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelSpellRadius), false, Attacker);

@@ -66,10 +66,13 @@ void UVaelSequenceAnimInstance::SetLookAt(const FVector& Point, float MaxAngle, 
 	LookWeight = FMath::Clamp(Weight, 0.0f, 1.0f);
 }
 
-void UVaelSequenceAnimInstance::SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales)
+void UVaelSequenceAnimInstance::SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales, const TArray<float>& Opens, float Tremble, float Time)
 {
 	ScaledBones = Bones;
 	BoneScales = Scales;
+	BoneOpens = Opens;
+	TrembleAngle = Tremble;
+	TrembleTime = Time;
 }
 
 bool UVaelSequenceAnimInstance::IsFinished() const
@@ -111,6 +114,9 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	LookWeight = Instance->LookWeight;
 	ScaledBones = Instance->ScaledBones;
 	BoneScales = Instance->BoneScales;
+	BoneOpens = Instance->BoneOpens;
+	TrembleAngle = Instance->TrembleAngle;
+	TrembleTime = Instance->TrembleTime;
 }
 
 void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
@@ -125,10 +131,26 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 	for (int32 Index = 0; Index < ScaledBones.Num() && Index < BoneScales.Num(); ++Index)
 	{
 		const FCompactPoseBoneIndex Bone = Find(ScaledBones[Index]);
-		if (Bone.IsValid())
+		if (!Bone.IsValid())
 		{
-			Pose[Bone].SetScale3D(Pose[Bone].GetScale3D() * BoneScales[Index]);
+			continue;
 		}
+		FTransform& Local = Pose[Bone];
+		const float Open = BoneOpens.IsValidIndex(Index) ? BoneOpens[Index] : 0.0f;
+		if (Open > 0.0f)
+		{
+			// Spread back towards the reference pose, scale and all
+			const FTransform& Rest = Pose.GetRefPose(Bone);
+			Local.SetRotation(FQuat::Slerp(Local.GetRotation(), Rest.GetRotation(), Open).GetNormalized());
+			Local.SetScale3D(FMath::Lerp(Local.GetScale3D(), Rest.GetScale3D(), Open));
+		}
+		if (TrembleAngle > 0.0f)
+		{
+			// Each fin its own fast, uneven shake
+			const float Shake = FMath::DegreesToRadians(TrembleAngle) * (FMath::Sin(TrembleTime * UE_TWO_PI * 13.0f + Index * 1.7f) + 0.5f * FMath::Sin(TrembleTime * UE_TWO_PI * 21.0f + Index));
+			Local.SetRotation((Local.GetRotation() * FQuat(FVector::XAxisVector, Shake) * FQuat(FVector::ZAxisVector, Shake * 0.6f)).GetNormalized());
+		}
+		Local.SetScale3D(Local.GetScale3D() * BoneScales[Index]);
 	}
 
 	if (SpineWeight <= 0.0f || SpineBones.Num() < 2 || SpineBones.Num() != SpineTargets.Num())

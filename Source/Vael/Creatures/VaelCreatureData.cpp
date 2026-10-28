@@ -319,6 +319,7 @@ UVaelPfuhlnatterData::UVaelPfuhlnatterData()
 	BiteAnimation = Animation(TEXT("Biss"));
 	LowerAnimation = Animation(TEXT("Ablegen"));
 	DeathAnimation = Animation(TEXT("Tod"));
+	PuddleMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(FString(Folder) + TEXT("M_Pfuhlnatter_Gift.M_Pfuhlnatter_Gift")));
 
 	// Big and tough, but slow on land; a moor animal, so water hardly hurts it
 	MaxHealth = 150.0f;

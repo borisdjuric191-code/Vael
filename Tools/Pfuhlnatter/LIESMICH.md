@@ -11,6 +11,7 @@ Alles in Blender selbst gebaut: Skelett, faltbare Flossen, Animationen (Boris 20
 | 04_animationen.py | Kriechen, Schwimmen, Aufrichten, Kampf, Spucken, Biss, Ablegen, Tod (30 Bilder/s) |
 | 05_export.py | export/SK_Pfuhlnatter.fbx + Tripo-Texturen |
 | 06a_unreal_aufraeumen.py | vor einem Neuimport: alten eigenen Import (Mesh, Skelett, Physik, Animationen) entfernen |
+| 07_unreal_giftmaterial.py | M_Pfuhlnatter_Gift: Material der Giftpfützen (Farbe, Leuchten, Rauheit; welliger weicher Rand) |
 | 06_unreal_import.py | Import nach /Game/Vael/Kreaturen/Pfuhlnatter, A_Pfuhlnatter_<Aktion>, MI_Pfuhlnatter (M_Kreatur_Master) |
 
 Blender: `blender -b --factory-startup -P Tools/Pfuhlnatter/<skript>`. Unreal-Skripte bei geschlossenem Editor über

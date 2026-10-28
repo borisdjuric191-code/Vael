@@ -5,6 +5,7 @@
 #include "Components/PointLightComponent.h"
 #include "Components/SphereComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Creatures/VaelPoisonPuddle.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
@@ -1943,6 +1944,9 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 
 		// and the air: fire heats it, water wets it
 		UVaelAtmosphere::NotifySpellImpact(this, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit.Element : Hit.Element);
+
+		// and the poison puddles of the Pfuhlnatter: water washes them away, ice freezes them, fire boils them off
+		AVaelPoisonPuddle::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit : Hit);
 	}
 
 	if (ImpactRadius > 0.0f)

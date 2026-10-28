@@ -37,6 +37,9 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 	float LookWeight = 0.0f;
 	TArray<FName> ScaledBones;
 	TArray<float> BoneScales;
+	TArray<float> BoneOpens;
+	float TrembleAngle = 0.0f;
+	float TrembleTime = 0.0f;
 };
 
 /**
@@ -81,8 +84,10 @@ public:
 	 *  its forward is the way it points in the reference pose's X. Weight 0 leaves it alone */
 	void SetLookAt(const FVector& Point, float MaxAngle, float Weight);
 
-	/** Scales bones on top of the sequence (fins drawn in further); an empty list scales nothing */
-	void SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales);
+	/** Scales bones on top of the sequence (fins drawn in further) and turns them back towards their reference pose by
+	 *  Opens (0 as the sequence has them, 1 as in the reference pose: fins spread), quivering by TrembleAngle degrees
+	 *  (each bone its own uneven shake at Time seconds); an empty list changes nothing */
+	void SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales, const TArray<float>& Opens, float Tremble, float Time);
 
 protected:
 
@@ -119,4 +124,7 @@ private:
 	float LookWeight = 0.0f;
 	TArray<FName> ScaledBones;
 	TArray<float> BoneScales;
+	TArray<float> BoneOpens;
+	float TrembleAngle = 0.0f;
+	float TrembleTime = 0.0f;
 };

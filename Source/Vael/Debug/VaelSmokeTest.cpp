@@ -20,6 +20,7 @@
 #include "Creatures/VaelVeilMonkey.h"
 #include "Creatures/VaelThistleSpider.h"
 #include "Creatures/VaelPfuhlnatter.h"
+#include "Creatures/VaelPoisonPuddle.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelRockWall.h"
@@ -206,6 +207,38 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = Mesh != nullptr && Snake->GetConstrictCount() > 0;
 			return FString::Printf(TEXT("%smesh %s, state %s, %d coils"), bOk ? TEXT("") : TEXT("FAILED: "), Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"),
 				*StaticEnum<EVaelSnakeState>()->GetNameStringByValue(static_cast<int64>(Snake->GetSnakeState())), Snake->GetConstrictCount());
+		}, 0.1f });
+		Steps.Add({ TEXT("Pfuhlnatter spit"), [this]()
+		{
+			for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
+			{
+				It->SetNextAttackSpit(true);
+			}
+			return FString(TEXT("next attack: spit"));
+		}, 7.0f });
+		Steps.Add({ TEXT("Pfuhlnatter poison"), [this]()
+		{
+			int32 Spits = 0;
+			for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
+			{
+				Spits += It->GetSpitCount();
+			}
+			const int32 Puddles = AVaelPoisonPuddle::CountPuddles(GetWorld());
+			// Fire on a puddle boils it off into a cloud
+			bool bCloud = false;
+			for (TActorIterator<AVaelPoisonPuddle> It(GetWorld()); It; ++It)
+			{
+				if (It->GetPoisonState() == EVaelPoisonState::Liquid)
+				{
+					FVaelSpellHit Fire;
+					Fire.Element = EVaelElement::Fire;
+					AVaelPoisonPuddle::NotifySpellImpact(GetWorld(), It->GetMiddle(), 50.0f, Fire);
+					bCloud = It->GetPoisonState() == EVaelPoisonState::Cloud;
+					break;
+				}
+			}
+			const bool bOk = Spits > 0 && Puddles > 0 && bCloud;
+			return FString::Printf(TEXT("%s%d spits, %d puddles, fire: %s"), bOk ? TEXT("") : TEXT("FAILED: "), Spits, Puddles, bCloud ? TEXT("poison cloud") : TEXT("NO cloud"));
 		}, 0.1f });
 	}
 

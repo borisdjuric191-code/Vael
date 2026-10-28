@@ -1404,6 +1404,110 @@ public:
 	/** Without a target this long it slithers home and lies still, in seconds */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
 	float LoseInterestTime = 5.0f;
+
+	/** Spitting: when its next attack is a spit, it spits at prey between these distances (cm); otherwise, or closer,
+	 *  it darts in to coil. This share of its attacks are spits */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit")
+	FVector2D SpitRange = FVector2D(320.0f, 1100.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0, ClampMax = 1))
+	float SpitChance = 0.5f;
+
+	/** It rears its front up (this many joints behind the head, the head this high above the ground in cm) in RearTime
+	 *  seconds, trembles with its fins open and its throat glowing for TellTime, spits, and lays down again */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 2))
+	int32 RearJoints = 9;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0))
+	float RearTime = 0.45f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0))
+	float TellTime = 0.8f;
+
+	/** How far the fins quiver while it stands reared, in degrees */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0))
+	float TrembleAngle = 6.0f;
+
+	/** The gob flies this long in an arc this high (cm) and lands where its prey will be (its speed times LeadShare of the flight) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0.1))
+	float SpitFlightTime = 0.75f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0))
+	float SpitApex = 160.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0, ClampMax = 1))
+	float SpitLeadShare = 0.5f;
+
+	/** Poison: the colour, in a corrupted region (at CorruptPoisonCorruption percent and above) and frozen */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
+	FLinearColor PoisonColor = FLinearColor(0.24f, 0.5f, 0.03f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
+	FLinearColor CorruptPoisonColor = FLinearColor(0.36f, 0.05f, 0.62f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
+	FLinearColor FrozenPoisonColor = FLinearColor(0.55f, 0.8f, 1.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0, ClampMax = 100))
+	float CorruptPoisonCorruption = 55.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
+	TSoftObjectPtr<UMaterialInterface> PuddleMaterial;
+
+	/** A gob splashes everyone this close where it lands (cm) and leaves poison for a blob of BlobRadius (cm); more poison
+	 *  on the same spot makes the blob bigger (radius with the square root). Poison seeps away at SeepPerSecond */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float SplashRadius = 140.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float SplashDamage = 10.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 10))
+	float BlobRadius = 120.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float SeepPerSecond = 0.035f;
+
+	/** Players standing in a puddle take this much poison damage per second */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float PuddleDamagePerSecond = 6.0f;
+
+	/** Water leaves this share of the poison; ice freezes it for FreezeTime seconds; fire boils it off into a cloud this
+	 *  many puddle radii wide that hurts everyone in it, snakes too, for CloudTime seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0, ClampMax = 1))
+	float WashShare = 0.25f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float FreezeTime = 10.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float CloudScale = 1.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float CloudTime = 3.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float CloudDamagePerSecond = 14.0f;
+
+	/** Below this share of its health it wallows in a puddle of its poison within WallowRange (cm), if there is one, for
+	 *  WallowTime seconds: it heals HealPerSecond (CorruptHealMultiplier times in violet poison) and uses up the poison */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wallow", meta = (ClampMin = 0, ClampMax = 1))
+	float WallowHealthShare = 0.6f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wallow", meta = (ClampMin = 0))
+	float WallowRange = 1500.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wallow", meta = (ClampMin = 0))
+	float WallowTime = 4.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wallow", meta = (ClampMin = 0))
+	float HealPerSecond = 9.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wallow", meta = (ClampMin = 1))
+	float CorruptHealMultiplier = 1.8f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Wallow", meta = (ClampMin = 0))
+	float WallowDrainPerSecond = 0.15f;
 };
 
 /**
