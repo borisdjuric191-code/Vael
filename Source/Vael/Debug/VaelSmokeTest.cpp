@@ -191,7 +191,16 @@ void AVaelSmokeTest::BeginPlay()
 	// The Pfuhlnatter: its baked mesh and animations load, it slithers up and coils round the player
 	if (Only.IsEmpty())
 	{
-		Steps.Add({ TEXT("Pfuhlnatter arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelPfuhlnatterData>(), 1); }, 8.0f });
+		Steps.Add({ TEXT("Pfuhlnatter arena"), [this]()
+		{
+			const FString Result = PrepareArena(GetMutableDefault<UVaelPfuhlnatterData>(), 1);
+			// Its first attack picks spit or coil at random: here it coils, the spit has its own step
+			for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
+			{
+				It->SetNextAttackSpit(false);
+			}
+			return Result;
+		}, 8.0f });
 		Steps.Add({ TEXT("Pfuhlnatter"), [this]()
 		{
 			AVaelPfuhlnatter* Snake = nullptr;
