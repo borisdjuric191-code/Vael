@@ -204,6 +204,14 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	{
 		Data = GetMutableDefault<UVaelEmberCrawlerData>();
 	}
+	else if (Name.StartsWith(TEXT("distelsa")) || Name.StartsWith(TEXT("saem")) || Name.StartsWith(TEXT("seedling")))
+	{
+		Data = GetMutableDefault<UVaelThistleSeedlingData>();
+	}
+	else if (Name.StartsWith(TEXT("distel")) || Name.StartsWith(TEXT("spinne")) || Name.StartsWith(TEXT("spider")))
+	{
+		Data = GetMutableDefault<UVaelThistleSpiderData>();
+	}
 	else if (Name.StartsWith(TEXT("schleier")) || Name.StartsWith(TEXT("affe")) || Name.StartsWith(TEXT("monkey")))
 	{
 		Data = GetMutableDefault<UVaelVeilMonkeyData>();
@@ -251,7 +259,7 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 
 	if (Data == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger, Koenigin, Waechter, Spannhornkaefer, Rankenluchs, Aschenroller, Sichelpuppe or Schleieraffe."), *Kind);
+		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger, Koenigin, Waechter, Spannhornkaefer, Rankenluchs, Distelspinne, Distelsaemling, Aschenroller, Sichelpuppe or Schleieraffe."), *Kind);
 		return;
 	}
 

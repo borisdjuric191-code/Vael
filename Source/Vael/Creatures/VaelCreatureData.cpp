@@ -10,6 +10,7 @@
 #include "Creatures/VaelEmberCrawler.h"
 #include "Creatures/VaelEmberQueen.h"
 #include "Creatures/VaelPreacher.h"
+#include "Creatures/VaelThistleSpider.h"
 #include "Magic/VaelElementSource.h"
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelHornBeetle.h"
@@ -449,6 +450,44 @@ UVaelDewMothData::UVaelDewMothData()
 	{
 		Bloom.Chance = Bloom.Kind == EVaelBloomKind::Heal ? 0.6f : 0.4f;
 	}
+}
+
+
+UVaelThistleSpiderData::UVaelThistleSpiderData()
+{
+	DisplayName = LOCTEXT("ThistleSpider", "Distelspinne");
+	KindId = TEXT("Distelspinne");
+	CreatureClass = AVaelThistleSpider::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Wurzelforst/Distelspinne/SK_Distelspinne.SK_Distelspinne")));
+	// A plant: fire hurts more, water little
+	MaxHealth = 120.0f;
+	MoveSpeed = 360.0f;
+	CollisionRadius = 60.0f;
+	CollisionHalfHeight = 50.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 1.5f);
+	ElementMultipliers.Add(EVaelElement::Water, 0.8f);
+	AggroRange = 1600.0f;
+	BodyColor = FLinearColor(0.55f, 0.6f, 0.5f);
+	HealthOrbChance = 0.2f;
+	ManaOrbChance = 0.2f;
+}
+
+UVaelThistleSeedlingData::UVaelThistleSeedlingData()
+{
+	DisplayName = LOCTEXT("ThistleSeedling", "Distelsämling");
+	KindId = TEXT("Distelsaemling");
+	CreatureClass = AVaelThistleSeedling::StaticClass();
+	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Wurzelforst/Distelsaemling/SK_Distelsaemling.SK_Distelsaemling")));
+	MaxHealth = 9.0f;
+	MoveSpeed = 520.0f;
+	CollisionRadius = 18.0f;
+	CollisionHalfHeight = 16.0f;
+	ElementMultipliers.Add(EVaelElement::Fire, 2.0f);
+	AggroRange = 2200.0f;
+	KnockbackMultiplier = 1.6f;
+	BodyColor = FLinearColor(0.55f, 0.6f, 0.5f);
+	HealthOrbChance = 0.03f;
+	ManaOrbChance = 0.04f;
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -85,7 +85,8 @@ def importiere(ordner):
                 rest = schwanz
             eal.rename_asset(p, f"{ziel}/T_{name}_{rest}")
 
-    if schon_da:
+    hat_texturen = any(p.split(".")[-1].startswith(f"T_{name}_") for p in eal.list_assets(ziel, recursive=False))
+    if schon_da or not hat_texturen:
         texturen_auffrischen(ordner, ziel, name)
 
     skm = eal.load_asset(f"{ziel}/SK_{name}")
@@ -161,21 +162,23 @@ def importiere_requisite(ordner):
 
 def texturen_auffrischen(ordner, ziel, name):
     """Bei einem neuen Modell für eine vorhandene Kreatur lässt der FBX-Import die alten T_<Name>_*-Texturen stehen.
-    Darum die Tripo-Texturen aus 02_tripo/*.fbm direkt über sie importieren (oder neu anlegen, falls sie fehlen)."""
+    Darum die Tripo-Texturen aus 02_tripo/*.fbm direkt über sie importieren (oder neu anlegen, falls sie fehlen).
+    Aus einem GLB schreibt das Blender-Skript sie nach 03_blender/texturen (Distelspinne): von dort ebenso."""
+    ordner_liste = []
     quelle = os.path.join(ordner, "02_tripo")
-    if not os.path.isdir(quelle):
-        return
+    if os.path.isdir(quelle):
+        ordner_liste += [os.path.join(quelle, u) for u in sorted(os.listdir(quelle)) if u.lower().endswith(".fbm")]
+    if os.path.isdir(os.path.join(ordner, "03_blender", "texturen")):
+        ordner_liste.append(os.path.join(ordner, "03_blender", "texturen"))
     tasks = []
-    for unterordner in sorted(os.listdir(quelle)):
-        if not unterordner.lower().endswith(".fbm"):
-            continue
-        for datei in sorted(os.listdir(os.path.join(quelle, unterordner))):
+    for verzeichnis in ordner_liste:
+        for datei in sorted(os.listdir(verzeichnis)):
             stamm = os.path.splitext(datei)[0].lower()
             art = next((a for a in ("basecolor", "normal", "roughness", "metallic") if stamm.endswith(a)), None)
             if art is None:
                 continue
             task = unreal.AssetImportTask()
-            task.set_editor_property("filename", os.path.join(quelle, unterordner, datei))
+            task.set_editor_property("filename", os.path.join(verzeichnis, datei))
             task.set_editor_property("destination_path", ziel)
             task.set_editor_property("destination_name", f"T_{name}_{art}")
             task.set_editor_property("replace_existing", True)

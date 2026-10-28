@@ -3,8 +3,8 @@
 #
 # - Data asset DA_Begegnungen_Wurzelforst (UVaelEncounterTable): which packs come and how often. Rankenluchs packs of
 #   three (more at night), Spannhornkaefer in twos and threes, Schleieraffen alone or in pairs (mostly at dusk and
-#   night). Only on dry ground (the lakes and the moor stand at 0-6 cm). New kinds (Distelspinne, Pfuhlnatter,
-#   Peitschenunke) are added here once they exist.
+#   night), Distelspinnen alone or in pairs (each bursts into a swarm). Only on dry ground (the lakes and the moor
+#   stand at 0-6 cm). New kinds (Pfuhlnatter, Peitschenunke) are added here once they exist.
 # - One AVaelEncounterDirector in the level that uses it.
 # - The fixed spawners of these common kinds are taken out by Scripts/PlaceWurzelforstCreatures.py, which now only places
 #   the special ones (Tauraupen, Draculaupen at the Nid spring); run it after this one.
@@ -28,6 +28,8 @@ PACKS = [
     (unreal.VaelRankenluchsData, (3, 3), 300.0, 4.0, 1.5),
     (unreal.VaelHornBeetleData, (2, 3), 320.0, 3.0, 0.8),
     (unreal.VaelVeilMonkeyData, (1, 2), 380.0, 1.5, 2.5),
+    # Distelspinnen alone or in pairs: each one bursts into a swarm of seed spiders
+    (unreal.VaelThistleSpiderData, (1, 2), 450.0, 2.5, 1.0),
 ]
 
 actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)

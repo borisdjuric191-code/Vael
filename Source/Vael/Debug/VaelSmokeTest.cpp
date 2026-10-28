@@ -18,6 +18,7 @@
 #include "Magic/VaelWaterPuddle.h"
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelVeilMonkey.h"
+#include "Creatures/VaelThistleSpider.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelRockWall.h"
@@ -213,6 +214,48 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = NumLegs == 6 && NumSteps > 0 && NumShots > 0 && bBurned;
 			return FString::Printf(TEXT("%s%d legs, %d steps, %d shots, fire on the thread: %s"), bOk ? TEXT("") : TEXT("FAILED: "), NumLegs, NumSteps, NumShots,
 				bBurned ? TEXT("burned, defenseless") : TEXT("NOT burned"));
+		}, 0.1f });
+	}
+
+	// The Distelspinne: eight legs walk, fire makes it burst into a burning swarm of seed spiders
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Thistle arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelThistleSpiderData>(), 1); }, 2.0f });
+		Steps.Add({ TEXT("Thistle fire"), [this]()
+		{
+			AVaelThistleSpider* Spider = nullptr;
+			for (TActorIterator<AVaelThistleSpider> It(GetWorld()); It; ++It)
+			{
+				Spider = !It->IsDead() ? *It : Spider;
+			}
+			if (Spider == nullptr)
+			{
+				return FString(TEXT("FAILED: no living Distelspinne"));
+			}
+			const int32 NumLegs = Spider->GetLegCount();
+			const int32 NumSteps = Spider->GetStepCount();
+			UVaelCombatStatics::ApplyStatus(nullptr, Spider, EVaelStatus::Burning, 3.0f, 1.0f);
+			UVaelCombatStatics::DealDamage(nullptr, Spider, 1.0f, EVaelElement::Fire);
+			const bool bBursting = Spider->GetThistleState() == EVaelThistleState::Bursting;
+			const bool bOk = NumLegs == 8 && bBursting;
+			// A wet thistle can't burst by design, so say so if that is why
+			return FString::Printf(TEXT("%s%d legs, %d steps, fire: %s%s"), bOk ? TEXT("") : TEXT("FAILED: "), NumLegs, NumSteps,
+				bBursting ? TEXT("bursts") : TEXT("does NOT burst"), UVaelCombatStatics::HasStatus(Spider, EVaelStatus::Wet) ? TEXT(" (it is wet)") : TEXT(""));
+		}, 1.5f });
+		Steps.Add({ TEXT("Thistle swarm"), [this]()
+		{
+			int32 Seedlings = 0;
+			int32 Burning = 0;
+			for (TActorIterator<AVaelThistleSeedling> It(GetWorld()); It; ++It)
+			{
+				if (!It->IsDead())
+				{
+					++Seedlings;
+					Burning += UVaelCombatStatics::HasStatus(*It, EVaelStatus::Burning) ? 1 : 0;
+				}
+			}
+			const bool bOk = Seedlings > 0 && Burning > 0;
+			return FString::Printf(TEXT("%s%d seed spiders, %d burning"), bOk ? TEXT("") : TEXT("FAILED: "), Seedlings, Burning);
 		}, 0.1f });
 	}
 

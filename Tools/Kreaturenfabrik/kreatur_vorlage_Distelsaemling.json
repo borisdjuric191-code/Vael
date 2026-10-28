@@ -1,0 +1,17 @@
+{
+  "name": "Distelsämling",
+  "name_datei": "Distelsaemling",
+  "region": "Wurzelforst",
+  "familie": "Spinne",
+  "klasse": "normal",
+  "budget_dreiecke": 2500,
+  "laenge_cm": 32,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "tripo_datei": "C:/Projekte/Vael_Quellen/Distelspinne/02_tripo/Distelspinne_tripo_beine_gespiegelt.glb",
+  "bein_radius": 0.07,
+  "aussehen": "Kleine Samen-Spinne aus der aufgeplatzten Distelspinne, dasselbe Modell in klein (etwa 28 cm hoch). Kommt im Schwarm.",
+  "schwaeche": ["Feuer"],
+  "verhaltensbausteine": ["Schwarm"]
+}

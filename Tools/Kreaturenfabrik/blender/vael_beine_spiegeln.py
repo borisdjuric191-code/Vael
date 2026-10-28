@@ -53,13 +53,16 @@ def main(path, source, middle=0.10, under_body=0.22, body_radius=0.27, knee=0.48
         except ValueError:
             continue
         nf.material_index = face.material_index
+        # Smooth like the source: flat faces get their own vertices on export, and the legs fall apart when reduced
+        nf.smooth = face.smooth
         if uv:
             for loop, value in zip(nf.loops, reversed(loops_uv)):
                 loop[uv].uv = value
         copied += 1
     bmesh.ops.delete(bm, geom=target, context="FACES")
-    # Vertices left alone by the deleted faces
+    # Vertices left alone by the deleted faces; copies that landed on the same spot are welded
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bmesh.ops.remove_doubles(bm, verts=list(new_verts.values()), dist=1e-5)
     bm.normal_update()
     bm.to_mesh(obj.data)
     bm.free()

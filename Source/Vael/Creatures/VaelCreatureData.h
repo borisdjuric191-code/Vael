@@ -1418,3 +1418,109 @@ public:
 
 	UVaelDewMothData();
 };
+
+/**
+ *  Distelspinne (Wurzelforst, Boris 2026-10-28): a plant spider whose body is an armored thistle head. Lurks sunk into
+ *  the undergrowth like a harmless thistle, rises when a player comes close, bites, and soon bursts into a swarm of
+ *  seed spiders (Distelsämlinge). Fire makes it burst at once and spreads through the swarm; a wet thistle can't burst.
+ */
+UCLASS(BlueprintType)
+class UVaelThistleSpiderData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelThistleSpiderData();
+
+	/** A player closer than this wakes it, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0))
+	float WakeRange = 650.0f;
+
+	/** How deep it sits in the undergrowth while lurking, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0))
+	float LurkSink = 35.0f;
+
+	/** Seconds to rise from the undergrowth */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0.05))
+	float RiseTime = 0.6f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
+	float BiteRange = 190.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
+	float BiteDamage = 9.0f;
+
+	/** Seconds between two bites, picked in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite")
+	FVector2D BiteInterval = FVector2D(1.2f, 1.8f);
+
+	/** It bursts after hunting this long while a player is within BurstRange, or when its health falls below BurstHealthShare */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
+	float BurstDelay = 4.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
+	float BurstRange = 550.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0, ClampMax = 1))
+	float BurstHealthShare = 0.5f;
+
+	/** Seconds it swells before it bursts: the warning */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0.05))
+	float BurstWindup = 0.7f;
+
+	/** Seed spiders that come out (one player; every further player brings ExtraPlayerShare more) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst")
+	FIntPoint SeedlingCount = FIntPoint(12, 18);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
+	float ExtraPlayerShare = 0.35f;
+
+	/** The seed down of the burst slows players within this distance for some seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
+	float DownRange = 450.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
+	float DownSlowTime = 2.5f;
+
+	/** Values of the seed spiders; empty: the defaults of UVaelThistleSeedlingData */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst")
+	TObjectPtr<UVaelCreatureData> SeedlingData;
+};
+
+/**
+ *  Distelsämling: a seed spider of a burst Distelspinne, the same model small. Weak alone, dangerous as a swarm: runs
+ *  at the nearest player and nips. Burning seedlings set those close to them on fire.
+ */
+UCLASS(BlueprintType)
+class UVaelThistleSeedlingData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelThistleSeedlingData();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
+	float BiteRange = 75.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
+	float BiteDamage = 2.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite")
+	FVector2D BiteInterval = FVector2D(0.7f, 1.1f);
+
+	/** How far the swarm spreads around its target, so they don't all run in one line, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 0))
+	float SwarmSpread = 120.0f;
+
+	/** A burning seedling sets others within this distance on fire, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Fire", meta = (ClampMin = 0))
+	float FireSpreadRange = 170.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Fire", meta = (ClampMin = 0))
+	float FireSpreadTime = 3.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Fire", meta = (ClampMin = 0))
+	float FireSpreadDamage = 4.0f;
+};

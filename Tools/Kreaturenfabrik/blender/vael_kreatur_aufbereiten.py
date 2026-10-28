@@ -101,7 +101,14 @@ RAUPE = {
     "head": [(0, .16, .3), (0, 0, .3)],
     "spine": 6,
 }
-FAMILIEN_SKELETT = {"Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR, "Zweibeiner": ZWEIBEINER, "Fluegler": FLUEGLER, "Falter": FALTER, "Raupe": RAUPE}
+# Vorlage-Skelett Spinne (Distelspinne): acht Beine, die strahlenförmig von der Brust hinter dem Kopf ausgehen.
+# Die Beine findet passe_spinne_an im Mesh; die Vorlage gibt nur Körper und Kopf, falls das nicht gelingt.
+SPINNE = {
+    "body": [(0, .35, .45), (0, .90, .55)],
+    "head": [(0, .20, .30), (0, .02, .25)],
+    "legs": {},
+}
+FAMILIEN_SKELETT = {"Spinne": SPINNE, "Vielbeiner": VIELBEINER, "Puppe": PUPPE, "Starr": STARR, "Zweibeiner": ZWEIBEINER, "Fluegler": FLUEGLER, "Falter": FALTER, "Raupe": RAUPE}
 
 # ---------------------------------------------------------------- Hilfen
 def log(*a): print("[Vael]", *a)
@@ -111,6 +118,14 @@ def lade_steckbrief(ordner):
         return json.load(f)
 
 def finde_tripo_datei(ordner):
+    # Steckbrief "tripo_datei": eine bestimmte Datei, z. B. das Modell mit gespiegelten Beinen
+    # (vael_beine_spiegeln.py) oder das einer anderen Kreatur (der Distelsämling nimmt das der Distelspinne)
+    steckbrief = os.path.join(ordner, "kreatur.json")
+    if os.path.exists(steckbrief):
+        with open(steckbrief, encoding="utf-8") as f:
+            datei = json.load(f).get("tripo_datei")
+        if datei:
+            return datei if os.path.isabs(datei) else os.path.join(ordner, "02_tripo", datei)
     q = os.path.join(ordner, "02_tripo")
     for n in sorted(os.listdir(q)):
         if n.lower().endswith((".fbx", ".glb", ".gltf")):
@@ -199,7 +214,7 @@ def vorbereiten(ordner):
     obj.location = (0, 0, 0)
 
     # Polygonbudget
-    ziel = BUDGET[sb.get("klasse", "normal")]
+    ziel = sb.get("budget_dreiecke", BUDGET[sb.get("klasse", "normal")])
     n = dreiecke(obj)
     if n > ziel:
         mod = obj.modifiers.new("Budget", "DECIMATE")
@@ -208,6 +223,14 @@ def vorbereiten(ordner):
         log(f"reduziert: {n} → {dreiecke(obj)} Dreiecke (Budget {ziel})")
     else:
         log(f"Dreiecke: {n} (Budget {ziel}) – passt")
+    # Punkte ohne Fläche (bleiben beim Reduzieren übrig) kosten nur Speicher und Gewichtungszeit
+    bm = bmesh.new(); bm.from_mesh(obj.data)
+    lose = [v for v in bm.verts if not v.link_faces]
+    if lose:
+        bmesh.ops.delete(bm, geom=lose, context="VERTS")
+        bm.to_mesh(obj.data); obj.data.update()
+        log(f"{len(lose)} lose Punkte entfernt.")
+    bm.free()
 
     # Materialnamen vereinheitlichen; Mark-Slot für das gemeinsame Mark-Material anlegen
     for i, slot in enumerate(obj.material_slots):
@@ -299,6 +322,62 @@ def passe_vielbeiner_an(obj, tpl, hoerner=True):
         t["head"] = [n(Vector((0, kp.y + .22 * L, kp.z))), n(kp)]
         t["body"] = [n(Vector((0, kp.y + .24 * L, lo.z + .5 * H))), n(Vector((0, hi.y - .08 * L, lo.z + .5 * H)))]
     log("Skelett an das Mesh angepasst (Füße, Knie, Hörner, Kopf gefunden).")
+    return t
+
+def passe_spinne_an(obj, tpl):
+    """Spinne: sucht die vier Füße einer Seite (+X) im Mesh, nach vorn bis hinten geordnet, setzt die Hüften
+    strahlenförmig um die Brust hinter dem Kopf und das Knie auf den höchsten Punkt des Beins.
+    Das Modell muss symmetrische Beine haben (vael_beine_spiegeln.py) und nach -Y schauen."""
+    import copy
+    lo, hi = bbox_welt(obj)
+    hw, L, H = (hi.x - lo.x) / 2, hi.y - lo.y, hi.z - lo.z
+    V = [obj.matrix_world @ v.co for v in obj.data.vertices]
+    n = lambda p: ((p.x) / hw, (p.y - lo.y) / L, (p.z - lo.z) / H)
+    t = copy.deepcopy(tpl)
+
+    # Füße: Punkte am Boden auf der +X-Seite, nach Abstand gruppiert
+    boden = [p for p in V if p.z < lo.z + .05 * H and p.x > .15 * hw]
+    gruppen = []
+    for q in boden:
+        for g in gruppen:
+            if (Vector((q.x, q.y)) - g["m"]).length < .1 * max(2 * hw, L):
+                g["n"] += 1; g["s"] += Vector((q.x, q.y)); g["m"] = g["s"] / g["n"]
+                break
+        else:
+            gruppen.append({"m": Vector((q.x, q.y)), "s": Vector((q.x, q.y)), "n": 1})
+    gruppen = sorted(gruppen, key=lambda g: g["n"], reverse=True)[:4]
+    gruppen.sort(key=lambda g: g["m"].y)
+    if len(gruppen) < 4:
+        log(f"WARNUNG: nur {len(gruppen)} Füße je Seite gefunden statt 4.")
+
+    # Kopf vorn in der Mitte, die Brust ein Stück dahinter
+    vorn = [p for p in V if abs(p.x) < .15 * hw]
+    kp = min(vorn, key=lambda p: p.y)
+    brust = Vector((0, kp.y + .20 * L, lo.z + .30 * H))
+    t["head"] = [n(Vector((0, kp.y + .14 * L, kp.z))), n(kp)]
+    t["body"] = [n(Vector((0, brust.y, lo.z + .40 * H))), n(Vector((0, hi.y - .08 * L, lo.z + .55 * H)))]
+
+    def abstand_xy(q, a, b):
+        a2, b2, q2 = Vector((a.x, a.y)), Vector((b.x, b.y)), Vector((q.x, q.y))
+        ab = b2 - a2; s_ = max(0.0, min(1.0, (q2 - a2).dot(ab) / max(ab.length_squared, 1e-9)))
+        return (q2 - (a2 + ab * s_)).length, s_
+
+    t["legs"] = {}
+    for i, g in enumerate(gruppen):
+        fuss = Vector((g["m"].x, g["m"].y, lo.z))
+        richtung = Vector((fuss.x, fuss.y - brust.y, 0)).normalized()
+        huefte = brust + richtung * (.22 * hw); huefte.z = lo.z + .30 * H
+        kand = []
+        for q in V:
+            if not (lo.z + .15 * H < q.z < lo.z + .8 * H):
+                continue
+            d, s_ = abstand_xy(q, huefte, fuss)
+            if d < .06 * max(2 * hw, L) and .15 < s_ < .8:
+                kand.append(q)
+        knie = max(kand, key=lambda q: q.z) if kand else huefte.lerp(fuss, .4) + Vector((0, 0, .3 * H))
+        gelenk = knie.lerp(fuss, .55); gelenk.z = max(lo.z + .10 * H, min(gelenk.z, lo.z + .35 * H))
+        t["legs"][str(i + 1)] = [n(huefte), n(knie), n(gelenk), n(fuss)]
+    log(f"Spinnen-Skelett angepasst: {len(t['legs'])} Beinpaare, Brust bei y {n(brust)[1]:.2f}.")
     return t
 
 def passe_puppe_an(obj, tpl):
@@ -466,6 +545,9 @@ def baue_vorlage_skelett(obj, name, tpl, hoerner=True):
         hoerner = False
     if tpl is VIELBEINER:
         tpl = passe_vielbeiner_an(obj, tpl, hoerner)
+    if tpl is SPINNE:
+        tpl = passe_spinne_an(obj, tpl)
+        hoerner = False
     if tpl is PUPPE:
         tpl = passe_puppe_an(obj, tpl)
         hoerner = False
@@ -625,6 +707,17 @@ def binden(ordner):
     if sb.get("beine_starr"):
         beine_starr(obj, [str(nr) for nr in sb["beine_starr"]])
     bpy.ops.wm.save_mainfile()
+
+    # Aus einem GLB kommen die Texturen nur gepackt, ohne Datei: der FBX-Export nimmt sie dann nicht mit
+    # (Distelspinne: einfarbig in Unreal). Also vorher als PNG neben die .blend schreiben.
+    texturen = os.path.join(ordner, "03_blender", "texturen")
+    for im in bpy.data.images:
+        if im.packed_file is not None and not im.filepath:
+            os.makedirs(texturen, exist_ok=True)
+            im.filepath_raw = os.path.join(texturen, f"{im.name}.png")
+            im.file_format = "PNG"
+            im.save()
+            log("Textur geschrieben:", im.filepath_raw)
 
     os.makedirs(os.path.join(ordner, "04_export"), exist_ok=True)
     ziel = os.path.join(ordner, "04_export", f"SK_{name}.fbx")

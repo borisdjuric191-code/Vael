@@ -1,0 +1,17 @@
+{
+  "name": "Distelspinne",
+  "name_datei": "Distelspinne",
+  "region": "Wurzelforst",
+  "familie": "Spinne",
+  "klasse": "elite",
+  "budget_dreiecke": 20000,
+  "laenge_cm": 115,
+  "drehung_z_grad": 0,
+  "tripo_rig_verwenden": false,
+  "hoerner": false,
+  "tripo_datei": "Distelspinne_tripo_beine_gespiegelt.glb",
+  "bein_radius": 0.07,
+  "aussehen": "Pflanzen-Spinne des Wurzelforsts: gepanzerter Distelkörper aus Hüllblättern (knochenweiß, aschgrau-grün) mit weinroten Spitzen und Adern, gebogene Krallendornen nach hinten, verwelkte Magenta-Krone hinten; kleiner dunkelgrüner Kopf mit schwarzen Augen und Dornzähnen; acht dunkelgrüne Distelstängel-Beine mit Blattkragen. Etwa 1 m hoch.",
+  "schwaeche": ["Feuer"],
+  "verhaltensbausteine": ["Lauert", "PlatztAuf", "Schwarm"]
+}
