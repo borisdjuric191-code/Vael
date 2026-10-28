@@ -59,6 +59,13 @@ void UVaelSequenceAnimInstance::SetSpineTargets(const TArray<FName>& Bones, cons
 	SpineWeight = Bones.Num() == Targets.Num() ? FMath::Clamp(Weight, 0.0f, 1.0f) : 0.0f;
 }
 
+void UVaelSequenceAnimInstance::SetLookAt(const FVector& Point, float MaxAngle, float Weight)
+{
+	LookPoint = Point;
+	LookMaxAngle = MaxAngle;
+	LookWeight = FMath::Clamp(Weight, 0.0f, 1.0f);
+}
+
 void UVaelSequenceAnimInstance::SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales)
 {
 	ScaledBones = Bones;
@@ -99,6 +106,9 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	SpineBones = Instance->SpineBones;
 	SpineTargets = Instance->SpineTargets;
 	SpineWeight = Instance->SpineWeight;
+	LookPoint = Instance->LookPoint;
+	LookMaxAngle = Instance->LookMaxAngle;
+	LookWeight = Instance->LookWeight;
 	ScaledBones = Instance->ScaledBones;
 	BoneScales = Instance->BoneScales;
 }
@@ -171,6 +181,30 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 		}
 		Pose[Chain[Index]] = Bone.GetRelativeTransform(Parent);
 		Parent = Bone;
+	}
+
+	// The head looks at its point: its forward is where it points in the reference pose (X)
+	if (LookWeight > 0.0f)
+	{
+		const FCompactPoseBoneIndex Tip = Chain.Last();
+		FTransform RefTip = FTransform::Identity;
+		for (FCompactPoseBoneIndex Bone = Tip; Bone.IsValid(); Bone = Pose.GetParentBoneIndex(Bone))
+		{
+			RefTip = RefTip * Pose.GetRefPose(Bone);
+		}
+		const FVector LocalForward = RefTip.GetRotation().UnrotateVector(FVector::ForwardVector);
+		FTransform Head = Pose[Tip] * Parent;
+		const FVector Forward = Head.GetRotation().RotateVector(LocalForward);
+		const FVector ToPoint = (LookPoint - Head.GetTranslation()).GetSafeNormal();
+		if (!ToPoint.IsNearlyZero())
+		{
+			FVector Axis;
+			float Angle = 0.0f;
+			FQuat::FindBetweenNormals(Forward.GetSafeNormal(), ToPoint).ToAxisAndAngle(Axis, Angle);
+			Angle = FMath::Min(Angle, FMath::DegreesToRadians(LookMaxAngle)) * LookWeight;
+			Head.SetRotation((FQuat(Axis, Angle) * Head.GetRotation()).GetNormalized());
+			Pose[Tip] = Head.GetRelativeTransform(Parent);
+		}
 	}
 }
 

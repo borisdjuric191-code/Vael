@@ -1315,20 +1315,25 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	float NeckForward = 190.0f;
 
-	/** The head swings this many degrees to each side as it slithers, in waves this long (cm at the model's size) */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 80))
-	float WaveAngle = 38.0f;
-
+	/** The head goes straight; the body behind it lies in waves this long and this wide to each side (cm at the model's
+	 *  size) that stand still on the ground, so it glides through them like a sand viper. The waves grow over the first
+	 *  WaveRamp behind the head (Boris 2026-10-28: head calm, body winding, not jittery) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 10))
-	float WaveLength = 190.0f;
+	float WaveLength = 260.0f;
 
-	/** How far the loose S it lies in at the start swings to the side, in cm at the model's size */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
-	float RestCurve = 30.0f;
+	float WaveWidth = 32.0f;
 
-	/** Degrees per second the head turns into its waves: quick, the body follows the path anyway */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
-	float TurnRate = 720.0f;
+	float WaveRamp = 110.0f;
+
+	/** The head turns towards its prey by up to this many degrees on its neck, whichever way it crawls */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 120))
+	float HeadLookAngle = 70.0f;
+
+	/** Degrees per second the head turns on its path: calm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float TurnRate = 300.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float Acceleration = 3000.0f;
@@ -1369,19 +1374,19 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt")
 	FVector2D StrikeInterval = FVector2D(3.0f, 5.0f);
 
-	/** Coiling: the head winds this many turns round its prey in WrapTime seconds, from the lower to the upper height
+	/** Coiling: the head winds this many turns round its prey in WrapTime seconds, from its feet up to its head (the whole body, Boris 2026-10-28), from the lower to the upper height
 	 *  (cm above the ground), this far outside the prey's capsule (cm); it holds for HoldTime and squeezes every SqueezeInterval */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.25))
-	float CoilTurns = 1.25f;
+	float CoilTurns = 1.45f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict")
-	FVector2D CoilHeight = FVector2D(20.0f, 120.0f);
+	FVector2D CoilHeight = FVector2D(15.0f, 170.0f);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
 	float CoilGap = 22.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.05))
-	float WrapTime = 0.8f;
+	float WrapTime = 1.1f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
 	float HoldTime = 2.5f;

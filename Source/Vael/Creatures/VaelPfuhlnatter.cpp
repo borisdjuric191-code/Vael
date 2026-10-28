@@ -99,15 +99,12 @@ void AVaelPfuhlnatter::BeginPlay()
 		}
 	}
 
-	// It lies in a loose S behind its head
+	// It lies straight behind its head (the waves are laid onto the path)
 	const FVector Neck = GetNeckLocation();
 	const FVector Back = -GetActorForwardVector().GetSafeNormal2D();
-	const FVector Side = FVector::CrossProduct(FVector::UpVector, Back);
-	const float WaveLength = Data->WaveLength * Data->BodyScale;
 	for (float Along = BodyLength + 200.0f; Along > 0.0f; Along -= SnakePathStep * 2.0f)
 	{
-		Path.Add(Neck + Back * Along + Side * FMath::Sin(2.0f * PI * Along / WaveLength) * Data->RestCurve * Data->BodyScale * FMath::Min(Along / 80.0f, 1.0f));
-		PathLift.Add(0.0f);
+		AddPathPoint(Neck + Back * Along, 0.0f);
 	}
 	Lead = Neck;
 	LeadLift = 0.0f;
@@ -133,6 +130,7 @@ void AVaelPfuhlnatter::AddPathPoint(const FVector& Location, float Lift)
 	{
 		return;
 	}
+	PathRun.Add(Path.IsEmpty() ? 0.0f : PathRun.Last() + FVector::Dist2D(Path.Last(), Location));
 	Path.Add(Location);
 	PathLift.Add(Lift);
 
@@ -148,6 +146,7 @@ void AVaelPfuhlnatter::AddPathPoint(const FVector& Location, float Lift)
 	{
 		Path.RemoveAt(0, Keep);
 		PathLift.RemoveAt(0, Keep);
+		PathRun.RemoveAt(0, Keep);
 	}
 }
 
@@ -159,10 +158,31 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 		return;
 	}
 
+	// The path with its waves: they stand still on the ground (their phase is the distance along the path), so the body
+	// glides through them; none right behind the head, none in the coils
+	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
+	const FVector LeadPoint = Lead + FVector(0.0f, 0.0f, LeadLift);
+	const float WaveLength = FMath::Max(Data->WaveLength * Data->BodyScale, 1.0f);
+	TArray<FVector, TInlineAllocator<512>> Wavy;
+	Wavy.SetNum(Path.Num());
+	float BehindHead = FVector::Dist2D(LeadPoint, Path.IsEmpty() ? LeadPoint : Path.Last());
+	for (int32 Point = Path.Num() - 1; Point >= 0; --Point)
+	{
+		if (Point < Path.Num() - 1)
+		{
+			BehindHead += FVector::Dist2D(Path[Point], Path[Point + 1]);
+		}
+		const FVector Along = (Path[FMath::Min(Point + 1, Path.Num() - 1)] - Path[FMath::Max(Point - 1, 0)]).GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Along);
+		const float Grow = FMath::SmoothStep(0.0f, Data->WaveRamp * Data->BodyScale, BehindHead) * (1.0f - FMath::Clamp(PathLift[Point] / 20.0f, 0.0f, 1.0f));
+		const float Swing = Data->WaveWidth * Data->BodyScale * Grow * FMath::Sin(2.0f * PI * PathRun[Point] / WaveLength);
+		Wavy[Point] = Path[Point] + Side * Swing + FVector(0.0f, 0.0f, PathLift[Point]);
+	}
+
 	// From the lead back along the path: each joint where the path is one joint distance away from the one before
 	TArray<FVector, TInlineAllocator<32>> Joints;
 	Joints.SetNum(NumJoints);
-	FVector Current = Lead + FVector(0.0f, 0.0f, LeadLift);
+	FVector Current = LeadPoint;
 	Joints[NumJoints - 1] = Current;
 	int32 Next = Path.Num() - 1;
 	for (int32 Joint = NumJoints - 2; Joint >= 0; --Joint)
@@ -172,7 +192,7 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 		bool bFound = false;
 		while (Next >= 0)
 		{
-			const FVector To = Path[Next] + FVector(0.0f, 0.0f, PathLift[Next]);
+			const FVector To = Wavy[Next];
 			if (FVector::Dist(To, Current) >= Distance)
 			{
 				// Where the segment From..To leaves the sphere of this distance round the last joint
@@ -211,16 +231,8 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 
 void AVaelPfuhlnatter::Slither(const FVector& Direction, float Speed, float DeltaSeconds)
 {
-	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
-	const FVector Wanted = Direction.GetSafeNormal2D();
-	if (Wanted.IsNearlyZero())
-	{
-		return;
-	}
-	// The waves run with the ground covered, so they keep their length at any speed
-	WavePhase += 2.0f * PI * GetVelocity().Size2D() * DeltaSeconds / FMath::Max(Data->WaveLength * Data->BodyScale, 1.0f);
-	const float Swing = Data->WaveAngle * FMath::Sin(WavePhase);
-	MoveInDirection(Wanted.RotateAngleAxis(Swing, FVector::UpVector), Speed);
+	// The head goes straight; the waves are in the body behind it (LayBodyOnPath)
+	MoveInDirection(Direction, Speed);
 }
 
 void AVaelPfuhlnatter::HoldPlayer(AVaelCharacter* Player)
@@ -452,6 +464,16 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 		AddPathPoint(Lead, LeadLift);
 	}
 	LayBodyOnPath();
+
+	// The head always looks at its prey, whichever way it crawls; coiled, at its face
+	const AActor* Watched = Held.IsValid() ? static_cast<AActor*>(Held.Get()) : Prey.Get();
+	const bool bWatch = Watched != nullptr && !IsDead() && State != EVaelSnakeState::Lurk;
+	LookWeight = FMath::FInterpTo(LookWeight, bWatch ? 1.0f : 0.0f, DeltaSeconds, 4.0f);
+	if (Watched != nullptr)
+	{
+		LookPoint = Watched->GetActorLocation() + FVector(0.0f, 0.0f, Held.IsValid() ? 60.0f : 0.0f);
+	}
+	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, LookWeight);
 
 	// Crest and fins lie flat while it crawls; coiled round prey the crown opens again
 	const float DrawTarget = State == EVaelSnakeState::Constrict ? 0.0f : 1.0f;

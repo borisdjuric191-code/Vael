@@ -74,7 +74,7 @@ private:
 
 	void EnterState(EVaelSnakeState NewState);
 
-	/** Slithers: the head swings round the wanted direction in waves that run with the distance crawled */
+	/** Slithers: the head goes straight, the body winds behind it */
 	void Slither(const FVector& Direction, float Speed, float DeltaSeconds);
 
 	/** Where the neck joint is in the world, at the height of the ground under the snake */
@@ -117,8 +117,12 @@ private:
 	FVector Lead = FVector::ZeroVector;
 	float LeadLift = 0.0f;
 
-	/** Phase of the waves of its head, running with the distance crawled */
-	float WavePhase = 0.0f;
+	/** Distance along the path at each point (the phase of the body's waves) */
+	TArray<float> PathRun;
+
+	/** Where the head looks, and how much (it eases in and out) */
+	FVector LookPoint = FVector::ZeroVector;
+	float LookWeight = 0.0f;
 
 	TWeakObjectPtr<AActor> Prey;
 	TWeakObjectPtr<AVaelCharacter> Held;
