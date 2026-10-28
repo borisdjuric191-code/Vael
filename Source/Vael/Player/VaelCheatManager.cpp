@@ -7,6 +7,7 @@
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEncounterDirector.h"
+#include "Creatures/VaelRankenluchs.h"
 #include "Creatures/VaelThistleSpider.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -268,6 +269,18 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	const int32 NumSpawned = GameMode->SpawnCreatureGroup(Data, Center, FMath::Max(Count, 1), 150.0f + Data->CollisionRadius);
 
 	UE_LOG(LogVael, Log, TEXT("VaelSpawn: %d x %s"), NumSpawned, *Data->DisplayName.ToString());
+
+	// "LuchsWach" brings them awake, hunting at once, to watch them run (the plain kind lies in ambush)
+	if (Name.EndsWith(TEXT("wach")))
+	{
+		for (TActorIterator<AVaelRankenluchs> It(GetWorld()); It; ++It)
+		{
+			if (FVector::Dist2D(It->GetActorLocation(), Center) < 1500.0f)
+			{
+				It->WakeUp(FMath::FRandRange(0.0f, 0.4f));
+			}
+		}
+	}
 }
 
 void UVaelCheatManager::VaelScroll(const FString& Elements, float Distance)

@@ -422,6 +422,10 @@ def build_ground(material, textures, grass_types, masks):
     clover_patch = g.saturate(g.op(unreal.MaterialExpressionMultiply, 8, g.op(unreal.MaterialExpressionSubtract, 9, noise, g.const(0.5, 10)),
                                    g.const(5.0, 9)), 7)
     meadow = g.lerp(grass, clover, clover_patch, 7)
+    # The uncut grass scan is dry and olive: tinted fresh green, so the forest floor doesn't read brown (Boris 2026-10-28)
+    meadow = g.op(unreal.MaterialExpressionMultiply, 6, meadow,
+                  g.mask(g.node(unreal.MaterialExpressionVectorParameter, 8, parameter_name="WiesenFarbe",
+                                default_value=unreal.LinearColor(0.8, 1.12, 0.62, 1.0)), 7, r=True, g=True, b=True))
 
     # Green moss beds: the root moss turned green, in patches, mostly in the Hain and the moor
     moss_grey = g.node(unreal.MaterialExpressionDesaturation, 7)
