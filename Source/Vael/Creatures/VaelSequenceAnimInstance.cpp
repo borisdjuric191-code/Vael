@@ -252,16 +252,41 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 			RefTip = RefTip * Pose.GetRefPose(Bone);
 		}
 		const FVector LocalForward = RefTip.GetRotation().UnrotateVector(FVector::ForwardVector);
-		FTransform Head = Pose[Tip] * Parent;
-		const FVector Forward = Head.GetRotation().RotateVector(LocalForward);
-		const FVector ToPoint = (LookPoint - Head.GetTranslation()).GetSafeNormal();
-		if (!ToPoint.IsNearlyZero())
+		// Its top: the local axis pointing up in the reference pose, where the head lies level
+		FVector LocalTop = FVector::ZAxisVector;
+		float Highest = -2.0f;
+		for (const FVector& Axis : { FVector::XAxisVector, FVector::YAxisVector, FVector::ZAxisVector, -FVector::XAxisVector, -FVector::YAxisVector, -FVector::ZAxisVector })
 		{
-			FVector Axis;
-			float Angle = 0.0f;
-			FQuat::FindBetweenNormals(Forward.GetSafeNormal(), ToPoint).ToAxisAndAngle(Axis, Angle);
-			Angle = FMath::Min(Angle, FMath::DegreesToRadians(LookMaxAngle)) * LookWeight;
-			Head.SetRotation((FQuat(Axis, Angle) * Head.GetRotation()).GetNormalized());
+			const float Up = RefTip.GetRotation().RotateVector(Axis).Z;
+			if (Up > Highest)
+			{
+				Highest = Up;
+				LocalTop = Axis;
+			}
+		}
+		FTransform Head = Pose[Tip] * Parent;
+		const FVector Forward = Head.GetRotation().RotateVector(LocalForward).GetSafeNormal();
+		const FVector ToPoint = (LookPoint - Head.GetTranslation()).GetSafeNormal();
+		if (!ToPoint.IsNearlyZero() && !Forward.IsNearlyZero())
+		{
+			// Turns sideways and then up or down, never by the shortest way in space: that one rolls the head over
+			const float MaxTurn = FMath::DegreesToRadians(LookMaxAngle);
+			const float YawNow = FMath::Atan2(Forward.Y, Forward.X);
+			const float Yaw = YawNow + FMath::Clamp(FMath::FindDeltaAngleRadians(YawNow, FMath::Atan2(ToPoint.Y, ToPoint.X)), -MaxTurn, MaxTurn) * LookWeight;
+			const float PitchNow = FMath::Asin(FMath::Clamp(Forward.Z, -1.0f, 1.0f));
+			const float PitchTo = FMath::Atan2(ToPoint.Z, FVector2D(ToPoint.X, ToPoint.Y).Size());
+			const float Pitch = PitchNow + FMath::Clamp(PitchTo - PitchNow, -0.7f, 0.7f) * LookWeight;
+			const FVector Wanted(FMath::Cos(Pitch) * FMath::Cos(Yaw), FMath::Cos(Pitch) * FMath::Sin(Yaw), FMath::Sin(Pitch));
+			Head.SetRotation((FQuat::FindBetweenNormals(Forward, Wanted) * Head.GetRotation()).GetNormalized());
+
+			// and keeps its top up, whatever the neck below it does
+			const FVector Top = FVector::VectorPlaneProject(Head.GetRotation().RotateVector(LocalTop), Wanted).GetSafeNormal();
+			const FVector Up = FVector::VectorPlaneProject(FVector::UpVector, Wanted).GetSafeNormal();
+			if (!Top.IsNearlyZero() && !Up.IsNearlyZero())
+			{
+				const float Roll = FMath::Atan2(FVector::DotProduct(FVector::CrossProduct(Top, Up), Wanted), FVector::DotProduct(Top, Up));
+				Head.SetRotation((FQuat(Wanted, Roll * LookWeight) * Head.GetRotation()).GetNormalized());
+			}
 			Pose[Tip] = Head.GetRelativeTransform(Parent);
 		}
 	}

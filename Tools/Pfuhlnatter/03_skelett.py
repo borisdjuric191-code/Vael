@@ -322,7 +322,13 @@ def main():
     for v in obj.data.vertices:
         werte[v.index] = sum(g.weight for g in v.groups if g.group in flossen_gruppen)
     # Pale membrane standing out of the body counts too, whatever bone holds it (petals under the throat)
-    werte = np.where(~koerper & (abstand > radius_hier * 1.05) & ~zahn, 1.0, werte)
+    werte = np.where(~koerper & (abstand > radius_hier * 1.2) & ~zahn, 1.0, werte)
+    # Never the skin of the body or the skull itself (the smoothing spreads some fin weight into it, and hidden it
+    # would leave holes): only what stands out of the body's tube, or round the head out of the skull
+    aussen = np.clip((abstand / radius_hier - 1.12) / 0.15, 0.0, 1.0)
+    um_kopf = np.clip((kopf_abstand - 0.17) / 0.05, 0.0, 1.0)
+    # (the crown too: behind the head the model has no neck skin under its petals, only the petals)
+    werte = werte * np.where(krone, um_kopf * aussen, np.where(im_kopf, 0.0, aussen))
     farbe.data.foreach_set("color", np.column_stack([werte, np.zeros_like(werte), np.zeros_like(werte), np.ones_like(werte)]).ravel())
     obj.data.color_attributes.active_color = farbe
     obj.data.color_attributes.render_color_index = obj.data.color_attributes.find("Flosse")
