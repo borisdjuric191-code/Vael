@@ -17,6 +17,7 @@
 #include "Creatures/VaelSourceGuardian.h"
 #include "Creatures/VaelVeilMonkey.h"
 #include "Creatures/VaelRankenluchs.h"
+#include "Creatures/VaelPfuhlnatter.h"
 #include "Animation/AnimSequence.h"
 
 #define LOCTEXT_NAMESPACE "VaelCreatures"
@@ -299,6 +300,34 @@ UVaelRankenluchsData::UVaelRankenluchsData()
 	// Only the crest leaf, for the Ingenieur (Boris 2026-10-21)
 	LightLoot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rankenkammblatt.DA_Material_Rankenkammblatt"), 0.6f));
 	ShadowLoot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Nidblatt.DA_Material_Nidblatt"), 0.6f));
+}
+
+UVaelPfuhlnatterData::UVaelPfuhlnatterData()
+{
+	DisplayName = LOCTEXT("Pfuhlnatter", "Pfuhlnatter");
+	KindId = TEXT("Pfuhlnatter");
+	CreatureClass = AVaelPfuhlnatter::StaticClass();
+	const TCHAR* Folder = TEXT("/Game/Vael/Kreaturen/Pfuhlnatter/");
+	NatterMesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(FString(Folder) + TEXT("SK_Pfuhlnatter.SK_Pfuhlnatter")));
+	const auto Animation = [Folder](const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(FString::Printf(TEXT("%sA_Pfuhlnatter_%s.A_Pfuhlnatter_%s"), Folder, Name, Name)));
+	};
+	CrawlAnimation = Animation(TEXT("Kriechen"));
+	RearAnimation = Animation(TEXT("Aufrichten"));
+	ThreatenAnimation = Animation(TEXT("Kampf"));
+	BiteAnimation = Animation(TEXT("Biss"));
+	LowerAnimation = Animation(TEXT("Ablegen"));
+	DeathAnimation = Animation(TEXT("Tod"));
+
+	// Big and tough, but slow on land; a moor animal, so water hardly hurts it
+	MaxHealth = 150.0f;
+	CollisionRadius = 60.0f;
+	CollisionHalfHeight = 55.0f;
+	ElementMultipliers.Add(EVaelElement::Water, 0.5f);
+	AggroRange = 1500.0f;
+	BodyColor = FLinearColor(0.55f, 0.08f, 0.2f);
+	// Materials (gland, fang, throat sac, scales, shed skin) come with their own package
 }
 
 UVaelVeilMonkeyData::UVaelVeilMonkeyData()

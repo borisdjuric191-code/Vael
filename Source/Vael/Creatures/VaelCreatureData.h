@@ -1265,6 +1265,95 @@ public:
 };
 
 /**
+ *  Pfuhlnatter: a 4-5 m water snake of the Wurzelforst moor that looks like a small sea monster (raspberry red, petrol
+ *  zigzag with turquoise rims, a dahlia crown of fins round the head). It crawls up flat with its fins folded, rears up
+ *  near its prey with the crown and fins rising and strikes from there. Its look are the baked animations of
+ *  SK_Pfuhlnatter (Tools/Pfuhlnatter), not the creature factory.
+ */
+UCLASS(BlueprintType)
+class UVaelPfuhlnatterData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelPfuhlnatterData();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<USkeletalMesh> NatterMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> CrawlAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> RearAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> ThreatenAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> BiteAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> LowerAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> DeathAnimation;
+
+	/** Size compared with the model (6.2 m along the spine, 4.2 m long as it lies in the Tripo pose); the growth with age
+	 *  comes later and will set it per snake */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0.2))
+	float BodyScale = 1.0f;
+
+	/** How far behind the capsule the mesh's middle lies, in cm at the model's size: the capsule sits on the front of
+	 *  the body (the head is 1.9 m ahead of the middle), so it is hit and bites where it looks like it */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	float FrontOffset = 130.0f;
+
+	/** Speed in cm/s at which the crawl animation plays at its own pace (one wave of 1.9 m per 1.2 s) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float CrawlAnimationSpeed = 160.0f;
+
+	/** Degrees per second: a long body turns slowly */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float TurnRate = 110.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float Acceleration = 700.0f;
+
+	/** Crawling speed in cm/s (MoveSpeed is not used) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float CrawlSpeed = 240.0f;
+
+	/** It rears up when its prey is this close, in cm, and lays down again to crawl after it beyond 1.4 times this */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float RearRange = 520.0f;
+
+	/** While reared it edges closer this fast, in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float RearedSpeed = 90.0f;
+
+	/** It strikes at prey this close (from the capsule on its front), in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float BiteRange = 230.0f;
+
+	/** The head's lunge during the strike, in cm/s */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float BiteLungeSpeed = 700.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float BiteDamage = 14.0f;
+
+	/** Seconds between two strikes, picked in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt")
+	FVector2D BiteInterval = FVector2D(1.4f, 2.4f);
+
+	/** Without a target this long it crawls home and lies still, in seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float LoseInterestTime = 5.0f;
+};
+
+/**
  *  Draculaupe: a slow caterpillar that does no harm itself. The moment it touches a player it spins itself into a cocoon,
  *  and its alarm calls every other caterpillar near to that player. A moth hatches from the cocoon after a few seconds
  *  unless the cocoon is destroyed first, which takes a lot of damage.

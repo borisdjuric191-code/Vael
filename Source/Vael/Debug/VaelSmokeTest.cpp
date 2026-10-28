@@ -19,6 +19,7 @@
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelVeilMonkey.h"
 #include "Creatures/VaelThistleSpider.h"
+#include "Creatures/VaelPfuhlnatter.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelRockWall.h"
@@ -184,6 +185,28 @@ void AVaelSmokeTest::BeginPlay()
 	for (UVaelCreatureData* Data : Only.IsEmpty() ? Creatures : TArray<UVaelCreatureData*>())
 	{
 		Steps.Add({ FString::Printf(TEXT("Creature %s"), *Data->DisplayName.ToString()), [this, Data]() { return PrepareArena(Data, 2); }, SmokeFightTime });
+	}
+
+	// The Pfuhlnatter: its baked mesh and animations load, it crawls up, rears and strikes
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Pfuhlnatter arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelPfuhlnatterData>(), 1); }, 8.0f });
+		Steps.Add({ TEXT("Pfuhlnatter"), [this]()
+		{
+			AVaelPfuhlnatter* Snake = nullptr;
+			for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
+			{
+				Snake = !It->IsDead() ? *It : Snake;
+			}
+			if (Snake == nullptr)
+			{
+				return FString(TEXT("FAILED: no living Pfuhlnatter"));
+			}
+			const USkeletalMesh* Mesh = Snake->GetMesh()->GetSkeletalMeshAsset();
+			const bool bOk = Mesh != nullptr && Snake->GetBiteCount() > 0;
+			return FString::Printf(TEXT("%smesh %s, state %s, %d bites"), bOk ? TEXT("") : TEXT("FAILED: "), Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"),
+				*StaticEnum<EVaelSnakeState>()->GetNameStringByValue(static_cast<int64>(Snake->GetSnakeState())), Snake->GetBiteCount());
+		}, 0.1f });
 	}
 
 	// The first creature of the creature factory: its legs walk, it shoots, and fire burns its thread
