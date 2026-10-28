@@ -52,10 +52,11 @@ void UVaelSequenceAnimInstance::PlayInStep(UAnimSequence* Sequence, float BlendT
 	CurrentTime = Phase * Sequence->GetPlayLength();
 }
 
-void UVaelSequenceAnimInstance::SetSpineTargets(const TArray<FName>& Bones, const TArray<FVector>& Targets, float Weight)
+void UVaelSequenceAnimInstance::SetSpineTargets(const TArray<FName>& Bones, const TArray<FVector>& Targets, float Weight, const TArray<FVector>& Ups)
 {
 	SpineBones = Bones;
 	SpineTargets = Targets;
+	SpineUps = Ups;
 	SpineWeight = Bones.Num() == Targets.Num() ? FMath::Clamp(Weight, 0.0f, 1.0f) : 0.0f;
 }
 
@@ -108,6 +109,7 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	Blend = Instance->BlendDuration > KINDA_SMALL_NUMBER ? FMath::Clamp(Instance->BlendElapsed / Instance->BlendDuration, 0.0f, 1.0f) : 1.0f;
 	SpineBones = Instance->SpineBones;
 	SpineTargets = Instance->SpineTargets;
+	SpineUps = Instance->SpineUps;
 	SpineWeight = Instance->SpineWeight;
 	LookPoint = Instance->LookPoint;
 	LookMaxAngle = Instance->LookMaxAngle;
@@ -187,6 +189,30 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 		return FMath::Lerp(Joints[Index], Wanted, SpineWeight);
 	};
 
+	// The bones' back: the local axis that points up in the reference pose of a bone lying along the ground (the bones
+	// share their axes); with up hints each bone is rolled about itself so its back faces its hint, its belly away
+	FVector LocalBack = FVector::ZAxisVector;
+	const bool bRoll = SpineUps.Num() == SpineTargets.Num();
+	if (bRoll)
+	{
+		const FCompactPoseBoneIndex Sample = Chain[FMath::Min(4, Chain.Num() - 2)];
+		FTransform RefSample = FTransform::Identity;
+		for (FCompactPoseBoneIndex Bone = Sample; Bone.IsValid(); Bone = Pose.GetParentBoneIndex(Bone))
+		{
+			RefSample = RefSample * Pose.GetRefPose(Bone);
+		}
+		float Best = -2.0f;
+		for (const FVector& Axis : { FVector::XAxisVector, FVector::YAxisVector, FVector::ZAxisVector, -FVector::XAxisVector, -FVector::YAxisVector, -FVector::ZAxisVector })
+		{
+			const float Up = RefSample.GetRotation().RotateVector(Axis).Z;
+			if (Up > Best)
+			{
+				Best = Up;
+				LocalBack = Axis;
+			}
+		}
+	}
+
 	// Each bone turned so its child joint lands on the next point; the lengths stay, so the points must be spaced by them
 	for (int32 Index = 0; Index + 1 < Chain.Num(); ++Index)
 	{
@@ -200,6 +226,17 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 		if (!Child.IsNearlyZero() && !Wanted.IsNearlyZero())
 		{
 			Bone.SetRotation((FQuat::FindBetweenVectors(Child, Wanted) * Bone.GetRotation()).GetNormalized());
+			if (bRoll)
+			{
+				const FVector Along = Wanted.GetSafeNormal();
+				const FVector Back = FVector::VectorPlaneProject(Bone.GetRotation().RotateVector(LocalBack), Along).GetSafeNormal();
+				const FVector Hint = FVector::VectorPlaneProject(SpineUps[Index], Along).GetSafeNormal();
+				if (!Back.IsNearlyZero() && !Hint.IsNearlyZero())
+				{
+					const float Angle = FMath::Atan2(FVector::DotProduct(FVector::CrossProduct(Back, Hint), Along), FVector::DotProduct(Back, Hint));
+					Bone.SetRotation((FQuat(Along, Angle * SpineWeight) * Bone.GetRotation()).GetNormalized());
+				}
+			}
 		}
 		Pose[Chain[Index]] = Bone.GetRelativeTransform(Parent);
 		Parent = Bone;

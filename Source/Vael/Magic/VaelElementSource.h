@@ -29,6 +29,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Source")
 	EVaelElement Element = EVaelElement::Water;
 
+	/** Poison that looks like water (the Pfuhlnatter's): its balls leave poison puddles instead of water puddles, which
+	 *  no mage can draw water from */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Source")
+	bool bPoison = false;
+
 	/** Instance of the element's master material, used on surfaces and bodies like the water orb */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
 	TObjectPtr<UMaterialInterface> Material;

@@ -286,14 +286,15 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 			}
 		}
 	}
-	// "NatterSpuck" makes them spit as their first attack, to watch the rearing, the gob and the puddle
-	if (Name.EndsWith(TEXT("spuck")))
+
+	// "NatterSpuck" makes them spit as their first attack (rearing, balls, puddle), "NatterWuerg" coil round the player
+	if (Name.EndsWith(TEXT("spuck")) || Name.EndsWith(TEXT("wuerg")))
 	{
 		for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
 		{
 			if (FVector::Dist2D(It->GetActorLocation(), Center) < 1500.0f)
 			{
-				It->SetNextAttackSpit(true);
+				It->SetNextAttackSpit(Name.EndsWith(TEXT("spuck")));
 			}
 		}
 	}

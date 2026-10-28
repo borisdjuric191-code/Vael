@@ -3,7 +3,8 @@
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Animation/AnimSequence.h"
 #include "AnimationRuntime.h"
-#include "Combat/VaelArcShot.h"
+#include "Magic/VaelElementSource.h"
+#include "Magic/VaelSpellProjectile.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -154,12 +155,22 @@ void AVaelPfuhlnatter::SpitPoison()
 	{
 		return;
 	}
-	// From the mouth to where the prey will be when the gob comes down
-	const FVector Mouth = GetMesh()->GetSocketLocation(TEXT("kopf")) + GetActorForwardVector() * 30.0f;
-	const FVector Landing = Target->GetActorLocation() + Target->GetVelocity() * FVector(1.0f, 1.0f, 0.0f) * Data->SpitFlightTime * Data->SpitLeadShare;
-	const FLinearColor Color = Data->PoisonColor;
-	AVaelArcShot::Lob(GetWorld(), Mouth, Landing, Data->SpitFlightTime, Data->SpitApex, Color, 26.0f);
-	AVaelPoisonPuddle::Spit(GetWorld(), Landing, Data->SpitFlightTime, this);
+	// One ball of poison water from each fang, at where the prey will be
+	const FVector Head = GetMesh()->GetSocketLocation(TEXT("kopf"));
+	const FVector Aim = Target->GetActorLocation() + Target->GetVelocity() * FVector(1.0f, 1.0f, 0.0f) * (GetDistanceTo2D(Target) / Data->SpitSpeed) * Data->SpitLeadShare;
+	const FVector Forward = (Aim - Head).GetSafeNormal2D();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward);
+	FVaelSpellHit Hit;
+	Hit.Damage = Data->SpitDamage;
+	Hit.Element = EVaelElement::Water;
+	UVaelElementSource* Poison = Data->PoisonSource.LoadSynchronous();
+	for (const float Side : { -1.0f, 1.0f })
+	{
+		const FVector Fang = Head + Forward * Data->FangOffset.X + Right * Data->FangOffset.Y * Side + FVector(0.0f, 0.0f, Data->FangOffset.Z);
+		const float Range = FMath::Max(Data->SpitRange.Y * 1.2f, FVector::Dist2D(Fang, Aim) + 200.0f);
+		AVaelSpellProjectile::Launch(this, Fang, (Aim + Right * Data->FangOffset.Y * Side - Fang).GetSafeNormal2D(), Hit, Data->SpitSpeed,
+			Data->SpitBallRadius, Range / Data->SpitSpeed, Data->PoisonColor, 0.0f, 0.0f, 0.0f, Poison);
+	}
 	++SpitCount;
 }
 
@@ -276,12 +287,26 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 	// Into the mesh's space: X and Y where the joints go, Z the height above the ground (added to the pose's own)
 	const FTransform& ToWorld = GetMesh()->GetComponentTransform();
 	TArray<FVector> Targets;
+	TArray<FVector> Ups;
 	Targets.Reserve(NumJoints);
-	for (const FVector& Joint : Joints)
+	Ups.Reserve(NumJoints);
+	for (int32 Joint = 0; Joint < NumJoints; ++Joint)
 	{
-		Targets.Add(ToWorld.InverseTransformPosition(Joint));
+		Targets.Add(ToWorld.InverseTransformPosition(Joints[Joint]));
+
+		// Its back up and its belly on the ground; where the body stands up (the reared neck) the back faces away from
+		// where it goes, so the belly faces forward; in the coils the back faces out and the belly lies on the prey
+		const FVector Ahead = (Joints[FMath::Min(Joint + 1, NumJoints - 1)] - Joints[FMath::Max(Joint + 1, 1) - 1]).GetSafeNormal2D();
+		FVector Up = FVector::UpVector - Ahead;
+		const float Lift = Joints[Joint].Z - ToWorld.GetLocation().Z;
+		if ((State == EVaelSnakeState::Constrict || State == EVaelSnakeState::Release) && Lift > 10.0f)
+		{
+			const FVector Out = (Joints[Joint] - CoilCentre).GetSafeNormal2D();
+			Up = FMath::Lerp(Up, Out, FMath::Clamp((Lift - 10.0f) / 30.0f, 0.0f, 1.0f));
+		}
+		Ups.Add(ToWorld.InverseTransformVectorNoScale(Up));
 	}
-	Animator->SetSpineTargets(SpineBones, Targets, 1.0f);
+	Animator->SetSpineTargets(SpineBones, Targets, 1.0f, Ups);
 }
 
 void AVaelPfuhlnatter::Slither(const FVector& Direction, float Speed, float DeltaSeconds)
@@ -484,7 +509,9 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 		const float Squeeze = StateTime > Data->WrapTime ? FMath::Abs(FMath::Sin((StateTime - Data->WrapTime) * PI / FMath::Max(Data->SqueezeInterval, 0.1f))) : 0.0f;
 		const float Radius = (Player->GetCapsuleComponent()->GetScaledCapsuleRadius() + Data->CoilGap * Data->BodyScale) * (1.0f - 0.08f * Squeeze);
 		const float Angle = CoilStartAngle + CoilSense * Wound * Data->CoilTurns * 2.0f * PI;
-		Lead = CoilCentre + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Radius;
+		// At the top the head draws back a little from its prey and looks it in the eyes
+		const float Back = FMath::SmoothStep(Data->WrapTime, Data->WrapTime + 0.45f, StateTime);
+		Lead = CoilCentre + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * (Radius + Data->HeadGap * Data->BodyScale * Back);
 		LeadLift = FMath::Lerp(Data->CoilHeight.X, Data->CoilHeight.Y, Wound) * Data->BodyScale;
 		FaceTowards(CoilCentre);
 
@@ -639,7 +666,7 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	LookWeight = FMath::FInterpTo(LookWeight, bWatch ? 1.0f : 0.0f, DeltaSeconds, 4.0f);
 	if (Watched != nullptr)
 	{
-		LookPoint = Watched->GetActorLocation() + FVector(0.0f, 0.0f, Held.IsValid() ? 60.0f : 0.0f);
+		LookPoint = Watched->GetActorLocation() + FVector(0.0f, 0.0f, Held.IsValid() ? 70.0f : 0.0f);
 	}
 	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, LookWeight);
 

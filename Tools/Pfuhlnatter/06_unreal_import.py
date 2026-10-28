@@ -54,11 +54,38 @@ def texturen():
         log("Textur: T_Pfuhlnatter_" + art)
 
 
+def neu_importieren():
+    """Over an existing SK_Pfuhlnatter (new weights): Interchange replaces the mesh, in the right units, and keeps its
+    skeleton and animations; it can't re-import animations onto a skeleton by themselves, and the classic FBX importer
+    keeps the settings of the first import (a 6 cm snake from this FBX), so changed animations need a fresh import:
+    mesh, skeleton and physics asset hold on to each other and can't be deleted by script, Boris deletes the folder's
+    SK_/A_ assets in the editor first"""
+    ui = unreal.FbxImportUI()
+    ui.set_editor_property("import_mesh", True)
+    ui.set_editor_property("import_as_skeletal", True)
+    ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_SKELETAL_MESH)
+    ui.set_editor_property("import_materials", False)
+    ui.set_editor_property("import_textures", False)
+    ui.set_editor_property("import_animations", False)
+    ui.set_editor_property("skeleton", eal.load_asset(ZIEL + "/SK_Pfuhlnatter_Skeleton"))
+    ui.skeletal_mesh_import_data.set_editor_property("import_morph_targets", False)
+    ui.skeletal_mesh_import_data.set_editor_property("convert_scene", True)
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", os.path.join(EXPORT, "SK_Pfuhlnatter.fbx"))
+    task.set_editor_property("destination_path", ZIEL)
+    task.set_editor_property("destination_name", "SK_Pfuhlnatter")
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", True)
+    task.set_editor_property("options", ui)
+    unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+    log("Modell ersetzt: {}".format(list(task.get_editor_property("imported_object_paths"))))
+    return True
+
+
 def modell():
-    # Importing over an existing mesh re-imports the mesh alone, never its animations: 06a removes the old one first
     if eal.does_asset_exist(ZIEL + "/SK_Pfuhlnatter"):
-        log("SK_Pfuhlnatter liegt schon da - zuerst 06a_unreal_aufraeumen.py ausfuehren")
-        return False
+        return neu_importieren()
     ui = unreal.FbxImportUI()
     ui.set_editor_property("import_mesh", True)
     ui.set_editor_property("import_as_skeletal", True)

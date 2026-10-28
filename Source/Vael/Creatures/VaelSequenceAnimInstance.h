@@ -31,6 +31,7 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 
 	TArray<FName> SpineBones;
 	TArray<FVector> SpineTargets;
+	TArray<FVector> SpineUps;
 	float SpineWeight = 0.0f;
 	FVector LookPoint = FVector::ZeroVector;
 	float LookMaxAngle = 0.0f;
@@ -78,7 +79,7 @@ public:
 	 *  bone, in component space: X and Y are where each joint goes, Z is added to the height the sequence gives it.
 	 *  Weight 0 leaves the sequence alone.
 	 */
-	void SetSpineTargets(const TArray<FName>& Bones, const TArray<FVector>& Targets, float Weight);
+	void SetSpineTargets(const TArray<FName>& Bones, const TArray<FVector>& Targets, float Weight, const TArray<FVector>& Ups = TArray<FVector>());
 
 	/** Turns the tip of the spine chain (the head) towards a point in component space, by at most MaxAngle degrees;
 	 *  its forward is the way it points in the reference pose's X. Weight 0 leaves it alone */
@@ -118,6 +119,7 @@ private:
 
 	TArray<FName> SpineBones;
 	TArray<FVector> SpineTargets;
+	TArray<FVector> SpineUps;
 	float SpineWeight = 0.0f;
 	FVector LookPoint = FVector::ZeroVector;
 	float LookMaxAngle = 0.0f;

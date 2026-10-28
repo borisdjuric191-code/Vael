@@ -1329,7 +1329,7 @@ public:
 
 	/** The head turns towards its prey by up to this many degrees on its neck, whichever way it crawls */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 120))
-	float HeadLookAngle = 70.0f;
+	float HeadLookAngle = 95.0f;
 
 	/** Degrees per second the head turns on its path: calm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
@@ -1338,13 +1338,14 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float Acceleration = 3000.0f;
 
-	/** Scale of the crest and body fins while it crawls (on top of their folding in the animation): flat on the body;
-	 *  the crown keeps a small collar; coiled round prey the fins open to FinCoiledScale and the crown fully */
+	/** Scale of the crest, body fins and crown while it crawls (on top of their folding in the animation): drawn in
+	 *  completely, the body smooth (Boris 2026-10-28); rearing up, everything spreads (wow); coiled round prey the fins
+	 *  open to FinCoiledScale and the crown fully */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
-	float FinFlatScale = 0.3f;
+	float FinFlatScale = 0.1f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
-	float CrownFlatScale = 0.75f;
+	float CrownFlatScale = 0.06f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
 	float FinCoiledScale = 0.6f;
@@ -1384,6 +1385,10 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
 	float CoilGap = 22.0f;
+
+	/** At the top of its coils the head draws back this far from its prey (cm) and looks it in the eyes */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
+	float HeadGap = 50.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.05))
 	float WrapTime = 1.1f;
@@ -1428,31 +1433,55 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0))
 	float TrembleAngle = 6.0f;
 
-	/** The gob flies this long in an arc this high (cm) and lands where its prey will be (its speed times LeadShare of the flight) */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0.1))
-	float SpitFlightTime = 0.75f;
+	/** The spit: one ball of poison water from each fang (the mage's Wassergeschoss in the poison's water), this fast
+	 *  (cm/s), this big (cm), each doing this much damage where it hits; aimed where its prey will be (its speed times
+	 *  LeadShare of the flight). Where a ball bursts it leaves a poison puddle */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 1))
+	float SpitSpeed = 1500.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 1))
+	float SpitBallRadius = 16.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0))
-	float SpitApex = 160.0f;
+	float SpitDamage = 5.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0, ClampMax = 1))
 	float SpitLeadShare = 0.5f;
 
-	/** Poison: the colour, in a corrupted region (at CorruptPoisonCorruption percent and above) and frozen */
+	/** The fangs: this far apart (cm), the balls leave them this far ahead of and below the head bone */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit")
+	FVector FangOffset = FVector(32.0f, 7.0f, -12.0f);
+
+	/** The poison's water (bPoison set): look of the balls and puddles (MI_Water_Gift on M_Water) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
-	FLinearColor PoisonColor = FLinearColor(0.24f, 0.5f, 0.03f);
+	TSoftObjectPtr<UVaelElementSource> PoisonSource;
+
+	/** Poison: its colour (throat glow, vapour, cloud), in a corrupted region (at CorruptPoisonCorruption percent and above,
+	 *  shallow and deep water colour) and frozen */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
+	FLinearColor PoisonColor = FLinearColor(0.16f, 0.48f, 0.06f);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
-	FLinearColor CorruptPoisonColor = FLinearColor(0.36f, 0.05f, 0.62f);
+	FLinearColor CorruptPoisonColor = FLinearColor(0.3f, 0.04f, 0.5f);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
-	FLinearColor FrozenPoisonColor = FLinearColor(0.55f, 0.8f, 1.0f);
+	FLinearColor CorruptPoisonDeepColor = FLinearColor(0.02f, 0.0f, 0.04f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
+	FLinearColor FrozenPoisonColor = FLinearColor(0.6f, 0.85f, 0.95f);
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0, ClampMax = 100))
 	float CorruptPoisonCorruption = 55.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison")
-	TSoftObjectPtr<UMaterialInterface> PuddleMaterial;
+	/** Thin poison vapour rising off a puddle: this many wisps per m² of puddle (at most VapourMax), climbing this high (cm) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float VapourPerSquareMetre = 1.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	int32 VapourMax = 14;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
+	float VapourHeight = 140.0f;
 
 	/** A gob splashes everyone this close where it lands (cm) and leaves poison for a blob of BlobRadius (cm); more poison
 	 *  on the same spot makes the blob bigger (radius with the square root). Poison seeps away at SeepPerSecond */
@@ -1460,10 +1489,10 @@ public:
 	float SplashRadius = 140.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
-	float SplashDamage = 10.0f;
+	float SplashDamage = 4.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 10))
-	float BlobRadius = 120.0f;
+	float BlobRadius = 95.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Poison", meta = (ClampMin = 0))
 	float SeepPerSecond = 0.035f;

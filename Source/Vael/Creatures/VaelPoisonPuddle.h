@@ -25,10 +25,11 @@ enum class EVaelPoisonState : uint8
 };
 
 /**
- *  A puddle of the Pfuhlnatter's poison. Gobs landing on or beside it make it bigger, it seeps away slowly.
+ *  A puddle of the Pfuhlnatter's poison. Balls landing on or beside it make it bigger, it seeps away slowly.
  *  Players standing in it take poison damage; the snake heals by wallowing in it (more in a corrupted region, where the
  *  poison turns violet). Water washes it away, ice freezes it, fire turns it into a poison cloud that hurts everyone.
- *  Values in UVaelPfuhlnatterData. Look: overlapping soft blobs of M_Pfuhlnatter_Gift on the ground.
+ *  Values in UVaelPfuhlnatterData. Look: like the water puddles (one surface of the puddle material in the poison
+ *  water's colours, its outline painted into a mask, blobs flowing together), with thin poison vapour rising off it.
  */
 UCLASS()
 class AVaelPoisonPuddle : public AActor
@@ -89,11 +90,39 @@ private:
 	/** Hits everyone standing in the puddle (players) or in the cloud (everyone) */
 	void HurtThoseInside(float Damage, float ExtraDistance, bool bEveryone);
 
+	/** Sets up the surface's material from the poison water, and the vapour */
+	void SetupLook();
+
+	/** Places the surface over all blobs and paints their outline into the mask */
+	void RefreshSurface();
+
+	/** Lets the wisps of vapour rise, fade and start again */
+	void RefreshVapour(float DeltaSeconds);
+
+	/** One surface of water over the whole puddle; its outline is painted into the mask */
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	TObjectPtr<UStaticMeshComponent> Surface;
+
 	UPROPERTY(Transient)
-	TArray<TObjectPtr<UStaticMeshComponent>> Blobs;
+	TObjectPtr<class UTexture2D> Mask;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> Material;
+
+	/** Thin poison vapour rising off the puddle */
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	TObjectPtr<class UVaelCloudCardsComponent> Vapour;
+
+	/** Each wisp: where it rises from, how far up it is (0..1), how fast, and its card */
+	TArray<FVector> WispStarts;
+	TArray<float> WispAges;
+	TArray<float> WispSpeeds;
+	TArray<int32> WispCards;
+
+	/** The poison water's own colours, to go back to after a thaw */
+	FLinearColor ShallowColor = FLinearColor::Green;
+	FLinearColor DeepColor = FLinearColor::Black;
+	float RepaintTime = 0.0f;
 
 	TArray<FVector> BlobCenters;
 	TArray<float> BlobPoison;

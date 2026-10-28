@@ -7,10 +7,17 @@
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelPollenBurst.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/Texture2D.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Magic/VaelCloudCards.h"
+#include "Magic/VaelElementSource.h"
+#include "Magic/VaelMagicSettings.h"
+#include "Materials/MaterialInstance.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Player/VaelCharacter.h"
+#include "UObject/ConstructorHelpers.h"
+#include "VaelAssets.h"
 #include "World/VaelRegion.h"
 
 namespace
@@ -18,9 +25,21 @@ namespace
 	/** Seconds between two poison damage steps */
 	constexpr float PoisonHurtInterval = 0.5f;
 
-	/** Size of the engine plane the blobs are drawn on, and where the material puts the rim (share of it from the middle) */
+	/** Size of the engine plane, texels along the outline mask, seconds between two paintings of it */
 	constexpr float PoisonPlaneSize = 100.0f;
-	constexpr float PoisonRimShare = 0.42f;
+	constexpr int32 PoisonMaskResolution = 64;
+	constexpr float PoisonRepaintInterval = 0.05f;
+
+	/** As the water puddles: a blob pulls the poison up to this many of its radii away, so close blobs flow together */
+	constexpr float PoisonFieldReach = 1.6f;
+	constexpr float PoisonEdgeField = (1.0f - 1.0f / (PoisonFieldReach * PoisonFieldReach)) * (1.0f - 1.0f / (PoisonFieldReach * PoisonFieldReach));
+
+	/** The look of water on the ground (the values of the water puddles) */
+	constexpr float PoisonContactFade = 0.3f;
+	constexpr float PoisonWobble = 0.4f;
+	constexpr float PoisonMaxEmissive = 0.25f;
+	constexpr float PoisonMinMurkiness = 0.45f;
+	constexpr float PoisonEdgeSoftness = 0.04f;
 
 	/** A blob with less poison than this is gone */
 	constexpr float PoisonMinBlob = 0.04f;
@@ -35,6 +54,21 @@ AVaelPoisonPuddle::AVaelPoisonPuddle()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
+
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> PlaneMesh(TEXT("/Engine/BasicShapes/Plane.Plane"));
+	Surface = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Surface"));
+	Surface->SetupAttachment(RootComponent);
+	Surface->SetStaticMesh(PlaneMesh.Object);
+	Surface->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Surface->SetCastShadow(false);
+	Surface->SetUsingAbsoluteLocation(true);
+	Surface->SetUsingAbsoluteRotation(true);
+	Surface->SetUsingAbsoluteScale(true);
+	Surface->SetVisibility(false);
+
+	Vapour = CreateDefaultSubobject<UVaelCloudCardsComponent>(TEXT("Vapour"));
+	Vapour->SetupAttachment(RootComponent);
+	Vapour->SetUsingAbsoluteLocation(true);
 }
 
 AVaelPoisonPuddle* AVaelPoisonPuddle::Spit(UWorld* World, const FVector& Location, float Delay, AActor* InInstigator)
@@ -69,9 +103,69 @@ bool AVaelPoisonPuddle::FindGround(const UWorld* World, const FVector& Location,
 	return false;
 }
 
+void AVaelPoisonPuddle::SetupLook()
+{
+	const UVaelPfuhlnatterData* Data = PoisonData();
+	const UVaelElementSource* Source = Data->PoisonSource.LoadSynchronous();
+	UMaterialInterface* PuddleMaterial = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->PuddleMaterial);
+	if (Source == nullptr || Source->Material == nullptr || PuddleMaterial == nullptr)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Poison puddle: the poison water or the puddle material is missing"));
+		return;
+	}
+
+	// The water puddles' material in the colours of the poison water; on the ground it hardly glows and shows its depth
+	Material = UMaterialInstanceDynamic::Create(PuddleMaterial, this);
+	if (UMaterialInstance* SourceInstance = Cast<UMaterialInstance>(Source->Material))
+	{
+		Material->CopyParameterOverrides(SourceInstance);
+	}
+	float Emissive = 0.0f;
+	float Murkiness = 0.0f;
+	Source->Material->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("EmissiveStrength")), Emissive);
+	Source->Material->GetScalarParameterValue(FHashedMaterialParameterInfo(TEXT("Murkiness")), Murkiness);
+	Source->Material->GetVectorParameterValue(FHashedMaterialParameterInfo(TEXT("ShallowColor")), ShallowColor);
+	Source->Material->GetVectorParameterValue(FHashedMaterialParameterInfo(TEXT("DeepColor")), DeepColor);
+	Material->SetScalarParameterValue(TEXT("ContactFade"), PoisonContactFade);
+	Material->SetScalarParameterValue(TEXT("WobbleStrength"), PoisonWobble);
+	Material->SetScalarParameterValue(TEXT("EmissiveStrength"), FMath::Min(Emissive, PoisonMaxEmissive));
+	Material->SetScalarParameterValue(TEXT("Murkiness"), FMath::Max(Murkiness, PoisonMinMurkiness));
+	Material->SetScalarParameterValue(TEXT("EdgeSoftness"), PoisonEdgeSoftness);
+	if (bCorrupted)
+	{
+		ShallowColor = Data->CorruptPoisonColor;
+		DeepColor = Data->CorruptPoisonDeepColor;
+	}
+	ShownColor = ShallowColor;
+	Surface->SetMaterial(0, Material);
+
+	Mask = UTexture2D::CreateTransient(PoisonMaskResolution, PoisonMaskResolution, PF_B8G8R8A8);
+	if (Mask != nullptr)
+	{
+		Mask->SRGB = false;
+		Mask->Filter = TF_Bilinear;
+		Mask->AddressX = TA_Clamp;
+		Mask->AddressY = TA_Clamp;
+		Mask->UpdateResource();
+		Material->SetTextureParameterValue(TEXT("PuddleMask"), Mask);
+	}
+
+	// Vapour: soft cloud cards in the poison's colour
+	if (UMaterialInterface* CloudMaterial = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->CloudCardMaterial))
+	{
+		UMaterialInstanceDynamic* VapourMaterial = UMaterialInstanceDynamic::Create(CloudMaterial, this);
+		VapourMaterial->SetVectorParameterValue(TEXT("Farbe"), bCorrupted ? Data->CorruptPoisonColor : Data->PoisonColor);
+		Vapour->Init(VapourMaterial);
+	}
+}
+
 void AVaelPoisonPuddle::AddPoison(const FVector& GroundLocation, float Amount)
 {
 	const UVaelPfuhlnatterData* Data = PoisonData();
+	if (Material == nullptr)
+	{
+		SetupLook();
+	}
 	// Onto the blob it lands on, or as a new one
 	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
 	{
@@ -84,28 +178,6 @@ void AVaelPoisonPuddle::AddPoison(const FVector& GroundLocation, float Amount)
 	BlobCenters.Add(GroundLocation);
 	BlobPoison.Add(Amount);
 	BlobShownRadius.Add(0.0f);
-
-	UStaticMeshComponent* Blob = NewObject<UStaticMeshComponent>(this);
-	Blob->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
-	Blob->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Blob->SetCastShadow(false);
-	Blob->SetupAttachment(RootComponent);
-	Blob->RegisterComponent();
-	if (Material == nullptr)
-	{
-		if (UMaterialInterface* Base = Data->PuddleMaterial.LoadSynchronous())
-		{
-			Material = UMaterialInstanceDynamic::Create(Base, this);
-		}
-	}
-	if (Material != nullptr)
-	{
-		Blob->SetMaterial(0, Material);
-	}
-	// Each blob a little higher than the one before, so overlapping blobs don't flicker
-	Blob->SetWorldLocation(GroundLocation + FVector(0.0f, 0.0f, 2.0f + 0.15f * Blobs.Num()));
-	Blob->SetWorldScale3D(FVector(0.01f));
-	Blobs.Add(Blob);
 }
 
 void AVaelPoisonPuddle::Tick(float DeltaSeconds)
@@ -144,8 +216,6 @@ void AVaelPoisonPuddle::Tick(float DeltaSeconds)
 		}
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), Ground);
 		bCorrupted = Region != nullptr && Region->GetCorruption() >= Data->CorruptPoisonCorruption;
-		const FLinearColor Color = bCorrupted ? Data->CorruptPoisonColor : Data->PoisonColor;
-		AVaelPollenBurst::Spawn(GetWorld(), Ground + FVector(0.0f, 0.0f, 25.0f), 80.0f, Color, Color * 0.5f, 0.6f);
 
 		// Joins a puddle lying there
 		for (TActorIterator<AVaelPoisonPuddle> It(GetWorld()); It; ++It)
@@ -161,7 +231,6 @@ void AVaelPoisonPuddle::Tick(float DeltaSeconds)
 		AddPoison(Ground, 1.0f);
 		State = EVaelPoisonState::Liquid;
 		StateTime = 0.0f;
-		ShownColor = Color;
 		break;
 	}
 
@@ -214,8 +283,6 @@ void AVaelPoisonPuddle::Tick(float DeltaSeconds)
 	{
 		if (BlobPoison[Index] < PoisonMinBlob && State != EVaelPoisonState::Cloud && BlobShownRadius[Index] < 5.0f)
 		{
-			Blobs[Index]->DestroyComponent();
-			Blobs.RemoveAt(Index);
 			BlobCenters.RemoveAt(Index);
 			BlobPoison.RemoveAt(Index);
 			BlobShownRadius.RemoveAt(Index);
@@ -232,20 +299,130 @@ void AVaelPoisonPuddle::Tick(float DeltaSeconds)
 void AVaelPoisonPuddle::RefreshLook(float DeltaSeconds)
 {
 	const UVaelPfuhlnatterData* Data = PoisonData();
-	for (int32 Index = 0; Index < Blobs.Num(); ++Index)
+	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
 	{
 		const float Wanted = BlobPoison[Index] < PoisonMinBlob ? 0.0f : Data->BlobRadius * FMath::Sqrt(BlobPoison[Index]);
 		BlobShownRadius[Index] = FMath::FInterpTo(BlobShownRadius[Index], Wanted, DeltaSeconds, 3.0f);
-		Blobs[Index]->SetWorldScale3D(FVector(FMath::Max(BlobShownRadius[Index], 1.0f) / (PoisonPlaneSize * PoisonRimShare), FMath::Max(BlobShownRadius[Index], 1.0f) / (PoisonPlaneSize * PoisonRimShare), 1.0f));
 	}
 	if (Material != nullptr)
 	{
-		const FLinearColor Wanted = State == EVaelPoisonState::Frozen ? Data->FrozenPoisonColor : (bCorrupted ? Data->CorruptPoisonColor : Data->PoisonColor);
-		ShownColor = FMath::CInterpTo(ShownColor, Wanted, DeltaSeconds, 3.0f);
-		Material->SetVectorParameterValue(TEXT("Farbe"), ShownColor);
-		Material->SetScalarParameterValue(TEXT("Leuchten"), State == EVaelPoisonState::Frozen ? 0.05f : (State == EVaelPoisonState::Cloud ? 1.2f : 0.3f));
-		Material->SetScalarParameterValue(TEXT("Rauheit"), State == EVaelPoisonState::Frozen ? 0.45f : 0.04f);
+		// Frozen it turns to pale ice, still and dull; thawed it gets its poison colours back
+		const bool bFrozen = State == EVaelPoisonState::Frozen;
+		ShownColor = FMath::CInterpTo(ShownColor, bFrozen ? Data->FrozenPoisonColor : ShallowColor, DeltaSeconds, 3.0f);
+		Material->SetVectorParameterValue(TEXT("ShallowColor"), ShownColor);
+		Material->SetVectorParameterValue(TEXT("DeepColor"), bFrozen ? Data->FrozenPoisonColor * 0.4f : DeepColor);
+		Material->SetScalarParameterValue(TEXT("WobbleStrength"), bFrozen ? 0.0f : PoisonWobble);
 	}
+	RepaintTime += DeltaSeconds;
+	if (RepaintTime >= PoisonRepaintInterval)
+	{
+		RefreshSurface();
+	}
+	RefreshVapour(DeltaSeconds);
+}
+
+void AVaelPoisonPuddle::RefreshSurface()
+{
+	RepaintTime = 0.0f;
+	if (BlobCenters.IsEmpty() || Material == nullptr)
+	{
+		Surface->SetVisibility(false);
+		return;
+	}
+
+	// A square over all blobs with room for the poison that joins them, as the water puddles do
+	FBox2D Bounds(ForceInit);
+	float Height = 0.0f;
+	for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
+	{
+		const FVector2D Center(BlobCenters[Index]);
+		const float Reach = BlobShownRadius[Index] * PoisonFieldReach + 10.0f;
+		Bounds += Center - FVector2D(Reach);
+		Bounds += Center + FVector2D(Reach);
+		Height += BlobCenters[Index].Z;
+	}
+	const FVector2D Middle = Bounds.GetCenter();
+	const float Size = FMath::Max(Bounds.GetSize().GetMax(), 1.0f);
+	const FVector2D Origin = Middle - FVector2D(Size * 0.5f);
+	Surface->SetWorldLocationAndRotation(FVector(Middle, Height / BlobCenters.Num() + 1.5f), FRotator::ZeroRotator);
+	Surface->SetWorldScale3D(FVector(Size / PoisonPlaneSize, Size / PoisonPlaneSize, 1.0f));
+	Surface->SetVisibility(true);
+	Material->SetVectorParameterValue(TEXT("MaskOrigin"), FLinearColor(Origin.X, Origin.Y, 0.0f, 0.0f));
+	Material->SetScalarParameterValue(TEXT("MaskSize"), Size);
+
+	if (Mask == nullptr || Mask->GetResource() == nullptr)
+	{
+		return;
+	}
+	const float TexelSize = Size / PoisonMaskResolution;
+	uint8* Pixels = new uint8[PoisonMaskResolution * PoisonMaskResolution * 4];
+	for (int32 Row = 0; Row < PoisonMaskResolution; ++Row)
+	{
+		for (int32 Column = 0; Column < PoisonMaskResolution; ++Column)
+		{
+			const FVector2D Point = Origin + FVector2D(Column + 0.5f, Row + 0.5f) * TexelSize;
+			float Field = 0.0f;
+			for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
+			{
+				const float Reach = BlobShownRadius[Index] * PoisonFieldReach;
+				const float Share = FVector2D::DistSquared(Point, FVector2D(BlobCenters[Index])) / FMath::Max(Reach * Reach, 1.0f);
+				Field += FMath::Square(FMath::Max(1.0f - Share, 0.0f));
+			}
+			// The edge of a lone blob is written as one half, which the material takes as the edge
+			const uint8 Value = static_cast<uint8>(FMath::Clamp(FMath::RoundToInt(Field / (2.0f * PoisonEdgeField) * 255.0f), 0, 255));
+			uint8* Pixel = Pixels + (Row * PoisonMaskResolution + Column) * 4;
+			Pixel[0] = Value;
+			Pixel[1] = Value;
+			Pixel[2] = Value;
+			Pixel[3] = 255;
+		}
+	}
+	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, PoisonMaskResolution, PoisonMaskResolution);
+	Mask->UpdateTextureRegions(0, 1, Region, PoisonMaskResolution * 4, 4, Pixels, [](uint8* Data, const FUpdateTextureRegion2D* Regions)
+	{
+		delete[] Data;
+		delete Regions;
+	});
+}
+
+void AVaelPoisonPuddle::RefreshVapour(float DeltaSeconds)
+{
+	const UVaelPfuhlnatterData* Data = PoisonData();
+	if (Vapour == nullptr || BlobCenters.IsEmpty())
+	{
+		return;
+	}
+	// As many wisps as the puddle is big; none from frozen poison, the cloud takes over when it burns
+	const float Radius = GetRadius();
+	const int32 Wanted = State == EVaelPoisonState::Liquid
+		? FMath::Clamp(FMath::RoundToInt(PI * FMath::Square(Radius / 100.0f) * Data->VapourPerSquareMetre), 1, Data->VapourMax) : 0;
+	const FVector Middle = GetMiddle();
+	while (WispCards.Num() < Wanted)
+	{
+		WispCards.Add(Vapour->AddCard(Middle, 1.0f, 0.0f));
+		WispStarts.Add(Middle);
+		WispAges.Add(FMath::FRand());
+		WispSpeeds.Add(FMath::FRandRange(0.18f, 0.32f));
+	}
+	for (int32 Wisp = 0; Wisp < WispCards.Num(); ++Wisp)
+	{
+		WispAges[Wisp] += WispSpeeds[Wisp] * DeltaSeconds;
+		if (WispAges[Wisp] >= 1.0f)
+		{
+			// Starts again somewhere over the poison
+			WispAges[Wisp] = 0.0f;
+			const int32 Blob = FMath::RandRange(0, BlobCenters.Num() - 1);
+			const FVector2D Offset = FMath::RandPointInCircle(BlobShownRadius[Blob] * 0.8f);
+			WispStarts[Wisp] = BlobCenters[Blob] + FVector(Offset, 5.0f);
+		}
+		const float Up = WispAges[Wisp];
+		const bool bShown = Wisp < Wanted;
+		// Rises, swells, fades in and out; thin, never a cloud
+		const float Solid = bShown ? 0.16f * FMath::Sin(Up * PI) : 0.0f;
+		const FVector Place = WispStarts[Wisp] + FVector(FMath::Sin(Up * 5.0f + Wisp) * 12.0f, FMath::Cos(Up * 4.0f + Wisp) * 12.0f, Up * Data->VapourHeight);
+		Vapour->SetCard(WispCards[Wisp], Place - Vapour->GetComponentLocation(), 45.0f + 70.0f * Up, Solid);
+	}
+	Vapour->Commit();
 }
 
 void AVaelPoisonPuddle::HurtThoseInside(float Damage, float ExtraDistance, bool bEveryone)

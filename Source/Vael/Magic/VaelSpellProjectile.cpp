@@ -1816,8 +1816,16 @@ void AVaelSpellProjectile::BurstWaterOrb(bool bHitSomething)
 	const float Diameter = Scale * 100.0f;
 	const float WaterAmount = FMath::Min(FMath::Square(Diameter / FMath::Max(MagicSettings->WaterAmountReferenceDiameter, 1.0f)) * (bHitSomething ? 1.0f : 0.6f), MagicSettings->MaxWaterAmount);
 
-	// The water comes down with the drops and stays on the ground; enough of it in one place becomes water of the environment
-	AVaelWaterPuddle::PourSplash(GetWorld(), Location, WaterAmount, WaterSource, GetInstigator());
+	// The water comes down with the drops and stays on the ground; enough of it in one place becomes water of the environment.
+	// Poison (the Pfuhlnatter's spit) leaves a poison puddle instead
+	if (WaterSource != nullptr && WaterSource->bPoison)
+	{
+		AVaelPoisonPuddle::Spit(GetWorld(), Location, 0.1f, GetInstigator());
+	}
+	else
+	{
+		AVaelWaterPuddle::PourSplash(GetWorld(), Location, WaterAmount, WaterSource, GetInstigator());
+	}
 	if (WaterPlantsRadius > 0.0f)
 	{
 		VaelWatering::WaterAround(GetWorld(), Location, WaterPlantsRadius, WaterPlantsAmount, GetInstigator());
@@ -1945,8 +1953,12 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 		// and the air: fire heats it, water wets it
 		UVaelAtmosphere::NotifySpellImpact(this, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit.Element : Hit.Element);
 
-		// and the poison puddles of the Pfuhlnatter: water washes them away, ice freezes them, fire boils them off
-		AVaelPoisonPuddle::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit : Hit);
+		// and the poison puddles of the Pfuhlnatter: water washes them away, ice freezes them, fire boils them off (its own
+		// balls of poison water don't wash them)
+		if (WaterSource == nullptr || !WaterSource->bPoison)
+		{
+			AVaelPoisonPuddle::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit : Hit);
+		}
 	}
 
 	if (ImpactRadius > 0.0f)

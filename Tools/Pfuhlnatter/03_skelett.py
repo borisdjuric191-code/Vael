@@ -41,8 +41,10 @@ GROBER_WEG = [(-1.70, 0.25, 0.80), (-1.62, 0.12, 0.48), (-1.46, -0.04, 0.27), (-
               (1.7, -0.17, 1.48)]
 SCHNAUZE = (2.07, -0.18, 1.47)
 KOPF_RADIUS = 0.42      # m around the head's middle that belong to the head
+SCHAEDEL_RADIUS = 0.2   # m from the head's axis: beyond it everything round the head is crown
 FLOSSE_ABSTAND = 1.18   # a vertex further out than this many body radii is fin
-FLOSSE_VOLL = 1.45      # from here on it moves with its fin alone
+FLOSSE_VOLL = 1.24      # from here on it moves with its fin alone (close to the body: a fin drawn in must take its
+                        # whole membrane along, or its root stays standing as a ridge)
 ABSCHNITT_M = 0.24      # fins along the body are grouped in pieces this long (one spine bone: a longer piece
                         # stays rigid while the spine bends under it and tears into planks)
 MIN_FLOSSE = 120        # vertices a fin needs to get a bone
@@ -163,7 +165,11 @@ def main():
     zahn = im_kopf & (vorn > 0.05) & (unter < -0.08)
     kopf_abstand = np.linalg.norm(zum_kopf - np.outer(vorn, kopf_achse), axis=1)
     # Only round the head itself: the crest further down the neck must bend with the neck
-    krone = (s_param > 0.82) & ~zahn & (kopf_abstand > 0.17) & (np.linalg.norm(zum_kopf, axis=1) < 0.6) & (vorn < 0.12) &         (vorn > -0.4) & ~koerper
+    # Pale membrane, or anything standing out further than the skull (the dark red roots of the petals look like skin,
+    # but they must fold with their petal or they stay standing as a ring round the head); never below the head, where
+    # the neck hangs down in the rest pose
+    krone = (s_param > 0.82) & ~zahn & (kopf_abstand > 0.17) & (np.linalg.norm(zum_kopf, axis=1) < 0.6) & (vorn < 0.12) & \
+        (vorn > -0.4) & (~koerper | ((kopf_abstand > SCHAEDEL_RADIUS) & (unter > -0.1)))
     # Fins on the neck top grow up round the head: a petal hanging on the head and on a neck bone at once tears into a
     # sheet when the head lies flat, so they fold with the crown (their base still blends into the neck)
     krone_hals = (s_param > KRONE_AB) & ~im_kopf & ~zahn & ~krone & (abstand > radius_hier * FLOSSE_ABSTAND)
@@ -286,7 +292,8 @@ def main():
     for f in flossen:
         for v in f["auswahl"]:
             if krone[v] and not krone_hals[v]:
-                voll = np.clip((kopf_abstand[v] - 0.15) / 0.12, 0.0, 1.0)
+                # The whole petal on its crown bone, so drawn in it leaves the head smooth
+                voll = np.clip((kopf_abstand[v] - 0.13) / 0.04, 0.0, 1.0)
             else:
                 voll = np.clip((abstand[v] / radius_hier[v] - FLOSSE_ABSTAND) / (FLOSSE_VOLL - FLOSSE_ABSTAND), 0.0, 1.0)
             g = {n: x * (1.0 - voll) for n, x in gewicht[v].items()}
