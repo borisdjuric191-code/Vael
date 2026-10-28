@@ -128,6 +128,16 @@ public:
 	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */
 	virtual bool IsBossFightActive() const { return false; }
 
+	/** True for creatures that lie in wait instead of walking up: the encounter director puts them right on the group's way */
+	virtual bool IsAmbusher() const { return false; }
+
+	/**
+	 *  Called by the encounter director a few times a second for the creatures it sent, so packs come for the players
+	 *  instead of idling beside their way (Boris 2026-10-28). By default home moves to the group: whoever has no target
+	 *  walks there and notices the players on the way. Ambushers wake when the group comes near enough instead.
+	 */
+	virtual void ProwlTowards(const FVector& GroupCentre, float GroupDistance) { HomeLocation = GroupCentre; }
+
 	/** True for a stronger version sent by a corrupted region */
 	UFUNCTION(BlueprintPure, Category="Creature")
 	bool IsMarked() const { return bMarked; }

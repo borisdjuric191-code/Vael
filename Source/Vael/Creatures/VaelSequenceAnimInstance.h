@@ -45,6 +45,9 @@ public:
 	/** Changes the speed of the current sequence, for example to match the walking speed */
 	void SetRate(float Rate) { CurrentRate = Rate; }
 
+	/** Plays a looping sequence from the same share of its length the current one has reached, so gaits hand over in step */
+	void PlayInStep(UAnimSequence* Sequence, float BlendTime, float Rate);
+
 	/** Sequence playing now */
 	UAnimSequence* GetCurrent() const { return Current.Get(); }
 

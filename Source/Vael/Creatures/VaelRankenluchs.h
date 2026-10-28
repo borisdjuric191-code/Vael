@@ -55,6 +55,12 @@ public:
 	/** Not aimed at while it lies in ambush */
 	virtual bool IsHiddenFromAim() const override;
 
+	/** Lies in ambush, so packs of the director come right onto the group's way */
+	virtual bool IsAmbusher() const override { return true; }
+
+	/** Sent by the director: wakes when the group comes within its aggro range, and goes after it instead of home */
+	virtual void ProwlTowards(const FVector& GroupCentre, float GroupDistance) override;
+
 	/** What it is doing */
 	UFUNCTION(BlueprintPure, Category="Rankenluchs")
 	EVaelLynxState GetLynxState() const { return State; }
@@ -84,8 +90,14 @@ private:
 	/** Plays the animation of the state; walking and running follow the speed */
 	void PlayAnimation(UAnimSequence* Sequence, bool bLoop, float BlendTime, float Rate = 1.0f);
 
-	/** Walks or runs and plays the matching gait */
+	/** Walks or runs; the gait follows the real speed (UpdateGait) */
 	void Move(const FVector& Direction, float Speed);
+
+	/** While it moves about: walk, run or stand after its real speed, in step, and leaning into curves */
+	void UpdateGait(float DeltaSeconds);
+
+	/** Turns smoothly towards a spot instead of snapping round */
+	void TurnTowards(const FVector& Location, float DeltaSeconds);
 
 	/** Calls the pack: every lynx in ambush within PackRange wakes a moment later */
 	void AlarmPack();
@@ -129,6 +141,11 @@ private:
 
 	/** How far the mesh is sunk into the ground right now, 0 up .. 1 AmbushSink */
 	float Sunk = 1.0f;
+
+	/** Gait and lean: whether it runs (with some slack, so it doesn't flicker), its last yaw and how far it leans */
+	bool bRunning = false;
+	float LastYaw = 0.0f;
+	float Lean = 0.0f;
 	float MeshBaseZ = 0.0f;
 
 	/** Light (0) to shadow (1) form, shown and aimed for; checked against the region now and then */

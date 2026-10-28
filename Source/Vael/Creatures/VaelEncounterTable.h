@@ -78,6 +78,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Placement", meta = (ClampMin = 0, ClampMax = 180))
 	float SpawnCone = 50.0f;
 
+	/** Lurkers (lynx, thistle spider) lie closer to the walking direction, so the group really comes past them, in degrees */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Placement", meta = (ClampMin = 0, ClampMax = 180))
+	float AmbushCone = 15.0f;
+
 	/** No pack on ground lower than this, in cm: water planes have no collision, so the ground below them would count */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Placement")
 	float MinGroundHeight = -1.0e6f;
@@ -97,4 +101,8 @@ public:
 	/** Creatures of the director farther than this from every player go away, in cm */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Limits", meta = (ClampMin = 1000))
 	float DespawnDistance = 9000.0f;
+
+	/** Creatures the group has left behind (behind its walking direction, not fighting) go away from this distance on, in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Limits", meta = (ClampMin = 1000))
+	float BehindDespawnDistance = 4500.0f;
 };

@@ -1165,6 +1165,21 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float RunAnimationSpeed = 520.0f;
 
+	/** How fast it turns, in degrees per second: low enough that it runs in curves like a cat, not round on the spot (Boris 2026-10-28: too stiff) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float TurnRate = 300.0f;
+
+	/** Speeding up and slowing down, in cm/s²: it eases into a run and out of it */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float Acceleration = 1500.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float Braking = 1300.0f;
+
+	/** It leans into curves at a run, at most this many degrees */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 30))
+	float LeanAngle = 11.0f;
+
 	/** How deep the lying lynx sinks into the undergrowth while in ambush, in cm: only the back and the crest stay up */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ambush", meta = (ClampMin = 0))
 	float AmbushSink = 26.0f;

@@ -2,8 +2,8 @@
 #
 # - The ground (M_WF_Zonenkarte, which wf_blockout.py lays on the landscape) is rebuilt: forest floor laid by world
 #   position (each layer sampled twice, turned, against the tile look), mud at the waterline, rock on steep slopes,
-#   brown forest floor only on the campaign path, green meadow and moss everywhere else in the forest, all tinted
-#   by the zone map so the regions stay readable. Hain (and partly Kammweg and moor) get the Fab root moss floor,
+#   green meadow and moss everywhere in the forest, all tinted by the zone map so the regions stay readable (the
+#   Forstsaum's olive zone colour pulled towards green: Boris found the floor too brown, 2026-10-28). Hain (and partly Kammweg and moor) get the Fab root moss floor,
 #   the Forstsaum a meadow of uncut grass with clover patches.
 # - Plants grow by themselves near the camera (landscape grass, GT_WF_* in .../Blockout/Gras): ferns, sorrel and balsam
 #   in Hain, Saum, Moor and Kammweg, reeds along the shore, dry grass at the ash edge. The ground material says where
@@ -11,6 +11,9 @@
 #   Master materials of these plants get the instancing usage, otherwise the game shows them grey.
 # - Small winding trails with the root moss floor and dense thickets around the trunks and along the trail edges, from
 #   the kit's T_WF_Pfade.png / T_WF_Dickicht.png (wf_pfade.py), imported into .../Blockout on every run.
+# - The campaign path (Boris 2026-10-28): no more grey box plates (Weg_*, switched off, not deleted) but the same root
+#   floor as the trails along a gently winding line (T_WF_Hauptweg.png), 2.5-4.5 m wide and uneven, trodden down the
+#   middle, with a green moss seam on both sides and ferns crowding it (thicket band from wf_pfade.py).
 # - The grey box master M_WF_Graubox gets a texture laid over the world (bark, rock, moss ...); every MI_WF_* instance
 #   picks its texture and how strongly it shows ("Muster", 0 = plain colour as before).
 # - The level template's own sun, sky light, atmosphere and fog (folder "Lighting") are switched off, the blockout brings its own.
@@ -115,7 +118,11 @@ GRASS_CULL = (5000, 7000)  # start and end of the fade-out in cm; the shared cam
 # Small trails and thickets (Blockout kit, wf_pfade.py): imported as grey textures over the whole landscape
 KIT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Blockout", "Vael_Wurzelforst_Blockout")
 MASK_FOLDER = "/Game/Vael/Wurzelforst/Blockout"
-MASKS = {"trails": ("T_WF_Pfade.png", "T_WF_Pfade"), "thicket": ("T_WF_Dickicht.png", "T_WF_Dickicht")}
+MASKS = {"trails": ("T_WF_Pfade.png", "T_WF_Pfade"), "thicket": ("T_WF_Dickicht.png", "T_WF_Dickicht"),
+         "mainpath": ("T_WF_Hauptweg.png", "T_WF_Hauptweg")}
+PATH_PLATE_PREFIX = "Weg_"
+PATH_PLATE_FOLDER = "Kampagnenweg"
+PATH_OFF_TAG = "WF_WegplatteAus"
 TRAIL_RANGE = 1000.0  # cm of distance T_WF_Pfade.png stores as 0..1 (PFAD_REICHWEITE_M)
 
 # How much a texture brightens the colour it lies on (its grey is about 1 / this); the stylized bark is light
@@ -423,7 +430,7 @@ def build_ground(material, textures, grass_types, masks):
     moss_green = g.op(unreal.MaterialExpressionMultiply, 6, moss_grey,
                       g.mask(g.node(unreal.MaterialExpressionVectorParameter, 8, parameter_name="MoosFarbe",
                                     default_value=unreal.LinearColor(0.75, 1.25, 0.42, 1.0)), 7, r=True, g=True, b=True))
-    mossy = g.lerp(rootmoss, moss_green, g.scalar("MoosGruen", 0.65, 7), 6)
+    mossy = g.lerp(rootmoss, moss_green, g.scalar("MoosGruen", 0.8, 7), 6)
     zone_moss = g.op(unreal.MaterialExpressionAdd, 8, g.op(unreal.MaterialExpressionMultiply, 9, weights["hain"], g.const(0.6, 10)),
                      g.op(unreal.MaterialExpressionAdd, 9, g.op(unreal.MaterialExpressionMultiply, 10, weights["moor"], g.const(0.5, 11)),
                           g.op(unreal.MaterialExpressionMultiply, 10, weights["kamm"], g.const(0.35, 11))))
@@ -464,7 +471,7 @@ def build_ground(material, textures, grass_types, masks):
     g.link(zone, distance, "A")
     g.link(path_color, distance, "B")
     ragged = g.op(unreal.MaterialExpressionMultiply, 7, g.op(unreal.MaterialExpressionSubtract, 8, swap_noise, g.const(0.5, 9)), g.const(0.07, 8))
-    path = g.saturate(g.op(unreal.MaterialExpressionDivide, 5,
+    old_path = g.saturate(g.op(unreal.MaterialExpressionDivide, 5,
                            g.op(unreal.MaterialExpressionAdd, 6, g.op(unreal.MaterialExpressionSubtract, 7, g.scalar("WegBreite", 0.19, 8), distance),
                                 ragged),
                            g.const(0.05, 6)), 4)
@@ -475,7 +482,40 @@ def build_ground(material, textures, grass_types, masks):
     earth = g.op(unreal.MaterialExpressionMultiply, 4, path_grey,
                  g.mask(g.node(unreal.MaterialExpressionVectorParameter, 6, parameter_name="WegFarbe",
                                default_value=unreal.LinearColor(0.95, 0.62, 0.36, 1.0)), 5, r=True, g=True, b=True))
-    ground = g.lerp(ground, earth, path, 4)
+
+    # The campaign path: the root floor of the trails along the winding line, wider and unevenly so, trodden down the
+    # middle, a seam of green moss on both sides
+    if masks.get("mainpath") is not None:
+        main_distance = g.op(unreal.MaterialExpressionMultiply, 7, g.mask(g.sample(masks["mainpath"], zone_uv, 9), 8, r=True),
+                             g.const(TRAIL_RANGE, 8))
+        wobble = g.node(unreal.MaterialExpressionNoise, 9, scale=0.008, levels=2, output_min=-1.0, output_max=1.0, quality=1)
+        main_half = g.op(unreal.MaterialExpressionAdd, 6,
+                         g.op(unreal.MaterialExpressionMultiply, 7, g.scalar("WegBreite", 165.0, 8),
+                              g.op(unreal.MaterialExpressionAdd, 8, g.const(0.75, 9), g.op(unreal.MaterialExpressionMultiply, 9, swap, g.const(0.5, 10)))),
+                         g.op(unreal.MaterialExpressionMultiply, 7, wobble, g.const(28.0, 8)))
+        path = g.saturate(g.op(unreal.MaterialExpressionDivide, 5, g.op(unreal.MaterialExpressionSubtract, 6, main_half, main_distance),
+                               g.const(35.0, 6)), 4)
+        main_trodden = g.saturate(g.op(unreal.MaterialExpressionDivide, 5,
+                                       g.op(unreal.MaterialExpressionSubtract, 6, g.op(unreal.MaterialExpressionMultiply, 7, main_half, g.const(0.4, 8)),
+                                            main_distance), g.const(45.0, 6)), 4)
+        seam = g.op(unreal.MaterialExpressionMultiply, 5, one_minus(g, path, 6),
+                    g.saturate(g.op(unreal.MaterialExpressionDivide, 6,
+                                    g.op(unreal.MaterialExpressionSubtract, 7, g.op(unreal.MaterialExpressionAdd, 8, main_half, g.scalar("WegMoosSaum", 140.0, 9)),
+                                         main_distance), g.const(60.0, 7)), 6))
+        ground = g.lerp(ground, moss_green, g.op(unreal.MaterialExpressionMultiply, 4, seam, g.scalar("WegMoos", 0.7, 5)), 4)
+        main_floor = g.op(unreal.MaterialExpressionMultiply, 4, g.lerp(rootmoss, mossy, g.scalar("WegMoosAnteil", 0.25, 6), 5),
+                          g.mask(g.node(unreal.MaterialExpressionVectorParameter, 6, parameter_name="WegBodenFarbe",
+                                        default_value=unreal.LinearColor(0.7, 0.72, 0.52, 1.0)), 5, r=True, g=True, b=True))
+        main_floor = g.lerp(main_floor, earth, g.op(unreal.MaterialExpressionMultiply, 4, main_trodden, g.scalar("WegGetreten", 0.5, 5)), 3)
+        ground = g.lerp(ground, main_floor, path, 3)
+        # Plants right up to the edge: the ferns of the thicket band hug the path
+        main_clear = g.saturate(g.op(unreal.MaterialExpressionDivide, 5,
+                                     g.op(unreal.MaterialExpressionSubtract, 6, g.op(unreal.MaterialExpressionAdd, 7, main_half, g.scalar("WegFrei", 70.0, 8)),
+                                          main_distance), g.const(40.0, 6)), 4)
+    else:
+        path = old_path
+        main_clear = old_path
+        ground = g.lerp(ground, earth, path, 4)
 
     # Small trails: the brown-green root moss floor, unevenly wide, a bit trodden down the middle
     if masks.get("trails") is not None:
@@ -492,9 +532,9 @@ def build_ground(material, textures, grass_types, masks):
                                   g.op(unreal.MaterialExpressionSubtract, 6, g.op(unreal.MaterialExpressionMultiply, 7, half_width, g.const(0.45, 8)),
                                        trail_distance), g.const(30.0, 6)), 4)
         # The raw scan reads orange from above: a third of the greened moss in it and a cooler tint, so it stays brown-green
-        trail_floor = g.op(unreal.MaterialExpressionMultiply, 4, g.lerp(rootmoss, mossy, g.scalar("PfadMoos", 0.15, 6), 5),
+        trail_floor = g.op(unreal.MaterialExpressionMultiply, 4, g.lerp(rootmoss, mossy, g.scalar("PfadMoos", 0.25, 6), 5),
                            g.mask(g.node(unreal.MaterialExpressionVectorParameter, 6, parameter_name="PfadFarbe",
-                                         default_value=unreal.LinearColor(0.72, 0.7, 0.5, 1.0)), 5, r=True, g=True, b=True))
+                                         default_value=unreal.LinearColor(0.7, 0.72, 0.52, 1.0)), 5, r=True, g=True, b=True))
         trail_floor = g.lerp(trail_floor, earth, g.op(unreal.MaterialExpressionMultiply, 4, trodden, g.scalar("PfadGetreten", 0.45, 5)), 3)
         ground = g.lerp(ground, trail_floor, trail, 3)
         # Plants keep well off the trail floor: a fern grows up to 2 m to each side of where it stands, and the grass
@@ -507,17 +547,19 @@ def build_ground(material, textures, grass_types, masks):
         trail = g.const(0.0, 4)
         trail_clear = trail
     bare = g.node(unreal.MaterialExpressionMax, 3)
-    g.link(path, bare, "A")
+    g.link(g.op(unreal.MaterialExpressionMax, 4, path, old_path), bare, "A")
     g.link(trail, bare, "B")
     no_plants = g.node(unreal.MaterialExpressionMax, 3)
-    g.link(path, no_plants, "A")
+    g.link(main_clear, no_plants, "A")
     g.link(trail_clear, no_plants, "B")
 
     # Tinted by the zone colour, so Hain, Moor, Kammweg, Grat and the Nid spring stay what they are on the map
     grey = g.node(unreal.MaterialExpressionDesaturation, 4)
     g.link(ground, grey)
     g.link(g.scalar("Entsaettigung", 0.6, 5), grey, "Fraction")
-    tinted = g.op(unreal.MaterialExpressionMultiply, 3, g.op(unreal.MaterialExpressionMultiply, 4, grey, zone),
+    zone_tint = g.lerp(zone, g.node(unreal.MaterialExpressionConstant3Vector, 6, constant=unreal.LinearColor(0.3, 0.5, 0.24, 1.0)),
+                       g.op(unreal.MaterialExpressionMultiply, 5, weights["saum"], g.scalar("SaumGruen", 0.7, 6)), 5)
+    tinted = g.op(unreal.MaterialExpressionMultiply, 3, g.op(unreal.MaterialExpressionMultiply, 4, grey, zone_tint),
                   g.scalar("ZonenHelligkeit", 1.4, 4))
     albedo = g.lerp(ground, tinted, g.op(unreal.MaterialExpressionMultiply, 3, g.scalar("ZonenAnteil", 0.3, 4), one_minus(g, bare, 4)), 2)
 
@@ -529,7 +571,7 @@ def build_ground(material, textures, grass_types, masks):
                           g.sample(textures["rootmoss_normal"], rootmoss_uv, 5), moss_share, 3)
     normal = g.lerp(g.sample(textures["forest_normal"], forest_uv, 4), green_normal,
                     g.op(unreal.MaterialExpressionMultiply, 3, green_share, one_minus(g, path, 4)), 2)
-    normal = g.lerp(normal, g.sample(textures["rootmoss_normal"], rootmoss_uv, 3), trail, 1)
+    normal = g.lerp(normal, g.sample(textures["rootmoss_normal"], rootmoss_uv, 3), g.op(unreal.MaterialExpressionMax, 2, trail, path), 1)
     rough = g.node(unreal.MaterialExpressionLinearInterpolate, 3, const_a=0.92, const_b=0.45)
     g.link(wet, rough, "Alpha")
 
@@ -685,6 +727,7 @@ def main():
     actors = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
     watered = 0
     doubled = 0
+    plates = 0
     level_actors = actors.get_all_level_actors()
     mood = add_mood(actors, level_actors)
     for actor in level_actors:
@@ -698,10 +741,18 @@ def main():
             actor.set_actor_hidden_in_game(True)
             actor.set_editor_property("tags", list(actor.tags) + [unreal.Name(OFF_TAG)])
             doubled += 1
-    if watered or doubled or mood:
+        # The grey box plates of the campaign path: the ground draws the path now (switched off, not deleted)
+        elif (actor.get_actor_label().startswith(PATH_PLATE_PREFIX) and PATH_PLATE_FOLDER in str(actor.get_folder_path())
+              and unreal.Name(PATH_OFF_TAG) not in actor.tags):
+            actor.root_component.set_visibility(False, True)
+            actor.set_actor_hidden_in_game(True)
+            actor.set_actor_enable_collision(False)
+            actor.set_editor_property("tags", list(actor.tags) + [unreal.Name(PATH_OFF_TAG)])
+            plates += 1
+    if watered or doubled or mood or plates:
         unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL_PATH)
 
-    log("ground and grey box rebuilt, {} instances textured, water on {} plane(s), {} doubled template lights off".format(dressed, watered, doubled))
+    log("ground and grey box rebuilt, {} instances textured, water on {} plane(s), {} doubled template lights off, {} path plates off".format(dressed, watered, doubled, plates))
     for note in notes:
         log("NOTE " + note)
 

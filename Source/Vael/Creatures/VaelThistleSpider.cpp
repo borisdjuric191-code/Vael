@@ -82,6 +82,16 @@ bool AVaelThistleSpider::IsHiddenFromAim() const
 	return State == EVaelThistleState::Lurking;
 }
 
+void AVaelThistleSpider::ProwlTowards(const FVector& GroupCentre, float GroupDistance)
+{
+	const UVaelThistleSpiderData* Data = GetData<UVaelThistleSpiderData>();
+	if (State == EVaelThistleState::Lurking && GroupDistance < Data->AggroRange * GetTimeOfDayAwareness())
+	{
+		State = EVaelThistleState::Rising;
+		StateTime = 0.0f;
+	}
+}
+
 void AVaelThistleSpider::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
 {
 	Super::OnDamageTaken(Damage, DamageTags);

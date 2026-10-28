@@ -40,6 +40,18 @@ void UVaelSequenceAnimInstance::Play(UAnimSequence* Sequence, bool bLoop, float 
 	BlendElapsed = 0.0f;
 }
 
+void UVaelSequenceAnimInstance::PlayInStep(UAnimSequence* Sequence, float BlendTime, float Rate)
+{
+	if (Sequence == nullptr || Sequence == Current)
+	{
+		return;
+	}
+	const float OldLength = Current != nullptr ? Current->GetPlayLength() : 0.0f;
+	const float Phase = OldLength > KINDA_SMALL_NUMBER ? FMath::Fmod(CurrentTime, OldLength) / OldLength : 0.0f;
+	Play(Sequence, true, BlendTime, Rate);
+	CurrentTime = Phase * Sequence->GetPlayLength();
+}
+
 bool UVaelSequenceAnimInstance::IsFinished() const
 {
 	return Current != nullptr && !bCurrentLoop && CurrentTime >= Current->GetPlayLength() - KINDA_SMALL_NUMBER;

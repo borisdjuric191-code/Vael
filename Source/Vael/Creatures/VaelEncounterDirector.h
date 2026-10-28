@@ -14,7 +14,8 @@ struct FVaelEncounterPack;
  *  Place one in a region level: while the group walks, packs from the encounter table keep appearing ahead of it,
  *  out of sight, Diablo-like (Boris 2026-10-28). Every few dozen metres walked (sooner at night) one pack is picked by
  *  weight, the time of day and the ground height, and put on dry, not too steep ground in front of the group, never
- *  in a safe zone. More players bring bigger packs. Creatures left far behind go away, so the limit frees up.
+ *  in a safe zone; lurkers right on the way. More players bring bigger packs. Sent creatures close in on the group
+ *  (AVaelCreature::ProwlTowards), and those left behind go away, so the limit frees up for new packs ahead.
  *  Standing still brings nothing: only walking does.
  */
 UCLASS()
@@ -55,7 +56,7 @@ private:
 	/** Picks a pack that fits the time of day and the ground at a spot; null if none fits */
 	const FVaelEncounterPack* PickPack(float GroundZ, float Night) const;
 
-	/** Drops dead and far creatures from the list, despawning the far ones */
+	/** Drops dead and far creatures from the list, despawning the far ones and those left behind; the others close in on the group */
 	void CleanUp(const FVector& Centre);
 
 	/** Distance walked since the last pack, and the distance the next one needs */

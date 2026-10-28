@@ -4,9 +4,11 @@ Finds narrow, winding forest trails from the campaign path to the places off it 
 moss huts, log bridges, Urstamm, Nid spring ...) over the height map, around the grey box trunks and rocks and
 out of the water. Trails that come close join each other, so they form a small network. Writes:
 
-  WF_Pfade.json        trails as polylines in map pixels (1 px = 2 m), for the scatter script
+  WF_Pfade.json        trails as polylines in map pixels (1 px = 2 m), for the scatter script; "hauptweg": the campaign path
   T_WF_Pfade.png       4096 x 4096 grey: distance to the nearest trail centre line, 0..PFAD_REICHWEITE_M (as 0..255)
-  T_WF_Dickicht.png    2048 x 2048 grey: thicket density 0..1 around trunks and along the trail edges
+  T_WF_Hauptweg.png    4096 x 4096 grey: the same for the campaign path, which winds gently round its straight route
+                       (Boris 2026-10-28: root floor like the trails, imperfect, not too wide, ferns and moss beside it)
+  T_WF_Dickicht.png    2048 x 2048 grey: thicket density 0..1 around trunks and along the trail and path edges
 
 Both images cover the landscape like T_WF_Zonenkarte.png. DressWurzelforst.py imports them and lays the root moss
 ground on the trails and the dense undergrowth where the thicket map is bright.
@@ -98,6 +100,40 @@ def chaikin(points, rounds=3):
         out.append(points[-1])
         points = out
     return points
+
+
+def main_path(route, rng):
+    """The campaign path as a gently winding line: the straight route of the silhouette, rounded, swinging up to
+    about 7 m to either side on long and short waves (the landscape is flattened 28 m round the route, so it stays
+    on level ground), in map pixels"""
+    dense = []
+    for (ax, ay), (bx, by) in zip(route, route[1:]):
+        steps = max(1, int(math.hypot(bx - ax, by - ay) / 4.0))
+        dense += [(ax + (bx - ax) * k / steps, ay + (by - ay) * k / steps) for k in range(steps)]
+    dense.append(route[-1])
+    points = chaikin(dense, 3)
+    phases = rng.uniform(0, 6.28, 3)
+    run = 0.0
+    out = [points[0]]
+    for a, b in zip(points, points[1:]):
+        dx, dy = b[0] - a[0], b[1] - a[1]
+        length = math.hypot(dx, dy) or 1e-6
+        run += length
+        # Waves of ~70 m, ~28 m and ~11 m (in px of 2 m), faded in and out at both ends so it meets the region's gates
+        fade = min(1.0, run / 20.0)
+        amp = fade * (2.4 * math.sin(run / 5.6 + phases[0]) + 0.9 * math.sin(run / 2.2 + phases[1]) + 0.3 * math.sin(run / 0.9 + phases[2]))
+        out.append((b[0] - dy / length * amp, b[1] + dx / length * amp))
+    total = run
+    run = 0.0
+    for k in range(len(out) - 1, 0, -1):
+        run += math.hypot(out[k][0] - out[k - 1][0], out[k][1] - out[k - 1][1])
+        if run > 20.0:
+            break
+        # Back onto the route at the far end
+        t = run / 20.0
+        out[k] = (points[k][0] + (out[k][0] - points[k][0]) * t, points[k][1] + (out[k][1] - points[k][1]) * t)
+    print("campaign path: {:.0f} m, winding".format(total * 2))
+    return out
 
 
 def main():
@@ -258,19 +294,24 @@ def main():
         trails.append({"ziel": label, "punkte": [[round(x, 2), round(y, 2)] for x, y in wobbled],
                        "breite_m": round(float(rng.uniform(1.1, 1.6)), 2)})
 
-    # Distance to the nearest trail centre line on the 4096 image (1 px = MAP / 4096)
+    # Distance to the nearest centre line on the 4096 image (1 px = MAP / 4096)
     scale = PFAD_SIZE / float(n)
-    canvas = np.ones((PFAD_SIZE, PFAD_SIZE), dtype=bool)
-    for trail in trails:
-        pts = trail["punkte"]
-        for (ax, ay), (bx, by) in zip(pts, pts[1:]):
-            steps = int(math.hypot(bx - ax, by - ay) * scale * 3) + 1
-            for t in np.linspace(0, 1, steps):
-                canvas[int((ay + (by - ay) * t) * scale), int((ax + (bx - ax) * t) * scale)] = False
     px_m = n * CM_PER_PX / 100.0 / PFAD_SIZE
-    distance_m = ndimage.distance_transform_edt(canvas) * px_m
-    Image.fromarray(np.clip(distance_m / PFAD_REICHWEITE_M * 255.0 + 0.5, 0, 255).astype(np.uint8), "L").save(
-        os.path.join(HERE, "T_WF_Pfade.png"))
+
+    def distance_image(lines, file_name):
+        canvas = np.ones((PFAD_SIZE, PFAD_SIZE), dtype=bool)
+        for pts in lines:
+            for (ax, ay), (bx, by) in zip(pts, pts[1:]):
+                steps = int(math.hypot(bx - ax, by - ay) * scale * 3) + 1
+                for t in np.linspace(0, 1, steps):
+                    canvas[int((ay + (by - ay) * t) * scale), int((ax + (bx - ax) * t) * scale)] = False
+        result = ndimage.distance_transform_edt(canvas) * px_m
+        Image.fromarray(np.clip(result / PFAD_REICHWEITE_M * 255.0 + 0.5, 0, 255).astype(np.uint8), "L").save(os.path.join(HERE, file_name))
+        return result
+
+    distance_m = distance_image([trail["punkte"] for trail in trails], "T_WF_Pfade.png")
+    main_line = main_path(route, np.random.default_rng(SEED + 1))
+    main_m = distance_image([main_line], "T_WF_Hauptweg.png")
 
     # Thicket: rings of undergrowth around trunks, mushroom stems and the Urstamm, plus a band along the trail edges,
     # broken into patches; never on the trails themselves
@@ -293,24 +334,28 @@ def main():
     ring = np.maximum(ring, np.clip(1.0 - (urstamm_m - 32.0) / 14.0, 0, 1))
     trail_small = np.asarray(Image.fromarray(distance_m.astype(np.float32)).resize((DICKICHT_SIZE, DICKICHT_SIZE), Image.BILINEAR))
     edge = np.clip(1.0 - np.abs(trail_small - 5.0) / 1.8, 0, 1) * 0.7  # 3..7 m beside the trail centre
+    # Ferns crowd the campaign path more: a band 3.5..8 m beside its centre, never on it
+    main_small = np.asarray(Image.fromarray(main_m.astype(np.float32)).resize((DICKICHT_SIZE, DICKICHT_SIZE), Image.BILINEAR))
+    edge = np.maximum(edge, np.clip(1.0 - np.abs(main_small - 5.5) / 2.5, 0, 1) * 0.9)
     patches = ndimage.gaussian_filter(rng.random((DICKICHT_SIZE, DICKICHT_SIZE)), 3.0)
     patches = np.clip((patches - patches.mean()) / (patches.std() * 2.0) + 0.75, 0, 1)
     thicket = np.clip(np.maximum(ring, edge) * patches, 0, 1)
     thicket[trail_small < 3.0] = 0.0
+    thicket[main_small < 3.5] = 0.0
     zones_small = np.asarray(Image.fromarray(forest.astype(np.uint8) * 255).resize((DICKICHT_SIZE, DICKICHT_SIZE), Image.BILINEAR)) / 255.0
     thicket *= zones_small
     Image.fromarray((thicket * 255.0 + 0.5).astype(np.uint8), "L").save(os.path.join(HERE, "T_WF_Dickicht.png"))
 
     with open(os.path.join(HERE, "WF_Pfade.json"), "w", encoding="utf-8") as f:
         json.dump({"_hinweis": "Kleine Pfade, Punkte in Kartenpixeln (1 px = 2 m), wie WF_Silhouette.json plus OX/OY schon eingerechnet",
-                   "pfade": trails}, f, indent=1)
+                   "pfade": trails, "hauptweg": [[round(x, 2), round(y, 2)] for x, y in main_line]}, f, indent=1)
     total = sum(sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(t["punkte"], t["punkte"][1:])) for t in trails) * 2
     print("{} trails, {:.1f} km; thicket covers {:.1f} % of the map".format(len(trails), total / 1000, (thicket > 0.3).mean() * 100))
 
     # Preview over the zone map for a quick look
     preview = Image.open(os.path.join(HERE, "T_WF_Zonenkarte.png")).convert("RGB").resize((PFAD_SIZE // 2, PFAD_SIZE // 2))
     pv = np.asarray(preview).astype(np.float32)
-    on_trail = np.asarray(Image.fromarray(distance_m.astype(np.float32)).resize((PFAD_SIZE // 2, PFAD_SIZE // 2))) < 1.6
+    on_trail = np.asarray(Image.fromarray(np.minimum(distance_m, main_m).astype(np.float32)).resize((PFAD_SIZE // 2, PFAD_SIZE // 2))) < 1.6
     th = np.asarray(Image.fromarray(thicket.astype(np.float32)).resize((PFAD_SIZE // 2, PFAD_SIZE // 2)))
     pv = pv * (1 - th[..., None] * 0.6) + np.array([30, 140, 40]) * th[..., None] * 0.6
     pv[on_trail] = [255, 230, 60]

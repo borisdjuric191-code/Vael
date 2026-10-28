@@ -41,6 +41,12 @@ public:
 	/** While it lurks the aim help passes over it */
 	virtual bool IsHiddenFromAim() const override;
 
+	/** Lurks like a thistle, so the director puts it right on the group's way */
+	virtual bool IsAmbusher() const override { return true; }
+
+	/** Sent by the director: rises when the group comes within its aggro range */
+	virtual void ProwlTowards(const FVector& GroupCentre, float GroupDistance) override;
+
 	UFUNCTION(BlueprintPure, Category="Creature")
 	EVaelThistleState GetThistleState() const { return State; }
 

@@ -21,7 +21,7 @@ namespace
 	constexpr float LeapEnd = 0.55f;
 
 	/** Seconds for blends between animations */
-	constexpr float GaitBlend = 0.2f;
+	constexpr float GaitBlend = 0.3f;
 	constexpr float PoseBlend = 0.35f;
 
 	/** How often the region's corruption is looked at, in seconds */
@@ -58,6 +58,13 @@ void AVaelRankenluchs::BeginPlay()
 	MeshBaseZ = -GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
 	GetMesh()->SetRelativeLocationAndRotation(FVector(0.0f, 0.0f, MeshBaseZ - Data->AmbushSink * Data->BodyScale), FRotator::ZeroRotator);
 	GetMesh()->InitAnim(true);
+
+	// A cat eases into a run and runs in curves
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->RotationRate = FRotator(0.0f, Data->TurnRate, 0.0f);
+	Movement->MaxAcceleration = Data->Acceleration;
+	Movement->BrakingDecelerationWalking = Data->Braking;
+	LastYaw = GetActorRotation().Yaw;
 	Animator = Cast<UVaelSequenceAnimInstance>(GetMesh()->GetAnimInstance());
 
 	IdleSequence = Data->IdleAnimation.LoadSynchronous();
@@ -176,6 +183,19 @@ void AVaelRankenluchs::EnterState(EVaelLynxState NewState)
 	}
 }
 
+void AVaelRankenluchs::ProwlTowards(const FVector& GroupCentre, float GroupDistance)
+{
+	const UVaelRankenluchsData* Data = GetData<UVaelRankenluchsData>();
+	if (State == EVaelLynxState::Ambush && WakeCountdown < 0.0f && GroupDistance < Data->AggroRange)
+	{
+		WakeUp();
+	}
+	else if (State == EVaelLynxState::Return)
+	{
+		HomeLocation = GroupCentre;
+	}
+}
+
 void AVaelRankenluchs::WakeUp(float Delay)
 {
 	if (State != EVaelLynxState::Ambush && State != EVaelLynxState::Settle)
@@ -221,15 +241,58 @@ int32 AVaelRankenluchs::GetPackSide() const
 
 void AVaelRankenluchs::Move(const FVector& Direction, float Speed)
 {
-	const UVaelRankenluchsData* Data = GetData<UVaelRankenluchsData>();
 	MoveInDirection(Direction, Speed);
-	const bool bRun = Speed > (Data->WalkSpeed + Data->MoveSpeed) * 0.5f;
-	UAnimSequence* Gait = bRun ? RunSequence : WalkSequence;
-	const float Rate = FMath::Clamp(Speed / ((bRun ? Data->RunAnimationSpeed : Data->WalkAnimationSpeed) * Data->BodyScale), 0.4f, 2.0f);
-	PlayAnimation(Gait, true, GaitBlend, Rate);
-	if (Animator != nullptr && Animator->GetCurrent() == Gait)
+}
+
+void AVaelRankenluchs::UpdateGait(float DeltaSeconds)
+{
+	const UVaelRankenluchsData* Data = GetData<UVaelRankenluchsData>();
+	const float Yaw = GetActorRotation().Yaw;
+	const float YawRate = FMath::FindDeltaAngleDegrees(LastYaw, Yaw) / FMath::Max(DeltaSeconds, KINDA_SMALL_NUMBER);
+	LastYaw = Yaw;
+
+	const bool bMovingState = State == EVaelLynxState::Hunt || State == EVaelLynxState::Retreat
+		|| State == EVaelLynxState::Return || State == EVaelLynxState::Flee;
+	const float Speed = GetVelocity().Size2D();
+
+	// Leans into curves the faster it runs (a right turn drops the right side)
+	const float LeanTarget = bMovingState ? FMath::Clamp(YawRate * 0.045f * Speed / FMath::Max(Data->MoveSpeed, 1.0f), -Data->LeanAngle, Data->LeanAngle) : 0.0f;
+	Lean = FMath::FInterpTo(Lean, LeanTarget, DeltaSeconds, 6.0f);
+	GetMesh()->SetRelativeRotation(FRotator(0.0f, 0.0f, Lean));
+
+	if (!bMovingState || Animator == nullptr)
 	{
-		Animator->SetRate(Rate);
+		return;
+	}
+	// Walk, run or stand after the real speed, so starts and stops ease in and out
+	const float Middle = (Data->WalkSpeed + Data->MoveSpeed) * 0.5f;
+	bRunning = bRunning ? Speed > Middle * 0.85f : Speed > Middle * 1.1f;
+	if (Speed < 35.0f)
+	{
+		PlayAnimation(IdleSequence, true, PoseBlend);
+		return;
+	}
+	UAnimSequence* Gait = bRunning ? RunSequence : WalkSequence;
+	const float Rate = FMath::Clamp(Speed / ((bRunning ? Data->RunAnimationSpeed : Data->WalkAnimationSpeed) * Data->BodyScale), 0.35f, 1.8f);
+	if (Animator->GetCurrent() == WalkSequence || Animator->GetCurrent() == RunSequence)
+	{
+		Animator->PlayInStep(Gait, GaitBlend, Rate);
+	}
+	else
+	{
+		PlayAnimation(Gait, true, GaitBlend, Rate);
+	}
+	Animator->SetRate(Rate);
+}
+
+void AVaelRankenluchs::TurnTowards(const FVector& Location, float DeltaSeconds)
+{
+	const FVector To = (Location - GetActorLocation()).GetSafeNormal2D();
+	if (!To.IsNearlyZero())
+	{
+		const float Step = GetData<UVaelRankenluchsData>()->TurnRate * DeltaSeconds;
+		const float Delta = FMath::Clamp(FMath::FindDeltaAngleDegrees(GetActorRotation().Yaw, To.Rotation().Yaw), -Step, Step);
+		SetActorRotation(FRotator(0.0f, GetActorRotation().Yaw + Delta, 0.0f));
 	}
 }
 
@@ -284,7 +347,6 @@ void AVaelRankenluchs::TickBehavior(float DeltaSeconds)
 		if (Target == nullptr)
 		{
 			NoPreyTime += DeltaSeconds;
-			PlayAnimation(IdleSequence, true, PoseBlend);
 			if (NoPreyTime >= Data->LoseInterestTime)
 			{
 				EnterState(EVaelLynxState::Return);
@@ -313,9 +375,8 @@ void AVaelRankenluchs::TickBehavior(float DeltaSeconds)
 		}
 		else
 		{
-			// Waits crouched and watching for its moment
-			FaceTowards(Target->GetActorLocation());
-			PlayAnimation(IdleSequence, true, PoseBlend);
+			// Waits watching for its moment, turning with the prey
+			TurnTowards(Target->GetActorLocation(), DeltaSeconds);
 		}
 		break;
 	}
@@ -429,6 +490,8 @@ void AVaelRankenluchs::Tick(float DeltaSeconds)
 	{
 		SunkTarget = 1.0f - FMath::Clamp(StateTime / FMath::Max(StateDuration * 0.6f, 0.1f), 0.0f, 1.0f);
 	}
+	UpdateGait(DeltaSeconds);
+
 	Sunk = FMath::FInterpTo(Sunk, SunkTarget, DeltaSeconds, State == EVaelLynxState::Waking ? 20.0f : 3.0f);
 	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, MeshBaseZ - Data->AmbushSink * Data->BodyScale * Sunk));
 

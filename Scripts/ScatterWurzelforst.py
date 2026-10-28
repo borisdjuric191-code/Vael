@@ -216,19 +216,21 @@ def placeholder_cells(terrain, prims, offset):
 
 
 def trail_cells(kit):
-    """Map pixels the small trails of wf_pfade.py cross (one pixel to each side)"""
+    """Map pixels the small trails and the winding campaign path of wf_pfade.py cross"""
     cells = set()
     source = os.path.join(kit, "WF_Pfade.json")
     if not os.path.isfile(source):
         return cells
-    for trail in json.load(open(source, encoding="utf-8"))["pfade"]:
-        points = trail["punkte"]
+    kit_paths = json.load(open(source, encoding="utf-8"))
+    # The winding campaign path is wider: two pixels to each side
+    lines = [(trail["punkte"], 1) for trail in kit_paths["pfade"]] + ([(kit_paths["hauptweg"], 2)] if "hauptweg" in kit_paths else [])
+    for points, reach in lines:
         for (ax, ay), (bx, by) in zip(points, points[1:]):
             steps = int(math.hypot(bx - ax, by - ay) * 2) + 1
             for k in range(steps + 1):
                 x, y = ax + (bx - ax) * k / steps, ay + (by - ay) * k / steps
-                for a in (-1, 0, 1):
-                    for b in (-1, 0, 1):
+                for a in range(-reach, reach + 1):
+                    for b in range(-reach, reach + 1):
                         cells.add((int(round(x)) + a, int(round(y)) + b))
     return cells
 

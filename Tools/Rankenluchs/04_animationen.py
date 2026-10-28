@@ -5,8 +5,9 @@
                   the crest fanned out to all sides (a bush), its leaves swaying in the wind, very slight breathing
   Erwachen        1.0 s: from Tarn_Ruhe to standing; the crest folds onto the back and the head rises first
   Sprung_Angriff  0.8 s: crouch, leap forward, strike, land (root motion on "wurzel": 0.45 m forward)
-  Laufen          1.0 s loop, walk (lateral sequence)
-  Rennen          0.53 s loop, bounding run
+  Laufen          1.0 s loop, cat walk (lateral sequence): paws set down flat, front wrists fold the paw up behind,
+                  hips and shoulders roll, the spine snakes, the head glides level (reworked 2026-10-28, Boris: too stiff)
+  Rennen          0.53 s loop, rotary gallop: the spine coils and stretches, the head stays steady
 
 Poses are written as joint angles in the side plane (positive = swing back / nose down), sideways and turning angles,
 so they read the same on every bone whatever its roll. Renders key poses to vorschau/04_*.
@@ -266,44 +267,131 @@ def sprung(f):
     return schluessel[-1][1]
 
 
-def gang(f, rahmen, phasen, stand_anteil, schwung_vorn, schwung_hinten, beuge_vorn, beuge_hinten, wippen, ruecken, schweif_amp):
-    t = f / rahmen
-    p = {"_ort": {"becken": (0.0, 0.0, wippen * math.cos(4 * math.pi * t))}, "_groesse": {}}
-    for bein, phase in phasen.items():
-        q = (t + phase) % 1.0
-        vorn = bein[0] == "v"
-        amp = schwung_vorn if vorn else schwung_hinten
-        if q < stand_anteil:
-            # On the ground: the leg sweeps from forward to back
-            winkel = -amp + 2 * amp * (q / stand_anteil)
-            heben = 0.0
-        else:
-            s = (q - stand_anteil) / (1 - stand_anteil)
-            winkel = amp - 2 * amp * weich(s)
-            heben = math.sin(math.pi * s)
+def pfote_flach(p, bein):
+    """Keeps the paw flat on the ground: the toes turn back by everything the leg above them turned"""
+    kette = ["becken"] + (["wirbel_01", "wirbel_02", "wirbel_03"] if bein[0] == "v" else [])
+    kette += ["bein_%s_%s" % (bein, n) for n in ("oben", "unten", "mittelfuss")]
+    return (-sum(p.get(n, (0, 0, 0))[0] for n in kette), 0, 0)
+
+
+def bein_zyklus(p, bein, q, stand, amp, hub):
+    """One leg of a cat gait at phase q (0..1, the paw touches down at 0). Front legs: the forearm stays steep and the
+    wrist folds the paw right up behind it, then reaches far forward before the paw is set down soft and flat.
+    Hind legs: knee and hock fold, the paw is drawn up and swung forward close under the body."""
+    vorn = bein[0] == "v"
+    if q < stand:
+        # On the ground: the leg carries the body over the paw, which stays flat; at the end the heel lifts
+        s = q / stand
+        winkel = -amp + 2 * amp * s
+        ende = weich((s - 0.7) / 0.3)
         if vorn:
             p["bein_%s_oben" % bein] = (winkel, 0, 0)
-            p["bein_%s_unten" % bein] = (beuge_vorn * heben, 0, 0)
-            p["bein_%s_mittelfuss" % bein] = (beuge_vorn * 0.7 * heben, 0, 0)
+            p["bein_%s_unten" % bein] = (-0.25 * winkel, 0, 0)
+            p["bein_%s_mittelfuss" % bein] = (18 * ende, 0, 0)
         else:
             p["bein_%s_oben" % bein] = (winkel, 0, 0)
-            p["bein_%s_unten" % bein] = (beuge_hinten * heben, 0, 0)
-            p["bein_%s_mittelfuss" % bein] = (-beuge_hinten * 1.1 * heben, 0, 0)
-    for i, n in enumerate(("wirbel_01", "wirbel_02", "wirbel_03")):
-        p[n] = (ruecken * math.sin(4 * math.pi * t + i * 0.6), 0, 2.0 * math.sin(2 * math.pi * t + i * 0.5))
-    p["hals"] = (-ruecken * 0.6 * math.sin(4 * math.pi * t), 0, 0)
+            p["bein_%s_unten" % bein] = (6 + 6 * ende, 0, 0)
+            p["bein_%s_mittelfuss" % bein] = (-6 - 10 * ende, 0, 0)
+        p["bein_%s_pfote" % bein] = pfote_flach(p, bein)
+        return 0.0
+    # In the air: lift and fold early, reach late
+    s = (q - stand) / (1 - stand)
+    winkel = amp - 2 * amp * weich(s)
+    falten = math.sin(math.pi * min(1.0, s / 0.8)) ** 1.5
+    greifen = weich((s - 0.55) / 0.45)
+    if vorn:
+        p["bein_%s_oben" % bein] = (winkel - 8 * greifen * (1 - greifen) * 4 * hub, 0, 0)
+        p["bein_%s_unten" % bein] = (-14 * falten * hub - 10 * greifen * hub, 0, 0)
+        p["bein_%s_mittelfuss" % bein] = (75 * falten * hub - 8 * greifen * hub, 0, 0)
+        p["bein_%s_pfote" % bein] = (35 * falten * hub, 0, 0)
+    else:
+        p["bein_%s_oben" % bein] = (winkel - 6 * falten * hub, 0, 0)
+        p["bein_%s_unten" % bein] = (6 + 42 * falten * hub, 0, 0)
+        p["bein_%s_mittelfuss" % bein] = (-6 - 55 * falten * hub, 0, 0)
+        p["bein_%s_pfote" % bein] = (30 * falten * hub, 0, 0)
+    return falten
+
+
+def pfoten_nachziehen(p, phasen, t, stand):
+    """Once the body sways, the paws on the ground are laid flat again, and those about to touch down get ready"""
+    for bein, phase in phasen.items():
+        q = (t - phase) % 1.0
+        if q < stand:
+            p["bein_%s_pfote" % bein] = pfote_flach(p, bein)
+        else:
+            greifen = weich(((q - stand) / (1 - stand) - 0.55) / 0.45)
+            if greifen > 0.0:
+                p["bein_%s_pfote" % bein] = tuple(a + (b - a) * greifen for a, b in zip(p["bein_%s_pfote" % bein], pfote_flach(p, bein)))
+
+
+def kopf_ruhig(p, tief):
+    """The head stays level and steady while the body sways under it, as a hunting cat's does"""
+    beuge = sum(p.get(n, (0, 0, 0))[0] for n in ("wirbel_01", "wirbel_02", "wirbel_03")) + p.get("becken", (0, 0, 0))[0]
+    wende = sum(p.get(n, (0, 0, 0))[2] for n in ("wirbel_01", "wirbel_02", "wirbel_03"))
+    seite = sum(p.get(n, (0, 0, 0))[1] for n in ("wirbel_01", "wirbel_02", "wirbel_03")) + p.get("becken", (0, 0, 0))[1]
+    p["hals"] = (tief - 0.85 * beuge, -0.6 * seite, -0.85 * wende)
+    p["kopf"] = (-tief * 0.6, 0, 0)
+
+
+def schweif_welle(p, t, amp, hebung, verzug=0.5):
+    """Low, gently S-curved tail with its tip turned up; a wave runs down it a little behind the body"""
     for i, n in enumerate(SCHWEIF):
-        phase = 2 * math.pi * t - i * 0.45
-        p[n] = (1.2 * math.sin(2 * phase), 0, schweif_amp * math.sin(phase))
-    return p
+        anteil = i / (len(SCHWEIF) - 1)
+        phase = 2 * math.pi * t - i * verzug
+        # Base hangs down, the last third curls up
+        grund = 7 if i < 2 else (-2 if i < 6 else -9)
+        p[n] = (grund + hebung * math.sin(2 * phase) * (0.3 + anteil), 0, amp * (0.4 + anteil) * math.sin(phase))
 
 
 def laufen(f):
-    return gang(f, 30, {"hr": 0.0, "vr": 0.25, "hl": 0.5, "vl": 0.75}, 0.6, 20, 22, 45, 30, 0.008, 1.5, 2.2)
+    """Walk: lateral sequence (left hind, left fore, right hind, right fore), the hips and shoulders roll over
+    the paws on the ground, the spine snakes a little from side to side, the head glides level"""
+    t = f / 30.0
+    p = {"_ort": {}, "_groesse": {}}
+    phasen = {"hl": 0.0, "vl": 0.22, "hr": 0.5, "vr": 0.72}
+    for bein, phase in phasen.items():
+        bein_zyklus(p, bein, (t - phase) % 1.0, 0.62, 19 if bein[0] == "v" else 21, 1.0)
+    welle = 2 * math.pi * t
+    # The hip drops a little on the side whose hind paw is in the air, the shoulders the same with the front
+    p["becken"] = (1.2 * math.sin(2 * welle), 3.5 * math.sin(welle), 0)
+    p["wirbel_01"] = (-0.8 * math.sin(2 * welle), 0, 4.0 * math.sin(welle + 0.3))
+    p["wirbel_02"] = (0.4 * math.sin(2 * welle + 0.5), 0, -2.5 * math.sin(welle + 0.9))
+    p["wirbel_03"] = (0.6 * math.sin(2 * welle + 1.0), -2.5 * math.sin(welle + 1.4), -3.0 * math.sin(welle + 1.4))
+    p["_ort"]["becken"] = (0.004 * math.sin(2 * welle), 0.008 * math.sin(welle), 0.007 * math.cos(2 * welle + 0.4))
+    kopf_ruhig(p, 9)
+    schweif_welle(p, t, 3.0, 1.2)
+    pfoten_nachziehen(p, phasen, t, 0.62)
+    for s, k in (("l", 1), ("r", -1)):
+        p["ohr_%s_01" % s] = (-4, 0, 0)
+    return p
 
 
 def rennen(f):
-    return gang(f, 16, {"hl": 0.0, "hr": 0.06, "vl": 0.5, "vr": 0.56}, 0.4, 38, 40, 70, 45, 0.035, 8, 3.0)
+    """Run: a cat's rotary gallop. The spine coils (hind paws reach far forward under the belly) and uncoils (the
+    body stretches long in the air), the shoulders rise and fall, the head stays steady on target"""
+    rahmen = 16
+    t = f / float(rahmen)
+    p = {"_ort": {}, "_groesse": {}}
+    phasen = {"hl": 0.0, "hr": 0.09, "vr": 0.42, "vl": 0.52}
+    for bein, phase in phasen.items():
+        bein_zyklus(p, bein, (t - phase) % 1.0, 0.34, 40 if bein[0] == "v" else 44, 1.15)
+    # Coiled when the hind paws come down (t = 0), stretched in the air before the front paws land
+    beugen = math.cos(2 * math.pi * (t + 0.04))
+    p["becken"] = (-9 * beugen, 0, 0)
+    p["wirbel_01"] = (-7 * beugen, 0, 0)
+    p["wirbel_02"] = (5 * beugen, 0, 0)
+    p["wirbel_03"] = (9 * beugen, 0, 0)
+    # Flies after the push of the hind legs, lowest when the front legs take the weight
+    p["_ort"]["becken"] = (0.03 * beugen, 0, 0.045 * math.sin(2 * math.pi * (t - 0.12)))
+    kopf_ruhig(p, 6)
+    pfoten_nachziehen(p, phasen, t, 0.34)
+    for i, n in enumerate(SCHWEIF):
+        anteil = i / (len(SCHWEIF) - 1)
+        # Streams straight back as a rudder, whipping with the spine
+        p[n] = (-2 + 6 * anteil * math.sin(2 * math.pi * t - i * 0.5), 0, 2.0 * math.sin(2 * math.pi * t - i * 0.4))
+    for s in ("l", "r"):
+        p["ohr_%s_01" % s] = (-14, 0, 0)
+    return p
 
 
 # ---------------------------------------------------------------- Main
@@ -331,7 +419,7 @@ def main():
     aktion("Tarn_Ruhe", 60, lambda f: tarn_pose(math.sin(2 * math.pi * f / 60), f / 60.0), schritt=3, schleife=True)
     aktion("Erwachen", 30, erwachen, schritt=2)
     aktion("Sprung_Angriff", 24, sprung, schritt=1)
-    aktion("Laufen", 30, laufen, schritt=2, schleife=True)
+    aktion("Laufen", 30, laufen, schritt=1, schleife=True)
     aktion("Rennen", 16, rennen, schritt=1, schleife=True)
     arm.animation_data.action = None
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(ORDNER, "arbeit", "04_animationen.blend"))

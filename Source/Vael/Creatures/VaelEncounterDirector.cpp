@@ -122,27 +122,32 @@ void AVaelEncounterDirector::CleanUp(const FVector& Centre)
 	for (int32 Index = Spawned.Num() - 1; Index >= 0; --Index)
 	{
 		AVaelCreature* Creature = Spawned[Index].Get();
-		if (Creature == nullptr || Creature->IsDead())
+		// A bound or raised one belongs to the players now, not to the director
+		if (Creature == nullptr || Creature->IsDead() || Creature->IsOnPlayerSide())
 		{
 			Spawned.RemoveAtSwap(Index);
 			continue;
 		}
-		// Far behind every player: out of sight and out of the fight, so it frees its place
-		bool bNear = false;
+		// Far from every player: out of sight and out of the fight, so it frees its place. Left behind the walking group
+		// it goes sooner, else lurkers beside the way would fill the limit and no new pack would come (Boris' test 2026-10-28).
+		float Nearest = UE_BIG_NUMBER;
 		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
 		{
 			const APawn* Pawn = It->Get() != nullptr ? It->Get()->GetPawn() : nullptr;
-			if (Pawn != nullptr && FVector::Dist2D(Pawn->GetActorLocation(), Creature->GetActorLocation()) < Table->DespawnDistance)
+			if (Pawn != nullptr)
 			{
-				bNear = true;
-				break;
+				Nearest = FMath::Min(Nearest, static_cast<float>(FVector::Dist2D(Pawn->GetActorLocation(), Creature->GetActorLocation())));
 			}
 		}
-		if (!bNear)
+		const FVector FromGroup = (Creature->GetActorLocation() - Centre) * FVector(1.0f, 1.0f, 0.0f);
+		const bool bBehind = !Heading.IsNearlyZero() && FVector::DotProduct(FromGroup.GetSafeNormal(), Heading.GetSafeNormal()) < -0.2f;
+		if (Nearest >= Table->DespawnDistance || (bBehind && Nearest >= Table->BehindDespawnDistance))
 		{
 			Creature->Destroy();
 			Spawned.RemoveAtSwap(Index);
+			continue;
 		}
+		Creature->ProwlTowards(Centre, Nearest);
 	}
 }
 
@@ -202,17 +207,19 @@ int32 AVaelEncounterDirector::SpawnPackNow()
 
 	const float Night = UVaelTimeOfDay::NightFactorOf(this);
 	const FVector Forward = Heading.IsNearlyZero() ? FVector(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(-1.0f, 1.0f), 0.0f).GetSafeNormal() : Heading.GetSafeNormal2D();
+	// Ahead of the group, a little to the side, out of the camera's view
+	auto TraceSpot = [&](float Cone, FHitResult& Hit)
+	{
+		const FVector Direction = Forward.RotateAngleAxis(FMath::FRandRange(-Cone, Cone), FVector::UpVector);
+		const FVector Spot = Centre + Direction * FMath::FRandRange(Table->SpawnDistance.X, Table->SpawnDistance.Y);
+		return VaelGround::TraceGround(GetWorld(), Spot + FVector(0.0f, 0.0f, 5000.0f), Spot - FVector(0.0f, 0.0f, 8000.0f), Hit)
+			&& Hit.Location.Z >= Table->MinGroundHeight && Hit.ImpactNormal.Z >= Table->MinGroundNormalZ
+			&& !AVaelSafeZone::IsSafe(GetWorld(), Hit.Location, SafeMargin);
+	};
 	for (int32 Try = 0; Try < SpotTries; ++Try)
 	{
-		// Ahead of the group, a little to the side, out of the camera's view
-		const float Yaw = FMath::FRandRange(-Table->SpawnCone, Table->SpawnCone);
-		const FVector Direction = Forward.RotateAngleAxis(Yaw, FVector::UpVector);
-		const FVector Spot = Centre + Direction * FMath::FRandRange(Table->SpawnDistance.X, Table->SpawnDistance.Y);
-
 		FHitResult Hit;
-		if (!VaelGround::TraceGround(GetWorld(), Spot + FVector(0.0f, 0.0f, 5000.0f), Spot - FVector(0.0f, 0.0f, 8000.0f), Hit)
-			|| Hit.Location.Z < Table->MinGroundHeight || Hit.ImpactNormal.Z < Table->MinGroundNormalZ
-			|| AVaelSafeZone::IsSafe(GetWorld(), Hit.Location, SafeMargin))
+		if (!TraceSpot(Table->SpawnCone, Hit))
 		{
 			continue;
 		}
@@ -222,6 +229,14 @@ int32 AVaelEncounterDirector::SpawnPackNow()
 			continue;
 		}
 		UVaelCreatureData* Data = Pack->CreatureData != nullptr ? Pack->CreatureData.Get() : Pack->CreatureKind->GetDefaultObject<UVaelCreatureData>();
+
+		// Lurkers lie right on the group's way, else it would walk past them and they would only fill the limit
+		const AVaelCreature* Kind = Data->CreatureClass != nullptr ? Data->CreatureClass->GetDefaultObject<AVaelCreature>() : nullptr;
+		if (Kind != nullptr && Kind->IsAmbusher()
+			&& (!TraceSpot(Table->AmbushCone, Hit) || Hit.Location.Z < Pack->GroundHeight.X || Hit.Location.Z > Pack->GroundHeight.Y))
+		{
+			continue;
+		}
 		const int32 Count = FMath::Min(FMath::RoundToInt(FMath::RandRange(Pack->Count.X, Pack->Count.Y) * GroupShare), Limit - Spawned.Num());
 
 		// Facing the group, so they look up when it comes
