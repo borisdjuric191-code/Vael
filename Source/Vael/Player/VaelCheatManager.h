@@ -131,10 +131,10 @@ public:
 
 	/**
 	 *  Spawns creatures 8 m in front of the player: Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger (test of the water kit), Koenigin, Waechter or Spannhornkaefer.
-	 *  Example: VaelSpawn Koenigin 1
+	 *  The count is optional (1). Example: VaelSpawn Pfuhlnatter or VaelSpawn Koenigin 2
 	 */
 	UFUNCTION(Exec)
-	void VaelSpawn(const FString& Kind, int32 Count);
+	void VaelSpawn(const FString& Kind, int32 Count = 1);
 
 	/** Makes every Distelspinne swell and burst into its swarm right now, to see the burst */
 	UFUNCTION(Exec)

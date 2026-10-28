@@ -12,11 +12,11 @@
 namespace
 {
 	/** Seconds for blends between animations */
-	constexpr float PoseBlend = 0.35f;
+	constexpr float SnakePoseBlend = 0.35f;
 
-	/** In the bite animation (0.8 s at the model's pace) the head draws back, lunges from BiteLungeStart and strikes at BiteStrike */
-	constexpr float BiteLungeStart = 0.3f;
-	constexpr float BiteStrike = 0.4f;
+	/** In the bite animation (0.8 s at the model's pace) the head draws back, lunges from SnakeBiteLungeStart and strikes at SnakeBiteStrike */
+	constexpr float SnakeBiteLungeStart = 0.3f;
+	constexpr float SnakeBiteStrike = 0.4f;
 }
 
 AVaelPfuhlnatter::AVaelPfuhlnatter()
@@ -84,12 +84,12 @@ void AVaelPfuhlnatter::EnterState(EVaelSnakeState NewState)
 	{
 	case EVaelSnakeState::Lurk:
 		// Lying flat and still: the crawl's first pose, held
-		PlayAnimation(CrawlSequence, true, PoseBlend, 0.0f);
+		PlayAnimation(CrawlSequence, true, SnakePoseBlend, 0.0f);
 		Prey = nullptr;
 		break;
 
 	case EVaelSnakeState::Crawl:
-		PlayAnimation(CrawlSequence, true, PoseBlend, 0.0f);
+		PlayAnimation(CrawlSequence, true, SnakePoseBlend, 0.0f);
 		break;
 
 	case EVaelSnakeState::Rear:
@@ -98,7 +98,7 @@ void AVaelPfuhlnatter::EnterState(EVaelSnakeState NewState)
 		break;
 
 	case EVaelSnakeState::Threaten:
-		PlayAnimation(ThreatenSequence, true, PoseBlend);
+		PlayAnimation(ThreatenSequence, true, SnakePoseBlend);
 		break;
 
 	case EVaelSnakeState::Bite:
@@ -218,11 +218,11 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 	{
 		AActor* Target = Prey.Get();
 		const float Pace = FMath::Max(StateDuration / 0.8f, KINDA_SMALL_NUMBER);
-		if (StateTime >= BiteLungeStart * Pace && StateTime < BiteStrike * Pace)
+		if (StateTime >= SnakeBiteLungeStart * Pace && StateTime < SnakeBiteStrike * Pace)
 		{
 			MoveInDirection(GetActorForwardVector(), Data->BiteLungeSpeed);
 		}
-		if (!bBitten && StateTime >= BiteStrike * Pace)
+		if (!bBitten && StateTime >= SnakeBiteStrike * Pace)
 		{
 			bBitten = true;
 			++BiteCount;
