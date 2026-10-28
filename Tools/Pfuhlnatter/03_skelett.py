@@ -47,6 +47,8 @@ ABSCHNITT_M = 0.24      # fins along the body are grouped in pieces this long (o
                         # stays rigid while the spine bends under it and tears into planks)
 MIN_FLOSSE = 120        # vertices a fin needs to get a bone
 KRONE_SEKTOREN = 9
+GLAETTEN = 40           # smoothing passes of the weights over the mesh (edges are 1-2 cm)
+KRONE_AB = 0.9         # fins beyond this share of the line (the neck top) reach up round the head: crown, not neck
 FALTEN_MAX = 50.0       # degrees a fin turns at most when it folds (a big membrane on one bone swinging further
                         # turns into a plank); the rest of the folding is done by drawing it in
 FALTEN_GROESSE = (0.7, 0.38, 0.7)   # scale of a folded fin bone (x, length, z): drawn in towards the body
@@ -162,6 +164,10 @@ def main():
     kopf_abstand = np.linalg.norm(zum_kopf - np.outer(vorn, kopf_achse), axis=1)
     # Only round the head itself: the crest further down the neck must bend with the neck
     krone = (s_param > 0.82) & ~zahn & (kopf_abstand > 0.17) & (np.linalg.norm(zum_kopf, axis=1) < 0.6) & (vorn < 0.12) &         (vorn > -0.4) & ~koerper
+    # Fins on the neck top grow up round the head: a petal hanging on the head and on a neck bone at once tears into a
+    # sheet when the head lies flat, so they fold with the crown (their base still blends into the neck)
+    krone_hals = (s_param > KRONE_AB) & ~im_kopf & ~zahn & ~krone & (abstand > radius_hier * FLOSSE_ABSTAND)
+    krone |= krone_hals
     flosse = ~im_kopf & ~krone & (abstand > radius_hier * FLOSSE_ABSTAND)
     print("[Pfuhlnatter] Kopf %d, Krone %d, Flossen %d, Zaehne %d Vertices" % (im_kopf.sum(), krone.sum(), flosse.sum(), zahn.sum()))
 
@@ -239,13 +245,19 @@ def main():
             # Below the body are belly scales, never fins
             if namen[sd] == "unten":
                 continue
-            auswahl = flosse & (stueck == st) & (seite == sd)
+            if st == 0:
+                # The tail fan is one membrane: split by sides it tears where the parts fold apart
+                if sd != 0:
+                    continue
+                auswahl, name = flosse & (stueck == 0), "flosse_01_faecher"
+            else:
+                auswahl, name = flosse & (stueck == st) & (seite == sd), "flosse_%02d_%s" % (st + 1, namen[sd])
             if auswahl.sum() < MIN_FLOSSE:
                 continue
             s_mitte = float(np.median(s_param[auswahl]))
             knochen = min(RUMPF_KNOCHEN, max(1, int(s_mitte * RUMPF_KNOCHEN) + 1))
             j = min(int(s_mitte * (len(linie) - 1)), len(linie) - 1)
-            flossen_knochen("flosse_%02d_%s" % (st + 1, namen[sd]), auswahl, "rumpf_%02d" % knochen, t[j], linie[j])
+            flossen_knochen(name, auswahl, "rumpf_%02d" % knochen, t[j], linie[j])
     bpy.ops.object.mode_set(mode="OBJECT")
     print("[Pfuhlnatter] %d Knochen, davon %d Flossen: %s" % (len(data.bones), len(flossen), [f["name"] for f in flossen]))
 
@@ -259,7 +271,7 @@ def main():
     # Head against neck: a soft change over the neck top, measured along the head's axis
     entlang_kopf = (P - gelenke[-1]) @ kopf_achse
     kopf_w = np.clip((entlang_kopf + 0.12) / 0.2, 0.0, 1.0) * (s_param > 0.85)
-    kopf_w = np.where(krone | zahn, 1.0, kopf_w)
+    kopf_w = np.where((krone & ~krone_hals) | zahn, 1.0, kopf_w)
     gewicht = {}
     for v in range(len(P)):
         g = {}
@@ -273,7 +285,7 @@ def main():
         gewicht[v] = g
     for f in flossen:
         for v in f["auswahl"]:
-            if krone[v]:
+            if krone[v] and not krone_hals[v]:
                 voll = np.clip((kopf_abstand[v] - 0.15) / 0.12, 0.0, 1.0)
             else:
                 voll = np.clip((abstand[v] / radius_hier[v] - FLOSSE_ABSTAND) / (FLOSSE_VOLL - FLOSSE_ABSTAND), 0.0, 1.0)
@@ -284,6 +296,16 @@ def main():
         for n, x in g.items():
             if x > 0.001:
                 gruppen[n].add([v], float(x), "REPLACE")
+    # Smoothed over the mesh: hard borders between bones that turn far apart (crown against neck, one fin piece
+    # against the next) tear into sheets and threads when the snake lies flat
+    bpy.ops.object.select_all(action="DESELECT")
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode="WEIGHT_PAINT")
+    bpy.ops.object.vertex_group_smooth(group_select_mode="ALL", factor=0.5, repeat=GLAETTEN)
+    bpy.ops.object.vertex_group_limit_total(group_select_mode="ALL", limit=4)
+    bpy.ops.object.vertex_group_normalize_all(lock_active=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
     mod = obj.modifiers.new("Skelett", "ARMATURE")
     mod.object = arm
     obj.parent = arm
