@@ -44,6 +44,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Creature")
 	EVaelThistleState GetThistleState() const { return State; }
 
+	/** Swells and bursts now, wherever it is (console VaelDistelPlatzen); a wet one still won't */
+	void ForceBurst() { StartBurst(); }
+
 	/** Legs the factory leg IK found and steps they took, for tests */
 	int32 GetLegCount() const;
 	int32 GetStepCount() const;
@@ -58,6 +61,9 @@ protected:
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
 
 private:
+
+	/** Poses it between a thistle bud in the undergrowth (1) and a standing spider (0) */
+	void ApplyLurkPose(float Share);
 
 	void StartBurst();
 

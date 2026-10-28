@@ -7,6 +7,7 @@
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEncounterDirector.h"
+#include "Creatures/VaelThistleSpider.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -304,6 +305,20 @@ void UVaelCheatManager::VaelScroll(const FString& Elements, float Distance)
 	AVaelFormulaScroll::SpawnScroll(GetWorld(), Ground, ScrollElements, NSLOCTEXT("VaelCheats", "TestScroll", "Test-Schriftrolle"));
 
 	UE_LOG(LogVael, Log, TEXT("VaelScroll: scroll for %s laid out"), *Elements);
+}
+
+void UVaelCheatManager::VaelDistelPlatzen()
+{
+	int32 Count = 0;
+	for (TActorIterator<AVaelThistleSpider> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsDead())
+		{
+			It->ForceBurst();
+			++Count;
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelDistelPlatzen: %d Distelspinnen burst"), Count);
 }
 
 void UVaelCheatManager::VaelBegegnung()

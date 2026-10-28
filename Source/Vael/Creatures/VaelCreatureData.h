@@ -1439,7 +1439,21 @@ public:
 
 	/** How deep it sits in the undergrowth while lurking, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0))
-	float LurkSink = 35.0f;
+	float LurkSink = 55.0f;
+
+	/** While lurking it looks like a plant (Boris 2026-10-28): legs pulled in (0..1), the thistle head raised like a
+	 *  bud by this many degrees, swaying in the wind by this many degrees every SwayTime seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0, ClampMax = 1))
+	float LurkCurl = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0, ClampMax = 60))
+	float LurkUpright = 28.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0))
+	float LurkSway = 4.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0.1))
+	float LurkSwayTime = 3.2f;
 
 	/** Seconds to rise from the undergrowth */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Lurk", meta = (ClampMin = 0.05))
@@ -1494,6 +1508,17 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
 	float DownSlowTime = 2.5f;
+
+	/** Colours of the burst: a big cloud of pale seed down and pollen, small pink puffs where the seed spiders come out */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst")
+	FLinearColor PollenColor = FLinearColor(0.92f, 0.86f, 0.68f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst")
+	FLinearColor PuffColor = FLinearColor(0.86f, 0.42f, 0.62f);
+
+	/** Size of the big pollen cloud, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
+	float PollenCloudSize = 320.0f;
 
 	/** Values of the seed spiders; empty: the defaults of UVaelThistleSeedlingData */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst")

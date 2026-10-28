@@ -136,6 +136,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelSpawn(const FString& Kind, int32 Count);
 
+	/** Makes every Distelspinne swell and burst into its swarm right now, to see the burst */
+	UFUNCTION(Exec)
+	void VaelDistelPlatzen();
+
 	/** Makes the encounter director of the level send a pack ahead of the group right now */
 	UFUNCTION(Exec)
 	void VaelBegegnung();

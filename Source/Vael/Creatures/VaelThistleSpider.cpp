@@ -4,12 +4,17 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelLegIKComponent.h"
+#include "Creatures/VaelPollenBurst.h"
 #include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelSpellEffects.h"
+#include "NiagaraSystem.h"
+#include "VaelAssets.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
 
@@ -45,8 +50,21 @@ void AVaelThistleSpider::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Starts sunk into the undergrowth
-	SetFactoryMeshOffset(FVector(0.0f, 0.0f, -GetData<UVaelThistleSpiderData>()->LurkSink));
+	// Starts as a thistle in the undergrowth
+	ApplyLurkPose(1.0f);
+}
+
+void AVaelThistleSpider::ApplyLurkPose(float Share)
+{
+	// Share 1: a thistle bud, legs pulled in and sunk, head raised, swaying; 0: standing as a spider
+	const UVaelThistleSpiderData* Data = GetData<UVaelThistleSpiderData>();
+	const float Sway = Data->LurkSway * FMath::Sin(GetWorld()->GetTimeSeconds() * UE_TWO_PI / Data->LurkSwayTime + GetActorLocation().X * 0.01f);
+	SetFactoryMeshOffset(FVector(0.0f, 0.0f, -Data->LurkSink * Share));
+	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
+	{
+		Legs->SetCurl(Data->LurkCurl * Share);
+		Legs->SetExtraBodyTilt(FRotator(Data->LurkUpright * Share, 0.0f, Sway * Share));
+	}
 }
 
 int32 AVaelThistleSpider::GetLegCount() const
@@ -105,6 +123,7 @@ void AVaelThistleSpider::TickBehavior(float DeltaSeconds)
 	{
 	case EVaelThistleState::Lurking:
 	{
+		ApplyLurkPose(1.0f);
 		float Distance = 0.0f;
 		if (FindTarget(Data->WakeRange * GetTimeOfDayAwareness(), &Distance) != nullptr)
 		{
@@ -116,7 +135,7 @@ void AVaelThistleSpider::TickBehavior(float DeltaSeconds)
 	case EVaelThistleState::Rising:
 	{
 		const float Share = FMath::Clamp(StateTime / Data->RiseTime, 0.0f, 1.0f);
-		SetFactoryMeshOffset(FVector(0.0f, 0.0f, -Data->LurkSink * (1.0f - FMath::SmoothStep(0.0f, 1.0f, Share))));
+		ApplyLurkPose(1.0f - FMath::SmoothStep(0.0f, 1.0f, Share));
 		if (Share >= 1.0f)
 		{
 			State = EVaelThistleState::Hunting;
@@ -275,7 +294,12 @@ void AVaelThistleSpider::Burst()
 			}
 		}
 	}
-	UE_LOG(LogVael, Log, TEXT("'%s' bursts into %d seed spiders%s"), *GetName(), Spawned, bBurning ? TEXT(", burning") : TEXT(""));
+	// A cloud of seed down and pollen swells out of it, with pink puffs, and a little dirt is thrown up
+	AVaelPollenBurst::Spawn(World, GetActorLocation(), Data->PollenCloudSize, Data->PollenColor, Data->PuffColor);
+	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustPuffEffect), GetActorLocation(), FRotator::ZeroRotator,
+	                     Data->PollenColor, Data->PollenCloudSize * 0.3f);
+
+	UE_LOG(LogVael, Log, TEXT("'%s' bursts into %d seed spiders%s at %s"), *GetName(), Spawned, bBurning ? TEXT(", burning") : TEXT(""), *GetActorLocation().ToCompactString());
 
 	// What is left is an empty husk
 	Die();
