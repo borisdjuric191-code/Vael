@@ -666,6 +666,49 @@ def beine_begrenzen(obj, arm, radius):
             body.add([v.index], frei, "ADD"); geaendert += 1
     log(f"Beine begrenzt (Radius {radius:.2f} m): {geaendert} Punkte vom Bein an den Körper gegeben.")
 
+def beine_nach_bereich(obj, arm, bereich):
+    """Gewichtung nach dem Beinbereich statt nach dem bloßen Abstand (Distelspinne, 28. Oktober 2026: beim Laufen zog
+    jedes Bein Schuppen des Rumpfs mit, die Kreatur verzerrte sich). bereich = [mitte, unter_koerper, koerper_radius,
+    knie]: Anteile der halben Breite bzw. der Höhe wie in vael_beine_spiegeln.py. Ein Punkt gehört zu den Beinen, wenn
+    |x| > mitte und z < knie und (z < unter_koerper oder Abstand zur Hochachse > koerper_radius). Beinpunkte gehören nur
+    den Knochen eines Beins ihrer Seite, alle anderen nur Körper und Kopf."""
+    mitte, unter, radius, knie = bereich
+    lo, hi = bbox_welt(obj)
+    hw, H = (hi.x - lo.x) / 2, hi.z - lo.z
+    cx, cy = (lo.x + hi.x) / 2, (lo.y + hi.y) / 2
+    mw, owm = arm.matrix_world, obj.matrix_world
+    segs = {b.name: (mw @ b.head_local, mw @ b.tail_local) for b in arm.data.bones if b.name != "root"}
+    rumpf = {n: s for n, s in segs.items() if not n.startswith("leg_")}
+
+    def abstand(p, a, b):
+        ab = b - a; t = max(0.0, min(1.0, (p - a).dot(ab) / max(ab.length_squared, 1e-9)))
+        return (p - (a + ab * t)).length
+
+    obj.vertex_groups.clear()
+    gruppen = {n: obj.vertex_groups.new(name=n) for n in segs}
+    obj.vertex_groups.new(name="root")
+    beinpunkte = 0
+    for v in obj.data.vertices:
+        p = owm @ v.co
+        x, z = p.x - cx, p.z - lo.z
+        am_bein = abs(x) > mitte * hw and z < knie * H and (z < unter * H or math.hypot(x, p.y - cy) > radius * hw)
+        if am_bein:
+            seite = "L" if x > 0 else "R"   # Blick nach -Y: links ist +X
+            kandidaten = {n: s for n, s in segs.items() if n.startswith(f"leg_{seite}")}
+            beinpunkte += 1
+        else:
+            kandidaten = rumpf
+        d = sorted((abstand(p, a, b), n) for n, (a, b) in kandidaten.items())
+        if am_bein:
+            # Nur Knochen desselben Beins dürfen mischen (weiche Gelenke, aber kein Nachbarbein)
+            bein = d[0][1].rsplit("_", 1)[0]
+            d = [e for e in d if e[1].startswith(bein)]
+        nah = [(dist, n) for dist, n in d[:2] if dist <= d[0][0] * 1.4 + 1e-4]
+        ws = [1.0 / (dist * dist + 1e-6) for dist, _ in nah]; s = sum(ws)
+        for (dist, n), w in zip(nah, ws):
+            gruppen[n].add([v.index], w / s, "REPLACE")
+    log(f"Gewichtung nach Beinbereich: {beinpunkte} Bein-Punkte, {len(obj.data.vertices) - beinpunkte} am Körper.")
+
 def beine_starr(obj, nummern):
     """Beinpaare, die im Modell mit dem Körper verschmolzen sind, bewegen sich nicht mehr mit ihren Knochen:
     ihr ganzes Gewicht geht an den Körper. Sonst zieht jeder Schritt die Haut des Körpers mit, an der das Bein klebt
@@ -699,8 +742,11 @@ def binden(ordner):
             abstands_gewichtung(obj, arm)
         else:
             log("automatisch gewichtet.", f"Knochen ohne Gewicht: {leer}" if leer else "Alle Knochen haben Gewicht.")
+    # Steckbrief "bein_bereich" (Spinne): Beine und Rumpf sauber getrennt gewichten, ersetzt bein_radius
+    if sb.get("bein_bereich"):
+        beine_nach_bereich(obj, arm, sb["bein_bereich"])
     # Nur auf Wunsch (Steckbrief "bein_radius", Anteil der Körperlänge): abgenommene Kreaturen bleiben, wie sie sind
-    if sb.get("bein_radius"):
+    elif sb.get("bein_radius"):
         lo, hi = bbox_welt(obj)
         beine_begrenzen(obj, arm, sb["bein_radius"] * (hi.y - lo.y))
     # Ebenfalls nur auf Wunsch (Steckbrief "beine_starr", z. B. ["3"]): mit dem Körper verschmolzene Beinpaare

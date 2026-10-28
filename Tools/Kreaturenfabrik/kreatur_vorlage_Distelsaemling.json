@@ -10,7 +10,7 @@
   "tripo_rig_verwenden": false,
   "hoerner": false,
   "tripo_datei": "C:/Projekte/Vael_Quellen/Distelspinne/02_tripo/Distelspinne_tripo_beine_gespiegelt.glb",
-  "bein_radius": 0.07,
+  "bein_bereich": [0.20, 0.29, 0.55, 0.64],
   "aussehen": "Kleine Samen-Spinne aus der aufgeplatzten Distelspinne, dasselbe Modell in klein (etwa 28 cm hoch). Kommt im Schwarm.",
   "schwaeche": ["Feuer"],
   "verhaltensbausteine": ["Schwarm"]

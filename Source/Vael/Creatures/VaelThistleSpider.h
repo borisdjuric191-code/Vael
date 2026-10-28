@@ -64,15 +64,24 @@ private:
 	/** The down, the swarm, and the empty husk falls */
 	void Burst();
 
+	/** Rears up, lunges and strikes; true while a bite is under way */
+	bool UpdateBite(float DeltaSeconds, AActor* Target);
+
 	EVaelThistleState State = EVaelThistleState::Lurking;
 	float StateTime = 0.0f;
 	float HuntTime = 0.0f;
 	float BiteCooldown = 0.0f;
+
+	/** Seconds into the current bite, negative while not biting, and whether it already struck */
+	float BiteTime = -1.0f;
+	bool bBiteStruck = false;
 };
 
 /**
  *  Distelsämling: a seed spider of a burst Distelspinne, the same model small. Runs at the nearest player from its own
- *  side of the swarm and nips; burning ones set those near them on fire. Values in UVaelThistleSeedlingData.
+ *  side of the swarm, and close to it leaps at the player in an arc, legs tucked, aiming through: touching a player in
+ *  the air hurts (Boris 2026-10-28). Lands, crouches a moment, runs on. Burning ones set those near them on fire.
+ *  Values in UVaelThistleSeedlingData.
  */
 UCLASS()
 class AVaelThistleSeedling : public AVaelCreature
@@ -85,6 +94,10 @@ public:
 
 	virtual void BeginPlay() override;
 
+	/** Leaps taken and players hit by them, for tests */
+	int32 GetLeapCount() const { return LeapCount; }
+	int32 GetLeapHitCount() const { return LeapHitCount; }
+
 protected:
 
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
@@ -93,8 +106,20 @@ protected:
 
 private:
 
+	/** Launches the leap at the target, through it */
+	void StartLeap(const AActor* Target);
+
 	/** Where around its target it runs to, so the swarm surrounds instead of queueing */
 	FVector SwarmOffset = FVector::ZeroVector;
-	float BiteCooldown = 0.0f;
+	float LeapCooldown = 0.0f;
 	float FireSpreadCountdown = 0.0f;
+
+	/** The current leap: its target, seconds in the air, whether it already hit; then the pause after landing */
+	TWeakObjectPtr<AActor> LeapTarget;
+	bool bLeaping = false;
+	float LeapClock = 0.0f;
+	bool bLeapHit = false;
+	float LandPauseLeft = 0.0f;
+	int32 LeapCount = 0;
+	int32 LeapHitCount = 0;
 };

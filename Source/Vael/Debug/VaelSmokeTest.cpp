@@ -234,6 +234,8 @@ void AVaelSmokeTest::BeginPlay()
 			}
 			const int32 NumLegs = Spider->GetLegCount();
 			const int32 NumSteps = Spider->GetStepCount();
+			// The weather of the arena may have soaked it, and a wet thistle never bursts: dry it first
+			UVaelCombatStatics::RemoveStatus(Spider, EVaelStatus::Wet);
 			UVaelCombatStatics::ApplyStatus(nullptr, Spider, EVaelStatus::Burning, 3.0f, 1.0f);
 			UVaelCombatStatics::DealDamage(nullptr, Spider, 1.0f, EVaelElement::Fire);
 			const bool bBursting = Spider->GetThistleState() == EVaelThistleState::Bursting;
@@ -256,6 +258,20 @@ void AVaelSmokeTest::BeginPlay()
 			}
 			const bool bOk = Seedlings > 0 && Burning > 0;
 			return FString::Printf(TEXT("%s%d seed spiders, %d burning"), bOk ? TEXT("") : TEXT("FAILED: "), Seedlings, Burning);
+		}, 0.1f });
+		// Seed spiders leap at the player and hurt on contact
+		Steps.Add({ TEXT("Seedling arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelThistleSeedlingData>(), 6); }, 4.0f });
+		Steps.Add({ TEXT("Seedling leaps"), [this]()
+		{
+			int32 Leaps = 0;
+			int32 Hits = 0;
+			for (TActorIterator<AVaelThistleSeedling> It(GetWorld()); It; ++It)
+			{
+				Leaps += It->GetLeapCount();
+				Hits += It->GetLeapHitCount();
+			}
+			const bool bOk = Leaps > 0 && Hits > 0;
+			return FString::Printf(TEXT("%s%d leaps, %d hits on the player"), bOk ? TEXT("") : TEXT("FAILED: "), Leaps, Hits);
 		}, 0.1f });
 	}
 

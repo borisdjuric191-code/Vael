@@ -4,7 +4,9 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelLegIKComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "Engine/World.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Magic/VaelGameplayTags.h"
@@ -18,6 +20,12 @@ namespace
 
 	/** Seconds between two looks for seedlings to set on fire */
 	constexpr float FireSpreadInterval = 0.4f;
+
+	/** A leaping seedling touches a player this far beyond its own capsule, sideways, and from this far below the
+	 *  middle of the player (its feet) to this far above it, in cm */
+	constexpr float LeapTouchReach = 55.0f;
+	constexpr float LeapTouchBelow = 130.0f;
+	constexpr float LeapTouchAbove = 80.0f;
 }
 
 // ---------------------------------------------------------------- Distelspinne
@@ -135,6 +143,10 @@ void AVaelThistleSpider::TickBehavior(float DeltaSeconds)
 			StartBurst();
 			break;
 		}
+		if (UpdateBite(DeltaSeconds, Target))
+		{
+			break;
+		}
 		if (Distance > Data->BiteRange * 0.8f)
 		{
 			MoveTowards(Target->GetActorLocation(), Data->MoveSpeed);
@@ -145,13 +157,17 @@ void AVaelThistleSpider::TickBehavior(float DeltaSeconds)
 		}
 		if (Distance <= Data->BiteRange && BiteCooldown <= 0.0f && !IsBlinded())
 		{
-			HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
-			BiteCooldown = RandomInRange(Data->BiteInterval);
+			BiteTime = 0.0f;
+			bBiteStruck = false;
 		}
 		break;
 	}
 	case EVaelThistleState::Bursting:
 	{
+		if (UVaelLegIKComponent* Legs = GetFactoryLegs())
+		{
+			Legs->SetExtraBodyTilt(FRotator::ZeroRotator);
+		}
 		// Swells and trembles, then bursts
 		const float Share = FMath::Clamp(StateTime / Data->BurstWindup, 0.0f, 1.0f);
 		const float Tremble = FMath::Sin(StateTime * 60.0f) * 2.0f * Share;
@@ -163,6 +179,61 @@ void AVaelThistleSpider::TickBehavior(float DeltaSeconds)
 		break;
 	}
 	}
+}
+
+bool AVaelThistleSpider::UpdateBite(float DeltaSeconds, AActor* Target)
+{
+	if (BiteTime < 0.0f)
+	{
+		return false;
+	}
+	const UVaelThistleSpiderData* Data = GetData<UVaelThistleSpiderData>();
+	UVaelLegIKComponent* Legs = GetFactoryLegs();
+	FaceTowards(Target->GetActorLocation());
+	BiteTime += DeltaSeconds;
+	const float Share = FMath::Clamp(BiteTime / Data->BiteDuration, 0.0f, 1.0f);
+
+	// First half: rears up, fangs raised; then it throws itself forward and down, and back to rest
+	float Pitch = 0.0f;
+	if (Share < 0.5f)
+	{
+		Pitch = Data->BiteRear * FMath::SmoothStep(0.0f, 1.0f, Share / 0.5f);
+	}
+	else if (Share < 0.7f)
+	{
+		Pitch = FMath::Lerp(Data->BiteRear, -Data->BiteRear * 0.5f, (Share - 0.5f) / 0.2f);
+	}
+	else
+	{
+		Pitch = FMath::Lerp(-Data->BiteRear * 0.5f, 0.0f, (Share - 0.7f) / 0.3f);
+	}
+	if (Legs != nullptr)
+	{
+		Legs->SetExtraBodyTilt(FRotator(Pitch, 0.0f, 0.0f));
+	}
+
+	if (!bBiteStruck && Share >= 0.5f)
+	{
+		bBiteStruck = true;
+		if (Legs != nullptr)
+		{
+			Legs->AddBodyJolt(GetActorForwardVector() * Data->BiteLunge);
+		}
+		if (GetDistanceTo2D(Target) <= Data->BiteRange + Data->BiteLunge && !IsBlinded())
+		{
+			HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
+		}
+	}
+	if (Share >= 1.0f)
+	{
+		BiteTime = -1.0f;
+		BiteCooldown = RandomInRange(Data->BiteInterval);
+		if (Legs != nullptr)
+		{
+			Legs->SetExtraBodyTilt(FRotator::ZeroRotator);
+		}
+	}
+	return true;
 }
 
 void AVaelThistleSpider::Burst()
@@ -229,14 +300,14 @@ void AVaelThistleSeedling::BeginPlay()
 	const float Spread = GetData<UVaelThistleSeedlingData>()->SwarmSpread;
 	const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
 	SwarmOffset = FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * FMath::FRandRange(0.3f, 1.0f) * Spread;
-	BiteCooldown = FMath::FRandRange(0.2f, 0.8f);
+	LeapCooldown = FMath::FRandRange(0.2f, 0.8f);
 	FireSpreadCountdown = FMath::FRandRange(0.0f, FireSpreadInterval);
 }
 
 void AVaelThistleSeedling::TickBehavior(float DeltaSeconds)
 {
 	const UVaelThistleSeedlingData* Data = GetData<UVaelThistleSeedlingData>();
-	BiteCooldown -= DeltaSeconds;
+	LeapCooldown -= DeltaSeconds;
 
 	// A burning seedling sets its neighbours on fire: fire runs through the swarm
 	FireSpreadCountdown -= DeltaSeconds;
@@ -256,21 +327,78 @@ void AVaelThistleSeedling::TickBehavior(float DeltaSeconds)
 		}
 	}
 
+	UVaelLegIKComponent* Legs = GetFactoryLegs();
+
+	// In the air: legs tucked, nose down; touching a player hurts once per leap
+	if (bLeaping)
+	{
+		LeapClock += DeltaSeconds;
+		AActor* Target = LeapTarget.Get();
+		// Touching: side by side with the player and within the height of its body (its middle is at the hip)
+		const float Height = Target != nullptr ? GetActorLocation().Z - Target->GetActorLocation().Z : 0.0f;
+		if (!bLeapHit && Target != nullptr && GetDistanceTo2D(Target) < GetCapsuleComponent()->GetScaledCapsuleRadius() + LeapTouchReach
+			&& Height > -LeapTouchBelow && Height < LeapTouchAbove)
+		{
+			bLeapHit = true;
+			LeapHitCount += HitPlayer(Target, Data->LeapDamage, EVaelElement::Earth) ? 1 : 0;
+		}
+		if (LeapClock > 0.15f && GetCharacterMovement()->IsMovingOnGround())
+		{
+			bLeaping = false;
+			LandPauseLeft = Data->LandPause;
+			if (Legs != nullptr)
+			{
+				Legs->SetCurl(0.0f);
+				Legs->SetExtraBodyTilt(FRotator::ZeroRotator);
+				Legs->PlantAllFeet();
+			}
+		}
+		return;
+	}
+	if (LandPauseLeft > 0.0f)
+	{
+		LandPauseLeft -= DeltaSeconds;
+		return;
+	}
+
 	float Distance = 0.0f;
 	AActor* Target = FindTarget(Data->AggroRange * GetTimeOfDayAwareness(), &Distance);
 	if (Target == nullptr)
 	{
 		return;
 	}
-	// From its own side of the target until close, then straight in
-	const FVector Goal = Distance > Data->BiteRange * 2.5f ? Target->GetActorLocation() + SwarmOffset : Target->GetActorLocation();
-	if (Distance > Data->BiteRange * 0.7f)
+	if (Distance <= Data->LeapRange && LeapCooldown <= 0.0f && !IsBlinded() && GetCharacterMovement()->IsMovingOnGround())
 	{
-		MoveTowards(Goal, Data->MoveSpeed);
+		StartLeap(Target);
+		return;
 	}
-	if (Distance <= Data->BiteRange && BiteCooldown <= 0.0f && !IsBlinded())
+	// From its own side of the target until close, then straight in
+	const FVector Goal = Distance > Data->LeapRange ? Target->GetActorLocation() + SwarmOffset : Target->GetActorLocation();
+	MoveTowards(Goal, Data->MoveSpeed);
+}
+
+void AVaelThistleSeedling::StartLeap(const AActor* Target)
+{
+	const UVaelThistleSeedlingData* Data = GetData<UVaelThistleSeedlingData>();
+	FVector Direction = (Target->GetActorLocation() - GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
+	const float Distance = Direction.Size();
+	Direction = Direction.GetSafeNormal();
+
+	// Through the target: aim beyond it; the arc lands after LeapTime
+	const float Gravity = -GetCharacterMovement()->GetGravityZ();
+	const FVector Velocity = Direction * ((Distance + Data->LeapOvershoot) / Data->LeapTime) + FVector(0.0f, 0.0f, 0.5f * Gravity * Data->LeapTime);
+	FaceTowards(Target->GetActorLocation());
+	LaunchCharacter(Velocity, true, true);
+
+	bLeaping = true;
+	++LeapCount;
+	bLeapHit = false;
+	LeapClock = 0.0f;
+	LeapTarget = const_cast<AActor*>(Target);
+	LeapCooldown = Data->LeapTime + RandomInRange(Data->LeapInterval);
+	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
 	{
-		HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
-		BiteCooldown = RandomInRange(Data->BiteInterval);
+		Legs->SetCurl(0.8f);
+		Legs->SetExtraBodyTilt(FRotator(-25.0f, 0.0f, 0.0f));
 	}
 }

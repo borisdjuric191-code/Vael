@@ -1455,6 +1455,18 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite")
 	FVector2D BiteInterval = FVector2D(1.2f, 1.8f);
 
+	/** Seconds a bite takes: it rears up, then lunges and strikes in the second half */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0.1))
+	float BiteDuration = 0.65f;
+
+	/** How far it rears up before the strike, in degrees */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
+	float BiteRear = 20.0f;
+
+	/** How far the body lunges forward with the strike, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
+	float BiteLunge = 45.0f;
+
 	/** It bursts after hunting this long while a player is within BurstRange, or when its health falls below BurstHealthShare */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Burst", meta = (ClampMin = 0))
 	float BurstDelay = 4.0f;
@@ -1501,14 +1513,29 @@ public:
 
 	UVaelThistleSeedlingData();
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
-	float BiteRange = 75.0f;
+	/** Within this distance of its target it leaps at it, in cm (Boris 2026-10-28: they jump at the player and through) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
+	float LeapRange = 380.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite", meta = (ClampMin = 0))
-	float BiteDamage = 2.0f;
+	/** Seconds a leap is in the air */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0.1))
+	float LeapTime = 0.45f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Bite")
-	FVector2D BiteInterval = FVector2D(0.7f, 1.1f);
+	/** It aims this far beyond its target, so it flies through, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
+	float LeapOvershoot = 140.0f;
+
+	/** Damage when a leaping seedling touches a player, once per leap */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
+	float LeapDamage = 2.5f;
+
+	/** Seconds between two leaps, picked in this range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap")
+	FVector2D LeapInterval = FVector2D(0.9f, 1.6f);
+
+	/** Seconds it crouches after landing before it runs on */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Leap", meta = (ClampMin = 0))
+	float LandPause = 0.35f;
 
 	/** How far the swarm spreads around its target, so they don't all run in one line, in cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Swarm", meta = (ClampMin = 0))
