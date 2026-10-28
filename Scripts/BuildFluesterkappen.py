@@ -1,9 +1,9 @@
-# Puts rings of Flüsterkappen (Herbarium, Tripo model SM_Fluesterkappe) into L_Wurzelforst_Blockout: some beside the
-# giant mushrooms of the Kammweg and some on fallen trunks (deadwood) of the forest, as the Herbarium says.
+# Puts rings of Flüsterkappen (Herbarium, Tripo model SM_Fluesterkappe) into L_Wurzelforst_Blockout, scattered at
+# random over the whole forest so finding one is a surprise; about a third sit on a fallen trunk (deadwood).
 #
 # - Material M_WF_Fluesterkappe: the Tripo picture; the strongly blue and cyan parts (eye sockets and mouth) glow,
 #   by day softly and at night much stronger (parameter "Nacht", set by AVaelWhisperCaps from the clock), and the
-#   whole hood shimmers a little at night. A whispering cap (custom data 0) flares its eyes and mouth and its hood
+#   hood shimmers light turquoise at night. A whispering cap (custom data 0) flares its eyes and mouth and its hood
 #   swells; every cap breathes slowly in its own rhythm (custom data 1) and sways a little (World Position Offset).
 # - Each ring is one AVaelWhisperCaps (C++): it lays out 5-9 caps of 1.2-1.8 m with their faces to the middle,
 #   leaning in, sunk into the ground with a moss cushion at each foot, and makes them whisper and turn after players.
@@ -19,6 +19,8 @@ import json
 import math
 import os
 import random
+import struct
+import zlib
 
 import unreal
 
@@ -32,13 +34,20 @@ MOSS_NAMES = ["SM_IcelandicMossClusters_0{}".format(i) for i in (0, 1, 2, 4, 5, 
 TAG = "WF_Fluesterkappe"
 FOLDER = "Wurzelforst/Fluesterkappen"
 SEED = 41
-MAP_ORIGIN = -201600.0  # WF_Platzhalter.json holds map cm; the world is shifted by the landscape corner (as in BuildRiesenpilze.py)
 
-KAMMWEG_RINGS = 10       # rings beside giant mushrooms
-DEADWOOD_RINGS = 10      # rings on fallen trunks
-KAMMWEG_REACH = (650.0, 1000.0)   # cm from the giant's stem, outside its cap
-MIN_SPACING = 2500.0     # cm between two rings
-GLOW_COLOUR = (0.25, 0.65, 1.0)
+RINGS = 26               # rings over the whole forest
+ON_DEADWOOD = 0.35       # share of tries that look for a fallen trunk near the random spot
+DEADWOOD_REACH = 2500.0  # cm around the random spot to look for a trunk
+DEADWOOD_SIDE = 260.0    # cm from the trunk's middle to the ring's middle
+DRY_Z = 60.0             # lowest ground in cm (sea and moor water stand at 0-6 cm)
+FOREST_ZONES = ("hain", "saum", "moor", "kamm")  # no rings on the ridges, in the ash or at the jaw
+PIXEL = 200.0            # 1 zone map pixel = 2 m (as in ScatterWurzelforst.py)
+ZONE_COLORS = {          # zone colours of T_WF_Zonenkarte.png (as in ScatterWurzelforst.py)
+    "saum": "6e6448", "moor": "3e6b55", "hain": "3f7f45", "kamm": "3b6670", "grat": "6a6d60", "asche": "7a4a2a",
+    "jaw": "4a5f78", "grat_hoch": "9a9c90", "lagune": "2f6f74", "nid": "5a3a7a", "weg": "b9a77a",
+}
+MIN_SPACING = 4500.0     # cm between two rings
+GLOW_COLOUR = (0.2, 0.8, 1.0)  # light turquoise blue
 
 library = unreal.MaterialEditingLibrary
 assets = unreal.EditorAssetLibrary
@@ -159,12 +168,12 @@ def build_material(face):
                          default_value=unreal.LinearColor(GLOW_COLOUR[0], GLOW_COLOUR[1], GLOW_COLOUR[2], 1.0))
     face_glow = g.mul(3, g.mul(4, g.mul(5, glow_share, g.mask(glow_colour, 6)), strength), pulse)
 
-    # At night the whole pale hood shimmers faintly, as if lit from inside
+    # At night the hood shimmers light turquoise blue, as if lit from inside (Boris: the night aura should read blue)
     local = g.node(unreal.MaterialExpressionLocalPosition, 12)
     local_z = g.mask(local, 11, r=False, g=False)
     cap_bottom = g.scalar("HutUnterseite", face["hut_unterseite_cm"], 11)
     cap_share = g.saturate(g.div(8, g.sub(9, local_z, g.mul(10, cap_bottom, g.const(0.85, 11))), g.const(40.0, 9)), 7)
-    shimmer = g.mul(3, g.mul(4, g.mul(5, picture, cap_share), night), g.scalar("HutSchimmer", 0.06, 5))
+    shimmer = g.mul(3, g.mul(4, g.mul(5, g.mask(glow_colour, 6), cap_share), night), g.scalar("HutSchimmer", 0.15, 5))
     emissive = g.add(2, face_glow, shimmer)
 
     # Breathing: the hood swells and sinks in its own rhythm, more while whispering; the stem stays still
@@ -238,62 +247,119 @@ def trace(start, end):
     values = hit.to_tuple()
     if not values[0]:
         return None
-    return values[4], values[7]
+    return values[4], values[7], values
 
 
 def far_enough(spot, taken):
     return all((spot[0] - x) ** 2 + (spot[1] - y) ** 2 > MIN_SPACING ** 2 for x, y in taken)
 
 
-def kammweg_spots(boxes, taken):
-    giants = []
-    for prim in boxes:
-        name = prim["n"]
-        if name.startswith("Riesenpilz_") and name.endswith("_Stiel"):
-            giants.append((prim["l"][0] + MAP_ORIGIN, prim["l"][1] + MAP_ORIGIN, prim["l"][2] - prim["s"][2] * 50.0))
-    rng.shuffle(giants)
-    spots = []
-    for x, y, bottom in giants:
-        if len(spots) >= KAMMWEG_RINGS:
-            break
-        for _ in range(6):
-            angle = rng.uniform(0, math.tau)
-            reach = rng.uniform(*KAMMWEG_REACH)
-            sx, sy = x + math.cos(angle) * reach, y + math.sin(angle) * reach
-            hit = trace(unreal.Vector(sx, sy, bottom + 3000), unreal.Vector(sx, sy, bottom - 3000))
-            if hit is None or hit[1].z < 0.85 or not far_enough((sx, sy), taken):
-                continue
-            spots.append(unreal.Vector(sx, sy, hit[0].z))
-            taken.append((sx, sy))
-            break
-    return spots
+def on_land(hit):
+    """Only the landscape counts: rocks, trees and buildings are not ground for a ring. Water planes have no
+    collision, so the trace finds the lake or moor floor below them; the height check keeps rings out of water."""
+    values = hit[2]
+    actor = values[9] if len(values) > 9 else None
+    return isinstance(actor, unreal.LandscapeProxy) and hit[0].z > DRY_Z and hit[1].z >= 0.85
 
 
-def deadwood_spots(level_actors, taken):
+class ZoneMap:
+    """Zones of the forest from T_WF_Zonenkarte.png, looked up in world cm (reader as in ScatterWurzelforst.py)"""
+
+    def __init__(self, origin):
+        self.origin = origin
+        data = open(os.path.join(KIT, "T_WF_Zonenkarte.png"), "rb").read()
+        pos, chunks = 8, []
+        while pos < len(data):
+            length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+            body = data[pos + 8:pos + 8 + length]
+            if kind == b"IHDR":
+                self.width, self.height, depth, color = struct.unpack(">IIBB", body[:10])
+            elif kind == b"IDAT":
+                chunks.append(body)
+            elif kind == b"IEND":
+                break
+            pos += 12 + length
+        self.channels = {0: 1, 2: 3, 4: 2, 6: 4}[color]
+        bpp = max(1, self.channels * depth // 8)
+        stride = self.width * self.channels * depth // 8
+        raw = zlib.decompress(b"".join(chunks))
+        self.rows, previous = [], bytearray(stride)
+        for y in range(self.height):
+            start = y * (stride + 1)
+            kind = raw[start]
+            line = bytearray(raw[start + 1:start + 1 + stride])
+            for i in range(stride):
+                left = line[i - bpp] if i >= bpp else 0
+                up = previous[i]
+                corner = previous[i - bpp] if i >= bpp else 0
+                if kind == 1:
+                    line[i] = (line[i] + left) & 255
+                elif kind == 2:
+                    line[i] = (line[i] + up) & 255
+                elif kind == 3:
+                    line[i] = (line[i] + ((left + up) >> 1)) & 255
+                elif kind == 4:
+                    guess = left + up - corner
+                    pa, pb, pc = abs(guess - left), abs(guess - up), abs(guess - corner)
+                    line[i] = (line[i] + (left if pa <= pb and pa <= pc else up if pb <= pc else corner)) & 255
+            self.rows.append(bytes(line))
+            previous = line
+        self.colours = {name: [int(c[i:i + 2], 16) for i in (0, 2, 4)] for name, c in ZONE_COLORS.items()}
+
+    def zone(self, x, y):
+        j = min(max(int(round((x - self.origin[0]) / PIXEL)), 0), self.width - 1)
+        i = min(max(int(round((y - self.origin[1]) / PIXEL)), 0), self.height - 1)
+        rgb = [self.rows[i][j * self.channels + k] for k in range(3)]
+        best, best_error = None, None
+        for name, colour in self.colours.items():
+            # The map is hill-shaded, so each colour is compared at its best brightness
+            scale = min(max(sum(a * b for a, b in zip(rgb, colour)) / max(1, sum(b * b for b in colour)), 0.6), 1.3)
+            error = sum((a - b * scale) ** 2 for a, b in zip(rgb, colour))
+            if best_error is None or error < best_error:
+                best, best_error = name, error
+        return best
+
+
+def forest_spots(level_actors, landscape):
+    """Rings scattered at random over the whole forest (Boris: a surprise wherever you go, not only at the giants).
+    Some stand beside a fallen trunk nearby, the rest on open ground; never in water, on rock or in a tree."""
     trunks = []
     for actor in level_actors:
         if isinstance(actor, unreal.VaelScatterField) and actor.get_actor_label().startswith("Streu_Staemme_"):
             field = actor.get_editor_property("instances")
             for index in range(field.get_instance_count()):
                 trunks.append(field.get_instance_transform(index, True).translation)
-    rng.shuffle(trunks)
+    centre, extent = landscape.get_actor_bounds(False)
+    corner = landscape.get_actor_location()
+    zones = ZoneMap((corner.x, corner.y))
+    taken = []
     spots = []
-    for trunk in trunks:
-        if len(spots) >= DEADWOOD_RINGS:
-            break
-        if not far_enough((trunk.x, trunk.y), taken):
+    tries = 0
+    while len(spots) < RINGS and tries < RINGS * 400:
+        tries += 1
+        x = rng.uniform(centre.x - extent.x, centre.x + extent.x)
+        y = rng.uniform(centre.y - extent.y, centre.y + extent.y)
+        kind = "Wald"
+        if rng.random() < ON_DEADWOOD and trunks:
+            near = [t for t in trunks if (t.x - x) ** 2 + (t.y - y) ** 2 < DEADWOOD_REACH ** 2]
+            if near:
+                # Beside the trunk, not on it: the caps trace onto the landscape and would stick through the wood
+                trunk = rng.choice(near)
+                angle = rng.uniform(0.0, 6.283)
+                x, y = trunk.x + DEADWOOD_SIDE * math.cos(angle), trunk.y + DEADWOOD_SIDE * math.sin(angle)
+                kind = "Totholz"
+        if not far_enough((x, y), taken) or zones.zone(x, y) not in FOREST_ZONES:
             continue
-        hit = trace(unreal.Vector(trunk.x, trunk.y, trunk.z + 2000), unreal.Vector(trunk.x, trunk.y, trunk.z - 2000))
-        if hit is None:
+        hit = trace(unreal.Vector(x, y, centre.z + extent.z + 5000), unreal.Vector(x, y, centre.z - extent.z - 5000))
+        if hit is None or not on_land(hit):
             continue
-        spots.append(unreal.Vector(trunk.x, trunk.y, hit[0].z))
-        taken.append((trunk.x, trunk.y))
-    return spots, len(trunks)
+        spots.append((unreal.Vector(x, y, hit[0].z), kind))
+        taken.append((x, y))
+    return spots, len(trunks), tries
 
 
 def main():
     face = json.load(open(FACE_DATA, encoding="utf-8"))
-    boxes = json.load(open(os.path.join(KIT, "WF_Platzhalter.json"), encoding="utf-8"))["prims"]
 
     mesh = unreal.load_asset(CAP + "/SM_Fluesterkappe")
     if mesh is None:
@@ -312,32 +378,36 @@ def main():
             actors.destroy_actor(actor)
             removed += 1
 
-    taken = []
-    kamm = kammweg_spots(boxes, taken)
-    wood, trunk_count = deadwood_spots(level_actors, taken)
+    landscape = next((a for a in level_actors if isinstance(a, unreal.LandscapeProxy)), None)
+    if landscape is None:
+        log("no landscape in the level, nothing placed")
+        return
+    spots, trunk_count, tries = forest_spots(level_actors, landscape)
     caps = 0
-    for kind, spots in (("Kammweg", kamm), ("Totholz", wood)):
-        for index, spot in enumerate(spots):
-            ring = actors.spawn_actor_from_class(unreal.VaelWhisperCaps, spot, unreal.Rotator(0.0, 0.0, 0.0))
-            ring.set_editor_property("cap_mesh", mesh)
-            ring.set_editor_property("cap_material", material)
-            ring.set_editor_property("moss_meshes", moss)
-            ring.set_editor_property("mesh_height", face["hoehe_cm"])
-            ring.set_editor_property("face_yaw", face["gesicht_yaw_unreal"])
-            ring.set_editor_property("seed", rng.randint(1, 99999))
-            ring.set_editor_property("count", rng.randint(5, 9))
-            ring.set_editor_property("ring_radius", rng.uniform(80.0, 120.0))
-            ring.build_ring()
-            ring.set_actor_label("Fluesterkappen_{}_{:02d}".format(kind, index + 1))
-            ring.set_folder_path(FOLDER)
-            ring.set_editor_property("tags", [unreal.Name(TAG)])
-            for component in ring.get_components_by_class(unreal.InstancedStaticMeshComponent):
-                if component.get_name() == "Caps":
-                    caps += component.get_instance_count()
+    counts = {}
+    for spot, kind in spots:
+        counts[kind] = counts.get(kind, 0) + 1
+        index = counts[kind] - 1
+        ring = actors.spawn_actor_from_class(unreal.VaelWhisperCaps, spot, unreal.Rotator(0.0, 0.0, 0.0))
+        ring.set_editor_property("cap_mesh", mesh)
+        ring.set_editor_property("cap_material", material)
+        ring.set_editor_property("moss_meshes", moss)
+        ring.set_editor_property("mesh_height", face["hoehe_cm"])
+        ring.set_editor_property("face_yaw", face["gesicht_yaw_unreal"])
+        ring.set_editor_property("seed", rng.randint(1, 99999))
+        ring.set_editor_property("count", rng.randint(5, 9))
+        ring.set_editor_property("ring_radius", rng.uniform(80.0, 120.0))
+        ring.build_ring()
+        ring.set_actor_label("Fluesterkappen_{}_{:02d}".format(kind, index + 1))
+        ring.set_folder_path(FOLDER)
+        ring.set_editor_property("tags", [unreal.Name(TAG)])
+        for component in ring.get_components_by_class(unreal.InstancedStaticMeshComponent):
+            if component.get_name() == "Caps":
+                caps += component.get_instance_count()
 
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL_PATH)
-    log("rings placed: {} at the Kammweg, {} on deadwood ({} trunks found), {} caps; {} moss meshes; {} old rings removed".format(
-        len(kamm), len(wood), trunk_count, caps, len(moss), removed))
+    log("rings placed: {} ({} tries, {} trunks known), {} caps; {} moss meshes; {} old rings removed".format(
+        counts, tries, trunk_count, caps, len(moss), removed))
     for note in notes:
         log("NOTE " + note)
 

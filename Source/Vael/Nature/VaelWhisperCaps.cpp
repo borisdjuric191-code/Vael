@@ -50,11 +50,11 @@ AVaelWhisperCaps::AVaelWhisperCaps()
 
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
 	Glow->SetupAttachment(Root);
-	Glow->SetRelativeLocation(FVector(0.0f, 0.0f, 90.0f));
-	Glow->SetLightColor(FLinearColor(0.35f, 0.62f, 1.0f));
-	Glow->SetAttenuationRadius(480.0f);
+	// Low, so it pools blue on the ground and the stems instead of washing out the faces
+	Glow->SetRelativeLocation(FVector(0.0f, 0.0f, 35.0f));
+	Glow->SetIntensityUnits(ELightUnits::Candelas);
 	Glow->SetCastShadows(false);
-	Glow->SetIntensity(LightIntensity.X);
+	Glow->SetVolumetricScatteringIntensity(4.0f);
 }
 
 void AVaelWhisperCaps::OnConstruction(const FTransform& Transform)
@@ -65,6 +65,10 @@ void AVaelWhisperCaps::OnConstruction(const FTransform& Transform)
 
 void AVaelWhisperCaps::BuildRing()
 {
+	Glow->SetLightColor(LightColor);
+	Glow->SetAttenuationRadius(LightRadius);
+	Glow->SetIntensity(LightIntensity.X);
+
 	Caps->ClearInstances();
 	Moss->ClearInstances();
 	Caps->SetStaticMesh(CapMesh);

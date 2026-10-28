@@ -116,9 +116,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Whisper Caps|Whisper", meta = (ClampMin = 1))
 	float TurnSpeed = 30.0f;
 
-	/** Brightness of the light in full day and in deep night */
+	/** Brightness of the light in full day and in deep night, in candela */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Whisper Caps|Light")
-	FVector2D LightIntensity = FVector2D(1.5f, 9.0f);
+	FVector2D LightIntensity = FVector2D(2.0f, 40.0f);
+
+	/** Colour of the aura light: light turquoise blue (Boris: the night aura should read blue, not white) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Whisper Caps|Light")
+	FLinearColor LightColor = FLinearColor(0.2f, 0.8f, 1.0f);
+
+	/** How far the aura light reaches, in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Whisper Caps|Light", meta = (ClampMin = 50))
+	float LightRadius = 850.0f;
 
 public:
 
