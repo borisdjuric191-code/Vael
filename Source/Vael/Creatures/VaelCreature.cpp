@@ -323,6 +323,19 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		return;
 	}
 
+	// Confusion makes it stagger about, now this way, now that, and forget to attack
+	if (UVaelCombatStatics::HasStatus(this, EVaelStatus::Confused))
+	{
+		const float Now = GetWorld()->GetTimeSeconds();
+		if (Now >= ConfusedTurnTime)
+		{
+			ConfusedDirection = FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f).Vector();
+			ConfusedTurnTime = Now + FMath::FRandRange(0.6f, 1.6f);
+		}
+		MoveInDirection(ConfusedDirection, ActiveData->MoveSpeed * 0.4f);
+		return;
+	}
+
 	TickBehavior(DeltaSeconds);
 }
 

@@ -15,6 +15,7 @@
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "InputModifiers.h"
 #include "InputTriggers.h"
+#include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
 #include "EngineUtils.h"
 #include "Items/VaelInventory.h"
@@ -1103,6 +1104,14 @@ void AVaelPlayerController::ApplyMoveInput(const FVector2D& Input)
 	}
 
 	FVector Direction = InputToWorldDirection(Input).GetClampedToMaxSize(1.0f);
+
+	// Confused (Wachbeere): the steps drift off course, the drift itself wanders slowly back and forth
+	if (UVaelCombatStatics::HasStatus(VaelCharacter, EVaelStatus::Confused))
+	{
+		const float Time = GetWorld()->GetTimeSeconds() + PlayerSlot * 1.7f;
+		const float Drift = 110.0f * FMath::Sin(Time * 0.9f) + 30.0f * FMath::Sin(Time * 2.3f);
+		Direction = Direction.RotateAngleAxis(Drift, FVector::UpVector);
+	}
 
 	// Don't walk out of the area the shared camera can show
 	if (const AVaelSharedCamera* SharedCamera = GetSharedCamera())

@@ -175,7 +175,9 @@ enum class EVaelStatus : uint8
 	/** Flees from the players and doesn't attack */
 	Feared,
 	/** Mad with fever: goes for other creatures, and they can hurt each other */
-	Fevered
+	Fevered,
+	/** Confused (Wachbeere): creatures stagger about and don't attack, a player's steps drift off course */
+	Confused
 };
 
 /** When a charge of Mark left in a target bursts */

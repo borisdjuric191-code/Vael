@@ -39,7 +39,9 @@ struct FVaelWatchEye
  *  berries covered with small eyes. The eyes open and close one after another in their own rhythm (material, UV map
  *  "Takt"), and every open eye throws a faint light beam; the beams blink with their eyes (same phase, custom data 0)
  *  and slowly sweep around. A player nearby is watched: the beams swing over to him.
- *  The confusion of enemies (light form) and the Bannblick (shadow form) come with the Floromant's Wachbeere tower.
+ *  Whoever stands in the beam of an open eye may be confused (a wild shrub spares nobody, players included): only a
+ *  random share of 30-70 % is caught, creatures stagger about without attacking, a player's steps drift off course.
+ *  The Bannblick (shadow form) and the Floromant's Wachbeere tower come later.
  *  Placed by Scripts/BuildWachbeeren.py.
  */
 UCLASS()
@@ -123,6 +125,33 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Watch", meta = (ClampMin = 0.1))
 	float FollowSpeed = 2.5f;
 
+	/** Seconds for one open-and-close of an eye and the share of it the eye stays open: the same as BlinzelDauer
+	 *  and OffenAnteil in the materials, so a beam only confuses while its eye is open */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Confusion", meta = (ClampMin = 0.5))
+	float BlinkPeriod = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Confusion", meta = (ClampMin = 0, ClampMax = 1))
+	float OpenShare = 0.62f;
+
+	/** Share of those caught in a beam that get confused, picked anew in this range for every roll (Boris: never all) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Confusion")
+	FVector2D ConfuseShare = FVector2D(0.3f, 0.7f);
+
+	/** How long a creature and a player stay confused, in seconds */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Confusion", meta = (ClampMin = 0))
+	float CreatureConfuseTime = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Confusion", meta = (ClampMin = 0))
+	float PlayerConfuseTime = 3.0f;
+
+	/** After a roll (caught or spared) a target is safe from this shrub for this many seconds */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Confusion", meta = (ClampMin = 0))
+	float ConfuseCooldown = 6.0f;
+
+	/** Added to the beam's radius when testing whether a character stands in it, in cm (world) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Confusion", meta = (ClampMin = 0))
+	float BodyRadius = 35.0f;
+
 	/** Radius and half height of the blocking root bulb in cm (mesh scale) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Watch Berry|Look")
 	FVector2D TrunkSize = FVector2D(30.0f, 90.0f);
@@ -150,6 +179,12 @@ private:
 	/** Where a beam starts and looks (relative to the actor) for a direction in mesh space */
 	FTransform BeamTransform(int32 Index, const FVector& Direction) const;
 
+	/** True while the eye is open (same rhythm as the materials) */
+	bool IsEyeOpen(int32 Index) const;
+
+	/** Confuses some of the characters standing in the beam of an open eye */
+	void ConfuseInBeams();
+
 	/** Each eye's resting direction (with the droop) and where its beam looks right now, in mesh space */
 	TArray<FVector> RestDirections;
 	TArray<FVector> Directions;
@@ -159,6 +194,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> BeamMaterialInstance;
+
+	/** When each character may be rolled again */
+	TMap<TWeakObjectPtr<AActor>, float> NextRoll;
+	float NextConfuseCheck = 0.0f;
 
 	float LastNight = -1.0f;
 	float Watch = 0.0f;

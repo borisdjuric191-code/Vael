@@ -23,6 +23,7 @@ namespace VaelTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Marked);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Feared);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Fevered);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Confused);
 
 	/** Granted while a character channels a spell: no other spell can be cast and the character walks slower */
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Channeling);

@@ -150,6 +150,10 @@ FText AVaelCharacterBase::GetStatusText() const
 	{
 		Names.Add(TEXT("im Fieber"));
 	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Confused))
+	{
+		Names.Add(TEXT("verwirrt"));
+	}
 
 	return FText::FromString(FString::Join(Names, TEXT(", ")));
 }

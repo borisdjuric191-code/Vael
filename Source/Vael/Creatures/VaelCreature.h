@@ -334,6 +334,10 @@ private:
 	/** World time until which the creature can't act */
 	float StunEndTime = 0.0f;
 
+	/** While confused: the way it staggers and the world time it picks a new one */
+	FVector ConfusedDirection = FVector::ForwardVector;
+	float ConfusedTurnTime = 0.0f;
+
 	/** World time until which it sleeps (Schwarzmohn); being hurt wakes it */
 	float SleepEndTime = 0.0f;
 

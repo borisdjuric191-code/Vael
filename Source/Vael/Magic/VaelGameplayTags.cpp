@@ -22,6 +22,7 @@ namespace VaelTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Marked, "Status.Marked", "Marked by the Mark: takes more damage from everything");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Feared, "Status.Feared", "Feared: flees from the players and doesn't attack");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Fevered, "Status.Fevered", "Fevered: goes for other creatures, who can hurt each other");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Confused, "Status.Confused", "Confused: staggers about and doesn't attack; a player's steps drift off course");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Channeling, "State.Channeling", "Channels a spell: casts nothing else and walks slower");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Casting, "State.Casting", "Plays the animation of a spell");
@@ -41,6 +42,7 @@ namespace VaelTags
 		case EVaelStatus::Marked:	return Status_Marked;
 		case EVaelStatus::Feared:	return Status_Feared;
 		case EVaelStatus::Fevered:	return Status_Fevered;
+		case EVaelStatus::Confused:	return Status_Confused;
 		default:					return FGameplayTag();
 		}
 	}

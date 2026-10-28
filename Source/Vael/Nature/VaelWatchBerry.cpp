@@ -5,12 +5,16 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/SceneComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Combat/VaelCharacterBase.h"
+#include "Combat/VaelCombatStatics.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "World/VaelTimeOfDay.h"
+#include "Engine/OverlapResult.h"
+#include "Vael.h"
 
 namespace
 {
@@ -22,6 +26,9 @@ namespace
 
 	/** Sweep speed in radians per second */
 	constexpr float SweepSpeed = 0.35f;
+
+	/** Seconds between two looks into the beams */
+	constexpr float ConfuseCheckInterval = 0.2f;
 }
 
 AVaelWatchBerry::AVaelWatchBerry()
@@ -193,4 +200,82 @@ void AVaelWatchBerry::Tick(float DeltaSeconds)
 		Transforms.Add(BeamTransform(Index, Directions[Index]));
 	}
 	Beams->BatchUpdateInstancesTransforms(0, Transforms, false, true, false);
+
+	if (GetWorld()->GetTimeSeconds() >= NextConfuseCheck)
+	{
+		NextConfuseCheck = GetWorld()->GetTimeSeconds() + ConfuseCheckInterval;
+		ConfuseInBeams();
+	}
+}
+
+bool AVaelWatchBerry::IsEyeOpen(int32 Index) const
+{
+	// Material "Time" is the world's game time, so both see the same moment of the rhythm
+	const float Cycle = FMath::Frac(GetWorld()->GetTimeSeconds() / BlinkPeriod + Eyes[Index].Phase + PhaseShift);
+	return Cycle < OpenShare;
+}
+
+void AVaelWatchBerry::ConfuseInBeams()
+{
+	UWorld* World = GetWorld();
+	const float Scale = GetActorScale3D().Z;
+	const float Reach = (BeamLength + 300.0f) * Scale;
+	TArray<FOverlapResult> Overlaps;
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(VaelWatchBerry), false, this);
+	World->OverlapMultiByObjectType(Overlaps, GetActorLocation(), FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn),
+	                                FCollisionShape::MakeSphere(Reach), Query);
+
+	const float Now = World->GetTimeSeconds();
+	const float Slope = FMath::Tan(FMath::DegreesToRadians(BeamHalfAngle));
+	const FTransform& ToWorld = GetActorTransform();
+	for (const FOverlapResult& Overlap : Overlaps)
+	{
+		AVaelCharacterBase* Character = Cast<AVaelCharacterBase>(Overlap.GetActor());
+		if (Character == nullptr || Character->IsDefeated())
+		{
+			continue;
+		}
+		const float* Next = NextRoll.Find(Character);
+		if (Next != nullptr && Now < *Next)
+		{
+			continue;
+		}
+
+		// In a beam: ahead of an open eye and within the cone's widening radius, a body's width added
+		const FVector Body = ToWorld.InverseTransformPosition(Character->GetActorLocation());
+		const float Body2 = BodyRadius / FMath::Max(Scale, 0.01f);
+		bool bInBeam = false;
+		for (int32 Index = 0; Index < Directions.Num() && !bInBeam; ++Index)
+		{
+			if (!IsEyeOpen(Index))
+			{
+				continue;
+			}
+			const FVector ToBody = Body - Eyes[Index].Location;
+			const float Along = FVector::DotProduct(ToBody, Directions[Index]);
+			if (Along > 0.0f && Along < BeamLength)
+			{
+				bInBeam = (ToBody - Directions[Index] * Along).Size() < Along * Slope + Body2;
+			}
+		}
+		if (!bInBeam)
+		{
+			continue;
+		}
+
+		// Never all of them: each roll catches only a random share between the two limits
+		NextRoll.Add(Character, Now + ConfuseCooldown);
+		if (FMath::FRand() < FMath::FRandRange(ConfuseShare.X, ConfuseShare.Y))
+		{
+			const bool bPlayer = Character->IsPlayerControlled();
+			const float Time = bPlayer ? PlayerConfuseTime : CreatureConfuseTime;
+			UVaelCombatStatics::ApplyStatus(this, Character, EVaelStatus::Confused, Time);
+			NextRoll.Add(Character, Now + Time + ConfuseCooldown);
+			UE_LOG(LogVael, Log, TEXT("%s confuses %s for %.1f s"), *GetActorNameOrLabel(), *Character->GetActorNameOrLabel(), Time);
+		}
+		else
+		{
+			UE_LOG(LogVael, Verbose, TEXT("%s spares %s"), *GetActorNameOrLabel(), *Character->GetActorNameOrLabel());
+		}
+	}
 }

@@ -56,7 +56,7 @@ GLOW_COLOUR = (0.35, 0.95, 1.0)    # light turquoise of the open eyes and their 
 LID_COLOUR = (0.025, 0.09, 0.1)    # dark teal of a closed lid
 BEAM_COLOUR = (0.08, 0.75, 0.85)   # beams: deeper turquoise than the eyes, so they tint the forest instead of whitening it
 BEAM_HALF_ANGLE = 6.0              # degrees
-BEAM_LENGTH = 210.0                # cm (mesh scale)
+BEAM_LENGTH = 380.0                # cm (mesh scale); also how far the confusion reaches
 
 # Blink rhythm: the same in both materials, so a beam goes out with its eye
 BLINK_PERIOD = 5.0            # seconds for one open-and-close of an eye
