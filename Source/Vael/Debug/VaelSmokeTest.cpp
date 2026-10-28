@@ -187,7 +187,7 @@ void AVaelSmokeTest::BeginPlay()
 		Steps.Add({ FString::Printf(TEXT("Creature %s"), *Data->DisplayName.ToString()), [this, Data]() { return PrepareArena(Data, 2); }, SmokeFightTime });
 	}
 
-	// The Pfuhlnatter: its baked mesh and animations load, it crawls up, rears and strikes
+	// The Pfuhlnatter: its baked mesh and animations load, it slithers up and coils round the player
 	if (Only.IsEmpty())
 	{
 		Steps.Add({ TEXT("Pfuhlnatter arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelPfuhlnatterData>(), 1); }, 8.0f });
@@ -203,9 +203,9 @@ void AVaelSmokeTest::BeginPlay()
 				return FString(TEXT("FAILED: no living Pfuhlnatter"));
 			}
 			const USkeletalMesh* Mesh = Snake->GetMesh()->GetSkeletalMeshAsset();
-			const bool bOk = Mesh != nullptr && Snake->GetBiteCount() > 0;
-			return FString::Printf(TEXT("%smesh %s, state %s, %d bites"), bOk ? TEXT("") : TEXT("FAILED: "), Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"),
-				*StaticEnum<EVaelSnakeState>()->GetNameStringByValue(static_cast<int64>(Snake->GetSnakeState())), Snake->GetBiteCount());
+			const bool bOk = Mesh != nullptr && Snake->GetConstrictCount() > 0;
+			return FString::Printf(TEXT("%smesh %s, state %s, %d coils"), bOk ? TEXT("") : TEXT("FAILED: "), Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"),
+				*StaticEnum<EVaelSnakeState>()->GetNameStringByValue(static_cast<int64>(Snake->GetSnakeState())), Snake->GetConstrictCount());
 		}, 0.1f });
 	}
 

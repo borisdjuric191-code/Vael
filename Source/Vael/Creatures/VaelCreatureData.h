@@ -1266,8 +1266,8 @@ public:
 
 /**
  *  Pfuhlnatter: a 4-5 m water snake of the Wurzelforst moor that looks like a small sea monster (raspberry red, petrol
- *  zigzag with turquoise rims, a dahlia crown of fins round the head). It crawls up flat with its fins folded, rears up
- *  near its prey with the crown and fins rising and strikes from there. Its look are the baked animations of
+ *  zigzag with turquoise rims, a dahlia crown of fins round the head). It always slithers with crest and fins flat; in
+ *  reach it darts in and coils round its prey, which can't move until it lets go. Its look are the baked animations of
  *  SK_Pfuhlnatter (Tools/Pfuhlnatter), not the creature factory.
  */
 UCLASS(BlueprintType)
@@ -1310,45 +1310,93 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	float FrontOffset = 130.0f;
 
-	/** Speed in cm/s at which the crawl animation plays at its own pace (one wave of 1.9 m per 1.2 s) */
+	/** In the crawl pose the neck joint lies this far ahead of the mesh's middle, in cm at the model's size; the body is
+	 *  laid back along the path from there */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	float NeckForward = 190.0f;
+
+	/** The head swings this many degrees to each side as it slithers, in waves this long (cm at the model's size) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 80))
+	float WaveAngle = 38.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 10))
+	float WaveLength = 190.0f;
+
+	/** How far the loose S it lies in at the start swings to the side, in cm at the model's size */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float RestCurve = 30.0f;
+
+	/** Degrees per second the head turns into its waves: quick, the body follows the path anyway */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
-	float CrawlAnimationSpeed = 160.0f;
-
-	/** Degrees per second: a long body turns slowly */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
-	float TurnRate = 110.0f;
+	float TurnRate = 720.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
-	float Acceleration = 700.0f;
+	float Acceleration = 3000.0f;
 
-	/** Crawling speed in cm/s (MoveSpeed is not used) */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
-	float CrawlSpeed = 240.0f;
+	/** Scale of the crest and body fins while it crawls (on top of their folding in the animation): flat on the body;
+	 *  the crown keeps a small collar; coiled round prey the fins open to FinCoiledScale and the crown fully */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
+	float FinFlatScale = 0.3f;
 
-	/** It rears up when its prey is this close, in cm, and lays down again to crawl after it beyond 1.4 times this */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
-	float RearRange = 520.0f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
+	float CrownFlatScale = 0.75f;
 
-	/** While reared it edges closer this fast, in cm/s */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
-	float RearedSpeed = 90.0f;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
+	float FinCoiledScale = 0.6f;
 
-	/** It strikes at prey this close (from the capsule on its front), in cm */
+	/** Slithering speed in cm/s (MoveSpeed is not used), and the dart at its prey */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
-	float BiteRange = 230.0f;
-
-	/** The head's lunge during the strike, in cm/s */
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
-	float BiteLungeSpeed = 700.0f;
+	float CrawlSpeed = 380.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
-	float BiteDamage = 14.0f;
+	float RushSpeed = 620.0f;
 
-	/** Seconds between two strikes, picked in this range */
+	/** It darts at prey this close, in cm, for at most RushTime seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float RushRange = 650.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float RushTime = 2.5f;
+
+	/** It touches its prey when the capsules are this close, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float ContactSlack = 35.0f;
+
+	/** Between two strikes it circles its prey at this distance, in cm, for seconds picked in the range */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float CircleDistance = 380.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt")
-	FVector2D BiteInterval = FVector2D(1.4f, 2.4f);
+	FVector2D StrikeInterval = FVector2D(3.0f, 5.0f);
 
-	/** Without a target this long it crawls home and lies still, in seconds */
+	/** Coiling: the head winds this many turns round its prey in WrapTime seconds, from the lower to the upper height
+	 *  (cm above the ground), this far outside the prey's capsule (cm); it holds for HoldTime and squeezes every SqueezeInterval */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.25))
+	float CoilTurns = 1.25f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict")
+	FVector2D CoilHeight = FVector2D(20.0f, 120.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
+	float CoilGap = 22.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.05))
+	float WrapTime = 0.8f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
+	float HoldTime = 2.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.1))
+	float SqueezeInterval = 0.6f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0))
+	float SqueezeDamage = 5.0f;
+
+	/** Hits worth this share of its health while it holds someone make it let go (co-op rescue) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0, ClampMax = 1))
+	float BreakDamageShare = 0.12f;
+
+	/** Without a target this long it slithers home and lies still, in seconds */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
 	float LoseInterestTime = 5.0f;
 };

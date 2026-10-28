@@ -18,6 +18,9 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 	virtual void PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds) override;
 	virtual bool Evaluate(FPoseContext& Output) override;
 
+	/** Lays the spine chain onto its targets (see UVaelSequenceAnimInstance::SetSpineTargets) */
+	void ApplySpine(FCompactPose& Pose) const;
+
 	UAnimSequence* Current = nullptr;
 	UAnimSequence* Previous = nullptr;
 	float CurrentTime = 0.0f;
@@ -25,6 +28,12 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 
 	/** 0 = all the previous sequence, 1 = all the current one */
 	float Blend = 1.0f;
+
+	TArray<FName> SpineBones;
+	TArray<FVector> SpineTargets;
+	float SpineWeight = 0.0f;
+	TArray<FName> ScaledBones;
+	TArray<float> BoneScales;
 };
 
 /**
@@ -57,6 +66,17 @@ public:
 	/** True once a sequence that doesn't loop has reached its end */
 	bool IsFinished() const;
 
+	/**
+	 *  Lays a chain of bones onto points instead of where the sequence puts them (a snake's spine onto the path its head
+	 *  took). Bones run from the chain's root to its tip, whose own bone only gives the last joint; Targets are one per
+	 *  bone, in component space: X and Y are where each joint goes, Z is added to the height the sequence gives it.
+	 *  Weight 0 leaves the sequence alone.
+	 */
+	void SetSpineTargets(const TArray<FName>& Bones, const TArray<FVector>& Targets, float Weight);
+
+	/** Scales bones on top of the sequence (fins drawn in further); an empty list scales nothing */
+	void SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales);
+
 protected:
 
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override { return new FVaelSequenceAnimProxy(this); }
@@ -83,4 +103,10 @@ private:
 	bool bPreviousLoop = true;
 	float BlendDuration = 0.25f;
 	float BlendElapsed = 0.0f;
+
+	TArray<FName> SpineBones;
+	TArray<FVector> SpineTargets;
+	float SpineWeight = 0.0f;
+	TArray<FName> ScaledBones;
+	TArray<float> BoneScales;
 };

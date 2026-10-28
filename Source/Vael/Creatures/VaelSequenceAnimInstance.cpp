@@ -52,6 +52,19 @@ void UVaelSequenceAnimInstance::PlayInStep(UAnimSequence* Sequence, float BlendT
 	CurrentTime = Phase * Sequence->GetPlayLength();
 }
 
+void UVaelSequenceAnimInstance::SetSpineTargets(const TArray<FName>& Bones, const TArray<FVector>& Targets, float Weight)
+{
+	SpineBones = Bones;
+	SpineTargets = Targets;
+	SpineWeight = Bones.Num() == Targets.Num() ? FMath::Clamp(Weight, 0.0f, 1.0f) : 0.0f;
+}
+
+void UVaelSequenceAnimInstance::SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales)
+{
+	ScaledBones = Bones;
+	BoneScales = Scales;
+}
+
 bool UVaelSequenceAnimInstance::IsFinished() const
 {
 	return Current != nullptr && !bCurrentLoop && CurrentTime >= Current->GetPlayLength() - KINDA_SMALL_NUMBER;
@@ -83,6 +96,82 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	CurrentTime = Instance->CurrentTime;
 	PreviousTime = Instance->PreviousTime;
 	Blend = Instance->BlendDuration > KINDA_SMALL_NUMBER ? FMath::Clamp(Instance->BlendElapsed / Instance->BlendDuration, 0.0f, 1.0f) : 1.0f;
+	SpineBones = Instance->SpineBones;
+	SpineTargets = Instance->SpineTargets;
+	SpineWeight = Instance->SpineWeight;
+	ScaledBones = Instance->ScaledBones;
+	BoneScales = Instance->BoneScales;
+}
+
+void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
+{
+	const FBoneContainer& Container = Pose.GetBoneContainer();
+	const auto Find = [&Container](const FName& Name)
+	{
+		const int32 MeshIndex = Container.GetPoseBoneIndexForBoneName(Name);
+		return MeshIndex == INDEX_NONE ? FCompactPoseBoneIndex(INDEX_NONE) : Container.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
+	};
+
+	for (int32 Index = 0; Index < ScaledBones.Num() && Index < BoneScales.Num(); ++Index)
+	{
+		const FCompactPoseBoneIndex Bone = Find(ScaledBones[Index]);
+		if (Bone.IsValid())
+		{
+			Pose[Bone].SetScale3D(Pose[Bone].GetScale3D() * BoneScales[Index]);
+		}
+	}
+
+	if (SpineWeight <= 0.0f || SpineBones.Num() < 2 || SpineBones.Num() != SpineTargets.Num())
+	{
+		return;
+	}
+	TArray<FCompactPoseBoneIndex, TInlineAllocator<32>> Chain;
+	for (const FName& Name : SpineBones)
+	{
+		const FCompactPoseBoneIndex Bone = Find(Name);
+		if (!Bone.IsValid())
+		{
+			return;
+		}
+		Chain.Add(Bone);
+	}
+
+	// Component space of the chain's parent, and where the sequence puts each joint
+	FTransform Parent = FTransform::Identity;
+	for (FCompactPoseBoneIndex Bone = Pose.GetParentBoneIndex(Chain[0]); Bone.IsValid(); Bone = Pose.GetParentBoneIndex(Bone))
+	{
+		Parent = Parent * Pose[Bone];
+	}
+	TArray<FVector, TInlineAllocator<32>> Joints;
+	FTransform Walk = Parent;
+	for (int32 Index = 0; Index < Chain.Num(); ++Index)
+	{
+		Walk = Pose[Chain[Index]] * Walk;
+		Joints.Add(Walk.GetTranslation());
+	}
+	const auto Target = [&](int32 Index)
+	{
+		const FVector Wanted(SpineTargets[Index].X, SpineTargets[Index].Y, Joints[Index].Z + SpineTargets[Index].Z);
+		return FMath::Lerp(Joints[Index], Wanted, SpineWeight);
+	};
+
+	// Each bone turned so its child joint lands on the next point; the lengths stay, so the points must be spaced by them
+	for (int32 Index = 0; Index + 1 < Chain.Num(); ++Index)
+	{
+		FTransform Bone = Pose[Chain[Index]] * Parent;
+		if (Index == 0)
+		{
+			Bone.SetTranslation(Target(0));
+		}
+		const FVector Child = Bone.TransformPosition(Pose[Chain[Index + 1]].GetTranslation()) - Bone.GetTranslation();
+		const FVector Wanted = Target(Index + 1) - Bone.GetTranslation();
+		if (!Child.IsNearlyZero() && !Wanted.IsNearlyZero())
+		{
+			Bone.SetRotation((FQuat::FindBetweenVectors(Child, Wanted) * Bone.GetRotation()).GetNormalized());
+		}
+		Pose[Chain[Index]] = Bone.GetRelativeTransform(Parent);
+		Parent = Bone;
+	}
 }
 
 bool FVaelSequenceAnimProxy::Evaluate(FPoseContext& Output)
@@ -118,5 +207,6 @@ bool FVaelSequenceAnimProxy::Evaluate(FPoseContext& Output)
 		const FCompactPoseBoneIndex Root(0);
 		Output.Pose[Root].SetTranslation(Output.Pose.GetRefPose(Root).GetTranslation());
 	}
+	ApplySpine(Output.Pose);
 	return true;
 }
