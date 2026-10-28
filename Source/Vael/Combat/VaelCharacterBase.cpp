@@ -3,6 +3,8 @@
 #include "Combat/VaelCharacterBase.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelConfusionHalo.h"
+#include "Components/CapsuleComponent.h"
 #include "Combat/VaelGameplayEffects.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelGameplayTags.h"
@@ -29,6 +31,7 @@ void AVaelCharacterBase::PostInitializeComponents()
 	AttributeSet->InitMana(StartingMana);
 
 	AbilitySystemComponent->RegisterGameplayTagEvent(VaelTags::Status_Frozen, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AVaelCharacterBase::OnFrozenChanged);
+	AbilitySystemComponent->RegisterGameplayTagEvent(VaelTags::Status_Confused, EGameplayTagEventType::NewOrRemoved).AddUObject(this, &AVaelCharacterBase::OnConfusedChanged);
 	AbilitySystemComponent->GetGameplayAttributeValueChangeDelegate(UVaelAttributeSet::GetHealthAttribute()).AddUObject(this, &AVaelCharacterBase::HandleHealthChanged);
 }
 
@@ -171,6 +174,24 @@ void AVaelCharacterBase::OnFrozenChanged(const FGameplayTag Tag, int32 NewCount)
 	{
 		// Walking, or flying for creatures of the air
 		Movement->SetDefaultMovementMode();
+	}
+}
+
+void AVaelCharacterBase::OnConfusedChanged(const FGameplayTag Tag, int32 NewCount)
+{
+	if (NewCount > 0 && ConfusionHalo == nullptr)
+	{
+		ConfusionHalo = NewObject<UVaelConfusionHalo>(this);
+		// Keeps circling the same way while the character turns
+		ConfusionHalo->SetUsingAbsoluteRotation(true);
+		ConfusionHalo->Height = GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + 40.0f;
+		ConfusionHalo->SetupAttachment(GetCapsuleComponent());
+		ConfusionHalo->RegisterComponent();
+	}
+	else if (NewCount <= 0 && ConfusionHalo != nullptr)
+	{
+		ConfusionHalo->DestroyComponent();
+		ConfusionHalo = nullptr;
 	}
 }
 

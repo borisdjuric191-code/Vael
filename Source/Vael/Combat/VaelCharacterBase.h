@@ -140,7 +140,14 @@ protected:
 	/** Called when the character freezes or thaws. Frozen characters can't move. */
 	virtual void OnFrozenChanged(const FGameplayTag Tag, int32 NewCount);
 
+	/** Called when confusion starts or ends: shows or hides the spirals over the head */
+	void OnConfusedChanged(const FGameplayTag Tag, int32 NewCount);
+
 private:
+
+	/** Spirals over the head while confused, null otherwise */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelConfusionHalo> ConfusionHalo;
 
 	/** Forwards health changes to OnHealthChanged */
 	void HandleHealthChanged(const FOnAttributeChangeData& ChangeData);
