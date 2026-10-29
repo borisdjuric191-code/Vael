@@ -1477,13 +1477,13 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines")
 	FVector2D VineInterval = FVector2D(1.8f, 3.6f);
 
-	/** Slobber running from the flower's lower lips (Boris 2026-10-29): its look, and seconds between two drops (half as
+	/** Slobber running from the flower's lower lips (Boris 2026-10-29: easy to see): its look (opaque and wet, Tools/Kelchreisser/09), and seconds between two drops (half as
 	 *  long while it hunts) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Drool")
-	TSoftObjectPtr<UMaterialInterface> DroolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/VFX/Water/Materials/MI_Water_Swamp.MI_Water_Swamp")));
+	TSoftObjectPtr<UMaterialInterface> DroolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Kelchreisser/M_Kelchreisser_Sabber.M_Kelchreisser_Sabber")));
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Drool")
-	FVector2D DroolInterval = FVector2D(0.5f, 1.4f);
+	FVector2D DroolInterval = FVector2D(0.3f, 0.9f);
 
 	/** Pause after an attack before the next, in seconds */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")

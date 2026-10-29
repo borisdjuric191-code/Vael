@@ -164,8 +164,22 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
 			}
 
-			const FVector Focus = Subject->GetActorLocation();
-			const FVector Eye = Focus + Subject->GetActorRotation().RotateVector(FVector(260.0f, -200.0f, 170.0f));
+			// -VaelShowcaseCloseupView=X,Y,Z[,FX,FY,FZ]: the camera's place from the point it looks at, and that point from
+			// the creature's middle, both in the creature's frame (cm), like 520,-260,60,250,0,120 for a big creature's mouth
+			FVector EyeOffset(260.0f, -200.0f, 170.0f);
+			FVector FocusOffset = FVector::ZeroVector;
+			FString ViewText;
+			TArray<FString> Parts;
+			if (FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCloseupView="), ViewText, false) && ViewText.ParseIntoArray(Parts, TEXT(",")) >= 3)
+			{
+				EyeOffset = FVector(FCString::Atof(*Parts[0]), FCString::Atof(*Parts[1]), FCString::Atof(*Parts[2]));
+				if (Parts.Num() >= 6)
+				{
+					FocusOffset = FVector(FCString::Atof(*Parts[3]), FCString::Atof(*Parts[4]), FCString::Atof(*Parts[5]));
+				}
+			}
+			const FVector Focus = Subject->GetActorLocation() + Subject->GetActorRotation().RotateVector(FocusOffset);
+			const FVector Eye = Focus + Subject->GetActorRotation().RotateVector(EyeOffset);
 			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
 			if (PlayerController->GetViewTarget() != Closeup)
 			{

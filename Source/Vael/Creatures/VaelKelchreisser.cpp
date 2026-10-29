@@ -61,7 +61,7 @@ namespace
 
 	/** The lower inner jaws, and where their lips' tips are from the jaws' hinges in the reference pose (cm) */
 	const TCHAR* LipJaws[] = { TEXT("kiefer_ul"), TEXT("kiefer_ur") };
-	constexpr int32 DroolDrops = 8;
+	constexpr int32 DroolDrops = 14;
 	const FVector LipFromHinge(90.0f, 0.0f, -45.0f);
 
 	/** A vine's strike: drawing back, shooting out, holding on and pulling in (seconds) */
@@ -763,7 +763,7 @@ void AVaelKelchreisser::FlingDrool(int32 Count)
 		--Count;
 		Drop.Age = 0.0f;
 		Drop.HangTime = 0.0f;
-		Drop.Size = FMath::FRandRange(4.0f, 8.0f);
+		Drop.Size = FMath::FRandRange(5.0f, 10.0f);
 		Drop.Lip = FMath::RandRange(0, 1);
 		Drop.Location = GetLip(Drop.Lip);
 		Drop.Velocity = GetActorForwardVector() * FMath::FRandRange(250.0f, 550.0f) + FMath::VRand() * 220.0f + FVector(0.0f, 0.0f, 200.0f);
@@ -789,8 +789,8 @@ void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 			if (Drop.Age < 0.0f)
 			{
 				Drop.Age = 0.0f;
-				Drop.HangTime = FMath::FRandRange(0.6f, 1.6f);
-				Drop.Size = FMath::FRandRange(3.5f, 7.0f);
+				Drop.HangTime = FMath::FRandRange(0.8f, 2.0f);
+				Drop.Size = FMath::FRandRange(5.0f, 9.0f);
 				Drop.Lip = FMath::RandRange(0, 1);
 				Drop.Location = GetLip(Drop.Lip);
 				Drop.Velocity = FVector::ZeroVector;
@@ -818,7 +818,7 @@ void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 		if (!Drop.bFree && Drop.Age < Drop.HangTime)
 		{
 			// Runs out and stretches down into a thread, trailing behind when the head moves
-			const float Hang = 8.0f + 70.0f * FMath::Square(Drop.Age / Drop.HangTime);
+			const float Hang = 10.0f + 120.0f * FMath::Square(Drop.Age / Drop.HangTime);
 			const FVector Wanted = Lip + FVector(0.0f, 0.0f, -Hang) - Motion.GetClampedToMaxSize(900.0f) * 0.06f;
 			Drop.Location = FMath::VInterpTo(Drop.Location, Wanted, DeltaSeconds, 8.0f);
 			Drop.Velocity = Motion;
@@ -850,7 +850,7 @@ void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 		}
 
 		// A blob, flattened to a splash where it landed, drying away
-		const float Dry = Drop.Landed >= 0.0f ? FMath::Clamp(1.0f - Drop.Landed / 1.6f, 0.0f, 1.0f) : 1.0f;
+		const float Dry = Drop.Landed >= 0.0f ? FMath::Clamp(1.0f - Drop.Landed / 3.0f, 0.0f, 1.0f) : 1.0f;
 		if (Dry <= 0.0f)
 		{
 			Drop.Age = -1.0f;
@@ -873,7 +873,7 @@ void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 			const FVector Middle = (Lip + Drop.Location) * 0.5f;
 			const FVector Along = (Drop.Location - Lip).GetSafeNormal();
 			Thread->SetWorldLocationAndRotation(Middle, FQuat::FindBetweenNormals(FVector::UpVector, Along));
-			Thread->SetWorldScale3D(FVector(Diameter * 0.3f, Diameter * 0.3f, ThreadLength / 100.0f));
+			Thread->SetWorldScale3D(FVector(Diameter * 0.4f, Diameter * 0.4f, ThreadLength / 100.0f));
 		}
 	}
 }

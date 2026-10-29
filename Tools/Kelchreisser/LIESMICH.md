@@ -15,6 +15,7 @@ Boris 2026-10-29: 4–5 m Schulterhöhe (fast ein Bosskampf), alle Rücken-Ranke
 | 08_unreal_import.py | Erstimport nach /Game/Vael/Kreaturen/Kelchreisser, A_Kelchreisser_<Aktion>, MI_Kelchreisser (M_Kreatur_Master) |
 | 08a_unreal_aufraeumen.py | alte Animationen entfernen (SK, Skelett, Physik halten sich fest und bleiben) |
 | 08b_unreal_animationen.py | nur die Animationen neu auf das bestehende Skelett (nach 08a) |
+| 09_unreal_sabbermaterial.py | M_Kelchreisser_Sabber: undurchsichtig, nass glänzend, blass gelbgrün (die Wasser-Kit-Materialien sind durchsichtig und auf kleinen Tropfen unsichtbar) |
 
 Blender: `blender -b --factory-startup -P Tools/Kelchreisser/<skript>`; 03 mit
 `C:/Users/boris/Tools/wf_generator_venv/Scripts/python.exe -I Tools/Kelchreisser/03_ranken.py`.

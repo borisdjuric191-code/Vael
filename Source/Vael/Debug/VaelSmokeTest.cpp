@@ -271,10 +271,10 @@ void AVaelSmokeTest::BeginPlay()
 				return FString(TEXT("FAILED: no living Kelchreisser"));
 			}
 			const USkeletalMesh* Mesh = Beast->GetMesh()->GetSkeletalMeshAsset();
-			const bool bOk = Mesh != nullptr && Beast->IsElite() && Beast->GetAttackCount() > 0 && Beast->GetVineStrikeCount() > 0;
-			return FString::Printf(TEXT("%smesh %s, elite %s, %.0f health, state %s, %d attacks (%d vine strikes), %d hits"), bOk ? TEXT("") : TEXT("FAILED: "),
+			const bool bOk = Mesh != nullptr && Beast->IsElite() && Beast->GetAttackCount() > 0 && Beast->GetVineStrikeCount() > 0 && Beast->GetDroolCount() > 0;
+			return FString::Printf(TEXT("%smesh %s, elite %s, %.0f health, state %s, %d attacks (%d vine strikes), %d hits, %d drops of slobber"), bOk ? TEXT("") : TEXT("FAILED: "),
 				Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"), Beast->IsElite() ? TEXT("yes") : TEXT("NO"), Beast->GetMaxHealth(),
-				*StaticEnum<EVaelKelchreisserState>()->GetNameStringByValue(static_cast<int64>(Beast->GetKelchreisserState())), Beast->GetAttackCount(), Beast->GetVineStrikeCount(), Beast->GetHitCount());
+				*StaticEnum<EVaelKelchreisserState>()->GetNameStringByValue(static_cast<int64>(Beast->GetKelchreisserState())), Beast->GetAttackCount(), Beast->GetVineStrikeCount(), Beast->GetHitCount(), Beast->GetDroolCount());
 		}, 0.1f });
 	}
 

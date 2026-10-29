@@ -124,6 +124,26 @@ def innenkiefer(p, offen):
         p.winkel[n] = lokal_x(-30 * offen)
 
 
+def kopf_leben(p, t, schleife, staerke=1.0, grund=0.15):
+    """The flower is never still (Boris 2026-10-29): each petal opens and closes on its own slow beat, the inner jaws
+    chew, part and snap now and then while the slobber runs, the head nodding a little with them. The beats fit the
+    loop (schleife seconds), so it closes without a jump"""
+    for k in range(1, 6):
+        schlag = schleife / max(1, round(schleife / (2.2 + 0.25 * k)))
+        offen = grund + staerke * 0.35 * (0.5 + 0.5 * math.sin(2 * math.pi * (t / schlag + k * 0.19)))
+        p.winkel["blatt_%02d" % k] = lokal_x(-55 * offen)
+    kauen = schleife / max(1, round(schleife / 1.4))
+    auf = 0.5 + 0.5 * math.sin(2 * math.pi * t / kauen)
+    schnapp = huegel((t / kauen) % 1.0, 0.82, 0.88, 0.9, 0.97)
+    oben = grund + staerke * (0.45 * auf ** 1.5) - 0.25 * staerke * schnapp
+    unten = grund + staerke * (0.6 * auf ** 1.2 + 0.1 * math.sin(2 * math.pi * (t / kauen * 2 + 0.3))) - 0.3 * staerke * schnapp
+    for n in ("kiefer_ol", "kiefer_or"):
+        p.winkel[n] = lokal_x(30 * oben + (3 if n.endswith("l") else -3) * math.sin(2 * math.pi * t / kauen + 1.0))
+    for n in ("kiefer_ul", "kiefer_ur"):
+        p.winkel[n] = lokal_x(-30 * unten + (3 if n.endswith("l") else -3) * math.sin(2 * math.pi * t / kauen + 2.0))
+    p.dazu("kopf", 3 * staerke * (auf - 0.5) + 2 * staerke * schnapp)
+
+
 def knospe(p, i, offen):
     """Bud of vine i: 0 shut, 1 wide open"""
     p.winkel["ranke_%d_kiefer_oben" % i] = lokal_x(-8 + 48 * offen)
@@ -204,8 +224,12 @@ def stehen_idle(f):
         anteil = huegel((t - k * 1.0) % 4.0, 0.0, 0.12, 0.85, 1.0)
         p.dazu("hals_02", beuge * 0.4 * anteil, 0, wende * 0.4 * anteil)
         p.dazu("kopf", beuge * 0.6 * anteil, 6 * anteil * (1 if k % 2 else -1), wende * 0.6 * anteil)
-    blaetter(p, 0.15 + 0.1 * welle(t, 2.0, 0.1))
-    innenkiefer(p, 0.12 + 0.08 * welle(t, 2.0, 0.1))
+    kopf_leben(p, t, 4.0)
+    for s, seite in (("l", 1), ("r", -1)):
+        last = 0.5 + 0.5 * seite * wiegen
+        p.dazu("schulter_" + s, 8 * last - 4, 0, -seite * 8 * (last - 0.5))
+    p.dazu("brust", 3 * abs(wiegen) + 4 * hocken)
+    p.dazu("wirbel_02", 2 * abs(welle(t, 4.0, 0.1)))
     ranken_weben(p, t, staerke=2.2)
     for i in range(len(RANKEN)):
         # Each bud snaps twice in the loop, at its own time
@@ -239,8 +263,7 @@ def lauern(f):
         rollen = welle(t, 3.0, gegen)
         p.dazu("schulter_" + s, 5 * rollen, 0, (-6 if s == "l" else 6) * rollen)
         p.hand[s] = HAND_STAND[s] + Vector((-0.15, 0.0, 0.0))
-    blaetter(p, 0.25 + 0.1 * atem)
-    innenkiefer(p, 0.3 + 0.1 * atem)
+    kopf_leben(p, t, 3.0, staerke=1.2, grund=0.2)
     ranken_beugen(p, -10)
     ranken_weben(p, t, staerke=2.5, periode=3.0)
     for i in range(len(RANKEN)):
@@ -266,8 +289,7 @@ def galopp(f):
     p.dazu("hals_01", 8 - 9 * biegen)
     p.dazu("hals_02", 4 - 4 * biegen)
     p.dazu("kopf", 6 - 3 * biegen)
-    blaetter(p, -0.2)
-    innenkiefer(p, 0.35 + 0.15 * math.sin(2 * math.pi * ph))
+    kopf_leben(p, t, GALOPP_PERIODE, staerke=0.8, grund=0.05)
     for i in range(len(RANKEN)):
         knospe(p, i, 0.5)
     # Vines stream back and whip with the stride, the tips late
@@ -280,8 +302,12 @@ def galopp(f):
     # Shoulder blades slide forward with the reaching hand, the chest rolls over the hand that carries, the neck lags
     for s, versatz in (("l", 0.42), ("r", 0.5)):
         greifen = math.cos(2 * math.pi * ((ph - versatz) % 1.0 - 0.65))
-        p.dazu("schulter_" + s, 6 * greifen, 0, (-12 if s == "l" else 12) * greifen)
-    p.dazu("brust", 0, 4 * math.sin(2 * math.pi * (ph - 0.46)), 3 * math.sin(2 * math.pi * (ph - 0.5)))
+        p.dazu("schulter_" + s, 12 * greifen, 4 * greifen, (-20 if s == "l" else 20) * greifen)
+    # The chest drops down between the shoulders as the hands take its weight, and rolls over the one that carries
+    tragen = math.cos(2 * math.pi * (ph - 0.6))
+    p.dazu("brust", 7 * tragen, 6 * math.sin(2 * math.pi * (ph - 0.46)), 4 * math.sin(2 * math.pi * (ph - 0.5)))
+    p.dazu("wirbel_02", 3 * tragen)
+    p.dazu("hals_01", -6 * tragen)
     p.dazu("hals_02", 2 * math.cos(2 * math.pi * (ph - 0.1)), 0, -3 * math.sin(2 * math.pi * (ph - 0.6)))
     # Rotary gallop: right hind, left hind, left hand, right hand; each on the ground 30 % of the stride
     for name, versatz in (("fuss_r", 0.0), ("fuss_l", 0.08), ("hand_l", 0.42), ("hand_r", 0.5)):
@@ -322,8 +348,7 @@ def gehen_aufrecht(f):
     p.dazu("hals_01", 22)
     p.dazu("hals_02", 10)
     p.dazu("kopf", 8, 0, 12 * welle(t, 3.2))
-    blaetter(p, 0.05)
-    innenkiefer(p, 0.1)
+    kopf_leben(p, t, 1.6, staerke=1.0, grund=0.1)
     ranken_weben(p, t, staerke=2.0, periode=3.2)
     for i in range(len(RANKEN)):
         knospe(p, i, 0.3)

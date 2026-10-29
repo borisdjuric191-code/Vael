@@ -109,6 +109,17 @@ public:
 	int32 GetHitCount() const { return HitCount; }
 	int32 GetVineStrikeCount() const { return VineStrikeCount; }
 
+	/** Drops of slobber on their way right now (hanging, falling or lying), for tests */
+	int32 GetDroolCount() const
+	{
+		int32 Count = 0;
+		for (const FVaelDrool& Drop : Drool)
+		{
+			Count += Drop.Age >= 0.0f ? 1 : 0;
+		}
+		return Count;
+	}
+
 protected:
 
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
