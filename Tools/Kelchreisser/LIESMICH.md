@@ -36,7 +36,7 @@ Knospenhälften drehen um ihre eigene X-Achse (Rolle in 05 gesetzt).
 
 Neue Animationen: 07, dann 08a (eigener Lauf), dann 08b. 08b importiert mit dem klassischen FBX-Importer nur die
 Animationen auf SK_Kelchreisser_Skeleton; die Wurzel trägt dabei den Maßstab 100 (Meter → cm, wie bei Natter und Luchs),
- nicht setzen (landet zusätzlich auf der Wurzel). Neues Modell oder Skelett: wie bei der Pfuhlnatter
+`import_uniform_scale` nicht setzen (landet zusätzlich auf der Wurzel). Neues Modell oder Skelett: wie bei der Pfuhlnatter
 (Boris löscht SK_/Skelett/Physik im Editor, dann 08).
 
 Rankenangriffe stehen nicht in den Animationen: AVaelKelchreisser schleudert die Rankenketten im Spiel bis 10 m zur Beute
