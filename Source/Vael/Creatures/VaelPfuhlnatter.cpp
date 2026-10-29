@@ -21,6 +21,13 @@ namespace
 	/** A new path point once the lead has moved this far, in cm */
 	constexpr float SnakePathStep = 4.0f;
 
+	/** Path points on each side over which the way along the path is measured (about 60 cm at SnakePathStep) */
+	constexpr int32 SnakeDirectionSpan = 8;
+
+	/** How quickly (1/s) the body behind the neck follows its new place, and how many front joints follow at once */
+	constexpr float SnakeBodyFollowRate = 14.0f;
+	constexpr int32 SnakeFreeFrontJoints = 9;
+
 	/** How long the coils take to sink to the ground after letting go, and how long it stays before slithering on */
 	constexpr float SnakeReleaseTime = 0.6f;
 }
@@ -61,6 +68,8 @@ void AVaelPfuhlnatter::BeginPlay()
 	// The head turns quickly into its waves: the body follows the path, so the turns never show as a stiff swing
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->RotationRate = FRotator(0.0f, Data->TurnRate, 0.0f);
+	// It steers itself (Slither): never turned by its movement, which could slide it backwards
+	Movement->bOrientRotationToMovement = false;
 	Movement->MaxAcceleration = Data->Acceleration;
 	Animator = Cast<UVaelSequenceAnimInstance>(GetMesh()->GetAnimInstance());
 
@@ -213,10 +222,11 @@ void AVaelPfuhlnatter::AddPathPoint(const FVector& Location, float Lift)
 	Path.Add(Location);
 	PathLift.Add(Lift);
 
-	// Keep what the body lies on, and a little more
+	// Keep what the body lies on, and plenty more: the body lies in waves on the path and is longer along it than the
+	// path's straight length; kept too short, its tail lay on the oldest points and jumped whenever one was dropped
 	float Length = 0.0f;
 	int32 Keep = Path.Num() - 1;
-	while (Keep > 0 && Length < BodyLength + 150.0f)
+	while (Keep > 0 && Length < BodyLength * 1.6f + 300.0f)
 	{
 		Length += FVector::Dist(Path[Keep], Path[Keep - 1]);
 		--Keep;
@@ -251,9 +261,17 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 		{
 			BehindHead += FVector::Dist2D(Path[Point], Path[Point + 1]);
 		}
-		const FVector Along = (Path[FMath::Min(Point + 1, Path.Num() - 1)] - Path[FMath::Max(Point - 1, 0)]).GetSafeNormal2D();
+		// The way along the path over a stretch of about 60 cm, and how sharply it bends there: with neighbours only,
+		// a kink in the path flipped the side of the wave at once and the body jumped as each joint passed it; in a
+		// sharp bend the waves flatten out
+		const int32 Span = SnakeDirectionSpan;
+		const FVector Here = Path[Point];
+		const FVector In = (Here - Path[FMath::Max(Point - Span, 0)]).GetSafeNormal2D();
+		const FVector Out = (Path[FMath::Min(Point + Span, Path.Num() - 1)] - Here).GetSafeNormal2D();
+		const FVector Along = (In + Out).GetSafeNormal2D().IsNearlyZero() ? Out : (In + Out).GetSafeNormal2D();
+		const float Straight = In.IsNearlyZero() || Out.IsNearlyZero() ? 1.0f : FMath::Square(FMath::Clamp(FVector::DotProduct(In, Out), 0.0f, 1.0f));
 		const FVector Side = FVector::CrossProduct(FVector::UpVector, Along);
-		const float Grow = FMath::SmoothStep(0.0f, Data->WaveRamp * Data->BodyScale, BehindHead) * (1.0f - FMath::Clamp(PathLift[Point] / 20.0f, 0.0f, 1.0f));
+		const float Grow = FMath::SmoothStep(0.0f, Data->WaveRamp * Data->BodyScale, BehindHead) * (1.0f - FMath::Clamp(PathLift[Point] / 20.0f, 0.0f, 1.0f)) * Straight;
 		// Lying still it never freezes: the waves breathe a little wider and narrower and slowly shift along the body
 		const float Swing = Data->WaveWidth * Data->BodyScale * Grow * (1.0f + 0.12f * FMath::Sin(Breath)) * FMath::Sin(2.0f * PI * PathRun[Point] / WaveLength + IdleShift);
 		Wavy[Point] = Path[Point] + Side * Swing + FVector(0.0f, 0.0f, PathLift[Point]);
@@ -346,6 +364,27 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 		RearUp(Joints, 5, Hold * 0.8f);
 	}
 
+	// The body behind the neck follows its new place over a few frames: whatever small kink the path still has, a
+	// joint passing it slides instead of twitching (Boris 2026-10-29: the hind body twitched often while slithering)
+	{
+		const float DeltaSeconds = GetWorld()->GetDeltaSeconds();
+		const float Follow = 1.0f - FMath::Exp(-DeltaSeconds * SnakeBodyFollowRate);
+		const int32 Smoothed = FMath::Max(NumJoints - SnakeFreeFrontJoints, 0);
+		if (SmoothJoints.Num() != NumJoints || FVector::Dist(SmoothJoints[0], Joints[0]) > 300.0f)
+		{
+			SmoothJoints = TArray<FVector>(Joints.GetData(), NumJoints);
+		}
+		for (int32 Joint = 0; Joint < NumJoints; ++Joint)
+		{
+			// Fully smoothed along the body, easing to none over the neck so the front stays quick
+			const float Ease = Joint < Smoothed ? 1.0f : 1.0f - static_cast<float>(Joint - Smoothed + 1) / (SnakeFreeFrontJoints + 1);
+			// Carried along with the snake's own pace first, so the smoothed body never trails behind the neck
+			const FVector Carried = SmoothJoints[Joint] + GetVelocity() * DeltaSeconds;
+			SmoothJoints[Joint] = FMath::Lerp(Joints[Joint], FMath::Lerp(Carried, Joints[Joint], Follow), Ease);
+			Joints[Joint] = SmoothJoints[Joint];
+		}
+	}
+
 	// Into the mesh's space: X and Y where the joints go, Z the height above the ground (added to the pose's own)
 	const FTransform& ToWorld = GetMesh()->GetComponentTransform();
 	TArray<FVector> Targets;
@@ -373,8 +412,31 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 
 void AVaelPfuhlnatter::Slither(const FVector& Direction, float Speed, float DeltaSeconds)
 {
-	// The head goes straight; the waves are in the body behind it (LayBodyOnPath)
 	MoveInDirection(Direction, Speed);
+}
+
+void AVaelPfuhlnatter::MoveInDirection(const FVector& Direction, float Speed)
+{
+	const float DeltaSeconds = GetWorld()->GetDeltaSeconds();
+	// Every way it moves (also confused or afraid) goes through here. A snake only crawls forward and steers: the head turns towards where it wants to go no tighter than its
+	// smallest curve, and it slows in sharp turns. Moving straight the wanted way (the movement's own choice) let it
+	// slide backwards for a moment whenever that way lay behind it: its head ran back over its own path and the body
+	// lying on that path jumped a metre along it
+	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
+	const FVector Wanted = Direction.GetSafeNormal2D();
+	if (Wanted.IsNearlyZero())
+	{
+		return;
+	}
+	const FVector Forward = GetActorForwardVector().GetSafeNormal2D();
+	const float Radius = FMath::Max(Data->MinTurnRadius * GetMesh()->GetComponentScale().Z, 1.0f);
+	const float MaxTurn = FMath::Min(FMath::DegreesToRadians(Data->TurnRate), FMath::Max(Speed, Data->CrawlSpeed * 0.35f) / Radius) * DeltaSeconds;
+	const float Angle = FMath::Atan2(FVector::CrossProduct(Forward, Wanted).Z, FVector::DotProduct(Forward, Wanted));
+	const float Turn = FMath::Clamp(Angle, -MaxTurn, MaxTurn);
+	const FVector Heading = Forward.RotateAngleAxis(FMath::RadiansToDegrees(Turn), FVector::UpVector);
+	SetActorRotation(Heading.Rotation());
+	const float Sharpness = FMath::Clamp(FMath::Abs(Angle) / PI, 0.0f, 1.0f);
+	Super::MoveInDirection(Heading, Speed * FMath::Lerp(1.0f, 0.55f, Sharpness));
 }
 
 void AVaelPfuhlnatter::HoldPlayer(AVaelCharacter* Player)
@@ -717,14 +779,6 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 		Animator->Play(CrawlSequence, true, 0.0f, 0.0f);
 	}
 
-	// Turning speed from its pace: a big snake curves, it doesn't wheel on the spot (the body would fold through itself)
-	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
-	{
-		const float Radius = Data->MinTurnRadius * GetMesh()->GetComponentScale().Z;
-		const float Pace = FMath::Max(GetVelocity().Size2D(), Data->CrawlSpeed * 0.35f);
-		Movement->RotationRate.Yaw = FMath::Min(Data->TurnRate, FMath::RadiansToDegrees(Pace / FMath::Max(Radius, 1.0f)));
-	}
-
 	// Crawling, the neck leads; winding round prey, the head of the coil does (set in TickBehavior)
 	if (State != EVaelSnakeState::Constrict)
 	{
@@ -769,7 +823,10 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	}
 	// Crawling the head stays nearly level; reared or coiled it may look down or up at its prey
 	const bool bHeadFree = State == EVaelSnakeState::Spit || State == EVaelSnakeState::Constrict;
-	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, LookWeight, bHeadFree ? 55.0f : Data->HeadLevelPitch);
+	// Boris 2026-10-29: it knows where the players are without staring at them; turning the head on the neck stretched
+	// the modelled neck. Only a slow glance about while lying still; reared to spit, the whole front faces the prey
+	const float HeadTurn = bLookAbout ? LookWeight * 0.5f : 0.0f;
+	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, HeadTurn, bHeadFree ? 55.0f : Data->HeadLevelPitch);
 
 	// Crest and fins lie flat while it crawls; coiled round prey the crown opens again; reared to spit, everything
 	// spreads and quivers

@@ -86,6 +86,9 @@ private:
 	void EnterState(EVaelSnakeState NewState);
 
 	/** Slithers: the head goes straight, the body winds behind it */
+	/** Steers: only ever forward, turning no tighter than MinTurnRadius */
+	virtual void MoveInDirection(const FVector& Direction, float Speed) override;
+
 	void Slither(const FVector& Direction, float Speed, float DeltaSeconds);
 
 	/** Where the neck joint is in the world, at the height of the ground under the snake */
@@ -128,6 +131,9 @@ private:
 	/** Where each spine joint stands in the Tripo pose (mesh space, before BodyScale): reared, the front takes this shape
 	 *  again, so the crown skin over the neck sits as it was modelled instead of stretching */
 	TArray<FVector> RestJoints;
+
+	/** The joints as last shown (world), followed over a few frames so the body slides instead of twitching */
+	TArray<FVector> SmoothJoints;
 	float BodyLength = 0.0f;
 
 	/** Fins and crown with the scale they are drawn in to right now */

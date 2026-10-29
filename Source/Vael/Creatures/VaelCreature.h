@@ -199,7 +199,7 @@ protected:
 	float GetDistanceTo2D(const AActor* Other) const;
 
 	/** Walks or flies in a horizontal direction at the given speed in cm/s */
-	void MoveInDirection(const FVector& Direction, float Speed);
+	virtual void MoveInDirection(const FVector& Direction, float Speed);
 
 	/** Walks or flies towards a location at the given speed in cm/s */
 	void MoveTowards(const FVector& Location, float Speed);
