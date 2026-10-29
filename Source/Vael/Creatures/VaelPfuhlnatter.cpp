@@ -126,7 +126,9 @@ void AVaelPfuhlnatter::BeginPlay()
 
 void AVaelPfuhlnatter::PickNextAttack()
 {
-	bNextSpit = FMath::FRand() < GetData<UVaelPfuhlnatterData>()->SpitChance;
+	// Boris 2026-10-29: coiling round the player didn't look clean enough; it spits and wallows in its poison only
+	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
+	bNextSpit = !Data->bCanConstrict || FMath::FRand() < Data->SpitChance;
 }
 
 void AVaelPfuhlnatter::RearUp(TArrayView<FVector> Joints, int32 InCount, float Weight) const
@@ -505,13 +507,19 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 				break;
 			}
 		}
-		if (StrikeCooldown <= 0.0f && bNextSpit && Distance >= Data->SpitRange.X && Distance <= Data->SpitRange.Y && !IsBlinded())
+		if (StrikeCooldown <= 0.0f && (bNextSpit || !Data->bCanConstrict) && Distance >= Data->SpitRange.X && Distance <= Data->SpitRange.Y && !IsBlinded())
 		{
 			EnterState(EVaelSnakeState::Spit);
 		}
-		else if (StrikeCooldown <= 0.0f && (!bNextSpit || Distance < Data->SpitRange.X) && Distance <= Data->RushRange && !IsBlinded())
+		else if (StrikeCooldown <= 0.0f && Data->bCanConstrict && (!bNextSpit || Distance < Data->SpitRange.X) && Distance <= Data->RushRange && !IsBlinded())
 		{
 			EnterState(EVaelSnakeState::Rush);
+		}
+		else if (StrikeCooldown <= 0.0f && (bNextSpit || !Data->bCanConstrict) && Distance < Data->SpitRange.X)
+		{
+			// Too close to spit: it curves away until it has room, then rears up
+			const FVector Away = -ToPrey + FVector::CrossProduct(FVector::UpVector, ToPrey) * CircleSide * 0.6f;
+			Slither(Away, Data->CrawlSpeed, DeltaSeconds);
 		}
 		else if (StrikeCooldown > 0.0f && Distance < Data->CircleDistance * 1.4f)
 		{
@@ -773,8 +781,9 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	{
 		const float Flat = FinIsCrown[Index] ? Data->CrownFlatScale : Data->FinFlatScale;
 		const float Spread = bReared || FinIsCrown[Index] ? 1.0f : Data->FinCoiledScale;
-		FinScales[Index] = FMath::Lerp(Spread, Flat, FinDraw);
-		FinOpens[Index] = FinIsCrown[Index] || bReared ? FinOpen : 0.0f;
+		// The crown always stands up full (Boris 2026-10-29: folded it never looked right); the other fins fold
+		FinScales[Index] = FinIsCrown[Index] ? 1.0f : FMath::Lerp(Spread, Flat, FinDraw);
+		FinOpens[Index] = FinIsCrown[Index] ? 1.0f : (bReared ? FinOpen : 0.0f);
 	}
 	Animator->SetBoneScales(FinBones, FinScales, FinOpens, Data->TrembleAngle * FinOpen * (bReared ? 1.0f : 0.0f), GetWorld()->GetTimeSeconds());
 
@@ -789,6 +798,9 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 		const FVector NeckTop = GetMesh()->GetSocketLocation(SpineBones.Num() > 1 ? SpineBones.Last(1) : NAME_None);
 		SkinMaterial->SetVectorParameterValue(TEXT("KehleOrt"), FLinearColor(NeckTop - FVector(0.0f, 0.0f, 10.0f * Scale)));
 		SkinMaterial->SetScalarParameterValue(TEXT("KehleRadius"), Data->ThroatRadius * Scale);
+		// Round the head nothing is hidden: the crown stands
+		SkinMaterial->SetVectorParameterValue(TEXT("KopfOrt"), FLinearColor(GetMesh()->GetSocketLocation(TEXT("kopf"))));
+		SkinMaterial->SetScalarParameterValue(TEXT("KopfRadius"), Data->CrownRadius * Scale);
 		// Membranes drawn in fade away (M_Pfuhlnatter_Koerper), so no stretched skin is left where they fold
 		SkinMaterial->SetScalarParameterValue(TEXT("FlossenVerbergen"), FMath::SmoothStep(0.15f, 0.85f, FinDraw));
 	}

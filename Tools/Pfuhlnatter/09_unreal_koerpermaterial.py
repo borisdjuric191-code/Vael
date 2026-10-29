@@ -92,7 +92,12 @@ def main():
     # only the fade itself is dithered, never a membrane half held by the body
     vertex = g.node(unreal.MaterialExpressionVertexColor, 5)
     flosse = g.sat(g.mal(4, g.minus(4, g.maske(vertex, 5, "r"), g.k(0.35, 5)), g.k(6.0, 5)), 3)
-    deckung = g.minus(2, g.k(1.0, 3), g.mal(3, flosse, g.skalar("FlossenVerbergen", 0.0, 4)))
+    # Round the head (KopfOrt, KopfRadius from AVaelPfuhlnatter) nothing is hidden: the crown always stands
+    kopf_ort = g.node(unreal.MaterialExpressionVectorParameter, 6, parameter_name="KopfOrt", default_value=unreal.LinearColor(0, 0, -100000, 0))
+    kopf_abstand = g.op(unreal.MaterialExpressionDistance, 5, g.node(unreal.MaterialExpressionWorldPosition, 6), g.maske(kopf_ort, 5, "rgb"))
+    am_kopf = g.sat(g.mal(4, g.minus(4, g.k(1.0, 5), g.op(unreal.MaterialExpressionDivide, 5, kopf_abstand, g.skalar("KopfRadius", 85.0, 6))), g.k(4.0, 5)), 3)
+    verbergen = g.mal(3, g.mal(3, flosse, g.skalar("FlossenVerbergen", 0.0, 4)), g.minus(3, g.k(1.0, 4), am_kopf))
+    deckung = g.minus(2, g.k(1.0, 3), verbergen)
 
     # Throat glow: yellow belly scales (green well above blue) near the throat glow in GlutFarbe
     rgb_roh = g.maske(farbe, 4, "rgb")
@@ -113,7 +118,8 @@ def main():
 
     # Pale crown skin over the neck, crawling: towards the body's wine red (fangs lie ahead of the sphere and stay)
     nacken = g.sat(g.mal(2, g.minus(2, g.k(1.0, 3), g.op(unreal.MaterialExpressionDivide, 3, abstand, g.mal(3, g.skalar("KehleRadius", 60.0, 4), g.k(1.6, 4)))), g.k(2.0, 3)), 1)
-    toenen = g.mal(1, g.mal(1, blass, nacken), g.mal(2, g.skalar("FlossenVerbergen", 0.0, 3), g.k(0.85, 3)))
+    # The crown stands now (2026-10-29), so its skin over the neck is no stray patch any more: no tint
+    toenen = g.mal(1, g.mal(1, blass, nacken), g.k(0.0, 3))
     wein = g.node(unreal.MaterialExpressionConstant3Vector, 2, constant=unreal.LinearColor(0.11, 0.015, 0.035, 1))
     rgb = g.node(unreal.MaterialExpressionLinearInterpolate, 0)
     g.link(rgb_roh, rgb, "A")

@@ -1414,6 +1414,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float ThroatRadius = 60.0f;
 
+	/** Radius (cm, mesh scale) round the head bone where fin membranes are never hidden: the crown always stands */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float CrownRadius = 85.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.05))
 	float WrapTime = 1.1f;
 
@@ -1438,6 +1442,11 @@ public:
 	 *  it darts in to coil. This share of its attacks are spits */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit")
 	FVector2D SpitRange = FVector2D(320.0f, 1100.0f);
+
+	/** Whether it may rush in and coil round a player. Off since Boris 2026-10-29 (the coil didn't look clean enough):
+	 *  it spits and wallows in its poison only */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict")
+	bool bCanConstrict = false;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Spit", meta = (ClampMin = 0, ClampMax = 1))
 	float SpitChance = 0.5f;

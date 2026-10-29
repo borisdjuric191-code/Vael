@@ -188,17 +188,12 @@ void AVaelSmokeTest::BeginPlay()
 		Steps.Add({ FString::Printf(TEXT("Creature %s"), *Data->DisplayName.ToString()), [this, Data]() { return PrepareArena(Data, 2); }, SmokeFightTime });
 	}
 
-	// The Pfuhlnatter: its baked mesh and animations load, it slithers up and coils round the player
+	// The Pfuhlnatter: its baked mesh and animations load, it slithers up and spits (it no longer coils)
 	if (Only.IsEmpty())
 	{
 		Steps.Add({ TEXT("Pfuhlnatter arena"), [this]()
 		{
 			const FString Result = PrepareArena(GetMutableDefault<UVaelPfuhlnatterData>(), 1);
-			// Its first attack picks spit or coil at random: here it coils, the spit has its own step
-			for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
-			{
-				It->SetNextAttackSpit(false);
-			}
 			return Result;
 		}, 8.0f });
 		Steps.Add({ TEXT("Pfuhlnatter"), [this]()
@@ -213,8 +208,8 @@ void AVaelSmokeTest::BeginPlay()
 				return FString(TEXT("FAILED: no living Pfuhlnatter"));
 			}
 			const USkeletalMesh* Mesh = Snake->GetMesh()->GetSkeletalMeshAsset();
-			const bool bOk = Mesh != nullptr && Snake->GetConstrictCount() > 0;
-			return FString::Printf(TEXT("%smesh %s, state %s, %d coils"), bOk ? TEXT("") : TEXT("FAILED: "), Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"),
+			const bool bOk = Mesh != nullptr && Snake->GetConstrictCount() == 0;
+			return FString::Printf(TEXT("%smesh %s, state %s, %d coils (none wanted)"), bOk ? TEXT("") : TEXT("FAILED: "), Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"),
 				*StaticEnum<EVaelSnakeState>()->GetNameStringByValue(static_cast<int64>(Snake->GetSnakeState())), Snake->GetConstrictCount());
 		}, 0.1f });
 		Steps.Add({ TEXT("Pfuhlnatter spit"), [this]()

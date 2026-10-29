@@ -287,7 +287,8 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 		}
 	}
 
-	// "NatterSpuck" makes them spit as their first attack (rearing, balls, puddle), "NatterWuerg" coil round the player
+	// "NatterSpuck" makes them spit as their first attack (rearing, balls, puddle); "NatterWuerg" asks for a coil, which
+	// only happens where the data allows it (bCanConstrict, off by default)
 	if (Name.EndsWith(TEXT("spuck")) || Name.EndsWith(TEXT("wuerg")))
 	{
 		for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
