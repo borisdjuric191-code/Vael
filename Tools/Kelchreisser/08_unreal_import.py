@@ -1,6 +1,6 @@
 """Step 8: imports the Kelchreisser into Unreal, everything under /Game/Vael/Kreaturen/Kelchreisser/.
 
-  SK_Kelchreisser (skeletal mesh), its skeleton and physics asset, the seven animations as A_Kelchreisser_<Aktion>,
+  SK_Kelchreisser (skeletal mesh), its skeleton and physics asset, the eight animations as A_Kelchreisser_<Aktion>,
   the Tripo textures T_Kelchreisser_basecolor / _normal / _roughness / _metallic and MI_Kelchreisser, an instance of the
   creature factory's M_Kreatur_Master. Nothing outside this folder is
   created or changed.
@@ -17,7 +17,7 @@ ORDNER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.di
 EXPORT = os.path.join(ORDNER, "export")
 ZIEL = "/Game/Vael/Kreaturen/Kelchreisser"
 MASTER = "/Game/Vael/Materialien/M_Kreatur_Master"
-AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Schlag", "Klaue", "Rankenbiss", "Schrei")
+AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Prankenhieb", "Klaue", "Biss", "Sprung", "Schrei")
 TEXTUREN = (("basecolor", "jpg", "BaseColor"), ("normal", "png", "Normal"), ("roughness", "jpg", "Roughness"),
             ("metallic", "jpg", "Metallic"))
 eal = unreal.EditorAssetLibrary

@@ -10,9 +10,11 @@ Boris 2026-10-29: 4–5 m Schulterhöhe (fast ein Bosskampf), alle Rücken-Ranke
 | 03_ranken.py | **venv-Python** (numpy+scipy): Ranken finden, Mittellinie, Radius, Knospen → ranken.json/.npz |
 | 04_maeuler.py | Knospe von Ranke 3 auf die kahlen Ranken kopieren (Hakenspitze ab), Schichten ranke/maul/kiefer |
 | 05_skelett.py | 103 Knochen (Körper, Arme, Beine, 5 Blütenblätter, 4 Innenkiefer, Rankenketten mit Knospenkiefern), Gewichte, Testpose |
-| 06_animationen.py | Stehen_Idle, Galopp, Gehen_Aufrecht, Schlag, Klaue, Rankenbiss, Schrei (30 Bilder/s, auf der Stelle) |
+| 06_animationen.py | Stehen_Idle, Galopp (Rotationsgalopp, 22 Bilder), Gehen_Aufrecht, Prankenhieb, Klaue, Biss, Sprung, Schrei (30 Bilder/s, auf der Stelle) |
 | 07_export.py | export/SK_Kelchreisser.fbx + Tripo-Texturen |
-| 08_unreal_import.py | Import nach /Game/Vael/Kreaturen/Kelchreisser, A_Kelchreisser_<Aktion>, MI_Kelchreisser (M_Kreatur_Master) |
+| 08_unreal_import.py | Erstimport nach /Game/Vael/Kreaturen/Kelchreisser, A_Kelchreisser_<Aktion>, MI_Kelchreisser (M_Kreatur_Master) |
+| 08a_unreal_aufraeumen.py | alte Animationen entfernen (SK, Skelett, Physik halten sich fest und bleiben) |
+| 08b_unreal_animationen.py | nur die Animationen neu auf das bestehende Skelett (nach 08a) |
 
 Blender: `blender -b --factory-startup -P Tools/Kelchreisser/<skript>`; 03 mit
 `C:/Users/boris/Tools/wf_generator_venv/Scripts/python.exe -I Tools/Kelchreisser/03_ranken.py`.
@@ -32,5 +34,11 @@ Animationen: Hände und Füße stehen über IK-Ziele (leere Objekte), Hand und M
 wird Bild für Bild in reine Knochenschlüssel gerechnet, die Constraints danach entfernt. Kiefer, Blätter und
 Knospenhälften drehen um ihre eigene X-Achse (Rolle in 05 gesetzt).
 
-Neuimport nach geänderten Animationen: wie bei der Pfuhlnatter (Tools/Pfuhlnatter/LIESMICH.md) – Interchange holt über ein
-bestehendes SK_ keine Animationen, Boris löscht dafür SK_/A_ im Editor.
+Neue Animationen: 07, dann 08a (eigener Lauf), dann 08b. 08b importiert mit dem klassischen FBX-Importer nur die
+Animationen auf SK_Kelchreisser_Skeleton; die Wurzel trägt dabei den Maßstab 100 (Meter → cm, wie bei Natter und Luchs),
+ nicht setzen (landet zusätzlich auf der Wurzel). Neues Modell oder Skelett: wie bei der Pfuhlnatter
+(Boris löscht SK_/Skelett/Physik im Editor, dann 08).
+
+Rankenangriffe stehen nicht in den Animationen: AVaelKelchreisser schleudert die Rankenketten im Spiel bis 10 m zur Beute
+(UVaelSequenceAnimInstance::SetReachChains: die Knochen rücken auseinander, die Haut dazwischen dehnt sich, Dornen und
+Knospe bleiben in Form).

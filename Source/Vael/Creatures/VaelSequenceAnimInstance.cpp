@@ -126,6 +126,135 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	TrembleTime = Instance->TrembleTime;
 	SwayAngle = Instance->SwayAngle;
 	SwayPhases = Instance->SwayPhases;
+	ReachChains = Instance->ReachChains;
+}
+
+void FVaelSequenceAnimProxy::ApplyReach(FCompactPose& Pose) const
+{
+	const FBoneContainer& Container = Pose.GetBoneContainer();
+	const auto Find = [&Container](const FName& Name)
+	{
+		const int32 MeshIndex = Name.IsNone() ? INDEX_NONE : Container.GetPoseBoneIndexForBoneName(Name);
+		return MeshIndex == INDEX_NONE ? FCompactPoseBoneIndex(INDEX_NONE) : Container.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
+	};
+
+	for (const FVaelReachChain& Reach : ReachChains)
+	{
+		TArray<FCompactPoseBoneIndex, TInlineAllocator<24>> Chain;
+		for (const FName& Name : Reach.Bones)
+		{
+			const FCompactPoseBoneIndex Bone = Find(Name);
+			if (!Bone.IsValid())
+			{
+				Chain.Reset();
+				break;
+			}
+			Chain.Add(Bone);
+		}
+		const int32 Count = Chain.Num();
+		if (Count < 2)
+		{
+			continue;
+		}
+
+		// Component space of the chain's parent and of each bone as the sequence has them
+		FTransform Parent = FTransform::Identity;
+		for (FCompactPoseBoneIndex Bone = Pose.GetParentBoneIndex(Chain[0]); Bone.IsValid(); Bone = Pose.GetParentBoneIndex(Bone))
+		{
+			Parent = Parent * Pose[Bone];
+		}
+		TArray<FTransform, TInlineAllocator<24>> Sequence;
+		FTransform Walk = Parent;
+		for (const FCompactPoseBoneIndex Bone : Chain)
+		{
+			Walk = Pose[Bone] * Walk;
+			Sequence.Add(Walk);
+		}
+
+		const float Weight = FMath::Clamp(Reach.Weight, 0.0f, 1.0f);
+		if (Weight > 0.0f)
+		{
+			// The path: out of the root the way the chain grows, up by the arc, and down onto the target from above
+			const FVector Start = Sequence[0].GetTranslation();
+			const FVector Out = (Sequence[1].GetTranslation() - Start).GetSafeNormal();
+			const float Distance = FVector::Dist(Start, Reach.Target);
+			const FVector Lift(0.0f, 0.0f, Reach.Arc);
+			const FVector B1 = Start + Out * Distance * 0.35f + Lift;
+			const FVector B2 = Reach.Target + Lift * 0.6f;
+			constexpr int32 Samples = 40;
+			TArray<FVector, TInlineAllocator<Samples + 1>> Curve;
+			TArray<float, TInlineAllocator<Samples + 1>> Along;
+			for (int32 Index = 0; Index <= Samples; ++Index)
+			{
+				const float T = static_cast<float>(Index) / Samples;
+				const float U = 1.0f - T;
+				Curve.Add(U * U * U * Start + 3.0f * U * U * T * B1 + 3.0f * U * T * T * B2 + T * T * T * Reach.Target);
+				Along.Add(Index == 0 ? 0.0f : Along.Last() + FVector::Dist(Curve[Index - 1], Curve[Index]));
+			}
+			const float Length = FMath::Max(Along.Last(), 1.0f);
+			const FVector Side = FVector::CrossProduct((Reach.Target - Start).GetSafeNormal(), FVector::UpVector).GetSafeNormal();
+
+			// The joints spread evenly along it, the tip piece at its end
+			TArray<FVector, TInlineAllocator<24>> Wanted;
+			int32 Segment = 0;
+			for (int32 Index = 0; Index < Count; ++Index)
+			{
+				const float Share = static_cast<float>(Index) / (Count - 1);
+				const float Goal = Share * Length;
+				while (Segment < Samples - 1 && Along[Segment + 1] < Goal)
+				{
+					++Segment;
+				}
+				const float Part = FMath::Clamp((Goal - Along[Segment]) / FMath::Max(Along[Segment + 1] - Along[Segment], KINDA_SMALL_NUMBER), 0.0f, 1.0f);
+				const FVector OnPath = FMath::Lerp(Curve[Segment], Curve[Segment + 1], Part)
+					+ Side * Reach.Wave * FMath::Sin(Share * UE_PI) * FMath::Sin(Share * UE_PI * 3.0f + Reach.WavePhase);
+				Wanted.Add(FMath::Lerp(Sequence[Index].GetTranslation(), OnPath, Weight));
+			}
+
+			// Every bone moved onto its point and turned towards the next; the gaps between them are the stretch
+			FTransform Before = Parent;
+			for (int32 Index = 0; Index < Count; ++Index)
+			{
+				const bool bLast = Index + 1 == Count;
+				const FVector Was = bLast ? Sequence[Index].GetTranslation() - Sequence[Index - 1].GetTranslation() : Sequence[Index + 1].GetTranslation() - Sequence[Index].GetTranslation();
+				const FVector Now = bLast ? Wanted[Index] - Wanted[Index - 1] : Wanted[Index + 1] - Wanted[Index];
+				FTransform Bone = Sequence[Index];
+				Bone.SetTranslation(Wanted[Index]);
+				if (!Was.IsNearlyZero() && !Now.IsNearlyZero())
+				{
+					Bone.SetRotation((FQuat::FindBetweenVectors(Was, Now) * Sequence[Index].GetRotation()).GetNormalized());
+				}
+				Pose[Chain[Index]] = Bone.GetRelativeTransform(Before);
+				Sequence[Index] = Bone;
+				Before = Bone;
+			}
+		}
+
+		// The jaws on the tip piece part along the slit between them
+		const FCompactPoseBoneIndex Upper = Find(Reach.UpperJaw);
+		const FCompactPoseBoneIndex Lower = Find(Reach.LowerJaw);
+		if (FMath::IsNearlyZero(Reach.JawOpen) || !Upper.IsValid() || !Lower.IsValid())
+		{
+			continue;
+		}
+		const FTransform Tip = Sequence.Last();
+		const FTransform UpperBone = Pose[Upper] * Tip;
+		const FTransform LowerBone = Pose[Lower] * Tip;
+		const FVector Axis = ((UpperBone.GetTranslation() + LowerBone.GetTranslation()) * 0.5f - Tip.GetTranslation()).GetSafeNormal();
+		const FVector Slit = (UpperBone.GetTranslation() - LowerBone.GetTranslation()).GetSafeNormal();
+		const FVector Hinge = FVector::CrossProduct(Axis, Slit).GetSafeNormal();
+		if (Hinge.IsNearlyZero())
+		{
+			continue;
+		}
+		const float Angle = FMath::DegreesToRadians(Reach.JawOpen);
+		FTransform Opened = UpperBone;
+		Opened.SetRotation((FQuat(Hinge, Angle) * UpperBone.GetRotation()).GetNormalized());
+		Pose[Upper] = Opened.GetRelativeTransform(Tip);
+		Opened = LowerBone;
+		Opened.SetRotation((FQuat(Hinge, -Angle) * LowerBone.GetRotation()).GetNormalized());
+		Pose[Lower] = Opened.GetRelativeTransform(Tip);
+	}
 }
 
 void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
@@ -344,5 +473,6 @@ bool FVaelSequenceAnimProxy::Evaluate(FPoseContext& Output)
 		Output.Pose[Root].SetTranslation(Output.Pose.GetRefPose(Root).GetTranslation());
 	}
 	ApplySpine(Output.Pose);
+	ApplyReach(Output.Pose);
 	return true;
 }

@@ -1,16 +1,18 @@
 """Step 6: the Kelchreisser animations as separate actions (30 frames per second, all in place: the creature actor
 moves the root in Unreal).
 
-  Stehen_Idle     4 s loop: crouched on all fours, palms flat on the ground, breathing, the flower head swaying,
-                  petals breathing, the vines weaving slowly and their buds snapping now and then
-  Galopp          0.9 s loop: on the scent, transverse gallop on flat palms and hind feet, spine coils and
-                  stretches, head low and steady, vines streaming back
+  Stehen_Idle     4 s loop: crouched on all fours, palms flat, restless: the body shifts from hand to hand, the
+                  flower head snaps round to listen and holds still, petals breathing, the vines weaving, buds snapping
+  Galopp          22 frames loop: rotary gallop on the scent, the back coiling and stretching, one float per stride,
+                  palms peeling off and folding in the air, head gliding level, vines streaming and whipping back
   Gehen_Aufrecht  1.6 s loop: half upright on the hind legs, the long arms hanging and swinging (creepy)
-  Schlag          1.2 s: rears a little and swings the right arm round sideways, palm first (a slap)
-  Klaue           1.0 s: raises the left arm high and rakes down with the claws in front of it
-  Rankenbiss      1.4 s: the vines draw back, then strike forward, also over the head, and their buds snap shut
-  Schrei          2.0 s: rears, throws the flower head up, all petals and inner jaws wide open, vines spread trembling
+  Prankenhieb     1.2 s: the right arm drawn far back, the body wound up, then a flat circle with the open clawed hand
+  Klaue           1.0 s: rears, the left arm high and over, raking down in front
+  Biss            0.9 s: petals and jaws torn open, a lunge and the flower slams shut
+  Sprung          1.2 s: sinks deep, leaps long and flat with arms reaching, lands on the hands (the game moves it)
+  Schrei          2.0 s: rears, throws the flower head up, all petals and inner jaws wide open, shaking
 
+The vines' long strikes are not in here: the game flings them out to their prey (UVaelSequenceAnimInstance reach chains).
 Hands and feet are placed with IK (targets as empties; the hand and the metatarsus keep the target's turn); the
 result is baked to plain bone keys and the constraints removed again. Joint angles are written about world axes in
 the rest pose (beuge = about Y, positive = nose/tip down; seite = about X; wende = about Z), as in Tools/Rankenluchs.
@@ -145,60 +147,118 @@ def ranken_beugen(p, beuge, seite=0.0, nur=None):
 
 # ---------------------------------------------------------------- Animations
 
+def zielen(name, richtung):
+    """Local rotation that points a bone (from its rest direction) along a world direction, in its parent's frame"""
+    b = ARM[0].data.bones[name]
+    rest = b.matrix_local.to_3x3()
+    jetzt = (b.tail_local - b.head_local).normalized()
+    welt = jetzt.rotation_difference(Vector(richtung).normalized()).to_matrix()
+    return (rest.inverted() @ welt @ rest).to_quaternion()
+
+
+def bogen_richtung(von, nach, t):
+    """A direction swung round from one to another along the great circle, t 0..1"""
+    a, b = Vector(von).normalized(), Vector(nach).normalized()
+    return a.slerp(b, max(0.0, min(1.0, t))) if a.dot(b) > -0.999 else b
+
+
+def raus(t):
+    """Eases out hard: fast start, soft end (a strike)"""
+    t = max(0.0, min(1.0, t))
+    return 1 - (1 - t) ** 3
+
+
+def schritt_bahn(q, auf, weite, hoehe):
+    """A foot's path over one stride: on the ground for the share auf (sliding back), then lifted and swung forward.
+    Returns the offset along the body, the height and how far into the swing it is (-1 on the ground)"""
+    if q < auf:
+        return weite / 2 - weite * q / auf, 0.0, -1.0
+    u = (q - auf) / (1 - auf)
+    # Up fast and high at first (the paw tucked), reaching forward and down onto the ground at the end
+    x = -weite / 2 + weite * (u * u * (3 - 2 * u))
+    z = hoehe * math.sin(math.pi * min(1.0, u * 1.15)) ** 0.8 if u < 0.87 else 0.0
+    return x, z, u
+
+
 def stehen_idle(f):
+    """Crouched, restless: the body shifts from hand to hand, the flower head jerks round to listen and holds still"""
     t = f / FPS
     p = grundhaltung(t)
-    p.dazu("kopf", 3 * welle(t, 4.0), 0, 6 * welle(t, 4.0, 0.25))
-    p.dazu("hals_02", 0, 0, 4 * welle(t, 4.0, 0.2))
-    blaetter(p, 0.12 + 0.08 * welle(t, 2.0, 0.1))
-    innenkiefer(p, 0.1 + 0.05 * welle(t, 2.0, 0.1))
-    ranken_weben(p, t)
+    wiegen = welle(t, 4.0)
+    p.dazu("becken", 0, 3 * wiegen, 2 * wiegen)
+    p.becken += Vector((0.0, 0.1 * wiegen, 0.0))
+    p.dazu("brust", 0, -2 * wiegen, -3 * wiegen)
+    # Listening: the head snaps to a new side, holds, snaps on (four times in the loop)
+    ziele = [(-25, 8), (18, -4), (-8, 12), (30, 2)]
+    for k, (wende, beuge) in enumerate(ziele):
+        anteil = huegel((t - k * 1.0) % 4.0, 0.0, 0.12, 0.85, 1.0)
+        p.dazu("hals_02", beuge * 0.4 * anteil, 0, wende * 0.4 * anteil)
+        p.dazu("kopf", beuge * 0.6 * anteil, 6 * anteil * (1 if k % 2 else -1), wende * 0.6 * anteil)
+    blaetter(p, 0.15 + 0.1 * welle(t, 2.0, 0.1))
+    innenkiefer(p, 0.12 + 0.08 * welle(t, 2.0, 0.1))
+    ranken_weben(p, t, staerke=2.2)
     for i in range(len(RANKEN)):
-        # Each bud snaps once in the loop, at its own time
-        p.winkel.update({})
-        schnapp = huegel((t + i * 0.63) % 4.0, 0.0, 0.25, 0.35, 0.45)
-        knospe(p, i, 0.25 + 0.6 * schnapp)
+        # Each bud snaps twice in the loop, at its own time
+        schnapp = huegel((t + i * 0.63) % 2.0, 0.0, 0.08, 0.15, 0.3)
+        knospe(p, i, 0.2 + 0.8 * schnapp)
+    for s in SEITEN:
+        p.dazu("finger_" + s, 6 * huegel((t + (0.0 if s == "l" else 1.7)) % 4.0, 0.0, 0.3, 0.5, 0.9))
     return p
 
 
+GALOPP_PERIODE = 22 / FPS
+GALOPP_WEITE = 2.0
+
+
 def galopp(f):
-    periode = 0.9
+    """Rotary gallop on the scent: the back coils as the hind feet reach under the body and stretches long as the
+    hands reach out, one high float per stride after the hands; head low and level, vines streaming back"""
     t = f / FPS
-    ph = (t / periode) % 1.0
+    ph = (t / GALOPP_PERIODE) % 1.0
     p = grundhaltung(t, atem=0.0)
-    # Spine: gathered when the hind feet reach forward, stretched when the hands reach out
-    biegen = math.sin(2 * math.pi * ph)
-    p.dazu("becken", -6 * biegen)
-    p.dazu("wirbel_01", 6 * biegen)
-    p.dazu("wirbel_02", 5 * biegen)
-    p.dazu("brust", -4 * biegen)
-    p.becken = Vector((0.0, 0.0, -0.12 + 0.22 * math.sin(4 * math.pi * ph)))
-    # Head low and steady: the neck takes up the spine's swing
-    p.dazu("hals_01", 6 + 4 * biegen)
-    p.dazu("kopf", 4 - 4 * biegen)
-    blaetter(p, -0.15)
-    innenkiefer(p, 0.25)
+    # Gathered (back arched) at 0.95, stretched at 0.45
+    biegen = math.cos(2 * math.pi * (ph - 0.95))
+    p.dazu("becken", -7 * biegen, 2.5 * math.sin(2 * math.pi * ph), 2 * math.sin(2 * math.pi * (ph + 0.2)))
+    p.dazu("wirbel_01", 7 * biegen)
+    p.dazu("wirbel_02", 6 * biegen, 0, -2 * math.sin(2 * math.pi * ph))
+    p.dazu("brust", 3 * biegen, -2 * math.sin(2 * math.pi * ph))
+    # One float per stride, after the hands leave the ground; lowest while they carry the body
+    p.becken = Vector((0.0, 0.0, -0.18 + 0.2 * math.cos(2 * math.pi * (ph - 0.88))))
+    # The neck takes up the back's swing, so the flower glides
+    p.dazu("hals_01", 8 - 9 * biegen)
+    p.dazu("hals_02", 4 - 4 * biegen)
+    p.dazu("kopf", 6 - 3 * biegen)
+    blaetter(p, -0.2)
+    innenkiefer(p, 0.35 + 0.15 * math.sin(2 * math.pi * ph))
     for i in range(len(RANKEN)):
-        knospe(p, i, 0.4)
-    ranken_beugen(p, -12)
-    ranken_weben(p, t, staerke=2.0, periode=periode)
-    # Feet: transverse gallop, each on the ground 40 % of the stride
-    schritt = {"fuss_l": 0.0, "fuss_r": 0.1, "hand_l": 0.5, "hand_r": 0.6}
-    weite = 2.2
-    for name, versatz in schritt.items():
+        knospe(p, i, 0.5)
+    # Vines stream back and whip with the stride, the tips late
+    for i, kette in enumerate(RANKEN):
+        n = len(kette)
+        for k, name in enumerate(kette):
+            anteil = (k + 1) / n
+            p.dazu(name, -16 / n * 3 + 9 * anteil * math.sin(2 * math.pi * (ph - 0.12 * k - i * 0.1)),
+                   4 * anteil * math.sin(2 * math.pi * (ph - 0.1 * k + i * 0.25)))
+    # Rotary gallop: right hind, left hind, left hand, right hand; each on the ground 30 % of the stride
+    for name, versatz in (("fuss_r", 0.0), ("fuss_l", 0.08), ("hand_l", 0.42), ("hand_r", 0.5)):
         s = name[-1]
         q = (ph - versatz) % 1.0
-        if q < 0.4:
-            x, z = weite / 2 - weite * q / 0.4, 0.0
-        else:
-            u = (q - 0.4) / 0.6
-            x, z = -weite / 2 + weite * weich(u), 0.6 * math.sin(math.pi * u)
+        x, z, u = schritt_bahn(q, 0.3, GALOPP_WEITE, 0.85 if name.startswith("hand") else 0.7)
         if name.startswith("hand"):
-            p.hand[s] = HAND_STAND[s] + Vector((x, 0.0, z))
-            # The palm rolls off: heel up as it leaves the ground, flat on landing
-            p.hand_drehung[s] = (HAND_NEIGUNG - (25 * math.sin(math.pi * (q - 0.4) / 0.6) if q >= 0.4 else 0), 0, 0)
+            p.hand[s] = HAND_STAND[s] + Vector((x + 0.35, 0.0, z))
+            # The palm peels off heel first and folds back in the air, then opens flat to land
+            if u < 0:
+                abrollen = 30 * weich((q / 0.3 - 0.7) / 0.3)
+                p.hand_drehung[s] = (HAND_NEIGUNG + abrollen, 0, 0)
+            else:
+                p.hand_drehung[s] = (HAND_NEIGUNG + 75 * math.sin(math.pi * min(u / 0.85, 1.0)), 0, 0)
+                p.dazu("finger_" + s, 45 * math.sin(math.pi * min(u / 0.85, 1.0)))
         else:
-            p.fuss[s] = BALLEN[s] + Vector((x, 0.0, z))
+            p.fuss[s] = BALLEN[s] + Vector((x + 0.25, 0.0, z))
+            if u >= 0:
+                falten = math.sin(math.pi * min(u / 0.85, 1.0))
+                p.fuss_drehung[s] = (50 * falten, 0, 0)
+                p.dazu("zehen_" + s, 40 * falten)
     return p
 
 
@@ -211,133 +271,188 @@ def gehen_aufrecht(f):
     wippen = math.sin(4 * math.pi * ph)
     p.dazu("becken", -38, 3 * math.sin(2 * math.pi * ph), 4 * math.sin(2 * math.pi * ph))
     p.becken = Vector((0.0, 0.0, 0.25 + 0.06 * wippen))
-    p.dazu("wirbel_01", -4)
-    p.dazu("wirbel_02", 6)
-    p.dazu("brust", 10)
+    p.dazu("wirbel_01", -4, 0, -3 * math.sin(2 * math.pi * ph))
+    p.dazu("wirbel_02", 6, 0, -3 * math.sin(2 * math.pi * ph))
+    p.dazu("brust", 10, 2 * math.sin(2 * math.pi * ph))
     # The head hangs forward and turns slowly from side to side, listening
     p.dazu("hals_01", 22)
     p.dazu("hals_02", 10)
     p.dazu("kopf", 8, 0, 12 * welle(t, 3.2))
     blaetter(p, 0.05)
     innenkiefer(p, 0.1)
-    ranken_weben(p, t, staerke=1.5, periode=3.2)
+    ranken_weben(p, t, staerke=2.0, periode=3.2)
     for i in range(len(RANKEN)):
         knospe(p, i, 0.3)
-    # Long arms hanging down in front, swinging against the legs, fingers trailing
+    # Long arms hanging down in front, swinging against the legs, the swing running out to the fingers
     for s, gegen in (("l", 0.5), ("r", 0.0)):
         schwung = math.sin(2 * math.pi * (ph + gegen))
-        p.dazu("schulter_%s" % s, 0, 0, 0)
+        nach = math.sin(2 * math.pi * (ph + gegen - 0.08))
         p.dazu("oberarm_%s" % s, 38 + 14 * schwung, 8 if s == "l" else -8)
-        p.dazu("unterarm_%s" % s, 12 + 8 * schwung)
-        p.dazu("hand_%s" % s, 20)
-        p.dazu("finger_%s" % s, 25 + 10 * schwung)
+        p.dazu("unterarm_%s" % s, 12 + 10 * nach)
+        p.dazu("hand_%s" % s, 20 + 8 * math.sin(2 * math.pi * (ph + gegen - 0.16)))
+        p.dazu("finger_%s" % s, 25 + 12 * math.sin(2 * math.pi * (ph + gegen - 0.24)))
     # Hind legs walk, each on the ground 60 % of the stride
-    weite = 1.5
     for s, versatz in (("l", 0.0), ("r", 0.5)):
-        q = (ph - versatz) % 1.0
-        if q < 0.6:
-            x, z = weite / 2 - weite * q / 0.6, 0.0
-        else:
-            u = (q - 0.6) / 0.4
-            x, z = -weite / 2 + weite * weich(u), 0.35 * math.sin(math.pi * u)
+        x, z, u = schritt_bahn((ph - versatz) % 1.0, 0.6, 1.5, 0.35)
         p.fuss[s] = BALLEN[s] + Vector((x + 0.6, 0.0, z))
+        if u >= 0:
+            p.fuss_drehung[s] = (30 * math.sin(math.pi * u), 0, 0)
     return p
 
 
-def schlag(f):
+def prankenhieb(f):
+    """Wide, felt swing of the right arm: drawn far back and out, the body wound up, then round in a flat circle in
+    front of it with the open, clawed hand and through to the left; the body follows the swing"""
     t = f / FPS
     p = grundhaltung(t, atem=0.3)
     p.arm_ik["r"] = 0.0
-    ausholen = huegel(t, 0.0, 0.35, 0.4, 0.55)
-    zuschlagen = huegel(t, 0.4, 0.62, 0.7, 1.15)
-    aufrichten = huegel(t, 0.05, 0.4, 0.75, 1.15)
-    p.dazu("becken", -16 * aufrichten, -4 * aufrichten)
-    p.becken += Vector((0.0, 0.0, 0.25 * aufrichten))
-    p.dazu("brust", 0, 0, 25 * ausholen - 35 * zuschlagen)
-    p.dazu("kopf", 0, 0, -15 * zuschlagen)
-    # Right arm: raised out to the side, then swung round flat in front of the body
-    p.dazu("oberarm_r", -60 * ausholen - 30 * zuschlagen, 70 * ausholen + 20 * zuschlagen,
-           -40 * ausholen + 95 * zuschlagen)
-    p.dazu("unterarm_r", -20 * ausholen - 10 * zuschlagen)
-    p.dazu("hand_r", 0, 0, 20 * zuschlagen)
-    p.dazu("finger_r", -15 * ausholen)
-    innenkiefer(p, 0.2 + 0.5 * zuschlagen)
-    blaetter(p, 0.1 + 0.2 * zuschlagen)
+    ausholen = huegel(t, 0.0, 0.38, 0.42, 0.5)
+    schwung = raus((t - 0.42) / 0.26)
+    zurueck = weich((t - 0.85) / 0.35)
+    p.dazu("becken", -12 * ausholen + 6 * schwung * (1 - zurueck), 5 * ausholen - 6 * schwung * (1 - zurueck))
+    p.becken += Vector((-0.25 * ausholen + 0.45 * schwung * (1 - zurueck), 0.0, 0.2 * ausholen))
+    # Wound up to the right, unwound hard to the left
+    drehen = (-28 * ausholen + 62 * schwung) * (1 - zurueck)
+    p.dazu("wirbel_02", 0, 0, drehen * 0.35)
+    p.dazu("brust", -8 * ausholen, 6 * ausholen, drehen * 0.65)
+    p.dazu("kopf", 0, 0, -drehen * 0.3)
+    # The arm: back and out, round through the front, through to the left; elbow almost straight
+    hinten = Vector((-0.55, -0.8, 0.25))
+    vorn = Vector((0.95, -0.15, -0.15))
+    links = Vector((0.45, 0.85, -0.3))
+    ruhe = Vector((0.4, -0.25, -0.88))
+    if t < 0.42:
+        richtung = bogen_richtung(ruhe, hinten, weich(t / 0.38))
+    elif t < 0.56:
+        richtung = bogen_richtung(hinten, vorn, raus((t - 0.42) / 0.14))
+    elif t < 0.75:
+        richtung = bogen_richtung(vorn, links, raus((t - 0.56) / 0.19))
+    else:
+        richtung = bogen_richtung(links, ruhe, weich((t - 0.85) / 0.35))
+    p.winkel["oberarm_r"] = zielen("oberarm_r", richtung)
+    p.dazu("unterarm_r", -15 * ausholen - 5 * schwung)
+    p.dazu("hand_r", -25 * ausholen, 0, 25 * schwung * (1 - zurueck))
+    p.dazu("finger_r", -30 * ausholen - 25 * schwung * (1 - zurueck))
+    innenkiefer(p, 0.3 + 0.7 * huegel(t, 0.3, 0.5, 0.7, 1.0))
+    blaetter(p, 0.15 + 0.35 * huegel(t, 0.3, 0.5, 0.7, 1.0))
     ranken_weben(p, t, staerke=1.5, periode=1.2)
-    ranken_beugen(p, -10 * zuschlagen, 15 * zuschlagen)
+    ranken_beugen(p, -6 * ausholen + 10 * schwung * (1 - zurueck), -10 * schwung * (1 - zurueck))
     for i in range(len(RANKEN)):
-        knospe(p, i, 0.3)
+        knospe(p, i, 0.4 + 0.5 * schwung * (1 - zurueck))
     return p
 
 
 def klaue(f):
+    """Rears on the hind legs, the left arm high and over, then rakes down through the air in front with the claws"""
     t = f / FPS
     p = grundhaltung(t, atem=0.3)
     p.arm_ik["l"] = 0.0
-    heben = huegel(t, 0.0, 0.35, 0.42, 0.6)
-    harken = huegel(t, 0.42, 0.6, 0.66, 0.98)
-    p.dazu("becken", -12 * heben + 6 * harken)
-    p.becken += Vector((0.0, 0.0, 0.2 * heben - 0.08 * harken))
-    p.dazu("brust", -8 * heben + 10 * harken, -6 * heben)
-    # Left arm straight up and over, claws spread, then down through the air in front
-    p.dazu("oberarm_l", -120 * heben + 10 * harken, -15 * heben)
-    p.dazu("unterarm_l", -25 * heben + 30 * harken)
-    p.dazu("hand_l", -20 * heben + 45 * harken)
-    p.dazu("finger_l", -30 * heben + 60 * harken)
-    p.dazu("kopf", -10 * heben + 12 * harken)
-    innenkiefer(p, 0.2 + 0.6 * heben)
-    blaetter(p, 0.1 + 0.25 * heben)
-    ranken_weben(p, t, staerke=1.5, periode=1.0)
+    heben = huegel(t, 0.0, 0.32, 0.4, 0.58)
+    harken = raus((t - 0.4) / 0.18) * (1 - weich((t - 0.7) / 0.3))
+    p.dazu("becken", -16 * heben + 8 * harken)
+    p.becken += Vector((0.2 * harken, 0.0, 0.3 * heben - 0.1 * harken))
+    p.dazu("brust", -10 * heben + 14 * harken, -6 * heben, 8 * heben - 6 * harken)
+    if t < 0.4:
+        richtung = bogen_richtung(Vector((0.4, 0.25, -0.88)), Vector((0.1, 0.5, 0.86)), weich(t / 0.32))
+    elif t < 0.62:
+        richtung = bogen_richtung(Vector((0.1, 0.5, 0.86)), Vector((0.75, 0.1, -0.65)), raus((t - 0.4) / 0.2))
+    else:
+        richtung = bogen_richtung(Vector((0.75, 0.1, -0.65)), Vector((0.4, 0.25, -0.88)), weich((t - 0.7) / 0.3))
+    p.winkel["oberarm_l"] = zielen("oberarm_l", richtung)
+    p.dazu("unterarm_l", -20 * heben + 25 * harken)
+    p.dazu("hand_l", -30 * heben + 50 * harken)
+    p.dazu("finger_l", -35 * heben + 70 * harken)
+    p.dazu("kopf", -12 * heben + 14 * harken)
+    innenkiefer(p, 0.3 + 0.8 * heben)
+    blaetter(p, 0.1 + 0.4 * heben)
+    ranken_weben(p, t, staerke=2.0, periode=1.0)
     for i in range(len(RANKEN)):
-        knospe(p, i, 0.3 + 0.4 * heben)
+        knospe(p, i, 0.3 + 0.6 * heben)
     return p
 
 
-def rankenbiss(f):
+def biss(f):
+    """The flower head bites: chest down, petals and jaws torn wide open, a lunge forward and the jaws slam shut"""
     t = f / FPS
-    p = grundhaltung(t, atem=0.3)
-    p.dazu("kopf", 10)
-    p.dazu("hals_01", 6)
-    innenkiefer(p, 0.3)
-    blaetter(p, 0.15)
-    for i, kette in enumerate(RANKEN):
-        # Staggered: each vine strikes a little after the one before
-        v = (i % 3) * 0.06
-        zurueck = huegel(t, 0.0 + v, 0.4 + v, 0.45 + v, 0.6 + v)
-        stoss = huegel(t, 0.45 + v, 0.62 + v, 0.8 + v, 1.3)
-        for k, name in enumerate(kette):
-            anteil = (k + 1) / len(kette)
-            # Draw back: the chain coils up and backwards; strike: flung forward and down, over the head
-            p.dazu(name, (-10 * zurueck + 14 * stoss) * (0.4 + anteil), 3 * welle(t, 0.3, i * 0.2) * anteil)
-        offen = huegel(t, 0.25 + v, 0.5 + v, 0.6 + v, 0.66 + v)
-        knospe(p, i, offen)
+    p = grundhaltung(t, atem=0.0)
+    oeffnen = huegel(t, 0.0, 0.3, 0.38, 0.46)
+    stoss = raus((t - 0.32) / 0.16) * (1 - weich((t - 0.55) / 0.35))
+    zu = weich((t - 0.42) / 0.06) * (1 - weich((t - 0.65) / 0.25))
+    p.dazu("becken", 4 * oeffnen + 6 * stoss)
+    p.becken += Vector((-0.3 * oeffnen + 0.9 * stoss, 0.0, 0.1 * oeffnen - 0.15 * stoss))
+    p.dazu("brust", -8 * oeffnen + 6 * stoss)
+    p.dazu("hals_01", -18 * oeffnen + 14 * stoss)
+    p.dazu("hals_02", -10 * oeffnen + 10 * stoss)
+    p.dazu("kopf", -12 * oeffnen + 16 * stoss, 0, 4 * math.sin(2 * math.pi * t / 0.1) * zu)
+    for s in SEITEN:
+        # The hands stay planted, the body throws itself over them
+        p.hand[s] = HAND_STAND[s] + Vector((0.3 * stoss, 0.0, 0.0))
+    blaetter(p, 0.2 + 0.9 * oeffnen - 0.5 * zu)
+    innenkiefer(p, 0.2 + 1.4 * oeffnen - 0.6 * zu)
+    ranken_weben(p, t, staerke=1.5, periode=0.9)
+    ranken_beugen(p, -8 * oeffnen + 12 * stoss)
+    for i in range(len(RANKEN)):
+        knospe(p, i, 0.3 + 0.6 * oeffnen)
+    return p
+
+
+def sprung(f):
+    """Leap: sinks deep, throws itself forward long and flat with the arms reaching and claws spread, lands on the
+    hands and catches itself (the game moves it forward from 0.35 to 0.8 s)"""
+    t = f / FPS
+    p = grundhaltung(t, atem=0.0)
+    ducken = huegel(t, 0.0, 0.3, 0.32, 0.42)
+    flug = huegel(t, 0.35, 0.5, 0.65, 0.82)
+    landen = huegel(t, 0.78, 0.86, 0.92, 1.2)
+    p.dazu("becken", 8 * ducken - 12 * flug + 10 * landen)
+    p.becken += Vector((0.0, 0.0, -0.55 * ducken + 0.9 * flug - 0.35 * landen))
+    p.dazu("wirbel_01", 6 * ducken - 6 * flug + 5 * landen)
+    p.dazu("wirbel_02", 5 * ducken - 6 * flug + 4 * landen)
+    p.dazu("hals_01", -10 * ducken - 8 * flug + 6 * landen)
+    p.dazu("kopf", -8 * ducken + 10 * flug)
+    for s in SEITEN:
+        p.hand[s] = HAND_STAND[s] + Vector((-0.4 * ducken + 1.6 * flug + 0.4 * landen, 0.0, 1.2 * flug))
+        p.hand_drehung[s] = (HAND_NEIGUNG - 25 * flug, 0, 0)
+        p.dazu("finger_" + s, -35 * flug)
+        p.fuss[s] = BALLEN[s] + Vector((0.3 * ducken - 1.3 * flug, 0.0, 0.9 * flug))
+        p.fuss_drehung[s] = (60 * flug, 0, 0)
+    blaetter(p, 0.2 + 0.7 * flug)
+    innenkiefer(p, 0.3 + 1.0 * flug)
+    ranken_beugen(p, -25 * flug + 10 * landen)
+    ranken_weben(p, t, staerke=1.5, periode=1.2)
+    for i in range(len(RANKEN)):
+        knospe(p, i, 0.3 + 0.7 * flug)
     return p
 
 
 def schrei(f):
     t = f / FPS
     p = grundhaltung(t, atem=0.0)
-    hoch = huegel(t, 0.0, 0.5, 1.5, 1.95)
-    beben = math.sin(2 * math.pi * t / 0.09) * huegel(t, 0.4, 0.55, 1.4, 1.6)
-    p.dazu("becken", -22 * hoch)
-    p.becken += Vector((0.0, 0.0, 0.45 * hoch))
-    p.dazu("brust", -10 * hoch + 1.5 * beben)
-    p.dazu("hals_01", -25 * hoch)
-    p.dazu("hals_02", -15 * hoch)
-    p.dazu("kopf", -20 * hoch + 2 * beben)
-    blaetter(p, 1.0 * hoch, zittern=hoch, t=t)
-    innenkiefer(p, 1.3 * hoch)
+    hoch = huegel(t, 0.0, 0.45, 1.5, 1.95)
+    beben = math.sin(2 * math.pi * t / 0.07) * huegel(t, 0.35, 0.5, 1.4, 1.6)
+    zittern = math.sin(2 * math.pi * t / 0.11 + 1.0) * huegel(t, 0.35, 0.5, 1.4, 1.6)
+    p.dazu("becken", -24 * hoch, 2 * zittern)
+    p.becken += Vector((0.0, 0.0, 0.5 * hoch))
+    p.dazu("brust", -12 * hoch + 2 * beben, 2 * zittern)
+    p.dazu("hals_01", -28 * hoch + 2 * zittern)
+    p.dazu("hals_02", -15 * hoch, 0, 4 * zittern)
+    p.dazu("kopf", -22 * hoch + 4 * beben, 3 * zittern, 5 * beben)
+    blaetter(p, 1.1 * hoch, zittern=hoch, t=t)
+    innenkiefer(p, 1.5 * hoch)
     for i, kette in enumerate(RANKEN):
         for k, name in enumerate(kette):
             anteil = (k + 1) / len(kette)
-            p.dazu(name, -8 * hoch * anteil + 2 * beben * anteil, (6 if i % 2 else -6) * hoch * anteil)
-        knospe(p, i, 0.2 + 0.8 * hoch)
+            p.dazu(name, -10 * hoch * anteil + 4 * beben * anteil, (8 if i % 2 else -8) * hoch * anteil + 3 * zittern * anteil)
+        knospe(p, i, 0.2 + 0.9 * hoch)
+    for s in SEITEN:
+        p.dazu("finger_" + s, -30 * hoch)
     return p
 
 
-AKTIONEN = [("Stehen_Idle", 4.0, stehen_idle, True), ("Galopp", 0.9, galopp, True),
-            ("Gehen_Aufrecht", 1.6, gehen_aufrecht, True), ("Schlag", 1.2, schlag, False),
-            ("Klaue", 1.0, klaue, False), ("Rankenbiss", 1.4, rankenbiss, False), ("Schrei", 2.0, schrei, False)]
+AKTIONEN = [("Stehen_Idle", 4.0, stehen_idle, True), ("Galopp", GALOPP_PERIODE, galopp, True),
+            ("Gehen_Aufrecht", 1.6, gehen_aufrecht, True), ("Prankenhieb", 1.2, prankenhieb, False),
+            ("Klaue", 1.0, klaue, False), ("Biss", 0.9, biss, False), ("Sprung", 1.2, sprung, False),
+            ("Schrei", 2.0, schrei, False)]
 
 
 # ---------------------------------------------------------------- IK rig, keying, baking
@@ -460,12 +575,17 @@ def main():
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(vorschau.ARBEIT, "06_animationen.blend"))
 
     # Key poses
-    for name, bilder in (("Stehen_Idle", (0,)), ("Galopp", (0, 9, 18)), ("Gehen_Aufrecht", (0, 12)),
-                         ("Schlag", (12, 19)), ("Klaue", (12, 18)), ("Rankenbiss", (12, 20)), ("Schrei", (30,))):
+    for name, bilder in (("Stehen_Idle", (0,)), ("Prankenhieb", (10, 15, 19)), ("Klaue", (11, 17)), ("Biss", (11, 14)),
+                         ("Sprung", (9, 17)), ("Schrei", (30,))):
         arm.animation_data.action = bpy.data.actions[name]
         for f in bilder:
             bpy.context.scene.frame_set(f)
             vorschau.rendern("06_%s_%02d" % (name.lower(), f), (0.25, -1.0, 0.25), (0.3, 0.0, 3.0), 8.0)
+    # The gallop as a strip of frames from the side, to judge its flow
+    arm.animation_data.action = bpy.data.actions["Galopp"]
+    for f in range(0, 22, 3):
+        bpy.context.scene.frame_set(f)
+        vorschau.rendern("06_galopp_%02d" % f, (0.0, -1.0, 0.05), (0.3, 0.0, 3.0), 8.5)
     arm.animation_data.action = None
 
 

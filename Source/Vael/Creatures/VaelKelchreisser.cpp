@@ -20,18 +20,40 @@
 
 namespace
 {
-	/** Seconds into the attack animations (Tools/Kelchreisser/06_animationen.py) where the blow lands */
-	constexpr float ClawHitTime = 0.6f;
-	constexpr float SlapHitTime = 0.62f;
-	constexpr float VineHitTime = 0.66f;
-	constexpr float ScreamPeakTime = 0.55f;
+	/** Seconds into the attack animations (Tools/Kelchreisser/06_animationen.py) where the blows land */
+	constexpr float ClawHitTime = 0.5f;
+	constexpr float SwipeHitStart = 0.46f;
+	constexpr float SwipeHitEnd = 0.64f;
+	constexpr float BiteLungeStart = 0.32f;
+	constexpr float BiteHitTime = 0.46f;
+	constexpr float LeapStart = 0.35f;
+	constexpr float LeapEnd = 0.8f;
+	constexpr float ScreamPeakTime = 0.5f;
 
 	/** Seconds for blends between animations */
-	constexpr float GaitBlend = 0.35f;
-	constexpr float PoseBlend = 0.3f;
+	constexpr float GaitBlend = 0.25f;
+	constexpr float PoseBlend = 0.2f;
 
 	/** How often it listens, in seconds */
 	constexpr float ListenInterval = 0.25f;
+
+	/** A vine's strike: drawing back, shooting out, holding on and pulling in (seconds) */
+	constexpr float VineCoil = 0.32f;
+	constexpr float VineLunge = 0.2f;
+	constexpr float VineHold = 0.18f;
+	constexpr float VineRetract = 0.55f;
+
+	float Smooth(float T)
+	{
+		T = FMath::Clamp(T, 0.0f, 1.0f);
+		return T * T * (3.0f - 2.0f * T);
+	}
+
+	float EaseOut(float T)
+	{
+		T = FMath::Clamp(T, 0.0f, 1.0f);
+		return 1.0f - FMath::Cube(1.0f - T);
+	}
 }
 
 AVaelKelchreisser::AVaelKelchreisser()
@@ -70,6 +92,10 @@ void AVaelKelchreisser::BeginPlay()
 	Movement->MaxAcceleration = Data->Acceleration;
 	Movement->BrakingDecelerationWalking = Data->Acceleration;
 
+	RoamGoal = HomeLocation;
+	RoamPause = FMath::FRandRange(0.0f, 4.0f);
+	ListenCountdown = FMath::FRandRange(0.0f, ListenInterval);
+
 	USkeletalMesh* KelchMesh = Data->KelchMesh.LoadSynchronous();
 	if (KelchMesh == nullptr)
 	{
@@ -87,9 +113,10 @@ void AVaelKelchreisser::BeginPlay()
 	IdleSequence = Data->IdleAnimation.LoadSynchronous();
 	GallopSequence = Data->GallopAnimation.LoadSynchronous();
 	WalkSequence = Data->WalkAnimation.LoadSynchronous();
-	SlapSequence = Data->SlapAnimation.LoadSynchronous();
+	SwipeSequence = Data->SwipeAnimation.LoadSynchronous();
 	ClawSequence = Data->ClawAnimation.LoadSynchronous();
-	VineSequence = Data->VineBiteAnimation.LoadSynchronous();
+	BiteSequence = Data->BiteAnimation.LoadSynchronous();
+	LeapSequence = Data->LeapAnimation.LoadSynchronous();
 	ScreamSequence = Data->ScreamAnimation.LoadSynchronous();
 
 	for (int32 Slot = 0; Slot < GetMesh()->GetNumMaterials(); ++Slot)
@@ -97,11 +124,35 @@ void AVaelKelchreisser::BeginPlay()
 		Materials.Add(GetMesh()->CreateDynamicMaterialInstance(Slot));
 	}
 	RefreshNidGlow();
-
-	RoamGoal = HomeLocation;
-	RoamPause = FMath::FRandRange(0.0f, 4.0f);
-	ListenCountdown = FMath::FRandRange(0.0f, ListenInterval);
+	SetupVines();
 	EnterState(EVaelKelchreisserState::Territory);
+}
+
+void AVaelKelchreisser::SetupVines()
+{
+	// Bones of step 5 (Tools/Kelchreisser/05_skelett.py): ranke_<i>_01.. > ranke_<i>_maul > ranke_<i>_kiefer_oben/unten
+	for (int32 Vine = 0; Vine < 16; ++Vine)
+	{
+		FVaelVineStrike Strike;
+		for (int32 Link = 1; Link < 40; ++Link)
+		{
+			const FName Bone(*FString::Printf(TEXT("ranke_%d_%02d"), Vine, Link));
+			if (GetMesh()->GetBoneIndex(Bone) == INDEX_NONE)
+			{
+				break;
+			}
+			Strike.Bones.Add(Bone);
+		}
+		const FName Bud(*FString::Printf(TEXT("ranke_%d_maul"), Vine));
+		if (Strike.Bones.Num() < 2 || GetMesh()->GetBoneIndex(Bud) == INDEX_NONE)
+		{
+			continue;
+		}
+		Strike.Bones.Add(Bud);
+		Strike.UpperJaw = FName(*FString::Printf(TEXT("ranke_%d_kiefer_oben"), Vine));
+		Strike.LowerJaw = FName(*FString::Printf(TEXT("ranke_%d_kiefer_unten"), Vine));
+		Vines.Add(Strike);
+	}
 }
 
 float AVaelKelchreisser::GetCorruptionShare() const
@@ -156,6 +207,7 @@ void AVaelKelchreisser::PlayAnimation(UAnimSequence* Sequence, bool bLoop, float
 void AVaelKelchreisser::EnterState(EVaelKelchreisserState NewState)
 {
 	const UVaelKelchreisserData* Data = GetData<UVaelKelchreisserData>();
+	const float Now = GetWorld()->GetTimeSeconds();
 	State = NewState;
 	StateTime = 0.0f;
 	StateDuration = 0.0f;
@@ -174,30 +226,37 @@ void AVaelKelchreisser::EnterState(EVaelKelchreisserState NewState)
 		break;
 
 	case EVaelKelchreisserState::Scream:
-		PlayAnimation(ScreamSequence, false, 0.2f, 1.0f, true);
+		PlayAnimation(ScreamSequence, false, 0.15f, 1.0f, true);
 		StateDuration = Length(ScreamSequence, 2.0f);
 		bHasScreamed = true;
 		break;
 
 	case EVaelKelchreisserState::Claw:
 		++AttackCount;
-		PlayAnimation(ClawSequence, false, 0.15f, 1.0f, true);
+		PlayAnimation(ClawSequence, false, 0.1f, 1.0f, true);
 		StateDuration = Length(ClawSequence, 1.0f);
-		ClawReadyTime = GetWorld()->GetTimeSeconds() + RandomInRange(Data->ClawInterval);
+		ClawReadyTime = Now + RandomInRange(Data->ClawInterval);
 		break;
 
-	case EVaelKelchreisserState::Slap:
+	case EVaelKelchreisserState::Swipe:
 		++AttackCount;
-		PlayAnimation(SlapSequence, false, 0.15f, 1.0f, true);
-		StateDuration = Length(SlapSequence, 1.2f);
-		SlapReadyTime = GetWorld()->GetTimeSeconds() + RandomInRange(Data->SlapInterval);
+		PlayAnimation(SwipeSequence, false, 0.1f, 1.0f, true);
+		StateDuration = Length(SwipeSequence, 1.2f);
+		SwipeReadyTime = Now + RandomInRange(Data->SwipeInterval);
 		break;
 
-	case EVaelKelchreisserState::VineBite:
+	case EVaelKelchreisserState::Bite:
 		++AttackCount;
-		PlayAnimation(VineSequence, false, 0.15f, 1.0f, true);
-		StateDuration = Length(VineSequence, 1.4f);
-		VineReadyTime = GetWorld()->GetTimeSeconds() + RandomInRange(Data->VineInterval);
+		PlayAnimation(BiteSequence, false, 0.1f, 1.0f, true);
+		StateDuration = Length(BiteSequence, 0.9f);
+		BiteReadyTime = Now + RandomInRange(Data->BiteInterval);
+		break;
+
+	case EVaelKelchreisserState::Leap:
+		++AttackCount;
+		PlayAnimation(LeapSequence, false, 0.1f, 1.0f, true);
+		StateDuration = Length(LeapSequence, 1.2f);
+		LeapReadyTime = Now + RandomInRange(Data->LeapInterval);
 		break;
 
 	case EVaelKelchreisserState::Return:
@@ -226,19 +285,19 @@ void AVaelKelchreisser::UpdateGait()
 		return;
 	}
 	// Gallops on the scent, otherwise walks half upright (creepy, slow)
-	const bool bGallop = Speed > (Data->WalkSpeed + Data->MoveSpeed) * 0.5f;
+	const bool bGallop = Speed > Data->WalkSpeed * 1.8f;
 	UAnimSequence* Gait = bGallop ? GallopSequence : WalkSequence;
-	const float Rate = FMath::Clamp(Speed / (bGallop ? Data->GallopAnimationSpeed : Data->WalkAnimationSpeed), 0.4f, 1.7f);
+	const float Rate = FMath::Clamp(Speed / (bGallop ? Data->GallopAnimationSpeed : Data->WalkAnimationSpeed), 0.55f, 1.6f);
 	PlayAnimation(Gait, true, GaitBlend, Rate);
 	Animator->SetRate(Rate);
 }
 
-void AVaelKelchreisser::TurnTowards(const FVector& Location, float DeltaSeconds)
+void AVaelKelchreisser::TurnTowards(const FVector& Location, float DeltaSeconds, float Speed)
 {
 	const FVector To = (Location - GetActorLocation()).GetSafeNormal2D();
 	if (!To.IsNearlyZero())
 	{
-		const float Step = GetData<UVaelKelchreisserData>()->TurnRate * DeltaSeconds;
+		const float Step = GetData<UVaelKelchreisserData>()->TurnRate * Speed * DeltaSeconds;
 		const float Delta = FMath::Clamp(FMath::FindDeltaAngleDegrees(GetActorRotation().Yaw, To.Rotation().Yaw), -Step, Step);
 		SetActorRotation(FRotator(0.0f, GetActorRotation().Yaw + Delta, 0.0f));
 	}
@@ -289,7 +348,7 @@ AActor* AVaelKelchreisser::Listen(float& OutLoudness, FVector& OutWhere)
 		const float MaxSpeed = FMath::Max(Player->GetCharacterMovement()->MaxWalkSpeed, 1.0f);
 		const float Pace = FMath::Clamp(Player->GetVelocity().Size2D() / MaxSpeed, 0.0f, 1.0f);
 		float Range = Pace > Data->QuietPace ? Data->StepHearingRange * Pace : 0.0f;
-		// Spells cast close by, and fights (the player hurt or hurting lately)
+		// Spells cast close by
 		const float* CastTime = LastCastTime.Find(Player);
 		if (CastTime != nullptr && Now - *CastTime < Data->CastNoiseTime)
 		{
@@ -335,16 +394,16 @@ void AVaelKelchreisser::TakeScentNow()
 	TakeScent(Nearest);
 }
 
-int32 AVaelKelchreisser::HitPlayersAround(float Range, float HalfAngle, float Damage, float Knockback, int32 MaxTargets, EVaelStatus Status, float StatusDuration)
+int32 AVaelKelchreisser::HitPlayersAround(const FVector& Centre, float Range, float HalfAngle, float Damage, float Knockback, int32 MaxTargets, EVaelStatus Status, float StatusDuration)
 {
 	const float MinDot = FMath::Cos(FMath::DegreesToRadians(HalfAngle));
 	const FVector Forward = GetActorForwardVector().GetSafeNormal2D();
 	TArray<TPair<float, AVaelCharacter*>> Targets;
 	ForEachActivePlayer([&](AVaelCharacter* Player)
 	{
-		const FVector To = (Player->GetActorLocation() - GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
+		const FVector To = (Player->GetActorLocation() - Centre) * FVector(1.0f, 1.0f, 0.0f);
 		const float Distance = To.Size();
-		if (Distance <= Range + GetCapsuleComponent()->GetScaledCapsuleRadius() && (HalfAngle >= 180.0f || FVector::DotProduct(To.GetSafeNormal(), Forward) >= MinDot))
+		if (Distance <= Range && (HalfAngle >= 180.0f || FVector::DotProduct(To.GetSafeNormal(), Forward) >= MinDot))
 		{
 			Targets.Add({ Distance, Player });
 		}
@@ -364,7 +423,7 @@ int32 AVaelKelchreisser::HitPlayersAround(float Range, float HalfAngle, float Da
 		{
 			break;
 		}
-		if (UVaelCombatStatics::ApplySpellHit(this, Target.Value, Hit, GetActorLocation()))
+		if (UVaelCombatStatics::ApplySpellHit(this, Target.Value, Hit, Centre))
 		{
 			++Hits;
 			++HitCount;
@@ -385,32 +444,190 @@ bool AVaelKelchreisser::TryAttack(AActor* Target, float Distance)
 	const FVector To = (Target->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
 	const float Facing = FVector::DotProduct(To, GetActorForwardVector().GetSafeNormal2D());
 
-	// Several players close round it: the wide slap; one right in front: the claws; further out: the vines
+	// Still some way off: it throws itself at the prey
+	if (Now >= LeapReadyTime && Reach >= Data->LeapRange.X && Reach <= Data->LeapRange.Y && Facing > 0.5f)
+	{
+		// Aims where the prey will be, lands just short of it
+		const FVector Ahead = Target->GetActorLocation() + Target->GetVelocity() * FVector(1.0f, 1.0f, 0.0f) * 0.3f;
+		const FVector Way = (Ahead - GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
+		LeapDirection = Way.GetSafeNormal();
+		LeapSpeed = FMath::Min((Way.Size() - GetCapsuleComponent()->GetScaledCapsuleRadius() - 150.0f) / (LeapEnd - LeapStart), Data->LeapMaxSpeed);
+		FaceTowards(Ahead);
+		EnterState(EVaelKelchreisserState::Leap);
+		return true;
+	}
+
+	// Several players close round it, or one at its side: the wide swipe
 	int32 Close = 0;
 	ForEachActivePlayer([&](AVaelCharacter* Player)
 	{
-		if (GetDistanceTo2D(Player) - GetCapsuleComponent()->GetScaledCapsuleRadius() <= Data->SlapRange)
+		if (GetDistanceTo2D(Player) - GetCapsuleComponent()->GetScaledCapsuleRadius() <= Data->SwipeRange)
 		{
 			++Close;
 		}
 	});
-	if (Now >= SlapReadyTime && Reach <= Data->SlapRange && (Close >= 2 || Facing < 0.6f))
+	if (Now >= SwipeReadyTime && Reach <= Data->SwipeRange && (Close >= 2 || Facing < 0.5f || FMath::FRand() < 0.3f))
 	{
-		EnterState(EVaelKelchreisserState::Slap);
+		EnterState(EVaelKelchreisserState::Swipe);
+		return true;
+	}
+	// Right in front: the flower bites, or the claws rake
+	if (Now >= BiteReadyTime && Reach <= Data->BiteRange && Facing > 0.6f)
+	{
+		EnterState(EVaelKelchreisserState::Bite);
 		return true;
 	}
 	if (Now >= ClawReadyTime && Reach <= Data->ClawRange)
 	{
-		FaceTowards(Target->GetActorLocation());
 		EnterState(EVaelKelchreisserState::Claw);
 		return true;
 	}
-	if (Now >= VineReadyTime && Reach <= Data->VineRange)
-	{
-		EnterState(EVaelKelchreisserState::VineBite);
-		return true;
-	}
 	return false;
+}
+
+void AVaelKelchreisser::UpdateVines(float DeltaSeconds)
+{
+	if (Animator == nullptr || Vines.Num() == 0)
+	{
+		return;
+	}
+	const UVaelKelchreisserData* Data = GetData<UVaelKelchreisserData>();
+	const float Now = GetWorld()->GetTimeSeconds();
+	const bool bFighting = !IsDead() && Prey.IsValid() && State != EVaelKelchreisserState::Scream && State != EVaelKelchreisserState::Leap
+		&& State != EVaelKelchreisserState::Territory && State != EVaelKelchreisserState::Return;
+
+	int32 Striking = 0;
+	for (const FVaelVineStrike& Vine : Vines)
+	{
+		Striking += Vine.Time >= 0.0f ? 1 : 0;
+	}
+
+	const FTransform MeshTransform = GetMesh()->GetComponentTransform();
+	TArray<FVaelReachChain> Chains;
+	for (FVaelVineStrike& Vine : Vines)
+	{
+		const FVector Root = GetMesh()->GetSocketLocation(Vine.Bones[0]);
+
+		// A resting vine picks a victim of its own: the player in reach that the fewest vines are after
+		if (Vine.Time < 0.0f)
+		{
+			if (!bFighting || Now < Vine.ReadyTime || Striking >= Data->MaxVineStrikes || IsBlinded())
+			{
+				continue;
+			}
+			AVaelCharacter* Best = nullptr;
+			int32 BestCount = TNumericLimits<int32>::Max();
+			ForEachActivePlayer([&](AVaelCharacter* Player)
+			{
+				if (Player->IsDefeated() || FVector::Dist2D(Root, Player->GetActorLocation()) > Data->VineReach)
+				{
+					return;
+				}
+				int32 After = 0;
+				for (const FVaelVineStrike& Other : Vines)
+				{
+					After += Other.Time >= 0.0f && Other.Victim == Player ? 1 : 0;
+				}
+				if (After < BestCount)
+				{
+					BestCount = After;
+					Best = Player;
+				}
+			});
+			if (Best == nullptr)
+			{
+				continue;
+			}
+			Vine.Victim = Best;
+			Vine.Time = 0.0f;
+			Vine.bBitten = false;
+			// Draws back up and away from its victim before it strikes
+			const FVector Away = (Root - Best->GetActorLocation()).GetSafeNormal2D();
+			Vine.CoilPoint = Root + FVector(0.0f, 0.0f, 320.0f) + Away * 220.0f;
+			++Striking;
+			++AttackCount;
+			++VineStrikeCount;
+		}
+
+		Vine.Time += DeltaSeconds;
+		const float T = Vine.Time;
+		AActor* Victim = Vine.Victim.Get();
+		FVaelReachChain Chain;
+		Chain.Bones = Vine.Bones;
+		Chain.UpperJaw = Vine.UpperJaw;
+		Chain.LowerJaw = Vine.LowerJaw;
+		Chain.WavePhase = Now * 11.0f + Vine.Bones.Num();
+		FVector Target = Vine.CoilPoint;
+
+		if (T < VineCoil)
+		{
+			// Coils back, jaws opening
+			const float U = Smooth(T / VineCoil);
+			Chain.Weight = 0.55f * U;
+			Chain.Arc = 120.0f;
+			Chain.Wave = 40.0f * U;
+			Chain.JawOpen = 35.0f * U;
+			// Fixes where it strikes: where the victim will be (it can still dodge out of the bite)
+			if (Victim != nullptr)
+			{
+				const FVector Ahead = Victim->GetActorLocation() + Victim->GetVelocity() * FVector(1.0f, 1.0f, 0.0f) * 0.2f;
+				const FVector Way = Ahead - Root;
+				Vine.BitePoint = Root + Way.GetClampedToMaxSize(Data->VineReach);
+			}
+		}
+		else if (T < VineCoil + VineLunge)
+		{
+			// Shoots out over its head and down onto the victim
+			const float U = EaseOut((T - VineCoil) / VineLunge);
+			Chain.Weight = FMath::Lerp(0.55f, 1.0f, U);
+			Target = FMath::Lerp(Vine.CoilPoint, Vine.BitePoint, U);
+			Chain.Arc = 150.0f + 0.18f * FVector::Dist(Root, Vine.BitePoint) * (1.0f - U * 0.5f);
+			Chain.Wave = 40.0f * (1.0f - U);
+			Chain.JawOpen = 50.0f;
+		}
+		else if (T < VineCoil + VineLunge + VineHold)
+		{
+			// Snaps shut, and holds on a moment
+			if (!Vine.bBitten)
+			{
+				Vine.bBitten = true;
+				if (Victim != nullptr && !IsDead() && FVector::Dist(Victim->GetActorLocation(), Vine.BitePoint) <= Data->VineBiteRadius)
+				{
+					FVaelSpellHit Hit;
+					Hit.Damage = Data->VineDamage;
+					Hit.Element = EVaelElement::Earth;
+					if (UVaelCombatStatics::ApplySpellHit(this, Victim, Hit, Vine.BitePoint))
+					{
+						++HitCount;
+					}
+				}
+			}
+			Chain.Weight = 1.0f;
+			Target = Vine.BitePoint;
+			Chain.Arc = 90.0f;
+			Chain.JawOpen = -12.0f;
+		}
+		else if (T < VineCoil + VineLunge + VineHold + VineRetract)
+		{
+			// Pulls back in, whipping
+			const float U = Smooth((T - VineCoil - VineLunge - VineHold) / VineRetract);
+			Chain.Weight = 1.0f - U;
+			Target = FMath::Lerp(Vine.BitePoint, Vine.CoilPoint, U * 0.6f);
+			Chain.Arc = 90.0f + 150.0f * U;
+			Chain.Wave = 70.0f * FMath::Sin(U * UE_PI);
+			Chain.JawOpen = 10.0f * U;
+		}
+		else
+		{
+			Vine.Time = -1.0f;
+			Vine.Victim = nullptr;
+			Vine.ReadyTime = Now + RandomInRange(Data->VineInterval);
+			continue;
+		}
+		Chain.Target = MeshTransform.InverseTransformPosition(Target);
+		Chains.Add(Chain);
+	}
+	Animator->SetReachChains(Chains);
 }
 
 void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
@@ -421,14 +638,13 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 	// Listens all the time, except while it already hunts
 	float Loudness = 0.0f;
 	FVector Where = FVector::ZeroVector;
-	AActor* Heard = nullptr;
 	ListenCountdown -= DeltaSeconds;
 	const bool bListening = State == EVaelKelchreisserState::Territory || State == EVaelKelchreisserState::Listen
 		|| State == EVaelKelchreisserState::Track || State == EVaelKelchreisserState::Return;
 	if (bListening && ListenCountdown <= 0.0f)
 	{
 		ListenCountdown = ListenInterval;
-		Heard = Listen(Loudness, Where);
+		AActor* Heard = Listen(Loudness, Where);
 		if (Heard != nullptr && Loudness >= Data->ScentLoudness)
 		{
 			TakeScent(Heard);
@@ -444,6 +660,7 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 		}
 	}
 
+	AActor* Target = Prey.Get();
 	switch (State)
 	{
 	case EVaelKelchreisserState::Territory:
@@ -469,7 +686,7 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 
 	case EVaelKelchreisserState::Listen:
 		// Dead still, the flower turned to the sound
-		TurnTowards(SoundLocation, DeltaSeconds);
+		TurnTowards(SoundLocation, DeltaSeconds, 1.5f);
 		if (StateTime >= StateDuration)
 		{
 			EnterState(EVaelKelchreisserState::Track);
@@ -478,7 +695,7 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 
 	case EVaelKelchreisserState::Track:
 	{
-		// Goes slowly to where it heard it; nothing more there: back home
+		// Goes to where it heard it; nothing more there: back home
 		const FVector ToSound = (SoundLocation - GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
 		if (ToSound.Size() > 250.0f && StateTime < Data->TrackTime)
 		{
@@ -495,12 +712,12 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 		if (!bStruck && StateTime >= ScreamPeakTime)
 		{
 			bStruck = true;
-			// Heard far through the forest; close by the ground shakes the players back a step and slows them
-			HitPlayersAround(Data->ScreamRange, 180.0f, 0.0f, Data->ScreamKnockback, 4, EVaelStatus::Slowed, Data->ScreamSlowTime);
+			// Close by the ground shakes the players back a step and slows them
+			HitPlayersAround(GetActorLocation(), Data->ScreamRange, 180.0f, 0.0f, Data->ScreamKnockback, 4, EVaelStatus::Slowed, Data->ScreamSlowTime);
 		}
-		if (AActor* Target = Prey.Get())
+		if (Target != nullptr)
 		{
-			TurnTowards(Target->GetActorLocation(), DeltaSeconds);
+			TurnTowards(Target->GetActorLocation(), DeltaSeconds, 2.0f);
 		}
 		if (StateTime >= StateDuration)
 		{
@@ -510,8 +727,8 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 
 	case EVaelKelchreisserState::Hunt:
 	{
-		AVaelCharacter* Target = Cast<AVaelCharacter>(Prey.Get());
-		if (Target == nullptr || Target->IsDefeated())
+		AVaelCharacter* Player = Cast<AVaelCharacter>(Target);
+		if (Player == nullptr || Player->IsDefeated())
 		{
 			// Its prey down: the next it hears close by, or home
 			float NextLoudness = 0.0f;
@@ -526,7 +743,7 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 			}
 			break;
 		}
-		const float Distance = GetDistanceTo2D(Target);
+		const float Distance = GetDistanceTo2D(Player);
 		// Never lets go of the scent, unless the prey gets far away for a while or it is lured far from its tree
 		const bool bOutOfReach = Distance > Data->ScentRange || FVector::Dist2D(GetActorLocation(), HomeLocation) > Data->LeashRange;
 		LostScentTime = bOutOfReach ? LostScentTime + DeltaSeconds : 0.0f;
@@ -535,47 +752,31 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 			EnterState(EVaelKelchreisserState::Return);
 			break;
 		}
-		if (TryAttack(Target, Distance))
+		if (TryAttack(Player, Distance))
 		{
 			break;
 		}
-		if (Distance - GetCapsuleComponent()->GetScaledCapsuleRadius() > Data->ClawRange * 0.8f)
+		// Runs it down, or circles close in front of it, turning on the spot
+		if (Distance - GetCapsuleComponent()->GetScaledCapsuleRadius() > Data->BiteRange * 0.7f)
 		{
-			MoveInDirection((Target->GetActorLocation() - GetActorLocation()).GetSafeNormal2D(), Data->MoveSpeed);
+			MoveInDirection((Player->GetActorLocation() - GetActorLocation()).GetSafeNormal2D(), Data->MoveSpeed);
 		}
 		else
 		{
-			TurnTowards(Target->GetActorLocation(), DeltaSeconds);
+			TurnTowards(Player->GetActorLocation(), DeltaSeconds, 2.0f);
 		}
 		break;
 	}
 
 	case EVaelKelchreisserState::Claw:
-	{
-		AActor* Target = Prey.Get();
-		if (Target != nullptr && StateTime < ClawHitTime * 0.7f)
+		if (Target != nullptr && StateTime < ClawHitTime * 0.8f)
 		{
-			TurnTowards(Target->GetActorLocation(), DeltaSeconds);
+			TurnTowards(Target->GetActorLocation(), DeltaSeconds, 2.0f);
 		}
 		if (!bStruck && StateTime >= ClawHitTime)
 		{
 			bStruck = true;
-			HitPlayersAround(Data->ClawRange, 45.0f, Data->ClawDamage, Data->ClawKnockback, 2);
-		}
-		if (StateTime >= StateDuration)
-		{
-			RecoverUntil = GetWorld()->GetTimeSeconds() + RandomInRange(Data->Recovery);
-			EnterState(EVaelKelchreisserState::Hunt);
-		}
-		break;
-	}
-
-	case EVaelKelchreisserState::Slap:
-		if (!bStruck && StateTime >= SlapHitTime)
-		{
-			bStruck = true;
-			// Swept round in front and to the sides
-			HitPlayersAround(Data->SlapRange, 110.0f, Data->SlapDamage, Data->SlapKnockback, 4);
+			HitPlayersAround(GetActorLocation(), Data->ClawRange + GetCapsuleComponent()->GetScaledCapsuleRadius(), 45.0f, Data->ClawDamage, Data->ClawKnockback, 2);
 		}
 		if (StateTime >= StateDuration)
 		{
@@ -584,12 +785,70 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 		}
 		break;
 
-	case EVaelKelchreisserState::VineBite:
-		if (!bStruck && StateTime >= VineHitTime)
+	case EVaelKelchreisserState::Swipe:
+		if (Target != nullptr && StateTime < SwipeHitStart)
+		{
+			TurnTowards(Target->GetActorLocation(), DeltaSeconds, 1.5f);
+		}
+		// The hand sweeps round from its right through the front to its left: whoever is in the circle is hit once
+		if (!bStruck && StateTime >= SwipeHitStart)
 		{
 			bStruck = true;
-			// Each mouth picks its own victim, all round and over its head
-			HitPlayersAround(Data->VineRange, 180.0f, Data->VineDamage, 0.0f, Data->VineBites);
+			HitPlayersAround(GetActorLocation(), Data->SwipeRange + GetCapsuleComponent()->GetScaledCapsuleRadius(), 125.0f, Data->SwipeDamage, Data->SwipeKnockback, 4);
+		}
+		if (StateTime >= SwipeHitStart && StateTime <= SwipeHitEnd)
+		{
+			// The body throws itself into the swing
+			MoveInDirection(GetActorForwardVector(), Data->MoveSpeed * 0.4f);
+		}
+		if (StateTime >= StateDuration)
+		{
+			RecoverUntil = GetWorld()->GetTimeSeconds() + RandomInRange(Data->Recovery);
+			EnterState(EVaelKelchreisserState::Hunt);
+		}
+		break;
+
+	case EVaelKelchreisserState::Bite:
+		if (Target != nullptr && StateTime < BiteLungeStart)
+		{
+			TurnTowards(Target->GetActorLocation(), DeltaSeconds, 3.0f);
+		}
+		if (StateTime >= BiteLungeStart && StateTime <= BiteHitTime)
+		{
+			// Lunges forward with the flower torn open
+			GetCharacterMovement()->Velocity = GetActorForwardVector() * Data->BiteLungeSpeed;
+			MoveInDirection(GetActorForwardVector(), Data->BiteLungeSpeed);
+		}
+		if (!bStruck && StateTime >= BiteHitTime)
+		{
+			bStruck = true;
+			const FVector Mouth = GetActorLocation() + GetActorForwardVector() * (GetCapsuleComponent()->GetScaledCapsuleRadius() + Data->BiteRange * 0.5f);
+			HitPlayersAround(Mouth, Data->BiteRange * 0.6f, 180.0f, Data->BiteDamage, Data->BiteKnockback, 1);
+		}
+		if (StateTime >= StateDuration)
+		{
+			RecoverUntil = GetWorld()->GetTimeSeconds() + RandomInRange(Data->Recovery);
+			EnterState(EVaelKelchreisserState::Hunt);
+		}
+		break;
+
+	case EVaelKelchreisserState::Leap:
+		if (StateTime < LeapStart && Target != nullptr)
+		{
+			TurnTowards(Target->GetActorLocation(), DeltaSeconds, 3.0f);
+			LeapDirection = GetActorForwardVector().GetSafeNormal2D();
+		}
+		else if (StateTime <= LeapEnd)
+		{
+			GetCharacterMovement()->Velocity = LeapDirection * LeapSpeed;
+			MoveInDirection(LeapDirection, LeapSpeed);
+		}
+		if (!bStruck && StateTime > LeapEnd)
+		{
+			// Lands among them: everyone close is knocked away
+			bStruck = true;
+			HitPlayersAround(GetActorLocation() + LeapDirection * GetCapsuleComponent()->GetScaledCapsuleRadius(), Data->LeapLandRange, 180.0f,
+				Data->LeapDamage, Data->LeapKnockback, 4);
 		}
 		if (StateTime >= StateDuration)
 		{
@@ -623,6 +882,7 @@ void AVaelKelchreisser::Tick(float DeltaSeconds)
 	{
 		UpdateGait();
 	}
+	UpdateVines(DeltaSeconds);
 }
 
 void AVaelKelchreisser::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)

@@ -1,6 +1,6 @@
 """Step 7: export for Unreal.
 
-  export/SK_Kelchreisser.fbx      skeleton, mesh and all seven actions
+  export/SK_Kelchreisser.fbx      skeleton, mesh and all eight actions
   export/T_Kelchreisser_basecolor.jpg, _normal.png, _roughness.jpg, _metallic.jpg   the Tripo textures (4K), copied
 
 Axes as in Tools/Pfuhlnatter (Blender defaults, FBX unit scale applied): head +X stays +X in Unreal.

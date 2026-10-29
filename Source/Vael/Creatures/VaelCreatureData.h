@@ -1305,31 +1305,35 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UAnimSequence> WalkAnimation;
 
+	/** The wide circling swing with the open hand (Prankenhieb) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
-	TSoftObjectPtr<UAnimSequence> SlapAnimation;
+	TSoftObjectPtr<UAnimSequence> SwipeAnimation;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UAnimSequence> ClawAnimation;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
-	TSoftObjectPtr<UAnimSequence> VineBiteAnimation;
+	TSoftObjectPtr<UAnimSequence> BiteAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> LeapAnimation;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UAnimSequence> ScreamAnimation;
 
 	/** Ground speeds in cm/s at which gallop and walk play at their own pace (their feet stay on the ground) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
-	float GallopAnimationSpeed = 610.0f;
+	float GallopAnimationSpeed = 900.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float WalkAnimationSpeed = 156.0f;
 
-	/** Turning in degrees per second and speeding up in cm/s²: something this heavy runs in wide curves */
+	/** Turning in degrees per second and speeding up in cm/s² (Boris 2026-10-29: fast and agile, not stiff) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
-	float TurnRate = 110.0f;
+	float TurnRate = 230.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
-	float Acceleration = 900.0f;
+	float Acceleration = 2800.0f;
 
 	/** Glow of the violet Nid veins (MarkStaerke of the material) in a clean and in a fully corrupted region */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
@@ -1402,36 +1406,76 @@ public:
 	float ClawKnockback = 500.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
-	FVector2D ClawInterval = FVector2D(2.0f, 3.5f);
+	FVector2D ClawInterval = FVector2D(1.6f, 2.8f);
+
+	/** The wide swipe sweeps round in front and to the sides */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float SwipeRange = 560.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float SlapRange = 480.0f;
+	float SwipeDamage = 18.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float SlapDamage = 14.0f;
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float SlapKnockback = 1100.0f;
+	float SwipeKnockback = 1500.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
-	FVector2D SlapInterval = FVector2D(4.0f, 6.0f);
+	FVector2D SwipeInterval = FVector2D(3.0f, 4.5f);
 
-	/** The vines reach all round, also behind it; each of up to VineBites mouths bites a different player */
+	/** The flower's bite: a lunge at BiteLungeSpeed (cm/s) for a moment, the jaws shutting BiteRange in front */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float VineRange = 850.0f;
+	float BiteRange = 420.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float VineDamage = 8.0f;
+	float BiteDamage = 26.0f;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 1))
-	int32 VineBites = 3;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float BiteKnockback = 400.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float BiteLungeSpeed = 1600.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
-	FVector2D VineInterval = FVector2D(3.0f, 5.0f);
+	FVector2D BiteInterval = FVector2D(1.4f, 2.4f);
+
+	/** It leaps at prey this far beyond its capsule (cm), at most this fast; landing hits everyone within LeapLandRange */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
+	FVector2D LeapRange = FVector2D(700.0f, 1500.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float LeapMaxSpeed = 3600.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float LeapLandRange = 450.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float LeapDamage = 20.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float LeapKnockback = 1000.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
+	FVector2D LeapInterval = FVector2D(5.0f, 8.0f);
+
+	/** Its vines strike on their own while it fights, each at a player within VineReach of its root (cm, Boris: 5-10 m),
+	 *  at most MaxVineStrikes at once; a bite lands if the player is still within VineBiteRadius of where it aimed */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines", meta = (ClampMin = 0))
+	float VineReach = 1000.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines", meta = (ClampMin = 0))
+	float VineBiteRadius = 170.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines", meta = (ClampMin = 0))
+	float VineDamage = 9.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines", meta = (ClampMin = 1))
+	int32 MaxVineStrikes = 3;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines")
+	FVector2D VineInterval = FVector2D(1.8f, 3.6f);
 
 	/** Pause after an attack before the next, in seconds */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
-	FVector2D Recovery = FVector2D(0.5f, 1.0f);
+	FVector2D Recovery = FVector2D(0.2f, 0.5f);
 
 	/** The scream: players this close are pushed back and slowed for ScreamSlowTime seconds; it screams again once below
 	 *  HurtScreamShare of its health */

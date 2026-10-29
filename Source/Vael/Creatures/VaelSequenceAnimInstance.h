@@ -9,6 +9,31 @@
 
 class UAnimSequence;
 
+/** A chain of bones flung out to a point on top of the sequence (a vine striking): see UVaelSequenceAnimInstance::SetReachChains */
+struct FVaelReachChain
+{
+	/** From the chain's root to its tip piece; the tip piece (a vine's bud) is carried along, turned with the last joint */
+	TArray<FName> Bones;
+
+	/** Where the tip goes, in component space */
+	FVector Target = FVector::ZeroVector;
+
+	/** 0 as the sequence has it .. 1 laid out all the way to the target */
+	float Weight = 0.0f;
+
+	/** How far the path bulges up on its way (cm): a strike over the head */
+	float Arc = 0.0f;
+
+	/** A sideways ripple along the chain (cm) and where it is in its swing (radians) */
+	float Wave = 0.0f;
+	float WavePhase = 0.0f;
+
+	/** Two jaw bones on the tip piece, opened apart by JawOpen degrees (negative presses them shut) */
+	FName UpperJaw;
+	FName LowerJaw;
+	float JawOpen = 0.0f;
+};
+
 /** Evaluates the current sequence and, while a change is blending in, the one before it (on the animation worker thread) */
 struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 {
@@ -20,6 +45,11 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 
 	/** Lays the spine chain onto its targets (see UVaelSequenceAnimInstance::SetSpineTargets) */
 	void ApplySpine(FCompactPose& Pose) const;
+
+	/** Flings the reach chains out to their targets (see UVaelSequenceAnimInstance::SetReachChains) */
+	void ApplyReach(FCompactPose& Pose) const;
+
+	TArray<FVaelReachChain> ReachChains;
 
 	UAnimSequence* Current = nullptr;
 	UAnimSequence* Previous = nullptr;
@@ -95,6 +125,14 @@ public:
 	void SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales, const TArray<float>& Opens, float Tremble, float Time,
 		float Sway = 0.0f, const TArray<float>* Phases = nullptr);
 
+	/**
+	 *  Lays chains of bones along a curve from where their root is to a target (vines striking far out): the bones
+	 *  stretch apart as far as the path is long, so a chain may reach several times its own length; the skin between
+	 *  the joints stretches along, pieces weighted to one bone (thorns, a bud) keep their shape. An empty list or
+	 *  weight 0 leaves the sequence alone.
+	 */
+	void SetReachChains(const TArray<FVaelReachChain>& Chains) { ReachChains = Chains; }
+
 protected:
 
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override { return new FVaelSequenceAnimProxy(this); }
@@ -137,4 +175,5 @@ private:
 	float TrembleTime = 0.0f;
 	float SwayAngle = 0.0f;
 	TArray<float> SwayPhases;
+	TArray<FVaelReachChain> ReachChains;
 };

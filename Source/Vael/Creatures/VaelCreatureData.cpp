@@ -319,14 +319,15 @@ UVaelKelchreisserData::UVaelKelchreisserData()
 	IdleAnimation = Animation(TEXT("Stehen_Idle"));
 	GallopAnimation = Animation(TEXT("Galopp"));
 	WalkAnimation = Animation(TEXT("Gehen_Aufrecht"));
-	SlapAnimation = Animation(TEXT("Schlag"));
+	SwipeAnimation = Animation(TEXT("Prankenhieb"));
 	ClawAnimation = Animation(TEXT("Klaue"));
-	VineBiteAnimation = Animation(TEXT("Rankenbiss"));
+	BiteAnimation = Animation(TEXT("Biss"));
+	LeapAnimation = Animation(TEXT("Sprung"));
 	ScreamAnimation = Animation(TEXT("Schrei"));
 
 	// Almost a boss: three times this as an elite (the Glutkoenigin has 1300); heavy, it hardly staggers or flies
 	MaxHealth = 380.0f;
-	MoveSpeed = 620.0f;
+	MoveSpeed = 880.0f;
 	CollisionRadius = 180.0f;
 	CollisionHalfHeight = 220.0f;
 	KnockbackMultiplier = 0.15f;
