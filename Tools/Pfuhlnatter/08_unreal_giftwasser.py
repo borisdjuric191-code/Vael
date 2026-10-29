@@ -16,8 +16,9 @@ eal = unreal.EditorAssetLibrary
 mel = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 
-FARBEN = {"DeepColor": (0.004, 0.035, 0.008), "ShallowColor": (0.12, 0.45, 0.05)}
-WERTE = {"Murkiness": 0.6, "EmissiveStrength": 0.35, "WobbleStrength": 3.0, "WobbleSpeed": 0.5, "Refraction": 0.12,
+# 2026-10-29: darker and murkier, the first light green read as a painted disc on the ground
+FARBEN = {"DeepColor": (0.002, 0.018, 0.006), "ShallowColor": (0.045, 0.17, 0.02)}
+WERTE = {"Murkiness": 0.75, "EmissiveStrength": 0.08, "WobbleStrength": 3.0, "WobbleSpeed": 0.5, "Refraction": 0.12,
          "FresnelPower": 4.0, "FoamAmount": 0.12, "Wetness": 1.0}
 
 

@@ -3,7 +3,11 @@
   The Tripo textures (base colour, normal, roughness, metallic) as in M_Kreatur_Master, plus:
     FlossenVerbergen  0..1: hides the fin and crown membranes (the red of the vertex colour, written by 03_skelett.py)
                       while they are drawn in, dithered so they fade; the body stays (masked, clip 0.5)
-    GlutStaerke, GlutFarbe  the throat glow before a spit: the warm (orange, yellow) parts of the skin glow
+    GlutStaerke, GlutFarbe  the throat glow before a spit: only the yellow belly scales round KehleOrt (world, set by
+                      AVaelPfuhlnatter below the neck top) within KehleRadius glow; before 2026-10-29 every warm
+                      texel glowed and the whole neck and crown turned lime green
+    Pale crown skin left over the neck (the Tripo model has no neck skin under it) is tinted towards the body's wine red
+    round the same place while FlossenVerbergen is up, so the crawling neck shows no grey patch
 
 Run with the editor closed, after 06_unreal_import.py:
   UnrealEditor-Cmd.exe <Vael.uproject> -run=pythonscript -script="<this file>"
@@ -90,13 +94,31 @@ def main():
     flosse = g.sat(g.mal(4, g.minus(4, g.maske(vertex, 5, "r"), g.k(0.35, 5)), g.k(6.0, 5)), 3)
     deckung = g.minus(2, g.k(1.0, 3), g.mal(3, flosse, g.skalar("FlossenVerbergen", 0.0, 4)))
 
-    # Throat glow: the warm parts of the skin (red clearly above blue) glow in GlutFarbe
-    rgb = g.maske(farbe, 4, "rgb")
+    # Throat glow: yellow belly scales (green well above blue) near the throat glow in GlutFarbe
+    rgb_roh = g.maske(farbe, 4, "rgb")
     rot = g.maske(farbe, 4, "r")
+    gruen = g.maske(farbe, 4, "g")
     blau = g.maske(farbe, 4, "b")
-    warm = g.sat(g.mal(3, g.minus(3, rot, blau), g.k(3.0, 4)), 2)
+    gelb = g.sat(g.mal(3, g.minus(3, gruen, blau), g.k(4.0, 4)), 2)
+    ort = g.node(unreal.MaterialExpressionWorldPosition, 5)
+    kehle = g.node(unreal.MaterialExpressionVectorParameter, 5, parameter_name="KehleOrt", default_value=unreal.LinearColor(0, 0, -100000, 0))
+    abstand = g.op(unreal.MaterialExpressionDistance, 4, ort, g.maske(kehle, 4, "rgb"))
+    nah = g.sat(g.minus(3, g.k(1.0, 4), g.op(unreal.MaterialExpressionDivide, 3, abstand, g.skalar("KehleRadius", 60.0, 4))), 2)
+    nah_weich = g.mal(2, nah, nah)
     glut_farbe = g.node(unreal.MaterialExpressionVectorParameter, 4, parameter_name="GlutFarbe", default_value=unreal.LinearColor(0.16, 0.48, 0.06, 1))
-    glut = g.mal(1, g.mal(2, g.mal(3, rgb, g.maske(glut_farbe, 3, "rgb")), warm), g.skalar("GlutStaerke", 0.0, 2))
+    # Pale texels (crown petals, fin membranes, fangs): never part of the throat
+    blass = g.sat(g.mal(3, g.minus(3, g.op(unreal.MaterialExpressionMin, 4, g.op(unreal.MaterialExpressionMin, 4, rot, gruen), blau), g.k(0.26, 4)), g.k(6.0, 4)), 2)
+    kein_blass = g.minus(2, g.k(1.0, 3), blass)
+    glut = g.mal(1, g.mal(1, g.mal(1, g.mal(2, g.mal(3, rgb_roh, g.maske(glut_farbe, 3, "rgb")), gelb), nah_weich), kein_blass), g.skalar("GlutStaerke", 0.0, 2))
+
+    # Pale crown skin over the neck, crawling: towards the body's wine red (fangs lie ahead of the sphere and stay)
+    nacken = g.sat(g.mal(2, g.minus(2, g.k(1.0, 3), g.op(unreal.MaterialExpressionDivide, 3, abstand, g.mal(3, g.skalar("KehleRadius", 60.0, 4), g.k(1.6, 4)))), g.k(2.0, 3)), 1)
+    toenen = g.mal(1, g.mal(1, blass, nacken), g.mal(2, g.skalar("FlossenVerbergen", 0.0, 3), g.k(0.85, 3)))
+    wein = g.node(unreal.MaterialExpressionConstant3Vector, 2, constant=unreal.LinearColor(0.11, 0.015, 0.035, 1))
+    rgb = g.node(unreal.MaterialExpressionLinearInterpolate, 0)
+    g.link(rgb_roh, rgb, "A")
+    g.link(wein, rgb, "B")
+    g.link(toenen, rgb, "Alpha")
 
     for ausdruck, eigenschaft, ausgang in ((rgb, unreal.MaterialProperty.MP_BASE_COLOR, ""), (normal, unreal.MaterialProperty.MP_NORMAL, "RGB"),
                                            (rau, unreal.MaterialProperty.MP_ROUGHNESS, "R"), (metall, unreal.MaterialProperty.MP_METALLIC, "R"),

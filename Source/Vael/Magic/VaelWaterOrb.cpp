@@ -68,6 +68,13 @@ void AVaelWaterOrb::ApplySource()
 	}
 
 	Glow->SetLightColor(Source->GlowColor);
+	// Poison hardly glows: two balls at a Pfuhlnatter's fangs with the mage's light bathed her head, crown and the
+	// ground round her in bright green
+	if (Source->bPoison)
+	{
+		Glow->SetIntensity(GlowIntensity * 0.12f);
+		Glow->SetAttenuationRadius(180.0f);
+	}
 	Particles->SetVariableLinearColor(WaterColorParameter, Source->ParticleColor);
 }
 

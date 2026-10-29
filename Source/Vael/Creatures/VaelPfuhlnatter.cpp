@@ -91,6 +91,11 @@ void AVaelPfuhlnatter::BeginPlay()
 		SpineLengths.Add(Length * Data->BodyScale);
 		BodyLength += SpineLengths.Last();
 	}
+	for (const FName& Bone : SpineBones)
+	{
+		const int32 Index = Skeleton.FindBoneIndex(Bone);
+		RestJoints.Add(Index != INDEX_NONE ? FAnimationRuntime::GetComponentSpaceTransformRefPose(Skeleton, Index).GetTranslation() : FVector::ZeroVector);
+	}
 	UE_LOG(LogTemp, Log, TEXT("'%s': %d spine joints, body %.0f cm"), *GetName(), SpineBones.Num(), BodyLength);
 	for (int32 Bone = 0; Bone < Skeleton.GetNum(); ++Bone)
 	{
@@ -124,26 +129,36 @@ void AVaelPfuhlnatter::PickNextAttack()
 	bNextSpit = FMath::FRand() < GetData<UVaelPfuhlnatterData>()->SpitChance;
 }
 
-void AVaelPfuhlnatter::RearUp(TArrayView<FVector> Joints) const
+void AVaelPfuhlnatter::RearUp(TArrayView<FVector> Joints, int32 InCount, float Weight) const
 {
-	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
 	const int32 NumJoints = Joints.Num();
-	const int32 Count = FMath::Clamp(Data->RearJoints, 2, NumJoints - 1);
+	const int32 Count = FMath::Clamp(InCount, 2, NumJoints - 1);
 	const int32 Base = NumJoints - 1 - Count;
 	// The arch rises steeply from its base and bends forward at the top like a cobra's; it leans back to draw breath
 	// and forward to strike, and quivers a little
 	const FVector Ahead = (LookWeight > 0.1f ? LookPoint - Joints[Base] : Joints[NumJoints - 1] - Joints[Base]).GetSafeNormal2D();
 	const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
 	const float Time = GetWorld()->GetTimeSeconds();
-	FVector Point = Joints[Base];
+	if (RestJoints.Num() != NumJoints)
+	{
+		return;
+	}
+	// The arch is the Tripo pose's own front (the shape the crown skin over the neck was modelled on), turned to face
+	// ahead; it leans back to draw breath and forward to strike, and quivers a little
+	const FTransform& ToWorld = GetMesh()->GetComponentTransform();
+	const FVector RestAhead = ToWorld.TransformVectorNoScale(RestJoints[NumJoints - 1] - RestJoints[Base]).GetSafeNormal2D();
+	const FQuat Face = FQuat::FindBetweenNormals(RestAhead, Ahead);
+	const float Lean = FMath::DegreesToRadians(Thrust * 24.0f);
 	for (int32 Step = 1; Step <= Count; ++Step)
 	{
 		const float Along = static_cast<float>(Step) / Count;
-		const float Pitch = FMath::Lerp(82.0f, -8.0f, FMath::Pow(Along, 1.1f)) - Thrust * 32.0f * Along;
-		const FVector Direction = (Ahead * FMath::Cos(FMath::DegreesToRadians(Pitch)) + FVector::UpVector * FMath::Sin(FMath::DegreesToRadians(Pitch))).GetSafeNormal();
-		Point += Direction * SpineLengths[Base + Step - 1];
-		const FVector Quiver = Side * FMath::Sin(Time * 2.0f * PI * 11.0f + Step) * 1.2f * Along * Rear;
-		Joints[Base + Step] = FMath::Lerp(Joints[Base + Step], Point + Quiver, FMath::SmoothStep(0.0f, 1.0f, Rear));
+		const FVector Shape = Face.RotateVector(ToWorld.TransformVector(RestJoints[Base + Step] - RestJoints[Base]));
+		// Lean in the upright plane through Ahead: positive tips the top forward and down
+		const float Forward = FVector::DotProduct(Shape, Ahead);
+		const FVector Across = Shape - Ahead * Forward - FVector::UpVector * Shape.Z;
+		const FVector Leaned = Ahead * (Forward * FMath::Cos(Lean) + Shape.Z * FMath::Sin(Lean)) + FVector::UpVector * (Shape.Z * FMath::Cos(Lean) - Forward * FMath::Sin(Lean)) + Across;
+		const FVector Quiver = Side * FMath::Sin(Time * 2.0f * PI * 11.0f + Step) * 1.2f * Along * Weight;
+		Joints[Base + Step] = FMath::Lerp(Joints[Base + Step], Joints[Base] + Leaned + Quiver, FMath::SmoothStep(0.0f, 1.0f, Weight));
 	}
 }
 
@@ -282,7 +297,22 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 	}
 	if (Rear > 0.0f)
 	{
-		RearUp(Joints);
+		RearUp(Joints, Data->RearJoints, Rear);
+	}
+
+	// Its long fangs hang below the jaw: lying or crawling, the head is held up by their length, so it never stands on them
+	if (State != EVaelSnakeState::Constrict && State != EVaelSnakeState::Release && !IsDead())
+	{
+		const float Clearance = Data->FangClearance * GetMesh()->GetComponentScale().Z;
+		const float Missing = Clearance - (Joints[NumJoints - 1].Z - GetMesh()->GetComponentLocation().Z);
+		if (Missing > 0.0f)
+		{
+			const float Raise[] = { 1.0f, 0.7f, 0.4f, 0.15f };
+			for (int32 Back = 0; Back < 4 && NumJoints - 1 - Back >= 0; ++Back)
+			{
+				Joints[NumJoints - 1 - Back].Z += Missing * Raise[Back];
+			}
+		}
 	}
 
 	// The tail's tip is never still: it curls slowly to and fro
@@ -309,6 +339,9 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 				Joints[Joint] += (In * 5.0f + FVector(0.0f, 0.0f, 2.0f)) * Press * Hold * Data->BodyScale;
 			}
 		}
+		// Above the coils the neck rises in its modelled shape and the head looks the prey in the face: a free-wound neck
+		// stretched the crown skin over it into straps
+		RearUp(Joints, 5, Hold * 0.8f);
 	}
 
 	// Into the mesh's space: X and Y where the joints go, Z the height above the ground (added to the pose's own)
@@ -654,7 +687,8 @@ void AVaelPfuhlnatter::TurnTowards(const FVector& Location, float DeltaSeconds)
 	const FVector To = (Location - GetActorLocation()).GetSafeNormal2D();
 	if (!To.IsNearlyZero())
 	{
-		const float Step = 180.0f * DeltaSeconds;
+		// Slow: turning on the spot swings the neck round and the body behind would fold into a hairpin
+		const float Step = 70.0f * DeltaSeconds;
 		const float Delta = FMath::Clamp(FMath::FindDeltaAngleDegrees(GetActorRotation().Yaw, To.Rotation().Yaw), -Step, Step);
 		SetActorRotation(FRotator(0.0f, GetActorRotation().Yaw + Delta, 0.0f));
 	}
@@ -675,6 +709,14 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 		Animator->Play(CrawlSequence, true, 0.0f, 0.0f);
 	}
 
+	// Turning speed from its pace: a big snake curves, it doesn't wheel on the spot (the body would fold through itself)
+	if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+	{
+		const float Radius = Data->MinTurnRadius * GetMesh()->GetComponentScale().Z;
+		const float Pace = FMath::Max(GetVelocity().Size2D(), Data->CrawlSpeed * 0.35f);
+		Movement->RotationRate.Yaw = FMath::Min(Data->TurnRate, FMath::RadiansToDegrees(Pace / FMath::Max(Radius, 1.0f)));
+	}
+
 	// Crawling, the neck leads; winding round prey, the head of the coil does (set in TickBehavior)
 	if (State != EVaelSnakeState::Constrict)
 	{
@@ -683,10 +725,11 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	}
 	if (State != EVaelSnakeState::Constrict && !IsDead())
 	{
-		// Let go: the coils sink down to the ground
+		// Let go: the coils sink only slowly, so it crawls out of them along the spiral instead of lying flat in a knot
+		// of crossed coils; they are gone from the path once its tail has passed them
 		for (float& Lift : PathLift)
 		{
-			Lift = FMath::FInterpTo(Lift, 0.0f, DeltaSeconds, 1.0f / SnakeReleaseTime * 3.0f);
+			Lift = FMath::FInterpTo(Lift, 0.0f, DeltaSeconds, 0.35f);
 		}
 	}
 	if (!IsDead())
@@ -738,8 +781,14 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	// The throat glows in the poison's colour before it spits
 	if (SkinMaterial != nullptr)
 	{
-		SkinMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ThroatGlow * 3.0f);
+		SkinMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ThroatGlow * 1.8f);
 		SkinMaterial->SetVectorParameterValue(TEXT("GlutFarbe"), Data->PoisonColor);
+		// Only the throat glows: the yellow belly scales round a point below the neck top (the material masks the rest);
+		// the pale crown skin left over the neck is tinted to the body's colour round the same place while crawling
+		const float Scale = GetMesh()->GetComponentScale().Z;
+		const FVector NeckTop = GetMesh()->GetSocketLocation(SpineBones.Num() > 1 ? SpineBones.Last(1) : NAME_None);
+		SkinMaterial->SetVectorParameterValue(TEXT("KehleOrt"), FLinearColor(NeckTop - FVector(0.0f, 0.0f, 10.0f * Scale)));
+		SkinMaterial->SetScalarParameterValue(TEXT("KehleRadius"), Data->ThroatRadius * Scale);
 		// Membranes drawn in fade away (M_Pfuhlnatter_Koerper), so no stretched skin is left where they fold
 		SkinMaterial->SetScalarParameterValue(TEXT("FlossenVerbergen"), FMath::SmoothStep(0.15f, 0.85f, FinDraw));
 	}

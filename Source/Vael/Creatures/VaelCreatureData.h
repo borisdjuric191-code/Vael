@@ -1400,6 +1400,20 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
 	float HeadRaise = 0.28f;
 
+	/** Lying or crawling, the head is held at least this high (cm, mesh scale) above the ground: the long fangs hang
+	 *  below the jaw and would otherwise prop the head up like two legs */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float FangClearance = 34.0f;
+
+	/** Tightest curve it crawls (cm, mesh scale): its turning speed follows its pace, so it never wheels on the spot and
+	 *  folds its long body through itself (300 degrees a second at crawling pace was a 70 cm circle) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Movement", meta = (ClampMin = 10))
+	float MinTurnRadius = 170.0f;
+
+	/** Radius (cm, mesh scale) of the throat that glows before a spit, round a point below the back of the head */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float ThroatRadius = 60.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.05))
 	float WrapTime = 1.1f;
 

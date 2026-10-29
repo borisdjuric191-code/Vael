@@ -102,7 +102,7 @@ private:
 	void FreePlayer();
 
 	/** Lifts the front joints off the path into a cobra's arch (Rear 0..1), leaning forward by Thrust (-1 back .. 1 strike) */
-	void RearUp(TArrayView<FVector> Joints) const;
+	void RearUp(TArrayView<FVector> Joints, int32 Count, float Weight) const;
 
 	/** Spits the gob: lobbed from the head to where the prey will be */
 	void SpitPoison();
@@ -124,6 +124,10 @@ private:
 	/** Spine bones from the tail root to the head (the head only gives the last joint), and the joint distances in cm */
 	TArray<FName> SpineBones;
 	TArray<float> SpineLengths;
+
+	/** Where each spine joint stands in the Tripo pose (mesh space, before BodyScale): reared, the front takes this shape
+	 *  again, so the crown skin over the neck sits as it was modelled instead of stretching */
+	TArray<FVector> RestJoints;
 	float BodyLength = 0.0f;
 
 	/** Fins and crown with the scale they are drawn in to right now */

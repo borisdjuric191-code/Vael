@@ -178,6 +178,15 @@ void AVaelPoisonPuddle::AddPoison(const FVector& GroundLocation, float Amount)
 	BlobCenters.Add(GroundLocation);
 	BlobPoison.Add(Amount);
 	BlobShownRadius.Add(0.0f);
+	// A new splash throws a few small drops round it
+	const int32 Drops = FMath::RandRange(2, 4);
+	for (int32 Drop = 0; Drop < Drops; ++Drop)
+	{
+		const FVector Out = FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f).Vector() * Data->BlobRadius * FMath::FRandRange(0.7f, 1.15f);
+		BlobCenters.Add(GroundLocation + Out);
+		BlobPoison.Add(Amount * FMath::FRandRange(0.06f, 0.14f));
+		BlobShownRadius.Add(0.0f);
+	}
 }
 
 void AVaelPoisonPuddle::Tick(float DeltaSeconds)
@@ -364,8 +373,13 @@ void AVaelPoisonPuddle::RefreshSurface()
 			float Field = 0.0f;
 			for (int32 Index = 0; Index < BlobCenters.Num(); ++Index)
 			{
-				const float Reach = BlobShownRadius[Index] * PoisonFieldReach;
-				const float Share = FVector2D::DistSquared(Point, FVector2D(BlobCenters[Index])) / FMath::Max(Reach * Reach, 1.0f);
+				// Splashed, not poured: each blob's edge bulges and dents round it in its own pattern
+				const FVector2D Offset = Point - FVector2D(BlobCenters[Index]);
+				const float Angle = FMath::Atan2(Offset.Y, Offset.X);
+				const float Seed = FMath::Frac(BlobCenters[Index].X * 0.0137f + BlobCenters[Index].Y * 0.0291f) * 2.0f * PI;
+				const float Ragged = 1.0f + 0.2f * FMath::Sin(3.0f * Angle + Seed) + 0.11f * FMath::Sin(5.0f * Angle + Seed * 2.3f) + 0.06f * FMath::Sin(9.0f * Angle + Seed * 3.7f);
+				const float Reach = BlobShownRadius[Index] * PoisonFieldReach * Ragged;
+				const float Share = Offset.SizeSquared() / FMath::Max(Reach * Reach, 1.0f);
 				Field += FMath::Square(FMath::Max(1.0f - Share, 0.0f));
 			}
 			// The edge of a lone blob is written as one half, which the material takes as the edge
