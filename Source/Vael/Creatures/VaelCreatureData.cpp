@@ -16,6 +16,7 @@
 #include "Creatures/VaelHornBeetle.h"
 #include "Creatures/VaelSourceGuardian.h"
 #include "Creatures/VaelVeilMonkey.h"
+#include "Creatures/VaelKelchreisser.h"
 #include "Creatures/VaelRankenluchs.h"
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Animation/AnimSequence.h"
@@ -300,6 +301,46 @@ UVaelRankenluchsData::UVaelRankenluchsData()
 	// Only the crest leaf, for the Ingenieur (Boris 2026-10-21)
 	LightLoot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rankenkammblatt.DA_Material_Rankenkammblatt"), 0.6f));
 	ShadowLoot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Nidblatt.DA_Material_Nidblatt"), 0.6f));
+}
+
+UVaelKelchreisserData::UVaelKelchreisserData()
+{
+	DisplayName = LOCTEXT("Kelchreisser", "Kelchreißer");
+	KindId = TEXT("Kelchreisser");
+	CreatureClass = AVaelKelchreisser::StaticClass();
+	// About a dozen in the forest, each the elite of its territory (Boris 2026-10-29)
+	Rank = EVaelCreatureRank::Elite;
+	const TCHAR* Folder = TEXT("/Game/Vael/Kreaturen/Kelchreisser/");
+	KelchMesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(FString(Folder) + TEXT("SK_Kelchreisser.SK_Kelchreisser")));
+	const auto Animation = [Folder](const TCHAR* Name)
+	{
+		return TSoftObjectPtr<UAnimSequence>(FSoftObjectPath(FString::Printf(TEXT("%sA_Kelchreisser_%s.A_Kelchreisser_%s"), Folder, Name, Name)));
+	};
+	IdleAnimation = Animation(TEXT("Stehen_Idle"));
+	GallopAnimation = Animation(TEXT("Galopp"));
+	WalkAnimation = Animation(TEXT("Gehen_Aufrecht"));
+	SlapAnimation = Animation(TEXT("Schlag"));
+	ClawAnimation = Animation(TEXT("Klaue"));
+	VineBiteAnimation = Animation(TEXT("Rankenbiss"));
+	ScreamAnimation = Animation(TEXT("Schrei"));
+
+	// Almost a boss: three times this as an elite (the Glutkoenigin has 1300); heavy, it hardly staggers or flies
+	MaxHealth = 380.0f;
+	MoveSpeed = 620.0f;
+	CollisionRadius = 180.0f;
+	CollisionHalfHeight = 220.0f;
+	KnockbackMultiplier = 0.15f;
+	StaggerMultiplier = 0.3f;
+	StunMultiplier = 0.5f;
+	PullMultiplier = 0.2f;
+	// Plant and flesh: fire hurts, earth glances off its hide
+	ElementMultipliers.Add(EVaelElement::Fire, 1.3f);
+	ElementMultipliers.Add(EVaelElement::Earth, 0.8f);
+	// It never sees: the night makes the forest quieter, so it hears further
+	DayAwareness = 0.9f;
+	NightAwareness = 1.25f;
+	HealthOrbChance = 1.0f;
+	BodyColor = FLinearColor(0.2f, 0.1f, 0.25f);
 }
 
 UVaelPfuhlnatterData::UVaelPfuhlnatterData()

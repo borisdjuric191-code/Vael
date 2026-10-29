@@ -1279,6 +1279,184 @@ public:
 };
 
 /**
+ *  Kelchreisser: elite apex predator of the Wurzelforst (Boris 2026-10-29), a Nid mutation with a carnivorous flower for a
+ *  head and biting vines on its back, 4.5 m at the shoulder. Blind, it hunts by hearing through the ground. Its look are
+ *  the baked animations of SK_Kelchreisser (Tools/Kelchreisser), at the model's own size.
+ */
+UCLASS(BlueprintType)
+class UVaelKelchreisserData : public UVaelCreatureData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelKelchreisserData();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<USkeletalMesh> KelchMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> IdleAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> GallopAnimation;
+
+	/** The half upright walk, used for roaming and tracking */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> WalkAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> SlapAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> ClawAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> VineBiteAnimation;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> ScreamAnimation;
+
+	/** Ground speeds in cm/s at which gallop and walk play at their own pace (their feet stay on the ground) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float GallopAnimationSpeed = 610.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float WalkAnimationSpeed = 156.0f;
+
+	/** Turning in degrees per second and speeding up in cm/s²: something this heavy runs in wide curves */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float TurnRate = 110.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float Acceleration = 900.0f;
+
+	/** Glow of the violet Nid veins (MarkStaerke of the material) in a clean and in a fully corrupted region */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	FVector2D NidGlow = FVector2D(0.15f, 0.8f);
+
+	/** Health bar this far above the capsule's top, in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float StatusBarAbove = 220.0f;
+
+	/** It roams this far round its giant tree, in cm, standing still for seconds picked in RoamPause at each spot */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Territory", meta = (ClampMin = 0))
+	float TerritoryRadius = 1800.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Territory")
+	FVector2D RoamPause = FVector2D(4.0f, 10.0f);
+
+	/** Its slow half upright walk in cm/s (roaming, tracking at 1.3 times, going home); MoveSpeed is the gallop */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Territory", meta = (ClampMin = 0))
+	float WalkSpeed = 150.0f;
+
+	/** Running players are heard this far through the ground (cm), less the slower they go; slower than QuietPace (share
+	 *  of their full speed) they make no sound at all: creeping past works */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0))
+	float StepHearingRange = 2600.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0, ClampMax = 1))
+	float QuietPace = 0.45f;
+
+	/** A spell is heard this far, for CastNoiseTime seconds after it was cast */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0))
+	float CastHearingRange = 3600.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0))
+	float CastNoiseTime = 1.5f;
+
+	/** In rain it hears only this share as far */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0, ClampMax = 1))
+	float RainHearing = 0.35f;
+
+	/** How loud (0 at the edge of hearing .. 1 right next to it) a sound must be to take the scent at once; fainter ones
+	 *  make it stop and listen for ListenTime seconds, then walk over for at most TrackTime seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0, ClampMax = 1))
+	float ScentLoudness = 0.45f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0))
+	float ListenTime = 1.6f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hearing", meta = (ClampMin = 0))
+	float TrackTime = 12.0f;
+
+	/** It keeps the scent while the prey is within ScentRange and it is within LeashRange of its tree (cm); out of that
+	 *  for ScentLoseTime seconds it gives up and goes home */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float ScentRange = 6000.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float LeashRange = 9000.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Hunt", meta = (ClampMin = 0))
+	float ScentLoseTime = 6.0f;
+
+	/** Reach of the attacks beyond its capsule (cm), their damage, knockback (cm/s) and seconds until each is ready again */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float ClawRange = 420.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float ClawDamage = 20.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float ClawKnockback = 500.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
+	FVector2D ClawInterval = FVector2D(2.0f, 3.5f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float SlapRange = 480.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float SlapDamage = 14.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float SlapKnockback = 1100.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
+	FVector2D SlapInterval = FVector2D(4.0f, 6.0f);
+
+	/** The vines reach all round, also behind it; each of up to VineBites mouths bites a different player */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float VineRange = 850.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float VineDamage = 8.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 1))
+	int32 VineBites = 3;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
+	FVector2D VineInterval = FVector2D(3.0f, 5.0f);
+
+	/** Pause after an attack before the next, in seconds */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")
+	FVector2D Recovery = FVector2D(0.5f, 1.0f);
+
+	/** The scream: players this close are pushed back and slowed for ScreamSlowTime seconds; it screams again once below
+	 *  HurtScreamShare of its health */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float ScreamRange = 900.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float ScreamKnockback = 700.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
+	float ScreamSlowTime = 2.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0, ClampMax = 1))
+	float HurtScreamShare = 0.4f;
+
+	/** Health and damage grow by this share at full corruption of its region (a Nid mutation thrives in it) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Corruption", meta = (ClampMin = 0))
+	float CorruptionStrength = 0.6f;
+
+	/** Corruption (percent) its region loses when one falls */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Corruption", meta = (ClampMin = 0))
+	float CleansingOnDeath = 2.0f;
+};
+
+/**
  *  Pfuhlnatter: a 4-5 m water snake of the Wurzelforst moor that looks like a small sea monster (raspberry red, petrol
  *  zigzag with turquoise rims, a dahlia crown of fins round the head). It always slithers with crest and fins flat; in
  *  reach it darts in and coils round its prey, which can't move until it lets go. Its look are the baked animations of

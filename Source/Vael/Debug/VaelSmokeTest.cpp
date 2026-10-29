@@ -19,6 +19,7 @@
 #include "Creatures/VaelSickleDoll.h"
 #include "Creatures/VaelVeilMonkey.h"
 #include "Creatures/VaelThistleSpider.h"
+#include "Creatures/VaelKelchreisser.h"
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Creatures/VaelPoisonPuddle.h"
 #include "Items/VaelMaterial.h"
@@ -243,6 +244,37 @@ void AVaelSmokeTest::BeginPlay()
 			}
 			const bool bOk = Spits > 0 && Puddles > 0 && bCloud;
 			return FString::Printf(TEXT("%s%d spits, %d puddles, fire: %s"), bOk ? TEXT("") : TEXT("FAILED: "), Spits, Puddles, bCloud ? TEXT("poison cloud") : TEXT("NO cloud"));
+		}, 0.1f });
+	}
+
+	// The Kelchreisser: its baked mesh and animations load, it is an elite, takes the scent, screams and attacks
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Kelchreisser arena"), [this]()
+		{
+			const FString Result = PrepareArena(GetMutableDefault<UVaelKelchreisserData>(), 1);
+			for (TActorIterator<AVaelKelchreisser> It(GetWorld()); It; ++It)
+			{
+				It->TakeScentNow();
+			}
+			return Result;
+		}, 9.0f });
+		Steps.Add({ TEXT("Kelchreisser"), [this]()
+		{
+			AVaelKelchreisser* Beast = nullptr;
+			for (TActorIterator<AVaelKelchreisser> It(GetWorld()); It; ++It)
+			{
+				Beast = !It->IsDead() ? *It : Beast;
+			}
+			if (Beast == nullptr)
+			{
+				return FString(TEXT("FAILED: no living Kelchreisser"));
+			}
+			const USkeletalMesh* Mesh = Beast->GetMesh()->GetSkeletalMeshAsset();
+			const bool bOk = Mesh != nullptr && Beast->IsElite() && Beast->GetAttackCount() > 0;
+			return FString::Printf(TEXT("%smesh %s, elite %s, %.0f health, state %s, %d attacks, %d hits"), bOk ? TEXT("") : TEXT("FAILED: "),
+				Mesh != nullptr ? *Mesh->GetName() : TEXT("MISSING"), Beast->IsElite() ? TEXT("yes") : TEXT("NO"), Beast->GetMaxHealth(),
+				*StaticEnum<EVaelKelchreisserState>()->GetNameStringByValue(static_cast<int64>(Beast->GetKelchreisserState())), Beast->GetAttackCount(), Beast->GetHitCount());
 		}, 0.1f });
 	}
 

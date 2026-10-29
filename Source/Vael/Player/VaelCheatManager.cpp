@@ -7,6 +7,7 @@
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEncounterDirector.h"
+#include "Creatures/VaelKelchreisser.h"
 #include "Creatures/VaelRankenluchs.h"
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Creatures/VaelPfuhlnatterPopulation.h"
@@ -256,6 +257,10 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	{
 		Data = GetMutableDefault<UVaelHornBeetleData>();
 	}
+	else if (Name.StartsWith(TEXT("kelch")) || Name.StartsWith(TEXT("reiss")) || Name.StartsWith(TEXT("reiß")))
+	{
+		Data = GetMutableDefault<UVaelKelchreisserData>();
+	}
 	else if (Name.StartsWith(TEXT("ranken")) || Name.StartsWith(TEXT("luchs")) || Name.StartsWith(TEXT("lynx")))
 	{
 		Data = GetMutableDefault<UVaelRankenluchsData>();
@@ -267,7 +272,7 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 
 	if (Data == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger, Koenigin, Waechter, Spannhornkaefer, Rankenluchs, Pfuhlnatter, Distelspinne, Distelsaemling, Aschenroller, Sichelpuppe or Schleieraffe."), *Kind);
+		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger, Koenigin, Waechter, Spannhornkaefer, Rankenluchs, Kelchreisser, Pfuhlnatter, Distelspinne, Distelsaemling, Aschenroller, Sichelpuppe or Schleieraffe."), *Kind);
 		return;
 	}
 
@@ -284,6 +289,19 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 			if (FVector::Dist2D(It->GetActorLocation(), Center) < 1500.0f)
 			{
 				It->WakeUp(FMath::FRandRange(0.0f, 0.4f));
+			}
+		}
+	}
+
+	// "KelchWach" brings it with the scent of the nearest player already (screams, then hunts); the plain kind roams its
+	// new territory and has to hear the players first
+	if (Name.StartsWith(TEXT("kelch")) && Name.EndsWith(TEXT("wach")))
+	{
+		for (TActorIterator<AVaelKelchreisser> It(GetWorld()); It; ++It)
+		{
+			if (FVector::Dist2D(It->GetActorLocation(), Center) < 1500.0f)
+			{
+				It->TakeScentNow();
 			}
 		}
 	}
