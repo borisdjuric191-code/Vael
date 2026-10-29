@@ -127,6 +127,9 @@ public:
 	/** Condition the area lays on the enemies of its caster standing in it, None for most */
 	EVaelStatus GetInflictedStatus() const;
 
+	/** Mist or steam blown by the mage: the cloud streams out of this place (the mouth) to where it settles. Right after spawning. */
+	void SetBreathOrigin(const FVector& WorldLocation, const FVector& Forward);
+
 private:
 
 	/** Sizes and colors the disc */
@@ -167,6 +170,12 @@ private:
 
 	/** True for steam cast around its caster: it goes along with them */
 	bool bFollowsInstigator = false;
+
+	/** Blown cloud: where it leaves the mouth (frame of the area), the way the face looks, and the farthest card's distance from there */
+	bool bBlown = false;
+	FVector BreathOrigin = FVector::ZeroVector;
+	FVector BreathForward = FVector::ForwardVector;
+	float BreathReach = 1.0f;
 
 	/** Seconds each one has spent in the steam: after a moment in it, it gets wet */
 	TMap<TWeakObjectPtr<AActor>, float> SteamTimes;

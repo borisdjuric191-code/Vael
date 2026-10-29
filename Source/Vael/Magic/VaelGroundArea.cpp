@@ -615,12 +615,48 @@ bool AVaelGroundArea::BuildVeil()
 	return true;
 }
 
+void AVaelGroundArea::SetBreathOrigin(const FVector& WorldLocation, const FVector& Forward)
+{
+	bBlown = true;
+	BreathOrigin = WorldLocation - GetActorLocation();
+	BreathForward = FVector(Forward.X, Forward.Y, 0.0f).GetSafeNormal();
+	BreathReach = 1.0f;
+	for (const FVector& Place : CardPlaces)
+	{
+		BreathReach = FMath::Max(BreathReach, FVector::Dist(Place, BreathOrigin));
+	}
+}
+
 void AVaelGroundArea::UpdateVeil(float DeltaSeconds)
 {
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	CloudAge += DeltaSeconds;
 	const float Remaining = GetLifeSpan() > 0.0f ? GetLifeSpan() : 1.0f;
 	const float Fade = FMath::Clamp(Remaining / MagicSettings->MistFadeSeconds, 0.0f, 1.0f);
+
+	// Blown out of the mouth (Boris 2026-10-30): the cards leave the lips nearest first, fly out small and swell to their place
+	if (bBlown)
+	{
+		const float Stream = MagicSettings->BreathStreamSeconds;
+		const FVector Drift = FVector(FMath::Sin(CloudAge * 0.13f), FMath::Cos(CloudAge * 0.11f), 0.0f) * MagicSettings->MistDrift;
+		for (int32 Index = 0; Index < CloudCards->Num(); ++Index)
+		{
+			const float Leave = FVector::Dist(CardPlaces[Index], BreathOrigin) / BreathReach * Stream * 0.6f;
+			const float Flight = FMath::Clamp((CloudAge - Leave) / (Stream * 0.4f), 0.0f, 1.0f);
+			const float Out = 1.0f - FMath::Square(1.0f - Flight);
+			const float Phase = CardPhases[Index] + CloudAge * MagicSettings->SteamChurn;
+			const FVector Stir = bSteamCloud
+				? FVector(FMath::Sin(Phase), FMath::Cos(Phase * 0.8f), FMath::Sin(Phase * 1.3f) * 0.6f) * Radius * 0.08f
+				: Drift * (CardStrengths[Index] < 1.0f ? 1.6f : 1.0f) + FVector(FMath::Sin(CloudAge * 0.4f + CardPhases[Index]), -FMath::Sin(CloudAge * 0.4f + CardPhases[Index]), 0.0f) * 12.0f;
+			// The breath first shoots out ahead of the face, then billows round to where the card settles (a bent path)
+			const FVector Settle = CardPlaces[Index] + Stir;
+			const FVector Ahead = BreathOrigin + BreathForward * FMath::Max(120.0f, FVector::Dist(Settle, BreathOrigin) * 0.6f);
+			const FVector Place = FMath::Lerp(FMath::Lerp(BreathOrigin, Ahead, Out), FMath::Lerp(Ahead, Settle, Out), Out);
+			CloudCards->SetCard(Index, Place, CardSizes[Index] * FMath::Lerp(0.25f, 1.0f, Out), CardStrengths[Index] * FMath::Min(1.0f, Flight * 3.0f) * Fade);
+		}
+		CloudCards->Commit();
+		return;
+	}
 
 	if (bSteamCloud)
 	{

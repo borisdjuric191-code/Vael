@@ -161,10 +161,11 @@ void UVaelFormulaAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 	{
 		bCastAnimated = true;
 		bCastGesture = true;
+		CastGestureKind = Gesture;
 		ActorInfo->AbilitySystemComponent->AddLooseGameplayTag(VaelTags::State_Casting);
 		Mage->PlayCastGesture(Gesture);
 
-		UAbilityTask_WaitDelay* WaitRelease = UAbilityTask_WaitDelay::WaitDelay(this, MagicSettings->GestureReleaseTime);
+		UAbilityTask_WaitDelay* WaitRelease = UAbilityTask_WaitDelay::WaitDelay(this, MagicSettings->GetGestureRelease(Gesture));
 		WaitRelease->OnFinish.AddDynamic(this, &UVaelFormulaAbility::OnGestureRelease);
 		WaitRelease->ReadyForActivation();
 		return;
@@ -311,9 +312,13 @@ FVector UVaelFormulaAbility::GetProjectileStart(const AActor* Caster, const FVec
 {
 	const FVector InFront = Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance;
 
-	// A gesture: the spell leaves the tips of the stretched fingers
+	// A gesture: blown spells leave the mouth, the others the tips of the stretched fingers
 	FVector Fingertips;
 	const AVaelCharacter* Mage = Cast<AVaelCharacter>(Caster);
+	if (bCastGesture && Mage != nullptr && CastGestureKind == EVaelCastGesture::BlowOut)
+	{
+		return Mage->GetMouthLocation();
+	}
 	if (bCastGesture && Mage != nullptr && Mage->GetGestureFingertips(Fingertips))
 	{
 		// No higher than a little above the middle of the body, or a small spell flies over the crawlers
@@ -775,6 +780,13 @@ void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* C
 	if (Area != nullptr && bRainCall)
 	{
 		Area->ShowRain();
+	}
+
+	// Blown mist and steam stream out of the mouth to where they settle
+	const AVaelCharacter* Mage = Cast<AVaelCharacter>(Caster);
+	if (Area != nullptr && bCastGesture && CastGestureKind == EVaelCastGesture::BlowOut && Mage != nullptr)
+	{
+		Area->SetBreathOrigin(Mage->GetMouthLocation(), Mage->GetActorForwardVector());
 	}
 
 	// Steam puts out the fires it covers

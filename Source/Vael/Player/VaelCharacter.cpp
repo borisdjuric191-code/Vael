@@ -743,7 +743,7 @@ void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
 EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
 {
 	OutSeconds = GetWorld()->GetTimeSeconds() - CastGestureStartTime;
-	return OutSeconds < UVaelMagicSettings::Get()->GestureDuration ? CastGesture : EVaelCastGesture::None;
+	return OutSeconds < UVaelMagicSettings::Get()->GetGestureDuration(CastGesture) ? CastGesture : EVaelCastGesture::None;
 }
 
 bool AVaelCharacter::GetGestureFingertips(FVector& OutLocation) const
@@ -759,6 +759,18 @@ bool AVaelCharacter::GetGestureFingertips(FVector& OutLocation) const
 	const FVector Along = (Knuckles - (Body->GetBoneLocation(TEXT("index_02_r")) + Body->GetBoneLocation(TEXT("middle_02_r"))) * 0.5f).GetSafeNormal();
 	OutLocation = Knuckles + Along * 4.0f;
 	return true;
+}
+
+FVector AVaelCharacter::GetMouthLocation() const
+{
+	const USkeletalMeshComponent* Body = GetMesh();
+	if (Body->GetBoneIndex(TEXT("head")) == INDEX_NONE)
+	{
+		return GetActorLocation() + FVector(0.0f, 0.0f, GetSimpleCollisionHalfHeight());
+	}
+
+	// Measured on the mage models: the lips lie about 9 cm in front of the head bone and 7 cm below it
+	return Body->GetBoneLocation(TEXT("head")) + GetActorForwardVector() * 9.0f - FVector(0.0f, 0.0f, 7.0f) * Body->GetComponentScale().Z;
 }
 
 void AVaelCharacter::EndDodge()

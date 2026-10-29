@@ -104,7 +104,9 @@ enum class EVaelCastGesture : uint8
 	/** No gesture: the cast montage plays */
 	None,
 	/** Boris 2026-10-30: the right arm snaps forward, index and middle finger stretched out, the spell leaves their tips */
-	TwoFingerPoint
+	TwoFingerPoint,
+	/** Boris 2026-10-30: breathes in with the hands cupped before the chin, then blows the cloud out of the mouth, hands opening forward */
+	BlowOut
 };
 
 /** What rises out of the ground where a strike of a spell lands */

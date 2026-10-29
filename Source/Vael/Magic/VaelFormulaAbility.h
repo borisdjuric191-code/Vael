@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Abilities/GameplayAbility.h"
+#include "Magic/VaelElementTypes.h"
 #include "VaelFormulaAbility.generated.h"
 
 class UVaelElementComponent;
@@ -145,6 +146,7 @@ private:
 
 	/** True while the cast is a gesture posed in code, so the spell comes out of the fingertips */
 	bool bCastGesture = false;
+	EVaelCastGesture CastGestureKind = EVaelCastGesture::None;
 
 	/** True while the ability waits for a channeled spell to end */
 	bool bWaitingForChannel = false;

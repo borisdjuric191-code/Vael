@@ -50,6 +50,10 @@ private:
 
 	/** The Funke gesture: the right arm draws back and snaps forward, index and middle finger stretched, the others curled in */
 	void ApplyTwoFingerPoint(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Blowing out mist or steam: breathes in with chest and shoulders up, the hands cupped before the chin, then leans in and
+	 *  blows, head forward, the hands opening forward as if sending the cloud off */
+	void ApplyBlowOut(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 };
 
 /**

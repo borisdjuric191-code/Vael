@@ -262,16 +262,31 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation")
 	TMap<TSoftObjectPtr<UVaelFormula>, EVaelCastGesture> CastGestures;
 
-	/** Seconds from the start of a gesture until the spell leaves the fingers */
+	/** Two-finger point: seconds from the start until the spell leaves the fingers */
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
 	float GestureReleaseTime = 0.13f;
 
-	/** Seconds the whole gesture lasts, with the way back into the walk */
+	/** Two-finger point: seconds the whole gesture lasts, with the way back into the walk */
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
 	float GestureDuration = 0.5f;
 
+	/** Blowing out: seconds of breathing in until the cloud leaves the mouth, and of the whole gesture */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float BlowReleaseTime = 0.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float BlowDuration = 1.3f;
+
+	/** Blown mist and steam: seconds the cloud streams out of the mouth until the farthest of it has arrived */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.1))
+	float BreathStreamSeconds = 0.9f;
+
 	/** The gesture of a formula, none when it uses a montage */
 	EVaelCastGesture FindCastGesture(const UVaelFormula* Formula) const;
+
+	/** Seconds from the start of a gesture until the spell is released, and how long the whole gesture lasts */
+	float GetGestureRelease(EVaelCastGesture Gesture) const { return Gesture == EVaelCastGesture::BlowOut ? BlowReleaseTime : GestureReleaseTime; }
+	float GetGestureDuration(EVaelCastGesture Gesture) const { return Gesture == EVaelCastGesture::BlowOut ? BlowDuration : GestureDuration; }
 
 	/** Returns the cast montage the formula uses by its kind, null if none exists */
 	UAnimMontage* FindCastMontage(EVaelSpellDelivery Delivery) const;

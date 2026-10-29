@@ -44,6 +44,9 @@ UVaelMagicSettings::UVaelMagicSettings()
 
 	// Gestures posed in code (Boris 2026-10-30): first only the Funke, shot from two stretched fingers
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Funke.DA_Formula_Funke"))), EVaelCastGesture::TwoFingerPoint);
+	// Mist and steam are blown out of the mouth (Boris 2026-10-30)
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Nebelschleier.DA_Formula_Nebelschleier"))), EVaelCastGesture::BlowOut);
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Dampfwolke.DA_Formula_Dampfwolke"))), EVaelCastGesture::BlowOut);
 
 	// General effects the spells use once they are made in the editor; they are tinted in the color of each element
 	const auto Effect = [](const TCHAR* Name)

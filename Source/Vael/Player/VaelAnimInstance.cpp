@@ -105,8 +105,8 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	Gesture = Instance->CastGesture;
 	GestureSeconds = Instance->CastGestureSeconds;
-	GestureRelease = MagicSettings->GestureReleaseTime;
-	GestureDuration = MagicSettings->GestureDuration;
+	GestureRelease = MagicSettings->GetGestureRelease(Gesture);
+	GestureDuration = MagicSettings->GetGestureDuration(Gesture);
 }
 
 namespace
@@ -270,6 +270,68 @@ void FVaelAnimProxy::ApplyTwoFingerPoint(FCSPose<FCompactPose>& Pose, const FBon
 	}
 }
 
+void FVaelAnimProxy::ApplyBlowOut(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+
+	// Timing: breathing in until the release, then a quick blow that is held while the cloud streams out, then back into the walk
+	const float T = GestureSeconds;
+	const float Release = FMath::Max(GestureRelease, 0.05f);
+	const float Hold = Release + 0.55f;
+	const float End = FMath::Max(GestureDuration, Hold + 0.1f);
+
+	const float Weight = FMath::SmoothStep(0.0f, 0.15f, T) * (1.0f - FMath::SmoothStep(Hold, End, T));
+	const float In = FMath::SmoothStep(0.0f, Release, T);
+	const float Blow = 1.0f - FMath::Square(1.0f - FMath::Clamp((T - Release) / 0.25f, 0.0f, 1.0f));
+	const float Breath = In * (1.0f - Blow);
+
+	// Chest and head go back while breathing in and come forward with the blow (turning around +X tips back)
+	const float ChestTip = Weight * (7.0f * Breath - 9.0f * Blow);
+	for (const TCHAR* Spine : { TEXT("spine_03"), TEXT("spine_05") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(ChestTip * 0.5f)));
+	}
+	TurnPoseBone(Pose, Find(TEXT("neck_01")), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(Weight * (8.0f * Breath - 12.0f * Blow))));
+
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	const float ArmWeight = Weight * FMath::Min(1.0f, In * 1.5f + Blow);
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		const FCompactPoseBoneIndex Clavicle = Find(FString::Printf(TEXT("clavicle_%s"), Suffix));
+		const FCompactPoseBoneIndex Upper = Find(FString::Printf(TEXT("upperarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Lower = Find(FString::Printf(TEXT("lowerarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Hand = Find(FString::Printf(TEXT("hand_%s"), Suffix));
+		const FCompactPoseBoneIndex Middle = Find(FString::Printf(TEXT("middle_01_%s"), Suffix));
+		if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE || Middle == INDEX_NONE)
+		{
+			continue;
+		}
+
+		// The shoulders rise with the breath
+		SwingPoseBone(Pose, Clavicle, Upper, FVector::ZAxisVector, 6.0f * Breath * Weight);
+
+		// Breathing in: elbows low by the body, the hands cupped together before the chin. Blowing: forearms and open hands
+		// go forward and a little apart, sending the cloud off
+		const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+		AimPoseBone(Pose, Upper, Lower, FMath::Lerp(FVector(Outward * 0.3f, 0.7f, -0.6f), FVector(Outward * 0.3f, 0.6f, -0.55f), Blow), ArmWeight);
+		AimPoseBone(Pose, Lower, Hand, FMath::Lerp(FVector(-Outward * 0.45f, 0.2f, 0.9f), FVector(Outward * 0.05f, 0.95f, 0.15f), Blow), ArmWeight);
+		AimPoseBone(Pose, Hand, Middle, FMath::Lerp(FVector(-Outward * 0.3f, 0.35f, 0.9f), FVector(Outward * 0.35f, 0.9f, 0.2f), Blow), ArmWeight);
+
+		// Open hands, not fists: the fingers stretch most of the way along the hand
+		const FVector Along = PoseBoneDirection(Pose, Hand, Middle);
+		for (const TCHAR* Name : { TEXT("index"), TEXT("middle"), TEXT("ring"), TEXT("pinky") })
+		{
+			const FCompactPoseBoneIndex First = Find(FString::Printf(TEXT("%s_01_%s"), Name, Suffix));
+			const FCompactPoseBoneIndex Second = Find(FString::Printf(TEXT("%s_02_%s"), Name, Suffix));
+			const FCompactPoseBoneIndex Third = Find(FString::Printf(TEXT("%s_03_%s"), Name, Suffix));
+			AimPoseBone(Pose, First, Second, Along, ArmWeight * 0.8f);
+			AimPoseBone(Pose, Second, Third, Along, ArmWeight * 0.8f);
+		}
+	}
+}
+
 void FVaelAnimProxy::ApplyFlight(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
 {
 	// The whole body tips around the pelvis into the way she flies
@@ -308,7 +370,7 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 
 	const bool bFlying = Flight.Weight > KINDA_SMALL_NUMBER;
 	const bool bShielding = Shield[0] > KINDA_SMALL_NUMBER || Shield[1] > KINDA_SMALL_NUMBER;
-	const bool bGesture = Gesture == EVaelCastGesture::TwoFingerPoint;
+	const bool bGesture = Gesture != EVaelCastGesture::None;
 	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER))
 	{
 		return true;
@@ -419,9 +481,13 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 		Aim(Hand, Middle, FVector(-Outward * 0.2f, 0.15f, 1.0f).GetSafeNormal(), Weight);
 	}
 
-	if (bGesture)
+	if (Gesture == EVaelCastGesture::TwoFingerPoint)
 	{
 		ApplyTwoFingerPoint(Pose, Bones);
+	}
+	else if (Gesture == EVaelCastGesture::BlowOut)
+	{
+		ApplyBlowOut(Pose, Bones);
 	}
 
 	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(MoveTemp(Pose), Output.Pose);

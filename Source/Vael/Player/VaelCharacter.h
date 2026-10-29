@@ -296,6 +296,9 @@ public:
 	/** Where a spell leaves the hand during a gesture: just before the tips of index and middle finger. False without those bones. */
 	bool GetGestureFingertips(FVector& OutLocation) const;
 
+	/** Where breath leaves the face (the mouth of the base looks, from the head bone); the top of the capsule without a head bone */
+	FVector GetMouthLocation() const;
+
 	/** Returns the element queue **/
 	UVaelElementComponent* GetElementComponent() const { return ElementComponent.Get(); }
 
