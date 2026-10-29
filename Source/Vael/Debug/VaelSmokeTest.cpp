@@ -278,6 +278,36 @@ void AVaelSmokeTest::BeginPlay()
 		}, 0.1f });
 	}
 
+	// Kelchreisser standing still and calm: its knuckles must sit where the baked animation puts them (claws on the ground,
+	// knuckles about 55-65 cm up), not higher
+	if (Only.IsEmpty())
+	{
+		Steps.Add({ TEXT("Kelchreisser calm arena"), [this]()
+		{
+			const FString Result = PrepareArena(GetMutableDefault<UVaelKelchreisserData>(), 1);
+			// Without a picture the pose would stay in its reference: it is animated anyway here, to be measured
+			for (TActorIterator<AVaelKelchreisser> It(GetWorld()); It; ++It)
+			{
+				It->GetMesh()->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			}
+			return Result;
+		}, 0.3f });
+		for (int32 Look = 0; Look < 3; ++Look)
+		{
+			Steps.Add({ FString::Printf(TEXT("Kelchreisser hands %d"), Look), [this]()
+			{
+				for (TActorIterator<AVaelKelchreisser> It(GetWorld()); It; ++It)
+				{
+					return FString::Printf(TEXT("state %s, speed %.0f, knuckles L %.0f R %.0f cm, wrists L %.0f R %.0f, toes %.0f"),
+						*StaticEnum<EVaelKelchreisserState>()->GetNameStringByValue(static_cast<int64>(It->GetKelchreisserState())), It->GetVelocity().Size2D(),
+						It->GetBoneHeight(TEXT("finger_l")), It->GetBoneHeight(TEXT("finger_r")), It->GetBoneHeight(TEXT("hand_l")), It->GetBoneHeight(TEXT("hand_r")),
+						It->GetBoneHeight(TEXT("zehen_l")));
+				}
+				return FString(TEXT("FAILED: no Kelchreisser"));
+			}, 1.5f });
+		}
+	}
+
 	// The first creature of the creature factory: its legs walk, it shoots, and fire burns its thread
 	if (Only.IsEmpty())
 	{

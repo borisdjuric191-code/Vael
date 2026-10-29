@@ -15,7 +15,7 @@ Boris 2026-10-29: 4–5 m Schulterhöhe (fast ein Bosskampf), alle Rücken-Ranke
 | 08_unreal_import.py | Erstimport nach /Game/Vael/Kreaturen/Kelchreisser, A_Kelchreisser_<Aktion>, MI_Kelchreisser (M_Kreatur_Master) |
 | 08a_unreal_aufraeumen.py | alte Animationen entfernen (SK, Skelett, Physik halten sich fest und bleiben) |
 | 08b_unreal_animationen.py | nur die Animationen neu auf das bestehende Skelett (nach 08a) |
-| 09_unreal_sabbermaterial.py | M_Kelchreisser_Sabber: undurchsichtig, nass glänzend, blass gelbgrün (die Wasser-Kit-Materialien sind durchsichtig und auf kleinen Tropfen unsichtbar) |
+| 09_unreal_sabbermaterial.py | M_Kelchreisser_Sabber: dicker Schleim, zu 82 % deckend, dunkel gelbgrün, nass glänzend (die Wasser-Kit-Materialien sind fast klar und auf kleinen Tropfen unsichtbar) |
 
 Blender: `blender -b --factory-startup -P Tools/Kelchreisser/<skript>`; 03 mit
 `C:/Users/boris/Tools/wf_generator_venv/Scripts/python.exe -I Tools/Kelchreisser/03_ranken.py`.
@@ -46,3 +46,7 @@ Animationen auf SK_Kelchreisser_Skeleton; die Wurzel trägt dabei den Maßstab 1
 Rankenangriffe stehen nicht in den Animationen: AVaelKelchreisser schleudert die Rankenketten im Spiel bis 10 m zur Beute
 (UVaelSequenceAnimInstance::SetReachChains: die Knochen rücken auseinander, die Haut dazwischen dehnt sich, Dornen und
 Knospe bleiben in Form).
+
+Einzelne Fingerknochen (2026-10-29 probiert, verworfen): Die Finger des Tripo-Modells hängen über Handrücken und Dornen
+zusammen; weder Winkel im Fächer noch Schnitte um den Handteller noch Wege von den Krallenspitzen trennen sie sauber.
+Dafür bräuchte es ein Modell mit frei stehenden Fingern oder von Hand markierte Fingerlinien.

@@ -11,7 +11,8 @@ moves the root in Unreal).
   Klaue           1.0 s: rears, the left arm high and over, raking down in front
   Biss            0.9 s: petals and jaws torn open, a lunge and the flower slams shut
   Sprung          1.2 s: sinks deep, leaps long and flat with arms reaching, lands on the hands (the game moves it)
-  Schrei          2.0 s: rears, throws the flower head up, all petals and inner jaws wide open, shaking
+  Schrei          2.0 s: rears screaming with the arms lifted free, then slams both hands down (1.1 s): the body
+                  falls after them, shoulders, elbows and wrists give, claws dig in
 
 The vines' long strikes are not in here: the game flings them out to their prey (UVaelSequenceAnimInstance reach chains).
 Hands and feet are placed with IK (targets as empties; the hand and the metatarsus keep the target's turn); the
@@ -125,23 +126,25 @@ def innenkiefer(p, offen):
 
 
 def kopf_leben(p, t, schleife, staerke=1.0, grund=0.15):
-    """The flower is never still (Boris 2026-10-29): each petal opens and closes on its own slow beat, the inner jaws
-    chew, part and snap now and then while the slobber runs, the head nodding a little with them. The beats fit the
-    loop (schleife seconds), so it closes without a jump"""
+    """The flower is never still (Boris 2026-10-29): the upper and the lower inner jaws open and shut in turns (one
+    up while the other comes down), snapping shut together now and then; the petals round them open and close in
+    turns too, every other one against its neighbours; the head nods a little with it. The beats fit the loop
+    (schleife seconds), so it closes without a jump"""
+    blattschlag = schleife / max(1, round(schleife / 2.0))
     for k in range(1, 6):
-        schlag = schleife / max(1, round(schleife / (2.2 + 0.25 * k)))
-        offen = grund + staerke * 0.35 * (0.5 + 0.5 * math.sin(2 * math.pi * (t / schlag + k * 0.19)))
-        p.winkel["blatt_%02d" % k] = lokal_x(-55 * offen)
-    kauen = schleife / max(1, round(schleife / 1.4))
-    auf = 0.5 + 0.5 * math.sin(2 * math.pi * t / kauen)
-    schnapp = huegel((t / kauen) % 1.0, 0.82, 0.88, 0.9, 0.97)
-    oben = grund + staerke * (0.45 * auf ** 1.5) - 0.25 * staerke * schnapp
-    unten = grund + staerke * (0.6 * auf ** 1.2 + 0.1 * math.sin(2 * math.pi * (t / kauen * 2 + 0.3))) - 0.3 * staerke * schnapp
+        gegen = math.pi if k % 2 else 0.0
+        offen = grund + staerke * 0.55 * (0.5 + 0.5 * math.sin(2 * math.pi * t / blattschlag + gegen + k * 0.35))
+        p.winkel["blatt_%02d" % k] = lokal_x(-60 * offen)
+    kauen = schleife / max(1, round(schleife / 1.3))
+    wechsel = math.sin(2 * math.pi * t / kauen)
+    schnapp = huegel((t / kauen) % 1.0, 0.8, 0.86, 0.88, 0.96)
+    oben = grund + staerke * 0.7 * (0.5 + 0.5 * wechsel) - 0.4 * staerke * schnapp
+    unten = grund + staerke * 0.8 * (0.5 - 0.5 * wechsel) - 0.4 * staerke * schnapp
     for n in ("kiefer_ol", "kiefer_or"):
-        p.winkel[n] = lokal_x(30 * oben + (3 if n.endswith("l") else -3) * math.sin(2 * math.pi * t / kauen + 1.0))
+        p.winkel[n] = lokal_x(32 * oben + (4 if n.endswith("l") else -4) * math.sin(2 * math.pi * t / kauen + 1.0))
     for n in ("kiefer_ul", "kiefer_ur"):
-        p.winkel[n] = lokal_x(-30 * unten + (3 if n.endswith("l") else -3) * math.sin(2 * math.pi * t / kauen + 2.0))
-    p.dazu("kopf", 3 * staerke * (auf - 0.5) + 2 * staerke * schnapp)
+        p.winkel[n] = lokal_x(-32 * unten + (4 if n.endswith("l") else -4) * math.sin(2 * math.pi * t / kauen + 2.0))
+    p.dazu("kopf", 2.5 * staerke * wechsel + 2 * staerke * schnapp)
 
 
 def knospe(p, i, offen):
@@ -236,7 +239,8 @@ def stehen_idle(f):
         schnapp = huegel((t + i * 0.63) % 2.0, 0.0, 0.08, 0.15, 0.3)
         knospe(p, i, 0.2 + 0.8 * schnapp)
     for s in SEITEN:
-        p.dazu("finger_" + s, 6 * huegel((t + (0.0 if s == "l" else 1.7)) % 4.0, 0.0, 0.3, 0.5, 0.9))
+        p.dazu("finger_" + s, 14 * huegel((t + (0.0 if s == "l" else 2.0)) % 4.0, 0.0, 0.35, 0.6, 1.1)
+               - 8 * huegel((t + (1.0 if s == "l" else 3.0)) % 4.0, 0.0, 0.3, 0.45, 0.8))
     return p
 
 
@@ -316,6 +320,14 @@ def galopp(f):
         x, z, u = schritt_bahn(q, 0.3, GALOPP_WEITE, 0.85 if name.startswith("hand") else 0.7)
         if name.startswith("hand"):
             p.hand[s] = HAND_STAND[s] + Vector((x + 0.05, 0.0, z))
+            if u < 0:
+                # Lands: the shoulder sinks and the chest gives a little over this hand (the elbow bends with it), the
+                # claws grip the ground
+                stoss = huegel(q, 0.0, 0.03, 0.06, 0.2)
+                p.dazu("schulter_" + s, 10 * stoss, 0, 0)
+                p.dazu("brust", 4 * stoss, (3 if s == "l" else -3) * stoss)
+                p.becken += Vector((0.0, 0.0, -0.05 * stoss))
+                p.dazu("finger_" + s, 14 * huegel(q, 0.02, 0.08, 0.2, 0.3))
             # The palm peels off heel first and folds back in the air, then opens flat to land
             if u < 0:
                 abrollen = 30 * weich((q / 0.3 - 0.7) / 0.3)
@@ -332,6 +344,10 @@ def galopp(f):
     return p
 
 
+GEHEN_AUFRICHTEN = 22   # degrees the body rises off its hands in the half upright walk
+GEHEN_ARM = 24          # degrees the arms hang forward from the body there
+
+
 def gehen_aufrecht(f):
     periode = 1.6
     t = f / FPS
@@ -339,8 +355,9 @@ def gehen_aufrecht(f):
     p = Pose()
     p.arm_ik = {s: 0.0 for s in SEITEN}
     wippen = math.sin(4 * math.pi * ph)
-    p.dazu("becken", -38, 3 * math.sin(2 * math.pi * ph), 4 * math.sin(2 * math.pi * ph))
-    p.becken = Vector((0.0, 0.0, 0.25 + 0.06 * wippen))
+    # Only half upright: the long arms hang down to just above the ground (Boris 2026-10-29: hands not in the air)
+    p.dazu("becken", -GEHEN_AUFRICHTEN, 3 * math.sin(2 * math.pi * ph), 4 * math.sin(2 * math.pi * ph))
+    p.becken = Vector((0.0, 0.0, -0.05 + 0.06 * wippen))
     p.dazu("wirbel_01", -4, 0, -3 * math.sin(2 * math.pi * ph))
     p.dazu("wirbel_02", 6, 0, -3 * math.sin(2 * math.pi * ph))
     p.dazu("brust", 10, 2 * math.sin(2 * math.pi * ph))
@@ -356,10 +373,10 @@ def gehen_aufrecht(f):
     for s, gegen in (("l", 0.5), ("r", 0.0)):
         schwung = math.sin(2 * math.pi * (ph + gegen))
         nach = math.sin(2 * math.pi * (ph + gegen - 0.08))
-        p.dazu("oberarm_%s" % s, 38 + 14 * schwung, 8 if s == "l" else -8)
-        p.dazu("unterarm_%s" % s, 12 + 10 * nach)
-        p.dazu("hand_%s" % s, 20 + 8 * math.sin(2 * math.pi * (ph + gegen - 0.16)))
-        p.dazu("finger_%s" % s, 25 + 12 * math.sin(2 * math.pi * (ph + gegen - 0.24)))
+        p.dazu("oberarm_%s" % s, GEHEN_ARM + 4 * schwung, 8 if s == "l" else -8)
+        p.dazu("unterarm_%s" % s, 12 + 6 * nach)
+        p.dazu("hand_%s" % s, 20 + 4 * math.sin(2 * math.pi * (ph + gegen - 0.16)))
+        p.dazu("finger_%s" % s, 25 + 6 * math.sin(2 * math.pi * (ph + gegen - 0.24)))
     # Hind legs walk, each on the ground 60 % of the stride
     for s, versatz in (("l", 0.0), ("r", 0.5)):
         x, z, u = schritt_bahn((ph - versatz) % 1.0, 0.6, 1.5, 0.35)
@@ -495,26 +512,44 @@ def sprung(f):
 
 
 def schrei(f):
+    """Rears up screaming, the arms lifted free and spread, then slams both hands down onto the ground: the body falls
+    after them, the shoulders, elbows and wrists give under the weight, the claws dig in and the ground shakes;
+    screaming on into the ground (the game knocks players back at the slam, 1.1 s)"""
     t = f / FPS
     p = grundhaltung(t, atem=0.0)
-    hoch = huegel(t, 0.0, 0.45, 1.5, 1.95)
-    beben = math.sin(2 * math.pi * t / 0.07) * huegel(t, 0.35, 0.5, 1.4, 1.6)
-    zittern = math.sin(2 * math.pi * t / 0.11 + 1.0) * huegel(t, 0.35, 0.5, 1.4, 1.6)
-    p.dazu("becken", -24 * hoch, 2 * zittern)
-    p.becken += Vector((0.0, 0.0, 0.5 * hoch))
-    p.dazu("brust", -12 * hoch + 2 * beben, 2 * zittern)
-    p.dazu("hals_01", -28 * hoch + 2 * zittern)
-    p.dazu("hals_02", -15 * hoch, 0, 4 * zittern)
-    p.dazu("kopf", -22 * hoch + 4 * beben, 3 * zittern, 5 * beben)
-    blaetter(p, 1.1 * hoch, zittern=hoch, t=t)
-    innenkiefer(p, 1.5 * hoch)
+    laden = huegel(t, 0.0, 0.25, 0.3, 0.45)
+    hoch = huegel(t, 0.3, 0.75, 0.88, 1.1)
+    schlag = huegel(t, 0.95, 1.1, 1.12, 1.9)
+    stoss = huegel(t, 1.08, 1.13, 1.18, 1.5)
+    beben = math.sin(2 * math.pi * t / 0.07) * huegel(t, 0.5, 0.65, 1.6, 1.9)
+    p.dazu("becken", 8 * laden - 34 * hoch + 10 * stoss)
+    p.becken += Vector((-0.1 * laden + 0.2 * hoch, 0.0, -0.15 * laden + 0.7 * hoch - 0.32 * stoss))
+    p.dazu("wirbel_01", -6 * hoch + 4 * stoss)
+    p.dazu("wirbel_02", -6 * hoch + 6 * stoss)
+    p.dazu("brust", -10 * hoch + 12 * stoss + 1.5 * beben)
+    p.dazu("hals_01", -24 * hoch + 10 * schlag + 2 * beben)
+    p.dazu("hals_02", -14 * hoch + 6 * schlag)
+    p.dazu("kopf", -18 * hoch + 8 * schlag + 3 * beben, 0, 4 * beben)
+    # Arms: free in the air while it rears (lifted forward and spread), back onto the ground for the slam
+    frei = huegel(t, 0.32, 0.5, 0.98, 1.1)
+    for s, seite in (("l", 1), ("r", -1)):
+        p.arm_ik[s] = 1.0 - frei
+        p.winkel["oberarm_" + s] = zielen("oberarm_" + s, bogen_richtung(Vector((0.4, 0.25 * seite, -0.88)),
+                                                                     Vector((0.75, 0.55 * seite, 0.35)), hoch))
+        p.dazu("unterarm_" + s, -25 * hoch)
+        p.dazu("hand_" + s, -30 * hoch)
+        p.hand[s] = HAND_STAND[s] + Vector((0.25 * schlag, 0.12 * seite * schlag, 0.0))
+        p.hand_drehung[s] = (HAND_NEIGUNG + 10 * stoss, 0, 0)
+        # Fingers spread in the air, dig in at the slam
+        p.dazu("finger_" + s, -35 * hoch + 25 * stoss)
+        p.dazu("schulter_" + s, 14 * stoss, 0, 0)
+    blaetter(p, 1.1 * max(hoch, 0.7 * schlag), zittern=max(hoch, schlag), t=t)
+    innenkiefer(p, 1.5 * max(hoch, 0.8 * schlag))
     for i, kette in enumerate(RANKEN):
         for k, name in enumerate(kette):
             anteil = (k + 1) / len(kette)
-            p.dazu(name, -10 * hoch * anteil + 4 * beben * anteil, (8 if i % 2 else -8) * hoch * anteil + 3 * zittern * anteil)
-        knospe(p, i, 0.2 + 0.9 * hoch)
-    for s in SEITEN:
-        p.dazu("finger_" + s, -30 * hoch)
+            p.dazu(name, (-10 * hoch + 14 * stoss) * anteil + 4 * beben * anteil, (8 if i % 2 else -8) * hoch * anteil)
+        knospe(p, i, 0.2 + 0.9 * max(hoch, schlag))
     return p
 
 
@@ -697,7 +732,7 @@ def main():
 
     # Key poses
     for name, bilder in (("Stehen_Idle", (0, 45, 90)), ("Lauern", (0,)), ("Prankenhieb", (10, 15, 19)), ("Klaue", (11, 17)), ("Biss", (11, 14)),
-                         ("Sprung", (9, 17)), ("Schrei", (30,))):
+                         ("Sprung", (9, 17)), ("Schrei", (20, 33, 36))):
         arm.animation_data.action = bpy.data.actions[name]
         for f in bilder:
             bpy.context.scene.frame_set(f)

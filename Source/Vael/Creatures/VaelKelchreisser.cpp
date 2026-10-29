@@ -31,7 +31,7 @@ namespace
 	constexpr float BiteHitTime = 0.46f;
 	constexpr float LeapStart = 0.35f;
 	constexpr float LeapEnd = 0.8f;
-	constexpr float ScreamPeakTime = 0.5f;
+	constexpr float ScreamPeakTime = 1.1f;    // the slam of both hands onto the ground
 
 	/** Seconds for blends between animations */
 	constexpr float GaitBlend = 0.3f;
@@ -58,6 +58,13 @@ namespace
 	};
 	/** Most it bends a limb or lowers the body for the ground, in cm */
 	constexpr float MaxGroundLift = 110.0f;
+
+	/** Knuckle heights (cm) of the hands when their claws rest on the ground in the baked animations; a hand that comes
+	 *  near the ground (blending between two animations, an attack ending) is pulled onto it, fully up to PlantSnap
+	 *  above that height and fading out by PlantReach */
+	constexpr float PlantedKnuckles[] = { 57.0f, 64.0f };
+	constexpr float PlantSnap = 12.0f;
+	constexpr float PlantReach = 40.0f;
 
 	/** The lower inner jaws, and where their lips' tips are from the jaws' hinges in the reference pose (cm) */
 	const TCHAR* LipJaws[] = { TEXT("kiefer_ul"), TEXT("kiefer_ur") };
@@ -682,9 +689,19 @@ void AVaelKelchreisser::UpdateGrounding(float DeltaSeconds)
 			// The ground under where the hand or foot is, against the ground the body stands on
 			const FVector Touch = GetMesh()->GetSocketLocation(Bones.Touch);
 			FHitResult Hit;
+			float Terrain = 0.0f;
 			if (VaelGround::TraceGround(GetWorld(), FVector(Touch.X, Touch.Y, Floor + MaxGroundLift + 50.0f), FVector(Touch.X, Touch.Y, Floor - MaxGroundLift - 50.0f), Hit, this))
 			{
-				Wanted = FMath::Clamp(Hit.Location.Z - Floor, -MaxGroundLift, MaxGroundLift);
+				Terrain = FMath::Clamp(Hit.Location.Z - Floor, -MaxGroundLift, MaxGroundLift);
+			}
+			Wanted = Terrain;
+			if (Index < UE_ARRAY_COUNT(PlantedKnuckles))
+			{
+				// Where the animation alone puts the knuckles (last frame, without what the IK added), above this ground
+				const float Animated = Touch.Z - Floor - (GroundLifts[Index] - PelvisShift) - Terrain;
+				const float Planted = PlantedKnuckles[Index];
+				const float Weight = 1.0f - FMath::SmoothStep(Planted + PlantSnap, Planted + PlantReach, Animated);
+				Wanted += FMath::Clamp(Planted - Animated, -60.0f, 40.0f) * Weight;
 			}
 		}
 		GroundLifts[Index] = FMath::FInterpTo(GroundLifts[Index], Wanted, DeltaSeconds, 10.0f);
@@ -708,7 +725,8 @@ void AVaelKelchreisser::SetupDrool()
 	{
 		return;
 	}
-	for (int32 Index = 0; Index < DroolDrops * 2; ++Index)
+	// Per drop: the thread in two pieces (it sags between the lip and the drop) and the drop
+	for (int32 Index = 0; Index < DroolDrops * 3; ++Index)
 	{
 		UStaticMeshComponent* Piece = NewObject<UStaticMeshComponent>(this);
 		Piece->SetStaticMesh(Sphere);
@@ -724,7 +742,7 @@ void AVaelKelchreisser::SetupDrool()
 		Piece->SetupAttachment(GetRootComponent());
 		Piece->RegisterComponent();
 		Piece->SetVisibility(false);
-		(Index % 2 == 0 ? DroolThreads : DroolBlobs).Add(Piece);
+		(Index % 3 < 2 ? DroolThreads : DroolBlobs).Add(Piece);
 	}
 	Drool.SetNum(DroolDrops);
 
@@ -748,6 +766,11 @@ FVector AVaelKelchreisser::GetLip(int32 Lip) const
 	return Jaw.GetLocation() + Jaw.GetRotation().RotateVector(LipOffset[Lip]);
 }
 
+float AVaelKelchreisser::GetBoneHeight(FName Bone) const
+{
+	return GetMesh()->GetSocketLocation(Bone).Z - (GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+}
+
 void AVaelKelchreisser::FlingDrool(int32 Count)
 {
 	for (FVaelDrool& Drop : Drool)
@@ -763,7 +786,7 @@ void AVaelKelchreisser::FlingDrool(int32 Count)
 		--Count;
 		Drop.Age = 0.0f;
 		Drop.HangTime = 0.0f;
-		Drop.Size = FMath::FRandRange(5.0f, 10.0f);
+		Drop.Size = FMath::FRandRange(6.0f, 11.0f);
 		Drop.Lip = FMath::RandRange(0, 1);
 		Drop.Location = GetLip(Drop.Lip);
 		Drop.Velocity = GetActorForwardVector() * FMath::FRandRange(250.0f, 550.0f) + FMath::VRand() * 220.0f + FVector(0.0f, 0.0f, 200.0f);
@@ -774,7 +797,7 @@ void AVaelKelchreisser::FlingDrool(int32 Count)
 
 void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 {
-	if (Drool.Num() == 0 || Drool.Num() != DroolThreads.Num() || Drool.Num() != DroolBlobs.Num())
+	if (Drool.Num() == 0 || Drool.Num() * 2 != DroolThreads.Num() || Drool.Num() != DroolBlobs.Num())
 	{
 		return;
 	}
@@ -790,7 +813,7 @@ void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 			{
 				Drop.Age = 0.0f;
 				Drop.HangTime = FMath::FRandRange(0.8f, 2.0f);
-				Drop.Size = FMath::FRandRange(5.0f, 9.0f);
+				Drop.Size = FMath::FRandRange(6.0f, 10.0f);
 				Drop.Lip = FMath::RandRange(0, 1);
 				Drop.Location = GetLip(Drop.Lip);
 				Drop.Velocity = FVector::ZeroVector;
@@ -805,7 +828,8 @@ void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 	for (int32 Index = 0; Index < Drool.Num(); ++Index)
 	{
 		FVaelDrool& Drop = Drool[Index];
-		UStaticMeshComponent* Thread = DroolThreads[Index];
+		UStaticMeshComponent* Thread = DroolThreads[Index * 2];
+		UStaticMeshComponent* ThreadEnd = DroolThreads[Index * 2 + 1];
 		UStaticMeshComponent* Blob = DroolBlobs[Index];
 		if (Drop.Age < 0.0f)
 		{
@@ -855,25 +879,37 @@ void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
 		{
 			Drop.Age = -1.0f;
 			Thread->SetVisibility(false);
+			ThreadEnd->SetVisibility(false);
 			Blob->SetVisibility(false);
 			continue;
 		}
-		const float Diameter = Drop.Size / 50.0f;
-		const FVector BlobScale = Drop.Landed >= 0.0f ? FVector(Diameter * 2.6f, Diameter * 2.6f, Diameter * 0.25f) * Dry
-			: FVector(Diameter, Diameter, Diameter * (Drop.bFree ? 1.5f : 1.2f));
-		const FQuat Falling = Drop.bFree && Drop.Landed < 0.0f && !Drop.Velocity.IsNearlyZero()
-			? FQuat::FindBetweenNormals(FVector::UpVector, -Drop.Velocity.GetSafeNormal()) : FQuat::Identity;
-		Blob->SetWorldLocationAndRotation(Drop.Location, Falling);
+		// A slim drop, drawn out along the thread while it hangs and along its way while it falls; a thin splash
+		const float Diameter = Drop.Size / 70.0f;
+		const FVector BlobScale = Drop.Landed >= 0.0f ? FVector(Diameter * 2.4f, Diameter * 2.4f, Diameter * 0.2f) * Dry
+			: FVector(Diameter * 0.75f, Diameter * 0.75f, Diameter * 1.7f);
+		const FVector Hanging = Drop.Location - Lip;
+		const FVector Stretch = Drop.bFree ? -Drop.Velocity : -Hanging;
+		const FQuat Along = Drop.Landed < 0.0f && !Stretch.IsNearlyZero() ? FQuat::FindBetweenNormals(FVector::UpVector, Stretch.GetSafeNormal()) : FQuat::Identity;
+		Blob->SetWorldLocationAndRotation(Drop.Location, Along);
 		Blob->SetWorldScale3D(BlobScale);
 		Blob->SetVisibility(true);
 
-		Thread->SetVisibility(ThreadLength > 2.0f);
-		if (ThreadLength > 2.0f)
+		// The thread sags between lip and drop and lags behind when the head moves, thinning towards the drop
+		const bool bThread = ThreadLength > 2.0f;
+		Thread->SetVisibility(bThread);
+		ThreadEnd->SetVisibility(bThread);
+		if (bThread)
 		{
-			const FVector Middle = (Lip + Drop.Location) * 0.5f;
-			const FVector Along = (Drop.Location - Lip).GetSafeNormal();
-			Thread->SetWorldLocationAndRotation(Middle, FQuat::FindBetweenNormals(FVector::UpVector, Along));
-			Thread->SetWorldScale3D(FVector(Diameter * 0.4f, Diameter * 0.4f, ThreadLength / 100.0f));
+			const FVector End = Lip + Hanging.GetSafeNormal() * ThreadLength;
+			const FVector Sag = (Lip + End) * 0.5f + FVector(0.0f, 0.0f, -0.12f * ThreadLength) - Motion.GetClampedToMaxSize(900.0f) * 0.03f;
+			const auto Lay = [](UStaticMeshComponent* Piece, const FVector& From, const FVector& To, float Thickness)
+			{
+				const FVector Way = To - From;
+				Piece->SetWorldLocationAndRotation((From + To) * 0.5f, FQuat::FindBetweenNormals(FVector::UpVector, Way.GetSafeNormal()));
+				Piece->SetWorldScale3D(FVector(Thickness, Thickness, Way.Size() / 100.0f + Thickness));
+			};
+			Lay(Thread, Lip, Sag, Diameter * 0.28f);
+			Lay(ThreadEnd, Sag, End, Diameter * 0.16f);
 		}
 	}
 }
