@@ -118,6 +118,10 @@ void AVaelPfuhlnatter::BeginPlay()
 			FinBones.Add(Skeleton.GetBoneName(Bone));
 			FinIsCrown.Add(Name.StartsWith(TEXT("krone_")));
 			FinScales.Add(1.0f);
+			// The fin's place along the body sets its phase in the sway wave (flosse_NN_*: piece NN from the tail);
+			// crown petals barely sway, each a little apart
+			const int32 Piece = Name.StartsWith(TEXT("flosse_")) ? FCString::Atoi(*Name.Mid(7, 2)) : 0;
+			FinPhases.Add(Name.StartsWith(TEXT("krone_")) ? FinPhases.Num() * 0.9f : Piece * 0.55f);
 		}
 	}
 
@@ -864,15 +868,15 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	const float DrawTarget = State == EVaelSnakeState::Constrict || bReared ? 0.0f : 1.0f;
 	FinDraw = FMath::FInterpTo(FinDraw, DrawTarget, DeltaSeconds, bReared ? 8.0f : 5.0f);
 	FinOpen = FMath::FInterpTo(FinOpen, bReared ? 1.0f : (State == EVaelSnakeState::Constrict ? 0.5f : 0.0f), DeltaSeconds, bReared ? 6.0f : 4.0f);
+	// Boris 2026-10-29: every fin stays as modelled, spread and full size (folded and drawn in, the skin at their roots
+	// shrank and swelled with them); the fins sway calmly in a wave running down the body, the crown petals each apart
 	for (int32 Index = 0; Index < FinBones.Num(); ++Index)
 	{
-		const float Flat = FinIsCrown[Index] ? Data->CrownFlatScale : Data->FinFlatScale;
-		const float Spread = bReared || FinIsCrown[Index] ? 1.0f : Data->FinCoiledScale;
-		// The crown always stands up full (Boris 2026-10-29: folded it never looked right); the other fins fold
-		FinScales[Index] = FinIsCrown[Index] ? 1.0f : FMath::Lerp(Spread, Flat, FinDraw);
-		FinOpens[Index] = FinIsCrown[Index] ? 1.0f : (bReared ? FinOpen : 0.0f);
+		FinScales[Index] = 1.0f;
+		FinOpens[Index] = 1.0f;
 	}
-	Animator->SetBoneScales(FinBones, FinScales, FinOpens, Data->TrembleAngle * FinOpen * (bReared ? 1.0f : 0.0f), GetWorld()->GetTimeSeconds());
+	const float Sway = IsDead() ? 0.0f : Data->FinSwayAngle * (bReared ? 0.4f : 1.0f);
+	Animator->SetBoneScales(FinBones, FinScales, FinOpens, Data->TrembleAngle * FinOpen * (bReared ? 1.0f : 0.0f), GetWorld()->GetTimeSeconds(), Sway, &FinPhases);
 
 	// The throat glows in the poison's colour before it spits
 	if (SkinMaterial != nullptr)
@@ -889,7 +893,7 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 		SkinMaterial->SetVectorParameterValue(TEXT("KopfOrt"), FLinearColor(GetMesh()->GetSocketLocation(TEXT("kopf"))));
 		SkinMaterial->SetScalarParameterValue(TEXT("KopfRadius"), Data->CrownRadius * Scale);
 		// Membranes drawn in fade away (M_Pfuhlnatter_Koerper), so no stretched skin is left where they fold
-		SkinMaterial->SetScalarParameterValue(TEXT("FlossenVerbergen"), FMath::SmoothStep(0.15f, 0.85f, FinDraw));
+		SkinMaterial->SetScalarParameterValue(TEXT("FlossenVerbergen"), 0.0f);
 	}
 	if (State != EVaelSnakeState::Spit)
 	{

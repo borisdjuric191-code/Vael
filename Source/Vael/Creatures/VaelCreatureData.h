@@ -1418,6 +1418,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float CrownRadius = 85.0f;
 
+	/** How far the fins sway to and fro in their calm wave, in degrees (reared, less: then they quiver) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 30))
+	float FinSwayAngle = 9.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Constrict", meta = (ClampMin = 0.05))
 	float WrapTime = 1.1f;
 

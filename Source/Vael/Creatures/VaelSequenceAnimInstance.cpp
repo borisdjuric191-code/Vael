@@ -68,8 +68,11 @@ void UVaelSequenceAnimInstance::SetLookAt(const FVector& Point, float MaxAngle, 
 	LookWeight = FMath::Clamp(Weight, 0.0f, 1.0f);
 }
 
-void UVaelSequenceAnimInstance::SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales, const TArray<float>& Opens, float Tremble, float Time)
+void UVaelSequenceAnimInstance::SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales, const TArray<float>& Opens, float Tremble, float Time,
+	float Sway, const TArray<float>* Phases)
 {
+	SwayAngle = Sway;
+	SwayPhases = Phases != nullptr ? *Phases : TArray<float>();
 	ScaledBones = Bones;
 	BoneScales = Scales;
 	BoneOpens = Opens;
@@ -121,6 +124,8 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	BoneOpens = Instance->BoneOpens;
 	TrembleAngle = Instance->TrembleAngle;
 	TrembleTime = Instance->TrembleTime;
+	SwayAngle = Instance->SwayAngle;
+	SwayPhases = Instance->SwayPhases;
 }
 
 void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
@@ -153,6 +158,14 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 			// Each fin its own fast, uneven shake
 			const float Shake = FMath::DegreesToRadians(TrembleAngle) * (FMath::Sin(TrembleTime * UE_TWO_PI * 13.0f + Index * 1.7f) + 0.5f * FMath::Sin(TrembleTime * UE_TWO_PI * 21.0f + Index));
 			Local.SetRotation((Local.GetRotation() * FQuat(FVector::XAxisVector, Shake) * FQuat(FVector::ZAxisVector, Shake * 0.6f)).GetNormalized());
+		}
+		if (SwayAngle > 0.0f)
+		{
+			// A slow, calm sway, each bone at its own phase (a wave running along a row of fins)
+			const float Phase = SwayPhases.IsValidIndex(Index) ? SwayPhases[Index] : Index * 0.6f;
+			const float Swing = FMath::DegreesToRadians(SwayAngle) * FMath::Sin(TrembleTime * UE_TWO_PI * 0.55f - Phase);
+			const float Lean = FMath::DegreesToRadians(SwayAngle) * 0.5f * FMath::Sin(TrembleTime * UE_TWO_PI * 0.37f - Phase * 0.7f + 1.3f);
+			Local.SetRotation((Local.GetRotation() * FQuat(FVector::XAxisVector, Swing) * FQuat(FVector::ZAxisVector, Lean)).GetNormalized());
 		}
 		Local.SetScale3D(Local.GetScale3D() * BoneScales[Index]);
 	}

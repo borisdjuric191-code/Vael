@@ -299,6 +299,36 @@ def main():
             g = {n: x * (1.0 - voll) for n, x in gewicht[v].items()}
             g[f["name"]] = voll
             gewicht[v] = g
+    # Petals hanging below the jaw (the left ones hang lower than the right ones and fell under "never below the head"):
+    # anything standing out beyond the skull and outside the neck (their roots are dark red, not pale), no fang - onto the crown bone of their sector
+    # (or the nearest one), as the other petals. The bones themselves stay where they were (skeleton and animations
+    # in Unreal keep fitting)
+    # They hang so low that their nearest spine point is already on the neck, and their roots are dark red like skin.
+    # Neck skin lies close round the neck (measured to the spine joints, not the radius, which petal roots inflate
+    # there) and faces away from it; a petal stands out further or lies across. Fangs stay on the head
+    hals = np.concatenate([np.linspace(gelenke[i], gelenke[i + 1], 8, endpoint=False) for i in range(len(gelenke) - 1)] + [gelenke[-1:]])
+    normalen = np.array([vx.normal[:] for vx in obj.data.vertices])
+    nah_kopf = np.flatnonzero((np.linalg.norm(zum_kopf, axis=1) < 0.6) & ~zahn & ~krone & (vorn < 0.12) & (vorn > -0.4) &
+                              ((kopf_abstand > SCHAEDEL_RADIUS) | (unter < -0.1)))
+    unter_kiefer = np.zeros(len(P), dtype=bool)
+    if len(nah_kopf):
+        q = P[nah_kopf]
+        dd = np.linalg.norm(q[:, None, :] - hals[None, :, :], axis=2)
+        j = dd.argmin(1)
+        d_hals = dd[np.arange(len(nah_kopf)), j]
+        quer = np.abs(np.einsum("ij,ij->i", normalen[nah_kopf], (q - hals[j]) / np.maximum(d_hals, 1e-6)[:, None]))
+        unter_kiefer[nah_kopf] = (d_hals > 0.21) | ((quer < 0.5) & (d_hals > 0.13))
+    kronen = {int(f["name"][6:]) - 1: f["name"] for f in flossen if f["name"].startswith("krone_")}
+    nachgetragen = 0
+    for v in np.flatnonzero(unter_kiefer):
+        sek = int(sektor[v])
+        name = kronen.get(sek) or kronen[min(kronen, key=lambda k: min((k - sek) % KRONE_SEKTOREN, (sek - k) % KRONE_SEKTOREN))]
+        voll = np.clip((kopf_abstand[v] - 0.13) / 0.04, 0.0, 1.0)
+        g = {n: x * (1.0 - voll) for n, x in gewicht[v].items() if not n.startswith("flosse_")}
+        g[name] = voll
+        gewicht[v] = g
+        nachgetragen += 1
+    print("[Pfuhlnatter] Kronenblaetter unter dem Kiefer nachgetragen: %d Vertices" % nachgetragen)
     for v, g in gewicht.items():
         for n, x in g.items():
             if x > 0.001:

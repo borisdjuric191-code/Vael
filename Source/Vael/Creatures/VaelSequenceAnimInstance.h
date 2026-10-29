@@ -42,6 +42,8 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 	TArray<float> BoneOpens;
 	float TrembleAngle = 0.0f;
 	float TrembleTime = 0.0f;
+	float SwayAngle = 0.0f;
+	TArray<float> SwayPhases;
 };
 
 /**
@@ -90,7 +92,8 @@ public:
 	/** Scales bones on top of the sequence (fins drawn in further) and turns them back towards their reference pose by
 	 *  Opens (0 as the sequence has them, 1 as in the reference pose: fins spread), quivering by TrembleAngle degrees
 	 *  (each bone its own uneven shake at Time seconds); an empty list changes nothing */
-	void SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales, const TArray<float>& Opens, float Tremble, float Time);
+	void SetBoneScales(const TArray<FName>& Bones, const TArray<float>& Scales, const TArray<float>& Opens, float Tremble, float Time,
+		float Sway = 0.0f, const TArray<float>* Phases = nullptr);
 
 protected:
 
@@ -132,4 +135,6 @@ private:
 	TArray<float> BoneOpens;
 	float TrembleAngle = 0.0f;
 	float TrembleTime = 0.0f;
+	float SwayAngle = 0.0f;
+	TArray<float> SwayPhases;
 };

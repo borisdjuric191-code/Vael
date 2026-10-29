@@ -134,6 +134,9 @@ private:
 
 	/** The joints as last shown (world), followed over a few frames so the body slides instead of twitching */
 	TArray<FVector> SmoothJoints;
+
+	/** Phase of each fin bone in the calm sway wave */
+	TArray<float> FinPhases;
 	float BodyLength = 0.0f;
 
 	/** Fins and crown with the scale they are drawn in to right now */
