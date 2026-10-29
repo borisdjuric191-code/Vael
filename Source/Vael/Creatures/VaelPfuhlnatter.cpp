@@ -28,6 +28,10 @@ namespace
 	constexpr float SnakeBodyFollowRate = 14.0f;
 	constexpr int32 SnakeFreeFrontJoints = 9;
 
+	/** Sharpest bend between two body joints (degrees): crawling, and wound round prey */
+	constexpr float SnakeMaxBend = 26.0f;
+	constexpr float SnakeMaxCoilBend = 40.0f;
+
 	/** How long the coils take to sink to the ground after letting go, and how long it stays before slithering on */
 	constexpr float SnakeReleaseTime = 0.6f;
 }
@@ -342,7 +346,7 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 	{
 		const FVector Along = (Joints[Joint + 1] - Joints[Joint]).GetSafeNormal2D();
 		const float Tip = FMath::Square(1.0f - static_cast<float>(Joint) / TailJoints);
-		Joints[Joint] += FVector::CrossProduct(FVector::UpVector, Along) * FMath::Sin(Time * 1.7f + Joint * 0.5f) * 14.0f * Data->BodyScale * Tip;
+		Joints[Joint] += FVector::CrossProduct(FVector::UpVector, Along) * FMath::Sin(Time * 1.7f + Joint * 0.5f) * 6.0f * Data->BodyScale * Tip;
 	}
 
 	// Coiled round its prey, squeezes run along the coils as waves: each turn presses in and lets up after the one before
@@ -382,6 +386,32 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 			const FVector Carried = SmoothJoints[Joint] + GetVelocity() * DeltaSeconds;
 			SmoothJoints[Joint] = FMath::Lerp(Joints[Joint], FMath::Lerp(Carried, Joints[Joint], Follow), Ease);
 			Joints[Joint] = SmoothJoints[Joint];
+		}
+	}
+
+	// A clean body: from the neck back each joint gets its true distance again (the smoothing pulls some together)
+	// and no joint bends sharper than its skin can follow (tight waves and the tail's curl kinked it by up to 90
+	// degrees and crumpled the hind body); the reared front keeps its modelled shape
+	{
+		const int32 Front = FMath::Clamp(NumJoints - SnakeFreeFrontJoints, 0, NumJoints - 2);
+		const float MaxBend = FMath::DegreesToRadians(State == EVaelSnakeState::Constrict || State == EVaelSnakeState::Release ? SnakeMaxCoilBend : SnakeMaxBend);
+		for (int32 Joint = Front - 1; Joint >= 0; --Joint)
+		{
+			// Both point tailwards: Straight the way the body runs on from the joint before, Back where this joint lies
+			const FVector Straight = (Joints[Joint + 1] - Joints[Joint + 2]).GetSafeNormal();
+			FVector Back = (Joints[Joint] - Joints[Joint + 1]).GetSafeNormal();
+			if (Back.IsNearlyZero())
+			{
+				Back = Straight;
+			}
+			const float Angle = FMath::Acos(FMath::Clamp(FVector::DotProduct(Back, Straight), -1.0f, 1.0f));
+			// The first joint behind the neck only keeps its length: the neck is raised while hunting, and bending the
+			// body towards its slope would lift the hind body off the ground
+			if (Joint < Front - 1 && Angle > MaxBend && !Straight.IsNearlyZero())
+			{
+				Back = FQuat::Slerp(FQuat::Identity, FQuat::FindBetweenNormals(Straight, Back), MaxBend / Angle).RotateVector(Straight);
+			}
+			Joints[Joint] = Joints[Joint + 1] + Back * SpineLengths[Joint];
 		}
 	}
 

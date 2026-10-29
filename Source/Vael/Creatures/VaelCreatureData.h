@@ -1319,10 +1319,10 @@ public:
 	 *  size) that stand still on the ground, so it glides through them like a sand viper. The waves grow over the first
 	 *  WaveRamp behind the head (Boris 2026-10-28: head calm, body winding, not jittery) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 10))
-	float WaveLength = 260.0f;
+	float WaveLength = 340.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
-	float WaveWidth = 42.0f;
+	float WaveWidth = 34.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float WaveRamp = 110.0f;
