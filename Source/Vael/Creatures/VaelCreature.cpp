@@ -364,7 +364,8 @@ void AVaelCreature::Tick(float DeltaSeconds)
 
 TArray<AVaelCreature::FVaelFallenCreature> AVaelCreature::RecentlyFallen;
 
-AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation, ULevel* Level)
+AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Data, const FVector& GroundLocation, const FRotator& Rotation, ULevel* Level,
+	TFunction<void(AVaelCreature*)> BeforeBeginPlay)
 {
 	if (World == nullptr || Data == nullptr || Data->CreatureClass == nullptr)
 	{
@@ -382,6 +383,10 @@ AVaelCreature* AVaelCreature::SpawnCreature(UWorld* World, UVaelCreatureData* Da
 	if (Creature != nullptr)
 	{
 		Creature->CreatureData = Data;
+		if (BeforeBeginPlay)
+		{
+			BeforeBeginPlay(Creature);
+		}
 		Creature->FinishSpawning(SpawnTransform);
 	}
 

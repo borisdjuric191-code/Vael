@@ -9,6 +9,7 @@
 #include "Creatures/VaelEncounterDirector.h"
 #include "Creatures/VaelRankenluchs.h"
 #include "Creatures/VaelPfuhlnatter.h"
+#include "Creatures/VaelPfuhlnatterPopulation.h"
 #include "Creatures/VaelThistleSpider.h"
 #include "Engine/Engine.h"
 #include "Engine/GameInstance.h"
@@ -1180,4 +1181,12 @@ void UVaelCheatManager::VaelBrand(float Radius, float Metres, const FString& Whe
 	// Burns for a while like the fire of a spell; a second call on the same spot feeds it, so it grows as a Brandherd
 	AVaelFireSpot::SpawnOrJoin(GetWorld(), Location, Shape, 25.0f, false);
 	UE_LOG(LogVael, Display, TEXT("VaelBrand: fire of %.0f cm at %s, player at %s"), Shape.Radius, *Location.ToCompactString(), *Player->GetActorLocation().ToCompactString());
+}
+
+void UVaelCheatManager::VaelNatterBrut()
+{
+	for (TActorIterator<AVaelPfuhlnatterPopulation> It(GetWorld()); It; ++It)
+	{
+		It->BreedNow();
+	}
 }

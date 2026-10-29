@@ -136,6 +136,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelSpawn(const FString& Kind, int32 Count = 1);
 
+	/** Every grown Pfuhlnatter of the moor lays its brood now; the count is logged */
+	UFUNCTION(Exec)
+	void VaelNatterBrut();
+
 	/** Makes every Distelspinne swell and burst into its swarm right now, to see the burst */
 	UFUNCTION(Exec)
 	void VaelDistelPlatzen();
