@@ -74,6 +74,16 @@ public:
 	/** The player it holds right now, if any */
 	AVaelCharacter* GetHeldPlayer() const { return Held.Get(); }
 
+	/** Age in game days (set before it is spawned, or below 0 to have one picked); its length comes from it */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Pfuhlnatter")
+	float AgeDays = -1.0f;
+
+	UFUNCTION(BlueprintPure, Category="Pfuhlnatter")
+	float GetBodyLength() const { return BodyLength; }
+
+	/** Gives it another age at once, for tests (an elite stays one) */
+	void SetAgeDays(float Days) { AgeDays = FMath::Max(Days, 0.0f); if (AppliedAge >= 0.0f) { ApplyAge(); } }
+
 protected:
 
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
@@ -127,6 +137,15 @@ private:
 	/** Spine bones from the tail root to the head (the head only gives the last joint), and the joint distances in cm */
 	TArray<FName> SpineBones;
 	TArray<float> SpineLengths;
+
+	/** Its size against the model (from its age), and the model's own joint distances and length at size 1 */
+	float SizeScale = 1.0f;
+	TArray<float> ModelSpineLengths;
+	float ModelLength = 1.0f;
+
+	/** Size, joint distances and health from the age; the age it last had them for */
+	void ApplyAge();
+	float AppliedAge = -1.0f;
 
 	/** Where each spine joint stands in the Tripo pose (mesh space, before BodyScale): reared, the front takes this shape
 	 *  again, so the crown skin over the neck sits as it was modelled instead of stretching */

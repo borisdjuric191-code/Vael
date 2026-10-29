@@ -142,6 +142,12 @@ public:
 	UFUNCTION(BlueprintPure, Category="Creature")
 	bool IsMarked() const { return bMarked; }
 
+	/** Elite: tougher, hits harder, drops more, marked on screen */
+	bool IsElite() const { return bElite; }
+
+	/** Makes it an elite (once): health grows by the elite multiplier, kept as a share of the new maximum */
+	void SetElite();
+
 	/** Lets the creature stumble after a hit: it stops acting for a moment and its body tips over. Bosses barely stagger. */
 	void Stagger(float Duration);
 
@@ -346,6 +352,9 @@ private:
 
 	/** True for a stronger version sent by a corrupted region */
 	bool bMarked = false;
+
+	/** True once the creature is an elite */
+	bool bElite = false;
 
 	/** World time at which the current stagger ends */
 	float StaggerEndTime = 0.0f;

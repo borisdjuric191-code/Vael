@@ -157,6 +157,11 @@ void AVaelCreature::BeginPlay()
 	{
 		SetMarked();
 	}
+
+	if (ActiveData->Rank == EVaelCreatureRank::Elite)
+	{
+		SetElite();
+	}
 }
 
 void AVaelCreature::UpdateTickRate(float DeltaSeconds)
@@ -229,9 +234,27 @@ void AVaelCreature::SetMarked()
 	UE_LOG(LogVael, Verbose, TEXT("'%s' is marked by the corruption"), *GetNameSafe(this));
 }
 
+void AVaelCreature::SetElite()
+{
+	if (bElite || bDead)
+	{
+		return;
+	}
+
+	bElite = true;
+
+	const float Share = GetMaxHealth() > 0.0f ? GetHealth() / GetMaxHealth() : 1.0f;
+	const float EliteMaxHealth = GetMaxHealth() * UVaelWorldSettings::Get()->EliteHealthMultiplier;
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetMaxHealthAttribute(), EliteMaxHealth);
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), EliteMaxHealth * Share);
+
+	UE_LOG(LogVael, Log, TEXT("'%s' is an elite (%.0f health)"), *GetNameSafe(this), EliteMaxHealth);
+}
+
 float AVaelCreature::GetOutgoingDamageMultiplier() const
 {
-	return bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f;
+	return (bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f) * (bElite ? UVaelWorldSettings::Get()->EliteDamageMultiplier : 1.0f);
 }
 
 void AVaelCreature::Tick(float DeltaSeconds)
@@ -570,6 +593,15 @@ void AVaelCreature::DropLoot()
 {
 	// Materials: rolled once, every player gets their own copy straight into the bag
 	TArray<FVaelLootEntry> Entries = GetLoot();
+	if (bElite)
+	{
+		// More of everything it is made of
+		const TArray<FVaelLootEntry> Once = Entries;
+		for (int32 Roll = 1; Roll < UVaelWorldSettings::Get()->EliteLootRolls; ++Roll)
+		{
+			Entries.Append(Once);
+		}
+	}
 	if (bMarked)
 	{
 		Entries.Add(UVaelWorldSettings::Get()->MarkedLoot);
@@ -587,7 +619,8 @@ void AVaelCreature::DropLoot()
 			continue;
 		}
 
-		const int32 NumItems = ActiveData->GuaranteedItems + (FMath::FRand() < ActiveData->ItemDropChance ? 1 : 0);
+		const float ItemChance = bElite ? FMath::Max(ActiveData->ItemDropChance, UVaelWorldSettings::Get()->EliteItemDropChance) : ActiveData->ItemDropChance;
+		const int32 NumItems = ActiveData->GuaranteedItems + (FMath::FRand() < ItemChance ? 1 : 0);
 		for (int32 ItemIndex = 0; ItemIndex < NumItems; ++ItemIndex)
 		{
 			const float Angle = 2.0f * PI * (PlayerIndex * 3 + ItemIndex) / 12.0f;
@@ -613,7 +646,7 @@ void AVaelCreature::DropLoot()
 		DropOrbNearby(EVaelOrbKind::Mana);
 	}
 
-	for (int32 OrbIndex = 0; OrbIndex < ActiveData->GuaranteedHealthOrbs; ++OrbIndex)
+	for (int32 OrbIndex = 0; OrbIndex < ActiveData->GuaranteedHealthOrbs + (bElite ? UVaelWorldSettings::Get()->EliteHealthOrbs : 0); ++OrbIndex)
 	{
 		DropOrbNearby(EVaelOrbKind::Health);
 	}

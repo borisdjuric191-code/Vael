@@ -287,6 +287,18 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 		}
 	}
 
+	// "NatterAlt" brings a grown old giant (an elite), "NatterJung" a young one
+	if (Name.EndsWith(TEXT("alt")) || Name.EndsWith(TEXT("jung")))
+	{
+		for (TActorIterator<AVaelPfuhlnatter> It(GetWorld()); It; ++It)
+		{
+			if (FVector::Dist2D(It->GetActorLocation(), Center) < 1500.0f)
+			{
+				It->SetAgeDays(Name.EndsWith(TEXT("alt")) ? 60.0f : 3.0f);
+			}
+		}
+	}
+
 	// "NatterSpuck" makes them spit as their first attack (rearing, balls, puddle); "NatterWuerg" asks for a coil, which
 	// only happens where the data allows it (bCanConstrict, off by default)
 	if (Name.EndsWith(TEXT("spuck")) || Name.EndsWith(TEXT("wuerg")))

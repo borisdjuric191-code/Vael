@@ -547,13 +547,16 @@ void AVaelHUD::DrawNotices(float Top)
 void AVaelHUD::DrawCreatureHealthBars()
 {
 	const float S = UiScale;
-	const float Width = 40.0f * S;
+	const float NormalWidth = 40.0f * S;
+	const float EliteWidth = 70.0f * S;
 	const float Height = 5.0f * S;
 
 	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
 	{
 		const AVaelCreature* Creature = *It;
-		if (Creature->IsDead() || Creature->IsHidden() || Creature->IsBossFightActive() || Creature->GetHealth() >= Creature->GetMaxHealth())
+		// Elites always show their bar, hurt or not, framed in gold with their name above
+		const bool bElite = Creature->IsElite();
+		if (Creature->IsDead() || Creature->IsHidden() || Creature->IsBossFightActive() || (!bElite && Creature->GetHealth() >= Creature->GetMaxHealth()))
 		{
 			continue;
 		}
@@ -564,9 +567,15 @@ void AVaelHUD::DrawCreatureHealthBars()
 			continue;
 		}
 
+		const float Width = bElite ? EliteWidth : NormalWidth;
 		const float Left = ScreenPosition.X - Width * 0.5f;
 		const float Top = ScreenPosition.Y;
 
+		if (bElite)
+		{
+			DrawBox(Left - 3.0f * S, Top - 3.0f * S, Width + 6.0f * S, Height + 6.0f * S, Rgb(214, 168, 74, 230));
+			DrawLabel(Creature->GetCreatureName(), ScreenPosition.X, Top - 19.0f * S, 13.0f * S, Rgb(232, 196, 112), 0.5f);
+		}
 		DrawBox(Left - 1.0f * S, Top - 1.0f * S, Width + 2.0f * S, Height + 2.0f * S, Rgb(13, 9, 10, 200));
 		DrawBox(Left, Top, Width * FMath::Clamp(Creature->GetHealth() / FMath::Max(Creature->GetMaxHealth(), 1.0f), 0.0f, 1.0f), Height, Creature->IsMarked() ? Rgb(162, 77, 255) : Rgb(196, 64, 48));
 
@@ -601,9 +610,9 @@ void AVaelHUD::DrawCreatureHealthBars()
 			continue;
 		}
 
-		const float Left = ScreenPosition.X - Width * 0.4f;
-		DrawBox(Left - 1.0f * S, ScreenPosition.Y - 1.0f * S, Width * 0.8f + 2.0f * S, Height + 2.0f * S, Rgb(13, 9, 10, 200));
-		DrawBox(Left, ScreenPosition.Y, Width * 0.8f * FMath::Clamp(Plant->GetHealthFraction(), 0.0f, 1.0f), Height, Rgb(120, 200, 110));
+		const float Left = ScreenPosition.X - NormalWidth * 0.4f;
+		DrawBox(Left - 1.0f * S, ScreenPosition.Y - 1.0f * S, NormalWidth * 0.8f + 2.0f * S, Height + 2.0f * S, Rgb(13, 9, 10, 200));
+		DrawBox(Left, ScreenPosition.Y, NormalWidth * 0.8f * FMath::Clamp(Plant->GetHealthFraction(), 0.0f, 1.0f), Height, Rgb(120, 200, 110));
 	}
 }
 

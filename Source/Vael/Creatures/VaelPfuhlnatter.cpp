@@ -6,6 +6,8 @@
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Combat/VaelCombatStatics.h"
+#include "AbilitySystemComponent.h"
+#include "Combat/VaelAttributeSet.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Creatures/VaelCreatureData.h"
@@ -64,9 +66,6 @@ void AVaelPfuhlnatter::BeginPlay()
 	}
 	GetBody()->SetVisibility(false);
 	GetMesh()->SetSkeletalMesh(SnakeMesh);
-	GetMesh()->SetRelativeScale3D(FVector(Data->BodyScale));
-	// The capsule sits on the front of the body, where it is hit and strikes from; the rest trails behind
-	GetMesh()->SetRelativeLocationAndRotation(FVector(-Data->FrontOffset * Data->BodyScale, 0.0f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), FRotator::ZeroRotator);
 	GetMesh()->InitAnim(true);
 
 	// The head turns quickly into its waves: the body follows the path, so the turns never show as a stiff swing
@@ -93,7 +92,6 @@ void AVaelPfuhlnatter::BeginPlay()
 	}
 	SpineBones.Add(TEXT("kopf"));
 	// Measured in the mesh's space: the imported skeleton carries a scale of its own, so local offsets are not in cm
-	BodyLength = 0.0f;
 	for (int32 Index = 1; Index < SpineBones.Num(); ++Index)
 	{
 		const int32 Bone = Skeleton.FindBoneIndex(SpineBones[Index]);
@@ -101,15 +99,29 @@ void AVaelPfuhlnatter::BeginPlay()
 		const float Length = Bone != INDEX_NONE && Parent != INDEX_NONE
 			? FVector::Dist(FAnimationRuntime::GetComponentSpaceTransformRefPose(Skeleton, Bone).GetTranslation(),
 				FAnimationRuntime::GetComponentSpaceTransformRefPose(Skeleton, Parent).GetTranslation()) : 20.0f;
-		SpineLengths.Add(Length * Data->BodyScale);
-		BodyLength += SpineLengths.Last();
+		ModelSpineLengths.Add(Length);
 	}
+	ModelLength = 0.0f;
+	for (const float Length : ModelSpineLengths)
+	{
+		ModelLength += Length;
+	}
+	ModelLength = FMath::Max(ModelLength, 1.0f);
+	if (AgeDays < 0.0f)
+	{
+		// A young one mostly; now and then a grown one or an old giant (both elites)
+		const float Roll = FMath::FRand();
+		const FVector2D Range = Roll < Data->OldShare ? Data->OldAge : (Roll < Data->OldShare + Data->GrownShare ? Data->GrownAge : Data->YoungAge);
+		AgeDays = FMath::FRandRange(Range.X, Range.Y);
+	}
+	ApplyAge();
 	for (const FName& Bone : SpineBones)
 	{
 		const int32 Index = Skeleton.FindBoneIndex(Bone);
 		RestJoints.Add(Index != INDEX_NONE ? FAnimationRuntime::GetComponentSpaceTransformRefPose(Skeleton, Index).GetTranslation() : FVector::ZeroVector);
 	}
-	UE_LOG(LogTemp, Log, TEXT("'%s': %d spine joints, body %.0f cm"), *GetName(), SpineBones.Num(), BodyLength);
+	UE_LOG(LogTemp, Log, TEXT("'%s': %d spine joints, %.1f game days old, body %.0f cm%s"), *GetName(), SpineBones.Num(), AgeDays, BodyLength,
+		IsElite() ? TEXT(", elite") : TEXT(""));
 	for (int32 Bone = 0; Bone < Skeleton.GetNum(); ++Bone)
 	{
 		const FString Name = Skeleton.GetBoneName(Bone).ToString();
@@ -139,6 +151,38 @@ void AVaelPfuhlnatter::BeginPlay()
 	PickNextAttack();
 
 	EnterState(EVaelSnakeState::Lurk);
+}
+
+void AVaelPfuhlnatter::ApplyAge()
+{
+	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
+	AppliedAge = AgeDays;
+	const float Length = Data->LengthAtAge(AgeDays);
+	SizeScale = Data->BodyScale * Length / ModelLength;
+	GetMesh()->SetRelativeScale3D(FVector(SizeScale));
+	// The capsule sits on the front of the body, where it is hit and strikes from; the rest trails behind
+	GetMesh()->SetRelativeLocationAndRotation(FVector(-Data->FrontOffset * SizeScale, 0.0f, -GetCapsuleComponent()->GetScaledCapsuleHalfHeight()), FRotator::ZeroRotator);
+	SpineLengths.Reset();
+	BodyLength = 0.0f;
+	for (const float Model : ModelSpineLengths)
+	{
+		SpineLengths.Add(Model * SizeScale);
+		BodyLength += SpineLengths.Last();
+	}
+
+	// Health grows with its size (kept as a share while it grows); grown, it is an elite
+	if (!IsElite())
+	{
+		const float Share = GetMaxHealth() > 0.0f ? GetHealth() / GetMaxHealth() : 1.0f;
+		const float NewMaxHealth = Data->MaxHealth * FMath::Pow(SizeScale, Data->HealthLengthPower);
+		UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
+		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetMaxHealthAttribute(), NewMaxHealth);
+		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), NewMaxHealth * Share);
+		if (Length >= Data->EliteLength)
+		{
+			SetElite();
+		}
+	}
 }
 
 void AVaelPfuhlnatter::PickNextAttack()
@@ -259,7 +303,7 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 	// glides through them; none right behind the head, none in the coils
 	const UVaelPfuhlnatterData* Data = GetData<UVaelPfuhlnatterData>();
 	const FVector LeadPoint = Lead + FVector(0.0f, 0.0f, LeadLift);
-	const float WaveLength = FMath::Max(Data->WaveLength * Data->BodyScale, 1.0f);
+	const float WaveLength = FMath::Max(Data->WaveLength * SizeScale, 1.0f);
 	TArray<FVector, TInlineAllocator<512>> Wavy;
 	Wavy.SetNum(Path.Num());
 	float BehindHead = FVector::Dist2D(LeadPoint, Path.IsEmpty() ? LeadPoint : Path.Last());
@@ -279,9 +323,9 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 		const FVector Along = (In + Out).GetSafeNormal2D().IsNearlyZero() ? Out : (In + Out).GetSafeNormal2D();
 		const float Straight = In.IsNearlyZero() || Out.IsNearlyZero() ? 1.0f : FMath::Square(FMath::Clamp(FVector::DotProduct(In, Out), 0.0f, 1.0f));
 		const FVector Side = FVector::CrossProduct(FVector::UpVector, Along);
-		const float Grow = FMath::SmoothStep(0.0f, Data->WaveRamp * Data->BodyScale, BehindHead) * (1.0f - FMath::Clamp(PathLift[Point] / 20.0f, 0.0f, 1.0f)) * Straight;
+		const float Grow = FMath::SmoothStep(0.0f, Data->WaveRamp * SizeScale, BehindHead) * (1.0f - FMath::Clamp(PathLift[Point] / 20.0f, 0.0f, 1.0f)) * Straight;
 		// Lying still it never freezes: the waves breathe a little wider and narrower and slowly shift along the body
-		const float Swing = Data->WaveWidth * Data->BodyScale * Grow * (1.0f + 0.12f * FMath::Sin(Breath)) * FMath::Sin(2.0f * PI * PathRun[Point] / WaveLength + IdleShift);
+		const float Swing = Data->WaveWidth * SizeScale * Grow * (1.0f + 0.12f * FMath::Sin(Breath)) * FMath::Sin(2.0f * PI * PathRun[Point] / WaveLength + IdleShift);
 		Wavy[Point] = Path[Point] + Side * Swing + FVector(0.0f, 0.0f, PathLift[Point]);
 	}
 
@@ -350,7 +394,7 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 	{
 		const FVector Along = (Joints[Joint + 1] - Joints[Joint]).GetSafeNormal2D();
 		const float Tip = FMath::Square(1.0f - static_cast<float>(Joint) / TailJoints);
-		Joints[Joint] += FVector::CrossProduct(FVector::UpVector, Along) * FMath::Sin(Time * 1.7f + Joint * 0.5f) * 6.0f * Data->BodyScale * Tip;
+		Joints[Joint] += FVector::CrossProduct(FVector::UpVector, Along) * FMath::Sin(Time * 1.7f + Joint * 0.5f) * 6.0f * SizeScale * Tip;
 	}
 
 	// Coiled round its prey, squeezes run along the coils as waves: each turn presses in and lets up after the one before
@@ -364,7 +408,7 @@ void AVaelPfuhlnatter::LayBodyOnPath()
 			{
 				const FVector In = (CoilCentre - Joints[Joint]).GetSafeNormal2D();
 				const float Press = 0.5f + 0.5f * FMath::Sin(Time * 5.0f - Joint * 0.55f);
-				Joints[Joint] += (In * 5.0f + FVector(0.0f, 0.0f, 2.0f)) * Press * Hold * Data->BodyScale;
+				Joints[Joint] += (In * 5.0f + FVector(0.0f, 0.0f, 2.0f)) * Press * Hold * SizeScale;
 			}
 		}
 		// Above the coils the neck rises in its modelled shape and the head looks the prey in the face: a free-wound neck
@@ -673,16 +717,16 @@ void AVaelPfuhlnatter::TickBehavior(float DeltaSeconds)
 		// LayBodyOnPath); it eases into the wrap and out of it, like a body getting going and settling
 		const float Linear = FMath::Clamp(StateTime / FMath::Max(Data->WrapTime, 0.05f), 0.0f, 1.0f);
 		const float Wound = Linear * Linear * (3.0f - 2.0f * Linear) * 0.6f + Linear * 0.4f;
-		const float Radius = Player->GetCapsuleComponent()->GetScaledCapsuleRadius() + Data->CoilGap * Data->BodyScale;
+		const float Radius = Player->GetCapsuleComponent()->GetScaledCapsuleRadius() + Data->CoilGap * SizeScale;
 		const float Angle = CoilStartAngle + CoilSense * Wound * Data->CoilTurns * 2.0f * PI;
 		// At the top the head draws back a little from its prey and looks it in the eyes, swaying slowly
 		const float Back = FMath::SmoothStep(Data->WrapTime, Data->WrapTime + 0.45f, StateTime);
 		const float Sway = FMath::Sin(StateTime * 1.4f) * 0.12f * Back;
-		const FVector OnCoil = CoilCentre + FVector(FMath::Cos(Angle + Sway), FMath::Sin(Angle + Sway), 0.0f) * (Radius + Data->HeadGap * Data->BodyScale * Back);
+		const FVector OnCoil = CoilCentre + FVector(FMath::Cos(Angle + Sway), FMath::Sin(Angle + Sway), 0.0f) * (Radius + Data->HeadGap * SizeScale * Back);
 		// From where its head was onto the coil, not in one jump
 		const float Join = FMath::SmoothStep(0.0f, 0.2f, StateTime);
 		Lead = FMath::Lerp(CoilEntry, OnCoil, Join);
-		LeadLift = FMath::Lerp(Data->CoilHeight.X, Data->CoilHeight.Y, Wound) * Data->BodyScale;
+		LeadLift = FMath::Lerp(Data->CoilHeight.X, Data->CoilHeight.Y, Wound) * SizeScale;
 		FaceTowards(CoilCentre);
 
 		SqueezeCountdown -= DeltaSeconds;
@@ -811,6 +855,16 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 	{
 		// The crawl pose, held: the waves come from the path, the pose gives fins and head
 		Animator->Play(CrawlSequence, true, 0.0f, 0.0f);
+	}
+
+	// It grows while the game runs; the new size is taken on when it has grown about a centimetre
+	if (!IsDead() && AppliedAge >= 0.0f)
+	{
+		AgeDays += DeltaSeconds / Data->GameDaySeconds;
+		if (FMath::Abs(Data->LengthAtAge(AgeDays) - Data->LengthAtAge(AppliedAge)) > 1.0f && State != EVaelSnakeState::Constrict)
+		{
+			ApplyAge();
+		}
 	}
 
 	// Crawling, the neck leads; winding round prey, the head of the coil does (set in TickBehavior)

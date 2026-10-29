@@ -423,6 +423,23 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Corruption|Marked Creatures", meta = (ClampMin = 1))
 	float MarkedDamageMultiplier = 1.5f;
 
+	/** Elite creatures: health and damage multiplied by these, materials rolled this many times, at least this chance
+	 *  of gear for every player and this many health orbs for sure */
+	UPROPERTY(config, EditAnywhere, Category="Elites", meta = (ClampMin = 1))
+	float EliteHealthMultiplier = 3.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Elites", meta = (ClampMin = 1))
+	float EliteDamageMultiplier = 1.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Elites", meta = (ClampMin = 1))
+	int32 EliteLootRolls = 2;
+
+	UPROPERTY(config, EditAnywhere, Category="Elites", meta = (ClampMin = 0, ClampMax = 1))
+	float EliteItemDropChance = 0.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Elites", meta = (ClampMin = 0))
+	int32 EliteHealthOrbs = 1;
+
 	/** Creatures farther than this from every player (cm) update less often, they are off screen */
 	UPROPERTY(config, EditAnywhere, Category="Performance|Far Creatures", meta = (ClampMin = 0))
 	float FarCreatureDistance = 5000.0f;

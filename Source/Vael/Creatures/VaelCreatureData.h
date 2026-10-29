@@ -22,6 +22,16 @@ class UVaelElementSource;
  *  The defaults of each data class are the values of the browser prototype (1 tile = 140 cm),
  *  so a creature without a data asset still behaves like the prototype.
  */
+/** How strong one creature is among its kind: elites are bigger and tougher than the others, no bosses */
+UENUM(BlueprintType)
+enum class EVaelCreatureRank : uint8
+{
+	Normal,
+	/** Tougher, hits harder, drops more; marked on screen (name and a framed health bar) */
+	Elite,
+	Boss
+};
+
 UCLASS(Abstract, BlueprintType)
 class UVaelCreatureData : public UPrimaryDataAsset
 {
@@ -44,6 +54,10 @@ public:
 	/** There is only one of this kind in the story, like the Glutkönigin: once defeated, spawners leave it out for good */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
 	bool bUnique = false;
+
+	/** Rank every creature of this kind starts with; single ones may become elite later (a Pfuhlnatter fully grown) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
+	EVaelCreatureRank Rank = EVaelCreatureRank::Normal;
 
 	/** Class spawned for this kind of creature by spawners and console commands */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Creature")
@@ -1304,6 +1318,59 @@ public:
 	 *  comes later and will set it per snake */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0.2))
 	float BodyScale = 1.0f;
+
+	/** Growth with age (Boris 2026-10-29, like crocodiles: they never stop growing and never die of age). Length along
+	 *  the spine in cm after d game days: Hatch + Youth * (1 - e^(-d / YouthDays)) + Late * (1 - e^(-d / LateDays));
+	 *  1.5 m hatched, 4.6 m grown after 10 days, 5.7 m after 40, about 7 m at the very end */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 10))
+	float HatchLength = 150.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 0))
+	float YouthGrowth = 300.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 0.1))
+	float YouthDays = 4.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 0))
+	float LateGrowth = 250.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 0.1))
+	float LateDays = 60.0f;
+
+	/** Grown: from this length (cm) a snake is an elite */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 10))
+	float EliteLength = 460.0f;
+
+	/** Seconds of play that make a game day (the day and night cycle is 40 minutes); it grows only while the game runs */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 1))
+	float GameDaySeconds = 2400.0f;
+
+	/** Health scales with its size against the model (6 m) to this power */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 0))
+	float HealthLengthPower = 1.5f;
+
+	/** Ages a new snake is given where none is set (game days, picked with these weights): young ones, grown ones (elite)
+	 *  and old giants (elite). Later the ages come from the save, when the moor keeps its snakes */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth")
+	FVector2D YoungAge = FVector2D(2.0f, 9.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth")
+	FVector2D GrownAge = FVector2D(10.0f, 40.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth")
+	FVector2D OldAge = FVector2D(40.0f, 150.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 0, ClampMax = 1))
+	float GrownShare = 0.18f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Growth", meta = (ClampMin = 0, ClampMax = 1))
+	float OldShare = 0.07f;
+
+	/** Length in cm after this many game days */
+	float LengthAtAge(float Days) const
+	{
+		return HatchLength + YouthGrowth * (1.0f - FMath::Exp(-Days / YouthDays)) + LateGrowth * (1.0f - FMath::Exp(-Days / LateDays));
+	}
 
 	/** How far behind the capsule the mesh's middle lies, in cm at the model's size: the capsule sits on the front of
 	 *  the body (the head is 1.9 m ahead of the middle), so it is hit and bites where it looks like it */
