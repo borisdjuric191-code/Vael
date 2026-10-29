@@ -97,6 +97,11 @@ AVaelCharacter::AVaelCharacter()
 	HeadMesh->SetupAttachment(GetMesh());
 	HeadMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	// So are the hands with fingers
+	HandMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("HandMesh"));
+	HandMesh->SetupAttachment(GetMesh());
+	HandMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
 	// Create the player marker from engine placeholder assets
 	PlayerMarker = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlayerMarker"));
 
@@ -178,6 +183,11 @@ void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
 		GetMesh()->SetSkeletalMesh(Body);
 		HeadMesh->SetSkeletalMesh(Head);
 		HeadMesh->SetLeaderPoseComponent(GetMesh());
+
+		// The Floromant has no hand part yet: its hands are on the body
+		USkeletalMesh* Hands = bFloromant ? nullptr : VaelAssets::LoadOptional(HandMeshes[LookIndex]);
+		HandMesh->SetSkeletalMesh(Hands);
+		HandMesh->SetLeaderPoseComponent(Hands != nullptr ? GetMesh() : nullptr);
 		BaseLook = LookIndex;
 
 		if (bHasPlayerColor)
@@ -722,6 +732,33 @@ void AVaelCharacter::SetPlayerColor(const FLinearColor& Color)
 			BodyMaterial->SetVectorParameterValue(BodyTintParameter, Color);
 		}
 	}
+}
+
+void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
+{
+	CastGesture = Gesture;
+	CastGestureStartTime = GetWorld()->GetTimeSeconds();
+}
+
+EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
+{
+	OutSeconds = GetWorld()->GetTimeSeconds() - CastGestureStartTime;
+	return OutSeconds < UVaelMagicSettings::Get()->GestureDuration ? CastGesture : EVaelCastGesture::None;
+}
+
+bool AVaelCharacter::GetGestureFingertips(FVector& OutLocation) const
+{
+	const USkeletalMeshComponent* Body = GetMesh();
+	if (Body->GetBoneIndex(TEXT("index_03_r")) == INDEX_NONE || Body->GetBoneIndex(TEXT("middle_03_r")) == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// The last finger bones start at the outer knuckle: a little further along the fingers lie the tips
+	const FVector Knuckles = (Body->GetBoneLocation(TEXT("index_03_r")) + Body->GetBoneLocation(TEXT("middle_03_r"))) * 0.5f;
+	const FVector Along = (Knuckles - (Body->GetBoneLocation(TEXT("index_02_r")) + Body->GetBoneLocation(TEXT("middle_02_r"))) * 0.5f).GetSafeNormal();
+	OutLocation = Knuckles + Along * 4.0f;
+	return true;
 }
 
 void AVaelCharacter::EndDodge()

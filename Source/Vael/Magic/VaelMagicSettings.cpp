@@ -4,6 +4,7 @@
 #include "Animation/AnimMontage.h"
 #include "Engine/StaticMesh.h"
 #include "Magic/VaelElementSource.h"
+#include "Magic/VaelFormula.h"
 #include "Magic/VaelWaterOrb.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraSystem.h"
@@ -40,6 +41,9 @@ UVaelMagicSettings::UVaelMagicSettings()
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Raise, PushMontage);
 	CastMontagesByDelivery.Add(EVaelSpellDelivery::Beam, TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Channel.AM_Mage_Channel"))));
 	ElementSelectMontage = TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Select.AM_Mage_Select")));
+
+	// Gestures posed in code (Boris 2026-10-30): first only the Funke, shot from two stretched fingers
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Funke.DA_Formula_Funke"))), EVaelCastGesture::TwoFingerPoint);
 
 	// General effects the spells use once they are made in the editor; they are tinted in the color of each element
 	const auto Effect = [](const TCHAR* Name)
@@ -194,6 +198,12 @@ UAnimMontage* UVaelMagicSettings::FindCastMontage(EVaelSpellDelivery Delivery) c
 	}
 
 	return VaelAssets::LoadOptional(DefaultCastMontage);
+}
+
+EVaelCastGesture UVaelMagicSettings::FindCastGesture(const UVaelFormula* Formula) const
+{
+	const EVaelCastGesture* Gesture = Formula != nullptr ? CastGestures.Find(TSoftObjectPtr<UVaelFormula>(Formula)) : nullptr;
+	return Gesture != nullptr ? *Gesture : EVaelCastGesture::None;
 }
 
 float UVaelMagicSettings::GetManaCost(int32 NumElements, int32 NumEnvironmentElements) const

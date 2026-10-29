@@ -2,6 +2,7 @@
 
 #include "Magic/VaelFormulaAbility.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
+#include "Abilities/Tasks/AbilityTask_WaitDelay.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayEvent.h"
 #include "Abilities/Tasks/AbilityTask_WaitGameplayTag.h"
 #include "AbilitySystemComponent.h"
@@ -149,7 +150,25 @@ void UVaelFormulaAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 	CastSizeScale = ElementComponent->GetPendingCast().SizeScale;
 	bSpellReleased = false;
 	bCastAnimated = false;
+	bCastGesture = false;
 	bWaitingForChannel = false;
+
+	// A gesture posed in code instead of a montage, for the mage (the Floromant fires from its plant arms)
+	AVaelCharacter* Mage = Cast<AVaelCharacter>(Caster);
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	const EVaelCastGesture Gesture = MagicSettings->FindCastGesture(Formula);
+	if (Gesture != EVaelCastGesture::None && Mage != nullptr && !Mage->IsFloromant() && Mage->GetMesh()->GetAnimInstance() != nullptr)
+	{
+		bCastAnimated = true;
+		bCastGesture = true;
+		ActorInfo->AbilitySystemComponent->AddLooseGameplayTag(VaelTags::State_Casting);
+		Mage->PlayCastGesture(Gesture);
+
+		UAbilityTask_WaitDelay* WaitRelease = UAbilityTask_WaitDelay::WaitDelay(this, MagicSettings->GestureReleaseTime);
+		WaitRelease->OnFinish.AddDynamic(this, &UVaelFormulaAbility::OnGestureRelease);
+		WaitRelease->ReadyForActivation();
+		return;
+	}
 
 	const ACharacter* Character = Cast<ACharacter>(Caster);
 	UAnimMontage* Montage = Formula->FindCastMontage();
@@ -192,6 +211,7 @@ void UVaelFormulaAbility::EndAbility(const FGameplayAbilitySpecHandle Handle, co
 
 	CastFormula = nullptr;
 	bCastAnimated = false;
+	bCastGesture = false;
 	bWaitingForChannel = false;
 
 	Super::EndAbility(Handle, ActorInfo, ActivationInfo, bReplicateEndAbility, bWasCancelled);
@@ -213,6 +233,21 @@ void UVaelFormulaAbility::OnCastMontageEnded()
 	}
 
 	// An animation without a cast point releases the spell at its end
+	ReleaseSpell();
+
+	if (!WaitForChannelEnd())
+	{
+		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
+	}
+}
+
+void UVaelFormulaAbility::OnGestureRelease()
+{
+	if (!IsActive())
+	{
+		return;
+	}
+
 	ReleaseSpell();
 
 	if (!WaitForChannelEnd())
@@ -275,6 +310,16 @@ void UVaelFormulaAbility::ReleaseSpell()
 FVector UVaelFormulaAbility::GetProjectileStart(const AActor* Caster, const FVector& AimDirection) const
 {
 	const FVector InFront = Caster->GetActorLocation() + AimDirection * ProjectileSpawnDistance;
+
+	// A gesture: the spell leaves the tips of the stretched fingers
+	FVector Fingertips;
+	const AVaelCharacter* Mage = Cast<AVaelCharacter>(Caster);
+	if (bCastGesture && Mage != nullptr && Mage->GetGestureFingertips(Fingertips))
+	{
+		// No higher than a little above the middle of the body, or a small spell flies over the crawlers
+		Fingertips.Z = FMath::Min(Fingertips.Z, Caster->GetActorLocation().Z + 20.0f);
+		return Fingertips;
+	}
 
 	const ACharacter* Character = Cast<ACharacter>(Caster);
 	const FName SocketName = UVaelMagicSettings::Get()->CastSocketName;

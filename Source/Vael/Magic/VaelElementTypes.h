@@ -97,6 +97,16 @@ enum class EVaelProjectileLook : uint8
 	GrassDart
 };
 
+/** Gesture the mage makes with arm and fingers instead of a cast montage, posed in code */
+UENUM(BlueprintType)
+enum class EVaelCastGesture : uint8
+{
+	/** No gesture: the cast montage plays */
+	None,
+	/** Boris 2026-10-30: the right arm snaps forward, index and middle finger stretched out, the spell leaves their tips */
+	TwoFingerPoint
+};
+
 /** What rises out of the ground where a strike of a spell lands */
 UENUM(BlueprintType)
 enum class EVaelStrikeLook : uint8

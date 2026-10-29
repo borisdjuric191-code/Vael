@@ -14,6 +14,7 @@ class UMaterialInterface;
 class UNiagaraSystem;
 class UStaticMesh;
 class UVaelElementSource;
+class UVaelFormula;
 class AVaelWaterOrb;
 
 /**
@@ -256,6 +257,21 @@ public:
 	/** Socket or bone of the character from which projectiles leave after a cast animation */
 	UPROPERTY(config, EditAnywhere, Category="Animation")
 	FName CastSocketName = TEXT("hand_r");
+
+	/** Formulas the mage casts with a gesture posed in code instead of a montage (needs the hands with fingers, vael_mensch_haende.py) */
+	UPROPERTY(config, EditAnywhere, Category="Animation")
+	TMap<TSoftObjectPtr<UVaelFormula>, EVaelCastGesture> CastGestures;
+
+	/** Seconds from the start of a gesture until the spell leaves the fingers */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float GestureReleaseTime = 0.13f;
+
+	/** Seconds the whole gesture lasts, with the way back into the walk */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float GestureDuration = 0.5f;
+
+	/** The gesture of a formula, none when it uses a montage */
+	EVaelCastGesture FindCastGesture(const UVaelFormula* Formula) const;
 
 	/** Returns the cast montage the formula uses by its kind, null if none exists */
 	UAnimMontage* FindCastMontage(EVaelSpellDelivery Delivery) const;

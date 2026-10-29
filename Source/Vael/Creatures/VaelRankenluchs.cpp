@@ -17,12 +17,12 @@
 namespace
 {
 	/** Part of the pounce animation (seconds) in which it is in the air; before it crouches, after it lands */
-	constexpr float LeapStart = 0.17f;
-	constexpr float LeapEnd = 0.55f;
+	constexpr float LynxLeapStart = 0.17f;
+	constexpr float LynxLeapEnd = 0.55f;
 
 	/** Seconds for blends between animations */
-	constexpr float GaitBlend = 0.3f;
-	constexpr float PoseBlend = 0.35f;
+	constexpr float LynxGaitBlend = 0.3f;
+	constexpr float LynxPoseBlend = 0.35f;
 
 	/** How often the region's corruption is looked at, in seconds */
 	constexpr float FormCheckInterval = 1.0f;
@@ -134,7 +134,7 @@ void AVaelRankenluchs::EnterState(EVaelLynxState NewState)
 	switch (NewState)
 	{
 	case EVaelLynxState::Ambush:
-		PlayAnimation(CamouflageSequence, true, PoseBlend);
+		PlayAnimation(CamouflageSequence, true, LynxPoseBlend);
 		Prey = nullptr;
 		break;
 
@@ -269,18 +269,18 @@ void AVaelRankenluchs::UpdateGait(float DeltaSeconds)
 	bRunning = bRunning ? Speed > Middle * 0.85f : Speed > Middle * 1.1f;
 	if (Speed < 35.0f)
 	{
-		PlayAnimation(IdleSequence, true, PoseBlend);
+		PlayAnimation(IdleSequence, true, LynxPoseBlend);
 		return;
 	}
 	UAnimSequence* Gait = bRunning ? RunSequence : WalkSequence;
 	const float Rate = FMath::Clamp(Speed / ((bRunning ? Data->RunAnimationSpeed : Data->WalkAnimationSpeed) * Data->BodyScale), 0.35f, 1.8f);
 	if (Animator->GetCurrent() == WalkSequence || Animator->GetCurrent() == RunSequence)
 	{
-		Animator->PlayInStep(Gait, GaitBlend, Rate);
+		Animator->PlayInStep(Gait, LynxGaitBlend, Rate);
 	}
 	else
 	{
-		PlayAnimation(Gait, true, GaitBlend, Rate);
+		PlayAnimation(Gait, true, LynxGaitBlend, Rate);
 	}
 	Animator->SetRate(Rate);
 }
@@ -384,7 +384,7 @@ void AVaelRankenluchs::TickBehavior(float DeltaSeconds)
 	case EVaelLynxState::Pounce:
 	{
 		AActor* Target = Prey.Get();
-		if (StateTime >= LeapStart && StateTime <= LeapEnd)
+		if (StateTime >= LynxLeapStart && StateTime <= LynxLeapEnd)
 		{
 			GetCharacterMovement()->Velocity = LeapDirection * Data->PounceSpeed;
 			MoveInDirection(LeapDirection, Data->PounceSpeed);
@@ -394,7 +394,7 @@ void AVaelRankenluchs::TickBehavior(float DeltaSeconds)
 				HitPlayer(Target, Data->PounceDamage, EVaelElement::Earth);
 			}
 		}
-		else if (StateTime > LeapEnd && !bBitten)
+		else if (StateTime > LynxLeapEnd && !bBitten)
 		{
 			bBitten = true;
 			if (Target != nullptr && GetDistanceTo2D(Target) <= Data->BiteRange)

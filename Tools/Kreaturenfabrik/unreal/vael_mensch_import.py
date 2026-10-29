@@ -6,6 +6,7 @@ Importiert die Teile eines Menschen (04_export/SK_<Name>_Koerper.fbx und SK_<Nam
 auf das vorhandene Unreal-Skelett SK_Mannequin, damit alle Menschen dieselben Animationen benutzen:
   /Game/Vael/Characters/Menschen/<Name>/SK_<Name>_Koerper, SK_<Name>_Kopf, T_<Name>_*, MI_<Name>
   (mit "ordner" in mensch.json ein anderer Elternordner, z. B. "/Game/Vael/Characters/Floromant")
+Gibt es SK_<Name>_Haende.fbx (vael_mensch_haende.py), kommen die Hände als drittes Teil mit eigener Haut-Instanz MI_<Name>_Haut dazu.
 
 Ausführen bei geschlossenem Editor:
   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="<diese Datei> C:/Projekte/Vael_Quellen/MagierMann"
@@ -31,8 +32,11 @@ def importiere(ordner):
         raise RuntimeError(f"{SKELETT} fehlt")
 
     teile = []
-    for teil in ("Koerper", "Kopf"):
+    haende = None
+    for teil in ("Koerper", "Kopf", "Haende"):
         fbx = os.path.join(ordner, "04_export", f"SK_{name}_{teil}.fbx")
+        if teil == "Haende" and not os.path.exists(fbx):
+            continue    # nur nach vael_mensch_haende.py
         if not os.path.exists(fbx):
             raise FileNotFoundError(f"{fbx} fehlt – zuerst vael_mensch_aufbereiten.py ausführen.")
 
@@ -62,7 +66,10 @@ def importiere(ordner):
             raise RuntimeError(f"SK_{name}_{teil} wurde nicht angelegt – Ausgabe-Log prüfen.")
         benutzt = skm.get_editor_property("skeleton")
         log(f"SK_{name}_{teil}: Skelett {benutzt.get_path_name() if benutzt else None}")
-        teile.append(skm)
+        if teil == "Haende":
+            haende = skm
+        else:
+            teile.append(skm)
 
     # Texturen nach Fabrikregeln benennen
     for p in eal.list_assets(ziel, recursive=False):
@@ -88,10 +95,23 @@ def importiere(ordner):
             unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(mi, param, t)
         eal.save_asset(mi_pfad)
 
-        for skm in teile:
+        # Die Hände (Mannequin-Hände aus vael_mensch_haende.py) haben eigene UVs: einfarbige Haut-Instanz
+        zuweisungen = [(skm, mi) for skm in teile]
+        if haende is not None:
+            haut_pfad = f"{ziel}/MI_{name}_Haut"
+            haut = eal.load_asset(haut_pfad) if eal.does_asset_exist(haut_pfad) else unreal.AssetToolsHelpers.get_asset_tools().create_asset(
+                f"MI_{name}_Haut", ziel, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+            unreal.MaterialEditingLibrary.set_material_instance_parent(haut, eal.load_asset(MASTER_MATERIAL))
+            t = eal.load_asset(f"{ziel}/T_{name}_Haut")
+            if t is not None:
+                unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(haut, "BaseColor", t)
+            eal.save_asset(haut_pfad)
+            zuweisungen.append((haende, haut))
+
+        for skm, material in zuweisungen:
             mats = list(skm.get_editor_property("materials"))
             for index, slot in enumerate(mats):
-                slot.set_editor_property("material_interface", mi)
+                slot.set_editor_property("material_interface", material)
                 mats[index] = slot
             skm.modify()
             skm.set_editor_property("materials", mats)

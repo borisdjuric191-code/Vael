@@ -120,6 +120,10 @@ private:
 	UFUNCTION()
 	void OnChannelEnded();
 
+	/** The cast gesture reached the moment the spell leaves the fingers; the rest of the gesture plays on without the ability */
+	UFUNCTION()
+	void OnGestureRelease();
+
 	/** Performs the formula of the current cast, once */
 	void ReleaseSpell();
 
@@ -138,6 +142,9 @@ private:
 
 	/** True while a cast animation plays, so the spell comes out of the hand */
 	bool bCastAnimated = false;
+
+	/** True while the cast is a gesture posed in code, so the spell comes out of the fingertips */
+	bool bCastGesture = false;
 
 	/** True while the ability waits for a channeled spell to end */
 	bool bWaitingForChannel = false;

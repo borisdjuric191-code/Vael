@@ -7,6 +7,7 @@
 #include "Animation/AnimInstanceProxy.h"
 #include "BonePose.h"
 #include "Floromant/VaelFlightPose.h"
+#include "Magic/VaelElementTypes.h"
 #include "VaelAnimInstance.generated.h"
 
 class AVaelCharacter;
@@ -36,10 +37,19 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	float Draw[2] = { 0.0f, 0.0f };
 	float MortarPitch = 42.0f;
 
+	/** Copied from the instance: the cast gesture of the mage, seconds since it began, when the spell leaves and how long it lasts */
+	EVaelCastGesture Gesture = EVaelCastGesture::None;
+	float GestureSeconds = 0.0f;
+	float GestureRelease = 0.13f;
+	float GestureDuration = 0.5f;
+
 private:
 
 	/** Tips the body, lets the legs dangle and swing, bends the knees and points the toes */
 	void ApplyFlight(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** The Funke gesture: the right arm draws back and snaps forward, index and middle finger stretched, the others curled in */
+	void ApplyTwoFingerPoint(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 };
 
 /**
@@ -101,6 +111,10 @@ protected:
 	bool bMortarArm[2] = { false, false };
 	float MortarDraw[2] = { 0.0f, 0.0f };
 	float MortarPitch = 42.0f;
+
+	/** Cast gesture of the mage and the seconds since it began */
+	EVaelCastGesture CastGesture = EVaelCastGesture::None;
+	float CastGestureSeconds = 0.0f;
 
 public:
 

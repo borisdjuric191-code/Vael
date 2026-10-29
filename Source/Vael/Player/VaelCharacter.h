@@ -44,6 +44,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<USkeletalMeshComponent> HeadMesh;
 
+	/** Hands of the base look with real fingers (the mannequin's, vael_mensch_haende.py), following the bones of the body */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<USkeletalMeshComponent> HandMesh;
+
 	/** Element queue and formula casting */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelElementComponent> ElementComponent;
@@ -126,6 +130,12 @@ protected:
 	TSoftObjectPtr<USkeletalMesh> HeadMeshes[2] = {
 		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierMann/SK_MagierMann_Kopf.SK_MagierMann_Kopf"))),
 		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierFrau/SK_MagierFrau_Kopf.SK_MagierFrau_Kopf"))) };
+
+	/** Hands of each base look, a part of its own; missing: the body keeps whatever hands it has */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftObjectPtr<USkeletalMesh> HandMeshes[2] = {
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierMann/SK_MagierMann_Haende.SK_MagierMann_Haende"))),
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MagierFrau/SK_MagierFrau_Haende.SK_MagierFrau_Haende"))) };
 
 	/** Seconds nothing can hurt the player after a hit */
 	UPROPERTY(EditAnywhere, Category="Combat", meta = (ClampMin = 0))
@@ -277,6 +287,15 @@ public:
 	/** Returns how the body of a flying Floromant hangs in the air; weight 0 for a mage */
 	const FVaelFlightPose& GetFlightPose() const { return FlightPose; }
 
+	/** Starts a cast gesture posed in code (VaelAnimInstance) */
+	void PlayCastGesture(EVaelCastGesture Gesture);
+
+	/** The cast gesture playing and the seconds since it began; none once it is over */
+	EVaelCastGesture GetCastGesture(float& OutSeconds) const;
+
+	/** Where a spell leaves the hand during a gesture: just before the tips of index and middle finger. False without those bones. */
+	bool GetGestureFingertips(FVector& OutLocation) const;
+
 	/** Returns the element queue **/
 	UVaelElementComponent* GetElementComponent() const { return ElementComponent.Get(); }
 
@@ -410,6 +429,10 @@ private:
 	/** Damage the heart shield still swallows, and until when */
 	float HeartShieldLeft = 0.0f;
 	float HeartShieldEndTime = 0.0f;
+
+	/** Cast gesture playing, and when it began in game seconds */
+	EVaelCastGesture CastGesture = EVaelCastGesture::None;
+	float CastGestureStartTime = 0.0f;
 
 	/** Flight state of the Floromant, smoothed over the frames; vectors in the world */
 	FVaelFlightPose FlightPose;
