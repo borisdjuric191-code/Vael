@@ -1318,6 +1318,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UAnimSequence> LeapAnimation;
 
+	/** Crouched deep like a dog about to spring: listening, and waiting close in front of its prey */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UAnimSequence> LurkAnimation;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UAnimSequence> ScreamAnimation;
 
@@ -1400,7 +1404,7 @@ public:
 	float ClawRange = 420.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float ClawDamage = 20.0f;
+	float ClawDamage = 12.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
 	float ClawKnockback = 500.0f;
@@ -1413,7 +1417,7 @@ public:
 	float SwipeRange = 560.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float SwipeDamage = 18.0f;
+	float SwipeDamage = 11.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
 	float SwipeKnockback = 1500.0f;
@@ -1426,7 +1430,7 @@ public:
 	float BiteRange = 420.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float BiteDamage = 26.0f;
+	float BiteDamage = 14.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
 	float BiteKnockback = 400.0f;
@@ -1448,7 +1452,7 @@ public:
 	float LeapLandRange = 450.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
-	float LeapDamage = 20.0f;
+	float LeapDamage = 11.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks", meta = (ClampMin = 0))
 	float LeapKnockback = 1000.0f;
@@ -1465,13 +1469,21 @@ public:
 	float VineBiteRadius = 170.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines", meta = (ClampMin = 0))
-	float VineDamage = 9.0f;
+	float VineDamage = 4.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines", meta = (ClampMin = 1))
 	int32 MaxVineStrikes = 3;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Vines")
 	FVector2D VineInterval = FVector2D(1.8f, 3.6f);
+
+	/** Slobber running from the flower's lower lips (Boris 2026-10-29): its look, and seconds between two drops (half as
+	 *  long while it hunts) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Drool")
+	TSoftObjectPtr<UMaterialInterface> DroolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/VFX/Water/Materials/MI_Water_Swamp.MI_Water_Swamp")));
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Drool")
+	FVector2D DroolInterval = FVector2D(0.5f, 1.4f);
 
 	/** Pause after an attack before the next, in seconds */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Attacks")

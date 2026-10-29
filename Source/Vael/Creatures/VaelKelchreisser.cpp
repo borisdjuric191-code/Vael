@@ -10,12 +10,15 @@
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelSequenceAnimInstance.h"
+#include "AnimationRuntime.h"
 #include "Engine/SkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Magic/VaelElementComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Player/VaelCharacter.h"
 #include "World/VaelLocalWeather.h"
+#include "World/VaelGround.h"
 #include "World/VaelRegion.h"
 
 namespace
@@ -31,11 +34,35 @@ namespace
 	constexpr float ScreamPeakTime = 0.5f;
 
 	/** Seconds for blends between animations */
-	constexpr float GaitBlend = 0.25f;
-	constexpr float PoseBlend = 0.2f;
+	constexpr float GaitBlend = 0.3f;
+	constexpr float PoseBlend = 0.35f;
+	constexpr float AttackBlend = 0.15f;
 
 	/** How often it listens, in seconds */
 	constexpr float ListenInterval = 0.25f;
+
+	/** Hands and feet set down onto the ground: the bones that bend, the piece at the end and the one that touches */
+	struct FGroundLimbBones
+	{
+		const TCHAR* Upper;
+		const TCHAR* Lower;
+		const TCHAR* End;
+		const TCHAR* Touch;
+	};
+	const FGroundLimbBones GroundLimbBones[] =
+	{
+		{ TEXT("oberarm_l"), TEXT("unterarm_l"), TEXT("hand_l"), TEXT("finger_l") },
+		{ TEXT("oberarm_r"), TEXT("unterarm_r"), TEXT("hand_r"), TEXT("finger_r") },
+		{ TEXT("oberschenkel_l"), TEXT("unterschenkel_l"), TEXT("mittelfuss_l"), TEXT("zehen_l") },
+		{ TEXT("oberschenkel_r"), TEXT("unterschenkel_r"), TEXT("mittelfuss_r"), TEXT("zehen_r") },
+	};
+	/** Most it bends a limb or lowers the body for the ground, in cm */
+	constexpr float MaxGroundLift = 110.0f;
+
+	/** The lower inner jaws, and where their lips' tips are from the jaws' hinges in the reference pose (cm) */
+	const TCHAR* LipJaws[] = { TEXT("kiefer_ul"), TEXT("kiefer_ur") };
+	constexpr int32 DroolDrops = 8;
+	const FVector LipFromHinge(90.0f, 0.0f, -45.0f);
 
 	/** A vine's strike: drawing back, shooting out, holding on and pulling in (seconds) */
 	constexpr float VineCoil = 0.32f;
@@ -118,6 +145,7 @@ void AVaelKelchreisser::BeginPlay()
 	BiteSequence = Data->BiteAnimation.LoadSynchronous();
 	LeapSequence = Data->LeapAnimation.LoadSynchronous();
 	ScreamSequence = Data->ScreamAnimation.LoadSynchronous();
+	LurkSequence = Data->LurkAnimation.LoadSynchronous();
 
 	for (int32 Slot = 0; Slot < GetMesh()->GetNumMaterials(); ++Slot)
 	{
@@ -125,6 +153,8 @@ void AVaelKelchreisser::BeginPlay()
 	}
 	RefreshNidGlow();
 	SetupVines();
+	SetupDrool();
+	GroundLifts.Init(0.0f, UE_ARRAY_COUNT(GroundLimbBones));
 	EnterState(EVaelKelchreisserState::Territory);
 }
 
@@ -221,7 +251,8 @@ void AVaelKelchreisser::EnterState(EVaelKelchreisserState NewState)
 	switch (NewState)
 	{
 	case EVaelKelchreisserState::Listen:
-		PlayAnimation(IdleSequence, true, PoseBlend);
+		// Ducks low like a dog that has heard something
+		PlayAnimation(LurkSequence != nullptr ? LurkSequence : IdleSequence, true, 0.5f);
 		StateDuration = Data->ListenTime;
 		break;
 
@@ -233,28 +264,28 @@ void AVaelKelchreisser::EnterState(EVaelKelchreisserState NewState)
 
 	case EVaelKelchreisserState::Claw:
 		++AttackCount;
-		PlayAnimation(ClawSequence, false, 0.1f, 1.0f, true);
+		PlayAnimation(ClawSequence, false, AttackBlend, 1.0f, true);
 		StateDuration = Length(ClawSequence, 1.0f);
 		ClawReadyTime = Now + RandomInRange(Data->ClawInterval);
 		break;
 
 	case EVaelKelchreisserState::Swipe:
 		++AttackCount;
-		PlayAnimation(SwipeSequence, false, 0.1f, 1.0f, true);
+		PlayAnimation(SwipeSequence, false, AttackBlend, 1.0f, true);
 		StateDuration = Length(SwipeSequence, 1.2f);
 		SwipeReadyTime = Now + RandomInRange(Data->SwipeInterval);
 		break;
 
 	case EVaelKelchreisserState::Bite:
 		++AttackCount;
-		PlayAnimation(BiteSequence, false, 0.1f, 1.0f, true);
+		PlayAnimation(BiteSequence, false, AttackBlend, 1.0f, true);
 		StateDuration = Length(BiteSequence, 0.9f);
 		BiteReadyTime = Now + RandomInRange(Data->BiteInterval);
 		break;
 
 	case EVaelKelchreisserState::Leap:
 		++AttackCount;
-		PlayAnimation(LeapSequence, false, 0.1f, 1.0f, true);
+		PlayAnimation(LeapSequence, false, AttackBlend, 1.0f, true);
 		StateDuration = Length(LeapSequence, 1.2f);
 		LeapReadyTime = Now + RandomInRange(Data->LeapInterval);
 		break;
@@ -281,7 +312,8 @@ void AVaelKelchreisser::UpdateGait()
 	const float Speed = GetVelocity().Size2D();
 	if (Speed < 40.0f)
 	{
-		PlayAnimation(IdleSequence, true, PoseBlend);
+		// Standing in a fight it crouches, ready to spring; otherwise it stands
+		PlayAnimation(State == EVaelKelchreisserState::Hunt && LurkSequence != nullptr ? LurkSequence : IdleSequence, true, PoseBlend);
 		return;
 	}
 	// Gallops on the scent, otherwise walks half upright (creepy, slow)
@@ -630,6 +662,222 @@ void AVaelKelchreisser::UpdateVines(float DeltaSeconds)
 	Animator->SetReachChains(Chains);
 }
 
+void AVaelKelchreisser::UpdateGrounding(float DeltaSeconds)
+{
+	if (Animator == nullptr || GroundLifts.Num() != UE_ARRAY_COUNT(GroundLimbBones))
+	{
+		return;
+	}
+	// In the air and dead it doesn't reach for the ground
+	const bool bAirborne = State == EVaelKelchreisserState::Leap && StateTime > LeapStart && StateTime < LeapEnd;
+	const float Floor = GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	TArray<FVaelGroundLimb> Limbs;
+	float Lowest = 0.0f;
+	for (int32 Index = 0; Index < GroundLifts.Num(); ++Index)
+	{
+		const FGroundLimbBones& Bones = GroundLimbBones[Index];
+		float Wanted = 0.0f;
+		if (!bAirborne && !IsDead())
+		{
+			// The ground under where the hand or foot is, against the ground the body stands on
+			const FVector Touch = GetMesh()->GetSocketLocation(Bones.Touch);
+			FHitResult Hit;
+			if (VaelGround::TraceGround(GetWorld(), FVector(Touch.X, Touch.Y, Floor + MaxGroundLift + 50.0f), FVector(Touch.X, Touch.Y, Floor - MaxGroundLift - 50.0f), Hit, this))
+			{
+				Wanted = FMath::Clamp(Hit.Location.Z - Floor, -MaxGroundLift, MaxGroundLift);
+			}
+		}
+		GroundLifts[Index] = FMath::FInterpTo(GroundLifts[Index], Wanted, DeltaSeconds, 10.0f);
+		Lowest = FMath::Min(Lowest, GroundLifts[Index]);
+		FVaelGroundLimb& Limb = Limbs.AddDefaulted_GetRef();
+		Limb.Upper = Bones.Upper;
+		Limb.Lower = Bones.Lower;
+		Limb.End = Bones.End;
+		Limb.Lift = GroundLifts[Index];
+	}
+	// The body sinks so its lowest limb can still reach down
+	PelvisShift = FMath::FInterpTo(PelvisShift, Lowest * 0.85f, DeltaSeconds, 6.0f);
+	Animator->SetGrounding(Limbs, TEXT("becken"), PelvisShift);
+}
+
+void AVaelKelchreisser::SetupDrool()
+{
+	UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+	UMaterialInterface* Slime = GetData<UVaelKelchreisserData>()->DroolMaterial.LoadSynchronous();
+	if (Sphere == nullptr)
+	{
+		return;
+	}
+	for (int32 Index = 0; Index < DroolDrops * 2; ++Index)
+	{
+		UStaticMeshComponent* Piece = NewObject<UStaticMeshComponent>(this);
+		Piece->SetStaticMesh(Sphere);
+		Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Piece->SetCastShadow(false);
+		Piece->SetUsingAbsoluteLocation(true);
+		Piece->SetUsingAbsoluteRotation(true);
+		Piece->SetUsingAbsoluteScale(true);
+		if (Slime != nullptr)
+		{
+			Piece->SetMaterial(0, Slime);
+		}
+		Piece->SetupAttachment(GetRootComponent());
+		Piece->RegisterComponent();
+		Piece->SetVisibility(false);
+		(Index % 2 == 0 ? DroolThreads : DroolBlobs).Add(Piece);
+	}
+	Drool.SetNum(DroolDrops);
+
+	// Where the lips sit on the lower inner jaws, as a turn of each jaw (the bones carry a scale, the turn does not)
+	const FReferenceSkeleton& Skeleton = GetMesh()->GetSkinnedAsset()->GetRefSkeleton();
+	for (int32 Lip = 0; Lip < 2; ++Lip)
+	{
+		const int32 Bone = Skeleton.FindBoneIndex(LipJaws[Lip]);
+		LipOffset[Lip] = FVector::ZeroVector;
+		if (Bone != INDEX_NONE)
+		{
+			const FTransform Rest = FAnimationRuntime::GetComponentSpaceTransformRefPose(Skeleton, Bone);
+			LipOffset[Lip] = Rest.GetRotation().UnrotateVector(LipFromHinge);
+		}
+	}
+}
+
+FVector AVaelKelchreisser::GetLip(int32 Lip) const
+{
+	const FTransform Jaw = GetMesh()->GetSocketTransform(LipJaws[Lip]);
+	return Jaw.GetLocation() + Jaw.GetRotation().RotateVector(LipOffset[Lip]);
+}
+
+void AVaelKelchreisser::FlingDrool(int32 Count)
+{
+	for (FVaelDrool& Drop : Drool)
+	{
+		if (Count <= 0)
+		{
+			break;
+		}
+		if (Drop.Age >= 0.0f)
+		{
+			continue;
+		}
+		--Count;
+		Drop.Age = 0.0f;
+		Drop.HangTime = 0.0f;
+		Drop.Size = FMath::FRandRange(4.0f, 8.0f);
+		Drop.Lip = FMath::RandRange(0, 1);
+		Drop.Location = GetLip(Drop.Lip);
+		Drop.Velocity = GetActorForwardVector() * FMath::FRandRange(250.0f, 550.0f) + FMath::VRand() * 220.0f + FVector(0.0f, 0.0f, 200.0f);
+		Drop.Landed = -1.0f;
+		Drop.bFree = false;
+	}
+}
+
+void AVaelKelchreisser::UpdateDrool(float DeltaSeconds)
+{
+	if (Drool.Num() == 0 || Drool.Num() != DroolThreads.Num() || Drool.Num() != DroolBlobs.Num())
+	{
+		return;
+	}
+	const UVaelKelchreisserData* Data = GetData<UVaelKelchreisserData>();
+	// It slobbers all the time, more when it has a scent
+	DroolCountdown -= DeltaSeconds;
+	if (!IsDead() && DroolCountdown <= 0.0f)
+	{
+		DroolCountdown = RandomInRange(Data->DroolInterval) * (Prey.IsValid() ? 0.5f : 1.0f);
+		for (FVaelDrool& Drop : Drool)
+		{
+			if (Drop.Age < 0.0f)
+			{
+				Drop.Age = 0.0f;
+				Drop.HangTime = FMath::FRandRange(0.6f, 1.6f);
+				Drop.Size = FMath::FRandRange(3.5f, 7.0f);
+				Drop.Lip = FMath::RandRange(0, 1);
+				Drop.Location = GetLip(Drop.Lip);
+				Drop.Velocity = FVector::ZeroVector;
+				Drop.Landed = -1.0f;
+				Drop.bFree = false;
+				break;
+			}
+		}
+	}
+
+	const FVector Motion = GetVelocity();
+	for (int32 Index = 0; Index < Drool.Num(); ++Index)
+	{
+		FVaelDrool& Drop = Drool[Index];
+		UStaticMeshComponent* Thread = DroolThreads[Index];
+		UStaticMeshComponent* Blob = DroolBlobs[Index];
+		if (Drop.Age < 0.0f)
+		{
+			continue;
+		}
+		Drop.Age += DeltaSeconds;
+		const FVector Lip = GetLip(Drop.Lip);
+		float ThreadLength = 0.0f;
+
+		if (!Drop.bFree && Drop.Age < Drop.HangTime)
+		{
+			// Runs out and stretches down into a thread, trailing behind when the head moves
+			const float Hang = 8.0f + 70.0f * FMath::Square(Drop.Age / Drop.HangTime);
+			const FVector Wanted = Lip + FVector(0.0f, 0.0f, -Hang) - Motion.GetClampedToMaxSize(900.0f) * 0.06f;
+			Drop.Location = FMath::VInterpTo(Drop.Location, Wanted, DeltaSeconds, 8.0f);
+			Drop.Velocity = Motion;
+			ThreadLength = FVector::Dist(Lip, Drop.Location);
+		}
+		else if (Drop.Landed < 0.0f)
+		{
+			if (!Drop.bFree)
+			{
+				// Tears off and falls onto the ground below
+				Drop.bFree = true;
+				FHitResult Hit;
+				Drop.GroundZ = VaelGround::TraceGround(GetWorld(), Drop.Location, Drop.Location - FVector(0.0f, 0.0f, 1500.0f), Hit, this)
+					? Hit.Location.Z : Drop.Location.Z - 600.0f;
+			}
+			Drop.Velocity.Z -= 980.0f * DeltaSeconds;
+			Drop.Location += Drop.Velocity * DeltaSeconds;
+			// The thread snaps back a moment after
+			ThreadLength = FMath::Max(0.0f, FVector::Dist(Lip, Drop.Location) * (1.0f - (Drop.Age - Drop.HangTime) / 0.12f));
+			if (Drop.Location.Z <= Drop.GroundZ)
+			{
+				Drop.Location.Z = Drop.GroundZ + 1.0f;
+				Drop.Landed = 0.0f;
+			}
+		}
+		else
+		{
+			Drop.Landed += DeltaSeconds;
+		}
+
+		// A blob, flattened to a splash where it landed, drying away
+		const float Dry = Drop.Landed >= 0.0f ? FMath::Clamp(1.0f - Drop.Landed / 1.6f, 0.0f, 1.0f) : 1.0f;
+		if (Dry <= 0.0f)
+		{
+			Drop.Age = -1.0f;
+			Thread->SetVisibility(false);
+			Blob->SetVisibility(false);
+			continue;
+		}
+		const float Diameter = Drop.Size / 50.0f;
+		const FVector BlobScale = Drop.Landed >= 0.0f ? FVector(Diameter * 2.6f, Diameter * 2.6f, Diameter * 0.25f) * Dry
+			: FVector(Diameter, Diameter, Diameter * (Drop.bFree ? 1.5f : 1.2f));
+		const FQuat Falling = Drop.bFree && Drop.Landed < 0.0f && !Drop.Velocity.IsNearlyZero()
+			? FQuat::FindBetweenNormals(FVector::UpVector, -Drop.Velocity.GetSafeNormal()) : FQuat::Identity;
+		Blob->SetWorldLocationAndRotation(Drop.Location, Falling);
+		Blob->SetWorldScale3D(BlobScale);
+		Blob->SetVisibility(true);
+
+		Thread->SetVisibility(ThreadLength > 2.0f);
+		if (ThreadLength > 2.0f)
+		{
+			const FVector Middle = (Lip + Drop.Location) * 0.5f;
+			const FVector Along = (Drop.Location - Lip).GetSafeNormal();
+			Thread->SetWorldLocationAndRotation(Middle, FQuat::FindBetweenNormals(FVector::UpVector, Along));
+			Thread->SetWorldScale3D(FVector(Diameter * 0.3f, Diameter * 0.3f, ThreadLength / 100.0f));
+		}
+	}
+}
+
 void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 {
 	const UVaelKelchreisserData* Data = GetData<UVaelKelchreisserData>();
@@ -714,6 +962,7 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 			bStruck = true;
 			// Close by the ground shakes the players back a step and slows them
 			HitPlayersAround(GetActorLocation(), Data->ScreamRange, 180.0f, 0.0f, Data->ScreamKnockback, 4, EVaelStatus::Slowed, Data->ScreamSlowTime);
+			FlingDrool(6);
 		}
 		if (Target != nullptr)
 		{
@@ -824,6 +1073,7 @@ void AVaelKelchreisser::TickBehavior(float DeltaSeconds)
 			bStruck = true;
 			const FVector Mouth = GetActorLocation() + GetActorForwardVector() * (GetCapsuleComponent()->GetScaledCapsuleRadius() + Data->BiteRange * 0.5f);
 			HitPlayersAround(Mouth, Data->BiteRange * 0.6f, 180.0f, Data->BiteDamage, Data->BiteKnockback, 1);
+			FlingDrool(4);
 		}
 		if (StateTime >= StateDuration)
 		{
@@ -883,6 +1133,8 @@ void AVaelKelchreisser::Tick(float DeltaSeconds)
 		UpdateGait();
 	}
 	UpdateVines(DeltaSeconds);
+	UpdateGrounding(DeltaSeconds);
+	UpdateDrool(DeltaSeconds);
 }
 
 void AVaelKelchreisser::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)

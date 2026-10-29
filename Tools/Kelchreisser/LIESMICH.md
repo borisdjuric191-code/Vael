@@ -31,7 +31,10 @@ Stück zählt (mit losen Dornspitzen findet der Löser gar keine Lösung). Dorne
 in die Rankengewichte hinein (`DORN_*`).
 
 Animationen: Hände und Füße stehen über IK-Ziele (leere Objekte), Hand und Mittelfuß drehen wie ihr Ziel; das Ergebnis
-wird Bild für Bild in reine Knochenschlüssel gerechnet, die Constraints danach entfernt. Kiefer, Blätter und
+wird Bild für Bild in reine Knochenschlüssel gerechnet, die Constraints danach entfernt. Vor jedem Bild misst
+boden_halten den tiefsten Punkt jeder Hand / jedes Fußes (Finger und Krallen, nicht das Handgelenk) und setzt das Ziel
+nach, bis er auf dem Boden steht (der linke Arm des Modells ist kürzer, seine Hand steht weiter hinten). Im Spiel setzt
+AVaelKelchreisser Hände und Füße zusätzlich per Boden-IK auf das echte Gelände (SetGrounding). Kiefer, Blätter und
 Knospenhälften drehen um ihre eigene X-Achse (Rolle in 05 gesetzt).
 
 Neue Animationen: 07, dann 08a (eigener Lauf), dann 08b. 08b importiert mit dem klassischen FBX-Importer nur die

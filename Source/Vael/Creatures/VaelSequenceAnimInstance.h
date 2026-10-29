@@ -34,6 +34,18 @@ struct FVaelReachChain
 	float JawOpen = 0.0f;
 };
 
+/** A limb set down onto uneven ground on top of the sequence: see UVaelSequenceAnimInstance::SetGrounding */
+struct FVaelGroundLimb
+{
+	/** Two bones that bend (upper arm, forearm / thigh, shin) and the piece at their end that keeps its turn (hand / metatarsus) */
+	FName Upper;
+	FName Lower;
+	FName End;
+
+	/** How much higher (cm, negative: lower) the ground under it is than the flat ground the sequence stands on */
+	float Lift = 0.0f;
+};
+
 /** Evaluates the current sequence and, while a change is blending in, the one before it (on the animation worker thread) */
 struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 {
@@ -49,7 +61,13 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 	/** Flings the reach chains out to their targets (see UVaelSequenceAnimInstance::SetReachChains) */
 	void ApplyReach(FCompactPose& Pose) const;
 
+	/** Lowers the pelvis and sets the limbs down onto the ground (see UVaelSequenceAnimInstance::SetGrounding) */
+	void ApplyGrounding(FCompactPose& Pose) const;
+
 	TArray<FVaelReachChain> ReachChains;
+	TArray<FVaelGroundLimb> GroundLimbs;
+	FName GroundPelvis;
+	float GroundPelvisShift = 0.0f;
 
 	UAnimSequence* Current = nullptr;
 	UAnimSequence* Previous = nullptr;
@@ -133,6 +151,18 @@ public:
 	 */
 	void SetReachChains(const TArray<FVaelReachChain>& Chains) { ReachChains = Chains; }
 
+	/**
+	 *  Sets the limbs down onto uneven ground: the pelvis bone moves up or down by PelvisShift (cm, in component space)
+	 *  and each limb bends (two-bone IK, keeping the way its joint points) so its end piece lands Lift higher than the
+	 *  sequence puts it; the end piece keeps its turn. An empty list leaves the sequence alone.
+	 */
+	void SetGrounding(const TArray<FVaelGroundLimb>& Limbs, FName Pelvis, float PelvisShift)
+	{
+		GroundLimbs = Limbs;
+		GroundPelvis = Pelvis;
+		GroundPelvisShift = PelvisShift;
+	}
+
 protected:
 
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override { return new FVaelSequenceAnimProxy(this); }
@@ -176,4 +206,7 @@ private:
 	float SwayAngle = 0.0f;
 	TArray<float> SwayPhases;
 	TArray<FVaelReachChain> ReachChains;
+	TArray<FVaelGroundLimb> GroundLimbs;
+	FName GroundPelvis;
+	float GroundPelvisShift = 0.0f;
 };

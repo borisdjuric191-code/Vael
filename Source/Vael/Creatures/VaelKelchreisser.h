@@ -8,6 +8,7 @@
 
 class UAnimSequence;
 class UMaterialInstanceDynamic;
+class UStaticMeshComponent;
 class UVaelElementComponent;
 class UVaelSequenceAnimInstance;
 
@@ -53,6 +54,23 @@ struct FVaelVineStrike
 	FVector CoilPoint = FVector::ZeroVector;
 	FVector BitePoint = FVector::ZeroVector;
 	bool bBitten = false;
+};
+
+/** A drop of slobber: hangs from a lip on a thread, tears off, falls and splashes on the ground */
+struct FVaelDrool
+{
+	/** Seconds since it began to run out of the mouth, below 0 while unused */
+	float Age = -1.0f;
+	float HangTime = 1.0f;
+	float Size = 6.0f;
+	/** Which lip it hangs from (0, 1), and where it is */
+	int32 Lip = 0;
+	FVector Location = FVector::ZeroVector;
+	FVector Velocity = FVector::ZeroVector;
+	float GroundZ = 0.0f;
+	/** Seconds since it hit the ground, below 0 while in the air */
+	float Landed = -1.0f;
+	bool bFree = false;
 };
 
 /**
@@ -139,6 +157,15 @@ private:
 	/** Starts, runs and lays out the vines' own strikes, and hands them to the animation */
 	void UpdateVines(float DeltaSeconds);
 
+	/** Sets hands and feet down onto the real ground under them (slopes, roots), the body lowered to match */
+	void UpdateGrounding(float DeltaSeconds);
+
+	/** Slobber running from the flower's lower lips; Fling throws a few drops out of the mouth (a bite, a scream) */
+	void SetupDrool();
+	void UpdateDrool(float DeltaSeconds);
+	void FlingDrool(int32 Count);
+	FVector GetLip(int32 Lip) const;
+
 	/** Its region's corruption, 0..1 */
 	float GetCorruptionShare() const;
 
@@ -167,6 +194,8 @@ private:
 	TObjectPtr<UAnimSequence> LeapSequence;
 	UPROPERTY(Transient)
 	TObjectPtr<UAnimSequence> ScreamSequence;
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimSequence> LurkSequence;
 
 	/** Element components it listens to, and when (world seconds) each player last cast a spell */
 	TArray<TWeakObjectPtr<UVaelElementComponent>> WatchedCasters;
@@ -174,6 +203,19 @@ private:
 	float ListenCountdown = 0.0f;
 
 	TArray<FVaelVineStrike> Vines;
+
+	/** How much higher the ground is under each hand and foot than under the body (cm, smoothed), and the pelvis' shift */
+	TArray<float> GroundLifts;
+	float PelvisShift = 0.0f;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> DroolThreads;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> DroolBlobs;
+	TArray<FVaelDrool> Drool;
+	/** The lips' tips relative to the lower inner jaw bones (turn only, cm), and seconds to the next drop */
+	FVector LipOffset[2];
+	float DroolCountdown = 0.0f;
 
 	TWeakObjectPtr<AActor> Prey;
 	EVaelKelchreisserState State = EVaelKelchreisserState::Territory;

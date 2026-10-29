@@ -6,6 +6,7 @@ moves the root in Unreal).
   Galopp          22 frames loop: rotary gallop on the scent, the back coiling and stretching, one float per stride,
                   palms peeling off and folding in the air, head gliding level, vines streaming and whipping back
   Gehen_Aufrecht  1.6 s loop: half upright on the hind legs, the long arms hanging and swinging (creepy)
+  Lauern          3 s loop: crouched deep like a dog about to spring, chest low, flower head forward, breathing
   Prankenhieb     1.2 s: the right arm drawn far back, the body wound up, then a flat circle with the open clawed hand
   Klaue           1.0 s: rears, the left arm high and over, raking down in front
   Biss            0.9 s: petals and jaws torn open, a lunge and the flower slams shut
@@ -36,13 +37,16 @@ SEITEN = ("l", "r")
 # Rest positions (step 5) of the joints the IK aims at
 HANDGELENK = {"l": Vector((1.5, 1.75, 1.25)), "r": Vector((1.5, -1.75, 1.25))}
 BALLEN = {"l": Vector((-2.65, 1.1, 0.25)), "r": Vector((-2.65, -1.1, 0.25))}
-# The crouch: palms flat on the ground in front of the shoulders, the chest lowered over them
-HAND_STAND = {"l": Vector((1.85, 1.85, 0.42)), "r": Vector((1.85, -1.85, 0.42))}
+# The crouch: palms flat on the ground under and a little in front of the shoulders (the left arm of the model is
+# shorter, so its hand sits further back), the chest lowered over them
+HAND_STAND = {"l": Vector((1.6, 1.85, 0.42)), "r": Vector((1.7, -1.85, 0.42))}
 HAND_NEIGUNG = -14      # degrees the hand is turned tip-up against its rest slope, so the palm lies flat
 FINGER_NEIGUNG = -18
 BECKEN_STAND = 7        # degrees the body tips forward round the pelvis in the crouch
 ARM = [None]
 RANKEN = []             # per vine: its chain bone names
+GLIEDER = {}            # per hand and foot: (bone, rest points riding on it), see glieder_messen
+BODEN_TIEFE = 0.02      # m the lowest claw sinks into the ground where it stands (soil gives a little)
 
 
 # ---------------------------------------------------------------- Pose helpers
@@ -96,7 +100,7 @@ def grundhaltung(t, atem=1.0):
     p = Pose()
     a = welle(t, 2.0) * atem
     p.dazu("becken", BECKEN_STAND)
-    p.becken = Vector((0.0, 0.0, -0.12 + 0.02 * a))
+    p.becken = Vector((0.0, 0.0, -0.24 + 0.02 * a))
     p.dazu("wirbel_01", 0.8 * a)
     p.dazu("wirbel_02", -0.6 * a)
     p.dazu("brust", -1.0 * a)
@@ -185,9 +189,15 @@ def stehen_idle(f):
     t = f / FPS
     p = grundhaltung(t)
     wiegen = welle(t, 4.0)
-    p.dazu("becken", 0, 3 * wiegen, 2 * wiegen)
-    p.becken += Vector((0.0, 0.1 * wiegen, 0.0))
-    p.dazu("brust", 0, -2 * wiegen, -3 * wiegen)
+    # Like a dog: sinks back onto its haunches, then rises tall on straight arms
+    hocken = huegel(t, 0.3, 1.1, 1.6, 2.3)
+    aufrichten = huegel(t, 2.4, 3.0, 3.3, 3.95)
+    p.dazu("becken", 6 * hocken - 3 * aufrichten, 3 * wiegen, 2 * wiegen)
+    p.becken += Vector((-0.25 * hocken + 0.05 * aufrichten, 0.1 * wiegen, -0.45 * hocken + 0.06 * aufrichten))
+    p.dazu("wirbel_01", -3 * hocken + 2 * aufrichten)
+    p.dazu("wirbel_02", -4 * hocken + 3 * aufrichten)
+    p.dazu("brust", -4 * hocken + 4 * aufrichten, -2 * wiegen, -3 * welle(t, 4.0, 0.08))
+    p.dazu("hals_01", 6 * hocken - 8 * aufrichten)
     # Listening: the head snaps to a new side, holds, snaps on (four times in the loop)
     ziele = [(-25, 8), (18, -4), (-8, 12), (30, 2)]
     for k, (wende, beuge) in enumerate(ziele):
@@ -210,6 +220,34 @@ GALOPP_PERIODE = 22 / FPS
 GALOPP_WEITE = 2.0
 
 
+def lauern(f):
+    """Lurking like a dog about to spring: haunches folded deep, chest low between the arms, flower head stretched
+    forward near the ground, slow deep breaths, the shoulder blades rolling as it shifts its weight; vines raised"""
+    t = f / FPS
+    p = grundhaltung(t, atem=0.0)
+    atem = welle(t, 3.0)
+    wiegen = welle(t, 3.0, 0.2)
+    p.dazu("becken", 9, 2 * wiegen)
+    p.becken += Vector((-0.35, 0.08 * wiegen, -0.75 + 0.03 * atem))
+    p.dazu("wirbel_01", -2 + 1.2 * atem)
+    p.dazu("wirbel_02", -5 - 0.8 * atem)
+    p.dazu("brust", 6 - 1.5 * atem, -2 * wiegen)
+    p.dazu("hals_01", 10, 0, 4 * welle(t, 3.0, 0.35))
+    p.dazu("hals_02", 6)
+    p.dazu("kopf", 4 + 2 * atem, 0, 6 * welle(t, 3.0, 0.4))
+    for s, gegen in (("l", 0.0), ("r", 0.5)):
+        rollen = welle(t, 3.0, gegen)
+        p.dazu("schulter_" + s, 5 * rollen, 0, (-6 if s == "l" else 6) * rollen)
+        p.hand[s] = HAND_STAND[s] + Vector((-0.15, 0.0, 0.0))
+    blaetter(p, 0.25 + 0.1 * atem)
+    innenkiefer(p, 0.3 + 0.1 * atem)
+    ranken_beugen(p, -10)
+    ranken_weben(p, t, staerke=2.5, periode=3.0)
+    for i in range(len(RANKEN)):
+        knospe(p, i, 0.5 + 0.3 * welle(t, 1.5, i * 0.3))
+    return p
+
+
 def galopp(f):
     """Rotary gallop on the scent: the back coils as the hind feet reach under the body and stretches long as the
     hands reach out, one high float per stride after the hands; head low and level, vines streaming back"""
@@ -223,7 +261,7 @@ def galopp(f):
     p.dazu("wirbel_02", 6 * biegen, 0, -2 * math.sin(2 * math.pi * ph))
     p.dazu("brust", 3 * biegen, -2 * math.sin(2 * math.pi * ph))
     # One float per stride, after the hands leave the ground; lowest while they carry the body
-    p.becken = Vector((0.0, 0.0, -0.18 + 0.2 * math.cos(2 * math.pi * (ph - 0.88))))
+    p.becken = Vector((0.0, 0.0, -0.26 + 0.18 * math.cos(2 * math.pi * (ph - 0.88))))
     # The neck takes up the back's swing, so the flower glides
     p.dazu("hals_01", 8 - 9 * biegen)
     p.dazu("hals_02", 4 - 4 * biegen)
@@ -239,13 +277,19 @@ def galopp(f):
             anteil = (k + 1) / n
             p.dazu(name, -16 / n * 3 + 9 * anteil * math.sin(2 * math.pi * (ph - 0.12 * k - i * 0.1)),
                    4 * anteil * math.sin(2 * math.pi * (ph - 0.1 * k + i * 0.25)))
+    # Shoulder blades slide forward with the reaching hand, the chest rolls over the hand that carries, the neck lags
+    for s, versatz in (("l", 0.42), ("r", 0.5)):
+        greifen = math.cos(2 * math.pi * ((ph - versatz) % 1.0 - 0.65))
+        p.dazu("schulter_" + s, 6 * greifen, 0, (-12 if s == "l" else 12) * greifen)
+    p.dazu("brust", 0, 4 * math.sin(2 * math.pi * (ph - 0.46)), 3 * math.sin(2 * math.pi * (ph - 0.5)))
+    p.dazu("hals_02", 2 * math.cos(2 * math.pi * (ph - 0.1)), 0, -3 * math.sin(2 * math.pi * (ph - 0.6)))
     # Rotary gallop: right hind, left hind, left hand, right hand; each on the ground 30 % of the stride
     for name, versatz in (("fuss_r", 0.0), ("fuss_l", 0.08), ("hand_l", 0.42), ("hand_r", 0.5)):
         s = name[-1]
         q = (ph - versatz) % 1.0
         x, z, u = schritt_bahn(q, 0.3, GALOPP_WEITE, 0.85 if name.startswith("hand") else 0.7)
         if name.startswith("hand"):
-            p.hand[s] = HAND_STAND[s] + Vector((x + 0.35, 0.0, z))
+            p.hand[s] = HAND_STAND[s] + Vector((x + 0.05, 0.0, z))
             # The palm peels off heel first and folds back in the air, then opens flat to land
             if u < 0:
                 abrollen = 30 * weich((q / 0.3 - 0.7) / 0.3)
@@ -450,7 +494,8 @@ def schrei(f):
 
 
 AKTIONEN = [("Stehen_Idle", 4.0, stehen_idle, True), ("Galopp", GALOPP_PERIODE, galopp, True),
-            ("Gehen_Aufrecht", 1.6, gehen_aufrecht, True), ("Prankenhieb", 1.2, prankenhieb, False),
+            ("Gehen_Aufrecht", 1.6, gehen_aufrecht, True), ("Lauern", 3.0, lauern, True),
+            ("Prankenhieb", 1.2, prankenhieb, False),
             ("Klaue", 1.0, klaue, False), ("Biss", 0.9, biss, False), ("Sprung", 1.2, sprung, False),
             ("Schrei", 2.0, schrei, False)]
 
@@ -515,8 +560,59 @@ def pose_setzen(arm, ziele, p):
             arm.pose.bones[bone].constraints[name].influence = p.arm_ik[s]
 
 
+def glieder_messen(obj, arm):
+    """Per hand and foot: the rest positions of the vertices that ride on its bones (hand + fingers, metatarsus + toes)
+    and the bone each rides on, to find the lowest point of a posed hand without evaluating the whole mesh"""
+    gruppen = {vg.index: vg.name for vg in obj.vertex_groups}
+    teile = {"hand_" + s: ("hand_" + s, "finger_" + s) for s in SEITEN}
+    teile.update({"fuss_" + s: ("mittelfuss_" + s, "zehen_" + s) for s in SEITEN})
+    gemessen = {}
+    for glied, knochen in teile.items():
+        punkte, auf = [], []
+        for vx in obj.data.vertices:
+            best = max(vx.groups, key=lambda g: g.weight, default=None)
+            if best is not None and best.weight > 0.5 and gruppen[best.group] in knochen:
+                punkte.append(vx.co.copy())
+                auf.append(gruppen[best.group])
+        gemessen[glied] = [(k, [pt for pt, b in zip(punkte, auf) if b == k]) for k in knochen]
+    GLIEDER.update(gemessen)
+
+
+def tiefster_punkt(arm, glied):
+    """Height of the lowest point of a hand or foot in the current pose"""
+    tiefst = 1e9
+    for knochen, punkte in GLIEDER[glied]:
+        if not punkte:
+            continue
+        pb = arm.pose.bones[knochen]
+        m = arm.matrix_world @ pb.matrix @ arm.data.bones[knochen].matrix_local.inverted()
+        tiefst = min(tiefst, min((m @ pt).z for pt in punkte))
+    return tiefst
+
+
+def boden_halten(arm, ziele, p):
+    """Sets the pose so the fingers and claws (not the wrist) touch the ground: a hand or foot meant to stand is moved
+    up or down until its lowest point is on the ground, one in the air is lifted out of it if it dips in"""
+    for _ in range(3):
+        pose_setzen(arm, ziele, p)
+        bpy.context.view_layer.update()
+        geaendert = False
+        for s in SEITEN:
+            for glied, ziel, ruhe in (("hand_" + s, p.hand, HAND_STAND), ("fuss_" + s, p.fuss, BALLEN)):
+                if glied.startswith("hand") and p.arm_ik[s] < 0.5:
+                    continue
+                tiefst = tiefster_punkt(arm, glied)
+                steht = ziel[s].z <= ruhe[s].z + 0.02
+                schub = -tiefst + BODEN_TIEFE if steht else max(0.0, -tiefst + BODEN_TIEFE)
+                if abs(schub) > 0.005:
+                    ziel[s] = ziel[s] + Vector((0.0, 0.0, schub))
+                    geaendert = True
+        if not geaendert:
+            break
+
+
 def backen(arm, ziele, name, dauer, pose_bei, schleife):
-    """Sets every frame, reads the bones' final local transforms (IK included) and keys them"""
+    """Sets every frame (feet and hands on the ground), reads the bones' final local transforms (IK included) and keys them"""
     rahmen = int(round(dauer * FPS))
     act = bpy.data.actions.get(name)
     if act:
@@ -527,8 +623,7 @@ def backen(arm, ziele, name, dauer, pose_bei, schleife):
     arm.animation_data.action = None
     werte = []
     for f in range(rahmen + 1):
-        pose_setzen(arm, ziele, pose_bei(f))
-        bpy.context.view_layer.update()
+        boden_halten(arm, ziele, pose_bei(f))
         bild = {}
         for pb in arm.pose.bones:
             lokal = arm.convert_space(pose_bone=pb, matrix=pb.matrix, from_space="POSE", to_space="LOCAL")
@@ -563,6 +658,7 @@ def main():
     for i in range(anzahl):
         RANKEN.append(sorted(b.name for b in arm.data.bones if b.name.startswith("ranke_%d_" % i) and b.name[-2:].isdigit()))
     ziele = ik_aufbauen(arm)
+    glieder_messen(bpy.data.objects["Kelchreisser"], arm)
     for name, dauer, pose_bei, schleife in AKTIONEN:
         backen(arm, ziele, name, dauer, pose_bei, schleife)
     # The constraints and targets were only for baking
@@ -575,7 +671,7 @@ def main():
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(vorschau.ARBEIT, "06_animationen.blend"))
 
     # Key poses
-    for name, bilder in (("Stehen_Idle", (0,)), ("Prankenhieb", (10, 15, 19)), ("Klaue", (11, 17)), ("Biss", (11, 14)),
+    for name, bilder in (("Stehen_Idle", (0, 45, 90)), ("Lauern", (0,)), ("Prankenhieb", (10, 15, 19)), ("Klaue", (11, 17)), ("Biss", (11, 14)),
                          ("Sprung", (9, 17)), ("Schrei", (30,))):
         arm.animation_data.action = bpy.data.actions[name]
         for f in bilder:

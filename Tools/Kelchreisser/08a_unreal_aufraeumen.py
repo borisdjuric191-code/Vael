@@ -12,7 +12,7 @@ import unreal
 
 ZIEL = "/Game/Vael/Kreaturen/Kelchreisser"
 # All actions this creature ever had (renamed ones too), so none is left behind
-AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Schlag", "Prankenhieb", "Klaue", "Rankenbiss", "Biss", "Sprung", "Schrei")
+AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Schlag", "Prankenhieb", "Klaue", "Rankenbiss", "Biss", "Sprung", "Schrei", "Lauern")
 eal = unreal.EditorAssetLibrary
 
 unreal.AssetRegistryHelpers.get_asset_registry().scan_paths_synchronous([ZIEL], True)

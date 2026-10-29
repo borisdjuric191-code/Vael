@@ -17,7 +17,7 @@ ORDNER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.di
 EXPORT = os.path.join(ORDNER, "export")
 ZIEL = "/Game/Vael/Kreaturen/Kelchreisser"
 MASTER = "/Game/Vael/Materialien/M_Kreatur_Master"
-AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Prankenhieb", "Klaue", "Biss", "Sprung", "Schrei")
+AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Lauern", "Prankenhieb", "Klaue", "Biss", "Sprung", "Schrei")
 TEXTUREN = (("basecolor", "jpg", "BaseColor"), ("normal", "png", "Normal"), ("roughness", "jpg", "Roughness"),
             ("metallic", "jpg", "Metallic"))
 eal = unreal.EditorAssetLibrary

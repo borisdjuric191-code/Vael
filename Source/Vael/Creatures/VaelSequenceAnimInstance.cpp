@@ -127,6 +127,97 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	SwayAngle = Instance->SwayAngle;
 	SwayPhases = Instance->SwayPhases;
 	ReachChains = Instance->ReachChains;
+	GroundLimbs = Instance->GroundLimbs;
+	GroundPelvis = Instance->GroundPelvis;
+	GroundPelvisShift = Instance->GroundPelvisShift;
+}
+
+void FVaelSequenceAnimProxy::ApplyGrounding(FCompactPose& Pose) const
+{
+	if (GroundLimbs.Num() == 0)
+	{
+		return;
+	}
+	const FBoneContainer& Container = Pose.GetBoneContainer();
+	const auto Find = [&Container](const FName& Name)
+	{
+		const int32 MeshIndex = Name.IsNone() ? INDEX_NONE : Container.GetPoseBoneIndexForBoneName(Name);
+		return MeshIndex == INDEX_NONE ? FCompactPoseBoneIndex(INDEX_NONE) : Container.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
+	};
+	const auto ComponentSpace = [&Pose](FCompactPoseBoneIndex Bone)
+	{
+		FTransform Result = FTransform::Identity;
+		for (; Bone.IsValid(); Bone = Pose.GetParentBoneIndex(Bone))
+		{
+			Result = Result * Pose[Bone];
+		}
+		return Result;
+	};
+
+	// The whole body up or down (a slope: down so the lowest limb still reaches)
+	const FCompactPoseBoneIndex Pelvis = Find(GroundPelvis);
+	if (Pelvis.IsValid() && !FMath::IsNearlyZero(GroundPelvisShift))
+	{
+		const FTransform Parent = ComponentSpace(Pose.GetParentBoneIndex(Pelvis));
+		FTransform Moved = Pose[Pelvis] * Parent;
+		Moved.AddToTranslation(FVector(0.0f, 0.0f, GroundPelvisShift));
+		Pose[Pelvis] = Moved.GetRelativeTransform(Parent);
+	}
+
+	for (const FVaelGroundLimb& Limb : GroundLimbs)
+	{
+		const FCompactPoseBoneIndex Upper = Find(Limb.Upper);
+		const FCompactPoseBoneIndex Lower = Find(Limb.Lower);
+		const FCompactPoseBoneIndex End = Find(Limb.End);
+		const float Delta = Limb.Lift - GroundPelvisShift;
+		if (!Upper.IsValid() || !Lower.IsValid() || !End.IsValid() || FMath::Abs(Delta) < 0.5f)
+		{
+			continue;
+		}
+		const FTransform Parent = ComponentSpace(Pose.GetParentBoneIndex(Upper));
+		const FTransform UpperBone = Pose[Upper] * Parent;
+		const FTransform LowerBone = Pose[Lower] * UpperBone;
+		const FTransform EndBone = Pose[End] * LowerBone;
+		const FVector A = UpperBone.GetTranslation();
+		const FVector B = LowerBone.GetTranslation();
+		const FVector C = EndBone.GetTranslation();
+		const float UpperLength = FVector::Dist(A, B);
+		const float LowerLength = FVector::Dist(B, C);
+		if (UpperLength < 1.0f || LowerLength < 1.0f)
+		{
+			continue;
+		}
+
+		// Two-bone IK in the plane the limb bends in now: the joint keeps pointing the way it does
+		const FVector Goal = C + FVector(0.0f, 0.0f, Delta);
+		const FVector ToGoal = Goal - A;
+		const FVector Along = ToGoal.GetSafeNormal();
+		const float Reach = FMath::Clamp(ToGoal.Size(), FMath::Abs(UpperLength - LowerLength) + 1.0f, UpperLength + LowerLength - 0.5f);
+		FVector Bend = (B - A) - Along * FVector::DotProduct(B - A, Along);
+		if (Bend.IsNearlyZero())
+		{
+			continue;
+		}
+		Bend.Normalize();
+		const float CosAngle = FMath::Clamp((UpperLength * UpperLength + Reach * Reach - LowerLength * LowerLength) / (2.0f * UpperLength * Reach), -1.0f, 1.0f);
+		const float Angle = FMath::Acos(CosAngle);
+		const FVector NewB = A + Along * UpperLength * CosAngle + Bend * UpperLength * FMath::Sin(Angle);
+		const FVector NewC = A + Along * Reach;
+
+		FTransform NewUpper = UpperBone;
+		const FQuat UpperTurn = FQuat::FindBetweenVectors(B - A, NewB - A);
+		NewUpper.SetRotation((UpperTurn * UpperBone.GetRotation()).GetNormalized());
+		FTransform NewLower = LowerBone;
+		NewLower.SetTranslation(NewB);
+		const FQuat LowerTurn = FQuat::FindBetweenVectors(UpperTurn.RotateVector(C - B), NewC - NewB) * UpperTurn;
+		NewLower.SetRotation((LowerTurn * LowerBone.GetRotation()).GetNormalized());
+		FTransform NewEnd = EndBone;
+		NewEnd.SetTranslation(NewC);
+
+		Pose[Upper] = NewUpper.GetRelativeTransform(Parent);
+		Pose[Lower] = NewLower.GetRelativeTransform(NewUpper);
+		Pose[End] = NewEnd.GetRelativeTransform(NewLower);
+	}
 }
 
 void FVaelSequenceAnimProxy::ApplyReach(FCompactPose& Pose) const
@@ -473,6 +564,7 @@ bool FVaelSequenceAnimProxy::Evaluate(FPoseContext& Output)
 		Output.Pose[Root].SetTranslation(Output.Pose.GetRefPose(Root).GetTranslation());
 	}
 	ApplySpine(Output.Pose);
+	ApplyGrounding(Output.Pose);
 	ApplyReach(Output.Pose);
 	return true;
 }

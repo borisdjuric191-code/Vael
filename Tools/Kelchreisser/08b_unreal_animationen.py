@@ -14,7 +14,7 @@ import unreal
 ORDNER = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
                       "Vael_Quellen", "Kelchreisser")
 ZIEL = "/Game/Vael/Kreaturen/Kelchreisser"
-AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Prankenhieb", "Klaue", "Biss", "Sprung", "Schrei")
+AKTIONEN = ("Stehen_Idle", "Galopp", "Gehen_Aufrecht", "Lauern", "Prankenhieb", "Klaue", "Biss", "Sprung", "Schrei")
 eal = unreal.EditorAssetLibrary
 
 

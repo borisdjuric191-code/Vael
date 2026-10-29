@@ -323,6 +323,7 @@ UVaelKelchreisserData::UVaelKelchreisserData()
 	ClawAnimation = Animation(TEXT("Klaue"));
 	BiteAnimation = Animation(TEXT("Biss"));
 	LeapAnimation = Animation(TEXT("Sprung"));
+	LurkAnimation = Animation(TEXT("Lauern"));
 	ScreamAnimation = Animation(TEXT("Schrei"));
 
 	// Almost a boss: three times this as an elite (the Glutkoenigin has 1300); heavy, it hardly staggers or flies
