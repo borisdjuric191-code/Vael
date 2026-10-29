@@ -1331,6 +1331,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 120))
 	float HeadLookAngle = 95.0f;
 
+	/** Crawling, the head is kept upright and tilts at most this many degrees up or down (Boris 2026-10-29: never askew) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 90))
+	float HeadLevelPitch = 12.0f;
+
 	/** Degrees per second the head turns on its path: calm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float TurnRate = 300.0f;
@@ -1346,7 +1350,7 @@ public:
 	float FinFlatScale = 0.6f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
-	float CrownFlatScale = 0.65f;
+	float CrownFlatScale = 0.5f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
 	float FinCoiledScale = 0.6f;

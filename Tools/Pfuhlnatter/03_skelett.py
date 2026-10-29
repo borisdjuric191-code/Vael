@@ -328,7 +328,9 @@ def main():
     aussen = np.clip((abstand / radius_hier - 1.12) / 0.15, 0.0, 1.0)
     um_kopf = np.clip((kopf_abstand - 0.17) / 0.05, 0.0, 1.0)
     # (the crown too: behind the head the model has no neck skin under its petals, only the petals)
-    werte = werte * np.where(krone, um_kopf * aussen, np.where(im_kopf, 0.0, aussen))
+    # Round the head itself (not yet behind it, over the neck) the skull lies under the petals: they all go
+    neben_kopf = np.clip((vorn + 0.25) / 0.1, 0.0, 1.0)
+    werte = werte * np.where(krone, um_kopf * np.maximum(aussen, neben_kopf), np.where(im_kopf, 0.0, aussen))
     farbe.data.foreach_set("color", np.column_stack([werte, np.zeros_like(werte), np.zeros_like(werte), np.ones_like(werte)]).ravel())
     obj.data.color_attributes.active_color = farbe
     obj.data.color_attributes.render_color_index = obj.data.color_attributes.find("Flosse")

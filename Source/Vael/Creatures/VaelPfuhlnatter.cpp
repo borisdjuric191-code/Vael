@@ -716,7 +716,9 @@ void AVaelPfuhlnatter::Tick(float DeltaSeconds)
 		const float Glance = FMath::Sin(Breath * 0.35f) * 40.0f + FMath::Sin(Breath * 0.9f) * 10.0f;
 		LookPoint = GetNeckLocation() + GetActorForwardVector().RotateAngleAxis(Glance, FVector::UpVector) * 400.0f + FVector(0.0f, 0.0f, 30.0f);
 	}
-	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, LookWeight);
+	// Crawling the head stays nearly level; reared or coiled it may look down or up at its prey
+	const bool bHeadFree = State == EVaelSnakeState::Spit || State == EVaelSnakeState::Constrict;
+	Animator->SetLookAt(GetMesh()->GetComponentTransform().InverseTransformPosition(LookPoint), Data->HeadLookAngle, LookWeight, bHeadFree ? 55.0f : Data->HeadLevelPitch);
 
 	// Crest and fins lie flat while it crawls; coiled round prey the crown opens again; reared to spit, everything
 	// spreads and quivers

@@ -60,10 +60,11 @@ void UVaelSequenceAnimInstance::SetSpineTargets(const TArray<FName>& Bones, cons
 	SpineWeight = Bones.Num() == Targets.Num() ? FMath::Clamp(Weight, 0.0f, 1.0f) : 0.0f;
 }
 
-void UVaelSequenceAnimInstance::SetLookAt(const FVector& Point, float MaxAngle, float Weight)
+void UVaelSequenceAnimInstance::SetLookAt(const FVector& Point, float MaxAngle, float Weight, float MaxPitch)
 {
 	LookPoint = Point;
 	LookMaxAngle = MaxAngle;
+	HeadMaxPitch = MaxPitch;
 	LookWeight = FMath::Clamp(Weight, 0.0f, 1.0f);
 }
 
@@ -113,6 +114,7 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	SpineWeight = Instance->SpineWeight;
 	LookPoint = Instance->LookPoint;
 	LookMaxAngle = Instance->LookMaxAngle;
+	HeadMaxPitch = Instance->HeadMaxPitch;
 	LookWeight = Instance->LookWeight;
 	ScaledBones = Instance->ScaledBones;
 	BoneScales = Instance->BoneScales;
@@ -243,7 +245,8 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 	}
 
 	// The head looks at its point: its forward is where it points in the reference pose (X)
-	if (LookWeight > 0.0f)
+	// (every time the chain is laid out: the head kept upright and level enough, turned towards the look point by its weight)
+	if (SpineWeight > 0.0f)
 	{
 		const FCompactPoseBoneIndex Tip = Chain.Last();
 		FTransform RefTip = FTransform::Identity;
@@ -266,7 +269,8 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 		}
 		FTransform Head = Pose[Tip] * Parent;
 		const FVector Forward = Head.GetRotation().RotateVector(LocalForward).GetSafeNormal();
-		const FVector ToPoint = (LookPoint - Head.GetTranslation()).GetSafeNormal();
+		const FVector Towards = (LookPoint - Head.GetTranslation()).GetSafeNormal();
+		const FVector ToPoint = LookWeight > 0.0f && !Towards.IsNearlyZero() ? Towards : Forward;
 		if (!ToPoint.IsNearlyZero() && !Forward.IsNearlyZero())
 		{
 			// Turns sideways and then up or down, never by the shortest way in space: that one rolls the head over
@@ -275,7 +279,8 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 			const float Yaw = YawNow + FMath::Clamp(FMath::FindDeltaAngleRadians(YawNow, FMath::Atan2(ToPoint.Y, ToPoint.X)), -MaxTurn, MaxTurn) * LookWeight;
 			const float PitchNow = FMath::Asin(FMath::Clamp(Forward.Z, -1.0f, 1.0f));
 			const float PitchTo = FMath::Atan2(ToPoint.Z, FVector2D(ToPoint.X, ToPoint.Y).Size());
-			const float Pitch = PitchNow + FMath::Clamp(PitchTo - PitchNow, -0.7f, 0.7f) * LookWeight;
+			const float MaxPitch = FMath::DegreesToRadians(HeadMaxPitch);
+			const float Pitch = FMath::Clamp(PitchNow + FMath::Clamp(PitchTo - PitchNow, -0.7f, 0.7f) * LookWeight, -MaxPitch, MaxPitch);
 			const FVector Wanted(FMath::Cos(Pitch) * FMath::Cos(Yaw), FMath::Cos(Pitch) * FMath::Sin(Yaw), FMath::Sin(Pitch));
 			Head.SetRotation((FQuat::FindBetweenNormals(Forward, Wanted) * Head.GetRotation()).GetNormalized());
 
@@ -285,7 +290,7 @@ void FVaelSequenceAnimProxy::ApplySpine(FCompactPose& Pose) const
 			if (!Top.IsNearlyZero() && !Up.IsNearlyZero())
 			{
 				const float Roll = FMath::Atan2(FVector::DotProduct(FVector::CrossProduct(Top, Up), Wanted), FVector::DotProduct(Top, Up));
-				Head.SetRotation((FQuat(Wanted, Roll * LookWeight) * Head.GetRotation()).GetNormalized());
+				Head.SetRotation((FQuat(Wanted, Roll) * Head.GetRotation()).GetNormalized());
 			}
 			Pose[Tip] = Head.GetRelativeTransform(Parent);
 		}

@@ -35,6 +35,7 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 	float SpineWeight = 0.0f;
 	FVector LookPoint = FVector::ZeroVector;
 	float LookMaxAngle = 0.0f;
+	float HeadMaxPitch = 90.0f;
 	float LookWeight = 0.0f;
 	TArray<FName> ScaledBones;
 	TArray<float> BoneScales;
@@ -82,8 +83,9 @@ public:
 	void SetSpineTargets(const TArray<FName>& Bones, const TArray<FVector>& Targets, float Weight, const TArray<FVector>& Ups = TArray<FVector>());
 
 	/** Turns the tip of the spine chain (the head) towards a point in component space, by at most MaxAngle degrees;
-	 *  its forward is the way it points in the reference pose's X. Weight 0 leaves it alone */
-	void SetLookAt(const FVector& Point, float MaxAngle, float Weight);
+	 *  its forward is the way it points in the reference pose's X. Weight 0 turns it nowhere. Whenever the chain is laid
+	 *  out the head is kept upright (its top up) and tilted no further than MaxPitch degrees up or down */
+	void SetLookAt(const FVector& Point, float MaxAngle, float Weight, float MaxPitch = 90.0f);
 
 	/** Scales bones on top of the sequence (fins drawn in further) and turns them back towards their reference pose by
 	 *  Opens (0 as the sequence has them, 1 as in the reference pose: fins spread), quivering by TrembleAngle degrees
@@ -123,6 +125,7 @@ private:
 	float SpineWeight = 0.0f;
 	FVector LookPoint = FVector::ZeroVector;
 	float LookMaxAngle = 0.0f;
+	float HeadMaxPitch = 90.0f;
 	float LookWeight = 0.0f;
 	TArray<FName> ScaledBones;
 	TArray<float> BoneScales;
