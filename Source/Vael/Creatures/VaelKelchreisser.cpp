@@ -59,11 +59,15 @@ namespace
 	/** Most it bends a limb or lowers the body for the ground, in cm */
 	constexpr float MaxGroundLift = 110.0f;
 
-	/** Knuckle heights (cm) of the hands when their claws rest on the ground in the baked animations; a hand that comes
+	/** Knuckle heights (cm) of the hands when their claws rest on the ground (the baked animations put them 5 cm higher
+	 *  in the game than in Blender, measured by the smoke test: taken off here); a hand that comes
 	 *  near the ground (blending between two animations, an attack ending) is pulled onto it, fully up to PlantSnap
 	 *  above that height and fading out by PlantReach */
-	constexpr float PlantedKnuckles[] = { 57.0f, 64.0f };
+	constexpr float PlantedKnuckles[] = { 52.0f, 59.0f };
 	constexpr float PlantSnap = 12.0f;
+
+	/** Most the body is set down below its capsule's bottom onto the ground under its middle, in cm */
+	constexpr float MaxSinkDown = 160.0f;
 	constexpr float PlantReach = 40.0f;
 
 	/** The lower inner jaws, and where their lips' tips are from the jaws' hinges in the reference pose (cm) */
@@ -677,7 +681,19 @@ void AVaelKelchreisser::UpdateGrounding(float DeltaSeconds)
 	}
 	// In the air and dead it doesn't reach for the ground
 	const bool bAirborne = State == EVaelKelchreisserState::Leap && StateTime > LeapStart && StateTime < LeapEnd;
-	const float Floor = GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	// The capsule's wide round bottom rests on the highest bump under it and holds the body up above dips and slopes
+	// (Boris 2026-10-29: it hovered): the body is set down onto the ground right under its middle instead
+	const float CapsuleBottom = GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	float Floor = CapsuleBottom;
+	FHitResult Under;
+	if (!bAirborne && VaelGround::TraceGround(GetWorld(), FVector(GetActorLocation().X, GetActorLocation().Y, CapsuleBottom + 80.0f),
+		FVector(GetActorLocation().X, GetActorLocation().Y, CapsuleBottom - MaxSinkDown), Under, this))
+	{
+		Floor = FMath::Min(Under.Location.Z, CapsuleBottom);
+	}
+	BodySink = FMath::FInterpTo(BodySink, Floor - CapsuleBottom, DeltaSeconds, 8.0f);
+	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, MeshBaseZ + BodySink));
+	Floor = CapsuleBottom + BodySink;
 	TArray<FVaelGroundLimb> Limbs;
 	float Lowest = 0.0f;
 	for (int32 Index = 0; Index < GroundLifts.Num(); ++Index)
@@ -768,7 +784,7 @@ FVector AVaelKelchreisser::GetLip(int32 Lip) const
 
 float AVaelKelchreisser::GetBoneHeight(FName Bone) const
 {
-	return GetMesh()->GetSocketLocation(Bone).Z - (GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	return GetMesh()->GetSocketLocation(Bone).Z - (GetActorLocation().Z - GetCapsuleComponent()->GetScaledCapsuleHalfHeight() + BodySink);
 }
 
 void AVaelKelchreisser::FlingDrool(int32 Count)

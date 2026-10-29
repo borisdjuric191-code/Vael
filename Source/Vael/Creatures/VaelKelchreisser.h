@@ -262,6 +262,8 @@ private:
 	float CorruptionStrength = 1.0f;
 	bool bHitFlash = false;
 	float MeshBaseZ = 0.0f;
+	/** How far the body is set down below the capsule's bottom onto the ground under its middle (cm, negative, smoothed) */
+	float BodySink = 0.0f;
 	int32 AttackCount = 0;
 	int32 HitCount = 0;
 	int32 VineStrikeCount = 0;
