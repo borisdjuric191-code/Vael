@@ -123,6 +123,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftClassPtr<AActor> MetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Magier_Build/MH_Magier/BP_MH_Magier.BP_MH_Magier_C")));
 
+	/** The starting robe fitted to the MetaHuman (vael_kleidung_anpassen.py), on its skeleton */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftObjectPtr<USkeletalMesh> MetaHumanRobe = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MagierMann_Robe_MH.SK_MagierMann_Robe_MH")));
+
 	/** Body of the two base looks of the mage in the starting robe (creature factory, humans), male and female. Empty or missing: the template mannequin stays. */
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftObjectPtr<USkeletalMesh> BodyMeshes[2] = {

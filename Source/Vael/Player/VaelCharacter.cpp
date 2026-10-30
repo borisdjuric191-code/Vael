@@ -172,12 +172,14 @@ void AVaelCharacter::SetBaseLook(int32 LookIndex)
 
 void AVaelCharacter::FollowMesh(AActor* Human)
 {
+	USkeletalMeshComponent* Body = nullptr;
 	TInlineComponentArray<USkeletalMeshComponent*> Meshes(Human);
 	for (USkeletalMeshComponent* Part : Meshes)
 	{
-		// The face and the clothes follow the body by themselves
+		// The face follows the body by itself; the plain clothes of the assembly make way for the robe
 		if (Part->GetFName() == TEXT("Body"))
 		{
+			Body = Part;
 			Part->SetAnimInstanceClass(UVaelPoseFollowerAnimInstance::StaticClass());
 			Part->AddTickPrerequisiteComponent(GetMesh());
 			if (UVaelPoseFollowerAnimInstance* Follower = Cast<UVaelPoseFollowerAnimInstance>(Part->GetAnimInstance()))
@@ -185,6 +187,21 @@ void AVaelCharacter::FollowMesh(AActor* Human)
 				Follower->SetSource(GetMesh());
 			}
 		}
+		else if (Part->GetFName() != TEXT("Face"))
+		{
+			Part->SetVisibility(false);
+		}
+	}
+
+	USkeletalMesh* Robe = VaelAssets::LoadOptional(MetaHumanRobe);
+	if (Body != nullptr && Robe != nullptr)
+	{
+		USkeletalMeshComponent* RobeMesh = NewObject<USkeletalMeshComponent>(Human, TEXT("Robe"));
+		RobeMesh->SetupAttachment(Body);
+		RobeMesh->SetSkeletalMesh(Robe);
+		RobeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		RobeMesh->RegisterComponent();
+		RobeMesh->SetLeaderPoseComponent(Body);
 	}
 }
 
