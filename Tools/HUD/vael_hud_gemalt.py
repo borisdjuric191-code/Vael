@@ -473,103 +473,285 @@ def corner_fitting(m, sx, sz, w, h, lift):
         sphere((x0 - sx * a, -0.058, z0 - sz * b), 0.012, m["darksilver"], name="Niete", segments=12)
 
 
-def stitches(m, width, height, radius, y, lift):
-    """A running stitch along a rounded rectangle"""
-    path = rounded_rect_path(width, height, radius, y, n_corner=8)
-    points = np.array(path + [path[0]])
+def stitches(m, path, y, length=0.034, gap=0.022):
+    """A running stitch along a closed path of (x, z) points"""
+    points = np.array(list(path) + [path[0]])
     lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
     along = np.concatenate(([0.0], np.cumsum(lengths)))
     start = 0.0
-    while start + 0.034 < along[-1]:
-        a = [float(np.interp(start, along, points[:, k])) for k in range(3)]
-        b = [float(np.interp(start + 0.034, along, points[:, k])) for k in range(3)]
-        a[2] += lift
-        b[2] += lift
-        a[1] = b[1] = y - 0.006
-        mid = [(p + q) / 2 for p, q in zip(a, b)]
-        mid[1] -= 0.004
-        tube([tuple(a), tuple(mid), tuple(b)], [0.0048, 0.0058, 0.0048], m["thread"], name="Stich", resolution=2)
-        start += 0.056
+    while start + length < along[-1]:
+        ax, az = (float(np.interp(start, along, points[:, k])) for k in range(2))
+        bx, bz = (float(np.interp(start + length, along, points[:, k])) for k in range(2))
+        tube([(ax, y, az), ((ax + bx) / 2, y - 0.004, (az + bz) / 2), (bx, y, bz)], [0.0048, 0.0058, 0.0048], m["thread"], name="Stich", resolution=2)
+        start += length + gap
 
 
-def element_seal(m, x, z):
+def element_seal(m, x, z, s=1.0):
     """The seal of the grimoire: a circle with the signs of the four elements around a sapphire"""
     y = -0.07
-    cylinder((x, y + 0.012, z), 0.142, 0.02, m["slotfill"], rotation=(math.radians(90), 0, 0), name="Siegelgrund", vertices=48)
-    torus((x, y, z), 0.145, 0.013, m["silver"], name="Siegelring")
-    torus((x, y + 0.005, z), 0.124, 0.0035, m["darksilver"], name="Siegelinnen")
-    sphere((x, y - 0.01, z), 0.03, m["sapphire"], scale=(1, 0.55, 1), name="Saphir", segments=20)
-    r = 0.078
+    line = 0.0058 * s
+    cylinder((x, y + 0.012, z), 0.142 * s, 0.02, m["slotfill"], rotation=(math.radians(90), 0, 0), name="Siegelgrund", vertices=48)
+    torus((x, y, z), 0.145 * s, 0.013 * s, m["silver"], name="Siegelring")
+    torus((x, y + 0.005, z), 0.124 * s, 0.0035 * s, m["darksilver"], name="Siegelinnen")
+    sphere((x, y - 0.01, z), 0.03 * s, m["sapphire"], scale=(1, 0.55, 1), name="Saphir", segments=20)
+    r = 0.078 * s
     # Fire above: a tongue of two arcs
-    flame = [(x + s * 0.024 * math.sin(t * math.pi) * (1 - 0.35 * t), y, z + r - 0.032 + 0.064 * t)
-             for s, ts in ((1, np.linspace(0, 1, 12)), (-1, np.linspace(1, 0, 12))) for t in ts]
-    tube(flame, [0.0052] * len(flame), m["silver"], name="Feuer", cyclic=True)
+    flame = [(x + j * 0.024 * s * math.sin(t * math.pi) * (1 - 0.35 * t), y, z + r + (0.064 * t - 0.032) * s)
+             for j, ts in ((1, np.linspace(0, 1, 12)), (-1, np.linspace(1, 0, 12))) for t in ts]
+    tube(flame, [line] * len(flame), m["silver"], name="Feuer", cyclic=True)
     # Water right: a drop
-    drop = [(x + r + 0.026 * math.sin(a) * (1 - 0.72 * max(0.0, math.cos(a))), y, z - 0.008 + 0.034 * math.cos(a)) for a in np.linspace(0, math.tau, 26)]
-    tube(drop, [0.0052] * len(drop), m["silver"], name="Wasser", cyclic=True)
+    drop = [(x + r + 0.026 * s * math.sin(a) * (1 - 0.72 * max(0.0, math.cos(a))), y, z + (0.034 * math.cos(a) - 0.008) * s) for a in np.linspace(0, math.tau, 26)]
+    tube(drop, [line] * len(drop), m["silver"], name="Wasser", cyclic=True)
     # Earth below: a block
-    earth = [(x + 0.031 * cx, y, z - r + 0.028 * cz) for cx, cz in ((-1, -0.75), (1, -0.75), (0.7, 0.45), (0, 1), (-0.7, 0.45))]
-    tube(earth, [0.0052] * len(earth), m["silver"], name="Erde", cyclic=True)
+    earth = [(x + 0.031 * s * cx, y, z - r + 0.028 * s * cz) for cx, cz in ((-1, -0.75), (1, -0.75), (0.7, 0.45), (0, 1), (-0.7, 0.45))]
+    tube(earth, [line] * len(earth), m["silver"], name="Erde", cyclic=True)
     # Air left: three strokes
     for k, shift in enumerate((-0.022, 0.0, 0.022)):
-        wind = [(x - r - 0.03 + 0.06 * t, y, z + shift + 0.006 * math.sin(t * math.tau + k)) for t in np.linspace(0, 1, 12)]
-        tube(wind, [0.0048] * len(wind), m["silver"], name="Luft")
+        wind = [(x - r + (0.06 * t - 0.03) * s, y, z + (shift + 0.006 * math.sin(t * math.tau + k)) * s) for t in np.linspace(0, 1, 12)]
+        tube(wind, [line] * len(wind), m["silver"], name="Luft")
+
+
+def mage_materials(m):
+    """The materials of the grimoire, shared by the frame and the menus"""
+    m["cover"] = worn(material("Grimoireleder", (0.0012, 0.0075, 0.05), roughness=0.74, bump=0.4, bump_scale=240.0, tag="panel"))
+    m["thread"] = material("Zwirn", (0.34, 0.28, 0.2), roughness=0.8)
+    m["fitting"] = material("Beschlag", (0.24, 0.25, 0.29), metallic=0.7, roughness=0.36, bump=0.14, bump_scale=120.0)
+    m["groove"] = material("Praegung", (0.0008, 0.003, 0.016), roughness=0.6)
+    m["sunken"] = material("Vertiefung", (0.0035, 0.009, 0.024), roughness=0.7, bump=0.2, bump_scale=200.0, tag="panel")
+
+
+def plate_from_outline(path, y, depth, material_, name="Platte", bevel=0.01):
+    """A flat plate with any outline of (x, z) points, bevelled at the edge"""
+    bm = bmesh.new()
+    face = bm.faces.new([bm.verts.new((x, y, z)) for x, z in path])
+    bmesh.ops.recalc_face_normals(bm, faces=[face])
+    extruded = bmesh.ops.extrude_face_region(bm, geom=[face])
+    bmesh.ops.translate(bm, vec=(0.0, depth, 0.0), verts=[g for g in extruded["geom"] if isinstance(g, bmesh.types.BMVert)])
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    mod = obj.modifiers.new("Rund", "BEVEL")
+    mod.width = bevel
+    mod.segments = 3
+    mod.limit_method = "ANGLE"
+    return give(obj, material_)
+
+
+def inset(path, distance):
+    """The outline moved inwards by a distance: every point along the normal of its neighbours"""
+    p = np.array(path)
+    area = 0.5 * np.sum(p[:, 0] * np.roll(p[:, 1], -1) - np.roll(p[:, 0], -1) * p[:, 1])
+    tangent = np.roll(p, -1, axis=0) - np.roll(p, 1, axis=0)
+    tangent /= np.maximum(np.linalg.norm(tangent, axis=1, keepdims=True), 1e-6)
+    normal = np.stack((-tangent[:, 1], tangent[:, 0]), axis=1) * (1.0 if area > 0 else -1.0)
+    return [tuple(q) for q in p + normal * distance]
+
+
+def mage_outline():
+    """Silhouette of the frame in design pixels: round plates around the vessels, a body between them, an arch over the seal"""
+    radius, cy, top, bottom = 100.0, 130.0, 48.0, 222.0
+    points = []
+    # Left plate from where the top edge meets it, round the outside to the bottom edge
+    a0 = math.atan2(top - cy, math.sqrt(radius ** 2 - (top - cy) ** 2))
+    a1 = math.atan2(bottom - cy, math.sqrt(radius ** 2 - (bottom - cy) ** 2)) - math.tau
+    for a in np.linspace(a0, a1, 70):
+        points.append((96.0 + radius * math.cos(a), cy + radius * math.sin(a)))
+    # Bottom edge with a small point in the middle
+    for x in np.linspace(points[-1][0] + 8.0, 880.0 - points[-1][0] - 8.0, 60):
+        points.append((x, bottom + 5.0 * math.exp(-((x - 440.0) / 26.0) ** 2)))
+    # Right plate, mirrored
+    for a in np.linspace(math.pi - a1 - math.tau, math.pi - a0 - math.tau, 70):
+        points.append((784.0 + radius * math.cos(a), cy + radius * math.sin(a)))
+    # Top edge with the arch over the seal
+    start = points[-1][0] - 8.0
+    for x in np.linspace(start, 880.0 - start, 90):
+        points.append((x, top - 19.0 * math.exp(-((x - 440.0) / 58.0) ** 2)))
+    return points
+
+
+def scroll(m, x_px, y_px, direction, up):
+    """A silver tendril that grows out of the notch between plate and body along the edge and curls in"""
+    pts, radii = [], []
+    for t in np.linspace(0.0, 1.0, 40):
+        reach = 62.0 * t
+        curl = max(0.0, t - 0.55) / 0.45
+        a = curl * 4.2
+        x = x_px + direction * (reach * (1.0 - 0.45 * curl) + 9.0 * math.sin(a) * curl)
+        y = y_px + up * (5.0 * math.sin(t * math.pi) + 9.0 * (1.0 - math.cos(a)) * curl)
+        sx, sz = px(x, y)
+        pts.append((sx, -0.052, sz))
+        radii.append(0.0115 * (1.0 - 0.7 * t))
+    tube(pts, radii, m["silver"], name="Ranke")
+    sphere(pts[-1], 0.0075, m["silver"], name="Rankenende", segments=12)
 
 
 def frame_mage(m):
-    """The grimoire of the mage as the frame: deep blue leather, silver fittings, the seal with the four elements (Designbibel)"""
-    w, h = FRAME_ASPECT, 1.0
-    leather = worn(material("Grimoireleder", (0.0012, 0.0075, 0.05), roughness=0.74, bump=0.4, bump_scale=240.0, tag="panel"))
-    m["thread"] = material("Zwirn", (0.34, 0.28, 0.2), roughness=0.8)
-    m["fitting"] = material("Beschlag", (0.24, 0.25, 0.29), metallic=0.7, roughness=0.36, bump=0.14, bump_scale=120.0)
-    groove = material("Praegung", (0.002, 0.007, 0.02), roughness=0.6)
+    """The grimoire of the mage as the frame: deep blue leather, silver edge, the seal with the four elements (Designbibel).
+    No rectangle: round plates around the vessels, joined by the body of the book."""
+    mage_materials(m)
+    outline = [px(x, y) for x, y in mage_outline()]
 
-    # Pages of parchment showing below the cover
-    pages = rounded_plate(w - 0.16, h - 0.01, 0.02, 0.05, material("Seiten", (0.42, 0.34, 0.22), roughness=0.9, bump=0.5, bump_scale=120.0), y=0.02, name="Seiten")
-    pages.location.z -= 0.005
+    # Pages of parchment showing below the body
+    left, _ = px(150.0, 0.0)
+    right, _ = px(730.0, 0.0)
+    _, z_pages = px(0.0, 226.0)
+    pages = rounded_plate(right - left, 0.05, 0.008, 0.04, material("Seiten", (0.42, 0.34, 0.22), roughness=0.9, bump=0.5, bump_scale=120.0), y=0.02, name="Seiten")
+    pages.location.z = z_pages
     page_line = material("Blattkante", (0.14, 0.11, 0.07), roughness=0.9)
-    for k in range(4):
-        z = -h / 2 + 0.008 + k * 0.008
-        tube([(-w / 2 + 0.1, -0.012, z), (w / 2 - 0.1, -0.012, z)], [0.0012] * 2, page_line, name="Seitenkante")
+    for k in range(3):
+        z = z_pages - 0.012 + k * 0.009
+        tube([(left, -0.012, z), (right, -0.012, z)], [0.0012] * 2, page_line, name="Seitenkante")
 
-    lift = 0.02
-    cover_h = h - 0.04
-    cover = rounded_plate(w, cover_h, 0.05, 0.06, leather, name="Leder")
-    cover.location.z += lift
+    plate_from_outline(outline, -0.03, 0.06, m["cover"], name="Leder")
+    closed = lambda path, y: [(x, y, z) for x, z in path]
+    tube(closed(outline, -0.04), [0.017] * len(outline), m["silver"], name="Kante", cyclic=True)
+    groove = inset(outline, 0.052)
+    tube(closed(groove, -0.031), [0.0036] * len(groove), m["groove"], name="Praegelinie", cyclic=True)
+    stitches(m, inset(outline, 0.034), -0.035)
 
-    # Blind tooled lines and the stitch around the cover
-    for inset, radius in ((0.22, 0.04), (0.25, 0.03)):
-        path = [(x, y, z + lift) for x, y, z in rounded_rect_path(w - inset, cover_h - inset, radius, -0.031)]
-        tube(path, [0.0036] * len(path), groove, name="Praegelinie", cyclic=True)
-    stitches(m, w - 0.09, cover_h - 0.09, 0.04, -0.032, lift)
-
-    # Raised bands of the spine, one to each side of the middle
-    top, bottom = cover_h / 2 + lift - 0.1, -cover_h / 2 + lift + 0.1
-    for x_px in (178.0, 702.0):
-        x, _ = px(x_px, 0.0)
-        for dx, radius, mat in ((0.0, 0.03, leather), (-0.042, 0.0065, m["silver"]), (0.042, 0.0065, m["silver"])):
-            tube([(x + dx, -0.03, top), (x + dx, -0.035, 0.0), (x + dx, -0.03, bottom)], [radius] * 3, mat, name="Bund")
+    # Rings around the vessels and a small sapphire where each plate meets the body
+    for x_px in (96.0, 784.0):
+        x, z = px(x_px, 130.0)
+        torus((x, -0.034, z), 0.44, 0.005, m["groove"], name="Praegering")
+        direction = 1.0 if x_px < 440.0 else -1.0
+        for y_px, up in ((50.0, 1.0), (218.0, -1.0)):
+            gx, gz = px(x_px + direction * 62.0, y_px)
+            torus((gx, -0.05, gz), 0.03, 0.009, m["silver"], name="Fassung")
+            sphere((gx, -0.056, gz), 0.024, m["sapphire"], scale=(1, 0.5, 1), name="Saphir", segments=20)
+            scroll(m, x_px + direction * 70.0, y_px + up * 5.0, direction, up)
 
     # The sunken field of the abilities
     left, tray_top = px(190.0, 110.0)
     right, tray_bottom = px(690.0, 211.0)
     tray_w, tray_h = right - left, tray_top - tray_bottom
     tray_x, tray_z = (left + right) / 2, (tray_top + tray_bottom) / 2
-    tray = rounded_plate(tray_w, tray_h, 0.03, 0.012, material("Vertiefung", (0.0035, 0.009, 0.024), roughness=0.7, bump=0.2, bump_scale=200.0, tag="panel"), y=-0.032, name="Feldgrund")
+    tray = rounded_plate(tray_w, tray_h, 0.03, 0.012, m["sunken"], y=-0.032, name="Feldgrund")
     tray.location.x = tray_x
     tray.location.z = tray_z
     path = [(x + tray_x, y, z + tray_z) for x, y, z in rounded_rect_path(tray_w + 0.012, tray_h + 0.012, 0.032, -0.042)]
     tube(path, [0.0052] * len(path), m["darksilver"], name="Feldrand", cyclic=True)
 
-    # Strap with the seal in the middle of the top
-    seal_x, seal_z = px(440.0, 63.0)
-    strap = rounded_plate(0.13, 0.26, 0.012, 0.018, material("Riemen", (0.012, 0.02, 0.045), roughness=0.55, bump=0.5, bump_scale=220.0, tag="panel"), y=-0.036, name="Riemen")
-    strap.location.x = seal_x
-    strap.location.z = cover_h / 2 + lift - 0.1
-    element_seal(m, seal_x, seal_z)
+    seal_x, seal_z = px(440.0, 66.0)
+    element_seal(m, seal_x, seal_z, 1.22)
 
+
+def page(x0, x1, z0, z1, m, name):
+    """A page of parchment that arches up from the fold of the book"""
+    mesh = bpy.data.meshes.new(name)
+    bm = bmesh.new()
+    nx, nz = 48, 28
+    grid = []
+    fold_left = abs(x0) < abs(x1)
+    for i in range(nx + 1):
+        u = i / nx
+        rise = math.sin(math.pi * (u if fold_left else 1 - u) ** 0.6) ** 1.2
+        row = []
+        for k in range(nz + 1):
+            row.append(bm.verts.new((x0 + (x1 - x0) * u, -0.04 - 0.05 * rise, z0 + (z1 - z0) * k / nz)))
+        grid.append(row)
+    for i in range(nx):
+        for k in range(nz):
+            bm.faces.new((grid[i][k], grid[i + 1][k], grid[i + 1][k + 1], grid[i][k + 1]))
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    return give(obj, m["parchment"])
+
+
+def page_y(x, x0, x1):
+    """Height of the page surface at a place, for what lies on it"""
+    u = (x - x0) / (x1 - x0)
+    fold_left = abs(x0) < abs(x1)
+    return -0.04 - 0.05 * math.sin(math.pi * (u if fold_left else 1 - u) ** 0.6) ** 1.2 - 0.006
+
+
+def cell(m, x, y, z, size, round_cell=False):
+    """A field of the inventory, drawn into the page: dark ink with a silver rim"""
+    if round_cell:
+        cylinder((x, y + 0.004, z), size / 2, 0.008, m["ink"], rotation=(math.radians(90), 0, 0), name="Feld", vertices=48)
+        torus((x, y, z), size / 2, 0.009, m["silver"], name="Feldring")
+        torus((x, y - 0.002, z), size / 2 - 0.024, 0.0022, m["darksilver"], name="Feldlinie")
+    else:
+        fill = rounded_plate(size, size, 0.02, 0.008, m["ink"], y=y + 0.004, name="Feld")
+        fill.location.x = x
+        fill.location.z = z
+        path = [(px_ + x, y, pz + z) for px_, _, pz in rounded_rect_path(size, size, 0.022, 0.0, n_corner=4)]
+        tube(path, [0.0062] * len(path), m["silver"], name="Feldring", cyclic=True, resolution=3)
+
+
+def inventory_mage(m):
+    """The inventory of the mage: the open grimoire. Left page the equipment on a drawn figure, right page the backpack,
+    tabs for bag and class compartment, a ribbon as bookmark. Text and items are drawn by the game."""
+    mage_materials(m)
+    m["parchment"] = worn(material("Pergament", (0.46, 0.33, 0.17), roughness=0.9, bump=0.22, bump_scale=45.0), scale=2.4, darkest=0.55)
+    m["ink"] = material("Tinte", (0.002, 0.003, 0.008), roughness=0.85, bump=0.15, bump_scale=160.0)
+    ink_line = material("Federstrich", (0.05, 0.035, 0.025), roughness=0.7)
+
+    w, h = 3.42, 1.9
+    cover = rounded_plate(w, h, 0.05, 0.06, m["cover"], y=0.03, name="Einband")
+    tube(rounded_rect_path(w - 0.012, h - 0.012, 0.06, -0.01), [0.015] * 200, m["silver"], name="Kante", cyclic=True)
+    stitches(m, [(x, z) for x, _, z in rounded_rect_path(w - 0.07, h - 0.07, 0.05, 0.0, n_corner=8)], -0.012)
     for sx, sz in ((-1, 1), (1, 1), (-1, -1), (1, -1)):
-        corner_fitting(m, sx, sz, w, cover_h, lift)
+        corner_fitting(m, sx, sz, w, h, 0.0)
+
+    # Page block under the pages, then the two pages and the fold between them
+    pw, ph, top = 1.58, 1.72, 0.86
+    block = rounded_plate(2 * pw + 0.06, 2 * top + 0.05, 0.03, 0.03, material("Seitenblock", (0.3, 0.24, 0.15), roughness=0.9), y=-0.02, name="Block")
+    page(-pw, -0.004, -top, top, m, "Seite links")
+    page(0.004, pw, -top, top, m, "Seite rechts")
+    tube([(0.0, -0.05, top + 0.01), (0.0, -0.05, -top - 0.01)], [0.012] * 2, material("Falz", (0.03, 0.02, 0.014), roughness=0.8), name="Falz")
+
+    # Thin ruled lines with a small centre mark under the headings of both pages
+    for x0, x1 in ((-pw + 0.14, -0.14), (0.14, pw - 0.14)):
+        for z in (top - 0.2,):
+            cx = (x0 + x1) / 2
+            line = [(x, page_y(x, -pw if x0 < 0 else 0.0, 0.0 if x0 < 0 else pw) - 0.002, z) for x in np.linspace(x0, x1, 30)]
+            tube(line, [0.0022] * len(line), ink_line, name="Linie")
+            sphere((cx, page_y(cx, -pw if x0 < 0 else 0.0, 0.0 if x0 < 0 else pw) - 0.004, z), 0.014, m["sapphire"], scale=(1, 0.4, 1), name="Mitte", segments=12)
+
+    # Left page: a figure drawn in ink, the ten places around it
+    fx, fz = -0.8, -0.12
+    hood = [(fx + 0.1 * math.cos(a), page_y(fx, -pw, 0.0) - 0.002, fz + 0.5 + 0.12 * math.sin(a)) for a in np.linspace(0, math.tau, 30)]
+    tube(hood, [0.003] * len(hood), ink_line, name="Kopf", cyclic=True)
+    for side in (1, -1):
+        robe = bezier((fx + side * 0.06, fz + 0.39, 0.0), (fx + side * 0.32, fz + 0.2, 0.0), (fx + side * 0.26, fz - 0.62, 0.0), 24)
+        tube([(x, page_y(x, -pw, 0.0) - 0.002, z) for x, z, _ in [(p[0], p[1], 0) for p in robe]], [0.003] * 24, ink_line, name="Robe")
+    tube([(x, page_y(x, -pw, 0.0) - 0.002, fz - 0.62) for x in (fx - 0.26, fx + 0.26)], [0.003] * 2, ink_line, name="Saum")
+    size = 0.235
+    places = ((0.0, 0.5), (0.0, 0.2), (0.0, -0.07), (0.0, -0.33),            # head, amulet, chest, belt
+              (-0.5, 0.26), (0.5, 0.26), (-0.5, -0.1), (-0.5, -0.46),        # weapon, offhand, hands, feet
+              (0.5, -0.1), (0.5, -0.46))                                      # rings
+    for dx, dz in places:
+        x = fx + dx
+        cell(m, x, page_y(x, -pw, 0.0) - 0.008, fz + dz, size, round_cell=True)
+
+    # Right page: the backpack, seven by five
+    columns, rows = 7, 5
+    size = 0.176
+    step = 0.196
+    cx, cz = 0.8, -0.16
+    for c in range(columns):
+        for r in range(rows):
+            x = cx + (c - (columns - 1) / 2) * step
+            cell(m, x, page_y(x, 0.0, pw) - 0.008, cz + ((rows - 1) / 2 - r) * step, size)
+
+    # Tabs on the right edge and the ribbon
+    for k, color in enumerate(((0.05, 0.12, 0.3), (0.12, 0.09, 0.05), (0.05, 0.08, 0.05))):
+        tab = rounded_plate(0.18, 0.3, 0.05, 0.02, material("Reiter%d" % k, color, roughness=0.6, bump=0.3, bump_scale=200.0), y=-0.012, name="Reiter")
+        tab.location.x = w / 2 - 0.09
+        tab.location.z = 0.42 - k * 0.36
+    # The ribbon lies in the fold and hangs out below
+    ribbon = rounded_plate(0.075, 1.04, 0.006, 0.006, material("Band", (0.008, 0.03, 0.15), roughness=0.5), y=-0.1, name="Band")
+    ribbon.location.x = 0.0
+    ribbon.location.z = -0.43
+    element_seal(m, 0.0, top + 0.015, 0.8)
 
 
 def frame_floromant(m):
@@ -654,6 +836,7 @@ PIECES = {
     "magier_gefaess": (512, 512, VESSEL_VIEW, lambda m: (inkwell(m), claw(m, 0.5, 0.73, 0.33, 0.18))),
     "floromant_gefaess": (512, 512, VESSEL_VIEW, lambda m: (pitcher(m), claw(m, 0.5, 0.64, 0.24, 0.27, wrap_vines=True))),
     "magier_rahmen": (1760, 404, FRAME_ASPECT, frame_mage),
+    "magier_inventar": (1920, 1080, 3.5556, inventory_mage),
     "floromant_rahmen": (1760, 404, FRAME_ASPECT, frame_floromant),
     "magier_feld": (160, 160, 1.0, lambda m: slot(m, False)),
     "floromant_feld": (160, 160, 1.0, lambda m: slot(m, True)),
@@ -663,7 +846,7 @@ PIECES = {
 
 FILE_NAMES = {
     "leben": "T_HUD_Gemalt_Leben", "magier_gefaess": "T_HUD_Gemalt_Gefaess_Magier", "floromant_gefaess": "T_HUD_Gemalt_Gefaess_Floromant",
-    "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant",
+    "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant",
     "magier_feld": "T_HUD_Gemalt_Feld_Magier", "floromant_feld": "T_HUD_Gemalt_Feld_Floromant",
     "magier_medaillon": "T_HUD_Gemalt_Medaillon_Magier", "floromant_medaillon": "T_HUD_Gemalt_Medaillon_Floromant",
 }

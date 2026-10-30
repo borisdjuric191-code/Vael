@@ -751,13 +751,15 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	PaintText(OutDrawElements, L + 5, LevelText, NumberFont, LevelAt - FVector2f(0.0f, 11.0f), TextColor, 0.5f);
 
 	// Class name, player and level, the sworn way
-	PaintText(OutDrawElements, L + 5, ShownData->ClassName, TitleFont, O + FVector2f(190.0f, FrameTop + 6.0f), TextColor);
-	PaintText(OutDrawElements, L + 5, PlayerLine, LabelFont, O + FVector2f(190.0f, FrameTop + 40.0f), Dim);
+	const float TitleTop = bPaintedFrame ? 48.0f : FrameTop + 6.0f;
+	PaintText(OutDrawElements, L + 5, ShownData->ClassName, TitleFont, O + FVector2f(190.0f, TitleTop), TextColor);
+	// In the painted frame the seal stands in the middle: the line goes to the right of it
+	PaintText(OutDrawElements, L + 5, PlayerLine, LabelFont, O + FVector2f(bPaintedFrame ? 484.0f : 190.0f, bPaintedFrame ? TitleTop + 8.0f : FrameTop + 40.0f), Dim);
 	if (Path != EVaelPath::None)
 	{
 		const int32 Way = static_cast<int32>(Path) - 1;
 		const FLinearColor WayColor = Path == EVaelPath::Light ? Hex(0xE1, 0xBD, 0x52) : Path == EVaelPath::Shadow ? Hex(0x9B, 0x5D, 0xE5) : Hex(0xC9, 0x9A, 0x8E);
-		PaintBox(OutDrawElements, L + 4, FindTextureBrush(PathTextures[Way]), O + FVector2f(648.0f, FrameTop + 10.0f), FVector2f(30.0f), WayColor);
+		PaintBox(OutDrawElements, L + 4, FindTextureBrush(PathTextures[Way]), O + (bPaintedFrame ? FVector2f(346.0f, 52.0f) : FVector2f(648.0f, FrameTop + 10.0f)), FVector2f(30.0f), WayColor);
 	}
 
 	// The Keimpelz pelt over the top of the panel, its number in the middle
@@ -772,7 +774,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	// Round menu buttons on the upper edge: Adernbaum, Rezeptbuch, Karte
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
-		const FVector2f At = O + FVector2f(548.0f + Index * 34.0f, FrameTop);
+		const FVector2f At = bPaintedFrame ? O + FVector2f(626.0f + Index * 30.0f, 48.0f) : O + FVector2f(548.0f + Index * 34.0f, FrameTop);
 		PaintMedallion(OutDrawElements, L + 3, At, 14.0f, Frame);
 		PaintBox(OutDrawElements, L + 5, FindTextureBrush(MenuIcons[Index]), At - FVector2f(9.0f), FVector2f(18.0f), TextColor);
 	}
