@@ -528,6 +528,10 @@ def build_window():
 
 # ---------------------------------------------------------------- Imports
 
+# Pictures to import again after a new render, names joined by commas in the environment variable VAEL_HUD_RENEW
+RENEW = [name for name in os.environ.get("VAEL_HUD_RENEW", "").split(",") if name]
+
+
 def import_files(folder, prefix_filter, destination, srgb_on=False, compressed=False):
     loaded = {}
     for file in sorted(os.listdir(folder)):
@@ -535,7 +539,7 @@ def import_files(folder, prefix_filter, destination, srgb_on=False, compressed=F
             continue
         name = os.path.splitext(file)[0]
         path = "{}/{}".format(destination, name)
-        if not assets.does_asset_exist(path):
+        if not assets.does_asset_exist(path) or name in RENEW:
             task = unreal.AssetImportTask()
             task.set_editor_property("filename", os.path.join(folder, file))
             task.set_editor_property("destination_path", destination)
