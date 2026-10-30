@@ -180,6 +180,10 @@ void AVaelCharacter::FollowMesh(AActor* Human)
 		if (Part->GetFName() == TEXT("Body"))
 		{
 			Body = Part;
+			if (USkeletalMesh* BodyUnderRobe = VaelAssets::LoadOptional(MetaHumanBodyUnderRobe))
+			{
+				Part->SetSkeletalMesh(BodyUnderRobe);
+			}
 			Part->SetAnimInstanceClass(UVaelPoseFollowerAnimInstance::StaticClass());
 			Part->AddTickPrerequisiteComponent(GetMesh());
 			if (UVaelPoseFollowerAnimInstance* Follower = Cast<UVaelPoseFollowerAnimInstance>(Part->GetAnimInstance()))

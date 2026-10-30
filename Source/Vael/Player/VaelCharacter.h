@@ -127,6 +127,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftObjectPtr<USkeletalMesh> MetaHumanRobe = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MagierMann_Robe_MH.SK_MagierMann_Robe_MH")));
 
+	/** The MetaHuman's body without what the robe covers, so no skin pokes through (vael_koerper_verdecken.py) */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftObjectPtr<USkeletalMesh> MetaHumanBodyUnderRobe = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MH_Magier_Koerper_Robe.SK_MH_Magier_Koerper_Robe")));
+
 	/** Body of the two base looks of the mage in the starting robe (creature factory, humans), male and female. Empty or missing: the template mannequin stays. */
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftObjectPtr<USkeletalMesh> BodyMeshes[2] = {
