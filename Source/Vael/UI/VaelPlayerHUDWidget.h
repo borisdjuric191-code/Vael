@@ -112,6 +112,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UFontFace> TextFontFace;
 
+	/** Font of the labels: the same hand as the titles, the small texts keep the plainer one */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UFontFace> LabelFontFace;
+
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UFontFace> TextBoldFontFace;
 

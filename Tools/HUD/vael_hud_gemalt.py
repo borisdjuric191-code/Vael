@@ -146,6 +146,25 @@ def give(obj, mat):
     return obj
 
 
+def gem_material():
+    """A cut stone: every facet has its own shade from the colour attribute "Facet", so it sparkles even when small"""
+    mat = bpy.data.materials.new("Edelstein")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    bsdf = nodes["Principled BSDF"]
+    attribute = nodes.new("ShaderNodeAttribute")
+    attribute.attribute_type = "GEOMETRY"
+    attribute.attribute_name = "Facet"
+    links.new(attribute.outputs["Color"], bsdf.inputs["Base Color"])
+    links.new(attribute.outputs["Color"], bsdf.inputs["Emission Color"])
+    bsdf.inputs["Emission Strength"].default_value = 0.85
+    bsdf.inputs["Roughness"].default_value = 0.06
+    bsdf.inputs["Coat Weight"].default_value = 1.0
+    mat["tag"] = "gem"
+    return mat
+
+
 # Materials shared by the pieces
 def common():
     return {
@@ -166,6 +185,7 @@ def common():
         "wax": material("Siegelwachs", (0.1, 0.22, 0.55), roughness=0.35, bump=0.4, bump_scale=50.0, coat=0.5, tag="gem"),
         "leather": material("Leder", (0.012, 0.014, 0.024), roughness=0.7, bump=0.35, bump_scale=180.0, tag="panel"),
         "bark": material("Rinde", (0.018, 0.014, 0.01), roughness=0.85, bump=0.9, bump_scale=55.0, tag="panel"),
+        "gem": gem_material(),
         "feather": material("Feder", (0.28, 0.31, 0.4), roughness=0.75),
         "slotfill": material("Feldgrund", (0.02, 0.018, 0.02), roughness=0.6, tag="panel"),
     }
@@ -360,6 +380,95 @@ def claw(m, cx, cy, rx, ry, wrap_vines=False):
 
 # ---------------------------------------------------------------- Gefäße (auf den Masken)
 
+GEM_RANDOM = np.random.default_rng(11)
+
+# Shades of the facets: the depth of the stone, its body, its light, and a rare flash
+GEM_SHADES = ((0.004, 0.05, 0.22), (0.01, 0.16, 0.5), (0.03, 0.42, 0.82), (0.25, 0.8, 1.0), (0.9, 1.0, 1.0))
+
+
+def facet_stone(m, x, y, z, radius, squash=1.0):
+    """A cut stone lying on the surface, seen from above: a ring of crown facets around a flat table. The stone rises towards -y."""
+    sides = 10
+    bm = bmesh.new()
+
+    def ring(r, height, turn):
+        return [bm.verts.new((x + r * math.cos((k + turn) / sides * math.tau), y - height * radius, z + r * squash * math.sin((k + turn) / sides * math.tau))) for k in range(sides)]
+
+    girdle = ring(radius, 0.0, 0.0)
+    crown = ring(radius * 0.78, 0.34, 0.5)
+    table = ring(radius * 0.46, 0.55, 0.0)
+    middle = bm.verts.new((x, y - 0.6 * radius, z))
+    faces = []
+    for k in range(sides):
+        n = (k + 1) % sides
+        faces.append((bm.faces.new((girdle[k], girdle[n], crown[k])), None))
+        faces.append((bm.faces.new((crown[k], girdle[n], crown[n])), None))
+        faces.append((bm.faces.new((crown[k], crown[n], table[n])), None))
+        faces.append((bm.faces.new((crown[k], table[n], table[k])), None))
+    for k in range(sides):
+        faces.append((bm.faces.new((table[k], table[(k + 1) % sides], middle)), 2))
+    bmesh.ops.recalc_face_normals(bm, faces=[f for f, _ in faces])
+    layer = bm.loops.layers.float_color.new("Facet")
+    for index, (face, fixed) in enumerate(faces):
+        # Light falls from the upper left: facets on that side are brighter, the opposite ones sink into the depth
+        center = face.calc_center_median()
+        light = 0.5 + 0.5 * ((center.z - z) - (center.x - x)) / (radius * 1.4)
+        step = fixed if fixed is not None else light * 3.0 + GEM_RANDOM.normal(0.0, 0.7)
+        shade = GEM_SHADES[int(np.clip(step, 0, 3.4))]
+        if fixed is None and GEM_RANDOM.random() < 0.07:
+            shade = GEM_SHADES[4]
+        for loop in face.loops:
+            loop[layer] = (*shade, 1.0)
+    mesh = bpy.data.meshes.new("Stein")
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new("Stein", mesh)
+    bpy.context.collection.objects.link(obj)
+    return give(obj, m["gem"])
+
+
+def wax_seal_cap(mat):
+    """Wax that ran down over the cork and the neck and set: one flowing body from metaballs, thin runs ending in heavy drops"""
+    rng = np.random.default_rng(4)
+    meta = bpy.data.metaballs.new("Wachs")
+    meta.resolution = 0.008
+    meta.render_resolution = 0.0045
+    meta.threshold = 0.6
+
+    def ball(point, radius):
+        element = meta.elements.new()
+        element.type = "BALL"
+        element.co = tuple(point)
+        element.radius = radius
+
+    # The neck was dipped: a closed sleeve from the top of the cork down to the rim, slightly domed on top
+    for y_mask, spread, size in ((0.075, 0.03, 0.06), (0.1, 0.055, 0.05), (0.125, 0.066, 0.042), (0.15, 0.075, 0.04)):
+        for a in np.linspace(0, math.tau, 14, endpoint=False):
+            ball(from_mask(0.5, y_mask) + Vector((spread * math.cos(a), spread * math.sin(a), 0.0)), size)
+    # A thicker collar where the wax pooled on the rim of the bottle
+    collar = from_mask(0.5, 0.172)
+    for a in np.linspace(0, math.tau, 26, endpoint=False):
+        ball(collar + Vector((0.098 * math.cos(a), 0.098 * math.sin(a), 0.005 * math.sin(a * 5.0))), 0.031)
+
+    # Runs: where they leave the collar, how far they reach and how much they meander
+    for dx, end_y, wander in ((-0.085, 0.31, 0.012), (-0.04, 0.245, 0.009), (0.012, 0.35, 0.014), (0.058, 0.26, 0.009), (0.094, 0.215, 0.005)):
+        start_y = 0.18
+        phase = rng.random() * math.tau
+        for t in np.linspace(0.0, 1.0, 44):
+            y_mask = start_y + (end_y - start_y) * t
+            bulge = 0.12 if y_mask < 0.235 else 0.098 + 0.012 * math.sin(t * 7.0)
+            x = dx + wander * math.sin(t * 8.0 + phase) * t
+            forward = math.sqrt(max(bulge ** 2 - x ** 2, 0.0003))
+            point = from_mask(0.5 + x, y_mask) + Vector((0.0, -forward, 0.0))
+            # Thin along the way with beads where it paused, heavy at the end
+            radius = 0.0125 + 0.004 * max(0.0, math.sin(t * 13.0 + phase)) + 0.024 * max(0.0, (t - 0.84) / 0.16) ** 1.4
+            ball(point, radius)
+
+    obj = bpy.data.objects.new("Wachs", meta)
+    bpy.context.collection.objects.link(obj)
+    return give(obj, mat)
+
+
 def spiral(x, y, z, radius, turns, start, handed, n=26):
     """Points of a small curl that winds inwards, for filigree"""
     points = []
@@ -398,11 +507,7 @@ def phial(m):
     bead_ring(m, lip + Vector((0, 0, -0.03)), 0.094, 22, 0.0095, m["silver"])
     # Cork under a cap of dark red wax that runs down in drops
     cylinder(tuple(from_mask(0.5, 0.135)), 0.07, 0.09, m["cork"], name="Korken")
-    wax = material("Wachskappe", (0.18, 0.012, 0.012), roughness=0.3, coat=0.6, bump=0.25, bump_scale=60.0)
-    sphere(tuple(from_mask(0.5, 0.075)), 0.078, wax, scale=(1.0, 1.0, 0.62), name="Wachs")
-    for dx, length in ((-0.052, 0.05), (-0.012, 0.075), (0.04, 0.045)):
-        top = from_mask(0.5 + dx, 0.09) + Vector((0, -0.05, 0))
-        tube([tuple(top), tuple(top + Vector((0, -0.006, -length * 0.5))), tuple(top + Vector((0, -0.004, -length)))], [0.016, 0.012, 0.015], wax, name="Tropfen")
+    wax_seal_cap(material("Wachskappe", (0.15, 0.004, 0.008), roughness=0.14, coat=1.0))
 
     # Neck: silver ring, a cord, a small tag
     ring = from_mask(0.5, 0.39)
@@ -479,7 +584,7 @@ def inkwell(m):
     # Silver shoulder band with a sapphire in front and ribs running down the edges of the crystal
     shoulder = from_mask(0.5, 0.5)
     torus(tuple(shoulder), 0.222, 0.013, m["silver"], rotation=(0, 0, 0), name="Schulter")
-    sphere(tuple(from_mask(0.5, 0.5) + Vector((0, -0.228, 0))), 0.034, m["sapphire"], scale=(1, 0.55, 1), name="Saphir", segments=20)
+    facet_stone(m, 0.0, -0.228, from_mask(0.5, 0.5).z, 0.038)
     for a in (-75, -45, 45, 75):
         s = math.sin(math.radians(a))
         c = math.cos(math.radians(a))
@@ -563,7 +668,7 @@ def corner_fitting(m, sx, sz, w, h, lift):
     # Engraved line along the inner edge
     line = [(x0 - sx * a * 0.8, -0.057, z0 - sz * b * 0.8) for a, b in points[2:-1]]
     tube(line, [0.0035] * len(line), m["darksilver"], name="Gravur")
-    sphere((x0 - sx * 0.075, -0.065, z0 - sz * 0.075), 0.032, m["sapphire"], scale=(1, 0.5, 1), name="Saphir", segments=20)
+    facet_stone(m, x0 - sx * 0.075, -0.062, z0 - sz * 0.075, 0.034)
     for a, b in ((0.2, 0.03), (0.03, 0.2)):
         sphere((x0 - sx * a, -0.058, z0 - sz * b), 0.012, m["darksilver"], name="Niete", segments=12)
 
@@ -588,7 +693,7 @@ def element_seal(m, x, z, s=1.0):
     cylinder((x, y + 0.012, z), 0.142 * s, 0.02, m["slotfill"], rotation=(math.radians(90), 0, 0), name="Siegelgrund", vertices=48)
     torus((x, y, z), 0.145 * s, 0.013 * s, m["silver"], name="Siegelring")
     torus((x, y + 0.005, z), 0.124 * s, 0.0035 * s, m["darksilver"], name="Siegelinnen")
-    sphere((x, y - 0.01, z), 0.03 * s, m["sapphire"], scale=(1, 0.55, 1), name="Saphir", segments=20)
+    facet_stone(m, x, y - 0.006, z, 0.036 * s)
     r = 0.078 * s
     # Fire above: a tongue of two arcs
     flame = [(x + j * 0.024 * s * math.sin(t * math.pi) * (1 - 0.35 * t), y, z + r + (0.064 * t - 0.032) * s)
@@ -693,7 +798,7 @@ def cabochon(m, x, z, size=1.0):
         points.append((x + star * size * math.cos(a), z + star * size * math.sin(a)))
     plate_from_outline(points, y + 0.012, 0.012, m["fitting"], name="Fassung", bevel=0.004)
     torus((x, y - 0.002, z), 0.054 * size, 0.008 * size, m["silver"], name="Fassring")
-    sphere((x, y - 0.012, z), 0.047 * size, m["aqua"], scale=(1, 0.6, 1), name="Stein", segments=24)
+    facet_stone(m, x, y - 0.006, z, 0.052 * size)
     for a in np.linspace(0, math.tau, 4, endpoint=False):
         sphere((x + 0.088 * size * math.cos(a), y - 0.002, z + 0.088 * size * math.sin(a)), 0.0085 * size, m["silver"], name="Krappe", segments=10)
 
@@ -735,23 +840,138 @@ def tray_corner(m, x, z, sx, sz):
     tube(spiral(x - sx * 0.002, -0.05, z + sz * 0.002, 0.026, 1.15, 0.0, sz), [0.0045] * 26, m["silver"], name="Schnecke") if False else None
 
 
-def dragon_head(m, x_px, y_px):
-    """The silver head of the Urdrachin at the end of the experience bar, looking along the line of its body"""
-    size = 1.3
-    p = lambda dx, dy, y=-0.055: (px(x_px + dx * size, y_px + dy * size)[0], y, px(x_px + dx * size, y_px + dy * size)[1])
-    tube([p(-8, 2), p(4, 0), p(13, -2)], [0.042, 0.036, 0.034], m["fitting"], name="Hals")
-    sphere(p(19, -3), 1.0, m["fitting"], scale=(0.062, 0.05, 0.052), name="Schaedel")
-    tube([p(21, -3), p(32, 0), p(42, 3)], [0.036, 0.024, 0.0125], m["fitting"], name="Schnauze")
-    tube([p(19, 6), p(30, 8), p(40, 7)], [0.016, 0.0105, 0.0035], m["darksilver"], name="Kiefer")
-    tube([p(16, -11), p(26, -9), p(34, -4)], [0.0088, 0.008, 0.003], m["silver"], name="Braue")
-    sphere(p(24, -6, -0.092), 0.0135, m["aqua"], name="Auge", segments=14)
-    sphere(p(40, 0, -0.07), 0.0065, m["darksilver"], name="Nuester", segments=10)
-    for dy, reach, rise in ((-11, 30, 13), (-7, 24, 5)):
-        tube([p(12, dy), p(12 - reach * 0.5, dy - rise * 0.9), p(12 - reach, dy - rise)], [0.0125, 0.0085, 0.0012], m["silver"], name="Horn")
-    for dx in (-4, 4, 11):
-        tube([p(dx, -7), p(dx - 3, -14)], [0.0085, 0.001], m["silver"], name="Stachel")
-    for dx in (28, 33, 38):
-        tube([p(dx, 4), p(dx + 1, 8)], [0.0035, 0.0007], m["silver"], name="Zahn")
+def shingle(x, z, length, width, angle, y, material_, ridge=None):
+    """One scale: a pointed plate with a raised middle line, the tip along the angle"""
+    c, s = math.cos(angle), math.sin(angle)
+    outline = [(-0.42, 0.56), (-0.1, 0.64), (0.3, 0.46), (0.62, 0.0), (0.3, -0.46), (-0.1, -0.64), (-0.42, -0.56), (-0.5, 0.0)]
+    points = [(x + (u * c * length - v * s * width), z + (u * s * length + v * c * width)) for u, v in outline]
+    plate = plate_from_outline(points, y, 0.008, material_, name="Schuppe", bevel=min(length, width) * 0.13)
+    if ridge is not None:
+        tube([(x - 0.3 * c * length, y - 0.003, z - 0.3 * s * length), (x + 0.5 * c * length, y - 0.003, z + 0.5 * s * length)], [min(length, width) * 0.075, min(length, width) * 0.03], ridge, name="Grat", resolution=2)
+    return plate
+
+
+def dragon_head(m):
+    """The head of the Urdrachin at the end of the experience bar, in profile facing right: long jaws with fangs,
+    a heavy brow over an angry eye, swept back horns, a fan behind the jaw. Layers of relief, so it reads when small."""
+    mage_materials(m)
+    scale = material("Drachenhaut", (0.3, 0.33, 0.4), metallic=0.15, roughness=0.46, bump=0.5, bump_scale=160.0)
+    deep = material("Drachentiefe", (0.03, 0.033, 0.045), metallic=0.6, roughness=0.45)
+    ivory = material("Zahn", (0.8, 0.74, 0.6), roughness=0.3, coat=0.5)
+    throat = material("Schlund", (0.06, 0.006, 0.01), roughness=0.5)
+    web = material("Haut", (0.012, 0.03, 0.09), roughness=0.5, metallic=0.3)
+
+    # Back of the mouth, behind everything
+    plate_from_outline([(-0.2, -0.02), (0.72, -0.02), (0.76, -0.16), (0.2, -0.2), (-0.2, -0.18)], 0.1, 0.02, throat, name="Schlund")
+
+    # Fan behind the jaw: spines with skin between them
+    fan_center = (-0.3, -0.08)
+    tips = ((-0.86, 0.02), (-0.92, -0.13), (-0.84, -0.27), (-0.68, -0.38), (-0.48, -0.42))
+    for a, b in zip(tips, tips[1:]):
+        mid = ((a[0] + b[0]) / 2 + 0.045, (a[1] + b[1]) / 2 + 0.01)
+        plate_from_outline([fan_center, a, mid, b], 0.06, 0.012, web, name="Faecherhaut", bevel=0.002)
+    for tip in tips:
+        tube([(fan_center[0], 0.03, fan_center[1]), ((fan_center[0] + tip[0]) / 2, 0.02, (fan_center[1] + tip[1]) / 2 + 0.012), (tip[0], 0.03, tip[1])], [0.02, 0.014, 0.002], m["silver"], name="Faecherstachel")
+
+    # Neck: rows of scales running out of the picture to the left, with a crest of spikes on top
+    plate_from_outline([(-1.0, 0.19), (-0.4, 0.26), (-0.4, -0.15), (-1.0, -0.17)], 0.05, 0.02, deep, name="Halsgrund")
+    for row, (z0, rise) in enumerate(((0.1, 0.012), (0.0, 0.0), (-0.1, -0.008))):
+        for k in range(7):
+            x = -0.98 + k * 0.1 + (0.05 if row % 2 else 0.0)
+            shingle(x, z0 + rise * k, 0.16, 0.13, 0.0, 0.042 - k * 0.0009, scale)
+    for k, x in enumerate(np.linspace(-0.94, -0.44, 6)):
+        height = 0.15 - 0.012 * k
+        z = 0.15 + (x + 0.94) * 0.2
+        tip = (x - 0.09, z + height)
+        plate_from_outline([(x - 0.06, z - 0.02), tip, (x + 0.075, z - 0.02)], 0.01, 0.012, m["silver"], name="Kammstachel", bevel=0.004)
+
+    # Lower jaw with its teeth
+    plate_from_outline([(-0.28, -0.1), (0.1, -0.1), (0.42, -0.13), (0.68, -0.16), (0.8, -0.13), (0.84, -0.17), (0.78, -0.25), (0.5, -0.27), (0.1, -0.29), (-0.2, -0.27), (-0.34, -0.19)], 0.0, 0.03, scale, name="Unterkiefer", bevel=0.012)
+    tube([(x, -0.008, z) for x, z in ((-0.26, -0.13), (0.1, -0.135), (0.45, -0.165), (0.8, -0.165))], [0.012, 0.012, 0.011, 0.007], m["silver"], name="Lippe unten")
+    for k, x in enumerate(np.linspace(-0.2, 0.74, 11)):
+        z = -0.25 - 0.04 * math.sin((x + 0.2) / 0.94 * math.pi)
+        shingle(x, z + 0.03, 0.09, 0.06, 0.0, -0.012, deep)
+    for k, x in enumerate(np.linspace(0.12, 0.78, 7)):
+        base = -0.12 - 0.05 * (x - 0.12) / 0.66
+        h = 0.085 + (0.05 if k == 5 else 0.0)
+        plate_from_outline([(x - 0.024, base), (x + 0.012, base + h), (x + 0.03, base)], -0.012, 0.012, ivory, name="Zahn", bevel=0.003)
+
+    # Upper skull with the long snout
+    skull = [(-0.62, 0.17), (-0.42, 0.26), (-0.24, 0.31), (-0.1, 0.36), (0.02, 0.33), (0.13, 0.24), (0.33, 0.2), (0.52, 0.18), (0.64, 0.21), (0.75, 0.24), (0.86, 0.19), (0.95, 0.09), (0.94, -0.0), (0.86, -0.05), (0.62, -0.03), (0.32, 0.0), (0.06, -0.02), (-0.14, -0.07), (-0.3, -0.15), (-0.62, -0.13)]
+    plate_from_outline(skull, -0.03, 0.05, scale, name="Schaedel", bevel=0.018)
+    plate_from_outline([(-0.62, 0.17), (-0.2, 0.28), (0.12, 0.2), (0.14, 0.0), (0.06, -0.02), (-0.14, -0.07), (-0.3, -0.15), (-0.62, -0.13)], -0.034, 0.01, scale, name="Wange", bevel=0.004)
+
+    # Upper teeth hanging from the lip, a long fang at the front and one behind the eye line
+    for k, x in enumerate(np.linspace(0.14, 0.84, 9)):
+        base = -0.01 - 0.03 * math.sin((x - 0.14) / 0.7 * math.pi)
+        h = 0.2 if k == 7 else 0.15 if k == 2 else 0.09
+        plate_from_outline([(x - 0.03, base), (x - 0.006, base - h), (x + 0.028, base)], -0.042, 0.012, ivory, name="Zahn", bevel=0.003)
+    tube([(x, -0.058, z) for x, z in ((-0.14, -0.045), (0.06, 0.0), (0.32, 0.02), (0.62, -0.01), (0.86, -0.03))], [0.013, 0.012, 0.012, 0.011, 0.008], m["silver"], name="Lippe oben")
+
+    # Scales on the cheek and along the snout, growing smaller towards the nose
+    for row, z in enumerate((0.13, 0.05, -0.03)):
+        for k in range(6):
+            x = -0.56 + k * 0.12 + (0.06 if row % 2 else 0.0)
+            shingle(x, z - 0.012 * k, 0.16, 0.125, math.radians(-8.0), -0.0385 - k * 0.0009, scale)
+    for row, z in enumerate((0.13, 0.065)):
+        for k in range(8):
+            x = 0.14 + k * 0.085 + (0.04 if row % 2 else 0.0)
+            shingle(x, z, 0.098 - k * 0.003, 0.072, 0.0, -0.0385 - k * 0.0007, scale)
+
+    # Ridge along the snout, ending in a horn on the nose
+    tube([(0.1, -0.075, 0.235), (0.34, -0.075, 0.205), (0.52, -0.075, 0.195), (0.66, -0.075, 0.225)], [0.024, 0.016, 0.013, 0.015], m["fitting"], name="Nasengrat")
+    plate_from_outline([(0.66, 0.2), (0.7, 0.33), (0.79, 0.215)], -0.065, 0.012, m["silver"], name="Nasenhorn", bevel=0.004)
+    # Flared nostril
+    torus((0.82, -0.08, 0.09), 0.046, 0.016, m["fitting"], name="Nuester")
+    sphere((0.82, -0.086, 0.09), 0.03, deep, scale=(1.0, 0.3, 0.7), name="Nasenloch", segments=16)
+
+    # Eye under a heavy brow that slants down to the snout
+    plate_from_outline([(-0.16, 0.22), (0.01, 0.23), (0.09, 0.165), (0.0, 0.1), (-0.15, 0.12)], -0.07, 0.016, deep, name="Augenhoehle", bevel=0.006)
+    facet_stone(m, -0.04, -0.092, 0.165, 0.07, 0.72)
+    tube([(-0.04, -0.142, 0.135), (-0.04, -0.142, 0.195)], [0.008, 0.008], material("Pupille", (0.0, 0.0, 0.0), roughness=0.2), name="Pupille", resolution=2)
+    plate_from_outline([(-0.3, 0.3), (-0.12, 0.34), (0.03, 0.29), (0.15, 0.17), (0.04, 0.215), (-0.12, 0.235), (-0.27, 0.235)], -0.12, 0.02, m["fitting"], name="Braue", bevel=0.01)
+
+    # Horns: two long ones swept back, with rings along them, and a short one by the ear
+    for start, control, end, thick in (((-0.17, 0.31), (-0.5, 0.5), (-0.98, 0.47), 0.056), ((-0.3, 0.26), (-0.56, 0.37), (-0.92, 0.32), 0.038)):
+        pts = bezier(Vector((start[0], -0.1, start[1])), Vector((control[0], -0.1, control[1])), Vector((end[0], -0.1, end[1])), 30)
+        radii = [thick * (1.0 - 0.94 * (i / 29) ** 1.2) for i in range(30)]
+        tube([tuple(p) for p in pts], radii, m["silver"], name="Horn")
+        for i in range(2, 22, 3):
+            axis = (Vector(pts[i + 1]) - Vector(pts[i])).normalized()
+            across = Vector((-axis.z, 0.0, axis.x))
+            a = Vector(pts[i]) + across * radii[i] * 1.05
+            b = Vector(pts[i]) - across * radii[i] * 1.05
+            tube([tuple(a), tuple(Vector(pts[i]) + Vector((0, -radii[i], 0))), tuple(b)], [0.0065] * 3, deep, name="Hornring", resolution=2)
+    # Bone spur at the chin
+    plate_from_outline([(0.62, -0.26), (0.5, -0.4), (0.44, -0.27)], -0.012, 0.012, m["silver"], name="Kinnsporn", bevel=0.004)
+    plate_from_outline([(0.3, -0.27), (0.16, -0.38), (0.12, -0.28)], -0.012, 0.012, m["silver"], name="Kinnsporn", bevel=0.004)
+
+
+def scales_picture(path):
+    """Transparent picture over the experience bar: overlapping scales pointing to the head, dark rims and a light on each"""
+    width, height = 880, 28
+    across, along = 12, 14
+    buffer = np.zeros((height, width, 4), np.float32)
+    yy, xx = np.mgrid[0:height, 0:width]
+    centers = [(x + (along / 2 if row % 2 else 0), row * across * 0.55 + 2.0) for row in range(6) for x in np.arange(-along, width + along, along)]
+    for cx, cy in sorted(centers):
+        u = (xx - cx) / (along * 0.82)
+        v = (yy - cy) / (across * 0.62)
+        d = np.sqrt(np.maximum(u, 0.0) ** 2 * 1.0 + (u * (u < 0)) ** 2 * 0.35 + v * v)
+        inside = d < 1.0
+        rim = np.clip((d - 0.72) / 0.28, 0.0, 1.0)
+        light = np.clip(1.0 - np.hypot(u - 0.1, v + 0.45) / 0.55, 0.0, 1.0)
+        shade = np.clip(0.34 + 0.35 * v, 0.0, 0.6)
+        color = np.where(light[..., None] > rim[..., None], np.array((0.9, 0.97, 1.0)), np.array((0.0, 0.012, 0.03)))
+        alpha = np.maximum(np.maximum(rim * 0.92, light * 0.5), shade * 0.5)
+        buffer[inside, 0:3] = color[inside]
+        buffer[inside, 3] = alpha[inside]
+    image = bpy.data.images.new("Schuppen", width, height, alpha=True)
+    image.pixels.foreach_set(buffer[::-1].ravel())
+    image.filepath_raw = path
+    image.file_format = "PNG"
+    image.save()
+    print("[Vael] Schuppen:", path)
 
 
 def dragon_tail(m, x_px, y_px):
@@ -789,7 +1009,7 @@ def frame_mage(m):
         for y_px, up in ((50.0, 1.0), (214.0, -1.0)):
             gx, gz = px(x_px + direction * 62.0, y_px)
             torus((gx, -0.05, gz), 0.03, 0.009, m["silver"], name="Fassung")
-            sphere((gx, -0.056, gz), 0.024, m["sapphire"], scale=(1, 0.5, 1), name="Saphir", segments=20)
+            facet_stone(m, gx, -0.054, gz, 0.028)
             scroll(m, x_px + direction * 70.0, y_px + up * 5.0, direction, up)
 
     # The sunken field of the abilities
@@ -808,14 +1028,13 @@ def frame_mage(m):
 
     # The body of the dragon: a dark channel for the experience, a row of silver scales above it, head and tail at its ends
     ch_left, ch_top = px(206.0, 212.0)
-    ch_right, ch_bottom = px(664.0, 226.0)
+    ch_right, ch_bottom = px(650.0, 226.0)
     channel = rounded_plate(ch_right - ch_left, ch_top - ch_bottom, 0.012, 0.012, m["sunken"], y=-0.034, name="Rinne")
     channel.location.x = (ch_left + ch_right) / 2
     channel.location.z = (ch_top + ch_bottom) / 2
-    for x_px in np.arange(204.0, 668.0, 7.0):
-        x, z = px(float(x_px), 210.0)
-        sphere((x, -0.048, z), 0.0215, m["fitting"], scale=(1.0, 0.45, 0.72), name="Schuppe", segments=10)
-    dragon_head(m, 668.0, 219.0)
+    for k, x_px in enumerate(np.arange(204.0, 654.0, 8.6)):
+        x, z = px(float(x_px), 212.5)
+        shingle(x, z, 0.085, 0.038, 0.0, -0.046 - k * 0.0002, m["fitting"], m["darksilver"])
     dragon_tail(m, 204.0, 219.0)
 
     # Silver work on the leather: vines on the round plates, a stone at their outer edge, clasps out of the seal
@@ -906,7 +1125,7 @@ def inventory_mage(m):
             cx = (x0 + x1) / 2
             line = [(x, page_y(x, -pw if x0 < 0 else 0.0, 0.0 if x0 < 0 else pw) - 0.002, z) for x in np.linspace(x0, x1, 30)]
             tube(line, [0.0022] * len(line), ink_line, name="Linie")
-            sphere((cx, page_y(cx, -pw if x0 < 0 else 0.0, 0.0 if x0 < 0 else pw) - 0.004, z), 0.014, m["sapphire"], scale=(1, 0.4, 1), name="Mitte", segments=12)
+            facet_stone(m, cx, page_y(cx, -pw if x0 < 0 else 0.0, 0.0 if x0 < 0 else pw) - 0.004, z, 0.018)
 
     # Left page: a figure drawn in ink, the ten places around it
     fx, fz = -0.8, -0.12
@@ -1029,6 +1248,7 @@ PIECES = {
     "floromant_gefaess": (512, 512, VESSEL_VIEW, lambda m: (pitcher(m), claw(m, 0.5, 0.64, 0.24, 0.27, wrap_vines=True))),
     "magier_rahmen": (1760, 404, FRAME_ASPECT, frame_mage),
     "magier_inventar": (1920, 1080, 3.5556, inventory_mage),
+    "magier_drache": (384, 192, 2.0, dragon_head),
     "floromant_rahmen": (1760, 404, FRAME_ASPECT, frame_floromant),
     "magier_feld": (160, 160, 1.0, lambda m: slot(m, False)),
     "floromant_feld": (160, 160, 1.0, lambda m: slot(m, True)),
@@ -1038,7 +1258,7 @@ PIECES = {
 
 FILE_NAMES = {
     "leben": "T_HUD_Gemalt_Leben", "magier_gefaess": "T_HUD_Gemalt_Gefaess_Magier", "floromant_gefaess": "T_HUD_Gemalt_Gefaess_Floromant",
-    "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant",
+    "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_drache": "T_HUD_Gemalt_Drache_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant",
     "magier_feld": "T_HUD_Gemalt_Feld_Magier", "floromant_feld": "T_HUD_Gemalt_Feld_Floromant",
     "magier_medaillon": "T_HUD_Gemalt_Medaillon_Magier", "floromant_medaillon": "T_HUD_Gemalt_Medaillon_Floromant",
 }
@@ -1079,6 +1299,8 @@ def mask_render(path_out, folder, name):
 def main(folder, wanted):
     addon_utils.enable("cycles", default_set=True)
     os.makedirs(folder, exist_ok=True)
+    if not wanted or "magier_schuppen" in wanted:
+        scales_picture(os.path.join(folder, "T_HUD_Gemalt_Schuppen_Magier.png"))
     for key, (width, height, view, build) in PIECES.items():
         if wanted and key not in wanted:
             continue

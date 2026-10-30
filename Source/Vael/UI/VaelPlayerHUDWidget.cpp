@@ -117,7 +117,8 @@ UVaelPlayerHUDWidget::UVaelPlayerHUDWidget(const FObjectInitializer& ObjectIniti
 	MenuIcons[0] = HudAsset<UTexture2D>(TEXT("T_Symbol_Adernbaum"), TEXT("Symbole"));
 	MenuIcons[1] = HudAsset<UTexture2D>(TEXT("T_Symbol_Rezeptbuch"), TEXT("Symbole"));
 	MenuIcons[2] = HudAsset<UTexture2D>(TEXT("T_Symbol_Karte"), TEXT("Symbole"));
-	TitleFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/IMFeENsc28P.IMFeENsc28P")));
+	TitleFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/AlmendraSC-Regular.AlmendraSC-Regular")));
+	LabelFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/Almendra-Regular.Almendra-Regular")));
 	TextFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/AlegreyaSans-Regular.AlegreyaSans-Regular")));
 	TextBoldFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/AlegreyaSans-Bold.AlegreyaSans-Bold")));
 	GroundColor = Hex(0x15, 0x12, 0x0F);
@@ -179,7 +180,8 @@ void UVaelPlayerHUDWidget::BuildFonts()
 	UFontFace* Title = VaelAssets::LoadOptional(TitleFontFace);
 	UFontFace* Text = VaelAssets::LoadOptional(TextFontFace);
 	UFontFace* Bold = VaelAssets::LoadOptional(TextBoldFontFace);
-	for (UFontFace* Face : { Title, Text, Bold })
+	UFontFace* Label = VaelAssets::LoadOptional(LabelFontFace);
+	for (UFontFace* Face : { Title, Text, Bold, Label })
 	{
 		if (Face != nullptr)
 		{
@@ -188,7 +190,7 @@ void UVaelPlayerHUDWidget::BuildFonts()
 	}
 
 	TitleFont = MakeFont(Title, 30.0f);
-	LabelFont = MakeFont(Text, 17.0f);
+	LabelFont = MakeFont(Label != nullptr ? Label : Text, 18.0f);
 	SmallFont = MakeFont(Text, 13.0f);
 	NumberFont = MakeFont(Bold != nullptr ? Bold : Text, 18.0f);
 }
@@ -292,6 +294,8 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 	SetMaterialBrush(ClassVesselBrush, ClassVesselInstance);
 	GetTextureBrush(Data->SlotPicture);
 	GetTextureBrush(Data->MedallionPicture);
+	GetTextureBrush(Data->DragonPicture);
+	GetTextureBrush(Data->ScalesPicture);
 	SetMaterialBrush(SlotBrush, VaelAssets::LoadOptional(Data->SlotMaterial));
 
 	GetTextureBrush(Data->CornerOrnament);
@@ -858,7 +862,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		}
 
 		PaintButton(OutDrawElements, L + 5, State.Button, State.KeyboardKey, At + FVector2f(SlotSize - 10.0f, SlotSize - 10.0f), 13.0f);
-		PaintText(OutDrawElements, L + 5, State.Name, SmallFont, At + FVector2f(SlotSize * 0.5f, SlotSize + 1.0f), Dim, 0.5f, SlotSize - 4.0f);
+		PaintText(OutDrawElements, L + 5, State.Name, SmallFont, At + FVector2f(SlotSize * 0.5f, SlotSize + (ShownData->bDragonInFrame ? -1.0f : 1.0f)), Dim, 0.5f, SlotSize - 4.0f);
 	}
 
 	// Potion and dodge as round buttons beside the vessels
@@ -868,7 +872,8 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	PaintBox(OutDrawElements, L + 5, &BadgeBrush, PotionAt + FVector2f(6.0f, -22.0f), FVector2f(16.0f));
 	PaintText(OutDrawElements, L + 6, PotionText, SmallFont, PotionAt + FVector2f(14.0f, -22.0f), GroundColor, 0.5f);
 
-	const FVector2f DodgeAt = O + FVector2f(718.0f, 190.0f);
+	// Above the head of the dragon where the frame brings one
+	const FVector2f DodgeAt = O + (ShownData->bDragonInFrame ? FVector2f(712.0f, 164.0f) : FVector2f(718.0f, 190.0f));
 	PaintMedallion(OutDrawElements, L + 3, DodgeAt, 17.0f, Frame);
 	PaintBox(OutDrawElements, L + 5, FindTextureBrush(DodgeIcon), DodgeAt - FVector2f(11.0f), FVector2f(22.0f), TextColor);
 	if (DodgeLeft > 0.0f)
@@ -877,8 +882,14 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	}
 
 	// Experience: the tail of the Urdrachin, from the end ornament of the class to a small dragon head
-	PaintBox(OutDrawElements, L + 3, &TailBrush, O + FVector2f(TailLeft, TailTop), FVector2f(TailRight - TailLeft, TailHeight));
-	if (!ShownData->bDragonInFrame)
+	const float TailEnd = ShownData->bDragonInFrame ? 650.0f : TailRight;
+	PaintBox(OutDrawElements, L + 3, &TailBrush, O + FVector2f(TailLeft, TailTop), FVector2f(TailEnd - TailLeft, TailHeight));
+	if (ShownData->bDragonInFrame)
+	{
+		PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->ScalesPicture), O + FVector2f(TailLeft, TailTop), FVector2f(TailEnd - TailLeft, TailHeight));
+		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonPicture), O + FVector2f(646.0f, 192.0f), FVector2f(128.0f, 64.0f));
+	}
+	else
 	{
 		PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->BarEnd), O + FVector2f(TailLeft - 28.0f, TailTop - 7.0f), FVector2f(28.0f), Frame);
 		PaintBox(OutDrawElements, L + 4, FindTextureBrush(DragonHeadTexture), O + FVector2f(TailRight - 2.0f, TailTop - 9.0f), FVector2f(32.0f), Frame);

@@ -88,7 +88,7 @@ namespace
 
 	/** Fonts of the painted HUD (OFL), the same as the player panels */
 	const TCHAR* TextFontPath = TEXT("/Game/Vael/UI/Fonts/AlegreyaSans-Regular.AlegreyaSans-Regular");
-	const TCHAR* TitleFontPath = TEXT("/Game/Vael/UI/Fonts/IMFeENsc28P.IMFeENsc28P");
+	const TCHAR* TitleFontPath = TEXT("/Game/Vael/UI/Fonts/AlmendraSC-Regular.AlmendraSC-Regular");
 
 	/** Colors of the map */
 	const FLinearColor MapNameColor = Rgb(246, 236, 212);
