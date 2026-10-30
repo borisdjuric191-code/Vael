@@ -944,8 +944,8 @@ def dragon_head(m):
     shadow = material("Schlund", (0.03, 0.004, 0.01), roughness=0.5)
 
     # Neck and head in one line: it leaves the bar, swings down and rises into the skull, narrows into the snout, flares at the nose
-    neck = flowing([(646, 219, 4.2), (660, 223, 4.8), (674, 222, 5.0), (686, 214, 5.2), (695, 204, 6.0), (703, 199, 7.8), (711, 199, 6.8),
-                    (719, 202, 4.5), (727, 205, 3.5), (733, 206, 4.0), (737, 207.5, 2.2)])
+    neck = flowing([(646, 219, 4.2), (660, 223, 4.8), (674, 222, 5.0), (686, 214, 5.2), (695, 204, 6.0), (703, 200, 7.4), (711, 200.5, 6.5),
+                    (719, 203, 5.1), (727, 205, 4.4), (733, 206, 4.3), (736.5, 207, 2.7)])
     # The head is larger than the neck that carries it: the line grows out of the bar into it
     pivot = (690.0, 205.0)
     head_size = 1.38
@@ -954,27 +954,40 @@ def dragon_head(m):
         size = 1.0 + (head_size - 1.0) * min(max((x - 672.0) / 20.0, 0.0), 1.0)
         grown.append((pivot[0] + (x - pivot[0]) * size, pivot[1] + (y - pivot[1]) * size, r * size))
     neck = grown
-    board.line(neck, silver, "Hals", depth=-0.02)
-    board.segments(neck[:58], dark)
-    board.crest(neck[6:64], -1, silver)
+    # Blackened silver on the head, the silver of the neck runs into it; only the edges keep a cold light
+    iron = material("Schwarzsilber", (0.1, 0.105, 0.125), metallic=0.7, roughness=0.36, bump=0.45, bump_scale=240.0)
+    board.line(neck[:44], silver, "Hals", depth=-0.02)
+    board.line(neck[36:], iron, "Kopf", depth=-0.03)
+    board.segments(neck[:44], dark)
+    board.crest(neck[6:46], -1, silver)
     board.zoom_at(pivot, head_size)
 
     # Mouth: dark behind, the jaw as a second line below it with a hooked chin
-    tube([board.at(x, y, 0.0) for x, y in ((700, 206), (714, 207), (730, 209), (728, 214), (712, 215), (700, 212))], [0.022] * 6, shadow, name="Schlund", cyclic=True, resolution=3)
-    jaw = flowing([(696, 209, 3.2), (706, 214, 2.9), (716, 216, 2.2), (725, 215, 1.7), (730, 212.5, 1.0)])
-    board.line(jaw, silver, "Kiefer", depth=-0.035)
-    for x, y, h, lean in ((713, 205.5, 4.0, 0.8), (718, 206.5, 3.0, 0.5), (723, 207.5, 3.2, 0.5), (728, 208.5, 5.6, 1.0), (733, 209, 4.2, 0.4)):
-        board.line(flowing([(x, y, 0.95), (x + lean * 0.4, y + h * 0.6, 0.62), (x + lean, y + h, 0.08)], 3), ivory, "Zahn", depth=-0.06, resolution=2)
-    for x, y, h in ((710, 214, 3.2), (716, 215, 3.8), (721, 214.5, 3.0), (726, 213.5, 3.6)):
-        board.line(flowing([(x, y, 0.8), (x + 0.2, y - h * 0.6, 0.5), (x + 0.6, y - h, 0.08)], 3), ivory, "Zahn", depth=-0.06, resolution=2)
+    tube([board.at(x, y, 0.0) for x, y in ((700, 208.5), (714, 209), (731, 209.5), (729, 212), (712, 212.5), (700, 211))], [0.018] * 6, shadow, name="Schlund", cyclic=True, resolution=3)
+    jaw = flowing([(695, 211, 3.5), (705, 213.5, 3.3), (716, 214.5, 2.8), (726, 214, 2.2), (732, 211.5, 1.3)])
+    board.line(jaw, iron, "Kiefer", depth=-0.035)
+    bone = material("Alter Zahn", (0.52, 0.45, 0.32), roughness=0.5)
+    for x, y, h, lean in ((714, 208, 4.2, 0.5), (722, 208.6, 3.0, 0.3), (729, 209, 5.6, 0.7)):
+        board.line(flowing([(x, y, 1.0), (x + lean * 0.4, y + h * 0.6, 0.62), (x + lean, y + h, 0.08)], 3), bone, "Zahn", depth=-0.06, resolution=2)
+    for x, y, h in ((711, 213, 3.0), (719, 213, 3.4), (727, 212.5, 3.0)):
+        board.line(flowing([(x, y, 0.85), (x + 0.2, y - h * 0.6, 0.5), (x + 0.5, y - h, 0.08)], 3), bone, "Zahn", depth=-0.06, resolution=2)
 
-    # Face: a brow that sweeps down to the snout, a ridge along the nose, cheek line and nostril
-    board.line(flowing([(693, 195, 1.5), (701, 191.5, 2.4), (709, 194, 1.9), (716, 198.5, 0.9)]), silver, "Braue", depth=-0.1)
-    board.line(flowing([(712, 196, 1.3), (721, 199.5, 1.1), (729, 201.5, 1.2), (733, 202, 0.5)]), silver, "Nasengrat", depth=-0.09)
-    board.line(flowing([(691, 210, 0.9), (700, 204.5, 1.1), (710, 205, 0.8)]), dark, "Wange", depth=-0.1)
-    tube([board.at(x, y, -0.09) for x, y in ((729.5, 203.5), (732, 203), (733, 205), (731, 206))], [0.0085] * 4, dark, name="Nuester", cyclic=True, resolution=3)
-    sphere(board.at(704, 196.5, -0.085), 0.06, shadow, scale=(1.2, 0.5, 0.68), name="Augenhoehle", segments=20)
-    facet_stone(m, *[board.at(704.5, 196.5, -0.112)[k] for k in (0, 1, 2)], 0.048, 0.74)
+    # Thorns of bone: one on the nose, two swept back from the cheek, one under the chin, two behind the brow
+    for root, tip, thick in (((724, 200.5), (719, 192), 1.6), ((732, 202), (729, 196), 1.1), ((697, 209), (684, 213), 1.7), ((702, 212), (690, 219), 1.4),
+                             ((722, 216), (716, 223), 1.3), ((695, 193), (684, 192), 1.5)):
+        middle = ((root[0] + tip[0]) / 2 + (tip[1] - root[1]) * 0.1, (root[1] + tip[1]) / 2 - (tip[0] - root[0]) * 0.1, thick * 0.6)
+        board.line(flowing([(*root, thick), middle, (*tip, 0.08)], 5), iron, "Dorn", depth=-0.075, resolution=3)
+
+    # Face: a heavy brow pulled low over the eye down to the snout, a cold line along the nose, the sunken cheek, the nostril
+    board.line(flowing([(691, 193, 1.6), (699, 189.5, 2.3), (707, 192, 2.2), (714, 197, 1.5), (719, 201.5, 0.7)]), iron, "Braue", depth=-0.13)
+    board.line(flowing([(692, 191.2, 0.7), (700, 187.8, 1.0), (708, 190.3, 0.95), (716, 196.5, 0.6)]), silver, "Brauenkante", depth=-0.15, resolution=3)
+    board.line(flowing([(716, 198.6, 1.0), (724, 200.8, 0.95), (731, 201.8, 0.9), (736, 203.8, 0.4)]), silver, "Nasengrat", depth=-0.1, resolution=3)
+    board.line(flowing([(697, 215.5, 0.8), (708, 217.2, 0.9), (720, 217.4, 0.85), (730, 215.2, 0.7), (733, 212.5, 0.3)]), silver, "Kinnkante", depth=-0.08, resolution=3)
+    board.line(flowing([(692, 208, 1.0), (700, 205.5, 1.2), (711, 206.5, 0.8), (726, 208, 0.5)]), dark, "Wange", depth=-0.1, resolution=3)
+    tube([board.at(x, y, -0.09) for x, y in ((729.5, 204), (732.5, 203.5), (733.5, 205.5), (731, 206.5))], [0.0075] * 4, shadow, name="Nuester", cyclic=True, resolution=3)
+    # A narrow eye deep under the brow
+    sphere(board.at(706, 198.6, -0.085), 0.058, shadow, scale=(1.3, 0.5, 0.56), name="Augenhoehle", segments=20)
+    facet_stone(m, *[board.at(706.5, 198.8, -0.16)[k] for k in (0, 1, 2)], 0.045, 0.56)
     board.zoom_at(pivot, 1.0)
 
     # Great horn: from behind the brow round the left of the dodge button, over its top, curling in at its right
