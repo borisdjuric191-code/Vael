@@ -156,9 +156,13 @@ public:
 	UPROPERTY(EditAnywhere, Category="Look")
 	bool bDragonInFrame = false;
 
-	/** Head of the dragon at the end of the experience bar, a picture of its own that reaches beyond the frame */
+	/** Head of the dragon at the end of the experience bar, a picture of its own that winds around the buttons beside it */
 	UPROPERTY(EditAnywhere, Category="Look")
 	TSoftObjectPtr<UTexture2D> DragonPicture;
+
+	/** Tail of the dragon at the start of the experience bar, the same way */
+	UPROPERTY(EditAnywhere, Category="Look")
+	TSoftObjectPtr<UTexture2D> DragonTailPicture;
 
 	/** Scales laid over the fill of the experience bar */
 	UPROPERTY(EditAnywhere, Category="Look")

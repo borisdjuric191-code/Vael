@@ -295,6 +295,7 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 	GetTextureBrush(Data->SlotPicture);
 	GetTextureBrush(Data->MedallionPicture);
 	GetTextureBrush(Data->DragonPicture);
+	GetTextureBrush(Data->DragonTailPicture);
 	GetTextureBrush(Data->ScalesPicture);
 	SetMaterialBrush(SlotBrush, VaelAssets::LoadOptional(Data->SlotMaterial));
 
@@ -887,7 +888,8 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	if (ShownData->bDragonInFrame)
 	{
 		PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->ScalesPicture), O + FVector2f(TailLeft, TailTop), FVector2f(TailEnd - TailLeft, TailHeight));
-		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonPicture), O + FVector2f(646.0f, 192.0f), FVector2f(128.0f, 64.0f));
+		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonPicture), O + FVector2f(630.0f, 125.0f), FVector2f(140.0f, 120.0f));
+		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonTailPicture), O + FVector2f(110.0f, 118.0f), FVector2f(140.0f, 120.0f));
 	}
 	else
 	{

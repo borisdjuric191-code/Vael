@@ -701,6 +701,7 @@ def apply_painted(painted, painted_frame, veins):
         data.set_editor_property("dragon_in_frame", name == "Magier")
         if name == "Magier":
             data.set_editor_property("dragon_picture", painted["T_HUD_Gemalt_Drache_Magier"])
+            data.set_editor_property("dragon_tail_picture", painted["T_HUD_Gemalt_Schwanz_Magier"])
             data.set_editor_property("scales_picture", painted["T_HUD_Gemalt_Schuppen_Magier"])
         assets.save_loaded_asset(data, False)
         created.append("DA_HUDKlasse_{} (painted pieces)".format(name))

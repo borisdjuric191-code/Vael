@@ -851,100 +851,177 @@ def shingle(x, z, length, width, angle, y, material_, ridge=None):
     return plate
 
 
+def flowing(points, per_segment=14):
+    """A smooth line through (x, y, radius) points of the HUD panel, as (x, y, radius) again"""
+    p = np.array(points, dtype=float)
+    p = np.vstack((2 * p[0] - p[1], p, 2 * p[-1] - p[-2]))
+    out = []
+    for i in range(1, len(p) - 2):
+        for t in np.linspace(0.0, 1.0, per_segment, endpoint=False):
+            out.append(0.5 * ((2 * p[i]) + (p[i + 1] - p[i - 1]) * t + (2 * p[i - 1] - 5 * p[i] + 4 * p[i + 1] - p[i + 2]) * t * t
+                              + (3 * p[i] - p[i - 1] - 3 * p[i + 1] + p[i + 2]) * t ** 3))
+    out.append(p[-2])
+    return out
+
+
+def rolled(points, turns, hand, shrink=0.8):
+    """Goes on from the end of a line of (x, y, radius) points in a spiral that winds inwards: the curl of a horn or a tendril"""
+    x0, y0, r0 = points[-1]
+    x1, y1, _ = points[-2]
+    heading = math.atan2(y0 - y1, x0 - x1)
+    step = math.hypot(x0 - x1, y0 - y1)
+    out = list(points)
+    x, y = x0, y0
+    count = int(turns * 40)
+    for i in range(count):
+        heading += hand * math.tau / 40 * (1.0 + 2.2 * i / count)
+        x += math.cos(heading) * step * (1.0 - 0.55 * i / count)
+        y += math.sin(heading) * step * (1.0 - 0.55 * i / count)
+        out.append((x, y, r0 * (1.0 - shrink * (i + 1) / count)))
+    return out
+
+
+class Panel:
+    """Places a picture cut out of the HUD panel in the scene: one unit is a hundred design pixels"""
+
+    def __init__(self, cx, cy):
+        self.cx, self.cy = cx, cy
+        self.pivot = (cx, cy)
+        self.zoom = 1.0
+
+    def zoom_at(self, pivot, zoom):
+        """Everything from now on is drawn this much larger around the pivot"""
+        self.pivot = pivot
+        self.zoom = zoom
+
+    def at(self, x, y, depth=-0.05):
+        x = self.pivot[0] + (x - self.pivot[0]) * self.zoom
+        y = self.pivot[1] + (y - self.pivot[1]) * self.zoom
+        return ((x - self.cx) / 100.0, depth, (self.cy - y) / 100.0)
+
+    def line(self, points, material_, name, depth=-0.05, resolution=6):
+        tube([self.at(x, y, depth) for x, y, _ in points], [r * self.zoom / 100.0 for _, _, r in points], material_, name=name, resolution=resolution)
+
+    def segments(self, points, material_, every=6):
+        """Engraved bands across a body, curved like the scales of a snake: they read as scales even when small"""
+        for i in range(every, len(points) - every, every):
+            x, y, r = points[i]
+            nx, ny, _ = points[i + 1]
+            px_, py, _ = points[i - 1]
+            ax, ay = nx - px_, ny - py
+            size = math.hypot(ax, ay) or 1.0
+            ax, ay = ax / size, ay / size
+            across = (-ay, ax)
+            arc = []
+            for t in np.linspace(-1.0, 1.0, 9):
+                back = (1.0 - t * t) * r * 0.75
+                arc.append(self.at(x + across[0] * t * r - ax * back, y + across[1] * t * r - ay * back, -0.05 - (1.0 - t * t) ** 0.5 * r / 100.0 - 0.002))
+            tube(arc, [0.0052 * min(r / 4.0, 1.0)] * 9, material_, name="Band", resolution=2)
+
+    def crest(self, points, side, material_, every=7):
+        """Curved thorns along the back of a body, each leaning backwards"""
+        for i in range(every, len(points) - 2, every):
+            x, y, r = points[i]
+            nx, ny, _ = points[i + 1]
+            ax, ay = nx - x, ny - y
+            size = math.hypot(ax, ay) or 1.0
+            ax, ay = ax / size, ay / size
+            ox, oy = -ay * side, ax * side
+            height = 2.2 + r * 0.8
+            root = (x + ox * r * 0.8, y + oy * r * 0.8, r * 0.34)
+            mid = (root[0] + ox * height * 0.6 - ax * height * 0.25, root[1] + oy * height * 0.6 - ay * height * 0.25, r * 0.2)
+            tip = (root[0] + ox * height - ax * height * 0.8, root[1] + oy * height - ay * height * 0.8, 0.14)
+            self.line(flowing([root, mid, tip], 4), material_, "Dorn", depth=-0.045, resolution=3)
+
+
 def dragon_head(m):
-    """The head of the Urdrachin at the end of the experience bar, in profile facing right: long jaws with fangs,
-    a heavy brow over an angry eye, swept back horns, a fan behind the jaw. Layers of relief, so it reads when small."""
+    """The head of the Urdrachin: cast silver in one flowing line with the neck, coming out of the end of the experience bar.
+    One horn winds round the dodge button, the other runs back under the last slot name and curls into the scales."""
     mage_materials(m)
-    scale = material("Drachenhaut", (0.3, 0.33, 0.4), metallic=0.15, roughness=0.46, bump=0.5, bump_scale=160.0)
-    deep = material("Drachentiefe", (0.03, 0.033, 0.045), metallic=0.6, roughness=0.45)
-    ivory = material("Zahn", (0.8, 0.74, 0.6), roughness=0.3, coat=0.5)
-    throat = material("Schlund", (0.06, 0.006, 0.01), roughness=0.5)
-    web = material("Haut", (0.012, 0.03, 0.09), roughness=0.5, metallic=0.3)
+    board = Panel(700.0, 185.0)
+    silver, dark = m["silver"], m["darksilver"]
+    ivory = material("Zahn", (0.82, 0.76, 0.62), roughness=0.3, coat=0.5)
+    shadow = material("Schlund", (0.03, 0.004, 0.01), roughness=0.5)
 
-    # Back of the mouth, behind everything
-    plate_from_outline([(-0.2, -0.02), (0.72, -0.02), (0.76, -0.16), (0.2, -0.2), (-0.2, -0.18)], 0.1, 0.02, throat, name="Schlund")
+    # Neck and head in one line: it leaves the bar, swings down and rises into the skull, narrows into the snout, flares at the nose
+    neck = flowing([(646, 219, 4.2), (660, 223, 4.8), (674, 222, 5.0), (686, 214, 5.2), (695, 204, 6.0), (703, 199, 7.8), (711, 199, 6.8),
+                    (719, 202, 4.5), (727, 205, 3.5), (733, 206, 4.0), (737, 207.5, 2.2)])
+    # The head is larger than the neck that carries it: the line grows out of the bar into it
+    pivot = (690.0, 205.0)
+    head_size = 1.38
+    grown = []
+    for x, y, r in neck:
+        size = 1.0 + (head_size - 1.0) * min(max((x - 672.0) / 20.0, 0.0), 1.0)
+        grown.append((pivot[0] + (x - pivot[0]) * size, pivot[1] + (y - pivot[1]) * size, r * size))
+    neck = grown
+    board.line(neck, silver, "Hals", depth=-0.02)
+    board.segments(neck[:58], dark)
+    board.crest(neck[6:64], -1, silver)
+    board.zoom_at(pivot, head_size)
 
-    # Fan behind the jaw: spines with skin between them
-    fan_center = (-0.3, -0.08)
-    tips = ((-0.86, 0.02), (-0.92, -0.13), (-0.84, -0.27), (-0.68, -0.38), (-0.48, -0.42))
-    for a, b in zip(tips, tips[1:]):
-        mid = ((a[0] + b[0]) / 2 + 0.045, (a[1] + b[1]) / 2 + 0.01)
-        plate_from_outline([fan_center, a, mid, b], 0.06, 0.012, web, name="Faecherhaut", bevel=0.002)
-    for tip in tips:
-        tube([(fan_center[0], 0.03, fan_center[1]), ((fan_center[0] + tip[0]) / 2, 0.02, (fan_center[1] + tip[1]) / 2 + 0.012), (tip[0], 0.03, tip[1])], [0.02, 0.014, 0.002], m["silver"], name="Faecherstachel")
+    # Mouth: dark behind, the jaw as a second line below it with a hooked chin
+    tube([board.at(x, y, 0.0) for x, y in ((700, 206), (714, 207), (730, 209), (728, 214), (712, 215), (700, 212))], [0.022] * 6, shadow, name="Schlund", cyclic=True, resolution=3)
+    jaw = flowing([(696, 209, 3.2), (706, 214, 2.9), (716, 216, 2.2), (725, 215, 1.7), (730, 212.5, 1.0)])
+    board.line(jaw, silver, "Kiefer", depth=-0.035)
+    for x, y, h, lean in ((713, 205.5, 4.0, 0.8), (718, 206.5, 3.0, 0.5), (723, 207.5, 3.2, 0.5), (728, 208.5, 5.6, 1.0), (733, 209, 4.2, 0.4)):
+        board.line(flowing([(x, y, 0.95), (x + lean * 0.4, y + h * 0.6, 0.62), (x + lean, y + h, 0.08)], 3), ivory, "Zahn", depth=-0.06, resolution=2)
+    for x, y, h in ((710, 214, 3.2), (716, 215, 3.8), (721, 214.5, 3.0), (726, 213.5, 3.6)):
+        board.line(flowing([(x, y, 0.8), (x + 0.2, y - h * 0.6, 0.5), (x + 0.6, y - h, 0.08)], 3), ivory, "Zahn", depth=-0.06, resolution=2)
 
-    # Neck: rows of scales running out of the picture to the left, with a crest of spikes on top
-    plate_from_outline([(-1.0, 0.19), (-0.4, 0.26), (-0.4, -0.15), (-1.0, -0.17)], 0.05, 0.02, deep, name="Halsgrund")
-    for row, (z0, rise) in enumerate(((0.1, 0.012), (0.0, 0.0), (-0.1, -0.008))):
-        for k in range(7):
-            x = -0.98 + k * 0.1 + (0.05 if row % 2 else 0.0)
-            shingle(x, z0 + rise * k, 0.16, 0.13, 0.0, 0.042 - k * 0.0009, scale)
-    for k, x in enumerate(np.linspace(-0.94, -0.44, 6)):
-        height = 0.15 - 0.012 * k
-        z = 0.15 + (x + 0.94) * 0.2
-        tip = (x - 0.09, z + height)
-        plate_from_outline([(x - 0.06, z - 0.02), tip, (x + 0.075, z - 0.02)], 0.01, 0.012, m["silver"], name="Kammstachel", bevel=0.004)
+    # Face: a brow that sweeps down to the snout, a ridge along the nose, cheek line and nostril
+    board.line(flowing([(693, 195, 1.5), (701, 191.5, 2.4), (709, 194, 1.9), (716, 198.5, 0.9)]), silver, "Braue", depth=-0.1)
+    board.line(flowing([(712, 196, 1.3), (721, 199.5, 1.1), (729, 201.5, 1.2), (733, 202, 0.5)]), silver, "Nasengrat", depth=-0.09)
+    board.line(flowing([(691, 210, 0.9), (700, 204.5, 1.1), (710, 205, 0.8)]), dark, "Wange", depth=-0.1)
+    tube([board.at(x, y, -0.09) for x, y in ((729.5, 203.5), (732, 203), (733, 205), (731, 206))], [0.0085] * 4, dark, name="Nuester", cyclic=True, resolution=3)
+    sphere(board.at(704, 196.5, -0.085), 0.06, shadow, scale=(1.2, 0.5, 0.68), name="Augenhoehle", segments=20)
+    facet_stone(m, *[board.at(704.5, 196.5, -0.112)[k] for k in (0, 1, 2)], 0.048, 0.74)
+    board.zoom_at(pivot, 1.0)
 
-    # Lower jaw with its teeth
-    plate_from_outline([(-0.28, -0.1), (0.1, -0.1), (0.42, -0.13), (0.68, -0.16), (0.8, -0.13), (0.84, -0.17), (0.78, -0.25), (0.5, -0.27), (0.1, -0.29), (-0.2, -0.27), (-0.34, -0.19)], 0.0, 0.03, scale, name="Unterkiefer", bevel=0.012)
-    tube([(x, -0.008, z) for x, z in ((-0.26, -0.13), (0.1, -0.135), (0.45, -0.165), (0.8, -0.165))], [0.012, 0.012, 0.011, 0.007], m["silver"], name="Lippe unten")
-    for k, x in enumerate(np.linspace(-0.2, 0.74, 11)):
-        z = -0.25 - 0.04 * math.sin((x + 0.2) / 0.94 * math.pi)
-        shingle(x, z + 0.03, 0.09, 0.06, 0.0, -0.012, deep)
-    for k, x in enumerate(np.linspace(0.12, 0.78, 7)):
-        base = -0.12 - 0.05 * (x - 0.12) / 0.66
-        h = 0.085 + (0.05 if k == 5 else 0.0)
-        plate_from_outline([(x - 0.024, base), (x + 0.012, base + h), (x + 0.03, base)], -0.012, 0.012, ivory, name="Zahn", bevel=0.003)
+    # Great horn: from behind the brow round the left of the dodge button, over its top, curling in at its right
+    center = (712.0, 164.0)
+    points = [(696, 190, 4.6), (691, 185, 3.8)]
+    for k, a in enumerate(np.linspace(168, 318, 8)):
+        rad = math.radians(a)
+        points.append((center[0] + 24.5 * math.cos(rad), center[1] + 24.5 * math.sin(rad) * 1.0, 3.0 - k * 0.28))
+    horn = rolled(flowing(points, 8), 1.3, 1, shrink=0.86)
+    board.line(horn, silver, "Horn", depth=-0.075)
+    board.segments(horn[:60], dark, every=7)
 
-    # Upper skull with the long snout
-    skull = [(-0.62, 0.17), (-0.42, 0.26), (-0.24, 0.31), (-0.1, 0.36), (0.02, 0.33), (0.13, 0.24), (0.33, 0.2), (0.52, 0.18), (0.64, 0.21), (0.75, 0.24), (0.86, 0.19), (0.95, 0.09), (0.94, -0.0), (0.86, -0.05), (0.62, -0.03), (0.32, 0.0), (0.06, -0.02), (-0.14, -0.07), (-0.3, -0.15), (-0.62, -0.13)]
-    plate_from_outline(skull, -0.03, 0.05, scale, name="Schaedel", bevel=0.018)
-    plate_from_outline([(-0.62, 0.17), (-0.2, 0.28), (0.12, 0.2), (0.14, 0.0), (0.06, -0.02), (-0.14, -0.07), (-0.3, -0.15), (-0.62, -0.13)], -0.034, 0.01, scale, name="Wange", bevel=0.004)
+    # Second horn: back below the last slot name along the scales, then rolling in over the bar
+    second = rolled(flowing([(692, 196, 3.0), (682, 204, 2.5), (670, 210.5, 2.0), (654, 212, 1.6), (640, 212.5, 1.2)], 8), 1.1, -1, shrink=0.8)
+    board.line(second, silver, "Horn", depth=-0.075)
 
-    # Upper teeth hanging from the lip, a long fang at the front and one behind the eye line
-    for k, x in enumerate(np.linspace(0.14, 0.84, 9)):
-        base = -0.01 - 0.03 * math.sin((x - 0.14) / 0.7 * math.pi)
-        h = 0.2 if k == 7 else 0.15 if k == 2 else 0.09
-        plate_from_outline([(x - 0.03, base), (x - 0.006, base - h), (x + 0.028, base)], -0.042, 0.012, ivory, name="Zahn", bevel=0.003)
-    tube([(x, -0.058, z) for x, z in ((-0.14, -0.045), (0.06, 0.0), (0.32, 0.02), (0.62, -0.01), (0.86, -0.03))], [0.013, 0.012, 0.012, 0.011, 0.008], m["silver"], name="Lippe oben")
+    # One tendril behind the jaw that rolls up, the rest stays calm so the head reads
+    for start, ctrl, end, hand, turns in (((694, 216), (684, 228), (670, 234), 1, 1.0),):
+        line = rolled(flowing([(start[0], start[1], 1.4), (ctrl[0], ctrl[1], 1.1), (end[0], end[1], 0.8)], 10), turns, hand, shrink=0.75)
+        board.line(line, silver, "Bartranke", depth=-0.06, resolution=4)
 
-    # Scales on the cheek and along the snout, growing smaller towards the nose
-    for row, z in enumerate((0.13, 0.05, -0.03)):
-        for k in range(6):
-            x = -0.56 + k * 0.12 + (0.06 if row % 2 else 0.0)
-            shingle(x, z - 0.012 * k, 0.16, 0.125, math.radians(-8.0), -0.0385 - k * 0.0009, scale)
-    for row, z in enumerate((0.13, 0.065)):
-        for k in range(8):
-            x = 0.14 + k * 0.085 + (0.04 if row % 2 else 0.0)
-            shingle(x, z, 0.098 - k * 0.003, 0.072, 0.0, -0.0385 - k * 0.0007, scale)
 
-    # Ridge along the snout, ending in a horn on the nose
-    tube([(0.1, -0.075, 0.235), (0.34, -0.075, 0.205), (0.52, -0.075, 0.195), (0.66, -0.075, 0.225)], [0.024, 0.016, 0.013, 0.015], m["fitting"], name="Nasengrat")
-    plate_from_outline([(0.66, 0.2), (0.7, 0.33), (0.79, 0.215)], -0.065, 0.012, m["silver"], name="Nasenhorn", bevel=0.004)
-    # Flared nostril
-    torus((0.82, -0.08, 0.09), 0.046, 0.016, m["fitting"], name="Nuester")
-    sphere((0.82, -0.086, 0.09), 0.03, deep, scale=(1.0, 0.3, 0.7), name="Nasenloch", segments=16)
+def dragon_tail(m):
+    """The tail of the same dragon: it leaves the start of the experience bar, loops under the potion button, climbs along
+    the field of the abilities and ends in a leaf shaped barb, with thin tendrils branching off like the vines of the cover."""
+    mage_materials(m)
+    board = Panel(180.0, 178.0)
+    silver, dark = m["silver"], m["darksilver"]
 
-    # Eye under a heavy brow that slants down to the snout
-    plate_from_outline([(-0.16, 0.22), (0.01, 0.23), (0.09, 0.165), (0.0, 0.1), (-0.15, 0.12)], -0.07, 0.016, deep, name="Augenhoehle", bevel=0.006)
-    facet_stone(m, -0.04, -0.092, 0.165, 0.07, 0.72)
-    tube([(-0.04, -0.142, 0.135), (-0.04, -0.142, 0.195)], [0.008, 0.008], material("Pupille", (0.0, 0.0, 0.0), roughness=0.2), name="Pupille", resolution=2)
-    plate_from_outline([(-0.3, 0.3), (-0.12, 0.34), (0.03, 0.29), (0.15, 0.17), (0.04, 0.215), (-0.12, 0.235), (-0.27, 0.235)], -0.12, 0.02, m["fitting"], name="Braue", bevel=0.01)
+    tail = flowing([(208, 219, 4.2), (194, 224, 4.2), (178, 225, 3.9), (163, 222, 3.5), (150, 209, 3.2), (142, 192, 3.0), (150, 174, 2.7), (166, 167, 2.5),
+                    (177, 158, 2.2), (182, 149, 1.9), (178, 141, 1.5)])
+    board.line(tail, silver, "Schwanz", depth=-0.02)
+    board.segments(tail, dark)
+    board.crest(tail[:120], 1, silver, every=8)
 
-    # Horns: two long ones swept back, with rings along them, and a short one by the ear
-    for start, control, end, thick in (((-0.17, 0.31), (-0.5, 0.5), (-0.98, 0.47), 0.056), ((-0.3, 0.26), (-0.56, 0.37), (-0.92, 0.32), 0.038)):
-        pts = bezier(Vector((start[0], -0.1, start[1])), Vector((control[0], -0.1, control[1])), Vector((end[0], -0.1, end[1])), 30)
-        radii = [thick * (1.0 - 0.94 * (i / 29) ** 1.2) for i in range(30)]
-        tube([tuple(p) for p in pts], radii, m["silver"], name="Horn")
-        for i in range(2, 22, 3):
-            axis = (Vector(pts[i + 1]) - Vector(pts[i])).normalized()
-            across = Vector((-axis.z, 0.0, axis.x))
-            a = Vector(pts[i]) + across * radii[i] * 1.05
-            b = Vector(pts[i]) - across * radii[i] * 1.05
-            tube([tuple(a), tuple(Vector(pts[i]) + Vector((0, -radii[i], 0))), tuple(b)], [0.0065] * 3, deep, name="Hornring", resolution=2)
-    # Bone spur at the chin
-    plate_from_outline([(0.62, -0.26), (0.5, -0.4), (0.44, -0.27)], -0.012, 0.012, m["silver"], name="Kinnsporn", bevel=0.004)
-    plate_from_outline([(0.3, -0.27), (0.16, -0.38), (0.12, -0.28)], -0.012, 0.012, m["silver"], name="Kinnsporn", bevel=0.004)
+    # Barb at the tip: two curved blades around a stone
+    x, y, _ = tail[-1]
+    for side in (1, -1):
+        blade = flowing([(x, y + 1, 1.1), (x + side * 7, y - 6, 1.5), (x + side * 4, y - 15, 0.9), (x - side * 1, y - 21, 0.08)], 8)
+        board.line(blade, silver, "Klinge", depth=-0.03, resolution=4)
+    tube([board.at(*p, -0.02) for p in ((x, y + 1), (x + 6, y - 6), (x + 3, y - 14), (x, y - 20), (x - 3, y - 14), (x - 6, y - 6))], [0.03] * 6, m["cover"], name="Klingengrund", cyclic=True, resolution=3)
+    facet_stone(m, *board.at(x, y - 8, -0.06), 0.03)
+
+    # Tendrils branching off, rolling in like the vines on the plates
+    for start, ctrl, end, hand, turns in (((192, 225, ), (200, 233), (214, 234), 1, 1.0), ((142, 200), (130, 205), (124, 216), 1, 0.9), ((168, 166), (180, 170), (190, 180), -1, 1.0), ((181, 146), (172, 142), (165, 150), 1, 0.9)):
+        line = rolled(flowing([(start[0], start[1], 1.3), (ctrl[0], ctrl[1], 1.0), (end[0], end[1], 0.75)], 10), turns, hand, shrink=0.75)
+        board.line(line, silver, "Ranke", depth=-0.04, resolution=4)
 
 
 def scales_picture(path):
@@ -974,20 +1051,6 @@ def scales_picture(path):
     print("[Vael] Schuppen:", path)
 
 
-def dragon_tail(m, x_px, y_px):
-    """The tail of the same dragon at the start of the bar: it thins, curls and ends in a barbed tip"""
-    pts = []
-    for t in np.linspace(0.0, 1.0, 30):
-        x, y = px(x_px - 58.0 * t, y_px + 2.0 + 7.0 * math.sin(t * 3.4))
-        pts.append((x, -0.05, y))
-    tube(pts, [0.033 * (1.0 - 0.82 * i / 29) for i in range(30)], m["fitting"], name="Schwanz")
-    for i in range(2, 26, 4):
-        sphere((pts[i][0], -0.075, pts[i][2] + 0.014 * (1.0 - i / 29)), 0.012 * (1.0 - 0.7 * i / 29), m["silver"], name="Schuppe", segments=10)
-    ex, _, ez = pts[-1]
-    tip = [(ex, ez), (ex - 0.03, ez + 0.05), (ex - 0.08, ez + 0.012), (ex - 0.03, ez - 0.05)]
-    plate_from_outline(tip, -0.058, 0.012, m["silver"], name="Schwanzspitze", bevel=0.004)
-
-
 def frame_mage(m):
     """The grimoire of the mage as the frame: deep blue leather, silver edge, the seal with the four elements (Designbibel).
     No rectangle: round plates around the vessels, joined by the body of the book."""
@@ -1006,7 +1069,7 @@ def frame_mage(m):
         x, z = px(x_px, 130.0)
         torus((x, -0.034, z), 0.44, 0.005, m["groove"], name="Praegering")
         direction = 1.0 if x_px < 440.0 else -1.0
-        for y_px, up in ((50.0, 1.0), (214.0, -1.0)):
+        for y_px, up in ((50.0, 1.0),):
             gx, gz = px(x_px + direction * 62.0, y_px)
             torus((gx, -0.05, gz), 0.03, 0.009, m["silver"], name="Fassung")
             facet_stone(m, gx, -0.054, gz, 0.028)
@@ -1035,7 +1098,6 @@ def frame_mage(m):
     for k, x_px in enumerate(np.arange(204.0, 654.0, 8.6)):
         x, z = px(float(x_px), 212.5)
         shingle(x, z, 0.085, 0.038, 0.0, -0.046 - k * 0.0002, m["fitting"], m["darksilver"])
-    dragon_tail(m, 204.0, 219.0)
 
     # Silver work on the leather: vines on the round plates, a stone at their outer edge, clasps out of the seal
     for x_px, from_deg, to_deg in ((96.0, 112.0, 248.0), (784.0, -68.0, 68.0)):
@@ -1248,7 +1310,8 @@ PIECES = {
     "floromant_gefaess": (512, 512, VESSEL_VIEW, lambda m: (pitcher(m), claw(m, 0.5, 0.64, 0.24, 0.27, wrap_vines=True))),
     "magier_rahmen": (1760, 404, FRAME_ASPECT, frame_mage),
     "magier_inventar": (1920, 1080, 3.5556, inventory_mage),
-    "magier_drache": (384, 192, 2.0, dragon_head),
+    "magier_drache": (280, 240, 1.4, dragon_head),
+    "magier_schwanz": (280, 240, 1.4, dragon_tail),
     "floromant_rahmen": (1760, 404, FRAME_ASPECT, frame_floromant),
     "magier_feld": (160, 160, 1.0, lambda m: slot(m, False)),
     "floromant_feld": (160, 160, 1.0, lambda m: slot(m, True)),
@@ -1258,7 +1321,7 @@ PIECES = {
 
 FILE_NAMES = {
     "leben": "T_HUD_Gemalt_Leben", "magier_gefaess": "T_HUD_Gemalt_Gefaess_Magier", "floromant_gefaess": "T_HUD_Gemalt_Gefaess_Floromant",
-    "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_drache": "T_HUD_Gemalt_Drache_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant",
+    "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_drache": "T_HUD_Gemalt_Drache_Magier", "magier_schwanz": "T_HUD_Gemalt_Schwanz_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant",
     "magier_feld": "T_HUD_Gemalt_Feld_Magier", "floromant_feld": "T_HUD_Gemalt_Feld_Floromant",
     "magier_medaillon": "T_HUD_Gemalt_Medaillon_Magier", "floromant_medaillon": "T_HUD_Gemalt_Medaillon_Floromant",
 }
