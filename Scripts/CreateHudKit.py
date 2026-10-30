@@ -698,6 +698,7 @@ def apply_painted(painted, painted_frame, veins):
         data.set_editor_property("vessel_picture", painted[pieces["vessel"]])
         data.set_editor_property("slot_picture", painted[pieces["slot"]])
         data.set_editor_property("medallion_picture", painted[pieces["medallion"]])
+        data.set_editor_property("dragon_in_frame", name == "Magier")
         assets.save_loaded_asset(data, False)
         created.append("DA_HUDKlasse_{} (painted pieces)".format(name))
 

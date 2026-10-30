@@ -376,6 +376,11 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	if (TailInstance != nullptr)
 	{
 		TailInstance->SetScalarParameterValue(FillParameter, Character->GetExperienceFraction());
+		if (ShownData != nullptr && ShownData->bDragonInFrame)
+		{
+			// The scales glow in the colour of the class instead of the old bronze
+			TailInstance->SetVectorParameterValue(TEXT("ScaleColor"), ShownData->FrameColor * 1.6f);
+		}
 	}
 	if (DodgeCooldownInstance != nullptr)
 	{
@@ -873,8 +878,11 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 
 	// Experience: the tail of the Urdrachin, from the end ornament of the class to a small dragon head
 	PaintBox(OutDrawElements, L + 3, &TailBrush, O + FVector2f(TailLeft, TailTop), FVector2f(TailRight - TailLeft, TailHeight));
-	PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->BarEnd), O + FVector2f(TailLeft - 28.0f, TailTop - 7.0f), FVector2f(28.0f), Frame);
-	PaintBox(OutDrawElements, L + 4, FindTextureBrush(DragonHeadTexture), O + FVector2f(TailRight - 2.0f, TailTop - 9.0f), FVector2f(32.0f), Frame);
+	if (!ShownData->bDragonInFrame)
+	{
+		PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->BarEnd), O + FVector2f(TailLeft - 28.0f, TailTop - 7.0f), FVector2f(28.0f), Frame);
+		PaintBox(OutDrawElements, L + 4, FindTextureBrush(DragonHeadTexture), O + FVector2f(TailRight - 2.0f, TailTop - 9.0f), FVector2f(32.0f), Frame);
+	}
 
 	return L + 8;
 }

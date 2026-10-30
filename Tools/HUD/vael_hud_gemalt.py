@@ -360,6 +360,30 @@ def claw(m, cx, cy, rx, ry, wrap_vines=False):
 
 # ---------------------------------------------------------------- Gefäße (auf den Masken)
 
+def spiral(x, y, z, radius, turns, start, handed, n=26):
+    """Points of a small curl that winds inwards, for filigree"""
+    points = []
+    for t in np.linspace(0.0, 1.0, n):
+        a = start + handed * t * turns * math.tau
+        r = radius * (1.0 - 0.82 * t)
+        points.append((x + r * math.cos(a), y, z + r * math.sin(a)))
+    return points
+
+
+def bead_ring(m, center, radius, count, size, material_, tilt=False):
+    """Small silver beads round a ring seen from the front: a pearled edge"""
+    for a in np.linspace(0, math.tau, count, endpoint=False):
+        sphere((center.x + radius * math.cos(a), center.y - radius * math.sin(a) * 0.3, center.z - abs(math.sin(a)) * 0.002 + (radius * math.sin(a) * 0.12 if tilt else 0)), size, material_, name="Perle", segments=10)
+
+
+def cord(m, center, radius, turns, material_):
+    """A cord wound round a neck, slightly descending"""
+    points = []
+    for t in np.linspace(0, turns * math.tau, int(turns * 30)):
+        points.append((center.x + radius * math.cos(t), center.y - radius * math.sin(t), center.z - 0.006 * t))
+    tube(points, [0.0085] * len(points), material_, name="Schnur", resolution=3)
+
+
 def phial(m):
     c = from_mask(0.5, 0.62)
     # Round body and neck from one profile, the mask's numbers: body r 0.3 at y 0.62, neck x 0.42..0.58 from y 0.2 to 0.4
@@ -368,30 +392,101 @@ def phial(m):
         profile.append((c.z + 0.3 * math.sin(a), 0.3 * math.cos(a)))
     profile += [(from_mask(0, 0.38).z, 0.08), (from_mask(0, 0.22).z, 0.08)]
     revolve(profile, Vector((0, 0, 0)), m["glass"], name="Phiole")
-    torus(tuple(from_mask(0.5, 0.185)), 0.095, 0.022, m["silver"], rotation=(0, 0, 0), name="Lippe")
-    cylinder(tuple(from_mask(0.5, 0.11)), 0.065, 0.1, m["cork"], name="Korken")
-    torus(tuple(from_mask(0.5, 0.39)), 0.085, 0.012, m["silver"], rotation=(0, 0, 0), name="Halsring")
+
+    lip = from_mask(0.5, 0.185)
+    torus(tuple(lip), 0.097, 0.024, m["silver"], rotation=(0, 0, 0), name="Lippe")
+    bead_ring(m, lip + Vector((0, 0, -0.03)), 0.094, 22, 0.0095, m["silver"])
+    # Cork under a cap of dark red wax that runs down in drops
+    cylinder(tuple(from_mask(0.5, 0.135)), 0.07, 0.09, m["cork"], name="Korken")
+    wax = material("Wachskappe", (0.18, 0.012, 0.012), roughness=0.3, coat=0.6, bump=0.25, bump_scale=60.0)
+    sphere(tuple(from_mask(0.5, 0.075)), 0.078, wax, scale=(1.0, 1.0, 0.62), name="Wachs")
+    for dx, length in ((-0.052, 0.05), (-0.012, 0.075), (0.04, 0.045)):
+        top = from_mask(0.5 + dx, 0.09) + Vector((0, -0.05, 0))
+        tube([tuple(top), tuple(top + Vector((0, -0.006, -length * 0.5))), tuple(top + Vector((0, -0.004, -length)))], [0.016, 0.012, 0.015], wax, name="Tropfen")
+
+    # Neck: silver ring, a cord, a small tag
+    ring = from_mask(0.5, 0.39)
+    torus(tuple(ring), 0.088, 0.015, m["silver"], rotation=(0, 0, 0), name="Halsring")
+    twine = material("Hanf", (0.3, 0.2, 0.1), roughness=0.9, bump=0.5, bump_scale=300.0)
+    cord(m, from_mask(0.5, 0.28), 0.092, 3.0, twine)
+
+    # Silver filigree over the shoulder of the glass, not over the middle where the number stands
+    for side in (1, -1):
+        pts = []
+        for t in np.linspace(0.0, 1.0, 26):
+            a = math.radians(150 - 75 * t)
+            pts.append((c.x + side * 0.3 * math.cos(a) * -1.0 * 1.02, -0.16 - 0.1 * t, c.z + 0.3 * math.sin(a)))
+        tube(pts, [0.0075 * (1.0 - 0.5 * t) for t in np.linspace(0, 1, 26)], m["silver"], name="Filigran")
+        px_, y_, pz = pts[8]
+        tube(spiral(px_ - side * 0.02, y_ - 0.01, pz + 0.03, 0.035, 1.3, 0.5, side), [0.0055] * 26, m["silver"], name="Schnecke")
+        px_, y_, pz = pts[-1]
+        sphere((px_, y_, pz), 0.0135, m["silver"], name="Perle", segments=10)
+
+
+def quill(m, a, control, b):
+    """A big feather: curved ivory shaft, a closed vane of single barbs, pale at the root, deep blue towards the tip, split in places"""
+    rng = np.random.default_rng(3)
+    shaft = material("Kiel", (0.75, 0.68, 0.52), roughness=0.4, coat=0.3)
+    shades = (material("Daune", (0.72, 0.74, 0.78), roughness=0.85),
+              material("Fahne hell", (0.4, 0.5, 0.68), roughness=0.7),
+              material("Fahne mittel", (0.1, 0.2, 0.42), roughness=0.6),
+              material("Fahne dunkel", (0.018, 0.04, 0.12), roughness=0.55))
+    tip_edge = material("Fahnenrand", (0.75, 0.8, 0.9), roughness=0.6)
+    line = [Vector(p) for p in bezier(a, control, b, 90)]
+    tube([tuple(p) for p in line], [0.0115 * (1.0 - 0.78 * i / 89) for i in range(90)], shaft, name="Kiel")
+
+    splits = {(side, i) for side in (1, -1) for i in rng.integers(24, 82, 7)}
+    for index in range(16, 90):
+        t = index / 89
+        base = line[index]
+        axis = (line[min(index + 1, 89)] - line[index - 1]).normalized()
+        across = Vector((axis.z, 0.0, -axis.x))
+        length = 0.135 * math.sin(math.pi * min((t - 0.12) / 0.9, 1.0)) ** 0.55 + 0.012
+        shade = shades[min(int(max(t - 0.18, 0.0) / 0.82 * 4), 3)]
+        for side in (1, -1):
+            # A wider side and a narrower side, as on a real flight feather
+            reach = length * (1.0 if side > 0 else 0.62) * (0.92 + 0.14 * rng.random())
+            gap = any((side, i) in splits for i in (index, index + 1))
+            if gap:
+                reach *= 0.55
+            tip = base + (across * side * 0.86 + axis * 0.5).normalized() * reach
+            middle = base + (tip - base) * 0.55 + axis * 0.008
+            tube([tuple(base), tuple(middle), tuple(tip)], [0.0046, 0.0042, 0.0022], shade, name="Ast", resolution=1)
+            if not gap and index > 60 and index % 3 == 0:
+                edge = tip + (tip - base).normalized() * 0.006
+                tube([tuple(tip), tuple(edge)], [0.0022, 0.001], tip_edge, name="Astspitze", resolution=1)
+    # Down at the root
+    for index in range(8, 22):
+        base = line[index]
+        for side in (1, -1):
+            angle = rng.random() * 0.8 * side
+            tip = base + Vector((side * (0.04 + 0.03 * rng.random()), 0.0, 0.015 + angle * 0.02))
+            tube([tuple(base), tuple(tip)], [0.0028, 0.0008], shades[0], name="Flaum", resolution=1)
 
 
 def inkwell(m):
-    # Frustum: bottom y 0.9 radius 0.32, top y 0.5 radius 0.22, neck r 0.12 from y 0.38 to 0.52
+    # Frustum: bottom y 0.9 radius 0.32, top y 0.5 radius 0.22, neck r 0.12 from y 0.38 to 0.52; cut in facets like crystal
     z = lambda y: from_mask(0, y).z
     profile = [(z(0.9), 0.0), (z(0.9), 0.31), (z(0.88), 0.32), (z(0.52), 0.22), (z(0.5), 0.13), (z(0.4), 0.12)]
-    revolve(profile, Vector((0, 0, 0)), m["glass"], name="Tintenfass")
-    torus(tuple(from_mask(0.5, 0.36)), 0.15, 0.025, m["silver"], rotation=(0, 0, 0), name="Lippe")
-    torus(tuple(from_mask(0.5, 0.895)), 0.32, 0.018, m["silver"], rotation=(0, 0, 0), name="Bodenring")
-    # Quill: shaft and a soft vane, leaning out of the well to the upper right
-    a, b = from_mask(0.52, 0.5), from_mask(0.86, 0.04)
-    tube([tuple(a + (b - a) * t + Vector((0, -0.05, 0))) for t in np.linspace(0, 1, 12)], [0.008] * 12, m["feather"], name="Kiel")
-    # Vane of single barbs on both sides of the shaft, longest in the middle, slanting towards the tip
-    axis = (b - a).normalized()
-    across = Vector((axis.z, 0.0, -axis.x))
-    for t in np.linspace(0.25, 0.98, 46):
-        base = a + (b - a) * t + Vector((0, -0.05, 0))
-        length = 0.085 * math.sin(math.pi * (t - 0.2) / 0.8) ** 0.7 + 0.01
-        for side in (1, -1):
-            tip = base + (across * side * 0.9 + axis * 0.45).normalized() * length * (1.0 if side > 0 else 0.8)
-            tube([tuple(base), tuple(base + (tip - base) * 0.5 + Vector((0, -0.004, 0))), tuple(tip)], [0.0035, 0.0028, 0.0015], m["feather"], name="Ast", resolution=2)
+    revolve(profile, Vector((0, 0, 0)), m["glass"], segments=12, name="Tintenfass")
+
+    lip = from_mask(0.5, 0.36)
+    torus(tuple(lip), 0.15, 0.027, m["silver"], rotation=(0, 0, 0), name="Lippe")
+    bead_ring(m, lip + Vector((0, 0, -0.034)), 0.138, 24, 0.0095, m["silver"])
+    torus(tuple(from_mask(0.5, 0.895)), 0.32, 0.02, m["silver"], rotation=(0, 0, 0), name="Bodenring")
+    bead_ring(m, from_mask(0.5, 0.865), 0.316, 34, 0.0095, m["silver"])
+
+    # Silver shoulder band with a sapphire in front and ribs running down the edges of the crystal
+    shoulder = from_mask(0.5, 0.5)
+    torus(tuple(shoulder), 0.222, 0.013, m["silver"], rotation=(0, 0, 0), name="Schulter")
+    sphere(tuple(from_mask(0.5, 0.5) + Vector((0, -0.228, 0))), 0.034, m["sapphire"], scale=(1, 0.55, 1), name="Saphir", segments=20)
+    for a in (-75, -45, 45, 75):
+        s = math.sin(math.radians(a))
+        c = math.cos(math.radians(a))
+        rib = [(s * r, -c * r, z(y)) for y, r in ((0.52, 0.228), (0.7, 0.277), (0.87, 0.325))]
+        tube(rib, [0.0075, 0.0065, 0.0075], m["silver"], name="Rippe")
+
+    quill(m, (0.02, -0.05, from_mask(0, 0.5).z), (0.08, -0.05, from_mask(0, 0.2).z), (0.42, -0.06, from_mask(0, 0.03).z))
 
 
 def pitcher(m):
@@ -517,6 +612,7 @@ def mage_materials(m):
     m["thread"] = material("Zwirn", (0.34, 0.28, 0.2), roughness=0.8)
     m["fitting"] = material("Beschlag", (0.24, 0.25, 0.29), metallic=0.7, roughness=0.36, bump=0.14, bump_scale=120.0)
     m["groove"] = material("Praegung", (0.0008, 0.003, 0.016), roughness=0.6)
+    m["aqua"] = material("Meerstein", (0.03, 0.42, 0.62), roughness=0.08, emission=((0.1, 0.65, 0.95), 1.1), coat=1.0, tag="gem")
     m["sunken"] = material("Vertiefung", (0.0035, 0.009, 0.024), roughness=0.7, bump=0.2, bump_scale=200.0, tag="panel")
 
 
@@ -552,16 +648,16 @@ def inset(path, distance):
 
 def mage_outline():
     """Silhouette of the frame in design pixels: round plates around the vessels, a body between them, an arch over the seal"""
-    radius, cy, top, bottom = 100.0, 130.0, 48.0, 222.0
+    radius, cy, top, bottom = 100.0, 130.0, 48.0, 227.0
     points = []
     # Left plate from where the top edge meets it, round the outside to the bottom edge
     a0 = math.atan2(top - cy, math.sqrt(radius ** 2 - (top - cy) ** 2))
     a1 = math.atan2(bottom - cy, math.sqrt(radius ** 2 - (bottom - cy) ** 2)) - math.tau
     for a in np.linspace(a0, a1, 70):
         points.append((96.0 + radius * math.cos(a), cy + radius * math.sin(a)))
-    # Bottom edge with a small point in the middle
+    # Bottom edge
     for x in np.linspace(points[-1][0] + 8.0, 880.0 - points[-1][0] - 8.0, 60):
-        points.append((x, bottom + 5.0 * math.exp(-((x - 440.0) / 26.0) ** 2)))
+        points.append((x, bottom))
     # Right plate, mirrored
     for a in np.linspace(math.pi - a1 - math.tau, math.pi - a0 - math.tau, 70):
         points.append((784.0 + radius * math.cos(a), cy + radius * math.sin(a)))
@@ -588,22 +684,95 @@ def scroll(m, x_px, y_px, direction, up):
     sphere(pts[-1], 0.0075, m["silver"], name="Rankenende", segments=12)
 
 
+def cabochon(m, x, z, size=1.0):
+    """A sea blue stone in a pointed silver mount, as on the old books"""
+    y = -0.056
+    points = []
+    for a in np.linspace(0, math.tau, 48, endpoint=False):
+        star = 0.07 + 0.038 * abs(math.cos(2 * a)) ** 3
+        points.append((x + star * size * math.cos(a), z + star * size * math.sin(a)))
+    plate_from_outline(points, y + 0.012, 0.012, m["fitting"], name="Fassung", bevel=0.004)
+    torus((x, y - 0.002, z), 0.054 * size, 0.008 * size, m["silver"], name="Fassring")
+    sphere((x, y - 0.012, z), 0.047 * size, m["aqua"], scale=(1, 0.6, 1), name="Stein", segments=24)
+    for a in np.linspace(0, math.tau, 4, endpoint=False):
+        sphere((x + 0.088 * size * math.cos(a), y - 0.002, z + 0.088 * size * math.sin(a)), 0.0085 * size, m["silver"], name="Krappe", segments=10)
+
+
+def plate_vine(m, cx, cz, from_deg, to_deg):
+    """Silver vine along the outside of a round plate: a wave with a curl at every bend"""
+    radius = 0.4
+    pts = []
+    for t in np.linspace(0.0, 1.0, 120):
+        a = math.radians(from_deg + (to_deg - from_deg) * t)
+        r = radius + 0.017 * math.sin(t * math.tau * 3.0)
+        pts.append((cx + r * math.cos(a), -0.044, cz + r * math.sin(a)))
+    tube(pts, [0.0058] * len(pts), m["silver"], name="Ranke")
+    for k in range(7):
+        t = (k + 0.5) / 7
+        a = math.radians(from_deg + (to_deg - from_deg) * t)
+        outward = 1 if k % 2 == 0 else -1
+        r = radius + 0.03 * outward
+        tube(spiral(cx + r * math.cos(a), -0.046, cz + r * math.sin(a), 0.027, 1.25, a, outward), [0.0046] * 26, m["silver"], name="Schnecke")
+
+
+def clasp_band(m, seal_x, seal_z, side):
+    """A curved silver clasp from the seal out along the arch of the cover, ending in a curl and a stone"""
+    start = (seal_x + side * 0.17, seal_z + 0.03)
+    middle = (seal_x + side * 0.42, seal_z + 0.12)
+    end = (seal_x + side * 0.74, seal_z + 0.075)
+    for offset, radius in ((0.0, 0.0125), (-0.024, 0.0045)):
+        pts = [(x, -0.05, z + offset) for x, z, _ in bezier(Vector((*start, 0)), Vector((*middle, 0)), Vector((*end, 0)), 34)]
+        tube(pts, [radius] * len(pts), m["silver"], name="Spange")
+    tube(spiral(end[0] + side * 0.012, -0.05, end[1] - 0.03, 0.04, 1.4, math.pi / 2, -side), [0.0075] * 26, m["silver"], name="Schnecke")
+    cabochon(m, seal_x + side * 0.42, seal_z + 0.075, 0.42)
+
+
+def tray_corner(m, x, z, sx, sz):
+    """Silver bracket on a corner of the sunken field"""
+    arm = 0.1
+    tube([(x + sx * arm, -0.05, z), (x, -0.05, z), (x, -0.05, z + sz * arm)], [0.009, 0.0095, 0.009], m["silver"], name="Winkel")
+    sphere((x, -0.056, z), 0.0165, m["silver"], name="Niete", segments=14)
+    tube(spiral(x - sx * 0.002, -0.05, z + sz * 0.002, 0.026, 1.15, 0.0, sz), [0.0045] * 26, m["silver"], name="Schnecke") if False else None
+
+
+def dragon_head(m, x_px, y_px):
+    """The silver head of the Urdrachin at the end of the experience bar, looking along the line of its body"""
+    size = 1.3
+    p = lambda dx, dy, y=-0.055: (px(x_px + dx * size, y_px + dy * size)[0], y, px(x_px + dx * size, y_px + dy * size)[1])
+    tube([p(-8, 2), p(4, 0), p(13, -2)], [0.042, 0.036, 0.034], m["fitting"], name="Hals")
+    sphere(p(19, -3), 1.0, m["fitting"], scale=(0.062, 0.05, 0.052), name="Schaedel")
+    tube([p(21, -3), p(32, 0), p(42, 3)], [0.036, 0.024, 0.0125], m["fitting"], name="Schnauze")
+    tube([p(19, 6), p(30, 8), p(40, 7)], [0.016, 0.0105, 0.0035], m["darksilver"], name="Kiefer")
+    tube([p(16, -11), p(26, -9), p(34, -4)], [0.0088, 0.008, 0.003], m["silver"], name="Braue")
+    sphere(p(24, -6, -0.092), 0.0135, m["aqua"], name="Auge", segments=14)
+    sphere(p(40, 0, -0.07), 0.0065, m["darksilver"], name="Nuester", segments=10)
+    for dy, reach, rise in ((-11, 30, 13), (-7, 24, 5)):
+        tube([p(12, dy), p(12 - reach * 0.5, dy - rise * 0.9), p(12 - reach, dy - rise)], [0.0125, 0.0085, 0.0012], m["silver"], name="Horn")
+    for dx in (-4, 4, 11):
+        tube([p(dx, -7), p(dx - 3, -14)], [0.0085, 0.001], m["silver"], name="Stachel")
+    for dx in (28, 33, 38):
+        tube([p(dx, 4), p(dx + 1, 8)], [0.0035, 0.0007], m["silver"], name="Zahn")
+
+
+def dragon_tail(m, x_px, y_px):
+    """The tail of the same dragon at the start of the bar: it thins, curls and ends in a barbed tip"""
+    pts = []
+    for t in np.linspace(0.0, 1.0, 30):
+        x, y = px(x_px - 58.0 * t, y_px + 2.0 + 7.0 * math.sin(t * 3.4))
+        pts.append((x, -0.05, y))
+    tube(pts, [0.033 * (1.0 - 0.82 * i / 29) for i in range(30)], m["fitting"], name="Schwanz")
+    for i in range(2, 26, 4):
+        sphere((pts[i][0], -0.075, pts[i][2] + 0.014 * (1.0 - i / 29)), 0.012 * (1.0 - 0.7 * i / 29), m["silver"], name="Schuppe", segments=10)
+    ex, _, ez = pts[-1]
+    tip = [(ex, ez), (ex - 0.03, ez + 0.05), (ex - 0.08, ez + 0.012), (ex - 0.03, ez - 0.05)]
+    plate_from_outline(tip, -0.058, 0.012, m["silver"], name="Schwanzspitze", bevel=0.004)
+
+
 def frame_mage(m):
     """The grimoire of the mage as the frame: deep blue leather, silver edge, the seal with the four elements (Designbibel).
     No rectangle: round plates around the vessels, joined by the body of the book."""
     mage_materials(m)
     outline = [px(x, y) for x, y in mage_outline()]
-
-    # Pages of parchment showing below the body
-    left, _ = px(150.0, 0.0)
-    right, _ = px(730.0, 0.0)
-    _, z_pages = px(0.0, 226.0)
-    pages = rounded_plate(right - left, 0.05, 0.008, 0.04, material("Seiten", (0.42, 0.34, 0.22), roughness=0.9, bump=0.5, bump_scale=120.0), y=0.02, name="Seiten")
-    pages.location.z = z_pages
-    page_line = material("Blattkante", (0.14, 0.11, 0.07), roughness=0.9)
-    for k in range(3):
-        z = z_pages - 0.012 + k * 0.009
-        tube([(left, -0.012, z), (right, -0.012, z)], [0.0012] * 2, page_line, name="Seitenkante")
 
     plate_from_outline(outline, -0.03, 0.06, m["cover"], name="Leder")
     closed = lambda path, y: [(x, y, z) for x, z in path]
@@ -617,7 +786,7 @@ def frame_mage(m):
         x, z = px(x_px, 130.0)
         torus((x, -0.034, z), 0.44, 0.005, m["groove"], name="Praegering")
         direction = 1.0 if x_px < 440.0 else -1.0
-        for y_px, up in ((50.0, 1.0), (218.0, -1.0)):
+        for y_px, up in ((50.0, 1.0), (214.0, -1.0)):
             gx, gz = px(x_px + direction * 62.0, y_px)
             torus((gx, -0.05, gz), 0.03, 0.009, m["silver"], name="Fassung")
             sphere((gx, -0.056, gz), 0.024, m["sapphire"], scale=(1, 0.5, 1), name="Saphir", segments=20)
@@ -625,7 +794,7 @@ def frame_mage(m):
 
     # The sunken field of the abilities
     left, tray_top = px(190.0, 110.0)
-    right, tray_bottom = px(690.0, 211.0)
+    right, tray_bottom = px(690.0, 208.0)
     tray_w, tray_h = right - left, tray_top - tray_bottom
     tray_x, tray_z = (left + right) / 2, (tray_top + tray_bottom) / 2
     tray = rounded_plate(tray_w, tray_h, 0.03, 0.012, m["sunken"], y=-0.032, name="Feldgrund")
@@ -634,8 +803,31 @@ def frame_mage(m):
     path = [(x + tray_x, y, z + tray_z) for x, y, z in rounded_rect_path(tray_w + 0.012, tray_h + 0.012, 0.032, -0.042)]
     tube(path, [0.0052] * len(path), m["darksilver"], name="Feldrand", cyclic=True)
 
+    for sx, sz, x, z in ((-1, 1, left, tray_top), (1, 1, right, tray_top), (-1, -1, left, tray_bottom), (1, -1, right, tray_bottom)):
+        tray_corner(m, x, z, -sx, -sz)
+
+    # The body of the dragon: a dark channel for the experience, a row of silver scales above it, head and tail at its ends
+    ch_left, ch_top = px(206.0, 212.0)
+    ch_right, ch_bottom = px(664.0, 226.0)
+    channel = rounded_plate(ch_right - ch_left, ch_top - ch_bottom, 0.012, 0.012, m["sunken"], y=-0.034, name="Rinne")
+    channel.location.x = (ch_left + ch_right) / 2
+    channel.location.z = (ch_top + ch_bottom) / 2
+    for x_px in np.arange(204.0, 668.0, 7.0):
+        x, z = px(float(x_px), 210.0)
+        sphere((x, -0.048, z), 0.0215, m["fitting"], scale=(1.0, 0.45, 0.72), name="Schuppe", segments=10)
+    dragon_head(m, 668.0, 219.0)
+    dragon_tail(m, 204.0, 219.0)
+
+    # Silver work on the leather: vines on the round plates, a stone at their outer edge, clasps out of the seal
+    for x_px, from_deg, to_deg in ((96.0, 112.0, 248.0), (784.0, -68.0, 68.0)):
+        cx, cz = px(x_px, 130.0)
+        plate_vine(m, cx, cz, from_deg, to_deg)
+    cabochon(m, *px(16.0, 130.0), 0.72)
+    cabochon(m, *px(864.0, 130.0), 0.72)
     seal_x, seal_z = px(440.0, 66.0)
     element_seal(m, seal_x, seal_z, 1.22)
+    for side in (1, -1):
+        clasp_band(m, seal_x, seal_z, side)
 
 
 def page(x0, x1, z0, z1, m, name):

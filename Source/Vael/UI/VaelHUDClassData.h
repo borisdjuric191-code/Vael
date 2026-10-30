@@ -152,6 +152,10 @@ public:
 	UPROPERTY(EditAnywhere, Category="Look")
 	TSoftObjectPtr<UTexture2D> BarEnd;
 
+	/** The painted frame brings the head and tail of the dragon around the experience bar itself */
+	UPROPERTY(EditAnywhere, Category="Look")
+	bool bDragonInFrame = false;
+
 	/** Picture of the class for the level badge on its vessel */
 	UPROPERTY(EditAnywhere, Category="Look")
 	TSoftObjectPtr<UTexture2D> ClassIcon;
