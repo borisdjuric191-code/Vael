@@ -30,7 +30,7 @@ public class Vael : ModuleRules
 			"StaticMeshDescription"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "RenderCore", "ProceduralMeshComponent" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "RenderCore", "RHI", "ProceduralMeshComponent" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"Vael",

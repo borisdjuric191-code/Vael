@@ -850,8 +850,62 @@ void UVaelCheatManager::VaelGestalt(const FString& Look)
 	const APlayerController* PlayerController = GetOuterAPlayerController();
 	if (AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
 	{
-		Player->SetBaseLook(Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase) ? 1 : 0);
+		const bool bMetaHuman = Look.StartsWith(TEXT("meta"), ESearchCase::IgnoreCase);
+		Player->SetMetaHumanShown(bMetaHuman);
+		if (!bMetaHuman)
+		{
+			Player->SetBaseLook(Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase) ? 1 : 0);
+		}
 	}
+}
+
+void UVaelCheatManager::VaelDodge()
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	if (AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
+	{
+		Player->StartDodge(Player->GetActorForwardVector());
+	}
+}
+
+void UVaelCheatManager::VaelFrameTest(int32 ExtraMetaHumans)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	if (AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
+	{
+		Player->SpawnMetaHumanCopies(ExtraMetaHumans);
+	}
+
+	// Waits 3 s for everything to settle, samples for 5 s and writes the means to the log
+	struct FFrameSamples
+	{
+		float Age = 0.0f;
+		int32 Num = 0;
+		double Frame = 0.0, Game = 0.0, Render = 0.0, Gpu = 0.0;
+	};
+	TSharedRef<FFrameSamples> Samples = MakeShared<FFrameSamples>();
+	TSharedRef<FTimerHandle> Handle = MakeShared<FTimerHandle>();
+	UWorld* World = GetWorld();
+	World->GetTimerManager().SetTimer(*Handle, FTimerDelegate::CreateWeakLambda(this, [this, Samples, Handle, World, ExtraMetaHumans]()
+	{
+		Samples->Age += 0.02f;
+		if (Samples->Age < 3.0f)
+		{
+			return;
+		}
+		Samples->Frame += FApp::GetDeltaTime() * 1000.0;
+		Samples->Game += FPlatformTime::ToMilliseconds(GGameThreadTime);
+		Samples->Render += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+		Samples->Gpu += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles());
+		++Samples->Num;
+		if (Samples->Age >= 8.0f)
+		{
+			const double Num = Samples->Num;
+			UE_LOG(LogVael, Display, TEXT("Frame test (%d extra): frame %.1f ms, game %.1f ms, render %.1f ms, GPU %.1f ms"),
+				ExtraMetaHumans, Samples->Frame / Num, Samples->Game / Num, Samples->Render / Num, Samples->Gpu / Num);
+			World->GetTimerManager().ClearTimer(*Handle);
+		}
+	}), 0.02f, true);
 }
 
 void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)

@@ -119,6 +119,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftClassPtr<UAnimInstance> MageAnimClass = TSoftClassPtr<UAnimInstance>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/ABP_Mage.ABP_Mage_C")));
 
+	/** The assembled MetaHuman of the mage (vael_metahuman_build.py) */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftClassPtr<AActor> MetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Magier_Build/MH_Magier/BP_MH_Magier.BP_MH_Magier_C")));
+
 	/** Body of the two base looks of the mage in the starting robe (creature factory, humans), male and female. Empty or missing: the template mannequin stays. */
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftObjectPtr<USkeletalMesh> BodyMeshes[2] = {
@@ -189,6 +193,12 @@ public:
 
 	/** Gives the character one of the base looks of its class: 0 the man, 1 the woman. Body and head are separate parts. */
 	void SetBaseLook(int32 LookIndex);
+
+	/** Shows the MetaHuman body instead of the base look. The base look stays hidden underneath and keeps animating: the body follows it. */
+	void SetMetaHumanShown(bool bShown);
+
+	/** Performance test: more MetaHumans standing around the player and moving with it, the cost of a co-op group */
+	void SpawnMetaHumanCopies(int32 Count);
 
 	/** Turns the character into a mage or a Floromant, man or woman: body, wings, Saft or mana and what the buttons do */
 	void SetHero(EVaelHeroClass InClass, bool bFemale);
@@ -316,6 +326,13 @@ protected:
 private:
 
 	int32 BaseLook = -1;
+
+	/** Lets the body of an assembled MetaHuman follow the mesh of this character */
+	void FollowMesh(AActor* Human);
+
+	/** The MetaHuman while it is shown, attached to the mesh */
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> MetaHuman;
 
 	/** Class the player plays, and whether it was set yet */
 	EVaelHeroClass HeroClass = EVaelHeroClass::Mage;

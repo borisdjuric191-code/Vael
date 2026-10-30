@@ -16,6 +16,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/SkeletalMesh.h"
+#include "Player/VaelPoseFollowerAnimInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Floromant/VaelFairyWingsComponent.h"
@@ -167,6 +168,79 @@ AVaelCharacter::AVaelCharacter()
 void AVaelCharacter::SetBaseLook(int32 LookIndex)
 {
 	SetHero(HeroClass, LookIndex == 1);
+}
+
+void AVaelCharacter::FollowMesh(AActor* Human)
+{
+	TInlineComponentArray<USkeletalMeshComponent*> Meshes(Human);
+	for (USkeletalMeshComponent* Part : Meshes)
+	{
+		// The face and the clothes follow the body by themselves
+		if (Part->GetFName() == TEXT("Body"))
+		{
+			Part->SetAnimInstanceClass(UVaelPoseFollowerAnimInstance::StaticClass());
+			Part->AddTickPrerequisiteComponent(GetMesh());
+			if (UVaelPoseFollowerAnimInstance* Follower = Cast<UVaelPoseFollowerAnimInstance>(Part->GetAnimInstance()))
+			{
+				Follower->SetSource(GetMesh());
+			}
+		}
+	}
+}
+
+void AVaelCharacter::SpawnMetaHumanCopies(int32 Count)
+{
+	UClass* MetaHumanActorClass = VaelAssets::LoadOptionalClass(MetaHumanClass);
+	for (int32 Index = 0; MetaHumanActorClass != nullptr && Index < Count; ++Index)
+	{
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.Owner = this;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		const FVector Offset = FRotator(0.0f, 120.0f * Index, 0.0f).RotateVector(FVector(160.0f, 0.0f, 0.0f));
+		if (AActor* Copy = GetWorld()->SpawnActor<AActor>(MetaHumanActorClass, GetMesh()->GetComponentTransform(), SpawnParameters))
+		{
+			Copy->SetActorEnableCollision(false);
+			Copy->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+			Copy->SetActorRelativeLocation(Offset);
+			FollowMesh(Copy);
+		}
+	}
+}
+
+void AVaelCharacter::SetMetaHumanShown(bool bShown)
+{
+	if (bShown == (MetaHuman != nullptr))
+	{
+		return;
+	}
+
+	if (!bShown)
+	{
+		MetaHuman->Destroy();
+		MetaHuman = nullptr;
+	}
+	else if (UClass* MetaHumanActorClass = VaelAssets::LoadOptionalClass(MetaHumanClass))
+	{
+		FActorSpawnParameters SpawnParameters;
+		SpawnParameters.Owner = this;
+		SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		MetaHuman = GetWorld()->SpawnActor<AActor>(MetaHumanActorClass, GetMesh()->GetComponentTransform(), SpawnParameters);
+	}
+
+	if (MetaHuman != nullptr)
+	{
+		MetaHuman->SetActorEnableCollision(false);
+		MetaHuman->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+
+		FollowMesh(MetaHuman);
+	}
+
+	// Hidden, the base look must keep animating: the sockets and the MetaHuman hang on its bones
+	const bool bMetaHumanShown = MetaHuman != nullptr;
+	GetMesh()->SetVisibility(!bMetaHumanShown, false);
+	HeadMesh->SetVisibility(!bMetaHumanShown, false);
+	HandMesh->SetVisibility(!bMetaHumanShown, false);
+	GetMesh()->VisibilityBasedAnimTickOption = bMetaHumanShown ? EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones : GetClass()->GetDefaultObject<AVaelCharacter>()->GetMesh()->VisibilityBasedAnimTickOption;
 }
 
 void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)

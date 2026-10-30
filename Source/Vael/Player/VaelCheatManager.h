@@ -43,9 +43,17 @@ public:
 	UFUNCTION(Exec)
 	void VaelSaat(const FString& What);
 
-	/** Switches the base look of the player: "Mann" or "Frau". Example: VaelGestalt Frau */
+	/** Switches the base look of the player: "Mann", "Frau" or "MetaHuman". Example: VaelGestalt Frau */
 	UFUNCTION(Exec)
 	void VaelGestalt(const FString& Look);
+
+	/** The player dodges forward, for pictures of the dodge */
+	UFUNCTION(Exec)
+	void VaelDodge();
+
+	/** Measures frame times for 5 s and logs them, after adding that many MetaHumans around the player. Example: VaelFrameTest 3 */
+	UFUNCTION(Exec)
+	void VaelFrameTest(int32 ExtraMetaHumans = 0);
 
 	/** Turns the player into a mage or a Floromant: "Magier" or "Floromant", then "Mann" or "Frau". Example: VaelKlasse Floromant Frau */
 	UFUNCTION(Exec)
