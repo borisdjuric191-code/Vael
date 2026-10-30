@@ -5,7 +5,7 @@ Vael – Kreaturenfabrik, Kleidung (Blender)
 Setzt ein Kleidungsstück vom Mannequin-Skelett auf den Körper eines MetaHuman um, ohne neues Tripo-Modell:
   1) Öffnet 03_blender/<Name>.blend (aus vael_mensch_aufbereiten.py und vael_mensch_haende.py) und lädt den Körper
      aus _Skelett/SKM_<MetaHuman>_Body.fbx (vael_metahuman_koerper_export.py).
-  2) Biegt jeden Punkt mit seinen Gewichten auf die Gelenke des MetaHuman: Arme und Beine drehen und strecken sich mit,
+  2) Entfernt die mitgeformten Schuhe und biegt jeden Punkt mit seinen Gewichten auf die Gelenke des MetaHuman: Arme und Beine drehen und strecken sich mit,
      Rumpf und Hals verschieben sich nur (ihre Knochen sind zu kurz für eine verlässliche Richtung).
   3) Rückt die Ärmel auf die Arme: die Tripo-Modelle haben keine Arme in den Ärmeln, die hängen daher neben dem echten Arm.
   4) Schiebt alles, was im Körper steckt oder ihm zu nahe ist, nach außen und glättet diesen Schub.
@@ -15,13 +15,13 @@ Setzt ein Kleidungsstück vom Mannequin-Skelett auf den Körper eines MetaHuman 
 Aufruf:
   blender -b -P vael_kleidung_anpassen.py -- "C:\\Projekte\\Vael_Quellen\\MagierMann" Koerper Robe MH_Magier
 """
-import bpy, os, re, sys
+import bmesh, bpy, os, re, sys
 import numpy as np
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from vael_mensch_aufbereiten import aktiv, exportiere, log
+from vael_mensch_aufbereiten import aktiv, exportiere, farbe_lesen, log
 
 # Jeder Knochen, der sich drehen und strecken darf, und der Knochen, auf den er zeigt
 KETTEN = {}
@@ -38,6 +38,10 @@ GLAETTEN = 8
 
 # In so viele Abschnitte wird ein Ärmel entlang des Arms geteilt
 ABSCHNITTE = 12
+
+# Bis zu dieser Höhe (Zentimeter) kann ein Schuh stecken; was so viel röter als blau ist, gilt als Leder und nicht als Robenstoff
+SCHUH_HOEHE = 18.0
+SCHUH_BRAUN = 1.2
 
 
 def lade_metahuman(pfad):
@@ -95,6 +99,29 @@ def verwandte_matrix(name, matrizen, alt):
             return matrizen[b.name]
         b = b.parent
     return np.eye(4)
+
+
+def ohne_fuesse(teil):
+    """Die Tripo-Modelle tragen ihre Schuhe mit: unten am Fuß fällt das braune Leder weg, der Stoff bleibt. Schuhe sind eigene Teile."""
+    gruppen = {g.index: g.name for g in teil.vertex_groups}
+    am_fuss = [sum(g.weight for g in v.groups if gruppen[g.group].startswith(("foot_", "ball_"))) > 0.3 for v in teil.data.vertices]
+    farbe = farbe_lesen(teil)
+    bm = bmesh.new()
+    bm.from_mesh(teil.data)
+    bm.verts.ensure_lookup_table()
+    uv = bm.loops.layers.uv.active
+    weg = []
+    for f in bm.faces:
+        if not any(am_fuss[v.index] for v in f.verts) or f.calc_center_median().z > SCHUH_HOEHE:
+            continue
+        r, g, b = farbe(sum((l[uv].uv for l in f.loops), Vector((0, 0))) / len(f.loops))
+        if r > b * SCHUH_BRAUN:
+            weg.append(f)
+    bmesh.ops.delete(bm, geom=weg, context="FACES")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(teil.data)
+    bm.free()
+    log(f"Schuhe entfernt: {len(weg)} Flächen")
 
 
 def biege(teil, alt, neu):
@@ -239,6 +266,7 @@ def main(ordner, teil_name, kleidung, metahuman):
     log(f"Skelett {len(alt)} -> {len(neu)} Knochen, Körper {sum(len(k.data.vertices) for k in koerper)} Punkte, {groesse:.1f} cm hoch")
     log(f"Kopf Mannequin {alt['head'].head_local.z:.1f}, MetaHuman {neu['head'].head_local.z:.1f} cm")
 
+    ohne_fuesse(teil)
     biege(teil, alt, neu)
     aermel_auf_arme(teil, neu)
     schiebe_raus(teil, koerper)

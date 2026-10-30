@@ -197,15 +197,18 @@ void AVaelCharacter::FollowMesh(AActor* Human)
 		}
 	}
 
-	USkeletalMesh* Robe = VaelAssets::LoadOptional(MetaHumanRobe);
-	if (Body != nullptr && Robe != nullptr)
+	for (const TSoftObjectPtr<USkeletalMesh>& Clothing : MetaHumanClothes)
 	{
-		USkeletalMeshComponent* RobeMesh = NewObject<USkeletalMeshComponent>(Human, TEXT("Robe"));
-		RobeMesh->SetupAttachment(Body);
-		RobeMesh->SetSkeletalMesh(Robe);
-		RobeMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-		RobeMesh->RegisterComponent();
-		RobeMesh->SetLeaderPoseComponent(Body);
+		USkeletalMesh* ClothingMesh = VaelAssets::LoadOptional(Clothing);
+		if (Body != nullptr && ClothingMesh != nullptr)
+		{
+			USkeletalMeshComponent* Worn = NewObject<USkeletalMeshComponent>(Human);
+			Worn->SetupAttachment(Body);
+			Worn->SetSkeletalMesh(ClothingMesh);
+			Worn->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Worn->RegisterComponent();
+			Worn->SetLeaderPoseComponent(Body);
+		}
 	}
 }
 

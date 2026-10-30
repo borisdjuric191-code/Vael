@@ -123,13 +123,16 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftClassPtr<AActor> MetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Magier_Build/MH_Magier/BP_MH_Magier.BP_MH_Magier_C")));
 
-	/** The starting robe fitted to the MetaHuman (vael_kleidung_anpassen.py), on its skeleton */
+	/** What the MetaHuman wears, on its skeleton: the starting robe (vael_kleidung_anpassen.py) and the boots (vael_stiefel_bauen.py) */
 	UPROPERTY(EditAnywhere, Category="Appearance")
-	TSoftObjectPtr<USkeletalMesh> MetaHumanRobe = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MagierMann_Robe_MH.SK_MagierMann_Robe_MH")));
+	TArray<TSoftObjectPtr<USkeletalMesh>> MetaHumanClothes = {
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MagierMann_Robe_MH.SK_MagierMann_Robe_MH"))),
+		TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MagierMann_Stiefel_MH.SK_MagierMann_Stiefel_MH")))
+	};
 
-	/** The MetaHuman's body without what the robe covers, so no skin pokes through (vael_koerper_verdecken.py) */
+	/** The MetaHuman's body without what its clothes cover, so no skin pokes through (vael_koerper_verdecken.py) */
 	UPROPERTY(EditAnywhere, Category="Appearance")
-	TSoftObjectPtr<USkeletalMesh> MetaHumanBodyUnderRobe = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MH_Magier_Koerper_Robe.SK_MH_Magier_Koerper_Robe")));
+	TSoftObjectPtr<USkeletalMesh> MetaHumanBodyUnderRobe = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Kleidung/SK_MH_Magier_Koerper_Robe_Stiefel.SK_MH_Magier_Koerper_Robe_Stiefel")));
 
 	/** Body of the two base looks of the mage in the starting robe (creature factory, humans), male and female. Empty or missing: the template mannequin stays. */
 	UPROPERTY(EditAnywhere, Category="Appearance")

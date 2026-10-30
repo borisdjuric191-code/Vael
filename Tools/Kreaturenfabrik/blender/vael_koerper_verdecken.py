@@ -6,10 +6,10 @@ Löscht am Körper eines MetaHuman, was unter einem Kleidungsstück liegt; so ka
 Von jedem Punkt gehen fünf Strahlen schräg nach außen. Nur wenn alle fünf die Kleidung treffen, gilt er als verdeckt:
 an Kragen, Ärmelsaum und Schlitz bleibt so von selbst ein Rand stehen. Gelöscht werden Flächen, deren Punkte alle verdeckt sind.
 
-Vorlage ist die Datei aus vael_kleidung_anpassen.py. Ergebnis: 04_export/SK_<MetaHuman>_Koerper_<Teil>.fbx
+Vorlagen sind die Dateien SK_<Name>_<Teil>_MH.blend, mehrere Teile mit Komma. Ergebnis: 04_export/SK_<MetaHuman>_Koerper_<Teil>_<Teil>.fbx
 
 Aufruf:
-  blender -b -P vael_koerper_verdecken.py -- "C:\\Projekte\\Vael_Quellen\\MagierMann" Robe MH_Magier
+  blender -b -P vael_koerper_verdecken.py -- "C:\\Projekte\\Vael_Quellen\\MagierMann" Robe,Stiefel MH_Magier
 """
 import bpy, bmesh, math, os, sys
 from mathutils import Matrix, Vector
@@ -40,14 +40,18 @@ def strahlen(normale):
 
 def main(ordner, kleidung, metahuman):
     name = os.path.basename(ordner.rstrip("\\/"))
-    fertig = f"SK_{name}_{kleidung}_MH"
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     bpy.context.scene.unit_settings.scale_length = 1.0 / CM
-    with bpy.data.libraries.load(os.path.join(ordner, "03_blender", f"{fertig}.blend")) as (quelle, ziel):
-        ziel.meshes = [fertig]
-    teil = ziel.meshes[0]
-    baum = BVHTree.FromPolygons([v.co.copy() for v in teil.vertices], [list(p.vertices) for p in teil.polygons])
+    punkte, flaechen = [], []
+    for stueck in kleidung.split(","):
+        fertig = f"SK_{name}_{stueck}_MH"
+        with bpy.data.libraries.load(os.path.join(ordner, "03_blender", f"{fertig}.blend")) as (quelle, ziel):
+            ziel.meshes = [fertig]
+        versatz = len(punkte)
+        punkte.extend(v.co.copy() for v in ziel.meshes[0].vertices)
+        flaechen.extend([versatz + i for i in p.vertices] for p in ziel.meshes[0].polygons)
+    baum = BVHTree.FromPolygons(punkte, flaechen)
 
     arm, koerper = lade_metahuman(rf"C:\Projekte\Vael_Quellen\_Skelett\SKM_{metahuman}_Body.fbx")
     if len(koerper) != 1:
@@ -81,7 +85,7 @@ def main(ordner, kleidung, metahuman):
     koerper.parent = arm
     mod = koerper.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
-    ergebnis = f"SK_{metahuman}_Koerper_{kleidung}"
+    ergebnis = f"SK_{metahuman}_Koerper_{kleidung.replace(',', '_')}"
     koerper.name = koerper.data.name = ergebnis
     exportiere(arm, koerper, os.path.join(ordner, "04_export", f"{ergebnis}.fbx"))
 
