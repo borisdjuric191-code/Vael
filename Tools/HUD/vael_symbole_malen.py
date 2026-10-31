@@ -98,11 +98,11 @@ class Canvas:
         self.image = image + np.array((0.5, 0.56, 0.66))[None, None] * line[..., None] * 0.13
         return self
 
-    def tongue(self, points, stops, heat=0.0, ink=0.0062, streak=0.52):
+    def tongue(self, points, stops, heat=0.0, ink=0.0062, streak=0.52, wobble=9.0):
         """Eine Zunge: Tuschekontur, Verlauf von der Wurzel (heiß) zur Spitze (kalt), Pinselstriche längs, heller Kern in der Mitte"""
         line = smooth_line(points)
-        wx = self.x + 9.0 * self.warp_x
-        wy = self.y + 9.0 * self.warp_y
+        wx = self.x + wobble * self.warp_x
+        wy = self.y + wobble * self.warp_y
         lx, ly, lw = line[:, 0] * SIZE, line[:, 1] * SIZE, np.maximum(line[:, 2], 0.0) * SIZE
 
         margin = lw.max() + 20.0
@@ -141,6 +141,19 @@ class Canvas:
         hot[body] = mixed[body]
         covered[body] = True
         self.edge[y0:y1, x0:x1][inside] = True
+        return self
+
+    def disc(self, center, radius, heat, ink=0.0062):
+        """Eine runde Fläche in der gemeinsamen Hitzefläche: heller Kern oben links, dunkler zum Rand, wie eine Kugel"""
+        cx, cy = center[0] * SIZE, center[1] * SIZE
+        r = radius * SIZE
+        d = np.hypot(self.x + 2.0 * self.warp_x - cx, self.y + 2.0 * self.warp_y - cy)
+        light = np.hypot(self.x - (cx - r * 0.3), self.y - (cy - r * 0.35)) / r
+        value = heat + 0.5 * np.clip(1.0 - light / 1.4, 0.0, 1.0) + 0.1 * self.rough
+        body = d < r
+        self.heat[body] = value[body]
+        self.cover[body] = True
+        self.edge[d < r + ink * SIZE] = True
         return self
 
     def blurred_cover(self, sigma):
@@ -296,51 +309,85 @@ def wasser(c):
     c.embers(WATER, 4, (0.15, 0.15, 0.88, 0.5))
 
 
+def curl(center, radius, start_deg, turns, width, shrink=0.92, end_width=0.002, count=9):
+    """Punkte einer Spirale, die sich nach innen rollt: auf dem Bild im Uhrzeigersinn, Breite läuft zur Spitze aus"""
+    points = []
+    for i in range(count):
+        t = i / (count - 1)
+        angle = math.radians(start_deg + 360.0 * turns * t)
+        r = radius * (1.0 - shrink * t)
+        points.append((center[0] + r * math.cos(angle), center[1] + r * math.sin(angle), width * (1.0 - t) ** 1.1 + end_width))
+    return points
+
+
+def crest(center, radius, start_deg, turns, width, shrink, part, foam, count=12):
+    """Schaum auf der Außenkante einer curl()-Spirale: part sagt, welcher Abschnitt der Spirale (0 bis 1) ihn trägt"""
+    points = []
+    for i in range(count):
+        s = i / (count - 1)
+        t = part[0] + (part[1] - part[0]) * s
+        angle = math.radians(start_deg + 360.0 * turns * t)
+        r = radius * (1.0 - shrink * t) + width * (1.0 - t) ** 1.1 * 0.8
+        points.append((center[0] + r * math.cos(angle), center[1] + r * math.sin(angle), foam * math.sin(s * math.pi) ** 0.7 + 0.001))
+    return points
+
+
+def arc(center, radius, from_deg, to_deg, width, count=7):
+    """Ein Bogen um einen Punkt, in der Mitte am breitesten"""
+    points = []
+    for i in range(count):
+        t = i / (count - 1)
+        angle = math.radians(from_deg + (to_deg - from_deg) * t)
+        points.append((center[0] + radius * math.cos(angle), center[1] + radius * math.sin(angle), width * math.sin(t * math.pi) ** 0.8 + 0.001))
+    return points
+
+
 def wassergeschoss(c):
-    """Das Wassergeschoss: eine Kugel aus Wasser, die einen Schweif aus Spritzern hinter sich herzieht"""
-    c.background((0.02, 0.07, 0.2), (0.62, 0.4))
-    for pts, heat in (
-        ([(0.68, 0.33, 0.1), (0.48, 0.5, 0.075), (0.3, 0.64, 0.04), (0.08, 0.76, 0.002)], -0.12),
-        ([(0.66, 0.36, 0.1), (0.52, 0.58, 0.07), (0.38, 0.74, 0.035), (0.22, 0.92, 0.002)], -0.12),
-        ([(0.66, 0.34, 0.1), (0.46, 0.42, 0.06), (0.26, 0.42, 0.028), (0.1, 0.5, 0.002)], -0.16),
-        ([(0.64, 0.33, 0.135), (0.68, 0.32, 0.165), (0.72, 0.31, 0.14), (0.76, 0.3, 0.05)], 0.1),
-        ([(0.58, 0.44, 0.03), (0.68, 0.42, 0.075), (0.78, 0.34, 0.05), (0.76, 0.24, 0.002)], 0.26),
-    ):
-        c.tongue(pts, WATER, heat)
+    """Das Wassergeschoss: eine klare Kugel, in der das Wasser kreist, mit Druckringen und Tropfen hinter sich"""
+    c.background((0.02, 0.07, 0.2), (0.58, 0.42))
+    middle = (0.58, 0.42)
+    # Zwei Druckringe hinter der Kugel, sie läuft nach rechts oben
+    for radius, width in ((0.3, 0.02), (0.385, 0.014)):
+        c.tongue(arc(middle, radius, 95.0, 175.0, width), WATER, 0.1, streak=0.1, wobble=2.0)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
-    glints(c, ([(0.57, 0.3, 0.002), (0.61, 0.22, 0.016), (0.7, 0.19, 0.012), (0.77, 0.21, 0.002)],))
-    c.embers(WATER, 7, (0.08, 0.3, 0.55, 0.92))
+    c.disc(middle, 0.2, 0.3)
+    c.tongue(curl(middle, 0.15, 150.0, 1.25, 0.05, shrink=0.75), WATER, 0.28, streak=0.15, wobble=1.5)
+    c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
+    glints(c, ([(0.45, 0.36, 0.002), (0.49, 0.28, 0.011), (0.58, 0.25, 0.008), (0.64, 0.25, 0.002)],))
+    # Tropfen auf der Bahn hinter der Kugel
+    for x, y, size in ((0.26, 0.74, 0.022), (0.18, 0.82, 0.016), (0.32, 0.8, 0.012), (0.2, 0.68, 0.011)):
+        c.tongue([(x, y, size), (x + 0.012, y - 0.012, size * 0.8), (x + 0.04, y - 0.04, 0.001)], WATER, 0.25, streak=0.1, wobble=1.0)
+    c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
 
 
 def welle(c):
-    """Die Welle: ein breiter Kegel, der sich aufbäumt und oben in Schaum bricht"""
-    c.background((0.02, 0.07, 0.2), (0.48, 0.6))
-    for pts, heat in (
-        ([(0.04, 0.82, 0.1), (0.3, 0.76, 0.13), (0.58, 0.62, 0.14), (0.76, 0.4, 0.09), (0.7, 0.22, 0.05), (0.52, 0.2, 0.002)], -0.02),
-        ([(0.02, 0.92, 0.07), (0.34, 0.88, 0.09), (0.66, 0.82, 0.08), (0.94, 0.86, 0.002)], -0.06),
-        ([(0.5, 0.72, 0.05), (0.64, 0.56, 0.06), (0.72, 0.4, 0.04), (0.66, 0.3, 0.002)], 0.3),
-    ):
-        c.tongue(pts, WATER, heat)
+    """Die Welle: sie steigt von links auf und rollt sich rechts zu einer sauberen Spirale ein, Schaum nur auf der Kante"""
+    c.background((0.02, 0.07, 0.2), (0.5, 0.56))
+    center = (0.6, 0.42)
+    body = [(0.05, 0.84, 0.06), (0.22, 0.8, 0.085), (0.36, 0.68, 0.105)] + curl(center, 0.27, 170.0, 1.45, 0.115, shrink=0.8)
+    c.tongue(body, WATER, -0.04, streak=0.12, wobble=2.5)
+    band = [(0.12, 0.84, 0.012), (0.24, 0.8, 0.026), (0.37, 0.67, 0.036)] + curl(center, 0.255, 172.0, 1.42, 0.038, shrink=0.8)
+    c.tongue(band, WATER, 0.3, streak=0.08, wobble=2.5)
+    c.tongue([(0.05, 0.9, 0.05), (0.36, 0.88, 0.075), (0.64, 0.84, 0.07), (0.93, 0.87, 0.002)], WATER, -0.02, streak=0.12, wobble=2.5)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
-    glints(c, ([(0.5, 0.2, 0.002), (0.62, 0.17, 0.02), (0.76, 0.24, 0.024), (0.83, 0.4, 0.014), (0.8, 0.5, 0.002)],
-               [(0.62, 0.3, 0.002), (0.7, 0.3, 0.008), (0.74, 0.38, 0.002)], [(0.14, 0.74, 0.002), (0.3, 0.68, 0.009), (0.46, 0.62, 0.002)]))
-    c.embers(WATER, 6, (0.42, 0.06, 0.92, 0.32))
+    glints(c, (crest(center, 0.27, 170.0, 1.45, 0.115, 0.8, (0.03, 0.42), 0.02),))
+    c.embers(WATER, 5, (0.74, 0.1, 0.95, 0.3))
 
 
 def flutwelle(c):
-    """Die Flutwelle: eine Wand aus Wasser, höher als alles, zwei Wellen übereinander, die sich nach rechts überschlagen"""
-    c.background((0.02, 0.07, 0.2), (0.45, 0.5))
-    for pts, heat in (
-        ([(0.03, 0.94, 0.17), (0.22, 0.6, 0.2), (0.44, 0.3, 0.14), (0.68, 0.14, 0.08), (0.8, 0.22, 0.04), (0.72, 0.34, 0.002)], -0.08),
-        ([(0.1, 0.96, 0.15), (0.4, 0.76, 0.17), (0.64, 0.52, 0.11), (0.86, 0.46, 0.05), (0.88, 0.58, 0.002)], 0.06),
-        ([(0.02, 0.96, 0.09), (0.4, 0.92, 0.11), (0.72, 0.88, 0.08), (0.98, 0.9, 0.02)], 0.16),
-    ):
-        c.tongue(pts, WATER, heat)
+    """Die Flutwelle: eine riesige Spirale, die über allem steht, davor eine zweite kleine, unten die Wassermasse"""
+    c.background((0.02, 0.07, 0.2), (0.48, 0.46))
+    center = (0.58, 0.44)
+    body = [(0.04, 0.9, 0.1), (0.17, 0.78, 0.125), (0.27, 0.6, 0.13)] + curl(center, 0.29, 165.0, 1.55, 0.13, shrink=0.82, count=11)
+    c.tongue(body, WATER, -0.08, streak=0.12, wobble=2.5)
+    band = [(0.16, 0.8, 0.014), (0.26, 0.64, 0.03), (0.29, 0.54, 0.04)] + curl(center, 0.27, 167.0, 1.52, 0.042, shrink=0.82, count=11)
+    c.tongue(band, WATER, 0.28, streak=0.08, wobble=2.5)
+    c.tongue([(0.02, 0.96, 0.09), (0.36, 0.93, 0.1), (0.68, 0.9, 0.085), (0.97, 0.94, 0.002)], WATER, -0.04, streak=0.12, wobble=2.5)
+    small = (0.3, 0.76)
+    c.tongue([(0.04, 0.95, 0.04), (0.12, 0.88, 0.05)] + curl(small, 0.115, 175.0, 1.3, 0.05, shrink=0.78), WATER, 0.1, streak=0.1, wobble=2.0)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
-    glints(c, ([(0.5, 0.17, 0.002), (0.66, 0.08, 0.02), (0.82, 0.13, 0.026), (0.88, 0.27, 0.012), (0.83, 0.34, 0.002)],
-               [(0.64, 0.46, 0.002), (0.78, 0.4, 0.016), (0.92, 0.46, 0.016), (0.93, 0.56, 0.002)],
-               [(0.26, 0.52, 0.002), (0.36, 0.36, 0.01), (0.48, 0.24, 0.002)]))
-    c.embers(WATER, 7, (0.5, 0.05, 0.96, 0.4))
+    glints(c, (crest(center, 0.29, 165.0, 1.55, 0.13, 0.82, (0.03, 0.4), 0.022), crest(small, 0.115, 175.0, 1.3, 0.05, 0.78, (0.05, 0.42), 0.011)))
+    c.embers(WATER, 6, (0.76, 0.05, 0.97, 0.26))
 
 
 MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze,
