@@ -347,11 +347,11 @@ class Canvas:
         band = np.exp(-((ring - 0.445) / 0.04) ** 2)
         eaten = np.clip(0.75 + 1.6 * self.rough, 0.0, 1.0) * band
         self.image *= (1.0 - 0.93 * eaten)[..., None]
-        for angle in np.linspace(0.0, 360.0, 11, endpoint=False):
+        for angle in np.linspace(0.0, 360.0, 6, endpoint=False):
             turn = float(angle + self.rng.uniform(-14.0, 14.0))
             reach = self.rng.uniform(0.34, 0.6)
             end = (seed_center[0] + math.cos(math.radians(turn)) * reach, seed_center[1] + math.sin(math.radians(turn)) * reach)
-            self.crack(seed_center, end, 0.0052, 0.6, color=(0.06, 0.006, 0.085))
+            self.crack(seed_center, end, 0.004, 0.6, color=(0.045, 0.004, 0.065))
         return self
 
     def eye(self, center, radius, squash=1.0):
@@ -412,7 +412,7 @@ class Canvas:
         angle = np.degrees(np.arctan2(v, u))
         angle = np.mod(angle - from_deg, 360.0)
         span = (to_deg - from_deg) % 360.0
-        cut = angle + 7.0 * self.middle
+        cut = angle + 2.5 * self.middle
         mask = (np.abs(ring - radius) < 0.016) & (cut > 0.0) & (cut < span)
         edge = (np.abs(ring - radius) < 0.022) & (cut > -1.5) & (cut < span + 1.5)
         self.image[edge] = (0.012, 0.0, 0.012)
@@ -811,116 +811,110 @@ def wirbelsturm(c):
 NID_INK = (0.016, 0.0, 0.012)
 
 
-def vessel(c, start, angle_deg, length, width, depth=2, heat=0.0):
-    """Ein Blutgefäß: es schlängelt sich, wird dünner und gabelt sich wie die Adern der Schlafenden"""
+def vessel(c, start, angle_deg, length, width, depth=1, heat=0.0, bend=None):
+    """Ein Blutgefäß mit klarer Form: eine ruhige S-Kurve, kräftig am Ansatz, spitz am Ende, wenige Abzweige in fester Rangordnung"""
+    bend = c.rng.choice((-1.0, 1.0)) * c.rng.uniform(13.0, 19.0) if bend is None else bend
     points = [(start[0], start[1], width)]
     x, y = start
     angle = angle_deg
     steps = 5
     for i in range(1, steps + 1):
-        angle += c.rng.uniform(-30.0, 30.0)
+        angle += bend * math.cos(i / steps * math.pi)
         x += math.cos(math.radians(angle)) * length / steps
         y += math.sin(math.radians(angle)) * length / steps
-        points.append((x, y, width * (1.0 - 0.8 * i / steps) + 0.002))
-    c.tongue(points, NID, heat, ink=0.0014, streak=0.85, wobble=7.0)
+        points.append((x, y, width * (1.0 - i / steps) ** 0.8 + 0.002))
+    c.tongue(points, NID, heat, ink=0.0018, streak=0.55, wobble=2.5)
     if depth > 0:
-        fork = points[2]
-        for turn in (-1, 1):
-            vessel(c, fork[:2], angle + turn * c.rng.uniform(26.0, 46.0), length * 0.55, fork[2] * 0.72, depth - 1, heat)
+        for index, turn in ((2, 1.0), (3, -1.0)):
+            px_, py_, pw = points[index]
+            vessel(c, (px_, py_), angle_deg + bend * 0.4 + turn * c.rng.uniform(34.0, 44.0), length * 0.42, pw * 0.72, depth - 1, heat, -turn * 14.0)
 
 
 def drip(c, x, y0, y1, width):
     """Nid rinnt zäh über das Bild: eine lange, dünner werdende Spur mit dunklem Schleier daneben, kein Tropfen am Ende"""
-    c.dust((x, y0), (x + 0.012, y1 + 0.04), width * 1.7, 0.55, (0.08, 0.002, 0.016))
-    c.tongue([(x, y0, width), (x + 0.007, y0 + (y1 - y0) * 0.35, width * 0.55), (x - 0.004, y0 + (y1 - y0) * 0.7, width * 0.4), (x + 0.003, y1, 0.0012)], NID, 0.0, ink=0.0012, streak=0.7, wobble=3.0)
+    c.dust((x, y0), (x + 0.012, y1 + 0.04), width * 1.7, 0.45, (0.08, 0.002, 0.016))
+    c.tongue([(x, y0, width), (x + 0.005, y0 + (y1 - y0) * 0.35, width * 0.62), (x - 0.003, y0 + (y1 - y0) * 0.7, width * 0.42), (x + 0.002, y1, 0.0012)], NID, 0.0, ink=0.0014, streak=0.5, wobble=1.5)
 
 
 def nid(c):
-    """Das Element: das Blut der Schlafenden, und sie sieht dich an. Ein Auge im Knoten, die Adern wachsen über den Ring hinaus, Blut rinnt herab"""
+    """Das Element: das Blut der Schlafenden sieht dich an. Eine klare Komposition: Auge in der Mitte, sechs Hauptadern wie ein Stern, zwei Rinnsale"""
     c.background((0.05, 0.004, 0.06), (0.5, 0.46))
     c.nid_ground((0.5, 0.46))
-    c.glow((0.5, 0.46), 0.26, (0.2, 0.02, 0.34), 0.34)
+    c.glow((0.5, 0.46), 0.26, (0.2, 0.02, 0.34), 0.3)
     middle = (0.5, 0.46)
-    for angle, length, width in ((-118.0, 0.5, 0.03), (-52.0, 0.46, 0.024), (8.0, 0.52, 0.03), (152.0, 0.48, 0.026), (218.0, 0.44, 0.03)):
-        vessel(c, (middle[0] + math.cos(math.radians(angle)) * 0.08, middle[1] + math.sin(math.radians(angle)) * 0.08), angle, length, width, depth=2)
-    c.tongue([(0.42, 0.5, 0.1), (0.47, 0.46, 0.17), (0.53, 0.46, 0.17), (0.58, 0.42, 0.1)], NID, -0.1, ink=0.0015, streak=0.8, wobble=9.0)
-    drip(c, 0.43, 0.56, 0.96, 0.017)
-    drip(c, 0.55, 0.56, 0.82, 0.012)
-    drip(c, 0.5, 0.58, 1.0, 0.021)
-    c.merge(NID, ink=NID_INK, shift=-0.14, gloss=True)
+    for angle, length, width, bend in ((-90.0, 0.42, 0.04, 16.0), (-30.0, 0.44, 0.036, -16.0), (30.0, 0.42, 0.036, 16.0), (150.0, 0.42, 0.036, -16.0), (210.0, 0.44, 0.036, 16.0)):
+        a = math.radians(angle)
+        vessel(c, (middle[0] + math.cos(a) * 0.12, middle[1] + math.sin(a) * 0.12), angle, length, width, depth=1, bend=bend)
+    drip(c, 0.46, 0.58, 0.97, 0.024)
+    drip(c, 0.55, 0.58, 0.85, 0.018)
+    c.disc(middle, 0.175, -0.02)
+    c.merge(NID, ink=NID_INK, shift=-0.1, gloss=True)
     c.eye(middle, 0.135)
-    c.spray((0.5, 0.46), 0.2, 60)
+    c.spray((0.5, 0.46), 0.22, 26)
     c.oil()
 
 
 def marksplitter(c):
-    """Der Marksplitter: ein Dorn aus geronnenem Nid durchschlägt den Ring, nur von innen glimmt die Ader, hinter ihm hängt Blutnebel"""
+    """Der Marksplitter: ein klarer Dorn aus schwarzem Stein mit wenigen großen Bruchflächen, die Kerbe glimmt, dahinter eine Fahne aus Blutnebel"""
     c.background((0.05, 0.004, 0.06), (0.62, 0.38))
     c.nid_ground((0.62, 0.38))
-    c.glow((0.62, 0.38), 0.3, (0.2, 0.02, 0.34), 0.34)
-    c.dust((0.46, 0.58), (0.05, 0.98), 0.085, 0.9, (0.13, 0.004, 0.03))
-    c.dust((0.42, 0.62), (0.12, 0.78), 0.05, 0.6, (0.09, 0.003, 0.024))
-    c.spray((0.34, 0.72), 0.17, 140, 135.0)
-    c.rock([(0.97, 0.02), (0.72, 0.2), (0.52, 0.4), (0.33, 0.62), (0.42, 0.7), (0.6, 0.62), (0.78, 0.4)], 12, 0.1, stops=NID_ROCK, ink=(0.06, 0.012, 0.09))
+    c.glow((0.62, 0.38), 0.3, (0.2, 0.02, 0.34), 0.3)
+    c.dust((0.44, 0.6), (0.05, 0.98), 0.08, 0.9, (0.13, 0.004, 0.03))
+    c.spray((0.3, 0.76), 0.13, 50, 135.0)
+    c.rock([(0.95, 0.04), (0.72, 0.2), (0.5, 0.4), (0.32, 0.64), (0.42, 0.7), (0.6, 0.6), (0.78, 0.38)], 6, 0.08, stops=NID_ROCK, ink=(0.14, 0.05, 0.2))
     # Die Kerbe: ein gezackter Spalt im Stein, aus dem das Nid von innen leuchtet und den Fels um sich herum anstrahlt
     notch = [(0.44, 0.6), (0.5, 0.5), (0.53, 0.51), (0.6, 0.41), (0.63, 0.42), (0.74, 0.27), (0.65, 0.46), (0.62, 0.45), (0.55, 0.55), (0.52, 0.54)]
     c.ink_shape(notch, (0.012, 0.0, 0.006))
-    c.glow((0.58, 0.46), 0.09, (0.3, 0.02, 0.06), 0.55)
-    c.glow((0.66, 0.36), 0.05, (0.26, 0.03, 0.14), 0.45)
-    c.glow((0.5, 0.53), 0.05, (0.26, 0.02, 0.05), 0.45)
+    c.glow((0.58, 0.46), 0.09, (0.3, 0.02, 0.06), 0.5)
     inside = c.polygon(notch)
     heat = ramp(EMBER, np.clip(0.6 + 0.5 * c.rough + 0.3 * c.middle, 0.0, 1.0))
     c.image[inside] = heat[inside]
-    c.tongue([(0.37, 0.66, 0.002), (0.46, 0.57, 0.006), (0.55, 0.5, 0.006), (0.7, 0.32, 0.005), (0.93, 0.05, 0.002)], NID, 0.2, ink=0.0, streak=0.6, wobble=3.0)
-    c.merge(NID, rim_dark=False)
     c.oil()
 
+
 def markstoss(c):
-    """Der Markstoß: die Druckwelle zerreißt den Siegelring, Blut bricht unregelmäßig aus der Mitte, ein dichter Nebel aus Spritzern fliegt mit"""
+    """Der Markstoß: aus dem Auge schießen sieben klare Blutspitzen, lang und kurz im Wechsel, und sprengen den Siegelring in fünf Stücke"""
     c.background((0.05, 0.004, 0.06), (0.5, 0.5), ring=False)
     c.nid_ground((0.5, 0.5))
     middle = (0.5, 0.5)
-    c.glow(middle, 0.3, (0.2, 0.02, 0.34), 0.34)
-    for turn, reach, width in ((-152.0, 0.3, 0.03), (-108.0, 0.42, 0.036), (-61.0, 0.24, 0.022), (-24.0, 0.38, 0.032), (19.0, 0.2, 0.02), (58.0, 0.44, 0.038), (101.0, 0.26, 0.024), (146.0, 0.36, 0.03), (188.0, 0.22, 0.02)):
-        a = math.radians(turn)
-        sway = c.rng.uniform(-0.05, 0.05)
-        pts = [(0.5 + math.cos(a) * s * reach - math.sin(a) * sway * s, 0.5 + math.sin(a) * s * reach + math.cos(a) * sway * s, w * width) for s, w in ((0.2, 1.0), (0.55, 0.62), (0.82, 0.24), (1.0, 0.05))]
-        c.tongue(pts, NID, 0.04, ink=0.0014, streak=0.9, wobble=9.0)
-    c.tongue([(0.44, 0.54, 0.09), (0.48, 0.51, 0.13), (0.53, 0.48, 0.13), (0.57, 0.45, 0.08)], NID, -0.1, ink=0.0014, streak=0.8, wobble=9.0)
-    c.merge(NID, ink=NID_INK, shift=-0.12, gloss=True)
-    c.spray(middle, 0.26, 220)
-    for start, end, push in ((-160.0, -100.0, 0.05), (-84.0, -30.0, 0.075), (-16.0, 48.0, 0.045), (62.0, 118.0, 0.08), (134.0, 196.0, 0.055)):
-        c.ring_piece(middle, 0.4, start, end, push)
+    c.glow(middle, 0.3, (0.2, 0.02, 0.34), 0.3)
+    for k, turn in enumerate(np.linspace(-90.0, 270.0, 7, endpoint=False)):
+        a = math.radians(float(turn))
+        reach, width = (0.36, 0.05) if k % 2 == 0 else (0.25, 0.04)
+        sway = 0.03 if k % 2 == 0 else -0.03
+        pts = [(0.5 + math.cos(a) * s * reach - math.sin(a) * sway * s, 0.5 + math.sin(a) * s * reach + math.cos(a) * sway * s, w * width) for s, w in ((0.2, 1.0), (0.55, 0.62), (0.82, 0.26), (1.0, 0.04))]
+        c.tongue(pts, NID, 0.02, ink=0.0018, streak=0.55, wobble=2.0)
+    c.disc(middle, 0.125, -0.02)
+    c.merge(NID, ink=NID_INK, shift=-0.1, gloss=True)
+    c.spray(middle, 0.28, 70)
+    for start, end, push in ((-162.0, -104.0, 0.05), (-90.0, -34.0, 0.07), (-18.0, 46.0, 0.05), (62.0, 118.0, 0.075), (134.0, 196.0, 0.055)):
+        c.ring_piece(middle, 0.42, start, end, push)
     c.eye(middle, 0.095)
     c.oil()
 
 
 def offene_wunde(c):
-    """Die Offene Wunde: die Welt reißt auf. Hinter dem Fels liegt ein Auge, größer als das Bild; durch den Riss sieht man nur ein Stück davon"""
+    """Die Offene Wunde: ein großer, klarer Riss quer durch einen Felsblock, dahinter das riesige Auge; fünf Hauptadern greifen vom Riss in den Stein"""
     c.background((0.05, 0.004, 0.06), (0.5, 0.5))
     c.nid_ground((0.5, 0.5))
     # Erst die Tiefe mit dem riesigen Auge, sie zeigt sich später nur im Riss
     c.ink_shape([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], (0.004, 0.0, 0.007))
-    c.eye((0.56, 0.5), 0.36)
-    deep = c.image * np.array((0.34, 0.2, 0.26))
+    c.eye((0.53, 0.5), 0.36)
+    deep = c.image * np.array((0.3, 0.14, 0.18))
     c.background((0.05, 0.004, 0.06), (0.5, 0.5))
     c.nid_ground((0.5, 0.5))
-    c.rock([(0.05, 0.5), (0.13, 0.2), (0.4, 0.06), (0.7, 0.07), (0.92, 0.26), (0.97, 0.58), (0.84, 0.84), (0.56, 0.96), (0.26, 0.9), (0.08, 0.74)], 20, -0.16, stops=NID_ROCK, ink=NID_INK)
-    top = [(0.08, 0.6), (0.2, 0.52), (0.25, 0.54), (0.36, 0.41), (0.45, 0.44), (0.55, 0.34), (0.62, 0.38), (0.74, 0.35), (0.76, 0.4), (0.92, 0.34)]
-    low = [(0.84, 0.45), (0.75, 0.52), (0.7, 0.5), (0.6, 0.63), (0.52, 0.59), (0.42, 0.67), (0.36, 0.62), (0.26, 0.65), (0.24, 0.6)]
-    rift = top + low
-    inside = c.polygon(rift)
-    shifted = np.roll(np.roll(inside, 4, axis=0), 3, axis=1)
-    c.image[inside & ~shifted] = (0.13, 0.02, 0.2)
+    c.rock([(0.05, 0.5), (0.13, 0.2), (0.4, 0.06), (0.7, 0.07), (0.92, 0.26), (0.97, 0.58), (0.84, 0.84), (0.56, 0.96), (0.26, 0.9), (0.08, 0.74)], 9, -0.1, stops=NID_ROCK, ink=NID_INK)
+    top = [(0.07, 0.6), (0.2, 0.47), (0.26, 0.5), (0.37, 0.36), (0.46, 0.4), (0.56, 0.3), (0.63, 0.35), (0.75, 0.31), (0.78, 0.37), (0.94, 0.33)]
+    low = [(0.86, 0.47), (0.76, 0.56), (0.7, 0.54), (0.61, 0.68), (0.52, 0.63), (0.42, 0.72), (0.36, 0.66), (0.26, 0.69), (0.23, 0.63)]
+    inside = c.polygon(top + low)
+    shifted = np.roll(np.roll(inside, 5, axis=0), 3, axis=1)
+    c.image[inside & ~shifted] = (0.16, 0.03, 0.24)
     c.image[inside & shifted] = deep[inside & shifted]
-    # Adern fressen sich von den Rissrändern durch den Fels und über ihn hinaus
-    for start, angle in (((0.36, 0.41), -120.0), ((0.55, 0.34), -80.0), ((0.74, 0.35), -40.0), ((0.2, 0.52), 200.0), ((0.84, 0.45), 20.0), ((0.6, 0.63), 70.0), ((0.42, 0.67), 110.0), ((0.26, 0.65), 150.0)):
-        vessel(c, start, angle, 0.34, 0.015, depth=2)
-    drip(c, 0.42, 0.68, 1.0, 0.016)
-    drip(c, 0.6, 0.64, 0.95, 0.013)
-    drip(c, 0.3, 0.65, 0.92, 0.01)
-    c.merge(NID, ink=NID_INK, shift=-0.12, gloss=True)
-    c.spray((0.5, 0.56), 0.24, 80)
+    for start, angle, bend in (((0.37, 0.36), -115.0, 14.0), ((0.75, 0.31), -55.0, -14.0), ((0.2, 0.47), 200.0, 12.0), ((0.61, 0.68), 65.0, -12.0), ((0.26, 0.69), 130.0, 12.0)):
+        vessel(c, start, angle, 0.34, 0.026, depth=1, bend=bend)
+    drip(c, 0.42, 0.72, 1.0, 0.02)
+    drip(c, 0.5, 0.64, 0.92, 0.014)
+    c.merge(NID, ink=NID_INK, shift=-0.08, gloss=True)
     c.oil()
 
 
