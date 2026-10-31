@@ -260,6 +260,21 @@ class Canvas:
             px_, py = qx, qy
         return self
 
+    def dust(self, start, end, width, strength=0.5, color=(0.34, 0.26, 0.17)):
+        """Eine Staubfahne ohne Form und Kante: dünnt zum Ende aus und wird dort breiter, zerfasert durch Rauschen"""
+        x = self.x / SIZE + 0.05 * self.warp_x
+        y = self.y / SIZE + 0.05 * self.warp_y
+        ax, ay = end[0] - start[0], end[1] - start[1]
+        size = ax * ax + ay * ay
+        along = ((x - start[0]) * ax + (y - start[1]) * ay) / size
+        t = np.clip(along, 0.0, 1.0)
+        dist = np.hypot(x - (start[0] + t * ax), y - (start[1] + t * ay))
+        wide = width * (0.45 + 1.1 * t)
+        amount = np.exp(-(dist / wide) ** 2) * (1.0 - t) ** 1.3 * np.clip(0.42 + 0.9 * self.rough + 0.7 * self.middle, 0.0, 1.0) * strength
+        amount = np.where((along > 0.0) & (along < 1.0), amount, 0.0)[..., None]
+        self.image = self.image * (1.0 - amount) + np.array(color)[None, None] * amount
+        return self
+
     def blurred_cover(self, sigma):
         """Die gemalte Fläche, weich gezeichnet"""
         spectrum = np.fft.fft2(self.cover.astype(np.float32))
@@ -513,7 +528,7 @@ def round_outline(center, radius, count=14):
 def erde(c):
     """Das Element: ein runder Stein, der unten zerfällt, Brocken lösen sich und fallen"""
     c.background((0.1, 0.065, 0.025), (0.5, 0.48))
-    c.rock(round_outline((0.5, 0.42), 0.29), 20, 0.06)
+    c.rock([(0.3, 0.2), (0.46, 0.13), (0.6, 0.17), (0.7, 0.14), (0.8, 0.3), (0.78, 0.46), (0.82, 0.56), (0.7, 0.68), (0.56, 0.64), (0.44, 0.7), (0.3, 0.66), (0.22, 0.56), (0.2, 0.38)], 20, 0.06)
     for shard, tone in (
         ([(0.26, 0.68), (0.33, 0.64), (0.37, 0.72), (0.3, 0.77)], -0.04),
         ([(0.43, 0.75), (0.5, 0.72), (0.54, 0.79), (0.46, 0.83)], 0.0),
@@ -528,14 +543,12 @@ def erde(c):
 def steinbrocken(c):
     """Das Steingeschoss: ein spitzer Stein in voller Bewegung nach rechts oben, hinter ihm Staubstreifen und Splitter"""
     c.background((0.1, 0.065, 0.025), (0.62, 0.38))
-    for pts in (
-        [(0.08, 0.82, 0.002), (0.24, 0.68, 0.016), (0.4, 0.54, 0.024), (0.5, 0.45, 0.016)],
-        [(0.2, 0.92, 0.002), (0.34, 0.76, 0.014), (0.46, 0.63, 0.02), (0.55, 0.54, 0.014)],
-        [(0.06, 0.66, 0.002), (0.2, 0.57, 0.011), (0.34, 0.46, 0.016), (0.43, 0.39, 0.01)],
-    ):
-        c.tongue(pts, DUST, 0.3, streak=0.5, wobble=3.0, ink=0.0)
-    c.merge(DUST, rim_dark=False)
+    # Weicher Staub statt Streifen: die Fahne wird nach hinten breiter und lÃ¶st sich auf
+    c.dust((0.52, 0.5), (0.06, 0.92), 0.08, 0.95)
+    c.dust((0.46, 0.46), (0.04, 0.68), 0.055, 0.65)
+    c.dust((0.56, 0.58), (0.26, 0.98), 0.055, 0.65)
     c.rock([(0.9, 0.09), (0.73, 0.2), (0.53, 0.34), (0.4, 0.5), (0.45, 0.58), (0.58, 0.62), (0.72, 0.5), (0.83, 0.3)], 13, 0.08)
+    c.embers(DUST, 9, (0.1, 0.55, 0.42, 0.92))
     for shard, tone in (([(0.2, 0.74), (0.26, 0.7), (0.29, 0.76), (0.23, 0.8)], -0.06), ([(0.34, 0.84), (0.39, 0.81), (0.41, 0.86), (0.36, 0.89)], -0.1), ([(0.12, 0.58), (0.17, 0.55), (0.19, 0.6), (0.14, 0.62)], -0.12)):
         c.rock(shard, 4, tone)
 
