@@ -156,6 +156,16 @@ class Canvas:
         self.edge[d < r + ink * SIZE] = True
         return self
 
+    def ink_shape(self, points, color=(0.004, 0.006, 0.016)):
+        """Eine kleine Form in dunkler Tusche, wie ein Scherenschnitt: ein Punkt ist im Inneren, wenn ein Strahl die Kante ungerade oft kreuzt"""
+        x, y = self.x / SIZE, self.y / SIZE
+        inside = np.zeros((SIZE, SIZE), bool)
+        for (x0, y0), (x1, y1) in zip(points, points[1:] + points[:1]):
+            crosses = (y0 > y) != (y1 > y)
+            inside ^= crosses & (x < (x1 - x0) * (y - y0) / ((y1 - y0) or 1e-6) + x0)
+        self.image[inside] = color
+        return self
+
     def blurred_cover(self, sigma):
         """Die gemalte Fläche, weich gezeichnet"""
         spectrum = np.fft.fft2(self.cover.astype(np.float32))
@@ -361,33 +371,44 @@ def wassergeschoss(c):
 
 
 def welle(c):
-    """Die Welle: sie steigt von links auf und rollt sich rechts zu einer sauberen Spirale ein, Schaum nur auf der Kante"""
-    c.background((0.02, 0.07, 0.2), (0.5, 0.56))
-    center = (0.6, 0.42)
-    body = [(0.05, 0.84, 0.06), (0.22, 0.8, 0.085), (0.36, 0.68, 0.105)] + curl(center, 0.27, 170.0, 0.92, 0.115, shrink=0.62)
-    c.tongue(body, WATER, -0.04, streak=0.12, wobble=2.5)
-    band = [(0.12, 0.84, 0.012), (0.24, 0.8, 0.026), (0.37, 0.67, 0.036)] + curl(center, 0.255, 172.0, 0.9, 0.038, shrink=0.62)
-    c.tongue(band, WATER, 0.3, streak=0.08, wobble=2.5)
-    c.tongue([(0.05, 0.9, 0.05), (0.36, 0.88, 0.075), (0.64, 0.84, 0.07), (0.93, 0.87, 0.002)], WATER, -0.02, streak=0.12, wobble=2.5)
+    """Die Welle: eine einzelne flache Woge, die unten durch den Ring läuft und nach rechts bricht, mit viel Luft darüber"""
+    c.background((0.02, 0.07, 0.2), (0.5, 0.66))
+    center = (0.6, 0.57)
+    body = [(0.12, 0.76, 0.03), (0.28, 0.73, 0.055), (0.42, 0.66, 0.07)] + curl(center, 0.155, 170.0, 0.9, 0.07, shrink=0.6)
+    c.tongue(body, WATER, 0.0, streak=0.12, wobble=2.0)
+    band = [(0.18, 0.75, 0.008), (0.3, 0.72, 0.016), (0.42, 0.655, 0.024)] + curl(center, 0.148, 172.0, 0.88, 0.024, shrink=0.6)
+    c.tongue(band, WATER, 0.3, streak=0.08, wobble=2.0)
+    c.tongue([(0.1, 0.78, 0.002), (0.3, 0.77, 0.035), (0.6, 0.76, 0.04), (0.88, 0.77, 0.002)], WATER, 0.0, streak=0.12, wobble=2.0)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
-    glints(c, (crest(center, 0.27, 170.0, 0.92, 0.115, 0.62, (0.05, 0.72), 0.02),))
-    c.embers(WATER, 5, (0.74, 0.1, 0.95, 0.3))
+    glints(c, (crest(center, 0.155, 170.0, 0.9, 0.07, 0.6, (0.08, 0.72), 0.013),))
+    c.embers(WATER, 3, (0.66, 0.3, 0.82, 0.42))
 
 
 def flutwelle(c):
-    """Die Flutwelle: eine riesige Spirale, die über allem steht, davor eine zweite kleine, unten die Wassermasse"""
-    c.background((0.02, 0.07, 0.2), (0.48, 0.46))
-    center = (0.58, 0.44)
-    body = [(0.02, 0.92, 0.16), (0.14, 0.78, 0.2), (0.25, 0.6, 0.2)] + curl(center, 0.26, 165.0, 0.95, 0.2, shrink=0.55, count=11)
-    c.tongue(body, WATER, -0.08, streak=0.12, wobble=2.5)
-    band = [(0.16, 0.8, 0.016), (0.25, 0.64, 0.04), (0.28, 0.54, 0.052)] + curl(center, 0.25, 167.0, 0.93, 0.056, shrink=0.55, count=11)
-    c.tongue(band, WATER, 0.28, streak=0.08, wobble=2.5)
-    c.tongue([(0.02, 0.96, 0.14), (0.36, 0.92, 0.15), (0.68, 0.88, 0.12), (0.98, 0.93, 0.01)], WATER, -0.04, streak=0.12, wobble=2.5)
-    small = (0.3, 0.76)
-    c.tongue([(0.04, 0.95, 0.04), (0.12, 0.88, 0.05)] + curl(small, 0.115, 175.0, 0.8, 0.05, shrink=0.6), WATER, 0.1, streak=0.1, wobble=2.0)
+    """Die Flutwelle: eine Wand aus Wasser, die das ganze Bild füllt und über den Ring hinausgeht. Zwei Kämme übereinander;
+    der winzige Turm vor ihr zeigt, wie groß sie ist."""
+    c.background((0.02, 0.07, 0.2), (0.45, 0.42))
+    # Hinterer Kamm, dunkler, er steht höher als alles
+    back = (0.5, 0.36)
+    c.tongue([(0.0, 0.8, 0.22), (0.1, 0.5, 0.2)] + curl(back, 0.3, 175.0, 0.8, 0.17, shrink=0.5, count=10), WATER, -0.2, streak=0.12, wobble=2.5)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
-    glints(c, (crest(center, 0.26, 165.0, 0.95, 0.2, 0.55, (0.08, 0.74), 0.024), crest(small, 0.115, 175.0, 0.8, 0.05, 0.6, (0.05, 0.62), 0.011)))
-    c.embers(WATER, 6, (0.76, 0.05, 0.97, 0.26))
+    glints(c, (crest(back, 0.3, 175.0, 0.8, 0.17, 0.5, (0.12, 0.7), 0.016),))
+
+    # Vorderer Kamm und die Wassermasse, sie füllt das Bild bis an den Rand
+    center = (0.62, 0.56)
+    body = [(0.0, 0.98, 0.26), (0.14, 0.82, 0.26), (0.3, 0.7, 0.2)] + curl(center, 0.24, 165.0, 0.85, 0.19, shrink=0.55, count=11)
+    c.tongue(body, WATER, -0.04, streak=0.12, wobble=2.5)
+    band = [(0.12, 0.88, 0.02), (0.26, 0.74, 0.044), (0.36, 0.66, 0.052)] + curl(center, 0.23, 167.0, 0.83, 0.052, shrink=0.55, count=11)
+    c.tongue(band, WATER, 0.28, streak=0.08, wobble=2.5)
+    c.tongue([(0.0, 1.0, 0.16), (0.4, 0.98, 0.17), (0.75, 0.96, 0.14), (1.0, 0.98, 0.1)], WATER, -0.02, streak=0.12, wobble=2.5)
+    c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
+    glints(c, (crest(center, 0.24, 165.0, 0.85, 0.19, 0.55, (0.1, 0.72), 0.022),))
+
+    # Der winzige Turm im Weg der Welle
+    tower = [(0.84, 0.86), (0.84, 0.72), (0.825, 0.72), (0.825, 0.695), (0.84, 0.695), (0.84, 0.71), (0.852, 0.71), (0.852, 0.695), (0.866, 0.695), (0.866, 0.71),
+                 (0.878, 0.71), (0.878, 0.695), (0.893, 0.695), (0.893, 0.72), (0.878, 0.72), (0.878, 0.86)]
+    c.ink_shape([(0.56 + (x - 0.86) * 1.5, 0.93 + (y - 0.86) * 1.5) for x, y in tower])
+    c.embers(WATER, 5, (0.8, 0.1, 0.98, 0.4))
 
 
 MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze,
