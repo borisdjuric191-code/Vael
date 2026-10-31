@@ -300,7 +300,7 @@ class Canvas:
 
         fibres = 0.5 + 1.1 * sample(self.middle, t * 40.0, side * 70.0) + 0.7 * sample(self.fine, t * 70.0, side * 150.0)
         amount = np.exp(-(side * 1.5) ** 2) * np.clip(fibres, 0.0, 1.4) + core * np.exp(-(side * 5.0) ** 2)
-        amount *= np.sin(np.clip(t, 0.0, 1.0) * math.pi) ** 0.7 * strength
+        amount *= np.clip(t / 0.28, 0.0, 1.0) ** 1.6 * np.sin(np.clip(t, 0.0, 1.0) * math.pi) ** 0.5 * strength
         self.image[y0:y1, x0:x1] = self.image[y0:y1, x0:x1] + np.array(color)[None, None] * amount[..., None]
         return self
 
