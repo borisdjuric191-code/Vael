@@ -364,13 +364,13 @@ def welle(c):
     """Die Welle: sie steigt von links auf und rollt sich rechts zu einer sauberen Spirale ein, Schaum nur auf der Kante"""
     c.background((0.02, 0.07, 0.2), (0.5, 0.56))
     center = (0.6, 0.42)
-    body = [(0.05, 0.84, 0.06), (0.22, 0.8, 0.085), (0.36, 0.68, 0.105)] + curl(center, 0.27, 170.0, 1.45, 0.115, shrink=0.8)
+    body = [(0.05, 0.84, 0.06), (0.22, 0.8, 0.085), (0.36, 0.68, 0.105)] + curl(center, 0.27, 170.0, 0.92, 0.115, shrink=0.62)
     c.tongue(body, WATER, -0.04, streak=0.12, wobble=2.5)
-    band = [(0.12, 0.84, 0.012), (0.24, 0.8, 0.026), (0.37, 0.67, 0.036)] + curl(center, 0.255, 172.0, 1.42, 0.038, shrink=0.8)
+    band = [(0.12, 0.84, 0.012), (0.24, 0.8, 0.026), (0.37, 0.67, 0.036)] + curl(center, 0.255, 172.0, 0.9, 0.038, shrink=0.62)
     c.tongue(band, WATER, 0.3, streak=0.08, wobble=2.5)
     c.tongue([(0.05, 0.9, 0.05), (0.36, 0.88, 0.075), (0.64, 0.84, 0.07), (0.93, 0.87, 0.002)], WATER, -0.02, streak=0.12, wobble=2.5)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
-    glints(c, (crest(center, 0.27, 170.0, 1.45, 0.115, 0.8, (0.03, 0.42), 0.02),))
+    glints(c, (crest(center, 0.27, 170.0, 0.92, 0.115, 0.62, (0.05, 0.72), 0.02),))
     c.embers(WATER, 5, (0.74, 0.1, 0.95, 0.3))
 
 
@@ -378,15 +378,15 @@ def flutwelle(c):
     """Die Flutwelle: eine riesige Spirale, die über allem steht, davor eine zweite kleine, unten die Wassermasse"""
     c.background((0.02, 0.07, 0.2), (0.48, 0.46))
     center = (0.58, 0.44)
-    body = [(0.04, 0.9, 0.1), (0.17, 0.78, 0.125), (0.27, 0.6, 0.13)] + curl(center, 0.29, 165.0, 1.55, 0.13, shrink=0.82, count=11)
+    body = [(0.02, 0.92, 0.16), (0.14, 0.78, 0.2), (0.25, 0.6, 0.2)] + curl(center, 0.26, 165.0, 0.95, 0.2, shrink=0.55, count=11)
     c.tongue(body, WATER, -0.08, streak=0.12, wobble=2.5)
-    band = [(0.16, 0.8, 0.014), (0.26, 0.64, 0.03), (0.29, 0.54, 0.04)] + curl(center, 0.27, 167.0, 1.52, 0.042, shrink=0.82, count=11)
+    band = [(0.16, 0.8, 0.016), (0.25, 0.64, 0.04), (0.28, 0.54, 0.052)] + curl(center, 0.25, 167.0, 0.93, 0.056, shrink=0.55, count=11)
     c.tongue(band, WATER, 0.28, streak=0.08, wobble=2.5)
-    c.tongue([(0.02, 0.96, 0.09), (0.36, 0.93, 0.1), (0.68, 0.9, 0.085), (0.97, 0.94, 0.002)], WATER, -0.04, streak=0.12, wobble=2.5)
+    c.tongue([(0.02, 0.96, 0.14), (0.36, 0.92, 0.15), (0.68, 0.88, 0.12), (0.98, 0.93, 0.01)], WATER, -0.04, streak=0.12, wobble=2.5)
     small = (0.3, 0.76)
-    c.tongue([(0.04, 0.95, 0.04), (0.12, 0.88, 0.05)] + curl(small, 0.115, 175.0, 1.3, 0.05, shrink=0.78), WATER, 0.1, streak=0.1, wobble=2.0)
+    c.tongue([(0.04, 0.95, 0.04), (0.12, 0.88, 0.05)] + curl(small, 0.115, 175.0, 0.8, 0.05, shrink=0.6), WATER, 0.1, streak=0.1, wobble=2.0)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
-    glints(c, (crest(center, 0.29, 165.0, 1.55, 0.13, 0.82, (0.03, 0.4), 0.022), crest(small, 0.115, 175.0, 1.3, 0.05, 0.78, (0.05, 0.42), 0.011)))
+    glints(c, (crest(center, 0.26, 165.0, 0.95, 0.2, 0.55, (0.08, 0.74), 0.024), crest(small, 0.115, 175.0, 0.8, 0.05, 0.6, (0.05, 0.62), 0.011)))
     c.embers(WATER, 6, (0.76, 0.05, 0.97, 0.26))
 
 
