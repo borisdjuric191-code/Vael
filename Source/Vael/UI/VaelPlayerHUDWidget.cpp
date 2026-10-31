@@ -58,6 +58,10 @@ namespace
 	/** Painted vessels are rendered a little larger than their mask, with room for the claw; see Tools/HUD/vael_hud_gemalt.py */
 	constexpr float VesselPictureScale = 1.16f;
 
+	/** The awakened Nid slot beats like a heart: seconds of one beat and how dark it gets between them */
+	constexpr float NidBeatSeconds = 2.6f;
+	constexpr float NidBeatDim = 0.66f;
+
 	/** Margin to the edge of the screen and between stacked panels */
 	constexpr float ScreenMargin = 20.0f;
 	constexpr float StackGap = 12.0f;
@@ -427,6 +431,14 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			State.IconColor = State.Painting != nullptr ? FLinearColor::White : MagicSettings->GetElementColor(Element);
 			State.bLit = bPlayable && Queue.Contains(Element);
 			State.bDim = Element == EVaelElement::Mark && (Grimoire == nullptr || !Grimoire->IsMarkAwakened());
+			if (Element == EVaelElement::Mark && !State.bDim && State.Painting != nullptr)
+			{
+				// The heart of the Sleeper: a slow double beat, the only picture of the bar that lives
+				const float Beat = FMath::Fmod(static_cast<float>(FPlatformTime::Seconds()), NidBeatSeconds);
+				const float Pulse = FMath::Max(FMath::Exp(-FMath::Square((Beat - 0.2f) / 0.1f)), 0.7f * FMath::Exp(-FMath::Square((Beat - 0.55f) / 0.12f)));
+				const float Light = FMath::Lerp(NidBeatDim, 1.0f, Pulse);
+				State.IconColor = FLinearColor(Light, Light, Light);
+			}
 			break;
 		}
 		case EVaelHUDAbility::Cast:
