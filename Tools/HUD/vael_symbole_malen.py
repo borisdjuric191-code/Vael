@@ -29,6 +29,9 @@ EARTH = ((0.0, (0.018, 0.011, 0.007)), (0.3, (0.06, 0.036, 0.018)), (0.52, (0.15
 DUST = ((0.0, (0.06, 0.04, 0.02)), (0.5, (0.22, 0.15, 0.08)), (1.0, (0.55, 0.42, 0.25)))
 AIR = ((0.0, (0.3, 0.4, 0.5)), (0.5, (0.6, 0.74, 0.84)), (1.0, (0.95, 0.98, 1.0)))
 AIR_LIGHT = (0.62, 0.76, 0.88)
+NID = ((0.0, (0.03, 0.0, 0.012)), (0.3, (0.14, 0.006, 0.03)), (0.52, (0.33, 0.012, 0.05)), (0.72, (0.55, 0.03, 0.09)), (0.88, (0.56, 0.16, 0.6)), (1.0, (0.8, 0.55, 0.95)))
+NID_ROCK = ((0.0, (0.008, 0.002, 0.012)), (0.4, (0.03, 0.008, 0.04)), (0.7, (0.1, 0.03, 0.13)), (1.0, (0.3, 0.14, 0.38)))
+DEPTH = ((0.0, (0.1, 0.01, 0.2)), (0.45, (0.42, 0.14, 0.82)), (0.8, (0.72, 0.5, 1.0)), (1.0, (0.96, 0.9, 1.0)))
 FOAM = ((0.0, (0.5, 0.8, 0.92)), (0.5, (0.8, 0.95, 1.0)), (1.0, (1.0, 1.0, 1.0)))
 
 
@@ -304,6 +307,31 @@ class Canvas:
         self.image[y0:y1, x0:x1] = self.image[y0:y1, x0:x1] + np.array(color)[None, None] * amount[..., None]
         return self
 
+    def glow(self, center, radius, color, strength=1.0):
+        """Weicher Schein, der sich zum Bild addiert: die Aura des Nid"""
+        d = np.hypot(self.x / SIZE - center[0], self.y / SIZE - center[1]) / radius
+        amount = np.exp(-d * d) * (0.75 + 0.4 * self.rough) * strength
+        self.image = self.image + np.array(color)[None, None] * amount[..., None]
+        return self
+
+    def bubble(self, center, radius):
+        """Eine Blase auf der dicken Flüssigkeit: dunkler Rand, violette Haut, ein Lichtpunkt"""
+        x, y = self.x / SIZE, self.y / SIZE
+        d = np.hypot(x - center[0], y - center[1])
+        skin = np.clip(d / radius, 0.0, 1.0)[..., None]
+        self.image[d < radius * 1.22] = (0.02, 0.0, 0.015)
+        inside = d < radius
+        self.image[inside] = ((np.array((0.3, 0.02, 0.14))[None, None] * (1.0 - skin) + np.array((0.5, 0.2, 0.8))[None, None] * skin))[inside]
+        self.image[np.hypot(x - center[0] + radius * 0.35, y - center[1] + radius * 0.35) < radius * 0.28] = (0.9, 0.82, 0.95)
+        return self
+
+    def rift(self, outline, heat):
+        """Eine eingerissene FlÃ¤che in der gemeinsamen HitzeflÃ¤che, in der Mitte heiÃŸer"""
+        inside = self.polygon(outline)
+        self.cover[inside] = True
+        self.heat[inside] = (heat + 0.3 * self.blurred_cover(9.0) + 0.14 * self.rough)[inside]
+        self.edge[self.blurred_cover(1.6) > 0.04] = True
+        return self
     def blurred_cover(self, sigma):
         """Die gemalte Fläche, weich gezeichnet"""
         spectrum = np.fft.fft2(self.cover.astype(np.float32))
@@ -683,10 +711,99 @@ def wirbelsturm(c):
     c.embers(AIR, 6, (0.14, 0.16, 0.88, 0.8))
 
 
+NID_INK = (0.016, 0.0, 0.012)
+
+
+def vessel(c, start, angle_deg, length, width, depth=2, heat=0.0):
+    """Ein Blutgefäß: es schlängelt sich, wird dünner und gabelt sich wie die Adern der Schlafenden"""
+    points = [(start[0], start[1], width)]
+    x, y = start
+    angle = angle_deg
+    steps = 5
+    for i in range(1, steps + 1):
+        angle += c.rng.uniform(-24.0, 24.0)
+        x += math.cos(math.radians(angle)) * length / steps
+        y += math.sin(math.radians(angle)) * length / steps
+        points.append((x, y, width * (1.0 - 0.8 * i / steps) + 0.002))
+    c.tongue(points, NID, heat, ink=0.0052, streak=0.4, wobble=3.0)
+    if depth > 0:
+        fork = points[2]
+        for turn in (-1, 1):
+            vessel(c, fork[:2], angle + turn * c.rng.uniform(26.0, 46.0), length * 0.55, fork[2] * 0.72, depth - 1, heat)
+
+
+def nid(c):
+    """Das Element: ein Knoten dicken Blutes, aus dem die Gefäße bis an den Ring wachsen, und ein violetter Schein"""
+    c.background((0.06, 0.005, 0.07), (0.5, 0.5))
+    c.glow((0.5, 0.5), 0.3, (0.2, 0.03, 0.36), 0.38)
+    middle = (0.5, 0.5)
+    for angle, length, width in ((-100.0, 0.36, 0.034), (-20.0, 0.34, 0.03), (45.0, 0.33, 0.034), (125.0, 0.35, 0.03), (195.0, 0.34, 0.034)):
+        vessel(c, middle, angle, length, width)
+    c.tongue([(0.45, 0.55, 0.06), (0.48, 0.51, 0.082), (0.52, 0.49, 0.082), (0.55, 0.45, 0.06)], NID, 0.06, streak=0.4, wobble=4.0)
+    c.tongue([(0.46, 0.53, 0.012), (0.49, 0.5, 0.024), (0.53, 0.47, 0.012)], NID, 0.42, streak=0.3, wobble=3.0)
+    c.merge(NID, ink=NID_INK, shift=-0.08)
+    for center, radius in (((0.57, 0.55), 0.014), ((0.44, 0.44), 0.01), ((0.6, 0.42), 0.008)):
+        c.bubble(center, radius)
+
+
+def marksplitter(c):
+    """Der Marksplitter: ein schmaler Splitter aus schwarzem, geronnenem Nid, von innen rot und violett durchzogen, blutet im Flug"""
+    c.background((0.06, 0.005, 0.07), (0.66, 0.34))
+    c.glow((0.64, 0.36), 0.24, (0.2, 0.03, 0.36), 0.36)
+    c.dust((0.46, 0.58), (0.08, 0.92), 0.06, 0.7, (0.22, 0.015, 0.06))
+    c.rock([(0.9, 0.08), (0.72, 0.2), (0.53, 0.4), (0.37, 0.6), (0.43, 0.68), (0.6, 0.6), (0.77, 0.38)], 12, 0.06, stops=NID_ROCK, ink=NID_INK)
+    for pts, heat in (([(0.42, 0.62, 0.002), (0.54, 0.5, 0.012), (0.68, 0.34, 0.009), (0.84, 0.14, 0.002)], 0.5), ([(0.56, 0.48, 0.002), (0.6, 0.5, 0.006), (0.66, 0.46, 0.002)], 0.4), ([(0.52, 0.5, 0.002), (0.5, 0.44, 0.006), (0.55, 0.4, 0.002)], 0.4)):
+        c.tongue(pts, NID, heat, ink=0.0, streak=0.3, wobble=2.0)
+    c.merge(NID, rim_dark=False)
+    for x, y, size in ((0.3, 0.72, 0.02), (0.2, 0.8, 0.015), (0.34, 0.84, 0.012), (0.13, 0.7, 0.01)):
+        c.tongue([(x, y, size), (x + 0.012, y - 0.012, size * 0.8), (x + 0.04, y - 0.04, 0.001)], NID, 0.26, streak=0.2, wobble=1.0, ink=0.0045)
+    c.merge(NID, ink=NID_INK)
+
+
+def markstoss(c):
+    """Der Markstoß: aus einem Blutkern bricht eine Druckwelle, die Ringe reißen auf, Gefäße schießen nach außen"""
+    c.background((0.06, 0.005, 0.07), (0.5, 0.5))
+    middle = (0.5, 0.5)
+    c.glow(middle, 0.34, (0.22, 0.03, 0.4), 0.42)
+    for angle in (-150.0, -80.0, -10.0, 60.0, 130.0, 200.0):
+        vessel(c, middle, angle, 0.22, 0.016, depth=1)
+    c.tongue([(0.47, 0.53, 0.045), (0.49, 0.51, 0.06), (0.51, 0.49, 0.06), (0.53, 0.47, 0.045)], NID, 0.2, streak=0.4, wobble=4.0)
+    c.merge(NID, ink=NID_INK, shift=-0.06)
+    for radius, width, spans, heat in ((0.3, 0.03, ((-160.0, -60.0), (-40.0, 70.0), (90.0, 185.0)), 0.3), (0.415, 0.024, ((-120.0, -10.0), (15.0, 100.0), (130.0, 225.0)), 0.16)):
+        for start, end in spans:
+            c.tongue(arc(middle, radius, start, end, width * 0.6, count=9), NID, heat, streak=0.5, wobble=7.0, ink=0.0042)
+    c.merge(NID, ink=NID_INK)
+    for center, radius in (((0.56, 0.44), 0.013), ((0.44, 0.56), 0.01)):
+        c.bubble(center, radius)
+
+
+def offene_wunde(c):
+    """Die Offene Wunde: ein gezackter Riss quer durch schwarzen Fels, tief unten glimmt das Nid, Adern fressen sich von ihm aus in den Stein"""
+    c.background((0.06, 0.005, 0.07), (0.5, 0.5))
+    c.glow((0.5, 0.5), 0.3, (0.2, 0.03, 0.36), 0.4)
+    c.rock([(0.1, 0.5), (0.2, 0.22), (0.42, 0.1), (0.68, 0.12), (0.88, 0.3), (0.92, 0.56), (0.8, 0.8), (0.54, 0.92), (0.28, 0.86), (0.12, 0.7)], 20, -0.12, stops=NID_ROCK, ink=NID_INK)
+    # Die Adern laufen vom Riss in den Fels
+    for start, angle in (((0.58, 0.28), -40.0), ((0.46, 0.4), 195.0), ((0.57, 0.5), 10.0), ((0.42, 0.62), 170.0), ((0.5, 0.72), 50.0), ((0.38, 0.78), 150.0)):
+        vessel(c, start, angle, 0.27, 0.017, depth=2)
+    c.merge(NID, ink=NID_INK, shift=-0.04)
+    # Der Riss: zwei gezackte Kanten von oben rechts nach unten links
+    left = [(0.66, 0.1), (0.54, 0.26), (0.5, 0.25), (0.42, 0.42), (0.46, 0.46), (0.34, 0.62), (0.37, 0.66), (0.28, 0.84)]
+    right = [(0.3, 0.86), (0.46, 0.7), (0.43, 0.65), (0.58, 0.5), (0.54, 0.45), (0.66, 0.3), (0.62, 0.27)]
+    c.rift(left + right, -0.32)
+    c.merge(DEPTH, ink=NID_INK)
+    c.tongue([(0.62, 0.17, 0.002), (0.5, 0.36, 0.011), (0.44, 0.52, 0.015), (0.34, 0.76, 0.002)], DEPTH, 0.3, ink=0.0, streak=0.4, wobble=4.0)
+    c.merge(DEPTH, rim_dark=False)
+    for center, radius in (((0.44, 0.6), 0.011), ((0.53, 0.38), 0.009)):
+        c.bubble(center, radius)
+    for shard, tone in (([(0.3, 0.1), (0.34, 0.06), (0.38, 0.11), (0.33, 0.15)], 0.1), ([(0.76, 0.14), (0.81, 0.1), (0.84, 0.16), (0.78, 0.19)], 0.08)):
+        c.rock(shard, 4, tone, stops=NID_ROCK, ink=NID_INK)
+
+
 MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze,
            "Wasser": wasser, "Wassergeschoss": wassergeschoss, "Welle": welle, "Flutwelle": flutwelle,
            "Erde": erde, "Steinbrocken": steinbrocken, "Felswand": felswand, "Erdbeben": erdbeben,
-           "Luft": luft, "Windstoss": windstoss, "Boee": boee, "Wirbelsturm": wirbelsturm}
+           "Luft": luft, "Windstoss": windstoss, "Boee": boee, "Wirbelsturm": wirbelsturm,
+           "Nid": nid, "Marksplitter": marksplitter, "Markstoss": markstoss, "OffeneWunde": offene_wunde}
 
 
 def save(path, image):
