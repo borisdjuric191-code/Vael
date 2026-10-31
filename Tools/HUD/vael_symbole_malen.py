@@ -68,6 +68,9 @@ class Canvas:
         self.warp_x, self.warp_y = noise(self.rng, 1.5), noise(self.rng, 1.5)
         self.y, self.x = np.mgrid[0:SIZE, 0:SIZE].astype(np.float32)
         self.image = np.zeros((SIZE, SIZE, 3), np.float32)
+        self.heat = np.zeros((SIZE, SIZE), np.float32)
+        self.cover = np.zeros((SIZE, SIZE), bool)
+        self.edge = np.zeros((SIZE, SIZE), bool)
 
     def background(self, glow, glow_at=(0.5, 0.5)):
         """Dunkles Pergament des Grimoires, Risse, ein Schein hinter dem Motiv, ein Siegelring in Silbertinte"""
@@ -93,7 +96,7 @@ class Canvas:
         self.image = image + np.array((0.5, 0.56, 0.66))[None, None] * line[..., None] * 0.13
         return self
 
-    def tongue(self, points, stops, heat=0.0, ink=0.0115, streak=0.8):
+    def tongue(self, points, stops, heat=0.0, ink=0.0062, streak=0.52):
         """Eine Zunge: Tuschekontur, Verlauf von der Wurzel (heiß) zur Spitze (kalt), Pinselstriche längs, heller Kern in der Mitte"""
         line = smooth_line(points)
         wx = self.x + 9.0 * self.warp_x
@@ -124,16 +127,34 @@ class Canvas:
         body = d < r
         along = t * 260.0
         across = side * 34.0
-        brush = sample(self.middle, along * 3.0, across * 4.0) * 0.6 + sample(self.fine, along * 6.0, across * 7.0) * 0.4
+        brush = sample(self.rough, along * 1.6, across * 2.0) * 0.55 + sample(self.middle, along * 3.0, across * 4.0) * 0.45
 
         value = (1.0 - t) ** 0.8 * 0.46 + heat + 0.27 * (1.0 - np.abs(side)) ** 1.5 + streak * 0.42 * brush
-        color = ramp(stops, value)
-        # Schatten zum Rand, wie gemalt
-        color *= (0.42 + 0.58 * (1.0 - np.abs(side) ** 2.2))[..., None]
 
-        region = self.image[y0:y1, x0:x1]
-        region[inside] = np.array((0.012, 0.01, 0.012))
-        region[body] = color[body]
+        # Jede Zunge fließt weich in die gemeinsame Hitzefläche: Kontur bekommt erst die ganze Flamme in merge()
+        soft = np.clip((1.0 - np.abs(side)) / 0.6, 0.0, 1.0) ** 1.4
+        hot = self.heat[y0:y1, x0:x1]
+        covered = self.cover[y0:y1, x0:x1]
+        mixed = np.where(covered, hot * (1.0 - soft) + value * soft, value)
+        hot[body] = mixed[body]
+        covered[body] = True
+        self.edge[y0:y1, x0:x1][inside] = True
+        return self
+
+    def merge(self, stops):
+        """Malt alle Zungen seit dem letzten Mal als eine Flamme: ein Verlauf, nur außen eine Kontur, zum Rand hin dunkler"""
+        spectrum = np.fft.fft2(self.cover.astype(np.float32))
+        fx = np.fft.fftfreq(SIZE)[:, None]
+        fy = np.fft.fftfreq(SIZE)[None, :]
+        blurred = np.fft.ifft2(spectrum * np.exp(-2.0 * (math.pi * 11.0) ** 2 * (fx * fx + fy * fy))).real
+        rim = np.clip((blurred - 0.42) / 0.5, 0.0, 1.0)
+        color = ramp(stops, self.heat - 0.26 * (1.0 - rim))
+        color *= (0.5 + 0.5 * rim ** 0.8)[..., None]
+        self.image[self.edge] = (0.022, 0.006, 0.006)
+        self.image[self.cover] = color[self.cover]
+        self.heat[:] = 0.0
+        self.cover[:] = False
+        self.edge[:] = False
         return self
 
     def embers(self, stops, count, area):
@@ -158,15 +179,15 @@ class Canvas:
 def feuer(c):
     """Das Element: eine aufrechte Flamme, die aus einem Punkt wächst, in Zungen wie Federn"""
     c.background((0.2, 0.06, 0.02), (0.5, 0.6))
-    root = (0.5, 0.84)
     for pts, heat in (
-        ([(0.5, 0.82, 0.055), (0.3, 0.68, 0.075), (0.2, 0.47, 0.05), (0.27, 0.27, 0.002)], -0.18),
-        ([(0.5, 0.82, 0.055), (0.7, 0.66, 0.08), (0.79, 0.44, 0.05), (0.7, 0.24, 0.002)], -0.18),
-        ([(0.5, 0.84, 0.08), (0.38, 0.62, 0.095), (0.37, 0.38, 0.06), (0.45, 0.12, 0.002)], -0.06),
-        ([(0.5, 0.84, 0.08), (0.62, 0.62, 0.09), (0.63, 0.42, 0.055), (0.56, 0.2, 0.002)], -0.04),
-        ([(0.5, 0.86, 0.1), (0.5, 0.66, 0.095), (0.52, 0.48, 0.055), (0.49, 0.3, 0.002)], 0.2),
+        # Ein Körper, der sich hochwindet; kleine Zungen lösen sich seitlich von ihm, keine gleicht der anderen
+        ([(0.47, 0.86, 0.09), (0.38, 0.7, 0.115), (0.33, 0.54, 0.07), (0.25, 0.37, 0.002)], -0.08),
+        ([(0.53, 0.86, 0.09), (0.62, 0.7, 0.11), (0.66, 0.52, 0.065), (0.61, 0.34, 0.03), (0.68, 0.2, 0.002)], -0.06),
+        ([(0.5, 0.88, 0.115), (0.48, 0.66, 0.12), (0.53, 0.44, 0.08), (0.47, 0.27, 0.04), (0.52, 0.07, 0.002)], 0.04),
+        ([(0.5, 0.86, 0.065), (0.51, 0.7, 0.07), (0.48, 0.54, 0.04), (0.51, 0.4, 0.002)], 0.42),
     ):
         c.tongue(pts, FIRE, heat)
+    c.merge(FIRE)
     c.embers(FIRE, 5, (0.22, 0.14, 0.8, 0.5))
 
 
@@ -183,6 +204,7 @@ def funke(c):
     c.tongue([(0.56, 0.5, 0.012), (0.66, 0.46, 0.04), (0.74, 0.32, 0.03), (0.84, 0.15, 0.002)], FIRE, 0.1)
     c.tongue([(0.5, 0.44, 0.012), (0.56, 0.34, 0.04), (0.7, 0.26, 0.03), (0.84, 0.15, 0.002)], FIRE, 0.1)
     c.tongue([(0.58, 0.42, 0.036), (0.68, 0.33, 0.032), (0.77, 0.23, 0.016), (0.84, 0.15, 0.002)], FIRE, 0.42)
+    c.merge(FIRE)
     c.embers(FIRE, 4, (0.2, 0.34, 0.5, 0.8))
 
 
@@ -200,9 +222,10 @@ def feuerball(c):
     c.tongue([(0.34, 0.33, 0.13), (0.42, 0.42, 0.17), (0.54, 0.52, 0.12), (0.62, 0.6, 0.03)], FIRE, 0.02, streak=0.6)
     # The core is a whirl of three tongues round a hot middle
     c.tongue([(0.22, 0.42, 0.012), (0.27, 0.28, 0.05), (0.4, 0.22, 0.05), (0.52, 0.3, 0.012)], FIRE, 0.08)
-    c.tongue([(0.27, 0.54, 0.012), (0.24, 0.42, 0.045), (0.32, 0.3, 0.06), (0.46, 0.3, 0.012)], FIRE, 0.16)
-    c.tongue([(0.46, 0.58, 0.012), (0.34, 0.56, 0.05), (0.3, 0.44, 0.06), (0.4, 0.34, 0.012)], FIRE, 0.22)
-    c.tongue([(0.33, 0.47, 0.02), (0.37, 0.39, 0.055), (0.46, 0.37, 0.05), (0.54, 0.44, 0.012)], FIRE, 0.38, streak=0.4)
+    c.tongue([(0.27, 0.54, 0.012), (0.24, 0.42, 0.045), (0.32, 0.3, 0.06), (0.46, 0.3, 0.012)], FIRE, 0.04)
+    c.tongue([(0.46, 0.58, 0.012), (0.34, 0.56, 0.05), (0.3, 0.44, 0.06), (0.4, 0.34, 0.012)], FIRE, -0.02)
+    c.tongue([(0.28, 0.44, 0.03), (0.34, 0.39, 0.085), (0.42, 0.39, 0.08), (0.52, 0.46, 0.01)], FIRE, 0.5, streak=0.3)
+    c.merge(FIRE)
     c.embers(FIRE, 5, (0.5, 0.25, 0.92, 0.9))
 
 
@@ -218,6 +241,7 @@ def feuerstrahl(c):
     c.tongue([(0.1, 0.9, 0.05), (0.36, 0.64, 0.044), (0.62, 0.38, 0.026), (0.9, 0.11, 0.004)], FIRE, 0.42, streak=0.3)
     c.tongue([(0.2, 0.68, 0.002), (0.3, 0.56, 0.024), (0.44, 0.5, 0.016), (0.52, 0.4, 0.002)], FIRE, -0.1)
     c.tongue([(0.44, 0.8, 0.002), (0.5, 0.66, 0.022), (0.6, 0.6, 0.014), (0.66, 0.5, 0.002)], FIRE, -0.1)
+    c.merge(FIRE)
     c.embers(FIRE, 5, (0.2, 0.1, 0.9, 0.9))
 
 
@@ -233,6 +257,7 @@ def feuerwalze(c):
         c.tongue(pts, FIRE, heat)
     for pts in ([(0.14, 0.62, 0.002), (0.13, 0.46, 0.03), (0.22, 0.3, 0.002)], [(0.3, 0.36, 0.002), (0.32, 0.22, 0.022), (0.42, 0.14, 0.002)]):
         c.tongue(pts, FIRE, -0.1)
+    c.merge(FIRE)
     c.embers(FIRE, 6, (0.1, 0.12, 0.9, 0.6))
 
 
