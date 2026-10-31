@@ -27,6 +27,8 @@ FIRE = ((0.0, (0.16, 0.012, 0.01)), (0.26, (0.46, 0.04, 0.012)), (0.48, (0.86, 0
 WATER = ((0.0, (0.006, 0.02, 0.09)), (0.3, (0.012, 0.07, 0.26)), (0.52, (0.03, 0.22, 0.52)), (0.72, (0.12, 0.5, 0.76)), (0.9, (0.45, 0.82, 0.92)), (1.0, (0.9, 0.98, 1.0)))
 EARTH = ((0.0, (0.018, 0.011, 0.007)), (0.3, (0.06, 0.036, 0.018)), (0.52, (0.15, 0.09, 0.04)), (0.72, (0.3, 0.2, 0.095)), (0.9, (0.5, 0.37, 0.2)), (1.0, (0.7, 0.57, 0.36)))
 DUST = ((0.0, (0.06, 0.04, 0.02)), (0.5, (0.22, 0.15, 0.08)), (1.0, (0.55, 0.42, 0.25)))
+AIR = ((0.0, (0.3, 0.4, 0.5)), (0.5, (0.6, 0.74, 0.84)), (1.0, (0.95, 0.98, 1.0)))
+AIR_LIGHT = (0.62, 0.76, 0.88)
 FOAM = ((0.0, (0.5, 0.8, 0.92)), (0.5, (0.8, 0.95, 1.0)), (1.0, (1.0, 1.0, 1.0)))
 
 
@@ -273,6 +275,33 @@ class Canvas:
         amount = np.exp(-(dist / wide) ** 2) * (1.0 - t) ** 1.3 * np.clip(0.42 + 0.9 * self.rough + 0.7 * self.middle, 0.0, 1.0) * strength
         amount = np.where((along > 0.0) & (along < 1.0), amount, 0.0)[..., None]
         self.image = self.image * (1.0 - amount) + np.array(color)[None, None] * amount
+        return self
+
+    def wisp(self, points, strength=0.8, color=AIR_LIGHT, core=0.6):
+        """Ein Luftband: keine Kontur und kein Körper, nur feine Fasern längs der Strömung, in der Mitte heller, an beiden Enden aus dem Nichts"""
+        line = smooth_line(points, 16)
+        lx, ly, lw = line[:, 0] * SIZE, line[:, 1] * SIZE, np.maximum(line[:, 2], 0.002) * SIZE
+        margin = lw.max() * 2.2 + 8.0
+        x0, x1 = int(max(lx.min() - margin, 0)), int(min(lx.max() + margin, SIZE))
+        y0, y1 = int(max(ly.min() - margin, 0)), int(min(ly.max() + margin, SIZE))
+        if x1 <= x0 or y1 <= y0:
+            return self
+        wx = self.x[y0:y1, x0:x1] + 4.0 * self.warp_x[y0:y1, x0:x1]
+        wy = self.y[y0:y1, x0:x1] + 4.0 * self.warp_y[y0:y1, x0:x1]
+        dx = wx[..., None] - lx
+        dy = wy[..., None] - ly
+        nearest = np.argmin(np.hypot(dx, dy), axis=-1)
+        rows, cols = np.indices(nearest.shape)
+        r = lw[nearest]
+        t = nearest / (len(line) - 1)
+        tangent_x, tangent_y = np.gradient(lx)[nearest], np.gradient(ly)[nearest]
+        size = np.maximum(np.hypot(tangent_x, tangent_y), 1e-3)
+        side = (dx[rows, cols, nearest] * -tangent_y + dy[rows, cols, nearest] * tangent_x) / size / r
+
+        fibres = 0.5 + 1.1 * sample(self.middle, t * 40.0, side * 70.0) + 0.7 * sample(self.fine, t * 70.0, side * 150.0)
+        amount = np.exp(-(side * 1.5) ** 2) * np.clip(fibres, 0.0, 1.4) + core * np.exp(-(side * 5.0) ** 2)
+        amount *= np.sin(np.clip(t, 0.0, 1.0) * math.pi) ** 0.7 * strength
+        self.image[y0:y1, x0:x1] = self.image[y0:y1, x0:x1] + np.array(color)[None, None] * amount[..., None]
         return self
 
     def blurred_cover(self, sigma):
@@ -585,9 +614,79 @@ def erdbeben(c):
     c.embers(DUST, 5, (0.2, 0.06, 0.8, 0.28))
 
 
+def luft(c):
+    """Das Element: drei Strömungen, die sich um eine ruhige Mitte einrollen"""
+    c.background((0.05, 0.08, 0.12), (0.5, 0.5))
+    middle = (0.5, 0.5)
+    for start, radius, width, strength in ((10.0, 0.36, 0.05, 0.62), (130.0, 0.36, 0.055, 0.7), (250.0, 0.36, 0.05, 0.62), (70.0, 0.27, 0.03, 0.42), (190.0, 0.27, 0.03, 0.42), (310.0, 0.27, 0.03, 0.42)):
+        c.wisp(curl(middle, radius, start, 0.72, width, shrink=0.78, end_width=0.008, count=11), strength)
+    c.embers(AIR, 5, (0.16, 0.16, 0.86, 0.86))
+
+
+def wind_band(c, origin, angle_deg, length, width, strength, hand):
+    """Ein Band, das von einem Punkt ausgeht und sich am Ende einrollt"""
+    angle = math.radians(angle_deg)
+    end = (origin[0] + math.cos(angle) * length, origin[1] + math.sin(angle) * length)
+    side = angle + hand * math.pi / 2.0
+    center = (end[0] + math.cos(side) * 0.075, end[1] + math.sin(side) * 0.075)
+    start = math.degrees(math.atan2(end[1] - center[1], end[0] - center[0]))
+    middle = (origin[0] + math.cos(angle) * length * 0.55 - math.cos(side) * 0.03, origin[1] + math.sin(angle) * length * 0.55 - math.sin(side) * 0.03)
+    tail = curl(center, 0.075, start, hand * 0.85, width, shrink=0.8, end_width=0.006, count=8)
+    c.wisp([(*origin, 0.006), (*middle, width * 0.8)] + tail, strength)
+
+
+def windstoss(c):
+    """Der Windstoß: ein Kegel aus Strömungen, der von unten links ausgeht, sich öffnet und an den Enden einrollt"""
+    c.background((0.05, 0.08, 0.12), (0.42, 0.6))
+    origin = (0.13, 0.84)
+    for angle, length, width, strength, hand in ((-82.0, 0.62, 0.03, 0.46, 1), (-12.0, 0.66, 0.03, 0.46, -1), (-66.0, 0.74, 0.042, 0.62, 1), (-28.0, 0.76, 0.042, 0.62, -1), (-47.0, 0.84, 0.05, 0.8, 1)):
+        wind_band(c, origin, angle, length, width, strength, hand)
+    c.embers(AIR, 6, (0.4, 0.14, 0.9, 0.7))
+
+
+def boee(c):
+    """Die Böe: ein gestreckter Sprint auf dem Wind, schnelle Linien dicht beieinander, am Ziel platzt die Luft in Bögen auf"""
+    c.background((0.05, 0.08, 0.12), (0.72, 0.34))
+    target = (0.74, 0.32)
+    for pts, strength in (
+        ([(0.04, 0.86, 0.008), (0.3, 0.74, 0.03), (0.54, 0.54, 0.042), (0.72, 0.34, 0.03)], 0.95),
+        ([(0.1, 0.94, 0.004), (0.36, 0.8, 0.014), (0.6, 0.6, 0.018), (0.74, 0.44, 0.008)], 0.5),
+        ([(0.04, 0.72, 0.004), (0.26, 0.62, 0.014), (0.46, 0.48, 0.018), (0.62, 0.32, 0.008)], 0.5),
+        ([(0.2, 0.96, 0.003), (0.44, 0.82, 0.01), (0.66, 0.66, 0.012), (0.8, 0.5, 0.005)], 0.32),
+        ([(0.03, 0.6, 0.003), (0.2, 0.52, 0.01), (0.38, 0.4, 0.012), (0.5, 0.26, 0.005)], 0.32),
+    ):
+        c.wisp(pts, strength)
+    for radius, width, strength in ((0.11, 0.022, 0.8), (0.18, 0.018, 0.5), (0.25, 0.014, 0.3)):
+        c.wisp(arc(target, radius, -130.0, 50.0, width, count=9), strength)
+    c.embers(AIR, 6, (0.56, 0.1, 0.94, 0.56))
+
+
+def wirbelsturm(c):
+    """Der Wirbelsturm: ein Trichter aus liegenden Ringen, oben weit, unten dünn, er reißt Brocken mit"""
+    c.background((0.05, 0.08, 0.12), (0.5, 0.44))
+    levels = 11
+    rings = []
+    for k in range(levels):
+        s = k / (levels - 1)
+        y = 0.13 + 0.74 * s
+        rings.append((0.5 + 0.035 * math.sin(s * 5.0), y, 0.035 + 0.31 * (1.0 - s) ** 1.5))
+    # Hinten dunkel, damit der Trichter Tiefe hat
+    for cx, y, r in rings:
+        back = [(cx + r * math.cos(a), y - 0.2 * r * math.sin(a), 0.012 + r * 0.05) for a in np.radians(np.linspace(-20.0, 200.0, 9))]
+        c.wisp(back, 0.22)
+    c.wisp([(0.52, 0.14, 0.2), (0.49, 0.4, 0.11), (0.53, 0.66, 0.045), (0.5, 0.9, 0.012)], 0.2, core=0.15)
+    for k, (cx, y, r) in enumerate(rings):
+        front = [(cx + r * math.cos(a), y + 0.26 * r * math.sin(a), 0.014 + r * 0.06) for a in np.radians(np.linspace(-25.0, 205.0, 9))]
+        c.wisp(front, 0.72 - 0.02 * k)
+    for shard, tone in (([(0.16, 0.42), (0.21, 0.39), (0.23, 0.45), (0.18, 0.47)], -0.02), ([(0.78, 0.54), (0.82, 0.51), (0.85, 0.56), (0.8, 0.59)], -0.06), ([(0.3, 0.72), (0.34, 0.7), (0.35, 0.74), (0.31, 0.76)], -0.1)):
+        c.rock(shard, 4, tone)
+    c.embers(AIR, 6, (0.14, 0.16, 0.88, 0.8))
+
+
 MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze,
            "Wasser": wasser, "Wassergeschoss": wassergeschoss, "Welle": welle, "Flutwelle": flutwelle,
-           "Erde": erde, "Steinbrocken": steinbrocken, "Felswand": felswand, "Erdbeben": erdbeben}
+           "Erde": erde, "Steinbrocken": steinbrocken, "Felswand": felswand, "Erdbeben": erdbeben,
+           "Luft": luft, "Windstoss": windstoss, "Boee": boee, "Wirbelsturm": wirbelsturm}
 
 
 def save(path, image):
