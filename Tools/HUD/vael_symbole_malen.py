@@ -873,23 +873,25 @@ def marksplitter(c):
 
 
 def markstoss(c):
-    """Der Markstoß: aus dem Auge schießen sieben klare Blutspitzen, lang und kurz im Wechsel, und sprengen den Siegelring in fünf Stücke"""
-    c.background((0.05, 0.004, 0.06), (0.5, 0.5), ring=False)
-    c.nid_ground((0.5, 0.5))
+    """Der Markstoß: kein Auge, nur Gewalt. Von einem Punkt unten links läuft eine Druckwelle aus dickem Blut in drei Bögen und reißt den Siegelring auf dieser Seite auf"""
+    c.background((0.05, 0.004, 0.06), (0.45, 0.55), ring=False)
+    c.nid_ground((0.2, 0.8))
+    origin = (0.2, 0.8)
     middle = (0.5, 0.5)
-    c.glow(middle, 0.3, (0.2, 0.02, 0.34), 0.3)
-    for k, turn in enumerate(np.linspace(-90.0, 270.0, 7, endpoint=False)):
-        a = math.radians(float(turn))
-        reach, width = (0.36, 0.05) if k % 2 == 0 else (0.25, 0.04)
-        sway = 0.03 if k % 2 == 0 else -0.03
-        pts = [(0.5 + math.cos(a) * s * reach - math.sin(a) * sway * s, 0.5 + math.sin(a) * s * reach + math.cos(a) * sway * s, w * width) for s, w in ((0.2, 1.0), (0.55, 0.62), (0.82, 0.26), (1.0, 0.04))]
-        c.tongue(pts, NID, 0.02, ink=0.0018, streak=0.55, wobble=2.0)
-    c.disc(middle, 0.125, -0.02)
-    c.merge(NID, ink=NID_INK, shift=-0.1, gloss=True)
-    c.spray(middle, 0.28, 70)
-    for start, end, push in ((-162.0, -104.0, 0.05), (-90.0, -34.0, 0.07), (-18.0, 46.0, 0.05), (62.0, 118.0, 0.075), (134.0, 196.0, 0.055)):
+    c.glow((0.42, 0.58), 0.3, (0.2, 0.02, 0.34), 0.3)
+    # Der Ring: unten links steht er noch, oben rechts fliegen seine Stücke weg
+    for start, end, push in ((98.0, 262.0, 0.0), (-90.0, -62.0, 0.05), (-50.0, -18.0, 0.11), (-6.0, 26.0, 0.11), (38.0, 84.0, 0.04)):
         c.ring_piece(middle, 0.42, start, end, push)
-    c.eye(middle, 0.095)
+    # Blutspuren zwischen den Bögen zeigen die Richtung
+    for angle, reach in ((-74.0, 0.5), (-45.0, 0.62), (-16.0, 0.5)):
+        a = math.radians(angle)
+        c.tongue([(origin[0] + math.cos(a) * s * reach, origin[1] + math.sin(a) * s * reach, w) for s, w in ((0.1, 0.022), (0.45, 0.014), (0.8, 0.007), (1.0, 0.001))], NID, -0.04, ink=0.0014, streak=0.6, wobble=2.0)
+    # Drei Bögen, nach außen breiter und dunkler
+    for radius, width, span, heat in ((0.2, 0.045, 62.0, 0.2), (0.4, 0.06, 56.0, 0.1), (0.62, 0.075, 50.0, 0.0)):
+        c.tongue(arc(origin, radius, -45.0 - span, -45.0 + span, width, count=11), NID, heat, ink=0.0018, streak=0.55, wobble=2.5)
+    c.disc(origin, 0.055, 0.1)
+    c.merge(NID, ink=NID_INK, shift=-0.1, gloss=True)
+    c.spray((0.62, 0.38), 0.16, 60, -45.0)
     c.oil()
 
 
