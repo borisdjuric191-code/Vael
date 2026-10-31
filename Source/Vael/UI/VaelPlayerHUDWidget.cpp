@@ -416,7 +416,7 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 		State.Painting = FindTextureBrush(Ability.Painting);
 		State.Button = Ability.Button;
 		State.KeyboardKey = Ability.KeyboardKey;
-		State.IconColor = TextColor;
+		State.IconColor = State.Painting != nullptr ? FLinearColor::White : TextColor;
 
 		float Total = 0.0f;
 		switch (Ability.Ability)

@@ -34,6 +34,7 @@ NID_ROCK = ((0.0, (0.008, 0.002, 0.012)), (0.4, (0.035, 0.008, 0.045)), (0.7, (0
 DEPTH = ((0.0, (0.1, 0.01, 0.2)), (0.45, (0.42, 0.14, 0.82)), (0.8, (0.72, 0.5, 1.0)), (1.0, (0.96, 0.9, 1.0)))
 IRIS = ((0.0, (0.012, 0.0, 0.008)), (0.3, (0.07, 0.002, 0.012)), (0.55, (0.2, 0.008, 0.024)), (0.78, (0.4, 0.04, 0.06)), (1.0, (0.62, 0.22, 0.3)))
 EMBER = ((0.0, (0.14, 0.004, 0.02)), (0.5, (0.36, 0.012, 0.035)), (0.8, (0.56, 0.04, 0.06)), (1.0, (0.7, 0.16, 0.14)))
+EARTH_GROUND = (0.008, 0.006, 0.005)
 FOAM = ((0.0, (0.5, 0.8, 0.92)), (0.5, (0.8, 0.95, 1.0)), (1.0, (1.0, 1.0, 1.0)))
 
 
@@ -82,12 +83,13 @@ class Canvas:
         self.heat = np.zeros((SIZE, SIZE), np.float32)
         self.cover = np.zeros((SIZE, SIZE), bool)
         self.edge = np.zeros((SIZE, SIZE), bool)
+        self.oiled = False
 
-    def background(self, glow, glow_at=(0.5, 0.5), ring=True):
+    def background(self, glow, glow_at=(0.5, 0.5), ring=True, tint=(0.005, 0.008, 0.02)):
         """Dunkles Pergament des Grimoires, Risse, ein Schein hinter dem Motiv, ein Siegelring in Silbertinte"""
         u, v = self.x / SIZE, self.y / SIZE
         rim = np.hypot(u - 0.5, v - 0.5) / 0.71
-        base = np.array((0.005, 0.008, 0.02))[None, None] * (1.0 + 0.9 * self.rough[..., None] + 0.4 * self.middle[..., None])
+        base = np.array(tint)[None, None] * (1.0 + 0.9 * self.rough[..., None] + 0.4 * self.middle[..., None])
         heat = np.exp(-(np.hypot(u - glow_at[0], v - glow_at[1]) / 0.42) ** 2)[..., None]
         image = base + np.array(glow)[None, None] * heat * (0.3 + 0.2 * self.rough[..., None])
         image *= (1.0 - 0.75 * rim ** 2.5)[..., None]
@@ -388,6 +390,9 @@ class Canvas:
         return self
 
     def oil(self):
+        if self.oiled:
+            return self
+        self.oiled = True
         """Nimmt die Schärfe aus dem Bild: wie dicke Ölfarbe verlaufen die Kanten leicht, Korn liegt darüber, der Rand versinkt im Dunkel"""
         fx = np.fft.fftfreq(SIZE)[:, None]
         fy = np.fft.fftfreq(SIZE)[None, :]
@@ -451,14 +456,15 @@ class Canvas:
         self.edge[:] = False
         return self
 
-    def embers(self, stops, count, area):
+    def embers(self, stops, count, area, ink=True):
         """Glutfunken mit kleiner Tuschekante"""
         for _ in range(count):
             x = self.rng.uniform(area[0], area[2]) * SIZE
             y = self.rng.uniform(area[1], area[3]) * SIZE
             r = self.rng.uniform(2.5, 5.5)
             d = np.hypot(self.x - x, self.y - y)
-            self.image[d < r + 2.2] = (0.012, 0.01, 0.012)
+            if ink:
+                self.image[d < r + 2.2] = (0.012, 0.01, 0.012)
             self.image[d < r] = ramp(stops, 0.85 - d[d < r] / r * 0.5)
         return self
 
@@ -635,7 +641,7 @@ def welle(c):
     c.tongue(body, WATER, 0.0, streak=0.12, wobble=2.0)
     band = [(0.18, 0.75, 0.008), (0.3, 0.72, 0.016), (0.42, 0.655, 0.024)] + curl(center, 0.148, 172.0, 0.88, 0.024, shrink=0.6)
     c.tongue(band, WATER, 0.3, streak=0.08, wobble=2.0)
-    c.tongue([(0.1, 0.78, 0.002), (0.3, 0.77, 0.035), (0.6, 0.76, 0.04), (0.88, 0.77, 0.002)], WATER, 0.0, streak=0.12, wobble=2.0)
+    c.tongue([(0.06, 0.79, 0.002), (0.3, 0.77, 0.055), (0.6, 0.76, 0.06), (0.94, 0.78, 0.002)], WATER, 0.0, streak=0.12, wobble=2.0)
     c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
     glints(c, (crest(center, 0.155, 170.0, 0.9, 0.07, 0.6, (0.08, 0.72), 0.013),))
     c.embers(WATER, 3, (0.66, 0.3, 0.82, 0.42))
@@ -675,7 +681,7 @@ def round_outline(center, radius, count=14):
 
 def erde(c):
     """Das Element: ein runder Stein, der unten zerfällt, Brocken lösen sich und fallen"""
-    c.background((0.1, 0.065, 0.025), (0.5, 0.48))
+    c.background((0.045, 0.028, 0.012), (0.5, 0.48), tint=EARTH_GROUND)
     c.rock([(0.3, 0.2), (0.46, 0.13), (0.6, 0.17), (0.7, 0.14), (0.8, 0.3), (0.78, 0.46), (0.82, 0.56), (0.7, 0.68), (0.56, 0.64), (0.44, 0.7), (0.3, 0.66), (0.22, 0.56), (0.2, 0.38)], 20, 0.06)
     for shard, tone in (
         ([(0.26, 0.68), (0.33, 0.64), (0.37, 0.72), (0.3, 0.77)], -0.04),
@@ -690,7 +696,7 @@ def erde(c):
 
 def steinbrocken(c):
     """Das Steingeschoss: ein spitzer Stein in voller Bewegung nach rechts oben, hinter ihm Staubstreifen und Splitter"""
-    c.background((0.1, 0.065, 0.025), (0.62, 0.38))
+    c.background((0.045, 0.028, 0.012), (0.62, 0.38), tint=EARTH_GROUND)
     # Weicher Staub statt Streifen: die Fahne wird nach hinten breiter und lÃ¶st sich auf
     c.dust((0.52, 0.5), (0.06, 0.92), 0.08, 0.95)
     c.dust((0.46, 0.46), (0.04, 0.68), 0.055, 0.65)
@@ -703,7 +709,7 @@ def steinbrocken(c):
 
 def felswand(c):
     """Die Felswand: Pfeiler aus Stein stehen dicht an dicht aus dem Boden, ihre Spitzen sind gebrochen"""
-    c.background((0.1, 0.065, 0.025), (0.5, 0.6))
+    c.background((0.045, 0.028, 0.012), (0.5, 0.6), tint=EARTH_GROUND)
     for shape, tone in (
         ([(0.06, 0.86), (0.08, 0.5), (0.14, 0.42), (0.23, 0.47), (0.25, 0.86)], -0.12),
         ([(0.76, 0.86), (0.77, 0.44), (0.84, 0.36), (0.93, 0.46), (0.95, 0.86)], -0.12),
@@ -718,7 +724,7 @@ def felswand(c):
 
 def erdbeben(c):
     """Das Erdbeben: ein großer Stein, über den sich von der Mitte aus Risse ziehen; er ist kurz davor zu zerspringen, Stücke heben ab"""
-    c.background((0.1, 0.065, 0.025), (0.5, 0.56))
+    c.background((0.045, 0.028, 0.012), (0.5, 0.56), tint=EARTH_GROUND)
     for radius, width in ((0.42, 0.012), (0.47, 0.008)):
         c.tongue(arc((0.5, 0.56), radius, 200.0, 340.0, width), DUST, 0.05, streak=0.3, wobble=3.0)
     c.merge(DUST, ink=(0.02, 0.012, 0.006))
@@ -739,7 +745,7 @@ def luft(c):
     middle = (0.5, 0.5)
     for start, radius, width, strength in ((10.0, 0.36, 0.05, 0.62), (130.0, 0.36, 0.055, 0.7), (250.0, 0.36, 0.05, 0.62), (70.0, 0.27, 0.03, 0.42), (190.0, 0.27, 0.03, 0.42), (310.0, 0.27, 0.03, 0.42)):
         c.wisp(curl(middle, radius, start, 0.72, width, shrink=0.78, end_width=0.008, count=11), strength)
-    c.embers(AIR, 5, (0.16, 0.16, 0.86, 0.86))
+    c.embers(AIR, 5, (0.16, 0.16, 0.86, 0.86), ink=False)
 
 
 def wind_band(c, origin, angle_deg, length, width, strength, hand):
@@ -758,9 +764,9 @@ def windstoss(c):
     """Der Windstoß: ein Kegel aus Strömungen, der von unten links ausgeht, sich öffnet und an den Enden einrollt"""
     c.background((0.05, 0.08, 0.12), (0.42, 0.6))
     origin = (0.13, 0.84)
-    for angle, length, width, strength, hand in ((-82.0, 0.62, 0.03, 0.46, 1), (-12.0, 0.66, 0.03, 0.46, -1), (-66.0, 0.74, 0.042, 0.62, 1), (-28.0, 0.76, 0.042, 0.62, -1), (-47.0, 0.84, 0.05, 0.8, 1)):
+    for angle, length, width, strength, hand in ((-79.0, 0.55, 0.026, 0.38, 1), (-15.0, 0.68, 0.03, 0.5, -1), (-63.0, 0.78, 0.045, 0.68, 1), (-31.0, 0.7, 0.038, 0.55, -1), (-46.0, 0.86, 0.052, 0.82, -1)):
         wind_band(c, origin, angle, length, width, strength, hand)
-    c.embers(AIR, 6, (0.4, 0.14, 0.9, 0.7))
+    c.embers(AIR, 6, (0.4, 0.14, 0.9, 0.7), ink=False)
 
 
 def boee(c):
@@ -777,7 +783,7 @@ def boee(c):
         c.wisp(pts, strength)
     for radius, width, strength in ((0.11, 0.022, 0.8), (0.18, 0.018, 0.5), (0.25, 0.014, 0.3)):
         c.wisp(arc(target, radius, -130.0, 50.0, width, count=9), strength)
-    c.embers(AIR, 6, (0.56, 0.1, 0.94, 0.56))
+    c.embers(AIR, 6, (0.56, 0.1, 0.94, 0.56), ink=False)
 
 
 def wirbelsturm(c):
@@ -797,9 +803,9 @@ def wirbelsturm(c):
     for k, (cx, y, r) in enumerate(rings):
         front = [(cx + r * math.cos(a), y + 0.26 * r * math.sin(a), 0.014 + r * 0.06) for a in np.radians(np.linspace(-25.0, 205.0, 9))]
         c.wisp(front, 0.72 - 0.02 * k)
-    for shard, tone in (([(0.16, 0.42), (0.21, 0.39), (0.23, 0.45), (0.18, 0.47)], -0.02), ([(0.78, 0.54), (0.82, 0.51), (0.85, 0.56), (0.8, 0.59)], -0.06), ([(0.3, 0.72), (0.34, 0.7), (0.35, 0.74), (0.31, 0.76)], -0.1)):
+    for shard, tone in (([(0.16, 0.42), (0.21, 0.39), (0.23, 0.45), (0.18, 0.47)], -0.22), ([(0.78, 0.54), (0.82, 0.51), (0.85, 0.56), (0.8, 0.59)], -0.24), ([(0.3, 0.72), (0.34, 0.7), (0.35, 0.74), (0.31, 0.76)], -0.26)):
         c.rock(shard, 4, tone)
-    c.embers(AIR, 6, (0.14, 0.16, 0.88, 0.8))
+    c.embers(AIR, 6, (0.14, 0.16, 0.88, 0.8), ink=False)
 
 
 NID_INK = (0.016, 0.0, 0.012)
@@ -896,7 +902,7 @@ def offene_wunde(c):
     # Erst die Tiefe mit dem riesigen Auge, sie zeigt sich später nur im Riss
     c.ink_shape([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], (0.004, 0.0, 0.007))
     c.eye((0.56, 0.5), 0.36)
-    deep = c.image * np.array((0.5, 0.36, 0.42))
+    deep = c.image * np.array((0.34, 0.2, 0.26))
     c.background((0.05, 0.004, 0.06), (0.5, 0.5))
     c.nid_ground((0.5, 0.5))
     c.rock([(0.05, 0.5), (0.13, 0.2), (0.4, 0.06), (0.7, 0.07), (0.92, 0.26), (0.97, 0.58), (0.84, 0.84), (0.56, 0.96), (0.26, 0.9), (0.08, 0.74)], 20, -0.16, stops=NID_ROCK, ink=NID_INK)
@@ -918,11 +924,19 @@ def offene_wunde(c):
     c.oil()
 
 
+def wirken(c):
+    """Wirken: die vier Elemente laufen im Griff des Magiers zu einem Punkt zusammen"""
+    c.background((0.07, 0.07, 0.1), (0.5, 0.5))
+    middle = (0.5, 0.5)
+    for start, color in ((-90.0, (0.95, 0.36, 0.06)), (0.0, (0.1, 0.42, 0.85)), (90.0, (0.5, 0.34, 0.16)), (180.0, (0.62, 0.76, 0.88))):
+        c.wisp(curl(middle, 0.37, start, 0.62, 0.05, shrink=0.86, end_width=0.008, count=11), 0.85, color=color)
+    c.glow(middle, 0.075, (0.8, 0.74, 0.6), 0.8)
+
 MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze,
            "Wasser": wasser, "Wassergeschoss": wassergeschoss, "Welle": welle, "Flutwelle": flutwelle,
            "Erde": erde, "Steinbrocken": steinbrocken, "Felswand": felswand, "Erdbeben": erdbeben,
            "Luft": luft, "Windstoss": windstoss, "Boee": boee, "Wirbelsturm": wirbelsturm,
-           "Nid": nid, "Marksplitter": marksplitter, "Markstoss": markstoss, "OffeneWunde": offene_wunde}
+           "Nid": nid, "Marksplitter": marksplitter, "Markstoss": markstoss, "OffeneWunde": offene_wunde, "Wirken": wirken}
 
 
 def save(path, image):
@@ -949,6 +963,7 @@ def main(folder, wanted):
             continue
         canvas = Canvas(SEED + index)
         motive(canvas)
+        canvas.oil()
         painted.append(save(os.path.join(folder, "T_Zauber_%s.png" % name), canvas.finish()))
     if len(painted) > 1:
         strip = np.concatenate(painted, axis=1)
