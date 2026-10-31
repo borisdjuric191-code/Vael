@@ -24,6 +24,8 @@ SEED = 5
 
 # Farbverläufe von kalt (0, Spitzen) bis heiß (1, Kern): Farbe eines Elements in Tinte
 FIRE = ((0.0, (0.16, 0.012, 0.01)), (0.26, (0.46, 0.04, 0.012)), (0.48, (0.86, 0.17, 0.02)), (0.68, (1.0, 0.45, 0.05)), (0.86, (1.0, 0.76, 0.24)), (1.0, (1.0, 0.95, 0.72)))
+WATER = ((0.0, (0.006, 0.02, 0.09)), (0.3, (0.012, 0.07, 0.26)), (0.52, (0.03, 0.22, 0.52)), (0.72, (0.12, 0.5, 0.76)), (0.9, (0.45, 0.82, 0.92)), (1.0, (0.9, 0.98, 1.0)))
+FOAM = ((0.0, (0.5, 0.8, 0.92)), (0.5, (0.8, 0.95, 1.0)), (1.0, (1.0, 1.0, 1.0)))
 
 
 def noise(rng, steep):
@@ -141,16 +143,28 @@ class Canvas:
         self.edge[y0:y1, x0:x1][inside] = True
         return self
 
-    def merge(self, stops):
-        """Malt alle Zungen seit dem letzten Mal als eine Flamme: ein Verlauf, nur außen eine Kontur, zum Rand hin dunkler"""
+    def blurred_cover(self, sigma):
+        """Die gemalte Fläche, weich gezeichnet"""
         spectrum = np.fft.fft2(self.cover.astype(np.float32))
         fx = np.fft.fftfreq(SIZE)[:, None]
         fy = np.fft.fftfreq(SIZE)[None, :]
-        blurred = np.fft.ifft2(spectrum * np.exp(-2.0 * (math.pi * 11.0) ** 2 * (fx * fx + fy * fy))).real
-        rim = np.clip((blurred - 0.42) / 0.5, 0.0, 1.0)
-        color = ramp(stops, self.heat - 0.26 * (1.0 - rim))
+        return np.fft.ifft2(spectrum * np.exp(-2.0 * (math.pi * sigma) ** 2 * (fx * fx + fy * fy))).real
+
+    def merge(self, stops, rim_dark=True, shift=0.0, ink=(0.022, 0.006, 0.006)):
+        """Malt alle Zungen seit dem letzten Mal als eine Flamme: ein Verlauf, nur außen eine Kontur, zum Rand hin dunkler.
+        Ohne dunklen Rand (Lichter, Schaum) läuft die Fläche weich in das aus, was darunter liegt."""
+        if not rim_dark:
+            soft = np.clip(self.blurred_cover(3.0) * 1.3, 0.0, 1.0)[..., None] * 0.8
+            self.image = self.image * (1.0 - soft) + ramp(stops, self.heat) * soft
+            self.heat[:] = 0.0
+            self.cover[:] = False
+            self.edge[:] = False
+            return self
+
+        rim = np.clip((self.blurred_cover(11.0) - 0.42) / 0.5, 0.0, 1.0)
+        color = ramp(stops, self.heat + shift - 0.26 * (1.0 - rim))
         color *= (0.5 + 0.5 * rim ** 0.8)[..., None]
-        self.image[self.edge] = (0.022, 0.006, 0.006)
+        self.image[self.edge] = ink
         self.image[self.cover] = color[self.cover]
         self.heat[:] = 0.0
         self.cover[:] = False
@@ -261,7 +275,76 @@ def feuerwalze(c):
     c.embers(FIRE, 6, (0.1, 0.12, 0.9, 0.6))
 
 
-MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze}
+def glints(c, strokes):
+    """Scharfe helle Lichter und Schaum auf dem Wasser, ohne Kontur, über der fertigen Fläche"""
+    for pts in strokes:
+        c.tongue(pts, FOAM, 0.3, ink=0.0, streak=0.5)
+    c.merge(FOAM, rim_dark=False)
+
+
+def wasser(c):
+    """Das Element: ein schwerer Tropfen, in dem das Wasser kreist"""
+    c.background((0.02, 0.07, 0.2), (0.5, 0.62))
+    for pts, heat in (
+        ([(0.5, 0.7, 0.21), (0.5, 0.56, 0.17), (0.5, 0.38, 0.075), (0.5, 0.1, 0.002)], -0.06),
+        ([(0.38, 0.74, 0.03), (0.52, 0.78, 0.06), (0.63, 0.68, 0.05), (0.57, 0.55, 0.002)], 0.3),
+        ([(0.6, 0.6, 0.02), (0.47, 0.54, 0.05), (0.41, 0.63, 0.04), (0.48, 0.69, 0.002)], 0.14),
+    ):
+        c.tongue(pts, WATER, heat)
+    c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
+    glints(c, ([(0.33, 0.74, 0.002), (0.35, 0.62, 0.011), (0.42, 0.47, 0.008), (0.46, 0.36, 0.002)],))
+    c.embers(WATER, 4, (0.15, 0.15, 0.88, 0.5))
+
+
+def wassergeschoss(c):
+    """Das Wassergeschoss: eine Kugel aus Wasser, die einen Schweif aus Spritzern hinter sich herzieht"""
+    c.background((0.02, 0.07, 0.2), (0.62, 0.4))
+    for pts, heat in (
+        ([(0.68, 0.33, 0.1), (0.48, 0.5, 0.075), (0.3, 0.64, 0.04), (0.08, 0.76, 0.002)], -0.12),
+        ([(0.66, 0.36, 0.1), (0.52, 0.58, 0.07), (0.38, 0.74, 0.035), (0.22, 0.92, 0.002)], -0.12),
+        ([(0.66, 0.34, 0.1), (0.46, 0.42, 0.06), (0.26, 0.42, 0.028), (0.1, 0.5, 0.002)], -0.16),
+        ([(0.64, 0.33, 0.135), (0.68, 0.32, 0.165), (0.72, 0.31, 0.14), (0.76, 0.3, 0.05)], 0.1),
+        ([(0.58, 0.44, 0.03), (0.68, 0.42, 0.075), (0.78, 0.34, 0.05), (0.76, 0.24, 0.002)], 0.26),
+    ):
+        c.tongue(pts, WATER, heat)
+    c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
+    glints(c, ([(0.57, 0.3, 0.002), (0.61, 0.22, 0.016), (0.7, 0.19, 0.012), (0.77, 0.21, 0.002)],))
+    c.embers(WATER, 7, (0.08, 0.3, 0.55, 0.92))
+
+
+def welle(c):
+    """Die Welle: ein breiter Kegel, der sich aufbäumt und oben in Schaum bricht"""
+    c.background((0.02, 0.07, 0.2), (0.48, 0.6))
+    for pts, heat in (
+        ([(0.04, 0.82, 0.1), (0.3, 0.76, 0.13), (0.58, 0.62, 0.14), (0.76, 0.4, 0.09), (0.7, 0.22, 0.05), (0.52, 0.2, 0.002)], -0.02),
+        ([(0.02, 0.92, 0.07), (0.34, 0.88, 0.09), (0.66, 0.82, 0.08), (0.94, 0.86, 0.002)], -0.06),
+        ([(0.5, 0.72, 0.05), (0.64, 0.56, 0.06), (0.72, 0.4, 0.04), (0.66, 0.3, 0.002)], 0.3),
+    ):
+        c.tongue(pts, WATER, heat)
+    c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
+    glints(c, ([(0.5, 0.2, 0.002), (0.62, 0.17, 0.02), (0.76, 0.24, 0.024), (0.83, 0.4, 0.014), (0.8, 0.5, 0.002)],
+               [(0.62, 0.3, 0.002), (0.7, 0.3, 0.008), (0.74, 0.38, 0.002)], [(0.14, 0.74, 0.002), (0.3, 0.68, 0.009), (0.46, 0.62, 0.002)]))
+    c.embers(WATER, 6, (0.42, 0.06, 0.92, 0.32))
+
+
+def flutwelle(c):
+    """Die Flutwelle: eine Wand aus Wasser, höher als alles, zwei Wellen übereinander, die sich nach rechts überschlagen"""
+    c.background((0.02, 0.07, 0.2), (0.45, 0.5))
+    for pts, heat in (
+        ([(0.03, 0.94, 0.17), (0.22, 0.6, 0.2), (0.44, 0.3, 0.14), (0.68, 0.14, 0.08), (0.8, 0.22, 0.04), (0.72, 0.34, 0.002)], -0.08),
+        ([(0.1, 0.96, 0.15), (0.4, 0.76, 0.17), (0.64, 0.52, 0.11), (0.86, 0.46, 0.05), (0.88, 0.58, 0.002)], 0.06),
+        ([(0.02, 0.96, 0.09), (0.4, 0.92, 0.11), (0.72, 0.88, 0.08), (0.98, 0.9, 0.02)], 0.16),
+    ):
+        c.tongue(pts, WATER, heat)
+    c.merge(WATER, shift=-0.2, ink=(0.003, 0.012, 0.05))
+    glints(c, ([(0.5, 0.17, 0.002), (0.66, 0.08, 0.02), (0.82, 0.13, 0.026), (0.88, 0.27, 0.012), (0.83, 0.34, 0.002)],
+               [(0.64, 0.46, 0.002), (0.78, 0.4, 0.016), (0.92, 0.46, 0.016), (0.93, 0.56, 0.002)],
+               [(0.26, 0.52, 0.002), (0.36, 0.36, 0.01), (0.48, 0.24, 0.002)]))
+    c.embers(WATER, 7, (0.5, 0.05, 0.96, 0.4))
+
+
+MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze,
+           "Wasser": wasser, "Wassergeschoss": wassergeschoss, "Welle": welle, "Flutwelle": flutwelle}
 
 
 def save(path, image):
