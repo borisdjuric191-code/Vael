@@ -25,6 +25,8 @@ SEED = 5
 # Farbverläufe von kalt (0, Spitzen) bis heiß (1, Kern): Farbe eines Elements in Tinte
 FIRE = ((0.0, (0.16, 0.012, 0.01)), (0.26, (0.46, 0.04, 0.012)), (0.48, (0.86, 0.17, 0.02)), (0.68, (1.0, 0.45, 0.05)), (0.86, (1.0, 0.76, 0.24)), (1.0, (1.0, 0.95, 0.72)))
 WATER = ((0.0, (0.006, 0.02, 0.09)), (0.3, (0.012, 0.07, 0.26)), (0.52, (0.03, 0.22, 0.52)), (0.72, (0.12, 0.5, 0.76)), (0.9, (0.45, 0.82, 0.92)), (1.0, (0.9, 0.98, 1.0)))
+EARTH = ((0.0, (0.018, 0.011, 0.007)), (0.3, (0.06, 0.036, 0.018)), (0.52, (0.15, 0.09, 0.04)), (0.72, (0.3, 0.2, 0.095)), (0.9, (0.5, 0.37, 0.2)), (1.0, (0.7, 0.57, 0.36)))
+DUST = ((0.0, (0.06, 0.04, 0.02)), (0.5, (0.22, 0.15, 0.08)), (1.0, (0.55, 0.42, 0.25)))
 FOAM = ((0.0, (0.5, 0.8, 0.92)), (0.5, (0.8, 0.95, 1.0)), (1.0, (1.0, 1.0, 1.0)))
 
 
@@ -164,6 +166,70 @@ class Canvas:
             crosses = (y0 > y) != (y1 > y)
             inside ^= crosses & (x < (x1 - x0) * (y - y0) / ((y1 - y0) or 1e-6) + x0)
         self.image[inside] = color
+        return self
+
+    def polygon(self, points):
+        """Fläche innerhalb eines Umrisses: ein Punkt ist drinnen, wenn ein Strahl die Kante ungerade oft kreuzt"""
+        x, y = self.x / SIZE, self.y / SIZE
+        inside = np.zeros((SIZE, SIZE), bool)
+        for (x0, y0), (x1, y1) in zip(points, points[1:] + points[:1]):
+            crosses = (y0 > y) != (y1 > y)
+            inside ^= crosses & (x < (x1 - x0) * (y - y0) / ((y1 - y0) or 1e-6) + x0)
+        return inside
+
+    def rock(self, outline, facets, tone, tall=False, stops=None, ink=(0.02, 0.012, 0.007)):
+        """Fels: flache Bruchflächen, jede mit eigenem Ton nach ihrer Lage zum Licht, weiche Risse dazwischen, dünne Kontur außen,
+        eine helle Kante oben links wo das Licht auftrifft"""
+        # Der Umriss bricht: jede Kante bekommt Zacken, zweimal halbiert und seitlich versetzt
+        jagged = [(float(a), float(b)) for a, b in outline]
+        for depth in (0.1, 0.055):
+            finer = []
+            for (ax, ay), (bx, by) in zip(jagged, jagged[1:] + jagged[:1]):
+                length = math.hypot(bx - ax, by - ay)
+                offset = self.rng.uniform(-depth, depth) * length
+                finer += [(ax, ay), ((ax + bx) / 2 - (by - ay) / max(length, 1e-4) * offset, (ay + by) / 2 + (bx - ax) / max(length, 1e-4) * offset)]
+            jagged = finer
+        outline = jagged
+        points = np.array(outline)
+        x0, y0, x1, y1 = points[:, 0].min(), points[:, 1].min(), points[:, 0].max(), points[:, 1].max()
+        wx = self.x / SIZE + 0.006 * self.warp_x
+        wy = self.y / SIZE + 0.006 * self.warp_y
+        inside = self.polygon(outline)
+
+        # Bruchflächen: Zellen um zufällige Punkte; bei hohen Pfeilern längs gestreckt
+        seeds = self.rng.random((facets, 2)) * (x1 - x0, y1 - y0) + (x0, y0)
+        stretch = 2.6 if tall else 1.0
+        # Abstand als schiefes Maß mit eigener Richtung je Fläche: so werden die Grenzen zu geraden Bruchkanten statt zu Waben
+        turns = self.rng.uniform(0.0, math.pi, facets)
+        distance = np.stack([np.abs((wx - sx) * math.cos(a) + (wy - sy) / stretch * math.sin(a)) + 0.62 * np.abs(-(wx - sx) * math.sin(a) + (wy - sy) / stretch * math.cos(a))
+                             for (sx, sy), a in zip(seeds, turns)])
+        order = np.argsort(distance, axis=0)[:2]
+        nearest = order[0]
+        rows, cols = np.indices(nearest.shape)
+        gap = distance[order[1], rows, cols] - distance[nearest, rows, cols]
+
+        # Jede Fläche ist schräg zum Licht von links oben: ihr Ton hängt von ihrem Platz ab und bekommt einen eigenen Zufall
+        lit = 1.0 - ((seeds[:, 0] - x0) / max(x1 - x0, 1e-3) * 0.55 + (seeds[:, 1] - y0) / max(y1 - y0, 1e-3) * 0.45)
+        tones = 0.06 + 0.5 * lit + self.rng.normal(0.0, 0.1, facets) + tone
+        value = tones[nearest] + 0.09 * self.rough + 0.055 * self.middle + 0.03 * self.fine
+
+        # Innerhalb einer Fläche ein leichter Verlauf, damit sie nicht wie ausgeschnitten wirkt
+        value += 0.1 * np.clip(gap / 0.05, 0.0, 1.0) - 0.05
+
+        # Nicht jede Grenze ist ein Riss: das Rauschen lässt sie stellenweise verschwinden
+        crease = np.exp(-(gap / 0.0042) ** 2) * np.clip(0.55 + 0.9 * self.rough, 0.0, 1.0)
+        color = ramp(stops or EARTH, value) * (1.0 - 0.8 * crease)[..., None]
+
+        # Kontur und Lichtkante aus dem weich gezeichneten Umriss
+        self.cover[inside] = True
+        soft = self.blurred_cover(2.2)
+        self.cover[:] = False
+        edge = (soft > 0.05) & ~inside
+        blurred_shift = np.roll(np.roll(inside, 3, axis=0), 3, axis=1)
+        light_edge = inside & ~blurred_shift
+        color[light_edge] = color[light_edge] * 0.7 + np.array((0.5, 0.4, 0.27)) * 0.3
+        self.image[edge] = ink
+        self.image[inside] = color[inside]
         return self
 
     def blurred_cover(self, sigma):
@@ -411,8 +477,64 @@ def flutwelle(c):
     c.embers(WATER, 5, (0.8, 0.1, 0.98, 0.4))
 
 
+def erde(c):
+    """Das Element: ein schwerer Fels, der aus aufgebrochenem Boden steigt, und zwei kleinere an seinen Seiten"""
+    c.background((0.1, 0.065, 0.025), (0.5, 0.62))
+    c.rock([(0.08, 0.84), (0.14, 0.66), (0.24, 0.56), (0.34, 0.62), (0.38, 0.84)], 16, -0.06)
+    c.rock([(0.62, 0.84), (0.66, 0.6), (0.76, 0.52), (0.88, 0.64), (0.93, 0.84)], 16, -0.06)
+    c.rock([(0.22, 0.86), (0.3, 0.52), (0.41, 0.28), (0.53, 0.14), (0.64, 0.3), (0.72, 0.54), (0.8, 0.86)], 26, 0.06)
+    c.rock([(0.16, 0.9), (0.34, 0.84), (0.52, 0.87), (0.72, 0.83), (0.86, 0.9), (0.7, 0.93), (0.34, 0.93)], 12, -0.14)
+    c.embers(EARTH, 4, (0.14, 0.2, 0.86, 0.5))
+
+
+def steinbrocken(c):
+    """Der Steinbrocken: ein wuchtiger Klotz im Flug, hinter ihm kleine Splitter und eine Staubspur"""
+    c.background((0.1, 0.065, 0.025), (0.58, 0.42))
+    for radius, width in ((0.33, 0.016), (0.41, 0.011)):
+        c.tongue(arc((0.58, 0.42), radius, 95.0, 175.0, width), DUST, 0.1, streak=0.3, wobble=3.0)
+    c.merge(DUST, ink=(0.02, 0.012, 0.006))
+    for shard, tone in (([(0.16, 0.72), (0.24, 0.68), (0.27, 0.76), (0.2, 0.8)], -0.1), ([(0.3, 0.82), (0.36, 0.79), (0.4, 0.86), (0.33, 0.9)], -0.1), ([(0.09, 0.56), (0.15, 0.53), (0.17, 0.6), (0.11, 0.62)], -0.16)):
+        c.rock(shard, 4, tone)
+    c.rock([(0.36, 0.3), (0.5, 0.17), (0.7, 0.16), (0.82, 0.3), (0.81, 0.5), (0.7, 0.66), (0.5, 0.67), (0.37, 0.52)], 22, 0.06)
+    c.embers(DUST, 5, (0.1, 0.5, 0.42, 0.92))
+
+
+def felswand(c):
+    """Die Felswand: Pfeiler aus Stein stehen dicht an dicht aus dem Boden, ihre Spitzen sind gebrochen"""
+    c.background((0.1, 0.065, 0.025), (0.5, 0.6))
+    for shape, tone in (
+        ([(0.06, 0.86), (0.08, 0.5), (0.14, 0.42), (0.23, 0.47), (0.25, 0.86)], -0.12),
+        ([(0.76, 0.86), (0.77, 0.44), (0.84, 0.36), (0.93, 0.46), (0.95, 0.86)], -0.12),
+        ([(0.22, 0.86), (0.23, 0.32), (0.31, 0.2), (0.4, 0.3), (0.42, 0.86)], -0.02),
+        ([(0.6, 0.86), (0.61, 0.26), (0.68, 0.16), (0.77, 0.27), (0.79, 0.86)], -0.02),
+        ([(0.4, 0.86), (0.41, 0.2), (0.5, 0.08), (0.6, 0.18), (0.62, 0.86)], 0.08),
+    ):
+        c.rock(shape, 13, tone, tall=True)
+    c.rock([(0.03, 0.92), (0.2, 0.84), (0.5, 0.87), (0.8, 0.83), (0.97, 0.92), (0.8, 0.95), (0.2, 0.95)], 14, -0.14)
+    c.embers(DUST, 4, (0.1, 0.12, 0.9, 0.32))
+
+
+def erdbeben(c):
+    """Das Erdbeben: der Boden bricht in zwei Schollen auseinander, aus der Tiefe glimmt es, Stücke fliegen auf"""
+    c.background((0.1, 0.05, 0.02), (0.5, 0.56))
+    for radius, width in ((0.31, 0.012), (0.39, 0.008)):
+        c.tongue(arc((0.5, 0.56), radius, 200.0, 340.0, width), DUST, 0.05, streak=0.3, wobble=3.0)
+    c.merge(DUST, ink=(0.02, 0.012, 0.006))
+    # Die Spalte: dunkler Grund und ein schwaches Glühen in der Tiefe
+    gap = [(0.46, 0.34), (0.56, 0.34), (0.6, 0.48), (0.53, 0.58), (0.58, 0.72), (0.52, 0.93), (0.42, 0.93), (0.46, 0.72), (0.41, 0.58), (0.48, 0.48)]
+    c.ink_shape(gap, (0.004, 0.003, 0.003))
+    c.tongue([(0.5, 0.9, 0.012), (0.49, 0.72, 0.028), (0.48, 0.58, 0.02), (0.53, 0.46, 0.02), (0.51, 0.36, 0.004)], FIRE, -0.02, streak=0.3, wobble=2.0, ink=0.0)
+    c.merge(FIRE, rim_dark=False)
+    c.rock([(0.04, 0.72), (0.2, 0.46), (0.4, 0.34), (0.47, 0.34), (0.48, 0.48), (0.4, 0.58), (0.45, 0.72), (0.41, 0.93), (0.1, 0.93)], 20, 0.02)
+    c.rock([(0.96, 0.66), (0.8, 0.42), (0.62, 0.3), (0.55, 0.32), (0.61, 0.48), (0.54, 0.58), (0.59, 0.72), (0.53, 0.93), (0.88, 0.93)], 20, -0.04)
+    for shard, tone in (([(0.3, 0.2), (0.36, 0.15), (0.41, 0.22), (0.34, 0.27)], 0.04), ([(0.6, 0.15), (0.66, 0.12), (0.69, 0.2), (0.62, 0.22)], 0.0), ([(0.48, 0.1), (0.53, 0.06), (0.56, 0.13), (0.5, 0.16)], -0.04)):
+        c.rock(shard, 4, tone)
+    c.embers(DUST, 5, (0.2, 0.08, 0.8, 0.34))
+
+
 MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl": feuerstrahl, "Feuerwalze": feuerwalze,
-           "Wasser": wasser, "Wassergeschoss": wassergeschoss, "Welle": welle, "Flutwelle": flutwelle}
+           "Wasser": wasser, "Wassergeschoss": wassergeschoss, "Welle": welle, "Flutwelle": flutwelle,
+           "Erde": erde, "Steinbrocken": steinbrocken, "Felswand": felswand, "Erdbeben": erdbeben}
 
 
 def save(path, image):
