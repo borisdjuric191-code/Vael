@@ -133,6 +133,7 @@ private:
 	{
 		FText Name;
 		const FSlateBrush* Icon = nullptr;
+		const FSlateBrush* Painting = nullptr;
 		EVaelHUDButton Button = EVaelHUDButton::Cross;
 		FText KeyboardKey;
 		FLinearColor IconColor = FLinearColor::White;

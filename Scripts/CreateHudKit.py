@@ -19,6 +19,7 @@ import unreal
 HERE = os.path.dirname(os.path.abspath(__file__))
 SHAPES = os.path.join(HERE, "Data", "HUD")
 PAINTED = os.path.join(HERE, "Data", "HUD", "Gemalt")
+PAINTINGS = os.path.join(HERE, "Data", "HUD", "Zauber")
 FONTS = os.path.join(HERE, "Data", "Fonts")
 HUD = "/Game/Vael/UI/HUD"
 FONT_FOLDER = "/Game/Vael/UI/Fonts"
@@ -684,7 +685,7 @@ PAINTED_CLASSES = {
 }
 
 
-def apply_painted(painted, painted_frame, veins):
+def apply_painted(painted, paintings, painted_frame, veins):
     """Enters the painted pieces into the data of the classes that have them; only these fields are touched"""
     for name, pieces in PAINTED_CLASSES.items():
         data = unreal.load_asset("{}/DA_HUDKlasse_{}".format(CLASS_FOLDER, name))
@@ -698,6 +699,14 @@ def apply_painted(painted, painted_frame, veins):
         data.set_editor_property("vessel_picture", painted[pieces["vessel"]])
         data.set_editor_property("slot_picture", painted[pieces["slot"]])
         data.set_editor_property("medallion_picture", painted[pieces["medallion"]])
+        if name == "Magier":
+            # Painted spell pictures take the place of the stroke icons, by the name of the slot
+            slots = list(data.get_editor_property("abilities"))
+            for slot in slots:
+                picture = paintings.get("T_Zauber_" + str(slot.get_editor_property("name")))
+                if picture is not None:
+                    slot.set_editor_property("painting", picture)
+            data.set_editor_property("abilities", slots)
         data.set_editor_property("dragon_in_frame", name == "Magier")
         if name == "Magier":
             data.set_editor_property("dragon_picture", painted["T_HUD_Gemalt_Drache_Magier"])
@@ -755,7 +764,8 @@ def main():
 
     if painted:
         painted_frame = build_painted_frame(painted["T_HUD_Gemalt_Rahmen_Magier"], painted["T_HUD_Gemalt_Rahmen_Magier_Maske"], shapes["T_HUD_Adern"])
-        apply_painted(painted, painted_frame, shapes["T_HUD_Adern"])
+        paintings = import_files(PAINTINGS, "T_Zauber_", HUD + "/Zauber", srgb_on=True, compressed=True)
+        apply_painted(painted, paintings, painted_frame, shapes["T_HUD_Adern"])
 
     widget_blueprint()
     assets.save_directory("/Game/Vael/UI")

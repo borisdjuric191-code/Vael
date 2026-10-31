@@ -308,6 +308,7 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 	for (const FVaelHUDAbilitySlot& Ability : Data->Abilities)
 	{
 		GetTextureBrush(Ability.Icon);
+		GetTextureBrush(Ability.Painting);
 		UMaterialInstanceDynamic* Instance = Wipe != nullptr ? UMaterialInstanceDynamic::Create(Wipe, this) : nullptr;
 		CooldownInstances.Add(Instance);
 		SetMaterialBrush(CooldownBrushes.AddDefaulted_GetRef(), Instance);
@@ -408,6 +409,7 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 		FSlotState& State = Slots.AddDefaulted_GetRef();
 		State.Name = Ability.Name;
 		State.Icon = FindTextureBrush(Ability.Icon);
+		State.Painting = FindTextureBrush(Ability.Painting);
 		State.Button = Ability.Button;
 		State.KeyboardKey = Ability.KeyboardKey;
 		State.IconColor = TextColor;
@@ -422,7 +424,7 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 		case EVaelHUDAbility::ElementNid:
 		{
 			const EVaelElement Element = static_cast<EVaelElement>(static_cast<int32>(Ability.Ability) - static_cast<int32>(EVaelHUDAbility::ElementFire));
-			State.IconColor = MagicSettings->GetElementColor(Element);
+			State.IconColor = State.Painting != nullptr ? FLinearColor::White : MagicSettings->GetElementColor(Element);
 			State.bLit = bPlayable && Queue.Contains(Element);
 			State.bDim = Element == EVaelElement::Mark && (Grimoire == nullptr || !Grimoire->IsMarkAwakened());
 			break;
@@ -847,7 +849,14 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		const float Inset = bPaintedSlot ? 7.0f : 0.0f;
 		PaintBox(OutDrawElements, L + 2, &SlotBrush, At + FVector2f(Inset), FVector2f(SlotSize - 2.0f * Inset), bPaintedSlot ? FLinearColor(0.25f, 0.22f, 0.2f) : State.bLit ? FLinearColor(1.4f, 1.3f, 1.15f) : FLinearColor::White);
 		const FLinearColor IconTint = State.IconColor * (State.bDim ? 0.35f : 1.0f);
-		PaintBox(OutDrawElements, L + 3, State.Icon, At + FVector2f(14.0f), FVector2f(SlotSize - 28.0f), IconTint);
+		if (State.Painting != nullptr)
+		{
+			PaintBox(OutDrawElements, L + 3, State.Painting, At + FVector2f(Inset), FVector2f(SlotSize - 2.0f * Inset), IconTint);
+		}
+		else
+		{
+			PaintBox(OutDrawElements, L + 3, State.Icon, At + FVector2f(14.0f), FVector2f(SlotSize - 28.0f), IconTint);
+		}
 		if (const FSlateBrush* Rim = FindTextureBrush(ShownData->SlotPicture))
 		{
 			PaintBox(OutDrawElements, L + 4, Rim, At - FVector2f(5.0f), FVector2f(SlotSize + 10.0f), State.bLit ? FLinearColor(1.5f, 1.4f, 1.25f) : FLinearColor::White);

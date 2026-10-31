@@ -90,6 +90,10 @@ struct FVaelHUDAbilitySlot
 	UPROPERTY(EditAnywhere, Category="Ability")
 	TSoftObjectPtr<UTexture2D> Icon;
 
+	/** Painted picture that fills the whole slot in its own colours (Tools/HUD/vael_symbole_malen.py); takes the place of the icon */
+	UPROPERTY(EditAnywhere, Category="Ability")
+	TSoftObjectPtr<UTexture2D> Painting;
+
 	UPROPERTY(EditAnywhere, Category="Ability")
 	EVaelHUDButton Button = EVaelHUDButton::Cross;
 
