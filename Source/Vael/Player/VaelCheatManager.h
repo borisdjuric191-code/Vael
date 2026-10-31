@@ -125,6 +125,18 @@ public:
 	UFUNCTION(Exec)
 	void VaelErfahrung(float Amount);
 
+	/** Fills the bags: that many rolled items of mixed rarity. Example: VaelRucksack 12 */
+	UFUNCTION(Exec)
+	void VaelRucksack(int32 Count = 12);
+
+	/** Moves the selection of the open inventory, for testing. Example: VaelInventarSchritt 1 0 */
+	UFUNCTION(Exec)
+	void VaelInventarSchritt(int32 Right, int32 Down);
+
+	/** Shows the bag of materials on the open inventory */
+	UFUNCTION(Exec)
+	void VaelBeutel();
+
 	/** Opens a page of the menu: "Formeln", "Inventar", "Kompendium", "Auftraege" or "Gestalt". Example: VaelMenue Inventar */
 	UFUNCTION(Exec)
 	void VaelMenue(const FString& Page);

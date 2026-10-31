@@ -20,6 +20,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SHAPES = os.path.join(HERE, "Data", "HUD")
 PAINTED = os.path.join(HERE, "Data", "HUD", "Gemalt")
 PAINTINGS = os.path.join(HERE, "Data", "HUD", "Zauber")
+ITEM_ICONS = os.path.join(HERE, "Data", "HUD", "Items")
 FONTS = os.path.join(HERE, "Data", "Fonts")
 HUD = "/Game/Vael/UI/HUD"
 FONT_FOLDER = "/Game/Vael/UI/Fonts"
@@ -765,6 +766,7 @@ def main():
     if painted:
         painted_frame = build_painted_frame(painted["T_HUD_Gemalt_Rahmen_Magier"], painted["T_HUD_Gemalt_Rahmen_Magier_Maske"], shapes["T_HUD_Adern"])
         paintings = import_files(PAINTINGS, "T_Zauber_", HUD + "/Zauber", srgb_on=True, compressed=True)
+        import_files(ITEM_ICONS, "T_Item_", HUD + "/Items", srgb_on=True, compressed=True)
         apply_painted(painted, paintings, painted_frame, shapes["T_HUD_Adern"])
 
     widget_blueprint()

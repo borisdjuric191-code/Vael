@@ -89,6 +89,9 @@ private:
 	/** Draws the page names of the menu and the buttons that switch between them, right aligned */
 	void DrawMenuTabs(const AVaelPlayerController* PlayerController, float Right, float Y);
 
+	/** Name, properties and comparison of an item on a page of the grimoire; T scales the text with the book */
+	void DrawItemDetails(const class UVaelInventory* Inventory, const struct FVaelItem& Selected, bool bFromBackpack, float X, float Y, float Width, float T);
+
 	/** Draws the inventory page of the menu: equipment, backpack and the selected item compared with what it would replace */
 	void DrawInventory(const AVaelPlayerController* PlayerController);
 
@@ -256,6 +259,14 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> MapPicture;
+
+	/** The open grimoire of the inventory */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> BookPicture;
+
+	/** Signs of the items by EVaelItemSlot */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> ItemIcons;
 
 	bool bLevelMapLookedUp = false;
 

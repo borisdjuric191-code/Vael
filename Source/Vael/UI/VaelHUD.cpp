@@ -90,6 +90,21 @@ namespace
 	const TCHAR* TextFontPath = TEXT("/Game/Vael/UI/Fonts/AlegreyaSans-Regular.AlegreyaSans-Regular");
 	const TCHAR* TitleFontPath = TEXT("/Game/Vael/UI/Fonts/AlmendraSC-Regular.AlmendraSC-Regular");
 
+	/** The open grimoire of the inventory, as painted: its picture and the places on it in scene units (Tools/HUD/vael_hud_gemalt.py, inventory_mage) */
+	const TCHAR* BookPicturePath = TEXT("/Game/Vael/UI/HUD/Gemalt/T_HUD_Gemalt_Inventar_Magier.T_HUD_Gemalt_Inventar_Magier");
+	constexpr float BookAspect = 16.0f / 9.0f;
+	constexpr float BookSceneWidth = 3.5556f;
+	constexpr float BookFigureX = -0.8f;
+	constexpr float BookFigureZ = -0.12f;
+	constexpr float BookHeadingZ = 0.83f;
+	constexpr int32 BookBackpackColumns = 7;
+	constexpr float BookBackpackStep = 0.17f;
+	constexpr float BookBackpackTop = -0.01f;
+
+	/** Places of the equipment around the figure, by EVaelEquipSlot */
+	const FVector2D BookEquipPlaces[] = { FVector2D(-0.5, 0.26), FVector2D(0.5, 0.26), FVector2D(0.0, 0.5), FVector2D(0.0, -0.07), FVector2D(-0.5, -0.1),
+		FVector2D(-0.5, -0.46), FVector2D(0.0, -0.33), FVector2D(0.0, 0.2), FVector2D(0.5, -0.1), FVector2D(0.5, -0.46) };
+
 	/** Colors of the map */
 	const FLinearColor MapNameColor = Rgb(246, 236, 212);
 	const FLinearColor MapNewsColor = Rgb(255, 207, 107);
@@ -121,6 +136,12 @@ void AVaelHUD::BeginPlay()
 		Composite->DefaultTypeface.Fonts.Add_GetRef(FTypefaceEntry(TEXT("Regular"))).Font = FFontData(Face);
 		return Composite;
 	};
+	BookPicture = Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(BookPicturePath)));
+	for (const TCHAR* Kind : { TEXT("Weapon"), TEXT("Offhand"), TEXT("Head"), TEXT("Chest"), TEXT("Hands"), TEXT("Feet"), TEXT("Belt"), TEXT("Amulet"), TEXT("Ring") })
+	{
+		ItemIcons.Add(Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/UI/HUD/Items/T_Item_%s.T_Item_%s"), Kind, Kind)))));
+	}
+
 	TextFont = MakeComposite(TextFontPath);
 	TitleFont = MakeComposite(TitleFontPath);
 	if (TextFont.IsValid())
@@ -1690,176 +1711,240 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 	const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
 	const UVaelInventory* Inventory = Player->GetInventory();
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
-	const float S = UiScale;
+	const int32 BackpackSize = UVaelItemSettings::Get()->BackpackSize;
+	const int32 NumEquip = static_cast<int32>(EVaelEquipSlot::Count);
+	const int32 Selection = PlayerController->GetInventorySelection();
 
-	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 168));
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, 190));
 
-	const float RowHeight = 30.0f * S;
-	const int32 NumVisibleRows = 14;
-	const float Width = FMath::Min(GrimoireWidth * S, Canvas->ClipX - 32.0f * S);
-	const float Height = 150.0f * S + NumVisibleRows * RowHeight + 50.0f * S;
-	const float Left = (Canvas->ClipX - Width) * 0.5f;
-	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
-	const float Padding = 28.0f * S;
+	// The open grimoire, a picture of 16:9 (Tools/HUD/vael_hud_gemalt.py, inventory_mage); places on it are given in its scene units
+	const float PictureWidth = FMath::Min(Canvas->ClipX, Canvas->ClipY * BookAspect);
+	const float Unit = PictureWidth / BookSceneWidth;
+	const FVector2D Middle(Canvas->ClipX * 0.5f, Canvas->ClipY * 0.5f);
+	const auto At = [Middle, Unit](float X, float Z) { return FVector2D(Middle.X + X * Unit, Middle.Y - Z * Unit); };
+	const FVector2D PictureSize(PictureWidth, PictureWidth / BookAspect);
 
-	DrawWindow(EVaelWindow::Class, Left, Top, Width, Height, PlayerController);
-	DrawFrame(Left, Top, Width, Height, RimColor);
-	DrawFrame(Left - 5.0f * S, Top - 5.0f * S, Width + 10.0f * S, Height + 10.0f * S, Rgb(42, 31, 25));
-
-	DrawLabel(FText::Format(LOCTEXT("InventoryEyebrow", "AUSRÜSTUNG UND RUCKSACK · SPIELER {0}"), PlayerController->GetPlayerSlot() + 1), Left + Padding, Top + 22.0f * S, 12.0f * S, EmberColor);
-	DrawLabel(LOCTEXT("InventoryTitle", "Inventar"), Left + Padding, Top + 40.0f * S, 36.0f * S, BoneColor);
-	DrawLabel(FText::Format(LOCTEXT("InventoryCoins", "{0} Gildenmünzen"), Inventory->GetCoins()), Left + Width - Padding, Top + 56.0f * S, 14.0f * S, QuestTitleColor, 1.0f);
-	DrawMenuTabs(PlayerController, Left + Width - Padding, Top + 22.0f * S);
-	DrawLabel(FText::Format(LOCTEXT("InventoryNote", "Rucksack: {0} von {1} Feldern belegt. Jedes Teil belegt ein Feld."), Inventory->GetBackpack().Num(), UVaelItemSettings::Get()->BackpackSize),
-		Left + Padding, Top + 88.0f * S, 13.0f * S, DimColor);
-
-	// List: the ten equipment places, then the backpack
-	const int32 NumEquipRows = static_cast<int32>(EVaelEquipSlot::Count);
-	const int32 NumRows = NumEquipRows + Inventory->GetBackpack().Num();
-	const int32 Selection = FMath::Clamp(PlayerController->GetInventorySelection(), 0, NumRows - 1);
-	const int32 FirstRow = FMath::Clamp(Selection - NumVisibleRows / 2, 0, FMath::Max(NumRows - NumVisibleRows, 0));
-
-	const float ListLeft = Left + Padding;
-	const float ListWidth = (Width - 2.0f * Padding) * 0.5f;
-	const float ListTop = Top + 120.0f * S;
-
-	const auto GetRowItem = [Inventory, NumEquipRows](int32 Row) -> const FVaelItem&
+	if (BookPicture != nullptr)
 	{
-		return Row < NumEquipRows ? Inventory->GetEquipped(static_cast<EVaelEquipSlot>(Row)) : Inventory->GetBackpack()[Row - NumEquipRows];
-	};
-
-	for (int32 Row = FirstRow; Row < FMath::Min(FirstRow + NumVisibleRows, NumRows); ++Row)
-	{
-		const float RowTop = ListTop + (Row - FirstRow) * RowHeight;
-		const FVaelItem& Item = GetRowItem(Row);
-
-		DrawBox(ListLeft, RowTop, ListWidth, RowHeight - 3.0f * S, Rgb(29, 22, 19));
-		if (Row == Selection)
-		{
-			DrawFrame(ListLeft, RowTop, ListWidth, RowHeight - 3.0f * S, EmberColor, 2.0f * S);
-		}
-
-		// The backpack starts below a thin line
-		if (Row == NumEquipRows)
-		{
-			DrawBox(ListLeft, RowTop - 2.0f * S, ListWidth, 1.0f * S, EmberColor);
-		}
-
-		const FText Label = Row < NumEquipRows ? GetEquipSlotName(static_cast<EVaelEquipSlot>(Row)) : FText::AsNumber(Row - NumEquipRows + 1);
-		DrawLabel(Label, ListLeft + 10.0f * S, RowTop + 6.0f * S, 13.0f * S, DimColor, 0.0f, 90.0f * S);
-		DrawLabel(Item.IsValid() ? Item.DisplayName : LOCTEXT("EmptyPlace", "–"), ListLeft + 105.0f * S, RowTop + 5.0f * S, 15.0f * S,
-			Item.IsValid() ? VaelItems::GetRarityColor(Item.Rarity) : Rgb(124, 109, 97), 0.0f, ListWidth - 115.0f * S);
+		Canvas->K2_DrawTexture(BookPicture, Middle - PictureSize * 0.5f, PictureSize, FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Translucent);
 	}
 
-	// Details of the selected item, compared with what it would replace
-	const float DetailLeft = ListLeft + ListWidth + 24.0f * S;
-	const float DetailWidth = Left + Width - Padding - DetailLeft;
-	const FVaelItem& Selected = GetRowItem(Selection);
-	float Y = ListTop;
+	// Text sizes follow the book
+	const float T = Unit / 540.0f;
+	const FLinearColor Ink = Rgb(22, 13, 8);
+	const FLinearColor FadedInk = Rgb(48, 31, 19);
+	const FLinearColor EmptyIcon(0.1f, 0.075f, 0.055f, 0.42f);
 
-	if (!Selected.IsValid())
+	const auto DrawItemIcon = [this, Unit](EVaelItemSlot Slot, const FVector2D& Center, float Size, const FLinearColor& Color)
 	{
-		DrawLabel(LOCTEXT("NothingWorn", "Hier ist nichts angelegt."), DetailLeft, Y, 14.0f * S, DimColor, 0.0f, DetailWidth);
+		const int32 Index = static_cast<int32>(Slot);
+		if (ItemIcons.IsValidIndex(Index) && ItemIcons[Index] != nullptr)
+		{
+			const FVector2D Extent(Size * Unit);
+			Canvas->K2_DrawTexture(ItemIcons[Index], Center - Extent * 0.5f, Extent, FVector2D::ZeroVector, FVector2D::UnitVector, Color, BLEND_Translucent);
+		}
+	};
+
+	// Left page: what is worn, around the figure; the empty places show what belongs there
+	const FVector2D LeftHead = At(BookFigureX, BookHeadingZ);
+	DrawTitle(LOCTEXT("InventoryTitle", "Ausrüstung"), LeftHead.X, LeftHead.Y, 40.0f * T, Ink, 0.5f);
+	const FVector2D LeftNote = At(BookFigureX, BookHeadingZ - 0.2f);
+	DrawLabel(FText::Format(LOCTEXT("InventoryPlayer", "Spieler {0} · {1} Gildenmünzen"), PlayerController->GetPlayerSlot() + 1, Inventory->GetCoins()), LeftNote.X, LeftNote.Y - 9.0f * T, 18.0f * T, FadedInk, 0.5f);
+
+	for (int32 Index = 0; Index < NumEquip; ++Index)
+	{
+		const EVaelEquipSlot EquipSlot = static_cast<EVaelEquipSlot>(Index);
+		const FVaelItem& Item = Inventory->GetEquipped(EquipSlot);
+		const FVector2D& Place = BookEquipPlaces[Index];
+		const FVector2D Center = At(BookFigureX + Place.X, BookFigureZ + Place.Y);
+
+		const EVaelItemSlot Kind = EquipSlot == EVaelEquipSlot::Ring1 || EquipSlot == EVaelEquipSlot::Ring2 ? EVaelItemSlot::Ring : static_cast<EVaelItemSlot>(Index);
+		DrawItemIcon(Kind, Center, 0.16f, Item.IsValid() ? VaelItems::GetRarityColor(Item.Rarity) : FLinearColor(0.42f, 0.36f, 0.3f, 0.5f));
+		if (Index == Selection)
+		{
+			DrawRing(Center, 0.125f * Unit, EmberColor, 3.0f * T);
+		}
+	}
+
+	// Right page, lower half: the backpack, or the bag of materials
+	const float RightX = -BookFigureX;
+	const FVector2D RightHead = At(RightX, BookHeadingZ);
+	const bool bBag = PlayerController->IsMaterialBagShown();
+	const FText Close = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("InvCloseKeyboard", "I / Esc") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("InvClosePlayStation", "Kreis") : LOCTEXT("InvCloseXbox", "B");
+	const FText BagKey = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("BagKeyboard", "B") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("BagPlayStation", "Viereck") : LOCTEXT("BagXbox", "X");
+	const FVector2D Hint = At(RightX, -0.815f);
+
+	if (bBag)
+	{
+		DrawTitle(LOCTEXT("BagTitle", "Materialbeutel"), RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
+
+		const TArray<FVaelMaterialStack> Stacks = Player->GetMaterialBag()->GetStacks();
+		const FVector2D First = At(RightX - 0.56f, 0.5f);
+		const float RowHeight = 31.0f * T;
+		const float RowWidth = 1.12f * Unit;
+		if (Stacks.IsEmpty())
+		{
+			DrawLabel(LOCTEXT("BagEmpty", "Noch leer. Gefallene Kreaturen lassen Teile zurück."), First.X, First.Y, 19.0f * T, FadedInk, 0.0f, RowWidth);
+		}
+
+		const int32 MaxRows = FMath::FloorToInt(1.2f * Unit / RowHeight);
+		for (int32 Index = 0; Index < FMath::Min(Stacks.Num(), MaxRows); ++Index)
+		{
+			const FVaelMaterialStack& Stack = Stacks[Index];
+			const float RowY = First.Y + Index * RowHeight;
+			DrawDisc(FVector2D(First.X + 8.0f * T, RowY + 11.0f * T), 7.0f * T, Stack.Material->Color);
+			DrawLabel(Stack.Material->DisplayName, First.X + 26.0f * T, RowY, 21.0f * T, Ink, 0.0f, RowWidth - 90.0f * T);
+			DrawLabel(FText::AsNumber(Stack.Count), First.X + RowWidth, RowY, 21.0f * T, Ink, 1.0f);
+		}
+
+		DrawLabel(FText::Format(LOCTEXT("BagFooter", "{0}: Rucksack · {1}: schließen"), BagKey, Close), Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
 	}
 	else
 	{
-		DrawLabel(Selected.DisplayName, DetailLeft, Y, 22.0f * S, VaelItems::GetRarityColor(Selected.Rarity), 0.0f, DetailWidth);
-		Y += 30.0f * S;
-		DrawLabel(FText::Format(LOCTEXT("ItemKind", "{0} · {1}"), UEnum::GetDisplayValueAsText(Selected.Rarity), GetItemSlotName(Selected.Slot)), DetailLeft, Y, 13.0f * S, DimColor);
-		Y += 26.0f * S;
+		DrawTitle(LOCTEXT("BackpackTitle", "Rucksack"), RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
 
-		// A backpack item is compared with what it would replace: the first place of its kind, unless one is free
-		const FVaelItem* Compared = nullptr;
-		if (Selection >= NumEquipRows)
+		for (int32 Index = 0; Index < BackpackSize; ++Index)
 		{
-			TArray<EVaelEquipSlot> EquipSlots;
-			VaelItems::GetEquipSlots(Selected.Slot, EquipSlots);
-
-			bool bFreePlace = false;
-			for (const EVaelEquipSlot EquipSlot : EquipSlots)
+			const int32 Column = Index % BookBackpackColumns;
+			const int32 Row = Index / BookBackpackColumns;
+			const FVector2D Center = At(RightX + (Column - (BookBackpackColumns - 1) * 0.5f) * BookBackpackStep, BookBackpackTop - Row * BookBackpackStep);
+			if (Inventory->GetBackpack().IsValidIndex(Index))
 			{
-				bFreePlace |= !Inventory->GetEquipped(EquipSlot).IsValid();
+				const FVaelItem& Item = Inventory->GetBackpack()[Index];
+				DrawItemIcon(Item.Slot, Center, 0.125f, VaelItems::GetRarityColor(Item.Rarity));
 			}
-
-			if (!bFreePlace && !EquipSlots.IsEmpty())
+			if (NumEquip + Index == Selection)
 			{
-				Compared = &Inventory->GetEquipped(EquipSlots[0]);
+				const float Half = 0.08f * Unit;
+				DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, EmberColor, 3.0f * T);
 			}
 		}
 
-		const auto StatValue = [](const FVaelItem* Item, EVaelItemStat Stat)
+		// Upper half: the selected item, compared with what it would replace
+		const FVaelItem* Selected = nullptr;
+		if (Selection < NumEquip)
 		{
-			float Value = 0.0f;
-			if (Item != nullptr)
-			{
-				for (const FVaelItemStatValue& Each : Item->Stats)
-				{
-					Value += Each.Stat == Stat ? Each.Value : 0.0f;
-				}
-			}
-			return Value;
-		};
-
-		// Properties of both; gains green, losses red
-		TArray<EVaelItemStat> Stats;
-		for (const FVaelItemStatValue& Each : Selected.Stats)
-		{
-			Stats.AddUnique(Each.Stat);
+			Selected = &Inventory->GetEquipped(static_cast<EVaelEquipSlot>(Selection));
 		}
-		if (Compared != nullptr)
+		else if (Inventory->GetBackpack().IsValidIndex(Selection - NumEquip))
 		{
-			for (const FVaelItemStatValue& Each : Compared->Stats)
-			{
-				Stats.AddUnique(Each.Stat);
-			}
+			Selected = &Inventory->GetBackpack()[Selection - NumEquip];
 		}
 
-		for (const EVaelItemStat Stat : Stats)
+		const FVector2D DetailAt = At(RightX - 0.56f, 0.56f);
+		const float DetailWidth = 1.12f * Unit;
+		if (Selected == nullptr || !Selected->IsValid())
 		{
-			const float Value = StatValue(&Selected, Stat);
-			const float Difference = Value - StatValue(Compared, Stat);
-
-			FVaelItemStatValue Shown;
-			Shown.Stat = Stat;
-			Shown.Value = Value != 0.0f ? Value : StatValue(Compared, Stat);
-
-			// A property only the worn item has is shown greyed out
-			DrawLabel(VaelItems::DescribeStat(Shown), DetailLeft, Y, 15.0f * S, Value != 0.0f ? BoneColor : Rgb(124, 109, 97), 0.0f, DetailWidth - 70.0f * S);
-
-			if (Compared != nullptr && FMath::Abs(Difference) >= 0.5f)
-			{
-				const bool bBetter = Difference > 0.0f;
-				const FText Amount = FText::AsNumber(FMath::RoundToInt(FMath::Abs(Difference)));
-				DrawLabel(FText::Format(bBetter ? LOCTEXT("StatUp", "▲ {0}") : LOCTEXT("StatDown", "▼ {0}"), Amount),
-					DetailLeft + DetailWidth, Y, 15.0f * S, bBetter ? Rgb(127, 201, 109) : Rgb(224, 92, 80), 1.0f);
-			}
-
-			Y += 24.0f * S;
+			const FText Empty = Selection < NumEquip
+				? FText::Format(LOCTEXT("NothingWorn", "{0}: nichts angelegt"), GetEquipSlotName(static_cast<EVaelEquipSlot>(Selection)))
+				: FText::Format(LOCTEXT("InventoryNote", "{0} von {1} Feldern belegt"), Inventory->GetBackpack().Num(), BackpackSize);
+			DrawLabel(Empty, DetailAt.X + DetailWidth * 0.5f, DetailAt.Y + 30.0f * T, 21.0f * T, FadedInk, 0.5f);
+		}
+		else
+		{
+			DrawItemDetails(Inventory, *Selected, Selection >= NumEquip, DetailAt.X, DetailAt.Y, DetailWidth, T);
 		}
 
-		if (const FVaelLegendaryAbility* Ability = Selected.GetLegendaryAbility())
+		const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "Kreuz") : LOCTEXT("ConfirmXbox", "A");
+		const FText Action = Selection < NumEquip ? LOCTEXT("ActionUnequip", "ablegen") : LOCTEXT("ActionEquip", "anlegen");
+		DrawLabel(FText::Format(LOCTEXT("InventoryFooter", "{0}: {1} · {2}: Materialbeutel · {3}: schließen"), Confirm, Action, BagKey, Close), Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
+	}
+
+	DrawMenuTabs(PlayerController, Middle.X + PictureSize.X * 0.47f, 6.0f * UiScale);
+}
+
+void AVaelHUD::DrawItemDetails(const UVaelInventory* Inventory, const FVaelItem& Selected, bool bFromBackpack, float X, float Y, float Width, float T)
+{
+	// The rarity colours are made for dark ground: on parchment they are drawn deeper
+	const auto OnPage = [](EVaelRarity Rarity) { const FLinearColor Color = VaelItems::GetRarityColor(Rarity); return Rarity == EVaelRarity::Common ? FLinearColor(Rgb(22, 13, 8)) : FLinearColor(Color.R * 0.2f, Color.G * 0.17f, Color.B * 0.17f); };
+	const FLinearColor Ink = Rgb(22, 13, 8);
+	const FLinearColor FadedInk = Rgb(48, 31, 19);
+
+	DrawTitle(Selected.DisplayName, X, Y, 30.0f * T, OnPage(Selected.Rarity), 0.0f);
+	Y += 36.0f * T;
+	DrawLabel(FText::Format(LOCTEXT("ItemKind", "{0} · {1}"), UEnum::GetDisplayValueAsText(Selected.Rarity), GetItemSlotName(Selected.Slot)), X, Y, 18.0f * T, FadedInk);
+	Y += 30.0f * T;
+
+	// A backpack item is compared with what it would replace: the first place of its kind, unless one is free
+	const FVaelItem* Compared = nullptr;
+	if (bFromBackpack)
+	{
+		TArray<EVaelEquipSlot> EquipSlots;
+		VaelItems::GetEquipSlots(Selected.Slot, EquipSlots);
+
+		bool bFreePlace = false;
+		for (const EVaelEquipSlot EquipSlot : EquipSlots)
 		{
-			Y += 8.0f * S;
-			DrawLabel(Ability->Description, DetailLeft, Y, 14.0f * S, VaelItems::GetRarityColor(EVaelRarity::Legendary), 0.0f, DetailWidth);
-			Y += 44.0f * S;
+			bFreePlace |= !Inventory->GetEquipped(EquipSlot).IsValid();
 		}
 
-		if (Compared != nullptr)
+		if (!bFreePlace && !EquipSlots.IsEmpty())
 		{
-			Y += 8.0f * S;
-			DrawLabel(FText::Format(LOCTEXT("ComparedWith", "Verglichen mit: {0}"), Compared->DisplayName), DetailLeft, Y, 12.0f * S, DimColor, 0.0f, DetailWidth);
+			Compared = &Inventory->GetEquipped(EquipSlots[0]);
 		}
 	}
 
-	// Footer
-	const float FooterY = Top + Height - 34.0f * S;
-	const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "✕") : LOCTEXT("ConfirmXbox", "A");
-	const FText Action = Selection < NumEquipRows ? LOCTEXT("ActionUnequip", "ablegen") : LOCTEXT("ActionEquip", "anlegen");
-	const FText Close = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("InvCloseKeyboard", "I / Esc") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("InvClosePlayStation", "○") : LOCTEXT("InvCloseXbox", "B");
+	const auto StatValue = [](const FVaelItem* Item, EVaelItemStat Stat)
+	{
+		float Value = 0.0f;
+		if (Item != nullptr)
+		{
+			for (const FVaelItemStatValue& Each : Item->Stats)
+			{
+				Value += Each.Stat == Stat ? Each.Value : 0.0f;
+			}
+		}
+		return Value;
+	};
 
-	DrawLabel(FText::Format(LOCTEXT("InventoryFooter", "{0}: {1} · {2}: schließen"), Confirm, Action, Close), Left + Width - Padding, FooterY, 13.0f * S, DimColor, 1.0f);
+	// Properties of both; gains green, losses red
+	TArray<EVaelItemStat> Stats;
+	for (const FVaelItemStatValue& Each : Selected.Stats)
+	{
+		Stats.AddUnique(Each.Stat);
+	}
+	if (Compared != nullptr)
+	{
+		for (const FVaelItemStatValue& Each : Compared->Stats)
+		{
+			Stats.AddUnique(Each.Stat);
+		}
+	}
 
-	DrawMaterialBag(Player, Left, Top, Width, Height);
+	for (const EVaelItemStat Stat : Stats)
+	{
+		const float Value = StatValue(&Selected, Stat);
+		const float Difference = Value - StatValue(Compared, Stat);
+
+		FVaelItemStatValue Shown;
+		Shown.Stat = Stat;
+		Shown.Value = Value != 0.0f ? Value : StatValue(Compared, Stat);
+
+		// A property only the worn item has is shown greyed out
+		DrawLabel(VaelItems::DescribeStat(Shown), X, Y, 21.0f * T, Value != 0.0f ? Ink : FadedInk, 0.0f, Width - 80.0f * T);
+
+		if (Compared != nullptr && FMath::Abs(Difference) >= 0.5f)
+		{
+			const bool bBetter = Difference > 0.0f;
+			const FText Amount = FText::AsNumber(FMath::RoundToInt(FMath::Abs(Difference)));
+			DrawLabel(FText::Format(bBetter ? LOCTEXT("StatUp", "▲ {0}") : LOCTEXT("StatDown", "▼ {0}"), Amount),
+				X + Width, Y, 21.0f * T, bBetter ? Rgb(34, 92, 30) : Rgb(130, 26, 20), 1.0f);
+		}
+
+		Y += 27.0f * T;
+	}
+
+	if (const FVaelLegendaryAbility* Ability = Selected.GetLegendaryAbility())
+	{
+		Y += 6.0f * T;
+		DrawLabel(Ability->Description, X, Y, 19.0f * T, OnPage(EVaelRarity::Legendary), 0.0f, Width);
+		Y += 30.0f * T;
+	}
+
+	if (Compared != nullptr)
+	{
+		DrawLabel(FText::Format(LOCTEXT("ComparedWith", "Verglichen mit: {0}"), Compared->DisplayName), X, Y + 4.0f * T, 17.0f * T, FadedInk, 0.0f, Width);
+	}
 }
 
 FText AVaelHUD::GetEquipSlotName(EVaelEquipSlot EquipSlot)

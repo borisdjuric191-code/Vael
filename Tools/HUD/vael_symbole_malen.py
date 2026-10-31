@@ -35,6 +35,7 @@ DEPTH = ((0.0, (0.1, 0.01, 0.2)), (0.45, (0.42, 0.14, 0.82)), (0.8, (0.72, 0.5, 
 IRIS = ((0.0, (0.012, 0.0, 0.008)), (0.3, (0.07, 0.002, 0.012)), (0.55, (0.2, 0.008, 0.024)), (0.78, (0.4, 0.04, 0.06)), (1.0, (0.62, 0.22, 0.3)))
 EMBER = ((0.0, (0.14, 0.004, 0.02)), (0.5, (0.36, 0.012, 0.035)), (0.8, (0.56, 0.04, 0.06)), (1.0, (0.7, 0.16, 0.14)))
 EARTH_GROUND = (0.008, 0.006, 0.005)
+BONE = ((0.0, (0.1, 0.1, 0.1)), (0.45, (0.42, 0.42, 0.42)), (0.75, (0.72, 0.72, 0.72)), (1.0, (1.0, 1.0, 1.0)))
 FOAM = ((0.0, (0.5, 0.8, 0.92)), (0.5, (0.8, 0.95, 1.0)), (1.0, (1.0, 1.0, 1.0)))
 
 
@@ -947,6 +948,77 @@ MOTIVES = {"Feuer": feuer, "Funke": funke, "Feuerball": feuerball, "Feuerstrahl"
            "Nid": nid, "Marksplitter": marksplitter, "Markstoss": markstoss, "OffeneWunde": offene_wunde, "Wirken": wirken}
 
 
+def icon_weapon(c):
+    c.tongue([(0.2, 0.92, 0.026), (0.38, 0.66, 0.03), (0.56, 0.4, 0.03), (0.68, 0.24, 0.026)], BONE, -0.05, ink=0.0, streak=0.9, wobble=1.5)
+    c.disc((0.75, 0.17), 0.1, 0.25, ink=0.0)
+
+
+def icon_offhand(c):
+    c.disc((0.5, 0.46), 0.3, 0.2, ink=0.0)
+    c.tongue([(0.26, 0.86, 0.03), (0.5, 0.8, 0.07), (0.74, 0.86, 0.03)], BONE, -0.05, ink=0.0, streak=0.9, wobble=1.5)
+
+
+def icon_head(c):
+    for side in (-1, 1):
+        c.tongue([(0.5, 0.12, 0.03), (0.5 + side * 0.22, 0.3, 0.1), (0.5 + side * 0.25, 0.6, 0.1), (0.5 + side * 0.18, 0.88, 0.05)], BONE, 0.05, ink=0.0, streak=0.9, wobble=1.5)
+
+
+def icon_chest(c):
+    c.tongue([(0.5, 0.12, 0.09), (0.5, 0.42, 0.16), (0.5, 0.68, 0.22), (0.5, 0.92, 0.3)], BONE, 0.05, ink=0.0, streak=0.9, wobble=1.5)
+    for side in (-1, 1):
+        c.tongue([(0.5 + side * 0.1, 0.18, 0.06), (0.5 + side * 0.28, 0.3, 0.06), (0.5 + side * 0.36, 0.56, 0.05)], BONE, -0.05, ink=0.0, streak=0.9, wobble=1.5)
+
+
+def icon_hands(c):
+    c.tongue([(0.5, 0.92, 0.1), (0.5, 0.74, 0.14), (0.5, 0.58, 0.16)], BONE, 0.05, ink=0.0, streak=0.9, wobble=1.5)
+    for x, top in ((0.36, 0.3), (0.46, 0.2), (0.56, 0.22), (0.66, 0.32)):
+        c.tongue([(x + (0.5 - x) * 0.3, 0.58, 0.05), (x, 0.42, 0.042), (x, top, 0.03)], BONE, 0.05, ink=0.0, streak=0.9, wobble=1.0)
+    c.tongue([(0.38, 0.72, 0.05), (0.26, 0.6, 0.04), (0.22, 0.48, 0.028)], BONE, 0.05, ink=0.0, streak=0.9, wobble=1.0)
+
+
+def icon_feet(c):
+    c.tongue([(0.36, 0.12, 0.09), (0.36, 0.48, 0.1), (0.38, 0.74, 0.12), (0.62, 0.8, 0.075), (0.93, 0.68, 0.002)], BONE, 0.05, ink=0.0, streak=0.9, wobble=1.5)
+
+
+def icon_belt(c):
+    c.tongue([(0.04, 0.5, 0.055), (0.5, 0.5, 0.06), (0.96, 0.5, 0.055)], BONE, -0.05, ink=0.0, streak=0.9, wobble=1.0)
+    c.disc((0.5, 0.5), 0.13, 0.25, ink=0.0)
+
+
+def icon_amulet(c):
+    c.tongue(arc((0.5, 0.34), 0.28, -10.0, -170.0, 0.016, count=9), BONE, -0.05, ink=0.0, streak=0.9, wobble=1.0)
+    for side in (-1, 1):
+        c.tongue([(0.5 + side * 0.28, 0.34, 0.012), (0.5 + side * 0.15, 0.52, 0.012), (0.5, 0.62, 0.012)], BONE, -0.05, ink=0.0, streak=0.9, wobble=1.0)
+    c.disc((0.5, 0.74), 0.13, 0.25, ink=0.0)
+
+
+def icon_ring(c):
+    for start, end in ((0.0, 185.0), (180.0, 365.0)):
+        c.tongue(arc((0.5, 0.58), 0.26, start, end, 0.06, count=9), BONE, 0.0, ink=0.0, streak=0.9, wobble=1.0)
+    c.disc((0.5, 0.27), 0.1, 0.3, ink=0.0)
+
+
+ITEM_ICONS = {"Weapon": icon_weapon, "Offhand": icon_offhand, "Head": icon_head, "Chest": icon_chest, "Hands": icon_hands, "Feet": icon_feet,
+              "Belt": icon_belt, "Amulet": icon_amulet, "Ring": icon_ring}
+
+
+def paint_item_icons(folder):
+    """Die Zeichen der Ausrüstung: helle Formen ohne Grund, das Spiel färbt sie nach der Seltenheit"""
+    os.makedirs(folder, exist_ok=True)
+    for index, (name, motive) in enumerate(ITEM_ICONS.items()):
+        canvas = Canvas(SEED + 40 + index)
+        motive(canvas)
+        alpha = np.clip(canvas.blurred_cover(1.2) * 1.8 - 0.25, 0.0, 1.0)
+        canvas.merge(BONE, shift=0.1, ink=(0.08, 0.08, 0.08), gloss=True)
+        rgba = np.dstack((np.clip(canvas.image, 0.0, 1.0) ** (1.0 / 2.2), alpha)).reshape(SIZE // 4, 4, SIZE // 4, 4, 4).mean(axis=(1, 3))
+        target = bpy.data.images.new(name, SIZE // 4, SIZE // 4, alpha=True)
+        target.pixels.foreach_set(rgba[::-1].astype(np.float32).ravel())
+        target.filepath_raw = os.path.join(folder, "T_Item_%s.png" % name)
+        target.file_format = "PNG"
+        target.save()
+        print("[Vael] Zeichen:", target.filepath_raw)
+
+
 def save(path, image):
     h, w = image.shape[:2]
     # Das Bild wird über vier Pixel gemittelt, so bleibt die Kontur ruhig
@@ -965,6 +1037,9 @@ def save(path, image):
 
 def main(folder, wanted):
     os.makedirs(folder, exist_ok=True)
+    if wanted == ["Zeichen"]:
+        paint_item_icons(os.path.join(os.path.dirname(folder), "Items"))
+        return
     painted = []
     for index, (name, motive) in enumerate(MOTIVES.items()):
         if wanted and name not in wanted:

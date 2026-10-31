@@ -1035,6 +1035,35 @@ void UVaelCheatManager::VaelErfahrung(float Amount)
 	}
 }
 
+void UVaelCheatManager::VaelRucksack(int32 Count)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	if (AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
+	{
+		const EVaelRarity Rarities[] = { EVaelRarity::Common, EVaelRarity::Magic, EVaelRarity::Rare };
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			VaelCharacter->GetInventory()->AddItem(UVaelItemSettings::Get()->RollItem(Rarities[Index % UE_ARRAY_COUNT(Rarities)]));
+		}
+	}
+}
+
+void UVaelCheatManager::VaelInventarSchritt(int32 Right, int32 Down)
+{
+	if (AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		VaelController->NavigateInventory(Right, Down);
+	}
+}
+
+void UVaelCheatManager::VaelBeutel()
+{
+	if (AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		VaelController->OnMenuBag();
+	}
+}
+
 void UVaelCheatManager::VaelMenue(const FString& Page)
 {
 	if (AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))

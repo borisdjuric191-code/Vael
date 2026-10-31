@@ -153,6 +153,9 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(MapAction, ETriggerEvent::Started, this, &AVaelPlayerController::ToggleMap);
 			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnMenuNavigate);
 			EnhancedInputComponent->BindAction(MenuNavigateAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnMenuNavigateReleased);
+			EnhancedInputComponent->BindAction(MenuNavigateSideAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnMenuNavigateSide);
+			EnhancedInputComponent->BindAction(MenuNavigateSideAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnMenuNavigateReleased);
+			EnhancedInputComponent->BindAction(MenuBagAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuBag);
 			EnhancedInputComponent->BindAction(MenuCloseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuClose);
 			EnhancedInputComponent->BindAction(MenuPageAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuPage);
 			EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuConfirm);
@@ -359,6 +362,22 @@ void AVaelPlayerController::CreateInputAssets()
 	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::Up);
 	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::S).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
 	MenuMappingContext->MapKey(MenuNavigateAction, EKeys::Down).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
+
+	// Sideways in the inventory; the pad's cross moves there too, see OnMenuAssign
+	MenuNavigateSideAction = CreateAction(TEXT("IA_MenuNavigateSide"), EInputActionValueType::Axis1D);
+	MenuNavigateSideAction->bTriggerWhenPaused = true;
+	UInputModifierDeadZone* SideDeadZone = NewObject<UInputModifierDeadZone>(MenuMappingContext);
+	SideDeadZone->LowerThreshold = 0.5f;
+	MenuMappingContext->MapKey(MenuNavigateSideAction, EKeys::Gamepad_LeftX).Modifiers.Add(SideDeadZone);
+	MenuMappingContext->MapKey(MenuNavigateSideAction, EKeys::D);
+	MenuMappingContext->MapKey(MenuNavigateSideAction, EKeys::Right);
+	MenuMappingContext->MapKey(MenuNavigateSideAction, EKeys::A).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
+	MenuMappingContext->MapKey(MenuNavigateSideAction, EKeys::Left).Modifiers.Add(NewObject<UInputModifierNegate>(MenuMappingContext));
+
+	MenuBagAction = CreateAction(TEXT("IA_MenuBag"), EInputActionValueType::Boolean);
+	MenuBagAction->bTriggerWhenPaused = true;
+	MenuMappingContext->MapKey(MenuBagAction, EKeys::Gamepad_FaceButton_Left);
+	MenuMappingContext->MapKey(MenuBagAction, EKeys::B);
 
 	MenuCloseAction = CreateAction(TEXT("IA_MenuClose"), EInputActionValueType::Boolean);
 	MenuCloseAction->bTriggerWhenPaused = true;
@@ -1380,7 +1399,7 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 
 	if (MenuPage == EVaelMenuPage::Inventory)
 	{
-		InventorySelection = FMath::Clamp(InventorySelection + Step, 0, FMath::Max(GetNumInventoryRows() - 1, 0));
+		NavigateInventory(0, Step);
 		return;
 	}
 
@@ -1484,6 +1503,70 @@ void AVaelPlayerController::OnMenuConfirm()
 	InventorySelection = FMath::Clamp(InventorySelection, 0, FMath::Max(GetNumInventoryRows() - 1, 0));
 }
 
+void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
+{
+	const float Direction = Value.Get<float>();
+	if (!bGrimoireOpen || MenuPage != EVaelMenuPage::Inventory || FMath::Abs(Direction) < 0.5f)
+	{
+		return;
+	}
+
+	// One step right away, then repeating while held
+	const double Now = FPlatformTime::Seconds();
+	if (NextNavigateTime > 0.0 && Now < NextNavigateTime)
+	{
+		return;
+	}
+
+	NextNavigateTime = Now + (NextNavigateTime > 0.0 ? MenuRepeatInterval : MenuRepeatDelay);
+	NavigateInventory(Direction > 0.0f ? 1 : -1, 0);
+}
+
+void AVaelPlayerController::OnMenuBag()
+{
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Inventory)
+	{
+		bMaterialBagShown = !bMaterialBagShown;
+	}
+}
+
+void AVaelPlayerController::NavigateInventory(int32 Right, int32 Down)
+{
+	const int32 NumEquip = static_cast<int32>(EVaelEquipSlot::Count);
+	constexpr int32 Columns = 7;
+
+	if (InventorySelection < NumEquip)
+	{
+		// Neighbours of each place around the figure, by EVaelEquipSlot: up, down, left, right; none stays
+		static const int32 Neighbours[][4] = {
+			{ -1, 4, -1, 7 }, { -1, 8, 7, NumEquip }, { -1, 7, 0, 1 }, { 7, 6, 4, 8 }, { 0, 5, -1, 3 },
+			{ 4, -1, -1, 6 }, { 3, -1, 5, 9 }, { 2, 3, 0, 1 }, { 1, 9, 3, NumEquip + 2 * Columns }, { 8, -1, 6, NumEquip + 4 * Columns } };
+
+		const int32* Near = Neighbours[InventorySelection];
+		const int32 Next = Down < 0 ? Near[0] : Down > 0 ? Near[1] : Right < 0 ? Near[2] : Near[3];
+		InventorySelection = Next >= 0 ? Next : InventorySelection;
+		return;
+	}
+
+	const int32 Cell = InventorySelection - NumEquip;
+	const int32 Column = Cell % Columns;
+	const int32 Row = Cell / Columns;
+	if (Right < 0 && Column == 0)
+	{
+		// Back onto the left page, to the ring or offhand beside this row
+		InventorySelection = Row <= 1 ? 1 : Row <= 3 ? 8 : 9;
+		return;
+	}
+
+	const int32 NumCells = FMath::Max(GetNumInventoryRows() - NumEquip, 1);
+	const int32 NewColumn = FMath::Clamp(Column + Right, 0, Columns - 1);
+	const int32 NewCell = (Row + Down) * Columns + NewColumn;
+	if (NewCell >= 0 && NewCell < NumCells)
+	{
+		InventorySelection = NumEquip + NewCell;
+	}
+}
+
 void AVaelPlayerController::OnToggleInventory()
 {
 	if (!bGrimoireOpen)
@@ -1519,8 +1602,7 @@ void AVaelPlayerController::OnToggleHero()
 int32 AVaelPlayerController::GetNumInventoryRows() const
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-	const int32 NumBackpack = VaelCharacter != nullptr ? VaelCharacter->GetInventory()->GetBackpack().Num() : 0;
-	return static_cast<int32>(EVaelEquipSlot::Count) + NumBackpack;
+	return static_cast<int32>(EVaelEquipSlot::Count) + UVaelItemSettings::Get()->BackpackSize;
 }
 
 bool AVaelPlayerController::StartDialogue(const FText& Speaker, const TArray<FText>& Lines)
@@ -1693,6 +1775,13 @@ void AVaelPlayerController::OnMenuClose()
 
 void AVaelPlayerController::OnMenuAssign(int32 SlotIndex)
 {
+	// In the inventory the cross of the pad moves through the book: up, right, down, left
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Inventory)
+	{
+		NavigateInventory(SlotIndex == 1 ? 1 : SlotIndex == 3 ? -1 : 0, SlotIndex == 0 ? -1 : SlotIndex == 2 ? 1 : 0);
+		return;
+	}
+
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	const UGameInstance* GameInstance = GetGameInstance();
 	const UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;

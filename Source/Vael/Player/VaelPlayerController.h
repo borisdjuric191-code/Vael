@@ -129,6 +129,14 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> MenuNavigateAction;
 
+	/** Move the selection sideways in the inventory Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> MenuNavigateSideAction;
+
+	/** Switch the right page of the inventory between backpack and bag Input Action */
+	UPROPERTY(EditAnywhere, Category="Input")
+	TObjectPtr<UInputAction> MenuBagAction;
+
 	/** Close a menu Input Action */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> MenuCloseAction;
@@ -284,6 +292,15 @@ public:
 	/** Selected row of the inventory page: the ten equipment places first, then the fields of the backpack */
 	int32 GetInventorySelection() const { return InventorySelection; }
 
+	/** True while the right page of the inventory shows the bag of materials */
+	bool IsMaterialBagShown() const { return bMaterialBagShown; }
+
+	/** Switches the right page of the inventory between backpack and bag */
+	void OnMenuBag();
+
+	/** Moves the selection of the inventory through the places of the book */
+	void NavigateInventory(int32 Right, int32 Down);
+
 	/** Row of the compendium page the player has selected */
 	int32 GetCompendiumSelection() const { return CompendiumSelection; }
 
@@ -404,6 +421,8 @@ protected:
 
 	void OnMenuNavigate(const FInputActionValue& Value);
 	void OnMenuNavigateReleased();
+	void OnMenuNavigateSide(const FInputActionValue& Value);
+
 	void OnMenuClose();
 	void OnMenuAssign(int32 SlotIndex);
 	void OnMenuPage(const FInputActionValue& Value);
@@ -506,6 +525,8 @@ protected:
 
 	/** Selected row of the inventory page */
 	int32 InventorySelection = 0;
+
+	bool bMaterialBagShown = false;
 
 	/** Row of the compendium page the player has selected, counting through the books in order */
 	int32 CompendiumSelection = 0;

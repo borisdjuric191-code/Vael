@@ -1159,25 +1159,27 @@ def page_y(x, x0, x1):
 
 
 def cell(m, x, y, z, size, round_cell=False):
-    """A field of the inventory, drawn into the page: dark ink with a silver rim"""
+    """A field of the inventory, painted into the page: a pool of dark ink with a thin worn rim, no raised button"""
     if round_cell:
-        cylinder((x, y + 0.004, z), size / 2, 0.008, m["ink"], rotation=(math.radians(90), 0, 0), name="Feld", vertices=48)
-        torus((x, y, z), size / 2, 0.009, m["silver"], name="Feldring")
-        torus((x, y - 0.002, z), size / 2 - 0.024, 0.0022, m["darksilver"], name="Feldlinie")
+        cylinder((x, y + 0.004, z), size / 2, 0.003, m["ink"], rotation=(math.radians(90), 0, 0), name="Feld", vertices=48)
+        torus((x, y + 0.002, z), size / 2, 0.0034, m["rim"], name="Feldring")
+        torus((x, y + 0.001, z), size / 2 + 0.014, 0.0016, m["rim"], name="Feldlinie")
     else:
-        fill = rounded_plate(size, size, 0.02, 0.008, m["ink"], y=y + 0.004, name="Feld")
+        fill = rounded_plate(size, size, 0.012, 0.003, m["ink"], y=y + 0.004, name="Feld")
         fill.location.x = x
         fill.location.z = z
-        path = [(px_ + x, y, pz + z) for px_, _, pz in rounded_rect_path(size, size, 0.022, 0.0, n_corner=4)]
-        tube(path, [0.0062] * len(path), m["silver"], name="Feldring", cyclic=True, resolution=3)
+        path = [(px_ + x, y + 0.002, pz + z) for px_, _, pz in rounded_rect_path(size, size, 0.014, 0.0, n_corner=4)]
+        tube(path, [0.003] * len(path), m["rim"], name="Feldring", cyclic=True, resolution=3)
 
 
 def inventory_mage(m):
     """The inventory of the mage: the open grimoire. Left page the equipment on a drawn figure, right page the backpack,
     tabs for bag and class compartment, a ribbon as bookmark. Text and items are drawn by the game."""
     mage_materials(m)
-    m["parchment"] = worn(material("Pergament", (0.46, 0.33, 0.17), roughness=0.9, bump=0.22, bump_scale=45.0), scale=2.4, darkest=0.55)
+    m["parchment"] = worn(material("Pergament", (0.2, 0.128, 0.058), roughness=0.95, bump=0.4, bump_scale=60.0), scale=3.2, darkest=0.4)
+    m["rim"] = material("Feldrand", (0.03, 0.019, 0.011), roughness=0.8)
     m["ink"] = material("Tinte", (0.002, 0.003, 0.008), roughness=0.85, bump=0.15, bump_scale=160.0)
+    m["ink"].node_tree.nodes["Principled BSDF"].inputs["Specular IOR Level"].default_value = 0.0
     ink_line = material("Federstrich", (0.05, 0.035, 0.025), roughness=0.7)
 
     w, h = 3.42, 1.9
@@ -1189,7 +1191,7 @@ def inventory_mage(m):
 
     # Page block under the pages, then the two pages and the fold between them
     pw, ph, top = 1.58, 1.72, 0.86
-    block = rounded_plate(2 * pw + 0.06, 2 * top + 0.05, 0.03, 0.03, material("Seitenblock", (0.3, 0.24, 0.15), roughness=0.9), y=-0.02, name="Block")
+    block = rounded_plate(2 * pw + 0.06, 2 * top + 0.05, 0.03, 0.03, material("Seitenblock", (0.12, 0.085, 0.05), roughness=0.9), y=-0.02, name="Block")
     page(-pw, -0.004, -top, top, m, "Seite links")
     page(0.004, pw, -top, top, m, "Seite rechts")
     tube([(0.0, -0.05, top + 0.01), (0.0, -0.05, -top - 0.01)], [0.012] * 2, material("Falz", (0.03, 0.02, 0.014), roughness=0.8), name="Falz")
@@ -1199,17 +1201,21 @@ def inventory_mage(m):
         for z in (top - 0.2,):
             cx = (x0 + x1) / 2
             line = [(x, page_y(x, -pw if x0 < 0 else 0.0, 0.0 if x0 < 0 else pw) - 0.002, z) for x in np.linspace(x0, x1, 30)]
-            tube(line, [0.0022] * len(line), ink_line, name="Linie")
+            tube(line, [0.002] * len(line), m["rim"], name="Linie")
             facet_stone(m, cx, page_y(cx, -pw if x0 < 0 else 0.0, 0.0 if x0 < 0 else pw) - 0.004, z, 0.018)
 
-    # Left page: a figure drawn in ink, the ten places around it
+    # Left page: a seal diagram in faded ink instead of a body, its lines tie the ten places together
     fx, fz = -0.8, -0.12
-    hood = [(fx + 0.1 * math.cos(a), page_y(fx, -pw, 0.0) - 0.002, fz + 0.5 + 0.12 * math.sin(a)) for a in np.linspace(0, math.tau, 30)]
-    tube(hood, [0.003] * len(hood), ink_line, name="Kopf", cyclic=True)
-    for side in (1, -1):
-        robe = bezier((fx + side * 0.06, fz + 0.39, 0.0), (fx + side * 0.32, fz + 0.2, 0.0), (fx + side * 0.26, fz - 0.62, 0.0), 24)
-        tube([(x, page_y(x, -pw, 0.0) - 0.002, z) for x, z, _ in [(p[0], p[1], 0) for p in robe]], [0.003] * 24, ink_line, name="Robe")
-    tube([(x, page_y(x, -pw, 0.0) - 0.002, fz - 0.62) for x in (fx - 0.26, fx + 0.26)], [0.003] * 2, ink_line, name="Saum")
+    faint = material("Siegeltinte", (0.07, 0.042, 0.022), roughness=0.75)
+    on_page = lambda x, z: (x, page_y(x, -pw, 0.0) + 0.004, z)
+    for radius, width in ((0.655, 0.0034), (0.64, 0.0018)):
+        circle = [on_page(fx + radius * math.cos(a), fz + 0.02 + radius * math.sin(a)) for a in np.linspace(0, math.tau, 96)]
+        tube(circle, [width] * len(circle), faint, name="Siegelkreis", cyclic=True, resolution=3)
+    tube([on_page(fx, fz + z) for z in np.linspace(0.5, -0.33, 12)], [0.0026] * 12, faint, name="Achse", resolution=3)
+    for dx, dz, hub in ((-0.5, 0.26, 0.2), (0.5, 0.26, 0.2), (-0.5, -0.1, -0.07), (0.5, -0.1, -0.07), (-0.5, -0.46, -0.33), (0.5, -0.46, -0.33)):
+        tube([on_page(fx + dx * t, fz + hub + (dz - hub) * t) for t in np.linspace(0.0, 1.0, 12)], [0.0026] * 12, faint, name="Strahl", resolution=3)
+    for a in np.radians(np.arange(0.0, 360.0, 15.0)):
+        tube([on_page(fx + r * math.cos(a), fz + 0.02 + r * math.sin(a)) for r in (0.655, 0.685)], [0.0022] * 2, faint, name="Marke", resolution=2)
     size = 0.235
     places = ((0.0, 0.5), (0.0, 0.2), (0.0, -0.07), (0.0, -0.33),            # head, amulet, chest, belt
               (-0.5, 0.26), (0.5, 0.26), (-0.5, -0.1), (-0.5, -0.46),        # weapon, offhand, hands, feet
@@ -1220,23 +1226,23 @@ def inventory_mage(m):
 
     # Right page: the backpack, seven by five
     columns, rows = 7, 5
-    size = 0.176
-    step = 0.196
-    cx, cz = 0.8, -0.16
+    size = 0.152
+    step = 0.17
+    cx, cz = 0.8, -0.35
     for c in range(columns):
         for r in range(rows):
             x = cx + (c - (columns - 1) / 2) * step
             cell(m, x, page_y(x, 0.0, pw) - 0.008, cz + ((rows - 1) / 2 - r) * step, size)
 
     # Tabs on the right edge and the ribbon
-    for k, color in enumerate(((0.05, 0.12, 0.3), (0.12, 0.09, 0.05), (0.05, 0.08, 0.05))):
+    for k, color in enumerate(((0.012, 0.03, 0.09), (0.05, 0.035, 0.02), (0.018, 0.03, 0.018))):
         tab = rounded_plate(0.18, 0.3, 0.05, 0.02, material("Reiter%d" % k, color, roughness=0.6, bump=0.3, bump_scale=200.0), y=-0.012, name="Reiter")
         tab.location.x = w / 2 - 0.09
         tab.location.z = 0.42 - k * 0.36
     # The ribbon lies in the fold and hangs out below
-    ribbon = rounded_plate(0.075, 1.04, 0.006, 0.006, material("Band", (0.008, 0.03, 0.15), roughness=0.5), y=-0.1, name="Band")
+    ribbon = rounded_plate(0.05, 0.3, 0.006, 0.006, material("Band", (0.004, 0.012, 0.06), roughness=0.6), y=-0.1, name="Band")
     ribbon.location.x = 0.0
-    ribbon.location.z = -0.43
+    ribbon.location.z = -0.8
     element_seal(m, 0.0, top + 0.015, 0.8)
 
 
