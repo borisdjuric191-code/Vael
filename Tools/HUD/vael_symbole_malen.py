@@ -886,9 +886,15 @@ def markstoss(c):
     for angle, reach in ((-74.0, 0.5), (-45.0, 0.62), (-16.0, 0.5)):
         a = math.radians(angle)
         c.tongue([(origin[0] + math.cos(a) * s * reach, origin[1] + math.sin(a) * s * reach, w) for s, w in ((0.1, 0.022), (0.45, 0.014), (0.8, 0.007), (1.0, 0.001))], NID, -0.04, ink=0.0014, streak=0.6, wobble=2.0)
-    # Drei Bögen, nach außen breiter und dunkler
-    for radius, width, span, heat in ((0.2, 0.045, 62.0, 0.2), (0.4, 0.06, 56.0, 0.1), (0.62, 0.075, 50.0, 0.0)):
-        c.tongue(arc(origin, radius, -45.0 - span, -45.0 + span, width, count=11), NID, heat, ink=0.0018, streak=0.55, wobble=2.5)
+    # Eine große, durchgehende Front, deren Vorderkante in langen Spitzen ausreißt; dahinter ein dünner Nachlauf
+    c.tongue(arc(origin, 0.27, -105.0, 15.0, 0.03, count=11), NID, 0.1, ink=0.0016, streak=0.6, wobble=3.0)
+    c.tongue(arc(origin, 0.53, -102.0, 12.0, 0.1, count=13), NID, 0.08, ink=0.0018, streak=0.7, wobble=3.5)
+    for k, angle in enumerate(np.arange(-98.0, 10.0, 7.0)):
+        a = math.radians(float(angle) + c.rng.uniform(-1.5, 1.5))
+        fade = math.sin((float(angle) + 102.0) / 114.0 * math.pi)
+        reach = (0.1 + 0.2 * fade) * (1.0 if k % 2 == 0 else 0.6) * c.rng.uniform(0.85, 1.1)
+        root = 0.53 + 0.02
+        c.tongue([(origin[0] + math.cos(a) * r, origin[1] + math.sin(a) * r, w) for r, w in ((root, 0.024 * (0.5 + 0.5 * fade)), (root + reach * 0.45, 0.012), (root + reach, 0.001))], NID, 0.02, ink=0.0012, streak=0.6, wobble=2.0)
     c.disc(origin, 0.055, 0.1)
     c.merge(NID, ink=NID_INK, shift=-0.1, gloss=True)
     c.spray((0.62, 0.38), 0.16, 60, -45.0)
