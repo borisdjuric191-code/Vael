@@ -27,7 +27,8 @@ Das Skript legt an:
 
 Getestet mit Blender 5.1 (Python-API ist seit 4.x gleich geblieben für alles, was hier benutzt wird).
 """
-import bpy, bmesh, json, math, os, sys
+import bpy, bmesh, json, math, os, re, sys
+import numpy as np
 from mathutils import Vector, Matrix
 
 # ---------------------------------------------------------------- Fabrikregeln
@@ -802,16 +803,7 @@ def binden(ordner):
         beine_starr(obj, [str(nr) for nr in sb["beine_starr"]])
     bpy.ops.wm.save_mainfile()
 
-    # Aus einem GLB kommen die Texturen nur gepackt, ohne Datei: der FBX-Export nimmt sie dann nicht mit
-    # (Distelspinne: einfarbig in Unreal). Also vorher als PNG neben die .blend schreiben.
-    texturen = os.path.join(ordner, "03_blender", "texturen")
-    for im in bpy.data.images:
-        if im.packed_file is not None and not im.filepath:
-            os.makedirs(texturen, exist_ok=True)
-            im.filepath_raw = os.path.join(texturen, f"{im.name}.png")
-            im.file_format = "PNG"
-            im.save()
-            log("Textur geschrieben:", im.filepath_raw)
+    texturen_schreiben(ordner)
 
     os.makedirs(os.path.join(ordner, "04_export"), exist_ok=True)
     ziel = os.path.join(ordner, "04_export", f"SK_{name}.fbx")
@@ -823,6 +815,38 @@ def binden(ordner):
         mesh_smooth_type="FACE",
     )
     log("exportiert:", ziel)
+
+def texturen_schreiben(ordner):
+    # Aus einem GLB kommen die Texturen nur gepackt, ohne Datei: der FBX-Export nimmt sie dann nicht mit
+    # (Distelspinne: einfarbig in Unreal). Also vorher als PNG neben die .blend schreiben.
+    texturen = os.path.join(ordner, "03_blender", "texturen")
+    for im in list(bpy.data.images):
+        if im.packed_file is not None and not im.filepath:
+            os.makedirs(texturen, exist_ok=True)
+            stamm = re.sub(r"\.(jpe?g|png)$", "", im.name, flags=re.I)
+            if stamm.lower().endswith("_rm"):
+                rm_teilen(im, texturen, stamm[:-3])
+                continue
+            im.filepath_raw = os.path.join(texturen, f"{stamm}.png")
+            im.file_format = "PNG"
+            im.save()
+            log("Textur geschrieben:", im.filepath_raw)
+
+def rm_teilen(im, texturen, stamm):
+    # Tripo packt Roughness (grün) und Metallic (blau) in eine Textur, der Master liest einzelne Karten
+    b, h = im.size
+    px = np.empty(b * h * 4, dtype=np.float32)
+    im.pixels.foreach_get(px)
+    for art, kanal in (("roughness", 1), ("metallic", 2)):
+        neu = px.copy()
+        for i in range(3):
+            neu[i::4] = px[kanal::4]
+        karte = bpy.data.images.new(f"{stamm}_{art}", b, h)
+        karte.pixels.foreach_set(neu)
+        karte.filepath_raw = os.path.join(texturen, f"{stamm}_{art}.png")
+        karte.file_format = "PNG"
+        karte.save()
+        log("Textur geschrieben:", karte.filepath_raw)
 
 def requisite(ordner):
     """Pflanzen, Pilze, Gesteine und andere Requisiten: ohne Skelett, in einem Schritt.
@@ -866,8 +890,10 @@ def requisite(ordner):
         if slot.material:
             slot.material.name = f"M_{name}" if i == 0 else f"M_{name}_{i}"
 
+    texturen_schreiben(ordner)
+
     os.makedirs(os.path.join(ordner, "04_export"), exist_ok=True)
-    ziel_fbx = os.path.join(ordner, "04_export", f"SM_{name}.fbx")
+    ziel_fbx =os.path.join(ordner, "04_export", f"SM_{name}.fbx")
     aktiv(obj)
     bpy.ops.export_scene.fbx(
         filepath=ziel_fbx, use_selection=True, object_types={"MESH"},

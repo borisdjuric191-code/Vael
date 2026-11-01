@@ -144,6 +144,7 @@ def importiere_requisite(ordner):
             if art is not None:
                 rest = art
             eal.rename_asset(p, f"{ziel}/T_{name}_{rest}")
+    texturen_auffrischen(ordner, ziel, name)
 
     sm = eal.load_asset(f"{ziel}/SM_{name}")
     if sm is None:
