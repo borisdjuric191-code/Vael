@@ -23,6 +23,7 @@
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Nature/VaelGarden.h"
 #include "UI/VaelNoticeSubsystem.h"
@@ -1046,6 +1047,23 @@ void UVaelCheatManager::VaelRucksack(int32 Count)
 			VaelCharacter->GetInventory()->AddItem(UVaelItemSettings::Get()->RollItem(Rarities[Index % UE_ARRAY_COUNT(Rarities)]));
 		}
 	}
+}
+
+void UVaelCheatManager::VaelBuch(int32 Mode)
+{
+	AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	const AVaelCharacter* VaelCharacter = VaelController != nullptr ? VaelController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter == nullptr)
+	{
+		return;
+	}
+
+	if (Mode == 2)
+	{
+		VaelController->OpenGrimoire(EVaelMenuPage::Inventory);
+		return;
+	}
+	VaelCharacter->GetFloatingGrimoire()->SetForced(Mode != 0);
 }
 
 void UVaelCheatManager::VaelInventarSchritt(int32 Right, int32 Down)

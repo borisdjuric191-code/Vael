@@ -30,6 +30,7 @@
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelElementOrbitComponent.h"
+#include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
@@ -141,6 +142,10 @@ AVaelCharacter::AVaelCharacter()
 	// Create the circle of element orbs above the head
 	ElementOrbit = CreateDefaultSubobject<UVaelElementOrbitComponent>(TEXT("ElementOrbit"));
 	ElementOrbit->SetupAttachment(RootComponent);
+
+	// Create the grimoire that floats before a mage
+	FloatingGrimoire = CreateDefaultSubobject<UVaelFloatingGrimoireComponent>(TEXT("FloatingGrimoire"));
+	FloatingGrimoire->SetupAttachment(RootComponent);
 
 	// Create the seeds and plants and the wings of the Floromant; both rest while the player plays a mage
 	Floromant = CreateDefaultSubobject<UVaelFloromantComponent>(TEXT("Floromant"));
@@ -310,6 +315,7 @@ void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
 
 	ElementComponent->ClearQueue();
 	ElementOrbit->SetVisibility(!bFloromant, true);
+	FloatingGrimoire->SetAllowed(!bFloromant);
 	Wings->SetWingsShown(bFloromant);
 
 	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
@@ -911,6 +917,8 @@ void AVaelCharacter::OnHealthChanged(float OldValue, float NewValue)
 	{
 		return;
 	}
+
+	FloatingGrimoire->NoteCombat();
 
 	if (NewValue <= 0.0f)
 	{

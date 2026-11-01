@@ -277,6 +277,9 @@ public:
 	/** True while this player has the grimoire open */
 	bool IsGrimoireOpen() const { return bGrimoireOpen; }
 
+	/** How far the menu has come up out of the book: 0 still waiting for the book to open, 1 fills the screen */
+	float GetGrimoireReveal() const;
+
 	/** True while this player has the big map open; the game goes on under it */
 	bool IsMapOpen() const { return bMapOpen; }
 
@@ -513,6 +516,11 @@ protected:
 
 	/** True while this player has the grimoire open */
 	bool bGrimoireOpen = false;
+
+	/** Clock time the menu was opened, seconds it waits for the book, seconds it takes to come up out of it */
+	double GrimoireOpenTime = 0.0;
+	float GrimoireRevealDelay = 0.0f;
+	static constexpr float GrimoireRevealSeconds = 0.28f;
 
 	/** True while this player has the big map open */
 	bool bMapOpen = false;

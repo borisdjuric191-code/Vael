@@ -23,6 +23,7 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "World/VaelSafeZone.h"
+#include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelElementComponent.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelHeroSubsystem.h"
@@ -1349,7 +1350,21 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 	InputSubsystem->AddMappingContext(MenuMappingContext, 1);
 	UGameplayStatics::SetGamePaused(this, true);
 
+	// A mage calls the book first; the menu comes up out of it once it lies open
+	GrimoireOpenTime = GetWorld()->GetRealTimeSeconds();
+	GrimoireRevealDelay = 0.0f;
+	if (UVaelFloatingGrimoireComponent* Book = GetPawn<AVaelCharacter>()->GetFloatingGrimoire())
+	{
+		Book->SetMenuOpen(true);
+		GrimoireRevealDelay = Book->GetSecondsUntilOpen();
+	}
+
 	return true;
+}
+
+float AVaelPlayerController::GetGrimoireReveal() const
+{
+	return FMath::Clamp((GetWorld()->GetRealTimeSeconds() - GrimoireOpenTime - GrimoireRevealDelay) / GrimoireRevealSeconds, 0.0f, 1.0f);
 }
 
 void AVaelPlayerController::CloseGrimoire()
@@ -1360,6 +1375,10 @@ void AVaelPlayerController::CloseGrimoire()
 	}
 
 	bGrimoireOpen = false;
+	if (const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	{
+		VaelCharacter->GetFloatingGrimoire()->SetMenuOpen(false);
+	}
 	OpenShop.Reset();
 	if (MenuPage == EVaelMenuPage::Shop)
 	{

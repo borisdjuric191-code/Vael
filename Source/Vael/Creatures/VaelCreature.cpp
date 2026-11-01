@@ -27,6 +27,7 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Items/VaelPickupOrb.h"
+#include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelClayGolem.h"
 #include "Magic/VaelFormula.h"
 #include "Magic/VaelGameplayTags.h"
@@ -751,6 +752,12 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 			NearestDistance = Distance;
 		}
 	});
+
+	// Being noticed brings the grimoire out; what still lies hidden in ambush gives nothing away
+	if (const AVaelCharacter* Player = Cast<AVaelCharacter>(Nearest); Player != nullptr && !IsHiddenFromAim())
+	{
+		Player->GetFloatingGrimoire()->NoteDanger(NearestDistance);
+	}
 
 	if (OutDistance != nullptr)
 	{

@@ -77,6 +77,9 @@ private:
 	void DrawCreatureHealthBars();
 	void DrawGrimoire(const AVaelPlayerController* PlayerController);
 
+	/** Draws the menu, on its way up out of the floating book while that has just opened */
+	void DrawGrimoireReveal(const AVaelPlayerController* PlayerController);
+
 	/** Shows over chests and other usable things which button uses them, for every player close enough */
 	void DrawInteractPrompts(const TArray<const AVaelPlayerController*>& PlayerControllers);
 
@@ -230,6 +233,10 @@ private:
 
 	/** Pixels per HUD unit for the current canvas */
 	float UiScale = 1.0f;
+
+	/** Size of the menu page when it starts to grow out of the floating book, and whether full-screen boxes are skipped meanwhile */
+	static constexpr float GrimoireRevealStartScale = 0.08f;
+	bool bMenuBackdropHidden = false;
 
 	/** Font used for all text while the font faces below are missing */
 	UPROPERTY(Transient)

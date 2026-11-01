@@ -23,6 +23,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Magic/VaelElementComponent.h"
+#include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Items/VaelInventory.h"
 #include "Items/VaelItemSettings.h"
@@ -264,7 +265,7 @@ void AVaelHUD::DrawHUD()
 	{
 		if (PlayerController->IsGrimoireOpen())
 		{
-			DrawGrimoire(PlayerController);
+			DrawGrimoireReveal(PlayerController);
 			break;
 		}
 	}
@@ -635,6 +636,43 @@ void AVaelHUD::DrawCreatureHealthBars()
 		DrawBox(Left - 1.0f * S, ScreenPosition.Y - 1.0f * S, NormalWidth * 0.8f + 2.0f * S, Height + 2.0f * S, Rgb(13, 9, 10, 200));
 		DrawBox(Left, ScreenPosition.Y, NormalWidth * 0.8f * FMath::Clamp(Plant->GetHealthFraction(), 0.0f, 1.0f), Height, Rgb(120, 200, 110));
 	}
+}
+
+void AVaelHUD::DrawGrimoireReveal(const AVaelPlayerController* PlayerController)
+{
+	const float Reveal = PlayerController->GetGrimoireReveal();
+	if (Reveal <= 0.0f)
+	{
+		return;
+	}
+
+	if (Reveal >= 1.0f)
+	{
+		DrawGrimoire(PlayerController);
+		return;
+	}
+
+	// The page grows out of the book floating before the mage until it fills the screen
+	const FVector2D Middle(Canvas->ClipX * 0.5f, Canvas->ClipY * 0.5f);
+	FVector2D Start = Middle;
+	const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+	if (const UVaelFloatingGrimoireComponent* Book = Player != nullptr ? Player->GetFloatingGrimoire() : nullptr)
+	{
+		const FVector OnScreen = Canvas->Project(Book->GetBookCentre());
+		Start = FVector2D(OnScreen.X, OnScreen.Y);
+	}
+
+	const float Eased = FMath::SmoothStep(0.0f, 1.0f, Reveal);
+	const FVector2D Centre = FMath::Lerp(Start, Middle, Eased);
+	const float Scale = FMath::Lerp(GrimoireRevealStartScale, 1.0f, Eased);
+
+	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(9, 6, 7, FMath::RoundToInt(168.0f * Eased)));
+
+	bMenuBackdropHidden = true;
+	Canvas->Canvas->PushAbsoluteTransform(FTranslationMatrix(FVector(-Middle.X, -Middle.Y, 0.0f)) * FScaleMatrix(FVector(Scale, Scale, 1.0f)) * FTranslationMatrix(FVector(Centre.X, Centre.Y, 0.0f)));
+	DrawGrimoire(PlayerController);
+	Canvas->Canvas->PopTransform();
+	bMenuBackdropHidden = false;
 }
 
 void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
@@ -1024,6 +1062,12 @@ void AVaelHUD::DrawWindow(EVaelWindow Kind, float X, float Y, float Width, float
 
 void AVaelHUD::DrawBox(float X, float Y, float Width, float Height, const FLinearColor& Color)
 {
+	// The dark backdrop of a menu page stays behind while the page grows
+	if (bMenuBackdropHidden && Width >= Canvas->ClipX && Height >= Canvas->ClipY)
+	{
+		return;
+	}
+
 	FCanvasTileItem Tile(FVector2D(X, Y), FVector2D(Width, Height), Color);
 	Tile.BlendMode = SE_BLEND_Translucent;
 	Canvas->DrawItem(Tile);

@@ -129,6 +129,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelRucksack(int32 Count = 12);
 
+	/** Keeps the floating grimoire out (1) or leaves it to the fight (0); with 2 the inventory opens like from the button. Example: VaelBuch 1 */
+	UFUNCTION(Exec)
+	void VaelBuch(int32 Mode = 1);
+
 	/** Moves the selection of the open inventory, for testing. Example: VaelInventarSchritt 1 0 */
 	UFUNCTION(Exec)
 	void VaelInventarSchritt(int32 Right, int32 Down);

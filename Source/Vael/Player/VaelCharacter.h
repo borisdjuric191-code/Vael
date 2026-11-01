@@ -20,6 +20,7 @@ class UStaticMeshComponent;
 class UVaelElementComponent;
 class UVaelElementOrbitComponent;
 class UVaelFairyWingsComponent;
+class UVaelFloatingGrimoireComponent;
 class UVaelFloromantComponent;
 class UVaelInventory;
 class UVaelMaterialBag;
@@ -63,6 +64,10 @@ private:
 	/** The queued elements, circling above the head */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelElementOrbitComponent> ElementOrbit;
+
+	/** The grimoire that floats before a mage in fights and when the menu opens */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVaelFloatingGrimoireComponent> FloatingGrimoire;
 
 	/** Seeds and plants while the player plays a Floromant */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -322,6 +327,9 @@ public:
 
 	/** Returns the element queue **/
 	UVaelElementComponent* GetElementComponent() const { return ElementComponent.Get(); }
+
+	/** Returns the floating grimoire **/
+	UVaelFloatingGrimoireComponent* GetFloatingGrimoire() const { return FloatingGrimoire.Get(); }
 
 	/** Returns the material bag **/
 	UVaelMaterialBag* GetMaterialBag() const { return MaterialBag.Get(); }
