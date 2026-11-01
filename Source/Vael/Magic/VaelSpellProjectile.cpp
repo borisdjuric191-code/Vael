@@ -1872,7 +1872,8 @@ void AVaelSpellProjectile::BeginPlay()
 	}
 
 	// The trail replaces the plain placeholder sphere, but plays together with a look of its own
-	if (VaelEffects::Attach(Effects.Trail, Collision, NAME_None, Effects.Color, SpellRadius) != nullptr)
+	// The trail of the fire pack is made for a ball: on a wall of this width it would be one black cloud
+	if (Look != EVaelProjectileLook::FireRoller && VaelEffects::Attach(Effects.Trail, Collision, NAME_None, Effects.Color, SpellRadius) != nullptr)
 	{
 		Mesh->SetVisibility(false);
 	}
