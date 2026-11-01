@@ -39,6 +39,16 @@ namespace
 	constexpr float BeamBallShare = 0.8f;
 	constexpr float BeamPalmGap = 16.0f;
 
+	/** The flow of a beam from the palm: size of the ball at the start, seconds it swells, seconds until the tip leaves it and to reach full length, seconds its tail runs out at the end */
+	constexpr float BeamBallStart = 0.3f;
+	constexpr float BeamBallGrowSeconds = 0.28f;
+	constexpr float BeamExtendDelay = 0.1f;
+	constexpr float BeamExtendSeconds = 0.42f;
+	constexpr float BeamTailSeconds = 0.3f;
+
+	/** The tip only bursts on what it hits once it has come this far, not right before the hand */
+	constexpr float BeamImpactFrom = 0.92f;
+
 	/** Size of the engine cylinder mesh used as placeholder */
 	constexpr float BeamPlaceholderCylinderRadius = 50.0f;
 	constexpr float BeamPlaceholderCylinderHeight = 100.0f;
@@ -288,6 +298,9 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 		Length = WallHit.Distance;
 	}
 
+	// The tip of a beam from the palm has to get there first, and it only burns what it has reached
+	Length *= GetExtend();
+
 	UpdateLook(Start, Direction, Length);
 
 	// A fire beam melts the hail ice it sweeps over
@@ -329,7 +342,7 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 	}
 
 	// The ground catches fire where the beam ends
-	if (Settings.FireInterval > 0.0f)
+	if (Settings.FireInterval > 0.0f && GetExtend() >= 1.0f)
 	{
 		NextFireCountdown -= DeltaSeconds;
 		if (NextFireCountdown <= 0.0f)
@@ -348,6 +361,16 @@ void AVaelSpellBeam::UpdateBeam(float DeltaSeconds)
 	}
 }
 
+float AVaelSpellBeam::GetExtend() const
+{
+	if (!Settings.bFromPalm)
+	{
+		return 1.0f;
+	}
+	const float BeamAge = GetWorld()->GetTimeSeconds() - (EndTime - Settings.Duration);
+	return 1.0f - FMath::Pow(1.0f - FMath::Clamp((BeamAge - BeamExtendDelay) / BeamExtendSeconds, 0.0f, 1.0f), 3.0f);
+}
+
 void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, float Length)
 {
 	// It leaves from in front of the hands, not from inside the body
@@ -355,10 +378,19 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 	FVector Start = Body + Direction * HandSettings->BeamHandReach + FVector(0.0f, 0.0f, HandSettings->BeamHandHeight);
 	const AVaelCharacter* PalmMage = Settings.bFromPalm ? Cast<AVaelCharacter>(GetInstigator()) : nullptr;
 	FVector Palm = Start;
+
+	// A beam from the palm flows: the ball swells and glides off the hand, the beam shoots out of it, at the end its tail runs away and the ball goes out
+	const float BeamAge = GetWorld()->GetTimeSeconds() - (EndTime - Settings.Duration);
+	const float BeamLeft = EndTime - GetWorld()->GetTimeSeconds();
+	const float BallGrow = PalmMage != nullptr ? FMath::Lerp(BeamBallStart, 1.0f, 1.0f - FMath::Square(1.0f - FMath::Clamp(BeamAge / BeamBallGrowSeconds, 0.0f, 1.0f))) * FMath::SmoothStep(0.0f, BeamTailSeconds, BeamLeft) : 1.0f;
+	const float Extend = GetExtend();
+	const float Tail = PalmMage != nullptr ? 1.0f - FMath::SmoothStep(0.0f, BeamTailSeconds, BeamLeft) : 0.0f;
+	const float Widen = PalmMage != nullptr ? FMath::Lerp(0.4f, 1.0f, Extend) * (1.0f - 0.5f * Tail) : 1.0f;
+
 	if (PalmMage != nullptr && PalmMage->GetGesturePalm(Palm))
 	{
 		// The ball of the source floats before the open hand, the beam leaves it
-		Start = Palm + Direction * (BeamPalmGap + HandSettings->BeamSourceRadius * BeamBallShare);
+		Start = Palm + Direction * (BeamPalmGap + HandSettings->BeamSourceRadius * BeamBallShare) * BallGrow;
 	}
 	const float VisibleLength = FMath::Max(Length - FVector::DotProduct(Start - Body, Direction), 1.0f);
 
@@ -394,10 +426,12 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 	const float Time = GetWorld()->GetTimeSeconds();
 	const float Throb = CoreRadius > 0.0f ? 1.0f + 0.14f * FMath::Sin(Time * 40.0f) + 0.07f * FMath::Sin(Time * 23.0f + 1.3f) : 1.0f;
 	const FRotator Along = FRotationMatrix::MakeFromZ(Direction).Rotator();
+	const float TailLength = VisibleLength * Tail;
+	const float BodyLength = FMath::Max(VisibleLength - TailLength, 1.0f);
 	const auto Stretch = [&](UStaticMeshComponent* Cylinder, float Thickness)
 	{
-		Cylinder->SetWorldLocationAndRotation(Start + Direction * VisibleLength * 0.5f, Along);
-		Cylinder->SetWorldScale3D(FVector(Thickness / BeamPlaceholderCylinderRadius, Thickness / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
+		Cylinder->SetWorldLocationAndRotation(Start + Direction * (TailLength + BodyLength * 0.5f), Along);
+		Cylinder->SetWorldScale3D(FVector(Thickness * Widen / BeamPlaceholderCylinderRadius, Thickness * Widen / BeamPlaceholderCylinderRadius, BodyLength / BeamPlaceholderCylinderHeight));
 	};
 	Stretch(Mesh, LookRadius * Throb);
 
@@ -426,10 +460,15 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 		const FVector End = Start + Direction * VisibleLength;
 		SourceFlames->SetWorldLocation(Start);
 		ImpactFlames->SetWorldLocation(End - Direction * 20.0f);
+		if (PalmMage != nullptr)
+		{
+			SourceFlames->SetSizeScale(FMath::Max(BallGrow, KINDA_SMALL_NUMBER));
+			ImpactFlames->SetSizeScale(FMath::Max(Extend * Extend, KINDA_SMALL_NUMBER));
+		}
 		if (SourceGlow != nullptr)
 		{
 			SourceGlow->SetWorldLocation(Start);
-			SourceGlow->SetWorldScale3D(FVector(FireSettings->BeamSourceRadius * BeamBallShare / 50.0f * Throb));
+			SourceGlow->SetWorldScale3D(FVector(FMath::Max(FireSettings->BeamSourceRadius * BeamBallShare / 50.0f * Throb * BallGrow, KINDA_SMALL_NUMBER)));
 		}
 
 		// From the open hand a cone of fire flows over the ball into the beam
@@ -442,7 +481,8 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 				Funnel->RegisterComponent();
 				Funnel->Init(VaelAssets::LoadOptional(FireSettings->BeamCoreMaterial), VaelAssets::LoadOptional(UVaelMagicSettings::Get()->LightningMaterial));
 			}
-			Funnel->Update(Palm, Direction, Start, FireSettings->BeamSourceRadius * BeamBallShare, LookRadius * 0.92f, GetWorld()->GetDeltaSeconds());
+			const float BallRadius = FireSettings->BeamSourceRadius * BeamBallShare * BallGrow;
+			Funnel->Update(Palm, Direction, Start, BallRadius, FMath::Lerp(BallRadius, LookRadius * 0.92f * Widen, Extend * (1.0f - Tail)), GetWorld()->GetDeltaSeconds());
 		}
 		for (int32 Index = 0; Index < BeamLights.Num(); ++Index)
 		{
@@ -453,7 +493,7 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 		// Where it hits, sparks shoot out all the time, flames splash up now and then, and fire keeps bursting and spraying back
 		const float DeltaSeconds = GetWorld()->GetDeltaSeconds();
 		SparkCountdown -= DeltaSeconds;
-		if (SparkCountdown <= 0.0f)
+		if (SparkCountdown <= 0.0f && Extend >= BeamImpactFrom)
 		{
 			SparkCountdown = FireSettings->BeamSparkInterval;
 			FVaelDebris Sparks;
@@ -471,13 +511,13 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 			AVaelDebrisBurst::Spawn(this, End - Direction * 25.0f, Sparks);
 		}
 		SplashCountdown -= DeltaSeconds;
-		if (SplashCountdown <= 0.0f)
+		if (SplashCountdown <= 0.0f && Extend >= BeamImpactFrom)
 		{
 			SplashCountdown = FireSettings->BeamSplashInterval;
 			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(FireSettings->BurstNiagara), End - Direction * 30.0f, FRotator::ZeroRotator, Settings.Color, FireSettings->BeamImpactRadius * 1.2f);
 		}
 		ImpactCountdown -= DeltaSeconds;
-		if (ImpactCountdown <= 0.0f)
+		if (ImpactCountdown <= 0.0f && Extend >= BeamImpactFrom)
 		{
 			ImpactCountdown = FireSettings->BeamImpactInterval;
 			if (UNiagaraComponent* Burst = VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(FireSettings->SparkHitNiagara), End + FMath::VRand() * 15.0f, FRotator::ZeroRotator,

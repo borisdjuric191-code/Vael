@@ -484,6 +484,12 @@ private:
 	float HeartShieldLeft = 0.0f;
 	float HeartShieldEndTime = 0.0f;
 
+	/** Fire gathering in the open hand before a beam */
+	void UpdatePalmCharge();
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelFireComponent> PalmCharge;
+
 	/** Ends the pause after a beam */
 	void EndCastExhaustion();
 

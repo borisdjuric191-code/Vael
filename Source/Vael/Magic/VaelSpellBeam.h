@@ -128,6 +128,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UMaterialInstanceDynamic> CoreMaterialInstance;
 
+	/** How far the tip of a beam from the palm has come, 0 to 1 */
+	float GetExtend() const;
+
 	/** The cone from the open palm over the ball into the beam */
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelBeamFunnelComponent> Funnel;

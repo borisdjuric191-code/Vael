@@ -26,6 +26,7 @@
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "World/VaelFireComponent.h"
 #include "Magic/VaelAirBlast.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelElementComponent.h"
@@ -467,6 +468,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 
 	FlickerHandLight();
 	UpdateHover(DeltaSeconds);
+	UpdatePalmCharge();
 
 #if ENABLE_DRAW_DEBUG
 	if (bShowStatusText)
@@ -857,6 +859,45 @@ EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
 	}
 
 	return OutSeconds < UVaelMagicSettings::Get()->GetGestureDuration(CastGesture) ? CastGesture : EVaelCastGesture::None;
+}
+
+void AVaelCharacter::UpdatePalmCharge()
+{
+	// While the arm gathers for a beam, fire wells up in the open hand; the ball of the beam takes over from it at the release
+	float Seconds = 0.0f;
+	const float Release = UVaelMagicSettings::Get()->PalmReleaseTime;
+	FVector Palm;
+	const bool bGathering = GetCastGesture(Seconds) == EVaelCastGesture::PalmBeam && Seconds < Release && GetGesturePalm(Palm);
+	if (!bGathering)
+	{
+		if (PalmCharge != nullptr)
+		{
+			PalmCharge->Extinguish(0.12f, true);
+			PalmCharge = nullptr;
+		}
+		return;
+	}
+
+	if (PalmCharge == nullptr)
+	{
+		PalmCharge = NewObject<UVaelFireComponent>(this);
+		PalmCharge->SetupAttachment(RootComponent);
+		PalmCharge->SetUsingAbsoluteLocation(true);
+		PalmCharge->RegisterComponent();
+		FVaelFireShape Ball;
+		Ball.Radius = 13.0f;
+		Ball.Height = 30.0f;
+		Ball.Heat = 1.3f;
+		Ball.Smoke = 0.1f;
+		Ball.Speed = 2.0f;
+		Ball.Tongues = 12;
+		Ball.bBall = true;
+		Ball.bFloating = true;
+		Ball.bLight = false;
+		PalmCharge->Ignite(Ball, 0.05f);
+	}
+	PalmCharge->SetWorldLocation(Palm + GetActorForwardVector() * 5.0f);
+	PalmCharge->SetSizeScale(FMath::Lerp(0.1f, 1.0f, FMath::SmoothStep(0.0f, Release, Seconds)));
 }
 
 void AVaelCharacter::BeginCastExhaustion(float Seconds)
