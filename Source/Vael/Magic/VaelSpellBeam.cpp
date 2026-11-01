@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCharacter.h"
+#include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelBeamFunnel.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelSpellBeam.h"
 #include "UObject/ConstructorHelpers.h"
@@ -32,6 +34,10 @@ namespace
 {
 	/** Seconds between two veins of a beam that drains life */
 	constexpr float BeamVeinInterval = 0.07f;
+
+	/** Size of the ball at the source against the source radius, and the free space between the open palm and the ball in cm */
+	constexpr float BeamBallShare = 0.8f;
+	constexpr float BeamPalmGap = 16.0f;
 
 	/** Size of the engine cylinder mesh used as placeholder */
 	constexpr float BeamPlaceholderCylinderRadius = 50.0f;
@@ -348,9 +354,11 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 	const UVaelFireSettings* HandSettings = UVaelFireSettings::Get();
 	FVector Start = Body + Direction * HandSettings->BeamHandReach + FVector(0.0f, 0.0f, HandSettings->BeamHandHeight);
 	const AVaelCharacter* PalmMage = Settings.bFromPalm ? Cast<AVaelCharacter>(GetInstigator()) : nullptr;
-	if (PalmMage != nullptr)
+	FVector Palm = Start;
+	if (PalmMage != nullptr && PalmMage->GetGesturePalm(Palm))
 	{
-		PalmMage->GetGesturePalm(Start);
+		// The ball of the source floats before the open hand, the beam leaves it
+		Start = Palm + Direction * (BeamPalmGap + HandSettings->BeamSourceRadius * BeamBallShare);
 	}
 	const float VisibleLength = FMath::Max(Length - FVector::DotProduct(Start - Body, Direction), 1.0f);
 
@@ -421,8 +429,20 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 		if (SourceGlow != nullptr)
 		{
 			SourceGlow->SetWorldLocation(Start);
-			// Out of the palm the ball must stay small enough to leave the mage visible
-			SourceGlow->SetWorldScale3D(FVector(FireSettings->BeamSourceRadius * (Settings.bFromPalm ? 0.3f : 0.8f) / 50.0f * Throb));
+			SourceGlow->SetWorldScale3D(FVector(FireSettings->BeamSourceRadius * BeamBallShare / 50.0f * Throb));
+		}
+
+		// From the open hand a cone of fire flows over the ball into the beam
+		if (PalmMage != nullptr)
+		{
+			if (Funnel == nullptr)
+			{
+				Funnel = NewObject<UVaelBeamFunnelComponent>(this);
+				Funnel->SetupAttachment(Mesh);
+				Funnel->RegisterComponent();
+				Funnel->Init(VaelAssets::LoadOptional(FireSettings->BeamCoreMaterial), VaelAssets::LoadOptional(UVaelMagicSettings::Get()->LightningMaterial));
+			}
+			Funnel->Update(Palm, Direction, Start, FireSettings->BeamSourceRadius * BeamBallShare, LookRadius * 0.92f, GetWorld()->GetDeltaSeconds());
 		}
 		for (int32 Index = 0; Index < BeamLights.Num(); ++Index)
 		{

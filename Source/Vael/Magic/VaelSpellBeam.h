@@ -128,6 +128,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UMaterialInstanceDynamic> CoreMaterialInstance;
 
+	/** The cone from the open palm over the ball into the beam */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelBeamFunnelComponent> Funnel;
+
 	/** Seconds until the next vein of a beam that drains life */
 	float VeinCountdown = 0.0f;
 
