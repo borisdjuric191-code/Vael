@@ -322,6 +322,21 @@ public:
 	/** Where a spell leaves the hand during a gesture: just before the tips of index and middle finger. False without those bones. */
 	bool GetGestureFingertips(FVector& OutLocation) const;
 
+	/** Middle of the open right palm, where a beam from the palm leaves. False without those bones. */
+	bool GetGesturePalm(FVector& OutLocation) const;
+
+	/** Spent after a beam: for the seconds nothing can be moved, dodged, chosen or cast, the body hangs forward and the hand steams */
+	void BeginCastExhaustion(float Seconds);
+
+	/** True during that pause */
+	bool IsExhausted() const { return ExhaustionEndTime > 0.0f; }
+
+	/** How far the pause has come, 0 to 1; 0 without one */
+	float GetCastExhaustion() const;
+
+	/** True while the mage stands in a gesture that needs both arms before the body */
+	bool IsCastStance() const;
+
 	/** Where breath leaves the face (the mouth of the base looks, from the head bone); the top of the capsule without a head bone */
 	FVector GetMouthLocation() const;
 
@@ -468,6 +483,14 @@ private:
 	/** Damage the heart shield still swallows, and until when */
 	float HeartShieldLeft = 0.0f;
 	float HeartShieldEndTime = 0.0f;
+
+	/** Ends the pause after a beam */
+	void EndCastExhaustion();
+
+	/** When the pause after a beam began and ends, 0 outside of it */
+	float ExhaustionStartTime = 0.0f;
+	float ExhaustionEndTime = 0.0f;
+	FTimerHandle ExhaustionTimer;
 
 	/** Cast gesture playing, and when it began in game seconds */
 	EVaelCastGesture CastGesture = EVaelCastGesture::None;

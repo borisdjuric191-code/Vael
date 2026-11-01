@@ -262,6 +262,16 @@ void UVaelFormulaAbility::OnChannelEnded()
 	if (IsActive())
 	{
 		MontageStop();
+
+		// A beam from the palm costs the mage a moment of everything
+		if (bCastGesture && CastGestureKind == EVaelCastGesture::PalmBeam)
+		{
+			if (AVaelCharacter* Mage = Cast<AVaelCharacter>(GetAvatarActorFromActorInfo()))
+			{
+				Mage->BeginCastExhaustion(UVaelMagicSettings::Get()->BeamExhaustSeconds);
+			}
+		}
+
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);
 	}
 }
@@ -912,6 +922,7 @@ void UVaelFormulaAbility::StartBeam(const UVaelFormula& Formula, AActor* Caster,
 	Beam.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
 	Beam.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
 	Beam.bDrainVeins = Formula.LifeSteal > 0.0f;
+	Beam.bFromPalm = bCastGesture && CastGestureKind == EVaelCastGesture::PalmBeam;
 	Beam.Visual = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BeamEffect);
 	if (Formula.DamageElement == EVaelElement::Fire)
 	{

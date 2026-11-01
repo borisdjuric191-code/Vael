@@ -57,6 +57,9 @@ struct FVaelBeamSettings
 	/** True for a beam that drains life: dark veins from the target to the caster instead of a ray */
 	bool bDrainVeins = false;
 
+	/** True for a beam that leaves the open palm of the caster */
+	bool bFromPalm = false;
+
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
 };

@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Player/VaelCharacter.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelSpellBeam.h"
 #include "UObject/ConstructorHelpers.h"
@@ -345,8 +346,13 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 {
 	// It leaves from in front of the hands, not from inside the body
 	const UVaelFireSettings* HandSettings = UVaelFireSettings::Get();
-	const FVector Start = Body + Direction * HandSettings->BeamHandReach + FVector(0.0f, 0.0f, HandSettings->BeamHandHeight);
-	const float VisibleLength = FMath::Max(Length - HandSettings->BeamHandReach, 1.0f);
+	FVector Start = Body + Direction * HandSettings->BeamHandReach + FVector(0.0f, 0.0f, HandSettings->BeamHandHeight);
+	const AVaelCharacter* PalmMage = Settings.bFromPalm ? Cast<AVaelCharacter>(GetInstigator()) : nullptr;
+	if (PalmMage != nullptr)
+	{
+		PalmMage->GetGesturePalm(Start);
+	}
+	const float VisibleLength = FMath::Max(Length - FVector::DotProduct(Start - Body, Direction), 1.0f);
 
 	if (VisualComponent != nullptr)
 	{
@@ -415,7 +421,8 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 		if (SourceGlow != nullptr)
 		{
 			SourceGlow->SetWorldLocation(Start);
-			SourceGlow->SetWorldScale3D(FVector(FireSettings->BeamSourceRadius * 0.8f / 50.0f * Throb));
+			// Out of the palm the ball must stay small enough to leave the mage visible
+			SourceGlow->SetWorldScale3D(FVector(FireSettings->BeamSourceRadius * (Settings.bFromPalm ? 0.3f : 0.8f) / 50.0f * Throb));
 		}
 		for (int32 Index = 0; Index < BeamLights.Num(); ++Index)
 		{

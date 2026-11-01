@@ -125,6 +125,10 @@ enum class EVaelCastGesture : uint8
 	None,
 	/** Boris 2026-10-30: the right arm snaps forward, index and middle finger stretched out, the spell leaves their tips */
 	TwoFingerPoint,
+	/** Boris 2026-11-01: the Funke with more power: the left hand grips the right forearm, a longer wind-up before the shot */
+	GripPoint,
+	/** Boris 2026-11-01: gathers at the hip, thrusts the open palm forward with the forearm gripped, shakes while the beam burns, then hangs forward spent */
+	PalmBeam,
 	/** Boris 2026-10-30: breathes in with the hands cupped before the chin, then blows the cloud out of the mouth, hands opening forward */
 	BlowOut
 };

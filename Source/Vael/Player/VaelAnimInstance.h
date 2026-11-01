@@ -40,6 +40,9 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	/** Copied from the instance: the cast gesture of the mage, seconds since it began, when the spell leaves and how long it lasts */
 	EVaelCastGesture Gesture = EVaelCastGesture::None;
 	float GestureSeconds = 0.0f;
+
+	/** How far the spent pause after a beam has come, 0 to 1 */
+	float GestureExhaust = 0.0f;
 	float GestureRelease = 0.13f;
 	float GestureDuration = 0.5f;
 
@@ -54,6 +57,12 @@ private:
 	/** Blowing out mist or steam: breathes in with chest and shoulders up, the hands cupped before the chin, then leans in and
 	 *  blows, head forward, the hands opening forward as if sending the cloud off */
 	void ApplyBlowOut(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** The left hand takes hold of the right forearm, as far as the weight says */
+	void ApplyForearmGrip(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, float Weight) const;
+
+	/** Beam from the open palm: gathers at the hip, thrusts, shakes under the strain, hangs forward spent */
+	void ApplyPalmBeam(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 };
 
 /**
@@ -119,6 +128,7 @@ protected:
 	/** Cast gesture of the mage and the seconds since it began */
 	EVaelCastGesture CastGesture = EVaelCastGesture::None;
 	float CastGestureSeconds = 0.0f;
+	float CastExhaustion = 0.0f;
 
 public:
 

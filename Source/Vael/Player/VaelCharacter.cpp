@@ -31,6 +31,7 @@
 #include "Magic/VaelElementComponent.h"
 #include "Magic/VaelElementOrbitComponent.h"
 #include "Magic/VaelFloatingGrimoireComponent.h"
+#include "Magic/VaelHandSteam.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
@@ -487,7 +488,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
 	const float Burden = GetWorld()->GetTimeSeconds() < BurdenEndTime ? BurdenMultiplier : 1.0f;
 	const float Bracing = IsFloromant() ? Floromant->GetMoveSpeedScale() : 1.0f;
-	GetCharacterMovement()->MaxWalkSpeed = bObserving ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing;
+	GetCharacterMovement()->MaxWalkSpeed = bObserving || IsExhausted() ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing;
 
 	if (bObserving)
 	{
@@ -559,7 +560,7 @@ void AVaelCharacter::RestoreFromSave()
 bool AVaelCharacter::StartDodge(const FVector& WorldDirection)
 {
 	const float Now = GetWorld()->GetTimeSeconds();
-	if (bDowned || bIsDodging || Now < NextDodgeTime || !GetCharacterMovement()->IsMovingOnGround())
+	if (bDowned || bIsDodging || IsExhausted() || Now < NextDodgeTime || !GetCharacterMovement()->IsMovingOnGround())
 	{
 		return false;
 	}
@@ -847,7 +848,73 @@ void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
 EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
 {
 	OutSeconds = GetWorld()->GetTimeSeconds() - CastGestureStartTime;
+
+	// A beam from the palm has no fixed length: it stands while the beam burns and through the pause afterwards
+	if (CastGesture == EVaelCastGesture::PalmBeam)
+	{
+		const bool bBurning = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
+		return bBurning || OutSeconds < UVaelMagicSettings::Get()->PalmReleaseTime + 0.2f ? CastGesture : EVaelCastGesture::None;
+	}
+
 	return OutSeconds < UVaelMagicSettings::Get()->GetGestureDuration(CastGesture) ? CastGesture : EVaelCastGesture::None;
+}
+
+void AVaelCharacter::BeginCastExhaustion(float Seconds)
+{
+	if (Seconds <= 0.0f || bDowned)
+	{
+		return;
+	}
+
+	ExhaustionStartTime = GetWorld()->GetTimeSeconds();
+	ExhaustionEndTime = ExhaustionStartTime + Seconds;
+
+	// Counts as channeling: nothing can be chosen or cast until it is over, and the gesture stays up
+	GetAbilitySystemComponent()->AddLooseGameplayTag(VaelTags::State_Channeling);
+	GetWorldTimerManager().SetTimer(ExhaustionTimer, this, &AVaelCharacter::EndCastExhaustion, Seconds);
+
+	UVaelHandSteamComponent* Steam = NewObject<UVaelHandSteamComponent>(this);
+	Steam->SetupAttachment(RootComponent);
+	Steam->RegisterComponent();
+	if (!Steam->Start(Seconds))
+	{
+		Steam->DestroyComponent();
+	}
+}
+
+void AVaelCharacter::EndCastExhaustion()
+{
+	ExhaustionEndTime = 0.0f;
+	GetAbilitySystemComponent()->RemoveLooseGameplayTag(VaelTags::State_Channeling);
+}
+
+float AVaelCharacter::GetCastExhaustion() const
+{
+	if (!IsExhausted())
+	{
+		return 0.0f;
+	}
+	return FMath::Clamp((GetWorld()->GetTimeSeconds() - ExhaustionStartTime) / FMath::Max(ExhaustionEndTime - ExhaustionStartTime, 0.01f), 0.0f, 1.0f);
+}
+
+bool AVaelCharacter::IsCastStance() const
+{
+	float Seconds = 0.0f;
+	const EVaelCastGesture Gesture = GetCastGesture(Seconds);
+	return Gesture == EVaelCastGesture::GripPoint || Gesture == EVaelCastGesture::PalmBeam;
+}
+
+bool AVaelCharacter::GetGesturePalm(FVector& OutLocation) const
+{
+	const USkeletalMeshComponent* Body = GetMesh();
+	if (Body->GetBoneIndex(TEXT("hand_r")) == INDEX_NONE || Body->GetBoneIndex(TEXT("middle_01_r")) == INDEX_NONE)
+	{
+		return false;
+	}
+
+	// The middle of the palm lies between the wrist and the knuckle of the middle finger
+	OutLocation = (Body->GetBoneLocation(TEXT("hand_r")) + Body->GetBoneLocation(TEXT("middle_01_r"))) * 0.5f;
+	return true;
 }
 
 bool AVaelCharacter::GetGestureFingertips(FVector& OutLocation) const

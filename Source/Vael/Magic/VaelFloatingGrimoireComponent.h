@@ -71,6 +71,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Grimoire")
 	FVector HoverOffset = FVector(75.0f, -20.0f, 34.0f);
 
+	/** Where it floats while both arms of the mage are before the body */
+	UPROPERTY(EditAnywhere, Category="Grimoire")
+	FVector AsideOffset = FVector(35.0f, -115.0f, 40.0f);
+
 	/** Where it comes from and goes back to: the left hip */
 	UPROPERTY(EditAnywhere, Category="Grimoire")
 	FVector HipOffset = FVector(5.0f, -30.0f, -15.0f);
@@ -224,6 +228,9 @@ private:
 	/** Where the book is on its way after the mage, and which way it looks */
 	FVector FollowLocation = FVector::ZeroVector;
 	float FollowYaw = 0.0f;
+
+	/** How far it has stepped aside, 0 to 1 */
+	float Aside = 0.0f;
 
 	/** Lean into the movement of the mage, in degrees: pitch and roll */
 	FVector2D Lean = FVector2D::ZeroVector;

@@ -55,6 +55,9 @@ namespace
 	/** Size of the book while it sits at the hip */
 	constexpr float GrimoireHipScale = 0.25f;
 
+	/** How fast it steps aside for the arms of a gesture and comes back */
+	constexpr float GrimoireAsideSpeed = 8.0f;
+
 	const FName GrimoireGlowColorParameter(TEXT("Leuchtfarbe"));
 	const FName GrimoireGlowParameter(TEXT("Leuchten"));
 }
@@ -308,7 +311,9 @@ void UVaelFloatingGrimoireComponent::FollowMage(float DeltaSeconds, float Time)
 	const FRotator Facing(0.0f, Mage->GetActorRotation().Yaw, 0.0f);
 
 	const float Along = FMath::SmoothStep(0.0f, 1.0f, Fly);
-	const FVector Target = Mage->GetActorLocation() + Facing.RotateVector(FMath::Lerp(HipOffset, HoverOffset, Along));
+	const AVaelCharacter* Caster = Cast<AVaelCharacter>(Mage);
+	Aside = FMath::FInterpTo(Aside, Caster != nullptr && Caster->IsCastStance() ? 1.0f : 0.0f, DeltaSeconds, GrimoireAsideSpeed);
+	const FVector Target = Mage->GetActorLocation() + Facing.RotateVector(FMath::Lerp(HipOffset, FMath::Lerp(HoverOffset, AsideOffset, Aside), Along));
 	FollowLocation = FMath::VInterpTo(FollowLocation, Target, DeltaSeconds, FollowSpeed);
 	FollowYaw = FMath::FInterpTo(FollowYaw, FollowYaw + FMath::FindDeltaAngleDegrees(FollowYaw, Facing.Yaw), DeltaSeconds, TurnSpeed);
 

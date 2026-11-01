@@ -270,6 +270,20 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
 	float GestureDuration = 0.5f;
 
+	/** Gripped point (Feuerball): seconds until the shot, and of the whole gesture */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float GripReleaseTime = 0.32f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float GripDuration = 0.8f;
+
+	/** Beam from the palm (Feuerstrahl): seconds until the beam starts, and of the pause afterwards without moving or casting; talents or weapons can lower it later */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float PalmReleaseTime = 0.45f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float BeamExhaustSeconds = 0.6f;
+
 	/** Blowing out: seconds of breathing in until the cloud leaves the mouth, and of the whole gesture */
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
 	float BlowReleaseTime = 0.4f;
@@ -285,8 +299,15 @@ public:
 	EVaelCastGesture FindCastGesture(const UVaelFormula* Formula) const;
 
 	/** Seconds from the start of a gesture until the spell is released, and how long the whole gesture lasts */
-	float GetGestureRelease(EVaelCastGesture Gesture) const { return Gesture == EVaelCastGesture::BlowOut ? BlowReleaseTime : GestureReleaseTime; }
-	float GetGestureDuration(EVaelCastGesture Gesture) const { return Gesture == EVaelCastGesture::BlowOut ? BlowDuration : GestureDuration; }
+	float GetGestureRelease(EVaelCastGesture Gesture) const
+	{
+		return Gesture == EVaelCastGesture::BlowOut ? BlowReleaseTime : Gesture == EVaelCastGesture::GripPoint ? GripReleaseTime : Gesture == EVaelCastGesture::PalmBeam ? PalmReleaseTime : GestureReleaseTime;
+	}
+
+	float GetGestureDuration(EVaelCastGesture Gesture) const
+	{
+		return Gesture == EVaelCastGesture::BlowOut ? BlowDuration : Gesture == EVaelCastGesture::GripPoint ? GripDuration : GestureDuration;
+	}
 
 	/** Returns the cast montage the formula uses by its kind, null if none exists */
 	UAnimMontage* FindCastMontage(EVaelSpellDelivery Delivery) const;
