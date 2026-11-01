@@ -208,6 +208,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	EVaelProjectileLook ProjectileLook = EVaelProjectileLook::Sphere;
 
+	/** A cage of bones grows around the target hit and holds it while it is stunned, like the Markkaefig */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile")
+	bool bBoneCage = false;
+
 	/** Projectiles fired at once, fanned out around the aim */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Projectile", meta = (ClampMin = 1, EditCondition = "Delivery == EVaelSpellDelivery::Projectile || Delivery == EVaelSpellDelivery::Explosion"))
 	int32 ProjectileCount = 1;
@@ -471,6 +475,10 @@ public:
 	/** Seconds the storm lasts */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0.1, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))
 	float AuraDuration = 4.2f;
+
+	/** Own look of the storm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (EditCondition = "Delivery == EVaelSpellDelivery::Aura", EditConditionHides))
+	EVaelAuraLook AuraLook = EVaelAuraLook::Plain;
 
 	/** Enemies inside the storm can't see for this long, renewed as long as they stay inside */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Aura", meta = (ClampMin = 0, EditCondition = "Delivery == EVaelSpellDelivery::Aura"))

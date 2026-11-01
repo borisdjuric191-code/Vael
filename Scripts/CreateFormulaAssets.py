@@ -343,6 +343,7 @@ FORMULAS = [
     # the others have no act yet and stay sealed without a place in the Aschenmark.
     {
         "asset": "DA_Formula_Meteor",
+        "strike_look": unreal.VaelStrikeLook.METEOR,
         "display_name": unreal.Text("Meteor"),
         "description": unreal.Text("Verzögerter Einschlag, hinterlässt brennenden Boden"),
         "hint": unreal.Text("Eine Schriftrolle liegt am Eingang des Kraters."),
@@ -367,6 +368,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_Feuerwalze",
+        "projectile_look": unreal.VaelProjectileLook.FIRE_ROLLER,
         "display_name": unreal.Text("Feuerwalze"),
         "description": unreal.Text("Breite Feuerwand rollt nach vorn und setzt alles in Brand"),
         "hint": unreal.Text("Eine Schriftrolle liegt im Steinkreis des Ordens der Narbe."),
@@ -651,6 +653,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_SchwarzesFeuer",
+        "projectile_look": unreal.VaelProjectileLook.BLACK_FIRE,
         "display_name": unreal.Text("Schwarzes Feuer"),
         "description": unreal.Text("Feuer, das nicht erlischt. Verdirbt dich."),
         "hint": unreal.Text("Die Prediger des Ordens kennen diese Formel."),
@@ -706,6 +709,7 @@ FORMULAS = [
     # Mark combos, group 1 (2026-10-09): castable once the Mark has awakened and the fragment is found
     {
         "asset": "DA_Formula_Knochensturm",
+        "aura_look": unreal.VaelAuraLook.BONE_STORM,
         "display_name": unreal.Text("Knochensturm"),
         "description": unreal.Text("Ein Wirbel aus Knochensplittern um dich zerfetzt alles in der Nähe. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
@@ -721,6 +725,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_SchwarzeSonne",
+        "aura_look": unreal.VaelAuraLook.BLACK_SUN,
         "display_name": unreal.Text("Schwarze Sonne"),
         "description": unreal.Text("Eine Glutkugel über dir brennt alles in der Nähe, auch dich ein wenig. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
@@ -776,6 +781,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_OffeneWunde",
+        "strike_look": unreal.VaelStrikeLook.OPEN_WOUND,
         "display_name": unreal.Text("Offene Wunde"),
         "description": unreal.Text("Reißt kurz eine Mark-Quelle auf: gewaltige Pulse. Vernarbt die Region für immer."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
@@ -799,6 +805,8 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_Markkaefig",
+        "bone_cage": True,
+        "projectile_look": unreal.VaelProjectileLook.MARK_SHARD,
         "display_name": unreal.Text("Markkäfig"),
         "description": unreal.Text("Knochen sperren einen Gegner ein, kurz auch Bosse. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
@@ -898,6 +906,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_Blutsieden",
+        "projectile_look": unreal.VaelProjectileLook.BLOOD_GLOB,
         "display_name": unreal.Text("Blutsieden"),
         "description": unreal.Text("Bringt das Blut zum Sieden: Wer in den nächsten Sekunden stirbt, platzt und reißt andere mit. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
@@ -919,6 +928,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_Kernsplitter",
+        "projectile_look": unreal.VaelProjectileLook.MARK_SHARD,
         "display_name": unreal.Text("Kernsplitter"),
         "description": unreal.Text("Ein Splitter Kernerz bohrt sich ein und explodiert nach zwei Sekunden. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
@@ -938,6 +948,7 @@ FORMULAS = [
     # Mark combos, group 4: new deliveries
     {
         "asset": "DA_Formula_Sporenschwarm",
+        "projectile_look": unreal.VaelProjectileLook.SPORE,
         "display_name": unreal.Text("Sporenschwarm"),
         "description": unreal.Text("Fünf Mark-Sporen suchen sich selbst ihre Ziele. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),

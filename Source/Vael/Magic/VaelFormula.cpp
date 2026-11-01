@@ -28,6 +28,7 @@ FVaelSpellHit UVaelFormula::MakeSpellHit(float Power) const
 	Hit.StatusDuration = StatusDuration;
 	Hit.StatusDamagePerSecond = StatusDamagePerSecond;
 	Hit.StunDuration = StunDuration;
+	Hit.bBoneCage = bBoneCage;
 	Hit.LifeSteal = LifeSteal;
 	Hit.Charge = Charge;
 	Hit.ChargeTime = ChargeTime;

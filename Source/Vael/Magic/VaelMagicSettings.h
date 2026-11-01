@@ -470,6 +470,13 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
 	TSoftObjectPtr<UMaterialInterface> FeverCardMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/MI_Vael_Wolke_Fieber.MI_Vael_Wolke_Fieber")));
 
+	/** Block of the Narbenwall and lump of clay of the Lehmgolem (Tools/Zauber/vael_zauber_formen.py) */
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UStaticMesh> FleshWallMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/SM_Narbenwall.SM_Narbenwall")));
+
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UStaticMesh> ClayLumpMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/SM_Lehmklumpen.SM_Lehmklumpen")));
+
 	/** Ring on the ground before a strike falls, and the black sun over a caster */
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
 	TSoftObjectPtr<UMaterialInterface> WarningCircleMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Warnkreis.M_Vael_Warnkreis")));

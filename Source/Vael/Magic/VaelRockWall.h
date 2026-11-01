@@ -78,6 +78,10 @@ private:
 
 	/** A wall of bone and flesh hurts enemies that touch it with this hit, like the Narbenwall */
 	bool bHurtsOnContact = false;
+
+	/** Material of the flesh, for the glow of its beat */
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> FleshMaterial;
 	FVaelSpellHit ContactHit;
 
 	/** Seconds until enemies touching it are hurt again */

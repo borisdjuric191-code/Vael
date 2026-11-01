@@ -1,5 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "VaelAssets.h"
+#include "Engine/StaticMesh.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelClayGolem.h"
 #include "AIController.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
@@ -102,6 +105,11 @@ void AVaelClayGolem::BeginPlay()
 	for (const FPart& Part : Parts)
 	{
 		UStaticMeshComponent* Shape = VaelEffects::AddLookShape(this, CoreMaterial, Part.Color, 0.0f);
+		if (UStaticMesh* Lump = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ClayLumpMesh))
+		{
+			Shape->SetStaticMesh(Lump);
+			Shape->SetRelativeRotation(FRotator(FMath::FRandRange(0.0f, 360.0f), FMath::FRandRange(0.0f, 360.0f), 0.0f));
+		}
 		Shape->SetRelativeScale3D(Part.Size / GolemSphereSize);
 		Shape->SetCastShadow(true);
 		Shape->SetVisibility(true);

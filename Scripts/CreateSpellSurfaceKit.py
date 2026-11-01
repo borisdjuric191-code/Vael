@@ -7,7 +7,7 @@ import unreal
 
 FOLDER = "/Game/Vael/Effects/Flaechen"
 NEBEL = "/Game/Vael/Effects/Nebel"
-KIT_VERSION = 1.1
+KIT_VERSION = 1.2
 
 assets = unreal.EditorAssetLibrary
 library = unreal.MaterialEditingLibrary
@@ -30,12 +30,12 @@ VaelNoise N;
 # P is the place on the disc in units of its radius; Fuellung says how far the strike has come
 WARN_SHAPE = """float R = length(P);
 float Angle = atan2(P.y, P.x);
-float Rim = saturate(1.0 - abs(R - 0.96) / 0.03);
+float Rim = saturate(1.0 - abs(R - 0.97) / 0.014);
 float Teeth = step(0.5, frac(Angle * 3.8197 + Zeit * 0.35)) * saturate(1.0 - abs(R - 0.86) / 0.016);
 float Front = saturate(1.0 - abs(R - Fuellung) / 0.05) * step(R, 0.97);
 float Inside = step(R, Fuellung) * 0.16;
 """
-WARN_EMISSIVE = WARN_SHAPE + "return Farbe * (Rim * 2.4 + Teeth * 1.3 + Front * 2.0 + Inside) * step(R, 1.0);"
+WARN_EMISSIVE = WARN_SHAPE + "return Farbe * (Rim * 1.1 + Teeth * 0.7 + Front * 0.9 + Inside * 0.6) * step(R, 1.0);"
 WARN_OPACITY = WARN_SHAPE + "return saturate(Rim * 0.9 + Teeth * 0.6 + Front * 0.7 + Inside) * step(R, 1.0);"
 
 # ---------------------------------------------------------------- Pool on the ground
@@ -79,9 +79,9 @@ float Flame = N.fbm(Around * 2.2 + float2(Zeit * 0.5, R * 3.0 - Zeit * 1.1));
 float Disc = 1.0 - smoothstep(Scheibe - 0.015, Scheibe + 0.01, R);
 float Reach = Scheibe + 0.08 + Flame * 0.5;
 float Corona = pow(saturate(1.0 - (R - Scheibe) / max(Reach - Scheibe, 0.01)), 2.2) * step(Scheibe - 0.02, R);
-float Rim = saturate(1.0 - abs(R - Scheibe) / 0.035);
+float Rim = saturate(1.0 - abs(R - Scheibe) / 0.012);
 """
-SUN_EMISSIVE = SUN_SHAPE + "return (Farbe * Corona + float3(1.0, 0.8, 0.55) * Rim * 1.6) * Leuchten * (1.0 - Disc);"
+SUN_EMISSIVE = SUN_SHAPE + "return (Farbe * Corona + float3(1.0, 0.7, 0.4) * Rim * 0.9) * Leuchten * (1.0 - Disc);"
 SUN_OPACITY = SUN_SHAPE + "return saturate(Disc + Corona * 0.25);"
 
 # ---------------------------------------------------------------- Flesh of the Narbenwall
@@ -300,6 +300,8 @@ def build_instances():
         "FarbeTief": (0.01, 0.018, 0.012), "FarbeHell": (0.06, 0.075, 0.04), "Randfarbe": (0.05, 0.05, 0.03),
         "Kachel": 2.2, "Fluss": 0.05, "Blasen": 0.35, "Rauheit": 0.16, "Relief": 3.0, "Strudel": 1.0})
 
+    instance("MI_Narbenwall_Knochen", unreal.load_asset("/Game/Vael/Characters/Grimoire/M_Grimoire"), {"Tonung": (0.8, 0.72, 0.58), "Metall": 0.0, "Rauheit": 0.5})
+
     # Cards of the fever mist: a sick, warm violet (Boris 2026-10-18: violet belongs to the Nid)
     path = NEBEL + "/MI_Vael_Wolke_Fieber"
     card = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset("MI_Vael_Wolke_Fieber", NEBEL, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
@@ -311,6 +313,50 @@ def build_instances():
     assets.save_loaded_asset(card, False)
 
 
+def import_meshes():
+    """Meshes of Tools/Zauber/vael_zauber_formen.py; slots get their materials by name"""
+    import os
+    sources = os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()), "Scripts", "Data", "Zauber")
+    materials = {"Fleisch": unreal.load_asset(FOLDER + "/M_Vael_Fleisch"), "Knochen": unreal.load_asset(FOLDER + "/MI_Narbenwall_Knochen")}
+    for name in ("SM_Narbenwall", "SM_Lehmklumpen"):
+        ui = unreal.FbxImportUI()
+        ui.set_editor_property("import_mesh", True)
+        ui.set_editor_property("import_as_skeletal", False)
+        ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_STATIC_MESH)
+        ui.set_editor_property("import_materials", False)
+        ui.set_editor_property("import_textures", False)
+        data = ui.static_mesh_import_data
+        data.set_editor_property("combine_meshes", True)
+        data.set_editor_property("auto_generate_collision", False)
+        data.set_editor_property("generate_lightmap_u_vs", False)
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", os.path.join(sources, name + ".fbx"))
+        task.set_editor_property("destination_path", FOLDER)
+        task.set_editor_property("destination_name", name)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("save", True)
+        task.set_editor_property("options", ui)
+        tools.import_asset_tasks([task])
+        mesh = unreal.load_asset("{}/{}".format(FOLDER, name))
+        if mesh is None:
+            notes.append("import failed: " + name)
+            continue
+        nanite = mesh.get_editor_property("nanite_settings")
+        if nanite.get_editor_property("enabled"):
+            nanite.set_editor_property("enabled", False)
+            mesh.set_editor_property("nanite_settings", nanite)
+        unreal.EditorStaticMeshLibrary.remove_collisions(mesh)
+        slots = mesh.get_editor_property("static_materials")
+        for index, entry in enumerate(slots):
+            slot_name = str(entry.get_editor_property("material_slot_name"))
+            for key, value in materials.items():
+                if key in slot_name:
+                    mesh.set_material(index, value)
+        log("{} slots {}".format(name, [str(entry.get_editor_property("material_slot_name")) for entry in slots]))
+        assets.save_loaded_asset(mesh, False)
+
+
 def main():
     assets.make_directory(FOLDER)
     build_warning()
@@ -318,6 +364,7 @@ def main():
     build_sun()
     build_flesh()
     build_instances()
+    import_meshes()
     for note in notes:
         log("NOTE " + note)
     log("done, {} notes".format(len(notes)))

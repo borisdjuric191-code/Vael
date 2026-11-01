@@ -10,9 +10,15 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
+#include "Camera/PlayerCameraManager.h"
+#include "Components/PointLightComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelDebrisWhirl.h"
 #include "Magic/VaelMagicSettings.h"
+#include "VaelAssets.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "NiagaraComponent.h"
@@ -27,6 +33,16 @@ namespace
 
 	/** Turns per second of the placeholder rings */
 	constexpr float AuraSpinDegreesPerSecond = 300.0f;
+
+	/** Bone splinters of the Knochensturm and their color */
+	constexpr int32 AuraBoneShards = 60;
+	const FLinearColor AuraBoneColor(0.8f, 0.74f, 0.6f);
+
+	/** The black sun: its width and height over the feet in cm, its light in candela; the engine plane is this wide */
+	constexpr float AuraSunSize = 300.0f;
+	constexpr float AuraSunHeight = 340.0f;
+	constexpr float AuraSunLight = 30.0f;
+	constexpr float AuraPlaneSize = 100.0f;
 }
 
 AVaelSpellAura::AVaelSpellAura()
@@ -114,12 +130,125 @@ void AVaelSpellAura::Restart(const FVaelAuraSettings& InSettings)
 		Whirl->RegisterComponent();
 		Whirl->Build(Settings.Radius, false, Settings.Color);
 	}
-	else if (VisualComponent == nullptr && !Settings.bDebrisWhirl)
+	else if (Settings.Look == EVaelAuraLook::BoneStorm && Shards.IsEmpty())
+	{
+		BuildBoneShards();
+	}
+	else if (Settings.Look == EVaelAuraLook::BlackSun && Sun == nullptr)
+	{
+		BuildBlackSun();
+	}
+	else if (VisualComponent == nullptr && !Settings.bDebrisWhirl && Settings.Look == EVaelAuraLook::Plain)
 	{
 		VisualComponent = VaelEffects::Attach(Settings.Visual, Mesh, NAME_None, Settings.Color, Settings.Radius);
 	}
 
-	Mesh->SetVisibility(VisualComponent == nullptr && Whirl == nullptr);
+	Mesh->SetVisibility(VisualComponent == nullptr && Whirl == nullptr && Sun == nullptr && Shards.IsEmpty());
+}
+
+void AVaelSpellAura::BuildBoneShards()
+{
+	UMaterialInterface* CoreMaterial = nullptr;
+	UMaterialInterface* GlowMaterial = nullptr;
+	VaelEffects::LoadLookMaterials(CoreMaterial, GlowMaterial);
+	UStaticMesh* Cone = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cone.Cone"));
+
+	for (int32 ShardIndex = 0; ShardIndex < AuraBoneShards; ++ShardIndex)
+	{
+		UStaticMeshComponent* Shard = VaelEffects::AddLookShape(this, CoreMaterial, AuraBoneColor, 0.0f);
+		Shard->SetStaticMesh(Cone);
+		Shard->SetUsingAbsoluteLocation(true);
+		Shard->SetUsingAbsoluteRotation(true);
+		Shard->SetUsingAbsoluteScale(true);
+		Shard->SetCastShadow(true);
+		Shard->SetVisibility(true);
+		Shards.Add(Shard);
+	}
+}
+
+void AVaelSpellAura::AnimateBoneShards(const FVector& Feet, float Time)
+{
+	for (int32 ShardIndex = 0; ShardIndex < Shards.Num(); ++ShardIndex)
+	{
+		// Every shard has its own ring, height and speed, drawn from its number so they never line up
+		const float Seed = ShardIndex * 2.39996f;
+		const float Ring = FMath::Lerp(0.45f, 1.0f, FMath::Frac(Seed * 0.37f));
+		const float Height = FMath::Lerp(25.0f, 190.0f, FMath::Frac(Seed * 0.71f));
+		const float Speed = FMath::Lerp(5.0f, 9.0f, FMath::Frac(Seed * 0.19f));
+		const float Size = FMath::Lerp(0.6f, 1.25f, FMath::Frac(Seed * 0.53f));
+
+		const float Angle = Seed + Time * Speed;
+		const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+		const FVector Along(-Out.Y, Out.X, 0.0f);
+		const FVector Place = Feet + Out * Settings.Radius * Ring + FVector(0.0f, 0.0f, Height + 14.0f * FMath::Sin(Time * 7.0f + Seed));
+
+		// They fly point first, tipped up and in as if torn along
+		Shards[ShardIndex]->SetWorldLocationAndRotation(Place, FRotationMatrix::MakeFromZ(Along + FVector(0.0f, 0.0f, 0.25f * FMath::Sin(Seed)) - Out * 0.2f).Rotator());
+		Shards[ShardIndex]->SetWorldScale3D(FVector(0.1f, 0.1f, 0.55f) * Size);
+	}
+}
+
+void AVaelSpellAura::BuildBlackSun()
+{
+	UMaterialInterface* SunMaterial = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BlackSunMaterial);
+
+	Sun = NewObject<UStaticMeshComponent>(this);
+	Sun->SetupAttachment(Mesh);
+	Sun->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane")));
+	Sun->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Sun->SetCastShadow(false);
+	Sun->SetUsingAbsoluteLocation(true);
+	Sun->SetUsingAbsoluteRotation(true);
+	Sun->SetUsingAbsoluteScale(true);
+	Sun->SetWorldScale3D(FVector(AuraSunSize / AuraPlaneSize));
+	if (SunMaterial != nullptr)
+	{
+		Sun->SetMaterial(0, SunMaterial);
+	}
+	Sun->RegisterComponent();
+
+	SunLight = NewObject<UPointLightComponent>(this);
+	SunLight->SetupAttachment(Sun);
+	SunLight->SetMobility(EComponentMobility::Movable);
+	SunLight->SetIntensityUnits(ELightUnits::Candelas);
+	SunLight->SetIntensity(AuraSunLight);
+	SunLight->SetLightColor(FLinearColor(1.0f, 0.42f, 0.14f));
+	SunLight->SetAttenuationRadius(Settings.Radius * 2.6f);
+	SunLight->SetCastShadows(false);
+	SunLight->RegisterComponent();
+}
+
+void AVaelSpellAura::AnimateBlackSun(const FVector& Feet, float DeltaSeconds)
+{
+	const FVector Middle = Feet + FVector(0.0f, 0.0f, AuraSunHeight);
+	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+	const FVector Camera = PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr ? PlayerController->PlayerCameraManager->GetCameraLocation() : Middle + FVector(-600.0f, 0.0f, 900.0f);
+	Sun->SetWorldLocationAndRotation(Middle, FRotationMatrix::MakeFromZ(Camera - Middle).Rotator());
+	SunLight->SetIntensity(AuraSunLight * (0.8f + 0.3f * FMath::PerlinNoise1D(GetWorld()->GetTimeSeconds() * 7.0f)));
+
+	// Now and then the corona lashes down onto the ground around the caster, and it rains embers all the time
+	SunLashCountdown -= DeltaSeconds;
+	if (SunLashCountdown > 0.0f)
+	{
+		return;
+	}
+	SunLashCountdown = FMath::FRandRange(0.16f, 0.34f);
+
+	const FVector2D Spot = FMath::RandPointInCircle(Settings.Radius);
+	AVaelLightningBolt::Spawn(this, Middle, Feet + FVector(Spot.X, Spot.Y, 6.0f), FLinearColor(1.0f, 0.28f, 0.04f), 0.2f, 0.55f, true);
+
+	FVaelDebris Embers;
+	Embers.Count = 7;
+	Embers.Spread = AuraSunSize * 0.3f;
+	Embers.Speed = 90.0f;
+	Embers.Lift = 0.0f;
+	Embers.Gravity = 620.0f;
+	Embers.Lifetime = 0.8f;
+	Embers.MinSize = 3.0f;
+	Embers.MaxSize = 7.0f;
+	Embers.Color = FLinearColor(1.0f, 0.36f, 0.06f);
+	Embers.Glow = 6.0f;
+	AVaelDebrisBurst::Spawn(this, Middle, Embers);
 }
 
 AVaelSpellAura* AVaelSpellAura::FindSandStorm(const APawn* Caster)
@@ -127,7 +256,7 @@ AVaelSpellAura* AVaelSpellAura::FindSandStorm(const APawn* Caster)
 	UWorld* World = Caster != nullptr ? Caster->GetWorld() : nullptr;
 	for (TActorIterator<AVaelSpellAura> It(World); World != nullptr && It; ++It)
 	{
-		if (It->GetInstigator() == Caster && It->Settings.bDebrisWhirl && !It->bGathering && !It->IsActorBeingDestroyed())
+		if (It->GetInstigator() == Caster && It->Settings.bDebrisWhirl && It->Settings.Look == EVaelAuraLook::Plain && !It->bGathering && !It->IsActorBeingDestroyed())
 		{
 			return *It;
 		}
@@ -177,8 +306,17 @@ void AVaelSpellAura::Tick(float DeltaSeconds)
 
 	HitEnemies(DeltaSeconds);
 
+	if (!Shards.IsEmpty())
+	{
+		AnimateBoneShards(Feet, GetWorld()->GetTimeSeconds());
+	}
+	if (Sun != nullptr)
+	{
+		AnimateBlackSun(Feet, DeltaSeconds);
+	}
+
 #if ENABLE_DRAW_DEBUG
-	if (VisualComponent != nullptr || Whirl != nullptr)
+	if (VisualComponent != nullptr || Whirl != nullptr || Sun != nullptr || !Shards.IsEmpty())
 	{
 		return;
 	}

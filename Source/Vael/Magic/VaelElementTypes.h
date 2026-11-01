@@ -94,7 +94,27 @@ enum class EVaelProjectileLook : uint8
 	ThistleSeed,
 	/** A sharp blade of the Windhalm flying like a dart and turning round its flight, a streak of ash behind it (embers when it burns),
 	 *  the air shimmering at its point, pollen glittering off it; it ends in a small ring of wind */
-	GrassDart
+	GrassDart,
+	/** A wide wall of flame rolling forward across its whole breadth, embers before it, like the Feuerwalze */
+	FireRoller,
+	/** A black spore with thorns all round and a violet heart, tumbling and leaving motes, like the Sporenschwarm */
+	Spore,
+	/** A wobbling glob of boiling dark blood that throws drops, like the Blutsieden */
+	BloodGlob,
+	/** A ball of black fire: a void in tongues of violet flame, like the Schwarzes Feuer */
+	BlackFire
+};
+
+/** Own look of a storm around the caster */
+UENUM(BlueprintType)
+enum class EVaelAuraLook : uint8
+{
+	/** The effect of its element, or the whirl of a sand storm */
+	Plain,
+	/** Splinters of bone racing round the caster in pale dust, like the Knochensturm */
+	BoneStorm,
+	/** A black sun with a burning corona over the head that rains embers, like the Schwarze Sonne */
+	BlackSun
 };
 
 /** Gesture the mage makes with arm and fingers instead of a cast montage, posed in code */
@@ -122,7 +142,11 @@ enum class EVaelStrikeLook : uint8
 	/** A column of boiling water bursts out of the ground, foams over at its top, rains down and runs out as a foaming ring, like the Geysir */
 	Geyser,
 	/** No spike: a dark storm cloud gathers above and lances of ice rain down, a volley shattering where each strike lands, like the Hagelsturm */
-	Hail
+	Hail,
+	/** No spike: a burning rock falls out of the sky along a slanted path while the warning fills, like the Meteor */
+	Meteor,
+	/** No spike: the ground tears open, every pulse throws black lightning out of the wound, like the Offene Wunde */
+	OpenWound
 };
 
 /** Own look of a burst around the caster, shown together with its impact effect */

@@ -6,6 +6,7 @@
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Components/PointLightComponent.h"
 #include "Player/VaelCharacter.h"
+#include "World/VaelFireComponent.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelIceShards.h"
 #include "Magic/VaelGroundArea.h"
@@ -28,6 +29,13 @@ namespace
 
 	/** Small arcs that run together on the ground where lightning of a mage will fall */
 	constexpr int32 StrikeChargeArcs = 3;
+
+	/** Where a meteor comes from, against where it lands, and the black bolts every pulse of a wound throws out */
+	const FVector StrikeMeteorPath(-500.0f, 350.0f, 1500.0f);
+	constexpr int32 StrikeWoundArcs = 5;
+
+	/** Later pulses of a wound fall on the same spot and need no circle of their own */
+	constexpr float StrikeFirstPulse = 1.0f;
 
 	/** Size of the engine basic shapes used as placeholders */
 	constexpr float StrikeShapeSize = 100.0f;
@@ -172,10 +180,39 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVecto
 void AVaelGroundStrike::SetLook(EVaelStrikeLook InLook)
 {
 	Look = InLook;
-	if (Look == EVaelStrikeLook::Hail)
+	if (Look == EVaelStrikeLook::Hail || (Look == EVaelStrikeLook::OpenWound && Delay > StrikeFirstPulse))
 	{
 		WarningDisc->SetVisibility(false);
 		WarningFill->SetVisibility(false);
+	}
+
+	// The rock of a meteor comes down along a slanted path, faster and faster, and lands with the strike
+	if (Look == EVaelStrikeLook::Meteor)
+	{
+		UStaticMesh* Rock = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementOrbRockMesh);
+		FallingRock = NewObject<UStaticMeshComponent>(this);
+		FallingRock->SetupAttachment(RootComponent);
+		FallingRock->SetStaticMesh(Rock != nullptr ? Rock : Spike->GetStaticMesh().Get());
+		FallingRock->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		FallingRock->SetUsingAbsoluteScale(true);
+		FallingRock->SetWorldScale3D(FVector(Rock != nullptr ? Radius * 0.55f / 240.0f : 1.0f));
+		FallingRock->RegisterComponent();
+
+		FallingFlames = NewObject<UVaelFireComponent>(this);
+		FallingFlames->SetupAttachment(FallingRock);
+		FallingFlames->SetUsingAbsoluteScale(true);
+		FallingFlames->RegisterComponent();
+		FVaelFireShape Coat;
+		Coat.Radius = Radius * 0.42f;
+		Coat.Height = Radius * 1.5f;
+		Coat.Heat = 1.4f;
+		Coat.Smoke = 1.0f;
+		Coat.Speed = 2.4f;
+		Coat.Tongues = 18;
+		Coat.bBall = true;
+		Coat.BallSpread = 0.5f;
+		Coat.bFloating = true;
+		FallingFlames->Ignite(Coat, 0.05f);
 	}
 }
 
@@ -206,6 +243,11 @@ void AVaelGroundStrike::Tick(float DeltaSeconds)
 		// The fill closes in on the edge of the warning, faster towards the end, so the moment of the strike can be read
 		const float Progress = Delay > 0.0f ? FMath::Clamp(Elapsed / Delay, 0.0f, 1.0f) : 1.0f;
 		const float Fill = FMath::Square(Progress);
+		if (FallingRock != nullptr)
+		{
+			const FVector Ground = GetActorLocation();
+			FallingRock->SetWorldLocationAndRotation(FMath::Lerp(Ground + StrikeMeteorPath, Ground, Progress * Progress), FRotator(Elapsed * 120.0f, Elapsed * 90.0f, 0.0f));
+		}
 		WarningFill->SetRelativeScale3D(FVector(WarningScale.X * Fill, WarningScale.Y * Fill, WarningScale.Z));
 		if (WarningCircle != nullptr)
 		{
@@ -346,6 +388,54 @@ void AVaelGroundStrike::Strike()
 		const FVector Sky = Ground + FVector(FMath::FRandRange(-150.0f, 150.0f), FMath::FRandRange(-150.0f, 150.0f), StrikeLightningHeight);
 
 		AVaelLightningBolt::Spawn(GetOwner(), Sky, Ground, UVaelMagicSettings::Get()->GetElementColor(Hit.Element), 0.3f, 1.6f, true);
+	}
+	else if (Look == EVaelStrikeLook::Meteor)
+	{
+		// The rock is gone in the blast: the aftermath of the spell burns on, here only what it throws up
+		FVaelDebris Thrown;
+		Thrown.Count = 16;
+		Thrown.Spread = Radius * 0.5f;
+		Thrown.Speed = 520.0f;
+		Thrown.Lift = 520.0f;
+		Thrown.Lifetime = 0.9f;
+		Thrown.MinSize = 8.0f;
+		Thrown.MaxSize = 26.0f;
+		Thrown.Color = FLinearColor(0.12f, 0.08f, 0.06f);
+		Thrown.RockShare = 1.0f;
+		AVaelDebrisBurst::Spawn(this, GetActorLocation() + FVector(0.0f, 0.0f, 12.0f), Thrown);
+		if (FallingRock != nullptr)
+		{
+			FallingRock->SetVisibility(false);
+		}
+		if (FallingFlames != nullptr)
+		{
+			FallingFlames->DestroyComponent();
+			FallingFlames = nullptr;
+		}
+	}
+	else if (Look == EVaelStrikeLook::OpenWound)
+	{
+		// Each pulse throws black lightning out of the wound and spits Mark into the air
+		const FVector Wound = GetActorLocation();
+		const FLinearColor MarkColor = UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark);
+		const float FirstAngle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		for (int32 ArcIndex = 0; ArcIndex < StrikeWoundArcs; ++ArcIndex)
+		{
+			const float Angle = FirstAngle + ArcIndex * UE_TWO_PI / StrikeWoundArcs;
+			const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+			AVaelLightningBolt::Spawn(GetOwner(), Wound + FVector(0.0f, 0.0f, 20.0f), Wound + Out * Radius * FMath::FRandRange(0.8f, 1.2f) + FVector(0.0f, 0.0f, 12.0f), MarkColor, 0.28f, 1.1f, true, true);
+		}
+		FVaelDebris Spat;
+		Spat.Count = 18;
+		Spat.Spread = Radius * 0.2f;
+		Spat.Speed = 240.0f;
+		Spat.Lift = 620.0f;
+		Spat.Lifetime = 0.8f;
+		Spat.MinSize = 5.0f;
+		Spat.MaxSize = 12.0f;
+		Spat.Color = MarkColor;
+		Spat.Glow = 6.0f;
+		AVaelDebrisBurst::Spawn(this, Wound + FVector(0.0f, 0.0f, 10.0f), Spat);
 	}
 	else if (Look == EVaelStrikeLook::Geyser)
 	{

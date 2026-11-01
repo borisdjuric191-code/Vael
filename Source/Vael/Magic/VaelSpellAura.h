@@ -41,6 +41,9 @@ struct FVaelAuraSettings
 	/** True for a sand storm: real debris whirls instead of the effect */
 	bool bDebrisWhirl = false;
 
+	/** Own look of the storm */
+	EVaelAuraLook Look = EVaelAuraLook::Plain;
+
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
 };
@@ -102,6 +105,26 @@ private:
 	/** The debris of a sand storm */
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelDebrisWhirlComponent> Whirl;
+
+	/** Makes and moves the splinters of a storm of bones */
+	void BuildBoneShards();
+	void AnimateBoneShards(const FVector& Feet, float Time);
+
+	/** Makes and moves the black sun over the caster, with what falls from it */
+	void BuildBlackSun();
+	void AnimateBlackSun(const FVector& Feet, float DeltaSeconds);
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> Shards;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> Sun;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UPointLightComponent> SunLight;
+
+	/** Seconds until the corona lashes down again */
+	float SunLashCountdown = 0.0f;
 
 	/** World time at which the storm ends */
 	float EndTime = 0.0f;

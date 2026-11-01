@@ -1,5 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "VaelAssets.h"
+#include "Magic/VaelSurfacePool.h"
 #include "Magic/VaelSpellVortex.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Combat/VaelCharacterBase.h"
@@ -129,6 +131,23 @@ void AVaelSpellVortex::BeginPlay()
 	const float LookScale = Settings.Radius * VortexLookRadiusShare / VortexPlaceholderConeRadius;
 	Mesh->SetRelativeScale3D(FVector(LookScale, LookScale, VortexLookHeight / VortexPlaceholderConeHeight));
 
+	// A bog is a pool that winds into the middle, nothing stands above it
+	if (Settings.bMoorPool)
+	{
+		UVaelSurfacePoolComponent* Bog = NewObject<UVaelSurfacePoolComponent>(this);
+		Bog->SetupAttachment(RootComponent);
+		Bog->SetUsingAbsoluteRotation(true);
+		Bog->SetUsingAbsoluteScale(true);
+		Bog->RegisterComponent();
+		if (Bog->Spread(VaelAssets::LoadOptional(UVaelMagicSettings::Get()->MoorPoolMaterial), Settings.Radius * 1.1f, Settings.Lifetime))
+		{
+			Mesh->SetVisibility(false);
+			bHasOwnLook = true;
+		}
+		RefreshColor();
+		return;
+	}
+
 	// A dust devil carries real debris; any other whirl shows its effect. Either replaces the placeholder cone.
 	if (Settings.bDebrisWhirl || Settings.bAirWhirl)
 	{
@@ -171,7 +190,7 @@ void AVaelSpellVortex::Tick(float DeltaSeconds)
 
 #if ENABLE_DRAW_DEBUG
 	// Placeholder: the reach on the ground
-	if (VisualComponent == nullptr && Whirl == nullptr)
+	if (VisualComponent == nullptr && Whirl == nullptr && !bHasOwnLook)
 	{
 		DrawDebugCircle(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 5.0f), Settings.Radius, 32, (bFiery ? Settings.FireColor : Settings.Color).ToFColor(true),
 			false, -1.0f, 0, 4.0f, FVector::ForwardVector, FVector::RightVector, false);

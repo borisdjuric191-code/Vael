@@ -51,6 +51,13 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UMaterialInstanceDynamic> WarningCircle;
 
+	/** The burning rock of a meteor while it falls */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> FallingRock;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelFireComponent> FallingFlames;
+
 	/** Placeholder spike shown when the strike lands */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> Spike;

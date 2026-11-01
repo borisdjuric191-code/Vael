@@ -9,6 +9,7 @@
 #include "Engine/OverlapResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
+#include "Magic/VaelBoneCage.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMarkCharge.h"
 #include "Magic/VaelMagicSettings.h"
@@ -188,6 +189,10 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 		if (Hit.StunDuration > 0.0f)
 		{
 			TargetCharacter->ApplyStun(Hit.StunDuration);
+			if (Hit.bBoneCage)
+			{
+				AVaelBoneCage::Spawn(Attacker, Target, Hit.StunDuration);
+			}
 		}
 
 		UE_LOG(LogVael, Verbose, TEXT("'%s' hits '%s': %.1f %s damage%s, health now %.1f, conditions: %s"), *GetNameSafe(Attacker), *GetNameSafe(Target),

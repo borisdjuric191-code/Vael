@@ -65,6 +65,9 @@ struct FVaelVortexSettings
 	/** True for a whirlwind of air (Wirbelsturm): shimmering air, white wisps and streaks instead of the effect */
 	bool bAirWhirl = false;
 
+	/** True for a bog: a pool winding into the middle instead of a funnel */
+	bool bMoorPool = false;
+
 	/** A giant dust devil that swallowed a sand storm: its whirl looks this many times its radius, carries this many times
 	 *  the debris and swells up over these seconds */
 	float LookScale = 1.0f;
@@ -148,6 +151,9 @@ private:
 	/** The debris of a dust devil */
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelDebrisWhirlComponent> Whirl;
+
+	/** True while a look of its own stands in for effect and whirl */
+	bool bHasOwnLook = false;
 
 	/** Seconds until the next fire */
 	float NextFireCountdown = 0.0f;

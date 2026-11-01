@@ -54,6 +54,9 @@ struct FVaelBeamSettings
 	/** True for a fire beam: its body is a cylinder of streaming fire (UVaelFireSettings::BeamCoreMaterial) */
 	bool bFireCore = false;
 
+	/** True for a beam that drains life: dark veins from the target to the caster instead of a ray */
+	bool bDrainVeins = false;
+
 	/** Placeholder color */
 	FLinearColor Color = FLinearColor::White;
 };
@@ -121,6 +124,9 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<class UMaterialInstanceDynamic> CoreMaterialInstance;
+
+	/** Seconds until the next vein of a beam that drains life */
+	float VeinCountdown = 0.0f;
 
 	/** Fire beam: the wide glow around it and the white-hot core in it, the fire at its source and where it hits, its lights */
 	UPROPERTY(Transient)

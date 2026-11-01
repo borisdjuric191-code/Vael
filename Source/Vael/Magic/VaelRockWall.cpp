@@ -67,10 +67,17 @@ void AVaelRockWall::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// A wall of bone and flesh keeps its block, dark red with a shimmer of the Mark; it pulses in Tick
+	// A wall of bone and flesh grows from its own mesh; it pulses in Tick
 	if (bHurtsOnContact)
 	{
-		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Block->GetMaterial(0)))
+		if (UStaticMesh* Flesh = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->FleshWallMesh))
+		{
+			Block->EmptyOverrideMaterials();
+			Block->SetStaticMesh(Flesh);
+			Block->SetRelativeRotation(FRotator(0.0f, FMath::RandBool() ? 0.0f : 180.0f, 0.0f));
+			FleshMaterial = Block->CreateAndSetMaterialInstanceDynamic(FMath::Max(Block->GetMaterialIndex(TEXT("Fleisch")), 0));
+		}
+		else if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(Block->GetMaterial(0)))
 		{
 			Material->SetVectorParameterValue(TEXT("Color"), FMath::Lerp(FLinearColor(0.35f, 0.04f, 0.08f), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 0.25f));
 		}
@@ -173,6 +180,10 @@ void AVaelRockWall::Tick(float DeltaSeconds)
 		// Flesh pulses like a heart and hurts whoever touches it
 		const FVector Scale = Block->GetRelativeScale3D();
 		const float Beat = 1.0f + 0.05f * FMath::Max(0.0f, FMath::Sin(RiseTime * 7.0f));
+		if (FleshMaterial != nullptr)
+		{
+			FleshMaterial->SetScalarParameterValue(TEXT("Puls"), 0.6f + 2.4f * FMath::Square(FMath::Max(0.0f, FMath::Sin(RiseTime * 7.0f))));
+		}
 		Block->SetRelativeScale3D(FVector(BlockSize / PlaceholderCubeSize * Beat, BlockSize / PlaceholderCubeSize * Beat, Scale.Z));
 
 		ContactCountdown -= DeltaSeconds;

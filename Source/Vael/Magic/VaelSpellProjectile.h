@@ -206,6 +206,8 @@ private:
 	void AnimateLavaBall(float Time, float DeltaSeconds);
 	void AnimateLavaBurst();
 	void AnimateMarkShard(float Time, float DeltaSeconds);
+	void AnimateFireRoller(float Time, float DeltaSeconds);
+	void AnimateNidBlob(float Time, float DeltaSeconds);
 	void AnimateTidalWave(float Time, float DeltaSeconds);
 	void AnimateThistleSeed(float Time, float DeltaSeconds);
 	void AnimateGrassDart(float Time, float DeltaSeconds);
@@ -273,6 +275,10 @@ private:
 	/** Living flames of the fire kit that lick backwards from a burning projectile, like the Funke */
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelFireComponent> TrailFlames;
+
+	/** Columns of flame of the Feuerwalze */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class UVaelFireComponent>> RollerFlames;
 
 	/** A body of flames that lick out all around a ball of fire, like the Feuerball */
 	UPROPERTY(Transient)

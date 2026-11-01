@@ -911,6 +911,7 @@ void UVaelFormulaAbility::StartBeam(const UVaelFormula& Formula, AActor* Caster,
 	Beam.FireLifetime = Formula.AreaLifetime;
 	Beam.FireDamagePerSecond = Formula.AreaDamagePerSecond * Power;
 	Beam.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
+	Beam.bDrainVeins = Formula.LifeSteal > 0.0f;
 	Beam.Visual = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BeamEffect);
 	if (Formula.DamageElement == EVaelElement::Fire)
 	{
@@ -975,6 +976,7 @@ void UVaelFormulaAbility::LaunchVortex(const UVaelFormula& Formula, AActor* Cast
 	Vortex.FireColor = MagicSettings->GetElementColor(EVaelElement::Fire);
 	Vortex.Visual = Formula.LoadEffects().Trail;
 	Vortex.bDebrisWhirl = Formula.bDebrisWhirl;
+	Vortex.bMoorPool = Formula.DamageElement == EVaelElement::Earth && Formula.VortexSpeed <= 0.0f && !Formula.bDebrisWhirl;
 	Vortex.bAirWhirl = Formula.DamageElement == EVaelElement::Air && !Formula.bDebrisWhirl;
 
 	const FVector AimDirection = GetAimDirection(Caster);
@@ -1027,6 +1029,7 @@ void UVaelFormulaAbility::StartAura(const UVaelFormula& Formula, AActor* Caster,
 	Aura.Color = UVaelMagicSettings::Get()->GetElementColor(Formula.DamageElement);
 	Aura.Visual = Formula.LoadEffects().Trail;
 	Aura.bDebrisWhirl = Formula.bDebrisWhirl;
+	Aura.Look = Formula.AuraLook;
 
 	AVaelSpellAura::StartAura(Cast<APawn>(Caster), Aura);
 }

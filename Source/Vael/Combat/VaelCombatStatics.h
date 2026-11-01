@@ -43,6 +43,9 @@ struct FVaelSpellHit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
 	float StunDuration = 0.0f;
 
+	/** A cage of bones grows around the one hit for as long as the stun lasts */
+	bool bBoneCage = false;
+
 	/** Share of the damage dealt that heals the attacker, like the Aderzug; 0 for none */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Spell")
 	float LifeSteal = 0.0f;

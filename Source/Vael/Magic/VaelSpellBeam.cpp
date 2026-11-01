@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelSpellBeam.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AbilitySystemComponent.h"
@@ -28,6 +29,9 @@
 
 namespace
 {
+	/** Seconds between two veins of a beam that drains life */
+	constexpr float BeamVeinInterval = 0.07f;
+
 	/** Size of the engine cylinder mesh used as placeholder */
 	constexpr float BeamPlaceholderCylinderRadius = 50.0f;
 	constexpr float BeamPlaceholderCylinderHeight = 100.0f;
@@ -382,6 +386,19 @@ void AVaelSpellBeam::UpdateLook(const FVector& Body, const FVector& Direction, f
 		Cylinder->SetWorldScale3D(FVector(Thickness / BeamPlaceholderCylinderRadius, Thickness / BeamPlaceholderCylinderRadius, VisibleLength / BeamPlaceholderCylinderHeight));
 	};
 	Stretch(Mesh, LookRadius * Throb);
+
+	// A beam that drains life is no ray: dark veins keep tearing from the target back to the caster
+	if (Settings.bDrainVeins)
+	{
+		Mesh->SetVisibility(false);
+		VeinCountdown -= GetWorld()->GetDeltaSeconds();
+		if (VeinCountdown <= 0.0f)
+		{
+			VeinCountdown = BeamVeinInterval * FMath::FRandRange(0.7f, 1.3f);
+			const FVector Offset = FMath::VRand() * 18.0f;
+			AVaelLightningBolt::Spawn(GetInstigator(), Start + Direction * VisibleLength + Offset, Start + Offset * 0.3f, Settings.Color, 0.2f, 0.8f, false, true);
+		}
+	}
 	if (OuterLayer != nullptr)
 	{
 		const UVaelFireSettings* FireSettings = UVaelFireSettings::Get();

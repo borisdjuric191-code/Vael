@@ -153,6 +153,10 @@ namespace
 	constexpr float MarkShardThicknessShare = 0.55f;
 	constexpr int32 MarkShardVeins = 2;
 
+	/** Thorns, drops or flames of the blobs of the Mark, and the columns of flame of the Feuerwalze */
+	constexpr int32 BlobThorns = 11;
+	constexpr int32 RollerColumns = 7;
+
 	/** Motes the splinter can have in the air at once, seconds between two, seconds each one lasts; they rise, in cm/s² */
 	constexpr int32 MarkShardLooseCount = 18;
 	constexpr float MarkShardShedInterval = 0.04f;
@@ -738,6 +742,66 @@ void AVaelSpellProjectile::BuildLook()
 
 		AddLookLight(SpellColor, 6.0f);
 	}
+	else if (Look == EVaelProjectileLook::FireRoller)
+	{
+		// A wall of tongues of the fire kit across the whole width; smoke rolls off the top, embers run ahead
+		for (int32 ColumnIndex = 0; ColumnIndex < RollerColumns; ++ColumnIndex)
+		{
+			UVaelFireComponent* Column = NewObject<UVaelFireComponent>(this);
+			Column->SetupAttachment(RootComponent);
+			Column->SetUsingAbsoluteRotation(true);
+			Column->RegisterComponent();
+			FVaelFireShape Shape;
+			Shape.Radius = Radius * 0.36f;
+			Shape.Height = Radius * 1.25f;
+			Shape.Heat = 1.25f;
+			Shape.Smoke = 0.1f;
+			Shape.Speed = 2.0f;
+			Shape.Tongues = 14;
+			Shape.bFloating = true;
+			Shape.bLight = false;
+			Column->Ignite(Shape, 0.05f);
+			RollerFlames.Add(Column);
+		}
+
+		for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
+		{
+			LoosePieces.Add(AddLookShape(GlowMaterial, FLinearColor(1.0f, 0.4f, 0.06f), 5.0f, 0.0f, true));
+		}
+		LooseSize = Radius * 0.1f / (PlaceholderSphereRadius * 2.0f);
+		LooseLifetime = SparkEmberLifetime;
+		LooseGravity = SparkEmberGravity;
+		LooseDrag = 2.2f;
+		bLooseFlicker = true;
+
+		AddLookLight(FLinearColor(1.0f, 0.45f, 0.12f), 26.0f);
+	}
+	else if (Look == EVaelProjectileLook::Spore || Look == EVaelProjectileLook::BloodGlob || Look == EVaelProjectileLook::BlackFire)
+	{
+		// A dark heart and a halo with thorns, drops or tongues of flame all round it
+		const bool bBlood = Look == EVaelProjectileLook::BloodGlob;
+		const FLinearColor Heart = bBlood ? FLinearColor(0.09f, 0.0f, 0.005f) : FLinearColor(0.012f, 0.0f, 0.02f);
+		const FLinearColor Glow = bBlood ? FLinearColor(0.6f, 0.02f, 0.03f) : SpellColor;
+
+		LookShapes.Add(AddLookShape(CoreMaterial, Heart, bBlood ? 0.6f : 0.0f));
+		LookShapes.Add(AddLookShape(GlowMaterial, Glow, 2.4f, 1.0f));
+		for (int32 ThornIndex = 0; ThornIndex < BlobThorns; ++ThornIndex)
+		{
+			LookShapes.Add(Look == EVaelProjectileLook::BlackFire ? AddLookCone(GlowMaterial, Glow, 3.5f) : AddLookCone(CoreMaterial, Heart, 0.0f));
+		}
+
+		for (int32 PieceIndex = 0; PieceIndex < MarkShardLooseCount; ++PieceIndex)
+		{
+			LoosePieces.Add(AddLookShape(GlowMaterial, Glow, 5.0f, 0.0f, true));
+			LoosePieceSizes.Add(Radius * FMath::FRandRange(0.08f, 0.18f) / (PlaceholderSphereRadius * 2.0f));
+		}
+		LooseLifetime = MarkShardLooseLifetime;
+		LooseGravity = bBlood ? 700.0f : MarkShardRise;
+		LooseDrag = 2.0f;
+		bLooseFlicker = true;
+
+		AddLookLight(Glow, 2.5f);
+	}
 	else if (Look == EVaelProjectileLook::ThistleSeed)
 	{
 		// The seed head itself, tumbling in a small ball of flames that lick back; a glowing core stands in without the mesh
@@ -923,6 +987,16 @@ void AVaelSpellProjectile::AnimateLook(float DeltaSeconds)
 
 		case EVaelProjectileLook::LavaBall:
 			AnimateLavaBall(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::FireRoller:
+			AnimateFireRoller(Time, DeltaSeconds);
+			break;
+
+		case EVaelProjectileLook::Spore:
+		case EVaelProjectileLook::BloodGlob:
+		case EVaelProjectileLook::BlackFire:
+			AnimateNidBlob(Time, DeltaSeconds);
 			break;
 
 		case EVaelProjectileLook::MarkShard:
@@ -1113,6 +1187,71 @@ void AVaelSpellProjectile::AnimateLavaBurst()
 	}
 
 	LookLight->SetIntensity(LookLightIntensity * LavaBurstFlash * FMath::Max(0.0f, 1.0f - AfterglowTime / 0.35f));
+}
+
+void AVaelSpellProjectile::AnimateFireRoller(float Time, float DeltaSeconds)
+{
+	const float Radius = SpellRadius;
+	const FVector Forward = Movement->Velocity.GetSafeNormal2D();
+	const FVector Side(-Forward.Y, Forward.X, 0.0f);
+
+	// The columns stand across the flight, the wall leans forward as it rolls and its tips lick up and down one after the other
+	for (int32 ColumnIndex = 0; ColumnIndex < RollerFlames.Num(); ++ColumnIndex)
+	{
+		const float Across = (ColumnIndex / static_cast<float>(RollerFlames.Num() - 1) - 0.5f) * 2.0f;
+		const float Wave = FMath::Sin(Time * 6.0f + ColumnIndex * 1.7f);
+		RollerFlames[ColumnIndex]->SetWorldLocation(GetActorLocation() + Side * Across * Radius * 1.05f + Forward * Radius * 0.2f * Wave - FVector(0.0f, 0.0f, Radius * 0.5f));
+		RollerFlames[ColumnIndex]->SetSizeScale(1.0f - 0.25f * FMath::Abs(Across) + 0.1f * Wave);
+	}
+
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = MarkShardShedInterval;
+		ShedPiece(GetActorLocation() + Side * FMath::FRandRange(-Radius, Radius) + Forward * Radius * 0.4f, Forward * Movement->Velocity.Size() * 0.6f + FVector(0.0f, 0.0f, FMath::FRandRange(120.0f, 320.0f)));
+	}
+
+	LookLight->SetIntensity(LookLightIntensity * (0.8f + 0.3f * FMath::PerlinNoise1D(Time * 11.0f)));
+}
+
+void AVaelSpellProjectile::AnimateNidBlob(float Time, float DeltaSeconds)
+{
+	const float Radius = SpellRadius;
+	const bool bBlood = Look == EVaelProjectileLook::BloodGlob;
+	const bool bFlame = Look == EVaelProjectileLook::BlackFire;
+
+	// Blood wobbles like a drop, the others breathe
+	const FVector Wobble(1.0f + 0.14f * FMath::Sin(Time * 15.0f), 1.0f + 0.14f * FMath::Sin(Time * 15.0f + 2.1f), 1.0f + 0.14f * FMath::Sin(Time * 15.0f + 4.2f));
+	const float Throb = 1.0f + 0.1f * FMath::PerlinNoise1D(Time * 13.0f);
+	const FVector Shape = (bBlood ? Wobble : FVector(Throb)) * Radius * 2.0f / (PlaceholderSphereRadius * 2.0f);
+	LookShapes[0]->SetRelativeScale3D(Shape * 0.8f);
+	LookShapes[1]->SetRelativeScale3D(Shape * 1.05f);
+
+	// Thorns evenly over the ball, turning; flames lick outward and away from the flight
+	const FQuat Spin(FVector(0.3f, 0.5f, 0.8f).GetSafeNormal(), Time * (bFlame ? 1.0f : 4.0f));
+	for (int32 ThornIndex = 0; ThornIndex < BlobThorns; ++ThornIndex)
+	{
+		const float Height = 1.0f - 2.0f * (ThornIndex + 0.5f) / BlobThorns;
+		const float Around = ThornIndex * 2.39996f;
+		const float Across = FMath::Sqrt(1.0f - Height * Height);
+		FVector Direction = Spin.RotateVector(FVector(FMath::Cos(Around) * Across, FMath::Sin(Around) * Across, Height));
+		const float Flicker = FMath::PerlinNoise1D(Time * 9.0f + ThornIndex * 3.3f);
+		if (bFlame)
+		{
+			Direction = (Direction - FVector::ForwardVector * 0.9f).GetSafeNormal();
+		}
+		const float Length = Radius * (bFlame ? 1.8f + 1.4f * Flicker : bBlood ? 0.4f + 0.5f * Flicker : 1.2f);
+		PlaceCone(LookShapes[2 + ThornIndex], Direction * Radius * 0.6f, Direction, FMath::Max(Length, 1.0f), Radius * (bFlame ? 0.55f : 0.3f));
+	}
+
+	NextShedCountdown -= DeltaSeconds;
+	if (NextShedCountdown <= 0.0f)
+	{
+		NextShedCountdown = MarkShardShedInterval * FMath::FRandRange(0.8f, 1.8f);
+		ShedPiece(GetActorLocation() + FMath::VRand() * Radius * 0.6f, Movement->Velocity * 0.05f + FMath::VRand() * FMath::FRandRange(40.0f, 140.0f));
+	}
+
+	LookLight->SetIntensity(LookLightIntensity * Throb);
 }
 
 void AVaelSpellProjectile::AnimateMarkShard(float Time, float DeltaSeconds)
@@ -1637,7 +1776,7 @@ void AVaelSpellProjectile::OnOverlap(UPrimitiveComponent* OverlappedComponent, A
 		if (RemainingPierce > 0)
 		{
 			// Flying on: each pierced target gets its own impact, the last one comes with the end of the flight
-			VaelEffects::PlayImpact(this, Effects, OtherActor->GetActorLocation(), SpellRadius);
+			VaelEffects::PlayImpact(this, Effects, OtherActor->GetActorLocation(), Look == EVaelProjectileLook::FireRoller ? SpellRadius * 0.3f : SpellRadius);
 			ShedOnPierce(GetActorLocation());
 		}
 
@@ -1945,7 +2084,7 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 	// A projectile that just runs out in the air fizzles without an impact
 	if (bHitSomething || ExplosionRadius > 0.0f)
 	{
-		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius);
+		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : Look == EVaelProjectileLook::FireRoller ? SpellRadius * 0.3f : SpellRadius);
 
 		// Plants that burst on a hit, like the Aschblase, feel it
 		AVaelHarvestable::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit.Element : Hit.Element);
