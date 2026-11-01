@@ -277,6 +277,13 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
 	float GripDuration = 0.8f;
 
+	/** Scoop and flick (Wassergeschoss): seconds until the water leaves the fingers, and of the whole gesture; the simplest spell has to stay extremely short */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float FlickReleaseTime = 0.14f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float FlickDuration = 0.5f;
+
 	/** Beam from the palm (Feuerstrahl): seconds until the beam starts, and of the pause afterwards without moving or casting; talents or weapons can lower it later */
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
 	float PalmReleaseTime = 0.45f;
@@ -301,12 +308,12 @@ public:
 	/** Seconds from the start of a gesture until the spell is released, and how long the whole gesture lasts */
 	float GetGestureRelease(EVaelCastGesture Gesture) const
 	{
-		return Gesture == EVaelCastGesture::BlowOut ? BlowReleaseTime : Gesture == EVaelCastGesture::GripPoint ? GripReleaseTime : Gesture == EVaelCastGesture::PalmBeam ? PalmReleaseTime : GestureReleaseTime;
+		return Gesture == EVaelCastGesture::BlowOut ? BlowReleaseTime : Gesture == EVaelCastGesture::GripPoint ? GripReleaseTime : Gesture == EVaelCastGesture::PalmBeam ? PalmReleaseTime : Gesture == EVaelCastGesture::WaterFlick ? FlickReleaseTime : GestureReleaseTime;
 	}
 
 	float GetGestureDuration(EVaelCastGesture Gesture) const
 	{
-		return Gesture == EVaelCastGesture::BlowOut ? BlowDuration : Gesture == EVaelCastGesture::GripPoint ? GripDuration : GestureDuration;
+		return Gesture == EVaelCastGesture::BlowOut ? BlowDuration : Gesture == EVaelCastGesture::GripPoint ? GripDuration : Gesture == EVaelCastGesture::WaterFlick ? FlickDuration : GestureDuration;
 	}
 
 	/** Returns the cast montage the formula uses by its kind, null if none exists */

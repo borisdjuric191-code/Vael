@@ -129,6 +129,8 @@ enum class EVaelCastGesture : uint8
 	GripPoint,
 	/** Boris 2026-11-01: gathers at the hip, thrusts the open palm forward with the forearm gripped, shakes while the beam burns, then hangs forward spent */
 	PalmBeam,
+	/** Boris 2026-11-01: scoop and flick: the hand scoops from the hip in a soft arc, the wrist snaps, the water flies off the fingers; as short as the Funke, soft where fire is hard */
+	WaterFlick,
 	/** Boris 2026-10-30: breathes in with the hands cupped before the chin, then blows the cloud out of the mouth, hands opening forward */
 	BlowOut
 };

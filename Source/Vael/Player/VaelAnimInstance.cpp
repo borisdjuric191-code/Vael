@@ -173,6 +173,9 @@ namespace
 		return Axis.Size() > 0.05f ? Axis.GetSafeNormal() : FVector::ZeroVector;
 	}
 
+	/** Degrees the forearm turns so the palm looks up while it scoops water; its sign follows the side of the arm */
+	constexpr float WaterFlickPalmTurn = 110.0f;
+
 	/** Lays an arm so its wrist reaches a place, the elbow towards the pole; a place out of reach is reached for as far as the arm goes */
 	void ReachPoseArm(FCSPose<FCompactPose>& Pose, FCompactPoseBoneIndex Upper, FCompactPoseBoneIndex Lower, FCompactPoseBoneIndex Hand, const FVector& Target, const FVector& Pole)
 	{
@@ -237,6 +240,62 @@ void FVaelAnimProxy::ApplyForearmGrip(FCSPose<FCompactPose>& Pose, const FBoneCo
 		{
 			TurnPoseBone(Pose, Finger(Name, Joint), FQuat(Axis, FMath::DegreesToRadians(Degrees[Joint - 1] * Weight)));
 		}
+	}
+}
+
+void FVaelAnimProxy::ApplyWaterFlick(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+
+	const FCompactPoseBoneIndex Upper = Find(TEXT("upperarm_r"));
+	const FCompactPoseBoneIndex Lower = Find(TEXT("lowerarm_r"));
+	const FCompactPoseBoneIndex Hand = Find(TEXT("hand_r"));
+	const FCompactPoseBoneIndex Middle = Find(TEXT("middle_01_r"));
+	if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE || Middle == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Timing: all of the scoop lies before the release and is over in a blink; everything after it only swings out and never stops hard
+	const float T = GestureSeconds;
+	const float Release = FMath::Max(GestureRelease, 0.02f);
+	const float End = FMath::Max(GestureDuration, Release + 0.1f);
+	const float Weight = FMath::SmoothStep(0.0f, Release * 0.45f, T) * (1.0f - FMath::SmoothStep(Release + 0.08f, End, T));
+	const float Scoop = FMath::SmoothStep(0.0f, Release, T);
+	const float Flick = FMath::Sin(UE_HALF_PI * FMath::Clamp((T - Release * 0.75f) / 0.12f, 0.0f, 1.0f));
+
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+	const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+
+	// The chest turns softly with the arc
+	const float Twist = Outward * FMath::Lerp(-9.0f, 11.0f, Scoop) * Weight;
+	for (const TCHAR* Spine : { TEXT("spine_02"), TEXT("spine_03") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(Twist * 0.5f)));
+	}
+
+	// From low beside the hip forward and up, the arm stays a little bent so the way is a bow, not a line
+	AimPoseBone(Pose, Upper, Lower, FMath::Lerp(FVector(Outward * 0.32f, 0.1f, -0.95f).GetSafeNormal(), FVector(Outward * 0.1f, 0.92f, -0.1f).GetSafeNormal(), Scoop), Weight);
+	AimPoseBone(Pose, Lower, Hand, FMath::Lerp(FVector(Outward * 0.08f, 0.8f, -0.6f).GetSafeNormal(), FVector(-Outward * 0.05f, 0.95f, 0.28f).GetSafeNormal(), Scoop), Weight);
+
+	// The palm looks up while it carries the water; the flick turns it over and the fingers follow the wrist down
+	const FVector Forearm = PoseBoneDirection(Pose, Lower, Hand);
+	TurnPoseBone(Pose, Lower, FQuat(Forearm, FMath::DegreesToRadians(Outward * WaterFlickPalmTurn * (1.0f - Flick) * Weight)));
+	const FVector Carried = FVector(-Outward * 0.05f, 0.75f, 0.65f).GetSafeNormal();
+	const FVector Flung = FVector(-Outward * 0.05f, 0.8f, -0.6f).GetSafeNormal();
+	AimPoseBone(Pose, Hand, Middle, FMath::Lerp(Carried, Flung, Flick), Weight);
+
+	// The fingers lie open and soft, and stretch with the flick
+	const FVector Along = PoseBoneDirection(Pose, Hand, Middle);
+	for (const TCHAR* Name : { TEXT("index"), TEXT("middle"), TEXT("ring"), TEXT("pinky") })
+	{
+		const FCompactPoseBoneIndex First = Find(FString::Printf(TEXT("%s_01_r"), Name));
+		const FCompactPoseBoneIndex Second = Find(FString::Printf(TEXT("%s_02_r"), Name));
+		const FCompactPoseBoneIndex Third = Find(FString::Printf(TEXT("%s_03_r"), Name));
+		const float Open = Weight * FMath::Lerp(0.5f, 0.95f, Flick);
+		AimPoseBone(Pose, First, Second, Along, Open);
+		AimPoseBone(Pose, Second, Third, Along, Open);
 	}
 }
 
@@ -622,6 +681,10 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	else if (Gesture == EVaelCastGesture::PalmBeam)
 	{
 		ApplyPalmBeam(Pose, Bones);
+	}
+	else if (Gesture == EVaelCastGesture::WaterFlick)
+	{
+		ApplyWaterFlick(Pose, Bones);
 	}
 	else if (Gesture == EVaelCastGesture::BlowOut)
 	{

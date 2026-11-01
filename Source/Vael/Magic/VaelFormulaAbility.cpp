@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Abilities/Tasks/AbilityTask_PlayMontageAndWait.h"
 #include "Abilities/Tasks/AbilityTask_WaitDelay.h"
@@ -250,6 +251,25 @@ void UVaelFormulaAbility::OnGestureRelease()
 	}
 
 	ReleaseSpell();
+
+	// The flick shakes the last drops off the fingers
+	FVector Fingertips;
+	const AVaelCharacter* Mage = Cast<AVaelCharacter>(GetAvatarActorFromActorInfo());
+	if (CastGestureKind == EVaelCastGesture::WaterFlick && Mage != nullptr && Mage->GetGestureFingertips(Fingertips))
+	{
+		FVaelDebris Drops;
+		Drops.Count = 7;
+		Drops.Spread = 5.0f;
+		Drops.Speed = 120.0f;
+		Drops.Lift = 60.0f;
+		Drops.Gravity = 980.0f;
+		Drops.Lifetime = 0.55f;
+		Drops.MinSize = 2.0f;
+		Drops.MaxSize = 4.5f;
+		Drops.Color = UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Water);
+		Drops.Glow = 4.0f;
+		AVaelDebrisBurst::Spawn(GetAvatarActorFromActorInfo(), Fingertips, Drops);
+	}
 
 	if (!WaitForChannelEnd())
 	{

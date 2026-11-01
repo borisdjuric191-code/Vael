@@ -58,6 +58,9 @@ private:
 	 *  blows, head forward, the hands opening forward as if sending the cloud off */
 	void ApplyBlowOut(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
+	/** Scoop and flick: the hand scoops up from the hip in a soft arc, the wrist snaps and the fingers open, then it swings out */
+	void ApplyWaterFlick(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
 	/** The left hand takes hold of the right forearm, as far as the weight says */
 	void ApplyForearmGrip(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, float Weight) const;
 
