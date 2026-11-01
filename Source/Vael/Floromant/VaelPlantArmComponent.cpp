@@ -435,7 +435,8 @@ void UVaelPlantArmComponent::BuildStalks()
 			UStaticMeshComponent* Leaf = NewObject<UStaticMeshComponent>(GetOwner());
 			Leaf->SetMobility(EComponentMobility::Movable);
 			Leaf->SetStaticMesh(LeafMesh);
-			Leaf->SetMaterial(0, ArmMaterial);
+			UMaterialInterface* PartMaterial = VaelAssets::LoadOptional(Plant->PartMaterial);
+			Leaf->SetMaterial(0, PartMaterial != nullptr ? PartMaterial : ArmMaterial.Get());
 			Leaf->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Leaf->SetCanEverAffectNavigation(false);
 			Leaf->SetupAttachment(GetBody());
@@ -457,7 +458,8 @@ void UVaelPlantArmComponent::BuildStalks()
 				UStaticMeshComponent* Petal = NewObject<UStaticMeshComponent>(GetOwner());
 				Petal->SetMobility(EComponentMobility::Movable);
 				Petal->SetStaticMesh(PetalMesh);
-				Petal->SetMaterial(0, ArmMaterial);
+				UMaterialInterface* PartMaterial = VaelAssets::LoadOptional(Plant->PartMaterial);
+				Petal->SetMaterial(0, PartMaterial != nullptr ? PartMaterial : ArmMaterial.Get());
 				Petal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 				Petal->SetCanEverAffectNavigation(false);
 				Petal->SetupAttachment(GetBody());

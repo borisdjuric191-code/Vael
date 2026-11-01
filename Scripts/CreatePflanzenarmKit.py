@@ -79,21 +79,25 @@ ARMS = {
     },
     # Boris 2026-11-01: the Pechschuss. The hand works like the Taublatt: a hood of petals folds around the hole, tap = a clot of
     # glowing pitch, hold = a slow tough stream. Pitch is no fire and no water: it slows (status Pitched), its puddles stick,
-    # and any fire on it burns twice as hard. Pieces from taublatt_trichter.py in the colours of the plant
+    # and any fire on it burns twice as hard. Stems from taublatt_trichter.py; the real hood, spadix and leaf of the model from
+    # Tools/Pflanzenarm/harzkolben_teile.py: three hoods fold around the hand, the spadices stack into the barrel
     "Harzkolben": {
         "finger": [1, 2],
         "arm": [1, 2],
-        "head": "Trichter",
-        "leaf": "Trichter",
-        "petal": "Bluetenblatt",
+        "head": "Kolben",
+        "leaf": "Blatt",
+        "petal": "Kapuze",
         "props": "/Game/Vael/Requisiten/Wurzelforst",
+        # The real picture with its glowing resin, as on the plant in the moor
         "values": {"Silber": 0.05, "Leuchten": 0.1, "Leuchtfarbe": (1.0, 0.4, 0.08), "Metall": 0.05, "Rauheit": 0.35},
         "data": {"shot_element": "EARTH", "fire_interval": 0.55, "shot_damage": 5.0, "shot_speed": 1150.0, "shot_radius": 13.0,
                  "shot_range": 900.0, "shot_spread": 2.0, "saft_per_shot": 1.2, "bar_size": 20,
-                 "finger_length": 28.0, "finger_thickness": 0.4, "tip_size": 13.0, "fan_angle": 0.0,
+                 "finger_length": 28.0, "finger_thickness": 0.4, "tip_size": 15.0, "fan_angle": 0.0,
                  "arm_thickness": 0.45, "rest_wind": 0.2, "wild_count": 2,
-                 "leaf_count": 6, "leaf_size": 13.0, "leaf_open_angle": 45.0, "fingers_form_barrel": True, "barrel_spacing": 6.0,
-                 "pump_wave_time": 0.3, "pump_swell": 0.35,
+                 "leaf_count": 4, "leaf_size": 17.0, "leaf_open_angle": 40.0, "fingers_form_barrel": True, "barrel_spacing": 9.0,
+                 "pump_wave_time": 0.3, "pump_swell": 0.2,
+                 "inner_petals": 0, "outer_petals": 2, "petal_size": 26.0, "rose_open_angle": 25.0, "rose_closed_angle": 8.0,
+                 "rose_hole_radius": 0.5, "part_material": "/Game/Vael/Requisiten/Wurzelforst/Harzkolben/M_WF_Harzkolben",
                  "water_source": PITCH_SOURCE,
                  "shot_status": "PITCHED", "shot_status_duration": 5.0, "water_per_shot": 1.5,
                  "jet_hold_time": 0.35, "jet_damage_per_second": 4.0, "jet_range": 650.0, "jet_push": 80.0,
@@ -453,7 +457,9 @@ def data_value(key, value):
 
 def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, leaf=None, petal=None):
     path = "{}/DA_Pflanzenarm_{}".format(FOLDER, plant)
-    if assets.does_asset_exist(path):
+    # VAEL_NUR_ARM=<Id> also writes all meshes and values of that arm into an existing asset
+    rewrite = os.environ.get("VAEL_NUR_ARM") == plant
+    if assets.does_asset_exist(path) and not rewrite:
         # Fields that came later are filled in while they are still empty
         data = unreal.load_asset(path)
         if vine is not None and len(data.get_editor_property("vine_meshes")) == 0:
@@ -465,9 +471,12 @@ def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, lea
             assets.save_loaded_asset(data, False)
             created.append(path + " (rose)")
         return
-    factory = unreal.DataAssetFactory()
-    factory.set_editor_property("data_asset_class", unreal.VaelPlantArmData)
-    data = tools.create_asset("DA_Pflanzenarm_" + plant, FOLDER, unreal.VaelPlantArmData, factory)
+    if assets.does_asset_exist(path):
+        data = unreal.load_asset(path)
+    else:
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelPlantArmData)
+        data = tools.create_asset("DA_Pflanzenarm_" + plant, FOLDER, unreal.VaelPlantArmData, factory)
     plant_data = unreal.load_asset("{}/DA_Pflanze_{}".format(PLANT_FOLDER, plant))
     if plant_data is not None:
         data.set_editor_property("plant", plant_data)

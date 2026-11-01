@@ -146,6 +146,10 @@ public:
 	// they lie against the arm and a pump wave runs through them from the shoulder to the hand; the heads of the fingers nest
 	// into each other in front of the hand and form the barrel
 
+	/** Own material of the leaves and petals, cut from the real plant (Harzkolben); empty uses the material of the stalks */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UMaterialInterface> PartMaterial;
+
 	/** Leaf along the arm, a funnel with its foot at the pivot and its opening up (+Z); none for plants without */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels")
 	TSoftObjectPtr<UStaticMesh> LeafMesh;
