@@ -47,6 +47,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> WarningFill;
 
+	/** Material of the drawn warning circle on the disc, null while it does not exist */
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> WarningCircle;
+
 	/** Placeholder spike shown when the strike lands */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> Spike;

@@ -19,6 +19,7 @@
 #include "EngineUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "VaelAssets.h"
 
 namespace
 {
@@ -137,6 +138,16 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVecto
 		SpikeMaterial->SetVectorParameterValue(TEXT("Color"), Color);
 	}
 
+	// The drawn circle takes over from the plain discs as soon as it exists: a rim with turning teeth, the front of the strike running out from the middle
+	if (UMaterialInterface* Circle = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->WarningCircleMaterial))
+	{
+		GroundStrike->WarningCircle = UMaterialInstanceDynamic::Create(Circle, GroundStrike);
+		GroundStrike->WarningCircle->SetVectorParameterValue(TEXT("Farbe"), Color);
+		GroundStrike->WarningCircle->SetScalarParameterValue(TEXT("Radius"), InRadius);
+		GroundStrike->WarningDisc->SetMaterial(0, GroundStrike->WarningCircle);
+		GroundStrike->WarningFill->SetVisibility(false);
+	}
+
 	GroundStrike->FinishSpawning(SpawnTransform);
 
 	// Lightning of a mage needs no disc: the ground crackles where it will fall. Creatures keep the warning, players must be able to step away.
@@ -196,6 +207,10 @@ void AVaelGroundStrike::Tick(float DeltaSeconds)
 		const float Progress = Delay > 0.0f ? FMath::Clamp(Elapsed / Delay, 0.0f, 1.0f) : 1.0f;
 		const float Fill = FMath::Square(Progress);
 		WarningFill->SetRelativeScale3D(FVector(WarningScale.X * Fill, WarningScale.Y * Fill, WarningScale.Z));
+		if (WarningCircle != nullptr)
+		{
+			WarningCircle->SetScalarParameterValue(TEXT("Fuellung"), Fill);
+		}
 	}
 	else
 	{

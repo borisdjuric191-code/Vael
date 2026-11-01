@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Magic/VaelSurfacePool.h"
 #include "Magic/VaelGroundArea.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Combat/VaelCharacterBase.h"
@@ -43,6 +44,9 @@ namespace
 
 	/** Corruption black water adds to its region per second */
 	constexpr float BlackwaterCorruptionPerSecond = 0.3f;
+
+	/** Steam rising from a hot spring against a full mist */
+	constexpr float AreaSpringSteam = 0.4f;
 }
 
 AVaelGroundArea::AVaelGroundArea()
@@ -533,7 +537,7 @@ void AVaelGroundArea::EndPlay(const EEndPlayReason::Type EndPlayReason)
 bool AVaelGroundArea::BuildVeil()
 {
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
-	UMaterialInterface* CloudMaterial = VaelAssets::LoadOptional(MagicSettings->CloudCardMaterial);
+	UMaterialInterface* CloudMaterial = VaelAssets::LoadOptional(Effect == EVaelGroundEffect::Fever ? MagicSettings->FeverCardMaterial : MagicSettings->CloudCardMaterial);
 	if (CloudMaterial == nullptr)
 	{
 		return false;
@@ -542,7 +546,7 @@ bool AVaelGroundArea::BuildVeil()
 	const FVector Center = GetActorLocation();
 
 	// Water or fire close by feed the mist: it swells to half again its size (Boris 2026-10-25)
-	if (!bSteamCloud && (UVaelEnvironmentStatics::IsElementInEnvironment(GetInstigator(), EVaelElement::Water) || UVaelEnvironmentStatics::IsElementInEnvironment(GetInstigator(), EVaelElement::Fire)))
+	if (Effect == EVaelGroundEffect::Veil && (UVaelEnvironmentStatics::IsElementInEnvironment(GetInstigator(), EVaelElement::Water) || UVaelEnvironmentStatics::IsElementInEnvironment(GetInstigator(), EVaelElement::Fire)))
 	{
 		Radius *= MagicSettings->MistSourceSwell;
 		RefreshLook();
@@ -558,10 +562,11 @@ bool AVaelGroundArea::BuildVeil()
 
 	const auto AddCard = [this](const FVector& Place, float Size, float Strength, bool bFlat)
 	{
+		const float Thin = Effect == EVaelGroundEffect::HotSpring ? AreaSpringSteam : 1.0f;
 		CloudCards->AddCard(Place, Size, 0.0f, bFlat);
 		CardPlaces.Add(Place);
 		CardDistances.Add(Place.Size2D());
-		CardStrengths.Add(Strength);
+		CardStrengths.Add(Strength * Thin);
 		CardSizes.Add(Size);
 		CardPhases.Add(FMath::FRandRange(0.0f, UE_TWO_PI));
 	};
@@ -719,6 +724,44 @@ void AVaelGroundArea::SpawnVisual()
 	UNiagaraSystem* Visual = VisualOverride;
 	float Spacing = 0.0f;
 	float Scale = 1.0f;
+
+	// Mud, springs, black water and the embers of the Mark are pools of their own kit; a spring steams, fever is a mist of its own colour
+	if (Visual == nullptr)
+	{
+		const UVaelMagicSettings* PoolSettings = UVaelMagicSettings::Get();
+		UMaterialInterface* PoolMaterial = nullptr;
+		switch (Effect)
+		{
+		case EVaelGroundEffect::Slow:		PoolMaterial = VaelAssets::LoadOptional(PoolSettings->MudPoolMaterial); break;
+		case EVaelGroundEffect::HotSpring:	PoolMaterial = VaelAssets::LoadOptional(PoolSettings->SpringPoolMaterial); break;
+		case EVaelGroundEffect::Blackwater:	PoolMaterial = VaelAssets::LoadOptional(PoolSettings->BlackwaterPoolMaterial); break;
+		case EVaelGroundEffect::None:		PoolMaterial = Element == EVaelElement::Mark ? VaelAssets::LoadOptional(PoolSettings->MarkEmberPoolMaterial) : nullptr; break;
+		default:							break;
+		}
+
+		if (PoolMaterial != nullptr)
+		{
+			Pool = NewObject<UVaelSurfacePoolComponent>(this);
+			Pool->SetupAttachment(RootComponent);
+			Pool->SetUsingAbsoluteScale(true);
+			Pool->RegisterComponent();
+			Pool->SetWorldScale3D(FVector::OneVector);
+			if (Pool->Spread(PoolMaterial, Radius, Lifetime))
+			{
+				Disc->SetVisibility(false);
+				if (Effect == EVaelGroundEffect::HotSpring)
+				{
+					BuildVeil();
+				}
+				return;
+			}
+		}
+
+		if (Effect == EVaelGroundEffect::Fever && BuildVeil())
+		{
+			return;
+		}
+	}
 
 	// A fire is made of living flames of the fire kit: a bed of tongues with sparks, light and a scorch mark
 	if (Visual == nullptr && Element == EVaelElement::Fire && Effect == EVaelGroundEffect::None)

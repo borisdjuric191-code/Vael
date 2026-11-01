@@ -451,6 +451,32 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Air")
 	TSoftObjectPtr<UMaterialInterface> StreakMaterial;
 
+	/** Living pools on the ground and the cards of the fever mist (Scripts/CreateSpellSurfaceKit.py) */
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> MudPoolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/MI_Pfuetze_Schlamm.MI_Pfuetze_Schlamm")));
+
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> SpringPoolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/MI_Pfuetze_Quelle.MI_Pfuetze_Quelle")));
+
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> BlackwaterPoolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/MI_Pfuetze_Schwarzwasser.MI_Pfuetze_Schwarzwasser")));
+
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> MarkEmberPoolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/MI_Pfuetze_Nidglut.MI_Pfuetze_Nidglut")));
+
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> MoorPoolMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/MI_Pfuetze_Moor.MI_Pfuetze_Moor")));
+
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> FeverCardMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Nebel/MI_Vael_Wolke_Fieber.MI_Vael_Wolke_Fieber")));
+
+	/** Ring on the ground before a strike falls, and the black sun over a caster */
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> WarningCircleMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Warnkreis.M_Vael_Warnkreis")));
+
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> BlackSunMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Schwarzsonne.M_Vael_Schwarzsonne")));
+
 	/** Ribbons and flashes of every bolt of lightning (Scripts/CreateLightningKit.py) */
 	UPROPERTY(config, EditAnywhere, Category="Air")
 	TSoftObjectPtr<UMaterialInterface> LightningMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Blitz/M_Blitz.M_Blitz")));

@@ -180,6 +180,10 @@ private:
 	/** Seconds each one has spent in the steam: after a moment in it, it gets wet */
 	TMap<TWeakObjectPtr<AActor>, float> SteamTimes;
 
+	/** The living pool of mud, a spring, black water or embers of the Mark */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelSurfacePoolComponent> Pool;
+
 	/** Builds the mist blanket or the ball of steam; false without their material */
 	bool BuildVeil();
 
