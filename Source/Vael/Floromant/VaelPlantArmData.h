@@ -150,6 +150,15 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> PartMaterial;
 
+	/** Core in the middle of the rose, pointing along the aim, 10 cm high (Harzkolben, Boris 2026-11-02): the shots leave from
+	 *  its tip, it swells when the pump wave arrives, and it dims and smokes while the bar is empty. None for plants without */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UStaticMesh> CoreMesh;
+
+	/** Length of the core in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float CoreLength = 30.0f;
+
 	/** Leaf along the arm, a funnel with its foot at the pivot and its opening up (+Z); none for plants without */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Funnels")
 	TSoftObjectPtr<UStaticMesh> LeafMesh;

@@ -23,6 +23,7 @@
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
@@ -230,6 +231,12 @@ void UVaelPlantArmComponent::Clear()
 		BudCapsule->DestroyComponent();
 		BudCapsule = nullptr;
 	}
+	if (SapCore != nullptr)
+	{
+		SapCore->DestroyComponent();
+		SapCore = nullptr;
+	}
+	CoreMaterial = nullptr;
 	BudCapsuleMaterial = nullptr;
 	Charge = 0.0f;
 	bCharging = false;
@@ -467,6 +474,21 @@ void UVaelPlantArmComponent::BuildStalks()
 				Petals.Add(Petal);
 			}
 		}
+	}
+
+	// The core in the rose: the sap is pumped out of it
+	if (UStaticMesh* CoreMesh = HasRose() ? VaelAssets::LoadOptional(Plant->CoreMesh) : nullptr)
+	{
+		SapCore = NewObject<UStaticMeshComponent>(GetOwner());
+		SapCore->SetMobility(EComponentMobility::Movable);
+		SapCore->SetStaticMesh(CoreMesh);
+		SapCore->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		SapCore->SetCanEverAffectNavigation(false);
+		SapCore->SetupAttachment(GetBody());
+		SapCore->RegisterComponent();
+		UMaterialInterface* PartMaterial = VaelAssets::LoadOptional(Plant->PartMaterial);
+		CoreMaterial = UMaterialInstanceDynamic::Create(PartMaterial != nullptr ? PartMaterial : BaseMaterial, this);
+		SapCore->SetMaterial(0, CoreMaterial);
 	}
 
 	// The mortar (Funkenmohn): the hand vanishes into the shut bud, a capsule glows inside it, a ring on the ground shows the aim
@@ -790,6 +812,16 @@ void UVaelPlantArmComponent::UpdateStalks()
 		}
 	}
 
+	if (SapCore != nullptr)
+	{
+		// It swells across when the pump wave arrives, and its resin dims as the bar runs dry
+		const float Pump = 1.0f + GetPumpSwell(1.0f) * Barrel;
+		const float Scale = Plant->CoreLength / 10.0f * Grow;
+		SapCore->SetRelativeLocationAndRotation(RoseBase - RoseAxis * 2.0f, FRotationMatrix::MakeFromZ(RoseAxis).Rotator());
+		SapCore->SetRelativeScale3D(FVector(Scale * Pump, Scale * Pump, Scale));
+		CoreMaterial->SetScalarParameterValue(TEXT("Glut"), 4.0f * Pump * FMath::Clamp(BarShots / FMath::Max(Plant->BarSize, 1), 0.0f, 1.0f));
+	}
+
 	// Fingers: from the forearm past the fingertip into a long stalk
 	for (int32 Finger = 0; Finger < FingerStalks.Num(); ++Finger)
 	{
@@ -860,8 +892,23 @@ void UVaelPlantArmComponent::UpdateStalks()
 
 	// The water leaves at the rim of the front funnel; the pump wave swells the funnels of the barrel as it passes
 	const FVector BarrelFront = bRose ? UpdateRose(RoseBase, RoseAxis) : BarrelBase + AimLocal * (Plant->BarrelSpacing * (NumFingers - 1) + Plant->TipSize);
-	BarrelMuzzle = BodyTransform.TransformPosition(BarrelFront);
+	BarrelMuzzle = BodyTransform.TransformPosition(SapCore != nullptr ? RoseBase + RoseAxis * Plant->CoreLength : BarrelFront);
 	BarrelDirection = BodyTransform.TransformVectorNoScale(AimLocal);
+
+	// Sucked dry, the core smokes until the bar is reloaded
+	if (SapCore != nullptr && GetBarShots() <= 0 && !IsReloading() && Grow >= 1.0f)
+	{
+		SmokeCountdown -= GetWorld()->GetDeltaSeconds();
+		if (SmokeCountdown <= 0.0f)
+		{
+			SmokeCountdown = 1.0f;
+			// The dust puff of the magic settings, small enough for a wisp
+			if (UNiagaraComponent* Smoke = VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustPuffEffect), BarrelMuzzle, FRotator::ZeroRotator, FLinearColor(0.09f, 0.08f, 0.07f), 8.0f))
+			{
+				Smoke->SetWorldScale3D(FVector(0.2f));
+			}
+		}
+	}
 	if (Barrel > 0.0f)
 	{
 		for (int32 Finger = 0; Finger < FingerTips.Num(); ++Finger)

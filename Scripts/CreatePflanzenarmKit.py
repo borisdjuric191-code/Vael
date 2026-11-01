@@ -87,6 +87,7 @@ ARMS = {
         "head": "Kolben",
         "leaf": "Blatt",
         "petal": "Kapuze",
+        "core": "Kolben",
         "props": "/Game/Vael/Requisiten/Wurzelforst",
         # The real picture with its glowing resin, as on the plant in the moor
         "values": {"Silber": 0.05, "Leuchten": 0.1, "Leuchtfarbe": (1.0, 0.4, 0.08), "Metall": 0.05, "Rauheit": 0.35},
@@ -94,7 +95,7 @@ ARMS = {
                  "shot_range": 900.0, "shot_spread": 2.0, "saft_per_shot": 1.2, "bar_size": 20,
                  "finger_length": 28.0, "finger_thickness": 0.4, "tip_size": 15.0, "fan_angle": 0.0,
                  "arm_thickness": 0.45, "rest_wind": 0.2, "wild_count": 2,
-                 "leaf_count": 4, "leaf_size": 17.0, "leaf_open_angle": 40.0, "fingers_form_barrel": True, "barrel_spacing": 9.0,
+                 "leaf_count": 0, "core_length": 32.0, "fingers_form_barrel": True, "barrel_spacing": 9.0,
                  "pump_wave_time": 0.3, "pump_swell": 0.2,
                  "inner_petals": 0, "outer_petals": 2, "petal_size": 26.0, "rose_open_angle": 25.0, "rose_closed_angle": 8.0,
                  "rose_hole_radius": 0.5, "part_material": "/Game/Vael/Requisiten/Wurzelforst/Harzkolben/M_WF_Harzkolben",
@@ -574,8 +575,9 @@ def main():
         petal = import_mesh(plant, "SM_{}_{}".format(plant, arm["petal"]), 5.0) if arm.get("petal") else None
         shoulder = import_mesh(plant, "SM_{}_{}".format(plant, arm["shoulder"]), 5.0) if arm.get("shoulder") else None
         capsule = import_mesh(plant, "SM_{}_{}".format(plant, arm["capsule"]), 5.0) if arm.get("capsule") else None
+        core = import_mesh(plant, "SM_{}_{}".format(plant, arm["core"]), 5.0) if arm.get("core") else None
         instance = make_instance(stalk_material, plant, arm["values"], arm.get("props", PROPS))
-        for mesh in fingers + others + [head, vine, leaf, petal, capsule]:
+        for mesh in fingers + others + [head, vine, leaf, petal, capsule, core]:
             if mesh is not None:
                 mesh.set_material(0, instance)
                 assets.save_loaded_asset(mesh, False)
@@ -589,6 +591,10 @@ def main():
             if data is not None and data.get_editor_property("shoulder_mesh") is None:
                 data.set_editor_property("shoulder_mesh", shoulder)
                 assets.save_loaded_asset(data, False)
+        if core is not None:
+            data = unreal.load_asset("{}/DA_Pflanzenarm_{}".format(FOLDER, plant))
+            data.set_editor_property("core_mesh", core)
+            assets.save_loaded_asset(data, False)
         if capsule is not None:
             data = unreal.load_asset("{}/DA_Pflanzenarm_{}".format(FOLDER, plant))
             if data is not None and data.get_editor_property("capsule_mesh") is None:

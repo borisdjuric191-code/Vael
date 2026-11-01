@@ -330,6 +330,15 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> BudCapsuleMaterial;
 
+	/** The core in the rose (Harzkolben spadix) and its material; a puff of smoke is due in SmokeCountdown seconds */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> SapCore;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> CoreMaterial;
+
+	float SmokeCountdown = 0.0f;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> TargetDots;
 
