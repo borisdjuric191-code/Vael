@@ -582,7 +582,8 @@ void UVaelFormulaAbility::HitChain(const UVaelFormula& Formula, AActor* Caster, 
 
 		if (Formula.bLightning)
 		{
-			AVaelLightningBolt::Spawn(Caster, From, To, Effects.Color, Duration, 1.0f, true);
+			// Lightning of the Mark is black at its heart, like the Schwarzer Blitz
+			AVaelLightningBolt::Spawn(Caster, From, To, Effects.Color, Duration, 1.0f, true, Formula.DamageElement == EVaelElement::Mark);
 			return;
 		}
 

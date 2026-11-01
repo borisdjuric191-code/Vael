@@ -12,6 +12,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Magic/VaelLightningBolt.h"
 #include "Player/VaelCharacter.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "World/VaelRegion.h"
@@ -22,8 +23,12 @@ namespace
 	/** Size of the engine basic shapes used as placeholders */
 	constexpr float LightningShapeSize = 100.0f;
 
-	/** Seconds the bolt stays visible */
-	constexpr float BoltDuration = 0.25f;
+	/** Seconds the bolt lasts and its width */
+	constexpr float BoltDuration = 0.32f;
+	constexpr float BoltThickness = 2.0f;
+
+	/** Colour of the lightning of a storm */
+	const FLinearColor StormBoltColor(0.55f, 0.72f, 1.0f);
 
 	/** Height of the bolt in cm */
 	constexpr float BoltHeight = 1200.0f;
@@ -38,24 +43,17 @@ AVaelLightningStrike::AVaelLightningStrike()
 	WarningDisc->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	WarningDisc->SetCastShadow(false);
 
-	Bolt = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Bolt"));
-	Bolt->SetupAttachment(RootComponent);
-	Bolt->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	Bolt->SetCastShadow(false);
-	Bolt->SetVisibility(false);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> CylinderMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (CylinderMesh.Succeeded())
 	{
 		WarningDisc->SetStaticMesh(CylinderMesh.Object);
-		Bolt->SetStaticMesh(CylinderMesh.Object);
 	}
 
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> ShapeMaterial(TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	if (ShapeMaterial.Succeeded())
 	{
 		WarningDisc->SetMaterial(0, ShapeMaterial.Object);
-		Bolt->SetMaterial(0, ShapeMaterial.Object);
 	}
 
 	PrimaryActorTick.bCanEverTick = true;
@@ -85,18 +83,12 @@ AVaelLightningStrike* AVaelLightningStrike::SpawnStrike(AVaelRegion* Region, con
 	const float Diameter = UVaelWorldSettings::Get()->LightningPlayerRadius * 2.0f / LightningShapeSize;
 	Strike->WarningDisc->SetRelativeLocation(FVector(0.0f, 0.0f, 1.5f));
 	Strike->WarningDisc->SetRelativeScale3D(FVector(Diameter, Diameter, 0.02f));
-	Strike->Bolt->SetRelativeLocation(FVector(0.0f, 0.0f, BoltHeight * 0.5f));
-	Strike->Bolt->SetRelativeScale3D(FVector(0.25f, 0.25f, BoltHeight / LightningShapeSize));
 
 	if (UMaterialInstanceDynamic* WarningMaterial = Strike->WarningDisc->CreateAndSetMaterialInstanceDynamic(0))
 	{
 		WarningMaterial->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.35f, 0.45f, 0.6f));
 	}
 
-	if (UMaterialInstanceDynamic* BoltMaterial = Strike->Bolt->CreateAndSetMaterialInstanceDynamic(0))
-	{
-		BoltMaterial->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.85f, 0.92f, 1.0f));
-	}
 
 	return Strike;
 }
@@ -112,7 +104,7 @@ void AVaelLightningStrike::Tick(float DeltaSeconds)
 	{
 		Strike();
 	}
-	else if (bStruck && Elapsed >= Warning + BoltDuration)
+	else if (bStruck)
 	{
 		Destroy();
 	}
@@ -123,7 +115,7 @@ void AVaelLightningStrike::Strike()
 	bStruck = true;
 
 	WarningDisc->SetVisibility(false);
-	Bolt->SetVisibility(true);
+	AVaelLightningBolt::Spawn(this, GetActorLocation() + FVector(0.0f, 0.0f, BoltHeight), GetActorLocation(), StormBoltColor, BoltDuration, BoltThickness, true);
 
 	if (AVaelRegion* OwningRegion = Region.Get())
 	{

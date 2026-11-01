@@ -5,6 +5,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Components/PointLightComponent.h"
+#include "Player/VaelCharacter.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelIceShards.h"
 #include "Magic/VaelGroundArea.h"
@@ -23,6 +24,9 @@ namespace
 {
 	/** Lightning comes down from this high above the ground, in cm */
 	constexpr float StrikeLightningHeight = 900.0f;
+
+	/** Small arcs that run together on the ground where lightning of a mage will fall */
+	constexpr int32 StrikeChargeArcs = 3;
 
 	/** Size of the engine basic shapes used as placeholders */
 	constexpr float StrikeShapeSize = 100.0f;
@@ -134,6 +138,23 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVecto
 	}
 
 	GroundStrike->FinishSpawning(SpawnTransform);
+
+	// Lightning of a mage needs no disc: the ground crackles where it will fall. Creatures keep the warning, players must be able to step away.
+	if (InHit.bLightning && Attacker != nullptr && Attacker->IsA<AVaelCharacter>())
+	{
+		GroundStrike->WarningDisc->SetVisibility(false);
+		GroundStrike->WarningFill->SetVisibility(false);
+
+		const FLinearColor BoltColor = UVaelMagicSettings::Get()->GetElementColor(InHit.Element);
+		const float FirstAngle = FMath::FRandRange(0.0f, UE_TWO_PI);
+		for (int32 ArcIndex = 0; ArcIndex < StrikeChargeArcs; ++ArcIndex)
+		{
+			const float Angle = FirstAngle + ArcIndex * UE_TWO_PI / StrikeChargeArcs;
+			const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+			AVaelLightningBolt::Spawn(Attacker, GroundLocation + Out * InRadius + FVector(0.0f, 0.0f, 8.0f), GroundLocation + FVector(0.0f, 0.0f, 12.0f), BoltColor, InDelay, 0.3f, false);
+		}
+	}
+
 	return GroundStrike;
 }
 

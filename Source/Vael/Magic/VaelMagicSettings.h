@@ -451,6 +451,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Air")
 	TSoftObjectPtr<UMaterialInterface> StreakMaterial;
 
+	/** Ribbons and flashes of every bolt of lightning (Scripts/CreateLightningKit.py) */
+	UPROPERTY(config, EditAnywhere, Category="Air")
+	TSoftObjectPtr<UMaterialInterface> LightningMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Blitz/M_Blitz.M_Blitz")));
+
 	UPROPERTY(config, EditAnywhere, Category="Air", meta = (ClampMin = 1))
 	float AirStreakWidth = 11.0f;
 

@@ -11,7 +11,7 @@ class UStaticMeshComponent;
 
 /**
  *  Lightning of a storm: a pale warning on the ground, then a strike that hurts players and creatures alike.
- *  Values come from the project settings (Vael World). Placeholder look: a disc and a tall thin column.
+ *  Values come from the project settings (Vael World). Placeholder warning: a disc.
  */
 UCLASS()
 class AVaelLightningStrike : public AActor
@@ -23,10 +23,6 @@ private:
 	/** Placeholder warning on the ground */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> WarningDisc;
-
-	/** Placeholder bolt */
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
-	TObjectPtr<UStaticMeshComponent> Bolt;
 
 public:
 
