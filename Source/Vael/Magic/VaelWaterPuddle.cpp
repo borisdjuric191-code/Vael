@@ -434,7 +434,7 @@ AVaelWaterPuddle* AVaelWaterPuddle::FindDeepWaterAt(const UWorld* World, const F
 
 	for (TActorIterator<AVaelWaterPuddle> It(World); It; ++It)
 	{
-		if (It->IsDeepEnough() && It->Covers(Location))
+		if (It->IsDeepEnough() && It->Covers(Location) && (It->Source == nullptr || !It->Source->bPitch))
 		{
 			return *It;
 		}
@@ -551,7 +551,8 @@ void AVaelWaterPuddle::Tick(float DeltaSeconds)
 
 		if (GetInstigator() == nullptr || UVaelCombatStatics::CanDamage(GetInstigator(), *It))
 		{
-			UVaelCombatStatics::ApplyStatus(GetInstigator(), *It, EVaelStatus::Wet, MagicSettings->PuddleWetDuration);
+			const bool bPitch = Source != nullptr && Source->bPitch;
+			UVaelCombatStatics::ApplyStatus(GetInstigator(), *It, bPitch ? EVaelStatus::Pitched : EVaelStatus::Wet, MagicSettings->PuddleWetDuration);
 		}
 	}
 }

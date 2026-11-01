@@ -74,6 +74,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0))
 	float FireOnWetMultiplier = 0.6f;
 
+	/** Fire damage against targets stuck in pitch is multiplied by this, the pitch burns away */
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0))
+	float FireOnPitchedMultiplier = 2.0f;
+
+	/** Speed of a creature stuck in pitch */
+	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0, ClampMax = 1))
+	float PitchedSpeedMultiplier = 0.5f;
+
 	/** Seconds a water hit leaves its target wet if the formula doesn't say otherwise */
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0))
 	float DefaultWetDuration = 3.0f;

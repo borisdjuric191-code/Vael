@@ -740,6 +740,35 @@ void AVaelSmokeTest::BeginPlay()
 
 		// The Schlotwinde (Boris 2026-10-27): held, a tendril lassos a sickle doll and holds it; let go, the doll is yanked to her;
 		// then the crossed hands raise the Windenzaun hedge
+		// Pitch of the Harzkolben: fire on a pitched creature burns twice as hard and uses the pitch up
+		Steps.Add({ TEXT("Pitch arena"), [this]() { return PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 1); }, 2.0f });
+		Steps.Add({ TEXT("Pitch"), [this]()
+		{
+			AVaelCreature* Creature = nullptr;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Creature = !It->IsDead() ? *It : Creature;
+			}
+			if (Creature == nullptr)
+			{
+				return FString(TEXT("FAILED: no living creature"));
+			}
+			FVaelSpellHit Fire;
+			Fire.Damage = 1.0f;
+			Fire.Element = EVaelElement::Fire;
+			UVaelCombatStatics::RemoveStatus(Creature, EVaelStatus::Wet);
+			const float Start = Creature->GetHealth();
+			UVaelCombatStatics::ApplyNatureHit(Creature, Fire, FVector::ZeroVector);
+			const float Plain = Start - Creature->GetHealth();
+			UVaelCombatStatics::ApplyStatus(nullptr, Creature, EVaelStatus::Pitched, 3.0f);
+			const bool bStuck = UVaelCombatStatics::HasStatus(Creature, EVaelStatus::Pitched);
+			const float Before = Creature->GetHealth();
+			UVaelCombatStatics::ApplyNatureHit(Creature, Fire, FVector::ZeroVector);
+			const float Ignited = Before - Creature->GetHealth();
+			const bool bUsedUp = !UVaelCombatStatics::HasStatus(Creature, EVaelStatus::Pitched);
+			const bool bOk = bStuck && bUsedUp && Plain > 0.0f && FMath::IsNearlyEqual(Ignited, Plain * 2.0f, 0.05f);
+			return FString::Printf(TEXT("%sfire %.2f, on pitch %.2f, pitch %s"), bOk ? TEXT("") : TEXT("FAILED: "), Plain, Ignited, bUsedUp ? TEXT("gone") : TEXT("still there"));
+		}, 0.5f });
 		Steps.Add({ TEXT("Lasso hands"), [this]()
 		{
 			const FString Arena = PrepareArena(GetMutableDefault<UVaelSickleDollData>(), 1);

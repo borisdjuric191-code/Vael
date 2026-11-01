@@ -28,6 +28,9 @@ notes = []
 
 KIT_VERSION = 1.4
 
+WATER = "/Game/VFX/Water"
+PITCH_SOURCE = WATER + "/Sources/DA_ElementSource_Pitch"
+
 FLAT_NORMAL = "/Engine/EngineMaterials/FlatNormal.FlatNormal"
 GREY = "/Engine/ArtTools/RenderToTexture/Textures/127grey.127grey"
 
@@ -73,6 +76,28 @@ ARMS = {
                  "water_source": "/Game/VFX/Water/Sources/DA_ElementSource_Water_Taublatt",
                  "shot_status": "WET", "shot_status_duration": 4.0, "water_radius": 180.0, "water_per_shot": 1.0,
                  "jet_hold_time": 0.3},
+    },
+    # Boris 2026-11-01: the Pechschuss. The hand works like the Taublatt: a hood of petals folds around the hole, tap = a clot of
+    # glowing pitch, hold = a slow tough stream. Pitch is no fire and no water: it slows (status Pitched), its puddles stick,
+    # and any fire on it burns twice as hard. Pieces from taublatt_trichter.py in the colours of the plant
+    "Harzkolben": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": "Trichter",
+        "leaf": "Trichter",
+        "petal": "Bluetenblatt",
+        "props": "/Game/Vael/Requisiten/Wurzelforst",
+        "values": {"Silber": 0.05, "Leuchten": 0.1, "Leuchtfarbe": (1.0, 0.4, 0.08), "Metall": 0.05, "Rauheit": 0.35},
+        "data": {"shot_element": "EARTH", "fire_interval": 0.55, "shot_damage": 5.0, "shot_speed": 1150.0, "shot_radius": 13.0,
+                 "shot_range": 900.0, "shot_spread": 2.0, "saft_per_shot": 1.2, "bar_size": 20,
+                 "finger_length": 28.0, "finger_thickness": 0.4, "tip_size": 13.0, "fan_angle": 0.0,
+                 "arm_thickness": 0.45, "rest_wind": 0.2, "wild_count": 2,
+                 "leaf_count": 6, "leaf_size": 13.0, "leaf_open_angle": 45.0, "fingers_form_barrel": True, "barrel_spacing": 6.0,
+                 "pump_wave_time": 0.3, "pump_swell": 0.35,
+                 "water_source": PITCH_SOURCE,
+                 "shot_status": "PITCHED", "shot_status_duration": 5.0, "water_per_shot": 1.5,
+                 "jet_hold_time": 0.35, "jet_damage_per_second": 4.0, "jet_range": 650.0, "jet_push": 80.0,
+                 "jet_shots_per_second": 3.0},
     },
     # Boris 2026-10-26: the shield hand. No shots; held, the forearm comes up before the face and clover overgrows the arm, a
     # glass dome rises around her. Golden stalks with flame buds from halme_zerlegen.py (kopf), the clover leaf from
@@ -387,7 +412,7 @@ def build_stalk_material():
     return material
 
 
-def make_instance(parent, plant, values):
+def make_instance(parent, plant, values, props=PROPS):
     name = "MI_Halm_" + plant
     path = "{}/{}".format(FOLDER, name)
     if assets.does_asset_exist(path):
@@ -399,10 +424,10 @@ def make_instance(parent, plant, values):
             library.set_material_instance_vector_parameter_value(instance, key, unreal.LinearColor(value[0], value[1], value[2], 1.0))
         else:
             library.set_material_instance_scalar_parameter_value(instance, key, value)
-    picture = unreal.load_asset("{}/{}/T_{}_basecolor".format(PROPS, plant, plant))
+    picture = unreal.load_asset("{}/{}/T_{}_basecolor".format(props, plant, plant))
     if picture is not None:
         library.set_material_instance_texture_parameter_value(instance, "Textur", picture)
-    normal = unreal.load_asset("{}/{}/T_{}_normal".format(PROPS, plant, plant))
+    normal = unreal.load_asset("{}/{}/T_{}_normal".format(props, plant, plant))
     if normal is not None:
         library.set_material_instance_texture_parameter_value(instance, "Normalkarte", normal)
     assets.save_loaded_asset(instance, False)
@@ -463,9 +488,72 @@ def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, lea
     created.append(path)
 
 
+def make_pitch():
+    """The pitch of the Harzkolben: the plant water of the Taublatt, thick and amber, and its plant data"""
+    looks = {
+        "MI_Water_Harz": ({"DeepColor": (0.16, 0.04, 0.004), "ShallowColor": (1.0, 0.42, 0.04)},
+                          {"Murkiness": 0.65, "EmissiveStrength": 1.6, "WobbleStrength": 1.2, "Refraction": 0.05}),
+        "MI_Water_Wave_Harz": ({"DeepColor": (0.05, 0.008, 0.001), "MidColor": (0.35, 0.07, 0.004), "CrestColor": (1.0, 0.4, 0.03),
+                                "FoamColor": (1.0, 0.72, 0.25)}, {"EmissiveStrength": 0.6}),
+    }
+    materials = {}
+    for name, base in (("MI_Water_Harz", "MI_Water_Taublatt"), ("MI_Water_Wave_Harz", "MI_Water_Wave_Taublatt")):
+        colours, scalars = looks[name]
+        found = [p.split(".")[0] for p in assets.list_assets(WATER, recursive=True) if p.split(".")[0].endswith("/" + base)]
+        if not found:
+            notes.append("missing " + base)
+            continue
+        path = found[0].rsplit("/", 1)[0] + "/" + name
+        if not assets.does_asset_exist(path):
+            assets.duplicate_asset(found[0], path)
+            created.append(path)
+        instance = unreal.load_asset(path)
+        for key, value in colours.items():
+            library.set_material_instance_vector_parameter_value(instance, key, unreal.LinearColor(value[0], value[1], value[2], 1.0))
+        for key, value in scalars.items():
+            library.set_material_instance_scalar_parameter_value(instance, key, value)
+        assets.save_loaded_asset(instance, False)
+        materials[name] = instance
+
+    if not assets.does_asset_exist(PITCH_SOURCE):
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelElementSource)
+        folder, name = PITCH_SOURCE.rsplit("/", 1)
+        source = tools.create_asset(name, folder, unreal.VaelElementSource, factory)
+        source.set_editor_property("source_name", unreal.Text("Pech (Harzkolben)"))
+        source.set_editor_property("element", unreal.VaelElement.WATER)
+        source.set_editor_property("pitch", True)
+        source.set_editor_property("material", materials.get("MI_Water_Harz"))
+        source.set_editor_property("wave_material", materials.get("MI_Water_Wave_Harz"))
+        source.set_editor_property("glow_color", unreal.LinearColor(1.0, 0.4, 0.06, 1.0))
+        source.set_editor_property("particle_color", unreal.LinearColor(1.0, 0.45, 0.08, 0.9))
+        source.set_editor_property("viscosity", 0.85)
+        assets.save_loaded_asset(source, False)
+        created.append(PITCH_SOURCE)
+
+    path = "{}/DA_Pflanze_Harzkolben".format(PLANT_FOLDER)
+    if not assets.does_asset_exist(path):
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelPlantData)
+        data = tools.create_asset("DA_Pflanze_Harzkolben", PLANT_FOLDER, unreal.VaelPlantData, factory)
+        data.set_editor_property("plant_id", "Harzkolben")
+        data.set_editor_property("light_name", unreal.Text("Harzkolben"))
+        data.set_editor_property("shadow_name", unreal.Text("Pechkolben"))
+        data.set_editor_property("mesh", unreal.load_asset("/Game/Vael/Requisiten/Wurzelforst/Harzkolben/SM_Harzkolben"))
+        data.set_editor_property("color", unreal.LinearColor(1.0, 0.45, 0.1, 1.0))
+        data.set_editor_property("shadow_color", unreal.LinearColor(0.2, 0.06, 0.05, 1.0))
+        assets.save_loaded_asset(data, False)
+        created.append(path)
+
+
 def main():
     stalk_material = build_stalk_material()
+    make_pitch()
+    # VAEL_NUR_ARM=<Id> builds only that arm, so the other meshes are not saved again
+    only = os.environ.get("VAEL_NUR_ARM")
     for plant, arm in ARMS.items():
+        if only and plant != only:
+            continue
         fingers = [import_stalk(plant, i) for i in arm["finger"]]
         others = [import_stalk(plant, i) for i in arm["arm"]]
         # The head on the fingertips: SM_<Id>_Kopf, or a piece of its own name (the Taublatt's funnel)
@@ -477,7 +565,7 @@ def main():
         petal = import_mesh(plant, "SM_{}_{}".format(plant, arm["petal"]), 5.0) if arm.get("petal") else None
         shoulder = import_mesh(plant, "SM_{}_{}".format(plant, arm["shoulder"]), 5.0) if arm.get("shoulder") else None
         capsule = import_mesh(plant, "SM_{}_{}".format(plant, arm["capsule"]), 5.0) if arm.get("capsule") else None
-        instance = make_instance(stalk_material, plant, arm["values"])
+        instance = make_instance(stalk_material, plant, arm["values"], arm.get("props", PROPS))
         for mesh in fingers + others + [head, vine, leaf, petal, capsule]:
             if mesh is not None:
                 mesh.set_material(0, instance)

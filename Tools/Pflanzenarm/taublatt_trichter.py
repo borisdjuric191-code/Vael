@@ -22,7 +22,8 @@ from mathutils import Vector
 
 args = sys.argv[sys.argv.index("--") + 1:]
 SOURCE, OUT = args[0], args[1]
-NAME = "Taublatt"
+# The same pieces in the colours of another plant (Harzkolben)
+NAME = args[2] if len(args) > 2 else "Taublatt"
 
 FUNNEL_HEIGHT = 0.10      # m
 FUNNEL_RINGS = 22

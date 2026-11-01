@@ -219,7 +219,9 @@ enum class EVaelStatus : uint8
 	/** Mad with fever: goes for other creatures, and they can hurt each other */
 	Fevered,
 	/** Confused (Wachbeere): creatures stagger about and don't attack, a player's steps drift off course */
-	Confused
+	Confused,
+	/** Stuck in pitch (Harzkolben): moves at a share of its speed, fire on it burns twice as hard and uses the pitch up */
+	Pitched
 };
 
 /** When a charge of Mark left in a target bursts */

@@ -151,6 +151,13 @@ bool UVaelCombatStatics::ApplyHit(AActor* Attacker, AActor* Target, const FVaelS
 		Reaction = TEXT(", dried");
 	}
 
+	if (Hit.Element == EVaelElement::Fire && RemoveStatus(Target, EVaelStatus::Pitched))
+	{
+		DamageMultiplier *= MagicSettings->FireOnPitchedMultiplier;
+		Reaction = TEXT(", pitch ignited");
+		UVaelCombatTextSubsystem::PostReaction(Target, NSLOCTEXT("VaelHUD", "PitchIgnited", "Pech entflammt!"));
+	}
+
 	if (Hit.Element == EVaelElement::Water)
 	{
 		if (RemoveStatus(Target, EVaelStatus::Burning))

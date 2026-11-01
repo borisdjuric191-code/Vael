@@ -157,6 +157,10 @@ FText AVaelCharacterBase::GetStatusText() const
 	{
 		Names.Add(TEXT("verwirrt"));
 	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Pitched))
+	{
+		Names.Add(TEXT("verpecht"));
+	}
 
 	return FText::FromString(FString::Join(Names, TEXT(", ")));
 }

@@ -804,7 +804,8 @@ void AVaelCreature::MoveInDirection(const FVector& Direction, float Speed)
 	}
 
 	// Slowing spells hold back walking and flying creatures alike, mud only walking ones
-	const float SlowMultiplier = UVaelCombatStatics::HasStatus(this, EVaelStatus::Slowed) ? UVaelMagicSettings::Get()->SlowedSpeedMultiplier : 1.0f;
+	const float SlowMultiplier = (UVaelCombatStatics::HasStatus(this, EVaelStatus::Slowed) ? UVaelMagicSettings::Get()->SlowedSpeedMultiplier : 1.0f)
+		* (UVaelCombatStatics::HasStatus(this, EVaelStatus::Pitched) ? UVaelMagicSettings::Get()->PitchedSpeedMultiplier : 1.0f);
 
 	UCharacterMovementComponent* Movement = GetCharacterMovement();
 	Movement->MaxWalkSpeed = Speed * GroundSpeedMultiplier * SlowMultiplier;

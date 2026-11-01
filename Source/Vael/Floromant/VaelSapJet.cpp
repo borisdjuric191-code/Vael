@@ -186,7 +186,7 @@ void AVaelSapJet::UpdateHits(float DeltaSeconds)
 	const float Power = Character != nullptr && Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
 
 	FVaelSpellHit Hit;
-	Hit.Element = EVaelElement::Water;
+	Hit.Element = Plant->ShotElement;
 	Hit.Status = Plant->ShotStatus;
 	Hit.StatusDuration = Plant->ShotStatusDuration;
 

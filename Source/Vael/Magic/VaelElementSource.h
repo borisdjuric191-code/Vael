@@ -34,6 +34,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Source")
 	bool bPoison = false;
 
+	/** Pitch that flies like water (the Harzkolben's): its puddles leave enemies stuck instead of wet, and they are no water */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Source")
+	bool bPitch = false;
+
 	/** Instance of the element's master material, used on surfaces and bodies like the water orb */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
 	TObjectPtr<UMaterialInterface> Material;
