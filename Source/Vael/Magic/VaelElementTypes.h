@@ -132,7 +132,11 @@ enum class EVaelCastGesture : uint8
 	/** Boris 2026-11-01: scoop and flick: the hand scoops from the hip in a soft arc, the wrist snaps, the water flies off the fingers; as short as the Funke, soft where fire is hard */
 	WaterFlick,
 	/** Boris 2026-10-30: breathes in with the hands cupped before the chin, then blows the cloud out of the mouth, hands opening forward */
-	BlowOut
+	BlowOut,
+	/** Boris 2026-11-02: the scoop grown into a sweep (Welle): the hand skims low across the body in a wide arc, tips palm forward at its end and the wrist snaps */
+	WaveSweep,
+	/** Boris 2026-11-02: both hands lift the sea (Flutwelle): scoop low at the sides, heave up over the head, throw forward and down; spent afterwards */
+	WaveHeave
 };
 
 /** What rises out of the ground where a strike of a spell lands */

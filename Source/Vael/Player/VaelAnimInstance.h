@@ -66,6 +66,15 @@ private:
 
 	/** Beam from the open palm: gathers at the hip, thrusts, shakes under the strain, hangs forward spent */
 	void ApplyPalmBeam(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Welle: the hand skims low across the body in a wide arc, tips palm forward and the wrist snaps; hangs while spent */
+	void ApplyWaveSweep(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Flutwelle: both hands scoop low, heave up over the head and throw forward and down; hangs forward while spent */
+	void ApplyWaveHeave(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Stretches the fingers of a hand (suffix l or r) along it, as far as the weight says */
+	void OpenHand(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, const TCHAR* Suffix, float Weight) const;
 };
 
 /**

@@ -273,6 +273,22 @@ void UVaelFormulaAbility::OnGestureRelease()
 		AVaelDebrisBurst::Spawn(GetAvatarActorFromActorInfo(), Fingertips, Drops);
 	}
 
+	// A wave throws the water off the hands; a big one leaves the mage spent, the more water it carries the longer (Boris 2026-11-02)
+	AVaelCharacter* WaveMage = Cast<AVaelCharacter>(GetAvatarActorFromActorInfo());
+	if (WaveMage != nullptr && (CastGestureKind == EVaelCastGesture::WaveSweep || CastGestureKind == EVaelCastGesture::WaveHeave))
+	{
+		WaveMage->FlingHandWater();
+		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+		const float Swell = FMath::Clamp((SwellScale / FMath::Max(CastSizeScale, 0.01f) - 1.0f) / FMath::Max(MagicSettings->WaveSwellMaxSize - 1.0f, 0.01f), 0.0f, 1.0f);
+		const float Spent = CastGestureKind == EVaelCastGesture::WaveHeave
+			? MagicSettings->HeaveExhaustSeconds + MagicSettings->HeaveSwollenExhaust * Swell
+			: MagicSettings->SweepSwollenExhaust * Swell;
+		if (Spent > 0.05f)
+		{
+			WaveMage->BeginCastExhaustion(Spent, false);
+		}
+	}
+
 	if (!WaitForChannelEnd())
 	{
 		EndAbility(CurrentSpecHandle, CurrentActorInfo, CurrentActivationInfo, true, false);

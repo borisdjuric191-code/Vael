@@ -310,18 +310,60 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.1))
 	float BreathStreamSeconds = 0.9f;
 
+	/** Sweep (Welle): seconds until the wave leaves the hand, and of the whole gesture; a wave swollen by the water around
+	 *  leaves the mage spent for up to SweepSwollenExhaust seconds (more mass is heavier, Boris 2026-11-02) */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float SweepReleaseTime = 0.3f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float SweepDuration = 0.75f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float SweepSwollenExhaust = 0.35f;
+
+	/** Heave (Flutwelle): seconds until the flood is thrown, and of the whole gesture; spent afterwards for HeaveExhaustSeconds,
+	 *  a little shorter than after the Feuerstrahl, and up to HeaveSwollenExhaust more when the water around swelled it */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float HeaveReleaseTime = 0.55f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float HeaveDuration = 1.1f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float HeaveExhaustSeconds = 0.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float HeaveSwollenExhaust = 0.4f;
+
 	/** The gesture of a formula, none when it uses a montage */
 	EVaelCastGesture FindCastGesture(const UVaelFormula* Formula) const;
 
 	/** Seconds from the start of a gesture until the spell is released, and how long the whole gesture lasts */
 	float GetGestureRelease(EVaelCastGesture Gesture) const
 	{
-		return Gesture == EVaelCastGesture::BlowOut ? BlowReleaseTime : Gesture == EVaelCastGesture::GripPoint ? GripReleaseTime : Gesture == EVaelCastGesture::PalmBeam ? PalmReleaseTime : Gesture == EVaelCastGesture::WaterFlick ? FlickReleaseTime : GestureReleaseTime;
+		switch (Gesture)
+		{
+		case EVaelCastGesture::BlowOut:		return BlowReleaseTime;
+		case EVaelCastGesture::GripPoint:	return GripReleaseTime;
+		case EVaelCastGesture::PalmBeam:	return PalmReleaseTime;
+		case EVaelCastGesture::WaterFlick:	return FlickReleaseTime;
+		case EVaelCastGesture::WaveSweep:	return SweepReleaseTime;
+		case EVaelCastGesture::WaveHeave:	return HeaveReleaseTime;
+		default:							return GestureReleaseTime;
+		}
 	}
 
 	float GetGestureDuration(EVaelCastGesture Gesture) const
 	{
-		return Gesture == EVaelCastGesture::BlowOut ? BlowDuration : Gesture == EVaelCastGesture::GripPoint ? GripDuration : Gesture == EVaelCastGesture::WaterFlick ? FlickDuration : GestureDuration;
+		switch (Gesture)
+		{
+		case EVaelCastGesture::BlowOut:		return BlowDuration;
+		case EVaelCastGesture::GripPoint:	return GripDuration;
+		case EVaelCastGesture::WaterFlick:	return FlickDuration;
+		case EVaelCastGesture::WaveSweep:	return SweepDuration;
+		case EVaelCastGesture::WaveHeave:	return HeaveDuration;
+		default:							return GestureDuration;
+		}
 	}
 
 	/** Returns the cast montage the formula uses by its kind, null if none exists */

@@ -325,8 +325,11 @@ public:
 	/** Middle of the open right palm, where a beam from the palm leaves. False without those bones. */
 	bool GetGesturePalm(FVector& OutLocation) const;
 
-	/** Spent after a beam: for the seconds nothing can be moved, dodged, chosen or cast, the body hangs forward and the hand steams */
-	void BeginCastExhaustion(float Seconds);
+	/** Spent after a beam or a big wave: for the seconds nothing can be moved, dodged, chosen or cast, the body hangs forward; after fire the hand steams */
+	void BeginCastExhaustion(float Seconds, bool bSteam = true);
+
+	/** The water clinging to the hands during a wave gesture flies off with the throw */
+	void FlingHandWater();
 
 	/** True during that pause */
 	bool IsExhausted() const { return ExhaustionEndTime > 0.0f; }
@@ -489,6 +492,10 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelFireComponent> PalmCharge;
+
+	/** Water winding round the hands and dripping off them during a wave gesture */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelHandWaterComponent> HandWater;
 
 	/** Ends the pause after a beam */
 	void EndCastExhaustion();

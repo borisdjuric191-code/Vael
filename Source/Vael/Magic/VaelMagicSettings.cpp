@@ -49,6 +49,9 @@ UVaelMagicSettings::UVaelMagicSettings()
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Feuerstrahl.DA_Formula_Feuerstrahl"))), EVaelCastGesture::PalmBeam);
 	// Water is soft where fire is hard: the Wassergeschoss is scooped and flicked off the fingers (Boris 2026-11-01)
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Wassergeschoss.DA_Formula_Wassergeschoss"))), EVaelCastGesture::WaterFlick);
+	// and grows: the Welle is swept, the Flutwelle heaved with both hands (Boris 2026-11-02)
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Welle.DA_Formula_Welle"))), EVaelCastGesture::WaveSweep);
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Flutwelle.DA_Formula_Flutwelle"))), EVaelCastGesture::WaveHeave);
 	// Mist and steam are blown out of the mouth (Boris 2026-10-30)
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Nebelschleier.DA_Formula_Nebelschleier"))), EVaelCastGesture::BlowOut);
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Dampfwolke.DA_Formula_Dampfwolke"))), EVaelCastGesture::BlowOut);

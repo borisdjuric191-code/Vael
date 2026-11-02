@@ -33,6 +33,7 @@
 #include "Magic/VaelElementOrbitComponent.h"
 #include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelHandSteam.h"
+#include "Magic/VaelHandWater.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
@@ -845,6 +846,26 @@ void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
 {
 	CastGesture = Gesture;
 	CastGestureStartTime = GetWorld()->GetTimeSeconds();
+
+	// Water winds round the hands that carry a wave, both for the Flutwelle
+	if (Gesture == EVaelCastGesture::WaveSweep || Gesture == EVaelCastGesture::WaveHeave)
+	{
+		if (IsValid(HandWater))
+		{
+			HandWater->Finish();
+		}
+		HandWater = NewObject<UVaelHandWaterComponent>(this);
+		HandWater->RegisterComponent();
+		HandWater->Start(GetMesh(), Gesture == EVaelCastGesture::WaveHeave, UVaelMagicSettings::Get()->GetGestureRelease(Gesture));
+	}
+}
+
+void AVaelCharacter::FlingHandWater()
+{
+	if (IsValid(HandWater))
+	{
+		HandWater->Fling(GetActorForwardVector());
+	}
 }
 
 EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
@@ -856,6 +877,15 @@ EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
 	{
 		const bool bBurning = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
 		return bBurning || OutSeconds < UVaelMagicSettings::Get()->PalmReleaseTime + 0.2f ? CastGesture : EVaelCastGesture::None;
+	}
+
+	// A wave that left the mage spent stands as long as the pause lasts, and ends with it
+	if (CastGesture == EVaelCastGesture::WaveSweep || CastGesture == EVaelCastGesture::WaveHeave)
+	{
+		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+		const bool bSpentByThis = ExhaustionStartTime >= CastGestureStartTime;
+		const bool bBeforeRelease = OutSeconds < MagicSettings->GetGestureRelease(CastGesture) + 0.05f;
+		return bBeforeRelease || IsExhausted() || (!bSpentByThis && OutSeconds < MagicSettings->GetGestureDuration(CastGesture)) ? CastGesture : EVaelCastGesture::None;
 	}
 
 	return OutSeconds < UVaelMagicSettings::Get()->GetGestureDuration(CastGesture) ? CastGesture : EVaelCastGesture::None;
@@ -900,7 +930,7 @@ void AVaelCharacter::UpdatePalmCharge()
 	PalmCharge->SetSizeScale(FMath::Lerp(0.1f, 1.0f, FMath::SmoothStep(0.0f, Release, Seconds)));
 }
 
-void AVaelCharacter::BeginCastExhaustion(float Seconds)
+void AVaelCharacter::BeginCastExhaustion(float Seconds, bool bSteam)
 {
 	if (Seconds <= 0.0f || bDowned)
 	{
@@ -914,6 +944,10 @@ void AVaelCharacter::BeginCastExhaustion(float Seconds)
 	GetAbilitySystemComponent()->AddLooseGameplayTag(VaelTags::State_Channeling);
 	GetWorldTimerManager().SetTimer(ExhaustionTimer, this, &AVaelCharacter::EndCastExhaustion, Seconds);
 
+	if (!bSteam)
+	{
+		return;
+	}
 	UVaelHandSteamComponent* Steam = NewObject<UVaelHandSteamComponent>(this);
 	Steam->SetupAttachment(RootComponent);
 	Steam->RegisterComponent();
@@ -942,7 +976,7 @@ bool AVaelCharacter::IsCastStance() const
 {
 	float Seconds = 0.0f;
 	const EVaelCastGesture Gesture = GetCastGesture(Seconds);
-	return Gesture == EVaelCastGesture::GripPoint || Gesture == EVaelCastGesture::PalmBeam;
+	return Gesture == EVaelCastGesture::GripPoint || Gesture == EVaelCastGesture::PalmBeam || Gesture == EVaelCastGesture::WaveHeave;
 }
 
 bool AVaelCharacter::GetGesturePalm(FVector& OutLocation) const
