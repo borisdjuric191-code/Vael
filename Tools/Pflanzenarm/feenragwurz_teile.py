@@ -2,8 +2,8 @@
 Pflanzenarm Feenragwurz: cuts a real blossom out of the Tripo model, so the arm keeps its holes, spots and moth-wing look.
 
 The blossom is what lies around its middle in the front view, the largest welded piece of it. It is reduced and stands with
-the pivot under its middle, 10 cm high on +Z, looking along -X. It keeps its UV maps; the arm draws it with the material of the
-plant. The source file is only read.
+the pivot under its middle, 10 cm high on +Z. It keeps its UV maps; the arm draws it with the material of the
+plant. It looks along +X: on the arm the outside of a piece faces away from the hand. The source file is only read.
 
 Run:
   blender -b --factory-startup -P feenragwurz_teile.py -- <source fbx> <output folder>
@@ -81,8 +81,8 @@ modifier = piece.modifiers.new("Weniger", "DECIMATE")
 modifier.ratio = min(1.0, FACES / max(1, len(mesh.polygons)))
 bpy.ops.object.modifier_apply(modifier=modifier.name)
 
-# The blossom opens along -Y; the arm wants it along -X
-mesh.transform(Matrix.Rotation(math.radians(-90.0), 4, "Z"))
+# The blossom opens along -Y; the arm wants it along +X
+mesh.transform(Matrix.Rotation(math.radians(90.0), 4, "Z"))
 points = np.array([v.co for v in mesh.vertices])
 low, high = np.percentile(points[:, 2], 1.0), np.percentile(points[:, 2], 99.0)
 middle = np.median(points, axis=0)

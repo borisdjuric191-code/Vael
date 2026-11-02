@@ -30,7 +30,7 @@ public:
 	AVaelFairyEscort();
 
 	/** Gives her her fairies; Side turns her ring so two hands don't overlap */
-	void Setup(APawn* InMistress, const UVaelPlantArmData* InPlant, float Side);
+	void Setup(APawn* InMistress, const UVaelPlantArmData* InPlant, float Side, AActor* InAnchor = nullptr, float InRingHeight = 30.0f);
 
 	/** A fairy that is ready flies to the target; false when none is */
 	bool Send(AActor* Target, bool bShadow);
@@ -81,11 +81,16 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<APawn> Mistress;
 
+	/** What they hover around: their tower, or the Floromant herself */
+	UPROPERTY(Transient)
+	TObjectPtr<AActor> Anchor;
+
 	UPROPERTY(Transient)
 	TObjectPtr<const UVaelPlantArmData> Plant;
 
 	TArray<FEscortFairy> Flock;
 	VaelFairyFlight::FSettings Flight;
 	float RingTurn = 0.0f;
+	float RingHeight = 30.0f;
 	float Clock = 0.0f;
 };

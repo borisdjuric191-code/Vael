@@ -7,6 +7,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Floromant/VaelBindweedLasso.h"
+#include "Floromant/VaelFairyEscort.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelPlantArmData.h"
@@ -235,11 +236,31 @@ void AVaelPlantTower::Build()
 			UStaticMeshComponent* Petal = NewObject<UStaticMeshComponent>(this);
 			Petal->SetMobility(EComponentMobility::Movable);
 			Petal->SetStaticMesh(PetalMesh);
-			Petal->SetMaterial(0, Material);
+			UMaterialInterface* PartMaterial = VaelAssets::LoadOptional(Plant->PartMaterial);
+			Petal->SetMaterial(0, PartMaterial != nullptr ? PartMaterial : Material.Get());
 			Petal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Petal->SetupAttachment(RootComponent);
 			Petal->RegisterComponent();
 			CrownPieces.Add(Petal);
+		}
+		if (UStaticMesh* CoreMesh = VaelAssets::LoadOptional(Plant->CoreMesh))
+		{
+			CrownCore = NewObject<UStaticMeshComponent>(this);
+			CrownCore->SetMobility(EComponentMobility::Movable);
+			CrownCore->SetStaticMesh(CoreMesh);
+			UMaterialInterface* PartMaterial = VaelAssets::LoadOptional(Plant->PartMaterial);
+			CrownCore->SetMaterial(0, PartMaterial != nullptr ? PartMaterial : Material.Get());
+			CrownCore->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			CrownCore->SetupAttachment(RootComponent);
+			CrownCore->RegisterComponent();
+		}
+		if (Plant->bFairies)
+		{
+			Escort = GetWorld()->SpawnActor<AVaelFairyEscort>();
+			if (Escort != nullptr)
+			{
+				Escort->Setup(GetGardener(), Plant, 0.0f, this, 170.0f);
+			}
 		}
 		return;
 	}
@@ -347,7 +368,7 @@ FVector AVaelPlantTower::GetOwnCrownAxis() const
 
 bool AVaelPlantTower::AimsLikeHydra() const
 {
-	return Symbiosis == EVaelSymbiosis::None && !Plant->bShield && !Plant->bVineArm && !Plant->bMortar && !Plant->bLasso;
+	return Symbiosis == EVaelSymbiosis::None && !Plant->bShield && !Plant->bVineArm && !Plant->bMortar && !Plant->bLasso && !Plant->bFairies;
 }
 
 void AVaelPlantTower::UpdateBend(float DeltaSeconds)
@@ -405,6 +426,16 @@ void AVaelPlantTower::UpdateBend(float DeltaSeconds)
 	{
 		Bend = Bend.GetSafeNormal() * 1.25f;
 	}
+}
+
+void AVaelPlantTower::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	if (Escort != nullptr)
+	{
+		Escort->Destroy();
+		Escort = nullptr;
+	}
+	Super::EndPlay(EndPlayReason);
 }
 
 void AVaelPlantTower::Wither()
@@ -662,6 +693,16 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		return;
 	}
 
+	// A Feenragwurz tower sends a fairy of its ring at the enemy; she comes back and rests
+	if (Symbiosis == EVaelSymbiosis::None && Plant->bFairies)
+	{
+		if (Escort != nullptr && Escort->Send(Goal, bShadow))
+		{
+			VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 1.2f);
+		}
+		return;
+	}
+
 	// Windenfalle: tendrils crawl over the ground from the foot to the enemies around and hold them a while
 	if (Symbiosis == EVaelSymbiosis::None && Plant->bLasso)
 	{
@@ -726,7 +767,7 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 
 	// The shot leaves the head whose turn it is, which flies off as the shot; without stalks the crown where it looks
 	const FVector Axis = GetCrownAxis();
-	FVector Muzzle = GetCrown() + Axis * 20.0f;
+	FVector Muzzle = GetCrown() + Axis * (CrownCore != nullptr ? Plant->CoreLength * 1.8f : 20.0f);
 	if (StalkTips.IsValidIndex(NextStalk) && !CrownStalks.IsEmpty())
 	{
 		Muzzle = StalkTips[NextStalk];
@@ -982,6 +1023,11 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		const float Beat = 1.0f + 0.06f * FMath::Square(FMath::Sin(Time * 3.0f));
 		CrownPieces[0]->SetWorldLocationAndRotation(Crown - Axis * 6.0f, FRotationMatrix::MakeFromZ(Axis).Rotator());
 		CrownPieces[0]->SetWorldScale3D(FVector(Plant->ShoulderRoseSize * 1.6f / 10.0f * Bloom * Beat));
+	}
+	if (CrownCore != nullptr)
+	{
+		CrownCore->SetWorldLocationAndRotation(Crown - Axis * 3.0f, FRotationMatrix::MakeFromZ(Axis).Rotator());
+		CrownCore->SetWorldScale3D(FVector(FMath::Max(Plant->CoreLength * 1.8f / 10.0f * Bloom, 0.001f)));
 	}
 	// Crown of petals: the rose stands open on top, breathing, the inner ring half shut; aiming it closes round the hole it fires
 	// from like the hand; the poppy of a Mohnmörser stays a shut bud that bursts open at each throw

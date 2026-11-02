@@ -15,7 +15,7 @@ namespace
 {
 	/** Her ring around the Floromant: its radius, height above her feet and turns per second */
 	constexpr float RingRadius = 150.0f;
-	constexpr float RingHeight = 30.0f;
+
 	constexpr float RingSpeed = 0.06f;
 
 	/** Closer than this she has arrived */
@@ -46,9 +46,11 @@ AVaelFairyEscort::AVaelFairyEscort()
 	Fairies->NumCustomDataFloats = 4;
 }
 
-void AVaelFairyEscort::Setup(APawn* InMistress, const UVaelPlantArmData* InPlant, float Side)
+void AVaelFairyEscort::Setup(APawn* InMistress, const UVaelPlantArmData* InPlant, float Side, AActor* InAnchor, float InRingHeight)
 {
 	Mistress = InMistress;
+	Anchor = InAnchor != nullptr ? InAnchor : InMistress;
+	RingHeight = InRingHeight;
 	Plant = InPlant;
 	RingTurn = Side;
 	Flight.FlySpeed = Plant->FairySpeed;
@@ -73,7 +75,7 @@ void AVaelFairyEscort::Setup(APawn* InMistress, const UVaelPlantArmData* InPlant
 FVector AVaelFairyEscort::RingPlace(int32 Index) const
 {
 	const float Angle = UE_TWO_PI * (Clock * RingSpeed + RingTurn + float(Index) / FMath::Max(Flock.Num(), 1));
-	const FVector Middle = Mistress != nullptr ? Mistress->GetActorLocation() : GetActorLocation();
+	const FVector Middle = Anchor != nullptr ? Anchor->GetActorLocation() : GetActorLocation();
 	return Middle + FVector(FMath::Cos(Angle) * RingRadius, FMath::Sin(Angle) * RingRadius, RingHeight);
 }
 

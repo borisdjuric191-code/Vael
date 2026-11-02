@@ -116,10 +116,10 @@ ARMS = {
         "values": {"Silber": 0.05, "Leuchten": 0.08, "Leuchtfarbe": (0.5, 0.95, 0.75), "Metall": 0.05, "Rauheit": 0.4},
         "data": {"fairies": True, "fairy_mesh": "/Game/Vael/Requisiten/Wurzelforst/Ragwurzfee/SM_Ragwurzfee",
                  "fairy_material": "/Game/Vael/Requisiten/Wurzelforst/Ragwurzfee/M_WF_Ragwurzfee",
-                 "part_material": "/Game/Vael/Requisiten/Wurzelforst/Feenragwurz/M_WF_Feenragwurz",
+                 "part_material": FOLDER + "/Feenragwurz/M_Feenragwurz_Bluete",
                  "finger_length": 12.0, "finger_thickness": 0.3, "fan_angle": 0.0, "arm_thickness": 0.4, "rest_wind": 0.25, "wild_count": 2,
-                 "leaf_count": 3, "leaf_size": 16.0, "leaf_open_angle": 45.0,
-                 "inner_petals": 0, "outer_petals": 2, "petal_size": 20.0, "rose_open_angle": 30.0, "rose_closed_angle": 10.0,
+                 "leaf_count": 3, "leaf_size": 22.0, "leaf_open_angle": 60.0,
+                 "inner_petals": 0, "outer_petals": 3, "petal_size": 24.0, "rose_open_angle": 50.0, "rose_closed_angle": 10.0,
                  "rose_hole_radius": 0.5},
     },
     # Boris 2026-10-26: the shield hand. No shots; held, the forearm comes up before the face and clover overgrows the arm, a
@@ -516,6 +516,37 @@ def make_arm(plant, finger_meshes, arm_meshes, head, vine, material, values, lea
     created.append(path)
 
 
+def make_blossom_material():
+    """The blossoms of the Feenragwurz on the arm: the picture of the model is pale, here it glows like the drawing, saturated,
+    the rims pink, the middles turquoise"""
+    path = FOLDER + "/Feenragwurz/M_Feenragwurz_Bluete"
+    if assets.does_asset_exist(path):
+        material = unreal.load_asset(path)
+        library.delete_all_material_expressions(material)
+    else:
+        material = tools.create_asset("M_Feenragwurz_Bluete", FOLDER + "/Feenragwurz", unreal.Material, unreal.MaterialFactoryNew())
+    material.set_editor_property("two_sided", True)
+    props = "/Game/Vael/Requisiten/Wurzelforst/Feenragwurz/T_Feenragwurz_"
+    g = Graph(material)
+    picture = g.node(unreal.MaterialExpressionTextureSample, 9, texture=unreal.load_asset(props + "basecolor"))
+    rgb = g.mask(picture, 8)
+    saturated = g.lerp(g.grey(rgb, 7), rgb, g.scalar("Sattheit", 1.45, 7), 6)
+    red = g.mask(picture, 8, r=True, g=False, b=False)
+    green = g.mask(picture, 8, r=False, g=True, b=False)
+    # Pink where the red of the rims wins, jewel turquoise everywhere else
+    rim = g.saturate(g.mul(6, g.add(7, g.sub(8, red, green), g.const(0.03, 8)), g.const(9.0, 7)), 5)
+    colour = g.lerp(g.mul(5, saturated, g.vector("Mitte", (0.45, 0.9, 1.0), 6)),
+                    g.mul(5, saturated, g.vector("Rand", (1.6, 0.55, 0.95), 6)), rim, 4)
+    library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.mul(3, colour, g.scalar("Leuchten", 0.12, 4)), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    normal_map = g.node(unreal.MaterialExpressionTextureSample, 4, texture=unreal.load_asset(props + "normal"),
+                        sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+    library.connect_material_property(normal_map, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    library.connect_material_property(g.const(0.45, 3), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+
+
 def make_pitch():
     """The pitch of the Harzkolben: the plant water of the Taublatt, thick and amber, and its plant data"""
     looks = {
@@ -590,6 +621,7 @@ def make_pitch():
 
 def main():
     stalk_material = build_stalk_material()
+    make_blossom_material()
     make_pitch()
     # VAEL_NUR_ARM=<Id> builds only that arm, so the other meshes are not saved again
     only = os.environ.get("VAEL_NUR_ARM")

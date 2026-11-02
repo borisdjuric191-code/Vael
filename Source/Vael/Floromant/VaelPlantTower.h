@@ -87,6 +87,14 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> CrownPieces;
 
+	/** The core in the crown (Harzkolben): the shots leave from its tip */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> CrownCore;
+
+	/** The fairies of a Feenragwurz tower */
+	UPROPERTY(Transient)
+	TObjectPtr<class AVaelFairyEscort> Escort;
+
 	/** Knot of the symbiosis, only on the tower that leads it */
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelSymbiosisKnotComponent> Knot;
@@ -115,6 +123,8 @@ private:
 
 	/** True for the plants that bend their column towards the target and shoot where the crown looks (like a Hydra) */
 	bool AimsLikeHydra() const;
+
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 	/**
 	 *  The shared trunk of a symbiosis (Boris 2026-10-26): both towers lean in, their columns meet in the middle and twist round
