@@ -24,11 +24,11 @@ DIALOGUES = [
         "asset": "DA_Dialogue_Edda",
         "speaker_name": unreal.Text("Edda Krell"),
         "intro_lines": [
-            unreal.Text("Ruhig. Du hast drei Tage im Fieber gelegen. Die Mark-Flut hat Kesselgrund verschlungen. Außer uns ist niemand mehr übrig."),
+            unreal.Text("Ruhig. Du hast drei Tage im Fieber gelegen. Die Nid-Flut hat Kesselgrund verschlungen. Außer uns ist niemand mehr übrig."),
             unreal.Text("Im Fieber hast du gesprochen. Feuer, Wasser, Erde, Luft. Jetzt glüht etwas in deinen Händen. Die Alten nannten es den Geist der Schlafenden."),
             unreal.Text("Probier es aus. Wähle Elemente und wirke sie gemeinsam. Manche Verbindungen zeigen sich, wenn du experimentierst. Die meisten stehen in alten Schriftrollen oder in den Angriffen der Bestien."),
             unreal.Text("Die Felder sind voller Brut. Glutkriecher graben sich in die Asche, Harpyien kreisen über den Feldern. Im Nordosten, im alten Krater, brütet ihre Mutter."),
-            unreal.Text("Und wenn du im Osten das violette Leuchten siehst: Das ist Mark. Es macht stark, aber es nimmt sich etwas dafür. Komm ans Feuer, wenn es dich zu sehr zeichnet."),
+            unreal.Text("Und wenn du im Osten das violette Leuchten siehst: Das ist Nid. Es macht stark, aber es nimmt sich etwas dafür. Komm ans Feuer, wenn es dich zu sehr zeichnet."),
         ],
         "hints": [
             hint(Condition.FEW_FORMULAS_DISCOVERED, "Versuch Paare. Zwei gleiche Elemente, Feuer mit Erde, Wasser mit Erde. Manches gelingt nicht beim ersten Mal."),

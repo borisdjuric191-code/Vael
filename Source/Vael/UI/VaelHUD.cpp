@@ -792,7 +792,7 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		}
 		else if (Formula->Source == EVaelFormulaSource::Mark)
 		{
-			Description = LOCTEXT("MarkUnknown", "Erwacht mit dem Mark.");
+			Description = LOCTEXT("MarkUnknown", "Erwacht mit dem Nid.");
 		}
 		else if (Formula->Source == EVaelFormulaSource::Free)
 		{
@@ -1822,26 +1822,49 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 	{
 		DrawTitle(LOCTEXT("BagTitle", "Materialbeutel"), RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
 
+		// Lower half: the fields of the bag in the grid of the backpack, scrolled so the selected row is in sight
 		const TArray<FVaelMaterialStack> Stacks = Player->GetMaterialBag()->GetStacks();
-		const FVector2D First = At(RightX - 0.56f, 0.5f);
-		const float RowHeight = 31.0f * T;
-		const float RowWidth = 1.12f * Unit;
+		const int32 BagSelection = FMath::Clamp(PlayerController->GetBagSelection(), 0, FMath::Max(Stacks.Num() - 1, 0));
+		const int32 VisibleRows = FMath::Max(1, BackpackSize / BookBackpackColumns);
+		const int32 FirstRow = FMath::Max(0, BagSelection / BookBackpackColumns - (VisibleRows - 1));
+		const float Pulse = 0.5f + 0.5f * FMath::Sin(GetWorld()->GetRealTimeSeconds() * 2.4f);
+
+		for (int32 Field = 0; Field < VisibleRows * BookBackpackColumns; ++Field)
+		{
+			const int32 Column = Field % BookBackpackColumns;
+			const int32 Row = Field / BookBackpackColumns;
+			const int32 Index = (FirstRow + Row) * BookBackpackColumns + Column;
+			if (!Stacks.IsValidIndex(Index))
+			{
+				break;
+			}
+
+			const FVector2D Center = At(RightX + (Column - (BookBackpackColumns - 1) * 0.5f) * BookBackpackStep, BookBackpackTop - Row * BookBackpackStep);
+			DrawBagField(Stacks[Index], Center, 0.075f * Unit, T, Pulse);
+			if (Index == BagSelection)
+			{
+				const float Half = 0.08f * Unit;
+				DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, EmberColor, 3.0f * T);
+			}
+		}
+
+		// Upper half: what the selected material is
+		const FVector2D DetailAt = At(RightX - 0.56f, 0.56f);
+		const float DetailWidth = 1.12f * Unit;
 		if (Stacks.IsEmpty())
 		{
-			DrawLabel(LOCTEXT("BagEmpty", "Noch leer. Gefallene Kreaturen lassen Teile zurück."), First.X, First.Y, 19.0f * T, FadedInk, 0.0f, RowWidth);
+			DrawLabel(LOCTEXT("BagEmpty", "Noch leer. Gefallene Kreaturen lassen Teile zurück."), DetailAt.X + DetailWidth * 0.5f, DetailAt.Y + 30.0f * T, 21.0f * T, FadedInk, 0.5f, DetailWidth);
 		}
-
-		const int32 MaxRows = FMath::FloorToInt(1.2f * Unit / RowHeight);
-		for (int32 Index = 0; Index < FMath::Min(Stacks.Num(), MaxRows); ++Index)
+		else
 		{
-			const FVaelMaterialStack& Stack = Stacks[Index];
-			const float RowY = First.Y + Index * RowHeight;
-			DrawDisc(FVector2D(First.X + 8.0f * T, RowY + 11.0f * T), 7.0f * T, Stack.Material->Color);
-			DrawLabel(Stack.Material->DisplayName, First.X + 26.0f * T, RowY, 21.0f * T, Ink, 0.0f, RowWidth - 90.0f * T);
-			DrawLabel(FText::AsNumber(Stack.Count), First.X + RowWidth, RowY, 21.0f * T, Ink, 1.0f);
+			DrawMaterialDetails(Stacks[BagSelection], DetailAt.X, DetailAt.Y, DetailWidth, T);
 		}
 
-		DrawLabel(FText::Format(LOCTEXT("BagFooter", "{0}: Rucksack · {1}: schließen"), BagKey, Close), Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
+		const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "Kreuz") : LOCTEXT("ConfirmXbox", "A");
+		const bool bUsable = Stacks.IsValidIndex(BagSelection) && Stacks[BagSelection].Material->Use != EVaelMaterialUse::None;
+		const FText Footer = bUsable ? FText::Format(LOCTEXT("BagFooterUse", "{0}: benutzen · {1}: Rucksack · {2}: schließen"), Confirm, BagKey, Close)
+			: FText::Format(LOCTEXT("BagFooter", "{0}: Rucksack · {1}: schließen"), BagKey, Close);
+		DrawLabel(Footer, Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
 	}
 	else
 	{
@@ -1895,6 +1918,111 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 	}
 
 	DrawMenuTabs(PlayerController, Middle.X + PictureSize.X * 0.47f, 6.0f * UiScale);
+}
+
+void AVaelHUD::DrawBagField(const FVaelMaterialStack& Stack, const FVector2D& Center, float Half, float T, float Pulse)
+{
+	const UVaelMaterial* Material = Stack.Material;
+	const FLinearColor RarityColor = VaelItems::GetRarityColor(Material->Rarity);
+	const int32 RarityLevel = static_cast<int32>(Material->Rarity);
+
+	// Rarer things shimmer: a soft breathing glow in the rarity color behind the field, stronger for each step of rarity
+	if (RarityLevel > 0)
+	{
+		const float Glow = Half * (1.08f + 0.04f * Pulse);
+		DrawBox(Center.X - Glow, Center.Y - Glow, Glow * 2.0f, Glow * 2.0f, WithAlpha(RarityColor, (0.1f + 0.06f * RarityLevel) * (0.6f + 0.4f * Pulse)));
+	}
+	DrawBox(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, FLinearColor(0.1f, 0.07f, 0.05f, 0.82f));
+	DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, RarityLevel > 0 ? RarityColor : FLinearColor(0.45f, 0.36f, 0.26f, 0.9f), FMath::Max(1.0f, 2.0f * T));
+
+	UTexture2D* Icon = Material->Icon.IsNull() ? nullptr : Material->Icon.LoadSynchronous();
+	if (Icon != nullptr)
+	{
+		const FVector2D Extent(Half * 1.8f);
+		Canvas->K2_DrawTexture(Icon, Center - Extent * 0.5f, Extent, FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Translucent);
+	}
+	else
+	{
+		DrawDisc(Center, Half * 0.42f, Material->Color);
+	}
+
+	DrawWaySign(Material->Way, Center + FVector2D(Half * 0.66f, -Half * 0.66f), Half * 0.2f);
+
+	if (Stack.Count > 1)
+	{
+		DrawLabel(FText::AsNumber(Stack.Count), Center.X + Half * 0.88f, Center.Y + Half * 0.38f, 16.0f * T, BoneColor, 1.0f);
+	}
+}
+
+void AVaelHUD::DrawWaySign(EVaelWay Way, const FVector2D& Center, float Radius)
+{
+	// Light a sun with rays, shadow a crescent, twilight a disc half light and half shadow; neutral things carry no sign
+	const FLinearColor LightColor(1.0f, 0.82f, 0.42f);
+	const FLinearColor ShadowColor(0.42f, 0.16f, 0.72f);
+	const FLinearColor Ground(0.1f, 0.07f, 0.05f, 1.0f);
+
+	switch (Way)
+	{
+	case EVaelWay::Light:
+		DrawDisc(Center, Radius * 0.62f, LightColor);
+		for (int32 Ray = 0; Ray < 8; ++Ray)
+		{
+			const float Angle = Ray * UE_TWO_PI / 8.0f;
+			const FVector2D Direction(FMath::Cos(Angle), FMath::Sin(Angle));
+			DrawSegment(Center + Direction * Radius * 0.8f, Center + Direction * Radius * 1.25f, LightColor, FMath::Max(1.0f, Radius * 0.18f));
+		}
+		break;
+	case EVaelWay::Shadow:
+		DrawDisc(Center, Radius, ShadowColor);
+		DrawDisc(Center + FVector2D(Radius * 0.45f, -Radius * 0.25f), Radius * 0.82f, Ground);
+		break;
+	case EVaelWay::Twilight:
+		DrawDisc(Center, Radius, ShadowColor);
+		DrawPolygon({ Center + FVector2D(0.0f, -Radius), Center + FVector2D(-Radius * 0.7f, -Radius * 0.7f), Center + FVector2D(-Radius, 0.0f),
+			Center + FVector2D(-Radius * 0.7f, Radius * 0.7f), Center + FVector2D(0.0f, Radius) }, LightColor);
+		break;
+	default:
+		break;
+	}
+}
+
+void AVaelHUD::DrawMaterialDetails(const FVaelMaterialStack& Stack, float X, float Y, float Width, float T)
+{
+	const UVaelMaterial* Material = Stack.Material;
+	const FLinearColor RarityColor = VaelItems::GetRarityColor(Material->Rarity);
+	const FLinearColor TitleColor = Material->Rarity == EVaelRarity::Common ? FLinearColor(Rgb(22, 13, 8)) : FLinearColor(RarityColor.R * 0.2f, RarityColor.G * 0.17f, RarityColor.B * 0.17f);
+	const FLinearColor Ink = Rgb(22, 13, 8);
+	const FLinearColor FadedInk = Rgb(48, 31, 19);
+
+	DrawTitle(Material->DisplayName, X, Y, 30.0f * T, TitleColor, 0.0f);
+	Y += 36.0f * T;
+
+	// Category · rarity · element · way, what is not set is left out
+	TArray<FText> Facts = { UEnum::GetDisplayValueAsText(Material->Category), UEnum::GetDisplayValueAsText(Material->Rarity) };
+	if (Material->bHasElement)
+	{
+		Facts.Add(GetElementName(Material->Element));
+	}
+	if (Material->Way != EVaelWay::Neutral)
+	{
+		Facts.Add(FText::Format(LOCTEXT("MaterialWay", "Weg: {0}"), UEnum::GetDisplayValueAsText(Material->Way)));
+	}
+	DrawLabel(FText::Join(FText::FromString(TEXT(" · ")), Facts), X, Y, 18.0f * T, FadedInk, 0.0f, Width);
+	Y += 30.0f * T;
+
+	DrawLabel(Material->Description, X, Y, 19.0f * T, Ink, 0.0f, Width);
+}
+
+FText AVaelHUD::GetElementName(EVaelElement Element)
+{
+	switch (Element)
+	{
+	case EVaelElement::Fire:	return LOCTEXT("ElementFire", "Feuer");
+	case EVaelElement::Water:	return LOCTEXT("ElementWater", "Wasser");
+	case EVaelElement::Earth:	return LOCTEXT("ElementEarth", "Erde");
+	case EVaelElement::Air:		return LOCTEXT("ElementAir", "Luft");
+	default:					return LOCTEXT("ElementNid", "Nid");
+	}
 }
 
 void AVaelHUD::DrawItemDetails(const UVaelInventory* Inventory, const FVaelItem& Selected, bool bFromBackpack, float X, float Y, float Width, float T)
@@ -2387,7 +2515,7 @@ void AVaelHUD::DrawCompendium(const AVaelPlayerController* PlayerController)
 			FText::Format(LOCTEXT("HintObserve", "Beobachten: in Ruhe aus der Nähe, oder ungesehen durchs Fernglas ({0} halten). {1} %"), SpyglassButton, ObservedPercent) },
 		{ LOCTEXT("SectionWeakness", "Schwächen und Beute"), Selected->Weakness, EVaelResearchStage::Defeated, LOCTEXT("HintDefeat", "Besiegen, pflücken oder abbauen.") },
 		{ LOCTEXT("SectionUses", "Nutzen"), Selected->Uses, EVaelResearchStage::Researched, StudyHint },
-		{ LOCTEXT("SectionMarked", "Unter dem Mark"), Selected->MarkedForm, EVaelResearchStage::Researched, FText::GetEmpty() },
+		{ LOCTEXT("SectionMarked", "Unter dem Nid"), Selected->MarkedForm, EVaelResearchStage::Researched, FText::GetEmpty() },
 		{ LOCTEXT("SectionAlbrun", "Albruns Randnotiz"), Selected->AlbrunNote, EVaelResearchStage::Researched, FText::GetEmpty() },
 	};
 

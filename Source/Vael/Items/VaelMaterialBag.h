@@ -52,7 +52,14 @@ public:
 	UFUNCTION(BlueprintPure, Category="Materials")
 	TArray<FVaelMaterialStack> GetStacks() const;
 
-	/** Rolls the loot once and puts a copy into the bag of every player, with a pickup label above the source */
+	/**
+	 *  Uses one of a material by its Use: drinking it, or pouring it over a plant. Placeholder: not built yet,
+	 *  it only tells the player so and returns false; nothing is taken out of the bag.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Materials")
+	bool UseMaterial(const UVaelMaterial* Material);
+
+	/** Rolls the loot once and gives every player a copy: into their bag with a pickup label above the source, or on the ground if it has a model */
 	static void GiveToGroup(const AActor* Source, const TArray<FVaelLootEntry>& Loot);
 
 	/** Puts the content of the bag into the save of a player */

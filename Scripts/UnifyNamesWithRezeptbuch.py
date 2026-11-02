@@ -68,7 +68,7 @@ change(MATERIALS + "DA_Material_Staeublingspulver", {
 })
 change(MATERIALS + "DA_Material_Myzelprobe", {
     "display_name": unreal.Text("Adernflechte"),
-    "description": unreal.Text("Feine weiße Fäden der Adernflechte, die sich violett färben, wenn Mark nah ist. Katalysator: Schatten-Rezepte schlagen seltener fehl."),
+    "description": unreal.Text("Feine weiße Fäden der Adernflechte, die sich violett färben, wenn Nid nah ist. Katalysator: Schatten-Rezepte schlagen seltener fehl."),
 })
 change(MATERIALS + "DA_Material_Ueberraschungssaat", {
     "display_name": unreal.Text("Keimsaat"),

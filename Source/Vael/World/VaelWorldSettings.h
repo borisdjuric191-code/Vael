@@ -361,7 +361,7 @@ public:
 
 	/** What every marked creature drops on top of its own loot: the crystals offered at Mark sources */
 	UPROPERTY(config, EditAnywhere, Category="Loot")
-	FVaelLootEntry MarkedLoot = FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Markkristall.DA_Material_Markkristall"), 1.0f);
+	FVaelLootEntry MarkedLoot = FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Nidkristall.DA_Material_Nidkristall"), 1.0f);
 
 	/** Health a health orb gives back (prototype: 25) */
 	UPROPERTY(config, EditAnywhere, Category="Loot", meta = (ClampMin = 0))

@@ -3,7 +3,9 @@
 #include "Items/VaelMaterialBag.h"
 #include "Save/VaelSaveGame.h"
 #include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialDrop.h"
 #include "Engine/World.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "GameFramework/PlayerController.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
@@ -41,6 +43,18 @@ bool UVaelMaterialBag::RemoveMaterial(const UVaelMaterial* Material, int32 Count
 	return true;
 }
 
+bool UVaelMaterialBag::UseMaterial(const UVaelMaterial* Material)
+{
+	if (Material == nullptr || Material->Use == EVaelMaterialUse::None || GetCount(Material) <= 0)
+	{
+		return false;
+	}
+
+	// Drinking and pouring over plants (the plant takes its light or shadow form in its next growth cycle) come later
+	UVaelNoticeSubsystem::Post(GetOwner(), Material->DisplayName, LOCTEXT("UseLater", "Das geht noch nicht."), Material->Color, 2.0f);
+	return false;
+}
+
 int32 UVaelMaterialBag::GetCount(const UVaelMaterial* Material) const
 {
 	const int32* Count = Counts.Find(Material);
@@ -52,13 +66,20 @@ TArray<FVaelMaterialStack> UVaelMaterialBag::GetStacks() const
 	TArray<FVaelMaterialStack> Stacks;
 	for (const TPair<TObjectPtr<const UVaelMaterial>, int32>& Pair : Counts)
 	{
-		if (Pair.Key != nullptr)
+		if (Pair.Key == nullptr)
 		{
-			Stacks.Add({ Pair.Key, Pair.Value });
+			continue;
+		}
+
+		// A material with a stack size takes as many fields as it needs
+		const int32 PerField = Pair.Key->StackSize > 0 ? Pair.Key->StackSize : Pair.Value;
+		for (int32 Left = Pair.Value; Left > 0; Left -= PerField)
+		{
+			Stacks.Add({ Pair.Key, FMath::Min(Left, PerField) });
 		}
 	}
 
-	Stacks.Sort([](const FVaelMaterialStack& A, const FVaelMaterialStack& B)
+	Stacks.StableSort([](const FVaelMaterialStack& A, const FVaelMaterialStack& B)
 	{
 		const int32 ByRegion = A.Material->Region.CompareTo(B.Material->Region);
 		return ByRegion != 0 ? ByRegion < 0 : A.Material->DisplayName.CompareTo(B.Material->DisplayName) < 0;
@@ -84,14 +105,34 @@ void UVaelMaterialBag::GiveToGroup(const AActor* Source, const TArray<FVaelLootE
 			continue;
 		}
 
+		// Loot with a model falls to the ground, one copy per player in a small ring, and waits to be picked up
+		const bool bOnGround = Material->LiesOnGround();
+		int32 PlayerIndex = 0;
+		const float Turn = FMath::FRandRange(0.0f, UE_TWO_PI);
 		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 		{
 			const APlayerController* PlayerController = It->Get();
-			const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
-			if (Player != nullptr)
+			AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+			if (Player == nullptr)
+			{
+				continue;
+			}
+
+			if (bOnGround)
+			{
+				const float Angle = Turn + PlayerIndex++ * UE_TWO_PI / 4.0f;
+				const FVector Spot = Source->GetActorLocation() + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * FMath::FRandRange(60.0f, 110.0f);
+				AVaelMaterialDrop::DropMaterial(World, Spot, Material, Count, Player);
+			}
+			else
 			{
 				Player->GetMaterialBag()->AddMaterial(Material, Count);
 			}
+		}
+
+		if (bOnGround)
+		{
+			continue;
 		}
 
 		const FText Label = Count > 1 ? FText::Format(LOCTEXT("LootCount", "{0} ×{1}"), Material->DisplayName, Count) : Material->DisplayName;

@@ -4,8 +4,13 @@
 
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
+#include "Items/VaelItemTypes.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelMaterial.generated.h"
+
+class UMaterialInterface;
+class UStaticMesh;
+class UTexture2D;
 
 /** What kind of crafting ingredient a material is; recipes ask for kinds, not for one certain plant */
 UENUM(BlueprintType)
@@ -40,9 +45,32 @@ enum class EVaelWay : uint8
 	Twilight	UMETA(DisplayName = "Zwielicht")
 };
 
+/** What a thing in the material bag is, shown in its tooltip */
+UENUM(BlueprintType)
+enum class EVaelMaterialCategory : uint8
+{
+	Material	UMETA(DisplayName = "Material"),
+	Crystal		UMETA(DisplayName = "Kristall"),
+	Potion		UMETA(DisplayName = "Trank"),
+	Seed		UMETA(DisplayName = "Saat"),
+	Ingredient	UMETA(DisplayName = "Zutat")
+};
+
+/** What a player can do with a material from the bag; drinking and pouring come in a later step */
+UENUM(BlueprintType)
+enum class EVaelMaterialUse : uint8
+{
+	None			UMETA(DisplayName = "keine"),
+	/** Drunk by the player */
+	Drink			UMETA(DisplayName = "trinken"),
+	/** Poured over a plant, which grows back in its light or shadow form in its next growth cycle */
+	PourOnPlant		UMETA(DisplayName = "über eine Pflanze gießen")
+};
+
 /**
- *  A crafting material: an ore, a plant or a part of a creature, like a Glutdruese or a Markkristall.
+ *  A crafting material: an ore, a plant or a part of a creature, like a Glutdruese or a Nidkristall.
  *  Materials go into the material bag of each player, which stacks them and never runs full.
+ *  A material with a ground mesh lies on the ground as loot when it drops, each player picks up their own copy.
  */
 UCLASS(BlueprintType)
 class UVaelMaterial : public UPrimaryDataAsset
@@ -96,6 +124,42 @@ public:
 	float RegenSeconds = 0.0f;
 
 	bool IsPotion() const { return HealFraction > 0.0f; }
+
+	/** What it is, shown in the tooltip */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	EVaelMaterialCategory Category = EVaelMaterialCategory::Material;
+
+	/** Rarity: colours the frame of its icon in the bag */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	EVaelRarity Rarity = EVaelRarity::Common;
+
+	/** Picture in the bag, rendered in the icon studio of Tools/Loot/vael_loot_baukasten.py; without one a disc in its color stands in */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TSoftObjectPtr<UTexture2D> Icon;
+
+	/** How many fit in one field of the bag; more take further fields. 0: any number in one field */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0))
+	int32 StackSize = 0;
+
+	/** Model lying on the ground when it drops; without one it goes straight into the bags */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TSoftObjectPtr<UMaterialInterface> MeshMaterial;
+
+	/** Second model inside the first, like the liquid in a bottle, with its own material */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TSoftObjectPtr<UStaticMesh> InnerMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TSoftObjectPtr<UMaterialInterface> InnerMaterial;
+
+	/** What a player can do with it; not built yet, see UVaelMaterialBag::UseMaterial */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	EVaelMaterialUse Use = EVaelMaterialUse::None;
+
+	bool LiesOnGround() const { return !Mesh.IsNull(); }
 };
 
 /** One thing a trader sells */

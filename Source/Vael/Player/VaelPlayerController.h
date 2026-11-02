@@ -298,6 +298,12 @@ public:
 	/** True while the right page of the inventory shows the bag of materials */
 	bool IsMaterialBagShown() const { return bMaterialBagShown; }
 
+	/** Selected field of the material bag, in the order of UVaelMaterialBag::GetStacks */
+	int32 GetBagSelection() const { return BagSelection; }
+
+	/** Fields per row of the material bag in the book, the same grid as the backpack */
+	static constexpr int32 BagColumns = 7;
+
 	/** Switches the right page of the inventory between backpack and bag */
 	void OnMenuBag();
 
@@ -535,6 +541,9 @@ protected:
 	int32 InventorySelection = 0;
 
 	bool bMaterialBagShown = false;
+
+	/** Selected field of the material bag */
+	int32 BagSelection = 0;
 
 	/** Row of the compendium page the player has selected, counting through the books in order */
 	int32 CompendiumSelection = 0;

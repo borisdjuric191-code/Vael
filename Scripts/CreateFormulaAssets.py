@@ -638,7 +638,7 @@ FORMULAS = [
     # Mark formulas: castable only once the Mark has awakened (Act III)
     {
         "asset": "DA_Formula_Marksplitter",
-        "display_name": unreal.Text("Marksplitter"),
+        "display_name": unreal.Text("Nidsplitter"),
         "description": unreal.Text("Durchschlagender Splitter. Verdirbt dich."),
         "elements": [Element.MARK],
         "source": Source.MARK,
@@ -691,7 +691,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_Markstoss",
-        "display_name": unreal.Text("Markstoß"),
+        "display_name": unreal.Text("Nidstoß"),
         "description": unreal.Text("Gewaltige Druckwelle. Kostet Leben."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.MARK],
@@ -745,7 +745,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_Markbrand",
-        "display_name": unreal.Text("Markbrand"),
+        "display_name": unreal.Text("Nidbrand"),
         "description": unreal.Text("Schwarzes Feuer springt von Gegner zu Gegner, bis keiner mehr da ist. Kostet Leben."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.MARK, Element.FIRE],
@@ -783,7 +783,7 @@ FORMULAS = [
         "asset": "DA_Formula_OffeneWunde",
         "strike_look": unreal.VaelStrikeLook.OPEN_WOUND,
         "display_name": unreal.Text("Offene Wunde"),
-        "description": unreal.Text("Reißt kurz eine Mark-Quelle auf: gewaltige Pulse. Vernarbt die Region für immer."),
+        "description": unreal.Text("Reißt kurz eine Nid-Quelle auf: gewaltige Pulse. Vernarbt die Region für immer."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.MARK, Element.MARK],
         "source": Source.SEALED,
@@ -807,7 +807,7 @@ FORMULAS = [
         "asset": "DA_Formula_Markkaefig",
         "bone_cage": True,
         "projectile_look": unreal.VaelProjectileLook.MARK_SHARD,
-        "display_name": unreal.Text("Markkäfig"),
+        "display_name": unreal.Text("Nidkäfig"),
         "description": unreal.Text("Knochen sperren einen Gegner ein, kurz auch Bosse. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.MARK, Element.EARTH],
@@ -824,7 +824,7 @@ FORMULAS = [
     {
         "asset": "DA_Formula_Blutflut",
         "display_name": unreal.Text("Blutflut"),
-        "description": unreal.Text("Eine Welle aus Markblut zeichnet die Getroffenen: Sie nehmen mehr Schaden von allem. Verdirbt dich."),
+        "description": unreal.Text("Eine Welle aus Nidblut zeichnet die Getroffenen: Sie nehmen mehr Schaden von allem. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.WATER],
         "source": Source.SEALED,
@@ -858,7 +858,7 @@ FORMULAS = [
     {
         "asset": "DA_Formula_Schwarzwasser",
         "display_name": unreal.Text("Schwarzwasser"),
-        "description": unreal.Text("Markwasser verlangsamt und zeichnet Gegner; du kannst Mark daraus ziehen, doch es sickert in die Region"),
+        "description": unreal.Text("Nidwasser verlangsamt und zeichnet Gegner; du kannst Nid daraus ziehen, doch es sickert in die Region"),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.WATER, Element.WATER],
         "source": Source.SEALED,
@@ -950,7 +950,7 @@ FORMULAS = [
         "asset": "DA_Formula_Sporenschwarm",
         "projectile_look": unreal.VaelProjectileLook.SPORE,
         "display_name": unreal.Text("Sporenschwarm"),
-        "description": unreal.Text("Fünf Mark-Sporen suchen sich selbst ihre Ziele. Verdirbt dich."),
+        "description": unreal.Text("Fünf Nid-Sporen suchen sich selbst ihre Ziele. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.MARK, Element.AIR],
         "source": Source.SEALED,
@@ -967,7 +967,7 @@ FORMULAS = [
     {
         "asset": "DA_Formula_Schattensprung",
         "display_name": unreal.Text("Schattensprung"),
-        "description": unreal.Text("Ein Schritt durch das Mark: kurz unverwundbar, eine brennende Markspur bleibt zurück. Kostet Leben."),
+        "description": unreal.Text("Ein Schritt durch das Nid: kurz unverwundbar, eine brennende Nidspur bleibt zurück. Kostet Leben."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.AIR, Element.AIR],
         "source": Source.SEALED,
@@ -982,7 +982,7 @@ FORMULAS = [
     },
     {
         "asset": "DA_Formula_Markgeburt",
-        "display_name": unreal.Text("Markgeburt"),
+        "display_name": unreal.Text("Nidgeburt"),
         "description": unreal.Text("Der zuletzt Gefallene am Zielpunkt erhebt sich und kämpft kurz für dich. Verdirbt dich."),
         "hint": unreal.Text("Ihr Fragment liegt jenseits der Aschenmark."),
         "elements": [Element.MARK, Element.WATER, Element.EARTH],

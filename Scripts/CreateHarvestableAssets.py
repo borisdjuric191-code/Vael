@@ -61,8 +61,8 @@ HARVESTABLES = [
      "loot": [loot("DA_Material_Glutstein", 1.0, 1, 2)], "regrow_seconds": 240.0, "height": 90.0, "base_color": color("3a302a"), "glow_color": color("ff6a1a")},
     {"asset": "DA_Harvest_Russquarz", "display_name": unreal.Text("Rußquarz"), "compendium_id": "Russquarz", "kind": Kind.STONE,
      "loot": [loot("DA_Material_Russquarz", 1.0, 1, 2)], "regrow_seconds": 240.0, "height": 60.0, "base_color": color("222020"), "glow_color": color("8c8a90")},
-    {"asset": "DA_Harvest_Markdruse", "display_name": unreal.Text("Markdruse"), "compendium_id": "Markdruse", "kind": Kind.STONE,
-     "loot": [loot("DA_Material_Markkristall", 1.0, 1, 1)], "regrow_seconds": 300.0, "height": 110.0, "base_color": color("2a2430"), "glow_color": color("a24dff")},
+    {"asset": "DA_Harvest_Markdruse", "display_name": unreal.Text("Niddruse"), "compendium_id": "Markdruse", "kind": Kind.STONE,
+     "loot": [loot("DA_Material_Nidkristall", 1.0, 1, 1)], "regrow_seconds": 300.0, "height": 110.0, "base_color": color("2a2430"), "glow_color": color("a24dff")},
 ]
 
 

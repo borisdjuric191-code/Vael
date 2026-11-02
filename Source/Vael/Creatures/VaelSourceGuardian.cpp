@@ -86,7 +86,7 @@ void AVaelSourceGuardian::Rise()
 	UE_LOG(LogVael, Log, TEXT("'%s' rises with %.0f health for %d players"), *GetNameSafe(this), ScaledMaxHealth, NumPlayers);
 
 	UVaelNoticeSubsystem::Post(this, FText::Format(LOCTEXT("GuardianRises", "{0} erhebt sich"), GetCreatureName()),
-		LOCTEXT("GuardianRisesDetail", "Die Wesen der Quelle, vom Mark zu einem verschmolzen. Fällt es, schließt sich die Wunde."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 6.0f);
+		LOCTEXT("GuardianRisesDetail", "Die Wesen der Quelle, vom Nid zu einem verschmolzen. Fällt es, schließt sich die Wunde."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 6.0f);
 }
 
 void AVaelSourceGuardian::OnHealthChanged(float OldValue, float NewValue)

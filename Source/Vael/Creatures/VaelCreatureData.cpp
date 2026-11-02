@@ -123,7 +123,7 @@ UVaelPreacherData::UVaelPreacherData()
 
 UVaelMarkWaterPreacherData::UVaelMarkWaterPreacherData()
 {
-	DisplayName = LOCTEXT("MarkWaterPreacher", "Markwasser-Prediger (Test)");
+	DisplayName = LOCTEXT("MarkWaterPreacher", "Nidwasser-Prediger (Test)");
 	KindId = TEXT("PredigerMarkwasser");
 	BodyColor = FLinearColor(0.08f, 0.02f, 0.12f);
 

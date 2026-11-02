@@ -1503,6 +1503,18 @@ void AVaelPlayerController::OnMenuConfirm()
 		return;
 	}
 
+	// In the bag the button uses the selected material (drinking, pouring), which is still a placeholder
+	if (bMaterialBagShown)
+	{
+		const TArray<FVaelMaterialStack> Stacks = VaelCharacter->GetMaterialBag()->GetStacks();
+		BagSelection = FMath::Clamp(BagSelection, 0, FMath::Max(Stacks.Num() - 1, 0));
+		if (Stacks.IsValidIndex(BagSelection))
+		{
+			VaelCharacter->GetMaterialBag()->UseMaterial(Stacks[BagSelection].Material);
+		}
+		return;
+	}
+
 	// Equipment rows take the item off, backpack rows put it on
 	UVaelInventory* Inventory = VaelCharacter->GetInventory();
 	const int32 NumEquipRows = static_cast<int32>(EVaelEquipSlot::Count);
@@ -1553,6 +1565,22 @@ void AVaelPlayerController::NavigateInventory(int32 Right, int32 Down)
 {
 	const int32 NumEquip = static_cast<int32>(EVaelEquipSlot::Count);
 	constexpr int32 Columns = 7;
+
+	// The bag is a grid of its own on the right page
+	if (bMaterialBagShown)
+	{
+		const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+		const int32 NumFields = VaelCharacter != nullptr ? VaelCharacter->GetMaterialBag()->GetStacks().Num() : 0;
+		BagSelection = FMath::Clamp(BagSelection, 0, FMath::Max(NumFields - 1, 0));
+		const int32 Column = BagSelection % BagColumns;
+		const int32 NewColumn = FMath::Clamp(Column + Right, 0, BagColumns - 1);
+		const int32 NewField = (BagSelection / BagColumns + Down) * BagColumns + NewColumn;
+		if (NewField >= 0 && NewField < NumFields)
+		{
+			BagSelection = NewField;
+		}
+		return;
+	}
 
 	if (InventorySelection < NumEquip)
 	{
@@ -1846,7 +1874,7 @@ void AVaelPlayerController::OnCastFinished(EVaelCastResult Result, const UVaelFo
 
 	case EVaelCastResult::MarkAsleep:
 		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkStirs", "Etwas in dir regt sich"),
-			NSLOCTEXT("VaelMagic", "MarkAsleep", "Das Mark schläft noch in dir."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
+			NSLOCTEXT("VaelMagic", "MarkAsleep", "Das Nid schläft noch in dir."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
 		break;
 
 	case EVaelCastResult::EmptyQueue:

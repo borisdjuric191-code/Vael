@@ -122,7 +122,7 @@ bool AVaelMarkSource::CanInteract(const AVaelCharacter* Player) const
 
 FText AVaelMarkSource::GetInteractPrompt() const
 {
-	return FText::Format(NSLOCTEXT("VaelWorld", "OfferCrystals", "{0} Markkristalle opfern"), GetOfferingCrystals());
+	return FText::Format(NSLOCTEXT("VaelWorld", "OfferCrystals", "{0} Nidkristalle opfern"), GetOfferingCrystals());
 }
 
 void AVaelMarkSource::Interact(AVaelCharacter* Player)
@@ -139,7 +139,7 @@ void AVaelMarkSource::Interact(AVaelCharacter* Player)
 	// Not enough crystals: marked creatures carry them
 	if (Crystal == nullptr || !Player->GetMaterialBag()->RemoveMaterial(Crystal, Needed))
 	{
-		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelWorld", "OfferingMissing", "Die Quelle verlangt {0} Markkristalle"), Needed),
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelWorld", "OfferingMissing", "Die Quelle verlangt {0} Nidkristalle"), Needed),
 			FText::Format(NSLOCTEXT("VaelWorld", "OfferingMissingDetail", "Du trägst {0}. Gezeichnete Wesen tragen sie in sich."), Owned),
 			UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 3.5f);
 		return;
@@ -237,7 +237,7 @@ bool AVaelMarkSource::Seal()
 		Quests->NotifyEvent(TEXT("QuelleVersiegelt"));
 	}
 
-	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelWorld", "SourceSealed", "Die Mark-Quelle ist versiegelt"),
+	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelWorld", "SourceSealed", "Die Nid-Quelle ist versiegelt"),
 		NSLOCTEXT("VaelWorld", "SourceSealedDetail", "Die Wunde schließt sich, das Land atmet auf."), FLinearColor(FColor(159, 224, 168)), 4.0f);
 
 	return true;

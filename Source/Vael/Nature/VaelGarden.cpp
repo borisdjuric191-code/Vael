@@ -413,7 +413,7 @@ bool UVaelGardenSubsystem::Harvest(AVaelSownPlant* Plant, AVaelCharacter* Player
 			const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
 			AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + Settings->MarkStingCorruption, 100.0f));
 		}
-		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("MarkSting", "Markstich"));
+		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("MarkSting", "Nidstich"));
 	}
 
 	Saved->bHarvested = true;

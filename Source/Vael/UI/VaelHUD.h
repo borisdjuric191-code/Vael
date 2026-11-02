@@ -18,6 +18,7 @@ class UVaelGrimoireSubsystem;
 class UVaelWorldMap;
 class UTexture2D;
 struct FCompositeFont;
+enum class EVaelWay : uint8;
 struct FSlateFontInfo;
 
 /**
@@ -94,6 +95,17 @@ private:
 
 	/** Name, properties and comparison of an item on a page of the grimoire; T scales the text with the book */
 	void DrawItemDetails(const class UVaelInventory* Inventory, const struct FVaelItem& Selected, bool bFromBackpack, float X, float Y, float Width, float T);
+
+	/** One field of the material bag: icon (or a disc in its color), a frame and shimmer in the color of its rarity, its way sign and count */
+	void DrawBagField(const struct FVaelMaterialStack& Stack, const FVector2D& Center, float Half, float T, float Pulse);
+
+	/** Small sign of a way: sun for light, crescent for shadow, half and half for twilight, nothing for neutral */
+	void DrawWaySign(EVaelWay Way, const FVector2D& Center, float Radius);
+
+	/** Tooltip of a material in the bag: name, category, rarity, element, way and description */
+	void DrawMaterialDetails(const struct FVaelMaterialStack& Stack, float X, float Y, float Width, float T);
+
+	static FText GetElementName(EVaelElement Element);
 
 	/** Draws the inventory page of the menu: equipment, backpack and the selected item compared with what it would replace */
 	void DrawInventory(const AVaelPlayerController* PlayerController);

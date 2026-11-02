@@ -247,9 +247,13 @@ public:
 	UFUNCTION(Exec)
 	void VaelSealSource();
 
-	/** Puts materials into the bag of the player, named like their asset without DA_Material_. Example: VaelMaterial Markkristall 5 */
+	/** Puts materials into the bag of the player, named like their asset without DA_Material_. Example: VaelMaterial Nidkristall 5 */
 	UFUNCTION(Exec)
 	void VaelMaterial(const FString& Name, int32 Count = 1);
+
+	/** Drops a material as loot on the ground before every player, like a creature would; "alle" drops the four loot items of the kit. Example: VaelLoot Nidtrunk */
+	UFUNCTION(Exec)
+	void VaelLoot(const FString& Name, int32 Count = 1);
 
 	/** Drops an item for the player at their feet: a rarity (Gewoehnlich, Magisch, Selten) rolls one, otherwise the item asset without DA_Item_. Example: VaelItem Sturmmantel */
 	UFUNCTION(Exec)

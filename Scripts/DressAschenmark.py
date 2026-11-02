@@ -1081,7 +1081,7 @@ def dress_guild_store(level_actors):
     box.set_editor_property("lines", [
         unreal.Text("Der Speicher ist leer gefegt. Keine Eile, keine Spuren von Flucht: Hier wurde ordentlich geräumt."),
         unreal.Text("In einer vergessenen Kassette liegt ein Räumungsbefehl mit Gildensiegel. Das Datum: zwei Wochen vor der Flut."),
-        unreal.Text("Darunter Messprotokolle. Die Mark-Werte unter Kesselgrund steigen von Blatt zu Blatt, und jemand hat jede Zahl abgezeichnet."),
+        unreal.Text("Darunter Messprotokolle. Die Nid-Werte unter Kesselgrund steigen von Blatt zu Blatt, und jemand hat jede Zahl abgezeichnet."),
     ])
     box.set_folder_path("Dorf/Gildenspeicher")
     box.set_actor_label("Kassette der Gilde")

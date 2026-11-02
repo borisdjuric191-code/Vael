@@ -266,7 +266,7 @@ MODELS = {
 
 LOOKS = {
     "Nidkristall": {"Farbe": (0.09, 0.012, 0.2), "Leuchten": 2.4, "Truebung": 0.3, "Adern": 1.0, "AderFarbe": (0.8, 0.35, 1.0)},
-    "GelaeuterterKristall": {"Farbe": (1.0, 0.76, 0.4), "Leuchten": 0.9, "Truebung": 0.1, "Adern": 0.12, "AderFarbe": (1.0, 0.95, 0.8)},
+    "GelaeuterterKristall": {"Farbe": (0.85, 0.42, 0.06), "Leuchten": 0.8, "Truebung": 0.08, "Adern": 0.2, "AderFarbe": (1.0, 0.86, 0.5)},
     "Nidtrunk": {"Farbe": (0.2, 0.025, 0.32), "Leuchten": 0.8, "Truebung": 0.85, "Adern": 0.0, "AderFarbe": (0.6, 0.2, 1.0)},
     "Klartrunk": {"Farbe": (1.0, 0.7, 0.28), "Leuchten": 0.6, "Truebung": 0.03, "Adern": 0.0, "AderFarbe": (1.0, 0.9, 0.7)},
 }

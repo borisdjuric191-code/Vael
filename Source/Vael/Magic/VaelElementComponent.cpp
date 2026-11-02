@@ -106,7 +106,7 @@ bool UVaelElementComponent::AddElement(EVaelElement Element)
 	if (Element == EVaelElement::Mark && (Grimoire == nullptr || !Grimoire->IsMarkAwakened()))
 	{
 		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkStirs", "Etwas in dir regt sich"),
-			NSLOCTEXT("VaelMagic", "MarkAsleep", "Das Mark schläft noch in dir."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
+			NSLOCTEXT("VaelMagic", "MarkAsleep", "Das Nid schläft noch in dir."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
 		return false;
 	}
 
@@ -340,7 +340,7 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 
 		if (NewCorruption >= WorldSettings->CorruptionWhisperThreshold && FMath::FRand() < WorldSettings->CorruptionWhisperChance)
 		{
-			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkWhisper", "…tiefer…"), NSLOCTEXT("VaelMagic", "MarkWhisperDetail", "Das Mark flüstert in deinem Kopf."),
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkWhisper", "…tiefer…"), NSLOCTEXT("VaelMagic", "MarkWhisperDetail", "Das Nid flüstert in deinem Kopf."),
 				FLinearColor(FColor(185, 139, 232)), 3.0f);
 		}
 	}

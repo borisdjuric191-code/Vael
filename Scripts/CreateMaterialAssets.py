@@ -88,10 +88,10 @@ MATERIALS = [
         "color": color("ff6a1a"),
     },
     {
-        "asset": "DA_Material_Markkristall",
-        "display_name": unreal.Text("Markkristall"),
-        "description": unreal.Text("Verdichtetes Mark aus einem gezeichneten Wesen. Opfergabe an Mark-Quellen."),
-        "region": unreal.Text("Mark"),
+        "asset": "DA_Material_Nidkristall",
+        "display_name": unreal.Text("Nidkristall"),
+        "description": unreal.Text("Erstarrtes Blut der Schlafenden. Man kann es opfern, läutern oder nutzen."),
+        "region": unreal.Text("Nid"),
         "color": color("a24dff"),
     },
     # Sold by the Gildenkontor; every player starts with two
@@ -266,7 +266,7 @@ MATERIALS = [
     {
         "asset": "DA_Material_Kelchfleisch",
         "display_name": unreal.Text("Kelchfleisch"),
-        "description": unreal.Text("Ein Stück vom Fleischkelch, durchzogen von violetten Adern. Mark-Zutat."),
+        "description": unreal.Text("Ein Stück vom Fleischkelch, durchzogen von violetten Adern. Nid-Zutat."),
         "region": unreal.Text("Aschenmark"),
         "color": color("b0506a"),
     },
@@ -287,7 +287,7 @@ MATERIALS = [
     {
         "asset": "DA_Material_Myzelprobe",
         "display_name": unreal.Text("Adernflechte"),
-        "description": unreal.Text("Feine weiße Fäden der Adernflechte. Färben sich violett, wenn Mark in der Nähe ist."),
+        "description": unreal.Text("Feine weiße Fäden der Adernflechte. Färben sich violett, wenn Nid in der Nähe ist."),
         "region": unreal.Text("Aschenmark"),
         "color": color("eae4d6"),
     },
@@ -378,7 +378,7 @@ EXISTING_INGREDIENTS = {
     "DA_Material_Schlacke": (K.PART, E.EARTH, W.NEUTRAL),
     "DA_Material_Glutstein": (K.PART, E.FIRE, W.NEUTRAL),
     "DA_Material_Russquarz": (K.PART, E.EARTH, W.NEUTRAL),
-    "DA_Material_Markkristall": (K.PART, E.MARK, W.SHADOW),
+    "DA_Material_Nidkristall": (K.PART, E.MARK, W.SHADOW),
     "DA_Material_Glutdruese": (K.PART, E.FIRE, W.NEUTRAL),
     "DA_Material_Russfeder": (K.PART, E.AIR, W.NEUTRAL),
     "DA_Material_Aeltestenschwinge": (K.PART, E.AIR, W.NEUTRAL),

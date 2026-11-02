@@ -111,9 +111,9 @@ QUESTS = [
         "steps": [
             step("Frag Edda nach dem Leuchten im Osten", Objective.TALK, EDDA, lines=[
                 "Die Quelle im Osten blutet weiter, und mit jedem Tag frisst sie mehr Land.",
-                "Gezeichnete Wesen tragen Markkristalle in sich. Bring genug davon zur Quelle, dann zeigt sich, was sie bewacht.",
+                "Gezeichnete Wesen tragen Nidkristalle in sich. Bring genug davon zur Quelle, dann zeigt sich, was sie bewacht.",
             ]),
-            step("Versiegle die Mark-Quelle im Osten", Objective.EVENT, "QuelleVersiegelt"),
+            step("Versiegle die Nid-Quelle im Osten", Objective.EVENT, "QuelleVersiegelt"),
             step("Kehr zu Edda zurück", Objective.TALK, EDDA, lines=[
                 "Ich spüre es bis ans Feuer. Das Land atmet wieder, ein bisschen.",
             ]),

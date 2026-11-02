@@ -658,12 +658,12 @@ void UVaelCheatManager::VaelAwakenMark()
 		return;
 	}
 
-	const bool bAwakened = Grimoire->AwakenMark(NSLOCTEXT("VaelMagic", "MarkAwakensCheat", "Das Mark erwacht in dir."));
+	const bool bAwakened = Grimoire->AwakenMark(NSLOCTEXT("VaelMagic", "MarkAwakensCheat", "Das Nid erwacht in dir."));
 	UE_LOG(LogVael, Log, TEXT("VaelAwakenMark: %s"), bAwakened ? TEXT("the Mark awakens") : TEXT("the Mark is awake already"));
 
 	// Seen on screen too, with the button of the fifth element
-	UVaelNoticeSubsystem::Post(GetWorld()->GetGameInstance(), bAwakened ? NSLOCTEXT("VaelMagic", "MarkAwakeCheat", "Das Mark ist erwacht") : NSLOCTEXT("VaelMagic", "MarkAwakeAlready", "Das Mark ist schon wach"),
-		NSLOCTEXT("VaelMagic", "MarkButtonHint", "Mark-Element: RB / R1 oder Taste 5"), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 5.0f);
+	UVaelNoticeSubsystem::Post(GetWorld()->GetGameInstance(), bAwakened ? NSLOCTEXT("VaelMagic", "MarkAwakeCheat", "Das Nid ist erwacht") : NSLOCTEXT("VaelMagic", "MarkAwakeAlready", "Das Nid ist schon wach"),
+		NSLOCTEXT("VaelMagic", "MarkButtonHint", "Nid-Element: RB / R1 oder Taste 5"), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 5.0f);
 }
 
 void UVaelCheatManager::VaelSealSource()
@@ -712,7 +712,47 @@ void UVaelCheatManager::VaelMaterial(const FString& Name, int32 Count)
 	}
 	else
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelMaterial: no material %s, try Glutdruese, Russfeder, Ordenssiegel, Aeltestenschwinge, Markkristall or HerzDerGlut"), *AssetName);
+		UE_LOG(LogVael, Warning, TEXT("VaelMaterial: no material %s, try Glutdruese, Russfeder, Ordenssiegel, Aeltestenschwinge, Nidkristall or HerzDerGlut"), *AssetName);
+	}
+}
+
+void UVaelCheatManager::VaelLoot(const FString& Name, int32 Count)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* VaelCharacter = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (VaelCharacter == nullptr)
+	{
+		return;
+	}
+
+	TArray<FString> Names;
+	if (Name.Equals(TEXT("alle"), ESearchCase::IgnoreCase))
+	{
+		Names = { TEXT("Nidkristall"), TEXT("GelaeuterterKristall"), TEXT("Nidtrunk"), TEXT("Klartrunk") };
+	}
+	else
+	{
+		Names.Add(Name);
+	}
+
+	// Drops land in a ring around the source; the player's feet are the source, a little ahead so they don't pick it up at once
+	TArray<FVaelLootEntry> Loot;
+	for (const FString& Each : Names)
+	{
+		const FString AssetName = TEXT("DA_Material_") + Each;
+		const FString Path = FString::Printf(TEXT("/Game/Vael/Items/Materials/%s.%s"), *AssetName, *AssetName);
+		Loot.Add(FVaelLootEntry(*Path, 1.0f, FMath::Max(Count, 1), FMath::Max(Count, 1)));
+	}
+
+	FActorSpawnParameters Parameters;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	const FVector Ahead = VaelCharacter->GetActorLocation() + VaelCharacter->GetActorForwardVector() * 320.0f;
+	if (AActor* Source = GetWorld()->SpawnActor<AActor>(AActor::StaticClass(), FTransform(Ahead), Parameters))
+	{
+		Source->SetRootComponent(NewObject<USceneComponent>(Source));
+		Source->GetRootComponent()->SetWorldLocation(Ahead);
+		UVaelMaterialBag::GiveToGroup(Source, Loot);
+		Source->Destroy();
 	}
 }
 
