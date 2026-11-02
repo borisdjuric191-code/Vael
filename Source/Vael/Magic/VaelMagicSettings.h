@@ -387,6 +387,14 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
 	float StirExhaustSeconds = 0.15f;
 
+	/** Steinkreis as a shield (Boris 2026-11-02): at least this many stones, flat slabs standing on edge and facing outwards, their
+	 *  width, height and thickness against the stone size of the formula; they whirl so closely that hardly a projectile gets through */
+	UPROPERTY(config, EditAnywhere, Category="Orbit", meta = (ClampMin = 1))
+	int32 OrbitShieldStones = 8;
+
+	UPROPERTY(config, EditAnywhere, Category="Orbit")
+	FVector OrbitSlabShape = FVector(0.5f, 2.3f, 2.1f);
+
 	/** Sky call (weather spells): seconds of murmuring with the arms raised until the cloud comes, and of the whole gesture;
 	 *  how high above the target the threads of the call end, where the cloud gathers */
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))

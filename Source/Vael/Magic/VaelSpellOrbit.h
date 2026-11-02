@@ -22,7 +22,8 @@ struct FVaelOrbitSettings
 /**
  *  Stones circling a caster for some seconds, like the Steinkreis. They follow the caster, hit every enemy they touch
  *  (each enemy at most every half second) and stop the projectiles of enemies. A caster has one circle at a time.
- *  Look: rocks of the earth orb that tumble as they circle, brown spheres while the pack is missing.
+ *  Look (Boris 2026-11-02, a shield for the mage): big flat slabs of the earth orb's rock standing on edge, facing outwards,
+ *  whirling so closely round the caster that hardly a projectile gets through; brown spheres while the pack is missing.
  */
 UCLASS()
 class AVaelSpellOrbit : public AActor
@@ -55,6 +56,20 @@ private:
 
 	/** Lets the stones break apart and goes */
 	void Shatter();
+
+	/** Breaks the projectiles of enemies that reach a slab */
+	void BlockProjectiles(float DeltaSeconds);
+
+	/** Thickness, width and height of a slab in cm */
+	FVector SlabSize = FVector(22.0f, 100.0f, 95.0f);
+
+	/** Projectiles broken on the slabs so far */
+	int32 NumBlocked = 0;
+
+public:
+
+	/** Projectiles broken on the slabs so far */
+	int32 GetBlockedCount() const { return NumBlocked; }
 
 	FVaelSpellHit Hit;
 	FVaelOrbitSettings Settings;

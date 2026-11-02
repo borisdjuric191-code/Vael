@@ -25,6 +25,8 @@
 #include "Items/VaelPickupOrb.h"
 #include "Items/VaelRechargeGlow.h"
 #include "Magic/VaelSnowDrift.h"
+#include "Magic/VaelSpellOrbit.h"
+#include "Magic/VaelSpellProjectile.h"
 #include "Magic/VaelGroundArea.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
@@ -1889,6 +1891,53 @@ void AVaelSmokeTest::BeginPlay()
 	Steps.Add({ TEXT("Snow drift melted"), [Drift]()
 	{
 		return FString::Printf(TEXT("drift melted: %s"), Drift->IsValid() ? TEXT("NO") : TEXT("yes"));
+	}, 0.1f });
+
+	// The Steinkreis as a shield: shots from all round at the player inside it, how many break on the slabs
+	constexpr int32 ShieldShots = 16;
+	TSharedRef<float> ShieldHealth = MakeShared<float>(0.0f);
+
+	Steps.Add({ TEXT("Stone shield"), [this, ShieldShots, ShieldHealth]()
+	{
+		const FString Arena = PrepareArena(GetMutableDefault<UVaelHornBeetleData>(), 1);
+		AVaelCharacter* Player = GetPlayer();
+		AVaelCreature* Shooter = nullptr;
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			Shooter = *It;
+		}
+		if (Player == nullptr || Shooter == nullptr)
+		{
+			return FString::Printf(TEXT("FAILED: no player or shooter (%s)"), *Arena);
+		}
+		UVaelCombatStatics::ApplyStatus(nullptr, Shooter, EVaelStatus::Frozen, 10.0f);
+		// Grown before the shots arrive: they start just outside the circle, clear of walls and slopes
+		AVaelSpellOrbit::Start(Player, FVaelSpellHit(), FVaelOrbitSettings());
+		RefillPlayer();
+		*ShieldHealth = Player->GetHealth();
+
+		FVaelSpellHit Shot;
+		Shot.Damage = 5.0f;
+		Shot.Element = EVaelElement::Earth;
+		for (int32 Index = 0; Index < ShieldShots; ++Index)
+		{
+			const float Angle = Index * UE_TWO_PI / ShieldShots;
+			const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+			AVaelSpellProjectile::Launch(Shooter, Player->GetActorLocation() + Out * 380.0f, -Out, Shot, 1500.0f, 15.0f, 1.5f, FLinearColor::White);
+		}
+		return FString::Printf(TEXT("%d shots at the player in the circle"), ShieldShots);
+	}, 1.2f });
+
+	Steps.Add({ TEXT("Stone shield holds"), [this, ShieldShots, ShieldHealth]()
+	{
+		int32 Blocked = 0;
+		for (TActorIterator<AVaelSpellOrbit> It(GetWorld()); It; ++It)
+		{
+			Blocked += It->GetBlockedCount();
+		}
+		const AVaelCharacter* Player = GetPlayer();
+		const float Lost = Player != nullptr ? *ShieldHealth - Player->GetHealth() : 0.0f;
+		return FString::Printf(TEXT("%d of %d shots broke on the slabs, player lost %.0f health"), Blocked, ShieldShots, Lost);
 	}, 0.1f });
 
 	StepTimeLeft = SmokeWarmUp;

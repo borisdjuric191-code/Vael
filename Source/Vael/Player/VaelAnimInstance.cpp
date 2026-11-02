@@ -178,6 +178,9 @@ namespace
 	/** Degrees the forearm turns so the palm looks up while it scoops water; its sign follows the side of the arm */
 	constexpr float WaterFlickPalmTurn = 110.0f;
 
+	/** Degrees the raised hands of the weather call turn (forearm and wrist share it) so the palms face each other; its sign follows the side of the arm */
+	constexpr float SkyCallPalmTurn = 180.0f;
+
 	/** Lays an arm so its wrist reaches a place, the elbow towards the pole; a place out of reach is reached for as far as the arm goes */
 	void ReachPoseArm(FCSPose<FCompactPose>& Pose, FCompactPoseBoneIndex Upper, FCompactPoseBoneIndex Lower, FCompactPoseBoneIndex Hand, const FVector& Target, const FVector& Pole)
 	{
@@ -880,13 +883,18 @@ void FVaelAnimProxy::ApplySkyCall(FCSPose<FCompactPose>& Pose, const FBoneContai
 		const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
 		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
 
-		// Both arms stretched up and apart like a V, a little forward, the open palms turned up to the sky; they sway a hair with the words
+		// Both arms stretched up and apart like a V, a little forward, the open palms facing each other (Boris 2026-11-02);
+		// they sway a hair with the words
 		SwingPoseBone(Pose, Clavicle, Upper, FVector::ZAxisVector, 10.0f * Weight);
 		const float Sway = 0.04f * FMath::Sin(T * 5.0f + Side * 1.3f) * Murmur;
 		const FVector Raised = FVector(Outward * (0.45f + Sway), 0.22f, 0.87f).GetSafeNormal();
 		AimPoseBone(Pose, Upper, Lower, Raised, Weight);
-		AimPoseBone(Pose, Lower, Hand, (Raised + FVector(Outward * 0.1f, 0.0f, 0.0f)).GetSafeNormal(), Weight);
-		AimPoseBone(Pose, Hand, Middle, FVector(Outward * 0.55f, 0.15f, 0.8f).GetSafeNormal(), Weight);
+		AimPoseBone(Pose, Lower, Hand, Raised, Weight);
+		const FVector Forearm = PoseBoneDirection(Pose, Lower, Hand);
+		TurnPoseBone(Pose, Lower, FQuat(Forearm, FMath::DegreesToRadians(Outward * SkyCallPalmTurn * 0.6f * Weight)));
+		AimPoseBone(Pose, Hand, Middle, (Raised - FVector(Outward * 0.12f, 0.0f, 0.0f)).GetSafeNormal(), Weight);
+		const FVector HandWay = PoseBoneDirection(Pose, Hand, Middle);
+		TurnPoseBone(Pose, Hand, FQuat(HandWay, FMath::DegreesToRadians(Outward * SkyCallPalmTurn * 0.4f * Weight)));
 		OpenHand(Pose, Bones, Suffix, Weight * 0.9f);
 	}
 }

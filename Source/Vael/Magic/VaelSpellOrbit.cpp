@@ -25,8 +25,9 @@ namespace
 	/** Seconds before a stone can hit the same enemy again */
 	constexpr float OrbitHitCooldown = 0.5f;
 
-	/** The stones bob up and down by this much in cm */
-	constexpr float OrbitBob = 12.0f;
+	/** The stones bob up and down by this much in cm, and the slabs rock on their edge by up to these degrees */
+	constexpr float OrbitBob = 6.0f;
+	constexpr float OrbitSlabRock = 6.0f;
 }
 
 AVaelSpellOrbit::AVaelSpellOrbit()
@@ -75,10 +76,14 @@ void AVaelSpellOrbit::BeginPlay()
 	UMaterialInterface* GlowMaterial = nullptr;
 	VaelEffects::LoadLookMaterials(CoreMaterial, GlowMaterial);
 
-	// The rock of the earth orb; brown spheres stand in for it while the pack is missing
-	UStaticMesh* RockMesh = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementOrbRockMesh);
-	const float MeshSize = RockMesh != nullptr ? FMath::Max(RockMesh->GetBounds().BoxExtent.GetMax() * 2.0f, 1.0f) : OrbitSphereSize;
-	StoneScale = FVector(Settings.StoneSize / MeshSize);
+	// A shield of flat slabs standing on edge (Boris 2026-11-02): more and bigger stones than the formula's rocks, pressed flat,
+	// facing outwards. The rock of the earth orb pressed into shape; brown spheres stand in for it while the pack is missing
+	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
+	Settings.Count = FMath::Max(Settings.Count, MagicSettings->OrbitShieldStones);
+	SlabSize = MagicSettings->OrbitSlabShape * Settings.StoneSize;
+	UStaticMesh* RockMesh = VaelAssets::LoadOptional(MagicSettings->ElementOrbRockMesh);
+	const FVector MeshSize = RockMesh != nullptr ? RockMesh->GetBounds().BoxExtent.ComponentMax(FVector(0.5f)) * 2.0f : FVector(OrbitSphereSize);
+	StoneScale = SlabSize / MeshSize;
 
 	for (int32 StoneIndex = 0; StoneIndex < Settings.Count; ++StoneIndex)
 	{
@@ -95,7 +100,8 @@ void AVaelSpellOrbit::BeginPlay()
 		Stone->SetVisibility(true);
 
 		Stones.Add(Stone);
-		Tumbles.Add(FRotator(FMath::FRandRange(-200.0f, 200.0f), FMath::FRandRange(-300.0f, 300.0f), FMath::FRandRange(-150.0f, 150.0f)));
+		// No tumbling: a slab only rocks a little on its edge, so it keeps its face to the outside
+		Tumbles.Add(FRotator(FMath::FRandRange(-1.0f, 1.0f), FMath::FRandRange(0.0f, 360.0f), FMath::FRandRange(-1.0f, 1.0f)));
 	}
 
 	Tick(0.0f);
@@ -131,8 +137,12 @@ void AVaelSpellOrbit::Tick(float DeltaSeconds)
 	{
 		const FVector StoneLocation = GetStoneLocation(StoneIndex);
 
+		// Face out from the caster, rocking a little on its edge with its own rhythm
+		const float Facing = Age * Settings.Speed + StoneIndex * 360.0f / Settings.Count;
+		const FRotator& Rock = Tumbles[StoneIndex];
+		const float Phase = Age * 4.0f + Rock.Yaw;
 		Stones[StoneIndex]->SetWorldLocation(StoneLocation);
-		Stones[StoneIndex]->SetWorldRotation(Tumbles[StoneIndex] * Age);
+		Stones[StoneIndex]->SetWorldRotation(FRotator(OrbitSlabRock * FMath::Sin(Phase) * Rock.Pitch, Facing, OrbitSlabRock * FMath::Sin(Phase * 1.3f) * Rock.Roll));
 		Stones[StoneIndex]->SetWorldScale3D(StoneScale * Grow);
 
 		// Enemies the stone touches are hit and thrown outwards
@@ -144,9 +154,9 @@ void AVaelSpellOrbit::Tick(float DeltaSeconds)
 				continue;
 			}
 
-			const float Reach = Settings.StoneSize * 0.5f + Enemy->GetSimpleCollisionRadius();
+			const float Reach = SlabSize.Y * 0.5f + Enemy->GetSimpleCollisionRadius();
 			if (FVector::DistSquared2D(StoneLocation, Enemy->GetActorLocation()) > FMath::Square(Reach)
-				|| FMath::Abs(StoneLocation.Z - Enemy->GetActorLocation().Z) > Enemy->GetSimpleCollisionHalfHeight() + Settings.StoneSize)
+				|| FMath::Abs(StoneLocation.Z - Enemy->GetActorLocation().Z) > Enemy->GetSimpleCollisionHalfHeight() + SlabSize.Z * 0.5f)
 			{
 				continue;
 			}
@@ -160,14 +170,44 @@ void AVaelSpellOrbit::Tick(float DeltaSeconds)
 			LastHitTimes.Add(Enemy, Now);
 			UVaelCombatStatics::ApplySpellHit(Caster, Enemy, Hit, Enemy->GetActorLocation() - GetActorLocation());
 		}
+	}
 
-		// Projectiles of enemies break on the stones
-		for (TActorIterator<AVaelSpellProjectile> It(GetWorld()); It; ++It)
+	BlockProjectiles(DeltaSeconds);
+}
+
+void AVaelSpellOrbit::BlockProjectiles(float DeltaSeconds)
+{
+	// Projectiles of enemies that reach the ring break on a slab, if one is there or whirls past within the frame; the slabs
+	// spin so fast and stand so close that hardly anything gets through. Checked on the ring itself, so a fast shot that would
+	// jump over a thin slab between two frames is still caught.
+	const APawn* Caster = GetInstigator();
+	const FVector Center = GetActorLocation();
+	const float Grow = FMath::Clamp(Age / OrbitGrowTime, 0.0f, 1.0f);
+	const float SpinPerFrame = FMath::Abs(Settings.Speed) * DeltaSeconds;
+	for (TActorIterator<AVaelSpellProjectile> It(GetWorld()); It; ++It)
+	{
+		AVaelSpellProjectile* Projectile = *It;
+		if (!UVaelCombatStatics::CanDamage(Projectile->GetInstigator(), Caster))
 		{
-			if (UVaelCombatStatics::CanDamage(It->GetInstigator(), Caster)
-				&& FVector::DistSquared(StoneLocation, It->GetActorLocation()) <= FMath::Square(Settings.StoneSize * 0.5f + It->GetSimpleCollisionRadius()))
+			continue;
+		}
+		const FVector Offset = Projectile->GetActorLocation() - Center;
+		const float Size = Projectile->GetSimpleCollisionRadius();
+		const float Travel = Projectile->GetVelocity().Size() * DeltaSeconds;
+		if (FMath::Abs(Offset.Size2D() - Settings.Radius) > SlabSize.X * 0.5f + Size + Travel * 0.5f || FMath::Abs(Offset.Z) > SlabSize.Z * 0.5f * Grow + Size)
+		{
+			continue;
+		}
+		const float Bearing = FMath::RadiansToDegrees(FMath::Atan2(Offset.Y, Offset.X));
+		const float HalfSlab = FMath::RadiansToDegrees((SlabSize.Y * 0.5f * Grow + Size) / FMath::Max(Settings.Radius, 1.0f));
+		for (int32 StoneIndex = 0; StoneIndex < Stones.Num(); ++StoneIndex)
+		{
+			const float Facing = Age * Settings.Speed + StoneIndex * 360.0f / Settings.Count;
+			if (FMath::Abs(FMath::FindDeltaAngleDegrees(Facing, Bearing)) <= HalfSlab + SpinPerFrame * 0.5f)
 			{
-				It->Block();
+				Projectile->Block();
+				++NumBlocked;
+				break;
 			}
 		}
 	}
