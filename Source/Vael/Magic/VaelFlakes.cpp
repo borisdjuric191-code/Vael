@@ -33,7 +33,7 @@ namespace
 	const FFlakeMotion Motions[FlakeKinds] =
 	{
 		{ 85.0f, 16.0f, 1.6f, 1.2f },	// Snow
-		{ 120.0f, 24.0f, 1.2f, 2.0f },	// Soot
+		{ 120.0f, 18.0f, 1.0f, 0.8f },	// Soot: turns slowly, flipping fast looks like confetti
 		{ 260.0f, 6.0f, 3.0f, 5.0f },	// Ember
 		{ 150.0f, 12.0f, 1.8f, 2.5f }	// Ash
 	};

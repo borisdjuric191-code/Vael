@@ -41,8 +41,8 @@ namespace
 	constexpr int32 FirstFall = 40;
 
 	/** Width of the flakes in cm */
-	constexpr float SootSize = 15.0f;
-	constexpr float EmberSize = 8.0f;
+	constexpr float SootSize = 8.0f;
+	constexpr float EmberSize = 5.0f;
 
 	/** Small fires lit by embers: chance per hot landing, most per rain, apart from each other, their radius and seconds */
 	constexpr float FireChance = 0.3f;
