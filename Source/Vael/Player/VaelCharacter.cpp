@@ -721,8 +721,8 @@ void AVaelCharacter::UpdateHover(float DeltaSeconds)
 
 	FlightPose.Weight = Flying;
 	FlightPose.Tilt = MeshRotation.Inverse() * Tilt * MeshRotation;
-	const FVector LegSwing = (FlightLean - FlightLegLag) - Velocity / TopSpeed * Settings->FlightLegTrail * Flying;
-	FlightPose.LegSwing = MeshRotation.UnrotateVector(LegSwing);
+	const FVector TrailingLegSwing = (FlightLean - FlightLegLag) - Velocity / TopSpeed * Settings->FlightLegTrail * Flying;
+	FlightPose.LegSwing = MeshRotation.UnrotateVector(TrailingLegSwing);
 	// Slow paddling of the legs in turn while she hovers, quieter in fast flight when they trail behind
 	const float Paddle = Settings->FlightLegKick * Flying * (1.0f - 0.5f * FlightSpeedShare);
 	const float PaddlePhase = Time * 0.65f * 2.0f * UE_PI + GetUniqueID() * 0.7f;

@@ -371,9 +371,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Loot", meta = (ClampMin = 0))
 	float ManaOrbAmount = 35.0f;
 
-	/** Players this close to an orb pick it up, in cm (prototype: 0.9 tiles) */
+	/** Players this close to a moth draw it to them, in cm */
 	UPROPERTY(config, EditAnywhere, Category="Loot", meta = (ClampMin = 0))
-	float OrbPickupRadius = 126.0f;
+	float OrbPickupRadius = 320.0f;
 
 	/** Region corruption an unsealed Mark source adds per minute */
 	UPROPERTY(config, EditAnywhere, Category="Mark Sources", meta = (ClampMin = 0))

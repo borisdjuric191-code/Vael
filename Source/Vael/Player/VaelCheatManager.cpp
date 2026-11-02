@@ -23,6 +23,7 @@
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "Items/VaelPickupOrb.h"
 #include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Nature/VaelGarden.h"
@@ -1300,6 +1301,19 @@ void UVaelCheatManager::VaelBrand(float Radius, float Metres, const FString& Whe
 	// Burns for a while like the fire of a spell; a second call on the same spot feeds it, so it grows as a Brandherd
 	AVaelFireSpot::SpawnOrJoin(GetWorld(), Location, Shape, 25.0f, false);
 	UE_LOG(LogVael, Display, TEXT("VaelBrand: fire of %.0f cm at %s, player at %s"), Shape.Radius, *Location.ToCompactString(), *Player->GetActorLocation().ToCompactString());
+}
+
+void UVaelCheatManager::VaelFalter()
+{
+	const APawn* Player = GetOuterAPlayerController()->GetPawn();
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	const FVector Beside = Player->GetActorRightVector() * (UVaelWorldSettings::Get()->OrbPickupRadius + 60.0f);
+	AVaelPickupOrb::DropOrb(GetWorld(), Player->GetActorLocation() + Beside, EVaelOrbKind::Health);
+	AVaelPickupOrb::DropOrb(GetWorld(), Player->GetActorLocation() - Beside, EVaelOrbKind::Mana);
 }
 
 void UVaelCheatManager::VaelNatterBrut()

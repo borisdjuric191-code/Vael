@@ -262,4 +262,8 @@ public:
 	/** Puts on the item from the given field of the backpack, counted from 1. Example: VaelEquip 1 */
 	UFUNCTION(Exec)
 	void VaelEquip(int32 BackpackField);
+
+	/** Lets a health and a mana moth rise on either side of the player, just out of reach */
+	UFUNCTION(Exec)
+	void VaelFalter();
 };

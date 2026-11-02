@@ -22,6 +22,7 @@
 #include "Creatures/VaelKelchreisser.h"
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Creatures/VaelPoisonPuddle.h"
+#include "Items/VaelPickupOrb.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelRockWall.h"
@@ -1828,6 +1829,27 @@ void AVaelSmokeTest::BeginPlay()
 		const FString Before = Compendium->Describe();
 		const int32 NumStudied = Compendium->StudyAtCamp();
 		return FString::Printf(TEXT("%s; %d researched by study"), *Before, NumStudied);
+	}, 0.1f });
+
+	// Moths: next to a player at full health the mana moth flies over and dissolves, the health moth waits
+	TSharedRef<TWeakObjectPtr<AVaelPickupOrb>> HealthMoth = MakeShared<TWeakObjectPtr<AVaelPickupOrb>>();
+	TSharedRef<TWeakObjectPtr<AVaelPickupOrb>> ManaMoth = MakeShared<TWeakObjectPtr<AVaelPickupOrb>>();
+	Steps.Add({ TEXT("Moths rise"), [this, HealthMoth, ManaMoth]()
+	{
+		const AVaelCharacter* Player = GetPlayer();
+		if (Player == nullptr)
+		{
+			return FString(TEXT("FAILED: no player"));
+		}
+
+		*HealthMoth = AVaelPickupOrb::DropOrb(GetWorld(), Player->GetActorLocation() + FVector(200.0f, 0.0f, 0.0f), EVaelOrbKind::Health);
+		*ManaMoth = AVaelPickupOrb::DropOrb(GetWorld(), Player->GetActorLocation() - FVector(200.0f, 0.0f, 0.0f), EVaelOrbKind::Mana);
+		return FString(TEXT("one of each dropped"));
+	}, 3.0f });
+
+	Steps.Add({ TEXT("Moths land"), [HealthMoth, ManaMoth]()
+	{
+		return FString::Printf(TEXT("health moth waits: %s; mana moth given: %s"), HealthMoth->IsValid() ? TEXT("yes") : TEXT("NO"), ManaMoth->IsValid() ? TEXT("NO") : TEXT("yes"));
 	}, 0.1f });
 
 	StepTimeLeft = SmokeWarmUp;
