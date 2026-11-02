@@ -9,10 +9,12 @@ gezeichnetes Bild gleichen Namens ersetzbar.
 
 Gefäße (RGBA): R = Innenraum, in dem die Flüssigkeit steht; G = Glas, Metall, Knochen und Zierrat; B = Risse; A = alles.
 Ornamente, Symbole, Klaue (RGBA): weiß mit Alpha = Form, das Spiel färbt sie ein.
-Adern (RGBA): R = Aderlinien, G = Weg ab der Ecke (0 an der Ecke, 1 am Ende), damit sie mit der Verderbnis kriechen.
+Adern (RGBA): R = Gefäß, G = Weg ab der Ecke (erstes Bündel 0..0,5 von links unten, zweites 0,5..1 von rechts oben),
+damit sie mit der Verderbnis kriechen; B = eingebackenes Licht der gewölbten Ader (0,5 neutral, oben links beleuchtet,
+nasser Glanz ganz oben); A = weicher Schatten der Ader auf dem Rahmen.
 
 Aufruf:
-  blender -b -P vael_hud_formen.py -- <Zielordner>
+  blender -b -P vael_hud_formen.py -- <Zielordner> [Teile: gefaesse klaue ornamente adern symbole]
 """
 import math
 import os
@@ -305,37 +307,88 @@ def ornaments(folder):
 
 # ---------------------------------------------------------------- Nid-Adern (von der linken unteren Ecke)
 
+def blur(a, r):
+    """Kastenunschärfe, zweimal je Achse: fast wie ein Gauß"""
+    for _ in range(2):
+        for axis in (0, 1):
+            a = sum(np.roll(a, k, axis) for k in range(-r, r + 1)) / (2 * r + 1)
+    return a
+
+
 def veins(folder):
-    w, h = 512, 136
-    x, y = grid(w, h)
-    x = x * (w / h)                     # in Höhen-Einheiten, damit die Adern nicht gestreckt werden
-    rng = np.random.default_rng(7)
-    lines = np.full(x.shape, 1e3, np.float32)
-    along = np.full(x.shape, 1.0, np.float32)
+    """Gefäße wie unter der Haut: dicke Stämme, die sich nach Murrays Gesetz in immer feinere Adern verzweigen,
+    jede Ader ein runder Schlauch, dessen Wölbung von oben links beleuchtet wird"""
+    w, h = 1536, 408
     span = w / h
+    x, y = grid(w, h)
+    x = x * span                        # in Höhen-Einheiten, damit die Adern nicht gestreckt werden
+    rng = np.random.default_rng(11)
+    nearest = np.full(x.shape, 1e3, np.float32)
+    height = np.zeros(x.shape, np.float32)
+    along = np.ones(x.shape, np.float32)
+    reach = 0.035                       # so weit trägt eine Ader ihren Weg nach außen (für ihren Schatten)
 
-    def branch(px, py, angle, length, width, start, depth):
-        nonlocal lines, along
-        steps = 9
-        points = [(px, py)]
-        for _ in range(steps):
-            angle += rng.uniform(-0.35, 0.35)
-            px += math.cos(angle) * length / steps
-            py += math.sin(angle) * length / steps
-            points.append((px, py))
-        for i, ((ax, ay), (bx, by)) in enumerate(zip(points, points[1:])):
-            t0 = start + (i / steps) * length / span
-            d = segment(x, y, ax, ay, bx, by, width * (1.0 - 0.6 * i / steps))
-            closer = d < lines
-            lines = np.where(closer, d, lines)
-            along = np.where(closer & (d < 0.02), np.minimum(along, t0), along)
-            if depth > 0 and rng.random() < 0.35:
-                branch(bx, by, angle + rng.choice([-1, 1]) * rng.uniform(0.5, 1.0), length * 0.45, width * 0.7, t0, depth - 1)
+    def stamp(ax, ay, bx, by, ra, rb, ta, tb):
+        pad = max(ra, rb) + reach
+        x0, x1 = max(int((min(ax, bx) - pad) * h), 0), min(int((max(ax, bx) + pad) * h) + 1, w)
+        y0, y1 = max(int((min(ay, by) - pad) * h), 0), min(int((max(ay, by) + pad) * h) + 1, h)
+        if x0 >= x1 or y0 >= y1:
+            return
+        sx, sy = x[y0:y1, x0:x1], y[y0:y1, x0:x1]
+        dx, dy = bx - ax, by - ay
+        t = np.clip(((sx - ax) * dx + (sy - ay) * dy) / (dx * dx + dy * dy + 1e-9), 0, 1)
+        dist = np.hypot(sx - ax - dx * t, sy - ay - dy * t)
+        r = ra + (rb - ra) * t
+        d = dist - r
+        np.maximum(height[y0:y1, x0:x1], np.sqrt(np.maximum(r * r - dist * dist, 0)), out=height[y0:y1, x0:x1])
+        closer = d < nearest[y0:y1, x0:x1]
+        nearest[y0:y1, x0:x1] = np.where(closer, d, nearest[y0:y1, x0:x1])
+        along[y0:y1, x0:x1] = np.where(closer & (d < reach), ta + (tb - ta) * t, along[y0:y1, x0:x1])
 
-    for angle in (-0.25, -0.6, -1.0, -0.05):
-        branch(0.02, 0.98, angle, span * 0.55, 0.012, 0.0, 2)
-    r = fill(lines, h)
-    save(os.path.join(folder, "T_HUD_Adern.png"), np.dstack([r, np.clip(along, 0, 1), np.zeros_like(r), r]))
+    def grow(px, py, angle, r, travelled, depth, way):
+        step, curve, heading = 0.016, rng.uniform(-0.03, 0.03), angle
+        while r > 0.0056:
+            # Sanft geschlängelt, aber jede Ader hält ihre Richtung
+            curve = curve * 0.8 + rng.normal(0.0, 0.03)
+            angle += curve + (heading - angle) * 0.06
+            nx, ny, nr = px + math.cos(angle) * step, py + math.sin(angle) * step, r * 0.9945
+            stamp(px, py, nx, ny, r, nr, way(travelled), way(travelled + step))
+            px, py, r, travelled = nx, ny, nr, travelled + step
+            if not (-0.05 < px < span + 0.05 and -0.05 < py < 1.05):
+                return
+            if depth > 0 and rng.random() < 0.075:
+                # Murray: r³ = r1³ + r2³, der Ast nimmt dem Stamm etwas ab, beide biegen auseinander
+                side = rng.choice([-1, 1])
+                child = r * rng.uniform(0.5, 0.75)
+                r = max(r ** 3 - child ** 3, (0.62 * r) ** 3) ** (1.0 / 3.0)
+                grow(px, py, angle + side * rng.uniform(0.45, 1.0), child, travelled, depth - 1, way)
+                angle -= side * rng.uniform(0.05, 0.2)
+                heading -= side * 0.08
+
+    # Erstes Bündel aus der linken unteren Ecke (Weg 0..0,5), ab 50 % Verderbnis das zweite aus der rechten oberen (0,5..1)
+    full = 2.6
+    trunks = ((-0.08, 0.04), (-0.32, 0.032), (-0.62, 0.027), (-1.05, 0.022))
+    for angle, radius in trunks:
+        grow(0.0, 1.0, angle, radius, 0.0, 3, lambda s: 0.5 * min(s / full, 1.0))
+    for angle, radius in trunks:
+        grow(span, 0.0, angle + math.pi, radius * 0.9, 0.0, 3, lambda s: 0.5 + 0.5 * min(s / full, 1.0))
+
+    cover = fill(nearest, h)
+    # Licht auf dem gewölbten Schlauch: Normalen aus der Höhe, Licht von oben links, nasser Glanz
+    gy, gx = np.gradient(height * 0.8)
+    n = np.dstack([-gx * h, -gy * h, np.ones_like(height)])
+    n /= np.linalg.norm(n, axis=2, keepdims=True)
+    l = np.array([-0.5, -0.7, 0.8]) / np.linalg.norm([-0.5, -0.7, 0.8])
+    half = (l + [0, 0, 1]) / np.linalg.norm(l + [0, 0, 1])
+    diffuse = np.clip(n @ l, 0, 1)
+    gloss = np.clip(n @ half, 0, 1) ** 50
+    light = np.where(cover > 0, np.clip(diffuse * 0.75 + gloss * 0.45, 0, 1), 0.5)
+    # Weicher Schatten nach unten rechts
+    ox, oy = 5, 7
+    shadow = np.zeros_like(cover)
+    shadow[oy:, ox:] = cover[:-oy, :-ox]
+    shadow = np.clip(blur(shadow, 5) * 0.9, 0, 1)
+    save(os.path.join(folder, "T_HUD_Adern.png"), np.dstack([cover, np.clip(along, 0, 1), light, shadow]))
 
 
 # ---------------------------------------------------------------- Platzhalter-Symbole (Strich)
@@ -377,15 +430,17 @@ def icons(folder):
         save_shape(os.path.join(folder, "T_Symbol_%s.png" % name), d, ICON)
 
 
-def main(folder):
+PARTS = {"gefaesse": vessels, "klaue": claw, "ornamente": ornaments, "adern": veins, "symbole": icons}
+
+
+def main(folder, parts):
     os.makedirs(folder, exist_ok=True)
-    vessels(folder)
-    claw(folder)
-    ornaments(folder)
-    veins(folder)
-    icons(folder)
+    for name, make in PARTS.items():
+        if not parts or name in parts:
+            make(folder)
     print("[Vael] HUD-Formen geschrieben:", len([f for f in os.listdir(folder) if f.endswith(".png")]))
 
 
 if __name__ == "__main__":
-    main(sys.argv[sys.argv.index("--") + 1])
+    args = sys.argv[sys.argv.index("--") + 1:]
+    main(args[0], args[1:])

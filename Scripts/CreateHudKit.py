@@ -31,7 +31,7 @@ tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 created = []
 
-KIT_VERSION = 1.5
+KIT_VERSION = 1.62
 
 
 def srgb(hex_color, a=1.0):
@@ -132,6 +132,10 @@ def new_material(name):
             if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= KIT_VERSION - 0.001:
                 return None
         library.delete_all_material_expressions(material)
+        # Nodes of older graphs survive that in the commandlet; with two parameters of one name the older default wins
+        for expression in list(unreal.ObjectIterator(unreal.MaterialExpression)):
+            if expression.get_outer() == material:
+                library.delete_material_expression(material, expression)
         created.append(path + " (graph rebuilt)")
         return material
     created.append(path)
@@ -306,22 +310,37 @@ def build_frame(default_veins):
     color = g.add(3, color, g.mul(3, warm, threads))
 
     # Nid veins creep in from the lower left corner with the corruption, from 50 % a second bundle from the upper right
+    color = nid_veins(g, vein_tex, uv, corruption, dark, inside, color, vein_color, time)
+
+    return finish(material, g, color, g.mul(2, inside, opacity_value))
+
+
+def nid_veins(g, vein_tex, uv, corruption, dark, where, color, glow_color, time):
+    """Raised blood vessels over the frame (texture: R vessel, G way from the corner, B baked light, A shadow): dark blood red like
+    the Nid veins in the world, wet gloss on top, a soft shadow below, and a heartbeat that runs out from the corner to the tips"""
+    blood = g.color("VeinBlood", srgb("6E1420"))
+    strength = g.scalar("VeinStrength", 0.95)
     sample = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     g.link(vein_tex, sample, "Tex")
     g.link(uv, sample, "UVs")
-    flipped = g.sub(9, g.const2(1.0, 1.0), uv)
-    sample2 = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
-    g.link(vein_tex, sample2, "Tex")
-    g.link(flipped, sample2, "UVs")
-    vein1 = g.mul(6, g.channel(7, sample, "R"), g.sharp(6, g.sub(7, corruption, g.channel(7, sample, "G")), 25.0))
-    second = g.sub(7, g.mul(7, corruption, g.const(2.0)), g.const(1.0))
-    vein2 = g.mul(6, g.channel(7, sample2, "R"), g.sharp(6, g.sub(7, second, g.channel(7, sample2, "G")), 25.0))
-    pulse = g.add(5, g.const(0.8), g.mul(5, g.sin(6, g.mul(6, time, g.const(2.5))), g.const(0.2)))
-    veins = g.sat(4, g.mul(4, g.mul(5, g.add(5, vein1, vein2), g.add(5, g.const(1.0), g.mul(5, dark, g.const(0.6)))), pulse))
-    vein_strength = g.scalar("VeinStrength", 0.55)
-    color = g.lerp(2, color, g.mul(3, vein_color, g.const(1.2)), g.mul(3, g.mul(4, veins, inside), vein_strength))
+    way = g.channel(7, sample, "G")
+    shade = g.channel(7, sample, "B")
+    reveal = g.mul(6, g.sharp(6, g.sub(7, corruption, way), 40.0), where)
+    color = g.mul(3, color, g.one_minus(4, g.mul(4, g.mul(5, g.channel(6, sample, "A"), reveal), g.const(0.55))))
 
-    return finish(material, g, color, g.mul(2, inside, opacity_value))
+    # Heartbeat in step with the Nid slot (2.6 s): two fronts, lub and dub, run along each bundle from its corner
+    local = g.frac(7, g.mul(7, way, g.const(2.0)))
+    front = g.sub(7, g.mul(7, g.frac(8, g.mul(8, time, g.const(1.0 / 2.6))), g.const(1.3)), g.const(0.1))
+    lub = g.power(6, g.sat(6, g.sub(7, g.const(1.0), g.mul(7, g.abs(8, g.sub(8, local, front)), g.const(10.0)))), g.const(2.0))
+    dub = g.power(6, g.sat(6, g.sub(7, g.const(1.0), g.mul(7, g.abs(8, g.sub(8, local, g.sub(9, front, g.const(0.14)))), g.const(12.0)))), g.const(2.0))
+    beat = g.add(5, lub, g.mul(6, dub, g.const(0.6)))
+
+    body = g.mul(4, blood, g.mul(5, g.add(6, g.const(0.2), g.mul(6, shade, g.const(1.5))), g.add(6, g.const(1.0), g.mul(6, beat, g.const(0.7)))))
+    gloss = g.power(5, g.sat(6, g.mul(6, g.sub(7, shade, g.const(0.7)), g.const(2.5))), g.const(2.0))
+    body = g.add(4, body, g.mul(5, g.const3(rgb(1.0, 0.75, 0.8), 6), g.mul(6, gloss, g.const(0.6))))
+    shimmer = g.add(5, g.add(6, g.const(0.03), g.mul(6, beat, g.const(0.22))), g.mul(6, dark, g.const(0.12)))
+    body = g.add(4, body, g.mul(5, glow_color, shimmer))
+    return g.lerp(2, color, body, g.mul(3, g.mul(4, g.channel(5, sample, "R"), reveal), strength))
 
 
 # ---------------------------------------------------------------- Painted frame
@@ -343,7 +362,6 @@ def build_painted_frame(default_picture, default_mask, default_veins):
     shadow = g.scalar("Shadow", 0.0)
     twilight = g.scalar("Twilight", 0.0)
     vein_color = g.color("VeinColor", srgb("9B5DE5"))
-    vein_strength = g.scalar("VeinStrength", 0.6)
 
     uv, u, v = uv_parts(g)
     sample = g.node(unreal.MaterialExpressionTextureSample, 9)
@@ -376,18 +394,7 @@ def build_painted_frame(default_picture, default_mask, default_veins):
 
     # Nid veins over the panel
     time = g.node(unreal.MaterialExpressionTime, 10)
-    vs1 = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
-    g.link(vein_tex, vs1, "Tex")
-    g.link(uv, vs1, "UVs")
-    vs2 = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
-    g.link(vein_tex, vs2, "Tex")
-    g.link(g.sub(9, g.const2(1.0, 1.0), uv), vs2, "UVs")
-    vein1 = g.mul(6, g.channel(7, vs1, "R"), g.sharp(6, g.sub(7, corruption, g.channel(7, vs1, "G")), 25.0))
-    second = g.sub(7, g.mul(7, corruption, g.const(2.0)), g.const(1.0))
-    vein2 = g.mul(6, g.channel(7, vs2, "R"), g.sharp(6, g.sub(7, second, g.channel(7, vs2, "G")), 25.0))
-    pulse = g.add(5, g.const(0.8), g.mul(5, g.sin(6, g.mul(6, time, g.const(2.5))), g.const(0.2)))
-    veins = g.sat(4, g.mul(4, g.mul(5, g.add(5, vein1, vein2), g.add(5, g.const(1.0), g.mul(5, dark, g.const(0.6)))), pulse))
-    color = g.lerp(3, color, g.mul(4, vein_color, g.const(1.2)), g.mul(4, g.mul(5, veins, panel), vein_strength))
+    color = nid_veins(g, vein_tex, uv, corruption, dark, panel, color, vein_color, time)
     return finish(material, g, color, alpha)
 
 
