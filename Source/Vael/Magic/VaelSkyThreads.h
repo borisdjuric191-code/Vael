@@ -9,7 +9,7 @@
 class UInstancedStaticMeshComponent;
 
 /**
- *  The call of a weather spell made visible (Boris 2026-11-02): while the mage murmurs with the arms raised, motes of light
+ *  The call of a weather spell made visible (Boris 2026-11-02): while the mage murmurs with the arms raised, small glowing signs
  *  rise from the mouth and both hands in three threads that braid round each other up to the place in the sky where the cloud
  *  will gather, in the colour of the spell's element. They stop with the release and are gone once the last has arrived.
  */
@@ -34,6 +34,10 @@ private:
 		FVector From = FVector::ZeroVector;
 		int32 Strand = 0;
 		float Age = 0.0f;
+		/** Which of the signs of the atlas, and how it turns as it rises */
+		float Glyph = 0.0f;
+		float Roll = 0.0f;
+		float Spin = 0.0f;
 	};
 
 	/** Where a thread starts now: 0 the mouth, 1 and 2 the hands */
@@ -44,6 +48,10 @@ private:
 
 	TArray<FMote> Flying;
 	TArray<FTransform> Frame;
+	TArray<float> FrameGlyphs;
+
+	/** True when the signs are shown, false for plain motes of light when their material is missing */
+	bool bGlyphs = false;
 
 	FVector SkyPoint = FVector::ZeroVector;
 	float Release = 0.5f;

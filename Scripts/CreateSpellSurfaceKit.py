@@ -7,7 +7,7 @@ import unreal
 
 FOLDER = "/Game/Vael/Effects/Flaechen"
 NEBEL = "/Game/Vael/Effects/Nebel"
-KIT_VERSION = 1.31
+KIT_VERSION = 1.33
 
 assets = unreal.EditorAssetLibrary
 library = unreal.MaterialEditingLibrary
@@ -297,6 +297,48 @@ def build_clay():
     g.finish()
 
 
+def import_glyphs():
+    """Atlas of Tools/Zauber/vael_zeichen.py: 4 x 4 signs, R stroke, G glow"""
+    import os
+    path = os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()), "Scripts", "Data", "Zauber", "T_Vael_Zeichen.png")
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", path)
+    task.set_editor_property("destination_path", FOLDER)
+    task.set_editor_property("destination_name", "T_Vael_Zeichen")
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", False)
+    tools.import_asset_tasks([task])
+    texture = unreal.load_asset(FOLDER + "/T_Vael_Zeichen")
+    if texture is None:
+        notes.append("import failed: T_Vael_Zeichen")
+        return None
+    texture.set_editor_property("srgb", False)
+    texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
+    assets.save_loaded_asset(texture, False)
+    return texture
+
+
+def build_glyphs(atlas):
+    """The signs that rise to the cloud of a weather call: one sign of the atlas per instance (custom data 0), glowing in Farbe"""
+    g = Graph("M_Vael_Zeichen")
+    if atlas is None or not g.begin():
+        return
+    g.material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    g.material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    g.material.set_editor_property("two_sided", True)
+    g.material.set_editor_property("used_with_instanced_static_meshes", True)
+    index = g.node(unreal.MaterialExpressionPerInstanceCustomData, data_index=0)
+    cell_uv = g.custom("float C = floor(Index + 0.5); return (float2(fmod(C, 4.0), floor(C / 4.0)) + saturate(UV)) / 4.0;",
+                       unreal.CustomMaterialOutputType.CMOT_FLOAT2, {"Index": index, "UV": g.uv()})
+    sample = g.node(unreal.MaterialExpressionTextureSample, texture=atlas, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    g.link(cell_uv, sample, "UVs")
+    glow = g.custom("return Farbe * Leuchten * (Atlas.r + Atlas.g * 0.45);", FLOAT3,
+                    {"Atlas": sample, "Farbe": g.vector("Farbe", (0.4, 0.7, 1.0)), "Leuchten": g.scalar("Leuchten", 5.0)})
+    g.out(glow, unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    g.finish()
+
+
 def instance(name, parent, values):
     path = "{}/{}".format(FOLDER, name)
     material = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
@@ -395,6 +437,7 @@ def main():
     build_sun()
     build_flesh()
     build_clay()
+    build_glyphs(import_glyphs())
     build_instances()
     import_meshes()
     for note in notes:

@@ -644,6 +644,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
 	TSoftObjectPtr<UMaterialInterface> ClayMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Lehm.M_Vael_Lehm")));
 
+	/** Glowing signs that rise to the cloud of a weather call, one of 16 per instance (Tools/Zauber/vael_zeichen.py, Scripts/CreateSpellSurfaceKit.py) */
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> SkyGlyphMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Zeichen.M_Vael_Zeichen")));
+
 	/** Ring on the ground before a strike falls, and the black sun over a caster */
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
 	TSoftObjectPtr<UMaterialInterface> WarningCircleMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Warnkreis.M_Vael_Warnkreis")));
