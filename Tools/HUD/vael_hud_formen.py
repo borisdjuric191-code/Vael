@@ -354,13 +354,13 @@ def vein_net(path, w, h, seed, sources, keep=None, pull=0.06, avoid=None, margin
         step, curve, heading = 0.016, rng.uniform(-0.03, 0.03), angle
         # Unter einem Symbol geboren (der Nid-Slot) läuft sie darunter weiter, bis sie draußen ist
         under = avoid is not None and avoid(px, py) < 0.0
-        curl, sense = 0.0, rng.choice([-1, 1])
+        curl, sense, curly = 0.0, rng.choice([-1, 1]), curls and rng.random() < 0.3
         while r > 0.0056:
             # Sanft geschlängelt, aber jede Ader hält ihre Richtung
             curve = curve * 0.8 + rng.normal(0.0, 0.03)
             target, gain = (steer(px, py, heading), pull) if steer else (heading, 0.06)
-            if curls and r < 0.0105:
-                # Die dünnen Enden rollen sich zu Schnörkeln ein, immer enger
+            if curly and r < 0.0105:
+                # Manche dünnen Enden rollen sich zu Schnörkeln ein, immer enger
                 curl = min(curl + 0.01, 0.38)
                 target, gain = angle + sense * curl * 6.0, 0.0
                 angle += sense * curl
@@ -435,22 +435,34 @@ def vein_net(path, w, h, seed, sources, keep=None, pull=0.06, avoid=None, margin
 # Rahmenfeld 880 x 202 Designpixel (ab FrameTop 28); der Nid-Slot des Magiers ist der fünfte von sechs Slots (76 + 6 Abstand)
 FRAME_W, FRAME_H = 880.0, 202.0
 NID_SLOT_MAGIER = (197.0 + 4 * 82.0 + 38.0, 116.0 + 38.0 - 28.0)
-# Symbole des Magier-HUDs in Designpixeln des Panels (880 x 230), um die sich die Adern legen, ohne sie zu überdecken:
-# Kreise (x, y, Radius) und Rechtecke (x0, y0, x1, y1); siehe Layout in VaelPlayerHUDWidget.cpp
+# Symbole des Magier-HUDs in Designpixeln des Panels (880 x 230); siehe Layout in VaelPlayerHUDWidget.cpp.
+# Runde Symbole (x, y, Radius) liegen über dem Rahmen: die Adern ziehen hinter ihnen durch und schlingen sich um sie.
+# Schrift (x0, y0, x1, y1) und das ins Rahmenbild gemalte Siegel liegen nicht darüber: denen weichen die Adern aus.
 SYMBOLS_MAGIER_CIRCLES = [(94, 132, 96), (786, 132, 96), (440, 66, 40), (626, 48, 17), (656, 48, 17), (686, 48, 17),
                           (712, 164, 21), (160, 190, 20), (838, 62, 17)]
-SYMBOLS_MAGIER_BOXES = [(192, 111, 684, 208), (196, 44, 318, 82), (480, 46, 622, 74), (210, 86, 282, 112),
-                        (284, 88, 432, 110), (606, 86, 704, 112), (200, 208, 672, 230)]
+SEAL_MAGIER = (440, 66, 42)
+TEXT_MAGIER_BOXES = [(196, 44, 318, 82), (480, 46, 622, 74), (284, 88, 432, 110)] + \
+                    [(197 + 82 * i + 6, 192, 197 + 82 * i + 70, 207) for i in range(6)]
+
+
+def _field(x, y):
+    return x * FRAME_H, y * FRAME_H + 28.0, (np.full(np.shape(x), 1e3, np.float32) if np.ndim(x) else 1e3)
 
 
 def symbols_magier(x, y):
-    """Abstand zum nächsten Symbol, in Höhen-Einheiten des Rahmenfelds (Höhe 202 ab FrameTop 28), innen negativ"""
-    px, py = x * FRAME_H, y * FRAME_H + 28.0
-    d = np.full(np.shape(x), 1e3, np.float32) if np.ndim(x) else 1e3
+    """Abstand zum nächsten runden Symbol, in Höhen-Einheiten des Rahmenfelds (Höhe 202 ab FrameTop 28), innen negativ"""
+    px, py, d = _field(x, y)
     for cx, cy, r in SYMBOLS_MAGIER_CIRCLES:
         d = np.minimum(d, np.hypot(px - cx, py - cy) - r)
-    for x0, y0, x1, y1 in SYMBOLS_MAGIER_BOXES:
-        d = np.minimum(d, box(px, py, x0, y0, x1, y1, 4.0))
+    return d / FRAME_H
+
+
+def text_magier(x, y):
+    """Abstand zur nächsten Schrift oder zum Siegel, wie symbols_magier"""
+    px, py, d = _field(x, y)
+    d = np.minimum(d, np.hypot(px - SEAL_MAGIER[0], py - SEAL_MAGIER[1]) - SEAL_MAGIER[2])
+    for x0, y0, x1, y1 in TEXT_MAGIER_BOXES:
+        d = np.minimum(d, box(px, py, x0, y0, x1, y1, 3.0))
     return d / FRAME_H
 
 
@@ -467,7 +479,7 @@ def veins(folder):
     # Magier: das Herz ist der Nid-Slot, von dort ziehen die Adern in alle Richtungen über das HUD
     w, h = 1760, 404
     cx, cy = NID_SLOT_MAGIER[0] / FRAME_H, NID_SLOT_MAGIER[1] / FRAME_H
-    # Unter der Slotreihe hindurch und oben heraus, dann legen sie sich um Titel, Siegel, Medaillons und Gefäße
+    # Hinter Slots, Siegel und Gefäßen hindurch, zwischen ihnen wieder sichtbar; nur der Schrift weichen sie aus
     trunks = [(math.pi, 0.034), (0.0, 0.032), (math.pi + 0.5, 0.028), (-0.5, 0.028), (-math.pi / 2 - 0.25, 0.026), (-math.pi / 2 + 0.2, 0.024),
               (math.pi + 1.0, 0.022), (-1.0, 0.022), (math.pi + 0.15, 0.02), (-0.15, 0.02)]
     nid = (cx, cy)
@@ -493,12 +505,12 @@ def veins(folder):
         wanted, found = (6 if r > 60 else 3), 0
         for phi in rng.permutation(np.linspace(0, 2 * math.pi, 24, endpoint=False)):
             px, py = (x0 + math.cos(phi) * (r + 4)) / FRAME_H, (y0 + math.sin(phi) * (r + 4) - 28.0) / FRAME_H
-            if found == wanted or not (0.02 < px < w / h - 0.02 and 0.02 < py < 0.98) or symbols_magier(px, py) < 0.006:
+            if found == wanted or not (0.02 < px < w / h - 0.02 and 0.02 < py < 0.98) or text_magier(px, py) < 0.006:
                 continue
             found += 1
             sense = rng.choice([-1, 1])
             sources.append((px, py, [(phi + sense * math.pi / 2, rng.uniform(0.012, 0.018))], from_nid(px, py), hug(sense, rng.uniform(0.008, 0.05))))
-    vein_net(os.path.join(folder, "T_HUD_Adern_Magier.png"), w, h, 23, sources, avoid=symbols_magier, margin=0.035, curls=True, pull=0.15)
+    vein_net(os.path.join(folder, "T_HUD_Adern_Magier.png"), w, h, 23, sources, avoid=text_magier, margin=0.03, curls=True, pull=0.15)
 
     # Das Herz: ein Kranz aus Adern, der den silbernen Rand des Nid-Slots umwächst (130 Designpixel um die Slotmitte,
     # Rand bei etwa 40); sie kommen unter dem Bild hervor, einige laufen zum Rahmen hinaus, die Mitte bleibt frei
@@ -523,8 +535,16 @@ def veins(folder):
         sources.append((c + math.cos(phi) * 0.2, c + math.sin(phi) * 0.2, [(phi + sense * 0.9, rng.uniform(0.014, 0.02))], way, around(sense)))
     for phi in (math.pi, 0.0, -math.pi / 2 - 0.4, -0.5, 2.3):
         sources.append((c + math.cos(phi) * 0.2, c + math.sin(phi) * 0.2, [(phi, 0.022)], way))
+    def heart_keep(x, y):
+        # Auf dem Rand des Nid-Slots, nicht auf seinem Bild, nicht auf den Nachbar-Slots links und rechts, nicht auf seinem Namen
+        dx, dy, d = (x - c) * 130.0, (y - c) * 130.0, np.hypot(x - c, y - c)
+        mine = np.clip((d - 0.255) / 0.02, 0, 1) * np.clip((0.5 - d) / 0.1, 0, 1)
+        neighbours = np.clip((np.abs(dx) - 39.0) / 2.0, 0, 1) * np.clip((44.0 - np.abs(dy)) / 2.0, 0, 1)
+        name = np.clip((32.0 - np.abs(dx)) / 2.0, 0, 1) * np.clip((dy - 37.0) / 2.0, 0, 1) * np.clip((54.0 - dy) / 2.0, 0, 1)
+        return mine * (1.0 - neighbours) * (1.0 - name)
+
     vein_net(os.path.join(folder, "T_HUD_Adern_Herz.png"), size, size, 5, sources,
-             keep=lambda x, y: np.clip((np.hypot(x - c, y - c) - 0.255) / 0.02, 0, 1) * np.clip((0.5 - np.hypot(x - c, y - c)) / 0.1, 0, 1), pull=0.3)
+             keep=heart_keep, pull=0.3)
 
 
 # ---------------------------------------------------------------- Platzhalter-Symbole (Strich)
