@@ -36,6 +36,9 @@
 #include "Magic/VaelFormulaScroll.h"
 #include "Magic/VaelGrimoireSubsystem.h"
 #include "Player/VaelCharacter.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "TimerManager.h"
+#include "LandscapeProxy.h"
 #include "Player/VaelHeroSubsystem.h"
 #include "UI/VaelHUD.h"
 #include "Player/VaelPlayerController.h"
@@ -118,13 +121,48 @@ void UVaelCheatManager::VaelTeleport(float X, float Y)
 		return;
 	}
 
-	// Down from high above onto whatever ground is there
+	// Down from high above onto whatever ground is there. In the open world the ground there may not be loaded yet:
+	// then the pawn waits up in the air, held still, until it has streamed in (at most 15 s)
 	const FVector Above(X * 100.0f, Y * 100.0f, 50000.0f);
-	FHitResult Hit;
-	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelTeleport), false, Pawn);
-	const float GroundZ = GetWorld()->LineTraceSingleByChannel(Hit, Above, Above - FVector(0.0f, 0.0f, 100000.0f), ECC_Visibility, QueryParams) ? Hit.ImpactPoint.Z : 0.0f;
-
-	Pawn->TeleportTo(FVector(Above.X, Above.Y, GroundZ + Pawn->GetSimpleCollisionHalfHeight() + 5.0f), Pawn->GetActorRotation());
+	TWeakObjectPtr<APawn> WeakPawn(Pawn);
+	TSharedRef<int32> Tries = MakeShared<int32>(0);
+	TSharedRef<FTimerHandle> Handle = MakeShared<FTimerHandle>();
+	auto Land = [this, WeakPawn, Above, Tries, Handle]()
+	{
+		APawn* Mover = WeakPawn.Get();
+		if (Mover == nullptr)
+		{
+			GetWorld()->GetTimerManager().ClearTimer(*Handle);
+			return;
+		}
+		FHitResult Hit;
+		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelTeleport), false, Mover);
+		// Not the sea: it is loaded long before the land under it (land, roofs and rocks above it count)
+		const bool bGround = GetWorld()->LineTraceSingleByChannel(Hit, Above, Above - FVector(0.0f, 0.0f, 100000.0f), ECC_Visibility, QueryParams)
+			&& (Cast<ALandscapeProxy>(Hit.GetActor()) != nullptr || !GetWorld()->IsPartitionedWorld() || Hit.ImpactPoint.Z > 200.0f);
+		UCharacterMovementComponent* Movement = Mover->FindComponentByClass<UCharacterMovementComponent>();
+		if (bGround || ++(*Tries) > 75)
+		{
+			Mover->TeleportTo(FVector(Above.X, Above.Y, (bGround ? Hit.ImpactPoint.Z : 0.0f) + Mover->GetSimpleCollisionHalfHeight() + 5.0f), Mover->GetActorRotation());
+			if (Movement != nullptr)
+			{
+				Movement->SetMovementMode(MOVE_Walking);
+			}
+			GetWorld()->GetTimerManager().ClearTimer(*Handle);
+			return;
+		}
+		// Still waiting: up where the streaming starts loading around it
+		Mover->TeleportTo(FVector(Above.X, Above.Y, 20000.0f), Mover->GetActorRotation());
+		if (Movement != nullptr)
+		{
+			Movement->SetMovementMode(MOVE_None);
+		}
+	};
+	Land();
+	if (*Tries > 0)
+	{
+		GetWorld()->GetTimerManager().SetTimer(*Handle, FTimerDelegate::CreateLambda(Land), 0.2f, true);
+	}
 }
 
 void UVaelCheatManager::VaelKarte()

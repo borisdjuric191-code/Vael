@@ -29,7 +29,7 @@ BLOCKOUT_FOLDER = "/Game/Vael/Maps/Blockout"
 DATA = os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()), "Scripts", "Data", "Welt")
 M = 100.0
 SIZE_X, SIZE_Y = 2017, 2521
-KIT_VERSION = 1.2
+KIT_VERSION = 1.3
 
 CUBE = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
 CYLINDER = unreal.load_asset("/Engine/BasicShapes/Cylinder.Cylinder")
@@ -126,7 +126,7 @@ float3 Ground = lerp(Ash * Tint * 0.42, Road * float3(0.5, 0.46, 0.4), Way);
 Ground = lerp(Ground, Ground * 1.12, Clear * (1.0 - Way));
 return lerp(Ground, Ash * float3(0.32, 0.3, 0.3), Cliff);"""
 GROUND_GLOW = """float GlutShare = saturate(1.0 - abs(Zone - 0.667) * 6.0) * (1.0 - Way) * (1.0 - Clear * 0.6);
-return float3(1.0, 0.33, 0.07) * pow(saturate(Noise), 9.0) * 4.0 * GlutShare;"""
+return float3(1.0, 0.33, 0.07) * pow(saturate(1.0 - Noise * 6.0), 3.0) * 5.0 * GlutShare;"""
 
 
 def ground_material():
@@ -161,7 +161,6 @@ def ground_material():
 
     ash_source = unreal.load_asset(DRESSING_FOLDER + "/MI_Aschenmark_Boden")
     road_source = unreal.load_asset(DRESSING_FOLDER + "/MI_Aschenmark_Weg")
-    noise = unreal.load_asset("/Game/Vael/Effects/Feuer/T_Feuer_Rauschen")
 
     def tex(source, key):
         return library.get_material_instance_texture_parameter_value(source, key) if source is not None else None
@@ -200,13 +199,12 @@ def ground_material():
         library.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
     library.connect_material_property(g.const(0.85), "", unreal.MaterialProperty.MP_ROUGHNESS)
 
-    if noise is not None:
-        noise_uv = g.node(unreal.MaterialExpressionDivide)
-        g.link(xy, noise_uv, "A")
-        g.link(g.const(1800.0), noise_uv, "B")
-        embers = g.mask(g.sample(noise, noise_uv, unreal.MaterialSamplerType.SAMPLERTYPE_MASKS), "R")
-        glow = g.custom(GROUND_GLOW, unreal.CustomMaterialOutputType.CMOT_FLOAT3, {"Noise": embers, "Zone": zone, "Way": way, "Clear": clear})
-        library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # Glowing cracks: turbulent gradient noise is near 0 along thin winding lines, those glow
+    cracks = g.node(unreal.MaterialExpressionNoise, scale=0.004, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_ALU,
+                    turbulence=True, levels=3, output_min=0.0, output_max=1.0, level_scale=2.2, quality=1)
+    g.link(world, cracks, "Position")
+    glow = g.custom(GROUND_GLOW, unreal.CustomMaterialOutputType.CMOT_FLOAT3, {"Noise": cracks, "Zone": zone, "Way": way, "Clear": clear})
+    library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
 
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)
@@ -231,7 +229,7 @@ def shape(mesh, material, location, size, folder, label, yaw=0.0, collision=True
     actor.static_mesh_component.set_material(0, material)
     actor.set_actor_scale3d(unreal.Vector(*size))
     if not collision:
-        actor.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+        actor.static_mesh_component.set_collision_profile_name("NoCollision")
     return actor
 
 
