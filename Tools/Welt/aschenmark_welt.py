@@ -63,6 +63,10 @@ SOURCES = {
     "Erde": [(1180, 680), (1110, 560), (620, 280), (300, 420)],
     "Luft": [(680, 210), (630, 160), (740, 250)],
 }
+# Orte, an die PortAschenmarkToWelt.py die Gruppen der alten Karte setzt: eben, Halbmesser der Gruppe + Rand
+PADS = [(CAMPS["Lager der Überlebenden"], 24.0), (PLACES["Ruinen von Kesselgrund"], 36.0), (PLACES["Gildenspeicher"], 18.0),
+        (CAMPS["Gildenkontor"], 28.0), (PLACES["Teich"], 24.0), (PLACES["Kathedrale des Ordens"], 20.0), (PLACES["Nid-Quelle"], 18.0),
+        (PLACES["Krater der Glutkönigin"], 30.0), (PLACES["Ascheäcker"], 20.0)]
 # Küste im Westen und Süden (Meer); Norden und Osten schließen Berge ab
 COAST = [(150, 1110), (150, 1060), (160, 900), (230, 640), (300, 420), (360, 300), (470, 170), (640, 80), (640, 0), (1600, 0),
          (1600, 1110)]
@@ -221,6 +225,14 @@ def main(folder):
         dist = np.hypot(X - wx, Y - wy)
         level = float(soft[int(wx), int(wy)])
         k = smooth(1.0 - (dist - 18.0) / 12.0)
+        h = h * (1.0 - k) + level * k
+
+    # Ebene Flächen für die Orte aus L_Aschenmark (PortAschenmarkToWelt.py setzt sie dorthin): Halbmesser in m
+    for (px, py), radius in PADS:
+        wx, wy = world(px, py)
+        dist = np.hypot(X - wx, Y - wy)
+        level = float(h[int(wx), int(wy)]) * 0.5 + float(soft[int(wx), int(wy)]) * 0.5
+        k = smooth(1.0 - (dist - radius) / 16.0)
         h = h * (1.0 - k) + level * k
 
     # Höhenkarte schreiben

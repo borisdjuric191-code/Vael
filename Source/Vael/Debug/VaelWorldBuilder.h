@@ -28,4 +28,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
 	static AActor* CreateLandscapeFromRaw(UObject* WorldContext, const FString& RawFile, int32 SizeX, int32 SizeY, FVector Location, FVector Scale,
 		UMaterialInterface* Material, int32 GridSize);
+
+	/** The actors as the text the editor copies (Ctrl+C), without the clipboard; empty in a game */
+	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
+	static FString CopyActorsAsText(UObject* WorldContext, const TArray<AActor*>& Actors);
+
+	/** Pastes actors copied as text into the world of the context object, where they were; returns the new actors */
+	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
+	static TArray<AActor*> PasteActorsFromText(UObject* WorldContext, const FString& Text);
 };

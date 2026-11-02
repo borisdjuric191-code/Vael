@@ -29,7 +29,7 @@ BLOCKOUT_FOLDER = "/Game/Vael/Maps/Blockout"
 DATA = os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()), "Scripts", "Data", "Welt")
 M = 100.0
 SIZE_X, SIZE_Y = 2017, 2521
-KIT_VERSION = 1.1
+KIT_VERSION = 1.2
 
 CUBE = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
 CYLINDER = unreal.load_asset("/Engine/BasicShapes/Cylinder.Cylinder")
@@ -122,7 +122,7 @@ class Graph:
 GROUND_COLOR = """float3 Kessel = float3(1.0, 0.86, 0.72), Schlacke = float3(0.5, 0.52, 0.58), Glut = float3(0.95, 0.6, 0.48), Pass = float3(0.78, 0.77, 0.75);
 float3 Tint = Zone < 0.333 ? lerp(Kessel, Schlacke, Zone * 3.0) : (Zone < 0.667 ? lerp(Schlacke, Glut, Zone * 3.0 - 1.0) : lerp(Glut, Pass, Zone * 3.0 - 2.0));
 float Cliff = saturate((0.82 - Up) * 4.0);
-float3 Ground = lerp(Ash * Tint, Road * float3(0.95, 0.9, 0.82), Way);
+float3 Ground = lerp(Ash * Tint * 0.42, Road * float3(0.5, 0.46, 0.4), Way);
 Ground = lerp(Ground, Ground * 1.12, Clear * (1.0 - Way));
 return lerp(Ground, Ash * float3(0.32, 0.3, 0.3), Cliff);"""
 GROUND_GLOW = """float GlutShare = saturate(1.0 - abs(Zone - 0.667) * 6.0) * (1.0 - Way) * (1.0 - Clear * 0.6);
@@ -256,6 +256,33 @@ def spawner(kind, p, count, folder, label, spread=180.0):
     return actor
 
 
+def pack_rock(index):
+    """A rock of the Rock_Collection_04 pack (its name says Rock, so it gives earth)"""
+    registry = unreal.AssetRegistryHelpers.get_asset_registry()
+    for asset in registry.get_assets_by_path("/Game/Rock_Collection_04", recursive=True):
+        if str(asset.asset_name) == "SM_Rock_0{}".format(index):
+            return unreal.load_asset(str(asset.package_name))
+    return None
+
+
+def sea_material():
+    """MI_Water_Meer: the deep water of the pond of the Aschenmark, without a shore (white mask over the whole sea)"""
+    path = "/Game/VFX/Water/Materials/MI_Water_Meer"
+    if assets.does_asset_exist(path):
+        return unreal.load_asset(path)
+    source = unreal.load_asset("/Game/VFX/Water/Materials/MI_Water_Pond_Deep_Aschenmark")
+    white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
+    if source is None or white is None:
+        return None
+    instance = assets.duplicate_asset(source.get_path_name().split(".")[0], path)
+    library.set_material_instance_texture_parameter_value(instance, "PuddleMask", white)
+    library.set_material_instance_vector_parameter_value(instance, "MaskOrigin", unreal.LinearColor(-50000.0, -50000.0, 0.0, 0.0))
+    library.set_material_instance_scalar_parameter_value(instance, "MaskSize", 400000.0)
+    library.update_material_instance(instance)
+    assets.save_loaded_asset(instance, False)
+    return instance
+
+
 def camp(p, name, mat, start=False):
     folder = "Lager/" + name
     if start:
@@ -330,32 +357,62 @@ def build():
     region.set_editor_property("covers_whole_level", True)
     region.set_editor_property("offering_crystals", 5)
 
-    # Sea: a water-coloured plane below the coast, walls along the coast keep everyone on land
-    shape(CUBE, mat["water"], v(SIZE_X * 0.5, SIZE_Y * 0.5, -1.2), (SIZE_X + 400.0, SIZE_Y + 400.0, 0.2), "Meer", "Meer", collision=False)
+    # Sea: the dark water of the pond of the Aschenmark without its shore mask, at sea level; walls along the coast keep everyone
+    # on land, walls around the whole land close the mountains in the north and east (the pass too, until the Wurzelforst is here)
+    sea = shape(unreal.load_asset("/Engine/BasicShapes/Plane.Plane"), sea_material() or mat["water"], v(SIZE_X * 0.5, SIZE_Y * 0.5, 0.0),
+                (SIZE_X + 1200.0, SIZE_Y + 1200.0, 1.0), "Meer", "Meer", collision=False)
+    sea.static_mesh_component.set_editor_property("cast_shadow", False)
     for line in data["coast"]:
         for a, b in zip(line, line[1:]):
             wall(a, b, "Grenzen/Kueste", "Kuestenwand")
+    corners = [(3.0, 3.0), (SIZE_X - 4.0, 3.0), (SIZE_X - 4.0, SIZE_Y - 4.0), (3.0, SIZE_Y - 4.0)]
+    for (ax, ay), (bx, by) in zip(corners, corners[1:] + corners[:1]):
+        for t in range(0, 10):
+            a = {"x": ax + (bx - ax) * t / 10.0, "y": ay + (by - ay) * t / 10.0, "z": -20.0}
+            b = {"x": ax + (bx - ax) * (t + 1) / 10.0, "y": ay + (by - ay) * (t + 1) / 10.0, "z": -20.0}
+            edge = wall(a, b, "Grenzen/Rand", "Randwand")
+            edge.set_actor_scale3d(unreal.Vector(edge.get_actor_scale3d().x, 3.0, 300.0))
+            edge.set_actor_location(v((a["x"] + b["x"]) * 0.5, (a["y"] + b["y"]) * 0.5, 120.0), False, False)
 
+    # The Aschenpass is windy: its own region box, wind or storm most of the time, so air is there to draw (my reading of the profile)
+    zones = data["zones"]
+    pass_region = spawn(unreal.VaelRegion, at(zones["Aschenpass"], 20.0), "Spiel", "Region Aschenpass", streamed=False)
+    pass_region.set_editor_property("region_name", unreal.Text("Aschenpass"))
+    pass_region.set_editor_property("start_weather", unreal.VaelWeather.WIND)
+    pass_region.set_editor_property("available_weathers", [unreal.VaelWeather.WIND, unreal.VaelWeather.WIND, unreal.VaelWeather.STORM])
+    pass_region.set_editor_property("calm_start", False)
+    box = pass_region.get_component_by_class(unreal.BoxComponent)
+    box.set_box_extent(unreal.Vector(260.0 * M, 230.0 * M, 150.0 * M), False)
+
+    # Element sources of the zones: fire spots in the Glutfelder and the slag, a hot spring, rocks to break for earth
+    sources = data["sources"]
+    for index, p in enumerate(sources["Feuer"]):
+        spawn(unreal.VaelFireSpot, at(p, 0.1), "Quellen/Feuer", "Glutstelle {}".format(index + 1))
+    spring = spawn(unreal.VaelGroundArea, at(sources["Wasser"][2], 0.1), "Quellen/Wasser", "Heisse Quelle")
+    spring.set_editor_property("element", unreal.VaelElement.WATER)
+    spring.set_editor_property("radius", 450.0)
+    spring.set_editor_property("extinguishable", False)
+    rocks = [pack_rock(i) for i in range(1, 8)]
+    rocks = [r for r in rocks if r is not None]
+    for index, p in enumerate(sources["Erde"]):
+        for k in range(3):
+            if not rocks:
+                break
+            asset = rng.choice(rocks)
+            q = {"x": p["x"] + rng.uniform(-5, 5), "y": p["y"] + rng.uniform(-5, 5), "z": p["z"]}
+            rock = spawn(unreal.StaticMeshActor, at(q, -0.4), "Quellen/Erde", "Fels {}-{}".format(index + 1, k + 1), yaw=rng.uniform(0, 360))
+            rock.static_mesh_component.set_static_mesh(asset)
+            scale = rng.uniform(1.2, 2.2)
+            rock.set_actor_scale3d(unreal.Vector(scale, scale, scale))
+    spawn(unreal.VaelFireSpot, at(data["camps"]["Passwache"], 0.1), "Lager/Passwache", "Lagerfeuer")
+
+    # The survivors' camp, the Kontor, the village, pond, Orden, Nid spring, Gildenspeicher, crater and fields come from
+    # L_Aschenmark (Scripts/PortAschenmarkToWelt.py, run after this); here only what is new
     camps = data["camps"]
-    camp(camps["Lager der Überlebenden"], "Lager der Ueberlebenden", mat, start=True)
-    camp(camps["Gildenkontor"], "Gildenkontor", mat)
     camp(camps["Passwache"], "Passwache", mat)
 
     # Places of the zones as blockout, to be dressed later
     places = data["places"]
-    for index in range(7):
-        p = places["Ruinen von Kesselgrund"]
-        q = {"x": p["x"] + rng.uniform(-30, 30), "y": p["y"] + rng.uniform(-30, 30), "z": p["z"]}
-        shape(CUBE, mat["ruin"], at(q, -0.5), (rng.uniform(5, 9), rng.uniform(5, 9), rng.uniform(2, 5)), "Orte/Kesselgrund/Ruinen", "Ruine {}".format(index + 1), yaw=rng.uniform(0, 90))
-    shape(CYLINDER, mat["stone"], at(places["Ruinen von Kesselgrund"], -0.2), (3.0, 3.0, 1.2), "Orte/Kesselgrund/Ruinen", "Brunnen")
-    shape(CYLINDER, mat["water"], at(places["Teich"], -0.6), (28.0, 22.0, 0.7), "Orte/Kesselgrund/Teich", "Teich", collision=False)
-    p = places["Kathedrale des Ordens"]
-    shape(CUBE, mat["order"], at(p, -0.5), (34.0, 14.0, 12.0), "Orte/Kesselgrund/Kathedrale", "Kirchenschiff", yaw=40.0)
-    shape(CUBE, mat["order"], at({"x": p["x"] + 14, "y": p["y"] + 12, "z": p["z"]}, -0.5), (8.0, 8.0, 24.0), "Orte/Kesselgrund/Kathedrale", "Turm", yaw=40.0)
-    spawn(unreal.VaelMarkSource, at(places["Nid-Quelle"], 1.0), "Orte/Kesselgrund/Kathedrale", "Nid-Quelle")
-
-    p = places["Gildenspeicher"]
-    shape(CUBE, mat["guild"], at(p, -0.5), (24.0, 14.0, 9.0), "Orte/Schlackenhaenge", "Gildenspeicher", yaw=10.0)
     for index in range(6):
         q = places["Obsidianbruch"]
         q = {"x": q["x"] + rng.uniform(-25, 25), "y": q["y"] + rng.uniform(-25, 25), "z": q["z"]}
@@ -383,7 +440,6 @@ def build():
     ]
     for index, (kind, count, zone_name) in enumerate(kinds):
         spawner(kind, c[index], count, "Gegner/" + zone_name, "Lichtung {}".format(index + 1))
-    spawner(unreal.VaelEmberQueenData, places["Krater der Glutkönigin"], 1, "Gegner/Glutfelder", "Glutkoenigin", spread=0.0)
 
     # Route along the road of the campaign for the stream test
     for number, p in enumerate(data["main_road"][::3], start=1):
@@ -397,4 +453,7 @@ def build():
     log("built {}".format(LEVEL_PATH))
 
 
-build()
+if os.environ.get("VAEL_WELT_NUR_BODEN") == "1":
+    ground_material()    # only the ground material, the level stays as it is
+else:
+    build()

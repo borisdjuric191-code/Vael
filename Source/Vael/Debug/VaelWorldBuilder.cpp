@@ -9,6 +9,13 @@
 #include "Misc/FileHelper.h"
 #include "Vael.h"
 
+#if WITH_EDITOR
+#include "Exporters/Exporter.h"
+#include "Factories/LevelFactory.h"
+#include "Misc/StringOutputDevice.h"
+#include "UnrealExporter.h"
+#endif
+
 namespace
 {
 	/** Every landscape of the world scripts: 2 sections of 63 quads per component */
@@ -72,4 +79,45 @@ AActor* UVaelWorldBuilder::CreateLandscapeFromRaw(UObject* WorldContext, const F
 #else
 	return nullptr;
 #endif
+}
+
+FString UVaelWorldBuilder::CopyActorsAsText(UObject* WorldContext, const TArray<AActor*>& Actors)
+{
+	FStringOutputDevice Text;
+#if WITH_EDITOR
+	// As the editor's Ctrl+C does, but with the actors given instead of the selection (works in a commandlet too)
+	UWorld* World = WorldContext != nullptr ? WorldContext->GetWorld() : nullptr;
+	if (World != nullptr)
+	{
+		const FSelectedActorExportObjectInnerContext Context(Actors.FilterByPredicate([](const AActor* Actor) { return Actor != nullptr; }));
+		UExporter::ExportToOutputDevice(&Context, World, nullptr, Text, TEXT("copy"), 0, PPF_DeepCompareInstances | PPF_ExportsNotFullyQualified, true);
+	}
+#endif
+	return Text;
+}
+
+TArray<AActor*> UVaelWorldBuilder::PasteActorsFromText(UObject* WorldContext, const FString& Text)
+{
+	TArray<AActor*> Pasted;
+#if WITH_EDITOR
+	// As the editor's Ctrl+V does: the level factory makes the actors where they were; the new ones are those that weren't there
+	UWorld* World = WorldContext != nullptr ? WorldContext->GetWorld() : nullptr;
+	if (World == nullptr || Text.IsEmpty())
+	{
+		return Pasted;
+	}
+	ULevel* Level = World->PersistentLevel;
+	TSet<AActor*> Before(Level->Actors);
+	ULevelFactory* Factory = NewObject<ULevelFactory>();
+	const TCHAR* Start = *Text;
+	Factory->FactoryCreateText(ULevel::StaticClass(), Level, Level->GetFName(), RF_Transactional, nullptr, TEXT("paste"), Start, Start + Text.Len(), GWarn);
+	for (AActor* Actor : Level->Actors)
+	{
+		if (Actor != nullptr && !Before.Contains(Actor))
+		{
+			Pasted.Add(Actor);
+		}
+	}
+#endif
+	return Pasted;
 }

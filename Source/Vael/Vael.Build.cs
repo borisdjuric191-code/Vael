@@ -32,6 +32,12 @@ public class Vael : ModuleRules
 
 		PrivateDependencyModuleNames.AddRange(new string[] { "RenderCore", "RHI", "ProceduralMeshComponent", "Landscape" });
 
+		// The world scripts copy actors between levels with the editor (Debug/VaelWorldBuilder)
+		if (Target.bBuildEditor)
+		{
+			PrivateDependencyModuleNames.Add("UnrealEd");
+		}
+
 		PublicIncludePaths.AddRange(new string[] {
 			"Vael",
 			"Vael/Variant_Strategy",
