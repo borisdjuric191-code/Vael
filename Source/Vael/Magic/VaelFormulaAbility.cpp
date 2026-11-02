@@ -46,6 +46,8 @@
 #include "VaelAssets.h"
 #include "World/VaelFireComponent.h"
 #include "Magic/VaelHailStorm.h"
+#include "Magic/VaelAvalanche.h"
+#include "Magic/VaelSnowDrift.h"
 #include "World/VaelGround.h"
 
 namespace
@@ -729,6 +731,11 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 	{
 		AVaelGroundArea::ExtinguishFires(World, Origin + AimDirection * ConeRange * 0.5f, ConeRange * 0.5f);
 	}
+	else if (Formula.DamageElement == EVaelElement::Fire)
+	{
+		// and fire melts the snow
+		AVaelSnowDrift::MeltAround(World, Origin + AimDirection * ConeRange * 0.5f, ConeRange * 0.5f);
+	}
 
 	// Collect every pawn in reach, then keep those inside the cone
 	TArray<FOverlapResult> Overlaps;
@@ -753,6 +760,14 @@ void UVaelFormulaAbility::HitCone(const UVaelFormula& Formula, AActor* Caster, f
 		HitActors.Add(Target);
 		UVaelCombatStatics::ApplySpellHit(Caster, Target, Hit, AimDirection);
 		VaelEffects::PlayImpact(Caster, Effects, Target->GetActorLocation(), Target->GetSimpleCollisionRadius());
+	}
+
+	// Water and earth that freeze are the Lawine: a wall of snow with ice and rock rolls out and leaves drifts behind
+	const bool bAvalanche = Formula.DamageElement == EVaelElement::Water && Formula.AppliedStatus == EVaelStatus::Frozen && Formula.Elements.Contains(EVaelElement::Earth);
+	if (bAvalanche)
+	{
+		AVaelAvalanche::Spawn(Cast<APawn>(Caster), AimDirection, ConeRange, ConeHalfAngle, HitActors.Array(), Formula.StatusDuration);
+		return;
 	}
 
 	// The spray of the cone is the one-shot cast effect, its radius the reach
@@ -811,6 +826,12 @@ void UVaelFormulaAbility::PlaceGroundArea(const UVaelFormula& Formula, AActor* C
 	if (Area != nullptr && bRainCall)
 	{
 		Area->ShowRain();
+	}
+
+	// Fire that blinds is the Ascheregen: ash and embers fall on its patch
+	if (Area != nullptr && Formula.DamageElement == EVaelElement::Fire && Formula.AreaEffect == EVaelGroundEffect::Blind)
+	{
+		Area->ShowAshRain();
 	}
 
 	// Blown mist and steam stream out of the mouth to where they settle

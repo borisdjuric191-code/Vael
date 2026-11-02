@@ -15,6 +15,7 @@
 #include "World/VaelRegion.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelSnowDrift.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterBolt.h"
@@ -2137,9 +2138,11 @@ void AVaelSpellProjectile::Explode()
 
 	UVaelHitFeedbackSubsystem::Shake(this, ExplosionShake);
 
-	// Fire bursts in a blast of flames of the fire kit
+	// Fire bursts in a blast of flames of the fire kit, melting the snow it reaches
 	if (ExplosionHit.Element == EVaelElement::Fire)
 	{
+		AVaelSnowDrift::MeltAround(World, Center, ExplosionRadius);
+
 		// A Feuerball leaves a burning patch with a cloud of fire and smoke rearing up, other fire just blasts
 		if (Look == EVaelProjectileLook::Fireball)
 		{
@@ -2181,6 +2184,9 @@ void AVaelSpellProjectile::LightImpactFire()
 	{
 		return;
 	}
+
+	// Snow where it struck melts
+	AVaelSnowDrift::MeltAround(GetWorld(), StopHit.ImpactPoint, FMath::Max(SpellRadius, 40.0f));
 
 	FVaelFireShape Shape;
 	Shape.bScorch = true;

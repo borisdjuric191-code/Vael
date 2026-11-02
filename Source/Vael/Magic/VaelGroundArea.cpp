@@ -27,6 +27,8 @@
 #include "World/VaelGround.h"
 #include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelCloudCards.h"
+#include "Magic/VaelAshRain.h"
+#include "Magic/VaelSnowDrift.h"
 
 namespace
 {
@@ -418,6 +420,9 @@ void AVaelGroundArea::GetEffectsOn(const AActor* Victim, bool& bOutBlinded, floa
 			OutSpeedMultiplier = FMath::Min(OutSpeedMultiplier, UVaelMagicSettings::Get()->MudSpeedMultiplier);
 		}
 	}
+
+	// Snow of the Lawine slows like mud
+	OutSpeedMultiplier = FMath::Min(OutSpeedMultiplier, AVaelSnowDrift::GetSpeedMultiplierAt(Victim));
 }
 
 bool AVaelGroundArea::IsHiddenInMist(const AActor* Target, const AActor* Observer)
@@ -512,12 +517,37 @@ void AVaelGroundArea::ShowRain()
 	RainLook = AVaelWeatherRain::SpawnPatch(GetWorld(), GetActorLocation(), Radius, Lifetime > 0.0f ? Lifetime : 9.0f);
 }
 
+void AVaelGroundArea::ShowAshRain()
+{
+	// The ash is the look: no steam, no disc, and it doesn't wet like steam
+	Disc->SetVisibility(false);
+	if (CloudCards != nullptr)
+	{
+		CloudCards->DestroyComponent();
+		CloudCards = nullptr;
+	}
+	bSteamCloud = false;
+	TArray<UNiagaraComponent*> Visuals;
+	GetComponents<UNiagaraComponent>(Visuals);
+	for (UNiagaraComponent* Visual : Visuals)
+	{
+		Visual->DestroyComponent();
+	}
+
+	// Embers light small fires that burn half as hot as the rain
+	AshLook = AVaelAshRain::Spawn(GetWorld(), GetActorLocation(), Radius, Lifetime > 0.0f ? Lifetime : 6.0f, DamagePerSecond * 0.5f, GetInstigator());
+}
+
 void AVaelGroundArea::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// A called rain stops with its area
+	// A called rain stops with its area, so does the ash
 	if (RainLook.IsValid())
 	{
 		RainLook->StopPatch();
+	}
+	if (AshLook.IsValid())
+	{
+		AshLook->Stop();
 	}
 
 	if (FireLook.IsValid())

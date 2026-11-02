@@ -31,8 +31,8 @@ namespace
 
 	/** Glow of the bits and the light at its brightest: more turns the colour white */
 	constexpr float BitGlow = 4.5f;
-	constexpr float LightIntensity = 2500.0f;
-	constexpr float LightRadius = 300.0f;
+	constexpr float GlowLightIntensity = 2500.0f;
+	constexpr float GlowLightRadius = 300.0f;
 
 	const FLinearColor HealthGlowColor = FLinearColor(FColor(0x30, 0xf0, 0x48));
 	const FLinearColor ManaGlowColor = FLinearColor(FColor(0x28, 0x6a, 0xff));
@@ -53,7 +53,7 @@ AVaelRechargeGlow::AVaelRechargeGlow()
 	Light->SetRelativeLocation(FVector(0.0f, 0.0f, 90.0f));
 	Light->SetCastShadows(false);
 	Light->SetIntensity(0.0f);
-	Light->SetAttenuationRadius(LightRadius);
+	Light->SetAttenuationRadius(GlowLightRadius);
 
 	PrimaryActorTick.bCanEverTick = true;
 }
@@ -183,7 +183,7 @@ void AVaelRechargeGlow::Tick(float DeltaSeconds)
 		SetActorLocationAndRotation(Target->GetActorLocation() - FVector(0.0f, 0.0f, Target->GetSimpleCollisionHalfHeight()), FRotator::ZeroRotator);
 	}
 
-	Light->SetIntensity(LightIntensity * BitFade(Clock / GlowLife));
+	Light->SetIntensity(GlowLightIntensity * BitFade(Clock / GlowLife));
 
 	for (int32 Index = 0; Index < Bits.Num(); ++Index)
 	{

@@ -77,6 +77,9 @@ public:
 	/** The area is a called rain (Regenruf): it rains on it in the look of the weather rain, out of a dark cloud, instead of the placeholder */
 	void ShowRain();
 
+	/** The area is an Ascheregen: soot and embers fall on it out of a low black cloud, in place of the steam it would show */
+	void ShowAshRain();
+
 	/** Finds what the areas the actor stands in do to it: whether it is blinded and how fast it can walk (1 for normal speed) */
 	static void GetEffectsOn(const AActor* Victim, bool& bOutBlinded, float& OutSpeedMultiplier);
 
@@ -149,6 +152,9 @@ private:
 
 	/** The rain falling on a called rain; it stops with the area */
 	TWeakObjectPtr<class AVaelWeatherRain> RainLook;
+
+	/** The ash falling on an Ascheregen; it stops with the area */
+	TWeakObjectPtr<class AVaelAshRain> AshLook;
 
 	/** Mist veil: a heavy blanket of mist lying flat over the ground and welling out from the middle, see-through wisps
 	 *  above it up to about 2 m. Steam: a fluffy ball of cloud over the area that only lets silhouettes show.

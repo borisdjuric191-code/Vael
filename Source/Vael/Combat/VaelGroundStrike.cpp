@@ -10,6 +10,7 @@
 #include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelIceShards.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelSnowDrift.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
@@ -481,10 +482,14 @@ void AVaelGroundStrike::Strike()
 		}
 	}
 
-	// Water puts out the fires it lands on
+	// Water puts out the fires it lands on, fire melts the snow
 	if (Hit.Element == EVaelElement::Water)
 	{
 		AVaelGroundArea::ExtinguishFires(GetWorld(), GetActorLocation(), Radius);
+	}
+	else if (Hit.Element == EVaelElement::Fire)
+	{
+		AVaelSnowDrift::MeltAround(GetWorld(), GetActorLocation(), Radius);
 	}
 
 	if (Aftermath.Radius > 0.0f)

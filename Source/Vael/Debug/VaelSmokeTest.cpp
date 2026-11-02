@@ -24,6 +24,8 @@
 #include "Creatures/VaelPoisonPuddle.h"
 #include "Items/VaelPickupOrb.h"
 #include "Items/VaelRechargeGlow.h"
+#include "Magic/VaelSnowDrift.h"
+#include "Magic/VaelGroundArea.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelRockWall.h"
@@ -1867,6 +1869,26 @@ void AVaelSmokeTest::BeginPlay()
 	Steps.Add({ TEXT("Recharge glows end"), [HealthGlow, ManaGlow]()
 	{
 		return FString::Printf(TEXT("glows gone: %s"), !HealthGlow->IsValid() && !ManaGlow->IsValid() ? TEXT("yes") : TEXT("NO"));
+	}, 0.1f });
+
+	TSharedRef<TWeakObjectPtr<AVaelSnowDrift>> Drift = MakeShared<TWeakObjectPtr<AVaelSnowDrift>>();
+
+	Steps.Add({ TEXT("Snow drift in fire"), [this, Drift]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		if (Player == nullptr)
+		{
+			return FString(TEXT("FAILED: no player"));
+		}
+		const FVector Ground = Player->GetActorLocation() + FVector(300.0f, 300.0f, -Player->GetSimpleCollisionHalfHeight());
+		*Drift = AVaelSnowDrift::Spawn(GetWorld(), Ground, 120.0f, Player);
+		AVaelGroundArea::SpawnArea(GetWorld(), Ground + FVector(0.0f, 0.0f, 2.0f), EVaelElement::Fire, 50.0f, 2.0f, 0.0f, Player);
+		return FString::Printf(TEXT("drift laid: %s, fire lit beside it"), Drift->IsValid() ? TEXT("yes") : TEXT("NO"));
+	}, 1.5f });
+
+	Steps.Add({ TEXT("Snow drift melted"), [Drift]()
+	{
+		return FString::Printf(TEXT("drift melted: %s"), Drift->IsValid() ? TEXT("NO") : TEXT("yes"));
 	}, 0.1f });
 
 	StepTimeLeft = SmokeWarmUp;

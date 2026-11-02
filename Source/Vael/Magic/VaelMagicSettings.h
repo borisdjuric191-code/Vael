@@ -656,6 +656,24 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Hail", meta = (ClampMin = 0))
 	float IceMeltWater = 2.5f;
 
+	/** Snow the Lawine leaves in its fan (AVaelSnowDrift, Boris 2026-11-02): walking enemies in it move at this share of their
+	 *  speed; it lies this many seconds and thaws over the last of them. Fire close by (as for the hail ice) melts a drift in
+	 *  SnowMeltSeconds into a puddle of SnowMeltWater and wets the enemies standing in it */
+	UPROPERTY(config, EditAnywhere, Category="Snow", meta = (ClampMin = 0, ClampMax = 1))
+	float SnowSpeedMultiplier = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Snow", meta = (ClampMin = 1))
+	float SnowLieSeconds = 7.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Snow", meta = (ClampMin = 0.1))
+	float SnowMeltSeconds = 0.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Snow", meta = (ClampMin = 0))
+	float SnowMeltWater = 1.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Snow", meta = (ClampMin = 0))
+	float SnowWetSeconds = 5.0f;
+
 	/** A dust devil cast in one's own sand storm swallows it (in StormGatherSeconds) and becomes a giant: reach and look in
 	 *  times its radius, times the debris, damage, pull, and speed (slower) */
 	UPROPERTY(config, EditAnywhere, Category="Reactions", meta = (ClampMin = 0.1))
