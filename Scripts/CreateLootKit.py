@@ -320,6 +320,7 @@ LOOKS = {
     "MI_Loot_GelaeuterterKristall": {"Farbe": (0.85, 0.42, 0.06), "AderFarbe": (1.0, 0.86, 0.5), "Leuchten": 0.8, "Truebung": 0.08, "Adern": 0.2, "Puls": 0.05, "PulsTempo": 0.2},
     "MI_Loot_Nidtrunk": {"Farbe": (0.2, 0.025, 0.32), "AderFarbe": (0.6, 0.2, 1.0), "Leuchten": 0.8, "Truebung": 0.85, "Adern": 0.0, "Puls": 0.3, "PulsTempo": 0.6},
     "MI_Loot_Klartrunk": {"Farbe": (1.0, 0.7, 0.28), "AderFarbe": (1.0, 0.9, 0.7), "Leuchten": 0.9, "Truebung": 0.05, "Adern": 0.0, "Puls": 0.08, "PulsTempo": 0.3},
+    "MI_Loot_Mondtropfen": {"Farbe": (0.55, 0.6, 0.8), "AderFarbe": (0.75, 0.6, 1.0), "Leuchten": 1.2, "Truebung": 0.45, "Adern": 0.5, "Puls": 0.12, "PulsTempo": 0.25},
 }
 
 
@@ -385,6 +386,10 @@ ITEMS = [
      "category": C.POTION, "rarity": R.MAGIC, "element": None, "way": W.LIGHT, "stack": 5, "use": U.DRINK,
      "icon": "T_Icon_Klartrunk", "mesh": "SM_Loot_Flasche", "material": None,
      "inner_mesh": "SM_Loot_Flasche_Fluessigkeit", "inner_material": M + "MI_Loot_Klartrunk"},
+    {"asset": "DA_Material_Mondtropfen", "display_name": "Mondtropfen", "color": "dcd6ff", "region": "Wurzelforst",
+     "description": "Mondlicht, zu Stein erstarrt. Reift an der Mondtraufe, nur selten und nur in reinem Land.",
+     "category": C.CRYSTAL, "rarity": R.RARE, "element": E.WATER, "way": W.LIGHT, "stack": 10, "use": U.NONE,
+     "icon": "T_Icon_Mondtropfen", "mesh": "SM_Mondtropfen", "material": M + "MI_Loot_Mondtropfen"},
 ]
 
 
@@ -498,8 +503,8 @@ def rename_texts():
 
 def main():
     meshes = {name: import_mesh(name) for name in ("SM_Loot_Kristall_Klein", "SM_Loot_Kristall_Mittel", "SM_Loot_Kristall_Gross",
-                                                   "SM_Loot_Flasche", "SM_Loot_Flasche_Fluessigkeit")}
-    for icon in ("T_Icon_Nidkristall", "T_Icon_GelaeuterterKristall", "T_Icon_Nidtrunk", "T_Icon_Klartrunk"):
+                                                   "SM_Loot_Flasche", "SM_Loot_Flasche_Fluessigkeit", "SM_Mondtropfen", "SM_Mondtraufe_Blatt")}
+    for icon in ("T_Icon_Nidkristall", "T_Icon_GelaeuterterKristall", "T_Icon_Nidtrunk", "T_Icon_Klartrunk", "T_Icon_Mondtropfen"):
         import_icon(icon)
 
     build_master()
@@ -511,6 +516,7 @@ def main():
         dress_mesh(meshes[name], {"Kristall": M + "MI_Loot_Nidkristall"})
     dress_mesh(meshes["SM_Loot_Flasche"], {"Glas": M + "M_Vael_Loot_Glas", "Korken": M + "M_Vael_Loot_Korken"})
     dress_mesh(meshes["SM_Loot_Flasche_Fluessigkeit"], {"Fluessigkeit": M + "MI_Loot_Nidtrunk"})
+    dress_mesh(meshes["SM_Mondtropfen"], {"Kristall": M + "MI_Loot_Mondtropfen"})
 
     rename_crystal()
     build_items()

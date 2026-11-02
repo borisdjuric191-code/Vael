@@ -251,12 +251,68 @@ def collision_hull(obj):
 
 
 # Models of the kit: file name → builder. Sizes of the crystals in cm (height of the main shard).
+def moon_drop(name, seed=5):
+    """Mondtropfen, the moonstone pendant of the Mondtraufe: a small closed bell on top, flowing into a faceted crystal
+    tip below. It hangs from a thread, so unlike the other models its pivot is at the TOP and it reaches down to -6 cm."""
+    # A closed bell turned with only seven sides and shaded flat, so its sides read as crystal facets; the lower rim
+    # flares like the mouth of a bell flower, then the facets close into a short crystal point
+    profile = [(0.0, 0.0), (0.28, -0.08), (0.5, -0.5), (0.66, -1.3), (0.8, -2.3), (1.05, -3.1), (1.25, -3.55), (1.0, -3.9),
+               (0.72, -4.5), (0.35, -5.3), (0.0, -6.0)]
+    bell = revolve(name, profile, 7, 0.07, seed, ["Kristall"])
+    for polygon in bell.data.polygons:
+        polygon.use_smooth = False
+    return bell
+
+
+def floating_petal(name, length=14.0, width=7.0, seed=3):
+    """A petal fallen from the Mondtraufe, lying on the water: pointed oval, cupped, a little twisted, edges uneven.
+    UV v runs from its base (0) to its tip (1) for the colour run of the material; pivot at its middle, at the water line."""
+    rng = random.Random(seed)
+    mesh = bmesh.new()
+    rows, columns = 14, 8
+    uv_layer = mesh.loops.layers.uv.new("UVMap")
+    grid = []
+    for row in range(rows + 1):
+        v = row / rows
+        half = width * 0.5 * math.sin(math.pi * min(1.0, v * 1.08)) ** 0.8 * (1.0 + rng.uniform(-0.06, 0.06))
+        line = []
+        for column in range(columns + 1):
+            u = column / columns * 2.0 - 1.0
+            x = u * half
+            y = (v - 0.5) * length
+            # Cupped across, lifted at the tip, slightly twisted along
+            z = 0.12 * width * u * u + 0.6 * v * v + 0.25 * u * v
+            line.append((mesh.verts.new((x, y, z)), (column / columns, v)))
+        grid.append(line)
+    for row in range(rows):
+        for column in range(columns):
+            corners = [grid[row][column], grid[row][column + 1], grid[row + 1][column + 1], grid[row + 1][column]]
+            face = mesh.faces.new([c[0] for c in corners])
+            for loop, (_, uv) in zip(face.loops, corners):
+                loop[uv_layer].uv = uv
+    bmesh.ops.remove_doubles(mesh, verts=mesh.verts[:], dist=0.01)
+    data = bpy.data.meshes.new(name)
+    mesh.to_mesh(data)
+    mesh.free()
+    obj = bpy.data.objects.new(name, data)
+    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(slot_material("Bluetenblatt"))
+    for polygon in obj.data.polygons:
+        polygon.use_smooth = True
+    return obj
+
+
 MODELS = {
     "SM_Loot_Kristall_Klein": lambda: crystal_shard("SM_Loot_Kristall_Klein", 5.0, 11),
     "SM_Loot_Kristall_Mittel": lambda: crystal_shard("SM_Loot_Kristall_Mittel", 8.5, 23, side_shards=1),
     "SM_Loot_Kristall_Gross": lambda: crystal_shard("SM_Loot_Kristall_Gross", 13.0, 37, side_shards=3),
     "SM_Loot_Flasche": lambda: bottle("SM_Loot_Flasche"),
+    "SM_Mondtropfen": lambda: moon_drop("SM_Mondtropfen"),
+    "SM_Mondtraufe_Blatt": lambda: floating_petal("SM_Mondtraufe_Blatt"),
 }
+
+# Models whose UVs are made by their builder and must not be replaced by a smart projection
+OWN_UVS = {"SM_Mondtraufe_Blatt"}
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -269,6 +325,7 @@ LOOKS = {
     "GelaeuterterKristall": {"Farbe": (0.85, 0.42, 0.06), "Leuchten": 0.8, "Truebung": 0.08, "Adern": 0.2, "AderFarbe": (1.0, 0.86, 0.5)},
     "Nidtrunk": {"Farbe": (0.2, 0.025, 0.32), "Leuchten": 0.8, "Truebung": 0.85, "Adern": 0.0, "AderFarbe": (0.6, 0.2, 1.0)},
     "Klartrunk": {"Farbe": (1.0, 0.7, 0.28), "Leuchten": 0.6, "Truebung": 0.03, "Adern": 0.0, "AderFarbe": (1.0, 0.9, 0.7)},
+    "Mondtropfen": {"Farbe": (0.55, 0.6, 0.8), "Leuchten": 1.2, "Truebung": 0.45, "Adern": 0.5, "AderFarbe": (0.75, 0.6, 1.0)},
 }
 
 
@@ -420,6 +477,7 @@ ICONS = {
     "T_Icon_GelaeuterterKristall": ("GelaeuterterKristall", ["SM_Loot_Kristall_Mittel"]),
     "T_Icon_Nidtrunk": ("Nidtrunk", ["SM_Loot_Flasche"]),
     "T_Icon_Klartrunk": ("Klartrunk", ["SM_Loot_Flasche"]),
+    "T_Icon_Mondtropfen": ("Mondtropfen", ["SM_Mondtropfen"]),
 }
 
 
@@ -542,7 +600,7 @@ def build_model(name):
     """Builds a model of the kit; returns its render meshes (the bottle has two: glass with cork, liquid)"""
     result = MODELS[name]()
     meshes = list(result) if isinstance(result, tuple) else [result]
-    for obj in meshes:
+    for obj in meshes if name not in OWN_UVS else []:
         add_uvs(obj)
     return meshes
 
