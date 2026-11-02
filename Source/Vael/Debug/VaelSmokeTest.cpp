@@ -23,6 +23,7 @@
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Creatures/VaelPoisonPuddle.h"
 #include "Items/VaelPickupOrb.h"
+#include "Items/VaelRechargeGlow.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelRockWall.h"
@@ -1850,6 +1851,22 @@ void AVaelSmokeTest::BeginPlay()
 	Steps.Add({ TEXT("Moths land"), [HealthMoth, ManaMoth]()
 	{
 		return FString::Printf(TEXT("health moth waits: %s; mana moth given: %s"), HealthMoth->IsValid() ? TEXT("yes") : TEXT("NO"), ManaMoth->IsValid() ? TEXT("NO") : TEXT("yes"));
+	}, 0.1f });
+
+	TSharedRef<TWeakObjectPtr<AVaelRechargeGlow>> HealthGlow = MakeShared<TWeakObjectPtr<AVaelRechargeGlow>>();
+	TSharedRef<TWeakObjectPtr<AVaelRechargeGlow>> ManaGlow = MakeShared<TWeakObjectPtr<AVaelRechargeGlow>>();
+
+	Steps.Add({ TEXT("Recharge glows play"), [this, HealthGlow, ManaGlow]()
+	{
+		AVaelCharacter* Player = GetPlayer();
+		*HealthGlow = AVaelRechargeGlow::Play(Player, EVaelOrbKind::Health);
+		*ManaGlow = AVaelRechargeGlow::Play(Player, EVaelOrbKind::Mana);
+		return FString::Printf(TEXT("health glow: %s; mana glow: %s"), HealthGlow->IsValid() ? TEXT("yes") : TEXT("NO"), ManaGlow->IsValid() ? TEXT("yes") : TEXT("NO"));
+	}, 2.0f });
+
+	Steps.Add({ TEXT("Recharge glows end"), [HealthGlow, ManaGlow]()
+	{
+		return FString::Printf(TEXT("glows gone: %s"), !HealthGlow->IsValid() && !ManaGlow->IsValid() ? TEXT("yes") : TEXT("NO"));
 	}, 0.1f });
 
 	StepTimeLeft = SmokeWarmUp;

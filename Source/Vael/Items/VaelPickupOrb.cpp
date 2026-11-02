@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/VaelPickupOrb.h"
+#include "Items/VaelRechargeGlow.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Components/PointLightComponent.h"
@@ -285,6 +286,7 @@ void AVaelPickupOrb::GiveTo(AVaelCharacter* Player)
 	AbilitySystem->SetNumericAttributeBase(Attribute, FMath::Min(Max, Current + Amount));
 	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(NSLOCTEXT("VaelItems", "OrbAmount", "+{0}"), FMath::RoundToInt(Amount)),
 		Kind == EVaelOrbKind::Health ? HealthTextColor : ManaTextColor);
+	AVaelRechargeGlow::Play(Player, Kind);
 }
 
 void AVaelPickupOrb::Animate(float DeltaSeconds)

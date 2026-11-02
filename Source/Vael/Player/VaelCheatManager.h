@@ -266,4 +266,8 @@ public:
 	/** Lets a health and a mana moth rise on either side of the player, just out of reach */
 	UFUNCTION(Exec)
 	void VaelFalter();
+
+	/** Plays the recharge glow on the player as if a moth had just landed: 0 health, 1 mana */
+	UFUNCTION(Exec)
+	void VaelAufladen(int32 Mana = 0);
 };

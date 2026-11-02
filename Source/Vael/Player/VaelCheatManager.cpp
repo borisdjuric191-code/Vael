@@ -24,6 +24,7 @@
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Items/VaelPickupOrb.h"
+#include "Items/VaelRechargeGlow.h"
 #include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Nature/VaelGarden.h"
@@ -1314,6 +1315,11 @@ void UVaelCheatManager::VaelFalter()
 	const FVector Beside = Player->GetActorRightVector() * (UVaelWorldSettings::Get()->OrbPickupRadius + 60.0f);
 	AVaelPickupOrb::DropOrb(GetWorld(), Player->GetActorLocation() + Beside, EVaelOrbKind::Health);
 	AVaelPickupOrb::DropOrb(GetWorld(), Player->GetActorLocation() - Beside, EVaelOrbKind::Mana);
+}
+
+void UVaelCheatManager::VaelAufladen(int32 Mana)
+{
+	AVaelRechargeGlow::Play(GetOuterAPlayerController()->GetPawn<AVaelCharacter>(), Mana != 0 ? EVaelOrbKind::Mana : EVaelOrbKind::Health);
 }
 
 void UVaelCheatManager::VaelNatterBrut()
