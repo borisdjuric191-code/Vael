@@ -16,6 +16,7 @@
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelSnowDrift.h"
+#include "Magic/VaelFireRoller.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelWaterBolt.h"
@@ -154,9 +155,8 @@ namespace
 	constexpr float MarkShardThicknessShare = 0.55f;
 	constexpr int32 MarkShardVeins = 2;
 
-	/** Thorns, drops or flames of the blobs of the Mark, and the columns of flame of the Feuerwalze */
+	/** Thorns, drops or flames of the blobs of the Mark */
 	constexpr int32 BlobThorns = 11;
-	constexpr int32 RollerColumns = 7;
 
 	/** Motes the splinter can have in the air at once, seconds between two, seconds each one lasts; they rise, in cm/s² */
 	constexpr int32 MarkShardLooseCount = 18;
@@ -745,36 +745,8 @@ void AVaelSpellProjectile::BuildLook()
 	}
 	else if (Look == EVaelProjectileLook::FireRoller)
 	{
-		// A wall of tongues of the fire kit across the whole width; smoke rolls off the top, embers run ahead
-		for (int32 ColumnIndex = 0; ColumnIndex < RollerColumns; ++ColumnIndex)
-		{
-			UVaelFireComponent* Column = NewObject<UVaelFireComponent>(this);
-			Column->SetupAttachment(RootComponent);
-			Column->SetUsingAbsoluteRotation(true);
-			Column->RegisterComponent();
-			FVaelFireShape Shape;
-			Shape.Radius = Radius * 0.36f;
-			Shape.Height = Radius * 1.25f;
-			Shape.Heat = 1.25f;
-			Shape.Smoke = 0.1f;
-			Shape.Speed = 2.0f;
-			Shape.Tongues = 14;
-			Shape.bFloating = true;
-			Shape.bLight = false;
-			Column->Ignite(Shape, 0.05f);
-			RollerFlames.Add(Column);
-		}
-
-		for (int32 EmberIndex = 0; EmberIndex < SparkEmberCount; ++EmberIndex)
-		{
-			LoosePieces.Add(AddLookShape(GlowMaterial, FLinearColor(1.0f, 0.4f, 0.06f), 5.0f, 0.0f, true));
-		}
-		LooseSize = Radius * 0.1f / (PlaceholderSphereRadius * 2.0f);
-		LooseLifetime = SparkEmberLifetime;
-		LooseGravity = SparkEmberGravity;
-		LooseDrag = 2.2f;
-		bLooseFlicker = true;
-
+		// A drum of flame rolling over the ground, driven by the wind, leaving a burning trail (AVaelFireRoller, Boris 2026-11-02)
+		AVaelFireRoller::Spawn(this, Radius * 2.1f, GetInstigator());
 		AddLookLight(FLinearColor(1.0f, 0.45f, 0.12f), 26.0f);
 	}
 	else if (Look == EVaelProjectileLook::Spore || Look == EVaelProjectileLook::BloodGlob || Look == EVaelProjectileLook::BlackFire)
@@ -1192,26 +1164,7 @@ void AVaelSpellProjectile::AnimateLavaBurst()
 
 void AVaelSpellProjectile::AnimateFireRoller(float Time, float DeltaSeconds)
 {
-	const float Radius = SpellRadius;
-	const FVector Forward = Movement->Velocity.GetSafeNormal2D();
-	const FVector Side(-Forward.Y, Forward.X, 0.0f);
-
-	// The columns stand across the flight, the wall leans forward as it rolls and its tips lick up and down one after the other
-	for (int32 ColumnIndex = 0; ColumnIndex < RollerFlames.Num(); ++ColumnIndex)
-	{
-		const float Across = (ColumnIndex / static_cast<float>(RollerFlames.Num() - 1) - 0.5f) * 2.0f;
-		const float Wave = FMath::Sin(Time * 6.0f + ColumnIndex * 1.7f);
-		RollerFlames[ColumnIndex]->SetWorldLocation(GetActorLocation() + Side * Across * Radius * 1.05f + Forward * Radius * 0.2f * Wave - FVector(0.0f, 0.0f, Radius * 0.5f));
-		RollerFlames[ColumnIndex]->SetSizeScale(1.0f - 0.25f * FMath::Abs(Across) + 0.1f * Wave);
-	}
-
-	NextShedCountdown -= DeltaSeconds;
-	if (NextShedCountdown <= 0.0f)
-	{
-		NextShedCountdown = MarkShardShedInterval;
-		ShedPiece(GetActorLocation() + Side * FMath::FRandRange(-Radius, Radius) + Forward * Radius * 0.4f, Forward * Movement->Velocity.Size() * 0.6f + FVector(0.0f, 0.0f, FMath::FRandRange(120.0f, 320.0f)));
-	}
-
+	// The drum of flame (AVaelFireRoller) follows the flight on its own; the light flickers with it
 	LookLight->SetIntensity(LookLightIntensity * (0.8f + 0.3f * FMath::PerlinNoise1D(Time * 11.0f)));
 }
 

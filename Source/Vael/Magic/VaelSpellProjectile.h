@@ -276,10 +276,6 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelFireComponent> TrailFlames;
 
-	/** Columns of flame of the Feuerwalze */
-	UPROPERTY(Transient)
-	TArray<TObjectPtr<class UVaelFireComponent>> RollerFlames;
-
 	/** A body of flames that lick out all around a ball of fire, like the Feuerball */
 	UPROPERTY(Transient)
 	TObjectPtr<class UVaelFireComponent> BallFlames;
