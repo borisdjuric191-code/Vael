@@ -359,6 +359,34 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
 	float SlamExhaustSeconds = 0.3f;
 
+	/** Fan slap (Windstoß): seconds until the gust leaves the hand, and of the whole gesture */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float FanReleaseTime = 0.15f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float FanDuration = 0.5f;
+
+	/** Skating stride (Böe): seconds until the jump starts (it has to be quick, it is the way out), and of the whole stride */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float SkateReleaseTime = 0.06f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float SkateDuration = 0.45f;
+
+	/** Stirring (Wirbelsturm): seconds until the whirl is thrown, of the whole gesture, circles the finger stirs per second, and the
+	 *  very short pause afterwards (Boris 2026-11-02) */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float StirReleaseTime = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float StirDuration = 0.85f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float StirCircles = 5.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float StirExhaustSeconds = 0.15f;
+
 	/** The gesture of a formula, none when it uses a montage */
 	EVaelCastGesture FindCastGesture(const UVaelFormula* Formula) const;
 
@@ -376,6 +404,9 @@ public:
 		case EVaelCastGesture::Backfist:	return BackfistReleaseTime;
 		case EVaelCastGesture::WallRise:	return WallRiseReleaseTime;
 		case EVaelCastGesture::GroundSlam:	return SlamReleaseTime;
+		case EVaelCastGesture::FanSlap:		return FanReleaseTime;
+		case EVaelCastGesture::Skate:		return SkateReleaseTime;
+		case EVaelCastGesture::Stir:		return StirReleaseTime;
 		default:							return GestureReleaseTime;
 		}
 	}
@@ -392,6 +423,9 @@ public:
 		case EVaelCastGesture::Backfist:	return BackfistDuration;
 		case EVaelCastGesture::WallRise:	return WallRiseDuration;
 		case EVaelCastGesture::GroundSlam:	return SlamDuration;
+		case EVaelCastGesture::FanSlap:		return FanDuration;
+		case EVaelCastGesture::Skate:		return SkateDuration;
+		case EVaelCastGesture::Stir:		return StirDuration;
 		default:							return GestureDuration;
 		}
 	}

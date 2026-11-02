@@ -275,7 +275,20 @@ void UVaelFormulaAbility::OnGestureRelease()
 
 	// A wave throws the water off the hands; a big one leaves the mage spent, the more water it carries the longer (Boris 2026-11-02)
 	AVaelCharacter* WaveMage = Cast<AVaelCharacter>(GetAvatarActorFromActorInfo());
-	if (WaveMage != nullptr && (CastGestureKind == EVaelCastGesture::Backfist || CastGestureKind == EVaelCastGesture::WallRise || CastGestureKind == EVaelCastGesture::GroundSlam))
+	if (WaveMage != nullptr && CastGestureKind == EVaelCastGesture::Skate)
+	{
+		WaveMage->PushOffWithWind();
+	}
+	else if (WaveMage != nullptr && (CastGestureKind == EVaelCastGesture::FanSlap || CastGestureKind == EVaelCastGesture::Stir))
+	{
+		// Air: the wind round the hand goes with the gust or the whirl; after the whirl a very short pause
+		WaveMage->FlingHandWater(WaveMage->GetActorForwardVector());
+		if (CastGestureKind == EVaelCastGesture::Stir)
+		{
+			WaveMage->BeginCastExhaustion(UVaelMagicSettings::Get()->StirExhaustSeconds, false);
+		}
+	}
+	else if (WaveMage != nullptr && (CastGestureKind == EVaelCastGesture::Backfist || CastGestureKind == EVaelCastGesture::WallRise || CastGestureKind == EVaelCastGesture::GroundSlam))
 	{
 		// Earth: the grit flies off the knuckles with the blow, up with the rising wall, bursts up where the fists hit the ground
 		const FVector Blow = CastGestureKind == EVaelCastGesture::Backfist ? WaveMage->GetActorForwardVector() : CastGestureKind == EVaelCastGesture::WallRise ? FVector::UpVector * 0.4f : FVector::ZeroVector;

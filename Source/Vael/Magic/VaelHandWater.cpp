@@ -8,6 +8,7 @@
 #include "Magic/VaelMagicSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
+#include "Magic/VaelWindStreaks.h"
 #include "VaelAssets.h"
 
 namespace
@@ -48,6 +49,22 @@ namespace
 	constexpr float GritGlow = 0.45f;
 	constexpr float GatherGrit = 16.0f;
 	constexpr int32 BlowGrit = 22;
+
+	/** Air: streaks per hand spiralling up the forearm (laps per second, how far round in cm), their width and trail; specks of
+	 *  dust whirling along, which hardly fall, and how many leave each hand with the throw */
+	constexpr int32 AirStreaksPerHand = 3;
+	constexpr float AirStreakWidth = 3.0f;
+	constexpr float AirStreakTrail = 45.0f;
+	constexpr float AirStreakLaps = 1.4f;
+	constexpr float AirStreakTurn = 11.0f;
+	constexpr float AirStreakRadius = 7.0f;
+	constexpr float AirStreakFade = 0.3f;
+	constexpr float AirStreakFling = 700.0f;
+	const FLinearColor DustColor = FLinearColor(0.72f, 0.7f, 0.6f);
+	constexpr float DustGlow = 0.8f;
+	constexpr float GatherDust = 10.0f;
+	constexpr int32 BlowDust = 14;
+	constexpr float DustGravity = 120.0f;
 }
 
 UVaelHandWaterComponent::UVaelHandWaterComponent()
@@ -58,12 +75,28 @@ UVaelHandWaterComponent::UVaelHandWaterComponent()
 	SetUsingAbsoluteScale(true);
 }
 
-void UVaelHandWaterComponent::Start(USkeletalMeshComponent* InBody, bool bInBothHands, float InRelease, bool bInEarth)
+void UVaelHandWaterComponent::Start(USkeletalMeshComponent* InBody, bool bInBothHands, float InRelease, EVaelHandMatter InMatter)
 {
 	Body = InBody;
 	bBothHands = bInBothHands;
-	bEarth = bInEarth;
+	bEarth = InMatter == EVaelHandMatter::Earth;
+	bAir = InMatter == EVaelHandMatter::Air;
 	Release = FMath::Max(InRelease, 0.05f);
+
+	// Air: bright bands of wind spiral round the forearms
+	UMaterialInterface* StreakMaterial = bAir ? VaelAssets::LoadOptional(UVaelMagicSettings::Get()->StreakMaterial) : nullptr;
+	if (StreakMaterial != nullptr)
+	{
+		Streaks = NewObject<UVaelWindStreaksComponent>(GetOwner());
+		Streaks->SetupAttachment(this);
+		Streaks->RegisterComponent();
+		Streaks->Init(StreakMaterial);
+		for (int32 Index = 0; Index < (bBothHands ? 2 : 1) * AirStreaksPerHand; ++Index)
+		{
+			Streaks->AddStreak(GetOwner()->GetActorLocation(), AirStreakWidth, AirStreakTrail);
+			StreakAlong.Add(1.0f);
+		}
+	}
 
 	Beads = NewObject<UInstancedStaticMeshComponent>(GetOwner());
 	Beads->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
@@ -81,8 +114,8 @@ void UVaelHandWaterComponent::Start(USkeletalMeshComponent* InBody, bool bInBoth
 	if (UMaterialInterface* IceMaterial = VaelAssets::LoadOptional(MagicSettings->HailIceMaterial))
 	{
 		UMaterialInstanceDynamic* Water = UMaterialInstanceDynamic::Create(IceMaterial, this);
-		Water->SetVectorParameterValue(TEXT("Farbe"), bEarth ? GritColor : MagicSettings->GetElementColor(EVaelElement::Water));
-		Water->SetScalarParameterValue(TEXT("Leuchten"), bEarth ? GritGlow : WaterGlow);
+		Water->SetVectorParameterValue(TEXT("Farbe"), bEarth ? GritColor : bAir ? DustColor : MagicSettings->GetElementColor(EVaelElement::Water));
+		Water->SetScalarParameterValue(TEXT("Leuchten"), bEarth ? GritGlow : bAir ? DustGlow : WaterGlow);
 		Beads->SetMaterial(0, Water);
 	}
 }
@@ -127,6 +160,17 @@ void UVaelHandWaterComponent::Fling(const FVector& Forward)
 		FVector Elbow, Wrist, Tips;
 		if (!GetHand(Side, Elbow, Wrist, Tips))
 		{
+			continue;
+		}
+		if (bAir)
+		{
+			// The dust whirls off with the wind, fast and hardly falling
+			FlingWay = Forward;
+			for (int32 Index = 0; Index < BlowDust; ++Index)
+			{
+				const FVector From = FMath::Lerp(Wrist, Tips, FMath::FRand());
+				Shed(From + FMath::VRand() * 4.0f, Forward * FMath::FRandRange(400.0f, 800.0f) + FMath::VRand() * 60.0f, FMath::FRandRange(1.0f, 2.0f));
+			}
 			continue;
 		}
 		if (bEarth)
@@ -184,7 +228,36 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		LastWrist[Side] = Wrist;
 
 		// The coil: beads spiral round the forearm out towards the fingers, more and bigger the closer the throw
-		if (bGathering && !bEarth)
+		// Air: the streaks spiral up the forearm and start again at the elbow; with the throw they shoot off and fade
+		if (Streaks != nullptr)
+		{
+			const FVector Axis = (Tips - Elbow).GetSafeNormal();
+			const FVector Across = FVector::CrossProduct(Axis, FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
+			const FVector Over = FVector::CrossProduct(Across, Axis);
+			for (int32 Lap = 0; Lap < AirStreaksPerHand; ++Lap)
+			{
+				const int32 Index = Side * AirStreaksPerHand + Lap;
+				if (bGathering)
+				{
+					const float Along = FMath::Fractional(Age * AirStreakLaps + Lap / static_cast<float>(AirStreaksPerHand));
+					const float Angle = Age * AirStreakTurn + Lap * UE_TWO_PI / AirStreaksPerHand + Side * UE_PI;
+					const FVector Head = FMath::Lerp(Elbow, Tips, Along) + (Across * FMath::Cos(Angle) + Over * FMath::Sin(Angle)) * AirStreakRadius;
+					if (Along < StreakAlong[Index])
+					{
+						Streaks->Restart(Index, Head);
+					}
+					StreakAlong[Index] = Along;
+					Streaks->MoveHead(Index, Head, FMath::Max(Full, 0.25f));
+				}
+				else
+				{
+					const float Left = bFlung ? 1.0f - (Age - FlungAge) / AirStreakFade : 0.0f;
+					Streaks->MoveHead(Index, Tips + FlingWay * AirStreakFling * FMath::Max(Age - FlungAge, 0.0f), FMath::Max(Left, 0.0f));
+				}
+			}
+		}
+
+		if (bGathering && !bEarth && !bAir)
 		{
 			const FVector Axis = (Tips - Elbow).GetSafeNormal();
 			const FVector Across = FVector::CrossProduct(Axis, FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
@@ -203,10 +276,17 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		// Drops run off the fingertips, flung along with the swing of the hand
 		if (bDripping)
 		{
-			const float Rate = bEarth ? (bGathering ? GatherGrit : AfterDrips) : (bGathering ? GatherDrips * FMath::Max(Full, 0.3f) : AfterDrips);
+			const float Rate = bAir ? (bGathering ? GatherDust : 0.0f) : bEarth ? (bGathering ? GatherGrit : AfterDrips) : (bGathering ? GatherDrips * FMath::Max(Full, 0.3f) : AfterDrips);
 			DripCredit[Side] += Rate * DeltaTime;
 			for (; DripCredit[Side] >= 1.0f; DripCredit[Side] -= 1.0f)
 			{
+				if (bAir)
+				{
+					// Specks of dust caught in the wind round the hand, carried up and round
+					const FVector Round = FVector::CrossProduct((Tips - Elbow).GetSafeNormal(), FVector::UpVector).GetSafeNormal();
+					Shed(Wrist + FMath::VRand() * 8.0f, Round * FMath::FRandRange(-120.0f, 120.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(40.0f, 120.0f)) + Swing * 0.4f, FMath::FRandRange(1.0f, 1.8f));
+					continue;
+				}
 				// Grit trickles from the whole fist, now and then a bigger crumb
 				const FVector From = bEarth ? FMath::Lerp(Wrist, Tips, FMath::FRand()) : Tips;
 				const float Size = bEarth ? (FMath::FRand() < 0.15f ? FMath::FRandRange(3.0f, 4.5f) : FMath::FRandRange(1.2f, 2.4f)) : FMath::FRandRange(1.8f, 3.2f);
@@ -221,7 +301,7 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	{
 		FDrop& Drop = Drops[Index];
 		Drop.Age += DeltaTime;
-		Drop.Velocity.Z -= DropGravity * DeltaTime;
+		Drop.Velocity.Z -= (bAir ? DustGravity : DropGravity) * DeltaTime;
 		Drop.Location += Drop.Velocity * DeltaTime;
 		if (Drop.Age > DropLife || Drop.Location.Z < GroundZ)
 		{
@@ -230,9 +310,9 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		}
 		const float Speed = Drop.Velocity.Size();
 		const float Width = Drop.Size / BeadSphereSize;
-		if (bEarth)
+		if (bEarth || bAir)
 		{
-			// Grit tumbles, a little flattened and uneven, not drawn out like water
+			// Grit and dust tumble, a little flattened and uneven, not drawn out like water
 			const FQuat Tumble(FVector(0.6f, 0.8f, 0.0f), Drop.Age * 9.0f + Index);
 			Frame.Add(FTransform(Tumble, Drop.Location, FVector(Width, Width * 0.8f, Width * 0.6f)));
 			continue;
@@ -241,10 +321,20 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		Frame.Add(FTransform(Way, Drop.Location, FVector(Width, Width, Width * (1.0f + Speed / DropStretchSpeed))));
 	}
 
+	if (Streaks != nullptr)
+	{
+		Streaks->Commit();
+	}
+
 	// All gone: the component goes too
-	const bool bDone = Drops.IsEmpty() && !bDripping && !bGathering;
+	const bool bStreaksGone = Streaks == nullptr || !bFlung || Age - FlungAge > AirStreakFade;
+	const bool bDone = Drops.IsEmpty() && !bDripping && !bGathering && bStreaksGone;
 	if (bDone)
 	{
+		if (Streaks != nullptr)
+		{
+			Streaks->DestroyComponent();
+		}
 		Beads->DestroyComponent();
 		DestroyComponent();
 		return;

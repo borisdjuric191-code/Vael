@@ -46,6 +46,9 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	float GestureRelease = 0.13f;
 	float GestureDuration = 0.5f;
 
+	/** Leg pushing off in the skating stride of the Böe, 0 left, 1 right */
+	int32 SkateSide = 0;
+
 private:
 
 	/** Tips the body, lets the legs dangle and swing, bends the knees and points the toes */
@@ -81,6 +84,15 @@ private:
 
 	/** Erdbeben: both fists up together over the head, slammed into the ground at once, crouched while spent */
 	void ApplyGroundSlam(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Windstoß: the flat hand fans out from before the chest, edge first, and swings on */
+	void ApplyFanSlap(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Böe: a skating stride, low and leaning, one leg pushed out sideways and back, the arms swinging against it */
+	void ApplySkate(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Wirbelsturm: the finger stirs circles over the head, then the hand throws the whirl forward */
+	void ApplyStir(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
 	/** Closes a hand (suffix l or r) to a fist, as far as the weight says */
 	void MakeFist(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, const TCHAR* Suffix, float Weight) const;
@@ -156,6 +168,7 @@ protected:
 	EVaelCastGesture CastGesture = EVaelCastGesture::None;
 	float CastGestureSeconds = 0.0f;
 	float CastExhaustion = 0.0f;
+	int32 CastSkateSide = 0;
 
 public:
 

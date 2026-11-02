@@ -331,6 +331,12 @@ public:
 	/** The water (or grit) clinging to the hands during a gesture flies off with the throw or the blow, this way (zero: bursts up) */
 	void FlingHandWater(const FVector& Direction);
 
+	/** A skating stride of the Böe pushes off: a puff of wind blows from that foot outwards and back */
+	void PushOffWithWind();
+
+	/** Leg that pushes off in the current skating stride: 0 left, 1 right; it changes with every stride */
+	int32 GetSkateSide() const { return SkateSide; }
+
 	/** True during that pause */
 	bool IsExhausted() const { return ExhaustionEndTime > 0.0f; }
 
@@ -504,6 +510,9 @@ private:
 	float ExhaustionStartTime = 0.0f;
 	float ExhaustionEndTime = 0.0f;
 	FTimerHandle ExhaustionTimer;
+
+	/** Leg pushing off in the skating stride of the Böe, 0 left, 1 right */
+	int32 SkateSide = 0;
 
 	/** Cast gesture playing, and when it began in game seconds */
 	EVaelCastGesture CastGesture = EVaelCastGesture::None;

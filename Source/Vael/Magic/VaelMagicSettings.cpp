@@ -56,6 +56,10 @@ UVaelMagicSettings::UVaelMagicSettings()
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Steinbrocken.DA_Formula_Steinbrocken"))), EVaelCastGesture::Backfist);
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Felswand.DA_Formula_Felswand"))), EVaelCastGesture::WallRise);
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Erdbeben.DA_Formula_Erdbeben"))), EVaelCastGesture::GroundSlam);
+	// Air is light and quick: open hands, the hand's edge, turns from the hips (Boris 2026-11-02)
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Windstoss.DA_Formula_Windstoss"))), EVaelCastGesture::FanSlap);
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Boee.DA_Formula_Boee"))), EVaelCastGesture::Skate);
+	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Wirbelsturm.DA_Formula_Wirbelsturm"))), EVaelCastGesture::Stir);
 	// Mist and steam are blown out of the mouth (Boris 2026-10-30)
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Nebelschleier.DA_Formula_Nebelschleier"))), EVaelCastGesture::BlowOut);
 	CastGestures.Add(TSoftObjectPtr<UVaelFormula>(FSoftObjectPath(TEXT("/Game/Vael/Magic/Formulas/DA_Formula_Dampfwolke.DA_Formula_Dampfwolke"))), EVaelCastGesture::BlowOut);

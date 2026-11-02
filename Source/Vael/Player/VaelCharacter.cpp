@@ -63,6 +63,10 @@ namespace
 
 	/** Blend time when a roll montage is cut short */
 	constexpr float RollMontageBlendOutTime = 0.15f;
+
+	/** Puff of wind from the foot that pushes off in a skating stride: reach in cm and half the angle of its fan */
+	constexpr float SkatePuffReach = 170.0f;
+	constexpr float SkatePuffHalfAngle = 30.0f;
 }
 
 AVaelCharacter::AVaelCharacter()
@@ -606,7 +610,18 @@ bool AVaelCharacter::StartSpellDash(const FVector& WorldDirection, float Speed, 
 	DashStartLocation = GetActorLocation();
 	DodgeEndTime = GetWorld()->GetTimeSeconds() + Duration;
 
-	BeginRollLook(LoadedSpellDashMontage != nullptr ? LoadedSpellDashMontage : LoadedDodgeMontage, Duration);
+	// A Böe is skated (the gesture poses the stride): no roll, only the body turned the way it goes
+	float GestureSeconds = 0.0f;
+	if (GetCastGesture(GestureSeconds) == EVaelCastGesture::Skate)
+	{
+		GetCharacterMovement()->bUseControllerDesiredRotation = false;
+		SetActorRotation(DodgeDirection.Rotation());
+		ActiveRollMontage = nullptr;
+	}
+	else
+	{
+		BeginRollLook(LoadedSpellDashMontage != nullptr ? LoadedSpellDashMontage : LoadedDodgeMontage, Duration);
+	}
 
 	// Riding on the wind: streaks wrap the body, shimmer and dust are left along the path
 	if (InDashBurst.Element == EVaelElement::Air)
@@ -847,10 +862,18 @@ void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
 	CastGesture = Gesture;
 	CastGestureStartTime = GetWorld()->GetTimeSeconds();
 
-	// Water winds round the hands that carry a wave, both for the Flutwelle; grit and dust trickle from the fists of earth
+	// Every stride of a held Böe pushes off with the other leg
+	if (Gesture == EVaelCastGesture::Skate)
+	{
+		SkateSide = 1 - SkateSide;
+	}
+
+	// Water winds round the hands that carry a wave, both for the Flutwelle; grit and dust trickle from the fists of earth;
+	// streaks of wind wind round the hands of air (the skating stride rides the wind with the whole body instead)
 	const bool bWater = Gesture == EVaelCastGesture::WaveSweep || Gesture == EVaelCastGesture::WaveHeave;
 	const bool bEarth = Gesture == EVaelCastGesture::Backfist || Gesture == EVaelCastGesture::WallRise || Gesture == EVaelCastGesture::GroundSlam;
-	if (bWater || bEarth)
+	const bool bAir = Gesture == EVaelCastGesture::FanSlap || Gesture == EVaelCastGesture::Stir;
+	if (bWater || bEarth || bAir)
 	{
 		if (IsValid(HandWater))
 		{
@@ -859,8 +882,18 @@ void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
 		const bool bBothHands = Gesture == EVaelCastGesture::WaveHeave || Gesture == EVaelCastGesture::WallRise || Gesture == EVaelCastGesture::GroundSlam;
 		HandWater = NewObject<UVaelHandWaterComponent>(this);
 		HandWater->RegisterComponent();
-		HandWater->Start(GetMesh(), bBothHands, UVaelMagicSettings::Get()->GetGestureRelease(Gesture), bEarth);
+		HandWater->Start(GetMesh(), bBothHands, UVaelMagicSettings::Get()->GetGestureRelease(Gesture), bEarth ? EVaelHandMatter::Earth : bAir ? EVaelHandMatter::Air : EVaelHandMatter::Water);
 	}
+}
+
+void AVaelCharacter::PushOffWithWind()
+{
+	// A puff of wind blows out from the foot that pushes off, outwards and back
+	const FName FootBone = SkateSide == 0 ? TEXT("foot_l") : TEXT("foot_r");
+	const FVector Foot = GetMesh()->GetBoneIndex(FootBone) != INDEX_NONE ? GetMesh()->GetBoneLocation(FootBone) : GetActorLocation() - FVector(0.0f, 0.0f, GetSimpleCollisionHalfHeight());
+	const FVector Outward = GetActorRightVector() * (SkateSide == 0 ? -1.0f : 1.0f);
+	const FVector Away = (Outward * 0.7f - GetActorForwardVector() * 0.7f).GetSafeNormal();
+	AVaelSpellGust::Spawn(this, Foot + FVector(0.0f, 0.0f, 10.0f), Away, SkatePuffReach, SkatePuffHalfAngle, UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Air));
 }
 
 void AVaelCharacter::FlingHandWater(const FVector& Direction)
@@ -883,7 +916,7 @@ EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
 	}
 
 	// A wave or a slam that left the mage spent stands as long as the pause lasts, and ends with it
-	if (CastGesture == EVaelCastGesture::WaveSweep || CastGesture == EVaelCastGesture::WaveHeave || CastGesture == EVaelCastGesture::GroundSlam)
+	if (CastGesture == EVaelCastGesture::WaveSweep || CastGesture == EVaelCastGesture::WaveHeave || CastGesture == EVaelCastGesture::GroundSlam || CastGesture == EVaelCastGesture::Stir)
 	{
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 		const bool bSpentByThis = ExhaustionStartTime >= CastGestureStartTime;

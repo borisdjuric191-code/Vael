@@ -57,6 +57,7 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 
 	CastGesture = Character->GetCastGesture(CastGestureSeconds);
 	CastExhaustion = Character->GetCastExhaustion();
+	CastSkateSide = Character->GetSkateSide();
 
 	// The Floromant hovers instead of walking: its legs stay still while it glides; once it has landed to fire, it walks
 	const bool bHovering = Character->IsFloromant() && FMath::Max(PlantArmStance[0], PlantArmStance[1]) < 0.5f;
@@ -107,6 +108,7 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	Gesture = Instance->CastGesture;
 	GestureSeconds = Instance->CastGestureSeconds;
 	GestureExhaust = Instance->CastExhaustion;
+	SkateSide = Instance->CastSkateSide;
 	GestureRelease = MagicSettings->GetGestureRelease(Gesture);
 	GestureDuration = MagicSettings->GetGestureDuration(Gesture);
 }
@@ -674,6 +676,175 @@ void FVaelAnimProxy::ApplyGroundSlam(FCSPose<FCompactPose>& Pose, const FBoneCon
 	}
 }
 
+void FVaelAnimProxy::ApplyFanSlap(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+
+	const FCompactPoseBoneIndex Upper = Find(TEXT("upperarm_r"));
+	const FCompactPoseBoneIndex Lower = Find(TEXT("lowerarm_r"));
+	const FCompactPoseBoneIndex Hand = Find(TEXT("hand_r"));
+	const FCompactPoseBoneIndex Middle = Find(TEXT("middle_01_r"));
+	if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE || Middle == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Timing: the flat hand gathers before the far side of the chest, fans out edge first with the release and keeps
+	// swinging on past it, never stopping hard; the body lifts a little with it
+	const float T = GestureSeconds;
+	const float Release = FMath::Max(GestureRelease, 0.02f);
+	const float Gather = Release * 0.6f;
+	const float End = FMath::Max(GestureDuration, Release + 0.15f);
+	const float Weight = FMath::SmoothStep(0.0f, Gather, T) * (1.0f - FMath::SmoothStep(Release + 0.1f, End, T));
+	const float Fan = FMath::Clamp((T - Gather) / (Release - Gather), 0.0f, 1.0f);
+	const float Sweep = 1.0f - FMath::Square(1.0f - Fan) + 0.25f * FMath::SmoothStep(Release, End, T);
+
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+	const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+
+	// Turns from the hips with the fan and rises a little out of it (turning around +X tips back)
+	const float Twist = Outward * FMath::Lerp(14.0f, -16.0f, FMath::Min(Sweep, 1.0f)) * Weight;
+	for (const TCHAR* Spine : { TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(Twist / 3.0f)));
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(4.0f * Fan * Weight / 3.0f)));
+	}
+
+	// Gathered: forearm across the chest, the flat hand by the far shoulder. Fanned: the arm out wide before the own side, flat
+	const FVector UpperIn = FVector(-Outward * 0.3f, 0.75f, -0.35f).GetSafeNormal();
+	const FVector LowerIn = FVector(-Outward * 0.85f, 0.35f, 0.2f).GetSafeNormal();
+	const FVector UpperOut = FVector(Outward * (0.7f + 0.2f * (Sweep - 1.0f)), 0.7f, 0.0f).GetSafeNormal();
+	const FVector LowerOut = FVector(Outward * (0.75f + 0.25f * (Sweep - 1.0f)), 0.65f, 0.05f).GetSafeNormal();
+	const float Blend = FMath::Min(Sweep, 1.0f);
+	AimPoseBone(Pose, Upper, Lower, FMath::Lerp(UpperIn, UpperOut, Blend).GetSafeNormal(), Weight);
+	AimPoseBone(Pose, Lower, Hand, FMath::Lerp(LowerIn, LowerOut, Blend).GetSafeNormal(), Weight);
+
+	// The palm faces down so the edge of the hand leads, the fingers straight along it
+	const FVector Forearm = PoseBoneDirection(Pose, Lower, Hand);
+	TurnPoseBone(Pose, Lower, FQuat(Forearm, FMath::DegreesToRadians(-Outward * 70.0f * Weight)));
+	AimPoseBone(Pose, Hand, Middle, FMath::Lerp(LowerIn, LowerOut, Blend).GetSafeNormal(), Weight);
+	OpenHand(Pose, Bones, TEXT("r"), Weight);
+}
+
+void FVaelAnimProxy::ApplySkate(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+
+	// Timing: the stride opens at once and holds while the jump carries the mage, then it glides back up
+	const float T = GestureSeconds;
+	const float End = FMath::Max(GestureDuration, 0.2f);
+	const float Weight = FMath::SmoothStep(0.0f, 0.12f, T) * (1.0f - FMath::SmoothStep(End - 0.15f, End, T));
+	if (Weight <= 0.0f)
+	{
+		return;
+	}
+
+	// Low and leaning into the way, as a skater on the ice (turning around +X tips back)
+	Crouch(Pose, Bones, 22.0f * Weight);
+	for (const TCHAR* Spine : { TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(-24.0f * Weight / 3.0f)));
+	}
+
+	// The pushing leg stretches out sideways and back, the other carries the body bent
+	const TCHAR* PushSuffix = SkateSide == 0 ? TEXT("l") : TEXT("r");
+	const FCompactPoseBoneIndex Pelvis = Find(TEXT("pelvis"));
+	const FCompactPoseBoneIndex Thigh = Find(FString::Printf(TEXT("thigh_%s"), PushSuffix));
+	const FCompactPoseBoneIndex Calf = Find(FString::Printf(TEXT("calf_%s"), PushSuffix));
+	const FCompactPoseBoneIndex Foot = Find(FString::Printf(TEXT("foot_%s"), PushSuffix));
+	if (Pelvis != INDEX_NONE && Thigh != INDEX_NONE && Calf != INDEX_NONE && Foot != INDEX_NONE)
+	{
+		const float PushOut = FMath::Sign(Pose.GetComponentSpaceTransform(Thigh).GetLocation().X - Pose.GetComponentSpaceTransform(Pelvis).GetLocation().X);
+		const FVector Pushed = FVector(PushOut * 0.6f, -0.45f, -0.66f).GetSafeNormal();
+		AimPoseBone(Pose, Thigh, Calf, Pushed, Weight);
+		AimPoseBone(Pose, Calf, Foot, Pushed, Weight);
+	}
+
+	// The arms swing against the legs: the arm of the pushing side goes back, the other forward across the body
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		const FCompactPoseBoneIndex Upper = Find(FString::Printf(TEXT("upperarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Lower = Find(FString::Printf(TEXT("lowerarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Hand = Find(FString::Printf(TEXT("hand_%s"), Suffix));
+		if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE)
+		{
+			continue;
+		}
+		const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+		const bool bPushSide = Side == SkateSide;
+		const FVector UpperAim = bPushSide ? FVector(Outward * 0.2f, -0.7f, -0.68f) : FVector(-Outward * 0.35f, 0.8f, -0.45f);
+		const FVector LowerAim = bPushSide ? FVector(Outward * 0.1f, -0.75f, -0.6f) : FVector(-Outward * 0.45f, 0.75f, -0.3f);
+		AimPoseBone(Pose, Upper, Lower, UpperAim.GetSafeNormal(), Weight);
+		AimPoseBone(Pose, Lower, Hand, LowerAim.GetSafeNormal(), Weight);
+		OpenHand(Pose, Bones, Suffix, Weight * 0.6f);
+	}
+}
+
+void FVaelAnimProxy::ApplyStir(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+
+	const FCompactPoseBoneIndex Upper = Find(TEXT("upperarm_r"));
+	const FCompactPoseBoneIndex Lower = Find(TEXT("lowerarm_r"));
+	const FCompactPoseBoneIndex Hand = Find(TEXT("hand_r"));
+	const FCompactPoseBoneIndex Middle = Find(TEXT("middle_01_r"));
+	if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE || Middle == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Timing: the hand goes up, the finger stirs quick circles over the head, then the hand throws the whirl forward; the
+	// throw holds through the short pause afterwards
+	const float T = GestureSeconds;
+	const float Release = FMath::Max(GestureRelease, 0.05f);
+	const float End = FMath::Max(GestureDuration, Release + 0.15f);
+	const bool bSpent = GestureExhaust > 0.0f;
+	const float Shown = bSpent ? FMath::Min(T, Release + 0.1f) : T;
+	const float Weight = FMath::SmoothStep(0.0f, 0.12f, T) * (bSpent ? 1.0f - FMath::SmoothStep(0.3f, 1.0f, GestureExhaust) : 1.0f - FMath::SmoothStep(Release + 0.12f, End, T));
+	const float Throw = 1.0f - FMath::Square(1.0f - FMath::Clamp((Shown - Release * 0.85f) / (Release * 0.15f + 0.08f), 0.0f, 1.0f));
+	const float Circle = Shown * UVaelMagicSettings::Get()->StirCircles * UE_TWO_PI;
+
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+	const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+
+	// The upper body turns along with the circles, then into the throw
+	const float Twist = Outward * (8.0f * FMath::Sin(Circle) * (1.0f - Throw) - 12.0f * Throw) * Weight;
+	for (const TCHAR* Spine : { TEXT("spine_02"), TEXT("spine_03") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(Twist * 0.5f)));
+	}
+
+	// Raised: the upper arm up, the forearm leaning round a circle so the hand stirs over the head. Thrown: forward and a little down
+	const FVector UpperUp = FVector(Outward * 0.25f, 0.25f, 0.94f).GetSafeNormal();
+	const FVector LowerStir = FVector(Outward * 0.1f + FMath::Cos(Circle) * 0.45f, 0.15f + FMath::Sin(Circle) * 0.45f, 0.9f).GetSafeNormal();
+	const FVector Thrown = FVector(Outward * 0.2f, 0.95f, -0.15f).GetSafeNormal();
+	AimPoseBone(Pose, Upper, Lower, FMath::Lerp(UpperUp, Thrown, Throw).GetSafeNormal(), Weight);
+	AimPoseBone(Pose, Lower, Hand, FMath::Lerp(LowerStir, Thrown, Throw).GetSafeNormal(), Weight);
+	AimPoseBone(Pose, Hand, Middle, FMath::Lerp(LowerStir, Thrown, Throw).GetSafeNormal(), Weight);
+
+	// Stirring with the stretched index finger, the others curled; the throw opens the hand
+	MakeFist(Pose, Bones, TEXT("r"), Weight * (1.0f - Throw));
+	const FVector Along = PoseBoneDirection(Pose, Hand, Middle);
+	for (const TCHAR* Name : { TEXT("index"), TEXT("middle"), TEXT("ring"), TEXT("pinky") })
+	{
+		const float Stretch = FCString::Strcmp(Name, TEXT("index")) == 0 ? Weight : Weight * Throw;
+		if (Stretch <= 0.0f)
+		{
+			continue;
+		}
+		const FCompactPoseBoneIndex First = Find(FString::Printf(TEXT("%s_01_r"), Name));
+		const FCompactPoseBoneIndex Second = Find(FString::Printf(TEXT("%s_02_r"), Name));
+		const FCompactPoseBoneIndex Third = Find(FString::Printf(TEXT("%s_03_r"), Name));
+		AimPoseBone(Pose, First, Second, Along, Stretch);
+		AimPoseBone(Pose, Second, Third, Along, Stretch);
+	}
+}
+
 void FVaelAnimProxy::ApplyPalmBeam(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
 {
 	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
@@ -1084,6 +1255,18 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	else if (Gesture == EVaelCastGesture::GroundSlam)
 	{
 		ApplyGroundSlam(Pose, Bones);
+	}
+	else if (Gesture == EVaelCastGesture::FanSlap)
+	{
+		ApplyFanSlap(Pose, Bones);
+	}
+	else if (Gesture == EVaelCastGesture::Skate)
+	{
+		ApplySkate(Pose, Bones);
+	}
+	else if (Gesture == EVaelCastGesture::Stir)
+	{
+		ApplyStir(Pose, Bones);
 	}
 
 	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(MoveTemp(Pose), Output.Pose);

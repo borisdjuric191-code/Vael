@@ -142,7 +142,14 @@ enum class EVaelCastGesture : uint8
 	/** Boris 2026-11-02: Felswand: down in a crouch, both fists low with their backs forward, they climb up with the wall and hold a moment */
 	WallRise,
 	/** Boris 2026-11-02: Erdbeben: both fists together over the head, slammed down into the ground at once; crouched for a moment afterwards */
-	GroundSlam
+	GroundSlam,
+	/** Boris 2026-11-02: air is light and quick (Windstoß): the flat hand fans out from before the chest, edge first, the fingers spread at the end */
+	FanSlap,
+	/** Boris 2026-11-02: Böe as a skating stride: low and leaning, one leg pushes off sideways and back with a puff of wind, the arms swing
+	 *  against it; every jump of a held Böe pushes off with the other leg */
+	Skate,
+	/** Boris 2026-11-02: Wirbelsturm: one hand up over the head stirs quick circles with the finger, the upper body turning along, then it throws the whirl forward */
+	Stir
 };
 
 /** What rises out of the ground where a strike of a spell lands */
