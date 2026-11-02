@@ -61,6 +61,14 @@ namespace
 	/** The awakened Nid slot beats like a heart: seconds of one beat and how dark it gets between them */
 	constexpr float NidBeatSeconds = 2.6f;
 	constexpr float NidBeatDim = 0.66f;
+	/** At full corruption the heart races: seconds of one beat, how dark between beats, how bright and swollen at the peak */
+	constexpr float NidBeatSecondsCorrupt = 1.6f;
+	constexpr float NidBeatDimCorrupt = 0.45f;
+	constexpr float NidBeatPeakCorrupt = 1.6f;
+	constexpr float NidSwell = 0.04f;
+	constexpr float NidSwellCorrupt = 0.1f;
+	/** How far the veins already reach out of the awakened Nid slot without any corruption (share of their length) */
+	constexpr float NidAwakenedReach = 0.4f;
 
 	/** Margin to the edge of the screen and between stacked panels */
 	constexpr float ScreenMargin = 20.0f;
@@ -74,6 +82,8 @@ namespace
 	const FName FillTopParameter(TEXT("FillTop"));
 	const FName RemainingParameter(TEXT("Remaining"));
 	const FName CorruptionParameter(TEXT("Corruption"));
+	const FName VeinReachParameter(TEXT("VeinReach"));
+	const FName NidBeatParameter(TEXT("NidBeat"));
 	const FName LightParameter(TEXT("Light"));
 	const FName ShadowParameter(TEXT("Shadow"));
 	const FName TwilightParameter(TEXT("Twilight"));
@@ -374,10 +384,20 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 		ClassVesselInstance->SetScalarParameterValue(FillTopParameter, ClassFillTop);
 	}
 
-	// Frame: Nid veins creep in with the corruption; after the oath the way changes it
+	// The heart of the Sleeper beats faster the more corrupt the player is
+	const float Corruption = FMath::Clamp(Character->GetCorruption() / 100.0f, 0.0f, 1.0f);
+	NidBeatPhase = FMath::Frac(NidBeatPhase + InDeltaTime / FMath::Lerp(NidBeatSeconds, NidBeatSecondsCorrupt, Corruption));
+	const UVaelGrimoireSubsystem* Grimoire = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+	const bool bNidAwakened = Grimoire != nullptr && Grimoire->IsMarkAwakened();
+	const bool bNidSlot = ShownData->Abilities.ContainsByPredicate([](const FVaelHUDAbilitySlot& Ability) { return Ability.Ability == EVaelHUDAbility::ElementNid; });
+
+	// Frame: Nid veins creep in with the corruption, out of the Nid slot where the class has one: once it is awakened thin threads
+	// already reach over the frame, and corruption makes them thicker and their beat harder; after the oath the way changes the frame
 	if (FrameInstance != nullptr)
 	{
-		FrameInstance->SetScalarParameterValue(CorruptionParameter, Character->GetCorruption() / 100.0f);
+		FrameInstance->SetScalarParameterValue(CorruptionParameter, Corruption);
+		FrameInstance->SetScalarParameterValue(VeinReachParameter, bNidSlot && bNidAwakened ? FMath::Lerp(NidAwakenedReach, 1.0f, Corruption) : Corruption);
+		FrameInstance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
 		FrameInstance->SetScalarParameterValue(LightParameter, Path == EVaelPath::Light ? 1.0f : 0.0f);
 		FrameInstance->SetScalarParameterValue(ShadowParameter, Path == EVaelPath::Shadow ? 1.0f : 0.0f);
 		FrameInstance->SetScalarParameterValue(TwilightParameter, Path == EVaelPath::Twilight ? 1.0f : 0.0f);
@@ -400,7 +420,6 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	// Abilities
 	const UVaelElementComponent* Elements = Character->GetElementComponent();
 	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
-	const UVaelGrimoireSubsystem* Grimoire = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
 	const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 	const TArray<EVaelElement>& Queue = Elements->GetQueue();
 	const UVaelFormula* QueuedFormula = Grimoire != nullptr && !Queue.IsEmpty() ? Grimoire->FindFormula(Queue) : nullptr;
@@ -433,11 +452,14 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			State.bDim = Element == EVaelElement::Mark && (Grimoire == nullptr || !Grimoire->IsMarkAwakened());
 			if (Element == EVaelElement::Mark && !State.bDim && State.Painting != nullptr)
 			{
-				// The heart of the Sleeper: a slow double beat, the only picture of the bar that lives
-				const float Beat = FMath::Fmod(static_cast<float>(FPlatformTime::Seconds()), NidBeatSeconds);
+				// The heart of the Sleeper: a double beat, the only picture of the bar that lives; the veins of the frame start from it.
+				// The more corrupt the player, the harder it beats and swells, warm and red at the peak: a temptation to press it
+				const float Beat = NidBeatPhase * NidBeatSeconds;
 				const float Pulse = FMath::Max(FMath::Exp(-FMath::Square((Beat - 0.2f) / 0.1f)), 0.7f * FMath::Exp(-FMath::Square((Beat - 0.55f) / 0.12f)));
-				const float Light = FMath::Lerp(NidBeatDim, 1.0f, Pulse);
-				State.IconColor = FLinearColor(Light, Light, Light);
+				const float Light = FMath::Lerp(FMath::Lerp(NidBeatDim, NidBeatDimCorrupt, Corruption), FMath::Lerp(1.0f, NidBeatPeakCorrupt, Corruption), Pulse);
+				const float Warm = Pulse * Corruption;
+				State.IconColor = FLinearColor(Light * (1.0f + 0.2f * Warm), Light * (1.0f - 0.15f * Warm), Light * (1.0f + 0.05f * Warm));
+				State.Scale = 1.0f + Pulse * FMath::Lerp(NidSwell, NidSwellCorrupt, Corruption);
 			}
 			break;
 		}
@@ -859,19 +881,23 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		// With a painted rim the drawn slot is only the dark ground inside it
 		const bool bPaintedSlot = FindTextureBrush(ShownData->SlotPicture) != nullptr;
 		const float Inset = bPaintedSlot ? 7.0f : 0.0f;
-		PaintBox(OutDrawElements, L + 2, &SlotBrush, At + FVector2f(Inset), FVector2f(SlotSize - 2.0f * Inset), bPaintedSlot ? FLinearColor(0.25f, 0.22f, 0.2f) : State.bLit ? FLinearColor(1.4f, 1.3f, 1.15f) : FLinearColor::White);
+		// A box inside the slot, Margin from its edge, swollen around the middle by the beat of the Nid slot
+		const FVector2f Middle = At + FVector2f(SlotSize * 0.5f);
+		auto BoxAt = [&](float Margin) { return Middle - FVector2f((SlotSize * 0.5f - Margin) * State.Scale); };
+		auto BoxSize = [&](float Margin) { return FVector2f((SlotSize - 2.0f * Margin) * State.Scale); };
+		PaintBox(OutDrawElements, L + 2, &SlotBrush, BoxAt(Inset), BoxSize(Inset), bPaintedSlot ? FLinearColor(0.25f, 0.22f, 0.2f) : State.bLit ? FLinearColor(1.4f, 1.3f, 1.15f) : FLinearColor::White);
 		const FLinearColor IconTint = State.IconColor * (State.bDim ? 0.35f : 1.0f);
 		if (State.Painting != nullptr)
 		{
-			PaintBox(OutDrawElements, L + 3, State.Painting, At + FVector2f(Inset), FVector2f(SlotSize - 2.0f * Inset), IconTint);
+			PaintBox(OutDrawElements, L + 3, State.Painting, BoxAt(Inset), BoxSize(Inset), IconTint);
 		}
 		else
 		{
-			PaintBox(OutDrawElements, L + 3, State.Icon, At + FVector2f(14.0f), FVector2f(SlotSize - 28.0f), IconTint);
+			PaintBox(OutDrawElements, L + 3, State.Icon, BoxAt(14.0f), BoxSize(14.0f), IconTint);
 		}
 		if (const FSlateBrush* Rim = FindTextureBrush(ShownData->SlotPicture))
 		{
-			PaintBox(OutDrawElements, L + 4, Rim, At - FVector2f(5.0f), FVector2f(SlotSize + 10.0f), State.bLit ? FLinearColor(1.5f, 1.4f, 1.25f) : FLinearColor::White);
+			PaintBox(OutDrawElements, L + 4, Rim, BoxAt(-5.0f), BoxSize(-5.0f), State.bLit ? FLinearColor(1.5f, 1.4f, 1.25f) : FLinearColor::White);
 		}
 
 		if (State.CooldownLeft > 0.0f && CooldownBrushes.IsValidIndex(Index))

@@ -31,7 +31,7 @@ tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 created = []
 
-KIT_VERSION = 1.62
+KIT_VERSION = 1.71
 
 
 def srgb(hex_color, a=1.0):
@@ -316,32 +316,44 @@ def build_frame(default_veins):
 
 
 def nid_veins(g, vein_tex, uv, corruption, dark, where, color, glow_color, time):
-    """Raised blood vessels over the frame (texture: R vessel, G way from the corner, B baked light, A shadow): dark blood red like
-    the Nid veins in the world, wet gloss on top, a soft shadow below, and a heartbeat that runs out from the corner to the tips"""
+    """Raised blood vessels over the frame (texture: R place in the vessel, 1 middle 0 rim; G way from the origin; B baked light;
+    A shadow): dark blood red like the Nid veins in the world, wet gloss on top, a soft shadow below.
+    VeinReach says how far they have crept; Corruption how thick they are, how hard the heartbeat (NidBeat, the phase of the beat
+    of the Nid slot, set by the widget) runs out from the origin, and how clearly the blood is seen flowing through them"""
     blood = g.color("VeinBlood", srgb("6E1420"))
     strength = g.scalar("VeinStrength", 0.95)
+    reach = g.scalar("VeinReach", 0.0)
+    bundles = g.scalar("VeinBundles", 2.0)
+    beat_phase = g.scalar("NidBeat", 0.0)
     sample = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     g.link(vein_tex, sample, "Tex")
     g.link(uv, sample, "UVs")
     way = g.channel(7, sample, "G")
     shade = g.channel(7, sample, "B")
-    reveal = g.mul(6, g.sharp(6, g.sub(7, corruption, way), 40.0), where)
-    color = g.mul(3, color, g.one_minus(4, g.mul(4, g.mul(5, g.channel(6, sample, "A"), reveal), g.const(0.55))))
+    reveal = g.mul(6, g.sharp(6, g.sub(7, reach, way), 40.0), where)
+    # Thin threads at first, swollen vessels at full corruption
+    thickness = g.add(6, g.const(0.45), g.mul(7, corruption, g.const(0.55)))
+    vessel = g.sharp(5, g.sub(6, g.channel(7, sample, "R"), g.one_minus(7, thickness)), 8.0)
+    color = g.mul(3, color, g.one_minus(4, g.mul(4, g.mul(5, g.mul(6, g.channel(7, sample, "A"), reveal), thickness), g.const(0.55))))
 
-    # Heartbeat in step with the Nid slot (2.6 s): two fronts, lub and dub, run along each bundle from its corner
-    local = g.frac(7, g.mul(7, way, g.const(2.0)))
-    front = g.sub(7, g.mul(7, g.frac(8, g.mul(8, time, g.const(1.0 / 2.6))), g.const(1.3)), g.const(0.1))
+    # Heartbeat: two fronts, lub and dub, run along each bundle from its origin, harder with corruption
+    local = g.frac(7, g.mul(7, way, bundles))
+    front = g.sub(7, g.mul(7, beat_phase, g.const(1.3)), g.const(0.1))
     lub = g.power(6, g.sat(6, g.sub(7, g.const(1.0), g.mul(7, g.abs(8, g.sub(8, local, front)), g.const(10.0)))), g.const(2.0))
     dub = g.power(6, g.sat(6, g.sub(7, g.const(1.0), g.mul(7, g.abs(8, g.sub(8, local, g.sub(9, front, g.const(0.14)))), g.const(12.0)))), g.const(2.0))
-    beat = g.add(5, lub, g.mul(6, dub, g.const(0.6)))
+    beat = g.mul(5, g.add(6, lub, g.mul(7, dub, g.const(0.6))), g.add(6, g.const(0.35), g.mul(7, corruption, g.const(0.9))))
+    # Flow: brighter streaks of fresh blood drift outwards, faster and clearer with corruption
+    drift = g.mul(8, time, g.add(9, g.const(0.25), g.mul(9, corruption, g.const(0.5))))
+    streak = g.power(6, g.sat(7, g.sin(7, g.mul(8, g.sub(8, g.mul(9, local, g.const(22.0)), drift), g.const(2.0 * math.pi)))), g.const(6.0))
+    flow = g.mul(5, streak, g.add(6, g.const(0.1), g.mul(7, corruption, g.const(0.8))))
 
-    body = g.mul(4, blood, g.mul(5, g.add(6, g.const(0.2), g.mul(6, shade, g.const(1.5))), g.add(6, g.const(1.0), g.mul(6, beat, g.const(0.7)))))
+    lift = g.add(5, g.add(6, g.const(1.0), g.mul(6, beat, g.const(0.7))), g.mul(6, flow, g.const(0.6)))
+    body = g.mul(4, blood, g.mul(5, g.add(6, g.const(0.2), g.mul(6, shade, g.const(1.5))), lift))
     gloss = g.power(5, g.sat(6, g.mul(6, g.sub(7, shade, g.const(0.7)), g.const(2.5))), g.const(2.0))
     body = g.add(4, body, g.mul(5, g.const3(rgb(1.0, 0.75, 0.8), 6), g.mul(6, gloss, g.const(0.6))))
     shimmer = g.add(5, g.add(6, g.const(0.03), g.mul(6, beat, g.const(0.22))), g.mul(6, dark, g.const(0.12)))
     body = g.add(4, body, g.mul(5, glow_color, shimmer))
-    return g.lerp(2, color, body, g.mul(3, g.mul(4, g.channel(5, sample, "R"), reveal), strength))
-
+    return g.lerp(2, color, body, g.mul(3, g.mul(4, vessel, reveal), strength))
 
 # ---------------------------------------------------------------- Painted frame
 
@@ -693,14 +705,19 @@ PAINTED_CLASSES = {
 }
 
 
-def apply_painted(painted, paintings, painted_frame, veins):
+def apply_painted(painted, paintings, painted_frame, shapes):
     """Enters the painted pieces into the data of the classes that have them; only these fields are touched"""
     for name, pieces in PAINTED_CLASSES.items():
         data = unreal.load_asset("{}/DA_HUDKlasse_{}".format(CLASS_FOLDER, name))
         if data is None or pieces["frame"] not in painted:
             continue
+        # A class with a Nid slot has its own veins growing out of it (one bundle), the others creep in from the corners (two)
+        veins = shapes.get("T_HUD_Adern_" + name, shapes["T_HUD_Adern"])
         mi = instance(painted_frame, "MI_HUD_Rahmen_Bild_" + name, None, None,
                       {"Picture": painted[pieces["frame"]], "Mask": painted[pieces["frame"] + "_Maske"], "Veins": veins})
+        library.set_material_instance_texture_parameter_value(mi, "Veins", veins)
+        library.set_material_instance_scalar_parameter_value(mi, "VeinBundles", 2.0 if veins == shapes["T_HUD_Adern"] else 1.0)
+        assets.save_loaded_asset(mi, False)
         data.set_editor_property("frame_picture", painted[pieces["frame"]])
         data.set_editor_property("frame_mask", painted[pieces["frame"] + "_Maske"])
         data.set_editor_property("frame_picture_material", mi)
@@ -774,7 +791,7 @@ def main():
         painted_frame = build_painted_frame(painted["T_HUD_Gemalt_Rahmen_Magier"], painted["T_HUD_Gemalt_Rahmen_Magier_Maske"], shapes["T_HUD_Adern"])
         paintings = import_files(PAINTINGS, "T_Zauber_", HUD + "/Zauber", srgb_on=True, compressed=True)
         import_files(ITEM_ICONS, "T_Item_", HUD + "/Items", srgb_on=True, compressed=True)
-        apply_painted(painted, paintings, painted_frame, shapes["T_HUD_Adern"])
+        apply_painted(painted, paintings, painted_frame, shapes)
 
     widget_blueprint()
     assets.save_directory("/Game/Vael/UI")

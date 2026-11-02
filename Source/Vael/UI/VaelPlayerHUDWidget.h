@@ -140,6 +140,8 @@ private:
 		float CooldownLeft = 0.0f;
 		bool bLit = false;
 		bool bDim = false;
+		/** The awakened Nid slot swells with each beat */
+		float Scale = 1.0f;
 		/** The wipe shows a share, not seconds (the plant bar of a hand, a reload) */
 		bool bNoSeconds = false;
 	};
@@ -250,6 +252,8 @@ private:
 	int32 PlayerSlot = 0;
 	EVaelPath Path = EVaelPath::None;
 	float DodgeLeft = 0.0f;
+	/** Phase (0..1) of the heartbeat of the Nid slot; the veins of the frame beat with it */
+	float NidBeatPhase = 0.0f;
 	bool bHasPlayer = false;
 
 	/** True while the frame of the class is the painted one: its corners and middle are part of the picture */

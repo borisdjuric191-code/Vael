@@ -9,7 +9,8 @@ gezeichnetes Bild gleichen Namens ersetzbar.
 
 Gefäße (RGBA): R = Innenraum, in dem die Flüssigkeit steht; G = Glas, Metall, Knochen und Zierrat; B = Risse; A = alles.
 Ornamente, Symbole, Klaue (RGBA): weiß mit Alpha = Form, das Spiel färbt sie ein.
-Adern (RGBA): R = Gefäß, G = Weg ab der Ecke (erstes Bündel 0..0,5 von links unten, zweites 0,5..1 von rechts oben),
+Adern (RGBA): R = Lage im Gefäß (1 Mitte, 0 Rand, so kann das Spiel es dünner zeigen), G = Weg ab dem Ursprung (Nid-Slot
+0..1, ohne ihn erstes Bündel 0..0,5 von links unten, zweites 0,5..1 von rechts oben),
 damit sie mit der Verderbnis kriechen; B = eingebackenes Licht der gewölbten Ader (0,5 neutral, oben links beleuchtet,
 nasser Glanz ganz oben); A = weicher Schatten der Ader auf dem Rahmen.
 
@@ -305,7 +306,7 @@ def ornaments(folder):
         save_shape(os.path.join(folder, "T_HUD_Weg_%s.png" % name), d, ICON)
 
 
-# ---------------------------------------------------------------- Nid-Adern (von der linken unteren Ecke)
+# ---------------------------------------------------------------- Nid-Adern
 
 def blur(a, r):
     """Kastenunschärfe, zweimal je Achse: fast wie ein Gauß"""
@@ -315,15 +316,16 @@ def blur(a, r):
     return a
 
 
-def veins(folder):
+def vein_net(path, w, h, seed, sources):
     """Gefäße wie unter der Haut: dicke Stämme, die sich nach Murrays Gesetz in immer feinere Adern verzweigen,
-    jede Ader ein runder Schlauch, dessen Wölbung von oben links beleuchtet wird"""
-    w, h = 1536, 408
+    jede Ader ein runder Schlauch, dessen Wölbung von oben links beleuchtet wird.
+    sources: (x, y in Höhen-Einheiten, [(Winkel, Radius)], Weg-Funktion über die Länge)"""
     span = w / h
     x, y = grid(w, h)
     x = x * span                        # in Höhen-Einheiten, damit die Adern nicht gestreckt werden
-    rng = np.random.default_rng(11)
+    rng = np.random.default_rng(seed)
     nearest = np.full(x.shape, 1e3, np.float32)
+    ratio = np.zeros(x.shape, np.float32)
     height = np.zeros(x.shape, np.float32)
     along = np.ones(x.shape, np.float32)
     reach = 0.035                       # so weit trägt eine Ader ihren Weg nach außen (für ihren Schatten)
@@ -340,6 +342,7 @@ def veins(folder):
         dist = np.hypot(sx - ax - dx * t, sy - ay - dy * t)
         r = ra + (rb - ra) * t
         d = dist - r
+        np.maximum(ratio[y0:y1, x0:x1], 1.0 - dist / r, out=ratio[y0:y1, x0:x1])
         np.maximum(height[y0:y1, x0:x1], np.sqrt(np.maximum(r * r - dist * dist, 0)), out=height[y0:y1, x0:x1])
         closer = d < nearest[y0:y1, x0:x1]
         nearest[y0:y1, x0:x1] = np.where(closer, d, nearest[y0:y1, x0:x1])
@@ -365,14 +368,11 @@ def veins(folder):
                 angle -= side * rng.uniform(0.05, 0.2)
                 heading -= side * 0.08
 
-    # Erstes Bündel aus der linken unteren Ecke (Weg 0..0,5), ab 50 % Verderbnis das zweite aus der rechten oberen (0,5..1)
-    full = 2.6
-    trunks = ((-0.08, 0.04), (-0.32, 0.032), (-0.62, 0.027), (-1.05, 0.022))
-    for angle, radius in trunks:
-        grow(0.0, 1.0, angle, radius, 0.0, 3, lambda s: 0.5 * min(s / full, 1.0))
-    for angle, radius in trunks:
-        grow(span, 0.0, angle + math.pi, radius * 0.9, 0.0, 3, lambda s: 0.5 + 0.5 * min(s / full, 1.0))
+    for ox, oy, trunks, way in sources:
+        for angle, radius in trunks:
+            grow(ox, oy, angle, radius, 0.0, 3, way)
 
+    ratio = np.clip(ratio, 0, 1)
     cover = fill(nearest, h)
     # Licht auf dem gewölbten Schlauch: Normalen aus der Höhe, Licht von oben links, nasser Glanz
     gy, gx = np.gradient(height * 0.8)
@@ -388,7 +388,30 @@ def veins(folder):
     shadow = np.zeros_like(cover)
     shadow[oy:, ox:] = cover[:-oy, :-ox]
     shadow = np.clip(blur(shadow, 5) * 0.9, 0, 1)
-    save(os.path.join(folder, "T_HUD_Adern.png"), np.dstack([cover, np.clip(along, 0, 1), light, shadow]))
+    save(path, np.dstack([ratio, np.clip(along, 0, 1), light, shadow]))
+
+
+# Rahmenfeld 880 x 202 Designpixel (ab FrameTop 28); der Nid-Slot des Magiers ist der fünfte von sechs Slots (76 + 6 Abstand)
+FRAME_W, FRAME_H = 880.0, 202.0
+NID_SLOT_MAGIER = (197.0 + 4 * 82.0 + 38.0, 116.0 + 38.0 - 28.0)
+
+
+def veins(folder):
+    # Ohne Nid-Slot: erstes Bündel aus der linken unteren Ecke (Weg 0..0,5), ab 50 % das zweite aus der rechten oberen (0,5..1)
+    w, h = 1536, 408
+    span = w / h
+    full = 2.6
+    trunks = [(-0.08, 0.04), (-0.32, 0.032), (-0.62, 0.027), (-1.05, 0.022)]
+    vein_net(os.path.join(folder, "T_HUD_Adern.png"), w, h, 11, [
+        (0.0, 1.0, trunks, lambda s: 0.5 * min(s / full, 1.0)),
+        (span, 0.0, [(a + math.pi, r * 0.9) for a, r in trunks], lambda s: 0.5 + 0.5 * min(s / full, 1.0))])
+
+    # Magier: das Herz ist der Nid-Slot, von dort ziehen die Adern in alle Richtungen über das HUD
+    w, h = 1760, 404
+    cx, cy = NID_SLOT_MAGIER[0] / FRAME_H, NID_SLOT_MAGIER[1] / FRAME_H
+    trunks = [(math.pi, 0.036), (math.pi + 0.3, 0.03), (math.pi - 0.45, 0.024), (-math.pi / 2 - 0.35, 0.022),
+              (-0.3, 0.028), (0.0, 0.034), (0.45, 0.022), (-math.pi / 2 + 0.25, 0.018)]
+    vein_net(os.path.join(folder, "T_HUD_Adern_Magier.png"), w, h, 23, [(cx, cy, trunks, lambda s: min(s / 2.9, 1.0))])
 
 
 # ---------------------------------------------------------------- Platzhalter-Symbole (Strich)
