@@ -221,6 +221,25 @@ private:
 	/** Turns, sizes and tilts the model by its place, so neighbours differ but each one stays the same every time */
 	void VaryModel();
 
+	/** The variant of the data this one grows as, picked by its place; null without variants */
+	const struct FVaelHarvestVariant* GetVariant() const;
+
+	/** Hangs the hanging parts from the hang points of the variant, glowing in a color, or hides them */
+	void RefreshHanging(bool bShown, const FLinearColor& Color, float Glow);
+
+	/** Swings the hanging parts gently */
+	void SwayHanging(float Time);
+
+	/** Pivots at the hang points, each holding one hanging part below it */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USceneComponent>> HangPivots;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> HangingParts;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> HangingMaterials;
+
 	/** How strongly veins color towards the Mark, 0 to 1, and the yaw they stretch along */
 	float VeinStrength = 0.0f;
 	float VeinYaw = 0.0f;

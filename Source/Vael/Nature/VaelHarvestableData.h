@@ -56,6 +56,20 @@ enum class EVaelHarvestTrait : uint8
 	RainSprout
 };
 
+/** One of several models a kind can grow as, with the points its hanging parts hang from */
+USTRUCT(BlueprintType)
+struct FVaelHarvestVariant
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UStaticMesh> Mesh;
+
+	/** Points in the model's own space (cm) where a hanging part hangs from, like the tips of fern fronds; found by Scripts/BuildLaternenglocke.py */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
+	TArray<FVector> HangPoints;
+};
+
 /**
  *  One kind of plant, fungus or stone that players can pick or mine, like the Glutdistel or the Glutstein.
  *  Gathering puts its loot into the bag of every player and gives a sample to the compendium; then it grows back.
@@ -173,4 +187,31 @@ public:
 	/** Glow of the ember parts of the model (orange in its colors) while it grows untouched, through the master material */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
 	float MeshGlow = 1.5f;
+
+	/** Models to grow as instead of Mesh, picked by the place; each with its hang points */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TArray<FVaelHarvestVariant> Variants;
+
+	/** Part hanging from the hang points, like the Lichterbluete under the fronds of the Laternenglocke: it is what gathering takes,
+	 *  the model itself stays. Its material gets the glow color as "Glut" */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UStaticMesh> HangingMesh;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	TSoftObjectPtr<UMaterialInterface> HangingMaterial;
+
+	/** Length of one hanging part in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float HangingSize = 16.0f;
+
+	/** How bright the hanging parts glow ("Leuchten" of their material) in a pure region; dimmer in a sick one */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float HangingGlow = 6.0f;
+
+	/** Trait PurityGlow: between these corruptions (0-100) the glow fades from the glow color to the trait color */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0, ClampMax = 100))
+	float GlowTurnStart = 40.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Trait", meta = (ClampMin = 0, ClampMax = 100))
+	float GlowTurnEnd = 70.0f;
 };

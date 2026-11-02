@@ -62,8 +62,10 @@ namespace
 	constexpr float SickGlowIntensity = 300.0f;
 	constexpr float BurningGlowIntensity = 5000.0f;
 
-	/** Above this corruption a lantern plant glows cold in its trait color */
-	constexpr float ColdGlowCorruption = 60.0f;
+	/** Hanging parts of a lantern plant: how far they swing (degrees) and how fast (swings per second), and how much dimmer they glow in a sick region */
+	constexpr float HangingSwayAngle = 5.0f;
+	constexpr float HangingSwaySpeed = 0.35f;
+	constexpr float HangingSickGlow = 0.35f;
 
 	/** Seconds a drop takes to fall, and its size in cm */
 	constexpr float DropFallSeconds = 0.6f;
@@ -222,6 +224,11 @@ AVaelHarvestable::AVaelHarvestable()
 void AVaelHarvestable::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
+
+	// Hanging parts made by an earlier construction were destroyed with it
+	HangPivots.Reset();
+	HangingParts.Reset();
+	HangingMaterials.Reset();
 
 	RefreshLook();
 }
@@ -762,6 +769,11 @@ void AVaelHarvestable::Tick(float DeltaSeconds)
 	const float Now = GetWorld()->GetTimeSeconds();
 	const bool bAvailable = IsAvailable();
 
+	if (!HangPivots.IsEmpty())
+	{
+		SwayHanging(Now);
+	}
+
 	switch (Data->Trait)
 	{
 	case EVaelHarvestTrait::StormWhistle:
@@ -1033,12 +1045,12 @@ void AVaelHarvestable::RefreshLook()
 
 	FLinearColor CrownColor = bSoaked ? Data->TraitColor : Data->GlowColor;
 
-	// The lantern plant's light follows the health of the region and turns cold where the Mark rules
+	// The lantern plant's light follows the health of the region: warm where it is pure, fading to the cold Nid color as the Nid takes over
 	const float Corruption = (1.0f - Purity) * 100.0f;
-	const bool bColdGlow = Data->Trait == EVaelHarvestTrait::PurityGlow && Corruption >= ColdGlowCorruption;
-	if (bColdGlow)
+	if (Data->Trait == EVaelHarvestTrait::PurityGlow)
 	{
-		CrownColor = Data->TraitColor;
+		const float Turn = FMath::GetMappedRangeValueClamped(FVector2f(Data->GlowTurnStart, FMath::Max(Data->GlowTurnEnd, Data->GlowTurnStart + 1.0f)), FVector2f(0.0f, 1.0f), Corruption);
+		CrownColor = FMath::Lerp(Data->GlowColor, Data->TraitColor, FMath::SmoothStep(0.0f, 1.0f, Turn));
 	}
 
 	switch (Data->Trait)
@@ -1098,7 +1110,11 @@ void AVaelHarvestable::RefreshLook()
 	}
 
 	// A model of the creature factory replaces the placeholder shapes; a stone's base stays as its invisible collision
-	UStaticMesh* ModelMesh = Data->Mesh.IsNull() ? nullptr : Data->Mesh.LoadSynchronous();
+	const FVaelHarvestVariant* Variant = GetVariant();
+	const TSoftObjectPtr<UStaticMesh>& ModelAsset = Variant != nullptr ? Variant->Mesh : Data->Mesh;
+	UStaticMesh* ModelMesh = ModelAsset.IsNull() ? nullptr : ModelAsset.LoadSynchronous();
+	const bool bHangs = Variant != nullptr && !Data->HangingMesh.IsNull();
+	const float HangingGlow = Data->HangingGlow * FMath::Lerp(HangingSickGlow, 1.0f, FMath::Clamp(Purity, 0.0f, 1.0f)) * NightGlowScale() * (bBurning ? 2.0f : 1.0f);
 	if (bSeeded && !bHarvested && !Data->SeedMesh.IsNull())
 	{
 		// Carrying seeds it shows them: players see from afar which one is worth the way
@@ -1110,6 +1126,7 @@ void AVaelHarvestable::RefreshLook()
 	if (ModelMesh == nullptr)
 	{
 		Model->SetVisibility(false);
+		RefreshHanging(false, CrownColor, 0.0f);
 		return;
 	}
 
@@ -1117,6 +1134,8 @@ void AVaelHarvestable::RefreshLook()
 	{
 		Model->SetStaticMesh(ModelMesh);
 		ModelMaterial = Model->CreateAndSetMaterialInstanceDynamic(0);
+		// Hanging parts can't follow the wind of a foliage material, so the leaves they hang from stand still; the parts swing themselves
+		Model->SetEvaluateWorldPositionOffset(!bHangs);
 		VaryModel();
 	}
 
@@ -1124,8 +1143,8 @@ void AVaelHarvestable::RefreshLook()
 	Crown->SetVisibility(false);
 	Model->SetVisibility(!bAbsent);
 
-	// Picked plants leave a stub, mined stones stay but go cold; burning flares up, water cools the stone
-	Model->SetRelativeScale3D(bBare && !bStone ? ModelScale * FVector(1.0f, 1.0f, HarvestedStemShare) : ModelScale);
+	// Picked plants leave a stub (a plant whose hanging parts are taken keeps its leaves), mined stones stay but go cold; burning flares up, water cools the stone
+	Model->SetRelativeScale3D(bBare && !bStone && !bHangs ? ModelScale * FVector(1.0f, 1.0f, HarvestedStemShare) : ModelScale);
 
 	float ModelGlow = Data->MeshGlow;
 	if (bBare)
@@ -1146,11 +1165,107 @@ void AVaelHarvestable::RefreshLook()
 		// Whatever glows shines brighter in the night
 		ModelMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ModelGlow * NightGlowScale());
 	}
+
+	RefreshHanging(bHangs && bCrownShown, CrownColor, HangingGlow);
 }
 
 float AVaelHarvestable::NightGlowScale() const
 {
 	return FMath::Lerp(1.0f, UVaelTimeSettings::Get()->NightGlow, UVaelTimeOfDay::NightFactorOf(this));
+}
+
+const FVaelHarvestVariant* AVaelHarvestable::GetVariant() const
+{
+	if (Data == nullptr || Data->Variants.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	// Like the turn of the model, the place picks the variant
+	const FIntVector Cell(FMath::RoundToInt(GetActorLocation().X / 10.0f), FMath::RoundToInt(GetActorLocation().Y / 10.0f), 7);
+	FRandomStream Random(static_cast<int32>(GetTypeHash(Cell)));
+	return &Data->Variants[Random.RandRange(0, Data->Variants.Num() - 1)];
+}
+
+void AVaelHarvestable::RefreshHanging(bool bShown, const FLinearColor& Color, float GlowStrength)
+{
+	const FVaelHarvestVariant* Variant = bShown ? GetVariant() : nullptr;
+	UStaticMesh* HangingMesh = Variant != nullptr && !Data->HangingMesh.IsNull() ? Data->HangingMesh.LoadSynchronous() : nullptr;
+	const int32 NumShown = HangingMesh != nullptr ? Variant->HangPoints.Num() : 0;
+
+	// Parts are made once and kept; gathered or absent they are only hidden
+	while (HangingParts.Num() < NumShown)
+	{
+		USceneComponent* Pivot = NewObject<USceneComponent>(this);
+		Pivot->CreationMethod = EComponentCreationMethod::UserConstructionScript;
+		Pivot->SetupAttachment(Model);
+		Pivot->RegisterComponent();
+
+		UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(this);
+		Part->CreationMethod = EComponentCreationMethod::UserConstructionScript;
+		Part->SetupAttachment(Pivot);
+		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Part->SetCastShadow(false);
+		Part->bReceivesDecals = false;
+		Part->SetStaticMesh(HangingMesh);
+		if (UMaterialInterface* HangingMaterial = Data->HangingMaterial.IsNull() ? nullptr : Data->HangingMaterial.LoadSynchronous())
+		{
+			Part->SetMaterial(0, HangingMaterial);
+		}
+		Part->RegisterComponent();
+
+		HangPivots.Add(Pivot);
+		HangingParts.Add(Part);
+		HangingMaterials.Add(Part->CreateAndSetMaterialInstanceDynamic(0));
+	}
+
+	FVector GlowSpot = FVector::ZeroVector;
+	for (int32 Index = 0; Index < HangingParts.Num(); ++Index)
+	{
+		const bool bThisShown = Index < NumShown;
+		HangingParts[Index]->SetVisibility(bThisShown);
+		if (!bThisShown)
+		{
+			continue;
+		}
+
+		// The part's origin is its foot, so it hangs its whole length below the point; its size stays the same on every plant
+		const FBox Bounds = HangingMesh->GetBoundingBox();
+		const float PartScale = Data->HangingSize / FMath::Max(Bounds.Max.Z - Bounds.Min.Z, 1.0f) / FMath::Max(FMath::Abs(ModelScale.Z), 0.1f);
+		HangPivots[Index]->SetRelativeLocation(Variant->HangPoints[Index]);
+		HangingParts[Index]->SetRelativeScale3D(FVector(PartScale));
+		HangingParts[Index]->SetRelativeLocation(FVector(0.0f, 0.0f, -Bounds.Max.Z * PartScale));
+		HangingParts[Index]->SetRelativeRotation(FRotator(0.0f, Index * 137.0f, 0.0f));
+
+		if (UMaterialInstanceDynamic* Look = HangingMaterials[Index])
+		{
+			Look->SetVectorParameterValue(TEXT("Glut"), Color);
+			Look->SetScalarParameterValue(TEXT("Leuchten"), GlowStrength);
+		}
+		GlowSpot += HangingParts[Index]->Bounds.Origin;
+	}
+
+	// The light sits among the blossoms, not at the top of the placeholder crown
+	if (NumShown > 0)
+	{
+		Glow->SetWorldLocation(GlowSpot / NumShown);
+		SetActorTickEnabled(true);
+	}
+}
+
+void AVaelHarvestable::SwayHanging(float Time)
+{
+	for (int32 Index = 0; Index < HangPivots.Num(); ++Index)
+	{
+		if (!HangingParts[Index]->IsVisible())
+		{
+			continue;
+		}
+
+		// Every blossom swings at its own pace, around the point it hangs from
+		const float Phase = Time * HangingSwaySpeed * UE_TWO_PI + Index * 2.1f + GetActorLocation().X * 0.01f;
+		HangPivots[Index]->SetRelativeRotation(FRotator(HangingSwayAngle * FMath::Sin(Phase), 0.0f, HangingSwayAngle * 0.7f * FMath::Sin(Phase * 0.77f + 1.3f)));
+	}
 }
 
 void AVaelHarvestable::VaryModel()
