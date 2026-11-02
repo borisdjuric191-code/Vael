@@ -328,8 +328,8 @@ public:
 	/** Spent after a beam or a big wave: for the seconds nothing can be moved, dodged, chosen or cast, the body hangs forward; after fire the hand steams */
 	void BeginCastExhaustion(float Seconds, bool bSteam = true);
 
-	/** The water clinging to the hands during a wave gesture flies off with the throw */
-	void FlingHandWater();
+	/** The water (or grit) clinging to the hands during a gesture flies off with the throw or the blow, this way (zero: bursts up) */
+	void FlingHandWater(const FVector& Direction);
 
 	/** True during that pause */
 	bool IsExhausted() const { return ExhaustionEndTime > 0.0f; }

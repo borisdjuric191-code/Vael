@@ -847,24 +847,27 @@ void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
 	CastGesture = Gesture;
 	CastGestureStartTime = GetWorld()->GetTimeSeconds();
 
-	// Water winds round the hands that carry a wave, both for the Flutwelle
-	if (Gesture == EVaelCastGesture::WaveSweep || Gesture == EVaelCastGesture::WaveHeave)
+	// Water winds round the hands that carry a wave, both for the Flutwelle; grit and dust trickle from the fists of earth
+	const bool bWater = Gesture == EVaelCastGesture::WaveSweep || Gesture == EVaelCastGesture::WaveHeave;
+	const bool bEarth = Gesture == EVaelCastGesture::Backfist || Gesture == EVaelCastGesture::WallRise || Gesture == EVaelCastGesture::GroundSlam;
+	if (bWater || bEarth)
 	{
 		if (IsValid(HandWater))
 		{
 			HandWater->Finish();
 		}
+		const bool bBothHands = Gesture == EVaelCastGesture::WaveHeave || Gesture == EVaelCastGesture::WallRise || Gesture == EVaelCastGesture::GroundSlam;
 		HandWater = NewObject<UVaelHandWaterComponent>(this);
 		HandWater->RegisterComponent();
-		HandWater->Start(GetMesh(), Gesture == EVaelCastGesture::WaveHeave, UVaelMagicSettings::Get()->GetGestureRelease(Gesture));
+		HandWater->Start(GetMesh(), bBothHands, UVaelMagicSettings::Get()->GetGestureRelease(Gesture), bEarth);
 	}
 }
 
-void AVaelCharacter::FlingHandWater()
+void AVaelCharacter::FlingHandWater(const FVector& Direction)
 {
 	if (IsValid(HandWater))
 	{
-		HandWater->Fling(GetActorForwardVector());
+		HandWater->Fling(Direction);
 	}
 }
 
@@ -879,8 +882,8 @@ EVaelCastGesture AVaelCharacter::GetCastGesture(float& OutSeconds) const
 		return bBurning || OutSeconds < UVaelMagicSettings::Get()->PalmReleaseTime + 0.2f ? CastGesture : EVaelCastGesture::None;
 	}
 
-	// A wave that left the mage spent stands as long as the pause lasts, and ends with it
-	if (CastGesture == EVaelCastGesture::WaveSweep || CastGesture == EVaelCastGesture::WaveHeave)
+	// A wave or a slam that left the mage spent stands as long as the pause lasts, and ends with it
+	if (CastGesture == EVaelCastGesture::WaveSweep || CastGesture == EVaelCastGesture::WaveHeave || CastGesture == EVaelCastGesture::GroundSlam)
 	{
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 		const bool bSpentByThis = ExhaustionStartTime >= CastGestureStartTime;
@@ -976,7 +979,8 @@ bool AVaelCharacter::IsCastStance() const
 {
 	float Seconds = 0.0f;
 	const EVaelCastGesture Gesture = GetCastGesture(Seconds);
-	return Gesture == EVaelCastGesture::GripPoint || Gesture == EVaelCastGesture::PalmBeam || Gesture == EVaelCastGesture::WaveHeave;
+	return Gesture == EVaelCastGesture::GripPoint || Gesture == EVaelCastGesture::PalmBeam || Gesture == EVaelCastGesture::WaveHeave
+		|| Gesture == EVaelCastGesture::WallRise || Gesture == EVaelCastGesture::GroundSlam;
 }
 
 bool AVaelCharacter::GetGesturePalm(FVector& OutLocation) const

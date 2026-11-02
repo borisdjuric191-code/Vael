@@ -42,6 +42,12 @@ namespace
 	constexpr float GatherLimit = 1.6f;
 
 	constexpr float WaterGlow = 1.6f;
+
+	/** Grit of the earth gestures: dull brown-grey, falling from the fists, bigger stones now and then, bursting off with the blow */
+	const FLinearColor GritColor = FLinearColor(0.32f, 0.26f, 0.2f);
+	constexpr float GritGlow = 0.45f;
+	constexpr float GatherGrit = 16.0f;
+	constexpr int32 BlowGrit = 22;
 }
 
 UVaelHandWaterComponent::UVaelHandWaterComponent()
@@ -52,10 +58,11 @@ UVaelHandWaterComponent::UVaelHandWaterComponent()
 	SetUsingAbsoluteScale(true);
 }
 
-void UVaelHandWaterComponent::Start(USkeletalMeshComponent* InBody, bool bInBothHands, float InRelease)
+void UVaelHandWaterComponent::Start(USkeletalMeshComponent* InBody, bool bInBothHands, float InRelease, bool bInEarth)
 {
 	Body = InBody;
 	bBothHands = bInBothHands;
+	bEarth = bInEarth;
 	Release = FMath::Max(InRelease, 0.05f);
 
 	Beads = NewObject<UInstancedStaticMeshComponent>(GetOwner());
@@ -74,8 +81,8 @@ void UVaelHandWaterComponent::Start(USkeletalMeshComponent* InBody, bool bInBoth
 	if (UMaterialInterface* IceMaterial = VaelAssets::LoadOptional(MagicSettings->HailIceMaterial))
 	{
 		UMaterialInstanceDynamic* Water = UMaterialInstanceDynamic::Create(IceMaterial, this);
-		Water->SetVectorParameterValue(TEXT("Farbe"), MagicSettings->GetElementColor(EVaelElement::Water));
-		Water->SetScalarParameterValue(TEXT("Leuchten"), WaterGlow);
+		Water->SetVectorParameterValue(TEXT("Farbe"), bEarth ? GritColor : MagicSettings->GetElementColor(EVaelElement::Water));
+		Water->SetScalarParameterValue(TEXT("Leuchten"), bEarth ? GritGlow : WaterGlow);
 		Beads->SetMaterial(0, Water);
 	}
 }
@@ -122,6 +129,20 @@ void UVaelHandWaterComponent::Fling(const FVector& Forward)
 		{
 			continue;
 		}
+		if (bEarth)
+		{
+			// Grit and chips burst off the fist: along the blow, or up all round where it hit the ground
+			for (int32 Index = 0; Index < BlowGrit; ++Index)
+			{
+				const FVector From = FMath::Lerp(Wrist, Tips, FMath::FRandRange(0.4f, 1.1f));
+				const FVector2D Round = FMath::RandPointInCircle(1.0f);
+				const FVector Throw = Forward.IsNearlyZero()
+					? FVector(Round.X, Round.Y, 0.0f) * FMath::FRandRange(150.0f, 350.0f) + FVector(0.0f, 0.0f, FMath::FRandRange(200.0f, 450.0f))
+					: Forward * FMath::FRandRange(FlingSpeedMin * 0.6f, FlingSpeedMax * 0.6f) + FVector(0.0f, 0.0f, FMath::FRandRange(60.0f, 200.0f)) + FMath::VRand() * 90.0f;
+				Shed(From + FMath::VRand() * 3.0f, Throw, FMath::FRand() < 0.2f ? FMath::FRandRange(3.5f, 5.5f) : FMath::FRandRange(1.5f, 3.0f));
+			}
+			continue;
+		}
 		for (int32 Index = 0; Index < FlungDrops + CoilBeads; ++Index)
 		{
 			const FVector From = FMath::Lerp(Elbow, Tips, FMath::FRand());
@@ -163,7 +184,7 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		LastWrist[Side] = Wrist;
 
 		// The coil: beads spiral round the forearm out towards the fingers, more and bigger the closer the throw
-		if (bGathering)
+		if (bGathering && !bEarth)
 		{
 			const FVector Axis = (Tips - Elbow).GetSafeNormal();
 			const FVector Across = FVector::CrossProduct(Axis, FVector::UpVector).GetSafeNormal(UE_SMALL_NUMBER, FVector::ForwardVector);
@@ -182,10 +203,14 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		// Drops run off the fingertips, flung along with the swing of the hand
 		if (bDripping)
 		{
-			DripCredit[Side] += (bGathering ? GatherDrips * FMath::Max(Full, 0.3f) : AfterDrips) * DeltaTime;
+			const float Rate = bEarth ? (bGathering ? GatherGrit : AfterDrips) : (bGathering ? GatherDrips * FMath::Max(Full, 0.3f) : AfterDrips);
+			DripCredit[Side] += Rate * DeltaTime;
 			for (; DripCredit[Side] >= 1.0f; DripCredit[Side] -= 1.0f)
 			{
-				Shed(Tips + FMath::VRand() * 3.0f, Swing * 0.5f + FMath::VRand() * 30.0f, FMath::FRandRange(1.8f, 3.2f));
+				// Grit trickles from the whole fist, now and then a bigger crumb
+				const FVector From = bEarth ? FMath::Lerp(Wrist, Tips, FMath::FRand()) : Tips;
+				const float Size = bEarth ? (FMath::FRand() < 0.15f ? FMath::FRandRange(3.0f, 4.5f) : FMath::FRandRange(1.2f, 2.4f)) : FMath::FRandRange(1.8f, 3.2f);
+				Shed(From + FMath::VRand() * 3.0f, Swing * (bEarth ? 0.3f : 0.5f) + FMath::VRand() * 30.0f, Size);
 			}
 		}
 	}
@@ -205,6 +230,13 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		}
 		const float Speed = Drop.Velocity.Size();
 		const float Width = Drop.Size / BeadSphereSize;
+		if (bEarth)
+		{
+			// Grit tumbles, a little flattened and uneven, not drawn out like water
+			const FQuat Tumble(FVector(0.6f, 0.8f, 0.0f), Drop.Age * 9.0f + Index);
+			Frame.Add(FTransform(Tumble, Drop.Location, FVector(Width, Width * 0.8f, Width * 0.6f)));
+			continue;
+		}
 		const FQuat Way = Speed > 1.0f ? FRotationMatrix::MakeFromZ(Drop.Velocity / Speed).ToQuat() : FQuat::Identity;
 		Frame.Add(FTransform(Way, Drop.Location, FVector(Width, Width, Width * (1.0f + Speed / DropStretchSpeed))));
 	}

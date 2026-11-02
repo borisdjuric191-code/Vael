@@ -73,6 +73,21 @@ private:
 	/** Flutwelle: both hands scoop low, heave up over the head and throw forward and down; hangs forward while spent */
 	void ApplyWaveHeave(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
+	/** Steinbrocken: the fist cocks by the far shoulder and lashes out back of the hand first, dead stop */
+	void ApplyBackfist(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Felswand: crouched, both fists low with their backs forward climb up heavily and hold */
+	void ApplyWallRise(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Erdbeben: both fists up together over the head, slammed into the ground at once, crouched while spent */
+	void ApplyGroundSlam(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** Closes a hand (suffix l or r) to a fist, as far as the weight says */
+	void MakeFist(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, const TCHAR* Suffix, float Weight) const;
+
+	/** Lowers the hips by the depth in cm and bends the legs so the feet stay where they stand */
+	void Crouch(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, float Depth) const;
+
 	/** Stretches the fingers of a hand (suffix l or r) along it, as far as the weight says */
 	void OpenHand(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, const TCHAR* Suffix, float Weight) const;
 };

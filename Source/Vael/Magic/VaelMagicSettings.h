@@ -335,6 +335,30 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
 	float HeaveSwollenExhaust = 0.4f;
 
+	/** Backfist (Steinbrocken): seconds until the stone leaves the knuckles, and of the whole gesture; as short as the Funke */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float BackfistReleaseTime = 0.16f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float BackfistDuration = 0.55f;
+
+	/** Wall rise (Felswand): seconds until the wall comes up (the fists climb with it), and of the whole gesture */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float WallRiseReleaseTime = 0.3f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float WallRiseDuration = 1.0f;
+
+	/** Ground slam (Erdbeben): seconds until the fists hit the ground and it quakes, of the whole gesture, and of the crouched pause afterwards (Boris 2026-11-02: 0.3) */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float SlamReleaseTime = 0.38f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float SlamDuration = 0.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float SlamExhaustSeconds = 0.3f;
+
 	/** The gesture of a formula, none when it uses a montage */
 	EVaelCastGesture FindCastGesture(const UVaelFormula* Formula) const;
 
@@ -349,6 +373,9 @@ public:
 		case EVaelCastGesture::WaterFlick:	return FlickReleaseTime;
 		case EVaelCastGesture::WaveSweep:	return SweepReleaseTime;
 		case EVaelCastGesture::WaveHeave:	return HeaveReleaseTime;
+		case EVaelCastGesture::Backfist:	return BackfistReleaseTime;
+		case EVaelCastGesture::WallRise:	return WallRiseReleaseTime;
+		case EVaelCastGesture::GroundSlam:	return SlamReleaseTime;
 		default:							return GestureReleaseTime;
 		}
 	}
@@ -362,6 +389,9 @@ public:
 		case EVaelCastGesture::WaterFlick:	return FlickDuration;
 		case EVaelCastGesture::WaveSweep:	return SweepDuration;
 		case EVaelCastGesture::WaveHeave:	return HeaveDuration;
+		case EVaelCastGesture::Backfist:	return BackfistDuration;
+		case EVaelCastGesture::WallRise:	return WallRiseDuration;
+		case EVaelCastGesture::GroundSlam:	return SlamDuration;
 		default:							return GestureDuration;
 		}
 	}

@@ -23,10 +23,11 @@ public:
 
 	UVaelHandWaterComponent();
 
-	/** Gathers water round the right hand of the body, or round both; it is fullest at the release */
-	void Start(USkeletalMeshComponent* InBody, bool bInBothHands, float InRelease);
+	/** Gathers water round the right hand of the body, or round both; it is fullest at the release. Earth: no coil, grit and
+	 *  small stones trickle off the fists instead (Boris 2026-11-02) */
+	void Start(USkeletalMeshComponent* InBody, bool bInBothHands, float InRelease, bool bInEarth = false);
 
-	/** The throw: the water leaves the hands forward */
+	/** The throw or the blow: what clings to the hands leaves them this way; zero bursts it up all round, as where fists hit the ground */
 	void Fling(const FVector& Forward);
 
 	/** Stops gathering at once; what is in the air still falls */
@@ -62,6 +63,7 @@ private:
 	bool bHasLastWrist = false;
 
 	bool bBothHands = false;
+	bool bEarth = false;
 	bool bFlung = false;
 	bool bFinished = false;
 	float Release = 0.3f;

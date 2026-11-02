@@ -275,9 +275,19 @@ void UVaelFormulaAbility::OnGestureRelease()
 
 	// A wave throws the water off the hands; a big one leaves the mage spent, the more water it carries the longer (Boris 2026-11-02)
 	AVaelCharacter* WaveMage = Cast<AVaelCharacter>(GetAvatarActorFromActorInfo());
-	if (WaveMage != nullptr && (CastGestureKind == EVaelCastGesture::WaveSweep || CastGestureKind == EVaelCastGesture::WaveHeave))
+	if (WaveMage != nullptr && (CastGestureKind == EVaelCastGesture::Backfist || CastGestureKind == EVaelCastGesture::WallRise || CastGestureKind == EVaelCastGesture::GroundSlam))
 	{
-		WaveMage->FlingHandWater();
+		// Earth: the grit flies off the knuckles with the blow, up with the rising wall, bursts up where the fists hit the ground
+		const FVector Blow = CastGestureKind == EVaelCastGesture::Backfist ? WaveMage->GetActorForwardVector() : CastGestureKind == EVaelCastGesture::WallRise ? FVector::UpVector * 0.4f : FVector::ZeroVector;
+		WaveMage->FlingHandWater(Blow);
+		if (CastGestureKind == EVaelCastGesture::GroundSlam)
+		{
+			WaveMage->BeginCastExhaustion(UVaelMagicSettings::Get()->SlamExhaustSeconds, false);
+		}
+	}
+	else if (WaveMage != nullptr && (CastGestureKind == EVaelCastGesture::WaveSweep || CastGestureKind == EVaelCastGesture::WaveHeave))
+	{
+		WaveMage->FlingHandWater(WaveMage->GetActorForwardVector());
 		const UVaelMagicSettings* MagicSettings = UVaelMagicSettings::Get();
 		const float Swell = FMath::Clamp((SwellScale / FMath::Max(CastSizeScale, 0.01f) - 1.0f) / FMath::Max(MagicSettings->WaveSwellMaxSize - 1.0f, 0.01f), 0.0f, 1.0f);
 		const float Spent = CastGestureKind == EVaelCastGesture::WaveHeave

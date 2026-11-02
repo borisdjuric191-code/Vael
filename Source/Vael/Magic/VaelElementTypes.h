@@ -136,7 +136,13 @@ enum class EVaelCastGesture : uint8
 	/** Boris 2026-11-02: the scoop grown into a sweep (Welle): the hand skims low across the body in a wide arc, tips palm forward at its end and the wrist snaps */
 	WaveSweep,
 	/** Boris 2026-11-02: both hands lift the sea (Flutwelle): scoop low at the sides, heave up over the head, throw forward and down; spent afterwards */
-	WaveHeave
+	WaveHeave,
+	/** Boris 2026-11-02: earth is hard where water is soft (Steinbrocken): the fist cocks at the far shoulder and lashes out back of the hand first, hard stop */
+	Backfist,
+	/** Boris 2026-11-02: Felswand: down in a crouch, both fists low with their backs forward, they climb up with the wall and hold a moment */
+	WallRise,
+	/** Boris 2026-11-02: Erdbeben: both fists together over the head, slammed down into the ground at once; crouched for a moment afterwards */
+	GroundSlam
 };
 
 /** What rises out of the ground where a strike of a spell lands */
