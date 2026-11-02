@@ -331,6 +331,9 @@ public:
 	/** The water (or grit) clinging to the hands during a gesture flies off with the throw or the blow, this way (zero: bursts up) */
 	void FlingHandWater(const FVector& Direction);
 
+	/** A weather spell is called: threads of light rise from mouth and hands to this place in the sky until the release */
+	void CallToSky(const FVector& SkyPoint, const FLinearColor& Color);
+
 	/** A skating stride of the Böe pushes off: a puff of wind blows from that foot outwards and back */
 	void PushOffWithWind();
 

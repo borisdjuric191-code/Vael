@@ -168,6 +168,13 @@ void UVaelFormulaAbility::ActivateAbility(const FGameplayAbilitySpecHandle Handl
 		ActorInfo->AbilitySystemComponent->AddLooseGameplayTag(VaelTags::State_Casting);
 		Mage->PlayCastGesture(Gesture);
 
+		// Weather is called up to the sky over the place it will fall on
+		if (Gesture == EVaelCastGesture::SkyCall)
+		{
+			const FVector Target = FindGroundTarget(Caster, Formula->AreaRange);
+			Mage->CallToSky(Target + FVector(0.0f, 0.0f, MagicSettings->SkyCallHeight), MagicSettings->GetElementColor(Formula->DamageElement));
+		}
+
 		UAbilityTask_WaitDelay* WaitRelease = UAbilityTask_WaitDelay::WaitDelay(this, MagicSettings->GetGestureRelease(Gesture));
 		WaitRelease->OnFinish.AddDynamic(this, &UVaelFormulaAbility::OnGestureRelease);
 		WaitRelease->ReadyForActivation();

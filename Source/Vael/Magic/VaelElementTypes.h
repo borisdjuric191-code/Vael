@@ -149,7 +149,10 @@ enum class EVaelCastGesture : uint8
 	 *  against it; every jump of a held Böe pushes off with the other leg */
 	Skate,
 	/** Boris 2026-11-02: Wirbelsturm: one hand up over the head stirs quick circles with the finger, the upper body turning along, then it throws the whirl forward */
-	Stir
+	Stir,
+	/** Boris 2026-11-02: the weather caller (Regenruf, Ascheregen, Hagelsturm, Gewitter): both arms stretched up to the sky, head back,
+	 *  murmuring a spell upwards; threads of light braid up from mouth and hands to where the cloud gathers */
+	SkyCall
 };
 
 /** What rises out of the ground where a strike of a spell lands */

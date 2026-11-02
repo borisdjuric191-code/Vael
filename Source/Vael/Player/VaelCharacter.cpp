@@ -34,6 +34,7 @@
 #include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelHandSteam.h"
 #include "Magic/VaelHandWater.h"
+#include "Magic/VaelSkyThreads.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelLightningBolt.h"
 #include "Magic/VaelMagicSettings.h"
@@ -884,6 +885,13 @@ void AVaelCharacter::PlayCastGesture(EVaelCastGesture Gesture)
 		HandWater->RegisterComponent();
 		HandWater->Start(GetMesh(), bBothHands, UVaelMagicSettings::Get()->GetGestureRelease(Gesture), bEarth ? EVaelHandMatter::Earth : bAir ? EVaelHandMatter::Air : EVaelHandMatter::Water);
 	}
+}
+
+void AVaelCharacter::CallToSky(const FVector& SkyPoint, const FLinearColor& Color)
+{
+	UVaelSkyThreadsComponent* Threads = NewObject<UVaelSkyThreadsComponent>(this);
+	Threads->RegisterComponent();
+	Threads->Start(SkyPoint, Color, UVaelMagicSettings::Get()->SkyCallReleaseTime);
 }
 
 void AVaelCharacter::PushOffWithWind()

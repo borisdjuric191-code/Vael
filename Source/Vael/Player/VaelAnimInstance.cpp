@@ -845,6 +845,52 @@ void FVaelAnimProxy::ApplyStir(FCSPose<FCompactPose>& Pose, const FBoneContainer
 	}
 }
 
+void FVaelAnimProxy::ApplySkyCall(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+
+	// Timing: the arms rise to the sky, the mage murmurs up into it until the cloud comes, then the arms sink slowly
+	const float T = GestureSeconds;
+	const float Release = FMath::Max(GestureRelease, 0.05f);
+	const float End = FMath::Max(GestureDuration, Release + 0.3f);
+	const float Weight = FMath::SmoothStep(0.0f, Release * 0.55f, T) * (1.0f - FMath::SmoothStep(Release + 0.15f, End, T));
+	const float Murmur = FMath::SmoothStep(Release * 0.3f, Release * 0.5f, T) * (1.0f - FMath::SmoothStep(Release, Release + 0.1f, T));
+
+	// The chest opens up to the sky, the head goes back and nods softly with the words (turning around +X tips back)
+	for (const TCHAR* Spine : { TEXT("spine_03"), TEXT("spine_05") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(5.0f * Weight)));
+	}
+	const float Nod = 3.5f * FMath::Sin(T * 15.0f) * FMath::Sin(T * 6.0f + 1.0f) * Murmur;
+	TurnPoseBone(Pose, Find(TEXT("neck_01")), FQuat(FVector::XAxisVector, FMath::DegreesToRadians((22.0f + Nod) * Weight)));
+
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		const FCompactPoseBoneIndex Clavicle = Find(FString::Printf(TEXT("clavicle_%s"), Suffix));
+		const FCompactPoseBoneIndex Upper = Find(FString::Printf(TEXT("upperarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Lower = Find(FString::Printf(TEXT("lowerarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Hand = Find(FString::Printf(TEXT("hand_%s"), Suffix));
+		const FCompactPoseBoneIndex Middle = Find(FString::Printf(TEXT("middle_01_%s"), Suffix));
+		if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE || Middle == INDEX_NONE)
+		{
+			continue;
+		}
+		const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+
+		// Both arms stretched up and apart like a V, a little forward, the open palms turned up to the sky; they sway a hair with the words
+		SwingPoseBone(Pose, Clavicle, Upper, FVector::ZAxisVector, 10.0f * Weight);
+		const float Sway = 0.04f * FMath::Sin(T * 5.0f + Side * 1.3f) * Murmur;
+		const FVector Raised = FVector(Outward * (0.45f + Sway), 0.22f, 0.87f).GetSafeNormal();
+		AimPoseBone(Pose, Upper, Lower, Raised, Weight);
+		AimPoseBone(Pose, Lower, Hand, (Raised + FVector(Outward * 0.1f, 0.0f, 0.0f)).GetSafeNormal(), Weight);
+		AimPoseBone(Pose, Hand, Middle, FVector(Outward * 0.55f, 0.15f, 0.8f).GetSafeNormal(), Weight);
+		OpenHand(Pose, Bones, Suffix, Weight * 0.9f);
+	}
+}
+
 void FVaelAnimProxy::ApplyPalmBeam(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
 {
 	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
@@ -1267,6 +1313,10 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	else if (Gesture == EVaelCastGesture::Stir)
 	{
 		ApplyStir(Pose, Bones);
+	}
+	else if (Gesture == EVaelCastGesture::SkyCall)
+	{
+		ApplySkyCall(Pose, Bones);
 	}
 
 	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(MoveTemp(Pose), Output.Pose);

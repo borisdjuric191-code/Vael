@@ -387,6 +387,17 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
 	float StirExhaustSeconds = 0.15f;
 
+	/** Sky call (weather spells): seconds of murmuring with the arms raised until the cloud comes, and of the whole gesture;
+	 *  how high above the target the threads of the call end, where the cloud gathers */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float SkyCallReleaseTime = 0.55f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float SkyCallDuration = 1.1f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0))
+	float SkyCallHeight = 500.0f;
+
 	/** The gesture of a formula, none when it uses a montage */
 	EVaelCastGesture FindCastGesture(const UVaelFormula* Formula) const;
 
@@ -407,6 +418,7 @@ public:
 		case EVaelCastGesture::FanSlap:		return FanReleaseTime;
 		case EVaelCastGesture::Skate:		return SkateReleaseTime;
 		case EVaelCastGesture::Stir:		return StirReleaseTime;
+		case EVaelCastGesture::SkyCall:		return SkyCallReleaseTime;
 		default:							return GestureReleaseTime;
 		}
 	}
@@ -426,6 +438,7 @@ public:
 		case EVaelCastGesture::FanSlap:		return FanDuration;
 		case EVaelCastGesture::Skate:		return SkateDuration;
 		case EVaelCastGesture::Stir:		return StirDuration;
+		case EVaelCastGesture::SkyCall:		return SkyCallDuration;
 		default:							return GestureDuration;
 		}
 	}

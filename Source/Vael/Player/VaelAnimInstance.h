@@ -94,6 +94,9 @@ private:
 	/** Wirbelsturm: the finger stirs circles over the head, then the hand throws the whirl forward */
 	void ApplyStir(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
+	/** Weather spells: both arms up to the sky in a V, head back, murmuring with soft nods */
+	void ApplySkyCall(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
 	/** Closes a hand (suffix l or r) to a fist, as far as the weight says */
 	void MakeFist(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, const TCHAR* Suffix, float Weight) const;
 
