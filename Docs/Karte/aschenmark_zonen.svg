@@ -1,0 +1,137 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100">
+  <!-- Zone profile of region I, Aschenmark (proposal 2026-11-02). Scale: 1 km = 520 px, north up. Names are working titles. -->
+  <defs>
+    <radialGradient id="sea" cx="45%" cy="60%" r="80%">
+      <stop offset="0" stop-color="#2a3138"/>
+      <stop offset="1" stop-color="#101317"/>
+    </radialGradient>
+    <filter id="coast" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.018" numOctaves="4" seed="7" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="28" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+    <filter id="soft"><feGaussianBlur stdDeviation="26"/></filter>
+    <filter id="glow"><feGaussianBlur stdDeviation="6"/></filter>
+    <radialGradient id="crater" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ff7a2a" stop-opacity="0.9"/>
+      <stop offset="0.5" stop-color="#7a2410" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#2a1a14" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1600" height="1100" fill="url(#sea)"/>
+
+  <!-- Land: the flank of the Urdrachin; the forest of region II starts in the north -->
+  <g filter="url(#coast)">
+    <path d="M150 1060 C140 900 170 760 230 640 C290 520 300 400 360 300 C420 200 520 120 640 80 L900 70 C1050 90 1200 160 1330 260 C1450 360 1500 480 1490 620 C1480 760 1400 880 1260 960 C1110 1040 900 1070 700 1075 Z" fill="#4a423b"/>
+    <g filter="url(#soft)">
+      <ellipse cx="690" cy="800" rx="270" ry="210" fill="#7d5539" opacity="0.95"/>
+      <ellipse cx="1110" cy="620" rx="260" ry="230" fill="#5b4a44" opacity="0.95"/>
+      <ellipse cx="430" cy="490" rx="210" ry="230" fill="#6b3a22" opacity="0.95"/>
+      <ellipse cx="660" cy="250" rx="190" ry="140" fill="#5d5a52" opacity="0.95"/>
+      <ellipse cx="700" cy="90" rx="260" ry="70" fill="#3f5a3a" opacity="0.95"/>
+    </g>
+  </g>
+
+  <!-- Crater of the Glutkönigin glows -->
+  <circle cx="420" cy="360" r="70" fill="url(#crater)"/>
+
+  <!-- Zone borders (dashed, faint) -->
+  <g fill="none" stroke="#efe6d2" stroke-opacity="0.18" stroke-width="2" stroke-dasharray="6 8">
+    <path d="M300 640 C420 600 560 600 640 560 C700 530 760 520 860 520"/>
+    <path d="M860 520 C900 620 900 760 980 900"/>
+    <path d="M300 640 C330 720 400 820 470 900"/>
+    <path d="M500 330 C560 360 680 380 780 360 C840 340 880 300 900 240"/>
+  </g>
+
+  <!-- Main road of the campaign and the side road east -->
+  <g fill="none" stroke-linecap="round">
+    <path d="M690 820 C700 740 720 680 730 620 C700 560 600 540 540 500 C520 440 560 380 610 330 C630 280 640 220 650 120" stroke="#e8d9b5" stroke-width="5" stroke-dasharray="14 10"/>
+    <path d="M730 620 C820 610 920 600 1010 620 C1100 640 1170 600 1230 560 C1270 530 1300 520 1340 520" stroke="#e8d9b5" stroke-opacity="0.75" stroke-width="4" stroke-dasharray="10 10"/>
+    <path d="M540 500 C500 450 470 410 440 380" stroke="#e8d9b5" stroke-opacity="0.6" stroke-width="3" stroke-dasharray="6 8"/>
+  </g>
+
+  <!-- Free combat clearings, 40 m each -->
+  <g fill="none" stroke="#efe6d2" stroke-opacity="0.55" stroke-width="2">
+    <circle cx="610" cy="760" r="21"/><circle cx="820" cy="900" r="21"/><circle cx="560" cy="900" r="21"/>
+    <circle cx="500" cy="560" r="21"/><circle cx="340" cy="560" r="21"/><circle cx="380" cy="460" r="21"/><circle cx="560" cy="430" r="21"/>
+    <circle cx="1010" cy="690" r="21"/><circle cx="1150" cy="700" r="21"/><circle cx="1210" cy="610" r="21"/><circle cx="960" cy="560" r="21"/>
+    <circle cx="700" cy="300" r="21"/><circle cx="580" cy="240" r="21"/>
+  </g>
+
+  <!-- Element sources: fire, water, earth, air -->
+  <g>
+    <g fill="#ff8a3d"><circle cx="460" cy="520" r="6"/><circle cx="350" cy="510" r="6"/><circle cx="430" cy="300" r="6"/><circle cx="1060" cy="570" r="6"/><circle cx="690" cy="800" r="6"/></g>
+    <g fill="#5fa8e8"><circle cx="535" cy="880" r="6"/><circle cx="790" cy="760" r="6"/><circle cx="905" cy="840" r="6"/></g>
+    <g fill="#a98a62"><circle cx="1180" cy="680" r="6"/><circle cx="1110" cy="560" r="6"/><circle cx="620" cy="280" r="6"/><circle cx="300" cy="420" r="6"/></g>
+    <g fill="#e6eef2"><circle cx="680" cy="210" r="6"/><circle cx="630" cy="160" r="6"/><circle cx="740" cy="250" r="6"/></g>
+  </g>
+
+  <!-- Places -->
+  <g font-family="Georgia, 'Times New Roman', serif" fill="#efe6d2" font-size="17">
+    <!-- camps (fire = safe place, fast travel) -->
+    <g fill="#ffb347" stroke="#2a1a10" stroke-width="2">
+      <path d="M690 808 l-10 18 h20 Z"/><path d="M730 608 l-10 18 h20 Z"/><path d="M600 288 l-10 18 h20 Z"/>
+    </g>
+    <text x="712" y="824">Lager der Überlebenden (Edda, Albrun)</text>
+    <text x="752" y="624">Gildenkontor (Maren Holt)</text>
+    <text x="586" y="305" text-anchor="end">Passwache</text>
+
+    <!-- quests, landmarks -->
+    <g fill="#efe6d2"><circle cx="790" cy="760" r="5"/><circle cx="535" cy="880" r="5"/><circle cx="840" cy="900" r="5"/><circle cx="560" cy="690" r="5"/><circle cx="1110" cy="560" r="5"/><circle cx="1180" cy="680" r="5"/><circle cx="1010" cy="690" r="5"/><circle cx="380" cy="460" r="5"/><circle cx="500" cy="560" r="5"/><circle cx="700" cy="300" r="5"/><circle cx="740" cy="250" r="5"/></g>
+    <text x="802" y="752">Ruinen von Kesselgrund · Brunnen</text>
+    <text x="518" y="905" text-anchor="end">Teich (Kerzen, Nebel)</text>
+    <text x="858" y="926">Ascheäcker (Sichelpuppen)</text>
+    <text x="548" y="682" text-anchor="end">Kathedrale des Ordens der Narbe</text>
+    <text x="548" y="702" text-anchor="end" font-size="14" fill="#c9a6ff">Nid-Quelle, versiegelt bis Akt III</text>
+    <text x="1124" y="552">Gildenspeicher (Räumungsbefehl)</text>
+    <text x="1196" y="690">Obsidianbruch</text>
+    <text x="1006" y="726" text-anchor="middle">Schlackenhalden (Aschenroller-Bahnen)</text>
+    <text x="1350" y="510">Schlackentor</text>
+    <text x="1350" y="530" font-size="14" fill="#bfb6a5">verschüttet, später zum Eisenschlund</text>
+    <text x="370" y="455" text-anchor="end">Harpyienfelsen</text>
+    <text x="516" y="580">Glutkriecher-Nester</text>
+    <text x="420" y="395" text-anchor="middle" font-size="18" fill="#ffd0a8">Krater der Glutkönigin</text>
+    <text x="420" y="415" text-anchor="middle" font-size="14" fill="#e8c9a8">Bossarena, Sondierschacht der Gilde</text>
+    <text x="716" y="306">Predigerlager</text>
+    <text x="756" y="252">Windkante (Sturm)</text>
+    <text x="692" y="96">zum Forstsaum (II · Wurzelforst)</text>
+    <text x="692" y="114" font-size="14" fill="#bfd6b5">Asche weicht Moos, erste Bäume</text>
+    <!-- boss skull mark -->
+    <g transform="translate(420 345)" fill="#ffd0a8"><circle r="9"/><rect x="-6" y="5" width="12" height="7"/><circle cx="-3.5" cy="-1" r="2.5" fill="#3a1a10"/><circle cx="3.5" cy="-1" r="2.5" fill="#3a1a10"/></g>
+  </g>
+
+  <!-- Zone titles -->
+  <g font-family="Georgia, 'Times New Roman', serif" fill="#efe6d2" text-anchor="middle">
+    <g font-size="30" font-weight="bold">
+      <text x="690" y="1000">1 · Kesselgrund</text>
+      <text x="1200" y="790">2 · Schlackenhänge</text>
+      <text x="300" y="625">3 · Glutfelder</text>
+      <text x="860" y="210">4 · Aschenpass</text>
+    </g>
+    <g font-size="15" fill="#d8ccb4">
+      <text x="690" y="1022">heißes Becken, Start · heutige Karte ist sein Kern</text>
+      <text x="1200" y="812">Nebenweg · Gilde, Schlacke, Twist-Quest</text>
+      <text x="300" y="647">Glut im Boden, tote Bäume · Boss</text>
+      <text x="860" y="232">enger Pass, Wind · Übergang ohne Ladebildschirm</text>
+    </g>
+  </g>
+
+  <!-- Title and legend -->
+  <g font-family="Georgia, 'Times New Roman', serif" fill="#efe6d2">
+    <text x="60" y="80" font-size="46" font-weight="bold">I · Aschenmark</text>
+    <text x="60" y="112" font-size="19" fill="#d8ccb4">Zonenprofil · Vorschlag 2. November 2026 · Namen sind Arbeitstitel</text>
+    <text x="60" y="136" font-size="15" fill="#a89f8f">etwa 2 km × 1,9 km · 4 Zonen zu je ~500 m · Kampagnenweg ~2,2 km, gut 6 Minuten Laufen</text>
+
+    <g transform="translate(1180 860)" font-size="15">
+      <rect x="-20" y="-30" width="400" height="214" rx="8" fill="#15120f" fill-opacity="0.75" stroke="#efe6d2" stroke-opacity="0.2"/>
+      <path d="M0 0 h36" stroke="#e8d9b5" stroke-width="5" stroke-dasharray="14 10"/><text x="48" y="5">Weg der Kampagne</text>
+      <path d="M0 26 h36" stroke="#e8d9b5" stroke-opacity="0.75" stroke-width="4" stroke-dasharray="10 10"/><text x="48" y="31">Nebenweg</text>
+      <path d="M18 44 l-10 18 h20 Z" fill="#ffb347"/><text x="48" y="59">Lager: sicher, Schnellreise</text>
+      <circle cx="18" cy="84" r="12" fill="none" stroke="#efe6d2" stroke-opacity="0.55" stroke-width="2"/><text x="48" y="89">freie Kampffläche, 40 m</text>
+      <circle cx="8" cy="112" r="6" fill="#ff8a3d"/><circle cx="24" cy="112" r="6" fill="#5fa8e8"/><circle cx="40" cy="112" r="6" fill="#a98a62"/><circle cx="56" cy="112" r="6" fill="#e6eef2"/>
+      <text x="70" y="117">Elementquellen: Feuer, Wasser, Erde, Luft</text>
+      <path d="M0 150 h260" stroke="#efe6d2" stroke-width="3"/><path d="M0 143 v14 M260 143 v14" stroke="#efe6d2" stroke-width="3"/>
+      <text x="0" y="176">500 m · gut 1 Minute Laufen</text>
+    </g>
+  </g>
+</svg>
