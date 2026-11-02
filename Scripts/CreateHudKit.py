@@ -31,7 +31,7 @@ tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 created = []
 
-KIT_VERSION = 1.71
+KIT_VERSION = 1.83
 
 
 def srgb(hex_color, a=1.0):
@@ -310,12 +310,12 @@ def build_frame(default_veins):
     color = g.add(3, color, g.mul(3, warm, threads))
 
     # Nid veins creep in from the lower left corner with the corruption, from 50 % a second bundle from the upper right
-    color = nid_veins(g, vein_tex, uv, corruption, dark, inside, color, vein_color, time)
+    color, _ = nid_veins(g, vein_tex, uv, corruption, dark, inside, color, vein_color, time)
 
     return finish(material, g, color, g.mul(2, inside, opacity_value))
 
 
-def nid_veins(g, vein_tex, uv, corruption, dark, where, color, glow_color, time):
+def nid_veins(g, vein_tex, uv, corruption, dark, where, color, glow_color, time, bundles_default=2.0):
     """Raised blood vessels over the frame (texture: R place in the vessel, 1 middle 0 rim; G way from the origin; B baked light;
     A shadow): dark blood red like the Nid veins in the world, wet gloss on top, a soft shadow below.
     VeinReach says how far they have crept; Corruption how thick they are, how hard the heartbeat (NidBeat, the phase of the beat
@@ -323,16 +323,16 @@ def nid_veins(g, vein_tex, uv, corruption, dark, where, color, glow_color, time)
     blood = g.color("VeinBlood", srgb("6E1420"))
     strength = g.scalar("VeinStrength", 0.95)
     reach = g.scalar("VeinReach", 0.0)
-    bundles = g.scalar("VeinBundles", 2.0)
+    bundles = g.scalar("VeinBundles", bundles_default)
     beat_phase = g.scalar("NidBeat", 0.0)
     sample = g.node(unreal.MaterialExpressionTextureSample, 8, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     g.link(vein_tex, sample, "Tex")
     g.link(uv, sample, "UVs")
     way = g.channel(7, sample, "G")
     shade = g.channel(7, sample, "B")
-    reveal = g.mul(6, g.sharp(6, g.sub(7, reach, way), 40.0), where)
-    # Thin threads at first, swollen vessels at full corruption
-    thickness = g.add(6, g.const(0.45), g.mul(7, corruption, g.const(0.55)))
+    reveal = g.sharp(6, g.sub(7, reach, way), 40.0)
+    # Thin threads at first, swollen vessels at full corruption; they taper off where they leave their ground
+    thickness = g.mul(6, g.add(7, g.const(0.45), g.mul(8, corruption, g.const(0.55))), where)
     vessel = g.sharp(5, g.sub(6, g.channel(7, sample, "R"), g.one_minus(7, thickness)), 8.0)
     color = g.mul(3, color, g.one_minus(4, g.mul(4, g.mul(5, g.mul(6, g.channel(7, sample, "A"), reveal), thickness), g.const(0.55))))
 
@@ -353,7 +353,8 @@ def nid_veins(g, vein_tex, uv, corruption, dark, where, color, glow_color, time)
     body = g.add(4, body, g.mul(5, g.const3(rgb(1.0, 0.75, 0.8), 6), g.mul(6, gloss, g.const(0.6))))
     shimmer = g.add(5, g.add(6, g.const(0.03), g.mul(6, beat, g.const(0.22))), g.mul(6, dark, g.const(0.12)))
     body = g.add(4, body, g.mul(5, glow_color, shimmer))
-    return g.lerp(2, color, body, g.mul(3, g.mul(4, vessel, reveal), strength))
+    cover = g.mul(3, g.mul(4, vessel, reveal), strength)
+    return g.lerp(2, color, body, cover), cover
 
 # ---------------------------------------------------------------- Painted frame
 
@@ -404,10 +405,33 @@ def build_painted_frame(default_picture, default_mask, default_veins):
     glow = g.mul(5, vein_color, g.add(6, g.const(0.6), g.mul(6, corruption, g.const(2.0))))
     color = g.lerp(4, color, glow, g.mul(5, gems, dark))
 
-    # Nid veins over the panel
+    # Nid veins over the panel and the silver, and a little past its edge as if they grew round it: the frame's own alpha,
+    # widened by eight looks around (about 6 design pixels)
+    near = alpha
+    for angle in range(8):
+        offset = g.const2(math.cos(angle * math.pi / 4) * 6.0 / 880.0, math.sin(angle * math.pi / 4) * 6.0 / 202.0)
+        around = g.node(unreal.MaterialExpressionTextureSample, 9)
+        g.link(picture, around, "Tex")
+        g.link(g.add(10, uv, offset), around, "UVs")
+        near = g.max(8, near, g.channel(8, around, "A"))
     time = g.node(unreal.MaterialExpressionTime, 10)
-    color = nid_veins(g, vein_tex, uv, corruption, dark, panel, color, vein_color, time)
-    return finish(material, g, color, alpha)
+    color, cover = nid_veins(g, vein_tex, uv, corruption, dark, g.sat(7, g.mul(8, g.sub(8, near, g.const(0.3)), g.const(2.5))), color, vein_color, time)
+    return finish(material, g, color, g.max(2, alpha, cover))
+
+
+def build_vein_heart(default_veins):
+    """The heart of the Nid slot: a wreath of veins drawn over its silver rim, beating and growing with the veins of the frame"""
+    material, g = ui_material("M_HUD_Adern_Herz")
+    if material is None:
+        return load("M_HUD_Adern_Herz")
+    vein_tex = g.node(unreal.MaterialExpressionTextureObjectParameter, 11, parameter_name="Veins", texture=default_veins,
+                      sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    corruption = g.scalar("Corruption", 0.0)
+    vein_color = g.color("VeinColor", srgb("9B5DE5"))
+    uv, u, v = uv_parts(g)
+    time = g.node(unreal.MaterialExpressionTime, 10)
+    color, cover = nid_veins(g, vein_tex, uv, corruption, g.const(0.0), g.const(1.0), g.const3(rgb(0.0, 0.0, 0.0)), vein_color, time, 1.0)
+    return finish(material, g, color, cover)
 
 
 # ---------------------------------------------------------------- Slot, medallion and badge
@@ -770,6 +794,7 @@ def main():
 
     vessel = build_vessel(shapes["T_HUD_Gefaess_Leben"])
     frame = build_frame(shapes["T_HUD_Adern"])
+    build_vein_heart(shapes["T_HUD_Adern_Herz"])
     slot = build_slot()
     build_wipe()
     tail = build_tail()

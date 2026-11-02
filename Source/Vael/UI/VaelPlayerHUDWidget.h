@@ -65,6 +65,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> TailMaterial;
 
+	/** Wreath of Nid veins grown over the silver rim of the Nid slot, the heart the veins of the frame start from */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UMaterialInterface> VeinHeartMaterial;
+
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> MedallionMaterial;
 
@@ -142,6 +146,8 @@ private:
 		bool bDim = false;
 		/** The awakened Nid slot swells with each beat */
 		float Scale = 1.0f;
+		/** The Nid slot: the veins grow over its rim */
+		bool bNidHeart = false;
 		/** The wipe shows a share, not seconds (the plant bar of a hand, a reload) */
 		bool bNoSeconds = false;
 	};
@@ -209,6 +215,9 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> KeimpelzBarInstance;
 
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> VeinHeartInstance;
+
 	/** Pictures loaded for the brushes */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UObject>> LoadedResources;
@@ -223,6 +232,7 @@ private:
 	FSlateBrush BadgeBrush;
 	FSlateBrush DodgeCooldownBrush;
 	FSlateBrush KeimpelzBarBrush;
+	FSlateBrush VeinHeartBrush;
 	TArray<FSlateBrush> CooldownBrushes;
 
 	FSlateFontInfo TitleFont;

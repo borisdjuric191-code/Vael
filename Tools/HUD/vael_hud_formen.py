@@ -316,10 +316,11 @@ def blur(a, r):
     return a
 
 
-def vein_net(path, w, h, seed, sources):
+def vein_net(path, w, h, seed, sources, keep=None, pull=0.06):
     """Gefäße wie unter der Haut: dicke Stämme, die sich nach Murrays Gesetz in immer feinere Adern verzweigen,
     jede Ader ein runder Schlauch, dessen Wölbung von oben links beleuchtet wird.
-    sources: (x, y in Höhen-Einheiten, [(Winkel, Radius)], Weg-Funktion über die Länge)"""
+    sources: (x, y in Höhen-Einheiten, [(Winkel, Radius)], Weg-Funktion über die Länge[, Lenkung (x, y, Richtung) -> Zielrichtung]);
+    keep: Maske (x, y) -> 0..1, wo Adern sein dürfen"""
     span = w / h
     x, y = grid(w, h)
     x = x * span                        # in Höhen-Einheiten, damit die Adern nicht gestreckt werden
@@ -348,12 +349,13 @@ def vein_net(path, w, h, seed, sources):
         nearest[y0:y1, x0:x1] = np.where(closer, d, nearest[y0:y1, x0:x1])
         along[y0:y1, x0:x1] = np.where(closer & (d < reach), ta + (tb - ta) * t, along[y0:y1, x0:x1])
 
-    def grow(px, py, angle, r, travelled, depth, way):
+    def grow(px, py, angle, r, travelled, depth, way, steer):
         step, curve, heading = 0.016, rng.uniform(-0.03, 0.03), angle
         while r > 0.0056:
             # Sanft geschlängelt, aber jede Ader hält ihre Richtung
             curve = curve * 0.8 + rng.normal(0.0, 0.03)
-            angle += curve + (heading - angle) * 0.06
+            target = steer(px, py, heading) if steer else heading
+            angle += curve + math.remainder(target - angle, 2 * math.pi) * (pull if steer else 0.06)
             nx, ny, nr = px + math.cos(angle) * step, py + math.sin(angle) * step, r * 0.9945
             stamp(px, py, nx, ny, r, nr, way(travelled), way(travelled + step))
             px, py, r, travelled = nx, ny, nr, travelled + step
@@ -364,16 +366,20 @@ def vein_net(path, w, h, seed, sources):
                 side = rng.choice([-1, 1])
                 child = r * rng.uniform(0.5, 0.75)
                 r = max(r ** 3 - child ** 3, (0.62 * r) ** 3) ** (1.0 / 3.0)
-                grow(px, py, angle + side * rng.uniform(0.45, 1.0), child, travelled, depth - 1, way)
+                grow(px, py, angle + side * rng.uniform(0.45, 1.0), child, travelled, depth - 1, way, None)
                 angle -= side * rng.uniform(0.05, 0.2)
                 heading -= side * 0.08
 
-    for ox, oy, trunks, way in sources:
+    for ox, oy, trunks, way, *steer in sources:
         for angle, radius in trunks:
-            grow(ox, oy, angle, radius, 0.0, 3, way)
+            grow(ox, oy, angle, radius, 0.0, 3, way, steer[0] if steer else None)
 
     ratio = np.clip(ratio, 0, 1)
+    if keep is not None:
+        ratio *= keep(x, y)
     cover = fill(nearest, h)
+    if keep is not None:
+        cover *= keep(x, y)
     # Licht auf dem gewölbten Schlauch: Normalen aus der Höhe, Licht von oben links, nasser Glanz
     gy, gx = np.gradient(height * 0.8)
     n = np.dstack([-gx * h, -gy * h, np.ones_like(height)])
@@ -412,6 +418,32 @@ def veins(folder):
     trunks = [(math.pi, 0.036), (math.pi + 0.3, 0.03), (math.pi - 0.45, 0.024), (-math.pi / 2 - 0.35, 0.022),
               (-0.3, 0.028), (0.0, 0.034), (0.45, 0.022), (-math.pi / 2 + 0.25, 0.018)]
     vein_net(os.path.join(folder, "T_HUD_Adern_Magier.png"), w, h, 23, [(cx, cy, trunks, lambda s: min(s / 2.9, 1.0))])
+
+    # Das Herz: ein Kranz aus Adern, der den silbernen Rand des Nid-Slots umwächst (130 Designpixel um die Slotmitte,
+    # Rand bei etwa 40); sie kommen unter dem Bild hervor, einige laufen zum Rahmen hinaus, die Mitte bleibt frei
+    size = 512
+    c, ring = 0.5, 40.0 / 130.0
+    rng = np.random.default_rng(5)
+    sources = []
+
+    def around(sense):
+        # Am Rand entlang: drinnen nach außen, draußen nach innen lenken, so legen sie sich um den Slot
+        def steer(px, py, heading):
+            off = np.clip((np.hypot(px - c, py - c) - ring) * 8.0, -0.7, 0.7)
+            return math.atan2(py - c, px - c) + sense * (math.pi / 2 + off)
+        return steer
+
+    def way(s):
+        return 0.8 * min(s / 1.4, 1.0)
+
+    for k in range(8):
+        phi = k * 2 * math.pi / 8 + rng.uniform(-0.25, 0.25)
+        sense = 1 if k % 2 == 0 else -1
+        sources.append((c + math.cos(phi) * 0.2, c + math.sin(phi) * 0.2, [(phi + sense * 0.9, rng.uniform(0.014, 0.02))], way, around(sense)))
+    for phi in (math.pi, 0.0, -math.pi / 2 - 0.4, -0.5, 2.3):
+        sources.append((c + math.cos(phi) * 0.2, c + math.sin(phi) * 0.2, [(phi, 0.022)], way))
+    vein_net(os.path.join(folder, "T_HUD_Adern_Herz.png"), size, size, 5, sources,
+             keep=lambda x, y: np.clip((np.hypot(x - c, y - c) - 0.22) / 0.04, 0, 1) * np.clip((0.5 - np.hypot(x - c, y - c)) / 0.1, 0, 1), pull=0.3)
 
 
 # ---------------------------------------------------------------- Platzhalter-Symbole (Strich)

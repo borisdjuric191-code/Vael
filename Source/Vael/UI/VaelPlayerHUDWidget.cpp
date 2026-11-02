@@ -69,6 +69,9 @@ namespace
 	constexpr float NidSwellCorrupt = 0.1f;
 	/** How far the veins already reach out of the awakened Nid slot without any corruption (share of their length) */
 	constexpr float NidAwakenedReach = 0.4f;
+	constexpr float NidHeartAwakenedReach = 0.7f;
+	/** Design pixels of the wreath of veins around the Nid slot (texture T_HUD_Adern_Herz, rim at about 40 from its middle) */
+	constexpr float NidHeartSize = 130.0f;
 
 	/** Margin to the edge of the screen and between stacked panels */
 	constexpr float ScreenMargin = 20.0f;
@@ -116,6 +119,7 @@ UVaelPlayerHUDWidget::UVaelPlayerHUDWidget(const FObjectInitializer& ObjectIniti
 	LifeVesselPicture = HudAsset<UTexture2D>(TEXT("T_HUD_Gemalt_Leben"), TEXT("Gemalt"));
 	CooldownMaterial = HudAsset<UMaterialInterface>(TEXT("M_HUD_Wisch"));
 	TailMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Schwanz"));
+	VeinHeartMaterial = HudAsset<UMaterialInterface>(TEXT("M_HUD_Adern_Herz"));
 	MedallionMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Medaillon"));
 	BadgeMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Abzeichen"));
 	ClawTexture = HudAsset<UTexture2D>(TEXT("T_HUD_Klaue"), TEXT("Formen"));
@@ -186,6 +190,11 @@ void UVaelPlayerHUDWidget::NativeConstruct()
 	{
 		KeimpelzBarInstance = UMaterialInstanceDynamic::Create(Pelt, this);
 		SetMaterialBrush(KeimpelzBarBrush, KeimpelzBarInstance);
+	}
+	if (UMaterialInterface* Heart = VaelAssets::LoadOptional(VeinHeartMaterial))
+	{
+		VeinHeartInstance = UMaterialInstanceDynamic::Create(Heart, this);
+		SetMaterialBrush(VeinHeartBrush, VeinHeartInstance);
 	}
 }
 
@@ -393,6 +402,13 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 
 	// Frame: Nid veins creep in with the corruption, out of the Nid slot where the class has one: once it is awakened thin threads
 	// already reach over the frame, and corruption makes them thicker and their beat harder; after the oath the way changes the frame
+	// Around the awakened slot itself the wreath is nearly grown at once
+	if (VeinHeartInstance != nullptr)
+	{
+		VeinHeartInstance->SetScalarParameterValue(CorruptionParameter, Corruption);
+		VeinHeartInstance->SetScalarParameterValue(VeinReachParameter, bNidAwakened ? FMath::Lerp(NidHeartAwakenedReach, 1.0f, Corruption) : Corruption);
+		VeinHeartInstance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
+	}
 	if (FrameInstance != nullptr)
 	{
 		FrameInstance->SetScalarParameterValue(CorruptionParameter, Corruption);
@@ -460,6 +476,10 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 				const float Warm = Pulse * Corruption;
 				State.IconColor = FLinearColor(Light * (1.0f + 0.2f * Warm), Light * (1.0f - 0.15f * Warm), Light * (1.0f + 0.05f * Warm));
 				State.Scale = 1.0f + Pulse * FMath::Lerp(NidSwell, NidSwellCorrupt, Corruption);
+			}
+			if (Element == EVaelElement::Mark)
+			{
+				State.bNidHeart = true;
 			}
 			break;
 		}
@@ -899,6 +919,11 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		{
 			PaintBox(OutDrawElements, L + 4, Rim, BoxAt(-5.0f), BoxSize(-5.0f), State.bLit ? FLinearColor(1.5f, 1.4f, 1.25f) : FLinearColor::White);
 		}
+		if (State.bNidHeart && VeinHeartInstance != nullptr)
+		{
+			const float HeartMargin = (SlotSize - NidHeartSize) * 0.5f;
+			PaintBox(OutDrawElements, L + 5, &VeinHeartBrush, BoxAt(HeartMargin), BoxSize(HeartMargin));
+		}
 
 		if (State.CooldownLeft > 0.0f && CooldownBrushes.IsValidIndex(Index))
 		{
@@ -909,7 +934,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 			}
 		}
 
-		PaintButton(OutDrawElements, L + 5, State.Button, State.KeyboardKey, At + FVector2f(SlotSize - 10.0f, SlotSize - 10.0f), 13.0f);
+		PaintButton(OutDrawElements, L + 6, State.Button, State.KeyboardKey, At + FVector2f(SlotSize - 10.0f, SlotSize - 10.0f), 13.0f);
 		PaintText(OutDrawElements, L + 5, State.Name, SmallFont, At + FVector2f(SlotSize * 0.5f, SlotSize + (ShownData->bDragonInFrame ? -1.0f : 1.0f)), Dim, 0.5f, SlotSize - 4.0f);
 	}
 
