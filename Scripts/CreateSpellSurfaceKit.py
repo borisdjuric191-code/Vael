@@ -1,5 +1,5 @@
 # Materials of the spells that were still flat placeholders: warning circles, living pools on the ground, the black sun,
-# the flesh of the Narbenwall, the fever mist. Run headless with the editor closed:
+# the flesh of the Narbenwall, the clay of the Lehmgolem, the fever mist. Run headless with the editor closed:
 #   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script=C:/Projekte/Vael/Scripts/CreateSpellSurfaceKit.py
 # Rerun-safe: a material graph is only rebuilt when KIT_VERSION grew, instances are written every run.
 
@@ -7,7 +7,7 @@ import unreal
 
 FOLDER = "/Game/Vael/Effects/Flaechen"
 NEBEL = "/Game/Vael/Effects/Nebel"
-KIT_VERSION = 1.2
+KIT_VERSION = 1.31
 
 assets = unreal.EditorAssetLibrary
 library = unreal.MaterialEditingLibrary
@@ -96,6 +96,19 @@ FLESH_EMISSIVE = FLESH_SHAPE + "return Aderfarbe * Vein * Puls;"
 FLESH_ROUGH = FLESH_SHAPE + "return lerp(0.22, 0.6, Scar);"
 
 
+# ---------------------------------------------------------------- Clay of the Lehmgolem
+# P is the place in cm around the middle of each lump. The mud never stands still: wet streaks and bulges run down all the time,
+# the surface churns slowly, wet dark mud over drier crusted clay
+CLAY_SHAPE = NOISE + """float3 Q = P * 0.045;
+float Flow = Zeit * Fluss;
+float2 Down = float2(Q.x + Q.y * 0.7, Q.z + Flow);
+float Streak = N.fbm(float2(Down.x * 2.2, Down.y * 0.55));
+float Churn = N.fbm(Q.xy * 1.3 + Q.zz * 0.9 + Flow * 0.25);
+float Wet = saturate((Streak - 0.36) * 3.0);
+"""
+CLAY_COLOR = CLAY_SHAPE + "return lerp(float3(0.15, 0.095, 0.05), float3(0.035, 0.025, 0.015), Wet) * (0.75 + 0.5 * Churn);"
+CLAY_ROUGH = CLAY_SHAPE + "return lerp(0.8, 0.12, Wet);"
+CLAY_OFFSET = CLAY_SHAPE + "return Normale * ((Streak - 0.5) * Beule + (Churn - 0.5) * Beule * 0.6);"
 def log(message):
     unreal.log_warning("[CreateSpellSurfaceKit] " + message)
 
@@ -266,6 +279,24 @@ def build_flesh():
     g.finish()
 
 
+def build_clay():
+    g = Graph("M_Vael_Lehm")
+    if not g.begin():
+        return
+    world = g.node(unreal.MaterialExpressionWorldPosition)
+    middle = g.node(unreal.MaterialExpressionObjectPositionWS)
+    offset = g.node(unreal.MaterialExpressionSubtract)
+    g.link(world, offset, "A")
+    g.link(middle, offset, "B")
+    zeit, fluss = g.time(), g.scalar("Fluss", 0.9)
+    inputs = {"P": offset, "Zeit": zeit, "Fluss": fluss}
+    g.out(g.custom(CLAY_COLOR, FLOAT3, inputs), unreal.MaterialProperty.MP_BASE_COLOR)
+    g.out(g.custom(CLAY_ROUGH, FLOAT1, inputs), unreal.MaterialProperty.MP_ROUGHNESS)
+    g.out(g.custom(CLAY_OFFSET, FLOAT3, dict(inputs, Normale=g.node(unreal.MaterialExpressionVertexNormalWS), Beule=g.scalar("Beule", 6.0))),
+          unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    g.finish()
+
+
 def instance(name, parent, values):
     path = "{}/{}".format(FOLDER, name)
     material = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
@@ -363,6 +394,7 @@ def main():
     build_pool()
     build_sun()
     build_flesh()
+    build_clay()
     build_instances()
     import_meshes()
     for note in notes:

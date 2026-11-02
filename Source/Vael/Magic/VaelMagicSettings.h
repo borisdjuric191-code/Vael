@@ -640,6 +640,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
 	TSoftObjectPtr<UStaticMesh> ClayLumpMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/SM_Lehmklumpen.SM_Lehmklumpen")));
 
+	/** Flowing mud of the Lehmgolem: streaks and bulges run down it all the time (Scripts/CreateSpellSurfaceKit.py) */
+	UPROPERTY(config, EditAnywhere, Category="Surfaces")
+	TSoftObjectPtr<UMaterialInterface> ClayMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Lehm.M_Vael_Lehm")));
+
 	/** Ring on the ground before a strike falls, and the black sun over a caster */
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
 	TSoftObjectPtr<UMaterialInterface> WarningCircleMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/M_Vael_Warnkreis.M_Vael_Warnkreis")));

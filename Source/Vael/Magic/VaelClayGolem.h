@@ -10,10 +10,12 @@
 class UStaticMeshComponent;
 
 /**
- *  A golem of clay a mage calls for some seconds, like with the Lehmgolem. Stands where it was called and fights on the side of the players:
- *  every enemy near it goes for the golem instead of the players, it stamps on enemies next to it,
- *  and when it is beaten or its time is up it falls apart into a patch of mud that slows enemies.
- *  Placeholder look: clay-colored spheres that rise out of the ground.
+ *  A golem of clay a mage calls for some seconds, like with the Lehmgolem, built like a thing out of the swamp: a hunched heap of mud
+ *  with long arms that hang to the knees and a head sunk between the shoulders. It is never still: mud runs down it in streaks
+ *  (its material), drops slide off, fall and splash on the ground, and new mud creeps up its legs out of the ground.
+ *  It fights on the side of the players: every enemy near it goes for the golem instead of the players, it lumbers towards the
+ *  nearest enemy without going far from where it was called, stamps on enemies next to it and leaves a trail of slowing mud;
+ *  when it is beaten or its time is up it falls apart into a patch of mud that slows enemies.
  */
 UCLASS()
 class AVaelClayGolem : public AVaelCharacterBase
@@ -33,6 +35,23 @@ protected:
 	/** Seconds between two stamps, and the share of it the golem spends lifting its arms */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Golem", meta = (ClampMin = 0.1))
 	float StampInterval = 1.4f;
+
+	/** Walking speed in cm/s, and how far in cm it goes from where it was called */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Golem", meta = (ClampMin = 0))
+	float WalkSpeed = 150.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Golem", meta = (ClampMin = 0))
+	float Leash = 800.0f;
+
+	/** Trail of mud while it walks: one small patch every so many cm, its radius in cm and seconds */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Golem", meta = (ClampMin = 10))
+	float TrailSpacing = 110.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Golem", meta = (ClampMin = 0))
+	float TrailRadius = 80.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Golem", meta = (ClampMin = 0))
+	float TrailLifetime = 2.5f;
 
 	/** Patch of mud the golem leaves when it falls apart: radius in cm and seconds */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Golem", meta = (ClampMin = 0))
@@ -78,6 +97,45 @@ protected:
 
 private:
 
+	/** Where a lump of the body belongs: it moves with the trunk, a leg or an arm */
+	enum class EPartRole : uint8 { Trunk, Head, LegLeft, LegRight, ArmLeft, ArmRight };
+
+	/** A lump of the body: where it sits, its size in cm, how low on its limb (1 = foot or hand), how fast it churns */
+	struct FBodyPart
+	{
+		FVector Place;
+		FVector Size = FVector(50.0f);
+		EPartRole Role = EPartRole::Trunk;
+		float Low = 0.0f;
+		FRotator Spin;
+	};
+
+	/** A drop of mud: slides down the body, falls off, splashes on the ground and sinks in; or creeps up a leg out of the ground */
+	struct FDrop
+	{
+		enum class EState : uint8 { Slide, Fall, Splash, Rise };
+		EState State = EState::Slide;
+		FVector Place;
+		FVector Velocity = FVector::ZeroVector;
+		float Speed = 0.0f;
+		float Time = 0.0f;
+		float Size = 10.0f;
+		/** Height in cm where a sliding drop lets go of the body */
+		float DropOff = 0.0f;
+	};
+
+	/** Turns towards the nearest enemy and walks there, back home when it went too far */
+	void Walk(float DeltaSeconds);
+
+	/** Moves the lumps: rising out of the ground, lumbering gait, breathing, arms lifted for a stamp */
+	void Pose(float Windup, float DeltaSeconds);
+
+	/** Moves the drops of mud */
+	void Flow(float DeltaSeconds);
+
+	/** Starts a drop sliding from a random place on the upper body, or creeping up from the ground at a foot */
+	void StartDrop(int32 Index, bool bRise);
+
 	/** Hits every enemy next to it and throws up dust */
 	void Stamp();
 
@@ -91,12 +149,24 @@ private:
 	float Age = 0.0f;
 	float StampCountdown = 0.0f;
 
+	/** Walking cycle, 0..2 pi per two steps, and how much it walks right now (0 standing, 1 full stride) */
+	float Gait = 0.0f;
+	float Stride = 0.0f;
+
+	/** Where it was called, and where it last left mud on the ground */
+	FVector Home = FVector::ZeroVector;
+	FVector LastTrail = FVector::ZeroVector;
+
 	/** True once it has fallen apart */
 	bool bCrumbled = false;
 
-	/** Body, head, arms and legs of the placeholder look, and where each sits */
+	/** The lumps of the body and the drops, each with its mesh */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> BodyParts;
 
-	TArray<FVector> PartPlaces;
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> DropMeshes;
+
+	TArray<FBodyPart> Parts;
+	TArray<FDrop> Drops;
 };
