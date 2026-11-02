@@ -339,6 +339,13 @@ private:
 
 	float SmokeCountdown = 0.0f;
 
+	/** The fairies of this hand, and how long its button is held */
+	UPROPERTY(Transient)
+	TObjectPtr<class AVaelFairyEscort> Escort;
+
+	float FairyHoldTime = -1.0f;
+	bool bFairiesLuring = false;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> TargetDots;
 
@@ -361,6 +368,9 @@ private:
 
 	/** Whips on a tap, throws the lasso on a hold, yanks (or slams) when let go */
 	void UpdateLassoFiring(float DeltaTime);
+
+	/** The fairy hand: tapped one fairy goes to the enemy ahead, held all of them lure */
+	void UpdateFairyCalling(float DeltaTime);
 
 	/** The fan of lashing tendrils in front of her */
 	void Whip();

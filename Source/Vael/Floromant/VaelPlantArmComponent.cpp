@@ -11,6 +11,7 @@
 #include "Engine/World.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelFloromantSettings.h"
+#include "Floromant/VaelFairyEscort.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelBindweedLasso.h"
 #include "Floromant/VaelSapJet.h"
@@ -237,6 +238,13 @@ void UVaelPlantArmComponent::Clear()
 		SapCore = nullptr;
 	}
 	CoreMaterial = nullptr;
+	if (Escort != nullptr)
+	{
+		Escort->Destroy();
+		Escort = nullptr;
+	}
+	FairyHoldTime = -1.0f;
+	bFairiesLuring = false;
 	BudCapsuleMaterial = nullptr;
 	Charge = 0.0f;
 	bCharging = false;
@@ -476,6 +484,16 @@ void UVaelPlantArmComponent::BuildStalks()
 		}
 	}
 
+	// Real fairies follow the scent of this blossom
+	if (Plant->bFairies)
+	{
+		Escort = GetWorld()->SpawnActor<AVaelFairyEscort>();
+		if (Escort != nullptr)
+		{
+			Escort->Setup(Cast<APawn>(GetOwner()), Plant, bLeft ? 0.17f : 0.0f);
+		}
+	}
+
 	// The core in the rose: the sap is pumped out of it
 	if (UStaticMesh* CoreMesh = HasRose() ? VaelAssets::LoadOptional(Plant->CoreMesh) : nullptr)
 	{
@@ -699,8 +717,9 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	// A mortar hand keeps the arm up until its throw is out
 	const bool bMortarHand = Plant->bMortar;
 	const bool bLassoHand = Plant->bLasso;
+	const bool bFairyHand = Plant->bFairies;
 	const bool bFiringNow = !bShieldHand && (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr)) || (bMortarHand && (bThrowQueued || ThrowHold > 0.0f))
-		|| (bLassoHand && (!Lassos.IsEmpty() || WhipTime >= 0.0f)) || bCrossing) && Grow >= 1.0f;
+		|| (bLassoHand && (!Lassos.IsEmpty() || WhipTime >= 0.0f)) || bCrossing) && !bFairyHand && Grow >= 1.0f;
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 
 	// A shield hand doesn't aim: the forearm comes up before the face, and the clover overgrows the arm as if it fired
@@ -749,6 +768,10 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	{
 		UpdateLassoFiring(DeltaTime);
 		UpdateTendrils(DeltaTime);
+	}
+	else if (bFairyHand)
+	{
+		UpdateFairyCalling(DeltaTime);
 	}
 	else
 	{
@@ -1057,7 +1080,7 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 
 bool UVaelPlantArmComponent::ShootsFromFingers() const
 {
-	return Plant != nullptr && !Plant->bShield && !Plant->bMortar && !Plant->bVineArm && !Plant->bLasso && Plant->WaterSource.IsNull() && !HasRose() && !Plant->bFingersFormBarrel;
+	return Plant != nullptr && !Plant->bShield && !Plant->bMortar && !Plant->bVineArm && !Plant->bLasso && !Plant->bFairies && Plant->WaterSource.IsNull() && !HasRose() && !Plant->bFingersFormBarrel;
 }
 
 void UVaelPlantArmComponent::UpdateCharge(float DeltaTime)
@@ -1153,6 +1176,40 @@ void UVaelPlantArmComponent::ReleaseLassos(bool bWithEnd)
 		}
 	}
 	Lassos.Reset();
+}
+
+void UVaelPlantArmComponent::UpdateFairyCalling(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr || Escort == nullptr)
+	{
+		return;
+	}
+
+	const bool bShadowPath = Character->GetPath() == EVaelPath::Shadow;
+	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
+	const FVector Ahead = Character->GetActorLocation() + Aim * Plant->FairyReach;
+
+	const bool bPressed = IsFiring() && Grow >= 1.0f && !Character->IsDowned() && !Character->IsDodging();
+	if (bPressed)
+	{
+		FairyHoldTime = FMath::Max(FairyHoldTime, 0.0f) + DeltaTime;
+		if (!bFairiesLuring && FairyHoldTime >= Plant->FairyHoldDelay)
+		{
+			bFairiesLuring = true;
+			Escort->SendAll(Ahead, bShadowPath);
+		}
+	}
+	else if (FairyHoldTime >= 0.0f)
+	{
+		if (!bFairiesLuring)
+		{
+			Escort->Send(VaelSymbiosis::FindTarget(Character, Ahead, Plant->FairyReach), bShadowPath);
+		}
+		FairyHoldTime = -1.0f;
+		bFairiesLuring = false;
+	}
 }
 
 void UVaelPlantArmComponent::UpdateLassoFiring(float DeltaTime)

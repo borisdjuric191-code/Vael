@@ -769,6 +769,46 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = bStuck && bUsedUp && Plain > 0.0f && FMath::IsNearlyEqual(Ignited, Plain * 2.0f, 0.05f);
 			return FString::Printf(TEXT("%sfire %.2f, on pitch %.2f, pitch %s"), bOk ? TEXT("") : TEXT("FAILED: "), Plain, Ignited, bUsedUp ? TEXT("gone") : TEXT("still there"));
 		}, 0.5f });
+		// Feenragwurz: a tapped hand sends a real fairy to the enemy, and it forgets to fight
+		Steps.Add({ TEXT("Fairy hands"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 1);
+			AVaelCharacter* Player = GetPlayer();
+			UVaelPlantArmData* Orchid = LoadObject<UVaelPlantArmData>(nullptr, TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm/DA_Pflanzenarm_Feenragwurz.DA_Pflanzenarm_Feenragwurz"));
+			if (Player == nullptr || Orchid == nullptr)
+			{
+				return FString(TEXT("FAILED: no player or no DA_Pflanzenarm_Feenragwurz"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			Player->GetFloromant()->GetHand(true)->SetPlant(Orchid);
+			Player->GetFloromant()->GetHand(false)->SetPlant(Orchid);
+			return FString::Printf(TEXT("%s, Feenragwurz on both hands, %d fairies each"), *Arena, Orchid->FairyCount);
+		}, 1.0f });
+		Steps.Add({ TEXT("Fairy press"), [this]()
+		{
+			if (AVaelCharacter* Player = GetPlayer())
+			{
+				Player->GetFloromant()->SetHandFiring(true, true);
+			}
+			return FString(TEXT("pressed"));
+		}, 0.15f });
+		Steps.Add({ TEXT("Fairy tap"), [this]()
+		{
+			if (AVaelCharacter* Player = GetPlayer())
+			{
+				Player->GetFloromant()->SetHandFiring(true, false);
+			}
+			return FString(TEXT("released"));
+		}, 2.5f });
+		Steps.Add({ TEXT("Fairy lure"), [this]()
+		{
+			int32 Lured = 0;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Lured += !It->IsDead() && UVaelCombatStatics::HasStatus(*It, EVaelStatus::Lured) ? 1 : 0;
+			}
+			return FString::Printf(TEXT("%s%d creature(s) lured"), Lured > 0 ? TEXT("") : TEXT("FAILED: "), Lured);
+		}, 0.5f });
 		Steps.Add({ TEXT("Lasso hands"), [this]()
 		{
 			const FString Arena = PrepareArena(GetMutableDefault<UVaelSickleDollData>(), 1);

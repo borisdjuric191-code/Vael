@@ -161,6 +161,10 @@ FText AVaelCharacterBase::GetStatusText() const
 	{
 		Names.Add(TEXT("verpecht"));
 	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Lured))
+	{
+		Names.Add(TEXT("abgelenkt"));
+	}
 
 	return FText::FromString(FString::Join(Names, TEXT(", ")));
 }

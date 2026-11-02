@@ -347,6 +347,17 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		return;
 	}
 
+	// A fairy has its whole attention: it goes after her and forgets the players
+	if (UVaelCombatStatics::HasStatus(this, EVaelStatus::Lured))
+	{
+		const FVector ToPlace = (LurePlace - GetActorLocation()).GetSafeNormal2D();
+		if (FVector::DistSquared2D(LurePlace, GetActorLocation()) > FMath::Square(120.0f))
+		{
+			MoveInDirection(ToPlace, ActiveData->MoveSpeed * 0.7f);
+		}
+		return;
+	}
+
 	// Confusion makes it stagger about, now this way, now that, and forget to attack
 	if (UVaelCombatStatics::HasStatus(this, EVaelStatus::Confused))
 	{
@@ -1183,6 +1194,12 @@ void AVaelCreature::UpdateBurning()
 	// The red glow breathes quickly, like embers under the skin
 	BurnGlow = 0.35f + 0.2f * FMath::Sin(GetWorld()->GetTimeSeconds() * 7.0f + GetUniqueID());
 	RefreshBodyColor();
+}
+
+void AVaelCreature::LureTo(AActor* Attacker, const FVector& Place, float Seconds)
+{
+	LurePlace = Place;
+	UVaelCombatStatics::ApplyStatus(Attacker, this, EVaelStatus::Lured, Seconds);
 }
 
 bool AVaelCreature::IsHeavy() const

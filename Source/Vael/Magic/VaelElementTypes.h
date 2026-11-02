@@ -220,6 +220,8 @@ enum class EVaelStatus : uint8
 	Fevered,
 	/** Confused (Wachbeere): creatures stagger about and don't attack, a player's steps drift off course */
 	Confused,
+	/** Lured by a fairy of the Feenragwurz: creatures go after her and don't attack */
+	Lured,
 	/** Stuck in pitch (Harzkolben): moves at a share of its speed, fire on it burns twice as hard and uses the pitch up */
 	Pitched
 };

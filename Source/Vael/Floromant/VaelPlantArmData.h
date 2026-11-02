@@ -146,6 +146,53 @@ public:
 	// they lie against the arm and a pump wave runs through them from the shoulder to the hand; the heads of the fingers nest
 	// into each other in front of the hand and form the barrel
 
+	// --- Fairies (Feenragwurz, Boris 2026-11-02): the hand shoots nothing, its blossom calls real fairies
+
+	/** The hand calls fairies; tapped one goes to the enemy ahead, held all lure what stands around the place ahead */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies")
+	bool bFairies = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (EditCondition = "bFairies"))
+	TSoftObjectPtr<UStaticMesh> FairyMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (EditCondition = "bFairies"))
+	TSoftObjectPtr<UMaterialInterface> FairyMaterial;
+
+	/** Fairies per hand (later from the Feengunst), their size against the mesh and top speed in cm/s */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, ClampMax = 6, EditCondition = "bFairies"))
+	int32 FairyCount = 3;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0.1, EditCondition = "bFairies"))
+	float FairyScale = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 1, EditCondition = "bFairies"))
+	float FairySpeed = 560.0f;
+
+	/** Seconds a fairy distracts or lures, half on bosses, and rests after it */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyLureSeconds = 4.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyRest = 6.0f;
+
+	/** How far around her place held fairies lure, and how far ahead of the hand that place lies, in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyLureRadius = 600.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyReach = 700.0f;
+
+	/** Seconds the button is held before all fairies go */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyHoldDelay = 0.4f;
+
+	/** Shadow: seconds a forced fairy stings one enemy, and the damage of a sting */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyStingSeconds = 2.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyStingDamage = 3.0f;
+
 	/** Own material of the leaves and petals, cut from the real plant (Harzkolben); empty uses the material of the stalks */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> PartMaterial;

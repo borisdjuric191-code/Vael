@@ -959,6 +959,12 @@ namespace VaelSymbiosis
 			return false;
 		}
 
+		// The Feenragwurz shoots nothing, her fairies do the work (no tower of her yet)
+		if (Plant->bFairies)
+		{
+			return false;
+		}
+
 		// The Schlotwinde catches the nearest enemy ahead with a lasso and holds it a while
 		if (Plant->bLasso)
 		{

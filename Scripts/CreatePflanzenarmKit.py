@@ -104,6 +104,24 @@ ARMS = {
                  "jet_hold_time": 0.35, "jet_damage_per_second": 4.0, "jet_range": 650.0, "jet_push": 80.0,
                  "jet_shots_per_second": 3.0},
     },
+    # Boris 2026-11-02: the hand of the Feenragwurz shoots nothing: blossoms from the real model (feenragwurz_teile.py) sit on the
+    # hand and along the arm, and real fairies, the same as in the Hain, follow their scent
+    "Feenragwurz": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": False,
+        "leaf": "Bluete",
+        "petal": "Bluete",
+        "props": "/Game/Vael/Requisiten/Wurzelforst",
+        "values": {"Silber": 0.05, "Leuchten": 0.08, "Leuchtfarbe": (0.5, 0.95, 0.75), "Metall": 0.05, "Rauheit": 0.4},
+        "data": {"fairies": True, "fairy_mesh": "/Game/Vael/Requisiten/Wurzelforst/Ragwurzfee/SM_Ragwurzfee",
+                 "fairy_material": "/Game/Vael/Requisiten/Wurzelforst/Ragwurzfee/M_WF_Ragwurzfee",
+                 "part_material": "/Game/Vael/Requisiten/Wurzelforst/Feenragwurz/M_WF_Feenragwurz",
+                 "finger_length": 12.0, "finger_thickness": 0.3, "fan_angle": 0.0, "arm_thickness": 0.4, "rest_wind": 0.25, "wild_count": 2,
+                 "leaf_count": 3, "leaf_size": 16.0, "leaf_open_angle": 45.0,
+                 "inner_petals": 0, "outer_petals": 2, "petal_size": 20.0, "rose_open_angle": 30.0, "rose_closed_angle": 10.0,
+                 "rose_hole_radius": 0.5},
+    },
     # Boris 2026-10-26: the shield hand. No shots; held, the forearm comes up before the face and clover overgrows the arm, a
     # glass dome rises around her. Golden stalks with flame buds from halme_zerlegen.py (kopf), the clover leaf from
     # Tools/Pflanzenarm/glimmklee_blatt.py, the vine from ranke_bauen.py
@@ -540,6 +558,20 @@ def make_pitch():
         source.set_editor_property("viscosity", 0.85)
         assets.save_loaded_asset(source, False)
         created.append(PITCH_SOURCE)
+
+    path = "{}/DA_Pflanze_Feenragwurz".format(PLANT_FOLDER)
+    if not assets.does_asset_exist(path):
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelPlantData)
+        data = tools.create_asset("DA_Pflanze_Feenragwurz", PLANT_FOLDER, unreal.VaelPlantData, factory)
+        data.set_editor_property("plant_id", "Feenragwurz")
+        data.set_editor_property("light_name", unreal.Text("Feenragwurz"))
+        data.set_editor_property("shadow_name", unreal.Text("Stichragwurz"))
+        data.set_editor_property("mesh", unreal.load_asset("/Game/Vael/Requisiten/Wurzelforst/Feenragwurz/SM_Feenragwurz"))
+        data.set_editor_property("color", unreal.LinearColor(0.45, 0.9, 0.7, 1.0))
+        data.set_editor_property("shadow_color", unreal.LinearColor(0.35, 0.05, 0.12, 1.0))
+        assets.save_loaded_asset(data, False)
+        created.append(path)
 
     path = "{}/DA_Pflanze_Harzkolben".format(PLANT_FOLDER)
     if not assets.does_asset_exist(path):

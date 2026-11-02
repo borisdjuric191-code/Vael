@@ -12,44 +12,11 @@
 
 namespace
 {
-	/** The fairy mesh looks along +Y, an actor along +X */
-	constexpr float MeshYaw = -90.0f;
-
-	/** The middle of her body above her feet in the mesh, in cm: she turns and leans around it */
-	constexpr float BodyHeight = 34.0f;
-
-	/** How hard she is pulled to her target and how far from it she starts to slow down, in cm */
-	constexpr float Steering = 6.0f;
-	constexpr float BrakeDistance = 90.0f;
-
 	/** Closer than this she has arrived, in cm */
 	constexpr float ArriveDistance = 14.0f;
 
 	/** She arcs up by this much on the way to another blossom, in cm */
 	constexpr float ArcHeight = 45.0f;
-
-	/** Lean into the flight and into a turn at top speed, in degrees */
-	constexpr float FlightLean = 48.0f;
-	constexpr float TurnLean = 30.0f;
-
-	/** How fast she turns, 1/s */
-	constexpr float TurnSpeed = 6.0f;
-
-	/** Hovering she drifts on a small figure of eight, in cm and radians per second */
-	constexpr float DriftReach = 5.0f;
-	constexpr float DriftSpeed = 1.4f;
-
-	/** Wing angles in radians, 0 = as modelled, positive = forward: the middle of the beat and how far it swings */
-	constexpr float BeatMiddle = -0.3f;
-	constexpr float BeatSwing = 0.55f;
-
-	/** The lower wings follow the upper ones by this much of a beat */
-	constexpr float LowerWingLag = 0.9f;
-
-	/** Legs trailing behind at top speed and hanging a little behind while hovering, and their slow swing, in radians */
-	constexpr float LegTrailFlight = 0.95f;
-	constexpr float LegTrailHover = 0.12f;
-	constexpr float LegSwing = 0.13f;
 }
 
 AVaelFairyOrchid::AVaelFairyOrchid()
@@ -94,6 +61,7 @@ void AVaelFairyOrchid::BuildOrchid()
 	Trunk->SetRelativeLocation(FVector(0.0f, 0.0f, TrunkSize.Y));
 
 	Fairies->ClearInstances();
+	Fairies->SetHasPerInstancePrevTransforms(true);
 	Fairies->SetStaticMesh(FairyMesh);
 	if (FairyMaterial != nullptr)
 	{
@@ -226,59 +194,24 @@ void AVaelFairyOrchid::MoveFairy(FFairy& Fairy, float DeltaSeconds, const FVecto
 	}
 	else
 	{
-		const float Drift = Clock * DriftSpeed + Fairy.Seed;
-		Goal += FVector(FMath::Sin(Drift), FMath::Sin(Drift * 0.5f), FMath::Sin(Drift * 1.7f)) * DriftReach;
+		Goal += VaelFairyFlight::Drift(Fairy, Clock);
 	}
 
-	// Heads for the goal at full speed and slows down on the last stretch
-	const FVector ToGoal = Goal - Fairy.Location;
-	const float Speed = FlySpeed * FMath::Min(ToGoal.Size() / BrakeDistance, 1.0f);
-	const FVector Wanted = ToGoal.GetSafeNormal() * Speed;
-	const FVector Before = Fairy.Velocity;
-	Fairy.Velocity = FMath::VInterpTo(Fairy.Velocity, Wanted, DeltaSeconds, Steering);
-	Fairy.Location += Fairy.Velocity * DeltaSeconds;
+	// Looks at her blossom while hovering, at the player if one comes close
+	const FVector Look = WatchedPlace != nullptr ? *WatchedPlace - Fairy.Location : Fairy.Facing;
+	VaelFairyFlight::Steer(Fairy, Goal, Look, DeltaSeconds, GetFlight());
+}
 
-	// Looks where she flies, at her blossom while hovering, at the player if one comes close
-	const float SpeedShare = FMath::Min(Fairy.Velocity.Size() / FlySpeed, 1.0f);
-	FVector Look = Fairy.Facing;
-	if (SpeedShare > 0.25f)
-	{
-		Look = Fairy.Velocity;
-	}
-	else if (WatchedPlace != nullptr)
-	{
-		Look = *WatchedPlace - Fairy.Location;
-	}
-	const float OldYaw = Fairy.Yaw;
-	Fairy.Yaw = FMath::RInterpTo(FRotator(0.0f, Fairy.Yaw, 0.0f), FRotator(0.0f, Look.Rotation().Yaw, 0.0f), DeltaSeconds, TurnSpeed).Yaw;
-
-	// Leans forward into the flight and sideways into the turn
-	const FVector Forward = FRotator(0.0f, Fairy.Yaw, 0.0f).Vector();
-	const float Along = FVector::DotProduct(Fairy.Velocity, Forward) / FlySpeed;
-	const float Turning = DeltaSeconds > 0.0f ? FMath::FindDeltaAngleDegrees(OldYaw, Fairy.Yaw) / DeltaSeconds / 180.0f : 0.0f;
-	Fairy.Pitch = FMath::FInterpTo(Fairy.Pitch, -FMath::Clamp(Along, -0.5f, 1.0f) * FlightLean, DeltaSeconds, TurnSpeed);
-	Fairy.Roll = FMath::FInterpTo(Fairy.Roll, FMath::Clamp(Turning, -1.0f, 1.0f) * TurnLean, DeltaSeconds, TurnSpeed);
-
-	// Beats harder the more she speeds up
-	const float Effort = FMath::Min(SpeedShare + (Fairy.Velocity - Before).Size() / FMath::Max(DeltaSeconds, 0.001f) / (FlySpeed * Steering), 1.0f);
-	Fairy.BeatPhase = FMath::Fmod(Fairy.BeatPhase + DeltaSeconds * UE_TWO_PI * FMath::Lerp(BeatRate.X, BeatRate.Y, Effort), UE_TWO_PI);
+VaelFairyFlight::FSettings AVaelFairyOrchid::GetFlight() const
+{
+	VaelFairyFlight::FSettings Flight;
+	Flight.FlySpeed = FlySpeed;
+	Flight.BeatRate = BeatRate;
+	Flight.Scale = FairyScale;
+	return Flight;
 }
 
 void AVaelFairyOrchid::ShowFairy(int32 Index, bool bLast)
 {
-	const FFairy& Fairy = Flock[Index];
-
-	// Turns around the middle of her body, her feet swing out behind her
-	const FRotator Body(Fairy.Pitch, Fairy.Yaw, Fairy.Roll);
-	const FQuat Turn = Body.Quaternion() * FRotator(0.0f, MeshYaw, 0.0f).Quaternion();
-	const FVector Middle(0.0f, 0.0f, BodyHeight * FairyScale);
-	const FVector Place = Fairy.Location + Middle - Turn.RotateVector(Middle);
-	Fairies->UpdateInstanceTransform(Index, FTransform(Turn, Place, FVector(FairyScale)), false, false);
-
-	const float SpeedShare = FMath::Min(Fairy.Velocity.Size() / FlySpeed, 1.0f);
-	const float Swing = FMath::Sin(Clock * 2.2f + Fairy.Seed);
-	Fairies->SetCustomDataValue(Index, 0, BeatMiddle + BeatSwing * FMath::Sin(Fairy.BeatPhase), false);
-	Fairies->SetCustomDataValue(Index, 1, BeatMiddle + BeatSwing * FMath::Sin(Fairy.BeatPhase - LowerWingLag), false);
-	Fairies->SetCustomDataValue(Index, 2, FMath::Lerp(LegTrailHover, LegTrailFlight, SpeedShare), false);
-	Fairies->SetCustomDataValue(Index, 3, LegSwing * Swing, bLast);
+	VaelFairyFlight::Show(Fairies, Index, Flock[Index], Clock, GetFlight(), bLast);
 }

@@ -47,6 +47,7 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Funkenmohn")));
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Schlotwinde")));
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Harzkolben")));
+	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Feenragwurz")));
 
 	// The moss of the Keimpelz from the world, as a pad on the forearm
 	KeimpelzPadMesh = AssetAt<UStaticMesh>(TEXT("/Game/Vael/Requisiten/Aschenmark/Keimpelz"), TEXT("SM_Keimpelz"));

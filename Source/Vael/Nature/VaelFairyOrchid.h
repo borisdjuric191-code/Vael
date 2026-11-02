@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Nature/VaelFairyFlight.h"
 #include "VaelFairyOrchid.generated.h"
 
 class APawn;
@@ -130,21 +131,14 @@ public:
 private:
 
 	/** One fairy on her way, all in the space of the actor */
-	struct FFairy
+	struct FFairy : VaelFairyFlight::FFairy
 	{
-		FVector Location = FVector::ZeroVector;
-		FVector Velocity = FVector::ZeroVector;
 		FVector Target = FVector::ZeroVector;
 
 		/** Where she looks while she hovers */
 		FVector Facing = FVector::ForwardVector;
 		int32 Blossom = 0;
-		float Yaw = 0.0f;
-		float Pitch = 0.0f;
-		float Roll = 0.0f;
-		float BeatPhase = 0.0f;
 		float Seconds = 0.0f;
-		float Seed = 0.0f;
 		bool bFlying = false;
 	};
 
@@ -161,6 +155,8 @@ private:
 
 	/** Writes one fairy into her instance */
 	void ShowFairy(int32 Index, bool bLast);
+
+	VaelFairyFlight::FSettings GetFlight() const;
 
 	TArray<FFairy> Flock;
 

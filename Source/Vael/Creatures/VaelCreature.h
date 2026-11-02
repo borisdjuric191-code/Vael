@@ -126,6 +126,9 @@ public:
 	/** True for creatures too big or heavy to be yanked by a lasso (bosses, whatever stands firm against pulls): she flies to them instead */
 	bool IsHeavy() const;
 
+	/** Lets it follow a fairy to a place for some seconds instead of fighting */
+	void LureTo(AActor* Attacker, const FVector& Place, float Seconds);
+
 	/** True while the creature is a boss in a running fight; the HUD then shows its health at the top */
 	virtual bool IsBossFightActive() const { return false; }
 
@@ -344,6 +347,7 @@ private:
 	/** While confused: the way it staggers and the world time it picks a new one */
 	FVector ConfusedDirection = FVector::ForwardVector;
 	float ConfusedTurnTime = 0.0f;
+	FVector LurePlace = FVector::ZeroVector;
 
 	/** World time until which it sleeps (Schwarzmohn); being hurt wakes it */
 	float SleepEndTime = 0.0f;
