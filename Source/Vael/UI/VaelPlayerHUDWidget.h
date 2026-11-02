@@ -69,6 +69,17 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> VeinHeartMaterial;
 
+	/** Veins of the awakened Nid that seize the other buttons with the corruption, drawn with VeinHeartMaterial:
+	 *  around a slot coming from the right or from the left (the side of the Nid slot), and around a round button */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> SlotGripFromRight;
+
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> SlotGripFromLeft;
+
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> RoundGrip;
+
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> MedallionMaterial;
 
@@ -175,6 +186,9 @@ private:
 	/** Brush around a material instance */
 	static void SetMaterialBrush(FSlateBrush& Brush, UMaterialInterface* Material);
 
+	/** Index of the Nid slot among the abilities of a class, or INDEX_NONE */
+	static int32 FindNidSlot(const UVaelHUDClassData* Data);
+
 	/** Builds the fonts from the font faces */
 	void BuildFonts();
 
@@ -209,6 +223,13 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> CooldownInstances;
 
+	/** Nid veins seizing each ability slot, and the round buttons: dodge, the three menus, potion */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> SlotGripInstances;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> RoundGripInstances;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> DodgeCooldownInstance;
 
@@ -234,6 +255,8 @@ private:
 	FSlateBrush KeimpelzBarBrush;
 	FSlateBrush VeinHeartBrush;
 	TArray<FSlateBrush> CooldownBrushes;
+	TArray<FSlateBrush> SlotGripBrushes;
+	TArray<FSlateBrush> RoundGripBrushes;
 
 	FSlateFontInfo TitleFont;
 	FSlateFontInfo LabelFont;

@@ -72,6 +72,16 @@ namespace
 	constexpr float NidHeartAwakenedReach = 0.7f;
 	/** Design pixels of the wreath of veins around the Nid slot (texture T_HUD_Adern_Herz, rim at about 40 from its middle) */
 	constexpr float NidHeartSize = 130.0f;
+	/** Corruption at which the veins seize the slots beside the Nid slot, how much later each slot farther away, and over how much
+	 *  corruption one grip grows closed */
+	constexpr float NidGripFirst = 0.1f;
+	constexpr float NidGripStep = 0.15f;
+	constexpr float NidGripSpread = 0.3f;
+	/** Design pixels of a slot grip (T_HUD_Adern_Griff_A/B, 100 around the middle of the slot) */
+	constexpr float SlotGripSize = 100.0f;
+	/** Round grips (T_HUD_Adern_Ring, ring at 0.3 of its size): dodge, the three menus, potion; when each is seized */
+	constexpr float RoundGripDelays[] = { 0.2f, 0.35f, 0.42f, 0.49f, 0.7f };
+	constexpr float RoundGripRing = 0.3f;
 
 	/** Margin to the edge of the screen and between stacked panels */
 	constexpr float ScreenMargin = 20.0f;
@@ -87,6 +97,7 @@ namespace
 	const FName CorruptionParameter(TEXT("Corruption"));
 	const FName VeinReachParameter(TEXT("VeinReach"));
 	const FName NidBeatParameter(TEXT("NidBeat"));
+	const FName VeinsParameter(TEXT("Veins"));
 	const FName LightParameter(TEXT("Light"));
 	const FName ShadowParameter(TEXT("Shadow"));
 	const FName TwilightParameter(TEXT("Twilight"));
@@ -120,6 +131,9 @@ UVaelPlayerHUDWidget::UVaelPlayerHUDWidget(const FObjectInitializer& ObjectIniti
 	CooldownMaterial = HudAsset<UMaterialInterface>(TEXT("M_HUD_Wisch"));
 	TailMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Schwanz"));
 	VeinHeartMaterial = HudAsset<UMaterialInterface>(TEXT("M_HUD_Adern_Herz"));
+	SlotGripFromRight = HudAsset<UTexture2D>(TEXT("T_HUD_Adern_Griff_A"), TEXT("Formen"));
+	SlotGripFromLeft = HudAsset<UTexture2D>(TEXT("T_HUD_Adern_Griff_B"), TEXT("Formen"));
+	RoundGrip = HudAsset<UTexture2D>(TEXT("T_HUD_Adern_Ring"), TEXT("Formen"));
 	MedallionMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Medaillon"));
 	BadgeMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Abzeichen"));
 	ClawTexture = HudAsset<UTexture2D>(TEXT("T_HUD_Klaue"), TEXT("Formen"));
@@ -195,6 +209,16 @@ void UVaelPlayerHUDWidget::NativeConstruct()
 	{
 		VeinHeartInstance = UMaterialInstanceDynamic::Create(Heart, this);
 		SetMaterialBrush(VeinHeartBrush, VeinHeartInstance);
+
+		UTexture2D* Ring = VaelAssets::LoadOptional(RoundGrip);
+		RoundGripBrushes.SetNum(UE_ARRAY_COUNT(RoundGripDelays));
+		for (FSlateBrush& Brush : RoundGripBrushes)
+		{
+			UMaterialInstanceDynamic* Instance = UMaterialInstanceDynamic::Create(Heart, this);
+			Instance->SetTextureParameterValue(VeinsParameter, Ring);
+			RoundGripInstances.Add(Instance);
+			SetMaterialBrush(Brush, Instance);
+		}
 	}
 }
 
@@ -280,6 +304,8 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 	ClassVesselInstance = nullptr;
 	CooldownInstances.Reset();
 	CooldownBrushes.Reset();
+	SlotGripInstances.Reset();
+	SlotGripBrushes.Reset();
 
 	if (Data == nullptr)
 	{
@@ -336,6 +362,26 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 		CooldownInstances.Add(Instance);
 		SetMaterialBrush(CooldownBrushes.AddDefaulted_GetRef(), Instance);
 	}
+
+	// The veins reach every other slot from the side of the Nid slot
+	const int32 NidIndex = FindNidSlot(Data);
+	UMaterialInterface* Heart = VaelAssets::LoadOptional(VeinHeartMaterial);
+	SlotGripBrushes.SetNum(Data->Abilities.Num());
+	for (int32 Index = 0; Index < Data->Abilities.Num(); ++Index)
+	{
+		UMaterialInstanceDynamic* Instance = Heart != nullptr && NidIndex != INDEX_NONE && Index != NidIndex ? UMaterialInstanceDynamic::Create(Heart, this) : nullptr;
+		if (Instance != nullptr)
+		{
+			Instance->SetTextureParameterValue(VeinsParameter, VaelAssets::LoadOptional(Index < NidIndex ? SlotGripFromRight : SlotGripFromLeft));
+		}
+		SlotGripInstances.Add(Instance);
+		SetMaterialBrush(SlotGripBrushes[Index], Instance);
+	}
+}
+
+int32 UVaelPlayerHUDWidget::FindNidSlot(const UVaelHUDClassData* Data)
+{
+	return Data != nullptr ? Data->Abilities.IndexOfByPredicate([](const FVaelHUDAbilitySlot& Ability) { return Ability.Ability == EVaelHUDAbility::ElementNid; }) : INDEX_NONE;
 }
 
 void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDeltaTime)
@@ -398,10 +444,9 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	NidBeatPhase = FMath::Frac(NidBeatPhase + InDeltaTime / FMath::Lerp(NidBeatSeconds, NidBeatSecondsCorrupt, Corruption));
 	const UVaelGrimoireSubsystem* Grimoire = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
 	const bool bNidAwakened = Grimoire != nullptr && Grimoire->IsMarkAwakened();
-	const bool bNidSlot = ShownData->Abilities.ContainsByPredicate([](const FVaelHUDAbilitySlot& Ability) { return Ability.Ability == EVaelHUDAbility::ElementNid; });
+	const int32 NidIndex = FindNidSlot(ShownData);
+	const bool bNidSlot = NidIndex != INDEX_NONE;
 
-	// Frame: Nid veins creep in with the corruption, out of the Nid slot where the class has one: once it is awakened thin threads
-	// already reach over the frame, and corruption makes them thicker and their beat harder; after the oath the way changes the frame
 	// Around the awakened slot itself the wreath is nearly grown at once
 	if (VeinHeartInstance != nullptr)
 	{
@@ -409,6 +454,28 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 		VeinHeartInstance->SetScalarParameterValue(VeinReachParameter, bNidAwakened ? FMath::Lerp(NidHeartAwakenedReach, 1.0f, Corruption) : Corruption);
 		VeinHeartInstance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
 	}
+
+	// The awakened Nid takes the other buttons one after the other: first its neighbours, the farther the later
+	auto Seize = [&](UMaterialInstanceDynamic* Instance, float Delay)
+	{
+		if (Instance != nullptr)
+		{
+			Instance->SetScalarParameterValue(CorruptionParameter, Corruption);
+			Instance->SetScalarParameterValue(VeinReachParameter, bNidSlot && bNidAwakened ? FMath::Clamp((Corruption - Delay) / NidGripSpread, 0.0f, 1.0f) : 0.0f);
+			Instance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
+		}
+	};
+	for (int32 Index = 0; Index < SlotGripInstances.Num(); ++Index)
+	{
+		Seize(SlotGripInstances[Index], NidGripFirst + NidGripStep * (FMath::Abs(Index - NidIndex) - 1));
+	}
+	for (int32 Index = 0; Index < RoundGripInstances.Num(); ++Index)
+	{
+		Seize(RoundGripInstances[Index], RoundGripDelays[Index]);
+	}
+
+	// Frame: Nid veins creep in with the corruption, out of the Nid slot where the class has one: once it is awakened thin threads
+	// already reach over the frame, and corruption makes them thicker and their beat harder; after the oath the way changes the frame
 	if (FrameInstance != nullptr)
 	{
 		FrameInstance->SetScalarParameterValue(CorruptionParameter, Corruption);
@@ -837,11 +904,22 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		PaintText(OutDrawElements, L + 7, KeimpelzText, NumberFont, BarAt + FVector2f(BarSize.X * 0.5f, 7.0f), TextColor, 0.5f);
 	}
 
+	// Nid veins wound round a round button once the Nid has seized it, between its plate and its symbol
+	auto PaintRoundGrip = [&](int32 GripIndex, const FVector2f& At, float Radius)
+	{
+		if (RoundGripInstances.IsValidIndex(GripIndex) && RoundGripBrushes.IsValidIndex(GripIndex))
+		{
+			const float Size = (Radius + 2.0f) / RoundGripRing;
+			PaintBox(OutDrawElements, L + 4, &RoundGripBrushes[GripIndex], At - FVector2f(Size * 0.5f), FVector2f(Size));
+		}
+	};
+
 	// Round menu buttons on the upper edge: Adernbaum, Rezeptbuch, Karte
 	for (int32 Index = 0; Index < 3; ++Index)
 	{
 		const FVector2f At = bPaintedFrame ? O + FVector2f(626.0f + Index * 30.0f, 48.0f) : O + FVector2f(548.0f + Index * 34.0f, FrameTop);
 		PaintMedallion(OutDrawElements, L + 3, At, 14.0f, Frame);
+		PaintRoundGrip(1 + Index, At, 14.0f);
 		PaintBox(OutDrawElements, L + 5, FindTextureBrush(MenuIcons[Index]), At - FVector2f(9.0f), FVector2f(18.0f), TextColor);
 	}
 
@@ -924,6 +1002,11 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 			const float HeartMargin = (SlotSize - NidHeartSize) * 0.5f;
 			PaintBox(OutDrawElements, L + 5, &VeinHeartBrush, BoxAt(HeartMargin), BoxSize(HeartMargin));
 		}
+		if (SlotGripInstances.IsValidIndex(Index) && SlotGripInstances[Index] != nullptr)
+		{
+			// Seized by the Nid: veins wound tight round the silver rim
+			PaintBox(OutDrawElements, L + 5, &SlotGripBrushes[Index], Middle - FVector2f(SlotGripSize * 0.5f), FVector2f(SlotGripSize));
+		}
 
 		if (State.CooldownLeft > 0.0f && CooldownBrushes.IsValidIndex(Index))
 		{
@@ -941,6 +1024,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	// Potion and dodge as round buttons beside the vessels
 	const FVector2f PotionAt = O + FVector2f(160.0f, 190.0f);
 	PaintMedallion(OutDrawElements, L + 3, PotionAt, 18.0f, Frame);
+	PaintRoundGrip(4, PotionAt, 18.0f);
 	PaintBox(OutDrawElements, L + 5, FindTextureBrush(PotionIcon), PotionAt - FVector2f(11.0f), FVector2f(22.0f), Hex(0xD9, 0x57, 0x4A));
 	PaintBox(OutDrawElements, L + 5, &BadgeBrush, PotionAt + FVector2f(6.0f, -22.0f), FVector2f(16.0f));
 	PaintText(OutDrawElements, L + 6, PotionText, SmallFont, PotionAt + FVector2f(14.0f, -22.0f), GroundColor, 0.5f);
@@ -948,6 +1032,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	// Above the head of the dragon where the frame brings one
 	const FVector2f DodgeAt = O + (ShownData->bDragonInFrame ? FVector2f(712.0f, 164.0f) : FVector2f(718.0f, 190.0f));
 	PaintMedallion(OutDrawElements, L + 3, DodgeAt, 17.0f, Frame);
+	PaintRoundGrip(0, DodgeAt, 17.0f);
 	PaintBox(OutDrawElements, L + 5, FindTextureBrush(DodgeIcon), DodgeAt - FVector2f(11.0f), FVector2f(22.0f), TextColor);
 	if (DodgeLeft > 0.0f)
 	{

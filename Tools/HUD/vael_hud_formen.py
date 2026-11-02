@@ -546,6 +546,46 @@ def veins(folder):
     vein_net(os.path.join(folder, "T_HUD_Adern_Herz.png"), size, size, 5, sources,
              keep=heart_keep, pull=0.3)
 
+    # Griffe: Nid nimmt die übrigen Knöpfe in Besitz. Adern kommen von der Seite des Nid-Slots und schlängeln sich eng am
+    # silbernen Rand entlang um den Knopf, ohne Bild, Namen oder Nachbarn zu bedecken.
+    # Slot (100 Designpixel um die Slotmitte; Rand von 31 bis 43, Bild bis 31): A kommt von rechts, B von links
+    def along_rim(shape, sense):
+        def steer(px, py, heading):
+            e = 0.002
+            d = shape(px, py)
+            normal = math.atan2(shape(px, py + e) - shape(px, py - e), shape(px + e, py) - shape(px - e, py))
+            return normal + sense * (math.pi / 2 + float(np.clip(d * 25.0, -0.7, 0.7)))
+        return steer
+
+    rim = lambda px, py: box(px, py, 0.13, 0.13, 0.87, 0.87, 0.08)
+
+    def slot_keep(x, y):
+        dx, dy = x - 0.5, y - 0.5
+        picture = np.clip((box(x, y, 0.19, 0.19, 0.81, 0.81, 0.04)) / 0.012, 0, 1)
+        neighbours = np.clip((np.abs(dx) - 0.41) / 0.02, 0, 1) * np.clip((0.43 - np.abs(dy)) / 0.02, 0, 1)
+        name = np.clip((0.33 - np.abs(dx)) / 0.02, 0, 1) * np.clip((dy - 0.37) / 0.02, 0, 1)
+        edge = np.clip((0.5 - np.maximum(np.abs(dx), np.abs(dy))) / 0.04, 0, 1)
+        return picture * (1.0 - neighbours) * (1.0 - name) * edge
+
+    for name, side in (("A", 1), ("B", -1)):
+        rng = np.random.default_rng(41 if side > 0 else 43)
+        sources = []
+        for k in range(5):
+            sy = rng.uniform(0.25, 0.75)
+            sense = 1 if k % 2 == 0 else -1
+            sources.append((0.5 + side * 0.48, sy, [(math.pi if side > 0 else 0.0, rng.uniform(0.02, 0.028))], lambda s: min(s / 3.0, 1.0), along_rim(rim, sense * side)))
+        vein_net(os.path.join(folder, "T_HUD_Adern_Griff_%s.png" % name), 512, 512, 41 if side > 0 else 43, sources, keep=slot_keep, pull=0.3, curls=True)
+
+    # Runde Knöpfe (Medaillons, Trank, Ausweichen): Ring bei 0,3 der Bildgröße, die Mitte mit dem Symbol bleibt frei
+    rng = np.random.default_rng(47)
+    sources = []
+    ring_shape = lambda px, py: math.hypot(px - 0.5, py - 0.5) - 0.3
+    for k in range(4):
+        sense = 1 if k % 2 == 0 else -1
+        sources.append((0.98, rng.uniform(0.35, 0.65), [(math.pi, rng.uniform(0.018, 0.024))], lambda s: min(s / 2.2, 1.0), along_rim(ring_shape, sense)))
+    vein_net(os.path.join(folder, "T_HUD_Adern_Ring.png"), 512, 512, 47, sources, pull=0.3, curls=True,
+             keep=lambda x, y: np.clip((np.hypot(x - 0.5, y - 0.5) - 0.22) / 0.02, 0, 1) * np.clip((0.5 - np.hypot(x - 0.5, y - 0.5)) / 0.06, 0, 1))
+
 
 # ---------------------------------------------------------------- Platzhalter-Symbole (Strich)
 
