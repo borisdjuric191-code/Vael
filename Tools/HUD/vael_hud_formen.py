@@ -316,11 +316,12 @@ def blur(a, r):
     return a
 
 
-def vein_net(path, w, h, seed, sources, keep=None, pull=0.06):
+def vein_net(path, w, h, seed, sources, keep=None, pull=0.06, avoid=None, margin=0.07, curls=False):
     """Gefäße wie unter der Haut: dicke Stämme, die sich nach Murrays Gesetz in immer feinere Adern verzweigen,
     jede Ader ein runder Schlauch, dessen Wölbung von oben links beleuchtet wird.
     sources: (x, y in Höhen-Einheiten, [(Winkel, Radius)], Weg-Funktion über die Länge[, Lenkung (x, y, Richtung) -> Zielrichtung]);
-    keep: Maske (x, y) -> 0..1, wo Adern sein dürfen"""
+    keep: Maske (x, y) -> 0..1, wo Adern sein dürfen; avoid: Abstand (x, y) zu den Symbolen des HUDs, innen negativ: die Adern
+    legen sich ab margin um sie herum und überdecken keines; curls: dünne Enden rollen sich zu Schnörkeln ein"""
     span = w / h
     x, y = grid(w, h)
     x = x * span                        # in Höhen-Einheiten, damit die Adern nicht gestreckt werden
@@ -351,17 +352,47 @@ def vein_net(path, w, h, seed, sources, keep=None, pull=0.06):
 
     def grow(px, py, angle, r, travelled, depth, way, steer):
         step, curve, heading = 0.016, rng.uniform(-0.03, 0.03), angle
+        # Unter einem Symbol geboren (der Nid-Slot) läuft sie darunter weiter, bis sie draußen ist
+        under = avoid is not None and avoid(px, py) < 0.0
+        curl, sense = 0.0, rng.choice([-1, 1])
         while r > 0.0056:
             # Sanft geschlängelt, aber jede Ader hält ihre Richtung
             curve = curve * 0.8 + rng.normal(0.0, 0.03)
-            target = steer(px, py, heading) if steer else heading
-            angle += curve + math.remainder(target - angle, 2 * math.pi) * (pull if steer else 0.06)
-            nx, ny, nr = px + math.cos(angle) * step, py + math.sin(angle) * step, r * 0.9945
+            target, gain = (steer(px, py, heading), pull) if steer else (heading, 0.06)
+            if curls and r < 0.0105:
+                # Die dünnen Enden rollen sich zu Schnörkeln ein, immer enger
+                curl = min(curl + 0.01, 0.38)
+                target, gain = angle + sense * curl * 6.0, 0.0
+                angle += sense * curl
+            if avoid is not None and not under and not steer:
+                d = avoid(px, py)
+                if d < margin:
+                    # Am Symbol entlang: die Tangente, die der Ader am nächsten liegt, leicht nach außen gedreht
+                    e = 0.002
+                    gx, gy = avoid(px + e, py) - avoid(px - e, py), avoid(px, py + e) - avoid(px, py - e)
+                    normal = math.atan2(gy, gx)
+                    side = 1 if math.sin(angle - normal) > 0 else -1
+                    target = normal + side * (math.pi / 2 - 0.5 * (margin - d) / margin)
+                    gain = 0.3
+            angle += curve + math.remainder(target - angle, 2 * math.pi) * gain
+            nx, ny = px + math.cos(angle) * step, py + math.sin(angle) * step
+            if avoid is not None and not under and avoid(nx, ny) < 0.004:
+                # Vor einem Symbol: so wenig wie möglich abbiegen, bis der Weg frei ist, sonst endet die Ader hier
+                for turn in (0.25, -0.25, 0.5, -0.5, 0.8, -0.8, 1.2, -1.2, 1.6, -1.6):
+                    tx, ty = px + math.cos(angle + turn) * step, py + math.sin(angle + turn) * step
+                    if avoid(tx, ty) >= 0.004:
+                        angle, nx, ny = angle + turn, tx, ty
+                        break
+                else:
+                    return
+            nr = r * 0.9945
             stamp(px, py, nx, ny, r, nr, way(travelled), way(travelled + step))
             px, py, r, travelled = nx, ny, nr, travelled + step
+            if under and avoid(px, py) > 0.01:
+                under = False
             if not (-0.05 < px < span + 0.05 and -0.05 < py < 1.05):
                 return
-            if depth > 0 and rng.random() < 0.075:
+            if depth > 0 and curl == 0.0 and rng.random() < 0.075:
                 # Murray: r³ = r1³ + r2³, der Ast nimmt dem Stamm etwas ab, beide biegen auseinander
                 side = rng.choice([-1, 1])
                 child = r * rng.uniform(0.5, 0.75)
@@ -380,6 +411,10 @@ def vein_net(path, w, h, seed, sources, keep=None, pull=0.06):
     cover = fill(nearest, h)
     if keep is not None:
         cover *= keep(x, y)
+    if avoid is not None:
+        free = np.clip(avoid(x, y) / 0.006, 0, 1)
+        ratio *= free
+        cover *= free
     # Licht auf dem gewölbten Schlauch: Normalen aus der Höhe, Licht von oben links, nasser Glanz
     gy, gx = np.gradient(height * 0.8)
     n = np.dstack([-gx * h, -gy * h, np.ones_like(height)])
@@ -400,6 +435,23 @@ def vein_net(path, w, h, seed, sources, keep=None, pull=0.06):
 # Rahmenfeld 880 x 202 Designpixel (ab FrameTop 28); der Nid-Slot des Magiers ist der fünfte von sechs Slots (76 + 6 Abstand)
 FRAME_W, FRAME_H = 880.0, 202.0
 NID_SLOT_MAGIER = (197.0 + 4 * 82.0 + 38.0, 116.0 + 38.0 - 28.0)
+# Symbole des Magier-HUDs in Designpixeln des Panels (880 x 230), um die sich die Adern legen, ohne sie zu überdecken:
+# Kreise (x, y, Radius) und Rechtecke (x0, y0, x1, y1); siehe Layout in VaelPlayerHUDWidget.cpp
+SYMBOLS_MAGIER_CIRCLES = [(94, 132, 96), (786, 132, 96), (440, 66, 40), (626, 48, 17), (656, 48, 17), (686, 48, 17),
+                          (712, 164, 21), (160, 190, 20), (838, 62, 17)]
+SYMBOLS_MAGIER_BOXES = [(192, 111, 684, 208), (196, 44, 318, 82), (480, 46, 622, 74), (210, 86, 282, 112),
+                        (284, 88, 432, 110), (606, 86, 704, 112), (200, 208, 672, 230)]
+
+
+def symbols_magier(x, y):
+    """Abstand zum nächsten Symbol, in Höhen-Einheiten des Rahmenfelds (Höhe 202 ab FrameTop 28), innen negativ"""
+    px, py = x * FRAME_H, y * FRAME_H + 28.0
+    d = np.full(np.shape(x), 1e3, np.float32) if np.ndim(x) else 1e3
+    for cx, cy, r in SYMBOLS_MAGIER_CIRCLES:
+        d = np.minimum(d, np.hypot(px - cx, py - cy) - r)
+    for x0, y0, x1, y1 in SYMBOLS_MAGIER_BOXES:
+        d = np.minimum(d, box(px, py, x0, y0, x1, y1, 4.0))
+    return d / FRAME_H
 
 
 def veins(folder):
@@ -415,9 +467,38 @@ def veins(folder):
     # Magier: das Herz ist der Nid-Slot, von dort ziehen die Adern in alle Richtungen über das HUD
     w, h = 1760, 404
     cx, cy = NID_SLOT_MAGIER[0] / FRAME_H, NID_SLOT_MAGIER[1] / FRAME_H
-    trunks = [(math.pi, 0.036), (math.pi + 0.3, 0.03), (math.pi - 0.45, 0.024), (-math.pi / 2 - 0.35, 0.022),
-              (-0.3, 0.028), (0.0, 0.034), (0.45, 0.022), (-math.pi / 2 + 0.25, 0.018)]
-    vein_net(os.path.join(folder, "T_HUD_Adern_Magier.png"), w, h, 23, [(cx, cy, trunks, lambda s: min(s / 2.9, 1.0))])
+    # Unter der Slotreihe hindurch und oben heraus, dann legen sie sich um Titel, Siegel, Medaillons und Gefäße
+    trunks = [(math.pi, 0.034), (0.0, 0.032), (math.pi + 0.5, 0.028), (-0.5, 0.028), (-math.pi / 2 - 0.25, 0.026), (-math.pi / 2 + 0.2, 0.024),
+              (math.pi + 1.0, 0.022), (-1.0, 0.022), (math.pi + 0.15, 0.02), (-0.15, 0.02)]
+    nid = (cx, cy)
+
+    def from_nid(px, py, scale=0.8):
+        # Weg der Verderbnis: je weiter vom Nid-Slot, desto später; so bleibt der Nid-Slot das Herz
+        start = scale * min(math.hypot(px - nid[0], py - nid[1]) / 3.2, 1.0)
+        return lambda s: min(start + s / 3.0, 1.0)
+
+    def hug(sense, off=0.02):
+        # Am nächsten Symbol entlang, off davon entfernt: zu weit weg nach innen, zu nah nach außen lenken
+        def steer(px, py, heading):
+            e = 0.002
+            d = symbols_magier(px, py)
+            normal = math.atan2(symbols_magier(px, py + e) - symbols_magier(px, py - e), symbols_magier(px + e, py) - symbols_magier(px - e, py))
+            return normal + sense * (math.pi / 2 + float(np.clip((d - off) * 25.0, -0.7, 0.7)))
+        return steer
+
+    sources = [(cx, cy, trunks, lambda s: min(s / 2.9, 1.0))]
+    rng = np.random.default_rng(31)
+    # Um jedes runde Symbol (Gefäße, Siegel, Medaillons, Trank, Ausweichen, Stufe) schlingen sich eigene Adern; Schrift wird nur umgangen
+    for x0, y0, r in SYMBOLS_MAGIER_CIRCLES:
+        wanted, found = (6 if r > 60 else 3), 0
+        for phi in rng.permutation(np.linspace(0, 2 * math.pi, 24, endpoint=False)):
+            px, py = (x0 + math.cos(phi) * (r + 4)) / FRAME_H, (y0 + math.sin(phi) * (r + 4) - 28.0) / FRAME_H
+            if found == wanted or not (0.02 < px < w / h - 0.02 and 0.02 < py < 0.98) or symbols_magier(px, py) < 0.006:
+                continue
+            found += 1
+            sense = rng.choice([-1, 1])
+            sources.append((px, py, [(phi + sense * math.pi / 2, rng.uniform(0.012, 0.018))], from_nid(px, py), hug(sense, rng.uniform(0.008, 0.05))))
+    vein_net(os.path.join(folder, "T_HUD_Adern_Magier.png"), w, h, 23, sources, avoid=symbols_magier, margin=0.035, curls=True, pull=0.15)
 
     # Das Herz: ein Kranz aus Adern, der den silbernen Rand des Nid-Slots umwächst (130 Designpixel um die Slotmitte,
     # Rand bei etwa 40); sie kommen unter dem Bild hervor, einige laufen zum Rahmen hinaus, die Mitte bleibt frei
@@ -443,7 +524,7 @@ def veins(folder):
     for phi in (math.pi, 0.0, -math.pi / 2 - 0.4, -0.5, 2.3):
         sources.append((c + math.cos(phi) * 0.2, c + math.sin(phi) * 0.2, [(phi, 0.022)], way))
     vein_net(os.path.join(folder, "T_HUD_Adern_Herz.png"), size, size, 5, sources,
-             keep=lambda x, y: np.clip((np.hypot(x - c, y - c) - 0.22) / 0.04, 0, 1) * np.clip((0.5 - np.hypot(x - c, y - c)) / 0.1, 0, 1), pull=0.3)
+             keep=lambda x, y: np.clip((np.hypot(x - c, y - c) - 0.255) / 0.02, 0, 1) * np.clip((0.5 - np.hypot(x - c, y - c)) / 0.1, 0, 1), pull=0.3)
 
 
 # ---------------------------------------------------------------- Platzhalter-Symbole (Strich)
