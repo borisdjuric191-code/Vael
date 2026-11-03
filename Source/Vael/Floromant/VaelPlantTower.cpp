@@ -134,7 +134,7 @@ AVaelPlantTower* AVaelPlantTower::PlantTower(AVaelCharacter* Gardener, UVaelPlan
 		return nullptr;
 	}
 	Tower->Plant = InPlant;
-	Tower->bShadow = Gardener->GetPath() == EVaelPath::Shadow;
+	Tower->bShadow = Gardener->GetPath() == EVaelPath::Shadow && !InPlant->IsLightOnly();
 	Tower->LifeLeft = UVaelFloromantSettings::Get()->TowerLifetime;
 	Tower->LookDirection = Gardener->GetActorForwardVector();
 	Tower->FinishSpawning(SpawnTransform);

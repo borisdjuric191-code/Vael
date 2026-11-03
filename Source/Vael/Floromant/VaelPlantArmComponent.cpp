@@ -33,6 +33,9 @@
 #include "Magic/VaelDebrisBurst.h"
 #include "VaelAssets.h"
 #include "Floromant/VaelMoonVeil.h"
+#include "Floromant/VaelEyeBerry.h"
+#include "EngineUtils.h"
+#include "Combat/VaelCharacterBase.h"
 
 namespace
 {
@@ -378,7 +381,7 @@ void UVaelPlantArmComponent::BuildStalks()
 			UStaticMeshComponent* Tip = NewObject<UStaticMeshComponent>(GetOwner());
 			Tip->SetMobility(EComponentMobility::Movable);
 			Tip->SetStaticMesh(TipMesh);
-			Tip->SetMaterial(0, Material);
+			Tip->SetMaterial(0, Plant->bEyeBerry && !Plant->PartMaterial.IsNull() ? VaelAssets::LoadOptional(Plant->PartMaterial) : static_cast<UMaterialInterface*>(Material));
 			Tip->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Tip->SetupAttachment(GetBody());
 			Tip->RegisterComponent();
@@ -1020,7 +1023,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 
 void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
 {
-	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow && !Plant->IsLightOnly();
 
 	// The winding stalks spin faster the longer the hand fires, and slow down again after
 	const float TargetRate = IsFiring() ? Plant->SpinSpeed * FMath::Clamp(FireTime / Plant->SpinRampTime, 0.0f, 1.0f) : 0.0f;
@@ -1177,6 +1180,13 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 		Direction = Character->GetActorForwardVector();
 	}
 	Direction = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Direction);
+
+	// The Wachbeere throws the berry itself in an arc, to the enemy nearest the aim or far ahead
+	if (Plant->bEyeBerry)
+	{
+		AVaelEyeBerry::Throw(Character, Plant, Muzzle, GetEyeBerryTarget(Direction), Character->GetPath() == EVaelPath::Shadow);
+		return;
+	}
 
 	// Rooted in the earth, her hands hit harder
 	const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
@@ -2403,4 +2413,39 @@ void UVaelPlantArmComponent::CastVeil()
 	}
 	AVaelMoonVeil::Raise(Character, Plant, Center, Direction);
 	VeilFlare = 1.0f;
+}
+
+// ---------------------------------------------------------------- Eye berries (Wachbeere)
+
+FVector UVaelPlantArmComponent::GetEyeBerryTarget(const FVector& Direction) const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	const FVector From = Character->GetActorLocation();
+
+	// The enemy nearest the aim within reach, in a cone of about 30 degrees
+	FVector Target = From + Direction * Plant->EyeThrowRange * 0.7f;
+	float Best = 0.86f;
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		const AVaelCharacterBase* Other = *It;
+		const FVector To = Other->GetActorLocation() - From;
+		const float Distance = To.Size2D();
+		if (Other->IsOnPlayerSide() || Other->IsDefeated() || Other->GetHealth() <= 0.0f || Distance > Plant->EyeThrowRange || Distance < 100.0f)
+		{
+			continue;
+		}
+		const float Facing = FVector::DotProduct(To.GetSafeNormal2D(), Direction);
+		if (Facing > Best)
+		{
+			Best = Facing;
+			Target = Other->GetActorLocation();
+		}
+	}
+
+	FHitResult Ground;
+	if (VaelGround::TraceGround(GetWorld(), Target + FVector(0.0f, 0.0f, 300.0f), Target - FVector(0.0f, 0.0f, 800.0f), Ground, Character))
+	{
+		return Ground.ImpactPoint;
+	}
+	return Target - FVector(0.0f, 0.0f, Character->GetSimpleCollisionHalfHeight());
 }

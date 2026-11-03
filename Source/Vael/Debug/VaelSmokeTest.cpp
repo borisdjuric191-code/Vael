@@ -72,6 +72,7 @@
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlantData.h"
 #include "Floromant/VaelMoonVeil.h"
+#include "Floromant/VaelEyeBerry.h"
 #include "Items/VaelMaterialDrop.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelPlayerController.h"
@@ -744,6 +745,65 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = Stopped > 0;
 			return FString::Printf(TEXT("%s%d shots stopped, health %.0f -> %.0f"), bOk ? TEXT("") : TEXT("FAILED: "), Stopped, MoonVeilHealth,
 				Player != nullptr ? Player->GetHealth() : 0.0f);
+		}, 0.2f });
+
+		// The Wachbeere (Boris 2026-11-03): the fingertips throw eye berries at crawlers; open on the ground they confuse a share
+		Steps.Add({ TEXT("Eye berry hands"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 4);
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			for (int32 Index = 0; Index < Floromant->GetHandBeltSize(); ++Index)
+			{
+				const UVaelPlantArmData* Data = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
+				if (Data != nullptr && Data->bEyeBerry)
+				{
+					break;
+				}
+				Floromant->PageHandBelt(1);
+			}
+			Floromant->PutOnHand(false);
+			const UVaelPlantArmData* Plant = Floromant->GetHand(false)->GetPlant();
+			if (Plant == nullptr || !Plant->bEyeBerry)
+			{
+				return FString(TEXT("FAILED: no DA_Pflanzenarm_Wachbeere on the belt"));
+			}
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Player->SetActorRotation(FRotator(0.0f, (It->GetActorLocation() - Player->GetActorLocation()).Rotation().Yaw, 0.0f));
+			}
+			Floromant->SetHandFiring(false, true);
+			return FString::Printf(TEXT("%s, Wachbeere on the right hand, throwing"), *Arena);
+		}, 3.5f });
+		Steps.Add({ TEXT("Eye berry"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			if (Player != nullptr)
+			{
+				Player->GetFloromant()->SetHandFiring(false, false);
+			}
+			int32 Landed = 0;
+			int32 Looks = 0;
+			int32 Caught = 0;
+			for (TActorIterator<AVaelEyeBerry> It(GetWorld()); It; ++It)
+			{
+				Landed += It->HasLanded() ? 1 : 0;
+				Looks += It->GetLooks();
+				Caught += It->GetCaught();
+			}
+			int32 Confused = 0;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Confused += UVaelCombatStatics::HasStatus(*It, EVaelStatus::Confused) ? 1 : 0;
+			}
+			const bool bOk = Landed > 0 && Looks > 0 && Caught > 0;
+			return FString::Printf(TEXT("%s%d eyes on the ground, %d looks, %d caught, %d crawlers confused now"), bOk ? TEXT("") : TEXT("FAILED: "),
+				Landed, Looks, Caught, Confused);
 		}, 0.2f });
 
 		// The Funkenmohn (Boris 2026-10-26): both hands become mortar buds, a tap throws a capsule at the crawlers in an arc,

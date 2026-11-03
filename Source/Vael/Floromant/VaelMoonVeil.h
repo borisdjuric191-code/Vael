@@ -44,6 +44,9 @@ private:
 	/** True if the segment crosses the curtain (within its width and height) */
 	bool Crosses(const FVector& From, const FVector& To) const;
 
+	/** Height of the top edge across the curtain (local Y): a round arch, highest in the middle */
+	float GetTop(float Y) const;
+
 	/** Side of the curtain a point is on (+1 in front, -1 behind) */
 	float SideOf(const FVector& Location) const;
 

@@ -13,5 +13,11 @@ FText UVaelPlantArmData::GetDisplayName(bool bShadow) const
 FLinearColor UVaelPlantArmData::GetColor(bool bShadow) const
 {
 	const UVaelPlantData* PlantData = VaelAssets::LoadOptional(Plant);
-	return PlantData == nullptr ? FLinearColor(0.4f, 0.95f, 1.0f) : bShadow ? PlantData->ShadowColor : PlantData->Color;
+	return PlantData == nullptr ? FLinearColor(0.4f, 0.95f, 1.0f) : bShadow && !PlantData->bLightOnly ? PlantData->ShadowColor : PlantData->Color;
+}
+
+bool UVaelPlantArmData::IsLightOnly() const
+{
+	const UVaelPlantData* PlantData = VaelAssets::LoadOptional(Plant);
+	return PlantData != nullptr && PlantData->bLightOnly;
 }

@@ -27,6 +27,9 @@ created = []
 notes = []
 
 KIT_VERSION = 1.4
+# The veil material has its own version, so rebuilding it leaves M_Halm alone
+VEIL_VERSION = 2.0
+EYE_VERSION = 1.3
 
 WATER = "/Game/VFX/Water"
 PITCH_SOURCE = WATER + "/Sources/DA_ElementSource_Pitch"
@@ -188,7 +191,7 @@ ARMS = {
         "petal": "Kelchblatt",
         "props": "/Game/Vael/Requisiten/Wurzelforst",
         "values": {"Silber": 0.8, "Grundton": (0.42, 0.25, 0.3), "Leuchten": 0.04, "Leuchtfarbe": (1.0, 0.6, 0.82), "Metall": 0.05, "Rauheit": 0.55},
-        "data": {"veil": True, "veil_width": 450.0, "veil_height": 300.0, "veil_distance": 220.0, "veil_seconds": 8.0,
+        "data": {"veil": True, "veil_width": 450.0, "veil_height": 300.0, "veil_distance": 220.0, "veil_seconds": 8.0, "veil_arch": 0.4,
                  "veil_enemy_scale": 0.0, "veil_allied_scale": 1.3, "veil_drops": 10, "veil_color": (1.0, 0.42, 0.7),
                  "drop_mesh": "/Game/Vael/Items/Loot/Modelle/SM_Mondtropfen",
                  "drop_material": "/Game/Vael/Items/Loot/Materialien/MI_Loot_Mondtropfen",
@@ -199,6 +202,21 @@ ARMS = {
                  "bar_size": 3, "bar_refill_per_second": 0.25, "bar_refill_delay": 1.0, "fire_interval": 1.0, "saft_per_shot": 6.0,
                  "inner_petals": 4, "outer_petals": 6, "petal_size": 9.0, "rose_open_angle": 48.0, "rose_closed_angle": 20.0,
                  "rose_hole_radius": 3.5, "rest_wind": 0.2, "wild_count": 1, "arm_thickness": 0.6},
+    },
+    # Boris 2026-11-03 (Beerenwurf): petrol stalks of the shrub with an eye berry on every fingertip; a shot throws the berry in
+    # an arc, on the ground it opens as a blinking eye that confuses a share of the enemies around (AVaelEyeBerry), shadow:
+    # Lauerbeere paralyses. Stalks from halme_zerlegen.py (SM_Wachbeere), berry from Tools/Pflanzenarm/wachbeere_beere.py
+    "Wachbeere": {
+        "finger": [1, 2, 3],
+        "arm": [1, 2, 3],
+        "head": True,
+        "props": "/Game/Vael/Requisiten/Wurzelforst",
+        "values": {"Silber": 0.1, "Leuchten": 0.05, "Leuchtfarbe": (0.3, 0.95, 0.9), "Metall": 0.05, "Rauheit": 0.5},
+        "data": {"eye_berry": True, "part_material": FOLDER + "/M_Wachbeere_Beere", "eye_ring_material": FOLDER + "/M_Wachbeere_Ring",
+                 "eye_radius": 450.0, "eye_seconds": 5.0, "eye_pulse": 1.5, "eye_confuse_seconds": 3.0, "eye_stare_seconds": 1.2,
+                 "eye_throw_range": 900.0, "eye_ground_scale": 9.0, "fire_interval": 0.9, "bar_size": 10, "saft_per_shot": 4.0,
+                 "tip_size": 8.0, "finger_length": 30.0, "finger_thickness": 0.35, "fan_angle": 12.0, "arm_thickness": 0.5,
+                 "wild_count": 1, "rest_wind": 0.25},
     },
 }
 
@@ -355,12 +373,12 @@ def import_mesh(plant, name, min_height):
 
 # ---------------------------------------------------------------- M_Halm
 
-def new_material(name):
+def new_material(name, version=KIT_VERSION):
     path = "{}/{}".format(FOLDER, name)
     if assets.does_asset_exist(path):
         material = unreal.load_asset(path)
         if "KitVersion" in [str(parameter) for parameter in library.get_scalar_parameter_names(material)]:
-            if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= KIT_VERSION - 0.001:
+            if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= version - 0.001:
                 return None
         library.delete_all_material_expressions(material)
         # Nodes of older graphs survive that in the commandlet; with two parameters of one name the older default wins
@@ -584,17 +602,72 @@ def make_blossom_material():
     assets.save_loaded_asset(material, False)
 
 
+def make_eye_berry_materials():
+    """The eye berries of the Wachbeere arm (Tools/Pflanzenarm/wachbeere_beere.py, UV v from the stalk end 0 to the eye 1):
+    M_Wachbeere_Beere ombre turquoise -> magenta -> raspberry with a glowing pale turquoise iris that opens with Offen (0-1);
+    Schatten turns it into the Lauerbeere, dark wine to black with a red pupil. M_Wachbeere_Ring: the ring of its gaze on the
+    ground (additive, Farbe, Staerke)"""
+    def ramp(g, source, low, high, column):
+        return g.saturate(g.mul(column, g.sub(column + 1, source, g.const(low, column + 2)), g.const(1.0 / (high - low), column + 1)), column - 1)
+
+    material = new_material("M_Wachbeere_Beere", EYE_VERSION)
+    if material is not None:
+        g = Graph(material)
+        g.scalar("KitVersion", EYE_VERSION, 14)
+        # The FBX import flips V: 1 - v runs from the stalk end (0) to the eye (1) again
+        v = g.sub(11, g.const(1.0, 12), g.mask(g.node(unreal.MaterialExpressionTextureCoordinate, 13), 12, r=False, g=True, b=False))
+        shadow = g.scalar("Schatten", 0.0, 6)
+        lower = g.lerp(g.vector("Stielton", (0.05, 0.45, 0.45), 10), g.vector("Mitte", (0.62, 0.06, 0.42), 10), ramp(g, v, 0.05, 0.45, 9), 7)
+        body = g.lerp(lower, g.vector("Spitze", (0.55, 0.03, 0.14), 8), ramp(g, v, 0.45, 0.8, 7), 6)
+        dark = g.lerp(g.vector("SchattenMitte", (0.18, 0.01, 0.04), 8), g.vector("SchattenSpitze", (0.03, 0.005, 0.01), 8), ramp(g, v, 0.3, 0.8, 7), 6)
+        body = g.lerp(body, dark, shadow, 5)
+        # The eye opens from its middle like a lid drawn back: Offen 1 shows the last 30 % towards the tip
+        edge = g.sub(9, g.const(1.0, 10), g.mul(10, g.scalar("Offen", 1.0, 11), g.const(0.2, 11)))
+        eye = g.saturate(g.mul(7, g.sub(8, v, edge), g.const(60.0, 8)), 6)
+        pupil = ramp(g, v, 0.93, 0.95, 7)
+        iris_colour = g.lerp(g.vector("Iris", (0.08, 0.8, 0.75), 7), g.vector("SchattenIris", (0.12, 0.0, 0.02), 7), shadow, 5)
+        pupil_colour = g.lerp(g.vector("Pupille", (0.02, 0.05, 0.08), 7), g.vector("SchattenPupille", (1.0, 0.05, 0.03), 7), shadow, 5)
+        eye_colour = g.lerp(iris_colour, pupil_colour, pupil, 4)
+        colour = g.lerp(body, eye_colour, eye, 3)
+        # Light: the iris glows; in the shadow only the pupil burns red
+        glow_mask = g.lerp(g.mul(5, eye, g.sub(6, g.const(1.0, 7), pupil)), g.mul(5, eye, pupil), shadow, 4)
+        glow = g.mul(2, g.mul(3, eye_colour, glow_mask), g.mul(3, g.scalar("Leuchten", 1.0, 4), g.const(1.6, 4)))
+        library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
+        library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+        library.connect_material_property(g.lerp(g.const(0.35, 4), g.const(0.12, 4), eye, 3), "", unreal.MaterialProperty.MP_ROUGHNESS)
+        library.recompile_material(material)
+        assets.save_loaded_asset(material, False)
+
+    material = new_material("M_Wachbeere_Ring", EYE_VERSION)
+    if material is not None:
+        material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+        material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+        g = Graph(material)
+        g.scalar("KitVersion", EYE_VERSION, 14)
+        uv = g.node(unreal.MaterialExpressionTextureCoordinate, 13)
+        centre = g.sub(12, uv, g.node(unreal.MaterialExpressionConstant2Vector, 13, r=0.5, g=0.5))
+        distance = g.mul(10, g.one(unreal.MaterialExpressionLength, 11, centre), g.const(2.0, 11))
+        # A thin bright rim at the edge of the gaze and a faint glow inside, breathing
+        rim = g.saturate(g.sub(8, g.const(1.0, 9), g.mul(9, g.one(unreal.MaterialExpressionAbs, 10, g.sub(11, distance, g.const(0.95, 12))), g.const(35.0, 10))), 7)
+        inside = g.mul(7, g.saturate(g.sub(8, g.const(1.0, 9), distance), 8), g.const(0.05, 8))
+        shape = g.add(5, rim, inside)
+        glow = g.mul(3, g.mul(4, g.vector("Farbe", (0.25, 0.95, 0.9), 5), shape), g.mul(4, g.scalar("Staerke", 1.0, 5), g.const(2.0, 5)))
+        library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+        library.recompile_material(material)
+        assets.save_loaded_asset(material, False)
+
+
 def make_veil_material():
     """The veil of the Mondtraufe arm (AVaelMoonVeil): additive light, a faint rose sheet with brighter streaks running down,
     soft at all edges; a hit sends a ring of light out from its point in the world (WellenOrt, WellenRadius in cm, Welle 0-1)"""
-    material = new_material("M_Mondtraufe_Schleier")
+    material = new_material("M_Mondtraufe_Schleier", VEIL_VERSION)
     if material is None:
         return
     material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
     material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
     material.set_editor_property("two_sided", True)
     g = Graph(material)
-    g.scalar("KitVersion", KIT_VERSION, 14)
+    g.scalar("KitVersion", VEIL_VERSION, 14)
 
     def sample(uv, column):
         node = g.node(unreal.MaterialExpressionTextureSample, column, texture=unreal.load_asset("/Game/Vael/Effects/Feuer/T_Feuer_Rauschen"),
@@ -631,7 +704,15 @@ def make_veil_material():
     sides = power(sine(g.mul(9, u, g.const(0.5, 10)), 8), 1.3, 7)
     ends = power(sine(g.mul(9, v, g.const(0.5, 10)), 8), 0.6, 7)
     fill = g.add(4, g.add(5, g.scalar("Flaeche", 0.22, 6), streaks), g.mul(5, ring, g.const(2.0, 6)))
-    shape = g.mul(3, fill, g.mul(4, sides, ends))
+    # The top edge is a round arch: falls by BogenTiefe (cm) at the sides; Hoehe is the height the curtain has open now (cm).
+    # LocalPosition of the engine plane runs -50..50, +X across, +Y up
+    local = g.node(unreal.MaterialExpressionLocalPosition, 12)
+    across = g.mul(10, g.mask(local, 11, r=True, g=False, b=False), g.const(0.02, 11))
+    below_top = g.mul(9, g.mul(10, g.sub(11, g.const(50.0, 12), g.mask(local, 12, r=False, g=True, b=False)), g.const(0.01, 11)), g.scalar("Hoehe", 300.0, 10))
+    circle = g.one(unreal.MaterialExpressionSquareRoot, 8, g.saturate(g.sub(9, g.const(1.0, 10), g.mul(10, across, across)), 9))
+    arch_drop = g.mul(7, g.scalar("BogenTiefe", 0.0, 8), g.sub(8, g.const(1.0, 9), circle))
+    arch = g.saturate(g.mul(5, g.sub(6, below_top, arch_drop), g.const(1.0 / 35.0, 6)), 4)
+    shape = g.mul(3, fill, g.mul(4, g.mul(5, sides, ends), arch))
     glow = g.mul(2, g.mul(3, g.vector("Farbe", (1.0, 0.45, 0.72), 4), shape), g.mul(3, g.scalar("Staerke", 1.0, 4), g.const(1.2, 4)))
     library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     library.recompile_material(material)
@@ -702,13 +783,33 @@ def make_pitch():
         data = tools.create_asset("DA_Pflanze_Mondtraufe", PLANT_FOLDER, unreal.VaelPlantData, factory)
         data.set_editor_property("plant_id", "Mondtraufe")
         data.set_editor_property("light_name", unreal.Text("Mondtraufe"))
-        # Placeholder until Boris names the shadow form
-        data.set_editor_property("shadow_name", unreal.Text("Welktraufe"))
         data.set_editor_property("mesh", unreal.load_asset("/Game/Vael/Requisiten/Wurzelforst/Mondtraufe/SM_Mondtraufe"))
         data.set_editor_property("color", unreal.LinearColor(1.0, 0.6, 0.82, 1.0))
         data.set_editor_property("shadow_color", unreal.LinearColor(0.3, 0.05, 0.2, 1.0))
         assets.save_loaded_asset(data, False)
         created.append(path)
+
+    path = "{}/DA_Pflanze_Wachbeere".format(PLANT_FOLDER)
+    if not assets.does_asset_exist(path):
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelPlantData)
+        data = tools.create_asset("DA_Pflanze_Wachbeere", PLANT_FOLDER, unreal.VaelPlantData, factory)
+        data.set_editor_property("plant_id", "Wachbeere")
+        data.set_editor_property("light_name", unreal.Text("Wachbeere"))
+        data.set_editor_property("shadow_name", unreal.Text("Lauerbeere"))
+        data.set_editor_property("mesh", unreal.load_asset("/Game/Vael/Requisiten/Wurzelforst/Wachbeere/SM_Wachbeere"))
+        data.set_editor_property("color", unreal.LinearColor(0.3, 0.95, 0.9, 1.0))
+        data.set_editor_property("shadow_color", unreal.LinearColor(0.45, 0.02, 0.06, 1.0))
+        assets.save_loaded_asset(data, False)
+        created.append(path)
+
+    # Only the light form (Boris 2026-11-03): no shadow name, the shadow path leaves it light
+    data = unreal.load_asset("{}/DA_Pflanze_Mondtraufe".format(PLANT_FOLDER))
+    if data is not None and not data.get_editor_property("light_only"):
+        data.set_editor_property("light_only", True)
+        data.set_editor_property("shadow_name", unreal.Text(""))
+        assets.save_loaded_asset(data, False)
+        created.append("DA_Pflanze_Mondtraufe (light only)")
 
     path = "{}/DA_Pflanze_Harzkolben".format(PLANT_FOLDER)
     if not assets.does_asset_exist(path):
@@ -730,6 +831,7 @@ def main():
     make_blossom_material()
     make_pitch()
     make_veil_material()
+    make_eye_berry_materials()
     # VAEL_NUR_ARM=<Id> builds only that arm, so the other meshes are not saved again
     only = os.environ.get("VAEL_NUR_ARM")
     for plant, arm in ARMS.items():

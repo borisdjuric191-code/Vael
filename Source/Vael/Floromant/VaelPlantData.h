@@ -70,6 +70,10 @@ public:
 	UPROPERTY(EditAnywhere, Category="Plant")
 	FText ShadowName;
 
+	/** Only the light form, also on the shadow path (Mondtraufe: it stands for purity, the Nid only hurts it) */
+	UPROPERTY(EditAnywhere, Category="Plant")
+	bool bLightOnly = false;
+
 	UPROPERTY(EditAnywhere, Category="Plant")
 	EVaelPlantEffect LightEffect = EVaelPlantEffect::None;
 
@@ -118,6 +122,6 @@ public:
 	float Radius = 400.0f;
 
 	/** Name and effect of a form */
-	const FText& GetName(bool bShadow) const { return bShadow && !ShadowName.IsEmpty() ? ShadowName : LightName; }
-	EVaelPlantEffect GetEffect(bool bShadow) const { return bShadow && ShadowEffect != EVaelPlantEffect::None ? ShadowEffect : LightEffect; }
+	const FText& GetName(bool bShadow) const { return bShadow && !bLightOnly && !ShadowName.IsEmpty() ? ShadowName : LightName; }
+	EVaelPlantEffect GetEffect(bool bShadow) const { return bShadow && !bLightOnly && ShadowEffect != EVaelPlantEffect::None ? ShadowEffect : LightEffect; }
 };

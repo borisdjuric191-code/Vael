@@ -169,6 +169,8 @@ void AVaelMoonVeil::Tick(float DeltaSeconds)
 	if (CurtainLook != nullptr)
 	{
 		CurtainLook->SetScalarParameterValue(TEXT("Staerke"), Strength);
+		CurtainLook->SetScalarParameterValue(TEXT("Hoehe"), FMath::Max(Height, 1.0f));
+		CurtainLook->SetScalarParameterValue(TEXT("BogenTiefe"), Plant->VeilHeight * Plant->VeilArch);
 		// The ring of the last hit runs out from its point and fades
 		CurtainLook->SetScalarParameterValue(TEXT("Welle"), RippleStrength);
 		CurtainLook->SetScalarParameterValue(TEXT("WellenRadius"), (1.0f - RippleStrength) * 260.0f);
@@ -180,8 +182,9 @@ void AVaelMoonVeil::Tick(float DeltaSeconds)
 	{
 		DropFlares[Index] = FMath::Max(0.0f, DropFlares[Index] - DeltaSeconds * 1.5f);
 		const float Share = (Index + 0.5f) / Drops.Num();
-		const FVector Top(0.0f, (Share - 0.5f) * Plant->VeilWidth * 0.92f, Plant->VeilHeight);
-		const float Length = Plant->VeilHeight * DropLengths[Index] * Open;
+		const float Y = (Share - 0.5f) * Plant->VeilWidth * 0.92f;
+		const FVector Top(0.0f, Y, GetTop(Y));
+		const float Length = GetTop(Y) * DropLengths[Index] * Open;
 		const float Swing = 0.06f * FMath::Sin(Time * 1.3f + Index * 2.1f) + 0.35f * DropFlares[Index] * FMath::Sin(Time * 14.0f);
 		const FVector Hang = FVector(Swing, 0.3f * Swing, -1.0f).GetSafeNormal();
 		const FVector End = Top + Hang * Length;
@@ -203,6 +206,12 @@ void AVaelMoonVeil::Tick(float DeltaSeconds)
 	Cleanse();
 }
 
+float AVaelMoonVeil::GetTop(float Y) const
+{
+	const float Across = FMath::Clamp(2.0f * Y / FMath::Max(Plant->VeilWidth, 1.0f), -1.0f, 1.0f);
+	return Plant->VeilHeight * (1.0f - Plant->VeilArch * (1.0f - FMath::Sqrt(1.0f - Across * Across)));
+}
+
 float AVaelMoonVeil::SideOf(const FVector& Location) const
 {
 	return FVector::DotProduct(Location - GetActorLocation(), GetActorForwardVector()) >= 0.0f ? 1.0f : -1.0f;
@@ -218,7 +227,7 @@ bool AVaelMoonVeil::Crosses(const FVector& From, const FVector& To) const
 		return false;
 	}
 	const FVector Point = FMath::Lerp(A, B, A.X / (A.X - B.X));
-	return FMath::Abs(Point.Y) <= Plant->VeilWidth * 0.5f && Point.Z >= -60.0f && Point.Z <= Plant->VeilHeight + 40.0f;
+	return FMath::Abs(Point.Y) <= Plant->VeilWidth * 0.5f && Point.Z >= -60.0f && Point.Z <= GetTop(Point.Y) + 40.0f;
 }
 
 void AVaelMoonVeil::Ripple(const FVector& Location)

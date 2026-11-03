@@ -618,6 +618,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0.5))
 	float VeilSeconds = 8.0f;
 
+	/** How far the top edge falls at the sides as a round arch, share of the height (0 = straight) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0, ClampMax = 0.9))
+	float VeilArch = 0.4f;
+
 	/** Share of enemy damage that still gets through it (0 = it swallows everything), and how much harder her side's shots hit */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0, ClampMax = 1))
 	float VeilEnemyScale = 0.0f;
@@ -654,6 +658,54 @@ public:
 	/** Size of a Mondtropfen at the arm relative to its model (6 cm long) */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0.05))
 	float ArmDropScale = 0.45f;
+
+	// --- Eye berries (Wachbeere, Boris 2026-11-03: Beerenwurf): each fingertip carries an eye berry; a shot throws it in an arc,
+	// on the ground it opens as a blinking eye (AVaelEyeBerry) that confuses a random share of the enemies around it, again and
+	// again while it is open. On the shadow path (Lauerbeere) its stare paralyses them instead, and now and then a player.
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry")
+	bool bEyeBerry = false;
+
+	/** Radius of the eye's gaze in cm, how long it stays open and how often it looks around */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 50))
+	float EyeRadius = 450.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0.5))
+	float EyeSeconds = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0.2))
+	float EyePulse = 1.5f;
+
+	/** Share of the enemies in the gaze it catches, picked anew in this range for every look (never all, like the shrub) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry"))
+	FVector2D EyeShare = FVector2D(0.3f, 0.7f);
+
+	/** Seconds the caught stay confused, or (shadow) paralysed; how often the shadow stare falls on a player, and how long */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0))
+	float EyeConfuseSeconds = 3.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0))
+	float EyeStareSeconds = 1.2f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0, ClampMax = 1))
+	float EyePlayerStareChance = 0.15f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0))
+	float EyePlayerStareSeconds = 0.6f;
+
+	/** How far it is thrown at most (cm), how long it flies, and its size on the ground against the berry on the finger */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 100))
+	float EyeThrowRange = 900.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0.1))
+	float EyeFlightSeconds = 0.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry", ClampMin = 0.1))
+	float EyeGroundScale = 4.5f;
+
+	/** Material of the berries (M_Wachbeere_Beere: Offen, Schatten, Leuchten) and of the ring of its gaze on the ground */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Eye Berry", meta = (EditCondition = "bEyeBerry"))
+	TSoftObjectPtr<UMaterialInterface> EyeRingMaterial;
 
 	/** Speed in cm/s at which the jet pushes enemies away, again and again while they stand in it */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
@@ -733,4 +785,7 @@ public:
 	/** Name and colours, taken from the plant; the shadow forms on the way of shadow */
 	FText GetDisplayName(bool bShadow) const;
 	FLinearColor GetColor(bool bShadow) const;
+
+	/** True if the plant has only its light form (Mondtraufe), so the shadow path changes nothing */
+	bool IsLightOnly() const;
 };

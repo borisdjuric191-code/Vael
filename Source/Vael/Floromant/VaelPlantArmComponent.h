@@ -254,6 +254,9 @@ private:
 	/** Raises the veil before her where she aims */
 	void CastVeil();
 
+	/** Where a thrown eye berry lands: under the enemy nearest the aim within reach, or far ahead */
+	FVector GetEyeBerryTarget(const FVector& Direction) const;
+
 	/** Where the pump wave is now on the way from shoulder (0) to hand (1); far outside while there is none */
 	float GetPumpPosition() const;
 
