@@ -259,6 +259,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelMondtraufeReif();
 
+	/** Teleports the player onto the bank before a great Mondtraufe (1 or 2), where it can be picked; VaelTeleport there would land in its tree */
+	UFUNCTION(Exec)
+	void VaelMondtraufe(int32 Number = 1);
+
 	/** Drops an item for the player at their feet: a rarity (Gewoehnlich, Magisch, Selten) rolls one, otherwise the item asset without DA_Item_. Example: VaelItem Sturmmantel */
 	UFUNCTION(Exec)
 	void VaelItem(const FString& Name);

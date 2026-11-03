@@ -771,6 +771,34 @@ void UVaelCheatManager::VaelMondtraufeReif()
 	UE_LOG(LogVael, Log, TEXT("VaelMondtraufeReif: %d great Mondtraufen ripened"), Count);
 }
 
+void UVaelCheatManager::VaelMondtraufe(int32 Number)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	APawn* Pawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (Pawn == nullptr)
+	{
+		return;
+	}
+
+	TArray<AVaelMoonEave*> Great;
+	for (TActorIterator<AVaelMoonEave> It(GetWorld()); It; ++It)
+	{
+		if (It->bHarvestable)
+		{
+			Great.Add(*It);
+		}
+	}
+	Great.Sort([](const AVaelMoonEave& A, const AVaelMoonEave& B) { return A.GetName() < B.GetName(); });
+	if (!Great.IsValidIndex(Number - 1))
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelMondtraufe: there are %d great Mondtraufen here"), Great.Num());
+		return;
+	}
+
+	// The plant's own place is its picking spot on the bank, under the crown of its tree
+	Pawn->TeleportTo(Great[Number - 1]->GetActorLocation() + FVector(0.0f, 0.0f, Pawn->GetSimpleCollisionHalfHeight() + 5.0f), Pawn->GetActorRotation());
+}
+
 void UVaelCheatManager::VaelItem(const FString& Name)
 {
 	const APlayerController* PlayerController = GetOuterAPlayerController();

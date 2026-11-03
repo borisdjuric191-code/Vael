@@ -32,6 +32,7 @@ OUTLINER = "Wurzelforst/Mondtraufe"
 TREE = "/Game/Vael/Requisiten/Wurzelforst/Mangrove/SM_Mangrove"
 SEED = 41
 THICK_LIMB = 60            # sampled points around a spot for it to count as a thick limb
+CAMERA_FACING = 0.6         # how straight towards the camera the water before a great one must lie (cosine)
 
 # Small ones (Boris 2026-11-02): under root arches with their own pond along the moor banks; they only show how the land is
 SMALL_COUNT = 8
@@ -41,7 +42,7 @@ SMALL_SPACING = 4000.0      # cm between two
 GREAT_COUNT = 2
 GREAT_SPACING = 12000.0
 GREAT_TREE_HEIGHT = 1400.0  # cm, the mangrove scaled to this (its own size): its long limb then ends 11 m up
-GREAT_SET_BACK = 100.0      # cm the trunk's foot stands back from the bank
+GREAT_SET_BACK = 150.0      # cm the trunk's foot stands back from the bank
 GREAT = {
     "harvestable": True,
     "bud_length": 420.0,
@@ -415,7 +416,10 @@ def place(arch_point, tree_foot, tree_tip, tree_height):
     for bank in banks:
         near = min(lilies, key=lambda l: (l[0] - bank[0]) ** 2 + (l[1] - bank[1]) ** 2)
         d = math.hypot(near[0] - bank[0], near[1] - bank[1])
-        if 600.0 < d < 2500.0:
+        # The water must lie towards the camera (it looks along yaw 45, from -X -Y): then the tree stands behind the player
+        # and does not hide them, and the bud hangs before them over the water
+        towards_camera = -((near[0] - bank[0]) + (near[1] - bank[1])) / (math.sqrt(2.0) * max(d, 1.0))
+        if 600.0 < d < 2500.0 and towards_camera > CAMERA_FACING:
             open_banks.append((bank, near))
     great = spread([b for b, _ in open_banks], GREAT_COUNT, GREAT_SPACING)
     scale = GREAT_TREE_HEIGHT / tree_height
