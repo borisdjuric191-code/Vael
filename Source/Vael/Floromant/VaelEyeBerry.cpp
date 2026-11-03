@@ -143,7 +143,8 @@ void AVaelEyeBerry::Tick(float DeltaSeconds)
 		return;
 	}
 
-	// On the ground it grows big and looks up towards the camera; it opens, blinks now and then, shuts and sinks at the end
+	// On the ground the whole berry swells and lies on its side, its eye turned up towards the camera, so berry and eye both
+	// read; it opens, blinks now and then, shuts and sinks at the end
 	const float Grown = FMath::InterpEaseOut(0.0f, 1.0f, FMath::Clamp(OpenAge / EyeOpenSeconds, 0.0f, 1.0f), 2.0f);
 	const float Sink = Left < 0.0f ? -Left / EyeCloseSeconds : 0.0f;
 	FVector Axis = FVector::UpVector;
@@ -152,12 +153,13 @@ void AVaelEyeBerry::Tick(float DeltaSeconds)
 		if (Controller->PlayerCameraManager != nullptr)
 		{
 			const FVector ToCamera = (Controller->PlayerCameraManager->GetCameraLocation() - GetActorLocation()).GetSafeNormal2D();
-			Axis = (FVector::UpVector + ToCamera * 0.8f).GetSafeNormal();
+			Axis = (ToCamera + FVector::UpVector * 0.5f).GetSafeNormal();
 		}
 	}
 	const float Size = Plant->TipSize / 10.0f * FMath::Lerp(1.0f, Plant->EyeGroundScale, Grown) * (1.0f - 0.6f * Sink);
 	Berry->SetRelativeRotation(FRotationMatrix::MakeFromZ(Axis).Rotator());
-	Berry->SetRelativeLocation(-Axis * Size * 3.0f - FVector(0.0f, 0.0f, Sink * Size * 8.0f));
+	// Pivot at the stalk end, 10 cm long and about 4 cm thick: its middle on the ground, resting on its belly
+	Berry->SetRelativeLocation(-Axis * Size * 5.0f + FVector(0.0f, 0.0f, Size * 3.5f * (1.0f - Sink)));
 	Berry->SetRelativeScale3D(FVector(Size));
 
 	const float Blink = FMath::Fmod(OpenAge + 1.3f, 2.6f) < 0.16f ? 0.1f : 1.0f;

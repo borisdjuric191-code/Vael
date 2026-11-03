@@ -12,6 +12,8 @@
 #include "World/VaelGround.h"
 #include "Floromant/VaelRoseHeart.h"
 #include "Floromant/VaelPoppyCapsule.h"
+#include "Floromant/VaelMoonVeil.h"
+#include "Floromant/VaelFairyEscort.h"
 #include "GameFramework/PlayerController.h"
 #include "Player/VaelCharacter.h"
 #include "TimerManager.h"
@@ -94,6 +96,116 @@ namespace
 		}
 		Shot->SetEffects(VaelEffects::Load(Hit.Element));
 		return Shot;
+	}
+
+	/** Where a pair acts on the ground: the tower's target, or ahead of the hands at the enemy nearest there */
+	FVector SymbiosisGroundAhead(APawn* Instigator, const FVector& Origin, const FVector& Ahead, float Reach, float HandReach)
+	{
+		const FVector Flat = Ahead.GetSafeNormal2D().IsNearlyZero() ? Instigator->GetActorForwardVector() : Ahead.GetSafeNormal2D();
+		FVector Place = Origin + Flat * (Reach > 0.0f ? Reach : HandReach);
+		if (Reach <= 0.0f)
+		{
+			if (const AActor* Enemy = VaelSymbiosis::FindTarget(Instigator, Place, 450.0f))
+			{
+				Place = Enemy->GetActorLocation();
+			}
+		}
+		FHitResult Ground;
+		if (VaelGround::TraceGround(Instigator->GetWorld(), Place + FVector(0.0f, 0.0f, 400.0f), Place - FVector(0.0f, 0.0f, 1200.0f), Ground, Instigator))
+		{
+			return Ground.ImpactPoint;
+		}
+		return Place;
+	}
+
+	/** The fairies of a pair: a flight of them leaves for the place and lures there, strewing Feenstaub; a moment later the
+	 *  pair's own touch falls on every enemy around the place */
+	void SymbiosisFairies(APawn* Instigator, const UVaelPlantArmData* Fairy, const FVector& Origin, const FVector& Place, float Radius, float Seconds, bool bShadow,
+		TFunction<void(APawn*, AVaelCreature*)> Touch = nullptr)
+	{
+		UWorld* World = Instigator->GetWorld();
+		FActorSpawnParameters Parameters;
+		Parameters.Owner = Instigator;
+		Parameters.Instigator = Instigator;
+		if (AVaelFairyEscort* Flight = World->SpawnActor<AVaelFairyEscort>(AVaelFairyEscort::StaticClass(), FTransform(Origin), Parameters))
+		{
+			Flight->Setup(Instigator, Fairy, FMath::FRand(), nullptr, 60.0f);
+			Flight->SendAll(Place, bShadow);
+			Flight->SetLifeSpan(Seconds + 5.0f);
+		}
+		TWeakObjectPtr<APawn> WeakInstigator = Instigator;
+		FTimerHandle Timer;
+		World->GetTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([WeakInstigator, Place, Radius, Seconds, bShadow, Touch]()
+		{
+			APawn* Gardener = WeakInstigator.Get();
+			if (Gardener == nullptr)
+			{
+				return;
+			}
+			for (TActorIterator<AVaelCreature> It(Gardener->GetWorld()); It; ++It)
+			{
+				AVaelCreature* Enemy = *It;
+				if (Enemy->IsDead() || !UVaelCombatStatics::CanDamage(Gardener, Enemy) || FVector::Dist2D(Enemy->GetActorLocation(), Place) > Radius)
+				{
+					continue;
+				}
+				if (!bShadow && !Enemy->IsHeavy())
+				{
+					Enemy->LureTo(Gardener, Place, Seconds);
+				}
+				if (Touch)
+				{
+					Touch(Gardener, Enemy);
+				}
+			}
+		}), 0.8f, false);
+	}
+
+	/** A fan of pitch balls of the Harzkolben */
+	void SymbiosisPitch(APawn* Instigator, const UVaelPlantArmData* Pitch, const FVector& Origin, const FVector& Ahead, int32 Count, float Spread, float Size, float Power,
+		bool bShadow, float Reach)
+	{
+		for (int32 Index = 0; Index < Count; ++Index)
+		{
+			const float Angle = Count > 1 ? FMath::Lerp(-Spread, Spread, Index / static_cast<float>(Count - 1)) : 0.0f;
+			VaelSymbiosis::FireShot(Instigator, Pitch, Origin, SymbiosisTurn(Ahead, Angle), Power, bShadow, Size, 1.0f, Reach * FMath::FRandRange(0.85f, 1.15f));
+		}
+	}
+
+	/** A veil of the Mondtraufe on the ground before the gardener (hands) or between the tower and its target */
+	AVaelMoonVeil* SymbiosisVeil(APawn* Instigator, const UVaelPlantArmData* Moon, EVaelSymbiosis Kind, const UVaelPlantArmData* Other, const FVector& Origin,
+		const FVector& Ahead, float Reach, float Size = 1.0f, float LifetimeScale = 1.0f, const FVector* At = nullptr, const FVector* Facing = nullptr)
+	{
+		const FVector Flat = Ahead.GetSafeNormal2D().IsNearlyZero() ? Instigator->GetActorForwardVector() : Ahead.GetSafeNormal2D();
+		FVector Place = At != nullptr ? *At : (Reach > 0.0f ? Origin + Flat * FMath::Min(Reach * 0.5f, 400.0f) : Instigator->GetActorLocation() + Flat * Moon->VeilDistance);
+		FHitResult Ground;
+		if (VaelGround::TraceGround(Instigator->GetWorld(), Place + FVector(0.0f, 0.0f, 400.0f), Place - FVector(0.0f, 0.0f, 1200.0f), Ground, Instigator))
+		{
+			Place = Ground.ImpactPoint;
+		}
+		AVaelMoonVeil* Veil = AVaelMoonVeil::Raise(Instigator, Moon, Place, Facing != nullptr ? *Facing : Flat, Size);
+		if (Veil != nullptr)
+		{
+			Veil->SetPair(Kind, Other, LifetimeScale);
+		}
+		return Veil;
+	}
+
+	/** A glass dome of the Glimmklee around the gardener for a while (pairs crossed at the hands) */
+	void SymbiosisDome(APawn* Instigator, const UVaelPlantArmData* Glimm, float Radius, float Seconds, bool bShadow)
+	{
+		if (AVaelGlimmDome* Dome = AVaelGlimmDome::Raise(Instigator, Instigator, Glimm, EVaelSymbiosis::None, Radius, bShadow))
+		{
+			TWeakObjectPtr<AVaelGlimmDome> WeakDome = Dome;
+			FTimerHandle Timer;
+			Instigator->GetWorldTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([WeakDome]()
+			{
+				if (WeakDome.IsValid())
+				{
+					WeakDome->Lower();
+				}
+			}), Seconds, false);
+		}
 	}
 }
 
@@ -220,6 +332,114 @@ namespace VaelSymbiosis
 		{
 			return EVaelSymbiosis::Haftmohn;
 		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Feenragwurz")))
+		{
+			return EVaelSymbiosis::Feenreigen;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::Feenwind;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Gluehfeen;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Taufluegel;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Laternenfeen;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Russrose")))
+		{
+			return EVaelSymbiosis::Rosenboten;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Funkenmohn")))
+		{
+			return EVaelSymbiosis::Mohnfeen;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Schlotwinde")))
+		{
+			return EVaelSymbiosis::Feenfalle;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Harzkolben")))
+		{
+			return EVaelSymbiosis::Pechsumpf;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::Pechregen;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Brandharz;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Bernstein;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Harzglas;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Russrose")))
+		{
+			return EVaelSymbiosis::Wundharz;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Funkenmohn")))
+		{
+			return EVaelSymbiosis::Pechbombe;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Schlotwinde")))
+		{
+			return EVaelSymbiosis::Klebranke;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Mondtraufe")))
+		{
+			return EVaelSymbiosis::Mondhalle;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::WehenderSchleier;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Glutvorhang;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Taustrom;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Mondkuppel;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Russrose")))
+		{
+			return EVaelSymbiosis::Mondrose;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Funkenmohn")))
+		{
+			return EVaelSymbiosis::Sternenfall;
+		}
+		if (Is(TEXT("Mondtraufe"), TEXT("Schlotwinde")))
+		{
+			return EVaelSymbiosis::Mondranken;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Harzkolben")))
+		{
+			return EVaelSymbiosis::Pechfeen;
+		}
+		if (Is(TEXT("Feenragwurz"), TEXT("Mondtraufe")))
+		{
+			return EVaelSymbiosis::Feentor;
+		}
+		if (Is(TEXT("Harzkolben"), TEXT("Mondtraufe")))
+		{
+			return EVaelSymbiosis::Bernsteinschleier;
+		}
 		return EVaelSymbiosis::None;
 	}
 
@@ -255,6 +475,33 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Laube:			return NSLOCTEXT("VaelSymbiosis", "Laube", "Laube");
 		case EVaelSymbiosis::Rankenrettung:	return NSLOCTEXT("VaelSymbiosis", "Rankenrettung", "Rankenrettung");
 		case EVaelSymbiosis::Haftmohn:		return NSLOCTEXT("VaelSymbiosis", "Haftmohn", "Haftmohn");
+		case EVaelSymbiosis::Feenreigen:	return NSLOCTEXT("VaelSymbiosis", "Feenreigen", "Feenreigen");
+		case EVaelSymbiosis::Feenwind:	return NSLOCTEXT("VaelSymbiosis", "Feenwind", "Feenwind");
+		case EVaelSymbiosis::Gluehfeen:	return NSLOCTEXT("VaelSymbiosis", "Gluehfeen", "Glühfeen");
+		case EVaelSymbiosis::Taufluegel:	return NSLOCTEXT("VaelSymbiosis", "Taufluegel", "Tauflügel");
+		case EVaelSymbiosis::Laternenfeen:	return NSLOCTEXT("VaelSymbiosis", "Laternenfeen", "Laternenfeen");
+		case EVaelSymbiosis::Rosenboten:	return NSLOCTEXT("VaelSymbiosis", "Rosenboten", "Rosenboten");
+		case EVaelSymbiosis::Mohnfeen:	return NSLOCTEXT("VaelSymbiosis", "Mohnfeen", "Mohnfeen");
+		case EVaelSymbiosis::Feenfalle:	return NSLOCTEXT("VaelSymbiosis", "Feenfalle", "Feenfalle");
+		case EVaelSymbiosis::Pechsumpf:	return NSLOCTEXT("VaelSymbiosis", "Pechsumpf", "Pechsumpf");
+		case EVaelSymbiosis::Pechregen:	return NSLOCTEXT("VaelSymbiosis", "Pechregen", "Pechregen");
+		case EVaelSymbiosis::Brandharz:	return NSLOCTEXT("VaelSymbiosis", "Brandharz", "Brandharz");
+		case EVaelSymbiosis::Bernstein:	return NSLOCTEXT("VaelSymbiosis", "Bernstein", "Bernstein");
+		case EVaelSymbiosis::Harzglas:	return NSLOCTEXT("VaelSymbiosis", "Harzglas", "Harzglas");
+		case EVaelSymbiosis::Wundharz:	return NSLOCTEXT("VaelSymbiosis", "Wundharz", "Wundharz");
+		case EVaelSymbiosis::Pechbombe:	return NSLOCTEXT("VaelSymbiosis", "Pechbombe", "Pechbombe");
+		case EVaelSymbiosis::Klebranke:	return NSLOCTEXT("VaelSymbiosis", "Klebranke", "Klebranke");
+		case EVaelSymbiosis::Mondhalle:	return NSLOCTEXT("VaelSymbiosis", "Mondhalle", "Mondhalle");
+		case EVaelSymbiosis::WehenderSchleier:	return NSLOCTEXT("VaelSymbiosis", "WehenderSchleier", "Wehender Schleier");
+		case EVaelSymbiosis::Glutvorhang:	return NSLOCTEXT("VaelSymbiosis", "Glutvorhang", "Glutvorhang");
+		case EVaelSymbiosis::Taustrom:	return NSLOCTEXT("VaelSymbiosis", "Taustrom", "Taustrom");
+		case EVaelSymbiosis::Mondkuppel:	return NSLOCTEXT("VaelSymbiosis", "Mondkuppel", "Mondkuppel");
+		case EVaelSymbiosis::Mondrose:	return NSLOCTEXT("VaelSymbiosis", "Mondrose", "Mondrose");
+		case EVaelSymbiosis::Sternenfall:	return NSLOCTEXT("VaelSymbiosis", "Sternenfall", "Sternenfall");
+		case EVaelSymbiosis::Mondranken:	return NSLOCTEXT("VaelSymbiosis", "Mondranken", "Mondranken");
+		case EVaelSymbiosis::Pechfeen:	return NSLOCTEXT("VaelSymbiosis", "Pechfeen", "Pechfeen");
+		case EVaelSymbiosis::Feentor:	return NSLOCTEXT("VaelSymbiosis", "Feentor", "Feentor");
+		case EVaelSymbiosis::Bernsteinschleier:	return NSLOCTEXT("VaelSymbiosis", "Bernsteinschleier", "Bernsteinschleier");
 		default:							return FText::GetEmpty();
 		}
 	}
@@ -291,6 +538,33 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Laube:			return FLinearColor(1.0f, 0.9f, 0.45f);
 		case EVaelSymbiosis::Rankenrettung:	return FLinearColor(0.5f, 1.0f, 0.45f);
 		case EVaelSymbiosis::Haftmohn:		return FLinearColor(1.0f, 0.55f, 0.15f);
+		case EVaelSymbiosis::Feenreigen:	return FLinearColor(0.95f, 0.6f, 0.85f);
+		case EVaelSymbiosis::Feenwind:	return FLinearColor(0.75f, 0.95f, 0.85f);
+		case EVaelSymbiosis::Gluehfeen:	return FLinearColor(1.0f, 0.55f, 0.25f);
+		case EVaelSymbiosis::Taufluegel:	return FLinearColor(0.4f, 0.9f, 0.95f);
+		case EVaelSymbiosis::Laternenfeen:	return FLinearColor(1.0f, 0.9f, 0.6f);
+		case EVaelSymbiosis::Rosenboten:	return FLinearColor(0.55f, 1.0f, 0.7f);
+		case EVaelSymbiosis::Mohnfeen:	return FLinearColor(0.85f, 0.45f, 0.55f);
+		case EVaelSymbiosis::Feenfalle:	return FLinearColor(0.95f, 0.85f, 0.4f);
+		case EVaelSymbiosis::Pechsumpf:	return FLinearColor(0.7f, 0.3f, 0.05f);
+		case EVaelSymbiosis::Pechregen:	return FLinearColor(0.9f, 0.5f, 0.15f);
+		case EVaelSymbiosis::Brandharz:	return FLinearColor(1.0f, 0.35f, 0.05f);
+		case EVaelSymbiosis::Bernstein:	return FLinearColor(1.0f, 0.65f, 0.15f);
+		case EVaelSymbiosis::Harzglas:	return FLinearColor(1.0f, 0.7f, 0.3f);
+		case EVaelSymbiosis::Wundharz:	return FLinearColor(0.9f, 0.7f, 0.35f);
+		case EVaelSymbiosis::Pechbombe:	return FLinearColor(1.0f, 0.45f, 0.1f);
+		case EVaelSymbiosis::Klebranke:	return FLinearColor(0.95f, 0.6f, 0.2f);
+		case EVaelSymbiosis::Mondhalle:	return FLinearColor(1.0f, 0.7f, 0.9f);
+		case EVaelSymbiosis::WehenderSchleier:	return FLinearColor(0.85f, 0.85f, 1.0f);
+		case EVaelSymbiosis::Glutvorhang:	return FLinearColor(1.0f, 0.45f, 0.35f);
+		case EVaelSymbiosis::Taustrom:	return FLinearColor(0.55f, 0.85f, 1.0f);
+		case EVaelSymbiosis::Mondkuppel:	return FLinearColor(1.0f, 0.85f, 0.8f);
+		case EVaelSymbiosis::Mondrose:	return FLinearColor(0.9f, 0.6f, 0.75f);
+		case EVaelSymbiosis::Sternenfall:	return FLinearColor(1.0f, 0.7f, 0.45f);
+		case EVaelSymbiosis::Mondranken:	return FLinearColor(0.95f, 0.75f, 0.75f);
+		case EVaelSymbiosis::Pechfeen:	return FLinearColor(0.85f, 0.5f, 0.3f);
+		case EVaelSymbiosis::Feentor:	return FLinearColor(1.0f, 0.65f, 0.95f);
+		case EVaelSymbiosis::Bernsteinschleier:	return FLinearColor(1.0f, 0.6f, 0.45f);
 		default:							return FLinearColor::White;
 		}
 	}
@@ -380,6 +654,33 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Laube:			return 4.0f;
 		case EVaelSymbiosis::Rankenrettung:	return 4.0f;
 		case EVaelSymbiosis::Haftmohn:		return 3.0f;
+		case EVaelSymbiosis::Feenreigen:	return 6.0f;
+		case EVaelSymbiosis::Feenwind:	return 6.0f;
+		case EVaelSymbiosis::Gluehfeen:	return 6.0f;
+		case EVaelSymbiosis::Taufluegel:	return 6.0f;
+		case EVaelSymbiosis::Laternenfeen:	return 7.0f;
+		case EVaelSymbiosis::Rosenboten:	return 6.0f;
+		case EVaelSymbiosis::Mohnfeen:	return 7.0f;
+		case EVaelSymbiosis::Feenfalle:	return 7.0f;
+		case EVaelSymbiosis::Pechsumpf:	return 3.5f;
+		case EVaelSymbiosis::Pechregen:	return 3.0f;
+		case EVaelSymbiosis::Brandharz:	return 3.5f;
+		case EVaelSymbiosis::Bernstein:	return 4.0f;
+		case EVaelSymbiosis::Harzglas:	return 5.0f;
+		case EVaelSymbiosis::Wundharz:	return 5.0f;
+		case EVaelSymbiosis::Pechbombe:	return 3.5f;
+		case EVaelSymbiosis::Klebranke:	return 4.0f;
+		case EVaelSymbiosis::Mondhalle:	return 10.0f;
+		case EVaelSymbiosis::WehenderSchleier:	return 10.0f;
+		case EVaelSymbiosis::Glutvorhang:	return 10.0f;
+		case EVaelSymbiosis::Taustrom:	return 10.0f;
+		case EVaelSymbiosis::Mondkuppel:	return 11.0f;
+		case EVaelSymbiosis::Mondrose:	return 10.0f;
+		case EVaelSymbiosis::Sternenfall:	return 10.0f;
+		case EVaelSymbiosis::Mondranken:	return 10.0f;
+		case EVaelSymbiosis::Pechfeen:	return 6.0f;
+		case EVaelSymbiosis::Feentor:	return 10.0f;
+		case EVaelSymbiosis::Bernsteinschleier:	return 12.0f;
 		default:							return 1.4f;
 		}
 	}
@@ -820,6 +1121,260 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Haftmohn:
 			FireBindweed(Instigator, Kind, Pick(TEXT("Schlotwinde")), A == Pick(TEXT("Schlotwinde")) ? B : A, Origin, Ahead, Power * Grown, Charge, bShadow, Reach);
 			break;
+
+		// --- Feenragwurz (Boris 2026-11-03): a flight of fairies lures at the place and strews Feenstaub, the partner adds its touch
+		case EVaelSymbiosis::Feenreigen:
+		case EVaelSymbiosis::Feenwind:
+		case EVaelSymbiosis::Gluehfeen:
+		case EVaelSymbiosis::Taufluegel:
+		case EVaelSymbiosis::Laternenfeen:
+		case EVaelSymbiosis::Rosenboten:
+		case EVaelSymbiosis::Mohnfeen:
+		case EVaelSymbiosis::Feenfalle:
+		case EVaelSymbiosis::Pechfeen:
+		case EVaelSymbiosis::Feentor:
+		{
+			const UVaelPlantArmData* Fairy = Pick(TEXT("Feenragwurz"));
+			const UVaelPlantArmData* Other = Fairy == A ? B : A;
+			const FVector Place = SymbiosisGroundAhead(Instigator, Origin, Ahead, Reach, FMath::Lerp(650.0f, 900.0f, Charge));
+			float Radius = Fairy->FairyLureRadius * FMath::Sqrt(Grown);
+			float Seconds = Fairy->FairyLureSeconds * Grown;
+			TFunction<void(APawn*, AVaelCreature*)> Touch;
+			switch (Kind)
+			{
+			case EVaelSymbiosis::Feenreigen:
+				// The fairies dance in a ring and lure everything far around at once
+				Radius *= 1.4f;
+				Seconds *= 1.3f;
+				break;
+			case EVaelSymbiosis::Feenwind:
+				// They ride on gusts and push the lured away
+				Touch = [Place](APawn*, AVaelCreature* Enemy)
+				{
+					if (!Enemy->IsHeavy())
+					{
+						Enemy->LaunchCharacter((Enemy->GetActorLocation() - Place).GetSafeNormal2D() * 650.0f + FVector(0.0f, 0.0f, 250.0f), true, true);
+					}
+				};
+				break;
+			case EVaelSymbiosis::Gluehfeen:
+				Touch = [Power](APawn* Gardener, AVaelCreature* Enemy) { UVaelCombatStatics::ApplyStatus(Gardener, Enemy, EVaelStatus::Burning, 3.0f, 4.0f * Power); };
+				break;
+			case EVaelSymbiosis::Taufluegel:
+				Touch = [](APawn* Gardener, AVaelCreature* Enemy) { UVaelCombatStatics::ApplyStatus(Gardener, Enemy, EVaelStatus::Wet, 6.0f); };
+				break;
+			case EVaelSymbiosis::Laternenfeen:
+				// They shine like lanterns: the lured are dazzled, and at the hands a little glass dome holds off fire
+				Touch = [](APawn* Gardener, AVaelCreature* Enemy) { UVaelCombatStatics::ApplyStatus(Gardener, Enemy, EVaelStatus::Confused, 1.5f); };
+				if (Reach <= 0.0f)
+				{
+					SymbiosisDome(Instigator, Other, 260.0f, 6.0f, bShadow);
+				}
+				break;
+			case EVaelSymbiosis::Rosenboten:
+			{
+				// They carry the rose to the fallen: allies down around her get up sooner
+				for (FConstPlayerControllerIterator It = Instigator->GetWorld()->GetPlayerControllerIterator(); It; ++It)
+				{
+					AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+					if (Player != nullptr && Player->IsDowned() && FVector::Dist2D(Player->GetActorLocation(), Instigator->GetActorLocation()) < 1000.0f)
+					{
+						Player->AddReviveProgress(1.0f);
+					}
+				}
+				break;
+			}
+			case EVaelSymbiosis::Mohnfeen:
+			{
+				// They strew sleep pollen over the lured: a sleep cloud of the Funkenmohn bursts at the place
+				FVaelPoppyThrow Throw;
+				Throw.Burst = EVaelPoppyBurst::Sleep;
+				Throw.Size = Other->CapsuleSize;
+				Throw.Radius = Radius * 0.7f;
+				Throw.Damage = 0.0f;
+				Throw.Fuse = 0.8f;
+				Throw.Linger = 4.0f;
+				AVaelPoppyCapsule::Throw(Instigator, Other, Origin, Place, Throw, bShadow);
+				break;
+			}
+			case EVaelSymbiosis::Feenfalle:
+				// The lured walk into a noose of bindweed and hang there
+				Touch = [Other, Place, Power](APawn* Gardener, AVaelCreature* Enemy)
+				{
+					FVaelLassoSpec Spec;
+					Spec.HoldSeconds = Other->SnareHold;
+					Spec.bOverGround = true;
+					Spec.Power = Power;
+					Spec.Color = GetColor(EVaelSymbiosis::Feenfalle);
+					AVaelBindweedLasso::Throw(Gardener, Other, Place + FVector(0.0f, 0.0f, 5.0f), Enemy, Spec, false);
+				};
+				break;
+			case EVaelSymbiosis::Pechfeen:
+				Touch = [](APawn* Gardener, AVaelCreature* Enemy) { UVaelCombatStatics::ApplyStatus(Gardener, Enemy, EVaelStatus::Pitched, 6.0f); };
+				break;
+			case EVaelSymbiosis::Feentor:
+				// Through the gate of the veil the fairies lure twice as long
+				Seconds *= 2.0f;
+				SymbiosisVeil(Instigator, Other, Kind, Fairy, Origin, Ahead, Reach);
+				break;
+			default:
+				break;
+			}
+			SymbiosisFairies(Instigator, Fairy, Origin, Place, Radius, Seconds, bShadow, Touch);
+			break;
+		}
+
+		// --- Harzkolben: pitch balls; the partner sets them alight, spreads, hardens or carries them
+		case EVaelSymbiosis::Pechsumpf:
+		case EVaelSymbiosis::Pechregen:
+		case EVaelSymbiosis::Brandharz:
+		case EVaelSymbiosis::Bernstein:
+		case EVaelSymbiosis::Harzglas:
+		case EVaelSymbiosis::Wundharz:
+		case EVaelSymbiosis::Pechbombe:
+		case EVaelSymbiosis::Klebranke:
+		{
+			const UVaelPlantArmData* Pitch = Pick(TEXT("Harzkolben"));
+			const UVaelPlantArmData* Other = Pitch == A ? B : A;
+			switch (Kind)
+			{
+			case EVaelSymbiosis::Pechsumpf:
+				// Three big balls: a wide sticky swamp
+				SymbiosisPitch(Instigator, Pitch, Origin, Ahead, 3, 18.0f, 1.6f * FMath::Sqrt(Grown), Power * Grown, bShadow, Reach);
+				break;
+			case EVaelSymbiosis::Pechregen:
+				// The wind scatters a rain of small drops far over the field
+				SymbiosisPitch(Instigator, Pitch, Origin, Ahead, Charge > 0.5f ? 12 : 8, Charge > 0.5f ? 60.0f : 45.0f, 0.6f, Power * Grown * 0.6f, bShadow, Reach);
+				break;
+			case EVaelSymbiosis::Brandharz:
+			{
+				// Pitch first, then the burning seed into it: the pitch burns twice as hard
+				SymbiosisPitch(Instigator, Pitch, Origin, Ahead, Charge > 0.5f ? 3 : 1, 14.0f, 1.3f, Power * Grown, bShadow, Reach);
+				TWeakObjectPtr<APawn> WeakInstigator = Instigator;
+				FTimerHandle Timer;
+				Instigator->GetWorldTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([WeakInstigator, Other, Origin, Ahead, Power, Grown, bShadow, Reach]()
+				{
+					if (WeakInstigator.IsValid())
+					{
+						FireShot(WeakInstigator.Get(), Other, Origin, Ahead, Power * Grown, bShadow, 1.4f, 1.0f, Reach);
+					}
+				}), 0.45f, false);
+				break;
+			}
+			case EVaelSymbiosis::Bernstein:
+			{
+				// Wet pitch hardens: where the ball bursts the enemies are shut in amber for a moment
+				FVaelSpellHit Hit;
+				Hit.Damage = Pitch->ShotDamage * 1.5f * Power * Grown;
+				Hit.Element = EVaelElement::Water;
+				Hit.Status = EVaelStatus::Frozen;
+				Hit.StatusDuration = 1.5f + Charge;
+				FVaelSpellHit Burst = Hit;
+				Burst.Damage *= 0.5f;
+				if (AVaelSpellProjectile* Shot = SymbiosisProjectile(Instigator, Pitch, Origin, Ahead, Hit, Pitch->ShotRadius * 1.6f, 0, Color, true))
+				{
+					Shot->SetExplosion(Burst, 200.0f * FMath::Sqrt(Grown));
+					Shot->FinishSpawning(FTransform(Ahead.Rotation(), Origin));
+				}
+				break;
+			}
+			case EVaelSymbiosis::Harzglas:
+				// A dome of amber glass at the hands, enemy fire sticks in it; the pitch flies on
+				SymbiosisPitch(Instigator, Pitch, Origin, Ahead, 2, 12.0f, 1.0f, Power * Grown, bShadow, Reach);
+				if (Reach <= 0.0f)
+				{
+					SymbiosisDome(Instigator, Other, 300.0f, 7.0f, bShadow);
+				}
+				break;
+			case EVaelSymbiosis::Wundharz:
+			{
+				// The pitch seals the wounds of the allies around her: a shield, no healing
+				SymbiosisPitch(Instigator, Pitch, Origin, Ahead, 1, 0.0f, 1.2f, Power * Grown, bShadow, Reach);
+				for (FConstPlayerControllerIterator It = Instigator->GetWorld()->GetPlayerControllerIterator(); It; ++It)
+				{
+					AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+					if (Player != nullptr && FVector::Dist2D(Player->GetActorLocation(), Origin) < 800.0f)
+					{
+						Player->AddHeartShield(20.0f * Power * Grown, 8.0f);
+					}
+				}
+				break;
+			}
+			case EVaelSymbiosis::Pechbombe:
+			{
+				// A capsule full of pitch: it bursts sticky and burns
+				const FVector Place = SymbiosisGroundAhead(Instigator, Origin, Ahead, Reach, FMath::Lerp(800.0f, 1100.0f, Charge));
+				FVaelPoppyThrow Throw;
+				Throw.Size = Other->MaxCapsuleSize;
+				Throw.Radius = Other->MaxCapsuleBurstRadius * FMath::Sqrt(Grown);
+				Throw.Damage = Other->MaxCapsuleDamage * Power * Grown;
+				Throw.Fuse = Other->FuseTime;
+				Throw.PatchSeconds = Other->PatchSeconds * 1.5f;
+				Throw.PatchDamagePerSecond = Other->PatchDamagePerSecond * Power;
+				AVaelPoppyCapsule::Throw(Instigator, Other, Origin, Place, Throw, bShadow);
+				SymbiosisPitch(Instigator, Pitch, Origin, (Place - Origin).GetSafeNormal(), 1, 0.0f, 1.3f, Power * Grown, bShadow, FVector::Dist2D(Place, Origin));
+				break;
+			}
+			case EVaelSymbiosis::Klebranke:
+			{
+				// A sticky lasso: it catches several and pitches them
+				FVaelLassoSpec Spec;
+				Spec.HoldSeconds = Other->SnareHold;
+				Spec.Power = Power;
+				Spec.Color = Color;
+				for (AActor* Caught : AVaelBindweedLasso::FindTargets(Instigator, Origin, Ahead.GetSafeNormal2D(), Reach > 0.0f ? Reach + 200.0f : 900.0f, 40.0f, Charge > 0.5f ? 4 : 3))
+				{
+					AVaelBindweedLasso::Throw(Instigator, Other, Origin, Caught, Spec, bShadow);
+					UVaelCombatStatics::ApplyStatus(Instigator, Caught, EVaelStatus::Pitched, 6.0f);
+				}
+				break;
+			}
+			default:
+				break;
+			}
+			break;
+		}
+
+		// --- Mondtraufe: the veil, changed by the partner (AVaelMoonVeil::SetPair)
+		case EVaelSymbiosis::Mondhalle:
+		{
+			// Two veils along the way form a hall; between them the allies are cleansed again and again
+			const FVector Flat = Ahead.GetSafeNormal2D().IsNearlyZero() ? Instigator->GetActorForwardVector() : Ahead.GetSafeNormal2D();
+			const FVector Side = FVector::CrossProduct(FVector::UpVector, Flat);
+			const FVector Middle = (Reach > 0.0f ? Origin : Instigator->GetActorLocation()) + Flat * 260.0f;
+			for (const float Sign : { 1.0f, -1.0f })
+			{
+				const FVector At = Middle + Side * Sign * 230.0f;
+				const FVector Facing = Side * Sign;
+				SymbiosisVeil(Instigator, A, Kind, B, Origin, Ahead, Reach, 1.0f, 1.0f, &At, &Facing);
+			}
+			break;
+		}
+		case EVaelSymbiosis::Mondkuppel:
+		{
+			// The veil closes into a small round dome of six, shielding her on all sides
+			const UVaelPlantArmData* Moon = Pick(TEXT("Mondtraufe"));
+			const FVector Middle = Reach > 0.0f ? Origin : Instigator->GetActorLocation();
+			for (int32 Index = 0; Index < 6; ++Index)
+			{
+				const FVector Out = FRotator(0.0f, Index * 60.0f, 0.0f).Vector();
+				const FVector At = Middle + Out * 290.0f;
+				SymbiosisVeil(Instigator, Moon, Kind, Moon == A ? B : A, Origin, Ahead, Reach, 0.75f, 0.8f, &At, &Out);
+			}
+			break;
+		}
+		case EVaelSymbiosis::WehenderSchleier:
+		case EVaelSymbiosis::Glutvorhang:
+		case EVaelSymbiosis::Taustrom:
+		case EVaelSymbiosis::Mondrose:
+		case EVaelSymbiosis::Sternenfall:
+		case EVaelSymbiosis::Mondranken:
+		case EVaelSymbiosis::Bernsteinschleier:
+		{
+			const UVaelPlantArmData* Moon = Pick(TEXT("Mondtraufe"));
+			SymbiosisVeil(Instigator, Moon, Kind, Moon == A ? B : A, Origin, Ahead, Reach, FMath::Sqrt(Grown), Kind == EVaelSymbiosis::Bernsteinschleier ? 1.5f : 1.0f);
+			break;
+		}
 		default:
 			break;
 		}

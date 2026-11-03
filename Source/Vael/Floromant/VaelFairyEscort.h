@@ -38,6 +38,10 @@ public:
 	/** All ready fairies fly to a place and lure what is around it; false when none is ready */
 	bool SendAll(const FVector& Place, bool bShadow);
 
+	/** Feenstaub: 1 plus the share more damage a target takes while a light fairy distracts it or lures around it. Called for
+	 *  every hit by the attribute set */
+	static float GetDustScale(const AActor* Target);
+
 	int32 CountReady() const;
 
 	virtual void Tick(float DeltaSeconds) override;
@@ -71,6 +75,9 @@ private:
 	FVector RingPlace(int32 Index) const;
 
 	void Serve(FEscortFairy& Fairy, float DeltaSeconds);
+
+	/** Feenstaub on an enemy she distracts or lures: a little damage every so often, and a glitter of dust */
+	void StrewDust(FEscortFairy& Fairy, AActor* Enemy, float DeltaSeconds);
 
 	/** Back to the Floromant, and rests */
 	void Dismiss(FEscortFairy& Fairy);

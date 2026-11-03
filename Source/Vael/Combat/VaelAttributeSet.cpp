@@ -4,6 +4,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelMoonVeil.h"
+#include "Floromant/VaelFairyEscort.h"
 #include "GameplayEffectExtension.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
@@ -69,6 +70,9 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 
 		// The veil of a Mondtraufe swallows what enemies strike through it, what her side casts through it hits harder
 		Damage = AVaelMoonVeil::ScaleDamage(Target, Data.EffectSpec.GetContext().GetInstigator(), Damage, DamageTags);
+
+		// Feenstaub: what the light fairies dust takes more from everything
+		Damage *= AVaelFairyEscort::GetDustScale(Target);
 
 		// The heart shield of a Rußrose swallows it first
 		if (AVaelCharacter* Player = Cast<AVaelCharacter>(Target))

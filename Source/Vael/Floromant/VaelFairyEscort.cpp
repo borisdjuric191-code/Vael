@@ -6,6 +6,7 @@
 #include "Creatures/VaelCreature.h"
 #include "EngineUtils.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelSymbiosis.h"
 #include "GameFramework/Pawn.h"
 #include "Materials/MaterialInterface.h"
 #include "Vael.h"
@@ -168,6 +169,7 @@ void AVaelFairyEscort::Serve(FEscortFairy& Fairy, float DeltaSeconds)
 	case EDuty::Distract:
 		Fairy.DutySeconds -= DeltaSeconds;
 		Enemy->LureTo(Mistress, Fairy.Location, LureStep);
+		StrewDust(Fairy, Enemy, DeltaSeconds);
 		if (Fairy.DutySeconds <= 0.0f)
 		{
 			Dismiss(Fairy);
@@ -208,13 +210,19 @@ void AVaelFairyEscort::Serve(FEscortFairy& Fairy, float DeltaSeconds)
 
 	case EDuty::Lure:
 		Fairy.DutySeconds -= DeltaSeconds;
+		Fairy.StingSeconds -= DeltaSeconds;
 		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
 		{
 			if (!It->IsDead() && !It->IsHeavy() && UVaelCombatStatics::CanDamage(Mistress, *It)
 				&& FVector::Dist2D(It->GetActorLocation(), Fairy.Place) < Plant->FairyLureRadius)
 			{
 				It->LureTo(Mistress, Fairy.Place, LureStep);
+				StrewDust(Fairy, *It, DeltaSeconds);
 			}
+		}
+		if (Fairy.StingSeconds <= 0.0f)
+		{
+			Fairy.StingSeconds = StingEvery;
 		}
 		if (Fairy.DutySeconds <= 0.0f)
 		{
@@ -260,4 +268,54 @@ void AVaelFairyEscort::Tick(float DeltaSeconds)
 		VaelFairyFlight::Steer(Fairy, Goal + VaelFairyFlight::Drift(Fairy, Clock), Look, DeltaSeconds, Flight);
 		VaelFairyFlight::Show(Fairies, Index, Fairy, Clock, Flight, Index == Flock.Num() - 1);
 	}
+}
+
+void AVaelFairyEscort::StrewDust(FEscortFairy& Fairy, AActor* Enemy, float DeltaSeconds)
+{
+	// The forced fairies of the shadow sting instead
+	if (Fairy.bShadow || Enemy == nullptr || Plant->FairyDustDamagePerSecond <= 0.0f)
+	{
+		return;
+	}
+	if (Fairy.Duty == EDuty::Distract)
+	{
+		Fairy.StingSeconds -= DeltaSeconds;
+	}
+	if (Fairy.StingSeconds > 0.0f)
+	{
+		return;
+	}
+	// Luring, one countdown serves all she dusts; the next tick of her duty starts it again
+	if (Fairy.Duty == EDuty::Distract)
+	{
+		Fairy.StingSeconds = StingEvery;
+	}
+	UVaelCombatStatics::DealDamage(Mistress, Enemy, Plant->FairyDustDamagePerSecond * StingEvery, EVaelElement::Air);
+	VaelSymbiosis::MuzzlePuff(this, Plant, Enemy->GetActorLocation() + FVector(0.0f, 0.0f, 60.0f), false, 0.4f);
+}
+
+float AVaelFairyEscort::GetDustScale(const AActor* Target)
+{
+	if (Target == nullptr)
+	{
+		return 1.0f;
+	}
+	for (TActorIterator<AVaelFairyEscort> It(Target->GetWorld()); It; ++It)
+	{
+		const AVaelFairyEscort* Escort = *It;
+		if (Escort->Plant == nullptr || Escort->Plant->FairyDustVulnerability <= 0.0f)
+		{
+			continue;
+		}
+		for (const FEscortFairy& Fairy : Escort->Flock)
+		{
+			const bool bDistracts = Fairy.Duty == EDuty::Distract && Fairy.Target.Get() == Target;
+			const bool bLures = Fairy.Duty == EDuty::Lure && FVector::Dist2D(Target->GetActorLocation(), Fairy.Place) < Escort->Plant->FairyLureRadius;
+			if (!Fairy.bShadow && (bDistracts || bLures))
+			{
+				return 1.0f + Escort->Plant->FairyDustVulnerability;
+			}
+		}
+	}
+	return 1.0f;
 }

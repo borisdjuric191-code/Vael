@@ -46,7 +46,7 @@ namespace
 	constexpr float StreakTrail = 160.0f;
 
 	/** Embers flung ahead per second */
-	constexpr float EmberRate = 45.0f;
+	constexpr float RollerEmberRate = 45.0f;
 
 	/** The burning trail: a row every so many cm, two patches across it, their seconds and damage per second */
 	constexpr float TrailRowSpacing = 160.0f;
@@ -268,7 +268,7 @@ void AVaelFireRoller::UpdateWind(float DeltaSeconds)
 	if (Embers != nullptr && bRolling)
 	{
 		const float Speed = FMath::Max(Carrier.IsValid() ? Carrier->GetVelocity().Size2D() : 0.0f, 300.0f);
-		EmberCredit += EmberRate * Grow * DeltaSeconds;
+		EmberCredit += RollerEmberRate * Grow * DeltaSeconds;
 		for (; EmberCredit >= 1.0f; EmberCredit -= 1.0f)
 		{
 			const FVector From = Axis + Forward * Radius * 0.8f + Side * FMath::FRandRange(-0.5f, 0.5f) * Width + FVector::UpVector * FMath::FRandRange(0.0f, 1.0f) * Radius;

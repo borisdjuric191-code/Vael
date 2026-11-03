@@ -193,6 +193,14 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
 	float FairyStingDamage = 3.0f;
 
+	/** Feenstaub (Boris 2026-11-03): light fairies that distract or lure strew glowing dust: damage per second, and the dusted
+	 *  take this share more damage from everything */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyDustDamagePerSecond = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Fairies", meta = (ClampMin = 0, EditCondition = "bFairies"))
+	float FairyDustVulnerability = 0.1f;
+
 	/** Own material of the leaves and petals, cut from the real plant (Harzkolben); empty uses the material of the stalks */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> PartMaterial;

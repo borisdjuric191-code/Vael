@@ -28,7 +28,7 @@ notes = []
 
 KIT_VERSION = 1.4
 # The veil material has its own version, so rebuilding it leaves M_Halm alone
-VEIL_VERSION = 2.0
+VEIL_VERSION = 2.1
 EYE_VERSION = 1.3
 
 WATER = "/Game/VFX/Water"
@@ -214,7 +214,7 @@ ARMS = {
         "values": {"Silber": 0.1, "Leuchten": 0.05, "Leuchtfarbe": (0.3, 0.95, 0.9), "Metall": 0.05, "Rauheit": 0.5},
         "data": {"eye_berry": True, "part_material": FOLDER + "/M_Wachbeere_Beere", "eye_ring_material": FOLDER + "/M_Wachbeere_Ring",
                  "eye_radius": 450.0, "eye_seconds": 5.0, "eye_pulse": 1.5, "eye_confuse_seconds": 3.0, "eye_stare_seconds": 1.2,
-                 "eye_throw_range": 900.0, "eye_ground_scale": 9.0, "fire_interval": 0.9, "bar_size": 10, "saft_per_shot": 4.0,
+                 "eye_throw_range": 900.0, "eye_ground_scale": 4.0, "fire_interval": 0.9, "bar_size": 10, "saft_per_shot": 4.0,
                  "tip_size": 8.0, "finger_length": 30.0, "finger_thickness": 0.35, "fan_angle": 12.0, "arm_thickness": 0.5,
                  "wild_count": 1, "rest_wind": 0.25},
     },
@@ -705,10 +705,10 @@ def make_veil_material():
     ends = power(sine(g.mul(9, v, g.const(0.5, 10)), 8), 0.6, 7)
     fill = g.add(4, g.add(5, g.scalar("Flaeche", 0.22, 6), streaks), g.mul(5, ring, g.const(2.0, 6)))
     # The top edge is a round arch: falls by BogenTiefe (cm) at the sides; Hoehe is the height the curtain has open now (cm).
-    # LocalPosition of the engine plane runs -50..50, +X across, +Y up
+    # LocalPosition of the engine plane runs -50..50, +X across, -Y up (as the curtain stands)
     local = g.node(unreal.MaterialExpressionLocalPosition, 12)
     across = g.mul(10, g.mask(local, 11, r=True, g=False, b=False), g.const(0.02, 11))
-    below_top = g.mul(9, g.mul(10, g.sub(11, g.const(50.0, 12), g.mask(local, 12, r=False, g=True, b=False)), g.const(0.01, 11)), g.scalar("Hoehe", 300.0, 10))
+    below_top = g.mul(9, g.mul(10, g.add(11, g.const(50.0, 12), g.mask(local, 12, r=False, g=True, b=False)), g.const(0.01, 11)), g.scalar("Hoehe", 300.0, 10))
     circle = g.one(unreal.MaterialExpressionSquareRoot, 8, g.saturate(g.sub(9, g.const(1.0, 10), g.mul(10, across, across)), 9))
     arch_drop = g.mul(7, g.scalar("BogenTiefe", 0.0, 8), g.sub(8, g.const(1.0, 9), circle))
     arch = g.saturate(g.mul(5, g.sub(6, below_top, arch_drop), g.const(1.0 / 35.0, 6)), 4)

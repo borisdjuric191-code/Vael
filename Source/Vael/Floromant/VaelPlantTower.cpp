@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Floromant/VaelPlantTower.h"
+#include "Floromant/VaelEyeBerry.h"
+#include "Floromant/VaelMoonVeil.h"
+#include "World/VaelGround.h"
 #include "Components/SplineMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -514,7 +517,7 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 			else if (Goal != nullptr)
 			{
 				Fire(Goal, 1.0f);
-				FireCountdown = Symbiosis != EVaelSymbiosis::None ? VaelSymbiosis::GetTowerInterval(Symbiosis) : (Plant->bLasso ? Plant->SnareInterval : Plant->FireInterval * Settings->TowerFireIntervalScale);
+				FireCountdown = Symbiosis != EVaelSymbiosis::None ? VaelSymbiosis::GetTowerInterval(Symbiosis) : (Plant->bLasso ? Plant->SnareInterval : Plant->bVeil ? Plant->VeilSeconds + 2.0f : Plant->bEyeBerry ? Plant->EyeSeconds : Plant->FireInterval * Settings->TowerFireIntervalScale);
 			}
 			else
 			{
@@ -762,6 +765,33 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 			VaelSymbiosis::MuzzlePuff(this, Plant, Middle, bShadow, 1.6f);
 			VaelSymbiosis::MuzzlePuff(this, Partner->Plant, Middle, bShadow, 1.6f);
 		}
+		return;
+	}
+
+	// A Mondtraufe tower raises its veil between itself and the enemy, a Wachbeere tower throws an eye berry at it
+	if (Symbiosis == EVaelSymbiosis::None && Plant->bVeil)
+	{
+		const FVector Way = (Goal->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+		FVector Place = GetActorLocation() + Way * FMath::Min(FVector::Dist2D(Goal->GetActorLocation(), GetActorLocation()) * 0.5f, 400.0f);
+		FHitResult Ground;
+		if (VaelGround::TraceGround(GetWorld(), Place + FVector(0.0f, 0.0f, 400.0f), Place - FVector(0.0f, 0.0f, 1200.0f), Ground, this))
+		{
+			Place = Ground.ImpactPoint;
+		}
+		AVaelMoonVeil::Raise(Gardener, Plant, Place, Way);
+		VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 1.5f);
+		return;
+	}
+	if (Symbiosis == EVaelSymbiosis::None && Plant->bEyeBerry)
+	{
+		FVector Place = Goal->GetActorLocation();
+		FHitResult Ground;
+		if (VaelGround::TraceGround(GetWorld(), Place + FVector(0.0f, 0.0f, 300.0f), Place - FVector(0.0f, 0.0f, 800.0f), Ground, this))
+		{
+			Place = Ground.ImpactPoint;
+		}
+		AVaelEyeBerry::Throw(Gardener, Plant, GetCrown(), Place, bShadow);
+		VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 1.3f);
 		return;
 	}
 

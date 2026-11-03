@@ -76,7 +76,35 @@ enum class EVaelSymbiosis : uint8
 	/** Schlotwinde + Rußrose: the vines grab the most hurt ally, pull them to her and heal them */
 	Rankenrettung,
 	/** Schlotwinde + Funkenmohn: the vine wraps the enemy, a poppy capsule blooms on it and bursts */
-	Haftmohn
+	Haftmohn,
+	// Feenragwurz, Harzkolben and Mondtraufe pairs (Boris 2026-11-03, see VaelSymbiosis::Fire)
+	Feenreigen,
+	Feenwind,
+	Gluehfeen,
+	Taufluegel,
+	Laternenfeen,
+	Rosenboten,
+	Mohnfeen,
+	Feenfalle,
+	Pechsumpf,
+	Pechregen,
+	Brandharz,
+	Bernstein,
+	Harzglas,
+	Wundharz,
+	Pechbombe,
+	Klebranke,
+	Mondhalle,
+	WehenderSchleier,
+	Glutvorhang,
+	Taustrom,
+	Mondkuppel,
+	Mondrose,
+	Sternenfall,
+	Mondranken,
+	Pechfeen,
+	Feentor,
+	Bernsteinschleier
 };
 
 namespace VaelSymbiosis

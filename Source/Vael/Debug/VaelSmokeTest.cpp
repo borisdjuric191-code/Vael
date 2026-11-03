@@ -73,6 +73,12 @@
 #include "Floromant/VaelPlantData.h"
 #include "Floromant/VaelMoonVeil.h"
 #include "Floromant/VaelEyeBerry.h"
+#include "Floromant/VaelFairyEscort.h"
+#include "Floromant/VaelBindweedLasso.h"
+#include "Floromant/VaelSymbiosis.h"
+#include "Floromant/VaelPoppyCapsule.h"
+#include "Floromant/VaelGlimmDome.h"
+#include "Magic/VaelGroundArea.h"
 #include "Items/VaelMaterialDrop.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelPlayerController.h"
@@ -804,6 +810,83 @@ void AVaelSmokeTest::BeginPlay()
 			const bool bOk = Landed > 0 && Looks > 0 && Caught > 0;
 			return FString::Printf(TEXT("%s%d eyes on the ground, %d looks, %d caught, %d crawlers confused now"), bOk ? TEXT("") : TEXT("FAILED: "),
 				Landed, Looks, Caught, Confused);
+		}, 0.2f });
+
+		// The pairs of the Feenragwurz, Harzkolben and Mondtraufe (Boris 2026-11-03): each crossed once at crawlers
+		Steps.Add({ TEXT("New pairs"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelEmberCrawlerData>(), 6);
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			FVector Aim = Player->GetActorForwardVector();
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Aim = (It->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
+			}
+			TSet<EVaelSymbiosis> Fired;
+			for (int32 First = 0; First < Floromant->GetHandBeltSize(); ++First)
+			{
+				for (int32 Second = First; Second < Floromant->GetHandBeltSize(); ++Second)
+				{
+					const UVaelPlantArmData* A = Floromant->GetHandBeltPlant(First);
+					const UVaelPlantArmData* B = Floromant->GetHandBeltPlant(Second);
+					const EVaelSymbiosis Kind = VaelSymbiosis::Find(A, B);
+					if (Kind >= EVaelSymbiosis::Feenreigen && !Fired.Contains(Kind))
+					{
+						Fired.Add(Kind);
+						VaelSymbiosis::Fire(Player, Kind, A, B, Player->GetActorLocation() + Aim * 60.0f, Aim, 1.0f, 0.0f, false);
+					}
+				}
+			}
+			const bool bOk = Fired.Num() == 27;
+			return FString::Printf(TEXT("%s%s, %d of 27 new pairs crossed"), bOk ? TEXT("") : TEXT("FAILED: "), *Arena, Fired.Num());
+		}, 3.0f });
+		Steps.Add({ TEXT("New pairs act"), [this]()
+		{
+			int32 Veils = 0;
+			int32 Flights = 0;
+			int32 Lassos = 0;
+			for (TActorIterator<AVaelMoonVeil> It(GetWorld()); It; ++It)
+			{
+				++Veils;
+			}
+			for (TActorIterator<AVaelFairyEscort> It(GetWorld()); It; ++It)
+			{
+				++Flights;
+			}
+			for (TActorIterator<AVaelBindweedLasso> It(GetWorld()); It; ++It)
+			{
+				++Lassos;
+			}
+			int32 Lured = 0;
+			int32 Pitched = 0;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Lured += UVaelCombatStatics::HasStatus(*It, EVaelStatus::Lured) ? 1 : 0;
+				Pitched += UVaelCombatStatics::HasStatus(*It, EVaelStatus::Pitched) ? 1 : 0;
+			}
+			// What the pairs leave behind would act on the next arenas: veils, flights, eyes, capsules, shots, fires and pitch go
+			for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+			{
+				const bool bFlight = It->IsA<AVaelFairyEscort>() && It->GetLifeSpan() > 0.0f;
+				if (bFlight || It->IsA<AVaelMoonVeil>() || It->IsA<AVaelEyeBerry>() || It->IsA<AVaelPoppyCapsule>() || It->IsA<AVaelSpellProjectile>()
+					|| It->IsA<AVaelBindweedLasso>() || It->IsA<AVaelGroundArea>())
+				{
+					It->Destroy();
+				}
+			}
+			for (TActorIterator<AVaelGlimmDome> It(GetWorld()); It; ++It)
+			{
+				It->Lower();
+			}
+
+			const bool bOk = Veils >= 16 && Flights >= 10;
+			return FString::Printf(TEXT("%s%d veils, %d fairy flights, %d lassos, %d crawlers lured, %d pitched"), bOk ? TEXT("") : TEXT("FAILED: "), Veils, Flights, Lassos, Lured, Pitched);
 		}, 0.2f });
 
 		// The Funkenmohn (Boris 2026-10-26): both hands become mortar buds, a tap throws a capsule at the crawlers in an arc,

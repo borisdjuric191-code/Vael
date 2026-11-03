@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "GameplayTagContainer.h"
+#include "Floromant/VaelSymbiosis.h"
 #include "VaelMoonVeil.generated.h"
 
 class AVaelCharacterBase;
@@ -29,7 +30,10 @@ public:
 	AVaelMoonVeil();
 
 	/** Raises a veil standing on the ground point, facing along the direction */
-	static AVaelMoonVeil* Raise(APawn* InOwner, const UVaelPlantArmData* InPlant, const FVector& Ground, const FVector& Facing);
+	static AVaelMoonVeil* Raise(APawn* InOwner, const UVaelPlantArmData* InPlant, const FVector& Ground, const FVector& Facing, float SizeScale = 1.0f);
+
+	/** Grown together with another plant (VaelSymbiosis): what the pair adds to the veil, and how long it stands then */
+	void SetPair(EVaelSymbiosis InPair, const UVaelPlantArmData* InOther, float LifetimeScale = 1.0f);
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -57,6 +61,12 @@ private:
 	void StopShots();
 	void Cleanse();
 
+	/** What the pair does every so often: wanders, soaks, snares, cleanses the hall */
+	void TickPair(float DeltaSeconds);
+
+	/** The Bernsteinschleier bursts into sticky splinters when it ends */
+	virtual void Destroyed() override;
+
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;
 
@@ -80,6 +90,16 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<const UVaelPlantArmData> Plant;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UVaelPlantArmData> Other;
+
+	EVaelSymbiosis Pair = EVaelSymbiosis::None;
+	float Wide = 450.0f;
+	float Tall = 300.0f;
+	float Lifetime = 8.0f;
+	float PairCountdown = 0.5f;
+	TSet<TWeakObjectPtr<AActor>> Snared;
 
 	/** Which side of the curtain each shot was on last tick */
 	TMap<TWeakObjectPtr<AActor>, float> ShotSides;
