@@ -31,6 +31,8 @@ TAG = "WF_Urbaum"
 HIDE_TAG = "WF_UrbaumVerdeckt"
 FOLDER = "Wurzelforst/3_Ewiger_Hain/Urbaum"
 SINK = 160.0  # cm the model sits below the ground at the trunk: hides its base plate, and the hill falls away under the outer roots
+# Boris 2026-11-04: the full 48 m left only the trunk in view even with the camera drawn back: the tree stands at half size
+TREE_SCALE = 0.5
 SEED = 48
 
 TRIPO = "/Game/Vael/Requisiten/Wurzelforst"
@@ -349,13 +351,13 @@ def main():
     dew_material = build_dew_material()
     tree.static_mesh_component.set_material(0, bark)
 
-    # True size (48 m) and standing on the ground at the trunk: wf_blockout.py sizes it by the grey box, whose long roots
+    # Size (48 m at scale 1, TREE_SCALE now) and standing on the ground at the trunk: wf_blockout.py sizes it by the grey box, whose long roots
     # reach far down the hill, which left it too big and metres too deep. The trace passes through the tree (no complex collision).
     location = tree.get_actor_location()
     ground = trace(unreal.Vector(location.x, location.y, location.z + 20000), unreal.Vector(location.x, location.y, location.z - 20000))
     ground_z = ground[0].z if ground else location.z
-    tree.set_actor_scale3d(unreal.Vector(1.0, 1.0, 1.0))
-    tree.set_actor_location(unreal.Vector(location.x, location.y, ground_z - SINK), False, False)
+    tree.set_actor_scale3d(unreal.Vector(TREE_SCALE, TREE_SCALE, TREE_SCALE))
+    tree.set_actor_location(unreal.Vector(location.x, location.y, ground_z - SINK * TREE_SCALE), False, False)
 
     origin = tree.get_actor_location()
     yaw = tree.get_actor_rotation().yaw

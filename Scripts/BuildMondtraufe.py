@@ -465,7 +465,7 @@ def show_hidden():
             actor.tags = [t for t in actor.tags if t != unreal.Name(HIDDEN_TAG)]
 
 
-def camera_zone(location, focus, radius, distance, label):
+def camera_zone(location, focus, radius, distance, label, pull=0.35):
     """A place where the shared camera steps back (AVaelCameraZone); focus is relative to it"""
     zone = actors.spawn_actor_from_class(unreal.VaelCameraZone, location, unreal.Rotator(0.0, 0.0, 0.0))
     zone.set_actor_label(label)
@@ -474,12 +474,12 @@ def camera_zone(location, focus, radius, distance, label):
     zone.set_editor_property("radius", radius)
     zone.set_editor_property("distance", distance)
     zone.set_editor_property("focus", focus)
-    zone.set_editor_property("focus_pull", 0.35)
+    zone.set_editor_property("focus_pull", pull)
     return zone
 
 
 def urbaum_zone():
-    """The Urbaum is too big for the close view as well: a camera zone around it, leaning towards the middle of its crown"""
+    """The Urbaum (half size since 2026-11-04) still towers over the close view: a mild camera zone around it, leaning towards its crown"""
     for actor in actors.get_all_level_actors():
         if not isinstance(actor, unreal.StaticMeshActor):
             continue
@@ -489,7 +489,7 @@ def urbaum_zone():
         origin, extent = actor.get_actor_bounds(False)
         base = actor.get_actor_location()
         radius = max(extent.x, extent.y) + 600.0
-        camera_zone(base, unreal.Vector(origin.x - base.x, origin.y - base.y, extent.z * 0.9), radius, 4300.0, "Kamerazone_Urbaum")
+        camera_zone(base, unreal.Vector(origin.x - base.x, origin.y - base.y, extent.z * 0.9), radius, 2900.0, "Kamerazone_Urbaum", 0.12)
         log("camera zone at the Urbaum ({:.0f} {:.0f}), radius {:.0f}, crown {:.0f} cm high".format(base.x, base.y, radius, extent.z * 2.0))
         return
     log("no SM_Urbaum in the level: no camera zone there")
