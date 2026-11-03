@@ -795,8 +795,22 @@ void UVaelCheatManager::VaelMondtraufe(int32 Number)
 		return;
 	}
 
-	// The plant's own place is its picking spot on the bank, under the crown of its tree
-	Pawn->TeleportTo(Great[Number - 1]->GetActorLocation() + FVector(0.0f, 0.0f, Pawn->GetSimpleCollisionHalfHeight() + 5.0f), Pawn->GetActorRotation());
+	// The plant's own place is its picking spot on the bank; where roots crowd it, the nearest free spot around it
+	FVector Spot = Great[Number - 1]->GetActorLocation() + FVector(0.0f, 0.0f, Pawn->GetSimpleCollisionHalfHeight() + 5.0f);
+	FRotator Facing = Pawn->GetActorRotation();
+	for (int32 Ring = 0; Ring <= 6; ++Ring)
+	{
+		for (int32 Step = 0; Step < (Ring == 0 ? 1 : 8); ++Step)
+		{
+			const float Angle = Step * UE_TWO_PI / 8.0f;
+			FVector Try = Spot + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Ring * 100.0f;
+			if (GetWorld()->FindTeleportSpot(Pawn, Try, Facing) && Pawn->TeleportTo(Try, Facing))
+			{
+				return;
+			}
+		}
+	}
+	UE_LOG(LogVael, Warning, TEXT("VaelMondtraufe: no free spot near great Mondtraufe %d"), Number);
 }
 
 void UVaelCheatManager::VaelItem(const FString& Name)

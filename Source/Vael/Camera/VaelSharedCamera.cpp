@@ -2,6 +2,8 @@
 
 #include "Camera/VaelSharedCamera.h"
 #include "Camera/CameraComponent.h"
+#include "Camera/VaelCameraZone.h"
+#include "EngineUtils.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/World.h"
 #include "GameFramework/Pawn.h"
@@ -62,18 +64,34 @@ void AVaelSharedCamera::Tick(float DeltaSeconds)
 
 	// Zoom out far enough to frame the whole group
 	const float FitTangent = GetFitTangent();
-	const float TargetDistance = FMath::Clamp((Radius + FramePadding) / FitTangent, MinDistance, FMath::Max(MinDistance, MaxDistance));
+	float TargetDistance = FMath::Clamp((Radius + FramePadding) / FitTangent, MinDistance, FMath::Max(MinDistance, MaxDistance));
 	LeashRadius = FMath::Max(MaxDistance * FitTangent - FramePadding, 0.0f);
+
+	// At a landmark the camera steps back and leans towards it, as strongly as the player deepest in its zone feels it
+	FVector TargetFocus = GroupCenter;
+	for (TActorIterator<AVaelCameraZone> It(GetWorld()); It; ++It)
+	{
+		float Weight = 0.0f;
+		for (const FVector& Location : Locations)
+		{
+			Weight = FMath::Max(Weight, It->GetWeight(Location));
+		}
+		if (Weight > 0.0f)
+		{
+			TargetDistance = FMath::Max(TargetDistance, FMath::Lerp(MinDistance, FMath::Min(It->Distance, MaxDistance), Weight));
+			TargetFocus = FMath::Lerp(TargetFocus, It->GetFocusLocation(), Weight * It->FocusPull);
+		}
+	}
 
 	if (bSnapNextUpdate)
 	{
-		FocusPoint = GroupCenter;
+		FocusPoint = TargetFocus;
 		CurrentDistance = TargetDistance;
 		bSnapNextUpdate = false;
 	}
 	else
 	{
-		FocusPoint = FMath::VInterpTo(FocusPoint, GroupCenter, DeltaSeconds, FollowSpeed);
+		FocusPoint = FMath::VInterpTo(FocusPoint, TargetFocus, DeltaSeconds, FollowSpeed);
 		CurrentDistance = FMath::FInterpTo(CurrentDistance, TargetDistance, DeltaSeconds, ZoomSpeed);
 	}
 

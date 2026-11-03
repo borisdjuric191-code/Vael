@@ -34,7 +34,8 @@ OUTLINER = "Wurzelforst/Mondtraufe"
 TREE = "/Game/Vael/Requisiten/Wurzelforst/Traufbaum/SM_Traufbaum"
 SEED = 41
 THICK_LIMB = 60            # sampled points around a spot for it to count as a thick limb
-CAMERA_FACING = 0.6         # how straight towards the camera the water before a great one must lie (cosine)
+CAMERA_FACING = 0.42        # how straight towards the camera the water before a great one must lie (cosine)
+SIDE_ANGLE = 45            # degrees the arch turns away from pointing straight at the camera at least
 
 # Small ones (Boris 2026-11-02): under root arches with their own pond along the moor banks; they only show how the land is
 SMALL_COUNT = 8
@@ -43,14 +44,14 @@ SMALL_SPACING = 4000.0      # cm between two
 # The great ones: one or two, from a giant mangrove over open water, three to four times bigger, pinker, harvestable
 GREAT_COUNT = 2
 GREAT_SPACING = 12000.0
-GREAT_TREE_HEIGHT = 1700.0  # cm, the Traufbaum at its own size: its arch ends about 10 m up
+GREAT_TREE_HEIGHT = 1200.0  # cm, the Traufbaum scaled so it shows whole with its bud from the camera zone: its arch ends about 8 m up
 GREAT_BUD_OUT = 700.0       # cm the great bud hangs out over the water; the trunk stands back on land for the rest of its reach
 GREAT_MIN_DEPTH = 0.5      # depth in the moor mask under the great bud (1 = 14 m or more from the shore)
 GREAT = {
     "harvestable": True,
     "bud_length": 420.0,
     "num_threads": 24,
-    "thread_length": unreal.Vector2D(80.0, 400.0),
+    "thread_length": unreal.Vector2D(60.0, 300.0),
     "thread_spread": 26.0,
     "thread_thickness": 0.9,
     "drop_scale": 3.2,
@@ -464,6 +465,35 @@ def show_hidden():
             actor.tags = [t for t in actor.tags if t != unreal.Name(HIDDEN_TAG)]
 
 
+def camera_zone(location, focus, radius, distance, label):
+    """A place where the shared camera steps back (AVaelCameraZone); focus is relative to it"""
+    zone = actors.spawn_actor_from_class(unreal.VaelCameraZone, location, unreal.Rotator(0.0, 0.0, 0.0))
+    zone.set_actor_label(label)
+    zone.tags = [unreal.Name(TAG)]
+    zone.set_folder_path(OUTLINER)
+    zone.set_editor_property("radius", radius)
+    zone.set_editor_property("distance", distance)
+    zone.set_editor_property("focus", focus)
+    zone.set_editor_property("focus_pull", 0.35)
+    return zone
+
+
+def urbaum_zone():
+    """The Urbaum is too big for the close view as well: a camera zone around it, leaning towards the middle of its crown"""
+    for actor in actors.get_all_level_actors():
+        if not isinstance(actor, unreal.StaticMeshActor):
+            continue
+        mesh = actor.static_mesh_component.get_editor_property("static_mesh")
+        if mesh is None or mesh.get_name() != "SM_Urbaum":
+            continue
+        origin, extent = actor.get_actor_bounds(False)
+        base = actor.get_actor_location()
+        radius = max(extent.x, extent.y) + 600.0
+        camera_zone(base, unreal.Vector(origin.x - base.x, origin.y - base.y, extent.z * 0.9), radius, 4300.0, "Kamerazone_Urbaum")
+        log("camera zone at the Urbaum ({:.0f} {:.0f}), radius {:.0f}, crown {:.0f} cm high".format(base.x, base.y, radius, extent.z * 2.0))
+        return
+    log("no SM_Urbaum in the level: no camera zone there")
+
 def spawn(location, label):
     plant = actors.spawn_actor_from_class(unreal.VaelMoonEave, location, unreal.Rotator(0.0, 0.0, 0.0))
     plant.set_actor_label(label)
@@ -495,6 +525,9 @@ def place(arch_point, tree_foot, tree_tip, tree_height):
             continue
         best = None
         for step in range(-int(spread_angle), int(spread_angle) + 1, 5):
+            # Not straight at the camera: seen end-on the arch hides its own curve and the player under it
+            if abs(step) < SIDE_ANGLE:
+                continue
             angle = camera_side + math.radians(step)
             under = depth.depth(bank[0] + math.cos(angle) * GREAT_BUD_OUT, bank[1] + math.sin(angle) * GREAT_BUD_OUT)
             # The whole fall of the drops must be over water, not only the bud
@@ -531,6 +564,11 @@ def place(arch_point, tree_foot, tree_tip, tree_height):
         log("great Mondtraufe {} at {:.0f} {:.0f} (VaelTeleport {:.0f} {:.0f}), bud {:.0f} cm out over the water, {:.0f} cm above it".format(
             index + 1, bank[0], bank[1], bank[0] / 100.0, bank[1] / 100.0, math.hypot(offset.x + hang.x, offset.y + hang.y),
             bank[2] + offset.z + hang.z - water))
+        # The camera steps back here and leans towards the bud, so tree and bud show whole
+        bud = unreal.Vector(offset.x + hang.x, offset.y + hang.y, offset.z + hang.z - GREAT["bud_length"] * 0.5)
+        camera_zone(unreal.Vector(bank[0], bank[1], bank[2]), bud, 1400.0, 3600.0, "Kamerazone_Mondtraufe_{}".format(index + 1))
+
+    urbaum_zone()
 
     # The small ones under their arches, each with its pond, spread along the banks
     small = spread(banks, SMALL_COUNT, SMALL_SPACING, taken=placed_great)
