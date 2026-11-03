@@ -3,6 +3,7 @@
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Floromant/VaelGlimmDome.h"
+#include "Floromant/VaelMoonVeil.h"
 #include "GameplayEffectExtension.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
@@ -65,6 +66,9 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 
 		// The glass dome of a Glimmklee swallows enemy fire and makes the fire of her side burn hotter
 		Damage = AVaelGlimmDome::ScaleFireDamage(Target, Data.EffectSpec.GetContext().GetInstigator(), Damage, DamageTags);
+
+		// The veil of a Mondtraufe swallows what enemies strike through it, what her side casts through it hits harder
+		Damage = AVaelMoonVeil::ScaleDamage(Target, Data.EffectSpec.GetContext().GetInstigator(), Damage, DamageTags);
 
 		// The heart shield of a Rußrose swallows it first
 		if (AVaelCharacter* Player = Cast<AVaelCharacter>(Target))

@@ -177,6 +177,29 @@ ARMS = {
                  "wrap_count": 4, "wrap_turns": 1.2, "wild_count": 2, "rest_wind": 0.3,
                  "leaf_count": 7, "leaf_size": 11.0, "leaf_open_angle": 60.0},
     },
+    # Boris 2026-11-02: the Mondtraufe arm, cuff and drop vine (B+C). A ruffled collar of sepals at the wrist, wine outside and
+    # pearl inside, its fringe of threads with Mondtropfen hanging over the hand, the palm glowing; a vine up the forearm with
+    # three Mondtropfen as the charges. It raises a veil of light (AVaelMoonVeil) instead of shooting. Stalks and stalk piece from
+    # Tools/Pflanzenarm/mondtraufe_teile.py, the sepal from Tools/Loot/vael_loot_baukasten.py, the vine from ranke_bauen.py
+    "Mondtraufe": {
+        "finger": [1, 2],
+        "arm": [1, 2],
+        "head": False,
+        "petal": "Kelchblatt",
+        "props": "/Game/Vael/Requisiten/Wurzelforst",
+        "values": {"Silber": 0.8, "Grundton": (0.42, 0.25, 0.3), "Leuchten": 0.04, "Leuchtfarbe": (1.0, 0.6, 0.82), "Metall": 0.05, "Rauheit": 0.55},
+        "data": {"veil": True, "veil_width": 450.0, "veil_height": 300.0, "veil_distance": 220.0, "veil_seconds": 8.0,
+                 "veil_enemy_scale": 0.0, "veil_allied_scale": 1.3, "veil_drops": 10, "veil_color": (1.0, 0.42, 0.7),
+                 "drop_mesh": "/Game/Vael/Items/Loot/Modelle/SM_Mondtropfen",
+                 "drop_material": "/Game/Vael/Items/Loot/Materialien/MI_Loot_Mondtropfen",
+                 "veil_material": FOLDER + "/M_Mondtraufe_Schleier",
+                 "thread_material": "/Game/Vael/Requisiten/Wurzelforst/Mondtraufe/M_Mondtraufe_Faden",
+                 "part_material": "/Game/Vael/Requisiten/Wurzelforst/Mondtraufe/M_Mondtraufe_Blatt",
+                 "fringe_count": 6, "fringe_length": (6.0, 14.0), "arm_drop_scale": 0.45,
+                 "bar_size": 3, "bar_refill_per_second": 0.25, "bar_refill_delay": 1.0, "fire_interval": 1.0, "saft_per_shot": 6.0,
+                 "inner_petals": 4, "outer_petals": 6, "petal_size": 9.0, "rose_open_angle": 48.0, "rose_closed_angle": 20.0,
+                 "rose_hole_radius": 3.5, "rest_wind": 0.2, "wild_count": 1, "arm_thickness": 0.6},
+    },
 }
 
 
@@ -438,8 +461,18 @@ def build_stalk_material():
 def make_instance(parent, plant, values, props=PROPS):
     name = "MI_Halm_" + plant
     path = "{}/{}".format(FOLDER, name)
-    if assets.does_asset_exist(path):
+    # VAEL_NUR_ARM=<Id> writes the values into an existing instance again
+    if assets.does_asset_exist(path) and os.environ.get("VAEL_NUR_ARM") != plant:
         return unreal.load_asset(path)
+    if assets.does_asset_exist(path):
+        instance = unreal.load_asset(path)
+        for key, value in values.items():
+            if isinstance(value, tuple):
+                library.set_material_instance_vector_parameter_value(instance, key, unreal.LinearColor(value[0], value[1], value[2], 1.0))
+            else:
+                library.set_material_instance_scalar_parameter_value(instance, key, value)
+        assets.save_loaded_asset(instance, False)
+        return instance
     instance = tools.create_asset(name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     library.set_material_instance_parent(instance, parent)
     for key, value in values.items():
@@ -466,6 +499,10 @@ def data_value(key, value):
         return getattr(unreal.VaelElement, value)
     if key == "shot_status":
         return getattr(unreal.VaelStatus, value)
+    if isinstance(value, tuple) and len(value) == 3:
+        return unreal.LinearColor(value[0], value[1], value[2], 1.0)
+    if isinstance(value, tuple) and len(value) == 2:
+        return unreal.Vector2D(value[0], value[1])
     if isinstance(value, str) and value.startswith("/Game/"):
         loaded = unreal.load_asset(value)
         if loaded is None:
@@ -547,6 +584,60 @@ def make_blossom_material():
     assets.save_loaded_asset(material, False)
 
 
+def make_veil_material():
+    """The veil of the Mondtraufe arm (AVaelMoonVeil): additive light, a faint rose sheet with brighter streaks running down,
+    soft at all edges; a hit sends a ring of light out from its point in the world (WellenOrt, WellenRadius in cm, Welle 0-1)"""
+    material = new_material("M_Mondtraufe_Schleier")
+    if material is None:
+        return
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    material.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    material.set_editor_property("two_sided", True)
+    g = Graph(material)
+    g.scalar("KitVersion", KIT_VERSION, 14)
+
+    def sample(uv, column):
+        node = g.node(unreal.MaterialExpressionTextureSample, column, texture=unreal.load_asset("/Game/Vael/Effects/Feuer/T_Feuer_Rauschen"),
+                      sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_MASKS)
+        g.link(uv, node, "UVs")
+        return g.mask(node, column - 1, r=True, g=False, b=False)
+
+    def power(base, exponent, column):
+        node = g.node(unreal.MaterialExpressionPower, column, const_exponent=exponent)
+        g.link(base, node, "Base")
+        return node
+
+    def sine(source, column):
+        return g.one(unreal.MaterialExpressionSine, column, source)
+
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 13)
+    u = g.mask(uv, 12, r=True, g=False, b=False)
+    v = g.mask(uv, 12, r=False, g=True, b=False)
+    drift = g.mul(11, g.node(unreal.MaterialExpressionTime, 12), g.scalar("Fliessen", 0.3, 12))
+
+    # Streaks: thin across, long along the fall, two layers drifting down at different speeds
+    first = g.append(g.mul(10, u, g.const(9.0, 11)), g.add(10, g.mul(11, v, g.const(0.6, 12)), drift), 9)
+    second = g.append(g.mul(10, u, g.const(17.0, 11)), g.add(10, g.mul(11, v, g.const(1.1, 12)), g.mul(11, drift, g.const(1.6, 12))), 9)
+    streaks = power(g.mul(7, g.mul(8, sample(first, 9), sample(second, 9)), g.const(2.4, 8)), 2.2, 6)
+
+    # The ring of a hit, in world space so it doesn't care how the plane lies
+    distance = g.node(unreal.MaterialExpressionDistance, 9)
+    g.link(g.node(unreal.MaterialExpressionWorldPosition, 10), distance, "A")
+    g.link(g.vector("WellenOrt", (0.0, 0.0, -100000.0), 10), distance, "B")
+    off_ring = g.one(unreal.MaterialExpressionAbs, 7, g.sub(8, distance, g.scalar("WellenRadius", 0.0, 9)))
+    ring = g.mul(5, g.saturate(g.sub(6, g.const(1.0, 7), g.mul(7, off_ring, g.const(0.05, 8))), 6), g.scalar("Welle", 0.0, 6))
+
+    # Soft at its sides and both ends
+    sides = power(sine(g.mul(9, u, g.const(0.5, 10)), 8), 1.3, 7)
+    ends = power(sine(g.mul(9, v, g.const(0.5, 10)), 8), 0.6, 7)
+    fill = g.add(4, g.add(5, g.scalar("Flaeche", 0.22, 6), streaks), g.mul(5, ring, g.const(2.0, 6)))
+    shape = g.mul(3, fill, g.mul(4, sides, ends))
+    glow = g.mul(2, g.mul(3, g.vector("Farbe", (1.0, 0.45, 0.72), 4), shape), g.mul(3, g.scalar("Staerke", 1.0, 4), g.const(1.2, 4)))
+    library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+
+
 def make_pitch():
     """The pitch of the Harzkolben: the plant water of the Taublatt, thick and amber, and its plant data"""
     looks = {
@@ -604,6 +695,21 @@ def make_pitch():
         assets.save_loaded_asset(data, False)
         created.append(path)
 
+    path = "{}/DA_Pflanze_Mondtraufe".format(PLANT_FOLDER)
+    if not assets.does_asset_exist(path):
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelPlantData)
+        data = tools.create_asset("DA_Pflanze_Mondtraufe", PLANT_FOLDER, unreal.VaelPlantData, factory)
+        data.set_editor_property("plant_id", "Mondtraufe")
+        data.set_editor_property("light_name", unreal.Text("Mondtraufe"))
+        # Placeholder until Boris names the shadow form
+        data.set_editor_property("shadow_name", unreal.Text("Welktraufe"))
+        data.set_editor_property("mesh", unreal.load_asset("/Game/Vael/Requisiten/Wurzelforst/Mondtraufe/SM_Mondtraufe"))
+        data.set_editor_property("color", unreal.LinearColor(1.0, 0.6, 0.82, 1.0))
+        data.set_editor_property("shadow_color", unreal.LinearColor(0.3, 0.05, 0.2, 1.0))
+        assets.save_loaded_asset(data, False)
+        created.append(path)
+
     path = "{}/DA_Pflanze_Harzkolben".format(PLANT_FOLDER)
     if not assets.does_asset_exist(path):
         factory = unreal.DataAssetFactory()
@@ -623,6 +729,7 @@ def main():
     stalk_material = build_stalk_material()
     make_blossom_material()
     make_pitch()
+    make_veil_material()
     # VAEL_NUR_ARM=<Id> builds only that arm, so the other meshes are not saved again
     only = os.environ.get("VAEL_NUR_ARM")
     for plant, arm in ARMS.items():

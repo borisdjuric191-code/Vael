@@ -302,6 +302,46 @@ def floating_petal(name, length=14.0, width=7.0, seed=3):
     return obj
 
 
+def sepal_petal(name, length=10.0, width=6.0, seed=9):
+    """A sepal of the Mondtraufe's ruffled collar for the Floromant's cuff: grows up +Z from its foot at the pivot, its inner
+    (hollow) side towards -X, the edges cupped and gently ruffled, unevenly as grown. UV v runs from the foot (0) to the tip (1),
+    so M_Mondtraufe_Blatt colours it from wine to pearl. 10 cm long: the arm scales it by its petal size."""
+    rng = random.Random(seed)
+    mesh = bmesh.new()
+    rows, columns = 16, 10
+    uv_layer = mesh.loops.layers.uv.new("UVMap")
+    phase = rng.uniform(0.0, math.tau)
+    grid = []
+    for row in range(rows + 1):
+        v = row / rows
+        # Narrow foot, widest at two thirds, a rounded tip
+        half = width * 0.5 * (0.35 + 0.65 * math.sin(math.pi * min(1.0, v * 0.82 + 0.1))) * (1.0 + rng.uniform(-0.04, 0.04))
+        line = []
+        for column in range(columns + 1):
+            u = column / columns * 2.0 - 1.0
+            y = u * half
+            z = v * length
+            # Cupped towards -X, the tip bending outwards a little, the edges ruffled more towards the tip
+            x = -0.22 * width * u * u + 0.12 * length * v * v + 0.35 * math.sin(u * 7.0 + v * 4.0 + phase) * abs(u) * v
+            line.append((mesh.verts.new((x, y, z)), (column / columns, v)))
+        grid.append(line)
+    for row in range(rows):
+        for column in range(columns):
+            corners = [grid[row][column], grid[row][column + 1], grid[row + 1][column + 1], grid[row + 1][column]]
+            face = mesh.faces.new([c[0] for c in corners])
+            for loop, (_, uv) in zip(face.loops, corners):
+                loop[uv_layer].uv = uv
+    data = bpy.data.meshes.new(name)
+    mesh.to_mesh(data)
+    mesh.free()
+    obj = bpy.data.objects.new(name, data)
+    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(slot_material("Bluetenblatt"))
+    for polygon in obj.data.polygons:
+        polygon.use_smooth = True
+    return obj
+
+
 MODELS = {
     "SM_Loot_Kristall_Klein": lambda: crystal_shard("SM_Loot_Kristall_Klein", 5.0, 11),
     "SM_Loot_Kristall_Mittel": lambda: crystal_shard("SM_Loot_Kristall_Mittel", 8.5, 23, side_shards=1),
@@ -309,10 +349,11 @@ MODELS = {
     "SM_Loot_Flasche": lambda: bottle("SM_Loot_Flasche"),
     "SM_Mondtropfen": lambda: moon_drop("SM_Mondtropfen"),
     "SM_Mondtraufe_Blatt": lambda: floating_petal("SM_Mondtraufe_Blatt"),
+    "SM_Mondtraufe_Kelchblatt": lambda: sepal_petal("SM_Mondtraufe_Kelchblatt"),
 }
 
 # Models whose UVs are made by their builder and must not be replaced by a smart projection
-OWN_UVS = {"SM_Mondtraufe_Blatt"}
+OWN_UVS = {"SM_Mondtraufe_Blatt", "SM_Mondtraufe_Kelchblatt"}
 
 
 # ---------------------------------------------------------------------------------------------------------------

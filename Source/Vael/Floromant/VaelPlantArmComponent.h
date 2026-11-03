@@ -229,6 +229,31 @@ private:
 	/** Opens the leaves at rest and lays them against the arm while aiming; the pump wave swells them in turn */
 	void UpdateLeaves(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist);
 
+	// --- Veil (Mondtraufe): a fringe of Mondtropfen on threads hangs from the cuff, the charges glow as Mondtropfen along the forearm
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> FringeThreads;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> FringeDrops;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> ChargeDrops;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UMaterialInstanceDynamic>> VeilDropLooks;
+
+	TArray<float> FringeLengths;
+
+	/** How wide the cuff stands open after a cast, fading back (0-1) */
+	float VeilFlare = 0.0f;
+
+	void BuildVeilParts(FRandomStream& Random);
+	void UpdateVeilParts(const FVector& Elbow, const FVector& Wrist);
+
+	/** Raises the veil before her where she aims */
+	void CastVeil();
+
 	/** Where the pump wave is now on the way from shoulder (0) to hand (1); far outside while there is none */
 	float GetPumpPosition() const;
 

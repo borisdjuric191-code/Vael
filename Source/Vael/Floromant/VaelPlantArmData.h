@@ -597,6 +597,64 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 5))
 	float JetHalfWidth = 45.0f;
 
+	// --- Veil (Mondtraufe, Boris 2026-11-03): firing raises a veil of rose-pearl light with Mondtropfen in it where she aims. It
+	// stands where it was cast: enemy shots through it are swallowed, shots of her side through it hit harder, and whoever of
+	// her side walks through it is cleansed. Each cast uses one shot of the bar (the charges, shown as glowing Mondtropfen in
+	// buds along the forearm). The collar of the rose (PetalMesh) is the cuff at the wrist, a fringe of Mondtropfen hangs from it
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil")
+	bool bVeil = false;
+
+	/** Width and height of the veil in cm, and how far before her it stands */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 50))
+	float VeilWidth = 450.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 50))
+	float VeilHeight = 300.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0))
+	float VeilDistance = 220.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0.5))
+	float VeilSeconds = 8.0f;
+
+	/** Share of enemy damage that still gets through it (0 = it swallows everything), and how much harder her side's shots hit */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0, ClampMax = 1))
+	float VeilEnemyScale = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 1))
+	float VeilAlliedScale = 1.3f;
+
+	/** Mondtropfen hanging in the veil, and the look of the veil and its threads */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0, ClampMax = 24))
+	int32 VeilDrops = 10;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil"))
+	TSoftObjectPtr<UStaticMesh> DropMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil"))
+	TSoftObjectPtr<UMaterialInterface> DropMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil"))
+	TSoftObjectPtr<UMaterialInterface> VeilMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil"))
+	TSoftObjectPtr<UMaterialInterface> ThreadMaterial;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil"))
+	FLinearColor VeilColor = FLinearColor(1.0f, 0.6f, 0.82f);
+
+	/** Threads with a Mondtropfen hanging from the cuff, and their shortest and longest length in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0, ClampMax = 12))
+	int32 FringeCount = 6;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil"))
+	FVector2D FringeLength = FVector2D(6.0f, 14.0f);
+
+	/** Size of a Mondtropfen at the arm relative to its model (6 cm long) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Veil", meta = (EditCondition = "bVeil", ClampMin = 0.05))
+	float ArmDropScale = 0.45f;
+
 	/** Speed in cm/s at which the jet pushes enemies away, again and again while they stand in it */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jet", meta = (ClampMin = 0))
 	float JetPush = 450.0f;

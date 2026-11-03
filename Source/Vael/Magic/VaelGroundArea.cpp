@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Magic/VaelSurfacePool.h"
 #include "Magic/VaelGroundArea.h"
+#include "Magic/VaelSurfacePool.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"

@@ -32,6 +32,7 @@
 #include "World/VaelGround.h"
 #include "Magic/VaelDebrisBurst.h"
 #include "VaelAssets.h"
+#include "Floromant/VaelMoonVeil.h"
 
 namespace
 {
@@ -194,6 +195,20 @@ void UVaelPlantArmComponent::Clear()
 	Barrel = 0.0f;
 	LeafShapes.Reset();
 	PetalShapes.Reset();
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Parts : { &FringeThreads, &FringeDrops, &ChargeDrops })
+	{
+		for (UStaticMeshComponent* Part : *Parts)
+		{
+			if (Part != nullptr)
+			{
+				Part->DestroyComponent();
+			}
+		}
+		Parts->Reset();
+	}
+	VeilDropLooks.Reset();
+	FringeLengths.Reset();
+	VeilFlare = 0.0f;
 
 	// The vine arm: the vines and the rose go, the arm of the body comes back
 	for (USplineMeshComponent* Vine : ArmVines)
@@ -349,7 +364,7 @@ void UVaelPlantArmComponent::BuildStalks()
 
 	// The left hand starts with another stalk, so the two hands don't look mirrored
 	const int32 Offset = bLeft ? 1 : 0;
-	for (int32 Finger = 0; Finger < NumFingers; ++Finger)
+	for (int32 Finger = 0; Finger < (Plant->bVeil ? 0 : NumFingers); ++Finger)
 	{
 		UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(BaseMaterial, this);
 		Material->SetScalarParameterValue(PhaseParameter, Finger * 1.3f + Offset * 0.7f);
@@ -482,6 +497,11 @@ void UVaelPlantArmComponent::BuildStalks()
 				Petals.Add(Petal);
 			}
 		}
+	}
+
+	if (Plant->bVeil)
+	{
+		BuildVeilParts(Random);
 	}
 
 	// Real fairies follow the scent of this blossom
@@ -688,7 +708,7 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		return;
 	}
 
-	if (Plant == nullptr || FingerStalks.IsEmpty())
+	if (Plant == nullptr || (FingerStalks.IsEmpty() && !Plant->bVeil))
 	{
 		Stance = FMath::FInterpTo(Stance, 0.0f, DeltaTime, 8.0f);
 		return;
@@ -725,7 +745,7 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	// A shield hand doesn't aim: the forearm comes up before the face, and the clover overgrows the arm as if it fired
 	ShieldStance = FMath::FInterpTo(ShieldStance, bShieldUp ? 1.0f : 0.0f, DeltaTime, bShieldUp ? 10.0f : 6.0f);
 	Fan = FMath::FInterpTo(Fan, bFiringNow ? 1.0f : 0.0f, DeltaTime, 10.0f);
-	Barrel = Plant->bFingersFormBarrel || HasRose() ? FMath::FInterpTo(Barrel, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 14.0f : 6.0f) : 0.0f;
+	Barrel = (Plant->bFingersFormBarrel || HasRose()) && !Plant->bVeil ? FMath::FInterpTo(Barrel, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 14.0f : 6.0f) : 0.0f;
 	// The bud stays shut; it only bursts open for a moment when it throws
 	if (bMortarHand)
 	{
@@ -823,7 +843,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 	// and turns to the sky as the arm comes up
 	const bool bRose = !Petals.IsEmpty();
 	const FVector RoseAxis = FMath::Lerp(HandAxis, AimLocal, Plant->bMortar ? Stance : Barrel).GetSafeNormal();
-	const FVector RoseBase = Plant->bMortar ? Wrist - RoseAxis * 1.0f : BoneLocation(TEXT("middle_01")) + RoseAxis * 2.0f;
+	const FVector RoseBase = Plant->bMortar || Plant->bVeil ? Wrist - RoseAxis * 1.0f : BoneLocation(TEXT("middle_01")) + RoseAxis * 2.0f;
 	if (BudCapsule != nullptr)
 	{
 		const float Size = FMath::Lerp(Plant->CapsuleSize, Plant->MaxCapsuleSize, Charge) * 0.42f;
@@ -941,6 +961,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 		}
 	}
 	UpdateLeaves(Shoulder, Elbow, Wrist);
+	UpdateVeilParts(Elbow, Wrist);
 
 	// Winding stalks: half a turn around the forearm, from a little above the elbow to the wrist
 	const FVector WrapStart = FMath::Lerp(Elbow, Shoulder, 0.15f);
@@ -1072,6 +1093,13 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 	BarShots -= 1.0f;
 	LastShotTime = Now;
 	FireCountdown = Plant->FireInterval;
+
+	// The Mondtraufe raises its veil instead of shooting
+	if (Plant->bVeil)
+	{
+		CastVeil();
+		return;
+	}
 
 	// The fingers fire in turn, from thumb to little finger
 	Shoot(NextFinger);
@@ -2059,7 +2087,7 @@ FVector UVaelPlantArmComponent::UpdateRose(const FVector& Base, const FVector& A
 
 		// Open they lean out like a blossom and breathe a little; shut they lean in, the inner ring around the hole, the outer
 		// ring wrapped over it, all of them twisted a little round the axis like the petals of a rose
-		const float Open = FMath::DegreesToRadians(Plant->RoseOpenAngle * (bInner ? 0.75f : 1.0f) + 3.0f * FMath::Sin(Time * 1.7f + Index));
+		const float Open = FMath::DegreesToRadians(Plant->RoseOpenAngle * (bInner ? 0.75f : 1.0f) + 3.0f * FMath::Sin(Time * 1.7f + Index) + 35.0f * VeilFlare);
 		const float Shut = -FMath::DegreesToRadians(Plant->RoseClosedAngle * (bInner ? 1.25f : 0.7f));
 		const float Lean = FMath::Lerp(Open, Shut, Barrel);
 		const FVector Out = U * FMath::Cos(Shape.Y) + V * FMath::Sin(Shape.Y);
@@ -2221,4 +2249,158 @@ void UVaelPlantArmComponent::UpdateWaterFiring(float DeltaTime)
 	// Each wave arriving at the barrel pushes the jet harder for a moment
 	const float Arrival = FMath::Exp(-FMath::Square((GetPumpPosition() - 1.0f) / 0.15f));
 	Jet->Aim(BarrelMuzzle, BarrelDirection, Arrival);
+}
+
+// ---------------------------------------------------------------- Veil (Mondtraufe)
+
+void UVaelPlantArmComponent::BuildVeilParts(FRandomStream& Random)
+{
+	UStaticMesh* DropMesh = VaelAssets::LoadOptional(Plant->DropMesh);
+	UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+	UMaterialInterface* DropLook = VaelAssets::LoadOptional(Plant->DropMaterial);
+	UMaterialInterface* ThreadLook = VaelAssets::LoadOptional(Plant->ThreadMaterial);
+	if (DropMesh == nullptr || Cylinder == nullptr)
+	{
+		return;
+	}
+
+	const auto MakePart = [this](UStaticMesh* Mesh, UMaterialInterface* Look)
+	{
+		UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(GetOwner());
+		Part->SetMobility(EComponentMobility::Movable);
+		Part->SetStaticMesh(Mesh);
+		Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Part->SetCanEverAffectNavigation(false);
+		Part->SetCastShadow(false);
+		Part->SetupAttachment(GetBody());
+		Part->RegisterComponent();
+		if (Look != nullptr)
+		{
+			Part->SetMaterial(0, Look);
+		}
+		return Part;
+	};
+
+	// The fringe under the cuff: threads of uneven length, each with its Mondtropfen
+	for (int32 Index = 0; Index < Plant->FringeCount; ++Index)
+	{
+		FringeLengths.Add(Random.FRandRange(Plant->FringeLength.X, Plant->FringeLength.Y));
+		FringeThreads.Add(MakePart(Cylinder, ThreadLook));
+		UStaticMeshComponent* Drop = MakePart(DropMesh, DropLook);
+		FringeDrops.Add(Drop);
+		VeilDropLooks.Add(Drop->CreateAndSetMaterialInstanceDynamic(0));
+	}
+
+	// The palm glows in the light of the veil
+	HeartLight = NewObject<UPointLightComponent>(GetOwner());
+	HeartLight->SetupAttachment(GetBody());
+	HeartLight->SetMobility(EComponentMobility::Movable);
+	HeartLight->SetIntensityUnits(ELightUnits::Candelas);
+	HeartLight->SetIntensity(0.0f);
+	HeartLight->SetLightColor(Plant->VeilColor);
+	HeartLight->SetAttenuationRadius(160.0f);
+	HeartLight->SetCastShadows(false);
+	HeartLight->RegisterComponent();
+
+	// The charges: one Mondtropfen in the bud of the vine along the forearm for each shot of the bar
+	for (int32 Index = 0; Index < FMath::Min(Plant->BarSize, 5); ++Index)
+	{
+		UStaticMeshComponent* Drop = MakePart(DropMesh, DropLook);
+		ChargeDrops.Add(Drop);
+		VeilDropLooks.Add(Drop->CreateAndSetMaterialInstanceDynamic(0));
+	}
+}
+
+void UVaelPlantArmComponent::UpdateVeilParts(const FVector& Elbow, const FVector& Wrist)
+{
+	if (FringeDrops.IsEmpty() && ChargeDrops.IsEmpty())
+	{
+		return;
+	}
+
+	const float DeltaTime = GetWorld()->GetDeltaSeconds();
+	VeilFlare = FMath::Max(0.0f, VeilFlare - DeltaTime * 0.8f);
+	const float Time = GetWorld()->GetTimeSeconds();
+	const FVector Axis = (Wrist - Elbow).GetSafeNormal();
+	const FVector U = Across(Axis);
+	const FVector V = FVector::CrossProduct(Axis, U);
+
+	// Down in the space of the body: the fringe always hangs, whatever the arm does
+	const FVector Down = GetBody()->GetComponentTransform().InverseTransformVectorNoScale(FVector::DownVector);
+	const float DropScale = Plant->ArmDropScale * Grow;
+
+	for (int32 Index = 0; Index < FringeDrops.Num(); ++Index)
+	{
+		const float Angle = Index * UE_TWO_PI / FringeDrops.Num() + 0.4f;
+		const FVector Rim = Wrist + Axis * 3.0f + (U * FMath::Cos(Angle) + V * FMath::Sin(Angle)) * Plant->WrapRadius * 1.4f;
+		const float Swing = 0.18f * FMath::Sin(Time * 2.1f + Index * 1.7f) + 0.25f * VeilFlare;
+		const FVector Hang = (Down + Axis * Swing + U * 0.12f * FMath::Cos(Time * 1.6f + Index)).GetSafeNormal();
+		const float Length = FringeLengths[Index] * Grow;
+		const FVector End = Rim + Hang * Length;
+
+		UStaticMeshComponent* Thread = FringeThreads[Index];
+		Thread->SetRelativeLocationAndRotation((Rim + End) * 0.5f, FRotationMatrix::MakeFromZ(Hang).Rotator());
+		Thread->SetRelativeScale3D(FVector(0.0035f, 0.0035f, Length / 100.0f));
+		Thread->SetVisibility(Length > 0.5f);
+
+		UStaticMeshComponent* Drop = FringeDrops[Index];
+		Drop->SetRelativeLocationAndRotation(End, FRotationMatrix::MakeFromZ(-Hang).Rotator());
+		Drop->SetRelativeScale3D(FVector(DropScale));
+		Drop->SetVisibility(DropScale > 0.01f);
+	}
+
+	// The charges sit in a spiral along the forearm, glowing while they are there, dim when spent
+	for (int32 Index = 0; Index < ChargeDrops.Num(); ++Index)
+	{
+		const float Share = 0.3f + 0.45f * Index / FMath::Max(ChargeDrops.Num() - 1, 1);
+		const float Angle = 0.9f + Index * 2.2f;
+		const FVector Out = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
+		UStaticMeshComponent* Drop = ChargeDrops[Index];
+		Drop->SetRelativeLocationAndRotation(FMath::Lerp(Elbow, Wrist, Share) + Out * Plant->WrapRadius * 1.7f, FRotationMatrix::MakeFromZ(-Out).Rotator());
+		Drop->SetRelativeScale3D(FVector(DropScale * 1.3f));
+		Drop->SetVisibility(DropScale > 0.01f);
+
+		const bool bCharged = BarShots >= Index + 1.0f;
+		if (UMaterialInstanceDynamic* Look = VeilDropLooks.IsValidIndex(FringeDrops.Num() + Index) ? VeilDropLooks[FringeDrops.Num() + Index].Get() : nullptr)
+		{
+			Look->SetScalarParameterValue(TEXT("Leuchten"), bCharged ? 2.4f + 0.6f * FMath::Sin(Time * 2.0f + Index) : 0.15f);
+		}
+	}
+
+	if (HeartLight != nullptr)
+	{
+		HeartLight->SetRelativeLocation(BoneLocation(TEXT("middle_01")));
+		HeartLight->SetIntensity(Grow * (1.2f + 6.0f * VeilFlare));
+	}
+
+	// The fringe flares when the veil goes up
+	for (int32 Index = 0; Index < FringeDrops.Num(); ++Index)
+	{
+		if (UMaterialInstanceDynamic* Look = VeilDropLooks.IsValidIndex(Index) ? VeilDropLooks[Index].Get() : nullptr)
+		{
+			Look->SetScalarParameterValue(TEXT("Leuchten"), 1.4f + 3.0f * VeilFlare);
+		}
+	}
+}
+
+void UVaelPlantArmComponent::CastVeil()
+{
+	AVaelCharacter* Character = GetCharacter();
+	FVector Direction = UVaelFormulaAbility::GetAimDirection(Character);
+	Direction.Z = 0.0f;
+	Direction = Direction.GetSafeNormal();
+	if (Direction.IsNearlyZero())
+	{
+		Direction = Character->GetActorForwardVector();
+	}
+
+	// It stands where it was cast, a little before her, on the ground there
+	FVector Center = Character->GetActorLocation() + Direction * Plant->VeilDistance;
+	FHitResult Ground;
+	if (VaelGround::TraceGround(GetWorld(), Center + FVector(0.0f, 0.0f, 200.0f), Center - FVector(0.0f, 0.0f, 600.0f), Ground, Character))
+	{
+		Center = Ground.ImpactPoint;
+	}
+	AVaelMoonVeil::Raise(Character, Plant, Center, Direction);
+	VeilFlare = 1.0f;
 }

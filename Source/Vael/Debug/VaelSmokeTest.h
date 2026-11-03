@@ -86,6 +86,7 @@ private:
 
 	/** Health of all enemies when the plant arms started firing */
 	float PlantArmEnemyHealth = 0.0f;
+	float MoonVeilHealth = 0.0f;
 
 	/** How far the doll stood when the lasso caught it */
 	float LassoStartDistance = 0.0f;

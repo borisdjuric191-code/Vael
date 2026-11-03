@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Magic/VaelSpellVortex.h"
 #include "VaelAssets.h"
 #include "Magic/VaelSurfacePool.h"
-#include "Magic/VaelSpellVortex.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Components/CapsuleComponent.h"

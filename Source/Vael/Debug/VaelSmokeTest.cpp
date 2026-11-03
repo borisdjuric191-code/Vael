@@ -71,6 +71,9 @@
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelPlantData.h"
+#include "Floromant/VaelMoonVeil.h"
+#include "Items/VaelMaterialDrop.h"
+#include "Magic/VaelSpellProjectile.h"
 #include "Player/VaelPlayerController.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
@@ -663,6 +666,86 @@ void AVaelSmokeTest::BeginPlay()
 				Missing == 0 ? TEXT("full") : TEXT("NOT full"), Used, bCleared ? TEXT("bare") : TEXT("NOT bare"));
 		}, 0.2f });
 
+		// The Mondtraufe (Boris 2026-11-02): the hands raise a veil of light towards a preacher; it stops his bolt, swallows what
+		// he strikes through it and strengthens what she casts through it
+		Steps.Add({ TEXT("Moon veil hands"), [this]()
+		{
+			const FString Arena = PrepareArena(GetMutableDefault<UVaelPreacherData>(), 1);
+			AVaelCharacter* Player = GetPlayer();
+			if (Player == nullptr)
+			{
+				return FString(TEXT("FAILED: no player"));
+			}
+			Player->SetHero(EVaelHeroClass::Floromant, true);
+			UVaelFloromantComponent* Floromant = Player->GetFloromant();
+			for (int32 Index = 0; Index < Floromant->GetHandBeltSize(); ++Index)
+			{
+				const UVaelPlantArmData* Data = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
+				if (Data != nullptr && Data->bVeil)
+				{
+					break;
+				}
+				Floromant->PageHandBelt(1);
+			}
+			Floromant->PutOnHand(true);
+			Floromant->PutOnHand(false);
+			const UVaelPlantArmData* Plant = Floromant->GetHand(false)->GetPlant();
+			if (Plant == nullptr || !Plant->bVeil)
+			{
+				return FString(TEXT("FAILED: no DA_Pflanzenarm_Mondtraufe on the belt"));
+			}
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Player->SetActorRotation(FRotator(0.0f, (It->GetActorLocation() - Player->GetActorLocation()).Rotation().Yaw, 0.0f));
+			}
+			Floromant->SetHandFiring(false, true);
+			return FString::Printf(TEXT("%s, Mondtraufe on both hands, raising the veil"), *Arena);
+		}, 1.6f });
+		Steps.Add({ TEXT("Moon veil"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			AVaelCreature* Preacher = nullptr;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+			{
+				Preacher = !It->IsDead() ? *It : Preacher;
+			}
+			if (Player == nullptr || Preacher == nullptr)
+			{
+				return FString(TEXT("FAILED: no player or no preacher"));
+			}
+			Player->GetFloromant()->SetHandFiring(false, false);
+			int32 NumVeils = 0;
+			for (TActorIterator<AVaelMoonVeil> It(GetWorld()); It; ++It)
+			{
+				++NumVeils;
+			}
+
+			// A bolt of the preacher straight at her, and hits across the veil both ways
+			MoonVeilHealth = Player->GetHealth();
+			FVaelSpellHit Hit;
+			Hit.Damage = 10.0f;
+			Hit.Element = EVaelElement::Mark;
+			const FVector Direction = (Player->GetActorLocation() - Preacher->GetActorLocation()).GetSafeNormal2D();
+			AVaelSpellProjectile::Launch(Preacher, Preacher->GetActorLocation() + Direction * 80.0f, Direction, Hit, 900.0f, 20.0f, 3.0f, FLinearColor::Red);
+			const float Enemy = AVaelMoonVeil::ScaleDamage(Player, Preacher, 10.0f, FGameplayTagContainer());
+			const float Allied = AVaelMoonVeil::ScaleDamage(Preacher, Player, 10.0f, FGameplayTagContainer());
+			const bool bOk = NumVeils > 0 && Enemy < 1.0f && Allied > 10.5f;
+			return FString::Printf(TEXT("%s%d veils, enemy hit through it %.1f of 10, her hit through it %.1f of 10, bolt flying"), bOk ? TEXT("") : TEXT("FAILED: "),
+				NumVeils, Enemy, Allied);
+		}, 2.0f });
+		Steps.Add({ TEXT("Moon veil stops"), [this]()
+		{
+			AVaelCharacter* Player = GetPlayer();
+			int32 Stopped = 0;
+			for (TActorIterator<AVaelMoonVeil> It(GetWorld()); It; ++It)
+			{
+				Stopped += It->GetStoppedShots();
+			}
+			const bool bOk = Stopped > 0;
+			return FString::Printf(TEXT("%s%d shots stopped, health %.0f -> %.0f"), bOk ? TEXT("") : TEXT("FAILED: "), Stopped, MoonVeilHealth,
+				Player != nullptr ? Player->GetHealth() : 0.0f);
+		}, 0.2f });
+
 		// The Funkenmohn (Boris 2026-10-26): both hands become mortar buds, a tap throws a capsule at the crawlers in an arc,
 		// then the crossed hands throw the Mohnfeuerwerk
 		Steps.Add({ TEXT("Mortar hands"), [this]()
@@ -1156,6 +1239,11 @@ void AVaelSmokeTest::BeginPlay()
 			{
 				Before += Stack.Count;
 			}
+			// Loot with a model lies on the ground as a drop instead of going straight into the bag
+			for (TActorIterator<AVaelMaterialDrop> Drop(GetWorld()); Drop; ++Drop)
+			{
+				++Before;
+			}
 
 			It->Interact(Player);
 			Gathered->Add(SubjectId);
@@ -1165,6 +1253,10 @@ void AVaelSmokeTest::BeginPlay()
 			for (const FVaelMaterialStack& Stack : Player->GetMaterialBag()->GetStacks())
 			{
 				After += Stack.Count;
+			}
+			for (TActorIterator<AVaelMaterialDrop> Drop(GetWorld()); Drop; ++Drop)
+			{
+				++After;
 			}
 
 			if (After <= Before || !It->IsHarvested() || It->CanInteract(Player))

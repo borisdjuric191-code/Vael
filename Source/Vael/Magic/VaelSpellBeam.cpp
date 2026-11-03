@@ -1,10 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#include "Magic/VaelSpellBeam.h"
 #include "Player/VaelCharacter.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelBeamFunnel.h"
 #include "Magic/VaelLightningBolt.h"
-#include "Magic/VaelSpellBeam.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
