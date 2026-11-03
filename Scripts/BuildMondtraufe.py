@@ -17,6 +17,8 @@ import json
 import math
 import os
 import random
+import struct
+import zlib
 
 import unreal
 
@@ -29,7 +31,7 @@ NOISE = "/Game/Vael/Effects/Feuer/T_Feuer_Rauschen"
 TAG = "WF_Mondtraufe"
 HIDDEN_TAG = "WF_MondtraufeVersteckt"
 OUTLINER = "Wurzelforst/Mondtraufe"
-TREE = "/Game/Vael/Requisiten/Wurzelforst/Mangrove/SM_Mangrove"
+TREE = "/Game/Vael/Requisiten/Wurzelforst/Traufbaum/SM_Traufbaum"
 SEED = 41
 THICK_LIMB = 60            # sampled points around a spot for it to count as a thick limb
 CAMERA_FACING = 0.6         # how straight towards the camera the water before a great one must lie (cosine)
@@ -41,8 +43,9 @@ SMALL_SPACING = 4000.0      # cm between two
 # The great ones: one or two, from a giant mangrove over open water, three to four times bigger, pinker, harvestable
 GREAT_COUNT = 2
 GREAT_SPACING = 12000.0
-GREAT_TREE_HEIGHT = 1400.0  # cm, the mangrove scaled to this (its own size): its long limb then ends 11 m up
-GREAT_SET_BACK = 150.0      # cm the trunk's foot stands back from the bank
+GREAT_TREE_HEIGHT = 1700.0  # cm, the Traufbaum at its own size: its arch ends about 10 m up
+GREAT_BUD_OUT = 700.0       # cm the great bud hangs out over the water; the trunk stands back on land for the rest of its reach
+GREAT_MIN_DEPTH = 0.5      # depth in the moor mask under the great bud (1 = 14 m or more from the shore)
 GREAT = {
     "harvestable": True,
     "bud_length": 420.0,
@@ -59,7 +62,7 @@ GREAT = {
     "light_radius": 1600.0,
     "max_fallen_petals": 24,
     "petal_scale": 3.0,
-    "stalk_extension": 90.0,
+    "stalk_extension": 30.0,
     "stalk_radius": 7.0,
 }
 KIT_VERSION = 1.3
@@ -299,6 +302,71 @@ def build_petal():
     finish(g, {P.MP_BASE_COLOR: base, P.MP_ROUGHNESS: g.const(0.45, 5)})
 
 
+def read_png(path):
+    """Plain PNG reader (8 or 16 bit, grey or RGB, not interlaced); returns width, height, channels, depth, rows of samples"""
+    data = open(path, "rb").read()
+    pos, chunks = 8, []
+    while pos < len(data):
+        length, kind = struct.unpack(">I4s", data[pos:pos + 8])
+        body = data[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, color = struct.unpack(">IIBB", body[:10])
+        elif kind == b"IDAT":
+            chunks.append(body)
+        elif kind == b"IEND":
+            break
+        pos += 12 + length
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}[color]
+    bpp = max(1, channels * depth // 8)
+    stride = width * channels * depth // 8
+    raw = zlib.decompress(b"".join(chunks))
+    rows, previous = [], bytearray(stride)
+    for y in range(height):
+        start = y * (stride + 1)
+        kind = raw[start]
+        line = bytearray(raw[start + 1:start + 1 + stride])
+        if kind == 1:
+            for i in range(bpp, stride):
+                line[i] = (line[i] + line[i - bpp]) & 255
+        elif kind == 2:
+            for i in range(stride):
+                line[i] = (line[i] + previous[i]) & 255
+        elif kind == 3:
+            for i in range(stride):
+                left = line[i - bpp] if i >= bpp else 0
+                line[i] = (line[i] + ((left + previous[i]) >> 1)) & 255
+        elif kind == 4:
+            for i in range(stride):
+                a = line[i - bpp] if i >= bpp else 0
+                b = previous[i]
+                c = previous[i - bpp] if i >= bpp else 0
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                line[i] = (line[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        rows.append(bytes(line))
+        previous = line
+    return width, height, channels, depth, rows
+
+
+class MoorDepth:
+    """Depth of the Pfuhlmoor water from T_WF_Moor.png (R: 0 at the shore, 1 from about 14 m in; A: water), in world cm"""
+
+    def __init__(self, moor):
+        self.origin = moor["maske"]["ursprung_cm"]
+        self.size = moor["maske"]["groesse_cm"]
+        self.width, self.height, self.channels, _, self.rows = read_png(os.path.join(ROOT, "Blockout", "Vael_Wurzelforst_Blockout", "T_WF_Moor.png"))
+
+    def sample(self, x, y, channel):
+        px = int((x - self.origin[0]) / self.size * self.width)
+        py = int((y - self.origin[1]) / self.size * self.height)
+        if not (0 <= px < self.width and 0 <= py < self.height):
+            return 0.0
+        return self.rows[py][px * self.channels + channel] / 255.0
+
+    def depth(self, x, y):
+        return self.sample(x, y, 0) if self.sample(x, y, 3) > 0.5 else 0.0
+
+
 def sample_points(mesh, wanted=30000):
     description = mesh.get_static_mesh_description(0)
     count = description.get_vertex_count()
@@ -323,7 +391,7 @@ def measure_arch():
 
 
 def measure_tree():
-    """On the mangrove: the foot of its trunk and the far end of its longest overhanging limb, where the great bud hangs"""
+    """On the Traufbaum: the foot of its trunk and the drooping end of its arch, where the great bud hangs (its underside)"""
     mesh = unreal.load_asset(TREE)
     points = sample_points(mesh, 60000)
     box = mesh.get_bounding_box()
@@ -337,12 +405,17 @@ def measure_tree():
         key = (int(p.x // 25), int(p.y // 25), int(p.z // 25))
         cells[key] = cells.get(key, 0) + 1
     thick = lambda p: sum(cells.get((int(p.x // 25) + i, int(p.y // 25) + j, int(p.z // 25) + k), 0) for i in (-1, 0, 1) for j in (-1, 0, 1) for k in (-1, 0, 1))
-    limbs = [p for p in points if box.min.z + height * 0.5 < p.z < box.min.z + height * 0.8 and thick(p) >= THICK_LIMB]
-    tip = max(limbs, key=lambda p: (p.x - fx) ** 2 + (p.y - fy) ** 2)
-    reach = math.hypot(tip.x - fx, tip.y - fy)
-    log("tree {:.0f} x {:.0f} x {:.0f} cm, foot ({:.0f} {:.0f}), limb end ({:.0f} {:.0f} {:.0f}), reach {:.0f}".format(
-        box.max.x - box.min.x, box.max.y - box.min.y, height, fx, fy, tip.x, tip.y, tip.z, reach))
-    return unreal.Vector(fx, fy, box.min.z), unreal.Vector(tip.x, tip.y, tip.z - 8.0), height
+    limbs = [p for p in points if p.z > box.min.z + height * 0.3 and thick(p) >= THICK_LIMB]
+    end = max(limbs, key=lambda p: (p.x - fx) ** 2 + (p.y - fy) ** 2)
+    # The arch ends bending down: the bud hangs from the lowest point of that end, a little back from its very tip
+    back = 0.92
+    spot = unreal.Vector(fx + (end.x - fx) * back, fy + (end.y - fy) * back, 0.0)
+    column = [p for p in points if (p.x - spot.x) ** 2 + (p.y - spot.y) ** 2 < 40.0 ** 2 and p.z > box.min.z + height * 0.3]
+    underside = min(p.z for p in column) if column else end.z
+    reach = math.hypot(spot.x - fx, spot.y - fy)
+    log("tree {:.0f} x {:.0f} x {:.0f} cm, foot ({:.0f} {:.0f}), arch end ({:.0f} {:.0f} {:.0f}), hang under it at {:.0f}, reach {:.0f}".format(
+        box.max.x - box.min.x, box.max.y - box.min.y, height, fx, fy, end.x, end.y, end.z, underside, reach))
+    return unreal.Vector(fx, fy, box.min.z), unreal.Vector(spot.x, spot.y, underside + 4.0), height
 
 
 def turned(vector, yaw):
@@ -403,7 +476,6 @@ def place(arch_point, tree_foot, tree_tip, tree_height):
     moor = json.load(open(MOOR, encoding="utf-8"))
     banks = [tuple(p[:3]) for p in moor["ufer"]]
     water = moor.get("wasserspiegel_cm", 0.0)
-    lilies = [tuple(p[:2]) for p in moor["seerosen"]]
 
     unreal.EditorLoadingAndSavingUtils.load_map(LEVEL_PATH)
     for actor in actors.get_all_level_actors():
@@ -411,26 +483,38 @@ def place(arch_point, tree_foot, tree_tip, tree_height):
             actors.destroy_actor(actor)
     show_hidden()
 
-    # The great ones first: banks with open water before them (lily pads within reach), far apart
+    # The great ones first: banks with deep water where the bud will hang, far apart. The water must lie towards the camera
+    # (it looks along yaw 45, from -X -Y): then the tree stands behind the player and does not hide them, and the bud hangs
+    # before them over the water. Each bank tries the directions within reach of that and keeps the deepest.
+    depth = MoorDepth(moor)
+    camera_side = math.radians(225.0)
+    spread_angle = math.degrees(math.acos(CAMERA_FACING))
     open_banks = []
     for bank in banks:
-        near = min(lilies, key=lambda l: (l[0] - bank[0]) ** 2 + (l[1] - bank[1]) ** 2)
-        d = math.hypot(near[0] - bank[0], near[1] - bank[1])
-        # The water must lie towards the camera (it looks along yaw 45, from -X -Y): then the tree stands behind the player
-        # and does not hide them, and the bud hangs before them over the water
-        towards_camera = -((near[0] - bank[0]) + (near[1] - bank[1])) / (math.sqrt(2.0) * max(d, 1.0))
-        if 600.0 < d < 2500.0 and towards_camera > CAMERA_FACING:
-            open_banks.append((bank, near))
+        if depth.depth(bank[0], bank[1]) > 0.05:
+            continue
+        best = None
+        for step in range(-int(spread_angle), int(spread_angle) + 1, 5):
+            angle = camera_side + math.radians(step)
+            under = depth.depth(bank[0] + math.cos(angle) * GREAT_BUD_OUT, bank[1] + math.sin(angle) * GREAT_BUD_OUT)
+            # The whole fall of the drops must be over water, not only the bud
+            nearer = depth.depth(bank[0] + math.cos(angle) * GREAT_BUD_OUT * 0.6, bank[1] + math.sin(angle) * GREAT_BUD_OUT * 0.6)
+            if under >= GREAT_MIN_DEPTH and nearer > 0.15 and (best is None or under > best[1]):
+                best = (angle, under)
+        if best is not None:
+            open_banks.append((bank, best[0]))
+    log("{} banks have deep water towards the camera".format(len(open_banks)))
     great = spread([b for b, _ in open_banks], GREAT_COUNT, GREAT_SPACING)
     scale = GREAT_TREE_HEIGHT / tree_height
     limb = math.atan2(tree_tip.y - tree_foot.y, tree_tip.x - tree_foot.x)
     placed_great = []
+    reach = math.hypot(tree_tip.x - tree_foot.x, tree_tip.y - tree_foot.y) * scale
+    set_back = max(150.0, reach - GREAT_BUD_OUT)
     for index, bank in enumerate(great):
-        near = next(l for b, l in open_banks if b == bank)
-        towards = math.atan2(near[1] - bank[1], near[0] - bank[0])
+        towards = next(a for b, a in open_banks if b == bank)
         yaw = math.degrees(towards - limb)
-        # The trunk stands a little back from the bank, its limb reaching out over the water
-        back = unreal.Vector(-math.cos(towards) * GREAT_SET_BACK, -math.sin(towards) * GREAT_SET_BACK, -30.0)
+        # The trunk stands back on land, its arch reaching out over the water
+        back = unreal.Vector(-math.cos(towards) * set_back, -math.sin(towards) * set_back, -30.0)
         foot = turned(unreal.Vector(tree_foot.x * scale, tree_foot.y * scale, tree_foot.z * scale), yaw)
         offset = unreal.Vector(back.x - foot.x, back.y - foot.y, back.z - foot.z)
         plant = spawn(unreal.Vector(bank[0], bank[1], bank[2]), "Mondtraufe_Gross_{}".format(index + 1))
@@ -473,6 +557,13 @@ def main():
     if petal is not None:
         petal.set_material(0, unreal.load_asset(FOLDER + "/M_Mondtraufe_Blatt"))
         assets.save_loaded_asset(petal, False)
+    # Collision on the real shape of the Traufbaum: its imported hull filled the room under the arch and the bank before it
+    tree = unreal.load_asset(TREE)
+    body = tree.get_editor_property("body_setup") if tree is not None else None
+    if body is not None and body.get_editor_property("collision_trace_flag") != unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE:
+        body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+        assets.save_loaded_asset(tree, False)
+        log("complex collision on " + tree.get_name())
     foot, tip, height = measure_tree()
     place(measure_arch(), foot, tip, height)
     for line in notes:
