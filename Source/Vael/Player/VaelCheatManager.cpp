@@ -25,6 +25,7 @@
 #include "Items/VaelMaterialBag.h"
 #include "Items/VaelPickupOrb.h"
 #include "Items/VaelRechargeGlow.h"
+#include "Nature/VaelMoonEave.h"
 #include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Nature/VaelGarden.h"
@@ -754,6 +755,20 @@ void UVaelCheatManager::VaelLoot(const FString& Name, int32 Count)
 		UVaelMaterialBag::GiveToGroup(Source, Loot);
 		Source->Destroy();
 	}
+}
+
+void UVaelCheatManager::VaelMondtraufeReif()
+{
+	int32 Count = 0;
+	for (TActorIterator<AVaelMoonEave> It(GetWorld()); It; ++It)
+	{
+		if (It->bHarvestable)
+		{
+			It->RipenAll();
+			++Count;
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelMondtraufeReif: %d great Mondtraufen ripened"), Count);
 }
 
 void UVaelCheatManager::VaelItem(const FString& Name)

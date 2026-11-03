@@ -255,6 +255,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelLoot(const FString& Name, int32 Count = 1);
 
+	/** Lets the Mondtropfen of every great Mondtraufe ripen at once, to try picking them */
+	UFUNCTION(Exec)
+	void VaelMondtraufeReif();
+
 	/** Drops an item for the player at their feet: a rarity (Gewoehnlich, Magisch, Selten) rolls one, otherwise the item asset without DA_Item_. Example: VaelItem Sturmmantel */
 	UFUNCTION(Exec)
 	void VaelItem(const FString& Name);

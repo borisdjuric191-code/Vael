@@ -7,6 +7,9 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "Items/VaelMaterialBag.h"
+#include "Player/VaelCharacter.h"
+#include "UI/VaelNoticeSubsystem.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
@@ -17,10 +20,6 @@ namespace
 {
 	/** Engine shapes: the plane and the cylinder are 100 cm across, the cylinder 100 cm tall around its middle */
 	constexpr float ShapeSize = 100.0f;
-
-	/** Thread thickness in cm, and how far from the very tip the threads start around it */
-	constexpr float ThreadThickness = 0.35f;
-	constexpr float ThreadSpread = 5.0f;
 
 	/** Swaying: degrees and swings per second of the bud, and of the threads */
 	constexpr float BudSwayAngle = 2.2f;
@@ -37,9 +36,18 @@ namespace
 	/** The iso camera looks along this yaw; the curtain turns its face to it */
 	constexpr float DefaultCameraYaw = 45.0f;
 
-	/** Fallen petals: size relative to their model (14 cm), and how they turn while drifting (degrees per second) */
-	constexpr float PetalScale = 1.6f;
+	/** Fallen petals: how they turn while drifting (degrees per second) */
 	constexpr float PetalSpin = 4.0f;
+
+	/** Tag of the parts Build makes, so they can be found and made again */
+	const FName BuiltTag(TEXT("MondtraufeTeil"));
+
+	/** Night factor from which a night counts as begun, for ripening */
+	constexpr float RipeningNight = 0.7f;
+
+	/** Ripe Mondtropfen glow this much brighter and breathe at this pace (per second) */
+	constexpr float RipeGlow = 3.0f;
+	constexpr float RipePulse = 0.8f;
 }
 
 AVaelMoonEave::AVaelMoonEave()
@@ -69,6 +77,7 @@ AVaelMoonEave::AVaelMoonEave()
 	BudPivot = CreateDefaultSubobject<USceneComponent>(TEXT("BudPivot"));
 	BudPivot->SetupAttachment(RootComponent);
 	Bud = MakePart(TEXT("Bud"), BudPivot, nullptr);
+	Stalk = MakePart(TEXT("Stalk"), BudPivot, CylinderMesh.Object);
 
 	Tip = CreateDefaultSubobject<USceneComponent>(TEXT("Tip"));
 	Tip->SetupAttachment(BudPivot);
@@ -106,19 +115,21 @@ void AVaelMoonEave::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 
-	// Parts made by an earlier construction were destroyed with it
-	ThreadPivots.Reset();
-	Threads.Reset();
-	Drops.Reset();
-	Petals.Reset();
-	PetalStates.Reset();
-	GlowMaterials.Reset();
+	ClearBuilt();
 	Build();
 }
 
 void AVaelMoonEave::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// Played in the editor the plant is a copy without its made parts' bookkeeping (and without its dynamic materials): build it anew
+	ClearBuilt();
+	Build();
+	if (bHarvestable)
+	{
+		UVaelInteractionSubsystem::Register(this);
+	}
 
 	// The curtain shows its face to the camera
 	float CameraYaw = DefaultCameraYaw;
@@ -133,6 +144,28 @@ void AVaelMoonEave::BeginPlay()
 
 	UpdateSurroundings();
 	UpdateGlow();
+}
+
+void AVaelMoonEave::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	UVaelInteractionSubsystem::Unregister(this);
+	Super::EndPlay(EndPlayReason);
+}
+
+void AVaelMoonEave::ClearBuilt()
+{
+	TArray<UActorComponent*> Made = GetComponentsByTag(USceneComponent::StaticClass(), BuiltTag);
+	for (UActorComponent* Part : Made)
+	{
+		Part->DestroyComponent();
+	}
+	ThreadPivots.Reset();
+	Threads.Reset();
+	Drops.Reset();
+	Petals.Reset();
+	PetalStates.Reset();
+	GlowMaterials.Reset();
+	BudLook = nullptr;
 }
 
 void AVaelMoonEave::Build()
@@ -156,7 +189,8 @@ void AVaelMoonEave::Build()
 		ArchScale = ArchHeight / FMath::Max(Bounds.Max.Z - Bounds.Min.Z, 1.0f);
 		Arch->SetRelativeScale3D(FVector(ArchScale));
 	}
-	const FVector Hang = HangPoint * ArchScale;
+	Arch->SetRelativeLocationAndRotation(ArchOffset, FRotator(0.0f, ArchYaw, 0.0f));
+	const FVector Hang = ArchOffset + FRotator(0.0f, ArchYaw, 0.0f).RotateVector(HangPoint * ArchScale);
 	BudPivot->SetRelativeLocation(Hang);
 
 	// The bud stands on its tip in the model: lowered by its length it hangs with the stalk's end at the pivot
@@ -169,11 +203,20 @@ void AVaelMoonEave::Build()
 		Bud->SetRelativeLocation(FVector(0.0f, 0.0f, -Bounds.Max.Z * BudScale));
 	}
 	BudLook = Dynamic(Bud, Load(BudMaterial));
+
+	// The stalk reaches on up into the branches, in the bark of the tree it hangs from
+	Stalk->SetVisibility(StalkExtension > 0.0f);
+	Stalk->SetRelativeLocation(FVector(0.0f, 0.0f, StalkExtension * 0.5f - 5.0f));
+	Stalk->SetRelativeScale3D(FVector(StalkRadius * 2.0f / ShapeSize, StalkRadius * 2.0f / ShapeSize, (StalkExtension + 10.0f) / ShapeSize));
+	if (Arch->GetStaticMesh() != nullptr)
+	{
+		Stalk->SetMaterial(0, Arch->GetMaterial(0));
+	}
 	Tip->SetRelativeLocation(FVector(0.0f, 0.0f, -BudLength + 2.0f));
 
 	// Below: the pond it brings, the ring of light on it and the curtain from the tip down to it
 	const FVector Under(Hang.X, Hang.Y, 0.0f);
-	const float WaterHeight = 3.0f;
+	const float WaterHeight = WaterLevel;
 	Pond->SetVisibility(bOwnPond);
 	Pond->SetRelativeLocation(Under + FVector(0.0f, 0.0f, WaterHeight - 2.0f));
 	Pond->SetRelativeScale3D(FVector(PondRadius * 2.0f / ShapeSize, PondRadius * 2.0f / ShapeSize, 0.04f));
@@ -183,10 +226,12 @@ void AVaelMoonEave::Build()
 	}
 
 	Ring->SetRelativeLocation(Under + FVector(0.0f, 0.0f, WaterHeight + 0.6f));
-	Ring->SetRelativeScale3D(FVector(1.6f));
+	Ring->SetRelativeScale3D(FVector(RingSize));
 	GlowMaterials.Add(Dynamic(Ring, Load(RingMaterial)));
 
 	const float TipHeight = Hang.Z - BudLength;
+	Glow->SetAttenuationRadius(LightRadius);
+	Glow->SetRelativeLocation(FVector(0.0f, 0.0f, -BudLength * 0.3f));
 	const float CurtainHeight = FMath::Max(TipHeight - WaterHeight, 10.0f);
 	Curtain->SetRelativeLocation(Under + FVector(0.0f, 0.0f, WaterHeight + CurtainHeight * 0.5f));
 	Curtain->SetRelativeScale3D(FVector(CurtainWidth / ShapeSize, CurtainHeight / ShapeSize, 1.0f));
@@ -212,6 +257,7 @@ void AVaelMoonEave::Build()
 		Pivot->CreationMethod = EComponentCreationMethod::UserConstructionScript;
 		Pivot->SetupAttachment(Tip);
 		Pivot->SetRelativeLocation(FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * ThreadSpread * FMath::Sqrt((Index + 0.5f) / NumThreads));
+		Pivot->ComponentTags.Add(BuiltTag);
 		Pivot->RegisterComponent();
 		ThreadPivots.Add(Pivot);
 
@@ -223,6 +269,7 @@ void AVaelMoonEave::Build()
 		Thread->SetCastShadow(false);
 		Thread->SetRelativeLocation(FVector(0.0f, 0.0f, -Length * 0.5f));
 		Thread->SetRelativeScale3D(FVector(ThreadThickness / ShapeSize, ThreadThickness / ShapeSize, Length / ShapeSize));
+		Thread->ComponentTags.Add(BuiltTag);
 		Thread->RegisterComponent();
 		Threads.Add(Thread);
 		GlowMaterials.Add(Dynamic(Thread, ThreadLook));
@@ -236,6 +283,7 @@ void AVaelMoonEave::Build()
 		Drop->SetRelativeLocation(FVector(0.0f, 0.0f, -Length));
 		Drop->SetRelativeRotation(FRotator(0.0f, Random.FRandRange(0.0f, 360.0f), 0.0f));
 		Drop->SetRelativeScale3D(FVector(DropScale * Random.FRandRange(0.8f, 1.2f)));
+		Drop->ComponentTags.Add(BuiltTag);
 		Drop->RegisterComponent();
 		Drops.Add(Drop);
 		Dynamic(Drop, DropLook);
@@ -248,7 +296,7 @@ void AVaelMoonEave::Build()
 	{
 		FPetal State;
 		const float Angle = Random.FRandRange(0.0f, UE_TWO_PI);
-		State.Spot = FVector2D(Under.X, Under.Y) + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * PondRadius * FMath::Sqrt(Random.FRandRange(0.05f, 0.6f));
+		State.Spot = FVector2D(Under.X, Under.Y) + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * FMath::Max(PondRadius, BudLength * 1.5f) * FMath::Sqrt(Random.FRandRange(0.05f, 0.6f));
 		State.Yaw = Random.FRandRange(0.0f, 360.0f);
 		State.Drift = Random.FRandRange(-1.0f, 1.0f);
 		PetalStates.Add(State);
@@ -264,6 +312,7 @@ void AVaelMoonEave::Build()
 		Petal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 		Petal->SetRelativeScale3D(FVector(PetalScale));
 		Petal->SetVisibility(false);
+		Petal->ComponentTags.Add(BuiltTag);
 		Petal->RegisterComponent();
 		Petals.Add(Petal);
 	}
@@ -306,7 +355,7 @@ void AVaelMoonEave::Tick(float DeltaSeconds)
 		const FVector2D Offset = State.Spot - FVector2D(Under.X, Under.Y);
 		const float DriftAngle = FMath::DegreesToRadians(State.Drift * (Age - State.FallStart) * 1.5f);
 		const FVector2D Drifted = FVector2D(Under.X, Under.Y) + FVector2D(Offset.X * FMath::Cos(DriftAngle) - Offset.Y * FMath::Sin(DriftAngle), Offset.X * FMath::Sin(DriftAngle) + Offset.Y * FMath::Cos(DriftAngle));
-		const FVector OnWater(Drifted.X, Drifted.Y, 4.0f + 0.6f * FMath::Sin(Age * 1.3f + Index));
+		const FVector OnWater(Drifted.X, Drifted.Y, WaterLevel + 1.0f + 0.6f * FMath::Sin(Age * 1.3f + Index));
 
 		const float Fall = FMath::Clamp((Age - State.FallStart) / PetalFallSeconds, 0.0f, 1.0f);
 		if (Fall < 1.0f)
@@ -329,6 +378,20 @@ void AVaelMoonEave::UpdateSurroundings()
 	AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation());
 	const float Corruption = Region != nullptr ? Region->GetCorruption() : 0.0f;
 	Wilt = FMath::Clamp((Corruption - WiltCorruption.X) / FMath::Max(WiltCorruption.Y - WiltCorruption.X, 1.0f), 0.0f, 1.0f);
+
+	// In a pure night now and then a Mondtropfen ripens on the great one
+	const float Night = UVaelTimeOfDay::NightFactorOf(this);
+	const bool bNight = Night >= RipeningNight;
+	if (bNight && !bWasNight && bHarvestable && Wilt <= RipeMaxWilt && RipeDrops < FMath::Min(MaxRipe, Drops.Num()) && FMath::FRand() < RipenChance)
+	{
+		++RipeDrops;
+	}
+	bWasNight = bNight;
+	// A sick land takes the ripe ones back
+	if (Wilt > RipeMaxWilt)
+	{
+		RipeDrops = 0;
+	}
 
 	// One petal at a time: the plant loses them one after another as the land sickens, and they come back when it heals
 	const int32 Wanted = FMath::RoundToInt(Wilt * Petals.Num());
@@ -365,6 +428,7 @@ void AVaelMoonEave::UpdateGlow()
 		if (Look != nullptr)
 		{
 			Look->SetScalarParameterValue(TEXT("Staerke"), Strength);
+			Look->SetVectorParameterValue(TEXT("Farbe"), LightColor);
 		}
 	}
 
@@ -372,6 +436,7 @@ void AVaelMoonEave::UpdateGlow()
 	{
 		BudLook->SetScalarParameterValue(TEXT("Leuchten"), Strength);
 		BudLook->SetScalarParameterValue(TEXT("Welke"), Wilt);
+		BudLook->SetVectorParameterValue(TEXT("Glut"), LightColor);
 	}
 
 	// The Mondtropfen go out one after another as the plant sickens
@@ -380,7 +445,46 @@ void AVaelMoonEave::UpdateGlow()
 	{
 		if (UMaterialInstanceDynamic* Look = Cast<UMaterialInstanceDynamic>(Drops[Index]->GetMaterial(0)))
 		{
-			Look->SetScalarParameterValue(TEXT("Leuchten"), Index < Lit ? 1.2f * FMath::Lerp(0.6f, 1.0f, Night) : 0.08f);
+			const float Ripe = Index < RipeDrops ? RipeGlow * (0.75f + 0.25f * FMath::Sin(Age * RipePulse * UE_TWO_PI + Index)) : 1.0f;
+			Look->SetScalarParameterValue(TEXT("Leuchten"), Index < Lit ? 1.2f * FMath::Lerp(0.6f, 1.0f, Night) * Ripe : 0.08f);
 		}
 	}
+}
+
+void AVaelMoonEave::RipenAll()
+{
+	RipeDrops = bHarvestable ? FMath::Min(MaxRipe, Drops.Num()) : 0;
+	UpdateGlow();
+}
+
+bool AVaelMoonEave::CanInteract(const AVaelCharacter* Player) const
+{
+	return bHarvestable && RipeDrops > 0 && Wilt <= RipeMaxWilt;
+}
+
+void AVaelMoonEave::Interact(AVaelCharacter* Player)
+{
+	if (!CanInteract(Player))
+	{
+		return;
+	}
+
+	// The ripest one is taken; it comes loose, or it melts into the water before the hand closes round it
+	--RipeDrops;
+	const FLinearColor Moon(0.86f, 0.84f, 1.0f);
+	if (FMath::FRand() < PickChance)
+	{
+		UVaelMaterialBag::GiveToGroup(this, { PickLoot });
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelNature", "MoonDropPicked", "Ein Mondtropfen löst sich"), NSLOCTEXT("VaelNature", "MoonDropPickedDetail", "Kühl und schwer liegt er in der Hand."), Moon, 3.0f);
+	}
+	else
+	{
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelNature", "MoonDropMelted", "Der Mondtropfen zerfließt"), NSLOCTEXT("VaelNature", "MoonDropMeltedDetail", "Er rinnt ins Wasser, bevor du ihn fassen kannst."), Moon, 3.0f);
+	}
+	UpdateGlow();
+}
+
+FText AVaelMoonEave::GetInteractPrompt() const
+{
+	return NSLOCTEXT("VaelNature", "PickMoonDrop", "Mondtropfen pflücken");
 }
