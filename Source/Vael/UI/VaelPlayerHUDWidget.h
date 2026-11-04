@@ -169,6 +169,8 @@ private:
 		bool bFilled = false;
 		bool bPicked = false;
 		FText Label;
+		/** The ink picture of a plant on the plant wheel */
+		const FSlateBrush* Picture = nullptr;
 	};
 
 	/** Look of the class the panel shows, the own or the previewed one */

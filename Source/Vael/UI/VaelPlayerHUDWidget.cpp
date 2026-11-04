@@ -681,6 +681,11 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			Entry.Color = BeltPlant != nullptr ? BeltPlant->GetColor(bShadowForm) : FLinearColor::Gray;
 			Entry.bPicked = Index == Floromant->GetHandBeltSelection();
 			Entry.Label = BeltPlant != nullptr ? BeltPlant->GetDisplayName(bShadowForm) : FText::GetEmpty();
+			if (BeltPlant != nullptr)
+			{
+				const bool bShadowPicture = bShadowForm && !BeltPlant->IsLightOnly() && !BeltPlant->WheelShadowPicture.IsNull();
+				Entry.Picture = GetTextureBrush(bShadowPicture ? BeltPlant->WheelShadowPicture : BeltPlant->WheelPicture);
+			}
 		}
 		const UVaelPlantArmData* Picked = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
 		StripLabel = Picked != nullptr ? Picked->GetDisplayName(bShadowForm) : FText::GetEmpty();
@@ -1125,9 +1130,14 @@ void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 L
 		const FVector2f At = Center + FVector2f(0.0f, Offset * Spacing);
 		const FLinearColor Rim = FMath::Lerp(PathRim * 1.3f, Frame * 0.7f, Blend) * Fade;
 		PaintMedallion(Out, Layer + 1, At, Radius, Rim);
-		if (Entry.bFilled)
+		if (Entry.bFilled && Entry.Picture != nullptr)
 		{
-			// The plant in its colour; its ink painting comes in here once it is painted
+			// The ink painting of the plant fills the medallion
+			PaintBox(Out, Layer + 1, Entry.Picture, At - FVector2f(Radius * 0.8f), FVector2f(Radius * 1.6f), FLinearColor(Fade, Fade, Fade, 1.0f));
+		}
+		else if (Entry.bFilled)
+		{
+			// No painting yet: the seed in the plant colour
 			PaintBox(Out, Layer + 3, FindTextureBrush(SeedIcon), At - FVector2f(Radius * 0.62f), FVector2f(Radius * 1.24f), Entry.Color * Fade * (Near < 0.5f ? 1.25f : 0.8f));
 		}
 		else

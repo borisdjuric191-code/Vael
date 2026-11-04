@@ -10,6 +10,7 @@
 class UMaterialInterface;
 class UNiagaraSystem;
 class UStaticMesh;
+class UTexture2D;
 class UVaelElementSource;
 class UVaelPlantData;
 
@@ -793,6 +794,13 @@ public:
 	/** Name and colours, taken from the plant; the shadow forms on the way of shadow */
 	FText GetDisplayName(bool bShadow) const;
 	FLinearColor GetColor(bool bShadow) const;
+
+	/** Ink pictures of the plant for the plant wheel (Tools/HUD/vael_pflanzen_tusche.py), light and shadow form */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="HUD")
+	TSoftObjectPtr<UTexture2D> WheelPicture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="HUD")
+	TSoftObjectPtr<UTexture2D> WheelShadowPicture;
 
 	/** True if the plant has only its light form (Mondtraufe), so the shadow path changes nothing */
 	bool IsLightOnly() const;

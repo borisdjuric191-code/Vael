@@ -826,12 +826,62 @@ def make_pitch():
         created.append(path)
 
 
+def import_wheel_pictures():
+    """The ink pictures of Tools/HUD/vael_pflanzen_tusche.py for the plant wheel: imported as UI textures (always anew, so a
+    repaint shows) and set on DA_Pflanzenarm_<Id> as WheelPicture / WheelShadowPicture. Only the data assets are touched."""
+    source = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "HUD", "Pflanzen")
+    destination = FOLDER + "/Bilder"
+    if not os.path.isdir(source):
+        return
+    for file in sorted(os.listdir(source)):
+        if not file.startswith("T_Pflanze_") or not file.endswith(".png"):
+            continue
+        name = os.path.splitext(file)[0]
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", os.path.join(source, file))
+        task.set_editor_property("destination_path", destination)
+        task.set_editor_property("destination_name", name)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("save", False)
+        tools.import_asset_tasks([task])
+        texture = unreal.load_asset(destination + "/" + name)
+        if texture is None:
+            notes.append("could not import " + file)
+            continue
+        texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)
+        texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
+        texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+        texture.set_editor_property("srgb", True)
+        assets.save_loaded_asset(texture, False)
+        plant = name[len("T_Pflanze_"):]
+        shadow = plant.endswith("_Schatten")
+        plant = plant[:-len("_Schatten")] if shadow else plant
+        data = unreal.load_asset("{}/DA_Pflanzenarm_{}".format(FOLDER, plant))
+        if data is None:
+            notes.append("no DA_Pflanzenarm_" + plant + " for " + name)
+            continue
+        data.set_editor_property("wheel_shadow_picture" if shadow else "wheel_picture", texture)
+        assets.save_loaded_asset(data, False)
+        created.append(destination + "/" + name)
+
+
 def main():
+    if os.environ.get("VAEL_NUR_BILDER"):
+        # VAEL_NUR_BILDER=1 only brings the wheel pictures in
+        import_wheel_pictures()
+        for line in created:
+            log("created " + line)
+        for line in notes:
+            log("NOTE " + line)
+        log("done")
+        return
     stalk_material = build_stalk_material()
     make_blossom_material()
     make_pitch()
     make_veil_material()
     make_eye_berry_materials()
+    import_wheel_pictures()
     # VAEL_NUR_ARM=<Id> builds only that arm, so the other meshes are not saved again
     only = os.environ.get("VAEL_NUR_ARM")
     for plant, arm in ARMS.items():
