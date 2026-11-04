@@ -83,9 +83,18 @@ public:
 
 	// --- Plant arms: the seed belt picks a plant of the repertoire and lays it on a hand, which turns into it and fires
 
-	/** Plants of the seed belt of the hands */
+	/** The plant wheel of the hands (Boris 2026-11-04): a few fixed places she fills with plants of her repertoire, in a fixed
+	 *  order, so each is found blind. Places unlocked (HandWheelSlots), the plant in one (null for an empty place) */
 	int32 GetHandBeltSize() const;
 	UVaelPlantArmData* GetHandBeltPlant(int32 Index) const;
+
+	/** All plants she knows for her hands, and setting one into a place of the wheel */
+	int32 GetCatalogSize() const;
+	UVaelPlantArmData* GetCatalogPlant(int32 Index) const;
+	void SetWheelPlant(int32 Slot, UVaelPlantArmData* Plant);
+
+	/** Picks the plant on the wheel; one not on it goes into the picked place first (cheats, smoke test). False if unknown */
+	bool PickPlant(const UVaelPlantArmData* Plant);
 	int32 GetHandBeltSelection() const { return HandBeltSelection; }
 
 	/** Pages through the seed belt of the hands, +1 down, -1 up */
@@ -206,6 +215,13 @@ private:
 	TObjectPtr<UVaelPlantArmComponent> RightHand;
 
 	int32 HandBeltSelection = 0;
+
+	/** The places of the wheel, filled from the repertoire in its order the first time they are asked for */
+	UPROPERTY(Transient)
+	mutable TArray<TObjectPtr<UVaelPlantArmData>> WheelSlots;
+
+	/** Fills the wheel up to the unlocked places */
+	void EnsureWheel() const;
 
 	/** Keimpelz in the pelt */
 	float Keimpelz = 0.0f;

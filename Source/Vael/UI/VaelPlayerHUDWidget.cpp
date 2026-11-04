@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UI/VaelPlayerHUDWidget.h"
+#include "Misc/App.h"
 #include "Engine/Font.h"
 #include "Engine/FontFace.h"
 #include "Engine/Texture2D.h"
@@ -929,10 +930,15 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	const float BarLeft = PanelWidth * 0.5f - BarWidth * 0.5f;
 	if (!Strip.IsEmpty())
 	{
+		const bool bWheel = ShownData->Strip == EVaelHUDStrip::HandBelt;
+		if (bWheel)
+		{
+			PaintPlantWheel(OutDrawElements, L + 3, O + FVector2f(PanelWidth + 74.0f, SlotTop + SlotSize * 0.5f - 6.0f), Frame, TextColor, Dim);
+		}
 		const bool bSeeds = ShownData->Strip == EVaelHUDStrip::SeedBelt || ShownData->Strip == EVaelHUDStrip::HandBelt;
 		const float Dot = bSeeds ? 20.0f : 16.0f;
 		const float Step = Dot + 6.0f;
-		for (int32 Index = 0; Index < Strip.Num(); ++Index)
+		for (int32 Index = 0; !bWheel && Index < Strip.Num(); ++Index)
 		{
 			const FStripEntry& Entry = Strip[Index];
 			const FVector2f At = O + FVector2f(BarLeft + Index * Step, StripTop);
@@ -946,11 +952,14 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 				PaintBox(OutDrawElements, L + 4, &BadgeBrush, At + FVector2f(3.0f), FVector2f(Dot - 6.0f), Entry.Color);
 			}
 		}
-		if (bSeeds && Glyphs != EVaelInputGlyphs::Keyboard)
+		if (bSeeds && !bWheel && Glyphs != EVaelInputGlyphs::Keyboard)
 		{
 			PaintButton(OutDrawElements, L + 4, EVaelHUDButton::DPad, FText::GetEmpty(), O + FVector2f(BarLeft + Strip.Num() * Step + 8.0f, StripTop + Dot * 0.5f), 9.0f);
 		}
-		PaintText(OutDrawElements, L + 5, StripLabel, SmallFont, O + FVector2f(BarLeft + Strip.Num() * Step + (bSeeds ? 24.0f : 6.0f), StripTop + 1.0f), Dim);
+		if (!bWheel)
+		{
+			PaintText(OutDrawElements, L + 5, StripLabel, SmallFont, O + FVector2f(BarLeft + Strip.Num() * Step + (bSeeds ? 24.0f : 6.0f), StripTop + 1.0f), Dim);
+		}
 
 		// Small glowing badges left of the queue for the elements the surroundings give right now
 		for (int32 Index = 0; Index < NearbyElements.Num(); ++Index)
@@ -1058,3 +1067,82 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 }
 
 #undef LOCTEXT_NAMESPACE
+
+// ---------------------------------------------------------------- Plant wheel (Floromant)
+
+void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& Dim) const
+{
+	const int32 Count = Strip.Num();
+	if (Count == 0)
+	{
+		return;
+	}
+	int32 Picked = 0;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		Picked = Strip[Index].bPicked ? Index : Picked;
+	}
+
+	// The wheel rolls the short way round to the picked place, easing in with a small overshoot
+	const auto Wrap = [Count](float Value)
+	{
+		Value = FMath::Fmod(Value, static_cast<float>(Count));
+		Value += Value < -Count * 0.5f ? Count : 0.0f;
+		Value -= Value > Count * 0.5f ? Count : 0.0f;
+		return Value;
+	};
+	const float DeltaTime = FMath::Min(static_cast<float>(FApp::GetDeltaTime()), 0.1f);
+	WheelRoll = FMath::Fmod(WheelRoll + Wrap(Picked - WheelRoll) * FMath::Min(1.0f, DeltaTime * 11.0f) + Count, static_cast<float>(Count));
+
+	// Medallions of the path: gold rimmed on the light path, dark red on the shadow path, plain before the vow
+	const FLinearColor PathRim = Path == EVaelPath::Light ? FLinearColor(1.0f, 0.85f, 0.45f) : Path == EVaelPath::Shadow ? FLinearColor(0.6f, 0.08f, 0.1f) : Frame;
+	const float Spacing = 72.0f;
+	const float BigRadius = 42.0f;
+	const float SmallRadius = 23.0f;
+
+	// The frame of the wheel: a dark slot the drum turns in
+	PaintBox(Out, Layer, &MedallionBrush, Center - FVector2f(BigRadius + 12.0f), FVector2f((BigRadius + 12.0f) * 2.0f), FLinearColor(0.05f, 0.05f, 0.04f, 0.65f));
+
+	// Back to front: the far ones first, the picked one last on top
+	TArray<int32, TInlineAllocator<8>> Order;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		Order.Add(Index);
+	}
+	Order.Sort([&](int32 X, int32 Y) { return FMath::Abs(Wrap(X - WheelRoll)) > FMath::Abs(Wrap(Y - WheelRoll)); });
+	for (const int32 Index : Order)
+	{
+		const float Offset = Wrap(Index - WheelRoll);
+		const float Near = FMath::Abs(Offset);
+		if (Near > 1.6f)
+		{
+			continue;
+		}
+		const FStripEntry& Entry = Strip[Index];
+		const float Blend = FMath::Min(Near, 1.0f);
+		const float Radius = FMath::Lerp(BigRadius, SmallRadius, Blend) * (1.0f - 0.25f * FMath::Max(Near - 1.0f, 0.0f));
+		const float Fade = FMath::Clamp(1.0f - 0.45f * Near, 0.0f, 1.0f);
+		const FVector2f At = Center + FVector2f(0.0f, Offset * Spacing);
+		const FLinearColor Rim = FMath::Lerp(PathRim * 1.3f, Frame * 0.7f, Blend) * Fade;
+		PaintMedallion(Out, Layer + 1, At, Radius, Rim);
+		if (Entry.bFilled)
+		{
+			// The plant in its colour; its ink painting comes in here once it is painted
+			PaintBox(Out, Layer + 3, FindTextureBrush(SeedIcon), At - FVector2f(Radius * 0.62f), FVector2f(Radius * 1.24f), Entry.Color * Fade * (Near < 0.5f ? 1.25f : 0.8f));
+		}
+		else
+		{
+			// An empty place: only the dark socket
+			PaintBox(Out, Layer + 3, &MedallionBrush, At - FVector2f(Radius * 0.5f), FVector2f(Radius), FLinearColor(0.08f, 0.07f, 0.06f, Fade));
+		}
+	}
+
+	// The picked plant's name beside the wheel, the d-pad that turns it below
+	const FStripEntry& Shown = Strip[Picked];
+	PaintText(Out, Layer + 5, Shown.Label, LabelFont, Center + FVector2f(BigRadius + 16.0f, -12.0f), Bright);
+	if (Glyphs != EVaelInputGlyphs::Keyboard)
+	{
+		PaintButton(Out, Layer + 5, EVaelHUDButton::DPad, FText::GetEmpty(), Center + FVector2f(BigRadius + 24.0f, 20.0f), 8.0f);
+	}
+	PaintText(Out, Layer + 5, FText::FromString(FString::Printf(TEXT("%d/%d"), Picked + 1, Count)), SmallFont, Center + FVector2f(BigRadius + 38.0f, 12.0f), Dim);
+}

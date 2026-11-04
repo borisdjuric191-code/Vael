@@ -380,6 +380,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms")
 	TArray<TSoftObjectPtr<UVaelPlantArmData>> HandBelt;
 
+	/** Places unlocked on her plant wheel (Boris 2026-11-04): 4 at the start, 5 and 6 towards the end, 7 and 8 at a very high level */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 1, ClampMax = 8))
+	int32 HandWheelSlots = 4;
+
 	/** Walking speed while a hand fires: the Floromant lands and braces itself */
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 1))
 	float FiringMoveSpeedScale = 0.45f;

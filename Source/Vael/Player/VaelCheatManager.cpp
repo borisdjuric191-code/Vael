@@ -1338,14 +1338,15 @@ void UVaelCheatManager::VaelHand(const FString& Hands, const FString& Plant)
 	}
 
 	UVaelFloromantComponent* Floromant = Player->GetFloromant();
-	for (int32 Index = 0; !Plant.IsEmpty() && Index < Floromant->GetHandBeltSize(); ++Index)
+	// Any plant of her repertoire: one not on the wheel goes into the picked place
+	for (int32 Index = 0; !Plant.IsEmpty() && Index < Floromant->GetCatalogSize(); ++Index)
 	{
-		const UVaelPlantArmData* Data = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
+		const UVaelPlantArmData* Data = Floromant->GetCatalogPlant(Index);
 		if (Data != nullptr && Data->GetDisplayName(false).ToString().StartsWith(Plant, ESearchCase::IgnoreCase))
 		{
+			Floromant->PickPlant(Data);
 			break;
 		}
-		Floromant->PageHandBelt(1);
 	}
 	const bool bBoth = Hands.IsEmpty() || Hands.Equals(TEXT("beide"), ESearchCase::IgnoreCase);
 	if (bBoth || Hands.Equals(TEXT("links"), ESearchCase::IgnoreCase))

@@ -284,6 +284,12 @@ private:
 	EVaelInputGlyphs Glyphs = EVaelInputGlyphs::Keyboard;
 	int32 PlayerSlot = 0;
 	EVaelPath Path = EVaelPath::None;
+
+	/** The plant wheel of a Floromant (Boris 2026-11-04): where it has rolled to (eases towards the picked place) */
+	mutable float WheelRoll = 0.0f;
+
+	/** Paints the plant wheel: the picked plant big in its frame, its neighbours above and below smaller, rolling */
+	void PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& Dim) const;
 	float DodgeLeft = 0.0f;
 	/** Phase (0..1) of the heartbeat of the Nid slot; the veins of the frame beat with it */
 	float NidBeatPhase = 0.0f;

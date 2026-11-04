@@ -1034,13 +1034,81 @@ void UVaelFloromantComponent::WitherAll()
 
 int32 UVaelFloromantComponent::GetHandBeltSize() const
 {
-	return UVaelFloromantSettings::Get()->HandBelt.Num();
+	EnsureWheel();
+	return WheelSlots.Num();
 }
 
 UVaelPlantArmData* UVaelFloromantComponent::GetHandBeltPlant(int32 Index) const
 {
+	EnsureWheel();
+	return WheelSlots.IsValidIndex(Index) ? WheelSlots[Index].Get() : nullptr;
+}
+
+int32 UVaelFloromantComponent::GetCatalogSize() const
+{
+	return UVaelFloromantSettings::Get()->HandBelt.Num();
+}
+
+UVaelPlantArmData* UVaelFloromantComponent::GetCatalogPlant(int32 Index) const
+{
 	const TArray<TSoftObjectPtr<UVaelPlantArmData>>& Belt = UVaelFloromantSettings::Get()->HandBelt;
 	return Belt.IsValidIndex(Index) ? VaelAssets::LoadOptional(Belt[Index]) : nullptr;
+}
+
+void UVaelFloromantComponent::EnsureWheel() const
+{
+	const int32 Places = FMath::Clamp(UVaelFloromantSettings::Get()->HandWheelSlots, 1, 8);
+	if (WheelSlots.Num() == Places)
+	{
+		return;
+	}
+	WheelSlots.SetNum(Places);
+	// Empty places are filled with the plants of the repertoire she has not set yet, in its order
+	int32 Next = 0;
+	for (TObjectPtr<UVaelPlantArmData>& Place : WheelSlots)
+	{
+		while (Place == nullptr && Next < GetCatalogSize())
+		{
+			UVaelPlantArmData* Candidate = GetCatalogPlant(Next++);
+			if (Candidate != nullptr && !WheelSlots.Contains(Candidate))
+			{
+				Place = Candidate;
+			}
+		}
+	}
+}
+
+void UVaelFloromantComponent::SetWheelPlant(int32 Slot, UVaelPlantArmData* Plant)
+{
+	EnsureWheel();
+	if (!WheelSlots.IsValidIndex(Slot))
+	{
+		return;
+	}
+	// A plant sits in one place only: where it sat before is left to the one it replaces
+	const int32 Before = WheelSlots.IndexOfByKey(Plant);
+	if (Before != INDEX_NONE)
+	{
+		WheelSlots[Before] = WheelSlots[Slot];
+	}
+	WheelSlots[Slot] = Plant;
+}
+
+bool UVaelFloromantComponent::PickPlant(const UVaelPlantArmData* Plant)
+{
+	EnsureWheel();
+	if (Plant == nullptr)
+	{
+		return false;
+	}
+	int32 Slot = WheelSlots.IndexOfByKey(Plant);
+	if (Slot == INDEX_NONE)
+	{
+		Slot = HandBeltSelection;
+		SetWheelPlant(Slot, const_cast<UVaelPlantArmData*>(Plant));
+	}
+	HandBeltSelection = Slot;
+	return true;
 }
 
 void UVaelFloromantComponent::PageHandBelt(int32 Step)

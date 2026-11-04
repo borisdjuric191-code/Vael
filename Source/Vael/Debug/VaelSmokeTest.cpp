@@ -685,14 +685,14 @@ void AVaelSmokeTest::BeginPlay()
 			}
 			Player->SetHero(EVaelHeroClass::Floromant, true);
 			UVaelFloromantComponent* Floromant = Player->GetFloromant();
-			for (int32 Index = 0; Index < Floromant->GetHandBeltSize(); ++Index)
+			for (int32 Index = 0; Index < Floromant->GetCatalogSize(); ++Index)
 			{
-				const UVaelPlantArmData* Data = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
+				const UVaelPlantArmData* Data = Floromant->GetCatalogPlant(Index);
 				if (Data != nullptr && Data->bVeil)
 				{
+					Floromant->PickPlant(Data);
 					break;
 				}
-				Floromant->PageHandBelt(1);
 			}
 			Floromant->PutOnHand(true);
 			Floromant->PutOnHand(false);
@@ -764,14 +764,14 @@ void AVaelSmokeTest::BeginPlay()
 			}
 			Player->SetHero(EVaelHeroClass::Floromant, true);
 			UVaelFloromantComponent* Floromant = Player->GetFloromant();
-			for (int32 Index = 0; Index < Floromant->GetHandBeltSize(); ++Index)
+			for (int32 Index = 0; Index < Floromant->GetCatalogSize(); ++Index)
 			{
-				const UVaelPlantArmData* Data = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
+				const UVaelPlantArmData* Data = Floromant->GetCatalogPlant(Index);
 				if (Data != nullptr && Data->bEyeBerry)
 				{
+					Floromant->PickPlant(Data);
 					break;
 				}
-				Floromant->PageHandBelt(1);
 			}
 			Floromant->PutOnHand(false);
 			const UVaelPlantArmData* Plant = Floromant->GetHand(false)->GetPlant();
@@ -829,12 +829,12 @@ void AVaelSmokeTest::BeginPlay()
 				Aim = (It->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D();
 			}
 			TSet<EVaelSymbiosis> Fired;
-			for (int32 First = 0; First < Floromant->GetHandBeltSize(); ++First)
+			for (int32 First = 0; First < Floromant->GetCatalogSize(); ++First)
 			{
-				for (int32 Second = First; Second < Floromant->GetHandBeltSize(); ++Second)
+				for (int32 Second = First; Second < Floromant->GetCatalogSize(); ++Second)
 				{
-					const UVaelPlantArmData* A = Floromant->GetHandBeltPlant(First);
-					const UVaelPlantArmData* B = Floromant->GetHandBeltPlant(Second);
+					const UVaelPlantArmData* A = Floromant->GetCatalogPlant(First);
+					const UVaelPlantArmData* B = Floromant->GetCatalogPlant(Second);
 					const EVaelSymbiosis Kind = VaelSymbiosis::Find(A, B);
 					if (Kind >= EVaelSymbiosis::Feenreigen && !Fired.Contains(Kind))
 					{
