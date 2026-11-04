@@ -223,11 +223,34 @@ def build_cross():
     blob("Herz", (0.0, -0.06, 1.32), 0.07, (1.0, 0.78, 0.35), 2.5)
 
 
+def build_tower():
+    """A tower of the Floromant as she grows them: three stalks braided into one trunk from a spread of roots, the crown a
+    cluster of glowing heads on short necks, a few leaves along the trunk"""
+    for k in range(3):
+        phase = k * math.tau / 3
+        points = []
+        for t in np.linspace(0.0, 1.0, 70):
+            r = 0.09 * (1.0 - 0.4 * t)
+            points.append((r * math.cos(t * math.tau * 1.6 + phase), r * math.sin(t * math.tau * 1.6 + phase), t * 1.4))
+        curve_tube("Stamm", points, 0.06, (0.06, 0.045, 0.028))
+    for k in range(7):
+        a = k * math.tau / 7 + 0.3
+        root = [(0.08 * math.cos(a) * (1 + 3 * t), 0.08 * math.sin(a) * (1 + 3 * t) * 0.4, 0.05 - 0.12 * t * t) for t in np.linspace(0.0, 1.0, 12)]
+        curve_tube("Wurzel", root, 0.035, (0.05, 0.035, 0.022))
+    for k, (a, h) in enumerate(((0.0, 0.25), (1.6, 0.18), (3.2, 0.28), (4.6, 0.2), (2.4, 0.3))):
+        neck = [(0.0, 0.0, 1.35), (0.18 * math.cos(a), 0.1 * math.sin(a), 1.35 + h * 0.6), (0.3 * math.cos(a), 0.16 * math.sin(a), 1.35 + h)]
+        curve_tube("Hals", neck, 0.03, (0.18, 0.28, 0.1))
+        blob("Kopf", neck[-1], 0.075, (0.8, 0.3, 0.06) if k % 2 == 0 else (0.08, 0.6, 0.5), 0.5)
+    for t, side in ((0.35, 1), (0.55, -1), (0.75, 1)):
+        blob("Blatt", (side * 0.15, 0.0, t * 1.4), 0.09, (0.12, 0.32, 0.1), scale=(1.7, 0.3, 0.6)).rotation_euler = (0.0, side * 0.5, 0.0)
+
+
 ABILITY_PICTURES = {
     # name: (model or None, builder, glow, camera turn, height crop)
     "Verwurzeln": ("Urbaum", None, (0.45, 0.9, 0.5), 20, (0.0, 0.3)),
     "Kreuzen": (None, build_cross, (1.0, 0.72, 0.35), 0, (0.0, 1.0)),
-    "Tuerme": ("Hainschoessling", None, (0.55, 1.0, 0.7), 30, (0.0, 1.0)),
+    # Not the Hainschoessling: that is a legendary plant that comes on the arm later (Boris 2026-11-04)
+    "Tuerme": (None, build_tower, (0.55, 1.0, 0.7), 0, (0.0, 1.0)),
     "Keimpelz": ("Keimpelz", None, (0.6, 0.95, 0.45), 25, (0.0, 1.0)),
 }
 
