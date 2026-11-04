@@ -369,12 +369,14 @@ def claw(m, cx, cy, rx, ry, wrap_vines=False):
         tube(pts[:-3], radii[:-3], m["claw"], name="Kralle")
         tube(pts[-4:], radii[-4:], m["talon"], name="Krallenspitze")
     if wrap_vines:
-        # A young vine has wound round the claw of the Floromant
-        pts = [tuple(around(theta, 0.035, 0.12 + 0.03 * math.sin(theta * 5))) for theta in np.linspace(math.radians(-15), math.radians(195), 40)]
-        tube(pts, [0.011] * len(pts), m["leaf"], name="Ranke")
-        for theta in (0.2, 1.1, 2.0, 2.9):
-            leaf = sphere(tuple(around(theta, 0.06, 0.16)), 0.028, m["leaf"], scale=(1.6, 0.35, 0.8), name="Blatt", segments=12)
-            leaf.rotation_euler = (0, -theta, 0)
+        # A young bronze vine has wound round the claw of the Floromant, a few real leaves on it (2026-11-04: no blobs)
+        floromant_materials(m)
+        thetas = np.linspace(math.radians(-15), math.radians(195), 60)
+        pts = [tuple(around(theta, 0.035, 0.12 + 0.03 * math.sin(theta * 5))) for theta in thetas]
+        tube(pts, [0.009 * (0.4 + 0.6 * math.sin(math.pi * k / 59) ** 0.5) for k in range(60)], m["verdigris"], name="Ranke")
+        for theta in (0.25, 1.15, 2.0, 2.85):
+            p = around(theta, 0.05, 0.15)
+            leaf((p.x, p.y, p.z), 0.08, 0.034, -theta + math.pi / 2 * (1 if theta < 1.6 else -1) * 0.3 + math.pi, m["leafbronze"], bend=0.06, curl=0.35, name="Blatt", vein=m["oldgold"])
     return palm
 
 
@@ -1417,6 +1419,14 @@ def frame_floromant(m):
         leaf_sprig(m, x, z, angle, size=0.9)
     sunken_field(m, 206.0, 212.0, 650.0, 226.0, 0.0038, m["mossbed"], m["verdigris"], "Rinne", corner=0.012)
     root_braid(m, 200.0, 680.0, 229.0)
+    # The ends of the vine of the experience: a knot of roots where it springs, a closed bronze bud where it grows to
+    kx, kz = px(201.0, 219.0)
+    tube(spiral(kx, -0.05, kz, 0.03, 1.6, 0.0, 1), [0.007] * 26, m["verdigris"], name="Wurzelknoten")
+    bx, bz = px(658.0, 219.0)
+    sphere((bx, -0.055, bz), 0.028, m["verdigris"], scale=(1.3, 0.8, 0.9), name="Endknospe", segments=20)
+    for side in (1, -1):
+        leaf((bx - 0.02, -0.06, bz), 0.06, 0.028, side * 0.5, m["leafbronze"], bend=0.05, curl=0.35, name="Knospenblatt", vein=m["oldgold"])
+    facet_stone(m, bx + 0.03, -0.062, bz, 0.012, shades=DEW_SHADES)
 
     # The moth in the middle, gold tendrils from it along the groove
     mx, mz = px(440.0, 76.0)
@@ -1426,6 +1436,72 @@ def frame_floromant(m):
         tube(pts, [0.0045 * (1 - 0.6 * k / 39) for k in range(40)], m["oldgold"], name="Goldranke")
         tube(spiral(pts[-1][0] + side * 0.012, -0.048, pts[-1][2] - 0.01, 0.026, 1.2, math.pi / 2, -side), [0.0032] * 26, m["oldgold"], name="Schnecke")
         leaf((pts[20][0], -0.052, pts[20][2]), 0.05, 0.022, math.pi / 2 + side * 0.9, m["leafbronze"], bend=0.06, curl=0.3, name="Blatt", vein=m["oldgold"])
+
+
+def sap_bud(m):
+    """The Saft vessel of the Floromant (2026-11-04): a glass drop with a slim neck on the mask of vael_hud_formen.py, held
+    from below by a calyx of pointed verdigris sepals with gold ribs, a closed bronze bud as stopper with a curling tendril"""
+    floromant_materials(m)
+    z = lambda y: from_mask(0, y).z
+    profile = []
+    for t in np.linspace(-math.pi / 2, 0.42, 26):
+        profile.append((from_mask(0, 0.63).z + 0.25 * math.sin(t), 0.25 * math.cos(t) + 0.0001))
+    profile += [(z(0.45), 0.13), (z(0.36), 0.075), (z(0.3), 0.07), (z(0.23), 0.072)]
+    revolve(profile, Vector((0, 0, 0)), m["glass"], name="Saftknospe")
+    torus(tuple(from_mask(0.5, 0.235)), 0.078, 0.014, m["verdigris"], rotation=(0, 0, 0), name="Halsring")
+    torus(tuple(from_mask(0.5, 0.36)), 0.08, 0.008, m["oldgold"], rotation=(0, 0, 0), name="Goldband")
+
+    # The calyx: pointed verdigris sepals with gold ribs fan up from below in front of the bulb
+    base = from_mask(0.5, 0.86)
+    for k, (spread, length) in enumerate(((0.0, 0.15), (-28.0, 0.14), (28.0, 0.14), (-56.0, 0.12), (56.0, 0.12), (-80.0, 0.1), (80.0, 0.1))):
+        a = math.radians(90.0 + spread)
+        leaf((base.x + 0.02 * math.cos(a), -0.2 - 0.01 * k, base.z), length, 0.065, a, m["verdigris"], bend=-0.1, curl=0.25, name="Kelchblatt", vein=m["oldgold"])
+    torus(tuple(from_mask(0.5, 0.875)), 0.07, 0.02, m["verdigris"], rotation=(0, 0, 0), name="Kelchgrund")
+    facet_stone(m, 0.0, -0.27, from_mask(0.5, 0.835).z, 0.026, shades=DEW_SHADES)
+
+    # The stopper: a closed bud of bronze sepals, and a tendril curling off it
+    bud = from_mask(0.5, 0.17)
+    sphere(tuple(bud), 0.055, m["verdigris"], scale=(0.85, 0.85, 1.15), name="Stopfen", segments=24)
+    for k in range(4):
+        a = k * math.pi / 2 + 0.4
+        leaf((bud.x + 0.03 * math.cos(a), bud.y - 0.04, bud.z - 0.03), 0.09, 0.04, math.radians(90) + 0.5 * math.cos(a), m["leafbronze"], bend=0.05, curl=0.4, name="Stopfenblatt", vein=m["oldgold"])
+    tip = from_mask(0.5, 0.11)
+    tendril = [(tip.x, tip.y - 0.04, tip.z), (tip.x + 0.04, tip.y - 0.04, tip.z + 0.05)]
+    tube(tendril + spiral(tip.x + 0.07, tip.y - 0.04, tip.z + 0.05, 0.04, 1.3, math.pi, -1)[1:], [0.006] * 27, m["oldgold"], name="Ranke")
+
+
+def vine_picture(path):
+    """Transparent picture over the experience bar of the Floromant: a bronze vine running along it to the bud at its end,
+    small leaves leaning forward on both sides, light on the upper edges"""
+    width, height = 880, 28
+    buffer = np.zeros((height, width, 4), np.float32)
+    yy, xx = np.mgrid[0:height, 0:width].astype(np.float32)
+    mid = 14.0 + 3.0 * np.sin(xx / 34.0)
+    stem = np.abs(yy - mid)
+    on_stem = stem < 1.8
+    buffer[on_stem, 0:3] = (0.42, 0.5, 0.3)
+    buffer[on_stem, 3] = 0.95
+    rng = np.random.default_rng(5)
+    for k, cx in enumerate(np.arange(10.0, width, 17.0)):
+        side = 1 if k % 2 == 0 else -1
+        cy = 14.0 + 3.0 * math.sin(cx / 34.0)
+        angle = side * 0.75 + rng.uniform(-0.12, 0.12)
+        u = ((xx - cx) * math.cos(angle) + (yy - cy) * math.sin(angle)) / 11.0
+        v = (-(xx - cx) * math.sin(angle) + (yy - cy) * math.cos(angle)) / 4.2
+        inside = (u > 0.0) & (u < 1.0) & (np.abs(v) < np.sin(np.pi * np.clip(u, 0, 1)) ** 0.8)
+        edge = np.abs(np.abs(v) - np.sin(np.pi * np.clip(u, 0, 1)) ** 0.8) < 0.18
+        light = np.clip(0.5 - v * side * 0.6, 0.0, 1.0)
+        colour = np.stack([0.14 + 0.25 * light, 0.2 + 0.3 * light, 0.1 + 0.12 * light], axis=-1)
+        buffer[inside, 0:3] = colour[inside]
+        buffer[inside, 3] = 0.9
+        rim = inside & edge
+        buffer[rim, 0:3] = (0.55, 0.42, 0.16)
+    image = bpy.data.images.new("Ranke", width, height, alpha=True)
+    image.pixels.foreach_set(buffer[::-1].ravel())
+    image.filepath_raw = path
+    image.file_format = "PNG"
+    image.save()
+    print("[Vael] Ranke:", path)
 
 
 def wheel_floromant(m):
@@ -1492,7 +1568,7 @@ PIECES = {
     # name: (width px, height px, view width, builder)
     "leben": (512, 512, VESSEL_VIEW, lambda m: (phial(m), claw(m, 0.5, 0.62, 0.3, 0.3))),
     "magier_gefaess": (512, 512, VESSEL_VIEW, lambda m: (inkwell(m), claw(m, 0.5, 0.73, 0.33, 0.18))),
-    "floromant_gefaess": (512, 512, VESSEL_VIEW, lambda m: (pitcher(m), claw(m, 0.5, 0.64, 0.24, 0.27, wrap_vines=True))),
+    "floromant_gefaess": (512, 512, VESSEL_VIEW, lambda m: (sap_bud(m), claw(m, 0.5, 0.66, 0.26, 0.24, wrap_vines=True))),
     "magier_rahmen": (1760, 404, FRAME_ASPECT, frame_mage),
     "magier_inventar": (1920, 1080, 3.5556, inventory_mage),
     "magier_drache": (280, 240, 1.4, dragon_head),
@@ -1550,6 +1626,8 @@ def main(folder, wanted):
     os.makedirs(folder, exist_ok=True)
     if not wanted or "magier_schuppen" in wanted:
         scales_picture(os.path.join(folder, "T_HUD_Gemalt_Schuppen_Magier.png"))
+    if not wanted or "floromant_ranke" in wanted:
+        vine_picture(os.path.join(folder, "T_HUD_Gemalt_Ranke_Floromant.png"))
     for key, (width, height, view, build) in PIECES.items():
         if wanted and key not in wanted:
             continue

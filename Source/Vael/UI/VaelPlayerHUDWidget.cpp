@@ -1071,6 +1071,11 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonPicture), O + FVector2f(630.0f, 125.0f), FVector2f(140.0f, 120.0f));
 		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonTailPicture), O + FVector2f(110.0f, 118.0f), FVector2f(140.0f, 120.0f));
 	}
+	else if (bPaintedFrame && !ShownData->ScalesPicture.IsNull())
+	{
+		// The vine of the Floromant over her experience (overhaul 2026-11-04)
+		PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->ScalesPicture), O + FVector2f(TailLeft, TailTop), FVector2f(TailEnd - TailLeft, TailHeight));
+	}
 	else if (!bPaintedFrame)
 	{
 		// (the painted Floromant frame has the channel of the experience in its wood, without the old end pieces)

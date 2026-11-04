@@ -672,7 +672,7 @@ CLASSES = [
      "abilities": [("Segen", "Prophet", B.R2, "LMT", A.PLACEHOLDER), ("Fluch", "Prophet", B.CIRCLE, "1", A.PLACEHOLDER), ("Weissagung", "Prophet", B.SQUARE, "2", A.PLACEHOLDER),
                    ("Licht", "Prophet", B.CROSS, "3", A.PLACEHOLDER), ("Schatten", "Prophet", B.TRIANGLE, "4", A.PLACEHOLDER), ("Gel\u00fcbde", "Prophet", B.L1R1, "5", A.PLACEHOLDER)]},
     {"name": "Floromant", "title": "Floromant", "resource": "Saft", "frame": "C97A9E", "accent": "4FB3A9", "strip": unreal.VaelHUDStrip.HAND_BELT,
-     "vessel": {"LiquidBottom": 0.88, "LiquidTop": 0.34}, "liquid": "D0679A", "surface": "F0A5C6", "glass": "4FB3A9", "bud": 1.0,
+     "vessel": {"LiquidBottom": 0.85, "LiquidTop": 0.28}, "liquid": "D0679A", "surface": "F0A5C6", "glass": "4FB3A9", "bud": 1.0,
      # Own controls since 2026-10-22 (UpdateFloromantHud.py changes an existing asset the same way)
      "abilities": [("Linke Hand", "Saat", B.L1, "LMT", A.HAND_LEFT), ("Rechte Hand", "Saat", B.R1, "RMT", A.HAND_RIGHT),
                    ("Dornenpeitsche", "Dornenpeitsche", B.SQUARE, "F", A.THORN_WHIP), ("Wurzelsprung", "Wurzelsprung", B.CROSS, "Leer", A.ROOT_LEAP),
@@ -761,6 +761,14 @@ def apply_painted(painted, paintings, painted_frame, shapes):
             data.set_editor_property("dragon_picture", painted["T_HUD_Gemalt_Drache_Magier"])
             data.set_editor_property("dragon_tail_picture", painted["T_HUD_Gemalt_Schwanz_Magier"])
             data.set_editor_property("scales_picture", painted["T_HUD_Gemalt_Schuppen_Magier"])
+        if name == "Floromant" and "T_HUD_Gemalt_Ranke_Floromant" in painted:
+            # Overhaul 2026-11-04: the vine over the experience, and the Saftknospe (new mask) fills from its own bottom to its neck
+            data.set_editor_property("scales_picture", painted["T_HUD_Gemalt_Ranke_Floromant"])
+            vessel_mi = unreal.load_asset(HUD + "/MI_HUD_Gefaess_Floromant")
+            if vessel_mi is not None:
+                library.set_material_instance_scalar_parameter_value(vessel_mi, "LiquidBottom", 0.85)
+                library.set_material_instance_scalar_parameter_value(vessel_mi, "LiquidTop", 0.28)
+                assets.save_loaded_asset(vessel_mi, False)
         assets.save_loaded_asset(data, False)
         created.append("DA_HUDKlasse_{} (painted pieces)".format(name))
 

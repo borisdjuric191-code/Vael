@@ -202,14 +202,13 @@ def vessels(folder):
                   box(x, y, 0.2, 0.12, 0.24, 0.88, 0.01), box(x, y, 0.76, 0.12, 0.8, 0.88, 0.01))
     save_vessel(folder, "T_HUD_Gefaess_Prophet", inner, union(ring(outer, 0.012), frame), 5)
 
-    # Floromant: Kannenkelch wie eine Kannenpflanze, Rand und Blattdeckel
-    outer = union(ellipse(x, y, 0.5, 0.64, 0.23, 0.27), box(x, y, 0.38, 0.3, 0.62, 0.5, 0.06))
-    inner = union(ellipse(x, y, 0.5, 0.64, 0.2, 0.24), box(x, y, 0.41, 0.33, 0.59, 0.52, 0.05))
-    rim = ring(ellipse(x, y, 0.5, 0.31, 0.15, 0.045), 0.012)
-    lid = polygon(x, y, [(0.47, 0.27), (0.62, 0.05), (0.86, 0.08), (0.7, 0.25)])
-    vein = segment(x, y, 0.5, 0.27, 0.78, 0.09, 0.005)
-    stem = polyline(x, y, bezier((0.5, 0.9), (0.47, 0.96), (0.36, 0.98), 10), 0.012)
-    save_vessel(folder, "T_HUD_Gefaess_Floromant", inner, union(ring(outer, 0.014), rim, cut(lid, vein + 0.002), stem), 6)
+    # Floromant (2026-11-04): Saftknospe, ein Glastropfen mit schlankem Hals und Knospenstopfen; der Bronzekelch darunter
+    # ist nur gerendert (vael_hud_gemalt.py sap_bud)
+    taper = polygon(x, y, [(0.27, 0.56), (0.73, 0.56), (0.57, 0.33), (0.43, 0.33)])
+    outer = union(circle(x, y, 0.5, 0.63, 0.25), taper, box(x, y, 0.43, 0.22, 0.57, 0.36, 0.02))
+    inner = union(circle(x, y, 0.5, 0.63, 0.22), taper + 0.03, box(x, y, 0.46, 0.25, 0.54, 0.38, 0.01))
+    stopper = union(ellipse(x, y, 0.5, 0.17, 0.065, 0.06), box(x, y, 0.42, 0.2, 0.58, 0.24, 0.015))
+    save_vessel(folder, "T_HUD_Gefaess_Floromant", inner, union(ring(outer, 0.014), stopper), 6)
 
 
 # ---------------------------------------------------------------- Drachenklaue (hält das Gefäß von unten)
