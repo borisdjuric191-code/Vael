@@ -335,6 +335,10 @@ private:
 	/** While it burns: little flames on its bones or body and a red glow that pulses (fire kit) */
 	void UpdateBurning();
 
+	/** Wet and pitched creatures drip (Boris 2026-11-04: the conditions must be seen): water drops, slow drops of pitch */
+	void UpdateStatusDrips(float DeltaSeconds);
+	float DripCountdown = 0.0f;
+
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<class UVaelFireComponent>> BurnFlames;
 

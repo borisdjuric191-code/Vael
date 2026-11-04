@@ -171,6 +171,10 @@ private:
 		FText Label;
 		/** The ink picture of a plant on the plant wheel */
 		const FSlateBrush* Picture = nullptr;
+		/** The other side of its medallion, its form, and whether it has only its light */
+		const FSlateBrush* OtherPicture = nullptr;
+		bool bShadowSide = false;
+		bool bLightOnly = false;
 	};
 
 	/** Look of the class the panel shows, the own or the previewed one */
@@ -289,6 +293,9 @@ private:
 
 	/** The plant wheel of a Floromant (Boris 2026-11-04): where it has rolled to (eases towards the picked place) */
 	mutable float WheelRoll = 0.0f;
+
+	/** Seconds since a medallion was turned, from the Floromant, for the coin turn on the wheel */
+	float WheelFlipAge = 10.0f;
 
 	/** Paints the plant wheel: the picked plant big in its frame, its neighbours above and below smaller, rolling */
 	void PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& Dim) const;

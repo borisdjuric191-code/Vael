@@ -72,6 +72,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelKreuzen(float Seconds = 0.0f);
 
+	/** Turns the medallion of the picked plant on the wheel to its other form (before the vow) */
+	UFUNCTION(Exec)
+	void VaelMedaillon();
+
 	/** Floromant: takes root or lets go, like Square */
 	UFUNCTION(Exec)
 	void VaelWurzeln();

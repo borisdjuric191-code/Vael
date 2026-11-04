@@ -122,7 +122,7 @@ AVaelPlantTower::AVaelPlantTower()
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 }
 
-AVaelPlantTower* AVaelPlantTower::PlantTower(AVaelCharacter* Gardener, UVaelPlantArmData* InPlant, const FVector& GroundLocation)
+AVaelPlantTower* AVaelPlantTower::PlantTower(AVaelCharacter* Gardener, UVaelPlantArmData* InPlant, const FVector& GroundLocation, bool bInShadow)
 {
 	UWorld* World = Gardener != nullptr ? Gardener->GetWorld() : nullptr;
 	if (World == nullptr || InPlant == nullptr)
@@ -137,7 +137,7 @@ AVaelPlantTower* AVaelPlantTower::PlantTower(AVaelCharacter* Gardener, UVaelPlan
 		return nullptr;
 	}
 	Tower->Plant = InPlant;
-	Tower->bShadow = Gardener->GetPath() == EVaelPath::Shadow && !InPlant->IsLightOnly();
+	Tower->bShadow = bInShadow && !InPlant->IsLightOnly();
 	Tower->LifeLeft = UVaelFloromantSettings::Get()->TowerLifetime;
 	Tower->LookDirection = Gardener->GetActorForwardVector();
 	Tower->FinishSpawning(SpawnTransform);

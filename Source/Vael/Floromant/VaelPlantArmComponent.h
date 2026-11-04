@@ -90,6 +90,11 @@ public:
 	/** The plant that grows back after a tower, changed when another one is laid on the regrowing hand */
 	void SetRegrowPlant(UVaelPlantArmData* InPlant) { RegrowPlant = InPlant; }
 
+	/** Light or shadow form of the plant on this hand (Boris 2026-11-04): from the path, or before the vow from the medallion side
+	 *  it was laid on with; a light-only plant never turns */
+	void SetShadowForm(bool bInShadow) { bShadowForm = bInShadow; }
+	bool IsShadowForm() const;
+
 	/** Where the hand is in world space, for the knot of crossed hands */
 	FVector GetHandLocation() const;
 
@@ -142,6 +147,8 @@ private:
 	FVector BoneLocation(const TCHAR* Name) const;
 
 	bool bLeft = false;
+
+	bool bShadowForm = false;
 
 	/** The plant the stalks show now, and the one that grows next once the old ones have withered */
 	UPROPERTY(Transient)

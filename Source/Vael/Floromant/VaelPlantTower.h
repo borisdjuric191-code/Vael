@@ -31,7 +31,7 @@ public:
 	AVaelPlantTower();
 
 	/** Plants a tower of the plant on the ground at the location for the Floromant; fuses it with a tower close by */
-	static AVaelPlantTower* PlantTower(AVaelCharacter* Gardener, UVaelPlantArmData* InPlant, const FVector& GroundLocation);
+	static AVaelPlantTower* PlantTower(AVaelCharacter* Gardener, UVaelPlantArmData* InPlant, const FVector& GroundLocation, bool bInShadow);
 
 	virtual void Tick(float DeltaSeconds) override;
 

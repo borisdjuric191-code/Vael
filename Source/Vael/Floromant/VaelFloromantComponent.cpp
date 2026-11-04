@@ -67,6 +67,16 @@ void UVaelFloromantComponent::BeginPlay()
 void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	WheelFlipAge += DeltaTime;
+
+	// Once the path is chosen it decides the form of each hand, also of the plants laid on before
+	for (const bool bLeftHand : { true, false })
+	{
+		if (UVaelPlantArmComponent* Hand = bLeftHand ? LeftHand.Get() : RightHand.Get())
+		{
+			Hand->SetShadowForm(GetHandForm(bLeftHand, Hand->IsShadowForm()));
+		}
+	}
 
 	const AVaelCharacter* Character = GetCharacter();
 	if (Character != nullptr && Character->IsFloromant() && !Character->IsDowned())
@@ -191,6 +201,11 @@ void UVaelFloromantComponent::SwapHands()
 	{
 		return;
 	}
+	// Each plant keeps its form when it changes sides, unless the path decides the form of each hand
+	const bool bLeftShadow = Left->IsShadowForm();
+	const bool bRightShadow = Right->IsShadowForm();
+	Left->SetShadowForm(GetHandForm(true, bRightShadow));
+	Right->SetShadowForm(GetHandForm(false, bLeftShadow));
 	Left->SetPlant(RightPlant);
 	Right->SetPlant(LeftPlant);
 }
@@ -224,7 +239,7 @@ void UVaelFloromantComponent::StartCross()
 		CrossKnot->SetupAttachment(GetOwner()->GetRootComponent());
 		CrossKnot->RegisterComponent();
 	}
-	CrossKnot->Setup(Left->GetPlant(), Right->GetPlant(), VaelSymbiosis::GetColor(Kind), Character->GetPath() == EVaelPath::Shadow);
+	CrossKnot->Setup(Left->GetPlant(), Right->GetPlant(), VaelSymbiosis::GetColor(Kind), Left->IsShadowForm() && Right->IsShadowForm());
 	CrossShowLeft = 0.0f;
 	SetComponentTickInterval(0.0f);
 }
@@ -339,7 +354,7 @@ void UVaelFloromantComponent::TickShield(float DeltaTime)
 	AVaelGlimmDome* Dome = ShieldDome.Get();
 	if (Dome == nullptr)
 	{
-		Dome = AVaelGlimmDome::Raise(Character, Character, Shield, EVaelSymbiosis::None, Shield->ShieldRadius, Character->GetPath() == EVaelPath::Shadow);
+		Dome = AVaelGlimmDome::Raise(Character, Character, Shield, EVaelSymbiosis::None, Shield->ShieldRadius, Raised->IsShadowForm());
 		ShieldDome = Dome;
 	}
 
@@ -1063,6 +1078,7 @@ void UVaelFloromantComponent::EnsureWheel() const
 		return;
 	}
 	WheelSlots.SetNum(Places);
+	WheelShadowSides.SetNum(Places);
 	// Empty places are filled with the plants of the repertoire she has not set yet, in its order
 	int32 Next = 0;
 	for (TObjectPtr<UVaelPlantArmData>& Place : WheelSlots)
@@ -1140,6 +1156,7 @@ void UVaelFloromantComponent::PutOnHand(bool bLeft)
 	}
 	// An arm still growing back after a tower takes the new plant once it is back
 	UVaelPlantArmComponent* Hand = GetHand(bLeft);
+	Hand->SetShadowForm(GetHandForm(bLeft, IsWheelShadow(HandBeltSelection)));
 	if (Hand->IsRegrowing())
 	{
 		Hand->SetRegrowPlant(Plant);
@@ -1239,7 +1256,7 @@ void UVaelFloromantComponent::RootTower(bool bLeft)
 	const FVector Ahead = Character->GetActorForwardVector().GetSafeNormal2D();
 	const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead) * (bLeft ? -35.0f : 35.0f);
 	const FVector Ground = GroundTarget(Character->GetActorLocation() + Ahead * Settings->TowerPlantDistance + Side, Settings->TowerPlantDistance + 60.0f);
-	AVaelPlantTower* Tower = AVaelPlantTower::PlantTower(Character, Plant, Ground);
+	AVaelPlantTower* Tower = AVaelPlantTower::PlantTower(Character, Plant, Ground, Hand != nullptr && Hand->IsShadowForm());
 	if (Tower == nullptr)
 	{
 		return;
@@ -1307,7 +1324,7 @@ void UVaelFloromantComponent::CrossHands(float Charge)
 	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
 	Aim.Z = 0.0f;
 	Aim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
-	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = Left->IsShadowForm() && Right->IsShadowForm();
 	const FVector Knot = (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + Aim * 45.0f;
 	VaelSymbiosis::Fire(Character, Kind, Left->GetPlant(), Right->GetPlant(), Knot, Aim, GetHandPower(), Charge, bShadow);
 
@@ -1356,7 +1373,7 @@ void UVaelFloromantComponent::ShootRoseHeart(UVaelPlantArmComponent* Left, UVael
 	TWeakObjectPtr<AVaelCharacter> WeakCharacter = Character;
 	TWeakObjectPtr<AVaelCharacter> WeakAlly = Ally;
 	TWeakObjectPtr<const UVaelPlantArmData> WeakRose = Rose;
-	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = Left->IsShadowForm() && Right->IsShadowForm();
 	FTimerHandle Timer;
 	Character->GetWorldTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([WeakCharacter, WeakAlly, WeakRose, Merge, Aim, bShadow]()
 	{
@@ -1450,4 +1467,60 @@ int32 UVaelFloromantComponent::ReloadHands()
 void UVaelFloromantComponent::OpenHerbarium()
 {
 	ShowNotBuilt(NSLOCTEXT("VaelFloromant", "Herbarium", "Herbarium"));
+}
+
+// ---------------------------------------------------------------- Medallions of the plant wheel
+
+bool UVaelFloromantComponent::GetHandForm(bool bLeft, bool bChosen) const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	switch (Character != nullptr ? Character->GetPath() : EVaelPath::None)
+	{
+	case EVaelPath::Light:		return false;
+	case EVaelPath::Shadow:		return true;
+	case EVaelPath::Twilight:	return !bLeft;
+	default:					return bChosen;
+	}
+}
+
+bool UVaelFloromantComponent::IsWheelShadow(int32 Slot) const
+{
+	EnsureWheel();
+	const UVaelPlantArmData* Plant = GetHandBeltPlant(Slot);
+	if (Plant == nullptr || Plant->IsLightOnly())
+	{
+		return false;
+	}
+	const AVaelCharacter* Character = GetCharacter();
+	const EVaelPath Path = Character != nullptr ? Character->GetPath() : EVaelPath::None;
+	return Path == EVaelPath::Shadow || (Path == EVaelPath::None && WheelShadowSides.IsValidIndex(Slot) && WheelShadowSides[Slot]);
+}
+
+bool UVaelFloromantComponent::CanFlipWheel(int32 Slot) const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	const UVaelPlantArmData* Plant = GetHandBeltPlant(Slot);
+	return Character != nullptr && Character->GetPath() == EVaelPath::None && Plant != nullptr && !Plant->IsLightOnly();
+}
+
+void UVaelFloromantComponent::FlipWheel()
+{
+	AVaelCharacter* Character = GetCharacter();
+	const UVaelPlantArmData* Plant = GetHandBeltPlant(HandBeltSelection);
+	if (Character == nullptr || Plant == nullptr)
+	{
+		return;
+	}
+	if (!CanFlipWheel(HandBeltSelection))
+	{
+		// After the vow the path has decided; the Mondtraufe has only its light
+		const FText Why = Plant->IsLightOnly() ? NSLOCTEXT("VaelFloromant", "LightOnly", "Sie kennt nur das Licht")
+			: NSLOCTEXT("VaelFloromant", "PathChosen", "Der Weg ist gewählt");
+		UVaelCombatTextSubsystem::PostPickup(Character, Why, FLinearColor(FColor(158, 143, 125)));
+		return;
+	}
+	WheelShadowSides[HandBeltSelection] = !WheelShadowSides[HandBeltSelection];
+	const bool bShadow = WheelShadowSides[HandBeltSelection];
+	UVaelCombatTextSubsystem::PostPickup(Character, Plant->GetDisplayName(bShadow), Plant->GetColor(bShadow));
+	WheelFlipAge = 0.0f;
 }

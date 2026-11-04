@@ -190,6 +190,7 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(BeltUpAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPageBelt, -1);
 			EnhancedInputComponent->BindAction(BeltDownAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPageBelt, 1);
 			EnhancedInputComponent->BindAction(FloromantPotionAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnPotion);
+			EnhancedInputComponent->BindAction(FlipMedallionAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnFlipMedallion);
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnReload);
 			EnhancedInputComponent->BindAction(RootAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnRoot);
 			EnhancedInputComponent->BindAction(HerbariumAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnHerbarium);
@@ -474,8 +475,18 @@ void AVaelPlayerController::CreateFloromantInput()
 
 	// Seed belt: d-pad up / down and the mouse wheel page, d-pad left / right and 1 / 2 lay the plant on a hand.
 	// D-pad down only pages when tapped; held, it drinks a healing potion.
+	// D-pad up only pages when tapped; held, it turns the medallion of the picked plant to its other form (Boris 2026-11-04)
 	BeltUpAction = CreateAction(TEXT("IA_Flo_GuertelHoch"));
-	Context->MapKey(BeltUpAction, EKeys::Gamepad_DPad_Up).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
+	UInputTriggerTap* BeltUpTap = NewObject<UInputTriggerTap>(Context);
+	BeltUpTap->TapReleaseTimeThreshold = PotionHoldTime;
+	Context->MapKey(BeltUpAction, EKeys::Gamepad_DPad_Up).Triggers.Add(BeltUpTap);
+
+	FlipMedallionAction = CreateAction(TEXT("IA_Flo_Medaillon"));
+	UInputTriggerHold* FlipHold = NewObject<UInputTriggerHold>(Context);
+	FlipHold->HoldTimeThreshold = PotionHoldTime;
+	FlipHold->bIsOneShot = true;
+	Context->MapKey(FlipMedallionAction, EKeys::Gamepad_DPad_Up).Triggers.Add(FlipHold);
+	Context->MapKey(FlipMedallionAction, EKeys::Three).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
 	Context->MapKey(BeltUpAction, EKeys::MouseScrollUp).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
 
 	BeltDownAction = CreateAction(TEXT("IA_Flo_GuertelRunter"));
@@ -972,6 +983,15 @@ void AVaelPlayerController::OnPageBelt(int32 Step)
 	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
 	{
 		VaelCharacter->GetFloromant()->PageHandBelt(Step);
+	}
+}
+
+void AVaelPlayerController::OnFlipMedallion()
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsFloromant())
+	{
+		VaelCharacter->GetFloromant()->FlipWheel();
 	}
 }
 

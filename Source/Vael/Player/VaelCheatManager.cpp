@@ -1465,3 +1465,13 @@ void UVaelCheatManager::VaelNatterBrut()
 		It->BreedNow();
 	}
 }
+
+void UVaelCheatManager::VaelMedaillon()
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		Player->GetFloromant()->FlipWheel();
+	}
+}

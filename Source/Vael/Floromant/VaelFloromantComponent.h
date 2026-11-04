@@ -95,6 +95,17 @@ public:
 
 	/** Picks the plant on the wheel; one not on it goes into the picked place first (cheats, smoke test). False if unknown */
 	bool PickPlant(const UVaelPlantArmData* Plant);
+
+	/** The medallion of a place (Boris 2026-11-04): its side (true = shadow) as the path shows it; whether it can be turned now
+	 *  (only before the vow, not for light-only plants); turning the picked one (d-pad up held, 3) */
+	bool IsWheelShadow(int32 Slot) const;
+	bool CanFlipWheel(int32 Slot) const;
+	void FlipWheel();
+	float GetWheelFlipAge() const { return WheelFlipAge; }
+
+	/** The form a hand gets: light path light, shadow path shadow, twilight the left hand light and the right shadow, before the
+	 *  vow the side it was laid on with */
+	bool GetHandForm(bool bLeft, bool bChosen) const;
 	int32 GetHandBeltSelection() const { return HandBeltSelection; }
 
 	/** Pages through the seed belt of the hands, +1 down, -1 up */
@@ -219,6 +230,12 @@ private:
 	/** The places of the wheel, filled from the repertoire in its order the first time they are asked for */
 	UPROPERTY(Transient)
 	mutable TArray<TObjectPtr<UVaelPlantArmData>> WheelSlots;
+
+	/** The side each medallion was turned to before the vow */
+	mutable TArray<bool> WheelShadowSides;
+
+	/** Seconds since the last turn of a medallion, for the turn on the wheel */
+	float WheelFlipAge = 10.0f;
 
 	/** Fills the wheel up to the unlocked places */
 	void EnsureWheel() const;

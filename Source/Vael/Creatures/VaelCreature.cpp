@@ -7,6 +7,7 @@
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "Components/StaticMeshComponent.h"
 #include "Compendium/VaelCompendiumSettings.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
@@ -278,6 +279,7 @@ void AVaelCreature::Tick(float DeltaSeconds)
 	}
 
 	UpdateBurning();
+	UpdateStatusDrips(DeltaSeconds);
 
 	// A staggering body tips over and rights itself again
 	if (StaggerLength > 0.0f)
@@ -1205,4 +1207,39 @@ void AVaelCreature::LureTo(AActor* Attacker, const FVector& Place, float Seconds
 bool AVaelCreature::IsHeavy() const
 {
 	return ActiveData == nullptr || ActiveData->PullMultiplier < 0.5f || ActiveData->CollisionRadius > 90.0f || IsBossFightActive();
+}
+
+void AVaelCreature::UpdateStatusDrips(float DeltaSeconds)
+{
+	DripCountdown -= DeltaSeconds;
+	if (bDead || DripCountdown > 0.0f)
+	{
+		return;
+	}
+	DripCountdown = 0.12f;
+	const bool bWet = UVaelCombatStatics::HasStatus(this, EVaelStatus::Wet);
+	const bool bPitched = UVaelCombatStatics::HasStatus(this, EVaelStatus::Pitched);
+	if (!bWet && !bPitched)
+	{
+		DripCountdown = 0.3f;
+		return;
+	}
+
+	// Drops fall from the body: water quick and bright, pitch slow, dark amber and glowing a little
+	const float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
+	const FVector DripFrom = GetActorLocation() + FVector(0.0f, 0.0f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight() * 0.3f);
+	FVaelDebris Drops;
+	Drops.Count = bPitched ? 2 : 3;
+	Drops.Spread = Radius * 0.8f;
+	Drops.Speed = 20.0f;
+	Drops.Lift = 0.0f;
+	Drops.Gravity = bPitched ? 260.0f : 900.0f;
+	Drops.Drag = 1.0f;
+	Drops.Lifetime = bPitched ? 0.9f : 0.5f;
+	Drops.MinSize = 2.0f;
+	Drops.MaxSize = bPitched ? 5.0f : 3.5f;
+	Drops.Color = bPitched ? FLinearColor(0.85f, 0.35f, 0.03f) : FLinearColor(0.45f, 0.8f, 1.0f);
+	Drops.Glow = bPitched ? 2.5f : 3.0f;
+	Drops.bLandOnGround = true;
+	AVaelDebrisBurst::Spawn(this, DripFrom, Drops);
 }

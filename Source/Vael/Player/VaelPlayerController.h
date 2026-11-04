@@ -202,6 +202,10 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PutLeftAction;
 
+	/** Floromant: d-pad up held or 3 turns the medallion of the picked plant */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> FlipMedallionAction;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> PutRightAction;
 
@@ -455,6 +459,7 @@ protected:
 	void OnTower(bool bLeft);
 	void OnPageBelt(int32 Step);
 	void OnPutOnHand(bool bLeft);
+	void OnFlipMedallion();
 	void OnReload();
 	void OnSwapHands();
 	void OnRoot();

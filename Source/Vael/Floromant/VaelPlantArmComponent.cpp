@@ -654,7 +654,7 @@ void UVaelPlantArmComponent::BuildStalks()
 
 	// A short burst while the hand turns
 	const FVector Hand = GetBody()->GetSocketLocation(Bone(TEXT("hand")));
-	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = IsShadowForm();
 	UNiagaraSystem* Burst = VaelAssets::LoadOptional(Plant->GrowEffect);
 	if (Burst == nullptr)
 	{
@@ -1023,7 +1023,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 
 void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
 {
-	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow && !Plant->IsLightOnly();
+	const bool bShadow = IsShadowForm();
 
 	// The winding stalks spin faster the longer the hand fires, and slow down again after
 	const float TargetRate = IsFiring() ? Plant->SpinSpeed * FMath::Clamp(FireTime / Plant->SpinRampTime, 0.0f, 1.0f) : 0.0f;
@@ -1158,7 +1158,7 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 			Flash = 0.6f;
 		}
 		// A splash of the plant where the Tauperle leaves the rose
-		VaelSymbiosis::MuzzlePuff(this, Plant, BarrelMuzzle, Character->GetPath() == EVaelPath::Shadow, 1.4f);
+		VaelSymbiosis::MuzzlePuff(this, Plant, BarrelMuzzle, IsShadowForm(), 1.4f);
 	}
 	else
 	{
@@ -1167,7 +1167,7 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 		TipRegrow[Finger] = 0.0f;
 		TipKicks[Finger] = 1.0f;
 		TipCharges[Finger] = 0.0f;
-		VaelSymbiosis::MuzzlePuff(this, Plant, Muzzles[Finger], Character->GetPath() == EVaelPath::Shadow);
+		VaelSymbiosis::MuzzlePuff(this, Plant, Muzzles[Finger], IsShadowForm());
 	}
 
 	// Out of the fingertip, or the front of the barrel, towards where the player aims, flat over the ground
@@ -1184,7 +1184,7 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	// The Wachbeere throws the berry itself in an arc, to the enemy nearest the aim or far ahead
 	if (Plant->bEyeBerry)
 	{
-		AVaelEyeBerry::Throw(Character, Plant, Muzzle, GetEyeBerryTarget(Direction), Character->GetPath() == EVaelPath::Shadow);
+		AVaelEyeBerry::Throw(Character, Plant, Muzzle, GetEyeBerryTarget(Direction), IsShadowForm());
 		return;
 	}
 
@@ -1192,7 +1192,7 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
 
 	// The plant's own shot: a burning seed head, a blade of grass, a Tauperle of its water (VaelSymbiosis::FireShot)
-	VaelSymbiosis::FireShot(Character, Plant, Muzzle, Direction, Power, Character->GetPath() == EVaelPath::Shadow);
+	VaelSymbiosis::FireShot(Character, Plant, Muzzle, Direction, Power, IsShadowForm());
 }
 
 // ---------------------------------------------------------------- Lasso (Schlotwinde)
@@ -1224,7 +1224,7 @@ void UVaelPlantArmComponent::UpdateFairyCalling(float DeltaTime)
 		return;
 	}
 
-	const bool bShadowPath = Character->GetPath() == EVaelPath::Shadow;
+	const bool bShadowPath = IsShadowForm();
 	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 	const FVector Ahead = Character->GetActorLocation() + Aim * Plant->FairyReach;
@@ -1253,7 +1253,7 @@ void UVaelPlantArmComponent::UpdateFairyCalling(float DeltaTime)
 void UVaelPlantArmComponent::UpdateLassoFiring(float DeltaTime)
 {
 	AVaelCharacter* Character = GetCharacter();
-	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = IsShadowForm();
 	FireCountdown = FMath::Max(0.0f, FireCountdown - DeltaTime);
 	Lassos.RemoveAll([](const TWeakObjectPtr<AVaelBindweedLasso>& Lasso) { return !Lasso.IsValid() || Lasso->IsDone(); });
 
@@ -1378,7 +1378,7 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 		return;
 	}
 	AVaelCharacter* Character = GetCharacter();
-	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = IsShadowForm();
 	const float Time = GetWorld()->GetTimeSeconds();
 	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
@@ -1484,7 +1484,7 @@ FVector UVaelPlantArmComponent::GetThrowTarget(float WithCharge) const
 void UVaelPlantArmComponent::UpdateMortarFiring(float DeltaTime)
 {
 	AVaelCharacter* Character = GetCharacter();
-	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = IsShadowForm();
 	ThrowCountdown = FMath::Max(0.0f, ThrowCountdown - DeltaTime);
 	ThrowHold = FMath::Max(0.0f, ThrowHold - DeltaTime);
 
@@ -1594,7 +1594,7 @@ bool UVaelPlantArmComponent::ThrowNow(float WithCharge)
 	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
 	const float Power = Floromant != nullptr ? Floromant->GetHandPower() : 1.0f;
 	const int32 Split = Floromant != nullptr && Floromant->IsRooted() ? Plant->RootedSplit : 0;
-	VaelSymbiosis::ThrowCapsule(Character, Plant, BarrelMuzzle, GetThrowTarget(WithCharge), WithCharge, Power, Character->GetPath() == EVaelPath::Shadow, Split);
+	VaelSymbiosis::ThrowCapsule(Character, Plant, BarrelMuzzle, GetThrowTarget(WithCharge), WithCharge, Power, IsShadowForm(), Split);
 
 	// Petals and sparks fly off the bud as it bursts open
 	FVaelDebris Burst;
@@ -1606,7 +1606,7 @@ bool UVaelPlantArmComponent::ThrowNow(float WithCharge)
 	Burst.Lifetime = 0.5f;
 	Burst.MinSize = 2.0f;
 	Burst.MaxSize = 4.0f;
-	Burst.Color = Character->GetPath() == EVaelPath::Shadow ? Plant->SleepColor : Plant->EmberColor;
+	Burst.Color = IsShadowForm() ? Plant->SleepColor : Plant->EmberColor;
 	Burst.Glow = 6.0f;
 	Burst.bLandOnGround = false;
 	AVaelDebrisBurst::Spawn(this, BarrelMuzzle, Burst);
@@ -1661,7 +1661,7 @@ void UVaelPlantArmComponent::UpdateOvergrowth(const FVector& Shoulder, const FVe
 	}
 
 	// First the forearm is overrun, then the upper arm
-	const bool bShadow = GetCharacter()->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = IsShadowForm();
 	for (UMaterialInstanceDynamic* Material : { OvergrowthMaterialA.Get(), OvergrowthMaterialB.Get() })
 	{
 		const bool bUpper = Material == OvergrowthMaterialB;
@@ -1876,7 +1876,7 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	AVaelCharacter* Character = GetCharacter();
 	const FTransform BodyTransform = Body->GetComponentTransform();
 	const float Time = GetWorld()->GetTimeSeconds();
-	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
+	const bool bShadow = IsShadowForm();
 
 	// --- Holding: the vines reach for the most hurt ally (herself without one), or as Blutrose for an enemy
 	const bool bHolding = IsFiring() && Grow >= 1.0f && !Character->IsDowned()
@@ -2448,4 +2448,9 @@ FVector UVaelPlantArmComponent::GetEyeBerryTarget(const FVector& Direction) cons
 		return Ground.ImpactPoint;
 	}
 	return Target - FVector(0.0f, 0.0f, Character->GetSimpleCollisionHalfHeight());
+}
+
+bool UVaelPlantArmComponent::IsShadowForm() const
+{
+	return bShadowForm && Plant != nullptr && !Plant->IsLightOnly();
 }

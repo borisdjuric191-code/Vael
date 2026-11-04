@@ -672,11 +672,15 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	else if (ShownData->Strip == EVaelHUDStrip::HandBelt && Floromant != nullptr)
 	{
 		// The seed belt of the hands: the picked plant is laid on a hand with the d-pad left / right
-		const bool bShadowForm = Path == EVaelPath::Shadow;
+		WheelFlipAge = Floromant->GetWheelFlipAge();
 		for (int32 Index = 0; Index < Floromant->GetHandBeltSize(); ++Index)
 		{
+			// Each medallion shows its own side: the path decides it, before the vow the side she turned it to
+			const bool bShadowForm = Floromant->IsWheelShadow(Index);
 			const UVaelPlantArmData* BeltPlant = Floromant->GetHandBeltPlant(Index);
 			FStripEntry& Entry = Strip.AddDefaulted_GetRef();
+			Entry.bShadowSide = bShadowForm;
+			Entry.bLightOnly = BeltPlant != nullptr && BeltPlant->IsLightOnly();
 			Entry.bFilled = BeltPlant != nullptr;
 			Entry.Color = BeltPlant != nullptr ? BeltPlant->GetColor(bShadowForm) : FLinearColor::Gray;
 			Entry.bPicked = Index == Floromant->GetHandBeltSelection();
@@ -685,10 +689,11 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			{
 				const bool bShadowPicture = bShadowForm && !BeltPlant->IsLightOnly() && !BeltPlant->WheelShadowPicture.IsNull();
 				Entry.Picture = GetTextureBrush(bShadowPicture ? BeltPlant->WheelShadowPicture : BeltPlant->WheelPicture);
+				Entry.OtherPicture = GetTextureBrush(bShadowPicture ? BeltPlant->WheelPicture : BeltPlant->WheelShadowPicture);
 			}
 		}
 		const UVaelPlantArmData* Picked = Floromant->GetHandBeltPlant(Floromant->GetHandBeltSelection());
-		StripLabel = Picked != nullptr ? Picked->GetDisplayName(bShadowForm) : FText::GetEmpty();
+		StripLabel = Picked != nullptr ? Picked->GetDisplayName(Floromant->IsWheelShadow(Floromant->GetHandBeltSelection())) : FText::GetEmpty();
 	}
 
 	// The Keimpelz pelt of a Floromant, as a furry bar over the panel that shrinks to the left and grows back to the right
@@ -1128,12 +1133,21 @@ void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 L
 		const float Radius = FMath::Lerp(BigRadius, SmallRadius, Blend) * (1.0f - 0.25f * FMath::Max(Near - 1.0f, 0.0f));
 		const float Fade = FMath::Clamp(1.0f - 0.45f * Near, 0.0f, 1.0f);
 		const FVector2f At = Center + FVector2f(0.0f, Offset * Spacing);
-		const FLinearColor Rim = FMath::Lerp(PathRim * 1.3f, Frame * 0.7f, Blend) * Fade;
+		// Before the vow a medallion turned to its shadow side gets a dark red rim
+		const FLinearColor SideRim = Path == EVaelPath::None && Entry.bShadowSide ? FLinearColor(0.55f, 0.07f, 0.09f) : PathRim;
+		const FLinearColor Rim = FMath::Lerp(SideRim * 1.3f, Frame * 0.7f, Blend) * Fade;
 		PaintMedallion(Out, Layer + 1, At, Radius, Rim);
-		if (Entry.bFilled && Entry.Picture != nullptr)
+
+		// Just turned, the picked medallion spins like a coin: it narrows, shows its other side and widens again
+		const float TurnSeconds = 0.36f;
+		const bool bTurning = Entry.bPicked && WheelFlipAge < TurnSeconds;
+		const float Width = bTurning ? FMath::Max(FMath::Abs(FMath::Cos(UE_PI * WheelFlipAge / TurnSeconds)), 0.05f) : 1.0f;
+		const FSlateBrush* Face = bTurning && WheelFlipAge < TurnSeconds * 0.5f && Entry.OtherPicture != nullptr ? Entry.OtherPicture : Entry.Picture;
+		if (Entry.bFilled && Face != nullptr)
 		{
 			// The ink painting of the plant fills the medallion
-			PaintBox(Out, Layer + 1, Entry.Picture, At - FVector2f(Radius * 0.8f), FVector2f(Radius * 1.6f), FLinearColor(Fade, Fade, Fade, 1.0f));
+			const FVector2f Half(Radius * 0.8f * Width, Radius * 0.8f);
+			PaintBox(Out, Layer + 1, Face, At - Half, Half * 2.0f, FLinearColor(Fade, Fade, Fade, 1.0f));
 		}
 		else if (Entry.bFilled)
 		{
@@ -1149,6 +1163,19 @@ void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 L
 
 	// The picked plant's name beside the wheel, the d-pad that turns it below
 	const FStripEntry& Shown = Strip[Picked];
+
+	// In the twilight the right hand grows the shadow form: a small dark medallion of it hangs at the picked one
+	if (Path == EVaelPath::Twilight && Shown.bFilled && !Shown.bLightOnly && Shown.OtherPicture != nullptr)
+	{
+		const FVector2f Twin = Center + FVector2f(BigRadius * 0.78f, BigRadius * 0.62f);
+		PaintMedallion(Out, Layer + 4, Twin, 15.0f, FLinearColor(0.55f, 0.07f, 0.09f));
+		PaintBox(Out, Layer + 4, Shown.OtherPicture, Twin - FVector2f(12.0f), FVector2f(24.0f));
+	}
+	// A plant of the light only (Mondtraufe) says so under its name
+	if (Shown.bLightOnly)
+	{
+		PaintText(Out, Layer + 5, NSLOCTEXT("VaelHUD", "LightOnly", "nur Licht"), SmallFont, Center + FVector2f(BigRadius + 70.0f, 12.0f), FLinearColor(1.0f, 0.82f, 0.9f));
+	}
 	PaintText(Out, Layer + 5, Shown.Label, LabelFont, Center + FVector2f(BigRadius + 16.0f, -12.0f), Bright);
 	if (Glyphs != EVaelInputGlyphs::Keyboard)
 	{
