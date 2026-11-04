@@ -183,5 +183,11 @@ private:
 	/** Seconds of the Turmruf left, and how far it has grown into its giant form (0 to 1) */
 	float CallLeft = 0.0f;
 	float Giant = 0.0f;
+
+	/** Turmrufe in a row while it stands giant: each grows the veil of a Mondtraufe pair a little more (Boris 2026-11-04) */
+	int32 CallStacks = 0;
+
+	/** Size of the veil of a Mondtraufe pair against the hands: +20 % fused, +12 % per Turmruf, at most +50 % */
+	float GetVeilScale() const;
 	float BudOpen = 0.0f;
 };

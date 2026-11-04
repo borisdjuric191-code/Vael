@@ -757,7 +757,7 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		// The pair acts out of the mixed blossom on top of the shared trunk
 		const FVector Middle = GetCrown() + GetCrownAxis() * 25.0f;
 		const FVector Way = Goal->GetActorLocation() - Middle;
-		VaelSymbiosis::Fire(Gardener, Symbiosis, Plant, Partner->Plant, Middle, Way, Power, 0.0f, bShadow, Way.Size2D());
+		VaelSymbiosis::Fire(Gardener, Symbiosis, Plant, Partner->Plant, Middle, Way, Power, 0.0f, bShadow, Way.Size2D(), GetVeilScale());
 		if (Knot != nullptr)
 		{
 			Knot->Flash();
@@ -1088,6 +1088,8 @@ void AVaelPlantTower::CallUp(float Seconds)
 	{
 		return;
 	}
+	// A call while it already stands giant grows the veil of a Mondtraufe pair one step more
+	CallStacks = CallLeft > 0.0f ? FMath::Min(CallStacks + 1, 3) : 1;
 	// The pair grows up together, and the call keeps it standing at least that long
 	CallLeft = FMath::Max(CallLeft, Seconds);
 	LifeLeft = FMath::Max(LifeLeft, Seconds);
@@ -1097,4 +1099,12 @@ void AVaelPlantTower::CallUp(float Seconds)
 		Other->LifeLeft = FMath::Max(Other->LifeLeft, Seconds);
 	}
 	VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 2.5f);
+}
+
+float AVaelPlantTower::GetVeilScale() const
+{
+	// Fused it is a little bigger than from the hands; every Turmruf while it stands giant adds a little more
+	const AVaelPlantTower* Other = Partner.Get();
+	const int32 Stacks = FMath::Max(CallLeft > 0.0f ? CallStacks : 0, Other != nullptr && Other->CallLeft > 0.0f ? Other->CallStacks : 0);
+	return FMath::Min(1.2f + 0.12f * Stacks, 1.5f);
 }

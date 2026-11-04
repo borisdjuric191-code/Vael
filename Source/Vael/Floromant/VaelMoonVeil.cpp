@@ -205,6 +205,8 @@ void AVaelMoonVeil::Tick(float DeltaSeconds)
 		}
 	}
 
+	TickPairLook(DeltaSeconds, Open, Fade);
+
 	if (Rise >= 1.0f && Fade >= 1.0f)
 	{
 		StopShots();
@@ -358,11 +360,185 @@ void AVaelMoonVeil::SetPair(EVaelSymbiosis InPair, const UVaelPlantArmData* InOt
 	Pair = InPair;
 	Other = InOther;
 	Lifetime *= LifetimeScale;
-	if (CurtainLook != nullptr && Pair != EVaelSymbiosis::None)
+	if (Pair == EVaelSymbiosis::None)
 	{
-		// The veil takes on a little of the other plant's colour
-		CurtainLook->SetVectorParameterValue(TEXT("Farbe"), FMath::Lerp(Plant->VeilColor, VaelSymbiosis::GetColor(Pair), 0.35f));
+		return;
 	}
+
+	// Every partner gives the veil a look of its own (Boris 2026-11-04): its colour in the light, how thick and how fast the
+	// light runs, and what falls, rises or glitters in it
+	FLinearColor Tone = FMath::Lerp(Plant->VeilColor, VaelSymbiosis::GetColor(Pair), 0.6f);
+	float Sheet = 0.22f;
+	float Flow = 0.3f;
+	switch (Pair)
+	{
+	case EVaelSymbiosis::Glutvorhang:		Tone = FLinearColor(1.0f, 0.32f, 0.04f); Sheet = 0.3f; Flow = 0.5f; break;
+	case EVaelSymbiosis::Taustrom:			Tone = FLinearColor(0.2f, 0.65f, 1.0f); Flow = 0.9f; break;
+	case EVaelSymbiosis::WehenderSchleier:	Tone = FLinearColor(0.65f, 1.0f, 0.75f); Flow = 1.1f; break;
+	case EVaelSymbiosis::Bernsteinschleier:	Tone = FLinearColor(1.0f, 0.5f, 0.05f); Sheet = 0.5f; Flow = 0.15f; break;
+	case EVaelSymbiosis::Sternenfall:		Tone = FLinearColor(1.0f, 0.82f, 0.4f); Sheet = 0.16f; break;
+	case EVaelSymbiosis::Mondranken:		Tone = FLinearColor(0.8f, 1.0f, 0.4f); break;
+	case EVaelSymbiosis::Mondrose:			Tone = FLinearColor(1.0f, 0.2f, 0.35f); Sheet = 0.28f; break;
+	case EVaelSymbiosis::Mondkuppel:		Tone = FLinearColor(1.0f, 0.85f, 0.5f); Sheet = 0.3f; break;
+	case EVaelSymbiosis::Mondhalle:			Tone = FLinearColor(0.85f, 0.9f, 1.0f); Sheet = 0.3f; break;
+	case EVaelSymbiosis::Feentor:			Tone = FLinearColor(0.85f, 0.45f, 1.0f); break;
+	default: break;
+	}
+	PairLookColor = Tone;
+	// The threads take the colour too
+	for (UStaticMeshComponent* Thread : Threads)
+	{
+		if (UMaterialInstanceDynamic* Look = Thread->CreateAndSetMaterialInstanceDynamic(0))
+		{
+			Look->SetVectorParameterValue(TEXT("Farbe"), Tone);
+		}
+	}
+	if (CurtainLook != nullptr)
+	{
+		CurtainLook->SetVectorParameterValue(TEXT("Farbe"), PairLookColor);
+		CurtainLook->SetScalarParameterValue(TEXT("Flaeche"), Sheet);
+		CurtainLook->SetScalarParameterValue(TEXT("Fliessen"), Flow);
+	}
+	Light->SetLightColor(PairLookColor);
+
+	// Partners that bring a body of their own: vines climbing up from the foot, roses hanging from the arch
+	UStaticMesh* Part = nullptr;
+	int32 Count = 0;
+	if (Pair == EVaelSymbiosis::Mondranken && Other != nullptr && !Other->VineMeshes.IsEmpty())
+	{
+		Part = VaelAssets::LoadOptional(Other->VineMeshes[0]);
+		Count = 7;
+	}
+	else if (Pair == EVaelSymbiosis::Mondrose && Other != nullptr)
+	{
+		Part = VaelAssets::LoadOptional(Other->ShoulderMesh);
+		Count = 4;
+	}
+	UMaterialInterface* PartLook = Other != nullptr ? VaelAssets::LoadOptional(Other->Material) : nullptr;
+	for (int32 Index = 0; Part != nullptr && Index < Count; ++Index)
+	{
+		UStaticMeshComponent* Piece = NewObject<UStaticMeshComponent>(this);
+		Piece->SetMobility(EComponentMobility::Movable);
+		Piece->SetStaticMesh(Part);
+		Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Piece->SetCanEverAffectNavigation(false);
+		Piece->SetCastShadow(false);
+		Piece->SetupAttachment(Root);
+		Piece->RegisterComponent();
+		if (PartLook != nullptr)
+		{
+			Piece->SetMaterial(0, PartLook);
+		}
+		Piece->SetVisibility(false);
+		PairParts.Add(Piece);
+	}
+}
+
+void AVaelMoonVeil::TickPairLook(float DeltaSeconds, float Open, float Fade)
+{
+	if (Pair == EVaelSymbiosis::None)
+	{
+		return;
+	}
+	const float Time = GetWorld()->GetTimeSeconds();
+
+	// The vines climb up the veil from the foot, the roses hang along the arch and sway
+	for (int32 Index = 0; Index < PairParts.Num(); ++Index)
+	{
+		UStaticMeshComponent* Piece = PairParts[Index];
+		const float Share = (Index + 0.5f) / PairParts.Num();
+		const float Y = (Share - 0.5f) * Wide * 0.9f;
+		Piece->SetVisibility(Fade > 0.05f);
+		if (Pair == EVaelSymbiosis::Mondranken)
+		{
+			const float Climb = FMath::Clamp(Age / 1.5f, 0.0f, 1.0f) * GetTop(Y) * 0.75f * Fade;
+			const FRotator Lean(8.0f * FMath::Sin(Time * 1.2f + Index), 0.0f, 10.0f * FMath::Sin(Index * 2.3f));
+			Piece->SetRelativeLocationAndRotation(FVector(8.0f * FMath::Sin(Index * 1.7f), Y, 0.0f), Lean);
+			Piece->SetRelativeScale3D(FVector(0.9f, 0.9f, FMath::Max(Climb, 1.0f) / 100.0f));
+		}
+		else
+		{
+			const float Size = 2.2f * Open * Fade;
+			Piece->SetRelativeLocationAndRotation(FVector(-25.0f, Y, GetTop(Y) - 45.0f), FRotator(180.0f + 10.0f * FMath::Sin(Time * 1.4f + Index), Index * 70.0f, 0.0f));
+			Piece->SetRelativeScale3D(FVector(FMath::Max(Size, 0.01f)));
+		}
+	}
+
+	// What falls, rises or glitters in the light of the veil
+	PairSparkCountdown -= DeltaSeconds;
+	if (PairSparkCountdown > 0.0f || Fade < 0.2f)
+	{
+		return;
+	}
+	PairSparkCountdown = 0.04f;
+	const FTransform& Transform = GetActorTransform();
+	const float Y = FMath::FRandRange(-0.48f, 0.48f) * Wide;
+	FVaelDebris Bits;
+	Bits.Count = 4;
+	Bits.Spread = 30.0f;
+	Bits.Speed = 30.0f;
+	Bits.Lift = 0.0f;
+	Bits.Gravity = 0.0f;
+	Bits.Drag = 1.0f;
+	Bits.Lifetime = 0.9f;
+	Bits.MinSize = 2.0f;
+	Bits.MaxSize = 4.5f;
+	Bits.Color = PairLookColor;
+	Bits.Glow = 7.0f;
+	Bits.bLandOnGround = false;
+	FVector Local(0.0f, Y, FMath::FRandRange(0.2f, 0.95f) * GetTop(Y));
+	switch (Pair)
+	{
+	case EVaelSymbiosis::Glutvorhang:
+		// Embers trickle down the veil
+		Local.Z = GetTop(Y) * FMath::FRandRange(0.7f, 1.0f);
+		Bits.Gravity = 260.0f;
+		Bits.Color = FLinearColor(1.0f, 0.38f, 0.06f);
+		break;
+	case EVaelSymbiosis::Taustrom:
+		// Drops run down and fall on the ground before it
+		Local.Z = GetTop(Y) * FMath::FRandRange(0.6f, 1.0f);
+		Bits.Gravity = 900.0f;
+		Bits.Color = FLinearColor(0.45f, 0.85f, 1.0f);
+		Bits.bLandOnGround = true;
+		Bits.Glow = 3.0f;
+		break;
+	case EVaelSymbiosis::WehenderSchleier:
+		// Streaks and bits of leaf blow forward through it
+		Bits.Speed = 260.0f;
+		Bits.Color = FLinearColor(0.75f, 0.95f, 0.7f);
+		Bits.Glow = 2.0f;
+		Bits.MaxSize = 6.0f;
+		break;
+	case EVaelSymbiosis::Sternenfall:
+		// Little stars glitter all over it
+		Bits.Count = 3;
+		Bits.Lifetime = 0.5f;
+		Bits.Glow = 12.0f;
+		Bits.Color = FLinearColor(1.0f, 0.85f, 0.45f);
+		break;
+	case EVaelSymbiosis::Bernsteinschleier:
+		// Drops of resin slowly sink
+		Bits.Gravity = 120.0f;
+		Bits.Color = FLinearColor(1.0f, 0.5f, 0.05f);
+		break;
+	case EVaelSymbiosis::Mondrose:
+		// Rose petals drift in it
+		Bits.Gravity = 40.0f;
+		Bits.Glow = 2.0f;
+		Bits.MaxSize = 6.0f;
+		Bits.Color = FLinearColor(0.95f, 0.3f, 0.45f);
+		break;
+	case EVaelSymbiosis::Feentor:
+		// Fairy dust rises
+		Bits.Gravity = -80.0f;
+		Bits.Color = FLinearColor(1.0f, 0.75f, 1.0f);
+		break;
+	default:
+		Bits.Gravity = -30.0f;
+		break;
+	}
+	AVaelDebrisBurst::Spawn(this, Transform.TransformPositionNoScale(Local), Bits);
 }
 
 void AVaelMoonVeil::TickPair(float DeltaSeconds)

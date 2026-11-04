@@ -64,6 +64,9 @@ private:
 	/** What the pair does every so often: wanders, soaks, snares, cleanses the hall */
 	void TickPair(float DeltaSeconds);
 
+	/** The look the partner gives it: its parts (vines, roses) and what falls, rises or glitters in it */
+	void TickPairLook(float DeltaSeconds, float Open, float Fade);
+
 	/** The Bernsteinschleier bursts into sticky splinters when it ends */
 	virtual void Destroyed() override;
 
@@ -100,6 +103,12 @@ private:
 	float Lifetime = 8.0f;
 	float PairCountdown = 0.5f;
 	TSet<TWeakObjectPtr<AActor>> Snared;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> PairParts;
+
+	FLinearColor PairLookColor = FLinearColor::White;
+	float PairSparkCountdown = 0.0f;
 
 	/** Which side of the curtain each shot was on last tick */
 	TMap<TWeakObjectPtr<AActor>, float> ShotSides;

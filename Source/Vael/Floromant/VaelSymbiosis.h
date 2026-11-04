@@ -138,7 +138,7 @@ namespace VaelSymbiosis
 	 *  (rooted hands, giant form), Charge (0 to 1) makes a held cross of the hands bigger. Reach is how far away the target is (a
 	 *  tower knows it); 0 lets the pairs that throw look for a target ahead.
 	 */
-	void Fire(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* A, const UVaelPlantArmData* B, const FVector& Origin, const FVector& Direction, float Power, float Charge, bool bShadow, float Reach = 0.0f);
+	void Fire(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* A, const UVaelPlantArmData* B, const FVector& Origin, const FVector& Direction, float Power, float Charge, bool bShadow, float Reach = 0.0f, float VeilScale = 1.0f);
 
 	/** The pairs of the Schlotwinde (Vine) with the other plant: lassos, hedges and nets; Reach above 0 means a tower acts */
 	void FireBindweed(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* Vine, const UVaelPlantArmData* Other, const FVector& Origin, const FVector& Ahead, float Power, float Charge, bool bShadow, float Reach);

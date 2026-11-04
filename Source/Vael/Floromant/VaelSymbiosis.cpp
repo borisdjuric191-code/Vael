@@ -687,7 +687,7 @@ namespace VaelSymbiosis
 		}
 	}
 
-	void Fire(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* A, const UVaelPlantArmData* B, const FVector& Origin, const FVector& Direction, float Power, float Charge, bool bShadow, float Reach)
+	void Fire(APawn* Instigator, EVaelSymbiosis Kind, const UVaelPlantArmData* A, const UVaelPlantArmData* B, const FVector& Origin, const FVector& Direction, float Power, float Charge, bool bShadow, float Reach, float VeilScale)
 	{
 		if (Instigator == nullptr || A == nullptr || B == nullptr || Kind == EVaelSymbiosis::None)
 		{
@@ -1217,7 +1217,7 @@ namespace VaelSymbiosis
 			case EVaelSymbiosis::Feentor:
 				// Through the gate of the veil the fairies lure twice as long
 				Seconds *= 2.0f;
-				SymbiosisVeil(Instigator, Other, Kind, Fairy, Origin, Ahead, Reach);
+				SymbiosisVeil(Instigator, Other, Kind, Fairy, Origin, Ahead, Reach, VeilScale);
 				break;
 			default:
 				break;
@@ -1346,9 +1346,9 @@ namespace VaelSymbiosis
 			const FVector Middle = (Reach > 0.0f ? Origin : Instigator->GetActorLocation()) + Flat * 260.0f;
 			for (const float Sign : { 1.0f, -1.0f })
 			{
-				const FVector At = Middle + Side * Sign * 230.0f;
+				const FVector At = Middle + Side * Sign * 230.0f * VeilScale;
 				const FVector Facing = Side * Sign;
-				SymbiosisVeil(Instigator, A, Kind, B, Origin, Ahead, Reach, 1.0f, 1.0f, &At, &Facing);
+				SymbiosisVeil(Instigator, A, Kind, B, Origin, Ahead, Reach, VeilScale, 1.0f, &At, &Facing);
 			}
 			break;
 		}
@@ -1360,8 +1360,8 @@ namespace VaelSymbiosis
 			for (int32 Index = 0; Index < 6; ++Index)
 			{
 				const FVector Out = FRotator(0.0f, Index * 60.0f, 0.0f).Vector();
-				const FVector At = Middle + Out * 290.0f;
-				SymbiosisVeil(Instigator, Moon, Kind, Moon == A ? B : A, Origin, Ahead, Reach, 0.75f, 0.8f, &At, &Out);
+				const FVector At = Middle + Out * 290.0f * VeilScale;
+				SymbiosisVeil(Instigator, Moon, Kind, Moon == A ? B : A, Origin, Ahead, Reach, 0.75f * VeilScale, 0.8f, &At, &Out);
 			}
 			break;
 		}
@@ -1374,7 +1374,7 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Bernsteinschleier:
 		{
 			const UVaelPlantArmData* Moon = Pick(TEXT("Mondtraufe"));
-			SymbiosisVeil(Instigator, Moon, Kind, Moon == A ? B : A, Origin, Ahead, Reach, FMath::Sqrt(Grown), Kind == EVaelSymbiosis::Bernsteinschleier ? 1.5f : 1.0f);
+			SymbiosisVeil(Instigator, Moon, Kind, Moon == A ? B : A, Origin, Ahead, Reach, FMath::Sqrt(Grown) * VeilScale, Kind == EVaelSymbiosis::Bernsteinschleier ? 1.5f : 1.0f);
 			break;
 		}
 		default:
