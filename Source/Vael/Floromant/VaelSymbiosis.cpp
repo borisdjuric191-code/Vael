@@ -94,6 +94,8 @@ namespace
 				Shot->SetWatersPlants(Plant->WaterRadius, Plant->WaterPerShot);
 			}
 		}
+		// The shot is felt: halo, light, sparks and a clear burst in the plant colour (AVaelSpellProjectile::SetPlantFeel)
+		Shot->SetPlantFeel(Color, 1.0f);
 		Shot->SetEffects(VaelEffects::Load(Hit.Element));
 		return Shot;
 	}
@@ -1550,6 +1552,8 @@ namespace VaelSymbiosis
 		Hit.Element = Plant->ShotElement;
 		Hit.Status = Plant->ShotStatus;
 		Hit.StatusDuration = Plant->ShotStatusDuration;
+		// A small push, so a hit is felt; the Windhalm pushes harder (SymbiosisProjectile)
+		Hit.Knockback = 60.0f;
 
 		AVaelSpellProjectile* Shot = SymbiosisProjectile(Instigator, Plant, Muzzle, Direction, Hit, Plant->ShotRadius * SizeScale, 0, Plant->GetColor(bShadow), true);
 		if (Shot == nullptr)
@@ -1613,17 +1617,17 @@ namespace VaelSymbiosis
 			return;
 		}
 		FVaelDebris Puff;
-		Puff.Count = FMath::RoundToInt(7.0f * Scale);
+		Puff.Count = FMath::RoundToInt(12.0f * Scale);
 		Puff.Spread = 4.0f * Scale;
-		Puff.Speed = 140.0f * Scale;
+		Puff.Speed = 220.0f * Scale;
 		Puff.Lift = 60.0f;
 		Puff.Gravity = 120.0f;
 		Puff.Drag = 3.0f;
 		Puff.Lifetime = 0.35f;
 		Puff.MinSize = 1.5f;
-		Puff.MaxSize = 3.5f * Scale;
+		Puff.MaxSize = 4.5f * Scale;
 		Puff.Color = GetPlantColor(Plant, bShadow);
-		Puff.Glow = 5.0f;
+		Puff.Glow = 7.0f;
 		Puff.bLandOnGround = false;
 		AVaelDebrisBurst::Spawn(WorldContext, Location, Puff);
 	}

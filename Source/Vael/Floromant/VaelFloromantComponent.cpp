@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Floromant/VaelFloromantComponent.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
@@ -1241,6 +1242,11 @@ void UVaelFloromantComponent::CrossHands(float Charge)
 	const bool bShadow = Character->GetPath() == EVaelPath::Shadow;
 	const FVector Knot = (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + Aim * 45.0f;
 	VaelSymbiosis::Fire(Character, Kind, Left->GetPlant(), Right->GetPlant(), Knot, Aim, GetHandPower(), Charge, bShadow);
+
+	// The moment the arms grow into each other is felt: a burst of both plants at the knot and a light jolt of the camera
+	VaelSymbiosis::MuzzlePuff(Character, Left->GetPlant(), Knot, bShadow, 2.6f + Charge);
+	VaelSymbiosis::MuzzlePuff(Character, Right->GetPlant(), Knot, bShadow, 2.6f + Charge);
+	UVaelHitFeedbackSubsystem::Shake(Character, 0.12f + 0.08f * Charge);
 
 	// The knot stays a moment between the hands
 	if (CrossKnot == nullptr)

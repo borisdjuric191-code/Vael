@@ -10,6 +10,7 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelSymbiosis.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
@@ -122,9 +123,14 @@ void AVaelEyeBerry::Tick(float DeltaSeconds)
 		const float Arc = 120.0f + FVector::Dist2D(Start, Target) * 0.15f;
 		SetActorLocation(FMath::Lerp(Start, Target, Share) + FVector(0.0f, 0.0f, 4.0f * Arc * Share * (1.0f - Share)));
 		Berry->SetRelativeRotation(FRotator(Age * 720.0f, Age * 300.0f, 0.0f));
+		if (FMath::Fmod(Age, 0.05f) < GetWorld()->GetDeltaSeconds())
+		{
+			VaelSymbiosis::MuzzlePuff(this, Plant, GetActorLocation(), bShadow, 0.4f);
+		}
 		if (Share >= 1.0f)
 		{
 			bLanded = true;
+			VaelSymbiosis::MuzzlePuff(this, Plant, Target + FVector(0.0f, 0.0f, 20.0f), bShadow, 2.0f);
 			OpenAge = 0.0f;
 			NextLook = EyeOpenSeconds;
 			SetActorLocation(Target);

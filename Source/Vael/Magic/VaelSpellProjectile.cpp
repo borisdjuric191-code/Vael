@@ -19,6 +19,8 @@
 #include "Magic/VaelFireRoller.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Engine/PointLight.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "Magic/VaelWaterBolt.h"
 #include "Magic/VaelWaterWave.h"
 #include "Magic/VaelWaterOrb.h"
@@ -282,6 +284,11 @@ void AVaelSpellProjectile::InitSpell(const FVaelSpellHit& InHit, float Speed, fl
 void AVaelSpellProjectile::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	if (PlantFeelStrength > 0.0f && !bFlightEnded)
+	{
+		TickPlantFeel(DeltaSeconds);
+	}
 
 	if (Hit.Element == EVaelElement::Water && !bFlightEnded)
 	{
@@ -1818,6 +1825,11 @@ void AVaelSpellProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 
+	if (PlantFeelStrength > 0.0f)
+	{
+		StartPlantFeel();
+	}
+
 	// The ball of water of the water kit brings its own bubbles and drops instead of the trail and the glowing spheres
 	if (Look == EVaelProjectileLook::WaterOrb && SpawnWaterOrb())
 	{
@@ -2037,9 +2049,13 @@ void AVaelSpellProjectile::EndFlight(bool bHitSomething)
 	}
 
 	// A projectile that just runs out in the air fizzles without an impact
+	if ((bHitSomething || ExplosionRadius > 0.0f) && PlantFeelStrength > 0.0f)
+	{
+		BurstPlantFeel();
+	}
 	if (bHitSomething || ExplosionRadius > 0.0f)
 	{
-		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : Look == EVaelProjectileLook::FireRoller ? SpellRadius * 0.3f : SpellRadius);
+		VaelEffects::PlayImpact(this, Effects, GetActorLocation(), PlantFeelStrength > 0.0f ? FMath::Max(SpellRadius * 3.0f, 45.0f * PlantFeelStrength) : ExplosionRadius > 0.0f ? ExplosionRadius : Look == EVaelProjectileLook::FireRoller ? SpellRadius * 0.3f : SpellRadius);
 
 		// Plants that burst on a hit, like the Aschblase, feel it
 		AVaelHarvestable::NotifySpellImpact(GetWorld(), GetActorLocation(), ExplosionRadius > 0.0f ? ExplosionRadius : SpellRadius, ExplosionRadius > 0.0f ? ExplosionHit.Element : Hit.Element);
@@ -2192,5 +2208,77 @@ void AVaelSpellProjectile::AnimateFireball(float Time, float DeltaSeconds)
 		NextShedCountdown = SparkEmberInterval * FMath::FRandRange(0.5f, 1.2f);
 		ShedPiece(GetActorLocation() - Forward * Radius * FMath::FRandRange(0.3f, 1.4f),
 			Forward * Movement->Velocity.Size() * SparkEmberForwardShare + FMath::VRand() * SparkEmberSpread * FMath::FRandRange(0.5f, 1.2f) + FVector(0.0f, 0.0f, 90.0f));
+	}
+}
+
+// ---------------------------------------------------------------- Plant feel (Floromant shots)
+
+void AVaelSpellProjectile::StartPlantFeel()
+{
+	// A light in the plant colour travels with the shot, so it reads from the camera (a glowing halo shape was tried: the
+	// looks of the shots scale their shapes, it grew into a milky ball)
+	if (LookLight == nullptr)
+	{
+		AddLookLight(PlantFeelColor, 10.0f * PlantFeelStrength);
+	}
+}
+
+void AVaelSpellProjectile::TickPlantFeel(float DeltaSeconds)
+{
+	// A trail of small sparks in the plant colour, left behind in the air
+	PlantTrailCountdown -= DeltaSeconds;
+	if (PlantTrailCountdown > 0.0f)
+	{
+		return;
+	}
+	PlantTrailCountdown = 0.05f;
+	FVaelDebris Trail;
+	Trail.Count = 2;
+	Trail.Spread = FMath::Max(SpellRadius, 8.0f) * 0.5f;
+	Trail.Speed = 25.0f;
+	Trail.Lift = 15.0f;
+	Trail.Gravity = 40.0f;
+	Trail.Drag = 2.0f;
+	Trail.Lifetime = 0.4f;
+	Trail.MinSize = 1.5f;
+	Trail.MaxSize = 3.0f * PlantFeelStrength;
+	Trail.Color = PlantFeelColor;
+	Trail.Glow = 6.0f;
+	Trail.bLandOnGround = false;
+	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Trail);
+}
+
+void AVaelSpellProjectile::BurstPlantFeel()
+{
+	// Where it hits: a burst of glowing pieces in the plant colour and a short flash of light
+	FVaelDebris Burst;
+	Burst.Count = FMath::RoundToInt(14.0f * PlantFeelStrength);
+	Burst.Spread = FMath::Max(SpellRadius, 10.0f);
+	Burst.Speed = 320.0f * FMath::Sqrt(PlantFeelStrength);
+	Burst.Lift = 220.0f;
+	Burst.Gravity = 700.0f;
+	Burst.Drag = 2.0f;
+	Burst.Lifetime = 0.55f;
+	Burst.MinSize = 2.5f;
+	Burst.MaxSize = 6.5f * PlantFeelStrength;
+	Burst.Color = PlantFeelColor;
+	Burst.Glow = 7.0f;
+	Burst.bLandOnGround = false;
+	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Burst);
+
+	if (UWorld* World = GetWorld())
+	{
+		FActorSpawnParameters Parameters;
+		Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		if (APointLight* Flash = World->SpawnActor<APointLight>(APointLight::StaticClass(), FTransform(GetActorLocation() + FVector(0.0f, 0.0f, 30.0f)), Parameters))
+		{
+			Flash->SetMobility(EComponentMobility::Movable);
+			Flash->PointLightComponent->SetIntensityUnits(ELightUnits::Candelas);
+			Flash->PointLightComponent->SetIntensity(30.0f * PlantFeelStrength);
+			Flash->PointLightComponent->SetLightColor(PlantFeelColor);
+			Flash->PointLightComponent->SetAttenuationRadius(380.0f);
+			Flash->PointLightComponent->SetCastShadows(false);
+			Flash->SetLifeSpan(0.12f);
+		}
 	}
 }

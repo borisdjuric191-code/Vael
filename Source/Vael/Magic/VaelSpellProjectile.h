@@ -78,6 +78,10 @@ public:
 	/** Whose water a projectile with the look of a ball of water is, null for the water of the mages. Has to be called before FinishSpawning. */
 	void SetWaterSource(UVaelElementSource* InSource) { WaterSource = InSource; }
 
+	/** Makes a plant shot of the Floromant felt (Boris 2026-11-04): a glowing halo with a light in the plant colour, a trail of
+	 *  sparks and a clear burst where it hits. Strength 1 for a hand shot. Has to be called before FinishSpawning. */
+	void SetPlantFeel(const FLinearColor& InColor, float InStrength) { PlantFeelColor = InColor; PlantFeelStrength = InStrength; }
+
 	/** Lets the ball of water water the plants within the radius where it bursts (Taublatt), with the amount of water. Before FinishSpawning. */
 	void SetWatersPlants(float Radius, float Amount) { WaterPlantsRadius = Radius; WaterPlantsAmount = Amount; }
 
@@ -321,6 +325,16 @@ private:
 
 	/** Brightness of the light before flicker and flash, in candela */
 	float LookLightIntensity = 0.0f;
+
+	/** The plant feel (SetPlantFeel): colour, strength (0 = none) and the time to the next spark of the trail */
+	FLinearColor PlantFeelColor = FLinearColor::White;
+	float PlantFeelStrength = 0.0f;
+	float PlantTrailCountdown = 0.0f;
+
+	/** Halo, light, trail and burst of the plant feel */
+	void StartPlantFeel();
+	void TickPlantFeel(float DeltaSeconds);
+	void BurstPlantFeel();
 
 	/** True once the flight is over and only the afterglow plays, and seconds since then */
 	bool bFlightEnded = false;
