@@ -4,12 +4,14 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Floromant/VaelSymbiosis.h"
 #include "VaelEyeBerry.generated.h"
 
 class UMaterialInstanceDynamic;
 class UPointLightComponent;
 class UStaticMeshComponent;
 class UVaelPlantArmData;
+class AVaelCharacterBase;
 
 /**
  *  The Beerenwurf of the Wachbeere arm (Boris 2026-11-03): an eye berry thrown from a fingertip flies in an arc, lands and
@@ -31,6 +33,10 @@ public:
 
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Grown together with another plant (VaelSymbiosis, Boris 2026-11-04): the partner touch on every look, how far it sees
+	 *  and how long it stays open against a single berry, and the way a Blinzelwind eye rolls */
+	void SetPair(EVaelSymbiosis InPair, const UVaelPlantArmData* InOther, float RadiusScale = 1.0f, float SecondsScale = 1.0f, const FVector& InRoll = FVector::ZeroVector);
+
 	/** Looks it has made and enemies it has caught, for the smoke test */
 	int32 GetLooks() const { return Looks; }
 	int32 GetCaught() const { return Caught; }
@@ -40,6 +46,10 @@ private:
 
 	/** Confuses or stares down a share of the enemies around */
 	void LookAround();
+
+	/** What the partner adds to one caught enemy, and to every look */
+	void Touch(AVaelCharacterBase* Enemy);
+	void LookPair();
 
 	UPROPERTY(VisibleAnywhere)
 	TObjectPtr<USceneComponent> Root;
@@ -72,4 +82,12 @@ private:
 	float Flash = 0.0f;
 	int32 Looks = 0;
 	int32 Caught = 0;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UVaelPlantArmData> Other;
+
+	EVaelSymbiosis Pair = EVaelSymbiosis::None;
+	FVector Roll = FVector::ZeroVector;
+	float GazeRadius = 450.0f;
+	float OpenSeconds = 5.0f;
 };

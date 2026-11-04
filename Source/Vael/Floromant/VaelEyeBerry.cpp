@@ -11,6 +11,10 @@
 #include "EngineUtils.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelSymbiosis.h"
+#include "Floromant/VaelBindweedLasso.h"
+#include "Magic/VaelDebrisBurst.h"
+#include "Player/VaelCharacter.h"
+#include "GameFramework/Character.h"
 #include "GameFramework/PlayerController.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
@@ -84,6 +88,8 @@ AVaelEyeBerry* AVaelEyeBerry::Throw(APawn* InThrower, const UVaelPlantArmData* I
 		return nullptr;
 	}
 	Eye->Plant = InPlant;
+	Eye->GazeRadius = InPlant->EyeRadius;
+	Eye->OpenSeconds = InPlant->EyeSeconds;
 	Eye->Start = Muzzle;
 	Eye->Target = Target;
 	Eye->bShadow = bInShadow;
@@ -136,13 +142,18 @@ void AVaelEyeBerry::Tick(float DeltaSeconds)
 			SetActorLocation(Target);
 			Ring->SetVisibility(true);
 			Ring->SetRelativeLocation(FVector(0.0f, 0.0f, 3.0f));
-			Ring->SetRelativeScale3D(FVector(Plant->EyeRadius * 2.0f / EyeRingPlaneSize));
+			Ring->SetRelativeScale3D(FVector(GazeRadius * 2.0f / EyeRingPlaneSize));
 		}
 		return;
 	}
 
 	OpenAge += DeltaSeconds;
-	const float Left = Plant->EyeSeconds - OpenAge;
+	// Blinzelwind: the wind rolls the open eye on over the field
+	if (!Roll.IsNearlyZero() && OpenAge < OpenSeconds)
+	{
+		AddActorWorldOffset(Roll * DeltaSeconds);
+	}
+	const float Left = OpenSeconds - OpenAge;
 	if (Left <= -EyeCloseSeconds)
 	{
 		Destroy();
@@ -195,13 +206,14 @@ void AVaelEyeBerry::LookAround()
 	Flash = 1.0f;
 	APawn* Thrower = GetInstigator();
 	const float Share = FMath::FRandRange(Plant->EyeShare.X, Plant->EyeShare.Y);
+	LookPair();
 	AVaelCharacterBase* NearestPlayer = nullptr;
-	float NearestDistance = FMath::Square(Plant->EyeRadius);
+	float NearestDistance = FMath::Square(GazeRadius);
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
 		AVaelCharacterBase* Character = *It;
 		const float Distance = FVector::DistSquared2D(Character->GetActorLocation(), GetActorLocation());
-		if (Character->IsDefeated() || Character->GetHealth() <= 0.0f || Distance > FMath::Square(Plant->EyeRadius))
+		if (Character->IsDefeated() || Character->GetHealth() <= 0.0f || Distance > FMath::Square(GazeRadius))
 		{
 			continue;
 		}
@@ -224,10 +236,16 @@ void AVaelEyeBerry::LookAround()
 		{
 			Character->ApplyStun(Plant->EyeStareSeconds);
 		}
+		else if (Pair == EVaelSymbiosis::Schlummerblick)
+		{
+			// Schlummerblick: who the eye catches falls asleep instead
+			Character->ApplySleep(Plant->EyeConfuseSeconds);
+		}
 		else
 		{
 			UVaelCombatStatics::ApplyStatus(Thrower, Character, EVaelStatus::Confused, Plant->EyeConfuseSeconds);
 		}
+		Touch(Character);
 	}
 
 	// The shadow's price: now and then its stare falls on a player
@@ -235,5 +253,103 @@ void AVaelEyeBerry::LookAround()
 	{
 		UVaelCombatStatics::ApplyStatus(nullptr, NearestPlayer, EVaelStatus::Frozen, Plant->EyePlayerStareSeconds);
 		UE_LOG(LogVael, Log, TEXT("Eye berry stares at %s"), *NearestPlayer->GetActorNameOrLabel());
+	}
+}
+
+// ---------------------------------------------------------------- Pairs (VaelSymbiosis)
+
+void AVaelEyeBerry::SetPair(EVaelSymbiosis InPair, const UVaelPlantArmData* InOther, float RadiusScale, float SecondsScale, const FVector& InRoll)
+{
+	Pair = InPair;
+	Other = InOther;
+	GazeRadius *= RadiusScale;
+	OpenSeconds *= SecondsScale;
+	Roll = InRoll;
+	// The ring and the light take the partner's colour
+	const FLinearColor Tone = bShadow ? FLinearColor(1.0f, 0.08f, 0.06f) : VaelSymbiosis::GetColor(Pair);
+	if (RingLook != nullptr)
+	{
+		RingLook->SetVectorParameterValue(TEXT("Farbe"), Tone);
+	}
+	Light->SetLightColor(Tone);
+}
+
+void AVaelEyeBerry::Touch(AVaelCharacterBase* Enemy)
+{
+	APawn* Thrower = GetInstigator();
+	switch (Pair)
+	{
+	case EVaelSymbiosis::Glutblick:
+		// Who it catches catches fire
+		UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Burning, 3.0f, 4.0f);
+		break;
+	case EVaelSymbiosis::Traenenauge:
+		UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Wet, 5.0f);
+		break;
+	case EVaelSymbiosis::Bernsteinauge:
+		UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Pitched, 5.0f);
+		break;
+	case EVaelSymbiosis::Starrschlinge:
+		// A noose of bindweed from the eye holds the caught
+		if (Other != nullptr)
+		{
+			FVaelLassoSpec Spec;
+			Spec.HoldSeconds = Other->SnareHold;
+			Spec.bOverGround = true;
+			Spec.Color = VaelSymbiosis::GetColor(Pair);
+			AVaelBindweedLasso::Throw(Thrower, Other, GetActorLocation() + FVector(0.0f, 0.0f, 5.0f), Enemy, Spec, bShadow);
+		}
+		break;
+	case EVaelSymbiosis::Mondauge:
+		// The moon eye throws back who it catches
+		if (ACharacter* Body = Cast<ACharacter>(Enemy))
+		{
+			Body->LaunchCharacter((Enemy->GetActorLocation() - GetActorLocation()).GetSafeNormal2D() * 600.0f + FVector(0.0f, 0.0f, 200.0f), true, true);
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+void AVaelEyeBerry::LookPair()
+{
+	switch (Pair)
+	{
+	case EVaelSymbiosis::WachendeRose:
+	{
+		// The eye watches over the allies in its gaze: a little heart shield every look
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+			if (Player != nullptr && FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) < GazeRadius)
+			{
+				Player->AddHeartShield(8.0f, 3.0f);
+			}
+		}
+		break;
+	}
+	case EVaelSymbiosis::Leuchtauge:
+		// A glaring flash with every look
+		Flash = 2.0f;
+		break;
+	case EVaelSymbiosis::Traenenauge:
+	{
+		// It weeps: drops run down into the ground around it
+		FVaelDebris Tears;
+		Tears.Count = 10;
+		Tears.Spread = 40.0f;
+		Tears.Speed = 160.0f;
+		Tears.Lift = 220.0f;
+		Tears.Lifetime = 0.8f;
+		Tears.MinSize = 2.0f;
+		Tears.MaxSize = 4.0f;
+		Tears.Color = FLinearColor(0.4f, 0.8f, 1.0f);
+		Tears.Glow = 3.0f;
+		AVaelDebrisBurst::Spawn(this, GetActorLocation() + FVector(0.0f, 0.0f, 30.0f), Tears);
+		break;
+	}
+	default:
+		break;
 	}
 }

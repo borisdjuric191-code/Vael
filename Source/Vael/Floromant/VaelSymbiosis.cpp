@@ -14,6 +14,7 @@
 #include "Floromant/VaelPoppyCapsule.h"
 #include "Floromant/VaelMoonVeil.h"
 #include "Floromant/VaelFairyEscort.h"
+#include "Floromant/VaelEyeBerry.h"
 #include "GameFramework/PlayerController.h"
 #include "Player/VaelCharacter.h"
 #include "TimerManager.h"
@@ -442,6 +443,50 @@ namespace VaelSymbiosis
 		{
 			return EVaelSymbiosis::Bernsteinschleier;
 		}
+		if (Is(TEXT("Wachbeere"), TEXT("Wachbeere")))
+		{
+			return EVaelSymbiosis::Argusstrauch;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Windhalm")))
+		{
+			return EVaelSymbiosis::Blinzelwind;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Glutblick;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Traenenauge;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Glimmklee")))
+		{
+			return EVaelSymbiosis::Leuchtauge;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Russrose")))
+		{
+			return EVaelSymbiosis::WachendeRose;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Funkenmohn")))
+		{
+			return EVaelSymbiosis::Schlummerblick;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Schlotwinde")))
+		{
+			return EVaelSymbiosis::Starrschlinge;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Harzkolben")))
+		{
+			return EVaelSymbiosis::Bernsteinauge;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Feenragwurz")))
+		{
+			return EVaelSymbiosis::Irrlicht;
+		}
+		if (Is(TEXT("Wachbeere"), TEXT("Mondtraufe")))
+		{
+			return EVaelSymbiosis::Mondauge;
+		}
 		return EVaelSymbiosis::None;
 	}
 
@@ -504,6 +549,17 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Pechfeen:	return NSLOCTEXT("VaelSymbiosis", "Pechfeen", "Pechfeen");
 		case EVaelSymbiosis::Feentor:	return NSLOCTEXT("VaelSymbiosis", "Feentor", "Feentor");
 		case EVaelSymbiosis::Bernsteinschleier:	return NSLOCTEXT("VaelSymbiosis", "Bernsteinschleier", "Bernsteinschleier");
+		case EVaelSymbiosis::Argusstrauch:	return NSLOCTEXT("VaelSymbiosis", "Argusstrauch", "Argusstrauch");
+		case EVaelSymbiosis::Blinzelwind:	return NSLOCTEXT("VaelSymbiosis", "Blinzelwind", "Blinzelwind");
+		case EVaelSymbiosis::Glutblick:	return NSLOCTEXT("VaelSymbiosis", "Glutblick", "Glutblick");
+		case EVaelSymbiosis::Traenenauge:	return NSLOCTEXT("VaelSymbiosis", "Traenenauge", "Tränenauge");
+		case EVaelSymbiosis::Leuchtauge:	return NSLOCTEXT("VaelSymbiosis", "Leuchtauge", "Leuchtauge");
+		case EVaelSymbiosis::WachendeRose:	return NSLOCTEXT("VaelSymbiosis", "WachendeRose", "Wachende Rose");
+		case EVaelSymbiosis::Schlummerblick:	return NSLOCTEXT("VaelSymbiosis", "Schlummerblick", "Schlummerblick");
+		case EVaelSymbiosis::Starrschlinge:	return NSLOCTEXT("VaelSymbiosis", "Starrschlinge", "Starrschlinge");
+		case EVaelSymbiosis::Bernsteinauge:	return NSLOCTEXT("VaelSymbiosis", "Bernsteinauge", "Bernsteinauge");
+		case EVaelSymbiosis::Irrlicht:	return NSLOCTEXT("VaelSymbiosis", "Irrlicht", "Irrlicht");
+		case EVaelSymbiosis::Mondauge:	return NSLOCTEXT("VaelSymbiosis", "Mondauge", "Mondauge");
 		default:							return FText::GetEmpty();
 		}
 	}
@@ -567,6 +623,17 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Pechfeen:	return FLinearColor(0.85f, 0.5f, 0.3f);
 		case EVaelSymbiosis::Feentor:	return FLinearColor(1.0f, 0.65f, 0.95f);
 		case EVaelSymbiosis::Bernsteinschleier:	return FLinearColor(1.0f, 0.6f, 0.45f);
+		case EVaelSymbiosis::Argusstrauch:	return FLinearColor(0.3f, 0.95f, 0.9f);
+		case EVaelSymbiosis::Blinzelwind:	return FLinearColor(0.6f, 1.0f, 0.9f);
+		case EVaelSymbiosis::Glutblick:	return FLinearColor(1.0f, 0.45f, 0.15f);
+		case EVaelSymbiosis::Traenenauge:	return FLinearColor(0.35f, 0.75f, 1.0f);
+		case EVaelSymbiosis::Leuchtauge:	return FLinearColor(1.0f, 0.95f, 0.65f);
+		case EVaelSymbiosis::WachendeRose:	return FLinearColor(0.45f, 1.0f, 0.65f);
+		case EVaelSymbiosis::Schlummerblick:	return FLinearColor(0.8f, 0.5f, 0.9f);
+		case EVaelSymbiosis::Starrschlinge:	return FLinearColor(0.9f, 0.9f, 0.4f);
+		case EVaelSymbiosis::Bernsteinauge:	return FLinearColor(1.0f, 0.55f, 0.1f);
+		case EVaelSymbiosis::Irrlicht:	return FLinearColor(0.6f, 1.0f, 0.8f);
+		case EVaelSymbiosis::Mondauge:	return FLinearColor(0.9f, 0.75f, 1.0f);
 		default:							return FLinearColor::White;
 		}
 	}
@@ -683,6 +750,17 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Pechfeen:	return 6.0f;
 		case EVaelSymbiosis::Feentor:	return 10.0f;
 		case EVaelSymbiosis::Bernsteinschleier:	return 12.0f;
+		case EVaelSymbiosis::Argusstrauch:	return 6.0f;
+		case EVaelSymbiosis::Blinzelwind:	return 6.0f;
+		case EVaelSymbiosis::Glutblick:	return 6.0f;
+		case EVaelSymbiosis::Traenenauge:	return 6.0f;
+		case EVaelSymbiosis::Leuchtauge:	return 6.5f;
+		case EVaelSymbiosis::WachendeRose:	return 6.5f;
+		case EVaelSymbiosis::Schlummerblick:	return 7.0f;
+		case EVaelSymbiosis::Starrschlinge:	return 7.0f;
+		case EVaelSymbiosis::Bernsteinauge:	return 6.0f;
+		case EVaelSymbiosis::Irrlicht:	return 7.0f;
+		case EVaelSymbiosis::Mondauge:	return 10.0f;
 		default:							return 1.4f;
 		}
 	}
@@ -1332,6 +1410,71 @@ namespace VaelSymbiosis
 				break;
 			}
 			default:
+				break;
+			}
+			break;
+		}
+
+
+		// --- Wachbeere (Boris 2026-11-04): the eye berry lands at the place and looks around, the partner adds its touch
+		case EVaelSymbiosis::Argusstrauch:
+		case EVaelSymbiosis::Blinzelwind:
+		case EVaelSymbiosis::Glutblick:
+		case EVaelSymbiosis::Traenenauge:
+		case EVaelSymbiosis::Leuchtauge:
+		case EVaelSymbiosis::WachendeRose:
+		case EVaelSymbiosis::Schlummerblick:
+		case EVaelSymbiosis::Starrschlinge:
+		case EVaelSymbiosis::Bernsteinauge:
+		case EVaelSymbiosis::Irrlicht:
+		case EVaelSymbiosis::Mondauge:
+		{
+			const UVaelPlantArmData* Berry = Pick(TEXT("Wachbeere"));
+			const UVaelPlantArmData* Other = Berry == A ? B : A;
+			const FVector Place = SymbiosisGroundAhead(Instigator, Origin, Ahead, Reach, FMath::Lerp(600.0f, 850.0f, Charge));
+			const FVector Flat = Ahead.GetSafeNormal2D().IsNearlyZero() ? Instigator->GetActorForwardVector() : Ahead.GetSafeNormal2D();
+			const auto ThrowEye = [&](const FVector& At, float RadiusScale, float SecondsScale, const FVector& Roll)
+			{
+				if (AVaelEyeBerry* Eye = AVaelEyeBerry::Throw(Instigator, Berry, Origin, At, bShadow))
+				{
+					Eye->SetPair(Kind, Other, RadiusScale * FMath::Sqrt(Grown), SecondsScale, Roll);
+				}
+			};
+			switch (Kind)
+			{
+			case EVaelSymbiosis::Argusstrauch:
+			{
+				// Many eyes in a ring, seeing farther and longer
+				const FVector Side = FVector::CrossProduct(FVector::UpVector, Flat);
+				for (const FVector& Offset : { FVector::ZeroVector, Side * 260.0f + Flat * 120.0f, Side * -260.0f + Flat * 120.0f })
+				{
+					ThrowEye(Place + Offset, 1.15f, 1.4f, FVector::ZeroVector);
+				}
+				break;
+			}
+			case EVaelSymbiosis::Blinzelwind:
+				// The wind rolls the eye on over the field, it looks round wherever it passes
+				ThrowEye(Place, 0.9f, 1.2f, Flat * 160.0f);
+				break;
+			case EVaelSymbiosis::Leuchtauge:
+				ThrowEye(Place, 1.0f, 1.0f, FVector::ZeroVector);
+				if (Reach <= 0.0f)
+				{
+					SymbiosisDome(Instigator, Other, 260.0f, 6.0f, bShadow);
+				}
+				break;
+			case EVaelSymbiosis::Irrlicht:
+				// The fairies lure the enemies to the eye, which then confuses them
+				ThrowEye(Place, 1.0f, 1.2f, FVector::ZeroVector);
+				SymbiosisFairies(Instigator, Other, Origin, Place, Other->FairyLureRadius * 1.2f, Other->FairyLureSeconds, bShadow);
+				break;
+			case EVaelSymbiosis::Mondauge:
+				// The veil gets an eye: who wants through is confused and thrown back
+				SymbiosisVeil(Instigator, Other, Kind, Berry, Origin, Ahead, Reach, VeilScale);
+				ThrowEye(Place, 0.9f, 1.4f, FVector::ZeroVector);
+				break;
+			default:
+				ThrowEye(Place, 1.0f, 1.0f, FVector::ZeroVector);
 				break;
 			}
 			break;

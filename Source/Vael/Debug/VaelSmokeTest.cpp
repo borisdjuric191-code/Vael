@@ -843,8 +843,8 @@ void AVaelSmokeTest::BeginPlay()
 					}
 				}
 			}
-			const bool bOk = Fired.Num() == 27;
-			return FString::Printf(TEXT("%s%s, %d of 27 new pairs crossed"), bOk ? TEXT("") : TEXT("FAILED: "), *Arena, Fired.Num());
+			const bool bOk = Fired.Num() == 38;
+			return FString::Printf(TEXT("%s%s, %d of 38 new pairs crossed"), bOk ? TEXT("") : TEXT("FAILED: "), *Arena, Fired.Num());
 		}, 3.0f });
 		Steps.Add({ TEXT("New pairs act"), [this]()
 		{

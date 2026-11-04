@@ -57,7 +57,7 @@ namespace
 	constexpr float SinkSeconds = 0.4f;
 	constexpr float FadeSeconds = 1.6f;
 
-	constexpr float LightIntensity = 6000.0f;
+	constexpr float RollerLightIntensity = 6000.0f;
 	const FLinearColor FireColor = FLinearColor(1.0f, 0.42f, 0.1f);
 	const FName StrengthParameter(TEXT("Staerke"));
 }
@@ -182,7 +182,7 @@ void AVaelFireRoller::UpdateDrum(float DeltaSeconds)
 	const FVector Side(-Forward.Y, Forward.X, 0.0f);
 
 	Light->SetWorldLocation(Axis);
-	Light->SetIntensity(LightIntensity * Strength * Grow * (0.85f + 0.15f * FMath::PerlinNoise1D(Age * 9.0f)));
+	Light->SetIntensity(RollerLightIntensity * Strength * Grow * (0.85f + 0.15f * FMath::PerlinNoise1D(Age * 9.0f)));
 
 	if (TongueMeshes.IsEmpty())
 	{

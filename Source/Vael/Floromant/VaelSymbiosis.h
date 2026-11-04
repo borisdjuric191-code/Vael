@@ -104,7 +104,19 @@ enum class EVaelSymbiosis : uint8
 	Mondranken,
 	Pechfeen,
 	Feentor,
-	Bernsteinschleier
+	Bernsteinschleier,
+	// Wachbeere pairs (Boris 2026-11-04): the eye berry with the partner's touch
+	Argusstrauch,
+	Blinzelwind,
+	Glutblick,
+	Traenenauge,
+	Leuchtauge,
+	WachendeRose,
+	Schlummerblick,
+	Starrschlinge,
+	Bernsteinauge,
+	Irrlicht,
+	Mondauge
 };
 
 namespace VaelSymbiosis

@@ -475,17 +475,20 @@ void AVaelPlayerController::CreateFloromantInput()
 
 	// Seed belt: d-pad up / down and the mouse wheel page, d-pad left / right and 1 / 2 lay the plant on a hand.
 	// D-pad down only pages when tapped; held, it drinks a healing potion.
-	// D-pad up only pages when tapped; held, it turns the medallion of the picked plant to its other form (Boris 2026-11-04)
+	// D-pad up only pages when tapped; held, the plants of both hands change sides
 	BeltUpAction = CreateAction(TEXT("IA_Flo_GuertelHoch"));
 	UInputTriggerTap* BeltUpTap = NewObject<UInputTriggerTap>(Context);
 	BeltUpTap->TapReleaseTimeThreshold = PotionHoldTime;
 	Context->MapKey(BeltUpAction, EKeys::Gamepad_DPad_Up).Triggers.Add(BeltUpTap);
 
+	SwapAction = CreateAction(TEXT("IA_Flo_Tauschen"));
+	UInputTriggerHold* SwapHold = NewObject<UInputTriggerHold>(Context);
+	SwapHold->HoldTimeThreshold = PotionHoldTime;
+	SwapHold->bIsOneShot = true;
+	Context->MapKey(SwapAction, EKeys::Gamepad_DPad_Up).Triggers.Add(SwapHold);
+
+	// Turning the medallion of the picked plant to its other form (Boris 2026-11-04): Triangle tapped, 3 on the keyboard
 	FlipMedallionAction = CreateAction(TEXT("IA_Flo_Medaillon"));
-	UInputTriggerHold* FlipHold = NewObject<UInputTriggerHold>(Context);
-	FlipHold->HoldTimeThreshold = PotionHoldTime;
-	FlipHold->bIsOneShot = true;
-	Context->MapKey(FlipMedallionAction, EKeys::Gamepad_DPad_Up).Triggers.Add(FlipHold);
 	Context->MapKey(FlipMedallionAction, EKeys::Three).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
 	Context->MapKey(BeltUpAction, EKeys::MouseScrollUp).Triggers.Add(NewObject<UInputTriggerPressed>(Context));
 
@@ -510,19 +513,19 @@ void AVaelPlayerController::CreateFloromantInput()
 	Context->MapKey(PutRightAction, EKeys::Gamepad_DPad_Right);
 	Context->MapKey(PutRightAction, EKeys::Two);
 
-	// Reloading with Keimpelz: Triangle or R held; tapped, the plants of both hands change sides
+	// Reloading with Keimpelz: Triangle or R held a little longer (Boris 2026-11-04); tapped, Triangle turns the medallion and R
+	// changes the plants of both hands
 	ReloadAction = CreateAction(TEXT("IA_Flo_Nachladen"));
-	SwapAction = CreateAction(TEXT("IA_Flo_Tauschen"));
 	for (const FKey& ReloadKey : { EKeys::Gamepad_FaceButton_Top, EKeys::R })
 	{
 		UInputTriggerHold* ReloadHold = NewObject<UInputTriggerHold>(Context);
-		ReloadHold->HoldTimeThreshold = 0.35f;
+		ReloadHold->HoldTimeThreshold = 0.5f;
 		ReloadHold->bIsOneShot = true;
 		Context->MapKey(ReloadAction, ReloadKey).Triggers.Add(ReloadHold);
 
-		UInputTriggerTap* SwapTap = NewObject<UInputTriggerTap>(Context);
-		SwapTap->TapReleaseTimeThreshold = 0.3f;
-		Context->MapKey(SwapAction, ReloadKey).Triggers.Add(SwapTap);
+		UInputTriggerTap* Tap = NewObject<UInputTriggerTap>(Context);
+		Tap->TapReleaseTimeThreshold = 0.3f;
+		Context->MapKey(ReloadKey == EKeys::R ? SwapAction : FlipMedallionAction, ReloadKey).Triggers.Add(Tap);
 	}
 
 	// Dodge on Circle and Shift; holding Circle still leaves co-op (shared controls). Rooted, the dodge dives through the roots to
