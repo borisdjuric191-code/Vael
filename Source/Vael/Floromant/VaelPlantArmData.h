@@ -14,6 +14,62 @@ class UTexture2D;
 class UVaelElementSource;
 class UVaelPlantData;
 
+/** What an Erbanlage (gene) of a plant changes on the arm of the Floromant */
+UENUM(BlueprintType)
+enum class EVaelGeneEffect : uint8
+{
+	/** Damage of every shot, whip, burst and capsule: + Amount (0.15 = +15 %) */
+	Damage,
+	/** Shots come faster: the time between shots is divided by 1 + Amount */
+	FireSpeed,
+	/** Each shot costs less Saft: - Amount */
+	SaftCost,
+	/** The shadow form drinks less Nid: its price - Amount */
+	NidPrice
+};
+
+/** One Erbanlage: its name on the plate, what it does in words, and its effect */
+USTRUCT(BlueprintType)
+struct FVaelGene
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Gene")
+	FText Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Gene")
+	FText Description;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Gene")
+	EVaelGeneEffect Effect = EVaelGeneEffect::Damage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Gene", meta = (ClampMin = 0, ClampMax = 1))
+	float Amount = 0.15f;
+};
+
+/** A tier of Erbanlagen: the Floromant takes one of its options into her (Keimgeflecht) */
+USTRUCT(BlueprintType)
+struct FVaelGeneTier
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Gene")
+	TArray<FVaelGene> Options;
+};
+
+/** A labelled figure on the plate of a plant, like on an old naturalist's plate ("Fig. 1 Herzblüte") */
+USTRUCT(BlueprintType)
+struct FVaelPlateFigure
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Plate")
+	FText Title;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Plate")
+	FText Note;
+};
+
 /**
  *  A plant the hands of a Floromant turn into (DA_Pflanzenarm_<Id>): the stalks that grow out of fingers, forearm and
  *  upper arm, and the shots the fingertips fire while the button of the hand is held.
@@ -819,4 +875,25 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nid", meta = (ClampMin = 0))
 	float NidPerCross = 0.6f;
+
+	// --- Keimgeflecht (Boris 2026-11-04): her menu shows each plant as a naturalist's plate; per tier she takes one of two
+	// Erbanlagen into her, like the evolution of the Zerg or the Book of the Dead in Diablo IV
+
+	/** A made-up Latin name under the plant's name on its plate */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Keimgeflecht")
+	FText LatinName;
+
+	/** Up to three labelled figures pointing into the picture */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Keimgeflecht")
+	TArray<FVaelPlateFigure> Figures;
+
+	/** Three tiers of Erbanlagen with two options each; empty takes the shared placeholder tiers (UVaelPlantArmData::GetDefaultGeneTiers) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Keimgeflecht")
+	TArray<FVaelGeneTier> GeneTiers;
+
+	/** The tiers of this plant: its own, or the placeholders while it has none */
+	const TArray<FVaelGeneTier>& GetGeneTiers() const;
+
+	/** Placeholder Erbanlagen for every plant until each gets its own (names and numbers are Claude's proposal) */
+	static const TArray<FVaelGeneTier>& GetDefaultGeneTiers();
 };

@@ -416,6 +416,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 1, ClampMax = 8))
 	int32 HandWheelSlots = 4;
 
+	/** Her level from which each tier of Erbanlagen opens in the Keimgeflecht (placeholders until Boris decides) */
+	UPROPERTY(config, EditAnywhere, Category="Keimgeflecht")
+	TArray<int32> GeneTierLevels = { 1, 6, 12 };
+
 	/** Walking speed while a hand fires: the Floromant lands and braces itself */
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 1))
 	float FiringMoveSpeedScale = 0.45f;

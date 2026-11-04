@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Floromant/VaelPlantArmData.h"
 #include "VaelPlantArmComponent.generated.h"
 
 class AVaelCharacter;
@@ -153,6 +154,10 @@ private:
 	/** The plant the stalks show now, and the one that grows next once the old ones have withered */
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelPlantArmData> Plant;
+
+	/** Her Erbanlagen of this plant for one effect (1 = unchanged), and the Saft a shot costs with them */
+	float GeneScale(EVaelGeneEffect Effect) const;
+	float ShotSaft() const;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelPlantArmData> NextPlant;

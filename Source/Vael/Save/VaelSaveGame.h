@@ -38,6 +38,19 @@ struct FVaelSavedPlayer
 	/** Corruption by the Mark, 0 to 100 */
 	UPROPERTY()
 	float Corruption = 0.0f;
+
+	/** Floromant (2026-11-04): the plants on her wheel by asset path, the medallion sides, the pairs she has grown, her Erbanlagen */
+	UPROPERTY()
+	TArray<FSoftObjectPath> WheelPlants;
+
+	UPROPERTY()
+	TArray<bool> WheelShadowSides;
+
+	UPROPERTY()
+	TArray<uint8> KnownPairs;
+
+	UPROPERTY()
+	TMap<FName, int32> Genes;
 };
 
 /** State of a region */

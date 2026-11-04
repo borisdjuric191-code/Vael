@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Save/VaelSaveSubsystem.h"
+#include "Floromant/VaelFloromantComponent.h"
 #include "Nature/VaelGarden.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
@@ -231,6 +232,10 @@ void UVaelSaveSubsystem::CapturePlayer(const AVaelCharacter* Player, int32 Playe
 	}
 
 	Saved.Corruption = Player->GetAbilitySystemComponent()->GetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute());
+	if (const UVaelFloromantComponent* Floromant = Player->GetFloromant())
+	{
+		Floromant->WriteSave(Saved);
+	}
 }
 
 bool UVaelSaveSubsystem::RestorePlayer(AVaelCharacter* Player, int32 PlayerSlot) const
@@ -251,6 +256,10 @@ bool UVaelSaveSubsystem::RestorePlayer(AVaelCharacter* Player, int32 PlayerSlot)
 	}
 
 	Player->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), Saved->Corruption);
+	if (UVaelFloromantComponent* Floromant = Player->GetFloromant())
+	{
+		Floromant->ReadSave(*Saved);
+	}
 
 	UE_LOG(LogVael, Log, TEXT("Player slot %d gets back what was saved"), PlayerSlot);
 	return true;

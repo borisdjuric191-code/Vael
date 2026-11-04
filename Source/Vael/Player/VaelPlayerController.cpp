@@ -29,6 +29,8 @@
 #include "Player/VaelHeroSubsystem.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelFloromantSettings.h"
+#include "Floromant/VaelPlantArmData.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Player/VaelCheatManager.h"
 #include "Nature/VaelGarden.h"
@@ -1364,6 +1366,14 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 	MenuPage = Page;
 	NextNavigateTime = 0.0;
 
+	// A Floromant opens her Keimgeflecht where the mage finds his formulas
+	const AVaelCharacter* Opener = GetPawn<AVaelCharacter>();
+	if (MenuPage == EVaelMenuPage::Formulas && Opener != nullptr && Opener->IsFloromant())
+	{
+		MenuPage = EVaelMenuPage::Keimgeflecht;
+	}
+	KeimCursor.Carried = -1;
+
 	// The page of class and body starts on what the player plays
 	if (const UVaelHeroSubsystem* Heroes = UVaelHeroSubsystem::Get(this))
 	{
@@ -1439,6 +1449,12 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 	// Up on the stick or key is positive and moves the selection up the list
 	const int32 Step = Direction > 0.0f ? -1 : 1;
 
+	if (MenuPage == EVaelMenuPage::Keimgeflecht)
+	{
+		NavigateKeimgeflecht(0, Step);
+		return;
+	}
+
 	if (MenuPage == EVaelMenuPage::Inventory)
 	{
 		NavigateInventory(0, Step);
@@ -1480,15 +1496,23 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 	if (bGrimoireOpen && MenuPage != EVaelMenuPage::Shop)
 	{
 		// The pages in a ring: right goes on, left goes back
-		const int32 NumPages = static_cast<int32>(EVaelMenuPage::Hero) + 1;
+		const TArray<EVaelMenuPage> Ring = GetPageRing();
+		const int32 NumPages = Ring.Num();
 		const int32 Step = Value.Get<float>() < 0.0f ? NumPages - 1 : 1;
-		MenuPage = static_cast<EVaelMenuPage>((static_cast<int32>(MenuPage) + Step) % NumPages);
+		MenuPage = Ring[(FMath::Max(Ring.Find(MenuPage), 0) + Step) % NumPages];
+		KeimCursor.Carried = -1;
 	}
 }
 
 void AVaelPlayerController::OnMenuConfirm()
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
+	{
+		ConfirmKeimgeflecht();
+		return;
+	}
 
 	// Buying: from the own purse into the own bag
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Shop && VaelCharacter != nullptr && OpenShop.IsValid() && OpenShop->Offers.IsValidIndex(ShopSelection))
@@ -1560,8 +1584,19 @@ void AVaelPlayerController::OnMenuConfirm()
 void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
 {
 	const float Direction = Value.Get<float>();
-	if (!bGrimoireOpen || MenuPage != EVaelMenuPage::Inventory || FMath::Abs(Direction) < 0.5f)
+	if (!bGrimoireOpen || (MenuPage != EVaelMenuPage::Inventory && MenuPage != EVaelMenuPage::Keimgeflecht) || FMath::Abs(Direction) < 0.5f)
 	{
+		return;
+	}
+	if (MenuPage == EVaelMenuPage::Keimgeflecht)
+	{
+		const double Now = FPlatformTime::Seconds();
+		if (NextNavigateTime > 0.0 && Now < NextNavigateTime)
+		{
+			return;
+		}
+		NextNavigateTime = Now + (NextNavigateTime > 0.0 ? MenuRepeatInterval : MenuRepeatDelay);
+		NavigateKeimgeflecht(Direction > 0.0f ? 1 : -1, 0);
 		return;
 	}
 
@@ -1581,6 +1616,11 @@ void AVaelPlayerController::OnMenuBag()
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Inventory)
 	{
 		bMaterialBagShown = !bMaterialBagShown;
+	}
+	// In the Keimgeflecht the same button turns the plate over: light and shadow form
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
+	{
+		KeimCursor.bShadowSide = !KeimCursor.bShadowSide;
 	}
 }
 
@@ -1840,7 +1880,157 @@ void AVaelPlayerController::OnMenuNavigateReleased()
 
 void AVaelPlayerController::OnMenuClose()
 {
+	// A plant carried from the herbarium is put back first
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht && KeimCursor.Carried >= 0)
+	{
+		KeimCursor.Carried = -1;
+		return;
+	}
 	CloseGrimoire();
+}
+
+TArray<EVaelMenuPage> AVaelPlayerController::GetPageRing() const
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	const bool bFloromant = VaelCharacter != nullptr && VaelCharacter->IsFloromant();
+	return { bFloromant ? EVaelMenuPage::Keimgeflecht : EVaelMenuPage::Formulas, EVaelMenuPage::Inventory, EVaelMenuPage::Compendium,
+		EVaelMenuPage::Quests, EVaelMenuPage::Hero };
+}
+
+void AVaelPlayerController::NavigateKeimgeflecht(int32 Right, int32 Down)
+{
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	const UVaelFloromantComponent* Floromant = VaelCharacter != nullptr ? VaelCharacter->GetFloromant() : nullptr;
+	if (Floromant == nullptr)
+	{
+		return;
+	}
+	const int32 NumCards = FMath::Min(Floromant->GetCatalogSize(), KeimCards);
+	FVaelKeimCursor& C = KeimCursor;
+	constexpr int32 Columns = 3;
+
+	switch (C.Zone)
+	{
+	case EVaelKeimZone::Herbarium:
+	{
+		const int32 Column = C.Card % Columns + Right;
+		const int32 Row = FMath::Clamp(C.Card / Columns + Down, 0, KeimCards / Columns - 1);
+		if (Column >= Columns)
+		{
+			// Out of the right column onto the strand, at the capsule beside that row
+			C.Zone = EVaelKeimZone::Wheel;
+			C.Capsule = FMath::Clamp(Row * 2, 0, KeimCapsules - 1);
+			break;
+		}
+		C.Card = FMath::Clamp(Row * Columns + FMath::Max(Column, 0), 0, FMath::Max(NumCards - 1, 0));
+		C.PlatePlant = C.Card;
+		break;
+	}
+	case EVaelKeimZone::Wheel:
+		if (Right < 0)
+		{
+			C.Zone = EVaelKeimZone::Herbarium;
+			C.Card = FMath::Clamp((C.Capsule / 2) * Columns + Columns - 1, 0, FMath::Max(NumCards - 1, 0));
+			C.PlatePlant = C.Card;
+			break;
+		}
+		if (Right > 0)
+		{
+			C.Zone = EVaelKeimZone::Genes;
+			C.Tier = 0;
+			C.Option = 0;
+			break;
+		}
+		C.Capsule = FMath::Clamp(C.Capsule + Down, 0, KeimCapsules - 1);
+		break;
+	case EVaelKeimZone::Genes:
+		if (Right < 0 && C.Tier == 0)
+		{
+			C.Zone = EVaelKeimZone::Wheel;
+			break;
+		}
+		C.Tier = FMath::Clamp(C.Tier + Right, 0, 2);
+		C.Option = FMath::Clamp(C.Option + Down, 0, 1);
+		break;
+	}
+
+	// The plate shows the plant of the capsule the selection stands on
+	if (C.Zone == EVaelKeimZone::Wheel && C.Carried < 0 && C.Capsule < Floromant->GetHandBeltSize())
+	{
+		const UVaelPlantArmData* InCapsule = Floromant->GetHandBeltPlant(C.Capsule);
+		for (int32 Index = 0; Index < Floromant->GetCatalogSize(); ++Index)
+		{
+			if (Floromant->GetCatalogPlant(Index) == InCapsule && InCapsule != nullptr)
+			{
+				C.PlatePlant = Index;
+			}
+		}
+	}
+}
+
+bool AVaelPlayerController::ConfirmKeimgeflecht()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelFloromantComponent* Floromant = VaelCharacter != nullptr ? VaelCharacter->GetFloromant() : nullptr;
+	if (Floromant == nullptr)
+	{
+		return false;
+	}
+	FVaelKeimCursor& C = KeimCursor;
+	const FLinearColor Green(FColor(150, 214, 140));
+	const FLinearColor Grey(FColor(158, 143, 125));
+
+	switch (C.Zone)
+	{
+	case EVaelKeimZone::Herbarium:
+		// Take the plant of the card and carry it to the strand
+		if (Floromant->GetCatalogPlant(C.Card) == nullptr)
+		{
+			return false;
+		}
+		C.Carried = C.Card;
+		C.Zone = EVaelKeimZone::Wheel;
+		return true;
+	case EVaelKeimZone::Wheel:
+		if (C.Carried < 0)
+		{
+			return false;
+		}
+		if (C.Capsule >= Floromant->GetHandBeltSize())
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelKeim", "Sealed", "Dieser Platz ist noch eine verschlossene Knospe"), FText::GetEmpty(), Grey, 2.0f);
+			return false;
+		}
+		if (UVaelPlantArmData* Plant = Floromant->GetCatalogPlant(C.Carried))
+		{
+			Floromant->SetWheelPlant(C.Capsule, Plant);
+			UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelKeim", "Placed", "{0} wächst jetzt auf Platz {1}"), Plant->GetDisplayName(false), C.Capsule + 1),
+				FText::GetEmpty(), Green, 2.0f);
+			C.PlatePlant = C.Carried;
+		}
+		C.Carried = -1;
+		UVaelSaveSubsystem::RequestSave(this);
+		return true;
+	case EVaelKeimZone::Genes:
+	{
+		const UVaelPlantArmData* Plant = Floromant->GetCatalogPlant(C.PlatePlant);
+		if (Plant == nullptr)
+		{
+			return false;
+		}
+		if (!Floromant->IsGeneTierOpen(C.Tier))
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelKeim", "TierClosed", "Diese Stufe ist noch nicht gewachsen"), FText::GetEmpty(), Grey, 2.0f);
+			return false;
+		}
+		// Taking the same Erbanlage again lets it go
+		const int32 Choice = Floromant->GetGene(Plant, C.Tier) == C.Option ? -1 : C.Option;
+		Floromant->SetGene(Plant, C.Tier, Choice);
+		UVaelSaveSubsystem::RequestSave(this);
+		return true;
+	}
+	}
+	return false;
 }
 
 void AVaelPlayerController::OnMenuAssign(int32 SlotIndex)
@@ -1849,6 +2039,11 @@ void AVaelPlayerController::OnMenuAssign(int32 SlotIndex)
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Inventory)
 	{
 		NavigateInventory(SlotIndex == 1 ? 1 : SlotIndex == 3 ? -1 : 0, SlotIndex == 0 ? -1 : SlotIndex == 2 ? 1 : 0);
+		return;
+	}
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
+	{
+		NavigateKeimgeflecht(SlotIndex == 1 ? 1 : SlotIndex == 3 ? -1 : 0, SlotIndex == 0 ? -1 : SlotIndex == 2 ? 1 : 0);
 		return;
 	}
 

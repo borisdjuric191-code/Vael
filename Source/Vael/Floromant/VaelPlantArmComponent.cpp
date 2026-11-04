@@ -1085,17 +1085,17 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 		return;
 	}
 
-	if (Character->GetMana() < Plant->SaftPerShot)
+	if (Character->GetMana() < ShotSaft())
 	{
 		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
 		FireCountdown = 0.6f;
 		return;
 	}
 
-	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
+	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - ShotSaft());
 	BarShots -= 1.0f;
 	LastShotTime = Now;
-	FireCountdown = Plant->FireInterval;
+	FireCountdown = Plant->FireInterval * GeneScale(EVaelGeneEffect::FireSpeed);
 
 	// The Mondtraufe raises its veil instead of shooting
 	if (Plant->bVeil)
@@ -1189,7 +1189,7 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 	}
 
 	// Rooted in the earth, her hands hit harder
-	const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
+	const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetPlantPower(Plant) : 1.0f;
 
 	// The plant's own shot: a burning seed head, a blade of grass, a Tauperle of its water (VaelSymbiosis::FireShot)
 	VaelSymbiosis::FireShot(Character, Plant, Muzzle, Direction, Power, IsShadowForm());
@@ -1280,7 +1280,7 @@ void UVaelPlantArmComponent::UpdateLassoFiring(float DeltaTime)
 		if (!bLassoThrown && LassoHoldTime >= Plant->LassoHoldDelay && Stance > 0.6f)
 		{
 			bLassoThrown = true;
-			if (Character->GetMana() < Plant->SaftPerShot)
+			if (Character->GetMana() < ShotSaft())
 			{
 				UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
 				return;
@@ -1296,12 +1296,12 @@ void UVaelPlantArmComponent::UpdateLassoFiring(float DeltaTime)
 				Whip();
 				return;
 			}
-			Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
+			Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - ShotSaft());
 			FVaelLassoSpec Spec;
 			Spec.OnEnd = bShadow ? EVaelLassoEnd::Slam : EVaelLassoEnd::Yank;
 			Spec.DamagePerSecond = bShadow ? Plant->StrangleDamagePerSecond : 0.0f;
 			Spec.DamageGrowth = bShadow ? Plant->StrangleGrowth : 0.0f;
-			Spec.Power = Floromant != nullptr ? Floromant->GetHandPower() : 1.0f;
+			Spec.Power = Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f;
 			Spec.Color = bShadow ? Plant->StrangleColor : Plant->PollenColor;
 			for (AActor* Target : Targets)
 			{
@@ -1347,12 +1347,12 @@ void UVaelPlantArmComponent::UpdateLassoFiring(float DeltaTime)
 void UVaelPlantArmComponent::Whip()
 {
 	AVaelCharacter* Character = GetCharacter();
-	if (FireCountdown > 0.0f || Character->GetMana() < Plant->SaftPerShot)
+	if (FireCountdown > 0.0f || Character->GetMana() < ShotSaft())
 	{
 		return;
 	}
-	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
-	FireCountdown = Plant->FireInterval;
+	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - ShotSaft());
+	FireCountdown = Plant->FireInterval * GeneScale(EVaelGeneEffect::FireSpeed);
 	WhipTime = 0.0f;
 	WhipSide = -WhipSide;
 
@@ -1361,7 +1361,7 @@ void UVaelPlantArmComponent::Whip()
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
 	FVaelSpellHit Hit;
-	Hit.Damage = Plant->WhipDamage * (Floromant != nullptr ? Floromant->GetHandPower() : 1.0f);
+	Hit.Damage = Plant->WhipDamage * (Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f);
 	Hit.Element = EVaelElement::Earth;
 	Hit.Knockback = Plant->WhipKnockback;
 	Hit.StunDuration = Plant->WhipStun;
@@ -1577,7 +1577,7 @@ bool UVaelPlantArmComponent::ThrowNow(float WithCharge)
 	{
 		return false;
 	}
-	const float Cost = Plant->SaftPerShot + Plant->ChargeSaftCost * WithCharge;
+	const float Cost = ShotSaft() + Plant->ChargeSaftCost * WithCharge;
 	if (Character->GetMana() < Cost)
 	{
 		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
@@ -1592,7 +1592,7 @@ bool UVaelPlantArmComponent::ThrowNow(float WithCharge)
 
 	// Out of the opening bud to where the ring lay; rooted in the earth it hits harder and breaks into several in the air
 	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
-	const float Power = Floromant != nullptr ? Floromant->GetHandPower() : 1.0f;
+	const float Power = Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f;
 	const int32 Split = Floromant != nullptr && Floromant->IsRooted() ? Plant->RootedSplit : 0;
 	VaelSymbiosis::ThrowCapsule(Character, Plant, BarrelMuzzle, GetThrowTarget(WithCharge), WithCharge, Power, IsShadowForm(), Split);
 
@@ -1907,7 +1907,7 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	if (bHolding && Held != nullptr)
 	{
 		Character->GetAbilitySystemComponent()->ApplyModToAttribute(UVaelAttributeSet::GetManaAttribute(), EGameplayModOp::Additive, -Plant->VineSaftPerSecond * DeltaTime);
-		const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetHandPower() : 1.0f;
+		const float Power = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetPlantPower(Plant) : 1.0f;
 		CareGathered += (bShadow ? Plant->DrainPerSecond : Plant->HealPerSecond * (Held == Character ? Plant->SelfHealShare : 1.0f)) * Power * DeltaTime;
 		CareCountdown -= DeltaTime;
 		if (CareCountdown <= 0.0f && (Held == Character || Tether > 0.8f))
@@ -2195,9 +2195,9 @@ void UVaelPlantArmComponent::UpdateWaterFiring(float DeltaTime)
 	if (PendingShotTime >= 0.0f && Now >= PendingShotTime)
 	{
 		PendingShotTime = -1.0f;
-		if (BarShots >= 1.0f && Character->GetMana() >= Plant->SaftPerShot)
+		if (BarShots >= 1.0f && Character->GetMana() >= ShotSaft())
 		{
-			Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - Plant->SaftPerShot);
+			Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - ShotSaft());
 			BarShots -= 1.0f;
 			LastShotTime = Now;
 			Shoot(-1);
@@ -2221,14 +2221,14 @@ void UVaelPlantArmComponent::UpdateWaterFiring(float DeltaTime)
 		{
 			return;
 		}
-		if (Character->GetMana() < Plant->SaftPerShot)
+		if (Character->GetMana() < ShotSaft())
 		{
 			UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
 			return;
 		}
 		StartPump(false);
 		PendingShotTime = Now + Plant->PumpWaveTime;
-		FireCountdown = FMath::Max(Plant->FireInterval, Plant->PumpWaveTime);
+		FireCountdown = FMath::Max(Plant->FireInterval * GeneScale(EVaelGeneEffect::FireSpeed), Plant->PumpWaveTime);
 	}
 
 	// Held long enough it turns into the jet, the pump going on and on; it costs bar and Saft every second, and sputters out when they are gone
@@ -2453,4 +2453,16 @@ FVector UVaelPlantArmComponent::GetEyeBerryTarget(const FVector& Direction) cons
 bool UVaelPlantArmComponent::IsShadowForm() const
 {
 	return bShadowForm && Plant != nullptr && !Plant->IsLightOnly();
+}
+
+float UVaelPlantArmComponent::GeneScale(EVaelGeneEffect Effect) const
+{
+	const AVaelCharacter* Character = Cast<AVaelCharacter>(GetOwner());
+	const UVaelFloromantComponent* Floromant = Character != nullptr ? Character->GetFloromant() : nullptr;
+	return Floromant != nullptr ? Floromant->GetGeneScale(Plant, Effect) : 1.0f;
+}
+
+float UVaelPlantArmComponent::ShotSaft() const
+{
+	return Plant != nullptr ? Plant->SaftPerShot * GeneScale(EVaelGeneEffect::SaftCost) : 0.0f;
 }

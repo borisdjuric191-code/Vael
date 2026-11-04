@@ -1513,3 +1513,18 @@ void UVaelCheatManager::VaelNid(float Percent, int32 ShadowHands, const FString&
 		}
 	}
 }
+
+void UVaelCheatManager::VaelKeim(int32 Right, int32 Down, int32 Press)
+{
+	if (AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		if (Right != 0 || Down != 0)
+		{
+			VaelController->NavigateKeimgeflecht(Right, Down);
+		}
+		if (Press != 0)
+		{
+			VaelController->ConfirmKeimgeflecht();
+		}
+	}
+}

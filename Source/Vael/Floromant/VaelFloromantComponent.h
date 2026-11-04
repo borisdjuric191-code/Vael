@@ -6,6 +6,7 @@
 #include "Components/ActorComponent.h"
 #include "UI/VaelHUDClassData.h"
 #include "Floromant/VaelSymbiosis.h"
+#include "Floromant/VaelPlantArmData.h"
 #include "VaelFloromantComponent.generated.h"
 
 class AVaelCharacter;
@@ -107,6 +108,27 @@ public:
 	/** Pairs she has grown at least once (crossed or fused towers), shown by name in the HUD; the others stay "?" (not saved yet) */
 	bool IsPairKnown(EVaelSymbiosis Kind) const { return KnownPairs.Contains(static_cast<uint8>(Kind)); }
 	void LearnPair(EVaelSymbiosis Kind) { if (Kind != EVaelSymbiosis::None) { KnownPairs.Add(static_cast<uint8>(Kind)); } }
+
+	// --- Keimgeflecht (Boris 2026-11-04): per plant and tier she takes one of its Erbanlagen into her
+
+	/** The option taken in a tier of a plant, -1 if none yet */
+	int32 GetGene(const UVaelPlantArmData* Plant, int32 Tier) const;
+
+	/** Takes an option of a tier (she may change it any time, like the Book of the Dead); -1 lets the tier go. False if the tier is not open */
+	bool SetGene(const UVaelPlantArmData* Plant, int32 Tier, int32 Choice);
+
+	/** True once she has grown far enough for a tier (her level, UVaelFloromantSettings::GeneTierLevels) */
+	bool IsGeneTierOpen(int32 Tier) const;
+
+	/** What her Erbanlagen of a plant do together for one effect: 1 = unchanged (damage 1.15, Saft cost 0.8, time between shots 0.87 …) */
+	float GetGeneScale(const UVaelPlantArmData* Plant, EVaelGeneEffect Effect) const;
+
+	/** Her hand power for this plant: the rooted power times its Erbanlagen for damage */
+	float GetPlantPower(const UVaelPlantArmData* Plant) const;
+
+	/** The plants of the wheel, known pairs and Erbanlagen into the save of her player slot and back */
+	void WriteSave(struct FVaelSavedPlayer& Saved) const;
+	void ReadSave(const struct FVaelSavedPlayer& Saved);
 
 	/** The form a hand gets: light path light, shadow path shadow, twilight the left hand light and the right shadow, before the
 	 *  vow the side it was laid on with */
@@ -243,6 +265,9 @@ private:
 	float WheelFlipAge = 10.0f;
 
 	TSet<uint8> KnownPairs;
+
+	/** Erbanlagen by plant asset name: the option of each tier in 4 bits (tier 0 lowest), stored as option + 1, 0 = none */
+	TMap<FName, int32> Genes;
 
 	/** Fills the wheel up to the unlocked places */
 	void EnsureWheel() const;

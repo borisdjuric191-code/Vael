@@ -294,4 +294,8 @@ public:
 	/** Every Floromant: corruption in percent, hands laid on in shadow form (0 none, 1 left, 2 both) and the path (l, s, z, or empty to keep) */
 	UFUNCTION(Exec)
 	void VaelNid(float Percent = 50.0f, int32 ShadowHands = 0, const FString& Way = TEXT(""));
+
+	/** Keimgeflecht page: moves the selection (right, down) and presses the button when Press is 1. Example: VaelKeim 1 0 1 */
+	UFUNCTION(Exec)
+	void VaelKeim(int32 Right = 0, int32 Down = 0, int32 Press = 0);
 };

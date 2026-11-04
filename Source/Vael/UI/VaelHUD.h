@@ -287,6 +287,16 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UTexture2D>> ItemIcons;
 
+	/** Pictures of the Keimgeflecht (/Game/Vael/UI/Keimgeflecht, made by Scripts/CreateKeimgeflechtKit.py), loaded when first drawn */
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<UTexture2D>> KeimPictures;
+
+	/** A picture of the Keimgeflecht by name, null if it is missing */
+	UTexture2D* GetKeimPicture(FName Name);
+
+	/** The Floromant's Keimgeflecht page: herbarium, strand with the wheel capsules, the plate of a plant with its Erbanlagen */
+	void DrawKeimgeflecht(const AVaelPlayerController* PlayerController);
+
 	bool bLevelMapLookedUp = false;
 
 	/** Height of the font at scale 1, in pixels */

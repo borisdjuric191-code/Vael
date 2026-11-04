@@ -23,7 +23,53 @@ enum class EVaelMenuPage : uint8
 	/** Class and body of the player: mage or Floromant, man or woman */
 	Hero,
 	/** A trader's goods, only reached by talking to the trader; not part of the page ring */
-	Shop
+	Shop,
+	/** The Floromant's Keimgeflecht (2026-11-04): herbarium, plant wheel and the plate of a plant with its Erbanlagen; it takes
+	 *  the place of the formulas in her page ring */
+	Keimgeflecht
+};
+
+/** Where the selection of the Keimgeflecht stands: herbarium cards, wheel capsules on the strand, or Erbanlagen on the plate */
+UENUM(BlueprintType)
+enum class EVaelKeimZone : uint8
+{
+	Herbarium,
+	Wheel,
+	Genes
+};
+
+/** The selection of the Keimgeflecht page */
+USTRUCT(BlueprintType)
+struct FVaelKeimCursor
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	EVaelKeimZone Zone = EVaelKeimZone::Herbarium;
+
+	/** Card of the herbarium (index in the repertoire), capsule of the wheel, tier and option of the Erbanlagen */
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	int32 Card = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	int32 Capsule = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	int32 Tier = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	int32 Option = 0;
+
+	/** The plant (index in the repertoire) taken from the herbarium to be set into a capsule, -1 while none is carried */
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	int32 Carried = -1;
+
+	/** The plant whose plate is shown (index in the repertoire), and whether its shadow side is turned up */
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	int32 PlatePlant = 0;
+
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	bool bShadowSide = false;
 };
 
 class AVaelSharedCamera;
@@ -314,6 +360,19 @@ public:
 	/** Moves the selection of the inventory through the places of the book */
 	void NavigateInventory(int32 Right, int32 Down);
 
+	/** The selection on the Keimgeflecht page of a Floromant */
+	const FVaelKeimCursor& GetKeimCursor() const { return KeimCursor; }
+
+	/** Moves the selection of the Keimgeflecht: herbarium grid, strand, Erbanlagen; across the zones from left to right */
+	void NavigateKeimgeflecht(int32 Right, int32 Down);
+
+	/** The button of the menu on the Keimgeflecht: take a plant, set it into a capsule, take an Erbanlage. True if it was used */
+	bool ConfirmKeimgeflecht();
+
+	/** Cards of the herbarium in the Keimgeflecht (3 columns, 4 rows) and capsules on its strand */
+	static constexpr int32 KeimCards = 12;
+	static constexpr int32 KeimCapsules = 8;
+
 	/** Row of the compendium page the player has selected */
 	int32 GetCompendiumSelection() const { return CompendiumSelection; }
 
@@ -552,6 +611,12 @@ protected:
 
 	/** Row of the compendium page the player has selected, counting through the books in order */
 	int32 CompendiumSelection = 0;
+
+	/** Selection on the Keimgeflecht page */
+	FVaelKeimCursor KeimCursor;
+
+	/** The pages of the ring for this player: the Floromant has her Keimgeflecht in place of the formulas */
+	TArray<EVaelMenuPage> GetPageRing() const;
 
 	/** Selected row of the page of class and body */
 	int32 HeroSelection = 0;

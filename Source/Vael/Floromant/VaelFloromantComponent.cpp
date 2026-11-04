@@ -31,6 +31,7 @@
 #include "Nature/VaelGarden.h"
 #include "Nature/VaelHarvestable.h"
 #include "Player/VaelCharacter.h"
+#include "Save/VaelSaveGame.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "World/VaelGround.h"
 #include "World/VaelRegion.h"
@@ -1547,7 +1548,7 @@ void UVaelFloromantComponent::TickNid(float DeltaTime)
 		const UVaelPlantArmData* Plant = Hand != nullptr ? Hand->GetPlant() : nullptr;
 		if (Plant != nullptr && !Plant->IsLightOnly() && Hand->IsShadowForm() && Hand->IsFiring())
 		{
-			Points += Plant->NidPerSecond * DeltaTime;
+			Points += Plant->NidPerSecond * GetGeneScale(Plant, EVaelGeneEffect::NidPrice) * DeltaTime;
 		}
 	}
 	if (Points > 0.0f)
@@ -1572,4 +1573,90 @@ void UVaelFloromantComponent::PayNid(float Points)
 	{
 		Region->AddCorruption(Price * Settings->NidRegionShare);
 	}
+}
+
+int32 UVaelFloromantComponent::GetGene(const UVaelPlantArmData* Plant, int32 Tier) const
+{
+	const int32* Packed = Plant != nullptr && Tier >= 0 && Tier < 8 ? Genes.Find(Plant->GetFName()) : nullptr;
+	return Packed != nullptr ? ((*Packed >> (Tier * 4)) & 0xF) - 1 : -1;
+}
+
+bool UVaelFloromantComponent::SetGene(const UVaelPlantArmData* Plant, int32 Tier, int32 Choice)
+{
+	if (Plant == nullptr || !IsGeneTierOpen(Tier) || !Plant->GetGeneTiers().IsValidIndex(Tier)
+		|| (Choice >= 0 && !Plant->GetGeneTiers()[Tier].Options.IsValidIndex(Choice)))
+	{
+		return false;
+	}
+	int32& Packed = Genes.FindOrAdd(Plant->GetFName());
+	Packed = (Packed & ~(0xF << (Tier * 4))) | (FMath::Clamp(Choice + 1, 0, 15) << (Tier * 4));
+	UE_LOG(LogVael, Log, TEXT("'%s' takes Erbanlage %d of tier %d of %s"), *GetNameSafe(GetOwner()), Choice, Tier + 1, *Plant->GetName());
+	return true;
+}
+
+bool UVaelFloromantComponent::IsGeneTierOpen(int32 Tier) const
+{
+	const TArray<int32>& Levels = UVaelFloromantSettings::Get()->GeneTierLevels;
+	const AVaelCharacter* Character = GetCharacter();
+	return Levels.IsValidIndex(Tier) && Character != nullptr && Character->GetLevel() >= Levels[Tier];
+}
+
+float UVaelFloromantComponent::GetGeneScale(const UVaelPlantArmData* Plant, EVaelGeneEffect Effect) const
+{
+	if (Plant == nullptr)
+	{
+		return 1.0f;
+	}
+	float Sum = 0.0f;
+	const TArray<FVaelGeneTier>& Tiers = Plant->GetGeneTiers();
+	for (int32 Tier = 0; Tier < Tiers.Num(); ++Tier)
+	{
+		const int32 Choice = GetGene(Plant, Tier);
+		if (Tiers[Tier].Options.IsValidIndex(Choice) && Tiers[Tier].Options[Choice].Effect == Effect)
+		{
+			Sum += Tiers[Tier].Options[Choice].Amount;
+		}
+	}
+	switch (Effect)
+	{
+	case EVaelGeneEffect::Damage:		return 1.0f + Sum;
+	case EVaelGeneEffect::FireSpeed:	return 1.0f / (1.0f + Sum);
+	default:							return FMath::Max(0.0f, 1.0f - Sum);
+	}
+}
+
+float UVaelFloromantComponent::GetPlantPower(const UVaelPlantArmData* Plant) const
+{
+	return GetHandPower() * GetGeneScale(Plant, EVaelGeneEffect::Damage);
+}
+
+void UVaelFloromantComponent::WriteSave(FVaelSavedPlayer& Saved) const
+{
+	EnsureWheel();
+	Saved.WheelPlants.Reset();
+	for (const TObjectPtr<UVaelPlantArmData>& Plant : WheelSlots)
+	{
+		Saved.WheelPlants.Add(FSoftObjectPath(Plant.Get()));
+	}
+	Saved.WheelShadowSides = WheelShadowSides;
+	Saved.KnownPairs = KnownPairs.Array();
+	Saved.Genes = Genes;
+}
+
+void UVaelFloromantComponent::ReadSave(const FVaelSavedPlayer& Saved)
+{
+	EnsureWheel();
+	for (int32 Slot = 0; Slot < Saved.WheelPlants.Num() && Slot < WheelSlots.Num(); ++Slot)
+	{
+		if (UVaelPlantArmData* Plant = Cast<UVaelPlantArmData>(Saved.WheelPlants[Slot].TryLoad()))
+		{
+			SetWheelPlant(Slot, Plant);
+		}
+	}
+	for (int32 Slot = 0; Slot < Saved.WheelShadowSides.Num() && Slot < WheelShadowSides.Num(); ++Slot)
+	{
+		WheelShadowSides[Slot] = Saved.WheelShadowSides[Slot];
+	}
+	KnownPairs = TSet<uint8>(Saved.KnownPairs);
+	Genes = Saved.Genes;
 }

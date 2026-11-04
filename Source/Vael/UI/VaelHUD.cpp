@@ -714,6 +714,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		return;
 	}
 
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Keimgeflecht)
+	{
+		DrawKeimgeflecht(PlayerController);
+		return;
+	}
+
 	const float S = UiScale;
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
 	const UVaelElementComponent* Elements = Player->GetElementComponent();
@@ -1651,13 +1657,16 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 		: LOCTEXT("TabsXbox", "LB / RB");
 
 	// Right aligned, last page first: the pages, then the switch buttons; the open page is lit
+	const AVaelCharacter* TabPlayer = PlayerController->GetPawn<AVaelCharacter>();
+	const bool bFloromant = TabPlayer != nullptr && TabPlayer->IsFloromant();
 	const TPair<EVaelMenuPage, FText> Pages[] =
 	{
 		{ EVaelMenuPage::Hero, LOCTEXT("TabHero", "GESTALT") },
 		{ EVaelMenuPage::Quests, LOCTEXT("TabQuests", "AUFTRÄGE") },
 		{ EVaelMenuPage::Compendium, LOCTEXT("TabCompendium", "KOMPENDIUM") },
 		{ EVaelMenuPage::Inventory, LOCTEXT("TabInventory", "INVENTAR") },
-		{ EVaelMenuPage::Formulas, LOCTEXT("TabFormulas", "FORMELN") },
+		bFloromant ? TPair<EVaelMenuPage, FText>(EVaelMenuPage::Keimgeflecht, LOCTEXT("TabKeim", "KEIMGEFLECHT"))
+			: TPair<EVaelMenuPage, FText>(EVaelMenuPage::Formulas, LOCTEXT("TabFormulas", "FORMELN")),
 	};
 
 	float X = Right;

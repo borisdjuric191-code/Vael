@@ -20,6 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 PLANTS = os.path.join(ROOT, "Scripts", "Data", "HUD", "Pflanzen")
 FONTS = os.path.join(ROOT, "Scripts", "Data", "Fonts")
 W, H = 1920, 1080
+# Spiel-Modus: nur der feste Hintergrund (ohne Bilder, Namen, Anlagen, Kreuzungen, Knöpfe), die das Spiel selbst zeichnet
+GAME = "--spiel" in sys.argv
 
 
 def P(x, y, depth=0.0):
@@ -466,7 +468,7 @@ def alive_room():
         sphere("Hut", px + 2, py - 20 * s, 11 * s, MUSHROOM, depth=-10, squash=0.5)
         glow(px + 2, py - 20 * s, 46 * s, glow_mat("Pilzschein", (0.3, 1.0, 0.85), 1.5), depth=-8)
     # Pollen und Feenlichter, die durch die Kammer treiben
-    for k in range(40):
+    for k in range(0 if GAME else 40):
         px, py = rnd.uniform(70, 1850), rnd.uniform(70, 1010)
         r = rnd.uniform(1.0, 2.2)
         sphere("Pollen", px, py, r, POLLEN, depth=-30)
@@ -515,13 +517,15 @@ def build():
 
     # Titel und Reiter
     text("Keimgeflecht", W / 2, 66, 60, mat("Titelgold", (0.95, 0.72, 0.32), 0.3, 0.6, emit=1.1), "AlmendraSC-Regular.ttf", "CENTER")
-    for i, (label, active) in enumerate((("Pflanzen", True), ("Kreuzungen", False), ("Erbanlagen", False))):
+    tabs = [] if GAME else [("Pflanzen", True), ("Kreuzungen", False), ("Erbanlagen", False)]
+    for i, (label, active) in enumerate(tabs):
         tx = W / 2 - 260 + i * 260
         text(label, tx, 146, 26, pale if active else dim, "Almendra-Regular.ttf", "CENTER")
         if active:
             tube("Reiter", [(tx - 70, 182), (tx + 70, 182)], 1.6, GOLD, depth=-6)
-    text("L1", W / 2 - 430, 146, 24, dim, "AlegreyaSans-Bold.ttf", "CENTER")
-    text("R1", W / 2 + 430, 146, 24, dim, "AlegreyaSans-Bold.ttf", "CENTER")
+    if not GAME:
+        text("L1", W / 2 - 430, 146, 24, dim, "AlegreyaSans-Bold.ttf", "CENTER")
+        text("R1", W / 2 + 430, 146, 24, dim, "AlegreyaSans-Bold.ttf", "CENTER")
 
     # ---------------- links: Herbarium, Tafeln aller bekannten Pflanzen
     known = ["Windhalm", "Russrose", "Glutdistel", "Glimmklee", "Taublatt", "Schlotwinde", "Funkenmohn", "Harzkolben",
@@ -532,9 +536,12 @@ def build():
         col, row = i % 3, i // 3
         x0, y0 = 110 + col * 182, 262 + row * 180
         selected = name == "Russrose"
-        slab("Karte", x0, y0, x0 + 160, y0 + 160, PAPER if name else PAPER_DARK, depth=10, bevel=8)
+        slab("Karte", x0, y0, x0 + 160, y0 + 160, PAPER if name or GAME else PAPER_DARK, depth=10, bevel=8)
         # mit einem Dorn an die Wurzelwand gesteckt
         sphere("Nadel", x0 + 80, y0 + 6, 4, THORN, depth=-6)
+        if GAME:
+            slab("Fensterchen", x0 + 18, y0 + 6, x0 + 142, y0 + 130, PAPER_DARK, depth=6, thick=3, bevel=4)
+            continue
         if name:
             quad("Bild", x0 + 22, y0 + 10, x0 + 138, y0 + 126, picture_mat(plant(name)), depth=2)
             text(names.get(name, name), x0 + 80, y0 + 128, 19, paper_ink, "Almendra-Regular.ttf", "CENTER", depth=2)
@@ -594,15 +601,18 @@ def build():
         y = top + 46 + i * 92
         side = -1 if i % 2 == 0 else 1
         px = cx + side * 112
-        tube("Stiel", [(cx + side * 30, y + 12), (cx + side * 58, y + 2), (px - side * 40, y)], 3.0, LIGHTVINE if i < 4 else BRONZE, depth=2)
-        ring("Fassung", px, y, 40, 4.0, GOLD if i == 1 else BRONZE)
+        tube("Stiel", [(cx + side * 30, y + 12), (cx + side * 58, y + 2), (px - side * 40, y)], 3.0, LIGHTVINE if i < 4 or GAME else BRONZE, depth=2)
+        ring("Fassung", px, y, 40, 4.0, GOLD if i == 1 and not GAME else BRONZE)
         # kleine Bronzeblätter an der Fassung
         tube("Fassungsblatt", [(px - side * 30, y + 30), (px - side * 44, y + 40), (px - side * 52, y + 38)], 3.5, BRONZE, depth=-6, taper=True)
         # Bronzekelch: fünf Kelchblätter umfassen die Kapsel von hinten
         for a in range(5):
             ang = a * 72 + 90
             leaf(px, y, ang, 50, 22, BRONZE, depth=6, bend=0.1)
-        if i < 4:
+        if GAME:
+            disc("Grundkapsel", px, y, 37, PAPER_DARK, depth=0)
+            text(str(i + 1), px + side * 56, y - 13, 22, pale, "AlegreyaSans-Bold.ttf", "CENTER")
+        elif i < 4:
             disc("Kapsel", px, y, 37, picture_mat(plant(wheel[i]), emit=0.5), depth=0)
             # gläserne Samenkapsel darüber, mit einem Lichtschein
             sphere("Glas", px, y, 38, CAPSULE_GLASS, depth=-2, squash=0.35)
@@ -615,7 +625,8 @@ def build():
                 tube("Kelch", [(px, y + 26), (px + math.sin(a) * 18, y + 4), (px + math.sin(a) * 6, y - 24)], 6.0, BRONZE, depth=-5, taper=True)
             ring("Siegel", px, y + 18, 9, 2.6, SEAL, depth=-8)
             text(str(i + 1), px + side * 56, y - 13, 22, dim, "AlegreyaSans-Bold.ttf", "CENTER")
-    text("Rad", cx, 978, 22, dim, "Almendra-Regular.ttf", "CENTER")
+    if not GAME:
+        text("Rad", cx, 978, 22, dim, "Almendra-Regular.ttf", "CENTER")
     # Der Strang leuchtet sanft von hinten, wächst oben aus ihrer Motte und unten mit Wurzeln ins Moos
     if True:
         tall = quad("Strangschein", cx - 150, top - 20, cx + 150, bottom + 20, VINE_GLOW, depth=24)
@@ -631,15 +642,19 @@ def build():
     plate_dressing(x0, y0, x1, y1)
     tube("Tafelrand", [(x0 + 22, y0 + 22), (x1 - 22, y0 + 22), (x1 - 22, y1 - 22), (x0 + 22, y1 - 22), (x0 + 22, y0 + 22)], 1.4, INK, depth=2)
     tube("Tafelrand2", [(x0 + 28, y0 + 28), (x1 - 28, y0 + 28), (x1 - 28, y1 - 28), (x0 + 28, y1 - 28), (x0 + 28, y0 + 28)], 0.6, INK, depth=2)
-    text("Tafel II", x0 + 50, y0 + 44, 22, paper_ink, "IMFeENsc28P.ttf")
-    text("Rußrose", x0 + 50, y0 + 70, 54, paper_ink, "AlmendraSC-Regular.ttf")
-    text("Rosa fuliginosa · Lichtform", x0 + 52, y0 + 134, 21, paper_ink, "Almendra-Regular.ttf")
+    if not GAME:
+        text("Tafel II", x0 + 50, y0 + 44, 22, paper_ink, "IMFeENsc28P.ttf")
+        text("Rußrose", x0 + 50, y0 + 70, 54, paper_ink, "AlmendraSC-Regular.ttf")
+        text("Rosa fuliginosa · Lichtform", x0 + 52, y0 + 134, 21, paper_ink, "Almendra-Regular.ttf")
 
     # Das Bild in einem dunklen Fenster, mit Fig.-Beschriftung wie auf einer alten Tafel
     ix0, iy0, size = x0 + 50, y0 + 176, 300
     slab("Fenster", ix0 - 8, iy0 - 8, ix0 + size + 8, iy0 + size + 8, PAPER_DARK, depth=6, thick=4, bevel=6)
-    quad("GrossBild", ix0, iy0, ix0 + size, iy0 + size, picture_mat(plant("Russrose"), emit=0.45), depth=2)
-    figs = [((ix0 + 150, iy0 + 58), "Fig. 1  Herzblüte", "schießt ihr Herz in den Feind"),
+    if GAME:
+        figs = []
+    else:
+        quad("GrossBild", ix0, iy0, ix0 + size, iy0 + size, picture_mat(plant("Russrose"), emit=0.45), depth=2)
+    figs = figs if GAME else [((ix0 + 150, iy0 + 58), "Fig. 1  Herzblüte", "schießt ihr Herz in den Feind"),
             ((ix0 + 210, iy0 + 160), "Fig. 2  Dornenranke", "kriecht als Peitsche den Arm hinab"),
             ((ix0 + 110, iy0 + 266), "Fig. 3  Rußwurzel", "trinkt Asche, wo andere welken")]
     for k, ((fx, fy), title, note) in enumerate(figs):
@@ -651,10 +666,12 @@ def build():
 
     # Schattenform: verschlossen bis zum Schwur
     sx, sy = x1 - 190, y0 + 46
-    disc("SchattenBild", sx + 60, sy + 56, 52, picture_mat(plant("Russrose", True), emit=0.3, grey=True), depth=2)
+    if not GAME:
+        disc("SchattenBild", sx + 60, sy + 56, 52, picture_mat(plant("Russrose", True), emit=0.3, grey=True), depth=2)
     ring("SchattenFassung", sx + 60, sy + 56, 54, 3.0, SEAL)
     text("Schattenform", sx + 60, sy + 118, 19, paper_ink, "Almendra-Bold.ttf", "CENTER")
-    text("bis zum Schwur verschlossen", sx + 60, sy + 142, 15, paper_ink, "Almendra-Regular.ttf", "CENTER")
+    if not GAME:
+        text("bis zum Schwur verschlossen", sx + 60, sy + 142, 15, paper_ink, "Almendra-Regular.ttf", "CENTER")
 
     # Erbanlagen: je Stufe eine von zwei Anlagen wählen (Evolution), Stufe 3 noch nicht gewachsen
     ey = y0 + 498
@@ -662,6 +679,7 @@ def build():
     text("Erbanlagen", x0 + 50, ey, 28, paper_ink, "AlmendraSC-Regular.ttf")
     text("je Stufe eine von zwei", x0 + 270, ey + 6, 18, paper_ink, "Almendra-Regular.ttf")
     genes = [("Schwerer Duft", "Dichter Dorn", 0), ("Glimmende Asche", "Tiefe Wurzel", 1), ("?", "?", -1)]
+    genes = [] if GAME else genes
     for k, (a, b, chosen) in enumerate(genes):
         gx = x0 + 60 + k * 255
         text("Stufe {}".format(["I", "II", "III"][k]), gx, ey + 40, 17, paper_ink, "IMFeENsc28P.ttf")
@@ -678,6 +696,7 @@ def build():
     tube("Trenner2", [(x0 + 50, ky - 14), (x1 - 50, ky - 14)], 1.0, INK, depth=2)
     text("Kreuzungen", x0 + 50, ky, 28, paper_ink, "AlmendraSC-Regular.ttf")
     crosses = [("Glutrose", "mit Glutdistel"), ("Laube", "mit Glimmklee"), ("?", "mit ?"), ("?", "mit ?")]
+    crosses = [] if GAME else crosses
     for k, (pair, partner) in enumerate(crosses):
         cx2, cy2 = x0 + 60 + (k % 2) * 380, ky + 40 + (k // 2) * 32
         text(pair, cx2, cy2, 22, paper_ink, "Almendra-Bold.ttf")
@@ -685,6 +704,7 @@ def build():
 
     # Steuerung unten: Knöpfe mit ihren Zeichen
     hints = [("Kreuz", "Ins Rad setzen"), ("Kreis", "Zurück"), ("Viereck", "Tafel wenden"), ("Dreieck", "Erbanlage wählen")]
+    hints = [] if GAME else hints
     for k, (button, label) in enumerate(hints):
         hx, hy = 520 + k * 260, 1020
         ring("Knopf", hx, hy, 14, 2.2, GOLD, depth=-4)
@@ -700,8 +720,62 @@ def build():
         text(label, hx + 26, hy - 14, 22, pale, "Almendra-Regular.ttf")
 
 
+def render_bud(path):
+    """Die verschlossene Knospe eines noch nicht gewachsenen Radplatzes, freigestellt (96 Designpixel, doppelt gerendert)"""
+    global W, H
+    W, H = 96, 96
+    setup()
+    materials()
+    scene = bpy.context.scene
+    scene.render.resolution_x, scene.render.resolution_y = 192, 192
+    scene.render.film_transparent = True
+    scene.camera.data.ortho_scale = 96
+    px, py = 48, 48
+    disc("Knospe", px, py, 37, PAPER_DARK, depth=0)
+    for a in (-0.6, 0.0, 0.6):
+        tube("Kelch", [(px, py + 26), (px + math.sin(a) * 18, py + 4), (px + math.sin(a) * 6, py - 24)], 6.0, BRONZE, depth=-5, taper=True)
+    ring("Siegel", px, py + 18, 9, 2.6, SEAL, depth=-8)
+    scene.render.filepath = path
+    bpy.ops.render.render(write_still=True)
+    W, H = 1920, 1080
+
+
+def round_pictures(folder):
+    """Die Tuschebilder der Pflanzen rund freigestellt, für die Kapseln am Strang: weicher Rand, nach außen dunkler"""
+    import numpy as np
+    for name in sorted(os.listdir(PLANTS)):
+        if not name.startswith("T_Pflanze_") or not name.endswith(".png"):
+            continue
+        image = bpy.data.images.load(os.path.join(PLANTS, name))
+        w, h = image.size
+        pixels = np.array(image.pixels[:], np.float32).reshape(h, w, 4)
+        yy, xx = np.mgrid[0:h, 0:w]
+        r = np.hypot((xx + 0.5) / w - 0.5, (yy + 0.5) / h - 0.5) / 0.5
+        alpha = np.clip((0.97 - r) / 0.04, 0.0, 1.0)
+        shade = np.clip(1.15 - 0.55 * r ** 3, 0.0, 1.0)
+        pixels[..., :3] *= shade[..., None]
+        pixels[..., 3] = alpha
+        out = bpy.data.images.new("rund", w, h, alpha=True)
+        out.pixels = pixels.reshape(-1)
+        out.filepath_raw = os.path.join(folder, name.replace("T_Pflanze_", "T_Keim_Rund_"))
+        out.file_format = "PNG"
+        out.save()
+
+
 def main():
     out = sys.argv[sys.argv.index("--") + 1]
+    if GAME:
+        # out ist dann ein Ordner: Hintergrund, Knospe und die runden Bilder für das Menü im Spiel
+        os.makedirs(out, exist_ok=True)
+        setup()
+        materials()
+        build()
+        bpy.context.scene.render.filepath = os.path.join(out, "T_Keim_Grund.png")
+        bpy.ops.render.render(write_still=True)
+        render_bud(os.path.join(out, "T_Keim_Knospe.png"))
+        round_pictures(out)
+        print("[Vael] Keimgeflecht-Bausteine in", out)
+        return
     setup()
     materials()
     build()
