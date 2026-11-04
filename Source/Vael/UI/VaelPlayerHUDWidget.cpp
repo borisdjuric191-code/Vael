@@ -2,6 +2,7 @@
 
 #include "UI/VaelPlayerHUDWidget.h"
 #include "Misc/App.h"
+#include "Floromant/VaelSymbiosis.h"
 #include "Engine/Font.h"
 #include "Engine/FontFace.h"
 #include "Engine/Texture2D.h"
@@ -567,9 +568,15 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			const UVaelPlantArmData* HandPlant = Hand != nullptr ? Hand->GetPlant() : nullptr;
 			if (HandPlant != nullptr)
 			{
-				const bool bShadowForm = Path == EVaelPath::Shadow;
+				const bool bShadowForm = Hand->IsShadowForm();
 				State.Name = HandPlant->GetDisplayName(bShadowForm);
 				State.IconColor = HandPlant->GetColor(bShadowForm);
+				// The ink picture of the plant on the hand fills the slot (2026-11-04)
+				if (const FSlateBrush* Picture = GetTextureBrush(bShadowForm && !HandPlant->WheelShadowPicture.IsNull() ? HandPlant->WheelShadowPicture : HandPlant->WheelPicture))
+				{
+					State.Painting = Picture;
+					State.IconColor = FLinearColor::White;
+				}
 				State.bLit = Hand->IsFiring();
 				State.CooldownLeft = 1.0f - Hand->GetBarFraction();
 				Total = 1.0f;
@@ -599,6 +606,25 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			State.bNoSeconds = true;
 			break;
 		}
+		case EVaelHUDAbility::Cross:
+		{
+			// The pair the two hands would grow: its name once she has grown it, else a question
+			const UVaelPlantArmComponent* Left = Floromant != nullptr ? Floromant->FindHand(true) : nullptr;
+			const UVaelPlantArmComponent* Right = Floromant != nullptr ? Floromant->FindHand(false) : nullptr;
+			const EVaelSymbiosis Kind = Left != nullptr && Right != nullptr ? VaelSymbiosis::Find(Left->GetPlant(), Right->GetPlant()) : EVaelSymbiosis::None;
+			if (Kind == EVaelSymbiosis::None)
+			{
+				State.bDim = true;
+			}
+			else
+			{
+				State.Name = Floromant->IsPairKnown(Kind) ? VaelSymbiosis::GetName(Kind) : FText::FromString(TEXT("?"));
+			}
+			break;
+		}
+		case EVaelHUDAbility::Root:
+			State.bLit = Floromant != nullptr && Floromant->IsRooted();
+			break;
 		case EVaelHUDAbility::Placeholder:
 			break;
 		default:

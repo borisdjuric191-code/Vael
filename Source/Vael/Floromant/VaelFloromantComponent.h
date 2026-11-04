@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "UI/VaelHUDClassData.h"
+#include "Floromant/VaelSymbiosis.h"
 #include "VaelFloromantComponent.generated.h"
 
 class AVaelCharacter;
@@ -102,6 +103,10 @@ public:
 	bool CanFlipWheel(int32 Slot) const;
 	void FlipWheel();
 	float GetWheelFlipAge() const { return WheelFlipAge; }
+
+	/** Pairs she has grown at least once (crossed or fused towers), shown by name in the HUD; the others stay "?" (not saved yet) */
+	bool IsPairKnown(EVaelSymbiosis Kind) const { return KnownPairs.Contains(static_cast<uint8>(Kind)); }
+	void LearnPair(EVaelSymbiosis Kind) { if (Kind != EVaelSymbiosis::None) { KnownPairs.Add(static_cast<uint8>(Kind)); } }
 
 	/** The form a hand gets: light path light, shadow path shadow, twilight the left hand light and the right shadow, before the
 	 *  vow the side it was laid on with */
@@ -236,6 +241,8 @@ private:
 
 	/** Seconds since the last turn of a medallion, for the turn on the wheel */
 	float WheelFlipAge = 10.0f;
+
+	TSet<uint8> KnownPairs;
 
 	/** Fills the wheel up to the unlocked places */
 	void EnsureWheel() const;

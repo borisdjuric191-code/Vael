@@ -1327,6 +1327,7 @@ void UVaelFloromantComponent::CrossHands(float Charge)
 	const bool bShadow = Left->IsShadowForm() && Right->IsShadowForm();
 	const FVector Knot = (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + Aim * 45.0f;
 	VaelSymbiosis::Fire(Character, Kind, Left->GetPlant(), Right->GetPlant(), Knot, Aim, GetHandPower(), Charge, bShadow);
+	LearnPair(Kind);
 
 	// The moment the arms grow into each other is felt: a burst of both plants at the knot and a light jolt of the camera
 	VaelSymbiosis::MuzzlePuff(Character, Left->GetPlant(), Knot, bShadow, 2.6f + Charge);

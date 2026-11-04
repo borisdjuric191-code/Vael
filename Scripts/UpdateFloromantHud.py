@@ -10,6 +10,7 @@
 # Run with the editor closed:
 #   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="C:/Projekte/Vael/Scripts/UpdateFloromantHud.py"
 
+import os
 import unreal
 
 HUD = "/Game/Vael/UI/HUD"
@@ -24,14 +25,18 @@ done = []
 
 B = unreal.VaelHUDButton
 A = unreal.VaelHUDAbility
+# Controls of 2026-11-04 (Boris): Square takes root, Cross crosses the hands, L2 / R2 grow towers (both: Ruf des Gartens),
+# Triangle held reloads from the Keimpelz; the last field is the ink picture T_Faehigkeit_<name> (the hands show their plant)
 ABILITIES = [
-    ("Linke Hand", "Saat", B.L1, "LMT", A.HAND_LEFT),
-    ("Rechte Hand", "Saat", B.R1, "RMT", A.HAND_RIGHT),
-    ("Dornenpeitsche", "Dornenpeitsche", B.SQUARE, "F", A.THORN_WHIP),
-    ("Wurzelsprung", "Wurzelsprung", B.CROSS, "Leer", A.ROOT_LEAP),
-    ("Ruf des Gartens", "Wuchern", B.L2R2, "Q+E", A.OVERGROWTH),
-    ("Keimpelz", "Saeen", B.TRIANGLE, "R", A.RELOAD),
+    ("Linke Hand", "Saat", B.L1, "LMT", A.HAND_LEFT, None),
+    ("Rechte Hand", "Saat", B.R1, "RMT", A.HAND_RIGHT, None),
+    ("Verwurzeln", "Wurzelsprung", B.SQUARE, "F", A.ROOT, "Verwurzeln"),
+    ("Kreuzen", "Saat", B.CROSS, "Leer", A.CROSS, "Kreuzen"),
+    ("Türme", "Wuchern", B.L2R2, "Q+E", A.TOWERS, "Tuerme"),
+    ("Keimpelz", "Saeen", B.TRIANGLE, "R", A.RELOAD, "Keimpelz"),
 ]
+PICTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "HUD", "Faehigkeiten")
+PICTURE_FOLDER = HUD + "/Faehigkeiten"
 
 
 def log(message):
@@ -170,27 +175,48 @@ def fur_instance(parent):
     done.append(path)
 
 
+def import_picture(name):
+    """An ink picture of Tools/HUD/vael_pflanzen_tusche.py (argument Faehigkeiten), always imported anew"""
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", os.path.join(PICTURES, name + ".png"))
+    task.set_editor_property("destination_path", PICTURE_FOLDER)
+    task.set_editor_property("destination_name", name)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", False)
+    tools.import_asset_tasks([task])
+    texture = unreal.load_asset(PICTURE_FOLDER + "/" + name)
+    if texture is None:
+        log("NOTE could not import " + name)
+        return None
+    texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
+    texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+    texture.set_editor_property("srgb", True)
+    assets.save_loaded_asset(texture, False)
+    return texture
+
+
 def update_class_data():
     path = CLASS_FOLDER + "/DA_HUDKlasse_Floromant"
     data = unreal.load_asset(path)
     if data is None:
         log("NOTE " + path + " is missing (CreateHudKit.py makes it)")
         return
-    if not any(entry.get_editor_property("ability") == A.SOW for entry in data.get_editor_property("abilities")):
-        return
     slots = []
-    for label, icon, button, key, ability in ABILITIES:
+    for label, icon, button, key, ability, picture in ABILITIES:
         entry = unreal.VaelHUDAbilitySlot()
         entry.set_editor_property("name", unreal.Text(label))
         entry.set_editor_property("icon", unreal.load_asset("{}/T_Symbol_{}".format(SYMBOLS, icon)))
         entry.set_editor_property("button", button)
         entry.set_editor_property("keyboard_key", unreal.Text(key))
         entry.set_editor_property("ability", ability)
+        if picture:
+            entry.set_editor_property("painting", import_picture("T_Faehigkeit_" + picture))
         slots.append(entry)
     data.set_editor_property("abilities", slots)
     data.set_editor_property("strip", unreal.VaelHUDStrip.HAND_BELT)
     assets.save_loaded_asset(data, False)
-    done.append(path + " (new controls)")
+    done.append(path + " (controls of 2026-11-04 with ink pictures)")
 
 
 fur_instance(build_fur())

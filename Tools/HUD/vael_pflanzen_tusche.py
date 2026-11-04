@@ -4,6 +4,7 @@ Every plant is its own 3D model (Vael_Quellen/<Id>/04_export/SM_<Id>.fbx), rende
 soft light, then finished like the spell paintings (Tools/HUD/vael_symbole_malen.py): a very dark ground with a glow in the
 plant's colour, colours pulled together and a little oily, a dark vignette. The shadow form gets its own picture: the same
 plant in dark wine to black with red light (violet stays the Nid's). Light-only plants (Mondtraufe) get no shadow picture.
+With the argument Faehigkeiten it paints the pictures of her ability buttons instead (T_Faehigkeit_<Name>.png).
 Writes Scripts/Data/HUD/Pflanzen/T_Pflanze_<Id>.png and T_Pflanze_<Id>_Schatten.png (256 px) and _Uebersicht.png.
 Run:
   blender -b -P vael_pflanzen_tusche.py -- <Vael_Quellen folder> <output folder> [Id ...]
@@ -74,16 +75,21 @@ def setup_scene():
     return scene
 
 
-def render_plant(scene, plant, turn):
+def render_plant(scene, plant, turn, crop=(0.0, 1.0), build=None):
     for obj in list(scene.objects):
-        if obj.type == "MESH":
+        if obj.type in ("MESH", "CURVE"):
             bpy.data.objects.remove(obj, do_unlink=True)
-    path = os.path.join(SOURCES, plant, "04_export", "SM_{}.fbx".format(plant))
-    bpy.ops.import_scene.fbx(filepath=path)
-    meshes = [o for o in scene.objects if o.type == "MESH"]
+    if build is not None:
+        build()
+    else:
+        path = os.path.join(SOURCES, plant, "04_export", "SM_{}.fbx".format(plant))
+        bpy.ops.import_scene.fbx(filepath=path)
+    meshes = [o for o in scene.objects if o.type in ("MESH", "CURVE")]
     corners = [o.matrix_world @ Vector(c) for o in meshes for c in o.bound_box]
     low = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
     high = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    # A crop of the height (the foot of the Urbaum for Verwurzeln)
+    low.z, high.z = low.z + (high.z - low.z) * crop[0], low.z + (high.z - low.z) * crop[1]
     centre = (low + high) * 0.5
     extent = max(high - low)
     camera_data = bpy.data.cameras.new("Kamera")
@@ -154,7 +160,90 @@ def save(picture, name):
     return small
 
 
+# ---------------------------------------------------------------- Ability pictures of the Floromant (Boris 2026-11-04)
+# The same ink as the plants for the buttons of her panel: Verwurzeln = the foot of the Urbaum with its roots, Kreuzen = two
+# stems of different plants winding into one knot with a blossom, Tuerme = a Hainschoessling grown tall, Keimpelz = the moss.
+
+def curve_tube(name, points, radius, colour, emission=0.0, taper=True):
+    data = bpy.data.curves.new(name, "CURVE")
+    data.dimensions = "3D"
+    data.bevel_depth = radius
+    data.bevel_resolution = 4
+    spline = data.splines.new("POLY")
+    spline.points.add(len(points) - 1)
+    for k, p in enumerate(points):
+        spline.points[k].co = (*p, 1.0)
+        spline.points[k].radius = (1.0 - 0.75 * k / max(len(points) - 1, 1)) if taper else 1.0
+    obj = bpy.data.objects.new(name, data)
+    bpy.context.scene.collection.objects.link(obj)
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (*colour, 1.0)
+    bsdf.inputs["Roughness"].default_value = 0.5
+    if emission > 0.0:
+        bsdf.inputs["Emission Color"].default_value = (*colour, 1.0)
+        bsdf.inputs["Emission Strength"].default_value = emission
+    data.materials.append(mat)
+    return obj
+
+
+def blob(name, location, radius, colour, emission=0.0, scale=(1.0, 1.0, 1.0)):
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=radius, location=location, segments=24, ring_count=12)
+    obj = bpy.context.active_object
+    obj.name = name
+    obj.scale = scale
+    mat = bpy.data.materials.new(name)
+    mat.use_nodes = True
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = (*colour, 1.0)
+    if emission > 0.0:
+        bsdf.inputs["Emission Color"].default_value = (*colour, 1.0)
+        bsdf.inputs["Emission Strength"].default_value = emission
+    obj.data.materials.append(mat)
+    return obj
+
+
+def build_cross():
+    """Two stems of different plants winding round each other up into one knot that opens as a blossom"""
+    for side, colour, phase in ((-1, (0.55, 0.22, 0.08), 0.0), (1, (0.08, 0.4, 0.36), math.pi)):
+        points = []
+        for t in np.linspace(0.0, 1.0, 60):
+            spread = 0.55 * (1.0 - t) ** 1.6
+            points.append((side * spread + 0.07 * math.sin(t * math.tau * 2.0 + phase), 0.07 * math.cos(t * math.tau * 2.0 + phase), t * 1.25))
+        curve_tube("Stiel", points, 0.035, colour)
+        for t in (0.22, 0.45):
+            k = int(t * 59)
+            x, y, z = points[k]
+            blob("Blatt", (x + side * 0.11, y, z + 0.03), 0.08, (0.12, 0.3, 0.1), scale=(1.6, 0.35, 0.7)).rotation_euler = (0.0, side * 0.6, 0.0)
+    for k in range(7):
+        a = k * math.tau / 7
+        petal = blob("Bluetenblatt", (0.13 * math.cos(a), 0.13 * math.sin(a) * 0.3 - 0.02, 1.32 + 0.1 * math.sin(a)), 0.1, (0.85, 0.45, 0.35), 0.4, scale=(1.5, 0.35, 0.8))
+        petal.rotation_euler = (0.0, -a, 0.0)
+    blob("Herz", (0.0, -0.06, 1.32), 0.07, (1.0, 0.78, 0.35), 2.5)
+
+
+ABILITY_PICTURES = {
+    # name: (model or None, builder, glow, camera turn, height crop)
+    "Verwurzeln": ("Urbaum", None, (0.45, 0.9, 0.5), 20, (0.0, 0.3)),
+    "Kreuzen": (None, build_cross, (1.0, 0.72, 0.35), 0, (0.0, 1.0)),
+    "Tuerme": ("Hainschoessling", None, (0.55, 1.0, 0.7), 30, (0.0, 1.0)),
+    "Keimpelz": ("Keimpelz", None, (0.6, 0.95, 0.45), 25, (0.0, 1.0)),
+}
+
+
+def paint_abilities(scene, out):
+    for name, (model, builder, glow, turn, crop) in ABILITY_PICTURES.items():
+        pixels = render_plant(scene, model, turn, crop, builder)
+        save(finish(pixels, glow, False), "T_Faehigkeit_" + name)
+        log("painted ability " + name)
+
+
 scene = setup_scene()
+if "Faehigkeiten" in ONLY:
+    paint_abilities(scene, OUT)
+    log("done")
+    sys.exit(0)
 sheet = []
 for plant, (glow, shadow_glow, turn) in PLANTS.items():
     if ONLY and plant not in ONLY:

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Floromant/VaelPlantTower.h"
+#include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelEyeBerry.h"
 #include "Floromant/VaelMoonVeil.h"
 #include "World/VaelGround.h"
@@ -580,6 +581,10 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 	if (Symbiosis == EVaelSymbiosis::None)
 	{
 		return;
+	}
+	if (AVaelCharacter* Gardener = GetGardener(); Gardener != nullptr && Gardener->GetFloromant() != nullptr)
+	{
+		Gardener->GetFloromant()->LearnPair(Symbiosis);
 	}
 
 	Partner = Other;

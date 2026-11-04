@@ -49,7 +49,12 @@ enum class EVaelHUDAbility : uint8
 	HandLeft,
 	HandRight,
 	/** Reloading the hands from the Keimpelz pelt */
-	Reload
+	Reload,
+
+	/** Floromant (2026-11-04): taking root, crossing the hands, the towers on L2 / R2 */
+	Root,
+	Cross,
+	Towers
 };
 
 /** What the small strip above the abilities shows */
