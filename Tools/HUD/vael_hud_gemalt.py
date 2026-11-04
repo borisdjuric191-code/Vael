@@ -384,9 +384,11 @@ GEM_RANDOM = np.random.default_rng(11)
 
 # Shades of the facets: the depth of the stone, its body, its light, and a rare flash
 GEM_SHADES = ((0.004, 0.05, 0.22), (0.01, 0.16, 0.5), (0.03, 0.42, 0.82), (0.25, 0.8, 1.0), (0.9, 1.0, 1.0))
+# The dew stones of the Floromant: deep sea green to a pale turquoise light
+DEW_SHADES = ((0.003, 0.06, 0.05), (0.01, 0.22, 0.18), (0.05, 0.55, 0.45), (0.35, 0.92, 0.8), (0.9, 1.0, 0.96))
 
 
-def facet_stone(m, x, y, z, radius, squash=1.0):
+def facet_stone(m, x, y, z, radius, squash=1.0, shades=None):
     """A cut stone lying on the surface, seen from above: a ring of crown facets around a flat table. The stone rises towards -y."""
     sides = 10
     bm = bmesh.new()
@@ -414,9 +416,10 @@ def facet_stone(m, x, y, z, radius, squash=1.0):
         center = face.calc_center_median()
         light = 0.5 + 0.5 * ((center.z - z) - (center.x - x)) / (radius * 1.4)
         step = fixed if fixed is not None else light * 3.0 + GEM_RANDOM.normal(0.0, 0.7)
-        shade = GEM_SHADES[int(np.clip(step, 0, 3.4))]
+        palette = shades or GEM_SHADES
+        shade = palette[int(np.clip(step, 0, 3.4))]
         if fixed is None and GEM_RANDOM.random() < 0.07:
-            shade = GEM_SHADES[4]
+            shade = palette[4]
         for loop in face.loops:
             loop[layer] = (*shade, 1.0)
     mesh = bpy.data.meshes.new("Stein")
@@ -1246,62 +1249,226 @@ def inventory_mage(m):
     element_seal(m, 0.0, top + 0.015, 0.8)
 
 
-def frame_floromant(m):
-    w, h = FRAME_ASPECT, 1.0
-    rounded_plate(w, h, 0.1, 0.06, m["bark"], name="Rinde")
-    # Two vines twisting round each other along the edge
-    path = np.array(rounded_rect_path(w - 0.07, h - 0.07, 0.09, -0.04, n_corner=14))
-    closed = np.vstack([path, path[:1]])
-    lengths = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(closed, axis=0), axis=1))])
-    n = 480
-    dense = []
-    for target in np.linspace(0.0, lengths[-1], n, endpoint=False):
-        k = np.searchsorted(lengths, target, side="right") - 1
-        t = (target - lengths[k]) / max(lengths[k + 1] - lengths[k], 1e-9)
-        dense.append(closed[k] + (closed[k + 1] - closed[k]) * t)
-    for phase in (0.0, math.pi):
-        pts = []
-        for i, p in enumerate(dense):
-            a = i / n * 2 * math.pi * 40 + phase
-            pts.append((p[0], p[1] - 0.01 + 0.03 * math.cos(a), p[2] + 0.03 * math.sin(a)))
-        tube(pts, [0.02] * len(pts), m["darkwood"], name="Ranke", cyclic=True)
-    # Leaves along the edges, blossoms in the corners and the middle, turquoise buds between
-    rng = np.random.default_rng(3)
-    for i in range(0, n, 9):
-        p = dense[i]
-        inward = math.atan2(-p[2], -p[0] / (w / h)) + rng.uniform(-0.9, 0.9)
-        leaf((p[0], -0.07, p[2]), rng.uniform(0.09, 0.14), rng.uniform(0.045, 0.07), inward, m["leaf"], bend=0.1, curl=0.25, name="Blatt")
-    def blossom(cx, cz, size):
-        for k in range(5):
-            a = k * 2 * math.pi / 5
-            petal = sphere((cx + size * 0.55 * math.cos(a), -0.08, cz + size * 0.55 * math.sin(a)), size * 0.45, m["blossom"], scale=(1.3, 0.3, 0.8), name="Bluetenblatt", segments=12)
-            petal.rotation_euler = (0, -a, 0)
-        sphere((cx, -0.1, cz), size * 0.25, m["bud"], name="Bluetenmitte", segments=12)
-    for cx, cz in ((-w / 2 + 0.09, h / 2 - 0.09), (w / 2 - 0.09, h / 2 - 0.09), (-w / 2 + 0.09, -h / 2 + 0.09), (w / 2 - 0.09, -h / 2 + 0.09)):
-        blossom(cx, cz, 0.08)
-    blossom(0.0, h / 2 - 0.03, 0.1)
-    for i in range(5, n, 23):
-        p = dense[i]
-        sphere((p[0], -0.09, p[2]), 0.028, m["bud"], scale=(0.8, 0.8, 1.25), name="Knospe", segments=12)
-    for i in range(40, n, 80):
-        p = dense[i]
-        blossom(p[0], p[2], 0.055)
+# ---------------------------------------------------------------- Floromant, overhaul (Boris 2026-11-04)
+# "Zu comichaft, zu einfache Formen, zu unsauber": the same make as the grimoire of the mage. Dark polished root wood in the
+# mage's outline (round plates round the vessels), edged in verdigris bronze with old gold lines, smooth tapered tubes for
+# every vine, few real leaves, dew stones cut like gems, a bronze moth with nacre wings where the mage has his seal, a sunken
+# moss groove at the top for the Keimpelz pelt and a moss tray for the abilities.
 
+def floromant_materials(m):
+    m["rootwood"] = worn(material("Wurzelholz", (0.02, 0.013, 0.008), roughness=0.42, bump=0.18, bump_scale=18.0, coat=0.55, tag="panel"), scale=2.2, darkest=0.6)
+    m["verdigris"] = material("Gruenspan", (0.15, 0.2, 0.13), metallic=0.8, roughness=0.36, bump=0.15, bump_scale=110.0)
+    m["oldgold"] = material("Altgold", (0.5, 0.34, 0.12), metallic=1.0, roughness=0.3)
+    m["leafbronze"] = material("Blattbronze", (0.1, 0.15, 0.07), metallic=0.75, roughness=0.34)
+    m["mossbed"] = material("Moosgrund", (0.006, 0.016, 0.008), roughness=0.85, bump=0.5, bump_scale=260.0, tag="panel")
+    m["nick"] = material("Kerbe", (0.003, 0.003, 0.002), roughness=0.7)
+    m["nacre"] = material("Perlmutt", (0.7, 0.36, 0.48), roughness=0.16, emission=((0.9, 0.42, 0.62), 0.35), coat=1.0, tag="gem")
+    m["wingeye"] = material("Flügelauge", (0.02, 0.012, 0.016), roughness=0.3, coat=1.0)
+
+
+def floromant_outline():
+    """Like the mage's silhouette, but flat along the top where the moss groove of the Keimpelz lies"""
+    radius, cy, top, bottom = 100.0, 130.0, 31.0, 227.0
+    points = []
+    a0 = math.atan2(top - cy, math.sqrt(max(radius ** 2 - (top - cy) ** 2, 0.0)))
+    a1 = math.atan2(bottom - cy, math.sqrt(radius ** 2 - (bottom - cy) ** 2)) - math.tau
+    for a in np.linspace(a0, a1, 70):
+        points.append((96.0 + radius * math.cos(a), cy + radius * math.sin(a)))
+    for x in np.linspace(points[-1][0] + 8.0, 880.0 - points[-1][0] - 8.0, 60):
+        points.append((x, bottom))
+    for a in np.linspace(math.pi - a1 - math.tau, math.pi - a0 - math.tau, 70):
+        points.append((784.0 + radius * math.cos(a), cy + radius * math.sin(a)))
+    start = points[-1][0] - 8.0
+    for x in np.linspace(start, 880.0 - start, 90):
+        points.append((x, top))
+    return points
+
+
+def sunken_field(m, x0, y0, x1, y1, rim_radius, ground, rim, name, corner=0.03):
+    """A field let into the wood, framed by a bronze tube"""
+    left, top = px(x0, y0)
+    right, bottom = px(x1, y1)
+    w, h = right - left, top - bottom
+    field = rounded_plate(w, h, corner, 0.012, ground, y=-0.032, name=name)
+    field.location.x, field.location.z = (left + right) / 2, (top + bottom) / 2
+    path = [(x + (left + right) / 2, y, z + (top + bottom) / 2) for x, y, z in rounded_rect_path(w + 0.012, h + 0.012, corner + 0.002, -0.042)]
+    tube(path, [rim_radius] * len(path), rim, name=name + "Rand", cyclic=True)
+    return left, top, right, bottom
+
+
+def leaf_sprig(m, x, z, angle, size=1.0, y=-0.056):
+    """Two small bronze leaves and a bud on a short stem, as the ends of the vines"""
+    ca, sa = math.cos(angle), math.sin(angle)
+    stem = [(x, y, z), (x + ca * 0.03 * size, y, z + sa * 0.03 * size)]
+    tube(stem, [0.004 * size, 0.003 * size], m["verdigris"], name="Stiel")
+    for side in (-1, 1):
+        leaf((x + ca * 0.02 * size, y - 0.002, z + sa * 0.02 * size), 0.075 * size, 0.032 * size, angle + side * 0.55, m["leafbronze"], bend=0.08, curl=0.35, name="Blatt", vein=m["oldgold"])
+    facet_stone(m, x + ca * 0.045 * size, y - 0.004, z + sa * 0.045 * size, 0.012 * size, shades=DEW_SHADES)
+
+
+def vine_arc(m, cx, cz, from_deg, to_deg, radius=0.4):
+    """A bronze vine along the outside of a round plate: a smooth wave, a pair of leaves at every crest"""
+    pts, radii = [], []
+    for t in np.linspace(0.0, 1.0, 140):
+        a = math.radians(from_deg + (to_deg - from_deg) * t)
+        r = radius + 0.014 * math.sin(t * math.tau * 3.0)
+        pts.append((cx + r * math.cos(a), -0.046, cz + r * math.sin(a)))
+        radii.append(0.0062 * (1.0 - 0.55 * abs(2 * t - 1) ** 2))
+    tube(pts, radii, m["verdigris"], name="Ranke")
+    for k in range(6):
+        t = (k + 0.5) / 6
+        a = math.radians(from_deg + (to_deg - from_deg) * t)
+        r = radius + 0.014 * math.sin(t * math.tau * 3.0)
+        outward = 1 if k % 2 == 0 else -1
+        leaf((cx + r * math.cos(a), -0.05, cz + r * math.sin(a)), 0.055, 0.024, a + outward * 1.0, m["leafbronze"], bend=0.06, curl=0.3, name="Blatt", vein=m["oldgold"])
+
+
+
+WING_PICTURE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "Scripts", "Data", "T_Floromant_Fluegel.png")
+
+
+def wing_picture_material():
+    """Her own painted moth wings (Scripts/Data/T_Floromant_Fluegel.png) with their alpha, a little sheen on top"""
+    mat = bpy.data.materials.new("Mottenflügel")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    bsdf = nodes["Principled BSDF"]
+    image = nodes.new("ShaderNodeTexImage")
+    image.image = bpy.data.images.load(WING_PICTURE)
+    links.new(image.outputs["Color"], bsdf.inputs["Base Color"])
+    links.new(image.outputs["Alpha"], bsdf.inputs["Alpha"])
+    links.new(image.outputs["Color"], bsdf.inputs["Emission Color"])
+    bsdf.inputs["Emission Strength"].default_value = 0.25
+    bsdf.inputs["Roughness"].default_value = 0.35
+    bsdf.inputs["Coat Weight"].default_value = 0.6
+    return mat
+
+
+def moth(m, x, z, size=1.0):
+    """The emblem of the Floromant: her own moth wings on a bronze body, gold feelers"""
+    y = -0.05
+    height = 0.3 * size
+    width = height * 383.0 / 571.0
+    mat = wing_picture_material()
+    for side in (1, -1):
+        mesh = bpy.data.meshes.new("Flügel")
+        bm = bmesh.new()
+        # The picture holds the right pair of wings, its root at the left edge; mirrored for the left side
+        corners = [(0.0, -0.5), (1.0, -0.5), (1.0, 0.5), (0.0, 0.5)]
+        verts = [bm.verts.new((x + side * u * width, y + 0.002, z + v * height)) for u, v in corners]
+        face = bm.faces.new(verts)
+        uv = bm.loops.layers.uv.new("UVMap")
+        for loop, (u, v) in zip(face.loops, corners):
+            loop[uv].uv = (u, v + 0.5)
+        bm.normal_update()
+        bm.to_mesh(mesh)
+        bm.free()
+        obj = bpy.data.objects.new("Flügel", mesh)
+        bpy.context.collection.objects.link(obj)
+        give(obj, mat)
+        tube(spiral(x + side * 0.012 * size, y - 0.006, z + 0.075 * size, 0.03 * size, 0.9, math.pi / 2 + side * 0.4, -side), [0.0026 * size] * 26, m["oldgold"], name="Fühler")
+    body = [(x, y - 0.008, z + 0.06 * size), (x, y - 0.01, z + 0.02 * size), (x, y - 0.01, z - 0.04 * size), (x, y - 0.008, z - 0.09 * size)]
+    tube(body, [0.012 * size, 0.016 * size, 0.013 * size, 0.005 * size], m["verdigris"], name="Leib")
+    sphere((x, y - 0.012, z + 0.068 * size), 0.013 * size, m["verdigris"], name="Kopf", segments=16)
+
+
+def root_braid(m, x0, x1, y_px, radius=0.009):
+    """Two roots winding round each other along an edge, tapering at both ends"""
+    for phase in (0.0, math.pi):
+        pts, radii = [], []
+        for t in np.linspace(0.0, 1.0, 160):
+            x, z = px(x0 + (x1 - x0) * t, y_px)
+            a = t * math.tau * 9.0 + phase
+            pts.append((x, -0.044 + 0.006 * math.cos(a), z + 0.008 * math.sin(a)))
+            radii.append(radius * (0.35 + 0.65 * math.sin(math.pi * t) ** 0.4))
+        tube(pts, radii, m["verdigris"], name="Wurzel")
+
+
+def frame_floromant(m):
+    floromant_materials(m)
+    outline = [px(x, y) for x, y in floromant_outline()]
+    plate_from_outline(outline, -0.03, 0.06, m["rootwood"], name="Wurzelholz")
+    closed = lambda path, y: [(x, y, z) for x, z in path]
+    tube(closed(outline, -0.04), [0.016] * len(outline), m["verdigris"], name="Kante", cyclic=True)
+    line = inset(outline, 0.05)
+    tube(closed(line, -0.034), [0.0034] * len(line), m["oldgold"], name="Goldlinie", cyclic=True)
+    nick = inset(outline, 0.032)
+    tube(closed(nick, -0.031), [0.004] * len(nick), m["nick"], name="Kerbe", cyclic=True)
+
+    # Rings round the vessels, vines on the plates, dew stones where plate meets body and at the outer edges
+    for x_px, from_deg, to_deg in ((96.0, 112.0, 248.0), (784.0, -68.0, 68.0)):
+        cx, cz = px(x_px, 130.0)
+        torus((cx, -0.034, cz), 0.44, 0.005, m["nick"], name="Kerbring")
+        vine_arc(m, cx, cz, from_deg, to_deg)
+    for x_px in (16.0, 864.0):
+        gx, gz = px(x_px, 130.0)
+        torus((gx, -0.05, gz), 0.034, 0.008, m["oldgold"], name="Fassung")
+        facet_stone(m, gx, -0.054, gz, 0.03, shades=DEW_SHADES)
+    for x_px, direction in ((176.0, 1.0), (704.0, -1.0)):
+        gx, gz = px(x_px, 52.0)
+        torus((gx, -0.05, gz), 0.026, 0.007, m["oldgold"], name="Fassung")
+        facet_stone(m, gx, -0.054, gz, 0.022, shades=DEW_SHADES)
+
+    # The moss groove of the Keimpelz along the top, the tray of the abilities, the channel of the experience
+    sunken_field(m, 214.0, 34.0, 604.0, 47.0, 0.0045, m["mossbed"], m["verdigris"], "Moosrinne", corner=0.02)
+    left, top, right, bottom = sunken_field(m, 190.0, 110.0, 690.0, 208.0, 0.0052, m["mossbed"], m["verdigris"], "Feldgrund")
+    for x, z, angle in ((left, top, -0.6), (right, top, math.pi + 0.6), (left, bottom, 0.6), (right, bottom, math.pi - 0.6)):
+        leaf_sprig(m, x, z, angle, size=0.9)
+    sunken_field(m, 206.0, 212.0, 650.0, 226.0, 0.0038, m["mossbed"], m["verdigris"], "Rinne", corner=0.012)
+    root_braid(m, 200.0, 680.0, 229.0)
+
+    # The moth in the middle, gold tendrils from it along the groove
+    mx, mz = px(440.0, 76.0)
+    moth(m, mx - 0.03, mz, 0.85)
+    for side in (1, -1):
+        pts = [(mx + side * (0.11 + 0.34 * t), -0.048, mz + 0.03 + 0.04 * math.sin(t * math.pi * 1.3)) for t in np.linspace(0.0, 1.0, 40)]
+        tube(pts, [0.0045 * (1 - 0.6 * k / 39) for k in range(40)], m["oldgold"], name="Goldranke")
+        tube(spiral(pts[-1][0] + side * 0.012, -0.048, pts[-1][2] - 0.01, 0.026, 1.2, math.pi / 2, -side), [0.0032] * 26, m["oldgold"], name="Schnecke")
+        leaf((pts[20][0], -0.052, pts[20][2]), 0.05, 0.022, math.pi / 2 + side * 0.9, m["leafbronze"], bend=0.06, curl=0.3, name="Blatt", vein=m["oldgold"])
+
+
+def wheel_floromant(m):
+    """The frame of the plant wheel: a seed pod of root wood standing upright, edged in bronze, with sockets where the
+    medallions roll: a large gold-ringed one in the middle, smaller ones above and below. 140 x 240 display px."""
+    floromant_materials(m)
+    scale = 1.0 / 140.0
+    outline = []
+    for t in np.linspace(0.0, math.tau, 120, endpoint=False):
+        x = 62.0 * math.sin(t) * (0.82 + 0.18 * math.cos(t) ** 2)
+        z = 112.0 * math.cos(t)
+        outline.append((x * scale, z * scale))
+    plate_from_outline(outline, -0.03, 0.06, m["rootwood"], name="Schote")
+    tube([(x, -0.04, z) for x, z in outline], [0.016] * len(outline), m["verdigris"], name="Kante", cyclic=True)
+    line = inset(outline, 0.045)
+    tube([(x, -0.034, z) for x, z in line], [0.0034] * len(line), m["oldgold"], name="Goldlinie", cyclic=True)
+    for zz, r, ring, width in ((0.0, 45.0, m["oldgold"], 0.012), (72.0, 25.0, m["verdigris"], 0.007), (-72.0, 25.0, m["verdigris"], 0.007)):
+        cylinder((0.0, -0.028, zz * scale), r * scale, 0.01, m["mossbed"], rotation=(math.radians(90), 0, 0), name="Sockel")
+        torus((0.0, -0.045, zz * scale), r * scale, width, ring, name="Sockelring")
+    for sign in (1, -1):
+        tip_z = sign * 112.0 * scale
+        facet_stone(m, 0.0, -0.054, tip_z - sign * 0.035, 0.024, shades=DEW_SHADES)
+        for side in (1, -1):
+            leaf((side * 0.012, -0.05, tip_z - sign * 0.05), 0.11, 0.04, math.pi / 2 * sign + side * 0.9 * sign, m["leafbronze"], bend=0.06, curl=0.3, name="Blatt", vein=m["oldgold"])
+    vine = [(0.36 * math.sin(t * math.pi * 0.5 + 0.3) * 0.0 + 0.38 * (1 - t) + 0.12 * t, -0.046, -0.6 + 1.2 * t) for t in np.linspace(0.0, 1.0, 2)]
+    for side in (1, -1):
+        pts, radii = [], []
+        for t in np.linspace(0.0, 1.0, 80):
+            a = (t - 0.5) * math.pi * 1.1
+            pts.append((side * 0.4 * math.cos(a) * (0.82 + 0.18 * math.sin(a) ** 2), -0.046, 0.74 * math.sin(a)))
+            radii.append(0.006 * (1 - 0.6 * abs(2 * t - 1)))
+        tube(pts, radii, m["verdigris"], name="Ranke")
 
 # ---------------------------------------------------------------- Felder und Medaillons
 
 def slot(m, bud):
     # Ring only: the inside stays empty for the picture of the ability
     if bud:
-        pts = []
-        for t in np.linspace(0, 2 * math.pi, 80):
-            x, z = 0.43 * math.cos(t), 0.43 * math.sin(t)
-            z = z if z < 0 else z * 1.15 + 0.04 * math.cos(t * 3)
-            pts.append((x, -0.05, z * 0.95 - 0.02))
-        tube(pts, [0.035] * len(pts), m["wood"], name="Knospenrand", cyclic=True)
-        for x in (-0.12, 0.12):
-            leaf = sphere((x, -0.08, 0.46), 0.07, m["leaf"], scale=(1.5, 0.25, 0.6), name="Blatt", segments=12)
-            leaf.rotation_euler = (0, -x * 4, 0)
+        # Floromant (overhaul 2026-11-04): a verdigris bronze ring with an old gold line inside, a leaf sprig on top
+        floromant_materials(m)
+        torus((0.0, -0.05, 0.0), 0.43, 0.034, m["verdigris"], name="Feldrand")
+        torus((0.0, -0.06, 0.0), 0.385, 0.008, m["oldgold"], name="Goldlinie")
+        leaf_sprig(m, 0.0, 0.44, math.pi / 2, size=1.6, y=-0.08)
     else:
         tube(rounded_rect_path(0.88, 0.88, 0.1, -0.05), [0.035] * 200, m["silver"], name="Feldrand", cyclic=True)
         for cx, cz in ((-0.42, 0.42), (0.42, 0.42), (-0.42, -0.42), (0.42, -0.42)):
@@ -1310,11 +1477,10 @@ def slot(m, bud):
 
 def medallion(m, wood):
     if wood:
-        pts = [(0.4 * math.cos(t), -0.05 + 0.01 * math.sin(t * 9), 0.4 * math.sin(t)) for t in np.linspace(0, 2 * math.pi, 60)]
-        tube(pts, [0.06] * len(pts), m["wood"], name="Holzring", cyclic=True)
-        leaf = sphere((0.3, -0.1, 0.32), 0.1, m["leaf"], scale=(1.5, 0.25, 0.6), name="Blatt", segments=12)
-        leaf.rotation_euler = (0, -0.7, 0)
-        sphere((-0.32, -0.1, 0.3), 0.045, m["bud"], name="Knospe", segments=12)
+        floromant_materials(m)
+        torus((0.0, -0.05, 0.0), 0.4, 0.06, m["verdigris"], name="Bronzering")
+        torus((0.0, -0.065, 0.0), 0.33, 0.012, m["oldgold"], name="Goldlinie")
+        leaf((0.24, -0.1, 0.3), 0.2, 0.08, 0.9, m["leafbronze"], bend=0.06, curl=0.3, name="Blatt", vein=m["oldgold"])
     else:
         torus((0.0, -0.05, 0.0), 0.4, 0.06, m["silver"], name="Silberring")
         torus((0.0, -0.06, 0.0), 0.33, 0.012, m["darksilver"], name="Innenring")
@@ -1332,6 +1498,7 @@ PIECES = {
     "magier_drache": (280, 240, 1.4, dragon_head),
     "magier_schwanz": (280, 240, 1.4, dragon_tail),
     "floromant_rahmen": (1760, 404, FRAME_ASPECT, frame_floromant),
+    "floromant_rad": (280, 480, 480.0 / 280.0, wheel_floromant),
     "magier_feld": (160, 160, 1.0, lambda m: slot(m, False)),
     "floromant_feld": (160, 160, 1.0, lambda m: slot(m, True)),
     "magier_medaillon": (128, 128, 1.0, lambda m: medallion(m, False)),
@@ -1340,7 +1507,7 @@ PIECES = {
 
 FILE_NAMES = {
     "leben": "T_HUD_Gemalt_Leben", "magier_gefaess": "T_HUD_Gemalt_Gefaess_Magier", "floromant_gefaess": "T_HUD_Gemalt_Gefaess_Floromant",
-    "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_drache": "T_HUD_Gemalt_Drache_Magier", "magier_schwanz": "T_HUD_Gemalt_Schwanz_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant",
+    "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_drache": "T_HUD_Gemalt_Drache_Magier", "magier_schwanz": "T_HUD_Gemalt_Schwanz_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant", "floromant_rad": "T_HUD_Gemalt_Rad_Floromant",
     "magier_feld": "T_HUD_Gemalt_Feld_Magier", "floromant_feld": "T_HUD_Gemalt_Feld_Floromant",
     "magier_medaillon": "T_HUD_Gemalt_Medaillon_Magier", "floromant_medaillon": "T_HUD_Gemalt_Medaillon_Floromant",
 }

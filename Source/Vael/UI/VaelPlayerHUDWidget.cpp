@@ -129,6 +129,7 @@ UVaelPlayerHUDWidget::UVaelPlayerHUDWidget(const FObjectInitializer& ObjectIniti
 {
 	LifeVesselMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Gefaess_Leben"));
 	LifeVesselPicture = HudAsset<UTexture2D>(TEXT("T_HUD_Gemalt_Leben"), TEXT("Gemalt"));
+	PlantWheelPicture = HudAsset<UTexture2D>(TEXT("T_HUD_Gemalt_Rad_Floromant"), TEXT("Gemalt"));
 	CooldownMaterial = HudAsset<UMaterialInterface>(TEXT("M_HUD_Wisch"));
 	TailMaterial = HudAsset<UMaterialInterface>(TEXT("MI_HUD_Schwanz"));
 	VeinHeartMaterial = HudAsset<UMaterialInterface>(TEXT("M_HUD_Adern_Herz"));
@@ -171,7 +172,7 @@ void UVaelPlayerHUDWidget::NativeConstruct()
 	BuildFonts();
 
 	// Shared pictures, loaded once so painting only looks them up
-	for (const TSoftObjectPtr<UTexture2D>& Texture : { LifeVesselPicture, ClawTexture, ClawThornsTexture, DragonHeadTexture, PathTextures[0], PathTextures[1], PathTextures[2],
+	for (const TSoftObjectPtr<UTexture2D>& Texture : { LifeVesselPicture, PlantWheelPicture, ClawTexture, ClawThornsTexture, DragonHeadTexture, PathTextures[0], PathTextures[1], PathTextures[2],
 		PotionIcon, DodgeIcon, SeedIcon, MenuIcons[0], MenuIcons[1], MenuIcons[2] })
 	{
 		GetTextureBrush(Texture);
@@ -909,10 +910,13 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	// The Keimpelz pelt over the top of the panel, its number in the middle
 	if (bShowKeimpelz)
 	{
-		const FVector2f BarAt = O + FVector2f(196.0f, -20.0f);
-		const FVector2f BarSize(488.0f, 40.0f);
+		// In the painted frame of the Floromant (overhaul 2026-11-04) the pelt lies in the moss groove along its top edge
+		const bool bInGroove = bPaintedFrame;
+		const FVector2f BarAt = O + (bInGroove ? FVector2f(212.0f, 27.0f) : FVector2f(196.0f, -20.0f));
+		// (the groove ends before the menu medallions)
+		const FVector2f BarSize = bInGroove ? FVector2f(394.0f, 24.0f) : FVector2f(488.0f, 40.0f);
 		PaintBox(OutDrawElements, L + 6, &KeimpelzBarBrush, BarAt, BarSize);
-		PaintText(OutDrawElements, L + 7, KeimpelzText, NumberFont, BarAt + FVector2f(BarSize.X * 0.5f, 7.0f), TextColor, 0.5f);
+		PaintText(OutDrawElements, L + 7, KeimpelzText, NumberFont, BarAt + FVector2f(BarSize.X * 0.5f, bInGroove ? 0.0f : 7.0f), TextColor, 0.5f);
 	}
 
 	// Nid veins wound round a round button once the Nid has seized it, between its plate and its symbol
@@ -1059,7 +1063,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	}
 
 	// Experience: the tail of the Urdrachin, from the end ornament of the class to a small dragon head
-	const float TailEnd = ShownData->bDragonInFrame ? 650.0f : TailRight;
+	const float TailEnd = ShownData->bDragonInFrame || bPaintedFrame ? 650.0f : TailRight;
 	PaintBox(OutDrawElements, L + 3, &TailBrush, O + FVector2f(TailLeft, TailTop), FVector2f(TailEnd - TailLeft, TailHeight));
 	if (ShownData->bDragonInFrame)
 	{
@@ -1067,8 +1071,9 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonPicture), O + FVector2f(630.0f, 125.0f), FVector2f(140.0f, 120.0f));
 		PaintBox(OutDrawElements, L + 6, FindTextureBrush(ShownData->DragonTailPicture), O + FVector2f(110.0f, 118.0f), FVector2f(140.0f, 120.0f));
 	}
-	else
+	else if (!bPaintedFrame)
 	{
+		// (the painted Floromant frame has the channel of the experience in its wood, without the old end pieces)
 		PaintBox(OutDrawElements, L + 4, FindTextureBrush(ShownData->BarEnd), O + FVector2f(TailLeft - 28.0f, TailTop - 7.0f), FVector2f(28.0f), Frame);
 		PaintBox(OutDrawElements, L + 4, FindTextureBrush(DragonHeadTexture), O + FVector2f(TailRight - 2.0f, TailTop - 9.0f), FVector2f(32.0f), Frame);
 	}
@@ -1110,8 +1115,15 @@ void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 L
 	const float BigRadius = 42.0f;
 	const float SmallRadius = 23.0f;
 
-	// The frame of the wheel: a dark slot the drum turns in
-	PaintBox(Out, Layer, &MedallionBrush, Center - FVector2f(BigRadius + 12.0f), FVector2f((BigRadius + 12.0f) * 2.0f), FLinearColor(0.05f, 0.05f, 0.04f, 0.65f));
+	// The frame of the wheel: the painted pod of root wood it rolls in, or a dark slot without it
+	if (const FSlateBrush* Pod = FindTextureBrush(PlantWheelPicture))
+	{
+		PaintBox(Out, Layer, Pod, Center - FVector2f(70.0f, 120.0f), FVector2f(140.0f, 240.0f));
+	}
+	else
+	{
+		PaintBox(Out, Layer, &MedallionBrush, Center - FVector2f(BigRadius + 12.0f), FVector2f((BigRadius + 12.0f) * 2.0f), FLinearColor(0.05f, 0.05f, 0.04f, 0.65f));
+	}
 
 	// Back to front: the far ones first, the picked one last on top
 	TArray<int32, TInlineAllocator<8>> Order;

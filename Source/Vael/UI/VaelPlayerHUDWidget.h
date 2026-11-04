@@ -90,6 +90,10 @@ protected:
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UTexture2D> LifeVesselPicture;
 
+	/** The painted pod of root wood the plant wheel of the Floromant rolls in */
+	UPROPERTY(Transient)
+	TSoftObjectPtr<UTexture2D> PlantWheelPicture;
+
 	UPROPERTY(EditDefaultsOnly, Category="Look")
 	TSoftObjectPtr<UTexture2D> ClawTexture;
 
