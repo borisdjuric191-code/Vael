@@ -195,12 +195,34 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
 	float RootedSaftPerSecond = 5.0f;
 
-	/** Roots that grow out of each foot, and how far they reach in cm */
+	/** Boris 2026-11-04: stronger roots like the stilts of the mangrove. Arching stilt roots from each shin, how far out they
+	 *  reach into the ground in cm, and how thick they are at the leg */
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 1, ClampMax = 8))
 	int32 RootsPerFoot = 4;
 
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 5))
-	float RootLength = 45.0f;
+	float RootLength = 85.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0.5))
+	float RootThickness = 5.0f;
+
+	/** Thinner roots creeping over the ground from each foot before they dive in */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0, ClampMax = 8))
+	int32 CreepingRootsPerFoot = 3;
+
+	/** Bark of the roots: a tiling bark picture laid over the root material, and its colour (dark wet mangrove wood) */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting")
+	TSoftObjectPtr<class UTexture> RootBarkTexture;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting")
+	TSoftObjectPtr<class UTexture> RootBarkNormal;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting")
+	FLinearColor RootBarkTint = FLinearColor(0.42f, 0.31f, 0.23f);
+
+	/** cm of root per repeat of the bark picture along it */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 1))
+	float RootBarkTile = 35.0f;
 
 	/** Seconds in rain (or wet from a spell) until her wings are soaked, and until they are dry again */
 	UPROPERTY(config, EditAnywhere, Category="Flight|Weather", meta = (ClampMin = 0.1))

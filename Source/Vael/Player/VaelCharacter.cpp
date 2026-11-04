@@ -698,8 +698,8 @@ void AVaelCharacter::UpdateHover(float DeltaSeconds)
 	const float Brake = Velocity.IsNearlyZero(1.0f) && FlightAccel.IsNearlyZero(50.0f) ? 0.0f
 		: FMath::Clamp(-(FlightAccel | Velocity.GetSafeNormal()) / Settings->FlightAccelReference, 0.0f, 1.0f);
 
-	// While a hand fires she lands and braces herself
-	const float Landed = FMath::Max(Floromant->GetStance(true), Floromant->GetStance(false));
+	// While a hand fires she lands and braces herself; rooted she stands on the ground, anchored against the wind
+	const float Landed = FMath::Max3(Floromant->GetStance(true), Floromant->GetStance(false), FMath::SmoothStep(0.0f, 1.0f, Floromant->GetRootGrowth()));
 	const float Flying = 1.0f - Landed;
 
 	// A little above the ground, rising and sinking slowly, higher when she flies fast, high up on R3; soaked wings carry her lower.
@@ -713,6 +713,8 @@ void AVaelCharacter::UpdateHover(float DeltaSeconds)
 	// The wind pushes her about in the air, harder up high; on the ground she stands against it
 	const FVector Wind = AVaelRegion::GetWindAt(GetWorld(), GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
 	const float WindShare = FMath::Min(Wind.Size() / Settings->WindReference, 1.5f) * Flying;
+	// The wings still shake in the wind while she stands, harder while she flies
+	const float WingWind = FMath::Min(Wind.Size() / Settings->WindReference, 1.5f) * FMath::Lerp(0.5f, 1.0f, Flying);
 	if (!Wind.IsNearlyZero() && Flying > 0.0f && !bIsDodging)
 	{
 		AddActorWorldOffset(Wind * Settings->WindDrift * (1.0f + Rise) * Flying * Delta, true);
@@ -758,7 +760,7 @@ void AVaelCharacter::UpdateHover(float DeltaSeconds)
 	}
 	const FQuat WingTilt = ActorRotation.Inverse() * Tilt * ActorRotation;
 	Wings->SetRelativeLocationAndRotation(Pivot + WingTilt.RotateVector(FVector(0.0f, 0.0f, Height) - Pivot), WingTilt);
-	Wings->SetFlight(FlightSpeedShare * Flying, Brake * Flying, Soaked, WindShare);
+	Wings->SetFlight(FlightSpeedShare * Flying, Brake * Flying, Soaked, WingWind);
 
 	UpdateFlightShadow(Height, Landed);
 }
