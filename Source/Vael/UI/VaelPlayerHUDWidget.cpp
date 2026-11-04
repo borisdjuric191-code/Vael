@@ -727,7 +727,26 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	bShowKeimpelz = bPlayable && Character->IsFloromant() && Floromant != nullptr && KeimpelzBarInstance != nullptr;
 	if (bShowKeimpelz)
 	{
-		KeimpelzBarInstance->SetScalarParameterValue(FillParameter, Floromant->GetKeimpelzFraction());
+		// The fur glides after the real fill, so strands draw back and grow out softly instead of jumping. Growing lights its
+		// edge in fresh green while it fills, taking Keimpelz flashes it pale for a moment
+		const float Target = Floromant->GetKeimpelzFraction();
+		if (ShownKeimpelz < 0.0f)
+		{
+			ShownKeimpelz = Target;
+		}
+		const float Step = FMath::FInterpTo(ShownKeimpelz, Target, InDeltaTime, 5.0f) - ShownKeimpelz;
+		if (Target < ShownKeimpelz - 0.01f)
+		{
+			KeimpelzShed = 1.0f;
+		}
+		ShownKeimpelz += Step;
+		KeimpelzShed = FMath::Max(0.0f, KeimpelzShed - InDeltaTime * 1.6f);
+		const bool bGrowing = Target < 0.999f && (Target > LastKeimpelzTarget + KINDA_SMALL_NUMBER || Step > 0.0001f);
+		KeimpelzGrowing = FMath::FInterpTo(KeimpelzGrowing, bGrowing ? 1.0f : 0.0f, InDeltaTime, bGrowing ? 3.0f : 1.5f);
+		LastKeimpelzTarget = Target;
+		KeimpelzBarInstance->SetScalarParameterValue(FillParameter, ShownKeimpelz);
+		KeimpelzBarInstance->SetScalarParameterValue(TEXT("Growing"), KeimpelzGrowing * (0.55f + 0.45f * FMath::Sin(Time * 3.0f)));
+		KeimpelzBarInstance->SetScalarParameterValue(TEXT("Shed"), KeimpelzShed * KeimpelzShed);
 		KeimpelzText = FText::AsNumber(FMath::FloorToInt(Floromant->GetKeimpelz()));
 	}
 }
@@ -938,11 +957,12 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	{
 		// In the painted frame of the Floromant (overhaul 2026-11-04) the pelt lies in the moss groove along its top edge
 		const bool bInGroove = bPaintedFrame;
-		const FVector2f BarAt = O + (bInGroove ? FVector2f(212.0f, 27.0f) : FVector2f(196.0f, -20.0f));
-		// (the groove ends before the menu medallions)
-		const FVector2f BarSize = bInGroove ? FVector2f(394.0f, 24.0f) : FVector2f(488.0f, 40.0f);
+		// (2026-11-04: the rendered fur of 408 x 40 overhangs the groove a little, its roots on the groove floor; the groove
+		// ends before the menu medallions)
+		const FVector2f BarAt = O + (bInGroove ? FVector2f(205.0f, 15.0f) : FVector2f(196.0f, -20.0f));
+		const FVector2f BarSize = bInGroove ? FVector2f(408.0f, 40.0f) : FVector2f(488.0f, 40.0f);
 		PaintBox(OutDrawElements, L + 6, &KeimpelzBarBrush, BarAt, BarSize);
-		PaintText(OutDrawElements, L + 7, KeimpelzText, NumberFont, BarAt + FVector2f(BarSize.X * 0.5f, bInGroove ? 0.0f : 7.0f), TextColor, 0.5f);
+		PaintText(OutDrawElements, L + 7, KeimpelzText, NumberFont, BarAt + FVector2f(BarSize.X * 0.5f, bInGroove ? 12.0f : 7.0f), TextColor, 0.5f);
 	}
 
 	// Nid veins wound round a round button once the Nid has seized it, between its plate and its symbol

@@ -1,6 +1,7 @@
 # The HUD of the Floromant for its own controls (Pflanzenarm, 2026-10-22):
 #
-# - M_HUD_Pelz / MI_HUD_Pelz: the furry green bar of the Keimpelz pelt over the top of the panel. Mossy strands with a ragged
+# - M_HUD_Pelz / MI_HUD_Pelz: the Keimpelz pelt in the moss groove of the panel (2026-11-04: rendered fur of
+#   Tools/HUD/vael_keimpelz_pelz.py, strands draw back and grow out at the edge of the fill). Before: mossy strands with a ragged
 #   top, dark cracked seeds in them; parameter Fill (0-1) lets the fur shrink to the left and grow back to the right, the
 #   rest of the track stays a dark groove.
 # - DA_HUDKlasse_Floromant: the ability slots and the strip follow the new controls (hands on L1 / R1, Dornenpeitsche,
@@ -16,7 +17,7 @@ import unreal
 HUD = "/Game/Vael/UI/HUD"
 CLASS_FOLDER = HUD + "/Klassen"
 SYMBOLS = HUD + "/Symbole"
-VERSION = 1.2
+VERSION = 1.3
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -110,12 +111,38 @@ class Graph:
         return expression
 
 
+FUR_PICTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Data", "HUD", "Keimpelz")
+
+
+def import_fur_texture(name, srgb):
+    """The fur pictures of Tools/HUD/vael_keimpelz_pelz.py, uncompressed and without mips; the data picture is linear"""
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", os.path.join(FUR_PICTURES, name + ".png"))
+    task.set_editor_property("destination_path", HUD)
+    task.set_editor_property("destination_name", name)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", False)
+    tools.import_asset_tasks([task])
+    texture = unreal.load_asset(HUD + "/" + name)
+    texture.set_editor_property("lod_group", unreal.TextureGroup.TEXTUREGROUP_UI)
+    texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
+    texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
+    texture.set_editor_property("srgb", srgb)
+    assets.save_loaded_asset(texture, False)
+    done.append(HUD + "/" + name)
+    return texture
+
+
 def build_fur():
+    """Boris 2026-11-04: a juicy dark green pelt lying in the moss groove like the one on her arms. The rendered fur shows
+    strand by strand: near the edge of the fill each strand is shorter (it draws back into the ground, only stubs stay)
+    and grows out again; Growing / Shed (set by the widget) light the edge while it fills or was just spent"""
     path = HUD + "/M_HUD_Pelz"
+    picture = import_fur_texture("T_HUD_Keimpelz_Pelz", True)
+    data = import_fur_texture("T_HUD_Keimpelz_Daten", False)
     if assets.does_asset_exist(path):
         material = unreal.load_asset(path)
-        if library.get_material_default_scalar_parameter_value(material, "KitVersion") >= VERSION - 0.001:
-            return material
         library.delete_all_material_expressions(material)
     else:
         material = tools.create_asset("M_HUD_Pelz", HUD, unreal.Material, unreal.MaterialFactoryNew())
@@ -123,39 +150,64 @@ def build_fur():
     material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
 
     g = Graph(material)
-    g.node(unreal.MaterialExpressionScalarParameter, 14, parameter_name="KitVersion", default_value=VERSION)
-    fill = g.node(unreal.MaterialExpressionScalarParameter, 12, parameter_name="Fill", default_value=1.0)
-    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 14)
-    u = g.mask(uv, 13, True, False)
-    v = g.mask(uv, 13, False, True)
+    g.node(unreal.MaterialExpressionScalarParameter, 18, parameter_name="KitVersion", default_value=VERSION)
+    fill = g.node(unreal.MaterialExpressionScalarParameter, 14, parameter_name="Fill", default_value=1.0)
+    edge = g.node(unreal.MaterialExpressionScalarParameter, 14, parameter_name="Edge", default_value=0.08)
+    growing = g.node(unreal.MaterialExpressionScalarParameter, 6, parameter_name="Growing", default_value=0.0)
+    shed = g.node(unreal.MaterialExpressionScalarParameter, 6, parameter_name="Shed", default_value=0.0)
+    brightness = g.node(unreal.MaterialExpressionScalarParameter, 6, parameter_name="Brightness", default_value=0.6)
+    sway = g.node(unreal.MaterialExpressionScalarParameter, 16, parameter_name="Sway", default_value=0.0015)
 
-    strands = g.noise(u, v, 160.0, 3.0, 9)
-    tufts = g.noise(u, v, 18.0, 1.5, 9)
-    specks = g.noise(u, v, 70.0, 9.0, 9)
+    # The tips sway softly: the top of the picture moves sideways a little, slowly, in waves along the bar
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 18)
+    u = g.mask(uv, 17, True, False)
+    v = g.mask(uv, 17, False, True)
+    time = g.node(unreal.MaterialExpressionTime, 18)
+    wave = g.node(unreal.MaterialExpressionSine, 16, period=4.5)
+    g.link(g.add(17, time, g.mul(17, u, g.const(12.0, 18))), wave)
+    tips = g.sat(16, g.mul(16, g.sub(17, g.const(0.75, 17), v), g.const(2.0, 17)))
+    offset = g.mul(15, g.mul(15, wave, sway), tips)
+    shift = g.node(unreal.MaterialExpressionAppendVector, 14)
+    g.link(offset, shift, "A")
+    g.link(g.const(0.0, 15), shift, "B")
+    swayed = g.add(13, uv, shift)
 
-    # The fur: a ragged top made of strands and tufts, a softer bottom
-    top = g.add(7, g.const(0.04, 8), g.add(9, g.mul(10, strands, g.const(0.16, 11)), g.mul(10, tufts, g.const(0.1, 11))))
-    bottom = g.sub(7, g.const(0.99, 8), g.mul(8, tufts, g.const(0.06, 9)))
-    inside = g.mul(5, g.sharp(6, g.sub(7, v, top), 30.0), g.sharp(6, g.sub(7, bottom, v), 30.0))
+    fur = g.node(unreal.MaterialExpressionTextureSample, 12, texture=picture, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
+    g.link(swayed, fur, "UVs")
+    info = g.node(unreal.MaterialExpressionTextureSample, 12, texture=data, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    g.link(swayed, info, "UVs")
+    along = g.mask(info, 11, True, False)                    # place along the strand, 0 root, 1 tip
+    place = g.node(unreal.MaterialExpressionComponentMask, 11, r=False, g=True, b=False, a=False)
+    g.link(info, place)                                      # where the strand stands along the bar
+    chance = g.node(unreal.MaterialExpressionComponentMask, 11, r=False, g=False, b=True, a=False)
+    g.link(info, chance)                                     # its own random number
 
-    # Shrinks to the left: the right edge is ragged too
-    edge = g.add(6, fill, g.mul(7, g.sub(8, strands, g.const(0.5, 9)), g.const(0.03, 8)))
-    filled = g.sharp(5, g.sub(6, edge, u), 300.0)
+    # How much of each strand stands: whole well inside the fill, shorter towards its edge, a little uneven strand by strand.
+    # The fill is stretched so that full and empty really are full and empty
+    reach = g.sub(10, g.mul(11, fill, g.add(12, g.const(1.0, 13), g.mul(13, edge, g.const(2.0, 14)))), g.mul(11, edge, g.const(0.5, 12)))
+    to_edge = g.sub(10, reach, place)
+    local = g.sat(8, g.add(9, g.op(unreal.MaterialExpressionDivide, 9, to_edge, edge),
+                           g.mul(9, g.sub(10, chance, g.const(0.5, 11)), g.const(0.6, 10))))
+    shown = g.sharp(7, g.sub(8, g.mul(8, local, g.const(1.05, 9)), along), 20.0)
+    stub = g.sharp(7, g.sub(8, g.const(0.14, 9), along), 30.0)
+    visible = g.op(unreal.MaterialExpressionMax, 6, shown, stub)
 
-    # Colour: dark moss below, light green tips, single strands lighter; dark cracked seeds in between
-    dark = g.color((0.035, 0.09, 0.025), 8)
-    light = g.color((0.30, 0.58, 0.12), 8)
-    height = g.sat(6, g.sub(7, g.const(1.0, 8), v))
-    shade = g.sat(5, g.mul(6, height, g.add(7, g.mul(8, strands, g.const(0.8, 9)), g.const(0.3, 8))))
-    fur = g.lerp(4, dark, light, shade)
-    seeds = g.sharp(5, g.sub(6, specks, g.const(0.8, 7)), 25.0)
-    fur = g.lerp(3, fur, g.color((0.05, 0.035, 0.025), 4), seeds)
+    # Colour: the fur, darker where only the stubs are left
+    rgb = g.node(unreal.MaterialExpressionComponentMask, 6, r=True, g=True, b=True, a=False)
+    g.link(fur, rgb)
+    alpha = g.node(unreal.MaterialExpressionComponentMask, 6, r=False, g=False, b=False, a=True)
+    g.link(fur, alpha, "", "RGBA")
+    base = g.mul(4, g.mul(5, rgb, brightness), g.lerp(5, g.const(0.35, 6), g.const(1.0, 6), shown))
 
-    # The empty groove where the fur has gone
-    groove_inside = g.mul(5, g.sharp(6, g.sub(7, v, g.const(0.38, 8)), 40.0), g.sharp(6, g.sub(7, g.const(0.85, 8), v), 40.0))
-    groove = g.color((0.035, 0.03, 0.025), 4)
-    color = g.lerp(2, groove, fur, filled)
-    opacity = g.lerp(2, g.mul(3, groove_inside, g.const(0.55, 4)), inside, g.mul(3, filled, inside))
+    # The edge of the fill glows while it grows back (fresh sap green), and flashes pale when Keimpelz was just taken;
+    # the tips glow more than the roots
+    distance = g.node(unreal.MaterialExpressionAbs, 8)
+    g.link(to_edge, distance)
+    near = g.sat(6, g.sub(7, g.const(1.0, 8), g.op(unreal.MaterialExpressionDivide, 7, distance, g.mul(8, edge, g.const(1.4, 9)))))
+    lit = g.mul(4, g.mul(5, near, shown), g.add(5, along, g.const(0.2, 6)))
+    glow = g.add(3, g.mul(4, g.color((0.30, 0.75, 0.10), 5), growing), g.mul(4, g.color((0.55, 0.70, 0.35), 5), shed))
+    color = g.add(2, base, g.mul(3, glow, lit))
+    opacity = g.mul(2, alpha, visible)
 
     library.connect_material_property(color, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     library.connect_material_property(opacity, "", unreal.MaterialProperty.MP_OPACITY)

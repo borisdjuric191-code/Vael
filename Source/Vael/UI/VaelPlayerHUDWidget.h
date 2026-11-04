@@ -291,6 +291,12 @@ private:
 	/** The Keimpelz pelt of a Floromant: shown at all, and its number */
 	bool bShowKeimpelz = false;
 	FText KeimpelzText;
+
+	/** The pelt as shown: its fill glides after the real one; how much it is growing back now, and the flash after Keimpelz was taken */
+	float ShownKeimpelz = -1.0f;
+	float KeimpelzGrowing = 0.0f;
+	float KeimpelzShed = 0.0f;
+	float LastKeimpelzTarget = 0.0f;
 	EVaelInputGlyphs Glyphs = EVaelInputGlyphs::Keyboard;
 	int32 PlayerSlot = 0;
 	EVaelPath Path = EVaelPath::None;

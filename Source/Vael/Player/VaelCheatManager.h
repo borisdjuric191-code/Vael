@@ -286,4 +286,8 @@ public:
 	/** Plays the recharge glow on the player as if a moth had just landed: 0 health, 1 mana */
 	UFUNCTION(Exec)
 	void VaelAufladen(int32 Mana = 0);
+
+	/** Sets the Keimpelz pelt of every Floromant to this share (0 to 1), to watch it empty and grow back in the HUD */
+	UFUNCTION(Exec)
+	void VaelKeimpelz(float Share = 0.3f);
 };

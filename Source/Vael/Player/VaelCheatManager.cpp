@@ -1475,3 +1475,15 @@ void UVaelCheatManager::VaelMedaillon()
 		Player->GetFloromant()->FlipWheel();
 	}
 }
+
+void UVaelCheatManager::VaelKeimpelz(float Share)
+{
+	const float Max = FMath::Max(UVaelFloromantSettings::Get()->KeimpelzMax, 1.0f);
+	for (TActorIterator<AVaelCharacter> It(GetWorld()); It; ++It)
+	{
+		if (UVaelFloromantComponent* Floromant = It->IsFloromant() ? It->GetFloromant() : nullptr)
+		{
+			Floromant->AddKeimpelz(FMath::Clamp(Share, 0.0f, 1.0f) * Max - Floromant->GetKeimpelz());
+		}
+	}
+}
