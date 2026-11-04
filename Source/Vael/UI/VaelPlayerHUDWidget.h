@@ -297,6 +297,15 @@ private:
 	float KeimpelzGrowing = 0.0f;
 	float KeimpelzShed = 0.0f;
 	float LastKeimpelzTarget = 0.0f;
+
+	/** Floromant: her moth is the Nid heart (no Nid slot); how hard it glows on the beat now, and the corruption shown (0 to 1) */
+	bool bMothHeart = false;
+	float MothBeat = 0.0f;
+	float ShownCorruption = 0.0f;
+	/** The Saft vessel's own colours, kept to blend them towards the Nid */
+	bool bVesselColorsKept = false;
+	FLinearColor VesselLiquid = FLinearColor::Black;
+	FLinearColor VesselSurface = FLinearColor::Black;
 	EVaelInputGlyphs Glyphs = EVaelInputGlyphs::Keyboard;
 	int32 PlayerSlot = 0;
 	EVaelPath Path = EVaelPath::None;

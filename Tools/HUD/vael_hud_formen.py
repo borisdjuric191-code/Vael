@@ -625,7 +625,72 @@ def icons(folder):
         save_shape(os.path.join(folder, "T_Symbol_%s.png" % name), d, ICON)
 
 
-PARTS = {"gefaesse": vessels, "klaue": claw, "ornamente": ornaments, "adern": veins, "symbole": icons}
+# Floromantin (Boris 2026-11-04): ihr Herz ist die Motte in der Mitte des gemalten Rahmens. Gemessen im Spiel bei 1080p:
+# Mitte (432, 74), Flügel etwa 76 x 44 (aus dem Rahmenbild gemessen). Darüber liegen Gefäße, Menüs, Trank, Ausweichen, Stufe und der Keimpelz (die Adern
+# ziehen hinter ihnen durch); Schrift und die ins Bild gemalte Motte bleiben frei.
+MOTH_FLOROMANT = (432.0, 74.0, 38.0, 22.0)
+SYMBOLS_FLOROMANT_CIRCLES = [(94, 132, 96), (786, 132, 96), (626, 48, 17), (656, 48, 17), (686, 48, 17),
+                             (718, 190, 18), (160, 190, 20), (838, 62, 17)]
+TEXT_FLOROMANT_BOXES = [(184, 54, 340, 84), (482, 58, 616, 80)] + \
+                       [(197 + 82 * i + 6, 192, 197 + 82 * i + 70, 207) for i in range(6)]
+
+
+def symbols_floromant(x, y):
+    px, py, d = _field(x, y)
+    for cx, cy, r in SYMBOLS_FLOROMANT_CIRCLES:
+        d = np.minimum(d, np.hypot(px - cx, py - cy) - r)
+    return d / FRAME_H
+
+
+def text_floromant(x, y):
+    """Abstand zur Schrift und zur gemalten Motte (Ellipse), in Höhen-Einheiten des Rahmenfelds"""
+    px, py, d = _field(x, y)
+    mx, my, rx, ry = MOTH_FLOROMANT
+    d = np.minimum(d, (np.hypot((px - mx) / rx, (py - my) / ry) - 1.0) * ry)
+    for x0, y0, x1, y1 in TEXT_FLOROMANT_BOXES:
+        d = np.minimum(d, box(px, py, x0, y0, x1, y1, 3.0))
+    return d / FRAME_H
+
+
+def veins_floromant(folder):
+    """Nid-Wurzeln der Floromantin: sie kommen unter der Motte hervor und kriechen knorrig in alle Richtungen über das
+    Wurzelholz, die ersten nach unten zu den Händen (Slots links) und zum Saft; je weiter von der Motte, desto später"""
+    w, h = 1760, 404
+    mx, my = MOTH_FLOROMANT[0] / FRAME_H, (MOTH_FLOROMANT[1] - 28.0) / FRAME_H
+    rx, ry = MOTH_FLOROMANT[2] / FRAME_H, MOTH_FLOROMANT[3] / FRAME_H
+    rng = np.random.default_rng(57)
+
+    def from_moth(px, py, scale=0.75):
+        start = scale * min(math.hypot(px - mx, py - my) / 3.2, 1.0)
+        return lambda s: min(start + s / 3.0, 1.0)
+
+    def hug(sense, off=0.02):
+        def steer(px, py, heading):
+            e = 0.002
+            d = symbols_floromant(px, py)
+            normal = math.atan2(symbols_floromant(px, py + e) - symbols_floromant(px, py - e), symbols_floromant(px + e, py) - symbols_floromant(px - e, py))
+            return normal + sense * (math.pi / 2 + float(np.clip((d - off) * 25.0, -0.7, 0.7)))
+        return steer
+
+    # Stämme vom Rand der Motte aus, jeder in seine Richtung: die dicksten nach unten links zu den Händen und nach rechts zum Saft
+    sources = []
+    for phi, r in [(math.pi * 0.78, 0.034), (math.pi * 0.22, 0.03), (math.pi, 0.03), (0.0, 0.03), (math.pi * 0.6, 0.026),
+                   (math.pi * 0.4, 0.026), (math.pi * 1.12, 0.022), (-0.12, 0.022), (math.pi * 0.92, 0.02), (math.pi * 0.08, 0.02)]:
+        sx, sy = mx + math.cos(phi) * (rx + 0.012), my + math.sin(phi) * (ry + 0.012)
+        sources.append((sx, sy, [(phi, r)], lambda s: min(s / 2.9, 1.0)))
+    for x0, y0, r in SYMBOLS_FLOROMANT_CIRCLES:
+        wanted, found = (6 if r > 60 else 3), 0
+        for phi in rng.permutation(np.linspace(0, 2 * math.pi, 24, endpoint=False)):
+            px, py = (x0 + math.cos(phi) * (r + 4)) / FRAME_H, (y0 + math.sin(phi) * (r + 4) - 28.0) / FRAME_H
+            if found == wanted or not (0.02 < px < w / h - 0.02 and 0.02 < py < 0.98) or text_floromant(px, py) < 0.006:
+                continue
+            found += 1
+            sense = rng.choice([-1, 1])
+            sources.append((px, py, [(phi + sense * math.pi / 2, rng.uniform(0.012, 0.018))], from_moth(px, py), hug(sense, rng.uniform(0.008, 0.05))))
+    vein_net(os.path.join(folder, "T_HUD_Adern_Floromant.png"), w, h, 59, sources, avoid=text_floromant, margin=0.03, curls=False, pull=0.12)
+
+
+PARTS = {"gefaesse": vessels, "klaue": claw, "ornamente": ornaments, "adern": veins, "symbole": icons, "adern_floromant": veins_floromant}
 
 
 def main(folder, parts):

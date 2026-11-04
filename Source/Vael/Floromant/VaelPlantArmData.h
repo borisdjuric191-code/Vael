@@ -802,6 +802,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="HUD")
 	TSoftObjectPtr<UTexture2D> WheelShadowPicture;
 
-	/** True if the plant has only its light form (Mondtraufe), so the shadow path changes nothing */
+	/** True if the plant has only its light form (Mondtraufe), so the shadow form changes nothing */
 	bool IsLightOnly() const;
+
+	// --- Nid price of the shadow form (Lore-Bibel "Die drei Wege": the shadow forms are the Floromant's way to the Nid, every
+	// use raises her corruption). Boris 2026-11-04: each plant needs its own price, a fast plant must not fill the corruption
+	// in seconds; the numbers are placeholders until the shadow forms are designed. All in corruption points (0 to 100).
+
+	/** Points per second while this hand fires in its shadow form, whatever the rate of fire (fast plants are not dearer) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nid", meta = (ClampMin = 0))
+	float NidPerSecond = 0.12f;
+
+	/** Points for each tower planted in the shadow form, and this plant's share of a cross when this hand is in shadow */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nid", meta = (ClampMin = 0))
+	float NidPerTower = 0.8f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Nid", meta = (ClampMin = 0))
+	float NidPerCross = 0.6f;
 };

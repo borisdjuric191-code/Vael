@@ -310,6 +310,16 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Ruf des Gartens", meta = (ClampMin = 0))
 	float SpoilCorruption = 0.5f;
 
+	// --- Nid price of the shadow forms (the price of each plant is in its DA_Pflanzenarm, category Nid)
+
+	/** All prices of the plants are scaled by this, to tune the whole class at once */
+	UPROPERTY(config, EditAnywhere, Category="Nid", meta = (ClampMin = 0))
+	float NidPriceScale = 1.0f;
+
+	/** Share of the price that also goes into the corruption of the region she fights in */
+	UPROPERTY(config, EditAnywhere, Category="Nid", meta = (ClampMin = 0))
+	float NidRegionShare = 0.25f;
+
 	// --- Wurzelgriff (Cross)
 
 	/** Saft, cooldown, radius at the aim point, seconds it holds, damage per second while it chokes */

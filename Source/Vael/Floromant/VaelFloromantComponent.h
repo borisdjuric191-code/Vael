@@ -266,6 +266,12 @@ private:
 	/** Raises, grows and lowers the glass dome while a shield hand is held; it costs Saft per second */
 	void TickShield(float DeltaTime);
 
+	/** Shadow forms drink Nid: her hands firing in shadow form pay their plant's price per second (Lore-Bibel "Die drei Wege") */
+	void TickNid(float DeltaTime);
+
+	/** Raises her corruption by Points (scaled by NidPriceScale) and a share of it in the region around her */
+	void PayNid(float Points);
+
 	/** The glass dome of her raised Glimmklee hand */
 	TWeakObjectPtr<class AVaelGlimmDome> ShieldDome;
 

@@ -741,6 +741,9 @@ def apply_painted(painted, paintings, painted_frame, shapes):
                       {"Picture": painted[pieces["frame"]], "Mask": painted[pieces["frame"] + "_Maske"], "Veins": veins})
         library.set_material_instance_texture_parameter_value(mi, "Veins", veins)
         library.set_material_instance_scalar_parameter_value(mi, "VeinBundles", 2.0 if veins == shapes["T_HUD_Adern"] else 1.0)
+        if name == "Floromant":
+            # Boris 2026-11-04: her Nid are roots out of the moth, not blood vessels: dark wine violet instead of blood red
+            library.set_material_instance_vector_parameter_value(mi, "VeinBlood", srgb("4A1640"))
         assets.save_loaded_asset(mi, False)
         data.set_editor_property("frame_picture", painted[pieces["frame"]])
         data.set_editor_property("frame_mask", painted[pieces["frame"] + "_Maske"])

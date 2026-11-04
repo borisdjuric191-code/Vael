@@ -290,4 +290,8 @@ public:
 	/** Sets the Keimpelz pelt of every Floromant to this share (0 to 1), to watch it empty and grow back in the HUD */
 	UFUNCTION(Exec)
 	void VaelKeimpelz(float Share = 0.3f);
+
+	/** Every Floromant: corruption in percent, hands laid on in shadow form (0 none, 1 left, 2 both) and the path (l, s, z, or empty to keep) */
+	UFUNCTION(Exec)
+	void VaelNid(float Percent = 50.0f, int32 ShadowHands = 0, const FString& Way = TEXT(""));
 };

@@ -44,6 +44,7 @@
 #include "UI/VaelHUD.h"
 #include "Player/VaelPlayerController.h"
 #include "Floromant/VaelFloromantComponent.h"
+#include "Floromant/VaelPlantArmComponent.h"
 #include "Floromant/VaelPlantData.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelFloromantSettings.h"
@@ -1484,6 +1485,31 @@ void UVaelCheatManager::VaelKeimpelz(float Share)
 		if (UVaelFloromantComponent* Floromant = It->IsFloromant() ? It->GetFloromant() : nullptr)
 		{
 			Floromant->AddKeimpelz(FMath::Clamp(Share, 0.0f, 1.0f) * Max - Floromant->GetKeimpelz());
+		}
+	}
+}
+
+void UVaelCheatManager::VaelNid(float Percent, int32 ShadowHands, const FString& Way)
+{
+	for (TActorIterator<AVaelCharacter> It(GetWorld()); It; ++It)
+	{
+		UVaelFloromantComponent* Floromant = It->IsFloromant() ? It->GetFloromant() : nullptr;
+		if (Floromant == nullptr)
+		{
+			continue;
+		}
+		It->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Clamp(Percent, 0.0f, 100.0f));
+		if (!Way.IsEmpty())
+		{
+			It->SetPath(Way.StartsWith(TEXT("l"), ESearchCase::IgnoreCase) ? EVaelPath::Light : Way.StartsWith(TEXT("s"), ESearchCase::IgnoreCase) ? EVaelPath::Shadow
+				: Way.StartsWith(TEXT("z"), ESearchCase::IgnoreCase) ? EVaelPath::Twilight : EVaelPath::None);
+		}
+		for (const bool bLeft : { true, false })
+		{
+			if (UVaelPlantArmComponent* Hand = Floromant->FindHand(bLeft))
+			{
+				Hand->SetShadowForm(ShadowHands >= (bLeft ? 1 : 2));
+			}
 		}
 	}
 }

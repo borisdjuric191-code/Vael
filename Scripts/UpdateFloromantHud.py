@@ -17,7 +17,7 @@ import unreal
 HUD = "/Game/Vael/UI/HUD"
 CLASS_FOLDER = HUD + "/Klassen"
 SYMBOLS = HUD + "/Symbole"
-VERSION = 1.3
+VERSION = 1.4
 
 library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
@@ -207,6 +207,13 @@ def build_fur():
     lit = g.mul(4, g.mul(5, near, shown), g.add(5, along, g.const(0.2, 6)))
     glow = g.add(3, g.mul(4, g.color((0.30, 0.75, 0.10), 5), growing), g.mul(4, g.color((0.55, 0.70, 0.35), 5), shed))
     color = g.add(2, base, g.mul(3, glow, lit))
+
+    # Nid (her corruption, 0-1, set by the widget): more and more strands glow violet at their tips, strand by strand
+    nid = g.node(unreal.MaterialExpressionScalarParameter, 4, parameter_name="Nid", default_value=0.0)
+    chosen = g.sharp(3, g.sub(4, g.mul(5, nid, g.const(0.75, 6)), chance), 30.0)
+    tip = g.sat(3, g.mul(4, g.sub(5, along, g.const(0.4, 6)), g.const(2.5, 5)))
+    tinted = g.mul(2, g.color((0.42, 0.10, 0.55), 3), g.add(3, g.const(0.5, 4), along))
+    color = g.lerp(1, color, tinted, g.mul(2, g.mul(3, chosen, tip), g.const(0.85, 3)))
     opacity = g.mul(2, alpha, visible)
 
     library.connect_material_property(color, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)

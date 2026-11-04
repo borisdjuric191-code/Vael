@@ -338,6 +338,7 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 	if (UMaterialInterface* Vessel = VaelAssets::LoadOptional(Data->VesselMaterial))
 	{
 		ClassVesselInstance = UMaterialInstanceDynamic::Create(Vessel, this);
+		bVesselColorsKept = false;
 		if (GetTextureBrush(Data->VesselPicture) != nullptr)
 		{
 			ClassVesselInstance->SetScalarParameterValue(GlassAmountParameter, 0.0f);
@@ -372,10 +373,13 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 	SlotGripBrushes.SetNum(Data->Abilities.Num());
 	for (int32 Index = 0; Index < Data->Abilities.Num(); ++Index)
 	{
-		UMaterialInstanceDynamic* Instance = Heart != nullptr && NidIndex != INDEX_NONE && Index != NidIndex ? UMaterialInstanceDynamic::Create(Heart, this) : nullptr;
+		// Without a Nid slot (Floromant): the Nid roots come from her heart, the moth in the middle, and seize the hands
+		const bool bHand = Data->Abilities[Index].Ability == EVaelHUDAbility::HandLeft || Data->Abilities[Index].Ability == EVaelHUDAbility::HandRight;
+		const bool bSeizable = NidIndex != INDEX_NONE ? Index != NidIndex : bHand;
+		UMaterialInstanceDynamic* Instance = Heart != nullptr && bSeizable ? UMaterialInstanceDynamic::Create(Heart, this) : nullptr;
 		if (Instance != nullptr)
 		{
-			Instance->SetTextureParameterValue(VeinsParameter, VaelAssets::LoadOptional(Index < NidIndex ? SlotGripFromRight : SlotGripFromLeft));
+			Instance->SetTextureParameterValue(VeinsParameter, VaelAssets::LoadOptional(NidIndex == INDEX_NONE || Index < NidIndex ? SlotGripFromRight : SlotGripFromLeft));
 		}
 		SlotGripInstances.Add(Instance);
 		SetMaterialBrush(SlotGripBrushes[Index], Instance);
@@ -468,14 +472,87 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 			Instance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
 		}
 	};
-	for (int32 Index = 0; Index < SlotGripInstances.Num(); ++Index)
+	// The Floromant has no Nid slot (Lore-Bibel "Die drei Wege": her shadow forms are her way to the Nid). Her heart is the
+	// moth in the middle of her frame; its roots seize a hand at once while it holds a shadow form, a little more with the
+	// corruption, and at high corruption also the light hands and the round buttons
+	const UVaelFloromantComponent* NidFloromant = !bNidSlot && Character->IsFloromant() ? Character->GetFloromant() : nullptr;
+	bMothHeart = NidFloromant != nullptr && bPaintedFrame;
+	if (bMothHeart)
 	{
-		Seize(SlotGripInstances[Index], NidGripFirst + NidGripStep * (FMath::Abs(Index - NidIndex) - 1));
+		// The Nid rises in her Saft: the sap in the bud turns from its own colour towards deep violet with the corruption
+		if (ClassVesselInstance != nullptr)
+		{
+			if (!bVesselColorsKept)
+			{
+				ClassVesselInstance->GetVectorParameterValue(FHashedMaterialParameterInfo(TEXT("LiquidColor")), VesselLiquid);
+				ClassVesselInstance->GetVectorParameterValue(FHashedMaterialParameterInfo(TEXT("SurfaceColor")), VesselSurface);
+				bVesselColorsKept = true;
+			}
+			const float Tint = FMath::SmoothStep(0.0f, 1.0f, Corruption) * 0.75f;
+			ClassVesselInstance->SetVectorParameterValue(TEXT("LiquidColor"), FMath::Lerp(VesselLiquid, Hex(0x3A, 0x10, 0x48), Tint));
+			ClassVesselInstance->SetVectorParameterValue(TEXT("SurfaceColor"), FMath::Lerp(VesselSurface, Hex(0x9B, 0x5D, 0xE5), Tint));
+		}
+		if (KeimpelzBarInstance != nullptr)
+		{
+			KeimpelzBarInstance->SetScalarParameterValue(TEXT("Nid"), Corruption);
+		}
+		// Her Nid are roots, not blood vessels: one dark wine violet for the frame, the wreath and every grip
+		const FLinearColor RootColor = Hex(0x3E, 0x10, 0x3A);
+		for (UMaterialInstanceDynamic* Instance : { FrameInstance.Get(), VeinHeartInstance.Get() })
+		{
+			if (Instance != nullptr)
+			{
+				Instance->SetVectorParameterValue(TEXT("VeinBlood"), RootColor);
+			}
+		}
+		for (const TArray<TObjectPtr<UMaterialInstanceDynamic>>* Grips : { &SlotGripInstances, &RoundGripInstances })
+		{
+			for (UMaterialInstanceDynamic* Instance : *Grips)
+			{
+				if (Instance != nullptr)
+				{
+					Instance->SetVectorParameterValue(TEXT("VeinBlood"), RootColor);
+				}
+			}
+		}
+		MothBeat =Corruption > 0.0f ? FMath::Pow(FMath::Max(0.0f, FMath::Sin(NidBeatPhase * 2.0f * UE_PI)), 6.0f) * (0.4f + 0.6f * Corruption) : 0.0f;
+		for (int32 Index = 0; Index < SlotGripInstances.Num(); ++Index)
+		{
+			UMaterialInstanceDynamic* Instance = SlotGripInstances[Index];
+			if (Instance == nullptr || !ShownData->Abilities.IsValidIndex(Index))
+			{
+				continue;
+			}
+			const bool bLeftHand = ShownData->Abilities[Index].Ability == EVaelHUDAbility::HandLeft;
+			const UVaelPlantArmComponent* Hand = NidFloromant->FindHand(bLeftHand);
+			const bool bShadowHand = Hand != nullptr && Hand->IsShadowForm() && Hand->GetPlant() != nullptr && !Hand->GetPlant()->IsLightOnly();
+			Instance->SetScalarParameterValue(CorruptionParameter, FMath::Max(Corruption, bShadowHand ? 0.55f : 0.0f));
+			Instance->SetScalarParameterValue(VeinReachParameter, bShadowHand ? FMath::Lerp(0.7f, 1.0f, Corruption) : FMath::Clamp((Corruption - 0.55f) / 0.3f, 0.0f, 1.0f));
+			Instance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
+		}
+		for (int32 Index = 0; Index < RoundGripInstances.Num(); ++Index)
+		{
+			if (UMaterialInstanceDynamic* Instance = RoundGripInstances[Index])
+			{
+				Instance->SetScalarParameterValue(CorruptionParameter, Corruption);
+				Instance->SetScalarParameterValue(VeinReachParameter, FMath::Clamp((Corruption - 0.5f - RoundGripDelays[Index] * 0.4f) / NidGripSpread, 0.0f, 1.0f));
+				Instance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
+			}
+		}
 	}
-	for (int32 Index = 0; Index < RoundGripInstances.Num(); ++Index)
+	else
 	{
-		Seize(RoundGripInstances[Index], RoundGripDelays[Index]);
+		MothBeat = 0.0f;
+		for (int32 Index = 0; Index < SlotGripInstances.Num(); ++Index)
+		{
+			Seize(SlotGripInstances[Index], NidGripFirst + NidGripStep * (FMath::Abs(Index - NidIndex) - 1));
+		}
+		for (int32 Index = 0; Index < RoundGripInstances.Num(); ++Index)
+		{
+			Seize(RoundGripInstances[Index], RoundGripDelays[Index]);
+		}
 	}
+	ShownCorruption = Corruption;
 
 	// Frame: Nid veins creep in with the corruption, out of the Nid slot where the class has one: once it is awakened thin threads
 	// already reach over the frame, and corruption makes them thicker and their beat harder; after the oath the way changes the frame
@@ -950,6 +1027,51 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		const int32 Way = static_cast<int32>(Path) - 1;
 		const FLinearColor WayColor = Path == EVaelPath::Light ? Hex(0xE1, 0xBD, 0x52) : Path == EVaelPath::Shadow ? Hex(0x9B, 0x5D, 0xE5) : Hex(0xC9, 0x9A, 0x8E);
 		PaintBox(OutDrawElements, L + 4, FindTextureBrush(PathTextures[Way]), O + (bPaintedFrame ? FVector2f(346.0f, 52.0f) : FVector2f(648.0f, FrameTop + 10.0f)), FVector2f(30.0f), WayColor);
+	}
+
+	// Floromant: the moth painted in the middle of her frame is her Nid heart. A wreath of Nid roots grows round it with the
+	// corruption; twilight shows the 40-60 % she must keep as a ring round it, light seals it with a thin gold ring
+	if (bMothHeart)
+	{
+		const FVector2f Moth = O + FVector2f(432.0f, 74.0f);
+		if (ShownCorruption > 0.0f && VeinHeartInstance != nullptr)
+		{
+			const float HeartSize = 150.0f;
+			PaintBox(OutDrawElements, L + 3, &VeinHeartBrush, Moth - FVector2f(HeartSize * 0.5f), FVector2f(HeartSize));
+		}
+		if (Path == EVaelPath::Twilight || Path == EVaelPath::Light)
+		{
+			// An ellipse round the wings; a full turn from the top, clockwise, is 100 % corruption
+			const FVector2f Radius(48.0f, 31.0f);
+			auto RingPoint = [&](float Share) { const float A = Share * 2.0f * UE_PI - UE_HALF_PI; return Moth + FVector2f(FMath::Cos(A) * Radius.X, FMath::Sin(A) * Radius.Y); };
+			auto Arc = [&](float From, float To, const FLinearColor& Color, float Thickness)
+			{
+				TArray<FVector2f> Points;
+				const int32 Steps = FMath::Max(2, FMath::CeilToInt32((To - From) * 64.0f));
+				for (int32 Step = 0; Step <= Steps; ++Step)
+				{
+					Points.Add(RingPoint(FMath::Lerp(From, To, Step / static_cast<float>(Steps))));
+				}
+				PaintLines(OutDrawElements, L + 4, Points, Color, Thickness);
+			};
+			if (Path == EVaelPath::Light)
+			{
+				Arc(0.0f, 1.0f, Hex(0xE1, 0xBD, 0x52).CopyWithNewOpacity(0.75f), 1.5f);
+			}
+			else
+			{
+				// The ring in dusk, the allowed window brighter, the corruption so far in violet; outside the window it warns
+				const bool bInside = ShownCorruption >= 0.4f && ShownCorruption <= 0.6f;
+				Arc(0.0f, 1.0f, Hex(0x6A, 0x5A, 0x7A).CopyWithNewOpacity(0.55f), 1.0f);
+				Arc(0.4f, 0.6f, Hex(0xC9, 0x9A, 0x8E), 2.0f);
+				Arc(0.0f, FMath::Max(ShownCorruption, 0.005f), Hex(0x9B, 0x5D, 0xE5) * (bInside ? 1.0f + MothBeat * 0.6f : 1.6f + MothBeat), 2.5f);
+				for (const float Mark : { 0.4f, 0.6f })
+				{
+					const FVector2f Out = (RingPoint(Mark) - Moth).GetSafeNormal();
+					PaintLines(OutDrawElements, L + 4, { RingPoint(Mark) - Out * 4.0f, RingPoint(Mark) + Out * 4.0f }, Hex(0xF2, 0xD9, 0x8A), 1.5f);
+				}
+			}
+		}
 	}
 
 	// The Keimpelz pelt over the top of the panel, its number in the middle

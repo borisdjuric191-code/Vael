@@ -89,6 +89,7 @@ void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	TickCross(DeltaTime);
 	UpdateCrossKnot(DeltaTime);
 	TickShield(DeltaTime);
+	TickNid(DeltaTime);
 
 	// The crossed hands swell every frame while they charge and show; otherwise a few times a second is enough
 	SetComponentTickInterval(bCrossCharging || CrossShowLeft > 0.0f ? 0.0f : 0.2f);
@@ -226,6 +227,9 @@ void UVaelFloromantComponent::StartCross()
 		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoPair", "Diese beiden wachsen nicht zusammen"), FLinearColor(FColor(158, 143, 125)));
 		return;
 	}
+
+	// Each hand in shadow form pays its share of the cross in Nid
+	PayNid((Left->IsShadowForm() ? Left->GetPlant()->NidPerCross : 0.0f) + (Right->IsShadowForm() ? Right->GetPlant()->NidPerCross : 0.0f));
 
 	// The hands stop firing and grow towards each other; the knot between them swells while it charges
 	bCrossCharging = true;
@@ -1262,6 +1266,10 @@ void UVaelFloromantComponent::RootTower(bool bLeft)
 		return;
 	}
 	Hand->PlantAway(Settings->TowerRegrowTime);
+	if (Hand->IsShadowForm())
+	{
+		PayNid(Plant->NidPerTower);
+	}
 
 	// Only so many stand at once: the oldest withers
 	Towers.RemoveAll([](const TWeakObjectPtr<AVaelPlantTower>& Standing) { return !Standing.IsValid() || !Standing->IsStanding(); });
@@ -1524,4 +1532,44 @@ void UVaelFloromantComponent::FlipWheel()
 	const bool bShadow = WheelShadowSides[HandBeltSelection];
 	UVaelCombatTextSubsystem::PostPickup(Character, Plant->GetDisplayName(bShadow), Plant->GetColor(bShadow));
 	WheelFlipAge = 0.0f;
+}
+
+void UVaelFloromantComponent::TickNid(float DeltaTime)
+{
+	const AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr || !Character->IsFloromant() || Character->IsDowned())
+	{
+		return;
+	}
+	float Points = 0.0f;
+	for (const UVaelPlantArmComponent* Hand : { LeftHand.Get(), RightHand.Get() })
+	{
+		const UVaelPlantArmData* Plant = Hand != nullptr ? Hand->GetPlant() : nullptr;
+		if (Plant != nullptr && !Plant->IsLightOnly() && Hand->IsShadowForm() && Hand->IsFiring())
+		{
+			Points += Plant->NidPerSecond * DeltaTime;
+		}
+	}
+	if (Points > 0.0f)
+	{
+		PayNid(Points);
+	}
+}
+
+void UVaelFloromantComponent::PayNid(float Points)
+{
+	AVaelCharacter* Character = GetCharacter();
+	UAbilitySystemComponent* AbilitySystem = Character != nullptr ? Character->GetAbilitySystemComponent() : nullptr;
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Price = Points * Settings->NidPriceScale;
+	if (AbilitySystem == nullptr || Price <= 0.0f)
+	{
+		return;
+	}
+	const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + Price, 100.0f));
+	if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), Character->GetActorLocation()))
+	{
+		Region->AddCorruption(Price * Settings->NidRegionShare);
+	}
 }
