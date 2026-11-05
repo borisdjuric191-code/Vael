@@ -115,6 +115,22 @@ def icon(kind, x, y, s, material, depth=-14.0):
         K.blossom(x, y, 9 * s, material, K.GOLD, depth)
 
 
+def braid(points, radius, material, depth):
+    """Eine Ranke aus drei dünneren Fasern, die sich umeinander drehen, statt einer glatten Röhre"""
+    if len(points) < 2:
+        return
+    for strand in range(3):
+        twisted = []
+        for k, (x, y) in enumerate(points):
+            nx = points[min(k + 1, len(points) - 1)][0] - points[max(k - 1, 0)][0]
+            ny = points[min(k + 1, len(points) - 1)][1] - points[max(k - 1, 0)][1]
+            ln = max(math.hypot(nx, ny), 1e-3)
+            angle = y * 0.09 + strand * 2.094
+            off = math.cos(angle) * radius * 0.55
+            twisted.append((x - ny / ln * off, y + nx / ln * off))
+        K.tube("Faser", twisted, radius * 0.55, material, depth=depth + math.sin(strand * 2.094) * 2)
+
+
 def specimen(x, y, name, state, ink, scale=1.0):
     """Ein ovales Schauglas mit der Pflanze, an einem Faden; state: normal, gewaehlt, imrad, unbekannt"""
     rx, ry = 52 * scale, 64 * scale
@@ -205,7 +221,7 @@ def build():
                 front = now
             piece.append((x, y))
             if now != front or k == steps:
-                K.tube("Strang", piece, radius * (1.0 + 0.15 * math.sin(t * 23.0)), material, depth=-10 if front else 8)
+                braid(piece, radius * (1.0 + 0.15 * math.sin(t * 23.0)), material, -10 if front else 8)
                 piece, front = [(x, y)], now
             if k % 8 == 3 and now:
                 side = 1 if math.sin(phase) > 0 else -1
@@ -245,8 +261,9 @@ def build():
             K.glow(px, y, 84, K.VINE_GLOW, depth=14)
         else:
             K.disc("Knospe", px, y, 34, K.PAPER_DARK, depth=0)
-            for a in (-0.7, -0.25, 0.25, 0.7):
-                K.tube("Kelch", [(px, y + 28), (px + math.sin(a) * 22, y + 4), (px + math.sin(a) * 6, y - 28)], 7.0, K.BRONZE, depth=-5, taper=True)
+            # geschlossene Knospe: fünf Kelchblätter legen sich übereinander nach oben zusammen
+            for a, s_ in ((-34, 0.9), (34, 0.9), (-14, 1.0), (14, 1.0), (0, 1.08)):
+                K.leaf(px + a * 0.25, y + 30, -90 + a, 62 * s_, 30 * s_, K.BRONZE if i % 2 else K.LEAF_DARK, depth=-5 - abs(a) * 0.05, bend=-0.08 if a < 0 else 0.08)
             K.disc("Wachs", px, y + 22, 9, red_wax, depth=-9)
         K.text(str(i + 1), px + side * 58, y - 13, 20, pale if i < 4 else dim, "AlegreyaSans-Bold.ttf", "CENTER", depth=-14)
 
@@ -403,4 +420,5 @@ def main():
     print("[Vael] gerendert:", out)
 
 
-main()
+if __name__ == "__main__":
+    main()
