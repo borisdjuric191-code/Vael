@@ -51,6 +51,7 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	MortarPitch = UVaelFloromantSettings::Get()->MortarArmPitch;
 	const UVaelFloromantSettings* FloromantSettings = UVaelFloromantSettings::Get();
 	PlantArmLean = FloromantSettings->FiringLean * FMath::Max(PlantArmStance[0], PlantArmStance[1]);
+	PlantRootTwist = Floromant != nullptr ? Floromant->GetRootTwist() : 0.0f;
 	PlantArmReach = FloromantSettings->FiringArmReach;
 
 	FlightPose = Character->GetFlightPose();
@@ -93,6 +94,7 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	ArmStance[0] = Instance->PlantArmStance[0];
 	ArmStance[1] = Instance->PlantArmStance[1];
 	LeanDegrees = Instance->PlantArmLean;
+	RootTwist = Instance->PlantRootTwist;
 	ArmReach = Instance->PlantArmReach;
 	Flight = Instance->FlightPose;
 	Shield[0] = Instance->ShieldStance[0];
@@ -1157,7 +1159,7 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	const bool bFlying = Flight.Weight > KINDA_SMALL_NUMBER;
 	const bool bShielding = Shield[0] > KINDA_SMALL_NUMBER || Shield[1] > KINDA_SMALL_NUMBER;
 	const bool bGesture = Gesture != EVaelCastGesture::None;
-	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER))
+	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
 	{
 		return true;
 	}
@@ -1171,6 +1173,17 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	if (bFlying)
 	{
 		ApplyFlight(Pose, Bones);
+	}
+
+	// Rooted: the legs stay where they took root, the spine twists the upper body towards the aim, spread over its bones
+	if (FMath::Abs(RootTwist) >= 0.05f)
+	{
+		const TCHAR* SpineBones[] = { TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03"), TEXT("spine_04"), TEXT("spine_05") };
+		const float Shares[] = { 0.12f, 0.2f, 0.24f, 0.24f, 0.2f };
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(SpineBones); ++Index)
+		{
+			TurnPoseBone(Pose, FindPoseBone(Bones, SpineBones[Index]), FQuat(FVector::UpVector, FMath::DegreesToRadians(RootTwist * Shares[Index])));
+		}
 	}
 
 	const auto Turn = [&Pose](FCompactPoseBoneIndex Bone, const FQuat& Rotation) { TurnPoseBone(Pose, Bone, Rotation); };

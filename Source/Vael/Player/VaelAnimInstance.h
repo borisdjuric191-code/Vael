@@ -24,6 +24,8 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	/** Copied from the instance: how far each arm is stretched out (left, right), lean back in degrees, reach of the arms */
 	float ArmStance[2] = { 0.0f, 0.0f };
 	float LeanDegrees = 0.0f;
+	/** Rooted Floromant: degrees her upper body twists from her rooted legs towards the aim */
+	float RootTwist = 0.0f;
 	float ArmReach = 1.0f;
 
 	/** Copied from the instance: how the flying body hangs in the air */
@@ -154,6 +156,7 @@ protected:
 	/** How far each arm of a Floromant is stretched out to fire (0 left, 1 right), 0 to 1, and how far it leans back in degrees */
 	float PlantArmStance[2] = { 0.0f, 0.0f };
 	float PlantArmLean = 0.0f;
+	float PlantRootTwist = 0.0f;
 	float PlantArmReach = 1.0f;
 
 	/** How the body of a flying Floromant hangs in the air, from the character */

@@ -93,7 +93,7 @@ void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	TickNid(DeltaTime);
 
 	// The crossed hands swell every frame while they charge and show; otherwise a few times a second is enough
-	SetComponentTickInterval(bCrossCharging || CrossShowLeft > 0.0f ? 0.0f : 0.2f);
+	SetComponentTickInterval(bCrossCharging || CrossShowLeft > 0.0f || IsRooted() ? 0.0f : 0.2f);
 }
 
 void UVaelFloromantComponent::ToggleRoot()
@@ -476,6 +476,7 @@ void UVaelFloromantComponent::TickFlight(float DeltaTime)
 		Character->SetManaRegen(Settings->SaftPerSecond + (IsRooted() ? Settings->RootedSaftPerSecond : 0.0f));
 	}
 
+	HoldRootYaw(DeltaTime);
 	UpdateFootRoots();
 }
 
@@ -493,7 +494,8 @@ void UVaelFloromantComponent::UpdateFootRoots()
 	}
 
 	AVaelCharacter* Character = GetCharacter();
-	FootRoots->SetGrowth(Character != nullptr ? Character->GetMesh() : nullptr, RootGrowth);
+	const bool bFiring = IsRooted() && FMath::Max(GetStance(true), GetStance(false)) > 0.5f;
+	FootRoots->SetGrowth(Character != nullptr ? Character->GetMesh() : nullptr, RootGrowth, bFiring, GetWorld() != nullptr ? GetWorld()->GetDeltaSeconds() : 0.0f);
 }
 
 AVaelCharacter* UVaelFloromantComponent::GetCharacter() const
@@ -1659,4 +1661,51 @@ void UVaelFloromantComponent::ReadSave(const FVaelSavedPlayer& Saved)
 	}
 	KnownPairs = TSet<uint8>(Saved.KnownPairs);
 	Genes = Saved.Genes;
+}
+
+void UVaelFloromantComponent::HoldRootYaw(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	UCharacterMovementComponent* Movement = Character != nullptr ? Character->GetCharacterMovement() : nullptr;
+	if (Movement == nullptr)
+	{
+		return;
+	}
+	if (IsRooted() && Character->IsFloromant() && !Character->IsDodging())
+	{
+		// Her feet stay as they took root: the body no longer turns with the aim, only the upper body twists towards it
+		if (!bRootYawHeld)
+		{
+			RootYaw = Character->GetActorRotation().Yaw;
+			RootTwist = 0.0f;
+			bRootYawHeld = true;
+		}
+		Movement->bUseControllerDesiredRotation = false;
+		Character->SetActorRotation(FRotator(0.0f, RootYaw, 0.0f));
+		const FVector Aim = UVaelFormulaAbility::GetAimDirection(Character).GetSafeNormal2D();
+		const float MaxTwist = UVaelFloromantSettings::Get()->MaxRootTwist;
+		const float Wanted = Aim.IsNearlyZero() ? RootTwist : FMath::Clamp(FRotator::NormalizeAxis(Aim.Rotation().Yaw - RootYaw), -MaxTwist, MaxTwist);
+		RootTwist = FMath::FInterpTo(RootTwist, Wanted, DeltaTime, 9.0f);
+	}
+	else if (bRootYawHeld)
+	{
+		bRootYawHeld = false;
+		RootTwist = 0.0f;
+		if (!Character->IsDodging())
+		{
+			Movement->bUseControllerDesiredRotation = true;
+		}
+	}
+}
+
+FVector UVaelFloromantComponent::ClampAimToRoots(const FVector& Aim) const
+{
+	if (!IsRooted() || !bRootYawHeld || Aim.IsNearlyZero())
+	{
+		return Aim;
+	}
+	const float MaxTwist = UVaelFloromantSettings::Get()->MaxRootTwist;
+	const float Turn = FRotator::NormalizeAxis(Aim.Rotation().Yaw - RootYaw);
+	const float Clamped = FMath::Clamp(Turn, -MaxTwist, MaxTwist);
+	return FMath::IsNearlyEqual(Turn, Clamped, 0.01f) ? Aim : FRotator(0.0f, Clamped - Turn, 0.0f).RotateVector(Aim);
 }

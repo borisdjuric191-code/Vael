@@ -203,6 +203,28 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 5))
 	float RootLength = 85.0f;
 
+	/** Boris 2026-11-05: rooted her feet and legs stay where they took root; only the upper body turns towards the aim, at most
+	 *  this many degrees to each side, and her shots go no further round than that */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0, ClampMax = 120))
+	float MaxRootTwist = 75.0f;
+
+	/** Roots that climb each leg from the toes to the knee, wound round the shin */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0, ClampMax = 6))
+	int32 LegRootsPerLeg = 3;
+
+	/** Moss tufts grown over the roots, and a pulse of earth power running up the roots into the legs while she fires rooted (seconds between pulses) */
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0, ClampMax = 60))
+	int32 RootMossTufts = 22;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0.05))
+	float RootPulseInterval = 0.4f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0.05))
+	float RootPulseTime = 0.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting")
+	FLinearColor RootPulseColor = FLinearColor(0.25f, 0.9f, 0.2f);
+
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0.5))
 	float RootThickness = 5.0f;
 
@@ -218,7 +240,7 @@ public:
 	TSoftObjectPtr<class UTexture> RootBarkNormal;
 
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting")
-	FLinearColor RootBarkTint = FLinearColor(0.42f, 0.31f, 0.23f);
+	FLinearColor RootBarkTint = FLinearColor(0.62f, 0.5f, 0.4f);
 
 	/** cm of root per repeat of the bark picture along it */
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 1))

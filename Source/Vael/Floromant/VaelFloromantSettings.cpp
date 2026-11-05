@@ -31,7 +31,7 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	WingMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("MI_Floromant_Fluegel"));
 	RootMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("MI_Floromant_Wurzel"));
 	// The tiling bark of the stylized trees (as on the Wurzelforst wood), for the mangrove roots of her feet
-	RootBarkTexture = AssetAt<UTexture>(TEXT("/Game/Stylized_Tree_Pack/Textures/Stylized_Bark_Texture"), TEXT("T_Stylized_Bark_1_COLOR"));
+	RootBarkTexture = AssetAt<UTexture>(TEXT("/Game/Megaplant_Library/Tree_Dead_Pine/Textures"), TEXT("T_Tree_Dead_Pine_tiling_C"));
 	RootBarkNormal = AssetAt<UTexture>(TEXT("/Game/Stylized_Tree_Pack/Textures/Stylized_Bark_Texture"), TEXT("T_Stylized_Bark_1_NORM"));
 	ShadowMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("M_Floromant_Schatten"));
 	GlassMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("M_Floromant_Glaskugel"));

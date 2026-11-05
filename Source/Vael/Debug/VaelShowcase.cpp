@@ -334,8 +334,10 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 				Closeup->GetCameraComponent()->PostProcessSettings.MotionBlurAmount = 0.0f;
 			}
 
-			const FVector Offset = HeroView == TEXT("Back") ? FVector(-300.0f, 140.0f, 120.0f) : HeroView == TEXT("Far") ? FVector(700.0f, -520.0f, 520.0f) : FVector(300.0f, -140.0f, 90.0f);
-			const FVector Focus = PlayerPawn->GetActorLocation() + (HeroView == TEXT("Far") ? PlayerPawn->GetActorForwardVector() * 250.0f : FVector(0.0f, 0.0f, 20.0f));
+			// =Legs: low and close on the legs and roots of a rooted Floromant
+			const FVector Offset = HeroView == TEXT("Back") ? FVector(-300.0f, 140.0f, 120.0f) : HeroView == TEXT("Far") ? FVector(700.0f, -520.0f, 520.0f)
+				: HeroView == TEXT("Legs") ? FVector(230.0f, -150.0f, -10.0f) : FVector(300.0f, -140.0f, 90.0f);
+			const FVector Focus = PlayerPawn->GetActorLocation() + (HeroView == TEXT("Far") ? PlayerPawn->GetActorForwardVector() * 250.0f : HeroView == TEXT("Legs") ? FVector(0.0f, 0.0f, -55.0f) : FVector(0.0f, 0.0f, 20.0f));
 			const FVector Eye = PlayerPawn->GetActorLocation() + FRotator(0.0f, PlayerPawn->GetActorRotation().Yaw, 0.0f).RotateVector(Offset);
 			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
 			if (PlayerController->GetViewTarget() != Closeup)

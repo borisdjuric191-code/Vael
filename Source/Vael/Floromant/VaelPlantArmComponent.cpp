@@ -826,7 +826,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 	FVector AimLocal = HandAxis;
 	if (Barrel > 0.0f || Plant->bMortar)
 	{
-		FVector Aim = UVaelFormulaAbility::GetAimDirection(GetCharacter());
+		FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(GetCharacter()));
 		Aim.Z = 0.0f;
 		Aim = Aim.IsNearlyZero() ? GetCharacter()->GetActorForwardVector() : Aim.GetSafeNormal();
 		// The mortar aims up into the sky, so the capsule leaves in its arc
@@ -1172,7 +1172,7 @@ void UVaelPlantArmComponent::Shoot(int32 Finger)
 
 	// Out of the fingertip, or the front of the barrel, towards where the player aims, flat over the ground
 	const FVector Muzzle = bBarrel ? BarrelMuzzle : Muzzles[Finger];
-	FVector Direction = UVaelFormulaAbility::GetAimDirection(Character);
+	FVector Direction = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 	Direction.Z = 0.0f;
 	Direction = Direction.GetSafeNormal();
 	if (Direction.IsNearlyZero())
@@ -1225,7 +1225,7 @@ void UVaelPlantArmComponent::UpdateFairyCalling(float DeltaTime)
 	}
 
 	const bool bShadowPath = IsShadowForm();
-	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 	const FVector Ahead = Character->GetActorLocation() + Aim * Plant->FairyReach;
 
@@ -1287,7 +1287,7 @@ void UVaelPlantArmComponent::UpdateLassoFiring(float DeltaTime)
 			}
 			const UVaelFloromantComponent* Floromant = Character->GetFloromant();
 			const int32 Count = Floromant != nullptr && Floromant->IsRooted() ? Plant->RootedLassos : 1;
-			FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+			FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 			Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 			const TArray<AActor*> Targets = AVaelBindweedLasso::FindTargets(Character, Character->GetActorLocation(), Aim, Plant->LassoRange, Plant->LassoHalfAngle, Count);
 			if (Targets.IsEmpty())
@@ -1357,7 +1357,7 @@ void UVaelPlantArmComponent::Whip()
 	WhipSide = -WhipSide;
 
 	// Everyone in the fan ahead is lashed: hurt, pushed back and interrupted
-	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
 	FVaelSpellHit Hit;
@@ -1380,7 +1380,7 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 	AVaelCharacter* Character = GetCharacter();
 	const bool bShadow = IsShadowForm();
 	const float Time = GetWorld()->GetTimeSeconds();
-	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 	const FVector Side = FVector::CrossProduct(FVector::UpVector, Aim).GetSafeNormal();
 
@@ -1469,7 +1469,7 @@ bool UVaelPlantArmComponent::IsMortar() const
 FVector UVaelPlantArmComponent::GetThrowTarget(float WithCharge) const
 {
 	const AVaelCharacter* Character = GetCharacter();
-	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+	FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 	Aim.Z = 0.0f;
 	Aim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
 	const FVector Flat = Character->GetActorLocation() + Aim * FMath::Lerp(Plant->MinThrow, Plant->MaxThrow, WithCharge);
@@ -1889,7 +1889,7 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	else if (RetargetCountdown <= 0.0f || !TetherTarget.IsValid())
 	{
 		RetargetCountdown = 0.3f;
-		FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
+		FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 		if (bShadow)
 		{
 			TetherTarget = VaelSymbiosis::FindTarget(Character, Character->GetActorLocation(), Plant->TetherRange);
@@ -2396,7 +2396,7 @@ void UVaelPlantArmComponent::UpdateVeilParts(const FVector& Elbow, const FVector
 void UVaelPlantArmComponent::CastVeil()
 {
 	AVaelCharacter* Character = GetCharacter();
-	FVector Direction = UVaelFormulaAbility::GetAimDirection(Character);
+	FVector Direction = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
 	Direction.Z = 0.0f;
 	Direction = Direction.GetSafeNormal();
 	if (Direction.IsNearlyZero())
@@ -2465,4 +2465,11 @@ float UVaelPlantArmComponent::GeneScale(EVaelGeneEffect Effect) const
 float UVaelPlantArmComponent::ShotSaft() const
 {
 	return Plant != nullptr ? Plant->SaftPerShot * GeneScale(EVaelGeneEffect::SaftCost) : 0.0f;
+}
+
+FVector UVaelPlantArmComponent::RootedAim(const FVector& Aim) const
+{
+	const AVaelCharacter* Character = Cast<AVaelCharacter>(GetOwner());
+	const UVaelFloromantComponent* Floromant = Character != nullptr ? Character->GetFloromant() : nullptr;
+	return Floromant != nullptr ? Floromant->ClampAimToRoots(Aim) : Aim;
 }

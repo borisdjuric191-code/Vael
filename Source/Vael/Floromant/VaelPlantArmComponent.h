@@ -159,6 +159,9 @@ private:
 	float GeneScale(EVaelGeneEffect Effect) const;
 	float ShotSaft() const;
 
+	/** The aim turned back within the twist of her upper body while she stands rooted */
+	FVector RootedAim(const FVector& Aim) const;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UVaelPlantArmData> NextPlant;
 

@@ -194,6 +194,12 @@ public:
 	float GetRootGrowth() const { return RootGrowth; }
 	bool IsRooted() const { return RootGrowth > 0.0f; }
 
+	/** Rooted: how far her upper body is turned from where her feet took root, in degrees (left and right within MaxRootTwist) */
+	float GetRootTwist() const { return IsRooted() ? RootTwist : 0.0f; }
+
+	/** Rooted: an aim direction turned back to within MaxRootTwist of where her feet face; unchanged when not rooted */
+	FVector ClampAimToRoots(const FVector& Aim) const;
+
 	/** How wet her wings are, 0 dry to 1 soaked */
 	float GetWingWetness() const { return WingWetness; }
 
@@ -323,6 +329,14 @@ private:
 	float StillFiringTime = 0.0f;
 	float RootGrowth = 0.0f;
 	float UprootTimeLeft = -1.0f;
+
+	/** Rooted: the yaw her feet took root with, whether it is held, and the turn of her upper body towards the aim */
+	float RootYaw = 0.0f;
+	bool bRootYawHeld = false;
+	float RootTwist = 0.0f;
+
+	/** Keeps her lower body on the yaw of the roots and turns the upper body towards the aim, or lets go after uprooting */
+	void HoldRootYaw(float DeltaTime);
 
 	/** She wants to stand rooted (Square), and seconds she is still slowed after tearing the roots out */
 	bool bRootWanted = false;
