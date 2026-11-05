@@ -579,4 +579,5 @@ def main():
     print("[Vael] gerendert:", out)
 
 
-main()
+if __name__ == "__main__":
+    main()

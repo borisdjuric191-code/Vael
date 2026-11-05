@@ -1944,13 +1944,15 @@ void AVaelPlayerController::NavigateKeimgeflecht(int32 Right, int32 Down)
 		C.Capsule = FMath::Clamp(C.Capsule + Down, 0, KeimCapsules - 1);
 		break;
 	case EVaelKeimZone::Genes:
-		if (Right < 0 && C.Tier == 0)
+		// The tiers stand one under the other on the tree, the two Erbanlagen of a tier left and right of the stem
+		if (Right < 0 && C.Option == 0)
 		{
 			C.Zone = EVaelKeimZone::Wheel;
+			C.Capsule = FMath::Clamp(C.Tier * 3, 0, KeimCapsules - 1);
 			break;
 		}
-		C.Tier = FMath::Clamp(C.Tier + Right, 0, 2);
-		C.Option = FMath::Clamp(C.Option + Down, 0, 1);
+		C.Option = FMath::Clamp(C.Option + Right, 0, 1);
+		C.Tier = FMath::Clamp(C.Tier + Down, 0, 2);
 		break;
 	}
 

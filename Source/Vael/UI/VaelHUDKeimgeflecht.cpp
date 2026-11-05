@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-// The Keimgeflecht page of the Floromant (Boris 2026-11-04): a living root chamber with her herbarium on the left, the strand of
-// her heredity in the middle (light and shadow vine, the wheel places as seed capsules) and the naturalist's plate of a plant on
-// the right with its Erbanlagen and crosses. The fixed picture is rendered by Tools/HUD/vael_keimgeflecht_entwurf.py --spiel;
-// everything that changes is drawn here on top, in design pixels of 1920 x 1080.
+// The Keimgeflecht page of the Floromant (Boris 2026-11-04/05, mockup D): a living root chamber with her herbarium of glasses
+// hanging on threads on the left, the glowing strand of her heredity in the middle (light and shadow vine braided, the wheel
+// places as glass capsules or sealed buds) and a free sheet of parchment on the right with the plate of a plant, its values,
+// the tree of its Erbanlagen and its crosses. The fixed picture is rendered by Tools/HUD/vael_keimgeflecht_spiel.py; the glasses,
+// capsules, seeds and pictures are its cut-out pieces, drawn and moved here, in design pixels of 1920 x 1080. The places here
+// and in the script belong together.
 
 #include "UI/VaelHUD.h"
 #include "Engine/Canvas.h"
@@ -27,7 +29,17 @@ namespace
 
 	const TCHAR* KeimFolder = TEXT("/Game/Vael/UI/Keimgeflecht");
 
-	/** The id of a plant arm (DA_Pflanzenarm_<Id>) names its round picture T_Keim_Rund_<Id> */
+	// Places of the picture (Tools/HUD/vael_keimgeflecht_spiel.py)
+	constexpr float StrandX = 790.0f;
+	constexpr float StrandTop = 214.0f;
+	constexpr float StrandBottom = 972.0f;
+	constexpr float StrandAmp = 46.0f;
+	constexpr float SheetX = 990.0f;
+	constexpr float SheetY = 150.0f;
+	constexpr float GlassRX = 52.0f;
+	constexpr float GlassRY = 64.0f;
+
+	/** The id of a plant arm (DA_Pflanzenarm_<Id>) names its pictures T_Keim_Rund_<Id> and T_Keim_Oval_<Id> */
 	FString PlantId(const UVaelPlantArmData* Plant)
 	{
 		FString Name = Plant != nullptr ? Plant->GetName() : FString();
@@ -40,6 +52,43 @@ namespace
 		static const TCHAR* Numerals[] = { TEXT("I"), TEXT("II"), TEXT("III"), TEXT("IV"), TEXT("V"), TEXT("VI"), TEXT("VII"), TEXT("VIII"),
 			TEXT("IX"), TEXT("X"), TEXT("XI"), TEXT("XII"), TEXT("XIII"), TEXT("XIV"), TEXT("XV"), TEXT("XVI") };
 		return FText::FromString(Number >= 1 && Number <= 16 ? Numerals[Number - 1] : *FString::FromInt(Number));
+	}
+
+	/** Centre of a glass in the herbarium (staggered like on a root wall, the middle column lower) */
+	FVector2D GlassCentre(int32 Index)
+	{
+		const int32 Column = Index % 3;
+		return FVector2D(170.0f + Column * 160.0f, 300.0f + (Index / 3) * 178.0f + (Column == 1 ? 40.0f : 0.0f));
+	}
+
+	/** Centre of a capsule on the strand, by turns left and right */
+	FVector2D CapsuleCentre(int32 Place)
+	{
+		return FVector2D(StrandX + (Place % 2 == 0 ? -106.0f : 106.0f), StrandTop + 50.0f + Place * 92.0f);
+	}
+
+	/** A point on the light vine of the strand, T from 0 (top) to 1 (bottom) */
+	FVector2D StrandPoint(float T)
+	{
+		const float Phase = T * 4.4f * UE_PI;
+		return FVector2D(StrandX + StrandAmp * FMath::Sin(Phase) + 3.0f * FMath::Sin(T * 37.0f), StrandTop + (StrandBottom - StrandTop) * T);
+	}
+
+	const TCHAR* GeneSign(EVaelGeneEffect Effect)
+	{
+		switch (Effect)
+		{
+		case EVaelGeneEffect::FireSpeed:	return TEXT("T_Keim_Zeichen_Wirbel");
+		case EVaelGeneEffect::SaftCost:		return TEXT("T_Keim_Zeichen_Tropfen");
+		case EVaelGeneEffect::NidPrice:		return TEXT("T_Keim_Zeichen_Nid");
+		default:							return TEXT("T_Keim_Zeichen_Dorn");
+		}
+	}
+
+	/** Small hash for the fireflies: a stable number from 0 to 1 per index and salt */
+	float Hash01(int32 Index, int32 Salt)
+	{
+		return FMath::Frac(FMath::Sin(Index * 12.9898f + Salt * 78.233f) * 43758.5453f);
 	}
 }
 
@@ -68,12 +117,26 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	const float K = Canvas->ClipY / 1080.0f;
 	const float OX = (Canvas->ClipX - 1920.0f * K) * 0.5f;
 	auto At = [&](float X, float Y) { return FVector2D(OX + X * K, Y * K); };
-	auto Picture = [&](UTexture2D* Texture, float X, float Y, float W, float H, const FLinearColor& Tint)
+	auto AtV = [&](const FVector2D& P) { return At(P.X, P.Y); };
+	// A picture in a box; turned by Angle degrees round the pivot (design pixels) if one is given
+	auto Picture = [&](UTexture2D* Texture, float X, float Y, float W, float H, const FLinearColor& Tint, float Angle = 0.0f,
+		const FVector2D& Pivot = FVector2D::ZeroVector, EBlendMode Blend = BLEND_Translucent)
 	{
-		if (Texture != nullptr)
+		if (Texture != nullptr && W > 0.0f && H > 0.0f)
 		{
-			Canvas->K2_DrawTexture(Texture, At(X, Y), FVector2D(W * K, H * K), FVector2D::ZeroVector, FVector2D::UnitVector, Tint, BLEND_Translucent);
+			const FVector2D PivotShare = Angle != 0.0f ? FVector2D((Pivot.X - X) / W, (Pivot.Y - Y) / H) : FVector2D(0.5f, 0.5f);
+			Canvas->K2_DrawTexture(Texture, At(X, Y), FVector2D(W * K, H * K), FVector2D::ZeroVector, FVector2D::UnitVector, Tint, Blend, Angle, PivotShare);
 		}
+	};
+	// A picture by its centre and size
+	auto Centred = [&](UTexture2D* Texture, const FVector2D& Centre, float W, float H, const FLinearColor& Tint, EBlendMode Blend = BLEND_Translucent)
+	{
+		Picture(Texture, Centre.X - W * 0.5f, Centre.Y - H * 0.5f, W, H, Tint, 0.0f, FVector2D::ZeroVector, Blend);
+	};
+	UTexture2D* Glow = GetKeimPicture(TEXT("T_Keim_Schein"));
+	auto Light = [&](const FVector2D& Centre, float Radius, const FLinearColor& Color)
+	{
+		Centred(Glow, Centre, Radius * 2.0f, Radius * 2.0f, Color, BLEND_Additive);
 	};
 	auto Label = [&](const FText& Text, float X, float Y, float Size, const FLinearColor& Color, float Align = 0.0f, float MaxWidth = 0.0f)
 	{
@@ -89,10 +152,12 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	};
 
 	const FLinearColor Ink = KeimRgb(42, 27, 16);
-	const FLinearColor InkDim = KeimRgb(42, 27, 16, 130);
+	const FLinearColor InkDim = KeimRgb(42, 27, 16, 140);
 	const FLinearColor Pale = KeimRgb(226, 210, 174);
+	const FLinearColor Dim = KeimRgb(150, 140, 120);
 	const FLinearColor Gold = KeimRgb(232, 178, 82);
 	const FLinearColor Sap = KeimRgb(140, 236, 150);
+	const FLinearColor Wax = KeimRgb(120, 16, 18);
 	const float Time = GetWorld() != nullptr ? GetWorld()->GetRealTimeSeconds() : 0.0f;
 	const float Pulse = 0.5f + 0.5f * FMath::Sin(Time * 5.0f);
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
@@ -103,24 +168,56 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	Picture(GetKeimPicture(TEXT("T_Keim_Grund")), 0.0f, 0.0f, 1920.0f, 1080.0f, FLinearColor::White);
 	DrawMenuTabs(PlayerController, OX + 1830.0f * K, 30.0f * K);
 
-	// ---------------- Herbarium: a card for each plant she knows, "?" for the places still empty
+	// ---------------- Herbarium: glasses on threads that sway; the chosen one swings when it is chosen and glows warm
 	const int32 NumCards = FMath::Min(Floromant->GetCatalogSize(), AVaelPlayerController::KeimCards);
 	const int32 NumPlaces = Floromant->GetHandBeltSize();
+	Label(FText::Format(LOCTEXT("Found", "{0} von {1} gefunden"), NumCards, AVaelPlayerController::KeimCards), 330.0f, 194.0f, 18.0f, Dim, 0.5f);
+	const int32 Chosen = Cursor.Carried >= 0 ? Cursor.Carried : Cursor.Zone == EVaelKeimZone::Herbarium ? Cursor.Card : INDEX_NONE;
+	if (Chosen != KeimSwingCard)
+	{
+		KeimSwingCard = Chosen;
+		KeimSwingTime = Time;
+	}
 	for (int32 Index = 0; Index < AVaelPlayerController::KeimCards; ++Index)
 	{
-		const float X0 = 110.0f + (Index % 3) * 182.0f;
-		const float Y0 = 262.0f + (Index / 3) * 180.0f;
 		const UVaelPlantArmData* Plant = Index < NumCards ? Floromant->GetCatalogPlant(Index) : nullptr;
+		const bool bChosen = Index == Chosen;
+		const float Scale = bChosen ? 1.08f : 1.0f;
+		const FVector2D Centre = GlassCentre(Index);
+		const FVector2D Knob(Centre.X, Centre.Y - GlassRY - 14.0f);
+		float Angle = 1.4f * FMath::Sin(Time * 0.9f + Index * 1.7f);
+		if (bChosen)
+		{
+			const float Since = Time - KeimSwingTime;
+			Angle += 7.0f * FMath::Exp(-2.2f * Since) * FMath::Sin(Since * 7.0f);
+		}
+		const float RX = GlassRX * Scale;
+		const float RY = GlassRY * Scale;
+		if (bChosen)
+		{
+			Light(Centre, 150.0f, KeimRgb(255, 200, 115) * 0.5f);
+		}
+		if (Plant != nullptr)
+		{
+			Picture(GetKeimPicture(*FString::Printf(TEXT("T_Keim_Oval_%s"), *PlantId(Plant))), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f,
+				FLinearColor::White, Angle, Knob);
+		}
+		else
+		{
+			// Not found yet: a dark silhouette behind the glass
+			Picture(GetKeimPicture(TEXT("T_Keim_Oval_Windhalm")), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f, FLinearColor(0.035f, 0.04f, 0.035f), Angle, Knob);
+		}
+		Picture(GetKeimPicture(bChosen ? TEXT("T_Keim_Glas_Gold") : TEXT("T_Keim_Glas")), Centre.X - 75.0f * Scale, Centre.Y - 105.0f * Scale,
+			150.0f * Scale, 190.0f * Scale, FLinearColor::White, Angle, Knob);
 		if (Plant == nullptr)
 		{
-			DrawBox(OX + (X0 + 18.0f) * K, (Y0 + 6.0f) * K, 124.0f * K, 124.0f * K, KeimRgb(14, 11, 9, 200));
-			Title(FText::FromString(TEXT("?")), X0 + 80.0f, Y0 + 34.0f, 64.0f, KeimRgb(120, 108, 92), 0.5f);
+			Title(FText::FromString(TEXT("?")), Centre.X, Centre.Y - 34.0f, 64.0f, KeimRgb(95, 100, 88), 0.5f);
+			Label(LOCTEXT("Unknown", "unentdeckt"), Centre.X, Centre.Y + RY + 10.0f, 15.0f, Dim, 0.5f, 150.0f);
 			continue;
 		}
-		Picture(VaelAssets::LoadOptional(Plant->WheelPicture), X0 + 22.0f, Y0 + 10.0f, 116.0f, 116.0f, FLinearColor::White);
-		Label(Plant->GetDisplayName(false), X0 + 80.0f, Y0 + 134.0f, 17.0f, Ink, 0.5f, 150.0f);
+		Label(Plant->GetDisplayName(false), Centre.X, Centre.Y + RY + 10.0f, bChosen ? 17.0f : 15.0f, bChosen ? Gold : Pale, 0.5f, 150.0f);
 
-		// In the wheel: a small green germ in the corner
+		// In the wheel: a green germ glowing at the top of the glass
 		bool bInWheel = false;
 		for (int32 Place = 0; Place < NumPlaces; ++Place)
 		{
@@ -128,77 +225,138 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		}
 		if (bInWheel)
 		{
-			DrawDisc(At(X0 + 146.0f, Y0 + 14.0f), 7.0f * K, Sap);
+			const FVector2D Germ(Centre.X + RX - 4.0f, Centre.Y - RY + 8.0f);
+			Light(Germ, 18.0f, Sap * (0.7f + 0.3f * FMath::Sin(Time * 2.0f + Index)));
+			DrawDisc(AtV(Germ), 5.0f * K, Sap);
 		}
 		if (Cursor.Carried == Index)
 		{
-			Frame(X0 - 6.0f, Y0 - 6.0f, X0 + 166.0f, Y0 + 166.0f, Sap * (0.6f + 0.4f * Pulse), 3.0f);
-		}
-		else if (Cursor.Zone == EVaelKeimZone::Herbarium && Cursor.Card == Index)
-		{
-			Frame(X0 - 6.0f, Y0 - 6.0f, X0 + 166.0f, Y0 + 166.0f, Gold, 3.0f);
+			DrawRing(AtV(Centre), (RY + 14.0f) * K, Sap * (0.6f + 0.4f * Pulse), 2.5f * K);
 		}
 	}
 
-	// ---------------- The strand: the wheel places as capsules, the ones not grown yet as sealed buds
+	// ---------------- The strand: sap runs up the light vine in glowing beads
+	for (int32 Bead = 0; Bead < 7; ++Bead)
+	{
+		const float T = 1.0f - FMath::Frac(Time * 0.07f + Bead / 7.0f);
+		const float Fade = FMath::SmoothStep(0.0f, 0.08f, T) * FMath::SmoothStep(1.0f, 0.9f, T);
+		const FVector2D Point = StrandPoint(T);
+		Light(Point, 26.0f, KeimRgb(130, 255, 150) * (0.9f * Fade));
+		DrawDisc(AtV(Point), 3.5f * K, KeimRgb(220, 255, 220, uint8(255 * Fade)));
+	}
+
+	// The wheel places: capsules with the plant, empty glass, or a sealed bud not grown yet
+	const bool bCarrying = Cursor.Carried >= 0;
+	if (Cursor.Carried != KeimCarried)
+	{
+		KeimCarried = Cursor.Carried;
+		KeimCarryTime = Time;
+	}
 	for (int32 Place = 0; Place < AVaelPlayerController::KeimCapsules; ++Place)
 	{
-		const float Side = Place % 2 == 0 ? -1.0f : 1.0f;
-		const FVector2D Centre(818.0f + Side * 112.0f, 272.0f + Place * 92.0f);
+		const FVector2D Centre = CapsuleCentre(Place);
 		if (Place >= NumPlaces)
 		{
-			Picture(GetKeimPicture(TEXT("T_Keim_Knospe")), Centre.X - 48.0f, Centre.Y - 48.0f, 96.0f, 96.0f, FLinearColor::White);
+			Centred(GetKeimPicture(TEXT("T_Keim_Knospe")), Centre, 110.0f, 110.0f, FLinearColor::White);
+			continue;
 		}
-		else if (const UVaelPlantArmData* Plant = Floromant->GetHandBeltPlant(Place))
-		{
-			const bool bShadow = Floromant->IsWheelShadow(Place) && !Plant->IsLightOnly();
-			UTexture2D* Round = GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s%s"), *PlantId(Plant), bShadow ? TEXT("_Schatten") : TEXT("")));
-			Picture(Round, Centre.X - 37.0f, Centre.Y - 37.0f, 74.0f, 74.0f, FLinearColor::White);
-		}
-
+		const UVaelPlantArmData* Plant = Floromant->GetHandBeltPlant(Place);
 		const bool bHere = Cursor.Zone == EVaelKeimZone::Wheel && Cursor.Capsule == Place;
-		if (bHere && Cursor.Carried >= 0)
+		const UVaelPlantArmData* Shown = bHere && bCarrying ? Floromant->GetCatalogPlant(Cursor.Carried) : Plant;
+		Light(Centre, 70.0f, KeimRgb(90, 230, 120) * (0.35f + 0.1f * FMath::Sin(Time * 1.3f + Place)));
+		if (Shown != nullptr)
 		{
-			// The carried plant hovers over the capsule it would grow in
-			if (const UVaelPlantArmData* Carried = Floromant->GetCatalogPlant(Cursor.Carried))
-			{
-				UTexture2D* Round = GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s"), *PlantId(Carried)));
-				Picture(Round, Centre.X - 37.0f, Centre.Y - 37.0f, 74.0f, 74.0f, FLinearColor(1.0f, 1.0f, 1.0f, 0.55f + 0.3f * Pulse));
-			}
-			DrawRing(At(Centre.X, Centre.Y), 46.0f * K, Sap * (0.6f + 0.4f * Pulse), 3.0f * K);
+			const bool bShadow = Shown == Plant && Floromant->IsWheelShadow(Place) && !Plant->IsLightOnly();
+			UTexture2D* Round = GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s%s"), *PlantId(Shown), bShadow ? TEXT("_Schatten") : TEXT("")));
+			Centred(Round, Centre, 76.0f, 76.0f, FLinearColor(1.0f, 1.0f, 1.0f, Shown == Plant ? 1.0f : 0.55f + 0.3f * Pulse));
 		}
-		else if (bHere)
+		Centred(GetKeimPicture(TEXT("T_Keim_Kapsel")), Centre, 100.0f, 100.0f, FLinearColor::White);
+		if (bHere)
 		{
-			DrawRing(At(Centre.X, Centre.Y), 46.0f * K, Gold, 3.0f * K);
+			DrawRing(AtV(Centre), 46.0f * K, bCarrying ? Sap * (0.6f + 0.4f * Pulse) : Gold, 3.0f * K);
 		}
 	}
 
-	// ---------------- The plate of the plant
+	// A carried plant: a tendril grows from its glass towards the capsule the cursor is on (or towards the strand)
+	if (bCarrying)
+	{
+		const FVector2D From = GlassCentre(Cursor.Carried) + FVector2D(GlassRX + 6.0f, 0.0f);
+		const FVector2D To = Cursor.Zone == EVaelKeimZone::Wheel ? CapsuleCentre(Cursor.Capsule) + FVector2D(Cursor.Capsule % 2 == 0 ? -40.0f : 40.0f, 0.0f)
+			: FVector2D(StrandX - 150.0f, From.Y);
+		const FVector2D Bend((From.X + To.X) * 0.5f, FMath::Min(From.Y, To.Y) - 60.0f);
+		const float Grown = FMath::Clamp((Time - KeimCarryTime) / 0.7f, 0.0f, 1.0f);
+		const int32 Steps = 24;
+		FVector2D Last = From;
+		for (int32 Step = 1; Step <= FMath::CeilToInt(Steps * Grown); ++Step)
+		{
+			const float T = FMath::Min(Step / float(Steps), Grown);
+			const FVector2D Point = From * FMath::Square(1.0f - T) + Bend * (2.0f * (1.0f - T) * T) + To * FMath::Square(T)
+				+ FVector2D(0.0f, 4.0f * FMath::Sin(T * 18.0f + Time * 3.0f));
+			DrawSegment(AtV(Last), AtV(Point), Sap * (0.45f + 0.35f * Pulse), FMath::Lerp(3.0f, 1.2f, T) * K);
+			Last = Point;
+		}
+		Light(Last, 16.0f, Sap);
+	}
+
+	// Fireflies drift slowly through the chamber
+	for (int32 Fly = 0; Fly < 16; ++Fly)
+	{
+		const FVector2D Home(120.0f + Hash01(Fly, 1) * 1680.0f, 170.0f + Hash01(Fly, 2) * 780.0f);
+		const float Speed = 0.12f + Hash01(Fly, 3) * 0.15f;
+		const FVector2D Point = Home + FVector2D(60.0f * FMath::Sin(Time * Speed + Fly), 35.0f * FMath::Sin(Time * Speed * 1.7f + Fly * 2.3f));
+		const float Blink = FMath::Max(0.0f, FMath::Sin(Time * (0.6f + Hash01(Fly, 4)) + Fly * 4.1f));
+		Light(Point, 16.0f + 8.0f * Hash01(Fly, 5), KeimRgb(255, 225, 130) * (0.25f + 0.75f * Blink));
+	}
+
+	// ---------------- The plate of the plant on the parchment
 	const UVaelPlantArmData* Plant = Floromant->GetCatalogPlant(FMath::Clamp(Cursor.PlatePlant, 0, FMath::Max(Floromant->GetCatalogSize() - 1, 0)));
 	if (Plant != nullptr)
 	{
 		const bool bShadowSide = Cursor.bShadowSide && !Plant->IsLightOnly();
-		Label(FText::Format(LOCTEXT("Plate", "Tafel {0}"), Roman(Cursor.PlatePlant + 1)), 1070.0f, 256.0f, 20.0f, Ink);
-		Title(Plant->GetDisplayName(bShadowSide), 1070.0f, 280.0f, 50.0f, Ink, 0.0f, 560.0f);
+		Label(FText::Format(LOCTEXT("Plate", "Tafel {0}"), Roman(Cursor.PlatePlant + 1)), SheetX + 56.0f, SheetY + 38.0f, 20.0f, InkDim);
+		Title(Plant->GetDisplayName(bShadowSide), SheetX + 54.0f, SheetY + 60.0f, 62.0f, Ink, 0.0f, 420.0f);
 		const FText Form = bShadowSide ? LOCTEXT("ShadowForm", "Schattenform") : Plant->IsLightOnly() ? LOCTEXT("LightOnly", "nur Lichtform") : LOCTEXT("LightForm", "Lichtform");
-		Label(Plant->LatinName.IsEmpty() ? Form : FText::Format(LOCTEXT("LatinForm", "{0} · {1}"), Plant->LatinName, Form), 1072.0f, 348.0f, 19.0f, Ink);
+		Label(Plant->LatinName.IsEmpty() ? Form : FText::Format(LOCTEXT("LatinForm", "{0} · {1}"), Plant->LatinName, Form), SheetX + 58.0f, SheetY + 140.0f, 21.0f, InkDim);
 
-		// The big picture in its dark window
-		Picture(VaelAssets::LoadOptional(bShadowSide && !Plant->WheelShadowPicture.IsNull() ? Plant->WheelShadowPicture : Plant->WheelPicture),
-			1070.0f, 390.0f, 300.0f, 300.0f, FLinearColor::White);
-
-		// Beside it: the figures of the plate, or what the plant does in numbers with her Erbanlagen
-		if (Plant->Figures.Num() > 0)
+		// The shadow form as a wax seal beside the name: sealed on the light path, chosen with the medallion before the vow,
+		// open after the shadow vow
+		const FVector2D Seal(SheetX + 520.0f, SheetY + 98.0f);
+		if (!Plant->IsLightOnly())
 		{
-			for (int32 Index = 0; Index < FMath::Min(Plant->Figures.Num(), 3); ++Index)
-			{
-				const float Y = 404.0f + Index * 96.0f;
-				DrawSegment(At(1376.0f, Y + 14.0f), At(1404.0f, Y + 14.0f), Ink, 1.2f * K);
-				Title(FText::Format(LOCTEXT("Fig", "Fig. {0}  {1}"), Index + 1, Plant->Figures[Index].Title), 1410.0f, Y, 23.0f, Ink, 0.0f, 400.0f);
-				Label(Plant->Figures[Index].Note, 1410.0f, Y + 32.0f, 17.0f, Ink, 0.0f, 400.0f);
-			}
+			const bool bSealed = Player->GetPath() == EVaelPath::Light;
+			DrawDisc(AtV(Seal), 40.0f * K, Wax);
+			Centred(GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s_Schatten"), *PlantId(Plant))), Seal, 64.0f, 64.0f,
+				bSealed ? FLinearColor(0.3f, 0.3f, 0.3f) : FLinearColor::White);
+			DrawRing(AtV(Seal), 38.0f * K, Wax * 1.4f, 4.0f * K);
 		}
-		else
+		const FText ShadowState = Plant->IsLightOnly() ? LOCTEXT("ShadowNone", "keine Schattenform")
+			: Player->GetPath() == EVaelPath::Light ? LOCTEXT("ShadowSealed", "Schatten versiegelt")
+			: Player->GetPath() == EVaelPath::None ? LOCTEXT("ShadowBefore", "Schatten vor dem Schwur")
+			: LOCTEXT("ShadowOpen", "Schatten offen, trinkt Nid");
+		Label(ShadowState, Seal.X, Seal.Y + 46.0f, 14.0f, InkDim, 0.5f, 200.0f);
+
+		// The miniature in its oval window, breathing a little
+		const FVector2D Mini(SheetX + 210.0f, SheetY + 375.0f);
+		const float Breath = 1.0f + 0.006f * FMath::Sin(Time * 1.1f);
+		const FString MiniId = PlantId(Plant) + (bShadowSide ? TEXT("_Schatten") : TEXT(""));
+		UTexture2D* MiniPicture = GetKeimPicture(*FString::Printf(TEXT("T_Keim_Oval_%s"), *MiniId));
+		Centred(MiniPicture != nullptr ? MiniPicture : GetKeimPicture(*FString::Printf(TEXT("T_Keim_Oval_%s"), *PlantId(Plant))), Mini,
+			300.0f * Breath, 370.0f * Breath, FLinearColor::White);
+
+		// Fig. notes in ink with pointers into the miniature
+		const FVector2D FigPoints[] = { Mini + FVector2D(10.0f, -120.0f), Mini + FVector2D(70.0f, 10.0f), Mini + FVector2D(-10.0f, 170.0f) };
+		for (int32 Index = 0; Index < FMath::Min(Plant->Figures.Num(), 3); ++Index)
+		{
+			const FVector2D Note(Mini.X + 190.0f, Mini.Y - 140.0f + Index * 116.0f);
+			const FVector2D Mid((FigPoints[Index].X + Note.X) * 0.5f, (FigPoints[Index].Y + Note.Y) * 0.5f + 12.0f);
+			DrawSegment(AtV(FigPoints[Index]), AtV(Mid), InkDim, 1.2f * K);
+			DrawSegment(AtV(Mid), AtV(Note + FVector2D(-8.0f, 12.0f)), InkDim, 1.2f * K);
+			DrawDisc(AtV(FigPoints[Index]), 3.5f * K, Ink);
+			Title(FText::Format(LOCTEXT("Fig", "Fig. {0}  {1}"), Index + 1, Plant->Figures[Index].Title), Note.X, Note.Y, 22.0f, Ink, 0.0f, 270.0f);
+			Label(Plant->Figures[Index].Note, Note.X, Note.Y + 28.0f, 16.0f, InkDim, 0.0f, 270.0f);
+		}
+
+		// Values under the miniature, with her Erbanlagen in them; a thin green bar shows how much
 		{
 			const float Saft = Plant->SaftPerShot * Floromant->GetGeneScale(Plant, EVaelGeneEffect::SaftCost);
 			const float Rate = 1.0f / FMath::Max(Plant->FireInterval * Floromant->GetGeneScale(Plant, EVaelGeneEffect::FireSpeed), 0.01f);
@@ -207,65 +365,81 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 			FNumberFormattingOptions Two;
 			Two.MinimumFractionalDigits = 1;
 			Two.MaximumFractionalDigits = 2;
-			const TPair<FText, FText> Lines[] =
+			const TPair<FText, float> Values[] =
 			{
-				{ LOCTEXT("Strength", "Kraft"), FText::Format(LOCTEXT("StrengthValue", "{0} %"), FText::AsNumber(FMath::RoundToInt(Power * 100.0f))) },
-				{ LOCTEXT("Rate", "Schüsse je Sekunde"), FText::AsNumber(Rate, &Two) },
-				{ LOCTEXT("Saft", "Saft je Schuss"), FText::AsNumber(Saft, &Two) },
-				{ LOCTEXT("Nid", "Nid je Sekunde im Schatten"), Plant->IsLightOnly() ? LOCTEXT("NoNid", "keins, nur Licht") : FText::AsNumber(Nid, &Two) },
+				{ FText::Format(LOCTEXT("PowerValue", "{0} %"), FText::AsNumber(FMath::RoundToInt(Power * 100.0f))), Power / 2.0f },
+				{ FText::Format(LOCTEXT("RateValue", "{0} / s"), FText::AsNumber(Rate, &Two)), Rate / 12.0f },
+				{ FText::AsNumber(Saft, &Two), Saft / 2.0f },
+				{ Plant->IsLightOnly() ? LOCTEXT("NoNid", "keins") : FText::Format(LOCTEXT("NidValue", "{0} / s"), FText::AsNumber(Nid, &Two)), Plant->IsLightOnly() ? 0.0f : Nid / 0.5f },
 			};
-			for (int32 Index = 0; Index < UE_ARRAY_COUNT(Lines); ++Index)
+			for (int32 Index = 0; Index < UE_ARRAY_COUNT(Values); ++Index)
 			{
-				const float Y = 400.0f + Index * 60.0f;
-				Title(Lines[Index].Key, 1410.0f, Y, 22.0f, Ink);
-				Label(Lines[Index].Value, 1410.0f, Y + 30.0f, 19.0f, Ink);
+				const float SX = SheetX + 64.0f + Index * 112.0f;
+				const float SY = SheetY + 594.0f;
+				Label(Values[Index].Key, SX + 34.0f, SY + 17.0f, 18.0f, Ink, 0.0f, 80.0f);
+				const float Share = FMath::Clamp(Values[Index].Value, 0.02f, 1.0f);
+				DrawSegment(At(SX, SY + 48.0f), At(SX + 92.0f * Share, SY + 48.0f), Index == 3 ? KeimRgb(140, 70, 190) : KeimRgb(64, 150, 64), 2.6f * K);
 			}
 		}
 
-		// The shadow form in its red ring: sealed on the light path, chosen with the medallion before the vow, open after the shadow vow
-		const FVector2D Shadow(1710.0f, 316.0f);
-		if (!Plant->IsLightOnly())
-		{
-			UTexture2D* Round = GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s_Schatten"), *PlantId(Plant)));
-			const bool bSealed = Player->GetPath() == EVaelPath::Light;
-			Picture(Round, Shadow.X - 50.0f, Shadow.Y - 50.0f, 100.0f, 100.0f, bSealed ? FLinearColor(0.35f, 0.35f, 0.35f) : FLinearColor::White);
-		}
-		const FText ShadowState = Plant->IsLightOnly() ? LOCTEXT("ShadowNone", "hat keine")
-			: Player->GetPath() == EVaelPath::Light ? LOCTEXT("ShadowSealed", "durch den Lichtweg versiegelt")
-			: Player->GetPath() == EVaelPath::None ? LOCTEXT("ShadowBefore", "vor dem Schwur mit dem Medaillon")
-			: LOCTEXT("ShadowOpen", "offen, trinkt Nid");
-		Label(ShadowState, Shadow.X, 406.0f, 14.0f, Ink, 0.5f, 230.0f);
-
-		// Erbanlagen: per tier one of two, open from her level on
+		// Erbgut: the tree, per tier two seeds on the branches; the taken one has bloomed
 		const TArray<FVaelGeneTier>& Tiers = Plant->GetGeneTiers();
 		const TArray<int32>& TierLevels = UVaelFloromantSettings::Get()->GeneTierLevels;
+		const float TreeX = SheetX + 690.0f;
+		const float TreeY = SheetY + 50.0f;
 		for (int32 Tier = 0; Tier < FMath::Min(Tiers.Num(), 3); ++Tier)
 		{
-			const float GX = 1080.0f + Tier * 255.0f;
+			const float ForkY = TreeY + 170.0f + Tier * 168.0f;
 			const bool bOpen = Floromant->IsGeneTierOpen(Tier);
-			Label(bOpen ? FText::Format(LOCTEXT("Tier", "Stufe {0}"), Roman(Tier + 1))
-				: FText::Format(LOCTEXT("TierClosed", "Stufe {0} · ab Stufe {1}"), Roman(Tier + 1), TierLevels.IsValidIndex(Tier) ? TierLevels[Tier] : 99),
-				GX, 750.0f, 15.0f, bOpen ? Ink : InkDim);
+			if (!bOpen)
+			{
+				Label(FText::Format(LOCTEXT("TierFrom", "ab Stufe {0}"), TierLevels.IsValidIndex(Tier) ? TierLevels[Tier] : 99), TreeX, ForkY - 44.0f, 15.0f, InkDim, 0.5f);
+			}
 			const int32 Taken = Floromant->GetGene(Plant, Tier);
+			const FString BloomKey = FString::Printf(TEXT("%s_%d"), *PlantId(Plant), Tier);
+			const int32* Seen = KeimSeenGenes.Find(BloomKey);
+			if (Seen == nullptr || *Seen != Taken)
+			{
+				// A new pick blooms; the first look at a plate shows its blossoms open already
+				KeimBloomTimes.Add(BloomKey, Seen != nullptr && Taken >= 0 ? Time : -10.0f);
+				KeimSeenGenes.Add(BloomKey, Taken);
+			}
+			const float Bloom = FMath::Clamp((Time - KeimBloomTimes.FindRef(BloomKey)) / 0.6f, 0.0f, 1.0f);
+			const float BloomScale = 1.0f + 2.7f * FMath::Pow(Bloom - 1.0f, 3.0f) + 1.7f * FMath::Pow(Bloom - 1.0f, 2.0f);
 			for (int32 Option = 0; Option < FMath::Min(Tiers[Tier].Options.Num(), 2); ++Option)
 			{
-				const float GY = 776.0f + Option * 40.0f;
-				const FVector2D Dot = At(GX + 16.0f, GY + 13.0f);
-				DrawRing(Dot, 14.0f * K, Taken == Option ? Gold : (bOpen ? Ink : InkDim), 2.4f * K);
+				const FVaelGene& Gene = Tiers[Tier].Options[Option];
+				const FVector2D Node(TreeX + (Option == 0 ? -92.0f : 92.0f), ForkY + 6.0f);
+				UTexture2D* Sign = GetKeimPicture(GeneSign(Gene.Effect));
 				if (Taken == Option)
 				{
-					DrawDisc(Dot, 9.0f * K, Sap);
+					Light(Node, 70.0f * BloomScale, KeimRgb(150, 255, 150) * (0.55f + 0.15f * FMath::Sin(Time * 2.0f)));
+					Centred(GetKeimPicture(TEXT("T_Keim_Bluete")), Node, 90.0f * BloomScale, 90.0f * BloomScale, FLinearColor::White);
+					Centred(Sign, Node, 30.0f * BloomScale, 30.0f * BloomScale, KeimRgb(255, 250, 230));
+				}
+				else
+				{
+					Centred(GetKeimPicture(bOpen ? TEXT("T_Keim_Same") : TEXT("T_Keim_Same_Zu")), Node, 80.0f, 80.0f, FLinearColor::White);
+					Centred(Sign, Node, 26.0f, 26.0f, bOpen ? KeimRgb(225, 235, 200, 220) : KeimRgb(150, 140, 120, 160));
 				}
 				if (Cursor.Zone == EVaelKeimZone::Genes && Cursor.Tier == Tier && Cursor.Option == Option)
 				{
-					DrawRing(Dot, 19.0f * K, Gold * (0.7f + 0.3f * Pulse), 2.0f * K);
+					DrawRing(AtV(Node), 38.0f * K, Gold * (0.7f + 0.3f * Pulse), 2.4f * K);
 				}
-				Label(Tiers[Tier].Options[Option].Name, GX + 40.0f, GY + 1.0f, 18.0f, bOpen ? Ink : InkDim, 0.0f, 205.0f);
+				Label(Gene.Name, Node.X, Node.Y + 38.0f, 17.0f, bOpen ? Ink : InkDim, 0.5f, 170.0f);
 			}
 		}
 
-		// Crosses with every other plant: known ones by name, the others hidden
-		struct FCross { FText Name; FText Partner; bool bKnown; };
+		// The chosen Erbanlage in words under the tree
+		if (Cursor.Zone == EVaelKeimZone::Genes && Tiers.IsValidIndex(Cursor.Tier) && Tiers[Cursor.Tier].Options.IsValidIndex(Cursor.Option))
+		{
+			const FVaelGene& Gene = Tiers[Cursor.Tier].Options[Cursor.Option];
+			Title(Gene.Name, TreeX, SheetY + 738.0f, 22.0f, Ink, 0.5f, 300.0f);
+			Label(Gene.Description, TreeX, SheetY + 770.0f, 18.0f, KeimRgb(18, 60, 18), 0.5f, 320.0f);
+		}
+
+		// Crosses as double medallions: known ones with both pictures, the others as silhouettes
+		struct FCross { FText Name; const UVaelPlantArmData* Other; bool bKnown; };
 		TArray<FCross> Crosses;
 		for (int32 Index = 0; Index < Floromant->GetCatalogSize(); ++Index)
 		{
@@ -274,7 +448,7 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 			if (Kind != EVaelSymbiosis::None)
 			{
 				const bool bKnown = Floromant->IsPairKnown(Kind);
-				Crosses.Add({ bKnown ? VaelSymbiosis::GetName(Kind) : FText::FromString(TEXT("?")), bKnown ? Other->GetDisplayName(false) : FText::FromString(TEXT("?")), bKnown });
+				Crosses.Add({ bKnown ? VaelSymbiosis::GetName(Kind) : FText::FromString(TEXT("?")), Other, bKnown });
 			}
 		}
 		Crosses.Sort([](const FCross& A, const FCross& B) { return A.bKnown && !B.bKnown; });
@@ -283,21 +457,34 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		{
 			NumKnown += Cross.bKnown ? 1 : 0;
 		}
-		Label(FText::Format(LOCTEXT("CrossCount", "{0} von {1} gewachsen"), NumKnown, Crosses.Num()), 1300.0f, 868.0f, 16.0f, Ink);
+		Label(FText::Format(LOCTEXT("CrossCount", "{0} von {1} gewachsen"), NumKnown, Crosses.Num()), SheetX + 270.0f, SheetY + 684.0f, 16.0f, InkDim);
+		UTexture2D* Own = GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s"), *PlantId(Plant)));
 		for (int32 Index = 0; Index < FMath::Min(Crosses.Num(), 4); ++Index)
 		{
-			const float CX = 1080.0f + (Index % 2) * 370.0f;
-			const float CY = 902.0f + (Index / 2) * 32.0f;
-			Title(Crosses[Index].Name, CX, CY, 20.0f, Ink, 0.0f, 150.0f);
-			Label(FText::Format(LOCTEXT("With", "mit {0}"), Crosses[Index].Partner), CX + 150.0f, CY + 2.0f, 17.0f, Ink, 0.0f, 200.0f);
+			const FVector2D Pair(SheetX + 96.0f + Index * 112.0f, SheetY + 760.0f);
+			const FCross& Cross = Crosses[Index];
+			for (int32 Half = 0; Half < 2; ++Half)
+			{
+				const FVector2D Disc = Pair + FVector2D(Half == 0 ? -14.0f : 14.0f, 0.0f);
+				if (Cross.bKnown)
+				{
+					Centred(Half == 0 ? Own : GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s"), *PlantId(Cross.Other))), Disc, 48.0f, 48.0f, FLinearColor::White);
+				}
+				else
+				{
+					DrawDisc(AtV(Disc), 24.0f * K, KeimRgb(40, 33, 26));
+				}
+				DrawRing(AtV(Disc), 24.0f * K, Cross.bKnown ? Gold : InkDim, 1.6f * K);
+			}
+			Label(Cross.Name, Pair.X, Pair.Y + 30.0f, 16.0f, Cross.bKnown ? Ink : InkDim, 0.5f, 108.0f);
 		}
 		if (Crosses.Num() > 4)
 		{
-			Label(FText::Format(LOCTEXT("MoreCrosses", "und {0} weitere"), Crosses.Num() - 4), 1780.0f, 936.0f, 15.0f, Ink, 1.0f);
+			Label(FText::Format(LOCTEXT("MoreCrosses", "+{0}"), Crosses.Num() - 4), SheetX + 96.0f + 4 * 112.0f - 30.0f, SheetY + 748.0f, 20.0f, InkDim);
 		}
 	}
 
-	// ---------------- Footer: the buttons, and what the selected Erbanlage does
+	// ---------------- Footer: the buttons
 	FText Action;
 	switch (Cursor.Zone)
 	{
@@ -321,7 +508,7 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		}
 		return Button == EButton::Confirm ? LOCTEXT("XbConfirm", "A") : Button == EButton::Back ? LOCTEXT("XbBack", "B") : LOCTEXT("XbTurn", "X");
 	};
-	const float TextSize = 20.0f;
+	const float TextSize = 21.0f;
 	const float Gap = 46.0f;
 	float Width = 0.0f;
 	for (const TPair<EButton, FText>& Hint : Hints)
@@ -330,14 +517,14 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		Width += Sign + 8.0f + MeasureLabel(Hint.Value, TextSize * K) / K + Gap;
 	}
 	float X = 960.0f - (Width - Gap) * 0.5f;
-	const float Y = 1004.0f;
+	const float Y = 1026.0f;
 	for (const TPair<EButton, FText>& Hint : Hints)
 	{
 		if (Glyphs == EVaelInputGlyphs::PlayStation)
 		{
 			// Cross, circle, square in a gold ring
 			const FVector2D Centre = At(X + 13.0f, Y + 13.0f);
-			DrawRing(Centre, 12.0f * K, Gold, 1.6f * K);
+			DrawRing(Centre, 13.0f * K, Gold, 1.8f * K);
 			const float R = 5.5f * K;
 			if (Hint.Key == EButton::Confirm)
 			{
@@ -365,14 +552,6 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		X += 8.0f;
 		Label(Hint.Value, X, Y + 1.0f, TextSize, Pale);
 		X += MeasureLabel(Hint.Value, TextSize * K) / K + Gap;
-	}
-
-	if (Cursor.Zone == EVaelKeimZone::Genes && Plant != nullptr && Plant->GetGeneTiers().IsValidIndex(Cursor.Tier)
-		&& Plant->GetGeneTiers()[Cursor.Tier].Options.IsValidIndex(Cursor.Option))
-	{
-		const FVaelGene& Gene = Plant->GetGeneTiers()[Cursor.Tier].Options[Cursor.Option];
-		Title(Gene.Name, 1410.0f, 640.0f, 20.0f, Ink, 0.0f, 400.0f);
-		Label(Gene.Description, 1410.0f, 666.0f, 16.0f, Ink, 0.0f, 400.0f);
 	}
 }
 

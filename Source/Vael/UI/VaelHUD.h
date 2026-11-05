@@ -297,6 +297,15 @@ private:
 	/** The Floromant's Keimgeflecht page: herbarium, strand with the wheel capsules, the plate of a plant with its Erbanlagen */
 	void DrawKeimgeflecht(const AVaelPlayerController* PlayerController);
 
+	/** Motion of the Keimgeflecht: when the chosen glass started to swing, when the carried plant was taken, when an Erbanlage
+	 *  bloomed (by plant and tier) and which one each tier had last time */
+	int32 KeimSwingCard = INDEX_NONE;
+	float KeimSwingTime = -10.0f;
+	int32 KeimCarried = INDEX_NONE;
+	float KeimCarryTime = -10.0f;
+	TMap<FString, int32> KeimSeenGenes;
+	TMap<FString, float> KeimBloomTimes;
+
 	bool bLevelMapLookedUp = false;
 
 	/** Height of the font at scale 1, in pixels */
