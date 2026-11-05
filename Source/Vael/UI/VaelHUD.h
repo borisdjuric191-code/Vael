@@ -305,6 +305,16 @@ private:
 	float KeimCarryTime = -10.0f;
 	TMap<FString, int32> KeimSeenGenes;
 	TMap<FString, float> KeimBloomTimes;
+	/** Labels get a dark drop shadow (off for ink written on the parchment of the Keimgeflecht) */
+	bool bLabelShadow = true;
+
+	/** How fast the two strands of the Keimgeflecht wind round each other (radians per second) */
+	static constexpr float KeimStrandSpin = 0.3f;
+
+	/** The two strands of the Keimgeflecht, drawn live so they wind round each other: living wood and shadow root as bark
+	 *  bands, between them even dotted rungs, leaves on the light strand */
+	void DrawKeimStrand(float OX, float K, float Time);
+
 	/** When the page was opened (the vines grow out of the frame then) and last drawn */
 	float KeimOpenTime = -10.0f;
 	float KeimLastDraw = -10.0f;

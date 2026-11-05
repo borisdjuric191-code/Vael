@@ -41,7 +41,7 @@ def patch():
     K.leaf = D.detailed_leaf
     K.moth_emblem = D.detailed_moth
     K.alive_room = D.detailed_room
-    K.aged_paper = papyrus_mat
+    K.aged_paper = papyrus2_mat
 
 
 def lights():
@@ -92,7 +92,7 @@ def build_background():
     # Die flachen Lichtbahnen aus C fallen weg: die echten Lichtstrahlen (god_rays) ersetzen sie, und ihre Kanten zeichneten
     # sich unten links als graue Fläche ab
     K.alive_room()
-    frame_roots()
+    frame_weave()
     # Vignette erst nach dem Rendern (T.vignette_png), weicher und gleichmäßiger als eine Fläche vor der Kamera
     for x, y, a, l in ((-30, 90, 25, 200), (-20, 1060, -35, 220), (1950, 40, 160, 190)):
         K.leaf(x, y, a, l, l * 0.42, K.mat("Vorderblatt", (0.008, 0.02, 0.008), 0.8), depth=-60, bend=0.2)
@@ -141,17 +141,9 @@ def build_background():
                 if thorns:
                     K.tube("Dorn", [(x, y), (x + side * 13, y + 3)], 2.8, material, depth=-12, taper=True)
 
-    # Realistisch (Boris 2026-11-05): Lichtstrang aus lebendem grünem Holz mit Rinde, Schattenstrang eine dunkle, verdrehte Wurzel
-    living_wood = K.noisy("Lichtholz", (0.05, 0.10, 0.035), (0.20, 0.30, 0.11), 0.09, detail=12.0, rough=0.55, stripes=1.2, emit=0.12)
-    strand(0.0, 9.0, living_wood, True, False)
-    strand(math.pi, 8.0, D.bark_mat("Schattenwurzel"), False, True)
-    for k in range(0, steps, 7):
-        t = k / steps
-        y = top + (bottom - top) * t
-        phase = t * 4.4 * math.pi
-        a, b = cx + amp * math.sin(phase), cx + amp * math.sin(phase + math.pi)
-        if abs(a - b) > 26:
-            K.tube("Sprosse", [(a, y), ((a + b) / 2, y + 5), (b, y)], 1.6, K.mat("Wurzelfaser", (0.22, 0.26, 0.15), 0.7, emit=0.12), depth=0)
+    # Die beiden Stränge und die Sprossen zeichnet das Spiel (sie winden sich, VaelHUDKeimgeflecht.cpp DrawKeimStrand); hier
+    # bleiben Motte, Stiele, Blattrosetten und Nummern
+    living_wood = scan_bark_mat("Lichtholz", 120.0, (0.42, 0.56, 0.3), period=120.0)
     K.moth_emblem(cx, top - 30, 1.15)
     for i in range(8):
         y = top + 50 + i * 92
@@ -165,7 +157,7 @@ def build_background():
 
     # Die Tafel: Pergament gerade (damit die Schrift des Spiels aufliegt), Miniaturfenster, feste Überschriften
     x0, y0, x1, y1 = SHEET
-    C.sheet("Pergament", x0, y0, x1, y1, K.PAPER, depth=14)
+    papyrus_sheet(x0, y0, x1, y1, K.PAPER, depth=14)
     mx, my, mrx, mry = x0 + 210, y0 + 375, 150, 185
     K.glow(mx, my, 300, K.glow_mat("Miniaturschein", (0.95, 0.85, 0.6), 0.25), depth=8)
     C.oval_disc("Miniaturgrund", mx, my, mrx, mry, K.mat("Fenster", (0.02, 0.025, 0.02), 0.6), depth=2)
@@ -738,22 +730,33 @@ JAR_W, JAR_H = 150, 190
 
 def jar(picture, empty=False):
     """Ein Sammelglas mit der Pflanze darin: ihr Bild als Karte im Glas, unten Erde und Moos davor, Glas mit Brechung,
-    Korken mit Schnur; Streiflicht von links, Kantenlicht von hinten rechts, damit das Glas mit Licht und Schatten spielt"""
+    Korken mit Schnur; Streiflicht von links, Kantenlicht von hinten rechts. Kein Glas gleicht dem anderen (Boris
+    2026-11-05): Form, Glastönung, Korken (schief, konisch, uneben) und Schnur je Pflanze ein wenig anders"""
     def build():
-        x, y = 75, 105
-        cork = K.noisy("Kork", (0.20, 0.12, 0.06), (0.42, 0.28, 0.14), 0.25, detail=10.0, rough=0.9)
-        twine = K.noisy("Schnur", (0.30, 0.22, 0.12), (0.48, 0.38, 0.24), 0.6, detail=6.0, rough=0.95, stripes=1.0)
+        key = os.path.basename(picture) if picture else "leer"
+        r = random.Random(sum(ord(c) * (i + 1) for i, c in enumerate(key)))
+        x = 75 + r.uniform(-1.5, 1.5)
+        bottom = 171.0
+        body_r = r.uniform(50, 56)
+        body_h = r.uniform(118, 134)
+        top = bottom - body_h
+        y = bottom - body_h / 2
+        cork = K.noisy("Kork", (0.18, 0.11, 0.05), (0.44, 0.30, 0.15), r.uniform(0.2, 0.32), detail=12.0, rough=0.9)
+        twine = K.noisy("Schnur", (0.28, 0.2, 0.11), (0.5, 0.4, 0.25), 0.6, detail=6.0, rough=0.95, stripes=1.0)
         soil = K.noisy("Erde", (0.03, 0.02, 0.015), (0.10, 0.07, 0.045), 0.15, detail=10.0, rough=0.95)
         glass = bpy.data.materials.new("Glas")
         glass.use_nodes = True
         gb = glass.node_tree.nodes["Principled BSDF"]
-        gb.inputs["Base Color"].default_value = (0.86, 0.95, 0.88, 1)
-        gb.inputs["Roughness"].default_value = 0.04
+        gb.inputs["Base Color"].default_value = r.choice(((0.86, 0.95, 0.88, 1), (0.92, 0.9, 0.78, 1), (0.82, 0.92, 0.9, 1), (0.9, 0.94, 0.84, 1)))
+        gb.inputs["Roughness"].default_value = r.uniform(0.02, 0.08)
         gb.inputs["Transmission Weight"].default_value = 1.0
         gb.inputs["IOR"].default_value = 1.47
 
-        def cylinder(name, cy, radius, height, material, bevel=0.0, depth=-4.0):
-            bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=radius, depth=height, location=K.P(x, cy, depth))
+        def cylinder(name, cy, radius, height, material, bevel=0.0, depth=-4.0, radius_top=None):
+            if radius_top is None:
+                bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=radius, depth=height, location=K.P(x, cy, depth))
+            else:
+                bpy.ops.mesh.primitive_cone_add(vertices=64, radius1=radius, radius2=radius_top, depth=height, location=K.P(x, cy, depth))
             obj = bpy.context.object
             obj.name = name
             if bevel > 0:
@@ -764,31 +767,50 @@ def jar(picture, empty=False):
             obj.data.materials.append(material)
             return obj
 
-        # Glas als Hohlkörper (Wand 3 px), damit es innen bricht und außen spiegelt
-        outer = cylinder("Glas", y, 55, 132, glass, bevel=16)
-        solid = outer.modifiers.new("Wand", "SOLIDIFY")
-        solid.thickness = 3.0
-        cylinder("Hals", 35, 45, 10, glass, bevel=3)
-        cylinder("Lippe", 29, 48, 6, glass, bevel=2.5)
-        cylinder("Korken", 17, 40, 22, cork, bevel=3)
-        bpy.ops.mesh.primitive_torus_add(major_radius=46.5, minor_radius=2.0, location=K.P(x, 36, -4))
-        bpy.context.object.data.materials.append(twine)
-        bpy.ops.mesh.primitive_torus_add(major_radius=46.5, minor_radius=2.0, location=K.P(x, 40, -4))
-        bpy.context.object.data.materials.append(twine)
-        K.tube("Schlaufe", [(x - 42, 38), (x - 54, 50), (x - 50, 62), (x - 46, 68)], 1.6, twine, depth=-52)
+        # Glas als Hohlkörper (Wand 3 px), leicht unregelmäßig in der Breite
+        outer = cylinder("Glas", y, body_r, body_h, glass, bevel=r.uniform(12, 20))
+        outer.scale = (r.uniform(0.97, 1.03), 1.0, 1.0)
+        outer.modifiers.new("Wand", "SOLIDIFY").thickness = 3.0
+        neck_r = body_r - r.uniform(8, 12)
+        cylinder("Hals", top - 4, neck_r, 10, glass, bevel=3)
+        lip_y = top - 10
+        cylinder("Lippe", lip_y, neck_r + 3, 6, glass, bevel=2.5)
+        # Korken: konisch, schief gesteckt, uneben geschnitten, oben bis zum Knauf des Fadens
+        cork_bottom = lip_y + 4
+        cork_top = 8.0 + r.uniform(-1.5, 1.5)
+        plug = cylinder("Korken", (cork_bottom + cork_top) / 2, neck_r - 4, cork_bottom - cork_top, cork, bevel=2.5, radius_top=neck_r - 4 + r.uniform(2, 5))
+        # radius1 ist unten, radius2 oben: der Korken ist oben breiter; schief gesteckt (Drehung in der Bildebene)
+        plug.rotation_euler = (0, math.radians(r.uniform(-5, 5)), 0)
+        plug.modifiers.new("Uneben", "SUBSURF").levels = 1
+        tex = bpy.data.textures.new("Korkbeulen", "CLOUDS")
+        tex.noise_scale = r.uniform(4, 8)
+        disp = plug.modifiers.new("Beulen", "DISPLACE")
+        disp.texture = tex
+        disp.strength = r.uniform(0.8, 1.8)
+        wraps = r.randint(1, 3)
+        for w in range(wraps):
+            bpy.ops.mesh.primitive_torus_add(major_radius=neck_r + 1.5, minor_radius=r.uniform(1.6, 2.4), location=K.P(x, top - 2 - w * 3.5 + r.uniform(-0.8, 0.8), -4))
+            ring = bpy.context.object
+            ring.rotation_euler = (math.radians(r.uniform(-4, 4)), 0, math.radians(r.uniform(-4, 4)))
+            ring.data.materials.append(twine)
+        side = r.choice((-1, 1))
+        tail = r.uniform(18, 34)
+        K.tube("Schlaufe", [(x + side * (neck_r - 2), top), (x + side * (neck_r + 10), top + tail * 0.4), (x + side * (neck_r + 6), top + tail * 0.8),
+                            (x + side * (neck_r + 2), top + tail)], 1.6, twine, depth=-52)
         # Innen: die Pflanze als Karte, etwas hinter der Mitte, unten Erde mit Moos davor
         if not empty and picture:
-            card = K.quad("Bild", x - 46, y - 58, x + 46, y + 56, K.cutout_mat(picture, emit=1.0), depth=12)
+            half_w = body_r - 9
+            card = K.quad("Bild", x - half_w, bottom - 14 - half_w * 2.4, x + half_w, bottom - 10, K.cutout_mat(picture, emit=1.0), depth=12)
             card.visible_shadow = True
-        heap = K.sphere("Erde", x, y + 50, 44, soil, depth=-2)
+        heap = K.sphere("Erde", x, bottom - 21, body_r - 10, soil, depth=-2)
         heap.scale = (1.0, 0.9, 0.28)
         for _ in range(14 if not empty else 6):
-            px, py = x + rnd.uniform(-36, 36), y + 42 + rnd.uniform(-3, 4)
-            tuft = K.sphere("Moos", px, py, rnd.uniform(4, 8), K.MOSS, depth=rnd.uniform(-30, -6))
+            px, py = x + r.uniform(-body_r + 18, body_r - 18), bottom - 29 + r.uniform(-3, 4)
+            tuft = K.sphere("Moos", px, py, r.uniform(4, 8), K.MOSS, depth=r.uniform(-30, -6))
             tuft.scale = (1.0, 1.0, 0.6)
         if empty:
-            # leeres Glas: nur ein vertrockneter Halm und Staub
-            K.tube("Halm", [(x - 6, y + 50), (x - 2, y + 10), (x + 6, y - 20)], 1.4, K.mat("Trocken", (0.25, 0.2, 0.12), 0.9), depth=-6)
+            # leeres Glas: nur ein vertrockneter Halm
+            K.tube("Halm", [(x - 6, bottom - 21), (x - 2, y + 10), (x + 6, y - 20)], 1.4, K.mat("Trocken", (0.25, 0.2, 0.12), 0.9), depth=-6)
 
     return build
 
@@ -866,7 +888,7 @@ def strip_lights(scene):
         if obj.type == "LIGHT":
             bpy.data.objects.remove(obj)
     data = bpy.data.lights.new("Oben", "AREA")
-    data.energy, data.size, data.color = 2.4e7, 2000, (1.0, 0.9, 0.75)
+    data.energy, data.size, data.color = 3.2e7, 500, (1.0, 0.9, 0.75)
     obj = bpy.data.objects.new("Oben", data)
     obj.location = K.P(512, -900, -600)
     obj.rotation_euler = (K.P(512, 32, 0) - obj.location).to_track_quat("-Z", "Y").to_euler()
@@ -883,6 +905,349 @@ def real_leaf():
 def strip_scale(w, h):
     """Bänder sind breiter als hoch: die Kamera nimmt die Breite"""
     return max(w, h)
+
+
+# ---------------------------------------------------------------- Runde 5 (Boris 2026-11-05): echte Scans statt Muster
+
+SCANS = os.path.join(K.ROOT, "Saved", "Scans")  # von Scripts/ExportKeimTextures.py (Megascans, nur gelesen)
+# ein senkrechtes Stück verwitterter Rinde aus dem Ast-Scan (Bildkoordinaten, y nach oben)
+BARK_CROP = (0.03, 0.03, 0.21, 0.46)
+
+
+def _scan(nt, name, non_color=False):
+    tex = nt.nodes.new("ShaderNodeTexImage")
+    tex.image = bpy.data.images.load(os.path.join(SCANS, name), check_existing=True)
+    if non_color:
+        tex.image.colorspace_settings.name = "Non-Color"
+    return tex
+
+
+def scan_bark_mat(name, length, tint=(0.62, 0.58, 0.52), period=260.0, around=1.0, glow=None):
+    """Echte Rinde auf einer Kurve: entlang der Kurve läuft die Maserung, gespiegelt wiederholt (keine Nähte)"""
+    m, nt, b = _nodes(name)
+    n, l = nt.nodes, nt.links
+    coord = n.new("ShaderNodeTexCoord")
+    sep = n.new("ShaderNodeSeparateXYZ")
+    l.new(coord.outputs["UV"], sep.inputs[0])
+    along = n.new("ShaderNodeMath")
+    along.operation = "MULTIPLY"
+    along.inputs[1].default_value = length / period
+    l.new(sep.outputs["X"], along.inputs[0])
+    ping = n.new("ShaderNodeMath")
+    ping.operation = "PINGPONG"
+    ping.inputs[1].default_value = 1.0
+    l.new(along.outputs[0], ping.inputs[0])
+    x0, y0, x1, y1 = BARK_CROP
+    u = n.new("ShaderNodeMapRange")
+    u.inputs["To Min"].default_value, u.inputs["To Max"].default_value = x0, x0 + (x1 - x0) * around
+    l.new(sep.outputs["Y"], u.inputs["Value"])
+    v = n.new("ShaderNodeMapRange")
+    v.inputs["To Min"].default_value, v.inputs["To Max"].default_value = y0, y1
+    l.new(ping.outputs[0], v.inputs["Value"])
+    comb = n.new("ShaderNodeCombineXYZ")
+    l.new(u.outputs[0], comb.inputs["X"])
+    l.new(v.outputs[0], comb.inputs["Y"])
+    col = _scan(nt, "Ast_B_2K.png")
+    nor = _scan(nt, "Ast_N_2K.png", non_color=True)
+    l.new(comb.outputs[0], col.inputs["Vector"])
+    l.new(comb.outputs[0], nor.inputs["Vector"])
+    tinted = n.new("ShaderNodeMix")
+    tinted.data_type = "RGBA"
+    tinted.blend_type = "MULTIPLY"
+    tinted.inputs["Factor"].default_value = 1.0
+    l.new(col.outputs["Color"], tinted.inputs[6])
+    tinted.inputs[7].default_value = (*tint, 1)
+    l.new(tinted.outputs[2], b.inputs["Base Color"])
+    nmap = n.new("ShaderNodeNormalMap")
+    nmap.inputs["Strength"].default_value = 1.4
+    l.new(nor.outputs["Color"], nmap.inputs["Color"])
+    l.new(nmap.outputs[0], b.inputs["Normal"])
+    b.inputs["Roughness"].default_value = 0.82
+    if glow is not None:
+        b.inputs["Emission Color"].default_value = (*glow[0], 1)
+        b.inputs["Emission Strength"].default_value = glow[1]
+    return m
+
+
+def curve_length(points):
+    return sum(math.hypot(points[i + 1][0] - points[i][0], points[i + 1][1] - points[i][1]) for i in range(len(points) - 1))
+
+
+def bark_root(points, radius, tint, depth, rng, taper=0.75, moss=0.0):
+    """Eine Wurzel aus echter Rinde entlang eines Weges, knorrig in der Dicke, zur Spitze dünner"""
+    curve = bpy.data.curves.new("Wurzel", "CURVE")
+    curve.dimensions = "3D"
+    curve.bevel_depth = radius
+    curve.bevel_resolution = 6
+    sp = curve.splines.new("POLY")
+    sp.points.add(len(points) - 1)
+    phase = rng.uniform(0, 10)
+    for i, (px, py) in enumerate(points):
+        p = K.P(px, py, depth + 2.0 * math.sin(i * 0.3 + phase))
+        sp.points[i].co = (p.x, p.y, p.z, 1)
+        t = i / max(len(points) - 1, 1)
+        sp.points[i].radius = max(0.2, (1.0 - taper * t) * (1.0 + 0.14 * math.sin(t * 17.0 + phase) + 0.08 * math.sin(t * 43.0 + phase * 2)))
+    obj = bpy.data.objects.new("Wurzel", curve)
+    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(scan_bark_mat("Rinde", curve_length(points), tint, period=rng.uniform(200, 320), around=rng.uniform(0.7, 1.0)))
+    if moss > 0:
+        for i in range(2, len(points) - 2, 3):
+            if rng.random() < moss:
+                px, py = points[i]
+                tuft = K.sphere("Moos", px, py - radius * 0.6, rng.uniform(radius * 0.25, radius * 0.45), K.MOSS, depth=depth - radius * 0.5)
+                tuft.scale = (rng.uniform(1.4, 2.6), 0.8, 0.5)
+    return obj
+
+
+def frame_weave():
+    """Der Rahmen selbst aus Wurzeln: an jedem Rand mehrere Wurzeln übereinander gestapelt, die sich umeinander winden und
+    überschlagen (wie ein Korb), mit Moos und Blättern; was sich bewegt, legt das Spiel darüber (VaelHUDKeimVines.cpp)"""
+    rng = random.Random(77)
+    # (Anfang, Ende, Breite des Bandes, Lage innen) je Rand; das Band bleibt im Rand (frei: Herbarium, Strang, Tafel, Knöpfe)
+    edges = [((-40, 30), (1960, 26), 46, (0, 1)), ((-40, 1058), (1960, 1062), 40, (0, -1)),
+             ((40, -40), (34, 1120), 64, (1, 0)), ((1888, -40), (1894, 1120), 60, (-1, 0))]
+    tints = [(0.55, 0.5, 0.44), (0.42, 0.36, 0.3), (0.62, 0.56, 0.46), (0.5, 0.48, 0.38), (0.36, 0.3, 0.26)]
+    for (sx, sy), (ex, ey), band, inward in edges:
+        length = math.hypot(ex - sx, ey - sy)
+        dx, dy = (ex - sx) / length, (ey - sy) / length
+        nx, ny = -dy, dx
+        for k in range(7):
+            radius = rng.uniform(6, 15) if k < 5 else rng.uniform(3, 6)
+            waves = rng.uniform(3.0, 7.0)
+            phase = rng.uniform(0, 2 * math.pi)
+            offset = rng.uniform(-0.15, 0.15) * band
+            pts = []
+            for j in range(160):
+                t = j / 159
+                # jede Wurzel windet sich quer über das Band, so kreuzen sie sich immer wieder
+                across = offset + 0.42 * band * math.sin(t * waves * 2 * math.pi + phase) + 4 * math.sin(t * 61 + phase)
+                pts.append((sx + dx * length * t + nx * across, sy + dy * length * t + ny * across))
+            depth = -4 - 6 * math.sin(phase) - k * 1.5
+            bark_root(pts, radius, rng.choice(tints), depth, rng, taper=0.1, moss=0.35)
+        # Blätter und Seitentriebe aus dem Geflecht, zum Bildrand hin
+        for _ in range(int(length / 70)):
+            t = rng.uniform(0, 1)
+            px, py = sx + dx * length * t, sy + dy * length * t
+            out_x, out_y = -inward[0], -inward[1]
+            K.leaf(px + nx * rng.uniform(-0.3, 0.3) * band, py + ny * rng.uniform(-0.3, 0.3) * band,
+                   math.degrees(math.atan2(out_y + rng.uniform(-0.8, 0.8), out_x + rng.uniform(-0.8, 0.8))), rng.uniform(26, 46), rng.uniform(11, 18),
+                   rng.choice((K.LEAF_DARK, K.LEAF_DARK, K.LEAF)), depth=-24, bend=0.2)
+    # die Ecken: dicke Knoten, wo die Bänder sich treffen
+    for cx, cy in ((40, 30), (1890, 28), (38, 1058), (1892, 1060)):
+        for _ in range(5):
+            a = rng.uniform(0, 2 * math.pi)
+            r = rng.uniform(50, 110)
+            pts = [(cx + math.cos(a + j * 0.04) * (j / 30 - 0.5) * r * 2, cy + math.sin(a + j * 0.04) * (j / 30 - 0.5) * r * 2) for j in range(31)]
+            bark_root(pts, rng.uniform(8, 16), rng.choice(tints), -14, rng, taper=0.5, moss=0.4)
+
+
+def papyrus2_mat(name):
+    """Papyrus aus echten Scans: lange Fasern (Fasern-Scan) und Gewebe (Leinen-Scan) statt gerechneter Streifen, die Lagen
+    unregelmäßig verzogen, Flecken und Ränder organisch, zum Rand gebräunt; nichts darf geometrisch wirken"""
+    m, nt, b = _nodes(name)
+    n, l = nt.nodes, nt.links
+    coord = n.new("ShaderNodeTexCoord")
+
+    def node(kind, **inputs):
+        nd = n.new(kind)
+        for key, value in inputs.items():
+            nd.inputs[key].default_value = value
+        return nd
+
+    def warp(scale, amount, seed):
+        """Objektkoordinaten, von weichem Rauschen verzogen: nichts läuft schnurgerade"""
+        noise = node("ShaderNodeTexNoise", Scale=1.0, Detail=4.0, Roughness=0.5)
+        mp = node("ShaderNodeMapping")
+        mp.inputs["Scale"].default_value = (scale, scale, scale)
+        mp.inputs["Location"].default_value = (seed, seed * 0.7, seed * 1.3)
+        l.new(coord.outputs["Object"], mp.inputs["Vector"])
+        l.new(mp.outputs[0], noise.inputs["Vector"])
+        sub = node("ShaderNodeVectorMath")
+        sub.operation = "SUBTRACT"
+        sub.inputs[1].default_value = (0.5, 0.5, 0.5)
+        l.new(noise.outputs["Color"], sub.inputs[0])
+        sc = node("ShaderNodeVectorMath")
+        sc.operation = "SCALE"
+        sc.inputs["Scale"].default_value = amount
+        l.new(sub.outputs[0], sc.inputs[0])
+        add = node("ShaderNodeVectorMath")
+        add.operation = "ADD"
+        l.new(coord.outputs["Object"], add.inputs[0])
+        l.new(sc.outputs[0], add.inputs[1])
+        return add.outputs[0]
+
+    def scan_on(vec, file, scale_x, scale_z, rotate=False):
+        """Ein Scan auf der Fläche (X/Z der Szene), Größe in Bildern je Pixel"""
+        sep = node("ShaderNodeSeparateXYZ")
+        l.new(vec, sep.inputs[0])
+        comb = node("ShaderNodeCombineXYZ")
+        mx = node("ShaderNodeMath", )
+        mx.operation = "MULTIPLY"
+        mx.inputs[1].default_value = scale_x
+        mz = node("ShaderNodeMath")
+        mz.operation = "MULTIPLY"
+        mz.inputs[1].default_value = scale_z
+        l.new(sep.outputs["X" if not rotate else "Z"], mx.inputs[0])
+        l.new(sep.outputs["Z" if not rotate else "X"], mz.inputs[0])
+        l.new(mx.outputs[0], comb.inputs["X"])
+        l.new(mz.outputs[0], comb.inputs["Y"])
+        tex = _scan(nt, file, non_color=True)
+        l.new(comb.outputs[0], tex.inputs["Vector"])
+        return tex.outputs["Color"]
+
+    def bw(color):
+        c = node("ShaderNodeRGBToBW")
+        l.new(color, c.inputs[0])
+        return c.outputs[0]
+
+    def ramp(fac, stops):
+        r = n.new("ShaderNodeValToRGB")
+        els = r.color_ramp.elements
+        els[0].position, els[0].color = stops[0][0], stops[0][1]
+        els[1].position, els[1].color = stops[-1][0], stops[-1][1]
+        for pos, col in stops[1:-1]:
+            e = els.new(pos)
+            e.color = col
+        l.new(fac, r.inputs["Fac"])
+        return r.outputs["Color"]
+
+    def multiply(a, c, fac=1.0):
+        mx = node("ShaderNodeMix")
+        mx.data_type = "RGBA"
+        mx.blend_type = "MULTIPLY"
+        mx.inputs["Factor"].default_value = fac
+        l.new(a, mx.inputs[6])
+        l.new(c, mx.inputs[7])
+        return mx.outputs[2]
+
+    def noise_on(vec, scale, detail, distortion=0.0):
+        t = node("ShaderNodeTexNoise", Scale=scale, Detail=detail, Roughness=0.6, Distortion=distortion)
+        l.new(vec, t.inputs["Vector"])
+        return t.outputs["Fac"]
+
+    warped = warp(0.004, 40.0, 3.0)
+    fine_warp = warp(0.02, 6.0, 7.0)
+    # Grundton: weiche, große Wolken von Honig bis Tabak, nirgends gleichmäßig
+    tone = noise_on(warped, 0.0025, 3.0, 0.6)
+    color = ramp(tone, [(0.32, (0.36, 0.25, 0.13, 1)), (0.5, (0.55, 0.41, 0.23, 1)), (0.68, (0.66, 0.52, 0.32, 1))])
+    # Fasern: der Scan langer Fasern, waagrecht, einmal je ~700 px, verzogen; darunter die Querlage, schwächer
+    fib_h = scan_on(fine_warp, "Fasern.png", 1.0 / 700.0, 1.0 / 380.0)
+    fib_v = scan_on(warp(0.02, 6.0, 11.0), "Fasern.png", 1.0 / 380.0, 1.0 / 700.0, rotate=True)
+    color = multiply(color, ramp(bw(fib_h), [(0.2, (0.72, 0.66, 0.58, 1)), (0.55, (1.0, 0.98, 0.95, 1)), (0.85, (1.1, 1.06, 1.0, 1))]))
+    color = multiply(color, ramp(bw(fib_v), [(0.25, (0.86, 0.82, 0.76, 1)), (0.7, (1.0, 1.0, 1.0, 1))]), 0.6)
+    # Gewebe/Zahn des Papiers: der Leinen-Scan, sehr fein
+    linen = scan_on(coord.outputs["Object"], "Leinen.png", 1.0 / 240.0, 1.0 / 240.0)
+    color = multiply(color, ramp(bw(linen), [(0.3, (0.88, 0.86, 0.83, 1)), (0.7, (1.0, 1.0, 1.0, 1))]), 0.7)
+    # Flecken: organische Wasserränder und Stockflecken, verzogen und unregelmäßig
+    stain = noise_on(warp(0.006, 60.0, 5.0), 0.004, 8.0, 1.8)
+    color = multiply(color, ramp(stain, [(0.56, (1, 1, 1, 1)), (0.6, (0.9, 0.82, 0.7, 1)), (0.615, (0.8, 0.68, 0.52, 1)), (0.64, (0.95, 0.9, 0.82, 1)), (0.7, (1, 1, 1, 1))]), 0.7)
+    fox = noise_on(warp(0.05, 8.0, 9.0), 0.06, 2.0, 3.0)
+    color = multiply(color, ramp(fox, [(0.7, (1, 1, 1, 1)), (0.76, (0.62, 0.45, 0.28, 1))]))
+    # gebräunter, angesengter Rand mit ausgefranstem Verlauf
+    sep = node("ShaderNodeSeparateXYZ")
+    l.new(warp(0.012, 22.0, 13.0), sep.inputs[0])
+
+    def m1(op, a, value):
+        nd = node("ShaderNodeMath")
+        nd.operation = op
+        l.new(a, nd.inputs[0])
+        nd.inputs[1].default_value = value
+        return nd.outputs[0]
+
+    u = m1("ABSOLUTE", m1("DIVIDE", m1("SUBTRACT", sep.outputs["X"], 471.0), 441.0), 0.0)
+    v = m1("ABSOLUTE", m1("DIVIDE", m1("ADD", sep.outputs["Z"], 35.0), 425.0), 0.0)
+    edge = node("ShaderNodeMath")
+    edge.operation = "MAXIMUM"
+    l.new(u, edge.inputs[0])
+    l.new(v, edge.inputs[1])
+    color = multiply(color, ramp(edge.outputs[0], [(0.74, (1, 1, 1, 1)), (0.9, (0.66, 0.48, 0.3, 1)), (0.97, (0.3, 0.17, 0.08, 1)), (1.0, (0.08, 0.045, 0.02, 1))]))
+    l.new(color, b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.9
+    b.inputs["Sheen Weight"].default_value = 0.3
+    # Prägung aus den Scans: Fasern und Gewebe werfen im Streiflicht feine Schatten
+    height = node("ShaderNodeMath")
+    height.operation = "ADD"
+    l.new(bw(fib_h), height.inputs[0])
+    h2 = node("ShaderNodeMath")
+    h2.operation = "MULTIPLY"
+    l.new(bw(linen), h2.inputs[0])
+    h2.inputs[1].default_value = 0.5
+    l.new(h2.outputs[0], height.inputs[1])
+    bump = node("ShaderNodeBump", Strength=0.55, Distance=2.0)
+    l.new(height.outputs[0], bump.inputs["Height"])
+    l.new(bump.outputs[0], b.inputs["Normal"])
+    return m
+
+
+def papyrus_sheet(x0, y0, x1, y1, material, depth=14.0):
+    """Ein Blatt Papyrus: ausgefranster, unregelmäßig gerissener Rand, leicht gewellt und zerknittert, damit das Streiflicht
+    echte Höhen und Tiefen findet"""
+    rng = random.Random(311)
+    nx, ny = 160, 150
+    # der Rand: ein zufälliger Weg statt einer Sinuskurve
+    tear = {}
+    for side in range(4):
+        walk, values = 0.0, []
+        for k in range((nx if side % 2 == 0 else ny) + 1):
+            walk = walk * 0.82 + rng.gauss(0, 2.4)
+            values.append(walk + (rng.uniform(-6, 0) if rng.random() < 0.06 else 0.0))
+        tear[side] = values
+    verts, faces = [], []
+    bumps = [(rng.uniform(x0, x1), rng.uniform(y0, y1), rng.uniform(30, 140), rng.uniform(-3.0, 3.0)) for _ in range(40)]
+    for j in range(ny + 1):
+        for i in range(nx + 1):
+            u, v = i / nx, j / ny
+            x, y = x0 + (x1 - x0) * u, y0 + (y1 - y0) * v
+            if j == 0:
+                y -= tear[0][i]
+            if j == ny:
+                y += tear[2][i]
+            if i == 0:
+                x -= tear[3][j]
+            if i == nx:
+                x += tear[1][j]
+            d = depth - 3.0 * math.sin(u * math.pi) * math.sin(v * math.pi * 0.8)
+            for bx, by, br, bh in bumps:
+                dd = ((x - bx) ** 2 + (y - by) ** 2) / (br * br)
+                if dd < 4:
+                    d += bh * math.exp(-dd)
+            # Knick quer durchs Blatt, wie einmal gefaltet
+            d += 1.6 * math.exp(-((x - (x0 + 0.47 * (x1 - x0))) / 6.0) ** 2)
+            verts.append(K.P(x, y, d))
+    for j in range(ny):
+        for i in range(nx):
+            a = j * (nx + 1) + i
+            faces.append((a, a + 1, a + nx + 2, a + nx + 1))
+    mesh = bpy.data.meshes.new("Papyrus")
+    mesh.from_pydata(verts, [], faces)
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    obj = bpy.data.objects.new("Papyrus", mesh)
+    bpy.context.collection.objects.link(obj)
+    obj.data.materials.append(material)
+    return obj
+
+
+def wood_strip(tint, radius, glow=None, length=1024, height=32):
+    """Ein Band aus echter Rinde für Strang und Ranken im Spiel (von links nach rechts, Licht von oben)"""
+    def build():
+        rng = random.Random(int(radius * 100))
+        pts = [(-20 + (length + 40) * k / 239, height / 2 + 1.2 * math.sin(k * 0.13)) for k in range(240)]
+        curve = bpy.data.curves.new("Strang", "CURVE")
+        curve.dimensions = "3D"
+        curve.bevel_depth = radius
+        curve.bevel_resolution = 6
+        sp = curve.splines.new("POLY")
+        sp.points.add(len(pts) - 1)
+        for i, (px, py) in enumerate(pts):
+            p = K.P(px, py, 0)
+            sp.points[i].co = (p.x, p.y, p.z, 1)
+            t = i / (len(pts) - 1)
+            sp.points[i].radius = 1.0 + 0.1 * math.sin(t * 23.0) + 0.05 * math.sin(t * 61.0)
+        obj = bpy.data.objects.new("Strang", curve)
+        bpy.context.collection.objects.link(obj)
+        obj.data.materials.append(scan_bark_mat("Rinde", length + 40, tint, period=300, glow=glow))
+    return build
 
 
 def main():
@@ -914,8 +1279,11 @@ def main():
     if not only or "glaeser" in only:
         render_jars(out)
     if not only or "holz" in only:
-        sprite(os.path.join(out, "T_Keim_Ast.png"), 1024, 64, root_strip(20, True), samples=64, setup_lights=strip_lights)
-        sprite(os.path.join(out, "T_Keim_Wurzel.png"), 1024, 32, root_strip(8, False), samples=64, setup_lights=strip_lights)
+        sprite(os.path.join(out, "T_Keim_Ast.png"), 1024, 64, wood_strip((1.0, 0.92, 0.8), 20, length=1024, height=64), samples=64, setup_lights=strip_lights)
+        sprite(os.path.join(out, "T_Keim_Wurzel.png"), 1024, 32, wood_strip((0.85, 0.76, 0.64), 8), samples=64, setup_lights=strip_lights)
+        # die beiden Stränge des Erbstrangs: lebendes grünes Holz, eine dunkle Schattenwurzel
+        sprite(os.path.join(out, "T_Keim_Lichtholz.png"), 1024, 32, wood_strip((0.62, 0.86, 0.45), 9, glow=((0.2, 0.5, 0.15), 0.25)), samples=64, setup_lights=strip_lights)
+        sprite(os.path.join(out, "T_Keim_Schattenwurzel.png"), 1024, 32, wood_strip((0.5, 0.34, 0.42), 8), samples=64, setup_lights=strip_lights)
         sprite(os.path.join(out, "T_Keim_Rankenblatt.png"), 64, 32, real_leaf, scale=3)
     if not only or "teile" in only:
         sprite(os.path.join(out, "T_Keim_Kapsel.png"), 100, 100, capsule)

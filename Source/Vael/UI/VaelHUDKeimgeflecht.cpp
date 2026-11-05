@@ -68,9 +68,9 @@ namespace
 	}
 
 	/** A point on the light vine of the strand, T from 0 (top) to 1 (bottom) */
-	FVector2D StrandPoint(float T)
+	FVector2D StrandPoint(float T, float Spin)
 	{
-		const float Phase = T * 4.4f * UE_PI;
+		const float Phase = T * 4.4f * UE_PI + Spin;
 		return FVector2D(StrandX + StrandAmp * FMath::Sin(Phase) + 3.0f * FMath::Sin(T * 37.0f), StrandTop + (StrandBottom - StrandTop) * T);
 	}
 
@@ -151,8 +151,8 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		DrawFrame(OX + X0 * K, Y0 * K, (X1 - X0) * K, (Y1 - Y0) * K, Color, Thickness * K);
 	};
 
-	const FLinearColor Ink = KeimRgb(42, 27, 16);
-	const FLinearColor InkDim = KeimRgb(42, 27, 16, 140);
+	const FLinearColor Ink = KeimRgb(24, 14, 7);
+	const FLinearColor InkDim = KeimRgb(34, 21, 11, 215);
 	const FLinearColor Pale = KeimRgb(226, 210, 174);
 	const FLinearColor Dim = KeimRgb(150, 140, 120);
 	const FLinearColor Gold = KeimRgb(232, 178, 82);
@@ -174,6 +174,7 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	}
 	KeimLastDraw = Time;
 	DrawKeimVines(OX, K, Time);
+	DrawKeimStrand(OX, K, Time);
 	DrawMenuTabs(PlayerController, OX + 1830.0f * K, 30.0f * K);
 
 	// ---------------- Herbarium: glasses on threads that sway; the chosen one swings when it is chosen and glows warm
@@ -244,7 +245,7 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	{
 		const float T = 1.0f - FMath::Frac(Time * 0.07f + Bead / 7.0f);
 		const float Fade = FMath::SmoothStep(0.0f, 0.08f, T) * FMath::SmoothStep(1.0f, 0.9f, T);
-		const FVector2D Point = StrandPoint(T);
+		const FVector2D Point = StrandPoint(T, Time * KeimStrandSpin);
 		Light(Point, 26.0f, KeimRgb(130, 255, 150) * (0.9f * Fade));
 		DrawDisc(AtV(Point), 3.5f * K, KeimRgb(220, 255, 220, uint8(255 * Fade)));
 	}
@@ -302,17 +303,22 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		Light(Last, 16.0f, Sap);
 	}
 
-	// Fireflies drift slowly through the chamber
-	for (int32 Fly = 0; Fly < 16; ++Fly)
+	// Little lights rise slowly through the chamber, sway as they go, flicker, and fade out at the top; then they come again
+	for (int32 Fly = 0; Fly < 22; ++Fly)
 	{
-		const FVector2D Home(120.0f + Hash01(Fly, 1) * 1680.0f, 170.0f + Hash01(Fly, 2) * 780.0f);
-		const float Speed = 0.12f + Hash01(Fly, 3) * 0.15f;
-		const FVector2D Point = Home + FVector2D(60.0f * FMath::Sin(Time * Speed + Fly), 35.0f * FMath::Sin(Time * Speed * 1.7f + Fly * 2.3f));
-		const float Blink = FMath::Max(0.0f, FMath::Sin(Time * (0.6f + Hash01(Fly, 4)) + Fly * 4.1f));
-		Light(Point, 16.0f + 8.0f * Hash01(Fly, 5), KeimRgb(255, 225, 130) * (0.25f + 0.75f * Blink));
+		const float Period = 26.0f + Hash01(Fly, 3) * 22.0f;
+		const float Rise = FMath::Frac(Time / Period + Hash01(Fly, 2));
+		const float X = 90.0f + Hash01(Fly, 1) * 1740.0f + 40.0f * FMath::Sin(Time * (0.25f + 0.2f * Hash01(Fly, 6)) + Fly * 2.3f);
+		const FVector2D Point(X, 1060.0f - Rise * 1000.0f);
+		const float Fade = FMath::SmoothStep(0.0f, 0.12f, Rise) * FMath::SmoothStep(1.0f, 0.75f, Rise);
+		const float Blink = 0.55f + 0.45f * FMath::Sin(Time * (0.8f + Hash01(Fly, 4)) + Fly * 4.1f);
+		const FLinearColor Color = Hash01(Fly, 7) < 0.3f ? KeimRgb(170, 255, 190) : KeimRgb(255, 225, 140);
+		Light(Point, 14.0f + 8.0f * Hash01(Fly, 5), Color * (Fade * Blink));
+		DrawDisc(AtV(Point), 1.6f * K, FLinearColor(1.0f, 1.0f, 0.9f, Fade * Blink));
 	}
 
-	// ---------------- The plate of the plant on the parchment
+	// ---------------- The plate of the plant on the parchment: ink without a drop shadow
+	bLabelShadow = false;
 	const UVaelPlantArmData* Plant = Floromant->GetCatalogPlant(FMath::Clamp(Cursor.PlatePlant, 0, FMath::Max(Floromant->GetCatalogSize() - 1, 0)));
 	if (Plant != nullptr)
 	{
@@ -439,7 +445,7 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		{
 			const FVaelGene& Gene = Tiers[Cursor.Tier].Options[Cursor.Option];
 			Title(Gene.Name, TreeX, SheetY + 738.0f, 22.0f, Ink, 0.5f, 300.0f);
-			Label(Gene.Description, TreeX, SheetY + 770.0f, 18.0f, KeimRgb(18, 60, 18), 0.5f, 320.0f);
+			Label(Gene.Description, TreeX, SheetY + 770.0f, 18.0f, KeimRgb(12, 40, 10), 0.5f, 320.0f);
 		}
 
 		// Crosses as double medallions: known ones with both pictures, the others as silhouettes
@@ -487,6 +493,8 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 			Label(FText::Format(LOCTEXT("MoreCrosses", "+{0}"), Crosses.Num() - 4), SheetX + 96.0f + 4 * 112.0f - 30.0f, SheetY + 748.0f, 20.0f, InkDim);
 		}
 	}
+
+	bLabelShadow = true;
 
 	// ---------------- Footer: the buttons
 	FText Action;

@@ -94,6 +94,58 @@ namespace
 	constexpr float BandOverWood = 1.6f;
 }
 
+/** A band of bark along points (from First to Last), wood width per point; the light side of the band faces up of each
+ *  point's normal. The texture runs along the band, UScale per design pixel. */
+static void DrawBarkBand(UCanvas* Canvas, float OX, float K, UTexture2D* Texture, const TArray<FVector2D>& Points, const TArray<float>& Widths,
+	int32 First, int32 Last, float UScale, const FLinearColor& Tint, const FVector2D& Offset)
+{
+	if (Canvas == nullptr || Texture == nullptr || Texture->GetResource() == nullptr || Last - First < 1)
+	{
+		return;
+	}
+	auto At = [&](const FVector2D& P) { return FVector2D(OX + P.X * K, P.Y * K); };
+	TArray<FCanvasUVTri> Tris;
+	float Along = 0.0f;
+	for (int32 I = 0; I < First; ++I)
+	{
+		Along += FVector2D::Distance(Points[I], Points[I + 1]);
+	}
+	auto Edge = [&](int32 I, FVector2D& OutTop, FVector2D& OutBottom)
+	{
+		const FVector2D Tangent = (Points[FMath::Min(I + 1, Points.Num() - 1)] - Points[FMath::Max(I - 1, 0)]).GetSafeNormal();
+		const FVector2D Up(Tangent.Y, -Tangent.X);
+		const float Half = Widths[I] * BandOverWood * 0.5f;
+		OutTop = At(Points[I] + Offset + Up * Half);
+		OutBottom = At(Points[I] + Offset - Up * Half);
+	};
+	FVector2D Top0, Bottom0;
+	Edge(First, Top0, Bottom0);
+	float U0 = Along * UScale;
+	for (int32 I = First; I < Last; ++I)
+	{
+		Along += FVector2D::Distance(Points[I], Points[I + 1]);
+		const float U1 = Along * UScale;
+		FVector2D Top1, Bottom1;
+		Edge(I + 1, Top1, Bottom1);
+		FCanvasUVTri A;
+		A.V0_Pos = Top0; A.V0_UV = FVector2D(U0, 0.0f); A.V0_Color = Tint;
+		A.V1_Pos = Bottom0; A.V1_UV = FVector2D(U0, 1.0f); A.V1_Color = Tint;
+		A.V2_Pos = Top1; A.V2_UV = FVector2D(U1, 0.0f); A.V2_Color = Tint;
+		FCanvasUVTri B;
+		B.V0_Pos = Bottom0; B.V0_UV = FVector2D(U0, 1.0f); B.V0_Color = Tint;
+		B.V1_Pos = Bottom1; B.V1_UV = FVector2D(U1, 1.0f); B.V1_Color = Tint;
+		B.V2_Pos = Top1; B.V2_UV = FVector2D(U1, 0.0f); B.V2_Color = Tint;
+		Tris.Add(A);
+		Tris.Add(B);
+		Top0 = Top1;
+		Bottom0 = Bottom1;
+		U0 = U1;
+	}
+	FCanvasTriangleItem Item(Tris, Texture->GetResource());
+	Item.BlendMode = SE_BLEND_Translucent;
+	Canvas->DrawItem(Item);
+}
+
 void AVaelHUD::DrawKeimVines(float OX, float K, float Time)
 {
 	auto At = [&](const FVector2D& P) { return FVector2D(OX + P.X * K, P.Y * K); };
@@ -102,55 +154,10 @@ void AVaelHUD::DrawKeimVines(float OX, float K, float Time)
 	UTexture2D* Leaf = GetKeimPicture(TEXT("T_Keim_Rankenblatt"));
 	const float Opened = Time - KeimOpenTime;
 
-	// A band of bark along points (from First to Last), wood width per point; the moss side of the band faces Up of each
-	// point's normal. Shadow: the same band, dark and offset, drawn first.
 	auto Band = [&](UTexture2D* Texture, const TArray<FVector2D>& Points, const TArray<float>& Widths, int32 First, int32 Last,
 		float UScale, const FLinearColor& Tint, const FVector2D& Offset)
 	{
-		if (Texture == nullptr || Texture->GetResource() == nullptr || Last - First < 1)
-		{
-			return;
-		}
-		TArray<FCanvasUVTri> Tris;
-		float Along = 0.0f;
-		for (int32 I = 0; I < First; ++I)
-		{
-			Along += FVector2D::Distance(Points[I], Points[I + 1]);
-		}
-		auto Edge = [&](int32 I, FVector2D& OutTop, FVector2D& OutBottom)
-		{
-			const FVector2D Tangent = (Points[FMath::Min(I + 1, Points.Num() - 1)] - Points[FMath::Max(I - 1, 0)]).GetSafeNormal();
-			const FVector2D Up(Tangent.Y, -Tangent.X);
-			const float Half = Widths[I] * BandOverWood * 0.5f;
-			OutTop = At(Points[I] + Offset + Up * Half);
-			OutBottom = At(Points[I] + Offset - Up * Half);
-		};
-		FVector2D Top0, Bottom0;
-		Edge(First, Top0, Bottom0);
-		float U0 = Along * UScale;
-		for (int32 I = First; I < Last; ++I)
-		{
-			Along += FVector2D::Distance(Points[I], Points[I + 1]);
-			const float U1 = Along * UScale;
-			FVector2D Top1, Bottom1;
-			Edge(I + 1, Top1, Bottom1);
-			FCanvasUVTri A;
-			A.V0_Pos = Top0; A.V0_UV = FVector2D(U0, 0.0f); A.V0_Color = Tint;
-			A.V1_Pos = Bottom0; A.V1_UV = FVector2D(U0, 1.0f); A.V1_Color = Tint;
-			A.V2_Pos = Top1; A.V2_UV = FVector2D(U1, 0.0f); A.V2_Color = Tint;
-			FCanvasUVTri B;
-			B.V0_Pos = Bottom0; B.V0_UV = FVector2D(U0, 1.0f); B.V0_Color = Tint;
-			B.V1_Pos = Bottom1; B.V1_UV = FVector2D(U1, 1.0f); B.V1_Color = Tint;
-			B.V2_Pos = Top1; B.V2_UV = FVector2D(U1, 0.0f); B.V2_Color = Tint;
-			Tris.Add(A);
-			Tris.Add(B);
-			Top0 = Top1;
-			Bottom0 = Bottom1;
-			U0 = U1;
-		}
-		FCanvasTriangleItem Item(Tris, Texture->GetResource());
-		Item.BlendMode = SE_BLEND_Translucent;
-		Canvas->DrawItem(Item);
+		DrawBarkBand(Canvas, OX, K, Texture, Points, Widths, First, Last, UScale, Tint, Offset);
 	};
 	const FLinearColor ShadowTint(0.0f, 0.0f, 0.0f, 0.55f);
 	const FVector2D ShadowOffset(5.0f, 8.0f);
@@ -309,6 +316,192 @@ void AVaelHUD::DrawKeimVines(float OX, float K, float Time)
 		{
 			Rootlet(Points.Last(), FVector2D(FMath::Sin(Swing), 1.0f).GetSafeNormal(), 24.0f, 1.1f + 0.4f * FMath::Sin(Time * 0.5f + Hanging.Phase),
 				Hanging.Phase > 2.5f ? 1.0f : -1.0f, 2.2f);
+		}
+	}
+
+	// Roots crawling through the frame like snakes between leaves and wood: a body slides along the woven band, the bark
+	// travelling with it, its head nosing forward, its tail thinning out; when it has gone through, it comes again
+	struct FCrawler { TArray<FVector2D> Path; float Width; float Body; float Seconds; float Phase; };
+	static const TArray<FCrawler> Crawlers =
+	{
+		{ { { 36, -60 }, { 50, 300 }, { 24, 700 }, { 46, 1140 } }, 15.0f, 0.32f, 34.0f, 0.0f },
+		{ { { 1892, 1140 }, { 1878, 760 }, { 1904, 380 }, { 1886, -60 } }, 15.0f, 0.3f, 38.0f, 0.4f },
+		{ { { -60, 32 }, { 400, 22 }, { 800, 40 }, { 1200, 18 }, { 1980, 30 } }, 12.0f, 0.18f, 46.0f, 0.15f },
+		{ { { 1980, 1062 }, { 1300, 1074 }, { 640, 1056 }, { -60, 1066 } }, 12.0f, 0.18f, 50.0f, 0.65f },
+		{ { { -40, 420 }, { 30, 330 }, { 52, 200 }, { 20, 90 }, { 90, -40 } }, 9.0f, 0.5f, 22.0f, 0.8f },
+	};
+	for (const FCrawler& Crawler : Crawlers)
+	{
+		const float Grown = FMath::Clamp((Opened - 0.8f) / 1.0f, 0.0f, 1.0f);
+		if (Grown <= 0.0f)
+		{
+			continue;
+		}
+		const float Head = FMath::Frac(Time / Crawler.Seconds + Crawler.Phase) * (1.0f + Crawler.Body);
+		const float Tail = Head - Crawler.Body;
+		TArray<FVector2D> Points;
+		TArray<float> Widths;
+		const int32 Steps = 40;
+		for (int32 I = 0; I <= Steps; ++I)
+		{
+			const float B = I / float(Steps);
+			const float S = FMath::Lerp(Tail, Head, B);
+			if (S < 0.0f || S > 1.0f)
+			{
+				continue;
+			}
+			const FVector2D Base = CatmullRom(Crawler.Path, S);
+			const FVector2D Tangent = (CatmullRom(Crawler.Path, FMath::Min(S + 0.005f, 1.0f)) - CatmullRom(Crawler.Path, FMath::Max(S - 0.005f, 0.0f))).GetSafeNormal();
+			// The sway of a snake: a wave that runs backwards along the body as it moves forward
+			const float Sway = FMath::Sin(B * 3.0f * 2.0f * UE_PI - Time * 2.2f + Crawler.Phase * 9.0f) * Crawler.Width * 0.7f;
+			Points.Add(Base + FVector2D(-Tangent.Y, Tangent.X) * Sway);
+			// Thin tail, full body, rounded head
+			Widths.Add(Crawler.Width * Grown * FMath::Min(FMath::SmoothStep(0.0f, 0.45f, B), FMath::SmoothStep(1.0f, 0.88f, B) * 0.6f + 0.4f));
+		}
+		if (Points.Num() > 2)
+		{
+			Band(Bark, Points, Widths, 0, Points.Num() - 1, BarkU * 1.5f, ShadowTint, ShadowOffset);
+			Band(Bark, Points, Widths, 0, Points.Num() - 1, BarkU * 1.5f, FLinearColor(0.9f, 0.85f, 0.78f), FVector2D::ZeroVector);
+		}
+	}
+
+	// Shoots that look in from the frame and wave: they reach slowly into the room, sway, draw back a little, reach again
+	struct FPeeker { FVector2D Root; FVector2D Dir; float Length; float Phase; };
+	static const TArray<FPeeker> Peekers =
+	{
+		{ { 650, 34 }, { 0.15f, 1.0f }, 80.0f, 0.0f },
+		{ { 1180, 26 }, { -0.1f, 1.0f }, 100.0f, 1.7f },
+		{ { 50, 520 }, { 1.0f, 0.2f }, 60.0f, 3.1f },
+		{ { 1894, 610 }, { -1.0f, -0.15f }, 55.0f, 4.4f },
+		{ { 560, 1052 }, { 0.2f, -1.0f }, 64.0f, 2.2f },
+		{ { 1520, 1050 }, { -0.25f, -1.0f }, 46.0f, 5.3f },
+		{ { 960, 1062 }, { 0.0f, -1.0f }, 26.0f, 0.9f },
+	};
+	for (const FPeeker& Peeker : Peekers)
+	{
+		const float Grown = FMath::Clamp((Opened - 1.2f) / 1.2f, 0.0f, 1.0f);
+		if (Grown <= 0.0f)
+		{
+			continue;
+		}
+		const float Reach = Grown * (0.55f + 0.45f * FMath::SmoothStep(-1.0f, 1.0f, FMath::Sin(Time * 0.22f + Peeker.Phase)));
+		const FVector2D Dir = Peeker.Dir.GetSafeNormal();
+		TArray<FVector2D> Points;
+		TArray<float> Widths;
+		const int32 Steps = 18;
+		FVector2D P = Peeker.Root;
+		float Angle = FMath::Atan2(Dir.Y, Dir.X);
+		for (int32 I = 0; I <= Steps; ++I)
+		{
+			const float T = I / float(Steps);
+			Points.Add(P);
+			Widths.Add(FMath::Lerp(7.0f, 2.0f, T));
+			// waving: the bend grows to the tip and swings to both sides
+			Angle += FMath::DegreesToRadians(5.0f * FMath::Sin(Time * 0.9f + Peeker.Phase + T * 2.0f)) * T;
+			P += FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Peeker.Length * Reach / Steps;
+		}
+		Band(Thin, Points, Widths, 0, Steps, BarkU * 2.5f, ShadowTint, ShadowOffset * 0.6f);
+		Band(Thin, Points, Widths, 0, Steps, BarkU * 2.5f, FLinearColor(0.85f, 0.8f, 0.72f), FVector2D::ZeroVector);
+		if (Leaf != nullptr)
+		{
+			const int32 I = Steps * 2 / 3;
+			const float LeafAngle = FMath::RadiansToDegrees(FMath::Atan2(Dir.Y, Dir.X)) + 50.0f + 15.0f * FMath::Sin(Time * 1.2f + Peeker.Phase);
+			Canvas->K2_DrawTexture(Leaf, At(FVector2D(Points[I].X, Points[I].Y - 9.0f)), FVector2D(36.0f * K, 18.0f * K), FVector2D::ZeroVector,
+				FVector2D::UnitVector, FLinearColor(0.75f, 0.78f, 0.68f), BLEND_Translucent, LeafAngle, FVector2D(0.0f, 0.5f));
+		}
+		Rootlet(Points.Last(), (Points.Last() - Points[Steps - 1]).GetSafeNormal(), 18.0f, 1.0f + 0.5f * FMath::Sin(Time * 0.5f + Peeker.Phase),
+			Peeker.Phase > 2.5f ? 1.0f : -1.0f, 2.0f);
+	}
+}
+
+void AVaelHUD::DrawKeimStrand(float OX, float K, float Time)
+{
+	// Same place as the picture (Tools/HUD/vael_keimgeflecht_spiel.py) and VaelHUDKeimgeflecht.cpp
+	constexpr float CX = 790.0f, Top = 214.0f, Bottom = 972.0f, Amp = 46.0f;
+	auto At = [&](const FVector2D& P) { return FVector2D(OX + P.X * K, P.Y * K); };
+	UTexture2D* LightWood = GetKeimPicture(TEXT("T_Keim_Lichtholz"));
+	UTexture2D* ShadowRoot = GetKeimPicture(TEXT("T_Keim_Schattenwurzel"));
+	UTexture2D* Leaf = GetKeimPicture(TEXT("T_Keim_Rankenblatt"));
+	const float Spin = Time * KeimStrandSpin;
+	const int32 Steps = 150;
+	TArray<FVector2D> A, B;
+	TArray<float> DepthA, DepthB, WidthA, WidthB;
+	for (int32 I = 0; I <= Steps; ++I)
+	{
+		const float T = I / float(Steps);
+		const float Y = Top + (Bottom - Top) * T;
+		const float Phase = T * 4.4f * UE_PI + Spin;
+		A.Add(FVector2D(CX + Amp * FMath::Sin(Phase) + 3.0f * FMath::Sin(T * 37.0f), Y));
+		B.Add(FVector2D(CX + Amp * FMath::Sin(Phase + UE_PI) + 3.0f * FMath::Sin(T * 37.0f + UE_PI), Y));
+		DepthA.Add(FMath::Cos(Phase));
+		DepthB.Add(FMath::Cos(Phase + UE_PI));
+		// the strand nearer to us is a little thicker
+		WidthA.Add(18.0f * (0.86f + 0.14f * DepthA.Last()));
+		WidthB.Add(16.0f * (0.86f + 0.14f * DepthB.Last()));
+	}
+	const float BarkU = 1.0f / 1024.0f;
+	// Draw the runs of a strand that lie behind (bFront false) or in front, darker behind
+	auto Runs = [&](UTexture2D* Texture, const TArray<FVector2D>& Points, const TArray<float>& Depths, const TArray<float>& Widths, bool bFront)
+	{
+		int32 Start = INDEX_NONE;
+		for (int32 I = 0; I <= Steps; ++I)
+		{
+			const bool bIn = (Depths[I] >= 0.0f) == bFront;
+			if (bIn && Start == INDEX_NONE)
+			{
+				Start = FMath::Max(I - 1, 0);
+			}
+			if ((!bIn || I == Steps) && Start != INDEX_NONE)
+			{
+				const int32 End = FMath::Min(I, Steps);
+				const float Shade = bFront ? 1.0f : 0.55f;
+				DrawBarkBand(Canvas, OX, K, Texture, Points, Widths, Start, End, BarkU * 2.0f, FLinearColor(0.0f, 0.0f, 0.0f, 0.45f), FVector2D(4.0f, 6.0f));
+				DrawBarkBand(Canvas, OX, K, Texture, Points, Widths, Start, End, BarkU * 2.0f, FLinearColor(Shade, Shade, Shade), FVector2D::ZeroVector);
+				Start = INDEX_NONE;
+			}
+		}
+	};
+	Runs(LightWood, A, DepthA, WidthA, false);
+	Runs(ShadowRoot, B, DepthB, WidthB, false);
+
+	// The rungs: even dotted lines from strand to strand, every dot the same size and spacing
+	for (int32 I = 2; I < Steps - 1; I += 5)
+	{
+		const FVector2D From = A[I], To = B[I];
+		if (FMath::Abs(To.X - From.X) < 20.0f)
+		{
+			continue;
+		}
+		const FVector2D Dir = (To - From).GetSafeNormal();
+		const FVector2D Start = From + Dir * WidthA[I] * 0.5f;
+		const FVector2D End = To - Dir * WidthB[I] * 0.5f;
+		const int32 Dots = FMath::Max(1, FMath::RoundToInt(FVector2D::Distance(Start, End) / 8.0f));
+		const float Near = 0.6f + 0.4f * FMath::Abs(DepthA[I]);
+		for (int32 D = 0; D <= Dots; ++D)
+		{
+			const FVector2D P = FMath::Lerp(Start, End, D / float(Dots));
+			DrawDisc(At(P + FVector2D(1.5f, 2.0f)), 2.0f * K, FLinearColor(0.0f, 0.0f, 0.0f, 0.4f));
+			DrawDisc(At(P), 2.0f * K, FLinearColor(FColor(196, 236, 170)) * Near);
+		}
+	}
+
+	Runs(LightWood, A, DepthA, WidthA, true);
+	Runs(ShadowRoot, B, DepthB, WidthB, true);
+
+	// Leaves on the light strand where it is in front, turning with it
+	if (Leaf != nullptr)
+	{
+		for (int32 I = 6; I < Steps; I += 11)
+		{
+			if (DepthA[I] < 0.15f)
+			{
+				continue;
+			}
+			const float Side = (I / 11) % 2 ? 1.0f : -1.0f;
+			const float Angle = (Side > 0.0f ? -25.0f : 205.0f) + 10.0f * FMath::Sin(Time * 1.1f + I);
+			const float Size = 0.6f + 0.4f * DepthA[I];
+			Canvas->K2_DrawTexture(Leaf, At(FVector2D(A[I].X, A[I].Y - 9.0f * Size)), FVector2D(38.0f * Size * K, 18.0f * Size * K), FVector2D::ZeroVector,
+				FVector2D::UnitVector, FLinearColor(0.85f, 0.95f, 0.8f), BLEND_Translucent, Angle, FVector2D(0.0f, 0.5f));
 		}
 	}
 }

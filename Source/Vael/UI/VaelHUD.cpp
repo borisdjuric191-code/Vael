@@ -1224,7 +1224,10 @@ void AVaelHUD::DrawLabel(const FText& Text, float X, float Y, float PixelHeight,
 
 		FCanvasTextItem SlateText(FVector2D(X - TextWidth * Alignment, Y), FText::FromString(String), SlateFont, Color);
 		SlateText.Font = RuntimeFont;
-		SlateText.EnableShadow(FLinearColor(0.0f, 0.0f, 0.0f, 0.85f * Color.A), FVector2D(1.0f, 1.0f) * FMath::Max(1.0f, FMath::RoundToFloat(PixelHeight / 14.0f)));
+		if (bLabelShadow)
+		{
+			SlateText.EnableShadow(FLinearColor(0.0f, 0.0f, 0.0f, 0.85f * Color.A), FVector2D(1.0f, 1.0f) * FMath::Max(1.0f, FMath::RoundToFloat(PixelHeight / 14.0f)));
+		}
 		Canvas->DrawItem(SlateText);
 		return;
 	}
@@ -1247,7 +1250,10 @@ void AVaelHUD::DrawLabel(const FText& Text, float X, float Y, float PixelHeight,
 
 	FCanvasTextItem TextItem(FVector2D(X - Width * Alignment, Y), FText::FromString(String), Font, Color);
 	TextItem.Scale = FVector2D(Scale, Scale);
-	TextItem.EnableShadow(FLinearColor(0.0f, 0.0f, 0.0f, 0.8f * Color.A));
+	if (bLabelShadow)
+	{
+		TextItem.EnableShadow(FLinearColor(0.0f, 0.0f, 0.0f, 0.8f * Color.A));
+	}
 	Canvas->DrawItem(TextItem);
 }
 
