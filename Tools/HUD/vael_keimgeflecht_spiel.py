@@ -41,11 +41,7 @@ def patch():
     K.leaf = D.detailed_leaf
     K.moth_emblem = D.detailed_moth
     K.alive_room = D.detailed_room
-    K.aged_paper = D.parchment_mat
-    # Tusche-Stil: Schrift und Lichthöfe ohne Linie
-    text, glow = K.text, K.glow
-    K.text = lambda *a, **k: T.no_lines(text(*a, **k))
-    K.glow = lambda *a, **k: T.no_lines(glow(*a, **k))
+    K.aged_paper = papyrus_mat
 
 
 def lights():
@@ -76,8 +72,8 @@ def room_lights():
 # ---------------------------------------------------------------- Hintergrund
 
 def build_background():
-    ink = K.mat("Tinte", (0.09, 0.055, 0.03), 0.9)
-    ink_faint = K.mat("TinteBlass", (0.16, 0.11, 0.07), 0.9)
+    ink = K.mat("Tinte", (0.022, 0.014, 0.008), 0.6)
+    ink_faint = K.mat("TinteBlass", (0.06, 0.04, 0.025), 0.7)
     pale = K.mat("Hell", (0.88, 0.82, 0.68), 0.6, emit=1.0)
     dim = K.mat("Dunkeltext", (0.5, 0.46, 0.4), 0.6, emit=0.6)
     gold_text = K.mat("Titelgold", (0.95, 0.74, 0.36), 0.3, 0.6, emit=1.3)
@@ -97,7 +93,7 @@ def build_background():
     # sich unten links als graue Fläche ab
     K.alive_room()
     frame_roots()
-    # Vignette erst nach dem Rendern (T.vignette_png): eine Fläche vor der Kamera würde alle Tuschelinien verdecken
+    # Vignette erst nach dem Rendern (T.vignette_png), weicher und gleichmäßiger als eine Fläche vor der Kamera
     for x, y, a, l in ((-30, 90, 25, 200), (-20, 1060, -35, 220), (1950, 40, 160, 190)):
         K.leaf(x, y, a, l, l * 0.42, K.mat("Vorderblatt", (0.008, 0.02, 0.008), 0.8), depth=-60, bend=0.2)
 
@@ -145,23 +141,25 @@ def build_background():
                 if thorns:
                     K.tube("Dorn", [(x, y), (x + side * 13, y + 3)], 2.8, material, depth=-12, taper=True)
 
-    strand(0.0, 9.0, K.LIGHTVINE, True, False)
-    strand(math.pi, 8.0, K.SHADOWVINE, False, True)
+    # Realistisch (Boris 2026-11-05): Lichtstrang aus lebendem grünem Holz mit Rinde, Schattenstrang eine dunkle, verdrehte Wurzel
+    living_wood = K.noisy("Lichtholz", (0.05, 0.10, 0.035), (0.20, 0.30, 0.11), 0.09, detail=12.0, rough=0.55, stripes=1.2, emit=0.12)
+    strand(0.0, 9.0, living_wood, True, False)
+    strand(math.pi, 8.0, D.bark_mat("Schattenwurzel"), False, True)
     for k in range(0, steps, 7):
         t = k / steps
         y = top + (bottom - top) * t
         phase = t * 4.4 * math.pi
         a, b = cx + amp * math.sin(phase), cx + amp * math.sin(phase + math.pi)
         if abs(a - b) > 26:
-            K.tube("Sprosse", [(a, y), ((a + b) / 2, y + 5), (b, y)], 1.6, K.mat("Wurzelhaar", (0.5, 0.9, 0.6), 0.5, emit=0.6), depth=0)
+            K.tube("Sprosse", [(a, y), ((a + b) / 2, y + 5), (b, y)], 1.6, K.mat("Wurzelfaser", (0.22, 0.26, 0.15), 0.7, emit=0.12), depth=0)
     K.moth_emblem(cx, top - 30, 1.15)
     for i in range(8):
         y = top + 50 + i * 92
         side = -1 if i % 2 == 0 else 1
         px = cx + side * 106
-        K.tube("Stiel", [(cx + side * 30, y + 12), (cx + side * 58, y + 2), (px - side * 42, y)], 3.2, K.LIGHTVINE, depth=2)
+        K.tube("Stiel", [(cx + side * 30, y + 12), (cx + side * 58, y + 2), (px - side * 42, y)], 3.2, living_wood, depth=2)
         for a in range(6):
-            K.leaf(px, y, a * 60 + 90, 52, 24, K.LEAF, depth=6, bend=0.12)
+            K.leaf(px, y, a * 60 + 90, 52, 24, K.LEAF_DARK, depth=6, bend=0.12)
         K.disc("Kapselgrund", px, y, 38, K.PAPER_DARK, depth=3)
         K.text(str(i + 1), px + side * 58, y - 13, 20, pale if i < 4 else dim, "AlegreyaSans-Bold.ttf", "CENTER", depth=-14)
 
@@ -423,7 +421,7 @@ def erbgut_tree(tx, ty, ink, ink_faint):
 
 # ---------------------------------------------------------------- Einzelteile
 
-def sprite(path, w, h, builder, scale=2):
+def sprite(path, w, h, builder, scale=2, samples=64, setup_lights=None):
     """Rendert ein freigestelltes Teil: w x h Designpixel, scale-fach aufgelöst, Glas lässt den Grund durch"""
     K.W, K.H = w, h
     D._leaf_mats.clear()
@@ -431,13 +429,14 @@ def sprite(path, w, h, builder, scale=2):
     K.materials()
     lights()
     scene = bpy.context.scene
-    scene.cycles.samples = 64
+    scene.cycles.samples = samples
+    if setup_lights is not None:
+        setup_lights(scene)
     scene.render.resolution_x, scene.render.resolution_y = w * scale, h * scale
     scene.render.film_transparent = True
     scene.cycles.film_transparent_glass = True
     scene.camera.data.ortho_scale = max(w, h)
     builder()
-    T.finish(scene, line=2.6, samples=32)
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
     K.W, K.H = 1920, 1080
@@ -586,43 +585,346 @@ def oval_pictures(folder):
         write_png(os.path.join(folder, name.replace("T_Pflanze_", "T_Keim_Oval_")), pixels, cw, h)
 
 
+# ---------------------------------------------------------------- Realistisch (Boris 2026-11-05: "nicht kindlich, Cartoon,
+# sondern wirklich realistisch, ernster Diablo-Stil, düster; Papier wie Papyrus aus einem Grimoire; Gläser mit mehr Licht und
+# Schatten, das Bild darin schöner platziert; Ranken holzig wie Wurzeln und Äste, ein Korb aus Wurzeln, alles bewegt sich")
+
+def _nodes(name):
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    return m, nt, nt.nodes["Principled BSDF"]
+
+
+def papyrus_mat(name):
+    """Papyrus wie aus einem alten Grimoire: zwei Lagen gepresster Streifen (waagrecht oben, senkrecht darunter), lange
+    Fasern, Prägung im Streiflicht, Stockflecken, Wasserränder, zum Rand hin gebräunt und angesengt"""
+    m, nt, b = _nodes(name)
+    n, l = nt.nodes, nt.links
+    coord = n.new("ShaderNodeTexCoord")
+
+    def mapped(scale, offset=(0.0, 0.0, 0.0)):
+        mp = n.new("ShaderNodeMapping")
+        mp.inputs["Scale"].default_value = scale
+        mp.inputs["Location"].default_value = offset
+        l.new(coord.outputs["Object"], mp.inputs["Vector"])
+        return mp.outputs[0]
+
+    def noise(vec, scale, detail, rough=0.55, dim="3D"):
+        t = n.new("ShaderNodeTexNoise")
+        t.inputs["Scale"].default_value = scale
+        t.inputs["Detail"].default_value = detail
+        t.inputs["Roughness"].default_value = rough
+        l.new(vec, t.inputs["Vector"])
+        return t.outputs["Fac"]
+
+    def math(op, a, bval):
+        node = n.new("ShaderNodeMath")
+        node.operation = op
+        if isinstance(a, float):
+            node.inputs[0].default_value = a
+        else:
+            l.new(a, node.inputs[0])
+        if isinstance(bval, float):
+            node.inputs[1].default_value = bval
+        else:
+            l.new(bval, node.inputs[1])
+        return node.outputs[0]
+
+    def ramp(fac, stops):
+        r = n.new("ShaderNodeValToRGB")
+        els = r.color_ramp.elements
+        els[0].position, els[0].color = stops[0][0], stops[0][1]
+        els[1].position, els[1].color = stops[-1][0], stops[-1][1]
+        for pos, col in stops[1:-1]:
+            e = els.new(pos)
+            e.color = col
+        l.new(fac, r.inputs["Fac"])
+        return r.outputs["Color"]
+
+    def mix(mode, fac, a, c):
+        mx = n.new("ShaderNodeMix")
+        mx.data_type = "RGBA"
+        mx.blend_type = mode
+        if isinstance(fac, float):
+            mx.inputs["Factor"].default_value = fac
+        else:
+            l.new(fac, mx.inputs["Factor"])
+        if isinstance(a, tuple):
+            mx.inputs[6].default_value = a
+        else:
+            l.new(a, mx.inputs[6])
+        if isinstance(c, tuple):
+            mx.inputs[7].default_value = c
+        else:
+            l.new(c, mx.inputs[7])
+        return mx.outputs[2]
+
+    # Streifen: waagrechte Lage (Bänder in Z), darunter senkrechte (Bänder in X), je 26 bis 40 px breit
+    strips_h = noise(mapped((0.0006, 0.0, 0.028)), 1.0, 2.0, 0.5)
+    strips_v = noise(mapped((0.028, 0.0, 0.0006), (13.0, 0.0, 7.0)), 1.0, 2.0, 0.5)
+    # Fasern: lange feine Striche entlang der Streifen
+    fibre_h = noise(mapped((0.012, 0.0, 0.55)), 1.0, 12.0, 0.7)
+    fibre_v = noise(mapped((0.55, 0.0, 0.012), (3.0, 0.0, 5.0)), 1.0, 12.0, 0.7)
+    grain = noise(mapped((0.08, 0.08, 0.08)), 1.0, 14.0, 0.75)
+    stains = noise(mapped((0.004, 0.004, 0.004), (9.0, 2.0, 4.0)), 1.0, 6.0, 0.6)
+
+    base = ramp(strips_h, [(0.3, (0.44, 0.31, 0.16, 1)), (0.5, (0.62, 0.47, 0.27, 1)), (0.7, (0.72, 0.57, 0.35, 1))])
+    under = ramp(strips_v, [(0.35, (0.82, 0.78, 0.74, 1)), (0.65, (1.0, 1.0, 1.0, 1))])
+    color = mix("MULTIPLY", 0.55, base, under)
+    fib = ramp(fibre_h, [(0.42, (0.78, 0.72, 0.64, 1)), (0.58, (1.0, 1.0, 1.0, 1)), (0.66, (1.08, 1.04, 0.96, 1))])
+    color = mix("MULTIPLY", 0.8, color, fib)
+    fibv = ramp(fibre_v, [(0.45, (0.86, 0.82, 0.76, 1)), (0.6, (1.0, 1.0, 1.0, 1))])
+    color = mix("MULTIPLY", 0.45, color, fibv)
+    # Stockflecken und Wasserränder
+    stain_c = ramp(stains, [(0.52, (1.0, 1.0, 1.0, 1)), (0.6, (0.72, 0.58, 0.40, 1)), (0.62, (0.55, 0.40, 0.25, 1)), (0.66, (0.86, 0.78, 0.66, 1))])
+    color = mix("MULTIPLY", 1.0, color, stain_c)
+    fox = n.new("ShaderNodeTexVoronoi")
+    fox.inputs["Scale"].default_value = 1.0
+    l.new(mapped((0.05, 0.05, 0.05), (2.0, 0.0, 1.0)), fox.inputs["Vector"])
+    fox_c = ramp(fox.outputs["Distance"], [(0.03, (0.45, 0.30, 0.16, 1)), (0.09, (1.0, 1.0, 1.0, 1))])
+    gate = ramp(noise(mapped((0.01, 0.01, 0.01), (5.0, 0.0, 9.0)), 1.0, 2.0), [(0.55, (0, 0, 0, 1)), (0.62, (1, 1, 1, 1))])
+    fox_mix = n.new("ShaderNodeMix")
+    fox_mix.data_type = "RGBA"
+    fox_mix.blend_type = "MULTIPLY"
+    bw = n.new("ShaderNodeRGBToBW")
+    l.new(gate, bw.inputs[0])
+    l.new(bw.outputs[0], fox_mix.inputs["Factor"])
+    l.new(color, fox_mix.inputs[6])
+    l.new(fox_c, fox_mix.inputs[7])
+    color = fox_mix.outputs[2]
+    # Zum Rand gebräunt und angesengt: Abstand zum Blattrand aus den Objektkoordinaten (Blatt 990..1872 x 150..1000)
+    sep = n.new("ShaderNodeSeparateXYZ")
+    l.new(coord.outputs["Object"], sep.inputs[0])
+    u = math("ABSOLUTE", math("DIVIDE", math("SUBTRACT", sep.outputs["X"], 471.0), 441.0), 0.0)
+    v = math("ABSOLUTE", math("DIVIDE", math("ADD", sep.outputs["Z"], 35.0), 425.0), 0.0)
+    edge = math("MAXIMUM", u, v)
+    edge = math("ADD", edge, math("MULTIPLY", math("SUBTRACT", noise(mapped((0.02, 0.02, 0.02)), 1.0, 6.0), 0.5), 0.12))
+    burn = ramp(edge, [(0.72, (1.0, 1.0, 1.0, 1)), (0.9, (0.62, 0.44, 0.26, 1)), (0.97, (0.25, 0.14, 0.07, 1)), (1.0, (0.06, 0.035, 0.02, 1))])
+    color = mix("MULTIPLY", 1.0, color, burn)
+    grain_c = ramp(grain, [(0.4, (0.9, 0.88, 0.85, 1)), (0.6, (1.0, 1.0, 1.0, 1))])
+    color = mix("MULTIPLY", 0.6, color, grain_c)
+    l.new(color, b.inputs["Base Color"])
+    b.inputs["Roughness"].default_value = 0.88
+    b.inputs["Sheen Weight"].default_value = 0.25
+    # Prägung: Streifenkanten, Fasern und Korn, im Streiflicht sichtbar
+    height = math("ADD", math("MULTIPLY", strips_h, 1.0), math("ADD", math("MULTIPLY", fibre_h, 0.6), math("MULTIPLY", grain, 0.35)))
+    height = math("ADD", height, math("MULTIPLY", strips_v, 0.45))
+    bump = n.new("ShaderNodeBump")
+    bump.inputs["Strength"].default_value = 0.45
+    bump.inputs["Distance"].default_value = 3.0
+    l.new(height, bump.inputs["Height"])
+    l.new(bump.outputs[0], b.inputs["Normal"])
+    return m
+
+
+def raking_light():
+    """Ein flaches Streiflicht über die Tafel von links oben: die Papyrusstreifen und Fasern werfen kleine Schatten"""
+    data = bpy.data.lights.new("Streiflicht", "AREA")
+    data.energy = 2.2e6
+    data.size = 300
+    data.color = (1.0, 0.82, 0.6)
+    obj = bpy.data.objects.new("Streiflicht", data)
+    obj.location = K.P(900, -150, -120)
+    target = K.P(1430, 575, 14)
+    obj.rotation_euler = (target - obj.location).to_track_quat("-Z", "Y").to_euler()
+    bpy.context.collection.objects.link(obj)
+
+
+# ---------------------------------------------------------------- Gläser mit der Pflanze darin
+
+JAR_W, JAR_H = 150, 190
+
+
+def jar(picture, empty=False):
+    """Ein Sammelglas mit der Pflanze darin: ihr Bild als Karte im Glas, unten Erde und Moos davor, Glas mit Brechung,
+    Korken mit Schnur; Streiflicht von links, Kantenlicht von hinten rechts, damit das Glas mit Licht und Schatten spielt"""
+    def build():
+        x, y = 75, 105
+        cork = K.noisy("Kork", (0.20, 0.12, 0.06), (0.42, 0.28, 0.14), 0.25, detail=10.0, rough=0.9)
+        twine = K.noisy("Schnur", (0.30, 0.22, 0.12), (0.48, 0.38, 0.24), 0.6, detail=6.0, rough=0.95, stripes=1.0)
+        soil = K.noisy("Erde", (0.03, 0.02, 0.015), (0.10, 0.07, 0.045), 0.15, detail=10.0, rough=0.95)
+        glass = bpy.data.materials.new("Glas")
+        glass.use_nodes = True
+        gb = glass.node_tree.nodes["Principled BSDF"]
+        gb.inputs["Base Color"].default_value = (0.86, 0.95, 0.88, 1)
+        gb.inputs["Roughness"].default_value = 0.04
+        gb.inputs["Transmission Weight"].default_value = 1.0
+        gb.inputs["IOR"].default_value = 1.47
+
+        def cylinder(name, cy, radius, height, material, bevel=0.0, depth=-4.0):
+            bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=radius, depth=height, location=K.P(x, cy, depth))
+            obj = bpy.context.object
+            obj.name = name
+            if bevel > 0:
+                mod = obj.modifiers.new("Rund", "BEVEL")
+                mod.width = bevel
+                mod.segments = 6
+            bpy.ops.object.shade_smooth()
+            obj.data.materials.append(material)
+            return obj
+
+        # Glas als Hohlkörper (Wand 3 px), damit es innen bricht und außen spiegelt
+        outer = cylinder("Glas", y, 55, 132, glass, bevel=16)
+        solid = outer.modifiers.new("Wand", "SOLIDIFY")
+        solid.thickness = 3.0
+        cylinder("Hals", 35, 45, 10, glass, bevel=3)
+        cylinder("Lippe", 29, 48, 6, glass, bevel=2.5)
+        cylinder("Korken", 17, 40, 22, cork, bevel=3)
+        bpy.ops.mesh.primitive_torus_add(major_radius=46.5, minor_radius=2.0, location=K.P(x, 36, -4))
+        bpy.context.object.data.materials.append(twine)
+        bpy.ops.mesh.primitive_torus_add(major_radius=46.5, minor_radius=2.0, location=K.P(x, 40, -4))
+        bpy.context.object.data.materials.append(twine)
+        K.tube("Schlaufe", [(x - 42, 38), (x - 54, 50), (x - 50, 62), (x - 46, 68)], 1.6, twine, depth=-52)
+        # Innen: die Pflanze als Karte, etwas hinter der Mitte, unten Erde mit Moos davor
+        if not empty and picture:
+            card = K.quad("Bild", x - 46, y - 58, x + 46, y + 56, K.cutout_mat(picture, emit=1.0), depth=12)
+            card.visible_shadow = True
+        heap = K.sphere("Erde", x, y + 50, 44, soil, depth=-2)
+        heap.scale = (1.0, 0.9, 0.28)
+        for _ in range(14 if not empty else 6):
+            px, py = x + rnd.uniform(-36, 36), y + 42 + rnd.uniform(-3, 4)
+            tuft = K.sphere("Moos", px, py, rnd.uniform(4, 8), K.MOSS, depth=rnd.uniform(-30, -6))
+            tuft.scale = (1.0, 1.0, 0.6)
+        if empty:
+            # leeres Glas: nur ein vertrockneter Halm und Staub
+            K.tube("Halm", [(x - 6, y + 50), (x - 2, y + 10), (x + 6, y - 20)], 1.4, K.mat("Trocken", (0.25, 0.2, 0.12), 0.9), depth=-6)
+
+    return build
+
+
+def jar_lights(scene):
+    """Licht für die Gläser: Streiflicht von links oben vorn, kräftiges Kantenlicht von hinten rechts, ein schwaches warmes
+    Füllicht; die Welt bleibt fast schwarz, damit das Glas dunkel und tief wirkt"""
+    for obj in list(bpy.data.objects):
+        if obj.type == "LIGHT":
+            bpy.data.objects.remove(obj)
+
+    def area(name, loc, energy, size, color):
+        data = bpy.data.lights.new(name, "AREA")
+        data.energy, data.size, data.color = energy, size, color
+        obj = bpy.data.objects.new(name, data)
+        obj.location = loc
+        obj.rotation_euler = (K.P(75, 105, 0) - obj.location).to_track_quat("-Z", "Y").to_euler()
+        scene.collection.objects.link(obj)
+    area("Schlag", K.P(-120, -80, -260), 2.2e5, 120, (1.0, 0.88, 0.7))
+    area("Kante", K.P(260, 60, 220), 3.5e5, 60, (0.75, 0.95, 0.85))
+    area("Fuell", K.P(75, 120, -400), 0.25e5, 400, (1.0, 0.8, 0.6))
+    scene.world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.08
+
+
+def render_jars(out):
+    for name in sorted(os.listdir(out)):
+        if not name.startswith("T_Keim_Glasbild_") or "_Schatten" in name:
+            continue
+        plant_id = name[len("T_Keim_Glasbild_"):-4]
+        sprite(os.path.join(out, "T_Keim_Glas_{}.png".format(plant_id)), JAR_W, JAR_H, jar(os.path.join(out, name)), samples=96, setup_lights=jar_lights)
+    sprite(os.path.join(out, "T_Keim_Glas_Leer.png"), JAR_W, JAR_H, jar(None, empty=True), samples=96, setup_lights=jar_lights)
+
+
+# ---------------------------------------------------------------- Holz für die beweglichen Ranken
+
+def root_strip(radius, moss, length=1024, height=64):
+    """Ein langer, knorriger Wurzelstrang von links nach rechts, als Band für die Ranken im Spiel (das Spiel legt es entlang
+    ihres Weges): Rinde mit Rissen, Knoten, Moos auf der Oberseite, Licht von oben"""
+    def build():
+        bark = D.bark_mat("Rinde")
+        pts = []
+        for k in range(240):
+            t = k / 239
+            pts.append((-20 + (length + 40) * t, height / 2 + 2.5 * math.sin(t * 31.0) + 1.5 * math.sin(t * 77.0)))
+        curve = bpy.data.curves.new("Strang", "CURVE")
+        curve.dimensions = "3D"
+        curve.bevel_depth = radius
+        curve.bevel_resolution = 6
+        sp = curve.splines.new("POLY")
+        sp.points.add(len(pts) - 1)
+        for i, (px, py) in enumerate(pts):
+            p = K.P(px, py, 0)
+            sp.points[i].co = (p.x, p.y, p.z, 1)
+            t = i / (len(pts) - 1)
+            sp.points[i].radius = 1.0 + 0.12 * math.sin(t * 23.0) + 0.06 * math.sin(t * 61.0)
+        obj = bpy.data.objects.new("Strang", curve)
+        bpy.context.collection.objects.link(obj)
+        obj.data.materials.append(bark)
+        # ein zweiter, dünnerer Strang windet sich um den ersten: geflochten wie ein Korb
+        twist = []
+        for k in range(160):
+            t = k / 159
+            twist.append((-20 + (length + 40) * t, height / 2 + radius * 0.75 * math.sin(t * 2 * math.pi * 7)))
+        K.tube("Windung", twist, radius * 0.32, bark, depth=-radius * 0.6)
+        if moss:
+            for _ in range(int(length / 26)):
+                px = rnd.uniform(0, length)
+                tuft = K.sphere("Moos", px, height / 2 - radius * 0.75, rnd.uniform(radius * 0.18, radius * 0.32), K.MOSS, depth=-radius * 0.5)
+                tuft.scale = (rnd.uniform(1.2, 2.4), 0.8, 0.55)
+    return build
+
+
+def strip_lights(scene):
+    for obj in list(bpy.data.objects):
+        if obj.type == "LIGHT":
+            bpy.data.objects.remove(obj)
+    data = bpy.data.lights.new("Oben", "AREA")
+    data.energy, data.size, data.color = 2.4e7, 2000, (1.0, 0.9, 0.75)
+    obj = bpy.data.objects.new("Oben", data)
+    obj.location = K.P(512, -900, -600)
+    obj.rotation_euler = (K.P(512, 32, 0) - obj.location).to_track_quat("-Z", "Y").to_euler()
+    scene.collection.objects.link(obj)
+    scene.world.node_tree.nodes["Background"].inputs["Strength"].default_value = 0.15
+
+
+def real_leaf():
+    """Ein dunkles, echtes Blatt für die Ranken: Ansatz links in der Mitte"""
+    K.tube("Stiel", [(1, 16), (9, 16)], 1.3, K.mat("Stiel", (0.06, 0.09, 0.03), 0.6), depth=-4)
+    K.leaf(8, 16, 0, 54, 24, K.LEAF_DARK, depth=-8, bend=0.14)
+
+
+def strip_scale(w, h):
+    """Bänder sind breiter als hoch: die Kamera nimmt die Breite"""
+    return max(w, h)
+
+
 def main():
     out = sys.argv[sys.argv.index("--") + 1]
     os.makedirs(out, exist_ok=True)
     only = sys.argv[sys.argv.index("--") + 2:]
     patch()
+    if not only or "bilder" in only:
+        glow_picture(os.path.join(out, "T_Keim_Schein.png"))
+        K.round_pictures(out)
+        oval_pictures(out)
+        glass_pictures(out)
     if not only or "grund" in only:
         C.rnd.seed(2026)
         K.setup()
         K.materials()
         lights()
         scene = bpy.context.scene
-        scene.cycles.samples = 96
+        scene.view_settings.exposure = -1.05
+        scene.cycles.samples = 128
         scene.cycles.volume_step_rate = 4.0
         room_lights()
+        raking_light()
         build_background()
         god_rays()
-        T.finish(scene, line=3.2, samples=48)
         scene.render.filepath = os.path.join(out, "T_Keim_Grund.png")
         bpy.ops.render.render(write_still=True)
-        T.spatter_png(os.path.join(out, "T_Keim_Grund.png"))
         T.vignette_png(os.path.join(out, "T_Keim_Grund.png"))
+    if not only or "glaeser" in only:
+        render_jars(out)
+    if not only or "holz" in only:
+        sprite(os.path.join(out, "T_Keim_Ast.png"), 1024, 64, root_strip(20, True), samples=64, setup_lights=strip_lights)
+        sprite(os.path.join(out, "T_Keim_Wurzel.png"), 1024, 32, root_strip(8, False), samples=64, setup_lights=strip_lights)
+        sprite(os.path.join(out, "T_Keim_Rankenblatt.png"), 64, 32, real_leaf, scale=3)
     if not only or "teile" in only:
-        sprite(os.path.join(out, "T_Keim_Glas.png"), 150, 190, specimen_glass(False))
-        sprite(os.path.join(out, "T_Keim_Glas_Gold.png"), 150, 190, specimen_glass(True))
         sprite(os.path.join(out, "T_Keim_Kapsel.png"), 100, 100, capsule)
         sprite(os.path.join(out, "T_Keim_Knospe.png"), 110, 110, bud)
         sprite(os.path.join(out, "T_Keim_Same.png"), 80, 80, pod(False))
         sprite(os.path.join(out, "T_Keim_Same_Zu.png"), 80, 80, pod(True))
         sprite(os.path.join(out, "T_Keim_Bluete.png"), 90, 90, blossom)
-        sprite(os.path.join(out, "T_Keim_Rankenblatt.png"), 64, 32, vine_leaf, scale=3)
         for kind in ("dorn", "wirbel", "tropfen", "nid"):
             sprite(os.path.join(out, "T_Keim_Zeichen_{}.png".format(kind.capitalize())), 40, 40, sign(kind))
-    if not only or "bilder" in only:
-        glow_picture(os.path.join(out, "T_Keim_Schein.png"))
-        K.round_pictures(out)
-        oval_pictures(out)
-        glass_pictures(out)
     print("[Vael] Keimgeflecht-Bausteine in", out)
 
 

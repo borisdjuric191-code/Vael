@@ -207,21 +207,15 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		{
 			Light(Centre, 150.0f, KeimRgb(255, 200, 115) * 0.5f);
 		}
-		if (Plant != nullptr)
-		{
-			Picture(GetKeimPicture(*FString::Printf(TEXT("T_Keim_Glasbild_%s"), *PlantId(Plant))), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f,
-				FLinearColor::White, Angle, Knob);
-		}
-		else
-		{
-			// Not found yet: a dark silhouette behind the glass
-			Picture(GetKeimPicture(TEXT("T_Keim_Glasbild_Windhalm")), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f, FLinearColor(0.035f, 0.04f, 0.035f), Angle, Knob);
-		}
-		Picture(GetKeimPicture(bChosen ? TEXT("T_Keim_Glas_Gold") : TEXT("T_Keim_Glas")), Centre.X - 75.0f * Scale, Centre.Y - 105.0f * Scale,
-			150.0f * Scale, 190.0f * Scale, FLinearColor::White, Angle, Knob);
+		// Each plant has its own jar, rendered with the plant inside (T_Keim_Glas_<Id>); not found yet: an empty jar. The chosen
+		// one stands in the light, the others a little in the dark.
+		UTexture2D* Jar = GetKeimPicture(Plant != nullptr ? FName(*FString::Printf(TEXT("T_Keim_Glas_%s"), *PlantId(Plant))) : FName(TEXT("T_Keim_Glas_Leer")));
+		Jar = Jar != nullptr ? Jar : GetKeimPicture(TEXT("T_Keim_Glas_Leer"));
+		const float Lit = bChosen ? 1.0f : 0.88f;
+		Picture(Jar, Centre.X - 75.0f * Scale, Centre.Y - 105.0f * Scale, 150.0f * Scale, 190.0f * Scale, FLinearColor(Lit, Lit, Lit), Angle, Knob);
 		if (Plant == nullptr)
 		{
-			Title(FText::FromString(TEXT("?")), Centre.X, Centre.Y - 34.0f, 64.0f, KeimRgb(95, 100, 88), 0.5f);
+			Title(FText::FromString(TEXT("?")), Centre.X, Centre.Y - 24.0f, 40.0f, KeimRgb(120, 112, 96, 150), 0.5f);
 			Label(LOCTEXT("Unknown", "unentdeckt"), Centre.X, Centre.Y + 86.0f * Scale + 2.0f, 15.0f, Dim, 0.5f, 150.0f);
 			continue;
 		}

@@ -35,6 +35,10 @@ for file in sorted(os.listdir(SOURCE)):
     texture.set_editor_property("mip_gen_settings", unreal.TextureMipGenSettings.TMGS_NO_MIPMAPS)
     texture.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_EDITOR_ICON)
     texture.set_editor_property("srgb", True)
+    if name in ("T_Keim_Ast", "T_Keim_Wurzel"):
+        # the bark bands repeat along the moving roots of the frame
+        texture.set_editor_property("address_x", unreal.TextureAddress.TA_WRAP)
+        texture.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
     assets.save_loaded_asset(texture, False)
     count += 1
 unreal.log_warning("[Keimgeflecht] imported {} pictures".format(count))
