@@ -305,6 +305,13 @@ private:
 	float KeimCarryTime = -10.0f;
 	TMap<FString, int32> KeimSeenGenes;
 	TMap<FString, float> KeimBloomTimes;
+	/** When the page was opened (the vines grow out of the frame then) and last drawn */
+	float KeimOpenTime = -10.0f;
+	float KeimLastDraw = -10.0f;
+
+	/** The living vines round the frame of the Keimgeflecht: they grow in when the page opens, slither slowly, their leaves
+	 *  nod, their tendrils curl and uncurl, shoots hang from the top and swing */
+	void DrawKeimVines(float OX, float K, float Time);
 
 	bool bLevelMapLookedUp = false;
 

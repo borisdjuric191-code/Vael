@@ -166,6 +166,14 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	// The chamber: black around it where the screen is wider than 16:9
 	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, KeimRgb(8, 6, 5));
 	Picture(GetKeimPicture(TEXT("T_Keim_Grund")), 0.0f, 0.0f, 1920.0f, 1080.0f, FLinearColor::White);
+
+	// The vines round the frame grow in anew whenever the page is opened
+	if (Time - KeimLastDraw > 0.5f)
+	{
+		KeimOpenTime = Time;
+	}
+	KeimLastDraw = Time;
+	DrawKeimVines(OX, K, Time);
 	DrawMenuTabs(PlayerController, OX + 1830.0f * K, 30.0f * K);
 
 	// ---------------- Herbarium: glasses on threads that sway; the chosen one swings when it is chosen and glows warm
@@ -182,9 +190,11 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	{
 		const UVaelPlantArmData* Plant = Index < NumCards ? Floromant->GetCatalogPlant(Index) : nullptr;
 		const bool bChosen = Index == Chosen;
-		const float Scale = bChosen ? 1.08f : 1.0f;
+		// Jars a little smaller than the old glasses, so the name under each stays free of the jar below
+		const float Scale = bChosen ? 0.88f : 0.82f;
 		const FVector2D Centre = GlassCentre(Index);
-		const FVector2D Knob(Centre.X, Centre.Y - GlassRY - 14.0f);
+		// The jar hangs on its string from the top of its cork
+		const FVector2D Knob(Centre.X, Centre.Y - 97.0f * Scale);
 		float Angle = 1.4f * FMath::Sin(Time * 0.9f + Index * 1.7f);
 		if (bChosen)
 		{
@@ -199,23 +209,23 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		}
 		if (Plant != nullptr)
 		{
-			Picture(GetKeimPicture(*FString::Printf(TEXT("T_Keim_Oval_%s"), *PlantId(Plant))), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f,
+			Picture(GetKeimPicture(*FString::Printf(TEXT("T_Keim_Glasbild_%s"), *PlantId(Plant))), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f,
 				FLinearColor::White, Angle, Knob);
 		}
 		else
 		{
 			// Not found yet: a dark silhouette behind the glass
-			Picture(GetKeimPicture(TEXT("T_Keim_Oval_Windhalm")), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f, FLinearColor(0.035f, 0.04f, 0.035f), Angle, Knob);
+			Picture(GetKeimPicture(TEXT("T_Keim_Glasbild_Windhalm")), Centre.X - RX, Centre.Y - RY, RX * 2.0f, RY * 2.0f, FLinearColor(0.035f, 0.04f, 0.035f), Angle, Knob);
 		}
 		Picture(GetKeimPicture(bChosen ? TEXT("T_Keim_Glas_Gold") : TEXT("T_Keim_Glas")), Centre.X - 75.0f * Scale, Centre.Y - 105.0f * Scale,
 			150.0f * Scale, 190.0f * Scale, FLinearColor::White, Angle, Knob);
 		if (Plant == nullptr)
 		{
 			Title(FText::FromString(TEXT("?")), Centre.X, Centre.Y - 34.0f, 64.0f, KeimRgb(95, 100, 88), 0.5f);
-			Label(LOCTEXT("Unknown", "unentdeckt"), Centre.X, Centre.Y + RY + 10.0f, 15.0f, Dim, 0.5f, 150.0f);
+			Label(LOCTEXT("Unknown", "unentdeckt"), Centre.X, Centre.Y + 86.0f * Scale + 2.0f, 15.0f, Dim, 0.5f, 150.0f);
 			continue;
 		}
-		Label(Plant->GetDisplayName(false), Centre.X, Centre.Y + RY + 10.0f, bChosen ? 17.0f : 15.0f, bChosen ? Gold : Pale, 0.5f, 150.0f);
+		Label(Plant->GetDisplayName(false), Centre.X, Centre.Y + 86.0f * Scale + 2.0f, bChosen ? 17.0f : 15.0f, bChosen ? Gold : Pale, 0.5f, 150.0f);
 
 		// In the wheel: a green germ glowing at the top of the glass
 		bool bInWheel = false;

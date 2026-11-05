@@ -26,6 +26,7 @@ import bpy
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import vael_keimgeflecht_d as D  # noqa: E402
+import vael_tusche as T  # noqa: E402
 
 C = D.C
 K = D.K
@@ -41,6 +42,10 @@ def patch():
     K.moth_emblem = D.detailed_moth
     K.alive_room = D.detailed_room
     K.aged_paper = D.parchment_mat
+    # Tusche-Stil: Schrift und Lichthöfe ohne Linie
+    text, glow = K.text, K.glow
+    K.text = lambda *a, **k: T.no_lines(text(*a, **k))
+    K.glow = lambda *a, **k: T.no_lines(glow(*a, **k))
 
 
 def lights():
@@ -83,13 +88,16 @@ def build_background():
     for _ in range(26):
         x, y = rnd.uniform(0, K.W), rnd.uniform(0, K.H)
         color = rnd.choice(((0.3, 0.9, 0.6), (0.9, 0.6, 0.8), (0.95, 0.8, 0.5)))
-        K.glow(x, y, rnd.uniform(40, 130), K.glow_mat("Bokeh", color, rnd.uniform(0.08, 0.22)), depth=50)
+        r = rnd.uniform(40, 130)
+        strength = rnd.uniform(0.08, 0.22)
+        if x < 600 and y > 750:
+            continue  # dieser Lichtfleck zeichnete sich unten links als Viereck ab
+        K.glow(x, y, r, K.glow_mat("Bokeh", color, strength), depth=58)
     # Die flachen Lichtbahnen aus C fallen weg: die echten Lichtstrahlen (god_rays) ersetzen sie, und ihre Kanten zeichneten
     # sich unten links als graue Fläche ab
     K.alive_room()
     frame_roots()
-    vig = K.quad("Vignette", -200, -150, K.W + 200, K.H + 150, C.vignette_mat(), depth=-70)
-    vig.visible_shadow = False
+    # Vignette erst nach dem Rendern (T.vignette_png): eine Fläche vor der Kamera würde alle Tuschelinien verdecken
     for x, y, a, l in ((-30, 90, 25, 200), (-20, 1060, -35, 220), (1950, 40, 160, 190)):
         K.leaf(x, y, a, l, l * 0.42, K.mat("Vorderblatt", (0.008, 0.02, 0.008), 0.8), depth=-60, bend=0.2)
 
@@ -106,7 +114,7 @@ def build_background():
         col, row = i % 3, i // 3
         x = 170 + col * 160
         y = 300 + row * 178 + (40 if col == 1 else 0)
-        K.tube("Faden", [(x + rnd.uniform(-10, 10), y - 64 - 90), (x, y - 64 - 12)], 1.0, K.THORN, depth=8)
+        K.tube("Faden", [(x + rnd.uniform(-10, 10), y - 64 - 100), (x, y - 80)], 1.5, K.mat("Faden", (0.45, 0.36, 0.24), 0.9), depth=8)
 
     # Erbstrang: beide Ranken, Sprossen, Motte, Stiele und Blattrosetten aller acht Plätze (Kapseln zeichnet das Spiel)
     cx, top, bottom, amp = STRAND_X, STRAND_TOP, STRAND_BOTTOM, STRAND_AMP
@@ -165,6 +173,13 @@ def build_background():
     C.oval_disc("Miniaturgrund", mx, my, mrx, mry, K.mat("Fenster", (0.02, 0.025, 0.02), 0.6), depth=2)
     C.oval_ring("Haarlinie", mx, my, mrx + 6, mry + 6, 1.4, K.GOLD, depth=0)
     C.oval_ring("Haarlinie2", mx, my, mrx + 12, mry + 12, 0.6, ink, depth=0)
+    # Tuschefassungen wie auf einer Traktat-Seite: um die Werte und die Kreuzungen, Zierlinie unter dem Namen
+    ink_frame(x0 + 40, y0 + 572, x0 + 502, y0 + 664, ink_faint)
+    ink_frame(x0 + 40, y0 + 668, x0 + 502, y0 + 826, ink_faint)
+    flourish = [(x0 + 56 + k * 12, y0 + 178 + 3 * math.sin(k * 0.8)) for k in range(36)]
+    K.tube("Zierlinie", flourish, 0.9, ink, depth=4)
+    for fx, ang in ((x0 + 56, 180), (x0 + 476, 0)):
+        K.leaf(fx, y0 + 178, ang, 18, 7, K.LEAF, depth=2)
 
     # Werte: Zeichen, Namen und leere Balken; Zahlen und Füllung zeichnet das Spiel
     stats = [("dorn", "Kraft"), ("wirbel", "Tempo"), ("tropfen", "Saft"), ("nid", "Nid")]
@@ -422,19 +437,42 @@ def sprite(path, w, h, builder, scale=2):
     scene.cycles.film_transparent_glass = True
     scene.camera.data.ortho_scale = max(w, h)
     builder()
+    T.finish(scene, line=2.6, samples=32)
     scene.render.filepath = path
     bpy.ops.render.render(write_still=True)
     K.W, K.H = 1920, 1080
 
 
 def specimen_glass(gold):
+    """Ein Sammelglas mit Korken und Schnur (wie in den Vorlagen Boris 2026-11-05), die Pflanze zeichnet das Spiel dahinter"""
     def build():
-        x, y, rx, ry = 75, 105, 52, 64
-        C.oval_ring("Fassung", x, y, rx + 6, ry + 6, 5.0, K.GOLD if gold else K.BRONZE, depth=-4)
-        C.oval_ring("Innen", x, y, rx, ry, 1.4, K.GOLD, depth=-5)
-        K.sphere("Knauf", x, y - ry - 8, 6, K.GOLD if gold else K.BRONZE, depth=-6)
-        glass = K.sphere("Glas", x, y, 60, K.CAPSULE_GLASS, depth=-2, squash=0.25)
-        glass.scale = (rx / 60.0, 0.25, ry / 60.0)
+        x, y = 75, 105
+        rim = K.GOLD if gold else K.BRONZE
+        cork = K.noisy("Kork", (0.32, 0.2, 0.1), (0.55, 0.38, 0.2), 0.3, rough=0.9)
+        twine = K.mat("Schnur", (0.5, 0.4, 0.26), 0.9)
+
+        def cylinder(name, cy, radius, height, material, bevel=0.0):
+            bpy.ops.mesh.primitive_cylinder_add(vertices=48, radius=radius, depth=height, location=K.P(x, cy, -4))
+            obj = bpy.context.object
+            obj.name = name
+            if bevel > 0:
+                mod = obj.modifiers.new("Rund", "BEVEL")
+                mod.width = bevel
+                mod.segments = 5
+            bpy.ops.object.shade_smooth()
+            obj.data.materials.append(material)
+            return obj
+
+        cylinder("Glas", y, 55, 132, K.CAPSULE_GLASS, bevel=16)
+        cylinder("Hals", 35, 45, 10, K.CAPSULE_GLASS, bevel=3)
+        cylinder("Lippe", 29, 48, 6, rim, bevel=2)
+        cylinder("Korken", 17, 40, 22, cork, bevel=3)
+        bpy.ops.mesh.primitive_torus_add(major_radius=46, minor_radius=2.2, location=K.P(x, 36, -4))
+        bpy.context.object.data.materials.append(twine)
+        K.tube("Schlaufe", [(x - 40, 37), (x - 52, 48), (x - 47, 58)], 1.6, twine, depth=-30)
+        # Glanz auf dem Glas: ein heller Streif links, ein kurzer rechts
+        for x0, x1, y0, y1 in ((x - 44, x - 40, 60, 140), (x + 39, x + 42, 66, 88)):
+            T.no_lines(K.quad("Glanz", x0, y0, x1, y1, K.mat("Glanz", (1.0, 1.0, 0.95), 0.2, emit=1.2, alpha=0.35), depth=-70))
     return build
 
 
@@ -471,6 +509,12 @@ def blossom():
     K.ring("Wahl", 45, 45, 34, 2.4, K.GOLD, depth=-8)
 
 
+def vine_leaf():
+    """Ein Blatt der beweglichen Ranken am Rahmen: Ansatz links in der Mitte, zeigt nach rechts (das Spiel dreht es)"""
+    K.tube("Stiel", [(1, 16), (8, 16)], 1.2, K.mat("Stielgruen", (0.1, 0.2, 0.06), 0.6), depth=-4)
+    K.leaf(7, 16, 0, 54, 24, K.LEAF, depth=-8, bend=0.12)
+
+
 def sign(kind):
     def build():
         C.icon(kind, 20, 20, 1.3, K.mat("Weiss", (1.0, 1.0, 1.0), 0.5, emit=3.0), depth=-10)
@@ -495,6 +539,30 @@ def glow_picture(path):
     pixels[..., 3] = np.clip(1.0 - r, 0.0, 1.0) ** 2.2
     pixels[..., :3] = pixels[..., 3:4]
     write_png(path, pixels, n, n)
+
+
+def glass_pictures(folder):
+    """Die Tuschebilder für die Sammelgläser: Rechteck 52 : 64 mit runden Ecken, Rand weich und dunkler"""
+    import numpy as np
+    for name in sorted(os.listdir(K.PLANTS)):
+        if not name.startswith("T_Pflanze_") or not name.endswith(".png"):
+            continue
+        image = bpy.data.images.load(os.path.join(K.PLANTS, name))
+        w, h = image.size
+        pixels = np.array(image.pixels[:], np.float32).reshape(h, w, 4)
+        cw = int(round(h * 52.0 / 64.0))
+        x0 = max((w - cw) // 2, 0)
+        pixels = pixels[:, x0:x0 + cw].copy()
+        yy, xx = np.mgrid[0:h, 0:cw]
+        corner = 0.3 * cw
+        qx = np.maximum(np.abs(xx + 0.5 - cw / 2) - (cw / 2 - corner), 0.0)
+        qy = np.maximum(np.abs(yy + 0.5 - h / 2) - (h / 2 - corner), 0.0)
+        d = np.hypot(qx, qy) - corner
+        alpha = np.clip(-d / (0.03 * cw), 0.0, 1.0)
+        edge = np.clip(1.0 + d / (0.25 * cw), 0.0, 1.0)
+        pixels[..., :3] *= (1.0 - 0.45 * edge)[..., None]
+        pixels[..., 3] = alpha
+        write_png(os.path.join(folder, name.replace("T_Pflanze_", "T_Keim_Glasbild_")), pixels, cw, h)
 
 
 def oval_pictures(folder):
@@ -534,8 +602,11 @@ def main():
         room_lights()
         build_background()
         god_rays()
+        T.finish(scene, line=3.2, samples=48)
         scene.render.filepath = os.path.join(out, "T_Keim_Grund.png")
         bpy.ops.render.render(write_still=True)
+        T.spatter_png(os.path.join(out, "T_Keim_Grund.png"))
+        T.vignette_png(os.path.join(out, "T_Keim_Grund.png"))
     if not only or "teile" in only:
         sprite(os.path.join(out, "T_Keim_Glas.png"), 150, 190, specimen_glass(False))
         sprite(os.path.join(out, "T_Keim_Glas_Gold.png"), 150, 190, specimen_glass(True))
@@ -544,12 +615,14 @@ def main():
         sprite(os.path.join(out, "T_Keim_Same.png"), 80, 80, pod(False))
         sprite(os.path.join(out, "T_Keim_Same_Zu.png"), 80, 80, pod(True))
         sprite(os.path.join(out, "T_Keim_Bluete.png"), 90, 90, blossom)
+        sprite(os.path.join(out, "T_Keim_Rankenblatt.png"), 64, 32, vine_leaf, scale=3)
         for kind in ("dorn", "wirbel", "tropfen", "nid"):
             sprite(os.path.join(out, "T_Keim_Zeichen_{}.png".format(kind.capitalize())), 40, 40, sign(kind))
     if not only or "bilder" in only:
         glow_picture(os.path.join(out, "T_Keim_Schein.png"))
         K.round_pictures(out)
         oval_pictures(out)
+        glass_pictures(out)
     print("[Vael] Keimgeflecht-Bausteine in", out)
 
 
