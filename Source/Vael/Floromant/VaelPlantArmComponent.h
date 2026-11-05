@@ -9,6 +9,7 @@
 
 class AVaelCharacter;
 class UMaterialInstanceDynamic;
+class UTexture;
 class USkeletalMeshComponent;
 class USplineMeshComponent;
 class UStaticMeshComponent;
@@ -196,6 +197,23 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> ArmMaterial;
+
+	/** A shadow form with its own texture (Blutrose): the pictures of light and shadow form to swap, the glow of the light form,
+	 *  and the material of the rose on the shoulder */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture> LightTexture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture> ShadowFormTexture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> ShoulderMaterial;
+
+	float LightGlut = 0.0f;
+	bool bFormLooked = false;
+
+	/** Shows the light or the shadow form on a material: the shadow texture where the plant has one, else the violet tint */
+	void ApplyForm(UMaterialInstanceDynamic* Material, bool bShadow);
 
 	/** Overgrowth while aiming: vines over forearm and upper arm, more wild stalks, more Keimpelz pads; first the forearm
 	 *  grows (material A), then the upper arm (material B) */

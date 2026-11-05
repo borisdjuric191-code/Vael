@@ -10,6 +10,7 @@
 class UMaterialInterface;
 class UNiagaraSystem;
 class UStaticMesh;
+class UTexture;
 class UTexture2D;
 class UVaelElementSource;
 class UVaelPlantData;
@@ -857,6 +858,19 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="HUD")
 	TSoftObjectPtr<UTexture2D> WheelShadowPicture;
+
+	/** The coloured texture of the shadow form (Tools/Pflanzenarm/schattenform.py, Boris 2026-11-05: Blutrose first). Set: in the
+	 *  shadow form the plant shows this picture instead of the violet tint, and what is red in it glows (Glut). Empty: looked up
+	 *  as T_<Id>_Schatten next to the plant arm assets; none there: the violet tint as before. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shadow")
+	TSoftObjectPtr<UTexture> ShadowTexture;
+
+	/** How strongly the red of the shadow texture glows */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Shadow", meta = (ClampMin = 0))
+	float ShadowGlut = 0.8f;
+
+	/** The shadow texture: the set one, or T_<Id>_Schatten by name, or null */
+	UTexture* LoadShadowTexture() const;
 
 	/** True if the plant has only its light form (Mondtraufe), so the shadow form changes nothing */
 	bool IsLightOnly() const;

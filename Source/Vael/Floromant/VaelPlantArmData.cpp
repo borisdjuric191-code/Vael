@@ -3,6 +3,7 @@
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelPlantData.h"
 #include "VaelAssets.h"
+#include "Engine/Texture.h"
 
 FText UVaelPlantArmData::GetDisplayName(bool bShadow) const
 {
@@ -20,6 +21,19 @@ bool UVaelPlantArmData::IsLightOnly() const
 {
 	const UVaelPlantData* PlantData = VaelAssets::LoadOptional(Plant);
 	return PlantData != nullptr && PlantData->bLightOnly;
+}
+
+UTexture* UVaelPlantArmData::LoadShadowTexture() const
+{
+	if (!ShadowTexture.IsNull())
+	{
+		return VaelAssets::LoadOptional(ShadowTexture);
+	}
+	// By name next to the plant arm: DA_Pflanzenarm_<Id> -> /Game/Vael/Characters/Floromant/Pflanzenarm/<Id>/T_<Id>_Schatten
+	FString Id = GetName();
+	Id.RemoveFromStart(TEXT("DA_Pflanzenarm_"));
+	const FString Path = FString::Printf(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm/%s/T_%s_Schatten.T_%s_Schatten"), *Id, *Id, *Id);
+	return LoadObject<UTexture>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
 }
 
 const TArray<FVaelGeneTier>& UVaelPlantArmData::GetGeneTiers() const

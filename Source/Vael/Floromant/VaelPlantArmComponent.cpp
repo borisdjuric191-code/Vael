@@ -24,6 +24,7 @@
 #include "Magic/VaelSpellEffects.h"
 #include "Magic/VaelSpellProjectile.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/Texture.h"
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "Player/VaelCharacter.h"
@@ -58,6 +59,8 @@ namespace
 	const FName WindParameter(TEXT("Wind"));
 	const FName SpinParameter(TEXT("Spin"));
 	const FName ShadowParameter(TEXT("Schatten"));
+	const FName TextureParameter(TEXT("Textur"));
+	const FName GlutParameter(TEXT("Glut"));
 	const FName TipFlashParameter(TEXT("Aufleuchten"));
 	const FName PhaseParameter(TEXT("Zeitversatz"));
 	const FName ArmPointParameter(TEXT("ArmPunkt"));
@@ -294,6 +297,10 @@ void UVaelPlantArmComponent::Clear()
 	Overgrowth = 0.0f;
 	FingerMaterials.Reset();
 	ArmMaterial = nullptr;
+	ShoulderMaterial = nullptr;
+	LightTexture = nullptr;
+	ShadowFormTexture = nullptr;
+	bFormLooked = false;
 	Plant = nullptr;
 	NextPlant = nullptr;
 	bChanging = false;
@@ -1038,7 +1045,7 @@ void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
 		UMaterialInstanceDynamic* Material = FingerMaterials[Finger];
 		Material->SetScalarParameterValue(GrowParameter, Grow);
 		Material->SetScalarParameterValue(WindParameter, Wind * (1.0f - Fan * 0.7f));
-		Material->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+		ApplyForm(Material, bShadow);
 		Material->SetScalarParameterValue(TipFlashParameter, FMath::Max(Flashes[Finger], TipCharges.IsValidIndex(Finger) ? TipCharges[Finger] : 0.0f));
 	}
 
@@ -1046,7 +1053,35 @@ void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
 	ArmMaterial->SetScalarParameterValue(WindParameter, Wind);
 	// The spiral itself turns in UpdateStalks; in the material the tips lag behind, the faster it turns the more
 	ArmMaterial->SetScalarParameterValue(SpinParameter, SpinRate * 0.15f);
-	ArmMaterial->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+	ApplyForm(ArmMaterial, bShadow);
+	ApplyForm(ShoulderMaterial, bShadow);
+}
+
+void UVaelPlantArmComponent::ApplyForm(UMaterialInstanceDynamic* Material, bool bShadow)
+{
+	if (Material == nullptr || Plant == nullptr)
+	{
+		return;
+	}
+	// Once per plant: does it have a shadow texture, and what does its light form show
+	if (!bFormLooked)
+	{
+		bFormLooked = true;
+		ShadowFormTexture = Plant->LoadShadowTexture();
+		UTexture* Light = nullptr;
+		LightTexture = Material->GetTextureParameterValue(TextureParameter, Light) ? Light : nullptr;
+		float Glut = 0.0f;
+		LightGlut = Material->GetScalarParameterValue(GlutParameter, Glut) ? Glut : 0.0f;
+	}
+	if (ShadowFormTexture == nullptr || LightTexture == nullptr)
+	{
+		Material->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+		return;
+	}
+	// Its own shadow picture: shown as it is (no violet tint), its red glows like embers
+	Material->SetTextureParameterValue(TextureParameter, bShadow ? ShadowFormTexture.Get() : LightTexture.Get());
+	Material->SetScalarParameterValue(ShadowParameter, 0.0f);
+	Material->SetScalarParameterValue(GlutParameter, bShadow ? Plant->ShadowGlut : LightGlut);
 }
 
 // ---------------------------------------------------------------- Shots
@@ -1667,7 +1702,7 @@ void UVaelPlantArmComponent::UpdateOvergrowth(const FVector& Shoulder, const FVe
 		const bool bUpper = Material == OvergrowthMaterialB;
 		Material->SetScalarParameterValue(GrowParameter, FMath::Clamp(Overgrowth * 2.0f - (bUpper ? 1.0f : 0.0f), 0.0f, 1.0f));
 		Material->SetScalarParameterValue(WindParameter, Plant->RestWind * 0.6f);
-		Material->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+		ApplyForm(Material, bShadow);
 	}
 
 	const FVector LowerAxis = (Elbow - Wrist).GetSafeNormal();
@@ -1815,6 +1850,7 @@ void UVaelPlantArmComponent::BuildVineArm()
 		ShoulderRose->SetCanEverAffectNavigation(false);
 		ShoulderRose->SetupAttachment(Body);
 		ShoulderRose->RegisterComponent();
+		ShoulderMaterial = ShoulderRose->CreateAndSetMaterialInstanceDynamic(0);
 	}
 	HeartLight = NewObject<UPointLightComponent>(GetOwner());
 	HeartLight->SetupAttachment(Body);
@@ -2010,7 +2046,8 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	}
 	ArmMaterial->SetScalarParameterValue(GrowParameter, Shown);
 	ArmMaterial->SetScalarParameterValue(WindParameter, Plant->RestWind);
-	ArmMaterial->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+	ApplyForm(ArmMaterial, bShadow);
+	ApplyForm(ShoulderMaterial, bShadow);
 
 	// --- The rose stands nearly upright against the shoulder, its foot grown into it, its face turned out to the side
 	// (Boris 2026-10-26: it must touch the shoulder, not float above it); it wanders off for the heart shot and grows back
