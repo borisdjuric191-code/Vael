@@ -175,6 +175,8 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	KeimLastDraw = Time;
 	DrawKeimVines(OX, K, Time);
 	DrawKeimStrand(OX, K, Time);
+	// The title lies over the thick roots of the frame
+	Picture(GetKeimPicture(TEXT("T_Keim_Titel")), 680.0f, 20.0f, 560.0f, 130.0f, FLinearColor::White);
 	DrawMenuTabs(PlayerController, OX + 1830.0f * K, 30.0f * K);
 
 	// ---------------- Herbarium: glasses on threads that sway; the chosen one swings when it is chosen and glows warm

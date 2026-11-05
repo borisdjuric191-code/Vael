@@ -97,12 +97,7 @@ def build_background():
     for x, y, a, l in ((-30, 90, 25, 200), (-20, 1060, -35, 220), (1950, 40, 160, 190)):
         K.leaf(x, y, a, l, l * 0.42, K.mat("Vorderblatt", (0.008, 0.02, 0.008), 0.8), depth=-60, bend=0.2)
 
-    # Titel mit Ranke
-    K.text("Keimgeflecht", K.W / 2, 44, 52, gold_text, "AlmendraSC-Regular.ttf", "CENTER", depth=-20)
-    curve = [(K.W / 2 - 220 + k * 20, 112 + 5 * math.sin(k * 0.9)) for k in range(23)]
-    K.tube("Titelranke", curve, 1.6, K.GOLD, depth=-18)
-    K.leaf(K.W / 2 - 230, 112, 200, 24, 10, K.LEAF, depth=-18)
-    K.leaf(K.W / 2 + 230, 112, -20, 24, 10, K.LEAF, depth=-18)
+    # Der Titel ist ein eigenes Teil (T_Keim_Titel): das Spiel legt ihn über die dicken Wurzeln des Rahmens
 
     # Herbarium: nur die Überschrift und die Fäden; Gläser, Bilder und Namen zeichnet das Spiel
     K.text("Herbarium", 330, 150, 34, pale, "AlmendraSC-Regular.ttf", "CENTER", depth=-20)
@@ -504,6 +499,19 @@ def vine_leaf():
     """Ein Blatt der beweglichen Ranken am Rahmen: Ansatz links in der Mitte, zeigt nach rechts (das Spiel dreht es)"""
     K.tube("Stiel", [(1, 16), (8, 16)], 1.2, K.mat("Stielgruen", (0.1, 0.2, 0.06), 0.6), depth=-4)
     K.leaf(7, 16, 0, 54, 24, K.LEAF, depth=-8, bend=0.12)
+
+
+def title_piece():
+    """Der Titel mit seiner goldenen Ranke, über einem weichen dunklen Schatten, damit er über den Wurzeln lesbar bleibt
+    (560 x 130, Mitte bei x 280; im Spiel oben mittig)"""
+    gold_text = K.mat("Titelgold", (0.95, 0.74, 0.36), 0.3, 0.6, emit=1.3)
+    shade = K.quad("Titelschatten", 0, 0, 560, 130, K.glow_mat("Titelschatten", (0.0, 0.0, 0.0), 1.0), depth=30)
+    shade.scale = (1.0, 1.0, 1.0)
+    K.text("Keimgeflecht", 280, 24, 52, gold_text, "AlmendraSC-Regular.ttf", "CENTER", depth=-20)
+    curve = [(60 + k * 20, 92 + 5 * math.sin(k * 0.9)) for k in range(23)]
+    K.tube("Titelranke", curve, 1.6, K.GOLD, depth=-18)
+    K.leaf(50, 92, 200, 24, 10, K.LEAF, depth=-18)
+    K.leaf(510, 92, -20, 24, 10, K.LEAF, depth=-18)
 
 
 def sign(kind):
@@ -1004,15 +1012,16 @@ def frame_weave():
     überschlagen (wie ein Korb), mit Moos und Blättern; was sich bewegt, legt das Spiel darüber (VaelHUDKeimVines.cpp)"""
     rng = random.Random(77)
     # (Anfang, Ende, Breite des Bandes, Lage innen) je Rand; das Band bleibt im Rand (frei: Herbarium, Strang, Tafel, Knöpfe)
-    edges = [((-40, 30), (1960, 26), 46, (0, 1)), ((-40, 1058), (1960, 1062), 40, (0, -1)),
-             ((40, -40), (34, 1120), 64, (1, 0)), ((1888, -40), (1894, 1120), 60, (-1, 0))]
+    # Boris 2026-11-05: stammdicke Wurzeln, nicht dünne; der Rand ist dafür breiter (frei bleiben Herbarium, Strang, Tafel)
+    edges = [((-60, 30), (1980, 26), 64, (0, 1)), ((-60, 1054), (1980, 1058), 56, (0, -1)),
+             ((44, -60), (40, 1140), 84, (1, 0)), ((1892, -60), (1896, 1140), 72, (-1, 0))]
     tints = [(0.55, 0.5, 0.44), (0.42, 0.36, 0.3), (0.62, 0.56, 0.46), (0.5, 0.48, 0.38), (0.36, 0.3, 0.26)]
     for (sx, sy), (ex, ey), band, inward in edges:
         length = math.hypot(ex - sx, ey - sy)
         dx, dy = (ex - sx) / length, (ey - sy) / length
         nx, ny = -dy, dx
         for k in range(7):
-            radius = rng.uniform(6, 15) if k < 5 else rng.uniform(3, 6)
+            radius = rng.uniform(19, 30) if k < 4 else rng.uniform(9, 14) if k < 6 else rng.uniform(4, 7)
             waves = rng.uniform(3.0, 7.0)
             phase = rng.uniform(0, 2 * math.pi)
             offset = rng.uniform(-0.15, 0.15) * band
@@ -1020,7 +1029,7 @@ def frame_weave():
             for j in range(160):
                 t = j / 159
                 # jede Wurzel windet sich quer über das Band, so kreuzen sie sich immer wieder
-                across = offset + 0.42 * band * math.sin(t * waves * 2 * math.pi + phase) + 4 * math.sin(t * 61 + phase)
+                across = offset + 0.3 * band * math.sin(t * waves * 2 * math.pi + phase) + 4 * math.sin(t * 61 + phase)
                 pts.append((sx + dx * length * t + nx * across, sy + dy * length * t + ny * across))
             depth = -4 - 6 * math.sin(phase) - k * 1.5
             bark_root(pts, radius, rng.choice(tints), depth, rng, taper=0.1, moss=0.35)
@@ -1038,7 +1047,7 @@ def frame_weave():
             a = rng.uniform(0, 2 * math.pi)
             r = rng.uniform(50, 110)
             pts = [(cx + math.cos(a + j * 0.04) * (j / 30 - 0.5) * r * 2, cy + math.sin(a + j * 0.04) * (j / 30 - 0.5) * r * 2) for j in range(31)]
-            bark_root(pts, rng.uniform(8, 16), rng.choice(tints), -14, rng, taper=0.5, moss=0.4)
+            bark_root(pts, rng.uniform(22, 36), rng.choice(tints), -14, rng, taper=0.5, moss=0.4)
 
 
 def papyrus2_mat(name):
@@ -1286,6 +1295,7 @@ def main():
         sprite(os.path.join(out, "T_Keim_Schattenwurzel.png"), 1024, 32, wood_strip((0.5, 0.34, 0.42), 8), samples=64, setup_lights=strip_lights)
         sprite(os.path.join(out, "T_Keim_Rankenblatt.png"), 64, 32, real_leaf, scale=3)
     if not only or "teile" in only:
+        sprite(os.path.join(out, "T_Keim_Titel.png"), 560, 130, title_piece)
         sprite(os.path.join(out, "T_Keim_Kapsel.png"), 100, 100, capsule)
         sprite(os.path.join(out, "T_Keim_Knospe.png"), 110, 110, bud)
         sprite(os.path.join(out, "T_Keim_Same.png"), 80, 80, pod(False))
