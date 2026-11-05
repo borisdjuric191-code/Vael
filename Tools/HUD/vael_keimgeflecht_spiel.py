@@ -84,11 +84,10 @@ def build_background():
         x, y = rnd.uniform(0, K.W), rnd.uniform(0, K.H)
         color = rnd.choice(((0.3, 0.9, 0.6), (0.9, 0.6, 0.8), (0.95, 0.8, 0.5)))
         K.glow(x, y, rnd.uniform(40, 130), K.glow_mat("Bokeh", color, rnd.uniform(0.08, 0.22)), depth=50)
-    for k, (x, w, s) in enumerate(((700, 180, 0.22), (860, 120, 0.3), (1000, 220, 0.12))):
-        shaft = K.quad("Lichtbahn", x - w / 2, -200, x + w / 2, 1300, K.glow_mat("Bahn", (0.75, 1.0, 0.75), s), depth=40)
-        shaft.rotation_euler = (0, math.radians(-8 + k * 5), 0)
-        shaft.visible_shadow = False
+    # Die flachen Lichtbahnen aus C fallen weg: die echten Lichtstrahlen (god_rays) ersetzen sie, und ihre Kanten zeichneten
+    # sich unten links als graue Fläche ab
     K.alive_room()
+    frame_roots()
     vig = K.quad("Vignette", -200, -150, K.W + 200, K.H + 150, C.vignette_mat(), depth=-70)
     vig.visible_shadow = False
     for x, y, a, l in ((-30, 90, 25, 200), (-20, 1060, -35, 220), (1950, 40, 160, 190)):
@@ -175,33 +174,236 @@ def build_background():
         K.text(label, sx + 34, sy - 2, 17, ink_faint, "Almendra-Regular.ttf", depth=4)
         K.tube("Balken", [(sx, sy + 48), (sx + 92, sy + 48)], 1.0, ink_faint, depth=2)
 
-    # Erbgut: Überschrift, Stängel mit Samen, je Stufe die römische Zahl und zwei Äste (Samen und Blüten zeichnet das Spiel)
-    tx, ty = x0 + 690, y0 + 50
+    erbgut_tree(x0 + 690, y0 + 50, ink, ink_faint)
+
+    K.text("Kreuzungen", x0 + 56, y0 + 676, 28, ink, "AlmendraSC-Regular.ttf", depth=4)
+
+
+# ---------------------------------------------------------------- Rahmen und Erbgut (Boris 2026-11-05: rechte Tafelseite zu
+# einfach, Äste und Wurzeln am Rahmen mehr und länger)
+
+def god_rays():
+    """Wie in Entwurf D, aber der linke Lichtkegel fällt steiler hinter den Strang statt als harte helle Fläche unten links"""
+    bpy.ops.mesh.primitive_cube_add(size=1)
+    fog = bpy.context.object
+    fog.name = "Dunst"
+    fog.location = K.P(K.W / 2, K.H / 2, 46)
+    fog.scale = (K.W * 1.1, 20, K.H * 1.1)
+    fm = bpy.data.materials.new("Dunst")
+    fm.use_nodes = True
+    nt = fm.node_tree
+    nt.nodes.remove(nt.nodes["Principled BSDF"])
+    vol = nt.nodes.new("ShaderNodeVolumePrincipled")
+    vol.inputs["Density"].default_value = 0.0035
+    vol.inputs["Anisotropy"].default_value = 0.45
+    vol.inputs["Color"].default_value = (0.8, 1.0, 0.85, 1)
+    nt.links.new(vol.outputs[0], nt.nodes["Material Output"].inputs["Volume"])
+    fog.data.materials.append(fm)
+    fog.visible_shadow = False
+    for k, (x, ang, energy) in enumerate(((700, -7, 2.2e8), (860, -6, 3.0e8), (1180, 8, 1.6e8))):
+        spot = bpy.data.lights.new("Strahl", "SPOT")
+        spot.energy = energy
+        spot.spot_size = math.radians(18)
+        spot.spot_blend = 0.8
+        spot.color = (0.85, 1.0, 0.8)
+        spot.shadow_soft_size = 40
+        obj = bpy.data.objects.new("Strahl", spot)
+        obj.location = K.P(x, -500, 46)
+        obj.rotation_euler = (0, math.radians(ang), 0)
+        bpy.context.collection.objects.link(obj)
+
+
+
+def wander(start, end, count, jitter, sag=0.0):
+    """Ein Weg von start nach end mit Durchhang und unruhigem Verlauf"""
+    pts = []
+    for k in range(count):
+        t = k / (count - 1)
+        x = start[0] + (end[0] - start[0]) * t
+        y = start[1] + (end[1] - start[1]) * t
+        nx, ny = -(end[1] - start[1]), end[0] - start[0]
+        ln = math.hypot(nx, ny) or 1.0
+        off = sag * math.sin(math.pi * t) + jitter * (math.sin(t * 17.0 + start[0]) * 0.6 + math.sin(t * 41.0 + start[1]) * 0.4)
+        pts.append((x + nx / ln * off, y + ny / ln * off))
+    return pts
+
+
+def tendril(x, y, size, turns, material, depth, sign=1):
+    """Eine Ranke, die sich am Ende einrollt"""
+    pts = []
+    for k in range(28):
+        t = k / 27
+        a = sign * t * turns * 2 * math.pi
+        r = size * (1.0 - 0.85 * t)
+        pts.append((x + sign * size * t * 1.4 + math.cos(a) * r * t, y - size * t * 0.6 + math.sin(a) * r * t))
+    K.tube("Ranke", pts, 1.1, material, depth=depth, taper=True)
+
+
+def frame_roots():
+    """Lange, knorrige Wurzeln und Äste rings um den Rahmen, mit Seitentrieben, hängenden Würzelchen, Blättern und Ranken"""
+    bark = D.bark_mat("RindeRahmen")
+    vine = K.mat("RahmenRanke", (0.1, 0.26, 0.08), 0.5, emit=0.1)
+    hang = K.mat("Haengewurzel", (0.22, 0.16, 0.1), 0.7)
+    mains = [  # Start, Ende, Dicke, Durchhang, Tiefe
+        ((-10, 14), (780, 26), 13, 14, -6), ((1930, 12), (1150, 24), 13, -12, -6),
+        ((10, -10), (24, 1080), 14, 16, -6), ((1912, -10), (1902, 1090), 14, -14, -6),
+        ((-10, 1066), (700, 1070), 13, -8, -6), ((1930, 1064), (1220, 1072), 13, 8, -6),
+        ((30, 40), (380, 8), 7, -18, -8), ((1890, 40), (1500, 6), 7, 18, -8),
+        ((30, 300), (70, 760), 6, 22, -8), ((1890, 320), (1900, 820), 6, -10, -8),
+        ((640, 1076), (1280, 1076), 5, -4, -8),
+    ]
+    for (sx, sy), (ex, ey), r, sag, depth in mains:
+        pts = wander((sx, sy), (ex, ey), 46, 5, sag)
+        D.gnarled_root(pts, r, bark, depth)
+        vertical = abs(ex - sx) < abs(ey - sy)
+        # Seitentriebe: kürzere Wurzeln, die vom Hauptstrang abzweigen, nur im Rand
+        for k in range(4, 42, 5):
+            px, py = pts[k]
+            inward_x = 1 if px < 960 else -1
+            inward_y = 1 if py < 540 else -1
+            length = rnd.uniform(60, 150) * (0.6 if r < 8 else 1.0)
+            if vertical:
+                ang = rnd.uniform(-0.9, 0.9)
+                dx, dy = math.cos(ang) * inward_x, math.sin(ang)
+            else:
+                dx, dy = rnd.uniform(-0.8, 0.8), inward_y * rnd.uniform(0.2, 0.5)
+            end = (px + dx * length, py + dy * length)
+            if 100 < end[0] < 1880 and 130 < end[1] < 1045:
+                end = (px + dx * length * 0.35, py + dy * length * 0.35)
+            branch = wander((px, py), end, 14, 3, rnd.uniform(-10, 10))
+            D.gnarled_root(branch, r * rnd.uniform(0.3, 0.45), bark, depth + 1)
+            bx, by = branch[-4]
+            if rnd.random() < 0.7:
+                K.leaf(bx, by, rnd.uniform(0, 360), rnd.uniform(26, 44), rnd.uniform(11, 17), rnd.choice((K.LEAF, K.LEAF_DARK)), depth=depth - 4, bend=0.2)
+            if rnd.random() < 0.4:
+                tendril(bx, by, rnd.uniform(12, 22), rnd.uniform(1.2, 1.8), vine, depth - 3, rnd.choice((-1, 1)))
+    # Hängende Würzelchen von der oberen Kante: an den Seiten lang, sonst kurz; nicht über Titel und Reitern
+    for x in range(20, 1900, 26):
+        if 780 < x < 1150 or 1380 < x < 1880 or rnd.random() < 0.35:
+            continue
+        top = 22 + rnd.uniform(-6, 6)
+        limit = 420 if x < 100 or x > 1880 else 120 if x < 780 else 125
+        length = rnd.uniform(0.35, 1.0) * limit
+        pts = [(x + 4 * math.sin(k * 0.7 + x), top + length * k / 11) for k in range(12)]
+        K.tube("Haengewurzel", pts, rnd.uniform(0.9, 1.8), hang, depth=-5, taper=True)
+        if rnd.random() < 0.3:
+            K.leaf(pts[-2][0], pts[-2][1], 90 + rnd.uniform(-30, 30), 18, 8, K.LEAF_DARK, depth=-7)
+    # Blätterbüschel, wo sich die Wurzeln in den Ecken kreuzen
+    for cx, cy in ((40, 40), (1880, 40), (40, 1040), (1880, 1040)):
+        for _ in range(9):
+            K.leaf(cx + rnd.uniform(-30, 30), cy + rnd.uniform(-30, 30), rnd.uniform(0, 360), rnd.uniform(30, 52), rnd.uniform(12, 20),
+                   rnd.choice((K.LEAF, K.LEAF_DARK)), depth=-12, bend=0.25)
+
+
+def wash_mat(name, tint):
+    """Eine Aquarell-Lasur: färbt das Pergament darunter leicht ein, fleckig zum Rand hin verlaufend"""
+    m = bpy.data.materials.new(name)
+    m.use_nodes = True
+    nt = m.node_tree
+    nt.nodes.clear()
+    out = nt.nodes.new("ShaderNodeOutputMaterial")
+    coord = nt.nodes.new("ShaderNodeTexCoord")
+    mapping = nt.nodes.new("ShaderNodeMapping")
+    mapping.inputs["Location"].default_value = (-1.0, -1.0, 0.0)
+    mapping.inputs["Scale"].default_value = (2.0, 2.0, 0.0)
+    nt.links.new(coord.outputs["UV"], mapping.inputs["Vector"])
+    grad = nt.nodes.new("ShaderNodeTexGradient")
+    grad.gradient_type = "SPHERICAL"
+    nt.links.new(mapping.outputs["Vector"], grad.inputs["Vector"])
+    noise = nt.nodes.new("ShaderNodeTexNoise")
+    noise.inputs["Scale"].default_value = 6.0
+    noise.inputs["Detail"].default_value = 8.0
+    nt.links.new(coord.outputs["UV"], noise.inputs["Vector"])
+    mul = nt.nodes.new("ShaderNodeMath")
+    mul.operation = "MULTIPLY"
+    nt.links.new(grad.outputs["Fac"], mul.inputs[0])
+    nt.links.new(noise.outputs["Fac"], mul.inputs[1])
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.elements[0].position = 0.12
+    ramp.color_ramp.elements[1].position = 0.45
+    nt.links.new(mul.outputs[0], ramp.inputs["Fac"])
+    clear = nt.nodes.new("ShaderNodeBsdfTransparent")
+    tinted = nt.nodes.new("ShaderNodeBsdfTransparent")
+    tinted.inputs["Color"].default_value = (*tint, 1)
+    mix = nt.nodes.new("ShaderNodeMixShader")
+    nt.links.new(ramp.outputs["Color"], mix.inputs["Fac"])
+    nt.links.new(clear.outputs[0], mix.inputs[1])
+    nt.links.new(tinted.outputs[0], mix.inputs[2])
+    nt.links.new(mix.outputs[0], out.inputs["Surface"])
+    return m
+
+
+def ink_frame(x0, y0, x1, y1, ink):
+    """Eine feine Tuschefassung mit Doppellinie und eingerollten Ecken"""
+    for inset, r in ((0, 0.9), (6, 0.45)):
+        K.tube("Fassung", [(x0 + inset, y0 + inset), (x1 - inset, y0 + inset), (x1 - inset, y1 - inset), (x0 + inset, y1 - inset), (x0 + inset, y0 + inset)],
+               r, ink, depth=4)
+    for cx, cy, sx, sy in ((x0, y0, 1, 1), (x1, y0, -1, 1), (x0, y1, 1, -1), (x1, y1, -1, -1)):
+        spiral = [(cx + sx * (10 + math.cos(a) * (14 - a * 1.6)), cy + sy * (10 + math.sin(a) * (14 - a * 1.6))) for a in [k * 0.3 for k in range(26)]]
+        K.tube("Ecke", spiral, 0.8, ink, depth=4)
+        K.leaf(cx + sx * 4, cy + sy * 4, math.degrees(math.atan2(sy, sx)) + 180, 18, 7, K.LEAF, depth=2)
+
+
+def erbgut_tree(tx, ty, ink, ink_faint):
+    """Erbgut: Tuschefassung, Aquarell-Lasur, geflochtener Stängel mit Ranken, Keimling oben, Wurzeln unten ins Papier,
+    je Stufe zwei Äste zu den Samen (die zeichnet das Spiel), Trennlinien mit Punkten"""
     K.text("Erbgut", tx, ty - 4, 34, ink, "AlmendraSC-Regular.ttf", "CENTER", depth=4)
     K.text("je Stufe eine Anlage", tx, ty + 38, 16, ink_faint, "Almendra-Regular.ttf", "CENTER", depth=4)
+    ink_frame(tx - 168, ty - 26, tx + 168, ty + 690, ink_faint)
+    wash = K.quad("Lasur", tx - 200, ty + 40, tx + 200, ty + 680, wash_mat("Lasur", (0.78, 0.9, 0.72)), depth=8)
+    wash.visible_shadow = False
+    wash2 = K.quad("Lasur2", tx - 90, ty + 300, tx + 150, ty + 560, wash_mat("Lasur2", (0.86, 0.92, 0.7)), depth=7)
+    wash2.visible_shadow = False
+
+    def stem_x(y):
+        return tx + 7 * math.sin((y - ty - 82) / 20 * 0.45)
+
+    stem = [(stem_x(ty + 92 + k * 10), ty + 92 + k * 10) for k in range(54)]
+    C.braid(stem, 3.4, K.LIGHTVINE, 0)
+    bottom = stem[-1]
+    # Keimling oben: Samenschale mit zwei Keimblättern
+    seed = K.sphere("Same", tx, ty + 92, 10, K.mat("Same", (0.32, 0.2, 0.1), 0.4), depth=-4)
+    seed.scale = (1.0, 0.7, 0.8)
+    K.leaf(tx, ty + 86, -160, 24, 11, K.LEAF, depth=-8, bend=0.3)
+    K.leaf(tx, ty + 86, -20, 24, 11, K.LEAF, depth=-8, bend=-0.3)
+    # Blätter und Ranken am Stängel zwischen den Stufen
+    for k, y in enumerate((ty + 120, ty + 255, ty + 290, ty + 425, ty + 455, ty + 590)):
+        side = 1 if k % 2 else -1
+        K.leaf(stem_x(y), y, 0 if side > 0 else 180, 26, 11, K.LEAF, depth=-4, bend=0.2 * side)
+        tendril(stem_x(y), y + 8, 14, 1.5, K.LIGHTVINE, -3, -side)
+    # Wurzeln unten fächern ins Papier aus
+    root_ink = K.mat("Wurzeltinte", (0.2, 0.13, 0.08), 0.8)
+    for a in (-150, -120, -95, -70, -40):
+        reach = 70 if a == -95 else 120
+        end = (bottom[0] + math.cos(math.radians(-a)) * reach, bottom[1] + abs(math.sin(math.radians(-a))) * 36)
+        pts = wander(bottom, end, 12, 3, rnd.uniform(-8, 8))
+        D.gnarled_root(pts, 2.4, root_ink, 0)
+
     green = K.mat("Stammgruen", (0.14, 0.32, 0.12), 0.5, emit=0.15)
-    stem = [(tx + 7 * math.sin(k * 0.45), ty + 82 + k * 20) for k in range(29)]
-    K.tube("Stamm", stem, 3.6, green, depth=0, taper=False)
-    for k in range(3, 28, 5):
-        sx, sy = stem[k]
-        K.leaf(sx, sy, 180 if k % 2 else 0, 16, 7, K.LEAF, depth=-4)
-    K.sphere("Same", tx, ty + 78, 10, K.mat("Same", (0.3, 0.2, 0.1), 0.4), depth=-4)
     for k, roman in enumerate(("I", "II", "III")):
         fy = ty + 170 + k * 168
-        K.text(roman, tx, fy - 70, 22, ink, "AlmendraSC-Regular.ttf", "CENTER", depth=4)
+        K.text(roman, tx - 150, fy - 58, 26, ink, "AlmendraSC-Regular.ttf", depth=4)
         for side in (-1, 1):
             nx, ny = tx + side * 92, fy + 6
-            start = (tx + 7 * math.sin((fy - ty - 82) / 20 * 0.45), fy - 6)
+            start = (stem_x(fy - 6), fy - 6)
             arc = []
             for j in range(13):
                 t = j / 12
                 bx = (1 - t) ** 2 * start[0] + 2 * (1 - t) * t * (tx + side * 30) + t * t * (nx - side * 20)
                 by = (1 - t) ** 2 * start[1] + 2 * (1 - t) * t * (fy - 46) + t * t * (ny - 14)
                 arc.append((bx, by))
-            K.tube("Ast", arc, 2.8, green, depth=0, taper=True)
-            K.leaf(arc[5][0], arc[5][1], -90 + side * 40, 14, 6, K.LEAF, depth=-4)
-
-    K.text("Kreuzungen", x0 + 56, y0 + 676, 28, ink, "AlmendraSC-Regular.ttf", depth=4)
+            K.tube("Ast", arc, 3.0, K.mat("Astgruen", (0.1, 0.26, 0.07), 0.5, emit=0.12), depth=0, taper=True)
+            C.braid(arc[:9], 2.4, K.LIGHTVINE, -2)
+            K.leaf(arc[4][0], arc[4][1], -90 + side * 50, 18, 8, K.LEAF, depth=-4, bend=0.2)
+            K.leaf(arc[8][0], arc[8][1], -90 - side * 20, 14, 6, K.LEAF, depth=-4, bend=-0.2)
+            tendril(arc[6][0], arc[6][1] - 2, 10, 1.6, green, -3, side)
+        # Trennlinie unter der Stufe: Tuschelinie mit drei Punkten
+        if k < 2:
+            sep = fy + 80
+            K.tube("Trenner", wander((tx - 140, sep), (tx - 24, sep), 10, 1), 0.6, ink_faint, depth=4)
+            K.tube("Trenner", wander((tx + 24, sep), (tx + 140, sep), 10, 1), 0.6, ink_faint, depth=4)
+            for dx in (-12, 0, 12):
+                K.disc("Punkt", tx + dx, sep, 1.8, ink_faint, depth=3)
 
 
 # ---------------------------------------------------------------- Einzelteile
@@ -209,6 +411,7 @@ def build_background():
 def sprite(path, w, h, builder, scale=2):
     """Rendert ein freigestelltes Teil: w x h Designpixel, scale-fach aufgelöst, Glas lässt den Grund durch"""
     K.W, K.H = w, h
+    D._leaf_mats.clear()
     K.setup()
     K.materials()
     lights()
@@ -251,8 +454,15 @@ def bud():
 
 def pod(locked):
     def build():
-        p = K.sphere("Knospe", 40, 40, 18, K.mat("Samenkapsel", (0.25, 0.22, 0.18) if locked else (0.25, 0.35, 0.18), 0.5), depth=-4)
+        body = K.mat("Samenkapsel", (0.25, 0.22, 0.18) if locked else (0.22, 0.36, 0.16), 0.45)
+        rib = K.mat("Rippe", (0.14, 0.12, 0.1) if locked else (0.1, 0.2, 0.07), 0.5)
+        p = K.sphere("Knospe", 40, 42, 18, body, depth=-4)
         p.scale = (0.8, 0.6, 1.1)
+        for dx in (-7, 0, 7):
+            K.tube("Rippe", [(40 + dx * 0.4, 22), (40 + dx * 1.1, 34), (40 + dx * 1.15, 48), (40 + dx * 0.5, 61)], 0.8, rib, depth=-15)
+        for a, l in ((-125, 16), (-55, 16), (-90, 13)):
+            K.leaf(40, 60, -a, l, 8, K.LEAF_DARK if locked else K.LEAF, depth=-14, bend=0.15)
+        K.tube("Spitze", [(40, 23), (41, 16), (44, 12)], 1.4, rib, depth=-12, taper=True)
     return build
 
 
@@ -323,7 +533,7 @@ def main():
         scene.cycles.volume_step_rate = 4.0
         room_lights()
         build_background()
-        D.god_rays()
+        god_rays()
         scene.render.filepath = os.path.join(out, "T_Keim_Grund.png")
         bpy.ops.render.render(write_still=True)
     if not only or "teile" in only:

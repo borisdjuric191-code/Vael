@@ -347,13 +347,13 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 		const FVector2D FigPoints[] = { Mini + FVector2D(10.0f, -120.0f), Mini + FVector2D(70.0f, 10.0f), Mini + FVector2D(-10.0f, 170.0f) };
 		for (int32 Index = 0; Index < FMath::Min(Plant->Figures.Num(), 3); ++Index)
 		{
-			const FVector2D Note(Mini.X + 190.0f, Mini.Y - 140.0f + Index * 116.0f);
+			const FVector2D Note(Mini.X + 178.0f, Mini.Y - 140.0f + Index * 116.0f);
 			const FVector2D Mid((FigPoints[Index].X + Note.X) * 0.5f, (FigPoints[Index].Y + Note.Y) * 0.5f + 12.0f);
 			DrawSegment(AtV(FigPoints[Index]), AtV(Mid), InkDim, 1.2f * K);
 			DrawSegment(AtV(Mid), AtV(Note + FVector2D(-8.0f, 12.0f)), InkDim, 1.2f * K);
 			DrawDisc(AtV(FigPoints[Index]), 3.5f * K, Ink);
-			Title(FText::Format(LOCTEXT("Fig", "Fig. {0}  {1}"), Index + 1, Plant->Figures[Index].Title), Note.X, Note.Y, 22.0f, Ink, 0.0f, 270.0f);
-			Label(Plant->Figures[Index].Note, Note.X, Note.Y + 28.0f, 16.0f, InkDim, 0.0f, 270.0f);
+			Title(FText::Format(LOCTEXT("Fig", "Fig. {0}  {1}"), Index + 1, Plant->Figures[Index].Title), Note.X, Note.Y, 19.0f, Ink, 0.0f, 116.0f);
+			Label(Plant->Figures[Index].Note, Note.X, Note.Y + 24.0f, 14.0f, InkDim, 0.0f, 116.0f);
 		}
 
 		// Values under the miniature, with her Erbanlagen in them; a thin green bar shows how much
@@ -393,7 +393,7 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 			const bool bOpen = Floromant->IsGeneTierOpen(Tier);
 			if (!bOpen)
 			{
-				Label(FText::Format(LOCTEXT("TierFrom", "ab Stufe {0}"), TierLevels.IsValidIndex(Tier) ? TierLevels[Tier] : 99), TreeX, ForkY - 44.0f, 15.0f, InkDim, 0.5f);
+				Label(FText::Format(LOCTEXT("TierFrom", "ab Stufe {0}"), TierLevels.IsValidIndex(Tier) ? TierLevels[Tier] : 99), TreeX - 118.0f, ForkY - 52.0f, 15.0f, InkDim);
 			}
 			const int32 Taken = Floromant->GetGene(Plant, Tier);
 			const FString BloomKey = FString::Printf(TEXT("%s_%d"), *PlantId(Plant), Tier);
