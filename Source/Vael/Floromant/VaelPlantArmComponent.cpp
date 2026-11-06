@@ -1488,7 +1488,7 @@ void UVaelPlantArmComponent::WhipHit()
 void UVaelPlantArmComponent::UpdateWhipTrail(const FVector& Tip, bool bStriking, bool bShadow)
 {
 	const float Now = GetWorld()->GetTimeSeconds();
-	const float Life = 0.22f;
+	const float Life = 0.16f;
 	if (bStriking)
 	{
 		WhipTrailPoints.Add(FVector4(Tip.X, Tip.Y, Tip.Z, Now));
@@ -1522,7 +1522,8 @@ void UVaelPlantArmComponent::UpdateWhipTrail(const FVector& Tip, bool bStriking,
 	}
 	if (WhipTrailLook != nullptr)
 	{
-		WhipTrailLook->SetVectorParameterValue(TEXT("Color"), (bShadow ? Plant->StrangleColor : Plant->PollenColor) * 2.5f);
+		// Grim, not cheerful (Boris 2026-11-06): a dim smouldering amber, the shadow form a sickly dark green
+		WhipTrailLook->SetVectorParameterValue(TEXT("Color"), bShadow ? FLinearColor(0.02f, 0.07f, 0.025f) : FLinearColor(0.13f, 0.04f, 0.008f));
 	}
 	// A band, widest just behind the tip, narrowing and thinning to where the tip was longest ago; it faces up to the camera
 	TArray<FVector> Vertices, Normals;
@@ -1537,7 +1538,7 @@ void UVaelPlantArmComponent::UpdateWhipTrail(const FVector& Tip, bool bStriking,
 		FVector Across = FVector::CrossProduct((Next - Prev).GetSafeNormal(), FVector::UpVector);
 		Across = Across.IsNearlyZero(0.01f) ? FVector::RightVector : Across.GetSafeNormal();
 		const float Fresh = 1.0f - (Now - WhipTrailPoints[Index].W) / Life;
-		const float Width = 22.0f * FMath::Square(FMath::Clamp(Fresh, 0.0f, 1.0f));
+		const float Width = 9.0f * FMath::Square(FMath::Clamp(Fresh, 0.0f, 1.0f));
 		Vertices.Add(Here + Across * Width);
 		Vertices.Add(Here - Across * Width);
 		Normals.Add(FVector::UpVector);
