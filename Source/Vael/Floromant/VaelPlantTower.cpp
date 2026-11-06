@@ -34,6 +34,9 @@ namespace
 	constexpr int32 TowerColumnVines = 4;
 	constexpr int32 TowerCrownStalks = 5;
 
+	/** Glutdisteln in the throat ring of the plant dragon, all fired in one drumfire */
+	constexpr int32 DragonDrumHeads = 8;
+
 	/** Seconds a tower needs to grow out of the ground, and to wither */
 	constexpr float TowerGrowTime = 0.8f;
 	constexpr float TowerWitherTime = 0.6f;
@@ -463,7 +466,12 @@ void AVaelPlantTower::UpdateBend(float DeltaSeconds)
 	// upright and rock gently in the air; all of them wander a little so they look alive
 	float Lean = 0.0f;
 	float Wander = 0.05f;
-	if (Symbiosis != EVaelSymbiosis::None)
+	if (bHook && (bDragon || bAbsorbed))
+	{
+		// The dragon snake leans like a single one, a little further while it aims
+		Lean = FMath::Lerp(0.0f, 0.3f, AimBlend);
+	}
+	else if (Symbiosis != EVaelSymbiosis::None)
 	{
 		// The shared trunk (bent by the leader) bows its blossom towards the target, less than a single neck
 		Lean = FMath::Lerp(0.06f, 0.45f, AimBlend);
@@ -584,7 +592,7 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 			Target = Goal;
 			// A shooter fires only once its crown looks at the target, like a Hydra
 			const FVector GoalWay = Goal != nullptr ? (Goal->GetActorLocation() - GetActorLocation()).GetSafeNormal2D() : FVector::ZeroVector;
-			if (Goal != nullptr && AimsLikeHydra() && (FVector::DotProduct(LookDirection, GoalWay) < 0.95f || AimBlend < 0.7f))
+			if (Goal != nullptr && (AimsLikeHydra() || bDragon) && (FVector::DotProduct(LookDirection, GoalWay) < 0.95f || AimBlend < 0.7f))
 			{
 				FireCountdown = 0.05f;
 			}
@@ -616,9 +624,19 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 	CallLeft = FMath::Max(0.0f, CallLeft - DeltaSeconds);
 	Giant = FMath::FInterpTo(Giant, CallLeft > 0.0f && !bWithering ? 1.0f : 0.0f, DeltaSeconds, 3.0f);
 
+	// A tower that sank into a dragon snake is not seen any more; it only keeps the pair alive
+	if (bAbsorbed)
+	{
+		return;
+	}
+
 	UpdatePairCharge(DeltaSeconds);
 	UpdateStalkShots(DeltaSeconds);
 	UpdateLook(DeltaSeconds);
+	if (bDragon)
+	{
+		UpdateDragon(DeltaSeconds);
+	}
 	if (!WindTendrils.IsEmpty())
 	{
 		// Both Schlotwinde of a Rankenbrücke act, each with its own vines
@@ -675,6 +693,24 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 	LifeLeft = FMath::Max(LifeLeft, Other->LifeLeft) + Settings->SymbiosisLifetimeBonus;
 	Other->LifeLeft = LifeLeft;
 	FireCountdown = Settings->SymbiosisGrowTime;
+
+	// Two Glutdistel snakes (Boris 2026-11-06): the new one sinks into the ground, its glow runs through the old snake up to the
+	// head, and the head grows into a plant dragon that fires a drumfire of thistles out of its jaws
+	if (Symbiosis == EVaelSymbiosis::Glutbusch && bHook && Other->bHook && !Other->bDragon)
+	{
+		bLeads = false;
+		Other->bLeads = true;
+		bAbsorbed = true;
+		SetActorHiddenInGame(true);
+		Other->FeedFrom = GetActorLocation();
+		Other->BuildDragon();
+		Other->FireCountdown = 1.8f;
+		if (AVaelCharacter* Gardener = GetGardener())
+		{
+			UVaelCombatTextSubsystem::PostPickup(Gardener, FText::Format(NSLOCTEXT("VaelSymbiosis", "TowersFuse", "Symbiose: {0}"), VaelSymbiosis::GetName(Symbiosis)), VaelSymbiosis::GetColor(Symbiosis));
+		}
+		return;
+	}
 
 	// Two Schlotwinde (Boris 2026-11-06): no shared crown; both stay as they are and span a living fence between them, the
 	// Rankenbrücke: it holds enemies back and entangles them, the vines of both pull enemies against it and lash those caught
@@ -830,6 +866,16 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		}
 		BendVelocity -= LookDirection * 1.5f;
 		VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 1.5f);
+		return;
+	}
+
+	// The plant dragon opens its jaws and the thistle ring in its throat fires round and round (UpdateDragon)
+	if (bDragon)
+	{
+		BurstLeft = DragonDrumHeads;
+		BurstTimer = 0.0f;
+		BurstPower = Power;
+		BurstTarget = Goal;
 		return;
 	}
 
@@ -1053,7 +1099,8 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	const float Phase = bLeads ? 0.0f : UE_PI;
 
 	// The crown grows bigger in the mixed blossom
-	const float Bloom = Shown * (1.0f + 0.3f * Gather) * (1.0f + 0.3f * Giant);
+	// The crown of a dragon snake withers away while the dragon head grows out of it
+	const float Bloom = Shown * (1.0f + 0.3f * Gather) * (1.0f + 0.3f * Giant) * (bDragon ? FMath::Max(0.02f, 1.0f - 2.0f * DragonGrow) : 1.0f);
 
 	// The frame of the crown turns smoothly with the bend of the column (no flip when it stands upright); in the blossom the
 	// second crown turns half a step so the pieces of both plants sit between each other
@@ -1107,6 +1154,19 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 
 			// The head arrives level, so the crown on it looks straight out
 			HeadTangent = Axis * Height * 0.45f;
+
+			// The first vine stands for the middle line (the dragon's sparks run up it)
+			if (Index == 0)
+			{
+				HookPoints[0] = Start;
+				HookPoints[1] = End;
+				HookPoints[2] = Dip;
+				HookPoints[3] = NeckEnd;
+				HookTangents[0] = StartTangent;
+				HookTangents[1] = EndTangent;
+				HookTangents[2] = DipTangent;
+				HookTangents[3] = HeadTangent;
+			}
 		}
 
 		if (bFused)
@@ -1674,6 +1734,370 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 			UStaticMeshComponent* Trumpet = WindTrumpets[Vine * TrumpetsEach + Index];
 			Trumpet->SetWorldLocationAndRotation(Here, FRotationMatrix::MakeFromZ(Mouth).Rotator());
 			Trumpet->SetWorldScale3D(FVector(1.5f * Shown * Big));
+		}
+	}
+}
+
+// --- Plant dragon ---------------------------------------------------------------------------------------------------------
+
+namespace
+{
+	/** One vine of the dragon head in its own frame (cm at a 2 m tower; X ahead, Y right, Z up, the crown of the snake at 0):
+	 *  from A to B with their tangents, thick to thin; jaw vines turn down with the jaw; mirrored ones come in pairs */
+	struct FDragonVine
+	{
+		FVector A, TA, B, TB;
+		float S0, S1;
+		bool bJaw;
+		bool bMirror;
+	};
+
+	const FDragonVine DragonVineTable[] =
+	{
+		// Skull: the ridge down the middle, brows, the ridge over the eyes, cheeks, upper lip and the curled nostrils
+		{ FVector(-18, 0, 20), FVector(70, 0, 25), FVector(80, 0, 6), FVector(50, 0, -30), 1.8f, 1.0f, false, false },
+		{ FVector(-14, 12, 18), FVector(60, 6, 30), FVector(62, 8, 10), FVector(50, -4, -30), 1.6f, 1.0f, false, true },
+		{ FVector(8, 13, 22), FVector(30, 10, 18), FVector(46, 16, 15), FVector(20, 3, -12), 1.4f, 0.8f, false, true },
+		{ FVector(-14, 19, 2), FVector(60, 4, 0), FVector(76, 9, -2), FVector(60, -10, -4), 1.7f, 1.0f, false, true },
+		{ FVector(4, 16, -8), FVector(60, 0, 0), FVector(84, 4, -4), FVector(40, -6, 4), 1.3f, 0.8f, false, true },
+		{ FVector(70, 5, 8), FVector(20, 8, 10), FVector(82, 9, -3), FVector(0, 0, -20), 1.0f, 0.7f, false, true },
+		// Lower jaw: jaw line, chin and the inside of the jaw
+		{ FVector(-10, 17, -10), FVector(50, -2, -15), FVector(74, 5, -16), FVector(50, -8, 5), 1.7f, 0.9f, true, true },
+		{ FVector(4, 0, -22), FVector(60, 0, -6), FVector(70, 0, -18), FVector(40, 0, 6), 1.5f, 0.9f, true, false },
+		{ FVector(0, 10, -16), FVector(60, -2, 0), FVector(66, 4, -12), FVector(40, -4, 0), 1.1f, 0.7f, true, true },
+		// Horns sweeping back and curling, long whiskers, small back horns, a beard under the chin
+		{ FVector(-8, 10, 22), FVector(-30, 10, 50), FVector(-62, 26, 56), FVector(-30, 6, -30), 1.6f, 0.5f, false, true },
+		{ FVector(-6, 20, -2), FVector(-20, 30, -10), FVector(-72, 46, -14), FVector(-40, 10, 10), 1.3f, 0.3f, false, true },
+		{ FVector(-16, 6, 16), FVector(-40, 4, 20), FVector(-46, 12, 34), FVector(-10, 4, 30), 1.2f, 0.4f, false, true },
+		{ FVector(10, 6, -22), FVector(-10, 4, -30), FVector(-24, 10, -48), FVector(-30, 0, -10), 1.0f, 0.3f, true, true },
+	};
+
+	/** Hinge of the jaw and how far it opens */
+	const FVector DragonJawHinge(-6.0f, 0.0f, -6.0f);
+	constexpr float DragonJawDegrees = 38.0f;
+
+	/** Mane: stalks with thistle heads on the back of the skull, and a few more along the lifted neck */
+	constexpr int32 DragonSkullMane = 14;
+	constexpr int32 DragonNeckMane = 6;
+
+	/** Sparks that run up the snake while the head grows */
+	constexpr int32 DragonSurgeOrbs = 8;
+
+	FVector DragonJawTurn(const FVector& Local, float JawOpen, bool bPoint)
+	{
+		const float Angle = FMath::DegreesToRadians(DragonJawDegrees) * JawOpen;
+		const float C = FMath::Cos(Angle);
+		const float S = FMath::Sin(Angle);
+		const FVector From = bPoint ? Local - DragonJawHinge : Local;
+		const FVector Turned(From.X * C + From.Z * S, From.Y, From.Z * C - From.X * S);
+		return bPoint ? Turned + DragonJawHinge : Turned;
+	}
+
+	FVector DragonHermite(const FVector& P0, const FVector& T0, const FVector& P1, const FVector& T1, float T)
+	{
+		const float T2 = T * T;
+		const float T3 = T2 * T;
+		return P0 * (2.0f * T3 - 3.0f * T2 + 1.0f) + T0 * (T3 - 2.0f * T2 + T) + P1 * (3.0f * T2 - 2.0f * T3) + T1 * (T3 - T2);
+	}
+}
+
+FVector AVaelPlantTower::GetHookCurve(float T) const
+{
+	const int32 Piece = FMath::Clamp(FMath::FloorToInt(T), 0, 2);
+	const float Along = FMath::Clamp(T - Piece, 0.0f, 1.0f);
+	return DragonHermite(HookPoints[Piece], HookTangents[Piece], HookPoints[Piece + 1], HookTangents[Piece + 1], Along);
+}
+
+void AVaelPlantTower::BuildDragon()
+{
+	if (bDragon)
+	{
+		return;
+	}
+	bDragon = true;
+	DragonGrow = 0.0f;
+
+	int32 Pick = 0;
+	for (const FDragonVine& Vine : DragonVineTable)
+	{
+		for (int32 Side = 0; Side < (Vine.bMirror ? 2 : 1); ++Side)
+		{
+			USplineMeshComponent* Piece = MakeStalk(TowerFirstMesh({ &Plant->VineMeshes, &Plant->ArmMeshes, &Plant->FingerMeshes }, Pick++));
+			Piece->SetVisibility(false);
+			DragonVines.Add(Piece);
+		}
+	}
+
+	if (UStaticMesh* TipMesh = VaelAssets::LoadOptional(Plant->TipMesh))
+	{
+		for (int32 Index = 0; Index < DragonDrumHeads + DragonSkullMane + DragonNeckMane; ++Index)
+		{
+			UStaticMeshComponent* Head = NewObject<UStaticMeshComponent>(this);
+			Head->SetMobility(EComponentMobility::Movable);
+			Head->SetStaticMesh(TipMesh);
+			Head->SetMaterial(0, Material);
+			Head->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Head->SetCanEverAffectNavigation(false);
+			Head->SetupAttachment(RootComponent);
+			Head->RegisterComponent();
+			Head->SetVisibility(false);
+			DragonHeads.Add(Head);
+		}
+	}
+	DrumRegrow.Init(1.0f, DragonDrumHeads);
+
+	for (int32 Index = 0; Index < DragonSkullMane + DragonNeckMane; ++Index)
+	{
+		USplineMeshComponent* Stalk = MakeStalk(TowerFirstMesh({ &Plant->FingerMeshes, &Plant->ArmMeshes }, Index));
+		Stalk->SetVisibility(false);
+		DragonManeStalks.Add(Stalk);
+	}
+
+	UMaterialInterface* Core = nullptr;
+	UMaterialInterface* GlowMaterial = nullptr;
+	VaelEffects::LoadLookMaterials(Core, GlowMaterial);
+	if (GlowMaterial != nullptr)
+	{
+		for (int32 Index = 0; Index < 3 + DragonSurgeOrbs; ++Index)
+		{
+			UStaticMeshComponent* Orb = VaelEffects::AddLookShape(this, GlowMaterial, VaelSymbiosis::GetColor(EVaelSymbiosis::Glutbusch), 0.0f);
+			Orb->SetUsingAbsoluteLocation(true);
+			Orb->SetUsingAbsoluteRotation(true);
+			Orb->SetUsingAbsoluteScale(true);
+			Orb->SetVisibility(false);
+			DragonGlows.Add(Orb);
+		}
+	}
+}
+
+void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
+{
+	const float Before = DragonGrow;
+	DragonGrow = bWithering ? FMath::Min(DragonGrow, FMath::Max(Grow, 0.0f)) : FMath::Min(1.0f, DragonGrow + DeltaSeconds / 1.6f);
+	const float Appear = FMath::SmoothStep(0.45f, 1.0f, DragonGrow);
+	const float Time = GetWorld()->GetTimeSeconds();
+	const FTransform& Transform = GetActorTransform();
+
+	// The moment the head breaks out of the crown: a burst of embers
+	if (Before < 0.5f && DragonGrow >= 0.5f)
+	{
+		FVaelDebris Burst;
+		Burst.Count = 26;
+		Burst.Spread = 30.0f;
+		Burst.Speed = 280.0f;
+		Burst.Lift = 200.0f;
+		Burst.Lifetime = 1.1f;
+		Burst.MinSize = 3.0f;
+		Burst.MaxSize = 8.0f;
+		Burst.Color = VaelSymbiosis::GetColor(EVaelSymbiosis::Glutbusch);
+		AVaelDebrisBurst::Spawn(GetGardener(), GetCrown(), Burst);
+	}
+
+	// The old crown is gone once the head has broken out
+	for (USplineMeshComponent* Stalk : CrownStalks)
+	{
+		Stalk->SetVisibility(DragonGrow < 0.5f);
+	}
+	for (UStaticMeshComponent* Piece : CrownPieces)
+	{
+		Piece->SetVisibility(DragonGrow < 0.5f);
+	}
+
+	// The jaw: shut and breathing at rest, ajar while it charges, wide open through the drumfire
+	const bool bCharging = Target.IsValid() && !bWithering && FireCountdown < 0.7f;
+	const float JawGoal = BurstLeft > 0 ? 1.0f : (bCharging ? 0.35f : 0.06f + 0.04f * FMath::Sin(Time * 1.7f));
+	Jaw = FMath::FInterpTo(Jaw, JawGoal, DeltaSeconds, JawGoal > Jaw ? 10.0f : 5.0f);
+	DrumAngle += DeltaSeconds * (BurstLeft > 0 ? 10.0f : 1.2f);
+
+	// The frame of the head on the crown of the snake, sized with the tower
+	const FVector Crown = GetCrown();
+	FVector Forward = GetCrownAxis().GetSafeNormal2D();
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::ForwardVector;
+	}
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, Forward);
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Height = Settings->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI) * (1.0f + (Settings->TowerCallSizeScale - 1.0f) * Giant);
+	const float Size = Height / 200.0f * Appear;
+	auto ToWorld = [&](const FVector& Local) { return Crown + (Forward * Local.X + Side * Local.Y + FVector::UpVector * Local.Z) * Size; };
+	auto ToWorldDir = [&](const FVector& Local) { return (Forward * Local.X + Side * Local.Y + FVector::UpVector * Local.Z) * Size; };
+	const bool bShown = Appear > 0.02f;
+
+	// Skull, jaw and horns
+	int32 Piece = 0;
+	for (const FDragonVine& Vine : DragonVineTable)
+	{
+		for (int32 Mirror = 0; Mirror < (Vine.bMirror ? 2 : 1); ++Mirror)
+		{
+			USplineMeshComponent* Spline = DragonVines.IsValidIndex(Piece) ? DragonVines[Piece].Get() : nullptr;
+			++Piece;
+			if (Spline == nullptr)
+			{
+				continue;
+			}
+			Spline->SetVisibility(bShown);
+			if (!bShown)
+			{
+				continue;
+			}
+			const FVector Flip(1.0f, Mirror == 0 ? 1.0f : -1.0f, 1.0f);
+			FVector A = Vine.A * Flip;
+			FVector TA = Vine.TA * Flip;
+			FVector B = Vine.B * Flip;
+			FVector TB = Vine.TB * Flip;
+			if (Vine.bJaw)
+			{
+				A = DragonJawTurn(A, Jaw, true);
+				TA = DragonJawTurn(TA, Jaw, false);
+				B = DragonJawTurn(B, Jaw, true);
+				TB = DragonJawTurn(TB, Jaw, false);
+			}
+			// The whiskers and horns stir a little
+			B.Z += FMath::Sin(Time * 1.4f + Piece * 0.9f) * (Vine.S1 < 0.6f ? 4.0f : 0.8f);
+			Spline->SetStartAndEnd(Transform.InverseTransformPosition(ToWorld(A)), Transform.InverseTransformVectorNoScale(ToWorldDir(TA)),
+				Transform.InverseTransformPosition(ToWorld(B)), Transform.InverseTransformVectorNoScale(ToWorldDir(TB)), false);
+			Spline->SetStartScale(FVector2D(Vine.S0 * Size), false);
+			Spline->SetEndScale(FVector2D(Vine.S1 * Size), false);
+			Spline->SetStartRoll(Piece * 1.3f, false);
+			Spline->SetEndRoll(Piece * 1.3f + 2.0f, false);
+			Spline->UpdateMesh();
+		}
+	}
+
+	// The mane: thistle stalks bristling back off the skull and up off the lifted neck, bushy
+	const float HeadScale = FMath::Max(Plant->TipSize * 1.6f / 10.0f, 0.01f);
+	for (int32 Index = 0; Index < DragonManeStalks.Num(); ++Index)
+	{
+		USplineMeshComponent* Stalk = DragonManeStalks[Index];
+		UStaticMeshComponent* Head = DragonHeads.IsValidIndex(DragonDrumHeads + Index) ? DragonHeads[DragonDrumHeads + Index].Get() : nullptr;
+		Stalk->SetVisibility(bShown);
+		if (Head != nullptr)
+		{
+			Head->SetVisibility(bShown);
+		}
+		if (!bShown)
+		{
+			continue;
+		}
+		const float SideSign = Index % 2 == 0 ? 1.0f : -1.0f;
+		const float Sway = FMath::Sin(Time * 1.6f + Index * 0.7f) * 0.08f;
+		FVector Root;
+		FVector Direction;
+		float Length;
+		if (Index < DragonSkullMane)
+		{
+			const float Row = Index / 2;
+			Root = ToWorld(FVector(-10.0f - Row * 5.0f, SideSign * (4.0f + Row * 1.5f), 20.0f - Row * 1.5f));
+			Direction = (-Forward * 0.8f + Side * SideSign * (0.45f + Sway) + FVector::UpVector * (0.75f - Row * 0.05f)).GetSafeNormal();
+			Length = (28.0f + Row * 2.0f) * Size;
+		}
+		else
+		{
+			const float Along = 2.25f + 0.7f * (Index - DragonSkullMane) / FMath::Max(DragonNeckMane - 1, 1);
+			Root = GetHookCurve(Along);
+			Direction = (FVector::UpVector * 0.8f + Side * SideSign * (0.5f + Sway) - Forward * 0.3f).GetSafeNormal();
+			Length = 26.0f * Size;
+		}
+		const FVector End = Root + Direction * Length;
+		Stalk->SetStartAndEnd(Transform.InverseTransformPosition(Root), Transform.InverseTransformVectorNoScale(Direction * Length),
+			Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(Direction * Length), false);
+		Stalk->SetStartScale(FVector2D(Plant->FingerThickness * 1.6f * Size), false);
+		Stalk->SetEndScale(FVector2D(Plant->FingerThickness * 1.2f * Size), false);
+		Stalk->UpdateMesh();
+		if (Head != nullptr)
+		{
+			Head->SetWorldLocationAndRotation(End, FRotationMatrix::MakeFromZ(Direction).Rotator());
+			Head->SetWorldScale3D(FVector(FMath::Max(HeadScale * 0.8f * Size, 0.001f)));
+		}
+	}
+
+	// The thistle ring in the throat, turning; the mouth is the middle between the jaws
+	const FVector MouthLocal(30.0f, 0.0f, -9.0f - Jaw * 10.0f);
+	for (int32 Index = 0; Index < DrumRegrow.Num(); ++Index)
+	{
+		DrumRegrow[Index] = FMath::Min(1.0f, DrumRegrow[Index] + DeltaSeconds / 0.9f);
+		UStaticMeshComponent* Head = DragonHeads.IsValidIndex(Index) ? DragonHeads[Index].Get() : nullptr;
+		if (Head == nullptr)
+		{
+			continue;
+		}
+		Head->SetVisibility(bShown && DrumRegrow[Index] > 0.05f);
+		const float Angle = DrumAngle + Index * 2.0f * UE_PI / DragonDrumHeads;
+		const FVector Local = MouthLocal + FVector(0.0f, FMath::Cos(Angle) * 9.0f, FMath::Sin(Angle) * 9.0f);
+		Head->SetWorldLocationAndRotation(ToWorld(Local), FRotationMatrix::MakeFromZ(Forward).Rotator());
+		Head->SetWorldScale3D(FVector(FMath::Max(HeadScale * 0.75f * Size * FMath::SmoothStep(0.0f, 1.0f, DrumRegrow[Index]), 0.001f)));
+	}
+
+	// Eyes and the glow in the throat
+	if (DragonGlows.Num() >= 3)
+	{
+		for (int32 Eye = 0; Eye < 2; ++Eye)
+		{
+			UStaticMeshComponent* Orb = DragonGlows[Eye];
+			Orb->SetVisibility(bShown);
+			Orb->SetWorldLocation(ToWorld(FVector(38.0f, Eye == 0 ? 14.0f : -14.0f, 15.0f)));
+			Orb->SetWorldScale3D(FVector(FMath::Max(6.0f * Size / 100.0f, 0.001f)));
+			VaelEffects::SetLookGlow(Orb, 3.0f + 4.0f * Jaw);
+		}
+		UStaticMeshComponent* Throat = DragonGlows[2];
+		const float Heat = FMath::Clamp((Jaw - 0.1f) / 0.6f, 0.0f, 1.0f);
+		Throat->SetVisibility(bShown && Heat > 0.03f);
+		Throat->SetWorldLocation(ToWorld(MouthLocal - FVector(6.0f, 0.0f, 0.0f)));
+		Throat->SetWorldScale3D(FVector(FMath::Max(14.0f * Size * Heat / 100.0f, 0.001f)));
+		VaelEffects::SetLookGlow(Throat, 5.0f * Heat);
+	}
+
+	// While the head grows, sparks run from where the other Glutdistel sank in, into the foot and up the snake
+	for (int32 Index = 0; Index < DragonSurgeOrbs; ++Index)
+	{
+		UStaticMeshComponent* Orb = DragonGlows.IsValidIndex(3 + Index) ? DragonGlows[3 + Index].Get() : nullptr;
+		if (Orb == nullptr)
+		{
+			continue;
+		}
+		const float Way = DragonGrow * 1.5f - Index * 0.06f;
+		const bool bRuns = Way > 0.0f && Way < 1.0f && !bWithering;
+		Orb->SetVisibility(bRuns);
+		if (!bRuns)
+		{
+			continue;
+		}
+		const FVector Place = Way < 0.25f
+			? FMath::Lerp(FeedFrom, GetActorLocation(), Way / 0.25f) + FVector(0.0f, 0.0f, 8.0f + 20.0f * FMath::Sin(Way / 0.25f * UE_PI))
+			: GetHookCurve((Way - 0.25f) / 0.75f * 3.0f);
+		Orb->SetWorldLocation(Place);
+		Orb->SetWorldScale3D(FVector(9.0f / 100.0f));
+		VaelEffects::SetLookGlow(Orb, 6.0f);
+	}
+
+	// The drumfire: one thistle after the other round the ring, flat and straight at the target
+	AVaelCharacter* Gardener = GetGardener();
+	if (bWithering)
+	{
+		BurstLeft = 0;
+	}
+	else if (BurstLeft > 0 && Gardener != nullptr)
+	{
+		BurstTimer -= DeltaSeconds;
+		if (Jaw > 0.6f && BurstTimer <= 0.0f)
+		{
+			BurstTimer = 0.075f;
+			--BurstLeft;
+			const int32 Index = NextDrum;
+			NextDrum = (NextDrum + 1) % DragonDrumHeads;
+			const float Angle = DrumAngle + Index * 2.0f * UE_PI / DragonDrumHeads;
+			const FVector Muzzle = ToWorld(MouthLocal + FVector(14.0f, FMath::Cos(Angle) * 9.0f, FMath::Sin(Angle) * 9.0f));
+			FVector Toward = BurstTarget.IsValid() ? BurstTarget->GetActorLocation() - Muzzle : Forward;
+			Toward.Z = 0.0f;
+			Toward = FRotator(0.0f, FMath::FRandRange(-6.0f, 6.0f), 0.0f).RotateVector(Toward.GetSafeNormal());
+			VaelSymbiosis::FireShot(Gardener, Plant, Muzzle, Toward, BurstPower, bShadow, Settings->TowerShotScale * 0.85f, 0.6f);
+			VaelSymbiosis::MuzzlePuff(this, Plant, Muzzle, bShadow, 0.8f);
+			if (DrumRegrow.IsValidIndex(Index))
+			{
+				DrumRegrow[Index] = 0.0f;
+			}
+			BendVelocity -= Forward * 0.35f;
 		}
 	}
 }

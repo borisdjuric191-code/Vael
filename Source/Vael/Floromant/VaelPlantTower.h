@@ -186,6 +186,56 @@ private:
 	/** Cached once in Build */
 	bool bHook = false;
 
+	/** Middle line of the snake (foot, curl, dip, head) and its tangents, kept from the last look update */
+	FVector HookPoints[4];
+	FVector HookTangents[4];
+
+	/** A point on the middle line, T from 0 (foot) to 3 (head) */
+	FVector GetHookCurve(float T) const;
+
+	// --- Plant dragon (Boris 2026-11-06): a second Glutdistel planted at a Glutdistel snake does not stand beside it; it sinks
+	// into the ground, its glow runs through the snake up to the head, and the head grows into a dragon head woven of vines,
+	// horned and bushy with thistles. When it fires it opens its jaws and the ring of Glutdisteln in its throat fires round
+	// and round as a drumfire
+
+	/** The snake that carries the dragon head, and the tower that sank into it */
+	bool bDragon = false;
+	bool bAbsorbed = false;
+
+	/** Growth of the dragon head (0 to 1), its jaw (0 shut to 1 wide open) and the turn of the thistle ring in the throat */
+	float DragonGrow = 0.0f;
+	float Jaw = 0.0f;
+	float DrumAngle = 0.0f;
+
+	/** Where the sunk tower stood: the glow runs from there into the foot of the snake */
+	FVector FeedFrom = FVector::ZeroVector;
+
+	/** Shots of the drumfire still to come, the time to the next one, which head of the ring fires next */
+	int32 BurstLeft = 0;
+	float BurstTimer = 0.0f;
+	float BurstPower = 1.0f;
+	int32 NextDrum = 0;
+	TWeakObjectPtr<AActor> BurstTarget;
+	TArray<float> DrumRegrow;
+
+	/** The vines of the skull, jaw and horns; the mane stalks follow them */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> DragonVines;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> DragonManeStalks;
+
+	/** Thistle heads: first the ring in the throat, then the heads of the mane */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> DragonHeads;
+
+	/** Glow balls: two eyes, the throat, then the sparks that run up the snake while it grows */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> DragonGlows;
+
+	void BuildDragon();
+	void UpdateDragon(float DeltaSeconds);
+
 	/** Where the crown looks, eased towards the target */
 	FVector LookDirection = FVector::ForwardVector;
 	TWeakObjectPtr<AActor> Target;
