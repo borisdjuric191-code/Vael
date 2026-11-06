@@ -218,14 +218,26 @@ private:
 	TWeakObjectPtr<AActor> BurstTarget;
 	TArray<float> DrumRegrow;
 
-	/** The vines of the skull, jaw and horns; the mane stalks follow them */
+	/** Frame of the head on the crown of the snake (scaled with the tower), and of the lower jaw at its hinge; the vines, teeth
+	 *  and root fibres of the head are laid into these once and move with them */
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> HeadFrame;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USceneComponent> JawFrame;
+
+	/** The vines, thorn teeth and root fibres of skull and jaw (laid once) */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USplineMeshComponent>> DragonVines;
 
+	/** Shaggy root tufts along the lifted neck (follow the snake every frame) */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USplineMeshComponent>> DragonManeStalks;
 
-	/** Thistle heads: first the ring in the throat, then the heads of the mane */
+	/** Earth sprays once per drumfire, when the jaws tear open */
+	bool bSprayed = false;
+
+	/** Thistle heads: first the ring in the throat, then the ones in the tangle of the skull, then those of the neck */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> DragonHeads;
 
