@@ -163,6 +163,9 @@ public:
 	bool IsMortarHand(bool bLeft) const;
 	float GetMortarDraw(bool bLeft) const;
 
+	/** The whip stroke of a lasso hand: seconds since it began (negative when none), its length, the side it starts high on */
+	float GetWhipStroke(bool bLeft, float& OutDuration, float& OutStartSide) const;
+
 	/** Share of the walking speed left while firing */
 	float GetMoveSpeedScale() const;
 

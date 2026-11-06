@@ -1434,6 +1434,7 @@ void UVaelPlantArmComponent::Whip()
 	const float Now = GetWorld()->GetTimeSeconds();
 	WhipCombo = Now - LastWhipTime <= Plant->WhipComboWindow ? 1 - WhipCombo : 0;
 	LastWhipTime = Now;
+	WhipStartSeconds = Now;
 	WhipTime = 0.0f;
 	bWhipHit = false;
 
@@ -1443,6 +1444,15 @@ void UVaelPlantArmComponent::Whip()
 	{
 		WhipHit();
 	}
+}
+
+float UVaelPlantArmComponent::GetWhipStroke(float& OutDuration, float& OutStartSide) const
+{
+	OutDuration = Plant != nullptr ? Plant->WhipSeconds : 0.34f;
+	// Right arm: the first stroke starts high on her right, the second high on her left; the left arm the other way round
+	OutStartSide = (bLeft ? -1.0f : 1.0f) * (WhipCombo == 0 ? 1.0f : -1.0f);
+	const float Since = GetWorld() != nullptr ? GetWorld()->GetTimeSeconds() - WhipStartSeconds : -1.0f;
+	return Plant != nullptr && Plant->bLasso && Since >= 0.0f && Since < OutDuration + 0.35f ? Since : -1.0f;
 }
 
 void UVaelPlantArmComponent::WhipHit()

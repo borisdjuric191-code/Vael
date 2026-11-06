@@ -39,6 +39,12 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	float Draw[2] = { 0.0f, 0.0f };
 	float MortarPitch = 42.0f;
 
+	/** The whip strokes of lasso hands (Schlotwinde): seconds since each began (negative when none), their length, and the side
+	 *  each starts high on (+1 her right) */
+	float WhipSeconds[2] = { -1.0f, -1.0f };
+	float WhipDuration[2] = { 0.34f, 0.34f };
+	float WhipStartSide[2] = { 1.0f, 1.0f };
+
 	/** Copied from the instance: the cast gesture of the mage, seconds since it began, when the spell leaves and how long it lasts */
 	EVaelCastGesture Gesture = EVaelCastGesture::None;
 	float GestureSeconds = 0.0f;
@@ -52,6 +58,10 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	int32 SkateSide = 0;
 
 private:
+
+	/** The whip stroke of one arm (0 left, 1 right): wound up high on its start side, it lashes down across the body, the chest
+	 *  turning with it, the forearm and hand trailing like the end of a whip */
+	void ApplyWhipStroke(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, int32 Side) const;
 
 	/** Tips the body, lets the legs dangle and swing, bends the knees and points the toes */
 	void ApplyFlight(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
@@ -169,6 +179,12 @@ protected:
 	bool bMortarArm[2] = { false, false };
 	float MortarDraw[2] = { 0.0f, 0.0f };
 	float MortarPitch = 42.0f;
+
+	/** The whip strokes of lasso hands (Schlotwinde): seconds since each began (negative when none), their length, and the side
+	 *  each starts high on (+1 her right) */
+	float WhipSeconds[2] = { -1.0f, -1.0f };
+	float WhipDuration[2] = { 0.34f, 0.34f };
+	float WhipStartSide[2] = { 1.0f, 1.0f };
 
 	/** Cast gesture of the mage and the seconds since it began */
 	EVaelCastGesture CastGesture = EVaelCastGesture::None;

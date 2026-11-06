@@ -58,6 +58,10 @@ public:
 	/** How far a shield hand (Glimmklee) is raised before the face, 0 to 1 */
 	float GetShieldStance() const { return ShieldStance; }
 
+	/** The whip stroke of a lasso hand (Schlotwinde): seconds since it began (negative when none is under way or fading),
+	 *  its length, and on which side it starts high (+1 her right, -1 her left) */
+	float GetWhipStroke(float& OutDuration, float& OutStartSide) const;
+
 	/** True for a mortar hand (Funkenmohn); how far it is drawn back to the shoulder while charging, 0 to 1, smoothed */
 	bool IsMortar() const;
 	float GetMortarDraw() const { return MortarDraw; }
@@ -464,6 +468,7 @@ private:
 	/** Which of the two strokes this arm strikes now (0 the first, 1 the stroke back), when it struck last, the aim it strikes
 	 *  along, and whether this stroke has hit yet (it hits when the tendrils pass the middle of the swing) */
 	int32 WhipCombo = 0;
+	float WhipStartSeconds = -10.0f;
 	float LastWhipTime = -10.0f;
 	FVector WhipAim = FVector::ForwardVector;
 	bool bWhipHit = true;

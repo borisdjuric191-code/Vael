@@ -47,6 +47,7 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	{
 		bMortarArm[Side] = Floromant != nullptr && Floromant->IsMortarHand(Side == 0);
 		MortarDraw[Side] = Floromant != nullptr ? Floromant->GetMortarDraw(Side == 0) : 0.0f;
+		WhipSeconds[Side] = Floromant != nullptr ? Floromant->GetWhipStroke(Side == 0, WhipDuration[Side], WhipStartSide[Side]) : -1.0f;
 	}
 	MortarPitch = UVaelFloromantSettings::Get()->MortarArmPitch;
 	const UVaelFloromantSettings* FloromantSettings = UVaelFloromantSettings::Get();
@@ -103,6 +104,9 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	{
 		bMortar[Side] = Instance->bMortarArm[Side];
 		Draw[Side] = Instance->MortarDraw[Side];
+		WhipSeconds[Side] = Instance->WhipSeconds[Side];
+		WhipDuration[Side] = Instance->WhipDuration[Side];
+		WhipStartSide[Side] = Instance->WhipStartSide[Side];
 	}
 	MortarPitch = Instance->MortarPitch;
 
@@ -1151,6 +1155,64 @@ void FVaelAnimProxy::ApplyFlight(FCSPose<FCompactPose>& Pose, const FBoneContain
 	}
 }
 
+void FVaelAnimProxy::ApplyWhipStroke(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones, int32 Side) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+	const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+	const FCompactPoseBoneIndex Upper = Find(FString::Printf(TEXT("upperarm_%s"), Suffix));
+	const FCompactPoseBoneIndex Lower = Find(FString::Printf(TEXT("lowerarm_%s"), Suffix));
+	const FCompactPoseBoneIndex Hand = Find(FString::Printf(TEXT("hand_%s"), Suffix));
+	const FCompactPoseBoneIndex Middle = Find(FString::Printf(TEXT("middle_01_%s"), Suffix));
+	if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Timing (Boris 2026-11-06): it winds up at once, lashes through in the stroke's time and eases back after it
+	const float T = WhipSeconds[Side];
+	const float Duration = FMath::Max(WhipDuration[Side], 0.1f);
+	const float Weight = FMath::SmoothStep(0.0f, 0.06f, T) * (1.0f - FMath::SmoothStep(Duration, Duration + 0.3f, T));
+	if (Weight <= 0.0f)
+	{
+		return;
+	}
+	const float U = FMath::Clamp(T / Duration, 0.0f, 1.0f);
+
+	// Where her right lies in the space of the mesh (the body faces +Y): the right arm sits on the outward side
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+	const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+	const float RightX = Side == 1 ? Outward : -Outward;
+	const float StartX = WhipStartSide[Side] * RightX;
+
+	// The way of the stroke: from high on the start side, through the front, down low on the other side; the same arc the
+	// tendrils follow in the hand
+	const FVector Diagonal = FVector(StartX, 0.0f, 0.85f).GetSafeNormal();
+	const float Arc = FMath::DegreesToRadians(70.0f);
+	const auto Stroke = [&](float At)
+	{
+		const float Angle = Arc * FMath::Cos(UE_PI * FMath::Pow(FMath::Clamp(At, 0.0f, 1.0f), 1.25f));
+		return (FVector(0.0f, 1.0f, 0.0f) * FMath::Cos(Angle) + Diagonal * FMath::Sin(Angle) - FVector(0.0f, 0.0f, 0.12f)).GetSafeNormal();
+	};
+
+	// The chest winds towards the start side and turns through with the blow, bending a little into it
+	const float Turn = 24.0f * StartX * FMath::Lerp(-1.0f, 1.0f, FMath::SmoothStep(0.0f, 1.0f, U)) * Weight;
+	const float Bend = -9.0f * FMath::Sin(UE_PI * U) * Weight;
+	for (const TCHAR* Spine : { TEXT("spine_02"), TEXT("spine_03"), TEXT("spine_04") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(Turn / 3.0f)));
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(Bend / 3.0f)));
+	}
+
+	// The upper arm leads, the forearm and the hand trail a little behind, then snap through: the arm itself is the whip
+	AimPoseBone(Pose, Upper, Lower, Stroke(U + 0.06f), Weight);
+	AimPoseBone(Pose, Lower, Hand, Stroke(U - 0.04f), Weight);
+	if (Middle != INDEX_NONE)
+	{
+		AimPoseBone(Pose, Hand, Middle, Stroke(U - 0.1f), Weight * 0.8f);
+	}
+}
+
 bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InRootNode)
 {
 	// The graph of the animation blueprint as always
@@ -1159,7 +1221,8 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	const bool bFlying = Flight.Weight > KINDA_SMALL_NUMBER;
 	const bool bShielding = Shield[0] > KINDA_SMALL_NUMBER || Shield[1] > KINDA_SMALL_NUMBER;
 	const bool bGesture = Gesture != EVaelCastGesture::None;
-	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
+	const bool bWhipping = WhipSeconds[0] >= 0.0f || WhipSeconds[1] >= 0.0f;
+	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
 	{
 		return true;
 	}
@@ -1278,6 +1341,15 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 		Aim(Upper, Lower, FVector(Outward * 0.3f, 0.75f, -0.5f).GetSafeNormal(), Weight);
 		Aim(Lower, Hand, FVector(-Outward * 0.45f, 0.3f, 0.85f).GetSafeNormal(), Weight);
 		Aim(Hand, Middle, FVector(-Outward * 0.2f, 0.15f, 1.0f).GetSafeNormal(), Weight);
+	}
+
+	// The whip strokes of lasso hands (Schlotwinde) over everything the arms did before
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		if (WhipSeconds[Side] >= 0.0f)
+		{
+			ApplyWhipStroke(Pose, Bones, Side);
+		}
 	}
 
 	if (Gesture == EVaelCastGesture::TwoFingerPoint)

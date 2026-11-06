@@ -325,6 +325,14 @@ float UVaelFloromantComponent::GetMortarDraw(bool bLeft) const
 	return Hand != nullptr ? Hand->GetMortarDraw() : 0.0f;
 }
 
+float UVaelFloromantComponent::GetWhipStroke(bool bLeft, float& OutDuration, float& OutStartSide) const
+{
+	const UVaelPlantArmComponent* Hand = FindHand(bLeft);
+	OutDuration = 0.34f;
+	OutStartSide = 1.0f;
+	return Hand != nullptr ? Hand->GetWhipStroke(OutDuration, OutStartSide) : -1.0f;
+}
+
 void UVaelFloromantComponent::TickShield(float DeltaTime)
 {
 	AVaelCharacter* Character = GetCharacter();
