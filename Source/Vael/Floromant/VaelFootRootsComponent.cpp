@@ -582,3 +582,214 @@ void UVaelFootRootsComponent::PlaceMoss(float Growth)
 		}
 	}
 }
+
+// ---------------------------------------------------------------- The same roots on the arms (Boris 2026-11-06)
+
+namespace
+{
+	const TCHAR* ArmHands[] = { TEXT("hand_l"), TEXT("hand_r") };
+	const TCHAR* ArmElbows[] = { TEXT("lowerarm_l"), TEXT("lowerarm_r") };
+	const TCHAR* ArmShoulders[] = { TEXT("upperarm_l"), TEXT("upperarm_r") };
+	const TCHAR* ArmKnuckles[] = { TEXT("middle_01_l"), TEXT("middle_01_r") };
+
+	/** Points along an arm root, roots per arm */
+	constexpr int32 ArmPoints = 22;
+	constexpr int32 RootsPerArm = 3;
+}
+
+void UVaelFootRootsComponent::MakeLooks()
+{
+	if (BarkLook != nullptr)
+	{
+		return;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	UMaterialInterface* Material = VaelAssets::LoadOptional(Settings->RootMaterial);
+	if (Material == nullptr)
+	{
+		return;
+	}
+	BarkLook = UMaterialInstanceDynamic::Create(Material, this);
+	BarkLook->SetScalarParameterValue(TEXT("WindStrength"), 0.0f);
+	BarkLook->SetScalarParameterValue(TEXT("GrowGlow"), 0.0f);
+	if (UTexture* Bark = VaelAssets::LoadOptional(Settings->RootBarkTexture))
+	{
+		BarkLook->SetTextureParameterValue(TEXT("BaseColorMap"), Bark);
+		BarkLook->SetScalarParameterValue(TEXT("TextureAmount"), 1.0f);
+		BarkLook->SetVectorParameterValue(TEXT("Tint"), Settings->RootBarkTint);
+		if (UTexture* BarkNormal = VaelAssets::LoadOptional(Settings->RootBarkNormal))
+		{
+			BarkLook->SetTextureParameterValue(TEXT("NormalMap"), BarkNormal);
+		}
+	}
+	if (PulseMaterial == nullptr)
+	{
+		PulseMaterial = UMaterialInstanceDynamic::Create(Material, this);
+		PulseMaterial->SetScalarParameterValue(TEXT("WindStrength"), 0.0f);
+		PulseMaterial->SetScalarParameterValue(TEXT("TextureAmount"), 0.0f);
+		PulseMaterial->SetVectorParameterValue(TEXT("Tint"), Settings->RootPulseColor);
+		PulseMaterial->SetScalarParameterValue(TEXT("Flash"), 1.0f);
+		PulseMaterial->SetVectorParameterValue(TEXT("FlashColor"), Settings->RootPulseColor);
+		PulseMaterial->SetScalarParameterValue(TEXT("FlashGlow"), 1.4f);
+	}
+}
+
+void UVaelFootRootsComponent::ArmPath(USkeletalMeshComponent* Body, const FArmRoot& Root, TArray<FVector>& OutPoints) const
+{
+	OutPoints.Reset();
+	const FVector Wrist = Body->GetSocketLocation(FName(ArmHands[Root.Arm]));
+	const FVector Elbow = Body->GetSocketLocation(FName(ArmElbows[Root.Arm]));
+	const FVector Shoulder = Body->GetSocketLocation(FName(ArmShoulders[Root.Arm]));
+	const FVector Knuckle = Body->DoesSocketExist(FName(ArmKnuckles[Root.Arm])) ? Body->GetSocketLocation(FName(ArmKnuckles[Root.Arm])) : Wrist + (Wrist - Elbow).GetSafeNormal() * 8.0f;
+	const float Forearm = FVector::Dist(Wrist, Elbow);
+	// outside the sleeve, as the leg roots lie outside the trousers
+	const float Thick = FMath::Clamp(Forearm * 0.26f, 5.0f, 10.0f);
+
+	// Like the legs: it starts on the back of the hand, winds round the wrist, up the forearm, over the elbow onto the upper arm
+	const FVector Keys[] = { FMath::Lerp(Wrist, Knuckle, 0.6f), Wrist, FMath::Lerp(Wrist, Elbow, 0.5f), Elbow, FMath::Lerp(Elbow, Shoulder, 0.45f) };
+	const float KeyShares[] = { 0.0f, 0.15f, 0.5f, 0.8f, 1.0f };
+	for (int32 Point = 0; Point < ArmPoints; ++Point)
+	{
+		const float T = Point / static_cast<float>(ArmPoints - 1) * Root.Reach;
+		int32 Key = 0;
+		while (Key < 3 && T > KeyShares[Key + 1])
+		{
+			++Key;
+		}
+		const float Local = FMath::Clamp((T - KeyShares[Key]) / FMath::Max(KeyShares[Key + 1] - KeyShares[Key], 0.001f), 0.0f, 1.0f);
+		const FVector Centre = FMath::Lerp(Keys[Key], Keys[Key + 1], Local);
+		const FVector Axis = (Keys[Key + 1] - Keys[Key]).GetSafeNormal(KINDA_SMALL_NUMBER, FVector::UpVector);
+		FVector Across = FVector::CrossProduct(Axis, FVector::UpVector);
+		Across = Across.IsNearlyZero(0.01f) ? Body->GetRightVector() : Across.GetSafeNormal();
+		const FVector Round = FVector::CrossProduct(Across, Axis);
+		// Flat on the back of the hand, wound round the arm, thicker round the forearm muscle
+		const float Radius = T < 0.15f ? Thick * 0.55f : Thick * (1.0f + 0.15f * FMath::Sin(FMath::Clamp((T - 0.15f) / 0.65f, 0.0f, 1.0f) * UE_PI));
+		const float Angle = Root.Phase + T * Root.Turns * 2.0f * UE_PI;
+		const float Wobble = 1.0f + 0.1f * FMath::Sin(T * 15.0f + Root.Seed);
+		OutPoints.Add(Centre + (Across * FMath::Cos(Angle) + Round * FMath::Sin(Angle) * (T < 0.15f ? 0.4f : 1.0f)) * Radius * Wobble);
+	}
+}
+
+void UVaelFootRootsComponent::SetArms(USkeletalMeshComponent* Body, const float Growth[2], const bool bFiring[2], float DeltaTime)
+{
+	const bool bAny = Body != nullptr && (Growth[0] > 0.0f || Growth[1] > 0.0f);
+	if (!bAny)
+	{
+		if (ArmMesh != nullptr && bArmsShown)
+		{
+			ArmMesh->ClearAllMeshSections();
+		}
+		ArmPulses.Reset();
+		bArmsShown = false;
+		return;
+	}
+
+	if (ArmMesh == nullptr)
+	{
+		MakeLooks();
+		ArmMesh = NewObject<UProceduralMeshComponent>(GetOwner());
+		ArmMesh->SetupAttachment(this);
+		ArmMesh->SetUsingAbsoluteLocation(true);
+		ArmMesh->SetUsingAbsoluteRotation(true);
+		ArmMesh->SetUsingAbsoluteScale(true);
+		ArmMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ArmMesh->bReceivesDecals = false;
+		ArmMesh->RegisterComponent();
+		ArmMesh->SetWorldTransform(FTransform::Identity);
+		ArmMesh->SetMaterial(0, BarkLook);
+		ArmMesh->SetMaterial(1, PulseMaterial);
+	}
+	if (ArmRoots.IsEmpty())
+	{
+		FRandomStream Random(GetOwner() != nullptr ? GetOwner()->GetUniqueID() + 17 : 17);
+		for (int32 Arm = 0; Arm < 2; ++Arm)
+		{
+			for (int32 Index = 0; Index < RootsPerArm; ++Index)
+			{
+				FArmRoot& Root = ArmRoots.AddDefaulted_GetRef();
+				Root.Arm = Arm;
+				Root.Phase = Index * 2.0f * UE_PI / RootsPerArm + Random.FRandRange(-0.3f, 0.3f);
+				Root.Turns = Random.FRandRange(1.0f, 1.5f) * (Arm == 0 ? -1.0f : 1.0f);
+				Root.Radius = Random.FRandRange(1.5f, 2.2f);
+				Root.Seed = Random.FRandRange(0.0f, 10.0f);
+				// One reaches up onto the upper arm, the others end round the elbow
+				Root.Reach = Index == 0 ? 1.0f : Random.FRandRange(0.72f, 0.85f);
+			}
+		}
+	}
+
+	// Firing: pulses of earth power run down the arm roots into the hand, as up the legs
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	for (int32 Arm = 0; Arm < 2; ++Arm)
+	{
+		if (bFiring[Arm] && Growth[Arm] >= 1.0f)
+		{
+			ArmPulseCountdown[Arm] -= DeltaTime;
+			if (ArmPulseCountdown[Arm] <= 0.0f)
+			{
+				ArmPulseCountdown[Arm] = Settings->RootPulseInterval;
+				for (int32 Root = 0; Root < ArmRoots.Num(); ++Root)
+				{
+					if (ArmRoots[Root].Arm == Arm)
+					{
+						ArmPulses.Add({ INDEX_NONE, Root, -FMath::FRandRange(0.0f, 0.3f) });
+					}
+				}
+			}
+		}
+		else
+		{
+			ArmPulseCountdown[Arm] = 0.0f;
+		}
+	}
+	const float Speed = 1.0f / FMath::Max(Settings->RootPulseTime, 0.05f);
+	for (FPulse& Pulse : ArmPulses)
+	{
+		Pulse.Along += DeltaTime * Speed;
+	}
+	ArmPulses.RemoveAll([](const FPulse& Pulse) { return Pulse.Along > 1.0f + PulseLength; });
+
+	// The roots follow the bones every frame, grown from the hand up as far as the plant of the hand has grown
+	TArray<FVector> Vertices, Normals, PulseVertices, PulseNormals;
+	TArray<FVector2D> UVs, PulseUVs;
+	TArray<FProcMeshTangent> Tangents, PulseTangents;
+	TArray<int32> Triangles, PulseTriangles;
+	TArray<FVector> Path;
+	TArray<float> Shares;
+	TArray<TArray<FVector>> Paths;
+	Paths.SetNum(ArmRoots.Num());
+	for (int32 Index = 0; Index < ArmRoots.Num(); ++Index)
+	{
+		const FArmRoot& Root = ArmRoots[Index];
+		const float Grown = FMath::SmoothStep(0.0f, 1.0f, Growth[Root.Arm]);
+		if (Grown <= 0.0f)
+		{
+			continue;
+		}
+		ArmPath(Body, Root, Paths[Index]);
+		Slice(Paths[Index], 0.0f, Grown, Path, Shares);
+		AddTube(Vertices, Normals, UVs, Tangents, Triangles, Path, Shares, Root.Radius * FMath::Lerp(0.5f, 1.0f, Grown), 0.5f, 0.3f, 4.0f, Root.Seed, Grown < 1.0f, LegSides);
+	}
+	for (const FPulse& Pulse : ArmPulses)
+	{
+		if (Pulse.Along <= 0.0f || !Paths.IsValidIndex(Pulse.Leg) || Paths[Pulse.Leg].IsEmpty())
+		{
+			continue;
+		}
+		// From the far end down to the hand
+		const float Head = FMath::Min(Pulse.Along, 1.0f);
+		const float Tail = FMath::Max(Pulse.Along - PulseLength, 0.0f);
+		Slice(Paths[Pulse.Leg], 1.0f - Head, 1.0f - Tail, Path, Shares);
+		AddTube(PulseVertices, PulseNormals, PulseUVs, PulseTangents, PulseTriangles, Path, Shares, ArmRoots[Pulse.Leg].Radius * 1.12f, 0.5f, 0.3f, 4.0f, ArmRoots[Pulse.Leg].Seed, false, 6);
+	}
+	ArmMesh->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, TArray<FLinearColor>(), Tangents, false);
+	if (PulseVertices.IsEmpty())
+	{
+		ArmMesh->ClearMeshSection(1);
+	}
+	else
+	{
+		ArmMesh->CreateMeshSection_LinearColor(1, PulseVertices, PulseTriangles, PulseNormals, PulseUVs, TArray<FLinearColor>(), PulseTangents, false);
+	}
+	bArmsShown = true;
+}

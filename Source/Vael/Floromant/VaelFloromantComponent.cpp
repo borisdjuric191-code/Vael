@@ -92,8 +92,9 @@ void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	TickShield(DeltaTime);
 	TickNid(DeltaTime);
 
-	// The crossed hands swell every frame while they charge and show; otherwise a few times a second is enough
-	SetComponentTickInterval(bCrossCharging || CrossShowLeft > 0.0f || IsRooted() ? 0.0f : 0.2f);
+
+	// Every frame while she is rooted, charging a cross or has plants on her arms (their roots follow the bones)
+	SetComponentTickInterval(bCrossCharging || CrossShowLeft > 0.0f || IsRooted() || FindHand(true) != nullptr || FindHand(false) != nullptr ? 0.0f : 0.2f);
 }
 
 void UVaelFloromantComponent::ToggleRoot()
@@ -490,9 +491,10 @@ void UVaelFloromantComponent::TickFlight(float DeltaTime)
 
 void UVaelFloromantComponent::UpdateFootRoots()
 {
+	AVaelCharacter* Character = GetCharacter();
 	if (FootRoots == nullptr)
 	{
-		if (!IsRooted() || GetOwner() == nullptr)
+		if (GetOwner() == nullptr)
 		{
 			return;
 		}
@@ -501,9 +503,24 @@ void UVaelFloromantComponent::UpdateFootRoots()
 		FootRoots->RegisterComponent();
 	}
 
-	AVaelCharacter* Character = GetCharacter();
+	USkeletalMeshComponent* Body = Character != nullptr ? Character->GetMesh() : nullptr;
+	const float DeltaTime = GetWorld() != nullptr ? GetWorld()->GetDeltaSeconds() : 0.0f;
 	const bool bFiring = IsRooted() && FMath::Max(GetStance(true), GetStance(false)) > 0.5f;
-	FootRoots->SetGrowth(Character != nullptr ? Character->GetMesh() : nullptr, RootGrowth, bFiring, GetWorld() != nullptr ? GetWorld()->GetDeltaSeconds() : 0.0f);
+	FootRoots->SetGrowth(Body, RootGrowth, bFiring, DeltaTime);
+
+	// The same roots on the arms, grown with the plant of each hand (not where the arm itself became vines, the Rußrose)
+	float ArmGrowth[2] = { 0.0f, 0.0f };
+	bool bArmFiring[2] = { false, false };
+	for (int32 Arm = 0; Arm < 2; ++Arm)
+	{
+		const UVaelPlantArmComponent* Hand = FindHand(Arm == 0);
+		if (Hand != nullptr && Hand->GetPlant() != nullptr && !Hand->IsArmHidden())
+		{
+			ArmGrowth[Arm] = Hand->GetGrowth();
+			bArmFiring[Arm] = Hand->GetStance() > 0.5f;
+		}
+	}
+	FootRoots->SetArms(Body, ArmGrowth, bArmFiring, DeltaTime);
 }
 
 AVaelCharacter* UVaelFloromantComponent::GetCharacter() const

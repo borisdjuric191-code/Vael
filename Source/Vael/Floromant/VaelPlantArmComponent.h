@@ -58,6 +58,10 @@ public:
 	/** How far a shield hand (Glimmklee) is raised before the face, 0 to 1 */
 	float GetShieldStance() const { return ShieldStance; }
 
+	/** How far the plant has grown on the arm (0 to 1), and whether the arm itself is hidden (the vine arm of the Rußrose) */
+	float GetGrowth() const { return Grow; }
+	bool IsArmHidden() const { return bArmHidden; }
+
 	/** The whip stroke of a lasso hand (Schlotwinde): seconds since it began (negative when none is under way or fading),
 	 *  its length, and on which side it starts high (+1 her right, -1 her left) */
 	float GetWhipStroke(float& OutDuration, float& OutStartSide) const;

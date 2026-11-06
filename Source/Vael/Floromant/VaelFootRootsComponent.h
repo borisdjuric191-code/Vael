@@ -30,7 +30,39 @@ public:
 	 *  next time. bFiring sends pulses of earth power up the roots. */
 	void SetGrowth(USkeletalMeshComponent* Body, float Growth, bool bFiring, float DeltaTime);
 
+	/** The same roots on her arms (Boris 2026-11-06: arms and legs one design): out of the Keimpelz on the forearm they wind round
+	 *  the wrist and up to the elbow, the plant of the hand grows out of them; firing, pulses of earth power run down them into
+	 *  the hand. Growth and firing per arm (0 left, 1 right); 0 hides an arm's roots. */
+	void SetArms(USkeletalMeshComponent* Body, const float Growth[2], const bool bFiring[2], float DeltaTime);
+
 private:
+
+	/** A root wound round an arm: which arm, where round it starts, how often it turns, thickness, how far up the arm it reaches */
+	struct FArmRoot
+	{
+		int32 Arm = 0;
+		float Phase = 0.0f;
+		float Turns = 1.2f;
+		float Radius = 1.2f;
+		float Seed = 0.0f;
+		float Reach = 1.0f;
+	};
+
+	/** The way of an arm root now: from the back of the hand round the wrist, up the forearm to past the elbow */
+	void ArmPath(USkeletalMeshComponent* Body, const FArmRoot& Root, TArray<FVector>& OutPoints) const;
+
+	/** The bark look and the pulse look of the roots (made once, shared by legs and arms) */
+	void MakeLooks();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UProceduralMeshComponent> ArmMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> BarkLook;
+
+	TArray<FArmRoot> ArmRoots;
+	float ArmPulseCountdown[2] = { 0.0f, 0.0f };
+	bool bArmsShown = false;
 
 	/** One root in the ground: points of its path in world space from the leg into the ground, its thickness at the start, the
 	 *  share of the whole growth in which it grows, its own knots and ridges */
@@ -104,6 +136,8 @@ private:
 	TArray<FRootPath> Roots;
 	TArray<FLegRoot> LegRoots;
 	TArray<FPulse> Pulses;
+	/** Pulses on the arm roots (Leg is the index of the arm root) */
+	TArray<FPulse> ArmPulses;
 
 	/** Where the moss sits: place, up direction, size */
 	TArray<FTransform> MossPlaces;
