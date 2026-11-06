@@ -4,6 +4,7 @@
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Combat/VaelCharacterBase.h"
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -988,6 +989,7 @@ void AVaelVineWall::Tick(float DeltaSeconds)
 		Material->SetScalarParameterValue(GrowHeightParameter, Wilt > 0.0f ? (1.0f - Wilt) * Height : Grow < 1.0f ? Grow * Height : FullyGrownHeight);
 	}
 	UpdateBindweed(Grow, Wilt);
+	EntangleEnemies(DeltaSeconds);
 
 	// Holds once it has grown, lets go when it withers
 	if (Grow >= 1.0f && Wilt <= 0.0f && Barrier->GetCollisionEnabled() == ECollisionEnabled::NoCollision)
@@ -1363,5 +1365,58 @@ void AVaelVineWall::UpdateBindweed(float Grow, float Wilt)
 	if (VineMaterial != nullptr)
 	{
 		VineMaterial->SetScalarParameterValue(TEXT("Aufleuchten"), 0.02f + 0.08f * FMath::Square(FMath::Sin(Time * 2.2f)));
+	}
+}
+
+bool AVaelVineWall::IsEntangled(const AActor* Actor) const
+{
+	if (Actor == nullptr || Bindweed == nullptr || !IsHolding())
+	{
+		return false;
+	}
+	// Close against the wall along its whole length (the wall runs along the right of the actor)
+	const FVector Local = GetActorTransform().InverseTransformPosition(Actor->GetActorLocation());
+	return FMath::Abs(Local.X) < WallThickness * 0.5f + Actor->GetSimpleCollisionRadius() + 45.0f && FMath::Abs(Local.Y) < WallLength * 0.5f + 20.0f;
+}
+
+void AVaelVineWall::WitherNow()
+{
+	Lifetime = FMath::Min(Lifetime, Age);
+}
+
+void AVaelVineWall::SetSwell(float Swell)
+{
+	if (Roots != nullptr)
+	{
+		Roots->SetRelativeScale3D(FVector(1.0f, 1.0f, 1.0f + 0.35f * FMath::Clamp(Swell, 0.0f, 1.0f)));
+	}
+}
+
+void AVaelVineWall::EntangleEnemies(float DeltaSeconds)
+{
+	if (Bindweed == nullptr || !IsHolding())
+	{
+		return;
+	}
+	EntangleCountdown -= DeltaSeconds;
+	if (EntangleCountdown > 0.0f)
+	{
+		return;
+	}
+	EntangleCountdown = 0.25f;
+	APawn* Holder = GetInstigator();
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		AVaelCharacterBase* Enemy = *It;
+		if (Enemy->IsDefeated() || !UVaelCombatStatics::CanDamage(Holder, Enemy) || !IsEntangled(Enemy))
+		{
+			continue;
+		}
+		// Caught in the vines: held a moment, again and again while it stays; the Würgwinde draws tight round it
+		Enemy->ApplyStun(0.4f);
+		if (bShadowVines)
+		{
+			UVaelCombatStatics::DealDamage(Holder, Enemy, Bindweed->StrangleDamagePerSecond * 0.25f, EVaelElement::Earth);
+		}
 	}
 }

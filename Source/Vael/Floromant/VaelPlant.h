@@ -205,6 +205,15 @@ public:
 	/** True while the wall holds back enemies */
 	bool IsHolding() const;
 
+	/** A Windenzaun entangles enemies that press against it (Boris 2026-11-06, Rankenbrücke): true for one caught in it now */
+	bool IsEntangled(const AActor* Actor) const;
+
+	/** Lets it wither now (the towers it spans between are gone) */
+	void WitherNow();
+
+	/** Turmruf: the wall swells higher, 0 to 1 */
+	void SetSwell(float Swell);
+
 private:
 
 	void Build(float Scale);
@@ -214,6 +223,9 @@ private:
 	 *  winding over them, slithering and pulsing */
 	void BuildBindweed();
 	void UpdateBindweed(float Grow, float Wilt);
+	/** Holds enemies caught in it a moment again and again; the Würgwinde strangles them */
+	void EntangleEnemies(float DeltaSeconds);
+	float EntangleCountdown = 0.0f;
 
 	UPROPERTY(Transient)
 	TObjectPtr<const class UVaelPlantArmData> Bindweed;

@@ -15,6 +15,7 @@
 #include "Floromant/VaelFloromantSettings.h"
 #include "Floromant/VaelGlimmDome.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelPlant.h"
 #include "Floromant/VaelRoseHeart.h"
 #include "Floromant/VaelSymbiosisKnotComponent.h"
 #include "Magic/VaelDebrisBurst.h"
@@ -456,6 +457,10 @@ void AVaelPlantTower::Wither()
 		return;
 	}
 	bWithering = true;
+	if (AVaelVineWall* Wall = Bridge.Get())
+	{
+		Wall->WitherNow();
+	}
 	if (AVaelGlimmDome* Glass = Dome.Get())
 	{
 		Glass->Lower();
@@ -555,7 +560,8 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 	UpdateLook(DeltaSeconds);
 	if (!WindTendrils.IsEmpty())
 	{
-		UpdateBindweedTower(DeltaSeconds, bActs);
+		// Both Schlotwinde of a Rankenbrücke act, each with its own vines
+		UpdateBindweedTower(DeltaSeconds, IsBindweedTower() ? !bWithering && Grow >= 1.0f : bActs);
 	}
 
 	if (Knot != nullptr && Partner.IsValid())
@@ -608,6 +614,25 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 	LifeLeft = FMath::Max(LifeLeft, Other->LifeLeft) + Settings->SymbiosisLifetimeBonus;
 	Other->LifeLeft = LifeLeft;
 	FireCountdown = Settings->SymbiosisGrowTime;
+
+	// Two Schlotwinde (Boris 2026-11-06): no shared crown; both stay as they are and span a living fence between them, the
+	// Rankenbrücke: it holds enemies back and entangles them, the vines of both pull enemies against it and lash those caught
+	if (Symbiosis == EVaelSymbiosis::Windenzaun)
+	{
+		const FVector A = GetActorLocation();
+		const FVector B = Other->GetActorLocation();
+		const FVector Way = (B - A).GetSafeNormal2D();
+		const float Span = FVector::Dist2D(A, B);
+		const float WallScale = FMath::Max((Span - 40.0f) / FMath::Max(Settings->WallLength, 1.0f), 0.35f);
+		AVaelVineWall* Wall = AVaelVineWall::Raise(GetWorld(), (A + B) * 0.5f, Way.Rotation().Yaw - 90.0f, LifeLeft, WallScale, GetGardener(), Plant, bShadow);
+		Bridge = Wall;
+		Other->Bridge = Wall;
+		if (AVaelCharacter* Gardener = GetGardener())
+		{
+			UVaelCombatTextSubsystem::PostPickup(Gardener, FText::Format(NSLOCTEXT("VaelSymbiosis", "TowersFuse", "Symbiose: {0}"), NSLOCTEXT("VaelSymbiosis", "Rankenbruecke", "Rankenbrücke")), VaelSymbiosis::GetColor(Symbiosis));
+		}
+		return;
+	}
 
 	// A pair with a Glimmklee raises one dome of the pair over both towers instead of the single domes
 	if (VaelSymbiosis::HasDome(Symbiosis))
@@ -1140,7 +1165,7 @@ namespace
 
 bool AVaelPlantTower::IsBindweedTower() const
 {
-	return Plant != nullptr && Plant->bLasso && Symbiosis == EVaelSymbiosis::None;
+	return Plant != nullptr && Plant->bLasso && (Symbiosis == EVaelSymbiosis::None || Symbiosis == EVaelSymbiosis::Windenzaun);
 }
 
 void AVaelPlantTower::BuildBindweedTower()
@@ -1261,6 +1286,10 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 	const FVector Crown = GetCrown();
 	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
 	const float Big = 1.0f + 0.4f * Giant;
+	if (AVaelVineWall* Fence = Bridge.Get(); Fence != nullptr && bLeads)
+	{
+		Fence->SetSwell(FMath::Max(Giant, Partner.IsValid() ? Partner->Giant : 0.0f));
+	}
 	// The vines ARE the tower (Boris 2026-11-06): they rise from a thick tangle on the ground, wind round each other up to its height
 	const float Length = Settings->TowerHeight * 1.05f * Big * FMath::Sin(Shown * UE_HALF_PI);
 	const float Inner = Plant->WhipReach * 0.95f * Big;
@@ -1331,6 +1360,15 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 				Spec.Color = bShadow ? Plant->StrangleColor : Plant->PollenColor;
 				Spec.bPullToPoint = true;
 				Spec.PullPoint = Base + Way * Inner * 0.5f;
+				// With a Rankenbrücke the enemy is flung against the fence, on its own side
+				if (Bridge.IsValid() && Partner.IsValid())
+				{
+					const FVector Other = Partner->GetActorLocation();
+					const FVector Line = Other - Base;
+					const float Along = FMath::Clamp(FVector::DotProduct(Enemy->GetActorLocation() - Base, Line) / FMath::Max(Line.SizeSquared(), 1.0f), 0.15f, 0.85f);
+					const FVector OnLine = Base + Line * Along;
+					Spec.PullPoint = OnLine + (Enemy->GetActorLocation() - OnLine).GetSafeNormal2D() * 55.0f;
+				}
 				const UVaelFloromantComponent* Floromant = Gardener->GetFloromant();
 				Spec.Power = Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f;
 				if (AVaelBindweedLasso* Lasso = AVaelBindweedLasso::Throw(Gardener, Plant, Base + FVector(0.0f, 0.0f, Length * 0.8f), Enemy, Spec, bShadow))
@@ -1377,7 +1415,11 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 				const FVector Strike = Base + WindWhipDir[Vine] * WindWhipReach[Vine] * 0.8f;
 				for (AActor* Struck : AVaelBindweedLasso::FindTargets(Gardener, Strike, FVector::ZeroVector, 160.0f, 180.0f, 4))
 				{
-					UVaelCombatStatics::ApplySpellHit(Gardener, Struck, Hit, (Struck->GetActorLocation() - Base).GetSafeNormal2D());
+					// Caught in the Rankenbrücke it takes half again as much
+					const AVaelVineWall* Fence = Bridge.Get();
+					FVaelSpellHit StruckHit = Hit;
+					StruckHit.Damage *= Fence != nullptr && Fence->IsEntangled(Struck) ? 1.5f : 1.0f;
+					UVaelCombatStatics::ApplySpellHit(Gardener, Struck, StruckHit, (Struck->GetActorLocation() - Base).GetSafeNormal2D());
 					VaelSymbiosis::MuzzlePuff(this, Plant, Struck->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), bShadow, 1.4f);
 				}
 			}
