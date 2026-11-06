@@ -218,6 +218,26 @@ void UVaelFloromantComponent::StartCross()
 	AVaelCharacter* Character = GetCharacter();
 	UVaelPlantArmComponent* Left = FindHand(true);
 	UVaelPlantArmComponent* Right = FindHand(false);
+	// Say why it can not cross, instead of doing nothing (Boris 2026-11-06)
+	if (Character != nullptr && Character->IsFloromant() && !bCrossCharging && Left != nullptr && Right != nullptr)
+	{
+		const auto Tell = [Character](const FText& Text) { UVaelCombatTextSubsystem::PostPickup(Character, Text, FLinearColor(FColor(158, 143, 125))); };
+		if (Left->IsRegrowing() || Right->IsRegrowing())
+		{
+			Tell(NSLOCTEXT("VaelFloromant", "CrossRegrow", "Die Pflanzen wachsen noch nach"));
+			return;
+		}
+		if (GetCooldownLeft(EVaelHUDAbility::Placeholder) > 0.0f)
+		{
+			Tell(NSLOCTEXT("VaelFloromant", "CrossCooldown", "Die Hände sind noch nicht so weit"));
+			return;
+		}
+		if (AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation()))
+		{
+			Tell(NSLOCTEXT("VaelFloromant", "CrossCamp", "Im Lager wächst nichts"));
+			return;
+		}
+	}
 	if (Character == nullptr || !Character->IsFloromant() || Character->IsDowned() || bCrossCharging || Left == nullptr || Right == nullptr
 		|| Left->GetPlant() == nullptr || Right->GetPlant() == nullptr || Left->IsRegrowing() || Right->IsRegrowing())
 	{

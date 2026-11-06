@@ -910,11 +910,20 @@ void AVaelPlayerController::OnCrossStarted()
 
 void AVaelPlayerController::OnCrossEnded()
 {
-	// A press that used or sowed ends here; let go early, nothing was sown
+	// A press that used or sowed ends here. Let go before the seed went in it was a tap: the Kreuzschuss after all (Boris
+	// 2026-11-06: crossing sometimes did nothing outside fights, the press was waiting to sow)
 	if (bCrossUses)
 	{
+		const bool bWasSowTap = SowHoldStart >= 0.0f;
 		bCrossUses = false;
 		SowHoldStart = -1.0f;
+		AVaelCharacter* Crosser = GetPawn<AVaelCharacter>();
+		if (bWasSowTap && Crosser != nullptr && Crosser->IsFloromant())
+		{
+			UpdateFacing();
+			Crosser->GetFloromant()->StartCross();
+			Crosser->GetFloromant()->ReleaseCross();
+		}
 		return;
 	}
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();

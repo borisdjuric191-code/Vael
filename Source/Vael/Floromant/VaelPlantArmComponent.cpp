@@ -19,6 +19,7 @@
 #include "Floromant/VaelRoseHeart.h"
 #include "Components/PointLightComponent.h"
 #include "Magic/VaelMagicSettings.h"
+#include "ProceduralMeshComponent.h"
 #include "Magic/VaelElementSource.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "Magic/VaelSpellEffects.h"
@@ -292,6 +293,12 @@ void UVaelPlantArmComponent::Clear()
 		ShoulderRose->DestroyComponent();
 		ShoulderRose = nullptr;
 	}
+	if (WhipTrail != nullptr)
+	{
+		WhipTrail->DestroyComponent();
+		WhipTrail = nullptr;
+	}
+	WhipTrailPoints.Reset();
 	OvergrowthMaterialA = nullptr;
 	OvergrowthMaterialB = nullptr;
 	Overgrowth = 0.0f;
@@ -1478,6 +1485,74 @@ void UVaelPlantArmComponent::WhipHit()
 	}
 }
 
+void UVaelPlantArmComponent::UpdateWhipTrail(const FVector& Tip, bool bStriking, bool bShadow)
+{
+	const float Now = GetWorld()->GetTimeSeconds();
+	const float Life = 0.22f;
+	if (bStriking)
+	{
+		WhipTrailPoints.Add(FVector4(Tip.X, Tip.Y, Tip.Z, Now));
+	}
+	WhipTrailPoints.RemoveAll([Now, Life](const FVector4& Point) { return Now - Point.W > Life; });
+	if (WhipTrail == nullptr)
+	{
+		if (WhipTrailPoints.Num() < 2)
+		{
+			return;
+		}
+		WhipTrail = NewObject<UProceduralMeshComponent>(GetOwner());
+		WhipTrail->SetupAttachment(GetBody());
+		WhipTrail->SetUsingAbsoluteLocation(true);
+		WhipTrail->SetUsingAbsoluteRotation(true);
+		WhipTrail->SetUsingAbsoluteScale(true);
+		WhipTrail->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WhipTrail->SetCastShadow(false);
+		WhipTrail->RegisterComponent();
+		WhipTrail->SetWorldTransform(FTransform::Identity);
+		if (UMaterialInterface* Core = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->ElementOrbCoreMaterial))
+		{
+			WhipTrailLook = UMaterialInstanceDynamic::Create(Core, this);
+			WhipTrail->SetMaterial(0, WhipTrailLook);
+		}
+	}
+	if (WhipTrailPoints.Num() < 2)
+	{
+		WhipTrail->ClearAllMeshSections();
+		return;
+	}
+	if (WhipTrailLook != nullptr)
+	{
+		WhipTrailLook->SetVectorParameterValue(TEXT("Color"), (bShadow ? Plant->StrangleColor : Plant->PollenColor) * 2.5f);
+	}
+	// A band, widest just behind the tip, narrowing and thinning to where the tip was longest ago; it faces up to the camera
+	TArray<FVector> Vertices, Normals;
+	TArray<FVector2D> UVs;
+	TArray<int32> Triangles;
+	const int32 Count = WhipTrailPoints.Num();
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const FVector Here(WhipTrailPoints[Index]);
+		const FVector Next(WhipTrailPoints[FMath::Min(Index + 1, Count - 1)]);
+		const FVector Prev(WhipTrailPoints[FMath::Max(Index - 1, 0)]);
+		FVector Across = FVector::CrossProduct((Next - Prev).GetSafeNormal(), FVector::UpVector);
+		Across = Across.IsNearlyZero(0.01f) ? FVector::RightVector : Across.GetSafeNormal();
+		const float Fresh = 1.0f - (Now - WhipTrailPoints[Index].W) / Life;
+		const float Width = 22.0f * FMath::Square(FMath::Clamp(Fresh, 0.0f, 1.0f));
+		Vertices.Add(Here + Across * Width);
+		Vertices.Add(Here - Across * Width);
+		Normals.Add(FVector::UpVector);
+		Normals.Add(FVector::UpVector);
+		UVs.Add(FVector2D(Index / static_cast<float>(Count - 1), 0.0f));
+		UVs.Add(FVector2D(Index / static_cast<float>(Count - 1), 1.0f));
+		if (Index + 1 < Count)
+		{
+			const int32 A = Index * 2;
+			Triangles.Append({ A, A + 2, A + 1, A + 1, A + 2, A + 3, A, A + 1, A + 2, A + 1, A + 3, A + 2 });
+		}
+	}
+	WhipTrail->CreateMeshSection_LinearColor(0, Vertices, Triangles, Normals, UVs, TArray<FLinearColor>(), TArray<FProcMeshTangent>(), false);
+}
+
 void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 {
 	if (Tendrils.IsEmpty() || Muzzles.Num() < 4)
@@ -1516,8 +1591,9 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 	const float StartSide = ((bLeft ? -1.0f : 1.0f) * (WhipCombo == 0 ? 1.0f : -1.0f));
 	const FVector StrikeAim = WhipTime >= 0.0f ? WhipAim : Aim;
 	const FVector StrikeSide = FVector::CrossProduct(FVector::UpVector, StrikeAim).GetSafeNormal();
-	const FVector Diagonal = (StrikeSide * StartSide + FVector::UpVector * 0.85f).GetSafeNormal();
-	const FVector BackHigh = (Diagonal * 0.8f - StrikeAim * 0.6f + FVector::UpVector * 0.3f).GetSafeNormal();
+	// Mostly across the ground before her (the camera looks from above: a steep stroke would hardly show), a little high to low
+	const FVector Diagonal = (StrikeSide * StartSide + FVector::UpVector * 0.35f).GetSafeNormal();
+	const FVector BackHigh = (Diagonal * 0.8f - StrikeAim * 0.6f + FVector::UpVector * 0.55f).GetSafeNormal();
 	const float Arc = FMath::DegreesToRadians(Plant->WhipArcDegrees);
 	const auto StrokeAt = [&](float Share)
 	{
@@ -1549,7 +1625,8 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 		const FVector Out = MuzzleDirections[Finger].GetSafeNormal();
 		const bool bIsLasso = Tendril == 0 && !Lassos.IsEmpty();
 		// Each tendril a moment behind the one before, so the three fan out in the stroke
-		const float Lag = Tendril * 0.08f;
+		// In the stroke the three braid into one thick rope (as the lasso), so they move as one
+		const float Lag = 0.0f;
 		const float Length = RestLength * (1.0f + Lash * (Plant->WhipReach * 1.05f / RestLength - 1.0f));
 		// Thicker while it lashes, so the bow it strikes is plain to see (Boris 2026-11-06)
 		const float LashBulk = 1.0f + 1.0f * Lash;
@@ -1562,14 +1639,27 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 			FVector Point = FMath::Lerp(Hanging, Reaching, Stance);
 			if (WhipTime >= 0.0f)
 			{
-				// Integrate along the tendril: further out it follows the stroke later
-				FVector Lashed = Root;
-				const int32 Steps = 8;
-				for (int32 Step = 1; Step <= Steps; ++Step)
+				// Integrate along the tendril: further out it follows the stroke later, so it bends into a bow
+				const auto Rope = [&](float At)
 				{
-					const float Along = S * Step / Steps;
-					Lashed += StrokeDirection(WhipTime - Lag - 0.42f * Along) * Length * S / Steps;
-				}
+					FVector Lashed = Root;
+					const int32 Steps = 10;
+					for (int32 Step = 1; Step <= Steps; ++Step)
+					{
+						const float Along = At * Step / Steps;
+						Lashed += StrokeDirection(WhipTime - Lag - 0.42f * Along) * Length * At / Steps;
+					}
+					return Lashed;
+				};
+				FVector Lashed = Rope(S);
+				// Braided round the rope: each tendril winds round it, the braid opening a little towards the tip
+				const FVector Tangent = (Rope(FMath::Min(S + 0.03f, 1.0f)) - Rope(FMath::Max(S - 0.03f, 0.0f))).GetSafeNormal();
+				FVector Across = FVector::CrossProduct(Tangent, FVector::UpVector);
+				Across = Across.IsNearlyZero(0.01f) ? Side : Across.GetSafeNormal();
+				const FVector Over = FVector::CrossProduct(Across, Tangent);
+				const float BraidAngle = S * 5.0f * 2.0f * UE_PI + Tendril * 2.0f * UE_PI / FMath::Max(Plant->TendrilCount, 1);
+				const float BraidRadius = Plant->TendrilThickness * Plant->TendrilBulk * (0.9f + 0.5f * S);
+				Lashed += (Across * FMath::Cos(BraidAngle) + Over * FMath::Sin(BraidAngle)) * BraidRadius * FMath::Min(1.0f, Lash * 2.0f);
 				Point = FMath::Lerp(Point, Lashed, FMath::Min(1.0f, Lash * 2.2f));
 			}
 			Point += Side * 6.0f * S * FMath::Sin(Time * 2.6f + S * 5.0f + Tendril * 2.1f) * (1.0f - Lash);
@@ -1627,6 +1717,13 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 				VaelSymbiosis::MuzzlePuff(this, Plant, PointAt(Grow * 0.6f), bShadow, 0.9f);
 			}
 		}
+	}
+
+	// The swish of the stroke along the way its tip went
+	if (TendrilTips.Num() > 0)
+	{
+		const UStaticMeshComponent* TipLeaf = TendrilTips[TendrilTips.Num() / 2];
+		UpdateWhipTrail(TipLeaf->GetComponentLocation(), WhipTime >= Wind && Lassos.IsEmpty(), bShadow);
 	}
 }
 
@@ -2440,20 +2537,16 @@ void UVaelPlantArmComponent::UpdateWaterFiring(float DeltaTime)
 		}
 	}
 
+	// Tap or hold, decided early and only one of them (Boris 2026-11-06: no shot and jet at once): a press let go within the
+	// decision time pumps one Tauperle; held past it, it is the jet and nothing else
+	const float Decide = Plant->JetHoldTime > 0.0f ? FMath::Min(Plant->JetHoldTime, 0.2f) : 0.0f;
 	if (!IsFiring())
 	{
+		const bool bTapped = HoldTime > 0.0f && (Decide <= 0.0f || HoldTime < Decide) && !bPumpedThisPress;
 		StopJet();
 		HoldTime = 0.0f;
 		bPumpedThisPress = false;
-		return;
-	}
-	HoldTime += DeltaTime;
-
-	// A press pumps one Tauperle: the wave runs from the shoulder down, the shot leaves when it reaches the barrel
-	if (!bPumpedThisPress && FireCountdown <= 0.0f)
-	{
-		bPumpedThisPress = true;
-		if (BarShots < 1.0f)
+		if (!bTapped || FireCountdown > 0.0f || BarShots < 1.0f)
 		{
 			return;
 		}
@@ -2465,13 +2558,28 @@ void UVaelPlantArmComponent::UpdateWaterFiring(float DeltaTime)
 		StartPump(false);
 		PendingShotTime = Now + Plant->PumpWaveTime;
 		FireCountdown = FMath::Max(Plant->FireInterval * GeneScale(EVaelGeneEffect::FireSpeed), Plant->PumpWaveTime);
+		return;
 	}
+	HoldTime += DeltaTime;
 
-	// Held long enough it turns into the jet, the pump going on and on; it costs bar and Saft every second, and sputters out when they are gone
-	if (Plant->JetHoldTime <= 0.0f || HoldTime < Plant->JetHoldTime || PendingShotTime >= 0.0f)
+	// Held past the decision: the jet, the pump going on and on; it costs bar and Saft every second, and sputters out when they are gone
+	if (Decide <= 0.0f)
+	{
+		// a plant without a jet shoots at once on the press
+		if (!bPumpedThisPress && FireCountdown <= 0.0f && BarShots >= 1.0f && Character->GetMana() >= ShotSaft())
+		{
+			bPumpedThisPress = true;
+			StartPump(false);
+			PendingShotTime = Now + Plant->PumpWaveTime;
+			FireCountdown = FMath::Max(Plant->FireInterval * GeneScale(EVaelGeneEffect::FireSpeed), Plant->PumpWaveTime);
+		}
+		return;
+	}
+	if (HoldTime < Decide)
 	{
 		return;
 	}
+	bPumpedThisPress = true;
 	const float BarCost = Plant->JetShotsPerSecond * DeltaTime;
 	const float SaftCost = Plant->JetSaftPerSecond * DeltaTime;
 	if (BarShots < BarCost || Character->GetMana() < SaftCost)

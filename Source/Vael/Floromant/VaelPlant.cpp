@@ -1215,9 +1215,9 @@ void AVaelThornWhip::Tick(float DeltaSeconds)
 
 namespace
 {
-	constexpr int32 WallVines = 7;
+	constexpr int32 WallVines = 12;
 	constexpr int32 WallVinePieces = 12;
-	constexpr int32 WallVineTrumpets = 2;
+	constexpr int32 WallVineTrumpets = 4;
 }
 
 void AVaelVineWall::BuildBindweed()
@@ -1262,8 +1262,10 @@ void AVaelVineWall::BuildBindweed()
 	for (int32 Vine = 0; Vine < WallVines; ++Vine)
 	{
 		// Each vine runs over a stretch of the wall, at its own height, on the front or the back
-		const float From = FMath::FRandRange(-1.0f, 0.1f);
-		const float To = FMath::Clamp(From + FMath::FRandRange(0.7f, 1.4f), -0.3f, 1.0f);
+		// Spread over the whole wall (Boris 2026-11-06): each vine covers its own stretch, the stretches overlap a little
+		const float Slot = (Vine + 0.5f) / WallVines * 2.0f - 1.0f;
+		const float From = FMath::Clamp(Slot - FMath::FRandRange(0.25f, 0.4f), -1.0f, 1.0f);
+		const float To = FMath::Clamp(Slot + FMath::FRandRange(0.25f, 0.4f), -1.0f, 1.0f);
 		VineShapes.Add(FVector4(From, To, FMath::FRandRange(0.25f, 0.85f), FMath::RandBool() ? 1.0f : -1.0f));
 		for (int32 Piece = 0; Piece < WallVinePieces; ++Piece)
 		{
@@ -1312,9 +1314,10 @@ void AVaelVineWall::UpdateBindweed(float Grow, float Wilt)
 		{
 			const float Y = FMath::Lerp(Shape.X, Shape.Y, S) * WallLength * 0.5f;
 			// It slithers: a wave runs along it over the wall, up and down, in and out
-			const float Wave = FMath::Sin(S * 9.0f - Time * 2.4f + Phase);
+			// They lie over the roots and only breathe a little, no wandering
+			const float Wave = FMath::Sin(S * 9.0f + Phase) + 0.08f * FMath::Sin(Time * 1.3f + Phase);
 			const float Z = WallHeight * Shape.Z + WallHeight * 0.18f * Wave + 10.0f * FMath::Sin(S * 23.0f + Phase);
-			const float X = Shape.W * WallThickness * (0.42f + 0.12f * FMath::Sin(S * 13.0f - Time * 1.7f + Phase));
+			const float X = Shape.W * WallThickness * (0.42f + 0.12f * FMath::Sin(S * 13.0f + Phase));
 			return FVector(X, Y, Z);
 		};
 		const float Grown = Shown;
@@ -1347,7 +1350,7 @@ void AVaelVineWall::UpdateBindweed(float Grow, float Wilt)
 			{
 				continue;
 			}
-			const float S = (0.3f + 0.4f * Index) * Grown;
+			const float S = (0.12f + 0.25f * Index) * Grown;
 			const FVector Here = PointAt(S);
 			const FVector Mouth = (FVector(Shape.W, 0.0f, 0.0f) + FVector(0.0f, 0.0f, 0.5f) + (PointAt(S + 0.02f) - Here).GetSafeNormal() * 0.4f).GetSafeNormal();
 			UStaticMeshComponent* Trumpet = VineTrumpets[Slot];

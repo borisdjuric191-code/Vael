@@ -22,6 +22,8 @@
 #include "Creatures/VaelCreature.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Floromant/VaelFloromantSettings.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "Floromant/VaelPlantArmData.h"
 #include "Floromant/VaelPlantData.h"
 #include "GameFramework/Pawn.h"
@@ -1551,7 +1553,44 @@ namespace VaelSymbiosis
 			const FVector Ahead2 = Origin + Ahead.GetSafeNormal2D() * (bTower ? FMath::Min(Reach * 0.5f, 400.0f) : 250.0f);
 			const FVector Foot = VaelGround::TraceGround(World, Ahead2 + FVector(0.0f, 0.0f, 300.0f), Ahead2 - FVector(0.0f, 0.0f, 1500.0f), Ground, Instigator)
 				? Ground.ImpactPoint : Instigator->GetActorLocation() + Ahead.GetSafeNormal2D() * 250.0f;
-			AVaelVineWall::Raise(World, Foot, Ahead.GetSafeNormal2D().Rotation().Yaw, 6.0f, 1.0f + 0.4f * Charge, Instigator, Vine, bShadow);
+			// Bigger and wild (Boris 2026-11-06), and never stacked: where a wall stands already it grows beside it, or not at all
+			const float WallScale = 1.3f + 0.4f * Charge;
+			const float Span = UVaelFloromantSettings::Get()->WallLength * WallScale;
+			const FVector Along = FVector::CrossProduct(FVector::UpVector, Ahead.GetSafeNormal2D()).GetSafeNormal();
+			const auto IsFree = [World, Span](const FVector& Spot)
+			{
+				for (TActorIterator<AVaelVineWall> It(World); It; ++It)
+				{
+					if (FVector::Dist2D(It->GetActorLocation(), Spot) < Span * 0.75f)
+					{
+						return false;
+					}
+				}
+				return true;
+			};
+			bool bPlaced = false;
+			for (const float Shift : { 0.0f, 1.0f, -1.0f })
+			{
+				FVector Spot = Foot + Along * Shift * (Span + 40.0f);
+				if (Shift != 0.0f)
+				{
+					FHitResult Beside;
+					if (VaelGround::TraceGround(World, Spot + FVector(0.0f, 0.0f, 300.0f), Spot - FVector(0.0f, 0.0f, 1500.0f), Beside, Instigator))
+					{
+						Spot = Beside.ImpactPoint;
+					}
+				}
+				if (IsFree(Spot))
+				{
+					AVaelVineWall::Raise(World, Spot, Ahead.GetSafeNormal2D().Rotation().Yaw, 6.0f, WallScale, Instigator, Vine, bShadow);
+					bPlaced = true;
+					break;
+				}
+			}
+			if (!bPlaced)
+			{
+				UVaelCombatTextSubsystem::PostPickup(Instigator, NSLOCTEXT("VaelFloromant", "WallFull", "Hier steht schon ein Windenzaun"), FLinearColor(FColor(158, 143, 125)));
+			}
 			break;
 		}
 		case EVaelSymbiosis::Wirbelwinde:

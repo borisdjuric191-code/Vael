@@ -484,6 +484,18 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> TendrilTrumpets;
 
+	/** The swish of a whip stroke: a glowing band along the way the tip went, fading fast (Boris 2026-11-06: the bow must show) */
+	UPROPERTY(Transient)
+	TObjectPtr<class UProceduralMeshComponent> WhipTrail;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> WhipTrailLook;
+
+	/** Where the tip was and when (W) */
+	TArray<FVector4> WhipTrailPoints;
+
+	void UpdateWhipTrail(const FVector& Tip, bool bStriking, bool bShadow);
+
 	/** Places the petals around the rose's foot and axis (space of the body mesh); returns where the shots leave */
 	FVector UpdateRose(const FVector& Base, const FVector& Axis);
 

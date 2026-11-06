@@ -1188,7 +1188,7 @@ void FVaelAnimProxy::ApplyWhipStroke(FCSPose<FCompactPose>& Pose, const FBoneCon
 	// The way of the stroke (Boris 2026-11-06: more swing): first the arm winds up far back over the shoulder of the start side,
 	// then it lashes through a wide bow down to low on the other side; the same timing as the tendrils in the hand
 	const float Wind = 0.32f;
-	const FVector Diagonal = FVector(StartX, 0.0f, 0.85f).GetSafeNormal();
+	const FVector Diagonal = FVector(StartX, 0.0f, 0.4f).GetSafeNormal();
 	const FVector BackHigh = FVector(StartX * 0.75f, -0.55f, 0.7f).GetSafeNormal();
 	const float Arc = FMath::DegreesToRadians(105.0f);
 	const auto StrokeAt = [&](float Share)
