@@ -1549,8 +1549,10 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 		const FVector Out = MuzzleDirections[Finger].GetSafeNormal();
 		const bool bIsLasso = Tendril == 0 && !Lassos.IsEmpty();
 		// Each tendril a moment behind the one before, so the three fan out in the stroke
-		const float Lag = Tendril * 0.06f;
-		const float Length = RestLength * (1.0f + Lash * (Plant->WhipReach * 0.85f / RestLength - 1.0f));
+		const float Lag = Tendril * 0.08f;
+		const float Length = RestLength * (1.0f + Lash * (Plant->WhipReach * 1.05f / RestLength - 1.0f));
+		// Thicker while it lashes, so the bow it strikes is plain to see (Boris 2026-11-06)
+		const float LashBulk = 1.0f + 1.0f * Lash;
 
 		const auto PointAt = [&](float S)
 		{
@@ -1566,7 +1568,7 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 				for (int32 Step = 1; Step <= Steps; ++Step)
 				{
 					const float Along = S * Step / Steps;
-					Lashed += StrokeDirection(WhipTime - Lag - 0.3f * Along) * Length * S / Steps;
+					Lashed += StrokeDirection(WhipTime - Lag - 0.42f * Along) * Length * S / Steps;
 				}
 				Point = FMath::Lerp(Point, Lashed, FMath::Min(1.0f, Lash * 2.2f));
 			}
@@ -1589,8 +1591,8 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 			const float Span = FVector::Dist(P0, P1);
 			Stalk->SetStartAndEnd(P0, (PointAt(A + 0.02f) - PointAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * Span,
 				P1, (PointAt(B + 0.02f) - PointAt(B - 0.02f)).GetSafeNormal() * Span, false);
-			Stalk->SetStartScale(FVector2D(Plant->TendrilThickness * Bulk * FMath::Lerp(1.0f, 0.45f, A)), false);
-			Stalk->SetEndScale(FVector2D(Plant->TendrilThickness * Bulk * FMath::Lerp(1.0f, 0.45f, B)), false);
+			Stalk->SetStartScale(FVector2D(Plant->TendrilThickness * Bulk * LashBulk * FMath::Lerp(1.0f, 0.5f, A)), false);
+			Stalk->SetEndScale(FVector2D(Plant->TendrilThickness * Bulk * LashBulk * FMath::Lerp(1.0f, 0.5f, B)), false);
 			Stalk->SetStartRoll(Piece * 1.4f + Tendril, false);
 			Stalk->SetEndRoll(Piece * 1.4f + Tendril + 1.2f, false);
 			Stalk->UpdateMesh();

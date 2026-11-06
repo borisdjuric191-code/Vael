@@ -65,7 +65,7 @@ namespace
 	constexpr float FireSeedBurstRadius = 160.0f;
 
 	/** Rings along each root and corners around each ring */
-	constexpr int32 RootRings = 14;
+	constexpr int32 RootRings = 30;
 	constexpr int32 RootSides = 6;
 
 	/** Material parameters of M_Floromant_Pflanze */
@@ -889,6 +889,62 @@ void AVaelVineWall::Build(float Scale)
 	TArray<int32> Triangles;
 
 	const int32 NumRoots = Settings->WallRoots;
+	if (Bindweed != nullptr)
+	{
+		// The Windenzaun (Boris 2026-11-06: wild like the roots on her legs, no tidy fence): roots break out of the ground at random
+		// places, lean and cross each other diagonally, arch over, twist into knots and curl at their tips; some thick, some thin
+		const int32 NumWild = FMath::RoundToInt(NumRoots * 1.7f);
+		for (int32 RootIndex = 0; RootIndex < NumWild; ++RootIndex)
+		{
+			const int32 Kind = FMath::RandRange(0, 9);
+			const float Seed = FMath::FRandRange(0.0f, 100.0f);
+			const float StartY = FMath::FRandRange(-0.55f, 0.55f) * Length;
+			const float StartX = FMath::FRandRange(-0.5f, 0.5f) * Thickness;
+			const float Twist = FMath::FRandRange(1.2f, 2.4f);
+			const float Wobble = FMath::FRandRange(6.0f, 16.0f);
+			if (Kind <= 3)
+			{
+				// A leaning arch that dives back into the ground far to the side, crossing the others
+				const float EndY = StartY + FMath::FRandRange(0.2f, 0.55f) * Length * (FMath::RandBool() ? 1.0f : -1.0f);
+				const float EndX = FMath::FRandRange(-0.5f, 0.5f) * Thickness;
+				const float Top = Height * FMath::FRandRange(0.35f, 1.0f);
+				const float Lean = FMath::FRandRange(-0.6f, 0.6f) * Thickness;
+				VaelRoots::AddRoot(Vertices, Normals, UVs, Triangles, [&](float Along)
+				{
+					const float Arch = FMath::Sin(Along * UE_PI);
+					return FVector(FMath::Lerp(StartX, EndX, Along) + Lean * Arch + FMath::Sin(Along * 3.0f * Twist + Seed) * Wobble * 0.5f,
+						FMath::Lerp(StartY, EndY, Along) + FMath::Sin(Along * 4.0f + Seed) * Wobble,
+						Arch * Top - 10.0f + FMath::Sin(Along * 5.0f + Seed) * Wobble * 0.4f);
+				}, FMath::FRandRange(7.0f, 18.0f) * FMath::Sqrt(Scale), false, Seed);
+			}
+			else if (Kind <= 6)
+			{
+				// A rising root that twists like a corkscrew and curls over at its tip
+				const float Top = Height * FMath::FRandRange(0.6f, 1.15f);
+				const float Curl = FMath::FRandRange(0.3f, 0.6f) * Top * (FMath::RandBool() ? 1.0f : -1.0f);
+				const float Radius = FMath::FRandRange(6.0f, 16.0f);
+				VaelRoots::AddRoot(Vertices, Normals, UVs, Triangles, [&](float Along)
+				{
+					const float Angle = Along * Twist * 2.0f * UE_PI + Seed;
+					return FVector(StartX + FMath::Cos(Angle) * Radius * (1.0f - Along * 0.5f),
+						StartY + FMath::Sin(Angle) * Radius + FMath::Square(Along) * Curl,
+						Along * Top - FMath::Square(FMath::Max(Along - 0.75f, 0.0f)) * Top * 1.6f);
+				}, FMath::FRandRange(8.0f, 16.0f) * FMath::Sqrt(Scale), true, Seed);
+			}
+			else
+			{
+				// A low tangle crawling along the foot of the wall, half in the ground
+				const float EndY = StartY + FMath::FRandRange(0.3f, 0.7f) * Length * (FMath::RandBool() ? 1.0f : -1.0f);
+				VaelRoots::AddRoot(Vertices, Normals, UVs, Triangles, [&](float Along)
+				{
+					return FVector(StartX + FMath::Sin(Along * 7.0f + Seed) * Thickness * 0.35f,
+						FMath::Lerp(StartY, EndY, Along),
+						8.0f + FMath::Abs(FMath::Sin(Along * 2.5f * Twist + Seed)) * Height * 0.25f - 10.0f);
+				}, FMath::FRandRange(6.0f, 12.0f) * FMath::Sqrt(Scale), true, Seed);
+			}
+		}
+	}
+	else
 	for (int32 RootIndex = 0; RootIndex < NumRoots; ++RootIndex)
 	{
 		const bool bSpike = RootIndex % 3 == 1;
