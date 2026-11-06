@@ -190,4 +190,31 @@ private:
 	/** Size of the veil of a Mondtraufe pair against the hands: +20 % fused, +12 % per Turmruf, at most +50 % */
 	float GetVeilScale() const;
 	float BudOpen = 0.0f;
+
+	// --- Schlotwinde tower (Boris 2026-11-06): no crown; the vines rise and their tips stop short of each other, and each vine
+	// acts alone: an enemy close by is lashed, one further out is caught, held and pulled to the foot of the tower
+
+	bool IsBindweedTower() const;
+	void BuildBindweedTower();
+	void UpdateBindweedTower(float DeltaSeconds, bool bActs);
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> WindTendrils;
+
+	/** Leaves at the tips and golden trumpets along the vines */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> WindTips;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> WindTrumpets;
+
+	/** Per vine: seconds into its lash (negative: none), seconds until it may act again, the way it lashes, what it lashes, the
+	 *  lasso it threw, whether the lash has hit */
+	TArray<float> WindWhipTime;
+	TArray<float> WindCooldown;
+	TArray<FVector> WindWhipDir;
+	TArray<float> WindWhipReach;
+	TArray<TWeakObjectPtr<AActor>> WindWhipTarget;
+	TArray<TWeakObjectPtr<class AVaelBindweedLasso>> WindLassos;
+	TArray<bool> WindHit;
 };

@@ -49,6 +49,11 @@ struct FVaelLassoSpec
 	/** Crawls over the ground from its start (the tower's snare) instead of flying through the air */
 	bool bOverGround = false;
 
+	/** Yank to this point on the ground instead of to the owner (the Schlotwinde tower pulls enemies to its foot); a heavy one is
+	 *  only held there, nobody flies to it */
+	bool bPullToPoint = false;
+	FVector PullPoint = FVector::ZeroVector;
+
 	/** Power of the pair or rooted hand on its damage */
 	float Power = 1.0f;
 

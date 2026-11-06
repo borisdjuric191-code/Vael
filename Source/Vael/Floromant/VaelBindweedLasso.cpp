@@ -412,7 +412,11 @@ void AVaelBindweedLasso::End(float DeltaSeconds)
 	}
 
 	// To a heavy one she flies herself along the vine
-	if (IsHeavy(Goal) || Character == nullptr)
+	if (Spec.bPullToPoint && (IsHeavy(Goal) || Character == nullptr))
+	{
+		// The tower holds a heavy one where it is; nobody flies anywhere
+	}
+	else if (IsHeavy(Goal) || Character == nullptr)
 	{
 		const float Gap = FVector::Dist2D(Holder->GetActorLocation(), Goal->GetActorLocation()) - Goal->GetSimpleCollisionRadius() - 60.0f;
 		if (Gap > 40.0f && Pulled < LassoEndTime)
@@ -426,9 +430,10 @@ void AVaelBindweedLasso::End(float DeltaSeconds)
 	else
 	{
 		// A small one is thrown to her feet in a low arc over steps and edges, as fast as the yank allows
-		const FVector Toward = (YankFrom - Holder->GetActorLocation()) * FVector(1.0f, 1.0f, 0.0f);
-		const FVector Landing = Holder->GetActorLocation() + Toward.GetSafeNormal() * (Goal->GetSimpleCollisionRadius() + 80.0f);
-		const float Feet = Holder->GetActorLocation().Z - Holder->GetSimpleCollisionHalfHeight();
+		const FVector Anchor = Spec.bPullToPoint ? Spec.PullPoint : Holder->GetActorLocation();
+		const FVector Toward = (YankFrom - Anchor) * FVector(1.0f, 1.0f, 0.0f);
+		const FVector Landing = Anchor + Toward.GetSafeNormal() * (Goal->GetSimpleCollisionRadius() + (Spec.bPullToPoint ? 10.0f : 80.0f));
+		const float Feet = Spec.bPullToPoint ? Spec.PullPoint.Z : Holder->GetActorLocation().Z - Holder->GetSimpleCollisionHalfHeight();
 		const FVector Spot(Landing.X, Landing.Y, Feet + Goal->GetSimpleCollisionHalfHeight() + 5.0f);
 		const float Flight = FMath::Clamp(FVector::Dist2D(YankFrom, Spot) / Plant->YankSpeed, 0.2f, LassoEndTime);
 		const float Share = FMath::Min(Pulled / Flight, 1.0f);

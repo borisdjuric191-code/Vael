@@ -23,6 +23,7 @@
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "World/VaelSafeZone.h"
+#include "Combat/VaelCombatStatics.h"
 #include "Vael.h"
 #include "VaelAssets.h"
 
@@ -219,6 +220,12 @@ void AVaelPlantTower::Build()
 	for (int32 Index = 0; Index < TowerColumnVines; ++Index)
 	{
 		Column.Add(MakeStalk(TowerFirstMesh({ &Plant->VineMeshes, &Plant->ArmMeshes, &Plant->FingerMeshes }, Index)));
+	}
+
+	// A Schlotwinde: its own vines that lash and catch, instead of a crown while it stands alone
+	if (Plant->bLasso)
+	{
+		BuildBindweedTower();
 	}
 
 	// The crown: the big rose of the Rußrose with its heart, the open rose of the Taublatt, or the finger stalks with their heads
@@ -500,7 +507,7 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 
 	// The tower that leads a symbiosis grows the knot between both and acts for both; the other only stands
 	const bool bActs = !bWithering && Grow >= 1.0f && (Symbiosis == EVaelSymbiosis::None || bLeads);
-	if (bActs)
+	if (bActs && !IsBindweedTower())
 	{
 		// Called up by the Turmruf it fires faster
 		FireCountdown -= DeltaSeconds * (1.0f + (UVaelFloromantSettings::Get()->TowerCallFireScale - 1.0f) * Giant);
@@ -546,6 +553,10 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 	UpdatePairCharge(DeltaSeconds);
 	UpdateStalkShots(DeltaSeconds);
 	UpdateLook(DeltaSeconds);
+	if (!WindTendrils.IsEmpty())
+	{
+		UpdateBindweedTower(DeltaSeconds, bActs);
+	}
 
 	if (Knot != nullptr && Partner.IsValid())
 	{
@@ -1112,4 +1123,347 @@ float AVaelPlantTower::GetVeilScale() const
 	const AVaelPlantTower* Other = Partner.Get();
 	const int32 Stacks = FMath::Max(CallLeft > 0.0f ? CallStacks : 0, Other != nullptr && Other->CallLeft > 0.0f ? Other->CallStacks : 0);
 	return FMath::Min(1.2f + 0.12f * Stacks, 1.5f);
+}
+
+// ---------------------------------------------------------------- Schlotwinde tower (Boris 2026-11-06)
+
+namespace
+{
+	constexpr int32 WindVines = 4;
+	constexpr int32 WindPieces = 10;
+	constexpr int32 WindTrumpetsEach = 2;
+	/** Seconds a lash takes, the share winding up, and how many enemies a tower holds at once */
+	constexpr float WindLashSeconds = 0.5f;
+	constexpr float WindWindUp = 0.3f;
+	constexpr int32 WindMaxLassos = 2;
+}
+
+bool AVaelPlantTower::IsBindweedTower() const
+{
+	return Plant != nullptr && Plant->bLasso && Symbiosis == EVaelSymbiosis::None;
+}
+
+void AVaelPlantTower::BuildBindweedTower()
+{
+	UStaticMesh* VineMesh = nullptr;
+	for (const TSoftObjectPtr<UStaticMesh>& Mesh : Plant->FingerMeshes)
+	{
+		VineMesh = VaelAssets::LoadOptional(Mesh) != nullptr ? VaelAssets::LoadOptional(Mesh) : VineMesh;
+	}
+	UStaticMesh* TipMesh = VaelAssets::LoadOptional(Plant->TipMesh);
+	UStaticMesh* TrumpetMesh = VaelAssets::LoadOptional(Plant->LeafMesh);
+	const auto MakePiece = [this](UStaticMesh* Mesh)
+	{
+		UStaticMeshComponent* Piece = NewObject<UStaticMeshComponent>(this);
+		Piece->SetMobility(EComponentMobility::Movable);
+		Piece->SetStaticMesh(Mesh);
+		Piece->SetMaterial(0, Material);
+		Piece->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Piece->SetUsingAbsoluteLocation(true);
+		Piece->SetUsingAbsoluteRotation(true);
+		Piece->SetUsingAbsoluteScale(true);
+		Piece->SetupAttachment(RootComponent);
+		Piece->RegisterComponent();
+		return Piece;
+	};
+	for (int32 Vine = 0; Vine < WindVines && VineMesh != nullptr; ++Vine)
+	{
+		for (int32 Piece = 0; Piece < WindPieces; ++Piece)
+		{
+			USplineMeshComponent* Stalk = MakeStalk(VineMesh);
+			Stalk->SetUsingAbsoluteLocation(true);
+			Stalk->SetUsingAbsoluteRotation(true);
+			Stalk->SetUsingAbsoluteScale(true);
+			Stalk->SetWorldTransform(FTransform::Identity);
+			WindTendrils.Add(Stalk);
+		}
+		if (TipMesh != nullptr)
+		{
+			WindTips.Add(MakePiece(TipMesh));
+		}
+		for (int32 Index = 0; Index < WindTrumpetsEach && TrumpetMesh != nullptr; ++Index)
+		{
+			WindTrumpets.Add(MakePiece(TrumpetMesh));
+		}
+	}
+	WindWhipTime.Init(-1.0f, WindVines);
+	WindCooldown.Init(0.0f, WindVines);
+	WindWhipDir.Init(FVector::ForwardVector, WindVines);
+	WindWhipReach.Init(300.0f, WindVines);
+	WindWhipTarget.SetNum(WindVines);
+	WindLassos.SetNum(WindVines);
+	WindHit.Init(true, WindVines);
+}
+
+void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
+{
+	const bool bAlone = IsBindweedTower();
+	for (USplineMeshComponent* Stalk : WindTendrils)
+	{
+		Stalk->SetVisibility(bAlone && Grow > 0.05f);
+	}
+	for (UStaticMeshComponent* Piece : WindTips)
+	{
+		Piece->SetVisibility(bAlone && Grow > 0.3f);
+	}
+	for (UStaticMeshComponent* Piece : WindTrumpets)
+	{
+		Piece->SetVisibility(bAlone && Grow > 0.5f);
+	}
+	// Alone it has no crown: the crown stalks only show once it grows together with another tower
+	for (USplineMeshComponent* Stalk : CrownStalks)
+	{
+		Stalk->SetVisibility(!bAlone && Stalk->IsVisible());
+	}
+	for (UStaticMeshComponent* Piece : CrownPieces)
+	{
+		Piece->SetVisibility(!bAlone && Piece->IsVisible());
+	}
+	for (UStaticMeshComponent* Orb : ChargeOrbs)
+	{
+		Orb->SetVisibility(!bAlone && Orb->IsVisible());
+	}
+	if (!bAlone || WindTendrils.IsEmpty())
+	{
+		for (TWeakObjectPtr<AVaelBindweedLasso>& Lasso : WindLassos)
+		{
+			if (Lasso.IsValid())
+			{
+				Lasso->Finish(EVaelLassoEnd::Release);
+			}
+			Lasso = nullptr;
+		}
+		return;
+	}
+
+	AVaelCharacter* Gardener = GetGardener();
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Time = GetWorld()->GetTimeSeconds();
+	const FVector Base = GetActorLocation();
+	const FVector Crown = GetCrown();
+	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
+	const float Big = 1.0f + 0.4f * Giant;
+	const float Length = Settings->TowerHeight * 0.6f * Big * FMath::Sin(Shown * UE_HALF_PI);
+	const float Inner = Plant->WhipReach * 0.95f * Big;
+	const float Outer = Plant->LassoRange * Big;
+
+	// Choose what each vine does: close enemies are lashed, those further out caught and pulled in (at most two at once)
+	if (bActs && Gardener != nullptr && !AVaelSafeZone::IsSafe(GetWorld(), Base))
+	{
+		int32 Holding = 0;
+		for (const TWeakObjectPtr<AVaelBindweedLasso>& Lasso : WindLassos)
+		{
+			Holding += Lasso.IsValid() && !Lasso->IsDone() ? 1 : 0;
+		}
+		const TArray<AActor*> Enemies = AVaelBindweedLasso::FindTargets(Gardener, Base, FVector::ZeroVector, Outer, 180.0f, 8);
+		for (AActor* Enemy : Enemies)
+		{
+			const float Distance = FVector::Dist2D(Enemy->GetActorLocation(), Base);
+			bool bTaken = false;
+			for (int32 Vine = 0; Vine < WindVines; ++Vine)
+			{
+				bTaken |= WindWhipTarget[Vine].Get() == Enemy && WindWhipTime[Vine] >= 0.0f;
+				bTaken |= WindLassos[Vine].IsValid() && !WindLassos[Vine]->IsDone() && WindLassos[Vine]->GetTarget() == Enemy;
+			}
+			if (bTaken)
+			{
+				continue;
+			}
+			const bool bClose = Distance <= Inner;
+			if (!bClose && Holding >= WindMaxLassos)
+			{
+				continue;
+			}
+			// The free vine on the side of the enemy
+			int32 Best = INDEX_NONE;
+			float BestDot = -2.0f;
+			const FVector Way = (Enemy->GetActorLocation() - Base).GetSafeNormal2D();
+			for (int32 Vine = 0; Vine < WindVines; ++Vine)
+			{
+				const bool bFree = WindCooldown[Vine] <= 0.0f && WindWhipTime[Vine] < 0.0f && (!WindLassos[Vine].IsValid() || WindLassos[Vine]->IsDone());
+				const float Angle = Vine * 2.0f * UE_PI / WindVines + GetUniqueID() * 0.3f;
+				const float Dot = FVector::DotProduct(FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f), Way);
+				if (bFree && Dot > BestDot)
+				{
+					Best = Vine;
+					BestDot = Dot;
+				}
+			}
+			if (Best == INDEX_NONE)
+			{
+				break;
+			}
+			if (bClose)
+			{
+				WindWhipTime[Best] = 0.0f;
+				WindWhipDir[Best] = Way;
+				WindWhipReach[Best] = FMath::Clamp(Distance + 60.0f, 160.0f, Inner * 1.1f);
+				WindWhipTarget[Best] = Enemy;
+				WindHit[Best] = false;
+				WindCooldown[Best] = WindLashSeconds + 0.35f;
+			}
+			else
+			{
+				FVaelLassoSpec Spec;
+				Spec.HoldSeconds = 0.9f;
+				Spec.OnEnd = bShadow ? EVaelLassoEnd::Slam : EVaelLassoEnd::Yank;
+				Spec.DamagePerSecond = bShadow ? Plant->StrangleDamagePerSecond : 0.0f;
+				Spec.DamageGrowth = bShadow ? Plant->StrangleGrowth : 0.0f;
+				Spec.Color = bShadow ? Plant->StrangleColor : Plant->PollenColor;
+				Spec.bPullToPoint = true;
+				Spec.PullPoint = Base + Way * Inner * 0.5f;
+				const UVaelFloromantComponent* Floromant = Gardener->GetFloromant();
+				Spec.Power = Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f;
+				if (AVaelBindweedLasso* Lasso = AVaelBindweedLasso::Throw(Gardener, Plant, Crown, Enemy, Spec, bShadow))
+				{
+					WindLassos[Best] = Lasso;
+					WindCooldown[Best] = 1.2f;
+					++Holding;
+					VaelSymbiosis::MuzzlePuff(this, Plant, Crown, bShadow, 1.2f);
+				}
+			}
+		}
+	}
+
+	// Each vine: rising from the top of the column, curving in so the tips stop short of each other; lashing it winds back and
+	// sweeps across its enemy in a wide flat bow; throwing a lasso it reaches out after it
+	const int32 TrumpetsEach = WindTrumpets.Num() / FMath::Max(WindVines, 1);
+	for (int32 Vine = 0; Vine < WindVines; ++Vine)
+	{
+		WindCooldown[Vine] = FMath::Max(0.0f, WindCooldown[Vine] - DeltaSeconds);
+		const float Angle = Vine * 2.0f * UE_PI / WindVines + GetUniqueID() * 0.3f;
+		const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+		const FVector Around(-Out.Y, Out.X, 0.0f);
+		const FVector Root = Crown + Out * 12.0f - FVector(0.0f, 0.0f, 12.0f);
+
+		// The lash
+		float Lash = 0.0f;
+		float StrikeTime = -1.0f;
+		if (WindWhipTime[Vine] >= 0.0f)
+		{
+			const float Before = WindWhipTime[Vine] / WindLashSeconds;
+			WindWhipTime[Vine] += DeltaSeconds;
+			StrikeTime = WindWhipTime[Vine] / WindLashSeconds;
+			const float HitAt = WindWindUp + 0.45f * (1.0f - WindWindUp);
+			if (!WindHit[Vine] && StrikeTime >= HitAt)
+			{
+				WindHit[Vine] = true;
+				// It strikes its enemy and whoever stands close to it
+				FVaelSpellHit Hit;
+				const UVaelFloromantComponent* Floromant = Gardener != nullptr ? Gardener->GetFloromant() : nullptr;
+				Hit.Damage = Plant->WhipDamage * (Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f);
+				Hit.Element = EVaelElement::Earth;
+				Hit.Knockback = Plant->WhipKnockback * 0.4f;
+				Hit.StunDuration = Plant->WhipStun;
+				const FVector Strike = Base + WindWhipDir[Vine] * WindWhipReach[Vine] * 0.8f;
+				for (AActor* Struck : AVaelBindweedLasso::FindTargets(Gardener, Strike, FVector::ZeroVector, 160.0f, 180.0f, 4))
+				{
+					UVaelCombatStatics::ApplySpellHit(Gardener, Struck, Hit, (Struck->GetActorLocation() - Base).GetSafeNormal2D());
+					VaelSymbiosis::MuzzlePuff(this, Plant, Struck->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), bShadow, 1.4f);
+				}
+			}
+			if (StrikeTime >= 1.0f)
+			{
+				WindWhipTime[Vine] = -1.0f;
+				StrikeTime = -1.0f;
+			}
+			(void)Before;
+		}
+		if (StrikeTime >= 0.0f)
+		{
+			const float X = StrikeTime >= WindWindUp ? (StrikeTime - WindWindUp) / (1.0f - WindWindUp) : 0.0f;
+			Lash = StrikeTime < WindWindUp ? 0.4f * StrikeTime / WindWindUp : FMath::Max(0.4f * (1.0f - X), FMath::Sin(UE_PI * X));
+		}
+		const FVector Aim = WindWhipDir[Vine];
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Aim).GetSafeNormal();
+		const float StartSide = Vine % 2 == 0 ? 1.0f : -1.0f;
+		const FVector Diagonal = (Side * StartSide + FVector::UpVector * 0.35f).GetSafeNormal();
+		const FVector BackHigh = (Diagonal * 0.6f - Aim * 0.5f + FVector::UpVector * 0.7f).GetSafeNormal();
+		const float Arc = FMath::DegreesToRadians(Plant->WhipArcDegrees * 0.8f);
+		const auto StrokeAt = [&](float Share)
+		{
+			const float A = Arc * FMath::Cos(UE_PI * Share);
+			return (Aim * FMath::Cos(A) + Diagonal * FMath::Sin(A) - FVector::UpVector * 0.25f).GetSafeNormal();
+		};
+		const auto StrokeDirection = [&](float P)
+		{
+			P = FMath::Clamp(P, 0.0f, 1.0f);
+			if (P < WindWindUp)
+			{
+				return FMath::Lerp(StrokeAt(0.0f), BackHigh, FMath::SmoothStep(0.0f, 1.0f, P / WindWindUp)).GetSafeNormal();
+			}
+			const float X = (P - WindWindUp) / (1.0f - WindWindUp);
+			return FMath::Lerp(BackHigh, StrokeAt(X * X * (3.0f - 2.0f * X)), FMath::SmoothStep(0.0f, 0.3f, X)).GetSafeNormal();
+		};
+		const float Reach = FMath::Lerp(Length, WindWhipReach[Vine], FMath::Clamp(Lash, 0.0f, 1.0f));
+		AVaelBindweedLasso* Lasso = WindLassos[Vine].Get();
+		const bool bThrowing = Lasso != nullptr && !Lasso->IsDone();
+
+		const auto PointAt = [&](float S)
+		{
+			// At rest: up and out, curving back in at the top, the tip stopping a hand short of the middle
+			const FVector P1 = Root + FVector::UpVector * Length * 0.5f + Out * Length * 0.35f;
+			const FVector P2 = Crown + FVector::UpVector * Length * 0.85f + Out * Length * 0.32f;
+			const FVector P3 = Crown + FVector::UpVector * Length * 0.62f + Out * 10.0f;
+			const float U = 1.0f - S;
+			FVector Point = Root * (U * U * U) + P1 * (3.0f * U * U * S) + P2 * (3.0f * U * S * S) + P3 * (S * S * S);
+			Point += Around * 7.0f * S * FMath::Sin(Time * 1.4f + Vine * 1.7f + S * 3.0f);
+			if (bThrowing)
+			{
+				// Reaching after the lasso, out of which it grows
+				const FVector Goal = Lasso->GetTarget() != nullptr ? Lasso->GetTarget()->GetActorLocation() : Root;
+				const FVector Toward = Root + (Goal - Root).GetSafeNormal() * Length * 0.6f * S + FVector::UpVector * 30.0f * FMath::Sin(S * UE_PI);
+				Point = FMath::Lerp(Point, Toward, 0.85f);
+			}
+			else if (StrikeTime >= 0.0f)
+			{
+				FVector Lashed = Root;
+				const int32 Steps = 10;
+				for (int32 Step = 1; Step <= Steps; ++Step)
+				{
+					const float Along = S * Step / Steps;
+					Lashed += StrokeDirection(StrikeTime - 0.42f * Along) * Reach * S / Steps;
+				}
+				Point = FMath::Lerp(Point, Lashed, FMath::Min(1.0f, Lash * 2.2f));
+			}
+			return Point;
+		};
+		if (bThrowing)
+		{
+			Lasso->SetStart(PointAt(1.0f));
+		}
+
+		const float Thickness = Plant->TendrilThickness * Plant->TendrilBulk * (1.0f + 0.6f * Lash) * Shown * Big;
+		for (int32 Piece = 0; Piece < WindPieces; ++Piece)
+		{
+			USplineMeshComponent* Stalk = WindTendrils[Vine * WindPieces + Piece];
+			const float A = Piece / static_cast<float>(WindPieces) * Shown;
+			const float B = (Piece + 1) / static_cast<float>(WindPieces) * Shown;
+			const FVector P0 = PointAt(A);
+			const FVector P1 = PointAt(B);
+			const float Span = FVector::Dist(P0, P1);
+			Stalk->SetStartAndEnd(P0, (PointAt(A + 0.02f) - PointAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * Span,
+				P1, (PointAt(B + 0.02f) - PointAt(B - 0.02f)).GetSafeNormal() * Span, false);
+			Stalk->SetStartScale(FVector2D(Thickness * FMath::Lerp(1.3f, 0.6f, A)), false);
+			Stalk->SetEndScale(FVector2D(Thickness * FMath::Lerp(1.3f, 0.6f, B)), false);
+			Stalk->SetStartRoll(Piece * 1.3f + Vine, false);
+			Stalk->SetEndRoll(Piece * 1.3f + Vine + 1.1f, false);
+			Stalk->UpdateMesh();
+		}
+		if (WindTips.IsValidIndex(Vine))
+		{
+			const FVector Tip = PointAt(Shown);
+			WindTips[Vine]->SetWorldLocationAndRotation(Tip, FRotationMatrix::MakeFromZ((Tip - PointAt(Shown * 0.9f)).GetSafeNormal()).Rotator());
+			WindTips[Vine]->SetWorldScale3D(FVector(Plant->TipSize / 10.0f * 1.4f * Shown * Big));
+		}
+		for (int32 Index = 0; Index < TrumpetsEach; ++Index)
+		{
+			const float S = Shown * (0.3f + 0.4f * Index);
+			const FVector Here = PointAt(S);
+			const FVector Mouth = (Out + FVector::UpVector * 0.4f + (Index % 2 == 0 ? Around : -Around) * 0.5f).GetSafeNormal();
+			UStaticMeshComponent* Trumpet = WindTrumpets[Vine * TrumpetsEach + Index];
+			Trumpet->SetWorldLocationAndRotation(Here, FRotationMatrix::MakeFromZ(Mouth).Rotator());
+			Trumpet->SetWorldScale3D(FVector(1.5f * Shown * Big));
+		}
+	}
 }
