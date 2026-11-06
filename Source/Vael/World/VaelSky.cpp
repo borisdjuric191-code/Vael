@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelSky.h"
+#include "World/VaelIndoorLevel.h"
 #include "Components/DirectionalLightComponent.h"
 #include "Components/ExponentialHeightFogComponent.h"
 #include "Components/PointLightComponent.h"
@@ -45,7 +46,8 @@ AVaelSky::AVaelSky()
 
 void AVaelSky::EnsureSky(UWorld* World)
 {
-	if (World == nullptr || TActorIterator<AVaelSky>(World))
+	// Indoor places (the refugia) bring their own light and have no sky
+	if (World == nullptr || TActorIterator<AVaelSky>(World) || AVaelIndoorLevel::IsIndoor(World))
 	{
 		return;
 	}

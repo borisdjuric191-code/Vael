@@ -25,6 +25,7 @@
 #include "Save/VaelSaveSubsystem.h"
 #include "Nature/VaelGarden.h"
 #include "Creatures/VaelCreatureSpawner.h"
+#include "World/VaelIndoorLevel.h"
 #include "World/VaelGround.h"
 
 AVaelGameMode::AVaelGameMode()
@@ -97,7 +98,8 @@ void AVaelGameMode::RestartPlayer(AController* NewPlayer)
 	Super::RestartPlayer(NewPlayer);
 
 	// Real levels bring their own creatures; the test setup is only for the test level
-	if (!bTrainingDummiesSpawned && NewPlayer != nullptr && NewPlayer->GetPawn() != nullptr && AVaelCreatureSpawner::LevelHasSpawners(GetWorld()))
+	if (!bTrainingDummiesSpawned && NewPlayer != nullptr && NewPlayer->GetPawn() != nullptr
+		&& (AVaelCreatureSpawner::LevelHasSpawners(GetWorld()) || AVaelIndoorLevel::IsIndoor(GetWorld())))
 	{
 		bTrainingDummiesSpawned = true;
 	}

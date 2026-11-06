@@ -23,7 +23,7 @@ import unreal
 SOURCE = "C:/Projekte/Vael_Quellen/Glutkammer/04_export"
 FOLDER = "/Game/Vael/Refugium/Glutkammer/Probe"
 LEVEL_PATH = "/Game/Vael/Maps/Test/L_GlutkammerProbe"
-PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelvorhang"]
+PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelvorhang", "SM_GK_Glutbecken"]
 ROCK_TEX = "/Game/Megascans/3D_Assets/IcelandicVolcanoTerrain/T_IcelandicVolcanoTerrain_A"
 ROCK_NORMAL = "/Game/Megascans/3D_Assets/IcelandicVolcanoTerrain/T_IcelandicVolcanoTerrain_N"
 MUD_TEX = "/Game/Megascans/Surfaces/HeavyMud/T_HeavyMud_A"
@@ -263,7 +263,7 @@ def material_glow():
     instances = {}
     for name, values, colours in (
             ("MI_GK_Membran", {"Leuchten": 2.5, "KernSchaerfe": 2.2}, {}),
-            ("MI_GK_Eisack", {"Leuchten": 3.5, "KernSchaerfe": 2.4, "RandDunkel": 0.75}, {}),
+            ("MI_GK_Eisack", {"Leuchten": 3.5, "KernSchaerfe": 3.2, "RandDunkel": 0.75}, {}),
             # leathery skin of the clutch sac: dark, only the egg bulges glow a little
             ("MI_GK_Gelegehaut", {"Leuchten": 0.9, "KernSchaerfe": 3.0, "Rauheit": 0.55},
              {"RandFarbe": (0.07, 0.035, 0.025), "KernFarbe": (0.3, 0.13, 0.06), "AderFarbe": (0.05, 0.02, 0.015)}),
@@ -329,7 +329,7 @@ def material_pool():
     patches = g.noise(0.012, 4, levels=4, position=position)
     hot = g.power(3, patches, g.const(2.2, 4))
     colour = g.lerp(g.color("Dunkel", (0.35, 0.05, 0.01), 3), g.color("Hell", (1.0, 0.45, 0.1), 3), hot, 2)
-    emissive = g.mul(1, colour, g.scalar("Leuchten", 2.5, 2))
+    emissive = g.mul(1, g.mul(2, colour, g.vertex_r(3)), g.scalar("Leuchten", 2.5, 2))
     library.connect_material_property(g.color("Grund", (0.05, 0.02, 0.01), 2), "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(g.const(0.2, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
     library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
@@ -372,6 +372,7 @@ def build_materials():
         "SM_GK_Eisack": assign("SM_GK_Eisack", [glow["MI_GK_Eisack"], vein]),
         "SM_GK_Gelegebeet": assign("SM_GK_Gelegebeet", [glow["MI_GK_Gelegehaut"], soil, glow["MI_GK_Eier"]]),
         "SM_GK_Wurzelvorhang": assign("SM_GK_Wurzelvorhang", [roots]),
+        "SM_GK_Glutbecken": assign("SM_GK_Glutbecken", [pool, tissue]),
     }
     log("Materialien angelegt")
     for note in notes:
@@ -512,8 +513,7 @@ def build_level(meshes, mats):
     # Root curtain from the crack, over the glowing pool
     pool_at = unreal.Vector(260.0, 220.0, 0.0)
     mesh_actor(meshes["SM_GK_Wurzelvorhang"], unreal.Vector(pool_at.x, pool_at.y, -5.0), "Wurzelvorhang", "Brutkammer/Riss", yaw=40.0)
-    mesh_actor(cylinder, unreal.Vector(pool_at.x, pool_at.y, 1.0), "Glutbecken", "Brutkammer/Riss",
-               scale=(4.6, 4.6, 0.06), material=mats["pool"])
+    mesh_actor(meshes["SM_GK_Glutbecken"], unreal.Vector(pool_at.x, pool_at.y, 0.0), "Glutbecken", "Brutkammer/Riss", yaw=15.0)
     point_light(unreal.Vector(pool_at.x, pool_at.y, 90.0), "Becken-Licht", (1.0, 0.4, 0.1), 110.0, 900.0, shadows=True)
 
     # Light: shafts from the cracks above, a dim warm fill, volumetric fog
@@ -545,13 +545,8 @@ def build_level(meshes, mats):
         settings.set_editor_property(key, value)
     post.set_editor_property("settings", settings)
 
-    # The game gives every level a sun from the level's own directional light: in the cave it shines with 0
-    sun = spawn(unreal.DirectionalLight, unreal.Vector(0, 0, 2000), "Sonne (aus, Hoehle)", "Licht", unreal.Rotator(0.0, -60.0, 0.0))
-    sun.light_component.set_editor_property("intensity", 0.0)
-    sun.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
-    # A spawner without creatures: levels without spawners get the training dummies and test areas of the test level
-    quiet = spawn(unreal.VaelCreatureSpawner, unreal.Vector(0, 0, -5000), "Spawner leer", "Spiel")
-    quiet.set_editor_property("count", 0)
+    # Indoor marker: no sky, no sun or moon, no local weather, no training dummies
+    spawn(unreal.VaelIndoorLevel, unreal.Vector(0, 0, 300), "Innenraum", "Spiel")
 
     spawn(unreal.PlayerStart, unreal.Vector(-170.0, -190.0, 100.0), "Spielerstart", "Spiel", unreal.Rotator(0.0, 0.0, 45.0))
 

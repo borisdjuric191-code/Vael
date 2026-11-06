@@ -7,6 +7,7 @@ Refugium Glutkammer: builds the look-test pieces of the brood chamber procedural
   SM_GK_Gelegebeet    torn-open clutch sac of the queen as a bed: leathery skin bulging over eggs, small insect eggs
                       in clusters on the inner wall (some burst), soil in the middle (0 Haut, 1 Erde, 2 Eier)
   SM_GK_Wurzelvorhang roots hanging from the crack in the ceiling down to the floor, some spreading on it (0 Rinde)
+  SM_GK_Glutbecken    the cooling laying pool: uneven glow inside a lip of cooled crust, crust floes (0 Glut, 1 Kruste)
 
 Vertex colour R and UV channel 1 carry a mask for the materials: membrane = distance from the ribs (glow in the middle), sac = glow,
 bed = egg bulges and eggs, roots = 0 at the top to 1 at the tips. Pivots sit at the bottom middle, +X is the room side.
@@ -240,7 +241,7 @@ def build_egg_sac():
             return p, 0.0
         egg = egg_cells(p, 7.0) * smooth(0.02, 0.12, t) * smooth(0.98, 0.86, t)
         out = Vector((math.cos(ang), math.sin(ang), 0))
-        return p + out * (0.045 * egg + noise.noise(p * 3.0) * 0.02), egg
+        return p + out * (0.075 * egg + noise.noise(p * 3.0) * 0.02), egg
 
     grid = [[surface(j / rings, 2 * math.pi * i / sides) for i in range(sides)] for j in range(rings + 1)]
     b.grid([[q[0] for q in row] for row in grid], 0, uv_of=lambda j, i: (i / sides, j / rings),
@@ -390,8 +391,72 @@ def build_root_curtain():
     export(obj)
 
 
+def build_pool():
+    """The queen's laying pool, cooling: an uneven glowing surface inside a raised lip of cooled crust, a few crust floes on it"""
+    obj = new_object("SM_GK_Glutbecken", ["Glut", "Kruste"])
+    b = Builder()
+    sides, rings = 96, 14
+    base_r = 2.3
+
+    def outline(ang):
+        p = Vector((math.cos(ang), math.sin(ang), 0.0))
+        return base_r * (1.0 + 0.22 * noise.noise(p * 1.3 + Vector((SEED, 0, 0))) + 0.08 * noise.noise(p * 4.0))
+
+    # glowing surface, a fan from the middle out to just under the crust
+    surface = []
+    for j in range(rings + 1):
+        f = j / rings
+        row = []
+        for i in range(sides):
+            ang = 2 * math.pi * i / sides
+            r = outline(ang) * 0.93 * f
+            p = Vector((math.cos(ang) * r, math.sin(ang) * r, 0.03))
+            row.append(p + Vector((0, 0, noise.noise(p * 1.5) * 0.015)))
+        surface.append(row)
+    b.grid(surface, 0, uv_of=lambda j, i: (i / sides, j / rings), mask_of=lambda j, i: 1.0 - 0.6 * (j / rings) ** 3, closed_u=True)
+
+    # crust lip: rises from under the glow edge, rounds over, falls outside onto the floor
+    profile = [(0.86, -0.02), (0.92, 0.07), (0.98, 0.13), (1.04, 0.14), (1.1, 0.1), (1.18, 0.03), (1.26, -0.03)]
+    lip = []
+    for k, (rf, z) in enumerate(profile):
+        row = []
+        for i in range(sides):
+            ang = 2 * math.pi * i / sides
+            r = outline(ang) * rf
+            p = Vector((math.cos(ang) * r, math.sin(ang) * r, z))
+            bump = noise.noise(p * 2.2 + Vector((3, 3, 3))) * 0.05 + noise.noise(p * 7.0) * 0.015
+            row.append(p + Vector((0, 0, bump if 0 < k < len(profile) - 1 else 0.0)))
+        lip.append(row)
+    b.grid(lip, 1, uv_of=lambda j, i: (i / sides * 6, j / len(profile)),
+           mask_of=lambda j, i: max(0.0, 1.0 - j * 0.45), closed_u=True)
+
+    # crust floes drifting on the glow
+    for f in range(6):
+        ang = random.uniform(0, 2 * math.pi)
+        dist = random.uniform(0.3, 0.75) * base_r
+        centre = Vector((math.cos(ang) * dist, math.sin(ang) * dist, 0.05))
+        size = random.uniform(0.18, 0.4)
+        n = 12
+        ring_out = []
+        ring_in = []
+        for i in range(n):
+            a = 2 * math.pi * i / n
+            rr = size * (1.0 + 0.3 * noise.noise(Vector((math.cos(a) * 2, math.sin(a) * 2, f))))
+            ring_out.append(centre + Vector((math.cos(a) * rr, math.sin(a) * rr, 0.0)))
+            ring_in.append(centre + Vector((math.cos(a) * rr * 0.55, math.sin(a) * rr * 0.55, 0.05)))
+        verts = b.grid([ring_out, ring_in], 1, uv_of=lambda j, i: (i / n, j), mask_of=lambda j, i: 0.6 - 0.5 * j, closed_u=True)
+        cap = b.bm.faces.new(verts[1])
+        cap.material_index = 1
+        for loop in cap.loops:
+            loop[b.uv].uv = (0.5, 0.5)
+            loop[b.col] = (0.1, 0.1, 0.1, 1.0)
+            loop[b.mask].uv = (0.1, 0.1)
+    b.finish(obj)
+    export(obj)
+
+
 if __name__ == "__main__":
-    for build in (build_rib_wall, build_egg_sac, build_clutch_bed, build_root_curtain):
+    for build in (build_rib_wall, build_egg_sac, build_clutch_bed, build_root_curtain, build_pool):
         clear_scene()
         build()
     log("fertig")

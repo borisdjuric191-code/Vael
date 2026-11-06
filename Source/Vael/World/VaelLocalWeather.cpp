@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelLocalWeather.h"
+#include "World/VaelIndoorLevel.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
@@ -53,7 +54,8 @@ AVaelLocalWeather::AVaelLocalWeather()
 
 AVaelLocalWeather* AVaelLocalWeather::Spawn(UWorld* World, EVaelLocalWeather InKind, const FVector& Center, float InRadius, float InLifetime, const FVector& InDirection)
 {
-	if (World == nullptr)
+	// No fog banks, storms or rain patches under the earth
+	if (World == nullptr || AVaelIndoorLevel::IsIndoor(World))
 	{
 		return nullptr;
 	}
