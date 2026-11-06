@@ -104,9 +104,9 @@ public:
 	UFUNCTION(Exec)
 	void VaelBrand(float Radius = 45.0f, float Metres = 3.0f, const FString& Where = TEXT(""));
 
-	/** Floromant: holds the fire button of "links", "rechts" or "beide" hands, or lets go with "aus". Example: VaelFeuern beide */
+	/** Floromant: holds the fire button of "links", "rechts" or "beide" hands, or lets go with "aus"; with seconds it lets go by itself after that time (a tap). Example: VaelFeuern beide, VaelFeuern rechts 0.08 */
 	UFUNCTION(Exec)
-	void VaelFeuern(const FString& Hands);
+	void VaelFeuern(const FString& Hands, float Seconds = 0.0f);
 
 	/** Floromant: grows any plant by its id at once, the given metres ahead; "schatten" for its shadow form. Example: VaelPflanze Funkenmohn 3 schatten */
 	UFUNCTION(Exec)

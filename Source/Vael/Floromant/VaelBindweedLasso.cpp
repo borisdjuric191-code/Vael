@@ -20,11 +20,16 @@
 
 namespace
 {
-	/** Pieces of the tendril, of each coil round the target, coils, and trumpets along it */
-	constexpr int32 LassoPieces = 6;
-	constexpr int32 LassoCoilPieces = 4;
-	constexpr int32 LassoCoils = 2;
-	constexpr int32 LassoTrumpets = 3;
+	/** Pieces of each strand, strands braided into the rope (Boris 2026-11-06: a thick triple vine), pieces of each coil round
+	 *  the target, coils, and trumpets along it */
+	constexpr int32 LassoPieces = 10;
+	constexpr int32 LassoStrands = 3;
+	constexpr int32 LassoCoilPieces = 6;
+	constexpr int32 LassoCoils = 3;
+	constexpr int32 LassoTrumpets = 5;
+
+	/** Seconds the rope tightens before the yank pulls */
+	constexpr float LassoWindUp = 0.14f;
 
 	/** How fast the tip flies or crawls, in cm/s, and seconds it needs to draw back */
 	constexpr float LassoFlySpeed = 2600.0f;
@@ -147,9 +152,9 @@ void AVaelBindweedLasso::Build()
 			Leafy = Loaded;
 		}
 	}
-	for (int32 Index = 0; Index < LassoPieces; ++Index)
+	for (int32 Index = 0; Index < LassoPieces * LassoStrands; ++Index)
 	{
-		Strand.Add(MakeStrand(Leafy));
+		Strand.Add(MakeStrand(Index % 2 == 0 ? Leafy : Plain));
 	}
 	for (int32 Index = 0; Index < LassoCoils * LassoCoilPieces; ++Index)
 	{
@@ -399,11 +404,18 @@ void AVaelBindweedLasso::End(float DeltaSeconds)
 		return;
 	}
 
+	// First the rope tightens for a heartbeat (Boris 2026-11-06: a heavy pull you feel), then it pulls
+	const float Pulled = EndTime - LassoWindUp;
+	if (Pulled < 0.0f)
+	{
+		return;
+	}
+
 	// To a heavy one she flies herself along the vine
 	if (IsHeavy(Goal) || Character == nullptr)
 	{
 		const float Gap = FVector::Dist2D(Holder->GetActorLocation(), Goal->GetActorLocation()) - Goal->GetSimpleCollisionRadius() - 60.0f;
-		if (Gap > 40.0f && EndTime < LassoEndTime)
+		if (Gap > 40.0f && Pulled < LassoEndTime)
 		{
 			const FVector Way = (Goal->GetActorLocation() - Holder->GetActorLocation()).GetSafeNormal2D();
 			Holder->AddActorWorldOffset(Way * FMath::Min(Plant->FlyToSpeed * DeltaSeconds, Gap), true);
@@ -419,14 +431,26 @@ void AVaelBindweedLasso::End(float DeltaSeconds)
 		const float Feet = Holder->GetActorLocation().Z - Holder->GetSimpleCollisionHalfHeight();
 		const FVector Spot(Landing.X, Landing.Y, Feet + Goal->GetSimpleCollisionHalfHeight() + 5.0f);
 		const float Flight = FMath::Clamp(FVector::Dist2D(YankFrom, Spot) / Plant->YankSpeed, 0.2f, LassoEndTime);
-		const float Share = FMath::Min(EndTime / Flight, 1.0f);
-		const FVector Here = FMath::Lerp(YankFrom, Spot, FMath::InterpEaseOut(0.0f, 1.0f, Share, 1.6f)) + FVector(0.0f, 0.0f, 120.0f * FMath::Sin(Share * UE_PI));
+		const float Share = FMath::Min(Pulled / Flight, 1.0f);
+		// A wrenching pull: fast out of its place, high over her, and down hard at her feet
+		const FVector Here = FMath::Lerp(YankFrom, Spot, FMath::InterpEaseInOut(0.0f, 1.0f, Share, 1.8f)) + FVector(0.0f, 0.0f, 180.0f * FMath::Sin(Share * UE_PI));
 		// Through the air the vine carries it over edges and steps; it lands swept, so it never ends up in the ground
 		Goal->SetActorLocation(Here, Share >= 1.0f);
 		if (Share < 1.0f)
 		{
 			return;
 		}
+		// It lands with a thud of earth
+		FVaelDebris Earth;
+		Earth.Count = 18;
+		Earth.Spread = 50.0f;
+		Earth.Speed = 260.0f;
+		Earth.Lift = 240.0f;
+		Earth.Lifetime = 0.9f;
+		Earth.MinSize = 3.0f;
+		Earth.MaxSize = 8.0f;
+		Earth.Color = FLinearColor(0.16f, 0.12f, 0.09f);
+		AVaelDebrisBurst::Spawn(this, Spot - FVector(0.0f, 0.0f, Goal->GetSimpleCollisionHalfHeight()), Earth);
 	}
 
 	if (Character != nullptr && UVaelCombatStatics::CanDamage(Holder, Goal))
@@ -445,15 +469,29 @@ void AVaelBindweedLasso::UpdateLook(float DeltaSeconds)
 	const FVector End = FMath::Lerp(Start, Tip, FMath::Clamp(Out, 0.0f, 1.0f));
 	const FVector Way = End - Start;
 	const float Length = Way.Size();
-	FVector Side = FVector::CrossProduct(Way.GetSafeNormal(), FVector::UpVector);
+	const FVector Ahead = Way.GetSafeNormal();
+	FVector Side = FVector::CrossProduct(Ahead, FVector::UpVector);
 	Side = Side.IsNearlyZero() ? FVector::RightVector : Side.GetSafeNormal();
+	const FVector Lift = FVector::CrossProduct(Side, Ahead).GetSafeNormal();
 
-	// While it flies it snakes through the air (or over the ground); held it hangs taut with a little sag; drawing back it curls
-	const float Snake = Phase == EPhase::Flying ? 18.0f * (1.0f - Reach) + 6.0f : (Phase == EPhase::Retracting ? 14.0f : 3.0f);
+	// Held, it tugs every so often: a sharp twitch runs along the rope and it pulls straight for a moment (Boris 2026-11-06)
+	const float Tug = Phase == EPhase::Holding ? FMath::Pow(FMath::Max(0.0f, FMath::Sin(HeldTime * 2.0f * UE_PI / 0.85f + 0.4f)), 10.0f) : 0.0f;
+	// Before the yank it pulls taut
+	const bool bTightening = Phase == EPhase::Ending && EndTime < LassoWindUp;
+	const float Taut = bTightening ? FMath::Clamp(EndTime / LassoWindUp, 0.0f, 1.0f) : 0.0f;
+
+	// While it flies it snakes through the air (or over the ground); held it hangs heavy with a little sag and trembles; drawing
+	// back it curls
+	const float Snake = (Phase == EPhase::Flying ? 22.0f * (1.0f - Reach) + 8.0f : (Phase == EPhase::Retracting ? 16.0f : 3.0f + 8.0f * Tug)) * (1.0f - Taut);
 	const auto PointAt = [&](float Share)
 	{
 		FVector Point = Start + Way * Share;
 		Point += Side * Snake * FMath::Sin(Share * 9.0f - Time * 14.0f + Seed) * FMath::Sin(Share * UE_PI);
+		if (Phase == EPhase::Holding)
+		{
+			// a fine tremble of the strain
+			Point += Lift * 1.6f * FMath::Sin(Time * 37.0f + Share * 13.0f) * FMath::Sin(Share * UE_PI);
+		}
 		if (Spec.bOverGround)
 		{
 			// Low over the ground, rising up the enemy at the end
@@ -461,49 +499,67 @@ void AVaelBindweedLasso::UpdateLook(float DeltaSeconds)
 		}
 		else
 		{
-			Point.Z -= (Phase == EPhase::Holding ? 12.0f : 6.0f) * FMath::Sin(Share * UE_PI);
+			const float Sag = (Phase == EPhase::Holding ? 14.0f * (1.0f - Tug) : 6.0f) * (1.0f - Taut);
+			Point.Z -= Sag * FMath::Sin(Share * UE_PI);
 		}
 		return Point;
 	};
 
-	const float Thickness = Plant->TendrilThickness * (Phase == EPhase::Retracting ? FMath::Max(Out, 0.3f) : 1.0f);
-	for (int32 Index = 0; Index < Strand.Num(); ++Index)
+	// Three strands braided round the path into one thick rope, swelling as it tugs and as it pulls taut
+	const float Swell = 1.0f + 0.18f * Tug + 0.25f * Taut;
+	const float Thickness = Plant->TendrilThickness * Plant->TendrilBulk * 0.62f * Swell * (Phase == EPhase::Retracting ? FMath::Max(Out, 0.3f) : 1.0f);
+	const float Braid = Plant->TendrilThickness * Plant->TendrilBulk * 1.1f * Swell;
+	const float Turns = FMath::Max(Length / 70.0f, 1.0f);
+	for (int32 Strip = 0; Strip < LassoStrands; ++Strip)
 	{
-		const float A = Index / static_cast<float>(Strand.Num());
-		const float B = (Index + 1) / static_cast<float>(Strand.Num());
-		const FVector P0 = PointAt(A);
-		const FVector P1 = PointAt(B);
-		const FVector T0 = (PointAt(FMath::Min(A + 0.02f, 1.0f)) - PointAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * FVector::Dist(P0, P1);
-		const FVector T1 = (PointAt(FMath::Min(B + 0.02f, 1.0f)) - PointAt(FMath::Max(B - 0.02f, 0.0f))).GetSafeNormal() * FVector::Dist(P0, P1);
-		USplineMeshComponent* Piece = Strand[Index];
-		Piece->SetVisibility(Length > 2.0f);
-		Piece->SetStartAndEnd(P0, T0, P1, T1, false);
-		Piece->SetStartScale(FVector2D(Thickness * FMath::Lerp(1.2f, 0.8f, A)), false);
-		Piece->SetEndScale(FVector2D(Thickness * FMath::Lerp(1.2f, 0.8f, B)), false);
-		Piece->SetStartRoll(Index * 1.3f, false);
-		Piece->SetEndRoll(Index * 1.3f + 1.0f, false);
-		Piece->UpdateMesh();
+		const auto StrandAt = [&](float Share)
+		{
+			const FVector Centre = PointAt(Share);
+			const float Angle = Share * Turns * 2.0f * UE_PI + Strip * 2.0f * UE_PI / LassoStrands + Seed;
+			// the braid closes in at both ends: out of the hand and round the enemy
+			const float Open = FMath::Sin(FMath::Clamp(Share, 0.0f, 1.0f) * UE_PI) * 0.7f + 0.3f;
+			return Centre + (Side * FMath::Cos(Angle) + Lift * FMath::Sin(Angle)) * Braid * Open;
+		};
+		for (int32 Index = 0; Index < LassoPieces; ++Index)
+		{
+			const float A = Index / static_cast<float>(LassoPieces);
+			const float B = (Index + 1) / static_cast<float>(LassoPieces);
+			const FVector P0 = StrandAt(A);
+			const FVector P1 = StrandAt(B);
+			const float Span = FVector::Dist(P0, P1);
+			const FVector T0 = (StrandAt(FMath::Min(A + 0.02f, 1.0f)) - StrandAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * Span;
+			const FVector T1 = (StrandAt(FMath::Min(B + 0.02f, 1.0f)) - StrandAt(FMath::Max(B - 0.02f, 0.0f))).GetSafeNormal() * Span;
+			USplineMeshComponent* Piece = Strand[Strip * LassoPieces + Index];
+			Piece->SetVisibility(Length > 2.0f);
+			Piece->SetStartAndEnd(P0, T0, P1, T1, false);
+			Piece->SetStartScale(FVector2D(Thickness * FMath::Lerp(1.15f, 0.8f, A)), false);
+			Piece->SetEndScale(FVector2D(Thickness * FMath::Lerp(1.15f, 0.8f, B)), false);
+			Piece->SetStartRoll(Index * 1.3f + Strip, false);
+			Piece->SetEndRoll(Index * 1.3f + Strip + 1.0f, false);
+			Piece->UpdateMesh();
+		}
 	}
 
-	// The golden trumpets along it, turned towards the target
+	// The golden trumpets along it, turned out to both sides
 	for (int32 Index = 0; Index < Trumpets.Num(); ++Index)
 	{
-		const float Share = 0.3f + 0.25f * Index;
-		const FVector Here = PointAt(Share);
+		const float Share = 0.18f + 0.66f * Index / FMath::Max(Trumpets.Num() - 1, 1);
+		const FVector Here = PointAt(Share) + (Index % 2 == 0 ? Side : -Side) * Braid;
 		const FVector Along = (PointAt(Share + 0.03f) - PointAt(Share - 0.03f)).GetSafeNormal();
-		const FVector Mouth = (Along + Side * (Index % 2 == 0 ? 0.6f : -0.6f) + FVector::UpVector * 0.3f).GetSafeNormal();
+		const FVector Mouth = (Along * 0.6f + Side * (Index % 2 == 0 ? 0.7f : -0.7f) + FVector::UpVector * 0.35f).GetSafeNormal();
 		Trumpets[Index]->SetVisibility(Length > 40.0f);
 		Trumpets[Index]->SetWorldLocationAndRotation(Here, FRotationMatrix::MakeFromZ(Mouth).Rotator());
-		Trumpets[Index]->SetWorldScale3D(FVector(1.1f * FMath::Clamp(Out, 0.2f, 1.0f)));
+		Trumpets[Index]->SetWorldScale3D(FVector(1.3f * FMath::Clamp(Out, 0.2f, 1.0f) * (1.0f + 0.1f * Tug)));
 	}
 
-	// The coils wrap round the target once it is caught, tighter the longer it holds
+	// The coils wrap round the target once it is caught, three thick turns, tightening the longer it holds and at every tug
 	const bool bCoiled = Goal != nullptr && (Phase == EPhase::Holding || Phase == EPhase::Ending);
-	const float Wrap = bCoiled ? FMath::Clamp(HeldTime / 0.25f, 0.0f, 1.0f) : 0.0f;
+	const float Wrap = bCoiled ? FMath::Clamp(HeldTime / 0.3f, 0.0f, 1.0f) : 0.0f;
+	const float CoilThickness = Plant->TendrilThickness * Plant->TendrilBulk * 0.75f * Swell;
 	for (int32 Coil = 0; Coil < LassoCoils; ++Coil)
 	{
-		const float Height = Coil == 0 ? -15.0f : 20.0f;
-		const float Ring = (Radius * 0.85f + 6.0f) * (1.15f - 0.15f * Wrap);
+		const float Height = -25.0f + Coil * 22.0f;
+		const float Ring = (Radius * 0.85f + 7.0f) * (1.15f - 0.15f * Wrap - 0.08f * Tug - 0.1f * Taut);
 		for (int32 Piece = 0; Piece < LassoCoilPieces; ++Piece)
 		{
 			USplineMeshComponent* Segment = Coils[Coil * LassoCoilPieces + Piece];
@@ -512,24 +568,27 @@ void AVaelBindweedLasso::UpdateLook(float DeltaSeconds)
 			{
 				continue;
 			}
-			// Each coil is a turn of a spiral, drawn as far round as it has wrapped
-			const float A0 = (Piece / static_cast<float>(LassoCoilPieces)) * 2.0f * UE_PI * Wrap + Coil * 1.7f + Seed;
-			const float A1 = ((Piece + 1) / static_cast<float>(LassoCoilPieces)) * 2.0f * UE_PI * Wrap + Coil * 1.7f + Seed;
+			// Each coil is a turn of a spiral, drawn as far round as it has wrapped; the upper ones a moment later
+			const float CoilWrap = FMath::Clamp(Wrap * 1.6f - Coil * 0.3f, 0.0f, 1.0f);
+			const float A0 = (Piece / static_cast<float>(LassoCoilPieces)) * 2.0f * UE_PI * CoilWrap + Coil * 1.7f + Seed;
+			const float A1 = ((Piece + 1) / static_cast<float>(LassoCoilPieces)) * 2.0f * UE_PI * CoilWrap + Coil * 1.7f + Seed;
 			const FVector Center = LastTargetLocation + FVector(0.0f, 0.0f, Height);
-			const FVector P0 = Center + FVector(FMath::Cos(A0), FMath::Sin(A0), 0.0f) * Ring + FVector(0.0f, 0.0f, 6.0f * Piece / LassoCoilPieces);
-			const FVector P1 = Center + FVector(FMath::Cos(A1), FMath::Sin(A1), 0.0f) * Ring + FVector(0.0f, 0.0f, 6.0f * (Piece + 1) / LassoCoilPieces);
+			const FVector P0 = Center + FVector(FMath::Cos(A0), FMath::Sin(A0), 0.0f) * Ring + FVector(0.0f, 0.0f, 10.0f * Piece / LassoCoilPieces);
+			const FVector P1 = Center + FVector(FMath::Cos(A1), FMath::Sin(A1), 0.0f) * Ring + FVector(0.0f, 0.0f, 10.0f * (Piece + 1) / LassoCoilPieces);
 			const float Arc = Ring * (A1 - A0);
+			Segment->SetVisibility(CoilWrap > 0.01f);
 			Segment->SetStartAndEnd(P0, FVector(-FMath::Sin(A0), FMath::Cos(A0), 0.0f) * Arc, P1, FVector(-FMath::Sin(A1), FMath::Cos(A1), 0.0f) * Arc, false);
-			Segment->SetStartScale(FVector2D(Plant->TendrilThickness * 0.9f), false);
-			Segment->SetEndScale(FVector2D(Plant->TendrilThickness * 0.9f), false);
+			Segment->SetStartScale(FVector2D(CoilThickness), false);
+			Segment->SetEndScale(FVector2D(CoilThickness), false);
 			Segment->UpdateMesh();
 		}
 	}
 
-	// It glows with its colour while it holds, flaring when it catches
+	// It glows with its colour while it holds, flaring when it catches, at every tug and when it pulls taut
 	if (Material != nullptr)
 	{
-		Material->SetScalarParameterValue(TEXT("Aufleuchten"), Phase == EPhase::Holding ? 0.25f + 0.75f * FMath::Max(0.0f, 1.0f - HeldTime * 3.0f) : 0.1f);
+		const float Glow = Phase == EPhase::Holding ? 0.25f + 0.75f * FMath::Max(0.0f, 1.0f - HeldTime * 3.0f) + 0.5f * Tug : (bTightening ? 0.6f + 0.6f * Taut : 0.1f);
+		Material->SetScalarParameterValue(TEXT("Aufleuchten"), Glow);
 	}
 }
 

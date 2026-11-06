@@ -523,6 +523,28 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.1, EditCondition = "bLasso"))
 	float TendrilThickness = 1.6f;
 
+	/** Boris 2026-11-06: thick vines like the Rußrose instead of thin threads. How much thicker the tendrils of the hand and the
+	 *  lasso are than TendrilThickness, how much longer the tendrils hang, and golden trumpets on each tendril */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 1, EditCondition = "bLasso"))
+	float TendrilBulk = 3.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 1, EditCondition = "bLasso"))
+	float TendrilLengthScale = 1.5f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0, ClampMax = 4, EditCondition = "bLasso"))
+	int32 TrumpetsPerTendril = 2;
+
+	/** The whip: a diagonal stroke, seconds it takes, how far it swings to each side (degrees), and the time a second tap
+	 *  strikes back the other way instead of starting over */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.1, EditCondition = "bLasso"))
+	float WhipSeconds = 0.34f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 10, ClampMax = 120, EditCondition = "bLasso"))
+	float WhipArcDegrees = 75.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.1, EditCondition = "bLasso"))
+	float WhipComboWindow = 1.1f;
+
 	/** Seconds the button must be held before the lasso shoots instead of the whip */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.05, EditCondition = "bLasso"))
 	float LassoHoldDelay = 0.22f;

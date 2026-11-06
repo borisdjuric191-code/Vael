@@ -1360,7 +1360,7 @@ void UVaelCheatManager::VaelHand(const FString& Hands, const FString& Plant)
 	}
 }
 
-void UVaelCheatManager::VaelFeuern(const FString& Hands)
+void UVaelCheatManager::VaelFeuern(const FString& Hands, float Seconds)
 {
 	const APlayerController* PlayerController = GetOuterAPlayerController();
 	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
@@ -1374,6 +1374,21 @@ void UVaelCheatManager::VaelFeuern(const FString& Hands)
 	const bool bBoth = Hands.IsEmpty() || Hands.Equals(TEXT("beide"), ESearchCase::IgnoreCase);
 	Floromant->SetHandFiring(true, !bOff && (bBoth || Hands.Equals(TEXT("links"), ESearchCase::IgnoreCase)));
 	Floromant->SetHandFiring(false, !bOff && (bBoth || Hands.Equals(TEXT("rechts"), ESearchCase::IgnoreCase)));
+
+	// A tap: let go by itself after the given seconds
+	if (Seconds > 0.0f && !bOff && GetWorld() != nullptr)
+	{
+		TWeakObjectPtr<UVaelFloromantComponent> Weak(Floromant);
+		FTimerHandle Handle;
+		GetWorld()->GetTimerManager().SetTimer(Handle, [Weak]()
+		{
+			if (UVaelFloromantComponent* Held = Weak.Get())
+			{
+				Held->SetHandFiring(true, false);
+				Held->SetHandFiring(false, false);
+			}
+		}, Seconds, false);
+	}
 }
 
 void UVaelCheatManager::VaelNachladen(float Percent)

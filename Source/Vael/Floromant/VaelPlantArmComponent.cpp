@@ -276,7 +276,7 @@ void UVaelPlantArmComponent::Clear()
 	MortarDraw = 0.0f;
 	TetherTarget = nullptr;
 	Tether = 0.0f;
-	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses, &TargetDots, &ChargeOrbs, &TendrilTips })
+	for (TArray<TObjectPtr<UStaticMeshComponent>>* Pieces : { &FingerTips, &OvergrowthPads, &Leaves, &Petals, &TetherPulses, &TargetDots, &ChargeOrbs, &TendrilTips, &TendrilTrumpets })
 	{
 		for (UStaticMeshComponent* Piece : *Pieces)
 		{
@@ -634,7 +634,7 @@ void UVaelPlantArmComponent::BuildStalks()
 		UMaterialInstanceDynamic* TendrilMaterial = FingerMaterials.IsEmpty() ? nullptr : FingerMaterials[0].Get();
 		for (int32 Tendril = 0; Tendril < Plant->TendrilCount; ++Tendril)
 		{
-			for (int32 Piece = 0; Piece < 4; ++Piece)
+			for (int32 Piece = 0; Piece < 8; ++Piece)
 			{
 				USplineMeshComponent* Stalk = MakeStalk(TendrilMesh, TendrilMaterial);
 				Stalk->SetUsingAbsoluteLocation(true);
@@ -656,6 +656,24 @@ void UVaelPlantArmComponent::BuildStalks()
 				Tip->SetupAttachment(GetBody());
 				Tip->RegisterComponent();
 				TendrilTips.Add(Tip);
+			}
+			// Golden bindweed trumpets along each tendril (Boris 2026-11-06: thick vines with the Schlotwinde round them)
+			if (UStaticMesh* TrumpetMesh = VaelAssets::LoadOptional(Plant->LeafMesh))
+			{
+				for (int32 Index = 0; Index < Plant->TrumpetsPerTendril; ++Index)
+				{
+					UStaticMeshComponent* Trumpet = NewObject<UStaticMeshComponent>(GetOwner());
+					Trumpet->SetMobility(EComponentMobility::Movable);
+					Trumpet->SetStaticMesh(TrumpetMesh);
+					Trumpet->SetMaterial(0, TendrilMaterial);
+					Trumpet->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+					Trumpet->SetUsingAbsoluteLocation(true);
+					Trumpet->SetUsingAbsoluteRotation(true);
+					Trumpet->SetUsingAbsoluteScale(true);
+					Trumpet->SetupAttachment(GetBody());
+					Trumpet->RegisterComponent();
+					TendrilTrumpets.Add(Trumpet);
+				}
 			}
 		}
 	}
@@ -1410,21 +1428,43 @@ void UVaelPlantArmComponent::Whip()
 	}
 	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - ShotSaft());
 	FireCountdown = Plant->FireInterval * GeneScale(EVaelGeneEffect::FireSpeed);
-	WhipTime = 0.0f;
-	WhipSide = -WhipSide;
 
-	// Everyone in the fan ahead is lashed: hurt, pushed back and interrupted
+	// Two strokes per arm (Boris 2026-11-06): the first diagonal from high on its own side down across, a quick second tap strikes
+	// back the other way; after a pause it starts with the first again
+	const float Now = GetWorld()->GetTimeSeconds();
+	WhipCombo = Now - LastWhipTime <= Plant->WhipComboWindow ? 1 - WhipCombo : 0;
+	LastWhipTime = Now;
+	WhipTime = 0.0f;
+	bWhipHit = false;
+
 	FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
-	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
+	WhipAim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
+	if (Tendrils.IsEmpty())
+	{
+		WhipHit();
+	}
+}
+
+void UVaelPlantArmComponent::WhipHit()
+{
+	bWhipHit = true;
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr)
+	{
+		return;
+	}
+	// Everyone in the fan the stroke sweeps is lashed: hurt, pushed back and interrupted
 	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
 	FVaelSpellHit Hit;
 	Hit.Damage = Plant->WhipDamage * (Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f);
 	Hit.Element = EVaelElement::Earth;
 	Hit.Knockback = Plant->WhipKnockback;
 	Hit.StunDuration = Plant->WhipStun;
-	for (AActor* Target : AVaelBindweedLasso::FindTargets(Character, Character->GetActorLocation(), Aim, Plant->WhipReach, Plant->WhipHalfAngle, 12))
+	const float HalfAngle = FMath::Max(Plant->WhipHalfAngle, Plant->WhipArcDegrees * 0.6f);
+	for (AActor* Target : AVaelBindweedLasso::FindTargets(Character, Character->GetActorLocation(), WhipAim, Plant->WhipReach, HalfAngle, 12))
 	{
 		UVaelCombatStatics::ApplySpellHit(Character, Target, Hit, (Target->GetActorLocation() - Character->GetActorLocation()).GetSafeNormal2D());
+		VaelSymbiosis::MuzzlePuff(this, Plant, Target->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), IsShadowForm(), 1.6f);
 	}
 }
 
@@ -1441,22 +1481,41 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 	const FVector Side = FVector::CrossProduct(FVector::UpVector, Aim).GetSafeNormal();
 
-	// The lash swings across the fan in a moment and falls back
-	const float LashSeconds = 0.28f;
+	// The stroke: from high on one side down across to low on the other, fastest in the middle
 	const float Before = WhipTime;
 	if (WhipTime >= 0.0f)
 	{
-		WhipTime += DeltaTime / LashSeconds;
+		WhipTime += DeltaTime / FMath::Max(Plant->WhipSeconds, 0.05f);
 		if (WhipTime >= 1.0f)
 		{
 			WhipTime = -1.0f;
 		}
 	}
-	const bool bPuff = Before >= 0.0f && Before < 0.45f && (WhipTime >= 0.45f || WhipTime < 0.0f);
+	// It hits as the tendrils pass the middle of the swing
+	if (!bWhipHit && (WhipTime >= 0.45f || (Before >= 0.0f && WhipTime < 0.0f)))
+	{
+		WhipHit();
+	}
+	const bool bPuff = Before >= 0.0f && Before < 0.5f && (WhipTime >= 0.5f || WhipTime < 0.0f);
 	const float Lash = WhipTime >= 0.0f ? FMath::Sin(WhipTime * UE_PI) : 0.0f;
-	const float SwingAngle = WhipTime >= 0.0f ? FMath::DegreesToRadians(Plant->WhipHalfAngle) * WhipSide * FMath::Cos(WhipTime * UE_PI) : 0.0f;
+	// Right arm: first stroke from high right down to the left, second from high left down to the right; the left arm mirrored
+	const float StartSide = ((bLeft ? -1.0f : 1.0f) * (WhipCombo == 0 ? 1.0f : -1.0f));
+	const FVector StrikeAim = WhipTime >= 0.0f ? WhipAim : Aim;
+	const FVector StrikeSide = FVector::CrossProduct(FVector::UpVector, StrikeAim).GetSafeNormal();
+	const FVector Diagonal = (StrikeSide * StartSide + FVector::UpVector * 0.85f).GetSafeNormal();
+	const float Arc = FMath::DegreesToRadians(Plant->WhipArcDegrees);
+	// The angle at share U of the stroke: the root leads, the tip trails behind like a whip
+	const auto StrokeDirection = [&](float U)
+	{
+		const float Eased = FMath::Clamp(U, 0.0f, 1.0f);
+		const float Angle = Arc * FMath::Cos(UE_PI * FMath::Pow(Eased, 1.25f));
+		return (StrikeAim * FMath::Cos(Angle) + Diagonal * FMath::Sin(Angle) - FVector::UpVector * 0.15f).GetSafeNormal();
+	};
 
+	const float Bulk = Plant->TendrilBulk;
+	const float RestLength = Plant->TendrilLength * Plant->TendrilLengthScale;
 	const int32 Pieces = Tendrils.Num() / FMath::Max(Plant->TendrilCount, 1);
+	const int32 TrumpetsEach = Plant->TendrilCount > 0 ? TendrilTrumpets.Num() / Plant->TendrilCount : 0;
 	for (int32 Tendril = 0; Tendril < Plant->TendrilCount; ++Tendril)
 	{
 		// From the index, middle and ring finger; the first one is the lasso while one is out
@@ -1464,18 +1523,29 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 		const FVector Root = Muzzles[Finger];
 		const FVector Out = MuzzleDirections[Finger].GetSafeNormal();
 		const bool bIsLasso = Tendril == 0 && !Lassos.IsEmpty();
-		const float Spread = (Tendril - (Plant->TendrilCount - 1) * 0.5f) * 0.18f;
-		const FVector Lashing = (FMath::Cos(SwingAngle + Spread) * Aim + FMath::Sin(SwingAngle + Spread) * Side).GetSafeNormal();
-		const float Length = Plant->TendrilLength * (1.0f + Lash * (Plant->WhipReach * 0.75f / Plant->TendrilLength - 1.0f));
+		// Each tendril a moment behind the one before, so the three fan out in the stroke
+		const float Lag = Tendril * 0.06f;
+		const float Length = RestLength * (1.0f + Lash * (Plant->WhipReach * 0.85f / RestLength - 1.0f));
 
 		const auto PointAt = [&](float S)
 		{
-			// At rest they droop from the fingertips and sway; aiming they reach forward; lashing they swing straight across the fan
-			const FVector Hanging = Root + Out * Length * S * 0.35f + FVector(0.0f, 0.0f, -Length * S * S * 0.75f);
-			const FVector Reaching = Root + Aim * Length * S * 1.1f - FVector(0.0f, 0.0f, Length * 0.12f * S * S);
-			const FVector Lashed = Root + Lashing * Length * S;
-			FVector Point = FMath::Lerp(FMath::Lerp(Hanging, Reaching, Stance), Lashed, Lash);
-			Point += Side * 7.0f * S * FMath::Sin(Time * 3.0f + S * 6.0f + Tendril * 2.1f) * (1.0f - Lash);
+			// At rest they hang heavy from the fingers and sway; aiming they reach forward; striking they sweep the diagonal
+			const FVector Hanging = Root + Out * Length * S * 0.35f + FVector(0.0f, 0.0f, -Length * S * S * 0.7f);
+			const FVector Reaching = Root + Aim * Length * S * 1.05f - FVector(0.0f, 0.0f, Length * 0.14f * S * S);
+			FVector Point = FMath::Lerp(Hanging, Reaching, Stance);
+			if (WhipTime >= 0.0f)
+			{
+				// Integrate along the tendril: further out it follows the stroke later
+				FVector Lashed = Root;
+				const int32 Steps = 8;
+				for (int32 Step = 1; Step <= Steps; ++Step)
+				{
+					const float Along = S * Step / Steps;
+					Lashed += StrokeDirection(WhipTime - Lag - 0.22f * Along) * Length * S / Steps;
+				}
+				Point = FMath::Lerp(Point, Lashed, FMath::Min(1.0f, Lash * 2.2f));
+			}
+			Point += Side * 6.0f * S * FMath::Sin(Time * 2.6f + S * 5.0f + Tendril * 2.1f) * (1.0f - Lash);
 			return Point;
 		};
 
@@ -1494,23 +1564,40 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 			const float Span = FVector::Dist(P0, P1);
 			Stalk->SetStartAndEnd(P0, (PointAt(A + 0.02f) - PointAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * Span,
 				P1, (PointAt(B + 0.02f) - PointAt(B - 0.02f)).GetSafeNormal() * Span, false);
-			Stalk->SetStartScale(FVector2D(Plant->TendrilThickness * FMath::Lerp(1.0f, 0.5f, A)), false);
-			Stalk->SetEndScale(FVector2D(Plant->TendrilThickness * FMath::Lerp(1.0f, 0.5f, B)), false);
+			Stalk->SetStartScale(FVector2D(Plant->TendrilThickness * Bulk * FMath::Lerp(1.0f, 0.45f, A)), false);
+			Stalk->SetEndScale(FVector2D(Plant->TendrilThickness * Bulk * FMath::Lerp(1.0f, 0.45f, B)), false);
 			Stalk->SetStartRoll(Piece * 1.4f + Tendril, false);
 			Stalk->SetEndRoll(Piece * 1.4f + Tendril + 1.2f, false);
 			Stalk->UpdateMesh();
 		}
+
+		// The golden trumpets sit along it, their mouths turned out and a little forward
+		for (int32 Index = 0; Index < TrumpetsEach; ++Index)
+		{
+			UStaticMeshComponent* Trumpet = TendrilTrumpets[Tendril * TrumpetsEach + Index];
+			const float S = Grow * (0.3f + 0.45f * (Index + 0.5f) / TrumpetsEach);
+			const FVector Here = PointAt(S);
+			const FVector Along = (PointAt(S + 0.03f) - PointAt(FMath::Max(S - 0.03f, 0.0f))).GetSafeNormal();
+			FVector Across = FVector::CrossProduct(Along, FVector::UpVector).GetSafeNormal();
+			Across = Across.IsNearlyZero() ? Side : Across * ((Index + Tendril) % 2 == 0 ? 1.0f : -1.0f);
+			const FVector Mouth = (Across + Along * 0.5f + FVector::UpVector * 0.3f).GetSafeNormal();
+			Trumpet->SetVisibility(!bIsLasso && Grow > 0.3f);
+			Trumpet->SetWorldLocationAndRotation(Here, FRotationMatrix::MakeFromZ(Mouth).Rotator());
+			Trumpet->SetWorldScale3D(FVector(1.15f * Grow * (1.0f - 0.25f * Index / FMath::Max(TrumpetsEach, 1))));
+		}
+
 		if (TendrilTips.IsValidIndex(Tendril))
 		{
 			const FVector End = PointAt(Grow);
 			TendrilTips[Tendril]->SetVisibility(!bIsLasso && Grow > 0.01f);
 			TendrilTips[Tendril]->SetWorldLocationAndRotation(End, FRotationMatrix::MakeFromZ((End - PointAt(Grow * 0.9f)).GetSafeNormal()).Rotator());
-			TendrilTips[Tendril]->SetWorldScale3D(FVector(Plant->TipSize / 10.0f * Grow));
+			TendrilTips[Tendril]->SetWorldScale3D(FVector(Plant->TipSize / 10.0f * Grow * 1.3f));
 
-			// Where the lash cracks, a puff of golden pollen (green for the Würgwinde)
+			// Where the lash cracks, a puff of golden pollen (green for the Würgwinde), and along the way it swept
 			if (bPuff && !bIsLasso)
 			{
-				VaelSymbiosis::MuzzlePuff(this, Plant, End, bShadow, 1.2f);
+				VaelSymbiosis::MuzzlePuff(this, Plant, End, bShadow, 1.4f);
+				VaelSymbiosis::MuzzlePuff(this, Plant, PointAt(Grow * 0.6f), bShadow, 0.9f);
 			}
 		}
 	}

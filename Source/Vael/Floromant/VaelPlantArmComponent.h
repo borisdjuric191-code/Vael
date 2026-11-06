@@ -461,6 +461,20 @@ private:
 	float WhipTime = -1.0f;
 	float WhipSide = 1.0f;
 
+	/** Which of the two strokes this arm strikes now (0 the first, 1 the stroke back), when it struck last, the aim it strikes
+	 *  along, and whether this stroke has hit yet (it hits when the tendrils pass the middle of the swing) */
+	int32 WhipCombo = 0;
+	float LastWhipTime = -10.0f;
+	FVector WhipAim = FVector::ForwardVector;
+	bool bWhipHit = true;
+
+	/** Hurts, pushes and interrupts everything in the fan the stroke sweeps through */
+	void WhipHit();
+
+	/** Golden trumpets along the tendrils */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> TendrilTrumpets;
+
 	/** Places the petals around the rose's foot and axis (space of the body mesh); returns where the shots leave */
 	FVector UpdateRose(const FVector& Base, const FVector& Axis);
 
