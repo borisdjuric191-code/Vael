@@ -554,8 +554,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
 	float TowerCallSizeScale = 1.35f;
 
-	/** Plants whose tower curls over like a question mark (Boris 2026-11-06): the column rises, turns over at the top and hangs
-	 *  its crown down in front at about half the height, looking ahead, and shoots flat and straight like the arms */
+	/** Plants whose tower curls over like a question mark, bent like a rearing snake (Boris 2026-11-06): the column rises,
+	 *  turns over at the top, the neck hangs down and the head lifts again so the plant looks straight ahead; it shoots flat
+	 *  and straight like the arms */
 	UPROPERTY(config, EditAnywhere, Category="Towers")
 	TArray<FName> HookTowerPlants = { TEXT("Glutdistel"), TEXT("Taublatt"), TEXT("Windhalm") };
 
@@ -564,7 +565,7 @@ public:
 	float HookHeadHeight = 0.55f;
 
 	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0, ClampMax = 1))
-	float HookHeadReach = 0.38f;
+	float HookHeadReach = 0.72f;
 
 	/** Glass of the Glimmklee dome, M_Floromant_Glaskugel (made by Scripts/CreateFloromantKit.py) */
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis")

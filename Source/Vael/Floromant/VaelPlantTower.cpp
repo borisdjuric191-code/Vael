@@ -229,8 +229,10 @@ void AVaelPlantTower::Build()
 	bHook = IsHookTower();
 	if (bHook)
 	{
+		// Two pieces per vine: the neck hanging down from the curl, and the head lifting out of the dip to look straight ahead
 		for (const USplineMeshComponent* Vine : Column)
 		{
+			HookNeck.Add(MakeStalk(Vine->GetStaticMesh()));
 			HookNeck.Add(MakeStalk(Vine->GetStaticMesh()));
 		}
 	}
@@ -425,8 +427,8 @@ FVector AVaelPlantTower::GetOwnCrownAxis() const
 {
 	if (bHook)
 	{
-		// The hanging head looks ahead, a little down, where it shoots
-		return (HookForward(LookDirection) + Bend * 0.5f - FVector::UpVector * 0.2f).GetSafeNormal();
+		// The lifted head looks straight ahead, where it shoots
+		return (HookForward(LookDirection) + Bend * 0.5f).GetSafeNormal();
 	}
 	const float Angle = Bend.Size();
 	return Angle < KINDA_SMALL_NUMBER ? FVector::UpVector : (FVector::UpVector * FMath::Cos(Angle) + Bend / Angle * FMath::Sin(Angle));
@@ -1077,22 +1079,34 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		FVector EndTangent = Axis * Height * 0.9f + Around1 * Height * 0.4f;
 		float EndScale = 1.8f;
 
-		// A question-mark tower: the column rises (bulging back a little), turns over forward at the top of the curl, and the
-		// neck hangs down from there into the crown
-		const bool bHookShape = bHook && HookNeck.IsValidIndex(Index);
+		// A question-mark tower, bent like a rearing snake (Boris 2026-11-06): the column rises bulging back, turns over forward at
+		// the top of the curl, the neck hangs down to the dip, and from there the head lifts again so the plant looks straight
+		// ahead out of it; the curl and the dip sway sideways against each other like a snake
+		const bool bHookShape = bHook && HookNeck.IsValidIndex(Index * 2 + 1);
 		FVector NeckEnd = End;
-		FVector NeckEndTangent = EndTangent;
+		FVector Dip = End;
+		FVector DipTangent = EndTangent;
+		FVector HeadTangent = EndTangent;
 		if (bHookShape)
 		{
 			const FVector Forward = HookForward(LookDirection);
+			const FVector Side(-Forward.Y, Forward.X, 0.0f);
+			const float Sway = Time * 0.9f + GetUniqueID() * 0.37f;
 			const FQuat ApexTilt = FQuat::FindBetweenNormals(FVector::UpVector, Forward);
 			const FVector ApexOut = ApexTilt.RotateVector(FVector(FMath::Cos(A1), FMath::Sin(A1), 0.0f));
-			End = GetHookApex() + ApexOut * 9.0f;
-			EndTangent = Forward * Height * 0.6f + ApexTilt.RotateVector(FVector(-FMath::Sin(A1), FMath::Cos(A1), 0.0f)) * Height * 0.25f;
-			StartTangent = FVector::UpVector * Height * 1.1f + Around0 * Height * 0.35f;
+			const FVector ApexAround = ApexTilt.RotateVector(FVector(-FMath::Sin(A1), FMath::Cos(A1), 0.0f));
+			End = GetHookApex() + Side * FMath::Sin(Sway) * Height * 0.07f + ApexOut * 9.0f;
+			EndTangent = Forward * Height * 0.7f + ApexAround * Height * 0.2f;
+			StartTangent = FVector::UpVector * Height * 1.2f - Forward * Height * 0.5f + Around0 * Height * 0.3f;
 			EndScale = 2.3f;
-			// The neck curls back in a little below, like the hook of a "?"
-			NeckEndTangent = (-FVector::UpVector - Forward * 0.35f + Bend * 0.6f).GetSafeNormal() * Height * 0.6f + Around1 * Height * 0.15f;
+
+			// The dip: the lowest point of the hanging neck, a little in front of and below the head
+			Dip = Base + Forward * Height * 0.42f + FVector::UpVector * Height * 0.32f + Bend * Height * 0.35f
+				+ Side * FMath::Sin(Sway - 1.4f) * Height * 0.08f + Out1 * 8.0f;
+			DipTangent = (Forward * 0.55f - FVector::UpVector + Bend * 0.4f).GetSafeNormal() * Height * 0.55f + Around1 * Height * 0.1f;
+
+			// The head arrives level, so the crown on it looks straight out
+			HeadTangent = Axis * Height * 0.45f;
 		}
 
 		if (bFused)
@@ -1116,19 +1130,28 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 
 		if (bHookShape)
 		{
-			// Fused, the neck draws into the shared trunk and is gone once both columns have met
-			USplineMeshComponent* Neck = HookNeck[Index];
+			// Fused, neck and head draw into the shared trunk and are gone once both columns have met
 			const float NeckShown = 1.0f - Gather;
-			Neck->SetVisibility(NeckShown > 0.02f);
-			if (NeckShown > 0.02f)
+			const FVector DipAt = FMath::Lerp(Dip, End, Gather);
+			const FVector HeadAt = FMath::Lerp(NeckEnd, End, Gather);
+			const float Thin = FMath::Max(NeckShown, 0.2f);
+			const FVector Points[3] = { End, DipAt, HeadAt };
+			const FVector Tangents[3] = { EndTangent, DipTangent * NeckShown, HeadTangent * NeckShown };
+			const float Scales[3] = { EndScale, 2.0f, 1.7f };
+			for (int32 Piece = 0; Piece < 2; ++Piece)
 			{
-				const FVector NeckTarget = FMath::Lerp(NeckEnd, End, Gather);
-				Neck->SetStartAndEnd(Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(EndTangent),
-					Transform.InverseTransformPosition(NeckTarget), Transform.InverseTransformVectorNoScale(NeckEndTangent * NeckShown), false);
-				Neck->SetStartScale(FVector2D(EndScale * FMath::Max(NeckShown, 0.2f)), false);
-				Neck->SetEndScale(FVector2D(1.7f * FMath::Max(NeckShown, 0.2f)), false);
-				Neck->SetStartRoll(A1 + 2.0f, false);
-				Neck->SetEndRoll(A1 + 3.5f, false);
+				USplineMeshComponent* Neck = HookNeck[Index * 2 + Piece];
+				Neck->SetVisibility(NeckShown > 0.02f);
+				if (NeckShown <= 0.02f)
+				{
+					continue;
+				}
+				Neck->SetStartAndEnd(Transform.InverseTransformPosition(Points[Piece]), Transform.InverseTransformVectorNoScale(Tangents[Piece]),
+					Transform.InverseTransformPosition(Points[Piece + 1]), Transform.InverseTransformVectorNoScale(Tangents[Piece + 1]), false);
+				Neck->SetStartScale(FVector2D(Scales[Piece] * Thin), false);
+				Neck->SetEndScale(FVector2D(Scales[Piece + 1] * Thin), false);
+				Neck->SetStartRoll(A1 + 2.0f + Piece * 1.5f, false);
+				Neck->SetEndRoll(A1 + 3.5f + Piece * 1.5f, false);
 				Neck->UpdateMesh();
 			}
 		}
@@ -1172,7 +1195,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		// is draws back while it charges and snaps forward with its shot
 		const float Fan = FMath::Lerp(bHook ? 0.45f : 0.65f, 0.1f, AimBlend);
 		// The hanging head of a question-mark tower fans its stalks ahead and upwards, never into the ground
-		const FVector Lift = bHook ? FVector::UpVector * 0.35f * (1.0f - AimBlend) : FVector::ZeroVector;
+		const FVector Lift = bHook ? FVector::UpVector * 0.15f * (1.0f - AimBlend) : FVector::ZeroVector;
 		const FVector Direction = (Axis * 0.75f + Out * Fan + Lift + Out * 0.06f * FMath::Sin(Time * 1.3f + Index)).GetSafeNormal();
 		const float Pull = StalkCharges.IsValidIndex(Index) ? StalkKicks[Index] * 0.2f - StalkCharges[Index] * 0.15f : 0.0f;
 		const float Length = Plant->FingerLength * 1.3f * Bloom * (1.0f + Pull);
