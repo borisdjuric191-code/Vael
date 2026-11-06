@@ -1,7 +1,8 @@
 # Look test of the Glutkammer (refugium of the Aschenmark): imports the procedural pieces from Tools/Refugium/glutkammer_probe.py,
 # gives them their materials and builds a small test level L_GlutkammerProbe (about 24 m across) with cave light.
 #
-# - Pieces: SM_GK_Rippenwand (ribs + membranes), SM_GK_Eisack, SM_GK_Eierschale, SM_GK_Wurzelvorhang
+# - Pieces: SM_GK_Rippenwand (ribs + membranes), SM_GK_Eisack (sac full of eggs), SM_GK_Gelegebeet (torn clutch sac as bed),
+#   SM_GK_Wurzelvorhang
 #   -> /Game/Vael/Refugium/Glutkammer/Probe
 # - Materials: M_GK_Gewebe (petrified ribs), M_GK_Glut with MI_GK_Membran / MI_GK_Eisack (glowing tissue, slow pulse),
 #   M_GK_Ader, M_GK_Schale, M_GK_Erde, M_GK_Wurzel, M_GK_Becken (glowing pool), M_GK_Boden
@@ -22,7 +23,7 @@ import unreal
 SOURCE = "C:/Projekte/Vael_Quellen/Glutkammer/04_export"
 FOLDER = "/Game/Vael/Refugium/Glutkammer/Probe"
 LEVEL_PATH = "/Game/Vael/Maps/Test/L_GlutkammerProbe"
-PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Eierschale", "SM_GK_Wurzelvorhang"]
+PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelvorhang"]
 ROCK_TEX = "/Game/Megascans/3D_Assets/IcelandicVolcanoTerrain/T_IcelandicVolcanoTerrain_A"
 ROCK_NORMAL = "/Game/Megascans/3D_Assets/IcelandicVolcanoTerrain/T_IcelandicVolcanoTerrain_N"
 MUD_TEX = "/Game/Megascans/Surfaces/HeavyMud/T_HeavyMud_A"
@@ -236,12 +237,18 @@ def material_tissue():
 
 
 def material_glow():
-    """Glowing tissue (membranes, egg sacs): dark red at the rims, amber in the middle, cell veins, slow breathing"""
+    """Glowing tissue (membranes, egg sacs, eggs): dark red at the rims, amber in the middle, branching veins, slow breathing"""
     m = new_material("M_GK_Glut", two_sided=True)
     g = Graph(m)
     mask = g.vertex_r(4)
-    cells = g.noise(0.03, 6, function=unreal.NoiseFunction.NOISEFUNCTION_VORONOI_ALU, levels=2)
-    veins = g.saturate(g.mul(4, g.sub(5, g.const(0.45, 6), cells), g.const(4.0, 5)), 3)
+    # Ridged noise: thin lines where the noise crosses zero, a coarse and a fine net, like veins instead of cells
+    def ridges(scale, sharpness, column):
+        n = g.noise(scale, column + 2, levels=3, lo=-1.0, hi=1.0)
+        absolute = g.node(unreal.MaterialExpressionAbs, column + 1)
+        g.link(n, absolute)
+        return g.saturate(g.sub(column, g.const(1.0, column + 1), g.mul(column + 1, absolute, g.const(sharpness, column + 2))), column)
+    veins = g.saturate(g.add(3, ridges(0.012, 9.0, 5),
+                             g.mul(4, ridges(0.035, 7.0, 5), g.const(0.55, 5))), 3)
     base = g.lerp(g.color("RandFarbe", (0.1, 0.02, 0.015), 4), g.color("KernFarbe", (0.55, 0.2, 0.06), 4), mask, 2)
     base = g.lerp(base, g.color("AderFarbe", (0.18, 0.03, 0.02), 3), g.mul(3, veins, g.const(0.7, 4)), 1)
     fresnel = g.node(unreal.MaterialExpressionFresnel, 4, exponent=2.5)
@@ -254,14 +261,23 @@ def material_glow():
     library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
     finish(m)
     instances = {}
-    for name, values in (("MI_GK_Membran", {"Leuchten": 2.5, "KernSchaerfe": 2.2}),
-                         ("MI_GK_Eisack", {"Leuchten": 3.5, "KernSchaerfe": 1.3, "RandDunkel": 0.75})):
+    for name, values, colours in (
+            ("MI_GK_Membran", {"Leuchten": 2.5, "KernSchaerfe": 2.2}, {}),
+            ("MI_GK_Eisack", {"Leuchten": 3.5, "KernSchaerfe": 2.4, "RandDunkel": 0.75}, {}),
+            # leathery skin of the clutch sac: dark, only the egg bulges glow a little
+            ("MI_GK_Gelegehaut", {"Leuchten": 0.9, "KernSchaerfe": 3.0, "Rauheit": 0.55},
+             {"RandFarbe": (0.07, 0.035, 0.025), "KernFarbe": (0.3, 0.13, 0.06), "AderFarbe": (0.05, 0.02, 0.015)}),
+            # the small eggs: pale amber, glowing from inside
+            ("MI_GK_Eier", {"Leuchten": 0.9, "KernSchaerfe": 1.6, "RandDunkel": 0.7, "Rauheit": 0.3},
+             {"RandFarbe": (0.35, 0.22, 0.12), "KernFarbe": (0.85, 0.6, 0.3), "LeuchtFarbe": (1.0, 0.6, 0.22)})):
         path = "{}/{}".format(FOLDER, name)
         mi = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
             name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
         library.set_material_instance_parent(mi, m)
         for key, value in values.items():
             library.set_material_instance_scalar_parameter_value(mi, key, value)
+        for key, rgb in colours.items():
+            library.set_material_instance_vector_parameter_value(mi, key, unreal.LinearColor(rgb[0], rgb[1], rgb[2], 1.0))
         assets.save_loaded_asset(mi, False)
         instances[name] = mi
     return instances
@@ -348,14 +364,13 @@ def build_materials():
     glow = material_glow()
     vein = material_plain("M_GK_Ader", (0.16, 0.03, 0.02), 0.4, emissive=(0.25, 0.04, 0.01))
     soil = material_plain("M_GK_Erde", (0.07, 0.045, 0.03), 0.95, noise_amount=0.35)
-    shell = material_shell()
     roots = material_roots()
     pool = material_pool()
     floor = material_floor()
     meshes = {
         "SM_GK_Rippenwand": assign("SM_GK_Rippenwand", [tissue, glow["MI_GK_Membran"]]),
         "SM_GK_Eisack": assign("SM_GK_Eisack", [glow["MI_GK_Eisack"], vein]),
-        "SM_GK_Eierschale": assign("SM_GK_Eierschale", [shell, soil]),
+        "SM_GK_Gelegebeet": assign("SM_GK_Gelegebeet", [glow["MI_GK_Gelegehaut"], soil, glow["MI_GK_Eier"]]),
         "SM_GK_Wurzelvorhang": assign("SM_GK_Wurzelvorhang", [roots]),
     }
     log("Materialien angelegt")
@@ -476,22 +491,23 @@ def build_level(meshes, mats):
         mesh_actor(sac, unreal.Vector(x, y, -15.0), "Eisack lose {}".format(i + 1), "Brutkammer/Eisaecke", yaw=rng.uniform(0, 360),
                    pitch=rng.uniform(60, 85), scale=0.75)
 
-    # Four shell beds around the middle with plants, three broken shells half sunk further out
-    shell = meshes["SM_GK_Eierschale"]
+    # Four clutch beds with plants around the free middle (away from the pool), two empty clutches tipped over further out
+    bed = meshes["SM_GK_Gelegebeet"]
     plants = [unreal.load_asset(p) for p in PLANTS]
+    centre = unreal.Vector(-200.0, -230.0, 0.0)
     for i in range(4):
-        a = math.radians(30 + 90 * i)
-        loc = unreal.Vector(math.cos(a) * 330.0 + 60.0, math.sin(a) * 330.0 + 60.0, -18.0)
-        mesh_actor(shell, loc, "Eierschalen-Beet {}".format(i + 1), "Brutkammer/Beete", yaw=rng.uniform(0, 360), collision=True)
+        a = math.radians(20 + 90 * i)
+        loc = unreal.Vector(centre.x + math.cos(a) * 300.0, centre.y + math.sin(a) * 300.0, -6.0)
+        mesh_actor(bed, loc, "Gelegebeet {}".format(i + 1), "Brutkammer/Beete", yaw=rng.uniform(0, 360), collision=True)
         plant = plants[i]
         if plant is not None:
-            mesh_actor(plant, unreal.Vector(loc.x, loc.y, loc.z + 64.0), "Pflanze {}".format(i + 1), "Brutkammer/Beete",
+            mesh_actor(plant, unreal.Vector(loc.x, loc.y, loc.z + 30.0), "Pflanze {}".format(i + 1), "Brutkammer/Beete",
                        yaw=rng.uniform(0, 360), scale=0.9)
         else:
             notes.append("Pflanze fehlt: " + PLANTS[i])
-    for i, (x, y, tilt) in enumerate(((-520, 260, 35), (240, -640, 50), (-380, -380, 25))):
-        mesh_actor(shell, unreal.Vector(x, y, -40.0), "Schale zerbrochen {}".format(i + 1), "Brutkammer/Beete",
-                   yaw=rng.uniform(0, 360), pitch=tilt, scale=0.85)
+    for i, (x, y, tilt) in enumerate(((-620, 240, 70), (240, -680, 60))):
+        mesh_actor(bed, unreal.Vector(x, y, 10.0), "Gelege leer {}".format(i + 1), "Brutkammer/Beete",
+                   yaw=rng.uniform(0, 360), pitch=tilt, scale=0.8)
 
     # Root curtain from the crack, over the glowing pool
     pool_at = unreal.Vector(260.0, 220.0, 0.0)
@@ -537,7 +553,7 @@ def build_level(meshes, mats):
     quiet = spawn(unreal.VaelCreatureSpawner, unreal.Vector(0, 0, -5000), "Spawner leer", "Spiel")
     quiet.set_editor_property("count", 0)
 
-    spawn(unreal.PlayerStart, unreal.Vector(60.0, 40.0, 100.0), "Spielerstart", "Spiel", unreal.Rotator(0.0, 0.0, 45.0))
+    spawn(unreal.PlayerStart, unreal.Vector(-170.0, -190.0, 100.0), "Spielerstart", "Spiel", unreal.Rotator(0.0, 0.0, 45.0))
 
     if unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL_PATH):
         log("Testkarte gespeichert: " + LEVEL_PATH)
