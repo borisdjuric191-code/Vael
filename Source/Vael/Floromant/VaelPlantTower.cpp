@@ -1223,6 +1223,24 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 	{
 		Orb->SetVisibility(!bAlone && Orb->IsVisible());
 	}
+	// Alone, the column is only a thick tangle on the ground; the vines that rise out of it are the tower
+	if (bAlone)
+	{
+		const float Shown0 = FMath::Clamp(Grow, 0.0f, 1.0f);
+		for (int32 Index = 0; Index < Column.Num(); ++Index)
+		{
+			const float A0 = Index * 2.0f * UE_PI / Column.Num() + GetUniqueID() * 0.3f;
+			const float A1 = A0 + UE_PI * 1.1f;
+			const FVector Start(FMath::Cos(A0) * 30.0f, FMath::Sin(A0) * 30.0f, -8.0f);
+			const FVector End(FMath::Cos(A1) * 12.0f, FMath::Sin(A1) * 12.0f, 34.0f * Shown0);
+			const FVector Around(-FMath::Sin(A0), FMath::Cos(A0), 0.0f);
+			USplineMeshComponent* Tangle = Column[Index];
+			Tangle->SetStartAndEnd(Start, Around * 60.0f + FVector(0.0f, 0.0f, 30.0f), End, FVector(0.0f, 0.0f, 50.0f) - Around * 30.0f, false);
+			Tangle->SetStartScale(FVector2D(4.5f * Shown0), false);
+			Tangle->SetEndScale(FVector2D(3.5f * Shown0), false);
+			Tangle->UpdateMesh();
+		}
+	}
 	if (!bAlone || WindTendrils.IsEmpty())
 	{
 		for (TWeakObjectPtr<AVaelBindweedLasso>& Lasso : WindLassos)
@@ -1243,7 +1261,8 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 	const FVector Crown = GetCrown();
 	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
 	const float Big = 1.0f + 0.4f * Giant;
-	const float Length = Settings->TowerHeight * 0.6f * Big * FMath::Sin(Shown * UE_HALF_PI);
+	// The vines ARE the tower (Boris 2026-11-06): they rise from a thick tangle on the ground, wind round each other up to its height
+	const float Length = Settings->TowerHeight * 1.05f * Big * FMath::Sin(Shown * UE_HALF_PI);
 	const float Inner = Plant->WhipReach * 0.95f * Big;
 	const float Outer = Plant->LassoRange * Big;
 
@@ -1314,7 +1333,7 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 				Spec.PullPoint = Base + Way * Inner * 0.5f;
 				const UVaelFloromantComponent* Floromant = Gardener->GetFloromant();
 				Spec.Power = Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f;
-				if (AVaelBindweedLasso* Lasso = AVaelBindweedLasso::Throw(Gardener, Plant, Crown, Enemy, Spec, bShadow))
+				if (AVaelBindweedLasso* Lasso = AVaelBindweedLasso::Throw(Gardener, Plant, Base + FVector(0.0f, 0.0f, Length * 0.8f), Enemy, Spec, bShadow))
 				{
 					WindLassos[Best] = Lasso;
 					WindCooldown[Best] = 1.2f;
@@ -1334,7 +1353,7 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 		const float Angle = Vine * 2.0f * UE_PI / WindVines + GetUniqueID() * 0.3f;
 		const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
 		const FVector Around(-Out.Y, Out.X, 0.0f);
-		const FVector Root = Crown + Out * 12.0f - FVector(0.0f, 0.0f, 12.0f);
+		const FVector Root = Base + Out * 16.0f + FVector(0.0f, 0.0f, 22.0f);
 
 		// The lash
 		float Lash = 0.0f;
@@ -1401,13 +1420,16 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 
 		const auto PointAt = [&](float S)
 		{
-			// At rest: up and out, curving back in at the top, the tip stopping a hand short of the middle
-			const FVector P1 = Root + FVector::UpVector * Length * 0.5f + Out * Length * 0.35f;
-			const FVector P2 = Crown + FVector::UpVector * Length * 0.85f + Out * Length * 0.32f;
-			const FVector P3 = Crown + FVector::UpVector * Length * 0.62f + Out * 10.0f;
-			const float U = 1.0f - S;
-			FVector Point = Root * (U * U * U) + P1 * (3.0f * U * U * S) + P2 * (3.0f * U * S * S) + P3 * (S * S * S);
-			Point += Around * 7.0f * S * FMath::Sin(Time * 1.4f + Vine * 1.7f + S * 3.0f);
+			// At rest: the vines wind round each other up into the tower, the tips bending in at the top and stopping a hand short
+			// of each other; slowly the whole tower turns and the tips dance
+			const float Spin = Angle + S * 1.3f * 2.0f * UE_PI + Time * 0.25f;
+			const float Radius = FMath::Lerp(16.0f, 9.0f, S) + 6.0f * FMath::Sin(S * UE_PI);
+			const FVector Ring(FMath::Cos(Spin), FMath::Sin(Spin), 0.0f);
+			FVector Point = Root + FVector::UpVector * Length * S + Ring * Radius - Out * 16.0f * FMath::Min(S * 4.0f, 1.0f);
+			// the top fifth bends in towards the middle
+			const float TopBend = FMath::SmoothStep(0.78f, 1.0f, S);
+			Point += (Ring * -Radius * 0.6f - FVector::UpVector * Length * 0.05f) * TopBend;
+			Point += Around * 9.0f * FMath::Square(S) * FMath::Sin(Time * 1.6f + Vine * 1.7f) + Out * 5.0f * FMath::Square(S) * FMath::Sin(Time * 1.1f + Vine);
 			if (bThrowing)
 			{
 				// Reaching after the lasso, out of which it grows
@@ -1442,8 +1464,10 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 			const FVector P0 = PointAt(A);
 			const FVector P1 = PointAt(B);
 			const float Span = FVector::Dist(P0, P1);
-			Stalk->SetStartAndEnd(P0, (PointAt(A + 0.02f) - PointAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * Span,
-				P1, (PointAt(B + 0.02f) - PointAt(B - 0.02f)).GetSafeNormal() * Span, false);
+			// The points are in world space; the pieces follow the tower, so into their own space
+			const FTransform& Local = Stalk->GetComponentTransform();
+			Stalk->SetStartAndEnd(Local.InverseTransformPosition(P0), Local.InverseTransformVectorNoScale((PointAt(A + 0.02f) - PointAt(FMath::Max(A - 0.02f, 0.0f))).GetSafeNormal() * Span),
+				Local.InverseTransformPosition(P1), Local.InverseTransformVectorNoScale((PointAt(B + 0.02f) - PointAt(B - 0.02f)).GetSafeNormal() * Span), false);
 			Stalk->SetStartScale(FVector2D(Thickness * FMath::Lerp(1.3f, 0.6f, A)), false);
 			Stalk->SetEndScale(FVector2D(Thickness * FMath::Lerp(1.3f, 0.6f, B)), false);
 			Stalk->SetStartRoll(Piece * 1.3f + Vine, false);
