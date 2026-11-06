@@ -603,6 +603,19 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Keimpelz", meta = (ClampMin = 1))
 	float KeimpelzPadSize = 16.0f;
 
+	/** Plants whose arms are overgrown with their own stalks as ammunition (Boris 2026-11-06, Windhalm first): one stalk for
+	 *  each share of the plant bar; firing takes them one by one from the wrist up the arm, until only the Keimpelz is left,
+	 *  and the reload grows them back */
+	UPROPERTY(config, EditAnywhere, Category="Ammo stalks")
+	TArray<FName> AmmoStalkPlants = { TEXT("Windhalm") };
+
+	/** How many stalks a full bar is, and their length in cm */
+	UPROPERTY(config, EditAnywhere, Category="Ammo stalks", meta = (ClampMin = 1, ClampMax = 120))
+	int32 AmmoStalkCount = 44;
+
+	UPROPERTY(config, EditAnywhere, Category="Ammo stalks", meta = (ClampMin = 1))
+	float AmmoStalkLength = 17.0f;
+
 	/** Health a plant of the Floromant gets back from one Tauperle of water (a jet gives it bit by bit); the water heals no one else */
 	UPROPERTY(config, EditAnywhere, Category="Watering", meta = (ClampMin = 0))
 	float PlantWaterHealth = 6.0f;

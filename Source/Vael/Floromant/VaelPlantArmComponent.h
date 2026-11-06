@@ -473,6 +473,18 @@ private:
 	float ReloadTimeLeft = 0.0f;
 	float ReloadDuration = 0.0f;
 
+	/** Ammunition stalks overgrowing the arm (Windhalm): their shape (along the arm from 0 wrist to 1 shoulder, angle round it,
+	 *  length, lean back) and how far each is grown now; the frame time for their growing */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> AmmoStalks;
+
+	TArray<FVector4> AmmoShapes;
+	TArray<float> AmmoShown;
+	float StalkDelta = 0.0f;
+
+	/** One stalk per share of the bar: fired ones wither from the wrist up, reloaded ones grow back */
+	void UpdateAmmoStalks(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist);
+
 	/** Random roll, angle and length of every arm stalk, fixed when they grow */
 	TArray<FVector> WildShapes;
 

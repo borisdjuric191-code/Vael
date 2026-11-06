@@ -181,7 +181,7 @@ void UVaelPlantArmComponent::Clear()
 	}
 	ReloadShots = 0;
 	ReloadTimeLeft = 0.0f;
-	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks, &ForearmVines, &UpperArmVines, &OvergrowthWild, &Tendrils })
+	for (TArray<TObjectPtr<USplineMeshComponent>>* Stalks : { &FingerStalks, &WrapStalks, &WildStalks, &ForearmVines, &UpperArmVines, &OvergrowthWild, &Tendrils, &AmmoStalks })
 	{
 		for (USplineMeshComponent* Stalk : *Stalks)
 		{
@@ -410,6 +410,26 @@ void UVaelPlantArmComponent::BuildStalks()
 	{
 		WildShapes.Add(FVector(Random.FRandRange(0.2f, 1.0f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.6f, 1.2f)));
 		WildStalks.Add(MakeStalk(ArmMeshes[(Index + 1 + Offset) % ArmMeshes.Num()], ArmMaterial));
+	}
+
+	// Ammunition stalks (Windhalm, Boris 2026-11-06): the arm overgrown with the plant itself, one stalk per share of the bar
+	AmmoShapes.Reset();
+	AmmoShown.Reset();
+	{
+		const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+		FString Id = Plant->GetName();
+		Id.RemoveFromStart(TEXT("DA_Pflanzenarm_"));
+		if (Settings->AmmoStalkPlants.Contains(FName(*Id)))
+		{
+			for (int32 Index = 0; Index < Settings->AmmoStalkCount; ++Index)
+			{
+				// Spread evenly along the arm with a little jitter, in order from the wrist up to the shoulder
+				const float Along = FMath::Clamp((Index + Random.FRandRange(0.1f, 0.9f)) / Settings->AmmoStalkCount, 0.0f, 1.0f);
+				AmmoShapes.Add(FVector4(Along, Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.65f, 1.25f), Random.FRandRange(-0.25f, 0.3f)));
+				AmmoShown.Add(0.0f);
+				AmmoStalks.Add(MakeStalk(ArmMeshes[(Index + Offset) % ArmMeshes.Num()], ArmMaterial));
+			}
+		}
 	}
 
 	// The Keimpelz pad on the forearm
@@ -769,6 +789,7 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		: FMath::Max(0.0f, Overgrowth - DeltaTime / Plant->OvergrowthFadeTime);
 
 	// The stalks first, so the barrel is where the water leaves
+	StalkDelta = DeltaTime;
 	UpdateStalks();
 	if (bShieldHand)
 	{
@@ -1018,6 +1039,7 @@ void UVaelPlantArmComponent::UpdateStalks()
 		Stalk->UpdateMesh();
 	}
 
+	UpdateAmmoStalks(Shoulder, Elbow, Wrist);
 	// The Keimpelz pad lies on top of the forearm, where the camera above sees it
 	const FVector Top = (FVector::UpVector - Axis * FVector::DotProduct(FVector::UpVector, Axis)).GetSafeNormal();
 	UpdatePad(Elbow, Wrist, Top.IsNearlyZero() ? U : Top);
@@ -1674,6 +1696,68 @@ void UVaelPlantArmComponent::UpdatePad(const FVector& Elbow, const FVector& Wris
 	KeimpelzPad->SetVisibility(Scale > 0.01f);
 }
 
+// ---------------------------------------------------------------- Ammunition stalks (Windhalm)
+
+void UVaelPlantArmComponent::UpdateAmmoStalks(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist)
+{
+	const int32 Count = AmmoStalks.Num();
+	if (Count == 0)
+	{
+		return;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	// As many stalks as the bar holds shots; the missing ones are those nearest the hand: firing strips the arm from the wrist
+	// up, the reload grows them back from the elbow down
+	const int32 Visible = Grow > 0.5f ? FMath::RoundToInt(GetBarFraction() * Count) : 0;
+	// The ammunition stalks are the whole overgrowth of the arm: the fixed wild stalks give way to them, and the stalks wound
+	// round the forearm go with the last shot, so an empty arm shows only the Keimpelz
+	for (USplineMeshComponent* Wild : WildStalks)
+	{
+		Wild->SetVisibility(false);
+	}
+	for (USplineMeshComponent* Wrap : WrapStalks)
+	{
+		Wrap->SetVisibility(Visible > 0);
+	}
+
+	const FVector LowerAxis = (Elbow - Wrist).GetSafeNormal();
+	const FVector UpperAxis = (Shoulder - Elbow).GetSafeNormal();
+	const float Radius = Plant->WrapRadius;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float Target = Index >= Count - Visible ? 1.0f : 0.0f;
+		// a fired stalk withers fast, a new one grows in a moment
+		AmmoShown[Index] = FMath::FInterpTo(AmmoShown[Index], Target, StalkDelta, Target > AmmoShown[Index] ? 5.0f : 16.0f);
+		USplineMeshComponent* Stalk = AmmoStalks[Index];
+		const float Shown = AmmoShown[Index];
+		Stalk->SetVisibility(Shown > 0.02f);
+		if (Shown <= 0.02f)
+		{
+			continue;
+		}
+
+		// Where on the arm: the forearm takes the first 45 %, the upper arm up to the shoulder the rest
+		const FVector4& Shape = AmmoShapes[Index];
+		const bool bUpper = Shape.X >= 0.45f;
+		const FVector Axis = bUpper ? UpperAxis : LowerAxis;
+		const FVector Place = bUpper ? FMath::Lerp(Elbow, Shoulder, (Shape.X - 0.45f) / 0.55f * 1.02f)
+			: FMath::Lerp(FMath::Lerp(Wrist, Elbow, 0.12f), Elbow, Shape.X / 0.45f);
+		const FVector U = Across(Axis);
+		const FVector V = FVector::CrossProduct(Axis, U);
+		const FVector Out = U * FMath::Cos(Shape.Y) + V * FMath::Sin(Shape.Y);
+		// They stand out and sweep back towards the shoulder like feathers, a little upwards
+		const FVector Direction = (Out * 0.8f + Axis * (0.55f + Shape.W) + FVector::UpVector * 0.15f).GetSafeNormal();
+		const float Length = Settings->AmmoStalkLength * Shape.Z * FMath::SmoothStep(0.0f, 1.0f, Shown);
+		const FVector Start = Place + Out * Radius * 0.85f;
+		Stalk->SetStartAndEnd(Start, Out * Length * 0.9f, Start + Direction * Length, Direction * Length * 1.1f, false);
+		Stalk->SetStartScale(FVector2D(0.32f * Plant->ArmThickness * (0.6f + 0.4f * Shown)), false);
+		Stalk->SetEndScale(FVector2D(0.2f * Plant->ArmThickness * (0.6f + 0.4f * Shown)), false);
+		Stalk->SetStartRoll(Shape.Y, false);
+		Stalk->SetEndRoll(Shape.Y + 0.8f, false);
+		Stalk->UpdateMesh();
+	}
+}
+
 // ---------------------------------------------------------------- Overgrowth
 
 void UVaelPlantArmComponent::UpdateOvergrowth(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist)
@@ -2089,7 +2173,8 @@ void UVaelPlantArmComponent::UpdateVineArm(float DeltaTime)
 	const float Beat = 1.0f + (bHolding ? 0.8f : 0.2f) * FMath::Square(FMath::Sin(Time * (bHolding ? 7.0f : 2.5f)));
 	HeartLight->SetRelativeLocation(Place + Outward * 12.0f);
 	HeartLight->SetLightColor(Glow);
-	HeartLight->SetIntensity(3.5f * Beat * RoseScale / FMath::Max(Plant->ShoulderRoseSize / 10.0f, 0.01f));
+	// Blutrose a little dimmer (Boris 2026-11-06): red light floods more than green
+	HeartLight->SetIntensity((bShadow ? 2.2f : 3.5f) * Beat * RoseScale / FMath::Max(Plant->ShoulderRoseSize / 10.0f, 0.01f));
 
 	// Beats run along the first holding vine: to the ally, or from the enemy back to her
 	const bool bShowPulses = Tether > 0.9f;
