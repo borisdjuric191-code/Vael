@@ -7,6 +7,9 @@
 #include "Components/BoxComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Components/SplineMeshComponent.h"
+#include "Engine/Texture.h"
+#include "Floromant/VaelPlantArmData.h"
 #include "Creatures/VaelCreature.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -840,7 +843,8 @@ AVaelVineWall::AVaelVineWall()
 	PrimaryActorTick.bCanEverTick = true;
 }
 
-AVaelVineWall* AVaelVineWall::Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float InLifetime, float Scale, APawn* InInstigator)
+AVaelVineWall* AVaelVineWall::Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float InLifetime, float Scale, APawn* InInstigator,
+	const UVaelPlantArmData* InBindweed, bool bInShadow)
 {
 	if (World == nullptr)
 	{
@@ -855,7 +859,10 @@ AVaelVineWall* AVaelVineWall::Raise(UWorld* World, const FVector& GroundLocation
 	{
 		Wall->GroundZ = GroundLocation.Z;
 		Wall->Lifetime = InLifetime;
+		Wall->Bindweed = InBindweed;
+		Wall->bShadowVines = bInShadow;
 		Wall->Build(Scale);
+		Wall->BuildBindweed();
 	}
 	return Wall;
 }
@@ -866,6 +873,9 @@ void AVaelVineWall::Build(float Scale)
 	const float Length = Settings->WallLength * Scale;
 	const float Height = Settings->WallHeight * Scale;
 	const float Thickness = Settings->WallThickness;
+	WallLength = Length;
+	WallHeight = Height;
+	WallThickness = Thickness;
 
 	// The wall stands across the yaw: along the right of the actor
 	Barrier->SetBoxExtent(FVector(Thickness * 0.5f, Length * 0.5f, Height * 0.5f));
@@ -921,6 +931,7 @@ void AVaelVineWall::Tick(float DeltaSeconds)
 	{
 		Material->SetScalarParameterValue(GrowHeightParameter, Wilt > 0.0f ? (1.0f - Wilt) * Height : Grow < 1.0f ? Grow * Height : FullyGrownHeight);
 	}
+	UpdateBindweed(Grow, Wilt);
 
 	// Holds once it has grown, lets go when it withers
 	if (Grow >= 1.0f && Wilt <= 0.0f && Barrier->GetCollisionEnabled() == ECollisionEnabled::NoCollision)
@@ -1142,4 +1153,156 @@ void AVaelThornWhip::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	Age += DeltaSeconds;
 	Rebuild();
+}
+
+// ---------------------------------------------------------------- Windenzaun: bindweed over the wall (Boris 2026-11-06)
+
+namespace
+{
+	constexpr int32 WallVines = 7;
+	constexpr int32 WallVinePieces = 12;
+	constexpr int32 WallVineTrumpets = 2;
+}
+
+void AVaelVineWall::BuildBindweed()
+{
+	if (Bindweed == nullptr || Roots == nullptr)
+	{
+		return;
+	}
+	// The roots rough with real bark, as on her legs and arms
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	if (Material != nullptr)
+	{
+		if (UTexture* Bark = VaelAssets::LoadOptional(Settings->RootBarkTexture))
+		{
+			Material->SetTextureParameterValue(TEXT("BaseColorMap"), Bark);
+			Material->SetScalarParameterValue(TEXT("TextureAmount"), 1.0f);
+			Material->SetVectorParameterValue(TEXT("Tint"), Settings->RootBarkTint * 1.8f);
+		}
+		if (UTexture* BarkNormal = VaelAssets::LoadOptional(Settings->RootBarkNormal))
+		{
+			Material->SetTextureParameterValue(TEXT("NormalMap"), BarkNormal);
+		}
+	}
+
+	VineMaterial = UMaterialInstanceDynamic::Create(VaelAssets::LoadOptional(Bindweed->Material), this);
+	if (VineMaterial != nullptr)
+	{
+		VineMaterial->SetScalarParameterValue(TEXT("Schatten"), bShadowVines ? 1.0f : 0.0f);
+		VineMaterial->SetScalarParameterValue(TEXT("Wuchs"), 1.0f);
+		VineMaterial->SetScalarParameterValue(TEXT("Wind"), 0.1f);
+	}
+	UStaticMesh* VineMesh = nullptr;
+	for (const TSoftObjectPtr<UStaticMesh>& Mesh : Bindweed->FingerMeshes)
+	{
+		VineMesh = VaelAssets::LoadOptional(Mesh) != nullptr ? VaelAssets::LoadOptional(Mesh) : VineMesh;
+	}
+	UStaticMesh* TrumpetMesh = VaelAssets::LoadOptional(Bindweed->LeafMesh);
+	if (VineMesh == nullptr)
+	{
+		return;
+	}
+	for (int32 Vine = 0; Vine < WallVines; ++Vine)
+	{
+		// Each vine runs over a stretch of the wall, at its own height, on the front or the back
+		const float From = FMath::FRandRange(-1.0f, 0.1f);
+		const float To = FMath::Clamp(From + FMath::FRandRange(0.7f, 1.4f), -0.3f, 1.0f);
+		VineShapes.Add(FVector4(From, To, FMath::FRandRange(0.25f, 0.85f), FMath::RandBool() ? 1.0f : -1.0f));
+		for (int32 Piece = 0; Piece < WallVinePieces; ++Piece)
+		{
+			USplineMeshComponent* Segment = NewObject<USplineMeshComponent>(this);
+			Segment->SetMobility(EComponentMobility::Movable);
+			Segment->SetStaticMesh(VineMesh);
+			Segment->SetMaterial(0, VineMaterial);
+			Segment->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Segment->SetForwardAxis(ESplineMeshAxis::Z, false);
+			Segment->SetupAttachment(Roots);
+			Segment->RegisterComponent();
+			Segment->SetVisibility(false);
+			Vines.Add(Segment);
+		}
+		for (int32 Index = 0; Index < WallVineTrumpets && TrumpetMesh != nullptr; ++Index)
+		{
+			UStaticMeshComponent* Trumpet = NewObject<UStaticMeshComponent>(this);
+			Trumpet->SetMobility(EComponentMobility::Movable);
+			Trumpet->SetStaticMesh(TrumpetMesh);
+			Trumpet->SetMaterial(0, VineMaterial);
+			Trumpet->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Trumpet->SetupAttachment(Roots);
+			Trumpet->RegisterComponent();
+			Trumpet->SetVisibility(false);
+			VineTrumpets.Add(Trumpet);
+		}
+	}
+}
+
+void AVaelVineWall::UpdateBindweed(float Grow, float Wilt)
+{
+	if (Vines.IsEmpty())
+	{
+		return;
+	}
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Shown = FMath::SmoothStep(0.3f, 1.0f, Grow) * (1.0f - Wilt);
+	const float Thickness = Bindweed->TendrilThickness * Bindweed->TendrilBulk * 0.55f;
+	for (int32 Vine = 0; Vine < VineShapes.Num(); ++Vine)
+	{
+		const FVector4& Shape = VineShapes[Vine];
+		const float Phase = Vine * 1.9f;
+		// A swell of sap runs along it again and again: it pulses
+		const float PulseAt = FMath::Frac(Time * 0.55f + Vine * 0.37f);
+		const auto PointAt = [&](float S)
+		{
+			const float Y = FMath::Lerp(Shape.X, Shape.Y, S) * WallLength * 0.5f;
+			// It slithers: a wave runs along it over the wall, up and down, in and out
+			const float Wave = FMath::Sin(S * 9.0f - Time * 2.4f + Phase);
+			const float Z = WallHeight * Shape.Z + WallHeight * 0.18f * Wave + 10.0f * FMath::Sin(S * 23.0f + Phase);
+			const float X = Shape.W * WallThickness * (0.42f + 0.12f * FMath::Sin(S * 13.0f - Time * 1.7f + Phase));
+			return FVector(X, Y, Z);
+		};
+		const float Grown = Shown;
+		for (int32 Piece = 0; Piece < WallVinePieces; ++Piece)
+		{
+			USplineMeshComponent* Segment = Vines[Vine * WallVinePieces + Piece];
+			Segment->SetVisibility(Grown > 0.02f);
+			if (Grown <= 0.02f)
+			{
+				continue;
+			}
+			const float A = Piece / static_cast<float>(WallVinePieces) * Grown;
+			const float B = (Piece + 1) / static_cast<float>(WallVinePieces) * Grown;
+			const FVector P0 = PointAt(A);
+			const FVector P1 = PointAt(B);
+			const float Span = FVector::Dist(P0, P1);
+			const auto Swell = [&](float S) { return 1.0f + 0.45f * FMath::Exp(-FMath::Square((S - PulseAt) / 0.07f)); };
+			Segment->SetStartAndEnd(P0, (PointAt(A + 0.01f) - PointAt(FMath::Max(A - 0.01f, 0.0f))).GetSafeNormal() * Span,
+				P1, (PointAt(B + 0.01f) - PointAt(B - 0.01f)).GetSafeNormal() * Span, false);
+			Segment->SetStartScale(FVector2D(Thickness * Swell(A)), false);
+			Segment->SetEndScale(FVector2D(Thickness * Swell(B)), false);
+			Segment->SetStartRoll(Piece * 1.3f + Vine, false);
+			Segment->SetEndRoll(Piece * 1.3f + Vine + 1.1f, false);
+			Segment->UpdateMesh();
+		}
+		for (int32 Index = 0; Index < WallVineTrumpets; ++Index)
+		{
+			const int32 Slot = Vine * WallVineTrumpets + Index;
+			if (!VineTrumpets.IsValidIndex(Slot))
+			{
+				continue;
+			}
+			const float S = (0.3f + 0.4f * Index) * Grown;
+			const FVector Here = PointAt(S);
+			const FVector Mouth = (FVector(Shape.W, 0.0f, 0.0f) + FVector(0.0f, 0.0f, 0.5f) + (PointAt(S + 0.02f) - Here).GetSafeNormal() * 0.4f).GetSafeNormal();
+			UStaticMeshComponent* Trumpet = VineTrumpets[Slot];
+			Trumpet->SetVisibility(Grown > 0.3f);
+			Trumpet->SetRelativeLocationAndRotation(Here, FRotationMatrix::MakeFromZ(Mouth).Rotator());
+			// The trumpets breathe with the pulse
+			Trumpet->SetRelativeScale3D(FVector(1.6f * Grown * (1.0f + 0.12f * FMath::Sin(Time * 3.0f + Slot))));
+		}
+	}
+	if (VineMaterial != nullptr)
+	{
+		VineMaterial->SetScalarParameterValue(TEXT("Aufleuchten"), 0.02f + 0.08f * FMath::Square(FMath::Sin(Time * 2.2f)));
+	}
 }

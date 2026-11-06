@@ -197,7 +197,8 @@ public:
 	AVaelVineWall();
 
 	/** Raises a wall on the ground, across the yaw, for the seconds; bigger for a giant plant */
-	static AVaelVineWall* Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float Lifetime, float Scale, APawn* InInstigator);
+	static AVaelVineWall* Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float Lifetime, float Scale, APawn* InInstigator,
+		const class UVaelPlantArmData* InBindweed = nullptr, bool bInShadow = false);
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -208,6 +209,30 @@ private:
 
 	void Build(float Scale);
 	void LetPlayersThrough();
+
+	/** The Windenzaun (two Schlotwinde crossed, Boris 2026-11-06): rough bark roots, and living bindweed with golden trumpets
+	 *  winding over them, slithering and pulsing */
+	void BuildBindweed();
+	void UpdateBindweed(float Grow, float Wilt);
+
+	UPROPERTY(Transient)
+	TObjectPtr<const class UVaelPlantArmData> Bindweed;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> VineMaterial;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<class USplineMeshComponent>> Vines;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> VineTrumpets;
+
+	/** Per vine: start and end along the wall (-1 to 1), height share, side */
+	TArray<FVector4> VineShapes;
+	bool bShadowVines = false;
+	float WallLength = 400.0f;
+	float WallHeight = 150.0f;
+	float WallThickness = 70.0f;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> Material;

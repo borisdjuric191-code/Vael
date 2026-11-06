@@ -1185,31 +1185,50 @@ void FVaelAnimProxy::ApplyWhipStroke(FCSPose<FCompactPose>& Pose, const FBoneCon
 	const float RightX = Side == 1 ? Outward : -Outward;
 	const float StartX = WhipStartSide[Side] * RightX;
 
-	// The way of the stroke: from high on the start side, through the front, down low on the other side; the same arc the
-	// tendrils follow in the hand
+	// The way of the stroke (Boris 2026-11-06: more swing): first the arm winds up far back over the shoulder of the start side,
+	// then it lashes through a wide bow down to low on the other side; the same timing as the tendrils in the hand
+	const float Wind = 0.32f;
 	const FVector Diagonal = FVector(StartX, 0.0f, 0.85f).GetSafeNormal();
-	const float Arc = FMath::DegreesToRadians(70.0f);
-	const auto Stroke = [&](float At)
+	const FVector BackHigh = FVector(StartX * 0.75f, -0.55f, 0.7f).GetSafeNormal();
+	const float Arc = FMath::DegreesToRadians(105.0f);
+	const auto StrokeAt = [&](float Share)
 	{
-		const float Angle = Arc * FMath::Cos(UE_PI * FMath::Pow(FMath::Clamp(At, 0.0f, 1.0f), 1.25f));
+		const float Angle = Arc * FMath::Cos(UE_PI * Share);
 		return (FVector(0.0f, 1.0f, 0.0f) * FMath::Cos(Angle) + Diagonal * FMath::Sin(Angle) - FVector(0.0f, 0.0f, 0.12f)).GetSafeNormal();
 	};
-
-	// The chest winds towards the start side and turns through with the blow, bending a little into it
-	const float Turn = 24.0f * StartX * FMath::Lerp(-1.0f, 1.0f, FMath::SmoothStep(0.0f, 1.0f, U)) * Weight;
-	const float Bend = -9.0f * FMath::Sin(UE_PI * U) * Weight;
-	for (const TCHAR* Spine : { TEXT("spine_02"), TEXT("spine_03"), TEXT("spine_04") })
+	const auto Stroke = [&](float At)
 	{
-		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(Turn / 3.0f)));
-		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(Bend / 3.0f)));
+		At = FMath::Clamp(At, 0.0f, 1.0f);
+		if (At < Wind)
+		{
+			return FMath::Lerp(StrokeAt(0.0f), BackHigh, FMath::SmoothStep(0.0f, 1.0f, At / Wind)).GetSafeNormal();
+		}
+		const float X = (At - Wind) / (1.0f - Wind);
+		return FMath::Lerp(BackHigh, StrokeAt(X * X * (3.0f - 2.0f * X)), FMath::SmoothStep(0.0f, 0.3f, X)).GetSafeNormal();
+	};
+	const float WoundUp = FMath::SmoothStep(0.0f, Wind, U);
+	const float Through = U > Wind ? FMath::SmoothStep(0.0f, 1.0f, (U - Wind) / (1.0f - Wind)) : 0.0f;
+
+	// The chest winds far back towards the start side, then turns through hard with the blow, bending into it (the hips stay,
+	// so rooted legs keep their place)
+	const float Turn = StartX * (-38.0f * WoundUp * (1.0f - Through) + 34.0f * Through) * Weight;
+	const float Bend = (4.0f * WoundUp * (1.0f - Through) - 14.0f * FMath::Sin(UE_PI * Through)) * Weight;
+	const float Tilt = StartX * (8.0f * WoundUp * (1.0f - Through) - 10.0f * Through) * Weight;
+	const TCHAR* SpineBones[] = { TEXT("spine_01"), TEXT("spine_02"), TEXT("spine_03"), TEXT("spine_04"), TEXT("spine_05") };
+	const float Shares[] = { 0.16f, 0.2f, 0.24f, 0.24f, 0.16f };
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(SpineBones); ++Index)
+	{
+		TurnPoseBone(Pose, Find(SpineBones[Index]), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(Turn * Shares[Index])));
+		TurnPoseBone(Pose, Find(SpineBones[Index]), FQuat(FVector::XAxisVector, FMath::DegreesToRadians(Bend * Shares[Index])));
+		TurnPoseBone(Pose, Find(SpineBones[Index]), FQuat(FVector::YAxisVector, FMath::DegreesToRadians(Tilt * Shares[Index])));
 	}
 
-	// The upper arm leads, the forearm and the hand trail a little behind, then snap through: the arm itself is the whip
-	AimPoseBone(Pose, Upper, Lower, Stroke(U + 0.06f), Weight);
-	AimPoseBone(Pose, Lower, Hand, Stroke(U - 0.04f), Weight);
+	// The upper arm leads, the forearm and the hand trail behind, then snap through: the arm itself is the whip
+	AimPoseBone(Pose, Upper, Lower, Stroke(U + 0.05f), Weight);
+	AimPoseBone(Pose, Lower, Hand, Stroke(U - 0.05f), Weight);
 	if (Middle != INDEX_NONE)
 	{
-		AimPoseBone(Pose, Hand, Middle, Stroke(U - 0.1f), Weight * 0.8f);
+		AimPoseBone(Pose, Hand, Middle, Stroke(U - 0.12f), Weight * 0.85f);
 	}
 }
 

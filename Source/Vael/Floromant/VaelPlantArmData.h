@@ -537,10 +537,10 @@ public:
 	/** The whip: a diagonal stroke, seconds it takes, how far it swings to each side (degrees), and the time a second tap
 	 *  strikes back the other way instead of starting over */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.1, EditCondition = "bLasso"))
-	float WhipSeconds = 0.34f;
+	float WhipSeconds = 0.46f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 10, ClampMax = 120, EditCondition = "bLasso"))
-	float WhipArcDegrees = 75.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 10, ClampMax = 160, EditCondition = "bLasso"))
+	float WhipArcDegrees = 110.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Lasso", meta = (ClampMin = 0.1, EditCondition = "bLasso"))
 	float WhipComboWindow = 1.1f;

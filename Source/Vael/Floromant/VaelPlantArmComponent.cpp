@@ -1491,7 +1491,8 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 	Aim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
 	const FVector Side = FVector::CrossProduct(FVector::UpVector, Aim).GetSafeNormal();
 
-	// The stroke: from high on one side down across to low on the other, fastest in the middle
+	// The stroke (Boris 2026-11-06: more swing): first it winds up far back over the shoulder, then it lashes through in a wide
+	// bow, fastest in the middle, and swishes past
 	const float Before = WhipTime;
 	if (WhipTime >= 0.0f)
 	{
@@ -1501,25 +1502,39 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 			WhipTime = -1.0f;
 		}
 	}
+	const float Wind = 0.32f;
+	const float HitAt = Wind + 0.45f * (1.0f - Wind);
 	// It hits as the tendrils pass the middle of the swing
-	if (!bWhipHit && (WhipTime >= 0.45f || (Before >= 0.0f && WhipTime < 0.0f)))
+	if (!bWhipHit && (WhipTime >= HitAt || (Before >= 0.0f && WhipTime < 0.0f)))
 	{
 		WhipHit();
 	}
-	const bool bPuff = Before >= 0.0f && Before < 0.5f && (WhipTime >= 0.5f || WhipTime < 0.0f);
-	const float Lash = WhipTime >= 0.0f ? FMath::Sin(WhipTime * UE_PI) : 0.0f;
+	const bool bPuff = Before >= 0.0f && Before < HitAt + 0.05f && (WhipTime >= HitAt + 0.05f || WhipTime < 0.0f);
+	const float StrikeShare = WhipTime >= Wind ? (WhipTime - Wind) / (1.0f - Wind) : 0.0f;
+	const float Lash = WhipTime < 0.0f ? 0.0f : WhipTime < Wind ? 0.35f * WhipTime / Wind : FMath::Max(0.35f * (1.0f - StrikeShare), FMath::Sin(UE_PI * StrikeShare));
 	// Right arm: first stroke from high right down to the left, second from high left down to the right; the left arm mirrored
 	const float StartSide = ((bLeft ? -1.0f : 1.0f) * (WhipCombo == 0 ? 1.0f : -1.0f));
 	const FVector StrikeAim = WhipTime >= 0.0f ? WhipAim : Aim;
 	const FVector StrikeSide = FVector::CrossProduct(FVector::UpVector, StrikeAim).GetSafeNormal();
 	const FVector Diagonal = (StrikeSide * StartSide + FVector::UpVector * 0.85f).GetSafeNormal();
+	const FVector BackHigh = (Diagonal * 0.8f - StrikeAim * 0.6f + FVector::UpVector * 0.3f).GetSafeNormal();
 	const float Arc = FMath::DegreesToRadians(Plant->WhipArcDegrees);
-	// The angle at share U of the stroke: the root leads, the tip trails behind like a whip
-	const auto StrokeDirection = [&](float U)
+	const auto StrokeAt = [&](float Share)
 	{
-		const float Eased = FMath::Clamp(U, 0.0f, 1.0f);
-		const float Angle = Arc * FMath::Cos(UE_PI * FMath::Pow(Eased, 1.25f));
+		const float Angle = Arc * FMath::Cos(UE_PI * Share);
 		return (StrikeAim * FMath::Cos(Angle) + Diagonal * FMath::Sin(Angle) - FVector::UpVector * 0.15f).GetSafeNormal();
+	};
+	// The way at time P of the stroke: wound back, then through the bow (smoothstep: slow out of the wind-up, fastest in the middle)
+	const auto StrokeDirection = [&](float P)
+	{
+		P = FMath::Clamp(P, 0.0f, 1.0f);
+		if (P < Wind)
+		{
+			return FMath::Lerp(StrokeAt(0.0f), BackHigh, FMath::SmoothStep(0.0f, 1.0f, P / Wind)).GetSafeNormal();
+		}
+		const float X = (P - Wind) / (1.0f - Wind);
+		const float Eased = X * X * (3.0f - 2.0f * X);
+		return FMath::Lerp(BackHigh, StrokeAt(Eased), FMath::SmoothStep(0.0f, 0.3f, X)).GetSafeNormal();
 	};
 
 	const float Bulk = Plant->TendrilBulk;
@@ -1551,7 +1566,7 @@ void UVaelPlantArmComponent::UpdateTendrils(float DeltaTime)
 				for (int32 Step = 1; Step <= Steps; ++Step)
 				{
 					const float Along = S * Step / Steps;
-					Lashed += StrokeDirection(WhipTime - Lag - 0.22f * Along) * Length * S / Steps;
+					Lashed += StrokeDirection(WhipTime - Lag - 0.3f * Along) * Length * S / Steps;
 				}
 				Point = FMath::Lerp(Point, Lashed, FMath::Min(1.0f, Lash * 2.2f));
 			}

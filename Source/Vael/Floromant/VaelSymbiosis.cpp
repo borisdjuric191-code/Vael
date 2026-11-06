@@ -1551,7 +1551,7 @@ namespace VaelSymbiosis
 			const FVector Ahead2 = Origin + Ahead.GetSafeNormal2D() * (bTower ? FMath::Min(Reach * 0.5f, 400.0f) : 250.0f);
 			const FVector Foot = VaelGround::TraceGround(World, Ahead2 + FVector(0.0f, 0.0f, 300.0f), Ahead2 - FVector(0.0f, 0.0f, 1500.0f), Ground, Instigator)
 				? Ground.ImpactPoint : Instigator->GetActorLocation() + Ahead.GetSafeNormal2D() * 250.0f;
-			AVaelVineWall::Raise(World, Foot, Ahead.GetSafeNormal2D().Rotation().Yaw, 6.0f, 1.0f + 0.4f * Charge, Instigator);
+			AVaelVineWall::Raise(World, Foot, Ahead.GetSafeNormal2D().Rotation().Yaw, 6.0f, 1.0f + 0.4f * Charge, Instigator, Vine, bShadow);
 			break;
 		}
 		case EVaelSymbiosis::Wirbelwinde:
