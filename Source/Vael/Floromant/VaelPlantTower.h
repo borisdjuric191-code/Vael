@@ -169,6 +169,23 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USplineMeshComponent>> Braid;
 
+	// --- Question-mark towers (Boris 2026-11-06): the plants that shoot single straight shots (Glutdistel, Taublatt, Windhalm)
+	// rise, curl over at the top like a "?" and hang their crown down in front, looking ahead; they shoot flat and straight like
+	// her arms
+
+	/** True for a plant listed in UVaelFloromantSettings::HookTowerPlants */
+	bool IsHookTower() const;
+
+	/** Top of the curl, where the column turns over into the hanging neck */
+	FVector GetHookApex() const;
+
+	/** The hanging neck of each column vine, from the top of the curl down into the crown */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> HookNeck;
+
+	/** Cached once in Build */
+	bool bHook = false;
+
 	/** Where the crown looks, eased towards the target */
 	FVector LookDirection = FVector::ForwardVector;
 	TWeakObjectPtr<AActor> Target;

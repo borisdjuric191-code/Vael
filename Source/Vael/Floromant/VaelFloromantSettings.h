@@ -554,6 +554,18 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
 	float TowerCallSizeScale = 1.35f;
 
+	/** Plants whose tower curls over like a question mark (Boris 2026-11-06): the column rises, turns over at the top and hangs
+	 *  its crown down in front at about half the height, looking ahead, and shoots flat and straight like the arms */
+	UPROPERTY(config, EditAnywhere, Category="Towers")
+	TArray<FName> HookTowerPlants = { TEXT("Glutdistel"), TEXT("Taublatt"), TEXT("Windhalm") };
+
+	/** Height of the hanging crown of a question-mark tower and how far in front of the foot, as parts of the tower height */
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0.2, ClampMax = 0.9))
+	float HookHeadHeight = 0.55f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0, ClampMax = 1))
+	float HookHeadReach = 0.38f;
+
 	/** Glass of the Glimmklee dome, M_Floromant_Glaskugel (made by Scripts/CreateFloromantKit.py) */
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis")
 	TSoftObjectPtr<UMaterialInterface> GlassMaterial;

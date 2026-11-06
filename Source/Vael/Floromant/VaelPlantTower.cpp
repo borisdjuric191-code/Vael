@@ -225,6 +225,16 @@ void AVaelPlantTower::Build()
 		Column.Add(MakeStalk(TowerFirstMesh({ &Plant->VineMeshes, &Plant->ArmMeshes, &Plant->FingerMeshes }, Index)));
 	}
 
+	// A question-mark tower: each vine goes on over the top of the curl as its hanging neck down into the crown
+	bHook = IsHookTower();
+	if (bHook)
+	{
+		for (const USplineMeshComponent* Vine : Column)
+		{
+			HookNeck.Add(MakeStalk(Vine->GetStaticMesh()));
+		}
+	}
+
 	// A Schlotwinde: its own vines that lash and catch, instead of a crown while it stands alone
 	if (Plant->bLasso)
 	{
@@ -360,8 +370,45 @@ FVector AVaelPlantTower::GetCrownAxis() const
 	return GetOwnCrownAxis();
 }
 
+bool AVaelPlantTower::IsHookTower() const
+{
+	if (Plant == nullptr)
+	{
+		return false;
+	}
+	FString Id = Plant->GetName();
+	Id.RemoveFromStart(TEXT("DA_Pflanzenarm_"));
+	return UVaelFloromantSettings::Get()->HookTowerPlants.Contains(FName(*Id));
+}
+
+namespace
+{
+	/** Flat direction a question-mark tower hangs its crown to */
+	FVector HookForward(const FVector& LookDirection)
+	{
+		const FVector Flat = LookDirection.GetSafeNormal2D();
+		return Flat.IsNearlyZero() ? FVector::ForwardVector : Flat;
+	}
+}
+
+FVector AVaelPlantTower::GetHookApex() const
+{
+	const float Length = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI)
+		* (1.0f + (UVaelFloromantSettings::Get()->TowerCallSizeScale - 1.0f) * Giant);
+	// The bend of the spring only sways the curl a little; the neck below swings further
+	return GetActorLocation() + HookForward(LookDirection) * Length * 0.05f + FVector::UpVector * Length + Bend * Length * 0.25f;
+}
+
 FVector AVaelPlantTower::GetOwnCrown() const
 {
+	if (bHook)
+	{
+		// The crown hangs down in front of the curl at about half the height
+		const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+		const float Length = Settings->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI) * (1.0f + (Settings->TowerCallSizeScale - 1.0f) * Giant);
+		return GetActorLocation() + HookForward(LookDirection) * Length * Settings->HookHeadReach + FVector::UpVector * Length * Settings->HookHeadHeight + Bend * Length * 0.4f;
+	}
+
 	// The column bends as a bow of constant curve: its length stays, the crown sinks and moves out the more it bends
 	const float Length = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI)
 		* (1.0f + (UVaelFloromantSettings::Get()->TowerCallSizeScale - 1.0f) * Giant);
@@ -376,6 +423,11 @@ FVector AVaelPlantTower::GetOwnCrown() const
 
 FVector AVaelPlantTower::GetOwnCrownAxis() const
 {
+	if (bHook)
+	{
+		// The hanging head looks ahead, a little down, where it shoots
+		return (HookForward(LookDirection) + Bend * 0.5f - FVector::UpVector * 0.2f).GetSafeNormal();
+	}
 	const float Angle = Bend.Size();
 	return Angle < KINDA_SMALL_NUMBER ? FVector::UpVector : (FVector::UpVector * FMath::Cos(Angle) + Bend / Angle * FMath::Sin(Angle));
 }
@@ -413,6 +465,11 @@ void AVaelPlantTower::UpdateBend(float DeltaSeconds)
 	{
 		// The shared trunk (bent by the leader) bows its blossom towards the target, less than a single neck
 		Lean = FMath::Lerp(0.06f, 0.45f, AimBlend);
+	}
+	else if (bHook)
+	{
+		// The hanging head only reaches out a little towards its target; the curl turns with the look
+		Lean = FMath::Lerp(0.0f, 0.25f, AimBlend);
 	}
 	else if (AimsLikeHydra())
 	{
@@ -860,7 +917,13 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 	{
 		VaelSymbiosis::MuzzlePuff(this, Plant, Muzzle, bShadow, 1.6f);
 	}
-	const FVector Spread = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Goal->GetActorLocation() - Muzzle);
+	FVector Toward = Goal->GetActorLocation() - Muzzle;
+	// A question-mark tower shoots flat and straight out of its hanging head like the arms, not down from above
+	if (bHook)
+	{
+		Toward.Z = 0.0f;
+	}
+	const FVector Spread = FRotator(0.0f, FMath::FRandRange(-Plant->ShotSpread, Plant->ShotSpread), 0.0f).RotateVector(Toward);
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	// A Mohnmörser throws its capsule to where the enemy stands
 	VaelSymbiosis::FireShot(Gardener, Plant, Muzzle, Spread.GetSafeNormal(), Power, bShadow, Settings->TowerShotScale, 1.0f, Spread.Size2D());
@@ -1014,6 +1077,24 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		FVector EndTangent = Axis * Height * 0.9f + Around1 * Height * 0.4f;
 		float EndScale = 1.8f;
 
+		// A question-mark tower: the column rises (bulging back a little), turns over forward at the top of the curl, and the
+		// neck hangs down from there into the crown
+		const bool bHookShape = bHook && HookNeck.IsValidIndex(Index);
+		FVector NeckEnd = End;
+		FVector NeckEndTangent = EndTangent;
+		if (bHookShape)
+		{
+			const FVector Forward = HookForward(LookDirection);
+			const FQuat ApexTilt = FQuat::FindBetweenNormals(FVector::UpVector, Forward);
+			const FVector ApexOut = ApexTilt.RotateVector(FVector(FMath::Cos(A1), FMath::Sin(A1), 0.0f));
+			End = GetHookApex() + ApexOut * 9.0f;
+			EndTangent = Forward * Height * 0.6f + ApexTilt.RotateVector(FVector(-FMath::Sin(A1), FMath::Cos(A1), 0.0f)) * Height * 0.25f;
+			StartTangent = FVector::UpVector * Height * 1.1f + Around0 * Height * 0.35f;
+			EndScale = 2.3f;
+			// The neck curls back in a little below, like the hook of a "?"
+			NeckEndTangent = (-FVector::UpVector - Forward * 0.35f + Bend * 0.6f).GetSafeNormal() * Height * 0.6f + Around1 * Height * 0.15f;
+		}
+
 		if (bFused)
 		{
 			const FVector Merge = TrunkVine(TrunkCenter, TrunkBend, TrunkLength, TrunkMerge, Phase, Index, Column.Num());
@@ -1032,6 +1113,25 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		Vine->SetStartRoll(A0, false);
 		Vine->SetEndRoll(A1 + 2.0f, false);
 		Vine->UpdateMesh();
+
+		if (bHookShape)
+		{
+			// Fused, the neck draws into the shared trunk and is gone once both columns have met
+			USplineMeshComponent* Neck = HookNeck[Index];
+			const float NeckShown = 1.0f - Gather;
+			Neck->SetVisibility(NeckShown > 0.02f);
+			if (NeckShown > 0.02f)
+			{
+				const FVector NeckTarget = FMath::Lerp(NeckEnd, End, Gather);
+				Neck->SetStartAndEnd(Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(EndTangent),
+					Transform.InverseTransformPosition(NeckTarget), Transform.InverseTransformVectorNoScale(NeckEndTangent * NeckShown), false);
+				Neck->SetStartScale(FVector2D(EndScale * FMath::Max(NeckShown, 0.2f)), false);
+				Neck->SetEndScale(FVector2D(1.7f * FMath::Max(NeckShown, 0.2f)), false);
+				Neck->SetStartRoll(A1 + 2.0f, false);
+				Neck->SetEndRoll(A1 + 3.5f, false);
+				Neck->UpdateMesh();
+			}
+		}
 
 		// Up the trunk, in pieces, as far as it has grown
 		for (int32 Piece = 0; Piece < TrunkPieces; ++Piece)
@@ -1070,8 +1170,10 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		const FVector Out = U * FMath::Cos(Angle) + V * FMath::Sin(Angle);
 		// Aiming, the stalks draw together into a bundle towards the target like the fingers of the hand; the one whose turn it
 		// is draws back while it charges and snaps forward with its shot
-		const float Fan = FMath::Lerp(0.65f, 0.1f, AimBlend);
-		const FVector Direction = (Axis * 0.75f + Out * Fan + Out * 0.06f * FMath::Sin(Time * 1.3f + Index)).GetSafeNormal();
+		const float Fan = FMath::Lerp(bHook ? 0.45f : 0.65f, 0.1f, AimBlend);
+		// The hanging head of a question-mark tower fans its stalks ahead and upwards, never into the ground
+		const FVector Lift = bHook ? FVector::UpVector * 0.35f * (1.0f - AimBlend) : FVector::ZeroVector;
+		const FVector Direction = (Axis * 0.75f + Out * Fan + Lift + Out * 0.06f * FMath::Sin(Time * 1.3f + Index)).GetSafeNormal();
 		const float Pull = StalkCharges.IsValidIndex(Index) ? StalkKicks[Index] * 0.2f - StalkCharges[Index] * 0.15f : 0.0f;
 		const float Length = Plant->FingerLength * 1.3f * Bloom * (1.0f + Pull);
 		const FVector End = Crown + Direction * Length;
