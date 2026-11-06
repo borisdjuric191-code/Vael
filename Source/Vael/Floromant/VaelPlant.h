@@ -198,7 +198,7 @@ public:
 
 	/** Raises a wall on the ground, across the yaw, for the seconds; bigger for a giant plant */
 	static AVaelVineWall* Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float Lifetime, float Scale, APawn* InInstigator,
-		const class UVaelPlantArmData* InBindweed = nullptr, bool bInShadow = false);
+		const class UVaelPlantArmData* InBindweed = nullptr, bool bInShadow = false, float InLengthScale = 0.0f);
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -207,6 +207,9 @@ public:
 
 	/** A Windenzaun entangles enemies that press against it (Boris 2026-11-06, Rankenbrücke): true for one caught in it now */
 	bool IsEntangled(const AActor* Actor) const;
+
+	/** Ties an enemy to the wall (the Rankenbrücke, Boris 2026-11-06): vines from the wall wrap it and hold it for the seconds */
+	void Bind(AActor* Enemy, float Seconds);
 
 	/** Lets it wither now (the towers it spans between are gone) */
 	void WitherNow();
@@ -242,6 +245,8 @@ private:
 	/** Per vine: start and end along the wall (-1 to 1), height share, side */
 	TArray<FVector4> VineShapes;
 	bool bShadowVines = false;
+	/** Length of the wall on its own (the Rankenbrücke spans between two towers without growing taller) */
+	float LengthScale = 0.0f;
 	float WallLength = 400.0f;
 	float WallHeight = 150.0f;
 	float WallThickness = 70.0f;

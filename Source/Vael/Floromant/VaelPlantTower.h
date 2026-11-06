@@ -217,6 +217,8 @@ private:
 	TArray<TWeakObjectPtr<AActor>> WindWhipTarget;
 	TArray<TWeakObjectPtr<class AVaelBindweedLasso>> WindLassos;
 	TArray<bool> WindHit;
+	/** Whether the enemy a vine pulled in has been tied to the Rankenbrücke yet */
+	TArray<bool> WindBound;
 
 	/** Rankenbrücke (two Schlotwinde towers, Boris 2026-11-06): the living fence spanned between them */
 	TWeakObjectPtr<class AVaelVineWall> Bridge;

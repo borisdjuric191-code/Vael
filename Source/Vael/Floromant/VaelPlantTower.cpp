@@ -167,7 +167,7 @@ AVaelPlantTower* AVaelPlantTower::PlantTower(AVaelCharacter* Gardener, UVaelPlan
 	// A tower close by of a plant it can pair with: they grow together, the closest one first
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
 	AVaelPlantTower* Closest = nullptr;
-	float Best = FMath::Square(Settings->SymbiosisRadius);
+	float Best = FMath::Square(1000.0f);
 	for (TActorIterator<AVaelPlantTower> It(World); It; ++It)
 	{
 		AVaelPlantTower* Other = *It;
@@ -176,7 +176,9 @@ AVaelPlantTower* AVaelPlantTower::PlantTower(AVaelCharacter* Gardener, UVaelPlan
 			continue;
 		}
 		const float Distance = FVector::DistSquared2D(Other->GetActorLocation(), GroundLocation);
-		if (Distance < Best)
+		// Two Schlotwinde span a Rankenbrücke between them from much further apart (Boris 2026-11-06: up to 10 m)
+		const bool bBridge = InPlant->bLasso && Other->Plant->bLasso;
+		if (Distance < (bBridge ? FMath::Square(1000.0f) : FMath::Square(Settings->SymbiosisRadius)) && Distance < Best)
 		{
 			Best = Distance;
 			Closest = Other;
@@ -621,10 +623,16 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 	{
 		const FVector A = GetActorLocation();
 		const FVector B = Other->GetActorLocation();
-		const FVector Way = (B - A).GetSafeNormal2D();
+		// Always to be seen: at least 2.6 m long, also when the towers stand right beside each other (then across her view)
 		const float Span = FVector::Dist2D(A, B);
-		const float WallScale = FMath::Max((Span - 40.0f) / FMath::Max(Settings->WallLength, 1.0f), 0.35f);
-		AVaelVineWall* Wall = AVaelVineWall::Raise(GetWorld(), (A + B) * 0.5f, Way.Rotation().Yaw - 90.0f, LifeLeft, WallScale, GetGardener(), Plant, bShadow);
+		FVector Way = (B - A).GetSafeNormal2D();
+		if (Span < 40.0f)
+		{
+			const AVaelCharacter* Gardener = GetGardener();
+			Way = Gardener != nullptr ? Gardener->GetActorRightVector().GetSafeNormal2D() : FVector::RightVector;
+		}
+		const float LengthScale = FMath::Max(Span + 60.0f, 260.0f) / FMath::Max(Settings->WallLength, 1.0f);
+		AVaelVineWall* Wall = AVaelVineWall::Raise(GetWorld(), (A + B) * 0.5f, Way.Rotation().Yaw - 90.0f, LifeLeft, 1.1f, GetGardener(), Plant, bShadow, LengthScale);
 		Bridge = Wall;
 		Other->Bridge = Wall;
 		if (AVaelCharacter* Gardener = GetGardener())
@@ -1218,6 +1226,7 @@ void AVaelPlantTower::BuildBindweedTower()
 	WindWhipTarget.SetNum(WindVines);
 	WindLassos.SetNum(WindVines);
 	WindHit.Init(true, WindVines);
+	WindBound.Init(true, WindVines);
 }
 
 void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
@@ -1374,6 +1383,7 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 				if (AVaelBindweedLasso* Lasso = AVaelBindweedLasso::Throw(Gardener, Plant, Base + FVector(0.0f, 0.0f, Length * 0.8f), Enemy, Spec, bShadow))
 				{
 					WindLassos[Best] = Lasso;
+					WindBound[Best] = false;
 					WindCooldown[Best] = 1.2f;
 					++Holding;
 					VaelSymbiosis::MuzzlePuff(this, Plant, Crown, bShadow, 1.2f);
@@ -1457,6 +1467,15 @@ void AVaelPlantTower::UpdateBindweedTower(float DeltaSeconds, bool bActs)
 			return FMath::Lerp(BackHigh, StrokeAt(X * X * (3.0f - 2.0f * X)), FMath::SmoothStep(0.0f, 0.3f, X)).GetSafeNormal();
 		};
 		const float Reach = FMath::Lerp(Length, WindWhipReach[Vine], FMath::Clamp(Lash, 0.0f, 1.0f));
+		// Pulled in against the Rankenbrücke: tied to it a while, so it fills with enemies for the vines to lash
+		if (AVaelBindweedLasso* Done = WindLassos[Vine].Get(); Done != nullptr && Done->IsDone() && !WindBound[Vine])
+		{
+			WindBound[Vine] = true;
+			if (AVaelVineWall* Fence = Bridge.Get())
+			{
+				Fence->Bind(Done->GetTarget(), 2.5f);
+			}
+		}
 		AVaelBindweedLasso* Lasso = WindLassos[Vine].Get();
 		const bool bThrowing = Lasso != nullptr && !Lasso->IsDone();
 

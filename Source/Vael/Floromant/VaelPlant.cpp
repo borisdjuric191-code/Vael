@@ -11,6 +11,7 @@
 #include "Components/SplineMeshComponent.h"
 #include "Engine/Texture.h"
 #include "Floromant/VaelPlantArmData.h"
+#include "Floromant/VaelBindweedLasso.h"
 #include "Creatures/VaelCreature.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -845,7 +846,7 @@ AVaelVineWall::AVaelVineWall()
 }
 
 AVaelVineWall* AVaelVineWall::Raise(UWorld* World, const FVector& GroundLocation, float Yaw, float InLifetime, float Scale, APawn* InInstigator,
-	const UVaelPlantArmData* InBindweed, bool bInShadow)
+	const UVaelPlantArmData* InBindweed, bool bInShadow, float InLengthScale)
 {
 	if (World == nullptr)
 	{
@@ -862,6 +863,7 @@ AVaelVineWall* AVaelVineWall::Raise(UWorld* World, const FVector& GroundLocation
 		Wall->Lifetime = InLifetime;
 		Wall->Bindweed = InBindweed;
 		Wall->bShadowVines = bInShadow;
+		Wall->LengthScale = InLengthScale;
 		Wall->Build(Scale);
 		Wall->BuildBindweed();
 	}
@@ -871,7 +873,7 @@ AVaelVineWall* AVaelVineWall::Raise(UWorld* World, const FVector& GroundLocation
 void AVaelVineWall::Build(float Scale)
 {
 	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
-	const float Length = Settings->WallLength * Scale;
+	const float Length = Settings->WallLength * (LengthScale > 0.0f ? LengthScale : Scale);
 	const float Height = Settings->WallHeight * Scale;
 	const float Thickness = Settings->WallThickness;
 	WallLength = Length;
@@ -894,7 +896,7 @@ void AVaelVineWall::Build(float Scale)
 	{
 		// The Windenzaun (Boris 2026-11-06: wild like the roots on her legs, no tidy fence): roots break out of the ground at random
 		// places, lean and cross each other diagonally, arch over, twist into knots and curl at their tips; some thick, some thin
-		const int32 NumWild = FMath::RoundToInt(NumRoots * 1.7f);
+		const int32 NumWild = FMath::RoundToInt(NumRoots * 1.7f * FMath::Max(1.0f, Length / (Settings->WallLength * 1.3f)));
 		for (int32 RootIndex = 0; RootIndex < NumWild; ++RootIndex)
 		{
 			const int32 Kind = FMath::RandRange(0, 9);
@@ -906,7 +908,7 @@ void AVaelVineWall::Build(float Scale)
 			if (Kind <= 3)
 			{
 				// A leaning arch that dives back into the ground far to the side, crossing the others
-				const float EndY = StartY + FMath::FRandRange(0.2f, 0.55f) * Length * (FMath::RandBool() ? 1.0f : -1.0f);
+				const float EndY = StartY + FMath::Min(FMath::FRandRange(0.2f, 0.55f) * Length, FMath::FRandRange(120.0f, 260.0f)) * (FMath::RandBool() ? 1.0f : -1.0f);
 				const float EndX = FMath::FRandRange(-0.5f, 0.5f) * Thickness;
 				const float Top = Height * FMath::FRandRange(0.35f, 1.0f);
 				const float Lean = FMath::FRandRange(-0.6f, 0.6f) * Thickness;
@@ -935,7 +937,7 @@ void AVaelVineWall::Build(float Scale)
 			else
 			{
 				// A low tangle crawling along the foot of the wall, half in the ground
-				const float EndY = StartY + FMath::FRandRange(0.3f, 0.7f) * Length * (FMath::RandBool() ? 1.0f : -1.0f);
+				const float EndY = StartY + FMath::Min(FMath::FRandRange(0.3f, 0.7f) * Length, FMath::FRandRange(150.0f, 300.0f)) * (FMath::RandBool() ? 1.0f : -1.0f);
 				VaelRoots::AddRoot(Vertices, Normals, UVs, Triangles, [&](float Along)
 				{
 					return FVector(StartX + FMath::Sin(Along * 7.0f + Seed) * Thickness * 0.35f,
@@ -1419,4 +1421,25 @@ void AVaelVineWall::EntangleEnemies(float DeltaSeconds)
 			UVaelCombatStatics::DealDamage(Holder, Enemy, Bindweed->StrangleDamagePerSecond * 0.25f, EVaelElement::Earth);
 		}
 	}
+}
+
+void AVaelVineWall::Bind(AActor* Enemy, float Seconds)
+{
+	APawn* Holder = GetInstigator();
+	if (Enemy == nullptr || Bindweed == nullptr || Holder == nullptr || !IsHolding())
+	{
+		return;
+	}
+	// From the place of the wall nearest the enemy, a vine shoots out, wraps it and holds it fast to the fence
+	const FTransform& Transform = GetActorTransform();
+	const FVector Local = Transform.InverseTransformPosition(Enemy->GetActorLocation());
+	const FVector Anchor = Transform.TransformPosition(FVector(FMath::Sign(Local.X) * WallThickness * 0.3f,
+		FMath::Clamp(Local.Y, -WallLength * 0.45f, WallLength * 0.45f), 0.0f));
+	FVaelLassoSpec Spec;
+	Spec.HoldSeconds = Seconds;
+	Spec.OnEnd = EVaelLassoEnd::Release;
+	Spec.DamagePerSecond = bShadowVines ? Bindweed->StrangleDamagePerSecond : 0.0f;
+	Spec.DamageGrowth = bShadowVines ? Bindweed->StrangleGrowth : 0.0f;
+	Spec.Color = bShadowVines ? Bindweed->StrangleColor : Bindweed->PollenColor;
+	AVaelBindweedLasso::Throw(Holder, Bindweed, Anchor, Enemy, Spec, bShadowVines);
 }
