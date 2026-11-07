@@ -6,6 +6,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Items/VaelInventory.h"
+#include "Engineer/VaelEngineerComponent.h"
 #include "Items/VaelItemSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
@@ -132,6 +133,13 @@ void AVaelItemDrop::Tick(float DeltaSeconds)
 	if (ItemOwner->IsDowned() || FVector::Dist2D(ItemOwner->GetActorLocation(), GetActorLocation()) > UVaelItemSettings::Get()->ItemPickupRadius)
 	{
 		bToldBackpackFull = false;
+		return;
+	}
+
+	// The engineer carries no gear he did not build: he takes it apart into materials (Lore-Bibel)
+	if (ItemOwner->IsEngineer() && UVaelEngineerComponent::Dismantle(ItemOwner, static_cast<int32>(Item.Rarity), Item.Stats.Num() * 5))
+	{
+		Destroy();
 		return;
 	}
 

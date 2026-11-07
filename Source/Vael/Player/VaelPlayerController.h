@@ -282,6 +282,36 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> RiseAction;
 
+	// --- Engineer (IMC_Ingenieur): fire, lay a device, turn shot, device and weapon, ignite the mines
+	UPROPERTY(Transient)
+	TObjectPtr<UInputMappingContext> EngineerMappingContext;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngFireAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngPlaceAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngAmmoNextAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngAmmoPrevAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngDeviceNextAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngDevicePrevAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngWeaponAction;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngIgniteAction;
+
+	bool bEngFireHeld = false;
+
 	/** Floromant: healing potion (d-pad down held, H) */
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> FloromantPotionAction;
@@ -491,6 +521,15 @@ protected:
 
 	/** Creates the actions of the Floromant and its own layout; part of CreateInputAssets */
 	void CreateFloromantInput();
+	void CreateEngineerInput();
+
+	void OnEngFire(bool bHeld);
+	void OnEngPlace();
+	void OnEngAmmo(int32 Step);
+	void OnEngDevice(int32 Step);
+	void OnEngWeapon();
+	void OnEngIgnite();
+	void UpdateEngineerFire();
 
 	/** Input handlers */
 	void OnMoveKeyboard(const FInputActionValue& Value);
@@ -551,7 +590,7 @@ protected:
 	void UpdateClassControls();
 
 	/** True while the controls of the Floromant are in place, false for those of the mage; unset before the first pawn */
-	TOptional<bool> bFloromantControls;
+	TOptional<uint8> ActiveClassControls;
 
 	/** Floromant input handlers */
 	void OnFireHand(bool bLeft, bool bHeld);

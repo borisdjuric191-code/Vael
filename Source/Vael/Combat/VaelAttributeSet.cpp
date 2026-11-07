@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Combat/VaelAttributeSet.h"
+#include "Engineer/VaelEngineerComponent.h"
 #include "Items/VaelPotionEffects.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Floromant/VaelGlimmDome.h"
@@ -100,6 +101,10 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 
 			// potions of the witch's kitchen: blood oil and frenzy heal the striker, the twilight brew throws damage back
 			AActor* Striker = Data.EffectSpec.GetContext().GetInstigator();
+			if (const AVaelCharacter* StrikerPlayer = Cast<AVaelCharacter>(Striker); StrikerPlayer != nullptr && StrikerPlayer->IsEngineer())
+			{
+				StrikerPlayer->GetEngineer()->OnDamageDealt(Damage);
+			}
 			if (UVaelPotionEffects* StrikerPotions = UVaelPotionEffects::Find(Cast<AVaelCharacter>(Striker)))
 			{
 				StrikerPotions->OnDamageDealt(Target, Damage);

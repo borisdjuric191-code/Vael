@@ -22,6 +22,7 @@
 #include "Engine/World.h"
 #include "Floromant/VaelFairyWingsComponent.h"
 #include "Floromant/VaelFloromantComponent.h"
+#include "Engineer/VaelEngineerComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Items/VaelInventory.h"
 #include "Items/VaelItemSettings.h"
@@ -158,6 +159,7 @@ AVaelCharacter::AVaelCharacter()
 
 	// Create the seeds and plants and the wings of the Floromant; both rest while the player plays a mage
 	Floromant = CreateDefaultSubobject<UVaelFloromantComponent>(TEXT("Floromant"));
+	Engineer = CreateDefaultSubobject<UVaelEngineerComponent>(TEXT("Engineer"));
 
 	Wings = CreateDefaultSubobject<UVaelFairyWingsComponent>(TEXT("Wings"));
 	Wings->SetupAttachment(RootComponent);
@@ -323,8 +325,10 @@ void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
 	bHeroSet = true;
 
 	ElementComponent->ClearQueue();
-	ElementOrbit->SetVisibility(!bFloromant, true);
-	FloatingGrimoire->SetAllowed(!bFloromant);
+	// The orbit of queued elements and the floating grimoire belong to the mage alone; the engineer has his tools instead
+	const bool bMage = InClass == EVaelHeroClass::Mage;
+	ElementOrbit->SetVisibility(bMage, true);
+	FloatingGrimoire->SetAllowed(bMage);
 	Wings->SetWingsShown(bFloromant);
 
 	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
@@ -333,7 +337,7 @@ void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
 	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), MaxMana);
 	SetManaRegen(bFloromant ? FloromantSettings->SaftPerSecond : MageManaRegen);
 
-	UE_LOG(LogVael, Log, TEXT("'%s' plays the %s"), *GetNameSafe(this), bFloromant ? TEXT("Floromant") : TEXT("mage"));
+	UE_LOG(LogVael, Log, TEXT("'%s' plays the %s"), *GetNameSafe(this), bFloromant ? TEXT("Floromant") : bMage ? TEXT("mage") : TEXT("engineer"));
 }
 
 void AVaelCharacter::BeginPlay()
@@ -496,7 +500,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 	// Channeling a spell holds the mage back
 	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
 	const float Burden = GetWorld()->GetTimeSeconds() < BurdenEndTime ? BurdenMultiplier : 1.0f;
-	const float Bracing = IsFloromant() ? Floromant->GetMoveSpeedScale() : 1.0f;
+	const float Bracing = IsFloromant() ? Floromant->GetMoveSpeedScale() : IsEngineer() ? Engineer->GetMoveSpeedScale() : 1.0f;
 	const UVaelPotionEffects* Potions = UVaelPotionEffects::Find(this);
 	const float PotionSpeed = Potions != nullptr ? Potions->GetSpeedMultiplier() : 1.0f;
 	GetCharacterMovement()->MaxWalkSpeed = bObserving || IsExhausted() ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing * PotionSpeed;
@@ -1190,6 +1194,11 @@ void AVaelCharacter::AddHeartShield(float Amount, float Seconds)
 
 float AVaelCharacter::AbsorbIncoming(float Damage)
 {
+	// The engineer's own armour takes its share first
+	if (IsEngineer())
+	{
+		Damage = Engineer->ScaleIncoming(Damage);
+	}
 	if (HeartShieldLeft <= 0.0f || GetWorld()->GetTimeSeconds() > HeartShieldEndTime)
 	{
 		HeartShieldLeft = 0.0f;

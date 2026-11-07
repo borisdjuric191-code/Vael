@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Save/VaelSaveSubsystem.h"
+#include "Engineer/VaelEngineerComponent.h"
 #include "World/VaelBalance.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Nature/VaelGarden.h"
@@ -240,6 +241,10 @@ void UVaelSaveSubsystem::CapturePlayer(const AVaelCharacter* Player, int32 Playe
 	{
 		Floromant->WriteSave(Saved);
 	}
+	if (const UVaelEngineerComponent* Engineer = Player->GetEngineer())
+	{
+		Engineer->WriteSave(Saved);
+	}
 }
 
 bool UVaelSaveSubsystem::RestorePlayer(AVaelCharacter* Player, int32 PlayerSlot) const
@@ -263,6 +268,10 @@ bool UVaelSaveSubsystem::RestorePlayer(AVaelCharacter* Player, int32 PlayerSlot)
 	if (UVaelFloromantComponent* Floromant = Player->GetFloromant())
 	{
 		Floromant->ReadSave(*Saved);
+	}
+	if (UVaelEngineerComponent* Engineer = Player->GetEngineer())
+	{
+		Engineer->ReadSave(*Saved);
 	}
 
 	UE_LOG(LogVael, Log, TEXT("Player slot %d gets back what was saved"), PlayerSlot);

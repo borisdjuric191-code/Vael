@@ -61,6 +61,12 @@ public:
 	UFUNCTION(Exec)
 	void VaelTrankTest(const FString& What = TEXT(""));
 
+	/** The engineer: "material" fills the bag with what his pieces cost, "bauen <Id>" builds one (as at the workbench), "alles" both
+	 *  for everything, "test" turns the player into the engineer and tries stone, special shot, trap, mine and turret on dummies,
+	 *  "beute" drops a piece of gear for him to take apart. Example: VaelIngenieur test */
+	UFUNCTION(Exec)
+	void VaelIngenieur(const FString& What = TEXT(""), const FString& Id = TEXT(""));
+
 	/** Opens the inventory page and turns to the material bag (potions, crystals, ingredients) */
 	UFUNCTION(Exec)
 	void VaelInventar();

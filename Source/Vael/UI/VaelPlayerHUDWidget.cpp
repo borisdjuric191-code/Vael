@@ -3,6 +3,8 @@
 #include "UI/VaelPlayerHUDWidget.h"
 #include "Misc/App.h"
 #include "Floromant/VaelSymbiosis.h"
+#include "Engineer/VaelEngineerComponent.h"
+#include "Engineer/VaelEngineerGear.h"
 #include "Engine/Font.h"
 #include "Engine/FontFace.h"
 #include "Engine/Texture2D.h"
@@ -295,7 +297,7 @@ UVaelHUDClassData* UVaelPlayerHUDWidget::FindClassData(const AVaelCharacter* Cha
 	FString Name = PreviewClass;
 	if (Name.IsEmpty())
 	{
-		Name = Character != nullptr && Character->IsFloromant() ? TEXT("Floromant") : TEXT("Magier");
+		Name = Character != nullptr && Character->IsFloromant() ? TEXT("Floromant") : Character != nullptr && Character->IsEngineer() ? TEXT("Ingenieur") : TEXT("Magier");
 	}
 
 	const FString DataPath = FString::Printf(TEXT("%s/DA_HUDKlasse_%s.DA_HUDKlasse_%s"), *UVaelUISettings::Get()->HUDClassFolder, *Name, *Name);
@@ -436,7 +438,17 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 	float ClassFill = Character->GetMana() / FMath::Max(Character->GetMaxMana(), 1.0f);
 	float ClassFillTop = 0.0f;
 	ResourceText = FText::AsNumber(FMath::FloorToInt(Character->GetMana()));
-	if (ShownData->Resource != EVaelHUDResource::Mana)
+	const UVaelEngineerComponent* VesselEngineer = Character->IsEngineer() ? Character->GetEngineer() : nullptr;
+	if (ShownData->Resource == EVaelHUDResource::Ammo && VesselEngineer != nullptr && PreviewClass.IsEmpty())
+	{
+		// The pouch: how many special shots of the kind in the weapon are left (endless stones fill it), above it the reload
+		const FName Shot = VesselEngineer->GetAmmo();
+		const bool bStandard = Shot == VaelEngineerGear::Standard;
+		ClassFill = bStandard ? 1.0f : VesselEngineer->GetCarried(Shot) / 30.0f;
+		ClassFillTop = 1.0f - VesselEngineer->GetReloadLeft() / FMath::Max(VesselEngineer->GetInterval(), 0.01f);
+		ResourceText = bStandard ? FText::FromString(TEXT("\u221E")) : FText::AsNumber(VesselEngineer->GetCarried(Shot));
+	}
+	else if (ShownData->Resource != EVaelHUDResource::Mana)
 	{
 		ClassFill = 0.55f + 0.35f * FMath::Sin(Time * 0.4f + PlayerSlot);
 		ClassFillTop = 0.5f + 0.4f * FMath::Sin(Time * 0.3f + 1.7f);
@@ -704,6 +716,51 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 		case EVaelHUDAbility::Root:
 			State.bLit = Floromant != nullptr && Floromant->IsRooted();
 			break;
+		case EVaelHUDAbility::EngFire:
+		case EVaelHUDAbility::EngPlace:
+		case EVaelHUDAbility::EngIgnite:
+		case EVaelHUDAbility::EngAmmo:
+		case EVaelHUDAbility::EngWeapon:
+		case EVaelHUDAbility::EngDevice:
+		{
+			const UVaelEngineerComponent* Eng = Character->IsEngineer() ? Character->GetEngineer() : nullptr;
+			if (Eng == nullptr || !bPlayable)
+			{
+				break;
+			}
+			const FVaelGear* Weapon = Eng->GetWeapon();
+			const FVaelGear* Device = Eng->GetDevice().IsNone() ? nullptr : VaelEngineerGear::Find(Eng->GetDevice());
+			switch (Ability.Ability)
+			{
+			case EVaelHUDAbility::EngFire:
+				// The weapon in hand, its shot in colour, the wipe while it reloads
+				State.Name = Weapon != nullptr ? Weapon->Name : State.Name;
+				State.IconColor = State.Painting != nullptr ? FLinearColor::White : Eng->GetAmmoColor();
+				State.CooldownLeft = Eng->GetReloadLeft();
+				Total = Eng->GetInterval();
+				State.bNoSeconds = true;
+				break;
+			case EVaelHUDAbility::EngPlace:
+			case EVaelHUDAbility::EngDevice:
+				State.Name = Device != nullptr ? FText::Format(NSLOCTEXT("VaelPlayerHUD", "EngDeviceSlot", "{0} \u00D7{1}"), Device->Name, Eng->GetCarried(Device->Id)) : State.Name;
+				State.IconColor = State.Painting != nullptr ? FLinearColor::White : Device != nullptr ? Device->Color : TextColor;
+				State.bDim = Device == nullptr || Eng->GetCarried(Device->Id) <= 0;
+				break;
+			case EVaelHUDAbility::EngIgnite:
+				State.bDim = Eng->GetNumPlaced() <= 0;
+				State.bLit = Eng->GetNumPlaced() > 0;
+				break;
+			case EVaelHUDAbility::EngAmmo:
+				State.Name = Eng->GetAmmoName();
+				State.IconColor = State.Painting != nullptr ? FLinearColor::White : Eng->GetAmmoColor();
+				State.bLit = Eng->GetAmmo() != VaelEngineerGear::Standard;
+				break;
+			default:
+				State.Name = Weapon != nullptr ? Weapon->Name : State.Name;
+				break;
+			}
+			break;
+		}
 		case EVaelHUDAbility::Placeholder:
 			break;
 		default:

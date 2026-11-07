@@ -54,7 +54,15 @@ enum class EVaelHUDAbility : uint8
 	/** Floromant (2026-11-04): taking root, crossing the hands, the towers on L2 / R2 */
 	Root,
 	Cross,
-	Towers
+	Towers,
+
+	/** Engineer (2026-11-08): fire, lay a device, ignite the mines, the shot, the weapon, the device */
+	EngFire,
+	EngPlace,
+	EngIgnite,
+	EngAmmo,
+	EngWeapon,
+	EngDevice
 };
 
 /** What the small strip above the abilities shows */
@@ -79,7 +87,9 @@ enum class EVaelHUDResource : uint8
 	/** A slowly moving test filling, for classes that can't be played yet */
 	Preview,
 	/** Two test fillings, upper and lower chamber, like the prophet's Verehrung and Furcht */
-	PreviewTwo
+	PreviewTwo,
+	/** The engineer: the special shots in his pouch, the upper chamber how ready the weapon is */
+	Ammo
 };
 
 /** One slot of the ability bar */

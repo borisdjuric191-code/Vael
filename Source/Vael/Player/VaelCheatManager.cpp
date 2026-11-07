@@ -25,6 +25,8 @@
 #include "EngineUtils.h"
 #include "GameFramework/PlayerController.h"
 #include "Items/VaelInventory.h"
+#include "Engineer/VaelEngineerComponent.h"
+#include "Engineer/VaelEngineerGear.h"
 #include "Items/VaelItemData.h"
 #include "Items/VaelItemDrop.h"
 #include "Items/VaelItemSettings.h"
@@ -1723,6 +1725,174 @@ void UVaelCheatManager::VaelTrankTest(const FString& What)
 				UVaelCombatStatics::HasStatus(Target, EVaelStatus::Confused), UVaelCombatStatics::HasStatus(Target, EVaelStatus::Marked));
 		}
 	}, 4.0f, false);
+}
+
+void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	UVaelEngineerComponent* Engineer = Player != nullptr ? Player->GetEngineer() : nullptr;
+	if (Engineer == nullptr)
+	{
+		return;
+	}
+	const auto FillMaterials = [Player]()
+	{
+		for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+		{
+			for (const FVaelGearCost& Cost : Gear.Costs)
+			{
+				if (const UVaelMaterial* Material = VaelEngineerGear::LoadMaterial(Cost.Material))
+				{
+					if (Player->GetMaterialBag()->GetCount(Material) < 20)
+					{
+						Player->GetMaterialBag()->AddMaterial(Material, 20);
+					}
+				}
+				else
+				{
+					UE_LOG(LogVael, Warning, TEXT("VaelIngenieur: material %s is missing"), *Cost.Material.ToString());
+				}
+			}
+		}
+	};
+
+	if (What == TEXT("material"))
+	{
+		FillMaterials();
+		return;
+	}
+	if (What == TEXT("bauen"))
+	{
+		const bool bBuilt = Engineer->Build(FName(*Id), true);
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: build %s -> %d"), *Id, bBuilt);
+		return;
+	}
+	if (What == TEXT("alles"))
+	{
+		FillMaterials();
+		int32 Count = 0;
+		for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+		{
+			Count += Engineer->Build(Gear.Id, true) ? 1 : 0;
+		}
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: built %d pieces, armour %.0f, max health %.0f"), Count, Engineer->GetArmorTotal(), Player->GetMaxHealth());
+		return;
+	}
+	if (What == TEXT("beute"))
+	{
+		VaelEngineerGear::LoadMaterial(TEXT("Schlacke"));
+		const bool bTaken = UVaelEngineerComponent::Dismantle(Player, 2, 10);
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: found gear taken apart -> %d"), bTaken);
+		return;
+	}
+	if (What != TEXT("test"))
+	{
+		return;
+	}
+
+	// The whole round: the engineer with everything built, three dummies in a row ahead
+	FVaelHeroChoice Choice;
+	Choice.Class = EVaelHeroClass::Engineer;
+	Player->SetHero(Choice.Class, false);
+	FillMaterials();
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		Engineer->Build(Gear.Id, true);
+	}
+	const FVector Forward = Player->GetActorForwardVector();
+	const FVector Right = FVector::CrossProduct(FVector::UpVector, Forward);
+	FActorSpawnParameters Parameters;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	TArray<TWeakObjectPtr<AVaelCharacterBase>> Dummies;
+	for (int32 Index = 0; Index < 3; ++Index)
+	{
+		const FVector Spot = Player->GetActorLocation() + Forward * 600.0f + Right * (Index - 1) * 450.0f;
+		Dummies.Add(GetWorld()->SpawnActor<AVaelTrainingDummy>(AVaelTrainingDummy::StaticClass(), Spot, FRotator::ZeroRotator, Parameters));
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelIngenieur: weapon %s, armour %.0f, max health %.0f"), *Engineer->GetWeapon()->Id.ToString(), Engineer->GetArmorTotal(), Player->GetMaxHealth());
+
+	// The sling with a stone at the middle dummy, the trap under the left one, a mine by the right one set off with a fire shot
+	TWeakObjectPtr<UVaelEngineerComponent> WeakEngineer = Engineer;
+	while (Engineer->GetWeapon()->Id != VaelEngineerGear::Sling)
+	{
+		Engineer->CycleWeapon();
+	}
+	TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle, [WeakEngineer, WeakPlayer, Dummies]()
+	{
+		UVaelEngineerComponent* Eng = WeakEngineer.Get();
+		if (Eng == nullptr || Dummies.Num() < 3 || !Dummies[0].IsValid() || !Dummies[1].IsValid() || !Dummies[2].IsValid())
+		{
+			return;
+		}
+		Eng->Fire(Dummies[1]->GetActorLocation());
+		while (Eng->GetDevice() != FName(TEXT("Fangeisen")))
+		{
+			Eng->CycleDevice(1);
+		}
+		Eng->PlaceDevice(Dummies[0]->GetActorLocation());
+		while (Eng->GetDevice() != FName(TEXT("Knallmine")))
+		{
+			Eng->CycleDevice(1);
+		}
+		Eng->PlaceDevice(Dummies[2]->GetActorLocation() - (Dummies[2]->GetActorLocation() - WeakPlayer->GetActorLocation()).GetSafeNormal2D() * 120.0f);
+		while (Eng->GetDevice() != FName(TEXT("Schleuderturm")))
+		{
+			Eng->CycleDevice(1);
+		}
+		Eng->PlaceDevice(WeakPlayer->GetActorLocation() + WeakPlayer->GetActorForwardVector() * 200.0f);
+	}, 1.0f, false);
+
+	FTimerHandle Second;
+	GetWorld()->GetTimerManager().SetTimer(Second, [WeakEngineer, WeakPlayer, Dummies]()
+	{
+		UVaelEngineerComponent* Eng = WeakEngineer.Get();
+		if (Eng == nullptr || !Dummies[2].IsValid())
+		{
+			return;
+		}
+		// A fire shot into the mine by the right dummy
+		while (Eng->GetAmmo() != FName(TEXT("Brand")))
+		{
+			Eng->CycleAmmo(1);
+		}
+		Eng->Fire(Dummies[2]->GetActorLocation() - (Dummies[2]->GetActorLocation() - WeakPlayer->GetActorLocation()).GetSafeNormal2D() * 120.0f);
+		while (Eng->GetWeapon()->Id != VaelEngineerGear::Bow)
+		{
+			Eng->CycleWeapon();
+		}
+	}, 2.0f, false);
+
+	FTimerHandle Third;
+	GetWorld()->GetTimerManager().SetTimer(Third, [WeakEngineer, Dummies]()
+	{
+		UVaelEngineerComponent* Eng = WeakEngineer.Get();
+		if (Eng == nullptr || !Dummies[1].IsValid())
+		{
+			return;
+		}
+		// The bow (taken up a moment before) with a poison arrow at the middle one
+		while (Eng->GetAmmo() != FName(TEXT("Gift")))
+		{
+			Eng->CycleAmmo(1);
+		}
+		Eng->Fire(Dummies[1]->GetActorLocation());
+	}, 3.2f, false);
+
+	FTimerHandle Report;
+	GetWorld()->GetTimerManager().SetTimer(Report, [Dummies]()
+	{
+		for (int32 Index = 0; Index < Dummies.Num(); ++Index)
+		{
+			if (const AVaelCharacterBase* Dummy = Dummies[Index].Get())
+			{
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur: dummy %d health %.0f, frozen %d, burning %d, confused %d"), Index, Dummy->GetHealth(),
+					UVaelCombatStatics::HasStatus(Dummy, EVaelStatus::Frozen), UVaelCombatStatics::HasStatus(Dummy, EVaelStatus::Burning), UVaelCombatStatics::HasStatus(Dummy, EVaelStatus::Confused));
+			}
+		}
+	}, 6.0f, false);
 }
 
 void UVaelCheatManager::VaelMenuOk()

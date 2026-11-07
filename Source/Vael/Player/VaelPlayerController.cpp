@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelPlayerController.h"
+#include "Engineer/VaelEngineerComponent.h"
 #include "Items/VaelBrewing.h"
 #include "Nature/VaelGarden.h"
 #include "World/VaelRefugiumClutch.h"
@@ -118,7 +119,7 @@ void AVaelPlayerController::SetupInputComponent()
 		if (UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer()))
 		{
 			Subsystem->AddMappingContext(MappingContext, 0);
-			bFloromantControls.Reset();
+			ActiveClassControls.Reset();
 			UpdateClassControls();
 		}
 
@@ -200,6 +201,17 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(ReloadAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnReload);
 			EnhancedInputComponent->BindAction(RootAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnRoot);
 			EnhancedInputComponent->BindAction(HerbariumAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnHerbarium);
+			// Engineer
+			EnhancedInputComponent->BindAction(EngFireAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngFire, true);
+			EnhancedInputComponent->BindAction(EngFireAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnEngFire, false);
+			EnhancedInputComponent->BindAction(EngFireAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnEngFire, false);
+			EnhancedInputComponent->BindAction(EngPlaceAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngPlace);
+			EnhancedInputComponent->BindAction(EngAmmoNextAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngAmmo, 1);
+			EnhancedInputComponent->BindAction(EngAmmoPrevAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngAmmo, -1);
+			EnhancedInputComponent->BindAction(EngDeviceNextAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngDevice, 1);
+			EnhancedInputComponent->BindAction(EngDevicePrevAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngDevice, -1);
+			EnhancedInputComponent->BindAction(EngWeaponAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngWeapon);
+			EnhancedInputComponent->BindAction(EngIgniteAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngIgnite);
 			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnRise, true);
 			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnRise, false);
 		}
@@ -356,6 +368,7 @@ void AVaelPlayerController::CreateInputAssets()
 	MageMappingContext->MapKey(SpyglassAction, EKeys::F);
 
 	CreateFloromantInput();
+	CreateEngineerInput();
 
 	// Menu controls, only active while the grimoire is open
 	MenuMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_VaelMenu"));
@@ -569,6 +582,122 @@ void AVaelPlayerController::CreateFloromantInput()
 	Context->MapKey(InteractAction, EKeys::G);
 }
 
+void AVaelPlayerController::CreateEngineerInput()
+{
+	const auto CreateAction = [this](const TCHAR* Name)
+	{
+		UInputAction* Action = NewObject<UInputAction>(this, Name);
+		Action->ValueType = EInputActionValueType::Boolean;
+		return Action;
+	};
+	EngineerMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Ingenieur"));
+	UInputMappingContext* Context = EngineerMappingContext;
+
+	// Fire while held: R2 / left mouse; lay the picked device where he aims: L2 / right mouse
+	EngFireAction = CreateAction(TEXT("IA_Ing_Feuern"));
+	Context->MapKey(EngFireAction, EKeys::Gamepad_RightTrigger);
+	Context->MapKey(EngFireAction, EKeys::LeftMouseButton);
+	EngPlaceAction = CreateAction(TEXT("IA_Ing_Legen"));
+	Context->MapKey(EngPlaceAction, EKeys::Gamepad_LeftTrigger);
+	Context->MapKey(EngPlaceAction, EKeys::RightMouseButton);
+
+	// The shot: R1 and the mouse wheel
+	EngAmmoNextAction = CreateAction(TEXT("IA_Ing_LadungVor"));
+	Context->MapKey(EngAmmoNextAction, EKeys::Gamepad_RightShoulder);
+	Context->MapKey(EngAmmoNextAction, EKeys::MouseScrollUp);
+	EngAmmoPrevAction = CreateAction(TEXT("IA_Ing_LadungZurueck"));
+	Context->MapKey(EngAmmoPrevAction, EKeys::MouseScrollDown);
+
+	// The device: d-pad left / right, Z / C; the weapon: d-pad up, R; ignite every mine: Square, X
+	EngDeviceNextAction = CreateAction(TEXT("IA_Ing_GeraetVor"));
+	Context->MapKey(EngDeviceNextAction, EKeys::Gamepad_DPad_Right);
+	Context->MapKey(EngDeviceNextAction, EKeys::C);
+	EngDevicePrevAction = CreateAction(TEXT("IA_Ing_GeraetZurueck"));
+	Context->MapKey(EngDevicePrevAction, EKeys::Gamepad_DPad_Left);
+	Context->MapKey(EngDevicePrevAction, EKeys::Z);
+	EngWeaponAction = CreateAction(TEXT("IA_Ing_Waffe"));
+	Context->MapKey(EngWeaponAction, EKeys::Gamepad_DPad_Up);
+	Context->MapKey(EngWeaponAction, EKeys::R);
+	EngIgniteAction = CreateAction(TEXT("IA_Ing_Zuenden"));
+	Context->MapKey(EngIgniteAction, EKeys::Gamepad_FaceButton_Left);
+	Context->MapKey(EngIgniteAction, EKeys::X);
+
+	// Shared ones on his layout: dodge on Circle and Space, use on Cross and E, the potion belt on L1 and Q, the menu, the spyglass
+	Context->MapKey(DodgeAction, EKeys::Gamepad_FaceButton_Right);
+	Context->MapKey(DodgeAction, EKeys::SpaceBar);
+	Context->MapKey(InteractAction, EKeys::Gamepad_FaceButton_Bottom);
+	Context->MapKey(InteractAction, EKeys::E);
+	Context->MapKey(PotionAction, EKeys::Gamepad_LeftShoulder);
+	Context->MapKey(PotionAction, EKeys::Q);
+	Context->MapKey(GrimoireAction, EKeys::Gamepad_Special_Right);
+	Context->MapKey(GrimoireAction, EKeys::Tab);
+	Context->MapKey(SpyglassAction, EKeys::Gamepad_LeftThumbstick);
+	Context->MapKey(SpyglassAction, EKeys::F);
+}
+
+void AVaelPlayerController::OnEngFire(bool bHeld)
+{
+	bEngFireHeld = bHeld;
+	if (bHeld)
+	{
+		UpdateEngineerFire();
+	}
+}
+
+void AVaelPlayerController::UpdateEngineerFire()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (!bEngFireHeld || VaelCharacter == nullptr || !VaelCharacter->IsEngineer() || VaelCharacter->IsDodging() || VaelCharacter->IsDowned()
+		|| bGrimoireOpen || UGameplayStatics::IsGamePaused(this))
+	{
+		return;
+	}
+	UpdateFacing();
+	VaelCharacter->GetEngineer()->Fire(GetFloromantAim());
+}
+
+void AVaelPlayerController::OnEngPlace()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter != nullptr && VaelCharacter->IsEngineer() && !VaelCharacter->IsDowned())
+	{
+		UpdateFacing();
+		VaelCharacter->GetEngineer()->PlaceDevice(GetFloromantAim());
+	}
+}
+
+void AVaelPlayerController::OnEngAmmo(int32 Step)
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>(); VaelCharacter != nullptr && VaelCharacter->IsEngineer())
+	{
+		VaelCharacter->GetEngineer()->CycleAmmo(Step);
+	}
+}
+
+void AVaelPlayerController::OnEngDevice(int32 Step)
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>(); VaelCharacter != nullptr && VaelCharacter->IsEngineer())
+	{
+		VaelCharacter->GetEngineer()->CycleDevice(Step);
+	}
+}
+
+void AVaelPlayerController::OnEngWeapon()
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>(); VaelCharacter != nullptr && VaelCharacter->IsEngineer())
+	{
+		VaelCharacter->GetEngineer()->CycleWeapon();
+	}
+}
+
+void AVaelPlayerController::OnEngIgnite()
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>(); VaelCharacter != nullptr && VaelCharacter->IsEngineer())
+	{
+		VaelCharacter->GetEngineer()->IgniteAll();
+	}
+}
+
 void AVaelPlayerController::UpdateClassControls()
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
@@ -578,15 +707,24 @@ void AVaelPlayerController::UpdateClassControls()
 		return;
 	}
 
-	const bool bFloromant = VaelCharacter->IsFloromant();
-	if (bFloromantControls.IsSet() && bFloromantControls.GetValue() == bFloromant)
+	const uint8 ClassIndex = static_cast<uint8>(VaelCharacter->GetHeroClass());
+	if (ActiveClassControls.IsSet() && ActiveClassControls.GetValue() == ClassIndex)
 	{
 		return;
 	}
-	bFloromantControls = bFloromant;
+	ActiveClassControls = ClassIndex;
 
-	Subsystem->RemoveMappingContext(bFloromant ? MageMappingContext : FloromantMappingContext);
-	Subsystem->AddMappingContext(bFloromant ? FloromantMappingContext : MageMappingContext, 0);
+	// One layout per class: the mage, the Floromant, the engineer
+	UInputMappingContext* Wanted = VaelCharacter->IsFloromant() ? FloromantMappingContext.Get() : VaelCharacter->IsEngineer() ? EngineerMappingContext.Get() : MageMappingContext.Get();
+	for (UInputMappingContext* Context : { MageMappingContext.Get(), FloromantMappingContext.Get(), EngineerMappingContext.Get() })
+	{
+		if (Context != nullptr && Context != Wanted)
+		{
+			Subsystem->RemoveMappingContext(Context);
+		}
+	}
+	Subsystem->AddMappingContext(Wanted, 0);
+	bEngFireHeld = false;
 
 	// Nothing held carries over into the other class
 	bFireHeld[0] = bFireHeld[1] = false;
@@ -612,6 +750,7 @@ void AVaelPlayerController::PlayerTick(float DeltaTime)
 	UpdateClassControls();
 	UpdateTowerChord();
 	UpdateHeldCast();
+	UpdateEngineerFire();
 
 	PreviousMoveDirection = MoveDirection;
 	MoveDirection = FVector::ZeroVector;
@@ -690,7 +829,10 @@ void AVaelPlayerController::OnDodge()
 			}
 			Floromant->TearOut();
 		}
-		VaelCharacter->StartDodge(Direction);
+		if (VaelCharacter->StartDodge(Direction) && VaelCharacter->IsEngineer())
+		{
+			VaelCharacter->GetEngineer()->OnDodged();
+		}
 	}
 }
 

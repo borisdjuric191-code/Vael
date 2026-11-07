@@ -22,6 +22,7 @@ class UVaelElementOrbitComponent;
 class UVaelFairyWingsComponent;
 class UVaelFloatingGrimoireComponent;
 class UVaelFloromantComponent;
+class UVaelEngineerComponent;
 class UVaelInventory;
 class UVaelMaterialBag;
 class UDecalComponent;
@@ -72,6 +73,10 @@ private:
 	/** Seeds and plants while the player plays a Floromant */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelFloromantComponent> Floromant;
+
+	/** What the player builds and fires as engineer; rests while he plays another class */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UVaelEngineerComponent> Engineer;
 
 	/** Moth wings of the Floromant, hidden while the player plays a mage */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -310,6 +315,7 @@ public:
 
 	/** Returns the seeds and plants of the Floromant **/
 	UVaelFloromantComponent* GetFloromant() const { return Floromant.Get(); }
+	UVaelEngineerComponent* GetEngineer() const { return Engineer.Get(); }
 
 	/** Returns how the body of a flying Floromant hangs in the air; weight 0 for a mage */
 	const FVaelFlightPose& GetFlightPose() const { return FlightPose; }

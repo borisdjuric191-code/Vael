@@ -58,6 +58,23 @@ struct FVaelSavedPlayer
 
 	UPROPERTY()
 	int32 ActiveBelt = 0;
+
+	/** Engineer (2026-11-08): what he has built for good, shots and devices in his pouches and in his stock, worn armour by place,
+	 *  the weapon in hand */
+	UPROPERTY()
+	TArray<FName> EngineerBuilt;
+
+	UPROPERTY()
+	TMap<FName, int32> EngineerCarried;
+
+	UPROPERTY()
+	TMap<FName, int32> EngineerStock;
+
+	UPROPERTY()
+	TArray<FName> EngineerWorn;
+
+	UPROPERTY()
+	FName EngineerWeapon;
 };
 
 /** State of a region */

@@ -394,6 +394,11 @@ void AVaelHUD::DrawPlayerPanel(const AVaelPlayerController* PlayerController, co
 		DrawSeedLegend(PlayerController, Player, CenterX, Y, InnerWidth);
 		return;
 	}
+	if (Player->IsEngineer())
+	{
+		DrawEngineerLegend(PlayerController, Player, CenterX, Y, InnerWidth);
+		return;
+	}
 
 	// Legend: which button queues which element; Mark stays dim while it sleeps
 	const UVaelGrimoireSubsystem* LegendGrimoire = GetGrimoire();

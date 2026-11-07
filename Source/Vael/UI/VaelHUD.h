@@ -154,6 +154,9 @@ private:
 	/** Middle of the panel of a Floromant: the seeds on their buttons, the picked one and the plants standing */
 	void DrawSeedLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth);
 
+	/** The engineer instead of elements: weapon and reload, the shot, the device (VaelHUDEngineer.cpp) */
+	void DrawEngineerLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth);
+
 	/** Draws a closed book of the compendium series: cover in its color, strap and seal; lit if it is the open one */
 	void DrawBookCover(EVaelCompendiumBook Book, float X, float Y, float Width, float Height, bool bLit);
 
