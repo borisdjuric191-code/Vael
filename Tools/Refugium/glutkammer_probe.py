@@ -69,8 +69,9 @@ class Builder:
                 for loop, (jj, ii, wrap) in zip(face.loops, ((j, i, False), (j, i + 1, True), (j + 1, i + 1, True), (j + 1, i, False))):
                     loop[self.uv].uv = uv_of(jj, ii)
                     m = mask_of(jj, ii % nu)
-                    loop[self.col] = (m, m, m, 1.0)
-                    loop[self.mask].uv = (m, m)
+                    m, m2 = m if isinstance(m, tuple) else (m, m)       # a second mask can ride in V of UV channel 1
+                    loop[self.col] = (m, m2, m, 1.0)
+                    loop[self.mask].uv = (m, m2)
         return verts
 
     def tube(self, points, radii, material, sides=10, v_scale=1.0, mask_of=None, cap_end=True, flat=1.0, rough=0.0, seed=0):
@@ -227,7 +228,7 @@ def build_egg_sac():
     """A sac full of small eggs: the skin bulges over every egg inside, the eggs glow, the seams stay dark"""
     obj = new_object("SM_GK_Eisack", ["Sack", "Ader"])
     b = Builder()
-    rings, sides = 60, 52
+    rings, sides = 110, 96
     height, radius = 1.45, 0.52
 
     def shape(t, ang):
@@ -239,9 +240,9 @@ def build_egg_sac():
         p, r = shape(t, ang)
         if r < 1e-4:
             return p, 0.0
-        egg = egg_cells(p, 7.0) * smooth(0.02, 0.12, t) * smooth(0.98, 0.86, t)
+        egg = egg_cells(p, 6.0) * smooth(0.02, 0.12, t) * smooth(0.98, 0.86, t)
         out = Vector((math.cos(ang), math.sin(ang), 0))
-        return p + out * (0.075 * egg + noise.noise(p * 3.0) * 0.02), egg
+        return p + out * (0.11 * egg + noise.noise(p * 3.0) * 0.02), egg
 
     grid = [[surface(j / rings, 2 * math.pi * i / sides) for i in range(sides)] for j in range(rings + 1)]
     b.grid([[q[0] for q in row] for row in grid], 0, uv_of=lambda j, i: (i / sides, j / rings),
@@ -271,7 +272,7 @@ def build_egg_sac():
 
 def build_clutch_bed():
     """Bed: a torn-open clutch sac of the queen, leathery, with small insect eggs lining its inner wall and soil in the middle"""
-    obj = new_object("SM_GK_Gelegebeet", ["Haut", "Erde", "Eier"])
+    obj = new_object("SM_GK_Gelegebeet", ["Haut", "Erde", "Eier", "Faden"])
     b = Builder()
     rings, sides = 26, 64
     R, H, thick = 0.62, 0.72, 0.03
@@ -292,7 +293,7 @@ def build_clutch_bed():
             z -= 0.12 * peel * peel
         r *= 1.0 + 0.08 * noise.noise(Vector((math.cos(ang) * 2, math.sin(ang) * 2, tt * 2)))
         p = Vector((math.cos(ang) * r, math.sin(ang) * r, z))
-        egg = egg_cells(p, 9.0) * smooth(0.05, 0.25, tt) * smooth(0.95, 0.7, tt)
+        egg = egg_cells(p, 9.0) * smooth(0.3, 0.5, tt) * smooth(0.95, 0.7, tt)
         out = Vector((math.cos(ang), math.sin(ang), 0))
         return p + out * (0.03 * egg if inset == 0 else -0.01 * egg), egg
 
@@ -313,22 +314,22 @@ def build_clutch_bed():
 
     # small elongated eggs in clusters on the inner wall, between soil and rim; some burst and empty
     eggs = 0
-    for cluster in range(11):
-        ang_c = 2 * math.pi * cluster / 9 + random.uniform(-0.2, 0.2)
-        for e in range(random.randint(6, 9)):
+    for cluster in range(14):
+        ang_c = 2 * math.pi * cluster / 14 + random.uniform(-0.2, 0.2)
+        for e in range(random.randint(7, 10)):
             ang = ang_c + random.uniform(-0.28, 0.28)
             t = random.uniform(0.42, 0.85)
             wall, _ = point(t, ang, thick)
             inward = Vector((-math.cos(ang), -math.sin(ang), 0.35)).normalized()
-            centre = wall + inward * 0.03
+            centre = wall + inward * 0.018
             length, width = random.uniform(0.07, 0.1), random.uniform(0.035, 0.045)
-            burst = random.random() < 0.3
+            burst = random.random() < 0.15
             axis = (inward + Vector((0, 0, 0.8))).normalized()
             helper = Vector((1, 0, 0)) if abs(axis.x) < 0.9 else Vector((0, 1, 0))
             u_dir = axis.cross(helper).normalized()
             v_dir = axis.cross(u_dir)
             rows_e = []
-            top = 0.55 if burst else 1.0
+            top = 0.72 if burst else 1.0
             for j in range(10):
                 phi = -math.pi / 2 + math.pi * top * j / 9
                 ring_r = max(math.cos(phi) * width, 0.002)
@@ -339,6 +340,22 @@ def build_clutch_bed():
                    closed_u=True)
             eggs += 1
     log(f"Gelegebeet: {eggs} Eier")
+    # silk threads strung over the opening from rim to rim, sagging, a few torn and hanging
+    for k in range(4):
+        a0 = random.uniform(0, 2 * math.pi)
+        a1 = a0 + random.uniform(1.2, 2.2)
+        p0, _ = point(0.93, a0, 0.0)
+        p1, _ = point(0.93, a1, 0.0)
+        torn = k % 3 == 2
+        pts = []
+        for i in range(17):
+            u = i / 16
+            if torn and u > 0.45:
+                q = p0.lerp(p1, 0.45) + Vector((0, 0, -(u - 0.45) * 0.9))
+            else:
+                q = p0.lerp(p1, u) + Vector((0, 0, -0.22 * math.sin(math.pi * u)))
+            pts.append(wobble(q, 6.0, 0.006, k))
+        b.tube(pts, [0.0045] * len(pts), 3, sides=5, cap_end=False, mask_of=lambda t: 0.6)
     b.finish(obj)
     export(obj)
 
@@ -455,8 +472,186 @@ def build_pool():
     export(obj)
 
 
+def build_sleeping_clutch():
+    """Closed clutch lying on the floor: a mound of small glowing eggs packed on a dark core, wrapped in silk threads that
+    are tied to the floor; it tears open into a bed when its stage comes (0 Haut, 1 Eier, 2 Faden)"""
+    obj = new_object("SM_GK_Gelege_Schlafend", ["Haut", "Eier", "Faden"])
+    b = Builder()
+    R, H = 0.6, 0.46
+
+    def dome(t, ang, lift=0.0):
+        """point and normal on the mound; t 0 at the floor rim, 1 at the top"""
+        phi = t * math.pi / 2
+        r = (R + lift) * math.cos(phi) ** 0.75
+        z = (H + lift) * math.sin(phi) - 0.03
+        wob = 1.0 + 0.08 * noise.noise(Vector((math.cos(ang) * 1.4, math.sin(ang) * 1.4, SEED + 2)))
+        p = Vector((math.cos(ang) * r * wob, math.sin(ang) * r * wob, z))
+        n = Vector((math.cos(ang) * math.cos(phi) / R, math.sin(ang) * math.cos(phi) / R, math.sin(phi) / H)).normalized()
+        return p, n
+
+    rings, sides = 18, 48
+    core = [[dome(j / rings, 2 * math.pi * i / sides)[0] for i in range(sides)] for j in range(rings)]
+    core.append([Vector((0, 0, H - 0.03)) + Vector((math.cos(2 * math.pi * i / sides), math.sin(2 * math.pi * i / sides), 0)) * 0.002
+                 for i in range(sides)])
+    b.grid(core, 0, uv_of=lambda j, i: (i / sides * 2, j / rings), mask_of=lambda j, i: 0.35, closed_u=True)
+
+    def egg(centre, axis, length, width, glow):
+        helper = Vector((1, 0, 0)) if abs(axis.x) < 0.9 else Vector((0, 1, 0))
+        u_dir = axis.cross(helper).normalized()
+        v_dir = axis.cross(u_dir)
+        rows = []
+        for j in range(9):
+            phi = -math.pi / 2 + math.pi * j / 8
+            rr = max(math.cos(phi) * width, 0.002)
+            rows.append([centre + axis * (math.sin(phi) * length) + (u_dir * math.cos(2 * math.pi * k / 10) + v_dir * math.sin(2 * math.pi * k / 10)) * rr
+                         for k in range(10)])
+        b.grid(rows, 1, uv_of=lambda j, i: (i / 10, j / 8), mask_of=lambda j, i, g=glow: g * math.sin(math.pi * j / 8) ** 1.5 + 0.05,
+               closed_u=True)
+
+    eggs = 0
+    for ring in range(8):
+        t = 0.06 + 0.9 * ring / 7.5
+        circumference = 2 * math.pi * R * math.cos(t * math.pi / 2) ** 0.75
+        count = max(3, int(circumference / 0.07))
+        for k in range(count):
+            ang = 2 * math.pi * (k + 0.5 * (ring % 2)) / count + random.uniform(-0.08, 0.08)
+            p, n = dome(min(t + random.uniform(-0.03, 0.03), 0.97), ang)
+            length, width = random.uniform(0.05, 0.065), random.uniform(0.028, 0.036)
+            # eggs stand a little up out of the mound, tilted with it
+            axis = (n * 0.6 + Vector((0, 0, 0.4))).normalized()
+            egg(p + n * width * 0.5, axis, length, width, random.uniform(0.5, 1.0))
+            eggs += 1
+    log(f"Gelege schlafend: {eggs} Eier")
+
+    # silk: threads over the mound from floor to floor, lying on the eggs, tied down with little pads of webbing
+    for k in range(9):
+        a0 = random.uniform(0, 2 * math.pi)
+        a1 = a0 + random.choice((-1, 1)) * random.uniform(1.6, 2.8)
+        t_max = random.uniform(0.45, 0.85)
+        pts = []
+        for i in range(25):
+            u = i / 24
+            ang, t = a0 + (a1 - a0) * u, math.sin(math.pi * u) * t_max
+            p, n = dome(max(t, 0.0) * 0.98, ang, lift=0.07)
+            if t <= 0.02:
+                p = Vector((p.x * 1.15, p.y * 1.15, 0.0))
+            pts.append(wobble(p, 4.0, 0.01, k))
+        b.tube(pts, [0.006] * len(pts), 2, sides=5, cap_end=False, mask_of=lambda t: 0.5)
+    for k in range(10):
+        ang = 2 * math.pi * k / 10 + random.uniform(-0.2, 0.2)
+        start, _ = dome(0.12, ang, lift=0.04)
+        out = Vector((math.cos(ang), math.sin(ang), 0))
+        end = Vector((start.x, start.y, 0.0)) + out * random.uniform(0.15, 0.3)
+        pts = [start.lerp(end, i / 6) + Vector((0, 0, 0.03 * math.sin(math.pi * i / 6))) for i in range(7)]
+        b.tube(pts, [0.008] * 7, 2, sides=5, cap_end=False, mask_of=lambda t: 0.5)
+    b.finish(obj)
+    export(obj)
+
+
+def build_light_beam():
+    """Light shaft from a hole in the ceiling: an open frustum, 1 m radius at the floor, narrower at the top (z = 1, scaled in
+    the level); mask in UV1 = height share (0 floor, 1 top) for the fade in the material"""
+    obj = new_object("SM_GK_Lichtstrahl", ["Strahl"])
+    b = Builder()
+    sides, rings = 32, 12
+    rows = []
+    for j in range(rings + 1):
+        h = j / rings
+        r = 1.0 - 0.55 * h
+        rows.append([Vector((math.cos(2 * math.pi * i / sides) * r, math.sin(2 * math.pi * i / sides) * r, h)) for i in range(sides)])
+    b.grid(rows, 0, uv_of=lambda j, i: (i / sides, j / rings), mask_of=lambda j, i: j / rings, closed_u=True)
+    b.finish(obj)
+    outward(obj)
+    export(obj)
+
+
+def outward(obj, test=None):
+    """recalc_face_normals can turn an open sheet the wrong way: flip all faces if they point inward on the whole"""
+    test = test or (lambda poly: Vector((poly.center[0], poly.center[1], 0.0)))
+    mesh = obj.data
+    if sum(test(poly).dot(Vector(poly.normal)) for poly in mesh.polygons) < 0:
+        for poly in mesh.polygons:
+            poly.flip()
+    mesh.update()
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+
+
+def build_rock_wall(name, height, seed):
+    """Cave wall of cooled lava, about 7 m wide (Y), the room side +X, pivot at the bottom middle of the front foot.
+    Layers of old lava flows as ledges, deep vertical cracks that glow near the floor, the top leaning into the room.
+    Closed over the top and down the back, so the low walls next to the camera hold up from behind.
+    UV1: U = glow in the cracks, V = dark band of a lava layer"""
+    obj = new_object(name, ["Fels"])
+    b = Builder()
+    width = 7.2
+    H = height
+    lean = min(1.1, 0.16 * H)
+    # cross-section from the front foot over the top to the back foot (x into the room, z up)
+    profile = [(0.25, -0.5), (0.05, 0.0), (0.0, 0.18 * H), (0.12, 0.45 * H), (0.35 * lean + 0.1, 0.72 * H), (lean, 0.94 * H),
+               (lean * 0.7, H + 0.15), (0.0, H + 0.25), (-0.9, H + 0.05), (-1.5, 0.7 * H), (-1.8, 0.3 * H), (-1.9, -0.5)]
+    pts2 = [Vector((x, 0, z)) for x, z in profile]
+    lengths = [0.0]
+    for a, c in zip(pts2, pts2[1:]):
+        lengths.append(lengths[-1] + (c - a).length)
+    total = lengths[-1]
+    rows_n = max(30, int(total / 0.14))
+    cols_n = int(width / 0.13)
+
+    def at_length(s):
+        for k in range(len(lengths) - 1):
+            if lengths[k + 1] >= s:
+                f = (s - lengths[k]) / max(lengths[k + 1] - lengths[k], 1e-6)
+                p = pts2[k].lerp(pts2[k + 1], f)
+                d = (pts2[k + 1] - pts2[k]).normalized()
+                return p, Vector((d.z, 0, -d.x))      # outward normal of the section (front faces +X)
+        return pts2[-1], Vector((-1, 0, 0))
+
+    front_end = lengths[6]
+    offset = Vector((seed * 3.1, seed * 1.7, seed * 0.9))
+    rows, masks = [], []
+    for j in range(rows_n + 1):
+        s = total * j / rows_n
+        base, normal = at_length(s)
+        front = 1.0 - smooth(front_end * 0.9, front_end * 1.1, s)
+        row, mrow = [], []
+        for i in range(cols_n + 1):
+            y = -width / 2 + width * i / cols_n
+            # the ends curl back so pieces overlap without a hard edge
+            end = smooth(width / 2 - 0.9, width / 2, abs(y))
+            p = Vector((base.x - end * 0.9, y, base.z))
+            q = p + offset
+            warp = Vector((noise.noise(q * 0.2), noise.noise(q * 0.2 + Vector((7, 7, 7))), 0.0)) * 1.2
+            big = (noise.noise(q * 0.18 + warp) * 0.85 + noise.noise(q * 0.5 + warp) * 0.35 + noise.noise(q * 1.6) * 0.1
+                   + noise.noise(q * 4.5) * 0.035)
+            layer_f = (p.z / 0.9 + 1.4 * noise.noise(q * 0.16) + 0.25 * noise.noise(q * 0.9)) % 1.0
+            layer_amp = 0.5 + 0.5 * noise.noise(q * 0.3 + Vector((3, 1, 2)))
+            ledge = (smooth(0.0, 0.2, layer_f) - smooth(0.6, 1.0, layer_f) * 0.5) * layer_amp
+            dist, _ = noise.voronoi(Vector((y * 0.45, p.z * 0.14, seed)) + warp * 0.3 + offset * 0.1, distance_metric="DISTANCE", exponent=2.5)
+            crack = smooth(0.28, 0.0, dist[1] - dist[0]) ** 1.5
+            crest = (1.0 - abs(noise.noise(q * 0.75 + warp))) ** 3 * 0.28 + (1.0 - abs(noise.noise(q * 2.2))) ** 4 * 0.07
+            depth = big + crest
+            depth = math.floor(depth * 5.0) / 5.0 * 0.35 + depth * 0.65          # blocky steps like broken basalt
+            depth = depth * (0.35 + 0.65 * front) + 0.13 * ledge * front - 0.26 * crack * front
+            row.append(p + normal * depth)
+            glow = crack * front * (0.25 + 0.75 * smooth(1.6, 0.0, p.z)) * (0.6 + 0.4 * noise.noise(q * 0.7))
+            band = smooth(0.1, 0.0, abs(layer_f - 0.05)) * front * layer_amp
+            mrow.append((max(0.0, min(1.0, glow)), band))
+        rows.append(row)
+        masks.append(mrow)
+    b.grid(rows, 0, uv_of=lambda j, i: ((-width / 2 + width * i / cols_n) / 2.5, total * j / rows_n / 2.5),
+           mask_of=lambda j, i: masks[j][i])
+    b.finish(obj)
+    # the front (low, x > 0) must face the room
+    outward(obj, test=lambda poly: Vector((1.0, 0.0, 0.0)) if poly.center[2] < 0.4 * H and poly.center[0] > -0.3 else Vector((0, 0, 0)))
+    export(obj)
+
+
 if __name__ == "__main__":
-    for build in (build_rib_wall, build_egg_sac, build_clutch_bed, build_root_curtain, build_pool):
+    pieces = [build_rib_wall, build_egg_sac, build_clutch_bed, build_root_curtain, build_pool, build_sleeping_clutch, build_light_beam,
+              lambda: build_rock_wall("SM_GK_Felswand_Hoch", 7.5, 3), lambda: build_rock_wall("SM_GK_Felswand_Mittel", 4.6, 5),
+              lambda: build_rock_wall("SM_GK_Felswand_Niedrig", 1.9, 8)]
+    for build in pieces:
         clear_scene()
         build()
     log("fertig")

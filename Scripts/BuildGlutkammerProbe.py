@@ -23,7 +23,10 @@ import unreal
 SOURCE = "C:/Projekte/Vael_Quellen/Glutkammer/04_export"
 FOLDER = "/Game/Vael/Refugium/Glutkammer/Probe"
 LEVEL_PATH = "/Game/Vael/Maps/Test/L_GlutkammerProbe"
-PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelvorhang", "SM_GK_Glutbecken"]
+PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelvorhang", "SM_GK_Glutbecken", "SM_GK_Gelege_Schlafend",
+          "SM_GK_Lichtstrahl", "SM_GK_Felswand_Hoch", "SM_GK_Felswand_Mittel", "SM_GK_Felswand_Niedrig"]
+# pieces that stay plain meshes (translucent); the rest is built as Nanite
+NO_NANITE = {"SM_GK_Lichtstrahl"}
 ROCK_TEX = "/Game/Megascans/3D_Assets/IcelandicVolcanoTerrain/T_IcelandicVolcanoTerrain_A"
 ROCK_NORMAL = "/Game/Megascans/3D_Assets/IcelandicVolcanoTerrain/T_IcelandicVolcanoTerrain_N"
 MUD_TEX = "/Game/Megascans/Surfaces/HeavyMud/T_HeavyMud_A"
@@ -62,6 +65,10 @@ def import_pieces():
         data.set_editor_property("combine_meshes", True)
         data.set_editor_property("auto_generate_collision", False)
         data.set_editor_property("vertex_color_import_option", unreal.VertexColorImportOption.REPLACE)
+        try:
+            data.set_editor_property("build_nanite", name not in NO_NANITE)
+        except Exception as error:
+            notes.append("Nanite: {}".format(error))
         task = unreal.AssetImportTask()
         task.set_editor_property("filename", fbx)
         task.set_editor_property("destination_path", FOLDER)
@@ -258,18 +265,29 @@ def material_glow():
     emissive = g.mul(0, g.mul(1, g.color("LeuchtFarbe", (1.0, 0.42, 0.1), 2), light), g.pulse(0.9, 2))
     library.connect_material_property(base, "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(g.scalar("Rauheit", 0.32, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(g.scalar("Glanz", 0.5, 1), "", unreal.MaterialProperty.MP_SPECULAR)
     library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # light passes through the thin skin: two-sided foliage shading, warm where it shines through
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_TWO_SIDED_FOLIAGE)
+    library.connect_material_property(g.mul(1, g.color("DurchFarbe", (0.9, 0.3, 0.08), 2), g.scalar("Durchschein", 0.8, 2)), "",
+                                      unreal.MaterialProperty.MP_SUBSURFACE_COLOR)
     finish(m)
     instances = {}
     for name, values, colours in (
             ("MI_GK_Membran", {"Leuchten": 2.5, "KernSchaerfe": 2.2}, {}),
-            ("MI_GK_Eisack", {"Leuchten": 3.5, "KernSchaerfe": 3.2, "RandDunkel": 0.75}, {}),
+            ("MI_GK_Eisack", {"Leuchten": 3.5, "KernSchaerfe": 3.2, "RandDunkel": 0.75, "Rauheit": 0.2, "Glanz": 0.8}, {}),
+            # closed clutch on the floor: leathery but wet, eggs glowing through, the seam brightest
+            ("MI_GK_Gelege_Schlafend", {"Leuchten": 0.4, "KernSchaerfe": 3.0, "RandDunkel": 0.7, "Rauheit": 0.35, "Glanz": 0.6, "Durchschein": 0.3},
+             {"RandFarbe": (0.09, 0.035, 0.02), "KernFarbe": (0.5, 0.2, 0.07), "AderFarbe": (0.07, 0.02, 0.015)}),
             # leathery skin of the clutch sac: dark, only the egg bulges glow a little
-            ("MI_GK_Gelegehaut", {"Leuchten": 0.9, "KernSchaerfe": 3.0, "Rauheit": 0.55},
+            ("MI_GK_Gelegehaut", {"Leuchten": 1.1, "KernSchaerfe": 2.6, "Rauheit": 0.38, "Glanz": 0.6, "Durchschein": 0.5},
              {"RandFarbe": (0.07, 0.035, 0.025), "KernFarbe": (0.3, 0.13, 0.06), "AderFarbe": (0.05, 0.02, 0.015)}),
             # the small eggs: pale amber, glowing from inside
-            ("MI_GK_Eier", {"Leuchten": 0.9, "KernSchaerfe": 1.6, "RandDunkel": 0.7, "Rauheit": 0.3},
-             {"RandFarbe": (0.35, 0.22, 0.12), "KernFarbe": (0.85, 0.6, 0.3), "LeuchtFarbe": (1.0, 0.6, 0.22)})):
+            ("MI_GK_Eier", {"Leuchten": 1.0, "KernSchaerfe": 1.8, "RandDunkel": 0.8, "Rauheit": 0.12, "Glanz": 1.0},
+             {"RandFarbe": (0.3, 0.15, 0.07), "KernFarbe": (0.75, 0.45, 0.18), "LeuchtFarbe": (1.0, 0.52, 0.16)}),
+            # the eggs of a sleeping clutch: darker amber, a dim warm glow deep inside
+            ("MI_GK_Eier_Schlafend", {"Leuchten": 0.55, "KernSchaerfe": 2.4, "RandDunkel": 0.85, "Rauheit": 0.15, "Glanz": 1.0, "Durchschein": 0.5},
+             {"RandFarbe": (0.16, 0.07, 0.035), "KernFarbe": (0.55, 0.28, 0.1), "LeuchtFarbe": (1.0, 0.42, 0.1)})):
         path = "{}/{}".format(FOLDER, name)
         mi = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
             name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
@@ -342,11 +360,72 @@ def material_floor():
     g = Graph(m)
     albedo, normal = textured(g, MUD_TEX, MUD_NORMAL, "BodenFarbe", (0.42, 0.3, 0.21), (14.0, 14.0), 3)
     large = g.noise(0.004, 4, lo=0.75, hi=1.1)
-    library.connect_material_property(g.mul(1, g.mul(2, albedo, large), g.scalar("Helligkeit", 1.5, 2)), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    ash = g.saturate(g.mul(4, g.sub(5, g.noise(0.0025, 6, levels=2), g.const(0.6, 6)), g.const(4.0, 5)), 3)
+    ground = g.lerp(g.mul(2, albedo, large), g.color("Asche", (0.33, 0.3, 0.27), 3), g.mul(3, ash, g.const(0.3, 4)), 1)
+    library.connect_material_property(g.mul(1, ground, g.scalar("Helligkeit", 1.5, 2)), "", unreal.MaterialProperty.MP_BASE_COLOR)
     if normal:
         library.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
     library.connect_material_property(g.const(0.9, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
     return finish(m)
+
+
+def material_beam():
+    """Light shaft: additive, unlit; bright in the middle and at the floor, fading towards the top and at the edges,
+    with dust drifting down through it; soft where it meets the floor"""
+    m = new_material("M_GK_Lichtstrahl")
+    m.set_editor_property("blend_mode", unreal.BlendMode.BLEND_ADDITIVE)
+    m.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
+    g = Graph(m)
+    height = g.vertex_r(6)
+    top = g.power(4, g.sub(5, g.const(1.0, 6), height), g.scalar("ObenWeich", 2.6, 5))
+    foot = g.saturate(g.mul(4, height, g.const(25.0, 5)), 3)
+    fresnel = g.node(unreal.MaterialExpressionFresnel, 6, exponent=1.0, base_reflect_fraction=0.0)
+    middle = g.power(4, g.sub(5, g.const(1.0, 6), fresnel), g.scalar("Kante", 3.5, 5))
+    time = g.node(unreal.MaterialExpressionTime, 9)
+    fall = g.mul(8, time, g.node(unreal.MaterialExpressionConstant3Vector, 9, constant=unreal.LinearColor(4.0, 2.0, -22.0, 0.0)))
+    stretched = g.mul(7, g.add(8, g.node(unreal.MaterialExpressionWorldPosition, 9), fall),
+                      g.node(unreal.MaterialExpressionConstant3Vector, 8, constant=unreal.LinearColor(1.0, 1.0, 0.25, 0.0)))
+    dust = g.noise(0.09, 5, levels=2, lo=0.7, hi=1.15, position=stretched)
+    fade = g.node(unreal.MaterialExpressionDepthFade, 3, fade_distance_default=140.0)
+    g.link(g.const(1.0, 4), fade, "Opacity")
+    shape = g.mul(2, g.mul(3, g.mul(4, top, foot), middle), dust)
+    emissive = g.mul(0, g.mul(1, g.mul(2, shape, fade), g.color("Farbe", (1.0, 0.74, 0.44), 2)), g.scalar("Staerke", 0.14, 1))
+    library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    return finish(m)
+
+
+def material_rock():
+    """Cave wall of cooled lava: dark basalt with lighter rims, ash dusted on everything that faces up, darker bands of old
+    lava layers (UV1 V), glowing cracks near the floor (UV1 U) that breathe slowly"""
+    m = new_material("M_GK_Fels")
+    g = Graph(m)
+    albedo, normal = textured(g, ROCK_TEX, ROCK_NORMAL, "FelsFarbe", (0.3, 0.22, 0.18), (1.0, 1.0), 4)
+    coarse = g.noise(0.006, 5, lo=0.7, hi=1.15)
+    rock = g.mul(3, albedo, coarse)
+    # UV1 masks only on the own wall pieces; MI_GK_Fels_Brocken turns them off for meshes whose UV1 is a lightmap
+    masks_on = g.scalar("Masken", 1.0, 5)
+    band = g.mul(5, g.mask(g.node(unreal.MaterialExpressionTextureCoordinate, 7, coordinate_index=1), 6, r=False, g=True, b=False), masks_on)
+    rock = g.mul(3, rock, g.lerp(g.const(1.0, 5), g.const(0.45, 5), band, 4))
+    up = g.mask(g.node(unreal.MaterialExpressionVertexNormalWS, 6), 5, r=False, g=False, b=True)
+    ash_amount = g.mul(3, g.saturate(g.mul(4, g.sub(5, up, g.const(0.5, 6)), g.const(3.5, 5)), 4), g.noise(0.03, 5, lo=0.5, hi=1.0))
+    albedo = g.lerp(rock, g.color("Asche", (0.24, 0.22, 0.2), 3), g.mul(3, ash_amount, g.const(0.7, 4)), 2)
+    crack = g.mul(4, g.vertex_r(6), masks_on)
+    albedo = g.mul(1, g.mul(2, albedo, g.sub(3, g.const(1.0, 4), g.mul(4, crack, g.const(0.7, 5)))), g.scalar("Helligkeit", 2.3, 2))
+    glow = g.mul(1, g.mul(2, g.mul(3, g.power(4, crack, g.const(2.6, 5)), g.color("GlutFarbe", (1.0, 0.32, 0.06), 4)),
+                          g.scalar("Glut", 1.6, 3)), g.pulse(0.6, 2))
+    library.connect_material_property(albedo, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    if normal:
+        library.connect_material_property(normal, "RGB", unreal.MaterialProperty.MP_NORMAL)
+    library.connect_material_property(g.lerp(g.const(0.82, 2), g.const(0.95, 2), ash_amount, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    finish(m)
+    path = "{}/MI_GK_Fels_Brocken".format(FOLDER)
+    mi = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
+        "MI_GK_Fels_Brocken", FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    library.set_material_instance_parent(mi, m)
+    library.set_material_instance_scalar_parameter_value(mi, "Masken", 0.0)
+    assets.save_loaded_asset(mi, False)
+    return m
 
 
 def assign(mesh_name, materials):
@@ -367,10 +446,18 @@ def build_materials():
     roots = material_roots()
     pool = material_pool()
     floor = material_floor()
+    beam = material_beam()
+    rock = material_rock()
+    silk = material_plain("M_GK_Faden", (0.5, 0.42, 0.32), 0.45, emissive=(0.03, 0.015, 0.005), noise_amount=0.1, two_sided=True)
     meshes = {
         "SM_GK_Rippenwand": assign("SM_GK_Rippenwand", [tissue, glow["MI_GK_Membran"]]),
         "SM_GK_Eisack": assign("SM_GK_Eisack", [glow["MI_GK_Eisack"], vein]),
-        "SM_GK_Gelegebeet": assign("SM_GK_Gelegebeet", [glow["MI_GK_Gelegehaut"], soil, glow["MI_GK_Eier"]]),
+        "SM_GK_Gelegebeet": assign("SM_GK_Gelegebeet", [glow["MI_GK_Gelegehaut"], soil, glow["MI_GK_Eier"], silk]),
+        "SM_GK_Gelege_Schlafend": assign("SM_GK_Gelege_Schlafend", [glow["MI_GK_Gelege_Schlafend"], glow["MI_GK_Eier_Schlafend"], silk]),
+        "SM_GK_Lichtstrahl": assign("SM_GK_Lichtstrahl", [beam]),
+        "SM_GK_Felswand_Hoch": assign("SM_GK_Felswand_Hoch", [rock]),
+        "SM_GK_Felswand_Mittel": assign("SM_GK_Felswand_Mittel", [rock]),
+        "SM_GK_Felswand_Niedrig": assign("SM_GK_Felswand_Niedrig", [rock]),
         "SM_GK_Wurzelvorhang": assign("SM_GK_Wurzelvorhang", [roots]),
         "SM_GK_Glutbecken": assign("SM_GK_Glutbecken", [pool, tissue]),
     }

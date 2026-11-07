@@ -23,7 +23,12 @@ import unreal
 KIT = "/Game/Vael/Refugium/Glutkammer/Probe"
 LEVEL_PATH = "/Game/Vael/Maps/Refugium/L_Glutkammer"
 ROCKS = ["/Game/Rock_Collection_04/Meshes/Rock_0{0}/StaticMeshes/SM_Rock_0{0}".format(i) for i in range(1, 8)]
-PLANTS = ["/Game/Vael/Requisiten/Aschenmark/{0}/SM_{0}".format(n) for n in ("Glutdistel", "Glimmklee", "Russrose", "Funkenmohn")]
+PLANTS = ["/Game/Vael/Requisiten/Aschenmark/{0}/SM_{0}".format(n) for n in
+          ("Glutdistel", "Glimmklee", "Russrose", "Funkenmohn", "Taublatt", "Milchstern", "Windhalm", "Schlotwinde")]
+# Beds by stage (Lore-Bibel, Refugium: 40 beds in the end, so even the rarest seed turns up now and then):
+# stage -> (hall, egg chamber, Glutgalerie). Stage I has beds, the later ones lie there as sleeping clutches.
+BED_PLAN = {"I": (8, 0, 0), "II": (2, 6, 0), "III": (8, 0, 0), "IV": (2, 0, 6), "V": (4, 4, 0)}
+STAGES = ["I", "II", "III", "IV", "V"]
 PX = 100.0 / 14.0          # cm per profile pixel
 SEED = 31
 
@@ -82,7 +87,10 @@ def point_light(location, label, folder, color, intensity, radius, shadows=False
     return light
 
 
-def shaft(location, label, folder, intensity, cone):
+BEAM = []            # the beam mesh, loaded in build()
+
+
+def shaft(location, label, folder, intensity, cone, dust=True):
     light = spawn(unreal.SpotLight, unreal.Vector(location.x, location.y, 1600.0), label, folder, unreal.Rotator(0.0, -90.0, 0.0))
     c = light.light_component
     c.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
@@ -93,7 +101,24 @@ def shaft(location, label, folder, intensity, cone):
     c.set_editor_property("attenuation_radius", 2800.0)
     c.set_editor_property("volumetric_scattering_intensity", 6.0)
     light.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
+    # the beam you see: as wide as the light spot on the floor, 9 m high, fading out towards the top
+    radius = 1600.0 * math.tan(math.radians(cone))
+    mesh_actor(BEAM[0], unreal.Vector(location.x, location.y, 0.0), label + " Strahl", "Licht/Strahlen",
+               yaw=rng.uniform(0, 360), scale=(radius / 100.0, radius / 100.0, 6.5))
+    if dust:
+        motes(unreal.Vector(location.x, location.y, 0.0), label + " Staub", "Licht/Staub", unreal.VaelCaveMote.DUST,
+              int(min(140, 12 + radius * 0.35)), radius * 0.8, 800.0)
     return light
+
+
+def motes(location, label, folder, kind, count, radius, height, brightness=1.0):
+    actor = spawn(unreal.VaelCaveMotes, location, label, folder)
+    actor.set_editor_property("kind", kind)
+    actor.set_editor_property("count", count)
+    actor.set_editor_property("radius", radius)
+    actor.set_editor_property("height", height)
+    actor.set_editor_property("brightness", brightness)
+    return actor
 
 
 def label_text(location, text, folder, color=(1.0, 0.85, 0.55)):
@@ -151,13 +176,9 @@ def path_points(points, step_px=18):
 
 
 CORRIDORS = [Room("Rampe", x, y, 34, 34) for x, y in path_points(RAMP)]
-# sleeping clutches in the hall (profile pixels, stage that wakes them): 4 beds at the start, 11 after stage IV
-SLEEPING = [(330, 541, "II"), (712, 551, "II"), (599, 391, "III"), (459, 741, "III"), (440, 375, "III"),
-            (360, 700, "IV"), (690, 735, "IV")]
 # places the scattered things keep away from (profile pixels and radius): table, pool, beds, corners, gate
 KEEP_FREE = [(520, 560, 120), (520, 760, 95), (395, 470, 45), (651, 480, 45), (391, 655, 45), (649, 661, 45), (226, 350, 45),
              (355, 370, 45), (855, 420, 70), (745, 600, 50), (865, 690, 50), (717, 400, 40), (112, 560, 60)]
-KEEP_FREE += [(x, y, 40) for x, y, _ in SLEEPING]
 for tunnel in TUNNELS:
     CORRIDORS += [Room("Gang", x, y, 16, 16) for x, y in path_points(tunnel)]
 OPEN = ROOMS + CORRIDORS
@@ -173,6 +194,78 @@ def farness(direction_x, direction_y):
     return (direction_x + direction_y) / (length * math.sqrt(2.0))
 
 
+# ---------------------------------------------------------------- beds
+
+_slots = []
+first_slot = {}
+
+
+def near_line(p, ax, ay, bx, by, distance):
+    a, b = at(ax, ay), at(bx, by)
+    dx, dy = b.x - a.x, b.y - a.y
+    t = max(0.0, min(1.0, ((p.x - a.x) * dx + (p.y - a.y) * dy) / max(dx * dx + dy * dy, 1.0)))
+    return math.hypot(p.x - a.x - dx * t, p.y - a.y - dy * t) < distance
+
+
+def free_for_bed(p):
+    table, pool_at = at(520, 560), at(520, 760)
+    if math.hypot(p.x - table.x, p.y - table.y) < 560.0 or math.hypot(p.x - pool_at.x, p.y - pool_at.y) < 430.0:
+        return False
+    for x, y in ((226, 350), (355, 370), (855, 420), (745, 600), (865, 690), (717, 400), (112, 560)):
+        q = at(x, y)
+        if math.hypot(p.x - q.x, p.y - q.y) < 280.0:
+            return False
+    # paths: the Narbensaum lines between the plots stay walkable
+    for line in ((520, 300, 520, 830), (280, 560, 800, 560)):
+        if near_line(p, *line, distance=170.0):
+            return False
+    return not any(c.inside(p, margin=150.0) for c in CORRIDORS)
+
+
+def grid_in(room, spacing, margin):
+    found = []
+    steps = int(max(room.rx, room.ry) / spacing) + 2
+    for j in range(-steps, steps + 1):
+        for i in range(-steps, steps + 1):
+            p = unreal.Vector(room.c.x + j * spacing * 0.866, room.c.y + (i + 0.5 * (j % 2)) * spacing, 0.0)
+            if room.inside(p, margin=-margin) and free_for_bed(p):
+                found.append(p)
+    return found
+
+
+def bed_slots():
+    """(stage, room name, location) of every bed place; worked out once"""
+    if _slots:
+        return _slots
+    # Hall: per plot the nearest places to the root table, then dealt out rank by rank over the four plots
+    table = at(520, 560)
+    quarters = [[], [], [], []]
+    for p in grid_in(HALL, 330.0, 330.0):
+        quarters[(p.x > table.x) * 2 + (p.y > table.y)].append(p)
+    per_plot = sum(plan[0] for plan in BED_PLAN.values()) // 4
+    for q in quarters:
+        q.sort(key=lambda p: math.hypot(p.x - table.x, p.y - table.y))
+    order = [q[rank] for rank in range(per_plot) for q in quarters if rank < len(q)]
+    hall_stages = [stage for stage in STAGES for _ in range(BED_PLAN[stage][0])]
+    # within a rank the plots must get the same stage where possible: the plan above fills rank by rank
+    for stage, p in zip(hall_stages, order):
+        _slots.append((stage, "Halle", p))
+    for room, index, name in ((ROOMS[1], 1, "Eierkammer"), (ROOMS[4], 2, "Glutgalerie")):
+        places = grid_in(room, 300.0 if index == 1 else 420.0, 250.0)
+        if index == 2:
+            veins = [at(x, y) for x, y in ((420, 930), (560, 905), (700, 940), (480, 990), (650, 1000))]
+            places = [p for p in places if min(math.hypot(p.x - v.x, p.y - v.y) for v in veins) > 170.0]
+        places.sort(key=lambda p: math.hypot(p.x - room.c.x, p.y - room.c.y))
+        stages = [stage for stage in STAGES for _ in range(BED_PLAN[stage][index])]
+        for stage, p in zip(stages, places):
+            _slots.append((stage, name, p))
+    for stage, _, p in _slots:
+        first_slot.setdefault(stage, p)
+    counts = {stage: sum(1 for st, _, _ in _slots if st == stage) for stage in STAGES}
+    log("Beetplaetze {} von {}: {}".format(len(_slots), sum(sum(v) for v in BED_PLAN.values()), counts))
+    return _slots
+
+
 # ---------------------------------------------------------------- build
 
 def build():
@@ -185,43 +278,63 @@ def build():
     cone = unreal.load_asset("/Engine/BasicShapes/Cone.Cone")
     sphere = unreal.load_asset("/Engine/BasicShapes/Sphere.Sphere")
     rib, sac, bed, roots, pool = (load(n) for n in ("SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelvorhang", "SM_GK_Glutbecken"))
+    sleeping = load("SM_GK_Gelege_Schlafend")
+    m_rock = load("MI_GK_Fels_Brocken")
+    BEAM[:] = [load("SM_GK_Lichtstrahl")]
     m_floor, m_tissue, m_roots, m_pool = (load(n) for n in ("M_GK_Boden", "M_GK_Gewebe", "M_GK_Wurzel", "M_GK_Becken"))
     mi_membrane, mi_eggs = load("MI_GK_Membran"), load("MI_GK_Eier")
     rocks = [r for r in (unreal.load_asset(p) for p in ROCKS) if r is not None]
-    plants = [unreal.load_asset(p) for p in PLANTS]
+    plants = [m for m in (unreal.load_asset(p) for p in PLANTS) if m is not None] or [None]
 
     spawn(unreal.VaelIndoorLevel, at(520, 560, 400.0), "Innenraum", "Spiel")
 
     # Floor: one slab under everything, its top at 0
     mesh_actor(cube, at(520, 600, -50.0), "Boden", "Raum", scale=(95.0, 95.0, 1.0), material=m_floor, collision=True)
 
-    # Rock along the edge of every room, high in the north-east, low in the south-west
-    count = 0
-    for room in ROOMS + CORRIDORS:
+    # Walls of cooled lava along the edge of every room: high in the north-east, low in the south-west, boulders at their foot
+    walls = {name: load(name) for name in ("SM_GK_Felswand_Hoch", "SM_GK_Felswand_Mittel", "SM_GK_Felswand_Niedrig")}
+    count = boulders = 0
+    for room in ROOMS + CORRIDORS[::3]:
         circumference = 2 * math.pi * math.sqrt((room.rx ** 2 + room.ry ** 2) / 2)
-        steps = max(8, int(circumference / 330.0))
+        piece = 560.0 if room in ROOMS else 420.0
+        steps = max(6, int(circumference / piece))
         for k in range(steps):
-            a = 2 * math.pi * k / steps + rng.uniform(-0.05, 0.05)
+            a = 2 * math.pi * k / steps + rng.uniform(-0.03, 0.03)
             edge = room.edge(a)
             out_x, out_y = math.cos(a) / max(room.ry, 1.0), math.sin(a) / max(room.rx, 1.0)
             norm = math.hypot(out_x, out_y)
             out_x, out_y = out_x / norm, out_y / norm
-            place = unreal.Vector(edge.x + out_x * 170.0, edge.y + out_y * 170.0, -40.0)
-            if open_at(place, margin=60.0):
+            test = unreal.Vector(edge.x + out_x * 140.0, edge.y + out_y * 140.0, 0.0)
+            if open_at(test, margin=40.0):
                 continue
             far = farness(out_x, out_y)
-            height = 160.0 + 620.0 * max(0.0, far) ** 1.3 + (90.0 if far > -0.3 else 0.0) + rng.uniform(-40, 50)
             if room in CORRIDORS:
-                height = min(height, 380.0)
-            rock = rocks[count % len(rocks)]
-            box = rock.get_bounding_box()
-            size = box.max - box.min
-            width = max(size.x, size.y, 1.0)
-            s = min(height / max(size.z, 1.0), 520.0 / width)
-            mesh_actor(rock, unreal.Vector(place.x + out_x * width * s * 0.3, place.y + out_y * width * s * 0.3, place.z),
-                       "Fels {}".format(count + 1), "Raum/Fels", yaw=rng.uniform(0, 360), scale=s, collision=True)
+                name, scale = ("SM_GK_Felswand_Mittel" if far > 0.2 else "SM_GK_Felswand_Niedrig"), 0.7
+            else:
+                name = "SM_GK_Felswand_Hoch" if far > 0.3 else "SM_GK_Felswand_Mittel" if far > -0.45 else "SM_GK_Felswand_Niedrig"
+                scale = rng.uniform(0.9, 1.15)
+            place = unreal.Vector(edge.x + out_x * 40.0, edge.y + out_y * 40.0, -10.0)
+            yaw = math.degrees(math.atan2(-out_y, -out_x)) + rng.uniform(-7, 7)
+            mesh_actor(walls[name], place, "Felswand {}".format(count + 1), "Raum/Fels", yaw=yaw, scale=(scale, scale * rng.uniform(0.9, 1.1), scale),
+                       collision=True)
             count += 1
-    log("{} Felsen".format(count))
+            # warm glow from the cracks at the foot of the high walls, so they read against the dark
+            if name != "SM_GK_Felswand_Niedrig" and room in ROOMS and count % 2 == 0:
+                point_light(unreal.Vector(edge.x - out_x * 120.0, edge.y - out_y * 120.0, 70.0), "Felsglut {}".format(count), "Licht/Felsglut",
+                            (1.0, 0.42, 0.12), 28.0, 650.0)
+            if room in ROOMS and rng.random() < 0.55:
+                rock = rocks[boulders % len(rocks)]
+                box = rock.get_bounding_box()
+                size = box.max - box.min
+                s = rng.uniform(80.0, 190.0) / max(size.z, 1.0)
+                s = min(s, 260.0 / max(size.x, size.y, 1.0))
+                side = rng.uniform(-200.0, 200.0)
+                spot = unreal.Vector(edge.x - out_x * 60.0 - out_y * side, edge.y - out_y * 60.0 + out_x * side, -25.0)
+                if not open_at(spot, margin=-120.0, skip=room) and not any(c.inside(spot, margin=60.0) for c in CORRIDORS):
+                    mesh_actor(rock, spot, "Brocken {}".format(boulders + 1), "Raum/Fels", yaw=rng.uniform(0, 360), scale=s, collision=True,
+                               material=m_rock)
+                    boulders += 1
+    log("{} Felswaende, {} Brocken".format(count, boulders))
 
     # Rib walls with membranes and egg sacs on the far half of the hall and in the den
     ribs = 0
@@ -281,23 +394,24 @@ def build():
     shaft(table, "Hauptschacht", "Licht/Lichtschaechte", 2200.0, 10.0)
     label_text(table, "2 Wurzeltisch", "Stufe I/Hexenkueche")
 
-    # 3 Clutch beds (stage I) with plants, empty clutches that become beds later
-    for k, (px, py) in enumerate(((395, 470), (651, 480), (391, 655), (649, 661))):
-        p = at(px, py, -6.0)
-        mesh_actor(bed, p, "Gelegebeet {}".format(k + 1), "Stufe I/Beete", yaw=rng.uniform(0, 360), collision=True)
-        if plants[k] is not None:
-            mesh_actor(plants[k], unreal.Vector(p.x, p.y, p.z + 30.0), "Pflanze {}".format(k + 1), "Stufe I/Beete", yaw=rng.uniform(0, 360), scale=0.9)
-        shaft(p, "Schacht Beet {}".format(k + 1), "Licht/Lichtschaechte", 700.0, 5.0)
-    label_text(at(395, 470), "3 Beete", "Stufe I/Beete")
-
-    # Sleeping clutches: closed sacs on the floor of the hall that hatch into beds over the story (see SLEEPING)
-    for k, (px, py, stage) in enumerate(SLEEPING):
-        p = at(px, py, -10.0)
-        folder = "Stufe {}/Beete Halle".format(stage)
-        mesh_actor(sac, p, "Schlafendes Gelege {} ({})".format(k + 1, stage), folder, yaw=rng.uniform(0, 360),
-                   pitch=rng.uniform(70, 88), scale=rng.uniform(0.75, 0.9), collision=True)
-        point_light(unreal.Vector(p.x, p.y, 70.0), "Gelege-Glimmen {}".format(k + 1), folder, (1.0, 0.4, 0.1), 12.0, 220.0)
-        label_text(p, "schlaeft (Stufe {})".format(stage), folder, color=(1.0, 0.7, 0.4))
+    # 3 Beds: 40 places in the end (BED_PLAN), the hall shared out evenly over the four plots, inner ones first.
+    #   Stage I: planted beds. Later stages: sleeping clutches that wake when the story reaches their stage.
+    for k, (stage, folder_room, p) in enumerate(bed_slots()):
+        folder = "Stufe {}/Beete {}".format(stage, folder_room)
+        if stage == "I":
+            mesh_actor(bed, unreal.Vector(p.x, p.y, -6.0), "Gelegebeet {}".format(k + 1), folder, yaw=rng.uniform(0, 360), collision=True)
+            plant = plants[k % len(plants)]
+            if plant is not None:
+                mesh_actor(plant, unreal.Vector(p.x, p.y, 24.0), "Pflanze {}".format(k + 1), folder, yaw=rng.uniform(0, 360), scale=0.9)
+            shaft(p, "Schacht Beet {}".format(k + 1), "Licht/Lichtschaechte", 650.0, 4.5, dust=False)
+        else:
+            mesh_actor(sleeping, unreal.Vector(p.x, p.y, -4.0), "Schlafendes Gelege {} (Stufe {})".format(k + 1, stage), folder,
+                       yaw=rng.uniform(0, 360), scale=rng.uniform(0.9, 1.05), collision=True)
+    for stage in STAGES:
+        hall, chamber, gallery = BED_PLAN[stage]
+        label_text(first_slot[stage], "Beete Stufe {} (+{})".format(stage, hall + chamber + gallery), "Stufe {}/Schilder".format(stage),
+                   color=(1.0, 0.75, 0.4))
+    label_text(at(395, 470), "3 Beete", "Stufe I/Beete Halle")
 
     # 4 Bed overview at the foot of the ramp
     mesh_actor(cube, at(717, 400, 70.0), "Wurzeltafel", "Stufe I/Hexenkueche", yaw=225.0, scale=(0.15, 1.4, 1.4), material=m_roots, collision=True)
@@ -308,6 +422,7 @@ def build():
     mesh_actor(pool, p, "Glutbecken", "Stufe I/Glutbecken", yaw=90.0, scale=(1.1, 0.7, 1.0))
     point_light(unreal.Vector(p.x, p.y, 110.0), "Becken-Licht", "Licht", (1.0, 0.4, 0.1), 140.0, 1000.0, shadows=True)
     label_text(p, "5 Glutbecken", "Stufe I/Glutbecken")
+    motes(unreal.Vector(p.x, p.y, 0.0), "Funken Glutbecken", "Licht/Funken", unreal.VaelCaveMote.EMBER, 45, 220.0, 520.0)
 
     # 6 Plots: four quarters of the hall, the Narbensaum between them (thin dark lines on the floor for now)
     for k, (ax, ay, bx, by) in enumerate(((520, 330, 520, 480), (520, 640, 520, 820), (300, 560, 440, 560), (600, 560, 800, 560))):
@@ -333,10 +448,9 @@ def build():
         point_light(at(355 + rng.uniform(-30, 30), 370 + rng.uniform(-30, 30), 140.0), "Fee {}".format(k + 1), "Stufe II/Klassenecken",
                     (0.85, 1.0, 0.6), 25.0, 260.0)
     point_light(at(865, 690, 120.0), "Glutbrunnen-Licht", "Stufe II/Klassenecken", (1.0, 0.45, 0.12), 90.0, 600.0)
+    motes(at(865, 690), "Funken Glutbrunnen", "Licht/Funken", unreal.VaelCaveMote.EMBER, 20, 90.0, 400.0)
 
     # Stage II: more clutch beds in the egg chamber
-    for k, (px, py) in enumerate(((180, 442), (250, 422), (170, 542), (270, 542), (190, 632), (275, 642))):
-        mesh_actor(bed, at(px, py, -6.0), "Gelegebeet Eierkammer {}".format(k + 1), "Stufe II/Eierkammer", yaw=rng.uniform(0, 360), collision=True)
     shaft(at(230, 520), "Schacht Eierkammer", "Licht/Lichtschaechte", 900.0, 9.0)
     label_text(at(232, 700), "Eierkammer (Stufe II)", "Stufe II/Eierkammer", color=(0.6, 0.95, 0.55))
 
@@ -353,10 +467,12 @@ def build():
         rock = rocks[(k + 3) % len(rocks)]
         size = rock.get_bounding_box().max - rock.get_bounding_box().min
         s = min(260.0 / max(size.z, 1.0), 300.0 / max(size.x, size.y, 1.0))
-        mesh_actor(rock, unreal.Vector(p.x, p.y, -30.0), "Schutt {}".format(k + 1), "Stufe IV/Schutt", yaw=rng.uniform(0, 360), scale=s, collision=True)
+        mesh_actor(rock, unreal.Vector(p.x, p.y, -30.0), "Schutt {}".format(k + 1), "Stufe IV/Schutt", yaw=rng.uniform(0, 360), scale=s, collision=True,
+                   material=m_rock)
     for k, (px, py, yaw) in enumerate(((420, 930, 10), (560, 905, -15), (700, 940, 20), (480, 990, 5), (650, 1000, -10))):
         mesh_actor(pool, at(px, py, -2.0), "Glutader {}".format(k + 1), "Stufe IV/Glutgalerie", yaw=yaw, scale=(0.18, 1.5, 0.6))
         point_light(at(px, py, 60.0), "Glutader-Licht {}".format(k + 1), "Stufe IV/Glutgalerie", (1.0, 0.35, 0.08), 60.0, 500.0)
+        motes(at(px, py), "Funken Glutader {}".format(k + 1), "Licht/Funken", unreal.VaelCaveMote.EMBER, 14, 120.0, 380.0)
     label_text(at(580, 960), "11 Glutgalerie (hinter Schutt)", "Stufe IV/Glutgalerie", color=(0.55, 0.75, 1.0))
 
     # 12 Brood tunnels: points where the pests come in
@@ -376,7 +492,8 @@ def build():
             p = unreal.Vector(HALL.c.x + math.cos(a) * ring * PX + rng.uniform(-60, 60), HALL.c.y + math.sin(a) * ring * PX + rng.uniform(-60, 60), 0.0)
             if not HALL.inside(p, margin=-150.0):
                 continue
-            light = shaft(p, "Deckenloch {}".format(spots + 1), "Licht/Deckenloecher", rng.uniform(260.0, 520.0), size + rng.uniform(-0.8, 0.8))
+            light = shaft(p, "Deckenloch {}".format(spots + 1), "Licht/Deckenloecher", rng.uniform(260.0, 520.0), size + rng.uniform(-0.8, 0.8),
+                          dust=spots % 3 == 0)
             light.light_component.set_editor_property("cast_shadows", False)
             spots += 1
     log("{} Deckenloecher".format(spots))
@@ -389,7 +506,8 @@ def build():
             f = rng.uniform(0.74, 0.93)
             p = unreal.Vector(room.c.x + math.cos(a) * room.ry * f, room.c.y + math.sin(a) * room.rx * f, 0.0)
             if any(c.inside(p, margin=80.0) for c in CORRIDORS) or any(
-                    math.hypot(p.x - at(x, y).x, p.y - at(x, y).y) < r * PX for x, y, r in KEEP_FREE):
+                    math.hypot(p.x - at(x, y).x, p.y - at(x, y).y) < r * PX for x, y, r in KEEP_FREE) or any(
+                    math.hypot(p.x - b.x, p.y - b.y) < 260.0 for _, _, b in bed_slots()):
                 continue
             kind = rng.random()
             folder = "Stufe IV/Glutgalerie" if room is ROOMS[4] else "Stufe I/Kleinkram"
@@ -397,7 +515,8 @@ def build():
                 rock = rocks[k % len(rocks)]
                 size = rock.get_bounding_box().max - rock.get_bounding_box().min
                 s_ = rng.uniform(40.0, 110.0) / max(size.z, 1.0)
-                mesh_actor(rock, unreal.Vector(p.x, p.y, -15.0), "Stein {}".format(props + 1), folder, yaw=rng.uniform(0, 360), scale=s_, collision=True)
+                mesh_actor(rock, unreal.Vector(p.x, p.y, -15.0), "Stein {}".format(props + 1), folder, yaw=rng.uniform(0, 360), scale=s_, collision=True,
+                           material=m_rock)
             elif kind < 0.72:
                 mesh_actor(sac, unreal.Vector(p.x, p.y, -20.0), "Eisack lose {}".format(props + 1), folder, yaw=rng.uniform(0, 360),
                            pitch=rng.uniform(55, 85), scale=rng.uniform(0.55, 0.8))
@@ -427,7 +546,7 @@ def build():
     post.set_editor_property("unbound", True)
     settings = post.get_editor_property("settings")
     for key, value in (("auto_exposure_min_brightness", 0.0), ("auto_exposure_max_brightness", 0.0), ("auto_exposure_bias", 0.3),
-                       ("bloom_intensity", 0.9), ("vignette_intensity", 0.45)):
+                       ("bloom_intensity", 1.1), ("vignette_intensity", 0.5)):
         settings.set_editor_property("override_" + key, True)
         settings.set_editor_property(key, value)
     post.set_editor_property("settings", settings)
