@@ -61,6 +61,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelTrankTest(const FString& What = TEXT(""));
 
+	/** Presses the confirm button of the open menu page, as a test of the pages; logs what the bag holds of brewed potions */
+	UFUNCTION(Exec)
+	void VaelMenuOk();
+
 	/** Refugium: opens the seed choice of the nearest open bed (after VaelSaat alles there are seeds); with "sofort" the first seed
 	 *  is sown into it at once, without the page. Example: VaelBeet sofort */
 	UFUNCTION(Exec)

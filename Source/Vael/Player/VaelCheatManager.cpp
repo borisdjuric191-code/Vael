@@ -1700,3 +1700,19 @@ void UVaelCheatManager::VaelTrankTest(const FString& What)
 		}
 	}, 4.0f, false);
 }
+
+void UVaelCheatManager::VaelMenuOk()
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	const AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	const TArray<const FVaelRecipe*> Recipes = FVaelBrewing::GetRecipes(static_cast<EVaelBrewTier>(Controller->GetBrewTier()));
+	const FVaelRecipe* Selected = Recipes.IsValidIndex(Controller->GetBrewSelection()) ? Recipes[Controller->GetBrewSelection()] : nullptr;
+	const int32 Before = Selected != nullptr ? Player->GetMaterialBag()->GetCount(Selected->Result.LoadSynchronous()) : 0;
+	Controller->PressMenuConfirm();
+	UE_LOG(LogVael, Log, TEXT("VaelMenuOk: page %d, recipe %s, potions in the bag %d -> %d"), static_cast<int32>(Controller->GetMenuPage()),
+		Selected != nullptr ? *Selected->Id.ToString() : TEXT("-"), Before, Selected != nullptr ? Player->GetMaterialBag()->GetCount(Selected->Result.LoadSynchronous()) : 0);
+}

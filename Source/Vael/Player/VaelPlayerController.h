@@ -393,6 +393,9 @@ public:
 	/** Opens the shop page for this player right after the current dialogue, or at once without one */
 	void OpenShopAfterDialogue(const UVaelShop* Shop);
 
+	/** Presses the confirm button of the open menu page, for tests (VaelMenuOk) */
+	void PressMenuConfirm() { OnMenuConfirm(); }
+
 	/** Opens the brewing page of the witch's kitchen (at the root table) */
 	void OpenBrewing();
 
