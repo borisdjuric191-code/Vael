@@ -307,7 +307,7 @@ def build_clutch_bed():
     b.grid([[q[0] for q in outer[-1]], [q[0] for q in inner[-1]]], 0, uv_of=lambda j, i: (i / sides * 3, 0),
            mask_of=lambda j, i: 0.2, closed_u=True)
     # soil, slightly heaped
-    soil_z, soil_r = 0.26, 0.36
+    soil_z, soil_r = 0.42, 0.5
     soil = [[Vector((math.cos(2 * math.pi * i / sides) * soil_r * (1 - j / 6), math.sin(2 * math.pi * i / sides) * soil_r * (1 - j / 6),
                      soil_z + 0.07 * (j / 6) ** 0.5 + noise.noise(Vector((i * 0.3, j * 0.5, 2))) * 0.015)) for i in range(sides)] for j in range(7)]
     b.grid(soil, 1, uv_of=lambda j, i: (i / sides, j / 6), mask_of=lambda j, i: 0.0, closed_u=True)

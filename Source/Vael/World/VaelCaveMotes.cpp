@@ -13,23 +13,23 @@
 namespace
 {
 	/** Size of the engine sphere in cm */
-	constexpr float SphereSize = 100.0f;
+	constexpr float MoteSphereSize = 100.0f;
 
 	/** Look of each kind: colour and glow of the hail material, mote size in cm */
-	const FLinearColor DustColor(1.0f, 0.86f, 0.62f);
-	const FLinearColor EmberColor(1.0f, 0.38f, 0.07f);
-	constexpr float DustGlow = 2.2f;
-	constexpr float EmberGlow = 9.0f;
-	constexpr float DustSize = 1.6f;
-	constexpr float EmberSize = 2.4f;
+	const FLinearColor MoteDustColor(1.0f, 0.86f, 0.62f);
+	const FLinearColor MoteEmberColor(1.0f, 0.38f, 0.07f);
+	constexpr float MoteDustGlow = 2.2f;
+	constexpr float MoteEmberGlow = 9.0f;
+	constexpr float MoteDustSize = 1.6f;
+	constexpr float MoteEmberSize = 2.4f;
 
 	/** Dust sinks slowly and sways; embers rise, wobble and go out after a few seconds */
-	constexpr float DustSink = 6.0f;
-	constexpr float DustSway = 9.0f;
-	constexpr float EmberRise = 70.0f;
-	constexpr float EmberWobble = 28.0f;
-	constexpr float EmberLifeMin = 2.5f;
-	constexpr float EmberLifeMax = 5.5f;
+	constexpr float MoteDustSink = 6.0f;
+	constexpr float MoteDustSway = 9.0f;
+	constexpr float MoteEmberRise = 70.0f;
+	constexpr float MoteEmberWobble = 28.0f;
+	constexpr float MoteEmberLifeMin = 2.5f;
+	constexpr float MoteEmberLifeMax = 5.5f;
 }
 
 AVaelCaveMotes::AVaelCaveMotes()
@@ -58,8 +58,8 @@ void AVaelCaveMotes::BeginPlay()
 	if (UMaterialInterface* Ice = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->HailIceMaterial))
 	{
 		Material = UMaterialInstanceDynamic::Create(Ice, this);
-		Material->SetVectorParameterValue(TEXT("Farbe"), bEmber ? EmberColor : DustColor);
-		Material->SetScalarParameterValue(TEXT("Leuchten"), (bEmber ? EmberGlow : DustGlow) * Brightness);
+		Material->SetVectorParameterValue(TEXT("Farbe"), bEmber ? MoteEmberColor : MoteDustColor);
+		Material->SetScalarParameterValue(TEXT("Leuchten"), (bEmber ? MoteEmberGlow : MoteDustGlow) * Brightness);
 		Mesh->SetMaterial(0, Material);
 	}
 
@@ -81,10 +81,10 @@ void AVaelCaveMotes::Respawn(FMote& Mote, bool bAnywhere) const
 	const float Z = bEmber && !bAnywhere ? FMath::FRandRange(0.0f, Height * 0.1f) : FMath::FRandRange(0.0f, Height);
 	Mote.Location = FVector(Disc.X, Disc.Y, Z);
 	Mote.Phase = FMath::FRandRange(0.0f, UE_TWO_PI);
-	Mote.Size = (bEmber ? EmberSize : DustSize) * FMath::FRandRange(0.6f, 1.3f);
-	Mote.Life = FMath::FRandRange(EmberLifeMin, EmberLifeMax);
+	Mote.Size = (bEmber ? MoteEmberSize : MoteDustSize) * FMath::FRandRange(0.6f, 1.3f);
+	Mote.Life = FMath::FRandRange(MoteEmberLifeMin, MoteEmberLifeMax);
 	Mote.Age = bAnywhere ? FMath::FRandRange(0.0f, Mote.Life) : 0.0f;
-	Mote.Velocity = bEmber ? FVector(0.0f, 0.0f, EmberRise * FMath::FRandRange(0.7f, 1.4f)) : FVector(0.0f, 0.0f, -DustSink * FMath::FRandRange(0.5f, 1.5f));
+	Mote.Velocity = bEmber ? FVector(0.0f, 0.0f, MoteEmberRise * FMath::FRandRange(0.7f, 1.4f)) : FVector(0.0f, 0.0f, -MoteDustSink * FMath::FRandRange(0.5f, 1.5f));
 }
 
 void AVaelCaveMotes::Tick(float DeltaSeconds)
@@ -101,7 +101,7 @@ void AVaelCaveMotes::Tick(float DeltaSeconds)
 	{
 		FMote& Mote = Motes[Index];
 		Mote.Age += DeltaSeconds;
-		const float Swing = bEmber ? EmberWobble : DustSway;
+		const float Swing = bEmber ? MoteEmberWobble : MoteDustSway;
 		const FVector Drift(FMath::Sin(Time * 0.7f + Mote.Phase) * Swing, FMath::Cos(Time * 0.53f + Mote.Phase * 1.7f) * Swing, 0.0f);
 		Mote.Location += (Mote.Velocity + Drift) * DeltaSeconds;
 
@@ -114,7 +114,7 @@ void AVaelCaveMotes::Tick(float DeltaSeconds)
 		// Dust twinkles as it turns in the light; embers shrink as they cool
 		const float Shown = bEmber ? FMath::Clamp(1.0f - Mote.Age / Mote.Life, 0.0f, 1.0f) * (0.8f + 0.2f * FMath::Sin(Time * 13.0f + Mote.Phase))
 			: 0.55f + 0.45f * FMath::Max(0.0f, FMath::Sin(Time * 1.3f + Mote.Phase * 3.0f));
-		const float Scale = Mote.Size * Shown / SphereSize;
+		const float Scale = Mote.Size * Shown / MoteSphereSize;
 		Transforms[Index] = FTransform(FQuat::Identity, Mote.Location, FVector(Scale));
 	}
 	Mesh->BatchUpdateInstancesTransforms(0, Transforms, false, true, true);

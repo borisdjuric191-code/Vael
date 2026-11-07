@@ -43,6 +43,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelSaat(const FString& What);
 
+	/** Refugium: sets the stage the story has reached (1 to 5), the clutches of that stage wake. Example: VaelRefugium 3 */
+	UFUNCTION(Exec)
+	void VaelRefugium(int32 Stage, const FString& Name = TEXT("Glutkammer"));
+
+	/** Refugium: every awake clutch hatches into a bed now, as if dawn had come */
+	UFUNCTION(Exec)
+	void VaelSchluepfen();
+
 	/** Switches the base look of the player: "Mann", "Frau" or "MetaHuman". Example: VaelGestalt Frau */
 	UFUNCTION(Exec)
 	void VaelGestalt(const FString& Look);

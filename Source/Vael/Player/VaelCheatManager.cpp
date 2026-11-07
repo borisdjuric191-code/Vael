@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCheatManager.h"
+#include "World/VaelRefugiumClutch.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
@@ -1542,4 +1543,14 @@ void UVaelCheatManager::VaelKeim(int32 Right, int32 Down, int32 Press)
 			VaelController->ConfirmKeimgeflecht();
 		}
 	}
+}
+
+void UVaelCheatManager::VaelRefugium(int32 Stage, const FString& Name)
+{
+	AVaelRefugiumClutch::SetReachedStage(GetOuterAPlayerController(), FName(*Name), Stage);
+}
+
+void UVaelCheatManager::VaelSchluepfen()
+{
+	AVaelRefugiumClutch::HatchAllAwake(GetOuterAPlayerController());
 }

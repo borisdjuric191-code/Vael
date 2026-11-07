@@ -442,7 +442,7 @@ def build_materials():
     tissue = material_tissue()
     glow = material_glow()
     vein = material_plain("M_GK_Ader", (0.16, 0.03, 0.02), 0.4, emissive=(0.25, 0.04, 0.01))
-    soil = material_plain("M_GK_Erde", (0.07, 0.045, 0.03), 0.95, noise_amount=0.35)
+    soil = material_plain("M_GK_Erde", (0.2, 0.13, 0.085), 0.92, noise_amount=0.35, two_sided=True)
     roots = material_roots()
     pool = material_pool()
     floor = material_floor()

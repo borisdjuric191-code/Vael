@@ -338,7 +338,7 @@ def build():
 
     # Rib walls with membranes and egg sacs on the far half of the hall and in the den
     ribs = 0
-    for room, start, end, spacing, scale in ((HALL, -20.0, 110.0, 560.0, 1.0), (ROOMS[2], -10.0, 100.0, 520.0, 0.75)):
+    for room, start, end, spacing, scale in ((HALL, -20.0, 110.0, 980.0, 1.0), (ROOMS[2], -10.0, 100.0, 620.0, 0.75)):
         a = math.radians(start)
         while a <= math.radians(end):
             edge = room.edge(a)
@@ -396,17 +396,20 @@ def build():
 
     # 3 Beds: 40 places in the end (BED_PLAN), the hall shared out evenly over the four plots, inner ones first.
     #   Stage I: planted beds. Later stages: sleeping clutches that wake when the story reaches their stage.
+    #   Every place is a VaelRefugiumClutch: it wakes with the story flag of its stage and hatches at dawn (C++).
     for k, (stage, folder_room, p) in enumerate(bed_slots()):
         folder = "Stufe {}/Beete {}".format(stage, folder_room)
-        if stage == "I":
-            mesh_actor(bed, unreal.Vector(p.x, p.y, -6.0), "Gelegebeet {}".format(k + 1), folder, yaw=rng.uniform(0, 360), collision=True)
+        number = STAGES.index(stage) + 1
+        clutch = spawn(unreal.VaelRefugiumClutch, unreal.Vector(p.x, p.y, -6.0 if number == 1 else -4.0),
+                       "Beetplatz {:02d} (Stufe {})".format(k + 1, stage), folder, unreal.Rotator(0.0, 0.0, rng.uniform(0, 360)))
+        clutch.set_editor_property("refugium", "Glutkammer")
+        clutch.set_editor_property("stage", number)
+        clutch.set_editor_property("place_id", "{}{:02d}".format(folder_room, k + 1))
+        if number == 1:
             plant = plants[k % len(plants)]
             if plant is not None:
                 mesh_actor(plant, unreal.Vector(p.x, p.y, 24.0), "Pflanze {}".format(k + 1), folder, yaw=rng.uniform(0, 360), scale=0.9)
             shaft(p, "Schacht Beet {}".format(k + 1), "Licht/Lichtschaechte", 650.0, 4.5, dust=False)
-        else:
-            mesh_actor(sleeping, unreal.Vector(p.x, p.y, -4.0), "Schlafendes Gelege {} (Stufe {})".format(k + 1, stage), folder,
-                       yaw=rng.uniform(0, 360), scale=rng.uniform(0.9, 1.05), collision=True)
     for stage in STAGES:
         hall, chamber, gallery = BED_PLAN[stage]
         label_text(first_slot[stage], "Beete Stufe {} (+{})".format(stage, hall + chamber + gallery), "Stufe {}/Schilder".format(stage),
