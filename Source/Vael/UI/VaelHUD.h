@@ -122,6 +122,9 @@ private:
 	/** The witch's kitchen at the root table of a refugium: tabs of the Rezeptbuch, recipes, the chosen combination (VaelHUDBrewing.cpp) */
 	void DrawBrewing(const AVaelPlayerController* PlayerController);
 
+	/** The engineer's building page at the workbench or the field box (VaelHUDCrafting.cpp) */
+	void DrawCrafting(const AVaelPlayerController* PlayerController);
+
 	/** The seed choice of a bed of a refugium (VaelHUDBrewing.cpp) */
 	void DrawSowing(const AVaelPlayerController* PlayerController);
 

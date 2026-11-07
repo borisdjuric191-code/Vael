@@ -445,6 +445,8 @@ def build():
     spawn(unreal.VaelBalanceBoard, at(717, 400, 0.0), "Wurzeltafel (Waage)", "Spiel", unreal.Rotator(0.0, 0.0, 225.0))
     # a place to rest by the Glutbecken: 8 hours, heals and purifies with a Klartrunk or Lichttropfen
     spawn(unreal.VaelRestSpot, at(470, 815, 0.0), "Rastplatz am Glutbecken", "Spiel")
+    # the engineer's workbench in his corner (SM_GK_Werkbank below): building weapons, shots, devices, armour (C++ VaelWorkbench)
+    spawn(unreal.VaelWorkbench, at(745, 600, 0.0), "Werkbank (Ingenieur)", "Spiel")
 
     # 5 Glutbecken: cooled in the light, lava in the shadow, the Brunnen in the twilight
     p = at(520, 760)

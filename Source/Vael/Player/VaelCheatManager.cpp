@@ -1779,6 +1779,18 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: built %d pieces, armour %.0f, max health %.0f"), Count, Engineer->GetArmorTotal(), Player->GetMaxHealth());
 		return;
 	}
+	if (What == TEXT("werkbank") || What == TEXT("feld"))
+	{
+		// The page of building, as at the workbench or the field box; "werkbank 3" opens a tab, Id a row
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Controller->OpenCrafting(What == TEXT("werkbank"));
+		for (int32 Step = 0; Step < FCString::Atoi(*Id); ++Step)
+		{
+			Controller->PressMenuPageForTest(1);
+		}
+		return;
+	}
 	if (What == TEXT("beute"))
 	{
 		VaelEngineerGear::LoadMaterial(TEXT("Schlacke"));

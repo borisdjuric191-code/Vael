@@ -32,7 +32,10 @@ enum class EVaelMenuPage : uint8
 	Board,
 	/** The Floromant's Keimgeflecht (2026-11-04): herbarium, plant wheel and the plate of a plant with its Erbanlagen; it takes
 	 *  the place of the formulas in her page ring */
-	Keimgeflecht
+	Keimgeflecht,
+	/** The engineer's building (2026-11-08): weapons, shots, devices, armour; the workbench has all, the field box by a campfire
+	 *  only shots and devices; only reached there */
+	Craft
 };
 
 /** Where the selection of the Keimgeflecht stands: herbarium cards, wheel capsules on the strand, or Erbanlagen on the plate */
@@ -455,7 +458,20 @@ public:
 	bool IsSowingShadow() const { return bSowShadow; }
 
 	/** True on pages that belong to a place (trader, kitchen, bed) and are not part of the page ring */
-	bool IsPlacePage() const { return MenuPage == EVaelMenuPage::Shop || MenuPage == EVaelMenuPage::Brew || MenuPage == EVaelMenuPage::Sow || MenuPage == EVaelMenuPage::Board; }
+	bool IsPlacePage() const { return MenuPage == EVaelMenuPage::Shop || MenuPage == EVaelMenuPage::Brew || MenuPage == EVaelMenuPage::Sow || MenuPage == EVaelMenuPage::Board || MenuPage == EVaelMenuPage::Craft; }
+
+	/** The engineer's page of building: at the workbench everything, at the field box only shots and devices */
+	void OpenCrafting(bool bAtWorkbench);
+	int32 GetCraftTab() const { return CraftTab; }
+	int32 GetCraftSelection() const { return CraftSelection; }
+	bool IsCraftAtWorkbench() const { return bCraftAtWorkbench; }
+
+	/** The pieces of one tab of the building page, in their order */
+	static TArray<const struct FVaelGear*> GetCraftList(int32 Tab);
+
+	/** Test hook: like pressing confirm in the menu */
+	void PressCraftConfirm() { OnMenuConfirm(); }
+	void PressMenuPageForTest(float Direction);
 
 	/** Opens the page of the root board (Die Waage) */
 	void OpenBoard() { OpenGrimoire(EVaelMenuPage::Board); }
@@ -723,6 +739,16 @@ protected:
 
 	/** Brewing page: tab and row, and when the last potion came out */
 	int32 BrewTier = 0;
+
+	/** Building page: tab (weapons, shots, devices, armour), row, and whether it is the workbench or the field box */
+	int32 CraftTab = 0;
+	int32 CraftSelection = 0;
+	bool bCraftAtWorkbench = true;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngFieldAction;
+
+	void OnEngField();
 	int32 BrewSelection = 0;
 	double LastBrewTime = -100.0;
 

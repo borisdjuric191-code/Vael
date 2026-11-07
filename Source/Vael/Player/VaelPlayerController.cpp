@@ -2,6 +2,8 @@
 
 #include "Player/VaelPlayerController.h"
 #include "Engineer/VaelEngineerComponent.h"
+#include "Engineer/VaelWorkbench.h"
+#include "World/VaelFireSpot.h"
 #include "Items/VaelBrewing.h"
 #include "Nature/VaelGarden.h"
 #include "World/VaelRefugiumClutch.h"
@@ -212,6 +214,7 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(EngDevicePrevAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngDevice, -1);
 			EnhancedInputComponent->BindAction(EngWeaponAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngWeapon);
 			EnhancedInputComponent->BindAction(EngIgniteAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngIgnite);
+			EnhancedInputComponent->BindAction(EngFieldAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngField);
 			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnRise, true);
 			EnhancedInputComponent->BindAction(RiseAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnRise, false);
 		}
@@ -618,6 +621,11 @@ void AVaelPlayerController::CreateEngineerInput()
 	EngWeaponAction = CreateAction(TEXT("IA_Ing_Waffe"));
 	Context->MapKey(EngWeaponAction, EKeys::Gamepad_DPad_Up);
 	Context->MapKey(EngWeaponAction, EKeys::R);
+	// The field box by a campfire: Triangle, T
+	EngFieldAction = CreateAction(TEXT("IA_Ing_Feldkasten"));
+	Context->MapKey(EngFieldAction, EKeys::Gamepad_FaceButton_Top);
+	Context->MapKey(EngFieldAction, EKeys::T);
+
 	EngIgniteAction = CreateAction(TEXT("IA_Ing_Zuenden"));
 	Context->MapKey(EngIgniteAction, EKeys::Gamepad_FaceButton_Left);
 	Context->MapKey(EngIgniteAction, EKeys::X);
@@ -688,6 +696,63 @@ void AVaelPlayerController::OnEngWeapon()
 	{
 		VaelCharacter->GetEngineer()->CycleWeapon();
 	}
+}
+
+void AVaelPlayerController::OnEngField()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr || !VaelCharacter->IsEngineer() || VaelCharacter->IsDowned() || bGrimoireOpen)
+	{
+		return;
+	}
+	// The field box opens by a campfire (or at his workbench, where it is the whole bench)
+	for (TActorIterator<AVaelWorkbench> It(GetWorld()); It; ++It)
+	{
+		if (FVector::Dist2D(It->GetActorLocation(), VaelCharacter->GetActorLocation()) < 700.0f)
+		{
+			It->Interact(VaelCharacter);
+			return;
+		}
+	}
+	for (TActorIterator<AVaelFireSpot> It(GetWorld()); It; ++It)
+	{
+		if (FVector::Dist2D(It->GetActorLocation(), VaelCharacter->GetActorLocation()) < 650.0f)
+		{
+			VaelCharacter->GetEngineer()->Restock();
+			OpenCrafting(false);
+			return;
+		}
+	}
+	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelEngineer", "NoFire", "Den Feldkasten nur an einem Lagerfeuer"), FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
+}
+
+TArray<const FVaelGear*> AVaelPlayerController::GetCraftList(int32 Tab)
+{
+	TArray<const FVaelGear*> List;
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		if (static_cast<int32>(Gear.Kind) == Tab)
+		{
+			List.Add(&Gear);
+		}
+	}
+	return List;
+}
+
+void AVaelPlayerController::PressMenuPageForTest(float Direction)
+{
+	OnMenuPage(FInputActionValue(Direction));
+}
+
+void AVaelPlayerController::OpenCrafting(bool bAtWorkbench)
+{
+	bCraftAtWorkbench = bAtWorkbench;
+	if (!bAtWorkbench && (CraftTab == 0 || CraftTab == 3))
+	{
+		CraftTab = 1;
+	}
+	CraftSelection = FMath::Clamp(CraftSelection, 0, FMath::Max(GetCraftList(CraftTab).Num() - 1, 0));
+	OpenGrimoire(EVaelMenuPage::Craft);
 }
 
 void AVaelPlayerController::OnEngIgnite()
@@ -1673,6 +1738,12 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 		return;
 	}
 
+	if (MenuPage == EVaelMenuPage::Craft)
+	{
+		CraftSelection = FMath::Clamp(CraftSelection + Step, 0, FMath::Max(GetCraftList(CraftTab).Num() - 1, 0));
+		return;
+	}
+
 	if (MenuPage == EVaelMenuPage::Brew)
 	{
 		const int32 NumRecipes = FVaelBrewing::GetRecipes(static_cast<EVaelBrewTier>(BrewTier)).Num();
@@ -1712,6 +1783,19 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 
 void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 {
+	// At the workbench the page buttons turn its tabs (the field box has only shots and devices)
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Craft)
+	{
+		const int32 Step = Value.Get<float>() < 0.0f ? -1 : 1;
+		do
+		{
+			CraftTab = (CraftTab + Step + 4) % 4;
+		}
+		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab == 3));
+		CraftSelection = 0;
+		return;
+	}
+
 	// In the kitchen the page buttons turn the tabs of the recipe book
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Brew)
 	{
@@ -1738,6 +1822,36 @@ void AVaelPlayerController::OnMenuConfirm()
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
 	{
 		ConfirmKeimgeflecht();
+		return;
+	}
+
+	// Building: the materials go out of the own bag; a built piece of armour is put on instead
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Craft && VaelCharacter != nullptr && VaelCharacter->IsEngineer())
+	{
+		const TArray<const FVaelGear*> List = GetCraftList(CraftTab);
+		if (List.IsValidIndex(CraftSelection))
+		{
+			UVaelEngineerComponent* Engineer = VaelCharacter->GetEngineer();
+			const FVaelGear& Gear = *List[CraftSelection];
+			const UVaelEngineerComponent::EBuildBlock Block = Engineer->GetBuildBlock(Gear, bCraftAtWorkbench);
+			if (Block == UVaelEngineerComponent::EBuildBlock::Built && Gear.Kind == EVaelGearKind::Armor)
+			{
+				Engineer->Wear(Gear.Id);
+			}
+			else if (Block == UVaelEngineerComponent::EBuildBlock::Ok)
+			{
+				Engineer->Build(Gear.Id, bCraftAtWorkbench);
+				LastBrewTime = FPlatformTime::Seconds();
+			}
+			else
+			{
+				const FText Why = Block == UVaelEngineerComponent::EBuildBlock::Built ? NSLOCTEXT("VaelEngineer", "Built", "Schon gebaut")
+					: Block == UVaelEngineerComponent::EBuildBlock::NeedsFirst ? NSLOCTEXT("VaelEngineer", "NeedsFirst", "Erst das St\u00FCck davor bauen")
+					: Block == UVaelEngineerComponent::EBuildBlock::NeedsWorkbench ? NSLOCTEXT("VaelEngineer", "NeedsBench", "Das geht nur an der Werkbank")
+					: NSLOCTEXT("VaelEngineer", "Missing", "Es fehlen Materialien");
+				UVaelNoticeSubsystem::Post(this, Why, FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
+			}
+		}
 		return;
 	}
 
@@ -1863,6 +1977,23 @@ void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
 		}
 		NextNavigateTime = Now + 10.0;
 		bSowShadow = Direction > 0.0f;
+		return;
+	}
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Craft && FMath::Abs(Direction) >= 0.5f)
+	{
+		const double Now = FPlatformTime::Seconds();
+		if (NextNavigateTime > 0.0 && Now < NextNavigateTime)
+		{
+			return;
+		}
+		NextNavigateTime = Now + 10.0;
+		const int32 Step = Direction > 0.0f ? 1 : -1;
+		do
+		{
+			CraftTab = (CraftTab + Step + 4) % 4;
+		}
+		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab == 3));
+		CraftSelection = 0;
 		return;
 	}
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Brew && FMath::Abs(Direction) >= 0.5f)
