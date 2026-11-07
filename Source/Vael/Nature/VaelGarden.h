@@ -316,6 +316,13 @@ public:
 	/** Sows one seed of a researched plant in front of the player. Returns null if they have none or there is no room. */
 	AVaelSownPlant* Sow(AVaelCharacter* Player);
 
+	/** Sows one seed of this plant from the player's bag at an exact spot, like the bed of a refugium (no spacing check:
+	 *  the bed is the room). Returns null if the player has no such seed or the plant is not researched. */
+	AVaelSownPlant* SowAt(AVaelCharacter* Player, FName PlantId, const FVector& Ground);
+
+	/** True if a sown plant stands this close to the spot in the level of the world */
+	bool HasPlantNear(const UWorld* World, const FVector& Location, float Radius) const;
+
 	/** The form a seed takes in the hands of a sower with this much corruption of their own: true for the shadow form */
 	static bool RollShadowForm(float SowerCorruption);
 

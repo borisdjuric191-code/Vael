@@ -24,6 +24,10 @@ enum class EVaelMenuPage : uint8
 	Hero,
 	/** A trader's goods, only reached by talking to the trader; not part of the page ring */
 	Shop,
+	/** The witch's kitchen at the root table of a refugium: brewing potions; only reached at the table */
+	Brew,
+	/** A bed of a refugium: picking the seed to sow in it; only reached at the bed */
+	Sow,
 	/** The Floromant's Keimgeflecht (2026-11-04): herbarium, plant wheel and the plate of a plant with its Erbanlagen; it takes
 	 *  the place of the formulas in her page ring */
 	Keimgeflecht
@@ -76,6 +80,7 @@ class AVaelSharedCamera;
 class UVaelAutoAimComponent;
 class UVaelFormula;
 class UVaelShop;
+class AVaelRefugiumClutch;
 class UVaelQuest;
 class UInputMappingContext;
 class UInputAction;
@@ -388,6 +393,26 @@ public:
 	/** Opens the shop page for this player right after the current dialogue, or at once without one */
 	void OpenShopAfterDialogue(const UVaelShop* Shop);
 
+	/** Opens the brewing page of the witch's kitchen (at the root table) */
+	void OpenBrewing();
+
+	/** Tier (tab) and row of the brewing page */
+	int32 GetBrewTier() const { return BrewTier; }
+	int32 GetBrewSelection() const { return BrewSelection; }
+
+	/** Seconds since the last brew, for the little flourish on the page; large when nothing was brewed */
+	float GetSecondsSinceBrew() const;
+
+	/** Opens the seed choice for a bed of a refugium */
+	void OpenSowing(AVaelRefugiumClutch* Bed);
+
+	/** Plants the player can sow now (researched, seeds in the bag), in the order of the garden */
+	TArray<FName> GetSowChoices() const;
+	int32 GetSowSelection() const { return SowSelection; }
+
+	/** True on pages that belong to a place (trader, kitchen, bed) and are not part of the page ring */
+	bool IsPlacePage() const { return MenuPage == EVaelMenuPage::Shop || MenuPage == EVaelMenuPage::Brew || MenuPage == EVaelMenuPage::Sow; }
+
 	/** What the earth button of the gamepad uses instead of queueing earth right now: something close by, outside of fights or in a safe zone; null if nothing */
 	AActor* GetPadInteractTarget() const;
 
@@ -627,6 +652,15 @@ protected:
 
 	/** Shop that opens once the current dialogue is read */
 	TWeakObjectPtr<const UVaelShop> PendingShop;
+
+	/** Brewing page: tab and row, and when the last potion came out */
+	int32 BrewTier = 0;
+	int32 BrewSelection = 0;
+	double LastBrewTime = -100.0;
+
+	/** Seed page: the bed it sows into and the row */
+	TWeakObjectPtr<AVaelRefugiumClutch> SowBed;
+	int32 SowSelection = 0;
 
 	/** Dialogue being read: who speaks, the lines and the one shown */
 	FText DialogueSpeaker;

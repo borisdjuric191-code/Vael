@@ -347,6 +347,54 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 	return Plant;
 }
 
+AVaelSownPlant* UVaelGardenSubsystem::SowAt(AVaelCharacter* Player, FName PlantId, const FVector& Ground)
+{
+	UVaelMaterialBag* Bag = Player != nullptr ? Player->GetMaterialBag() : nullptr;
+	const FVaelSeedPlant* Picked = FindPlant(PlantId);
+	const UVaelMaterial* Seed = Picked != nullptr ? Picked->Seed.LoadSynchronous() : nullptr;
+	if (Bag == nullptr || Seed == nullptr || !Researched.Contains(PlantId) || !Bag->RemoveMaterial(Seed, 1))
+	{
+		return nullptr;
+	}
+
+	UWorld* World = Player->GetWorld();
+	const bool bShadow = Picked->HasShadowForm() && RollShadowForm(Player->GetCorruption());
+	const float Yaw = FMath::FRandRange(0.0f, 360.0f);
+	AVaelSownPlant* Plant = AVaelSownPlant::Plant(World, PlantId, Ground, Yaw, false, bShadow);
+	if (Plant == nullptr)
+	{
+		Bag->AddMaterial(Seed, 1);
+		return nullptr;
+	}
+
+	FVaelSavedPlant& Saved = Sown.AddDefaulted_GetRef();
+	Saved.Level = GardenLevelName(World);
+	Saved.Plant = PlantId;
+	Saved.Location = Ground;
+	Saved.Yaw = Yaw;
+	Saved.SownAt = Clock;
+	Saved.bShadow = bShadow;
+
+	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
+	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("SownInBed", "{0} ins Beet gesät"), Plant->GetFormName()), bShadow ? Settings->ShadowGlowColor : Picked->GlowColor);
+	UVaelSaveSubsystem::RequestSave(Player);
+	UE_LOG(LogVael, Log, TEXT("Garden: %s sown in a bed"), *PlantId.ToString());
+	return Plant;
+}
+
+bool UVaelGardenSubsystem::HasPlantNear(const UWorld* World, const FVector& Location, float Radius) const
+{
+	const FName Level = GardenLevelName(World);
+	for (const FVaelSavedPlant& Other : Sown)
+	{
+		if (Other.Level == Level && FVector::Dist2D(Other.Location, Location) < Radius)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool UVaelGardenSubsystem::RollShadowForm(float SowerCorruption)
 {
 	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();

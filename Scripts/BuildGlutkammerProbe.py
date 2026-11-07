@@ -25,6 +25,10 @@ FOLDER = "/Game/Vael/Refugium/Glutkammer/Probe"
 LEVEL_PATH = "/Game/Vael/Maps/Test/L_GlutkammerProbe"
 PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelvorhang", "SM_GK_Glutbecken", "SM_GK_Gelege_Schlafend",
           "SM_GK_Lichtstrahl", "SM_GK_Felswand_Hoch", "SM_GK_Felswand_Mittel", "SM_GK_Felswand_Niedrig"]
+# the stations of the hall (Tools/Refugium/glutkammer_stations.py); their slots are matched to materials by name
+STATIONS = ["SM_GK_Wurzeltisch", "SM_GK_Tischschmuck", "SM_GK_Kraeuterbogen", "SM_GK_Werkbank", "SM_GK_Schrein", "SM_GK_Bau",
+            "SM_GK_Glutbrunnen", "SM_GK_Helfernest"]
+PIECES = PIECES + STATIONS
 # pieces that stay plain meshes (translucent); the rest is built as Nanite
 NO_NANITE = {"SM_GK_Lichtstrahl"}
 ROCK_TEX = "/Game/Megascans/3D_Assets/IcelandicVolcanoTerrain/T_IcelandicVolcanoTerrain_A"
@@ -428,6 +432,93 @@ def material_rock():
     return m
 
 
+def material_liquid():
+    """Liquids in vials and the kettle: the hue comes from UV1 U (0 red .. 0.5 green .. 1 blue), glowing a little, glossy"""
+    m = new_material("M_GK_Fluessigkeit")
+    g = Graph(m)
+    hue = g.vertex_r(6)
+    low = g.saturate(g.mul(4, hue, g.const(2.0, 5)), 3)
+    high = g.saturate(g.sub(4, g.mul(5, hue, g.const(2.0, 6)), g.const(1.0, 5)), 3)
+    colour = g.lerp(g.lerp(g.color("Rot", (0.9, 0.12, 0.08), 3), g.color("Gruen", (0.25, 0.85, 0.2), 3), low, 2),
+                    g.color("Blau", (0.25, 0.4, 1.0), 2), high, 1)
+    library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.mul(1, colour, g.mul(2, g.scalar("Leuchten", 1.6, 3), g.pulse(0.7, 3))), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(g.const(0.08, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    return finish(m)
+
+
+def material_glass():
+    """Old glass: dark, glossy, a bright rim where it turns away from the eye (opaque, cheap)"""
+    m = new_material("M_GK_Glas")
+    g = Graph(m)
+    fresnel = g.node(unreal.MaterialExpressionFresnel, 3, exponent=3.0)
+    library.connect_material_property(g.color("Farbe", (0.05, 0.07, 0.07), 2), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.mul(1, fresnel, g.color("Rand", (0.55, 0.7, 0.65), 2)), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(g.const(0.05, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(g.const(1.0, 1), "", unreal.MaterialProperty.MP_SPECULAR)
+    return finish(m)
+
+
+def material_paper():
+    """Pages of the book: warm parchment with rows of faded ink (lines along UV V) and darker edges"""
+    m = new_material("M_GK_Papier", two_sided=True)
+    g = Graph(m)
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 6)
+    v = g.mask(uv, 5, r=False, g=True, b=False)
+    line_sine = g.node(unreal.MaterialExpressionSine, 4, period=1.0)
+    g.link(g.mul(5, v, g.const(14.0, 6)), line_sine)
+    lines = g.saturate(g.mul(3, g.sub(4, line_sine, g.const(0.75, 5)), g.const(5.0, 4)), 2)
+    ink = g.mul(2, lines, g.noise(0.3, 4, lo=0.4, hi=1.0))
+    paper = g.mul(1, g.color("Pergament", (0.78, 0.66, 0.46), 2), g.noise(0.02, 3, lo=0.8, hi=1.05))
+    library.connect_material_property(g.lerp(paper, g.color("Tinte", (0.15, 0.08, 0.05), 2), g.mul(2, ink, g.const(0.8, 3)), 1), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.const(0.85, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    return finish(m)
+
+
+def material_metal():
+    m = new_material("M_GK_Metall")
+    g = Graph(m)
+    library.connect_material_property(g.mul(1, g.color("Farbe", (0.32, 0.24, 0.17), 2), g.noise(0.05, 3, lo=0.6, hi=1.1)), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.const(0.85, 1), "", unreal.MaterialProperty.MP_METALLIC)
+    library.connect_material_property(g.noise(0.08, 2, lo=0.35, hi=0.6), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    return finish(m)
+
+
+def material_wax():
+    """Candle wax, pale and soft; the flame (UV1 U = 1) glows and flickers"""
+    m = new_material("M_GK_Wachs")
+    g = Graph(m)
+    flame = g.saturate(g.mul(3, g.sub(4, g.vertex_r(5), g.const(0.5, 5)), g.const(2.0, 4)), 2)
+    time = g.node(unreal.MaterialExpressionTime, 6)
+    flicker_sine = g.node(unreal.MaterialExpressionSine, 4, period=6.2832)
+    g.link(g.mul(5, time, g.const(11.0, 6)), flicker_sine)
+    flicker = g.add(3, g.mul(4, flicker_sine, g.const(0.15, 5)), g.const(1.0, 4))
+    library.connect_material_property(g.lerp(g.color("Wachs", (0.82, 0.74, 0.6), 2), g.color("Docht", (1.0, 0.8, 0.4), 2), flame, 1), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.mul(1, g.mul(2, flame, g.color("Flamme", (1.0, 0.55, 0.15), 3)), g.mul(2, flicker, g.scalar("Leuchten", 30.0, 3))), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(g.const(0.5, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    return finish(m)
+
+
+def assign_by_name(mesh_name, by_slot):
+    """Materials by the slot names of the stations (Holz, Glas, ...); slots the importer dropped are simply missing"""
+    mesh = unreal.load_asset("{}/{}".format(FOLDER, mesh_name))
+    if mesh is None:
+        notes.append("fehlt: " + mesh_name)
+        return None
+    slots = mesh.get_editor_property("static_materials")
+    for index, slot in enumerate(slots):
+        name = str(slot.get_editor_property("material_slot_name")).split(".")[0]
+        material = by_slot.get(name)
+        if material is not None:
+            mesh.set_material(index, material)
+        else:
+            notes.append("{}: kein Material fuer Slot {}".format(mesh_name, name))
+    assets.save_loaded_asset(mesh, False)
+    used = [slot.get_editor_property("material_interface").get_name() for slot in mesh.get_editor_property("static_materials")]
+    log("{}: {}".format(mesh_name, used))
+    return mesh
+
+
 def assign(mesh_name, materials):
     mesh = unreal.load_asset("{}/{}".format(FOLDER, mesh_name))
     for i, material in enumerate(materials):
@@ -461,6 +552,16 @@ def build_materials():
         "SM_GK_Wurzelvorhang": assign("SM_GK_Wurzelvorhang", [roots]),
         "SM_GK_Glutbecken": assign("SM_GK_Glutbecken", [pool, tissue]),
     }
+    by_slot = {
+        "Holz": roots, "Glas": material_glass(), "Fluessigkeit": material_liquid(), "Papier": material_paper(), "Metall": material_metal(),
+        "Kraut": material_plain("M_GK_Kraut", (0.2, 0.26, 0.09), 0.7, noise_amount=0.4, two_sided=True), "Wachs": material_wax(),
+        "Glut": pool, "Leder": material_plain("M_GK_Leder", (0.22, 0.1, 0.05), 0.6, noise_amount=0.3),
+        "Stein": unreal.load_asset(FOLDER + "/MI_GK_Fels_Brocken"),
+        "Stoff": material_plain("M_GK_Stoff", (0.36, 0.05, 0.06), 0.9, noise_amount=0.3, two_sided=True),
+        "Moos": material_plain("M_GK_Moos", (0.1, 0.17, 0.05), 0.95, noise_amount=0.5),
+        "Stroh": material_plain("M_GK_Stroh", (0.5, 0.36, 0.16), 0.85, noise_amount=0.35)}
+    for name in STATIONS:
+        meshes[name] = assign_by_name(name, by_slot)
     log("Materialien angelegt")
     for note in notes:
         log("Hinweis: " + note)

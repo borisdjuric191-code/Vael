@@ -2,6 +2,7 @@
 
 #include "Player/VaelCheatManager.h"
 #include "World/VaelRefugiumClutch.h"
+#include "Items/VaelBrewing.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
@@ -1553,4 +1554,72 @@ void UVaelCheatManager::VaelRefugium(int32 Stage, const FString& Name)
 void UVaelCheatManager::VaelSchluepfen()
 {
 	AVaelRefugiumClutch::HatchAllAwake(GetOuterAPlayerController());
+}
+
+void UVaelCheatManager::VaelBrauen(const FString& What)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	if (What != TEXT("nur"))
+	{
+		TSet<const UVaelMaterial*> Given;
+		for (const FVaelRecipe& Recipe : FVaelBrewing::GetRecipes())
+		{
+			for (const TSoftObjectPtr<UVaelMaterial>& Ingredient : Recipe.Ingredients)
+			{
+				const UVaelMaterial* Loaded = Ingredient.LoadSynchronous();
+				if (Loaded != nullptr && !Given.Contains(Loaded))
+				{
+					Player->GetMaterialBag()->AddMaterial(Loaded, 3);
+					Given.Add(Loaded);
+				}
+			}
+		}
+		Player->GetMaterialBag()->AddMaterial(LoadObject<UVaelMaterial>(nullptr, TEXT("/Game/Vael/Items/Materials/DA_Material_Ordenssiegel.DA_Material_Ordenssiegel")), 1);
+	}
+	// a recipe id brews it right away and reports what the bag holds afterwards
+	for (const FVaelRecipe& Recipe : FVaelBrewing::GetRecipes())
+	{
+		if (Recipe.Id == FName(*What))
+		{
+			const bool bBrewed = FVaelBrewing::Brew(Player, Recipe);
+			UE_LOG(LogVael, Log, TEXT("VaelBrauen: %s brewed %s, the bag now holds %d"), *Recipe.Id.ToString(), bBrewed ? TEXT("yes") : TEXT("no"),
+				Player->GetMaterialBag()->GetCount(Recipe.Result.LoadSynchronous()));
+			return;
+		}
+	}
+	Controller->OpenBrewing();
+}
+
+void UVaelCheatManager::VaelBeet(const FString& What)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	const AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	AVaelRefugiumClutch* Nearest = nullptr;
+	float Best = TNumericLimits<float>::Max();
+	for (TActorIterator<AVaelRefugiumClutch> It(GetWorld()); It; ++It)
+	{
+		const float Distance = FVector::Dist2D(It->GetActorLocation(), Player->GetActorLocation());
+		if (It->GetState() == EVaelClutchState::Bed && !It->HasPlant() && Distance < Best)
+		{
+			Nearest = *It;
+			Best = Distance;
+		}
+	}
+	const TArray<FName> Choices = Controller->GetSowChoices();
+	if (What == TEXT("sofort") && Nearest != nullptr && !Choices.IsEmpty())
+	{
+		const bool bSown = Nearest->SowFrom(Controller->GetPawn<AVaelCharacter>(), Choices[0]);
+		UE_LOG(LogVael, Log, TEXT("VaelBeet: %s sown into %s: %s"), *Choices[0].ToString(), *Nearest->GetName(), bSown ? TEXT("yes") : TEXT("no"));
+		return;
+	}
+	Controller->OpenSowing(Nearest);
 }

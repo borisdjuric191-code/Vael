@@ -47,6 +47,16 @@ public:
 	UFUNCTION(Exec)
 	void VaelRefugium(int32 Stage, const FString& Name = TEXT("Glutkammer"));
 
+	/** Witch's kitchen: gives the player 3 of every ingredient of the Rezeptbuch (and an Ordenssiegel) and opens the brewing page;
+	 *  with "nur" it only opens the page. Example: VaelBrauen */
+	UFUNCTION(Exec)
+	void VaelBrauen(const FString& What = TEXT(""));
+
+	/** Refugium: opens the seed choice of the nearest open bed (after VaelSaat alles there are seeds); with "sofort" the first seed
+	 *  is sown into it at once, without the page. Example: VaelBeet sofort */
+	UFUNCTION(Exec)
+	void VaelBeet(const FString& What = TEXT(""));
+
 	/** Refugium: every awake clutch hatches into a bed now, as if dawn had come */
 	UFUNCTION(Exec)
 	void VaelSchluepfen();

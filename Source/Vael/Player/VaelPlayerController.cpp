@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelPlayerController.h"
+#include "Items/VaelBrewing.h"
+#include "Nature/VaelGarden.h"
+#include "World/VaelRefugiumClutch.h"
 #include "Camera/VaelSharedCamera.h"
 #include "Player/VaelAutoAimComponent.h"
 #include "Engine/GameInstance.h"
@@ -1422,7 +1425,8 @@ void AVaelPlayerController::CloseGrimoire()
 		VaelCharacter->GetFloatingGrimoire()->SetMenuOpen(false);
 	}
 	OpenShop.Reset();
-	if (MenuPage == EVaelMenuPage::Shop)
+	SowBed.Reset();
+	if (IsPlacePage())
 	{
 		MenuPage = EVaelMenuPage::Formulas;
 	}
@@ -1476,6 +1480,19 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 		return;
 	}
 
+	if (MenuPage == EVaelMenuPage::Brew)
+	{
+		const int32 NumRecipes = FVaelBrewing::GetRecipes(static_cast<EVaelBrewTier>(BrewTier)).Num();
+		BrewSelection = FMath::Clamp(BrewSelection + Step, 0, FMath::Max(NumRecipes - 1, 0));
+		return;
+	}
+
+	if (MenuPage == EVaelMenuPage::Sow)
+	{
+		SowSelection = FMath::Clamp(SowSelection + Step, 0, FMath::Max(GetSowChoices().Num() - 1, 0));
+		return;
+	}
+
 	if (MenuPage == EVaelMenuPage::Shop)
 	{
 		const int32 NumOffers = OpenShop.IsValid() ? OpenShop->Offers.Num() : 0;
@@ -1502,7 +1519,15 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 
 void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 {
-	if (bGrimoireOpen && MenuPage != EVaelMenuPage::Shop)
+	// In the kitchen the page buttons turn the tabs of the recipe book
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Brew)
+	{
+		BrewTier = (BrewTier + (Value.Get<float>() < 0.0f ? 2 : 1)) % 3;
+		BrewSelection = 0;
+		return;
+	}
+
+	if (bGrimoireOpen && !IsPlacePage())
 	{
 		// The pages in a ring: right goes on, left goes back
 		const TArray<EVaelMenuPage> Ring = GetPageRing();
@@ -1520,6 +1545,41 @@ void AVaelPlayerController::OnMenuConfirm()
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
 	{
 		ConfirmKeimgeflecht();
+		return;
+	}
+
+	// Brewing: the ingredients go out of the own bag, the potion goes in
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Brew && VaelCharacter != nullptr)
+	{
+		const TArray<const FVaelRecipe*> Recipes = FVaelBrewing::GetRecipes(static_cast<EVaelBrewTier>(BrewTier));
+		if (Recipes.IsValidIndex(BrewSelection))
+		{
+			const FVaelRecipe& Recipe = *Recipes[BrewSelection];
+			const EVaelBrewBlock Block = FVaelBrewing::GetBlock(VaelCharacter, Recipe);
+			if (Block == EVaelBrewBlock::None && FVaelBrewing::Brew(GetPawn<AVaelCharacter>(), Recipe))
+			{
+				LastBrewTime = FPlatformTime::Seconds();
+			}
+			else
+			{
+				const FText Why = Block == EVaelBrewBlock::SealedShadow ? NSLOCTEXT("VaelBrewing", "SealedShadow", "Diese Seite öffnet ein Ordenssiegel")
+					: Block == EVaelBrewBlock::SealedTwilight ? NSLOCTEXT("VaelBrewing", "SealedTwilight", "Zwielicht erst nach dem Schwur")
+					: NSLOCTEXT("VaelBrewing", "Missing", "Es fehlen Zutaten");
+				UVaelNoticeSubsystem::Post(this, Why, FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
+			}
+		}
+		return;
+	}
+
+	// Sowing: one seed from the own bag into the bed
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Sow && VaelCharacter != nullptr)
+	{
+		const TArray<FName> Choices = GetSowChoices();
+		AVaelRefugiumClutch* Bed = SowBed.Get();
+		if (Bed != nullptr && Choices.IsValidIndex(SowSelection) && Bed->SowFrom(GetPawn<AVaelCharacter>(), Choices[SowSelection]))
+		{
+			CloseGrimoire();
+		}
 		return;
 	}
 
@@ -1593,6 +1653,19 @@ void AVaelPlayerController::OnMenuConfirm()
 void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
 {
 	const float Direction = Value.Get<float>();
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Brew && FMath::Abs(Direction) >= 0.5f)
+	{
+		// left and right turn the tabs of the recipe book, one step per press
+		const double Now = FPlatformTime::Seconds();
+		if (NextNavigateTime > 0.0 && Now < NextNavigateTime)
+		{
+			return;
+		}
+		NextNavigateTime = Now + 10.0;
+		BrewTier = (BrewTier + (Direction > 0.0f ? 1 : 2)) % 3;
+		BrewSelection = 0;
+		return;
+	}
 	if (!bGrimoireOpen || (MenuPage != EVaelMenuPage::Inventory && MenuPage != EVaelMenuPage::Keimgeflecht) || FMath::Abs(Direction) < 0.5f)
 	{
 		return;
@@ -1712,7 +1785,7 @@ void AVaelPlayerController::OnToggleHero()
 	{
 		CloseGrimoire();
 	}
-	else if (MenuPage != EVaelMenuPage::Shop)
+	else if (!IsPlacePage())
 	{
 		MenuPage = EVaelMenuPage::Hero;
 	}
@@ -1880,6 +1953,57 @@ void AVaelPlayerController::OpenShopAfterDialogue(const UVaelShop* Shop)
 	{
 		OpenShop.Reset();
 	}
+}
+
+void AVaelPlayerController::OpenBrewing()
+{
+	BrewSelection = FMath::Clamp(BrewSelection, 0, FMath::Max(FVaelBrewing::GetRecipes(static_cast<EVaelBrewTier>(BrewTier)).Num() - 1, 0));
+	OpenGrimoire(EVaelMenuPage::Brew);
+}
+
+float AVaelPlayerController::GetSecondsSinceBrew() const
+{
+	return static_cast<float>(FPlatformTime::Seconds() - LastBrewTime);
+}
+
+void AVaelPlayerController::OpenSowing(AVaelRefugiumClutch* Bed)
+{
+	if (Bed == nullptr)
+	{
+		return;
+	}
+	if (GetSowChoices().IsEmpty())
+	{
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelGarden", "NoSeeds", "Keine Samen im Beutel"),
+			NSLOCTEXT("VaelGarden", "NoSeedsDetail", "Albrun erforscht, was im Keimpelz wächst; dann gibt es Samen."), FLinearColor(FColor(158, 143, 125)), 3.0f);
+		return;
+	}
+	SowBed = Bed;
+	SowSelection = 0;
+	if (!OpenGrimoire(EVaelMenuPage::Sow))
+	{
+		SowBed.Reset();
+	}
+}
+
+TArray<FName> AVaelPlayerController::GetSowChoices() const
+{
+	TArray<FName> Choices;
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	const UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+	const UVaelMaterialBag* Bag = VaelCharacter != nullptr ? VaelCharacter->GetMaterialBag() : nullptr;
+	if (Garden == nullptr || Bag == nullptr)
+	{
+		return Choices;
+	}
+	for (const FVaelSeedPlant& Plant : UVaelGardenSettings::Get()->Plants)
+	{
+		if (Garden->IsResearched(Plant.Id) && Bag->GetCount(Plant.Seed.LoadSynchronous()) > 0)
+		{
+			Choices.Add(Plant.Id);
+		}
+	}
+	return Choices;
 }
 
 void AVaelPlayerController::OnMenuNavigateReleased()

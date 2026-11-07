@@ -119,6 +119,18 @@ private:
 	/** Page of a trader: goods, prices, the purse and what the bag holds of each */
 	void DrawShop(const AVaelPlayerController* PlayerController);
 
+	/** The witch's kitchen at the root table of a refugium: tabs of the Rezeptbuch, recipes, the chosen combination (VaelHUDBrewing.cpp) */
+	void DrawBrewing(const AVaelPlayerController* PlayerController);
+
+	/** The seed choice of a bed of a refugium (VaelHUDBrewing.cpp) */
+	void DrawSowing(const AVaelPlayerController* PlayerController);
+
+	/** A round vial with its liquid; Glow lights a soft halo of the liquid around it */
+	void DrawFlask(const FVector2D& Center, float Size, const FLinearColor& Liquid, float Glow);
+
+	/** One field of a combination: picture in a gold frame, what the bag holds of it against what is needed */
+	void DrawIngredientField(const class UVaelMaterial* Material, const FVector2D& Center, float Half, int32 Have, int32 Need, float T);
+
 	/** Page of class and body: mage or Floromant, man or woman */
 	void DrawHeroPage(const AVaelPlayerController* PlayerController);
 

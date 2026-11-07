@@ -61,6 +61,12 @@ public:
 
 	EVaelClutchState GetState() const { return State; }
 
+	/** Sows a seed of the plant from the player's bag into this bed (it must be open and empty). Returns true on success. */
+	bool SowFrom(AVaelCharacter* Player, FName PlantId);
+
+	/** True if a plant grows in this bed */
+	bool HasPlant() const;
+
 	/** Stage the story has reached for a refugium, 1 to 5 */
 	static int32 GetReachedStage(const UObject* WorldContext, FName InRefugium);
 

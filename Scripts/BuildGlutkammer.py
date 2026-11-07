@@ -401,13 +401,14 @@ def build():
 
     # 2 Root table with the stations of the Hexenkueche under the main shaft
     table = at(520, 560)
-    mesh_actor(cylinder, unreal.Vector(table.x, table.y, 45.0), "Wurzeltisch", "Stufe I/Hexenkueche", scale=(3.6, 2.6, 0.9),
-               material=m_roots, collision=True)
-    for k, (name, dx, dy) in enumerate((("Kessel", 0, -260), ("Moerser", 230, -120), ("Destille", 230, 140), ("Trockengestell", -230, 140),
-                                        ("Harzpresse", -230, -120), ("Staubmuehle", 0, 270))):
-        mesh_actor(cube if k % 2 else cylinder, unreal.Vector(table.x + dx, table.y + dy, 40.0), "Station " + name, "Stufe I/Hexenkueche",
-                   scale=(0.8, 0.8, 0.8), material=m_tissue, collision=True)
-    shaft(table, "Hauptschacht", "Licht/Lichtschaechte", 2200.0, 10.0)
+    # the front of the table (book, mortar) faces the camera in the south-west, the herb arch stands at its back
+    facing = 225.0
+    mesh_actor(load("SM_GK_Wurzeltisch"), unreal.Vector(table.x, table.y, 0.0), "Wurzeltisch", "Stufe I/Hexenkueche", yaw=facing, collision=True)
+    mesh_actor(load("SM_GK_Tischschmuck"), unreal.Vector(table.x, table.y, 0.0), "Tischschmuck", "Stufe I/Hexenkueche", yaw=facing)
+    mesh_actor(load("SM_GK_Kraeuterbogen"), unreal.Vector(table.x, table.y, 0.0), "Kraeuterbogen", "Stufe I/Hexenkueche", yaw=facing, collision=True)
+    spawn(unreal.VaelBrewTable, unreal.Vector(table.x, table.y, 0.0), "Brautisch (Hexenkueche)", "Spiel", unreal.Rotator(0.0, 0.0, facing))
+    point_light(unreal.Vector(table.x, table.y, 260.0), "Tischlicht", "Stufe I/Hexenkueche", (1.0, 0.75, 0.45), 6.0, 480.0)
+    shaft(table, "Hauptschacht", "Licht/Lichtschaechte", 520.0, 10.0)
     label_text(table, "2 Wurzeltisch", "Stufe I/Hexenkueche")
 
     # 3 Beds: 40 places in the end (BED_PLAN), the hall shared out evenly over the four plots, inner ones first.
@@ -422,9 +423,7 @@ def build():
         clutch.set_editor_property("stage", number)
         clutch.set_editor_property("place_id", "{}{:02d}".format(folder_room, k + 1))
         if number == 1:
-            plant = plants[k % len(plants)]
-            if plant is not None:
-                mesh_actor(plant, unreal.Vector(p.x, p.y, 24.0), "Pflanze {}".format(k + 1), folder, yaw=rng.uniform(0, 360), scale=0.9)
+            # empty to start with: the players sow their own seeds (VaelRefugiumClutch::SowFrom)
             shaft(p, "Schacht Beet {}".format(k + 1), "Licht/Lichtschaechte", 650.0, 4.5, dust=False)
     for stage in STAGES:
         hall, chamber, gallery = BED_PLAN[stage]
@@ -452,17 +451,20 @@ def build():
 
     # 7-9 Corners of the classes and the helper nest (stage II)
     corners = [
-        ("7 Prophet: Schrein", (226, 350), cone, (1.2, 1.2, 2.2)),
-        ("8 Helfernest", (355, 370), sphere, (1.4, 1.4, 0.7)),
-        ("9 Tamer: Bau", (855, 420), sphere, (3.0, 3.0, 1.4)),
-        ("9 Ingenieur: Werkbank", (745, 600), cube, (2.2, 1.0, 0.9)),
-        ("9 Magier: Glutbrunnen", (865, 690), cylinder, (1.6, 1.6, 0.5)),
+        ("7 Prophet: Schrein", (226, 350), "SM_GK_Schrein"),
+        ("8 Helfernest", (355, 370), "SM_GK_Helfernest"),
+        ("9 Tamer: Bau", (855, 420), "SM_GK_Bau"),
+        ("9 Ingenieur: Werkbank", (745, 600), "SM_GK_Werkbank"),
+        ("9 Magier: Glutbrunnen", (865, 690), "SM_GK_Glutbrunnen"),
     ]
-    for name, (px, py), shape, size in corners:
+    for name, (px, py), piece in corners:
         p = at(px, py)
-        mesh_actor(shape, unreal.Vector(p.x, p.y, size[2] * 50.0), name, "Stufe II/Klassenecken", scale=size,
-                   material=m_pool if "Glutbrunnen" in name else m_tissue, collision=True)
+        # each corner turns its front (+X) to the root table
+        yaw = math.degrees(math.atan2(table.y - p.y, table.x - p.x))
+        mesh_actor(load(piece), unreal.Vector(p.x, p.y, -2.0), name, "Stufe II/Klassenecken", yaw=yaw, collision=True)
         label_text(p, name, "Stufe II/Klassenecken", color=(0.6, 0.95, 0.55))
+    for k, (px, py) in enumerate(((226, 350), (745, 600))):
+        point_light(at(px, py, 180.0), "Eckenlicht {}".format(k + 1), "Stufe II/Klassenecken", (1.0, 0.7, 0.4), 30.0, 450.0)
     for k in range(3):
         point_light(at(355 + rng.uniform(-30, 30), 370 + rng.uniform(-30, 30), 140.0), "Fee {}".format(k + 1), "Stufe II/Klassenecken",
                     (0.85, 1.0, 0.6), 25.0, 260.0)

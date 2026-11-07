@@ -708,6 +708,18 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		return;
 	}
 
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Brew)
+	{
+		DrawBrewing(PlayerController);
+		return;
+	}
+
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Sow)
+	{
+		DrawSowing(PlayerController);
+		return;
+	}
+
 	if (PlayerController->GetMenuPage() == EVaelMenuPage::Hero)
 	{
 		DrawHeroPage(PlayerController);

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelRefugiumClutch.h"
 
@@ -9,6 +9,9 @@
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Nature/VaelGarden.h"
+#include "Player/VaelCharacter.h"
+#include "Player/VaelPlayerController.h"
 #include "Save/VaelSaveSubsystem.h"
 #include "Vael.h"
 #include "Story/VaelQuestSubsystem.h"
@@ -264,7 +267,7 @@ void AVaelRefugiumClutch::Tick(float DeltaSeconds)
 
 bool AVaelRefugiumClutch::CanInteract(const AVaelCharacter* Player) const
 {
-	return State == EVaelClutchState::Awake;
+	return State == EVaelClutchState::Awake || (State == EVaelClutchState::Bed && Opening < 0.0f && !HasPlant());
 }
 
 void AVaelRefugiumClutch::Interact(AVaelCharacter* Player)
@@ -273,12 +276,36 @@ void AVaelRefugiumClutch::Interact(AVaelCharacter* Player)
 	if (State == EVaelClutchState::Awake)
 	{
 		Hatch(false);
+		return;
+	}
+	// an empty bed: the player picks a seed from the bag
+	if (AVaelPlayerController* Controller = Player != nullptr ? Player->GetController<AVaelPlayerController>() : nullptr)
+	{
+		Controller->OpenSowing(this);
 	}
 }
 
 FText AVaelRefugiumClutch::GetInteractPrompt() const
 {
-	return LOCTEXT("Tend", "Gelege wÃ¤rmen");
+	return State == EVaelClutchState::Awake ? LOCTEXT("Tend", "Gelege wärmen") : LOCTEXT("Sow", "Säen");
+}
+
+bool AVaelRefugiumClutch::HasPlant() const
+{
+	const UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+	return Garden != nullptr && Garden->HasPlantNear(GetWorld(), GetActorLocation(), 55.0f);
+}
+
+bool AVaelRefugiumClutch::SowFrom(AVaelCharacter* Player, FName PlantId)
+{
+	UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
+	if (Garden == nullptr || State != EVaelClutchState::Bed || HasPlant())
+	{
+		return false;
+	}
+	// the soil of the bed sits 42 cm up inside the clutch (Tools/Refugium/glutkammer_probe.py, build_clutch_bed)
+	const FVector Soil = GetActorLocation() + FVector(0.0f, 0.0f, 44.0f * GetActorScale3D().Z);
+	return Garden->SowAt(Player, PlantId, Soil) != nullptr;
 }
 
 #undef LOCTEXT_NAMESPACE
