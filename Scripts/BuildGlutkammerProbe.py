@@ -27,7 +27,7 @@ PIECES = ["SM_GK_Rippenwand", "SM_GK_Eisack", "SM_GK_Gelegebeet", "SM_GK_Wurzelv
           "SM_GK_Lichtstrahl", "SM_GK_Felswand_Hoch", "SM_GK_Felswand_Mittel", "SM_GK_Felswand_Niedrig"]
 # the stations of the hall (Tools/Refugium/glutkammer_stations.py); their slots are matched to materials by name
 STATIONS = ["SM_GK_Wurzeltisch", "SM_GK_Tischschmuck", "SM_GK_Kraeuterbogen", "SM_GK_Werkbank", "SM_GK_Schrein", "SM_GK_Bau",
-            "SM_GK_Glutbrunnen", "SM_GK_Helfernest"]
+            "SM_GK_Glutbrunnen", "SM_GK_Helfernest", "SM_GK_Hocker"]
 PIECES = PIECES + STATIONS
 # pieces that stay plain meshes (translucent); the rest is built as Nanite
 NO_NANITE = {"SM_GK_Lichtstrahl"}

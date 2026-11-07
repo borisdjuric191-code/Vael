@@ -92,6 +92,13 @@ TArray<FVaelMaterialStack> UVaelMaterialBag::GetStacks() const
 
 	Stacks.StableSort([](const FVaelMaterialStack& A, const FVaelMaterialStack& B)
 	{
+		// potions first, so what was brewed at the root table is always in sight and at hand
+		const bool bPotionA = A.Material->Category == EVaelMaterialCategory::Potion;
+		const bool bPotionB = B.Material->Category == EVaelMaterialCategory::Potion;
+		if (bPotionA != bPotionB)
+		{
+			return bPotionA;
+		}
 		const int32 ByRegion = A.Material->Region.CompareTo(B.Material->Region);
 		return ByRegion != 0 ? ByRegion < 0 : A.Material->DisplayName.CompareTo(B.Material->DisplayName) < 0;
 	});

@@ -456,8 +456,28 @@ def build_helper_nest():
     gk.export(obj)
 
 
+def build_stool():
+    """A stool cut from a root stump: flared foot with small roots, a worn flat seat with a leather cushion tied on (0 Holz, 8 Leder, 11 Moos)"""
+    obj = gk.new_object("SM_GK_Hocker", SLOTS)
+    b = gk.Builder()
+    prof = [(0.27, -0.03), (0.24, 0.04), (0.19, 0.12), (0.17, 0.3), (0.18, 0.42), (0.19, 0.44), (0.001, 0.45)]
+    lathe(b, prof, HOLZ, Vector((0, 0, 0)), sides=22, wobble_amount=0.12, seed=4)
+    for k in range(5):
+        a = 2 * math.pi * k / 5 + random.uniform(-0.3, 0.3)
+        d = Vector((math.cos(a), math.sin(a), 0))
+        b.tube([d * 0.18 + Vector((0, 0, 0.1)), d * 0.32 + Vector((0, 0, 0.0)), d * 0.42 + Vector((0, 0, -0.03))], [0.05, 0.035, 0.012], HOLZ, sides=7, rough=0.2, seed=k)
+    lathe(b, [(0.15, 0.445), (0.17, 0.47), (0.15, 0.51), (0.08, 0.525), (0.001, 0.528)], LEDER, Vector((0, 0, 0)), sides=18, wobble_amount=0.05, seed=9)
+    b.tube([Vector((0.17, 0, 0.46)), Vector((0.19, 0, 0.3)), Vector((0.18, 0.05, 0.2))], [0.006] * 3, LEDER, sides=4, cap_end=False)
+    for k in range(6):
+        a = random.uniform(0, 2 * math.pi)
+        lathe(b, [(0.001, 0.0), (0.05, 0.01), (0.001, 0.025)], MOOS, Vector((math.cos(a) * 0.2, math.sin(a) * 0.2, random.uniform(0.02, 0.2))), sides=7,
+              tilt=Matrix.Rotation(math.pi / 2, 3, Vector((-math.sin(a), math.cos(a), 0))))
+    b.finish(obj)
+    gk.export(obj)
+
+
 if __name__ == "__main__":
-    for build in (build_table, build_table_dressing, build_herb_arch, build_workbench, build_shrine, build_den, build_glow_well, build_helper_nest):
+    for build in (build_stool, build_table, build_table_dressing, build_herb_arch, build_workbench, build_shrine, build_den, build_glow_well, build_helper_nest):
         gk.clear_scene()
         build()
     gk.log("Stationen fertig")

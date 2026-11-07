@@ -1716,3 +1716,12 @@ void UVaelCheatManager::VaelMenuOk()
 	UE_LOG(LogVael, Log, TEXT("VaelMenuOk: page %d, recipe %s, potions in the bag %d -> %d"), static_cast<int32>(Controller->GetMenuPage()),
 		Selected != nullptr ? *Selected->Id.ToString() : TEXT("-"), Before, Selected != nullptr ? Player->GetMaterialBag()->GetCount(Selected->Result.LoadSynchronous()) : 0);
 }
+
+void UVaelCheatManager::VaelInventar()
+{
+	if (AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		Controller->OpenGrimoire(EVaelMenuPage::Inventory);
+		Controller->PressMenuBag();
+	}
+}

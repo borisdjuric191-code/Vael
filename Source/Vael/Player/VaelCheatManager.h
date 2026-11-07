@@ -61,6 +61,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelTrankTest(const FString& What = TEXT(""));
 
+	/** Opens the inventory page and turns to the material bag (potions, crystals, ingredients) */
+	UFUNCTION(Exec)
+	void VaelInventar();
+
 	/** Presses the confirm button of the open menu page, as a test of the pages; logs what the bag holds of brewed potions */
 	UFUNCTION(Exec)
 	void VaelMenuOk();

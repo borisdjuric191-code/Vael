@@ -406,6 +406,13 @@ def build():
     mesh_actor(load("SM_GK_Wurzeltisch"), unreal.Vector(table.x, table.y, 0.0), "Wurzeltisch", "Stufe I/Hexenkueche", yaw=facing, collision=True)
     mesh_actor(load("SM_GK_Tischschmuck"), unreal.Vector(table.x, table.y, 0.0), "Tischschmuck", "Stufe I/Hexenkueche", yaw=facing)
     mesh_actor(load("SM_GK_Kraeuterbogen"), unreal.Vector(table.x, table.y, 0.0), "Kraeuterbogen", "Stufe I/Hexenkueche", yaw=facing, collision=True)
+    # two stools at the front corners of the table, a little turned, so someone can sit and read the book
+    for k, (side, turn) in enumerate(((-1.0, 25.0), (1.0, -35.0))):
+        local = unreal.Vector(70.0, side * 118.0, 0.0)
+        c, s_ = math.cos(math.radians(facing)), math.sin(math.radians(facing))
+        p = unreal.Vector(table.x + local.x * c - local.y * s_, table.y + local.x * s_ + local.y * c, 0.0)
+        mesh_actor(load("SM_GK_Hocker"), p, "Hocker {}".format(k + 1), "Stufe I/Hexenkueche", yaw=facing + turn + rng.uniform(-10, 10),
+                   scale=rng.uniform(0.95, 1.08), collision=True)
     spawn(unreal.VaelBrewTable, unreal.Vector(table.x, table.y, 0.0), "Brautisch (Hexenkueche)", "Spiel", unreal.Rotator(0.0, 0.0, facing))
     point_light(unreal.Vector(table.x, table.y, 260.0), "Tischlicht", "Stufe I/Hexenkueche", (1.0, 0.75, 0.45), 6.0, 480.0)
     shaft(table, "Hauptschacht", "Licht/Lichtschaechte", 520.0, 10.0)

@@ -396,6 +396,9 @@ public:
 	/** Presses the confirm button of the open menu page, for tests (VaelMenuOk) */
 	void PressMenuConfirm() { OnMenuConfirm(); }
 
+	/** Presses the bag button of the inventory page (square), for tests */
+	void PressMenuBag() { OnMenuBag(); }
+
 	/** Opens the brewing page of the witch's kitchen (at the root table) */
 	void OpenBrewing();
 
