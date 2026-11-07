@@ -102,7 +102,7 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 			AActor* Striker = Data.EffectSpec.GetContext().GetInstigator();
 			if (UVaelPotionEffects* StrikerPotions = UVaelPotionEffects::Find(Cast<AVaelCharacter>(Striker)))
 			{
-				StrikerPotions->OnDamageDealt(Damage);
+				StrikerPotions->OnDamageDealt(Target, Damage);
 			}
 			if (UVaelPotionEffects* TargetPotions = UVaelPotionEffects::Find(Cast<AVaelCharacter>(Target)))
 			{

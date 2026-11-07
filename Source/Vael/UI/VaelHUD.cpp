@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "UI/VaelHUD.h"
+#include "World/VaelBalance.h"
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "Combat/VaelCombatStatics.h"
@@ -219,6 +220,12 @@ void AVaelHUD::DrawHUD()
 	const float MapBottom = DrawMiniMap(PlayerControllers, 16.0f * UiScale);
 	const float RegionBottom = DrawRegionInfo(MapBottom > 16.0f * UiScale ? MapBottom + CornerGap : MapBottom);
 	DrawQuestTracker(RegionBottom + CornerGap);
+
+	// Bottom right: the belt of potions of the first player (Gürteltaschen)
+	if (!PlayerControllers.IsEmpty())
+	{
+		DrawBelt(PlayerControllers[0]->GetPawn<AVaelCharacter>());
+	}
 
 	// One panel per player, side by side at the bottom
 
@@ -717,6 +724,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 	if (PlayerController->GetMenuPage() == EVaelMenuPage::Sow)
 	{
 		DrawSowing(PlayerController);
+		return;
+	}
+
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Board)
+	{
+		DrawBoard(PlayerController);
 		return;
 	}
 
@@ -1356,7 +1369,7 @@ float AVaelHUD::DrawRegionInfo(float Top)
 	// As wide as the mini map above it
 	const float S = UiScale;
 	const float Width = FMath::Max(240.0f, UVaelUISettings::Get()->MiniMapSize) * S;
-	const float Height = 104.0f * S;
+	const float Height = 150.0f * S;
 	const float Left = Canvas->ClipX - Width - 16.0f * S;
 	const float Padding = 12.0f * S;
 
@@ -1374,12 +1387,14 @@ float AVaelHUD::DrawRegionInfo(float Top)
 	}
 	DrawLabel(FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}{1}"), AVaelRegion::GetWeatherName(Region->GetWeather()), TimeText), Left + Padding, Top + 40.0f * S, 16.0f * S, Rgb(222, 208, 186));
 
-	const int32 Corruption = FMath::RoundToInt(Region->GetCorruption());
-	DrawLabel(FText::Format(LOCTEXT("CorruptionLine", "Verderbnis der Region: {0} %"), Corruption), Left + Padding, Top + 62.0f * S, 16.0f * S, Rgb(222, 208, 186));
-
+	// Die Waage: the own balance and the region's, the same bar for both
 	const float BarWidth = Width - 2.0f * Padding;
-	DrawBox(Left + Padding, Top + Height - 13.0f * S, BarWidth, 5.0f * S, Rgb(42, 31, 46));
-	DrawBox(Left + Padding, Top + Height - 13.0f * S, BarWidth * Region->GetCorruption() / 100.0f, 5.0f * S, Rgb(162, 77, 255));
+	DrawPlayerBalance(FirstPawn, LOCTEXT("BalanceSelf", "Deine Waage"), Left + Padding, Top + 64.0f * S, BarWidth);
+	const UVaelBalanceSubsystem* Balance = UVaelBalanceSubsystem::Get(this);
+	const bool bRefugiumRegion = Region->GetRegionName().ToString() == UVaelBalanceSubsystem::RefugiumRegion;
+	const float RegionValue = bRefugiumRegion && Balance != nullptr && Balance->GetRefugiumRegionValue() >= 0.0f ? Balance->GetRefugiumRegionValue() : Region->GetCorruption();
+	DrawBalanceBar(FText::Format(LOCTEXT("BalanceRegion", "Waage: {0}"), Region->GetRegionName()), RegionValue, Left + Padding, Top + 100.0f * S, BarWidth, 7.0f * S,
+		0.0f, 0.0f, Balance != nullptr && bRefugiumRegion ? Balance->GetRefugiumDrift() : 0.0f);
 	return Top + Height;
 }
 
@@ -1845,12 +1860,71 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 	const FText BagKey = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("BagKeyboard", "B") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("BagPlayStation", "Viereck") : LOCTEXT("BagXbox", "X");
 	const FVector2D Hint = At(RightX, -0.815f);
 
+	// The container of the class (Boris 2026-11-07): the mage keeps his things in the pockets of his grimoire, the Floromant
+	// in the glasses of her herbarium; the page takes a green glass tint for her and the fields become jars
+	const bool bHerbarium = Player->IsFloromant();
+	if (bHerbarium)
+	{
+		DrawBox(Middle.X - PictureSize.X * 0.5f, Middle.Y - PictureSize.Y * 0.5f, PictureSize.X, PictureSize.Y, FLinearColor(0.05f, 0.22f, 0.16f, 0.22f));
+	}
+
+	// Tabs of the right page: backpack of gear, potions, crystals, ingredients, seeds (the bag button turns them)
+	const int32 Tab = PlayerController->GetBagTab();
+	{
+		const FText TabNames[] = { LOCTEXT("TabGear", "Ausrüstung"), LOCTEXT("TabPotions", "Tränke"), LOCTEXT("TabCrystals", "Kristalle"), LOCTEXT("TabIngredients", "Zutaten"), LOCTEXT("TabSeeds", "Saat") };
+		const float TabStep = 0.25f;
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(TabNames); ++Index)
+		{
+			const FVector2D TabAt = At(RightX + (Index - 2) * TabStep, BookHeadingZ - 0.26f);
+			const bool bOn = Index == Tab;
+			const float TabW = TabStep * Unit * 0.94f;
+			const float TabH = 26.0f * T;
+			DrawBox(TabAt.X - TabW * 0.5f, TabAt.Y - TabH * 0.5f, TabW, TabH, bOn ? (bHerbarium ? FLinearColor(0.12f, 0.3f, 0.2f, 0.75f) : FLinearColor(0.34f, 0.16f, 0.08f, 0.7f)) : FLinearColor(0.1f, 0.07f, 0.05f, 0.25f));
+			DrawFrame(TabAt.X - TabW * 0.5f, TabAt.Y - TabH * 0.5f, TabW, TabH, bOn ? EmberColor : FLinearColor(0.3f, 0.22f, 0.14f, 0.6f), bOn ? 2.0f * T : 1.0f);
+			DrawLabel(TabNames[Index], TabAt.X, TabAt.Y - 10.0f * T, 16.0f * T, bOn ? BoneColor : FadedInk, 0.5f);
+		}
+	}
+
+	// The belt: four places for potions, on the left page under the figure
+	{
+		const UVaelMaterialBag* BeltBag = Player->GetMaterialBag();
+		const FVector2D BeltHead = At(BookFigureX, -0.6f);
+		DrawLabel(bHerbarium ? LOCTEXT("BeltTitleFlo", "Gläser am Gürtel") : LOCTEXT("BeltTitleMage", "Gürteltaschen"), BeltHead.X, BeltHead.Y - 10.0f * T, 18.0f * T, FadedInk, 0.5f);
+		for (int32 Place = 0; Place < UVaelMaterialBag::BeltSize; ++Place)
+		{
+			const FVector2D Center = At(BookFigureX + (Place - 1.5f) * 0.17f, -0.7f);
+			const UVaelMaterial* Potion = BeltBag->GetBelt().IsValidIndex(Place) ? BeltBag->GetBelt()[Place].Get() : nullptr;
+			const float Half = 0.06f * Unit;
+			if (Potion != nullptr)
+			{
+				FVaelMaterialStack BeltStack;
+				BeltStack.Material = Potion;
+				BeltStack.Count = BeltBag->GetCount(Potion);
+				if (bHerbarium)
+				{
+					DrawBagJar(BeltStack, Center, Half, T);
+				}
+				else
+				{
+					DrawBagField(BeltStack, Center, Half, T, 0.0f);
+				}
+			}
+			else
+			{
+				DrawBox(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, FLinearColor(0.1f, 0.07f, 0.05f, 0.35f));
+			}
+			DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, Place == BeltBag->GetActiveBelt() ? EmberColor : FLinearColor(0.3f, 0.22f, 0.14f, 0.7f),
+				Place == BeltBag->GetActiveBelt() ? 3.0f * T : 1.0f);
+		}
+	}
+
 	if (bBag)
 	{
-		DrawTitle(LOCTEXT("BagTitle", "Materialbeutel"), RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
+		const FText BagTitles[] = { FText::GetEmpty(), LOCTEXT("BagTitlePotions", "Tränke"), LOCTEXT("BagTitleCrystals", "Kristalle"), LOCTEXT("BagTitleIngredients", "Zutaten"), LOCTEXT("BagTitleSeeds", "Saat") };
+		DrawTitle(BagTitles[FMath::Clamp(Tab, 0, 4)], RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
 
-		// Lower half: the fields of the bag in the grid of the backpack, scrolled so the selected row is in sight
-		const TArray<FVaelMaterialStack> Stacks = Player->GetMaterialBag()->GetStacks();
+		// Lower half: the fields of the tab in the grid of the backpack, scrolled so the selected row is in sight
+		const TArray<FVaelMaterialStack> Stacks = Player->GetMaterialBag()->GetStacks(Tab);
 		const int32 BagSelection = FMath::Clamp(PlayerController->GetBagSelection(), 0, FMath::Max(Stacks.Num() - 1, 0));
 		const int32 VisibleRows = FMath::Max(1, BackpackSize / BookBackpackColumns);
 		const int32 FirstRow = FMath::Max(0, BagSelection / BookBackpackColumns - (VisibleRows - 1));
@@ -1867,7 +1941,19 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 			}
 
 			const FVector2D Center = At(RightX + (Column - (BookBackpackColumns - 1) * 0.5f) * BookBackpackStep, BookBackpackTop - Row * BookBackpackStep);
-			DrawBagField(Stacks[Index], Center, 0.075f * Unit, T, Pulse);
+			if (bHerbarium)
+			{
+				DrawBagJar(Stacks[Index], Center, 0.075f * Unit, T);
+			}
+			else
+			{
+				DrawBagField(Stacks[Index], Center, 0.075f * Unit, T, Pulse);
+			}
+			// on the belt: a small buckle in the corner
+			if (Player->GetMaterialBag()->GetBelt().Contains(Stacks[Index].Material))
+			{
+				DrawDisc(Center + FVector2D(-0.055f * Unit, -0.055f * Unit), 5.0f * T, EmberColor);
+			}
 			if (Index == BagSelection)
 			{
 				const float Half = 0.08f * Unit;
@@ -1880,7 +1966,10 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 		const float DetailWidth = 1.12f * Unit;
 		if (Stacks.IsEmpty())
 		{
-			DrawLabel(LOCTEXT("BagEmpty", "Noch leer. Gefallene Kreaturen lassen Teile zurück."), DetailAt.X + DetailWidth * 0.5f, DetailAt.Y + 30.0f * T, 21.0f * T, FadedInk, 0.5f, DetailWidth);
+			const FText EmptyTexts[] = { FText::GetEmpty(), LOCTEXT("EmptyPotions", "Noch keine Tränke. Am Wurzeltisch der Glutkammer wird gebraut."),
+				LOCTEXT("EmptyCrystals", "Noch keine Kristalle."), LOCTEXT("BagEmpty", "Noch leer. Gefallene Kreaturen lassen Teile zurück."),
+				LOCTEXT("EmptySeeds", "Noch keine Saat. Albrun erforscht, was im Keimpelz wächst.") };
+			DrawLabel(EmptyTexts[FMath::Clamp(Tab, 0, 4)], DetailAt.X + DetailWidth * 0.5f, DetailAt.Y + 30.0f * T, 21.0f * T, FadedInk, 0.5f, DetailWidth);
 		}
 		else
 		{
@@ -1889,8 +1978,10 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 
 		const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "Kreuz") : LOCTEXT("ConfirmXbox", "A");
 		const bool bUsable = Stacks.IsValidIndex(BagSelection) && Stacks[BagSelection].Material->Use != EVaelMaterialUse::None;
-		const FText Footer = bUsable ? FText::Format(LOCTEXT("BagFooterUse", "{0}: benutzen · {1}: Rucksack · {2}: schließen"), Confirm, BagKey, Close)
-			: FText::Format(LOCTEXT("BagFooter", "{0}: Rucksack · {1}: schließen"), BagKey, Close);
+		const FText BeltKey = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("BeltKeyboard", "T") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("BeltPlayStation", "Dreieck") : LOCTEXT("BeltXbox", "Y");
+		const FText Footer = Tab == 1 && bUsable ? FText::Format(LOCTEXT("BagFooterPotion", "{0}: benutzen · {1}: an den Gürtel · {2}: nächster Reiter · {3}: schließen"), Confirm, BeltKey, BagKey, Close)
+			: bUsable ? FText::Format(LOCTEXT("BagFooterUse", "{0}: benutzen · {1}: nächster Reiter · {2}: schließen"), Confirm, BagKey, Close)
+			: FText::Format(LOCTEXT("BagFooter", "{0}: nächster Reiter · {1}: schließen"), BagKey, Close);
 		DrawLabel(Footer, Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
 	}
 	else
@@ -1941,7 +2032,7 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 
 		const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "Kreuz") : LOCTEXT("ConfirmXbox", "A");
 		const FText Action = Selection < NumEquip ? LOCTEXT("ActionUnequip", "ablegen") : LOCTEXT("ActionEquip", "anlegen");
-		DrawLabel(FText::Format(LOCTEXT("InventoryFooter", "{0}: {1} · {2}: Materialbeutel · {3}: schließen"), Confirm, Action, BagKey, Close), Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
+		DrawLabel(FText::Format(LOCTEXT("InventoryFooter", "{0}: {1} · {2}: nächster Reiter · {3}: schließen"), Confirm, Action, BagKey, Close), Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
 	}
 
 	DrawMenuTabs(PlayerController, Middle.X + PictureSize.X * 0.47f, 6.0f * UiScale);
@@ -1978,6 +2069,71 @@ void AVaelHUD::DrawBagField(const FVaelMaterialStack& Stack, const FVector2D& Ce
 	if (Stack.Count > 1)
 	{
 		DrawLabel(FText::AsNumber(Stack.Count), Center.X + Half * 0.88f, Center.Y + Half * 0.38f, 16.0f * T, BoneColor, 1.0f);
+	}
+}
+
+void AVaelHUD::DrawBagJar(const FVaelMaterialStack& Stack, const FVector2D& Center, float Half, float T)
+{
+	// A jar of the Floromant's herbarium: round glass, the thing inside, a cork, the rim glinting
+	const UVaelMaterial* Material = Stack.Material;
+	const FLinearColor RarityColor = VaelItems::GetRarityColor(Material->Rarity);
+	const FVector2D Belly = Center + FVector2D(0.0f, Half * 0.12f);
+	DrawBox(Center.X - Half * 0.28f, Center.Y - Half * 1.02f, Half * 0.56f, Half * 0.3f, Rgb(122, 84, 52));
+	DrawBox(Center.X - Half * 0.36f, Center.Y - Half * 0.78f, Half * 0.72f, Half * 0.18f, FLinearColor(0.75f, 0.9f, 0.85f, 0.35f));
+	DrawDisc(Belly, Half * 0.86f, FLinearColor(0.08f, 0.16f, 0.13f, 0.85f));
+	UTexture2D* Icon = Material->Icon.IsNull() ? nullptr : Material->Icon.LoadSynchronous();
+	if (Icon != nullptr)
+	{
+		const FVector2D Extent(Half * 1.4f);
+		Canvas->K2_DrawTexture(Icon, Belly - Extent * 0.5f, Extent, FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Translucent);
+	}
+	else
+	{
+		DrawDisc(Belly, Half * 0.45f, Material->Color);
+	}
+	DrawRing(Belly, Half * 0.86f, static_cast<int32>(Material->Rarity) > 0 ? RarityColor : FLinearColor(0.7f, 0.9f, 0.85f, 0.6f), FMath::Max(1.0f, 2.0f * T), false);
+	DrawDisc(Belly + FVector2D(-Half * 0.42f, -Half * 0.3f), Half * 0.12f, FLinearColor(1.0f, 1.0f, 1.0f, 0.5f));
+	DrawWaySign(Material->Way, Center + FVector2D(Half * 0.66f, -Half * 0.6f), Half * 0.18f);
+	if (Stack.Count > 1)
+	{
+		DrawLabel(FText::AsNumber(Stack.Count), Center.X + Half * 0.95f, Center.Y + Half * 0.4f, 16.0f * T, BoneColor, 1.0f);
+	}
+}
+
+void AVaelHUD::DrawBelt(const AVaelCharacter* Player)
+{
+	// The belt in the game, bottom right: four places, the active one lit; the potion button uses it, pressed twice it turns
+	const UVaelMaterialBag* Bag = Player != nullptr ? Player->GetMaterialBag() : nullptr;
+	if (Bag == nullptr || !Bag->GetBelt().ContainsByPredicate([](const TObjectPtr<const UVaelMaterial>& Potion) { return Potion != nullptr; }))
+	{
+		return;
+	}
+	const float S = UiScale;
+	const float Half = 20.0f * S;
+	const float Step = 48.0f * S;
+	const float Right = Canvas->ClipX - 24.0f * S;
+	const float Y = Canvas->ClipY - 60.0f * S;
+	for (int32 Place = 0; Place < UVaelMaterialBag::BeltSize; ++Place)
+	{
+		const FVector2D Center(Right - (UVaelMaterialBag::BeltSize - Place) * Step + Half, Y);
+		const UVaelMaterial* Potion = Bag->GetBelt().IsValidIndex(Place) ? Bag->GetBelt()[Place].Get() : nullptr;
+		const bool bActive = Place == Bag->GetActiveBelt();
+		DrawBox(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, Rgb(16, 11, 10, 210));
+		if (Potion != nullptr)
+		{
+			FVaelMaterialStack Stack;
+			Stack.Material = Potion;
+			Stack.Count = Bag->GetCount(Potion);
+			if (Player->IsFloromant())
+			{
+				DrawBagJar(Stack, Center, Half, S * 0.7f);
+			}
+			else
+			{
+				DrawBagField(Stack, Center, Half, S * 0.7f, 0.0f);
+			}
+		}
+		DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, bActive ? EmberColor : RimColor, bActive ? 2.5f * S : 1.0f);
 	}
 }
 
@@ -2979,6 +3135,20 @@ void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const T
 	}
 
 	DrawMapMarkers(View, PlayerControllers, 1.25f, &Clip);
+
+	// Die Waage of the region and of the player, on a dark strip at the foot of the map
+	if (const AVaelRegion* MapRegion = PlayerController->GetPawn() != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), PlayerController->GetPawn()->GetActorLocation()) : nullptr)
+	{
+		const float StripW = FMath::Min(MapPanelWidth - 24.0f * S, 760.0f * S);
+		const float StripX = PanelMin.X + 12.0f * S;
+		const float StripY = PanelMax.Y - 62.0f * S;
+		DrawBox(StripX - 8.0f * S, StripY - 8.0f * S, StripW + 16.0f * S, 58.0f * S, Rgb(13, 9, 10, 215));
+		const UVaelBalanceSubsystem* MapBalance = UVaelBalanceSubsystem::Get(this);
+		const float Half = (StripW - 24.0f * S) * 0.5f;
+		DrawBalanceBar(FText::Format(LOCTEXT("MapBalanceRegion", "Waage: {0}"), MapRegion->GetRegionName()), MapRegion->GetCorruption(), StripX, StripY, Half, 8.0f * S, 0.0f, 0.0f,
+			MapBalance != nullptr && MapRegion->GetRegionName().ToString() == UVaelBalanceSubsystem::RefugiumRegion ? MapBalance->GetRefugiumDrift() : 0.0f);
+		DrawPlayerBalance(PlayerController->GetPawn(), LOCTEXT("MapBalanceSelf", "Deine Waage"), StripX + Half + 24.0f * S, StripY, Half);
+	}
 
 	DrawTitle(Map->Title, Canvas->ClipX * 0.5f, PanelMin.Y - 50.0f * S, 38.0f * S, BoneColor, 0.5f);
 	DrawLabel(FText::Format(LOCTEXT("BigMapClose", "{0}: Karte schließen"), GetMapButtonName(PlayerController->GetInputGlyphs())),

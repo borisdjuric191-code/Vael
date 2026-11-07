@@ -187,6 +187,24 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<class AVaelWeatherRain> RainLook;
 
+	/** Die Waage on the land: a post process that turns grass and ground towards ash and violet in the shadow and warm in
+	 *  the light, and the fog of the level tinted with it (M_PP_Verderbnis, Scripts/CreateBalanceAssets.py) */
+	UPROPERTY(Transient)
+	TObjectPtr<class UPostProcessComponent> BalanceLook;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class UMaterialInstanceDynamic> BalanceLookMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<class AExponentialHeightFog> BalanceFog;
+
+	FLinearColor FogBaseColor = FLinearColor::Black;
+	float FogBaseDensity = 0.0f;
+	float ShownBalance = -1.0f;
+
+	/** Moves the look of the land towards the corruption of the region */
+	void UpdateBalanceLook(float DeltaSeconds);
+
 	/** True if at least one player stands in the region */
 	bool HasPlayerInside() const;
 

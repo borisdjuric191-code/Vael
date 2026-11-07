@@ -441,6 +441,10 @@ def build():
     # 4 Bed overview at the foot of the ramp
     mesh_actor(cube, at(717, 400, 70.0), "Wurzeltafel", "Stufe I/Hexenkueche", yaw=225.0, scale=(0.15, 1.4, 1.4), material=m_roots, collision=True)
     label_text(at(717, 400), "4 Wurzeltafel", "Stufe I/Hexenkueche")
+    # the board of Die Waage: its page, Albrun's first explanation, the guided first bed (C++ VaelBalanceBoard)
+    spawn(unreal.VaelBalanceBoard, at(717, 400, 0.0), "Wurzeltafel (Waage)", "Spiel", unreal.Rotator(0.0, 0.0, 225.0))
+    # a place to rest by the Glutbecken: 8 hours, heals and purifies with a Klartrunk or Lichttropfen
+    spawn(unreal.VaelRestSpot, at(470, 815, 0.0), "Rastplatz am Glutbecken", "Spiel")
 
     # 5 Glutbecken: cooled in the light, lava in the shadow, the Brunnen in the twilight
     p = at(520, 760)

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Nature/VaelGarden.h"
+#include "Floromant/VaelFloromantSettings.h"
+#include "World/VaelBalance.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
 #include "Components/DecalComponent.h"
@@ -213,7 +215,7 @@ void UVaelGardenSubsystem::Research(FName PlantId, const AActor* Source)
 
 	UVaelNoticeSubsystem::Post(Source,
 		FText::Format(bNew ? LOCTEXT("Researched", "Albrun hat erforscht: {0}") : LOCTEXT("GrownAgain", "Wieder gewachsen: {0}"), Plant->DisplayName),
-		FText::Format(LOCTEXT("ResearchedDetail", "{0} Samen für jeden. Zum Säen E oder L1 halten."), FText::AsNumber(Settings->SeedsPerStudy)), Plant->GlowColor, 6.0f);
+		FText::Format(LOCTEXT("ResearchedDetail", "{0} Samen für jeden. Gesät wird in den Beeten der Glutkammer."), FText::AsNumber(Settings->SeedsPerStudy)), Plant->GlowColor, 6.0f);
 
 	UVaelSaveSubsystem::RequestSave(Source);
 
@@ -222,6 +224,11 @@ void UVaelGardenSubsystem::Research(FName PlantId, const AActor* Source)
 
 bool UVaelGardenSubsystem::CanSow(const AVaelCharacter* Player) const
 {
+	// Die Waage (Boris, 7 November 2026): seeds go only into the beds of a refugium, the refugium steers its region
+	if (Player != nullptr)
+	{
+		return false;
+	}
 	const UVaelMaterialBag* Bag = Player != nullptr ? Player->GetMaterialBag() : nullptr;
 	if (Bag == nullptr)
 	{
@@ -347,7 +354,78 @@ AVaelSownPlant* UVaelGardenSubsystem::Sow(AVaelCharacter* Player)
 	return Plant;
 }
 
-AVaelSownPlant* UVaelGardenSubsystem::SowAt(AVaelCharacter* Player, FName PlantId, const FVector& Ground)
+bool UVaelGardenSubsystem::CanSowForm(const AVaelCharacter* Player, const FVaelSeedPlant& Plant, bool bShadow, FText* OutWhy)
+{
+	const auto Why = [OutWhy](const FText& Text) { if (OutWhy != nullptr) { *OutWhy = Text; } return false; };
+	if (Player == nullptr)
+	{
+		return false;
+	}
+	if (bShadow && !Plant.HasShadowForm())
+	{
+		return Why(LOCTEXT("NoShadowForm", "Diese Pflanze hat keine Schattenform."));
+	}
+	const EVaelPath Path = Player->GetPath();
+	if (bShadow && Path == EVaelPath::Light)
+	{
+		return Why(LOCTEXT("ShadowSealed", "Dein Lichtschwur versiegelt die Schattenformen."));
+	}
+	if (Path == EVaelPath::Twilight)
+	{
+		// the twilight path keeps its balance between 40 and 60: a sowing that would push it out is refused
+		const float Corruption = UVaelBalanceSubsystem::GetPlayer(Player);
+		if (bShadow && Corruption + 3.0f > UVaelBalanceSubsystem::TwilightHigh)
+		{
+			return Why(LOCTEXT("TwilightTooDark", "Deine Waage stünde über 60 %. Erst läutern."));
+		}
+	}
+	return true;
+}
+
+bool UVaelGardenSubsystem::TurnPlant(AVaelCharacter* Player, bool bToShadow, float Radius)
+{
+	UWorld* World = Player != nullptr ? Player->GetWorld() : nullptr;
+	if (World == nullptr)
+	{
+		return false;
+	}
+	const FName Level = GardenLevelName(World);
+	FVaelSavedPlant* Nearest = nullptr;
+	float Best = Radius;
+	for (FVaelSavedPlant& Saved : Sown)
+	{
+		const float Distance = FVector::Dist2D(Saved.Location, Player->GetActorLocation());
+		if (Saved.Level == Level && !Saved.bHarvested && Distance < Best)
+		{
+			Nearest = &Saved;
+			Best = Distance;
+		}
+	}
+	const FVaelSeedPlant* Kind = Nearest != nullptr ? FindPlant(Nearest->Plant) : nullptr;
+	if (Nearest == nullptr || Kind == nullptr || !Kind->HasShadowForm() || Nearest->bShadow == bToShadow)
+	{
+		return false;
+	}
+
+	// The plant grows on in its other form: the actor is replaced in the growth it had
+	bool bGrown = false;
+	for (TActorIterator<AVaelSownPlant> It(World); It; ++It)
+	{
+		if (FVector::Dist2D(It->GetActorLocation(), Nearest->Location) < 30.0f)
+		{
+			bGrown = It->IsGrown();
+			It->Destroy();
+		}
+	}
+	Nearest->bShadow = bToShadow;
+	AVaelSownPlant* Turned = AVaelSownPlant::Plant(World, Nearest->Plant, Nearest->Location, Nearest->Yaw, bGrown, bToShadow);
+	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("Turned", "{0} wächst nun als {1}"), Kind->DisplayName,
+		bToShadow ? Kind->ShadowName : Kind->DisplayName), bToShadow ? UVaelGardenSettings::Get()->ShadowGlowColor : Kind->GlowColor);
+	UVaelSaveSubsystem::RequestSave(Player);
+	return Turned != nullptr;
+}
+
+AVaelSownPlant* UVaelGardenSubsystem::SowAt(AVaelCharacter* Player, FName PlantId, const FVector& Ground, bool bShadowForm)
 {
 	UVaelMaterialBag* Bag = Player != nullptr ? Player->GetMaterialBag() : nullptr;
 	const FVaelSeedPlant* Picked = FindPlant(PlantId);
@@ -358,7 +436,8 @@ AVaelSownPlant* UVaelGardenSubsystem::SowAt(AVaelCharacter* Player, FName PlantI
 	}
 
 	UWorld* World = Player->GetWorld();
-	const bool bShadow = Picked->HasShadowForm() && RollShadowForm(Player->GetCorruption());
+	// Die Waage: the form is the sower's choice, not chance
+	const bool bShadow = bShadowForm && Picked->HasShadowForm();
 	const float Yaw = FMath::FRandRange(0.0f, 360.0f);
 	AVaelSownPlant* Plant = AVaelSownPlant::Plant(World, PlantId, Ground, Yaw, false, bShadow);
 	if (Plant == nullptr)
@@ -377,9 +456,26 @@ AVaelSownPlant* UVaelGardenSubsystem::SowAt(AVaelCharacter* Player, FName PlantI
 
 	const UVaelGardenSettings* Settings = UVaelGardenSettings::Get();
 	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("SownInBed", "{0} ins Beet gesät"), Plant->GetFormName()), bShadow ? Settings->ShadowGlowColor : Picked->GlowColor);
+	if (bShadow)
+	{
+		UVaelBalanceSubsystem::ChangePlayer(Player, 3.0f, LOCTEXT("ShadowSownReason", "Schattenform gesät"));
+	}
 	UVaelSaveSubsystem::RequestSave(Player);
 	UE_LOG(LogVael, Log, TEXT("Garden: %s sown in a bed"), *PlantId.ToString());
 	return Plant;
+}
+
+void UVaelGardenSubsystem::CountSown(FName Level, int32& OutLight, int32& OutShadow) const
+{
+	OutLight = 0;
+	OutShadow = 0;
+	for (const FVaelSavedPlant& Plant : Sown)
+	{
+		if (Plant.Level == Level)
+		{
+			(Plant.bShadow ? OutShadow : OutLight) += 1;
+		}
+	}
 }
 
 bool UVaelGardenSubsystem::HasPlantNear(const UWorld* World, const FVector& Location, float Radius) const
@@ -456,11 +552,7 @@ bool UVaelGardenSubsystem::Harvest(AVaelSownPlant* Plant, AVaelCharacter* Player
 	// The shadow way has its price: the Mark stings the hand that picks it
 	if (bShadow && FMath::FRand() < Settings->MarkStingChance)
 	{
-		if (UAbilitySystemComponent* AbilitySystem = Player->GetAbilitySystemComponent())
-		{
-			const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
-			AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + Settings->MarkStingCorruption, 100.0f));
-		}
+		UVaelBalanceSubsystem::ChangePlayer(Player, Settings->MarkStingCorruption, LOCTEXT("StingReason", "Nidstich"));
 		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("MarkSting", "Nidstich"));
 	}
 

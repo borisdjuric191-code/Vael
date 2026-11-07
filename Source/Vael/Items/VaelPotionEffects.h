@@ -45,8 +45,14 @@ public:
 	/** Factor on how far creatures notice the player: Ascheschleier */
 	float GetNoticeMultiplier() const;
 
-	/** The player hit something for this much: blood oil and blood frenzy heal */
-	void OnDamageDealt(float Damage);
+	/** The player hit something for this much: blood oil and blood frenzy heal, an oil on the weapon passes on its effect */
+	void OnDamageDealt(AActor* Target, float Damage);
+
+	/** True if the player throws vials (the engineer fires them from sling and bow); the other classes coat their weapon */
+	static bool ThrowsVials(const AVaelCharacter* Player);
+
+	/** The oil on the weapon right now (a vial of "Wurf und Öl"), None if there is none */
+	FName GetWeaponOil() const;
 
 	/** The player was hit by this attacker for this much: the twilight brew heals a little and throws damage back */
 	void OnDamageTaken(AActor* Attacker, float Damage);
@@ -97,6 +103,11 @@ private:
 
 	TMap<FName, FLasting> Lasting;
 	TArray<FCloud> Clouds;
+
+	/** Oil on the weapon: which vial and until when; enemies it has touched recently (it does not stack on one target) */
+	FName WeaponOil;
+	float WeaponOilEnd = 0.0f;
+	TMap<TWeakObjectPtr<AActor>, float> OilTouched;
 
 	/** Blutrausch: stacks of speed from hits, and when the last came */
 	int32 FrenzyStacks = 0;

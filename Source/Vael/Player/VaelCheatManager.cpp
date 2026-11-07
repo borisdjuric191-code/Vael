@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCheatManager.h"
+#include "World/VaelBalance.h"
 #include "World/VaelRefugiumClutch.h"
 #include "Items/VaelBrewing.h"
 #include "Items/VaelPotionEffects.h"
@@ -1619,9 +1620,24 @@ void UVaelCheatManager::VaelBeet(const FString& What)
 		}
 	}
 	const TArray<FName> Choices = Controller->GetSowChoices();
-	if (What == TEXT("sofort") && Nearest != nullptr && !Choices.IsEmpty())
+	// "drehen": a shadow form into the bed, the player steps beside it and pours a Klartrunk over it (Die Waage)
+	if (What == TEXT("drehen") && Nearest != nullptr && !Choices.IsEmpty())
 	{
-		const bool bSown = Nearest->SowFrom(Controller->GetPawn<AVaelCharacter>(), Choices[0]);
+		AVaelCharacter* Pourer = Controller->GetPawn<AVaelCharacter>();
+		Nearest->SowFrom(Pourer, Choices[0], true);
+		Pourer->SetActorLocation(Nearest->GetActorLocation() + FVector(120.0f, 0.0f, 100.0f), false, nullptr, ETeleportType::TeleportPhysics);
+		const UVaelMaterial* Klartrunk = LoadObject<UVaelMaterial>(nullptr, TEXT("/Game/Vael/Items/Materials/DA_Material_Klartrunk.DA_Material_Klartrunk"));
+		Pourer->GetMaterialBag()->AddMaterial(Klartrunk, 1);
+		const bool bTurned = Pourer->GetMaterialBag()->UseMaterial(Klartrunk);
+		int32 Light = 0;
+		int32 Shadow = 0;
+		UVaelGardenSubsystem::Get(Pourer)->CountSown(FName(TEXT("L_Glutkammer")), Light, Shadow);
+		UE_LOG(LogVael, Log, TEXT("VaelBeet drehen: poured %s, beds now light %d shadow %d"), bTurned ? TEXT("yes") : TEXT("no"), Light, Shadow);
+		return;
+	}
+	if ((What == TEXT("sofort") || What == TEXT("schatten")) && Nearest != nullptr && !Choices.IsEmpty())
+	{
+		const bool bSown = Nearest->SowFrom(Controller->GetPawn<AVaelCharacter>(), Choices[0], What == TEXT("schatten"));
 		UE_LOG(LogVael, Log, TEXT("VaelBeet: %s sown into %s: %s"), *Choices[0].ToString(), *Nearest->GetName(), bSown ? TEXT("yes") : TEXT("no"));
 		return;
 	}
@@ -1687,6 +1703,11 @@ void UVaelCheatManager::VaelTrankTest(const FString& What)
 	for (const TCHAR* Potion : Potions)
 	{
 		VaelTrinken(Potion);
+		// a vial is an oil on the weapon now (only the engineer throws): one strike carries it to the dummy
+		if (What != TEXT("puls"))
+		{
+			UVaelCombatStatics::DealDamage(Player, Dummy, 4.0f, EVaelElement::Earth);
+		}
 	}
 	TWeakObjectPtr<AVaelCharacterBase> Weak = Dummy;
 	FTimerHandle Handle;
@@ -1723,5 +1744,62 @@ void UVaelCheatManager::VaelInventar()
 	{
 		Controller->OpenGrimoire(EVaelMenuPage::Inventory);
 		Controller->PressMenuBag();
+	}
+}
+
+void UVaelCheatManager::VaelTafel()
+{
+	if (AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
+	{
+		Controller->OpenBoard();
+	}
+}
+
+void UVaelCheatManager::VaelGuertel(const FString& PotionId)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	for (const FVaelRecipe& Recipe : FVaelBrewing::GetRecipes())
+	{
+		if (Recipe.Id == FName(*PotionId))
+		{
+			const UVaelMaterial* Potion = Recipe.Result.LoadSynchronous();
+			if (Player->GetMaterialBag()->GetCount(Potion) <= 0)
+			{
+				VaelBrauen(PotionId);
+			}
+			const int32 Place = Player->GetMaterialBag()->ToggleBelt(Potion);
+			UE_LOG(LogVael, Log, TEXT("VaelGuertel: %s on belt place %d"), *PotionId, Place);
+			return;
+		}
+	}
+}
+
+void UVaelCheatManager::VaelLaeutern(const FString& What)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	for (const TCHAR* Name : { TEXT("Klartrunk"), TEXT("Lichttropfen"), TEXT("Nidkristall") })
+	{
+		Player->GetMaterialBag()->AddMaterial(LoadObject<UVaelMaterial>(nullptr, *FString::Printf(TEXT("/Game/Vael/Items/Materials/DA_Material_%s.DA_Material_%s"), Name, Name)), 1);
+	}
+	const float Before = UVaelBalanceSubsystem::GetPlayer(Player);
+	if (What == TEXT("kristall"))
+	{
+		const bool bDone = UVaelBalanceSubsystem::PurifyCrystal(Player);
+		UE_LOG(LogVael, Log, TEXT("VaelLaeutern: crystal %s, balance %.1f -> %.1f"), bDone ? TEXT("purified") : TEXT("missing"), Before, UVaelBalanceSubsystem::GetPlayer(Player));
+	}
+	else
+	{
+		UVaelBalanceSubsystem::RestGroup(GetWorld(), 8.0f, false);
+		UE_LOG(LogVael, Log, TEXT("VaelLaeutern: the group rests, balance before %.1f"), Before);
 	}
 }

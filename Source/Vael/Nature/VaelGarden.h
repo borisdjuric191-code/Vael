@@ -304,13 +304,16 @@ public:
 	int32 GetNumResearched() const { return Researched.Num(); }
 	int32 GetNumSown() const { return Sown.Num(); }
 
+	/** Plants sown in a level, light and shadow forms (harvested ones count until they are gone) */
+	void CountSown(FName Level, int32& OutLight, int32& OutShadow) const;
+
 	/** What a surprise seed becomes: a kind nobody has researched yet while there is one, so chance never blocks for long */
 	FName PickSurprise() const;
 
 	/** Albrun has looked at a grown plant: it is researched from now on and the group gets its seeds */
 	void Research(FName PlantId, const AActor* Source);
 
-	/** True if the player carries a seed of a researched plant */
+	/** Sowing in the open world is gone (Boris 2026-11-07: only the beds of a refugium take seeds); always false */
 	bool CanSow(const AVaelCharacter* Player) const;
 
 	/** Sows one seed of a researched plant in front of the player. Returns null if they have none or there is no room. */
@@ -318,7 +321,14 @@ public:
 
 	/** Sows one seed of this plant from the player's bag at an exact spot, like the bed of a refugium (no spacing check:
 	 *  the bed is the room). Returns null if the player has no such seed or the plant is not researched. */
-	AVaelSownPlant* SowAt(AVaelCharacter* Player, FName PlantId, const FVector& Ground);
+	AVaelSownPlant* SowAt(AVaelCharacter* Player, FName PlantId, const FVector& Ground, bool bShadow);
+
+	/** Whether the player may sow this plant in this form now (Die Waage: before the vow freely, after it by the path); Why says why not */
+	static bool CanSowForm(const AVaelCharacter* Player, const FVaelSeedPlant& Plant, bool bShadow, FText* OutWhy = nullptr);
+
+	/** Pours a Klartrunk (to light) or Nidtrunk (to shadow) over the nearest sown plant within the radius: it grows on in the
+	 *  other form. Returns false if there is none or it already has that form. */
+	bool TurnPlant(AVaelCharacter* Player, bool bToShadow, float Radius);
 
 	/** True if a sown plant stands this close to the spot in the level of the world */
 	bool HasPlantNear(const UWorld* World, const FVector& Location, float Radius) const;

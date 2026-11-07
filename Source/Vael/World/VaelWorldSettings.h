@@ -339,9 +339,9 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0))
 	float RegionCorruptionPerMarkElement = 1.2f;
 
-	/** Personal corruption a mage gains for every Mark element cast */
+	/** Personal corruption a mage gains for every Mark element cast (Die Waage: one Nid +2.5, two +5) */
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0))
-	float PlayerCorruptionPerMarkElement = 4.5f;
+	float PlayerCorruptionPerMarkElement = 2.5f;
 
 	/** From this personal corruption on, every Mark element cast hurts the caster (prototype: 60) */
 	UPROPERTY(config, EditAnywhere, Category="Corruption", meta = (ClampMin = 0, ClampMax = 100))

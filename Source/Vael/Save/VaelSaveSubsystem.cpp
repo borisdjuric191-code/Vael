@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Save/VaelSaveSubsystem.h"
+#include "World/VaelBalance.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Nature/VaelGarden.h"
 #include "AbilitySystemComponent.h"
@@ -52,6 +53,7 @@ void UVaelSaveSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Collection.InitializeDependency<UVaelProgressSubsystem>();
 	Collection.InitializeDependency<UVaelGardenSubsystem>();
 	Collection.InitializeDependency<UVaelTimeOfDay>();
+	Collection.InitializeDependency<UVaelBalanceSubsystem>();
 
 	bEnabled = !FParse::Param(FCommandLine::Get(), TEXT("VaelNoSave")) && !AVaelSmokeTest::IsRequested() && !AVaelShowcase::IsRequested() && !AVaelStreamTest::IsRequested();
 
@@ -149,6 +151,7 @@ void UVaelSaveSubsystem::Collect()
 	GameInstance->GetSubsystem<UVaelCompendiumSubsystem>()->WriteSave(*Current);
 	GameInstance->GetSubsystem<UVaelProgressSubsystem>()->WriteSave(*Current);
 	GameInstance->GetSubsystem<UVaelGardenSubsystem>()->WriteSave(*Current);
+	GameInstance->GetSubsystem<UVaelBalanceSubsystem>()->WriteSave(*Current);
 	GameInstance->GetSubsystem<UVaelTimeOfDay>()->WriteSave(*Current);
 
 	// Slots of players who are not in the level right now keep what they had
@@ -179,6 +182,7 @@ void UVaelSaveSubsystem::ApplyToGroup() const
 	GameInstance->GetSubsystem<UVaelCompendiumSubsystem>()->ReadSave(*Current);
 	GameInstance->GetSubsystem<UVaelProgressSubsystem>()->ReadSave(*Current);
 	GameInstance->GetSubsystem<UVaelGardenSubsystem>()->ReadSave(*Current);
+	GameInstance->GetSubsystem<UVaelBalanceSubsystem>()->ReadSave(*Current);
 	GameInstance->GetSubsystem<UVaelTimeOfDay>()->ReadSave(*Current);
 }
 
@@ -336,4 +340,17 @@ FString UVaelSaveSubsystem::TestRoundTrip(AVaelCharacter* Player, int32 PlayerSl
 	return FString::Printf(TEXT("%s%d bytes, %d world marks, %d regions, %d players; same after reading back: %s; wiped in between: %s%s"), bOk ? TEXT("") : TEXT("FAILED: "), Bytes.Num(),
 		Loaded->WorldMarks.Num(), Loaded->Regions.Num(), Loaded->Players.Num(), Before == After ? TEXT("yes") : TEXT("NO"), Before != Wiped ? TEXT("yes") : TEXT("NO"),
 		Before == After ? TEXT("") : *FString::Printf(TEXT("\n    before: %s\n    after:  %s"), *Before, *After));
+}
+
+bool UVaelSaveSubsystem::FindSavedRegionCorruption(const FString& MapName, float& OutCorruption) const
+{
+	for (const TPair<FName, FVaelSavedRegion>& Pair : Current->Regions)
+	{
+		if (Pair.Key.ToString().StartsWith(MapName + TEXT(".")))
+		{
+			OutCorruption = Pair.Value.Corruption;
+			return true;
+		}
+	}
+	return false;
 }

@@ -62,10 +62,13 @@ public:
 	EVaelClutchState GetState() const { return State; }
 
 	/** Sows a seed of the plant from the player's bag into this bed (it must be open and empty). Returns true on success. */
-	bool SowFrom(AVaelCharacter* Player, FName PlantId);
+	bool SowFrom(AVaelCharacter* Player, FName PlantId, bool bShadow = false);
 
 	/** True if a plant grows in this bed */
 	bool HasPlant() const;
+
+	/** The guided first bed (Wurzeltafel): it glows and breathes in gold until something is sown in it */
+	void SetGuide(bool bOn);
 
 	/** Stage the story has reached for a refugium, 1 to 5 */
 	static int32 GetReachedStage(const UObject* WorldContext, FName InRefugium);
@@ -122,4 +125,6 @@ private:
 	float Breath = 0.0f;
 
 	FDelegateHandle PhaseHandle;
+
+	bool bGuide = false;
 };

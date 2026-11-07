@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/VaelPotionEffects.h"
+#include "World/VaelBalance.h"
 
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
@@ -118,7 +119,27 @@ bool UVaelPotionEffects::Use(AVaelCharacter* Player, const UVaelMaterial* Potion
 	const float Strength = bOwn ? 1.25f : 1.0f;
 	const float DurationScale = bOwn ? 1.5f : 1.0f;
 
-	const bool bUsed = IsThrown(Recipe->Id) && Recipe->Id != Gruppenheilung ? Effects->Throw(Recipe->Id, Strength) : Effects->Drink(Recipe->Id, Strength, DurationScale);
+	// Vials of "Wurf und Öl": the engineer fires them (sling, later bow); every other class coats its weapon with them
+	bool bUsed = false;
+	if (IsThrown(Recipe->Id) && Recipe->Id != Gruppenheilung)
+	{
+		if (ThrowsVials(Player))
+		{
+			bUsed = Effects->Throw(Recipe->Id, Strength);
+		}
+		else
+		{
+			Effects->WeaponOil = Recipe->Id;
+			Effects->WeaponOilEnd = Effects->Now() + 60.0f * DurationScale;
+			Effects->OilTouched.Reset();
+			UVaelCombatTextSubsystem::PostReaction(Player, FText::Format(LOCTEXT("OilOn", "Öl auf der Waffe: {0}"), Recipe->Name));
+			bUsed = true;
+		}
+	}
+	else
+	{
+		bUsed = Effects->Drink(Recipe->Id, Strength, DurationScale);
+	}
 	if (!bUsed)
 	{
 		return false;
@@ -126,6 +147,13 @@ bool UVaelPotionEffects::Use(AVaelCharacter* Player, const UVaelMaterial* Potion
 
 	Bag->RemoveMaterial(Potion, 1);
 	UVaelCombatTextSubsystem::PostPickup(Player, Recipe->Name, Recipe->Color);
+
+	// Die Waage: shadow brews cost a little of oneself, twilight brews half of that
+	if (Recipe->Way == EVaelWay::Shadow || Recipe->Way == EVaelWay::Twilight)
+	{
+		const float Price = (Recipe->Tier == EVaelBrewTier::Power ? 3.0f : Recipe->Tier == EVaelBrewTier::Strong ? 2.0f : 1.0f) * (Recipe->Way == EVaelWay::Twilight ? 0.5f : 1.0f);
+		UVaelBalanceSubsystem::ChangePlayer(Player, Price, LOCTEXT("ShadowBrewReason", "Schattentrank"));
+	}
 	UVaelSaveSubsystem::RequestSave(Player);
 	UE_LOG(LogVael, Log, TEXT("Potion: %s uses %s%s"), *Player->GetName(), *Recipe->Id.ToString(), bOwn ? TEXT(" (own craft)") : TEXT(""));
 	return true;
@@ -188,8 +216,7 @@ bool UVaelPotionEffects::Drink(FName Id, float S, float D)
 	}
 	else if (Id == Reinigungstrank)
 	{
-		const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
-		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Max(0.0f, Corruption - 10.0f * S));
+		UVaelBalanceSubsystem::ChangePlayer(Player, -10.0f * S, LOCTEXT("CleanseReason", "Reinigungstrank"));
 	}
 	else if (Id == Gruppenheilung)
 	{
@@ -365,17 +392,57 @@ float UVaelPotionEffects::GetNoticeMultiplier() const
 	return IsActive(Ascheschleier) ? 0.5f / Strength(Ascheschleier) : 1.0f;
 }
 
-void UVaelPotionEffects::OnDamageDealt(float Damage)
+bool UVaelPotionEffects::ThrowsVials(const AVaelCharacter* Player)
+{
+	// Boris 2026-11-07: throwing belongs to the engineer, with vials of his own for sling and bow. The class is not in the
+	// game yet (only mage and Floromant), so for now every player coats the weapon; the engineer will return true here.
+	return false;
+}
+
+FName UVaelPotionEffects::GetWeaponOil() const
+{
+	return Now() < WeaponOilEnd ? WeaponOil : NAME_None;
+}
+
+void UVaelPotionEffects::OnDamageDealt(AActor* Target, float Damage)
 {
 	AVaelCharacter* Player = GetPlayer();
 	if (Player == nullptr || Damage <= 0.0f)
 	{
 		return;
 	}
-	// blood oil: the weapon steals 10 % of what it takes
-	if (const float Oil = Strength(Blutoel); Oil > 0.0f)
+	// the oil on the weapon: each enemy takes its effect once every few seconds
+	const FName Oil = GetWeaponOil();
+	AVaelCharacterBase* Enemy = Cast<AVaelCharacterBase>(Target);
+	if (!Oil.IsNone() && Enemy != nullptr && Enemy != Player)
 	{
-		UVaelCombatStatics::Heal(Player, Damage * 0.1f * Oil);
+		float& Last = OilTouched.FindOrAdd(Enemy, -100.0f);
+		if (Now() - Last > 3.0f)
+		{
+			Last = Now();
+			if (Oil == Giftphiole)
+			{
+				Clouds.Add({ Enemy->GetActorLocation(), 120.0f, 5.0f, Now() + 4.0f, Now() });
+			}
+			else if (Oil == Schwarzbrand)
+			{
+				UVaelCombatStatics::ApplyStatus(Player, Enemy, EVaelStatus::Burning, 6.0f, 5.0f);
+			}
+			else if (Oil == Ermattungsfluch)
+			{
+				UVaelCombatStatics::ApplyStatus(Player, Enemy, EVaelStatus::Slowed, 6.0f);
+				UVaelCombatStatics::ApplyStatus(Player, Enemy, EVaelStatus::Confused, 2.0f);
+			}
+			else if (Oil == Saeurewolke)
+			{
+				UVaelCombatStatics::ApplyStatus(Player, Enemy, EVaelStatus::Marked, 5.0f);
+			}
+		}
+	}
+	// blood oil: the weapon steals 10 % of what it takes
+	if (const float BloodOil = Strength(Blutoel); BloodOil > 0.0f)
+	{
+		UVaelCombatStatics::Heal(Player, Damage * 0.1f * BloodOil);
 	}
 	// blood frenzy: every hit heals a little and makes faster, up to 5 times
 	if (const float Frenzy = Strength(Blutrausch); Frenzy > 0.0f)

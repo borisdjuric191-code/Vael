@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Story/VaelNpc.h"
+#include "World/VaelBalance.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -167,6 +168,12 @@ void AVaelNpc::Interact(AVaelCharacter* Player)
 	if (Compendium != nullptr && Compendium->StudyAtCamp(&Studied) > 0 && !Dialogue->StudyDoneLine.IsEmpty())
 	{
 		Lines.Add(FText::Format(Dialogue->StudyDoneLine, FText::Join(FText::FromString(TEXT(", ")), Studied)));
+	}
+
+	// Albrun purifies a Nidkristall the player carries (Die Waage): it becomes a Geläuterter Kristall, the player sinks by 5
+	if (GetSpeakerKey() == FName(TEXT("DA_Dialogue_Albrun")) && UVaelBalanceSubsystem::PurifyCrystal(Player))
+	{
+		Lines.Add(NSLOCTEXT("VaelStory", "AlbrunPurifies", "Gib mir den Kristall. … So. Das Nid darin schläft wieder, und ein Stück davon ist aus dir gewichen. Behalte den geläuterten, er ist mehr wert, als er aussieht."));
 	}
 
 	if (Lines.IsEmpty())

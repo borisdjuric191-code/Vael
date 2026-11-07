@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/VaelMaterialBag.h"
+#include "Save/VaelSaveSubsystem.h"
 #include "Items/VaelPotionEffects.h"
+#include "Nature/VaelGarden.h"
 #include "Player/VaelCharacter.h"
 #include "Save/VaelSaveGame.h"
 #include "Items/VaelMaterial.h"
@@ -52,8 +54,23 @@ bool UVaelMaterialBag::UseMaterial(const UVaelMaterial* Material)
 		return false;
 	}
 
+	// Klartrunk and Nidtrunk are poured over a plant in a bed: it grows on in light or in shadow form (Die Waage)
+	const FString Name = Material->GetName();
+	if (Name == TEXT("DA_Material_Klartrunk") || Name == TEXT("DA_Material_Nidtrunk"))
+	{
+		AVaelCharacter* Player = Cast<AVaelCharacter>(GetOwner());
+		UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(Player);
+		if (Player != nullptr && Garden != nullptr && Garden->TurnPlant(Player, Name == TEXT("DA_Material_Nidtrunk"), 260.0f))
+		{
+			RemoveMaterial(Material, 1);
+			return true;
+		}
+		UVaelNoticeSubsystem::Post(GetOwner(), Material->DisplayName, LOCTEXT("PourNear", "Stell dich an ein Beet mit einer Pflanze der anderen Form und gieß ihn darüber."), Material->Color, 3.0f);
+		return false;
+	}
+
 	// Potions of the witch's kitchen: drunk or thrown (UVaelPotionEffects)
-	if (Material->Category == EVaelMaterialCategory::Potion)
+	if (Material->Category == EVaelMaterialCategory::Potion || Material->IsPotion())
 	{
 		if (AVaelCharacter* Player = Cast<AVaelCharacter>(GetOwner()))
 		{
@@ -162,8 +179,91 @@ void UVaelMaterialBag::GiveToGroup(const AActor* Source, const TArray<FVaelLootE
 
 #undef LOCTEXT_NAMESPACE
 
+bool UVaelMaterialBag::IsInTab(const UVaelMaterial* Material, int32 Tab)
+{
+	if (Material == nullptr)
+	{
+		return false;
+	}
+	// older assets keep the default category: potions are known by their heal, seeds and crystals by their names
+	const FString Name = Material->GetName();
+	const bool bPotion = Material->Category == EVaelMaterialCategory::Potion || Material->IsPotion();
+	const bool bSeed = Material->Category == EVaelMaterialCategory::Seed || Name.StartsWith(TEXT("DA_Material_Samen_")) || Name == TEXT("DA_Material_Ueberraschungssaat");
+	const bool bCrystal = Material->Category == EVaelMaterialCategory::Crystal || Name.Contains(TEXT("Kristall"));
+	switch (Tab)
+	{
+	case 1: return bPotion;
+	case 2: return bCrystal && !bPotion;
+	case 3: return !bPotion && !bSeed && !bCrystal;
+	case 4: return bSeed;
+	default: return false;
+	}
+}
+
+TArray<FVaelMaterialStack> UVaelMaterialBag::GetStacks(int32 Tab) const
+{
+	TArray<FVaelMaterialStack> Stacks = GetStacks();
+	Stacks.RemoveAll([Tab](const FVaelMaterialStack& Stack) { return !IsInTab(Stack.Material, Tab); });
+	return Stacks;
+}
+
+int32 UVaelMaterialBag::ToggleBelt(const UVaelMaterial* Potion)
+{
+	if (!IsInTab(Potion, 1))
+	{
+		return -1;
+	}
+	Belt.SetNum(BeltSize);
+	const int32 Existing = Belt.IndexOfByKey(Potion);
+	if (Existing != INDEX_NONE)
+	{
+		Belt[Existing] = nullptr;
+		OnMaterialsChanged.Broadcast();
+		return -1;
+	}
+	int32 Place = Belt[ActiveBelt] == nullptr ? ActiveBelt : Belt.IndexOfByKey(nullptr);
+	Place = Place == INDEX_NONE ? ActiveBelt : Place;
+	Belt[Place] = Potion;
+	ActiveBelt = Place;
+	OnMaterialsChanged.Broadcast();
+	UVaelSaveSubsystem::RequestSave(GetOwner());
+	return Place;
+}
+
+void UVaelMaterialBag::CycleBelt()
+{
+	Belt.SetNum(BeltSize);
+	for (int32 Step = 1; Step <= BeltSize; ++Step)
+	{
+		const int32 Place = (ActiveBelt + Step) % BeltSize;
+		if (Belt[Place] != nullptr)
+		{
+			ActiveBelt = Place;
+			UVaelCombatTextSubsystem::PostPickup(GetOwner(), FText::Format(NSLOCTEXT("VaelItems", "BeltPlace", "Gürtel: {0}"), Belt[Place]->DisplayName), Belt[Place]->Color);
+			return;
+		}
+	}
+}
+
+bool UVaelMaterialBag::UseBelt()
+{
+	Belt.SetNum(BeltSize);
+	const UVaelMaterial* Potion = Belt[ActiveBelt];
+	if (Potion == nullptr || GetCount(Potion) <= 0)
+	{
+		return false;
+	}
+	return UseMaterial(Potion);
+}
+
 void UVaelMaterialBag::WriteSave(FVaelSavedPlayer& Saved) const
 {
+	Saved.Belt.Reset();
+	for (const TObjectPtr<const UVaelMaterial>& Potion : Belt)
+	{
+		Saved.Belt.Add(Potion != nullptr ? FSoftObjectPath(Potion.Get()) : FSoftObjectPath());
+	}
+	Saved.ActiveBelt = ActiveBelt;
 	Saved.Materials.Reset();
 	for (const TPair<TObjectPtr<const UVaelMaterial>, int32>& Stack : Counts)
 	{
@@ -176,6 +276,13 @@ void UVaelMaterialBag::WriteSave(FVaelSavedPlayer& Saved) const
 
 void UVaelMaterialBag::ReadSave(const FVaelSavedPlayer& Saved)
 {
+	Belt.Reset();
+	for (const FSoftObjectPath& Path : Saved.Belt)
+	{
+		Belt.Add(Path.IsValid() ? Cast<UVaelMaterial>(Path.TryLoad()) : nullptr);
+	}
+	Belt.SetNum(BeltSize);
+	ActiveBelt = FMath::Clamp(Saved.ActiveBelt, 0, BeltSize - 1);
 	Counts.Reset();
 	for (const TPair<FSoftObjectPath, int32>& Stack : Saved.Materials)
 	{

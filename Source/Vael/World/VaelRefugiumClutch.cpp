@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelRefugiumClutch.h"
+#include "UI/VaelNoticeSubsystem.h"
+#include "World/VaelBalance.h"
+#include "World/VaelBalanceBoard.h"
 
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -226,6 +229,10 @@ void AVaelRefugiumClutch::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 	Breath += DeltaSeconds;
 
+	if (bGuide && State == EVaelClutchState::Bed && Opening < 0.0f)
+	{
+		Glow->SetIntensity(25.0f + 20.0f * (0.5f + 0.5f * FMath::Sin(Breath * 3.0f)));
+	}
 	if (State == EVaelClutchState::Awake)
 	{
 		// awake: the glow breathes, the clutch swells a little with it
@@ -296,7 +303,15 @@ bool AVaelRefugiumClutch::HasPlant() const
 	return Garden != nullptr && Garden->HasPlantNear(GetWorld(), GetActorLocation(), 55.0f);
 }
 
-bool AVaelRefugiumClutch::SowFrom(AVaelCharacter* Player, FName PlantId)
+void AVaelRefugiumClutch::SetGuide(bool bOn)
+{
+	bGuide = bOn;
+	Glow->SetVisibility(true);
+	Glow->SetLightColor(bOn ? FLinearColor(1.0f, 0.85f, 0.4f) : ClutchGlowColor);
+	Glow->SetIntensity(bOn ? 40.0f : ClutchBedGlow);
+}
+
+bool AVaelRefugiumClutch::SowFrom(AVaelCharacter* Player, FName PlantId, bool bShadow)
 {
 	UVaelGardenSubsystem* Garden = UVaelGardenSubsystem::Get(this);
 	if (Garden == nullptr || State != EVaelClutchState::Bed || HasPlant())
@@ -305,7 +320,24 @@ bool AVaelRefugiumClutch::SowFrom(AVaelCharacter* Player, FName PlantId)
 	}
 	// the soil of the bed sits 42 cm up inside the clutch (Tools/Refugium/glutkammer_probe.py, build_clutch_bed)
 	const FVector Soil = GetActorLocation() + FVector(0.0f, 0.0f, 44.0f * GetActorScale3D().Z);
-	return Garden->SowAt(Player, PlantId, Soil) != nullptr;
+	if (Garden->SowAt(Player, PlantId, Soil, bShadow) == nullptr)
+	{
+		return false;
+	}
+	// The guided first bed: the board's lesson ends with what this bed will do to the land
+	if (bGuide)
+	{
+		SetGuide(false);
+		if (UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this))
+		{
+			Quests->SetFlag(AVaelBalanceBoard::FirstBedFlag);
+		}
+		UVaelNoticeSubsystem::Post(this, LOCTEXT("FirstBed", "Dein erstes Beet"),
+			bShadow ? LOCTEXT("FirstBedShadow", "Eine Schattenform: deine Waage ist gestiegen, und solange sie wächst, wächst auch das Nid der Aschenmark. Die Wurzeltafel zeigt es.")
+					: LOCTEXT("FirstBedLight", "Eine Lichtform: solange sie wächst, nimmt sie der Aschenmark nach und nach ihr Nid. Die Wurzeltafel zeigt es."),
+			bShadow ? UVaelBalanceSubsystem::GetZoneColor(EVaelBalanceZone::Shadow) : UVaelBalanceSubsystem::GetZoneColor(EVaelBalanceZone::Light), 7.0f);
+	}
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

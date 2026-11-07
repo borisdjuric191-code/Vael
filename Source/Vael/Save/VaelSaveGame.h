@@ -51,6 +51,13 @@ struct FVaelSavedPlayer
 
 	UPROPERTY()
 	TMap<FName, int32> Genes;
+
+	/** The four belt places of potions by asset path (an empty path is an empty place) and the one in hand */
+	UPROPERTY()
+	TArray<FSoftObjectPath> Belt;
+
+	UPROPERTY()
+	int32 ActiveBelt = 0;
 };
 
 /** State of a region */
@@ -135,6 +142,10 @@ public:
 	/** Kinds of creatures that exist once and were defeated, like the Glutkönigin */
 	UPROPERTY()
 	TSet<FName> DefeatedUniques;
+
+	/** What the beds of a refugium did to a region while it was not loaded, by region name (UVaelBalanceSubsystem) */
+	UPROPERTY()
+	TMap<FString, float> PendingRegionCorruption;
 
 	/** Regions by "Level.Actor" */
 	UPROPERTY()

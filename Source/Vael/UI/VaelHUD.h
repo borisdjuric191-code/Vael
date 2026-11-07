@@ -181,6 +181,21 @@ private:
 	/** Region box with name, weather and corruption at the top right, from Top down; returns the Y below it */
 	float DrawRegionInfo(float Top);
 
+	/** Die Waage: one balance bar with its three zones, the twilight band, a marker that flares (Flare 0..1) and an arrow for the drift (VaelHUDBalance.cpp) */
+	void DrawBalanceBar(const FText& Label, float Value, float X, float Y, float Width, float Height, float Flare, float FlareDelta, float Drift);
+
+	/** A jar of the Floromant's herbarium in the inventory: glass, the thing inside, a cork */
+	void DrawBagJar(const struct FVaelMaterialStack& Stack, const FVector2D& Center, float Half, float T);
+
+	/** The belt of potions in the game, bottom right */
+	void DrawBelt(const class AVaelCharacter* Player);
+
+	/** The page of the root board of a refugium: both balances, the beds and what they do, how to sink and rise (VaelHUDBalance.cpp) */
+	void DrawBoard(const AVaelPlayerController* PlayerController);
+
+	/** The balance of a player with its flare from the last change; returns the bottom */
+	float DrawPlayerBalance(const AActor* Player, const FText& Label, float X, float Y, float Width);
+
 	/** The open quests under the region box, main story first */
 	void DrawQuestTracker(float Top);
 

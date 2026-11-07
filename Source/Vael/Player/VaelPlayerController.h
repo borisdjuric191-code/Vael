@@ -28,6 +28,8 @@ enum class EVaelMenuPage : uint8
 	Brew,
 	/** A bed of a refugium: picking the seed to sow in it; only reached at the bed */
 	Sow,
+	/** The root board of a refugium: Die Waage of the player and the region, what the beds do; only reached at the board */
+	Board,
 	/** The Floromant's Keimgeflecht (2026-11-04): herbarium, plant wheel and the plate of a plant with its Erbanlagen; it takes
 	 *  the place of the formulas in her page ring */
 	Keimgeflecht
@@ -351,7 +353,10 @@ public:
 	int32 GetInventorySelection() const { return InventorySelection; }
 
 	/** True while the right page of the inventory shows the bag of materials */
-	bool IsMaterialBagShown() const { return bMaterialBagShown; }
+	bool IsMaterialBagShown() const { return BagTab > 0; }
+
+	/** Tab of the right inventory page: 0 backpack of gear, 1 potions, 2 crystals, 3 ingredients, 4 seeds */
+	int32 GetBagTab() const { return BagTab; }
 
 	/** Selected field of the material bag, in the order of UVaelMaterialBag::GetStacks */
 	int32 GetBagSelection() const { return BagSelection; }
@@ -416,8 +421,14 @@ public:
 	TArray<FName> GetSowChoices() const;
 	int32 GetSowSelection() const { return SowSelection; }
 
+	/** On the seed page: the shadow form is chosen instead of the light form */
+	bool IsSowingShadow() const { return bSowShadow; }
+
 	/** True on pages that belong to a place (trader, kitchen, bed) and are not part of the page ring */
-	bool IsPlacePage() const { return MenuPage == EVaelMenuPage::Shop || MenuPage == EVaelMenuPage::Brew || MenuPage == EVaelMenuPage::Sow; }
+	bool IsPlacePage() const { return MenuPage == EVaelMenuPage::Shop || MenuPage == EVaelMenuPage::Brew || MenuPage == EVaelMenuPage::Sow || MenuPage == EVaelMenuPage::Board; }
+
+	/** Opens the page of the root board (Die Waage) */
+	void OpenBoard() { OpenGrimoire(EVaelMenuPage::Board); }
 
 	/** What the earth button of the gamepad uses instead of queueing earth right now: something close by, outside of fights or in a safe zone; null if nothing */
 	AActor* GetPadInteractTarget() const;
@@ -636,6 +647,18 @@ protected:
 	int32 InventorySelection = 0;
 
 	bool bMaterialBagShown = false;
+	int32 BagTab = 0;
+
+	/** The belt button of the bag: a potion on or off the belt (T, triangle / Y) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> MenuBeltAction;
+
+	void OnMenuBelt();
+
+	/** The potion button: a second press soon after cycles the belt instead of drinking */
+	double LastPotionPress = -10.0;
+	FTimerHandle PotionTapTimer;
+	void UsePotionNow();
 
 	/** Selected field of the material bag */
 	int32 BagSelection = 0;
@@ -667,6 +690,7 @@ protected:
 	/** Seed page: the bed it sows into and the row */
 	TWeakObjectPtr<AVaelRefugiumClutch> SowBed;
 	int32 SowSelection = 0;
+	bool bSowShadow = false;
 
 	/** Dialogue being read: who speaks, the lines and the one shown */
 	FText DialogueSpeaker;

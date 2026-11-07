@@ -68,6 +68,28 @@ public:
 	/** Replaces the content of the bag with the save of a player */
 	void ReadSave(const FVaelSavedPlayer& Saved);
 
+	/** Tabs of the bag in the inventory: 1 potions, 2 crystals, 3 ingredients and materials, 4 seeds (0 is the backpack of gear) */
+	static constexpr int32 NumTabs = 5;
+	static bool IsInTab(const UVaelMaterial* Material, int32 Tab);
+
+	/** The stacks of one tab, in the order of GetStacks */
+	TArray<FVaelMaterialStack> GetStacks(int32 Tab) const;
+
+	/** The belt: four places for potions, used with the potion button */
+	static constexpr int32 BeltSize = 4;
+	const TArray<TObjectPtr<const UVaelMaterial>>& GetBelt() const { return Belt; }
+	int32 GetActiveBelt() const { return ActiveBelt; }
+
+	/** Puts a potion on the belt (on the active place if it is free, else the first free one, else the active one), or
+	 *  takes it off if it is on already. Returns the place, -1 when taken off or not a potion. */
+	int32 ToggleBelt(const UVaelMaterial* Potion);
+
+	/** The next belt place that holds something becomes the active one */
+	void CycleBelt();
+
+	/** Uses the potion of the active belt place. Returns false if the place is empty or the bag has none of it left. */
+	bool UseBelt();
+
 	/** Called whenever the content of the bag changes */
 	FVaelOnMaterialsChanged OnMaterialsChanged;
 
@@ -76,4 +98,9 @@ private:
 	/** Number of each material in the bag */
 	UPROPERTY()
 	TMap<TObjectPtr<const UVaelMaterial>, int32> Counts;
+
+	UPROPERTY()
+	TArray<TObjectPtr<const UVaelMaterial>> Belt;
+
+	int32 ActiveBelt = 0;
 };

@@ -65,6 +65,19 @@ public:
 	UFUNCTION(Exec)
 	void VaelInventar();
 
+	/** Die Waage: opens the page of the root board */
+	UFUNCTION(Exec)
+	void VaelTafel();
+
+	/** Puts a potion (id of the Rezeptbuch, brewed first if missing) on the belt. Example: VaelGuertel Leichtfuss */
+	UFUNCTION(Exec)
+	void VaelGuertel(const FString& PotionId);
+
+	/** Die Waage: "rast" lets the group rest 8 hours (purifies with a Klartrunk or Lichttropfen), "kristall" has Albrun purify a
+	 *  Nidkristall; a Klartrunk, a Lichttropfen and a Nidkristall are given first. Example: VaelLaeutern rast */
+	UFUNCTION(Exec)
+	void VaelLaeutern(const FString& What);
+
 	/** Presses the confirm button of the open menu page, as a test of the pages; logs what the bag holds of brewed potions */
 	UFUNCTION(Exec)
 	void VaelMenuOk();

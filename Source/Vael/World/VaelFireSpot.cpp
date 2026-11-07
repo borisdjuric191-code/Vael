@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelFireSpot.h"
+#include "World/VaelBalance.h"
 #include "Magic/VaelGroundArea.h"
 #include "Magic/VaelMagicSettings.h"
 #include "World/VaelRegion.h"
@@ -111,37 +112,8 @@ void AVaelFireSpot::Interact(AVaelCharacter* Player)
 		return;
 	}
 
-	// The picture fades to black, the night passes, everybody wakes rested at dawn
-	UWorld* World = GetWorld();
-	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-	{
-		if (It->Get() != nullptr && It->Get()->PlayerCameraManager != nullptr)
-		{
-			It->Get()->PlayerCameraManager->StartCameraFade(0.0f, 1.0f, 1.0f, FLinearColor::Black, false, true);
-		}
-	}
-
-	FTimerHandle Handle;
-	World->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(World, [World]()
-	{
-		if (UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(World))
-		{
-			Clock->SkipToDawn();
-		}
-		for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
-		{
-			APlayerController* PlayerController = It->Get();
-			if (AVaelCharacterBase* Rested = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacterBase>() : nullptr)
-			{
-				UVaelCombatStatics::Heal(Rested, Rested->GetMaxHealth());
-			}
-			if (PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr)
-			{
-				PlayerController->PlayerCameraManager->StartCameraFade(1.0f, 0.0f, 1.5f, FLinearColor::Black, false, false);
-			}
-		}
-	}), 1.3f, false);
-
+	// The picture fades to black, the night passes, everybody wakes rested at dawn, and purified if they carry a cleanser (Die Waage)
+	UVaelBalanceSubsystem::RestGroup(GetWorld(), 8.0f, true);
 	UE_LOG(LogVael, Log, TEXT("The group rests at the fire until the morning"));
 }
 

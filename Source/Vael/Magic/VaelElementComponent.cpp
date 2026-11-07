@@ -1,6 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelElementComponent.h"
+#include "Floromant/VaelFloromantSettings.h"
+#include "UI/VaelCombatTextSubsystem.h"
+#include "Player/VaelCharacter.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
+#include "World/VaelBalance.h"
 #include "AbilitySystemComponent.h"
 #include "AbilitySystemGlobals.h"
 #include "Combat/VaelAttributeSet.h"
@@ -101,13 +107,25 @@ bool UVaelElementComponent::AddElement(EVaelElement Element)
 		return false;
 	}
 
-	// The fifth element can't be touched before the Mark awakens (Act III)
+	// The fifth element (Die Waage): a light vow seals it; before the Nid awakens (Act III) only Nidsplitter from a
+	// Nidkristall open it, one splinter for each Nid in the queue
 	const UVaelGrimoireSubsystem* Grimoire = GetGrimoire();
-	if (Element == EVaelElement::Mark && (Grimoire == nullptr || !Grimoire->IsMarkAwakened()))
+	if (Element == EVaelElement::Mark)
 	{
-		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkStirs", "Etwas in dir regt sich"),
-			NSLOCTEXT("VaelMagic", "MarkAsleep", "Das Nid schläft noch in dir."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
-		return false;
+		const AVaelCharacter* Caster = Cast<AVaelCharacter>(GetOwner());
+		if (Caster != nullptr && Caster->GetPath() == EVaelPath::Light)
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "NidSealed", "Versiegelt"),
+				NSLOCTEXT("VaelMagic", "NidSealedDetail", "Dein Lichtschwur versiegelt das Nid."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
+			return false;
+		}
+		if ((Grimoire == nullptr || !Grimoire->IsMarkAwakened()) && !TakeNidSplinter())
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "MarkStirs", "Etwas in dir regt sich"),
+				NSLOCTEXT("VaelMagic", "MarkAsleepSplinter", "Das Nid schläft noch in dir. Ein Nidkristall im Beutel gibt drei Nidsplitter."),
+				UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 3.0f);
+			return false;
+		}
 	}
 
 	// Where the element comes from is decided at the moment it is queued, not when the formula is cast
@@ -322,8 +340,7 @@ EVaelCastResult UVaelElementComponent::ActivateFormula(UVaelFormula* Formula, in
 	const int32 NumMarkElements = Formula->Elements.FilterByPredicate([](EVaelElement Element) { return Element == EVaelElement::Mark; }).Num();
 	if (NumMarkElements > 0)
 	{
-		const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
-		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + NumMarkElements * WorldSettings->PlayerCorruptionPerMarkElement, 100.0f));
+		UVaelBalanceSubsystem::ChangePlayer(GetOwner(), NumMarkElements * WorldSettings->PlayerCorruptionPerMarkElement, NSLOCTEXT("VaelMagic", "NidReason", "Nid-Zauber"));
 
 		if (AVaelRegion* CastRegion = AVaelRegion::GetRegionAt(GetWorld(), GetOwner()->GetActorLocation()))
 		{
@@ -376,7 +393,20 @@ EVaelCastResult UVaelElementComponent::CastQuickSlot(int32 SlotIndex)
 
 	if (Formula != nullptr && Grimoire != nullptr && Grimoire->IsFormulaKnown(Formula))
 	{
-		if (Grimoire->IsBlockedByMark(Formula))
+		// before the Nid awakens a quick slot with Nid takes its Nidsplitter like the queue does (Die Waage)
+		const int32 NidCount = Formula->Elements.FilterByPredicate([](EVaelElement Element) { return Element == EVaelElement::Mark; }).Num();
+		const AVaelCharacter* SlotCaster = Cast<AVaelCharacter>(GetOwner());
+		const bool bLightVow = SlotCaster != nullptr && SlotCaster->GetPath() == EVaelPath::Light && NidCount > 0;
+		bool bNidPaid = !Grimoire->IsBlockedByMark(Formula) && !bLightVow;
+		if (!bNidPaid && (SlotCaster == nullptr || SlotCaster->GetPath() != EVaelPath::Light))
+		{
+			bNidPaid = true;
+			for (int32 Index = 0; Index < NidCount && bNidPaid; ++Index)
+			{
+				bNidPaid = TakeNidSplinter();
+			}
+		}
+		if (!bNidPaid)
 		{
 			Result = EVaelCastResult::MarkAsleep;
 		}
@@ -534,4 +564,24 @@ UVaelGrimoireSubsystem* UVaelElementComponent::GetGrimoire() const
 	const UGameInstance* GameInstance = World != nullptr ? World->GetGameInstance() : nullptr;
 
 	return GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+}
+
+bool UVaelElementComponent::TakeNidSplinter()
+{
+	if (NidSplinters <= 0)
+	{
+		const AVaelCharacter* Caster = Cast<AVaelCharacter>(GetOwner());
+		UVaelMaterialBag* Bag = Caster != nullptr ? Caster->GetMaterialBag() : nullptr;
+		const UVaelMaterial* Crystal = LoadObject<UVaelMaterial>(nullptr, TEXT("/Game/Vael/Items/Materials/DA_Material_Nidkristall.DA_Material_Nidkristall"));
+		if (Bag == nullptr || Crystal == nullptr || !Bag->RemoveMaterial(Crystal, 1))
+		{
+			return false;
+		}
+		NidSplinters = 3;
+		UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelMagic", "CrystalSplits", "Ein Nidkristall zersplittert"),
+			NSLOCTEXT("VaelMagic", "CrystalSplitsDetail", "Drei Nidsplitter, drei Mal Nid im Zauber."), UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark), 2.5f);
+	}
+	--NidSplinters;
+	UVaelCombatTextSubsystem::PostReaction(GetOwner(), FText::Format(NSLOCTEXT("VaelMagic", "SplinterLeft", "Nidsplitter: {0}"), NidSplinters));
+	return true;
 }

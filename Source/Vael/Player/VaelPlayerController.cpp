@@ -162,6 +162,7 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(MenuNavigateSideAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnMenuNavigateSide);
 			EnhancedInputComponent->BindAction(MenuNavigateSideAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnMenuNavigateReleased);
 			EnhancedInputComponent->BindAction(MenuBagAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuBag);
+			EnhancedInputComponent->BindAction(MenuBeltAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuBelt);
 			EnhancedInputComponent->BindAction(MenuCloseAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuClose);
 			EnhancedInputComponent->BindAction(MenuPageAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuPage);
 			EnhancedInputComponent->BindAction(MenuConfirmAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnMenuConfirm);
@@ -385,6 +386,11 @@ void AVaelPlayerController::CreateInputAssets()
 	MenuBagAction->bTriggerWhenPaused = true;
 	MenuMappingContext->MapKey(MenuBagAction, EKeys::Gamepad_FaceButton_Left);
 	MenuMappingContext->MapKey(MenuBagAction, EKeys::B);
+
+	// Gürteltaschen: a potion of the bag on or off the belt
+	MenuBeltAction = CreateAction(TEXT("IA_MenuBelt"), EInputActionValueType::Boolean);
+	MenuMappingContext->MapKey(MenuBeltAction, EKeys::Gamepad_FaceButton_Top);
+	MenuMappingContext->MapKey(MenuBeltAction, EKeys::T);
 
 	MenuCloseAction = CreateAction(TEXT("IA_MenuClose"), EInputActionValueType::Boolean);
 	MenuCloseAction->bTriggerWhenPaused = true;
@@ -752,12 +758,57 @@ AActor* AVaelPlayerController::GetPadInteractTarget() const
 	return Target;
 }
 
-void AVaelPlayerController::OnPotion()
+void AVaelPlayerController::OnMenuBelt()
 {
-	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
+	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (!bGrimoireOpen || MenuPage != EVaelMenuPage::Inventory || BagTab != 1 || VaelCharacter == nullptr)
+	{
+		return;
+	}
+	const TArray<FVaelMaterialStack> Stacks = VaelCharacter->GetMaterialBag()->GetStacks(BagTab);
+	if (Stacks.IsValidIndex(BagSelection))
+	{
+		VaelCharacter->GetMaterialBag()->ToggleBelt(Stacks[BagSelection].Material);
+	}
+}
+
+void AVaelPlayerController::UsePotionNow()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	if (VaelCharacter == nullptr)
+	{
+		return;
+	}
+	// the potion on the active belt place; with an empty belt the healing potion as before
+	if (!VaelCharacter->GetMaterialBag()->UseBelt())
 	{
 		VaelCharacter->DrinkPotion();
 	}
+}
+
+void AVaelPlayerController::OnPotion()
+{
+	// Die Gürteltaschen: a second press right after the first turns to the next belt place instead of drinking twice
+	const double Now = FPlatformTime::Seconds();
+	if (Now - LastPotionPress < 0.3)
+	{
+		GetWorldTimerManager().ClearTimer(PotionTapTimer);
+		LastPotionPress = -10.0;
+		if (const AVaelCharacter* Cycler = GetPawn<AVaelCharacter>())
+		{
+			Cycler->GetMaterialBag()->CycleBelt();
+		}
+		return;
+	}
+	LastPotionPress = Now;
+	const AVaelCharacter* Holder = GetPawn<AVaelCharacter>();
+	const bool bBeltInUse = Holder != nullptr && Holder->GetMaterialBag()->GetBelt().ContainsByPredicate([](const TObjectPtr<const UVaelMaterial>& Potion) { return Potion != nullptr; });
+	if (!bBeltInUse)
+	{
+		UsePotionNow();
+		return;
+	}
+	GetWorldTimerManager().SetTimer(PotionTapTimer, this, &AVaelPlayerController::UsePotionNow, 0.3f, false);
 }
 
 void AVaelPlayerController::OnCast()
@@ -1088,7 +1139,7 @@ void AVaelPlayerController::DiscardOrDrink()
 	UVaelElementComponent* Elements = VaelCharacter->GetElementComponent();
 	if (Elements->GetQueue().IsEmpty() && GetInputGlyphs() != EVaelInputGlyphs::Keyboard)
 	{
-		VaelCharacter->DrinkPotion();
+		OnPotion();
 		return;
 	}
 
@@ -1576,7 +1627,14 @@ void AVaelPlayerController::OnMenuConfirm()
 	{
 		const TArray<FName> Choices = GetSowChoices();
 		AVaelRefugiumClutch* Bed = SowBed.Get();
-		if (Bed != nullptr && Choices.IsValidIndex(SowSelection) && Bed->SowFrom(GetPawn<AVaelCharacter>(), Choices[SowSelection]))
+		const FVaelSeedPlant* Plant = Choices.IsValidIndex(SowSelection) ? UVaelGardenSubsystem::FindPlant(Choices[SowSelection]) : nullptr;
+		FText Why;
+		if (Plant != nullptr && !UVaelGardenSubsystem::CanSowForm(VaelCharacter, *Plant, bSowShadow, &Why))
+		{
+			UVaelNoticeSubsystem::Post(this, Why, FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.5f);
+			return;
+		}
+		if (Bed != nullptr && Plant != nullptr && Bed->SowFrom(GetPawn<AVaelCharacter>(), Choices[SowSelection], bSowShadow))
 		{
 			CloseGrimoire();
 		}
@@ -1622,7 +1680,7 @@ void AVaelPlayerController::OnMenuConfirm()
 	// In the bag the button uses the selected material (drinking, pouring), which is still a placeholder
 	if (bMaterialBagShown)
 	{
-		const TArray<FVaelMaterialStack> Stacks = VaelCharacter->GetMaterialBag()->GetStacks();
+		const TArray<FVaelMaterialStack> Stacks = VaelCharacter->GetMaterialBag()->GetStacks(BagTab);
 		BagSelection = FMath::Clamp(BagSelection, 0, FMath::Max(Stacks.Num() - 1, 0));
 		if (Stacks.IsValidIndex(BagSelection))
 		{
@@ -1653,6 +1711,18 @@ void AVaelPlayerController::OnMenuConfirm()
 void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
 {
 	const float Direction = Value.Get<float>();
+	// On the seed page left and right choose the form: light or shadow (Die Waage)
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Sow && FMath::Abs(Direction) >= 0.5f)
+	{
+		const double Now = FPlatformTime::Seconds();
+		if (NextNavigateTime > 0.0 && Now < NextNavigateTime)
+		{
+			return;
+		}
+		NextNavigateTime = Now + 10.0;
+		bSowShadow = Direction > 0.0f;
+		return;
+	}
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Brew && FMath::Abs(Direction) >= 0.5f)
 	{
 		// left and right turn the tabs of the recipe book, one step per press
@@ -1697,7 +1767,10 @@ void AVaelPlayerController::OnMenuBag()
 {
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Inventory)
 	{
-		bMaterialBagShown = !bMaterialBagShown;
+		// the bag button turns the tabs of the right page: backpack, potions, crystals, ingredients, seeds
+		BagTab = (BagTab + 1) % UVaelMaterialBag::NumTabs;
+		bMaterialBagShown = BagTab > 0;
+		BagSelection = 0;
 	}
 	// In the Keimgeflecht the same button turns the plate over: light and shadow form
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
@@ -1715,7 +1788,7 @@ void AVaelPlayerController::NavigateInventory(int32 Right, int32 Down)
 	if (bMaterialBagShown)
 	{
 		const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
-		const int32 NumFields = VaelCharacter != nullptr ? VaelCharacter->GetMaterialBag()->GetStacks().Num() : 0;
+		const int32 NumFields = VaelCharacter != nullptr ? VaelCharacter->GetMaterialBag()->GetStacks(BagTab).Num() : 0;
 		BagSelection = FMath::Clamp(BagSelection, 0, FMath::Max(NumFields - 1, 0));
 		const int32 Column = BagSelection % BagColumns;
 		const int32 NewColumn = FMath::Clamp(Column + Right, 0, BagColumns - 1);
@@ -1980,6 +2053,7 @@ void AVaelPlayerController::OpenSowing(AVaelRefugiumClutch* Bed)
 	}
 	SowBed = Bed;
 	SowSelection = 0;
+	bSowShadow = false;
 	if (!OpenGrimoire(EVaelMenuPage::Sow))
 	{
 		SowBed.Reset();

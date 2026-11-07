@@ -1,6 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelRegion.h"
+#include "World/VaelIndoorLevel.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Components/PostProcessComponent.h"
+#include "World/VaelBalance.h"
 #include "Save/VaelSaveSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelCharacterBase.h"
@@ -78,6 +84,23 @@ void AVaelRegion::BeginPlay()
 void AVaelRegion::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+
+	// Indoors (a refugium) the region is a stand-in: no look of the land, and what waits stays for the real region
+	const bool bIndoor = AVaelIndoorLevel::IsIndoor(GetWorld());
+	if (!bIndoor)
+	{
+		UpdateBalanceLook(DeltaSeconds);
+	}
+
+	// What the beds of its refugium did while the region was not loaded (Die Waage)
+	if (UVaelBalanceSubsystem* Balance = bIndoor ? nullptr : UVaelBalanceSubsystem::Get(this))
+	{
+		const float Pending = Balance->TakePending(RegionName.ToString());
+		if (!FMath::IsNearlyZero(Pending))
+		{
+			AddCorruption(Pending);
+		}
+	}
 
 	if (bChangingWeather)
 	{
@@ -544,4 +567,42 @@ void AVaelRegion::RestoreCorruption(float InCorruption, float InScarredCorruptio
 {
 	ScarredCorruption = FMath::Clamp(InScarredCorruption, 0.0f, 100.0f);
 	SetCorruption(InCorruption);
+}
+
+void AVaelRegion::UpdateBalanceLook(float DeltaSeconds)
+{
+	if (BalanceLook == nullptr)
+	{
+		UMaterialInterface* Look = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Balance/M_PP_Verderbnis.M_PP_Verderbnis"));
+		if (Look == nullptr)
+		{
+			return;
+		}
+		BalanceLook = NewObject<UPostProcessComponent>(this, TEXT("BalanceLook"));
+		BalanceLook->bUnbound = true;
+		BalanceLook->RegisterComponent();
+		BalanceLookMaterial = UMaterialInstanceDynamic::Create(Look, this);
+		BalanceLook->Settings.WeightedBlendables.Array.Add(FWeightedBlendable(1.0f, BalanceLookMaterial));
+		for (TActorIterator<AExponentialHeightFog> It(GetWorld()); It; ++It)
+		{
+			BalanceFog = *It;
+			FogBaseColor = It->GetComponent()->FogInscatteringLuminance;
+			FogBaseDensity = It->GetComponent()->FogDensity;
+			break;
+		}
+	}
+
+	// it eases towards the value, so a change of the land is seen happening
+	ShownBalance = ShownBalance < 0.0f ? Corruption : FMath::FInterpTo(ShownBalance, Corruption, DeltaSeconds, 0.6f);
+	BalanceLookMaterial->SetScalarParameterValue(TEXT("Verderbnis"), ShownBalance / 100.0f);
+
+	if (BalanceFog != nullptr)
+	{
+		const float Shadow = FMath::Clamp((ShownBalance - 30.0f) / 70.0f, 0.0f, 1.0f);
+		const float Light = FMath::Clamp((30.0f - ShownBalance) / 30.0f, 0.0f, 1.0f);
+		FLinearColor Tint = FMath::Lerp(FogBaseColor, FLinearColor(0.16f, 0.07f, 0.24f), Shadow * 0.6f);
+		Tint = FMath::Lerp(Tint, FLinearColor(0.32f, 0.26f, 0.14f), Light * 0.3f);
+		BalanceFog->GetComponent()->SetFogInscatteringColor(Tint);
+		BalanceFog->GetComponent()->SetFogDensity(FogBaseDensity * (1.0f + 0.5f * Shadow));
+	}
 }

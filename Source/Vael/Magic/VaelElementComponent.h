@@ -180,4 +180,16 @@ private:
 
 	/** Handle of the grimoire delegate */
 	FDelegateHandle FormulaLearnedHandle;
+
+public:
+
+	/** Nidsplitter left from the last Nidkristall (before the Nid awakens, Die Waage) */
+	int32 GetNidSplinters() const { return NidSplinters; }
+
+private:
+
+	/** Takes one Nidsplitter, breaking a Nidkristall from the bag into three when none are left; false without */
+	bool TakeNidSplinter();
+
+	int32 NidSplinters = 0;
 };

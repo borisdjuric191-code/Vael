@@ -10,6 +10,7 @@
 #include "Engine/Canvas.h"
 #include "Engine/Texture2D.h"
 #include "Items/VaelBrewing.h"
+#include "Items/VaelPotionEffects.h"
 #include "Items/VaelItemTypes.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
@@ -254,6 +255,12 @@ void AVaelHUD::DrawBrewing(const AVaelPlayerController* PlayerController)
 		DrawLabel(Recipe.Duration, DetailLeft, TextY + 30.0f * S, 16.0f * S, BrewBone);
 		TextY += 62.0f * S;
 
+		if (Recipe.Craft == EVaelBrewCraft::ThrowAndOil && Recipe.Id != FName(TEXT("Gruppenheilung")) && !UVaelPotionEffects::ThrowsVials(Player))
+		{
+			DrawWrappedLabel(LOCTEXT("OilForYou", "Für dich ein Öl: auf die Waffe gestrichen, tragen deine Treffer 60 Sekunden lang die Wirkung. Werfen kann nur der Ingenieur."),
+				DetailLeft, TextY, 14.0f * S, BrewGold, DetailWidth);
+			TextY += 40.0f * S;
+		}
 		if (FVaelBrewing::IsOwnCraft(Player, Recipe.Craft))
 		{
 			DrawLabel(LOCTEXT("OwnCraft", "Dein Fach: wirkt 25 % stärker und hält 50 % länger."), DetailLeft, TextY, 14.0f * S, BrewHave);
@@ -286,8 +293,9 @@ void AVaelHUD::DrawSowing(const AVaelPlayerController* PlayerController)
 
 	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, BrewRgb(8, 5, 5, 150));
 	const float RowHeight = 52.0f * S;
-	const float Width = FMath::Min(560.0f * S, Canvas->ClipX - 32.0f * S);
-	const float Height = FMath::Min(150.0f * S + FMath::Max(Choices.Num(), 1) * RowHeight, Canvas->ClipY - 32.0f * S);
+	const float Width = FMath::Min(640.0f * S, Canvas->ClipX - 32.0f * S);
+	const float Height = FMath::Min(250.0f * S + FMath::Max(Choices.Num(), 1) * RowHeight, Canvas->ClipY - 32.0f * S);
+	const bool bShadowChosen = PlayerController->IsSowingShadow();
 	const float Left = (Canvas->ClipX - Width) * 0.5f;
 	const float Top = (Canvas->ClipY - Height) * 0.5f;
 	const float Pad = 24.0f * S;
@@ -314,15 +322,46 @@ void AVaelHUD::DrawSowing(const AVaelPlayerController* PlayerController)
 			DrawFrame(Left + Pad - 6.0f * S, Y - 4.0f * S, Width - 2.0f * Pad + 12.0f * S, RowHeight - 6.0f * S, BrewGold, 1.5f * S);
 		}
 		DrawIngredientField(Seed, FVector2D(Left + Pad + 20.0f * S, Y + RowHeight * 0.4f), 19.0f * S, Bag->GetCount(Seed), 1, S * 0.7f);
-		DrawLabel(Plant->DisplayName, Left + Pad + 52.0f * S, Y + 4.0f * S, 18.0f * S, BrewBone);
+		const bool bRowShadow = bOn && bShadowChosen && Plant->HasShadowForm();
+		DrawLabel(bRowShadow ? Plant->ShadowName : Plant->DisplayName, Left + Pad + 52.0f * S, Y + 4.0f * S, 18.0f * S, bRowShadow ? BrewSealed : BrewBone);
+
+		// the two forms as pills: light left, shadow right; the chosen one lit on the chosen row
+		for (int32 Form = 0; Form < 2; ++Form)
+		{
+			const bool bShadowPill = Form == 1;
+			const bool bExists = !bShadowPill || Plant->HasShadowForm();
+			const bool bPicked = bOn && bShadowPill == bShadowChosen;
+			const float PillW = 82.0f * S;
+			const float PillX = Left + Width - Pad - 210.0f * S + Form * (PillW + 8.0f * S);
+			const FLinearColor PillColor = bShadowPill ? FLinearColor(FColor(162, 77, 255)) : FLinearColor(FColor(240, 200, 110));
+			DrawBox(PillX, Y + 8.0f * S, PillW, 24.0f * S, bPicked ? BrewAlpha(PillColor, 0.35f) : BrewLacquerLight);
+			DrawFrame(PillX, Y + 8.0f * S, PillW, 24.0f * S, bExists ? (bPicked ? PillColor : BrewAlpha(PillColor, 0.45f)) : BrewAlpha(BrewDim, 0.3f), bPicked ? 2.0f * S : 1.0f);
+			DrawLabel(bShadowPill ? LOCTEXT("PillShadow", "Schatten") : LOCTEXT("PillLight", "Licht"), PillX + PillW * 0.5f, Y + 12.0f * S, 13.0f * S,
+				bExists ? (bPicked ? BrewBone : BrewDim) : BrewAlpha(BrewDim, 0.4f), 0.5f);
+		}
 		const FText Rarity = Plant->Rarity == EVaelPlantRarity::Legendary ? LOCTEXT("RarityLegendary", "legendär") : Plant->Rarity == EVaelPlantRarity::Rare ? LOCTEXT("RarityRare", "selten")
 			: Plant->Rarity == EVaelPlantRarity::Special ? LOCTEXT("RaritySpecial", "besonders") : LOCTEXT("RarityCommon", "häufig");
 		DrawLabel(Rarity, Left + Pad + 52.0f * S, Y + 26.0f * S, 12.0f * S, Plant->Rarity == EVaelPlantRarity::Legendary ? BrewGold : BrewDim);
-		DrawLabel(FText::Format(LOCTEXT("SeedCount", "{0} Samen"), Bag->GetCount(Seed)), Left + Width - Pad, Y + 12.0f * S, 14.0f * S, BrewGold, 1.0f);
-		DrawDisc(FVector2D(Left + Width - Pad - 110.0f * S, Y + RowHeight * 0.4f), 6.0f * S, Plant->GlowColor);
+		DrawLabel(FText::Format(LOCTEXT("SeedCount", "{0} Samen"), Bag->GetCount(Seed)), Left + Pad + 52.0f * S + 150.0f * S, Y + 26.0f * S, 12.0f * S, BrewGold);
 	}
 
-	DrawLabel(FText::Format(LOCTEXT("SowFooter", "{0}: säen · {1}: schließen"), ConfirmGlyph(Glyphs), CloseGlyph(Glyphs)), Left + Width - Pad, Top + Height - 30.0f * S, 13.0f * S, BrewDim, 1.0f);
+	// What the chosen form does: its price on the own balance and on the region (Die Waage)
+	const FVaelSeedPlant* Chosen = Choices.IsValidIndex(Selected) ? UVaelGardenSubsystem::FindPlant(Choices[Selected]) : nullptr;
+	if (Chosen != nullptr)
+	{
+		const float InfoY = Top + 100.0f * S + Choices.Num() * RowHeight;
+		DrawSegment(FVector2D(Left + Pad, InfoY - 6.0f * S), FVector2D(Left + Width - Pad, InfoY - 6.0f * S), BrewAlpha(BrewGold, 0.4f), 1.0f);
+		FText Why;
+		const bool bAllowed = UVaelGardenSubsystem::CanSowForm(Player, *Chosen, bShadowChosen, &Why);
+		const FText Info = !bAllowed ? Why : bShadowChosen
+			? LOCTEXT("InfoShadow", "Schattenform: stärker, aber +3 Verderbnis für dich. Solange sie wächst, hebt sie die Verderbnis der Aschenmark.")
+			: LOCTEXT("InfoLight", "Lichtform: kostet nichts. Solange sie wächst, senkt sie die Verderbnis der Aschenmark.");
+		DrawWrappedLabel(Info, Left + Pad, InfoY, 14.0f * S, !bAllowed ? BrewLack : bShadowChosen ? BrewSealed : BrewGold, Width - 2.0f * Pad);
+		DrawPlayerBalance(Player, LOCTEXT("SowBalance", "Deine Waage"), Left + Pad, InfoY + 48.0f * S, Width - 2.0f * Pad);
+	}
+
+	DrawLabel(FText::Format(LOCTEXT("SowFooter", "{0}: säen · links / rechts: Licht oder Schatten · {1}: schließen"), ConfirmGlyph(Glyphs), CloseGlyph(Glyphs)),
+		Left + Width - Pad, Top + Height - 30.0f * S, 13.0f * S, BrewDim, 1.0f);
 }
 
 #undef LOCTEXT_NAMESPACE

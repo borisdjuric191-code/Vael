@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Floromant/VaelFloromantComponent.h"
+#include "World/VaelBalance.h"
 #include "Combat/VaelHitFeedbackSubsystem.h"
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
@@ -1614,8 +1615,7 @@ void UVaelFloromantComponent::PayNid(float Points)
 	{
 		return;
 	}
-	const float Corruption = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetCorruptionAttribute());
-	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetCorruptionAttribute(), FMath::Min(Corruption + Price, 100.0f));
+	UVaelBalanceSubsystem::ChangePlayer(Character, Price, NSLOCTEXT("VaelFloromant", "ShadowFormReason", "Schattenform"));
 	if (AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), Character->GetActorLocation()))
 	{
 		Region->AddCorruption(Price * Settings->NidRegionShare);

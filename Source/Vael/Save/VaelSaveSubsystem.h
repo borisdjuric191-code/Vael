@@ -61,6 +61,9 @@ public:
 	/** Gives a region the corruption it had */
 	void RestoreRegion(AVaelRegion* Region) const;
 
+	/** Corruption a region of a map had when it was last saved (for a refugium that shows the region it steers); false if none */
+	bool FindSavedRegionCorruption(const FString& MapName, float& OutCorruption) const;
+
 	/** A level has started: saving goes on after a new game */
 	void OnLevelStarted() { bSuspended = false; }
 
