@@ -1689,7 +1689,8 @@ void UVaelCheatManager::VaelTrankTest(const FString& What)
 	{
 		return;
 	}
-	const FVector Spot = Player->GetActorLocation() + Player->GetActorForwardVector() * 400.0f;
+	// "bogen": the dummy stands far, for the engineer's bow
+	const FVector Spot = Player->GetActorLocation() + Player->GetActorForwardVector() * (What == TEXT("bogen") ? 1500.0f : 400.0f);
 	FActorSpawnParameters Parameters;
 	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 	AVaelCharacterBase* Dummy = GetWorld()->SpawnActor<AVaelTrainingDummy>(AVaelTrainingDummy::StaticClass(), Spot, FRotator::ZeroRotator, Parameters);

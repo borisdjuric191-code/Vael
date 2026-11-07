@@ -31,7 +31,7 @@ FVaelHeroChoice UVaelHeroSubsystem::GetChoice(int32 PlayerSlot) const
 FVaelHeroChoice UVaelHeroSubsystem::GetListedChoice(int32 Index)
 {
 	FVaelHeroChoice Choice;
-	Choice.Class = Index >= 2 ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage;
+	Choice.Class = Index >= 4 ? EVaelHeroClass::Engineer : Index >= 2 ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage;
 	Choice.bFemale = Index % 2 == 1;
 	return Choice;
 }
@@ -41,6 +41,10 @@ FText UVaelHeroSubsystem::GetChoiceName(const FVaelHeroChoice& Choice)
 	if (Choice.Class == EVaelHeroClass::Floromant)
 	{
 		return Choice.bFemale ? LOCTEXT("Floromantin", "Floromantin") : LOCTEXT("Floromant", "Floromant");
+	}
+	if (Choice.Class == EVaelHeroClass::Engineer)
+	{
+		return Choice.bFemale ? LOCTEXT("Ingenieurin", "Ingenieurin") : LOCTEXT("Ingenieur", "Ingenieur");
 	}
 	return Choice.bFemale ? LOCTEXT("Magierin", "Magierin") : LOCTEXT("Magier", "Magier");
 }

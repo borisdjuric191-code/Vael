@@ -1766,6 +1766,8 @@ void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)
 		LOCTEXT("HeroMage", "Geist \u00B7 w\u00E4hlt Elemente und wirkt Formeln"),
 		LOCTEXT("HeroFloromant", "Wuchs \u00B7 wirft Samen, die zu Pflanzen wachsen: Glutdistel, Wurzelwand, Tr\u00E4nenkelch"),
 		LOCTEXT("HeroFloromant", "Wuchs \u00B7 wirft Samen, die zu Pflanzen wachsen: Glutdistel, Wurzelwand, Tr\u00E4nenkelch"),
+		LOCTEXT("HeroEngineer", "Werk \u00B7 verschie\u00DFt Phiolen mit Schleuder (nah) und Bogen (weit) \u00B7 vorerst K\u00F6rper und Zauber des Magiers"),
+		LOCTEXT("HeroEngineer", "Werk \u00B7 verschie\u00DFt Phiolen mit Schleuder (nah) und Bogen (weit) \u00B7 vorerst K\u00F6rper und Zauber des Magiers"),
 	};
 
 	for (int32 Row = 0; Row < NumRows; ++Row)
@@ -1774,7 +1776,7 @@ void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)
 		const float RowTop = Top + 130.0f * S + Row * RowHeight;
 		const bool bSelected = Row == PlayerController->GetHeroSelection();
 		const bool bPlayed = Player != nullptr && Player->GetHeroClass() == Choice.Class && Player->GetBaseLook() == (Choice.bFemale ? 1 : 0);
-		const FLinearColor ClassColor = Choice.Class == EVaelHeroClass::Floromant ? SaftColor : Rgb(42, 95, 184);
+		const FLinearColor ClassColor = Choice.Class == EVaelHeroClass::Floromant ? SaftColor : Choice.Class == EVaelHeroClass::Engineer ? Rgb(196, 138, 58) : Rgb(42, 95, 184);
 
 		DrawBox(Left + Padding, RowTop, Width - 2.0f * Padding, RowHeight - 6.0f * S, bSelected ? Rgb(52, 38, 30) : Rgb(29, 22, 19));
 		DrawBox(Left + Padding, RowTop, 4.0f * S, RowHeight - 6.0f * S, ClassColor);

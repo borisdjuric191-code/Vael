@@ -43,7 +43,7 @@ public:
 
 	/** The four choices in the order the page "Gestalt" lists them */
 	static FVaelHeroChoice GetListedChoice(int32 Index);
-	static constexpr int32 NumListedChoices = 4;
+	static constexpr int32 NumListedChoices = 6;
 
 	/** Name of a choice for the players, for example "Floromantin" */
 	static FText GetChoiceName(const FVaelHeroChoice& Choice);

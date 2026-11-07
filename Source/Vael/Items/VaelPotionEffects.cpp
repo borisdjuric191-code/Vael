@@ -53,6 +53,9 @@ namespace
 
 	/** How far a vial flies to its target, and how far the power potions reach for enemies */
 	constexpr float ThrowRange = 1200.0f;
+	/** The engineer: the sling up to this far, the bow beyond (to BowRange) */
+	constexpr float SlingRange = 900.0f;
+	constexpr float BowRange = 2000.0f;
 	constexpr float PulseRange = 1000.0f;
 
 	const FVaelRecipe* FindRecipe(const UVaelMaterial* Potion)
@@ -275,25 +278,29 @@ bool UVaelPotionEffects::Drink(FName Id, float S, float D)
 
 bool UVaelPotionEffects::Throw(FName Id, float S)
 {
-	AVaelCharacterBase* Target = FindEnemy(ThrowRange);
+	AVaelCharacterBase* Target = FindEnemy(BowRange);
 	if (Target == nullptr)
 	{
 		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("NoTarget", "Kein Ziel in Wurfweite"));
 		return false;
 	}
 	const FVaelRecipe* Recipe = FVaelBrewing::GetRecipes().FindByPredicate([Id](const FVaelRecipe& Each) { return Each.Id == Id; });
-	// The sling: the vial flies in a flat arc from the hand and bursts where the enemy stands when it lands
+	// Near the sling: the vial flies in a flat arc from the hand. Far the bow: the vial is bound to an arrow and flies
+	// almost straight and fast. Either way it bursts where the enemy stands when it lands.
 	const FVector From = GetOwner()->GetActorLocation() + FVector(0.0f, 0.0f, 60.0f);
 	const FVector To = Target->GetActorLocation();
-	const float Flight = FMath::Clamp(FVector::Dist2D(From, To) / 1600.0f, 0.25f, 0.8f);
-	AVaelArcShot::Lob(GetWorld(), From, To, Flight, 120.0f, Recipe != nullptr ? Recipe->Color : FLinearColor::White, 16.0f);
+	const float Distance = FVector::Dist2D(From, To);
+	const bool bBow = Distance > SlingRange;
+	const float Flight = bBow ? FMath::Clamp(Distance / 3200.0f, 0.3f, 0.7f) : FMath::Clamp(Distance / 1600.0f, 0.25f, 0.8f);
+	AVaelArcShot::Lob(GetWorld(), From, To, Flight, bBow ? 30.0f : 120.0f, Recipe != nullptr ? Recipe->Color : FLinearColor::White, bBow ? 10.0f : 16.0f);
 	TWeakObjectPtr<AVaelCharacterBase> WeakTarget(Target);
 	FTimerHandle Handle;
 	GetWorld()->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, Id, S, WeakTarget, To]()
 	{
 		Burst(Id, S, WeakTarget.IsValid() ? WeakTarget->GetActorLocation() : To);
 	}), Flight, false);
-	UVaelCombatTextSubsystem::PostReaction(GetOwner(), FText::Format(LOCTEXT("SlingShot", "Schleuder: {0}"), Recipe != nullptr ? Recipe->Name : FText::FromName(Id)));
+	UVaelCombatTextSubsystem::PostReaction(GetOwner(), FText::Format(bBow ? LOCTEXT("BowShot", "Bogen: {0}") : LOCTEXT("SlingShot", "Schleuder: {0}"), Recipe != nullptr ? Recipe->Name : FText::FromName(Id)));
+	UE_LOG(LogVael, Log, TEXT("Potion: %s fires %s with the %s over %.0f cm"), *GetOwner()->GetName(), *Id.ToString(), bBow ? TEXT("bow") : TEXT("sling"), Distance);
 	return true;
 }
 

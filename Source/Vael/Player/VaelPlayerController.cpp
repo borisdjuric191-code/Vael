@@ -1441,7 +1441,7 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 	if (const UVaelHeroSubsystem* Heroes = UVaelHeroSubsystem::Get(this))
 	{
 		const FVaelHeroChoice Current = Heroes->GetChoice(PlayerSlot);
-		HeroSelection = (Current.Class == EVaelHeroClass::Floromant ? 2 : 0) + (Current.bFemale ? 1 : 0);
+		HeroSelection = (Current.Class == EVaelHeroClass::Engineer ? 4 : Current.Class == EVaelHeroClass::Floromant ? 2 : 0) + (Current.bFemale ? 1 : 0);
 	}
 	InputSubsystem->AddMappingContext(MenuMappingContext, 1);
 	UGameplayStatics::SetGamePaused(this, true);
