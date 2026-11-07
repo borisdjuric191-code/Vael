@@ -151,9 +151,13 @@ def path_points(points, step_px=18):
 
 
 CORRIDORS = [Room("Rampe", x, y, 34, 34) for x, y in path_points(RAMP)]
+# sleeping clutches in the hall (profile pixels, stage that wakes them): 4 beds at the start, 11 after stage IV
+SLEEPING = [(330, 541, "II"), (712, 551, "II"), (599, 391, "III"), (459, 741, "III"), (440, 375, "III"),
+            (360, 700, "IV"), (690, 735, "IV")]
 # places the scattered things keep away from (profile pixels and radius): table, pool, beds, corners, gate
 KEEP_FREE = [(520, 560, 120), (520, 760, 95), (395, 470, 45), (651, 480, 45), (391, 655, 45), (649, 661, 45), (226, 350, 45),
              (355, 370, 45), (855, 420, 70), (745, 600, 50), (865, 690, 50), (717, 400, 40), (112, 560, 60)]
+KEEP_FREE += [(x, y, 40) for x, y, _ in SLEEPING]
 for tunnel in TUNNELS:
     CORRIDORS += [Room("Gang", x, y, 16, 16) for x, y in path_points(tunnel)]
 OPEN = ROOMS + CORRIDORS
@@ -284,10 +288,16 @@ def build():
         if plants[k] is not None:
             mesh_actor(plants[k], unreal.Vector(p.x, p.y, p.z + 30.0), "Pflanze {}".format(k + 1), "Stufe I/Beete", yaw=rng.uniform(0, 360), scale=0.9)
         shaft(p, "Schacht Beet {}".format(k + 1), "Licht/Lichtschaechte", 700.0, 5.0)
-    for k, (px, py) in enumerate(((330, 541), (712, 551), (459, 741), (599, 391))):
-        mesh_actor(bed, at(px, py, 8.0), "Gelege leer {}".format(k + 1), "Stufe I/Beete", yaw=rng.uniform(0, 360),
-                   pitch=rng.uniform(40, 75), scale=0.8)
     label_text(at(395, 470), "3 Beete", "Stufe I/Beete")
+
+    # Sleeping clutches: closed sacs on the floor of the hall that hatch into beds over the story (see SLEEPING)
+    for k, (px, py, stage) in enumerate(SLEEPING):
+        p = at(px, py, -10.0)
+        folder = "Stufe {}/Beete Halle".format(stage)
+        mesh_actor(sac, p, "Schlafendes Gelege {} ({})".format(k + 1, stage), folder, yaw=rng.uniform(0, 360),
+                   pitch=rng.uniform(70, 88), scale=rng.uniform(0.75, 0.9), collision=True)
+        point_light(unreal.Vector(p.x, p.y, 70.0), "Gelege-Glimmen {}".format(k + 1), folder, (1.0, 0.4, 0.1), 12.0, 220.0)
+        label_text(p, "schlaeft (Stufe {})".format(stage), folder, color=(1.0, 0.7, 0.4))
 
     # 4 Bed overview at the foot of the ramp
     mesh_actor(cube, at(717, 400, 70.0), "Wurzeltafel", "Stufe I/Hexenkueche", yaw=225.0, scale=(0.15, 1.4, 1.4), material=m_roots, collision=True)
