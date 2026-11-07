@@ -1065,7 +1065,8 @@ void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)
 	}
 
 	FVaelHeroChoice Choice;
-	Choice.Class = Class.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage;
+	Choice.Class = Class.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Floromant
+			: Class.StartsWith(TEXT("i"), ESearchCase::IgnoreCase) || Class.StartsWith(TEXT("e"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Engineer : EVaelHeroClass::Mage;
 	Choice.bFemale = Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase);
 
 	// Remembered for the slot like a choice on the page "Gestalt"
@@ -1251,7 +1252,8 @@ void UVaelCheatManager::VaelMitspieler(const FString& Class, const FString& Look
 	if (!Class.IsEmpty() && Heroes != nullptr)
 	{
 		FVaelHeroChoice Choice;
-		Choice.Class = Class.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage;
+		Choice.Class = Class.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Floromant
+			: Class.StartsWith(TEXT("i"), ESearchCase::IgnoreCase) || Class.StartsWith(TEXT("e"), ESearchCase::IgnoreCase) ? EVaelHeroClass::Engineer : EVaelHeroClass::Mage;
 		Choice.bFemale = Look.StartsWith(TEXT("f"), ESearchCase::IgnoreCase) || Look.StartsWith(TEXT("w"), ESearchCase::IgnoreCase);
 		Heroes->SetChoice(GameInstance->GetNumLocalPlayers(), Choice);
 	}
@@ -1703,8 +1705,8 @@ void UVaelCheatManager::VaelTrankTest(const FString& What)
 	for (const TCHAR* Potion : Potions)
 	{
 		VaelTrinken(Potion);
-		// a vial is an oil on the weapon now (only the engineer throws): one strike carries it to the dummy
-		if (What != TEXT("puls"))
+		// a vial is an oil on the weapon (one strike carries it to the dummy); the engineer fires it with the sling instead
+		if (What != TEXT("puls") && !UVaelPotionEffects::ThrowsVials(Player))
 		{
 			UVaelCombatStatics::DealDamage(Player, Dummy, 4.0f, EVaelElement::Earth);
 		}

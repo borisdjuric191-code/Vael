@@ -11,6 +11,8 @@
 #include "Items/VaelBrewing.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
+#include "Combat/VaelArcShot.h"
+#include "TimerManager.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Player/VaelCharacter.h"
 #include "Save/VaelSaveSubsystem.h"
@@ -279,8 +281,26 @@ bool UVaelPotionEffects::Throw(FName Id, float S)
 		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("NoTarget", "Kein Ziel in Wurfweite"));
 		return false;
 	}
+	const FVaelRecipe* Recipe = FVaelBrewing::GetRecipes().FindByPredicate([Id](const FVaelRecipe& Each) { return Each.Id == Id; });
+	// The sling: the vial flies in a flat arc from the hand and bursts where the enemy stands when it lands
+	const FVector From = GetOwner()->GetActorLocation() + FVector(0.0f, 0.0f, 60.0f);
+	const FVector To = Target->GetActorLocation();
+	const float Flight = FMath::Clamp(FVector::Dist2D(From, To) / 1600.0f, 0.25f, 0.8f);
+	AVaelArcShot::Lob(GetWorld(), From, To, Flight, 120.0f, Recipe != nullptr ? Recipe->Color : FLinearColor::White, 16.0f);
+	TWeakObjectPtr<AVaelCharacterBase> WeakTarget(Target);
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, Id, S, WeakTarget, To]()
+	{
+		Burst(Id, S, WeakTarget.IsValid() ? WeakTarget->GetActorLocation() : To);
+	}), Flight, false);
+	UVaelCombatTextSubsystem::PostReaction(GetOwner(), FText::Format(LOCTEXT("SlingShot", "Schleuder: {0}"), Recipe != nullptr ? Recipe->Name : FText::FromName(Id)));
+	return true;
+}
+
+void UVaelPotionEffects::Burst(FName Id, float S, const FVector& Center)
+{
 	AVaelCharacter* Player = GetPlayer();
-	const FVector Center = Target->GetActorLocation();
+	UE_LOG(LogVael, Log, TEXT("Potion: vial %s bursts at %s"), *Id.ToString(), *Center.ToCompactString());
 
 	if (Id == Giftphiole)
 	{
@@ -312,11 +332,6 @@ bool UVaelPotionEffects::Throw(FName Id, float S)
 			UVaelCombatStatics::ApplyStatus(Player, Enemy, EVaelStatus::Burning, 12.0f, 8.0f * S);
 		}
 	}
-	else
-	{
-		return false;
-	}
-	return true;
 }
 
 AVaelCharacterBase* UVaelPotionEffects::FindEnemy(float Range) const
@@ -394,9 +409,8 @@ float UVaelPotionEffects::GetNoticeMultiplier() const
 
 bool UVaelPotionEffects::ThrowsVials(const AVaelCharacter* Player)
 {
-	// Boris 2026-11-07: throwing belongs to the engineer, with vials of his own for sling and bow. The class is not in the
-	// game yet (only mage and Floromant), so for now every player coats the weapon; the engineer will return true here.
-	return false;
+	// Boris 2026-11-07: throwing belongs to the engineer, with vials of his own for sling and bow; every other class coats the weapon
+	return Player != nullptr && Player->IsEngineer();
 }
 
 FName UVaelPotionEffects::GetWeaponOil() const

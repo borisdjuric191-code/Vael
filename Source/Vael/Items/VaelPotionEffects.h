@@ -90,6 +90,12 @@ private:
 	bool Drink(FName PotionId, float Strength, float DurationScale);
 	bool Throw(FName PotionId, float Strength);
 
+public:
+	/** Where a fired vial bursts: the cloud, the fire or the curse of it around Center */
+	void Burst(FName PotionId, float Strength, const FVector& Center);
+
+private:
+
 	/** Nearest enemy of the player within the range, null if none */
 	AVaelCharacterBase* FindEnemy(float Range) const;
 

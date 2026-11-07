@@ -236,6 +236,7 @@ public:
 	/** Class the player plays */
 	EVaelHeroClass GetHeroClass() const { return HeroClass; }
 	bool IsFloromant() const { return HeroClass == EVaelHeroClass::Floromant; }
+	bool IsEngineer() const { return HeroClass == EVaelHeroClass::Engineer; }
 
 	/** The base look it wears, -1 while it still shows the template mannequin */
 	int32 GetBaseLook() const { return BaseLook; }

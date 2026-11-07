@@ -12,12 +12,15 @@ class UStaticMesh;
 class UVaelPlantData;
 class UVaelPlantArmData;
 
-/** The two classes a player can play: the mage of the elements and the Floromant, a fairy who sows plants and calls them to act */
+/** The classes a player can play: the mage of the elements, the Floromant, a fairy who sows plants and calls them to act,
+ *  and the engineer, who fires vials from sling and bow. The engineer is a stand-in for now (Boris 2026-11-07): he wears
+ *  the body and the spells of the mage until his own model and skills come; only the vials are his already. */
 UENUM(BlueprintType)
 enum class EVaelHeroClass : uint8
 {
 	Mage,
-	Floromant
+	Floromant,
+	Engineer
 };
 
 /** The way a hero has sworn to at the end of Act II; none before the oath */

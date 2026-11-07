@@ -188,6 +188,10 @@ bool FVaelBrewing::IsOwnCraft(const AVaelCharacter* Player, EVaelBrewCraft Craft
 	}
 	// The mage has the elements; the Floromant, who lives by her plants, takes the craft of nature (assumption until the
 	// classes of the Rezeptbuch, Tamer and Prophet, are in the game)
+	if (Player->IsEngineer())
+	{
+		return Craft == EVaelBrewCraft::ThrowAndOil;
+	}
 	return Player->IsFloromant() ? Craft == EVaelBrewCraft::Nature : Craft == EVaelBrewCraft::Elements;
 }
 

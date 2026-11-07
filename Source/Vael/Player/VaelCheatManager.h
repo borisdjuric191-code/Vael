@@ -103,7 +103,7 @@ public:
 	UFUNCTION(Exec)
 	void VaelFrameTest(int32 ExtraMetaHumans = 0);
 
-	/** Turns the player into a mage or a Floromant: "Magier" or "Floromant", then "Mann" or "Frau". Example: VaelKlasse Floromant Frau */
+	/** Turns the player into a mage, a Floromant or the engineer (stand-in): "Magier", "Floromant" or "Ingenieur", then "Mann" or "Frau". Example: VaelKlasse Floromant Frau */
 	UFUNCTION(Exec)
 	void VaelKlasse(const FString& Class, const FString& Look);
 
