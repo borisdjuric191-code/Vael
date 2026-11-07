@@ -10,6 +10,7 @@
 class AVaelCharacter;
 class AVaelCharacterBase;
 class AVaelEngineerDevice;
+class UStaticMeshComponent;
 struct FVaelSavedPlayer;
 
 /**
@@ -144,6 +145,14 @@ public:
 private:
 
 	AVaelCharacter* GetPlayer() const;
+
+	/** The weapon in his hand: shown while he plays the engineer, the mesh of the weapon he holds */
+	void UpdateWeaponMesh();
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> WeaponMesh;
+
+	FName ShownWeapon;
 	float Now() const;
 	void ApplyHealthBonus();
 

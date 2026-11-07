@@ -4,6 +4,9 @@
 
 #include "AbilitySystemComponent.h"
 #include "Combat/VaelAttributeSet.h"
+#include "Components/StaticMeshComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Engineer/VaelEngineerDevice.h"
 #include "Engineer/VaelEngineerShot.h"
@@ -77,6 +80,47 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	}
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
+	UpdateWeaponMesh();
+}
+
+void UVaelEngineerComponent::UpdateWeaponMesh()
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr)
+	{
+		return;
+	}
+	const bool bShow = Player->IsEngineer();
+	const FName Wanted = bShow ? Weapon : NAME_None;
+	if (Wanted == ShownWeapon && (WeaponMesh == nullptr || WeaponMesh->IsVisible() == bShow))
+	{
+		return;
+	}
+	ShownWeapon = Wanted;
+	if (!bShow)
+	{
+		if (WeaponMesh != nullptr)
+		{
+			WeaponMesh->SetVisibility(false);
+		}
+		return;
+	}
+	if (WeaponMesh == nullptr)
+	{
+		WeaponMesh = NewObject<UStaticMeshComponent>(Player, TEXT("EngineerWeapon"));
+		WeaponMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		WeaponMesh->SetCastShadow(true);
+		WeaponMesh->RegisterComponent();
+	}
+	// In the right hand; the pieces have their grip at the origin, the shot along +X
+	const FName Socket = Player->GetMesh()->DoesSocketExist(TEXT("hand_r")) ? FName(TEXT("hand_r")) : NAME_None;
+	WeaponMesh->AttachToComponent(Player->GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
+	WeaponMesh->SetRelativeLocation(FVector(-6.0f, 3.0f, 0.0f));
+	WeaponMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
+	const FString Name = Weapon.ToString();
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_%s.SM_Ing_%s"), *Name, *Name), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	WeaponMesh->SetStaticMesh(Mesh);
+	WeaponMesh->SetVisibility(Mesh != nullptr);
 }
 
 // ---------------------------------------------------------------- Building

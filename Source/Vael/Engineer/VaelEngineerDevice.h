@@ -60,4 +60,5 @@ private:
 	FName Loaded;
 	int32 LoadedShots = 0;
 	bool bDetonated = false;
+	bool bBuiltPiece = false;
 };

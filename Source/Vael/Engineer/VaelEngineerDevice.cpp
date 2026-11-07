@@ -108,6 +108,18 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 		Device->Top->SetRelativeScale3D(FVector(1.7f, 1.7f, 0.5f));
 		break;
 	}
+	// The built piece (Tools/Ingenieur/vael_ingenieur_werkstuecke.py) where it exists, the shapes otherwise
+	const FString PiecePath = FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_%s.SM_Ing_%s"), *Gear.Id.ToString(), *Gear.Id.ToString());
+	if (UStaticMesh* Piece = LoadObject<UStaticMesh>(nullptr, *PiecePath, nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		Device->Base->SetStaticMesh(Piece);
+		Device->Base->SetRelativeScale3D(FVector::OneVector);
+		Device->Base->EmptyOverrideMaterials();
+		Device->Top->SetVisibility(false);
+		Device->Glow->SetLightColor(Gear.Color);
+		Device->bBuiltPiece = true;
+		return Device;
+	}
 	for (UStaticMeshComponent* Part : { Device->Base.Get(), Device->Top.Get() })
 	{
 		Part->SetMaterial(0, Material);
@@ -148,6 +160,11 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 			UVaelCombatStatics::DealDamage(Eng->GetOwner(), *It, 20.0f, EVaelElement::Earth);
 			UVaelCombatStatics::ApplyStatus(Eng->GetOwner(), *It, EVaelStatus::Frozen, 3.0f);
 			Top->SetRelativeScale3D(FVector(0.75f, 0.75f, 0.05f));
+			if (bBuiltPiece)
+			{
+				// the jaws snap shut: the piece squashes flat
+				Base->SetRelativeScale3D(FVector(1.0f, 0.55f, 0.6f));
+			}
 			UVaelCombatTextSubsystem::PostReaction(*It, LOCTEXT("Snapped", "Fangeisen!"));
 			UE_LOG(LogVael, Log, TEXT("Engineer: trap snaps on %s"), *It->GetName());
 			break;
@@ -212,7 +229,7 @@ void AVaelEngineerDevice::Detonate(FName ShotAmmo)
 	// A flash, then gone
 	Glow->SetIntensity(400.0f);
 	Glow->SetAttenuationRadius(MineRadius * 1.5f);
-	Base->SetRelativeScale3D(FVector(3.2f));
+	Base->SetRelativeScale3D(bBuiltPiece ? FVector(2.2f) : FVector(3.2f));
 	SnappedAt = GetWorld()->GetTimeSeconds() - 0.6f;
 	Type = EVaelDeviceType::Trap;
 }
@@ -224,6 +241,8 @@ void AVaelEngineerDevice::LoadAmmo(FName ShotAmmo)
 	if (const FVaelGear* Gear = VaelEngineerGear::Find(ShotAmmo))
 	{
 		Top->SetVectorParameterValueOnMaterials(TEXT("Color"), FVector(Gear->Color));
+		Glow->SetLightColor(Gear->Color);
+		Glow->SetIntensity(8.0f);
 		UVaelCombatTextSubsystem::PostReaction(this, FText::Format(LOCTEXT("Loaded", "Geladen: {0}"), Gear->Name));
 	}
 }
