@@ -250,6 +250,8 @@ void UVaelPlayerHUDWidget::SetMaterialBrush(FSlateBrush& Brush, UMaterialInterfa
 	Brush = FSlateBrush();
 	if (Material != nullptr)
 	{
+		// the brush does not keep its material alive; without this the garbage collector takes it and painting crashes
+		LoadedResources.AddUnique(Material);
 		Brush.SetResourceObject(Material);
 		Brush.ImageSize = FVector2D(64.0f, 64.0f);
 		Brush.DrawAs = ESlateBrushDrawType::Image;

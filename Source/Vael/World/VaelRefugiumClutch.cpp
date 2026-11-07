@@ -9,6 +9,8 @@
 #include "EngineUtils.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Save/VaelSaveSubsystem.h"
+#include "Vael.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "World/VaelTimeOfDay.h"
 
@@ -156,6 +158,10 @@ void AVaelRefugiumClutch::Refresh()
 	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
 	if (Stage <= 1 || (Quests != nullptr && Quests->HasFlag(HatchedFlag())))
 	{
+		if (Stage > 1)
+		{
+			UE_LOG(LogVael, Log, TEXT("Refugium %s: bed %s is open from the save"), *Refugium.ToString(), *PlaceId.ToString());
+		}
 		Hatch(true);
 		return;
 	}
@@ -191,6 +197,7 @@ void AVaelRefugiumClutch::Hatch(bool bInstant)
 	if (UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this); Quests != nullptr && Stage > 1)
 	{
 		Quests->SetFlag(HatchedFlag());
+		UVaelSaveSubsystem::RequestSave(this);
 	}
 	Bed->SetVisibility(true);
 	Bed->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);

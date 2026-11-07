@@ -193,8 +193,8 @@ private:
 	/** Brush of a picture loaded before, for painting */
 	const FSlateBrush* FindTextureBrush(const TSoftObjectPtr<UTexture2D>& Texture) const;
 
-	/** Brush around a material instance */
-	static void SetMaterialBrush(FSlateBrush& Brush, UMaterialInterface* Material);
+	/** Brush around a material instance; keeps the material alive with the widget */
+	void SetMaterialBrush(FSlateBrush& Brush, UMaterialInterface* Material);
 
 	/** Index of the Nid slot among the abilities of a class, or INDEX_NONE */
 	static int32 FindNidSlot(const UVaelHUDClassData* Data);
