@@ -52,6 +52,15 @@ public:
 	UFUNCTION(Exec)
 	void VaelBrauen(const FString& What = TEXT(""));
 
+	/** Witch's kitchen: brews the potion (ingredients are given) and uses it at once, then logs what works on the player.
+	 *  Example: VaelTrinken Leichtfuss */
+	UFUNCTION(Exec)
+	void VaelTrinken(const FString& PotionId);
+
+	/** Witch's kitchen: puts a training dummy 4 m in front of the player, throws the vials at it and logs its health after 4 s */
+	UFUNCTION(Exec)
+	void VaelTrankTest(const FString& What = TEXT(""));
+
 	/** Refugium: opens the seed choice of the nearest open bed (after VaelSaat alles there are seeds); with "sofort" the first seed
 	 *  is sown into it at once, without the page. Example: VaelBeet sofort */
 	UFUNCTION(Exec)

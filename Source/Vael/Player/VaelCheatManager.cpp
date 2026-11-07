@@ -3,6 +3,10 @@
 #include "Player/VaelCheatManager.h"
 #include "World/VaelRefugiumClutch.h"
 #include "Items/VaelBrewing.h"
+#include "Items/VaelPotionEffects.h"
+#include "Creatures/VaelTrainingDummy.h"
+#include "Combat/VaelAttributeSet.h"
+#include "AbilitySystemComponent.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
@@ -1622,4 +1626,77 @@ void UVaelCheatManager::VaelBeet(const FString& What)
 		return;
 	}
 	Controller->OpenSowing(Nearest);
+}
+
+void UVaelCheatManager::VaelTrinken(const FString& PotionId)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	VaelBrauen(PotionId);
+	for (const FVaelRecipe& Recipe : FVaelBrewing::GetRecipes())
+	{
+		if (Recipe.Id != FName(*PotionId))
+		{
+			continue;
+		}
+		UAbilitySystemComponent* AbilitySystem = Player->GetAbilitySystemComponent();
+		const float ManaBefore = AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetManaAttribute());
+		AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), 0.0f);
+		const bool bUsed = Player->GetMaterialBag()->UseMaterial(Recipe.Result.LoadSynchronous());
+		const UVaelPotionEffects* Effects = UVaelPotionEffects::Find(Player);
+		FString Active;
+		for (const TPair<FName, float>& Pair : Effects != nullptr ? Effects->GetActive() : TArray<TPair<FName, float>>())
+		{
+			Active += FString::Printf(TEXT("%s %.0fs "), *Pair.Key.ToString(), Pair.Value);
+		}
+		FGameplayTagContainer Fire;
+		Fire.AddTag(VaelTags::Element_Fire);
+		UE_LOG(LogVael, Log, TEXT("VaelTrinken: %s used %s; active: %s; speed x%.2f, fire damage x%.2f, notice x%.2f, mana %.0f (was %.0f before emptying)"),
+			*PotionId, bUsed ? TEXT("yes") : TEXT("no"), *Active, Effects != nullptr ? Effects->GetSpeedMultiplier() : 1.0f,
+			Effects != nullptr ? Effects->GetIncomingMultiplier(Fire) : 1.0f, Effects != nullptr ? Effects->GetNoticeMultiplier() : 1.0f,
+			AbilitySystem->GetNumericAttribute(UVaelAttributeSet::GetManaAttribute()), ManaBefore);
+		return;
+	}
+}
+
+void UVaelCheatManager::VaelTrankTest(const FString& What)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	const FVector Spot = Player->GetActorLocation() + Player->GetActorForwardVector() * 400.0f;
+	FActorSpawnParameters Parameters;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	AVaelCharacterBase* Dummy = GetWorld()->SpawnActor<AVaelTrainingDummy>(AVaelTrainingDummy::StaticClass(), Spot, FRotator::ZeroRotator, Parameters);
+	if (Dummy == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelTrankTest: no dummy"));
+		return;
+	}
+	const float Before = Dummy->GetHealth();
+	// "puls": the power potions that strike by themselves (Hainruf, Würgherrschaft, Feenleib) instead of the vials
+	const TArray<const TCHAR*> Potions = What == TEXT("puls") ? TArray<const TCHAR*>{ TEXT("Hainruf"), TEXT("Wuergherrschaft"), TEXT("Feenleib") }
+		: TArray<const TCHAR*>{ TEXT("Giftphiole"), TEXT("Schwarzbrand"), TEXT("Ermattungsfluch"), TEXT("Saeurewolke") };
+	for (const TCHAR* Potion : Potions)
+	{
+		VaelTrinken(Potion);
+	}
+	TWeakObjectPtr<AVaelCharacterBase> Weak = Dummy;
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle, [Weak, Before]()
+	{
+		if (const AVaelCharacterBase* Target = Weak.Get())
+		{
+			UE_LOG(LogVael, Log, TEXT("VaelTrankTest: dummy health %.0f -> %.0f, frozen %d, burning %d, slowed %d, confused %d, marked %d"), Before, Target->GetHealth(),
+				UVaelCombatStatics::HasStatus(Target, EVaelStatus::Frozen), UVaelCombatStatics::HasStatus(Target, EVaelStatus::Burning), UVaelCombatStatics::HasStatus(Target, EVaelStatus::Slowed),
+				UVaelCombatStatics::HasStatus(Target, EVaelStatus::Confused), UVaelCombatStatics::HasStatus(Target, EVaelStatus::Marked));
+		}
+	}, 4.0f, false);
 }

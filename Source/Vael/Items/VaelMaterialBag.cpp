@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Items/VaelMaterialBag.h"
+#include "Items/VaelPotionEffects.h"
+#include "Player/VaelCharacter.h"
 #include "Save/VaelSaveGame.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialDrop.h"
@@ -50,7 +52,16 @@ bool UVaelMaterialBag::UseMaterial(const UVaelMaterial* Material)
 		return false;
 	}
 
-	// Drinking and pouring over plants (the plant takes its light or shadow form in its next growth cycle) come later
+	// Potions of the witch's kitchen: drunk or thrown (UVaelPotionEffects)
+	if (Material->Category == EVaelMaterialCategory::Potion)
+	{
+		if (AVaelCharacter* Player = Cast<AVaelCharacter>(GetOwner()))
+		{
+			return UVaelPotionEffects::Use(Player, Material);
+		}
+	}
+
+	// Pouring over plants (the plant takes its light or shadow form in its next growth cycle) comes later
 	UVaelNoticeSubsystem::Post(GetOwner(), Material->DisplayName, LOCTEXT("UseLater", "Das geht noch nicht."), Material->Color, 2.0f);
 	return false;
 }

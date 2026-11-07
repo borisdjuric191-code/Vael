@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelCreature.h"
+#include "Items/VaelPotionEffects.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AbilitySystemComponent.h"
 #include "AIController.h"
@@ -758,8 +759,10 @@ AActor* AVaelCreature::FindTarget(float MaxDistance, float* OutDistance) const
 			return;
 		}
 
+		// the ash veil of the witch's kitchen: creatures notice the player later
+		const UVaelPotionEffects* Potions = UVaelPotionEffects::Find(Player);
 		const float Distance = GetDistanceTo2D(Player);
-		if (Distance < NearestDistance && Distance < NoticeDistance)
+		if (Distance < NearestDistance && Distance < NoticeDistance * (Potions != nullptr ? Potions->GetNoticeMultiplier() : 1.0f))
 		{
 			Nearest = Player;
 			NearestDistance = Distance;

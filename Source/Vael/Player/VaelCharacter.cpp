@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCharacter.h"
+#include "Items/VaelPotionEffects.h"
 #include "World/VaelSafeZone.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Animation/AnimInstance.h"
@@ -496,7 +497,9 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
 	const float Burden = GetWorld()->GetTimeSeconds() < BurdenEndTime ? BurdenMultiplier : 1.0f;
 	const float Bracing = IsFloromant() ? Floromant->GetMoveSpeedScale() : 1.0f;
-	GetCharacterMovement()->MaxWalkSpeed = bObserving || IsExhausted() ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing;
+	const UVaelPotionEffects* Potions = UVaelPotionEffects::Find(this);
+	const float PotionSpeed = Potions != nullptr ? Potions->GetSpeedMultiplier() : 1.0f;
+	GetCharacterMovement()->MaxWalkSpeed = bObserving || IsExhausted() ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing * PotionSpeed;
 
 	if (bObserving)
 	{
@@ -1262,7 +1265,13 @@ void AVaelCharacter::UpdateFocus()
 float AVaelCharacter::GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const
 {
 	// Nothing hurts players in a safe zone like the camp
-	return AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation()) ? 0.0f : Super::GetIncomingDamageMultiplier(DamageTags);
+	if (AVaelSafeZone::IsSafe(GetWorld(), GetActorLocation()))
+	{
+		return 0.0f;
+	}
+	// potions of the witch's kitchen: fire protection, bark skin, dodging as ash
+	const UVaelPotionEffects* Potions = UVaelPotionEffects::Find(this);
+	return Super::GetIncomingDamageMultiplier(DamageTags) * (Potions != nullptr ? Potions->GetIncomingMultiplier(DamageTags) : 1.0f);
 }
 
 bool AVaelCharacter::IsAboveGround() const
