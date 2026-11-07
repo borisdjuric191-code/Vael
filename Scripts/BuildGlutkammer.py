@@ -322,6 +322,22 @@ def build():
             if name != "SM_GK_Felswand_Niedrig" and room in ROOMS and count % 2 == 0:
                 point_light(unreal.Vector(edge.x - out_x * 120.0, edge.y - out_y * 120.0, 70.0), "Felsglut {}".format(count), "Licht/Felsglut",
                             (1.0, 0.42, 0.12), 28.0, 650.0)
+            # the high walls on the far side get grazing light from in front, as if from the holes in the ceiling, so their
+            # ledges and cracks read from the game camera instead of sinking into black
+            if name == "SM_GK_Felswand_Hoch" and room is HALL:
+                wash = spawn(unreal.SpotLight, unreal.Vector(edge.x - out_x * 520.0, edge.y - out_y * 520.0, 900.0),
+                             "Wandlicht {}".format(count), "Licht/Wandlicht",
+                             unreal.Rotator(0.0, -38.0, math.degrees(math.atan2(out_y, out_x))))
+                c = wash.light_component
+                c.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
+                c.set_editor_property("intensity", 260.0)
+                c.set_light_color(unreal.LinearColor(1.0, 0.78, 0.55, 1.0))
+                c.set_editor_property("inner_cone_angle", 18.0)
+                c.set_editor_property("outer_cone_angle", 34.0)
+                c.set_editor_property("attenuation_radius", 1400.0)
+                c.set_editor_property("cast_shadows", False)
+                c.set_editor_property("volumetric_scattering_intensity", 0.0)
+                wash.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
             if room in ROOMS and rng.random() < 0.55:
                 rock = rocks[boulders % len(rocks)]
                 box = rock.get_bounding_box()
