@@ -552,8 +552,16 @@ def build_materials():
         "SM_GK_Wurzelvorhang": assign("SM_GK_Wurzelvorhang", [roots]),
         "SM_GK_Glutbecken": assign("SM_GK_Glutbecken", [pool, tissue]),
     }
+    # the wood of the stations: the root bark, darker and warmer than the roots in the light shafts
+    path = FOLDER + "/MI_GK_Holz"
+    wood = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
+        "MI_GK_Holz", FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    library.set_material_instance_parent(wood, roots)
+    library.set_material_instance_scalar_parameter_value(wood, "Helligkeit", 0.75)
+    library.set_material_instance_vector_parameter_value(wood, "RindeFarbe", unreal.LinearColor(0.3, 0.14, 0.08, 1.0))
+    assets.save_loaded_asset(wood, False)
     by_slot = {
-        "Holz": roots, "Glas": material_glass(), "Fluessigkeit": material_liquid(), "Papier": material_paper(), "Metall": material_metal(),
+        "Holz": wood, "Glas": material_glass(), "Fluessigkeit": material_liquid(), "Papier": material_paper(), "Metall": material_metal(),
         "Kraut": material_plain("M_GK_Kraut", (0.2, 0.26, 0.09), 0.7, noise_amount=0.4, two_sided=True), "Wachs": material_wax(),
         "Glut": pool, "Leder": material_plain("M_GK_Leder", (0.22, 0.1, 0.05), 0.6, noise_amount=0.3),
         "Stein": unreal.load_asset(FOLDER + "/MI_GK_Fels_Brocken"),

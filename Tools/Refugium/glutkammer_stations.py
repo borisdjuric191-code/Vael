@@ -336,14 +336,17 @@ def build_workbench():
 def build_shrine():
     obj = gk.new_object("SM_GK_Schrein", SLOTS)
     b = gk.Builder()
-    # three stacked, uneven stones
+    # three stacked, weathered stones, round-shouldered like river stones, each a little askew
     z = 0.0
-    for k, (w, h) in enumerate(((1.3, 0.45), (0.95, 0.4), (0.6, 0.35))):
-        box(b, Vector((0, 0, z + h / 2)), (w * 0.8, w, h), STEIN, yaw=random.uniform(-0.15, 0.15), bevel_noise=0.04, seed=k)
-        z += h
-    # a standing stone slab behind with a carved sun / moon disc (glow mask)
-    box(b, Vector((-0.38, 0, 1.25)), (0.18, 0.7, 1.4), STEIN, bevel_noise=0.04, seed=8)
-    lathe(b, [(0.001, 0.0), (0.2, 0.0), (0.2, 0.02), (0.001, 0.025)], STEIN, Vector((-0.28, 0, 1.55)), sides=24, mask=0.8,
+    for k, (w, h) in enumerate(((0.68, 0.45), (0.5, 0.4), (0.32, 0.35))):
+        prof = [(w * 0.92, 0.0), (w, h * 0.12), (w * 1.02, h * 0.55), (w * 0.95, h * 0.85), (w * 0.75, h * 0.98), (w * 0.4, h), (0.001, h)]
+        lathe(b, prof, STEIN, Vector((0, 0, z)), sides=28, wobble_amount=0.12, seed=k * 5, tilt=Matrix.Scale(0.85, 3, Vector((1, 0, 0))))
+        z += h * 0.96
+    # a standing stone behind, rounded and leaning, with a carved sun / moon disc (glow mask)
+    slab = [(0.36, 0.0), (0.38, 0.4), (0.34, 1.0), (0.26, 1.45), (0.12, 1.62), (0.001, 1.66)]
+    lathe(b, slab, STEIN, Vector((-0.42, 0, 0.3)), sides=24, wobble_amount=0.1, seed=31,
+          tilt=Matrix.Rotation(-0.06, 3, 'Y') @ Matrix.Scale(0.35, 3, Vector((1, 0, 0))))
+    lathe(b, [(0.001, 0.0), (0.2, 0.0), (0.2, 0.02), (0.001, 0.025)], STEIN, Vector((-0.3, 0, 1.45)), sides=24, mask=0.8,
           tilt=Matrix.Rotation(math.pi / 2, 3, 'Y'))
     # incense bowl with embers and candles on the steps
     bowl = Vector((0.0, 0.0, z))
@@ -352,13 +355,13 @@ def build_shrine():
         a = random.uniform(0, 6.3)
         r = random.uniform(0, 0.12)
         box(b, bowl + Vector((math.cos(a) * r, math.sin(a) * r, 0.06)), (0.04, 0.03, 0.025), GLUT, yaw=a, mask=random.uniform(0.5, 1.0), bevel_noise=0.006, seed=k)
-    for k, (x, y, zz, h) in enumerate(((0.35, -0.4, 0.45, 0.2), (0.35, 0.42, 0.45, 0.15), (0.25, -0.25, 0.85, 0.12), (0.25, 0.3, 0.85, 0.18), (0.55, 0.0, 0.0, 0.1))):
+    for k, (x, y, zz, h) in enumerate(((0.5, -0.3, 0.43, 0.2), (0.48, 0.32, 0.43, 0.15), (0.32, -0.2, 0.82, 0.12), (0.3, 0.22, 0.82, 0.18), (0.85, 0.0, 0.0, 0.1))):
         c = Vector((x, y, zz))
         lathe(b, [(0.035, 0.0), (0.036, h * 0.8), (0.03, h), (0.001, h + 0.004)], WACHS, c, sides=12, wobble_amount=0.1, seed=k)
         lathe(b, [(0.001, h), (0.01, h + 0.014), (0.007, h + 0.034), (0.001, h + 0.055)], WACHS, c, sides=8, mask=1.0)
         lathe(b, [(0.06, 0.0), (0.07, 0.01), (0.001, 0.012)], WACHS, c, sides=12)
     # a prayer cloth hanging over the top stone, charms on strings from a crooked branch
-    rows = [[Vector((0.15 + v * 0.05, -0.35 + u * 0.7, 1.2 - v * 0.55 + 0.03 * math.sin(u * 9 + v * 3))) for u in (0, 0.25, 0.5, 0.75, 1.0)] for v in (0, 0.33, 0.66, 1.0)]
+    rows = [[Vector((0.36 + v * 0.08, -0.3 + u * 0.6, 1.2 - v * 0.5 + 0.03 * math.sin(u * 9 + v * 3))) for u in (0, 0.25, 0.5, 0.75, 1.0)] for v in (0, 0.33, 0.66, 1.0)]
     b.grid(rows, STOFF, uv_of=lambda j, i: (i / 4, j / 3), mask_of=lambda j, i: 0.0)
     branch = [Vector((-0.4, -0.6, 2.0)), Vector((-0.2, -0.2, 2.15)), Vector((-0.1, 0.25, 2.1)), Vector((0.0, 0.6, 2.2))]
     b.tube(branch, [0.04, 0.035, 0.03, 0.02], HOLZ, sides=8, rough=0.2)
