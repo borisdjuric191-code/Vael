@@ -18,7 +18,7 @@ enum class EVaelClutchState : uint8
 {
 	/** The story has not reached its stage yet: a dim clutch under silk */
 	Sleeping,
-	/** Its stage is reached: it glows up and hatches at the next dawn, or at once when a player tends it */
+	/** Woken but not yet open: it glows and hatches at the next dawn, or at once when a player tends it (not used by the stages) */
 	Awake,
 	/** Hatched: an open clutch bed that can be planted */
 	Bed
@@ -27,8 +27,9 @@ enum class EVaelClutchState : uint8
 /**
  *  One bed place of a refugium (Lore-Bibel, Refugium: 40 beds in the Glutkammer, 8 more with every stage).
  *  The stages come from story flags "Refugium.<Name>.Stufe2" to "Stufe5" (stage I is there from the start). A place of a
- *  later stage lies there as a sleeping clutch; once the story reaches its stage it wakes, glows and hatches into a bed at
- *  the next dawn, or at once when a player tends it. Hatched places are remembered as story flags, so they are in the save.
+ *  later stage lies there as a sleeping clutch; as soon as the story reaches its stage it tears open into a bed (Boris,
+ *  7 November 2026). Hatched places are remembered as story flags, so they are in the save. The Awake state (glowing, hatches at
+ *  dawn or when tended) stays for clutches woken by other means; the stage itself no longer waits for it.
  */
 UCLASS(meta = (DisplayName = "Vael Refugium Clutch"))
 class AVaelRefugiumClutch : public AActor, public IVaelInteractable

@@ -159,7 +159,13 @@ void AVaelRefugiumClutch::Refresh()
 		Hatch(true);
 		return;
 	}
-	State = GetReachedStage(this, Refugium) >= Stage ? EVaelClutchState::Awake : EVaelClutchState::Sleeping;
+	// Boris, 7 November 2026: a clutch tears open as soon as the story reaches its stage (no waiting for dawn)
+	if (GetReachedStage(this, Refugium) >= Stage)
+	{
+		Hatch(false);
+		return;
+	}
+	State = EVaelClutchState::Sleeping;
 	Sleeping->SetVisibility(true);
 	Bed->SetVisibility(false);
 	Bed->SetCollisionEnabled(ECollisionEnabled::NoCollision);
