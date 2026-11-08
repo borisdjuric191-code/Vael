@@ -87,7 +87,7 @@ public:
 	 *  DrawScale: how far the bow was drawn (1.0, 1.35, 1.8); bDrawPierce: a full draw goes through */
 	bool Fire(const FVector& AimLocation, float DrawScale = 1.0f, bool bDrawPierce = false);
 
-	/** The bow is drawn while the button is held and shoots on release: 0.4 s x1.0, 0.8 s x1.3, 1.2 s x1.6 and through */
+	/** The bow is drawn while the button is held and shoots on release: 0.4 s x1.0, 0.8 s x1.2, 1.2 s x1.5 and through */
 	bool UsesDraw() const;
 	void StartDraw();
 	bool ReleaseDraw(const FVector& AimLocation);

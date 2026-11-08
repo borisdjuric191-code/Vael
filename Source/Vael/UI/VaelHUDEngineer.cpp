@@ -4,6 +4,8 @@
 
 #include "UI/VaelHUD.h"
 #include "Engine/Canvas.h"
+#include "EngineUtils.h"
+#include "Combat/VaelCharacterBase.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Engineer/VaelEngineerGear.h"
 #include "Player/VaelCharacter.h"
@@ -23,7 +25,59 @@ void AVaelHUD::DrawEngineerWheel(const AVaelPlayerController* PlayerController)
 {
 	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
 	const UVaelEngineerComponent* Engineer = Player != nullptr && Player->IsEngineer() ? Player->GetEngineer() : nullptr;
-	if (Engineer == nullptr || PlayerController->IsGrimoireOpen() || (!Engineer->IsGrabbing() && Engineer->GetSecondsSinceCycle() > 1.6f))
+	if (Engineer == nullptr || PlayerController->IsGrimoireOpen())
+	{
+		return;
+	}
+	const float S = UiScale;
+	const FVector Feet = Canvas->Project(Player->GetActorLocation() - FVector(0.0f, 0.0f, 60.0f));
+
+	// The goggles show the weak side of every enemy in reach: a gold mark at its head side
+	const FVaelGear* Held = Engineer->GetWeapon();
+	if (Engineer->HasBuilt(VaelEngineerGear::Goggles) && Held != nullptr)
+	{
+		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+		{
+			if (It->IsA<AVaelCharacter>() || It->GetHealth() <= 0.0f || FVector::Dist2D(It->GetActorLocation(), Player->GetActorLocation()) > Held->Range)
+			{
+				continue;
+			}
+			const FVector Mark = Canvas->Project(It->GetActorLocation() + It->GetActorForwardVector() * It->GetSimpleCollisionRadius() + FVector(0.0f, 0.0f, 50.0f));
+			if (Mark.Z > 0.0f)
+			{
+				const bool bFacing = FVector::DotProduct(It->GetActorForwardVector().GetSafeNormal2D(), (Player->GetActorLocation() - It->GetActorLocation()).GetSafeNormal2D()) > 0.77f;
+				DrawDisc(FVector2D(Mark.X, Mark.Y), (bFacing ? 7.0f : 5.0f) * S, bFacing ? EngRgb(255, 210, 110) : EngRgb(160, 130, 80, 200));
+				DrawDisc(FVector2D(Mark.X, Mark.Y), 2.5f * S, EngRgb(40, 24, 10));
+			}
+		}
+	}
+
+	// Under his feet: how far the bow is drawn (stages at 0.4, 0.8, 1.2 s), the bolts in the crossbow
+	if (Feet.Z > 0.0f && Held != nullptr)
+	{
+		const float BarWidth = 70.0f * S;
+		const FVector2D BarAt(Feet.X - BarWidth * 0.5f, Feet.Y + 26.0f * S);
+		if (Engineer->IsDrawing())
+		{
+			const float Drawn = FMath::Clamp(Engineer->GetDrawSeconds() / 1.2f, 0.0f, 1.0f);
+			DrawBox(BarAt.X, BarAt.Y, BarWidth, 6.0f * S, EngRgb(30, 22, 18, 220));
+			DrawBox(BarAt.X, BarAt.Y, BarWidth * Drawn, 6.0f * S, Drawn >= 1.0f ? EngRgb(255, 210, 110) : EngRgb(206, 140, 70));
+			for (const float Stage : { 1.0f / 3.0f, 2.0f / 3.0f })
+			{
+				DrawBox(BarAt.X + BarWidth * Stage - 1.0f, BarAt.Y - 2.0f * S, 2.0f, 10.0f * S, EngRgb(240, 228, 204));
+			}
+		}
+		else if (Held->Id == VaelEngineerGear::Crossbow)
+		{
+			for (int32 Bolt = 0; Bolt < 2; ++Bolt)
+			{
+				const bool bLoaded = Bolt < Engineer->GetMagazine() && Engineer->GetReloadLeft() <= 0.0f;
+				DrawBox(Feet.X - 12.0f * S + Bolt * 16.0f * S, BarAt.Y, 8.0f * S, 14.0f * S, bLoaded ? EngRgb(200, 200, 214) : EngRgb(60, 50, 44, 200));
+			}
+		}
+	}
+
+	if (!Engineer->IsGrabbing() && Engineer->GetSecondsSinceCycle() > 1.6f)
 	{
 		return;
 	}
@@ -33,7 +87,6 @@ void AVaelHUD::DrawEngineerWheel(const AVaelPlayerController* PlayerController)
 	{
 		return;
 	}
-	const float S = UiScale;
 	const FVector2D Centre(Screen.X, Screen.Y - 40.0f * S);
 	const TArray<FName> Choices = Engineer->GetAmmoChoices();
 	const FName Chosen = Engineer->IsGrabbing() ? Engineer->GetGrabAmmo() : Engineer->GetAmmo();

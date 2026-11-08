@@ -662,7 +662,7 @@ bool UVaelEngineerComponent::ReleaseDraw(const FVector& AimLocation)
 	const float Held = GetDrawSeconds();
 	DrawStart = -1.0f;
 	// Too short a pull still shoots, only weakly
-	const float Scale = Held >= 1.2f ? 1.6f : Held >= 0.8f ? 1.3f : Held >= 0.4f ? 1.0f : 0.6f;
+	const float Scale = Held >= 1.2f ? 1.5f : Held >= 0.8f ? 1.2f : Held >= 0.4f ? 1.0f : 0.6f;
 	return Fire(AimLocation, Scale, Held >= 1.2f);
 }
 

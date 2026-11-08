@@ -2017,13 +2017,28 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 	{
 		return;
 	}
-	const bool bEngineer = Klasse.StartsWith(TEXT("i")) || Klasse.StartsWith(TEXT("v"));
-	const bool bPrepared = Klasse.StartsWith(TEXT("v"));
+	const bool bSustained = Klasse.StartsWith(TEXT("d"));
+	const bool bEngineer = Klasse.StartsWith(TEXT("i")) || Klasse.StartsWith(TEXT("v")) || bSustained;
+	const bool bPrepared = Klasse.StartsWith(TEXT("v")) || bSustained;
 	const bool bFloromant = Klasse.StartsWith(TEXT("f"));
 	Player->SetHero(bEngineer ? EVaelHeroClass::Engineer : bFloromant ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage, bFloromant);
 	if (bPrepared)
 	{
-		VaelIngenieur(TEXT("alles"));
+		// the comparison at the start of the game: bow and goggles, for the prepared run also shots and devices; no tiers, sets, lenses
+		VaelIngenieur(TEXT("material"));
+		UVaelEngineerComponent* Eng = Player->GetEngineer();
+		Eng->LearnAllPlans();
+		for (const TCHAR* Piece : { TEXT("Bogen"), TEXT("Brille") })
+		{
+			Eng->Build(FName(Piece), true);
+		}
+		if (!bSustained)
+		{
+			for (const TCHAR* Piece : { TEXT("Splitter"), TEXT("Brand"), TEXT("Knallmine"), TEXT("Knallmine"), TEXT("Fangeisen"), TEXT("Schleuderturm") })
+			{
+				Eng->Build(FName(Piece), true);
+			}
+		}
 	}
 
 	// A dummy that can't fall, 7 m ahead
@@ -2055,6 +2070,7 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 		bool bFloromant = false;
 		bool bEngineer = false;
 		bool bPrepared = false;
+		bool bSustained = false;
 	};
 	TSharedRef<FRun> Run = MakeShared<FRun>();
 	Run->Player = Player;
@@ -2063,6 +2079,7 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 	Run->bFloromant = bFloromant;
 	Run->bEngineer = bEngineer;
 	Run->bPrepared = bPrepared;
+	Run->bSustained = bSustained;
 	Run->Start = GetWorld()->GetTimeSeconds() + 1.0f;
 	AVaelTrainingDummy::ResetMeter();
 	UVaelGrimoireSubsystem* Grimoire = GetWorld()->GetGameInstance()->GetSubsystem<UVaelGrimoireSubsystem>();
@@ -2093,7 +2110,7 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 				Who->GetFloromant()->SetHandFiring(true, false);
 				Who->GetFloromant()->SetHandFiring(false, false);
 			}
-			UE_LOG(LogVael, Log, TEXT("VaelDpsTest: %s %.1f DPS (%.0f in %.0f s)"), Run->bPrepared ? TEXT("vorbereitet") : Run->bEngineer ? TEXT("ingenieur") : Run->bFloromant ? TEXT("floromant") : TEXT("magier"), AVaelTrainingDummy::TotalDamage / Elapsed, AVaelTrainingDummy::TotalDamage, Elapsed);
+			UE_LOG(LogVael, Log, TEXT("VaelDpsTest: %s %.1f DPS (%.0f in %.0f s)"), Run->bSustained ? TEXT("dauer") : Run->bPrepared ? TEXT("vorbereitet") : Run->bEngineer ? TEXT("ingenieur") : Run->bFloromant ? TEXT("floromant") : TEXT("magier"), AVaelTrainingDummy::TotalDamage / Elapsed, AVaelTrainingDummy::TotalDamage, Elapsed);
 			return;
 		}
 		if (Run->bFloromant)
@@ -2118,7 +2135,17 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 		if (Run->bEngineer)
 		{
 			UVaelEngineerComponent* Eng = Who->GetEngineer();
-			if (Run->bPrepared && !Run->bLaid)
+			if (Run->bSustained && !Run->bLaid)
+			{
+				// sustained: the bow, endless arrows, no devices
+				Run->bLaid = true;
+				int32 Guard = 0;
+				while (Eng->GetWeapon()->Id != VaelEngineerGear::Bow && Guard++ < 5)
+				{
+					Eng->CycleWeapon();
+				}
+			}
+			if (Run->bPrepared && !Run->bSustained && !Run->bLaid)
 			{
 				// prepared: three mines and two traps by the dummy, the bow with shards
 				Run->bLaid = true;
@@ -2159,7 +2186,7 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 			{
 				Eng->Fire(Target->GetActorLocation());
 			}
-			if (Run->bPrepared && Eng->GetAmmo() == VaelEngineerGear::Standard)
+			if (Run->bPrepared && !Run->bSustained && Eng->GetAmmo() == VaelEngineerGear::Standard)
 			{
 				int32 Guard = 0;
 				while (Eng->GetAmmo() != FName(TEXT("Splitter")) && Guard++ < 10)

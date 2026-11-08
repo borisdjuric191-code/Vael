@@ -21,7 +21,7 @@ namespace
 {
 	constexpr float TrapRadius = 110.0f;
 	constexpr float MineRadius = 340.0f;
-	constexpr float MineDamage = 45.0f;
+	constexpr float MineDamage = 80.0f;
 	constexpr float TurretRange = 1200.0f;
 	constexpr float TurretInterval = 1.0f;
 	constexpr float TurretLife = 25.0f;
@@ -193,7 +193,7 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 			const FName ShotAmmo = LoadedShots > 0 ? Loaded : VaelEngineerGear::Standard;
 			const FVaelGear* AmmoGear = ShotAmmo != VaelEngineerGear::Standard ? VaelEngineerGear::Find(ShotAmmo) : nullptr;
 			const FVector From = GetActorLocation() + FVector(0.0f, 0.0f, 80.0f);
-			AVaelEngineerShot::Launch(Eng, From, Nearest->GetActorLocation(), 2600.0f, 40.0f, 7.0f * Eng->GetDamageScale() * (1.0f + 0.5f * (Eng->GetTierScale() - 1.0f)), ShotAmmo, false,
+			AVaelEngineerShot::Launch(Eng, From, Nearest->GetActorLocation(), 2600.0f, 40.0f, 9.0f * Eng->GetDamageScale() * (1.0f + 0.5f * (Eng->GetTierScale() - 1.0f)), ShotAmmo, false,
 				AmmoGear != nullptr ? AmmoGear->Color : FLinearColor(0.55f, 0.5f, 0.45f), 8.0f);
 			LoadedShots = FMath::Max(LoadedShots - 1, 0);
 			SetActorRotation(FRotator(0.0f, (Nearest->GetActorLocation() - GetActorLocation()).Rotation().Yaw, 0.0f));

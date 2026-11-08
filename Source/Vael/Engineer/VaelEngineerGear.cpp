@@ -128,7 +128,7 @@ namespace
 		All.Add(MakeWeapon(VaelEngineerGear::Bow, LOCTEXT("Bogen", "Bogen aus lebendem Holz"),
 			LOCTEXT("BogenText", "Sein Meisterstück: Narbenholz, das noch wächst, mit Spannfaden bespannt. In ihn schlägt er sein Zeichen, und ab dann trägt alles, was er baut, dieses Zeichen. Weit und hart."),
 			GearRgb(120, 160, 90), { { TEXT("Narbenholz"), 4 }, { TEXT("Spannfaden"), 3 }, { TEXT("Rankenfaser"), 2 } }, VaelEngineerGear::Sling,
-			16.0f, 0.85f, 1900.0f, 3600.0f, 18.0f, false, LOCTEXT("Holzpfeile", "Holzpfeile")));
+			14.0f, 0.85f, 1900.0f, 3600.0f, 18.0f, false, LOCTEXT("Holzpfeile", "Holzpfeile")));
 		All.Last().SweetMin = 800.0f;
 		All.Last().SweetMax = 1500.0f;
 		All.Add(MakeWeapon(VaelEngineerGear::Crossbow, LOCTEXT("Armbrust", "Armbrust"),
