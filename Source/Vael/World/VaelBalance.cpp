@@ -302,13 +302,19 @@ void UVaelBalanceSubsystem::UpdateMarks()
 			Mark = UMaterialInstanceDynamic::Create(MarkMaterial, this);
 		}
 		// every mesh of the body wears it (MetaHumans are several meshes); a new look of the hero gets it again
+		// The Floromant keeps her own look: her Nid shows on the plants and the HUD (later on wings or clothes), never over the whole body
+		const bool bWearsMark = !It->IsFloromant();
 		TArray<USkeletalMeshComponent*> Meshes;
 		It->GetComponents<USkeletalMeshComponent>(Meshes);
 		for (USkeletalMeshComponent* Mesh : Meshes)
 		{
-			if (Mesh->GetOverlayMaterial() != Mark)
+			if (bWearsMark && Mesh->GetOverlayMaterial() != Mark)
 			{
 				Mesh->SetOverlayMaterial(Mark);
+			}
+			else if (!bWearsMark && Mesh->GetOverlayMaterial() == Mark)
+			{
+				Mesh->SetOverlayMaterial(nullptr);
 			}
 		}
 
