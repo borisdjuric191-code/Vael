@@ -228,6 +228,16 @@ void AVaelCharacter::FollowMesh(AActor* Human)
 	}
 }
 
+TSoftClassPtr<AActor> AVaelCharacter::GetClassMetaHuman() const
+{
+	switch (HeroClass)
+	{
+	case EVaelHeroClass::Engineer: return EngineerMetaHumanClass;
+	case EVaelHeroClass::Floromant: return BaseLook == 1 ? FloromantMetaHumanClass : TSoftClassPtr<AActor>();
+	default: return BaseLook == 0 ? MetaHumanClass : TSoftClassPtr<AActor>();
+	}
+}
+
 void AVaelCharacter::SpawnMetaHumanCopies(int32 Count)
 {
 	UClass* MetaHumanActorClass = VaelAssets::LoadOptionalClass(MetaHumanClass);
@@ -249,17 +259,19 @@ void AVaelCharacter::SpawnMetaHumanCopies(int32 Count)
 
 void AVaelCharacter::SetMetaHumanShown(bool bShown)
 {
-	if (bShown == (MetaHuman != nullptr))
+	// The MetaHuman of the class and body played now; a class without one keeps its base look
+	const TSoftClassPtr<AActor> WantedClass = GetClassMetaHuman();
+	UClass* MetaHumanActorClass = bShown && !WantedClass.IsNull() ? VaelAssets::LoadOptionalClass(WantedClass) : nullptr;
+	if (MetaHuman != nullptr && MetaHuman->GetClass() == MetaHumanActorClass)
 	{
 		return;
 	}
-
-	if (!bShown)
+	if (MetaHuman != nullptr)
 	{
 		MetaHuman->Destroy();
 		MetaHuman = nullptr;
 	}
-	else if (UClass* MetaHumanActorClass = VaelAssets::LoadOptionalClass(MetaHumanClass))
+	if (MetaHumanActorClass != nullptr)
 	{
 		FActorSpawnParameters SpawnParameters;
 		SpawnParameters.Owner = this;
@@ -312,6 +324,10 @@ void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
 
 	if (bHeroSet && HeroClass == InClass)
 	{
+		if (GetWorld() != nullptr && GetWorld()->HasBegunPlay())
+		{
+			SetMetaHumanShown(bMetaHumanByDefault);
+		}
 		return;
 	}
 
@@ -338,6 +354,10 @@ void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
 	SetManaRegen(bFloromant ? FloromantSettings->SaftPerSecond : MageManaRegen);
 
 	UE_LOG(LogVael, Log, TEXT("'%s' plays the %s"), *GetNameSafe(this), bFloromant ? TEXT("Floromant") : bMage ? TEXT("mage") : TEXT("engineer"));
+	if (GetWorld() != nullptr && GetWorld()->HasBegunPlay())
+	{
+		SetMetaHumanShown(bMetaHumanByDefault);
+	}
 }
 
 void AVaelCharacter::BeginPlay()
@@ -350,10 +370,12 @@ void AVaelCharacter::BeginPlay()
 		GetMesh()->SetAnimInstanceClass(AnimClass);
 	}
 
+	bMetaHumanByDefault = !FParse::Param(FCommandLine::Get(), TEXT("VaelNoMetaHuman"));
 	if (!bHeroSet)
 	{
 		SetHero(EVaelHeroClass::Mage, false);
 	}
+	SetMetaHumanShown(bMetaHumanByDefault);
 
 	LoadedDodgeMontage = VaelAssets::LoadOptional(DodgeMontage);
 	LoadedSpellDashMontage = VaelAssets::LoadOptional(SpellDashMontage);

@@ -133,6 +133,20 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftClassPtr<AActor> MetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Magier_Build/MH_Magier/BP_MH_Magier.BP_MH_Magier_C")));
 
+	/** The MetaHumans of the other classes (Boris 2026-11-08): the engineer, stocky, and the Floromantin, slender; used once
+	 *  built (Tools/Kreaturenfabrik/unreal/vael_metahuman_klassen.py), the base look until then */
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftClassPtr<AActor> EngineerMetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Ingenieur_Build/MH_Ingenieur/BP_MH_Ingenieur.BP_MH_Ingenieur_C")));
+
+	UPROPERTY(EditAnywhere, Category="Appearance")
+	TSoftClassPtr<AActor> FloromantMetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Floromantin_Build/MH_Floromantin/BP_MH_Floromantin.BP_MH_Floromantin_C")));
+
+	/** The MetaHuman of the class and body played now, null if there is none (yet) */
+	TSoftClassPtr<AActor> GetClassMetaHuman() const;
+
+	/** Shows the MetaHuman of the class by default (VaelGestalt switches by hand); off with -VaelNoMetaHuman */
+	bool bMetaHumanByDefault = true;
+
 	/** What the MetaHuman wears, on its skeleton: the starting robe (vael_kleidung_anpassen.py) and the boots (vael_stiefel_bauen.py) */
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TArray<TSoftObjectPtr<USkeletalMesh>> MetaHumanClothes = {
@@ -217,6 +231,9 @@ public:
 
 	/** Shows the MetaHuman body instead of the base look. The base look stays hidden underneath and keeps animating: the body follows it. */
 	void SetMetaHumanShown(bool bShown);
+
+	/** Whether the MetaHuman of the class is shown whenever class or body change (VaelGestalt turns it off and on) */
+	void SetMetaHumanByDefault(bool bOn) { bMetaHumanByDefault = bOn; }
 
 	/** Performance test: more MetaHumans standing around the player and moving with it, the cost of a co-op group */
 	void SpawnMetaHumanCopies(int32 Count);

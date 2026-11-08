@@ -999,6 +999,7 @@ void UVaelCheatManager::VaelGestalt(const FString& Look)
 	if (AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr)
 	{
 		const bool bMetaHuman = Look.StartsWith(TEXT("meta"), ESearchCase::IgnoreCase);
+		Player->SetMetaHumanByDefault(bMetaHuman);
 		Player->SetMetaHumanShown(bMetaHuman);
 		if (!bMetaHuman)
 		{
