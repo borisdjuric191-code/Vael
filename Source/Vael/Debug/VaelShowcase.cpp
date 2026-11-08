@@ -100,6 +100,60 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		}
 	}
 
+	// -VaelShowcaseWalkTo=X,Y (world metres): the first player walks there with real movement input after the first command
+	// step; logs every second where it is and whether it got there or got stuck (a wall in the way)
+	FString WalkText;
+	if (NumCommandsRun > 0 && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseWalkTo="), WalkText, false))
+	{
+		TArray<FString> Parts;
+		WalkText.ParseIntoArray(Parts, TEXT(","));
+		const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+		if (PlayerPawn != nullptr && Parts.Num() >= 2 && !bWalkDone)
+		{
+			const FVector Target(FCString::Atof(*Parts[0]) * 100.0, FCString::Atof(*Parts[1]) * 100.0, PlayerPawn->GetActorLocation().Z);
+			const FVector Here = PlayerPawn->GetActorLocation();
+			const float Left = FVector::Dist2D(Here, Target);
+			if (Left < 80.0f)
+			{
+				bWalkDone = true;
+				UE_LOG(LogVael, Display, TEXT("[WalkTest] reached %s after %.1f s"), *Target.ToCompactString(), Age - WalkStart);
+			}
+			else
+			{
+				if (WalkStart < 0.0f)
+				{
+					WalkStart = Age;
+					WalkCheckTime = Age;
+					WalkCheckLocation = Here;
+				}
+				PlayerPawn->AddMovementInput((Target - Here).GetSafeNormal2D());
+				if (Age - WalkCheckTime > 1.0f)
+				{
+					const float Moved = FVector::Dist2D(Here, WalkCheckLocation);
+					UE_LOG(LogVael, Display, TEXT("[WalkTest] at %s, %.0f cm left, moved %.0f cm"), *Here.ToCompactString(), Left, Moved);
+					if (Moved < 20.0f && Age - WalkStart > 2.0f)
+					{
+						bWalkDone = true;
+						UE_LOG(LogVael, Display, TEXT("[WalkTest] STUCK at %s, %.0f cm before the target"), *Here.ToCompactString(), Left);
+						// What is in the way: a capsule sweep towards the target
+						TArray<FHitResult> Hits;
+						FCollisionQueryParams Query(TEXT("WalkTest"), false, PlayerPawn);
+						const FVector Ahead = (Target - Here).GetSafeNormal2D();
+						GetWorld()->SweepMultiByChannel(Hits, Here, Here + Ahead * 150.0f, FQuat::Identity, ECC_Pawn, FCollisionShape::MakeCapsule(40.0f, 80.0f), Query);
+						for (const FHitResult& Hit : Hits)
+						{
+							UE_LOG(LogVael, Display, TEXT("[WalkTest] blocked by %s (%s) component %s at %s"), *GetNameSafe(Hit.GetActor()),
+								Hit.GetActor() != nullptr ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("-"), *GetNameSafe(Hit.GetComponent()), *Hit.ImpactPoint.ToCompactString());
+						}
+					}
+					WalkCheckTime = Age;
+					WalkCheckLocation = Here;
+				}
+			}
+		}
+	}
+
 	// -VaelShowcasePlayerView=X,Y,Z: close camera on the player from a place in its own frame (cm, X ahead, Y right), like 220,-140,60
 	FString PlayerViewText;
 	if (FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcasePlayerView="), PlayerViewText, false))

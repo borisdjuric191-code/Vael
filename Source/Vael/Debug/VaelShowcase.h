@@ -54,4 +54,9 @@ private:
 	/** Close camera that follows a creature, if asked for */
 	UPROPERTY(Transient)
 	TObjectPtr<class ACameraActor> Closeup;
+	/** Walk test (-VaelShowcaseWalkTo) */
+	bool bWalkDone = false;
+	float WalkStart = -1.0f;
+	float WalkCheckTime = 0.0f;
+	FVector WalkCheckLocation = FVector::ZeroVector;
 };

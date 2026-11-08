@@ -9,6 +9,7 @@
 #   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="C:/Projekte/Vael/Scripts/FixDorf.py" -EnablePlugins=PythonScriptPlugin -unattended
 
 import os
+import random
 import sys
 
 import unreal
@@ -19,7 +20,10 @@ import BuildKulisse as bk  # noqa: E402
 LEVEL = "/Game/Vael/Maps/L_Vael"
 TAG = "VaelDorfFix"
 WALL_PREFIXES = ("SM_MossyStoneWall", "SM_StoneWall", "SM_CastleWall", "SM_Medieval", "SM_DamagedCastleStairs")
-CORNER = "/Game/Megascans/3D_Assets/MedievalModularCornerWall1x2M/SM_MedievalModularCornerWall1x2M"
+# The chapel has its own low rubble walls (folder Kulisse) with a door in the south and a gap in the west; pillars where
+# the hidden cubes stood would close them again, so they stay off
+BUILD_PILLARS = False
+STONE = "/Game/Megascans/3D_Assets/MossyStoneWallC/SM_MossyStoneWallC_02"
 
 
 def log(message):
@@ -46,10 +50,19 @@ def main():
     level_actors = actors.get_all_level_actors()
 
     master = unreal.load_asset(bk.FOLDER + "/M_AM_Kulisse")
-    corner_mesh = unreal.load_asset(CORNER)
-    corner_mi, _ = bk.pack_instance(master, CORNER, bk.RUIN)
+    # The pack rubble wall carries a collision hull that sticks out about 1.3 m past the stones: that was the invisible wall
+    # in the doorways. Our own copy collides exactly as it looks; the pack asset stays as it is.
+    own_wall_path = bk.FOLDER + "/SM_AM_Bruchsteinmauer"
+    if not unreal.EditorAssetLibrary.does_asset_exist(own_wall_path):
+        unreal.EditorAssetLibrary.duplicate_asset(STONE, own_wall_path)
+    own_wall = unreal.load_asset(own_wall_path)
+    own_wall.get_editor_property("body_setup").set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+    unreal.EditorAssetLibrary.save_loaded_asset(own_wall, False)
+    stone_mesh = unreal.load_asset(STONE)
+    stone_mi, _ = bk.pack_instance(master, STONE, bk.RUIN)
+    rng = random.Random(811)
     instances = {}
-    freed = pillars = painted = 0
+    freed = pillars = painted = props = swapped = 0
     for actor in level_actors:
         if not isinstance(actor, unreal.StaticMeshActor):
             continue
@@ -61,34 +74,58 @@ def main():
             (folder.startswith("Kesselgrund (aus L_Aschenmark)/Dorf/Haus") and label == "Mauer")
             or (folder == "Kesselgrund (aus L_Aschenmark)/Dorf/Kapelle" and label == "Mauer")
             or (folder == "Kesselgrund (aus L_Aschenmark)/Krater" and label == "Fels")
-            or (folder == "Kesselgrund (aus L_Aschenmark)/Lager" and label.startswith("Kiste")))
+            or (folder == "Kesselgrund (aus L_Aschenmark)/Lager" and label.startswith("Kiste"))
+            or (folder == "Kesselgrund (aus L_Aschenmark)/Dorf/Gildenspeicher/Kulisse" and label != "Boden"))
         if blockout:
             no_collision(actor)
             freed += 1
-            if folder.endswith("/Kapelle") and corner_mesh is not None:
-                # A broken corner of masonry where the hidden pillar stood, as high as it was
+            # A ruin: about every fourth pillar of the chapel has fallen, so it can be walked into from several sides
+            if BUILD_PILLARS and folder.endswith("/Kapelle") and stone_mesh is not None and rng.random() >= 0.28:
+                # A pillar of the same rubble stone as the house walls where the hidden pillar stood: blocks stacked
+                # crosswise, the top broken off at a random height
                 origin, extent = actor.get_actor_bounds(False)
-                box = corner_mesh.get_bounding_box()
-                sx = extent.x * 2 / max(box.max.x - box.min.x, 1.0)
-                sy = extent.y * 2 / max(box.max.y - box.min.y, 1.0)
-                sz = extent.z * 2 / max(box.max.z - box.min.z, 1.0)
-                loc = unreal.Vector(origin.x - (box.min.x + box.max.x) * 0.5 * sx, origin.y - (box.min.y + box.max.y) * 0.5 * sy,
-                                    origin.z - extent.z - box.min.z * sz - 5.0)
-                pillar = actors.spawn_actor_from_class(unreal.StaticMeshActor, loc, actor.get_actor_rotation())
-                pillar.static_mesh_component.set_static_mesh(corner_mesh)
-                pillar.set_actor_scale3d(unreal.Vector(sx, sy, sz))
-                if corner_mi is not None:
-                    pillar.static_mesh_component.set_material(0, corner_mi)
-                pillar.set_folder_path(folder)
-                pillar.set_actor_label("Kapellenpfeiler")
-                pillar.set_editor_property("tags", [unreal.Name(TAG)])
+                box = stone_mesh.get_bounding_box()
+                bx, by, bz = box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z
+                height = min(extent.z * 2 * rng.uniform(0.3, 0.75), 250.0)
+                course, z = 0, origin.z - extent.z - 10.0
+                while z < origin.z - extent.z + height:
+                    yaw = actor.get_actor_rotation().yaw + (90.0 if course % 2 else 0.0) + rng.uniform(-6, 6)
+                    scale = unreal.Vector(extent.x * 2.1 / bx, extent.x * 2.1 / by, 1.0)
+                    block = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(origin.x, origin.y, z - box.min.z), unreal.Rotator(0.0, 0.0, yaw))
+                    block.static_mesh_component.set_static_mesh(stone_mesh)
+                    block.set_actor_scale3d(scale)
+                    if stone_mi is not None:
+                        block.static_mesh_component.set_material(0, stone_mi)
+                    block.set_folder_path(folder)
+                    block.set_actor_label("Kapellenpfeiler")
+                    block.set_editor_property("tags", [unreal.Name(TAG)])
+                    z += bz * 0.85
+                    course += 1
                 pillars += 1
             continue
-        if hidden or mesh is None or not mesh.get_name().startswith(WALL_PREFIXES):
+        if hidden or mesh is None:
+            continue
+        if not mesh.get_name().startswith(WALL_PREFIXES):
+            # Small things of the ported places (barrels, crates, wheelbarrow, beams, rubble): the same look as the scenery,
+            # their foot running out into the ash; skipped: engine shapes, our own buildings and things without pack textures
+            path = mesh.get_path_name().split(".")[0]
+            if not folder.startswith("Kesselgrund (aus L_Aschenmark)") or not path.startswith(("/Game/Megascans", "/Game/Meshes")):
+                continue
+            if path not in instances:
+                instances[path] = bk.pack_instance(master, path, bk.JUNK)[0]
+            if instances[path] is not None:
+                actor.modify()
+                for slot in range(actor.static_mesh_component.get_num_materials()):
+                    actor.static_mesh_component.set_material(slot, instances[path])
+                props += 1
             continue
         path = mesh.get_path_name().split(".")[0]
         if path not in instances:
             instances[path] = bk.pack_instance(master, path, bk.RUIN)[0]
+        if path == STONE:
+            actor.modify()
+            actor.static_mesh_component.set_static_mesh(own_wall)
+            swapped += 1
         if instances[path] is not None:
             actor.modify()
             for slot in range(actor.static_mesh_component.get_num_materials()):
@@ -101,12 +138,15 @@ def main():
         if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Boden":
             continue
         mesh = actor.static_mesh_component.static_mesh
-        if mesh is None or mesh.get_name() != "Cube" or actor.get_editor_property("hidden"):
+        if mesh is None or mesh.get_name() != "Cube" or not str(actor.get_folder_path()).startswith(("Kesselgrund (aus L_Aschenmark)/Dorf", "Kesselgrund (aus L_Aschenmark)/Kontor")):
             continue
         origin, extent = actor.get_actor_bounds(False)
         actor.modify()
         actor.set_actor_hidden_in_game(True)
         actor.static_mesh_component.set_editor_property("visible", False)
+        # its raised edge stopped the players at the threshold; the ground below is the landscape
+        actor.set_actor_enable_collision(False)
+        actor.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
         if floor_material is not None:
             decal = actors.spawn_actor_from_class(unreal.DecalActor, unreal.Vector(origin.x, origin.y, origin.z), unreal.Rotator(0.0, -90.0, actor.get_actor_rotation().yaw))
             decal.decal.set_decal_material(floor_material)
@@ -126,7 +166,13 @@ def main():
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL)
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(False, True)
-    log("{} invisible walls freed, {} chapel pillars built, {} walls in their own stone look ({} wall kinds)".format(freed, pillars, painted, len(instances)))
+    log("{} rubble walls now collide as they look".format(swapped))
+    log("{} invisible walls freed, {} chapel pillars built, {} walls in their own stone look, {} small things in the scenery look ({} meshes)".format(
+        freed, pillars, painted, props, len(instances)))
+    for actor in actors.get_all_level_actors():
+        if actor.get_actor_label() == "Lehmboden":
+            loc = actor.get_actor_location()
+            log("floor {} at {:.1f} {:.1f}".format(actor.get_folder_path(), loc.x / 100.0, loc.y / 100.0))
 
 
 main()
