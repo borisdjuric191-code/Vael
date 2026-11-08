@@ -275,3 +275,10 @@ Statt einer Datei pro Kulturkreis liegt alles in einer Datei, `Scripts/Data/Name
   - 11 Leute sind 0,8 bis 3 m ausgewichen, vor allem in Lager, Dorf und Kontor.
 - **Im Spiel gesehen:** Schlackengräber, Hof, Predigerlager, Glutjäger, Lager und Kontor. Die Leute stehen frei, die Namen sind sichtbar, Kinder sind kleiner.
 - **Hinweis zum Cheat:** `VaelTeleport` genau auf die Dorfmitte landet auf einer Ruinenmauer. Die Figur erscheint dann wieder im Lager. Das betrifft den Test-Cheat, nicht die NPCs.
+
+## Stand Schritt 6 (8.11.)
+- Jeder neue NPC trägt `Places` (Arbeit, Feuer, Schlaf; Fuhrleute: Halte + Schlaf), gesetzt von Scripts/PlaceSiedlungen.py mit derselben Freiflächenprüfung.
+- Eigene Zeiten je Person (±45 min), Kinder früher, Alte etwas früher ins Bett. Arbeit ab ~6:30, Feuer ab ~19, Schlaf ab ~22:30. Fuhrleute fahren den Tag über die Halte ab.
+- Wechsel nur, wenn kein Spieler näher als 45 m an altem oder neuem Platz ist. Schlafende sind drinnen (versteckt, kein Name, kein Gespräch).
+- Story-Leute (Edda, Albrun, Maren) und die alten Bystander bleiben stehen.
+- Test: `VaelTime 20.5` + `VaelTagesablauf` zwingt alle sofort an den Platz der Stunde.

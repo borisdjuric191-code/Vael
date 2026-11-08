@@ -292,6 +292,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelTime(float Hour);
 
+	/** Every person goes to the place of the hour at once, even in sight (to test the day of the settlements) */
+	UFUNCTION(Exec)
+	void VaelTagesablauf();
+
 	/** Runs the clock this many times as fast, 1 for normal. Example: VaelTimeSpeed 30 */
 	UFUNCTION(Exec)
 	void VaelTimeSpeed(float Speed);

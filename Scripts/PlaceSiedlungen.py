@@ -168,14 +168,51 @@ def place_building(art, spot, folder):
     tag(actor, folder, art)
 
 
-def place_person(settlement, person, spot, gossip, folder):
+def person_height(person):
+    return {"kind": 0.62, "jung": 0.94, "alt": 0.92}.get(person["alter"], 1.0)
+
+
+def day_place(kind, x, y, yaw, person):
+    """One place of the day of a person: the actor centre stands 92 cm (scaled) above the ground"""
+    place = unreal.VaelNpcPlace()
+    place.set_editor_property("kind", kind)
+    place.set_editor_property("location", unreal.Vector(x * M, y * M, ground(x, y) * M + 92.0 * person_height(person)))
+    place.set_editor_property("yaw", yaw)
+    return place
+
+
+def day_places(person, free, work):
+    """Work (already found free), fire and sleep, or the stops of a carter; fire spots and stops get the same free-ground
+    check as the work spots, the sleeping place not (a sleeping person is inside, hidden)"""
+    places = []
+    plaetze = person.get("plaetze", {})
+    if work is not None and "arbeit" in plaetze:
+        places.append(day_place(unreal.VaelNpcPlaceKind.WORK, work[0], work[1], work[2], person))
+    for index, stop in enumerate(person.get("halte", [])):
+        spot = work if index == 0 and work is not None else free.free_spot(stop["x"], stop["y"])
+        if spot is not None:
+            places.append(day_place(unreal.VaelNpcPlaceKind.STOP, spot[0], spot[1], stop["yaw"], person))
+    if "feuer" in plaetze:
+        fire = plaetze["feuer"]
+        spot = free.free_spot(fire["x"], fire["y"])
+        if spot is not None:
+            places.append(day_place(unreal.VaelNpcPlaceKind.FIRE, spot[0], spot[1], fire["yaw"], person))
+        else:
+            log("no free ground at the fire for " + person["name"])
+    if "schlaf" in plaetze:
+        sleep = plaetze["schlaf"]
+        places.append(day_place(unreal.VaelNpcPlaceKind.SLEEP, sleep["x"], sleep["y"], sleep["yaw"], person))
+    return places
+
+
+def place_person(settlement, person, spot, gossip, folder, places):
     shade = ROBES.get(settlement["fraktion"], (0.3, 0.25, 0.2))
     robe = unreal.LinearColor(*(min(1.0, c * rng.uniform(0.8, 1.25)) for c in shade), 1.0)
-    height = {"kind": 0.62, "jung": 0.94, "alt": 0.92}.get(person["alter"], 1.0)
-    z = ground(spot[0], spot[1]) * M + 92.0 * height
+    z = ground(spot[0], spot[1]) * M + 92.0 * person_height(person)
     npc = actors.spawn_actor_from_class(unreal.VaelNpc, unreal.Vector(spot[0] * M, spot[1] * M, z), unreal.Rotator(0, 0, spot[2]))
     npc.set_editor_property("identity", identity(settlement, person))
     npc.set_editor_property("robe_color", robe)
+    npc.set_editor_property("places", places)
     if gossip is not None:
         npc.set_editor_property("gossip", gossip)
     tag(npc, folder, person["name"])
@@ -202,6 +239,7 @@ def main():
         if isinstance(actor, unreal.VaelNpc):
             npcs.setdefault(actor.get_actor_label(), []).append(actor)
     updated = 0
+    schedules = 0
     moved = []
     # Buildings first, so the people keep clear of them
     for settlement in data["siedlungen"]:
@@ -237,10 +275,13 @@ def main():
                 continue
             if math.hypot(spot[0] - start["x"], spot[1] - start["y"]) > 0.1:
                 moved.append("{} {:.1f} m".format(person["name"], math.hypot(spot[0] - start["x"], spot[1] - start["y"])))
-            place_person(settlement, person, (spot[0], spot[1], start["yaw"]), gossip, folder + "/Leute")
+            work = (spot[0], spot[1], start["yaw"])
+            places = day_places(person, free, work)
+            place_person(settlement, person, work, gossip, folder + "/Leute", places)
+            schedules += 1
 
     log("{} obstacles known; {} people moved off something: {}".format(free.obstacles, len(moved), ", ".join(moved)))
-    log("{} people updated, spawned: {}".format(updated, counts))
+    log("{} people updated, {} with a day schedule, spawned: {}".format(updated, schedules, counts))
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL)
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(False, True)
     log("saved")

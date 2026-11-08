@@ -19,6 +19,7 @@
 #include "Story/VaelQuestSubsystem.h"
 #include "World/VaelGround.h"
 #include "World/VaelProgressSubsystem.h"
+#include "World/VaelTimeOfDay.h"
 
 namespace
 {
@@ -78,7 +79,12 @@ void AVaelNpc::Tick(float DeltaSeconds)
 	Super::Tick(DeltaSeconds);
 
 	const float Now = GetWorld()->GetTimeSeconds();
-	if (Gossip == nullptr || Now < NextGossipTime)
+	if (Places.Num() > 0 && Now >= NextDayCheckTime)
+	{
+		NextDayCheckTime = Now + FMath::FRandRange(2.0f, 4.0f);
+		FollowDay(false);
+	}
+	if (bAsleep || Gossip == nullptr || Now < NextGossipTime)
 	{
 		return;
 	}
@@ -175,6 +181,107 @@ void AVaelNpc::BeginPlay()
 	}
 
 	UVaelInteractionSubsystem::Register(this);
+
+	// Streamed in out of sight: straight to the place of the hour
+	FollowDay(true);
+}
+
+const FVaelNpcPlace* AVaelNpc::GetWantedPlace(float Hour) const
+{
+	auto Find = [this](EVaelNpcPlaceKind Kind) -> const FVaelNpcPlace*
+	{
+		return Places.FindByPredicate([Kind](const FVaelNpcPlace& Place) { return Place.Kind == Kind; });
+	};
+	if (Places.IsEmpty())
+	{
+		return nullptr;
+	}
+
+	// Everybody keeps their own hours, up to 45 minutes earlier or later; children go to bed early, old people a little early
+	const uint32 Seed = GetTypeHash(GetDisplayName().ToString());
+	const float Own = (static_cast<float>(Seed % 91) - 45.0f) / 60.0f;
+	const float Bed = 22.5f + Own - (Identity.Age == EVaelNpcAge::Child ? 1.5f : Identity.Age == EVaelNpcAge::Old ? 0.5f : 0.0f);
+	const float Rise = 6.5f + Own;
+	const float Evening = 19.0f + Own * 0.5f;
+	const bool bNight = Hour >= Bed || Hour < Rise;
+
+	// Carters go from stop to stop through the day and sleep where the night finds them, or at their last stop
+	TArray<const FVaelNpcPlace*> Stops;
+	for (const FVaelNpcPlace& Place : Places)
+	{
+		if (Place.Kind == EVaelNpcPlaceKind::Stop)
+		{
+			Stops.Add(&Place);
+		}
+	}
+	if (Stops.Num() > 0)
+	{
+		const FVaelNpcPlace* Sleep = Find(EVaelNpcPlaceKind::Sleep);
+		if (bNight)
+		{
+			return Sleep != nullptr ? Sleep : Stops.Last();
+		}
+		const float Day = FMath::Clamp((Hour - Rise) / FMath::Max(Bed - Rise, 1.0f), 0.0f, 0.999f);
+		return Stops[FMath::FloorToInt32(Day * Stops.Num())];
+	}
+
+	const FVaelNpcPlace* Work = Find(EVaelNpcPlaceKind::Work);
+	const FVaelNpcPlace* Fire = Find(EVaelNpcPlaceKind::Fire);
+	const FVaelNpcPlace* Sleep = Find(EVaelNpcPlaceKind::Sleep);
+	const FVaelNpcPlace* Wanted = bNight ? Sleep : Hour >= Evening ? Fire : Work;
+	if (Wanted == nullptr && bNight)
+	{
+		Wanted = Fire;
+	}
+	return Wanted != nullptr ? Wanted : Work != nullptr ? Work : &Places[0];
+}
+
+void AVaelNpc::FollowDayNow()
+{
+	FollowDay(true);
+}
+
+void AVaelNpc::FollowDay(bool bForce)
+{
+	const UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(this);
+	const FVaelNpcPlace* Wanted = GetWantedPlace(Clock != nullptr ? Clock->GetHour() : 12.0f);
+	if (Wanted == nullptr)
+	{
+		return;
+	}
+	const int32 WantedIndex = static_cast<int32>(Wanted - Places.GetData());
+	if (WantedIndex == CurrentPlace)
+	{
+		return;
+	}
+
+	// Nobody may watch them go or arrive: like in a real camp, people are simply elsewhere when you look again
+	if (!bForce)
+	{
+		for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+		{
+			const APawn* Player = It->Get() != nullptr ? It->Get()->GetPawn() : nullptr;
+			if (Player != nullptr && (FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) < UnseenDistance
+				|| FVector::Dist2D(Player->GetActorLocation(), Wanted->Location) < UnseenDistance))
+			{
+				return;
+			}
+		}
+	}
+	CurrentPlace = WantedIndex;
+	MoveTo(*Wanted);
+}
+
+void AVaelNpc::MoveTo(const FVaelNpcPlace& Place)
+{
+	SetActorLocationAndRotation(Place.Location, FRotator(0.0f, Place.Yaw, 0.0f), false, nullptr, ETeleportType::TeleportPhysics);
+	bAsleep = Place.Kind == EVaelNpcPlaceKind::Sleep;
+	SetActorHiddenInGame(bAsleep);
+	SetActorEnableCollision(!bAsleep);
+	if (bAsleep)
+	{
+		GossipIndex = INDEX_NONE;
+	}
 }
 
 void AVaelNpc::EndPlay(const EEndPlayReason::Type EndPlayReason)

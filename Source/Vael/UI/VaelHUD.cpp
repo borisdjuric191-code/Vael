@@ -2381,7 +2381,7 @@ void AVaelHUD::DrawNpcMarkers()
 	for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
 	{
 		const FVector Screen = Project(It->GetActorLocation() + FVector(0.0f, 0.0f, 150.0f), false);
-		if (Screen.Z <= 0.0f)
+		if (Screen.Z <= 0.0f || It->IsAsleep())
 		{
 			continue;
 		}
@@ -3067,7 +3067,7 @@ void AVaelHUD::DrawMapMarkers(const FMapView& View, const TArray<const AVaelPlay
 	for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
 	{
 		const FVector2D Point = View.ToScreen(FVector2D(It->GetActorLocation()));
-		if (!IsInside(Point, 4.0f * S))
+		if (!IsInside(Point, 4.0f * S) || It->IsAsleep())
 		{
 			continue;
 		}

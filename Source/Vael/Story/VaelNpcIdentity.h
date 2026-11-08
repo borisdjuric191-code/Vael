@@ -85,3 +85,34 @@ struct FVaelNpcIdentity
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Npc")
 	EVaelProphetAttitude Prophet = EVaelProphetAttitude::None;
 };
+
+/** Kinds of places in the day of a person */
+UENUM(BlueprintType)
+enum class EVaelNpcPlaceKind : uint8
+{
+	/** Where they work by day */
+	Work UMETA(DisplayName="Arbeit"),
+	/** Where they sit in the evening */
+	Fire UMETA(DisplayName="Feuer"),
+	/** Where they sleep; a sleeping person is inside and out of sight */
+	Sleep UMETA(DisplayName="Schlaf"),
+	/** A stop of a carter on the road; carters go from stop to stop through the day */
+	Stop UMETA(DisplayName="Halt")
+};
+
+/** One place of the day of a person, set by Scripts/PlaceSiedlungen.py */
+USTRUCT(BlueprintType)
+struct FVaelNpcPlace
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Npc")
+	EVaelNpcPlaceKind Kind = EVaelNpcPlaceKind::Work;
+
+	/** Where the actor stands (its centre, above the ground) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Npc")
+	FVector Location = FVector::ZeroVector;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Npc")
+	float Yaw = 0.0f;
+};

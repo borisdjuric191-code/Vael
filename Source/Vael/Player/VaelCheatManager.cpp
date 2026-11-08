@@ -72,6 +72,7 @@
 #include "World/VaelAtmosphere.h"
 #include "World/VaelLocalWeather.h"
 #include "World/VaelTimeOfDay.h"
+#include "Story/VaelNpc.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGameplayTags.h"
 
@@ -485,6 +486,17 @@ void UVaelCheatManager::VaelTime(float Hour)
 		Clock->SetHour(Hour);
 		UE_LOG(LogVael, Display, TEXT("VaelTime: %.1f h, %s, night %.2f"), Clock->GetHour(), *UEnum::GetValueAsString(Clock->GetPhase()), Clock->GetNightFactor());
 	}
+}
+
+void UVaelCheatManager::VaelTagesablauf()
+{
+	int32 Moved = 0;
+	for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+	{
+		It->FollowDayNow();
+		Moved += It->IsAsleep() ? 1 : 0;
+	}
+	UE_LOG(LogVael, Display, TEXT("VaelTagesablauf: people follow their day, %d asleep"), Moved);
 }
 
 void UVaelCheatManager::VaelTimeSpeed(float Speed)
