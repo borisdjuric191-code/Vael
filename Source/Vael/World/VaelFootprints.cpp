@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelFootprints.h"
+#include "Misc/App.h"
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelAshRoller.h"
 #include "Creatures/VaelAshHarpy.h"
@@ -43,7 +44,8 @@ bool UVaelFootprintSubsystem::EnsureResources()
 	{
 		return true;
 	}
-	if (bTriedResources)
+	// No renderer (dedicated server, -nullrhi stream test): nothing to draw into
+	if (bTriedResources || !FApp::CanEverRender())
 	{
 		return false;
 	}
@@ -77,6 +79,10 @@ void UVaelFootprintSubsystem::Recentre(const FVector2D& Centre)
 		FVector2D CanvasSize;
 		FDrawToRenderTargetContext Context;
 		UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, Spare, Canvas, CanvasSize, Context);
+		if (Canvas == nullptr)
+		{
+			return;
+		}
 		Canvas->K2_DrawTexture(Map, Shift, FVector2D(Pixels), FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Opaque);
 		UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
 		UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, Map, Canvas, CanvasSize, Context);
@@ -106,6 +112,10 @@ void UVaelFootprintSubsystem::Stamp(const FVector& Location, float Yaw, EVaelPri
 	FVector2D CanvasSize;
 	FDrawToRenderTargetContext Context;
 	UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, Map, Canvas, CanvasSize, Context);
+	if (Canvas == nullptr)
+	{
+		return;
+	}
 	const int32 Cell = static_cast<int32>(Print);
 	// Colour = (depth, clock); the shape's alpha blends it over what is there
 	Canvas->K2_DrawTexture(Shapes, FVector2D(Local.X, Local.Y) - FVector2D(SizePixels * 0.5f), FVector2D(SizePixels),
