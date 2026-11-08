@@ -20,7 +20,8 @@ library = unreal.MaterialEditingLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 
 PIECES = ["SM_IW_Esse", "SM_IW_Blasebalg", "SM_IW_Amboss", "SM_IW_Loeschfass", "SM_IW_Werkzeugwand", "SM_IW_Schraubstock",
-          "SM_IW_Schleifstein", "SM_IW_Zeichentisch", "SM_IW_Regal", "SM_IW_Munitionskiste", "SM_IW_Schrottkiste"]
+          "SM_IW_Schleifstein", "SM_IW_Zeichentisch", "SM_IW_Regal", "SM_IW_Munitionskiste", "SM_IW_Schrottkiste",
+          "SM_IW_Hammer", "SM_IW_Zange"]
 # Where they stand round the workbench (profile 745/600 of the room plan): offset in cm (X north, Y east) and yaw;
 # the working side (+X) of each faces the bench and the hall in the west
 BENCH = unreal.Vector((560 - 600) * 100 / 14, (745 - 520) * 100 / 14, 0.0)
@@ -32,6 +33,8 @@ LAYOUT = {
 }
 # Pieces that stand more than once (Boris: shelves and ammo crates, plural): (name, dx, dy, label)
 EXTRA = [("SM_IW_Regal", -480, -260, "Regal 2"), ("SM_IW_Munitionskiste", -90, -390, "Munitionskiste 2")]
+# Small tools on top of others: (name, dx, dy, z, yaw offset, label); the anvil top is 82 cm high
+ON_TOP = [("SM_IW_Hammer", 150, -240, 80.0, 70.0, "Hammer"), ("SM_IW_Zange", 215, -205, 0.0, 30.0, "Zange")]
 
 
 def log(message):
@@ -128,6 +131,16 @@ def place(meshes):
         actor.set_folder_path("Stufe I/Werkstatt Ingenieur")
         actor.set_actor_label(label)
         actor.set_editor_property("tags", [unreal.Name(TAG)])
+    for name, dx, dy, z, turn, label in ON_TOP:
+        mesh = meshes.get(name)
+        if mesh is None:
+            continue
+        yaw = math.degrees(math.atan2(-dy, -dx)) + turn
+        actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(BENCH.x + dx, BENCH.y + dy, z - 2.0), unreal.Rotator(0.0, 0.0, yaw))
+        actor.static_mesh_component.set_static_mesh(mesh)
+        actor.set_folder_path("Stufe I/Werkstatt Ingenieur")
+        actor.set_actor_label(label)
+        actor.set_editor_property("tags", [unreal.Name(TAG)])
     # the glow of the forge and a warm lamp over the drawing desk
     for (dx, dy, z), colour, intensity, radius, label in (((340, -80, 90), (1.0, 0.42, 0.12), 60.0, 520.0, "Essenglut"),
                                                           ((-300, 60, 140), (1.0, 0.75, 0.45), 12.0, 260.0, "Tischlampe")):
@@ -140,7 +153,7 @@ def place(meshes):
         light.set_editor_property("tags", [unreal.Name(TAG)])
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL)
-    log("{} old removed, {} pieces placed round the bench at {}".format(len(old), len(spots), BENCH))
+    log("{} old removed, {} pieces placed round the bench at {}".format(len(old), len(spots) + len(ON_TOP), BENCH))
 
 
 place(import_pieces())

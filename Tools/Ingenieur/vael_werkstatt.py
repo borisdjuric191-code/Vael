@@ -13,6 +13,8 @@ dark wood, brass, leather, glowing coals. Exported as FBX for Scripts/BuildWerks
   SM_IW_Regal           shelves of jars (ammo fillings), boxes and coils
   SM_IW_Munitionskiste  an open crate of sling stones and bolts with leather straps
   SM_IW_Schrottkiste    a crate of scrap: shell plates, gears, slag bars
+  SM_IW_Hammer          a smith's hammer lying on its side (on the anvil)
+  SM_IW_Zange           forge tongs lying open, a brass rivet (beside the anvil)
 
 Slots: 0 Holz, 1 Metall (brass), 2 Leder, 3 Glut, 4 Stein, 5 Glas, 6 Papier, 7 Eisen, 8 Fluessigkeit, 9 Faden.
 Pivot at the bottom middle, the working side faces +X. A preview of all pieces goes to <out>/vorschau_werkstatt.png.
@@ -307,6 +309,29 @@ def build_scrap_crate():
     gk_finish(b, obj)
 
 
+def build_hammer():
+    obj = gk.new_object("SM_IW_Hammer", SLOTS)
+    b = gk.Builder()
+    # lying along +X: the handle, a brass ferrule and the iron head with a face and a peen
+    b.tube([V((-0.24, 0, 0.016)), V((0.08, 0, 0.018)), V((0.13, 0, 0.02))], [0.014, 0.016, 0.017], HOLZ, sides=8)
+    b.tube([V((0.1, 0, 0.02)), V((0.125, 0, 0.02))], [0.02, 0.02], MESSING, sides=8)
+    box(b, V((0.155, 0, 0.035)), (0.055, 0.1, 0.07), EISEN)
+    b.tube([V((0.155, 0.05, 0.035)), V((0.155, 0.075, 0.035))], [0.03, 0.026], EISEN, sides=8)
+    box(b, V((0.155, -0.065, 0.035)), (0.03, 0.03, 0.05), EISEN)
+    gk_finish(b, obj)
+
+
+def build_tongs():
+    obj = gk.new_object("SM_IW_Zange", SLOTS)
+    b = gk.Builder()
+    # two iron arms crossing at a brass rivet, the jaws ahead (+X), the reins open behind
+    for s in (-1, 1):
+        b.tube([V((-0.32, s * 0.05, 0.01)), V((-0.1, s * 0.02, 0.01)), V((0.0, -s * 0.004, 0.012)), V((0.1, -s * 0.018, 0.012)),
+                V((0.16, -s * 0.008, 0.012))], [0.008, 0.009, 0.012, 0.01, 0.007], EISEN, sides=6)
+    b.tube([V((0, 0, 0.0)), V((0, 0, 0.026))], [0.012, 0.012], MESSING, sides=8)
+    gk_finish(b, obj)
+
+
 def gk_finish(b, obj):
     b.finish(obj)
     gk.export(obj)
@@ -366,7 +391,7 @@ if __name__ == "__main__":
     os.makedirs(gk.OUT, exist_ok=True)
     gk.clear_scene()
     for build in (build_forge, build_bellows, build_anvil, build_barrel, build_tool_wall, build_vise, build_grinder, build_desk,
-                  build_shelf, build_ammo_crate, build_scrap_crate):
+                  build_shelf, build_ammo_crate, build_scrap_crate, build_hammer, build_tongs):
         build()
     render_preview(os.path.join(gk.OUT, "vorschau_werkstatt.png"))
     gk.log("Werkstatt des Ingenieurs fertig")
