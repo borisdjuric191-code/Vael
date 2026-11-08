@@ -1,6 +1,6 @@
 # Plan: NPCs, Lager und Dörfer in der offenen Welt
 
-Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritte 1 bis 4 fertig
+Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritte 1 bis 5 fertig
 
 ## Ziel
 
@@ -257,3 +257,21 @@ Statt einer Datei pro Kulturkreis liegt alles in einer Datei, `Scripts/Data/Name
 - **Import:** `Scripts/ImportSiedlungsBauten.py` legt die Modelle nach `/Game/Vael/Maps/Aschenmark/Bauten`, mit den Materialien des Glutkammer-Kits.
 - **Material:** Neu ist der Slot Erde, belegt mit `M_GK_Erde`.
 - **Feuer:** Das Feuer der Siedlungen kommt in Schritt 5 als Feuerstelle wie in den Lagern, nicht als Modell.
+
+## Stand nach Schritt 5 (8. November 2026)
+
+`Scripts/PlaceSiedlungen.py` bevölkert die Aschenmark in L_Vael und ist wiederholbar: Alles Gesetzte trägt den Tag `VaelSiedlung` und wird beim nächsten Lauf ersetzt.
+
+- **Gesetzt:** 56 neue Leute auf ihrem Arbeitsplatz. Name, Identität und Siedlungs-Gerede sind gesetzt, die Robenfarbe richtet sich nach der Fraktion:
+  - Überlebende: erdbraun
+  - Gilde: blau
+  - Orden: dunkel violett
+  - Passwache: graugrün
+  - Freie: lederfarben
+- **Gebäude:** Hof, Schlackengräber, Glutjäger, Einsiedlerin und Windkante haben ihre Gebäude und Feuerstellen (`VaelFireSpot` + `VaelFireLight`). Zusammen mit den Leuten sind das 79 Actors.
+- **Bestehende Leute:** Die 6 Leute, die schon in L_Vael standen, behalten ihren Platz und werden nur aktualisiert.
+- **Freier Boden:** Geprüft wird über die Bounds aller sichtbaren Actors mit Collision, 12.065 Hindernisse.
+  - Traces funktionieren im Commandlet nicht, weil Meshes dort keine Physik haben. Ein Trace durch eine gesetzte Hütte traf nur die Landschaft.
+  - 11 Leute sind 0,8 bis 3 m ausgewichen, vor allem in Lager, Dorf und Kontor.
+- **Im Spiel gesehen:** Schlackengräber, Hof, Predigerlager, Glutjäger, Lager und Kontor. Die Leute stehen frei, die Namen sind sichtbar, Kinder sind kleiner.
+- **Hinweis zum Cheat:** `VaelTeleport` genau auf die Dorfmitte landet auf einer Ruinenmauer. Die Figur erscheint dann wieder im Lager. Das betrifft den Test-Cheat, nicht die NPCs.
