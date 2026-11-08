@@ -9,6 +9,33 @@
 class UMaterialInterface;
 class UTexture2D;
 class UTexture2DArray;
+class UStaticMesh;
+
+/** One mesh with its materials and where its copies stand, for UVaelWorldBuilder::SpawnInstanceCell */
+USTRUCT(BlueprintType)
+struct FVaelInstanceBatch
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vael|World")
+	TObjectPtr<UStaticMesh> Mesh;
+
+	/** Material per slot; empty keeps the materials of the mesh */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vael|World")
+	TArray<TObjectPtr<UMaterialInterface>> Materials;
+
+	/** World transforms of the copies */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vael|World")
+	TArray<FTransform> Transforms;
+
+	/** Blocks like a wall; small things (twigs, pebbles) are walked through */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vael|World")
+	bool bCollision = true;
+
+	/** Copies farther than this from the camera are not drawn (cm), 0 = always */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Vael|World")
+	float CullDistance = 0.0f;
+};
 
 /**
  *  Help for the world scripts (Scripts/BuildVaelWelt.py) with what Python can't do in the editor: a landscape made from a
@@ -43,4 +70,10 @@ public:
 	 *  Python cannot reach the source textures of an array, the ground of the Aschenmark needs them. */
 	UFUNCTION(BlueprintCallable, Category="Vael|World")
 	static bool FillTextureArray(UTexture2DArray* Array, const TArray<UTexture2D*>& Textures);
+
+	/** One actor for a patch of land with a hierarchical instanced mesh per batch: thousands of scenery pieces as a few
+	 *  hundred actors, streamed by World Partition like any other actor. Returns the actor. */
+	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
+	static AActor* SpawnInstanceCell(UObject* WorldContext, FVector Origin, const TArray<FVaelInstanceBatch>& Batches, FName Tag,
+		const FString& Folder, const FString& Label);
 };

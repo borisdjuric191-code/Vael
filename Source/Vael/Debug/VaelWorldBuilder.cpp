@@ -9,6 +9,9 @@
 #include "Misc/FileHelper.h"
 #include "Engine/Texture2D.h"
 #include "Engine/Texture2DArray.h"
+#include "Engine/StaticMesh.h"
+#include "Engine/Engine.h"
+#include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Vael.h"
 
 #if WITH_EDITOR
@@ -144,4 +147,69 @@ bool UVaelWorldBuilder::FillTextureArray(UTexture2DArray* Array, const TArray<UT
 #else
 	return false;
 #endif
+}
+
+AActor* UVaelWorldBuilder::SpawnInstanceCell(UObject* WorldContext, FVector Origin, const TArray<FVaelInstanceBatch>& Batches, FName Tag,
+	const FString& Folder, const FString& Label)
+{
+	UWorld* World = GEngine != nullptr ? GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+	AActor* Actor = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(Origin));
+	if (Actor == nullptr)
+	{
+		return nullptr;
+	}
+	USceneComponent* Root = NewObject<USceneComponent>(Actor, TEXT("Zelle"));
+	Root->CreationMethod = EComponentCreationMethod::Instance;
+	Root->SetMobility(EComponentMobility::Static);
+	Actor->SetRootComponent(Root);
+	Actor->AddInstanceComponent(Root);
+	Root->RegisterComponent();
+	Root->SetWorldLocation(Origin);
+
+	for (const FVaelInstanceBatch& Batch : Batches)
+	{
+		if (Batch.Mesh == nullptr || Batch.Transforms.IsEmpty())
+		{
+			continue;
+		}
+		UHierarchicalInstancedStaticMeshComponent* Instances = NewObject<UHierarchicalInstancedStaticMeshComponent>(Actor,
+			MakeUniqueObjectName(Actor, UHierarchicalInstancedStaticMeshComponent::StaticClass(), Batch.Mesh->GetFName()));
+		Instances->CreationMethod = EComponentCreationMethod::Instance;
+		Instances->SetMobility(EComponentMobility::Static);
+		Instances->SetStaticMesh(Batch.Mesh);
+		for (int32 Slot = 0; Slot < Batch.Materials.Num(); ++Slot)
+		{
+			if (Batch.Materials[Slot] != nullptr)
+			{
+				Instances->SetMaterial(Slot, Batch.Materials[Slot]);
+			}
+		}
+		Instances->SetupAttachment(Root);
+		Actor->AddInstanceComponent(Instances);
+		Instances->RegisterComponent();
+		if (Batch.bCollision)
+		{
+			Instances->SetCollisionProfileName(UCollisionProfile::BlockAll_ProfileName);
+		}
+		else
+		{
+			Instances->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Instances->SetCanEverAffectNavigation(false);
+		}
+		if (Batch.CullDistance > 0.0f)
+		{
+			Instances->SetCullDistances(0, FMath::RoundToInt32(Batch.CullDistance));
+		}
+		Instances->AddInstances(Batch.Transforms, false, true);
+	}
+	Actor->Tags.Add(Tag);
+#if WITH_EDITOR
+	Actor->SetFolderPath(FName(*Folder));
+	Actor->SetActorLabel(Label);
+#endif
+	return Actor;
 }

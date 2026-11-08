@@ -177,6 +177,33 @@ return C;
 """
 
 
+def usage(material):
+    """The scenery stands as instanced meshes (and Nanite): without these flags the game draws the default material"""
+    material.set_editor_property("used_with_instanced_static_meshes", True)
+    material.set_editor_property("used_with_nanite", True)
+
+
+def glow_material():
+    """M_AM_Glutboden: the glowing floor of the cracks, embers flickering in patches"""
+    path = FOLDER + "/M_AM_Glutboden"
+    if assets.does_asset_exist(path):
+        material = unreal.load_asset(path)
+        library.delete_all_material_expressions(material)
+    else:
+        material = tools.create_asset("M_AM_Glutboden", FOLDER, unreal.Material, unreal.MaterialFactoryNew())
+    usage(material)
+    g = Graph(material)
+    n = g.node(unreal.MaterialExpressionNoise, scale=1.0 / 40.0, noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_ALU, levels=3,
+               output_min=0.35, output_max=1.0, level_scale=2.0, quality=1, turbulence=True)
+    glow = g.op(unreal.MaterialExpressionMultiply, n, g.node(unreal.MaterialExpressionConstant3Vector, constant=unreal.LinearColor(9.0, 2.4, 0.4, 1.0)))
+    library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.connect_material_property(g.node(unreal.MaterialExpressionConstant3Vector, constant=unreal.LinearColor(0.05, 0.02, 0.01, 1.0)), "",
+                                      unreal.MaterialProperty.MP_BASE_COLOR)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
 def build_master():
     path = FOLDER + "/M_AM_Kulisse"
     if assets.does_asset_exist(path):
@@ -184,6 +211,7 @@ def build_master():
         library.delete_all_material_expressions(material)
     else:
         material = tools.create_asset("M_AM_Kulisse", FOLDER, unreal.Material, unreal.MaterialFactoryNew())
+    usage(material)
     g = Graph(material)
     default_albedo = unreal.load_asset(ROCK + "Rock_01/Textures/T_Rock_01_A")
     default_normal = unreal.load_asset(ROCK + "Rock_01/Textures/T_Rock_01_N")
@@ -281,8 +309,42 @@ def pack_instance(master, mesh_path, look):
     return mi, slots
 
 
-def import_own():
+# Own pieces outdoors: plain colours through the scenery master (ash on top, soot, embers low down) instead of the cave
+# materials of the kit, which look pale and smooth in daylight. slot -> (ash, soot, glow, colour)
+OWN_LOOKS = {"Fels": (0.35, 0.35, 0.0, (0.11, 0.105, 0.1)), "Schlacke": (0.15, 0.3, 0.9, (0.06, 0.055, 0.05)),
+             "Kohle": (0.2, 0.2, 0.35, (0.035, 0.03, 0.028)), "Holz": (0.4, 0.5, 0.0, (0.2, 0.13, 0.08)),
+             "Knochen": (0.25, 0.25, 0.0, (0.55, 0.5, 0.42)), "Erde": (0.5, 0.2, 0.0, (0.13, 0.11, 0.09)),
+             "Leder": (0.3, 0.35, 0.0, (0.3, 0.22, 0.14)), "Metall": (0.25, 0.5, 0.0, (0.09, 0.085, 0.08)),
+             "Faden": (0.3, 0.3, 0.0, (0.42, 0.37, 0.28))}
+
+
+def own_looks(master):
+    white = unreal.load_asset("/Engine/EngineResources/WhiteSquareTexture")
+    flat = unreal.load_asset("/Engine/EngineMaterials/DefaultNormal")
+    made = {}
+    for slot, (ash, soot, glow, colour) in OWN_LOOKS.items():
+        name = "MI_AM_Eigen_" + slot
+        path = FOLDER + "/" + name
+        mi = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
+            name, FOLDER, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+        mi.set_editor_property("parent", master)
+        library.set_material_instance_texture_parameter_value(mi, "Albedo", white)
+        if flat is not None:
+            library.set_material_instance_texture_parameter_value(mi, "Normal", flat)
+        library.set_material_instance_scalar_parameter_value(mi, "Asche", ash)
+        library.set_material_instance_scalar_parameter_value(mi, "Russ", soot)
+        library.set_material_instance_scalar_parameter_value(mi, "Glut", glow)
+        library.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(*colour, 1.0))
+        library.update_material_instance(mi)
+        assets.save_loaded_asset(mi, False)
+        made[slot] = mi
+    return made
+
+
+def import_own(looks):
     materials = {slot: unreal.load_asset("{}/{}".format(KIT, name)) for slot, name in SLOTS.items()}
+    materials.update({k: v for k, v in looks.items() if k != "Schlacke"})
+    materials["Glut"] = glow_material()
     made = {}
     for name, (_, _, _, complex_collision) in OWN.items():
         fbx = os.path.join(SOURCE, name + ".fbx")
@@ -312,7 +374,10 @@ def import_own():
             continue
         for index, slot in enumerate(mesh.get_editor_property("static_materials")):
             slot_name = str(slot.get_editor_property("material_slot_name")).split(".")[0]
-            if materials.get(slot_name) is not None:
+            if slot_name == "Fels" and ("Schlacke" in name or "Glutspalte" in name):
+                slot_name = "Schlacke"
+                mesh.set_material(index, looks["Schlacke"])
+            elif materials.get(slot_name) is not None:
                 mesh.set_material(index, materials[slot_name])
         if complex_collision:
             mesh.get_editor_property("body_setup").set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
@@ -376,9 +441,9 @@ def build_probe(kit):
 
 
 def main():
-    own = import_own()
-    log("own pieces: {}".format(len(own)))
     master = build_master()
+    own = import_own(own_looks(master))
+    log("own pieces: {}".format(len(own)))
     pack = {}
     for mesh_path, (kind, zones, scale, look) in PACK.items():
         mi, slots = pack_instance(master, mesh_path, look)
