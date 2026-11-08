@@ -35,6 +35,13 @@
     155960.0,
     86540.0
    ]
+  },
+  {
+   "name": "Predigerlager",
+   "world": [
+    155380.0,
+    105770.0
+   ]
   }
  ],
  "labels": [
@@ -195,6 +202,46 @@
    "world": [
     201540.0,
     99040.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Hof am Ascheacker",
+   "world": [
+    45142.0,
+    129061.99999999999
+   ],
+   "size": 0
+  },
+  {
+   "name": "Schlackengräber",
+   "world": [
+    92647.0,
+    196818.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Glutjäger",
+   "world": [
+    110630.0,
+    78903.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Einsiedlerin der Harpyienfelsen",
+   "world": [
+    131691.0,
+    55155.99999999999
+   ],
+   "size": 0
+  },
+  {
+   "name": "Orden der Narbe",
+   "world": [
+    80380.0,
+    81350.0
    ],
    "size": 0
   }
