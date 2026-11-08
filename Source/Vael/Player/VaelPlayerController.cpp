@@ -1727,6 +1727,12 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 	{
 		MenuPage = EVaelMenuPage::Keimgeflecht;
 	}
+	// The engineer unrolls his Werkrolle there
+	if (MenuPage == EVaelMenuPage::Formulas && Opener != nullptr && Opener->IsEngineer())
+	{
+		MenuPage = EVaelMenuPage::Werkrolle;
+		WerkrolleSelection = FMath::Clamp(WerkrolleSelection, 0, FMath::Max(GetWerkrolleList().Num() - 1, 0));
+	}
 	KeimCursor.Carried = -1;
 
 	// The page of class and body starts on what the player plays
@@ -1847,6 +1853,12 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 		return;
 	}
 
+	if (MenuPage == EVaelMenuPage::Werkrolle)
+	{
+		WerkrolleSelection = FMath::Clamp(WerkrolleSelection + Step, 0, FMath::Max(GetWerkrolleList().Num() - 1, 0));
+		return;
+	}
+
 	if (MenuPage == EVaelMenuPage::Brew)
 	{
 		const int32 NumRecipes = FVaelBrewing::GetRecipes(static_cast<EVaelBrewTier>(BrewTier)).Num();
@@ -1931,6 +1943,12 @@ void AVaelPlayerController::OnMenuConfirm()
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
 	{
 		ConfirmKeimgeflecht();
+		return;
+	}
+
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Werkrolle)
+	{
+		ConfirmWerkrolle();
 		return;
 	}
 
@@ -2662,6 +2680,11 @@ void AVaelPlayerController::OnMenuAssign(int32 SlotIndex)
 		NavigateKeimgeflecht(SlotIndex == 1 ? 1 : SlotIndex == 3 ? -1 : 0, SlotIndex == 0 ? -1 : SlotIndex == 2 ? 1 : 0);
 		return;
 	}
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Werkrolle)
+	{
+		WerkrolleAction(SlotIndex);
+		return;
+	}
 
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	const UGameInstance* GameInstance = GetGameInstance();
@@ -2742,3 +2765,73 @@ void AVaelPlayerController::OnSpyglassLowered()
 		VaelCharacter->SetObserving(false);
 	}
 }
+
+TArray<const FVaelGear*> AVaelPlayerController::GetWerkrolleList()
+{
+	TArray<const FVaelGear*> List = GetCraftList(1);
+	List.Append(GetCraftList(2));
+	return List;
+}
+
+void AVaelPlayerController::ConfirmWerkrolle()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr && VaelCharacter->IsEngineer() ? VaelCharacter->GetEngineer() : nullptr;
+	const TArray<const FVaelGear*> List = GetWerkrolleList();
+	if (Engineer == nullptr || !List.IsValidIndex(WerkrolleSelection))
+	{
+		return;
+	}
+	const FVaelGear& Gear = *List[WerkrolleSelection];
+	// From the backpack into the pocket first; with nothing in the backpack he builds in the field
+	const int32 Moved = Engineer->ReadyFromStock(Gear.Id);
+	if (Moved > 0)
+	{
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelEngineer", "Readied", "{0} \u00D7 {1} in die Rolle gesteckt"), Moved, Gear.Name),
+			FText::GetEmpty(), FLinearColor(FColor(206, 140, 70)), 2.0f);
+		LastBrewTime = FPlatformTime::Seconds();
+		return;
+	}
+	WerkrolleAction(2);
+}
+
+void AVaelPlayerController::WerkrolleAction(int32 Pad)
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr && VaelCharacter->IsEngineer() ? VaelCharacter->GetEngineer() : nullptr;
+	const TArray<const FVaelGear*> List = GetWerkrolleList();
+	if (Engineer == nullptr || List.IsEmpty())
+	{
+		return;
+	}
+	// Left and right on the cross move along the pockets
+	if (Pad == 1 || Pad == 3)
+	{
+		WerkrolleSelection = FMath::Clamp(WerkrolleSelection + (Pad == 1 ? 1 : -1), 0, List.Num() - 1);
+		return;
+	}
+	const FVaelGear& Gear = *List[FMath::Clamp(WerkrolleSelection, 0, List.Num() - 1)];
+	if (Pad == 0)
+	{
+		// Up: the shot into the weapon
+		const bool bLaid = Gear.Kind == EVaelGearKind::Ammo && Engineer->SetAmmo(Gear.Id);
+		UVaelNoticeSubsystem::Post(this, bLaid ? FText::Format(NSLOCTEXT("VaelEngineer", "Laid", "{0} eingelegt"), Gear.Name)
+			: NSLOCTEXT("VaelEngineer", "NothingToLay", "Davon ist nichts in der Rolle"), FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
+		return;
+	}
+	// Down (or confirm with an empty backpack): crafting in the field from the bag
+	const UVaelEngineerComponent::EBuildBlock Block = Engineer->GetBuildBlock(Gear, false);
+	if (Block == UVaelEngineerComponent::EBuildBlock::Ok && Engineer->Build(Gear.Id, false))
+	{
+		UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelEngineer", "FieldBuilt", "{0} im Feld gefertigt"), Gear.Name),
+			FText::GetEmpty(), FLinearColor(FColor(206, 140, 70)), 2.0f);
+		LastBrewTime = FPlatformTime::Seconds();
+		return;
+	}
+	const FText Why = Block == UVaelEngineerComponent::EBuildBlock::NeedsPlan ? NSLOCTEXT("VaelEngineer", "NeedsPlan", "Dazu fehlt der Bauplan")
+		: Block == UVaelEngineerComponent::EBuildBlock::NeedsWorkbench ? NSLOCTEXT("VaelEngineer", "NeedsBench", "Das geht nur an der Werkbank")
+		: Block == UVaelEngineerComponent::EBuildBlock::Full ? NSLOCTEXT("VaelEngineer", "Full", "Rolle und Rucksack sind voll")
+		: NSLOCTEXT("VaelEngineer", "Missing", "Es fehlen Materialien");
+	UVaelNoticeSubsystem::Post(this, Why, FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
+}
+

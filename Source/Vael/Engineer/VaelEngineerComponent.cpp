@@ -1387,3 +1387,29 @@ void UVaelEngineerComponent::UpdateSling(float DeltaTime)
 	}
 }
 
+int32 UVaelEngineerComponent::ReadyFromStock(FName Id)
+{
+	const FVaelGear* Gear = VaelEngineerGear::Find(Id);
+	if (Gear == nullptr)
+	{
+		return 0;
+	}
+	int32& InStock = Stock.FindOrAdd(Id);
+	int32& InPocket = Carried.FindOrAdd(Id);
+	const int32 Moved = FMath::Clamp(GetCarryLimit(*Gear) - InPocket, 0, InStock);
+	InStock -= Moved;
+	InPocket += Moved;
+	return Moved;
+}
+
+bool UVaelEngineerComponent::SetAmmo(FName Id)
+{
+	if (Id != VaelEngineerGear::Standard && GetCarried(Id) <= 0)
+	{
+		return false;
+	}
+	Ammo = Id;
+	LastCycle = Now();
+	return true;
+}
+

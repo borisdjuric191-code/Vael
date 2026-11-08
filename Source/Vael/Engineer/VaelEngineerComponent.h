@@ -61,6 +61,13 @@ public:
 	/** Workbench and field box: the pouches fill up from the stock */
 	void Restock();
 
+	/** The Werkrolle: moves shots or devices of one kind from the backpack into the pockets, up to what they hold;
+	 *  returns how many moved */
+	int32 ReadyFromStock(FName Id);
+
+	/** The Werkrolle: lays a kind of shot he carries into the weapon */
+	bool SetAmmo(FName Id);
+
 	bool HasBuilt(FName Id) const;
 
 	/** How many shots or devices of a kind are in the pouches and in the stock */

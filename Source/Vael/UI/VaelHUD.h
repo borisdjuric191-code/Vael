@@ -125,6 +125,9 @@ private:
 	/** The engineer's building page at the workbench or the field box (VaelHUDCrafting.cpp) */
 	void DrawCrafting(const AVaelPlayerController* PlayerController);
 
+	/** The engineer's Werkrolle (UI/VaelHUDWerkrolle.cpp) */
+	void DrawWerkrolle(const AVaelPlayerController* PlayerController);
+
 	/** The seed choice of a bed of a refugium (VaelHUDBrewing.cpp) */
 	void DrawSowing(const AVaelPlayerController* PlayerController);
 

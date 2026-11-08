@@ -739,6 +739,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		return;
 	}
 
+	if (PlayerController->GetMenuPage() == EVaelMenuPage::Werkrolle)
+	{
+		DrawWerkrolle(PlayerController);
+		return;
+	}
+
 	if (PlayerController->GetMenuPage() == EVaelMenuPage::Sow)
 	{
 		DrawSowing(PlayerController);

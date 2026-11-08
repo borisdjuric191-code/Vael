@@ -35,7 +35,10 @@ enum class EVaelMenuPage : uint8
 	Keimgeflecht,
 	/** The engineer's building (2026-11-08): weapons, shots, devices, armour; the workbench has all, the field box by a campfire
 	 *  only shots and devices; only reached there */
-	Craft
+	Craft,
+	/** The engineer's Werkrolle (goal 8.11. evening): the leather tool roll with a pocket for every kind of shot and device;
+	 *  readying them from the backpack, field crafting, laying a shot into the weapon. It takes the place of the formulas */
+	Werkrolle
 };
 
 /** Where the selection of the Keimgeflecht stands: herbarium cards, wheel capsules on the strand, or Erbanlagen on the plate */
@@ -469,6 +472,10 @@ public:
 	/** The engineer's page of building: at the workbench everything, at the field box only shots and devices */
 	void OpenCrafting(bool bAtWorkbench);
 	int32 GetCraftTab() const { return CraftTab; }
+
+	/** The pocket picked in the Werkrolle, and the pockets in their order (shots, then devices) */
+	int32 GetWerkrolleSelection() const { return WerkrolleSelection; }
+	static TArray<const struct FVaelGear*> GetWerkrolleList();
 	int32 GetCraftSelection() const { return CraftSelection; }
 	bool IsCraftAtWorkbench() const { return bCraftAtWorkbench; }
 
@@ -754,6 +761,12 @@ protected:
 
 	/** Building page: tab (weapons, shots, devices, armour), row, and whether it is the workbench or the field box */
 	int32 CraftTab = 0;
+	int32 WerkrolleSelection = 0;
+
+	/** The Werkrolle: confirm readies from the backpack (or crafts in the field when it is empty), up lays the shot into the
+	 *  weapon, down crafts one more in the field */
+	void ConfirmWerkrolle();
+	void WerkrolleAction(int32 Pad);
 	int32 CraftSelection = 0;
 	bool bCraftAtWorkbench = true;
 
