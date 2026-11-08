@@ -1,0 +1,1435 @@
+{
+ "info": "Baukasten der Aschenmark (Scripts/BuildKulisse.py); zonen: K Kesselgrund, S Schlackenhänge, G Glutfelder, P Aschenpass; groesse in cm ohne Skalierung",
+ "teile": [
+  {
+   "name": "SM_AM_Schlacke_A",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Schlacke_A",
+   "materials": [],
+   "art": "Schlacke",
+   "zonen": "SG",
+   "skala": [
+    0.8,
+    1.3
+   ],
+   "groesse": [
+    161,
+    120,
+    76
+   ]
+  },
+  {
+   "name": "SM_AM_Schlacke_B",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Schlacke_B",
+   "materials": [],
+   "art": "Schlacke",
+   "zonen": "SG",
+   "skala": [
+    0.8,
+    1.2
+   ],
+   "groesse": [
+    248,
+    291,
+    146
+   ]
+  },
+  {
+   "name": "SM_AM_Schlacke_C",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Schlacke_C",
+   "materials": [],
+   "art": "Schlacke",
+   "zonen": "SG",
+   "skala": [
+    0.8,
+    1.3
+   ],
+   "groesse": [
+    449,
+    265,
+    241
+   ]
+  },
+  {
+   "name": "SM_AM_Glutspalte_A",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Glutspalte_A",
+   "materials": [],
+   "art": "Glutspalte",
+   "zonen": "G",
+   "skala": [
+    0.8,
+    1.3
+   ],
+   "groesse": [
+    640,
+    312,
+    44
+   ]
+  },
+  {
+   "name": "SM_AM_Glutspalte_B",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Glutspalte_B",
+   "materials": [],
+   "art": "Glutspalte",
+   "zonen": "G",
+   "skala": [
+    0.8,
+    1.2
+   ],
+   "groesse": [
+    961,
+    319,
+    45
+   ]
+  },
+  {
+   "name": "SM_AM_Pfaehle_A",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Pfaehle_A",
+   "materials": [],
+   "art": "Pfaehle",
+   "zonen": "KSGP",
+   "skala": [
+    0.8,
+    1.2
+   ],
+   "groesse": [
+    201,
+    257,
+    289
+   ]
+  },
+  {
+   "name": "SM_AM_Pfaehle_B",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Pfaehle_B",
+   "materials": [],
+   "art": "Pfaehle",
+   "zonen": "KSGP",
+   "skala": [
+    0.8,
+    1.2
+   ],
+   "groesse": [
+    225,
+    253,
+    301
+   ]
+  },
+  {
+   "name": "SM_AM_Gerippe_A",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Gerippe_A",
+   "materials": [],
+   "art": "Gerippe",
+   "zonen": "KSGP",
+   "skala": [
+    0.8,
+    1.4
+   ],
+   "groesse": [
+    556,
+    345,
+    325
+   ]
+  },
+  {
+   "name": "SM_AM_Gerippe_B",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Gerippe_B",
+   "materials": [],
+   "art": "Gerippe",
+   "zonen": "KSGP",
+   "skala": [
+    0.8,
+    1.3
+   ],
+   "groesse": [
+    794,
+    346,
+    362
+   ]
+  },
+  {
+   "name": "SM_AM_Wegmarke_A",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Wegmarke_A",
+   "materials": [],
+   "art": "Wegmarke",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    123,
+    130,
+    255
+   ]
+  },
+  {
+   "name": "SM_AM_Wegmarke_B",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Wegmarke_B",
+   "materials": [],
+   "art": "Wegmarke",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    127,
+    112,
+    103
+   ]
+  },
+  {
+   "name": "SM_AM_Grabhuegel_A",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Grabhuegel_A",
+   "materials": [],
+   "art": "Grab",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    310,
+    196,
+    156
+   ]
+  },
+  {
+   "name": "SM_AM_Grabhuegel_B",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Grabhuegel_B",
+   "materials": [],
+   "art": "Grab",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    310,
+    191,
+    134
+   ]
+  },
+  {
+   "name": "SM_AM_Karrenwrack",
+   "mesh": "/Game/Vael/Maps/Aschenmark/Kulisse/SM_AM_Karrenwrack",
+   "materials": [],
+   "art": "Wrack",
+   "zonen": "KSP",
+   "skala": [
+    0.95,
+    1.05
+   ],
+   "groesse": [
+    297,
+    570,
+    199
+   ]
+  },
+  {
+   "name": "SM_FallenFirTree",
+   "mesh": "/Game/Megascans/3D_Assets/FallenFirTree/SM_FallenFirTree",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_FallenFirTree.MI_AM_FallenFirTree"
+   ],
+   "art": "Stamm",
+   "zonen": "KGP",
+   "skala": [
+    0.8,
+    1.2
+   ],
+   "groesse": [
+    729,
+    193,
+    91
+   ]
+  },
+  {
+   "name": "SM_FallenPineTree",
+   "mesh": "/Game/Megascans/3D_Assets/FallenPineTree/SM_FallenPineTree",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_FallenPineTree.MI_AM_FallenPineTree"
+   ],
+   "art": "Stamm",
+   "zonen": "KGP",
+   "skala": [
+    0.9,
+    1.3
+   ],
+   "groesse": [
+    358,
+    110,
+    94
+   ]
+  },
+  {
+   "name": "SM_FallenPineAssembly",
+   "mesh": "/Game/Megascans/3D_Assets/FallenPineAssembly/SM_FallenPineAssembly",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_FallenPineAssembly.MI_AM_FallenPineAssembly"
+   ],
+   "art": "Stamm",
+   "zonen": "KG",
+   "skala": [
+    0.9,
+    1.3
+   ],
+   "groesse": [
+    226,
+    250,
+    52
+   ]
+  },
+  {
+   "name": "SM_BrokenPineAssembly",
+   "mesh": "/Game/Megascans/3D_Assets/BrokenPineAssembly/SM_BrokenPineAssembly",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_BrokenPineAssembly.MI_AM_BrokenPineAssembly"
+   ],
+   "art": "Stamm",
+   "zonen": "KGP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    419,
+    321,
+    63
+   ]
+  },
+  {
+   "name": "SM_TreeLog",
+   "mesh": "/Game/Megascans/3D_Assets/TreeLog/SM_TreeLog",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_TreeLog.MI_AM_TreeLog"
+   ],
+   "art": "Stamm",
+   "zonen": "KP",
+   "skala": [
+    0.7,
+    1.0
+   ],
+   "groesse": [
+    470,
+    396,
+    143
+   ]
+  },
+  {
+   "name": "SM_MossyLog",
+   "mesh": "/Game/Megascans/3D_Assets/MossyLog/SM_MossyLog",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyLog.MI_AM_MossyLog"
+   ],
+   "art": "Stamm",
+   "zonen": "P",
+   "skala": [
+    0.8,
+    1.1
+   ],
+   "groesse": [
+    258,
+    141,
+    127
+   ]
+  },
+  {
+   "name": "SM_BrokenPineStump",
+   "mesh": "/Game/Megascans/3D_Assets/BrokenPineStump/SM_BrokenPineStump",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_BrokenPineStump.MI_AM_BrokenPineStump"
+   ],
+   "art": "Stumpf",
+   "zonen": "KGP",
+   "skala": [
+    1.0,
+    1.6
+   ],
+   "groesse": [
+    49,
+    54,
+    140
+   ]
+  },
+  {
+   "name": "SM_BrokenTreeStump",
+   "mesh": "/Game/Megascans/3D_Assets/BrokenTreeStump/SM_BrokenTreeStump",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_BrokenTreeStump.MI_AM_BrokenTreeStump"
+   ],
+   "art": "Stumpf",
+   "zonen": "KG",
+   "skala": [
+    1.0,
+    1.6
+   ],
+   "groesse": [
+    62,
+    58,
+    82
+   ]
+  },
+  {
+   "name": "SM_FirTreeStump",
+   "mesh": "/Game/Megascans/3D_Assets/FirTreeStump/SM_FirTreeStump",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_FirTreeStump.MI_AM_FirTreeStump"
+   ],
+   "art": "Stumpf",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.4
+   ],
+   "groesse": [
+    78,
+    80,
+    210
+   ]
+  },
+  {
+   "name": "SM_OldStump",
+   "mesh": "/Game/Megascans/3D_Assets/OldStump/SM_OldStump",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_OldStump.MI_AM_OldStump"
+   ],
+   "art": "Stumpf",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.3
+   ],
+   "groesse": [
+    137,
+    165,
+    63
+   ]
+  },
+  {
+   "name": "SM_LichenStump",
+   "mesh": "/Game/Megascans/3D_Assets/LichenStump/SM_LichenStump",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_LichenStump.MI_AM_LichenStump"
+   ],
+   "art": "Stumpf",
+   "zonen": "P",
+   "skala": [
+    1.0,
+    1.5
+   ],
+   "groesse": [
+    87,
+    58,
+    50
+   ]
+  },
+  {
+   "name": "SM_TreeStumpB",
+   "mesh": "/Game/Megascans/3D_Assets/TreeStumpB/SM_TreeStumpB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_TreeStumpB.MI_AM_TreeStumpB"
+   ],
+   "art": "Stumpf",
+   "zonen": "KG",
+   "skala": [
+    1.0,
+    1.5
+   ],
+   "groesse": [
+    128,
+    84,
+    108
+   ]
+  },
+  {
+   "name": "SM_WoodStump",
+   "mesh": "/Game/Megascans/3D_Assets/WoodStump/SM_WoodStump",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodStump.MI_AM_WoodStump"
+   ],
+   "art": "Stumpf",
+   "zonen": "KGP",
+   "skala": [
+    1.0,
+    1.5
+   ],
+   "groesse": [
+    39,
+    43,
+    119
+   ]
+  },
+  {
+   "name": "SM_ForestRootsA",
+   "mesh": "/Game/Megascans/3D_Assets/ForestRootsA/SM_ForestRootsA",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_ForestRootsA.MI_AM_ForestRootsA"
+   ],
+   "art": "Wurzel",
+   "zonen": "KGP",
+   "skala": [
+    1.0,
+    1.6
+   ],
+   "groesse": [
+    230,
+    149,
+    20
+   ]
+  },
+  {
+   "name": "SM_ForestRootsB",
+   "mesh": "/Game/Megascans/3D_Assets/ForestRootsB/SM_ForestRootsB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_ForestRootsB.MI_AM_ForestRootsB"
+   ],
+   "art": "Wurzel",
+   "zonen": "KGP",
+   "skala": [
+    1.0,
+    1.6
+   ],
+   "groesse": [
+    230,
+    149,
+    20
+   ]
+  },
+  {
+   "name": "SM_WoodBranchA",
+   "mesh": "/Game/Megascans/3D_Assets/WoodBranchA/SM_WoodBranchA",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodBranchA.MI_AM_WoodBranchA"
+   ],
+   "art": "Ast",
+   "zonen": "KSGP",
+   "skala": [
+    1.0,
+    1.6
+   ],
+   "groesse": [
+    157,
+    24,
+    36
+   ]
+  },
+  {
+   "name": "SM_WoodBranchB",
+   "mesh": "/Game/Megascans/3D_Assets/WoodBranchB/SM_WoodBranchB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodBranchB.MI_AM_WoodBranchB"
+   ],
+   "art": "Ast",
+   "zonen": "KSGP",
+   "skala": [
+    1.0,
+    1.4
+   ],
+   "groesse": [
+    220,
+    91,
+    33
+   ]
+  },
+  {
+   "name": "SM_WoodBranchC",
+   "mesh": "/Game/Megascans/3D_Assets/WoodBranchC/SM_WoodBranchC",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodBranchC.MI_AM_WoodBranchC"
+   ],
+   "art": "Ast",
+   "zonen": "KSGP",
+   "skala": [
+    1.0,
+    1.5
+   ],
+   "groesse": [
+    142,
+    62,
+    68
+   ]
+  },
+  {
+   "name": "SM_Branch_00",
+   "mesh": "/Game/Megascans/3D_Assets/Branch/SM_Branch_00",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Branch_00.MI_AM_Branch_00"
+   ],
+   "art": "Ast",
+   "zonen": "KGP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    350,
+    51,
+    21
+   ]
+  },
+  {
+   "name": "SM_Rock_01",
+   "mesh": "/Game/Rock_Collection_04/Meshes/Rock_01/StaticMeshes/SM_Rock_01",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_01.MI_AM_Rock_01"
+   ],
+   "art": "Fels",
+   "zonen": "KSGP",
+   "skala": [
+    0.5,
+    1.6
+   ],
+   "groesse": [
+    412,
+    291,
+    169
+   ]
+  },
+  {
+   "name": "SM_Rock_02",
+   "mesh": "/Game/Rock_Collection_04/Meshes/Rock_02/StaticMeshes/SM_Rock_02",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_02.MI_AM_Rock_02"
+   ],
+   "art": "Fels",
+   "zonen": "KSGP",
+   "skala": [
+    0.5,
+    1.6
+   ],
+   "groesse": [
+    292,
+    375,
+    201
+   ]
+  },
+  {
+   "name": "SM_Rock_03",
+   "mesh": "/Game/Rock_Collection_04/Meshes/Rock_03/StaticMeshes/SM_Rock_03",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_03.MI_AM_Rock_03"
+   ],
+   "art": "Fels",
+   "zonen": "SGP",
+   "skala": [
+    0.5,
+    1.8
+   ],
+   "groesse": [
+    209,
+    232,
+    239
+   ]
+  },
+  {
+   "name": "SM_Rock_04",
+   "mesh": "/Game/Rock_Collection_04/Meshes/Rock_04/StaticMeshes/SM_Rock_04",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_04.MI_AM_Rock_04"
+   ],
+   "art": "Fels",
+   "zonen": "KSGP",
+   "skala": [
+    0.5,
+    1.6
+   ],
+   "groesse": [
+    333,
+    247,
+    178
+   ]
+  },
+  {
+   "name": "SM_Rock_05",
+   "mesh": "/Game/Rock_Collection_04/Meshes/Rock_05/StaticMeshes/SM_Rock_05",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_05.MI_AM_Rock_05"
+   ],
+   "art": "Fels",
+   "zonen": "SGP",
+   "skala": [
+    0.5,
+    1.8
+   ],
+   "groesse": [
+    368,
+    316,
+    190
+   ]
+  },
+  {
+   "name": "SM_Rock_06",
+   "mesh": "/Game/Rock_Collection_04/Meshes/Rock_06/StaticMeshes/SM_Rock_06",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_06.MI_AM_Rock_06"
+   ],
+   "art": "Fels",
+   "zonen": "KSGP",
+   "skala": [
+    0.5,
+    1.6
+   ],
+   "groesse": [
+    342,
+    255,
+    214
+   ]
+  },
+  {
+   "name": "SM_Rock_07",
+   "mesh": "/Game/Rock_Collection_04/Meshes/Rock_07/StaticMeshes/SM_Rock_07",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_07.MI_AM_Rock_07"
+   ],
+   "art": "Fels",
+   "zonen": "SGP",
+   "skala": [
+    0.5,
+    1.8
+   ],
+   "groesse": [
+    336,
+    243,
+    231
+   ]
+  },
+  {
+   "name": "SM_IcelandicBoulder",
+   "mesh": "/Game/Megascans/3D_Assets/IcelandicBoulder/SM_IcelandicBoulder",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_IcelandicBoulder.MI_AM_IcelandicBoulder"
+   ],
+   "art": "Fels",
+   "zonen": "SGP",
+   "skala": [
+    0.8,
+    1.6
+   ],
+   "groesse": [
+    187,
+    269,
+    159
+   ]
+  },
+  {
+   "name": "SM_GraniteRockAssembly",
+   "mesh": "/Game/Megascans/3D_Assets/GraniteRockAssembly/SM_GraniteRockAssembly",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_GraniteRockAssembly.MI_AM_GraniteRockAssembly"
+   ],
+   "art": "Fels",
+   "zonen": "KP",
+   "skala": [
+    0.8,
+    1.4
+   ],
+   "groesse": [
+    298,
+    210,
+    138
+   ]
+  },
+  {
+   "name": "SM_HovsBeachRock",
+   "mesh": "/Game/Megascans/3D_Assets/HovsBeachRock/SM_HovsBeachRock",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_HovsBeachRock.MI_AM_HovsBeachRock"
+   ],
+   "art": "Fels",
+   "zonen": "KSP",
+   "skala": [
+    0.8,
+    1.5
+   ],
+   "groesse": [
+    109,
+    131,
+    132
+   ]
+  },
+  {
+   "name": "SM_IcelandicMossyRock",
+   "mesh": "/Game/Megascans/3D_Assets/IcelandicMossyRock/SM_IcelandicMossyRock",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_IcelandicMossyRock.MI_AM_IcelandicMossyRock"
+   ],
+   "art": "Fels",
+   "zonen": "P",
+   "skala": [
+    0.9,
+    1.5
+   ],
+   "groesse": [
+    177,
+    152,
+    84
+   ]
+  },
+  {
+   "name": "SM_IcelandicMossyRocks",
+   "mesh": "/Game/Megascans/3D_Assets/IcelandicMossyRocks/SM_IcelandicMossyRocks",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_IcelandicMossyRocks.MI_AM_IcelandicMossyRocks"
+   ],
+   "art": "Fels",
+   "zonen": "P",
+   "skala": [
+    0.8,
+    1.2
+   ],
+   "groesse": [
+    303,
+    306,
+    80
+   ]
+  },
+  {
+   "name": "SM_MossyRocksA",
+   "mesh": "/Game/Megascans/3D_Assets/MossyRocksA/SM_MossyRocksA",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyRocksA.MI_AM_MossyRocksA"
+   ],
+   "art": "Kiesel",
+   "zonen": "KP",
+   "skala": [
+    0.8,
+    1.3
+   ],
+   "groesse": [
+    190,
+    129,
+    50
+   ]
+  },
+  {
+   "name": "SM_MossyRocksB",
+   "mesh": "/Game/Megascans/3D_Assets/MossyRocksB/SM_MossyRocksB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyRocksB.MI_AM_MossyRocksB"
+   ],
+   "art": "Kiesel",
+   "zonen": "KSP",
+   "skala": [
+    0.8,
+    1.3
+   ],
+   "groesse": [
+    225,
+    195,
+    28
+   ]
+  },
+  {
+   "name": "SM_MossyStonesPack_01",
+   "mesh": "/Game/Megascans/3D_Assets/MossyStonesPack/SM_MossyStonesPack_01",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyStonesPack_01.MI_AM_MossyStonesPack_01"
+   ],
+   "art": "Kiesel",
+   "zonen": "KSGP",
+   "skala": [
+    1.0,
+    2.0
+   ],
+   "groesse": [
+    29,
+    25,
+    19
+   ]
+  },
+  {
+   "name": "SM_MossyEmbankmentB",
+   "mesh": "/Game/Megascans/3D_Assets/MossyEmbankmentB/SM_MossyEmbankmentB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyEmbankmentB.MI_AM_MossyEmbankmentB"
+   ],
+   "art": "Boeschung",
+   "zonen": "P",
+   "skala": [
+    0.9,
+    1.3
+   ],
+   "groesse": [
+    479,
+    165,
+    77
+   ]
+  },
+  {
+   "name": "SM_MossyEmbankmentE",
+   "mesh": "/Game/Megascans/3D_Assets/MossyEmbankmentE/SM_MossyEmbankmentE",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyEmbankmentE.MI_AM_MossyEmbankmentE"
+   ],
+   "art": "Boeschung",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.3
+   ],
+   "groesse": [
+    423,
+    120,
+    85
+   ]
+  },
+  {
+   "name": "SM_CastleWall",
+   "mesh": "/Game/Megascans/3D_Assets/CastleWall/SM_CastleWall",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_CastleWall.MI_AM_CastleWall"
+   ],
+   "art": "Ruine",
+   "zonen": "KSP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    361,
+    90,
+    38
+   ]
+  },
+  {
+   "name": "SM_StoneWall",
+   "mesh": "/Game/Megascans/3D_Assets/StoneWall/SM_StoneWall",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_StoneWall.MI_AM_StoneWall"
+   ],
+   "art": "Ruine",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    432,
+    64,
+    138
+   ]
+  },
+  {
+   "name": "SM_MossyStoneWallA",
+   "mesh": "/Game/Megascans/3D_Assets/MossyStoneWallA/SM_MossyStoneWallA",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyStoneWallA.MI_AM_MossyStoneWallA"
+   ],
+   "art": "Ruine",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    312,
+    53,
+    88
+   ]
+  },
+  {
+   "name": "SM_MossyStoneWallC_00",
+   "mesh": "/Game/Megascans/3D_Assets/MossyStoneWallC/SM_MossyStoneWallC_00",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyStoneWallC_00.MI_AM_MossyStoneWallC_00"
+   ],
+   "art": "Ruine",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    355,
+    81,
+    104
+   ]
+  },
+  {
+   "name": "SM_MossyStoneWallC_02",
+   "mesh": "/Game/Megascans/3D_Assets/MossyStoneWallC/SM_MossyStoneWallC_02",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MossyStoneWallC_02.MI_AM_MossyStoneWallC_02"
+   ],
+   "art": "Ruine",
+   "zonen": "KSP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    180,
+    60,
+    93
+   ]
+  },
+  {
+   "name": "SM_MedievalModularWall",
+   "mesh": "/Game/Megascans/3D_Assets/Medieval_Modular_Wall/SM_MedievalModularWall",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MedievalModularWall.MI_AM_MedievalModularWall"
+   ],
+   "art": "Ruine",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    101,
+    20,
+    201
+   ]
+  },
+  {
+   "name": "SM_MedievalModularWall2x2MG",
+   "mesh": "/Game/Megascans/3D_Assets/MedievalModularWall2x2MG/SM_MedievalModularWall2x2MG",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MedievalModularWall2x2MG.MI_AM_MedievalModularWall2x2MG"
+   ],
+   "art": "Ruine",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    200,
+    20,
+    200
+   ]
+  },
+  {
+   "name": "SM_MedievalModularCornerWall1x2M",
+   "mesh": "/Game/Megascans/3D_Assets/MedievalModularCornerWall1x2M/SM_MedievalModularCornerWall1x2M",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_MedievalModularCornerWall1x2M.MI_AM_MedievalModularCornerWall1x2M"
+   ],
+   "art": "Ruine",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    103,
+    103,
+    200
+   ]
+  },
+  {
+   "name": "SM_DamagedCastleStairs",
+   "mesh": "/Game/Megascans/3D_Assets/DamagedCastleStairs/SM_DamagedCastleStairs",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_DamagedCastleStairs.MI_AM_DamagedCastleStairs"
+   ],
+   "art": "Ruine",
+   "zonen": "KP",
+   "skala": [
+    1.5,
+    2.2
+   ],
+   "groesse": [
+    51,
+    45,
+    25
+   ]
+  },
+  {
+   "name": "SM_JapaneseShrineStoneFloorB",
+   "mesh": "/Game/Megascans/3D_Assets/JapaneseShrineStoneFloorB/SM_JapaneseShrineStoneFloorB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_JapaneseShrineStoneFloorB.MI_AM_JapaneseShrineStoneFloorB"
+   ],
+   "art": "Platten",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    487,
+    208,
+    21
+   ]
+  },
+  {
+   "name": "SM_GraveA_00",
+   "mesh": "/Game/Megascans/3D_Assets/GraveA/SM_GraveA_00",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_GraveA_00.MI_AM_GraveA_00"
+   ],
+   "art": "Grab",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    218,
+    108,
+    115
+   ]
+  },
+  {
+   "name": "SM_GraveA_01",
+   "mesh": "/Game/Megascans/3D_Assets/GraveA/SM_GraveA_01",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_GraveA_01.MI_AM_GraveA_01"
+   ],
+   "art": "Grab",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    73,
+    108,
+    115
+   ]
+  },
+  {
+   "name": "SM_GraveB",
+   "mesh": "/Game/Megascans/3D_Assets/GraveB/SM_GraveB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_GraveB.MI_AM_GraveB"
+   ],
+   "art": "Grab",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    99,
+    214,
+    74
+   ]
+  },
+  {
+   "name": "SM_WoodenBarrelB",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenBarrelB/SM_WoodenBarrelB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenBarrelB.MI_AM_WoodenBarrelB"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    60,
+    60,
+    85
+   ]
+  },
+  {
+   "name": "SM_WoodenBarrelC",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenBarrelC/SM_WoodenBarrelC",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenBarrelC.MI_AM_WoodenBarrelC"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    70,
+    69,
+    97
+   ]
+  },
+  {
+   "name": "SM_WoodenBox",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenBox/SM_WoodenBox",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenBox.MI_AM_WoodenBox"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    56,
+    39,
+    45
+   ]
+  },
+  {
+   "name": "SM_WoodenAmmoCrate",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenAmmoCrate/SM_WoodenAmmoCrate",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenAmmoCrate.MI_AM_WoodenAmmoCrate"
+   ],
+   "art": "Kram",
+   "zonen": "KSP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    241,
+    80,
+    59
+   ]
+  },
+  {
+   "name": "SM_WoodenWheelA",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenWheelA/SM_WoodenWheelA",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenWheelA.MI_AM_WoodenWheelA"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    87,
+    65,
+    87
+   ]
+  },
+  {
+   "name": "SM_WoodenWheelB",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenWheelB/SM_WoodenWheelB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenWheelB.MI_AM_WoodenWheelB"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    148,
+    148,
+    36
+   ]
+  },
+  {
+   "name": "SM_WoodenWheelbarrow",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenWheelbarrow/SM_WoodenWheelbarrow",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenWheelbarrow.MI_AM_WoodenWheelbarrow"
+   ],
+   "art": "Kram",
+   "zonen": "KS",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    60,
+    141,
+    42
+   ]
+  },
+  {
+   "name": "SM_OldScythe",
+   "mesh": "/Game/Megascans/3D_Assets/OldScythe/SM_OldScythe",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_OldScythe.MI_AM_OldScythe"
+   ],
+   "art": "Kram",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    60,
+    22,
+    145
+   ]
+  },
+  {
+   "name": "SM_OldShovel",
+   "mesh": "/Game/Megascans/3D_Assets/OldShovel/SM_OldShovel",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_OldShovel.MI_AM_OldShovel"
+   ],
+   "art": "Kram",
+   "zonen": "KSP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    168,
+    25,
+    10
+   ]
+  },
+  {
+   "name": "SM_PileOfChains",
+   "mesh": "/Game/Megascans/3D_Assets/PileOfChains/SM_PileOfChains",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_PileOfChains.MI_AM_PileOfChains"
+   ],
+   "art": "Kram",
+   "zonen": "SG",
+   "skala": [
+    0.9,
+    1.3
+   ],
+   "groesse": [
+    51,
+    50,
+    17
+   ]
+  },
+  {
+   "name": "SM_OldMetalPotB",
+   "mesh": "/Game/Megascans/3D_Assets/OldMetalPotB/SM_OldMetalPotB",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_OldMetalPotB.MI_AM_OldMetalPotB"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    40,
+    36,
+    27
+   ]
+  },
+  {
+   "name": "SM_BlacksmithAnvilA",
+   "mesh": "/Game/Megascans/3D_Assets/BlacksmithAnvilA/SM_BlacksmithAnvilA",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_BlacksmithAnvilA.MI_AM_BlacksmithAnvilA"
+   ],
+   "art": "Kram",
+   "zonen": "S",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    68,
+    62,
+    66
+   ]
+  },
+  {
+   "name": "SM_OldWoodenTrough",
+   "mesh": "/Game/Megascans/3D_Assets/OldWoodenTrough/SM_OldWoodenTrough",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_OldWoodenTrough.MI_AM_OldWoodenTrough"
+   ],
+   "art": "Kram",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    78,
+    269,
+    83
+   ]
+  },
+  {
+   "name": "SM_HorseHitchingPost",
+   "mesh": "/Game/Megascans/3D_Assets/HorseHitchingPost/SM_HorseHitchingPost",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_HorseHitchingPost.MI_AM_HorseHitchingPost"
+   ],
+   "art": "Kram",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    273,
+    18,
+    99
+   ]
+  },
+  {
+   "name": "SM_OldWoodenPole",
+   "mesh": "/Game/Megascans/3D_Assets/OldWoodenPole/SM_OldWoodenPole",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_OldWoodenPole.MI_AM_OldWoodenPole"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    22,
+    473,
+    18
+   ]
+  },
+  {
+   "name": "SM_WornWoodenBeamA_00",
+   "mesh": "/Game/Megascans/3D_Assets/WornWoodenBeamA/SM_WornWoodenBeamA_00",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WornWoodenBeamA_00.MI_AM_WornWoodenBeamA_00"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    20,
+    19,
+    256
+   ]
+  },
+  {
+   "name": "SM_WoodenPost",
+   "mesh": "/Game/Megascans/3D_Assets/WoodenPost/SM_WoodenPost",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_WoodenPost.MI_AM_WoodenPost"
+   ],
+   "art": "Kram",
+   "zonen": "KSGP",
+   "skala": [
+    0.9,
+    1.2
+   ],
+   "groesse": [
+    28,
+    29,
+    151
+   ]
+  },
+  {
+   "name": "SM_OldWoodenBench",
+   "mesh": "/Game/Megascans/3D_Assets/OldWoodenBench/SM_OldWoodenBench",
+   "materials": [
+    "/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_OldWoodenBench.MI_AM_OldWoodenBench"
+   ],
+   "art": "Kram",
+   "zonen": "KP",
+   "skala": [
+    0.9,
+    1.1
+   ],
+   "groesse": [
+    33,
+    190,
+    48
+   ]
+  }
+ ]
+}
