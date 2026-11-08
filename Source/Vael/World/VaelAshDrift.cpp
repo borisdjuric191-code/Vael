@@ -55,7 +55,7 @@ void AVaelAshDrift::StartGust(const FVector& PlayerLocation, bool bWindy)
 	Gust.Left = Length / RunSpeed;
 	Gust.Width = FMath::FRandRange(100.0f, 220.0f) * (bWindy ? 1.4f : 1.0f);
 	Gusts.Add(Gust);
-	UE_LOG(LogVael, Verbose, TEXT("Ash gust at %s, %.0f m"), *Ground.ToCompactString(), Length / 100.0f);
+	UE_LOG(LogVael, Display, TEXT("Ash gust at %s, %.0f m"), *Ground.ToCompactString(), Length / 100.0f);
 }
 
 void AVaelAshDrift::GustNow()

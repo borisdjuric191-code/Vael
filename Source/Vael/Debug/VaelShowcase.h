@@ -56,6 +56,7 @@ private:
 	TObjectPtr<class ACameraActor> Closeup;
 	/** Walk test (-VaelShowcaseWalkTo) */
 	bool bWalkDone = false;
+	int32 WalkIndex = 0;
 	float WalkStart = -1.0f;
 	float WalkCheckTime = 0.0f;
 	FVector WalkCheckLocation = FVector::ZeroVector;

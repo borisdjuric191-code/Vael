@@ -105,8 +105,14 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 	FString WalkText;
 	if (NumCommandsRun > 0 && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseWalkTo="), WalkText, false))
 	{
+		// Several points separated by ; are walked one after the other; a stuck point is skipped after logging it
+		TArray<FString> Points;
+		WalkText.ParseIntoArray(Points, TEXT(";"));
 		TArray<FString> Parts;
-		WalkText.ParseIntoArray(Parts, TEXT(","));
+		if (Points.IsValidIndex(WalkIndex))
+		{
+			Points[WalkIndex].ParseIntoArray(Parts, TEXT(","));
+		}
 		const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
 		APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
 		if (PlayerPawn != nullptr && Parts.Num() >= 2 && !bWalkDone)
@@ -116,8 +122,9 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 			const float Left = FVector::Dist2D(Here, Target);
 			if (Left < 80.0f)
 			{
-				bWalkDone = true;
-				UE_LOG(LogVael, Display, TEXT("[WalkTest] reached %s after %.1f s"), *Target.ToCompactString(), Age - WalkStart);
+				UE_LOG(LogVael, Display, TEXT("[WalkTest] reached %d %s after %.1f s"), WalkIndex, *Target.ToCompactString(), Age - WalkStart);
+				WalkStart = -1.0f;
+				bWalkDone = ++WalkIndex >= Points.Num();
 			}
 			else
 			{
@@ -134,8 +141,9 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 					UE_LOG(LogVael, Display, TEXT("[WalkTest] at %s, %.0f cm left, moved %.0f cm"), *Here.ToCompactString(), Left, Moved);
 					if (Moved < 20.0f && Age - WalkStart > 2.0f)
 					{
-						bWalkDone = true;
-						UE_LOG(LogVael, Display, TEXT("[WalkTest] STUCK at %s, %.0f cm before the target"), *Here.ToCompactString(), Left);
+						UE_LOG(LogVael, Display, TEXT("[WalkTest] STUCK %d at %s, %.0f cm before the target"), WalkIndex, *Here.ToCompactString(), Left);
+						WalkStart = -1.0f;
+						bWalkDone = ++WalkIndex >= Points.Num();
 						// What is in the way: a capsule sweep towards the target
 						TArray<FHitResult> Hits;
 						FCollisionQueryParams Query(TEXT("WalkTest"), false, PlayerPawn);
