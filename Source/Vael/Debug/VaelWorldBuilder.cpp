@@ -10,6 +10,10 @@
 #include "Engine/Texture2D.h"
 #include "Engine/Texture2DArray.h"
 #include "Engine/StaticMesh.h"
+#include "Materials/Material.h"
+#include "Materials/MaterialExpression.h"
+#include "EngineUtils.h"
+#include "LandscapeProxy.h"
 #include "Engine/Engine.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
 #include "Vael.h"
@@ -213,3 +217,74 @@ AActor* UVaelWorldBuilder::SpawnInstanceCell(UObject* WorldContext, FVector Orig
 #endif
 	return Actor;
 }
+
+bool UVaelWorldBuilder::ConnectDisplacement(UMaterial* Material, UMaterialExpression* Expression, const FString& OutputName, float Magnitude, float Center)
+{
+#if WITH_EDITOR
+	if (Material == nullptr || Expression == nullptr)
+	{
+		return false;
+	}
+	int32 OutputIndex = 0;
+	if (!OutputName.IsEmpty())
+	{
+		OutputIndex = INDEX_NONE;
+		const TArray<FExpressionOutput>& Outputs = Expression->GetOutputs();
+		for (int32 Index = 0; Index < Outputs.Num(); ++Index)
+		{
+			if (Outputs[Index].OutputName.ToString() == OutputName)
+			{
+				OutputIndex = Index;
+			}
+		}
+		if (OutputIndex == INDEX_NONE)
+		{
+			return false;
+		}
+	}
+	Material->Modify();
+	Material->GetEditorOnlyData()->Displacement.Connect(OutputIndex, Expression);
+	Material->bEnableTessellation = true;
+	Material->DisplacementScaling.Magnitude = Magnitude;
+	Material->DisplacementScaling.Center = Center;
+	// Far away the relief is smaller than a few pixels: tessellation stops there, which saves most of its cost
+	Material->bEnableDisplacementFade = true;
+	Material->DisplacementFadeRange.StartSizePixels = 4.0f;
+	Material->DisplacementFadeRange.EndSizePixels = 1.5f;
+	Material->PostEditChange();
+	return true;
+#else
+	return false;
+#endif
+}
+
+int32 UVaelWorldBuilder::EnableLandscapeNanite(UObject* WorldContext)
+{
+	int32 Count = 0;
+#if WITH_EDITOR
+	UWorld* World = GEngine != nullptr ? GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
+	if (World == nullptr)
+	{
+		return 0;
+	}
+	for (TActorIterator<ALandscapeProxy> It(World); It; ++It)
+	{
+		// bEnableNanite is protected: set it through its reflected property, as the details panel does
+		if (FBoolProperty* Property = FindFProperty<FBoolProperty>(ALandscapeProxy::StaticClass(), TEXT("bEnableNanite")))
+		{
+			It->Modify();
+			Property->SetPropertyValue_InContainer(*It, true);
+			FPropertyChangedEvent Changed(Property);
+			It->PostEditChangeProperty(Changed);
+		}
+	}
+	for (TActorIterator<ALandscapeProxy> It(World); It; ++It)
+	{
+		It->UpdateNaniteRepresentation(nullptr);
+		It->MarkPackageDirty();
+		++Count;
+	}
+#endif
+	return Count;
+}
+

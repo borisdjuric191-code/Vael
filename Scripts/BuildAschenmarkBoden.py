@@ -22,7 +22,9 @@ FOLDER = WORLD_FOLDER + "/Boden"
 LAYERS = 8
 M = 100.0
 SIZE_X, SIZE_Y = 2017, 2521
-KIT_VERSION = 2.4
+KIT_VERSION = 2.7
+# The displacement is scaled by the landscape scale (100 in X, Y and Z): 0.12 = 12 cm
+DISPLACEMENT_CM = 0.12
 
 assets = unreal.EditorAssetLibrary
 library = unreal.MaterialEditingLibrary
@@ -187,14 +189,34 @@ for (int l = 0; l < 8; l++)
 
 // Loose ash lies over everything flat, thicker in drifts; less of it on the roads and on steep rock
 float Drift = smoothstep(0.35, 0.8, N2 * 0.6 + N3 * 0.4) * (1.0 - Steep) * (1.0 - 0.6 * smoothstep(0.25, 0.85, Way)) * (1.0 - zP * 0.5);
-float3 LooseAsh = float3(0.42, 0.40, 0.38) * lerp(0.85, 1.1, N3);
-Colour = lerp(Colour, LooseAsh, Drift * 0.55);
+float3 LooseAsh = float3(0.34, 0.325, 0.31) * lerp(0.8, 1.05, N3) * lerp(0.85, 1.0, Bh[0].a);
+Colour = lerp(Colour, LooseAsh, Drift * 0.45);
 Rough = lerp(Rough, 0.95, Drift * 0.5);
 // Colour drifts over 50 to 150 m: lighter and darker fields, warmer and cooler stretches
 float3 Warm = float3(1.05, 1.0, 0.92), Cool = float3(0.93, 0.96, 1.03);
 Colour *= lerp(0.8, 1.15, N0) * lerp(Warm, Cool, N4);
 Colour *= lerp(float3(1, 1, 1), float3(1.06, 0.95, 0.88), zG * 0.7) * lerp(float3(1, 1, 1), float3(0.92, 0.94, 0.98), zS * 0.6);
 
+// Real relief for the Nanite displacement: the blended heights of the layers, and in sand and ash small ripples the wind
+// has drawn, all running the same way with a slow bend, broken up by noise; loose ash drifts fill the hollows a little
+float Height = 0.0;
+for (int l = 0; l < 8; l++) { Height += Bh[l].a * F[l] / max(Total, 1e-4); }
+float Soft = saturate((F[0] + F[7] * 0.6 + F[6] * 0.4) / max(Total, 1e-4) + Drift * 0.5);
+float2 RippleDir = normalize(float2(0.8, 0.6) + float2(N4 - 0.5, N0 - 0.5) * 0.9);
+float Wave = lerp(0.24, 0.46, N2);
+float RipplePhase = dot(UV, RippleDir) * 6.2831853 / Wave + N1 * 14.0 + N3 * 6.0;
+float Ripple = (sin(RipplePhase) * 0.5 + 0.5);
+// a weaker second set across, and the strength coming and going in patches, so it never looks combed
+float2 CrossDir = float2(-RippleDir.y, RippleDir.x) * 0.6 + RippleDir * 0.8;
+float Cross = sin(dot(UV, normalize(CrossDir)) * 6.2831853 / (Wave * 1.7) + N0 * 11.0) * 0.5 + 0.5;
+float RippleAmount = (0.45 + 0.55 * smoothstep(0.2, 0.7, N1 * 0.6 + N4 * 0.4)) * (1.0 - smoothstep(0.6, 0.95, N3) * 0.6);
+Ripple = lerp(0.5, Ripple * Ripple * 0.75 + Cross * 0.25, RippleAmount);
+float Grain = Bh[0].a;
+float Relief = lerp(Height, Height * 0.45 + Ripple * 0.4 + Grain * 0.15, Soft) * (1.0 - smoothstep(0.25, 0.85, Way) * 0.55);
+HeightOut = saturate(Relief);
+// The ripples also bend the light, so they read from above even where the relief is flat
+float RippleSlope = cos(RipplePhase) * Soft * RippleAmount * 0.3;
+Nxy += RippleDir * RippleSlope;
 NormalOut = float3(Nxy, sqrt(saturate(1.0 - dot(Nxy, Nxy))));
 RoughOut = Rough;
 OccOut = Occ;
@@ -244,7 +266,8 @@ def build_material(bh_array, nr_array, masks):
     custom.set_editor_property("inputs", entries)
     outputs = []
     for name, kind in (("NormalOut", unreal.CustomMaterialOutputType.CMOT_FLOAT3), ("RoughOut", unreal.CustomMaterialOutputType.CMOT_FLOAT1),
-                       ("OccOut", unreal.CustomMaterialOutputType.CMOT_FLOAT1), ("GlowOut", unreal.CustomMaterialOutputType.CMOT_FLOAT1)):
+                       ("OccOut", unreal.CustomMaterialOutputType.CMOT_FLOAT1), ("GlowOut", unreal.CustomMaterialOutputType.CMOT_FLOAT1),
+                       ("HeightOut", unreal.CustomMaterialOutputType.CMOT_FLOAT1)):
         out = unreal.CustomOutput()
         out.set_editor_property("output_name", name)
         out.set_editor_property("output_type", kind)
@@ -262,6 +285,9 @@ def build_material(bh_array, nr_array, masks):
     g.link(custom, glow, "A", "GlowOut")
     g.link(g.node(unreal.MaterialExpressionConstant3Vector, constant=unreal.LinearColor(4.0, 1.3, 0.28, 1.0)), glow, "B")
     library.connect_material_property(glow, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # Nanite displacement: 12 cm of relief, the middle stays where the landscape is
+    if not unreal.VaelWorldBuilder.connect_displacement(material, custom, "HeightOut", DISPLACEMENT_CM, 0.5):
+        log("displacement could not be connected")
 
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)
@@ -339,6 +365,23 @@ def lay_decals():
     log("{} old marks removed, {} laid".format(len(old), len(marks)))
 
 
+def nanite_landscape():
+    """Skipped with VAEL_NANITE_FERTIG=1 once it is on (the material alone changed).
+    The landscape of L_Vael as Nanite, so the displacement of the ground material really moves it"""
+    if os.environ.get("VAEL_NANITE_FERTIG") == "1":
+        return
+    if not unreal.get_editor_subsystem(unreal.LevelEditorSubsystem).load_level(LEVEL):
+        log("could not load " + LEVEL)
+        return
+    descs = unreal.WorldPartitionBlueprintLibrary.get_actor_descs()
+    unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descs])
+    world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+    count = unreal.VaelWorldBuilder.enable_landscape_nanite(world)
+    unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL)
+    unreal.EditorLoadingAndSavingUtils.save_dirty_packages(False, True)
+    log("Nanite on for {} landscape actors".format(count))
+
+
 def main():
     bh, nr = [], []
     for index in range(LAYERS):
@@ -359,6 +402,7 @@ def main():
 
     material = build_material(bh_array, nr_array, masks)
     log("material {} built, kit {}".format(material.get_name(), KIT_VERSION))
+    nanite_landscape()
     lay_decals()
 
 

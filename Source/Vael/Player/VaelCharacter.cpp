@@ -123,6 +123,9 @@ AVaelCharacter::AVaelCharacter()
 	PlayerMarker->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	PlayerMarker->SetCastShadow(false);
 	PlayerMarker->bReceivesDecals = false;
+	// Boris 2026-11-08: no disc under the players any more; kept as a component for later (a faint colour ring for co-op)
+	PlayerMarker->SetVisibility(false);
+	PlayerMarker->SetHiddenInGame(true);
 
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> MarkerMesh(TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	if (MarkerMesh.Succeeded())

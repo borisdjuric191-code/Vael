@@ -10,6 +10,8 @@ class UMaterialInterface;
 class UTexture2D;
 class UTexture2DArray;
 class UStaticMesh;
+class UMaterial;
+class UMaterialExpression;
 
 /** One mesh with its materials and where its copies stand, for UVaelWorldBuilder::SpawnInstanceCell */
 USTRUCT(BlueprintType)
@@ -73,6 +75,16 @@ public:
 
 	/** One actor for a patch of land with a hierarchical instanced mesh per batch: thousands of scenery pieces as a few
 	 *  hundred actors, streamed by World Partition like any other actor. Returns the actor. */
+	/** Feeds a material output into the Nanite displacement of a material (Python cannot reach that hidden input) and turns
+	 *  tessellation on: Magnitude in cm, Center = the value that stays where it is (0..1). False if the output is not there. */
+	UFUNCTION(BlueprintCallable, Category="Vael|World")
+	static bool ConnectDisplacement(UMaterial* Material, UMaterialExpression* Expression, const FString& OutputName, float Magnitude, float Center);
+
+	/** Turns Nanite on for every landscape of the world and builds its Nanite meshes, so materials with displacement really
+	 *  move the ground; returns the number of landscape actors updated */
+	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
+	static int32 EnableLandscapeNanite(UObject* WorldContext);
+
 	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
 	static AActor* SpawnInstanceCell(UObject* WorldContext, FVector Origin, const TArray<FVaelInstanceBatch>& Batches, FName Tag,
 		const FString& Folder, const FString& Label);
