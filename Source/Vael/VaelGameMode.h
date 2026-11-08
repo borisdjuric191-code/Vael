@@ -10,6 +10,7 @@ class AVaelCharacter;
 class AVaelSharedCamera;
 class AVaelTrainingDummy;
 class UVaelCreatureData;
+class AVaelCreature;
 
 /**
  *  Game Mode for local co-op with one shared isometric camera
@@ -57,7 +58,8 @@ public:
 	void OnPlayerDowned(AVaelCharacter* Player);
 
 	/** Spawns creatures of one kind on the ground around a location; bOfTheLevel marks those a spawner of the level brings, Level is where they belong (see AVaelCreature::SpawnCreature). Returns the number spawned. */
-	int32 SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel = false, ULevel* Level = nullptr);
+	int32 SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel = false, ULevel* Level = nullptr,
+		TArray<AVaelCreature*>* OutCreatures = nullptr);
 
 protected:
 

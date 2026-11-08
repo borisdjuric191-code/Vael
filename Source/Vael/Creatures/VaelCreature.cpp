@@ -256,9 +256,23 @@ void AVaelCreature::SetElite()
 	UE_LOG(LogVael, Log, TEXT("'%s' is an elite (%.0f health)"), *GetNameSafe(this), EliteMaxHealth);
 }
 
+void AVaelCreature::SetStrength(float InStrength)
+{
+	if (bDead || InStrength <= 0.0f || FMath::IsNearlyEqual(InStrength, Strength))
+	{
+		return;
+	}
+	const float Share = GetMaxHealth() > 0.0f ? GetHealth() / GetMaxHealth() : 1.0f;
+	const float NewMaxHealth = GetMaxHealth() / Strength * InStrength;
+	Strength = InStrength;
+	UAbilitySystemComponent* AbilitySystem = GetAbilitySystemComponent();
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetMaxHealthAttribute(), NewMaxHealth);
+	AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), NewMaxHealth * Share);
+}
+
 float AVaelCreature::GetOutgoingDamageMultiplier() const
 {
-	return (bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f) * (bElite ? UVaelWorldSettings::Get()->EliteDamageMultiplier : 1.0f) * BrokenAttackScale;
+	return Strength * (bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f) * (bElite ? UVaelWorldSettings::Get()->EliteDamageMultiplier : 1.0f) * BrokenAttackScale;
 }
 
 void AVaelCreature::Tick(float DeltaSeconds)

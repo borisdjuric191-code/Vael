@@ -25,6 +25,17 @@ AVaelCreatureSpawner::AVaelCreatureSpawner()
 #endif
 
 	CreatureKind = UVaelEmberCrawlerData::StaticClass();
+
+	PrimaryActorTick.bCanEverTick = true;
+	PrimaryActorTick.bStartWithTickEnabled = false;
+	PrimaryActorTick.TickInterval = 1.0f;
+}
+
+namespace
+{
+	/** When a defeated near-player group may come back, by spawner path; survives the spawner unloading with its cell */
+	TMap<FString, double> GClearedUntil;
+	TWeakObjectPtr<UWorld> GClearedWorld;
 }
 
 void AVaelCreatureSpawner::BeginPlay()
@@ -51,7 +62,98 @@ void AVaelCreatureSpawner::BeginPlay()
 		return;
 	}
 
+	if (bNearPlayersOnly)
+	{
+		if (GClearedWorld.Get() != GetWorld())
+		{
+			GClearedUntil.Reset();
+			GClearedWorld = GetWorld();
+		}
+		SetActorTickEnabled(true);
+		return;
+	}
+
 	SpawnWhenGroundIsThere();
+}
+
+float AVaelCreatureSpawner::NearestPlayerDistance() const
+{
+	float Nearest = TNumericLimits<float>::Max();
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		const APawn* Player = It->Get() != nullptr ? It->Get()->GetPawn() : nullptr;
+		if (Player != nullptr)
+		{
+			Nearest = FMath::Min(Nearest, static_cast<float>(FVector::Dist2D(Player->GetActorLocation(), GetActorLocation())));
+		}
+	}
+	return Nearest;
+}
+
+void AVaelCreatureSpawner::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	const float Distance = NearestPlayerDistance();
+	const double Now = GetWorld()->GetTimeSeconds();
+	const FString Key = GetPathName();
+
+	if (!Group.IsEmpty())
+	{
+		int32 Alive = 0;
+		for (const TWeakObjectPtr<AVaelCreature>& Creature : Group)
+		{
+			Alive += Creature.IsValid() && !Creature->IsDead() ? 1 : 0;
+		}
+		if (Alive == 0)
+		{
+			// Defeated: the place stays quiet for a while
+			GClearedUntil.Add(Key, Now + RespawnSeconds);
+			Group.Reset();
+		}
+		else if (Distance > SleepDistance)
+		{
+			for (const TWeakObjectPtr<AVaelCreature>& Creature : Group)
+			{
+				if (Creature.IsValid() && !Creature->IsDead())
+				{
+					Creature->Destroy();
+				}
+			}
+			Group.Reset();
+		}
+		return;
+	}
+
+	const double* Until = GClearedUntil.Find(Key);
+	// Wakes when someone comes near, but never right in front of them (the iso camera shows about 25 m round the group)
+	if (Distance < WakeDistance && Distance > 2500.0f && (Until == nullptr || Now >= *Until))
+	{
+		SpawnGroup();
+	}
+}
+
+void AVaelCreatureSpawner::SpawnGroup()
+{
+	UVaelCreatureData* Data = CreatureData != nullptr ? CreatureData.Get() : (CreatureKind != nullptr ? CreatureKind->GetDefaultObject<UVaelCreatureData>() : nullptr);
+	AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();
+	FVector Ground;
+	if (Data == nullptr || GameMode == nullptr || !AVaelCreature::FindGround(GetWorld(), GetActorLocation(), Ground))
+	{
+		return;
+	}
+	TArray<AVaelCreature*> Spawned;
+	GameMode->SpawnCreatureGroup(Data, GetActorLocation(), Count, Spread, true, GetWorld()->IsPartitionedWorld() ? GetLevel() : nullptr, &Spawned);
+	for (int32 Index = 0; Index < Spawned.Num(); ++Index)
+	{
+		AVaelCreature* Creature = Spawned[Index];
+		Creature->SetStrength(Strength);
+		if (Index == 0 && EliteChance > 0.0f && FMath::FRand() < EliteChance)
+		{
+			Creature->SetElite();
+		}
+		Group.Add(Creature);
+	}
 }
 
 void AVaelCreatureSpawner::SpawnWhenGroundIsThere()

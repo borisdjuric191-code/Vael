@@ -154,6 +154,11 @@ public:
 	/** Makes it an elite (once): health grows by the elite multiplier, kept as a share of the new maximum */
 	void SetElite();
 
+	/** Makes the creature stronger than its kind, farther from the start of the world: health and damage times the strength (1 = as made) */
+	void SetStrength(float InStrength);
+
+	float GetStrength() const { return Strength; }
+
 	/** Lets the creature stumble after a hit: it stops acting for a moment and its body tips over. Bosses barely stagger. */
 	void Stagger(float Duration);
 
@@ -369,6 +374,9 @@ private:
 
 	/** True once the creature is an elite */
 	bool bElite = false;
+
+	/** Health and damage factor from where it lives (SetStrength) */
+	float Strength = 1.0f;
 
 	/** World time at which the current stagger ends */
 	float StaggerEndTime = 0.0f;

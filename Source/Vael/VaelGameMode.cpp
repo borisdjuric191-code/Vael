@@ -212,7 +212,8 @@ void AVaelGameMode::SpawnTestCreatures(const FVector& Center)
 	SpawnAtAngle(GetMutableDefault<UVaelPreacherData>(), 240.0f, 1);
 }
 
-int32 AVaelGameMode::SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel, ULevel* Level)
+int32 AVaelGameMode::SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& Center, int32 Count, float Spread, bool bOfTheLevel, ULevel* Level,
+	TArray<AVaelCreature*>* OutCreatures)
 {
 	int32 NumSpawned = 0;
 
@@ -228,6 +229,10 @@ int32 AVaelGameMode::SpawnCreatureGroup(UVaelCreatureData* Data, const FVector& 
 		{
 			Creature->bOfTheLevel = bOfTheLevel;
 			++NumSpawned;
+			if (OutCreatures != nullptr)
+			{
+				OutCreatures->Add(Creature);
+			}
 		}
 	}
 
