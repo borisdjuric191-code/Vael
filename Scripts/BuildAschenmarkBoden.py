@@ -22,7 +22,7 @@ FOLDER = WORLD_FOLDER + "/Boden"
 LAYERS = 8
 M = 100.0
 SIZE_X, SIZE_Y = 2017, 2521
-KIT_VERSION = 3.0
+KIT_VERSION = 3.1
 # The displacement is scaled by the landscape scale (100 in X, Y and Z): 0.12 = 12 cm
 DISPLACEMENT_CM = 0.12
 
@@ -216,18 +216,19 @@ float Relief = lerp(Height, Height * 0.45 + Ripple * 0.4 + Grain * 0.15, Soft) *
 // Footprints from the track map (UVaelFootprintSubsystem): R depth, G the clock when made; deep in ash and sand, shallow
 // on earth, hardly on rock and roads; they fade over FadeSecs
 float Inside = all(TrailUV > 0.0) && all(TrailUV < 1.0) ? 1.0 : 0.0;
-float Texel = 1.0 / 2048.0;
+float Texel = 2.0 / 2048.0;   // two map pixels: the print edges are soft, one pixel gives almost no slope
 float4 Tr = Trail.SampleLevel(TrailSampler, TrailUV, 0);
 float Age = frac(Clock - Tr.g) * 600.0;
 float Print = Tr.r * saturate(1.0 - Age / FadeSecs) * Inside;
 float Give = saturate(0.15 + 0.85 * Soft + 0.3 * F[1] / max(Total, 1e-4)) * (1.0 - Steep) * (1.0 - smoothstep(0.4, 0.9, Way) * 0.7);
 float PrintR = Trail.SampleLevel(TrailSampler, TrailUV + float2(Texel, 0), 0).r;
 float PrintU = Trail.SampleLevel(TrailSampler, TrailUV + float2(0, Texel), 0).r;
-Relief -= Print * Give * 0.45;
-Colour *= 1.0 - Print * Give * 0.35;
+// 9.11.: stronger, so they read from the game camera in sand and ash (they were barely visible)
+Relief -= Print * Give * 0.7;
+Colour *= 1.0 - Print * Give * 0.55;
 Rough = lerp(Rough, 1.0, Print * Give * 0.5);
 // a dent: the height is -Print, so the normal leans towards where the print gets deeper
-Nxy += float2(PrintR - Tr.r, PrintU - Tr.r) * Give * saturate(1.0 - Age / FadeSecs) * Inside * 0.6;
+Nxy += float2(PrintR - Tr.r, PrintU - Tr.r) * Give * saturate(1.0 - Age / FadeSecs) * Inside * 2.5;
 HeightOut = saturate(Relief);
 // The ripples also bend the light, so they read from above even where the relief is flat
 float RippleSlope = cos(RipplePhase) * Soft * RippleAmount * 0.3;
