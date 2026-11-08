@@ -189,6 +189,8 @@ void AVaelCharacter::SetBaseLook(int32 LookIndex)
 void AVaelCharacter::FollowMesh(AActor* Human)
 {
 	USkeletalMeshComponent* Body = nullptr;
+	// The robe and the body under it are fitted to the mage; the other classes keep the clothes of their own assembly
+	const bool bMageClothes = HeroClass == EVaelHeroClass::Mage;
 	TInlineComponentArray<USkeletalMeshComponent*> Meshes(Human);
 	for (USkeletalMeshComponent* Part : Meshes)
 	{
@@ -196,7 +198,7 @@ void AVaelCharacter::FollowMesh(AActor* Human)
 		if (Part->GetFName() == TEXT("Body"))
 		{
 			Body = Part;
-			if (USkeletalMesh* BodyUnderRobe = VaelAssets::LoadOptional(MetaHumanBodyUnderRobe))
+			if (USkeletalMesh* BodyUnderRobe = bMageClothes ? VaelAssets::LoadOptional(MetaHumanBodyUnderRobe) : nullptr)
 			{
 				Part->SetSkeletalMesh(BodyUnderRobe);
 			}
@@ -207,13 +209,13 @@ void AVaelCharacter::FollowMesh(AActor* Human)
 				Follower->SetSource(GetMesh());
 			}
 		}
-		else if (Part->GetFName() != TEXT("Face"))
+		else if (Part->GetFName() != TEXT("Face") && bMageClothes)
 		{
 			Part->SetVisibility(false);
 		}
 	}
 
-	for (const TSoftObjectPtr<USkeletalMesh>& Clothing : MetaHumanClothes)
+	for (const TSoftObjectPtr<USkeletalMesh>& Clothing : bMageClothes ? MetaHumanClothes : TArray<TSoftObjectPtr<USkeletalMesh>>())
 	{
 		USkeletalMesh* ClothingMesh = VaelAssets::LoadOptional(Clothing);
 		if (Body != nullptr && ClothingMesh != nullptr)
