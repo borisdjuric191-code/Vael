@@ -146,6 +146,12 @@ protected:
 	/** The MetaHuman of the class and body played now, null if there is none (yet) */
 	TSoftClassPtr<AActor> GetClassMetaHuman() const;
 
+	float FigureHeight = 0.0f;
+	float FigureBuild = 0.0f;
+	FVector OriginalMeshScale = FVector::OneVector;
+	bool bOriginalMeshScaleSet = false;
+	FVector GetFigureScale() const;
+
 	/** Shows the MetaHuman of the class by default (VaelGestalt switches by hand); off with -VaelNoMetaHuman */
 	bool bMetaHumanByDefault = true;
 
@@ -236,6 +242,11 @@ public:
 
 	/** Whether the MetaHuman of the class is shown whenever class or body change (VaelGestalt turns it off and on) */
 	void SetMetaHumanByDefault(bool bOn) { bMetaHumanByDefault = bOn; }
+
+	/** The figure of the page "Gestalt": height -1..1 (5 % either way), build -1..1 within the range of the class */
+	void ApplyFigure(float InHeight, float InBuild);
+	float GetFigureHeight() const { return FigureHeight; }
+	float GetFigureBuild() const { return FigureBuild; }
 
 	/** Performance test: more MetaHumans standing around the player and moving with it, the cost of a co-op group */
 	void SpawnMetaHumanCopies(int32 Count);

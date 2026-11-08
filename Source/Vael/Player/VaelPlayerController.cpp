@@ -744,6 +744,21 @@ void AVaelPlayerController::PressMenuPageForTest(float Direction)
 	OnMenuPage(FInputActionValue(Direction));
 }
 
+void AVaelPlayerController::StepFigure(int32 Row, int32 Step)
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelHeroSubsystem* Heroes = UVaelHeroSubsystem::Get(this);
+	if (VaelCharacter == nullptr || Heroes == nullptr)
+	{
+		return;
+	}
+	FVaelHeroChoice Choice = Heroes->GetChoice(PlayerSlot);
+	float& Value = Row == 0 ? Choice.Height : Choice.Build;
+	Value = FMath::Clamp(FMath::RoundToFloat((Value + Step * 0.25f) * 4.0f) / 4.0f, -1.0f, 1.0f);
+	Heroes->SetChoice(PlayerSlot, Choice);
+	VaelCharacter->ApplyFigure(Choice.Height, Choice.Build);
+}
+
 void AVaelPlayerController::OpenCrafting(bool bAtWorkbench)
 {
 	bCraftAtWorkbench = bAtWorkbench;
@@ -1734,7 +1749,7 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 
 	if (MenuPage == EVaelMenuPage::Hero)
 	{
-		HeroSelection = FMath::Clamp(HeroSelection + Step, 0, UVaelHeroSubsystem::NumListedChoices - 1);
+		HeroSelection = FMath::Clamp(HeroSelection + Step, 0, UVaelHeroSubsystem::NumListedChoices + UVaelHeroSubsystem::NumFigureRows - 1);
 		return;
 	}
 
@@ -1915,12 +1930,20 @@ void AVaelPlayerController::OnMenuConfirm()
 		return;
 	}
 
-	// Class and body: the choice is kept for the slot and taken on at once
+	// Class and body: the choice is kept for the slot and taken on at once (the rows of the figure turn with left and right)
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Hero && VaelCharacter != nullptr && HeroSelection >= UVaelHeroSubsystem::NumListedChoices)
+	{
+		return;
+	}
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Hero && VaelCharacter != nullptr)
 	{
-		const FVaelHeroChoice Choice = UVaelHeroSubsystem::GetListedChoice(HeroSelection);
+		FVaelHeroChoice Choice = UVaelHeroSubsystem::GetListedChoice(HeroSelection);
 		if (UVaelHeroSubsystem* Heroes = UVaelHeroSubsystem::Get(this))
 		{
+			// the figure stays as it was set
+			const FVaelHeroChoice Before = Heroes->GetChoice(PlayerSlot);
+			Choice.Height = Before.Height;
+			Choice.Build = Before.Build;
 			Heroes->SetChoice(PlayerSlot, Choice);
 		}
 		GetPawn<AVaelCharacter>()->SetHero(Choice.Class, Choice.bFemale);
@@ -1967,6 +1990,18 @@ void AVaelPlayerController::OnMenuConfirm()
 void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
 {
 	const float Direction = Value.Get<float>();
+	// On the page "Gestalt" left and right turn the figure: height and build within the range of the class
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Hero && HeroSelection >= UVaelHeroSubsystem::NumListedChoices && FMath::Abs(Direction) >= 0.5f)
+	{
+		const double Now = FPlatformTime::Seconds();
+		if (NextNavigateTime > 0.0 && Now < NextNavigateTime)
+		{
+			return;
+		}
+		NextNavigateTime = Now + 0.18;
+		StepFigure(HeroSelection - UVaelHeroSubsystem::NumListedChoices, Direction > 0.0f ? 1 : -1);
+		return;
+	}
 	// On the seed page left and right choose the form: light or shadow (Die Waage)
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Sow && FMath::Abs(Direction) >= 0.5f)
 	{

@@ -230,6 +230,34 @@ void AVaelCharacter::FollowMesh(AActor* Human)
 	}
 }
 
+FVector AVaelCharacter::GetFigureScale() const
+{
+	float Slender = 1.0f;
+	float Broad = 1.0f;
+	UVaelHeroSubsystem::GetBuildRange(HeroClass, Slender, Broad);
+	const float Width = FMath::Lerp(Slender, Broad, (FMath::Clamp(FigureBuild, -1.0f, 1.0f) + 1.0f) * 0.5f);
+	const float Tall = 1.0f + 0.05f * FMath::Clamp(FigureHeight, -1.0f, 1.0f);
+	return FVector(Width, Width, Tall);
+}
+
+void AVaelCharacter::ApplyFigure(float InHeight, float InBuild)
+{
+	FigureHeight = FMath::Clamp(InHeight, -1.0f, 1.0f);
+	FigureBuild = FMath::Clamp(InBuild, -1.0f, 1.0f);
+	if (!bOriginalMeshScaleSet)
+	{
+		return;
+	}
+	// The base look and the MetaHuman over it grow and broaden together; the feet stay on the ground (pivot at the feet)
+	const FVector Figure = GetFigureScale();
+	DefaultMeshScale = OriginalMeshScale * Figure;
+	GetMesh()->SetRelativeScale3D(DefaultMeshScale);
+	if (MetaHuman != nullptr)
+	{
+		MetaHuman->SetActorScale3D(Figure);
+	}
+}
+
 TSoftClassPtr<AActor> AVaelCharacter::GetClassMetaHuman() const
 {
 	switch (HeroClass)
@@ -285,6 +313,7 @@ void AVaelCharacter::SetMetaHumanShown(bool bShown)
 	{
 		MetaHuman->SetActorEnableCollision(false);
 		MetaHuman->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale);
+		MetaHuman->SetActorScale3D(GetFigureScale());
 
 		FollowMesh(MetaHuman);
 	}
@@ -356,6 +385,7 @@ void AVaelCharacter::SetHero(EVaelHeroClass InClass, bool bFemale)
 	SetManaRegen(bFloromant ? FloromantSettings->SaftPerSecond : MageManaRegen);
 
 	UE_LOG(LogVael, Log, TEXT("'%s' plays the %s"), *GetNameSafe(this), bFloromant ? TEXT("Floromant") : bMage ? TEXT("mage") : TEXT("engineer"));
+	ApplyFigure(FigureHeight, FigureBuild);
 	if (GetWorld() != nullptr && GetWorld()->HasBegunPlay())
 	{
 		SetMetaHumanShown(bMetaHumanByDefault);
@@ -383,6 +413,9 @@ void AVaelCharacter::BeginPlay()
 	LoadedSpellDashMontage = VaelAssets::LoadOptional(SpellDashMontage);
 
 	DefaultMeshScale = GetMesh()->GetRelativeScale3D();
+	OriginalMeshScale = DefaultMeshScale;
+	bOriginalMeshScaleSet = true;
+	ApplyFigure(FigureHeight, FigureBuild);
 	DefaultMeshLocation = GetMesh()->GetRelativeLocation();
 	DefaultWalkSpeed = GetCharacterMovement()->MaxWalkSpeed;
 
@@ -567,6 +600,7 @@ void AVaelCharacter::PossessedBy(AController* NewController)
 	{
 		const FVaelHeroChoice Choice = Heroes->GetChoice(LookOwner->GetPlayerSlot());
 		SetHero(Choice.Class, Choice.bFemale);
+		ApplyFigure(Choice.Height, Choice.Build);
 	}
 
 	const AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(NewController);

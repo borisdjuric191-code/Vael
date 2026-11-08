@@ -1752,7 +1752,7 @@ void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)
 	const float RowHeight = 58.0f * S;
 	const int32 NumRows = UVaelHeroSubsystem::NumListedChoices;
 	const float Width = FMath::Min(GrimoireWidth * S, Canvas->ClipX - 32.0f * S);
-	const float Height = 150.0f * S + NumRows * RowHeight + 50.0f * S;
+	const float Height = 150.0f * S + (NumRows + UVaelHeroSubsystem::NumFigureRows) * RowHeight + 70.0f * S;
 	const float Left = (Canvas->ClipX - Width) * 0.5f;
 	const float Top = FMath::Max(16.0f * S, (Canvas->ClipY - Height) * 0.5f);
 	const float Padding = 28.0f * S;
@@ -1777,8 +1777,8 @@ void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)
 		LOCTEXT("HeroMage", "Geist \u00B7 w\u00E4hlt Elemente und wirkt Formeln"),
 		LOCTEXT("HeroFloromant", "Wuchs \u00B7 wirft Samen, die zu Pflanzen wachsen: Glutdistel, Wurzelwand, Tr\u00E4nenkelch"),
 		LOCTEXT("HeroFloromant", "Wuchs \u00B7 wirft Samen, die zu Pflanzen wachsen: Glutdistel, Wurzelwand, Tr\u00E4nenkelch"),
-		LOCTEXT("HeroEngineer", "Werk \u00B7 verschie\u00DFt Phiolen mit Schleuder (nah) und Bogen (weit) \u00B7 vorerst K\u00F6rper und Zauber des Magiers"),
-		LOCTEXT("HeroEngineer", "Werk \u00B7 verschie\u00DFt Phiolen mit Schleuder (nah) und Bogen (weit) \u00B7 vorerst K\u00F6rper und Zauber des Magiers"),
+		LOCTEXT("HeroEngineer", "Geschick \u00B7 baut alles selbst: Schleuder, Bogen, Ladungen, Fallen, Minen, R\u00FCstung"),
+		LOCTEXT("HeroEngineer", "Geschick \u00B7 baut alles selbst: Schleuder, Bogen, Ladungen, Fallen, Minen, R\u00FCstung"),
 	};
 
 	for (int32 Row = 0; Row < NumRows; ++Row)
@@ -1802,6 +1802,42 @@ void AVaelHUD::DrawHeroPage(const AVaelPlayerController* PlayerController)
 		{
 			DrawLabel(LOCTEXT("HeroPlayed", "gespielt"), Left + Width - Padding - 12.0f * S, RowTop + 10.0f * S, 13.0f * S, Rgb(150, 214, 140), 1.0f);
 		}
+	}
+
+	// The figure (like the creation in Diablo): height and build within the range of the class, left and right turn them
+	if (Player != nullptr)
+	{
+		const float FigureTop = Top + 150.0f * S + NumRows * RowHeight + 8.0f * S;
+		const EVaelHeroClass Class = Player->GetHeroClass();
+		const float Values[] = { Player->GetFigureHeight(), Player->GetFigureBuild() };
+		const FText Labels[] = { LOCTEXT("FigureHeight", "Gr\u00F6\u00DFe"), LOCTEXT("FigureBuild", "Statur") };
+		const FText Words[] = {
+			FText::Format(LOCTEXT("HeightWord", "{0} %"), FText::AsNumber(FMath::RoundToInt(Values[0] * 5.0f))),
+			UVaelHeroSubsystem::GetBuildWord(Class, Values[1]) };
+		for (int32 Row = 0; Row < UVaelHeroSubsystem::NumFigureRows; ++Row)
+		{
+			const float RowTop = FigureTop + Row * RowHeight;
+			const bool bSelected = PlayerController->GetHeroSelection() == NumRows + Row;
+			DrawBox(Left + Padding, RowTop, Width - 2.0f * Padding, RowHeight - 6.0f * S, bSelected ? Rgb(52, 38, 30) : Rgb(29, 22, 19));
+			if (bSelected)
+			{
+				DrawFrame(Left + Padding, RowTop, Width - 2.0f * Padding, RowHeight - 6.0f * S, EmberColor);
+			}
+			DrawLabel(Labels[Row], Left + Padding + 16.0f * S, RowTop + 15.0f * S, 18.0f * S, bSelected ? BoneColor : DimColor);
+			const float BarLeft = Left + Padding + 140.0f * S;
+			const float BarWidth = Width - 2.0f * Padding - 340.0f * S;
+			const float BarY = RowTop + RowHeight * 0.5f - 3.0f * S;
+			DrawBox(BarLeft, BarY, BarWidth, 4.0f * S, Rgb(60, 48, 40));
+			for (int32 Tick = 0; Tick <= 8; ++Tick)
+			{
+				DrawBox(BarLeft + BarWidth * Tick / 8.0f - 1.0f, BarY - 3.0f * S, 2.0f, 10.0f * S, Rgb(90, 74, 60));
+			}
+			const float Knob = BarLeft + BarWidth * (Values[Row] + 1.0f) * 0.5f;
+			DrawDisc(FVector2D(Knob, BarY + 2.0f * S), 8.0f * S, bSelected ? EmberColor : BoneColor);
+			DrawLabel(Words[Row], Left + Width - Padding - 16.0f * S, RowTop + 15.0f * S, 16.0f * S, bSelected ? BoneColor : DimColor, 1.0f);
+		}
+		DrawLabel(LOCTEXT("FigureNote", "Links und rechts formen die Gestalt, in der Spanne der Klasse: der Magier hager, die Floromantin zierlich, der Ingenieur st\u00E4mmig."),
+			Left + Padding, FigureTop + UVaelHeroSubsystem::NumFigureRows * RowHeight + 4.0f * S, 12.0f * S, DimColor, 0.0f, Width - 2.0f * Padding);
 	}
 }
 

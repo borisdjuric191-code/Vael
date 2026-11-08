@@ -19,6 +19,14 @@ struct FVaelHeroChoice
 	/** True for the woman, false for the man */
 	UPROPERTY(EditAnywhere, Category="Hero")
 	bool bFemale = false;
+
+	/** The figure within the range of the class (Boris 2026-11-08, like the creation in Diablo): height -1..1 is 5 % smaller
+	 *  to 5 % taller, build -1..1 runs from the slenderest to the broadest the class allows */
+	UPROPERTY(EditAnywhere, Category="Hero")
+	float Height = 0.0f;
+
+	UPROPERTY(EditAnywhere, Category="Hero")
+	float Build = 0.0f;
 };
 
 /**
@@ -44,6 +52,14 @@ public:
 	/** The four choices in the order the page "Gestalt" lists them */
 	static FVaelHeroChoice GetListedChoice(int32 Index);
 	static constexpr int32 NumListedChoices = 6;
+
+	/** Rows of the figure under the classes on the page "Gestalt": height and build */
+	static constexpr int32 NumFigureRows = 2;
+
+	/** How broad a class may be built: the factor of the width at build -1 and at build 1 (mage lean, Floromant slender,
+	 *  engineer stocky) and a word for each end */
+	static void GetBuildRange(EVaelHeroClass Class, float& OutSlender, float& OutBroad);
+	static FText GetBuildWord(EVaelHeroClass Class, float Build);
 
 	/** Name of a choice for the players, for example "Floromantin" */
 	static FText GetChoiceName(const FVaelHeroChoice& Choice);

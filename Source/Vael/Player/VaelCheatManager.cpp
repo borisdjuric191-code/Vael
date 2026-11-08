@@ -1792,6 +1792,21 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}
 		return;
 	}
+	if (What == TEXT("gestalt"))
+	{
+		// The page Gestalt with the figure turned: height Id steps, build two steps broader
+		Controller->OpenHeroPageForTest();
+		for (int32 Step = 0; Step < 2; ++Step)
+		{
+			Controller->StepFigure(1, 1);
+		}
+		for (int32 Step = 0; Step < FCString::Atoi(*Id); ++Step)
+		{
+			Controller->StepFigure(0, 1);
+		}
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: figure height %.2f build %.2f, mesh scale %s"), Player->GetFigureHeight(), Player->GetFigureBuild(), *Player->GetMesh()->GetRelativeScale3D().ToString());
+		return;
+	}
 	if (What == TEXT("beute"))
 	{
 		VaelEngineerGear::LoadMaterial(TEXT("Schlacke"));

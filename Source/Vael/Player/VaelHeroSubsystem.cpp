@@ -36,6 +36,39 @@ FVaelHeroChoice UVaelHeroSubsystem::GetListedChoice(int32 Index)
 	return Choice;
 }
 
+void UVaelHeroSubsystem::GetBuildRange(EVaelHeroClass Class, float& OutSlender, float& OutBroad)
+{
+	switch (Class)
+	{
+	case EVaelHeroClass::Engineer: OutSlender = 1.0f; OutBroad = 1.14f; break;
+	case EVaelHeroClass::Floromant: OutSlender = 0.86f; OutBroad = 0.98f; break;
+	default: OutSlender = 0.9f; OutBroad = 1.03f; break;
+	}
+}
+
+FText UVaelHeroSubsystem::GetBuildWord(EVaelHeroClass Class, float Build)
+{
+	const int32 Step = FMath::Clamp(FMath::RoundToInt((Build + 1.0f) * 1.5f), 0, 3);
+	switch (Class)
+	{
+	case EVaelHeroClass::Engineer:
+	{
+		const FText Words[] = { LOCTEXT("EngB0", "drahtig"), LOCTEXT("EngB1", "kr\u00E4ftig"), LOCTEXT("EngB2", "st\u00E4mmig"), LOCTEXT("EngB3", "breit wie ein Amboss") };
+		return Words[Step];
+	}
+	case EVaelHeroClass::Floromant:
+	{
+		const FText Words[] = { LOCTEXT("FloB0", "feingliedrig"), LOCTEXT("FloB1", "zart"), LOCTEXT("FloB2", "schlank"), LOCTEXT("FloB3", "rank und fest") };
+		return Words[Step];
+	}
+	default:
+	{
+		const FText Words[] = { LOCTEXT("MagB0", "hager"), LOCTEXT("MagB1", "schmal"), LOCTEXT("MagB2", "sehnig"), LOCTEXT("MagB3", "gest\u00E4hlt") };
+		return Words[Step];
+	}
+	}
+}
+
 FText UVaelHeroSubsystem::GetChoiceName(const FVaelHeroChoice& Choice)
 {
 	if (Choice.Class == EVaelHeroClass::Floromant)

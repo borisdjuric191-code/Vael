@@ -475,6 +475,7 @@ public:
 
 	/** Opens the page of the root board (Die Waage) */
 	void OpenBoard() { OpenGrimoire(EVaelMenuPage::Board); }
+	void OpenHeroPageForTest() { OpenGrimoire(EVaelMenuPage::Hero); }
 
 	/** What the earth button of the gamepad uses instead of queueing earth right now: something close by, outside of fights or in a safe zone; null if nothing */
 	AActor* GetPadInteractTarget() const;
@@ -749,6 +750,12 @@ protected:
 	TObjectPtr<UInputAction> EngFieldAction;
 
 	void OnEngField();
+
+public:
+	/** The page "Gestalt": one step of height (row 0) or build (row 1) */
+	void StepFigure(int32 Row, int32 Step);
+
+protected:
 	int32 BrewSelection = 0;
 	double LastBrewTime = -100.0;
 
