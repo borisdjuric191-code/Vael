@@ -22,7 +22,7 @@ FOLDER = WORLD_FOLDER + "/Boden"
 LAYERS = 8
 M = 100.0
 SIZE_X, SIZE_Y = 2017, 2521
-KIT_VERSION = 2.3
+KIT_VERSION = 2.4
 
 assets = unreal.EditorAssetLibrary
 library = unreal.MaterialEditingLibrary
@@ -118,20 +118,20 @@ float zK = saturate(1.0 - Zone * 3.0);
 float zS = saturate(1.0 - abs(Zone - 0.333) * 3.0);
 float zG = saturate(1.0 - abs(Zone - 0.667) * 3.0);
 float zP = saturate(Zone * 3.0 - 2.0);
-float Steep = saturate((0.88 - Up) * 5.0);
-float Free = 1.0 - smoothstep(0.35, 0.75, Way);
+float Steep = smoothstep(0.92, 0.72, Up);
+float Free = 1.0 - smoothstep(0.25, 0.85, Way);
 
 float W[8];
-W[0] = (0.55 * zK + 0.25 * zS + 0.25 * zG + 0.3 * zP + 0.5 * Clear) * (0.6 + 0.6 * N2);
-W[1] = (0.6 * zK + 1.3 * zG + 0.2 * zS) * smoothstep(0.36, 0.6, N1);
-W[2] = 0.95 * zS * smoothstep(0.3, 0.6, N2) + 0.35 * zG * smoothstep(0.55, 0.8, N2);
-W[3] = Steep * 1.6 + 0.4 * zP * smoothstep(0.5, 0.75, N1) + 0.25 * zS * smoothstep(0.65, 0.85, N3);
-W[4] = 0.35 * smoothstep(0.55, 0.8, N3) + 0.3 * zS + 0.35 * zP * smoothstep(0.4, 0.7, N3);
-W[5] = 0.95 * zP * smoothstep(0.45, 0.7, N2) * (1.0 - Steep);
-W[6] = 0.6 * zK * smoothstep(0.5, 0.72, N3) + 0.3 * zG * smoothstep(0.65, 0.85, N1);
+W[0] = (0.95 * zK + 0.5 * zS + 0.55 * zG + 0.45 * zP + 0.6 * Clear) * (0.75 + 0.5 * N2);
+W[1] = (0.45 * zK + 1.2 * zG + 0.2 * zS) * smoothstep(0.3, 0.75, N1);
+W[2] = 0.95 * zS * smoothstep(0.25, 0.7, N2) + 0.35 * zG * smoothstep(0.5, 0.9, N2);
+W[3] = Steep * 1.6 + 0.4 * zP * smoothstep(0.45, 0.85, N1) + 0.25 * zS * smoothstep(0.6, 0.9, N3);
+W[4] = 0.25 * smoothstep(0.5, 0.9, N3) + 0.25 * zS + 0.3 * zP * smoothstep(0.35, 0.8, N3);
+W[5] = 0.95 * zP * smoothstep(0.4, 0.8, N2) * (1.0 - Steep);
+W[6] = 0.45 * zK * smoothstep(0.45, 0.85, N3) + 0.25 * zG * smoothstep(0.6, 0.95, N1);
 for (int i = 0; i < 7; i++) { W[i] *= Free; }
 W[3] = max(W[3], Steep * 1.6);
-W[7] = smoothstep(0.4, 0.8, Way) * 2.0 * (1.0 - Steep);
+W[7] = smoothstep(0.25, 0.85, Way) * 2.0 * (1.0 - Steep);
 
 float Scale[8] = { 4.0, 3.5, 3.0, 6.0, 2.5, 3.0, 3.5, 3.0 };
 float3 HW;
@@ -169,10 +169,10 @@ for (int k = 0; k < 3; k++)
 // Height blend: where a layer is strong and high it wins; the edge between two layers follows their surfaces
 float Score[8];
 float Best = -10.0;
-for (int l = 0; l < 8; l++) { Score[l] = W[l] > 0.003 ? Bh[l].a * 0.8 + W[l] * 1.4 : -10.0; Best = max(Best, Score[l]); }
+for (int l = 0; l < 8; l++) { Score[l] = W[l] > 0.003 ? Bh[l].a * 0.5 + W[l] * 1.6 : -10.0; Best = max(Best, Score[l]); }
 float Total = 0.0;
 float F[8];
-for (int l = 0; l < 8; l++) { F[l] = max(Score[l] - Best + 0.3, 0.0); Total += F[l]; }
+for (int l = 0; l < 8; l++) { F[l] = pow(max(Score[l] - Best + 0.6, 0.0), 1.5); Total += F[l]; }
 float3 Colour = 0;
 float2 Nxy = 0;
 float Rough = 0, Occ = 0;
@@ -185,6 +185,11 @@ for (int l = 0; l < 8; l++)
     Occ += Nr[l].w * f;
 }
 
+// Loose ash lies over everything flat, thicker in drifts; less of it on the roads and on steep rock
+float Drift = smoothstep(0.35, 0.8, N2 * 0.6 + N3 * 0.4) * (1.0 - Steep) * (1.0 - 0.6 * smoothstep(0.25, 0.85, Way)) * (1.0 - zP * 0.5);
+float3 LooseAsh = float3(0.42, 0.40, 0.38) * lerp(0.85, 1.1, N3);
+Colour = lerp(Colour, LooseAsh, Drift * 0.55);
+Rough = lerp(Rough, 0.95, Drift * 0.5);
 // Colour drifts over 50 to 150 m: lighter and darker fields, warmer and cooler stretches
 float3 Warm = float3(1.05, 1.0, 0.92), Cool = float3(0.93, 0.96, 1.03);
 Colour *= lerp(0.8, 1.15, N0) * lerp(Warm, Cool, N4);
@@ -266,7 +271,7 @@ def build_material(bh_array, nr_array, masks):
 LEVEL = "/Game/Vael/Maps/L_Vael"
 DECAL_TAG = "VaelBodenAbdruck"
 # name: glows, (depth, width, length) factor of the size
-DECALS = {"Brandfleck": False, "Glutriss": True, "Aschewehe": False}
+DECALS = {"Brandfleck": False, "Glutriss": True, "Aschewehe": False, "Lehmboden": False}
 
 
 def decal_material(name, texture, glows):

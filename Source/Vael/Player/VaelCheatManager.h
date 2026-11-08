@@ -296,6 +296,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelTagesablauf();
 
+	/** A gust of ash blows over the ground near the player */
+	UFUNCTION(Exec)
+	void VaelAschenboe();
+
 	/** Runs the clock this many times as fast, 1 for normal. Example: VaelTimeSpeed 30 */
 	UFUNCTION(Exec)
 	void VaelTimeSpeed(float Speed);

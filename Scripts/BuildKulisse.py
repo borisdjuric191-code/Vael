@@ -169,9 +169,16 @@ class Graph:
 SCENERY = r"""
 float Up = saturate((Normal.z - 0.3) * 2.2);
 float Coat = saturate(Up * Ash * 1.6 * (0.55 + 0.9 * N1) - 0.15);
-float3 C = Albedo * Tint;
+float3 C = Albedo;
+// Moss and fresh colours of the packs drained towards the grey of the Aschenmark
+C = lerp(C, dot(C, float3(0.3, 0.59, 0.11)).xxx, Desat);
+C *= Tint;
 C *= lerp(1.0, 0.32, Soot * (0.45 + 0.55 * N2));
 C = lerp(C, AshColour * 0.95, Coat);
+// The foot of every piece runs out into the ash it stands in: no hard line where object and ground meet
+float Foot = saturate(1.0 - Low / FootHeight) * (0.65 + 0.35 * N1);
+Foot = Foot * Foot * (3.0 - 2.0 * Foot);
+C = lerp(C, AshColour * 0.9, Foot * FootBlend);
 EmberOut = Glow * pow(saturate(1.0 - N3 * 7.0), 3.0) * saturate(1.0 - Low / 45.0) * (1.0 - Coat);
 return C;
 """
@@ -239,7 +246,8 @@ def build_master():
     vertex_normal = g.node(unreal.MaterialExpressionVertexNormalWS)
     tint = g.node(unreal.MaterialExpressionVectorParameter, parameter_name="Tint", default_value=unreal.LinearColor(0.82, 0.8, 0.78, 1.0))
     inputs = {"Albedo": (albedo, "RGB"), "Normal": (vertex_normal, ""), "AshColour": (ash, "RGB"), "Ash": (g.scalar("Asche", 0.5), ""),
-              "Soot": (g.scalar("Russ", 0.4), ""), "Glow": (g.scalar("Glut", 0.0), ""), "Tint": (tint, ""), "N1": (n1, ""), "N2": (n2, ""),
+              "Soot": (g.scalar("Russ", 0.4), ""), "Glow": (g.scalar("Glut", 0.0), ""), "Desat": (g.scalar("Entsaettigung", 0.35), ""),
+              "FootHeight": (g.scalar("Fusshoehe", 35.0), ""), "FootBlend": (g.scalar("Fussasche", 0.8), ""), "Tint": (tint, ""), "N1": (n1, ""), "N2": (n2, ""),
               "N3": (n3, ""), "Low": (low, "")}
     custom = g.node(unreal.MaterialExpressionCustom, code=SCENERY, output_type=unreal.CustomMaterialOutputType.CMOT_FLOAT3, description="Aschenmark scenery")
     entries = []
@@ -302,6 +310,8 @@ def pack_instance(master, mesh_path, look):
     library.set_material_instance_scalar_parameter_value(mi, "Russ", soot)
     library.set_material_instance_scalar_parameter_value(mi, "Glut", glow)
     library.set_material_instance_vector_parameter_value(mi, "Tint", unreal.LinearColor(*tint, 1.0))
+    # Moss belongs to the pass only; elsewhere the green of the packs is drained
+    library.set_material_instance_scalar_parameter_value(mi, "Entsaettigung", 0.15 if look is MOSS else 0.75 if look is RUIN else 0.5)
     library.update_material_instance(mi)
     assets.save_loaded_asset(mi, False)
     if albedo is None:
@@ -456,4 +466,5 @@ def main():
     build_probe(kit)
 
 
-main()
+if __name__ == "__main__":
+    main()

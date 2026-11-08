@@ -149,7 +149,7 @@ previews = []
 
 # 0 Asche: the sandy mud, greyed to fine ash with a warm hint
 rgb, h, nx, ny, r = from_pack("asche_D", None, None, None)
-ash = grade(rgb, 0.1, (1.0, 0.98, 0.96), 0.66)
+ash = grade(rgb, 0.08, (1.0, 0.99, 0.97), 0.78)
 previews.append(layer(0, ash, h, nx, ny, np.clip(r * 1.05, 0, 1)))
 
 # 1 rissige Erde: dried ash-mud broken into wandering plates, fine cracks inside, the ash itself as the surface

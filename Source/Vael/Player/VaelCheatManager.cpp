@@ -73,6 +73,7 @@
 #include "World/VaelLocalWeather.h"
 #include "World/VaelTimeOfDay.h"
 #include "Story/VaelNpc.h"
+#include "World/VaelAshDrift.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGameplayTags.h"
 
@@ -497,6 +498,16 @@ void UVaelCheatManager::VaelTagesablauf()
 		Moved += It->IsAsleep() ? 1 : 0;
 	}
 	UE_LOG(LogVael, Display, TEXT("VaelTagesablauf: people follow their day, %d asleep"), Moved);
+}
+
+void UVaelCheatManager::VaelAschenboe()
+{
+	for (TActorIterator<AVaelAshDrift> It(GetWorld()); It; ++It)
+	{
+		It->GustNow();
+		return;
+	}
+	UE_LOG(LogVael, Warning, TEXT("VaelAschenboe: no ash drift in this level"));
 }
 
 void UVaelCheatManager::VaelTimeSpeed(float Speed)

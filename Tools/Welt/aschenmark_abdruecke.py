@@ -79,6 +79,14 @@ rgb = np.array([0.55, 0.53, 0.50]) * (0.85 + 0.12 * ripples + 0.1 * grain)[..., 
 alpha = drift ** 1.2 * (0.55 + 0.25 * ripples) * (0.8 + 0.2 * grain)
 save(rgb, alpha, "D_Aschewehe")
 
+# Lehmboden: the trodden floor inside a ruined house, packed ash and old clay, its edge frayed into the ground
+edge = np.maximum(np.abs(xx), np.abs(yy)) * 0.75 + radius * 0.25 + (fbm(2.6, 13) - 0.5) * 0.35
+floor = np.clip((0.92 - edge) / 0.22, 0, 1)
+grain = fbm(1.3, 14)
+stains = np.clip((fbm(2.0, 15) - 0.55) * 3, 0, 1)
+rgb = np.array([0.36, 0.31, 0.26]) * (0.85 + 0.25 * grain)[..., None] * (1 - stains[..., None] * 0.35)
+save(rgb, floor * (0.75 + 0.2 * grain), "D_Lehmboden")
+
 # ---------------------------------------------------------------- where they lie
 raw = np.fromfile(os.path.join(welt, "AM_Hoehen.r16"), dtype="<u2")
 h = ((raw.astype(np.float32) - 32768.0) / 128.0).reshape(SIZE_Y, SIZE_X).T            # h[x, y]
