@@ -11,6 +11,9 @@
 #include "Engineer/VaelEngineerDevice.h"
 #include "Engineer/VaelEngineerShot.h"
 #include "EngineUtils.h"
+#include "Items/VaelMaterialDrop.h"
+#include "Creatures/VaelCreatureData.h"
+#include "Creatures/VaelCreature.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Player/VaelCharacter.h"
@@ -620,6 +623,10 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 		}
 	}
 	UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Scaled, Effect == EVaelAmmoEffect::Fire ? EVaelElement::Fire : EVaelElement::Earth);
+	if (!WeaponId.IsNone())
+	{
+		HitPart(Enemy, Scaled, LastZone);
+	}
 	UE_LOG(LogVael, Log, TEXT("Engineer: %s hits %s for %.0f (zone %.2f, distance %.2f%s)"), *ShotAmmo.ToString(), *Enemy->GetName(), Scaled, LastZone, LastDistance, bLastCrit ? TEXT(", crit") : TEXT(""));
 
 	switch (Effect)
@@ -640,6 +647,61 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 	default:
 		break;
 	}
+}
+
+void UVaelEngineerComponent::HitPart(AVaelCharacterBase* Enemy, float Damage, float Zone)
+{
+	if (Enemy == nullptr || FMath::IsNearlyEqual(Zone, 1.0f))
+	{
+		return;
+	}
+	FParts& State = Parts.FindOrAdd(Enemy);
+	const bool bHead = Zone > 1.0f;
+	if ((bHead && State.bHeadBroken) || (!bHead && State.bFlankBroken))
+	{
+		return;
+	}
+	float& Taken = bHead ? State.Head : State.Flank;
+	Taken += Damage;
+	const float Threshold = Enemy->GetMaxHealth() * (HasBuilt(VaelEngineerGear::LensBreak) ? 0.1875f : 0.25f);
+	if (Taken < Threshold)
+	{
+		return;
+	}
+
+	(bHead ? State.bHeadBroken : State.bFlankBroken) = true;
+	++BrokenParts;
+	if (bHead)
+	{
+		if (AVaelCreature* Creature = Cast<AVaelCreature>(Enemy))
+		{
+			Creature->BreakAttack(0.85f);
+		}
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("HeadBroken", "Kopf gebrochen!"));
+	}
+	else
+	{
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, 60.0f);
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("FlankBroken", "Panzer gebrochen!"));
+	}
+
+	// What breaks off: a Bruchstück and two of the creature's own materials
+	AVaelCharacter* Player = GetPlayer();
+	const FVector At = Enemy->GetActorLocation();
+	if (const UVaelMaterial* Piece = VaelEngineerGear::LoadMaterial(TEXT("Bruchstueck")))
+	{
+		AVaelMaterialDrop::DropMaterial(GetWorld(), At, Piece, 1, Player);
+	}
+	if (const AVaelCreature* Creature = Cast<AVaelCreature>(Enemy))
+	{
+		const UVaelCreatureData* Data = Creature->GetCreatureData();
+		const UVaelMaterial* Own = Data != nullptr && !Data->Loot.IsEmpty() ? Data->Loot[0].Material.LoadSynchronous() : nullptr;
+		if (Own != nullptr)
+		{
+			AVaelMaterialDrop::DropMaterial(GetWorld(), At + FVector(40.0f, 0.0f, 0.0f), Own, 2, Player);
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("Engineer: breaks the %s of %s"), bHead ? TEXT("head") : TEXT("armour"), *Enemy->GetName());
 }
 
 void UVaelEngineerComponent::ApplyBurst(const FVector& Location, FName ShotAmmo, float Damage)

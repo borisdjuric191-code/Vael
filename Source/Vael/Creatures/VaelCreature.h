@@ -40,6 +40,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Creature")
 	TObjectPtr<UVaelCreatureData> CreatureData;
 
+	float BrokenAttackScale = 1.0f;
+
 	/** Debug help: shows name, health and conditions as text above the creature once it is hurt */
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	bool bShowStatusText = false;
@@ -159,6 +161,9 @@ public:
 	void SetMarked();
 
 	virtual float GetOutgoingDamageMultiplier() const override;
+
+	/** A broken head (the engineer's part breaking): the creature hits weaker from then on */
+	void BreakAttack(float Scale) { BrokenAttackScale = FMath::Min(BrokenAttackScale, Scale); }
 
 	/** Height above the actor at which the HUD shows the health bar */
 	float GetHealthBarHeight() const { return GetStatusTextHeight(); }

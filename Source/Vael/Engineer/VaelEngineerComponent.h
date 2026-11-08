@@ -211,6 +211,24 @@ private:
 	UPROPERTY(Transient)
 	TArray<TWeakObjectPtr<AVaelEngineerDevice>> Placed;
 
+	/** Part breaking (like Monster Hunter): damage on the head side and on the armoured flanks of each enemy; at a quarter of
+	 *  its life (three sixteenths with the Sternmilch lens) the part breaks: the head makes the creature hit 15 % weaker, the
+	 *  flank leaves it open (marked for a minute), and a Bruchstück drops with two of its own materials */
+	struct FParts
+	{
+		float Head = 0.0f;
+		float Flank = 0.0f;
+		bool bHeadBroken = false;
+		bool bFlankBroken = false;
+	};
+	TMap<TWeakObjectPtr<AActor>, FParts> Parts;
+	void HitPart(AVaelCharacterBase* Enemy, float Damage, float Zone);
+
+public:
+	/** How many parts this engineer has broken (for the test) */
+	int32 BrokenParts = 0;
+
+private:
 	/** Poisons ticking on enemies */
 	struct FPoison
 	{

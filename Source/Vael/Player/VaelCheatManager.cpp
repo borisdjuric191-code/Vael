@@ -1807,6 +1807,42 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: figure height %.2f build %.2f, mesh scale %s"), Player->GetFigureHeight(), Player->GetFigureBuild(), *Player->GetMesh()->GetRelativeScale3D().ToString());
 		return;
 	}
+	if (What == TEXT("bruch"))
+	{
+		// A dummy 6 m ahead facing the player: stones at its head until it breaks
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FActorSpawnParameters BreakSpawn;
+		BreakSpawn.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		AVaelTrainingDummy* Target = GetWorld()->SpawnActor<AVaelTrainingDummy>(AVaelTrainingDummy::StaticClass(),
+			Player->GetActorLocation() + Player->GetActorForwardVector() * 600.0f, FRotator::ZeroRotator, BreakSpawn);
+		if (Target == nullptr)
+		{
+			return;
+		}
+		Target->SetActorRotation((Player->GetActorLocation() - Target->GetActorLocation()).GetSafeNormal2D().Rotation());
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
+		TWeakObjectPtr<AVaelTrainingDummy> WeakTarget = Target;
+		TSharedRef<FTimerHandle> Loop = MakeShared<FTimerHandle>();
+		TSharedRef<int32> Shots = MakeShared<int32>(0);
+		GetWorld()->GetTimerManager().SetTimer(*Loop, FTimerDelegate::CreateLambda([WeakEng, WeakTarget, Loop, Shots]()
+		{
+			if (!WeakEng.IsValid() || !WeakTarget.IsValid())
+			{
+				return;
+			}
+			if (WeakEng->BrokenParts > 0 || *Shots > 40)
+			{
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur: %d parts broken after %d shots"), WeakEng->BrokenParts, *Shots);
+				WeakTarget->GetWorld()->GetTimerManager().ClearTimer(*Loop);
+				return;
+			}
+			if (WeakEng->Fire(WeakTarget->GetActorLocation()))
+			{
+				++*Shots;
+			}
+		}), 0.1f, true, 1.0f);
+		return;
+	}
 	if (What == TEXT("beute"))
 	{
 		VaelEngineerGear::LoadMaterial(TEXT("Schlacke"));

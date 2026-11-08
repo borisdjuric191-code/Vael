@@ -257,7 +257,7 @@ void AVaelCreature::SetElite()
 
 float AVaelCreature::GetOutgoingDamageMultiplier() const
 {
-	return (bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f) * (bElite ? UVaelWorldSettings::Get()->EliteDamageMultiplier : 1.0f);
+	return (bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f) * (bElite ? UVaelWorldSettings::Get()->EliteDamageMultiplier : 1.0f) * BrokenAttackScale;
 }
 
 void AVaelCreature::Tick(float DeltaSeconds)
