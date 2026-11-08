@@ -56,12 +56,15 @@ void AVaelTrainingDummy::Tick(float DeltaSeconds)
 #endif
 }
 
+float AVaelTrainingDummy::TotalDamage = 0.0f;
+
 void AVaelTrainingDummy::OnHealthChanged(float OldValue, float NewValue)
 {
 	Super::OnHealthChanged(OldValue, NewValue);
 
 	if (NewValue < OldValue)
 	{
+		TotalDamage += OldValue - NewValue;
 		LastHitTime = GetWorld()->GetTimeSeconds();
 	}
 }

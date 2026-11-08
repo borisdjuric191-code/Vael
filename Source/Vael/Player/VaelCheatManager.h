@@ -67,6 +67,13 @@ public:
 	UFUNCTION(Exec)
 	void VaelIngenieur(const FString& What = TEXT(""), const FString& Id = TEXT(""));
 
+	/** Damage meter: the player turns into the class and plays a typical rotation for 30 seconds on a dummy that can't fall,
+	 *  then the damage per second is logged ("VaelDpsTest: <class> <dps>"). Classes: magier, floromant, ingenieur (only stones
+	 *  and what he carries, unprepared), vorbereitet (the engineer with everything built, mines and traps laid first).
+	 *  Example: VaelDpsTest magier */
+	UFUNCTION(Exec)
+	void VaelDpsTest(const FString& Klasse = TEXT("magier"));
+
 	/** Opens the inventory page and turns to the material bag (potions, crystals, ingredients) */
 	UFUNCTION(Exec)
 	void VaelInventar();

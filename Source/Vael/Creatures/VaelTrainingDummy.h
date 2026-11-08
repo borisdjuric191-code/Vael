@@ -34,6 +34,10 @@ public:
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Damage meter (VaelDpsTest): everything all dummies took since the last reset */
+	static float TotalDamage;
+	static void ResetMeter() { TotalDamage = 0.0f; }
+
 protected:
 
 	/** Remembers the time of the last hit */

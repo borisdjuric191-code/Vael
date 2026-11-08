@@ -1923,6 +1923,170 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 	}, 6.0f, false);
 }
 
+void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	const bool bEngineer = Klasse.StartsWith(TEXT("i")) || Klasse.StartsWith(TEXT("v"));
+	const bool bPrepared = Klasse.StartsWith(TEXT("v"));
+	const bool bFloromant = Klasse.StartsWith(TEXT("f"));
+	Player->SetHero(bEngineer ? EVaelHeroClass::Engineer : bFloromant ? EVaelHeroClass::Floromant : EVaelHeroClass::Mage, bFloromant);
+	if (bPrepared)
+	{
+		VaelIngenieur(TEXT("alles"));
+	}
+
+	// A dummy that can't fall, 7 m ahead
+	FActorSpawnParameters Parameters;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	AVaelTrainingDummy* Dummy = GetWorld()->SpawnActor<AVaelTrainingDummy>(AVaelTrainingDummy::StaticClass(),
+		Player->GetActorLocation() + Player->GetActorForwardVector() * (bFloromant ? 450.0f : 700.0f), FRotator::ZeroRotator, Parameters);
+	if (Dummy == nullptr)
+	{
+		return;
+	}
+	if (UAbilitySystemComponent* DummyAbilities = Dummy->GetAbilitySystemComponent())
+	{
+		DummyAbilities->SetNumericAttributeBase(UVaelAttributeSet::GetMaxHealthAttribute(), 1000000.0f);
+		DummyAbilities->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), 1000000.0f);
+	}
+	Player->SetActorRotation((Dummy->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D().Rotation());
+
+	struct FRun
+	{
+		TWeakObjectPtr<AVaelCharacter> Player;
+		TWeakObjectPtr<AVaelTrainingDummy> Dummy;
+		FString Klasse;
+		float Start = 0.0f;
+		int32 Step = 0;
+		bool bLaid = false;
+		bool bFloromant = false;
+		bool bEngineer = false;
+		bool bPrepared = false;
+	};
+	TSharedRef<FRun> Run = MakeShared<FRun>();
+	Run->Player = Player;
+	Run->Dummy = Dummy;
+	Run->Klasse = Klasse;
+	Run->bFloromant = bFloromant;
+	Run->bEngineer = bEngineer;
+	Run->bPrepared = bPrepared;
+	Run->Start = GetWorld()->GetTimeSeconds() + 1.0f;
+	AVaelTrainingDummy::ResetMeter();
+	UVaelGrimoireSubsystem* Grimoire = GetWorld()->GetGameInstance()->GetSubsystem<UVaelGrimoireSubsystem>();
+
+	TSharedRef<FTimerHandle> Handle = MakeShared<FTimerHandle>();
+	GetWorld()->GetTimerManager().SetTimer(*Handle, FTimerDelegate::CreateLambda([this, Run, Handle, Grimoire]()
+	{
+		AVaelCharacter* Who = Run->Player.Get();
+		AVaelTrainingDummy* Target = Run->Dummy.Get();
+		UWorld* World = Who != nullptr ? Who->GetWorld() : nullptr;
+		if (Who == nullptr || Target == nullptr || World == nullptr)
+		{
+			return;
+		}
+		const float Now = World->GetTimeSeconds();
+		if (Now < Run->Start)
+		{
+			AVaelTrainingDummy::ResetMeter();
+			return;
+		}
+		Who->SetActorRotation((Target->GetActorLocation() - Who->GetActorLocation()).GetSafeNormal2D().Rotation());
+		const float Elapsed = Now - Run->Start;
+		if (Elapsed >= 30.0f)
+		{
+			World->GetTimerManager().ClearTimer(*Handle);
+			if (Run->bFloromant)
+			{
+				Who->GetFloromant()->SetHandFiring(true, false);
+				Who->GetFloromant()->SetHandFiring(false, false);
+			}
+			UE_LOG(LogVael, Log, TEXT("VaelDpsTest: %s %.1f DPS (%.0f in %.0f s)"), Run->bPrepared ? TEXT("vorbereitet") : Run->bEngineer ? TEXT("ingenieur") : Run->bFloromant ? TEXT("floromant") : TEXT("magier"), AVaelTrainingDummy::TotalDamage / Elapsed, AVaelTrainingDummy::TotalDamage, Elapsed);
+			return;
+		}
+		if (Run->bFloromant)
+		{
+			// both hands with plants of the belt fire for the whole time (the towers and crossing come on top for a good player)
+			if (!Run->bLaid)
+			{
+				Run->bLaid = true;
+				Who->GetFloromant()->SelectBelt(0);
+				Who->GetFloromant()->PutOnHand(true);
+				Who->GetFloromant()->SelectBelt(1);
+				Who->GetFloromant()->PutOnHand(false);
+			}
+			if (FMath::Fmod(Elapsed, 6.0f) < 0.1f)
+			{
+				Who->GetFloromant()->ReloadHands();
+			}
+			Who->GetFloromant()->SetHandFiring(true, true);
+			Who->GetFloromant()->SetHandFiring(false, true);
+			return;
+		}
+		if (Run->bEngineer)
+		{
+			UVaelEngineerComponent* Eng = Who->GetEngineer();
+			if (Run->bPrepared && !Run->bLaid)
+			{
+				// prepared: three mines and two traps by the dummy, the bow with shards
+				Run->bLaid = true;
+				for (const TCHAR* Kind : { TEXT("Knallmine"), TEXT("Knallmine"), TEXT("Fangeisen"), TEXT("Fangeisen"), TEXT("Schleuderturm") })
+				{
+					int32 Guard = 0;
+					while (Eng->GetDevice() != FName(Kind) && Guard++ < 10)
+					{
+						Eng->CycleDevice(1);
+					}
+					const FVector Offset = FVector(FMath::FRandRange(-120.0f, 120.0f), FMath::FRandRange(-120.0f, 120.0f), 0.0f);
+					Eng->PlaceDevice(Kind == FString(TEXT("Schleuderturm")) ? Who->GetActorLocation() + Who->GetActorForwardVector() * 150.0f : Target->GetActorLocation() + Offset);
+				}
+				int32 Guard = 0;
+				while (Eng->GetWeapon()->Id != VaelEngineerGear::Bow && Guard++ < 5)
+				{
+					Eng->CycleWeapon();
+				}
+				Guard = 0;
+				while (Eng->GetAmmo() != FName(TEXT("Brand")) && Guard++ < 10)
+				{
+					Eng->CycleAmmo(1);
+				}
+			}
+			Eng->Fire(Target->GetActorLocation());
+			if (Run->bPrepared && Eng->GetAmmo() == VaelEngineerGear::Standard)
+			{
+				int32 Guard = 0;
+				while (Eng->GetAmmo() != FName(TEXT("Splitter")) && Guard++ < 10)
+				{
+					Eng->CycleAmmo(1);
+				}
+			}
+			return;
+		}
+		// the mage: the known formulas that hurt, one after the other, each queued and cast
+		UVaelElementComponent* Elements = Who->GetElementComponent();
+		if (Elements->GetQueue().IsEmpty() && Grimoire != nullptr && !Grimoire->GetKnownFormulas().IsEmpty())
+		{
+			const TArray<TObjectPtr<UVaelFormula>>& Known = Grimoire->GetKnownFormulas();
+			const UVaelFormula* Formula = Known[Run->Step++ % Known.Num()];
+			if (Formula != nullptr && !Formula->Elements.Contains(EVaelElement::Mark))
+			{
+				for (const EVaelElement Element : Formula->Elements)
+				{
+					Elements->AddElement(Element);
+				}
+			}
+		}
+		if (!Elements->GetQueue().IsEmpty())
+		{
+			Elements->CastQueue();
+		}
+	}), 0.1f, true);
+}
+
 void UVaelCheatManager::VaelMenuOk()
 {
 	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
