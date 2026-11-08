@@ -33,8 +33,9 @@ LAYOUT = {
 }
 # Pieces that stand more than once (Boris: shelves and ammo crates, plural): (name, dx, dy, label)
 EXTRA = [("SM_IW_Regal", -480, -260, "Regal 2"), ("SM_IW_Munitionskiste", -90, -390, "Munitionskiste 2")]
-# Small tools on top of others: (name, dx, dy, z, yaw offset, label); the anvil top is 82 cm high
-ON_TOP = [("SM_IW_Hammer", 150, -240, 80.0, 70.0, "Hammer"), ("SM_IW_Zange", 215, -205, 0.0, 30.0, "Zange")]
+# Small tools on top of others: (name, dx, dy, z, yaw offset, label); the anvil top is 82 cm high, both lie on it
+# (z 0 = on the floor, found by a trace; the cave floor looks higher than its collision there, so not used now)
+ON_TOP = [("SM_IW_Hammer", 150, -240, 80.0, 70.0, "Hammer"), ("SM_IW_Zange", 140, -225, 81.0, -50.0, "Zange")]
 
 
 def log(message):
@@ -136,7 +137,16 @@ def place(meshes):
         if mesh is None:
             continue
         yaw = math.degrees(math.atan2(-dy, -dx)) + turn
-        actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(BENCH.x + dx, BENCH.y + dy, z - 2.0), unreal.Rotator(0.0, 0.0, yaw))
+        x, y = BENCH.x + dx, BENCH.y + dy
+        if z <= 0.0:
+            # lying on the rough cave floor: find its real height (the floor rises and falls by a hand or more)
+            world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
+            hit = unreal.SystemLibrary.line_trace_single(world, unreal.Vector(x, y, 150.0), unreal.Vector(x, y, -200.0),
+                                                         unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, False, [], unreal.DrawDebugTrace.NONE, True)
+            if hit is not None and hit.to_tuple()[0]:
+                z = hit.to_tuple()[4].z + 2.0
+                log("{} on the floor at z {:.1f}".format(label, z))
+        actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(x, y, z - 2.0), unreal.Rotator(0.0, 0.0, yaw))
         actor.static_mesh_component.set_static_mesh(mesh)
         actor.set_folder_path("Stufe I/Werkstatt Ingenieur")
         actor.set_actor_label(label)
