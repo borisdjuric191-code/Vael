@@ -31,6 +31,14 @@ public:
 	UFUNCTION(Exec)
 	void VaelTeleport(float X, float Y);
 
+	/** The group travels to a found camp of the map (0 = first found). Example: VaelReise 1 */
+	UFUNCTION(Exec)
+	void VaelReise(int32 Index);
+
+	/** Fog of the map: "zeigen" logs how much is seen and which camps are found, "alles" lifts all of it */
+	UFUNCTION(Exec)
+	void VaelNebel(const FString& What);
+
 	/** Opens or closes the big map of the first player, like its button */
 	UFUNCTION(Exec)
 	void VaelKarte();

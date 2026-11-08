@@ -232,8 +232,18 @@ private:
 	/** The whole map of the level over the screen, with the names of the places, while a player has it open */
 	void DrawBigMap(const AVaelPlayerController* PlayerController, const TArray<const AVaelPlayerController*>& PlayerControllers);
 
-	/** Draws the part of the map picture that lies under the four screen corners (clockwise) */
-	void DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha);
+	/** Draws the part of the map picture (or another picture over the same square, like the fog) under the four screen corners (clockwise) */
+	void DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha, UTexture2D* Texture = nullptr);
+
+	/** Lifts the fog round the players and brings the fog picture up to date */
+	void UpdateMapFog(const TArray<const AVaelPlayerController*>& PlayerControllers);
+
+	/** The fog over the map, one pixel per fog cell; null on maps without fog */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> FogTexture;
+
+	uint32 FogTextureVersion = 0;
+	double NextFogUpload = 0.0;
 
 	/** Players as arrows in their colours, people with news and safe camps; with a box, markers outside it are left off or, players, kept at its edge */
 	void DrawMapMarkers(const FMapView& View, const TArray<const AVaelPlayerController*>& PlayerControllers, float MarkerScale, const FBox2D* Clip);

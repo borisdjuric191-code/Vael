@@ -175,6 +175,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Map", meta = (ClampMin = 1000))
 	float MiniMapRange = 12000.0f;
 
+	/** On maps with fog: how far round each player the fog lifts, in cm */
+	UPROPERTY(config, EditAnywhere, Category="Map", meta = (ClampMin = 500))
+	float MapRevealRadius = 6000.0f;
+
 	/** Share of the screen height the open big map fills */
 	UPROPERTY(config, EditAnywhere, Category="Map", meta = (ClampMin = 0.3, ClampMax = 1))
 	float BigMapScreenShare = 0.8f;

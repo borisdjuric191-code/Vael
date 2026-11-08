@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelPlayerController.h"
+#include "UI/VaelWorldMap.h"
+#include "World/VaelProgressSubsystem.h"
+#include "World/VaelTravel.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Engineer/VaelWorkbench.h"
 #include "World/VaelFireSpot.h"
@@ -1645,7 +1648,53 @@ void AVaelPlayerController::OnToggleGrimoire()
 
 void AVaelPlayerController::ToggleMap()
 {
+	const bool bWasOpen = bMapOpen;
 	bMapOpen = !bMapOpen && !bGrimoireOpen;
+	MapCampSelection = 0;
+	NextNavigateTime = 0.0;
+
+	// The open map takes the menu keys: up and down choose a camp, confirm travels there
+	UEnhancedInputLocalPlayerSubsystem* InputSubsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(GetLocalPlayer());
+	if (InputSubsystem != nullptr && MenuMappingContext != nullptr && bWasOpen != bMapOpen)
+	{
+		if (bMapOpen)
+		{
+			InputSubsystem->AddMappingContext(MenuMappingContext, 1);
+		}
+		else
+		{
+			InputSubsystem->RemoveMappingContext(MenuMappingContext);
+		}
+	}
+}
+
+bool AVaelPlayerController::TravelToCamp(int32 Index)
+{
+	const UVaelWorldMap* Map = UVaelWorldMap::ForWorld(GetWorld());
+	const UVaelProgressSubsystem* Progress = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
+	const TArray<FVaelMapLabel> Camps = Progress != nullptr ? Progress->GetFoundCamps(Map) : TArray<FVaelMapLabel>();
+	if (!Camps.IsValidIndex(Index))
+	{
+		return false;
+	}
+
+	// The whole group goes, standing round the fire
+	int32 Placed = 0;
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		if (APawn* Member = It->Get() != nullptr ? It->Get()->GetPawn() : nullptr)
+		{
+			const float Angle = Placed * HALF_PI + 0.4f;
+			VaelTravel::Land(Member, Camps[Index].Location + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * 320.0f);
+			++Placed;
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("Travel: group of %d to %s"), Placed, *Camps[Index].Name.ToString());
+	if (bMapOpen)
+	{
+		ToggleMap();
+	}
+	return true;
 }
 
 bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
@@ -1738,6 +1787,24 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 	const float Direction = Value.Get<float>();
 	const UGameInstance* GameInstance = GetGameInstance();
 	const UVaelGrimoireSubsystem* Grimoire = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelGrimoireSubsystem>() : nullptr;
+
+	// On the open map: choose among the found camps
+	if (!bGrimoireOpen && bMapOpen && FMath::Abs(Direction) >= 0.5f)
+	{
+		const double MapNow = FPlatformTime::Seconds();
+		if (NextNavigateTime > 0.0 && MapNow < NextNavigateTime)
+		{
+			return;
+		}
+		NextNavigateTime = MapNow + (NextNavigateTime > 0.0 ? MenuRepeatInterval : MenuRepeatDelay);
+		const UVaelProgressSubsystem* Progress = GameInstance != nullptr ? GameInstance->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
+		const int32 NumCamps = Progress != nullptr ? Progress->GetFoundCamps(UVaelWorldMap::ForWorld(GetWorld())).Num() : 0;
+		if (NumCamps > 0)
+		{
+			MapCampSelection = (MapCampSelection + (Direction > 0.0f ? -1 : 1) + NumCamps) % NumCamps;
+		}
+		return;
+	}
 
 	if (!bGrimoireOpen || Grimoire == nullptr || FMath::Abs(Direction) < 0.5f)
 	{
@@ -1854,6 +1921,12 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 void AVaelPlayerController::OnMenuConfirm()
 {
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+
+	if (!bGrimoireOpen && bMapOpen)
+	{
+		TravelToCamp(MapCampSelection);
+		return;
+	}
 
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht)
 	{
@@ -2416,6 +2489,11 @@ void AVaelPlayerController::OnMenuNavigateReleased()
 
 void AVaelPlayerController::OnMenuClose()
 {
+	if (!bGrimoireOpen && bMapOpen)
+	{
+		ToggleMap();
+		return;
+	}
 	// A plant carried from the herbarium is put back first
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Keimgeflecht && KeimCursor.Carried >= 0)
 	{

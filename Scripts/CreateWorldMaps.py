@@ -19,6 +19,9 @@ FOLDER = "/Game/Vael/UI/Karten"
 MAPS = {
     "Wurzelforst": (os.path.join(ROOT, "Blockout", "Vael_Wurzelforst_Blockout", "T_WF_Karte.png"),
                     os.path.join(ROOT, "Blockout", "Vael_Wurzelforst_Blockout", "WF_Karte.json")),
+    # The open world L_Vael (found by name, DA_Karte_Vael): Tools/Welt/aschenmark_karte.py
+    "Vael": (os.path.join(ROOT, "Scripts", "Data", "Welt", "T_AM_Karte.png"),
+             os.path.join(ROOT, "Scripts", "Data", "Welt", "AM_Karte.json")),
 }
 
 assets = unreal.EditorAssetLibrary
@@ -77,6 +80,15 @@ def main():
             label.set_editor_property("size", int(entry["size"]))
             labels.append(label)
         world_map.set_editor_property("labels", labels)
+        world_map.set_editor_property("fog_of_war", bool(data.get("fog_of_war", False)))
+        camps = []
+        for entry in data.get("camps", []):
+            camp = unreal.VaelMapLabel()
+            camp.set_editor_property("name", entry["name"])
+            camp.set_editor_property("location", unreal.Vector2D(entry["world"][0], entry["world"][1]))
+            camp.set_editor_property("size", 1)
+            camps.append(camp)
+        world_map.set_editor_property("camps", camps)
         assets.save_loaded_asset(world_map, False)
         made.append("{} ({} names)".format(name, len(labels)))
 

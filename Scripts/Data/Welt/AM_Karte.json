@@ -1,0 +1,202 @@
+{
+ "title": "Die Aschenmark",
+ "world_min": [
+  -29200.0,
+  -4000.0
+ ],
+ "world_size": 260000.0,
+ "focus_min": [
+  0.0,
+  0.0
+ ],
+ "focus_max": [
+  201600.0,
+  252000.0
+ ],
+ "fog_of_war": true,
+ "camps": [
+  {
+   "name": "Lager der Überlebenden",
+   "world": [
+    56350.0,
+    103850.0
+   ]
+  },
+  {
+   "name": "Gildenkontor",
+   "world": [
+    94420.0,
+    111540.00000000001
+   ]
+  },
+  {
+   "name": "Passwache",
+   "world": [
+    155960.0,
+    86540.0
+   ]
+  }
+ ],
+ "labels": [
+  {
+   "name": "Die Aschenmark",
+   "world": [
+    30000.0,
+    30000.0
+   ],
+   "size": 2
+  },
+  {
+   "name": "Kesselgrund",
+   "world": [
+    47690.0,
+    103850.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Schlackenhänge",
+   "world": [
+    90000.0,
+    188460.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Glutfelder",
+   "world": [
+    122690.00000000001,
+    48080.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Aschenpass",
+   "world": [
+    168850.0,
+    94230.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Ruinen von Kesselgrund",
+   "world": [
+    66920.0,
+    125580.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Teich",
+   "world": [
+    43850.0,
+    76540.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Ascheäcker",
+   "world": [
+    40000.0,
+    135190.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Kathedrale des Ordens",
+   "world": [
+    80380.0,
+    81350.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Nid-Quelle",
+   "world": [
+    77500.0,
+    78460.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Gildenspeicher",
+   "world": [
+    105380.0,
+    187120.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Obsidianbruch",
+   "world": [
+    82310.0,
+    200580.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Schlackenhalden",
+   "world": [
+    80380.0,
+    167880.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Schlackentor",
+   "world": [
+    113080.0,
+    231350.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Harpyienfelsen",
+   "world": [
+    124620.0,
+    46730.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Glutkriecher-Nester",
+   "world": [
+    105380.0,
+    69810.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Krater der Glutkönigin",
+   "world": [
+    143850.0,
+    54420.00000000001
+   ],
+   "size": 0
+  },
+  {
+   "name": "Predigerlager",
+   "world": [
+    155380.0,
+    108270.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Windkante",
+   "world": [
+    165000.0,
+    115959.99999999999
+   ],
+   "size": 0
+  },
+  {
+   "name": "Forstsaum",
+   "world": [
+    201540.0,
+    99040.0
+   ],
+   "size": 0
+  }
+ ]
+}

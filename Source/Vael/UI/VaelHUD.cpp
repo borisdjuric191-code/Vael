@@ -19,6 +19,8 @@
 #include "Rendering/SlateRenderer.h"
 #include "Camera/PlayerCameraManager.h"
 #include "UI/VaelWorldMap.h"
+#include "World/VaelProgressSubsystem.h"
+#include "TextureResource.h"
 #include "World/VaelSafeZone.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -217,6 +219,7 @@ void AVaelHUD::DrawHUD()
 
 	// Top right: the mini map, under it the region and the quests
 	const float CornerGap = 10.0f * UiScale;
+	UpdateMapFog(PlayerControllers);
 	const float MapBottom = DrawMiniMap(PlayerControllers, 16.0f * UiScale);
 	const float RegionBottom = DrawRegionInfo(MapBottom > 16.0f * UiScale ? MapBottom + CornerGap : MapBottom);
 	DrawQuestTracker(RegionBottom + CornerGap);
@@ -2928,12 +2931,8 @@ const UVaelWorldMap* AVaelHUD::GetLevelMap()
 	if (!bLevelMapLookedUp)
 	{
 		bLevelMapLookedUp = true;
-		const FName LevelName(*UWorld::RemovePIEPrefix(GetWorld()->GetMapName()));
-		if (const TSoftObjectPtr<UVaelWorldMap>* Entry = UVaelUISettings::Get()->LevelMaps.Find(LevelName))
-		{
-			LevelMap = VaelAssets::LoadOptional(*Entry);
-			MapPicture = LevelMap != nullptr ? VaelAssets::LoadOptional(LevelMap->Picture) : nullptr;
-		}
+		LevelMap = const_cast<UVaelWorldMap*>(UVaelWorldMap::ForWorld(GetWorld()));
+		MapPicture = LevelMap != nullptr ? VaelAssets::LoadOptional(LevelMap->Picture) : nullptr;
 	}
 
 	return MapPicture != nullptr ? LevelMap.Get() : nullptr;
@@ -2954,9 +2953,63 @@ AVaelHUD::FMapView AVaelHUD::MakeMapView(const FVector2D& Center, const FVector2
 	return View;
 }
 
-void AVaelHUD::DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha)
+void AVaelHUD::UpdateMapFog(const TArray<const AVaelPlayerController*>& PlayerControllers)
 {
-	const FTexture* Resource = MapPicture != nullptr ? MapPicture->GetResource() : nullptr;
+	const UVaelWorldMap* Map = GetLevelMap();
+	UVaelProgressSubsystem* Progress = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
+	if (Map == nullptr || !Map->bFogOfWar || Progress == nullptr)
+	{
+		return;
+	}
+	for (const AVaelPlayerController* PlayerController : PlayerControllers)
+	{
+		if (const APawn* Pawn = PlayerController->GetPawn())
+		{
+			Progress->RevealMap(Map, FVector2D(Pawn->GetActorLocation()), UVaelUISettings::Get()->MapRevealRadius);
+		}
+	}
+
+	const double Now = GetWorld()->GetRealTimeSeconds();
+	if (FogTexture != nullptr && (FogTextureVersion == Progress->GetFogVersion() || Now < NextFogUpload))
+	{
+		return;
+	}
+	NextFogUpload = Now + 0.2;
+	constexpr int32 N = UVaelWorldMap::FogCells;
+	if (FogTexture == nullptr)
+	{
+		FogTexture = UTexture2D::CreateTransient(N, N, PF_B8G8R8A8, TEXT("VaelMapFog"));
+		FogTexture->Filter = TF_Bilinear;
+		FogTexture->AddressX = TA_Clamp;
+		FogTexture->AddressY = TA_Clamp;
+		FogTexture->SRGB = true;
+		FogTexture->UpdateResource();
+	}
+	FogTextureVersion = Progress->GetFogVersion();
+
+	// Dark ash over what nobody has seen, clear where the group has been
+	const TArray<uint8>* Cells = Progress->GetMapFog(Map);
+	uint8* Pixels = new uint8[N * N * 4];
+	for (int32 Index = 0; Index < N * N; ++Index)
+	{
+		const uint8 Seen = Cells != nullptr ? (*Cells)[Index] : 0;
+		Pixels[Index * 4 + 0] = 14;
+		Pixels[Index * 4 + 1] = 15;
+		Pixels[Index * 4 + 2] = 19;
+		Pixels[Index * 4 + 3] = static_cast<uint8>((255 - Seen) * 245 / 255);
+	}
+	FUpdateTextureRegion2D* Region = new FUpdateTextureRegion2D(0, 0, 0, 0, N, N);
+	FogTexture->UpdateTextureRegions(0, 1, Region, N * 4, 4, Pixels, [](uint8* Data, const FUpdateTextureRegion2D* Regions)
+	{
+		delete[] Data;
+		delete Regions;
+	});
+}
+
+void AVaelHUD::DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha, UTexture2D* Texture)
+{
+	UTexture2D* Source = Texture != nullptr ? Texture : MapPicture.Get();
+	const FTexture* Resource = Source != nullptr ? Source->GetResource() : nullptr;
 	if (Resource == nullptr || LevelMap == nullptr)
 	{
 		return;
@@ -3096,6 +3149,10 @@ float AVaelHUD::DrawMiniMap(const TArray<const AVaelPlayerController*>& PlayerCo
 	DrawBox(Left - 4.0f * S, Top - 4.0f * S, Size + 8.0f * S, Size + 8.0f * S, Rgb(13, 9, 10, 220));
 	const FVector2D Corners[4] = { FVector2D(Left, Top), FVector2D(Left + Size, Top), FVector2D(Left + Size, Top + Size), FVector2D(Left, Top + Size) };
 	DrawMapPicture(View, Corners, 1.0f);
+	if (Map->bFogOfWar && FogTexture != nullptr)
+	{
+		DrawMapPicture(View, Corners, 1.0f, FogTexture);
+	}
 	DrawFrame(Left, Top, Size, Size, RimColor, 2.0f * S);
 	DrawFrame(Left - 4.0f * S, Top - 4.0f * S, Size + 8.0f * S, Size + 8.0f * S, Rgb(42, 31, 25), 1.0f * S);
 
@@ -3148,7 +3205,12 @@ void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const T
 	DrawBox(PanelMin.X - 6.0f * S, PanelMin.Y - 6.0f * S, MapPanelWidth + 12.0f * S, MapPanelHeight + 12.0f * S, Rgb(13, 9, 10, 235));
 	const FVector2D Corners[4] = { PanelMin, FVector2D(PanelMax.X, PanelMin.Y), PanelMax, FVector2D(PanelMin.X, PanelMax.Y) };
 	DrawMapPicture(View, Corners, 1.0f);
+	if (Map->bFogOfWar && FogTexture != nullptr)
+	{
+		DrawMapPicture(View, Corners, 1.0f, FogTexture);
+	}
 	DrawFrame(PanelMin.X, PanelMin.Y, MapPanelWidth, MapPanelHeight, RimColor, 2.0f * S);
+	const UVaelProgressSubsystem* Progress = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
 	DrawFrame(PanelMin.X - 6.0f * S, PanelMin.Y - 6.0f * S, MapPanelWidth + 12.0f * S, MapPanelHeight + 12.0f * S, Rgb(42, 31, 25), 1.0f * S);
 
 	// Names of the areas and places: areas large and bright, places small and a little dimmer.
@@ -3157,7 +3219,11 @@ void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const T
 	TArray<const FVaelMapLabel*> Labels;
 	for (const FVaelMapLabel& Label : Map->Labels)
 	{
-		Labels.Add(&Label);
+		// Under the fog only the names of the great areas
+		if (Label.Size >= 2 || Progress == nullptr || Progress->GetRevealed(Map, Label.Location) > 0.3f)
+		{
+			Labels.Add(&Label);
+		}
 	}
 	Labels.StableSort([](const FVaelMapLabel& A, const FVaelMapLabel& B) { return A.Size > B.Size; });
 	TArray<FBox2D> Written;
@@ -3188,6 +3254,31 @@ void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const T
 	}
 
 	DrawMapMarkers(View, PlayerControllers, 1.25f, &Clip);
+
+	// Found camps: a fire to travel to, the chosen one ringed
+	const TArray<FVaelMapLabel> Camps = Progress != nullptr ? Progress->GetFoundCamps(Map) : TArray<FVaelMapLabel>();
+	for (int32 Index = 0; Index < Camps.Num(); ++Index)
+	{
+		const FVector2D Point = View.ToScreen(Camps[Index].Location);
+		if (!Clip.IsInside(Point))
+		{
+			continue;
+		}
+		const bool bChosen = Index == PlayerController->GetMapCampSelection();
+		DrawDisc(Point, (bChosen ? 11.0f : 8.0f) * S, Rgb(13, 9, 10, 235));
+		DrawDisc(Point, (bChosen ? 8.0f : 6.0f) * S, bChosen ? EmberColor : WithAlpha(EmberColor, 0.75f));
+		DrawDisc(Point + FVector2D(0.0f, -2.0f * S), 2.5f * S, Rgb(255, 230, 170));
+		if (bChosen)
+		{
+			DrawRing(Point, 16.0f * S, EmberColor, 2.0f * S);
+			DrawTitle(Camps[Index].Name, Point.X, Point.Y + 18.0f * S, 20.0f * S, EmberColor, 0.5f);
+		}
+	}
+	if (Camps.Num() > 0)
+	{
+		DrawLabel(LOCTEXT("BigMapTravel", "Hoch/Runter: Lager wählen · Bestätigen: dorthin reisen"),
+			PanelMin.X, PanelMin.Y - 30.0f * S, 17.0f * S, WithAlpha(EmberColor, 0.9f), 0.0f);
+	}
 
 	// Die Waage of the region and of the player, on a dark strip at the foot of the map
 	if (const AVaelRegion* MapRegion = PlayerController->GetPawn() != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), PlayerController->GetPawn()->GetActorLocation()) : nullptr)

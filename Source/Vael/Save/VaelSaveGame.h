@@ -9,6 +9,7 @@
 #include "Nature/VaelGarden.h"
 #include "Story/VaelQuestSubsystem.h"
 #include "World/VaelWeatherTypes.h"
+#include "UI/VaelWorldMap.h"
 #include "VaelSaveGame.generated.h"
 
 /** What one player slot owns */
@@ -158,6 +159,10 @@ public:
 
 	UPROPERTY()
 	TSet<EVaelWeather> IntroducedWeathers;
+
+	/** What the group has seen of each map, by the name of the map asset */
+	UPROPERTY()
+	TMap<FName, FVaelMapFog> MapFog;
 
 	// World
 

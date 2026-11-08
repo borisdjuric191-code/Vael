@@ -109,7 +109,7 @@ void AVaelFormulaScroll::BeginPlay()
 
 	BaseMeshHeight = Mesh->GetRelativeLocation().Z;
 
-	PickupSphere->OnComponentBeginOverlap.AddDynamic(this, &AVaelFormulaScroll::OnPickupOverlap);
+	PickupSphere->OnComponentBeginOverlap.AddUniqueDynamic(this, &AVaelFormulaScroll::OnPickupOverlap);
 
 	// A player may already stand on the scroll when it appears
 	TArray<AActor*> OverlappingPlayers;

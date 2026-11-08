@@ -7,6 +7,7 @@
 #include "VaelWorldMap.generated.h"
 
 class UTexture2D;
+class UWorld;
 
 /** A name written on the map, like "Ewiger Hain" */
 USTRUCT(BlueprintType)
@@ -24,6 +25,16 @@ struct FVaelMapLabel
 	/** 0 a small place, 1 an area, 2 the heart of the region */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map", meta = (ClampMin = 0, ClampMax = 2))
 	int32 Size = 1;
+};
+
+/** What the group has seen of one map: FogCells x FogCells values, 0 hidden .. 255 seen */
+USTRUCT()
+struct FVaelMapFog
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	TArray<uint8> Cells;
 };
 
 /**
@@ -63,6 +74,20 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
 	TArray<FVaelMapLabel> Labels;
+
+	/** The map starts hidden and shows only where the group has been, like Sanctuary (saved) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
+	bool bFogOfWar = false;
+
+	/** Camps the group can travel between once found: name and place of the fire (world cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
+	TArray<FVaelMapLabel> Camps;
+
+	/** Fog cells along each side of the picture square */
+	static constexpr int32 FogCells = 256;
+
+	/** The map of the level of this world: from the project settings, otherwise /Game/Vael/UI/Karten/DA_Karte_<level without L_> */
+	static const UVaelWorldMap* ForWorld(const UWorld* World);
 
 	/** Place in the picture (0..1) of a world location */
 	FVector2D WorldToPicture(const FVector2D& World) const { return (World - WorldMin) / FMath::Max(WorldSize, 1.0f); }

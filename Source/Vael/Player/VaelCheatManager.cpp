@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCheatManager.h"
+#include "UI/VaelWorldMap.h"
+#include "World/VaelProgressSubsystem.h"
+#include "World/VaelTravel.h"
 #include "World/VaelBalance.h"
 #include "World/VaelRefugiumClutch.h"
 #include "Items/VaelBrewing.h"
@@ -132,48 +135,47 @@ void UVaelCheatManager::VaelTeleport(float X, float Y)
 		return;
 	}
 
-	// Down from high above onto whatever ground is there. In the open world the ground there may not be loaded yet:
-	// then the pawn waits up in the air, held still, until it has streamed in (at most 15 s)
-	const FVector Above(X * 100.0f, Y * 100.0f, 50000.0f);
-	TWeakObjectPtr<APawn> WeakPawn(Pawn);
-	TSharedRef<int32> Tries = MakeShared<int32>(0);
-	TSharedRef<FTimerHandle> Handle = MakeShared<FTimerHandle>();
-	auto Land = [this, WeakPawn, Above, Tries, Handle]()
+	VaelTravel::Land(Pawn, FVector2D(X * 100.0f, Y * 100.0f));
+}
+
+void UVaelCheatManager::VaelReise(int32 Index)
+{
+	AVaelPlayerController* PlayerController = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	if (PlayerController != nullptr && !PlayerController->TravelToCamp(Index))
 	{
-		APawn* Mover = WeakPawn.Get();
-		if (Mover == nullptr)
-		{
-			GetWorld()->GetTimerManager().ClearTimer(*Handle);
-			return;
-		}
-		FHitResult Hit;
-		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelTeleport), false, Mover);
-		// Not the sea: it is loaded long before the land under it (land, roofs and rocks above it count)
-		const bool bGround = GetWorld()->LineTraceSingleByChannel(Hit, Above, Above - FVector(0.0f, 0.0f, 100000.0f), ECC_Visibility, QueryParams)
-			&& (Cast<ALandscapeProxy>(Hit.GetActor()) != nullptr || !GetWorld()->IsPartitionedWorld() || Hit.ImpactPoint.Z > 200.0f);
-		UCharacterMovementComponent* Movement = Mover->FindComponentByClass<UCharacterMovementComponent>();
-		if (bGround || ++(*Tries) > 75)
-		{
-			Mover->TeleportTo(FVector(Above.X, Above.Y, (bGround ? Hit.ImpactPoint.Z : 0.0f) + Mover->GetSimpleCollisionHalfHeight() + 5.0f), Mover->GetActorRotation());
-			if (Movement != nullptr)
-			{
-				Movement->SetMovementMode(MOVE_Walking);
-			}
-			GetWorld()->GetTimerManager().ClearTimer(*Handle);
-			return;
-		}
-		// Still waiting: up where the streaming starts loading around it
-		Mover->TeleportTo(FVector(Above.X, Above.Y, 20000.0f), Mover->GetActorRotation());
-		if (Movement != nullptr)
-		{
-			Movement->SetMovementMode(MOVE_None);
-		}
-	};
-	Land();
-	if (*Tries > 0)
-	{
-		GetWorld()->GetTimerManager().SetTimer(*Handle, FTimerDelegate::CreateLambda(Land), 0.2f, true);
+		UE_LOG(LogVael, Warning, TEXT("VaelReise: no found camp %d"), Index);
 	}
+}
+
+void UVaelCheatManager::VaelNebel(const FString& What)
+{
+	const UVaelWorldMap* Map = UVaelWorldMap::ForWorld(GetWorld());
+	UVaelProgressSubsystem* Progress = GetWorld()->GetGameInstance()->GetSubsystem<UVaelProgressSubsystem>();
+	if (Map == nullptr || Progress == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelNebel: this level has no map"));
+		return;
+	}
+	if (What == TEXT("alles"))
+	{
+		Progress->RevealWholeMap(Map);
+	}
+	const TArray<uint8>* Cells = Progress->GetMapFog(Map);
+	int32 Seen = 0;
+	if (Cells != nullptr)
+	{
+		for (const uint8 Cell : *Cells)
+		{
+			Seen += Cell > 127 ? 1 : 0;
+		}
+	}
+	TArray<FString> Names;
+	for (const FVaelMapLabel& Camp : Progress->GetFoundCamps(Map))
+	{
+		Names.Add(Camp.Name.ToString());
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelNebel: %s fog %s, seen %.1f %%, camps found: %s"), *Map->GetName(), Map->bFogOfWar ? TEXT("on") : TEXT("off"),
+		100.0f * Seen / (UVaelWorldMap::FogCells * UVaelWorldMap::FogCells), *FString::Join(Names, TEXT(", ")));
 }
 
 void UVaelCheatManager::VaelKarte()

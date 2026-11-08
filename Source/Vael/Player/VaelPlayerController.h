@@ -376,6 +376,12 @@ public:
 	/** Opens or closes the big map; it stays shut while the grimoire is open */
 	void ToggleMap();
 
+	/** Which found camp is chosen on the open map */
+	int32 GetMapCampSelection() const { return MapCampSelection; }
+
+	/** The whole group travels to a found camp of the map (by its place in the list of found camps); false if there is none */
+	bool TravelToCamp(int32 Index);
+
 	/** Index of the selected formula in the grimoire, in the order of all formulas */
 	int32 GetGrimoireSelection() const { return GrimoireSelection; }
 
@@ -730,6 +736,9 @@ protected:
 
 	/** Selected row of the page of class and body */
 	int32 HeroSelection = 0;
+
+	/** Chosen found camp on the open map */
+	int32 MapCampSelection = 0;
 
 	/** Selected row of the shop page, and the shop it shows */
 	int32 ShopSelection = 0;
