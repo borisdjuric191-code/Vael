@@ -22,7 +22,7 @@ FOLDER = WORLD_FOLDER + "/Boden"
 LAYERS = 8
 M = 100.0
 SIZE_X, SIZE_Y = 2017, 2521
-KIT_VERSION = 2.7
+KIT_VERSION = 3.0
 # The displacement is scaled by the landscape scale (100 in X, Y and Z): 0.12 = 12 cm
 DISPLACEMENT_CM = 0.12
 
@@ -213,18 +213,66 @@ float RippleAmount = (0.45 + 0.55 * smoothstep(0.2, 0.7, N1 * 0.6 + N4 * 0.4)) *
 Ripple = lerp(0.5, Ripple * Ripple * 0.75 + Cross * 0.25, RippleAmount);
 float Grain = Bh[0].a;
 float Relief = lerp(Height, Height * 0.45 + Ripple * 0.4 + Grain * 0.15, Soft) * (1.0 - smoothstep(0.25, 0.85, Way) * 0.55);
+// Footprints from the track map (UVaelFootprintSubsystem): R depth, G the clock when made; deep in ash and sand, shallow
+// on earth, hardly on rock and roads; they fade over FadeSecs
+float Inside = all(TrailUV > 0.0) && all(TrailUV < 1.0) ? 1.0 : 0.0;
+float Texel = 1.0 / 2048.0;
+float4 Tr = Trail.SampleLevel(TrailSampler, TrailUV, 0);
+float Age = frac(Clock - Tr.g) * 600.0;
+float Print = Tr.r * saturate(1.0 - Age / FadeSecs) * Inside;
+float Give = saturate(0.15 + 0.85 * Soft + 0.3 * F[1] / max(Total, 1e-4)) * (1.0 - Steep) * (1.0 - smoothstep(0.4, 0.9, Way) * 0.7);
+float PrintR = Trail.SampleLevel(TrailSampler, TrailUV + float2(Texel, 0), 0).r;
+float PrintU = Trail.SampleLevel(TrailSampler, TrailUV + float2(0, Texel), 0).r;
+Relief -= Print * Give * 0.45;
+Colour *= 1.0 - Print * Give * 0.35;
+Rough = lerp(Rough, 1.0, Print * Give * 0.5);
+// a dent: the height is -Print, so the normal leans towards where the print gets deeper
+Nxy += float2(PrintR - Tr.r, PrintU - Tr.r) * Give * saturate(1.0 - Age / FadeSecs) * Inside * 0.6;
 HeightOut = saturate(Relief);
 // The ripples also bend the light, so they read from above even where the relief is flat
 float RippleSlope = cos(RipplePhase) * Soft * RippleAmount * 0.3;
 Nxy += RippleDir * RippleSlope;
 NormalOut = float3(Nxy, sqrt(saturate(1.0 - dot(Nxy, Nxy))));
-RoughOut = Rough;
+// Ash and sand never shine: the rippled normals caught the low sun like wet sand
+RoughOut = max(Rough, 0.82);
 OccOut = Occ;
 // Glowing cracks in the Glutfelder: deep in the cracks of the earth layer, in patches
 float Crack = pow(saturate(1.0 - Bh[1].a * 1.8), 3.0) * F[1] / max(Total, 1e-4);
 GlowOut = Crack * zG * Free * (1.0 - Clear * 0.8) * smoothstep(0.6, 0.78, N3) * smoothstep(0.5, 0.7, N2);
 return Colour;
 """
+
+
+def track_resources():
+    """RT_AM_Spuren (+ the spare one for moving it), the print shapes and MPC_AM_Spuren for UVaelFootprintSubsystem"""
+    for name in ("RT_AM_Spuren", "RT_AM_Spuren_Umzug"):
+        path = FOLDER + "/" + name
+        target = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
+            name, FOLDER, unreal.TextureRenderTarget2D, unreal.TextureRenderTargetFactoryNew())
+        target.set_editor_property("size_x", 2048)
+        target.set_editor_property("size_y", 2048)
+        target.set_editor_property("render_target_format", unreal.TextureRenderTargetFormat.RTF_RGBA16F)
+        target.set_editor_property("clear_color", unreal.LinearColor(0, 0, 0, 0))
+        target.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
+        target.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+        assets.save_loaded_asset(target, False)
+    shapes = import_picture(os.path.join(SOURCE, "T_AM_Fussabdruecke.png"), FOLDER, "T_AM_Fussabdruecke", False)
+    shapes.set_editor_property("compression_settings", unreal.TextureCompressionSettings.TC_DEFAULT)
+    shapes.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
+    shapes.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+    assets.save_loaded_asset(shapes, False)
+    path = FOLDER + "/MPC_AM_Spuren"
+    collection = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
+        "MPC_AM_Spuren", FOLDER, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
+    vector = unreal.CollectionVectorParameter()
+    vector.set_editor_property("parameter_name", "SpurenUrsprung")
+    vector.set_editor_property("default_value", unreal.LinearColor(0, 0, 4800, 0))
+    scalar = unreal.CollectionScalarParameter()
+    scalar.set_editor_property("parameter_name", "SpurenUhr")
+    scalar.set_editor_property("default_value", 0.0)
+    collection.set_editor_property("vector_parameters", [vector])
+    collection.set_editor_property("scalar_parameters", [scalar])
+    assets.save_loaded_asset(collection, False)
 
 
 def build_material(bh_array, nr_array, masks):
@@ -253,7 +301,20 @@ def build_material(bh_array, nr_array, masks):
                 sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_COLOR)
     nr = g.node(unreal.MaterialExpressionTextureObjectParameter, parameter_name="SchichtenNormal", texture=nr_array,
                 sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    # The track map: its place and size and the clock from MPC_AM_Spuren, the map itself as a texture
+    spuren = unreal.load_asset(FOLDER + "/MPC_AM_Spuren")
+    origin = g.node(unreal.MaterialExpressionCollectionParameter, collection=spuren, parameter_name="SpurenUrsprung")
+    clock = g.node(unreal.MaterialExpressionCollectionParameter, collection=spuren, parameter_name="SpurenUhr")
+    trail_offset = g.node(unreal.MaterialExpressionSubtract)
+    g.link(g.mask(world, "RG"), trail_offset, "A")
+    g.link(g.mask(origin, "RG"), trail_offset, "B")
+    trail_uv = g.node(unreal.MaterialExpressionDivide)
+    g.link(trail_offset, trail_uv, "A")
+    g.link(g.mask(origin, "B"), trail_uv, "B")
+    trail = g.node(unreal.MaterialExpressionTextureObjectParameter, parameter_name="Spuren", texture=unreal.load_asset(FOLDER + "/RT_AM_Spuren"),
+                   sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     inputs = {"UV": coords, "Masks": masks_sample, "Up": up, "BH": bh, "NR": nr,
+              "Trail": trail, "TrailUV": trail_uv, "Clock": clock, "FadeSecs": g.const(100.0),
               "N0": g.noise(world, 70.0, 2), "N1": g.noise(world, 22.0, 3), "N2": g.noise(world, 38.0, 3),
               "N3": g.noise(world, 11.0, 2), "N4": g.noise(world, 150.0, 2)}
     custom = g.node(unreal.MaterialExpressionCustom, code=GROUND, output_type=unreal.CustomMaterialOutputType.CMOT_FLOAT3,
@@ -280,6 +341,7 @@ def build_material(bh_array, nr_array, masks):
     library.connect_material_property(custom, "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(custom, "NormalOut", unreal.MaterialProperty.MP_NORMAL)
     library.connect_material_property(custom, "RoughOut", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(g.const(0.25), "", unreal.MaterialProperty.MP_SPECULAR)
     library.connect_material_property(custom, "OccOut", unreal.MaterialProperty.MP_AMBIENT_OCCLUSION)
     glow = g.node(unreal.MaterialExpressionMultiply)
     g.link(custom, glow, "A", "GlowOut")
@@ -400,6 +462,7 @@ def main():
     masks.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
     assets.save_loaded_asset(masks, False)
 
+    track_resources()
     material = build_material(bh_array, nr_array, masks)
     log("material {} built, kit {}".format(material.get_name(), KIT_VERSION))
     nanite_landscape()
