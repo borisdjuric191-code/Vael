@@ -193,7 +193,7 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 			const FName ShotAmmo = LoadedShots > 0 ? Loaded : VaelEngineerGear::Standard;
 			const FVaelGear* AmmoGear = ShotAmmo != VaelEngineerGear::Standard ? VaelEngineerGear::Find(ShotAmmo) : nullptr;
 			const FVector From = GetActorLocation() + FVector(0.0f, 0.0f, 80.0f);
-			AVaelEngineerShot::Launch(Eng, From, Nearest->GetActorLocation(), 2600.0f, 40.0f, 7.0f * Eng->GetDamageScale(), ShotAmmo, false,
+			AVaelEngineerShot::Launch(Eng, From, Nearest->GetActorLocation(), 2600.0f, 40.0f, 7.0f * Eng->GetDamageScale() * (1.0f + 0.5f * (Eng->GetTierScale() - 1.0f)), ShotAmmo, false,
 				AmmoGear != nullptr ? AmmoGear->Color : FLinearColor(0.55f, 0.5f, 0.45f), 8.0f);
 			LoadedShots = FMath::Max(LoadedShots - 1, 0);
 			SetActorRotation(FRotator(0.0f, (Nearest->GetActorLocation() - GetActorLocation()).Rotation().Yaw, 0.0f));
@@ -210,6 +210,30 @@ void AVaelEngineerDevice::Detonate(FName ShotAmmo)
 	}
 	bDetonated = true;
 
+	// Mines close by go off with it and make it stronger: x(1 + 0.3 per mine in the radius)
+	TArray<AVaelEngineerDevice*> Chain;
+	for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+	{
+		if (*It != this && !It->bDetonated && It->Type == EVaelDeviceType::Mine && It->GetEngineer() == Eng
+			&& FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < MineRadius * 1.2f)
+		{
+			Chain.Add(*It);
+		}
+	}
+	const float ChainScale = 1.0f + 0.3f * Chain.Num();
+	for (int32 Index = 0; Index < Chain.Num(); ++Index)
+	{
+		TWeakObjectPtr<AVaelEngineerDevice> Next = Chain[Index];
+		FTimerHandle Handle;
+		GetWorld()->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(Next.Get(), [Next, ShotAmmo]()
+		{
+			if (Next.IsValid())
+			{
+				Next->Detonate(ShotAmmo);
+			}
+		}), 0.12f * (Index + 1), false);
+	}
+
 	// The burst: everyone around takes the blast and the effect of the shot that set it off
 	int32 Struck = 0;
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
@@ -219,12 +243,12 @@ void AVaelEngineerDevice::Detonate(FName ShotAmmo)
 		{
 			continue;
 		}
-		Eng->ApplyHit(*It, It->GetActorLocation(), MineDamage * Eng->GetDamageScale(), ShotAmmo);
+		Eng->ApplyHit(*It, It->GetActorLocation(), MineDamage * Eng->GetDamageScale() * ChainScale, ShotAmmo);
 		UVaelCombatStatics::ApplyStatus(Eng->GetOwner(), *It, EVaelStatus::Burning, 3.0f, 3.0f);
 		++Struck;
 	}
 	UVaelCombatTextSubsystem::PostReaction(this, LOCTEXT("Boom", "Knall!"));
-	UE_LOG(LogVael, Log, TEXT("Engineer: mine bursts with %s, %d struck"), *ShotAmmo.ToString(), Struck);
+	UE_LOG(LogVael, Log, TEXT("Engineer: mine bursts with %s, %d struck, chain x%.1f"), *ShotAmmo.ToString(), Struck, ChainScale);
 
 	// A flash, then gone
 	Glow->SetIntensity(400.0f);

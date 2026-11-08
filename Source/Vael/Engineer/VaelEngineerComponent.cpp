@@ -127,7 +127,7 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 
 UVaelEngineerComponent::EBuildBlock UVaelEngineerComponent::GetBuildBlock(const FVaelGear& Gear, bool bAtWorkbench) const
 {
-	const bool bLasting = Gear.Kind == EVaelGearKind::Weapon || Gear.Kind == EVaelGearKind::Armor;
+	const bool bLasting = Gear.Kind == EVaelGearKind::Weapon || Gear.Kind == EVaelGearKind::Armor || Gear.Kind == EVaelGearKind::Tool;
 	if (bLasting && Built.Contains(Gear.Id))
 	{
 		return EBuildBlock::Built;
@@ -178,6 +178,9 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 		{
 			Wear(Id);
 		}
+		break;
+	case EVaelGearKind::Tool:
+		Built.Add(Id);
 		break;
 	default:
 	{
@@ -317,10 +320,59 @@ float UVaelEngineerComponent::GetInterval() const
 
 float UVaelEngineerComponent::GetReloadLeft() const
 {
-	return FMath::Max(LastShot + GetInterval() - Now(), 0.0f);
+	return FMath::Max3(LastShot + GetInterval() - Now(), ReloadEnd - Now(), 0.0f);
 }
 
-bool UVaelEngineerComponent::Fire(const FVector& AimLocation)
+int32 UVaelEngineerComponent::GetWeaponTier(FName Id) const
+{
+	const int32* Tier = WeaponTiers.Find(Id);
+	return Tier != nullptr ? *Tier : 0;
+}
+
+void UVaelEngineerComponent::SetWeaponTier(FName Id, int32 Tier)
+{
+	WeaponTiers.Add(Id, FMath::Max(Tier, 0));
+}
+
+float UVaelEngineerComponent::GetTierScale() const
+{
+	const FVaelGear* Gear = GetWeapon();
+	return FMath::Pow(1.18f, static_cast<float>(Gear != nullptr ? GetWeaponTier(Gear->Id) : 0));
+}
+
+bool UVaelEngineerComponent::UsesDraw() const
+{
+	const FVaelGear* Gear = GetWeapon();
+	return Gear != nullptr && Gear->Id == VaelEngineerGear::Bow;
+}
+
+void UVaelEngineerComponent::StartDraw()
+{
+	if (UsesDraw() && DrawStart < 0.0f)
+	{
+		DrawStart = Now();
+	}
+}
+
+float UVaelEngineerComponent::GetDrawSeconds() const
+{
+	return DrawStart >= 0.0f ? Now() - DrawStart : 0.0f;
+}
+
+bool UVaelEngineerComponent::ReleaseDraw(const FVector& AimLocation)
+{
+	if (DrawStart < 0.0f)
+	{
+		return false;
+	}
+	const float Held = GetDrawSeconds();
+	DrawStart = -1.0f;
+	// Too short a pull still shoots, only weakly
+	const float Scale = Held >= 1.2f ? 1.6f : Held >= 0.8f ? 1.3f : Held >= 0.4f ? 1.0f : 0.6f;
+	return Fire(AimLocation, Scale, Held >= 1.2f);
+}
+
+bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, bool bDrawPierce)
 {
 	AVaelCharacter* Player = GetPlayer();
 	const FVaelGear* Gear = GetWeapon();
@@ -332,7 +384,21 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation)
 	{
 		Ammo = VaelEngineerGear::Standard;
 	}
+	// The sling: shots in a quick row charge the Hagel, the fourth throws five stones at once
+	const bool bSling = Gear->Id == VaelEngineerGear::Sling;
+	HagelCount = bSling && Now() - LastShot < GetInterval() + 0.5f ? HagelCount + 1 : 1;
 	LastShot = Now();
+
+	// The crossbow: two bolts, then it is spanned again
+	if (Gear->Id == VaelEngineerGear::Crossbow)
+	{
+		Magazine = FMath::Max(Magazine - 1, 0);
+		if (Magazine == 0)
+		{
+			ReloadEnd = Now() + 1.4f;
+			Magazine = 2;
+		}
+	}
 
 	// From the hand, towards the aim point; the reach of the weapon is as far as it goes
 	const FVector From = Player->GetActorLocation() + Player->GetActorForwardVector() * 40.0f + FVector(0.0f, 0.0f, 50.0f);
@@ -342,11 +408,27 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation)
 	{
 		Toward = Player->GetActorForwardVector();
 	}
-	const float Distance = FMath::Min(Toward.Size(), Gear->Range);
+	const float Reach = Gear->Range * (HasBuilt(VaelEngineerGear::LensFog) ? 1.15f : 1.0f);
+	const float Distance = FMath::Min(Toward.Size(), Reach);
 	const FVector To = From + Toward.GetSafeNormal() * Distance + FVector(0.0f, 0.0f, -10.0f);
+	const float ShotDamage = Gear->Damage * GetDamageScale() * GetTierScale() * DrawScale;
 
-	AVaelEngineerShot::Launch(this, From, To, Gear->Speed, Gear->Arc, Gear->Damage * GetDamageScale(), Ammo, Gear->bPierce || PiercesAll(), GetAmmoColor(),
-		Gear->Id == VaelEngineerGear::Sling ? 9.0f : 6.0f);
+	if (bSling && HagelCount >= 4)
+	{
+		// Hagel: five stones fanned out, each 40 %
+		HagelCount = 0;
+		for (int32 Stone = -2; Stone <= 2; ++Stone)
+		{
+			const FVector Spread = FRotator(0.0f, Stone * 8.0f, 0.0f).RotateVector(To - From);
+			AVaelEngineerShot::Launch(this, From, From + Spread, Gear->Speed, Gear->Arc, ShotDamage * 0.4f, Ammo, PiercesAll(), GetAmmoColor(), 7.0f);
+		}
+		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("Hagel", "Hagel!"));
+	}
+	else
+	{
+		AVaelEngineerShot::Launch(this, From, To, Gear->Speed, Gear->Arc, ShotDamage, Ammo, Gear->bPierce || PiercesAll() || bDrawPierce, GetAmmoColor(),
+			bSling ? 9.0f : 6.0f);
+	}
 
 	if (Ammo != VaelEngineerGear::Standard)
 	{
@@ -480,7 +562,7 @@ void UVaelEngineerComponent::OnDeviceShot(AVaelEngineerDevice* Shot, FName ShotA
 
 // ---------------------------------------------------------------- Shots that land
 
-void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, float Damage, FName ShotAmmo)
+void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, float Damage, FName ShotAmmo, const FVector& From, FName WeaponId)
 {
 	const FVaelGear* AmmoGear = ShotAmmo != VaelEngineerGear::Standard ? VaelEngineerGear::Find(ShotAmmo) : nullptr;
 	const EVaelAmmoEffect Effect = AmmoGear != nullptr ? AmmoGear->Effect : EVaelAmmoEffect::None;
@@ -495,9 +577,50 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 	{
 		return;
 	}
-	const float Scaled = Damage * (AmmoGear != nullptr ? AmmoGear->DamageScale : 1.0f);
+	float Scaled = Damage * (AmmoGear != nullptr ? AmmoGear->DamageScale : 1.0f);
+	LastZone = 1.0f;
+	LastDistance = 1.0f;
+	bLastCrit = false;
+	if (const FVaelGear* WeaponGear = WeaponId.IsNone() ? nullptr : VaelEngineerGear::Find(WeaponId))
+	{
+		// Zone: the head side is the weak spot (x1.3, x1.5 with the goggles), the back is plain, the flanks are armour (x0.8);
+		// what the trap holds is always open at its weak spot
+		const FVector Facing = Enemy->GetActorForwardVector().GetSafeNormal2D();
+		const FVector ToShooter = (From - Enemy->GetActorLocation()).GetSafeNormal2D();
+		const float Dot = FVector::DotProduct(Facing, ToShooter);
+		const bool bHeld = UVaelCombatStatics::HasStatus(Enemy, EVaelStatus::Frozen);
+		const float Weak = HasBuilt(VaelEngineerGear::Goggles) ? 1.5f : 1.3f;
+		LastZone = bHeld || Dot > 0.77f ? Weak : Dot < -0.64f ? 1.0f : 0.8f;
+
+		// Distance: x1.15 in the sweet spot of the weapon, falling to x0.7 towards point blank and the end of its reach
+		const float Meters = FVector::Dist2D(From, Enemy->GetActorLocation());
+		if (Meters < WeaponGear->SweetMin)
+		{
+			LastDistance = FMath::Lerp(0.7f, 1.15f, FMath::Clamp(Meters / WeaponGear->SweetMin, 0.0f, 1.0f));
+		}
+		else if (Meters > WeaponGear->SweetMax)
+		{
+			LastDistance = FMath::Lerp(1.15f, 0.7f, FMath::Clamp((Meters - WeaponGear->SweetMax) / FMath::Max(WeaponGear->Range - WeaponGear->SweetMax, 1.0f), 0.0f, 1.0f));
+		}
+		else
+		{
+			LastDistance = 1.15f;
+		}
+
+		// Crit: 5 %, 15 % with the goggles, x1.6
+		bLastCrit = FMath::FRand() < (HasBuilt(VaelEngineerGear::Goggles) ? 0.15f : 0.05f);
+		Scaled *= LastZone * LastDistance * (bLastCrit ? 1.6f : 1.0f) * (HasBuilt(VaelEngineerGear::LensMark) ? 1.1f : 1.0f);
+		if (bLastCrit)
+		{
+			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Crit", "Kritisch!"));
+		}
+		else if (LastZone > 1.2f)
+		{
+			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("WeakSpot", "Schwachstelle"));
+		}
+	}
 	UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Scaled, Effect == EVaelAmmoEffect::Fire ? EVaelElement::Fire : EVaelElement::Earth);
-	UE_LOG(LogVael, Log, TEXT("Engineer: %s hits %s for %.0f"), *ShotAmmo.ToString(), *Enemy->GetName(), Scaled);
+	UE_LOG(LogVael, Log, TEXT("Engineer: %s hits %s for %.0f (zone %.2f, distance %.2f%s)"), *ShotAmmo.ToString(), *Enemy->GetName(), Scaled, LastZone, LastDistance, bLastCrit ? TEXT(", crit") : TEXT(""));
 
 	switch (Effect)
 	{
@@ -706,6 +829,7 @@ void UVaelEngineerComponent::WriteSave(FVaelSavedPlayer& Saved) const
 	Saved.EngineerStock = Stock;
 	Saved.EngineerWorn = Worn;
 	Saved.EngineerWeapon = Weapon;
+	Saved.EngineerTiers = WeaponTiers;
 }
 
 void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
@@ -716,6 +840,7 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 		Built.Add(Id);
 	}
 	Carried = Saved.EngineerCarried;
+	WeaponTiers = Saved.EngineerTiers;
 	Stock = Saved.EngineerStock;
 	if (Saved.EngineerWorn.Num() == NumArmorPlaces)
 	{

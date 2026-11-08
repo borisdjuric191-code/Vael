@@ -38,6 +38,8 @@ namespace
 			return Engineer->HasBuilt(Gear.Id) ? (Engineer->GetWeapon() == &Gear ? LOCTEXT("InHand", "in der Hand") : LOCTEXT("Built", "gebaut")) : FText::GetEmpty();
 		case EVaelGearKind::Armor:
 			return Engineer->GetWorn(Gear.Place) == Gear.Id ? LOCTEXT("Worn", "getragen") : Engineer->HasBuilt(Gear.Id) ? LOCTEXT("BuiltArmor", "gebaut") : FText::GetEmpty();
+		case EVaelGearKind::Tool:
+			return Engineer->HasBuilt(Gear.Id) ? LOCTEXT("BuiltTool", "dabei") : FText::GetEmpty();
 		default:
 			return FText::Format(LOCTEXT("Carried", "{0} dabei · {1} im Vorrat"), Engineer->GetCarried(Gear.Id), Engineer->GetStock(Gear.Id));
 		}
@@ -93,11 +95,11 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 
 	// Tabs
 	const int32 TabIndex = PlayerController->GetCraftTab();
-	const float TabWidth = 150.0f * S;
+	const float TabWidth = 128.0f * S;
 	const float TabHeight = 30.0f * S;
 	const float TabTop = Top + 42.0f * S;
-	const float TabsLeft = Left + Width - Pad - 4 * (TabWidth + 6.0f * S);
-	for (int32 Tab = 0; Tab < 4; ++Tab)
+	const float TabsLeft = Left + Width - Pad - 5 * (TabWidth + 6.0f * S);
+	for (int32 Tab = 0; Tab < 5; ++Tab)
 	{
 		const float X = TabsLeft + Tab * (TabWidth + 6.0f * S);
 		const bool bOn = Tab == TabIndex;
@@ -169,7 +171,8 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 			FText::AsNumber(Gear.Interval), FText::AsNumber(FMath::RoundToInt(Gear.Range / 100.0f)), Gear.bPierce ? LOCTEXT("Pierce", " · durchschlägt") : FText::GetEmpty()),
 			DetailLeft, Y, 15.0f * S, CraftCopper, 0.0f, DetailWidth);
 		Y += 22.0f * S;
-		DrawLabel(FText::Format(LOCTEXT("Standard", "Endlose Grundladung: {0}"), Gear.StandardShot), DetailLeft, Y, 14.0f * S, CraftDim);
+		DrawLabel(FText::Format(LOCTEXT("Standard", "Endlose Grundladung: {0} \u00B7 am besten auf {1}\u2013{2} m"), Gear.StandardShot,
+			FText::AsNumber(FMath::RoundToInt(Gear.SweetMin / 100.0f)), FText::AsNumber(FMath::RoundToInt(Gear.SweetMax / 100.0f))), DetailLeft, Y, 14.0f * S, CraftDim);
 		Y += 26.0f * S;
 		break;
 	case EVaelGearKind::Ammo:

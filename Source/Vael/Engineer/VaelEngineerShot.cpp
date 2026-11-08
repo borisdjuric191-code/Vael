@@ -63,6 +63,8 @@ AVaelEngineerShot* AVaelEngineerShot::Launch(UVaelEngineerComponent* InEngineer,
 	Shot->Arc = InArc;
 	Shot->Damage = InDamage;
 	Shot->Ammo = InAmmo;
+	const FVaelGear* WeaponGear = InEngineer->GetWeapon();
+	Shot->WeaponId = WeaponGear != nullptr ? WeaponGear->Id : NAME_None;
 	Shot->bPierce = bInPierce;
 	Shot->Body->SetWorldScale3D(FVector(Size / 50.0f) * FVector(Speed > 3000.0f ? 3.2f : 1.3f, 1.0f, 1.0f));
 	if (UMaterialInstanceDynamic* Material = Shot->Body->CreateAndSetMaterialInstanceDynamic(0))
@@ -111,7 +113,7 @@ void AVaelEngineerShot::Tick(float DeltaSeconds)
 		}
 		Hit.Add(Enemy);
 		bHitSomething = true;
-		Eng->ApplyHit(Enemy, Closest, Damage, Ammo);
+		Eng->ApplyHit(Enemy, Closest, Damage, Ammo, Start, WeaponId);
 		if (!bPierce)
 		{
 			Destroy();

@@ -646,6 +646,22 @@ void AVaelPlayerController::CreateEngineerInput()
 void AVaelPlayerController::OnEngFire(bool bHeld)
 {
 	bEngFireHeld = bHeld;
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr && VaelCharacter->IsEngineer() ? VaelCharacter->GetEngineer() : nullptr;
+	// The bow is drawn while held and looses on release
+	if (Engineer != nullptr && Engineer->UsesDraw())
+	{
+		if (bHeld)
+		{
+			Engineer->StartDraw();
+		}
+		else
+		{
+			UpdateFacing();
+			Engineer->ReleaseDraw(GetFloromantAim());
+		}
+		return;
+	}
 	if (bHeld)
 	{
 		UpdateEngineerFire();
@@ -658,6 +674,11 @@ void AVaelPlayerController::UpdateEngineerFire()
 	if (!bEngFireHeld || VaelCharacter == nullptr || !VaelCharacter->IsEngineer() || VaelCharacter->IsDodging() || VaelCharacter->IsDowned()
 		|| bGrimoireOpen || UGameplayStatics::IsGamePaused(this))
 	{
+		return;
+	}
+	if (VaelCharacter->GetEngineer()->UsesDraw())
+	{
+		UpdateFacing();
 		return;
 	}
 	UpdateFacing();
@@ -762,7 +783,7 @@ void AVaelPlayerController::StepFigure(int32 Row, int32 Step)
 void AVaelPlayerController::OpenCrafting(bool bAtWorkbench)
 {
 	bCraftAtWorkbench = bAtWorkbench;
-	if (!bAtWorkbench && (CraftTab == 0 || CraftTab == 3))
+	if (!bAtWorkbench && (CraftTab == 0 || CraftTab >= 3))
 	{
 		CraftTab = 1;
 	}
@@ -1804,9 +1825,9 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 		const int32 Step = Value.Get<float>() < 0.0f ? -1 : 1;
 		do
 		{
-			CraftTab = (CraftTab + Step + 4) % 4;
+			CraftTab = (CraftTab + Step + 5) % 5;
 		}
-		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab == 3));
+		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab >= 3));
 		CraftSelection = 0;
 		return;
 	}
@@ -2025,9 +2046,9 @@ void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
 		const int32 Step = Direction > 0.0f ? 1 : -1;
 		do
 		{
-			CraftTab = (CraftTab + Step + 4) % 4;
+			CraftTab = (CraftTab + Step + 5) % 5;
 		}
-		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab == 3));
+		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab >= 3));
 		CraftSelection = 0;
 		return;
 	}

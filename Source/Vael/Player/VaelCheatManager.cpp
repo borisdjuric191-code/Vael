@@ -1955,6 +1955,8 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 		DummyAbilities->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), 1000000.0f);
 	}
 	Player->SetActorRotation((Dummy->GetActorLocation() - Player->GetActorLocation()).GetSafeNormal2D().Rotation());
+	// The dummy faces the player, like a creature that fights him (its front is its weak side)
+	Dummy->SetActorRotation((Player->GetActorLocation() - Dummy->GetActorLocation()).GetSafeNormal2D().Rotation());
 
 	struct FRun
 	{
@@ -2055,7 +2057,22 @@ void UVaelCheatManager::VaelDpsTest(const FString& Klasse)
 					Eng->CycleAmmo(1);
 				}
 			}
-			Eng->Fire(Target->GetActorLocation());
+			if (Eng->UsesDraw())
+			{
+				// the bow drawn in full each time
+				if (!Eng->IsDrawing())
+				{
+					Eng->StartDraw();
+				}
+				else if (Eng->GetDrawSeconds() >= 1.2f)
+				{
+					Eng->ReleaseDraw(Target->GetActorLocation());
+				}
+			}
+			else
+			{
+				Eng->Fire(Target->GetActorLocation());
+			}
 			if (Run->bPrepared && Eng->GetAmmo() == VaelEngineerGear::Standard)
 			{
 				int32 Guard = 0;

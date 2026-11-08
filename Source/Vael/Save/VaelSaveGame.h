@@ -75,6 +75,9 @@ struct FVaelSavedPlayer
 
 	UPROPERTY()
 	FName EngineerWeapon;
+
+	UPROPERTY()
+	TMap<FName, int32> EngineerTiers;
 };
 
 /** State of a region */

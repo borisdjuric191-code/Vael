@@ -46,6 +46,7 @@ private:
 	float Age = 0.0f;
 	float Damage = 0.0f;
 	FName Ammo;
+	FName WeaponId;
 	bool bPierce = false;
 	bool bHitSomething = false;
 	TSet<TWeakObjectPtr<AActor>> Hit;

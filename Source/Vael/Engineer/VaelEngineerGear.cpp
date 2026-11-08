@@ -34,6 +34,19 @@ namespace
 		return Gear;
 	}
 
+	FVaelGear MakeTool(FName Id, FText Name, FText Text, FLinearColor Color, TArray<FVaelGearCost> Costs, FName Requires)
+	{
+		FVaelGear Gear;
+		Gear.Id = Id;
+		Gear.Kind = EVaelGearKind::Tool;
+		Gear.Name = Name;
+		Gear.Text = Text;
+		Gear.Color = Color;
+		Gear.Costs = MoveTemp(Costs);
+		Gear.Requires = Requires;
+		return Gear;
+	}
+
 	FVaelGear MakeAmmo(FName Id, FText Name, FText Text, FLinearColor Color, TArray<FVaelGearCost> Costs, FName Requires, EVaelAmmoEffect Effect, float DamageScale)
 	{
 		FVaelGear Gear;
@@ -92,14 +105,34 @@ namespace
 		All.Add(MakeWeapon(VaelEngineerGear::Sling, LOCTEXT("Schleuder", "Schleuder"),
 			LOCTEXT("SchleuderText", "Lederschlaufe und Riemen, das erste, was er sich gebaut hat. Schnell und nah, Steine liegen überall."),
 			GearRgb(150, 118, 84), {}, None, 9.0f, 0.55f, 1100.0f, 2200.0f, 70.0f, false, LOCTEXT("Steine", "Steine")));
+		All.Last().SweetMin = 300.0f;
+		All.Last().SweetMax = 800.0f;
 		All.Add(MakeWeapon(VaelEngineerGear::Bow, LOCTEXT("Bogen", "Bogen aus lebendem Holz"),
 			LOCTEXT("BogenText", "Sein Meisterstück: Narbenholz, das noch wächst, mit Spannfaden bespannt. In ihn schlägt er sein Zeichen, und ab dann trägt alles, was er baut, dieses Zeichen. Weit und hart."),
 			GearRgb(120, 160, 90), { { TEXT("Narbenholz"), 4 }, { TEXT("Spannfaden"), 3 }, { TEXT("Rankenfaser"), 2 } }, VaelEngineerGear::Sling,
 			16.0f, 0.85f, 1900.0f, 3600.0f, 18.0f, false, LOCTEXT("Holzpfeile", "Holzpfeile")));
+		All.Last().SweetMin = 800.0f;
+		All.Last().SweetMax = 1500.0f;
 		All.Add(MakeWeapon(VaelEngineerGear::Crossbow, LOCTEXT("Armbrust", "Armbrust"),
 			LOCTEXT("ArmbrustText", "Rollpanzer als Bogen, Sichelklingen als Abzug. Langsam zu spannen, aber der Bolzen geht durch alles, was in einer Reihe steht."),
 			GearRgb(160, 160, 176), { { TEXT("Rollpanzer"), 3 }, { TEXT("Sichelklinge"), 2 }, { TEXT("Spannfaden"), 4 }, { TEXT("Schlacke"), 3 } }, VaelEngineerGear::Bow,
 			30.0f, 1.3f, 1700.0f, 4400.0f, 6.0f, true, LOCTEXT("Bolzen", "Eisenbolzen")));
+		All.Last().SweetMin = 500.0f;
+		All.Last().SweetMax = 1200.0f;
+
+		// --- Tools: the aiming goggles of the first ore he finds, then lenses for them
+		All.Add(MakeTool(VaelEngineerGear::Goggles, LOCTEXT("Brille", "Zielhilfebrille"),
+			LOCTEXT("BrilleText", "Zwei geschliffene Scheiben Ru\u00DFquarz in einem Lederband, sein erstes Werkst\u00FCck. Er sieht, wo ein Tier weich ist: Schwachstellen nehmen 1,5-fachen statt 1,3-fachen Schaden, und jeder zehnte Schuss mehr trifft kritisch."),
+			GearRgb(90, 86, 96), { { TEXT("Russquarz"), 2 }, { TEXT("Spannfaden"), 1 } }, None));
+		All.Add(MakeTool(VaelEngineerGear::LensFog, LOCTEXT("LinseGlimm", "Glimmaugen-Linse"),
+			LOCTEXT("LinseGlimmText", "Ein Glimmauge vor dem Quarz: der Nebel wird d\u00FCnn, seine Sch\u00FCsse reichen 15 % weiter."),
+			GearRgb(150, 200, 220), { { TEXT("Glimmauge"), 2 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));
+		All.Add(MakeTool(VaelEngineerGear::LensMark, LOCTEXT("LinseNid", "Nidkristall-Linse"),
+			LOCTEXT("LinseNidText", "Ein Splitter Nid im Glas: was er trifft, ist gezeichnet und nimmt 10 % mehr Schaden von ihm. Das Nid fordert seinen Preis nicht \u2013 es ist gebunden."),
+			GearRgb(150, 90, 200), { { TEXT("Nidkristall"), 1 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));
+		All.Add(MakeTool(VaelEngineerGear::LensBreak, LOCTEXT("LinseStern", "Sternmilch-Linse"),
+			LOCTEXT("LinseSternText", "Sternmilch zwischen zwei Scheiben: er sieht die Risse im Panzer. Teile brechen 25 % fr\u00FCher."),
+			GearRgb(220, 220, 240), { { TEXT("Sternmilch"), 1 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));
 
 		// --- Ammo: heads for every weapon (on the stone, the arrow or the bolt), ten from one build; at the field box too
 		All.Add(MakeAmmo(TEXT("Splitter"), LOCTEXT("Splitter", "Splitterladung"),
@@ -223,6 +256,7 @@ FText VaelEngineerGear::GetKindName(EVaelGearKind Kind)
 	case EVaelGearKind::Weapon: return LOCTEXT("KindWeapon", "Waffen");
 	case EVaelGearKind::Ammo: return LOCTEXT("KindAmmo", "Munition");
 	case EVaelGearKind::Device: return LOCTEXT("KindDevice", "Vorrichtungen");
+	case EVaelGearKind::Tool: return LOCTEXT("KindTool", "Werkzeug");
 	default: return LOCTEXT("KindArmor", "Rüstung");
 	}
 }

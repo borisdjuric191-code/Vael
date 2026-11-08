@@ -14,7 +14,9 @@ enum class EVaelGearKind : uint8
 	Weapon,
 	Ammo,
 	Device,
-	Armor
+	Armor,
+	/** Tools that stay with him: the aiming goggles of Rußquarz and their lenses, later pouches and the backpack */
+	Tool
 };
 
 /** What a shot does where it hits, besides its damage */
@@ -88,6 +90,10 @@ struct FVaelGear
 	bool bPierce = false;
 	FText StandardShot;
 
+	/** Where the weapon hits best (cm): inside this band x1.15, closer or farther it falls off to x0.7 at the ends */
+	float SweetMin = 300.0f;
+	float SweetMax = 800.0f;
+
 	// Ammo
 	EVaelAmmoEffect Effect = EVaelAmmoEffect::None;
 	float DamageScale = 1.0f;
@@ -134,4 +140,8 @@ namespace VaelEngineerGear
 	inline const FName Bow = TEXT("Bogen");
 	inline const FName Crossbow = TEXT("Armbrust");
 	inline const FName Standard = TEXT("Standard");
+	inline const FName Goggles = TEXT("Brille");
+	inline const FName LensFog = TEXT("LinseGlimm");
+	inline const FName LensMark = TEXT("LinseNid");
+	inline const FName LensBreak = TEXT("LinseStern");
 }

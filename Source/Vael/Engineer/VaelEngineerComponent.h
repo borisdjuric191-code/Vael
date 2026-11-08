@@ -70,8 +70,27 @@ public:
 	/** The next shot he has in the pouches (R1, mouse wheel) */
 	void CycleAmmo(int32 Step);
 
-	/** Fires once towards the aim point if the weapon is ready; holding the button fires again and again */
-	bool Fire(const FVector& AimLocation);
+	/** Fires once towards the aim point if the weapon is ready; holding the button fires again and again.
+	 *  DrawScale: how far the bow was drawn (1.0, 1.35, 1.8); bDrawPierce: a full draw goes through */
+	bool Fire(const FVector& AimLocation, float DrawScale = 1.0f, bool bDrawPierce = false);
+
+	/** The bow is drawn while the button is held and shoots on release: 0.4 s x1.0, 0.8 s x1.3, 1.2 s x1.6 and through */
+	bool UsesDraw() const;
+	void StartDraw();
+	bool ReleaseDraw(const FVector& AimLocation);
+	bool IsDrawing() const { return DrawStart >= 0.0f; }
+	float GetDrawSeconds() const;
+
+	/** The crossbow holds two bolts, then reloads for 1.4 s */
+	int32 GetMagazine() const { return Magazine; }
+
+	/** Shots of the sling in a row (the fourth is the Hagel: five stones at 40 % each) */
+	int32 GetHagelCount() const { return HagelCount; }
+
+	/** Tier of a weapon (its upgrades, 1.18^tier more damage) */
+	int32 GetWeaponTier(FName Id) const;
+	void SetWeaponTier(FName Id, int32 Tier);
+	float GetTierScale() const;
 
 	/** Seconds until the weapon can fire again, and the whole interval */
 	float GetReloadLeft() const;
@@ -119,7 +138,12 @@ public:
 	// --- Shots that land (from AVaelEngineerShot and the turrets)
 
 	/** What a shot does where it lands on an enemy, or on a device of his */
-	void ApplyHit(AActor* Target, const FVector& Location, float Damage, FName ShotAmmo);
+	void ApplyHit(AActor* Target, const FVector& Location, float Damage, FName ShotAmmo, const FVector& From = FVector::ZeroVector, FName WeaponId = NAME_None);
+
+	/** The factors of the last hit, for the test and the HUD: zone (1.5 / 1.3 / 1.0 / 0.8), distance, crit */
+	float LastZone = 1.0f;
+	float LastDistance = 1.0f;
+	bool bLastCrit = false;
 	void ApplyBurst(const FVector& Location, FName ShotAmmo, float Damage);
 
 	/** A device was hit by one of his shots */
@@ -172,6 +196,13 @@ private:
 
 	FName Weapon;
 	FName Ammo;
+	float DrawStart = -1.0f;
+	int32 Magazine = 2;
+	float ReloadEnd = 0.0f;
+	int32 HagelCount = 0;
+
+	UPROPERTY()
+	TMap<FName, int32> WeaponTiers;
 	FName Device;
 	float LastShot = -100.0f;
 	float CurledUntil = 0.0f;
