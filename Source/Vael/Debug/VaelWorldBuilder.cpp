@@ -7,6 +7,8 @@
 #include "LandscapeSubsystem.h"
 #include "Materials/MaterialInterface.h"
 #include "Misc/FileHelper.h"
+#include "Engine/Texture2D.h"
+#include "Engine/Texture2DArray.h"
 #include "Vael.h"
 
 #if WITH_EDITOR
@@ -120,4 +122,26 @@ TArray<AActor*> UVaelWorldBuilder::PasteActorsFromText(UObject* WorldContext, co
 	}
 #endif
 	return Pasted;
+}
+
+bool UVaelWorldBuilder::FillTextureArray(UTexture2DArray* Array, const TArray<UTexture2D*>& Textures)
+{
+#if WITH_EDITOR
+	if (Array == nullptr || Textures.IsEmpty())
+	{
+		return false;
+	}
+	Array->Modify();
+	Array->SourceTextures.Reset();
+	for (UTexture2D* Texture : Textures)
+	{
+		Array->SourceTextures.Add(Texture);
+	}
+	const bool bDone = Array->UpdateSourceFromSourceTextures(true);
+	Array->PostEditChange();
+	Array->MarkPackageDirty();
+	return bDone;
+#else
+	return false;
+#endif
 }

@@ -23,7 +23,7 @@ rng = np.random.default_rng(1108)
 
 # How far the walked line may leave the old straight one (m) and how wide it is drawn (m, half width, strength)
 MEANDER = {"haupt": 6.0, "neben": 6.0, "pfad": 6.0}
-WIDTH = {"haupt": (3.2, 1.0), "neben": (2.0, 0.85), "pfad": (1.0, 0.55)}
+WIDTH = {"haupt": (2.4, 1.0), "neben": (1.6, 0.85), "pfad": (0.9, 0.55)}
 
 
 def corners(line, spacing=40.0):

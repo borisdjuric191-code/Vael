@@ -7,6 +7,8 @@
 #include "VaelWorldBuilder.generated.h"
 
 class UMaterialInterface;
+class UTexture2D;
+class UTexture2DArray;
 
 /**
  *  Help for the world scripts (Scripts/BuildVaelWelt.py) with what Python can't do in the editor: a landscape made from a
@@ -36,4 +38,9 @@ public:
 	/** Pastes actors copied as text into the world of the context object, where they were; returns the new actors */
 	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
 	static TArray<AActor*> PasteActorsFromText(UObject* WorldContext, const FString& Text);
+
+	/** Fills a texture array from textures of the same size (layer i = texture i) and rebuilds it; false if that fails.
+	 *  Python cannot reach the source textures of an array, the ground of the Aschenmark needs them. */
+	UFUNCTION(BlueprintCallable, Category="Vael|World")
+	static bool FillTextureArray(UTexture2DArray* Array, const TArray<UTexture2D*>& Textures);
 };
