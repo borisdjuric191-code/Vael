@@ -1,6 +1,6 @@
 # Plan: NPCs, Lager und Dörfer in der offenen Welt
 
-Stand 8. November 2026 · Vorschlag, wartet auf Boris' OK
+Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritt 1 in Arbeit
 
 ## Ziel
 
@@ -192,10 +192,17 @@ Gleiches Muster, mehr Leben, weil diese Gegenden weniger zerstört sind:
 | 7 | Karte und Schnellreise ergänzen, Stream-Test, Lore-Bibel (Tab „Leute“) | Test 0 Fehler, Commit | 0,5 Sitzung |
 | 8 | Später: MetaHuman-Aussehen nach Herkunft | wartet auf den Probelauf mit Boris | offen |
 
-## Offene Entscheidungen für Boris
+## Entscheidungen von Boris (8. November 2026)
 
-1. **Begründung:** „Strandgut der Welt“ (Schiffbruch, Gilde, Akademie) oder eine andere Erklärung?
-2. **Namen:** Echte Namen ohne erfundene Länder, oder zusätzlich fiktive Heimatländer wie „die Südküste“ und „die Inselreiche“, die über Gerede erwähnt werden?
-3. **Dichte:** Reichen ≈ 60 Leute in der Aschenmark, oder soll sie voller wirken?
-4. **Sollen Edda und Maren bleiben, wie sie sind?** Vorschlag: ja, weil sie in der Story und in Dialogen verankert sind.
-5. **Tagesablauf:** einfacher Teleport außerhalb der Sicht oder echtes Gehen über NavMesh? Das kostet mehr Leistung.
+1. **Begründung:** „Strandgut der Welt“ passt.
+2. **Namen:** echte Namen, aber leicht abgewandelt. Man hört, woher jemand kommt, aber kein Name ist 1:1 echt. Das macht der Generator mit Regeln pro Kulturkreis: typische Endungen tauschen, Vokale, Silben neu mischen.
+3. **Dichte:** rund 60 Leute, gebündelt in den Dörfern und Lagern, ein paar verteilt dazwischen.
+4. **Edda und Maren** bleiben, wie sie sind.
+5. **Tagesablauf:** Teleport außerhalb der Sicht reicht.
+6. **Prophet (neu):** Der Prophet braucht Menschen, die ihn lieben oder hassen. Jede Person bekommt deshalb eine **Haltung zum Propheten**: Anhänger, Gegner, Zweifler oder gleichgültig.
+   - Die Haltung ist pro Siedlung gemischt. Im Predigerlager gibt es mehr Anhänger und Gegner, im Kontor mehr Gleichgültige.
+   - Sie bestimmt Gerede und Reaktion („Seht nur! Er ist es!“ oder „Geh weiter, Falscher.“).
+   - Sie kann sich später durch Taten der Gruppe ändern (Licht/Schatten, Gemeinden aus Akt I).
+   - Das Feld kommt in Schritt 3 mit in `FVaelNpcIdentity`.
+
+Statt einer Datei pro Kulturkreis liegt alles in einer Datei, `Scripts/Data/Namen/Kulturen.json` (20 Kulturkreise). Die vergebenen Namen stehen in `Scripts/Data/Namen/Vergeben.json`.

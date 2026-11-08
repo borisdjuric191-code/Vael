@@ -1,0 +1,2074 @@
+{
+ "info": "Name pools of the cultures people on Vael descend from (Strandgut der Welt). Real everyday names only; Tools/Welt/namen.py alters each one slightly so no name is used 1:1. Rules: vorname_familie, familie_vorne (family name first), patronym (father's name + suffix), vater (given name + father's given name), einzel (one name), zwei_familien (given name + two family names).",
+ "sperre": [
+  "allah",
+  "altar",
+  "anal",
+  "arsch",
+  "baby",
+  "boob",
+  "butt",
+  "cock",
+  "cunt",
+  "dead",
+  "devil",
+  "dick",
+  "doc",
+  "doof",
+  "dumm",
+  "dung",
+  "evil",
+  "fag",
+  "fart",
+  "fick",
+  "fotze",
+  "fuck",
+  "furz",
+  "god",
+  "gott",
+  "hell",
+  "hitler",
+  "hure",
+  "isis",
+  "jesus",
+  "kack",
+  "kaka",
+  "kill",
+  "king",
+  "kkk",
+  "kotz",
+  "lord",
+  "loser",
+  "lotto",
+  "mama",
+  "mist",
+  "muschi",
+  "nail",
+  "nazi",
+  "neger",
+  "nerd",
+  "nigg",
+  "nutte",
+  "papa",
+  "pater",
+  "penis",
+  "pipi",
+  "piss",
+  "poop",
+  "pork",
+  "porn",
+  "puke",
+  "rape",
+  "rotz",
+  "satan",
+  "schwanz",
+  "sex",
+  "shit",
+  "sin",
+  "slut",
+  "teufel",
+  "tit",
+  "tod",
+  "whore"
+ ],
+ "kulturen": {
+  "westafrika": {
+   "label": "Westafrika (Yoruba, Akan, Igbo)",
+   "regel": "vorname_familie",
+   "f": [
+    "Adeola",
+    "Folake",
+    "Ama",
+    "Abena",
+    "Akosua",
+    "Ngozi",
+    "Chiamaka",
+    "Adaeze",
+    "Yetunde",
+    "Funmilayo",
+    "Efua",
+    "Esi",
+    "Nkechi",
+    "Ifeoma",
+    "Titilayo",
+    "Morenike",
+    "Afua",
+    "Adwoa",
+    "Bisola",
+    "Kemi",
+    "Ronke",
+    "Obiageli"
+   ],
+   "m": [
+    "Kwame",
+    "Kofi",
+    "Kwesi",
+    "Yaw",
+    "Kojo",
+    "Chidi",
+    "Emeka",
+    "Obinna",
+    "Chinedu",
+    "Tunde",
+    "Femi",
+    "Segun",
+    "Babatunde",
+    "Olumide",
+    "Kayode",
+    "Ikenna",
+    "Nnamdi",
+    "Kwaku",
+    "Kwabena",
+    "Dayo",
+    "Jide"
+   ],
+   "familie": [
+    "Adeyemi",
+    "Mensah",
+    "Okafor",
+    "Owusu",
+    "Boateng",
+    "Adebayo",
+    "Okonkwo",
+    "Nwosu",
+    "Asante",
+    "Oyelaran",
+    "Eze",
+    "Obi",
+    "Ogunleye",
+    "Darko",
+    "Amoah",
+    "Oladipo",
+    "Nwachukwu",
+    "Agyeman",
+    "Afolabi",
+    "Osei"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ola",
+    "ayo",
+    "ike",
+    "ede",
+    "ofi",
+    "ame",
+    "ena",
+    "ua",
+    "emi",
+    "ade",
+    "oma",
+    "ah",
+    "ye"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "kw"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "b",
+     "p"
+    ],
+    [
+     "f",
+     "s"
+    ],
+    [
+     "y",
+     "j"
+    ]
+   ]
+  },
+  "ostafrika": {
+   "label": "Ostafrika (Swahili, Kikuyu, Luo)",
+   "regel": "vorname_familie",
+   "f": [
+    "Amani",
+    "Zawadi",
+    "Neema",
+    "Rehema",
+    "Imani",
+    "Upendo",
+    "Pendo",
+    "Halima",
+    "Zuri",
+    "Nia",
+    "Saida",
+    "Furaha",
+    "Tumaini",
+    "Subira",
+    "Asha",
+    "Mwajuma",
+    "Bahati",
+    "Wanjiku"
+   ],
+   "m": [
+    "Baraka",
+    "Jabari",
+    "Juma",
+    "Bakari",
+    "Hamisi",
+    "Kito",
+    "Rashidi",
+    "Salim",
+    "Omari",
+    "Mosi",
+    "Hodari",
+    "Jelani",
+    "Faraji",
+    "Shujaa",
+    "Kamau",
+    "Otieno",
+    "Odhiambo",
+    "Njoroge"
+   ],
+   "familie": [
+    "Mwangi",
+    "Kamau",
+    "Otieno",
+    "Odhiambo",
+    "Njoroge",
+    "Wanjiru",
+    "Ochieng",
+    "Kiprono",
+    "Chebet",
+    "Mutua",
+    "Kariuki",
+    "Wekesa",
+    "Omondi",
+    "Nyambura",
+    "Mollel",
+    "Massawe",
+    "Mushi",
+    "Kimaro"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ani",
+    "adi",
+    "ema",
+    "ari",
+    "uma",
+    "ito",
+    "imu",
+    "ogo",
+    "eno",
+    "aru",
+    "ono",
+    "ike"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "g"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "j",
+     "y"
+    ],
+    [
+     "s",
+     "sh"
+    ],
+    [
+     "r",
+     "l"
+    ]
+   ]
+  },
+  "aethiopien": {
+   "label": "Äthiopien und Eritrea (Amharisch, Tigrinya)",
+   "regel": "vater",
+   "f": [
+    "Selam",
+    "Tsion",
+    "Hiwot",
+    "Meron",
+    "Liya",
+    "Saba",
+    "Aster",
+    "Mekdes",
+    "Rahel",
+    "Tigist",
+    "Almaz",
+    "Genet",
+    "Yeshi",
+    "Mahlet",
+    "Feven",
+    "Senait",
+    "Helen",
+    "Bezawit"
+   ],
+   "m": [
+    "Abebe",
+    "Tesfaye",
+    "Haile",
+    "Dawit",
+    "Yonas",
+    "Bereket",
+    "Tewodros",
+    "Getachew",
+    "Mulugeta",
+    "Biniam",
+    "Henok",
+    "Yared",
+    "Fikru",
+    "Girma",
+    "Mesfin",
+    "Alemu",
+    "Kebede",
+    "Ermias"
+   ],
+   "familie": [],
+   "vokale": "aeiou",
+   "endungen": [
+    "aye",
+    "ebe",
+    "emu",
+    "ew",
+    "et",
+    "it",
+    "aw",
+    "ru",
+    "ma",
+    "on",
+    "es"
+   ],
+   "konsonanten": [
+    [
+     "t",
+     "ts"
+    ],
+    [
+     "b",
+     "w"
+    ],
+    [
+     "g",
+     "k"
+    ],
+    [
+     "s",
+     "z"
+    ],
+    [
+     "m",
+     "n"
+    ]
+   ]
+  },
+  "arabien": {
+   "label": "Arabische Länder",
+   "regel": "vorname_familie",
+   "f": [
+    "Samira",
+    "Layla",
+    "Amira",
+    "Yasmin",
+    "Nadia",
+    "Rania",
+    "Huda",
+    "Salma",
+    "Dalia",
+    "Lina",
+    "Rasha",
+    "Noor",
+    "Hala",
+    "Farah",
+    "Ghada",
+    "Mona",
+    "Suha",
+    "Rima",
+    "Widad"
+   ],
+   "m": [
+    "Karim",
+    "Tariq",
+    "Omar",
+    "Samir",
+    "Nabil",
+    "Rami",
+    "Khalid",
+    "Faris",
+    "Hassan",
+    "Ziad",
+    "Bilal",
+    "Malik",
+    "Adil",
+    "Hamza",
+    "Jamal",
+    "Walid",
+    "Nasser",
+    "Amir",
+    "Fadi"
+   ],
+   "familie": [
+    "Haddad",
+    "Khoury",
+    "Nasser",
+    "Mansour",
+    "Saleh",
+    "Hamdan",
+    "Aziz",
+    "Farouk",
+    "Qasim",
+    "Najjar",
+    "Sabbagh",
+    "Hakim",
+    "Darwish",
+    "Bakr",
+    "Shami",
+    "Halabi",
+    "Masri",
+    "Jaber"
+   ],
+   "vokale": "aiuo",
+   "endungen": [
+    "ira",
+    "ia",
+    "ima",
+    "ah",
+    "im",
+    "ir",
+    "id",
+    "il",
+    "ad",
+    "oun",
+    "ur",
+    "an"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "q"
+    ],
+    [
+     "h",
+     "kh"
+    ],
+    [
+     "s",
+     "z"
+    ],
+    [
+     "d",
+     "dh"
+    ],
+    [
+     "t",
+     "th"
+    ],
+    [
+     "f",
+     "b"
+    ]
+   ]
+  },
+  "persien": {
+   "label": "Persien",
+   "regel": "vorname_familie",
+   "f": [
+    "Shirin",
+    "Parisa",
+    "Roya",
+    "Mina",
+    "Nasrin",
+    "Azadeh",
+    "Golnar",
+    "Shadi",
+    "Mahsa",
+    "Yasaman",
+    "Neda",
+    "Simin",
+    "Taraneh",
+    "Bahar",
+    "Setareh",
+    "Ladan",
+    "Pegah",
+    "Leila"
+   ],
+   "m": [
+    "Dariush",
+    "Kian",
+    "Babak",
+    "Arash",
+    "Kaveh",
+    "Farhad",
+    "Bijan",
+    "Siavash",
+    "Kourosh",
+    "Omid",
+    "Navid",
+    "Parviz",
+    "Behrouz",
+    "Ramin",
+    "Reza",
+    "Shahin",
+    "Payam",
+    "Afshin"
+   ],
+   "familie": [
+    "Karimi",
+    "Ahmadi",
+    "Rostami",
+    "Tehrani",
+    "Shirazi",
+    "Farahani",
+    "Moradi",
+    "Jafari",
+    "Rahimi",
+    "Kazemi",
+    "Sadeghi",
+    "Bahrami",
+    "Nazari",
+    "Amini",
+    "Esfahani",
+    "Kermani",
+    "Tabrizi",
+    "Yazdani"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "in",
+    "eh",
+    "ar",
+    "an",
+    "ush",
+    "ad",
+    "ab",
+    "ah",
+    "ani",
+    "azi",
+    "imi",
+    "ari"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "g"
+    ],
+    [
+     "sh",
+     "s"
+    ],
+    [
+     "v",
+     "b"
+    ],
+    [
+     "d",
+     "z"
+    ],
+    [
+     "p",
+     "f"
+    ]
+   ]
+  },
+  "tuerkei": {
+   "label": "Türkei und Kaukasus",
+   "regel": "vorname_familie",
+   "f": [
+    "Aylin",
+    "Elif",
+    "Zeynep",
+    "Ece",
+    "Defne",
+    "Selin",
+    "Ayşe",
+    "Melis",
+    "Derya",
+    "Esra",
+    "Gül",
+    "Nesrin",
+    "Sevgi",
+    "Yıldız",
+    "Pınar",
+    "Tuba",
+    "Ebru",
+    "Nilay"
+   ],
+   "m": [
+    "Emre",
+    "Burak",
+    "Can",
+    "Mert",
+    "Kerem",
+    "Kaan",
+    "Tolga",
+    "Volkan",
+    "Onur",
+    "Serkan",
+    "Baran",
+    "Arda",
+    "Murat",
+    "Cem",
+    "Tarık",
+    "Ozan",
+    "Barış",
+    "Levent"
+   ],
+   "familie": [
+    "Demir",
+    "Kaya",
+    "Yılmaz",
+    "Çelik",
+    "Şahin",
+    "Aydın",
+    "Öztürk",
+    "Arslan",
+    "Doğan",
+    "Kılıç",
+    "Aslan",
+    "Polat",
+    "Erdem",
+    "Koç",
+    "Kurt",
+    "Özdemir",
+    "Aksoy",
+    "Tekin"
+   ],
+   "vokale": "aeıioöuü",
+   "endungen": [
+    "in",
+    "if",
+    "an",
+    "en",
+    "er",
+    "ay",
+    "ur",
+    "ak",
+    "em",
+    "ül",
+    "ız",
+    "ra"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "g"
+    ],
+    [
+     "s",
+     "ş"
+    ],
+    [
+     "c",
+     "ç"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "b",
+     "p"
+    ],
+    [
+     "v",
+     "f"
+    ]
+   ]
+  },
+  "suedasien": {
+   "label": "Südasien (Hindi, Tamil, Bengali, Urdu)",
+   "regel": "vorname_familie",
+   "f": [
+    "Priya",
+    "Meera",
+    "Kavya",
+    "Ananya",
+    "Divya",
+    "Nisha",
+    "Anjali",
+    "Rekha",
+    "Sunita",
+    "Deepa",
+    "Kiran",
+    "Shreya",
+    "Isha",
+    "Revathi",
+    "Malini",
+    "Tara",
+    "Bhavna",
+    "Ruksana"
+   ],
+   "m": [
+    "Arjun",
+    "Rohan",
+    "Vikram",
+    "Rahul",
+    "Sanjay",
+    "Anil",
+    "Karthik",
+    "Selvan",
+    "Aravind",
+    "Ravi",
+    "Suresh",
+    "Ajay",
+    "Nikhil",
+    "Pranav",
+    "Imran",
+    "Farhan",
+    "Tarun",
+    "Vivek"
+   ],
+   "familie": [
+    "Iyer",
+    "Sharma",
+    "Patel",
+    "Reddy",
+    "Nair",
+    "Menon",
+    "Pillai",
+    "Rao",
+    "Gupta",
+    "Das",
+    "Banerjee",
+    "Chatterjee",
+    "Mehta",
+    "Joshi",
+    "Kapoor",
+    "Bose",
+    "Subramanian",
+    "Desai",
+    "Verma",
+    "Qureshi"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ya",
+    "ra",
+    "ika",
+    "ini",
+    "esh",
+    "an",
+    "ay",
+    "un",
+    "ith",
+    "vi",
+    "ar",
+    "ee"
+   ],
+   "konsonanten": [
+    [
+     "v",
+     "b"
+    ],
+    [
+     "sh",
+     "s"
+    ],
+    [
+     "k",
+     "kh"
+    ],
+    [
+     "t",
+     "th"
+    ],
+    [
+     "d",
+     "dh"
+    ],
+    [
+     "r",
+     "l"
+    ]
+   ]
+  },
+  "japan": {
+   "label": "Japan",
+   "regel": "familie_vorne",
+   "f": [
+    "Aiko",
+    "Yuki",
+    "Haruka",
+    "Emi",
+    "Hana",
+    "Keiko",
+    "Mai",
+    "Naomi",
+    "Rina",
+    "Sayaka",
+    "Yui",
+    "Ayaka",
+    "Chika",
+    "Megumi",
+    "Nanami",
+    "Kaori",
+    "Natsuki",
+    "Asuka"
+   ],
+   "m": [
+    "Haruki",
+    "Ren",
+    "Kenji",
+    "Takeshi",
+    "Hiroshi",
+    "Daiki",
+    "Yuto",
+    "Sora",
+    "Kaito",
+    "Riku",
+    "Shota",
+    "Taro",
+    "Akira",
+    "Kenta",
+    "Makoto",
+    "Ryo",
+    "Satoshi",
+    "Yusuke"
+   ],
+   "familie": [
+    "Mori",
+    "Sato",
+    "Suzuki",
+    "Takahashi",
+    "Tanaka",
+    "Watanabe",
+    "Ito",
+    "Yamamoto",
+    "Nakamura",
+    "Kobayashi",
+    "Kato",
+    "Yoshida",
+    "Yamada",
+    "Sasaki",
+    "Matsumoto",
+    "Inoue",
+    "Kimura",
+    "Hayashi",
+    "Shimizu",
+    "Ishikawa"
+   ],
+   "vokale": "aiueo",
+   "endungen": [
+    "ko",
+    "ka",
+    "mi",
+    "na",
+    "ki",
+    "to",
+    "ta",
+    "shi",
+    "ro",
+    "ya",
+    "ra",
+    "da"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "t"
+    ],
+    [
+     "m",
+     "n"
+    ],
+    [
+     "r",
+     "s"
+    ],
+    [
+     "h",
+     "k"
+    ],
+    [
+     "y",
+     "m"
+    ]
+   ],
+   "muster": "^(?:(?:[kgsztdnhbpmr]y?|sh|ch|ts|j|f|w|y)?[aiueo]n?)+$"
+  },
+  "korea": {
+   "label": "Korea",
+   "regel": "familie_vorne",
+   "silben": true,
+   "f": [
+    "Ji-woo",
+    "Seo-yeon",
+    "Min-seo",
+    "Ha-eun",
+    "Soo-ah",
+    "Ji-min",
+    "Yu-na",
+    "Su-bin",
+    "Da-eun",
+    "Hye-jin",
+    "Eun-ji",
+    "Na-yeon",
+    "Ye-jin",
+    "Chae-won",
+    "Seo-hyun",
+    "Mi-rae"
+   ],
+   "m": [
+    "Min-jun",
+    "Seo-jun",
+    "Do-yun",
+    "Ji-ho",
+    "Jun-seo",
+    "Hyun-woo",
+    "Sung-min",
+    "Tae-yang",
+    "Jae-won",
+    "Dong-hyun",
+    "Woo-jin",
+    "Joon-ho",
+    "Sang-woo",
+    "Kyung-soo",
+    "Tae-min",
+    "Jin-woo"
+   ],
+   "familie": [
+    "Kim",
+    "Lee",
+    "Park",
+    "Choi",
+    "Jung",
+    "Kang",
+    "Cho",
+    "Yoon",
+    "Jang",
+    "Lim",
+    "Han",
+    "Shin",
+    "Seo",
+    "Kwon",
+    "Hwang",
+    "Oh",
+    "Song",
+    "Baek"
+   ],
+   "vokale": "aeiou",
+   "endungen": [],
+   "konsonanten": []
+  },
+  "china": {
+   "label": "China",
+   "regel": "familie_vorne",
+   "silben": true,
+   "f": [
+    "Mei",
+    "Lian",
+    "Xiu",
+    "Ying",
+    "Hui",
+    "Jing",
+    "Lan",
+    "Fang",
+    "Yan",
+    "Ling",
+    "Xiao-ling",
+    "Mei-lin",
+    "Qing",
+    "Yue",
+    "Xin",
+    "Ruo-lan"
+   ],
+   "m": [
+    "Wei",
+    "Jun",
+    "Hao",
+    "Ming",
+    "Lei",
+    "Tao",
+    "Bo",
+    "Jian",
+    "Feng",
+    "Zhen",
+    "Yong",
+    "Cheng",
+    "Kai",
+    "Long",
+    "Rui",
+    "Zi-han"
+   ],
+   "familie": [
+    "Zhang",
+    "Wang",
+    "Li",
+    "Liu",
+    "Chen",
+    "Yang",
+    "Huang",
+    "Zhao",
+    "Zhou",
+    "Wu",
+    "Xu",
+    "Sun",
+    "Ma",
+    "Zhu",
+    "Hu",
+    "Guo",
+    "Lin",
+    "He",
+    "Gao",
+    "Luo"
+   ],
+   "vokale": "aeiou",
+   "endungen": [],
+   "konsonanten": []
+  },
+  "vietnam": {
+   "label": "Vietnam",
+   "regel": "familie_vorne",
+   "f": [
+    "Linh",
+    "Lan",
+    "Mai",
+    "Hoa",
+    "Thu",
+    "Ngoc",
+    "Trang",
+    "Huong",
+    "Anh",
+    "Thao",
+    "Nhi",
+    "Vy",
+    "Phuong",
+    "Hanh",
+    "Diep",
+    "Tam"
+   ],
+   "m": [
+    "Minh",
+    "Duc",
+    "Hung",
+    "Tuan",
+    "Long",
+    "Nam",
+    "Quang",
+    "Huy",
+    "Khoa",
+    "Bao",
+    "Thanh",
+    "Dung",
+    "Vinh",
+    "Phuc",
+    "Khanh",
+    "Son"
+   ],
+   "familie": [
+    "Nguyen",
+    "Tran",
+    "Le",
+    "Pham",
+    "Hoang",
+    "Phan",
+    "Vu",
+    "Dang",
+    "Bui",
+    "Do",
+    "Ho",
+    "Ngo",
+    "Duong",
+    "Ly"
+   ],
+   "vokale": "aeiouy",
+   "endungen": [
+    "inh",
+    "anh",
+    "ang",
+    "ung",
+    "an",
+    "oc",
+    "ao",
+    "uy",
+    "ong",
+    "ai"
+   ],
+   "konsonanten": [
+    [
+     "th",
+     "t"
+    ],
+    [
+     "ph",
+     "kh"
+    ],
+    [
+     "d",
+     "v"
+    ],
+    [
+     "h",
+     "l"
+    ],
+    [
+     "ng",
+     "nh"
+    ]
+   ],
+   "muster": "^(?![a-z]*[ou]nh$)(?:ng|nh|ch|tr|th|ph|kh|gi|qu|[bcdghklmnstvxr])?[aeiouy]{1,3}(?:ng|nh|ch|[cmnpt])?$"
+  },
+  "indonesien": {
+   "label": "Indonesien und Malaysia",
+   "regel": "einzel",
+   "f": [
+    "Sari",
+    "Wulan",
+    "Ayu",
+    "Putri",
+    "Intan",
+    "Kartika",
+    "Lestari",
+    "Ratna",
+    "Melati",
+    "Indah",
+    "Nurul",
+    "Fitri",
+    "Siti",
+    "Rini",
+    "Wati",
+    "Kirana"
+   ],
+   "m": [
+    "Budi",
+    "Agus",
+    "Bambang",
+    "Joko",
+    "Adi",
+    "Hendra",
+    "Wahyu",
+    "Dimas",
+    "Eko",
+    "Rizky",
+    "Bayu",
+    "Arif",
+    "Hadi",
+    "Yudi",
+    "Teguh",
+    "Galih"
+   ],
+   "familie": [
+    "Santoso",
+    "Wijaya",
+    "Hidayat",
+    "Saputra",
+    "Kusuma",
+    "Pratama",
+    "Setiawan",
+    "Nugroho",
+    "Halim",
+    "Gunawan",
+    "Lubis",
+    "Siregar",
+    "Sinaga",
+    "Harahap"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ari",
+    "ika",
+    "ati",
+    "ana",
+    "uti",
+    "udi",
+    "ayu",
+    "ono",
+    "awan",
+    "ra",
+    "di"
+   ],
+   "konsonanten": [
+    [
+     "w",
+     "b"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "j",
+     "y"
+    ],
+    [
+     "k",
+     "g"
+    ],
+    [
+     "r",
+     "l"
+    ]
+   ]
+  },
+  "mongolei": {
+   "label": "Mongolei und Steppe",
+   "regel": "einzel",
+   "f": [
+    "Saran",
+    "Oyuun",
+    "Bolormaa",
+    "Enkhjargal",
+    "Sarangerel",
+    "Tuya",
+    "Khulan",
+    "Anu",
+    "Solongo",
+    "Undraa",
+    "Delger",
+    "Altantsetseg",
+    "Narantsetseg",
+    "Gerel",
+    "Nomin"
+   ],
+   "m": [
+    "Batu",
+    "Altan",
+    "Ganbaatar",
+    "Temuulen",
+    "Bold",
+    "Sukh",
+    "Erdene",
+    "Munkh",
+    "Bayar",
+    "Baatar",
+    "Ochir",
+    "Chuluun",
+    "Gantulga",
+    "Tsogt",
+    "Khuyag"
+   ],
+   "familie": [],
+   "vokale": "aeiou",
+   "endungen": [
+    "aa",
+    "an",
+    "ar",
+    "ul",
+    "ee",
+    "maa",
+    "tsetseg",
+    "baatar",
+    "gerel",
+    "tulga",
+    "jargal"
+   ],
+   "konsonanten": [
+    [
+     "b",
+     "g"
+    ],
+    [
+     "kh",
+     "g"
+    ],
+    [
+     "ts",
+     "ch"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "s",
+     "sh"
+    ]
+   ]
+  },
+  "slawen": {
+   "label": "Slawische Länder",
+   "regel": "vorname_familie",
+   "f": [
+    "Mira",
+    "Zora",
+    "Vesna",
+    "Milena",
+    "Jelena",
+    "Katarina",
+    "Svetlana",
+    "Ljuba",
+    "Dragana",
+    "Bojana",
+    "Olga",
+    "Irina",
+    "Darina",
+    "Radka",
+    "Zlata",
+    "Bogdana",
+    "Kasia",
+    "Nadja"
+   ],
+   "m": [
+    "Bogdan",
+    "Radomir",
+    "Milan",
+    "Dragan",
+    "Zoran",
+    "Vlado",
+    "Ivan",
+    "Pavel",
+    "Dmitri",
+    "Stanislav",
+    "Tomasz",
+    "Borislav",
+    "Miroslav",
+    "Goran",
+    "Lazar",
+    "Dušan",
+    "Jaromir",
+    "Oleg"
+   ],
+   "familie": [
+    "Novak",
+    "Horvat",
+    "Kovač",
+    "Petrov",
+    "Ivanov",
+    "Volkov",
+    "Sokolov",
+    "Nowak",
+    "Kowalski",
+    "Popović",
+    "Jovanović",
+    "Marković",
+    "Dvořák",
+    "Svoboda",
+    "Lebedev",
+    "Zielinski",
+    "Orlov",
+    "Belov"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ana",
+    "ena",
+    "ina",
+    "ka",
+    "ja",
+    "an",
+    "ir",
+    "av",
+    "slav",
+    "mir",
+    "ov",
+    "ić",
+    "ak",
+    "ski"
+   ],
+   "konsonanten": [
+    [
+     "v",
+     "b"
+    ],
+    [
+     "k",
+     "ch"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "z",
+     "s"
+    ],
+    [
+     "r",
+     "l"
+    ]
+   ],
+   "weiblich": [
+    [
+     "ovich",
+     "ovna"
+    ],
+    [
+     "ski",
+     "ska"
+    ],
+    [
+     "cki",
+     "cka"
+    ],
+    [
+     "ov",
+     "ova"
+    ],
+    [
+     "ev",
+     "eva"
+    ],
+    [
+     "in",
+     "ina"
+    ]
+   ]
+  },
+  "norden": {
+   "label": "Skandinavien und Island",
+   "regel": "patronym",
+   "f": [
+    "Sigrun",
+    "Ylva",
+    "Astrid",
+    "Ingrid",
+    "Solveig",
+    "Hilda",
+    "Ragnhild",
+    "Liv",
+    "Gudrun",
+    "Thora",
+    "Sigrid",
+    "Helga",
+    "Runa",
+    "Eira",
+    "Ása",
+    "Tove",
+    "Brynja",
+    "Dagny"
+   ],
+   "m": [
+    "Halvard",
+    "Bjørn",
+    "Leif",
+    "Ragnar",
+    "Sigurd",
+    "Eirik",
+    "Gunnar",
+    "Ivar",
+    "Torstein",
+    "Arne",
+    "Ulf",
+    "Knut",
+    "Haakon",
+    "Einar",
+    "Asgeir",
+    "Sindre",
+    "Steinar",
+    "Rune"
+   ],
+   "familie": [],
+   "vokale": "aeiouyø",
+   "endungen": [
+    "rid",
+    "run",
+    "ild",
+    "veig",
+    "a",
+    "ar",
+    "ard",
+    "ir",
+    "geir",
+    "stein",
+    "vald",
+    "mund"
+   ],
+   "konsonanten": [
+    [
+     "d",
+     "t"
+    ],
+    [
+     "g",
+     "k"
+    ],
+    [
+     "v",
+     "f"
+    ],
+    [
+     "s",
+     "sk"
+    ],
+    [
+     "b",
+     "p"
+    ]
+   ],
+   "sohn": "sson",
+   "tochter": "sdóttir"
+  },
+  "finnland": {
+   "label": "Finnland und Sápmi",
+   "regel": "vorname_familie",
+   "f": [
+    "Aino",
+    "Kaisa",
+    "Helmi",
+    "Saara",
+    "Elina",
+    "Venla",
+    "Lumi",
+    "Kerttu",
+    "Marjatta",
+    "Elle",
+    "Máret",
+    "Inga",
+    "Áile",
+    "Sanna",
+    "Hilja",
+    "Iida"
+   ],
+   "m": [
+    "Ilmari",
+    "Eino",
+    "Väinö",
+    "Aleksi",
+    "Juho",
+    "Onni",
+    "Lauri",
+    "Mikko",
+    "Áilu",
+    "Niillas",
+    "Ánte",
+    "Jouni",
+    "Veikko",
+    "Toivo",
+    "Arvo",
+    "Kalle"
+   ],
+   "familie": [
+    "Virtanen",
+    "Korhonen",
+    "Nieminen",
+    "Mäkinen",
+    "Hämäläinen",
+    "Laine",
+    "Heikkinen",
+    "Koskinen",
+    "Järvinen",
+    "Lehtonen",
+    "Salo",
+    "Aikio",
+    "Magga",
+    "Länsman",
+    "Valkeapää",
+    "Kallio"
+   ],
+   "vokale": "aeiouäö",
+   "endungen": [
+    "nen",
+    "inen",
+    "la",
+    "ri",
+    "nö",
+    "ko",
+    "kki",
+    "ja",
+    "na",
+    "ta",
+    "lo",
+    "ari"
+   ],
+   "konsonanten": []
+  },
+  "kelten": {
+   "label": "Irland, Schottland, Wales, Bretagne",
+   "regel": "vorname_familie",
+   "f": [
+    "Niamh",
+    "Eilidh",
+    "Siobhan",
+    "Aoife",
+    "Saoirse",
+    "Mairead",
+    "Catriona",
+    "Ciara",
+    "Orla",
+    "Isla",
+    "Bronwen",
+    "Cerys",
+    "Morwenna",
+    "Gwen",
+    "Ffion",
+    "Sorcha",
+    "Róisín",
+    "Nolwenn"
+   ],
+   "m": [
+    "Ciarán",
+    "Bran",
+    "Cormac",
+    "Declan",
+    "Eoin",
+    "Fionn",
+    "Oisín",
+    "Lachlan",
+    "Callum",
+    "Ruairi",
+    "Tadhg",
+    "Dafydd",
+    "Rhys",
+    "Gethin",
+    "Iestyn",
+    "Cian",
+    "Gwilym",
+    "Erwan"
+   ],
+   "familie": [
+    "Byrne",
+    "Kelly",
+    "Doyle",
+    "Gallagher",
+    "Quinn",
+    "MacLeod",
+    "MacKenzie",
+    "Campbell",
+    "Murray",
+    "Morgan",
+    "Pryce",
+    "Llewellyn",
+    "Hughes",
+    "Kennedy",
+    "Brennan",
+    "Duffy",
+    "Fraser",
+    "Le Goff"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "wen",
+    "ra",
+    "na",
+    "an",
+    "ach",
+    "lan",
+    "ys",
+    "on",
+    "en",
+    "ie",
+    "agh",
+    "ey"
+   ],
+   "konsonanten": [
+    [
+     "c",
+     "g"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "b",
+     "bh"
+    ],
+    [
+     "m",
+     "mh"
+    ]
+   ]
+  },
+  "iberien": {
+   "label": "Baskenland und Iberien",
+   "regel": "zwei_familien",
+   "f": [
+    "Itziar",
+    "Amaia",
+    "Ane",
+    "Maialen",
+    "Nerea",
+    "Leire",
+    "Uxue",
+    "Ainhoa",
+    "Irati",
+    "Lucía",
+    "Inés",
+    "Carmen",
+    "Pilar",
+    "Rocío",
+    "Beatriz",
+    "Lorena",
+    "Paloma",
+    "Graça"
+   ],
+   "m": [
+    "Iker",
+    "Unai",
+    "Gorka",
+    "Mikel",
+    "Aitor",
+    "Xabier",
+    "Ander",
+    "Jon",
+    "Asier",
+    "Íñigo",
+    "Mateo",
+    "Rodrigo",
+    "Diego",
+    "Álvaro",
+    "Tomás",
+    "Joaquín",
+    "Gonzalo",
+    "Duarte"
+   ],
+   "familie": [
+    "Etxeberria",
+    "Goikoetxea",
+    "Zubiri",
+    "Aguirre",
+    "Arana",
+    "Urrutia",
+    "Garmendia",
+    "Iturbe",
+    "Mendizabal",
+    "García",
+    "Fernández",
+    "Moreno",
+    "Navarro",
+    "Ortega",
+    "Romero",
+    "Delgado",
+    "Castillo",
+    "Herrera",
+    "Vidal",
+    "Pereira"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ia",
+    "ea",
+    "aia",
+    "ena",
+    "ez",
+    "ar",
+    "ai",
+    "itz",
+    "o",
+    "rria",
+    "eta",
+    "ena"
+   ],
+   "konsonanten": [
+    [
+     "tx",
+     "tz"
+    ],
+    [
+     "k",
+     "g"
+    ],
+    [
+     "b",
+     "v"
+    ],
+    [
+     "z",
+     "s"
+    ],
+    [
+     "d",
+     "t"
+    ]
+   ]
+  },
+  "amerika": {
+   "label": "Anden, Mexiko, Mapuche (Quechua, Aymara, Nahuatl, Maya, Mapudungun)",
+   "regel": "vorname_familie",
+   "f": [
+    "Killa",
+    "Citlali",
+    "Xóchitl",
+    "Yaretzi",
+    "Sisa",
+    "Nina",
+    "Itzel",
+    "Nayeli",
+    "Ayelen",
+    "Rayen",
+    "Amancay",
+    "Chaska",
+    "Millaray",
+    "Illari",
+    "Suyai",
+    "Tika"
+   ],
+   "m": [
+    "Tupaq",
+    "Huaman",
+    "Atoq",
+    "Wayra",
+    "Kusi",
+    "Yupanqui",
+    "Lautaro",
+    "Rumi",
+    "Sinchi",
+    "Nahuel",
+    "Ancalef",
+    "Ollin",
+    "Yaotl",
+    "Tecun",
+    "Kallpa",
+    "Mayta"
+   ],
+   "familie": [
+    "Mamani",
+    "Quispe",
+    "Condori",
+    "Choque",
+    "Ticona",
+    "Apaza",
+    "Huanca",
+    "Coaquira",
+    "Llanque",
+    "Chura",
+    "Machaca",
+    "Huamán",
+    "Painemal",
+    "Catrileo",
+    "Huenchumilla",
+    "Canul",
+    "Pech",
+    "Chan"
+   ],
+   "vokale": "aiu",
+   "endungen": [
+    "ay",
+    "ari",
+    "illa",
+    "li",
+    "tl",
+    "el",
+    "en",
+    "aq",
+    "an",
+    "ni",
+    "pa",
+    "ta"
+   ],
+   "konsonanten": [
+    [
+     "q",
+     "k"
+    ],
+    [
+     "w",
+     "hu"
+    ],
+    [
+     "ch",
+     "ts"
+    ],
+    [
+     "ll",
+     "y"
+    ],
+    [
+     "p",
+     "t"
+    ]
+   ]
+  },
+  "polynesien": {
+   "label": "Polynesien (Māori, Hawaiʻi, Samoa, Tonga)",
+   "regel": "vorname_familie",
+   "f": [
+    "Aroha",
+    "Moana",
+    "Mere",
+    "Kiri",
+    "Ngaio",
+    "Mihi",
+    "Huia",
+    "Leilani",
+    "Kalani",
+    "Malia",
+    "Noelani",
+    "Keala",
+    "Mahina",
+    "Losa",
+    "Sina",
+    "Mele"
+   ],
+   "m": [
+    "Kahu",
+    "Rewi",
+    "Wiremu",
+    "Tama",
+    "Nikau",
+    "Manaia",
+    "Hemi",
+    "Kai",
+    "Keanu",
+    "Makoa",
+    "Kawika",
+    "Ikaika",
+    "Koa",
+    "Sione",
+    "Tavita",
+    "Pita"
+   ],
+   "familie": [
+    "Ngata",
+    "Parata",
+    "Kereama",
+    "Tipene",
+    "Rāwiri",
+    "Kalama",
+    "Kahale",
+    "Akana",
+    "Keawe",
+    "Kealoha",
+    "Nohea",
+    "Pohatu",
+    "Tāwhai",
+    "Faleolo",
+    "Tuilagi",
+    "Vaipulu"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ana",
+    "ani",
+    "oha",
+    "ika",
+    "lani",
+    "ala",
+    "ere",
+    "ahu",
+    "ua",
+    "ina",
+    "ea",
+    "oa"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "t"
+    ],
+    [
+     "w",
+     "v"
+    ],
+    [
+     "l",
+     "r"
+    ],
+    [
+     "h",
+     "f"
+    ],
+    [
+     "m",
+     "n"
+    ]
+   ],
+   "muster": "^(?:(?:wh|ng|[hkmnprtwlvfsg])?[aeiouāēīōū])+$"
+  },
+  "mitteleuropa": {
+   "label": "Mitteleuropa (wie Edda Krell, Maren Holt)",
+   "regel": "vorname_familie",
+   "f": [
+    "Hedda",
+    "Wiebke",
+    "Frauke",
+    "Gesa",
+    "Imke",
+    "Lotte",
+    "Greta",
+    "Ilse",
+    "Hanne",
+    "Anke",
+    "Rieke",
+    "Thea",
+    "Ida",
+    "Martha",
+    "Helene",
+    "Agnes",
+    "Swantje",
+    "Ottilie"
+   ],
+   "m": [
+    "Henning",
+    "Jorin",
+    "Kasper",
+    "Lennart",
+    "Fiete",
+    "Arno",
+    "Bertold",
+    "Wendel",
+    "Gerold",
+    "Konrad",
+    "Anselm",
+    "Hagen",
+    "Lutz",
+    "Ortwin",
+    "Detlef",
+    "Jannik",
+    "Volker",
+    "Ebbe"
+   ],
+   "familie": [
+    "Brandt",
+    "Vogt",
+    "Haller",
+    "Rieger",
+    "Wendt",
+    "Kessler",
+    "Lindner",
+    "Fuhrmann",
+    "Schäfer",
+    "Gerber",
+    "Köhler",
+    "Zimmer",
+    "Becker",
+    "Thalberg",
+    "Ostermann",
+    "Wolters",
+    "Harms",
+    "Petersen"
+   ],
+   "vokale": "aeiou",
+   "endungen": [
+    "ke",
+    "ga",
+    "da",
+    "ne",
+    "ilde",
+    "ert",
+    "old",
+    "win",
+    "mar",
+    "ing",
+    "mann",
+    "er",
+    "sen",
+    "berg"
+   ],
+   "konsonanten": [
+    [
+     "k",
+     "g"
+    ],
+    [
+     "d",
+     "t"
+    ],
+    [
+     "w",
+     "v"
+    ],
+    [
+     "b",
+     "p"
+    ],
+    [
+     "s",
+     "z"
+    ]
+   ]
+  }
+ },
+ "fest": {
+  "info": "Story people keep their names exactly; the generator never hands these out",
+  "namen": [
+   "Edda Krell",
+   "Maren Holt",
+   "Albrun",
+   "Ysra"
+  ]
+ }
+}
