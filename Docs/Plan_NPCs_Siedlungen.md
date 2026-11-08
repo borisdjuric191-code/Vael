@@ -1,6 +1,6 @@
 # Plan: NPCs, Lager und Dörfer in der offenen Welt
 
-Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritte 1 bis 3 fertig
+Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritte 1 bis 4 fertig
 
 ## Ziel
 
@@ -241,3 +241,19 @@ Statt einer Datei pro Kulturkreis liegt alles in einer Datei, `Scripts/Data/Name
   - 12 Assets `DA_Gossip_Siedlung_*`. Lager und Kontor binden ihr altes Gerede ein, das unverändert bleibt.
 - **Bestehende Leute:** `Scripts/PlaceSiedlungen.py` gibt den 6 Leuten in L_Vael ihre Identität und den 3 Bystandern das Siedlungs-Gerede. Schritt 5 erweitert das Skript um das Setzen der übrigen 56.
 - **Test im Spiel** (`Docs/Karte/npc_gerede_test.png`): Am Lager stehen „Cutlali Condora“ und „Yow Okunkwo“ über den Überlebenden. Cutlali, eine Anhängerin, sagt: „Die Asche wird weichen. Ich spüre es, seit sie da sind.“
+
+## Stand nach Schritt 4 (8. November 2026)
+
+`Tools/Welt/aschenmark_huetten.py` baut die Gebäude der Siedlungen prozedural in Blender, ohne Tripo. Die Vorschau liegt in `Docs/Karte/siedlungsbauten_vorschau.png`.
+
+| Modell | Inhalt | Maße | Kollision |
+|---|---|---|---|
+| `SM_AM_Huette` | Blockhütte aus Rundhölzern, Tür mit Fellvorhang, durchhängendes Lederdach mit Flicken und Seilen, Feuerholzstapel | 5,1 × 5,9 × 3,5 m | einfache Kollision |
+| `SM_AM_Werkbank` | Werkbank mit Schraubstock, Hammer, Zange, Eisenstäben und Seilrolle | – | einfache Kollision |
+| `SM_AM_Gehege` | Gehege mit schiefen Pfosten, offenem Tor, Trog und Stroh | 7,5 × 5 m | wie es aussieht |
+| `SM_AM_Acker` | Erdfurchen mit blassen Trieben, Pflöcke mit Schnur, Vogelscheuche | 10,7 × 7 m | wie es aussieht |
+| `SM_AM_Trockengestell` | Trockengestell der Jäger mit Häuten und glühenden Glutkriecher-Panzern an Schnüren | – | wie es aussieht |
+
+- **Import:** `Scripts/ImportSiedlungsBauten.py` legt die Modelle nach `/Game/Vael/Maps/Aschenmark/Bauten`, mit den Materialien des Glutkammer-Kits.
+- **Material:** Neu ist der Slot Erde, belegt mit `M_GK_Erde`.
+- **Feuer:** Das Feuer der Siedlungen kommt in Schritt 5 als Feuerstelle wie in den Lagern, nicht als Modell.
