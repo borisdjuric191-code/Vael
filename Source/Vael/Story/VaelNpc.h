@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Player/VaelInteractable.h"
+#include "Story/VaelNpcIdentity.h"
 #include "VaelNpc.generated.h"
 
 class UCapsuleComponent;
@@ -53,6 +54,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")
 	FLinearColor RobeColor = FLinearColor(0.32f, 0.24f, 0.16f);
 
+	/** Who the person is: name, origin, role, settlement, age, what they think of the Prophet (Scripts/Data/Welt/AM_Siedlungen.json) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Npc")
+	FVaelNpcIdentity Identity;
+
 public:
 
 	/** Constructor */
@@ -73,6 +78,13 @@ public:
 	/** What the person mutters right now, empty while silent */
 	FText GetGossipLine() const;
 
+	/** Who the person is */
+	const FVaelNpcIdentity& GetIdentity() const { return Identity; }
+
+	/** Sets who the person is (placement scripts, later the deeds of the group) */
+	UFUNCTION(BlueprintCallable, Category="Npc")
+	void SetIdentity(const FVaelNpcIdentity& NewIdentity);
+
 	/** Update: mutters now and then while players are near */
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -88,6 +100,15 @@ private:
 
 	/** Key under which the progress remembers the intro */
 	FName GetSpeakerKey() const;
+
+	/** Placeholder look after age and build: children small, old people a little bent, strong people wider */
+	void ApplyBodyShape();
+
+	/** The name of another person of the same settlement, for lines that talk about a neighbour */
+	FText PickNeighbourName() const;
+
+	/** The gossip line said now, with its placeholders filled in */
+	FText GossipText;
 
 	/** Line of the gossip said last, the time it fades, and the time the next one may come */
 	int32 GossipIndex = INDEX_NONE;

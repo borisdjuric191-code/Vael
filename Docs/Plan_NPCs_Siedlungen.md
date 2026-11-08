@@ -1,6 +1,6 @@
 # Plan: NPCs, Lager und Dörfer in der offenen Welt
 
-Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritte 1 und 2 fertig
+Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritte 1 bis 3 fertig
 
 ## Ziel
 
@@ -225,3 +225,19 @@ Statt einer Datei pro Kulturkreis liegt alles in einer Datei, `Scripts/Data/Name
 - **Bestehende Actors:** Edda, Albrun, Maren, die beiden Überlebenden und die Gildenwache behalten ihren Actor und ihren Platz in L_Vael. Die drei Bystander bekommen jetzt Namen.
 - **Neue Gebäude:** Hütten, Zelte, Werkbank, Gehege, Acker und Trockengestell sind als Vorschlag mit Lage eingetragen. Die Modelle kommen in Schritt 4.
 - **Offen für Schritt 5:** In den portierten Orten (Lager, Kontor, Dorf, Kathedrale) kennt der Generator die Häuser nicht. Die Plätze dort werden beim Setzen in Unreal per Trace auf freien Boden geschoben.
+
+## Stand nach Schritt 3 (8. November 2026)
+
+- **C++:**
+  - `FVaelNpcIdentity` in `Source/Vael/Story/VaelNpcIdentity.h` mit Name, Kultur, Rolle, Fraktion, Siedlung, Siedlungsname, Alter, Körperbau und Haltung zum Propheten (`EVaelProphetAttitude`).
+  - `AVaelNpc` zeigt den Namen über dem Kopf, sobald es keinen Dialog gibt.
+  - Der Platzhalter-Körper folgt Alter und Körperbau: Kinder klein, Alte leicht gebeugt, Kräftige breiter.
+- **Gerede:**
+  - Zeilen können an eine Rolle und an eine Haltung zum Propheten gebunden sein.
+  - Ein Gerede-Asset kann andere einbinden (`Includes`).
+  - Platzhalter: `{Name}`, `{Ort}`, `{Nachbar}` (eine andere Person derselben Siedlung).
+- **Assets:** `Scripts/CreateSettlementGossip.py` schreibt `/Game/Vael/Story/Gerede`:
+  - `DA_Gossip_Leute` mit 83 Zeilen: 22 zur Haltung zum Propheten, 6 zur Herkunft (Strandgut), dazu Zeilen pro Rolle.
+  - 12 Assets `DA_Gossip_Siedlung_*`. Lager und Kontor binden ihr altes Gerede ein, das unverändert bleibt.
+- **Bestehende Leute:** `Scripts/PlaceSiedlungen.py` gibt den 6 Leuten in L_Vael ihre Identität und den 3 Bystandern das Siedlungs-Gerede. Schritt 5 erweitert das Skript um das Setzen der übrigen 56.
+- **Test im Spiel** (`Docs/Karte/npc_gerede_test.png`): Am Lager stehen „Cutlali Condora“ und „Yow Okunkwo“ über den Überlebenden. Cutlali, eine Anhängerin, sagt: „Die Asche wird weichen. Ich spüre es, seit sie da sind.“

@@ -8,6 +8,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Materials/MaterialInterface.h"
 #include "Player/VaelCharacter.h"
@@ -94,18 +95,67 @@ void AVaelNpc::Tick(float DeltaSeconds)
 		return;
 	}
 
-	const int32 Picked = Gossip->PickLine(this, GossipIndex);
-	if (Picked != INDEX_NONE)
+	const int32 Picked = Gossip->PickLine(this, GossipIndex, &Identity);
+	const FVaelGossipLine* Line = Gossip->GetLine(Picked);
+	if (Line != nullptr)
 	{
 		GossipIndex = Picked;
 		GossipEndTime = Now + Gossip->ShowSeconds;
+
+		// {Name}, {Ort}, {Nachbar}: the person talks about themself, their place and the people they live with
+		FFormatNamedArguments Arguments;
+		Arguments.Add(TEXT("Name"), GetDisplayName());
+		Arguments.Add(TEXT("Ort"), Identity.SettlementName.IsEmpty() ? NSLOCTEXT("VaelStory", "GossipHere", "hier") : Identity.SettlementName);
+		Arguments.Add(TEXT("Nachbar"), PickNeighbourName());
+		GossipText = FText::Format(Line->Line, Arguments);
 	}
 	NextGossipTime = Now + Gossip->ShowSeconds + FMath::FRandRange(Gossip->MinPause, FMath::Max(Gossip->MinPause, Gossip->MaxPause));
 }
 
 FText AVaelNpc::GetGossipLine() const
 {
-	return Gossip != nullptr && Gossip->Lines.IsValidIndex(GossipIndex) && GetWorld()->GetTimeSeconds() < GossipEndTime ? Gossip->Lines[GossipIndex].Line : FText::GetEmpty();
+	return Gossip != nullptr && GossipIndex != INDEX_NONE && GetWorld()->GetTimeSeconds() < GossipEndTime ? GossipText : FText::GetEmpty();
+}
+
+FText AVaelNpc::PickNeighbourName() const
+{
+	TArray<FText> Names;
+	if (!Identity.Settlement.IsNone())
+	{
+		for (TActorIterator<AVaelNpc> It(GetWorld()); It; ++It)
+		{
+			if (*It != this && It->Identity.Settlement == Identity.Settlement && !It->GetDisplayName().IsEmpty())
+			{
+				Names.Add(It->GetDisplayName());
+			}
+		}
+	}
+	return Names.IsEmpty() ? NSLOCTEXT("VaelStory", "GossipSomeone", "jemand") : Names[FMath::RandRange(0, Names.Num() - 1)];
+}
+
+void AVaelNpc::SetIdentity(const FVaelNpcIdentity& NewIdentity)
+{
+	Identity = NewIdentity;
+	ApplyBodyShape();
+}
+
+void AVaelNpc::ApplyBodyShape()
+{
+	// Whole person: children small, the young a bit short, old people a little bent
+	float Height = 1.0f;
+	switch (Identity.Age)
+	{
+	case EVaelNpcAge::Child: Height = 0.62f; break;
+	case EVaelNpcAge::Young: Height = 0.94f; break;
+	case EVaelNpcAge::Old: Height = 0.92f; break;
+	default: break;
+	}
+	SetActorScale3D(FVector(Height));
+
+	// Width of the robe after the build
+	const float Width = Identity.Build == EVaelNpcBuild::Slim ? 0.68f : Identity.Build == EVaelNpcBuild::Strong ? 0.98f : 0.8f;
+	Body->SetRelativeScale3D(FVector(Width, Width, 1.5f));
+	Head->SetRelativeLocation(Identity.Age == EVaelNpcAge::Old ? FVector(8.0f, 0.0f, 64.0f) : FVector(0.0f, 0.0f, 70.0f));
 }
 
 void AVaelNpc::BeginPlay()
@@ -113,6 +163,7 @@ void AVaelNpc::BeginPlay()
 	Super::BeginPlay();
 
 	VaelGround::RefuseDecals(this);
+	ApplyBodyShape();
 
 	if (UMaterialInstanceDynamic* RobeMaterial = Body->CreateAndSetMaterialInstanceDynamic(0))
 	{
@@ -211,7 +262,11 @@ bool AVaelNpc::HasNews() const
 
 FText AVaelNpc::GetDisplayName() const
 {
-	return Dialogue != nullptr ? Dialogue->SpeakerName : Gossip != nullptr ? Gossip->SpeakerName : FText::GetEmpty();
+	if (Dialogue != nullptr)
+	{
+		return Dialogue->SpeakerName;
+	}
+	return !Identity.Name.IsEmpty() ? Identity.Name : Gossip != nullptr ? Gossip->SpeakerName : FText::GetEmpty();
 }
 
 FName AVaelNpc::GetSpeakerKey() const
