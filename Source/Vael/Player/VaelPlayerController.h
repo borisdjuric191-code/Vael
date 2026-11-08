@@ -606,8 +606,10 @@ protected:
 	void OnToggleInventory();
 	void OnToggleHero();
 
+public:
 	/** Where a Floromant aims on the ground: the mouse, the enemy the gamepad aim is locked on, or a few steps ahead */
 	FVector GetFloromantAim() const;
+protected:
 
 	/** Puts the controls of the class the pawn plays now in place */
 	void UpdateClassControls();

@@ -88,6 +88,7 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
 	UpdateWeaponMesh();
+	UpdateSling(DeltaTime);
 	UpdateCarriedMeshes();
 	UpdateArmorMeshes();
 
@@ -310,11 +311,21 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 		WeaponMesh->SetCastShadow(true);
 		WeaponMesh->RegisterComponent();
 	}
-	// In the right hand; the pieces have their grip at the origin, the shot along +X
-	const FName Socket = Player->GetMesh()->DoesSocketExist(TEXT("hand_r")) ? FName(TEXT("hand_r")) : NAME_None;
-	WeaponMesh->AttachToComponent(Player->GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
-	WeaponMesh->SetRelativeLocation(FVector(-6.0f, 3.0f, 0.0f));
-	WeaponMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
+	// In the right hand; the pieces have their grip at the origin, the shot along +X. The Zwille is held in the left hand
+	// and placed every frame by UpdateSling
+	if (Weapon != VaelEngineerGear::Sling)
+	{
+		const FName Socket = Player->GetMesh()->DoesSocketExist(TEXT("hand_r")) ? FName(TEXT("hand_r")) : NAME_None;
+		WeaponMesh->AttachToComponent(Player->GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
+		WeaponMesh->SetRelativeLocation(FVector(-6.0f, 3.0f, 0.0f));
+		WeaponMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
+	}
+	else
+	{
+		WeaponMesh->DetachFromComponent(FDetachmentTransformRules::KeepWorldTransform);
+		WeaponMesh->SetUsingAbsoluteLocation(true);
+		WeaponMesh->SetUsingAbsoluteRotation(true);
+	}
 	FString Name = Wanted.ToString();
 	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_%s.SM_Ing_%s"), *Name, *Name), nullptr, LOAD_NoWarn | LOAD_Quiet);
 	if (Mesh == nullptr)
@@ -656,7 +667,8 @@ float UVaelEngineerComponent::GetTierScale() const
 bool UVaelEngineerComponent::UsesDraw() const
 {
 	const FVaelGear* Gear = GetWeapon();
-	return Gear != nullptr && Gear->Id == VaelEngineerGear::Bow;
+	// The bow and the slingshot are drawn while held and loose on release
+	return Gear != nullptr && (Gear->Id == VaelEngineerGear::Bow || Gear->Id == VaelEngineerGear::Sling);
 }
 
 void UVaelEngineerComponent::StartDraw()
@@ -680,6 +692,16 @@ bool UVaelEngineerComponent::ReleaseDraw(const FVector& AimLocation)
 	}
 	const float Held = GetDrawSeconds();
 	DrawStart = -1.0f;
+	const FVaelGear* Drawn = GetWeapon();
+	if (Drawn != nullptr && Drawn->Id == VaelEngineerGear::Sling)
+	{
+		// The slingshot: the further the band is pulled, the further and harder the stone flies (8 m tapped, 24 m full)
+		const float Pull = FMath::Clamp(Held / SlingFullDraw, 0.0f, 1.0f);
+		ShotReach = FMath::Lerp(800.0f, 2400.0f, Pull);
+		const bool bFired = Fire(AimLocation, FMath::Lerp(0.6f, 1.4f, Pull), false);
+		ShotReach = 0.0f;
+		return bFired;
+	}
 	// Too short a pull still shoots, only weakly
 	const float Scale = Held >= 1.2f ? 1.5f : Held >= 0.8f ? 1.2f : Held >= 0.4f ? 1.0f : 0.6f;
 	return Fire(AimLocation, Scale, Held >= 1.2f);
@@ -715,9 +737,15 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 
 	// From the hand, towards the aim point; the reach of the weapon is as far as it goes
 	const FVector From = Player->GetActorLocation() + Player->GetActorForwardVector() * 40.0f + FVector(0.0f, 0.0f, 50.0f);
+	FVector SlingFrom = From;
 	if (bSling)
 	{
-		Player->PlayCastGesture(EVaelCastGesture::SlingThrow);
+		FVector TipL, TipR;
+		if (SlingTips(TipL, TipR))
+		{
+			SlingFrom = (TipL + TipR) * 0.5f;
+		}
+		SlingLastShot = Now();
 	}
 	FVector Toward = AimLocation - From;
 	Toward.Z = 0.0f;
@@ -725,7 +753,7 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 	{
 		Toward = Player->GetActorForwardVector();
 	}
-	const float Reach = Gear->Range * (HasBuilt(VaelEngineerGear::LensFog) ? 1.15f : 1.0f);
+	const float Reach = (ShotReach > 0.0f ? ShotReach : Gear->Range) * (HasBuilt(VaelEngineerGear::LensFog) ? 1.15f : 1.0f);
 	const float Distance = FMath::Min(Toward.Size(), Reach);
 	const FVector To = From + Toward.GetSafeNormal() * Distance + FVector(0.0f, 0.0f, -10.0f);
 	const float ShotDamage = Gear->Damage * GetDamageScale() * GetTierScale() * DrawScale;
@@ -739,33 +767,22 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 			HagelCount = 0;
 			UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("Hagel", "Hagel!"));
 		}
-		const FName ThrownAmmo = Ammo;
-		const FLinearColor Color = GetAmmoColor();
-		const bool bPierceAll = PiercesAll();
-		const float Speed = Gear->Speed, Arc = Gear->Arc;
+		// The stone leaves the pouch between the prongs; the further it should go, the higher it is sent
 		const FVector Offset = To - From;
-		TWeakObjectPtr<AVaelCharacter> WeakPlayer(Player);
-		FTimerHandle ThrowTimer;
-		GetWorld()->GetTimerManager().SetTimer(ThrowTimer, FTimerDelegate::CreateWeakLambda(this, [this, WeakPlayer, bHagel, ThrownAmmo, Color, bPierceAll, Speed, Arc, Offset, ShotDamage, From]()
+		const float Arc = Gear->Arc * (ShotReach > 0.0f ? ShotReach / 1100.0f : 1.0f);
+		if (bHagel)
 		{
-			const AVaelCharacter* Thrower = WeakPlayer.Get();
-			const USkeletalMeshComponent* Body = Thrower != nullptr ? Thrower->GetMesh() : nullptr;
-			const FVector Hand = Body != nullptr && Body->DoesSocketExist(TEXT("hand_r")) ? Body->GetSocketLocation(TEXT("hand_r")) : From;
-			const FVector Start = FVector(Hand.X, Hand.Y, FMath::Max(Hand.Z, From.Z - 20.0f));
-			if (bHagel)
+			// Hagel: five stones fanned out, each 40 %
+			for (int32 Stone = -2; Stone <= 2; ++Stone)
 			{
-				// Hagel: five stones fanned out, each 40 %
-				for (int32 Stone = -2; Stone <= 2; ++Stone)
-				{
-					const FVector Spread = FRotator(0.0f, Stone * 8.0f, 0.0f).RotateVector(Offset);
-					AVaelEngineerShot::Launch(this, Start, Start + Spread, Speed, Arc, ShotDamage * 0.4f, ThrownAmmo, bPierceAll, Color, 7.0f, true);
-				}
+				const FVector Spread = FRotator(0.0f, Stone * 8.0f, 0.0f).RotateVector(Offset);
+				AVaelEngineerShot::Launch(this, SlingFrom, SlingFrom + Spread, Gear->Speed, Arc, ShotDamage * 0.4f, Ammo, PiercesAll(), GetAmmoColor(), 7.0f, true);
 			}
-			else
-			{
-				AVaelEngineerShot::Launch(this, Start, Start + Offset, Speed, Arc, ShotDamage, ThrownAmmo, bPierceAll, Color, 9.0f, true);
-			}
-		}), FMath::Max(UVaelMagicSettings::Get()->GetGestureRelease(EVaelCastGesture::SlingThrow), 0.01f), false);
+		}
+		else
+		{
+			AVaelEngineerShot::Launch(this, SlingFrom, SlingFrom + Offset, Gear->Speed, Arc, ShotDamage, Ammo, PiercesAll(), GetAmmoColor(), 9.0f, true);
+		}
 	}
 	else
 	{
@@ -1271,3 +1288,102 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+bool UVaelEngineerComponent::SlingTips(FVector& OutLeft, FVector& OutRight) const
+{
+	if (WeaponMesh == nullptr || !WeaponMesh->IsVisible() || Weapon != VaelEngineerGear::Sling)
+	{
+		return false;
+	}
+	// SLING_TIP of Tools/Ingenieur/vael_ingenieur_werkstuecke.py, in cm
+	const FTransform Grip = WeaponMesh->GetComponentTransform();
+	OutLeft = Grip.TransformPosition(FVector(0.0f, -6.2f, 17.5f));
+	OutRight = Grip.TransformPosition(FVector(0.0f, 6.2f, 17.5f));
+	return true;
+}
+
+void UVaelEngineerComponent::UpdateSling(float DeltaTime)
+{
+	AVaelCharacter* Player = GetPlayer();
+	const bool bSling = Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling && WeaponMesh != nullptr && WeaponMesh->IsVisible();
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		if (BandMesh[Side] != nullptr)
+		{
+			BandMesh[Side]->SetVisibility(bSling);
+		}
+	}
+	if (PouchShell != nullptr)
+	{
+		PouchShell->SetVisibility(bSling);
+	}
+	if (!bSling)
+	{
+		SlingAim = SlingDrawShown = 0.0f;
+		return;
+	}
+
+	// Held up while drawing and a moment after the shot; the band snaps back fast after the release
+	const bool bDrawing = IsDrawing();
+	const float WantAim = bDrawing || Now() - SlingLastShot < 0.5f ? 1.0f : 0.0f;
+	SlingAim = FMath::FInterpConstantTo(SlingAim, WantAim, DeltaTime, WantAim > SlingAim ? 6.0f : 2.0f);
+	const float WantDraw = bDrawing ? FMath::Clamp(GetDrawSeconds() / SlingFullDraw, 0.0f, 1.0f) : 0.0f;
+	SlingDrawShown = bDrawing ? WantDraw : FMath::FInterpConstantTo(SlingDrawShown, 0.0f, DeltaTime, 14.0f);
+
+	// The fork stands upright in the left fist, the tips ahead; hanging down along the leg while he does not aim
+	USkeletalMeshComponent* Body = Player->GetMesh();
+	const FVector HandL = Body->DoesSocketExist(TEXT("hand_l")) ? Body->GetSocketLocation(TEXT("hand_l")) : Player->GetActorLocation();
+	const FVector HandR = Body->DoesSocketExist(TEXT("hand_r")) ? Body->GetSocketLocation(TEXT("hand_r")) : HandL;
+	const float Yaw = Player->GetActorRotation().Yaw;
+	const FRotator Upright(0.0f, Yaw, 0.0f);
+	const FRotator Hanging(-80.0f, Yaw, 0.0f);
+	const FRotator Held = FMath::Lerp(Hanging, Upright, SlingAim);
+	const float Scale = 1.0f + 0.06f * GetWeaponTier(Weapon);
+	WeaponMesh->SetWorldLocationAndRotation(HandL + Held.RotateVector(FVector(7.0f, 0.0f, 9.0f)), Held);
+	WeaponMesh->SetWorldScale3D(FVector(Scale));
+
+	if (BandMesh[0] == nullptr)
+	{
+		UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+		UMaterialInterface* BandLook = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Faden.M_GK_Faden"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			BandMesh[Side] = NewObject<UStaticMeshComponent>(Player, Side == 0 ? TEXT("ZwilleBandL") : TEXT("ZwilleBandR"));
+			BandMesh[Side]->SetStaticMesh(Cylinder);
+			BandMesh[Side]->SetMaterial(0, BandLook);
+			BandMesh[Side]->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			BandMesh[Side]->SetCastShadow(false);
+			BandMesh[Side]->SetUsingAbsoluteLocation(true);
+			BandMesh[Side]->SetUsingAbsoluteRotation(true);
+			BandMesh[Side]->SetUsingAbsoluteScale(true);
+			BandMesh[Side]->RegisterComponent();
+		}
+		PouchShell = NewObject<UStaticMeshComponent>(Player, TEXT("ZwilleSchale"));
+		PouchShell->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Zwillenschale.SM_Ing_Zwillenschale"), nullptr, LOAD_NoWarn | LOAD_Quiet));
+		PouchShell->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		PouchShell->SetUsingAbsoluteLocation(true);
+		PouchShell->SetUsingAbsoluteRotation(true);
+		PouchShell->RegisterComponent();
+	}
+
+	// The pouch: resting just behind the fork, pulled to the right hand as the band is drawn
+	FVector TipL, TipR;
+	SlingTips(TipL, TipR);
+	const FVector Middle = (TipL + TipR) * 0.5f;
+	const FVector Rest = Middle - Held.Vector() * 6.0f - FVector(0.0f, 0.0f, 3.0f);
+	const FVector Pouch = FMath::Lerp(Rest, HandR + Held.Vector() * 3.0f, FMath::Max(SlingDrawShown, SlingAim * 0.12f));
+	const FVector Across = (TipR - TipL).GetSafeNormal();
+	PouchShell->SetWorldLocationAndRotation(Pouch, FRotationMatrix::MakeFromYZ(Across, FVector::UpVector).Rotator());
+	const FVector Ends[2] = { Pouch - Across * 2.5f, Pouch + Across * 2.5f };
+	const FVector Tips[2] = { TipL, TipR };
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		// The engine cylinder is 100 cm high around its middle: stretched between tip and pouch, thinner the more it is pulled
+		const FVector Span = Ends[Side] - Tips[Side];
+		const float Length = FMath::Max(Span.Size(), 1.0f);
+		const float Thick = FMath::Lerp(0.009f, 0.0055f, SlingDrawShown);
+		BandMesh[Side]->SetWorldLocationAndRotation((Tips[Side] + Ends[Side]) * 0.5f, FRotationMatrix::MakeFromZ(Span / Length).Rotator());
+		BandMesh[Side]->SetWorldScale3D(FVector(Thick, Thick, Length / 100.0f));
+	}
+}
+

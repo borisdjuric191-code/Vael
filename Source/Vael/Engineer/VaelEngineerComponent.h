@@ -92,6 +92,13 @@ public:
 	void StartDraw();
 	bool ReleaseDraw(const FVector& AimLocation);
 	bool IsDrawing() const { return DrawStart >= 0.0f; }
+
+	/** The slingshot: how much it is held up (eases in while drawing, out after the shot) and how far the band is pulled, 0..1 */
+	float GetSlingAim() const { return SlingAim; }
+	float GetSlingDraw() const { return SlingDrawShown; }
+
+	/** Seconds to pull the slingshot band all the way */
+	static constexpr float SlingFullDraw = 1.0f;
 	float GetDrawSeconds() const;
 
 	/** The crossbow holds two bolts, then reloads for 1.4 s */
@@ -205,6 +212,26 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> WeaponMesh;
+
+	/** The slingshot band (two strands from the prong tips to the pouch) and the leather pouch; stretched every frame */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> BandMesh[2];
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> PouchShell;
+
+	/** Places the Zwille in the left hand and stretches its band to the right hand */
+	void UpdateSling(float DeltaTime);
+
+	/** World positions of the two prong tips of the Zwille in the hand */
+	bool SlingTips(FVector& OutLeft, FVector& OutRight) const;
+
+	float SlingAim = 0.0f;
+	float SlingDrawShown = 0.0f;
+	float SlingLastShot = -100.0f;
+
+	/** The reach of the next shot, set by how far the slingshot was drawn (cm); 0 = the reach of the weapon */
+	float ShotReach = 0.0f;
 
 	FName ShownWeapon;
 	float Now() const;

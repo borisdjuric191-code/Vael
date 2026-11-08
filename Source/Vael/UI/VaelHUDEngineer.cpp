@@ -59,7 +59,38 @@ void AVaelHUD::DrawEngineerWheel(const AVaelPlayerController* PlayerController)
 		const FVector2D BarAt(Feet.X - BarWidth * 0.5f, Feet.Y + 26.0f * S);
 		if (Engineer->IsDrawing())
 		{
-			const float Drawn = FMath::Clamp(Engineer->GetDrawSeconds() / 1.2f, 0.0f, 1.0f);
+			const bool bSlingDraw = Held->Id == VaelEngineerGear::Sling;
+			const float Drawn = FMath::Clamp(Engineer->GetDrawSeconds() / (bSlingDraw ? UVaelEngineerComponent::SlingFullDraw : 1.2f), 0.0f, 1.0f);
+			// The aim arc: where the stone or arrow would come down at this draw, a dotted bow over the ground to it
+			{
+				const float Reach = bSlingDraw ? FMath::Lerp(800.0f, 2400.0f, Drawn) : Held->Range;
+				const FVector Start = Player->GetActorLocation() + Player->GetActorForwardVector() * 40.0f + FVector(0.0f, 0.0f, 30.0f);
+				FVector Toward = PlayerController->GetFloromantAim() - Start;
+				Toward.Z = 0.0f;
+				if (Toward.IsNearlyZero())
+				{
+					Toward = Player->GetActorForwardVector();
+				}
+				const FVector Land = Start + Toward.GetSafeNormal() * FMath::Min(Toward.Size(), Reach) - FVector(0.0f, 0.0f, 80.0f);
+				const float Lift = 40.0f + 0.12f * FVector::Dist2D(Start, Land);
+				FVector2D Last;
+				for (int32 Step = 0; Step <= 16; ++Step)
+				{
+					const float T = Step / 16.0f;
+					const FVector Point = FMath::Lerp(Start, Land, T) + FVector(0.0f, 0.0f, 4.0f * Lift * T * (1.0f - T));
+					const FVector Screen = Canvas->Project(Point);
+					if (Step > 0 && Step % 2 == 1 && Screen.Z > 0.0f)
+					{
+						Canvas->K2_DrawLine(Last, FVector2D(Screen.X, Screen.Y), 2.0f * S, Drawn >= 1.0f ? FLinearColor(1.0f, 0.82f, 0.43f, 0.8f) : FLinearColor(0.95f, 0.75f, 0.5f, 0.55f));
+					}
+					Last = FVector2D(Screen.X, Screen.Y);
+				}
+				const FVector Ring = Canvas->Project(Land);
+				if (Ring.Z > 0.0f)
+				{
+					DrawDisc(FVector2D(Ring.X, Ring.Y), 6.0f * S, EngRgb(255, 210, 110, 180));
+				}
+			}
 			DrawBox(BarAt.X, BarAt.Y, BarWidth, 6.0f * S, EngRgb(30, 22, 18, 220));
 			DrawBox(BarAt.X, BarAt.Y, BarWidth * Drawn, 6.0f * S, Drawn >= 1.0f ? EngRgb(255, 210, 110) : EngRgb(206, 140, 70));
 			for (const float Stage : { 1.0f / 3.0f, 2.0f / 3.0f })

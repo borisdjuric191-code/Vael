@@ -57,6 +57,10 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	/** Leg pushing off in the skating stride of the Böe, 0 left, 1 right */
 	int32 SkateSide = 0;
 
+	/** The engineer's slingshot (Zwille): how much he holds it up (0 down, 1 aimed) and how far the band is pulled (0..1) */
+	float SlingAim = 0.0f;
+	float SlingDraw = 0.0f;
+
 private:
 
 	/** The whip stroke of one arm (0 left, 1 right): wound up high on its start side, it lashes down across the body, the chest
@@ -90,6 +94,9 @@ private:
 
 	/** Steinbrocken: the fist cocks by the far shoulder and lashes out back of the hand first, dead stop */
 	void ApplyBackfist(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
+	/** The slingshot: the left hand holds the fork out before him, the right pulls the band back to the cheek as far as it is drawn */
+	void ApplySlingDraw(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 	void ApplySlingThrow(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
 	/** Felswand: crouched, both fists low with their backs forward climb up heavily and hold */
@@ -190,6 +197,10 @@ protected:
 	/** Cast gesture of the mage and the seconds since it began */
 	EVaelCastGesture CastGesture = EVaelCastGesture::None;
 	float CastGestureSeconds = 0.0f;
+
+	/** The engineer's slingshot: held up and how far drawn */
+	float SlingAim = 0.0f;
+	float SlingDraw = 0.0f;
 	float CastExhaustion = 0.0f;
 	int32 CastSkateSide = 0;
 

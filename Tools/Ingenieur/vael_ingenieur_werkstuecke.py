@@ -83,20 +83,50 @@ def lathe(b, profile, material, centre, sides=16, glow=0.0, axis=None):
 
 # ---------------------------------------------------------------- weapons
 
+# The tips of the fork (where the band is tied); the C++ ties the band there: UVaelEngineerComponent::SlingTips
+SLING_TIP = Vector((0.0, 0.062, 0.175))
+
+
 def build_sling():
+    """The Zwille: a forked branch of scar wood held upright in the left hand, grip wrapped in leather, the prongs bound
+    with thread where the band is tied. The band and its leather pouch are not part of it: the game stretches them."""
     obj = gk.new_object("SM_Ing_Schleuder", SLOTS)
     b = gk.Builder()
-    # handle from the grip down, the fork rising forward and up
-    b.tube([Vector((-0.02, 0, -0.12)), Vector((0, 0, 0)), Vector((0.03, 0, 0.1))], [0.022, 0.024, 0.026], HOLZ, sides=9, rough=0.12, seed=1)
+    random.seed(21)
+    # handle: from the butt up to the crotch of the fork, a little bent like a real branch
+    b.tube([Vector((0.0, 0.0, -0.12)), Vector((0.006, 0.002, -0.06)), Vector((0.0, 0.0, 0.0)), Vector((-0.004, 0.0, 0.05))],
+           [0.017, 0.019, 0.02, 0.022], HOLZ, sides=10, rough=0.1, seed=1)
+    b.tube([Vector((-0.004, 0.0, 0.05)), Vector((0.0, 0.0, -0.125))], [0.022, 0.017], HOLZ, sides=10, rough=0.1, seed=31)
     for side in (-1, 1):
-        b.tube([Vector((0.03, 0, 0.1)), Vector((0.05, side * 0.05, 0.17)), Vector((0.07, side * 0.075, 0.25))], [0.022, 0.018, 0.015], HOLZ, sides=8, rough=0.12, seed=2 + side)
-        # band from each prong back to the pouch
-        b.tube([Vector((0.07, side * 0.075, 0.245)), Vector((0.0, side * 0.04, 0.24)), Vector((-0.08, side * 0.015, 0.24))], [0.006, 0.005, 0.005], LEDER, sides=5, cap_end=False)
-    # pouch
-    b.tube([Vector((-0.09, -0.02, 0.24)), Vector((-0.1, 0, 0.24)), Vector((-0.09, 0.02, 0.24))], [0.012, 0.016, 0.012], LEDER, sides=6)
-    # leather wrap on the grip
-    for k in range(5):
-        b.tube([Vector((-0.012 + k * 0.006, -0.026, -0.08 + k * 0.03)), Vector((-0.012 + k * 0.006, 0.026, -0.07 + k * 0.03))], [0.006, 0.006], LEDER, sides=5)
+        tip = Vector((SLING_TIP.x, side * SLING_TIP.y, SLING_TIP.z))
+        b.tube([Vector((-0.004, side * 0.004, 0.05)), Vector((-0.002, side * 0.03, 0.09)), Vector((0.0, side * 0.052, 0.13)), tip],
+               [0.02, 0.017, 0.015, 0.013], HOLZ, sides=9, rough=0.1, seed=2 + side)
+        # thread wound round each prong below its tip, a notch for the band
+        for k in range(4):
+            z = tip.z - 0.012 - k * 0.006
+            ring = [tip + Vector((0.016 * math.cos(a), 0.016 * math.sin(a), z - tip.z)) for a in [2 * math.pi * j / 10 for j in range(11)]]
+            b.tube(ring, [0.0035] * len(ring), FADEN, sides=4, cap_end=False)
+    # leather wrap on the grip in a spiral
+    spiral = [Vector((0.021 * math.cos(t * 9.0), 0.021 * math.sin(t * 9.0), -0.11 + t * 0.12)) for t in [i / 40 for i in range(41)]]
+    b.tube(spiral, [0.006] * len(spiral), LEDER, sides=5, cap_end=False)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_sling_pouch():
+    """The leather pouch that holds the stone, pivot in its middle, the band ends at +-Y"""
+    obj = gk.new_object("SM_Ing_Zwillenschale", SLOTS)
+    b = gk.Builder()
+    rows = []
+    for j in range(7):
+        v = j / 6 - 0.5
+        row = []
+        for i in range(9):
+            u = i / 8 - 0.5
+            row.append(Vector((-0.012 * (1 - 4 * v * v) - 0.008 * (1 - 4 * u * u), u * 0.05, v * 0.035)))
+        rows.append(row)
+    b.grid(rows, LEDER, uv_of=lambda j, i: (i / 8, j / 6), mask_of=lambda j, i: 0.0)
+    b.grid([list(reversed(r)) for r in rows], LEDER, uv_of=lambda j, i: (i / 8, j / 6), mask_of=lambda j, i: 0.0)
     b.finish(obj)
     gk.export(obj)
 
@@ -218,7 +248,7 @@ def build_turret():
 
 if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE"):
     os.makedirs(gk.OUT, exist_ok=True)
-    for build in (build_sling, build_bow, build_crossbow, build_trap, build_mine, build_turret):
+    for build in (build_sling, build_sling_pouch, build_bow, build_crossbow, build_trap, build_mine, build_turret):
         gk.clear_scene()
         build()
     gk.log("Werkstuecke des Ingenieurs fertig")
@@ -381,14 +411,18 @@ def _new(name, slots):
 
 
 def embers(b):
-    for k in range(5):
-        disc(b, Vector((0.05 + 0.01 * k, (k - 2) * 0.03, 0.12 + 0.025 * k)), 0.012, Vector((1, 0, 0.3)), GLUT, glow=1.0, sides=6)
+    # a glowing gland bound into the crotch of the fork, embers along the prongs
+    lathe(b, [(0.0, -0.018), (0.016, -0.008), (0.016, 0.008), (0.0, 0.018)], GLUT, Vector((0.012, 0.0, 0.06)), sides=8, glow=1.0)
+    for side in (-1, 1):
+        for k in range(3):
+            disc(b, Vector((0.012, side * (0.02 + 0.014 * k), 0.09 + 0.025 * k)), 0.006, Vector((1, 0, 0.2)), GLUT, glow=1.0, sides=6)
 
 
 def extra_strings(b):
+    # brass caps on the prong tips and a brace across the fork: it takes a doubled band
     for side in (-1, 1):
-        b.tube([Vector((0.07, side * 0.075, 0.2)), Vector((-0.02, side * 0.03, 0.2)), Vector((-0.08, side * 0.01, 0.2))], [0.004] * 3, FADEN, sides=4, cap_end=False)
-        lathe(b, [(0.0, 0.0), (0.012, 0.02), (0.0, 0.05)], METALL, Vector((0.07, side * 0.075, 0.25)), sides=5)
+        lathe(b, [(0.0, 0.0), (0.016, 0.01), (0.012, 0.03), (0.0, 0.034)], METALL, Vector((SLING_TIP.x, side * SLING_TIP.y, SLING_TIP.z - 0.01)), sides=8)
+    b.tube([Vector((0.0, -0.035, 0.1)), Vector((0.0, 0.035, 0.1))], [0.006, 0.006], METALL, sides=6)
 
 
 def thorns(b):

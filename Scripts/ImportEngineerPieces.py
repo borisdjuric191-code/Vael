@@ -8,7 +8,7 @@ import unreal
 SOURCE = "C:/Projekte/Vael_Quellen/Ingenieur/export"
 FOLDER = "/Game/Vael/Characters/Ingenieur/Werkstuecke"
 KIT = "/Game/Vael/Refugium/Glutkammer/Probe"
-PIECES = ["SM_Ing_Schleuder", "SM_Ing_Bogen", "SM_Ing_Armbrust", "SM_Ing_Fangeisen", "SM_Ing_Knallmine", "SM_Ing_Schleuderturm",
+PIECES = ["SM_Ing_Schleuder", "SM_Ing_Zwillenschale", "SM_Ing_Bogen", "SM_Ing_Armbrust", "SM_Ing_Fangeisen", "SM_Ing_Knallmine", "SM_Ing_Schleuderturm",
           "SM_Ing_Rucksack", "SM_Ing_Beutel_Leder", "SM_Ing_Beutel_Panzer", "SM_Ing_Beutel_Seide", "SM_Ing_Brille"]
 # the armour sets, four pieces each (VAEL_ING_RUESTUNG in the Blender script)
 PIECES += ["SM_Ing_R_{}_{}".format(s, p) for s in ("Rollpanzer", "Sichelklinge", "Russfeder", "Blutschuppen") for p in ("Kopf", "Brust", "Arm", "Bein")]

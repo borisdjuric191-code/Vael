@@ -510,6 +510,33 @@ void UVaelCheatManager::VaelAschenboe()
 	UE_LOG(LogVael, Warning, TEXT("VaelAschenboe: no ash drift in this level"));
 }
 
+void UVaelCheatManager::VaelSpannen(float Seconds)
+{
+	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	UVaelEngineerComponent* Engineer = Player != nullptr && Player->IsEngineer() ? Player->GetEngineer() : nullptr;
+	if (Engineer == nullptr || !Engineer->UsesDraw())
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelSpannen: the engineer with slingshot or bow only"));
+		return;
+	}
+	Engineer->StartDraw();
+	if (Seconds <= 0.0f)
+	{
+		return;
+	}
+	TWeakObjectPtr<UVaelEngineerComponent> Weak(Engineer);
+	TWeakObjectPtr<AVaelPlayerController> WeakController(Controller);
+	FTimerHandle Timer;
+	GetWorld()->GetTimerManager().SetTimer(Timer, FTimerDelegate::CreateLambda([Weak, WeakController]()
+	{
+		if (Weak.IsValid() && WeakController.IsValid())
+		{
+			Weak->ReleaseDraw(WeakController->GetFloromantAim());
+		}
+	}), Seconds, false);
+}
+
 void UVaelCheatManager::VaelTimeSpeed(float Speed)
 {
 	if (UVaelTimeOfDay* Clock = UVaelTimeOfDay::Get(GetWorld()))

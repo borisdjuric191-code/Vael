@@ -300,6 +300,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelAschenboe();
 
+	/** Engineer: pulls the band of the slingshot (or the bow) for the given seconds; 0 lets go (shoots at the aim). Example: VaelSpannen 0.6 */
+	UFUNCTION(Exec)
+	void VaelSpannen(float Seconds = 1.0f);
+
 	/** Runs the clock this many times as fast, 1 for normal. Example: VaelTimeSpeed 30 */
 	UFUNCTION(Exec)
 	void VaelTimeSpeed(float Speed);

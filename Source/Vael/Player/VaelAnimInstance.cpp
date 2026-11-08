@@ -6,6 +6,7 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Player/VaelCharacter.h"
+#include "Engineer/VaelEngineerComponent.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Floromant/VaelFloromantSettings.h"
 #include "Animation/AnimNodeBase.h"
@@ -58,6 +59,15 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	FlightPose = Character->GetFlightPose();
 
 	CastGesture = Character->GetCastGesture(CastGestureSeconds);
+	if (const UVaelEngineerComponent* Engineer = Character->IsEngineer() ? Character->GetEngineer() : nullptr)
+	{
+		SlingAim = Engineer->GetSlingAim();
+		SlingDraw = Engineer->GetSlingDraw();
+	}
+	else
+	{
+		SlingAim = SlingDraw = 0.0f;
+	}
 	CastExhaustion = Character->GetCastExhaustion();
 	CastSkateSide = Character->GetSkateSide();
 
@@ -115,6 +125,8 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	GestureSeconds = Instance->CastGestureSeconds;
 	GestureExhaust = Instance->CastExhaustion;
 	SkateSide = Instance->CastSkateSide;
+	SlingAim = Instance->SlingAim;
+	SlingDraw = Instance->SlingDraw;
 	GestureRelease = MagicSettings->GetGestureRelease(Gesture);
 	GestureDuration = MagicSettings->GetGestureDuration(Gesture);
 }
@@ -636,6 +648,62 @@ void FVaelAnimProxy::ApplySlingThrow(FCSPose<FCompactPose>& Pose, const FBoneCon
 		const float Aim = Weight * (1.0f - 0.6f * Throw);
 		AimPoseBone(Pose, UpperL, LowerL, Point, Aim);
 		AimPoseBone(Pose, LowerL, HandL, Point, Aim);
+	}
+}
+
+void FVaelAnimProxy::ApplySlingDraw(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	const FCompactPoseBoneIndex Head = Find(TEXT("head"));
+	if (Chest == INDEX_NONE)
+	{
+		return;
+	}
+	const float W = FMath::SmoothStep(0.0f, 1.0f, SlingAim);
+	const float D = FMath::SmoothStep(0.0f, 1.0f, SlingDraw);
+
+	// An archer's stance: the chest turns a little to the left, the shot side back
+	const FCompactPoseBoneIndex UpperL = Find(TEXT("upperarm_l"));
+	const FVector ChestAt = Pose.GetComponentSpaceTransform(Chest).GetLocation();
+	const float OutwardL = UpperL != INDEX_NONE ? FMath::Sign(Pose.GetComponentSpaceTransform(UpperL).GetLocation().X - ChestAt.X) : -1.0f;
+	for (const TCHAR* Spine : { TEXT("spine_02"), TEXT("spine_03"), TEXT("spine_04") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(OutwardL * 7.0f * W)));
+	}
+
+	// The fork out before him at shoulder height, the arm almost straight
+	const FVector Chest2 = Pose.GetComponentSpaceTransform(Chest).GetLocation();
+	const FVector HeadAt = Head != INDEX_NONE ? Pose.GetComponentSpaceTransform(Head).GetLocation() : Chest2 + FVector(0.0f, 0.0f, 25.0f);
+	const FVector Grip = Chest2 + FVector(OutwardL * 4.0f, 52.0f, 6.0f);
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		const FCompactPoseBoneIndex Upper = Find(FString::Printf(TEXT("upperarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Lower = Find(FString::Printf(TEXT("lowerarm_%s"), Suffix));
+		const FCompactPoseBoneIndex Hand = Find(FString::Printf(TEXT("hand_%s"), Suffix));
+		if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE)
+		{
+			continue;
+		}
+		const FVector HandNow = Pose.GetComponentSpaceTransform(Hand).GetLocation();
+		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - Chest2.X);
+		FVector Target;
+		FVector Pole;
+		if (Side == 0)
+		{
+			Target = Grip;
+			Pole = FVector(Outward * 0.6f, 0.0f, -0.8f);
+		}
+		else
+		{
+			// The right hand starts at the fork and pulls the pouch back past the chin to the cheek
+			const FVector Cheek = HeadAt + FVector(Outward * 9.0f, 8.0f, -8.0f);
+			Target = FMath::Lerp(Grip + FVector(-OutwardL * 6.0f, -8.0f, 0.0f), Cheek, D);
+			Pole = FVector(Outward, -0.3f, 0.1f);
+		}
+		ReachPoseArm(Pose, Upper, Lower, Hand, FMath::Lerp(HandNow, Target, W), Pole);
+		MakeFist(Pose, Bones, Suffix, W);
 	}
 }
 
@@ -1297,7 +1365,8 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	const bool bShielding = Shield[0] > KINDA_SMALL_NUMBER || Shield[1] > KINDA_SMALL_NUMBER;
 	const bool bGesture = Gesture != EVaelCastGesture::None;
 	const bool bWhipping = WhipSeconds[0] >= 0.0f || WhipSeconds[1] >= 0.0f;
-	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
+	const bool bSling = SlingAim > KINDA_SMALL_NUMBER;
+	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && !bSling && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
 	{
 		return true;
 	}
@@ -1311,6 +1380,10 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	if (bFlying)
 	{
 		ApplyFlight(Pose, Bones);
+	}
+	if (bSling)
+	{
+		ApplySlingDraw(Pose, Bones);
 	}
 
 	// Rooted: the legs stay where they took root, the spine twists the upper body towards the aim, spread over its bones

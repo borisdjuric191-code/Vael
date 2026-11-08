@@ -121,16 +121,16 @@ namespace
 
 		// --- Weapons: the sling from the start, the bow of living wood is his master piece (his mark is in it), the crossbow after it
 		All.Add(MakeWeapon(VaelEngineerGear::Sling, LOCTEXT("Schleuder", "Schleuder"),
-			LOCTEXT("SchleuderText", "Lederschlaufe und Riemen, das erste, was er sich gebaut hat. Schnell und nah, Steine liegen überall."),
-			GearRgb(150, 118, 84), {}, None, 9.0f, 0.55f, 1100.0f, 2200.0f, 70.0f, false, LOCTEXT("Steine", "Steine")));
-		All.Last().SweetMin = 300.0f;
-		All.Last().SweetMax = 800.0f;
+			LOCTEXT("SchleuderText", "Eine Zwille: eine Astgabel aus Narbenholz, ein Band aus Spannfaden, eine Lederschale f\u00FCr den Stein. Das erste, was er sich gebaut hat. Je weiter er das Band spannt, desto weiter fliegt der Stein, bis 24 Meter. Steine liegen \u00FCberall."),
+			GearRgb(150, 118, 84), {}, None, 9.0f, 0.55f, 2400.0f, 2600.0f, 70.0f, false, LOCTEXT("Steine", "Steine")));
+		All.Last().SweetMin = 600.0f;
+		All.Last().SweetMax = 1800.0f;
 		All.Add(MakeWeapon(VaelEngineerGear::Bow, LOCTEXT("Bogen", "Bogen aus lebendem Holz"),
 			LOCTEXT("BogenText", "Sein Meisterstück: Narbenholz, das noch wächst, mit Spannfaden bespannt. In ihn schlägt er sein Zeichen, und ab dann trägt alles, was er baut, dieses Zeichen. Weit und hart."),
 			GearRgb(120, 160, 90), { { TEXT("Narbenholz"), 4 }, { TEXT("Spannfaden"), 3 }, { TEXT("Rankenfaser"), 2 } }, VaelEngineerGear::Sling,
-			14.0f, 0.85f, 1900.0f, 3600.0f, 18.0f, false, LOCTEXT("Holzpfeile", "Holzpfeile")));
-		All.Last().SweetMin = 800.0f;
-		All.Last().SweetMax = 1500.0f;
+			14.0f, 0.85f, 4500.0f, 4800.0f, 40.0f, false, LOCTEXT("Holzpfeile", "Holzpfeile")));
+		All.Last().SweetMin = 1500.0f;
+		All.Last().SweetMax = 3500.0f;
 		All.Add(MakeWeapon(VaelEngineerGear::Crossbow, LOCTEXT("Armbrust", "Armbrust"),
 			LOCTEXT("ArmbrustText", "Rollpanzer als Bogen, Sichelklingen als Abzug. Langsam zu spannen, aber der Bolzen geht durch alles, was in einer Reihe steht."),
 			GearRgb(160, 160, 176), { { TEXT("Rollpanzer"), 3 }, { TEXT("Sichelklinge"), 2 }, { TEXT("Spannfaden"), 4 }, { TEXT("Schlacke"), 3 } }, VaelEngineerGear::Bow,
