@@ -138,8 +138,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Appearance")
 	TSoftClassPtr<AActor> EngineerMetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Ingenieur_Build/MH_Ingenieur/BP_MH_Ingenieur.BP_MH_Ingenieur_C")));
 
+	/** Empty for now (2026-11-08): a female face needs a female preset of the MetaHuman Creator as its start, which can't be made
+	 *  by script; copied from the mage the Floromantin stays male. She keeps her own model until Boris makes the start in the Creator */
 	UPROPERTY(EditAnywhere, Category="Appearance")
-	TSoftClassPtr<AActor> FloromantMetaHumanClass = TSoftClassPtr<AActor>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Menschen/MH_Floromantin_Build/MH_Floromantin/BP_MH_Floromantin.BP_MH_Floromantin_C")));
+	TSoftClassPtr<AActor> FloromantMetaHumanClass;
 
 	/** The MetaHuman of the class and body played now, null if there is none (yet) */
 	TSoftClassPtr<AActor> GetClassMetaHuman() const;
