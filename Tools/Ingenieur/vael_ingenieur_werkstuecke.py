@@ -22,8 +22,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 import glutkammer_probe as gk  # noqa: E402
 
 random.seed(11)
-SLOTS = ["Holz", "Leder", "Metall", "Faden", "Glut", "Moos"]
-HOLZ, LEDER, METALL, FADEN, GLUT, MOOS = range(6)
+SLOTS = ["Holz", "Leder", "Metall", "Faden", "Glut", "Moos", "Messing"]
+HOLZ, LEDER, METALL, FADEN, GLUT, MOOS, MESSING = range(7)
+EISEN = METALL
 
 
 def leaf(b, at, direction, size, seed):
@@ -259,18 +260,48 @@ if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.e
 # the pouches at the belt (a ring of pouches around the hip, radius 0.17), the goggles at the middle of the band.
 
 def build_backpack():
+    """The carried workshop: a wooden frame (like a pedlar's back rack) holding a leather chest with brass corners and buckles,
+    the leather tool roll (Werkrolle) strapped on top, a small anvil and a hammer on one side, ammo jars in a brass rack on the
+    other. Pivot at the middle of its back side, +X away from the body."""
     obj = gk.new_object("SM_Ing_Rucksack", SLOTS)
     b = gk.Builder()
-    box(b, Vector((0.12, 0, -0.05)), (0.2, 0.34, 0.42), LEDER)
-    box(b, Vector((0.12, 0, 0.17)), (0.22, 0.36, 0.04), LEDER, pitch=0.12)          # flap
+    random.seed(77)
+    # the frame: two uprights against the back, a crossbar top and bottom, a shelf for the chest
     for side in (-1, 1):
-        b.tube([Vector((0.0, side * 0.12, 0.15)), Vector((-0.04, side * 0.13, 0.05)), Vector((-0.02, side * 0.12, -0.2))], [0.012] * 3, LEDER, sides=5)
-        b.tube([Vector((0.23, side * 0.1, 0.1)), Vector((0.235, side * 0.1, -0.15))], [0.008, 0.008], METALL, sides=4)   # buckles
-    # a rolled blanket on top, a coil of thread and a hammer hanging at the side
-    b.tube([Vector((0.12, -0.2, 0.24)), Vector((0.12, 0.2, 0.24))], [0.06, 0.06], FADEN, sides=10)
-    lathe(b, [(0.03, 0.0), (0.06, 0.0), (0.06, 0.04), (0.03, 0.04)], FADEN, Vector((0.2, 0.19, -0.12)), sides=10, axis=Matrix.Rotation(math.pi / 2, 3, "X"))
-    b.tube([Vector((0.18, -0.2, 0.0)), Vector((0.18, -0.21, -0.22))], [0.01, 0.01], HOLZ, sides=5)
-    box(b, Vector((0.18, -0.21, -0.24)), (0.04, 0.03, 0.08), METALL)
+        b.tube([Vector((0.02, side * 0.16, -0.3)), Vector((0.03, side * 0.165, 0.0)), Vector((0.02, side * 0.16, 0.34))], [0.016, 0.016, 0.015], HOLZ, sides=6)
+        b.tube([Vector((0.03, side * 0.16, -0.28)), Vector((0.22, side * 0.16, -0.28))], [0.012, 0.012], HOLZ, sides=6)
+    for z in (-0.28, 0.3):
+        b.tube([Vector((0.02, -0.17, z)), Vector((0.02, 0.17, z))], [0.013, 0.013], HOLZ, sides=6)
+    # the leather chest with brass corners and two buckled straps
+    box(b, Vector((0.12, 0, -0.06)), (0.18, 0.3, 0.38), LEDER)
+    box(b, Vector((0.12, 0, 0.145)), (0.2, 0.32, 0.03), LEDER, pitch=0.06)
+    for sy in (-1, 1):
+        for sz in (-1, 1):
+            box(b, Vector((0.21, sy * 0.145, -0.06 + sz * 0.18)), (0.02, 0.03, 0.03), MESSING)
+        b.tube([Vector((0.215, sy * 0.08, 0.15)), Vector((0.215, sy * 0.08, -0.22))], [0.009, 0.009], LEDER, sides=4, flat=0.3)
+        box(b, Vector((0.22, sy * 0.08, -0.02)), (0.012, 0.035, 0.03), MESSING)
+    # the Werkrolle on top: a rolled leather tool roll with a brass clasp and tool handles peeking out
+    b.tube([Vector((0.1, -0.2, 0.36)), Vector((0.1, 0.2, 0.36))], [0.055, 0.055], LEDER, sides=12)
+    b.tube([Vector((0.1, -0.03, 0.36)), Vector((0.1, 0.03, 0.36))], [0.06, 0.06], MESSING, sides=12)
+    for k in range(4):
+        b.tube([Vector((0.1 + 0.02 * (k - 1.5), -0.2, 0.37)), Vector((0.1 + 0.02 * (k - 1.5), -0.25, 0.39))], [0.007, 0.006], HOLZ, sides=5)
+    # one side: a small anvil and a hammer on hooks
+    box(b, Vector((0.1, -0.205, -0.15)), (0.09, 0.05, 0.05), EISEN)
+    b.tube([Vector((0.145, -0.205, -0.15)), Vector((0.19, -0.205, -0.155))], [0.02, 0.005], EISEN, sides=6)
+    b.tube([Vector((0.06, -0.2, 0.08)), Vector((0.06, -0.21, -0.08))], [0.008, 0.008], HOLZ, sides=5)
+    box(b, Vector((0.06, -0.21, -0.1)), (0.03, 0.025, 0.06), EISEN)
+    # the other side: a brass rack of ammo jars with coloured fillings and leather stoppers
+    box(b, Vector((0.11, 0.2, -0.02)), (0.12, 0.04, 0.01), MESSING)
+    box(b, Vector((0.11, 0.2, -0.16)), (0.12, 0.04, 0.01), MESSING)
+    for k, fill in enumerate((GLUT, MOOS, FADEN)):
+        x = 0.07 + k * 0.04
+        lathe(b, [(0.016, 0.0), (0.018, 0.01), (0.018, 0.11), (0.01, 0.12), (0.0, 0.125)], FADEN if fill != GLUT else GLUT,
+              Vector((x, 0.2, -0.155)), sides=8, glow=1.0 if fill == GLUT else 0.0)
+        lathe(b, [(0.011, 0.12), (0.011, 0.14), (0.0, 0.14)], LEDER, Vector((x, 0.2, -0.155)), sides=8)
+    # shoulder straps
+    for side in (-1, 1):
+        b.tube([Vector((0.0, side * 0.11, 0.3)), Vector((-0.05, side * 0.12, 0.18)), Vector((-0.04, side * 0.12, -0.05)), Vector((0.0, side * 0.12, -0.26))],
+               [0.012] * 4, LEDER, sides=4, flat=0.3)
     b.finish(obj)
     gk.export(obj)
 

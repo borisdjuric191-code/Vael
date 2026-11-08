@@ -17,11 +17,11 @@ if __import__("os").environ.get("VAEL_ING_NUR_ZWEIGE"):
     PIECES = [p for p in PIECES if p in ("SM_Ing_Glutschleuder", "SM_Ing_Spannschleuder", "SM_Ing_Dornenbogen", "SM_Ing_Sehnenbogen", "SM_Ing_SchwereArmbrust")]
 if __import__("os").environ.get("VAEL_ING_NUR_RUESTUNG"):
     PIECES = [p for p in PIECES if p.startswith("SM_Ing_R_")]
-SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut", "Moos": "M_GK_Moos"}
+SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut", "Moos": "M_GK_Moos", "Messing": "M_IW_Messing"}
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
-materials = {slot: unreal.load_asset("{}/{}".format(KIT, name)) for slot, name in SLOTS.items()}
+materials = {slot: unreal.load_asset("{}/{}".format("/Game/Vael/Refugium/Glutkammer/Werkstatt" if name == "M_IW_Messing" else KIT, name)) for slot, name in SLOTS.items()}
 
 for name in PIECES:
     fbx = os.path.join(SOURCE, name + ".fbx")
