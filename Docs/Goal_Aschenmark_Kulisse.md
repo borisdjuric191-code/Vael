@@ -84,3 +84,13 @@ Weckzeiten nach dem 5-Stunden-Limit: 19:05, dann alle 5 Stunden (00:05, 05:05, 1
 ## Offen für Boris
 - Karte: Wege ganz weg, oder später als echte, geschwungene Pfade nach dem Gelände zeichnen?
 - Gegnerdichte: mein Vorschlag ist alle 40–60 m eine Gruppe. Dichter geht, kostet aber Ruhe zum Erkunden.
+
+## Stand 8.11. abends: alle Punkte erledigt
+- 0 Floromantin: Waage-Zeichen nicht mehr auf ihrem Körper (53d9bd5d)
+- 6 Tagesablauf (fddadb35), 7 Pergamentkarte mit echten Wegen, Leute-Reiter (2316d18b)
+- 8 Boden mit acht Schichten, Hex-Tiling, 840 Abdrücken (14e697e1), 9 Baukasten 81 Teile (4a3b8548)
+- 10 Füllung 120.000 Teile in 282 Zellen, 237 Fundorte, Rauch, Nebel (9f331cb7), 11 Bodenprüfung 2.099 Teile abgesenkt (6c3fd655)
+- 12 Gegner 2.073 Gruppen in Spielernähe mit Respawn und Stärke (574a3630), 13 Ingenieur Schleuderwurf, Stein, Rucksack (0a0328a9)
+- 14 Streamtest 0 Fehler, 4 Spieler 71 FPS, Lore-Bibel und Aufgaben-Doc (Gruppe BP)
+- Nicht gemacht: Fuß-IK für Spieler/NPCs am Hang (Extrapunkt). Kreaturen haben schon VaelLegIKComponent; für die Helden bräuchte es einen eigenen Anim-Knoten, bei flachen Wegen und Iso-Kamera bisher kaum sichtbar.
+- Neu bauen: blender aschenmark_pfade.py → aschenmark_karte.py → CreateWorldMaps; aschenmark_boden.py + aschenmark_abdruecke.py → BuildAschenmarkBoden; aschenmark_kulisse.py → BuildKulisse → aschenmark_fuellung.py → FillAschenmark; aschenmark_gegner.py → PlaceGegner; FitGroundAll.
