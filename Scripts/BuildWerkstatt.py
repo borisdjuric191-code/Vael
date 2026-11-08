@@ -30,6 +30,8 @@ LAYOUT = {
     "SM_IW_Amboss": (150, -240), "SM_IW_Munitionskiste": (-20, -300), "SM_IW_Schraubstock": (-170, -210), "SM_IW_Schleifstein": (-320, -190),
     "SM_IW_Zeichentisch": (-300, 60), "SM_IW_Regal": (-470, -80), "SM_IW_Schrottkiste": (120, -420),
 }
+# Pieces that stand more than once (Boris: shelves and ammo crates, plural): (name, dx, dy, label)
+EXTRA = [("SM_IW_Regal", -480, -260, "Regal 2"), ("SM_IW_Munitionskiste", -90, -390, "Munitionskiste 2")]
 
 
 def log(message):
@@ -115,7 +117,8 @@ def place(meshes):
     old = [a for a in actors.get_all_level_actors() if unreal.Name(TAG) in a.get_editor_property("tags")]
     for actor in old:
         actors.destroy_actor(actor)
-    for name, (dx, dy) in LAYOUT.items():
+    spots = [(name, dx, dy, name.replace("SM_IW_", "")) for name, (dx, dy) in LAYOUT.items()] + EXTRA
+    for name, dx, dy, label in spots:
         yaw = math.degrees(math.atan2(-dy, -dx))
         mesh = meshes.get(name)
         if mesh is None:
@@ -123,7 +126,7 @@ def place(meshes):
         actor = actors.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(BENCH.x + dx, BENCH.y + dy, -2.0), unreal.Rotator(0.0, 0.0, yaw))
         actor.static_mesh_component.set_static_mesh(mesh)
         actor.set_folder_path("Stufe I/Werkstatt Ingenieur")
-        actor.set_actor_label(name.replace("SM_IW_", ""))
+        actor.set_actor_label(label)
         actor.set_editor_property("tags", [unreal.Name(TAG)])
     # the glow of the forge and a warm lamp over the drawing desk
     for (dx, dy, z), colour, intensity, radius, label in (((340, -80, 90), (1.0, 0.42, 0.12), 60.0, 520.0, "Essenglut"),
@@ -137,7 +140,7 @@ def place(meshes):
         light.set_editor_property("tags", [unreal.Name(TAG)])
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL)
-    log("{} old removed, {} pieces placed round the bench at {}".format(len(old), len(LAYOUT), BENCH))
+    log("{} old removed, {} pieces placed round the bench at {}".format(len(old), len(spots), BENCH))
 
 
 place(import_pieces())
