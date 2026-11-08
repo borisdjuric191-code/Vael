@@ -216,7 +216,7 @@ def build_turret():
     gk.export(obj)
 
 
-if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN"):
+if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG"):
     os.makedirs(gk.OUT, exist_ok=True)
     for build in (build_sling, build_bow, build_crossbow, build_trap, build_mine, build_turret):
         gk.clear_scene()
@@ -275,9 +275,89 @@ def build_goggles():
     gk.export(obj)
 
 
-if __name__ == "__main__" and os.environ.get("VAEL_ING_TRAGEN"):
+if __name__ == "__main__" and os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG"):
     for build in (build_backpack, lambda: build_pouches("SM_Ing_Beutel_Leder", LEDER, 0.07, 3),
                   lambda: build_pouches("SM_Ing_Beutel_Panzer", METALL, 0.08, 4), lambda: build_pouches("SM_Ing_Beutel_Seide", FADEN, 0.09, 5), build_goggles):
         gk.clear_scene()
         build()
     gk.log("Traggut des Ingenieurs fertig")
+
+
+# ---------------------------------------------------------------- armour sets (2026-11-08): the look of the creature it is made from
+# Every piece is built around its own origin: the helmet around the middle of the head, the chest plate around the middle of the
+# chest (+X ahead), bracers and greaves as a sleeve along +Z (the C++ turns them along the forearm and the shin).
+SETS = ["Rollpanzer", "Sichelklinge", "Russfeder", "Blutschuppen"]
+
+
+def sleeve(b, length, radius, material, rings=1, flare=1.0):
+    """A shell around a limb along Z, open at both ends"""
+    for k in range(rings):
+        z0 = -length / 2 + k * length / rings
+        z1 = z0 + length / rings * 1.08
+        r0 = radius * (1.0 + 0.06 * k)
+        lathe(b, [(r0 * flare, z0), (r0 * 1.08, (z0 + z1) / 2), (r0, z1)], material, Vector((0, 0, 0)), sides=14)
+        lathe(b, [(r0 * 0.94, z1), (r0 * 0.94 * flare, z0)], LEDER, Vector((0, 0, 0)), sides=14)
+
+
+def set_detail(b, set_name, centre, outward, up, scale):
+    """What makes the set: blades, feathers or scales on a point of the piece"""
+    if set_name == "Sichelklinge":
+        lathe(b, [(0.012 * scale, 0.0), (0.0, 0.07 * scale)], METALL, centre, sides=5,
+              axis=Matrix.Rotation(Vector((0, 0, 1)).rotation_difference(outward + up * 0.4).angle, 3, Vector((0, 0, 1)).cross(outward + up * 0.4).normalized()))
+    elif set_name == "Russfeder":
+        for k in range(3):
+            leaf(b, centre + up * 0.01 * k, outward * 0.5 + up * (0.8 + 0.1 * k), 0.08 * scale, int(centre.x * 100 + k))
+    elif set_name == "Blutschuppen":
+        disc(b, centre + outward * 0.004, 0.018 * scale, outward, GLUT, glow=0.1, sides=6)
+    else:
+        disc(b, centre + outward * 0.004, 0.012 * scale, outward, METALL, sides=8)
+
+
+def build_armor_piece(set_name, place):
+    obj = gk.new_object("SM_Ing_R_{}_{}".format(set_name, place), SLOTS)
+    b = gk.Builder()
+    rings = 3 if set_name == "Rollpanzer" else 1
+    if place == "Kopf":
+        # a cap over the skull with a brim at the brow and the neck
+        lathe(b, [(0.0, 0.16), (0.07, 0.15), (0.11, 0.1), (0.12, 0.04), (0.125, 0.0)], METALL if set_name != "Russfeder" else LEDER, Vector((-0.01, 0, 0)), sides=18)
+        for k in range(7):
+            a = math.radians(-60 + k * 20)
+            p = Vector((math.cos(a) * 0.11 - 0.01, math.sin(a) * 0.11, 0.1))
+            set_detail(b, set_name, p, Vector((math.cos(a) * 0.3, math.sin(a), 0.6)).normalized(), Vector((0, 0, 1)), 1.0)
+    elif place == "Brust":
+        # a curved plate over the chest and one over the back, joined by straps over the shoulders
+        for side, depth in ((1, 0.13), (-1, 0.12)):
+            rows = []
+            for v in range(5):
+                z = -0.18 + v * 0.09
+                rows.append([Vector((side * (depth - 0.06 * (abs(u - 3) / 3) ** 2), -0.17 + u * 0.057, z)) for u in range(7)])
+            if side < 0:
+                rows = [list(reversed(r)) for r in rows]
+            b.grid(rows, METALL if set_name != "Russfeder" else LEDER, uv_of=lambda j, i: (i / 6, j / 4), mask_of=lambda j, i: 0.0)
+            for v in range(1, 5, 1 if set_name == "Blutschuppen" else 2):
+                for u in range(1, 6, 2):
+                    p = rows[v][u]
+                    set_detail(b, set_name, p, Vector((side, 0, 0)), Vector((0, 0, 1)), 1.0)
+        for y in (-0.12, 0.12):
+            b.tube([Vector((0.12, y, 0.18)), Vector((0.0, y * 1.05, 0.24)), Vector((-0.11, y, 0.18))], [0.012] * 3, LEDER, sides=5)
+        if rings > 1:
+            for z in (-0.12, -0.03, 0.06):
+                b.tube([Vector((0.135, -0.16, z)), Vector((0.145, 0, z)), Vector((0.135, 0.16, z))], [0.01] * 3, METALL, sides=5)
+    else:
+        length, radius = (0.2, 0.048) if place == "Arm" else (0.26, 0.06)
+        sleeve(b, length, radius, METALL if set_name != "Russfeder" else LEDER, rings=rings, flare=1.1)
+        for k in range(4 if set_name != "Blutschuppen" else 10):
+            a = math.radians(k * (360 / (4 if set_name != "Blutschuppen" else 10)))
+            z = -length * 0.25 + (k % 3) * length * 0.2
+            p = Vector((math.cos(a) * radius * 1.12, math.sin(a) * radius * 1.12, z))
+            set_detail(b, set_name, p, Vector((math.cos(a), math.sin(a), 0)), Vector((0, 0, 1)), 0.8)
+    b.finish(obj)
+    gk.export(obj)
+
+
+if __name__ == "__main__" and os.environ.get("VAEL_ING_RUESTUNG"):
+    for set_name in SETS:
+        for place in ("Kopf", "Brust", "Arm", "Bein"):
+            gk.clear_scene()
+            build_armor_piece(set_name, place)
+    gk.log("Ruestungen des Ingenieurs fertig")

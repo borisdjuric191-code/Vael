@@ -83,6 +83,7 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
 	UpdateWeaponMesh();
 	UpdateCarriedMeshes();
+	UpdateArmorMeshes();
 
 	// A reach that is done: from the backpack the pouch fills up first
 	if (IsGrabbing() && Now() >= GrabEnd)
@@ -129,6 +130,84 @@ UStaticMeshComponent* UVaelEngineerComponent::AttachPiece(UStaticMeshComponent* 
 	Component->SetStaticMesh(Mesh);
 	Component->SetVisibility(true);
 	return Component;
+}
+
+UStaticMeshComponent* UVaelEngineerComponent::AttachLimbPiece(int32 Slot, const FString& Piece, FName From, FName To, float Along)
+{
+	AVaelCharacter* Player = GetPlayer();
+	USkeletalMeshComponent* Body = Player != nullptr ? Player->GetMesh() : nullptr;
+	if (Body == nullptr || !Body->DoesSocketExist(From))
+	{
+		return nullptr;
+	}
+	ArmorMeshes.SetNum(FMath::Max(ArmorMeshes.Num(), Slot + 1));
+	// A sleeve along the bone, from the joint towards the next one, placed as the pose is now and then carried by the bone
+	const FVector Start = Body->GetSocketTransform(From, RTS_Actor).GetLocation();
+	const FVector End = Body->DoesSocketExist(To) ? Body->GetSocketTransform(To, RTS_Actor).GetLocation() : Start - FVector(0.0f, 0.0f, 25.0f);
+	const FVector Axis = (End - Start).GetSafeNormal();
+	const FQuat Turn = FQuat::FindBetweenNormals(FVector::UpVector, Axis);
+	ArmorMeshes[Slot] = AttachPiece(ArmorMeshes[Slot], *FString::Printf(TEXT("EngineerArmor%d"), Slot), *Piece, From, FTransform(Turn, FMath::Lerp(Start, End, Along)));
+	return ArmorMeshes[Slot];
+}
+
+void UVaelEngineerComponent::UpdateArmorMeshes()
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr)
+	{
+		return;
+	}
+	FString Key = Player->IsEngineer() ? FString::JoinBy(Worn, TEXT(","), [](const FName& Id) { return Id.ToString(); }) : FString();
+	if (Key == ShownArmor)
+	{
+		return;
+	}
+	ShownArmor = Key;
+	for (UStaticMeshComponent* Piece : ArmorMeshes)
+	{
+		if (Piece != nullptr)
+		{
+			Piece->SetVisibility(false);
+		}
+	}
+	if (!Player->IsEngineer())
+	{
+		return;
+	}
+	// Each worn piece in the look of its creature (Tools/Ingenieur/vael_ingenieur_werkstuecke.py, VAEL_ING_RUESTUNG)
+	const USkeletalMeshComponent* Body = Player->GetMesh();
+	const auto PieceName = [this](EVaelArmorPlace Place, const TCHAR* Part) -> FString
+	{
+		const FVaelGear* Gear = GetWorn(Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Place));
+		return Gear != nullptr ? FString::Printf(TEXT("SM_Ing_R_%s_%s"), *Gear->Set.ToString(), Part) : FString();
+	};
+	const FString Head = PieceName(EVaelArmorPlace::Head, TEXT("Kopf"));
+	if (!Head.IsEmpty() && Body->DoesSocketExist(TEXT("head")))
+	{
+		ArmorMeshes.SetNum(FMath::Max(ArmorMeshes.Num(), 6));
+		const FVector At = Body->GetSocketTransform(TEXT("head"), RTS_Actor).GetLocation() + FVector(2.0f, 0.0f, 15.0f);
+		ArmorMeshes[0] = AttachPiece(ArmorMeshes[0], TEXT("EngineerArmor0"), *Head, TEXT("head"), FTransform(FRotator::ZeroRotator, At));
+	}
+	const FString Chest = PieceName(EVaelArmorPlace::Chest, TEXT("Brust"));
+	const FName Spine = Body->DoesSocketExist(TEXT("spine_04")) ? FName(TEXT("spine_04")) : FName(TEXT("spine_03"));
+	if (!Chest.IsEmpty() && Body->DoesSocketExist(Spine))
+	{
+		ArmorMeshes.SetNum(FMath::Max(ArmorMeshes.Num(), 6));
+		const FVector At = Body->GetSocketTransform(Spine, RTS_Actor).GetLocation() + FVector(0.0f, 0.0f, 16.0f);
+		ArmorMeshes[1] = AttachPiece(ArmorMeshes[1], TEXT("EngineerArmor1"), *Chest, Spine, FTransform(FRotator::ZeroRotator, At));
+	}
+	const FString Arm = PieceName(EVaelArmorPlace::Arms, TEXT("Arm"));
+	if (!Arm.IsEmpty())
+	{
+		AttachLimbPiece(2, Arm, TEXT("lowerarm_l"), TEXT("hand_l"), 0.55f);
+		AttachLimbPiece(3, Arm, TEXT("lowerarm_r"), TEXT("hand_r"), 0.55f);
+	}
+	const FString Leg = PieceName(EVaelArmorPlace::Legs, TEXT("Bein"));
+	if (!Leg.IsEmpty())
+	{
+		AttachLimbPiece(4, Leg, TEXT("calf_l"), TEXT("foot_l"), 0.45f);
+		AttachLimbPiece(5, Leg, TEXT("calf_r"), TEXT("foot_r"), 0.45f);
+	}
 }
 
 void UVaelEngineerComponent::UpdateCarriedMeshes()

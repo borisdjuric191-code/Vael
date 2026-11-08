@@ -1861,6 +1861,18 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}), 0.7f, true);
 		return;
 	}
+	if (What == TEXT("ruestung"))
+	{
+		// Everything built, the set named in Id worn on all four places (Rollpanzer, Sichelklinge, Russfeder, Blutschuppen)
+		VaelIngenieur(TEXT("alles"));
+		const FString Set = Id.IsEmpty() ? FString(TEXT("Sichelklinge")) : Id;
+		for (int32 Place = 0; Place < 4; ++Place)
+		{
+			Engineer->Wear(FName(*FString::Printf(TEXT("%s_%d"), *Set, Place)));
+		}
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: wears %s, set count %d, armour %.0f"), *Set, Engineer->CountSet(FName(*Set)), Engineer->GetArmorTotal());
+		return;
+	}
 	if (What == TEXT("beute"))
 	{
 		VaelEngineerGear::LoadMaterial(TEXT("Schlacke"));

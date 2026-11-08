@@ -235,6 +235,14 @@ private:
 	bool bShownGoggles = false;
 	bool bShownPack = false;
 	void UpdateCarriedMeshes();
+
+	/** The worn armour on the body: helmet, chest plate, two bracers, two greaves of the set of each piece */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> ArmorMeshes;
+
+	FString ShownArmor;
+	void UpdateArmorMeshes();
+	UStaticMeshComponent* AttachLimbPiece(int32 Slot, const FString& Piece, FName From, FName To, float Along);
 	UStaticMeshComponent* AttachPiece(UStaticMeshComponent* Existing, const TCHAR* Name, const TCHAR* Piece, FName Bone, const FTransform& InActorSpace);
 	int32 Magazine = 2;
 	float ReloadEnd = 0.0f;
