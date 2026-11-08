@@ -90,6 +90,7 @@ private:
 
 	/** Steinbrocken: the fist cocks by the far shoulder and lashes out back of the hand first, dead stop */
 	void ApplyBackfist(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+	void ApplySlingThrow(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
 	/** Felswand: crouched, both fists low with their backs forward climb up heavily and hold */
 	void ApplyWallRise(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;

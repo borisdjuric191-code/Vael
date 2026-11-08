@@ -152,7 +152,10 @@ enum class EVaelCastGesture : uint8
 	Stir,
 	/** Boris 2026-11-02: the weather caller (Regenruf, Ascheregen, Hagelsturm, Gewitter): both arms stretched up to the sky, head back,
 	 *  murmuring a spell upwards; threads of light braid up from mouth and hands to where the cloud gathers */
-	SkyCall
+	SkyCall,
+	/** Goal 8.11. (engineer): the sling. The right arm swings up and whirls the sling once round over the head, the left hand
+	 *  points at the target, then the arm whips over and forward and the stone flies; the chest winds back and turns with the throw */
+	SlingThrow
 };
 
 /** What rises out of the ground where a strike of a spell lands */

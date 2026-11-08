@@ -21,6 +21,9 @@
 #include "Save/VaelSaveSubsystem.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
+#include "Magic/VaelMagicSettings.h"
+#include "Engine/SkeletalMesh.h"
+#include "TimerManager.h"
 
 #define LOCTEXT_NAMESPACE "VaelEngineer"
 
@@ -126,7 +129,23 @@ UStaticMeshComponent* UVaelEngineerComponent::AttachPiece(UStaticMeshComponent* 
 	USkeletalMeshComponent* Body = Player->GetMesh();
 	const FName Socket = Body->DoesSocketExist(Bone) ? Bone : NAME_None;
 	Component->AttachToComponent(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
-	const FTransform BoneInActor = Socket.IsNone() ? Body->GetRelativeTransform() : Body->GetSocketTransform(Socket, RTS_Actor);
+	// The bone as it stands in the reference pose: a piece placed in the middle of a run or a throw would hang crooked for good
+	FTransform BoneInActor = Body->GetRelativeTransform();
+	const int32 BoneIndex = Socket.IsNone() || Body->GetSkeletalMeshAsset() == nullptr ? INDEX_NONE : Body->GetSkeletalMeshAsset()->GetRefSkeleton().FindBoneIndex(Socket);
+	if (BoneIndex != INDEX_NONE)
+	{
+		const FReferenceSkeleton& Skeleton = Body->GetSkeletalMeshAsset()->GetRefSkeleton();
+		FTransform InComponent = FTransform::Identity;
+		for (int32 Index = BoneIndex; Index != INDEX_NONE; Index = Skeleton.GetParentIndex(Index))
+		{
+			InComponent = InComponent * Skeleton.GetRefBonePose()[Index];
+		}
+		BoneInActor = InComponent * Body->GetRelativeTransform();
+	}
+	else if (!Socket.IsNone())
+	{
+		BoneInActor = Body->GetSocketTransform(Socket, RTS_Actor);
+	}
 	FTransform Relative = InActorSpace.GetRelativeTransform(BoneInActor);
 	Relative.SetScale3D(FVector::OneVector);
 	Component->SetRelativeTransform(Relative);
@@ -244,7 +263,7 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	// In actor space: the capsule middle is the origin, +X ahead; the back at chest height, the belt at the hip, the goggles on the brow
 	const float Half = Player->GetSimpleCollisionHalfHeight();
 	PackMesh = AttachPiece(PackMesh, TEXT("EngineerPack"), TEXT("SM_Ing_Rucksack"), TEXT("spine_04"),
-		FTransform(FRotator(0.0f, 180.0f, 0.0f), FVector(-14.0f, 0.0f, Half * 0.22f)));
+		FTransform(FRotator(0.0f, 180.0f, 0.0f), FVector(-7.0f, 0.0f, Half * 0.22f + 8.0f)));
 	const TCHAR* Pouches[] = { TEXT("SM_Ing_Beutel_Leder"), TEXT("SM_Ing_Beutel_Panzer"), TEXT("SM_Ing_Beutel_Seide") };
 	PouchMesh = AttachPiece(PouchMesh, TEXT("EngineerPouches"), Pouches[FMath::Clamp(Tier, 0, 2)], TEXT("pelvis"),
 		FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, Half * 0.02f)));
@@ -696,6 +715,10 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 
 	// From the hand, towards the aim point; the reach of the weapon is as far as it goes
 	const FVector From = Player->GetActorLocation() + Player->GetActorForwardVector() * 40.0f + FVector(0.0f, 0.0f, 50.0f);
+	if (bSling)
+	{
+		Player->PlayCastGesture(EVaelCastGesture::SlingThrow);
+	}
 	FVector Toward = AimLocation - From;
 	Toward.Z = 0.0f;
 	if (Toward.IsNearlyZero())
@@ -707,21 +730,46 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 	const FVector To = From + Toward.GetSafeNormal() * Distance + FVector(0.0f, 0.0f, -10.0f);
 	const float ShotDamage = Gear->Damage * GetDamageScale() * GetTierScale() * DrawScale;
 
-	if (bSling && HagelCount >= 4)
+	if (bSling)
 	{
-		// Hagel: five stones fanned out, each 40 %
-		HagelCount = 0;
-		for (int32 Stone = -2; Stone <= 2; ++Stone)
+		// The stones leave the sling at the release of the throw, from where the hand is then
+		const bool bHagel = HagelCount >= 4;
+		if (bHagel)
 		{
-			const FVector Spread = FRotator(0.0f, Stone * 8.0f, 0.0f).RotateVector(To - From);
-			AVaelEngineerShot::Launch(this, From, From + Spread, Gear->Speed, Gear->Arc, ShotDamage * 0.4f, Ammo, PiercesAll(), GetAmmoColor(), 7.0f);
+			HagelCount = 0;
+			UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("Hagel", "Hagel!"));
 		}
-		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("Hagel", "Hagel!"));
+		const FName ThrownAmmo = Ammo;
+		const FLinearColor Color = GetAmmoColor();
+		const bool bPierceAll = PiercesAll();
+		const float Speed = Gear->Speed, Arc = Gear->Arc;
+		const FVector Offset = To - From;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer(Player);
+		FTimerHandle ThrowTimer;
+		GetWorld()->GetTimerManager().SetTimer(ThrowTimer, FTimerDelegate::CreateWeakLambda(this, [this, WeakPlayer, bHagel, ThrownAmmo, Color, bPierceAll, Speed, Arc, Offset, ShotDamage, From]()
+		{
+			const AVaelCharacter* Thrower = WeakPlayer.Get();
+			const USkeletalMeshComponent* Body = Thrower != nullptr ? Thrower->GetMesh() : nullptr;
+			const FVector Hand = Body != nullptr && Body->DoesSocketExist(TEXT("hand_r")) ? Body->GetSocketLocation(TEXT("hand_r")) : From;
+			const FVector Start = FVector(Hand.X, Hand.Y, FMath::Max(Hand.Z, From.Z - 20.0f));
+			if (bHagel)
+			{
+				// Hagel: five stones fanned out, each 40 %
+				for (int32 Stone = -2; Stone <= 2; ++Stone)
+				{
+					const FVector Spread = FRotator(0.0f, Stone * 8.0f, 0.0f).RotateVector(Offset);
+					AVaelEngineerShot::Launch(this, Start, Start + Spread, Speed, Arc, ShotDamage * 0.4f, ThrownAmmo, bPierceAll, Color, 7.0f, true);
+				}
+			}
+			else
+			{
+				AVaelEngineerShot::Launch(this, Start, Start + Offset, Speed, Arc, ShotDamage, ThrownAmmo, bPierceAll, Color, 9.0f, true);
+			}
+		}), FMath::Max(UVaelMagicSettings::Get()->GetGestureRelease(EVaelCastGesture::SlingThrow), 0.01f), false);
 	}
 	else
 	{
-		AVaelEngineerShot::Launch(this, From, To, Gear->Speed, Gear->Arc, ShotDamage, Ammo, Gear->bPierce || PiercesAll() || bDrawPierce, GetAmmoColor(),
-			bSling ? 9.0f : 6.0f);
+		AVaelEngineerShot::Launch(this, From, To, Gear->Speed, Gear->Arc, ShotDamage, Ammo, Gear->bPierce || PiercesAll() || bDrawPierce, GetAmmoColor(), 6.0f);
 	}
 
 	if (Ammo != VaelEngineerGear::Standard)

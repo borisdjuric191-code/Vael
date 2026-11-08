@@ -583,6 +583,62 @@ void FVaelAnimProxy::ApplyBackfist(FCSPose<FCompactPose>& Pose, const FBoneConta
 	MakeFist(Pose, Bones, TEXT("r"), FMath::SmoothStep(0.0f, Cock * 0.8f, T) * (1.0f - FMath::SmoothStep(Release + 0.15f, End, T)));
 }
 
+void FVaelAnimProxy::ApplySlingThrow(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
+
+	const FCompactPoseBoneIndex Upper = Find(TEXT("upperarm_r"));
+	const FCompactPoseBoneIndex Lower = Find(TEXT("lowerarm_r"));
+	const FCompactPoseBoneIndex Hand = Find(TEXT("hand_r"));
+	if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Timing: up into the whirl, once round over the head (a little more than a full turn), then the arm whips over and
+	// forward with the release and follows through low before it comes back
+	const float T = GestureSeconds;
+	const float Release = FMath::Max(GestureRelease, 0.05f);
+	const float End = FMath::Max(GestureDuration, Release + 0.15f);
+	const float Weight = FMath::SmoothStep(0.0f, 0.06f, T) * (1.0f - FMath::SmoothStep(Release + 0.1f, End, T));
+	const float Whirl = FMath::Clamp(T / Release, 0.0f, 1.0f);
+	const float Throw = FMath::SmoothStep(Release - 0.04f, Release + 0.07f, T);
+
+	const FCompactPoseBoneIndex Chest = Find(TEXT("spine_05")) != INDEX_NONE ? Find(TEXT("spine_05")) : Find(TEXT("spine_03"));
+	const float ChestX = Chest != INDEX_NONE ? Pose.GetComponentSpaceTransform(Chest).GetLocation().X : 0.0f;
+	const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestX);
+
+	// The chest winds back while the sling whirls and turns into the throw
+	const float Twist = Outward * FMath::Lerp(14.0f, -12.0f, Throw) * Weight;
+	for (const TCHAR* Spine : { TEXT("spine_02"), TEXT("spine_03") })
+	{
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(Twist * 0.5f)));
+	}
+
+	// Whirl: the upper arm up and out, the forearm turning round above the head (the sling in the hand swings with it).
+	// Throw: the whole arm comes over and points ahead and a little down, along the shot.
+	const float Angle = UE_TWO_PI * 1.15f * Whirl + UE_HALF_PI;
+	const FVector UpperWhirl = FVector(Outward * 0.45f, 0.1f, 0.88f).GetSafeNormal();
+	const FVector LowerWhirl = FVector(Outward * 0.2f + FMath::Cos(Angle) * 0.75f, FMath::Sin(Angle) * 0.75f, 0.55f).GetSafeNormal();
+	const FVector Thrown = FVector(Outward * 0.22f, 0.95f, -0.2f).GetSafeNormal();
+	AimPoseBone(Pose, Upper, Lower, FMath::Lerp(UpperWhirl, Thrown, Throw).GetSafeNormal(), Weight);
+	AimPoseBone(Pose, Lower, Hand, FMath::Lerp(LowerWhirl, Thrown, Throw).GetSafeNormal(), Weight);
+	AimPoseBone(Pose, Hand, Find(TEXT("middle_01_r")), FMath::Lerp(LowerWhirl, Thrown, Throw).GetSafeNormal(), Weight);
+	MakeFist(Pose, Bones, TEXT("r"), Weight);
+
+	// The left hand points at the target while the right one whirls
+	const FCompactPoseBoneIndex UpperL = Find(TEXT("upperarm_l"));
+	const FCompactPoseBoneIndex LowerL = Find(TEXT("lowerarm_l"));
+	const FCompactPoseBoneIndex HandL = Find(TEXT("hand_l"));
+	if (UpperL != INDEX_NONE && LowerL != INDEX_NONE && HandL != INDEX_NONE)
+	{
+		const FVector Point = FVector(-Outward * 0.15f, 0.97f, 0.12f).GetSafeNormal();
+		const float Aim = Weight * (1.0f - 0.6f * Throw);
+		AimPoseBone(Pose, UpperL, LowerL, Point, Aim);
+		AimPoseBone(Pose, LowerL, HandL, Point, Aim);
+	}
+}
+
 void FVaelAnimProxy::ApplyWallRise(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
 {
 	const auto Find = [&Bones](const FString& Name) { return FindPoseBone(Bones, *Name); };
@@ -1405,6 +1461,10 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	else if (Gesture == EVaelCastGesture::Backfist)
 	{
 		ApplyBackfist(Pose, Bones);
+	}
+	else if (Gesture == EVaelCastGesture::SlingThrow)
+	{
+		ApplySlingThrow(Pose, Bones);
 	}
 	else if (Gesture == EVaelCastGesture::WallRise)
 	{

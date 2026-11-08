@@ -30,7 +30,7 @@ public:
 	virtual void Tick(float DeltaSeconds) override;
 
 	static AVaelEngineerShot* Launch(UVaelEngineerComponent* Engineer, const FVector& From, const FVector& To, float Speed, float Arc, float Damage,
-		FName Ammo, bool bPierce, const FLinearColor& Color, float Size);
+		FName Ammo, bool bPierce, const FLinearColor& Color, float Size, bool bStone = false);
 
 	/** A turret fires too: the same shot with no hand behind it but the turret's engineer */
 	FName GetAmmo() const { return Ammo; }
@@ -49,5 +49,9 @@ private:
 	FName WeaponId;
 	bool bPierce = false;
 	bool bHitSomething = false;
+
+	/** A sling stone: a small tumbling rock with a puff of dust where it lands, instead of a bolt of light */
+	bool bStone = false;
+	FRotator Spin = FRotator::ZeroRotator;
 	TSet<TWeakObjectPtr<AActor>> Hit;
 };

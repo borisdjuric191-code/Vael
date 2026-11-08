@@ -342,6 +342,13 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
 	float BackfistDuration = 0.55f;
 
+	/** Sling throw (engineer): seconds until the stone leaves the sling (one whirl over the head), and of the whole throw */
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
+	float SlingReleaseTime = 0.22f;
+
+	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.05))
+	float SlingDuration = 0.5f;
+
 	/** Wall rise (Felswand): seconds until the wall comes up (the fists climb with it), and of the whole gesture */
 	UPROPERTY(config, EditAnywhere, Category="Animation", meta = (ClampMin = 0.01))
 	float WallRiseReleaseTime = 0.3f;
@@ -421,6 +428,7 @@ public:
 		case EVaelCastGesture::WaveSweep:	return SweepReleaseTime;
 		case EVaelCastGesture::WaveHeave:	return HeaveReleaseTime;
 		case EVaelCastGesture::Backfist:	return BackfistReleaseTime;
+		case EVaelCastGesture::SlingThrow:	return SlingReleaseTime;
 		case EVaelCastGesture::WallRise:	return WallRiseReleaseTime;
 		case EVaelCastGesture::GroundSlam:	return SlamReleaseTime;
 		case EVaelCastGesture::FanSlap:		return FanReleaseTime;
@@ -441,6 +449,7 @@ public:
 		case EVaelCastGesture::WaveSweep:	return SweepDuration;
 		case EVaelCastGesture::WaveHeave:	return HeaveDuration;
 		case EVaelCastGesture::Backfist:	return BackfistDuration;
+		case EVaelCastGesture::SlingThrow:	return SlingDuration;
 		case EVaelCastGesture::WallRise:	return WallRiseDuration;
 		case EVaelCastGesture::GroundSlam:	return SlamDuration;
 		case EVaelCastGesture::FanSlap:		return FanDuration;
