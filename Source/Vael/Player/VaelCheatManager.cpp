@@ -1772,6 +1772,7 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 	if (What == TEXT("alles"))
 	{
 		FillMaterials();
+		Engineer->LearnAllPlans();
 		int32 Count = 0;
 		for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
 		{
@@ -1871,6 +1872,25 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			Engineer->Wear(FName(*FString::Printf(TEXT("%s_%d"), *Set, Place)));
 		}
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: wears %s, set count %d, armour %.0f"), *Set, Engineer->CountSet(FName(*Set)), Engineer->GetArmorTotal());
+		return;
+	}
+	if (What == TEXT("zweig"))
+	{
+		// Everything built (the last branch of each tree wins), then the branch named in Id built again so it is the one
+		VaelIngenieur(TEXT("alles"));
+		if (!Id.IsEmpty())
+		{
+			FillMaterials();
+			Engineer->LearnAllPlans();
+			const FVaelGear* Gear = VaelEngineerGear::Find(FName(*Id));
+			if (Gear != nullptr)
+			{
+				// built again over the other branch
+				Engineer->ForceBranch(Gear->UpgradeOf, Gear->Id);
+			}
+		}
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: weapon %s, branch %s, tier %d, interval %.2f"), *Engineer->GetWeapon()->Id.ToString(),
+			*Engineer->GetBranch(Engineer->GetWeapon()->Id).ToString(), Engineer->GetWeaponTier(Engineer->GetWeapon()->Id), Engineer->GetInterval());
 		return;
 	}
 	if (What == TEXT("beute"))

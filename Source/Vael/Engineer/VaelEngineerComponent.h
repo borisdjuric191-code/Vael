@@ -38,7 +38,20 @@ public:
 	// --- Building
 
 	/** Why a piece can't be built right now; Ok if it can */
-	enum class EBuildBlock : uint8 { Ok, Built, NeedsFirst, NeedsWorkbench, Materials, Full };
+	enum class EBuildBlock : uint8 { Ok, Built, NeedsFirst, NeedsWorkbench, Materials, Full, NeedsPlan };
+
+	/** Blueprints he has found (a recipe that needs one can't be built without it) */
+	bool HasPlan(FName Id) const { return Plans.Contains(Id); }
+
+	/** Finds a blueprint he doesn't know yet with this chance; returns the recipe or None */
+	FName FindPlan(float Chance);
+	void LearnAllPlans();
+
+	/** The branch of a weapon (its tier-1 upgrade), None for the plain weapon */
+	FName GetBranch(FName WeaponId) const;
+
+	/** Test: takes up a weapon with a branch already built */
+	void ForceBranch(FName WeaponId, FName BranchId) { WeaponBranches.Add(WeaponId, BranchId); Weapon = WeaponId; ShownWeapon = NAME_None; }
 	EBuildBlock GetBuildBlock(const FVaelGear& Gear, bool bAtWorkbench) const;
 
 	/** Builds a piece from the bag: a weapon or armour is his for good (armour is worn at once if its place is free), shots and
@@ -250,6 +263,12 @@ private:
 
 	UPROPERTY()
 	TMap<FName, int32> WeaponTiers;
+
+	UPROPERTY()
+	TMap<FName, FName> WeaponBranches;
+
+	UPROPERTY()
+	TSet<FName> Plans;
 	FName Device;
 	float LastShot = -100.0f;
 	float CurledUntil = 0.0f;

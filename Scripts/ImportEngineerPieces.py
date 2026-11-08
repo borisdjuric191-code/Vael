@@ -12,6 +12,9 @@ PIECES = ["SM_Ing_Schleuder", "SM_Ing_Bogen", "SM_Ing_Armbrust", "SM_Ing_Fangeis
           "SM_Ing_Rucksack", "SM_Ing_Beutel_Leder", "SM_Ing_Beutel_Panzer", "SM_Ing_Beutel_Seide", "SM_Ing_Brille"]
 # the armour sets, four pieces each (VAEL_ING_RUESTUNG in the Blender script)
 PIECES += ["SM_Ing_R_{}_{}".format(s, p) for s in ("Rollpanzer", "Sichelklinge", "Russfeder", "Blutschuppen") for p in ("Kopf", "Brust", "Arm", "Bein")]
+PIECES += ["SM_Ing_Glutschleuder", "SM_Ing_Spannschleuder", "SM_Ing_Dornenbogen", "SM_Ing_Sehnenbogen", "SM_Ing_SchwereArmbrust"]
+if __import__("os").environ.get("VAEL_ING_NUR_ZWEIGE"):
+    PIECES = [p for p in PIECES if p in ("SM_Ing_Glutschleuder", "SM_Ing_Spannschleuder", "SM_Ing_Dornenbogen", "SM_Ing_Sehnenbogen", "SM_Ing_SchwereArmbrust")]
 if __import__("os").environ.get("VAEL_ING_NUR_RUESTUNG"):
     PIECES = [p for p in PIECES if p.startswith("SM_Ing_R_")]
 SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut", "Moos": "M_GK_Moos"}

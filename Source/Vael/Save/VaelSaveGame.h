@@ -78,6 +78,12 @@ struct FVaelSavedPlayer
 
 	UPROPERTY()
 	TMap<FName, int32> EngineerTiers;
+
+	UPROPERTY()
+	TMap<FName, FName> EngineerBranches;
+
+	UPROPERTY()
+	TArray<FName> EngineerPlans;
 };
 
 /** State of a region */

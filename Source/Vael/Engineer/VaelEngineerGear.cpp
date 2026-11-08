@@ -34,6 +34,24 @@ namespace
 		return Gear;
 	}
 
+	FVaelGear MakeUpgrade(FName Id, FText Name, FText Text, FName Of, int32 Tier, EVaelAmmoEffect Effect, float IntervalScale, FLinearColor Color, TArray<FVaelGearCost> Costs)
+	{
+		FVaelGear Gear;
+		Gear.Id = Id;
+		Gear.Kind = EVaelGearKind::Weapon;
+		Gear.Name = Name;
+		Gear.Text = Text;
+		Gear.Color = Color;
+		Gear.Costs = MoveTemp(Costs);
+		Gear.Requires = Of;
+		Gear.UpgradeOf = Of;
+		Gear.Tier = Tier;
+		Gear.StandardEffect = Effect;
+		Gear.IntervalScale = IntervalScale;
+		Gear.bNeedsPlan = true;
+		return Gear;
+	}
+
 	FVaelGear MakeTool(FName Id, FText Name, FText Text, FLinearColor Color, TArray<FVaelGearCost> Costs, FName Requires)
 	{
 		FVaelGear Gear;
@@ -120,6 +138,27 @@ namespace
 		All.Last().SweetMin = 500.0f;
 		All.Last().SweetMax = 1200.0f;
 
+		All.Last().bNeedsPlan = true;
+
+		// --- The trees of the weapons: two branches of tier 1, then the master piece of tier 2 (it keeps the branch)
+		const FName SlingId = VaelEngineerGear::Sling, BowId = VaelEngineerGear::Bow, CrossbowId = VaelEngineerGear::Crossbow;
+		All.Add(MakeUpgrade(TEXT("Glutschleuder"), LOCTEXT("Glutschleuder", "Glutschleuder"), LOCTEXT("GlutschleuderText", "Eine Glutdr\u00FCse im Leder: jeder Stein brennt."),
+			SlingId, 1, EVaelAmmoEffect::Fire, 1.0f, GearRgb(240, 120, 50), { { TEXT("Glutstein"), 3 }, { TEXT("Glutdruese"), 1 } }));
+		All.Add(MakeUpgrade(TEXT("Spannschleuder"), LOCTEXT("Spannschleuder", "Spannschleuder"), LOCTEXT("SpannschleuderText", "Doppeltes Band aus Spannfaden: 20 % schneller."),
+			SlingId, 1, EVaelAmmoEffect::None, 0.8f, GearRgb(200, 190, 160), { { TEXT("Spannfaden"), 3 }, { TEXT("Sichelklinge"), 1 } }));
+		All.Add(MakeUpgrade(TEXT("Meisterschleuder"), LOCTEXT("Meisterschleuder", "Meisterschleuder"), LOCTEXT("MeisterschleuderText", "Mit einem Bruchst\u00FCck beschwert: zweite Stufe, der Zweig bleibt."),
+			SlingId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Bruchstueck"), 1 }, { TEXT("Rollpanzer"), 2 } }));
+		All.Add(MakeUpgrade(TEXT("Dornenbogen"), LOCTEXT("Dornenbogen", "Dornenbogen"), LOCTEXT("DornenbogenText", "Das Holz treibt Dornen: jeder Pfeil vergiftet."),
+			BowId, 1, EVaelAmmoEffect::Poison, 1.0f, GearRgb(140, 200, 80), { { TEXT("Rankenfaser"), 3 }, { TEXT("Sichelklinge"), 2 } }));
+		All.Add(MakeUpgrade(TEXT("Sehnenbogen"), LOCTEXT("Sehnenbogen", "Sehnenbogen"), LOCTEXT("SehnenbogenText", "Ru\u00DFfedern an den Wurfarmen: er zieht 15 % schneller."),
+			BowId, 1, EVaelAmmoEffect::None, 0.85f, GearRgb(80, 76, 84), { { TEXT("Spannfaden"), 4 }, { TEXT("Russfeder"), 2 } }));
+		All.Add(MakeUpgrade(TEXT("Meisterbogen"), LOCTEXT("Meisterbogen", "Meisterbogen"), LOCTEXT("MeisterbogenText", "Bruchst\u00FCcke in den Wurfarmen: zweite Stufe."),
+			BowId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Bruchstueck"), 2 }, { TEXT("Narbenholz"), 3 } }));
+		All.Add(MakeUpgrade(TEXT("SchwereArmbrust"), LOCTEXT("SchwereArmbrust", "Schwere Armbrust"), LOCTEXT("SchwereArmbrustText", "Schlacke-Bolzen: jeder zerspringt im Ziel."),
+			CrossbowId, 1, EVaelAmmoEffect::Shards, 1.0f, GearRgb(160, 160, 176), { { TEXT("Rollpanzer"), 3 }, { TEXT("Schlacke"), 3 } }));
+		All.Add(MakeUpgrade(TEXT("Meisterarmbrust"), LOCTEXT("Meisterarmbrust", "Meisterarmbrust"), LOCTEXT("MeisterarmbrustText", "Bruchst\u00FCcke als Abzug: zweite Stufe."),
+			CrossbowId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Bruchstueck"), 2 }, { TEXT("Sichelklinge"), 2 } }));
+
 		// --- Tools: the aiming goggles of the first ore he finds, then lenses for them
 		All.Add(MakeTool(VaelEngineerGear::Goggles, LOCTEXT("Brille", "Zielhilfebrille"),
 			LOCTEXT("BrilleText", "Zwei geschliffene Scheiben Ru\u00DFquarz in einem Lederband, sein erstes Werkst\u00FCck. Er sieht, wo ein Tier weich ist: Schwachstellen nehmen 1,5-fachen statt 1,3-fachen Schaden, und jeder zehnte Schuss mehr trifft kritisch."),
@@ -130,6 +169,7 @@ namespace
 		All.Add(MakeTool(VaelEngineerGear::PouchSilk, LOCTEXT("Seidenbeutel", "Seidenbeutel"),
 			LOCTEXT("SeidenbeutelText", "Kokonseide, mit einem Bruchst\u00FCck verschlossen: 40 Ladungen und 4 Vorrichtungen am G\u00FCrtel."),
 			GearRgb(230, 226, 210), { { TEXT("Kokonseide"), 3 }, { TEXT("Bruchstueck"), 1 } }, VaelEngineerGear::PouchArmor));
+		All.Last().bNeedsPlan = true;
 		All.Add(MakeTool(VaelEngineerGear::LensFog, LOCTEXT("LinseGlimm", "Glimmaugen-Linse"),
 			LOCTEXT("LinseGlimmText", "Ein Glimmauge vor dem Quarz: der Nebel wird d\u00FCnn, seine Sch\u00FCsse reichen 15 % weiter."),
 			GearRgb(150, 200, 220), { { TEXT("Glimmauge"), 2 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));
@@ -186,6 +226,7 @@ namespace
 				const FName Id(*FString::Printf(TEXT("%s_%d"), *Set.Set.ToString(), Place));
 				All.Add(MakeArmor(Id, FText::Format(PlaceNames[Place], Set.Prefix), Set.Set, static_cast<EVaelArmorPlace>(Place), Set.Color,
 					{ { Set.Main, MainCounts[Place] }, { Set.Second, 1 } }, None, (Place == 1 ? 8.0f : 4.0f) * Set.ArmorScale, Place == 1 ? 20.0f : 10.0f));
+				All.Last().bNeedsPlan = Set.Set != FName(TEXT("Rollpanzer"));
 			}
 		}
 		return All;

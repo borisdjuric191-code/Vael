@@ -167,6 +167,13 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 	switch (Gear.Kind)
 	{
 	case EVaelGearKind::Weapon:
+		if (!Gear.UpgradeOf.IsNone())
+		{
+			DrawLabel(FText::Format(LOCTEXT("UpgradeStats", "Stufe {0} · Schaden ×{1}"), Gear.Tier, FText::AsNumber(FMath::Pow(1.18f, static_cast<float>(Gear.Tier)))),
+				DetailLeft, Y, 15.0f * S, CraftCopper);
+			Y += 26.0f * S;
+			break;
+		}
 		DrawLabel(FText::Format(LOCTEXT("WeaponStats", "Schaden {0} · alle {1} s · Reichweite {2} m{3}"), FText::AsNumber(FMath::RoundToInt(Gear.Damage)),
 			FText::AsNumber(Gear.Interval), FText::AsNumber(FMath::RoundToInt(Gear.Range / 100.0f)), Gear.bPierce ? LOCTEXT("Pierce", " · durchschlägt") : FText::GetEmpty()),
 			DetailLeft, Y, 15.0f * S, CraftCopper, 0.0f, DetailWidth);
@@ -242,6 +249,7 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		break;
 	case UVaelEngineerComponent::EBuildBlock::NeedsFirst: Action = LOCTEXT("BlockFirst", "Erst das Stück davor bauen"); break;
 	case UVaelEngineerComponent::EBuildBlock::NeedsWorkbench: Action = LOCTEXT("BlockBench", "Nur an der Werkbank in der Glutkammer"); break;
+	case UVaelEngineerComponent::EBuildBlock::NeedsPlan: Action = LOCTEXT("BlockPlan", "Bauplan fehlt – Kreaturen, Bruchstücke und Bosse tragen ihn"); break;
 	default: Action = LOCTEXT("BlockMaterials", "Es fehlen Materialien"); ActionColor = CraftBad; break;
 	}
 	DrawLabel(Action, DetailLeft, Top + Height - 70.0f * S, 18.0f * S, ActionColor);

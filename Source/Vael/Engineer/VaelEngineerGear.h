@@ -102,6 +102,16 @@ struct FVaelGear
 	EVaelDeviceType Device = EVaelDeviceType::Trap;
 
 	// Armour: place, armour, life, and the creature set it belongs to (two and four pieces of one set give its bonus)
+	// Weapon upgrade (the tree of the workbench): the weapon it improves, its tier (1.18^tier damage); a branch of tier 1 also
+	// gives the endless shot an effect and changes the pace of the weapon
+	FName UpgradeOf;
+	int32 Tier = 0;
+	EVaelAmmoEffect StandardEffect = EVaelAmmoEffect::None;
+	float IntervalScale = 1.0f;
+
+	/** Needs a blueprint first (found on creatures, from broken parts, on bosses), as the lore says: he finds plans, not gear */
+	bool bNeedsPlan = false;
+
 	EVaelArmorPlace Place = EVaelArmorPlace::Head;
 	float Armor = 0.0f;
 	float Health = 0.0f;

@@ -48,6 +48,9 @@ void UVaelEngineerComponent::ResetToStart()
 	Weapon = VaelEngineerGear::Sling;
 	Ammo = VaelEngineerGear::Standard;
 	Device = NAME_None;
+	WeaponTiers.Reset();
+	WeaponBranches.Reset();
+	Plans.Reset();
 }
 
 AVaelCharacter* UVaelEngineerComponent::GetPlayer() const
@@ -266,7 +269,8 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 		return;
 	}
 	const bool bShow = Player->IsEngineer();
-	const FName Wanted = bShow ? Weapon : NAME_None;
+	const FName Branch = GetBranch(Weapon);
+	const FName Wanted = bShow ? (Branch.IsNone() ? Weapon : Branch) : NAME_None;
 	if (Wanted == ShownWeapon && (WeaponMesh == nullptr || WeaponMesh->IsVisible() == bShow))
 	{
 		return;
@@ -292,8 +296,15 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 	WeaponMesh->AttachToComponent(Player->GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
 	WeaponMesh->SetRelativeLocation(FVector(-6.0f, 3.0f, 0.0f));
 	WeaponMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
-	const FString Name = Weapon.ToString();
+	FString Name = Wanted.ToString();
 	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_%s.SM_Ing_%s"), *Name, *Name), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (Mesh == nullptr)
+	{
+		Name = Weapon.ToString();
+		Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_%s.SM_Ing_%s"), *Name, *Name), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
+	// each tier a little bigger and heavier
+	WeaponMesh->SetRelativeScale3D(FVector(1.0f + 0.06f * GetWeaponTier(Weapon)));
 	WeaponMesh->SetStaticMesh(Mesh);
 	WeaponMesh->SetVisibility(Mesh != nullptr);
 }
@@ -310,6 +321,14 @@ UVaelEngineerComponent::EBuildBlock UVaelEngineerComponent::GetBuildBlock(const 
 	if (!Gear.Requires.IsNone() && !Built.Contains(Gear.Requires) && GetCarried(Gear.Requires) + GetStock(Gear.Requires) <= 0)
 	{
 		return EBuildBlock::NeedsFirst;
+	}
+	if (!Gear.UpgradeOf.IsNone() && GetWeaponTier(Gear.UpgradeOf) < Gear.Tier - 1)
+	{
+		return EBuildBlock::NeedsFirst;
+	}
+	if (Gear.bNeedsPlan && !Plans.Contains(Gear.Id))
+	{
+		return EBuildBlock::NeedsPlan;
 	}
 	if (!bAtWorkbench && !Gear.bField)
 	{
@@ -345,7 +364,21 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 	{
 	case EVaelGearKind::Weapon:
 		Built.Add(Id);
-		Weapon = Id;
+		if (Gear->UpgradeOf.IsNone())
+		{
+			Weapon = Id;
+		}
+		else
+		{
+			// an upgrade: the tier rises, a branch of tier 1 sets the effect and the look of the weapon
+			SetWeaponTier(Gear->UpgradeOf, FMath::Max(GetWeaponTier(Gear->UpgradeOf), Gear->Tier));
+			if (Gear->Tier == 1)
+			{
+				WeaponBranches.Add(Gear->UpgradeOf, Id);
+			}
+			Weapon = Gear->UpgradeOf;
+			ShownWeapon = NAME_None;
+		}
 		break;
 	case EVaelGearKind::Armor:
 		Built.Add(Id);
@@ -443,7 +476,7 @@ void UVaelEngineerComponent::CycleWeapon()
 	TArray<FName> Weapons;
 	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
 	{
-		if (Gear.Kind == EVaelGearKind::Weapon && Built.Contains(Gear.Id))
+		if (Gear.Kind == EVaelGearKind::Weapon && Gear.UpgradeOf.IsNone() && Built.Contains(Gear.Id))
 		{
 			Weapons.Add(Gear.Id);
 		}
@@ -532,12 +565,56 @@ float UVaelEngineerComponent::GetInterval() const
 {
 	const FVaelGear* Gear = GetWeapon();
 	const float Base = Gear != nullptr ? Gear->Interval : 0.6f;
-	return Base * (CountSet(TEXT("Russfeder")) >= 4 ? 0.8f : 1.0f);
+	const FVaelGear* Branch = Gear != nullptr && !GetBranch(Gear->Id).IsNone() ? VaelEngineerGear::Find(GetBranch(Gear->Id)) : nullptr;
+	return Base * (Branch != nullptr ? Branch->IntervalScale : 1.0f) * (CountSet(TEXT("Russfeder")) >= 4 ? 0.8f : 1.0f);
 }
 
 float UVaelEngineerComponent::GetReloadLeft() const
 {
 	return FMath::Max3(LastShot + GetInterval() - Now(), ReloadEnd - Now(), 0.0f);
+}
+
+FName UVaelEngineerComponent::GetBranch(FName WeaponId) const
+{
+	const FName* Branch = WeaponBranches.Find(WeaponId);
+	return Branch != nullptr ? *Branch : NAME_None;
+}
+
+FName UVaelEngineerComponent::FindPlan(float Chance)
+{
+	if (FMath::FRand() >= Chance)
+	{
+		return NAME_None;
+	}
+	TArray<const FVaelGear*> Unknown;
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		if (Gear.bNeedsPlan && !Plans.Contains(Gear.Id))
+		{
+			Unknown.Add(&Gear);
+		}
+	}
+	if (Unknown.IsEmpty())
+	{
+		return NAME_None;
+	}
+	const FVaelGear* Found = Unknown[FMath::RandRange(0, Unknown.Num() - 1)];
+	Plans.Add(Found->Id);
+	UVaelCombatTextSubsystem::PostPickup(GetOwner(), FText::Format(LOCTEXT("PlanFound", "Bauplan gefunden: {0}"), Found->Name), FLinearColor(0.95f, 0.8f, 0.45f));
+	UVaelSaveSubsystem::RequestSave(GetOwner());
+	UE_LOG(LogVael, Log, TEXT("Engineer: finds the blueprint of %s"), *Found->Id.ToString());
+	return Found->Id;
+}
+
+void UVaelEngineerComponent::LearnAllPlans()
+{
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		if (Gear.bNeedsPlan)
+		{
+			Plans.Add(Gear.Id);
+		}
+	}
 }
 
 int32 UVaelEngineerComponent::GetWeaponTier(FName Id) const
@@ -788,7 +865,12 @@ void UVaelEngineerComponent::OnDeviceShot(AVaelEngineerDevice* Shot, FName ShotA
 void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, float Damage, FName ShotAmmo, const FVector& From, FName WeaponId)
 {
 	const FVaelGear* AmmoGear = ShotAmmo != VaelEngineerGear::Standard ? VaelEngineerGear::Find(ShotAmmo) : nullptr;
-	const EVaelAmmoEffect Effect = AmmoGear != nullptr ? AmmoGear->Effect : EVaelAmmoEffect::None;
+	EVaelAmmoEffect Effect = AmmoGear != nullptr ? AmmoGear->Effect : EVaelAmmoEffect::None;
+	if (AmmoGear == nullptr && !WeaponId.IsNone() && !GetBranch(WeaponId).IsNone())
+	{
+		const FVaelGear* Branch = VaelEngineerGear::Find(GetBranch(WeaponId));
+		Effect = Branch != nullptr ? Branch->StandardEffect : Effect;
+	}
 	if (Effect == EVaelAmmoEffect::Heal)
 	{
 		ApplyBurst(Location, ShotAmmo, Damage);
@@ -921,6 +1003,7 @@ void UVaelEngineerComponent::HitPart(AVaelCharacterBase* Enemy, float Damage, fl
 			AVaelMaterialDrop::DropMaterial(GetWorld(), At + FVector(40.0f, 0.0f, 0.0f), Own, 2, Player);
 		}
 	}
+	FindPlan(0.5f);
 	UE_LOG(LogVael, Log, TEXT("Engineer: breaks the %s of %s"), bHead ? TEXT("head") : TEXT("armour"), *Enemy->GetName());
 }
 
@@ -1112,6 +1195,8 @@ void UVaelEngineerComponent::WriteSave(FVaelSavedPlayer& Saved) const
 	Saved.EngineerWorn = Worn;
 	Saved.EngineerWeapon = Weapon;
 	Saved.EngineerTiers = WeaponTiers;
+	Saved.EngineerBranches = WeaponBranches;
+	Saved.EngineerPlans = Plans.Array();
 }
 
 void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
@@ -1123,6 +1208,8 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 	}
 	Carried = Saved.EngineerCarried;
 	WeaponTiers = Saved.EngineerTiers;
+	WeaponBranches = Saved.EngineerBranches;
+	Plans = TSet<FName>(Saved.EngineerPlans);
 	Stock = Saved.EngineerStock;
 	if (Saved.EngineerWorn.Num() == NumArmorPlaces)
 	{

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelCreature.h"
+#include "Engineer/VaelEngineerComponent.h"
 #include "Items/VaelPotionEffects.h"
 #include "UObject/ConstructorHelpers.h"
 #include "AbilitySystemComponent.h"
@@ -637,6 +638,12 @@ void AVaelCreature::DropLoot()
 		if (Player == nullptr)
 		{
 			continue;
+		}
+
+		// The engineer finds blueprints instead of gear: a fifth of the creatures, elites more often, bosses always
+		if (Player->IsEngineer())
+		{
+			Player->GetEngineer()->FindPlan(ActiveData->GuaranteedItems > 0 ? 1.0f : bElite ? 0.6f : 0.2f);
 		}
 
 		const float ItemChance = bElite ? FMath::Max(ActiveData->ItemDropChance, UVaelWorldSettings::Get()->EliteItemDropChance) : ActiveData->ItemDropChance;

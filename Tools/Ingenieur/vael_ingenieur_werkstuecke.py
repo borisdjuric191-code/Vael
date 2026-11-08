@@ -216,7 +216,7 @@ def build_turret():
     gk.export(obj)
 
 
-if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG"):
+if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE"):
     os.makedirs(gk.OUT, exist_ok=True)
     for build in (build_sling, build_bow, build_crossbow, build_trap, build_mine, build_turret):
         gk.clear_scene()
@@ -275,7 +275,7 @@ def build_goggles():
     gk.export(obj)
 
 
-if __name__ == "__main__" and os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG"):
+if __name__ == "__main__" and os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE"):
     for build in (build_backpack, lambda: build_pouches("SM_Ing_Beutel_Leder", LEDER, 0.07, 3),
                   lambda: build_pouches("SM_Ing_Beutel_Panzer", METALL, 0.08, 4), lambda: build_pouches("SM_Ing_Beutel_Seide", FADEN, 0.09, 5), build_goggles):
         gk.clear_scene()
@@ -355,9 +355,70 @@ def build_armor_piece(set_name, place):
     gk.export(obj)
 
 
-if __name__ == "__main__" and os.environ.get("VAEL_ING_RUESTUNG"):
+if __name__ == "__main__" and os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE"):
     for set_name in SETS:
         for place in ("Kopf", "Brust", "Arm", "Bein"):
             gk.clear_scene()
             build_armor_piece(set_name, place)
     gk.log("Ruestungen des Ingenieurs fertig")
+
+
+# ---------------------------------------------------------------- weapon branches (2026-11-08): the base weapon with what the branch adds
+_EXTRA = None
+_NAME = None
+_orig_finish = gk.Builder.finish
+_orig_new = gk.new_object
+
+
+def _finish(self, obj):
+    if _EXTRA is not None:
+        _EXTRA(self)
+    _orig_finish(self, obj)
+
+
+def _new(name, slots):
+    return _orig_new(_NAME or name, slots)
+
+
+def embers(b):
+    for k in range(5):
+        disc(b, Vector((0.05 + 0.01 * k, (k - 2) * 0.03, 0.12 + 0.025 * k)), 0.012, Vector((1, 0, 0.3)), GLUT, glow=1.0, sides=6)
+
+
+def extra_strings(b):
+    for side in (-1, 1):
+        b.tube([Vector((0.07, side * 0.075, 0.2)), Vector((-0.02, side * 0.03, 0.2)), Vector((-0.08, side * 0.01, 0.2))], [0.004] * 3, FADEN, sides=4, cap_end=False)
+        lathe(b, [(0.0, 0.0), (0.012, 0.02), (0.0, 0.05)], METALL, Vector((0.07, side * 0.075, 0.25)), sides=5)
+
+
+def thorns(b):
+    for side in (-1, 1):
+        for k in range(5):
+            t = 0.2 + k * 0.15
+            z = side * (0.06 + t * 0.66)
+            x = 0.12 * math.sin(t * math.pi * 0.55) - 0.1 * t * t
+            lathe(b, [(0.008, 0.0), (0.0, 0.04)], HOLZ, Vector((x + 0.015, 0, z)), sides=5, axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+
+
+def feathers(b):
+    for side in (-1, 1):
+        for k in range(3):
+            leaf(b, Vector((-0.02, 0, side * (0.1 + 0.03 * k))), Vector((-0.8, (k - 1) * 0.4, side * 0.5)), 0.07, 40 + k + side)
+
+
+def plates(b):
+    for x in (0.0, 0.15, 0.3):
+        box(b, Vector((x, 0, 0.075)), (0.08, 0.075, 0.03), METALL)
+    box(b, Vector((0.43, 0, 0.05)), (0.05, 0.12, 0.08), METALL)
+
+
+if __name__ == "__main__" and os.environ.get("VAEL_ING_ZWEIGE"):
+    gk.Builder.finish = _finish
+    gk.new_object = _new
+    for name, base, extra in (("SM_Ing_Glutschleuder", build_sling, embers), ("SM_Ing_Spannschleuder", build_sling, extra_strings),
+                              ("SM_Ing_Dornenbogen", build_bow, thorns), ("SM_Ing_Sehnenbogen", build_bow, feathers),
+                              ("SM_Ing_SchwereArmbrust", build_crossbow, plates)):
+        _NAME, _EXTRA = name, extra
+        gk.clear_scene()
+        base()
+    gk.log("Zweige des Ingenieurs fertig")
