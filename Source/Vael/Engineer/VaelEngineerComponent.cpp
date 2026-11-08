@@ -26,8 +26,6 @@
 
 namespace
 {
-	constexpr int32 AmmoCarry = 30;
-	constexpr int32 DeviceCarry = 3;
 	constexpr int32 MaxPlaced = 6;
 	constexpr float PlaceReach = 700.0f;
 	constexpr int32 NumArmorPlaces = 4;
@@ -84,6 +82,101 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
 	UpdateWeaponMesh();
+	UpdateCarriedMeshes();
+
+	// A reach that is done: from the backpack the pouch fills up first
+	if (IsGrabbing() && Now() >= GrabEnd)
+	{
+		if (bGrabFromPack)
+		{
+			if (const FVaelGear* Gear = VaelEngineerGear::Find(GrabAmmo))
+			{
+				const int32 Take = FMath::Min(GetCarryLimit(*Gear) - GetCarried(GrabAmmo), GetStock(GrabAmmo));
+				Carried.FindOrAdd(GrabAmmo) += FMath::Max(Take, 0);
+				Stock.FindOrAdd(GrabAmmo) -= FMath::Max(Take, 0);
+			}
+		}
+		Ammo = GetCarried(GrabAmmo) > 0 ? GrabAmmo : VaelEngineerGear::Standard;
+		GrabAmmo = NAME_None;
+		UVaelCombatTextSubsystem::PostPickup(GetOwner(), GetAmmoName(), GetAmmoColor());
+	}
+}
+
+UStaticMeshComponent* UVaelEngineerComponent::AttachPiece(UStaticMeshComponent* Existing, const TCHAR* Name, const TCHAR* Piece, FName Bone, const FTransform& InActorSpace)
+{
+	AVaelCharacter* Player = GetPlayer();
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/%s.%s"), Piece, Piece), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (Player == nullptr || Mesh == nullptr)
+	{
+		return Existing;
+	}
+	UStaticMeshComponent* Component = Existing;
+	if (Component == nullptr)
+	{
+		Component = NewObject<UStaticMeshComponent>(Player, Name);
+		Component->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Component->SetCastShadow(true);
+		Component->RegisterComponent();
+	}
+	// Hung on a bone of the base look (the MetaHuman follows its pose); placed where it belongs on the body as the pose is now
+	USkeletalMeshComponent* Body = Player->GetMesh();
+	const FName Socket = Body->DoesSocketExist(Bone) ? Bone : NAME_None;
+	Component->AttachToComponent(Body, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Socket);
+	const FTransform BoneInActor = Socket.IsNone() ? Body->GetRelativeTransform() : Body->GetSocketTransform(Socket, RTS_Actor);
+	FTransform Relative = InActorSpace.GetRelativeTransform(BoneInActor);
+	Relative.SetScale3D(FVector::OneVector);
+	Component->SetRelativeTransform(Relative);
+	Component->SetStaticMesh(Mesh);
+	Component->SetVisibility(true);
+	return Component;
+}
+
+void UVaelEngineerComponent::UpdateCarriedMeshes()
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr)
+	{
+		return;
+	}
+	const bool bShow = Player->IsEngineer();
+	const int32 Tier = bShow ? GetPouchTier() : -1;
+	const bool bGoggles = bShow && HasBuilt(VaelEngineerGear::Goggles);
+	if (Tier == ShownPouchTier && bGoggles == bShownGoggles && bShow == bShownPack)
+	{
+		return;
+	}
+	ShownPouchTier = Tier;
+	bShownGoggles = bGoggles;
+	bShownPack = bShow;
+	if (!bShow)
+	{
+		for (UStaticMeshComponent* Piece : { PackMesh.Get(), PouchMesh.Get(), GogglesMesh.Get() })
+		{
+			if (Piece != nullptr)
+			{
+				Piece->SetVisibility(false);
+			}
+		}
+		return;
+	}
+	// In actor space: the capsule middle is the origin, +X ahead; the back at chest height, the belt at the hip, the goggles on the brow
+	const float Half = Player->GetSimpleCollisionHalfHeight();
+	PackMesh = AttachPiece(PackMesh, TEXT("EngineerPack"), TEXT("SM_Ing_Rucksack"), TEXT("spine_04"),
+		FTransform(FRotator(0.0f, 180.0f, 0.0f), FVector(-14.0f, 0.0f, Half * 0.22f)));
+	const TCHAR* Pouches[] = { TEXT("SM_Ing_Beutel_Leder"), TEXT("SM_Ing_Beutel_Panzer"), TEXT("SM_Ing_Beutel_Seide") };
+	PouchMesh = AttachPiece(PouchMesh, TEXT("EngineerPouches"), Pouches[FMath::Clamp(Tier, 0, 2)], TEXT("pelvis"),
+		FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, Half * 0.02f)));
+	if (bGoggles)
+	{
+		const USkeletalMeshComponent* Body = Player->GetMesh();
+		const FVector Head = Body->DoesSocketExist(TEXT("head")) ? Body->GetSocketTransform(TEXT("head"), RTS_Actor).GetLocation() : FVector(0.0f, 0.0f, Half * 0.8f);
+		GogglesMesh = AttachPiece(GogglesMesh, TEXT("EngineerGoggles"), TEXT("SM_Ing_Brille"), TEXT("head"),
+			FTransform(FRotator::ZeroRotator, Head + FVector(-1.0f, 0.0f, 5.0f)));
+	}
+	else if (GogglesMesh != nullptr)
+	{
+		GogglesMesh->SetVisibility(false);
+	}
 }
 
 void UVaelEngineerComponent::UpdateWeaponMesh()
@@ -247,9 +340,15 @@ int32 UVaelEngineerComponent::GetStock(FName Id) const
 	return Count != nullptr ? *Count : 0;
 }
 
+int32 UVaelEngineerComponent::GetPouchTier() const
+{
+	return HasBuilt(VaelEngineerGear::PouchSilk) ? 2 : HasBuilt(VaelEngineerGear::PouchArmor) ? 1 : 0;
+}
+
 int32 UVaelEngineerComponent::GetCarryLimit(const FVaelGear& Gear) const
 {
-	return Gear.Kind == EVaelGearKind::Ammo ? AmmoCarry : Gear.Kind == EVaelGearKind::Device ? DeviceCarry : 1;
+	const int32 Tier = GetPouchTier();
+	return Gear.Kind == EVaelGearKind::Ammo ? 20 + 10 * Tier : Gear.Kind == EVaelGearKind::Device ? 2 + Tier : 1;
 }
 
 // ---------------------------------------------------------------- Weapon and shot
@@ -299,19 +398,55 @@ FLinearColor UVaelEngineerComponent::GetAmmoColor() const
 	return Gear != nullptr ? Gear->Color : FLinearColor(0.55f, 0.5f, 0.45f);
 }
 
-void UVaelEngineerComponent::CycleAmmo(int32 Step)
+TArray<FName> UVaelEngineerComponent::GetAmmoChoices() const
 {
 	TArray<FName> Shots = { VaelEngineerGear::Standard };
 	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
 	{
-		if (Gear.Kind == EVaelGearKind::Ammo && GetCarried(Gear.Id) > 0)
+		if (Gear.Kind == EVaelGearKind::Ammo && GetCarried(Gear.Id) + GetStock(Gear.Id) > 0)
 		{
 			Shots.Add(Gear.Id);
 		}
 	}
-	const int32 Current = FMath::Max(Shots.IndexOfByKey(Ammo), 0);
-	Ammo = Shots[(Current + Step + Shots.Num()) % Shots.Num()];
-	UVaelCombatTextSubsystem::PostPickup(GetOwner(), GetAmmoName(), GetAmmoColor());
+	return Shots;
+}
+
+void UVaelEngineerComponent::CycleAmmo(int32 Step)
+{
+	const TArray<FName> Shots = GetAmmoChoices();
+	const FName From = IsGrabbing() ? GrabAmmo : Ammo;
+	const int32 Current = FMath::Max(Shots.IndexOfByKey(From), 0);
+	BeginGrab(Shots[(Current + Step + Shots.Num()) % Shots.Num()]);
+}
+
+void UVaelEngineerComponent::BeginGrab(FName Id)
+{
+	LastCycle = Now();
+	if (Id == VaelEngineerGear::Standard || Id.IsNone())
+	{
+		// stones, arrows and bolts are always at hand
+		GrabAmmo = NAME_None;
+		Ammo = VaelEngineerGear::Standard;
+		return;
+	}
+	GrabAmmo = Id;
+	bGrabFromPack = GetCarried(Id) <= 0;
+	GrabStart = Now();
+	GrabEnd = Now() + (bGrabFromPack ? 1.2f : 0.35f);
+}
+
+float UVaelEngineerComponent::GetGrabFraction() const
+{
+	return IsGrabbing() ? FMath::Clamp((Now() - GrabStart) / FMath::Max(GrabEnd - GrabStart, 0.01f), 0.0f, 1.0f) : 0.0f;
+}
+
+void UVaelEngineerComponent::OnHurt()
+{
+	if (IsGrabbing() && bGrabFromPack)
+	{
+		GrabAmmo = NAME_None;
+		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("GrabLost", "Griff unterbrochen"));
+	}
 }
 
 float UVaelEngineerComponent::GetInterval() const
@@ -379,7 +514,7 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 {
 	AVaelCharacter* Player = GetPlayer();
 	const FVaelGear* Gear = GetWeapon();
-	if (Player == nullptr || Gear == nullptr || GetReloadLeft() > 0.0f || Player->IsDowned())
+	if (Player == nullptr || Gear == nullptr || GetReloadLeft() > 0.0f || Player->IsDowned() || IsGrabbing())
 	{
 		return false;
 	}
@@ -440,7 +575,13 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 		if (Left == 0)
 		{
 			UVaelCombatTextSubsystem::PostReaction(Player, FText::Format(LOCTEXT("AmmoOut", "{0} verbraucht"), GetAmmoName()));
+			// more in the backpack: he reaches for it by himself
+			const FName Empty = Ammo;
 			Ammo = VaelEngineerGear::Standard;
+			if (GetStock(Empty) > 0)
+			{
+				BeginGrab(Empty);
+			}
 		}
 	}
 	return true;

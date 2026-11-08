@@ -124,6 +124,12 @@ namespace
 		All.Add(MakeTool(VaelEngineerGear::Goggles, LOCTEXT("Brille", "Zielhilfebrille"),
 			LOCTEXT("BrilleText", "Zwei geschliffene Scheiben Ru\u00DFquarz in einem Lederband, sein erstes Werkst\u00FCck. Er sieht, wo ein Tier weich ist: Schwachstellen nehmen 1,5-fachen statt 1,3-fachen Schaden, und jeder zehnte Schuss mehr trifft kritisch."),
 			GearRgb(90, 86, 96), { { TEXT("Russquarz"), 2 }, { TEXT("Spannfaden"), 1 } }, None));
+		All.Add(MakeTool(VaelEngineerGear::PouchArmor, LOCTEXT("Panzerbeutel", "Panzerbeutel"),
+			LOCTEXT("PanzerbeutelText", "Beutel mit Rollpanzer-Deckeln am G\u00FCrtel: 30 Ladungen jeder Art und 3 Vorrichtungen griffbereit statt 20 und 2."),
+			GearRgb(150, 140, 120), { { TEXT("Rollpanzer"), 2 }, { TEXT("Spannfaden"), 2 } }, None));
+		All.Add(MakeTool(VaelEngineerGear::PouchSilk, LOCTEXT("Seidenbeutel", "Seidenbeutel"),
+			LOCTEXT("SeidenbeutelText", "Kokonseide, mit einem Bruchst\u00FCck verschlossen: 40 Ladungen und 4 Vorrichtungen am G\u00FCrtel."),
+			GearRgb(230, 226, 210), { { TEXT("Kokonseide"), 3 }, { TEXT("Bruchstueck"), 1 } }, VaelEngineerGear::PouchArmor));
 		All.Add(MakeTool(VaelEngineerGear::LensFog, LOCTEXT("LinseGlimm", "Glimmaugen-Linse"),
 			LOCTEXT("LinseGlimmText", "Ein Glimmauge vor dem Quarz: der Nebel wird d\u00FCnn, seine Sch\u00FCsse reichen 15 % weiter."),
 			GearRgb(150, 200, 220), { { TEXT("Glimmauge"), 2 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));

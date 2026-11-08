@@ -19,6 +19,53 @@ namespace
 	}
 }
 
+void AVaelHUD::DrawEngineerWheel(const AVaelPlayerController* PlayerController)
+{
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	const UVaelEngineerComponent* Engineer = Player != nullptr && Player->IsEngineer() ? Player->GetEngineer() : nullptr;
+	if (Engineer == nullptr || PlayerController->IsGrimoireOpen() || (!Engineer->IsGrabbing() && Engineer->GetSecondsSinceCycle() > 1.6f))
+	{
+		return;
+	}
+	// The wheel of the pouches over his head: every shot he can reach for, the chosen one lit, how long the reach takes
+	const FVector Screen = Canvas->Project(Player->GetActorLocation() + FVector(0.0f, 0.0f, 150.0f));
+	if (Screen.Z <= 0.0f)
+	{
+		return;
+	}
+	const float S = UiScale;
+	const FVector2D Centre(Screen.X, Screen.Y - 40.0f * S);
+	const TArray<FName> Choices = Engineer->GetAmmoChoices();
+	const FName Chosen = Engineer->IsGrabbing() ? Engineer->GetGrabAmmo() : Engineer->GetAmmo();
+	const float Radius = 54.0f * S;
+	DrawDisc(Centre, Radius + 18.0f * S, EngRgb(16, 12, 10, 170));
+	for (int32 Index = 0; Index < Choices.Num(); ++Index)
+	{
+		const float Angle = -HALF_PI + 2.0f * PI * Index / Choices.Num();
+		const FVector2D At = Centre + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * Radius;
+		const FVaelGear* Gear = Choices[Index] == VaelEngineerGear::Standard ? nullptr : VaelEngineerGear::Find(Choices[Index]);
+		const FLinearColor Color = Gear != nullptr ? Gear->Color : EngRgb(140, 128, 112);
+		const bool bOn = Choices[Index] == Chosen;
+		DrawDisc(At, (bOn ? 13.0f : 9.0f) * S, bOn ? EngRgb(240, 200, 130) : EngRgb(60, 48, 40));
+		DrawDisc(At, (bOn ? 10.0f : 7.0f) * S, Color);
+		if (Gear != nullptr)
+		{
+			DrawLabel(FText::AsNumber(Engineer->GetCarried(Gear->Id)), At.X, At.Y + 12.0f * S, 10.0f * S, EngRgb(226, 214, 190), 0.5f);
+		}
+	}
+	const FVaelGear* ChosenGear = Chosen == VaelEngineerGear::Standard ? nullptr : VaelEngineerGear::Find(Chosen);
+	const FText Name = ChosenGear != nullptr ? ChosenGear->Name : Engineer->GetAmmoName();
+	DrawLabel(Name, Centre.X, Centre.Y - 16.0f * S, 13.0f * S, EngRgb(240, 228, 204), 0.5f);
+	if (Engineer->IsGrabbing())
+	{
+		DrawLabel(Engineer->IsGrabFromPack() ? LOCTEXT("FromPack", "Rucksack \u00B7 1,2 s") : LOCTEXT("FromPouch", "Beutel \u00B7 0,35 s"), Centre.X, Centre.Y + 2.0f * S, 10.0f * S,
+			Engineer->IsGrabFromPack() ? EngRgb(214, 150, 96) : EngRgb(150, 214, 140), 0.5f);
+		const float BarWidth = 60.0f * S;
+		DrawBox(Centre.X - BarWidth * 0.5f, Centre.Y + 18.0f * S, BarWidth, 4.0f * S, EngRgb(40, 30, 24));
+		DrawBox(Centre.X - BarWidth * 0.5f, Centre.Y + 18.0f * S, BarWidth * Engineer->GetGrabFraction(), 4.0f * S, EngRgb(206, 140, 70));
+	}
+}
+
 void AVaelHUD::DrawEngineerLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth)
 {
 	const UVaelEngineerComponent* Engineer = Player->GetEngineer();

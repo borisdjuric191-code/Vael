@@ -1843,6 +1843,24 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}), 0.1f, true, 1.0f);
 		return;
 	}
+	if (What == TEXT("griff"))
+	{
+		// Everything built, the pouches emptied into the backpack: one reach from the pouch, one from the backpack (logged)
+		VaelIngenieur(TEXT("alles"));
+		Engineer->CycleAmmo(1);
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: reach for %s from %s, pouch tier %d"), *Engineer->GetGrabAmmo().ToString(), Engineer->IsGrabFromPack() ? TEXT("backpack") : TEXT("pouch"), Engineer->GetPouchTier());
+		// keep turning the wheel for the screenshot
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
+		FTimerHandle Turn;
+		GetWorld()->GetTimerManager().SetTimer(Turn, FTimerDelegate::CreateLambda([WeakEng]()
+		{
+			if (WeakEng.IsValid() && !WeakEng->IsGrabbing())
+			{
+				WeakEng->CycleAmmo(1);
+			}
+		}), 0.7f, true);
+		return;
+	}
 	if (What == TEXT("beute"))
 	{
 		VaelEngineerGear::LoadMaterial(TEXT("Schlacke"));

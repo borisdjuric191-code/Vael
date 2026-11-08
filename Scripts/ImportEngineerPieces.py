@@ -8,7 +8,8 @@ import unreal
 SOURCE = "C:/Projekte/Vael_Quellen/Ingenieur/export"
 FOLDER = "/Game/Vael/Characters/Ingenieur/Werkstuecke"
 KIT = "/Game/Vael/Refugium/Glutkammer/Probe"
-PIECES = ["SM_Ing_Schleuder", "SM_Ing_Bogen", "SM_Ing_Armbrust", "SM_Ing_Fangeisen", "SM_Ing_Knallmine", "SM_Ing_Schleuderturm"]
+PIECES = ["SM_Ing_Schleuder", "SM_Ing_Bogen", "SM_Ing_Armbrust", "SM_Ing_Fangeisen", "SM_Ing_Knallmine", "SM_Ing_Schleuderturm",
+          "SM_Ing_Rucksack", "SM_Ing_Beutel_Leder", "SM_Ing_Beutel_Panzer", "SM_Ing_Beutel_Seide", "SM_Ing_Brille"]
 SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut", "Moos": "M_GK_Moos"}
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()

@@ -216,9 +216,68 @@ def build_turret():
     gk.export(obj)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN"):
     os.makedirs(gk.OUT, exist_ok=True)
     for build in (build_sling, build_bow, build_crossbow, build_trap, build_mine, build_turret):
         gk.clear_scene()
         build()
     gk.log("Werkstuecke des Ingenieurs fertig")
+
+
+# ---------------------------------------------------------------- what he carries (2026-11-08): backpack, pouches, goggles
+# Pivots: the backpack at the middle of its back side (it hangs on the upper spine, +X away from the body),
+# the pouches at the belt (a ring of pouches around the hip, radius 0.17), the goggles at the middle of the band.
+
+def build_backpack():
+    obj = gk.new_object("SM_Ing_Rucksack", SLOTS)
+    b = gk.Builder()
+    box(b, Vector((0.12, 0, -0.05)), (0.2, 0.34, 0.42), LEDER)
+    box(b, Vector((0.12, 0, 0.17)), (0.22, 0.36, 0.04), LEDER, pitch=0.12)          # flap
+    for side in (-1, 1):
+        b.tube([Vector((0.0, side * 0.12, 0.15)), Vector((-0.04, side * 0.13, 0.05)), Vector((-0.02, side * 0.12, -0.2))], [0.012] * 3, LEDER, sides=5)
+        b.tube([Vector((0.23, side * 0.1, 0.1)), Vector((0.235, side * 0.1, -0.15))], [0.008, 0.008], METALL, sides=4)   # buckles
+    # a rolled blanket on top, a coil of thread and a hammer hanging at the side
+    b.tube([Vector((0.12, -0.2, 0.24)), Vector((0.12, 0.2, 0.24))], [0.06, 0.06], FADEN, sides=10)
+    lathe(b, [(0.03, 0.0), (0.06, 0.0), (0.06, 0.04), (0.03, 0.04)], FADEN, Vector((0.2, 0.19, -0.12)), sides=10, axis=Matrix.Rotation(math.pi / 2, 3, "X"))
+    b.tube([Vector((0.18, -0.2, 0.0)), Vector((0.18, -0.21, -0.22))], [0.01, 0.01], HOLZ, sides=5)
+    box(b, Vector((0.18, -0.21, -0.24)), (0.04, 0.03, 0.08), METALL)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_pouches(name, material, size, count):
+    obj = gk.new_object(name, SLOTS)
+    b = gk.Builder()
+    # the belt
+    ring = [Vector((math.cos(a) * 0.17, math.sin(a) * 0.15, 0.0)) for a in [2 * math.pi * k / 16 for k in range(17)]]
+    b.tube(ring, [0.015] * len(ring), LEDER, sides=4, flat=0.3, cap_end=False)
+    for k in range(count):
+        a = math.radians(-50 + k * (100 / max(count - 1, 1)) + 180)       # on the back and the sides of the hip
+        centre = Vector((math.cos(a) * 0.19, math.sin(a) * 0.17, -0.04))
+        box(b, centre, (size * 0.6, size, size * 1.2), material, yaw=a)
+        box(b, centre + Vector((0, 0, size * 0.62)), (size * 0.66, size * 1.05, size * 0.12), LEDER, yaw=a)
+        disc(b, centre + Vector((math.cos(a) * size * 0.31, math.sin(a) * size * 0.31, size * 0.35)), size * 0.08, Vector((math.cos(a), math.sin(a), 0)), METALL)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_goggles():
+    obj = gk.new_object("SM_Ing_Brille", SLOTS)
+    b = gk.Builder()
+    for side in (-1, 1):
+        centre = Vector((0.09, side * 0.035, 0.0))
+        lathe(b, [(0.024, -0.01), (0.026, 0.0), (0.026, 0.012), (0.022, 0.014)], METALL, centre, sides=14, axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+        disc(b, centre + Vector((0.014, 0, 0)), 0.022, Vector((1, 0, 0)), GLUT, glow=0.25, sides=14)
+    # band round the head
+    band = [Vector((0.09 * math.cos(a) - 0.0, 0.08 * math.sin(a), 0.0)) for a in [math.radians(-70 + k * 14) for k in range(-10, 11)]]
+    b.tube(band, [0.008] * len(band), LEDER, sides=4, flat=0.4, cap_end=False)
+    b.finish(obj)
+    gk.export(obj)
+
+
+if __name__ == "__main__" and os.environ.get("VAEL_ING_TRAGEN"):
+    for build in (build_backpack, lambda: build_pouches("SM_Ing_Beutel_Leder", LEDER, 0.07, 3),
+                  lambda: build_pouches("SM_Ing_Beutel_Panzer", METALL, 0.08, 4), lambda: build_pouches("SM_Ing_Beutel_Seide", FADEN, 0.09, 5), build_goggles):
+        gk.clear_scene()
+        build()
+    gk.log("Traggut des Ingenieurs fertig")

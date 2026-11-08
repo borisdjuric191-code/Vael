@@ -1256,6 +1256,7 @@ float AVaelCharacter::AbsorbIncoming(float Damage)
 	if (IsEngineer())
 	{
 		Damage = Engineer->ScaleIncoming(Damage);
+		Engineer->OnHurt();
 	}
 	if (HeartShieldLeft <= 0.0f || GetWorld()->GetTimeSeconds() > HeartShieldEndTime)
 	{

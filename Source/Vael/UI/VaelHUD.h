@@ -158,6 +158,7 @@ private:
 	void DrawSeedLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth);
 
 	/** The engineer instead of elements: weapon and reload, the shot, the device (VaelHUDEngineer.cpp) */
+	void DrawEngineerWheel(const AVaelPlayerController* PlayerController);
 	void DrawEngineerLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth);
 
 	/** Draws a closed book of the compendium series: cover in its color, strap and seal; lit if it is the open one */

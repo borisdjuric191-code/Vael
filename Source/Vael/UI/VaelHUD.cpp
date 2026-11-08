@@ -248,6 +248,10 @@ void AVaelHUD::DrawHUD()
 	DrawInteractPrompts(PlayerControllers);
 	DrawFormulaNames(PlayerControllers);
 	DrawAimTargets(PlayerControllers);
+	for (const AVaelPlayerController* WheelController : PlayerControllers)
+	{
+		DrawEngineerWheel(WheelController);
+	}
 	DrawObservation(PlayerControllers);
 
 	float NoticeTop = 70.0f * UiScale;

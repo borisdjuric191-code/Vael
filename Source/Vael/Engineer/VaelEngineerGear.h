@@ -144,4 +144,6 @@ namespace VaelEngineerGear
 	inline const FName LensFog = TEXT("LinseGlimm");
 	inline const FName LensMark = TEXT("LinseNid");
 	inline const FName LensBreak = TEXT("LinseStern");
+	inline const FName PouchArmor = TEXT("Panzerbeutel");
+	inline const FName PouchSilk = TEXT("Seidenbeutel");
 }

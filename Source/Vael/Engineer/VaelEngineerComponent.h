@@ -84,6 +84,23 @@ public:
 	/** The crossbow holds two bolts, then reloads for 1.4 s */
 	int32 GetMagazine() const { return Magazine; }
 
+	/** Reaching for a shot: from the pouches at the belt 0.35 s, from the backpack 1.2 s, and a hit stops a reach into the
+	 *  backpack. While he reaches he doesn't shoot. */
+	bool IsGrabbing() const { return !GrabAmmo.IsNone(); }
+	FName GetGrabAmmo() const { return GrabAmmo; }
+	bool IsGrabFromPack() const { return bGrabFromPack; }
+	float GetGrabFraction() const;
+	float GetSecondsSinceCycle() const { return Now() - LastCycle; }
+
+	/** The shots he can reach for: the endless one, then every kind in the pouches or the backpack */
+	TArray<FName> GetAmmoChoices() const;
+
+	/** He was hit: a reach into the backpack is lost */
+	void OnHurt();
+
+	/** Pouches at the belt: 0 leather (20 shots, 2 devices), 1 armour (30, 3), 2 silk (40, 4) */
+	int32 GetPouchTier() const;
+
 	/** Shots of the sling in a row (the fourth is the Hagel: five stones at 40 % each) */
 	int32 GetHagelCount() const { return HagelCount; }
 
@@ -197,6 +214,28 @@ private:
 	FName Weapon;
 	FName Ammo;
 	float DrawStart = -1.0f;
+	FName GrabAmmo;
+	float GrabStart = 0.0f;
+	float GrabEnd = 0.0f;
+	bool bGrabFromPack = false;
+	float LastCycle = -100.0f;
+	void BeginGrab(FName Id);
+
+	/** What he carries on the body: the backpack, the pouches of their tier, the goggles once built */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> PackMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> PouchMesh;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> GogglesMesh;
+
+	int32 ShownPouchTier = -1;
+	bool bShownGoggles = false;
+	bool bShownPack = false;
+	void UpdateCarriedMeshes();
+	UStaticMeshComponent* AttachPiece(UStaticMeshComponent* Existing, const TCHAR* Name, const TCHAR* Piece, FName Bone, const FTransform& InActorSpace);
 	int32 Magazine = 2;
 	float ReloadEnd = 0.0f;
 	int32 HagelCount = 0;
