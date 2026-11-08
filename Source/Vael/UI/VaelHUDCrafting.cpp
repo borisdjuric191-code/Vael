@@ -54,6 +54,15 @@ namespace
 		case EVaelAmmoEffect::Poison: return LOCTEXT("EffPoison", "Gift: 6 Sekunden Schaden, das Ziel taumelt");
 		case EVaelAmmoEffect::Acid: return LOCTEXT("EffAcid", "Säure: 8 Sekunden mehr Schaden von allem");
 		case EVaelAmmoEffect::Heal: return LOCTEXT("EffHeal", "Heilt die Gefährten am Aufschlag um 22");
+		case EVaelAmmoEffect::Heavy: return LOCTEXT("EffHeavy", "Wirft zurück und betäubt 0,8 Sekunden");
+		case EVaelAmmoEffect::Sticky: return LOCTEXT("EffSticky", "6 Sekunden halb so schnell");
+		case EVaelAmmoEffect::Smoke: return LOCTEXT("EffSmoke", "Rauchwolke: Gegner darin taumeln 4 Sekunden");
+		case EVaelAmmoEffect::Crackle: return LOCTEXT("EffCrackle", "Feuerkette um das Ziel, zündet Minen in 4 m");
+		case EVaelAmmoEffect::Sleep: return LOCTEXT("EffSleep", "Schwache Gegner schlafen 5 Sekunden, starke werden träge");
+		case EVaelAmmoEffect::Glow: return LOCTEXT("EffGlow", "Leuchtet 10 Sekunden, nimmt mehr Schaden");
+		case EVaelAmmoEffect::Thorn: return LOCTEXT("EffThorn", "Blutet 6 Sekunden");
+		case EVaelAmmoEffect::Dew: return LOCTEXT("EffDew", "Nass: Feuer aus, Blitz trifft doppelt");
+		case EVaelAmmoEffect::Nid: return LOCTEXT("EffNid", "Doppelter Schaden, +1,5 Nid je Schuss");
 		default: return FText::GetEmpty();
 		}
 	}

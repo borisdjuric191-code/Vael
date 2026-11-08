@@ -32,7 +32,25 @@ enum class EVaelAmmoEffect : uint8
 	/** Eats the armour: the target takes more from everything */
 	Acid,
 	/** Heals the players around where it lands, hurts nobody */
-	Heal
+	Heal,
+	/** Schwerer Stein: knocks the target back and stuns it for a moment */
+	Heavy,
+	/** Klebe: glue holds the target, it moves slowly for a while */
+	Sticky,
+	/** Rauch: a cloud where it lands, enemies in it lose their target and stagger */
+	Smoke,
+	/** Knister: crackling seeds burst in a small chain of fire round the target and set off his mines nearby */
+	Crackle,
+	/** Schlaf: weak enemies fall asleep, strong ones grow sluggish */
+	Sleep,
+	/** Leucht: the target glows and takes more damage from everyone */
+	Glow,
+	/** Dorn: thorns stay in the wound, it bleeds */
+	Thorn,
+	/** Tau: water, the target is wet (lightning hits harder, fire goes out) */
+	Dew,
+	/** Nid: very hard, but every shot pulls Die Waage of the shooter towards shadow */
+	Nid
 };
 
 /** What a device does */

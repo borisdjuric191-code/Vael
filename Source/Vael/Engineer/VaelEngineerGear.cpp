@@ -196,6 +196,35 @@ namespace
 		All.Add(MakeAmmo(TEXT("Heil"), LOCTEXT("Heil", "Heilladung"),
 			LOCTEXT("HeilText", "Lichttropfen und Blatttau in dünnem Glas: platzt bei den Gefährten und heilt sie, verletzt niemanden."),
 			GearRgb(250, 226, 150), { { TEXT("Lichttropfen"), 1 }, { TEXT("Blatttau"), 1 } }, None, EVaelAmmoEffect::Heal, 0.0f));
+		// Goal 8.11. evening: nine more, all from materials the Aschenmark and the Wurzelforst already give
+		All.Add(MakeAmmo(TEXT("Schwer"), LOCTEXT("Schwer", "Schwerer Stein"),
+			LOCTEXT("SchwerText", "Schlacke in Rollpanzer gegossen: wirft das Ziel zur\u00FCck und bet\u00E4ubt es kurz."),
+			GearRgb(120, 116, 112), { { TEXT("Schlacke"), 1 }, { TEXT("Rollpanzer"), 1 } }, None, EVaelAmmoEffect::Heavy, 1.3f));
+		All.Add(MakeAmmo(TEXT("Klebe"), LOCTEXT("Klebe", "Klebeladung"),
+			LOCTEXT("KlebeText", "Kelchschleim in Kokonseide: das Ziel klebt fest und bewegt sich 6 Sekunden zur H\u00E4lfte so schnell."),
+			GearRgb(210, 196, 120), { { TEXT("Kelchschleim"), 1 }, { TEXT("Kokonseide"), 1 } }, None, EVaelAmmoEffect::Sticky, 0.6f));
+		All.Add(MakeAmmo(TEXT("Rauch"), LOCTEXT("Rauch", "Rauchladung"),
+			LOCTEXT("RauchText", "Eine Rauchblase in Ru\u00DFmoos: eine Wolke, in der Gegner das Ziel verlieren und taumeln."),
+			GearRgb(110, 106, 104), { { TEXT("Rauchblase"), 1 }, { TEXT("Russmoos"), 1 } }, None, EVaelAmmoEffect::Smoke, 0.3f));
+		All.Add(MakeAmmo(TEXT("Knister"), LOCTEXT("Knister", "Knisterladung"),
+			LOCTEXT("KnisterText", "Knistersamen um einen Glutstein: zerplatzt in einer kleinen Feuerkette und z\u00FCndet seine Minen in der N\u00E4he."),
+			GearRgb(250, 160, 60), { { TEXT("Knistersamen"), 1 }, { TEXT("Glutstein"), 1 } }, TEXT("Brand"), EVaelAmmoEffect::Crackle, 0.9f));
+		All.Add(MakeAmmo(TEXT("Schlaf"), LOCTEXT("Schlaf", "Schlafladung"),
+			LOCTEXT("SchlafText", "Schwarzmohn und Mohnbl\u00FCten zerstampft: schwache Gegner schlafen ein, starke werden tr\u00E4ge."),
+			GearRgb(120, 70, 140), { { TEXT("Schwarzmohnblatt"), 1 }, { TEXT("Mohnbluetenblatt"), 1 } }, None, EVaelAmmoEffect::Sleep, 0.3f));
+		All.Add(MakeAmmo(TEXT("Leucht"), LOCTEXT("Leucht", "Leuchtladung"),
+			LOCTEXT("LeuchtText", "Sternmilch in Glimmstroh: das Ziel leuchtet, auch nachts, und nimmt 10 Sekunden mehr Schaden von allen."),
+			GearRgb(230, 240, 255), { { TEXT("Sternmilch"), 1 }, { TEXT("Glimmstroh"), 1 } }, None, EVaelAmmoEffect::Glow, 0.7f));
+		All.Add(MakeAmmo(TEXT("Dorn"), LOCTEXT("Dorn", "Dornladung"),
+			LOCTEXT("DornText", "Dornpollen in Rankenfaser: die Dornen bleiben in der Wunde, sie blutet 6 Sekunden."),
+			GearRgb(150, 40, 40), { { TEXT("Dornpollen"), 1 }, { TEXT("Rankenfaser"), 1 } }, None, EVaelAmmoEffect::Thorn, 0.9f));
+		All.Add(MakeAmmo(TEXT("Tau"), LOCTEXT("Tau", "Tauladung"),
+			LOCTEXT("TauText", "Pelzwasser und Blatttau in einer Wachshaut: das Ziel ist nass, Feuer geht aus, Blitze treffen doppelt."),
+			GearRgb(110, 170, 220), { { TEXT("Pelzwasser"), 1 }, { TEXT("Blatttau"), 1 } }, None, EVaelAmmoEffect::Dew, 0.7f));
+		All.Add(MakeAmmo(TEXT("Nid"), LOCTEXT("Nid", "Nidladung"),
+			LOCTEXT("NidText", "Ein Nidkristall mit Schwarzfunken: trifft doppelt so hart, aber jeder Schuss zieht seine Waage zum Schatten."),
+			GearRgb(110, 40, 120), { { TEXT("Nidkristall"), 1 }, { TEXT("Schwarzfunken"), 1 } }, None, EVaelAmmoEffect::Nid, 2.0f));
+		All.Last().bNeedsPlan = true;
 
 		// --- Devices: laid out before the fight, set off with a shot (lore: like the mercenary, placing and igniting)
 		All.Add(MakeDevice(TEXT("Fangeisen"), LOCTEXT("Fangeisen", "Fangeisen"),

@@ -1860,6 +1860,82 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: figure height %.2f build %.2f, mesh scale %s"), Player->GetFigureHeight(), Player->GetFigureBuild(), *Player->GetMesh()->GetRelativeScale3D().ToString());
 		return;
 	}
+	if (What == TEXT("munition"))
+	{
+		// Goal 8.11. evening, step 9: the new shots one after another at the nearest enemy (Id: only this one), each hit logged
+		// with the target's health and statuses
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		TArray<FName> Kinds = { TEXT("Schwer"), TEXT("Klebe"), TEXT("Rauch"), TEXT("Knister"), TEXT("Schlaf"), TEXT("Leucht"), TEXT("Dorn"), TEXT("Tau"), TEXT("Nid") };
+		if (!Id.IsEmpty())
+		{
+			Kinds = { FName(*Id) };
+		}
+		Engineer->Build(TEXT("Brand"), true); // Knister needs it
+		for (const FName Kind : Kinds)
+		{
+			Engineer->Build(Kind, true);
+			Engineer->ReadyFromStock(Kind);
+		}
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		TSharedRef<FTimerHandle> Loop = MakeShared<FTimerHandle>();
+		TSharedRef<int32> Next = MakeShared<int32>(0);
+		GetWorld()->GetTimerManager().SetTimer(*Loop, FTimerDelegate::CreateLambda([WeakEng, WeakPlayer, Loop, Next, Kinds]()
+		{
+			if (!WeakEng.IsValid() || !WeakPlayer.IsValid())
+			{
+				return;
+			}
+			AVaelCharacterBase* Target = nullptr;
+			float Best = 2500.0f;
+			for (TActorIterator<AVaelCharacterBase> It(WeakPlayer->GetWorld()); It; ++It)
+			{
+				const float Dist = FVector::Dist(It->GetActorLocation(), WeakPlayer->GetActorLocation());
+				if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && Dist < Best)
+				{
+					Best = Dist;
+					Target = *It;
+				}
+			}
+			if (Target == nullptr || *Next >= Kinds.Num())
+			{
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur munition: done after %d shots, balance %.1f"), *Next,
+					UVaelBalanceSubsystem::GetPlayer(WeakPlayer.Get()));
+				WeakPlayer->GetWorld()->GetTimerManager().ClearTimer(*Loop);
+				return;
+			}
+			const FName Kind = Kinds[*Next];
+			WeakPlayer->SetActorRotation((Target->GetActorLocation() - WeakPlayer->GetActorLocation()).GetSafeNormal2D().Rotation());
+			WeakEng->SetAmmo(Kind);
+			const float Before = Target->GetHealth();
+			const bool bFired = WeakEng->Fire(Target->GetActorLocation());
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur munition %s: fired %d at %.0f cm, %d left"), *Kind.ToString(), bFired, Best, WeakEng->GetCarried(Kind));
+			++*Next;
+			TWeakObjectPtr<AVaelCharacterBase> WeakTarget = Target;
+			FTimerHandle Report;
+			WeakPlayer->GetWorld()->GetTimerManager().SetTimer(Report, FTimerDelegate::CreateLambda([WeakTarget, Kind, Before]()
+			{
+				if (!WeakTarget.IsValid())
+				{
+					UE_LOG(LogVael, Log, TEXT("VaelIngenieur munition %s: target gone"), *Kind.ToString());
+					return;
+				}
+				FString Statuses;
+				for (EVaelStatus Status : { EVaelStatus::Wet, EVaelStatus::Burning, EVaelStatus::Frozen, EVaelStatus::Slowed, EVaelStatus::Marked, EVaelStatus::Confused })
+				{
+					if (UVaelCombatStatics::HasStatus(WeakTarget.Get(), Status))
+					{
+						Statuses += UEnum::GetValueAsString(Status) + TEXT(" ");
+					}
+				}
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur munition %s: %s %.0f -> %.0f [%s]"), *Kind.ToString(), *WeakTarget->GetName(), Before,
+					WeakTarget->GetHealth(), *Statuses);
+			}), 0.9f, false);
+		}), 2.0f, true, 1.0f);
+		return;
+	}
 	if (What == TEXT("bruch"))
 	{
 		// A dummy 6 m ahead facing the player: stones at its head until it breaks

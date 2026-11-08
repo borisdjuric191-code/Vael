@@ -22,6 +22,10 @@
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelSpellEffects.h"
+#include "NiagaraSystem.h"
+#include "VaelAssets.h"
+#include "World/VaelBalance.h"
 #include "Engine/SkeletalMesh.h"
 #include "TimerManager.h"
 
@@ -989,7 +993,9 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("WeakSpot", "Schwachstelle"));
 		}
 	}
-	UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Scaled, Effect == EVaelAmmoEffect::Fire ? EVaelElement::Fire : EVaelElement::Earth);
+	const EVaelElement Element = Effect == EVaelAmmoEffect::Fire || Effect == EVaelAmmoEffect::Crackle ? EVaelElement::Fire
+		: Effect == EVaelAmmoEffect::Dew ? EVaelElement::Water : EVaelElement::Earth;
+	UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Scaled, Element);
 	if (!WeaponId.IsNone())
 	{
 		HitPart(Enemy, Scaled, LastZone);
@@ -1010,6 +1016,49 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 		break;
 	case EVaelAmmoEffect::Acid:
 		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, 8.0f);
+		break;
+	case EVaelAmmoEffect::Heavy:
+	{
+		FVaelSpellHit Push;
+		Push.Damage = 0.0f;
+		Push.Element = EVaelElement::Earth;
+		Push.Knockback = 650.0f;
+		Push.Status = EVaelStatus::Frozen;
+		Push.StatusDuration = 0.8f;
+		UVaelCombatStatics::ApplyNatureHit(Enemy, Push, (Enemy->GetActorLocation() - From).GetSafeNormal2D());
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Stunned", "Bet\u00E4ubt"));
+		break;
+	}
+	case EVaelAmmoEffect::Sticky:
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Slowed, 6.0f);
+		break;
+	case EVaelAmmoEffect::Smoke:
+	case EVaelAmmoEffect::Crackle:
+		ApplyBurst(Location, ShotAmmo, Damage);
+		break;
+	case EVaelAmmoEffect::Sleep:
+		if (Enemy->GetMaxHealth() <= 160.0f)
+		{
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Frozen, 5.0f);
+			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Asleep", "Schl\u00E4ft"));
+		}
+		else
+		{
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Slowed, 4.0f);
+		}
+		break;
+	case EVaelAmmoEffect::Glow:
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, 10.0f);
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Lit", "Leuchtet"));
+		break;
+	case EVaelAmmoEffect::Thorn:
+		Poisons.Add({ Enemy, 4.0f, Now() + 6.0f });
+		break;
+	case EVaelAmmoEffect::Dew:
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Wet, 8.0f);
+		break;
+	case EVaelAmmoEffect::Nid:
+		UVaelBalanceSubsystem::ChangePlayer(GetOwner(), 1.5f, LOCTEXT("NidShot", "Nidladung"));
 		break;
 	default:
 		break;
@@ -1084,6 +1133,46 @@ void UVaelEngineerComponent::ApplyBurst(const FVector& Location, FName ShotAmmo,
 			if (!It->IsDowned() && FVector::Dist2D(It->GetActorLocation(), Location) < 320.0f)
 			{
 				UVaelCombatStatics::Heal(*It, 22.0f);
+			}
+		}
+		return;
+	}
+
+	// Smoke: a cloud on the spot, everything in it staggers and loses its target
+	if (Effect == EVaelAmmoEffect::Smoke)
+	{
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->SteamEffect), Location, FRotator::ZeroRotator, FLinearColor(0.32f, 0.3f, 0.29f), 300.0f);
+		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && FVector::Dist2D(It->GetActorLocation(), Location) < 340.0f)
+			{
+				UVaelCombatStatics::ApplyStatus(GetOwner(), *It, EVaelStatus::Confused, 4.0f);
+			}
+		}
+		return;
+	}
+	// Crackle: three small bursts of fire round the spot, burning what they hit, and his mines nearby go off
+	if (Effect == EVaelAmmoEffect::Crackle)
+	{
+		UNiagaraSystem* Burst = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect);
+		for (int32 Pop = 0; Pop < 3; ++Pop)
+		{
+			const FVector At = Location + FRotator(0.0f, Pop * 120.0f + FMath::FRandRange(-20.0f, 20.0f), 0.0f).RotateVector(FVector(140.0f, 0.0f, 0.0f));
+			VaelEffects::SpawnAt(this, Burst, At, FRotator::ZeroRotator, FLinearColor(1.0f, 0.45f, 0.1f), 90.0f);
+			for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+			{
+				if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && UVaelCombatStatics::CanDamage(GetOwner(), *It) && FVector::Dist2D(It->GetActorLocation(), At) < 170.0f)
+				{
+					UVaelCombatStatics::DealDamage(GetOwner(), *It, Damage * 0.35f, EVaelElement::Fire);
+					UVaelCombatStatics::ApplyStatus(GetOwner(), *It, EVaelStatus::Burning, 2.0f, 3.0f);
+				}
+			}
+		}
+		for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+		{
+			if (It->GetEngineer() == this && FVector::Dist2D(It->GetActorLocation(), Location) < 400.0f)
+			{
+				OnDeviceShot(*It, VaelEngineerGear::Find(TEXT("Brand")) != nullptr ? FName(TEXT("Brand")) : ShotAmmo);
 			}
 		}
 		return;
