@@ -1,0 +1,390 @@
+{
+ "haushalte": {
+  "Aschenmark/dorf/A": {
+   "familie": "Fuhrmenn",
+   "kultur": "mitteleuropa"
+  },
+  "Aschenmark/hof/A": {
+   "familie": "Zimmsen",
+   "kultur": "mitteleuropa"
+  },
+  "Aschenmark/lager/A": {
+   "familie": "Castilla Fernándes",
+   "kultur": "iberien"
+  },
+  "Aschenmark/lager/B": {
+   "kultur": "aethiopien",
+   "vater": "Fikemu",
+   "vater_ist_mitglied": true
+  }
+ },
+ "personen": {
+  "Aschenmark/dorf/1": {
+   "familie_kultur": "westafrika",
+   "geschlecht": "f",
+   "kultur": "westafrika",
+   "name": "Morenikwe Darkwo"
+  },
+  "Aschenmark/dorf/2": {
+   "familie_kultur": "suedasien",
+   "geschlecht": "m",
+   "kultur": "suedasien",
+   "name": "Surosh Kapaor"
+  },
+  "Aschenmark/dorf/3": {
+   "familie_kultur": "amerika",
+   "geschlecht": "m",
+   "kultur": "amerika",
+   "name": "Ollan Ticoni"
+  },
+  "Aschenmark/dorf/4": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "haushalt": "Aschenmark/dorf/A",
+   "kultur": "mitteleuropa",
+   "name": "Kosper Fuhrmenn"
+  },
+  "Aschenmark/dorf/5": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "f",
+   "haushalt": "Aschenmark/dorf/A",
+   "kultur": "mitteleuropa",
+   "name": "Ilsa Fuhrmenn"
+  },
+  "Aschenmark/dorf/6": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "haushalt": "Aschenmark/dorf/A",
+   "kultur": "mitteleuropa",
+   "name": "Hegen Fuhrmenn"
+  },
+  "Aschenmark/einsiedlerin/1": {
+   "familie_kultur": "polynesien",
+   "geschlecht": "f",
+   "kultur": "amerika",
+   "name": "Xóchutl Faleole"
+  },
+  "Aschenmark/fuhrleute/1": {
+   "familie_kultur": "korea",
+   "geschlecht": "f",
+   "kultur": "korea",
+   "name": "Sung Mi-ah"
+  },
+  "Aschenmark/fuhrleute/2": {
+   "familie_kultur": "suedasien",
+   "geschlecht": "f",
+   "kultur": "suedasien",
+   "name": "Rukha Mehtha"
+  },
+  "Aschenmark/fuhrleute/3": {
+   "familie_kultur": "norden",
+   "geschlecht": "m",
+   "kultur": "norden",
+   "name": "Sigard Sondresson"
+  },
+  "Aschenmark/glutjaeger/1": {
+   "familie_kultur": "china",
+   "geschlecht": "f",
+   "kultur": "china",
+   "name": "Xi Qingyue"
+  },
+  "Aschenmark/glutjaeger/2": {
+   "familie_kultur": "suedasien",
+   "geschlecht": "f",
+   "kultur": "suedasien",
+   "name": "Taya Banerjan"
+  },
+  "Aschenmark/glutjaeger/3": {
+   "familie_kultur": "arabien",
+   "geschlecht": "f",
+   "kultur": "arabien",
+   "name": "Risha Bikr"
+  },
+  "Aschenmark/glutjaeger/4": {
+   "familie_kultur": "polynesien",
+   "geschlecht": "m",
+   "kultur": "polynesien",
+   "name": "Kihu Rāwili"
+  },
+  "Aschenmark/hof/1": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "f",
+   "haushalt": "Aschenmark/hof/A",
+   "kultur": "mitteleuropa",
+   "name": "Hedta Zimmsen"
+  },
+  "Aschenmark/hof/2": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "haushalt": "Aschenmark/hof/A",
+   "kultur": "mitteleuropa",
+   "name": "Volkar Zimmsen"
+  },
+  "Aschenmark/hof/3": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "f",
+   "haushalt": "Aschenmark/hof/A",
+   "kultur": "mitteleuropa",
+   "name": "Wiebka Zimmsen"
+  },
+  "Aschenmark/hof/4": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "haushalt": "Aschenmark/hof/A",
+   "kultur": "mitteleuropa",
+   "name": "Arna Zimmsen"
+  },
+  "Aschenmark/kontor/2": {
+   "familie_kultur": "norden",
+   "geschlecht": "m",
+   "kultur": "norden",
+   "name": "Raknar Einardsson"
+  },
+  "Aschenmark/kontor/3": {
+   "familie_kultur": "aethiopien",
+   "geschlecht": "f",
+   "kultur": "aethiopien",
+   "name": "Hiwots Ermiaz"
+  },
+  "Aschenmark/kontor/4": {
+   "familie_kultur": "suedasien",
+   "geschlecht": "f",
+   "kultur": "suedasien",
+   "name": "Riksana Desao"
+  },
+  "Aschenmark/kontor/5": {
+   "familie_kultur": "indonesien",
+   "geschlecht": "m",
+   "kultur": "indonesien",
+   "name": "Tekuh Wijayu"
+  },
+  "Aschenmark/kontor/6": {
+   "familie_kultur": "persien",
+   "geschlecht": "f",
+   "kultur": "persien",
+   "name": "Parisha Restami"
+  },
+  "Aschenmark/kontor/7": {
+   "familie_kultur": "japan",
+   "geschlecht": "f",
+   "kultur": "japan",
+   "name": "Kobayasho Chiki"
+  },
+  "Aschenmark/kontor/8": {
+   "familie_kultur": "finnland",
+   "geschlecht": "f",
+   "kultur": "finnland",
+   "name": "Vönla Kärhoinen"
+  },
+  "Aschenmark/lager/10": {
+   "familie_kultur": "aethiopien",
+   "geschlecht": "f",
+   "haushalt": "Aschenmark/lager/B",
+   "kultur": "aethiopien",
+   "name": "Selem Bareket"
+  },
+  "Aschenmark/lager/3": {
+   "familie_kultur": "amerika",
+   "geschlecht": "f",
+   "kultur": "amerika",
+   "name": "Cutlali Condora"
+  },
+  "Aschenmark/lager/4": {
+   "familie_kultur": "westafrika",
+   "geschlecht": "m",
+   "kultur": "westafrika",
+   "name": "Yow Okunkwo"
+  },
+  "Aschenmark/lager/5": {
+   "familie_kultur": "iberien",
+   "geschlecht": "f",
+   "haushalt": "Aschenmark/lager/A",
+   "kultur": "iberien",
+   "name": "Amena Castilla Fernándes"
+  },
+  "Aschenmark/lager/6": {
+   "familie_kultur": "iberien",
+   "geschlecht": "m",
+   "haushalt": "Aschenmark/lager/A",
+   "kultur": "iberien",
+   "name": "Uno Castilla Fernándes"
+  },
+  "Aschenmark/lager/7": {
+   "familie_kultur": "iberien",
+   "geschlecht": "m",
+   "haushalt": "Aschenmark/lager/A",
+   "kultur": "iberien",
+   "name": "Aidor Castilla Fernándes"
+  },
+  "Aschenmark/lager/8": {
+   "familie_kultur": "aethiopien",
+   "geschlecht": "m",
+   "haushalt": "Aschenmark/lager/B",
+   "kultur": "aethiopien",
+   "name": "Fikemu Beniam"
+  },
+  "Aschenmark/lager/9": {
+   "familie_kultur": "aethiopien",
+   "geschlecht": "f",
+   "haushalt": "Aschenmark/lager/B",
+   "kultur": "aethiopien",
+   "name": "Mekdas Fikemu"
+  },
+  "Aschenmark/orden/1": {
+   "familie_kultur": "vietnam",
+   "geschlecht": "m",
+   "kultur": "vietnam",
+   "name": "Hi Bai"
+  },
+  "Aschenmark/orden/2": {
+   "familie_kultur": "vietnam",
+   "geschlecht": "m",
+   "kultur": "vietnam",
+   "name": "Vi Tuang"
+  },
+  "Aschenmark/orden/3": {
+   "familie_kultur": "korea",
+   "geschlecht": "m",
+   "kultur": "korea",
+   "name": "Shon Sang-sung"
+  },
+  "Aschenmark/orden/4": {
+   "familie_kultur": "iberien",
+   "geschlecht": "f",
+   "kultur": "iberien",
+   "name": "Groça Etxeberrio Pereara"
+  },
+  "Aschenmark/passwache/1": {
+   "familie_kultur": "tuerkei",
+   "geschlecht": "f",
+   "kultur": "polynesien",
+   "name": "Mihu Arslem"
+  },
+  "Aschenmark/passwache/2": {
+   "familie_kultur": "mongolei",
+   "geschlecht": "f",
+   "kultur": "mongolei",
+   "name": "Norantsetseg"
+  },
+  "Aschenmark/passwache/3": {
+   "familie_kultur": "indonesien",
+   "geschlecht": "m",
+   "kultur": "indonesien",
+   "name": "Hati Kusama"
+  },
+  "Aschenmark/passwache/4": {
+   "familie_kultur": "suedasien",
+   "geschlecht": "f",
+   "kultur": "suedasien",
+   "name": "Kivya Menin"
+  },
+  "Aschenmark/passwache/5": {
+   "familie_kultur": "tuerkei",
+   "geschlecht": "m",
+   "kultur": "tuerkei",
+   "name": "Burış Pılat"
+  },
+  "Aschenmark/passwache/6": {
+   "familie_kultur": "suedasien",
+   "geschlecht": "m",
+   "kultur": "suedasien",
+   "name": "Rahan Guptha"
+  },
+  "Aschenmark/predigerlager/1": {
+   "familie_kultur": "westafrika",
+   "geschlecht": "m",
+   "kultur": "westafrika",
+   "name": "Kwakwu Afolebi"
+  },
+  "Aschenmark/predigerlager/2": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "kultur": "mitteleuropa",
+   "name": "Gerolt Fuhrmenn"
+  },
+  "Aschenmark/predigerlager/3": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "kultur": "mitteleuropa",
+   "name": "Jennik Köhlsen"
+  },
+  "Aschenmark/predigerlager/4": {
+   "familie_kultur": "china",
+   "geschlecht": "m",
+   "kultur": "china",
+   "name": "Lao Fengwei"
+  },
+  "Aschenmark/predigerlager/5": {
+   "familie_kultur": "iberien",
+   "geschlecht": "m",
+   "kultur": "iberien",
+   "name": "Ikar Gorcía Iturbi"
+  },
+  "Aschenmark/predigerlager/6": {
+   "familie_kultur": "kelten",
+   "geschlecht": "f",
+   "kultur": "kelten",
+   "name": "Brenwen Le Gaff"
+  },
+  "Aschenmark/predigerlager/7": {
+   "familie_kultur": "amerika",
+   "geschlecht": "m",
+   "kultur": "amerika",
+   "name": "Ruma Quaspe"
+  },
+  "Aschenmark/predigerlager/8": {
+   "familie_kultur": "aethiopien",
+   "geschlecht": "f",
+   "kultur": "aethiopien",
+   "name": "Astir Yones"
+  },
+  "Aschenmark/schlackengraeber/1": {
+   "familie_kultur": "mongolei",
+   "geschlecht": "f",
+   "kultur": "mongolei",
+   "name": "Delgar"
+  },
+  "Aschenmark/schlackengraeber/2": {
+   "familie_kultur": "mongolei",
+   "geschlecht": "m",
+   "kultur": "mongolei",
+   "name": "Mankh"
+  },
+  "Aschenmark/schlackengraeber/3": {
+   "familie_kultur": "ostafrika",
+   "geschlecht": "m",
+   "kultur": "arabien",
+   "name": "Nisser Otiano"
+  },
+  "Aschenmark/schlackengraeber/4": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "kultur": "mitteleuropa",
+   "name": "Ansalm Wilters"
+  },
+  "Aschenmark/schlackengraeber/5": {
+   "familie_kultur": "mitteleuropa",
+   "geschlecht": "m",
+   "kultur": "mitteleuropa",
+   "name": "Jannek Windt"
+  },
+  "Aschenmark/schlackengraeber/6": {
+   "familie_kultur": "tuerkei",
+   "geschlecht": "m",
+   "kultur": "tuerkei",
+   "name": "Kerur Aydon"
+  },
+  "Aschenmark/windkante/1": {
+   "familie_kultur": "finnland",
+   "geschlecht": "f",
+   "kultur": "finnland",
+   "name": "Áili Kerhoinen"
+  },
+  "Aschenmark/windkante/2": {
+   "familie_kultur": "china",
+   "geschlecht": "f",
+   "kultur": "china",
+   "name": "Lua Ruoyan"
+  }
+ }
+}

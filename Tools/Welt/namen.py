@@ -252,6 +252,8 @@ class Namen:
                 c = self.kulturen[k]
                 if c["regel"] in ("vorname_familie", "familie_vorne", "zwei_familien") or (c["regel"] == "einzel" and c["familie"]):
                     haus["familie"] = self.familienname(k, r)
+                    if c["regel"] == "zwei_familien":
+                        haus["familie"] += " " + self.familienname(k, r)
                 if c["regel"] in ("vater", "patronym"):
                     haus["vater"] = self.vorname(k, "m", r)
             fk = haus["kultur"]
@@ -264,7 +266,11 @@ class Namen:
             person = {"name": name, "kultur": k, "familie_kultur": fk, "geschlecht": art}
             if haushalt:
                 person["haushalt"] = haushalt
-                self.vergeben["haushalte"].setdefault(haushalt, haus)
+                haus = self.vergeben["haushalte"].setdefault(haushalt, haus)
+                # the first man of a household that names children after their father is that father
+                if not kind and art == "m" and k == fk and self.kulturen[fk]["regel"] in ("vater", "patronym") and not haus.get("vater_ist_mitglied"):
+                    haus["vater"] = name.split(" ")[0]
+                    haus["vater_ist_mitglied"] = True
             self.vergeben["personen"][schluessel] = person
             self.belegt.add(fold(name))
             return person

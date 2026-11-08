@@ -1,0 +1,2435 @@
+{
+ "info": "Settlements and people of the Aschenmark (Tools/Welt/aschenmark_siedlungen.py). World metres: X north, Y east, Z ground; yaw in degrees in world XY (0 = north, 90 = east). Places: arbeit (day), feuer (evening), schlaf (night); halte for people on the road; no places = keeps its actor in L_Vael (bestehend or story person).",
+ "region": "Aschenmark",
+ "siedlungen": [
+  {
+   "id": "lager",
+   "name": "Lager der Überlebenden",
+   "typ": "lager",
+   "fraktion": "Ueberlebende",
+   "schnellreise": true,
+   "gerede": "Lager",
+   "mitte": {
+    "x": 563.5,
+    "y": 1038.5,
+    "z": 52.41,
+    "yaw": 0.0
+   },
+   "radius": 14.0,
+   "neu": false,
+   "gebaeude": [],
+   "leute": [
+    {
+     "rolle": "Anfuehrer",
+     "geschlecht": "f",
+     "alter": "alt",
+     "prophet": "Story",
+     "name": "Edda Krell",
+     "kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/lager/1",
+     "koerper": "schmal"
+    },
+    {
+     "rolle": "Gelehrter",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Story",
+     "name": "Albrun",
+     "kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/lager/2",
+     "koerper": "mittel"
+    },
+    {
+     "rolle": "Bauer",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "bestehend": "Ueberlebende 1",
+     "prophet": "Anhaenger",
+     "name": "Cutlali Condora",
+     "kultur": "amerika",
+     "familie_kultur": "amerika",
+     "schluessel": "Aschenmark/lager/3",
+     "koerper": "mittel",
+     "hilfsmittel": "Stock"
+    },
+    {
+     "rolle": "Bauer",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "bestehend": "Ueberlebende 2",
+     "prophet": "Gegner",
+     "name": "Yow Okunkwo",
+     "kultur": "westafrika",
+     "familie_kultur": "westafrika",
+     "schluessel": "Aschenmark/lager/4",
+     "koerper": "mittel"
+    },
+    {
+     "rolle": "Heiler",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "haushalt": "Aschenmark/lager/A",
+     "prophet": "Zweifler",
+     "name": "Amena Castilla Fernándes",
+     "kultur": "iberien",
+     "familie_kultur": "iberien",
+     "schluessel": "Aschenmark/lager/5",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 566.35,
+       "y": 1033.68,
+       "z": 52.41,
+       "yaw": 120.6
+      },
+      "feuer": {
+       "x": 559.63,
+       "y": 1036.28,
+       "z": 52.41,
+       "yaw": 29.8
+      },
+      "schlaf": {
+       "x": 574.84,
+       "y": 1034.9,
+       "z": 52.41,
+       "yaw": 162.4
+      }
+     }
+    },
+    {
+     "rolle": "Handwerker",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "haushalt": "Aschenmark/lager/A",
+     "prophet": "Anhaenger",
+     "name": "Uno Castilla Fernándes",
+     "kultur": "iberien",
+     "familie_kultur": "iberien",
+     "schluessel": "Aschenmark/lager/6",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 555.93,
+       "y": 1034.86,
+       "z": 52.41,
+       "yaw": -154.3
+      },
+      "feuer": {
+       "x": 563.25,
+       "y": 1032.74,
+       "z": 52.41,
+       "yaw": 87.6
+      },
+      "schlaf": {
+       "x": 574.65,
+       "y": 1031.2,
+       "z": 52.41,
+       "yaw": 146.8
+      }
+     }
+    },
+    {
+     "rolle": "Kind",
+     "geschlecht": "m",
+     "alter": "kind",
+     "haushalt": "Aschenmark/lager/A",
+     "prophet": "Zweifler",
+     "name": "Aidor Castilla Fernándes",
+     "kultur": "iberien",
+     "familie_kultur": "iberien",
+     "schluessel": "Aschenmark/lager/7",
+     "koerper": "klein",
+     "plaetze": {
+      "arbeit": {
+       "x": 569.0,
+       "y": 1034.16,
+       "z": 52.41,
+       "yaw": 141.7
+      },
+      "feuer": {
+       "x": 561.58,
+       "y": 1035.94,
+       "z": 52.41,
+       "yaw": 53.2
+      },
+      "schlaf": {
+       "x": 570.28,
+       "y": 1029.44,
+       "z": 52.41,
+       "yaw": 126.8
+      }
+     }
+    },
+    {
+     "rolle": "Koch",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "haushalt": "Aschenmark/lager/B",
+     "prophet": "Zweifler",
+     "name": "Fikemu Beniam",
+     "kultur": "aethiopien",
+     "familie_kultur": "aethiopien",
+     "schluessel": "Aschenmark/lager/8",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 561.33,
+       "y": 1033.92,
+       "z": 52.41,
+       "yaw": 64.7
+      },
+      "feuer": {
+       "x": 563.45,
+       "y": 1034.7,
+       "z": 52.41,
+       "yaw": 89.2
+      },
+      "schlaf": {
+       "x": 571.68,
+       "y": 1044.68,
+       "z": 52.41,
+       "yaw": -142.9
+      }
+     }
+    },
+    {
+     "rolle": "Kind",
+     "geschlecht": "f",
+     "alter": "kind",
+     "haushalt": "Aschenmark/lager/B",
+     "prophet": "Zweifler",
+     "name": "Mekdas Fikemu",
+     "kultur": "aethiopien",
+     "familie_kultur": "aethiopien",
+     "schluessel": "Aschenmark/lager/9",
+     "koerper": "klein",
+     "plaetze": {
+      "arbeit": {
+       "x": 564.58,
+       "y": 1045.42,
+       "z": 52.41,
+       "yaw": -98.9
+      },
+      "feuer": {
+       "x": 565.34,
+       "y": 1035.88,
+       "z": 52.41,
+       "yaw": 125.2
+      },
+      "schlaf": {
+       "x": 574.17,
+       "y": 1038.56,
+       "z": 52.41,
+       "yaw": -179.7
+      }
+     }
+    },
+    {
+     "rolle": "Alte",
+     "geschlecht": "f",
+     "alter": "alt",
+     "haushalt": "Aschenmark/lager/B",
+     "prophet": "Gleichgueltig",
+     "name": "Selem Bareket",
+     "kultur": "aethiopien",
+     "familie_kultur": "aethiopien",
+     "schluessel": "Aschenmark/lager/10",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 558.7,
+       "y": 1034.74,
+       "z": 52.41,
+       "yaw": 38.1
+      },
+      "feuer": {
+       "x": 567.1,
+       "y": 1037.27,
+       "z": 52.41,
+       "yaw": 161.2
+      },
+      "schlaf": {
+       "x": 574.28,
+       "y": 1045.2,
+       "z": 52.41,
+       "yaw": -148.1
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "dorf",
+   "name": "Ruinen von Kesselgrund",
+   "typ": "dorf",
+   "fraktion": "Ueberlebende",
+   "schnellreise": false,
+   "gerede": "Dorf",
+   "mitte": {
+    "x": 669.2,
+    "y": 1230.8,
+    "z": 66.19,
+    "yaw": 0.0
+   },
+   "radius": 22.0,
+   "neu": false,
+   "gebaeude": [],
+   "leute": [
+    {
+     "rolle": "Brunnenhueterin",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "notiz": "kühlte Brunnen und Keller mit der Frostlanze, lernte an der Akademie",
+     "name": "Morenikwe Darkwo",
+     "kultur": "westafrika",
+     "familie_kultur": "westafrika",
+     "schluessel": "Aschenmark/dorf/1",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 670.68,
+       "y": 1226.17,
+       "z": 66.19,
+       "yaw": 107.7
+      },
+      "feuer": {
+       "x": 672.26,
+       "y": 1231.75,
+       "z": 66.19,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 657.48,
+       "y": 1245.37,
+       "z": 66.19,
+       "yaw": -51.2
+      }
+     }
+    },
+    {
+     "rolle": "Alte",
+     "geschlecht": "m",
+     "alter": "alt",
+     "prophet": "Zweifler",
+     "name": "Surosh Kapaor",
+     "kultur": "suedasien",
+     "familie_kultur": "suedasien",
+     "schluessel": "Aschenmark/dorf/2",
+     "koerper": "kraeftig",
+     "hilfsmittel": "Stock",
+     "plaetze": {
+      "arbeit": {
+       "x": 670.7,
+       "y": 1224.37,
+       "z": 66.19,
+       "yaw": 103.2
+      },
+      "feuer": {
+       "x": 670.04,
+       "y": 1234.51,
+       "z": 66.19,
+       "yaw": -102.8
+      },
+      "schlaf": {
+       "x": 651.59,
+       "y": 1237.09,
+       "z": 66.19,
+       "yaw": -19.7
+      }
+     }
+    },
+    {
+     "rolle": "Pluenderer",
+     "geschlecht": "m",
+     "alter": "jung",
+     "prophet": "Gegner",
+     "name": "Ollan Ticoni",
+     "kultur": "amerika",
+     "familie_kultur": "amerika",
+     "schluessel": "Aschenmark/dorf/3",
+     "koerper": "mittel",
+     "hilfsmittel": "Stock",
+     "plaetze": {
+      "arbeit": {
+       "x": 662.68,
+       "y": 1249.5,
+       "z": 66.19,
+       "yaw": 109.2
+      },
+      "feuer": {
+       "x": 666.85,
+       "y": 1232.97,
+       "z": 66.19,
+       "yaw": -42.8
+      },
+      "schlaf": {
+       "x": 650.9,
+       "y": 1226.96,
+       "z": 66.19,
+       "yaw": 11.9
+      }
+     }
+    },
+    {
+     "rolle": "Handwerker",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "haushalt": "Aschenmark/dorf/A",
+     "prophet": "Gleichgueltig",
+     "name": "Kosper Fuhrmenn",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/dorf/4",
+     "koerper": "mittel",
+     "hilfsmittel": "Stock",
+     "plaetze": {
+      "arbeit": {
+       "x": 661.47,
+       "y": 1241.5,
+       "z": 66.19,
+       "yaw": 125.8
+      },
+      "feuer": {
+       "x": 665.93,
+       "y": 1231.58,
+       "z": 66.19,
+       "yaw": -13.3
+      },
+      "schlaf": {
+       "x": 650.52,
+       "y": 1228.91,
+       "z": 66.19,
+       "yaw": 5.8
+      }
+     }
+    },
+    {
+     "rolle": "Bauer",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "haushalt": "Aschenmark/dorf/A",
+     "prophet": "Anhaenger",
+     "name": "Ilsa Fuhrmenn",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/dorf/5",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 634.21,
+       "y": 1226.95,
+       "z": 66.19,
+       "yaw": -173.7
+      },
+      "feuer": {
+       "x": 669.8,
+       "y": 1223.0,
+       "z": 66.19,
+       "yaw": 94.4
+      },
+      "schlaf": {
+       "x": 650.2,
+       "y": 1232.14,
+       "z": 66.19,
+       "yaw": -4.0
+      }
+     }
+    },
+    {
+     "rolle": "Kind",
+     "geschlecht": "m",
+     "alter": "kind",
+     "haushalt": "Aschenmark/dorf/A",
+     "prophet": "Gleichgueltig",
+     "name": "Hegen Fuhrmenn",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/dorf/6",
+     "koerper": "klein",
+     "plaetze": {
+      "arbeit": {
+       "x": 678.59,
+       "y": 1225.07,
+       "z": 66.19,
+       "yaw": 148.6
+      },
+      "feuer": {
+       "x": 671.99,
+       "y": 1228.22,
+       "z": 66.19,
+       "yaw": 137.2
+      },
+      "schlaf": {
+       "x": 655.79,
+       "y": 1218.42,
+       "z": 66.19,
+       "yaw": 42.7
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "hof",
+   "name": "Hof am Ascheacker",
+   "typ": "hof",
+   "fraktion": "Ueberlebende",
+   "schnellreise": false,
+   "gerede": "Hof",
+   "mitte": {
+    "x": 451.42,
+    "y": 1265.62,
+    "z": 59.9,
+    "yaw": 0.0
+   },
+   "radius": 10.0,
+   "neu": true,
+   "gebaeude": [
+    {
+     "art": "Huette",
+     "x": 450.77,
+     "y": 1258.15,
+     "z": 59.68,
+     "yaw": 85.0
+    },
+    {
+     "art": "Huette",
+     "x": 456.87,
+     "y": 1260.46,
+     "z": 60.08,
+     "yaw": 136.5
+    },
+    {
+     "art": "Feuer",
+     "x": 451.42,
+     "y": 1265.62,
+     "z": 59.9,
+     "yaw": 0.0
+    },
+    {
+     "art": "Gehege",
+     "x": 457.99,
+     "y": 1276.84,
+     "z": 61.05,
+     "yaw": -120.3
+    },
+    {
+     "art": "Acker",
+     "x": 445.26,
+     "y": 1281.46,
+     "z": 60.15,
+     "yaw": -68.8
+    }
+   ],
+   "leute": [
+    {
+     "rolle": "Bauer",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "haushalt": "Aschenmark/hof/A",
+     "prophet": "Zweifler",
+     "name": "Hedta Zimmsen",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/hof/1",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 463.97,
+       "y": 1278.32,
+       "z": 61.73,
+       "yaw": 45.4
+      },
+      "feuer": {
+       "x": 454.48,
+       "y": 1266.56,
+       "z": 60.17,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 450.4,
+       "y": 1274.05,
+       "z": 60.24,
+       "yaw": -83.1
+      }
+     }
+    },
+    {
+     "rolle": "Bauer",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "haushalt": "Aschenmark/hof/A",
+     "prophet": "Anhaenger",
+     "name": "Volkar Zimmsen",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/hof/2",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 461.77,
+       "y": 1280.18,
+       "z": 61.57,
+       "yaw": 54.6
+      },
+      "feuer": {
+       "x": 450.3,
+       "y": 1269.25,
+       "z": 60.0,
+       "yaw": -72.8
+      },
+      "schlaf": {
+       "x": 455.71,
+       "y": 1272.14,
+       "z": 60.59,
+       "yaw": -123.3
+      }
+     }
+    },
+    {
+     "rolle": "Kind",
+     "geschlecht": "f",
+     "alter": "kind",
+     "haushalt": "Aschenmark/hof/A",
+     "prophet": "Zweifler",
+     "name": "Wiebka Zimmsen",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/hof/3",
+     "koerper": "klein",
+     "plaetze": {
+      "arbeit": {
+       "x": 446.82,
+       "y": 1267.58,
+       "z": 59.69,
+       "yaw": -23.1
+      },
+      "feuer": {
+       "x": 448.37,
+       "y": 1264.67,
+       "z": 59.68,
+       "yaw": 17.2
+      },
+      "schlaf": {
+       "x": 446.16,
+       "y": 1272.98,
+       "z": 59.86,
+       "yaw": -54.4
+      }
+     }
+    },
+    {
+     "rolle": "Alte",
+     "geschlecht": "m",
+     "alter": "alt",
+     "haushalt": "Aschenmark/hof/A",
+     "prophet": "Gegner",
+     "name": "Arna Zimmsen",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/hof/4",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 453.55,
+       "y": 1267.73,
+       "z": 60.16,
+       "yaw": -135.2
+      },
+      "feuer": {
+       "x": 452.55,
+       "y": 1261.99,
+       "z": 59.85,
+       "yaw": 107.2
+      },
+      "schlaf": {
+       "x": 452.95,
+       "y": 1271.81,
+       "z": 60.33,
+       "yaw": -103.8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "kontor",
+   "name": "Gildenkontor",
+   "typ": "lager",
+   "fraktion": "Gilde",
+   "schnellreise": true,
+   "gerede": "Kontor",
+   "mitte": {
+    "x": 944.2,
+    "y": 1115.4,
+    "z": 64.64,
+    "yaw": 0.0
+   },
+   "radius": 12.0,
+   "neu": false,
+   "gebaeude": [],
+   "leute": [
+    {
+     "rolle": "Haendler",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Story",
+     "name": "Maren Holt",
+     "kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/kontor/1",
+     "koerper": "mittel"
+    },
+    {
+     "rolle": "Wache",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "bestehend": "Gildenwache",
+     "prophet": "Gegner",
+     "name": "Raknar Einardsson",
+     "kultur": "norden",
+     "familie_kultur": "norden",
+     "schluessel": "Aschenmark/kontor/2",
+     "koerper": "schmal"
+    },
+    {
+     "rolle": "Schreiber",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Hiwots Ermiaz",
+     "kultur": "aethiopien",
+     "familie_kultur": "aethiopien",
+     "schluessel": "Aschenmark/kontor/3",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 948.15,
+       "y": 1118.12,
+       "z": 64.64,
+       "yaw": -145.4
+      },
+      "feuer": {
+       "x": 943.25,
+       "y": 1118.46,
+       "z": 64.64,
+       "yaw": -72.8
+      },
+      "schlaf": {
+       "x": 944.44,
+       "y": 1126.86,
+       "z": 64.64,
+       "yaw": -91.2
+      }
+     }
+    },
+    {
+     "rolle": "Traeger",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Riksana Desao",
+     "kultur": "suedasien",
+     "familie_kultur": "suedasien",
+     "schluessel": "Aschenmark/kontor/4",
+     "koerper": "schmal",
+     "hilfsmittel": "Augenklappe",
+     "plaetze": {
+      "arbeit": {
+       "x": 937.58,
+       "y": 1110.23,
+       "z": 64.64,
+       "yaw": 38.0
+      },
+      "feuer": {
+       "x": 942.0,
+       "y": 1118.71,
+       "z": 64.64,
+       "yaw": -56.4
+      },
+      "schlaf": {
+       "x": 944.84,
+       "y": 1123.34,
+       "z": 64.64,
+       "yaw": -94.6
+      }
+     }
+    },
+    {
+     "rolle": "Traeger",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gleichgueltig",
+     "name": "Tekuh Wijayu",
+     "kultur": "indonesien",
+     "familie_kultur": "indonesien",
+     "schluessel": "Aschenmark/kontor/5",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 935.09,
+       "y": 1110.87,
+       "z": 64.64,
+       "yaw": 26.4
+      },
+      "feuer": {
+       "x": 947.08,
+       "y": 1113.93,
+       "z": 64.64,
+       "yaw": 153.0
+      },
+      "schlaf": {
+       "x": 934.36,
+       "y": 1118.09,
+       "z": 64.64,
+       "yaw": -15.3
+      }
+     }
+    },
+    {
+     "rolle": "Wache",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gleichgueltig",
+     "name": "Parisha Restami",
+     "kultur": "persien",
+     "familie_kultur": "persien",
+     "schluessel": "Aschenmark/kontor/6",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 937.87,
+       "y": 1105.92,
+       "z": 64.64,
+       "yaw": 56.3
+      },
+      "feuer": {
+       "x": 947.38,
+       "y": 1111.89,
+       "z": 64.64,
+       "yaw": 132.2
+      },
+      "schlaf": {
+       "x": 940.56,
+       "y": 1106.08,
+       "z": 64.64,
+       "yaw": 68.7
+      }
+     }
+    },
+    {
+     "rolle": "Koch",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gleichgueltig",
+     "name": "Kobayasho Chiki",
+     "kultur": "japan",
+     "familie_kultur": "japan",
+     "schluessel": "Aschenmark/kontor/7",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 946.61,
+       "y": 1117.11,
+       "z": 64.64,
+       "yaw": -144.6
+      },
+      "feuer": {
+       "x": 945.15,
+       "y": 1112.34,
+       "z": 64.64,
+       "yaw": 107.2
+      },
+      "schlaf": {
+       "x": 937.34,
+       "y": 1107.85,
+       "z": 64.64,
+       "yaw": 47.7
+      }
+     }
+    },
+    {
+     "rolle": "Handwerker",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Vönla Kärhoinen",
+     "kultur": "finnland",
+     "familie_kultur": "finnland",
+     "schluessel": "Aschenmark/kontor/8",
+     "koerper": "mittel",
+     "hilfsmittel": "Kruecke",
+     "plaetze": {
+      "arbeit": {
+       "x": 946.0,
+       "y": 1121.31,
+       "z": 64.64,
+       "yaw": 73.1
+      },
+      "feuer": {
+       "x": 948.41,
+       "y": 1113.57,
+       "z": 64.64,
+       "yaw": 156.4
+      },
+      "schlaf": {
+       "x": 942.3,
+       "y": 1105.38,
+       "z": 64.64,
+       "yaw": 79.2
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "fuhrleute",
+   "name": "Fuhrleute der Gilde",
+   "typ": "unterwegs",
+   "fraktion": "Gilde",
+   "schnellreise": false,
+   "gerede": "Strasse",
+   "mitte": {
+    "x": 1169.2,
+    "y": 750.0,
+    "z": 70.3,
+    "yaw": 0.0
+   },
+   "radius": 4.0,
+   "neu": false,
+   "gebaeude": [],
+   "leute": [
+    {
+     "rolle": "Fuhrmann",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Sung Mi-ah",
+     "kultur": "korea",
+     "familie_kultur": "korea",
+     "schluessel": "Aschenmark/fuhrleute/1",
+     "koerper": "mittel",
+     "halte": [
+      {
+       "x": 1047.2,
+       "y": 939.71,
+       "z": 66.57,
+       "yaw": 55.2
+      },
+      {
+       "x": 1169.11,
+       "y": 752.98,
+       "z": 70.12,
+       "yaw": -88.4
+      },
+      {
+       "x": 1379.61,
+       "y": 783.3,
+       "z": 65.8,
+       "yaw": 77.1
+      }
+     ],
+     "plaetze": {
+      "schlaf": {
+       "x": 1545.77,
+       "y": 861.43,
+       "z": 77.4,
+       "yaw": 16.0
+      }
+     }
+    },
+    {
+     "rolle": "Traeger",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Rukha Mehtha",
+     "kultur": "suedasien",
+     "familie_kultur": "suedasien",
+     "schluessel": "Aschenmark/fuhrleute/2",
+     "koerper": "schmal",
+     "halte": [
+      {
+       "x": 1050.57,
+       "y": 945.86,
+       "z": 66.48,
+       "yaw": -113.8
+      },
+      {
+       "x": 1165.84,
+       "y": 748.24,
+       "z": 70.39,
+       "yaw": 27.6
+      },
+      {
+       "x": 1377.15,
+       "y": 789.85,
+       "z": 65.68,
+       "yaw": -20.3
+      }
+     ],
+     "plaetze": {
+      "schlaf": {
+       "x": 1545.64,
+       "y": 859.58,
+       "z": 77.4,
+       "yaw": 22.6
+      }
+     }
+    },
+    {
+     "rolle": "Wache",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Sigard Sondresson",
+     "kultur": "norden",
+     "familie_kultur": "norden",
+     "schluessel": "Aschenmark/fuhrleute/3",
+     "koerper": "mittel",
+     "halte": [
+      {
+       "x": 1046.11,
+       "y": 942.2,
+       "z": 66.58,
+       "yaw": 2.0
+      },
+      {
+       "x": 1170.19,
+       "y": 746.8,
+       "z": 70.49,
+       "yaw": 107.2
+      },
+      {
+       "x": 1384.51,
+       "y": 791.52,
+       "z": 65.45,
+       "yaw": -140.9
+      }
+     ],
+     "plaetze": {
+      "schlaf": {
+       "x": 1546.47,
+       "y": 863.08,
+       "z": 77.4,
+       "yaw": 10.0
+      }
+     }
+    }
+   ],
+   "route": [
+    {
+     "x": 938.5,
+     "y": 1115.4,
+     "z": 64.64
+    },
+    {
+     "x": 951.3,
+     "y": 1099.4,
+     "z": 64.64
+    },
+    {
+     "x": 964.1,
+     "y": 1083.3,
+     "z": 65.05
+    },
+    {
+     "x": 976.9,
+     "y": 1067.3,
+     "z": 65.55
+    },
+    {
+     "x": 989.7,
+     "y": 1051.3,
+     "z": 65.73
+    },
+    {
+     "x": 1002.6,
+     "y": 1035.3,
+     "z": 65.82
+    },
+    {
+     "x": 1015.4,
+     "y": 1019.2,
+     "z": 65.89
+    },
+    {
+     "x": 1023.8,
+     "y": 1000.0,
+     "z": 66.12
+    },
+    {
+     "x": 1032.2,
+     "y": 980.8,
+     "z": 66.38
+    },
+    {
+     "x": 1040.6,
+     "y": 961.5,
+     "z": 66.52
+    },
+    {
+     "x": 1049.0,
+     "y": 942.3,
+     "z": 66.53
+    },
+    {
+     "x": 1057.5,
+     "y": 923.1,
+     "z": 66.4
+    },
+    {
+     "x": 1065.9,
+     "y": 903.8,
+     "z": 66.19
+    },
+    {
+     "x": 1074.3,
+     "y": 884.6,
+     "z": 66.06
+    },
+    {
+     "x": 1082.7,
+     "y": 865.4,
+     "z": 66.09
+    },
+    {
+     "x": 1095.1,
+     "y": 848.9,
+     "z": 66.24
+    },
+    {
+     "x": 1107.4,
+     "y": 832.4,
+     "z": 66.61
+    },
+    {
+     "x": 1119.8,
+     "y": 815.9,
+     "z": 67.11
+    },
+    {
+     "x": 1132.1,
+     "y": 799.5,
+     "z": 67.78
+    },
+    {
+     "x": 1144.5,
+     "y": 783.0,
+     "z": 68.5
+    },
+    {
+     "x": 1156.9,
+     "y": 766.5,
+     "z": 69.37
+    },
+    {
+     "x": 1169.2,
+     "y": 750.0,
+     "z": 70.3
+    },
+    {
+     "x": 1193.3,
+     "y": 745.2,
+     "z": 70.65
+    },
+    {
+     "x": 1217.3,
+     "y": 740.4,
+     "z": 70.87
+    },
+    {
+     "x": 1241.3,
+     "y": 735.6,
+     "z": 70.91
+    },
+    {
+     "x": 1265.4,
+     "y": 730.8,
+     "z": 70.87
+    },
+    {
+     "x": 1284.6,
+     "y": 740.4,
+     "z": 70.06
+    },
+    {
+     "x": 1303.8,
+     "y": 750.0,
+     "z": 69.13
+    },
+    {
+     "x": 1323.1,
+     "y": 759.6,
+     "z": 68.15
+    },
+    {
+     "x": 1342.3,
+     "y": 769.2,
+     "z": 67.28
+    },
+    {
+     "x": 1361.5,
+     "y": 778.8,
+     "z": 66.39
+    },
+    {
+     "x": 1380.8,
+     "y": 788.5,
+     "z": 65.64
+    },
+    {
+     "x": 1397.3,
+     "y": 802.2,
+     "z": 64.9
+    },
+    {
+     "x": 1413.7,
+     "y": 815.9,
+     "z": 64.27
+    },
+    {
+     "x": 1430.2,
+     "y": 829.7,
+     "z": 63.79
+    },
+    {
+     "x": 1446.7,
+     "y": 843.4,
+     "z": 63.64
+    },
+    {
+     "x": 1463.2,
+     "y": 857.1,
+     "z": 63.71
+    },
+    {
+     "x": 1479.7,
+     "y": 870.9,
+     "z": 63.96
+    },
+    {
+     "x": 1496.2,
+     "y": 884.6,
+     "z": 64.28
+    },
+    {
+     "x": 1515.4,
+     "y": 891.7,
+     "z": 65.17
+    },
+    {
+     "x": 1534.6,
+     "y": 898.7,
+     "z": 66.19
+    },
+    {
+     "x": 1553.8,
+     "y": 905.8,
+     "z": 67.11
+    }
+   ]
+  },
+  {
+   "id": "schlackengraeber",
+   "name": "Schlackengräber",
+   "typ": "weiler",
+   "fraktion": "Gilde",
+   "schnellreise": false,
+   "gerede": "Schlacke",
+   "mitte": {
+    "x": 926.47,
+    "y": 1943.18,
+    "z": 69.16,
+    "yaw": 0.0
+   },
+   "radius": 14.0,
+   "neu": true,
+   "gebaeude": [
+    {
+     "art": "Huette",
+     "x": 936.93,
+     "y": 1942.35,
+     "z": 69.15,
+     "yaw": 175.5
+    },
+    {
+     "art": "Huette",
+     "x": 933.62,
+     "y": 1950.86,
+     "z": 69.3,
+     "yaw": -132.9
+    },
+    {
+     "art": "Zelt",
+     "x": 924.89,
+     "y": 1953.56,
+     "z": 69.22,
+     "yaw": -81.4
+    },
+    {
+     "art": "Zelt",
+     "x": 917.36,
+     "y": 1948.4,
+     "z": 69.12,
+     "yaw": -29.8
+    },
+    {
+     "art": "Werkbank",
+     "x": 916.71,
+     "y": 1939.29,
+     "z": 69.11,
+     "yaw": 21.8
+    },
+    {
+     "art": "Feuer",
+     "x": 926.47,
+     "y": 1943.18,
+     "z": 69.16,
+     "yaw": 0.0
+    }
+   ],
+   "leute": [
+    {
+     "rolle": "Vorarbeiter",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Delgar",
+     "kultur": "mongolei",
+     "familie_kultur": "mongolei",
+     "schluessel": "Aschenmark/schlackengraeber/1",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 926.72,
+       "y": 1950.75,
+       "z": 69.22,
+       "yaw": 88.1
+      },
+      "feuer": {
+       "x": 929.52,
+       "y": 1944.12,
+       "z": 69.18,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 917.15,
+       "y": 1952.08,
+       "z": 69.12,
+       "yaw": -43.7
+      }
+     }
+    },
+    {
+     "rolle": "Arbeiter",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Mankh",
+     "kultur": "mongolei",
+     "familie_kultur": "mongolei",
+     "schluessel": "Aschenmark/schlackengraeber/2",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 921.72,
+       "y": 1962.2,
+       "z": 69.13,
+       "yaw": 104.0
+      },
+      "feuer": {
+       "x": 927.31,
+       "y": 1946.88,
+       "z": 69.2,
+       "yaw": -102.8
+      },
+      "schlaf": {
+       "x": 914.57,
+       "y": 1942.82,
+       "z": 69.11,
+       "yaw": 1.7
+      }
+     }
+    },
+    {
+     "rolle": "Arbeiter",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Nisser Otiano",
+     "kultur": "arabien",
+     "familie_kultur": "ostafrika",
+     "schluessel": "Aschenmark/schlackengraeber/3",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 919.94,
+       "y": 1961.66,
+       "z": 69.13,
+       "yaw": 109.5
+      },
+      "feuer": {
+       "x": 924.12,
+       "y": 1945.35,
+       "z": 69.17,
+       "yaw": -42.8
+      },
+      "schlaf": {
+       "x": 916.51,
+       "y": 1936.66,
+       "z": 69.09,
+       "yaw": 33.2
+      }
+     }
+    },
+    {
+     "rolle": "Arbeiter",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gleichgueltig",
+     "name": "Ansalm Wilters",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/schlackengraeber/4",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 911.26,
+       "y": 1930.81,
+       "z": 69.19,
+       "yaw": -140.9
+      },
+      "feuer": {
+       "x": 922.84,
+       "y": 1942.05,
+       "z": 69.14,
+       "yaw": 17.2
+      },
+      "schlaf": {
+       "x": 921.39,
+       "y": 1932.42,
+       "z": 68.95,
+       "yaw": 64.7
+      }
+     }
+    },
+    {
+     "rolle": "Koch",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Jannek Windt",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/schlackengraeber/5",
+     "koerper": "mittel",
+     "hilfsmittel": "Armschlinge",
+     "plaetze": {
+      "arbeit": {
+       "x": 923.72,
+       "y": 1944.0,
+       "z": 69.16,
+       "yaw": -16.6
+      },
+      "feuer": {
+       "x": 925.76,
+       "y": 1940.06,
+       "z": 69.11,
+       "yaw": 77.2
+      },
+      "schlaf": {
+       "x": 927.76,
+       "y": 1931.35,
+       "z": 68.83,
+       "yaw": 96.2
+      }
+     }
+    },
+    {
+     "rolle": "Schmied",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Kerur Aydon",
+     "kultur": "tuerkei",
+     "familie_kultur": "tuerkei",
+     "schluessel": "Aschenmark/schlackengraeber/6",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 920.68,
+       "y": 1937.09,
+       "z": 69.07,
+       "yaw": -133.6
+      },
+      "feuer": {
+       "x": 929.25,
+       "y": 1940.6,
+       "z": 69.12,
+       "yaw": 137.2
+      },
+      "schlaf": {
+       "x": 933.75,
+       "y": 1933.77,
+       "z": 68.85,
+       "yaw": 127.8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "glutjaeger",
+   "name": "Glutjäger",
+   "typ": "aussenposten",
+   "fraktion": "Freie",
+   "schnellreise": false,
+   "gerede": "Jagd",
+   "mitte": {
+    "x": 1106.3,
+    "y": 764.03,
+    "z": 69.57,
+    "yaw": 0.0
+   },
+   "radius": 8.0,
+   "neu": true,
+   "gebaeude": [
+    {
+     "art": "Zelt",
+     "x": 1103.88,
+     "y": 769.52,
+     "z": 69.52,
+     "yaw": -66.2
+    },
+    {
+     "art": "Zelt",
+     "x": 1100.49,
+     "y": 765.55,
+     "z": 69.77,
+     "yaw": -14.6
+    },
+    {
+     "art": "Feuer",
+     "x": 1106.3,
+     "y": 764.03,
+     "z": 69.57,
+     "yaw": 0.0
+    },
+    {
+     "art": "Trockengestell",
+     "x": 1106.14,
+     "y": 758.03,
+     "z": 69.67,
+     "yaw": 88.5
+    }
+   ],
+   "leute": [
+    {
+     "rolle": "Jaeger",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Xi Qingyue",
+     "kultur": "china",
+     "familie_kultur": "china",
+     "schluessel": "Aschenmark/glutjaeger/1",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 1103.0,
+       "y": 759.51,
+       "z": 69.76,
+       "yaw": -126.1
+      },
+      "feuer": {
+       "x": 1109.36,
+       "y": 764.98,
+       "z": 69.47,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 1100.86,
+       "y": 759.95,
+       "z": 69.84,
+       "yaw": 36.9
+      }
+     }
+    },
+    {
+     "rolle": "Jaeger",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Taya Banerjan",
+     "kultur": "suedasien",
+     "familie_kultur": "suedasien",
+     "schluessel": "Aschenmark/glutjaeger/2",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 1108.7,
+       "y": 758.94,
+       "z": 69.6,
+       "yaw": -64.7
+      },
+      "feuer": {
+       "x": 1110.09,
+       "y": 768.52,
+       "z": 69.39,
+       "yaw": -130.2
+      },
+      "schlaf": {
+       "x": 1112.09,
+       "y": 758.02,
+       "z": 69.57,
+       "yaw": 134.0
+      }
+     }
+    },
+    {
+     "rolle": "Fallensteller",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Risha Bikr",
+     "kultur": "arabien",
+     "familie_kultur": "arabien",
+     "schluessel": "Aschenmark/glutjaeger/3",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1094.6,
+       "y": 761.38,
+       "z": 70.11,
+       "yaw": -167.2
+      },
+      "feuer": {
+       "x": 1103.24,
+       "y": 763.09,
+       "z": 69.7,
+       "yaw": 17.2
+      },
+      "schlaf": {
+       "x": 1099.06,
+       "y": 760.75,
+       "z": 69.92,
+       "yaw": 24.4
+      }
+     }
+    },
+    {
+     "rolle": "Gerber",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gleichgueltig",
+     "name": "Kihu Rāwili",
+     "kultur": "polynesien",
+     "familie_kultur": "polynesien",
+     "schluessel": "Aschenmark/glutjaeger/4",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 1100.22,
+       "y": 762.2,
+       "z": 69.85,
+       "yaw": -163.2
+      },
+      "feuer": {
+       "x": 1107.42,
+       "y": 760.4,
+       "z": 69.6,
+       "yaw": 107.2
+      },
+      "schlaf": {
+       "x": 1114.51,
+       "y": 762.2,
+       "z": 69.44,
+       "yaw": 167.4
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "einsiedlerin",
+   "name": "Einsiedlerin der Harpyienfelsen",
+   "typ": "aussenposten",
+   "fraktion": "Freie",
+   "schnellreise": false,
+   "gerede": "Einsiedlerin",
+   "mitte": {
+    "x": 1316.91,
+    "y": 526.56,
+    "z": 74.67,
+    "yaw": 0.0
+   },
+   "radius": 5.0,
+   "neu": true,
+   "gebaeude": [
+    {
+     "art": "Huette",
+     "x": 1311.22,
+     "y": 529.26,
+     "z": 74.9,
+     "yaw": -25.4
+    },
+    {
+     "art": "Feuer",
+     "x": 1316.91,
+     "y": 526.56,
+     "z": 74.67,
+     "yaw": 0.0
+    }
+   ],
+   "leute": [
+    {
+     "rolle": "Einsiedler",
+     "geschlecht": "f",
+     "alter": "alt",
+     "prophet": "Gegner",
+     "notiz": "kennt die Glutkönigin, gibt Hinweise auf den Krater",
+     "name": "Xóchutl Faleole",
+     "kultur": "amerika",
+     "familie_kultur": "polynesien",
+     "schluessel": "Aschenmark/einsiedlerin/1",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 1313.63,
+       "y": 525.77,
+       "z": 74.68,
+       "yaw": 13.6
+      },
+      "feuer": {
+       "x": 1319.96,
+       "y": 527.51,
+       "z": 74.71,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 1313.64,
+       "y": 523.84,
+       "z": 74.61,
+       "yaw": 39.8
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "orden",
+   "name": "Orden der Narbe",
+   "typ": "aussenposten",
+   "fraktion": "Orden",
+   "schnellreise": false,
+   "gerede": "Orden",
+   "mitte": {
+    "x": 803.8,
+    "y": 788.5,
+    "z": 69.44,
+    "yaw": 0.0
+   },
+   "radius": 12.0,
+   "neu": false,
+   "gebaeude": [],
+   "leute": [
+    {
+     "rolle": "Wache",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Hi Bai",
+     "kultur": "vietnam",
+     "familie_kultur": "vietnam",
+     "schluessel": "Aschenmark/orden/1",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 809.17,
+       "y": 778.44,
+       "z": 69.44,
+       "yaw": 118.1
+      },
+      "feuer": {
+       "x": 806.86,
+       "y": 789.45,
+       "z": 69.44,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 803.25,
+       "y": 799.48,
+       "z": 69.44,
+       "yaw": -87.1
+      }
+     }
+    },
+    {
+     "rolle": "Wache",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Vi Tuang",
+     "kultur": "vietnam",
+     "familie_kultur": "vietnam",
+     "schluessel": "Aschenmark/orden/2",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 803.52,
+       "y": 777.1,
+       "z": 69.44,
+       "yaw": 88.6
+      },
+      "feuer": {
+       "x": 799.17,
+       "y": 789.89,
+       "z": 69.44,
+       "yaw": -16.7
+      },
+      "schlaf": {
+       "x": 795.94,
+       "y": 795.0,
+       "z": 69.44,
+       "yaw": -39.6
+      }
+     }
+    },
+    {
+     "rolle": "Prediger",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Shon Sang-sung",
+     "kultur": "korea",
+     "familie_kultur": "korea",
+     "schluessel": "Aschenmark/orden/3",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 807.73,
+       "y": 788.31,
+       "z": 69.44,
+       "yaw": 177.2
+      },
+      "feuer": {
+       "x": 800.74,
+       "y": 787.55,
+       "z": 69.44,
+       "yaw": 17.2
+      },
+      "schlaf": {
+       "x": 793.7,
+       "y": 789.93,
+       "z": 69.44,
+       "yaw": -8.1
+      }
+     }
+    },
+    {
+     "rolle": "Pilger",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Groça Etxeberrio Pereara",
+     "kultur": "iberien",
+     "familie_kultur": "iberien",
+     "schluessel": "Aschenmark/orden/4",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 806.49,
+       "y": 782.47,
+       "z": 69.44,
+       "yaw": 114.1
+      },
+      "feuer": {
+       "x": 804.92,
+       "y": 784.87,
+       "z": 69.44,
+       "yaw": 107.2
+      },
+      "schlaf": {
+       "x": 794.44,
+       "y": 784.44,
+       "z": 69.47,
+       "yaw": 23.5
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "passwache",
+   "name": "Passwache",
+   "typ": "lager",
+   "fraktion": "Passwache",
+   "schnellreise": true,
+   "gerede": "Passwache",
+   "mitte": {
+    "x": 1559.6,
+    "y": 865.4,
+    "z": 77.4,
+    "yaw": 0.0
+   },
+   "radius": 13.0,
+   "neu": false,
+   "gebaeude": [],
+   "leute": [
+    {
+     "rolle": "Anfuehrer",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "notiz": "Hauptfrau der Passwache",
+     "name": "Mihu Arslem",
+     "kultur": "polynesien",
+     "familie_kultur": "tuerkei",
+     "schluessel": "Aschenmark/passwache/1",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1556.82,
+       "y": 867.09,
+       "z": 77.4,
+       "yaw": -31.4
+      },
+      "feuer": {
+       "x": 1562.66,
+       "y": 866.35,
+       "z": 77.4,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 1557.62,
+       "y": 853.73,
+       "z": 77.4,
+       "yaw": 80.4
+      }
+     }
+    },
+    {
+     "rolle": "Wache",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Norantsetseg",
+     "kultur": "mongolei",
+     "familie_kultur": "mongolei",
+     "schluessel": "Aschenmark/passwache/2",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 1560.21,
+       "y": 877.73,
+       "z": 77.4,
+       "yaw": -92.8
+      },
+      "feuer": {
+       "x": 1560.44,
+       "y": 869.11,
+       "z": 77.4,
+       "yaw": -102.8
+      },
+      "schlaf": {
+       "x": 1570.95,
+       "y": 866.23,
+       "z": 77.4,
+       "yaw": -175.8
+      }
+     }
+    },
+    {
+     "rolle": "Wache",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Hati Kusama",
+     "kultur": "indonesien",
+     "familie_kultur": "indonesien",
+     "schluessel": "Aschenmark/passwache/3",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1550.63,
+       "y": 873.05,
+       "z": 77.4,
+       "yaw": -40.4
+      },
+      "feuer": {
+       "x": 1555.35,
+       "y": 866.23,
+       "z": 77.4,
+       "yaw": -11.1
+      },
+      "schlaf": {
+       "x": 1570.57,
+       "y": 864.11,
+       "z": 77.4,
+       "yaw": 173.3
+      }
+     }
+    },
+    {
+     "rolle": "Wache",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Kivya Menin",
+     "kultur": "suedasien",
+     "familie_kultur": "suedasien",
+     "schluessel": "Aschenmark/passwache/4",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 1562.09,
+       "y": 878.48,
+       "z": 77.4,
+       "yaw": -100.8
+      },
+      "feuer": {
+       "x": 1555.97,
+       "y": 864.28,
+       "z": 77.4,
+       "yaw": 17.2
+      },
+      "schlaf": {
+       "x": 1571.6,
+       "y": 868.14,
+       "z": 77.4,
+       "yaw": -167.2
+      }
+     }
+    },
+    {
+     "rolle": "Koch",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gleichgueltig",
+     "name": "Burış Pılat",
+     "kultur": "tuerkei",
+     "familie_kultur": "tuerkei",
+     "schluessel": "Aschenmark/passwache/5",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1561.28,
+       "y": 862.74,
+       "z": 77.4,
+       "yaw": 122.2
+      },
+      "feuer": {
+       "x": 1558.89,
+       "y": 862.28,
+       "z": 77.4,
+       "yaw": 77.2
+      },
+      "schlaf": {
+       "x": 1565.72,
+       "y": 874.6,
+       "z": 77.4,
+       "yaw": -123.7
+      }
+     }
+    },
+    {
+     "rolle": "Bote",
+     "geschlecht": "m",
+     "alter": "jung",
+     "prophet": "Anhaenger",
+     "name": "Rahan Guptha",
+     "kultur": "suedasien",
+     "familie_kultur": "suedasien",
+     "schluessel": "Aschenmark/passwache/6",
+     "koerper": "mittel",
+     "hilfsmittel": "Armschlinge",
+     "plaetze": {
+      "arbeit": {
+       "x": 1560.96,
+       "y": 875.71,
+       "z": 77.4,
+       "yaw": -97.5
+      },
+      "feuer": {
+       "x": 1564.05,
+       "y": 863.26,
+       "z": 77.4,
+       "yaw": 154.3
+      },
+      "schlaf": {
+       "x": 1559.44,
+       "y": 874.81,
+       "z": 77.4,
+       "yaw": -89.0
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "predigerlager",
+   "name": "Predigerlager",
+   "typ": "lager",
+   "fraktion": "Orden",
+   "schnellreise": true,
+   "gerede": "Predigerlager",
+   "mitte": {
+    "x": 1553.8,
+    "y": 1057.7,
+    "z": 102.95,
+    "yaw": 0.0
+   },
+   "radius": 14.0,
+   "neu": false,
+   "gebaeude": [],
+   "leute": [
+    {
+     "rolle": "Prediger",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Zweifler",
+     "name": "Kwakwu Afolebi",
+     "kultur": "westafrika",
+     "familie_kultur": "westafrika",
+     "schluessel": "Aschenmark/predigerlager/1",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1556.58,
+       "y": 1057.33,
+       "z": 102.95,
+       "yaw": 172.4
+      },
+      "feuer": {
+       "x": 1558.36,
+       "y": 1057.04,
+       "z": 102.95,
+       "yaw": 171.8
+      },
+      "schlaf": {
+       "x": 1549.72,
+       "y": 1068.88,
+       "z": 102.95,
+       "yaw": -70.0
+      }
+     }
+    },
+    {
+     "rolle": "Prediger",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Gerolt Fuhrmenn",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/predigerlager/2",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1552.64,
+       "y": 1060.25,
+       "z": 102.95,
+       "yaw": -65.5
+      },
+      "feuer": {
+       "x": 1555.57,
+       "y": 1061.06,
+       "z": 102.95,
+       "yaw": -117.8
+      },
+      "schlaf": {
+       "x": 1542.91,
+       "y": 1061.47,
+       "z": 102.95,
+       "yaw": -19.1
+      }
+     }
+    },
+    {
+     "rolle": "Pilger",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Jennik Köhlsen",
+     "kultur": "mitteleuropa",
+     "familie_kultur": "mitteleuropa",
+     "schluessel": "Aschenmark/predigerlager/3",
+     "koerper": "kraeftig",
+     "plaetze": {
+      "arbeit": {
+       "x": 1551.61,
+       "y": 1066.66,
+       "z": 102.95,
+       "yaw": -76.2
+      },
+      "feuer": {
+       "x": 1551.65,
+       "y": 1061.75,
+       "z": 102.95,
+       "yaw": -62.0
+      },
+      "schlaf": {
+       "x": 1541.99,
+       "y": 1059.14,
+       "z": 102.95,
+       "yaw": -6.9
+      }
+     }
+    },
+    {
+     "rolle": "Pilger",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Lao Fengwei",
+     "kultur": "china",
+     "familie_kultur": "china",
+     "schluessel": "Aschenmark/predigerlager/4",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 1559.99,
+       "y": 1062.66,
+       "z": 102.95,
+       "yaw": -141.3
+      },
+      "feuer": {
+       "x": 1550.44,
+       "y": 1059.47,
+       "z": 102.95,
+       "yaw": -27.8
+      },
+      "schlaf": {
+       "x": 1542.98,
+       "y": 1052.75,
+       "z": 102.95,
+       "yaw": 24.6
+      }
+     }
+    },
+    {
+     "rolle": "Pilger",
+     "geschlecht": "m",
+     "alter": "alt",
+     "prophet": "Gegner",
+     "name": "Ikar Gorcía Iturbi",
+     "kultur": "iberien",
+     "familie_kultur": "iberien",
+     "schluessel": "Aschenmark/predigerlager/5",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 1556.1,
+       "y": 1050.35,
+       "z": 102.95,
+       "yaw": 107.4
+      },
+      "feuer": {
+       "x": 1550.74,
+       "y": 1056.75,
+       "z": 102.95,
+       "yaw": 17.2
+      },
+      "schlaf": {
+       "x": 1547.16,
+       "y": 1047.82,
+       "z": 102.95,
+       "yaw": 56.1
+      }
+     }
+    },
+    {
+     "rolle": "Pilger",
+     "geschlecht": "f",
+     "alter": "jung",
+     "prophet": "Gegner",
+     "name": "Brenwen Le Gaff",
+     "kultur": "kelten",
+     "familie_kultur": "kelten",
+     "schluessel": "Aschenmark/predigerlager/6",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1557.54,
+       "y": 1064.43,
+       "z": 102.95,
+       "yaw": -119.0
+      },
+      "feuer": {
+       "x": 1552.03,
+       "y": 1054.34,
+       "z": 102.95,
+       "yaw": 62.2
+      },
+      "schlaf": {
+       "x": 1553.3,
+       "y": 1045.81,
+       "z": 102.95,
+       "yaw": 87.6
+      }
+     }
+    },
+    {
+     "rolle": "Pilger",
+     "geschlecht": "m",
+     "alter": "erwachsen",
+     "prophet": "Gegner",
+     "name": "Ruma Quaspe",
+     "kultur": "amerika",
+     "familie_kultur": "amerika",
+     "schluessel": "Aschenmark/predigerlager/7",
+     "koerper": "schmal",
+     "plaetze": {
+      "arbeit": {
+       "x": 1559.15,
+       "y": 1060.69,
+       "z": 102.95,
+       "yaw": -150.8
+      },
+      "feuer": {
+       "x": 1554.75,
+       "y": 1054.64,
+       "z": 102.95,
+       "yaw": 107.2
+      },
+      "schlaf": {
+       "x": 1559.59,
+       "y": 1047.3,
+       "z": 102.95,
+       "yaw": 119.1
+      }
+     }
+    },
+    {
+     "rolle": "Heiler",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Astir Yones",
+     "kultur": "aethiopien",
+     "familie_kultur": "aethiopien",
+     "schluessel": "Aschenmark/predigerlager/8",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 1558.52,
+       "y": 1054.68,
+       "z": 102.95,
+       "yaw": 147.4
+      },
+      "feuer": {
+       "x": 1557.16,
+       "y": 1055.93,
+       "z": 102.95,
+       "yaw": 152.2
+      },
+      "schlaf": {
+       "x": 1564.17,
+       "y": 1051.86,
+       "z": 102.95,
+       "yaw": 150.6
+      }
+     }
+    }
+   ]
+  },
+  {
+   "id": "windkante",
+   "name": "Windkante",
+   "typ": "aussenposten",
+   "fraktion": "Freie",
+   "schnellreise": false,
+   "gerede": "Windkante",
+   "mitte": {
+    "x": 1650.0,
+    "y": 1134.6,
+    "z": 128.16,
+    "yaw": 0.0
+   },
+   "radius": 8.0,
+   "neu": false,
+   "gebaeude": [
+    {
+     "art": "Zelt",
+     "x": 1654.26,
+     "y": 1138.83,
+     "z": 127.99,
+     "yaw": -135.2
+    },
+    {
+     "art": "Gehege",
+     "x": 1648.85,
+     "y": 1144.94,
+     "z": 128.3,
+     "yaw": -83.6
+    }
+   ],
+   "leute": [
+    {
+     "rolle": "Hirte",
+     "geschlecht": "f",
+     "alter": "erwachsen",
+     "prophet": "Anhaenger",
+     "name": "Áili Kerhoinen",
+     "kultur": "finnland",
+     "familie_kultur": "finnland",
+     "schluessel": "Aschenmark/windkante/1",
+     "koerper": "mittel",
+     "hilfsmittel": "Augenklappe",
+     "plaetze": {
+      "arbeit": {
+       "x": 1645.55,
+       "y": 1148.29,
+       "z": 128.66,
+       "yaw": 108.0
+      },
+      "feuer": {
+       "x": 1653.06,
+       "y": 1135.55,
+       "z": 128.06,
+       "yaw": -162.8
+      },
+      "schlaf": {
+       "x": 1646.65,
+       "y": 1140.49,
+       "z": 128.22,
+       "yaw": -60.3
+      }
+     }
+    },
+    {
+     "rolle": "Windleser",
+     "geschlecht": "f",
+     "alter": "alt",
+     "prophet": "Zweifler",
+     "name": "Lua Ruoyan",
+     "kultur": "china",
+     "familie_kultur": "china",
+     "schluessel": "Aschenmark/windkante/2",
+     "koerper": "mittel",
+     "plaetze": {
+      "arbeit": {
+       "x": 1647.85,
+       "y": 1138.89,
+       "z": 128.18,
+       "yaw": 116.6
+      },
+      "feuer": {
+       "x": 1646.37,
+       "y": 1133.48,
+       "z": 128.23,
+       "yaw": 17.2
+      },
+      "schlaf": {
+       "x": 1644.87,
+       "y": 1138.57,
+       "z": 128.22,
+       "yaw": -37.8
+      }
+     }
+    }
+   ]
+  }
+ ]
+}

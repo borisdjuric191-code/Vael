@@ -1,6 +1,6 @@
 # Plan: NPCs, Lager und Dörfer in der offenen Welt
 
-Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritt 1 in Arbeit
+Stand 8. November 2026 · von Boris freigegeben (Entscheidungen unten), Schritte 1 und 2 fertig
 
 ## Ziel
 
@@ -206,3 +206,22 @@ Gleiches Muster, mehr Leben, weil diese Gegenden weniger zerstört sind:
    - Das Feld kommt in Schritt 3 mit in `FVaelNpcIdentity`.
 
 Statt einer Datei pro Kulturkreis liegt alles in einer Datei, `Scripts/Data/Namen/Kulturen.json` (20 Kulturkreise). Die vergebenen Namen stehen in `Scripts/Data/Namen/Vergeben.json`.
+
+## Stand nach Schritt 2 (8. November 2026)
+
+`py Tools/Welt/aschenmark_siedlungen.py` schreibt `Scripts/Data/Welt/AM_Siedlungen.json` und das Vorschaubild `Docs/Karte/aschenmark_siedlungen.png`.
+
+- **Umfang:** 62 Leute in 12 Siedlungen. Alle 20 Kulturkreise sind vertreten.
+- **Haltung zum Propheten:** 16 Anhänger, 18 Gegner, 16 Zweifler, 9 Gleichgültige. Bei 3 Story-Figuren (Edda, Albrun, Maren) entscheidet ihr Dialog.
+- **Neue Siedlungen:** Der Generator sucht ihre Plätze selbst. Bedingungen:
+  - Flaches Gelände.
+  - Erreichbar von der Straße, aber nicht auf ihr.
+  - Weg von Kampflichtungen, Lagern und Orten.
+  - Ergebnis: Hof am Ascheacker, Schlackengräber, Glutjäger und Einsiedlerin der Harpyienfelsen.
+- **Pro Person:** Rolle, Alter, Körperbau, gelegentlich ein Hilfsmittel, ein Haushalt und Plätze:
+  - Arbeit am Tag, Feuer am Abend, Schlaf in der Nacht.
+  - Die Fuhrleute haben stattdessen drei Halte auf der Straße zwischen Kontor und Passwache.
+- **Haushalte:** Familien teilen ihren Familiennamen. Bei der Vater-Regel tragen Kinder den Vornamen des Vaters, etwa Mekdas Fikemu, Kind von Fikemu Beniam. Kinder übernehmen die Haltung zum Propheten von ihrer Familie.
+- **Bestehende Actors:** Edda, Albrun, Maren, die beiden Überlebenden und die Gildenwache behalten ihren Actor und ihren Platz in L_Vael. Die drei Bystander bekommen jetzt Namen.
+- **Neue Gebäude:** Hütten, Zelte, Werkbank, Gehege, Acker und Trockengestell sind als Vorschlag mit Lage eingetragen. Die Modelle kommen in Schritt 4.
+- **Offen für Schritt 5:** In den portierten Orten (Lager, Kontor, Dorf, Kathedrale) kennt der Generator die Häuser nicht. Die Plätze dort werden beim Setzen in Unreal per Trace auf freien Boden geschoben.
