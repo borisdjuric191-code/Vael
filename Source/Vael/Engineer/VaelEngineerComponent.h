@@ -107,6 +107,12 @@ public:
 	/** Whether the Zwille is in his left hand right now (the fist stays closed round it) */
 	bool IsHoldingSling() const;
 
+	/** The release (goal 9.11.): 1 the moment the stone leaves, down to 0 over a third of a second (kick and follow-through) */
+	float GetSlingKick() const;
+
+	/** Trembling of the arms when he holds the band at full draw: 0 to 1 over a second */
+	float GetSlingTremble() const;
+
 	/** Seconds to pull the slingshot band all the way */
 	static constexpr float SlingFullDraw = 1.0f;
 	float GetDrawSeconds() const;

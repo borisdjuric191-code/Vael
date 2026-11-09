@@ -1428,6 +1428,11 @@ void UVaelEngineerComponent::OnBodyPoseFinal()
 	}
 	SlingFrameTime = Time;
 	UpdateSlingFrame(DeltaTime);
+	if (FParse::Param(FCommandLine::Get(), TEXT("VaelZwilleLog")) && (SlingAim > 0.0f || IsDrawing()))
+	{
+		UE_LOG(LogVael, Display, TEXT("[Zwille] t %.2f dt %.3f aim %.2f draw %.2f kick %.2f drawing %d holding %d"), Time, DeltaTime, SlingAim, SlingDrawShown,
+			GetSlingKick(), IsDrawing(), IsHoldingSling());
+	}
 }
 
 void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
@@ -1453,9 +1458,12 @@ void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 
 	// Held up while drawing and a moment after the shot; the band snaps back fast after the release
 	const bool bDrawing = IsDrawing();
-	const float WantAim = bDrawing || Now() - SlingLastShot < 0.5f ? 1.0f : 0.0f;
-	SlingAim = FMath::FInterpConstantTo(SlingAim, WantAim, DeltaTime, WantAim > SlingAim ? 6.0f : 2.0f);
-	const float WantDraw = bDrawing ? FMath::Clamp(GetDrawSeconds() / SlingFullDraw, 0.0f, 1.0f) : 0.0f;
+	// Raised quickly; after the shot held a moment, then lowered calmly (about 0.8 s)
+	const float WantAim = bDrawing || Now() - SlingLastShot < 0.6f ? 1.0f : 0.0f;
+	SlingAim = FMath::FInterpConstantTo(SlingAim, WantAim, DeltaTime, WantAim > SlingAim ? 5.0f : 1.25f);
+	// The band gives easily at first and harder towards the cheek: the pull eases out
+	const float DrawShare = bDrawing ? FMath::Clamp(GetDrawSeconds() / SlingFullDraw, 0.0f, 1.0f) : 0.0f;
+	const float WantDraw = 1.0f - FMath::Square(1.0f - DrawShare);
 	SlingDrawShown = bDrawing ? WantDraw : FMath::FInterpConstantTo(SlingDrawShown, 0.0f, DeltaTime, 14.0f);
 
 	// The fork stands upright in the left fist, the tips ahead; hanging down along the leg while he does not aim
@@ -1549,5 +1557,16 @@ bool UVaelEngineerComponent::IsHoldingSling() const
 {
 	const AVaelCharacter* Player = GetPlayer();
 	return Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling && WeaponMesh != nullptr && WeaponMesh->IsVisible();
+}
+
+float UVaelEngineerComponent::GetSlingKick() const
+{
+	const float Since = Now() - SlingLastShot;
+	return Since >= 0.0f && Since < 0.35f ? 1.0f - Since / 0.35f : 0.0f;
+}
+
+float UVaelEngineerComponent::GetSlingTremble() const
+{
+	return IsDrawing() && Weapon == VaelEngineerGear::Sling ? FMath::Clamp(GetDrawSeconds() - SlingFullDraw, 0.0f, 1.0f) : 0.0f;
 }
 

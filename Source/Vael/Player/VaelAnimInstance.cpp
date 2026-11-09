@@ -64,10 +64,13 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		SlingAim = Engineer->GetSlingAim();
 		SlingDraw = Engineer->GetSlingDraw();
 		bHoldsSling = Engineer->IsHoldingSling();
+		SlingKick = Engineer->GetSlingKick();
+		SlingTremble = Engineer->GetSlingTremble();
+		SlingClock = GetWorld() != nullptr ? static_cast<float>(FMath::Fmod(GetWorld()->GetTimeSeconds(), 1000.0)) : 0.0f;
 	}
 	else
 	{
-		SlingAim = SlingDraw = 0.0f;
+		SlingAim = SlingDraw = SlingKick = SlingTremble = 0.0f;
 		bHoldsSling = false;
 	}
 	CastExhaustion = Character->GetCastExhaustion();
@@ -166,6 +169,9 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	GroundPelvis = Instance->GroundPelvis;
 	GroundWeight = Instance->GroundWeight;
 	bHoldsSling = Instance->bHoldsSling;
+	SlingKick = Instance->SlingKick;
+	SlingTremble = Instance->SlingTremble;
+	SlingClock = Instance->SlingClock;
 	GestureRelease = MagicSettings->GetGestureRelease(Gesture);
 	GestureDuration = MagicSettings->GetGestureDuration(Gesture);
 }
@@ -755,7 +761,10 @@ void FVaelAnimProxy::ApplySlingDraw(FCSPose<FCompactPose>& Pose, const FBoneCont
 	// The fork out before him at shoulder height, the arm almost straight
 	const FVector Chest2 = Pose.GetComponentSpaceTransform(Chest).GetLocation();
 	const FVector HeadAt = Head != INDEX_NONE ? Pose.GetComponentSpaceTransform(Head).GetLocation() : Chest2 + FVector(0.0f, 0.0f, 25.0f);
-	const FVector Grip = Chest2 + FVector(OutwardL * 4.0f, 52.0f, 6.0f);
+	// The release kicks the fork forward and up a little; at full draw both arms tremble with the strain
+	const float Kick = FMath::Sin(SlingKick * UE_PI * 0.5f);
+	const FVector Shake = SlingTremble * 0.7f * FVector(FMath::Sin(SlingClock * 41.0f), FMath::Sin(SlingClock * 37.0f + 1.3f) * 0.5f, FMath::Sin(SlingClock * 53.0f + 0.4f));
+	const FVector Grip = Chest2 + FVector(OutwardL * 4.0f, 52.0f + 4.0f * Kick, 6.0f + 5.0f * Kick) + Shake;
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
 		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
@@ -779,11 +788,15 @@ void FVaelAnimProxy::ApplySlingDraw(FCSPose<FCompactPose>& Pose, const FBoneCont
 		{
 			// The right hand starts at the fork and pulls the pouch back past the chin to the cheek
 			const FVector Cheek = HeadAt + FVector(Outward * 9.0f, 8.0f, -8.0f);
-			Target = FMath::Lerp(Grip + FVector(-OutwardL * 6.0f, -8.0f, 0.0f), Cheek, D);
+			// After the release the hand does not go back to the fork: it opens and flies on past the ear, then sinks
+			const FVector PastEar = HeadAt + FVector(Outward * 16.0f, -6.0f, -4.0f);
+			const FVector Drawn = FMath::Lerp(Grip + FVector(-OutwardL * 6.0f, -8.0f, 0.0f), Cheek, D) + Shake * 0.6f;
+			Target = SlingKick > 0.0f ? FMath::Lerp(Cheek, PastEar, Kick) : Drawn;
 			Pole = FVector(Outward, -0.3f, 0.1f);
 		}
 		ReachPoseArm(Pose, Upper, Lower, Hand, FMath::Lerp(HandNow, Target, W), Pole);
-		MakeFist(Pose, Bones, Suffix, W);
+		// the drawing hand lets go with the shot: it opens and closes again as the arm sinks
+		MakeFist(Pose, Bones, Suffix, Side == 1 ? W * (1.0f - 0.85f * Kick) : W);
 	}
 }
 
