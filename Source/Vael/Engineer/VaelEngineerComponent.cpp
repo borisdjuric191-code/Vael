@@ -10,6 +10,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Engineer/VaelEngineerDevice.h"
 #include "Engineer/VaelEngineerShot.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
 #include "Items/VaelMaterialDrop.h"
 #include "Creatures/VaelCreatureData.h"
@@ -1514,6 +1515,42 @@ void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 	const FVector Pouch = FMath::Lerp(Rest, HandR + Held.Vector() * 3.0f, FMath::Max(SlingDrawShown, SlingAim * 0.12f));
 	const FVector Across = (TipR - TipL).GetSafeNormal();
 	PouchShell->SetWorldLocationAndRotation(Pouch, FRotationMatrix::MakeFromYZ(Across, FVector::UpVector).Rotator());
+
+	// The loaded shot in the pouch while he draws: the stone (or drop) of the ammo in the weapon
+	if (PouchLoad == nullptr)
+	{
+		PouchLoad = NewObject<UStaticMeshComponent>(GetOwner(), TEXT("ZwilleLadung"));
+		PouchLoad->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		PouchLoad->SetCastShadow(false);
+		PouchLoad->SetUsingAbsoluteLocation(true);
+		PouchLoad->SetUsingAbsoluteRotation(true);
+		PouchLoad->SetUsingAbsoluteScale(true);
+		PouchLoad->RegisterComponent();
+	}
+	const bool bLoaded = IsDrawing();
+	PouchLoad->SetVisibility(bLoaded);
+	if (bLoaded)
+	{
+		const AVaelEngineerShot::FLook Look = AVaelEngineerShot::GetLook(Ammo);
+		if (PouchLoadAmmo != Ammo || PouchLoad->GetStaticMesh() == nullptr)
+		{
+			PouchLoadAmmo = Ammo;
+			UStaticMesh* Shape = Look.bDrop ? LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"))
+				: LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Rock_Collection_04/Meshes/Rock_03/StaticMeshes/SM_Rock_03.SM_Rock_03"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+			PouchLoad->SetStaticMesh(Shape);
+			PouchLoad->SetMaterial(0, Look.bDrop ? LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"))
+				: LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_03.MI_AM_Rock_03"), nullptr, LOAD_NoWarn | LOAD_Quiet));
+			if (UMaterialInstanceDynamic* Material = PouchLoad->CreateAndSetMaterialInstanceDynamic(0))
+			{
+				Material->SetVectorParameterValue(TEXT("Color"), Look.Color * (1.0f + Look.Glow));
+				Material->SetVectorParameterValue(TEXT("Tint"), Look.Color);
+				Material->SetScalarParameterValue(TEXT("Glut"), Look.Glow);
+			}
+			const float Extent = Shape != nullptr ? FMath::Max(Shape->GetBoundingBox().GetSize().GetMax(), 1.0f) : 100.0f;
+			PouchLoad->SetWorldScale3D(FVector(5.0f * Look.Scale / Extent));
+		}
+		PouchLoad->SetWorldLocationAndRotation(Pouch + FVector(0.0f, 0.0f, 1.5f), Held);
+	}
 	const FVector Ends[2] = { Pouch - Across * 2.5f, Pouch + Across * 2.5f };
 	const FVector Tips[2] = { TipL, TipR };
 	for (int32 Side = 0; Side < 2; ++Side)

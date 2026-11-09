@@ -30,6 +30,7 @@
 #include "Items/VaelInventory.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Engineer/VaelEngineerGear.h"
+#include "Engineer/VaelEngineerShot.h"
 #include "Items/VaelItemData.h"
 #include "Items/VaelItemDrop.h"
 #include "Items/VaelItemSettings.h"
@@ -1860,6 +1861,24 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: figure height %.2f build %.2f, mesh scale %s"), Player->GetFigureHeight(), Player->GetFigureBuild(), *Player->GetMesh()->GetRelativeScale3D().ToString());
 		return;
 	}
+	if (What == TEXT("flugbild"))
+	{
+		// Goal 9.11., step 6: the nine new shots side by side in slow flight, 2 m in front of him, to see each one's look
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		const TCHAR* Kinds[] = { TEXT("Schwer"), TEXT("Klebe"), TEXT("Rauch"), TEXT("Knister"), TEXT("Schlaf"), TEXT("Leucht"), TEXT("Dorn"), TEXT("Tau"), TEXT("Nid") };
+		const FVector Fwd = Player->GetActorForwardVector();
+		const FVector Right = Player->GetActorRightVector();
+		for (int32 Index = 0; Index < UE_ARRAY_COUNT(Kinds); ++Index)
+		{
+			const FVaelGear* Gear = VaelEngineerGear::Find(Kinds[Index]);
+			// in a row behind him, flying slowly across from his left to his right
+			const FVector From = Player->GetActorLocation() - Right * 420.0f + Fwd * (Index * 95.0f - 640.0f) + FVector(0.0f, 0.0f, 40.0f);
+			const AVaelEngineerShot* Shot = AVaelEngineerShot::Launch(Engineer, From, From + Right * 3000.0f, 101.0f, 0.0f, 0.0f, Kinds[Index], false,
+				Gear != nullptr ? Gear->Color : FLinearColor::White, 9.0f, true);
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur flugbild: %s %s at %s"), Kinds[Index], Shot != nullptr ? TEXT("flies") : TEXT("failed"), *From.ToCompactString());
+		}
+		return;
+	}
 	if (What == TEXT("munition"))
 	{
 		// Goal 8.11. evening, step 9: the new shots one after another at the nearest enemy (Id: only this one), each hit logged
@@ -1898,6 +1917,16 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 					Best = Dist;
 					Target = *It;
 				}
+			}
+			// Without enemies (Id "frei" or none near): shots into the open, 16 m ahead, to see them fly
+			if (Target == nullptr && *Next < Kinds.Num())
+			{
+				const FName Kind = Kinds[*Next];
+				WeakEng->SetAmmo(Kind);
+				WeakEng->Fire(WeakPlayer->GetActorLocation() + WeakPlayer->GetActorForwardVector() * 1600.0f - FVector(0.0f, 0.0f, 90.0f));
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur munition %s: into the open"), *Kind.ToString());
+				++*Next;
+				return;
 			}
 			if (Target == nullptr || *Next >= Kinds.Num())
 			{

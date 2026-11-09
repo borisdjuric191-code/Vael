@@ -236,6 +236,11 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> PouchShell;
 
+	/** The shot lying in the pouch while he draws, in the look of the loaded ammo */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> PouchLoad;
+	FName PouchLoadAmmo;
+
 	/** Makes sure the Zwille follows the hand every frame: the component itself ticks only four times a second, so the
 	 *  Zwille hangs on the body's "pose is final" callback (goal 9.11.: it lagged behind and moved in steps) */
 	void UpdateSling(float DeltaTime);
