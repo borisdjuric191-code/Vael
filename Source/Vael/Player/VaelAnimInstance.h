@@ -61,6 +61,14 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	float SlingAim = 0.0f;
 	float SlingDraw = 0.0f;
 
+	/** Ground IK (goal 9.11.): how far the ground under each foot lies above (+) or below (-) the floor of the capsule
+	 *  (cm), the ground's up direction there (component space), how far the hips go down, and how much of it applies */
+	float GroundFoot[2] = { 0.0f, 0.0f };
+	FVector GroundNormal[2] = { FVector::UpVector, FVector::UpVector };
+	float GroundPelvis = 0.0f;
+	float GroundWeight = 0.0f;
+	void ApplyGroundIK(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
+
 private:
 
 	/** The whip stroke of one arm (0 left, 1 right): wound up high on its start side, it lashes down across the body, the chest
@@ -201,6 +209,12 @@ protected:
 	/** The engineer's slingshot: held up and how far drawn */
 	float SlingAim = 0.0f;
 	float SlingDraw = 0.0f;
+
+	/** Ground IK, measured on the game thread (see the proxy) */
+	float GroundFoot[2] = { 0.0f, 0.0f };
+	FVector GroundNormal[2] = { FVector::UpVector, FVector::UpVector };
+	float GroundPelvis = 0.0f;
+	float GroundWeight = 0.0f;
 	float CastExhaustion = 0.0f;
 	int32 CastSkateSide = 0;
 

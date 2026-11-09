@@ -91,6 +91,35 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	bIsDodging = Character->IsDodging() && !bHovering;
 	bIsDowned = Character->IsDowned();
 
+	// Ground IK: the ground under each foot against the floor of the capsule; the feet go down to it on slopes, steps and
+	// edges, the hips sink with the lower foot. Not in the air, not while hovering, flying or down.
+	const USkeletalMeshComponent* Body = Character->GetMesh();
+	const bool bGroundIK = Body != nullptr && !bIsFalling && !bHovering && !bIsDowned && Character->GetFlightPose().Weight <= KINDA_SMALL_NUMBER;
+	GroundWeight = FMath::FInterpConstantTo(GroundWeight, bGroundIK ? 1.0f : 0.0f, DeltaSeconds, 4.0f);
+	float Lowest = 0.0f;
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		float Want = 0.0f;
+		FVector Up = FVector::UpVector;
+		const FName FootBone = Side == 0 ? TEXT("foot_l") : TEXT("foot_r");
+		if (bGroundIK && Body->GetBoneIndex(FootBone) != INDEX_NONE)
+		{
+			const float Floor = Body->GetComponentLocation().Z;
+			const FVector Foot = Body->GetSocketLocation(FootBone);
+			FHitResult Hit;
+			FCollisionQueryParams Query(TEXT("VaelGroundIK"), false, Character);
+			if (GetWorld()->LineTraceSingleByChannel(Hit, FVector(Foot.X, Foot.Y, Floor + 50.0f), FVector(Foot.X, Foot.Y, Floor - 60.0f), ECC_Visibility, Query))
+			{
+				Want = FMath::Clamp(Hit.ImpactPoint.Z - Floor, -45.0f, 35.0f);
+				Up = Body->GetComponentTransform().InverseTransformVectorNoScale(Hit.ImpactNormal);
+			}
+		}
+		GroundFoot[Side] = FMath::FInterpTo(GroundFoot[Side], Want, DeltaSeconds, 14.0f);
+		GroundNormal[Side] = FMath::VInterpTo(GroundNormal[Side], Up, DeltaSeconds, 10.0f).GetSafeNormal();
+		Lowest = FMath::Min(Lowest, GroundFoot[Side]);
+	}
+	GroundPelvis = FMath::FInterpTo(GroundPelvis, Lowest, DeltaSeconds, 10.0f);
+
 	const UAbilitySystemComponent* AbilitySystem = Character->GetAbilitySystemComponent();
 	bIsCasting = AbilitySystem != nullptr && (AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Casting) || AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling));
 }
@@ -127,6 +156,13 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	SkateSide = Instance->CastSkateSide;
 	SlingAim = Instance->SlingAim;
 	SlingDraw = Instance->SlingDraw;
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		GroundFoot[Side] = Instance->GroundFoot[Side];
+		GroundNormal[Side] = Instance->GroundNormal[Side];
+	}
+	GroundPelvis = Instance->GroundPelvis;
+	GroundWeight = Instance->GroundWeight;
 	GestureRelease = MagicSettings->GetGestureRelease(Gesture);
 	GestureDuration = MagicSettings->GetGestureDuration(Gesture);
 }
@@ -547,6 +583,47 @@ void FVaelAnimProxy::Crouch(FCSPose<FCompactPose>& Pose, const FBoneContainer& B
 		// The foot keeps lying flat as it was
 		const FQuat Now = Pose.GetComponentSpaceTransform(FootBones[Side]).GetRotation();
 		TurnPoseBone(Pose, FootBones[Side], Feet[Side].GetRotation() * Now.Inverse());
+	}
+}
+
+void FVaelAnimProxy::ApplyGroundIK(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const
+{
+	const FCompactPoseBoneIndex Pelvis = FindPoseBone(Bones, TEXT("pelvis"));
+	if (Pelvis == INDEX_NONE)
+	{
+		return;
+	}
+	// Where the feet are in the animation, raised or lowered by the ground under them; then the hips sink with the lower
+	// foot and each leg bends to its foot (knees forward), the foot turned to lie on the slope
+	FTransform Feet[2];
+	FCompactPoseBoneIndex Thighs[2], Calves[2], FootBones[2];
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+		Thighs[Side] = FindPoseBone(Bones, *FString::Printf(TEXT("thigh_%s"), Suffix));
+		Calves[Side] = FindPoseBone(Bones, *FString::Printf(TEXT("calf_%s"), Suffix));
+		FootBones[Side] = FindPoseBone(Bones, *FString::Printf(TEXT("foot_%s"), Suffix));
+		if (FootBones[Side] != INDEX_NONE)
+		{
+			Feet[Side] = Pose.GetComponentSpaceTransform(FootBones[Side]);
+			Feet[Side].AddToTranslation(FVector(0.0f, 0.0f, GroundFoot[Side] * GroundWeight));
+		}
+	}
+	FTransform Hips = Pose.GetComponentSpaceTransform(Pelvis);
+	Hips.AddToTranslation(FVector(0.0f, 0.0f, GroundPelvis * GroundWeight));
+	TArray<FBoneTransform> Changed = { FBoneTransform(Pelvis, Hips) };
+	Pose.LocalBlendCSBoneTransforms(Changed, 1.0f);
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		if (Thighs[Side] == INDEX_NONE || Calves[Side] == INDEX_NONE || FootBones[Side] == INDEX_NONE)
+		{
+			continue;
+		}
+		const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Thighs[Side]).GetLocation().X - Hips.GetLocation().X);
+		ReachPoseArm(Pose, Thighs[Side], Calves[Side], FootBones[Side], Feet[Side].GetLocation(), FVector(Outward * 0.25f, 1.0f, 0.0f));
+		const FQuat Slope = FQuat::Slerp(FQuat::Identity, FQuat::FindBetweenNormals(FVector::UpVector, GroundNormal[Side]), 0.8f * GroundWeight);
+		const FQuat Now = Pose.GetComponentSpaceTransform(FootBones[Side]).GetRotation();
+		TurnPoseBone(Pose, FootBones[Side], (Slope * Feet[Side].GetRotation()) * Now.Inverse());
 	}
 }
 
@@ -1366,7 +1443,8 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	const bool bGesture = Gesture != EVaelCastGesture::None;
 	const bool bWhipping = WhipSeconds[0] >= 0.0f || WhipSeconds[1] >= 0.0f;
 	const bool bSling = SlingAim > KINDA_SMALL_NUMBER;
-	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && !bSling && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
+	const bool bGround = GroundWeight > KINDA_SMALL_NUMBER && (FMath::Abs(GroundFoot[0]) > 0.5f || FMath::Abs(GroundFoot[1]) > 0.5f);
+	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && !bSling && !bGround && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
 	{
 		return true;
 	}
@@ -1377,6 +1455,10 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	FCSPose<FCompactPose> Pose;
 	Pose.InitPose(Output.Pose);
 
+	if (bGround)
+	{
+		ApplyGroundIK(Pose, Bones);
+	}
 	if (bFlying)
 	{
 		ApplyFlight(Pose, Bones);
