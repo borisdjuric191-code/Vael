@@ -15,15 +15,19 @@
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/KismetRenderingLibrary.h"
 #include "Materials/MaterialParameterCollection.h"
+#include "Materials/MaterialInterface.h"
+#include "Components/PrimitiveComponent.h"
+#include "HAL/IConsoleManager.h"
 #include "Player/VaelCharacter.h"
 #include "Vael.h"
 
 namespace
 {
-	const TCHAR* MapPath = TEXT("/Game/Vael/Welt/Boden/RT_AM_Spuren.RT_AM_Spuren");
 	const TCHAR* SparePath = TEXT("/Game/Vael/Welt/Boden/RT_AM_Spuren_Umzug.RT_AM_Spuren_Umzug");
 	const TCHAR* ShapesPath = TEXT("/Game/Vael/Welt/Boden/T_AM_Fussabdruecke.T_AM_Fussabdruecke");
 	const TCHAR* ParametersPath = TEXT("/Game/Vael/Welt/Boden/MPC_AM_Spuren.MPC_AM_Spuren");
+
+	TAutoConsoleVariable<int32> CVarSpurLog(TEXT("r.Vael.SpurLog"), 0, TEXT("1: the footprint protocol every 15 s in the log"));
 
 	/** The clock written into the map: seconds / 600, wrapped to 0..1 */
 	float ClockValue(const UWorld* World)
@@ -40,7 +44,7 @@ bool UVaelFootprintSubsystem::ShouldCreateSubsystem(UObject* Outer) const
 
 bool UVaelFootprintSubsystem::EnsureResources()
 {
-	if (Map != nullptr)
+	if (Maps[0] != nullptr)
 	{
 		return true;
 	}
@@ -50,30 +54,59 @@ bool UVaelFootprintSubsystem::EnsureResources()
 		return false;
 	}
 	bTriedResources = true;
-	Map = LoadObject<UTextureRenderTarget2D>(nullptr, MapPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	bool bAllMaps = true;
+	for (int32 Slot = 0; Slot < NumMaps; ++Slot)
+	{
+		Maps[Slot] = LoadObject<UTextureRenderTarget2D>(nullptr, *FString::Printf(TEXT("/Game/Vael/Welt/Boden/RT_AM_Spuren_%d.RT_AM_Spuren_%d"), Slot, Slot), nullptr, LOAD_NoWarn | LOAD_Quiet);
+		bAllMaps &= Maps[Slot] != nullptr;
+	}
 	Spare = LoadObject<UTextureRenderTarget2D>(nullptr, SparePath, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	Shapes = LoadObject<UTexture2D>(nullptr, ShapesPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	Parameters = LoadObject<UMaterialParameterCollection>(nullptr, ParametersPath, nullptr, LOAD_NoWarn | LOAD_Quiet);
-	if (Map == nullptr || Spare == nullptr || Shapes == nullptr || Parameters == nullptr)
+	if (!bAllMaps || Spare == nullptr || Shapes == nullptr || Parameters == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("Footprints: resources missing (map %d, spare %d, shapes %d, parameters %d)"), Map != nullptr, Spare != nullptr, Shapes != nullptr, Parameters != nullptr);
-		Map = nullptr;
+		UE_LOG(LogVael, Warning, TEXT("Footprints: resources missing (maps %d, spare %d, shapes %d, parameters %d)"), bAllMaps, Spare != nullptr, Shapes != nullptr, Parameters != nullptr);
+		for (int32 Slot = 0; Slot < NumMaps; ++Slot)
+		{
+			Maps[Slot] = nullptr;
+		}
 		return false;
 	}
-	UE_LOG(LogVael, Display, TEXT("Footprints: map %dx%d ready"), Map->SizeX, Map->SizeY);
-	UKismetRenderingLibrary::ClearRenderTarget2D(this, Map, FLinearColor::Transparent);
+	UE_LOG(LogVael, Display, TEXT("Footprints: %d maps %dx%d ready"), NumMaps, Maps[0]->SizeX, Maps[0]->SizeY);
+	for (int32 Slot = 0; Slot < NumMaps; ++Slot)
+	{
+		UKismetRenderingLibrary::ClearRenderTarget2D(this, Maps[Slot], FLinearColor::Transparent);
+		Park(Slot);
+	}
 	UKismetRenderingLibrary::ClearRenderTarget2D(this, Spare, FLinearColor::Transparent);
 	return true;
 }
 
-void UVaelFootprintSubsystem::Recentre(const FVector2D& Centre)
+void UVaelFootprintSubsystem::Park(int32 Slot)
 {
-	const FVector2D NewOrigin = Centre - FVector2D(MapSize * 0.5f);
-	if (bPlaced)
+	if (bParked[Slot])
 	{
-		// The old map drawn shifted into the spare one, then back: prints stay where they are in the world
+		return;
+	}
+	bParked[Slot] = true;
+	bPlaced[Slot] = false;
+	UKismetRenderingLibrary::ClearRenderTarget2D(this, Maps[Slot], FLinearColor::Transparent);
+	UKismetMaterialLibrary::SetVectorParameterValue(this, Parameters, *FString::Printf(TEXT("SpurenUrsprung%d"), Slot),
+		FLinearColor(-1.0e7f, -1.0e7f, MapSize, 0.0f));
+}
+
+void UVaelFootprintSubsystem::Recentre(int32 Slot, const FVector2D& Centre)
+{
+	UTextureRenderTarget2D* Map = Maps[Slot];
+	const FVector2D NewOrigin = Centre - FVector2D(MapSize * 0.5f);
+	if (bPlaced[Slot])
+	{
+		const FVector2D Origin = Origins[Slot];
+		// The old map drawn shifted into the spare one, then back: prints stay where they are in the world. Whole pixels
+		// only, so moving does not blur the prints
 		const float Pixels = Map->SizeX;
-		const FVector2D Shift = (Origin - NewOrigin) / MapSize * Pixels;
+		const FVector2D PixelShift = (Origin - NewOrigin) / MapSize * Pixels;
+		const FVector2D Shift(FMath::RoundToDouble(PixelShift.X), FMath::RoundToDouble(PixelShift.Y));
 		UKismetRenderingLibrary::ClearRenderTarget2D(this, Spare, FLinearColor::Transparent);
 		UCanvas* Canvas = nullptr;
 		FVector2D CanvasSize;
@@ -89,44 +122,72 @@ void UVaelFootprintSubsystem::Recentre(const FVector2D& Centre)
 		Canvas->K2_DrawTexture(Spare, FVector2D::ZeroVector, FVector2D(Pixels), FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Opaque);
 		UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
 	}
-	Origin = NewOrigin;
-	bPlaced = true;
-	UKismetMaterialLibrary::SetVectorParameterValue(this, Parameters, TEXT("SpurenUrsprung"), FLinearColor(Origin.X, Origin.Y, MapSize, 0.0f));
+	// The origin moves by the same whole pixels the prints moved
+	if (bPlaced[Slot])
+	{
+		const float Pixels = Map->SizeX;
+		const FVector2D PixelShift = (Origins[Slot] - NewOrigin) / MapSize * Pixels;
+		const FVector2D Shift(FMath::RoundToDouble(PixelShift.X), FMath::RoundToDouble(PixelShift.Y));
+		Origins[Slot] = Origins[Slot] - Shift / Pixels * MapSize;
+	}
+	else
+	{
+		UKismetRenderingLibrary::ClearRenderTarget2D(this, Map, FLinearColor::Transparent);
+		Origins[Slot] = NewOrigin;
+	}
+	bPlaced[Slot] = true;
+	bParked[Slot] = false;
+	++RecentreCount;
+	UKismetMaterialLibrary::SetVectorParameterValue(this, Parameters, *FString::Printf(TEXT("SpurenUrsprung%d"), Slot),
+		FLinearColor(Origins[Slot].X, Origins[Slot].Y, MapSize, 0.0f));
 }
 
 void UVaelFootprintSubsystem::Stamp(const FVector& Location, float Yaw, EVaelPrint Print, float Size, float Depth)
 {
-	if (!EnsureResources() || !bPlaced)
+	if (!EnsureResources())
 	{
 		return;
 	}
-	const float Pixels = Map->SizeX;
-	// Map pixels: u along world Y (east), v along world X (north), so the material reads it as world.xy / size
-	const FVector2D Local = (FVector2D(Location.X, Location.Y) - Origin) / MapSize * Pixels;
-	if (Local.X < 0.0f || Local.Y < 0.0f || Local.X > Pixels || Local.Y > Pixels)
+	// Into every map that covers the place (maps of players walking together overlap)
+	bool bAny = false;
+	for (int32 Slot = 0; Slot < NumMaps; ++Slot)
 	{
+		UTextureRenderTarget2D* Map = Maps[Slot];
+		if (!bPlaced[Slot])
+		{
+			continue;
+		}
+		const float Pixels = Map->SizeX;
+		// Map pixels: x along world X, y along world Y, so the material reads it as (world.xy - origin) / size
+		const FVector2D Local = (FVector2D(Location.X, Location.Y) - Origins[Slot]) / MapSize * Pixels;
+		if (Local.X < 0.0f || Local.Y < 0.0f || Local.X > Pixels || Local.Y > Pixels)
+		{
+			continue;
+		}
+		const float SizePixels = Size / MapSize * Pixels;
+		UCanvas* Canvas = nullptr;
+		FVector2D CanvasSize;
+		FDrawToRenderTargetContext Context;
+		UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, Map, Canvas, CanvasSize, Context);
+		if (Canvas == nullptr)
+		{
+			continue;
+		}
+		const int32 Cell = static_cast<int32>(Print);
+		// Colour = (depth, clock); the shape's alpha blends it over what is there
+		Canvas->K2_DrawTexture(Shapes, FVector2D(Local.X, Local.Y) - FVector2D(SizePixels * 0.5f), FVector2D(SizePixels),
+			FVector2D(Cell * 0.25f, 0.0f), FVector2D(0.25f, 1.0f), FLinearColor(Depth, ClockValue(GetWorld()), 0.0f, 1.0f), BLEND_Translucent,
+			Yaw, FVector2D(0.5f, 0.5f));
+		UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
+		bAny = true;
+	}
+	if (!bAny)
+	{
+		++SkippedOutside;
 		return;
 	}
-	const float SizePixels = Size / MapSize * Pixels;
-	UCanvas* Canvas = nullptr;
-	FVector2D CanvasSize;
-	FDrawToRenderTargetContext Context;
-	UKismetRenderingLibrary::BeginDrawCanvasToRenderTarget(this, Map, Canvas, CanvasSize, Context);
-	if (Canvas == nullptr)
-	{
-		return;
-	}
-	const int32 Cell = static_cast<int32>(Print);
-	// Colour = (depth, clock); the shape's alpha blends it over what is there
-	Canvas->K2_DrawTexture(Shapes, FVector2D(Local.X, Local.Y) - FVector2D(SizePixels * 0.5f), FVector2D(SizePixels),
-		FVector2D(Cell * 0.25f, 0.0f), FVector2D(0.25f, 1.0f), FLinearColor(Depth, ClockValue(GetWorld()), 0.0f, 1.0f), BLEND_Translucent,
-		Yaw, FVector2D(0.5f, 0.5f));
-	UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
-	static int32 Stamps = 0;
-	if (++Stamps % 20 == 1)
-	{
-		UE_LOG(LogVael, Verbose, TEXT("Footprints: %d prints, last at pixel %s"), Stamps, *Local.ToString());
-	}
+	++StampCount;
+	LastStampWorld = Location;
 }
 
 void UVaelFootprintSubsystem::FollowWalker(AActor* Walker, EVaelPrint Print, float Stride, float Size, float Side, float Depth)
@@ -156,6 +217,10 @@ void UVaelFootprintSubsystem::FollowWalker(AActor* Walker, EVaelPrint Print, flo
 		// The atlas cells point their toes up (v down = forward): turn so the toes lead the way
 		Stamp(Ground, Yaw + 90.0f, Print, Size, Depth);
 	}
+	else
+	{
+		++SkippedNoGround;
+	}
 	State.Last = Flat;
 }
 
@@ -168,25 +233,40 @@ void UVaelFootprintSubsystem::Tick(float DeltaTime)
 	}
 	UKismetMaterialLibrary::SetScalarParameterValue(this, Parameters, TEXT("SpurenUhr"), ClockValue(World));
 
-	// The middle of the group; the map follows it
-	FVector2D Middle = FVector2D::ZeroVector;
+	// One map per player, following it; the maps of missing players are parked
 	TArray<AVaelCharacter*> Players;
 	for (FConstPlayerControllerIterator It = World->GetPlayerControllerIterator(); It; ++It)
 	{
 		if (AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr)
 		{
 			Players.Add(Player);
-			Middle += FVector2D(Player->GetActorLocation().X, Player->GetActorLocation().Y);
 		}
 	}
 	if (Players.IsEmpty())
 	{
 		return;
 	}
-	Middle /= Players.Num();
-	if (!bPlaced || FVector2D::Distance(Middle, Origin + FVector2D(MapSize * 0.5f)) > RecentreDistance)
+	FVector2D Middle = FVector2D::ZeroVector;
+	for (int32 Slot = 0; Slot < NumMaps; ++Slot)
 	{
-		Recentre(Middle);
+		if (!Players.IsValidIndex(Slot))
+		{
+			Park(Slot);
+			continue;
+		}
+		const FVector2D At(Players[Slot]->GetActorLocation().X, Players[Slot]->GetActorLocation().Y);
+		Middle += At / FMath::Min(Players.Num(), NumMaps);
+		if (!bPlaced[Slot] || FVector2D::Distance(At, Origins[Slot] + FVector2D(MapSize * 0.5f)) > RecentreDistance)
+		{
+			Recentre(Slot, At);
+		}
+	}
+
+	LogClock += DeltaTime;
+	if (LogClock >= 15.0f && (CVarSpurLog.GetValueOnGameThread() > 0 || FParse::Param(FCommandLine::Get(), TEXT("VaelSpurLog"))))
+	{
+		LogClock = 0.0f;
+		WriteProtocol(Players[0]->GetActorLocation());
 	}
 
 	for (AVaelCharacter* Player : Players)
@@ -206,7 +286,13 @@ void UVaelFootprintSubsystem::Tick(float DeltaTime)
 		NearCreatures.Reset();
 		for (TActorIterator<AVaelCreature> It(World); It; ++It)
 		{
-			if (!It->IsDead() && FVector2D::Distance(FVector2D(It->GetActorLocation().X, It->GetActorLocation().Y), Middle) < MapSize * 0.5f)
+			const FVector2D At(It->GetActorLocation().X, It->GetActorLocation().Y);
+			bool bNear = false;
+			for (AVaelCharacter* Player : Players)
+			{
+				bNear |= FVector2D::Distance(At, FVector2D(Player->GetActorLocation().X, Player->GetActorLocation().Y)) < MapSize * 0.5f;
+			}
+			if (!It->IsDead() && bNear)
 			{
 				NearCreatures.Add(*It);
 			}
@@ -238,3 +324,44 @@ void UVaelFootprintSubsystem::Tick(float DeltaTime)
 		}
 	}
 }
+
+FLinearColor UVaelFootprintSubsystem::ReadAt(const FVector& World) const
+{
+	for (int32 Slot = 0; Slot < NumMaps; ++Slot)
+	{
+		const FVector2D Local = (FVector2D(World.X, World.Y) - Origins[Slot]) / MapSize;
+		if (Maps[Slot] != nullptr && bPlaced[Slot] && Local.X >= 0.0 && Local.Y >= 0.0 && Local.X < 1.0 && Local.Y < 1.0)
+		{
+			return UKismetRenderingLibrary::ReadRenderTargetRawUV(const_cast<UVaelFootprintSubsystem*>(this), Maps[Slot], Local.X, Local.Y);
+		}
+	}
+	return FLinearColor(-1.0f, -1.0f, 0.0f, 0.0f);
+}
+
+void UVaelFootprintSubsystem::WriteProtocol(const FVector& PlayerAt)
+{
+	// The ground under the player: which material, so a region without the footprint block shows up
+	FString GroundName = TEXT("-");
+	FHitResult Hit;
+	if (GetWorld()->LineTraceSingleByChannel(Hit, PlayerAt, PlayerAt - FVector(0.0f, 0.0f, 400.0f), ECC_Visibility))
+	{
+		const UPrimitiveComponent* Component = Hit.GetComponent();
+		const UMaterialInterface* Material = Component != nullptr ? Component->GetMaterial(0) : nullptr;
+		GroundName = FString::Printf(TEXT("%s / %s"), *GetNameSafe(Hit.GetActor()), *GetNameSafe(Material));
+	}
+	// The print probed last time, read again: did the moves of the map keep its depth and its time?
+	FString Probe = TEXT("none");
+	if (bProbe)
+	{
+		const FLinearColor Now = ReadAt(ProbeWorld);
+		Probe = FString::Printf(TEXT("then R %.3f G %.4f, now R %.3f G %.4f"), ProbeValue.R, ProbeValue.G, Now.R, Now.G);
+	}
+	UE_LOG(LogVael, Display, TEXT("[Spuren] t %.0f s, clock %.4f, prints %d, skipped outside %d / no ground %d, moves %d, origin %s, player %s, ground %s, probe %s"),
+		GetWorld()->GetTimeSeconds(), ClockValue(GetWorld()), StampCount, SkippedOutside, SkippedNoGround, RecentreCount, *Origins[0].ToString(),
+		*PlayerAt.ToCompactString(), *GroundName, *Probe);
+	// A new probe: the print pressed last (read right away, before the next move of the map)
+	ProbeWorld = LastStampWorld;
+	ProbeValue = ReadAt(LastStampWorld);
+	bProbe = true;
+}
+

@@ -60,4 +60,6 @@ private:
 	float WalkStart = -1.0f;
 	float WalkCheckTime = 0.0f;
 	FVector WalkCheckLocation = FVector::ZeroVector;
+	FVector CircleCentre = FVector::ZeroVector;
+	bool bCircleCentre = false;
 };

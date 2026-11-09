@@ -22,7 +22,8 @@ FOLDER = WORLD_FOLDER + "/Boden"
 LAYERS = 8
 M = 100.0
 SIZE_X, SIZE_Y = 2017, 2521
-KIT_VERSION = 3.1
+KIT_VERSION = 3.2
+TRACK_MAPS = 4   # one track map per player (UVaelFootprintSubsystem::NumMaps)
 # The displacement is scaled by the landscape scale (100 in X, Y and Z): 0.12 = 12 cm
 DISPLACEMENT_CM = 0.12
 
@@ -215,14 +216,71 @@ float Grain = Bh[0].a;
 float Relief = lerp(Height, Height * 0.45 + Ripple * 0.4 + Grain * 0.15, Soft) * (1.0 - smoothstep(0.25, 0.85, Way) * 0.55);
 // Footprints from the track map (UVaelFootprintSubsystem): R depth, G the clock when made; deep in ash and sand, shallow
 // on earth, hardly on rock and roads; they fade over FadeSecs
-float Inside = all(TrailUV > 0.0) && all(TrailUV < 1.0) ? 1.0 : 0.0;
+// Goal 9.11.: one map per player (UVaelFootprintSubsystem), the deepest print of the four wins
 float Texel = 2.0 / 2048.0;   // two map pixels: the print edges are soft, one pixel gives almost no slope
-float4 Tr = Trail.SampleLevel(TrailSampler, TrailUV, 0);
-float Age = frac(Clock - Tr.g) * 600.0;
-float Print = Tr.r * saturate(1.0 - Age / FadeSecs) * Inside;
+float Inside = 0.0, Print = 0.0, Age = 0.0, PrintR = 0.0, PrintU = 0.0;
+float4 Tr = 0.0;
+{
+    float2 U = (TrailXY - Origin0.xy) / Origin0.z;
+    if (all(U > 0.0) && all(U < 1.0))
+    {
+        float4 S = Trail0.SampleLevel(Trail0Sampler, U, 0);
+        float A = frac(Clock - S.g) * 600.0;
+        float P = S.r * saturate(1.0 - A / FadeSecs);
+        if (P > Print)
+        {
+            Print = P; Tr = S; Age = A; Inside = 1.0;
+            PrintR = Trail0.SampleLevel(Trail0Sampler, U + float2(Texel, 0), 0).r;
+            PrintU = Trail0.SampleLevel(Trail0Sampler, U + float2(0, Texel), 0).r;
+        }
+    }
+}
+{
+    float2 U = (TrailXY - Origin1.xy) / Origin1.z;
+    if (all(U > 0.0) && all(U < 1.0))
+    {
+        float4 S = Trail1.SampleLevel(Trail1Sampler, U, 0);
+        float A = frac(Clock - S.g) * 600.0;
+        float P = S.r * saturate(1.0 - A / FadeSecs);
+        if (P > Print)
+        {
+            Print = P; Tr = S; Age = A; Inside = 1.0;
+            PrintR = Trail1.SampleLevel(Trail1Sampler, U + float2(Texel, 0), 0).r;
+            PrintU = Trail1.SampleLevel(Trail1Sampler, U + float2(0, Texel), 0).r;
+        }
+    }
+}
+{
+    float2 U = (TrailXY - Origin2.xy) / Origin2.z;
+    if (all(U > 0.0) && all(U < 1.0))
+    {
+        float4 S = Trail2.SampleLevel(Trail2Sampler, U, 0);
+        float A = frac(Clock - S.g) * 600.0;
+        float P = S.r * saturate(1.0 - A / FadeSecs);
+        if (P > Print)
+        {
+            Print = P; Tr = S; Age = A; Inside = 1.0;
+            PrintR = Trail2.SampleLevel(Trail2Sampler, U + float2(Texel, 0), 0).r;
+            PrintU = Trail2.SampleLevel(Trail2Sampler, U + float2(0, Texel), 0).r;
+        }
+    }
+}
+{
+    float2 U = (TrailXY - Origin3.xy) / Origin3.z;
+    if (all(U > 0.0) && all(U < 1.0))
+    {
+        float4 S = Trail3.SampleLevel(Trail3Sampler, U, 0);
+        float A = frac(Clock - S.g) * 600.0;
+        float P = S.r * saturate(1.0 - A / FadeSecs);
+        if (P > Print)
+        {
+            Print = P; Tr = S; Age = A; Inside = 1.0;
+            PrintR = Trail3.SampleLevel(Trail3Sampler, U + float2(Texel, 0), 0).r;
+            PrintU = Trail3.SampleLevel(Trail3Sampler, U + float2(0, Texel), 0).r;
+        }
+    }
+}
 float Give = saturate(0.15 + 0.85 * Soft + 0.3 * F[1] / max(Total, 1e-4)) * (1.0 - Steep) * (1.0 - smoothstep(0.4, 0.9, Way) * 0.7);
-float PrintR = Trail.SampleLevel(TrailSampler, TrailUV + float2(Texel, 0), 0).r;
-float PrintU = Trail.SampleLevel(TrailSampler, TrailUV + float2(0, Texel), 0).r;
 // 9.11.: stronger, so they read from the game camera in sand and ash (they were barely visible)
 Relief -= Print * Give * 0.7;
 Colour *= 1.0 - Print * Give * 0.55;
@@ -246,7 +304,7 @@ return Colour;
 
 def track_resources():
     """RT_AM_Spuren (+ the spare one for moving it), the print shapes and MPC_AM_Spuren for UVaelFootprintSubsystem"""
-    for name in ("RT_AM_Spuren", "RT_AM_Spuren_Umzug"):
+    for name in ["RT_AM_Spuren_%d" % k for k in range(TRACK_MAPS)] + ["RT_AM_Spuren_Umzug"]:
         path = FOLDER + "/" + name
         target = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
             name, FOLDER, unreal.TextureRenderTarget2D, unreal.TextureRenderTargetFactoryNew())
@@ -265,13 +323,16 @@ def track_resources():
     path = FOLDER + "/MPC_AM_Spuren"
     collection = unreal.load_asset(path) if assets.does_asset_exist(path) else tools.create_asset(
         "MPC_AM_Spuren", FOLDER, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
-    vector = unreal.CollectionVectorParameter()
-    vector.set_editor_property("parameter_name", "SpurenUrsprung")
-    vector.set_editor_property("default_value", unreal.LinearColor(0, 0, 4800, 0))
+    vectors = []
+    for k in range(TRACK_MAPS):
+        vector = unreal.CollectionVectorParameter()
+        vector.set_editor_property("parameter_name", "SpurenUrsprung%d" % k)
+        vector.set_editor_property("default_value", unreal.LinearColor(-1.0e7, -1.0e7, 4800, 0))
+        vectors.append(vector)
     scalar = unreal.CollectionScalarParameter()
     scalar.set_editor_property("parameter_name", "SpurenUhr")
     scalar.set_editor_property("default_value", 0.0)
-    collection.set_editor_property("vector_parameters", [vector])
+    collection.set_editor_property("vector_parameters", vectors)
     collection.set_editor_property("scalar_parameters", [scalar])
     assets.save_loaded_asset(collection, False)
 
@@ -304,18 +365,15 @@ def build_material(bh_array, nr_array, masks):
                 sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
     # The track map: its place and size and the clock from MPC_AM_Spuren, the map itself as a texture
     spuren = unreal.load_asset(FOLDER + "/MPC_AM_Spuren")
-    origin = g.node(unreal.MaterialExpressionCollectionParameter, collection=spuren, parameter_name="SpurenUrsprung")
     clock = g.node(unreal.MaterialExpressionCollectionParameter, collection=spuren, parameter_name="SpurenUhr")
-    trail_offset = g.node(unreal.MaterialExpressionSubtract)
-    g.link(g.mask(world, "RG"), trail_offset, "A")
-    g.link(g.mask(origin, "RG"), trail_offset, "B")
-    trail_uv = g.node(unreal.MaterialExpressionDivide)
-    g.link(trail_offset, trail_uv, "A")
-    g.link(g.mask(origin, "B"), trail_uv, "B")
-    trail = g.node(unreal.MaterialExpressionTextureObjectParameter, parameter_name="Spuren", texture=unreal.load_asset(FOLDER + "/RT_AM_Spuren"),
-                   sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
-    inputs = {"UV": coords, "Masks": masks_sample, "Up": up, "BH": bh, "NR": nr,
-              "Trail": trail, "TrailUV": trail_uv, "Clock": clock, "FadeSecs": g.const(100.0),
+    track_inputs = {"TrailXY": g.mask(world, "RG")}
+    for k in range(TRACK_MAPS):
+        track_inputs["Origin%d" % k] = g.node(unreal.MaterialExpressionCollectionParameter, collection=spuren, parameter_name="SpurenUrsprung%d" % k)
+        track_inputs["Trail%d" % k] = g.node(unreal.MaterialExpressionTextureObjectParameter, parameter_name="Spuren%d" % k,
+                                             texture=unreal.load_asset(FOLDER + "/RT_AM_Spuren_%d" % k),
+                                             sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_LINEAR_COLOR)
+    inputs = {"UV": coords, "Masks": masks_sample, "Up": up, "BH": bh, "NR": nr, "Clock": clock, "FadeSecs": g.const(100.0),
+              **track_inputs,
               "N0": g.noise(world, 70.0, 2), "N1": g.noise(world, 22.0, 3), "N2": g.noise(world, 38.0, 3),
               "N3": g.noise(world, 11.0, 2), "N4": g.noise(world, 150.0, 2)}
     custom = g.node(unreal.MaterialExpressionCustom, code=GROUND, output_type=unreal.CustomMaterialOutputType.CMOT_FLOAT3,
@@ -467,7 +525,9 @@ def main():
     material = build_material(bh_array, nr_array, masks)
     log("material {} built, kit {}".format(material.get_name(), KIT_VERSION))
     nanite_landscape()
-    lay_decals()
+    # VAEL_NUR_MATERIAL=1: only the material and the track resources changed, the 840 marks stay as they are
+    if os.environ.get("VAEL_NUR_MATERIAL") != "1":
+        lay_decals()
 
 
 main()

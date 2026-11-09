@@ -24,9 +24,12 @@ enum class EVaelPrint : uint8
  *  a print into a map of tracks around the group. M_AM_Boden reads that map: the ground sinks in where a print is (Nanite
  *  displacement), darkens and fades out after a while; deep in ash and sand, shallow on earth, hardly on rock and roads.
  *
- *  The map (RT_AM_Spuren, 2048 px over 48 m, RGBA16F): R = depth of the print, G = when it was made (seconds / 600, wrapped).
- *  Its place, size and the clock go to the material through MPC_AM_Spuren. When the group walks away from the middle of
- *  the map, the map moves along and carries its prints with it. A template for the ground of later regions.
+ *  The maps (RT_AM_Spuren_0..3, 2048 px over 48 m, RGBA16F): R = depth of the print, G = when it was made (seconds / 600,
+ *  wrapped). One map follows each player (goal 9.11.: one map round the middle of the group lost every print of a player
+ *  who walked more than 24 m from the others); a print is pressed into every map that covers its place, the material
+ *  reads all four and keeps the deepest. Their places, size and the clock go to the material through MPC_AM_Spuren
+ *  (SpurenUrsprung0..3, SpurenUhr). A map moves along with its player and carries its prints. A template for the ground
+ *  of later regions.
  */
 UCLASS()
 class UVaelFootprintSubsystem : public UTickableWorldSubsystem
@@ -49,8 +52,13 @@ private:
 
 	bool EnsureResources();
 
-	/** Moves the map so Centre is its middle, carrying the prints along */
-	void Recentre(const FVector2D& Centre);
+	/** Moves map Slot so Centre is its middle, carrying the prints along */
+	void Recentre(int32 Slot, const FVector2D& Centre);
+
+	/** A map no player uses: parked far away, so the material finds nothing in it */
+	void Park(int32 Slot);
+
+	static constexpr int32 NumMaps = 4;
 
 	/** Steps of the walkers: where each one last pressed a print and with which foot */
 	struct FWalker
@@ -64,7 +72,7 @@ private:
 	void FollowWalker(AActor* Walker, EVaelPrint Print, float Stride, float Size, float Side, float Depth);
 
 	UPROPERTY()
-	TObjectPtr<UTextureRenderTarget2D> Map;
+	TObjectPtr<UTextureRenderTarget2D> Maps[NumMaps];
 
 	/** A second map the prints are moved through when the map recentres */
 	UPROPERTY()
@@ -76,11 +84,26 @@ private:
 	UPROPERTY()
 	TObjectPtr<UMaterialParameterCollection> Parameters;
 
-	FVector2D Origin = FVector2D::ZeroVector;
-	bool bPlaced = false;
+	FVector2D Origins[NumMaps];
+	bool bPlaced[NumMaps] = { false, false, false, false };
+	bool bParked[NumMaps] = { false, false, false, false };
 	bool bTriedResources = false;
 	float CreatureScan = 0.0f;
 	TArray<TWeakObjectPtr<AActor>> NearCreatures;
+
+	/** The protocol (goal 9.11., footprints stopping after a few minutes): counts, and a print read back from the map
+	 *  after the map has moved, every LogEvery seconds with -VaelSpurLog or r.Vael.SpurLog 1 */
+	int32 StampCount = 0;
+	int32 SkippedOutside = 0;
+	int32 SkippedNoGround = 0;
+	int32 RecentreCount = 0;
+	float LogClock = 0.0f;
+	FVector ProbeWorld = FVector::ZeroVector;
+	FVector LastStampWorld = FVector::ZeroVector;
+	FLinearColor ProbeValue = FLinearColor::Transparent;
+	bool bProbe = false;
+	void WriteProtocol(const FVector& PlayerAt);
+	FLinearColor ReadAt(const FVector& World) const;
 
 	static constexpr float MapSize = 4800.0f;
 	static constexpr float RecentreDistance = 800.0f;

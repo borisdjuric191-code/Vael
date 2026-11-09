@@ -100,6 +100,27 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		}
 	}
 
+	// -VaelShowcaseCircle=<radius cm>: after the first command step the first player walks round and round a circle about
+	// where it stands (a new circle after a teleport); a long walk without paths to get stuck on (footprint protocol)
+	float CircleRadius = 0.0f;
+	if (NumCommandsRun > 0 && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseCircle="), CircleRadius) && CircleRadius > 100.0f)
+	{
+		const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
+		if (APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr)
+		{
+			const FVector Here = PlayerPawn->GetActorLocation();
+			if (!bCircleCentre || FVector::Dist2D(Here, CircleCentre) > CircleRadius * 2.0f)
+			{
+				CircleCentre = Here + FVector(CircleRadius, 0.0f, 0.0f);
+				bCircleCentre = true;
+			}
+			const FVector Out = (Here - CircleCentre).GetSafeNormal2D();
+			// along the circle, leaning back in when it drifts out or in
+			const float Off = (FVector::Dist2D(Here, CircleCentre) - CircleRadius) / CircleRadius;
+			PlayerPawn->AddMovementInput((FVector(-Out.Y, Out.X, 0.0f) - Out * FMath::Clamp(Off * 2.0f, -0.6f, 0.6f)).GetSafeNormal2D());
+		}
+	}
+
 	// -VaelShowcaseWalkTo=X,Y (world metres): the first player walks there with real movement input after the first command
 	// step; logs every second where it is and whether it got there or got stuck (a wall in the way)
 	FString WalkText;
