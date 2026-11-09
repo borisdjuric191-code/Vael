@@ -63,10 +63,12 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	{
 		SlingAim = Engineer->GetSlingAim();
 		SlingDraw = Engineer->GetSlingDraw();
+		bHoldsSling = Engineer->IsHoldingSling();
 	}
 	else
 	{
 		SlingAim = SlingDraw = 0.0f;
+		bHoldsSling = false;
 	}
 	CastExhaustion = Character->GetCastExhaustion();
 	CastSkateSide = Character->GetSkateSide();
@@ -163,6 +165,7 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	}
 	GroundPelvis = Instance->GroundPelvis;
 	GroundWeight = Instance->GroundWeight;
+	bHoldsSling = Instance->bHoldsSling;
 	GestureRelease = MagicSettings->GetGestureRelease(Gesture);
 	GestureDuration = MagicSettings->GetGestureDuration(Gesture);
 }
@@ -1442,7 +1445,7 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	const bool bShielding = Shield[0] > KINDA_SMALL_NUMBER || Shield[1] > KINDA_SMALL_NUMBER;
 	const bool bGesture = Gesture != EVaelCastGesture::None;
 	const bool bWhipping = WhipSeconds[0] >= 0.0f || WhipSeconds[1] >= 0.0f;
-	const bool bSling = SlingAim > KINDA_SMALL_NUMBER;
+	const bool bSling = SlingAim > KINDA_SMALL_NUMBER || bHoldsSling;
 	const bool bGround = GroundWeight > KINDA_SMALL_NUMBER && (FMath::Abs(GroundFoot[0]) > 0.5f || FMath::Abs(GroundFoot[1]) > 0.5f);
 	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && !bSling && !bGround && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
 	{
@@ -1463,9 +1466,15 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	{
 		ApplyFlight(Pose, Bones);
 	}
-	if (bSling)
+	if (SlingAim > KINDA_SMALL_NUMBER)
 	{
 		ApplySlingDraw(Pose, Bones);
+	}
+	// The left fist stays closed round the Zwille, also while it hangs at his side
+	if (bHoldsSling)
+	{
+		// (ApplySlingDraw closes it as far as he aims: only the rest here, so it never curls twice)
+		MakeFist(Pose, Bones, TEXT("l"), 1.0f - FMath::SmoothStep(0.0f, 1.0f, SlingAim));
 	}
 
 	// Rooted: the legs stay where they took root, the spine twists the upper body towards the aim, spread over its bones

@@ -67,6 +67,7 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	FVector GroundNormal[2] = { FVector::UpVector, FVector::UpVector };
 	float GroundPelvis = 0.0f;
 	float GroundWeight = 0.0f;
+	bool bHoldsSling = false;
 	void ApplyGroundIK(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
 private:
@@ -215,6 +216,7 @@ protected:
 	FVector GroundNormal[2] = { FVector::UpVector, FVector::UpVector };
 	float GroundPelvis = 0.0f;
 	float GroundWeight = 0.0f;
+	bool bHoldsSling = false;
 	float CastExhaustion = 0.0f;
 	int32 CastSkateSide = 0;
 

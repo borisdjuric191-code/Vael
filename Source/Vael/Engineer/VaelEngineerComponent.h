@@ -104,6 +104,9 @@ public:
 	float GetSlingAim() const { return SlingAim; }
 	float GetSlingDraw() const { return SlingDrawShown; }
 
+	/** Whether the Zwille is in his left hand right now (the fist stays closed round it) */
+	bool IsHoldingSling() const;
+
 	/** Seconds to pull the slingshot band all the way */
 	static constexpr float SlingFullDraw = 1.0f;
 	float GetDrawSeconds() const;
@@ -227,8 +230,16 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> PouchShell;
 
-	/** Places the Zwille in the left hand and stretches its band to the right hand */
+	/** Makes sure the Zwille follows the hand every frame: the component itself ticks only four times a second, so the
+	 *  Zwille hangs on the body's "pose is final" callback (goal 9.11.: it lagged behind and moved in steps) */
 	void UpdateSling(float DeltaTime);
+
+	/** Every frame, right after the body's final pose: places the Zwille in the left hand and stretches its band */
+	void OnBodyPoseFinal();
+	void UpdateSlingFrame(float DeltaTime);
+	TWeakObjectPtr<USkeletalMeshComponent> SlingBody;
+	FDelegateHandle SlingBodyHandle;
+	double SlingFrameTime = -1.0;
 
 	/** World positions of the two prong tips of the Zwille in the hand */
 	bool SlingTips(FVector& OutLeft, FVector& OutRight) const;

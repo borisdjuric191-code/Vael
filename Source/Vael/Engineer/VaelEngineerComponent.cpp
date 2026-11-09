@@ -1393,6 +1393,45 @@ bool UVaelEngineerComponent::SlingTips(FVector& OutLeft, FVector& OutRight) cons
 
 void UVaelEngineerComponent::UpdateSling(float DeltaTime)
 {
+	// Hook onto the body (again, if it was swapped): the work is done every frame in OnBodyPoseFinal
+	AVaelCharacter* Player = GetPlayer();
+	USkeletalMeshComponent* Body = Player != nullptr ? Player->GetMesh() : nullptr;
+	if (Body != SlingBody.Get())
+	{
+		if (USkeletalMeshComponent* Old = SlingBody.Get())
+		{
+			Old->UnregisterOnBoneTransformsFinalizedDelegate(SlingBodyHandle);
+		}
+		SlingBody = Body;
+		SlingBodyHandle = Body != nullptr
+			? Body->RegisterOnBoneTransformsFinalizedDelegate(FOnBoneTransformsFinalizedMultiCast::FDelegate::CreateUObject(this, &UVaelEngineerComponent::OnBodyPoseFinal))
+			: FDelegateHandle();
+	}
+	if (Body == nullptr)
+	{
+		UpdateSlingFrame(DeltaTime);
+	}
+}
+
+void UVaelEngineerComponent::OnBodyPoseFinal()
+{
+	const UWorld* World = GetWorld();
+	if (World == nullptr)
+	{
+		return;
+	}
+	const double Time = World->GetTimeSeconds();
+	const float DeltaTime = SlingFrameTime < 0.0 ? 0.0f : static_cast<float>(FMath::Clamp(Time - SlingFrameTime, 0.0, 0.1));
+	if (Time == SlingFrameTime)
+	{
+		return;
+	}
+	SlingFrameTime = Time;
+	UpdateSlingFrame(DeltaTime);
+}
+
+void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
+{
 	AVaelCharacter* Player = GetPlayer();
 	const bool bSling = Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling && WeaponMesh != nullptr && WeaponMesh->IsVisible();
 	for (int32 Side = 0; Side < 2; ++Side)
@@ -1423,12 +1462,16 @@ void UVaelEngineerComponent::UpdateSling(float DeltaTime)
 	USkeletalMeshComponent* Body = Player->GetMesh();
 	const FVector HandL = Body->DoesSocketExist(TEXT("hand_l")) ? Body->GetSocketLocation(TEXT("hand_l")) : Player->GetActorLocation();
 	const FVector HandR = Body->DoesSocketExist(TEXT("hand_r")) ? Body->GetSocketLocation(TEXT("hand_r")) : HandL;
-	const float Yaw = Player->GetActorRotation().Yaw;
-	const FRotator Upright(0.0f, Yaw, 0.0f);
-	const FRotator Hanging(-80.0f, Yaw, 0.0f);
-	const FRotator Held = FMath::Lerp(Hanging, Upright, SlingAim);
+	// Held in the fist (goal 9.11.: it hung beside the hand at a fixed angle): the handle runs along the thumb (hand_l Y,
+	// up while aiming), the fork faces where the fingers point (hand_l X); the fist's middle a hand's breadth in front of
+	// the wrist, towards the palm (-Z), the handle reaching a little below the thumb
+	const FTransform HandBone = Body->DoesSocketExist(TEXT("hand_l")) ? Body->GetSocketTransform(TEXT("hand_l")) : Player->GetActorTransform();
+	const FVector Fingers = HandBone.GetUnitAxis(EAxis::X);
+	const FVector Thumb = HandBone.GetUnitAxis(EAxis::Y);
+	const FVector Palm = -HandBone.GetUnitAxis(EAxis::Z);
+	const FRotator Held = FRotationMatrix::MakeFromZX(Thumb, Fingers).Rotator();
 	const float Scale = 1.0f + 0.06f * GetWeaponTier(Weapon);
-	WeaponMesh->SetWorldLocationAndRotation(HandL + Held.RotateVector(FVector(7.0f, 0.0f, 9.0f)), Held);
+	WeaponMesh->SetWorldLocationAndRotation(HandL + Fingers * 8.0f + Palm * 2.5f - Thumb * 6.0f * Scale, Held);
 	WeaponMesh->SetWorldScale3D(FVector(Scale));
 
 	if (BandMesh[0] == nullptr)
@@ -1500,5 +1543,11 @@ bool UVaelEngineerComponent::SetAmmo(FName Id)
 	Ammo = Id;
 	LastCycle = Now();
 	return true;
+}
+
+bool UVaelEngineerComponent::IsHoldingSling() const
+{
+	const AVaelCharacter* Player = GetPlayer();
+	return Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling && WeaponMesh != nullptr && WeaponMesh->IsVisible();
 }
 
