@@ -42,8 +42,9 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual TStatId GetStatId() const override { RETURN_QUICK_DECLARE_CYCLE_STAT(UVaelFootprintSubsystem, STATGROUP_Tickables); }
 
-	/** Presses a print into the map at a world location, turned to Yaw (degrees, the way the walker goes), Size in cm */
-	void Stamp(const FVector& Location, float Yaw, EVaelPrint Print, float Size, float Depth = 1.0f);
+	/** Presses a print into the map at a world location, turned to Yaw (degrees, the way the walker goes), Size in cm;
+	 *  bMirror flips the shape for a left foot */
+	void Stamp(const FVector& Location, float Yaw, EVaelPrint Print, float Size, float Depth = 1.0f, bool bMirror = false);
 
 	/** Seconds a print takes to fade */
 	static constexpr float FadeSeconds = 100.0f;
@@ -60,16 +61,38 @@ private:
 
 	static constexpr int32 NumMaps = 4;
 
-	/** Steps of the walkers: where each one last pressed a print and with which foot */
+	/** A foot of a walker with foot bones (goal 9.11.: prints where the feet really are, when they really touch down) */
+	struct FFoot
+	{
+		FName Bone;
+		FName Toe;
+		bool bLeft = false;
+		bool bDown = true;
+		bool bStarted = false;
+		FVector Last = FVector::ZeroVector;
+		/** The lowest the bone has been over the ground lately: where it is when the foot stands */
+		float Lowest = 1.0e9f;
+		/** Height over the ground last frame, and whether it was coming down */
+		float LastHeight = 0.0f;
+		bool bFalling = false;
+	};
+
+	/** Steps of the walkers: where each one last pressed a print and with which foot; its feet if it has foot bones */
 	struct FWalker
 	{
 		FVector2D Last = FVector2D::ZeroVector;
 		bool bLeft = false;
 		bool bStarted = false;
+		bool bFeetChecked = false;
+		TArray<FFoot> Feet;
 	};
 	TMap<TWeakObjectPtr<AActor>, FWalker> Walkers;
 
 	void FollowWalker(AActor* Walker, EVaelPrint Print, float Stride, float Size, float Side, float Depth);
+
+	/** Follows the foot bones of a walker: a print the moment a foot comes to rest on the ground, under it and turned
+	 *  the way its toes point. Walkers without foot bones fall back to FollowWalker (a print every Stride) */
+	void FollowFeet(class ACharacter* Walker, EVaelPrint Print, float Stride, float Size, float Side, float Depth, float DeltaTime);
 
 	UPROPERTY()
 	TObjectPtr<UTextureRenderTarget2D> Maps[NumMaps];

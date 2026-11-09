@@ -11,6 +11,8 @@
 #include "Engine/World.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
+#include "GameFramework/Character.h"
+#include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/KismetMaterialLibrary.h"
 #include "Kismet/KismetRenderingLibrary.h"
@@ -142,7 +144,7 @@ void UVaelFootprintSubsystem::Recentre(int32 Slot, const FVector2D& Centre)
 		FLinearColor(Origins[Slot].X, Origins[Slot].Y, MapSize, 0.0f));
 }
 
-void UVaelFootprintSubsystem::Stamp(const FVector& Location, float Yaw, EVaelPrint Print, float Size, float Depth)
+void UVaelFootprintSubsystem::Stamp(const FVector& Location, float Yaw, EVaelPrint Print, float Size, float Depth, bool bMirror)
 {
 	if (!EnsureResources())
 	{
@@ -175,9 +177,10 @@ void UVaelFootprintSubsystem::Stamp(const FVector& Location, float Yaw, EVaelPri
 		}
 		const int32 Cell = static_cast<int32>(Print);
 		// Colour = (depth, clock); the shape's alpha blends it over what is there
+		// A left foot reads the cell from right to left: the same shape mirrored
 		Canvas->K2_DrawTexture(Shapes, FVector2D(Local.X, Local.Y) - FVector2D(SizePixels * 0.5f), FVector2D(SizePixels),
-			FVector2D(Cell * 0.25f, 0.0f), FVector2D(0.25f, 1.0f), FLinearColor(Depth, ClockValue(GetWorld()), 0.0f, 1.0f), BLEND_Translucent,
-			Yaw, FVector2D(0.5f, 0.5f));
+			FVector2D(Cell * 0.25f + (bMirror ? 0.25f : 0.0f), 0.0f), FVector2D(bMirror ? -0.25f : 0.25f, 1.0f),
+			FLinearColor(Depth, ClockValue(GetWorld()), 0.0f, 1.0f), BLEND_Translucent, Yaw, FVector2D(0.5f, 0.5f));
 		UKismetRenderingLibrary::EndDrawCanvasToRenderTarget(this, Context);
 		bAny = true;
 	}
@@ -256,7 +259,7 @@ void UVaelFootprintSubsystem::Tick(float DeltaTime)
 		}
 		const FVector2D At(Players[Slot]->GetActorLocation().X, Players[Slot]->GetActorLocation().Y);
 		Middle += At / FMath::Min(Players.Num(), NumMaps);
-		if (!bPlaced[Slot] || FVector2D::Distance(At, Origins[Slot] + FVector2D(MapSize * 0.5f)) > RecentreDistance)
+		if (!bPlaced[Slot] || (FVector2D::Distance(At, Origins[Slot] + FVector2D(MapSize * 0.5f)) > RecentreDistance))
 		{
 			Recentre(Slot, At);
 		}
@@ -274,7 +277,7 @@ void UVaelFootprintSubsystem::Tick(float DeltaTime)
 		// No prints while flying (the Floromant up high) or falling
 		if (!Player->IsDowned() && !Player->IsAboveGround())
 		{
-			FollowWalker(Player, EVaelPrint::Boot, 68.0f, 34.0f, 11.0f, 1.0f);
+			FollowFeet(Player, EVaelPrint::Boot, 68.0f, 34.0f, 11.0f, 1.0f, DeltaTime);
 		}
 	}
 
@@ -312,8 +315,8 @@ void UVaelFootprintSubsystem::Tick(float DeltaTime)
 		}
 		else if (!Creature->IsA<AVaelAshHarpy>())
 		{
-			FollowWalker(Creature, Radius > 70.0f ? EVaelPrint::Paw : EVaelPrint::Claw, FMath::Max(Radius * 0.9f, 40.0f),
-				FMath::Clamp(Radius * 0.7f, 18.0f, 60.0f), Radius * 0.35f, 0.8f);
+			FollowFeet(Creature, Radius > 70.0f ? EVaelPrint::Paw : EVaelPrint::Claw, FMath::Max(Radius * 0.9f, 40.0f),
+				FMath::Clamp(Radius * 0.7f, 18.0f, 60.0f), Radius * 0.35f, 0.8f, DeltaTime);
 		}
 	}
 	for (auto It = Walkers.CreateIterator(); It; ++It)
@@ -359,9 +362,125 @@ void UVaelFootprintSubsystem::WriteProtocol(const FVector& PlayerAt)
 	UE_LOG(LogVael, Display, TEXT("[Spuren] t %.0f s, clock %.4f, prints %d, skipped outside %d / no ground %d, moves %d, origin %s, player %s, ground %s, probe %s"),
 		GetWorld()->GetTimeSeconds(), ClockValue(GetWorld()), StampCount, SkippedOutside, SkippedNoGround, RecentreCount, *Origins[0].ToString(),
 		*PlayerAt.ToCompactString(), *GroundName, *Probe);
+	for (int32 Slot = 0; Slot < NumMaps; ++Slot)
+	{
+		const FLinearColor Param = UKismetMaterialLibrary::GetVectorParameterValue(this, Parameters, *FString::Printf(TEXT("SpurenUrsprung%d"), Slot));
+		UE_LOG(LogVael, Display, TEXT("[Spuren] map %d placed %d parked %d origin %s, parameter %s"), Slot, bPlaced[Slot], bParked[Slot], *Origins[Slot].ToString(), *Param.ToString());
+	}
 	// A new probe: the print pressed last (read right away, before the next move of the map)
 	ProbeWorld = LastStampWorld;
 	ProbeValue = ReadAt(LastStampWorld);
 	bProbe = true;
+}
+
+void UVaelFootprintSubsystem::FollowFeet(ACharacter* Walker, EVaelPrint Print, float Stride, float Size, float Side, float Depth, float DeltaTime)
+{
+	FWalker& State = Walkers.FindOrAdd(Walker);
+	USkeletalMeshComponent* Body = Walker->GetMesh();
+	if (!State.bFeetChecked && Body != nullptr && Body->GetSkeletalMeshAsset() != nullptr)
+	{
+		State.bFeetChecked = true;
+		// The player skeleton: foot and ball bones; others: every bone named like a foot ("foot", "fuss"), the toes
+		// guessed from the way the walker faces
+		if (Body->GetBoneIndex(TEXT("foot_l")) != INDEX_NONE && Body->GetBoneIndex(TEXT("foot_r")) != INDEX_NONE)
+		{
+			for (int32 Side2 = 0; Side2 < 2; ++Side2)
+			{
+				FFoot& Foot = State.Feet.AddDefaulted_GetRef();
+				Foot.Bone = Side2 == 0 ? TEXT("foot_l") : TEXT("foot_r");
+				Foot.Toe = Body->GetBoneIndex(Side2 == 0 ? TEXT("ball_l") : TEXT("ball_r")) != INDEX_NONE ? FName(Side2 == 0 ? TEXT("ball_l") : TEXT("ball_r")) : NAME_None;
+				Foot.bLeft = Side2 == 0;
+			}
+		}
+		else
+		{
+			TArray<FName> Names;
+			Body->GetBoneNames(Names);
+			for (const FName& Name : Names)
+			{
+				const FString Lower = Name.ToString().ToLower();
+				if ((Lower.Contains(TEXT("foot")) || Lower.Contains(TEXT("fuss"))) && !Lower.StartsWith(TEXT("ik_")) && State.Feet.Num() < 8)
+				{
+					FFoot& Foot = State.Feet.AddDefaulted_GetRef();
+					Foot.Bone = Name;
+					Foot.bLeft = Lower.EndsWith(TEXT("_l")) || Lower.Contains(TEXT("left"));
+				}
+			}
+			if (State.Feet.Num() < 2)
+			{
+				State.Feet.Reset();
+			}
+		}
+	}
+	if (State.Feet.IsEmpty() || Body == nullptr || DeltaTime <= 0.0f)
+	{
+		FollowWalker(Walker, Print, Stride, Size, Side, Depth);
+		return;
+	}
+
+	for (FFoot& Foot : State.Feet)
+	{
+		const FVector At = Body->GetSocketLocation(Foot.Bone);
+		const FVector Toe = Foot.Toe != NAME_None ? Body->GetSocketLocation(Foot.Toe) : At + Walker->GetActorForwardVector() * Size * 0.4f;
+		const float Speed = Foot.bStarted ? FVector::Dist2D(At, Foot.Last) / DeltaTime : 0.0f;
+		Foot.Last = At;
+		Foot.bStarted = true;
+		FVector Ground;
+		if (!AVaelCreature::FindGround(GetWorld(), At + FVector(0.0f, 0.0f, 60.0f), Ground) || At.Z - Ground.Z > 200.0f)
+		{
+			continue;
+		}
+		const float Height = At.Z - Ground.Z;
+		// How low the bone sits on the ground when the foot stands: the lowest lately, creeping up slowly for slopes
+		Foot.Lowest = FMath::Min(Foot.Lowest + DeltaTime * 4.0f, Height);
+		// Touching down: the lowest point of a step, where the foot stops coming down and starts to lift, close to where
+		// it stands (a running foot hardly rests, and on slopes the low point of a step differs a little); a standing
+		// foot counts once. Lifted again when it is well above the ground.
+		const bool bTurnedUp = Foot.bFalling && Height > Foot.LastHeight + 0.2f;
+		const bool bStill = Speed < 40.0f;
+		const bool bResting = Height < Foot.Lowest + 12.0f && (bTurnedUp || bStill);
+		const bool bLifted = Height > Foot.Lowest + 16.0f;
+		if (Height < Foot.LastHeight - 0.2f)
+		{
+			Foot.bFalling = true;
+		}
+		else if (Height > Foot.LastHeight + 0.2f)
+		{
+			Foot.bFalling = false;
+		}
+		Foot.LastHeight = Height;
+
+		if (bResting && !Foot.bDown)
+		{
+			Foot.bDown = true;
+			// Under the middle of the foot, from heel to toes, turned the way the toes point; the atlas cells point
+			// their toes up (v down = forward)
+			// The way the toes point: along the foot bones, turned round if that points backwards (on the player
+			// skeleton the ball bone lies behind the ankle in the world), else the way the walker faces
+			const FVector2D Facing = FVector2D(Walker->GetActorForwardVector()).GetSafeNormal();
+			FVector2D Ahead = FVector2D(Toe - At).GetSafeNormal();
+			if (Ahead.IsNearlyZero())
+			{
+				Ahead = Facing;
+			}
+			else if (FVector2D::DotProduct(Ahead, Facing) < 0.0f)
+			{
+				Ahead = -Ahead;
+			}
+			// The ankle stands over the back of the foot: the print's middle a little ahead of it
+			const FVector Middle = At + FVector(Ahead.X, Ahead.Y, 0.0f) * Size * 0.18f;
+			const float Yaw = FMath::RadiansToDegrees(FMath::Atan2(Ahead.Y, Ahead.X));
+			Stamp(FVector(Middle.X, Middle.Y, Ground.Z), Yaw + 90.0f, Print, Size, Depth, Foot.bLeft);
+			if (FParse::Param(FCommandLine::Get(), TEXT("VaelSpurFuss")))
+			{
+				UE_LOG(LogVael, Display, TEXT("[Fuss] print %s at %s (walker %s), yaw %.0f"), *Foot.Bone.ToString(), *Middle.ToCompactString(),
+					*Walker->GetActorLocation().ToCompactString(), Yaw);
+			}
+		}
+		else if (bLifted)
+		{
+			Foot.bDown = false;
+		}
+	}
 }
 
