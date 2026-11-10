@@ -11,6 +11,8 @@ back wings flutter three times as fast. Its head never glides: it snaps from one
   Fluegelschnitt  1.0 s       winds up and spins once with the wing edges out like blades (hit at 0.45 s)
   Kreischen       1.6 s       rears back, wings wide, head thrust forward, shaking (scream from 0.5 s)
   Packen          2.4 s       swoops with the talons forward (grab at 0.6 s), heaves upward, lets go at 1.7 s
+  Kreisen         3.2 s loop  circles banked like a bird of prey, gliding, looking down at its prey
+  Festkrallen     1.2 s loop  clings with the feet and rakes with the hand claws in turn
   Treffer         0.5 s       flinches
   Tod             2.2 s       the wings seize, it drops and lies face down with the wings spread
 
@@ -261,6 +263,50 @@ def packen(t):
     return p
 
 
+def kreisen(t):
+    """Circles like a bird of prey: banked into the turn, gliding on spread wings with a slow beat now and then,
+    head turned down and inward at its prey"""
+    posen = [(0.0, (30.0, 10.0, 16.0)), (1.3, (38.0, 4.0, 22.0)), (2.2, (22.0, 12.0, 12.0))]
+    p = flug(t, 3.2, neigung=44.0, kraft=0.3, lauschen=posen, schlag=0.8)
+    p.dazu("becken", seite=-24 + 2 * unruhe(t, 3.2, 11.0))
+    # the inner wing a little lower and drawn in, the outer one stretched
+    p.dazu("oberarm_l", seite=-6, wende=-8)
+    p.dazu("oberarm_r", seite=-8)
+    for n, s in SEITEN:
+        p.dazu("schwinge_aussen_" + n, wende=-8 * s)
+    return p
+
+
+def festkrallen(t):
+    """Clings to its prey with the feet thrown forward and clenched, and rakes it with the claws of its hands,
+    left and right in turn (a stroke every 0.3 s), wings half open for balance"""
+    schleife = 1.2
+    p = Pose()
+    ruck = math.sin(2 * math.pi * t / 0.3)
+    p.schieben("becken", x=-0.1 + 0.02 * ruck, z=0.42 + 0.02 * unruhe(t, schleife, 2.0))
+    p.dazu("becken", beuge=-10 + 3 * ruck, wende=5 * math.sin(2 * math.pi * t / 0.6))
+    p.dazu("bauch", beuge=12)
+    p.dazu("brust", beuge=14 + 3 * ruck, wende=-9 * math.sin(2 * math.pi * t / 0.6))
+    biss = huegel(t % 0.6, 0.0, 0.1, 0.16, 0.34)
+    p.dazu("hals", beuge=18 + 14 * biss)
+    p.dazu("kopf", beuge=10 + 10 * biss, seite=6 * math.sin(2 * math.pi * t / 0.6))
+    beine(p, huefte=(82 + 3 * ruck, 86 - 3 * ruck), knie=(38, 42), fuss=(44, 44), spreizen=(9, 9))
+    for i, (n, s) in enumerate(SEITEN):
+        ph = ((t / 0.6) + 0.5 * i) % 1.0
+        hol = huegel(ph, 0.0, 0.3, 0.42, 0.55)       # arm lifted and drawn back
+        riss = huegel(ph, 0.42, 0.56, 0.7, 1.0)      # the stroke forward and down
+        p.dazu("oberarm_" + n, seite=(-22 + 44 * hol - 26 * riss) * s, wende=(52 - 22 * hol + 22 * riss) * s)
+        p.dazu("unterarm_" + n, seite=(54 - 20 * hol - 36 * riss) * s, wende=(18 + 26 * riss) * s)
+        p.dazu("hand_" + n, seite=(-30 + 40 * riss) * s, wende=30 * riss * s)
+        p.dazu("schwinge_innen_" + n, seite=24 * s, wende=24 * s)
+        p.dazu("schwinge_aussen_" + n, seite=-30 * s, wende=34 * s)
+        p.dazu("rueckenfluegel_" + n, seite=(14 + 18 * welle(t, 0.15, 0.2 * i)) * s)
+        p.dazu("ohr_" + n, beuge=34)
+    for i in range(4):
+        p.dazu("schwanz_%d" % (i + 1), beuge=8, wende=10 * math.sin(2 * math.pi * (t - 0.05 * i) / 0.6))
+    return p
+
+
 def treffer(t):
     ruck = huegel(t, 0.0, 0.06, 0.1, 0.5)
     p = flug(1.0 + t, 4.0, kraft=1.0 - 0.6 * ruck, lauschen=[(0.0, (0.0, 0.0, 0.0))])
@@ -309,6 +355,8 @@ AKTIONEN = {
     "Fluegelschnitt": (1.0, fluegelschnitt, False, (0, 7, 11, 14, 18, 24)),
     "Kreischen": (1.6, kreischen, False, (0, 9, 16, 24, 36, 46)),
     "Packen": (2.4, packen, False, (0, 12, 18, 30, 45, 56)),
+    "Kreisen": (3.2, kreisen, True, (0, 12, 24, 48, 72)),
+    "Festkrallen": (1.2, festkrallen, True, (0, 4, 8, 13, 18, 26)),
     "Treffer": (0.5, treffer, False, (0, 2, 5, 10)),
     "Tod": (2.2, tod, False, (0, 6, 18, 28, 36, 60)),
 }

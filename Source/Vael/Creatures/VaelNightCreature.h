@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelCreatureData.h"
+#include "Creatures/VaelNightSpray.h"
 #include "VaelNightCreature.generated.h"
 
 class UAnimSequence;
@@ -66,6 +67,30 @@ struct FVaelNightAttack
 	/** A tongue built by the engine shoots from the tongue bone to the prey around the hit */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Attack")
 	bool bTongue = false;
+
+	/** It stays at its flight height for this attack instead of coming down to its prey (poison from above, a scream) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Attack")
+	bool bStayHigh = false;
+
+	/**
+	 *  Looping animation in which it clings to the prey this attack has hit (the Kahlschwinge's feet), for ClingSeconds;
+	 *  every ClingInterval seconds a claw rakes the prey for ClingDamage. A dodge roll or a hit on it shakes it off.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Attack")
+	FName ClingClip;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Attack", meta = (ClampMin = 0))
+	float ClingSeconds = 2.6f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Attack", meta = (ClampMin = 0.05))
+	float ClingInterval = 0.3f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Attack", meta = (ClampMin = 0))
+	float ClingDamage = 3.0f;
+
+	/** What bursts out of the data's SprayBone shortly before the hit, spreading over HitRadius */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Attack")
+	EVaelNightSpray Spray = EVaelNightSpray::None;
 };
 
 /**
@@ -90,8 +115,32 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0.1))
 	float BodyScale = 1.0f;
 
+	/** Each one is born this large against the model (smallest, largest): its body, reach, health and blows grow with it */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	FVector2D SizeRange = FVector2D(1.0f, 1.0f);
+
+	/** Awake, it carries its body this much higher than its animations do (cm, for a grown one); it comes down to strike */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float FlightHeight = 0.0f;
+
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	FName IdleClip;
+
+	/**
+	 *  With this animation it circles its prey like a bird of prey at CircleRadius (cm) for CircleSeconds, then hangs
+	 *  still and stares for ObserveSeconds, then comes down with an attack that has a Lunge. Empty: it walks up to its prey.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	FName CircleClip;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))
+	float CircleRadius = 480.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior")
+	FVector2D CircleSeconds = FVector2D(2.5f, 4.5f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))
+	float ObserveSeconds = 0.9f;
 
 	/** Moving; empty for whatever is rooted */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
@@ -123,6 +172,16 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))
 	float BurstDamage = 6.0f;
+
+	/** What the burst throws out, and the bone sprays come from (the cap) with the radius of its rim in cm */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	EVaelNightSpray BurstSpray = EVaelNightSpray::None;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	FName SprayBone;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	float SprayRim = 70.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	FName DeathClip;
@@ -213,7 +272,7 @@ public:
 	float TongueThickness = 9.0f;
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Procedural")
-	FLinearColor TongueColor = FLinearColor(0.55f, 0.08f, 0.12f);
+	FLinearColor TongueColor = FLinearColor(0.26f, 0.07f, 0.085f);
 
 	/** Path of an asset of this creature: "SK_" + AssetName, or "A_" + AssetName + "_" + Clip */
 	FSoftObjectPath GetAssetPath(const FString& Asset) const;
@@ -271,7 +330,10 @@ enum class EVaelNightState : uint8
 	Wake,
 	Fight,
 	Attack,
-	Flinch
+	Flinch,
+
+	/** Hanging on its prey by the feet, raking it */
+	Cling
 };
 
 /**
@@ -309,8 +371,13 @@ private:
 	void Play(FName Clip, bool bLoop, float BlendTime = 0.25f, float Rate = 1.0f, bool bRestart = false);
 	void EnterState(EVaelNightState NewState);
 	void TurnTowards(const FVector& Location, float DeltaSeconds);
-	bool StartAttack(AActor* Target, float Distance);
+	bool StartAttack(AActor* Target, float Distance, bool bPreferLunge = false);
 	void LandAttack();
+	void StartCling(AVaelCharacter* Held);
+	void EndCling();
+	void Loop(FName Clip, float BlendTime = 0.45f);
+	void SpawnSpray(EVaelNightSpray Kind, float Reach);
+	void UpdateLift(float DeltaSeconds);
 	void UpdateProcedural(float DeltaSeconds);
 	void UpdateTongue(float Shown, const FVector& TargetLocation);
 
@@ -345,6 +412,25 @@ private:
 	float NextAttackTime = 0.0f;
 	FVector LungeDirection = FVector::ForwardVector;
 	bool bMoving = false;
+
+	/** Size of this one against the model (BodyScale times its share of SizeRange) and that share alone */
+	float Size = 1.0f;
+	float SizeShare = 1.0f;
+
+	/** How far the body is carried above its animations right now (cm) */
+	float Lift = 0.0f;
+
+	/** Circling: seconds left on the circle, then staring; the looping animation that plays */
+	float CircleLeft = 0.0f;
+	float ObserveLeft = 0.0f;
+	bool bObserving = false;
+	FName LoopClip;
+
+	/** Clinging: where it hangs against its prey, the next claw stroke, and the prey the last attack has caught */
+	FVector ClingSide = FVector::ForwardVector;
+	float ClingNextHit = 0.0f;
+	TWeakObjectPtr<AVaelCharacter> Caught;
+	bool bSprayed = false;
 
 	/** Procedural layer */
 	float LookYaw = 0.0f;
