@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelCreature.h"
+#include "World/VaelLocalWeather.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Items/VaelPotionEffects.h"
 #include "UObject/ConstructorHelpers.h"
@@ -1240,12 +1241,24 @@ void AVaelCreature::UpdateStatusDrips(float DeltaSeconds)
 	{
 		return;
 	}
-	DripCountdown = 0.12f;
+	// Uneven, so a wet crowd never drips in the same frame
+	DripCountdown = FMath::FRandRange(0.1f, 0.14f);
 	const bool bWet = UVaelCombatStatics::HasStatus(this, EVaelStatus::Wet);
 	const bool bPitched = UVaelCombatStatics::HasStatus(this, EVaelStatus::Pitched);
 	if (!bWet && !bPitched)
 	{
-		DripCountdown = 0.3f;
+		DripCountdown = FMath::FRandRange(0.25f, 0.35f);
+		return;
+	}
+
+	// Nobody sees the drops of a creature that is not in the picture; and in the rain the whole region is wet, so
+	// every creature of it would throw drops all the time (that made the game stall as soon as it rained): there the
+	// rain itself shows the wetness, and only water from a spell or pitch still drips
+	const AVaelRegion* DripRegion = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation());
+	const bool bRaining = (DripRegion != nullptr && DripRegion->GetRainStrength() > 0.05f) || AVaelLocalWeather::IsRainingAt(GetWorld(), GetActorLocation());
+	if (!WasRecentlyRendered(0.25f) || (bRaining && !bPitched))
+	{
+		DripCountdown = FMath::FRandRange(0.25f, 0.35f);
 		return;
 	}
 
