@@ -329,7 +329,8 @@ AVaelNightCreature::AVaelNightCreature()
 
 TSubclassOf<UVaelCreatureData> AVaelNightCreature::GetDefaultDataClass() const
 {
-	return UVaelModerglockeData::StaticClass();
+	// The base, so every night creature's data fits; a creature placed without data has no model and keeps the placeholder
+	return UVaelNightCreatureData::StaticClass();
 }
 
 bool AVaelNightCreature::IsAmbusher() const
