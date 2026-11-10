@@ -64,6 +64,13 @@ struct FVaelSequenceAnimProxy : public FAnimInstanceProxy
 	/** Lowers the pelvis and sets the limbs down onto the ground (see UVaelSequenceAnimInstance::SetGrounding) */
 	void ApplyGrounding(FCompactPose& Pose) const;
 
+	/** Turns and scales single bones on top of everything (see UVaelSequenceAnimInstance::SetBoneTurns) */
+	void ApplyTurns(FCompactPose& Pose) const;
+
+	TArray<FName> TurnBones;
+	TArray<FQuat> Turns;
+	TArray<FVector> TurnScales;
+
 	TArray<FVaelReachChain> ReachChains;
 	TArray<FVaelGroundLimb> GroundLimbs;
 	FName GroundPelvis;
@@ -163,6 +170,18 @@ public:
 		GroundPelvisShift = PelvisShift;
 	}
 
+	/**
+	 *  Turns single bones on top of the sequence, each by a rotation in component space (what hangs on the bone
+	 *  follows): a head looking at its prey, ears twitching, a chest breathing. Scales (optional, one per bone)
+	 *  swell or shrink the bone. An empty list changes nothing.
+	 */
+	void SetBoneTurns(const TArray<FName>& Bones, const TArray<FQuat>& InTurns, const TArray<FVector>& Scales = TArray<FVector>())
+	{
+		TurnBones = Bones;
+		Turns = InTurns;
+		TurnScales = Scales;
+	}
+
 protected:
 
 	virtual FAnimInstanceProxy* CreateAnimInstanceProxy() override { return new FVaelSequenceAnimProxy(this); }
@@ -209,4 +228,7 @@ private:
 	TArray<FVaelGroundLimb> GroundLimbs;
 	FName GroundPelvis;
 	float GroundPelvisShift = 0.0f;
+	TArray<FName> TurnBones;
+	TArray<FQuat> Turns;
+	TArray<FVector> TurnScales;
 };

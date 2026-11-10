@@ -4,6 +4,7 @@
 #include "Animation/AnimNodeBase.h"
 #include "Animation/AnimSequence.h"
 #include "AnimationRuntime.h"
+#include "BonePose.h"
 
 namespace
 {
@@ -130,6 +131,46 @@ void FVaelSequenceAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float Delt
 	GroundLimbs = Instance->GroundLimbs;
 	GroundPelvis = Instance->GroundPelvis;
 	GroundPelvisShift = Instance->GroundPelvisShift;
+	TurnBones = Instance->TurnBones;
+	Turns = Instance->Turns;
+	TurnScales = Instance->TurnScales;
+}
+
+void FVaelSequenceAnimProxy::ApplyTurns(FCompactPose& Pose) const
+{
+	if (TurnBones.Num() == 0 || Turns.Num() != TurnBones.Num())
+	{
+		return;
+	}
+	const FBoneContainer& Container = Pose.GetBoneContainer();
+	FCSPose<FCompactPose> Space;
+	Space.InitPose(Pose);
+	// Parents first, so a turned neck carries the turned ears
+	TArray<TPair<FCompactPoseBoneIndex, int32>, TInlineAllocator<32>> Order;
+	for (int32 Index = 0; Index < TurnBones.Num(); ++Index)
+	{
+		const int32 MeshIndex = Container.GetPoseBoneIndexForBoneName(TurnBones[Index]);
+		if (MeshIndex != INDEX_NONE)
+		{
+			const FCompactPoseBoneIndex Bone = Container.MakeCompactPoseIndex(FMeshPoseBoneIndex(MeshIndex));
+			if (Bone.IsValid())
+			{
+				Order.Emplace(Bone, Index);
+			}
+		}
+	}
+	Order.Sort([](const TPair<FCompactPoseBoneIndex, int32>& A, const TPair<FCompactPoseBoneIndex, int32>& B) { return A.Key.GetInt() < B.Key.GetInt(); });
+	for (const TPair<FCompactPoseBoneIndex, int32>& Entry : Order)
+	{
+		FTransform Bone = Space.GetComponentSpaceTransform(Entry.Key);
+		Bone.SetRotation((Turns[Entry.Value] * Bone.GetRotation()).GetNormalized());
+		if (TurnScales.IsValidIndex(Entry.Value))
+		{
+			Bone.SetScale3D(Bone.GetScale3D() * TurnScales[Entry.Value]);
+		}
+		Space.SetComponentSpaceTransform(Entry.Key, Bone);
+	}
+	FCSPose<FCompactPose>::ConvertComponentPosesToLocalPoses(MoveTemp(Space), Pose);
 }
 
 void FVaelSequenceAnimProxy::ApplyGrounding(FCompactPose& Pose) const
@@ -566,5 +607,6 @@ bool FVaelSequenceAnimProxy::Evaluate(FPoseContext& Output)
 	ApplySpine(Output.Pose);
 	ApplyGrounding(Output.Pose);
 	ApplyReach(Output.Pose);
+	ApplyTurns(Output.Pose);
 	return true;
 }

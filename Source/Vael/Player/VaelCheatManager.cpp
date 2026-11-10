@@ -19,6 +19,7 @@
 #include "Creatures/VaelEncounterDirector.h"
 #include "Creatures/VaelKelchreisser.h"
 #include "Creatures/VaelRankenluchs.h"
+#include "Creatures/VaelNightCreature.h"
 #include "Creatures/VaelPfuhlnatter.h"
 #include "Creatures/VaelPfuhlnatterPopulation.h"
 #include "Creatures/VaelThistleSpider.h"
@@ -327,9 +328,26 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 		Data = GetMutableDefault<UVaelPfuhlnatterData>();
 	}
 
+	else if (Name.StartsWith(TEXT("moder")))
+	{
+		Data = GetMutableDefault<UVaelModerglockeData>();
+	}
+	else if (Name.StartsWith(TEXT("kahl")))
+	{
+		Data = GetMutableDefault<UVaelKahlschwingeData>();
+	}
+	else if (Name.StartsWith(TEXT("peitsch")) || Name.StartsWith(TEXT("unke")))
+	{
+		Data = GetMutableDefault<UVaelPeitschenunkeData>();
+	}
+	else if (Name.StartsWith(TEXT("schnapp")))
+	{
+		Data = GetMutableDefault<UVaelSchnappwurzData>();
+	}
+
 	if (Data == nullptr)
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger, Koenigin, Waechter, Spannhornkaefer, Rankenluchs, Kelchreisser, Pfuhlnatter, Distelspinne, Distelsaemling, Aschenroller, Sichelpuppe or Schleieraffe."), *Kind);
+		UE_LOG(LogVael, Warning, TEXT("VaelSpawn: unknown creature '%s'. Use Glutkriecher, Aschharpyie, Aelteste, Prediger, Markprediger, Koenigin, Waechter, Spannhornkaefer, Rankenluchs, Kelchreisser, Pfuhlnatter, Distelspinne, Distelsaemling, Aschenroller, Sichelpuppe, Schleieraffe, Moderglocke, Kahlschwinge, Peitschenunke or Schnappwurz."), *Kind);
 		return;
 	}
 
