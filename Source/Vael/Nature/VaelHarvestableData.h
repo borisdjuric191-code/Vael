@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Engine/StaticMesh.h"
+#include "Nature/VaelSparkleComponent.h"
 #include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelHarvestableData.generated.h"
@@ -187,6 +188,14 @@ public:
 	/** Glow of the ember parts of the model (orange in its colors) while it grows untouched, through the master material */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
 	float MeshGlow = 1.5f;
+
+	/** Stars that flare up on the model so it is seen from afar (ores, crystals), and a pulse of its glow */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	FVaelSparkle Sparkle;
+
+	/** The purer the region, the more it glints (the Russquarz clears as the corruption sinks); a third of it stays at the worst */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	bool bSparkleWithPurity = false;
 
 	/** Models to grow as instead of Mesh, picked by the place; each with its hang points */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")

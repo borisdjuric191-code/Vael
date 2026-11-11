@@ -177,6 +177,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelFeuern(const FString& Hands, float Seconds = 0.0f);
 
+	/** Sets an ore, a stone or a wild plant (DA_Harvest_<Name>) or a bare model of the factory (Requisiten/<Region>/<Name>) the given metres ahead, to look at it. Examples: VaelErz Russquarz, VaelErz Markdruse 4, VaelErz Saftperle */
+	UFUNCTION(Exec)
+	void VaelErz(const FString& Name, float Metres = 3.0f);
+
 	/** Floromant: grows any plant by its id at once, the given metres ahead; "schatten" for its shadow form. Example: VaelPflanze Funkenmohn 3 schatten */
 	UFUNCTION(Exec)
 	void VaelPflanze(const FString& PlantId, float Metres, const FString& Form = TEXT(""));

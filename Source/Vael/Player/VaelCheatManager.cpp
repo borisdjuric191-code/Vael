@@ -1,6 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCheatManager.h"
+#include "Engine/StaticMeshActor.h"
+#include "Nature/VaelHarvestable.h"
+#include "Nature/VaelHarvestableData.h"
+#include "Nature/VaelSparkleComponent.h"
+#include "World/VaelGround.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "Engine/StaticMesh.h"
 #include "UI/VaelWorldMap.h"
 #include "World/VaelProgressSubsystem.h"
 #include "World/VaelTravel.h"
@@ -1361,6 +1368,84 @@ void UVaelCheatManager::VaelSamen(const FString& Seed, float Metres)
 	// Saft for tests: the cheat never fails for lack of it
 	Player->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Player->GetMaxMana());
 	Floromant->Sow(Player->GetActorLocation() + Player->GetActorForwardVector() * FMath::Max(Metres, 1.2f) * 100.0f);
+}
+
+void UVaelCheatManager::VaelErz(const FString& Name, float Metres)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* Player = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+
+	FVector Spot = Player->GetActorLocation() + Player->GetActorForwardVector() * Metres * 100.0f;
+	FHitResult GroundHit;
+	if (VaelGround::TraceGround(GetWorld(), Spot + FVector(0.0f, 0.0f, 300.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), GroundHit))
+	{
+		Spot = GroundHit.Location;
+	}
+
+	// What can be gathered: the real thing, with its data
+	if (UVaelHarvestableData* Data = LoadObject<UVaelHarvestableData>(nullptr, *FString::Printf(TEXT("/Game/Vael/Nature/DA_Harvest_%s.DA_Harvest_%s"), *Name, *Name)))
+	{
+		AVaelHarvestable* Ore = GetWorld()->SpawnActorDeferred<AVaelHarvestable>(AVaelHarvestable::StaticClass(), FTransform(Spot), nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+		if (Ore != nullptr)
+		{
+			Ore->SetData(Data);
+			Ore->FinishSpawning(FTransform(Spot));
+			UE_LOG(LogVael, Log, TEXT("VaelErz: %s"), *Name);
+		}
+		return;
+	}
+
+	// A model that is not in the game's data yet: only to look at, with the glint planned for it
+	for (const TCHAR* Region : { TEXT("Aschenmark"), TEXT("Wurzelforst") })
+	{
+		UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Requisiten/%s/%s/SM_%s.SM_%s"), Region, *Name, *Name, *Name), nullptr, LOAD_NoWarn);
+		if (Mesh == nullptr)
+		{
+			continue;
+		}
+		AStaticMeshActor* Prop = GetWorld()->SpawnActor<AStaticMeshActor>(Spot, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f));
+		Prop->SetMobility(EComponentMobility::Movable);
+		Prop->GetStaticMeshComponent()->SetStaticMesh(Mesh);
+		Prop->GetStaticMeshComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+		// Saftperle (light): warm red-gold lights in the glass pearls; Eiterperle (shadow): a sick yellow-green
+		FVaelSparkle Sparkle;
+		const bool bShadow = Name.Contains(TEXT("Eiter"));
+		Sparkle.Rate = 9.0f;
+		Sparkle.Color = bShadow ? FLinearColor(0.55f, 0.9f, 0.12f) : FLinearColor(1.0f, 0.42f, 0.16f);
+		Sparkle.SecondColor = bShadow ? FLinearColor(0.9f, 0.85f, 0.2f) : FLinearColor(1.0f, 0.82f, 0.45f);
+		Sparkle.SecondShare = 0.35f;
+		Sparkle.Size = 18.0f;
+		Sparkle.Brightness = bShadow ? 16.0f : 18.0f;
+		Sparkle.TopShare = 0.8f;
+		Sparkle.Pulse = bShadow ? 0.5f : 0.25f;
+		Sparkle.PulsePeriod = bShadow ? 2.2f : 3.5f;
+		if (Name.Contains(TEXT("druse")))
+		{
+			// The Niddruse away from its source (its harvest data only lets it grow at an open one): violet with a red heart
+			Sparkle.Color = FLinearColor(0.62f, 0.22f, 1.0f);
+			Sparkle.SecondColor = FLinearColor(1.0f, 0.15f, 0.2f);
+			Sparkle.SecondShare = 0.3f;
+			Sparkle.Size = 24.0f;
+			Sparkle.Brightness = 22.0f;
+			Sparkle.Pulse = 0.6f;
+			Sparkle.PulsePeriod = 2.8f;
+		}
+		UVaelSparkleComponent* Sparkles = NewObject<UVaelSparkleComponent>(Prop);
+		Sparkles->SetupAttachment(Prop->GetRootComponent());
+		Sparkles->RegisterComponent();
+		UMaterialInstanceDynamic* Material = Prop->GetStaticMeshComponent()->CreateAndSetMaterialInstanceDynamic(0);
+		Sparkles->SetGlow(Material, bShadow ? 1.6f : 1.2f);
+		Sparkles->Show(Prop->GetStaticMeshComponent(), Sparkle);
+		UE_LOG(LogVael, Log, TEXT("VaelErz: model %s (no harvest data yet)"), *Name);
+		return;
+	}
+
+	UE_LOG(LogVael, Warning, TEXT("VaelErz: neither DA_Harvest_%s nor a model SM_%s"), *Name, *Name);
 }
 
 void UVaelCheatManager::VaelPflanze(const FString& PlantId, float Metres, const FString& Form)

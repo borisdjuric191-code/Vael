@@ -1,0 +1,28 @@
+{
+  "name": "SchlackeErz",
+  "region": "Aschenmark",
+  "art": "Gestein",
+  "harvest_asset": "DA_Harvest_Schlacke",
+  "hoehe_cm": 60,
+  "daten": {
+    "mesh_glow": 0.0,
+    "sparkle": {
+      "rate": 3.5,
+      "color": [
+        1.0,
+        0.6,
+        0.28
+      ],
+      "second_color": [
+        0.8,
+        0.86,
+        0.92
+      ],
+      "second_share": 0.4,
+      "size": 14.0,
+      "brightness": 12.0,
+      "top_share": 1.0
+    }
+  },
+  "variation": "zufaellige Drehung, Groesse +-15 %, leichte Neigung (Boris, 10.10.2026)"
+}

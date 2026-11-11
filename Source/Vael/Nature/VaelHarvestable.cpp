@@ -197,6 +197,9 @@ AVaelHarvestable::AVaelHarvestable()
 	Model->SetCanEverAffectNavigation(false);
 	Model->SetVisibility(false);
 
+	Sparkles = CreateDefaultSubobject<UVaelSparkleComponent>(TEXT("Sparkles"));
+	Sparkles->SetupAttachment(RootComponent);
+
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
 	Glow->SetupAttachment(RootComponent);
 	Glow->SetAttenuationRadius(320.0f);
@@ -1165,6 +1168,10 @@ void AVaelHarvestable::RefreshLook()
 		// Whatever glows shines brighter in the night
 		ModelMaterial->SetScalarParameterValue(TEXT("GlutStaerke"), ModelGlow * NightGlowScale());
 	}
+
+	// Ores and crystals glint while there is something to take; the star count can follow the purity of the region
+	Sparkles->SetGlow(ModelMaterial, ModelGlow * NightGlowScale());
+	Sparkles->Show(Model, Data->Sparkle, bBare || bAbsent ? 0.0f : Data->bSparkleWithPurity ? FMath::Lerp(0.35f, 1.0f, FMath::Clamp(Purity, 0.0f, 1.0f)) : 1.0f);
 
 	RefreshHanging(bHangs && bCrownShown, CrownColor, HangingGlow);
 }

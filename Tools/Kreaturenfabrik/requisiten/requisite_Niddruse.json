@@ -1,0 +1,30 @@
+{
+  "name": "Niddruse",
+  "region": "Aschenmark",
+  "art": "Gestein",
+  "harvest_asset": "DA_Harvest_Markdruse",
+  "hoehe_cm": 110,
+  "daten": {
+    "mesh_glow": 2.0,
+    "sparkle": {
+      "rate": 9.0,
+      "color": [
+        0.62,
+        0.22,
+        1.0
+      ],
+      "second_color": [
+        1.0,
+        0.15,
+        0.2
+      ],
+      "second_share": 0.3,
+      "size": 24.0,
+      "brightness": 22.0,
+      "top_share": 0.8,
+      "pulse": 0.6,
+      "pulse_period": 2.8
+    }
+  },
+  "variation": "zufaellige Drehung, Groesse +-15 %, leichte Neigung (Boris, 10.10.2026)"
+}

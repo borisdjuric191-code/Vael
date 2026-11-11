@@ -150,11 +150,23 @@ def importiere_requisite(ordner):
     if sm is None:
         raise RuntimeError("Modell wurde nicht angelegt – Ausgabe-Log prüfen.")
     material_anlegen(ziel, name, sm)
+    # the glint (UVaelSparkleComponent) reads places off the model's corners, also in a packaged game
+    sm.set_editor_property("allow_cpu_access", True)
+    eal.save_asset(sm.get_path_name(), only_if_is_dirty=False)
 
     if sb.get("harvest_asset"):
         daten = eal.load_asset(f"/Game/Vael/Nature/{sb['harvest_asset']}")
         if daten is not None:
             daten.set_editor_property("mesh", sm)
+            # "daten" of requisite.json: more values of the harvest data (mesh_glow, sparkle_with_purity, sparkle = the glint)
+            for schluessel, wert in sb.get("daten", {}).items():
+                if isinstance(wert, dict):
+                    teil = daten.get_editor_property(schluessel)
+                    for k, v in wert.items():
+                        teil.set_editor_property(k, unreal.LinearColor(v[0], v[1], v[2], 1.0) if isinstance(v, list) else v)
+                    daten.set_editor_property(schluessel, teil)
+                else:
+                    daten.set_editor_property(schluessel, wert)
             eal.save_asset(daten.get_path_name(), only_if_is_dirty=False)
             log(f"Modell im Datensatz {sb['harvest_asset']} eingetragen")
     eal.save_directory(ziel)

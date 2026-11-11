@@ -48,6 +48,15 @@ class AVaelHarvestable : public AActor, public IVaelInteractable
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> Model;
 
+	/** Stars glinting on the model, if its data asks for them */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<class UVaelSparkleComponent> Sparkles;
+
+public:
+
+	/** What it is, for one spawned by code: set before the spawn is finished */
+	void SetData(UVaelHarvestableData* InData) { Data = InData; }
+
 protected:
 
 	/** What it is */
