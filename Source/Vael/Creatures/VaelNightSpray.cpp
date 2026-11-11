@@ -22,8 +22,8 @@ namespace
 	/** Poison: the cap's ichor, a murky brown-olive bile that shines wet; it rots what it touches, it doesn't burn */
 	const FLinearColor VenomColor(0.06f, 0.047f, 0.012f);
 
-	constexpr int32 NumSpores = 90;
-	constexpr int32 NumDrops = 64;
+	constexpr int32 SprayNumSpores = 90;
+	constexpr int32 SprayNumDrops = 64;
 
 	/** Seconds a spore drifts, and a blot of poison lies before it seeps away */
 	constexpr float SporeLife = 3.4f;
@@ -106,7 +106,7 @@ void AVaelNightSpray::Build(EVaelNightSpray InKind, const FVector& From, float R
 	{
 		// Blown out of the cap in every direction, more up than down, then the air holds them
 		Lifetime = SporeLife + 0.4f;
-		Pieces.SetNum(NumSpores);
+		Pieces.SetNum(SprayNumSpores);
 		for (FPiece& Piece : Pieces)
 		{
 			const FVector Out = FVector(FMath::VRand().X, FMath::VRand().Y, FMath::FRandRange(-0.25f, 0.9f)).GetSafeNormal();
@@ -124,7 +124,7 @@ void AVaelNightSpray::Build(EVaelNightSpray InKind, const FVector& From, float R
 	{
 		// Flung from the rim of the cap, each drop in its own arc to its own spot around the creature
 		Lifetime = 2.0f + BlotLife;
-		Pieces.SetNum(NumDrops);
+		Pieces.SetNum(SprayNumDrops);
 		for (FPiece& Piece : Pieces)
 		{
 			const float RimAngle = FMath::FRandRange(0.0f, UE_TWO_PI);

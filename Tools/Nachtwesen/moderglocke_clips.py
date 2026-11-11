@@ -5,6 +5,7 @@ a jellyfish, the body rises a moment after each beat, legs, arms and filaments t
 
   Schweben_Idle   6 s loop   hovers on the spot, two bell beats, limbs and filaments drifting, head listening
   Schweben_Vor    3 s loop   drifts forward, leaning, stronger beats, everything trailing
+  Gehen           2 s loop   walks on the ground like a long giant, heavy, the long arms swinging
   Lauern          5 s loop   by day: squats on the ground under its cap like a plain mushroom, breathing, filaments drawn in
   Erwachen        2.0 s      rises from the squat into the hover, filaments let down
   Nesselfaeden    1.6 s      leans back, then lashes the front filaments forward (hit at 0.75 s)
@@ -127,6 +128,49 @@ def schweben_idle(t):
 
 def schweben_vor(t):
     return schweben(t, 3.0, 1.5, kraft=1.25, neigung=13.0)
+
+
+def gehen(t):
+    """Walks on the ground like a long giant: slow strides of 1.1 m, the weight dropping onto each planted foot, the
+    body swaying over the standing leg, the long arms swinging against the legs with elbows and hands trailing, the
+    cap nodding a moment late. The actor moves 0.89 m/s at the clip's own pace."""
+    dauer, schritt = 2.0, 1.1
+    ph = (t / dauer) % 1.0
+    p = Pose()
+
+    def fuss(f):
+        f %= 1.0
+        if f < 0.62:                                   # planted, carried back under the body
+            return schritt * (0.5 - f / 0.62), 0.0, 0.0
+        u = (f - 0.62) / 0.38                          # lifted and swung forward
+        return schritt * (-0.5 + weich(u)), 0.22 * math.sin(math.pi * u), math.sin(math.pi * u)
+
+    sinken = math.cos(4 * math.pi * (ph - 0.07))       # lowest just after each foot lands
+    p.schieben("becken", x=0.03 * math.sin(4 * math.pi * ph), y=0.075 * math.cos(2 * math.pi * (ph - 0.31)),
+               z=-0.2 - 0.045 * sinken)
+    p.dazu("becken", beuge=8 + 2.5 * sinken, seite=-3.5 * math.cos(2 * math.pi * (ph - 0.31)), wende=7 * math.cos(2 * math.pi * ph))
+    p.dazu("bauch", beuge=5 + 1.5 * sinken, wende=-5 * math.cos(2 * math.pi * ph))
+    p.dazu("brust", beuge=5, wende=-7 * math.cos(2 * math.pi * ph), seite=2.5 * math.cos(2 * math.pi * (ph - 0.31)))
+    p.dazu("hals", beuge=-9 + 3 * math.cos(4 * math.pi * (ph - 0.16)), seite=2 * math.cos(2 * math.pi * (ph - 0.4)))
+    hut(p, 9 + 7 * math.cos(4 * math.pi * (ph - 0.2)), kippen=(3.5 * math.cos(4 * math.pi * (ph - 0.2)), 2.5 * math.cos(2 * math.pi * (ph - 0.45))))
+    for i, (n, s) in enumerate((("l", 1), ("r", -1))):
+        x, z, luft = fuss(ph + 0.5 * i)
+        p.greifen("oberschenkel_" + n, "unterschenkel_" + n, Vector((x, 0.15 * s, 0.13 + z)), (1.0, 0.25 * s, 0.1), "fuss_" + n,
+                  (18 * luft, 0, 0))
+    # the arm swings forward with the opposite leg; elbow and hand follow late
+    schwung = (-math.cos(2 * math.pi * (ph - 0.06)), math.cos(2 * math.pi * (ph - 0.06)))
+    spaet = (-math.cos(2 * math.pi * (ph - 0.16)), math.cos(2 * math.pi * (ph - 0.16)))
+    hand = (-math.cos(2 * math.pi * (ph - 0.26)), math.cos(2 * math.pi * (ph - 0.26)))
+    arme(p, heben=(5, 5), vor=(4 + 27 * schwung[0], 4 + 27 * schwung[1]),
+         ellbogen=(16 + 13 * spaet[0], 16 + 13 * spaet[1]), hand=(12 + 16 * hand[0], 12 + 16 * hand[1]))
+
+    def faden(k, g, a):
+        vor = 5.0 * math.cos(4 * math.pi * (ph - 0.22 - 0.07 * g)) * (0.5 + 0.3 * g)
+        quer = 4.0 * math.cos(2 * math.pi * (ph - 0.4 - 0.08 * g)) * (0.5 + 0.3 * g)
+        ein = -(9 + 7 * math.cos(4 * math.pi * (ph - 0.2))) * 0.8 if g == 0 else 0.0
+        return (vor + 2.0 * unruhe(t - 0.1 * g, dauer, 30 + k * 1.7), quer, ein)
+    faeden(p, faden)
+    return p
 
 
 def hocke(t, schleife=5.0, tiefe=1.0):
@@ -338,6 +382,7 @@ def tod(t):
 AKTIONEN = {
     "Schweben_Idle": (6.0, schweben_idle, True, (0, 12, 36, 80, 100, 150)),
     "Schweben_Vor": (3.0, schweben_vor, True, (0, 8, 22, 45, 60, 80)),
+    "Gehen": (2.0, gehen, True, (0, 8, 15, 22, 30, 38, 45, 52)),
     "Lauern": (5.0, lauern, True, (0, 40, 95, 100)),
     "Erwachen": (2.0, erwachen, False, (0, 12, 22, 30, 42, 60)),
     "Nesselfaeden": (1.6, nesselfaeden, False, (0, 12, 18, 22, 26, 40)),

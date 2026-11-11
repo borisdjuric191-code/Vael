@@ -146,6 +146,23 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	FName MoveClip;
 
+	/**
+	 *  Walking on the ground (the Moderglocke strides like a long giant): with this animation it comes from afar, at
+	 *  WalkSpeed cm/s, and goes home; nearer to its prey than WalkDistance (cm) it rises and moves with MoveClip.
+	 *  WalkClipSpeed is the speed at which the walk plays at its own pace. Empty: it always moves with MoveClip.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	FName WalkClip;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
+	float WalkClipSpeed = 90.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))
+	float WalkSpeed = 95.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Behavior", meta = (ClampMin = 0))
+	float WalkDistance = 480.0f;
+
 	/** Speed in cm/s at which the move animation plays at its own pace */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 1))
 	float MoveClipSpeed = 150.0f;
@@ -431,6 +448,10 @@ private:
 	float ClingNextHit = 0.0f;
 	TWeakObjectPtr<AVaelCharacter> Caught;
 	bool bSprayed = false;
+	TEnumAsByte<ECollisionResponse> PawnResponseBeforeCling = ECR_Block;
+
+	/** Walking on the ground instead of hovering (creatures with a WalkClip) */
+	bool bGrounded = false;
 
 	/** Procedural layer */
 	float LookYaw = 0.0f;

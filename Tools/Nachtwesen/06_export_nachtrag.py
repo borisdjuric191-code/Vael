@@ -32,4 +32,7 @@ bpy.ops.export_scene.fbx(
     bake_anim=True, bake_anim_use_all_actions=True, bake_anim_use_nla_strips=False,
     bake_anim_force_startend_keying=True, bake_anim_simplify_factor=0.0,
 )
+# a file with a single action is imported under the file's name: the import reads the action's name from here
+with open(gemein.ordner(name, "export", "A_%s_Nachtrag.txt" % name), "w", encoding="utf-8") as f:
+    f.write(" ".join(a.name for a in bpy.data.actions))
 gemein.log(name, "Nachtrag exportiert:", ziel, "Aktionen:", [a.name for a in bpy.data.actions])

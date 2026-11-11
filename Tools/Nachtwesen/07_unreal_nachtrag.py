@@ -54,6 +54,10 @@ def anim(name):
             log("Beifang des Imports (bitte pruefen): " + pfad)
             continue
         aktion = kurz.split("Armature_")[-1] if "Armature_" in kurz else kurz.replace("A_%s_Nachtrag_" % name, "")
+        if kurz == "A_%s_Nachtrag" % name:
+            # a single action comes in under the file's name; 06_export_nachtrag.py wrote down what it is
+            with open(os.path.join(QUELLEN, name, "export", "A_%s_Nachtrag.txt" % name), encoding="utf-8") as f:
+                aktion = f.read().split()[0]
         fertig = "%s/A_%s_%s" % (ziel, name, aktion)
         if eal.does_asset_exist(fertig):
             log("A_%s_%s ist schon da - nicht ersetzt" % (name, aktion))

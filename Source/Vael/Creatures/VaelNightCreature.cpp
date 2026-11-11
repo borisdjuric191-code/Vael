@@ -68,6 +68,11 @@ UVaelModerglockeData::UVaelModerglockeData()
 
 	IdleClip = TEXT("Schweben_Idle");
 	MoveClip = TEXT("Schweben_Vor");
+	// From afar and on its way home it walks: a long giant, heavy, the long arms swinging (Boris 2026-11-11)
+	WalkClip = TEXT("Gehen");
+	WalkClipSpeed = 89.0f;
+	WalkSpeed = 95.0f;
+	WalkDistance = 480.0f;
 	MoveClipSpeed = 150.0f;
 	LurkClip = TEXT("Lauern");
 	WakeClip = TEXT("Erwachen");
@@ -175,10 +180,11 @@ UVaelKahlschwingeData::UVaelKahlschwingeData()
 	Dive.Damage = 18.0f;
 	Dive.Cooldown = 6.0f;
 	Dive.Lunge = 1800.0f;
-	Dive.ClingClip = TEXT("Festkrallen");
+	Dive.ClingClip = TEXT("Kratzen");
 	Dive.ClingSeconds = 2.6f;
-	Dive.ClingInterval = 0.3f;
-	Dive.ClingDamage = 3.0f;
+	// one claw stroke of the animation every 0.45 s
+	Dive.ClingInterval = 0.45f;
+	Dive.ClingDamage = 4.5f;
 	Attacks.Add(Dive);
 
 	FVaelNightAttack Cut;
@@ -442,7 +448,7 @@ void AVaelNightCreature::TickShow(float DeltaSeconds)
 	{
 		return;
 	}
-	TArray<TPair<FName, bool>> List = { {Data->LurkClip, true}, {Data->WakeClip, false}, {Data->IdleClip, true}, {Data->MoveClip, true}, {Data->CircleClip, true} };
+	TArray<TPair<FName, bool>> List = { {Data->LurkClip, true}, {Data->WakeClip, false}, {Data->IdleClip, true}, {Data->MoveClip, true}, {Data->WalkClip, true}, {Data->CircleClip, true} };
 	for (const FVaelNightAttack& Attack : Data->Attacks)
 	{
 		List.Emplace(Attack.Clip, false);
@@ -456,7 +462,8 @@ void AVaelNightCreature::TickShow(float DeltaSeconds)
 		ShowIndex = (ShowIndex + 1) % List.Num();
 		if (UAnimSequence* Sequence = FindClip(List[ShowIndex].Key))
 		{
-			State = List[ShowIndex].Key == Data->LurkClip ? EVaelNightState::Lurk : EVaelNightState::Flinch;
+			State = List[ShowIndex].Key == Data->LurkClip ? EVaelNightState::Lurk : List[ShowIndex].Key == Data->WalkClip ? EVaelNightState::Fight : EVaelNightState::Flinch;
+			bGrounded = List[ShowIndex].Key == Data->WalkClip;
 			ShowLeft = List[ShowIndex].Value ? 3.0f : Sequence->GetPlayLength() + 0.4f;
 			Play(List[ShowIndex].Key, List[ShowIndex].Value, 0.2f, 1.0f, true);
 			UE_LOG(LogTemp, Display, TEXT("Nachtwesen-Schau: %s %s"), *Data->AssetName, *List[ShowIndex].Key.ToString());
@@ -568,12 +575,22 @@ void AVaelNightCreature::StartCling(AVaelCharacter* Held)
 	{
 		ClingSide = Held->GetActorForwardVector();
 	}
-	ClingNextHit = 0.25f;
+	// The first stroke of the animation lands at once, then one every ClingInterval
+	ClingNextHit = 0.08f;
+	// It hangs on the body of its prey: the two overlap, so they must not push each other apart
+	PawnResponseBeforeCling = GetCapsuleComponent()->GetCollisionResponseToChannel(ECC_Pawn);
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	Play(Data->Attacks[Attack].ClingClip, true, 0.12f, 1.0f, true);
 }
 
 void AVaelNightCreature::EndCling()
 {
+	GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, PawnResponseBeforeCling);
+	// Lets go backwards, off its prey
+	if (Prey.IsValid())
+	{
+		SetActorLocation(GetActorLocation() + ClingSide * (GetCapsuleComponent()->GetScaledCapsuleRadius() + Prey->GetSimpleCollisionRadius()), true);
+	}
 	NextAttackTime = GetWorld()->GetTimeSeconds() + GetData<UVaelNightCreatureData>()->AttackPause + 0.8f;
 	EnterState(EVaelNightState::Fight);
 }
@@ -602,10 +619,10 @@ void AVaelNightCreature::UpdateLift(float DeltaSeconds)
 	}
 	else if (State == EVaelNightState::Cling)
 	{
-		Wanted = 20.0f;
+		Wanted = 0.0f;
 		Speed = 8.0f;
 	}
-	else if (State != EVaelNightState::Lurk)
+	else if (State != EVaelNightState::Lurk && !(bGrounded && State == EVaelNightState::Fight))
 	{
 		Wanted = Data->FlightHeight;
 	}
@@ -675,6 +692,7 @@ bool AVaelNightCreature::StartAttack(AActor* Target, float Distance, bool bPrefe
 	AttackIndex = Pick;
 	bAttackLanded = false;
 	bSprayed = false;
+	bGrounded = false;
 	Caught = nullptr;
 	StateDuration = FindClip(Attack.Clip)->GetPlayLength();
 	AttackReadyTimes[Pick] = Now + StateDuration + Attack.Cooldown;
@@ -757,13 +775,19 @@ void AVaelNightCreature::TickBehavior(float DeltaSeconds)
 		{
 			// Nobody about: drifts home
 			const bool bHome = Data->bRooted || FVector::Dist2D(GetActorLocation(), HomeLocation) < 120.0f;
+			const bool bStride = !bHome && FindClip(Data->WalkClip) != nullptr;
+			bGrounded = bStride;
 			if (!bHome)
 			{
 				TurnTowards(HomeLocation, DeltaSeconds);
-				MoveInDirection(GetActorForwardVector(), Data->MoveSpeed * 0.6f);
+				MoveInDirection(GetActorForwardVector(), bStride ? Data->WalkSpeed : Data->MoveSpeed * 0.6f);
 			}
 			bMoving = !bHome;
-			Loop(bMoving && !Data->MoveClip.IsNone() ? Data->MoveClip : Data->IdleClip, 0.4f);
+			Loop(bStride ? Data->WalkClip : bMoving && !Data->MoveClip.IsNone() ? Data->MoveClip : Data->IdleClip, 0.5f);
+			if (bStride && Animator != nullptr)
+			{
+				Animator->SetRate(FMath::Clamp(GetVelocity().Size2D() / FMath::Max(Data->WalkClipSpeed * Size, 1.0f), 0.5f, 1.4f));
+			}
 			break;
 		}
 		const float Facing = Data->bRooted ? 0.0f : FMath::Abs(FMath::FindDeltaAngleDegrees(GetActorRotation().Yaw, (Target->GetActorLocation() - GetActorLocation()).Rotation().Yaw));
@@ -824,15 +848,22 @@ void AVaelNightCreature::TickBehavior(float DeltaSeconds)
 			break;
 		}
 		const bool bWalk = !Data->bRooted && Distance > Data->KeepDistance && Facing < 70.0f;
+
+		// From afar it strides over the ground; near its prey it rises and drifts
+		if (FindClip(Data->WalkClip) != nullptr)
+		{
+			bGrounded = bWalk && (Distance > Data->WalkDistance || (bGrounded && Distance > Data->WalkDistance * 0.7f));
+		}
+		const bool bStride = bGrounded && bWalk;
 		if (bWalk)
 		{
-			MoveInDirection(GetActorForwardVector(), Pace);
+			MoveInDirection(GetActorForwardVector(), bStride ? Data->WalkSpeed * FMath::Lerp(1.15f, 1.0f, SizeShare) : Pace);
 		}
 		bMoving = bWalk;
-		Loop(bMoving && !Data->MoveClip.IsNone() ? Data->MoveClip : Data->IdleClip);
+		Loop(bStride ? Data->WalkClip : bMoving && !Data->MoveClip.IsNone() ? Data->MoveClip : Data->IdleClip, bStride ? 0.6f : 0.45f);
 		if (bMoving && Animator != nullptr)
 		{
-			Animator->SetRate(FMath::Clamp(GetVelocity().Size2D() / FMath::Max(Data->MoveClipSpeed * Size, 1.0f), 0.5f, 1.6f));
+			Animator->SetRate(FMath::Clamp(GetVelocity().Size2D() / FMath::Max((bStride ? Data->WalkClipSpeed : Data->MoveClipSpeed) * Size, 1.0f), 0.5f, 1.6f));
 		}
 		break;
 	}
@@ -892,7 +923,8 @@ void AVaelNightCreature::TickBehavior(float DeltaSeconds)
 			EndCling();
 			break;
 		}
-		const float Apart = Held->GetSimpleCollisionRadius() + GetCapsuleComponent()->GetScaledCapsuleRadius() + 4.0f;
+		// Chest to chest: its legs reach round the body of its prey
+		const float Apart = Held->GetSimpleCollisionRadius() + 22.0f * Size;
 		const float Feet = Held->GetActorLocation().Z - Held->GetSimpleCollisionHalfHeight();
 		SetActorLocation(FVector(Held->GetActorLocation().X, Held->GetActorLocation().Y, Feet + GetCapsuleComponent()->GetScaledCapsuleHalfHeight()) + ClingSide * Apart,
 			false, nullptr, ETeleportType::TeleportPhysics);
@@ -966,6 +998,10 @@ void AVaelNightCreature::OnBodyColorShown(const FLinearColor& Color, bool bHitFl
 
 void AVaelNightCreature::Die()
 {
+	if (State == EVaelNightState::Cling)
+	{
+		GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, PawnResponseBeforeCling);
+	}
 	Play(GetData<UVaelNightCreatureData>()->DeathClip, false, 0.15f, 1.0f, true);
 	if (Animator != nullptr)
 	{
