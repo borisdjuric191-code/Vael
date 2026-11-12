@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Creatures/VaelCreature.h"
+#include "Creatures/VaelLifeLayer.h"
 #include "VaelRankenluchs.generated.h"
 
 class UAnimSequence;
@@ -128,6 +129,12 @@ private:
 	TObjectPtr<UAnimSequence> RunSequence;
 
 	TWeakObjectPtr<AActor> Prey;
+
+	/** Small movements over the baked animations: look, ears, crest, stalking stoop, the spine swinging with the stride */
+	FVaelLifeLayer Life;
+
+	/** How out of breath it is, 0..1: it pants after running */
+	float Effort = 0.0f;
 	EVaelLynxState State = EVaelLynxState::Ambush;
 	float StateTime = 0.0f;
 	float StateDuration = 0.0f;

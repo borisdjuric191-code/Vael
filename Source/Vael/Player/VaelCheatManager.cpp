@@ -4,6 +4,7 @@
 #include "Engine/StaticMeshActor.h"
 #include "Nature/VaelHarvestable.h"
 #include "Nature/VaelHarvestableData.h"
+#include "Nature/VaelPlantLifeComponent.h"
 #include "Nature/VaelSparkleComponent.h"
 #include "World/VaelGround.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -1412,21 +1413,32 @@ void UVaelCheatManager::VaelErz(const FString& Name, float Metres)
 		Prop->GetStaticMeshComponent()->SetStaticMesh(Mesh);
 		Prop->GetStaticMeshComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
-		// Saftperle (light): warm red-gold lights in the glass pearls; Eiterperle (shadow): a sick yellow-green
+		// The pearl plants are plants, not ores: they sway in the wind and drip (Boris 2026-11-12), no glint.
+		// Saftperle (light): clear red sap; Eiterperle (shadow): thick yellow-green pus, slower and heavier
+		if (Name.Contains(TEXT("perle")))
+		{
+			const bool bPus = Name.Contains(TEXT("Eiter"));
+			FVaelPlantLife Life;
+			Life.Sway = bPus ? 1.6f : 2.2f;
+			Life.SwayPeriod = bPus ? 6.0f : 4.6f;
+			Life.DripRate = bPus ? 0.9f : 1.3f;
+			Life.DripColor = bPus ? FLinearColor(0.3f, 0.36f, 0.05f) : FLinearColor(0.36f, 0.04f, 0.03f);
+			Life.DripGlow = bPus ? 0.3f : 0.25f;
+			Life.DripSize = bPus ? 4.4f : 3.6f;
+			UVaelPlantLifeComponent* PlantLife = NewObject<UVaelPlantLifeComponent>(Prop);
+			PlantLife->SetupAttachment(Prop->GetRootComponent());
+			PlantLife->RegisterComponent();
+			PlantLife->Show(Prop->GetStaticMeshComponent(), Life);
+			UE_LOG(LogVael, Log, TEXT("VaelErz: plant model %s (no plant data yet)"), *Name);
+			return;
+		}
+
+		// The Niddruse away from its source (its harvest data only lets it grow at an open one): violet with a red heart
 		FVaelSparkle Sparkle;
-		const bool bShadow = Name.Contains(TEXT("Eiter"));
 		Sparkle.Rate = 9.0f;
-		Sparkle.Color = bShadow ? FLinearColor(0.55f, 0.9f, 0.12f) : FLinearColor(1.0f, 0.42f, 0.16f);
-		Sparkle.SecondColor = bShadow ? FLinearColor(0.9f, 0.85f, 0.2f) : FLinearColor(1.0f, 0.82f, 0.45f);
-		Sparkle.SecondShare = 0.35f;
-		Sparkle.Size = 18.0f;
-		Sparkle.Brightness = bShadow ? 16.0f : 18.0f;
 		Sparkle.TopShare = 0.8f;
-		Sparkle.Pulse = bShadow ? 0.5f : 0.25f;
-		Sparkle.PulsePeriod = bShadow ? 2.2f : 3.5f;
 		if (Name.Contains(TEXT("druse")))
 		{
-			// The Niddruse away from its source (its harvest data only lets it grow at an open one): violet with a red heart
 			Sparkle.Color = FLinearColor(0.62f, 0.22f, 1.0f);
 			Sparkle.SecondColor = FLinearColor(1.0f, 0.15f, 0.2f);
 			Sparkle.SecondShare = 0.3f;
@@ -1439,7 +1451,7 @@ void UVaelCheatManager::VaelErz(const FString& Name, float Metres)
 		Sparkles->SetupAttachment(Prop->GetRootComponent());
 		Sparkles->RegisterComponent();
 		UMaterialInstanceDynamic* Material = Prop->GetStaticMeshComponent()->CreateAndSetMaterialInstanceDynamic(0);
-		Sparkles->SetGlow(Material, bShadow ? 1.6f : 1.2f);
+		Sparkles->SetGlow(Material, 2.0f);
 		Sparkles->Show(Prop->GetStaticMeshComponent(), Sparkle);
 		UE_LOG(LogVael, Log, TEXT("VaelErz: model %s (no harvest data yet)"), *Name);
 		return;

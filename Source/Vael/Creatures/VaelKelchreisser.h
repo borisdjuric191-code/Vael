@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Creatures/VaelCreature.h"
+#include "Creatures/VaelLifeLayer.h"
 #include "VaelKelchreisser.generated.h"
 
 class UAnimSequence;
@@ -232,6 +233,10 @@ private:
 	float DroolCountdown = 0.0f;
 
 	TWeakObjectPtr<AActor> Prey;
+
+	/** Small movements over the baked animations: the blind head turns and cocks to what it hears, petals tremble, vines sway and taste the air */
+	FVaelLifeLayer Life;
+	bool bLifeReady = false;
 	EVaelKelchreisserState State = EVaelKelchreisserState::Territory;
 	float StateTime = 0.0f;
 	float StateDuration = 0.0f;

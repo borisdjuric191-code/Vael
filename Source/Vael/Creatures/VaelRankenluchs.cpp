@@ -67,6 +67,31 @@ void AVaelRankenluchs::BeginPlay()
 	LastYaw = GetActorRotation().Yaw;
 	Animator = Cast<UVaelSequenceAnimInstance>(GetMesh()->GetAnimInstance());
 
+	// A cat in its small movements (Boris 2026-11-12): it watches its prey with a low head, cocks it, the ears turn
+	// and flick each by itself, it snarls and pants, the crest breathes and bristles, the spine swings with the stride
+	FVaelLifeSetup LifeSetup;
+	LifeSetup.Pelvis = TEXT("becken");
+	LifeSetup.Head = TEXT("kopf");
+	LifeSetup.Jaw = TEXT("kiefer");
+	LifeSetup.Nose = TEXT("nase");
+	LifeSetup.Neck = { TEXT("hals") };
+	LifeSetup.Spine = { TEXT("wirbel_01"), TEXT("wirbel_02"), TEXT("wirbel_03") };
+	LifeSetup.Ears = { TEXT("ohrspitze_l"), TEXT("ohrspitze_r") };
+	for (int32 Spine = 1; Spine <= 10; ++Spine)
+	{
+		LifeSetup.Crest.Add(*FString::Printf(TEXT("kamm_%02d"), Spine));
+	}
+	LifeSetup.LookYaw = 55.0f;
+	LifeSetup.LookPitch = 22.0f;
+	LifeSetup.HeadTilt = 13.0f;
+	LifeSetup.Stoop = 14.0f;
+	LifeSetup.StrideSwing = 6.0f;
+	LifeSetup.EarSwivel = 24.0f;
+	LifeSetup.CrestBristle = 0.22f;
+	LifeSetup.Pant = 7.0f;
+	LifeSetup.Snarl = 16.0f;
+	Life.Init(GetMesh(), LifeSetup);
+
 	IdleSequence = Data->IdleAnimation.LoadSynchronous();
 	CamouflageSequence = Data->CamouflageAnimation.LoadSynchronous();
 	WakeSequence = Data->WakeAnimation.LoadSynchronous();
@@ -492,6 +517,18 @@ void AVaelRankenluchs::Tick(float DeltaSeconds)
 	}
 	UpdateGait(DeltaSeconds);
 
+	if (Animator != nullptr && !IsDead())
+	{
+		const bool bGait = Animator->GetCurrent() != nullptr && (Animator->GetCurrent() == WalkSequence || Animator->GetCurrent() == RunSequence);
+		const float Stride = bGait ? FMath::Frac(Animator->GetCurrentTime() / FMath::Max(Animator->GetCurrent()->GetPlayLength(), 0.01f)) : -1.0f;
+		Effort = FMath::Clamp(Effort + DeltaSeconds * (bGait && bRunning ? 0.3f : -0.1f), 0.0f, 1.0f);
+		const bool bLiesHidden = State == EVaelLynxState::Ambush || State == EVaelLynxState::Settle;
+		const float Alert = State == EVaelLynxState::Hunt || State == EVaelLynxState::Pounce || State == EVaelLynxState::Retreat || State == EVaelLynxState::Flee ? 1.0f
+			: State == EVaelLynxState::Waking ? 0.6f : bLiesHidden ? 0.0f : 0.25f;
+		const FVector PreyPlace = Prey.IsValid() ? Prey->GetActorLocation() : FVector::ZeroVector;
+		Life.Update(DeltaSeconds, GetWorld()->GetTimeSeconds(), GetMesh(), Animator, Prey.IsValid() && !bLiesHidden ? &PreyPlace : nullptr, Alert, Stride, Effort);
+	}
+
 	Sunk = FMath::FInterpTo(Sunk, SunkTarget, DeltaSeconds, State == EVaelLynxState::Waking ? 20.0f : 3.0f);
 	GetMesh()->SetRelativeLocation(FVector(0.0f, 0.0f, MeshBaseZ - Data->AmbushSink * Data->BodyScale * Sunk));
 
@@ -546,6 +583,7 @@ void AVaelRankenluchs::OnDamageTaken(float Damage, const FGameplayTagContainer& 
 
 void AVaelRankenluchs::Die()
 {
+	Life.Clear(Animator);
 	// Sinks down as if lying in ambush, then the base removes it
 	PlayAnimation(CamouflageSequence, false, 0.3f);
 	Super::Die();

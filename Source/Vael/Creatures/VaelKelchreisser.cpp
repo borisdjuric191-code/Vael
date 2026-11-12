@@ -1183,6 +1183,50 @@ void AVaelKelchreisser::Tick(float DeltaSeconds)
 	if (!IsDead())
 	{
 		UpdateGait();
+
+		// More small movements (Boris 2026-11-12). Only head, petals and vines: the body carries the planted hands
+		if (Animator != nullptr)
+		{
+			if (!bLifeReady)
+			{
+				bLifeReady = true;
+				FVaelLifeSetup LifeSetup;
+				LifeSetup.Pelvis = TEXT("becken");
+				LifeSetup.Head = TEXT("kopf");
+				LifeSetup.Neck = { TEXT("hals_01"), TEXT("hals_02") };
+				for (int32 Petal = 1; Petal <= 5; ++Petal)
+				{
+					LifeSetup.Petals.Add(*FString::Printf(TEXT("blatt_%02d"), Petal));
+				}
+				for (int32 Vine = 1; Vine <= 8; ++Vine)
+				{
+					TArray<FName> Chain;
+					for (int32 Joint = 1; Joint <= 20; ++Joint)
+					{
+						const FName Bone(*FString::Printf(TEXT("ranke_%d_%02d"), Vine, Joint));
+						if (GetMesh()->GetBoneIndex(Bone) == INDEX_NONE)
+						{
+							break;
+						}
+						Chain.Add(Bone);
+					}
+					if (Chain.Num() > 0)
+					{
+						LifeSetup.Tendrils.Add(Chain);
+					}
+				}
+				LifeSetup.LookYaw = 34.0f;
+				LifeSetup.LookPitch = 14.0f;
+				LifeSetup.HeadTilt = 17.0f;
+				LifeSetup.PetalTremble = 2.5f;
+				LifeSetup.TendrilSway = 3.5f;
+				Life.Init(GetMesh(), LifeSetup);
+			}
+			const bool bHears = State == EVaelKelchreisserState::Listen || State == EVaelKelchreisserState::Track;
+			const FVector Heard = Prey.IsValid() ? Prey->GetActorLocation() : SoundLocation;
+			Life.Update(DeltaSeconds, GetWorld()->GetTimeSeconds(), GetMesh(), Animator, Prey.IsValid() || bHears ? &Heard : nullptr,
+				Prey.IsValid() ? 1.0f : bHears ? 0.6f : 0.15f, -1.0f, 0.0f);
+		}
 	}
 	UpdateVines(DeltaSeconds);
 	UpdateGrounding(DeltaSeconds);
