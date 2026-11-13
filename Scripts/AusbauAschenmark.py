@@ -239,11 +239,12 @@ def scatter():
     log("{} clusters".format(len(centres)))
 
 
+# Rußquarz, Schlacke-Erz und Niddruse setzt seit dem 13.11.2026 Scripts/PlaceErze.py (geplant in Tools/Welt/aschenmark_erze.py)
 HARVEST = {
-    "Kesselgrund": ["Laternenglocke", "Traenenkelch", "Russmoos", "Aschenstaeubling", "Pfeifenmorchel", "Schlacke"],
-    "Schlackenhänge": ["Schlacke", "Glutstein", "Russquarz", "Markdruse", "Aschblase"],
+    "Kesselgrund": ["Laternenglocke", "Traenenkelch", "Russmoos", "Aschenstaeubling", "Pfeifenmorchel"],
+    "Schlackenhänge": ["Glutstein", "Aschblase"],
     "Glutfelder": ["Glutdistel", "Glutstein", "Fleischkelch", "Aschblase", "Adernflechte"],
-    "Aschenpass": ["Russquarz", "Pfeifenmorchel", "Adernflechte", "Laternenglocke"],
+    "Aschenpass": ["Pfeifenmorchel", "Adernflechte", "Laternenglocke"],
 }
 
 
