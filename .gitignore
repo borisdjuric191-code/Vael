@@ -79,3 +79,13 @@ Content/PhysMat/
 
 # Surfaces copied from the Dark Ruins Megascans Sample (see Docs/Quellen.md)
 Content/MS/
+
+# Fire Solution FX pack from Fab (210 MB), can be downloaded again
+Content/Fire_Solution_FX/
+
+# MetaHuman Floromantin: main asset is over 106 MB, too big for GitHub without LFS (stays on disk only)
+Content/Vael/Characters/Menschen/MH_Floromantin.uasset
+Content/Vael/Characters/Menschen/MH_Floromantin_Build/
+
+# Generated noise cache from the engine
+/waveletNoiseTile.bin
