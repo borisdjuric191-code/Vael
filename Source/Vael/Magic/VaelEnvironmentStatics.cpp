@@ -65,7 +65,8 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 		}
 
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
-		if ((Region != nullptr && Region->GetWeather() == EVaelWeather::Rain) || AVaelLocalWeather::IsRainingAt(World, Location))
+		if ((Region != nullptr && (Region->GetWeather() == EVaelWeather::Rain || AVaelRegion::IsColdWeather(Region->GetWeather())))
+			|| AVaelLocalWeather::IsRainingAt(World, Location))
 		{
 			return true;
 		}
@@ -84,7 +85,7 @@ bool UVaelEnvironmentStatics::IsElementInEnvironment(const AActor* Caster, EVael
 	if (Element == EVaelElement::Air)
 	{
 		const AVaelRegion* Region = AVaelRegion::GetRegionAt(const_cast<UWorld*>(World), Location);
-		return (Region != nullptr && (Region->GetWeather() == EVaelWeather::Storm || Region->GetWeather() == EVaelWeather::Wind)) || !AVaelLocalWeather::GetWindAt(World, Location).IsNearlyZero();
+		return (Region != nullptr && (Region->GetWeather() == EVaelWeather::Storm || Region->GetWeather() == EVaelWeather::Wind || Region->GetWeather() == EVaelWeather::Blizzard)) || !AVaelLocalWeather::GetWindAt(World, Location).IsNearlyZero();
 	}
 
 	// Open Mark sources let mages draw the Mark, once it has awakened in them

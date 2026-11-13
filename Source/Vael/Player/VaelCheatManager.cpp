@@ -657,9 +657,17 @@ void UVaelCheatManager::VaelWeather(const FString& Weather)
 	{
 		Region->SetWeather(EVaelWeather::Wind);
 	}
+	else if (Name.StartsWith(TEXT("sch")) || Name.StartsWith(TEXT("snow")))
+	{
+		Region->SetWeather(EVaelWeather::Snow);
+	}
+	else if (Name.StartsWith(TEXT("bl")) || Name.StartsWith(TEXT("sturm2")))
+	{
+		Region->SetWeather(EVaelWeather::Blizzard);
+	}
 	else
 	{
-		UE_LOG(LogVael, Warning, TEXT("VaelWeather: use Klar, Regen, Sturm, Duerre or Wind"));
+		UE_LOG(LogVael, Warning, TEXT("VaelWeather: use Klar, Regen, Sturm, Duerre, Wind, Schnee or Blizzard"));
 	}
 }
 

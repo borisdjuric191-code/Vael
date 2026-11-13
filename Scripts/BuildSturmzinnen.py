@@ -8,7 +8,9 @@
 # - Seilbrücke über die Lücke (Schwanzspitze -> Kiefer).
 # - Vier Lager (sicherer Ort, Feuer, Zelte), die Orte als Platzhalter (Akademie, Wetterwarte, Seherturm, Zahnreihe ...),
 #   Elementquellen (Feuer an den Lagern, Wasser am See und an der Küste, Fels für Erde), die Nid-Quelle als Platzhalter.
-# - Region "Sturmzinnen" (Wind, Sturm, Regen; Schnee und Blizzard kommen mit dem Wetter nach Verderbnis).
+# - Region "Sturmzinnen" mit Wetter nach Verderbnis (Boris 13.11.2026): rein meist klar, Wind, leichter Schnee; je verdorbener,
+#   desto mehr Sturm, Schnee und Blizzard. Darin die Region "Hörner" (Vorrang, liest die Verderbnis der Sturmzinnen): dort
+#   immer eine Stufe kälter. Die Schneegrenze des Bodens sinkt mit Verderbnis und Schneefall (MPC_SZ_Wetter, "SchneeAbsenkung").
 # - Routenpunkte ab 200 für den Lauftest (-VaelStreamTest).
 # Alles trägt den Tag "VaelSturmzinnen" (Ordner "Sturmzinnen/..."); ein neuer Lauf entfernt erst das.
 #
@@ -159,6 +161,21 @@ def import_paths():
     return texture
 
 
+def snow_collection():
+    """Parametersammlung, deren "SchneeAbsenkung" (m) die Region im Spiel setzt"""
+    path = ASSETS + "/MPC_SZ_Wetter"
+    if assets.does_asset_exist(path):
+        mpc = unreal.load_asset(path)
+    else:
+        mpc = tools.create_asset("MPC_SZ_Wetter", ASSETS, unreal.MaterialParameterCollection, unreal.MaterialParameterCollectionFactoryNew())
+    param = unreal.CollectionScalarParameter()
+    param.set_editor_property("parameter_name", "SchneeAbsenkung")
+    param.set_editor_property("default_value", 0.0)
+    mpc.set_editor_property("scalar_parameters", [param])
+    assets.save_loaded_asset(mpc, False)
+    return mpc
+
+
 def ground_material():
     path = ASSETS + "/M_SZ_Boden"
     if assets.does_asset_exist(path):
@@ -189,7 +206,8 @@ def ground_material():
     # Fels an Hängen, Ufer an der Wasserlinie, Schnee über der Schneegrenze (je flacher, desto mehr bleibt liegen)
     steep = g.saturate(g.op(unreal.MaterialExpressionMultiply, 9, g.op(unreal.MaterialExpressionSubtract, 10, g.const(0.86, 11), normal_z), g.const(6.0, 10)), 8)
     wet = g.saturate(g.op(unreal.MaterialExpressionMultiply, 9, g.op(unreal.MaterialExpressionSubtract, 10, g.const(3.0, 11), height_m), g.const(0.4, 10)), 8)
-    line = g.scalar("Schneegrenze", 85.0, 11)
+    drop = g.node(unreal.MaterialExpressionCollectionParameter, 12, collection=snow_collection(), parameter_name="SchneeAbsenkung")
+    line = g.op(unreal.MaterialExpressionSubtract, 10, g.scalar("Schneegrenze", 85.0, 11), drop)
     above = g.op(unreal.MaterialExpressionDivide, 9, g.op(unreal.MaterialExpressionSubtract, 10, height_m, line), g.const(30.0, 10))
     snow_amount = g.saturate(g.op(unreal.MaterialExpressionAdd, 8, above, g.op(unreal.MaterialExpressionMultiply, 9,
                                   g.op(unreal.MaterialExpressionSubtract, 10, patches, g.const(0.5, 11)), g.const(0.8, 10))), 7)
@@ -498,12 +516,28 @@ def main():
             rock.set_actor_scale3d(unreal.Vector(s, s, s))
 
     # Region: windig und stürmisch; Schnee und Blizzard nach Verderbnis kommen mit dem neuen Wetter
+    W = unreal.VaelWeather
     region = spawn(unreal.VaelRegion, unreal.Vector((X0 + NORTH) * 50.0, (Y0 + EAST) * 50.0, 0.0), "Spiel", "Region Sturmzinnen", streamed=False)
     region.set_editor_property("region_name", unreal.Text("Sturmzinnen"))
-    region.set_editor_property("start_weather", unreal.VaelWeather.WIND)
-    region.set_editor_property("available_weathers", [unreal.VaelWeather.CLEAR, unreal.VaelWeather.WIND, unreal.VaelWeather.RAIN,
-                                                      unreal.VaelWeather.STORM, unreal.VaelWeather.STORM])
+    region.set_editor_property("start_weather", W.WIND)
+    region.set_editor_property("available_weathers", [W.CLEAR, W.WIND, W.RAIN, W.SNOW, W.STORM, W.BLIZZARD])
+    # Rein: meist klar, kalter Wind, mal Regen oder leichter Schnee; verdorben: Sturm mit Gewitter, Schnee, Blizzard
+    region.set_editor_property("weather_weights_pure", {W.CLEAR: 3.0, W.WIND: 2.0, W.RAIN: 1.0, W.SNOW: 1.0, W.STORM: 0.3, W.BLIZZARD: 0.0})
+    region.set_editor_property("weather_weights_corrupted", {W.CLEAR: 0.1, W.WIND: 0.6, W.RAIN: 0.8, W.SNOW: 1.5, W.STORM: 2.2, W.BLIZZARD: 3.0})
+    region.set_editor_property("snow_line_collection", snow_collection())
     region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((NORTH - X0) * 50.0, (EAST - Y0) * 50.0, 60000.0))
+
+    # Die Hörner: immer eine Stufe kälter, gleiche Verderbnis wie die Sturmzinnen
+    hs, hn, hw, he = 4150.0, NORTH, 4700.0, 6150.0
+    horns = spawn(unreal.VaelRegion, unreal.Vector((hs + hn) * 50.0, (hw + he) * 50.0, 0.0), "Spiel", "Region Hoerner", streamed=False)
+    horns.set_editor_property("region_name", unreal.Text("Hörner"))
+    horns.set_editor_property("priority", 1)
+    horns.set_editor_property("corruption_from", region)
+    horns.set_editor_property("start_weather", W.SNOW)
+    horns.set_editor_property("available_weathers", [W.CLEAR, W.WIND, W.SNOW, W.BLIZZARD])
+    horns.set_editor_property("weather_weights_pure", {W.CLEAR: 1.0, W.WIND: 1.5, W.SNOW: 2.5, W.BLIZZARD: 0.2})
+    horns.set_editor_property("weather_weights_corrupted", {W.CLEAR: 0.0, W.WIND: 0.3, W.SNOW: 1.2, W.BLIZZARD: 4.0})
+    horns.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((hn - hs) * 50.0, (he - hw) * 50.0, 60000.0))
 
     n_walls = walls()
 

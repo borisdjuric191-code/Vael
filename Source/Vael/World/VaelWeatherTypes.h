@@ -18,7 +18,11 @@ enum class EVaelWeather : uint8
 	/** Everybody dries, fire spells are stronger and fires burn longer, water spells are weaker */
 	Drought,
 	/** A steady wind from one side: air is everywhere, ash and sand drift over the land, fires and whirls drift with it, missiles are blown aside */
-	Wind
+	Wind,
+	/** Snow falls and lies: it gets cold, the snow line sinks; snow is water to draw from (Sturmzinnen, Boris 2026-11-13) */
+	Snow,
+	/** Snow driven by a storm: little to see, it gets cold fast, air is everywhere, fire is weaker */
+	Blizzard
 };
 
 /** How a weather changes the formulas of one element */

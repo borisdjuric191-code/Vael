@@ -173,6 +173,59 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
 	float WindFireDrift = 0.04f;
 
+	/** Wind of the snow weathers in cm/s: a light breeze under snow, harder than a storm in a blizzard */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Snow", meta = (ClampMin = 0))
+	float SnowWindSpeed = 150.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Snow", meta = (ClampMin = 0))
+	float BlizzardWindSpeed = 750.0f;
+
+	/** Flakes per second around the players in snow; a blizzard multiplies them by its strength (2.6) */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Snow", meta = (ClampMin = 0))
+	float SnowFlakesPerSecond = 140.0f;
+
+	/** How far the white of a blizzard swallows the view: fog density of the whiteout around the players */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Snow", meta = (ClampMin = 0))
+	float BlizzardWhiteout = 1.4f;
+
+	/** Snow line: metres it sinks per point of corruption, and in snow and in a blizzard */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Snow", meta = (ClampMin = 0))
+	float SnowLinePerCorruption = 0.45f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Snow", meta = (ClampMin = 0))
+	float SnowLineDropInSnow = 15.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Snow", meta = (ClampMin = 0))
+	float SnowLineDropInBlizzard = 40.0f;
+
+	/** Cold of a player, 0 to 100: per second it rises in snow and in a blizzard, sinks elsewhere and fast by a fire or in a camp */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0))
+	float ColdRiseInSnow = 0.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0))
+	float ColdRiseInBlizzard = 2.5f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0))
+	float ColdFall = 2.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0))
+	float ColdFallByFire = 12.0f;
+
+	/** cm around a fire spot, a burning patch or the safe zone of a camp in which a player warms up */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0))
+	float WarmthRadius = 900.0f;
+
+	/** From this cold on the player is slower, down to ColdSlowest at 100 */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0, ClampMax = 100))
+	float ColdSlowFrom = 50.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0.1, ClampMax = 1))
+	float ColdSlowest = 0.7f;
+
+	/** Frost damage per second while the cold is at 100 */
+	UPROPERTY(config, EditAnywhere, Category="Weather|Cold", meta = (ClampMin = 0))
+	float FrostDamagePerSecond = 3.0f;
+
 	/** Pack parameter "Wind Speed" of fire in full wind */
 	UPROPERTY(config, EditAnywhere, Category="Weather|Wind", meta = (ClampMin = 0))
 	float WindFireLean = 4.0f;

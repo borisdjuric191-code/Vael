@@ -1579,6 +1579,39 @@ void AVaelHUD::DrawWeather()
 		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, bStorm ? Rgb(10, 14, 24, 60) : Rgb(20, 26, 34, 35));
 	}
 
+	// Snow pales the picture, a blizzard turns it white
+	if (Weather == EVaelWeather::Snow)
+	{
+		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(210, 222, 240, 22));
+	}
+	else if (Weather == EVaelWeather::Blizzard)
+	{
+		DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, Rgb(226, 236, 248, 60));
+	}
+
+	// Frost creeps in from the edges as the first player gets cold
+	if (const AVaelCharacter* ColdPlayer = Cast<AVaelCharacter>(FirstPawn))
+	{
+		const float Frost = FMath::Clamp((ColdPlayer->GetCold() - 30.0f) / 70.0f, 0.0f, 1.0f);
+		if (Frost > 0.0f)
+		{
+			// Soft from the edge inwards: thin layers, each a little fainter and further in
+			const float Depth = FMath::Min(Canvas->ClipX, Canvas->ClipY) * (0.06f + 0.12f * Frost);
+			constexpr int32 FrostLayers = 10;
+			for (int32 Layer = 0; Layer < FrostLayers; ++Layer)
+			{
+				const float Inner = Depth * Layer / FrostLayers;
+				const float Band = Depth / FrostLayers;
+				const float Share = 1.0f - static_cast<float>(Layer) / FrostLayers;
+				const FLinearColor Ice = Rgb(222, 238, 255, static_cast<uint8>((14.0f + 26.0f * Frost) * Share));
+				DrawBox(Inner, Inner, Canvas->ClipX - 2.0f * Inner, Band, Ice);
+				DrawBox(Inner, Canvas->ClipY - Inner - Band, Canvas->ClipX - 2.0f * Inner, Band, Ice);
+				DrawBox(Inner, Inner + Band, Band, Canvas->ClipY - 2.0f * (Inner + Band), Ice);
+				DrawBox(Canvas->ClipX - Inner - Band, Inner + Band, Band, Canvas->ClipY - 2.0f * (Inner + Band), Ice);
+			}
+		}
+	}
+
 	// A flash across the screen when lightning strikes
 	const float SinceLightning = static_cast<float>(Now - Region->GetLastLightningTime());
 	if (SinceLightning >= 0.0f && SinceLightning < 0.3f)

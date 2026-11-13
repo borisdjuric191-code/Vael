@@ -283,6 +283,12 @@ public:
 	/** Weighs the player down, like a creature clinging to the back: walks at the share of the speed for the seconds. Call again to keep it up. */
 	void SetBurden(float SpeedMultiplier, float Duration);
 
+	/** Cold from snow and blizzard, 0 to 100 (Sturmzinnen, Boris 2026-11-13): slows from the middle on, hurts when full */
+	float GetCold() const { return Cold; }
+
+	/** Sets the cold, for tests */
+	void SetCold(float InCold) { Cold = FMath::Clamp(InCold, 0.0f, 100.0f); }
+
 	/**
 	 *  Rushes on the wind like a dodge roll, just faster and regardless of the dodge cooldown.
 	 *  When the dash ends the burst hits everyone around within the radius. Returns false while down.
@@ -589,6 +595,17 @@ private:
 	/** Share of the walk speed while something weighs the player down, and the world time it lasts until */
 	float BurdenMultiplier = 1.0f;
 	float BurdenEndTime = 0.0f;
+
+	/** Cold, its update timer and the last warning shown (0 none, 1 cold, 2 freezing) */
+	float Cold = 0.0f;
+	float ColdTimer = 0.0f;
+	int32 ColdWarning = 0;
+
+	/** Cold rises in snow and blizzard, sinks elsewhere and fast by a fire or in a camp; full cold hurts */
+	void TickCold(float DeltaSeconds);
+
+	/** True near a campfire, a burning patch or in the safe zone of a camp */
+	bool IsWarmed() const;
 
 	/** Speed of the current roll or dash in cm/s */
 	float CurrentDodgeSpeed = 0.0f;

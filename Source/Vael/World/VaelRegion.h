@@ -8,6 +8,7 @@
 #include "VaelRegion.generated.h"
 
 class UBoxComponent;
+class UMaterialParameterCollection;
 
 /**
  *  A region of the world with its own corruption and weather, like the Aschenmark.
@@ -65,6 +66,27 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather", meta = (ClampMin = 0.1))
 	float WeatherDurationScale = 1.0f;
 
+	/** Where regions overlap, the one with the higher priority counts (the Hörner inside the Sturmzinnen) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Region")
+	int32 Priority = 0;
+
+	/** A part of a larger region: reads and changes that region's corruption instead of its own */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Region")
+	TObjectPtr<AVaelRegion> CorruptionFrom;
+
+	/** Own weights of the weathers in a pure and in a fully corrupted region; empty: those of the project settings.
+	 *  Sturmzinnen (Boris 2026-11-13): calm when pure, storm, snow and blizzard the more corrupted */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather")
+	TMap<EVaelWeather, float> WeatherWeightsPure;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Weather")
+	TMap<EVaelWeather, float> WeatherWeightsCorrupted;
+
+	/** Collection whose scalar "SchneeAbsenkung" (metres) this region drives: the snow line of its ground sinks with
+	 *  corruption, snow and blizzard (M_SZ_Boden) */
+	UPROPERTY(EditAnywhere, Category="Weather")
+	TSoftObjectPtr<UMaterialParameterCollection> SnowLineCollection;
+
 public:
 
 	/** Constructor */
@@ -79,12 +101,21 @@ public:
 	/** Returns the region at a location: a placed region containing it, else the one covering the whole level, created if missing */
 	static AVaelRegion* GetRegionAt(UWorld* World, const FVector& Location);
 
-	/** True if the location lies in the region */
+	/** True if the location lies in the region's box (or anywhere, for one covering the whole level) */
 	bool Contains(const FVector& Location) const;
+
+	/** True if this region is the one that counts at the location: its weather falls there and its rules apply */
+	bool Governs(const FVector& Location) const;
 
 	/** Corruption from 0 (pure) to 100 (fully corrupted) */
 	UFUNCTION(BlueprintPure, Category="Region")
-	float GetCorruption() const { return Corruption; }
+	float GetCorruption() const { return CorruptionFrom != nullptr ? CorruptionFrom->GetCorruption() : Corruption; }
+
+	/** How hard it snows: 0 none, 1 snow, 2.6 blizzard; rises and dies down over a few seconds */
+	float GetSnowStrength() const { return SnowStrength; }
+
+	/** Snow or blizzard */
+	static bool IsColdWeather(EVaelWeather InWeather) { return InWeather == EVaelWeather::Snow || InWeather == EVaelWeather::Blizzard; }
 
 	/** Corruption that can no longer be cleansed */
 	float GetScarredCorruption() const { return ScarredCorruption; }
@@ -182,6 +213,16 @@ private:
 	TObjectPtr<class AVaelWeatherWind> WindLook;
 
 	/** How hard it rains, and the look of the rain around the players while it does */
+	float SnowStrength = 0.0f;
+	float SnowLineDrop = 0.0f;
+
+	/** The look of snow and blizzard around the players */
+	UPROPERTY(Transient)
+	TObjectPtr<class AVaelWeatherSnow> SnowLook;
+
+	/** Snow strength, its look and the snow line */
+	void TickSnow(float DeltaSeconds);
+
 	float RainStrength = 0.0f;
 
 	UPROPERTY(Transient)

@@ -1,6 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCharacter.h"
+#include "World/VaelFireSpot.h"
+#include "World/VaelWorldSettings.h"
+#include "Magic/VaelGroundArea.h"
+#include "EngineUtils.h"
 #include "Items/VaelPotionEffects.h"
 #include "World/VaelSafeZone.h"
 #include "UObject/ConstructorHelpers.h"
@@ -557,13 +561,18 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 		return;
 	}
 
+	TickCold(DeltaSeconds);
+
 	// Channeling a spell holds the mage back
 	const bool bChanneling = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::State_Channeling);
 	const float Burden = GetWorld()->GetTimeSeconds() < BurdenEndTime ? BurdenMultiplier : 1.0f;
 	const float Bracing = IsFloromant() ? Floromant->GetMoveSpeedScale() : IsEngineer() ? Engineer->GetMoveSpeedScale() : 1.0f;
 	const UVaelPotionEffects* Potions = UVaelPotionEffects::Find(this);
 	const float PotionSpeed = Potions != nullptr ? Potions->GetSpeedMultiplier() : 1.0f;
-	GetCharacterMovement()->MaxWalkSpeed = bObserving || IsExhausted() ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing * PotionSpeed;
+	const UVaelWorldSettings* ColdSettings = UVaelWorldSettings::Get();
+	const float ColdSpeed = FMath::Lerp(1.0f, ColdSettings->ColdSlowest,
+		FMath::Clamp((Cold - ColdSettings->ColdSlowFrom) / FMath::Max(100.0f - ColdSettings->ColdSlowFrom, 1.0f), 0.0f, 1.0f));
+	GetCharacterMovement()->MaxWalkSpeed = bObserving || IsExhausted() ? 0.0f : DefaultWalkSpeed * (bChanneling ? UVaelMagicSettings::Get()->ChannelMoveSpeedMultiplier : 1.0f) * Burden * Bracing * PotionSpeed * ColdSpeed;
 
 	if (bObserving)
 	{
@@ -1458,6 +1467,84 @@ float AVaelCharacter::GetDodgeCooldownFraction() const
 {
 	const float Left = NextDodgeTime - GetWorld()->GetTimeSeconds();
 	return DodgeCooldown > 0.0f ? FMath::Clamp(Left / DodgeCooldown, 0.0f, 1.0f) : 0.0f;
+}
+
+bool AVaelCharacter::IsWarmed() const
+{
+	const float Radius = UVaelWorldSettings::Get()->WarmthRadius;
+	const FVector Here = GetActorLocation();
+	for (TActorIterator<AVaelFireSpot> It(GetWorld()); It; ++It)
+	{
+		if (FVector::DistSquared(It->GetActorLocation(), Here) < FMath::Square(Radius))
+		{
+			return true;
+		}
+	}
+	for (TActorIterator<AVaelSafeZone> It(GetWorld()); It; ++It)
+	{
+		if (FVector::DistSquared2D(It->GetActorLocation(), Here) < FMath::Square(It->GetRadius()))
+		{
+			return true;
+		}
+	}
+	for (TActorIterator<AVaelGroundArea> It(GetWorld()); It; ++It)
+	{
+		if (It->GetElement() == EVaelElement::Fire && FVector::DistSquared(It->GetActorLocation(), Here) < FMath::Square(Radius))
+		{
+			return true;
+		}
+	}
+	return UVaelCombatStatics::HasStatus(this, EVaelStatus::Burning);
+}
+
+void AVaelCharacter::TickCold(float DeltaSeconds)
+{
+	ColdTimer += DeltaSeconds;
+	if (ColdTimer < 0.25f)
+	{
+		return;
+	}
+	const float Step = ColdTimer;
+	ColdTimer = 0.0f;
+
+	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
+	const AVaelRegion* Region = AVaelRegion::GetRegionAt(GetWorld(), GetActorLocation());
+	const EVaelWeather Weather = Region != nullptr ? Region->GetWeather() : EVaelWeather::Clear;
+
+	// Gear like the Sturmmantel halves the cold of the weather
+	const bool bWarded = GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::Gear_WeatherWard);
+	float Rate = -Settings->ColdFall;
+	if (IsWarmed())
+	{
+		Rate = -Settings->ColdFallByFire;
+	}
+	else if (Weather == EVaelWeather::Blizzard)
+	{
+		Rate = Settings->ColdRiseInBlizzard * (bWarded ? 0.5f : 1.0f);
+	}
+	else if (Weather == EVaelWeather::Snow)
+	{
+		Rate = Settings->ColdRiseInSnow * (bWarded ? 0.5f : 1.0f);
+	}
+	Cold = FMath::Clamp(Cold + Rate * Step, 0.0f, 100.0f);
+
+	// Frozen through, it hurts
+	if (Cold >= 100.0f)
+	{
+		UVaelCombatStatics::DealDamage(nullptr, this, Settings->FrostDamagePerSecond * Step, EVaelElement::Water, 0.0f);
+	}
+
+	// Warn once on the way up; a warning returns only after warming up again
+	const int32 Warning = Cold >= 100.0f ? 2 : Cold >= Settings->ColdSlowFrom ? 1 : 0;
+	if (Warning > ColdWarning && IsLocallyControlled())
+	{
+		UVaelNoticeSubsystem::Post(this,
+			Warning == 2 ? NSLOCTEXT("Vael", "ColdFreezing", "Du erfrierst!") : NSLOCTEXT("Vael", "ColdCold", "Dir wird kalt"),
+			Warning == 2 ? NSLOCTEXT("Vael", "ColdFreezingDetail", "Die K\u00E4lte zehrt an dir. Sucht sofort ein Feuer oder ein Lager.")
+				: NSLOCTEXT("Vael", "ColdColdDetail", "Du wirst langsamer. An einem Feuer oder in einem Lager w\u00E4rmst du dich."),
+			FLinearColor(FColor(214, 232, 255)), 4.0f);
+	}
+	ColdWarning = Cold < Settings->ColdSlowFrom * 0.5f ? 0 : FMath::Max(ColdWarning, Warning);
 }
 
 void AVaelCharacter::SetBurden(float SpeedMultiplier, float Duration)

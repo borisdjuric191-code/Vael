@@ -28,6 +28,10 @@
 #include "VaelAssets.h"
 #include "World/VaelLightningStrike.h"
 #include "World/VaelProgressSubsystem.h"
+#include "World/VaelWeatherSnow.h"
+#include "World/VaelWorldSettings.h"
+#include "Kismet/KismetMaterialLibrary.h"
+#include "Materials/MaterialParameterCollection.h"
 #include "World/VaelLocalWeather.h"
 #include "World/VaelWeatherRain.h"
 #include "World/VaelWeatherWind.h"
@@ -127,6 +131,39 @@ void AVaelRegion::Tick(float DeltaSeconds)
 	}
 
 	TickWind(DeltaSeconds);
+	TickSnow(DeltaSeconds);
+}
+
+void AVaelRegion::TickSnow(float DeltaSeconds)
+{
+	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
+
+	// The snow sets in and stops over a few seconds; a blizzard drives it thick
+	const float TargetSnow = Weather == EVaelWeather::Snow ? 1.0f : Weather == EVaelWeather::Blizzard ? 2.6f : 0.0f;
+	SnowStrength = FMath::FInterpConstantTo(SnowStrength, TargetSnow, DeltaSeconds, 0.3f);
+	const bool bSnowing = SnowStrength > 0.01f && HasPlayerInside();
+	if (bSnowing && SnowLook == nullptr)
+	{
+		SnowLook = AVaelWeatherSnow::Spawn(this);
+	}
+	else if (!bSnowing && SnowLook != nullptr)
+	{
+		SnowLook->Destroy();
+		SnowLook = nullptr;
+	}
+
+	// The snow line of the ground sinks with the corruption and while it snows, and climbs back slowly afterwards
+	if (!SnowLineCollection.IsNull())
+	{
+		const float Target = GetCorruption() * Settings->SnowLinePerCorruption
+			+ FMath::Min(SnowStrength, 1.0f) * Settings->SnowLineDropInSnow
+			+ FMath::Clamp(SnowStrength - 1.0f, 0.0f, 1.6f) / 1.6f * (Settings->SnowLineDropInBlizzard - Settings->SnowLineDropInSnow);
+		SnowLineDrop = FMath::FInterpConstantTo(SnowLineDrop, Target, DeltaSeconds, Target > SnowLineDrop ? 0.6f : 0.15f);
+		if (UMaterialParameterCollection* Collection = SnowLineCollection.LoadSynchronous())
+		{
+			UKismetMaterialLibrary::SetScalarParameterValue(this, Collection, TEXT("SchneeAbsenkung"), SnowLineDrop);
+		}
+	}
 }
 
 FVector AVaelRegion::GetWindAt(UWorld* World, const FVector& Location)
@@ -140,8 +177,9 @@ void AVaelRegion::TickWind(float DeltaSeconds)
 {
 	// The wind rises over a few seconds when the weather brings it and dies down when it goes
 	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
-	const float TargetStrength = Weather == EVaelWeather::Wind ? Settings->WindSpeed : Weather == EVaelWeather::Storm ? Settings->StormWindSpeed : 0.0f;
-	const float RiseSpeed = FMath::Max(Settings->WindSpeed, Settings->StormWindSpeed) / Settings->WindRiseTime;
+	const float TargetStrength = Weather == EVaelWeather::Wind ? Settings->WindSpeed : Weather == EVaelWeather::Storm ? Settings->StormWindSpeed
+		: Weather == EVaelWeather::Blizzard ? Settings->BlizzardWindSpeed : Weather == EVaelWeather::Snow ? Settings->SnowWindSpeed : 0.0f;
+	const float RiseSpeed = FMath::Max3(Settings->WindSpeed, Settings->StormWindSpeed, Settings->BlizzardWindSpeed) / Settings->WindRiseTime;
 	WindStrength = FMath::FInterpConstantTo(WindStrength, TargetStrength, DeltaSeconds, RiseSpeed);
 
 	// Gusts swell and drop without a rhythm
@@ -155,7 +193,7 @@ void AVaelRegion::TickWind(float DeltaSeconds)
 	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It && !bLocalWind; ++It)
 	{
 		const APawn* Pawn = It->Get() != nullptr ? It->Get()->GetPawn() : nullptr;
-		bLocalWind = Pawn != nullptr && Contains(Pawn->GetActorLocation()) && !AVaelLocalWeather::GetWindAt(GetWorld(), Pawn->GetActorLocation()).IsNearlyZero();
+		bLocalWind = Pawn != nullptr && Governs(Pawn->GetActorLocation()) && !AVaelLocalWeather::GetWindAt(GetWorld(), Pawn->GetActorLocation()).IsNearlyZero();
 	}
 	const bool bBlowing = (WindStrength > 1.0f && HasPlayerInside()) || bLocalWind;
 	if (bBlowing && WindLook == nullptr)
@@ -190,17 +228,23 @@ AVaelRegion* AVaelRegion::GetRegionAt(UWorld* World, const FVector& Location)
 		return nullptr;
 	}
 
+	// The placed region containing the location with the highest priority, else the one covering the whole level
 	AVaelRegion* WholeLevel = nullptr;
+	AVaelRegion* Best = nullptr;
 	for (TActorIterator<AVaelRegion> It(World); It; ++It)
 	{
 		if (It->bCoversWholeLevel)
 		{
 			WholeLevel = WholeLevel != nullptr ? WholeLevel : *It;
 		}
-		else if (It->Contains(Location))
+		else if (It->Contains(Location) && (Best == nullptr || It->Priority > Best->Priority))
 		{
-			return *It;
+			Best = *It;
 		}
+	}
+	if (Best != nullptr)
+	{
+		return Best;
 	}
 
 	// Levels without regions still have weather and corruption
@@ -258,18 +302,38 @@ float AVaelRegion::GetArea() const
 	return 4.0f * Extent.X * Extent.Y / 10000.0f;
 }
 
+bool AVaelRegion::Governs(const FVector& Location) const
+{
+	return GetRegionAt(GetWorld(), Location) == this;
+}
+
 void AVaelRegion::AddCorruption(float Amount)
 {
+	if (CorruptionFrom != nullptr)
+	{
+		CorruptionFrom->AddCorruption(Amount);
+		return;
+	}
 	SetCorruption(Corruption + Amount);
 }
 
 void AVaelRegion::SetCorruption(float NewCorruption)
 {
+	if (CorruptionFrom != nullptr)
+	{
+		CorruptionFrom->SetCorruption(NewCorruption);
+		return;
+	}
 	Corruption = FMath::Clamp(NewCorruption, ScarredCorruption, 100.0f);
 }
 
 void AVaelRegion::AddScar(float Amount)
 {
+	if (CorruptionFrom != nullptr)
+	{
+		CorruptionFrom->AddScar(Amount);
+		return;
+	}
 	ScarredCorruption = FMath::Clamp(ScarredCorruption + Amount, 0.0f, 100.0f);
 	AddCorruption(Amount);
 }
@@ -315,7 +379,7 @@ void AVaelRegion::SetWeather(EVaelWeather NewWeather)
 		for (TActorIterator<AVaelGroundArea> It(GetWorld()); It; ++It)
 		{
 			const float LifeSpan = It->GetLifeSpan();
-			if (It->GetElement() == EVaelElement::Fire && LifeSpan > 0.0f && Contains(It->GetActorLocation()))
+			if (It->GetElement() == EVaelElement::Fire && LifeSpan > 0.0f && Governs(It->GetActorLocation()))
 			{
 				It->SetLifeSpan(FMath::Max(LifeSpan * LifeSpanScale, 0.1f));
 			}
@@ -373,6 +437,22 @@ void AVaelRegion::AnnounceWeather()
 		Color = FLinearColor(FColor(196, 214, 220));
 		break;
 
+	case EVaelWeather::Snow:
+		Title = LOCTEXT("SnowStarts", "Es beginnt zu schneien");
+		Detail = bFirstTime
+			? LOCTEXT("SnowExplained", "Es wird kalt: bleibt nicht zu lange im Schnee, an Feuern und in Lagern w\u00E4rmt ihr euch. Schnee ist Wasser zum Sch\u00F6pfen, Feuerzauber sind etwas schw\u00E4cher.")
+			: LOCTEXT("SnowShort", "K\u00E4lte steigt langsam, Wasser \u00FCberall.");
+		Color = FLinearColor(FColor(222, 234, 248));
+		break;
+
+	case EVaelWeather::Blizzard:
+		Title = LOCTEXT("BlizzardStarts", "Ein Schneesturm bricht los");
+		Detail = bFirstTime
+			? LOCTEXT("BlizzardExplained", "Man sieht kaum die Hand vor Augen, und die K\u00E4lte frisst sich schnell hinein: durchgefroren werdet ihr langsam und nehmt Schaden. Sucht ein Feuer! Luft ist \u00FCberall und stark, Feuer k\u00E4mpft gegen den Wind.")
+			: LOCTEXT("BlizzardShort", "K\u00E4lte steigt schnell, sucht ein Feuer. Luft stark, Feuer schwach.");
+		Color = FLinearColor(FColor(236, 244, 255));
+		break;
+
 	default:
 		Title = LOCTEXT("SkyClears", "Der Himmel klart auf");
 		break;
@@ -389,6 +469,8 @@ FText AVaelRegion::GetWeatherName(EVaelWeather InWeather)
 	case EVaelWeather::Storm: return LOCTEXT("WeatherStorm", "Sturm");
 	case EVaelWeather::Drought: return LOCTEXT("WeatherDrought", "D\u00FCrre");
 	case EVaelWeather::Wind: return LOCTEXT("WeatherWind", "Wind");
+	case EVaelWeather::Snow: return LOCTEXT("WeatherSnow", "Schnee");
+	case EVaelWeather::Blizzard: return LOCTEXT("WeatherBlizzard", "Schneesturm");
 	default: return LOCTEXT("WeatherClear", "Klarer Himmel");
 	}
 }
@@ -403,15 +485,17 @@ EVaelWeather AVaelRegion::PickNextWeather() const
 {
 	// Among the weathers of the region, between the weights of a pure and a fully corrupted region; never the same twice in a row
 	const UVaelWorldSettings* Settings = UVaelWorldSettings::Get();
-	const float CorruptionShare = Corruption / 100.0f;
+	const float CorruptionShare = GetCorruption() / 100.0f;
+	const TMap<EVaelWeather, float>& PureWeights = WeatherWeightsPure.IsEmpty() ? Settings->WeatherWeightsPure : WeatherWeightsPure;
+	const TMap<EVaelWeather, float>& CorruptedWeights = WeatherWeightsCorrupted.IsEmpty() ? Settings->WeatherWeightsCorrupted : WeatherWeightsCorrupted;
 
 	TArray<TPair<EVaelWeather, float>> Options;
 	float TotalWeight = 0.0f;
 
 	for (const EVaelWeather Option : AvailableWeathers)
 	{
-		const float* PureWeight = Settings->WeatherWeightsPure.Find(Option);
-		const float* CorruptedWeight = Settings->WeatherWeightsCorrupted.Find(Option);
+		const float* PureWeight = PureWeights.Find(Option);
+		const float* CorruptedWeight = CorruptedWeights.Find(Option);
 		const float Weight = FMath::Max(FMath::Lerp(PureWeight != nullptr ? *PureWeight : 0.0f, CorruptedWeight != nullptr ? *CorruptedWeight : 0.0f, CorruptionShare), 0.0f);
 
 		if (Option != Weather && Weight > 0.0f && !Options.ContainsByPredicate([Option](const TPair<EVaelWeather, float>& Entry) { return Entry.Key == Option; }))
@@ -452,7 +536,7 @@ void AVaelRegion::TickRain(float DeltaSeconds)
 	{
 		// Gear like the Sturmmantel keeps its wearer dry
 		const bool bWarded = It->GetAbilitySystemComponent()->HasMatchingGameplayTag(VaelTags::Gear_WeatherWard);
-		if (!bWarded && !It->IsDefeated() && (It->IsA<AVaelCharacter>() || It->IsA<AVaelCreature>()) && Contains(It->GetActorLocation()))
+		if (!bWarded && !It->IsDefeated() && (It->IsA<AVaelCharacter>() || It->IsA<AVaelCreature>()) && Governs(It->GetActorLocation()))
 		{
 			UVaelCombatStatics::ApplyStatus(nullptr, *It, EVaelStatus::Wet, WetDuration);
 		}
@@ -480,7 +564,7 @@ void AVaelRegion::TickRainPuddles(float DeltaSeconds)
 	{
 		const APlayerController* PlayerController = It->Get();
 		const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
-		if (Player != nullptr && Contains(Player->GetActorLocation()))
+		if (Player != nullptr && Governs(Player->GetActorLocation()))
 		{
 			AVaelWaterPuddle::GatherRain(GetWorld(), Player->GetActorLocation(), MagicSettings->RainPuddleReach, MagicSettings->RainPuddleWater, RainSource);
 		}
@@ -499,7 +583,7 @@ void AVaelRegion::TickDrought(float DeltaSeconds)
 
 	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 	{
-		if (Contains(It->GetActorLocation()))
+		if (Governs(It->GetActorLocation()))
 		{
 			UVaelCombatStatics::RemoveStatus(*It, EVaelStatus::Wet);
 		}
@@ -524,7 +608,7 @@ void AVaelRegion::TickStorm(float DeltaSeconds)
 	{
 		const APlayerController* PlayerController = It->Get();
 		AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
-		if (Player != nullptr && !Player->IsDowned() && Contains(Player->GetActorLocation()))
+		if (Player != nullptr && !Player->IsDowned() && Governs(Player->GetActorLocation()))
 		{
 			Players.Add(Player);
 		}
@@ -552,7 +636,7 @@ bool AVaelRegion::HasPlayerInside() const
 	{
 		const APlayerController* PlayerController = It->Get();
 		const APawn* Pawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
-		if (Pawn != nullptr && Contains(Pawn->GetActorLocation()))
+		if (Pawn != nullptr && Governs(Pawn->GetActorLocation()))
 		{
 			return true;
 		}
