@@ -70,6 +70,34 @@
     427000.0,
     525000.0
    ]
+  },
+  {
+   "name": "Schlackentor-Posten",
+   "world": [
+    117730.0,
+    280000.0
+   ]
+  },
+  {
+   "name": "Grubenstadt der Gilde",
+   "world": [
+    106140.00000000001,
+    387050.0
+   ]
+  },
+  {
+   "name": "Rippenlager",
+   "world": [
+    173640.0,
+    452730.0
+   ]
+  },
+  {
+   "name": "Nackenhütte",
+   "world": [
+    245450.0,
+    555000.0
+   ]
   }
  ],
  "labels": [
@@ -500,8 +528,152 @@
   {
    "name": "Zum Nackenstieg",
    "world": [
-    326000.0,
+    300000.0,
     583000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Der Eisenschlund",
+   "world": [
+    60000.0,
+    450000.0
+   ],
+   "size": 2
+  },
+  {
+   "name": "Nackenstieg",
+   "world": [
+    265000.0,
+    560000.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Rippenbögen",
+   "world": [
+    185000.0,
+    430000.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Minen der Gilde",
+   "world": [
+    70000.0,
+    380000.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Schmelzhütten",
+   "world": [
+    86360.0,
+    361820.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Förderturm",
+   "world": [
+    95450.0,
+    441360.00000000006
+   ],
+   "size": 0
+  },
+  {
+   "name": "Geflutete Stollen",
+   "world": [
+    81820.0,
+    495910.00000000006
+   ],
+   "size": 0
+  },
+  {
+   "name": "Kernerz-Stollen",
+   "world": [
+    100000.0,
+    536820.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Funkenerz-Adern",
+   "world": [
+    113640.00000000001,
+    559550.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Knochenhalle",
+   "world": [
+    211360.0,
+    414089.99999999994
+   ],
+   "size": 0
+  },
+  {
+   "name": "Windschlucht",
+   "world": [
+    211360.0,
+    459550.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Rippenbrücke",
+   "world": [
+    193180.0,
+    495910.00000000006
+   ],
+   "size": 0
+  },
+  {
+   "name": "Salvenschwein-Suhlen",
+   "world": [
+    163640.0,
+    564090.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Rostschwamm-Höhle",
+   "world": [
+    172730.0,
+    341360.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Grubenlaternen",
+   "world": [
+    152270.0,
+    361820.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Nackenwirbel",
+   "world": [
+    260230.00000000003,
+    532270.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Wachturm der Gilde",
+   "world": [
+    231819.99999999997,
+    580000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Tiefster Schacht",
+   "world": [
+    186360.0,
+    320910.0
    ],
    "size": 0
   }

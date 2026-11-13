@@ -240,6 +240,7 @@ def main():
     region.set_actor_label("Region Wurzelforst")
     region.set_folder_path(FOLDER + "/Spiel")
     region.set_editor_property("region_name", unreal.Text("Wurzelforst"))
+    region.set_editor_property("priority", 1)          # vor dem Kasten des Eisenschlunds, der in die Ecke des Waldes reicht
     region.set_editor_property("is_spatially_loaded", False)
     region.set_editor_property("tags", [unreal.Name(TAG)])
     box = region.get_component_by_class(unreal.BoxComponent)

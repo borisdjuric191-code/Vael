@@ -52,6 +52,12 @@ def main():
     sx0, sy0 = (v * 100.0 for v in sz["landschaft"]["ursprung_m"])
     snord = sx0 + (sz["landschaft"]["punkte"][0] - 1) * 200.0
 
+    es = json.load(open(os.path.join(WELT, "ES_Orte.json"), encoding="utf-8"))
+    ew, eh, ec, es_bild = lies_png(os.path.join(WELT, "ES_Karte.png"))
+    ex0, ey0 = (v * 100.0 for v in es["gebiet"]["ursprung_m"])
+    enord = ex0 + (es["gebiet"]["punkte"][0] - 1) * 200.0
+    eost = ey0 + (es["gebiet"]["punkte"][1] - 1) * 200.0
+
     def pixel(bild, kanaele, i, j):
         return bytes(bild[j][i * kanaele:i * kanaele + 3])
     meer = pixel(wf_bild, wc, 4, 4)            # tiefes Meer des Wurzelforsts für alles außerhalb der Bilder
@@ -66,7 +72,16 @@ def main():
         for px in range(PIXEL):                   # Bild x = Welt X (Norden)
             x = MIN[0] + (px + 0.5) * schritt
             farbe = meer
-            if y >= sy0 and sx0 <= x <= snord:
+            # Eisenschlund: Zeile 0 = Norden, Spalte = Osten, 2 m je Pixel; sein Meer und die Nachbarn lassen die anderen Karten durch
+            es_farbe = None
+            if ey0 <= y <= eost and ex0 <= x <= enord:
+                ei, ej = int((y - ey0) / 200.0), int((enord - x) / 200.0)
+                if 0 <= ei < ew and 0 <= ej < eh:
+                    es_farbe = pixel(es_bild, ec, ei, ej)
+                    es_farbe = None if es_farbe == SZ_MEER else es_farbe
+            if es_farbe is not None:
+                farbe = es_farbe
+            elif y >= sy0 and sx0 <= x <= snord:
                 # Sturmzinnen: Zeile 0 = Norden, Spalte = Osten, 2 m je Pixel
                 si, sj = int((y - sy0) / 200.0), int((snord - x) / 200.0)
                 if 0 <= si < sw and 0 <= sj < sh:
@@ -97,7 +112,13 @@ def main():
     for name, p in sz["orte"].items():
         if name not in ("Gipfel",):
             labels.append({"name": name, "world": [p["x"] * 100.0, p["y"] * 100.0], "size": 0})
+    labels.append({"name": "Der Eisenschlund", "world": [60000.0, 450000.0], "size": 2})
+    for name, (gross, punkte) in {"Nackenstieg": (1, [2650, 5600]), "Rippenbögen": (1, [1850, 4300]), "Minen der Gilde": (1, [700, 3800])}.items():
+        labels.append({"name": name, "world": [punkte[0] * 100.0, punkte[1] * 100.0], "size": gross})
+    for name, p in es["orte"].items():
+        labels.append({"name": name, "world": [p["x"] * 100.0, p["y"] * 100.0], "size": 0})
     camps = list(am.get("camps", [])) + [{"name": name, "world": [p["x"] * 100.0, p["y"] * 100.0]} for name, p in sz["lager"].items()]
+    camps += [{"name": name, "world": [p["x"] * 100.0, p["y"] * 100.0]} for name, p in es["lager"].items()]
     fx = [am["focus_min"][0], am["focus_max"][0], vx - wf["focus_min"][1], vx - wf["focus_max"][1], sx0, snord]
     fy = [am["focus_min"][1], am["focus_max"][1], wf["focus_min"][0] + vy, wf["focus_max"][0] + vy, sy0,
           sy0 + (sz["landschaft"]["punkte"][1] - 1) * 200.0]
