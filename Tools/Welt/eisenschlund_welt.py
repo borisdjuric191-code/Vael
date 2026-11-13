@@ -54,28 +54,35 @@ KUESTE = [(x, y) for x, y in KUESTE] + [(1400.0, 2400.0), (300.0, 2400.0)]      
 RIPPEN = [pfad([(300, 480), (520, 380), (760, 330), (990, 330)]),
           pfad([(340, 600), (560, 500), (820, 450), (1090, 450)]),
           pfad([(400, 720), (620, 620), (880, 570), (1170, 580)])]
+# Die Schluchten zwischen den Rippen (Boris 13.11.2026: Schluchten, in denen man sich schon tief unten fühlt):
+# zwischen zwei Rippen steigt das Land zu einer Hochfläche, mittendrin bleibt ein enger Schluchtboden
+SCHLUCHTEN = {"Knochenschlucht": pfad([(300, 545), (540, 440), (790, 392), (1040, 392)]),
+              "Rippenschlucht": pfad([(360, 662), (590, 560), (850, 512), (1130, 515)])}
+SCHLUCHT_BODEN = 20.0                 # m, halbe Breite des Schluchtbodens
+HOCHFLAECHE = 52.0                    # m, so hoch steigt das Land zwischen den Rippen neben der Schlucht
 GRUBENSTADT = welt(581, 853)
 SCHLACKE = pfad([(520, 860), (600, 900), (700, 960), (760, 1050)])
 STOLLEN_AUS = (1150.0, 2690.0)         # Ausgang des Schlackentor-Stollens im Eisenschlund
-HAUPTWEG = [(2903.0, 5830.0)] + pfad([(1440, 90), (1400, 170), (1350, 240), (1290, 290), (1220, 340), (1140, 400), (1060, 460), (980, 510),
-                                      (900, 540), (820, 570), (740, 600), (660, 640), (610, 700), (580, 780), (580, 850)])
+# Der Hauptweg kommt den Nacken herab, läuft durch die Rippenschlucht nach Westen und biegt am Ende hinab zur Grubenstadt
+HAUPTWEG = [(2903.0, 5830.0)] + pfad([(1440, 90), (1400, 170), (1350, 240), (1290, 300), (1220, 380), (1170, 450), (1130, 515), (990, 512),
+                                      (850, 512), (720, 535), (590, 560), (470, 610), (370, 665), (400, 740), (470, 800), (580, 850)])
 WESTWEG = [STOLLEN_AUS] + pfad([(120, 800), (220, 820), (320, 840), (420, 858), (500, 860), (580, 850)])
 NEBENWEGE = {
     "Kernerzweg": pfad([(580, 850), (700, 840), (820, 860), (960, 900), (1080, 930), (1200, 900), (1300, 840)]),
-    "Knochenweg": pfad([(820, 570), (760, 500), (700, 440), (640, 400)]),
-    "Suhlenweg": pfad([(1060, 460), (1160, 520), (1260, 560), (1360, 600)]),
-    "Laternenweg": pfad([(610, 700), (520, 650), (440, 600), (380, 560)]),
-    "Sondierweg": pfad([(380, 560), (340, 520), (300, 490)]),
+    "Knochenweg": pfad([(760, 525), (730, 470), (700, 410), (540, 440), (300, 545)]),
+    "Windweg": pfad([(700, 410), (790, 392), (1040, 392)]),
+    "Suhlenweg": pfad([(1250, 330), (1300, 450), (1360, 600)]),
+    "Sondierweg": pfad([(370, 665), (330, 590), (300, 520)]),
 }
-LAGER = {"Schlackentor-Posten": welt(110, 802), "Grubenstadt der Gilde": GRUBENSTADT, "Rippenlager": welt(870, 556), "Nackenhütte": welt(1320, 240)}
+LAGER = {"Schlackentor-Posten": welt(110, 802), "Grubenstadt der Gilde": GRUBENSTADT, "Rippenlager": welt(850, 512), "Nackenhütte": welt(1320, 240)}
 ORTE = {
     "Schmelzhütten": welt(470, 940), "Förderturm": welt(820, 900), "Geflutete Stollen": welt(1060, 960), "Kernerz-Stollen": welt(1240, 880),
-    "Funkenerz-Adern": welt(1340, 820), "Knochenhalle": welt(700, 390), "Windschlucht": welt(900, 390), "Rippenbrücke": welt(1060, 470),
-    "Salvenschwein-Suhlen": welt(1360, 600), "Rostschwamm-Höhle": welt(380, 560), "Grubenlaternen": welt(470, 650),
+    "Funkenerz-Adern": welt(1340, 820), "Knochenhalle": welt(640, 420), "Windschlucht": welt(900, 392), "Rippenbrücke": welt(1000, 512),
+    "Salvenschwein-Suhlen": welt(1360, 600), "Rostschwamm-Höhle": welt(330, 600), "Grubenlaternen": welt(500, 595),
     "Nackenwirbel": welt(1220, 175), "Wachturm der Gilde": welt(1430, 300), "Tiefster Schacht": welt(290, 500),
 }
-KAMPF = [welt(*p) for p in [(230, 830), (430, 860), (720, 620), (660, 520), (960, 520), (1000, 400), (1160, 400), (1260, 300), (1420, 200),
-                            (1080, 900), (1300, 620), (460, 560)]]
+KAMPF = [welt(*p) for p in [(230, 830), (430, 860), (470, 610), (660, 545), (930, 512), (840, 392), (560, 438), (1260, 300), (1420, 200),
+                            (1080, 900), (1300, 620), (420, 480)]]
 QUELLEN = {"Feuer": [welt(560, 900), welt(700, 980), welt(1240, 860)], "Erde": [welt(760, 400), welt(1000, 560), welt(1360, 600), welt(820, 900)],
            "Luft": [welt(880, 345), welt(1000, 465), welt(1400, 150)], "Wasser": [welt(1060, 960), welt(380, 560)]}
 NID_QUELLE = ORTE["Tiefster Schacht"]
@@ -128,6 +135,29 @@ def polyline_distance(points):
     return d
 
 
+def polyline_offset(points):
+    """Kürzester Weg von der Linie zu jedem Punkt (dx, dy) und seine Länge"""
+    best = np.full((NI, NJ), 1e9, np.float32)
+    ox = np.zeros((NI, NJ), np.float32)
+    oy = np.zeros((NI, NJ), np.float32)
+    for (ax, ay), (bx, by) in zip(points, points[1:]):
+        dx, dy = bx - ax, by - ay
+        t = np.clip(((X - ax) * dx + (Y - ay) * dy) / max(dx * dx + dy * dy, 1e-6), 0, 1)
+        vx, vy = X - ax - t * dx, Y - ay - t * dy
+        d = np.hypot(vx, vy)
+        nah = d < best
+        best = np.where(nah, d, best)
+        ox = np.where(nah, vx, ox)
+        oy = np.where(nah, vy, oy)
+    return ox, oy, best
+
+
+# Die Kamera schaut unter 45° von Südwesten (Gierwinkel 45°): eine Wand auf dieser Seite verdeckt so weit, wie sie hoch ist.
+# Wie in Diablo-Höhlen bleibt die Kameraseite niedrig (eine Felskante), die hohen Wände stehen hinter dem Spieler.
+KAMERA_SEITE = (-0.7071, -0.7071)
+KANTE = 0.25                          # Anteil der Hochfläche, der auf der Kameraseite bleibt (~13 m)
+
+
 def lies_r16(name, nx, ny):
     raw = np.fromfile(os.path.join(WELT, name), dtype="<u2")
     return ((raw.astype(np.float32) - 32768.0) / 128.0).reshape(ny, nx).T
@@ -166,11 +196,19 @@ def main():
         d = polyline_distance(rippe)
         kamm = np.maximum(kamm, np.exp(-(d / 34.0) ** 4) * (0.8 + 0.2 * noise(160, 3, 10 + k)))
     h += 70.0 * kamm
-    tal = np.zeros((NI, NJ), np.float32)
-    for a, b in zip(RIPPEN, RIPPEN[1:]):
-        mitte = [((ax + bx) * 0.5, (ay + by) * 0.5) for (ax, ay), (bx, by) in zip(a, b)]
-        tal = np.maximum(tal, np.exp(-(polyline_distance(mitte) / 60.0) ** 2))
-    h -= 12.0 * tal
+    # Zwischen den Rippen: Hochfläche, mittendrin die enge Schlucht mit fast senkrechten Wänden
+    zwischen = np.zeros((NI, NJ), np.float32)
+    kanal = np.zeros((NI, NJ), np.float32)
+    seite = np.ones((NI, NJ), np.float32)
+    for linie in SCHLUCHTEN.values():
+        ox, oy, d = polyline_offset(linie)
+        nah = smooth(1.0 - (d - 60.0) / 50.0)
+        zur_kamera = (ox * KAMERA_SEITE[0] + oy * KAMERA_SEITE[1]) / np.maximum(d, 1.0)
+        seite = np.where(nah > zwischen, KANTE + (1.0 - KANTE) * smooth(0.5 - zur_kamera * 2.0), seite)
+        zwischen = np.maximum(zwischen, nah)
+        kanal = np.maximum(kanal, np.exp(-(d / (SCHLUCHT_BODEN + 6.0)) ** 8))
+    h += HOCHFLAECHE * zwischen * seite * (1.0 - kanal) * (0.9 + 0.1 * noise(90, 2, 20))
+    h -= 6.0 * kanal
     # Grubenstadt im Kessel, Schlackenfluss in einer Rinne zum Meer
     h -= 10.0 * np.exp(-(np.hypot(X - GRUBENSTADT[0], Y - GRUBENSTADT[1]) / 160.0) ** 2)
     h -= 5.0 * np.exp(-(polyline_distance(SCHLACKE) / 9.0) ** 2)
@@ -191,7 +229,7 @@ def main():
     near_x = np.where(X < 2014.0, 2016.0, X)
     near_y = np.where(Y > 3767.0, 3767.0, Y)
     wf_rand = wf_at(near_x, near_y)
-    w = 1.0 - smooth(d_wf / BAND)
+    w = 1.0 - smooth(d_wf / 60.0)         # dort ist Meer: kurzer Übergang, eine Steilküste statt eines langen Abfalls
     h = h * (1.0 - w) + wf_rand * w
     # Sturmzinnen (Nordrand X 2902): genau ihre Höhen
     w = 1.0 - smooth((2902.0 - X) / BAND)
@@ -339,6 +377,9 @@ def main():
         "quellen": {k: [ort(p) for p in v] for k, v in QUELLEN.items()},
         "nid_quelle": ort(NID_QUELLE),
         "rippen": [[ort(p) for p in r] for r in RIPPEN],
+        "schluchten": {name: {"linie": [ort(p) for p in linie], "boden_halbe_breite": SCHLUCHT_BODEN, "wand_hoehe": HOCHFLAECHE,
+                              "kamera_seite": list(KAMERA_SEITE), "kante": KANTE}
+                       for name, linie in SCHLUCHTEN.items()},
         "schlackenfluss": [ort(p) for p in SCHLACKE],
         "stollen": {"aschenmark": {"x": 1131.0, "y": 2288.0}, "eisenschlund": ort(STOLLEN_AUS)},
         "wege": wege_aus,
