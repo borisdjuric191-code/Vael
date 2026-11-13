@@ -653,7 +653,7 @@ bool AVaelCharacter::StartDodge(const FVector& WorldDirection)
 	DodgeEndTime = Now + DodgeDuration;
 	NextDodgeTime = Now + DodgeCooldown;
 
-	BeginRollLook(LoadedDodgeMontage, DodgeDuration);
+	BeginRollLook(LoadedDodgeMontage, DodgeDuration * DodgeLookStretch);
 
 	return true;
 }
@@ -1141,6 +1141,11 @@ void AVaelCharacter::EndDodge()
 	GetMesh()->SetRelativeScale3D(DefaultMeshScale);
 	GetCharacterMovement()->bUseControllerDesiredRotation = true;
 
+	// The dodge roll lands by itself after the body has stopped (DodgeLookStretch); other rolls end with the dash
+	if (ActiveRollMontage != nullptr && ActiveRollMontage == LoadedDodgeMontage && CurrentDodgeSpeed == DodgeSpeed)
+	{
+		ActiveRollMontage = nullptr;
+	}
 	if (ActiveRollMontage != nullptr)
 	{
 		if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())

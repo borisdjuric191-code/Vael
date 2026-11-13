@@ -119,7 +119,11 @@ protected:
 
 	/** Montage of the dodge roll, stretched to the length of the roll. Used once the asset exists; until then the mesh is squashed. */
 	UPROPERTY(EditAnywhere, Category="Dodge")
-	TSoftObjectPtr<UAnimMontage> DodgeMontage = TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Dodge.AM_Mage_Dodge")));
+	TSoftObjectPtr<UAnimMontage> DodgeMontage = TSoftObjectPtr<UAnimMontage>(FSoftObjectPath(TEXT("/Game/Vael/Characters/Mage/AM_Mage_Ausweichen.AM_Mage_Ausweichen")));
+
+	/** The roll plays this much longer than the body moves: the landing settles after the dodge has carried it (Boris 2026-11-13: too sharp) */
+	UPROPERTY(EditAnywhere, Category="Dodge", meta = (ClampMin = 1, ClampMax = 2.5))
+	float DodgeLookStretch = 1.45f;
 
 	/** Montage of spell dashes like the Boee, stretched to their length. Without it the dodge montage is used. */
 	UPROPERTY(EditAnywhere, Category="Dodge")
