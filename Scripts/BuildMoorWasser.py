@@ -215,6 +215,17 @@ def import_mask(name="T_WF_Moor", compression=unreal.TextureCompressionSettings.
     return texture
 
 
+def map_axes(g, world_xy, column):
+    """World XY in the blockout's coordinates. In the blockout itself nothing changes (axes 1/0 and 0/1, no shift); a copy
+    in the open world L_Vael, where the Wurzelforst lies turned, gets other axes (Scripts/PortWurzelforstToWelt.py)"""
+    def axis(name, value):
+        return g.mask(g.node(unreal.MaterialExpressionVectorParameter, column + 1, parameter_name=name,
+                             default_value=unreal.LinearColor(value[0], value[1], 0.0, 0.0)), column, r=True, g=True, b=False)
+    u = g.op(unreal.MaterialExpressionDotProduct, column, world_xy, axis("KarteAchseU", (1.0, 0.0)))
+    v = g.op(unreal.MaterialExpressionDotProduct, column, world_xy, axis("KarteAchseV", (0.0, 1.0)))
+    return g.op(unreal.MaterialExpressionAdd, column, g.op(unreal.MaterialExpressionAppendVector, column, u, v), axis("KarteVersatz", (0.0, 0.0)))
+
+
 def build_water_material(mask_texture, origin, size, clear_texture=None):
     """Murky moor water over the lagoons: colour by depth, near black holes, duckweed floating on top, slow waves and rings"""
     material = new_material("M_WF_Moorwasser")
@@ -223,7 +234,7 @@ def build_water_material(mask_texture, origin, size, clear_texture=None):
     g = Graph(material)
 
     world = g.node(unreal.MaterialExpressionWorldPosition, 12)
-    world_xy = g.mask(world, 11, r=True, g=True, b=False)
+    world_xy = map_axes(g, g.mask(world, 11, r=True, g=True, b=False), 11)
     origin_xy = g.mask(g.node(unreal.MaterialExpressionVectorParameter, 12, parameter_name="MaskOrigin",
                               default_value=unreal.LinearColor(origin[0], origin[1], 0.0, 0.0)), 11, r=True, g=True, b=False)
     uv = g.op(unreal.MaterialExpressionDivide, 10, g.sub(10, world_xy, origin_xy), g.scalar("MaskSize", size, 11))

@@ -361,6 +361,17 @@ def make_grass_types():
     return grass_types
 
 
+def map_axes(g, plane, column):
+    """World XY in the blockout's coordinates. In the blockout itself nothing changes (axes 1/0 and 0/1, no shift); the
+    copy of the ground in the open world L_Vael, where the Wurzelforst lies turned, gets other axes (PortWurzelforstToWelt.py)"""
+    def axis(name, value):
+        return g.mask(g.node(unreal.MaterialExpressionVectorParameter, column + 1, parameter_name=name,
+                             default_value=unreal.LinearColor(value[0], value[1], 0.0, 0.0)), column, r=True, g=True)
+    u = g.op(unreal.MaterialExpressionDotProduct, column, plane, axis("KarteAchseU", (1.0, 0.0)))
+    v = g.op(unreal.MaterialExpressionDotProduct, column, plane, axis("KarteAchseV", (0.0, 1.0)))
+    return g.op(unreal.MaterialExpressionAdd, column, g.op(unreal.MaterialExpressionAppendVector, column, u, v), axis("KarteVersatz", (0.0, 0.0)))
+
+
 def build_ground(material, textures, grass_types, masks):
     library.delete_all_material_expressions(material)
     # The grass output is not removed with the other nodes, and a material may hold only one
@@ -370,7 +381,7 @@ def build_ground(material, textures, grass_types, masks):
     g = Graph(material)
 
     position = g.node(unreal.MaterialExpressionWorldPosition, 14)
-    plane = g.mask(position, 13, r=True, g=True)
+    plane = map_axes(g, g.mask(position, 13, r=True, g=True), 13)
     height = g.mask(position, 13, b=True)
 
     # Zone map over the whole landscape

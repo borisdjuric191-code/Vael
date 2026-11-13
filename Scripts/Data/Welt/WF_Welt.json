@@ -1,0 +1,39 @@
+{
+ "info": "Wurzelforst in L_Vael (Tools/Welt/wurzelforst_welt.py). cm. Blockout -> Welt: X = 250000 - Y_b, Y = X_b + 175100, Gier + 90. Welt -> Blockout (für Materialien mit Weltkoordinaten): X_b = Y - 175100, Y_b = 250000 - X.",
+ "punkte": [
+  1261,
+  2017
+ ],
+ "schritt_cm": 200.0,
+ "ursprung_cm": [
+  201400.0,
+  -26500.0
+ ],
+ "skala": [
+  200.0,
+  200.0,
+  100.0
+ ],
+ "drehung_gier": 90.0,
+ "versatz_cm": [
+  250000.0,
+  175100.0
+ ],
+ "material_achsen": {
+  "KarteAchseU": [
+   0.0,
+   1.0
+  ],
+  "KarteAchseV": [
+   -1.0,
+   0.0
+  ],
+  "KarteVersatz": [
+   -175100.0,
+   250000.0
+  ]
+ },
+ "ende_nord_cm": 453400.0,
+ "ende_ost_cm": 376700.0,
+ "uebergang_m": 240.0
+}

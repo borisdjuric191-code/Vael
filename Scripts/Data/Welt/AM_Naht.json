@@ -10,14 +10,23 @@
   "_hinweis": "Nordstreifen von etwa 320 m: Kamm und Schlucht des Aschenpasses ab knapp noerdlich der Windkante (X 1650). Predigerlager, Passwache und Windkante bleiben draussen."
  },
  "anschluss": {
-  "aschenmark_wegende": {"x": 2017.0, "y": 965.0, "_hinweis": "Hauptstrasse (MAIN_ROAD) verlaesst die Karte hier, Ort 'Forstsaum'"},
-  "wurzelforst_start_px": [415, 1048],
-  "_hinweis": "Startpunkt des Wurzelforsts in Kartenpixeln von WF_Silhouette.json (2 m/px, y nach unten = Sueden). Vorschlag fuer die Ausrichtung beim Zusammenfuegen: Y_AM = x_px * 2 + 135, X_AM = 2017 + (2200 - y_px * 2); damit treffen sich die beiden Wege."
+  "aschenmark_wegende": {
+   "x": 2017.0,
+   "y": 965.0,
+   "_hinweis": "Hauptstrasse (MAIN_ROAD) verlaesst die Karte hier, Ort 'Forstsaum'"
+  },
+  "wurzelforst_start_px": [
+   415,
+   1048
+  ],
+  "_hinweis": "Umgesetzt am 13.11.2026 (Scripts/PortWurzelforstToWelt.py, Lage in WF_Welt.json): Blockout -> Welt X = 250000 - Y_b, Y = X_b + 175100 (cm), Gier +90; die Wege treffen sich bei Y ~965 m."
  },
  "offen_beim_zusammenfuegen": [
+  "Naht sichtbar als gerade Kante im Bodenmaterial (Asche der Aschenmark gegen Asche des Forstsaums); Hoehe passt, kein Absatz.",
   "Westkueste springt: in der Aschenmark liegt sie am Nordrand bei Y ~942 m (Weg 23 m daneben), im Wurzelforst nach obiger Ausrichtung bei Y ~655 m. In der Zone weich ueberblenden.",
   "Der Kamm der Aschenmark geht ueber die ganze Breite, die Oeffnung des Wurzelforsts ist nur ~860 m breit (WF px 260 bis 690). Oestlich davon schliessen Berge (Richtung Sturmzinnen/Eisenschlund).",
   "WF_Silhouette 'anschluss_aschenmark' ist nur ein Platzhalterstueck der Aschenmark und faellt beim Zusammenfuegen weg.",
-  "Hoehen an der Naht angleichen: Schluchtboden der Aschenmark gegen den flachen Forstsaum mit Ascheuebergang."
+  "Hoehen grob angeglichen: 240 m Abstieg von der Passschlucht (~54 m) in den Forstsaum (~5 m); spaeter evtl. einen Serpentinenweg gestalten.",
+  "Im Wurzelforst fehlen in L_Vael noch die unsichtbaren Kuestenwaende (Blockout hatte keine) und die Karte/Minikarte (dort noch schwarz)."
  ]
 }
