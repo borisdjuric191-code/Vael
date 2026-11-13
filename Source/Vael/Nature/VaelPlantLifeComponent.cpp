@@ -114,7 +114,7 @@ void UVaelPlantLifeComponent::Show(UStaticMeshComponent* InModel, const FVaelPla
 
 	Seed = FMath::FRandRange(0.0f, 100.0f);
 	RestRotation = Model->GetRelativeRotation();
-	Hanging.SetNum(PlantMaxDrops);
+	Hanging.Init(FDrop(), PlantMaxDrops);
 	Lying.Init(FVector4(0.0f, 0.0f, 0.0f, PlantBlotLife), PlantMaxBlots);
 	FHitResult GroundHit;
 	const FVector Foot = Model->GetComponentLocation();
@@ -126,7 +126,27 @@ void UVaelPlantLifeComponent::Show(UStaticMeshComponent* InModel, const FVaelPla
 		Drops = AddPieces(PlantDropMeshPath, 0.1f);
 		Blots = AddPieces(PlantBlotMeshPath, 0.1f);
 	}
+	if (Drops != nullptr)
+	{
+		Drops->SetVisibility(true);
+		Blots->SetVisibility(true);
+	}
 	SetComponentTickEnabled(true);
+}
+
+void UVaelPlantLifeComponent::Stop()
+{
+	if (Model != nullptr)
+	{
+		Model->SetRelativeRotation(RestRotation);
+	}
+	if (Drops != nullptr)
+	{
+		Drops->SetVisibility(false);
+		Blots->SetVisibility(false);
+	}
+	Model = nullptr;
+	SetComponentTickEnabled(false);
 }
 
 void UVaelPlantLifeComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

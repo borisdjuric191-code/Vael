@@ -6,6 +6,7 @@
 #include "Engine/DataAsset.h"
 #include "Engine/StaticMesh.h"
 #include "Nature/VaelSparkleComponent.h"
+#include "Nature/VaelPlantLifeComponent.h"
 #include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
 #include "VaelHarvestableData.generated.h"
@@ -196,6 +197,13 @@ public:
 	/** The purer the region, the more it glints (the Russquarz clears as the corruption sinks); a third of it stays at the worst */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	bool bSparkleWithPurity = false;
+
+	/** The model lives while there is something to pick: it rocks in the wind and drips (Saftperle, Eiterperle) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	bool bLivingModel = false;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (EditCondition = "bLivingModel"))
+	FVaelPlantLife PlantLife;
 
 	/** Models to grow as instead of Mesh, picked by the place; each with its hang points */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")

@@ -63,7 +63,39 @@ HARVESTABLES = [
      "loot": [loot("DA_Material_Russquarz", 1.0, 1, 2)], "regrow_seconds": 240.0, "height": 60.0, "base_color": color("222020"), "glow_color": color("8c8a90")},
     {"asset": "DA_Harvest_Markdruse", "display_name": unreal.Text("Niddruse"), "compendium_id": "Markdruse", "kind": Kind.STONE,
      "loot": [loot("DA_Material_Nidkristall", 1.0, 1, 1)], "regrow_seconds": 300.0, "height": 110.0, "base_color": color("2a2430"), "glow_color": color("a24dff")},
+    # Wurzelforst (13.11.2026): the wild pearl plants with their Tripo models; they rock in the wind and drip (Boris 2026-11-12)
+    {"asset": "DA_Harvest_Saftperle", "display_name": unreal.Text("Saftperle"), "compendium_id": "Saftperle", "kind": Kind.PLANT,
+     "loot": [loot("DA_Material_Saftperle", 1.0, 1, 3), loot("DA_Material_Karminglocke", 0.6, 1, 1)], "regrow_seconds": 150.0, "height": 150.0,
+     "base_color": color("c8304a"), "glow_color": color("e8a040"), "mesh_glow": 0.0},
+    {"asset": "DA_Harvest_Eiterperle", "display_name": unreal.Text("Eiterperle"), "compendium_id": "Eiterperle", "kind": Kind.PLANT,
+     "loot": [loot("DA_Material_Eiterperle", 1.0, 1, 2), loot("DA_Material_Welkglocke", 0.6, 1, 1)], "regrow_seconds": 180.0, "height": 150.0,
+     "base_color": color("5a1a24"), "glow_color": color("b8c040"), "mesh_glow": 0.0},
 ]
+
+
+def plant_life(sway, period, rate, drip, glow, size):
+    life = unreal.VaelPlantLife()
+    life.set_editor_property("sway", sway)
+    life.set_editor_property("sway_period", period)
+    life.set_editor_property("drip_rate", rate)
+    life.set_editor_property("drip_color", unreal.LinearColor(r=drip[0], g=drip[1], b=drip[2], a=1.0))
+    life.set_editor_property("drip_glow", glow)
+    life.set_editor_property("drip_size", size)
+    return life
+
+
+# Model and life of the pearl plants, as the VaelErz cheat shows them: clear red sap; thick yellow-green pus, slower and heavier
+MODELS = {
+    "DA_Harvest_Saftperle": {"mesh": "/Game/Vael/Requisiten/Wurzelforst/Saftperle/SM_Saftperle", "living_model": True,
+                             "plant_life": plant_life(2.2, 4.6, 1.3, (0.36, 0.04, 0.03), 0.25, 3.6)},
+    "DA_Harvest_Eiterperle": {"mesh": "/Game/Vael/Requisiten/Wurzelforst/Eiterperle/SM_Eiterperle", "living_model": True,
+                              "plant_life": plant_life(1.6, 6.0, 0.9, (0.3, 0.36, 0.05), 0.3, 4.4)},
+}
+for definition in HARVESTABLES:
+    extra = dict(MODELS.get(definition["asset"], {}))
+    if "mesh" in extra:
+        extra["mesh"] = unreal.load_asset(extra["mesh"])
+    definition.update(extra)
 
 
 # Signature traits, element sources and corruption ranges (package 2: plants; stones only as element sources so far)

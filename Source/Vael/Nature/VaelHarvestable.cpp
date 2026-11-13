@@ -200,6 +200,9 @@ AVaelHarvestable::AVaelHarvestable()
 	Sparkles = CreateDefaultSubobject<UVaelSparkleComponent>(TEXT("Sparkles"));
 	Sparkles->SetupAttachment(RootComponent);
 
+	PlantLife = CreateDefaultSubobject<UVaelPlantLifeComponent>(TEXT("PlantLife"));
+	PlantLife->SetupAttachment(RootComponent);
+
 	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
 	Glow->SetupAttachment(RootComponent);
 	Glow->SetAttenuationRadius(320.0f);
@@ -1128,6 +1131,7 @@ void AVaelHarvestable::RefreshLook()
 	}
 	if (ModelMesh == nullptr)
 	{
+		RefreshPlantLife(false);
 		Model->SetVisibility(false);
 		RefreshHanging(false, CrownColor, 0.0f);
 		return;
@@ -1135,6 +1139,8 @@ void AVaelHarvestable::RefreshLook()
 
 	if (Model->GetStaticMesh() != ModelMesh)
 	{
+		// The rocking holds on to the rest pose of the old model
+		RefreshPlantLife(false);
 		Model->SetStaticMesh(ModelMesh);
 		ModelMaterial = Model->CreateAndSetMaterialInstanceDynamic(0);
 		// Hanging parts can't follow the wind of a foliage material, so the leaves they hang from stand still; the parts swing themselves
@@ -1174,6 +1180,26 @@ void AVaelHarvestable::RefreshLook()
 	Sparkles->Show(Model, Data->Sparkle, bBare || bAbsent ? 0.0f : Data->bSparkleWithPurity ? FMath::Lerp(0.35f, 1.0f, FMath::Clamp(Purity, 0.0f, 1.0f)) : 1.0f);
 
 	RefreshHanging(bHangs && bCrownShown, CrownColor, HangingGlow);
+
+	// Pearl plants rock in the wind and drip while there is something to pick; a picked stub stands still
+	RefreshPlantLife(Data->bLivingModel && !bBare && !bAbsent);
+}
+
+void AVaelHarvestable::RefreshPlantLife(bool bLives)
+{
+	if (bLives == bPlantLifeShown || Data == nullptr)
+	{
+		return;
+	}
+	bPlantLifeShown = bLives;
+	if (bLives)
+	{
+		PlantLife->Show(Model, Data->PlantLife);
+	}
+	else
+	{
+		PlantLife->Stop();
+	}
 }
 
 float AVaelHarvestable::NightGlowScale() const

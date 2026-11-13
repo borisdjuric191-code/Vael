@@ -361,6 +361,15 @@ INGREDIENTS = [
     # Wild plants
     ("Distelflaum", "Distelflaum", "Flaum der Glutdistel, fängt sofort Feuer. Für Brandmunition.", "e0a080", K.FIBER, E.FIRE, W.NEUTRAL),
     ("Pelzwasser", "Pelzwasser", "Regenwasser, aus dem Keimpelz gedrückt. Basis der Basistränke für alle.", "a0d0b0", K.DEW, E.WATER, W.NEUTRAL),
+    # Wurzelforst, wild Saftperle and Eiterperle (13.11.2026); the 8th value is the region
+    ("Saftperle", "Saftperle", "Bernsteinfarbene Perle aus süßem Saft, hängt unter den karminroten Glocken. Macht flink: Basis des Hasttranks. "
+     "Gehärtet wird sie zu Bernstein, der Ingenieur gießt daraus klare Kapseln und Linsen.", "e8a040", K.SAP, E.EARTH, W.LIGHT, "Wurzelforst"),
+    ("Karminglocke", "Karminglocke", "Karminrot-rosa Glocke der Saftperle. Stärkt Verbündete und beruhigt Tiere: begehrtes Futter für Tierbändiger.",
+     "d0405a", K.PETAL, E.EARTH, W.LIGHT, "Wurzelforst"),
+    ("Eiterperle", "Eiterperle", "Trübe, gelbgrüne Perle voller Eiter. Steckt an: Basis der Seuchengifte. "
+     "Der Ingenieur füllt sie in Platzminen und Brandsätze, die beim Bersten Fäulnis versprühen.", "b8c040", K.SAP, E.EARTH, W.SHADOW, "Wurzelforst"),
+    ("Welkglocke", "Welkglocke", "Welke, dunkelrote Glocke der Eiterperle. Lässt Wunden schlecht heilen; in Fluchtränken und Giftpfeilen.",
+     "5a1a24", K.PETAL, E.EARTH, W.SHADOW, "Wurzelforst"),
 ]
 
 # Materials that exist already and are ingredients too: kind, element (None = none), way
@@ -400,12 +409,13 @@ for definition in MATERIALS:
 for missing in EXISTING_INGREDIENTS:
     unreal.log_warning("Vael: ingredient {} is not in the material list".format(missing))
 
-for asset, name, description, hex_code, kind, element, way in INGREDIENTS:
+for entry in INGREDIENTS:
+    asset, name, description, hex_code, kind, element, way = entry[:7]
     definition = {
         "asset": "DA_Material_" + asset,
         "display_name": unreal.Text(name),
         "description": unreal.Text(description),
-        "region": unreal.Text("Aschenmark"),
+        "region": unreal.Text(entry[7] if len(entry) > 7 else "Aschenmark"),
         "color": color(hex_code),
     }
     definition.update(ingredient_fields(kind, element, way))

@@ -273,6 +273,25 @@ ENTRIES += [
            "Ich habe die Stufen an der Quelle der Aschenmark gezählt. Wie lange eine Stufe braucht, weiß ich noch nicht. Ich hoffe auf Jahre und fürchte, es sind Tage."),
 ]
 
+# Plants of the Wurzelforst (13.11.2026): the wild pearl plant in its pure and its marked form
+ENTRIES += [
+    nature("DA_Compendium_Saftperle", "Saftperle", Book.HERBARIUM, 110, "Saftperle", "Wurzelforst, Forstsaum und Ewiger Hain",
+           "Ein mannshoher Busch mit hängenden, karminrot-rosa Glocken. Unter jeder Glocke hängt eine bernsteinfarbene Perle aus Saft.",
+           "Die Glocken wiegen im Wind, und die Perlen tropfen langsam ab. Wo die Tropfen fallen, kommen Tiere zum Lecken, auch die scheuen.",
+           "Ein Schnitt zu nah am Stängel lässt sie ausbluten. Gepflückt gibt sie Saftperlen, manchmal eine ganze Glocke.",
+           "Saftperlen machen flink und sind die Grundlage des Hasttranks. Gehärtet werden sie zu Bernstein, aus dem der Ingenieur Kapseln und Linsen gießt. "
+           "Die Glocken beruhigen Tiere.",
+           "Die Eiterperle. Wo das Nid den Boden erreicht, welken die Glocken und die Perlen trüben sich gelbgrün ein.",
+           "Die Tiere am Forstsaum folgen den Tropfen wie einer Spur. Ich bin ihr einmal gefolgt und stand am Ende vor einem Rankenluchs, der dasselbe tat."),
+    nature("DA_Compendium_Eiterperle", "Eiterperle", Book.HERBARIUM, 120, "Eiterperle", "Wurzelforst, Pfuhlmoor und an den Nid-Adern",
+           "Derselbe Busch wie die Saftperle, aber die Glocken hängen welk und dunkelrot. Die Perlen sind trüb und voller gelbgrünem Eiter.",
+           "Sie tropft schwer und langsam. Wo der Eiter liegt, stirbt das Moos ab, und wer hineintritt, trägt die Fäulnis weiter.",
+           "Feuer lässt die Perlen platzen, also besser aus der Ferne. Gepflückt gibt sie Eiterperlen und welke Glocken.",
+           "Eiterperlen stecken an: Basis der Seuchengifte und der Platzminen des Ingenieurs. Welke Glocken lassen Wunden schlecht heilen.",
+           "Sie ist schon die gezeichnete Form. Ihre reine Form ist die Saftperle.",
+           "Ich trage Handschuhe, seit ich gesehen habe, wie ein Hase nach einem Tropfen am Moorrand zwei Tage lang nicht mehr aufhörte zu zittern."),
+]
+
 
 def comparable(value):
     """Brings Unreal values into a form that can be compared with =="""

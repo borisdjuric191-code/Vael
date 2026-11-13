@@ -53,6 +53,9 @@ public:
 
 	void Show(UStaticMeshComponent* InModel, const FVaelPlantLife& InLife);
 
+	/** Stands the model back in its rest pose and hides the drops, until the next Show */
+	void Stop();
+
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
 private:
