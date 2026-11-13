@@ -49,7 +49,9 @@ namespace
 	constexpr float StreamNearRadius = 5000.0f;
 
 	/** The whole check gives up after this many seconds of game time */
+	// The check stops after this long, but at least this long per route point: the route grows with every region joined
 	constexpr float StreamTimeLimit = 900.0f;
+	constexpr float StreamTimePerPoint = 32.0f;
 }
 
 AVaelStreamTest::AVaelStreamTest()
@@ -141,9 +143,10 @@ void AVaelStreamTest::Tick(float DeltaSeconds)
 	PhaseTime += DeltaSeconds;
 	AVaelCharacter* Player = GetPlayer();
 
-	if (GetGameTimeSinceCreation() > StreamTimeLimit)
+	const float TimeLimit = FMath::Max(StreamTimeLimit, StreamTimePerPoint * Route.Num());
+	if (GetGameTimeSinceCreation() > TimeLimit)
 	{
-		Report.Add(FString::Printf(TEXT("FAILED: the check took longer than %.0f s and was stopped"), StreamTimeLimit));
+		Report.Add(FString::Printf(TEXT("FAILED: the check took longer than %.0f s and was stopped"), TimeLimit));
 		Finish();
 		return;
 	}
