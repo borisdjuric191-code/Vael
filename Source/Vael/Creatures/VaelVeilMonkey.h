@@ -52,6 +52,9 @@ public:
 	/** Moves body, eyes and the pointing arm */
 	virtual void Tick(float DeltaSeconds) override;
 
+	/** Out of sight altogether, it is nothing to aim at: no ring under it, no shot at the empty air */
+	virtual bool IsHiddenFromAim() const override { return State == EVaelMonkeyState::Dormant; }
+
 	/** Blinded monkeys take more damage */
 	virtual float GetIncomingDamageMultiplier(const FGameplayTagContainer& DamageTags) const override;
 
@@ -114,7 +117,11 @@ private:
 	bool IsNearLight(const FVector& Location) const;
 
 	/** Looks at what blocks the straight way to the goal and starts to climb over it if it is low and narrow enough */
-	bool TryClimb(const FVector& Goal);
+	bool TryClimb(const FVector& Goal, bool bStuck = false);
+
+	/** Walks towards a goal and gets itself out when it is stuck (scrambles over, steps round); true once it should give the goal up */
+	bool GoTowards(const FVector& Goal, float Speed, float DeltaSeconds);
+	int32 StuckTries = 0;
 
 	/** Lets go of the player it clings to and stands beside them again */
 	void LetGo();
@@ -152,6 +159,20 @@ private:
 
 	/** How steeply the body points up or down while it climbs, in degrees, eased from frame to frame */
 	float ClimbPitchShown = 0.0f;
+
+	/** Stuck on its way: where it was a moment ago, how long it has not come on, and a side step it takes out of it */
+	FVector StuckFrom = FVector::ZeroVector;
+	float StuckTime = 0.0f;
+	float SideStepLeft = 0.0f;
+	float SideStepSide = 1.0f;
+
+	/** Small movements: the head looking about, an arm scratching now and then */
+	float HeadYawShown = 0.0f;
+	float HeadTiltShown = 0.0f;
+	float ScratchStart = -10.0f;
+	float NextScratch = 3.0f;
+	int32 ScratchSide = 0;
+	float ElbowShown[2] = { 0.0f, 0.0f };
 
 	/** Where it wants to sit, and whether that is behind something */
 	FVector HidePoint = FVector::ZeroVector;

@@ -325,7 +325,7 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 		{
 			if (FVector::Dist2D(GetActorLocation(), HomeLocation) > 150.0f && !ClimbsTowards(HomeLocation))
 			{
-				MoveTowards(HomeLocation, Data->MoveSpeed * 0.4f);
+				GoTowards(HomeLocation, Data->MoveSpeed * 0.4f, DeltaSeconds);
 			}
 			break;
 		}
@@ -360,7 +360,11 @@ void AVaelVeilMonkey::TickBehavior(float DeltaSeconds)
 		{
 			if (!ClimbsTowards(HidePoint))
 			{
-				MoveTowards(HidePoint, Data->MoveSpeed * (bFlees ? 1.0f : 0.75f));
+				if (GoTowards(HidePoint, Data->MoveSpeed * (bFlees ? 1.0f : 0.75f), DeltaSeconds))
+				{
+					// Nothing helped: it looks for another place to hide
+					CoverCountdown = 0.0f;
+				}
 			}
 		}
 		else
@@ -493,7 +497,53 @@ bool AVaelVeilMonkey::StartClimb(const FVector& Goal)
 	return !IsDead() && State != EVaelMonkeyState::Dormant && State != EVaelMonkeyState::Cling && State != EVaelMonkeyState::Climb && TryClimb(Goal);
 }
 
-bool AVaelVeilMonkey::TryClimb(const FVector& Goal)
+bool AVaelVeilMonkey::GoTowards(const FVector& Goal, float Speed, float DeltaSeconds)
+{
+	// A side step it is in the middle of
+	if (SideStepLeft > 0.0f)
+	{
+		SideStepLeft -= DeltaSeconds;
+		const FVector To = (Goal - GetActorLocation()).GetSafeNormal2D();
+		MoveTowards(GetActorLocation() + (FVector(-To.Y, To.X, 0.0f) * SideStepSide + To * 0.35f) * 200.0f, Speed);
+		return false;
+	}
+
+	MoveTowards(Goal, Speed);
+
+	// Does it come on? Measured over half a second
+	StuckTime += DeltaSeconds;
+	if (StuckTime < 0.5f)
+	{
+		return false;
+	}
+	const float Come = FVector::Dist2D(GetActorLocation(), StuckFrom);
+	StuckFrom = GetActorLocation();
+	const float Waited = StuckTime;
+	StuckTime = 0.0f;
+	if (Come > Speed * Waited * 0.25f)
+	{
+		StuckTries = 0;
+		return false;
+	}
+
+	// Stuck (a root, a slanted rock, a thing that is no plain wall): it scrambles over whatever is there, straight on or
+	// a little to either side; if that fails too it steps round, and after a few tries it gives the place up
+	++StuckTries;
+	const FVector To = (Goal - GetActorLocation()).GetSafeNormal2D();
+	for (const float Angle : { 0.0f, 35.0f, -35.0f, 70.0f, -70.0f })
+	{
+		if (TryClimb(GetActorLocation() + To.RotateAngleAxis(Angle, FVector::UpVector) * FMath::Max(FVector::Dist2D(GetActorLocation(), Goal), 400.0f), true))
+		{
+			StuckTries = 0;
+			return false;
+		}
+	}
+	SideStepSide = StuckTries % 2 == 0 ? 1.0f : -1.0f;
+	SideStepLeft = 0.7f;
+	return StuckTries >= 3;
+}
+
+bool AVaelVeilMonkey::TryClimb(const FVector& Goal, bool bStuck)
 {
 	const UVaelVeilMonkeyData* Data = GetData<UVaelVeilMonkeyData>();
 	const float Radius = GetCapsuleComponent()->GetScaledCapsuleRadius();
@@ -507,8 +557,13 @@ bool AVaelVeilMonkey::TryClimb(const FVector& Goal)
 	}
 
 	const UWorld* World = GetWorld();
-	const FCollisionObjectQueryParams Solid(ECC_WorldStatic);
+	// Things in its way may be static or movable, depending on how the level was built
+	FCollisionObjectQueryParams Solid(ECC_WorldStatic);
+	Solid.AddObjectTypesToQuery(ECC_WorldDynamic);
 	const FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelMonkeyClimb), false, this);
+	// Stuck, it takes on more: higher, deeper, and whatever shape the thing has
+	const float MaxHeight = Data->ClimbHeight.Y * (bStuck ? 1.6f : 1.0f);
+	const float MaxDepth = Data->ClimbMaxDepth * (bStuck ? 1.6f : 1.0f);
 	const float FeetZ = Own.Z - HalfHeight;
 
 	// Something squarely in the way: a slim body above what it simply steps onto
@@ -517,14 +572,22 @@ bool AVaelVeilMonkey::TryClimb(const FVector& Goal)
 	FHitResult Face;
 	if (!World->SweepSingleByObjectType(Face, Chest, Chest + Direction * (Radius + MonkeyClimbReach), FQuat::Identity, Solid,
 			FCollisionShape::MakeCapsule(SlimRadius, FMath::Max(HalfHeight - Data->ClimbHeight.X * 0.5f, SlimRadius)), QueryParams)
-		|| Face.bStartPenetrating || Face.ImpactNormal.Z > 0.6f
+		|| Face.bStartPenetrating || Face.ImpactNormal.Z > 0.72f
 		|| Face.GetComponent() == nullptr || Face.GetComponent()->GetCollisionResponseToChannel(ECC_Pawn) != ECR_Block)
 	{
-		return false;
+		if (!bStuck)
+		{
+			return false;
+		}
+		// No plain face found, but it is stuck all the same: it feels its way from right in front of itself
+		Face = FHitResult();
+		Face.Distance = Radius * 0.5f;
+		Face.ImpactPoint = Chest + Direction * Radius;
+		Face.ImpactNormal = -Direction;
 	}
 
 	// Feels for the top from above; false if the place is too high or has no ground
-	const float TraceTop = FeetZ + Data->ClimbHeight.Y + 5.0f;
+	const float TraceTop = FeetZ + MaxHeight + 5.0f;
 	const auto HeightAt = [World, &Solid, &QueryParams, TraceTop, FeetZ](const FVector& Spot, float& OutHeight)
 	{
 		FHitResult Top;
@@ -538,7 +601,7 @@ bool AVaelVeilMonkey::TryClimb(const FVector& Goal)
 
 	// Its top just behind the face, then on along the way until the ground comes back
 	float TopZ = 0.0f;
-	if (!HeightAt(Face.ImpactPoint - Face.ImpactNormal.GetSafeNormal2D() * 3.0f, TopZ) || TopZ < FeetZ + Data->ClimbHeight.X)
+	if (!HeightAt(Face.ImpactPoint - Face.ImpactNormal.GetSafeNormal2D() * 3.0f, TopZ) || (!bStuck && TopZ < FeetZ + Data->ClimbHeight.X))
 	{
 		return false;
 	}
@@ -547,7 +610,7 @@ bool AVaelVeilMonkey::TryClimb(const FVector& Goal)
 	FVector Landing = FVector::ZeroVector;
 	bool bLands = false;
 
-	for (float Depth = MonkeyClimbSample; Depth <= Data->ClimbMaxDepth && !bLands; Depth += MonkeyClimbSample)
+	for (float Depth = MonkeyClimbSample; Depth <= MaxDepth && !bLands; Depth += MonkeyClimbSample)
 	{
 		float Height = 0.0f;
 		if (!HeightAt(Own + Direction * (FaceDistance + Depth), Height))
@@ -697,6 +760,13 @@ void AVaelVeilMonkey::OnDamageTaken(float Damage, const FGameplayTagContainer& D
 	Super::OnDamageTaken(Damage, DamageTags);
 
 	// Fire and lightning are too bright for its eyes: it lets go, drops its loot and cowers
+	// Hit while it kept out of sight (a spell over the whole place): it has to show itself
+	if (State == EVaelMonkeyState::Dormant && !IsDead())
+	{
+		Shyness = 0.0f;
+		SetDormant(false);
+	}
+
 	const bool bBright = DamageTags.HasTagExact(VaelTags::Element_Fire) || DamageTags.HasTagExact(VaelTags::Element_Air);
 	if (bBright && !IsDead() && State != EVaelMonkeyState::Blinded && State != EVaelMonkeyState::Dormant)
 	{
@@ -978,7 +1048,18 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 
 	const float Stride = bRunning ? FMath::Sin(HopPhase * UE_TWO_PI) : 0.0f;
 	const FVector Pelvis = RestBody.GetLocation();
-	const FQuat BodyTurn(SideAxis, FMath::DegreesToRadians(LeanShown + (bRunning ? FMath::Abs(Stride) * 6.0f : FMath::Sin(Time * 2.1f) * 1.5f)) * ForwardTurn);
+	const bool bSits = !bRunning && !bDeadNow && State == EVaelMonkeyState::Hide;
+	const float Own = Time + GetUniqueID() * 0.37f;
+	const auto Drift = [Own](float Pace, float Seed)
+	{
+		return 0.6f * FMath::Sin(Own * Pace * 0.9f + Seed) + 0.3f * FMath::Sin(Own * Pace * 2.3f + Seed * 2.7f) + 0.1f * FMath::Sin(Own * Pace * 5.1f + Seed * 4.3f);
+	};
+	// Excited: it has someone to point at and bounces on its haunches
+	const float Excited = bSits && Pointed.IsValid() ? 1.0f : 0.0f;
+	// The body rocks with every bound on the run; sitting it breathes, shifts its weight from side to side and bounces
+	const float Rock = bRunning ? Stride * 11.0f : FMath::Sin(Own * 2.6f) * 2.2f + Excited * FMath::Abs(FMath::Sin(Own * 7.0f)) * 5.0f;
+	const float Sway = bRunning ? FMath::Sin(HopPhase * UE_PI) * 5.0f : bSits ? Drift(0.55f, 1.0f) * 6.0f : 0.0f;
+	const FQuat BodyTurn = FQuat(FVector::RightVector, FMath::DegreesToRadians(Sway)) * FQuat(SideAxis, FMath::DegreesToRadians(LeanShown + Rock) * ForwardTurn);
 
 	// Legs: thighs forward, shins back; the body sinks by what the bent legs lose in height
 	float Drop = 0.0f;
@@ -990,7 +1071,8 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 		const float Thigh = FVector::Dist(Hip, Knee);
 		const float Shin = FMath::Max(Knee.Z, 1.0f);
 
-		const float Swing = Stride * (Side == 0 ? 1.0f : -1.0f) * 28.0f;
+		// On the run the legs bound nearly together, one a little ahead; sitting they shift a little with its weight
+		const float Swing = bRunning ? FMath::Sin((HopPhase + (Side == 0 ? 0.0f : 0.12f)) * UE_TWO_PI) * 36.0f : (Side == 0 ? 1.0f : -1.0f) * Sway * 0.8f;
 		const float ThighAngle = FMath::DegreesToRadians(CrouchShown * 62.0f + Swing);
 		const float KneeAngle = FMath::DegreesToRadians(CrouchShown * 118.0f + FMath::Max(Swing, 0.0f) * 0.8f);
 
@@ -1007,7 +1089,12 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 	BodyPose.SetRotation(BodyTurn * RestBody.GetRotation());
 	MonkeyMesh->SetBoneTransformByName(TEXT("body"), BodyPose, EBoneSpaces::ComponentSpace);
 
-	const FQuat HeadTurn = FQuat(FVector::UpVector, FMath::DegreesToRadians(Twitch * 14.0f)) * FQuat(SideAxis, FMath::DegreesToRadians(LeanShown * (State == EVaelMonkeyState::Blinded ? 1.2f : 0.25f)) * ForwardTurn);
+	// The head looks about while it sits (slow sweeps, a cocked head), stays level against the rocking body on the run
+	const float WantedHeadYaw = bSits ? 34.0f * Drift(0.5f, 5.0f) + 10.0f * FMath::Sign(Drift(1.7f, 9.0f)) * (FMath::Abs(Drift(1.7f, 9.0f)) > 0.55f ? 1.0f : 0.0f) : 0.0f;
+	HeadYawShown = FMath::FInterpTo(HeadYawShown, WantedHeadYaw, DeltaSeconds, 6.0f);
+	HeadTiltShown = FMath::FInterpTo(HeadTiltShown, bSits ? 13.0f * FMath::Sign(Drift(0.8f, 13.0f)) * (FMath::Abs(Drift(0.8f, 13.0f)) > 0.45f ? 1.0f : 0.0f) : 0.0f, DeltaSeconds, 7.0f);
+	const FQuat HeadTurn = FQuat(FVector::UpVector, FMath::DegreesToRadians(Twitch * 14.0f + HeadYawShown)) * FQuat(FVector::RightVector, FMath::DegreesToRadians(HeadTiltShown))
+		* FQuat(SideAxis, FMath::DegreesToRadians(LeanShown * (State == EVaelMonkeyState::Blinded ? 1.2f : 0.25f) - Rock * 0.7f) * ForwardTurn);
 	FTransform Head = RestHead;
 	Head.SetLocation(Pelvis + BodyTurn.RotateVector(RestHead.GetLocation() - Pelvis));
 	Head.SetRotation(HeadTurn * RestHead.GetRotation());
@@ -1016,41 +1103,68 @@ void AVaelVeilMonkey::PoseFactoryMesh(float DeltaSeconds, float Twitch)
 	// Arms: knuckles on the ground in hiding, paddling on the run, thrown forward in the leap, over the eyes when blinded.
 	// One long arm points at the player closest to death.
 	const AVaelCharacter* PointAt = State == EVaelMonkeyState::Hide && !bRunning && !bDeadNow ? Pointed.Get() : nullptr;
+	// Now and then it scratches itself with the arm that isn't pointing
+	if (bSits && Time >= NextScratch)
+	{
+		ScratchStart = Time;
+		ScratchSide = PointAt != nullptr ? 1 : FMath::RandHelper(2);
+		NextScratch = Time + FMath::FRandRange(4.5f, 9.0f);
+	}
+	const float Scratch = bSits && Time - ScratchStart < 1.4f ? FMath::Square(FMath::Sin((Time - ScratchStart) / 1.4f * UE_PI)) : 0.0f;
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
 		const FVaelMonkeyLimb& ArmLimb = Arms[Side];
 		const float Out = ArmLimb.RestUpper.GetLocation().X < 0.0f ? -1.0f : 1.0f;
 
 		FVector Want(0.25f * Out, 0.45f, -1.0f);
+		// Elbow: nearly straight on the knuckles, bent on the run and the climb, folded over the eyes
+		float Elbow = 14.0f + 6.0f * Drift(1.1f, 20.0f + Side * 3.0f);
 		switch (State)
 		{
-		case EVaelMonkeyState::Climb:	Want = FVector(0.3f * Out, 1.0f, 0.2f + Stride * (Side == 0 ? 1.0f : -1.0f) * 0.7f); break;
-		case EVaelMonkeyState::Pounce:	Want = FVector(0.35f * Out, 1.0f, 0.25f); break;
-		case EVaelMonkeyState::Cling:	Want = FVector(-0.25f * Out, 1.0f, -0.1f); break;
-		case EVaelMonkeyState::Blinded:	Want = FVector(-0.15f * Out, 0.7f, 0.9f); break;
+		case EVaelMonkeyState::Climb:	Want = FVector(0.3f * Out, 1.0f, 0.2f + Stride * (Side == 0 ? 1.0f : -1.0f) * 0.7f); Elbow = 45.0f - Stride * (Side == 0 ? 1.0f : -1.0f) * 30.0f; break;
+		case EVaelMonkeyState::Pounce:	Want = FVector(0.35f * Out, 1.0f, 0.25f); Elbow = 8.0f; break;
+		case EVaelMonkeyState::Cling:	Want = FVector(-0.25f * Out, 1.0f, -0.1f); Elbow = 70.0f; break;
+		case EVaelMonkeyState::Blinded:	Want = FVector(-0.15f * Out, 0.7f, 0.9f); Elbow = 95.0f; break;
 		default:
 			if (bRunning)
 			{
-				Want = FVector(0.2f * Out, 0.35f - Stride * (Side == 0 ? 1.0f : -1.0f) * 0.75f, -1.0f);
+				// Knuckle run: both arms reach far ahead a beat before the legs and are pulled through under the body
+				const float Reach = FMath::Sin((HopPhase + 0.3f + (Side == 0 ? 0.0f : 0.1f)) * UE_TWO_PI);
+				Want = FVector(0.2f * Out, 0.3f + Reach * 0.95f, -1.0f + FMath::Max(Reach, 0.0f) * 0.35f);
+				Elbow = 22.0f + FMath::Max(-Reach, 0.0f) * 40.0f;
+			}
+			else if (Excited > 0.0f && Side == 1)
+			{
+				// The free arm drums on the ground
+				Want = FVector(0.3f * Out, 0.5f, -1.0f + FMath::Abs(FMath::Sin(Own * 7.0f)) * 0.3f);
 			}
 			break;
+		}
+		if (Scratch > 0.0f && Side == ScratchSide)
+		{
+			// Hand up to its flank or head, scrubbing
+			Want = FMath::Lerp(Want, FVector(-0.1f * Out, 0.35f, 0.55f + 0.12f * FMath::Sin(Own * 24.0f)), Scratch);
+			Elbow = FMath::Lerp(Elbow, 105.0f + 12.0f * FMath::Sin(Own * 24.0f), Scratch);
 		}
 
 		if (PointAt != nullptr && Side == 0)
 		{
 			const FVector Local = MonkeyMesh->GetComponentTransform().InverseTransformPositionNoScale(PointAt->GetActorLocation());
-			Want = (Local - ArmLimb.RestUpper.GetLocation()).GetSafeNormal() + FVector(0.0f, 0.0f, 0.12f);
+			Want = (Local - ArmLimb.RestUpper.GetLocation()).GetSafeNormal() + FVector(0.0f, 0.0f, 0.12f) + FVector(0.0f, 0.0f, 0.1f) * FMath::Sin(Own * 7.0f);
+			Elbow = 6.0f;
 		}
 
 		ArmShown[Side] = FMath::VInterpTo(ArmShown[Side], Want.GetSafeNormal(), DeltaSeconds, 10.0f);
 
 		const FVector RestDirection = (ArmLimb.RestLower.GetLocation() - ArmLimb.RestUpper.GetLocation()).GetSafeNormal();
 		const FQuat Turn = FQuat::FindBetweenNormals(RestDirection, ArmShown[Side].GetSafeNormal());
-		PoseLimb(ArmLimb, Pelvis + BodyTurn.RotateVector(ArmLimb.RestUpper.GetLocation() - Pelvis), Turn, FQuat::Identity);
+		ElbowShown[Side] = FMath::FInterpTo(ElbowShown[Side], bDeadNow ? 20.0f : Elbow, DeltaSeconds, 12.0f);
+		// The forearm folds towards the front of the body, like a knee folds its shin back
+		PoseLimb(ArmLimb, Pelvis + BodyTurn.RotateVector(ArmLimb.RestUpper.GetLocation() - Pelvis), Turn, FQuat(SideAxis, -FMath::DegreesToRadians(ElbowShown[Side]) * ForwardTurn));
 	}
 
 	// The whole mesh: sunk onto its bent legs, bobbing on the run, small on a player's back, slumped when dead
-	const float Bob = bRunning ? FMath::Abs(FMath::Sin(HopPhase * UE_TWO_PI)) * 7.0f : 0.0f;
+	const float Bob = bRunning ? FMath::Abs(FMath::Sin(HopPhase * UE_TWO_PI)) * 13.0f : bSits ? FMath::Sin(Own * 2.6f) * 0.8f + Excited * FMath::Abs(FMath::Sin(Own * 7.0f)) * 4.0f : 0.0f;
 	const FVector Scale = State == EVaelMonkeyState::Cling ? FVector(0.85f) : FVector::OneVector;
 
 	MonkeyMesh->SetRelativeScale3D(Scale);
