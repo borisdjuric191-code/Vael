@@ -19,9 +19,10 @@ FOLDER = "/Game/Vael/UI/Karten"
 MAPS = {
     "Wurzelforst": (os.path.join(ROOT, "Blockout", "Vael_Wurzelforst_Blockout", "T_WF_Karte.png"),
                     os.path.join(ROOT, "Blockout", "Vael_Wurzelforst_Blockout", "WF_Karte.json")),
-    # The open world L_Vael (found by name, DA_Karte_Vael): Tools/Welt/aschenmark_karte.py
-    "Vael": (os.path.join(ROOT, "Scripts", "Data", "Welt", "T_AM_Karte.png"),
-             os.path.join(ROOT, "Scripts", "Data", "Welt", "AM_Karte.json")),
+    # The open world L_Vael (found by name, DA_Karte_Vael): Aschenmark (Tools/Welt/aschenmark_karte.py) and Wurzelforst
+    # put together by Tools/Welt/vael_karte.py
+    "Vael": (os.path.join(ROOT, "Scripts", "Data", "Welt", "T_Vael_Karte.png"),
+             os.path.join(ROOT, "Scripts", "Data", "Welt", "Vael_Karte.json")),
 }
 
 assets = unreal.EditorAssetLibrary

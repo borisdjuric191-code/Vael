@@ -25,6 +25,7 @@
 
 import array
 import json
+import math
 import os
 
 import unreal
@@ -243,6 +244,50 @@ def main():
     region.set_editor_property("tags", [unreal.Name(TAG)])
     box = region.get_component_by_class(unreal.BoxComponent)
     box.set_box_extent(unreal.Vector((NORTH_END - ORIGIN[0]) * 0.5, (EAST_END - ORIGIN[1]) * 0.5, 40000.0))
+
+    # Unsichtbare Wände zum offenen Meer (wie die Küstenwände der Aschenmark, BuildVaelWelt.py), Linie aus wurzelforst_welt.py
+    cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
+    walls = 0
+    with open(os.path.join(DATA, "WF_Welt_Kueste.json"), encoding="utf-8") as f:
+        coast = json.load(f)["linien"]
+    for line in coast:
+        for a, b in zip(line, line[1:]):
+            length = math.hypot(b["x"] - a["x"], b["y"] - a["y"])
+            yaw = math.degrees(math.atan2(b["y"] - a["y"], b["x"] - a["x"]))
+            z = min(a["z"], b["z"]) - 4.0
+            wall = editor.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector((a["x"] + b["x"]) * 50.0, (a["y"] + b["y"]) * 50.0, (z + 9.0) * 100.0),
+                                                 unreal.Rotator(0.0, 0.0, yaw))
+            wall.static_mesh_component.set_static_mesh(cube)
+            wall.static_mesh_component.set_editor_property("visible", False)
+            wall.set_actor_hidden_in_game(True)
+            wall.set_actor_scale3d(unreal.Vector(length + 2.0, 3.0, 18.0))
+            wall.set_actor_label("Kuestenwand")
+            wall.set_folder_path(FOLDER + "/Grenzen/Kueste")
+            wall.set_editor_property("tags", [unreal.Name(TAG)])
+            walls += 1
+    log("{} Küstenwände".format(walls))
+
+    # Der Lauftest (-VaelStreamTest) geht nach der Aschenmark (Route 1-27) weiter den Kampagnenweg des Waldes entlang (ab 100)
+    path = json.load(open(os.path.join(os.path.dirname(DATA), "..", "..", "Blockout", "Vael_Wurzelforst_Blockout", "WF_Pfade.json"),
+                          encoding="utf-8"))["hauptweg"]
+    route, last = [], None
+    for gx, gy in path:
+        blockout = unreal.Vector(gx * 200.0 - 201600.0, gy * 200.0 - 201600.0, 0.0)
+        x, y = 250000.0 - blockout.y, blockout.x + 175100.0
+        if x < ORIGIN[0] + 400.0 or (last is not None and math.hypot(x - last[0], y - last[1]) < 15000.0):
+            continue
+        route.append((x, y))
+        last = (x, y)
+    for number, (x, y) in enumerate(route, start=100):
+        fx, fy = (x - ORIGIN[0]) / STEP, (y - ORIGIN[1]) / STEP
+        k = int(round(fy)) * NX + int(round(fx))
+        point = editor.spawn_actor_from_class(unreal.TargetPoint, unreal.Vector(x, y, (NEW_H[k] - 32768) / 128.0 * 100.0 + 100.0),
+                                              unreal.Rotator(0.0, 0.0, 0.0))
+        point.set_actor_label("Route {}".format(number))
+        point.set_folder_path(FOLDER + "/Spiel/Route")
+        point.set_editor_property("is_spatially_loaded", False)
+        point.set_editor_property("tags", [unreal.Name("VaelRoute"), unreal.Name(str(number)), unreal.Name(TAG)])
+    log("{} Routenpunkte für den Lauftest".format(len(route)))
 
     opened = 0
     for actor in level_actors:

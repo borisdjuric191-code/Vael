@@ -102,6 +102,8 @@ def main():
     with open(os.path.join(WELT, "WF_Welt.json"), "w", encoding="utf-8") as f:
         json.dump(info, f, ensure_ascii=False, indent=1)
 
+    kueste(neu)
+
     # Prüfung an der Naht: Ende der Hauptstraße (Aschenmark 2016 / 965 m) und der Start des Wurzelforsts
     def lies(werte, x_cm, y_cm):
         ix = int(round((x_cm - URSPRUNG[0]) / SCHRITT))
@@ -112,6 +114,100 @@ def main():
     start = (250000 - 38000, -78600 + 175100)
     print("[wurzelforst_welt] Start des Blockouts in der Welt: {:.0f} / {:.0f} cm, Boden alt {:.1f} m, neu {:.1f} m".format(
         start[0], start[1], lies(alt, *start), lies(neu, *start)))
+
+
+TIEF = -2.5        # m: tiefer als das begehbare Flachwasser (-0,6 m) an den Küsten; ab hier hält eine Wand
+RASTER = 3         # Punkte (6 m) je Rasterzelle für die Küstenlinie
+TOLERANZ = 8.0     # m, so weit darf die vereinfachte Linie von der Küste abweichen
+
+
+def kueste(neu):
+    """Küstenlinie zum offenen Meer (nicht um die Lagunen im Moor, die sind zum Waten): WF_Welt_Kueste.json, Linien in
+    Weltmetern mit Bodenhöhe, für die unsichtbaren Wände in PortWurzelforstToWelt.py"""
+    na, nb = (NX - 1) // RASTER + 1, (NY - 1) // RASTER + 1
+
+    def h(a, b):
+        return (neu[(b * RASTER) * NX + a * RASTER] - 32768) / 128.0
+    tief = [[h(a, b) <= TIEF for b in range(nb)] for a in range(na)]
+    # Offenes Meer: alles Tiefe, das vom Rand der Karte aus erreichbar ist (der Südrand an der Naht zählt nicht)
+    meer = [[False] * nb for _ in range(na)]
+    offen = [(a, b) for a in range(na) for b in (0, nb - 1)] + [(na - 1, b) for b in range(nb)]
+    while offen:
+        a, b = offen.pop()
+        if not (0 <= a < na and 0 <= b < nb) or meer[a][b] or not tief[a][b]:
+            continue
+        meer[a][b] = True
+        offen += [(a + 1, b), (a - 1, b), (a, b + 1), (a, b - 1)]
+
+    def welt(a2, b2):
+        """Ecke zwischen Rasterpunkten (halbe Indizes doppelt gezählt) in Weltmetern"""
+        return (round((URSPRUNG[0] + a2 * RASTER * SCHRITT / 2) / 100.0, 2), round((URSPRUNG[1] + b2 * RASTER * SCHRITT / 2) / 100.0, 2))
+    kanten = []
+    for a in range(na):
+        for b in range(nb):
+            if not meer[a][b]:
+                continue
+            for da, db in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                c, d = a + da, b + db
+                if 0 <= c < na and 0 <= d < nb and not meer[c][d]:
+                    # Grenze zwischen den Zellen: Mitte der beiden, quer dazu eine halbe Zelle zu jeder Seite
+                    ma, mb = a + c, b + d
+                    if da:
+                        kanten.append((welt(ma, mb - 1), welt(ma, mb + 1)))
+                    else:
+                        kanten.append((welt(ma - 1, mb), welt(ma + 1, mb)))
+    # Zu Linien verketten
+    nachbarn = {}
+    for p, q in kanten:
+        nachbarn.setdefault(p, []).append(q)
+        nachbarn.setdefault(q, []).append(p)
+    benutzt = set()
+    linien = []
+    for start in list(nachbarn):
+        for weiter in nachbarn[start]:
+            if (start, weiter) in benutzt:
+                continue
+            linie = [start]
+            p, q = start, weiter
+            while True:
+                benutzt.add((p, q))
+                benutzt.add((q, p))
+                linie.append(q)
+                nxt = [r for r in nachbarn[q] if (q, r) not in benutzt]
+                if not nxt or q == start:
+                    break
+                p, q = q, nxt[0]
+            linien.append(linie)
+
+    def vereinfache(punkte):
+        if len(punkte) < 3:
+            return punkte
+        (ax, ay), (bx, by) = punkte[0], punkte[-1]
+        lang = max(((bx - ax) ** 2 + (by - ay) ** 2) ** 0.5, 1e-6)
+        weit, wo = 0.0, 0
+        for i, (px, py) in enumerate(punkte[1:-1], 1):
+            d = abs((bx - ax) * (ay - py) - (ax - px) * (by - ay)) / lang if lang > 1e-5 else ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+            if d > weit:
+                weit, wo = d, i
+        if weit <= TOLERANZ:
+            return [punkte[0], punkte[-1]]
+        return vereinfache(punkte[:wo + 1])[:-1] + vereinfache(punkte[wo:])
+
+    def boden(x, y):
+        ix = min(max(int(round((x * 100 - URSPRUNG[0]) / SCHRITT)), 0), NX - 1)
+        iy = min(max(int(round((y * 100 - URSPRUNG[1]) / SCHRITT)), 0), NY - 1)
+        return round((neu[iy * NX + ix] - 32768) / 128.0, 2)
+    sys.setrecursionlimit(20000)
+    aus = []
+    for linie in linien:
+        if len(linie) < 3:
+            continue
+        einfach = vereinfache(linie)
+        aus.append([{"x": x, "y": y, "z": boden(x, y)} for x, y in einfach])
+    stuecke = sum(len(l) - 1 for l in aus)
+    with open(os.path.join(WELT, "WF_Welt_Kueste.json"), "w", encoding="utf-8") as f:
+        json.dump({"info": "Küste des Wurzelforsts zum offenen Meer (Wände ab {} m Tiefe), Weltmeter".format(TIEF), "linien": aus}, f, ensure_ascii=False)
+    print("[wurzelforst_welt] Küste: {} Linien, {} Wandstücke".format(len(aus), stuecke))
 
 
 main()
