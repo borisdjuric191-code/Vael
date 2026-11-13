@@ -1,17 +1,17 @@
 {
  "title": "Vael",
  "world_min": [
-  -10000.0,
+  -110000.0,
   -48000.0
  ],
- "world_size": 470000.0,
+ "world_size": 710000.0,
  "focus_min": [
   0.0,
   0.0
  ],
  "focus_max": [
-  435826.4296875,
-  392839.02734375
+  491800.0,
+  653900.0
  ],
  "fog_of_war": true,
  "camps": [
@@ -41,6 +41,34 @@
    "world": [
     155380.0,
     105770.0
+   ]
+  },
+  {
+   "name": "Lückenwacht",
+   "world": [
+    382000.0,
+    396000.0
+   ]
+  },
+  {
+   "name": "Kliffhütte",
+   "world": [
+    342000.0,
+    445000.0
+   ]
+  },
+  {
+   "name": "Akademie am Auge",
+   "world": [
+    386000.0,
+    511000.0
+   ]
+  },
+  {
+   "name": "Hornbiwak",
+   "world": [
+    427000.0,
+    525000.0
    ]
   }
  ],
@@ -332,6 +360,150 @@
     30000.0
    ],
    "size": 2
+  },
+  {
+   "name": "Die Sturmzinnen",
+   "world": [
+    480000.0,
+    420000.0
+   ],
+   "size": 2
+  },
+  {
+   "name": "Die Lücke",
+   "world": [
+    382000.0,
+    370000.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Kieferklippen",
+   "world": [
+    330000.0,
+    440000.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Akademie am Auge",
+   "world": [
+    406000.0,
+    490000.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Hörner",
+   "world": [
+    456000.0,
+    520000.0
+   ],
+   "size": 1
+  },
+  {
+   "name": "Zahnreihe",
+   "world": [
+    319000.0,
+    470000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Wetterwarte",
+   "world": [
+    356000.0,
+    483000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Blitzfeld",
+   "world": [
+    320000.0,
+    508000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Seherturm des Ordens",
+   "world": [
+    426000.0,
+    470000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Das Auge",
+   "world": [
+    396000.0,
+    499000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Tränenkanal",
+   "world": [
+    404000.0,
+    515000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Archiv im Fels",
+   "world": [
+    379000.0,
+    546000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Sturmglocken",
+   "world": [
+    365000.0,
+    560000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Frostspat-Bruch",
+   "world": [
+    347000.0,
+    582000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Horngletscher",
+   "world": [
+    456000.0,
+    498000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Eisfeld",
+   "world": [
+    470000.0,
+    511000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Doppeluhu-Horste",
+   "world": [
+    456000.0,
+    566000.0
+   ],
+   "size": 0
+  },
+  {
+   "name": "Zum Nackenstieg",
+   "world": [
+    326000.0,
+    583000.0
+   ],
+   "size": 0
   }
  ]
 }

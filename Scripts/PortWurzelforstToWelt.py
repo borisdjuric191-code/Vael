@@ -206,7 +206,7 @@ def main():
     level_actors = editor.get_all_level_actors()
     # Die Landschaft legt in der offenen Welt eigene Teilstücke an (ohne Tag): alle Landschaftsteile nördlich der Naht gehören dazu
     old = [a for a in level_actors if unreal.Name(TAG) in a.get_editor_property("tags")
-           or (isinstance(a, unreal.LandscapeProxy) and a.get_actor_location().x >= ORIGIN[0] - 10.0)]
+           or (isinstance(a, unreal.LandscapeProxy) and a.get_actor_location().x >= ORIGIN[0] - 10.0 and a.get_actor_location().y < EAST_END - 10.0)]
     for actor in old:
         editor.destroy_actor(actor)
     log("{} Actors des letzten Laufs entfernt".format(len(old)))
@@ -297,9 +297,10 @@ def main():
         folder = str(actor.get_folder_path())
         l = actor.get_actor_location()
         if label == "Meer" and isinstance(actor, unreal.StaticMeshActor):
-            # Ein Meer für beide Karten
-            south, west = -60000.0, ORIGIN[1] - 60000.0
-            north, east = NORTH_END + 60000.0, EAST_END + 60000.0
+            # Ein Meer für alle Karten: wächst bis über den Wurzelforst, wird aber nie kleiner (die Sturmzinnen liegen weiter östlich)
+            s = actor.get_actor_scale3d()
+            south, west = min(l.x - s.x * 50.0, -60000.0), min(l.y - s.y * 50.0, ORIGIN[1] - 60000.0)
+            north, east = max(l.x + s.x * 50.0, NORTH_END + 60000.0), max(l.y + s.y * 50.0, EAST_END + 60000.0)
             actor.set_actor_location(unreal.Vector((south + north) * 0.5, (west + east) * 0.5, l.z), False, True)
             actor.set_actor_scale3d(unreal.Vector((north - south) / 100.0, (east - west) / 100.0, 1.0))
         elif (folder.startswith("Grenzen/Rand") and l.x > 195000.0) or label.startswith("Tor zum Forstsaum"):

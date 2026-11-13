@@ -22,9 +22,10 @@ PROJEKT = os.path.join(HIER, "..", "..")
 WELT = os.path.join(PROJEKT, "Scripts", "Data", "Welt")
 KIT = os.path.join(PROJEKT, "Blockout", "Vael_Wurzelforst_Blockout")
 PIXEL = 4096
-MIN = (-10000.0, -48000.0)      # cm, Ecke der Karte (Süden, Westen)
-GROESSE = 470000.0              # cm, Kantenlänge
+MIN = (-110000.0, -48000.0)     # cm, Ecke der Karte (Süden, Westen)
+GROESSE = 710000.0              # cm, Kantenlänge (Aschenmark, Wurzelforst, Sturmzinnen)
 NAHT_X = 201600.0               # cm, nördlicher Rand der Aschenmark
+SZ_MEER = bytes([40, 66, 86])   # Wasserfarbe in SZ_Karte.png (sturmzinnen_welt.py)
 
 
 def schreibe_png(pfad, breite, hoehe, zeilen):
@@ -46,6 +47,11 @@ def main():
     ww, wh, wc, wf_bild = lies_png(os.path.join(KIT, "T_WF_Karte.png"))
     print("[vael_karte] Aschenmark {}x{} ({} Kanäle), Wurzelforst {}x{} ({} Kanäle)".format(aw, ah, ac, ww, wh, wc))
 
+    sz = json.load(open(os.path.join(WELT, "SZ_Orte.json"), encoding="utf-8"))
+    sw, sh, sc, sz_bild = lies_png(os.path.join(WELT, "SZ_Karte.png"))
+    sx0, sy0 = (v * 100.0 for v in sz["landschaft"]["ursprung_m"])
+    snord = sx0 + (sz["landschaft"]["punkte"][0] - 1) * 200.0
+
     def pixel(bild, kanaele, i, j):
         return bytes(bild[j][i * kanaele:i * kanaele + 3])
     meer = pixel(wf_bild, wc, 4, 4)            # tiefes Meer des Wurzelforsts für alles außerhalb der Bilder
@@ -60,7 +66,14 @@ def main():
         for px in range(PIXEL):                   # Bild x = Welt X (Norden)
             x = MIN[0] + (px + 0.5) * schritt
             farbe = meer
-            if x < NAHT_X:
+            if y >= sy0 and sx0 <= x <= snord:
+                # Sturmzinnen: Zeile 0 = Norden, Spalte = Osten, 2 m je Pixel
+                si, sj = int((y - sy0) / 200.0), int((snord - x) / 200.0)
+                if 0 <= si < sw and 0 <= sj < sh:
+                    farbe = pixel(sz_bild, sc, si, sj)
+                    if farbe == SZ_MEER:                      # das Meer der Sturmzinnen-Vorschau: wie das übrige Kartenmeer
+                        farbe = meer
+            elif x < NAHT_X:
                 am_i = int((x - am["world_min"][0]) / am["world_size"] * aw)
                 if 0 <= am_i < aw and 0 <= am_j < ah:
                     farbe = pixel(am_bild, ac, am_i, am_j)
@@ -77,11 +90,20 @@ def main():
         return [vx - p[1], p[0] + vy]
     labels = list(am["labels"]) + [{"name": l["name"], "world": welt(l["world"]), "size": l["size"]} for l in wf["labels"]]
     labels.append({"name": "Der Wurzelforst", "world": [300000.0, 30000.0], "size": 2})
-    fx = [am["focus_min"][0], am["focus_max"][0], vx - wf["focus_min"][1], vx - wf["focus_max"][1]]
-    fy = [am["focus_min"][1], am["focus_max"][1], wf["focus_min"][0] + vy, wf["focus_max"][0] + vy]
+    labels.append({"name": "Die Sturmzinnen", "world": [480000.0, 420000.0], "size": 2})
+    for name, (gross, punkte) in {"Die Lücke": (1, [3820, 3700]), "Kieferklippen": (1, [3300, 4400]), "Akademie am Auge": (1, [4060, 4900]),
+                                  "Hörner": (1, [4560, 5200])}.items():
+        labels.append({"name": name, "world": [punkte[0] * 100.0, punkte[1] * 100.0], "size": gross})
+    for name, p in sz["orte"].items():
+        if name not in ("Gipfel",):
+            labels.append({"name": name, "world": [p["x"] * 100.0, p["y"] * 100.0], "size": 0})
+    camps = list(am.get("camps", [])) + [{"name": name, "world": [p["x"] * 100.0, p["y"] * 100.0]} for name, p in sz["lager"].items()]
+    fx = [am["focus_min"][0], am["focus_max"][0], vx - wf["focus_min"][1], vx - wf["focus_max"][1], sx0, snord]
+    fy = [am["focus_min"][1], am["focus_max"][1], wf["focus_min"][0] + vy, wf["focus_max"][0] + vy, sy0,
+          sy0 + (sz["landschaft"]["punkte"][1] - 1) * 200.0]
     out = {"title": "Vael", "world_min": list(MIN), "world_size": GROESSE,
            "focus_min": [min(fx), min(fy)], "focus_max": [max(fx), max(fy)],
-           "fog_of_war": True, "camps": am.get("camps", []), "labels": labels}
+           "fog_of_war": True, "camps": camps, "labels": labels}
     json.dump(out, open(os.path.join(WELT, "Vael_Karte.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     print("[vael_karte] fertig: {} Namen, Ausschnitt {} bis {}".format(len(labels), out["focus_min"], out["focus_max"]))
 
