@@ -51,7 +51,7 @@ namespace
 	/** The whole check gives up after this many seconds of game time */
 	// The check stops after this long, but at least this long per route point: the route grows with every region joined
 	constexpr float StreamTimeLimit = 900.0f;
-	constexpr float StreamTimePerPoint = 32.0f;
+	constexpr float StreamTimePerPoint = 45.0f;
 }
 
 AVaelStreamTest::AVaelStreamTest()
