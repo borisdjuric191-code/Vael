@@ -216,6 +216,12 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 			Y += 18.0f * S;
 			DrawLabel(Set->FourPieces, DetailLeft + 10.0f * S, Y, 13.0f * S, Count >= 4 ? CraftGood : CraftDim, 0.0f, DetailWidth - 10.0f * S);
 			Y += 26.0f * S;
+			if (!Set->WithShield.IsEmpty())
+			{
+				const bool bShield = Engineer->HasShield() && Count >= 4;
+				DrawLabel(Set->WithShield, DetailLeft + 10.0f * S, Y - 8.0f * S, 13.0f * S, bShield ? CraftGood : CraftDim, 0.0f, DetailWidth - 10.0f * S);
+				Y += 22.0f * S;
+			}
 		}
 		break;
 	}

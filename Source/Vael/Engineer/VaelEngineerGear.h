@@ -96,7 +96,9 @@ enum class EVaelArmorPlace : uint8
 	Head,
 	Chest,
 	Arms,
-	Legs
+	Legs,
+	/** The folding shield on the left forearm (goal 14.11.): held up with L2 / right mouse, no armour, it blocks from ahead */
+	Shield
 };
 
 /** A material and how many of it a piece costs */
@@ -207,6 +209,8 @@ struct FVaelGearSet
 	FText Name;
 	FText TwoPieces;
 	FText FourPieces;
+	/** With its shield worn too (only sets that have one) */
+	FText WithShield;
 };
 
 namespace VaelEngineerGear

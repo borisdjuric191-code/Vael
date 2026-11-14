@@ -298,6 +298,13 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> EngPlaceAction;
 
+	/** The folding shield: L2 / right mouse held a little longer (tapped, they lay the device) */
+	UPROPERTY(Transient)
+	TObjectPtr<UInputAction> EngShieldAction;
+
+	/** Without a shield a long press still lays the device, once per press */
+	bool bEngHoldPlaced = false;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> EngAmmoNextAction;
 
@@ -566,6 +573,7 @@ protected:
 
 	void OnEngFire(bool bHeld);
 	void OnEngPlace();
+	void OnEngShield(bool bHeld);
 	void OnEngAmmo(int32 Step);
 	void OnEngDevice(int32 Step);
 	void OnEngWeapon();

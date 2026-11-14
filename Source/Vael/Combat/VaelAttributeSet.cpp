@@ -79,7 +79,7 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 		// The heart shield of a Rußrose swallows it first
 		if (AVaelCharacter* Player = Cast<AVaelCharacter>(Target))
 		{
-			Damage = Player->AbsorbIncoming(Damage);
+			Damage = Player->AbsorbIncoming(Damage, Data.EffectSpec.GetContext().GetInstigator(), DamageTags.HasTag(VaelTags::Element_Fire));
 		}
 
 		if (Damage > 0.0f)

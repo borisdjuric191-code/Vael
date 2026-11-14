@@ -445,6 +445,34 @@ namespace
 				All.Last().bNeedsPlan = Set.Set != FName(TEXT("Rollpanzer"));
 			}
 		}
+
+		// --- Schwarzglut-Rüstung (goal 14.11., Docs/Ingenieur_Aschenmark_Materialien.md 6b): a mixed set as a formula of roles,
+		// Platte = Gehärtete Platte of the Glutkriecher, Gelenk = Rollpanzer, Fassung = Schlackeneisen, Kern = Glutstein in the
+		// chest, Polster = Ordenstuch; and as a fifth piece the folding shield of Aschenroller bands
+		{
+			const FName Set(TEXT("Schwarzglut"));
+			const FLinearColor Black = GearRgb(52, 38, 34);
+			const auto Piece = [&All, Set, Black](int32 Place, FText Name, FText Text, TArray<FVaelGearCost> Costs, float Armor, float Health)
+			{
+				All.Add(MakeArmor(FName(*FString::Printf(TEXT("Schwarzglut_%d"), Place)), Name, Set, static_cast<EVaelArmorPlace>(Place), Black, MoveTemp(Costs), NAME_None, Armor, Health));
+				All.Last().Text = Text;
+			};
+			Piece(0, LOCTEXT("SchwarzglutHelm", "Schwarzglut-Helm"),
+				LOCTEXT("SchwarzglutHelmText", "Zwei gehärtete Krustenplatten über dem Schädel, wie beim Glutkriecher überlappend, in einem Rand aus Schlackeneisen, darunter Ordenstuch."),
+				{ { TEXT("GehaertetePlatte"), 2 }, { TEXT("Schlackeneisen"), 1 }, { TEXT("Ordenstuch"), 1 } }, 6.0f, 12.0f);
+			Piece(1, LOCTEXT("SchwarzglutBrust", "Schwarzglut-Brustpanzer"),
+				LOCTEXT("SchwarzglutBrustText", "Drei Krustenplatten vorn und hinten, ein Rollpanzer-Gürtel um die Mitte. In der Brust sitzt ein Glutstein: er lässt die Risse der Platten glimmen."),
+				{ { TEXT("GehaertetePlatte"), 3 }, { TEXT("Rollpanzer"), 1 }, { TEXT("Glutstein"), 1 }, { TEXT("Schlackeneisen"), 2 }, { TEXT("Ordenstuch"), 1 } }, 12.0f, 25.0f);
+			Piece(2, LOCTEXT("SchwarzglutArme", "Schwarzglut-Armschienen"),
+				LOCTEXT("SchwarzglutArmeText", "Rollpanzer-Bänder um den Unterarm, die sich mit ihm biegen, außen eine Krustenplatte."),
+				{ { TEXT("GehaertetePlatte"), 1 }, { TEXT("Rollpanzer"), 2 }, { TEXT("Schlackeneisen"), 1 } }, 6.0f, 12.0f);
+			Piece(3, LOCTEXT("SchwarzglutBeine", "Schwarzglut-Beinschienen"),
+				LOCTEXT("SchwarzglutBeineText", "Zwei Krustenplatten über dem Schienbein, ein Rollpanzer-Band über dem Knie, gebunden mit Kriechersehne."),
+				{ { TEXT("GehaertetePlatte"), 2 }, { TEXT("Rollpanzer"), 1 }, { TEXT("Schlackeneisen"), 1 }, { TEXT("Kriechersehne"), 1 } }, 6.0f, 12.0f);
+			Piece(4, LOCTEXT("Klappschild", "Klappschild"),
+				LOCTEXT("KlappschildText", "Fast der ganze Rückenpanzer eines Aschenrollers, in fünf Bandreihen geteilt und mit Schlackeneisen gefasst. Zusammengeschoben liegt er auf dem linken Unterarm; L2 oder die rechte Maustaste gehalten, und die Rollsehne schiebt ihn zum Turmschild auf. Er hält, was von vorn kommt, im rechten Augenblick alles."),
+				{ { TEXT("Rollpanzer"), 3 }, { TEXT("Rollsehne"), 1 }, { TEXT("Schlackeneisen"), 1 }, { TEXT("GehaertetePlatte"), 1 } }, 0.0f, 0.0f);
+		}
 		return All;
 	}
 
@@ -459,6 +487,10 @@ namespace
 				LOCTEXT("Russ2", "2 Teile: 10 % schneller zu Fuß"), LOCTEXT("Russ4", "4 Teile: 20 % schneller nachladen") },
 			{ TEXT("Blutschuppen"), LOCTEXT("SetNameBlut", "Blutschuppen-Satz"),
 				LOCTEXT("Blut2", "2 Teile: 2 % des Schadens kommen als Leben zurück"), LOCTEXT("Blut4", "4 Teile: 6 % des Schadens kommen als Leben zurück") },
+			{ TEXT("Schwarzglut"), LOCTEXT("SetNameSchwarzglut", "Schwarzglut-Rüstung (Glutkriecher und Aschenroller)"),
+				LOCTEXT("Schwarzglut2", "2 Teile: 10 % weniger Schaden, 15 % weniger Feuerschaden"),
+				LOCTEXT("Schwarzglut4", "4 Teile: nach dem Ausweichen eine Sekunde eingerollt, 60 % weniger Schaden; wer ihn dann trifft, fängt Feuer"),
+				LOCTEXT("SchwarzglutSchild", "Mit Klappschild: ein Block im rechten Augenblick wirft den Angreifer zurück und setzt ihn in Brand") },
 		};
 	}
 }
@@ -532,6 +564,7 @@ FText VaelEngineerGear::GetPlaceName(EVaelArmorPlace Place)
 	case EVaelArmorPlace::Head: return LOCTEXT("PlaceHead", "Kopf");
 	case EVaelArmorPlace::Chest: return LOCTEXT("PlaceChest", "Brust");
 	case EVaelArmorPlace::Arms: return LOCTEXT("PlaceArms", "Arme");
+	case EVaelArmorPlace::Shield: return LOCTEXT("PlaceShield", "Schild");
 	default: return LOCTEXT("PlaceLegs", "Beine");
 	}
 }

@@ -36,7 +36,14 @@ namespace
 {
 	constexpr int32 MaxPlaced = 6;
 	constexpr float PlaceReach = 700.0f;
-	constexpr int32 NumArmorPlaces = 4;
+	constexpr int32 NumArmorPlaces = 5;
+
+	// The tower shield: five rows of Aschenroller bands, 20 cm each; how fast it slides open, and the moment after raising it
+	// that blocks perfectly
+	constexpr int32 ShieldRows = 5;
+	constexpr float ShieldRowHeight = 20.0f;
+	constexpr float ShieldOpenSeconds = 0.18f;
+	constexpr float ShieldPerfectSeconds = 0.35f;
 }
 
 UVaelEngineerComponent::UVaelEngineerComponent()
@@ -96,6 +103,10 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		}
 	}
 	TickEffects();
+	if (bShieldMoving)
+	{
+		TickShield();
+	}
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
 	UpdateWeaponMesh();
@@ -197,6 +208,7 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 		return;
 	}
 	ShownArmor = Key;
+	UpdateShieldMeshes();
 	for (UStaticMeshComponent* Piece : ArmorMeshes)
 	{
 		if (Piece != nullptr)
@@ -241,6 +253,109 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 	{
 		AttachLimbPiece(4, Leg, TEXT("calf_l"), TEXT("foot_l"), 0.45f);
 		AttachLimbPiece(5, Leg, TEXT("calf_r"), TEXT("foot_r"), 0.45f);
+		// sets with plates over the thighs too (Schwarzglut); the others have none, then nothing is hung there
+		const FString Thigh = PieceName(EVaelArmorPlace::Legs, TEXT("Oberschenkel"));
+		AttachLimbPiece(6, Thigh, TEXT("thigh_l"), TEXT("calf_l"), 0.5f);
+		AttachLimbPiece(7, Thigh, TEXT("thigh_r"), TEXT("calf_r"), 0.5f);
+	}
+}
+
+void UVaelEngineerComponent::UpdateShieldMeshes()
+{
+	AVaelCharacter* Player = GetPlayer();
+	USkeletalMeshComponent* Body = Player != nullptr ? Player->GetMesh() : nullptr;
+	const FName Arm(TEXT("lowerarm_l"));
+	const FName Hand(TEXT("hand_l"));
+	if (!HasShield() || Body == nullptr || !Body->DoesSocketExist(Arm) || !Body->DoesSocketExist(Hand))
+	{
+		if (ShieldHub != nullptr)
+		{
+			ShieldHub->SetVisibility(false, true);
+		}
+		bShieldRaised = false;
+		ShieldOpen = 0.0f;
+		return;
+	}
+	const auto Load = [](const TCHAR* Piece)
+	{
+		return LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/%s.%s"), Piece, Piece), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	};
+	if (ShieldHub == nullptr)
+	{
+		ShieldHub = NewObject<UStaticMeshComponent>(Player, TEXT("EngineerShieldHub"));
+		ShieldHub->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ShieldHub->SetStaticMesh(Load(TEXT("SM_Ing_R_Schwarzglut_Schild_Nabe")));
+		ShieldHub->SetupAttachment(Body, Arm);
+		ShieldHub->RegisterComponent();
+		for (int32 Index = 0; Index < ShieldRows; ++Index)
+		{
+			UStaticMeshComponent* Each = NewObject<UStaticMeshComponent>(Player, *FString::Printf(TEXT("EngineerShieldBand%d"), Index));
+			Each->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Each->SetStaticMesh(Load(*FString::Printf(TEXT("SM_Ing_R_Schwarzglut_Schild_Teil_%d"), Index)));
+			Each->SetupAttachment(ShieldHub);
+			Each->RegisterComponent();
+			ShieldBands.Add(Each);
+		}
+	}
+	// Folded: on the outside of the forearm by the wrist, the rows slid into each other and lying along it. Worked out in the bone's own
+	// space, where the hand stays put whatever the pose; "outside" is the left of the body
+	const FTransform ArmInBody = Body->GetSocketTransform(Arm, RTS_Component);
+	const FVector HandInArm = Body->GetSocketTransform(Hand, RTS_Component).GetRelativeTransform(ArmInBody).GetLocation();
+	const FVector Along = HandInArm.GetSafeNormal();
+	const FVector LeftInBody = Body->GetComponentTransform().InverseTransformVectorNoScale(-Player->GetActorRightVector());
+	FVector Out = ArmInBody.InverseTransformVectorNoScale(LeftInBody);
+	Out = (Out - Along * FVector::DotProduct(Out, Along)).GetSafeNormal();
+	if (Out.IsNearlyZero())
+	{
+		Out = FVector::CrossProduct(Along, FVector::UpVector).GetSafeNormal();
+	}
+	ShieldFolded = FTransform(FRotationMatrix::MakeFromXY(Out, Along).ToQuat(), HandInArm * 0.6f + Out * 6.0f);
+	ShieldHub->SetVisibility(true, true);
+	ShieldHub->SetRelativeTransform(ShieldFolded);
+	for (int32 Index = 0; Index < ShieldBands.Num(); ++Index)
+	{
+		ShieldBands[Index]->SetRelativeTransform(FTransform(FQuat::Identity, FVector(-0.6f * Index, 0.0f, 0.0f), FVector(0.45f)));
+	}
+}
+
+void UVaelEngineerComponent::TickShield()
+{
+	const float Delta = FMath::Clamp(Now() - LastShieldTick, 0.0f, 0.1f);
+	LastShieldTick = Now();
+	ShieldOpen = FMath::Clamp(ShieldOpen + (bShieldRaised ? Delta : -Delta) / ShieldOpenSeconds, 0.0f, 1.0f);
+	if (ShieldHub == nullptr && HasShield())
+	{
+		// worn just now: the shield is hung on the arm before it moves
+		UpdateShieldMeshes();
+	}
+	AVaelCharacter* Player = GetPlayer();
+	USceneComponent* Bone = ShieldHub != nullptr ? ShieldHub->GetAttachParent() : nullptr;
+	if (Player == nullptr || Bone == nullptr || !HasShield() || (!bShieldRaised && ShieldOpen <= 0.0f))
+	{
+		ShieldOpen = bShieldRaised ? ShieldOpen : 0.0f;
+		if (ShieldHub != nullptr && HasShield())
+		{
+			UpdateShieldMeshes();
+		}
+		bShieldMoving = false;
+		SetComponentTickInterval(0.25f);
+		return;
+	}
+	// The Rollsehne snaps it open the way the Aschenroller unrolls: from the forearm the shield swings round before him, facing
+	// ahead, and the five rows slide out of each other, from the foot near the ground up to his shoulder
+	const float Alpha = FMath::SmoothStep(0.0f, 1.0f, ShieldOpen);
+	const FTransform Folded = ShieldFolded * Bone->GetSocketTransform(ShieldHub->GetAttachSocketName());
+	const FVector Ahead = Player->GetActorForwardVector();
+	const FVector Wrist = Player->GetMesh()->GetSocketLocation(TEXT("hand_l"));
+	const FQuat Facing = FRotationMatrix::MakeFromXZ(Ahead, FVector::UpVector).ToQuat();
+	FTransform Held(FQuat::Slerp(Folded.GetRotation(), Facing, Alpha), FMath::Lerp(Folded.GetLocation(), Wrist + Ahead * 35.0f - FVector(0.0f, 0.0f, 10.0f), Alpha),
+		Folded.GetScale3D());
+	ShieldHub->SetWorldTransform(Held);
+	for (int32 Index = 0; Index < ShieldBands.Num(); ++Index)
+	{
+		const float Row = (Index - (ShieldRows - 1) * 0.5f) * ShieldRowHeight;
+		ShieldBands[Index]->SetRelativeTransform(FTransform(FQuat::Identity, FVector(FMath::Lerp(-0.6f, 0.15f, Alpha) * Index, 0.0f, Row * Alpha),
+			FVector(FMath::Lerp(0.45f, 1.0f, Alpha))));
 	}
 }
 
@@ -835,7 +950,7 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 {
 	AVaelCharacter* Player = GetPlayer();
 	const FVaelGear* Gear = GetWeapon();
-	if (Player == nullptr || Gear == nullptr || GetReloadLeft() > 0.0f || Player->IsDowned() || IsGrabbing())
+	if (Player == nullptr || Gear == nullptr || GetReloadLeft() > 0.0f || Player->IsDowned() || IsGrabbing() || bShieldRaised)
 	{
 		return false;
 	}
@@ -1643,12 +1758,59 @@ bool UVaelEngineerComponent::Wear(FName Id)
 int32 UVaelEngineerComponent::CountSet(FName Set) const
 {
 	int32 Count = 0;
-	for (const FName& Id : Worn)
+	for (int32 Place = 0; Place < Worn.Num(); ++Place)
 	{
-		const FVaelGear* Gear = Id.IsNone() ? nullptr : VaelEngineerGear::Find(Id);
+		const FVaelGear* Gear = Worn[Place].IsNone() || Place == static_cast<int32>(EVaelArmorPlace::Shield) ? nullptr : VaelEngineerGear::Find(Worn[Place]);
 		Count += Gear != nullptr && Gear->Set == Set ? 1 : 0;
 	}
 	return Count;
+}
+
+bool UVaelEngineerComponent::HasShield() const
+{
+	const AVaelCharacter* Player = GetPlayer();
+	return Player != nullptr && Player->IsEngineer() && !GetWorn(EVaelArmorPlace::Shield).IsNone();
+}
+
+void UVaelEngineerComponent::SetShieldRaised(bool bRaised)
+{
+	bRaised = bRaised && HasShield() && !GetPlayer()->IsDowned();
+	if (bRaised == bShieldRaised)
+	{
+		return;
+	}
+	bShieldRaised = bRaised;
+	if (bRaised)
+	{
+		ShieldRaisedAt = Now();
+	}
+	// The shield moves smoothly: the component ticks every frame while it opens, stays open or folds (else four times a second)
+	if (!bShieldMoving)
+	{
+		bShieldMoving = true;
+		LastShieldTick = Now();
+		SetComponentTickInterval(0.0f);
+	}
+}
+
+int32 UVaelEngineerComponent::GetBlock(const AActor* From) const
+{
+	const AActor* Owner = GetOwner();
+	if (!bShieldRaised || From == nullptr || Owner == nullptr || From == Owner)
+	{
+		return 0;
+	}
+	// Only what comes from ahead, within a wide cone
+	const FVector ToAttacker = (From->GetActorLocation() - Owner->GetActorLocation()).GetSafeNormal2D();
+	if (FVector::DotProduct(ToAttacker, Owner->GetActorForwardVector().GetSafeNormal2D()) < 0.25f)
+	{
+		return 0;
+	}
+	if (Now() - ShieldRaisedAt <= ShieldPerfectSeconds)
+	{
+		return 2;
+	}
+	return ShieldOpen >= 0.6f ? 1 : 0;
 }
 
 float UVaelEngineerComponent::GetArmorTotal() const
@@ -1664,16 +1826,54 @@ float UVaelEngineerComponent::GetArmorTotal() const
 	return Total;
 }
 
-float UVaelEngineerComponent::ScaleIncoming(float Damage) const
+float UVaelEngineerComponent::ScaleIncoming(float Damage, AActor* From, bool bFire)
 {
 	float Scale = 1.0f - FMath::Clamp(GetArmorTotal(), 0.0f, 60.0f) / 100.0f;
-	if (CountSet(TEXT("Rollpanzer")) >= 2)
+	const int32 Black = CountSet(TEXT("Schwarzglut"));
+	if (CountSet(TEXT("Rollpanzer")) >= 2 || Black >= 2)
 	{
 		Scale *= 0.9f;
+	}
+	if (Black >= 2 && bFire)
+	{
+		Scale *= 0.85f;
+	}
+	// An attacker of his enemies (a creature), not a teammate or a damage over time without one
+	AVaelCharacterBase* Attacker = Cast<AVaelCharacterBase>(From);
+	if (Attacker != nullptr && (Attacker->IsA<AVaelCharacter>() || Attacker->GetHealth() <= 0.0f))
+	{
+		Attacker = nullptr;
 	}
 	if (Now() < CurledUntil)
 	{
 		Scale *= 0.4f;
+		// Schwarzglut: the glowing plates of the curled engineer burn what strikes them
+		if (Black >= 4 && Attacker != nullptr)
+		{
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Attacker, EVaelStatus::Burning, 3.0f, 4.0f);
+		}
+	}
+	const int32 Block = GetBlock(Attacker);
+	if (Block == 2)
+	{
+		Scale = 0.0f;
+		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("PerfectBlock", "Abgewehrt!"));
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), ShieldHub != nullptr ? ShieldHub->GetComponentLocation() : GetOwner()->GetActorLocation(),
+			FRotator::ZeroRotator, FLinearColor(1.0f, 0.45f, 0.12f), 60.0f);
+		// With the whole set the snapping fan throws the attacker back and sets it on fire
+		if (Black >= 4)
+		{
+			FVaelSpellHit Push;
+			Push.Damage = 0.0f;
+			Push.Element = EVaelElement::Fire;
+			Push.Knockback = 700.0f;
+			UVaelCombatStatics::ApplyNatureHit(Attacker, Push, (Attacker->GetActorLocation() - GetOwner()->GetActorLocation()).GetSafeNormal2D());
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Attacker, EVaelStatus::Burning, 3.0f, 5.0f);
+		}
+	}
+	else if (Block == 1)
+	{
+		Scale *= 0.3f;
 	}
 	return Damage * Scale;
 }
@@ -1689,7 +1889,7 @@ void UVaelEngineerComponent::OnDamageDealt(float Damage)
 
 void UVaelEngineerComponent::OnDodged()
 {
-	if (CountSet(TEXT("Rollpanzer")) >= 4)
+	if (CountSet(TEXT("Rollpanzer")) >= 4 || CountSet(TEXT("Schwarzglut")) >= 4)
 	{
 		CurledUntil = Now() + 1.0f;
 	}
@@ -1697,7 +1897,8 @@ void UVaelEngineerComponent::OnDodged()
 
 float UVaelEngineerComponent::GetMoveSpeedScale() const
 {
-	return CountSet(TEXT("Russfeder")) >= 2 ? 1.1f : 1.0f;
+	// behind the open shield he only steps
+	return (CountSet(TEXT("Russfeder")) >= 2 ? 1.1f : 1.0f) * (bShieldRaised ? 0.55f : 1.0f);
 }
 
 void UVaelEngineerComponent::ApplyHealthBonus()
@@ -1826,9 +2027,11 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 			Carried.Remove(Gear.Id);
 		}
 	}
-	if (Saved.EngineerWorn.Num() == NumArmorPlaces)
+	// saves from before the shield have four places
+	if (Saved.EngineerWorn.Num() >= 4)
 	{
 		Worn = Saved.EngineerWorn;
+		Worn.SetNum(NumArmorPlaces);
 	}
 	if (Built.Contains(Saved.EngineerWeapon))
 	{

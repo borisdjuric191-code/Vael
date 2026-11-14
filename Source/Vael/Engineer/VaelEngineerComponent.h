@@ -199,20 +199,36 @@ public:
 	/** Wears a built piece on its place */
 	bool Wear(FName Id);
 
-	/** How many worn pieces belong to a set */
+	/** How many worn pieces belong to a set (the shield doesn't count towards two or four pieces) */
 	int32 CountSet(FName Set) const;
 
 	/** The sum of armour of the worn pieces (each point is a percent less damage) */
 	float GetArmorTotal() const;
 
-	/** Damage a hit on him really does, after armour and set bonuses */
-	float ScaleIncoming(float Damage) const;
+	/** Damage a hit on him really does, after armour, set bonuses and his shield; From is the attacker, if known.
+	 *  A perfect block of the Schwarzglut set with its shield throws the attacker back and sets it on fire. */
+	float ScaleIncoming(float Damage, AActor* From = nullptr, bool bFire = false);
 
 	/** He hit something for this much: the set of the Blutschuppen heals */
 	void OnDamageDealt(float Damage);
 
-	/** He dodged: four pieces of the Rollpanzer set curl him up for a moment */
+	/** He dodged: four pieces of the Rollpanzer or the Schwarzglut set curl him up for a moment */
 	void OnDodged();
+
+	// --- The folding shield (goal 14.11.): L2 / right mouse held
+
+	/** Whether he wears a shield */
+	bool HasShield() const;
+
+	/** Holds the shield up or lets it fold (nothing without a shield) */
+	void SetShieldRaised(bool bRaised);
+	bool IsShieldRaised() const { return bShieldRaised; }
+
+	/** 0 folded on the forearm .. 1 fanned open */
+	float GetShieldOpen() const { return ShieldOpen; }
+
+	/** How a hit from this attacker is blocked: 0 not at all, 1 by the shield (70 % less), 2 a perfect block (nothing gets through) */
+	int32 GetBlock(const AActor* From) const;
 
 	/** How fast he walks with his set (Rußfeder) */
 	float GetMoveSpeedScale() const;
@@ -343,6 +359,23 @@ private:
 
 	FString ShownArmor;
 	void UpdateArmorMeshes();
+
+	/** The tower shield: a mount on the left forearm and the five rows of bands that slide out of each other */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ShieldHub;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> ShieldBands;
+
+	/** Where the folded shield lies on the forearm, relative to the bone */
+	FTransform ShieldFolded;
+	bool bShieldRaised = false;
+	float ShieldOpen = 0.0f;
+	float ShieldRaisedAt = -100.0f;
+	float LastShieldTick = 0.0f;
+	bool bShieldMoving = false;
+	void UpdateShieldMeshes();
+	void TickShield();
 	UStaticMeshComponent* AttachLimbPiece(int32 Slot, const FString& Piece, FName From, FName To, float Along);
 	UStaticMeshComponent* AttachPiece(UStaticMeshComponent* Existing, const TCHAR* Name, const TCHAR* Piece, FName Bone, const FTransform& InActorSpace);
 	int32 Magazine = 2;

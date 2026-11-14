@@ -210,7 +210,10 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(EngFireAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngFire, true);
 			EnhancedInputComponent->BindAction(EngFireAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnEngFire, false);
 			EnhancedInputComponent->BindAction(EngFireAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnEngFire, false);
-			EnhancedInputComponent->BindAction(EngPlaceAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngPlace);
+			EnhancedInputComponent->BindAction(EngPlaceAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnEngPlace);
+			EnhancedInputComponent->BindAction(EngShieldAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnEngShield, true);
+			EnhancedInputComponent->BindAction(EngShieldAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnEngShield, false);
+			EnhancedInputComponent->BindAction(EngShieldAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnEngShield, false);
 			EnhancedInputComponent->BindAction(EngAmmoNextAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngAmmo, 1);
 			EnhancedInputComponent->BindAction(EngAmmoPrevAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngAmmo, -1);
 			EnhancedInputComponent->BindAction(EngDeviceNextAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngDevice, 1);
@@ -599,13 +602,24 @@ void AVaelPlayerController::CreateEngineerInput()
 	EngineerMappingContext = NewObject<UInputMappingContext>(this, TEXT("IMC_Ingenieur"));
 	UInputMappingContext* Context = EngineerMappingContext;
 
-	// Fire while held: R2 / left mouse; lay the picked device where he aims: L2 / right mouse
+	// Fire while held: R2 / left mouse. L2 / right mouse tapped lays the picked device where he aims; held a little longer it
+	// fans the folding shield open for as long as it is held (goal 14.11.)
 	EngFireAction = CreateAction(TEXT("IA_Ing_Feuern"));
 	Context->MapKey(EngFireAction, EKeys::Gamepad_RightTrigger);
 	Context->MapKey(EngFireAction, EKeys::LeftMouseButton);
 	EngPlaceAction = CreateAction(TEXT("IA_Ing_Legen"));
-	Context->MapKey(EngPlaceAction, EKeys::Gamepad_LeftTrigger);
-	Context->MapKey(EngPlaceAction, EKeys::RightMouseButton);
+	EngShieldAction = CreateAction(TEXT("IA_Ing_Schild"));
+	for (const FKey& Key : { EKeys::Gamepad_LeftTrigger, EKeys::RightMouseButton })
+	{
+		UInputTriggerTap* Tap = NewObject<UInputTriggerTap>(Context);
+		Tap->TapReleaseTimeThreshold = 0.2f;
+		Context->MapKey(EngPlaceAction, Key).Triggers.Add(Tap);
+
+		UInputTriggerHold* Hold = NewObject<UInputTriggerHold>(Context);
+		Hold->HoldTimeThreshold = 0.2f;
+		Hold->bIsOneShot = false;
+		Context->MapKey(EngShieldAction, Key).Triggers.Add(Hold);
+	}
 
 	// The shot: R1 and the mouse wheel
 	EngAmmoNextAction = CreateAction(TEXT("IA_Ing_LadungVor"));
@@ -696,6 +710,28 @@ void AVaelPlayerController::OnEngPlace()
 		UpdateFacing();
 		VaelCharacter->GetEngineer()->PlaceDevice(GetFloromantAim());
 	}
+}
+
+void AVaelPlayerController::OnEngShield(bool bHeld)
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr && VaelCharacter->IsEngineer() ? VaelCharacter->GetEngineer() : nullptr;
+	if (Engineer == nullptr)
+	{
+		return;
+	}
+	if (Engineer->HasShield())
+	{
+		Engineer->SetShieldRaised(bHeld && !VaelCharacter->IsDowned());
+		return;
+	}
+	// Without a shield a long press lays the device as a tap does
+	if (bHeld && !bEngHoldPlaced)
+	{
+		bEngHoldPlaced = true;
+		OnEngPlace();
+	}
+	bEngHoldPlaced = bHeld && bEngHoldPlaced;
 }
 
 void AVaelPlayerController::OnEngAmmo(int32 Step)

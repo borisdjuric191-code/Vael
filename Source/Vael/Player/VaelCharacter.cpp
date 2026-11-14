@@ -1267,12 +1267,13 @@ void AVaelCharacter::AddHeartShield(float Amount, float Seconds)
 	HeartShieldEndTime = GetWorld()->GetTimeSeconds() + Seconds;
 }
 
-float AVaelCharacter::AbsorbIncoming(float Damage)
+float AVaelCharacter::AbsorbIncoming(float Damage, AActor* From, bool bFire)
 {
 	// The engineer's own armour takes its share first
 	if (IsEngineer())
 	{
-		Damage = Engineer->ScaleIncoming(Damage);
+		// and his shield, held up against what comes from ahead
+		Damage = Engineer->ScaleIncoming(Damage, From, bFire);
 		Engineer->OnHurt();
 	}
 	if (HeartShieldLeft <= 0.0f || GetWorld()->GetTimeSeconds() > HeartShieldEndTime)

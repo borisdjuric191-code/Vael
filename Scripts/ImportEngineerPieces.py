@@ -12,16 +12,24 @@ PIECES = ["SM_Ing_Schleuder", "SM_Ing_Zwillenschale", "SM_Ing_Bogen", "SM_Ing_Ar
           "SM_Ing_Rucksack", "SM_Ing_Beutel_Leder", "SM_Ing_Beutel_Panzer", "SM_Ing_Beutel_Seide", "SM_Ing_Brille"]
 # the armour sets, four pieces each (VAEL_ING_RUESTUNG in the Blender script)
 PIECES += ["SM_Ing_R_{}_{}".format(s, p) for s in ("Rollpanzer", "Sichelklinge", "Russfeder", "Blutschuppen") for p in ("Kopf", "Brust", "Arm", "Bein")]
+# the Schwarzglut-Rüstung, cut from the Tripo creatures (Tools/Ingenieur/vael_ingenieur_schwarzglut.py): plates, thighs, the tower shield in five rows
+SCHWARZGLUT = ["SM_Ing_R_Schwarzglut_{}".format(p) for p in ("Kopf", "Brust", "Arm", "Bein", "Oberschenkel", "Schild_Nabe")]
+SCHWARZGLUT += ["SM_Ing_R_Schwarzglut_Schild_Teil_{}".format(k) for k in range(5)]
+PIECES += SCHWARZGLUT
 PIECES += ["SM_Ing_Glutschleuder", "SM_Ing_Spannschleuder", "SM_Ing_Dornenbogen", "SM_Ing_Sehnenbogen", "SM_Ing_SchwereArmbrust"]
 if __import__("os").environ.get("VAEL_ING_NUR_ZWEIGE"):
     PIECES = [p for p in PIECES if p in ("SM_Ing_Glutschleuder", "SM_Ing_Spannschleuder", "SM_Ing_Dornenbogen", "SM_Ing_Sehnenbogen", "SM_Ing_SchwereArmbrust")]
 if __import__("os").environ.get("VAEL_ING_NUR_RUESTUNG"):
     PIECES = [p for p in PIECES if p.startswith("SM_Ing_R_")]
+if __import__("os").environ.get("VAEL_ING_NUR_SCHWARZGLUT"):
+    PIECES = SCHWARZGLUT
 SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut", "Moos": "M_GK_Moos", "Messing": "M_IW_Messing"}
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
 materials = {slot: unreal.load_asset("{}/{}".format("/Game/Vael/Refugium/Glutkammer/Werkstatt" if name == "M_IW_Messing" else KIT, name)) for slot, name in SLOTS.items()}
+materials["Glutkriecher"] = unreal.load_asset("/Game/Vael/Kreaturen/Aschenmark/Glutkriecher/MI_Glutkriecher")
+materials["Aschenroller"] = unreal.load_asset("/Game/Vael/Kreaturen/Aschenmark/Aschenroller/MI_Aschenroller")
 
 for name in PIECES:
     fbx = os.path.join(SOURCE, name + ".fbx")

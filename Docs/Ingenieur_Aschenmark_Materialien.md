@@ -354,7 +354,20 @@ Wie bei der Munition: Ein Rüstungsteil besteht aus **Platte + Gelenk + Fassung 
 - **2 Teile:** +15 % Feuerwiderstand, 10 % weniger Schaden.
 - **4 Teile:** Nach dem Ausweichen rollt er sich eine Sekunde ein (60 % weniger Schaden, wie heute beim Panzer-Satz); wer ihn in dieser Zeit trifft, verbrennt sich an den Glutrissen.
 - **Stufe II, Glutkronen-Rüstung** (nach der Glutkönigin): Brutkrone auf den Helm, Herz der Glut in die Brust. Die Risse glühen violett-orange; zusätzlich der Minen-Bonus des Glutkronen-Satzes.
-- **Aussehen:** Die Platten werden aus dem echten Glutkriecher-Modell geschnitten, die Gelenkbänder aus dem Aschenroller-Modell, dazu Schlackeneisen-Nieten. Schwarz mit glühenden Rissen.
+- **Aussehen** (Boris' Vorlagebild, 14.11.): schwere, glatte schwarze Platten in Lagen übereinander, an der Unterkante jeder Platte eine glühende Linie, große mehrlagige Schulterstücke, ein Helm mit Visierschlitz, glühenden Augen und zwei nach hinten geschwungenen Hörnern, Platten über den Oberschenkeln, Stacheln an Schultern, Unterarmen und Waden. Jede Platte ist eine **ganze** Rückenplatte des Glutkriechers (geschnitten an den Stufen seines Panzers) mit sauber gerundetem Umriss und Schlackeneisen-Rand. Bauch, Unterarm und Knie bekommen Bänder des Aschenrollers. Skript: `Tools/Ingenieur/vael_ingenieur_schwarzglut.py`.
+
+**Fünftes Teil: Klappschild (Turmschild)**
+
+| Teil | Formel |
+|---|---|
+| Klappschild | 3 Rollpanzer + 1 Rollsehne + 1 Schlackeneisen + 1 Gehärtete Platte |
+
+- Fast der ganze Rückenpanzer eines Aschenrollers, in seine fünf Bandreihen geteilt (je 20 cm, zusammen etwa 1 m hoch und 55 cm breit). Zusammengeschoben liegt er auf dem linken Unterarm; beim Blocken schieben sich die Reihen wie beim Entrollen in 0,18 s zum gewölbten Turmschild aus.
+- **Bedienung:** L2 bzw. rechte Maustaste **tippen** legt weiter das Gerät, **halten** (ab 0,2 s) hebt den Schild. Ohne Schild legt auch langes Drücken das Gerät.
+- **Wirkung:** Was von vorn kommt (breiter Kegel), wird um 70 % gemindert. In den ersten 0,35 s nach dem Anheben kommt gar nichts durch (perfekter Block). Hinter dem Schild geht er mit 55 % Tempo und schießt nicht.
+- **Mit vollem Satz:** Ein perfekter Block wirft den Angreifer zurück und setzt ihn in Brand.
+- Der Schild zählt nicht zu den 2 und 4 Teilen des Satzes.
+- **Später:** die „Rollwall“ als Wurfgerät, die über den Boden rollt und als Deckung aufschnellt (Geräte-Liste).
 
 Nach diesem Muster lassen sich die anderen Sätze mischen, zum Beispiel eine leichte **Aschenjäger-Rüstung** aus Rußfeder, Schleierpelz und Greifklaue (Tempo, Hinterhalt) oder eine **Erntewacht** aus Sichelklinge, Puppengarn und Glimmstroh (Schaden, feuerfest).
 

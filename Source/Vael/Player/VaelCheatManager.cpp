@@ -2252,6 +2252,84 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: wears %s, set count %d, armour %.0f"), *Set, Engineer->CountSet(FName(*Set)), Engineer->GetArmorTotal());
 		return;
 	}
+	if (What == TEXT("schild"))
+	{
+		// Goal 14.11.: the Schwarzglut-Rüstung with its folding shield. Damage from a dummy ahead and one behind: bare, fire,
+		// the perfect block right after raising, the block once open, from behind, curled after a dodge; firing is held while
+		// the shield is up; the tower shield slides open and folds again
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		VaelIngenieur(TEXT("alles"));
+		for (int32 Place = 0; Place < 5; ++Place)
+		{
+			FillMaterials();
+			const FName Piece(*FString::Printf(TEXT("Schwarzglut_%d"), Place));
+			const FVaelGear* Gear = VaelEngineerGear::Find(Piece);
+			const int32 Block = Gear != nullptr ? static_cast<int32>(Engineer->GetBuildBlock(*Gear, true)) : -1;
+			const bool bBuilt = Engineer->Build(Piece, true);
+			const bool bWorn = Engineer->Wear(Piece);
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur schild: %s block %d, built %d, worn %d"), *Piece.ToString(), Block, bBuilt, bWorn);
+		}
+		Engineer->SetShieldRaised(false);
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur schild: set %d, armour %.0f, max health %.0f, shield %d"), Engineer->CountSet(TEXT("Schwarzglut")),
+			Engineer->GetArmorTotal(), Player->GetMaxHealth(), Engineer->HasShield());
+		FActorSpawnParameters Parameters;
+		Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		const FVector Ahead = Player->GetActorForwardVector();
+		AVaelTrainingDummy* Front = GetWorld()->SpawnActor<AVaelTrainingDummy>(AVaelTrainingDummy::StaticClass(), Player->GetActorLocation() + Ahead * 300.0f, FRotator::ZeroRotator, Parameters);
+		AVaelTrainingDummy* Back = GetWorld()->SpawnActor<AVaelTrainingDummy>(AVaelTrainingDummy::StaticClass(), Player->GetActorLocation() - Ahead * 300.0f, FRotator::ZeroRotator, Parameters);
+		if (Front == nullptr || Back == nullptr)
+		{
+			return;
+		}
+		const float Bare = Engineer->ScaleIncoming(100.0f, Front, false);
+		const float Fire = Engineer->ScaleIncoming(100.0f, Front, true);
+		Engineer->SetShieldRaised(true);
+		const float Perfect = Engineer->ScaleIncoming(100.0f, Front, false);
+		const bool bShot = Engineer->Fire(Front->GetActorLocation());
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur schild: bare %.1f, fire %.1f, perfect block %.1f (front burning %d), fired while raised %d"), Bare, Fire, Perfect,
+			UVaelCombatStatics::HasStatus(Front, EVaelStatus::Burning), bShot);
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
+		TWeakObjectPtr<AVaelTrainingDummy> WeakFront = Front;
+		TWeakObjectPtr<AVaelTrainingDummy> WeakBack = Back;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		FTimerHandle Later;
+		GetWorld()->GetTimerManager().SetTimer(Later, FTimerDelegate::CreateLambda([WeakEng, WeakFront, WeakBack, WeakPlayer]()
+		{
+			if (!WeakEng.IsValid() || !WeakFront.IsValid() || !WeakBack.IsValid() || !WeakPlayer.IsValid())
+			{
+				return;
+			}
+			UVaelEngineerComponent* Eng = WeakEng.Get();
+			const float Held = Eng->ScaleIncoming(100.0f, WeakFront.Get(), false);
+			const float Behind = Eng->ScaleIncoming(100.0f, WeakBack.Get(), false);
+			int32 Bands = 0;
+			FVector HubAt = FVector::ZeroVector;
+			for (UActorComponent* Each : WeakPlayer->GetComponents())
+			{
+				const UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Each);
+				Bands += Mesh != nullptr && Mesh->GetName().StartsWith(TEXT("EngineerShieldBand")) && Mesh->GetStaticMesh() != nullptr ? 1 : 0;
+				if (Mesh != nullptr && Mesh->GetName() == TEXT("EngineerShieldHub"))
+				{
+					HubAt = WeakPlayer->GetActorTransform().InverseTransformPosition(Mesh->GetComponentLocation());
+				}
+			}
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur schild: open %.2f, held block %.1f, from behind %.1f, bands %d, hub at %s (actor space)"),
+				Eng->GetShieldOpen(), Held, Behind, Bands, *HubAt.ToCompactString());
+			Eng->SetShieldRaised(false);
+			Eng->OnDodged();
+			const float Curled = Eng->ScaleIncoming(100.0f, WeakBack.Get(), false);
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur schild: curled %.1f (behind burning %d)"), Curled, UVaelCombatStatics::HasStatus(WeakBack.Get(), EVaelStatus::Burning));
+		}), 0.6f, false);
+		FTimerHandle Folded;
+		GetWorld()->GetTimerManager().SetTimer(Folded, FTimerDelegate::CreateLambda([WeakEng]()
+		{
+			if (WeakEng.IsValid())
+			{
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur schild: folded again, open %.2f, raised %d"), WeakEng->GetShieldOpen(), WeakEng->IsShieldRaised());
+			}
+		}), 1.4f, false);
+		return;
+	}
 	if (What == TEXT("zweig"))
 	{
 		// Everything built (the last branch of each tree wins), then the branch named in Id built again so it is the one

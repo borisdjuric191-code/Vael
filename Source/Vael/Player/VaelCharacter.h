@@ -322,7 +322,7 @@ public:
 	void AddHeartShield(float Amount, float Seconds);
 
 	/** Takes damage off the heart shield first; returns what is left for the health */
-	float AbsorbIncoming(float Damage);
+	float AbsorbIncoming(float Damage, AActor* From = nullptr, bool bFire = false);
 
 	/** Nothing can hurt the player for the given seconds */
 	UFUNCTION(BlueprintCallable, Category="Combat")
