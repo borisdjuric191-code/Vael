@@ -110,6 +110,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
 	TArray<FVaelLootEntry> Loot;
 
+	/** The engineer's break piece of this creature (goal 14.11., like Monster Hunter): falls when he breaks its head or armour.
+	 *  None = the plain Bruchstück. */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot")
+	TSoftObjectPtr<UVaelMaterial> BreakPiece;
+
 	/** Chance from 0 to 1 that a health orb drops (prototype: 0.3) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Loot", meta = (ClampMin = 0, ClampMax = 1))
 	float HealthOrbChance = 0.3f;

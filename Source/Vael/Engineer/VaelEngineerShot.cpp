@@ -71,7 +71,26 @@ AVaelEngineerShot::FLook AVaelEngineerShot::GetLook(FName Ammo)
 	case EVaelAmmoEffect::Nid: Look.Glow = 1.6f; Look.Light = 600.0f; Look.Color = FLinearColor(0.28f, 0.05f, 0.35f); break;
 	case EVaelAmmoEffect::Fire: Look.Glow = 1.6f; Look.Light = 700.0f; break;
 	case EVaelAmmoEffect::Heal: Look.bDrop = true; Look.Glow = 2.0f; Look.Light = 900.0f; break;
+	// Formulas of goal 14.11.: the hull shows (a capsule drops, glass shines), the core glows in its colour
+	case EVaelAmmoEffect::Flame:
+	case EVaelAmmoEffect::Blast:
+	case EVaelAmmoEffect::FireField: Look.Glow = 2.2f; Look.Light = 900.0f; break;
+	case EVaelAmmoEffect::BlackFire: Look.Glow = 1.8f; Look.Light = 700.0f; Look.Color = FLinearColor(0.35f, 0.08f, 0.5f); break;
+	case EVaelAmmoEffect::Steam: Look.Glow = 0.4f; Look.Scale = 1.4f; break;
+	case EVaelAmmoEffect::Frenzy: Look.Glow = 0.5f; break;
+	case EVaelAmmoEffect::Blind: Look.Glow = 3.0f; Look.Light = 1800.0f; break;
+	case EVaelAmmoEffect::HealTime: Look.bDrop = true; Look.Glow = 1.6f; Look.Light = 700.0f; break;
+	case EVaelAmmoEffect::Pierce: Look.Scale = 1.6f; Look.Glow = 0.2f; break;
 	default: break;
+	}
+	// Capsules of Latex and Blasenhaut wobble like drops, needles of Hohlkiel are thin
+	if (Gear->Hull == FName(TEXT("Latex")) || Gear->Hull == FName(TEXT("Blasenhaut")))
+	{
+		Look.bDrop = true;
+	}
+	else if (Gear->Hull == FName(TEXT("Hohlkiel")))
+	{
+		Look.Scale = 0.9f;
 	}
 	return Look;
 }
@@ -113,6 +132,9 @@ AVaelEngineerShot* AVaelEngineerShot::Launch(UVaelEngineerComponent* InEngineer,
 	case EVaelAmmoEffect::Sticky: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->MudEffect); Shot->TrailColor = FLinearColor(0.85f, 0.7f, 0.12f); Shot->TrailRadius = 5.0f; Shot->TrailEvery = 70.0f; break;
 	case EVaelAmmoEffect::Smoke: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->SteamEffect); Shot->TrailColor = FLinearColor(0.3f, 0.29f, 0.28f); Shot->TrailRadius = 16.0f; Shot->TrailEvery = 45.0f; break;
 	case EVaelAmmoEffect::Crackle:
+	case EVaelAmmoEffect::Flame:
+	case EVaelAmmoEffect::Blast:
+	case EVaelAmmoEffect::FireField:
 	case EVaelAmmoEffect::Fire: Shot->TrailPuff = VaelEffects::Load(EVaelElement::Fire).Impact; Shot->TrailColor = FLinearColor(1.0f, 0.5f, 0.1f); Shot->TrailRadius = 7.0f; Shot->TrailEvery = 60.0f; break;
 	case EVaelAmmoEffect::Sleep: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->DustPuffEffect); Shot->TrailColor = FLinearColor(0.5f, 0.25f, 0.7f); Shot->TrailRadius = 10.0f; Shot->TrailEvery = 45.0f; break;
 	case EVaelAmmoEffect::Glow:
@@ -120,6 +142,12 @@ AVaelEngineerShot* AVaelEngineerShot::Launch(UVaelEngineerComponent* InEngineer,
 	case EVaelAmmoEffect::Thorn: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->DustPuffEffect); Shot->TrailColor = FLinearColor(0.45f, 0.08f, 0.06f); Shot->TrailRadius = 5.0f; Shot->TrailEvery = 60.0f; break;
 	case EVaelAmmoEffect::Dew: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->WaterBoltTrailEffect); Shot->TrailColor = Look.Color; Shot->TrailRadius = 7.0f; Shot->TrailEvery = 40.0f; break;
 	case EVaelAmmoEffect::Nid: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->DustPuffEffect); Shot->TrailColor = FLinearColor(0.12f, 0.02f, 0.16f); Shot->TrailRadius = 11.0f; Shot->TrailEvery = 40.0f; break;
+	case EVaelAmmoEffect::BlackFire: Shot->TrailPuff = VaelEffects::Load(EVaelElement::Fire).Impact; Shot->TrailColor = FLinearColor(0.45f, 0.1f, 0.6f); Shot->TrailRadius = 8.0f; Shot->TrailEvery = 55.0f; break;
+	case EVaelAmmoEffect::Steam:
+	case EVaelAmmoEffect::Frenzy: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->SteamEffect); Shot->TrailColor = Look.Color; Shot->TrailRadius = 12.0f; Shot->TrailEvery = 50.0f; break;
+	case EVaelAmmoEffect::Blind:
+	case EVaelAmmoEffect::HealTime: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->HandEffect); Shot->TrailColor = Look.Color; Shot->TrailRadius = 8.0f; Shot->TrailEvery = 50.0f; break;
+	case EVaelAmmoEffect::Pierce: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->DustPuffEffect); Shot->TrailColor = FLinearColor(0.2f, 0.17f, 0.15f); Shot->TrailRadius = 7.0f; Shot->TrailEvery = 80.0f; break;
 	case EVaelAmmoEffect::Poison:
 	case EVaelAmmoEffect::Acid: Shot->TrailPuff = VaelAssets::LoadOptional(Magic->SteamEffect); Shot->TrailColor = Look.Color; Shot->TrailRadius = 8.0f; Shot->TrailEvery = 60.0f; break;
 	default: break;

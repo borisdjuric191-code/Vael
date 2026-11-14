@@ -1904,6 +1904,27 @@ void UVaelCheatManager::VaelTrankTest(const FString& What)
 	}, 4.0f, false);
 }
 
+namespace
+{
+	/** Test: only this kind of shot in the pockets of the Werkrolle, filled from the backpack */
+	void PocketOnly(UVaelEngineerComponent* Engineer, FName Kind)
+	{
+		if (Engineer == nullptr)
+		{
+			return;
+		}
+		const TArray<FName> Kinds = Engineer->GetPocketKinds();
+		for (const FName Other : Kinds)
+		{
+			if (Other != Kind)
+			{
+				Engineer->EmptyPocket(Other);
+			}
+		}
+		Engineer->PutInPocket(Kind);
+	}
+}
+
 void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 {
 	AVaelPlayerController* Controller = Cast<AVaelPlayerController>(GetOuterAPlayerController());
@@ -1937,6 +1958,74 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 	if (What == TEXT("material"))
 	{
 		FillMaterials();
+		return;
+	}
+	if (What == TEXT("formeln"))
+	{
+		// Goal 14.11.: mixing. From a fresh start: every formula found by mixing its parts, the refining recipes, mixes that
+		// must fail (with their hints), a mix tried twice, and the pockets (4 kinds, the fifth goes into the backpack)
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		Engineer->ResetToStart();
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		int32 Refined = 0;
+		for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+		{
+			if (Gear.Kind == EVaelGearKind::Refine)
+			{
+				const bool bOk = Engineer->Build(Gear.Id, false);
+				Refined += bOk ? 1 : 0;
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur formeln: refine %s -> %d"), *Gear.Id.ToString(), bOk);
+			}
+		}
+		int32 Found = 0, Total = 0, Unbuildable = 0;
+		for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+		{
+			if (!Gear.IsFormula())
+			{
+				continue;
+			}
+			++Total;
+			Unbuildable += Engineer->GetBuildBlock(Gear, true) == UVaelEngineerComponent::EBuildBlock::Unknown ? 1 : 0;
+			TArray<FName> Parts = { Gear.Boosters.Num() > 0 ? Gear.Boosters.Last() : Gear.Core, Gear.Hull };
+			Parts.Append(Gear.Boosters.Num() > 0 ? TArray<FName>{ Gear.Core } : TArray<FName>{});
+			if (Gear.Boosters.Num() > 1)
+			{
+				Parts.Add(Gear.Boosters[0]);
+			}
+			FText Hint;
+			FName Formula;
+			const EVaelMixResult Result = Engineer->Mix(Parts, Hint, Formula);
+			Found += Result == EVaelMixResult::Learned ? 1 : 0;
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur formeln: %s from [%s] -> %d (%s) carried %d stock %d"), *Gear.Id.ToString(),
+				*VaelEngineerGear::GetMixKey(Parts), static_cast<int32>(Result), *Formula.ToString(), Engineer->GetCarried(Gear.Id), Engineer->GetStock(Gear.Id));
+		}
+		const TArray<TArray<FName>> Wrong = {
+			{ TEXT("Latex"), TEXT("Glutstein") }, { TEXT("Latex"), TEXT("Verdauungssaeure") }, { TEXT("Blasenhaut"), TEXT("Glutstein") },
+			{ TEXT("Schlacke"), TEXT("Blatttau") }, { TEXT("Glutstein"), TEXT("Knistersamen") }, { TEXT("Schlacke"), TEXT("Latex"), TEXT("Glutstein") },
+			{ TEXT("Schlacke"), TEXT("Distelflaum") }, { TEXT("Schlacke"), TEXT("Glutstein"), TEXT("Pelzwasser") } };
+		for (const TArray<FName>& Parts : Wrong)
+		{
+			FText Hint;
+			FName Formula;
+			const EVaelMixResult Result = Engineer->Mix(Parts, Hint, Formula);
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur formeln: wrong [%s] -> %d: %s"), *VaelEngineerGear::GetMixKey(Parts), static_cast<int32>(Result), *Hint.ToString());
+		}
+		{
+			FText Hint;
+			FName Formula;
+			const EVaelMixResult Again = Engineer->Mix(Wrong[0], Hint, Formula);
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur formeln: same wrong mix again -> %d (3 = tried)"), static_cast<int32>(Again));
+		}
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur formeln: %d of %d learned (%d were locked before), %d refined, pockets %d of %d: %s, choices %d"),
+			Found, Total, Unbuildable, Refined, Engineer->GetPocketKinds().Num(), Engineer->GetPocketCount(),
+			*FString::JoinBy(Engineer->GetPocketKinds(), TEXT(","), [](FName Kind) { return Kind.ToString(); }), Engineer->GetAmmoChoices().Num());
+		// a kind out of its pocket and another one in
+		const FName First = Engineer->GetPocketKinds().Num() > 0 ? Engineer->GetPocketKinds()[0] : NAME_None;
+		const int32 Back = Engineer->EmptyPocket(First);
+		const bool bIn = Engineer->PutInPocket(TEXT("Nid"));
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur formeln: %s back into the backpack (%d), Nid into a pocket %d, carried %d"),
+			*First.ToString(), Back, bIn, Engineer->GetCarried(TEXT("Nid")));
 		return;
 	}
 	if (What == TEXT("bauen"))
@@ -2009,16 +2098,23 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		Player->SetHero(EVaelHeroClass::Engineer, false);
 		FillMaterials();
 		Engineer->LearnAllPlans();
-		TArray<FName> Kinds = { TEXT("Schwer"), TEXT("Klebe"), TEXT("Rauch"), TEXT("Knister"), TEXT("Schlaf"), TEXT("Leucht"), TEXT("Dorn"), TEXT("Tau"), TEXT("Nid") };
+		Engineer->LearnAllFormulas();
+		// goal 14.11.: every formula of shots, in the order of the workbench
+		TArray<FName> Kinds;
+		for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+		{
+			if (Gear.IsFormula())
+			{
+				Kinds.Add(Gear.Id);
+			}
+		}
 		if (!Id.IsEmpty())
 		{
 			Kinds = { FName(*Id) };
 		}
-		Engineer->Build(TEXT("Brand"), true); // Knister needs it
 		for (const FName Kind : Kinds)
 		{
 			Engineer->Build(Kind, true);
-			Engineer->ReadyFromStock(Kind);
 		}
 		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
 		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
@@ -2045,6 +2141,7 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			if (Target == nullptr && *Next < Kinds.Num())
 			{
 				const FName Kind = Kinds[*Next];
+				PocketOnly(WeakEng.Get(), Kind);
 				WeakEng->SetAmmo(Kind);
 				WeakEng->Fire(WeakPlayer->GetActorLocation() + WeakPlayer->GetActorForwardVector() * 1600.0f - FVector(0.0f, 0.0f, 90.0f));
 				UE_LOG(LogVael, Log, TEXT("VaelIngenieur munition %s: into the open"), *Kind.ToString());
@@ -2060,6 +2157,7 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			}
 			const FName Kind = Kinds[*Next];
 			WeakPlayer->SetActorRotation((Target->GetActorLocation() - WeakPlayer->GetActorLocation()).GetSafeNormal2D().Rotation());
+			PocketOnly(WeakEng.Get(), Kind);
 			WeakEng->SetAmmo(Kind);
 			const float Before = Target->GetHealth();
 			const bool bFired = WeakEng->Fire(Target->GetActorLocation());

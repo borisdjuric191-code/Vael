@@ -750,17 +750,112 @@ void AVaelPlayerController::OnEngField()
 	UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelEngineer", "NoFire", "Den Feldkasten nur an einem Lagerfeuer"), FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
 }
 
-TArray<const FVaelGear*> AVaelPlayerController::GetCraftList(int32 Tab)
+TArray<const FVaelGear*> AVaelPlayerController::GetCraftList(int32 Tab, const UVaelEngineerComponent* Engineer)
 {
 	TArray<const FVaelGear*> List;
 	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
 	{
-		if (static_cast<int32>(Gear.Kind) == Tab)
+		// formulas of shots show only once he has found them by mixing
+		if (static_cast<int32>(Gear.Kind) == Tab && (Engineer == nullptr || !Gear.IsFormula() || Engineer->IsFormulaKnown(Gear.Id)))
 		{
 			List.Add(&Gear);
 		}
 	}
 	return List;
+}
+
+bool AVaelPlayerController::IsCraftTabOpen(int32 Tab, bool bAtWorkbench)
+{
+	return bAtWorkbench || Tab == static_cast<int32>(EVaelGearKind::Ammo) || Tab == static_cast<int32>(EVaelGearKind::Device)
+		|| Tab == static_cast<int32>(EVaelGearKind::Refine) || Tab == VaelCraftTabMix;
+}
+
+void AVaelPlayerController::TurnCraftTab(int32 Step)
+{
+	do
+	{
+		CraftTab = (CraftTab + Step + VaelCraftTabCount) % VaelCraftTabCount;
+	}
+	while (!IsCraftTabOpen(CraftTab, bCraftAtWorkbench));
+	CraftSelection = 0;
+}
+
+TArray<FName> AVaelPlayerController::GetMixList(const AVaelCharacter* Player)
+{
+	TArray<FName> List;
+	const UVaelMaterialBag* Bag = Player != nullptr ? Player->GetMaterialBag() : nullptr;
+	for (const FName Material : VaelEngineerGear::GetMixMaterials())
+	{
+		const UVaelMaterial* Asset = VaelEngineerGear::LoadMaterial(Material);
+		if (Bag != nullptr && Asset != nullptr && Bag->GetCount(Asset) > 0)
+		{
+			List.Add(Material);
+		}
+	}
+	return List;
+}
+
+void AVaelPlayerController::ConfirmMix()
+{
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr ? VaelCharacter->GetEngineer() : nullptr;
+	if (Engineer == nullptr)
+	{
+		return;
+	}
+	const TArray<FName> List = GetMixList(VaelCharacter);
+	if (CraftSelection > 0)
+	{
+		// a material: pick it, or put it back
+		if (!List.IsValidIndex(CraftSelection - 1))
+		{
+			return;
+		}
+		const FName Material = List[CraftSelection - 1];
+		if (MixPicks.Contains(Material))
+		{
+			MixPicks.Remove(Material);
+		}
+		else if (MixPicks.Num() < 4)
+		{
+			MixPicks.Add(Material);
+		}
+		else
+		{
+			MixHint = NSLOCTEXT("VaelEngineer", "MixFull", "Höchstens vier Teile");
+		}
+		return;
+	}
+	// row 0: mix what is picked
+	FName Found;
+	const EVaelMixResult Result = Engineer->Mix(MixPicks, MixHint, Found);
+	const FVaelGear* Gear = VaelEngineerGear::Find(Found);
+	FText Title;
+	switch (Result)
+	{
+	case EVaelMixResult::Learned:
+		Title = FText::Format(NSLOCTEXT("VaelEngineer", "MixLearned", "Neue Formel: {0}"), Gear != nullptr ? Gear->Name : FText::GetEmpty());
+		MixPicks.Reset();
+		LastBrewTime = FPlatformTime::Seconds();
+		break;
+	case EVaelMixResult::Built:
+		Title = FText::Format(NSLOCTEXT("VaelEngineer", "MixBuilt", "{0} gemischt"), Gear != nullptr ? Gear->Name : FText::GetEmpty());
+		MixPicks.Reset();
+		LastBrewTime = FPlatformTime::Seconds();
+		break;
+	case EVaelMixResult::Tried:
+		Title = NSLOCTEXT("VaelEngineer", "MixTried", "Schon versucht: daraus wird nichts");
+		break;
+	case EVaelMixResult::Missing:
+		Title = NSLOCTEXT("VaelEngineer", "MixMissingTitle", "So geht es nicht");
+		break;
+	default:
+		Title = NSLOCTEXT("VaelEngineer", "MixNothing", "Daraus wird nichts");
+		break;
+	}
+	UVaelNoticeSubsystem::Post(this, Title, MixHint, FLinearColor(FColor(206, 140, 70)), 3.0f);
+	UE_LOG(LogVael, Log, TEXT("Engineer mix [%s]: %d %s (%s)"), *VaelEngineerGear::GetMixKey(MixPicks.IsEmpty() && Gear != nullptr ? TArray<FName>{ Gear->Hull, Gear->Core } : MixPicks),
+		static_cast<int32>(Result), *Found.ToString(), *MixHint.ToString());
 }
 
 void AVaelPlayerController::PressMenuPageForTest(float Direction)
@@ -786,11 +881,13 @@ void AVaelPlayerController::StepFigure(int32 Row, int32 Step)
 void AVaelPlayerController::OpenCrafting(bool bAtWorkbench)
 {
 	bCraftAtWorkbench = bAtWorkbench;
-	if (!bAtWorkbench && (CraftTab == 0 || CraftTab >= 3))
+	if (!IsCraftTabOpen(CraftTab, bAtWorkbench))
 	{
 		CraftTab = 1;
 	}
-	CraftSelection = FMath::Clamp(CraftSelection, 0, FMath::Max(GetCraftList(CraftTab).Num() - 1, 0));
+	CraftSelection = 0;
+	MixPicks.Reset();
+	MixHint = FText::GetEmpty();
 	OpenGrimoire(EVaelMenuPage::Craft);
 }
 
@@ -1731,7 +1828,7 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 	if (MenuPage == EVaelMenuPage::Formulas && Opener != nullptr && Opener->IsEngineer())
 	{
 		MenuPage = EVaelMenuPage::Werkrolle;
-		WerkrolleSelection = FMath::Clamp(WerkrolleSelection, 0, FMath::Max(GetWerkrolleList().Num() - 1, 0));
+		WerkrolleSelection = FMath::Clamp(WerkrolleSelection, 0, FMath::Max(GetWerkrolleList(GetPawn<AVaelCharacter>() != nullptr ? GetPawn<AVaelCharacter>()->GetEngineer() : nullptr).Num() - 1, 0));
 	}
 	KeimCursor.Carried = -1;
 
@@ -1849,13 +1946,15 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 
 	if (MenuPage == EVaelMenuPage::Craft)
 	{
-		CraftSelection = FMath::Clamp(CraftSelection + Step, 0, FMath::Max(GetCraftList(CraftTab).Num() - 1, 0));
+		const AVaelCharacter* Crafter = GetPawn<AVaelCharacter>();
+		const int32 Rows = CraftTab == VaelCraftTabMix ? GetMixList(Crafter).Num() + 1 : GetCraftList(CraftTab, Crafter != nullptr ? Crafter->GetEngineer() : nullptr).Num();
+		CraftSelection = FMath::Clamp(CraftSelection + Step, 0, FMath::Max(Rows - 1, 0));
 		return;
 	}
 
 	if (MenuPage == EVaelMenuPage::Werkrolle)
 	{
-		WerkrolleSelection = FMath::Clamp(WerkrolleSelection + Step, 0, FMath::Max(GetWerkrolleList().Num() - 1, 0));
+		WerkrolleSelection = FMath::Clamp(WerkrolleSelection + Step, 0, FMath::Max(GetWerkrolleList(GetPawn<AVaelCharacter>() != nullptr ? GetPawn<AVaelCharacter>()->GetEngineer() : nullptr).Num() - 1, 0));
 		return;
 	}
 
@@ -1902,12 +2001,7 @@ void AVaelPlayerController::OnMenuPage(const FInputActionValue& Value)
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Craft)
 	{
 		const int32 Step = Value.Get<float>() < 0.0f ? -1 : 1;
-		do
-		{
-			CraftTab = (CraftTab + Step + 5) % 5;
-		}
-		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab >= 3));
-		CraftSelection = 0;
+		TurnCraftTab(Step);
 		return;
 	}
 
@@ -1953,9 +2047,14 @@ void AVaelPlayerController::OnMenuConfirm()
 	}
 
 	// Building: the materials go out of the own bag; a built piece of armour is put on instead
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Craft && VaelCharacter != nullptr && VaelCharacter->IsEngineer() && CraftTab == VaelCraftTabMix)
+	{
+		ConfirmMix();
+		return;
+	}
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Craft && VaelCharacter != nullptr && VaelCharacter->IsEngineer())
 	{
-		const TArray<const FVaelGear*> List = GetCraftList(CraftTab);
+		const TArray<const FVaelGear*> List = GetCraftList(CraftTab, VaelCharacter->GetEngineer());
 		if (List.IsValidIndex(CraftSelection))
 		{
 			UVaelEngineerComponent* Engineer = VaelCharacter->GetEngineer();
@@ -2135,12 +2234,7 @@ void AVaelPlayerController::OnMenuNavigateSide(const FInputActionValue& Value)
 		}
 		NextNavigateTime = Now + 10.0;
 		const int32 Step = Direction > 0.0f ? 1 : -1;
-		do
-		{
-			CraftTab = (CraftTab + Step + 5) % 5;
-		}
-		while (!bCraftAtWorkbench && (CraftTab == 0 || CraftTab >= 3));
-		CraftSelection = 0;
+		TurnCraftTab(Step);
 		return;
 	}
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Brew && FMath::Abs(Direction) >= 0.5f)
@@ -2685,6 +2779,45 @@ void AVaelPlayerController::OnMenuAssign(int32 SlotIndex)
 		WerkrolleAction(SlotIndex);
 		return;
 	}
+	// The page of building (goal 14.11.): up puts the picked shot into a pocket of the Werkrolle, down takes it out again;
+	// on the Mischen tab down puts every picked material back
+	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Craft)
+	{
+		AVaelCharacter* Crafter = GetPawn<AVaelCharacter>();
+		UVaelEngineerComponent* Engineer = Crafter != nullptr ? Crafter->GetEngineer() : nullptr;
+		if (Engineer == nullptr)
+		{
+			return;
+		}
+		if (CraftTab == VaelCraftTabMix)
+		{
+			if (SlotIndex == 2)
+			{
+				MixPicks.Reset();
+				MixHint = FText::GetEmpty();
+			}
+			return;
+		}
+		const TArray<const FVaelGear*> List = GetCraftList(CraftTab, Engineer);
+		if (CraftTab != static_cast<int32>(EVaelGearKind::Ammo) || !List.IsValidIndex(CraftSelection) || (SlotIndex != 0 && SlotIndex != 2))
+		{
+			return;
+		}
+		const FVaelGear& Gear = *List[CraftSelection];
+		FText Said;
+		if (SlotIndex == 0)
+		{
+			Said = Engineer->PutInPocket(Gear.Id) ? FText::Format(NSLOCTEXT("VaelEngineer", "Pocketed", "{0} in eine Tasche der Werkrolle gesteckt"), Gear.Name)
+				: NSLOCTEXT("VaelEngineer", "PocketsFull", "Alle Taschen sind belegt: erst eine leeren");
+		}
+		else
+		{
+			Engineer->EmptyPocket(Gear.Id);
+			Said = FText::Format(NSLOCTEXT("VaelEngineer", "Unpocketed", "{0} zurück in den Rucksack"), Gear.Name);
+		}
+		UVaelNoticeSubsystem::Post(this, Said, FText::GetEmpty(), FLinearColor(FColor(206, 140, 70)), 2.0f);
+		return;
+	}
 
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	const UGameInstance* GameInstance = GetGameInstance();
@@ -2766,10 +2899,21 @@ void AVaelPlayerController::OnSpyglassLowered()
 	}
 }
 
-TArray<const FVaelGear*> AVaelPlayerController::GetWerkrolleList()
+TArray<const FVaelGear*> AVaelPlayerController::GetWerkrolleList(const UVaelEngineerComponent* Engineer)
 {
-	TArray<const FVaelGear*> List = GetCraftList(1);
-	List.Append(GetCraftList(2));
+	// the pockets of shots (goal 14.11.: 4 to 8, filled at the workbench or a campfire), then the devices
+	TArray<const FVaelGear*> List;
+	if (Engineer != nullptr)
+	{
+		for (const FName Kind : Engineer->GetPocketKinds())
+		{
+			if (const FVaelGear* Gear = VaelEngineerGear::Find(Kind))
+			{
+				List.Add(Gear);
+			}
+		}
+	}
+	List.Append(GetCraftList(static_cast<int32>(EVaelGearKind::Device), Engineer));
 	return List;
 }
 
@@ -2777,7 +2921,7 @@ void AVaelPlayerController::ConfirmWerkrolle()
 {
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr && VaelCharacter->IsEngineer() ? VaelCharacter->GetEngineer() : nullptr;
-	const TArray<const FVaelGear*> List = GetWerkrolleList();
+	const TArray<const FVaelGear*> List = GetWerkrolleList(Engineer);
 	if (Engineer == nullptr || !List.IsValidIndex(WerkrolleSelection))
 	{
 		return;
@@ -2799,7 +2943,7 @@ void AVaelPlayerController::WerkrolleAction(int32 Pad)
 {
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr && VaelCharacter->IsEngineer() ? VaelCharacter->GetEngineer() : nullptr;
-	const TArray<const FVaelGear*> List = GetWerkrolleList();
+	const TArray<const FVaelGear*> List = GetWerkrolleList(Engineer);
 	if (Engineer == nullptr || List.IsEmpty())
 	{
 		return;

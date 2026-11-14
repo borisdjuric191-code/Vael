@@ -85,6 +85,17 @@ struct FVaelSavedPlayer
 
 	UPROPERTY()
 	TArray<FName> EngineerPlans;
+
+	/** Formulas of shots he has found by mixing, and mixes that made nothing (goal 14.11.) */
+	UPROPERTY()
+	TArray<FName> EngineerFormulas;
+
+	UPROPERTY()
+	TArray<FString> EngineerTried;
+
+	/** The kinds of shots with a pocket in his Werkrolle */
+	UPROPERTY()
+	TArray<FName> EngineerPockets;
 };
 
 /** State of a region */

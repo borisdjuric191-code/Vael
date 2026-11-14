@@ -40,30 +40,10 @@ namespace
 			return Engineer->GetWorn(Gear.Place) == Gear.Id ? LOCTEXT("Worn", "getragen") : Engineer->HasBuilt(Gear.Id) ? LOCTEXT("BuiltArmor", "gebaut") : FText::GetEmpty();
 		case EVaelGearKind::Tool:
 			return Engineer->HasBuilt(Gear.Id) ? LOCTEXT("BuiltTool", "dabei") : FText::GetEmpty();
+		case EVaelGearKind::Refine:
+			return FText::GetEmpty();
 		default:
 			return FText::Format(LOCTEXT("Carried", "{0} dabei · {1} im Vorrat"), Engineer->GetCarried(Gear.Id), Engineer->GetStock(Gear.Id));
-		}
-	}
-
-	FText EffectText(EVaelAmmoEffect Effect)
-	{
-		switch (Effect)
-		{
-		case EVaelAmmoEffect::Shards: return LOCTEXT("EffShards", "Splitter treffen alles im Umkreis (60 %)");
-		case EVaelAmmoEffect::Fire: return LOCTEXT("EffFire", "Brand: 5 Sekunden Feuer");
-		case EVaelAmmoEffect::Poison: return LOCTEXT("EffPoison", "Gift: 6 Sekunden Schaden, das Ziel taumelt");
-		case EVaelAmmoEffect::Acid: return LOCTEXT("EffAcid", "Säure: 8 Sekunden mehr Schaden von allem");
-		case EVaelAmmoEffect::Heal: return LOCTEXT("EffHeal", "Heilt die Gefährten am Aufschlag um 22");
-		case EVaelAmmoEffect::Heavy: return LOCTEXT("EffHeavy", "Wirft zurück und betäubt 0,8 Sekunden");
-		case EVaelAmmoEffect::Sticky: return LOCTEXT("EffSticky", "6 Sekunden halb so schnell");
-		case EVaelAmmoEffect::Smoke: return LOCTEXT("EffSmoke", "Rauchwolke: Gegner darin taumeln 4 Sekunden");
-		case EVaelAmmoEffect::Crackle: return LOCTEXT("EffCrackle", "Feuerkette um das Ziel, zündet Minen in 4 m");
-		case EVaelAmmoEffect::Sleep: return LOCTEXT("EffSleep", "Schwache Gegner schlafen 5 Sekunden, starke werden träge");
-		case EVaelAmmoEffect::Glow: return LOCTEXT("EffGlow", "Leuchtet 10 Sekunden, nimmt mehr Schaden");
-		case EVaelAmmoEffect::Thorn: return LOCTEXT("EffThorn", "Blutet 6 Sekunden");
-		case EVaelAmmoEffect::Dew: return LOCTEXT("EffDew", "Nass: Feuer aus, Blitz trifft doppelt");
-		case EVaelAmmoEffect::Nid: return LOCTEXT("EffNid", "Doppelter Schaden, +1,5 Nid je Schuss");
-		default: return FText::GetEmpty();
 		}
 	}
 }
@@ -98,24 +78,24 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		DrawDisc(Corner, 4.0f * S, CraftCopper);
 	}
 
-	DrawLabel(bWorkbench ? LOCTEXT("EyebrowBench", "WERKBANK DES INGENIEURS · GLUTKAMMER") : LOCTEXT("EyebrowField", "FELDKASTEN AM LAGERFEUER · NUR LADUNGEN UND VORRICHTUNGEN"),
+	DrawLabel(bWorkbench ? LOCTEXT("EyebrowBench", "WERKBANK DES INGENIEURS · GLUTKAMMER") : LOCTEXT("EyebrowField", "FELDKASTEN AM LAGERFEUER · LADUNGEN, VORRICHTUNGEN, VEREDELN, MISCHEN"),
 		Left + Pad, Top + 20.0f * S, 12.0f * S, CraftCopper);
 	DrawLabel(LOCTEXT("Title", "Baupläne"), Left + Pad, Top + 36.0f * S, 34.0f * S, CraftBone);
 
 	// Tabs
 	const int32 TabIndex = PlayerController->GetCraftTab();
-	const float TabWidth = 128.0f * S;
+	const float TabWidth = 100.0f * S;
 	const float TabHeight = 30.0f * S;
 	const float TabTop = Top + 42.0f * S;
-	const float TabsLeft = Left + Width - Pad - 5 * (TabWidth + 6.0f * S);
-	for (int32 Tab = 0; Tab < 5; ++Tab)
+	const float TabsLeft = Left + Width - Pad - VaelCraftTabCount * (TabWidth + 6.0f * S);
+	for (int32 Tab = 0; Tab < VaelCraftTabCount; ++Tab)
 	{
 		const float X = TabsLeft + Tab * (TabWidth + 6.0f * S);
 		const bool bOn = Tab == TabIndex;
-		const bool bOpen = bWorkbench || Tab == 1 || Tab == 2;
+		const bool bOpen = AVaelPlayerController::IsCraftTabOpen(Tab, bWorkbench);
 		DrawBox(X, TabTop, TabWidth, TabHeight, bOn ? CraftRgb(70, 44, 24, 245) : CraftRgb(36, 28, 22, 230));
 		DrawFrame(X, TabTop, TabWidth, TabHeight, bOn ? CraftCopper : CraftCopperDim, bOn ? 2.0f * S : 1.0f);
-		DrawLabel(VaelEngineerGear::GetKindName(static_cast<EVaelGearKind>(Tab)), X + TabWidth * 0.5f, TabTop + 6.0f * S, 15.0f * S,
+		DrawLabel(VaelEngineerGear::GetTabName(Tab), X + TabWidth * 0.5f, TabTop + 6.0f * S, 14.0f * S,
 			bOn ? CraftBone : bOpen ? CraftDim : CraftRgb(80, 70, 60), 0.5f);
 	}
 	DrawLabel(Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("TabKeys", "A / D") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("TabPS", "L1 / R1") : LOCTEXT("TabXbox", "LB / RB"),
@@ -124,8 +104,14 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 	const float BodyTop = Top + 96.0f * S;
 	DrawBox(Left + Pad, BodyTop - 10.0f * S, Width - 2.0f * Pad, 1.0f, CraftCopperDim);
 
+	if (TabIndex == VaelCraftTabMix)
+	{
+		DrawCraftMix(PlayerController, Left, Top, Width, Height, BodyTop);
+		return;
+	}
+
 	// ---- the list
-	const TArray<const FVaelGear*> List = AVaelPlayerController::GetCraftList(TabIndex);
+	const TArray<const FVaelGear*> List = AVaelPlayerController::GetCraftList(TabIndex, Engineer);
 	const int32 Selected = FMath::Clamp(PlayerController->GetCraftSelection(), 0, FMath::Max(List.Num() - 1, 0));
 	const float ListWidth = Width * 0.4f;
 	const float RowHeight = 40.0f * S;
@@ -192,11 +178,26 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		Y += 26.0f * S;
 		break;
 	case EVaelGearKind::Ammo:
-		DrawLabel(EffectText(Gear.Effect), DetailLeft, Y, 15.0f * S, CraftCopper, 0.0f, DetailWidth);
-		Y += 22.0f * S;
-		DrawLabel(FText::Format(LOCTEXT("Batch", "{0} Stück pro Bau · passt auf jede Waffe · 30 in der Tasche"), Gear.Batch), DetailLeft, Y, 14.0f * S, CraftDim);
+	{
+		Y = DrawWrappedLabel(VaelEngineerGear::GetEffectText(Gear), DetailLeft, Y, 15.0f * S, CraftCopper, DetailWidth - 10.0f * S) + 6.0f * S;
+		DrawLabel(FText::Format(LOCTEXT("Batch", "{0} Stück pro Mischung · passt auf jede Waffe · {1} in der Tasche"), Gear.Batch, Engineer->GetCarryLimit(Gear)),
+			DetailLeft, Y, 14.0f * S, CraftDim);
+		Y += 20.0f * S;
+		// the pockets of the Werkrolle: 4 to 8 kinds
+		const bool bPocket = Engineer->IsInPocket(Gear.Id);
+		DrawLabel(FText::Format(bPocket ? LOCTEXT("InPocket", "In der Werkrolle · Taschen {0} von {1} belegt") : LOCTEXT("NotInPocket", "Nicht in der Werkrolle · Taschen {0} von {1} belegt"),
+			Engineer->GetPocketKinds().Num(), Engineer->GetPocketCount()), DetailLeft, Y, 14.0f * S, bPocket ? CraftGood : CraftDim);
 		Y += 26.0f * S;
 		break;
+	}
+	case EVaelGearKind::Refine:
+	{
+		const UVaelMaterial* Made = VaelEngineerGear::LoadMaterial(Gear.Output);
+		DrawLabel(FText::Format(LOCTEXT("RefineOut", "Ergibt {0} × {1} · im Beutel: {2}"), Gear.OutputCount, Made != nullptr ? Made->DisplayName : FText::FromName(Gear.Output),
+			Made != nullptr && Bag != nullptr ? Bag->GetCount(Made) : 0), DetailLeft, Y, 15.0f * S, CraftCopper);
+		Y += 26.0f * S;
+		break;
+	}
 	case EVaelGearKind::Device:
 		DrawLabel(FText::Format(LOCTEXT("DeviceBatch", "{0} pro Bau · 3 in der Tasche · bis zu 6 gelegt"), Gear.Batch), DetailLeft, Y, 14.0f * S, CraftDim);
 		Y += 26.0f * S;
@@ -262,8 +263,116 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 	default: Action = LOCTEXT("BlockMaterials", "Es fehlen Materialien"); ActionColor = CraftBad; break;
 	}
 	DrawLabel(Action, DetailLeft, Top + Height - 70.0f * S, 18.0f * S, ActionColor);
-	DrawLabel(LOCTEXT("Pouches", "Was nicht in die Taschen passt, kommt in den Vorrat und füllt sie hier wieder auf."),
+	const bool bPad = Glyphs != EVaelInputGlyphs::Keyboard;
+	DrawLabel(Gear.Kind == EVaelGearKind::Ammo
+		? FText::Format(LOCTEXT("PocketKeys", "{0}: in eine Tasche der Werkrolle   ·   {1}: zurück in den Rucksack   ·   Neue Ladungen findest du unter „Mischen“."),
+			bPad ? LOCTEXT("PadUpC", "Steuerkreuz hoch") : LOCTEXT("KeyOneC", "1"), bPad ? LOCTEXT("PadDownC", "Steuerkreuz runter") : LOCTEXT("KeyThreeC", "3"))
+		: LOCTEXT("Pouches", "Was nicht in die Taschen passt, kommt in den Vorrat und füllt sie hier wieder auf."),
 		Left + Pad, Top + Height - 34.0f * S, 12.0f * S, CraftDim, 0.0f, Width - 2.0f * Pad);
+}
+
+void AVaelHUD::DrawCraftMix(const AVaelPlayerController* PlayerController, float Left, float Top, float Width, float Height, float BodyTop)
+{
+	// The Mischen tab (goal 14.11.): on the left the materials of formulas he has, picked ones marked; row 0 mixes. On the right
+	// what is picked, the hint of the last try and how many formulas he has found.
+	const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+	const UVaelEngineerComponent* Engineer = Player != nullptr ? Player->GetEngineer() : nullptr;
+	const UVaelMaterialBag* Bag = Player != nullptr ? Player->GetMaterialBag() : nullptr;
+	if (Engineer == nullptr)
+	{
+		return;
+	}
+	const float S = UiScale;
+	const float Pad = 26.0f * S;
+	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
+	const TArray<FName> List = AVaelPlayerController::GetMixList(Player);
+	const TArray<FName>& Picks = PlayerController->GetMixPicks();
+	const int32 Rows = List.Num() + 1;
+	const int32 Selected = FMath::Clamp(PlayerController->GetCraftSelection(), 0, Rows - 1);
+	const float ListWidth = Width * 0.4f;
+	const float RowHeight = 34.0f * S;
+	const int32 MaxRows = FMath::Max(1, FMath::FloorToInt((Height - (BodyTop - Top) - 60.0f * S) / RowHeight));
+	const int32 First = FMath::Clamp(Selected - MaxRows / 2, 0, FMath::Max(Rows - MaxRows, 0));
+	for (int32 Row = 0; Row < MaxRows && First + Row < Rows; ++Row)
+	{
+		const int32 Index = First + Row;
+		const float Y = BodyTop + Row * RowHeight;
+		const bool bSel = Index == Selected;
+		DrawBox(Left + Pad, Y, ListWidth, RowHeight - 4.0f * S, bSel ? CraftRgb(60, 40, 26, 240) : CraftSheet);
+		if (bSel)
+		{
+			DrawFrame(Left + Pad, Y, ListWidth, RowHeight - 4.0f * S, CraftCopper, 2.0f * S);
+		}
+		if (Index == 0)
+		{
+			DrawLabel(FText::Format(LOCTEXT("MixRow", "▶ Mischen ({0} von 4 Teilen)"), Picks.Num()), Left + Pad + 12.0f * S, Y + 5.0f * S, 16.0f * S,
+				Picks.Num() >= 2 ? CraftCopper : CraftDim);
+			continue;
+		}
+		const FName Material = List[Index - 1];
+		const UVaelMaterial* Asset = VaelEngineerGear::LoadMaterial(Material);
+		const bool bPicked = Picks.Contains(Material);
+		DrawBox(Left + Pad + 10.0f * S, Y + 10.0f * S, 12.0f * S, 12.0f * S, Asset != nullptr ? Asset->Color : CraftDim);
+		if (bPicked)
+		{
+			DrawFrame(Left + Pad + 6.0f * S, Y + 6.0f * S, 20.0f * S, 20.0f * S, CraftGood, 2.0f * S);
+		}
+		DrawLabel(Asset != nullptr ? Asset->DisplayName : FText::FromName(Material), Left + Pad + 32.0f * S, Y + 5.0f * S, 15.0f * S, bPicked ? CraftGood : CraftBone, 0.0f, ListWidth * 0.55f);
+		DrawLabel(FText::Format(LOCTEXT("MixHave", "{0} · {1}"), VaelEngineerGear::GetMixRole(Material), Asset != nullptr && Bag != nullptr ? Bag->GetCount(Asset) : 0),
+			Left + Pad + ListWidth - 10.0f * S, Y + 8.0f * S, 11.0f * S, CraftDim, 1.0f);
+	}
+	if (List.IsEmpty())
+	{
+		DrawLabel(LOCTEXT("MixEmpty", "Noch nichts zum Mischen im Beutel: Hüllen (Schlacke, Latex, Blasenhaut …) und Kerne sammeln oder veredeln."),
+			Left + Pad, BodyTop + RowHeight + 6.0f * S, 13.0f * S, CraftDim, 0.0f, ListWidth);
+	}
+
+	// ---- right side: the picked parts, the last hint, the count of formulas
+	const float DetailLeft = Left + Pad + ListWidth + 30.0f * S;
+	const float DetailWidth = Left + Width - Pad - DetailLeft;
+	DrawBox(DetailLeft - 14.0f * S, BodyTop - 4.0f * S, DetailWidth + 14.0f * S, Height - (BodyTop - Top) - 30.0f * S, CraftSheet);
+	float Y = BodyTop;
+	DrawLabel(LOCTEXT("MixTitle", "Mischen"), DetailLeft, Y, 26.0f * S, CraftBone);
+	Y += 34.0f * S;
+	Y = DrawWrappedLabel(LOCTEXT("MixRule", "Eine Hülle, ein Kern, bis zu zwei Verstärker. Die Hülle muss zum Inhalt passen. Was nicht passt, kostet nichts."),
+		DetailLeft, Y, 13.0f * S, CraftDim, DetailWidth - 10.0f * S) + 12.0f * S;
+	DrawLabel(LOCTEXT("MixPicked", "AUF DEM TISCH"), DetailLeft, Y, 11.0f * S, CraftCopper);
+	Y += 18.0f * S;
+	if (Picks.IsEmpty())
+	{
+		DrawLabel(LOCTEXT("MixNone", "noch nichts gewählt"), DetailLeft, Y, 14.0f * S, CraftDim);
+		Y += 20.0f * S;
+	}
+	for (const FName Material : Picks)
+	{
+		const UVaelMaterial* Asset = VaelEngineerGear::LoadMaterial(Material);
+		DrawBox(DetailLeft, Y + 4.0f * S, 10.0f * S, 10.0f * S, Asset != nullptr ? Asset->Color : CraftDim);
+		DrawLabel(FText::Format(LOCTEXT("MixPart", "{0}  ({1})"), Asset != nullptr ? Asset->DisplayName : FText::FromName(Material), VaelEngineerGear::GetMixRole(Material)),
+			DetailLeft + 18.0f * S, Y, 14.0f * S, CraftBone);
+		Y += 20.0f * S;
+	}
+	if (Picks.Num() >= 2 && Engineer->WasTried(Picks))
+	{
+		DrawLabel(LOCTEXT("MixWasTried", "Das hast du schon versucht."), DetailLeft, Y + 4.0f * S, 13.0f * S, CraftBad);
+		Y += 22.0f * S;
+	}
+	const FText Hint = PlayerController->GetMixHintText();
+	if (!Hint.IsEmpty())
+	{
+		Y += 8.0f * S;
+		Y = DrawWrappedLabel(Hint, DetailLeft, Y, 14.0f * S, CraftCopper, DetailWidth - 10.0f * S) + 8.0f * S;
+	}
+	int32 NumFormulas = 0;
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		NumFormulas += Gear.IsFormula() ? 1 : 0;
+	}
+	DrawLabel(FText::Format(LOCTEXT("MixFound", "Gefundene Formeln: {0} von {1}"), Engineer->GetNumKnownFormulas(), NumFormulas),
+		DetailLeft, Top + Height - 70.0f * S, 16.0f * S, CraftBone);
+	const bool bPad = Glyphs != EVaelInputGlyphs::Keyboard;
+	const FText Confirm = !bPad ? LOCTEXT("MixKeyEnter", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("MixKeyCross", "Kreuz") : LOCTEXT("MixKeyA", "A");
+	DrawLabel(FText::Format(LOCTEXT("MixKeys", "{0}: Teil wählen oder zurücklegen, in der ersten Zeile mischen   ·   {1}: alles zurücklegen"),
+		Confirm, bPad ? LOCTEXT("MixPadDown", "Steuerkreuz runter") : LOCTEXT("MixKeyThree", "3")), Left + Pad, Top + Height - 34.0f * S, 12.0f * S, CraftDim, 0.0f, Width - 2.0f * Pad);
 }
 
 #undef LOCTEXT_NAMESPACE

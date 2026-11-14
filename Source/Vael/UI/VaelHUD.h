@@ -125,6 +125,9 @@ private:
 	/** The engineer's building page at the workbench or the field box (VaelHUDCrafting.cpp) */
 	void DrawCrafting(const AVaelPlayerController* PlayerController);
 
+	/** Its Mischen tab: materials, picked parts, the hint of the last try (goal 14.11.) */
+	void DrawCraftMix(const AVaelPlayerController* PlayerController, float Left, float Top, float Width, float Height, float BodyTop);
+
 	/** The engineer's Werkrolle (UI/VaelHUDWerkrolle.cpp) */
 	void DrawWerkrolle(const AVaelPlayerController* PlayerController);
 

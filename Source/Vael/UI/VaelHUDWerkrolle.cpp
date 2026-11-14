@@ -46,7 +46,7 @@ void AVaelHUD::DrawWerkrolle(const AVaelPlayerController* PlayerController)
 	const float S = UiScale;
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
 	const UVaelMaterialBag* Bag = Player->GetMaterialBag();
-	const TArray<const FVaelGear*> List = AVaelPlayerController::GetWerkrolleList();
+	const TArray<const FVaelGear*> List = AVaelPlayerController::GetWerkrolleList(Engineer);
 	const int32 Selected = FMath::Clamp(PlayerController->GetWerkrolleSelection(), 0, FMath::Max(List.Num() - 1, 0));
 
 	DrawBox(0.0f, 0.0f, Canvas->ClipX, Canvas->ClipY, RollRgb(10, 7, 5, 175));

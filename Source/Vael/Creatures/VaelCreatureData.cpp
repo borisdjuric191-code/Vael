@@ -44,6 +44,10 @@ UVaelEmberCrawlerData::UVaelEmberCrawlerData()
 	AggroRange = 1540.0f;
 	FormulaOnWitnessedExplosion = { EVaelElement::Fire, EVaelElement::Fire, EVaelElement::Fire };
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glutdruese.DA_Material_Glutdruese"), 0.55f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Krustenplatte.DA_Material_Krustenplatte"), 0.6f, 1, 2));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Kriechersehne.DA_Material_Kriechersehne"), 0.3f));
+	// engineer goal 14.11.: plates for armour, tendons for bindings, the jaw as break piece
+	BreakPiece = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Glutkiefer.DA_Material_Glutkiefer")));
 	BodyColor = FLinearColor(1.0f, 0.25f, 0.05f);
 }
 
@@ -67,6 +71,10 @@ UVaelAshHarpyData::UVaelAshHarpyData()
 	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Aschenmark/Aschharpyie/SK_Aschharpyie.SK_Aschharpyie")));
 	FormulaOnWitnessedDive = { EVaelElement::Earth, EVaelElement::Air };
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Russfeder.DA_Material_Russfeder"), 0.5f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Greifklaue.DA_Material_Greifklaue"), 0.15f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Hohlkiel.DA_Material_Hohlkiel"), 0.15f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Harpyientand.DA_Material_Harpyientand"), 0.2f));
+	BreakPiece = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Harpyienschnabel.DA_Material_Harpyienschnabel")));
 	BodyColor = FLinearColor(0.15f, 0.13f, 0.12f);
 }
 
@@ -88,6 +96,11 @@ UVaelHarpyElderData::UVaelHarpyElderData()
 	FormulaOnDeath = { EVaelElement::Air, EVaelElement::Air, EVaelElement::Air };
 	Loot.Reset();
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Aeltestenschwinge.DA_Material_Aeltestenschwinge"), 1.0f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Hohlkiel.DA_Material_Hohlkiel"), 1.0f, 2, 3));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Kreischbalg.DA_Material_Kreischbalg"), 0.4f));
+	// her crown of stolen trinkets: the only brass of the Aschenmark
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Harpyientand.DA_Material_Harpyientand"), 1.0f, 2, 3));
+	BreakPiece = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Harpyienschnabel.DA_Material_Harpyienschnabel")));
 	BodyColor = FLinearColor(0.3f, 0.26f, 0.2f);
 
 	FlightHeight = 180.0f;
@@ -117,6 +130,8 @@ UVaelPreacherData::UVaelPreacherData()
 	FormulaOnDeath = { EVaelElement::Mark, EVaelElement::Fire };
 	FormulaOnWitnessedSpikes = { EVaelElement::Mark, EVaelElement::Earth };
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Ordenssiegel.DA_Material_Ordenssiegel"), 1.0f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Ordenstuch.DA_Material_Ordenstuch"), 0.8f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Siegelwachs.DA_Material_Siegelwachs"), 0.6f));
 	ItemDropChance = 0.4f;
 	BodyColor = FLinearColor(0.27f, 0.05f, 0.1f);
 }
@@ -156,6 +171,10 @@ UVaelEmberQueenData::UVaelEmberQueenData()
 	StunMultiplier = 0.2f;
 	PullMultiplier = 0.0f;
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_HerzDerGlut.DA_Material_HerzDerGlut"), 1.0f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Brutkrone.DA_Material_Brutkrone"), 1.0f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Koeniginnenauge.DA_Material_Koeniginnenauge"), 1.0f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Legestachel.DA_Material_Legestachel"), 0.5f));
+	BreakPiece = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Glutkrone.DA_Material_Glutkrone")));
 	GuaranteedHealthOrbs = 6;
 	GuaranteedItems = 1;
 	MinItemRarity = EVaelRarity::Rare;
@@ -238,6 +257,8 @@ UVaelAshRollerData::UVaelAshRollerData()
 	KnockbackMultiplier = 0.5f;
 	AggroRange = 1540.0f;
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rollpanzer.DA_Material_Rollpanzer"), 0.6f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Rollsehne.DA_Material_Rollsehne"), 0.4f));
+	BreakPiece = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Rollpanzerkern.DA_Material_Rollpanzerkern")));
 	BodyColor = FLinearColor(0.17f, 0.14f, 0.12f);
 }
 
@@ -263,6 +284,8 @@ UVaelSickleDollData::UVaelSickleDollData()
 	AggroRange = 1400.0f;
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glimmstroh.DA_Material_Glimmstroh"), 0.6f));
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Sichelklinge.DA_Material_Sichelklinge"), 0.25f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Puppengarn.DA_Material_Puppengarn"), 0.4f));
+	BreakPiece = TSoftObjectPtr<UVaelMaterial>(FSoftObjectPath(TEXT("/Game/Vael/Items/Materials/DA_Material_Sichelherz.DA_Material_Sichelherz")));
 	BodyColor = FLinearColor(0.13f, 0.1f, 0.07f);
 }
 
@@ -395,6 +418,7 @@ UVaelVeilMonkeyData::UVaelVeilMonkeyData()
 	bCanBeMarked = false;
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Schleierpelz.DA_Material_Schleierpelz"), 0.6f));
 	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Glimmauge.DA_Material_Glimmauge"), 0.3f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Klammerfinger.DA_Material_Klammerfinger"), 0.12f));
 	HealthOrbChance = 0.0f;
 	ManaOrbChance = 0.0f;
 	BodyColor = FLinearColor(0.03f, 0.03f, 0.035f);

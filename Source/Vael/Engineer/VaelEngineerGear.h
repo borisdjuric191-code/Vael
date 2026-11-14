@@ -16,8 +16,15 @@ enum class EVaelGearKind : uint8
 	Device,
 	Armor,
 	/** Tools that stay with him: the aiming goggles of Rußquarz and their lenses, later pouches and the backpack */
-	Tool
+	Tool,
+	/** Werkstoffe (goal 14.11.): raw materials refined at the forge, the grindstone or the field box into a better material
+	 *  (Schlackeneisen, Rußglas, Latex …); what it makes goes into the material bag */
+	Refine
 };
+
+/** The craft tab where he mixes materials to find new formulas of shots (goal 14.11.: formulas are learned by trying) */
+inline constexpr int32 VaelCraftTabMix = 6;
+inline constexpr int32 VaelCraftTabCount = 7;
 
 /** What a shot does where it hits, besides its damage */
 enum class EVaelAmmoEffect : uint8
@@ -50,7 +57,26 @@ enum class EVaelAmmoEffect : uint8
 	/** Tau: water, the target is wet (lightning hits harder, fire goes out) */
 	Dew,
 	/** Nid: very hard, but every shot pulls Die Waage of the shooter towards shadow */
-	Nid
+	Nid,
+	// --- Formulas of the Aschenmark (goal 14.11.)
+	/** Stichflamme: a blast of fire in a cone ahead of the shot (Radius = its length), everything in it burns */
+	Flame,
+	/** Glutstoß: an explosion round the spot (Radius), knocks back; with Delay it goes off later (Glutnadel) */
+	Blast,
+	/** Brandsatz: a burning field on the ground (Radius, Seconds) that sets alight what stands in it */
+	FireField,
+	/** Schwarzfeuer: violet fire of the Nid that no resistance to fire holds back */
+	BlackFire,
+	/** Dampf: scalds and blinds (Radius); with Seconds of 4 or more a cloud that stays */
+	Steam,
+	/** Wirrwolke: enemies in it go for each other */
+	Frenzy,
+	/** Blendladung: a flash of light, enemies around are blinded */
+	Blind,
+	/** Heiltau: heals the companions round the spot over Seconds */
+	HealTime,
+	/** Krustenbolzen: goes through armour, the armoured flank counts as plain */
+	Pierce
 };
 
 /** What a device does */
@@ -134,6 +160,44 @@ struct FVaelGear
 	float Armor = 0.0f;
 	float Health = 0.0f;
 	FName Set;
+
+	// Formula of a shot (goal 14.11.): Hülle + Kern + up to two Verstärker; the costs are exactly these parts, one of each.
+	// A formula must be found by mixing before it can be built.
+	FName Hull;
+	FName Core;
+	TArray<FName> Boosters;
+
+	/** Tuning of the effect: seconds it lasts (0 = its default), radius in cm round the spot (0 = only the target),
+	 *  delay before it goes off, pull of Die Waage towards shadow per hit, and side effects */
+	float Seconds = 0.0f;
+	float Radius = 0.0f;
+	float Delay = 0.0f;
+	float ShadowPull = 0.0f;
+	bool bAlsoBurn = false;
+	bool bAlsoBleed = false;
+	bool bAlsoSlow = false;
+	float PartBreak = 1.0f;
+
+	/** Werkstoff: the material it makes and how many */
+	FName Output;
+	int32 OutputCount = 1;
+
+	bool IsFormula() const { return !Hull.IsNone(); }
+};
+
+/** What came of a mix at the workbench */
+enum class EVaelMixResult : uint8
+{
+	/** A new formula: learned and built at once */
+	Learned,
+	/** A formula he knew already: built */
+	Built,
+	/** The parts fit no formula; nothing is lost, a hint says why */
+	Nothing,
+	/** He tried exactly this before */
+	Tried,
+	/** He picked fewer than two parts, or doesn't have them */
+	Missing
 };
 
 /** The set bonus of a creature set, in the creature's way of fighting */
@@ -162,6 +226,27 @@ namespace VaelEngineerGear
 
 	FText GetKindName(EVaelGearKind Kind);
 	FText GetPlaceName(EVaelArmorPlace Place);
+
+	/** The name of a craft tab (the kinds, then "Mischen") */
+	FText GetTabName(int32 Tab);
+
+	/** The formula made of exactly these parts (order doesn't matter), or null */
+	const FVaelGear* FindFormula(const TArray<FName>& Parts);
+
+	/** Every material that is part of some formula, in a fixed order: hulls, cores, boosters */
+	const TArray<FName>& GetMixMaterials();
+
+	/** What a material is in the formulas: "Hülle", "Kern", "Verstärker" or empty */
+	FText GetMixRole(FName Material);
+
+	/** Why these parts make nothing (a hint for the next try) */
+	FText GetMixHint(const TArray<FName>& Parts);
+
+	/** A key for a set of parts, the same for every order */
+	FString GetMixKey(const TArray<FName>& Parts);
+
+	/** The text of what a shot does, with its seconds and reach */
+	FText GetEffectText(const FVaelGear& Gear);
 
 	/** The standard pieces the engineer starts with */
 	inline const FName Sling = TEXT("Schleuder");

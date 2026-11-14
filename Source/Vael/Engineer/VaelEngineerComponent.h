@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "Engineer/VaelEngineerGear.h"
+#include "Magic/VaelElementTypes.h"
 #include "VaelEngineerComponent.generated.h"
 
 class AVaelCharacter;
@@ -38,7 +39,35 @@ public:
 	// --- Building
 
 	/** Why a piece can't be built right now; Ok if it can */
-	enum class EBuildBlock : uint8 { Ok, Built, NeedsFirst, NeedsWorkbench, Materials, Full, NeedsPlan };
+	enum class EBuildBlock : uint8 { Ok, Built, NeedsFirst, NeedsWorkbench, Materials, Full, NeedsPlan, Unknown };
+
+	// --- Formulas of shots (goal 14.11.): found by mixing at the workbench or the field box, then built like any recipe
+
+	bool IsFormulaKnown(FName Id) const { return Formulas.Contains(Id); }
+	int32 GetNumKnownFormulas() const { return Formulas.Num(); }
+	void LearnAllFormulas();
+
+	/** Mixes these materials: if they make a formula he learns it (if new) and builds one batch from the bag; if not, nothing is
+	 *  lost and OutHint says why. OutFormula is the formula found. */
+	EVaelMixResult Mix(const TArray<FName>& MixParts, FText& OutHint, FName& OutFormula);
+
+	/** Whether he tried exactly these parts before without result */
+	bool WasTried(const TArray<FName>& MixParts) const { return Tried.Contains(VaelEngineerGear::GetMixKey(MixParts)); }
+
+	// --- Pockets of the Werkrolle (goal 14.11.: like the arm slots of the Floromant): 4 kinds of shots with the leather
+	// pouches, 6 with the armour pouches, 8 with the silk pouches. Only shots in a pocket can be loaded in a fight; the rest
+	// waits in the backpack. Which kinds sit in the pockets he changes only at the workbench or a campfire.
+
+	int32 GetPocketCount() const { return 4 + 2 * GetPouchTier(); }
+	const TArray<FName>& GetPocketKinds() const { return Pockets; }
+	bool IsInPocket(FName Id) const { return Pockets.Contains(Id); }
+	bool HasFreePocket() const { return Pockets.Num() < GetPocketCount(); }
+
+	/** Workbench and field box: a kind of shot gets a pocket of its own (if one is free) and fills it from the backpack */
+	bool PutInPocket(FName Id);
+
+	/** Workbench and field box: a kind of shot goes from its pocket back into the backpack and frees the pocket */
+	int32 EmptyPocket(FName Id);
 
 	/** Blueprints he has found (a recipe that needs one can't be built without it) */
 	bool HasPlan(FName Id) const { return Plans.Contains(Id); }
@@ -197,7 +226,10 @@ public:
 	float LastZone = 1.0f;
 	float LastDistance = 1.0f;
 	bool bLastCrit = false;
-	void ApplyBurst(const FVector& Location, FName ShotAmmo, float Damage);
+	void ApplyBurst(const FVector& Location, FName ShotAmmo, float Damage, const FVector& From = FVector::ZeroVector);
+
+	/** A blast of fire round a spot: damage, knockback, burning if asked, and his mines nearby go off */
+	void Explode(const FVector& Location, float Radius, float Damage, bool bBurn);
 
 	/** A device was hit by one of his shots */
 	void OnDeviceShot(AVaelEngineerDevice* Placed, FName ShotAmmo);
@@ -325,6 +357,49 @@ private:
 
 	UPROPERTY()
 	TSet<FName> Plans;
+
+	/** Formulas of shots he has found, and mixes that made nothing */
+	UPROPERTY()
+	TSet<FName> Formulas;
+
+	UPROPERTY()
+	TSet<FString> Tried;
+
+	/** The kinds of shots that have a pocket in the Werkrolle (also when the pocket is empty right now) */
+	UPROPERTY()
+	TArray<FName> Pockets;
+
+	/** What a shot does to one enemy besides its damage (the effect of its formula) */
+	void ApplyEffect(AVaelCharacterBase* Enemy, const FVaelGear* AmmoGear, EVaelAmmoEffect Effect, const FVector& Location, const FVector& From, float Damage);
+
+	/** Enemies of his within a radius of a spot */
+	TArray<AVaelCharacterBase*> EnemiesAround(const FVector& Location, float Radius) const;
+
+	/** Glutnadel: blasts that go off later */
+	struct FDelayedBlast
+	{
+		FVector Location = FVector::ZeroVector;
+		TWeakObjectPtr<AActor> Stuck;
+		float At = 0.0f;
+		float Radius = 300.0f;
+		float Damage = 0.0f;
+		bool bBurn = false;
+	};
+	TArray<FDelayedBlast> DelayedBlasts;
+
+	/** Brandsatz and Dampfwolke: fields on the ground that work every half second; Heiltau heals the same way */
+	struct FField
+	{
+		FVector Location = FVector::ZeroVector;
+		float End = 0.0f;
+		float Radius = 300.0f;
+		float Damage = 0.0f;
+		EVaelAmmoEffect Effect = EVaelAmmoEffect::FireField;
+	};
+	TArray<FField> Fields;
+	float NextFieldTick = 0.0f;
+	void TickEffects();
+
 	FName Device;
 	float LastShot = -100.0f;
 	float CurledUntil = 0.0f;
@@ -357,6 +432,8 @@ private:
 		TWeakObjectPtr<AVaelCharacterBase> Target;
 		float DamagePerSecond = 0.0f;
 		float End = 0.0f;
+		/** Bleeding and Schwarzfeuer bite with their own element; poison is earth */
+		EVaelElement Element = EVaelElement::Earth;
 	};
 	TArray<FPoison> Poisons;
 	float NextPoisonTick = 0.0f;

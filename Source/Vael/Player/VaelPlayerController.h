@@ -475,12 +475,23 @@ public:
 
 	/** The pocket picked in the Werkrolle, and the pockets in their order (shots, then devices) */
 	int32 GetWerkrolleSelection() const { return WerkrolleSelection; }
-	static TArray<const struct FVaelGear*> GetWerkrolleList();
+	static TArray<const struct FVaelGear*> GetWerkrolleList(const class UVaelEngineerComponent* Engineer);
 	int32 GetCraftSelection() const { return CraftSelection; }
 	bool IsCraftAtWorkbench() const { return bCraftAtWorkbench; }
 
-	/** The pieces of one tab of the building page, in their order */
-	static TArray<const struct FVaelGear*> GetCraftList(int32 Tab);
+	/** The pieces of one tab of the building page, in their order; with an engineer, only the formulas of shots he has found */
+	static TArray<const struct FVaelGear*> GetCraftList(int32 Tab, const class UVaelEngineerComponent* Engineer = nullptr);
+
+	/** Which tabs open where: the workbench has all, the field box by a campfire shots, devices, refining and mixing */
+	static bool IsCraftTabOpen(int32 Tab, bool bAtWorkbench);
+
+	/** The Mischen tab (goal 14.11.): the materials of formulas he has in the bag, and the ones picked for the next mix
+	 *  (row 0 of the tab is "mix", the materials follow) */
+	static TArray<FName> GetMixList(const class AVaelCharacter* Player);
+	const TArray<FName>& GetMixPicks() const { return MixPicks; }
+
+	/** Hint of the last mix, shown on the Mischen tab */
+	FText GetMixHintText() const { return MixHint; }
 
 	/** Test hook: like pressing confirm in the menu */
 	void PressCraftConfirm() { OnMenuConfirm(); }
@@ -769,6 +780,13 @@ protected:
 	void WerkrolleAction(int32 Pad);
 	int32 CraftSelection = 0;
 	bool bCraftAtWorkbench = true;
+
+	TArray<FName> MixPicks;
+	FText MixHint;
+
+	/** Mischen: confirm on row 0 mixes the picked materials, on a material picks it or puts it back */
+	void ConfirmMix();
+	void TurnCraftTab(int32 Step);
 
 	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> EngFieldAction;

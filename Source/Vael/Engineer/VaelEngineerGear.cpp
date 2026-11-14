@@ -82,6 +82,49 @@ namespace
 		return Gear;
 	}
 
+	/** A formula of a shot (goal 14.11.): Hülle + Kern + Verstärker, one of each part per batch of ten */
+	FVaelGear MakeFormula(FName Id, FText Name, FText Text, FLinearColor Color, FName Hull, FName Core, TArray<FName> Boosters, EVaelAmmoEffect Effect, float DamageScale)
+	{
+		TArray<FVaelGearCost> Costs = { { Hull, 1 } };
+		const auto AddPart = [&Costs](FName Part)
+		{
+			if (FVaelGearCost* Same = Costs.FindByPredicate([Part](const FVaelGearCost& Cost) { return Cost.Material == Part; }))
+			{
+				++Same->Count;
+			}
+			else
+			{
+				Costs.Add({ Part, 1 });
+			}
+		};
+		AddPart(Core);
+		for (const FName Booster : Boosters)
+		{
+			AddPart(Booster);
+		}
+		FVaelGear Gear = MakeAmmo(Id, Name, Text, Color, MoveTemp(Costs), FName(), Effect, DamageScale);
+		Gear.Hull = Hull;
+		Gear.Core = Core;
+		Gear.Boosters = MoveTemp(Boosters);
+		return Gear;
+	}
+
+	/** A Werkstoff: refined at the forge, the grindstone or the field box into another material */
+	FVaelGear MakeRefine(FName Output, int32 OutputCount, FText Name, FText Text, FLinearColor Color, TArray<FVaelGearCost> Costs)
+	{
+		FVaelGear Gear;
+		Gear.Id = FName(*(TEXT("Veredeln_") + Output.ToString()));
+		Gear.Kind = EVaelGearKind::Refine;
+		Gear.Name = Name;
+		Gear.Text = Text;
+		Gear.Color = Color;
+		Gear.Costs = MoveTemp(Costs);
+		Gear.bField = true;
+		Gear.Output = Output;
+		Gear.OutputCount = OutputCount;
+		return Gear;
+	}
+
 	FVaelGear MakeDevice(FName Id, FText Name, FText Text, FLinearColor Color, TArray<FVaelGearCost> Costs, FName Requires, EVaelDeviceType Device, int32 Batch)
 	{
 		FVaelGear Gear;
@@ -133,7 +176,7 @@ namespace
 		All.Last().SweetMax = 3500.0f;
 		All.Add(MakeWeapon(VaelEngineerGear::Crossbow, LOCTEXT("Armbrust", "Armbrust"),
 			LOCTEXT("ArmbrustText", "Rollpanzer als Bogen, Sichelklingen als Abzug. Langsam zu spannen, aber der Bolzen geht durch alles, was in einer Reihe steht."),
-			GearRgb(160, 160, 176), { { TEXT("Rollpanzer"), 3 }, { TEXT("Sichelklinge"), 2 }, { TEXT("Spannfaden"), 4 }, { TEXT("Schlacke"), 3 } }, VaelEngineerGear::Bow,
+			GearRgb(160, 160, 176), { { TEXT("Rollpanzer"), 3 }, { TEXT("Sichelklinge"), 2 }, { TEXT("Rollsehne"), 2 }, { TEXT("Schlackeneisen"), 3 } }, VaelEngineerGear::Bow,
 			30.0f, 1.3f, 1700.0f, 4400.0f, 6.0f, true, LOCTEXT("Bolzen", "Eisenbolzen")));
 		All.Last().SweetMin = 500.0f;
 		All.Last().SweetMax = 1200.0f;
@@ -143,26 +186,26 @@ namespace
 		// --- The trees of the weapons: two branches of tier 1, then the master piece of tier 2 (it keeps the branch)
 		const FName SlingId = VaelEngineerGear::Sling, BowId = VaelEngineerGear::Bow, CrossbowId = VaelEngineerGear::Crossbow;
 		All.Add(MakeUpgrade(TEXT("Glutschleuder"), LOCTEXT("Glutschleuder", "Glutschleuder"), LOCTEXT("GlutschleuderText", "Eine Glutdr\u00FCse im Leder: jeder Stein brennt."),
-			SlingId, 1, EVaelAmmoEffect::Fire, 1.0f, GearRgb(240, 120, 50), { { TEXT("Glutstein"), 3 }, { TEXT("Glutdruese"), 1 } }));
-		All.Add(MakeUpgrade(TEXT("Spannschleuder"), LOCTEXT("Spannschleuder", "Spannschleuder"), LOCTEXT("SpannschleuderText", "Doppeltes Band aus Spannfaden: 20 % schneller."),
-			SlingId, 1, EVaelAmmoEffect::None, 0.8f, GearRgb(200, 190, 160), { { TEXT("Spannfaden"), 3 }, { TEXT("Sichelklinge"), 1 } }));
-		All.Add(MakeUpgrade(TEXT("Meisterschleuder"), LOCTEXT("Meisterschleuder", "Meisterschleuder"), LOCTEXT("MeisterschleuderText", "Mit einem Bruchst\u00FCck beschwert: zweite Stufe, der Zweig bleibt."),
-			SlingId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Bruchstueck"), 1 }, { TEXT("Rollpanzer"), 2 } }));
+			SlingId, 1, EVaelAmmoEffect::Fire, 1.0f, GearRgb(240, 120, 50), { { TEXT("Glutstein"), 3 }, { TEXT("Glutdruese"), 1 }, { TEXT("Puppengarn"), 1 } }));
+		All.Add(MakeUpgrade(TEXT("Spannschleuder"), LOCTEXT("Spannschleuder", "Spannschleuder"), LOCTEXT("SpannschleuderText", "Ein Band aus Latex mit Rollsehne als Feder: 20 % schneller."),
+			SlingId, 1, EVaelAmmoEffect::None, 0.8f, GearRgb(200, 190, 160), { { TEXT("Latex"), 2 }, { TEXT("Rollsehne"), 1 }, { TEXT("Schlackeneisen"), 1 } }));
+		All.Add(MakeUpgrade(TEXT("Meisterschleuder"), LOCTEXT("Meisterschleuder", "Meisterschleuder"), LOCTEXT("MeisterschleuderText", "Mit dem Glutkiefer eines Glutkriechers beschwert: zweite Stufe, der Zweig bleibt."),
+			SlingId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Glutkiefer"), 1 }, { TEXT("Rollpanzer"), 2 } }));
 		All.Add(MakeUpgrade(TEXT("Dornenbogen"), LOCTEXT("Dornenbogen", "Dornenbogen"), LOCTEXT("DornenbogenText", "Das Holz treibt Dornen: jeder Pfeil vergiftet."),
 			BowId, 1, EVaelAmmoEffect::Poison, 1.0f, GearRgb(140, 200, 80), { { TEXT("Rankenfaser"), 3 }, { TEXT("Sichelklinge"), 2 } }));
 		All.Add(MakeUpgrade(TEXT("Sehnenbogen"), LOCTEXT("Sehnenbogen", "Sehnenbogen"), LOCTEXT("SehnenbogenText", "Ru\u00DFfedern an den Wurfarmen: er zieht 15 % schneller."),
 			BowId, 1, EVaelAmmoEffect::None, 0.85f, GearRgb(80, 76, 84), { { TEXT("Spannfaden"), 4 }, { TEXT("Russfeder"), 2 } }));
-		All.Add(MakeUpgrade(TEXT("Meisterbogen"), LOCTEXT("Meisterbogen", "Meisterbogen"), LOCTEXT("MeisterbogenText", "Bruchst\u00FCcke in den Wurfarmen: zweite Stufe."),
-			BowId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Bruchstueck"), 2 }, { TEXT("Narbenholz"), 3 } }));
+		All.Add(MakeUpgrade(TEXT("Meisterbogen"), LOCTEXT("Meisterbogen", "Meisterbogen"), LOCTEXT("MeisterbogenText", "Harpyienschn\u00E4bel in den Wurfarmen: zweite Stufe."),
+			BowId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Harpyienschnabel"), 2 }, { TEXT("Narbenholz"), 3 } }));
 		All.Add(MakeUpgrade(TEXT("SchwereArmbrust"), LOCTEXT("SchwereArmbrust", "Schwere Armbrust"), LOCTEXT("SchwereArmbrustText", "Schlacke-Bolzen: jeder zerspringt im Ziel."),
 			CrossbowId, 1, EVaelAmmoEffect::Shards, 1.0f, GearRgb(160, 160, 176), { { TEXT("Rollpanzer"), 3 }, { TEXT("Schlacke"), 3 } }));
-		All.Add(MakeUpgrade(TEXT("Meisterarmbrust"), LOCTEXT("Meisterarmbrust", "Meisterarmbrust"), LOCTEXT("MeisterarmbrustText", "Bruchst\u00FCcke als Abzug: zweite Stufe."),
-			CrossbowId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Bruchstueck"), 2 }, { TEXT("Sichelklinge"), 2 } }));
+		All.Add(MakeUpgrade(TEXT("Meisterarmbrust"), LOCTEXT("Meisterarmbrust", "Meisterarmbrust"), LOCTEXT("MeisterarmbrustText", "Der Legestachel der Glutk\u00F6nigin als Abzug, ihre Glutkrone als Spannkopf: zweite Stufe."),
+			CrossbowId, 2, EVaelAmmoEffect::None, 1.0f, GearRgb(230, 200, 120), { { TEXT("Legestachel"), 1 }, { TEXT("Glutkrone"), 1 }, { TEXT("Messingblech"), 2 } }));
 
 		// --- Tools: the aiming goggles of the first ore he finds, then lenses for them
 		All.Add(MakeTool(VaelEngineerGear::Goggles, LOCTEXT("Brille", "Zielhilfebrille"),
-			LOCTEXT("BrilleText", "Zwei geschliffene Scheiben Ru\u00DFquarz in einem Lederband, sein erstes Werkst\u00FCck. Er sieht, wo ein Tier weich ist: Schwachstellen nehmen 1,5-fachen statt 1,3-fachen Schaden, und jeder zehnte Schuss mehr trifft kritisch."),
-			GearRgb(90, 86, 96), { { TEXT("Russquarz"), 2 }, { TEXT("Spannfaden"), 1 } }, None));
+			LOCTEXT("BrilleText", "Zwei Scheiben Ru\u00DFglas in Schlackeneisen gefasst, ein Band aus Silberhalm, mit Latex abgedichtet: sein erstes Werkst\u00FCck. Er sieht, wo ein Tier weich ist: Schwachstellen nehmen 1,5-fachen statt 1,3-fachen Schaden, und jeder zehnte Schuss mehr trifft kritisch."),
+			GearRgb(90, 86, 96), { { TEXT("Russglas"), 2 }, { TEXT("Schlackeneisen"), 1 }, { TEXT("Silberhalm"), 2 }, { TEXT("Latex"), 1 } }, None));
 		All.Add(MakeTool(VaelEngineerGear::PouchArmor, LOCTEXT("Panzerbeutel", "Panzerbeutel"),
 			LOCTEXT("PanzerbeutelText", "Beutel mit Rollpanzer-Deckeln am G\u00FCrtel: 30 Ladungen jeder Art und 3 Vorrichtungen griffbereit statt 20 und 2."),
 			GearRgb(150, 140, 120), { { TEXT("Rollpanzer"), 2 }, { TEXT("Spannfaden"), 2 } }, None));
@@ -172,64 +215,208 @@ namespace
 		All.Last().bNeedsPlan = true;
 		All.Add(MakeTool(VaelEngineerGear::LensFog, LOCTEXT("LinseGlimm", "Glimmaugen-Linse"),
 			LOCTEXT("LinseGlimmText", "Ein Glimmauge vor dem Quarz: der Nebel wird d\u00FCnn, seine Sch\u00FCsse reichen 15 % weiter."),
-			GearRgb(150, 200, 220), { { TEXT("Glimmauge"), 2 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));
+			GearRgb(150, 200, 220), { { TEXT("Glimmauge"), 2 }, { TEXT("Russglas"), 1 }, { TEXT("Messingblech"), 1 } }, VaelEngineerGear::Goggles));
 		All.Add(MakeTool(VaelEngineerGear::LensMark, LOCTEXT("LinseNid", "Nidkristall-Linse"),
 			LOCTEXT("LinseNidText", "Ein Splitter Nid im Glas: was er trifft, ist gezeichnet und nimmt 10 % mehr Schaden von ihm. Das Nid fordert seinen Preis nicht \u2013 es ist gebunden."),
-			GearRgb(150, 90, 200), { { TEXT("Nidkristall"), 1 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));
+			GearRgb(150, 90, 200), { { TEXT("Nidkristall"), 1 }, { TEXT("Russglas"), 1 }, { TEXT("Messingblech"), 1 } }, VaelEngineerGear::Goggles));
 		All.Add(MakeTool(VaelEngineerGear::LensBreak, LOCTEXT("LinseStern", "Sternmilch-Linse"),
 			LOCTEXT("LinseSternText", "Sternmilch zwischen zwei Scheiben: er sieht die Risse im Panzer. Teile brechen 25 % fr\u00FCher."),
-			GearRgb(220, 220, 240), { { TEXT("Sternmilch"), 1 }, { TEXT("Russquarz"), 1 } }, VaelEngineerGear::Goggles));
+			GearRgb(220, 220, 240), { { TEXT("Sternmilch"), 1 }, { TEXT("Russglas"), 1 }, { TEXT("Messingblech"), 1 } }, VaelEngineerGear::Goggles));
 
-		// --- Ammo: heads for every weapon (on the stone, the arrow or the bolt), ten from one build; at the field box too
-		All.Add(MakeAmmo(TEXT("Splitter"), LOCTEXT("Splitter", "Splitterladung"),
-			LOCTEXT("SplitterText", "Schlacke um eine Sichelspitze: zerspringt beim Aufschlag und trifft alles rundherum."),
-			GearRgb(196, 186, 170), { { TEXT("Schlacke"), 1 }, { TEXT("Sichelklinge"), 1 } }, None, EVaelAmmoEffect::Shards, 1.0f));
-		All.Add(MakeAmmo(TEXT("Brand"), LOCTEXT("Brand", "Brandladung"),
-			LOCTEXT("BrandText", "Glutstein in Rußmoos gewickelt: setzt das Ziel in Brand und zündet Minen mit Feuer."),
-			GearRgb(240, 120, 50), { { TEXT("Glutstein"), 1 }, { TEXT("Russmoos"), 1 } }, None, EVaelAmmoEffect::Fire, 1.0f));
-		All.Add(MakeAmmo(TEXT("Gift"), LOCTEXT("Gift", "Giftladung"),
-			LOCTEXT("GiftText", "Faultau und Gallpollen in einer Hohlspitze: vergiftet, das Ziel taumelt."),
-			GearRgb(140, 200, 80), { { TEXT("Faultau"), 1 }, { TEXT("Gallpollen"), 1 } }, None, EVaelAmmoEffect::Poison, 0.8f));
-		All.Add(MakeAmmo(TEXT("Saeure"), LOCTEXT("Saeure", "Säureladung"),
-			LOCTEXT("SaeureText", "Verdauungssäure in einer Wachskapsel: frisst den Panzer, das Ziel nimmt mehr Schaden von allem."),
-			GearRgb(200, 220, 70), { { TEXT("Verdauungssaeure"), 1 }, { TEXT("Kokonseide"), 1 } }, TEXT("Gift"), EVaelAmmoEffect::Acid, 0.8f));
-		All.Add(MakeAmmo(TEXT("Heil"), LOCTEXT("Heil", "Heilladung"),
-			LOCTEXT("HeilText", "Lichttropfen und Blatttau in dünnem Glas: platzt bei den Gefährten und heilt sie, verletzt niemanden."),
-			GearRgb(250, 226, 150), { { TEXT("Lichttropfen"), 1 }, { TEXT("Blatttau"), 1 } }, None, EVaelAmmoEffect::Heal, 0.0f));
-		// Goal 8.11. evening: nine more, all from materials the Aschenmark and the Wurzelforst already give
-		All.Add(MakeAmmo(TEXT("Schwer"), LOCTEXT("Schwer", "Schwerer Stein"),
-			LOCTEXT("SchwerText", "Schlacke in Rollpanzer gegossen: wirft das Ziel zur\u00FCck und bet\u00E4ubt es kurz."),
-			GearRgb(120, 116, 112), { { TEXT("Schlacke"), 1 }, { TEXT("Rollpanzer"), 1 } }, None, EVaelAmmoEffect::Heavy, 1.3f));
-		All.Add(MakeAmmo(TEXT("Klebe"), LOCTEXT("Klebe", "Klebeladung"),
-			LOCTEXT("KlebeText", "Kelchschleim in Kokonseide: das Ziel klebt fest und bewegt sich 6 Sekunden zur H\u00E4lfte so schnell."),
-			GearRgb(210, 196, 120), { { TEXT("Kelchschleim"), 1 }, { TEXT("Kokonseide"), 1 } }, None, EVaelAmmoEffect::Sticky, 0.6f));
-		All.Add(MakeAmmo(TEXT("Rauch"), LOCTEXT("Rauch", "Rauchladung"),
-			LOCTEXT("RauchText", "Eine Rauchblase in Ru\u00DFmoos: eine Wolke, in der Gegner das Ziel verlieren und taumeln."),
-			GearRgb(110, 106, 104), { { TEXT("Rauchblase"), 1 }, { TEXT("Russmoos"), 1 } }, None, EVaelAmmoEffect::Smoke, 0.3f));
-		All.Add(MakeAmmo(TEXT("Knister"), LOCTEXT("Knister", "Knisterladung"),
-			LOCTEXT("KnisterText", "Knistersamen um einen Glutstein: zerplatzt in einer kleinen Feuerkette und z\u00FCndet seine Minen in der N\u00E4he."),
-			GearRgb(250, 160, 60), { { TEXT("Knistersamen"), 1 }, { TEXT("Glutstein"), 1 } }, TEXT("Brand"), EVaelAmmoEffect::Crackle, 0.9f));
-		All.Add(MakeAmmo(TEXT("Schlaf"), LOCTEXT("Schlaf", "Schlafladung"),
-			LOCTEXT("SchlafText", "Schwarzmohn und Mohnbl\u00FCten zerstampft: schwache Gegner schlafen ein, starke werden tr\u00E4ge."),
-			GearRgb(120, 70, 140), { { TEXT("Schwarzmohnblatt"), 1 }, { TEXT("Mohnbluetenblatt"), 1 } }, None, EVaelAmmoEffect::Sleep, 0.3f));
-		All.Add(MakeAmmo(TEXT("Leucht"), LOCTEXT("Leucht", "Leuchtladung"),
-			LOCTEXT("LeuchtText", "Sternmilch in Glimmstroh: das Ziel leuchtet, auch nachts, und nimmt 10 Sekunden mehr Schaden von allen."),
-			GearRgb(230, 240, 255), { { TEXT("Sternmilch"), 1 }, { TEXT("Glimmstroh"), 1 } }, None, EVaelAmmoEffect::Glow, 0.7f));
-		All.Add(MakeAmmo(TEXT("Dorn"), LOCTEXT("Dorn", "Dornladung"),
-			LOCTEXT("DornText", "Dornpollen in Rankenfaser: die Dornen bleiben in der Wunde, sie blutet 6 Sekunden."),
-			GearRgb(150, 40, 40), { { TEXT("Dornpollen"), 1 }, { TEXT("Rankenfaser"), 1 } }, None, EVaelAmmoEffect::Thorn, 0.9f));
-		All.Add(MakeAmmo(TEXT("Tau"), LOCTEXT("Tau", "Tauladung"),
-			LOCTEXT("TauText", "Pelzwasser und Blatttau in einer Wachshaut: das Ziel ist nass, Feuer geht aus, Blitze treffen doppelt."),
-			GearRgb(110, 170, 220), { { TEXT("Pelzwasser"), 1 }, { TEXT("Blatttau"), 1 } }, None, EVaelAmmoEffect::Dew, 0.7f));
-		All.Add(MakeAmmo(TEXT("Nid"), LOCTEXT("Nid", "Nidladung"),
-			LOCTEXT("NidText", "Ein Nidkristall mit Schwarzfunken: trifft doppelt so hart, aber jeder Schuss zieht seine Waage zum Schatten."),
-			GearRgb(110, 40, 120), { { TEXT("Nidkristall"), 1 }, { TEXT("Schwarzfunken"), 1 } }, None, EVaelAmmoEffect::Nid, 2.0f));
+		// --- Shots as formulas (goal 14.11., Docs/Ingenieur_Aschenmark_Materialien.md section 6): Hülle + Kern + up to two
+		// Verstärker. Hüllen: Schlacke (hard, hits one target), Blasenhaut (bursts into a cloud), Latex (splashes like a water
+		// balloon), Schlackenglas (shatters, for fire and acid), Hohlkiel (a needle that stays in the target). Ids of the shots
+		// that were in the game before are kept, so saved pouches stay valid. Every formula is learned by mixing.
+		const FName Schlacke = TEXT("Schlacke"), Blase = TEXT("Blasenhaut"), Latex = TEXT("Latex"), Glas = TEXT("Schlackenglas"), Kiel = TEXT("Hohlkiel");
+		const auto Tune = [&All](float Seconds, float Radius, float Delay = 0.0f, float ShadowPull = 0.0f)
+		{
+			All.Last().Seconds = Seconds;
+			All.Last().Radius = Radius;
+			All.Last().Delay = Delay;
+			All.Last().ShadowPull = ShadowPull;
+		};
+
+		// Feuer (Glutstein)
+		All.Add(MakeFormula(TEXT("Brand"), LOCTEXT("Glutladung", "Glutladung"),
+			LOCTEXT("GlutladungText", "Ein Glutstein in Schlacke gefasst: setzt das Ziel in Brand und zündet Minen mit Feuer."),
+			GearRgb(240, 120, 50), Schlacke, TEXT("Glutstein"), {}, EVaelAmmoEffect::Fire, 1.0f));
+		Tune(6.0f, 0.0f);
+		All.Add(MakeFormula(TEXT("Knister"), LOCTEXT("Stichflamme", "Stichflamme"),
+			LOCTEXT("StichflammeText", "Knistersamen am Glutstein: beim Aufschlag schießt ein greller Feuerstoß im Kegel nach vorn."),
+			GearRgb(255, 150, 50), Schlacke, TEXT("Glutstein"), { TEXT("Knistersamen") }, EVaelAmmoEffect::Flame, 0.9f));
+		Tune(3.0f, 400.0f);
+		All.Add(MakeFormula(TEXT("GrosseStichflamme"), LOCTEXT("GrosseStichflamme", "Große Stichflamme"),
+			LOCTEXT("GrosseStichflammeText", "Dazu Distelflaum, der sofort Feuer fängt: der Stoß reicht weiter und brennt heißer."),
+			GearRgb(255, 175, 70), Schlacke, TEXT("Glutstein"), { TEXT("Knistersamen"), TEXT("Distelflaum") }, EVaelAmmoEffect::Flame, 1.1f));
+		Tune(4.0f, 600.0f);
+		All.Add(MakeFormula(TEXT("Feuerstoss"), LOCTEXT("Feuerstoss", "Feuerstoß"),
+			LOCTEXT("FeuerstossText", "Statt Flaum eine Glutdrüse: die Stichflamme explodiert und wirft zurück, was davor steht."),
+			GearRgb(255, 110, 40), Schlacke, TEXT("Glutstein"), { TEXT("Knistersamen"), TEXT("Glutdruese") }, EVaelAmmoEffect::Blast, 1.2f));
+		Tune(3.0f, 380.0f);
+		All.Last().bAlsoBurn = true;
+		All.Add(MakeFormula(TEXT("Brandsatz"), LOCTEXT("Brandsatz", "Brandsatz"),
+			LOCTEXT("BrandsatzText", "Glutstein und Glutsamen in Schlackenglas: es zerspringt, und der Boden brennt."),
+			GearRgb(230, 90, 30), Glas, TEXT("Glutstein"), { TEXT("Glutsamen") }, EVaelAmmoEffect::FireField, 0.8f));
+		Tune(5.0f, 300.0f);
+		All.Add(MakeFormula(TEXT("Schwarzfeuer"), LOCTEXT("Schwarzfeuer", "Schwarzfeuer"),
+			LOCTEXT("SchwarzfeuerText", "Schwarzfunken am Glutstein: violettes Feuer, das kein Feuerschutz aufhält. Es zieht an der Waage."),
+			GearRgb(120, 50, 160), Glas, TEXT("Glutstein"), { TEXT("Schwarzfunken") }, EVaelAmmoEffect::BlackFire, 1.1f));
+		Tune(6.0f, 0.0f, 0.0f, 1.0f);
+		All.Add(MakeFormula(TEXT("Glutnadel"), LOCTEXT("Glutnadel", "Glutnadel"),
+			LOCTEXT("GlutnadelText", "Eine Glutdrüse im Hohlkiel: steckt im Ziel und explodiert zwei Sekunden später."),
+			GearRgb(255, 130, 60), Kiel, TEXT("Glutdruese"), {}, EVaelAmmoEffect::Blast, 0.6f));
+		Tune(0.0f, 300.0f, 2.0f);
+
+		// Wasser (Blatttau)
+		All.Add(MakeFormula(TEXT("Tau"), LOCTEXT("Wasserkapsel", "Wasserkapsel"),
+			LOCTEXT("WasserkapselText", "Blatttau in einer Latexkapsel: platzt wie ein Wasserballon. Nass: Feuer geht aus, Blitze treffen doppelt."),
+			GearRgb(110, 170, 220), Latex, TEXT("Blatttau"), {}, EVaelAmmoEffect::Dew, 0.5f));
+		Tune(8.0f, 200.0f);
+		All.Add(MakeFormula(TEXT("GrosseWasserkapsel"), LOCTEXT("GrosseWasserkapsel", "Große Wasserkapsel"),
+			LOCTEXT("GrosseWasserkapselText", "Dazu Pelzwasser: der Schwall macht alles in vier Metern nass."),
+			GearRgb(90, 160, 230), Latex, TEXT("Blatttau"), { TEXT("Pelzwasser") }, EVaelAmmoEffect::Dew, 0.5f));
+		Tune(8.0f, 400.0f);
+		All.Add(MakeFormula(TEXT("Dampfkapsel"), LOCTEXT("Dampfkapsel", "Dampfkapsel"),
+			LOCTEXT("DampfkapselText", "Blatttau auf Glutstein in Schlackenglas: heißer Dampf verbrüht und blendet. Dampf ist kein Feuer, er trifft auch Feuerfeste."),
+			GearRgb(220, 220, 225), Glas, TEXT("Blatttau"), { TEXT("Glutstein") }, EVaelAmmoEffect::Steam, 0.8f));
+		Tune(3.0f, 250.0f);
+		All.Add(MakeFormula(TEXT("Dampfwolke"), LOCTEXT("Dampfwolke", "Dampfwolke"),
+			LOCTEXT("DampfwolkeText", "Dazu Pelzwasser: eine Wolke aus Dampf, die fünf Sekunden stehen bleibt."),
+			GearRgb(235, 235, 240), Glas, TEXT("Blatttau"), { TEXT("Glutstein"), TEXT("Pelzwasser") }, EVaelAmmoEffect::Steam, 0.6f));
+		Tune(5.0f, 400.0f);
+
+		// Rauch (Rauchstaub, Material Rauchblase)
+		All.Add(MakeFormula(TEXT("Rauch"), LOCTEXT("Rauch", "Rauchladung"),
+			LOCTEXT("RauchText", "Rauchstaub in einer Blasenhaut: eine Wolke, in der Gegner das Ziel verlieren und taumeln."),
+			GearRgb(110, 106, 104), Blase, TEXT("Rauchblase"), {}, EVaelAmmoEffect::Smoke, 0.3f));
+		Tune(4.0f, 340.0f);
+		All.Add(MakeFormula(TEXT("Schlaf"), LOCTEXT("Schlafwolke", "Schlafwolke"),
+			LOCTEXT("SchlafwolkeText", "Schwarzmohn im Rauch: schwache Gegner in der Wolke schlafen ein, starke werden träge."),
+			GearRgb(120, 70, 140), Blase, TEXT("Rauchblase"), { TEXT("Schwarzmohnblatt") }, EVaelAmmoEffect::Sleep, 0.3f));
+		Tune(5.0f, 340.0f);
+		All.Add(MakeFormula(TEXT("Wirrwolke"), LOCTEXT("Wirrwolke", "Wirrwolke"),
+			LOCTEXT("WirrwolkeText", "Raunsamen im Rauch: wer in der Wolke steht, hört Stimmen und geht drei Sekunden auf die eigenen Leute los."),
+			GearRgb(140, 120, 170), Blase, TEXT("Rauchblase"), { TEXT("Raunsamen") }, EVaelAmmoEffect::Frenzy, 0.3f));
+		Tune(3.0f, 340.0f);
+		All.Add(MakeFormula(TEXT("Glutrauch"), LOCTEXT("Glutrauch", "Glutrauch"),
+			LOCTEXT("GlutrauchText", "Glutsamen und Distelflaum im Rauch: die Wolke glüht von innen, wer darin steht, brennt und verliert das Ziel."),
+			GearRgb(160, 90, 60), Blase, TEXT("Rauchblase"), { TEXT("Glutsamen"), TEXT("Distelflaum") }, EVaelAmmoEffect::Smoke, 0.5f));
+		Tune(4.0f, 340.0f);
+		All.Last().bAlsoBurn = true;
+
+		// Gift (Faultau, Schatten)
+		All.Add(MakeFormula(TEXT("Gift"), LOCTEXT("Gift", "Giftladung"),
+			LOCTEXT("GiftText", "Faultau in einer Latexkapsel: vergiftet, das Ziel taumelt. Schatten: zieht leicht an der Waage."),
+			GearRgb(140, 200, 80), Latex, TEXT("Faultau"), {}, EVaelAmmoEffect::Poison, 0.8f));
+		Tune(6.0f, 0.0f, 0.0f, 0.5f);
+		All.Add(MakeFormula(TEXT("Zehrgift"), LOCTEXT("Zehrgift", "Zehrgift"),
+			LOCTEXT("ZehrgiftText", "Dazu Gallpollen: das Gift wirkt zehn Sekunden lang."),
+			GearRgb(110, 170, 70), Latex, TEXT("Faultau"), { TEXT("Gallpollen") }, EVaelAmmoEffect::Poison, 0.8f));
+		Tune(10.0f, 0.0f, 0.0f, 0.5f);
+		All.Add(MakeFormula(TEXT("Dorn"), LOCTEXT("Dorngift", "Dorngift"),
+			LOCTEXT("DorngiftText", "Dazu Dornpollen: die Dornen bleiben in der Wunde, das Ziel ist vergiftet und blutet."),
+			GearRgb(150, 40, 40), Latex, TEXT("Faultau"), { TEXT("Dornpollen") }, EVaelAmmoEffect::Poison, 0.9f));
+		Tune(6.0f, 0.0f, 0.0f, 0.5f);
+		All.Last().bAlsoBleed = true;
+		All.Add(MakeFormula(TEXT("Giftnadel"), LOCTEXT("Giftnadel", "Giftnadel"),
+			LOCTEXT("GiftnadelText", "Faultau und Gallpollen im Hohlkiel: die Nadel steckt und gibt acht Sekunden lang Gift ab, stärker als die Kapsel."),
+			GearRgb(90, 150, 60), Kiel, TEXT("Faultau"), { TEXT("Gallpollen") }, EVaelAmmoEffect::Poison, 0.7f));
+		Tune(8.0f, 0.0f, 0.0f, 0.5f);
+
+		// Säure (Verdauungssäure, Schatten): frisst Latex, braucht Glas oder Kiel
+		All.Add(MakeFormula(TEXT("Saeure"), LOCTEXT("Saeure", "Säureladung"),
+			LOCTEXT("SaeureText", "Verdauungssäure in Schlackenglas: frisst den Panzer, das Ziel nimmt mehr Schaden von allem."),
+			GearRgb(200, 220, 70), Glas, TEXT("Verdauungssaeure"), {}, EVaelAmmoEffect::Acid, 0.8f));
+		Tune(8.0f, 0.0f, 0.0f, 0.5f);
+		All.Add(MakeFormula(TEXT("Klebsaeure"), LOCTEXT("Klebsaeure", "Klebsäure"),
+			LOCTEXT("KlebsaeureText", "Dazu Kelchschleim: die Säure haftet, frisst doppelt so lange und macht das Ziel langsam."),
+			GearRgb(180, 200, 60), Glas, TEXT("Verdauungssaeure"), { TEXT("Kelchschleim") }, EVaelAmmoEffect::Acid, 0.7f));
+		Tune(16.0f, 0.0f, 0.0f, 0.5f);
+		All.Last().bAlsoSlow = true;
+		All.Add(MakeFormula(TEXT("Saeurenadel"), LOCTEXT("Saeurenadel", "Säurenadel"),
+			LOCTEXT("SaeurenadelText", "Verdauungssäure im Hohlkiel: frisst genau eine Stelle, Teile brechen viel schneller."),
+			GearRgb(170, 210, 50), Kiel, TEXT("Verdauungssaeure"), {}, EVaelAmmoEffect::Acid, 0.8f));
+		Tune(8.0f, 0.0f, 0.0f, 0.5f);
+		All.Last().PartBreak = 1.6f;
+
+		// Heilung (Kelchtau) und Licht (Glockenglut)
+		All.Add(MakeFormula(TEXT("Heilkapsel"), LOCTEXT("Heilkapsel", "Heilkapsel"),
+			LOCTEXT("HeilkapselText", "Kelchtau in einer Latexkapsel: platzt bei den Gefährten und heilt sie, verletzt niemanden."),
+			GearRgb(200, 230, 255), Latex, TEXT("Kelchtau"), {}, EVaelAmmoEffect::Heal, 0.0f));
+		Tune(0.0f, 320.0f);
+		All.Add(MakeFormula(TEXT("Heil"), LOCTEXT("StarkeHeilkapsel", "Starke Heilkapsel"),
+			LOCTEXT("StarkeHeilkapselText", "Dazu ein Lichttropfen: heilt deutlich mehr."),
+			GearRgb(250, 226, 150), Latex, TEXT("Kelchtau"), { TEXT("Lichttropfen") }, EVaelAmmoEffect::Heal, 0.0f));
+		Tune(0.0f, 320.0f);
+		All.Add(MakeFormula(TEXT("Heiltau"), LOCTEXT("Heiltau", "Heiltau"),
+			LOCTEXT("HeiltauText", "Dazu Rosenherz-Nektar: der Tau bleibt liegen und heilt die Gefährten acht Sekunden lang."),
+			GearRgb(160, 240, 170), Latex, TEXT("Kelchtau"), { TEXT("RosenherzNektar") }, EVaelAmmoEffect::HealTime, 0.0f));
+		Tune(8.0f, 320.0f);
+		All.Add(MakeFormula(TEXT("Leucht"), LOCTEXT("Leucht", "Leuchtladung"),
+			LOCTEXT("LeuchtText", "Glockenglut in einer Blasenhaut: das Ziel leuchtet, auch nachts, und nimmt mehr Schaden von allen."),
+			GearRgb(255, 220, 150), Blase, TEXT("Glockenglut"), {}, EVaelAmmoEffect::Glow, 0.5f));
+		Tune(10.0f, 0.0f);
+		All.Add(MakeFormula(TEXT("Blendladung"), LOCTEXT("Blendladung", "Blendladung"),
+			LOCTEXT("BlendladungText", "Dazu Glimmstroh: ein greller Lichtblitz, alle Gegner in drei Metern sind zwei Sekunden geblendet."),
+			GearRgb(255, 245, 210), Blase, TEXT("Glockenglut"), { TEXT("Glimmstroh") }, EVaelAmmoEffect::Blind, 0.3f));
+		Tune(2.0f, 300.0f);
+		All.Add(MakeFormula(TEXT("Sonnenladung"), LOCTEXT("Sonnenladung", "Sonnenladung"),
+			LOCTEXT("SonnenladungText", "Dazu ein Lichttropfen: blendet drei Sekunden und zeichnet alle im Blitz, sie nehmen mehr Schaden."),
+			GearRgb(255, 240, 170), Blase, TEXT("Glockenglut"), { TEXT("Lichttropfen") }, EVaelAmmoEffect::Blind, 0.5f));
+		Tune(3.0f, 300.0f);
+
+		// Wucht und Splitter
+		All.Add(MakeFormula(TEXT("Splitter"), LOCTEXT("Splitter", "Splitterladung"),
+			LOCTEXT("SplitterText", "Eine Sichelspitze in Schlacke: zerspringt beim Aufschlag und trifft alles rundherum."),
+			GearRgb(196, 186, 170), Schlacke, TEXT("Sichelklinge"), {}, EVaelAmmoEffect::Shards, 1.0f));
+		All.Add(MakeFormula(TEXT("Schwer"), LOCTEXT("Schwer", "Schwerer Stein"),
+			LOCTEXT("SchwerText", "Schlacke um ein Stück Rollpanzer: wirft das Ziel zurück und betäubt es kurz."),
+			GearRgb(120, 116, 112), Schlacke, TEXT("Rollpanzer"), {}, EVaelAmmoEffect::Heavy, 1.3f));
+		All.Add(MakeFormula(TEXT("Krustenbolzen"), LOCTEXT("Krustenbolzen", "Krustenbolzen"),
+			LOCTEXT("KrustenbolzenText", "Eine Krustenplatte mit Schlackeneisen-Spitze: geht durch Panzer, die gepanzerte Flanke zählt wie der Rücken."),
+			GearRgb(70, 60, 58), Schlacke, TEXT("Krustenplatte"), { TEXT("Schlackeneisen") }, EVaelAmmoEffect::Pierce, 1.2f));
+		All.Add(MakeFormula(TEXT("Klebe"), LOCTEXT("Klebe", "Klebekapsel"),
+			LOCTEXT("KlebeText", "Kelchschleim in einer Latexkapsel: das Ziel klebt fest und bewegt sich sechs Sekunden halb so schnell."),
+			GearRgb(210, 196, 120), Latex, TEXT("Kelchschleim"), {}, EVaelAmmoEffect::Sticky, 0.6f));
+		Tune(6.0f, 0.0f);
+
+		// Nid: the strongest shot, needs a blueprint
+		All.Add(MakeFormula(TEXT("Nid"), LOCTEXT("Nid", "Nidladung"),
+			LOCTEXT("NidText", "Ein Nidkristall mit Schwarzfunken in Schlackenglas: trifft doppelt so hart, aber jeder Schuss zieht seine Waage zum Schatten."),
+			GearRgb(110, 40, 120), Glas, TEXT("Nidkristall"), { TEXT("Schwarzfunken") }, EVaelAmmoEffect::Nid, 2.0f));
+		Tune(0.0f, 0.0f, 0.0f, 1.5f);
 		All.Last().bNeedsPlan = true;
+
+		// --- Werkstoffe (goal 14.11.): refined at the workshop or by a campfire (field box), never on the way
+		All.Add(MakeRefine(TEXT("Schlackeneisen"), 1, LOCTEXT("Schlackeneisen", "Schlackeneisen"),
+			LOCTEXT("SchlackeneisenText", "Drei Brocken Schlacke mit Glutstein ausgeschmolzen: das Grundmetall für Fassungen, Nieten und Spitzen."),
+			GearRgb(110, 104, 110), { { TEXT("Schlacke"), 3 }, { TEXT("Glutstein"), 1 } }));
+		All.Add(MakeRefine(TEXT("Schlackenglas"), 2, LOCTEXT("Schlackenglas", "Schlackenglas"),
+			LOCTEXT("SchlackenglasText", "Schlacke geschmolzen und zu dünnwandigen Kugeln geblasen: zerspringt beim Aufschlag. Hülle für Feuer und Säure."),
+			GearRgb(70, 76, 70), { { TEXT("Schlacke"), 2 }, { TEXT("Glutstein"), 1 } }));
+		All.Add(MakeRefine(TEXT("Russglas"), 1, LOCTEXT("Russglas", "Rußglas"),
+			LOCTEXT("RussglasText", "Rußquarz, mit Aschenstäubling am Schleifstein klar geschliffen: die Linse der Brille."),
+			GearRgb(150, 148, 160), { { TEXT("Russquarz"), 2 }, { TEXT("Staeublingspulver"), 1 } }));
+		All.Add(MakeRefine(TEXT("Latex"), 2, LOCTEXT("Latex", "Latex"),
+			LOCTEXT("LatexText", "Sternmilch, eingedickt und gezogen: dehnbare Haut für Kapseln, Dichtungen und Bänder."),
+			GearRgb(240, 236, 220), { { TEXT("Sternmilch"), 2 } }));
+		All.Add(MakeRefine(TEXT("SchwarzerLatex"), 2, LOCTEXT("SchwarzerLatex", "Schwarzer Latex"),
+			LOCTEXT("SchwarzerLatexText", "Aus Gallmilch: zäher als heller Latex. Schatten."),
+			GearRgb(50, 40, 56), { { TEXT("Gallmilch"), 2 } }));
+		All.Add(MakeRefine(TEXT("Blasenhaut"), 1, LOCTEXT("Blasenhaut", "Blasenhaut"),
+			LOCTEXT("BlasenhautText", "Eine Aschblase, vorsichtig angestochen und leer gedrückt: eine dünne Haut, die beim Aufschlag weich platzt. Hülle für Rauch und Licht."),
+			GearRgb(170, 176, 180), { { TEXT("Rauchblase"), 1 } }));
+		All.Add(MakeRefine(TEXT("GehaertetePlatte"), 1, LOCTEXT("GehaertetePlatte", "Gehärtete Platte"),
+			LOCTEXT("GehaertetePlatteText", "Zwei Krustenplatten in der Glut gehärtet: der Kern schwerer Rüstung."),
+			GearRgb(40, 34, 32), { { TEXT("Krustenplatte"), 2 }, { TEXT("Glutstein"), 1 } }));
+		All.Add(MakeRefine(TEXT("Messingblech"), 1, LOCTEXT("Messingblech", "Messingblech"),
+			LOCTEXT("MessingblechText", "Der gestohlene Tand der Harpyien, eingeschmolzen und gehämmert: Messing für Linsenringe und edle Fassungen."),
+			GearRgb(214, 164, 82), { { TEXT("Harpyientand"), 2 }, { TEXT("Schlacke"), 1 } }));
 
 		// --- Devices: laid out before the fight, set off with a shot (lore: like the mercenary, placing and igniting)
 		All.Add(MakeDevice(TEXT("Fangeisen"), LOCTEXT("Fangeisen", "Fangeisen"),
-			LOCTEXT("FangeisenText", "Zwei Sichelklingen auf einer Feder: schnappt zu, wenn ein Feind darauf tritt, hält ihn fest und verletzt ihn."),
-			GearRgb(170, 170, 180), { { TEXT("Sichelklinge"), 1 }, { TEXT("Spannfaden"), 1 } }, None, EVaelDeviceType::Trap, 2));
+			LOCTEXT("FangeisenText", "Eine Sichelklinge auf der Rollsehne eines Aschenrollers als Feder: schnappt zu, wenn ein Feind darauf tritt, hält ihn fest und verletzt ihn."),
+			GearRgb(170, 170, 180), { { TEXT("Sichelklinge"), 1 }, { TEXT("Rollsehne"), 1 }, { TEXT("Schlackeneisen"), 1 } }, None, EVaelDeviceType::Trap, 2));
 		All.Add(MakeDevice(TEXT("Knallmine"), LOCTEXT("Knallmine", "Knallmine"),
 			LOCTEXT("KnallmineText", "Eine Rauchblase voll Glutstaub: wartet, bis ein Schuss sie trifft, und platzt mit der Wirkung dieses Schusses."),
 			GearRgb(230, 90, 60), { { TEXT("Rauchblase"), 1 }, { TEXT("Glutstein"), 1 } }, None, EVaelDeviceType::Mine, 2));
@@ -333,6 +520,7 @@ FText VaelEngineerGear::GetKindName(EVaelGearKind Kind)
 	case EVaelGearKind::Ammo: return LOCTEXT("KindAmmo", "Munition");
 	case EVaelGearKind::Device: return LOCTEXT("KindDevice", "Vorrichtungen");
 	case EVaelGearKind::Tool: return LOCTEXT("KindTool", "Werkzeug");
+	case EVaelGearKind::Refine: return LOCTEXT("KindRefine", "Veredeln");
 	default: return LOCTEXT("KindArmor", "Rüstung");
 	}
 }
@@ -346,6 +534,187 @@ FText VaelEngineerGear::GetPlaceName(EVaelArmorPlace Place)
 	case EVaelArmorPlace::Arms: return LOCTEXT("PlaceArms", "Arme");
 	default: return LOCTEXT("PlaceLegs", "Beine");
 	}
+}
+
+FText VaelEngineerGear::GetTabName(int32 Tab)
+{
+	return Tab == VaelCraftTabMix ? LOCTEXT("TabMix", "Mischen") : GetKindName(static_cast<EVaelGearKind>(Tab));
+}
+
+FString VaelEngineerGear::GetMixKey(const TArray<FName>& Parts)
+{
+	TArray<FString> Names;
+	for (const FName Part : Parts)
+	{
+		Names.Add(Part.ToString());
+	}
+	Names.Sort();
+	return FString::Join(Names, TEXT("+"));
+}
+
+const FVaelGear* VaelEngineerGear::FindFormula(const TArray<FName>& Parts)
+{
+	const FString Key = GetMixKey(Parts);
+	for (const FVaelGear& Gear : GetAll())
+	{
+		if (!Gear.IsFormula())
+		{
+			continue;
+		}
+		TArray<FName> Own = { Gear.Hull, Gear.Core };
+		Own.Append(Gear.Boosters);
+		if (GetMixKey(Own) == Key)
+		{
+			return &Gear;
+		}
+	}
+	return nullptr;
+}
+
+const TArray<FName>& VaelEngineerGear::GetMixMaterials()
+{
+	static const TArray<FName> Materials = []()
+	{
+		TArray<FName> Hulls, Cores, Boosters;
+		for (const FVaelGear& Gear : GetAll())
+		{
+			if (Gear.IsFormula())
+			{
+				Hulls.AddUnique(Gear.Hull);
+				Cores.AddUnique(Gear.Core);
+				for (const FName Booster : Gear.Boosters)
+				{
+					Boosters.AddUnique(Booster);
+				}
+			}
+		}
+		TArray<FName> All = Hulls;
+		for (const FName Core : Cores)
+		{
+			All.AddUnique(Core);
+		}
+		for (const FName Booster : Boosters)
+		{
+			All.AddUnique(Booster);
+		}
+		return All;
+	}();
+	return Materials;
+}
+
+FText VaelEngineerGear::GetMixRole(FName Material)
+{
+	bool bHull = false, bCore = false, bBooster = false;
+	for (const FVaelGear& Gear : GetAll())
+	{
+		if (Gear.IsFormula())
+		{
+			bHull |= Gear.Hull == Material;
+			bCore |= Gear.Core == Material;
+			bBooster |= Gear.Boosters.Contains(Material);
+		}
+	}
+	return bHull ? LOCTEXT("RoleHull", "Hülle") : bCore && bBooster ? LOCTEXT("RoleBoth", "Kern, Verstärker") : bCore ? LOCTEXT("RoleCore", "Kern")
+		: bBooster ? LOCTEXT("RoleBooster", "Verstärker") : FText::GetEmpty();
+}
+
+FText VaelEngineerGear::GetMixHint(const TArray<FName>& Parts)
+{
+	// What the parts are: hulls, cores of formulas
+	TArray<FName> Hulls, Cores;
+	for (const FName Part : Parts)
+	{
+		for (const FVaelGear& Gear : GetAll())
+		{
+			if (Gear.IsFormula() && Gear.Hull == Part)
+			{
+				Hulls.AddUnique(Part);
+			}
+			if (Gear.IsFormula() && Gear.Core == Part)
+			{
+				Cores.AddUnique(Part);
+			}
+		}
+	}
+	if (Hulls.IsEmpty())
+	{
+		return LOCTEXT("HintNoHull", "Es fehlt eine Hülle: Schlacke, Blasenhaut, Latex, Schlackenglas oder ein Hohlkiel.");
+	}
+	if (Hulls.Num() > 1)
+	{
+		return LOCTEXT("HintTwoHulls", "Zwei Hüllen passen nicht ineinander.");
+	}
+	const FName Hull = Hulls[0];
+	const bool bFire = Parts.Contains(FName(TEXT("Glutstein"))) || Parts.Contains(FName(TEXT("Glutdruese"))) || Parts.Contains(FName(TEXT("Schwarzfunken")));
+	const bool bAcid = Parts.Contains(FName(TEXT("Verdauungssaeure")));
+	const bool bWet = Parts.Contains(FName(TEXT("Blatttau"))) || Parts.Contains(FName(TEXT("Faultau"))) || Parts.Contains(FName(TEXT("Kelchtau")))
+		|| Parts.Contains(FName(TEXT("Kelchschleim")));
+	if (Hull == FName(TEXT("Latex")) && bFire)
+	{
+		return LOCTEXT("HintLatexFire", "Feuer verbrennt Latex. Glut braucht Schlacke oder Schlackenglas.");
+	}
+	if (Hull == FName(TEXT("Latex")) && bAcid)
+	{
+		return LOCTEXT("HintLatexAcid", "Die Säure frisst sich durch den Latex. Sie braucht Glas oder einen Kiel.");
+	}
+	if (Hull == FName(TEXT("Blasenhaut")) && bFire)
+	{
+		return LOCTEXT("HintBubbleFire", "Die Blasenhaut verbrennt, bevor sie fliegt. Feuer braucht eine harte Hülle.");
+	}
+	if (Hull == FName(TEXT("Schlacke")) && (bWet || bAcid))
+	{
+		return LOCTEXT("HintSlagWet", "Flüssiges läuft aus der Schlacke heraus. Es braucht eine Kapsel.");
+	}
+	if (Cores.IsEmpty())
+	{
+		return LOCTEXT("HintNoCore", "Es fehlt ein Kern, etwas, das wirkt: Glut, Wasser, Rauch, Gift, Säure, Heilung, Licht oder Wucht.");
+	}
+	if (Parts.Num() > 4)
+	{
+		return LOCTEXT("HintTooMany", "Zu viel auf einmal: höchstens vier Teile.");
+	}
+	return LOCTEXT("HintNothing", "Die Teile passen nicht zusammen. Vielleicht ein anderer Verstärker, oder einer weniger.");
+}
+
+FText VaelEngineerGear::GetEffectText(const FVaelGear& Gear)
+{
+	const FText Secs = FText::AsNumber(FMath::RoundToInt(Gear.Seconds));
+	const FText Meters = FText::AsNumber(FMath::RoundToInt(Gear.Radius / 100.0f));
+	FText Base;
+	switch (Gear.Effect)
+	{
+	case EVaelAmmoEffect::Shards: Base = LOCTEXT("EffShards", "Splitter treffen alles im Umkreis (60 %)"); break;
+	case EVaelAmmoEffect::Fire: Base = FText::Format(LOCTEXT("EffFire", "Brand: {0} Sekunden Feuer"), Secs); break;
+	case EVaelAmmoEffect::Poison: Base = FText::Format(LOCTEXT("EffPoison", "Gift: {0} Sekunden Schaden, das Ziel taumelt"), Secs); break;
+	case EVaelAmmoEffect::Acid: Base = FText::Format(LOCTEXT("EffAcid", "Säure: {0} Sekunden mehr Schaden von allem"), Secs); break;
+	case EVaelAmmoEffect::Heal: Base = LOCTEXT("EffHeal", "Heilt die Gefährten am Aufschlag"); break;
+	case EVaelAmmoEffect::HealTime: Base = FText::Format(LOCTEXT("EffHealTime", "Heilt die Gefährten {0} Sekunden lang"), Secs); break;
+	case EVaelAmmoEffect::Heavy: Base = LOCTEXT("EffHeavy", "Wirft zurück und betäubt 0,8 Sekunden"); break;
+	case EVaelAmmoEffect::Sticky: Base = FText::Format(LOCTEXT("EffSticky", "{0} Sekunden halb so schnell"), Secs); break;
+	case EVaelAmmoEffect::Smoke: Base = FText::Format(LOCTEXT("EffSmoke", "Rauchwolke {0} m: Gegner darin taumeln"), Meters); break;
+	case EVaelAmmoEffect::Sleep: Base = LOCTEXT("EffSleep", "Schwache Gegner in der Wolke schlafen, starke werden träge"); break;
+	case EVaelAmmoEffect::Glow: Base = FText::Format(LOCTEXT("EffGlow", "Leuchtet {0} Sekunden, nimmt mehr Schaden"), Secs); break;
+	case EVaelAmmoEffect::Dew: Base = FText::Format(LOCTEXT("EffDew", "Nass in {0} m: Feuer aus, Blitz trifft doppelt"), Meters); break;
+	case EVaelAmmoEffect::Nid: Base = LOCTEXT("EffNid", "Doppelter Schaden"); break;
+	case EVaelAmmoEffect::Flame: Base = FText::Format(LOCTEXT("EffFlame", "Stichflamme {0} m im Kegel, alles darin brennt"), Meters); break;
+	case EVaelAmmoEffect::Blast: Base = Gear.Delay > 0.0f ? FText::Format(LOCTEXT("EffDelayBlast", "Explodiert nach {0} s im Umkreis von {1} m"), FText::AsNumber(Gear.Delay), Meters)
+		: FText::Format(LOCTEXT("EffBlast", "Explosion {0} m, wirft zurück"), Meters); break;
+	case EVaelAmmoEffect::FireField: Base = FText::Format(LOCTEXT("EffField", "Brennender Boden {0} m, {1} Sekunden"), Meters, Secs); break;
+	case EVaelAmmoEffect::BlackFire: Base = FText::Format(LOCTEXT("EffBlack", "Schwarzfeuer {0} Sekunden, übergeht Feuerschutz"), Secs); break;
+	case EVaelAmmoEffect::Steam: Base = Gear.Seconds >= 4.0f ? FText::Format(LOCTEXT("EffSteamCloud", "Dampfwolke {0} m, {1} Sekunden: verbrüht und blendet"), Meters, Secs)
+		: FText::Format(LOCTEXT("EffSteam", "Dampf {0} m: verbrüht, blendet {1} Sekunden"), Meters, Secs); break;
+	case EVaelAmmoEffect::Frenzy: Base = FText::Format(LOCTEXT("EffFrenzy", "Gegner in {0} m gehen {1} Sekunden aufeinander los"), Meters, Secs); break;
+	case EVaelAmmoEffect::Blind: Base = FText::Format(LOCTEXT("EffBlind", "Lichtblitz {0} m: blendet {1} Sekunden"), Meters, Secs); break;
+	case EVaelAmmoEffect::Pierce: Base = LOCTEXT("EffPierce", "Geht durch Panzer"); break;
+	default: Base = FText::GetEmpty(); break;
+	}
+	TArray<FString> Extra;
+	if (Gear.bAlsoBurn) { Extra.Add(LOCTEXT("ExtraBurn", "brennt").ToString()); }
+	if (Gear.bAlsoBleed) { Extra.Add(LOCTEXT("ExtraBleed", "blutet").ToString()); }
+	if (Gear.bAlsoSlow) { Extra.Add(LOCTEXT("ExtraSlow", "verlangsamt").ToString()); }
+	if (Gear.PartBreak > 1.0f) { Extra.Add(LOCTEXT("ExtraBreak", "Teile brechen schneller").ToString()); }
+	if (Gear.ShadowPull > 0.0f) { Extra.Add(FText::Format(LOCTEXT("ExtraShadow", "zieht {0} zum Schatten"), FText::AsNumber(Gear.ShadowPull)).ToString()); }
+	return Extra.IsEmpty() ? Base : FText::FromString(Base.ToString() + TEXT(" · ") + FString::Join(Extra, TEXT(" · ")));
 }
 
 #undef LOCTEXT_NAMESPACE

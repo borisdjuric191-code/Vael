@@ -59,6 +59,11 @@ void UVaelEngineerComponent::ResetToStart()
 	WeaponTiers.Reset();
 	WeaponBranches.Reset();
 	Plans.Reset();
+	Formulas.Reset();
+	Tried.Reset();
+	Pockets.Reset();
+	DelayedBlasts.Reset();
+	Fields.Reset();
 }
 
 AVaelCharacter* UVaelEngineerComponent::GetPlayer() const
@@ -87,9 +92,10 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 				Poisons.RemoveAtSwap(Index);
 				continue;
 			}
-			UVaelCombatStatics::DealDamage(GetOwner(), Poison.Target.Get(), Poison.DamagePerSecond * 0.5f, EVaelElement::Earth);
+			UVaelCombatStatics::DealDamage(GetOwner(), Poison.Target.Get(), Poison.DamagePerSecond * 0.5f, Poison.Element);
 		}
 	}
+	TickEffects();
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
 	UpdateWeaponMesh();
@@ -365,6 +371,10 @@ UVaelEngineerComponent::EBuildBlock UVaelEngineerComponent::GetBuildBlock(const 
 	{
 		return EBuildBlock::NeedsPlan;
 	}
+	if (Gear.IsFormula() && !Formulas.Contains(Gear.Id))
+	{
+		return EBuildBlock::Unknown;
+	}
 	if (!bAtWorkbench && !Gear.bField)
 	{
 		return EBuildBlock::NeedsWorkbench;
@@ -425,9 +435,26 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 	case EVaelGearKind::Tool:
 		Built.Add(Id);
 		break;
+	case EVaelGearKind::Refine:
+		// A Werkstoff goes into the material bag
+		if (const UVaelMaterial* Made = VaelEngineerGear::LoadMaterial(Gear->Output))
+		{
+			Player->GetMaterialBag()->AddMaterial(Made, Gear->OutputCount);
+		}
+		else
+		{
+			UE_LOG(LogVael, Warning, TEXT("Engineer: the material %s of %s is missing"), *Gear->Output.ToString(), *Id.ToString());
+		}
+		break;
 	default:
 	{
-		const int32 Room = FMath::Max(GetCarryLimit(*Gear) - GetCarried(Id), 0);
+		// A kind of shot that has no pocket yet goes into the backpack when every pocket is taken
+		const bool bPocket = Gear->Kind != EVaelGearKind::Ammo || IsInPocket(Id) || HasFreePocket();
+		if (Gear->Kind == EVaelGearKind::Ammo && bPocket)
+		{
+			Pockets.AddUnique(Id);
+		}
+		const int32 Room = bPocket ? FMath::Max(GetCarryLimit(*Gear) - GetCarried(Id), 0) : 0;
 		const int32 IntoPouch = FMath::Min(Room, Gear->Batch);
 		Carried.FindOrAdd(Id) += IntoPouch;
 		if (Gear->Batch > IntoPouch)
@@ -454,7 +481,7 @@ void UVaelEngineerComponent::Restock()
 	for (TPair<FName, int32>& Entry : Stock)
 	{
 		const FVaelGear* Gear = VaelEngineerGear::Find(Entry.Key);
-		if (Gear == nullptr || Entry.Value <= 0)
+		if (Gear == nullptr || Entry.Value <= 0 || (Gear->Kind == EVaelGearKind::Ammo && !IsInPocket(Entry.Key)))
 		{
 			continue;
 		}
@@ -547,12 +574,13 @@ FLinearColor UVaelEngineerComponent::GetAmmoColor() const
 
 TArray<FName> UVaelEngineerComponent::GetAmmoChoices() const
 {
+	// Only what sits in the pockets of the Werkrolle can be loaded in a fight
 	TArray<FName> Shots = { VaelEngineerGear::Standard };
-	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	for (const FName Kind : Pockets)
 	{
-		if (Gear.Kind == EVaelGearKind::Ammo && GetCarried(Gear.Id) + GetStock(Gear.Id) > 0)
+		if (GetCarried(Kind) > 0)
 		{
-			Shots.Add(Gear.Id);
+			Shots.Add(Kind);
 		}
 	}
 	return Shots;
@@ -650,6 +678,97 @@ void UVaelEngineerComponent::LearnAllPlans()
 			Plans.Add(Gear.Id);
 		}
 	}
+}
+
+void UVaelEngineerComponent::LearnAllFormulas()
+{
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		if (Gear.IsFormula())
+		{
+			Formulas.Add(Gear.Id);
+		}
+	}
+}
+
+EVaelMixResult UVaelEngineerComponent::Mix(const TArray<FName>& MixParts, FText& OutHint, FName& OutFormula)
+{
+	OutFormula = NAME_None;
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr || MixParts.Num() < 2)
+	{
+		OutHint = LOCTEXT("MixTwo", "Mindestens zwei Teile: eine Hülle und einen Kern.");
+		return EVaelMixResult::Missing;
+	}
+	const FVaelGear* Formula = VaelEngineerGear::FindFormula(MixParts);
+	if (Formula == nullptr)
+	{
+		OutHint = VaelEngineerGear::GetMixHint(MixParts);
+		const FString Key = VaelEngineerGear::GetMixKey(MixParts);
+		if (Tried.Contains(Key))
+		{
+			return EVaelMixResult::Tried;
+		}
+		Tried.Add(Key);
+		UVaelSaveSubsystem::RequestSave(Player);
+		return EVaelMixResult::Nothing;
+	}
+	OutFormula = Formula->Id;
+	if (Formula->bNeedsPlan && !Plans.Contains(Formula->Id))
+	{
+		OutHint = LOCTEXT("MixPlan", "Die Teile würden passen, aber ohne Bauplan gelingt es nicht.");
+		return EVaelMixResult::Nothing;
+	}
+	// The parts must be in the bag: what he mixes, he uses
+	for (const FVaelGearCost& Cost : Formula->Costs)
+	{
+		const UVaelMaterial* Material = VaelEngineerGear::LoadMaterial(Cost.Material);
+		if (Material == nullptr || Player->GetMaterialBag()->GetCount(Material) < Cost.Count)
+		{
+			OutHint = LOCTEXT("MixMissing", "Davon fehlt etwas im Beutel.");
+			return EVaelMixResult::Missing;
+		}
+	}
+	const bool bNew = !Formulas.Contains(Formula->Id);
+	Formulas.Add(Formula->Id);
+	// Mixing works wherever he may build shots, so the workbench rules don't hold him back here
+	Build(Formula->Id, true);
+	if (bNew)
+	{
+		UVaelCombatTextSubsystem::PostPickup(GetOwner(), FText::Format(LOCTEXT("FormulaFound", "Neue Formel: {0}"), Formula->Name), FLinearColor(0.95f, 0.75f, 0.4f));
+		UE_LOG(LogVael, Log, TEXT("Engineer: finds the formula %s"), *Formula->Id.ToString());
+	}
+	OutHint = VaelEngineerGear::GetEffectText(*Formula);
+	return bNew ? EVaelMixResult::Learned : EVaelMixResult::Built;
+}
+
+bool UVaelEngineerComponent::PutInPocket(FName Id)
+{
+	const FVaelGear* Gear = VaelEngineerGear::Find(Id);
+	if (Gear == nullptr || Gear->Kind != EVaelGearKind::Ammo || (!IsInPocket(Id) && !HasFreePocket()))
+	{
+		return false;
+	}
+	Pockets.AddUnique(Id);
+	ReadyFromStock(Id);
+	return true;
+}
+
+int32 UVaelEngineerComponent::EmptyPocket(FName Id)
+{
+	const int32 Moved = GetCarried(Id);
+	Pockets.Remove(Id);
+	if (Moved <= 0)
+	{
+		return 0;
+	}
+	Carried.Remove(Id);
+	Stock.FindOrAdd(Id) += Moved;
+	if (Ammo == Id)
+	{
+		Ammo = VaelEngineerGear::Standard;
+	}
+	return Moved;
 }
 
 int32 UVaelEngineerComponent::GetWeaponTier(FName Id) const
@@ -941,9 +1060,9 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 		const FVaelGear* Branch = VaelEngineerGear::Find(GetBranch(WeaponId));
 		Effect = Branch != nullptr ? Branch->StandardEffect : Effect;
 	}
-	if (Effect == EVaelAmmoEffect::Heal)
+	if (Effect == EVaelAmmoEffect::Heal || Effect == EVaelAmmoEffect::HealTime)
 	{
-		ApplyBurst(Location, ShotAmmo, Damage);
+		ApplyBurst(Location, ShotAmmo, Damage, From);
 		return;
 	}
 
@@ -966,6 +1085,11 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 		const bool bHeld = UVaelCombatStatics::HasStatus(Enemy, EVaelStatus::Frozen);
 		const float Weak = HasBuilt(VaelEngineerGear::Goggles) ? 1.5f : 1.3f;
 		LastZone = bHeld || Dot > 0.77f ? Weak : Dot < -0.64f ? 1.0f : 0.8f;
+		// The Krustenbolzen goes through: the armoured flank counts as plain
+		if (Effect == EVaelAmmoEffect::Pierce && LastZone < 1.0f)
+		{
+			LastZone = 1.0f;
+		}
 
 		// Distance: x1.15 in the sweet spot of the weapon, falling to x0.7 towards point blank and the end of its reach
 		const float Meters = FVector::Dist2D(From, Enemy->GetActorLocation());
@@ -994,29 +1118,72 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("WeakSpot", "Schwachstelle"));
 		}
 	}
-	const EVaelElement Element = Effect == EVaelAmmoEffect::Fire || Effect == EVaelAmmoEffect::Crackle ? EVaelElement::Fire
-		: Effect == EVaelAmmoEffect::Dew ? EVaelElement::Water : EVaelElement::Earth;
+	const EVaelElement Element = Effect == EVaelAmmoEffect::BlackFire ? EVaelElement::Mark
+		: Effect == EVaelAmmoEffect::Fire || Effect == EVaelAmmoEffect::Crackle || Effect == EVaelAmmoEffect::Flame || Effect == EVaelAmmoEffect::Blast
+			|| Effect == EVaelAmmoEffect::FireField ? EVaelElement::Fire
+		: Effect == EVaelAmmoEffect::Dew || Effect == EVaelAmmoEffect::Steam ? EVaelElement::Water : EVaelElement::Earth;
 	UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Scaled, Element);
 	if (!WeaponId.IsNone())
 	{
-		HitPart(Enemy, Scaled, LastZone);
+		// the Säurenadel eats one spot: parts break sooner
+		HitPart(Enemy, Scaled * (AmmoGear != nullptr ? AmmoGear->PartBreak : 1.0f), LastZone);
 	}
 	UE_LOG(LogVael, Log, TEXT("Engineer: %s hits %s for %.0f (zone %.2f, distance %.2f%s)"), *ShotAmmo.ToString(), *Enemy->GetName(), Scaled, LastZone, LastDistance, bLastCrit ? TEXT(", crit") : TEXT(""));
 
+	// Shadow shots (poison, acid, black fire, Nid) pull Die Waage of the shooter
+	if (AmmoGear != nullptr && AmmoGear->ShadowPull > 0.0f)
+	{
+		UVaelBalanceSubsystem::ChangePlayer(GetOwner(), AmmoGear->ShadowPull, AmmoGear->Name);
+	}
+
+	// What works round the spot bursts there; the rest works on the target alone
+	const bool bArea = Effect == EVaelAmmoEffect::Shards || Effect == EVaelAmmoEffect::Smoke || Effect == EVaelAmmoEffect::Crackle
+		|| Effect == EVaelAmmoEffect::Flame || Effect == EVaelAmmoEffect::Blast || Effect == EVaelAmmoEffect::FireField || Effect == EVaelAmmoEffect::Steam
+		|| Effect == EVaelAmmoEffect::Frenzy || Effect == EVaelAmmoEffect::Blind
+		|| ((Effect == EVaelAmmoEffect::Sleep || Effect == EVaelAmmoEffect::Dew) && AmmoGear != nullptr && AmmoGear->Radius > 0.0f);
+	if (bArea)
+	{
+		ApplyBurst(Location, ShotAmmo, Damage, From);
+	}
+	else
+	{
+		ApplyEffect(Enemy, AmmoGear, Effect, Location, From, Damage);
+	}
+}
+
+TArray<AVaelCharacterBase*> UVaelEngineerComponent::EnemiesAround(const FVector& Location, float Radius) const
+{
+	TArray<AVaelCharacterBase*> Found;
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && UVaelCombatStatics::CanDamage(GetOwner(), *It)
+			&& FVector::Dist2D(It->GetActorLocation(), Location) <= Radius)
+		{
+			Found.Add(*It);
+		}
+	}
+	return Found;
+}
+
+void UVaelEngineerComponent::ApplyEffect(AVaelCharacterBase* Enemy, const FVaelGear* AmmoGear, EVaelAmmoEffect Effect, const FVector& Location, const FVector& From, float Damage)
+{
+	if (Enemy == nullptr)
+	{
+		return;
+	}
+	const auto Secs = [AmmoGear](float Default) { return AmmoGear != nullptr && AmmoGear->Seconds > 0.0f ? AmmoGear->Seconds : Default; };
 	switch (Effect)
 	{
-	case EVaelAmmoEffect::Shards:
-		ApplyBurst(Location, ShotAmmo, Damage);
-		break;
 	case EVaelAmmoEffect::Fire:
-		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, 5.0f, 4.0f);
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, Secs(5.0f), 4.0f);
 		break;
 	case EVaelAmmoEffect::Poison:
-		Poisons.Add({ Enemy, 5.0f, Now() + 6.0f });
+		// the needle gives its poison slowly but harder
+		Poisons.Add({ Enemy, AmmoGear != nullptr && AmmoGear->Hull == FName(TEXT("Hohlkiel")) ? 7.0f : 5.0f, Now() + Secs(6.0f) });
 		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Confused, 1.5f);
 		break;
 	case EVaelAmmoEffect::Acid:
-		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, 8.0f);
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, Secs(8.0f));
 		break;
 	case EVaelAmmoEffect::Heavy:
 	{
@@ -1027,21 +1194,17 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 		Push.Status = EVaelStatus::Frozen;
 		Push.StatusDuration = 0.8f;
 		UVaelCombatStatics::ApplyNatureHit(Enemy, Push, (Enemy->GetActorLocation() - From).GetSafeNormal2D());
-		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Stunned", "Bet\u00E4ubt"));
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Stunned", "Betäubt"));
 		break;
 	}
 	case EVaelAmmoEffect::Sticky:
-		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Slowed, 6.0f);
-		break;
-	case EVaelAmmoEffect::Smoke:
-	case EVaelAmmoEffect::Crackle:
-		ApplyBurst(Location, ShotAmmo, Damage);
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Slowed, Secs(6.0f));
 		break;
 	case EVaelAmmoEffect::Sleep:
 		if (Enemy->GetMaxHealth() <= 160.0f)
 		{
-			UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Frozen, 5.0f);
-			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Asleep", "Schl\u00E4ft"));
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Frozen, Secs(5.0f));
+			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Asleep", "Schläft"));
 		}
 		else
 		{
@@ -1049,20 +1212,151 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 		}
 		break;
 	case EVaelAmmoEffect::Glow:
-		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, 10.0f);
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, Secs(10.0f));
 		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Lit", "Leuchtet"));
 		break;
 	case EVaelAmmoEffect::Thorn:
 		Poisons.Add({ Enemy, 4.0f, Now() + 6.0f });
 		break;
 	case EVaelAmmoEffect::Dew:
-		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Wet, 8.0f);
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Wet, Secs(8.0f));
 		break;
-	case EVaelAmmoEffect::Nid:
-		UVaelBalanceSubsystem::ChangePlayer(GetOwner(), 1.5f, LOCTEXT("NidShot", "Nidladung"));
+	case EVaelAmmoEffect::BlackFire:
+		// violet fire of the Nid: bites as Mark, so no resistance to fire holds it back
+		Poisons.Add({ Enemy, 6.0f, Now() + Secs(6.0f), EVaelElement::Mark });
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("BlackFire", "Schwarzfeuer"));
+		break;
+	case EVaelAmmoEffect::Frenzy:
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Fevered, Secs(3.0f));
+		break;
+	case EVaelAmmoEffect::Blind:
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Confused, Secs(2.0f));
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Blinded", "Geblendet"));
+		// the Sonnenladung marks everyone in its flash
+		if (AmmoGear != nullptr && AmmoGear->Boosters.Contains(FName(TEXT("Lichttropfen"))))
+		{
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Marked, 6.0f);
+		}
+		break;
+	case EVaelAmmoEffect::Steam:
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Confused, FMath::Min(Secs(3.0f), 3.0f));
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Wet, 4.0f);
 		break;
 	default:
 		break;
+	}
+	if (AmmoGear != nullptr && AmmoGear->bAlsoBurn)
+	{
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, 3.0f, 4.0f);
+	}
+	if (AmmoGear != nullptr && AmmoGear->bAlsoBleed)
+	{
+		Poisons.Add({ Enemy, 4.0f, Now() + 6.0f });
+	}
+	if (AmmoGear != nullptr && AmmoGear->bAlsoSlow)
+	{
+		UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Slowed, 6.0f);
+	}
+}
+
+void UVaelEngineerComponent::Explode(const FVector& Location, float Radius, float Damage, bool bBurn)
+{
+	VaelEffects::SpawnAt(this, VaelEffects::Load(EVaelElement::Fire).Impact, Location, FRotator::ZeroRotator, FLinearColor(1.0f, 0.45f, 0.1f), Radius * 0.6f);
+	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), Location, FRotator::ZeroRotator, FLinearColor(0.3f, 0.26f, 0.22f), Radius * 0.4f);
+	for (AVaelCharacterBase* Enemy : EnemiesAround(Location, Radius))
+	{
+		UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Damage, EVaelElement::Fire);
+		FVaelSpellHit Push;
+		Push.Damage = 0.0f;
+		Push.Element = EVaelElement::Fire;
+		Push.Knockback = 500.0f;
+		UVaelCombatStatics::ApplyNatureHit(Enemy, Push, (Enemy->GetActorLocation() - Location).GetSafeNormal2D());
+		if (bBurn)
+		{
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, 3.0f, 4.0f);
+		}
+	}
+	// his own mines nearby go off with it
+	for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+	{
+		if (It->GetEngineer() == this && It->GetDeviceType() == EVaelDeviceType::Mine && FVector::Dist2D(It->GetActorLocation(), Location) < Radius)
+		{
+			It->Detonate(TEXT("Brand"));
+		}
+	}
+}
+
+void UVaelEngineerComponent::TickEffects()
+{
+	// Glutnadeln that are due go off where the target is now
+	for (int32 Index = DelayedBlasts.Num() - 1; Index >= 0; --Index)
+	{
+		const FDelayedBlast& Blast = DelayedBlasts[Index];
+		if (Now() < Blast.At)
+		{
+			continue;
+		}
+		const FVector At = Blast.Stuck.IsValid() ? Blast.Stuck->GetActorLocation() : Blast.Location;
+		const FDelayedBlast Copy = Blast;
+		DelayedBlasts.RemoveAtSwap(Index);
+		Explode(At, Copy.Radius, Copy.Damage, Copy.bBurn);
+	}
+
+	// Fields bite every half second
+	if (Fields.IsEmpty() || Now() < NextFieldTick)
+	{
+		return;
+	}
+	NextFieldTick = Now() + 0.5f;
+	const bool bShow = FMath::FloorToInt(Now() * 2.0f) % 2 == 0;
+	for (int32 Index = Fields.Num() - 1; Index >= 0; --Index)
+	{
+		const FField Field = Fields[Index];
+		if (Now() > Field.End)
+		{
+			Fields.RemoveAtSwap(Index);
+			continue;
+		}
+		switch (Field.Effect)
+		{
+		case EVaelAmmoEffect::FireField:
+			if (bShow)
+			{
+				VaelEffects::SpawnAt(this, VaelEffects::Load(EVaelElement::Fire).Impact, Field.Location, FRotator::ZeroRotator, FLinearColor(1.0f, 0.4f, 0.08f), Field.Radius * 0.5f);
+			}
+			for (AVaelCharacterBase* Enemy : EnemiesAround(Field.Location, Field.Radius))
+			{
+				UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Field.Damage, EVaelElement::Fire);
+				UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, 2.0f, 4.0f);
+			}
+			break;
+		case EVaelAmmoEffect::Steam:
+			if (bShow)
+			{
+				VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->SteamEffect), Field.Location, FRotator::ZeroRotator, FLinearColor(0.9f, 0.9f, 0.92f), Field.Radius);
+			}
+			for (AVaelCharacterBase* Enemy : EnemiesAround(Field.Location, Field.Radius))
+			{
+				UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Field.Damage, EVaelElement::Water);
+				UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Confused, 1.0f);
+			}
+			break;
+		case EVaelAmmoEffect::HealTime:
+			if (bShow)
+			{
+				VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->HandEffect), Field.Location, FRotator::ZeroRotator, FLinearColor(0.6f, 0.95f, 0.65f), Field.Radius * 0.5f);
+			}
+			for (TActorIterator<AVaelCharacter> It(GetWorld()); It; ++It)
+			{
+				if (!It->IsDowned() && FVector::Dist2D(It->GetActorLocation(), Field.Location) < Field.Radius)
+				{
+					UVaelCombatStatics::Heal(*It, 2.5f);
+				}
+			}
+			break;
+		default:
+			break;
+		}
 	}
 }
 
@@ -1102,10 +1396,18 @@ void UVaelEngineerComponent::HitPart(AVaelCharacterBase* Enemy, float Damage, fl
 		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("FlankBroken", "Panzer gebrochen!"));
 	}
 
-	// What breaks off: a Bruchstück and two of the creature's own materials
+	// What breaks off: the creature's own break piece (goal 14.11.: Glutkiefer, Rollpanzerkern …; the plain Bruchstück for
+	// creatures that have none yet) and two of its own materials
 	AVaelCharacter* Player = GetPlayer();
 	const FVector At = Enemy->GetActorLocation();
-	if (const UVaelMaterial* Piece = VaelEngineerGear::LoadMaterial(TEXT("Bruchstueck")))
+	const AVaelCreature* Broken = Cast<AVaelCreature>(Enemy);
+	const UVaelCreatureData* BrokenData = Broken != nullptr ? Broken->GetCreatureData() : nullptr;
+	const UVaelMaterial* Piece = BrokenData != nullptr && !BrokenData->BreakPiece.IsNull() ? BrokenData->BreakPiece.LoadSynchronous() : nullptr;
+	if (Piece == nullptr)
+	{
+		Piece = VaelEngineerGear::LoadMaterial(TEXT("Bruchstueck"));
+	}
+	if (Piece != nullptr)
 	{
 		AVaelMaterialDrop::DropMaterial(GetWorld(), At, Piece, 1, Player);
 	}
@@ -1122,71 +1424,187 @@ void UVaelEngineerComponent::HitPart(AVaelCharacterBase* Enemy, float Damage, fl
 	UE_LOG(LogVael, Log, TEXT("Engineer: breaks the %s of %s"), bHead ? TEXT("head") : TEXT("armour"), *Enemy->GetName());
 }
 
-void UVaelEngineerComponent::ApplyBurst(const FVector& Location, FName ShotAmmo, float Damage)
+void UVaelEngineerComponent::ApplyBurst(const FVector& Location, FName ShotAmmo, float Damage, const FVector& From)
 {
 	const FVaelGear* AmmoGear = ShotAmmo != VaelEngineerGear::Standard ? VaelEngineerGear::Find(ShotAmmo) : nullptr;
 	const EVaelAmmoEffect Effect = AmmoGear != nullptr ? AmmoGear->Effect : EVaelAmmoEffect::None;
-	if (Effect == EVaelAmmoEffect::Heal)
+	const float Radius = AmmoGear != nullptr && AmmoGear->Radius > 0.0f ? AmmoGear->Radius : 0.0f;
+	const float Seconds = AmmoGear != nullptr && AmmoGear->Seconds > 0.0f ? AmmoGear->Seconds : 0.0f;
+	const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+
+	switch (Effect)
 	{
-		// The healing shot bursts among the companions: everyone of his side close by gets life back
+	case EVaelAmmoEffect::Heal:
+	{
+		// The healing capsule bursts among the companions: everyone of his side close by gets life back
+		const float Amount = AmmoGear != nullptr && AmmoGear->Boosters.Contains(FName(TEXT("Lichttropfen"))) ? 22.0f : 15.0f;
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->HandEffect), Location, FRotator::ZeroRotator, AmmoGear != nullptr ? AmmoGear->Color : FLinearColor::White, 120.0f);
 		for (TActorIterator<AVaelCharacter> It(GetWorld()); It; ++It)
 		{
-			if (!It->IsDowned() && FVector::Dist2D(It->GetActorLocation(), Location) < 320.0f)
+			if (!It->IsDowned() && FVector::Dist2D(It->GetActorLocation(), Location) < FMath::Max(Radius, 320.0f))
 			{
-				UVaelCombatStatics::Heal(*It, 22.0f);
+				UVaelCombatStatics::Heal(*It, Amount);
+			}
+		}
+		return;
+	}
+	case EVaelAmmoEffect::HealTime:
+		Fields.Add({ Location, Now() + FMath::Max(Seconds, 1.0f), FMath::Max(Radius, 320.0f), 0.0f, EVaelAmmoEffect::HealTime });
+		NextFieldTick = FMath::Min(NextFieldTick, Now());
+		return;
+
+	case EVaelAmmoEffect::Smoke:
+	case EVaelAmmoEffect::Sleep:
+	case EVaelAmmoEffect::Frenzy:
+	{
+		// A cloud on the spot: smoke makes them stagger and lose the target; poppy puts the weak to sleep; Raunsamen turns them
+		// on each other. The Glutrauch glows and burns inside.
+		const FLinearColor Tint = Effect == EVaelAmmoEffect::Sleep ? FLinearColor(0.4f, 0.25f, 0.5f) : Effect == EVaelAmmoEffect::Frenzy ? FLinearColor(0.45f, 0.4f, 0.55f)
+			: AmmoGear != nullptr && AmmoGear->bAlsoBurn ? FLinearColor(0.55f, 0.3f, 0.18f) : FLinearColor(0.32f, 0.3f, 0.29f);
+		const float Reach = Radius > 0.0f ? Radius : 340.0f;
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->SteamEffect), Location, FRotator::ZeroRotator, Tint, Reach * 0.9f);
+		for (AVaelCharacterBase* Enemy : EnemiesAround(Location, Reach))
+		{
+			if (Effect == EVaelAmmoEffect::Smoke)
+			{
+				UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Confused, Seconds > 0.0f ? Seconds : 4.0f);
+				if (AmmoGear != nullptr && AmmoGear->bAlsoBurn)
+				{
+					UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Damage * 0.3f, EVaelElement::Fire);
+					UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, 3.0f, 4.0f);
+				}
+			}
+			else
+			{
+				ApplyEffect(Enemy, AmmoGear, Effect, Location, From, Damage);
 			}
 		}
 		return;
 	}
 
-	// Smoke: a cloud on the spot, everything in it staggers and loses its target
-	if (Effect == EVaelAmmoEffect::Smoke)
+	case EVaelAmmoEffect::Dew:
+	case EVaelAmmoEffect::Blind:
 	{
-		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->SteamEffect), Location, FRotator::ZeroRotator, FLinearColor(0.32f, 0.3f, 0.29f), 300.0f);
-		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+		// A splash of water, or a flash of light, round the spot
+		const float Reach = Radius > 0.0f ? Radius : 200.0f;
+		UNiagaraSystem* Look = Effect == EVaelAmmoEffect::Dew ? VaelAssets::LoadOptional(Magic->WaterBoltTrailEffect) : VaelAssets::LoadOptional(Magic->HandEffect);
+		VaelEffects::SpawnAt(this, Look, Location, FRotator::ZeroRotator, AmmoGear != nullptr ? AmmoGear->Color : FLinearColor::White, Reach * 0.6f);
+		for (AVaelCharacterBase* Enemy : EnemiesAround(Location, Reach))
 		{
-			if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && FVector::Dist2D(It->GetActorLocation(), Location) < 340.0f)
-			{
-				UVaelCombatStatics::ApplyStatus(GetOwner(), *It, EVaelStatus::Confused, 4.0f);
-			}
+			ApplyEffect(Enemy, AmmoGear, Effect, Location, From, Damage);
 		}
 		return;
 	}
-	// Crackle: three small bursts of fire round the spot, burning what they hit, and his mines nearby go off
-	if (Effect == EVaelAmmoEffect::Crackle)
+
+	case EVaelAmmoEffect::Steam:
 	{
-		UNiagaraSystem* Burst = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect);
+		// Hot steam scalds and blinds; a cloud of it stays for a while
+		const float Reach = Radius > 0.0f ? Radius : 250.0f;
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->SteamEffect), Location, FRotator::ZeroRotator, FLinearColor(0.92f, 0.92f, 0.95f), Reach);
+		for (AVaelCharacterBase* Enemy : EnemiesAround(Location, Reach))
+		{
+			UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Damage * 0.5f, EVaelElement::Water);
+			ApplyEffect(Enemy, AmmoGear, Effect, Location, From, Damage);
+		}
+		if (Seconds >= 4.0f)
+		{
+			Fields.Add({ Location, Now() + Seconds, Reach, Damage * 0.08f, EVaelAmmoEffect::Steam });
+		}
+		return;
+	}
+
+	case EVaelAmmoEffect::Flame:
+	{
+		// Stichflamme: a cone of fire onward from the spot, in the way the shot flew
+		FVector Dir = (Location - From).GetSafeNormal2D();
+		if (Dir.IsNearlyZero())
+		{
+			Dir = GetOwner()->GetActorForwardVector().GetSafeNormal2D();
+		}
+		const float Length = Radius > 0.0f ? Radius : 400.0f;
+		UNiagaraSystem* FireLook = VaelEffects::Load(EVaelElement::Fire).Impact;
+		for (int32 Step = 0; Step < 4; ++Step)
+		{
+			VaelEffects::SpawnAt(this, FireLook, Location + Dir * (Length * (0.15f + 0.25f * Step)), FRotator::ZeroRotator, FLinearColor(1.0f, 0.55f, 0.15f), 60.0f + 30.0f * Step);
+		}
+		const float CosHalf = FMath::Cos(FMath::DegreesToRadians(35.0f));
+		for (AVaelCharacterBase* Enemy : EnemiesAround(Location, Length))
+		{
+			const FVector To = Enemy->GetActorLocation() - Location;
+			const bool bInCone = To.Size2D() < 120.0f || FVector::DotProduct(To.GetSafeNormal2D(), Dir) >= CosHalf;
+			if (!bInCone)
+			{
+				continue;
+			}
+			UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Damage * 0.6f, EVaelElement::Fire);
+			UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, Seconds > 0.0f ? Seconds : 3.0f, 4.0f);
+		}
+		return;
+	}
+
+	case EVaelAmmoEffect::Blast:
+	{
+		const float Reach = Radius > 0.0f ? Radius : 300.0f;
+		if (AmmoGear != nullptr && AmmoGear->Delay > 0.0f)
+		{
+			// The Glutnadel sticks in the nearest enemy and goes off later where that enemy is then
+			FDelayedBlast Blast;
+			Blast.Location = Location;
+			Blast.At = Now() + AmmoGear->Delay;
+			Blast.Radius = Reach;
+			Blast.Damage = Damage * 1.2f;
+			Blast.bBurn = AmmoGear->bAlsoBurn;
+			float Best = 160.0f;
+			for (AVaelCharacterBase* Enemy : EnemiesAround(Location, 160.0f))
+			{
+				const float Dist = FVector::Dist2D(Enemy->GetActorLocation(), Location);
+				if (Dist <= Best)
+				{
+					Best = Dist;
+					Blast.Stuck = Enemy;
+				}
+			}
+			DelayedBlasts.Add(Blast);
+			return;
+		}
+		Explode(Location, Reach, Damage * 0.8f, AmmoGear != nullptr && AmmoGear->bAlsoBurn);
+		return;
+	}
+
+	case EVaelAmmoEffect::FireField:
+	{
+		const float Reach = Radius > 0.0f ? Radius : 300.0f;
+		VaelEffects::SpawnAt(this, VaelEffects::Load(EVaelElement::Fire).Impact, Location, FRotator::ZeroRotator, FLinearColor(1.0f, 0.4f, 0.08f), Reach * 0.6f);
+		Fields.Add({ Location, Now() + (Seconds > 0.0f ? Seconds : 5.0f), Reach, Damage * 0.15f, EVaelAmmoEffect::FireField });
+		NextFieldTick = FMath::Min(NextFieldTick, Now());
+		return;
+	}
+
+	case EVaelAmmoEffect::Crackle:
+	{
+		// (older shot, kept for saved turrets) three small bursts of fire round the spot, and his mines nearby go off
+		UNiagaraSystem* Burst = VaelAssets::LoadOptional(Magic->DustBurstEffect);
 		for (int32 Pop = 0; Pop < 3; ++Pop)
 		{
 			const FVector At = Location + FRotator(0.0f, Pop * 120.0f + FMath::FRandRange(-20.0f, 20.0f), 0.0f).RotateVector(FVector(140.0f, 0.0f, 0.0f));
 			VaelEffects::SpawnAt(this, Burst, At, FRotator::ZeroRotator, FLinearColor(1.0f, 0.45f, 0.1f), 90.0f);
-			for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+			for (AVaelCharacterBase* Enemy : EnemiesAround(At, 170.0f))
 			{
-				if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && UVaelCombatStatics::CanDamage(GetOwner(), *It) && FVector::Dist2D(It->GetActorLocation(), At) < 170.0f)
-				{
-					UVaelCombatStatics::DealDamage(GetOwner(), *It, Damage * 0.35f, EVaelElement::Fire);
-					UVaelCombatStatics::ApplyStatus(GetOwner(), *It, EVaelStatus::Burning, 2.0f, 3.0f);
-				}
-			}
-		}
-		for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
-		{
-			if (It->GetEngineer() == this && FVector::Dist2D(It->GetActorLocation(), Location) < 400.0f)
-			{
-				OnDeviceShot(*It, VaelEngineerGear::Find(TEXT("Brand")) != nullptr ? FName(TEXT("Brand")) : ShotAmmo);
+				UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Damage * 0.35f, EVaelElement::Fire);
+				UVaelCombatStatics::ApplyStatus(GetOwner(), Enemy, EVaelStatus::Burning, 2.0f, 3.0f);
 			}
 		}
 		return;
 	}
 
+	default:
+		break;
+	}
+
 	// Shards: everything around takes a part of the hit
-	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	for (AVaelCharacterBase* Enemy : EnemiesAround(Location, 260.0f))
 	{
-		if (It->IsA<AVaelCharacter>() || It->GetHealth() <= 0.0f || !UVaelCombatStatics::CanDamage(GetOwner(), *It) || FVector::Dist2D(It->GetActorLocation(), Location) > 260.0f)
-		{
-			continue;
-		}
-		UVaelCombatStatics::DealDamage(GetOwner(), *It, Damage * 0.6f, EVaelElement::Earth);
+		UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Damage * 0.6f, EVaelElement::Earth);
 	}
 }
 
@@ -1352,6 +1770,9 @@ void UVaelEngineerComponent::WriteSave(FVaelSavedPlayer& Saved) const
 	Saved.EngineerTiers = WeaponTiers;
 	Saved.EngineerBranches = WeaponBranches;
 	Saved.EngineerPlans = Plans.Array();
+	Saved.EngineerFormulas = Formulas.Array();
+	Saved.EngineerTried = Tried.Array();
+	Saved.EngineerPockets = Pockets;
 }
 
 void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
@@ -1366,6 +1787,45 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 	WeaponBranches = Saved.EngineerBranches;
 	Plans = TSet<FName>(Saved.EngineerPlans);
 	Stock = Saved.EngineerStock;
+	Formulas = TSet<FName>(Saved.EngineerFormulas);
+	Tried = TSet<FString>(Saved.EngineerTried);
+	// Saves from before the formulas (goal 14.11.): what he carries he knows how to make
+	for (const TMap<FName, int32>* Held : { &Carried, &Stock })
+	{
+		for (const TPair<FName, int32>& Entry : *Held)
+		{
+			const FVaelGear* Gear = VaelEngineerGear::Find(Entry.Key);
+			if (Gear != nullptr && Gear->IsFormula() && Entry.Value > 0)
+			{
+				Formulas.Add(Entry.Key);
+			}
+		}
+	}
+	// The pockets: saved, or (older saves) the kinds he carries; never more kinds than there are pockets, the rest goes into
+	// the backpack, and nothing is carried outside a pocket
+	Pockets = Saved.EngineerPockets;
+	if (Pockets.IsEmpty())
+	{
+		for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+		{
+			if (Gear.Kind == EVaelGearKind::Ammo && GetCarried(Gear.Id) > 0)
+			{
+				Pockets.Add(Gear.Id);
+			}
+		}
+	}
+	while (Pockets.Num() > GetPocketCount())
+	{
+		EmptyPocket(Pockets.Last());
+	}
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		if (Gear.Kind == EVaelGearKind::Ammo && !IsInPocket(Gear.Id) && GetCarried(Gear.Id) > 0)
+		{
+			Stock.FindOrAdd(Gear.Id) += GetCarried(Gear.Id);
+			Carried.Remove(Gear.Id);
+		}
+	}
 	if (Saved.EngineerWorn.Num() == NumArmorPlaces)
 	{
 		Worn = Saved.EngineerWorn;
@@ -1569,6 +2029,11 @@ int32 UVaelEngineerComponent::ReadyFromStock(FName Id)
 	const FVaelGear* Gear = VaelEngineerGear::Find(Id);
 	if (Gear == nullptr)
 	{
+		return 0;
+	}
+	if (Gear->Kind == EVaelGearKind::Ammo && !IsInPocket(Id))
+	{
+		// On the way the pockets stay as they are; a new kind gets a pocket only at the workbench or a campfire
 		return 0;
 	}
 	int32& InStock = Stock.FindOrAdd(Id);
