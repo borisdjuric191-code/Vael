@@ -101,6 +101,20 @@ Später kommen die **Rippennager-Gänge** dazu: kurze Abkürzungen in der offene
 - **Eingang in der Welt:** an der Knochenhalle (2046 / 4004 m).
 - **Grundriss:** `py Tools/Welt/hoehle_grundriss.py Gebeinkammer`.
 
+## Die übrigen fünf, erster Stand
+
+Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HOEHLE=<Name>` und `Scripts/BuildHoehle.py`.
+
+| Höhle (Level) | Eingang in der Welt | Was drin ist |
+|---|---|---|
+| Funkenerz-Adern (`L_FunkenerzAdern`) | Funkenerz-Adern 1136 / 5596 m, neues Portal | schmale, gewundene Spalten im schwarzen Fels; glühende Adern am Boden, Feuerquellen in den Weitungen (Feuer für die Magie); Funkenerz-Platzhalter |
+| Ameisenbau (`L_Ameisenbau`) | Förderturm 955 / 4414 m, neues Portal | runde, gefressene Kammern an gewundenen Gängen; Kristallreste in fünf Farben, die leuchten; Brutkammern (Eisäcke aus der Glutkammer); ganz im Norden die große Kammer der Erzmutter |
+| Kobold-Stollen (`L_KoboldStollen`) | Grubenlaternen 1648 / 3686 m, neues Portal | Irrgarten aus 4 m engen Gängen mit Sackgassen und ein paar Schleifen, niedrigere Wände; grünes, trügerisches Laternenlicht; Geröll; im Norden der Hort mit Kobaltblüte und Beutekisten |
+| Rostschwamm-Höhle (`L_Rostschwamm`) | Rostschwamm-Höhle 1636 / 3300 m (Portal gab es schon) | weite Grotten voller Rostschwamm, Giftlachen, kränkliches Grün; Siechglas/Grünspan-Platzhalter |
+| Tiefster Schacht (`L_TiefsterSchacht`) | Tiefster Schacht 1864 / 3209 m, neues Portal | Ringweg um einen bodenlosen Abgrund mit violettem Leuchten tief unten; Rippenbögen der Urdrachin spannen sich darüber; Rippenspat; hinten die Nische des Sternmauls |
+
+**Getestet:** In allen acht Höhlen steht die Figur auf dem Boden (Lauftest). Von jeder Höhle habe ich Bilder angesehen.
+
 ## Was beim Bauen schiefging (für die nächsten Höhlen)
 
 - **Stalagmiten der Schluchten:** In einem Innenlevel ließen sie gar nichts mehr laden: kein Bild, keine Kollision, die Figur fiel endlos. Höhlen nehmen deshalb ihre eigenen Tropfsteine (`SM_HK_Tropfstein_*`).
@@ -118,4 +132,9 @@ Später kommen die **Rippennager-Gänge** dazu: kurze Abkürzungen in der offene
 - **Gebeinkammer:**
   - Sehr dunkel; die Schädelwände sind von oben kaum zu sehen, und in den Beinhauskammern fehlt Licht.
   - Die Knochenhaufen sehen etwas spinnenartig aus.
-- **Weitere Höhlen:** Funkenerz-Adern, Ameisenbau, Kobold-Stollen, Rostschwamm-Höhle und Tiefster Schacht fehlen noch.
+- **Die fünf neuen Höhlen:**
+  - Der Kobold-Stollen ist sehr dunkel.
+  - Die Glut- und Giftlachen sind flache, leuchtende Flecken.
+  - Der Schacht hat nur wenige Rippen.
+  - Die Brut sind Eisäcke aus der Glutkammer.
+  - Der Weg durch die fünf neuen Eingänge ist nicht einzeln getestet; die Technik ist dieselbe wie bei der Mine.

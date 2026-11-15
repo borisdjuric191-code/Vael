@@ -164,7 +164,152 @@ def gebeinkammer():
     }
 
 
-HOEHLEN = {"Olmgrotte": olmgrotte, "Gebeinkammer": gebeinkammer}
+def _rect(R, r0, c0, r1, c1, ch="."):
+    for r in range(r0, r1 + 1):
+        for c in range(c0, c1 + 1):
+            R.put(r, c, ch)
+
+
+def _eingang(R, r, c):
+    """Eingangsgrotte unten in der Mitte, der Ausgang in der untersten Zeile"""
+    R.kammer(r - 3, c, 3, 4)
+    R.put(R.h - 2, c, "E"); R.put(R.h - 3, c, "."); R.put(R.h - 2, c + 1, ".")
+
+
+def funkenerz():
+    """Funkenerz-Adern: schmale, gewundene Spalten im schwarzen Fels, am Boden glühende Adern, Feuerquellen in den Weitungen"""
+    R = Raster(36, 44, 1136)
+    _eingang(R, 41, 18)
+    R.gang([(37, 18), (31, 13), (25, 16), (19, 11), (12, 14), (6, 10)], 0.9)
+    R.gang([(25, 16), (21, 23), (15, 27), (8, 25), (4, 19)], 0.9)
+    R.gang([(31, 13), (30, 25), (34, 29)], 0.8)
+    for r, c, rr, rc in [(25, 16, 2.5, 3), (12, 14, 2.5, 3.5), (15, 27, 3, 3), (5, 15, 3, 6), (34, 29, 2.5, 3)]:
+        R.kammer(r, c, rr, rc)
+    R.streuen("P", 16, ".", 3)                               # glühende Adern
+    R.streuen("F", 7, ".", 5)                                # Feuerquellen
+    R.streuen("Z", 9, ".", 4)                                # Funkenerz
+    R.streuen("G", 5, ".", 6)
+    return R, {"name": "FunkenerzAdern", "titel": "Funkenerz-Adern", "art": "FunkenerzAdern", "welt_eingang_m": [1136.4, 5595.5, 20.75],
+               "portal_bauen": True,
+               "legende": {"P": "glühende Ader (Glutlache)", "F": "Feuerquelle", "Z": "Funkenerz (Platzhalter)", "G": "Platz für Gegner"}}
+
+
+def ameisenbau():
+    """Ameisenbau: runde, gefressene Kammern an gewundenen Gängen, Kristallreste in den Wänden, Brutkammern; ganz unten die
+    große Kammer der Erzmutter"""
+    R = Raster(44, 46, 77)
+    _eingang(R, 43, 22)
+    kammern = [(36, 22, 3, 4), (30, 12, 3.5, 4), (29, 32, 3.5, 4.5), (21, 21, 4, 5), (14, 9, 3, 4), (13, 34, 3, 4), (7, 22, 5, 9)]
+    for r, c, rr, rc in kammern:
+        R.kammer(r, c, rr, rc)
+    for a, b in [(0, 1), (0, 2), (1, 3), (2, 3), (1, 4), (2, 5), (3, 6), (4, 6), (5, 6)]:
+        (r0, c0, _, _), (r1, c1, _, _) = kammern[a], kammern[b]
+        R.gang([(r0, c0), ((r0 + r1) / 2 + 1, (c0 + c1) / 2 - 2), (r1, c1)], 1.1)
+    R.gang([(40, 22), (36, 22)], 1.1)
+    R.streuen("C", 22, ".", 3)                               # Kristallreste
+    R.streuen("Z", 10, ".", 3)
+    for r, c in [(30, 10), (31, 14), (29, 30), (28, 34), (14, 8), (13, 35)]:
+        R.put(r, c, "N", ".")                                # Brut
+    for r, c in [(7, 22), (21, 21), (30, 12), (29, 32), (14, 9), (36, 22)]:
+        R.put(r + 1, c + 1, "G", ".")
+    return R, {"name": "Ameisenbau", "titel": "Ameisenbau", "art": "Ameisenbau", "welt_eingang_m": [954.5, 4413.6, 18.51], "portal_bauen": True,
+               "legende": {"C": "Kristallreste in vielen Farben", "Z": "Erz (Platzhalter)", "N": "Brut der Schürfameisen",
+                           "G": "Platz für Gegner (Schürfameisen, Ahnenpanzer; Erzmutter in der großen Kammer)"}}
+
+
+def kobold():
+    """Kobold-Stollen: ein Irrgarten aus engen Gängen mit Sackgassen und falschem Licht; ganz hinten der Hort"""
+    R = Raster(41, 45, 4242)
+    # Irrgarten auf einem Raster von 2 Zellen (Gang, Wand), Tiefensuche von unten
+    zellen_r, zellen_c = range(5, 38, 2), range(3, 38, 2)
+    besucht = set()
+    stapel = [(37, 19)]
+    besucht.add((37, 19))
+    R.put(37, 19, ".")
+    while stapel:
+        r, c = stapel[-1]
+        nachbarn = [(r + dr, c + dc) for dr, dc in ((-2, 0), (2, 0), (0, -2), (0, 2))
+                    if (r + dr) in zellen_r and (c + dc) in zellen_c and (r + dr, c + dc) not in besucht]
+        if not nachbarn:
+            stapel.pop()
+            continue
+        nr, nc = R.rng.choice(nachbarn)
+        R.put((r + nr) // 2, (c + nc) // 2, ".")
+        R.put(nr, nc, ".")
+        besucht.add((nr, nc))
+        stapel.append((nr, nc))
+    # ein paar Schleifen, damit es nicht nur einen Weg gibt
+    for k in range(18):
+        r, c = R.rng.randrange(6, 37), R.rng.randrange(4, 37)
+        if R.g[r][c] == "#" and ((R.g[r - 1][c] == "." and R.g[r + 1][c] == ".") or (R.g[r][c - 1] == "." and R.g[r][c + 1] == ".")):
+            R.put(r, c, ".")
+    _rect(R, 38, 17, 42, 22)                                  # Eingang
+    R.put(43, 19, "E")
+    R.kammer(3, 20, 2, 6)                                    # der Hort im Norden
+    R.put(5, 19, "."); R.put(5, 21, ".")
+    for r, c in [(2, 16), (2, 23), (3, 25), (3, 15), (2, 20)]:
+        R.put(r, c, "Z", ".")
+    for r, c in [(4, 17), (4, 23), (3, 21)]:
+        R.put(r, c, "K", ".")
+    R.streuen("L", 12, ".", 5)                               # falsches Licht
+    R.streuen("T", 5, ".", 6)                                # eingestürzt
+    R.streuen("G", 7, ".", 6)
+    return R, {"name": "KoboldStollen", "titel": "Kobold-Stollen", "art": "KoboldStollen", "welt_eingang_m": [1647.7, 3686.4, 18.54],
+               "portal_bauen": True,
+               "legende": {"L": "Laterne der Kobolde (falsches, grünes Licht)", "T": "Geröll", "Z": "Kobaltblüte (Hort)", "K": "Beute der Kobolde",
+                           "G": "Platz für Gegner (Kobolde)"}}
+
+
+def rostschwamm():
+    """Rostschwamm-Höhle: weite, niedrige Grotten voller Schwammwucherungen, Giftlachen, kränkliches grünes Licht"""
+    R = Raster(42, 42, 1636)
+    _eingang(R, 39, 20)
+    R.gang([(35, 20), (28, 14), (20, 17), (12, 12), (6, 18)], 1.6)
+    R.gang([(28, 14), (24, 27), (14, 30), (6, 18)], 1.5)
+    for r, c, rr, rc in [(27, 15, 4, 5), (19, 20, 4, 6), (12, 12, 3.5, 5), (14, 30, 4, 5), (6, 19, 4, 8), (24, 28, 3, 4)]:
+        R.kammer(r, c, rr, rc)
+    R.streuen("M", 34, ".", 2)                               # Rostschwamm
+    R.streuen("P", 12, ".", 4)                               # Giftlachen
+    R.streuen("Z", 9, ".", 4)                                # Siechglas, Grünspan
+    R.streuen("G", 5, ".", 6)
+    return R, {"name": "Rostschwamm", "titel": "Rostschwamm-Höhle", "art": "Rostschwamm", "welt_eingang_m": [1636.4, 3300.0, 65.29],
+               "legende": {"M": "Rostschwamm", "P": "Giftlache", "Z": "Siechglas / Grünspan (Platzhalter)", "G": "Platz für Gegner"}}
+
+
+def schacht():
+    """Tiefster Schacht: ein Ringweg um einen bodenlosen Abgrund, über den sich die Rippen der Urdrachin spannen; im Fels
+    der Rippenspat. Hier lauert das Sternmaul"""
+    R = Raster(44, 44, 1863)
+    _eingang(R, 41, 21)
+    R.gang([(37, 21), (31, 21)], 1.2)
+    R.kammer(20, 21, 13, 13, ".", 0.12)                      # der Schacht
+    R.kammer(20, 21, 8.5, 8.5, "X", 0.15)                    # der Abgrund
+    R.kammer(7, 21, 3, 5)                                    # Nische des Sternmauls hinten
+    for r, c in [(20, 9), (20, 33), (9, 21), (31, 21), (12, 12), (12, 30), (28, 12), (28, 30)]:
+        R.put(r, c, "R", ".")                                # Rippen
+    for r, c in [(19, 8), (21, 34), (10, 13), (30, 29), (27, 11), (11, 29)]:
+        R.put(r, c, "Z", ".")                                # Rippenspat
+    for r, c in [(16, 8), (25, 34), (8, 17), (32, 25)]:
+        R.put(r, c, "C", ".")
+    for r, c in [(7, 21), (24, 9), (14, 33)]:
+        R.put(r, c, "G", ".")
+    return R, {"name": "TiefsterSchacht", "titel": "Tiefster Schacht", "art": "TiefsterSchacht", "welt_eingang_m": [1863.6, 3209.1, 28.43],
+               "portal_bauen": True,
+               "legende": {"X": "Abgrund (nicht begehbar)", "R": "Rippe der Urdrachin", "Z": "Rippenspat (Platzhalter)", "C": "Kristall-Licht",
+                           "G": "Platz für Gegner (Sternmaul)"}}
+
+
+def _daten(fabrik):
+    R, d = fabrik()
+    d.setdefault("zelle_m", 4.0)
+    d["legende"] = dict({"#": "Fels", ".": "Boden", "E": "Ausgang in die Welt"}, **d["legende"])
+    d["grundriss"] = R.zeilen()
+    return d
+
+
+HOEHLEN = {"Olmgrotte": olmgrotte, "Gebeinkammer": gebeinkammer,
+           "FunkenerzAdern": lambda: _daten(funkenerz), "Ameisenbau": lambda: _daten(ameisenbau), "KoboldStollen": lambda: _daten(kobold),
+           "Rostschwamm": lambda: _daten(rostschwamm), "TiefsterSchacht": lambda: _daten(schacht)}
 
 if __name__ == "__main__":
     for name in sys.argv[1:] or list(HOEHLEN):

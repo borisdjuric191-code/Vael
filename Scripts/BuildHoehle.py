@@ -35,7 +35,8 @@ ROCK_PIECES = ["SM_HK_Wand_A", "SM_HK_Wand_B", "SM_HK_Wand_C", "SM_HK_Wand_Niedr
                "SM_HK_Ecke_A", "SM_HK_Ecke_B", "SM_HK_Ecke_Niedrig", "SM_HK_Boden_A", "SM_HK_Boden_B",
                "SM_HK_Tropfstein_A", "SM_HK_Tropfstein_B", "SM_HK_Tropfstein_C"]
 PROPS = ["SM_HK_Verbau", "SM_HK_Verbau_8", "SM_HK_Verbau_12", "SM_HK_Schiene", "SM_HK_Lore", "SM_HK_Kiste", "SM_HK_Balkenstapel", "SM_HK_Laterne",
-         "SM_HK_Salzspat", "SM_HK_Salzspat_Klein", "SM_HK_Schaedelwand_A", "SM_HK_Schaedelwand_B", "SM_HK_Knochenhaufen", "SM_HK_Schleim"]
+         "SM_HK_Salzspat", "SM_HK_Salzspat_Klein", "SM_HK_Schaedelwand_A", "SM_HK_Schaedelwand_B", "SM_HK_Knochenhaufen", "SM_HK_Schleim",
+         "SM_HK_Schwamm", "SM_HK_Rippe"]
 KIT_SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut",
              "Moos": "M_GK_Moos", "Messing": "/Game/Vael/Refugium/Glutkammer/Werkstatt/M_IW_Messing"}
 
@@ -48,6 +49,23 @@ ART = {
                   "grundlicht": 0.9, "erz": "salzspat", "natur": True, "kristall": (0.45, 0.8, 1.0),
                   "nebeldichte": 0.004, "volumennebel": False},
     # Katakomben der Gilde: Kalkfels, Schädelreihen an den Wänden, Grabschleim in vielen Farben
+    # schmale Spalten im schwarzen Fels, glühende Adern, Feuerquellen
+    "FunkenerzAdern": {"fels": (0.2, 0.18, 0.18), "boden": (0.16, 0.14, 0.13), "laterne": (1.0, 0.5, 0.2), "nebel": (0.08, 0.03, 0.01),
+                       "grundlicht": 0.35, "natur": True, "schleim": ["Glut"], "erzfarbe": (1.0, 0.45, 0.1), "nebeldichte": 0.02},
+    # runde, gefressene Kammern, Kristallreste in vielen Farben, Brut
+    "Ameisenbau": {"fels": (0.55, 0.45, 0.32), "boden": (0.4, 0.33, 0.24), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.04, 0.03),
+                   "grundlicht": 0.8, "natur": True, "kristalle": [(1.0, 0.3, 0.6), (0.2, 0.9, 0.7), (0.4, 1.0, 0.2), (1.0, 0.7, 0.2), (0.5, 0.4, 1.0)],
+                   "erzfarbe": (0.85, 0.5, 0.2), "nebeldichte": 0.015},
+    # Irrgarten der Kobolde: dunkler Fels, falsches grünes Licht, der Hort voller Kobaltblüte
+    "KoboldStollen": {"fels": (0.36, 0.33, 0.36), "boden": (0.26, 0.24, 0.25), "laterne": (0.45, 1.0, 0.35), "nebel": (0.03, 0.05, 0.03),
+                      "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.45},
+    # Schwammwucherungen, Giftlachen, kränkliches Grün
+    "Rostschwamm": {"fels": (0.45, 0.3, 0.2), "boden": (0.3, 0.22, 0.15), "laterne": (0.6, 1.0, 0.3), "nebel": (0.04, 0.07, 0.02),
+                    "grundlicht": 0.6, "natur": True, "wucherung": "schwamm", "schleim": ["Gift"], "erzfarbe": (0.4, 1.0, 0.3), "nebeldichte": 0.03},
+    # Ringweg um den Abgrund, Rippen der Urdrachin, Rippenspat
+    "TiefsterSchacht": {"fels": (0.38, 0.36, 0.4), "boden": (0.28, 0.27, 0.3), "laterne": (0.8, 0.7, 1.0), "nebel": (0.04, 0.03, 0.06),
+                        "grundlicht": 0.8, "natur": True, "erzfarbe": (1.0, 0.9, 0.7), "kristalle": [(0.8, 0.7, 1.0)], "abgrund": True,
+                        "nebeldichte": 0.015},
     "Gebeinkammer": {"fels": (0.6, 0.55, 0.47), "boden": (0.42, 0.38, 0.33), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.045, 0.04),
                      "grundlicht": 0.9, "schaedelwand": 0.75, "nebeldichte": 0.02},
 }
@@ -56,6 +74,8 @@ editor = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 PLANE = unreal.load_asset("/Engine/BasicShapes/Plane.Plane")
 CUBE = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
 BOULDERS = [unreal.load_asset("/Game/Vael/Maps/Eisenschlund/Fels/SM_ES_Brocken_" + k) for k in "ABC"]
+NEST = unreal.load_asset("/Game/Vael/Refugium/Glutkammer/Probe/SM_GK_Eisack")
+SPONGE = []
 MITES = []          # eigene Tropfsteine des Baukastens (main); die Stalagmiten der Schluchten ließen im Innenlevel nichts mehr laden
 levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
 assets = unreal.EditorAssetLibrary
@@ -127,6 +147,10 @@ def import_piece(name, collision_complex=False):
 EXTRA_SLOTS = {}        # Kristall, Fels, Knochen, Dunkel: im Lauf angelegt (main)
 # Grabschleim in seinen Farben (Lore-Bibel: grün ist der gewöhnliche, violett zieht zum Nid)
 SCHLEIM = {"Gruen": (0.35, 1.0, 0.2), "Violett": (0.6, 0.2, 1.0), "Rot": (1.0, 0.12, 0.08), "Bernstein": (1.0, 0.6, 0.1), "Tuerkis": (0.1, 0.9, 0.8)}
+# Lachen anderer Höhlen (Glut der Funkenerz-Adern, Gift des Rostschwamms): nur dort, nicht im Grabschleim der Gebeinkammer
+LACHEN = {"Glut": (1.0, 0.35, 0.05), "Gift": (0.45, 0.9, 0.1)}
+CRYSTAL_MATS = []
+ORE_MAT = []
 SLIME_MATS = {}
 
 
@@ -359,7 +383,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
 
     spawn(unreal.VaelIndoorLevel, unreal.Vector(0, 0, 500), "Spiel", "Innenraum")
     # ein Felssockel unter der ganzen Höhle: nichts fällt durch eine Lücke zwischen den Platten ins Leere
-    mesh_actor(unreal.load_asset("/Engine/BasicShapes/Cube.Cube"), (H - 1) * S / 2, (W - 1) * S / 2, -370.0, "Boden", "Felssockel",
+    mesh_actor(unreal.load_asset("/Engine/BasicShapes/Cube.Cube"), (H - 1) * S / 2, (W - 1) * S / 2, -4000.0 if STYLE.get("abgrund") else -370.0, "Boden", "Felssockel",
                scale=((H + 2) * S / 100.0, (W + 2) * S / 100.0, 1.0), material=floor_mat)
 
     for r in range(H):
@@ -368,6 +392,11 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             if ch == "#":
                 continue
             x, y = centre(r, c)
+            if ch == "X":
+                # Abgrund: kein Boden, eine unsichtbare Sperre am Rand
+                block = mesh_actor(CUBE, x, y, 100.0, "Abgrund", "Abgrund (Sperre)", scale=(S / 100.0, S / 100.0, 6.0))
+                block.set_actor_hidden_in_game(True)
+                continue
             depth = {"~": -45.0, "O": -300.0}.get(ch, 0.0)
             mesh_actor(rng.choice([meshes["SM_HK_Boden_A"], meshes["SM_HK_Boden_B"]]), x, y, depth, "Boden", "Boden",
                        yaw=rng.choice((0, 90, 180, 270)), material=floor_mat)
@@ -393,7 +422,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 mesh_actor(rng.choice(lows if low else walls), x + dx * (S / 2 + shift), y + dy * (S / 2 + shift), 0.0, "Waende",
                            "Felswand niedrig" if low else "Felswand", yaw=yaw,
                            scale=(rng.uniform(1.0, 1.25) if NATUR else 1.0, rng.uniform(0.85, 1.4 if NATUR else 1.15),
-                                  rng.uniform(0.8, 1.35 if NATUR else 1.15) if not low else 1.0), material=rock)
+                                  rng.uniform(0.8, 1.35 if NATUR else 1.15) * STYLE.get("wandhoehe", 1.0) if not low else 1.0), material=rock)
                 if not low and rng.random() < STYLE.get("schaedelwand", 0.0):
                     # Schädelreihen der Gilde vor dem Fels, mit dem Gesicht in den Gang
                     mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 70.0),
@@ -429,7 +458,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             px, py = vx + rx / length * 80.0, vy + ry / length * 80.0
             piece = meshes["SM_HK_Ecke_Niedrig"] if low else rng.choice([meshes["SM_HK_Ecke_A"], meshes["SM_HK_Ecke_B"]])
             s = rng.uniform(0.85, 1.1)
-            mesh_actor(piece, px, py, -20.0, "Waende", "Eckpfeiler", yaw=rng.uniform(0, 360), scale=(s, s, rng.uniform(0.9, 1.1)), material=rock)
+            mesh_actor(piece, px, py, -20.0, "Waende", "Eckpfeiler", yaw=rng.uniform(0, 360),
+                       scale=(s, s, rng.uniform(0.9, 1.1) * (1.0 if low else STYLE.get("wandhoehe", 1.0))), material=rock)
 
     # Zeichen des Grundrisses
     start = None
@@ -473,9 +503,34 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             elif ch == "C" and crystal_mat is not None:
                 yaw = rng.uniform(0, 360)
                 s_ = rng.uniform(0.85, 1.25)
-                mesh_actor(meshes["SM_HK_Salzspat"], x + rng.uniform(-80, 80), y + rng.uniform(-80, 80), 0.0, "Licht", "Salzspat",
-                           yaw=yaw, scale=(s_, s_, s_))
-                point_light(x, y, 160.0, "Licht", "Salzspat-Licht", STYLE["kristall"], 110.0, 1700.0, shadows=True)
+                colour, mat = STYLE.get("kristall", (0.45, 0.8, 1.0)), None
+                if CRYSTAL_MATS:
+                    colour, mat = CRYSTAL_MATS[(r * 5 + c * 11) % len(CRYSTAL_MATS)]
+                crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + rng.uniform(-80, 80), y + rng.uniform(-80, 80), 0.0, "Licht", "Kristall",
+                                     yaw=yaw, scale=(s_, s_, s_))
+                if mat is not None:
+                    crystal.static_mesh_component.set_material(0, mat)
+                point_light(x, y, 160.0, "Licht", "Kristall-Licht", colour, 110.0, 1700.0, shadows=True)
+            elif ch == "F":
+                fire = spawn(unreal.VaelFireSpot, unreal.Vector(x, y, 10.0), "Feuer", "Feuerquelle")
+                if "Glut" in SLIME_MATS:
+                    mesh_actor(meshes["SM_HK_Schleim"], x, y, 2.0, "Feuer", "Glutspalt", yaw=rng.uniform(0, 360), scale=(0.7, 0.7, 1.0),
+                               material=SLIME_MATS["Glut"], collision=False)
+                point_light(x, y, 150.0, "Feuer", "Feuerschein", (1.0, 0.5, 0.15), 160.0, 1800.0, shadows=True)
+            elif ch == "N":
+                for k in range(rng.randint(2, 4)):
+                    s_ = rng.uniform(0.6, 0.95)
+                    mesh_actor(NEST, x + rng.uniform(-120, 120), y + rng.uniform(-120, 120), 0.0, "Brut", "Brut der Schuerfameisen",
+                               yaw=rng.uniform(0, 360), scale=(s_, s_, s_))
+                point_light(x, y, 90.0, "Brut", "Brutschein", (1.0, 0.65, 0.3), 25.0, 700.0)
+            elif ch == "R":
+                cx = sum(centre(rr, cc)[0] for rr in range(H) for cc in range(W) if cell(rr, cc) == "X")
+                cy = sum(centre(rr, cc)[1] for rr in range(H) for cc in range(W) if cell(rr, cc) == "X")
+                n_ = sum(1 for rr in range(H) for cc in range(W) if cell(rr, cc) == "X") or 1
+                yaw = math.degrees(math.atan2(cy / n_ - y, cx / n_ - x))
+                # der Bogen steht mit einem Fuß hier und spannt sich über den Abgrund
+                mesh_actor(meshes["SM_HK_Rippe"], x + math.cos(math.radians(yaw)) * 700.0, y + math.sin(math.radians(yaw)) * 700.0, -150.0,
+                           "Rippen", "Rippe der Urdrachin", yaw=yaw, scale=(1.0, 1.0, rng.uniform(1.0, 1.4)), collision=False)
             elif ch == "B":
                 s_ = rng.uniform(0.9, 1.4)
                 mesh_actor(meshes["SM_HK_Knochenhaufen"], x + rng.uniform(-60, 60), y + rng.uniform(-60, 60), 0.0, "Gebeine", "Knochenhaufen",
@@ -483,20 +538,31 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             elif ch == "P" and SLIME_MATS:
                 farbe = sorted(SLIME_MATS)[(r * 7 + c * 3) % len(SLIME_MATS)]
                 s_ = rng.uniform(0.8, 1.3)
-                mesh_actor(meshes["SM_HK_Schleim"], x, y, 2.0, "Schleim", "Grabschleim " + farbe, yaw=rng.uniform(0, 360), scale=(s_, s_, 1.0),
+                mesh_actor(meshes["SM_HK_Schleim"], x, y, 2.0, "Schleim", "Lache " + farbe, yaw=rng.uniform(0, 360), scale=(s_, s_, 1.0),
                            material=SLIME_MATS[farbe], collision=False)
-                col = SCHLEIM[farbe]
-                point_light(x, y, 120.0, "Schleim", "Schleimschein " + farbe, col, 70.0, 1100.0)
+                col = SCHLEIM.get(farbe) or LACHEN[farbe]
+                point_light(x, y, 120.0, "Schleim", "Schleimschein " + farbe, col, 70.0 if farbe in SCHLEIM else 30.0, 1100.0)
+            elif ch == "M" and STYLE.get("wucherung") == "schwamm":
+                for k in range(rng.randint(2, 4)):
+                    s_ = rng.uniform(0.8, 2.0)
+                    mesh_actor(meshes["SM_HK_Schwamm"], x + rng.uniform(-140, 140), y + rng.uniform(-140, 140), -5.0, "Schwamm", "Rostschwamm",
+                               yaw=rng.uniform(0, 360), scale=(s_, s_, s_ * rng.uniform(0.8, 1.3)), material=SPONGE[0])
+                if rng.random() < 0.3:
+                    point_light(x, y, 80.0, "Schwamm", "Sporenlicht", (0.55, 1.0, 0.3), 6.0, 600.0)
             elif ch == "M":
                 for k in range(rng.randint(3, 6)):
                     h_ = rng.uniform(1.2, 4.5)
                     mesh_actor(rng.choice(MITES), x + rng.uniform(-150, 150), y + rng.uniform(-150, 150), -20.0, "Tropfsteine", "Tropfstein",
                                yaw=rng.uniform(0, 360), scale=(h_ * 0.55, h_ * 0.55, h_), material=rock, pitch=rng.uniform(-6, 6))
-            elif ch == "Z" and STYLE.get("erz") == "salzspat":
+            elif ch == "Z" and (STYLE.get("erz") == "salzspat" or ORE_MAT):
                 for k in range(rng.randint(2, 3)):
                     s_ = rng.uniform(0.7, 1.1)
-                    mesh_actor(meshes["SM_HK_Salzspat_Klein"], x + rng.uniform(-90, 90), y + rng.uniform(-90, 90), 0.0, "Erz", "Erzstelle",
-                               yaw=rng.uniform(0, 360), scale=(s_, s_, s_))
+                    ore = mesh_actor(meshes["SM_HK_Salzspat_Klein"], x + rng.uniform(-90, 90), y + rng.uniform(-90, 90), 0.0, "Erz", "Erzstelle",
+                                     yaw=rng.uniform(0, 360), scale=(s_, s_, s_))
+                    if ORE_MAT:
+                        ore.static_mesh_component.set_material(0, ORE_MAT[0])
+                if ORE_MAT:
+                    point_light(x, y, 90.0, "Erz", "Erzglanz", STYLE["erzfarbe"], 25.0, 600.0)
                 marker = spawn(unreal.TargetPoint, unreal.Vector(x, y, 50.0), "Erz", "Erzstelle (Platzhalter)")
                 marker.set_editor_property("tags", [unreal.Name("VaelErzstelle")])
             elif ch == "Z":
@@ -527,6 +593,11 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     if start is not None:
         spawn(unreal.PlayerStart, unreal.Vector(start[0], start[1], 120.0), "Spiel", "Spielerstart")
 
+    if STYLE.get("abgrund"):
+        xs = [centre(r, c) for r in range(H) for c in range(W) if cell(r, c) == "X"]
+        if xs:
+            ax_, ay_ = sum(p[0] for p in xs) / len(xs), sum(p[1] for p in xs) / len(xs)
+            point_light(ax_, ay_, -2500.0, "Abgrund", "Leuchten tief unten", (0.6, 0.25, 1.0), 4000.0, 6000.0)
     # Grundlicht: ein schwaches, kühles Licht schräg von oben (die Höhle ist für die Kamera oben offen), das die Formen zeigt;
     # die Laternen und Schächte bleiben das Helle
     moon = spawn(unreal.DirectionalLight, unreal.Vector(0, 0, 3000.0), "Licht", "Grundlicht von oben", unreal.Rotator(0.0, -62.0, 35.0))
@@ -581,6 +652,24 @@ def build_world_entrance():
     mouth.set_editor_property("tags", [tag])
     mouth.set_editor_property("target_level", unreal.Name("L_" + NAME))
     mouth.set_editor_property("message", unreal.Text(D.get("titel", NAME)))
+    if D.get("portal_bauen"):
+        # an diesem Ort stand noch kein Stollenportal (BuildEisenschlund.py baut nur einige): zwei Felspfeiler, ein Sturz, Dunkel dahinter
+        cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
+        stone = unreal.load_asset("/Game/Vael/Maps/Blockout/MI_Blockout_Stone")
+        dark = unreal.load_asset("/Game/Vael/Maps/Blockout/MI_Blockout_Dunkel")
+        for label, (px, py, pz), size, mat, solid in (("Pfeiler", (ex * M, ey * M - 350.0, z + 300.0), (2.0, 1.6, 7.0), stone, True),
+                                                      ("Pfeiler", (ex * M, ey * M + 350.0, z + 300.0), (2.0, 1.6, 7.0), stone, True),
+                                                      ("Sturz", (ex * M, ey * M, z + 650.0), (2.4, 9.0, 1.6), stone, True),
+                                                      ("Dunkel", (ex * M - 150.0, ey * M, z + 300.0), (0.4, 5.6, 6.2), dark, False)):
+            part = editor.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(px, py, pz), unreal.Rotator(0, 0, 0))
+            part.static_mesh_component.set_static_mesh(cube)
+            part.static_mesh_component.set_material(0, mat)
+            part.set_actor_scale3d(unreal.Vector(*size))
+            if not solid:
+                part.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+            part.set_actor_label(label)
+            part.set_folder_path("Eisenschlund/Hoehlen/" + NAME)
+            part.set_editor_property("tags", [tag])
     unreal.EditorLoadingAndSavingUtils.save_map(world, WORLD)
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
     log("Eingang in L_Vael bei {:.0f} / {:.0f} m, Boden {:.1f} m".format(ex, ey, z / M))
@@ -604,10 +693,25 @@ def main():
     EXTRA_SLOTS["Knochen"] = simple_material("M_HK_Knochen", (0.62, 0.56, 0.45), 0.75)
     EXTRA_SLOTS["Dunkel"] = simple_material("M_HK_Dunkel", (0.015, 0.012, 0.01), 0.9)
     EXTRA_SLOTS["Schleim"] = simple_material("M_HK_Schleim_Gruen", (0.1, 0.3, 0.06), 0.08, emissive=(1.0, 3.0, 0.6))
-    if STYLE.get("schaedelwand"):
-        for farbe, col in SCHLEIM.items():
+    lachen = list(SCHLEIM) if STYLE.get("schaedelwand") else STYLE.get("schleim", [])
+    for farbe in lachen:
+        if farbe in SCHLEIM:
+            col = SCHLEIM[farbe]
             SLIME_MATS[farbe] = simple_material("M_HK_Schleim_" + farbe, (col[0] * 0.3, col[1] * 0.3, col[2] * 0.3), 0.08,
                                                 emissive=(col[0] * 3.0, col[1] * 3.0, col[2] * 3.0))
+        else:
+            # Glut und Gift glühen gedämpft (mit 3-fachem Leuchten waren sie weiß überstrahlt)
+            col = LACHEN[farbe]
+            SLIME_MATS[farbe] = simple_material("M_HK_Lache_" + farbe, (col[0] * 0.25, col[1] * 0.25, col[2] * 0.25), 0.1,
+                                                emissive=(col[0] * 0.9, col[1] * 0.9, col[2] * 0.9))
+
+    def glow_mat(prefix, col):
+        name = "{}_{:02x}{:02x}{:02x}".format(prefix, int(col[0] * 255), int(col[1] * 255), int(col[2] * 255))
+        return simple_material(name, (col[0] * 0.5 + 0.2, col[1] * 0.5 + 0.2, col[2] * 0.5 + 0.2), 0.15, emissive=(col[0] * 3.0, col[1] * 3.0, col[2] * 3.0))
+    CRYSTAL_MATS[:] = [(col, glow_mat("M_HK_Kristall", col)) for col in STYLE.get("kristalle", [])]
+    if STYLE.get("erzfarbe"):
+        ORE_MAT[:] = [glow_mat("M_HK_Erz", STYLE["erzfarbe"])]
+    SPONGE[:] = [simple_material("M_HK_Rostschwamm", (0.26, 0.11, 0.04), 0.9)]
     EXTRA_SLOTS["Fels"] = rock
     for name in PROPS:
         meshes[name] = import_piece(name)

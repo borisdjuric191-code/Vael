@@ -24,7 +24,10 @@ Olmgrotte (Slots Kristall und Fels):
 Gebeinkammer (Slots Knochen, Dunkel, Schleim):
   SM_HK_Schaedelwand_A/B  Schädelreihen und Langknochen vor dem Fels, 4,4 x 3,2 m, Vorderseite -Y
   SM_HK_Knochenhaufen     Haufen Gebeine mit Schädeln, ~2 m
-  SM_HK_Schleim           Lache Grabschleim mit Rinnsalen, ~3 m, leuchtet
+  SM_HK_Schleim           Lache Grabschleim mit Ausläufern, ~3 m, leuchtet (auch Glut- und Giftlachen anderer Höhlen)
+Rostschwamm-Höhle, Tiefster Schacht:
+  SM_HK_Schwamm           Rostschwamm-Wuchs, klumpig und löchrig, ~1,6 m (Slot Fels)
+  SM_HK_Rippe             Rippenbogen der Urdrachin, 16 m weit, 9 m hoch, entlang X (Slot Knochen)
   SM_HK_Tropfstein_A/B/C  Tropfstein, 1 m hoch (Slot Fels); die Stalagmiten der Schluchten ließen in einem Innenlevel nichts mehr laden
 
 Run:
@@ -364,6 +367,42 @@ def slime(name, seed):
     gk.export(obj)
 
 
+# ---------------------------------------------------------------- Rostschwamm-Höhle, Tiefster Schacht
+
+def sponge(name, seed):
+    """Rostschwamm: ein klumpiger, löchriger Wuchs aus mehreren Knollen, ~1,6 m; Slot Fels (bekommt das Schwamm-Material)"""
+    obj = gk.new_object(name, FELS)
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    for k in range(rnd.randint(5, 8)):
+        c = Vector((rnd.uniform(-0.6, 0.6), rnd.uniform(-0.6, 0.6), 0.0))
+        h = rnd.uniform(0.5, 1.6)
+        r = rnd.uniform(0.18, 0.4)
+        profile = [(0.0, 0.0), (r * 0.8, 0.0), (r, h * 0.3), (r * 1.25, h * 0.75), (r * 1.1, h * 0.95), (r * 0.5, h), (0.0, h * 0.92)]
+        lathe(b, profile, 0, c, sides=10)
+        for j in range(3):
+            a = rnd.uniform(0, 2 * math.pi)
+            z = rnd.uniform(0.3, 0.9) * h
+            disc(b, c + Vector((math.cos(a) * r * 1.15, math.sin(a) * r * 1.15, z)), r * 0.25, Vector((math.cos(a), math.sin(a), 0.2)), 0, sides=6)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def rib(name, seed):
+    """Eine Rippe der Urdrachin: ein Knochenbogen, 16 m weit, 9 m hoch, flach und rau; Slot Knochen"""
+    obj = gk.new_object(name, ["Knochen"])
+    b = gk.Builder()
+    pts, radii = [], []
+    for k in range(13):
+        t = k / 12
+        a = math.pi * t
+        pts.append(Vector((-8.0 * math.cos(a), 0.0, 9.0 * math.sin(a) ** 0.8)))
+        radii.append(0.55 + 0.35 * (1.0 - math.sin(a)))
+    b.tube(pts, radii, 0, sides=8, flat=0.6, rough=0.15, seed=seed)
+    b.finish(obj)
+    gk.export(obj)
+
+
 if __name__ == "__main__":
     random.seed(15)
     builds = [lambda: wall("SM_HK_Wand_A", 1), lambda: wall("SM_HK_Wand_B", 2), lambda: wall("SM_HK_Wand_C", 3),
@@ -375,7 +414,8 @@ if __name__ == "__main__":
               lambda: crystals("SM_HK_Salzspat", 21, 1.6, 11), lambda: crystals("SM_HK_Salzspat_Klein", 22, 0.7, 6),
               lambda: stalagmite("SM_HK_Tropfstein_A", 31), lambda: stalagmite("SM_HK_Tropfstein_B", 32), lambda: stalagmite("SM_HK_Tropfstein_C", 33),
               lambda: skull_wall("SM_HK_Schaedelwand_A", 41), lambda: skull_wall("SM_HK_Schaedelwand_B", 42),
-              lambda: bone_pile("SM_HK_Knochenhaufen", 43), lambda: slime("SM_HK_Schleim", 44)]
+              lambda: bone_pile("SM_HK_Knochenhaufen", 43), lambda: slime("SM_HK_Schleim", 44),
+              lambda: sponge("SM_HK_Schwamm", 51), lambda: rib("SM_HK_Rippe", 52)]
     for build in builds:
         gk.clear_scene()
         build()
