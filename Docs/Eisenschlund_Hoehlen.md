@@ -177,10 +177,9 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 ## Offen
 
 - **Aussehen:** Mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.
-- **Erzstellen:** Die 11 Tripo-Erze sind noch nicht heruntergeladen, weil der Browser bei Tripo abgemeldet war. Danach kommen sie so ins Spiel:
-  1. Je Erz Ordner `Vael_Quellen/<Erz>` mit `02_tripo` und `requisite.json` (Region Eisenschlund) anlegen und das Blender-Skript `requisite` laufen lassen.
-  2. Materialien, Erntedaten und Kompendium anlegen, danach `vael_kreatur_import.py`.
-  3. `hoehlen_erzwand.py` je Erz laufen lassen, dann alle Höhlen neu bauen.
+- **Erze (15.11.):** Alle 11 sind im Spiel: Modelle in `Requisiten/Eisenschlund`, Erntedaten, Materialien, Wandstücke. Erneut einspielen mit `Scripts/ImportEisenschlundErze.py`, danach `hoehlen_erzwand.py` je Erz und die Höhlen neu bauen.
+  - Tripo-Download: Die Browser-Leiste benennt den Download nicht um, die fertige ZIP bleibt als `.tmp` in Downloads liegen. Das FBX-Format nehmen, der GLB-Export brach ab.
+  - Noch offen: Kompendium-Einträge und Icons der elf Erze; Leuchten und Aura je Kristall (Lore-Bibel).
 - **Gegner:** Die Plätze sind markiert (`VaelHoehleGegner`). Die befallenen Bergleute gibt es noch nicht.
 - **Die fünf neuen Höhlen:**
   - Der Kobold-Stollen ist sehr dunkel.
