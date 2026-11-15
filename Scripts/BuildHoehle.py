@@ -59,7 +59,7 @@ ART = {
                    "erzfarbe": (0.85, 0.5, 0.2), "nebeldichte": 0.015, "licht": "kristall", "schutt": "kristall"},
     # Irrgarten der Kobolde: dunkler Fels, falsches grünes Licht, der Hort voller Kobaltblüte
     "KoboldStollen": {"grundfarbe": (0.55, 0.78, 0.55), "fels": (0.36, 0.33, 0.36), "boden": (0.26, 0.24, 0.25), "laterne": (0.45, 1.0, 0.35), "nebel": (0.03, 0.05, 0.03),
-                      "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.45,
+                      "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.45, "erzdichte": 0.16,
                       "licht": "laterne", "schutt": "kiesel"},
     # Schwammwucherungen, Giftlachen, kränkliches Grün
     "Rostschwamm": {"grundfarbe": (0.62, 0.82, 0.45), "fels": (0.45, 0.3, 0.2), "boden": (0.3, 0.22, 0.15), "laterne": (0.6, 1.0, 0.3), "nebel": (0.04, 0.07, 0.02),
@@ -651,7 +651,7 @@ def wand_erze(world):
     erze = [e for e in HOEHLEN_ERZE.get(D.get("art", NAME), []) if erz_stuecke(e)]
     if not erze:
         return 0
-    dichte = STYLE.get("erzdichte", 0.32)
+    dichte = STYLE.get("erzdichte", 0.5)          # 0,32 war Boris zu spärlich
     n = 0
     for r in range(H):
         for c in range(W):
@@ -739,6 +739,10 @@ def ernte_erz(name, x, y, plan_erz):
                   unreal.Rotator(0.0, 0.0, erng.uniform(0, 360)))
     actor.set_editor_property("data", data)
     actor.set_editor_property("tags", [unreal.Name("VaelErzstelle"), unreal.Name("VaelNatur")])
+    # Aura (Lore-Bibel): ein weicher Schein in der Farbe des Erzes; je seltener, desto heller
+    g = data.get_editor_property("glow_color")
+    rar = ERZ_SELTENHEIT.get(plan_erz, 0)
+    point_light(x, y, 110.0, "Erze/Ernte", plan_erz + " (Schein)", (g.r, g.g, g.b), 6.0 + rar * 5.0, 500.0 + rar * 80.0)
     return True
 
 

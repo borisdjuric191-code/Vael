@@ -179,7 +179,14 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 - **Aussehen:** Mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.
 - **Erze (15.11.):** Alle 11 sind im Spiel: Modelle in `Requisiten/Eisenschlund`, Erntedaten, Materialien, Wandstücke. Erneut einspielen mit `Scripts/ImportEisenschlundErze.py`, danach `hoehlen_erzwand.py` je Erz und die Höhlen neu bauen.
   - Tripo-Download: Die Browser-Leiste benennt den Download nicht um, die fertige ZIP bleibt als `.tmp` in Downloads liegen. Das FBX-Format nehmen, der GLB-Export brach ab.
-  - Noch offen: Kompendium-Einträge und Icons der elf Erze; Leuchten und Aura je Kristall (Lore-Bibel).
+  - **Kompendium:** elf Einträge im Buch der Gesteine (`CreateCompendiumAssets.py`). Das ist ein Entwurf, Boris hat ihn noch nicht abgenommen, und in der Lore-Bibel steht er noch nicht.
+  - **Icons:** `Tools/Loot/vael_icons_erze.py` rendert das echte Tripo-Modell, danach kommt `ImportAutoIcons.py`.
+  - **Leuchten und Aura:** `Scripts/BuildKristallAura.py` legt `M_Kristall_Master` an, eine Kopie des Kreatur-Masters mit Aura. Der Kreatur-Master selbst bleibt unberührt.
+    - Was farbig oder hell ist, leuchtet an den Kanten.
+    - Die Farbe wandert wie eine Lavalampe zwischen zwei Farben, jedes Stück im eigenen Takt.
+    - Je seltener das Erz, desto stärker leuchtet es. Das gilt für Wandstücke und Erntestellen gleich.
+  - **Schein:** Jede Erntestelle bekommt dazu einen weichen Schein in ihrer Farbe.
+  - **Dichte:** Die Wanderze stehen dichter als zuvor (0,5 statt 0,32). Der Kobold-Stollen bleibt bei 0,16, weil er sehr viele Wände hat.
 - **Gegner:** Die Plätze sind markiert (`VaelHoehleGegner`). Die befallenen Bergleute gibt es noch nicht.
 - **Die fünf neuen Höhlen:**
   - Der Kobold-Stollen ist sehr dunkel.
