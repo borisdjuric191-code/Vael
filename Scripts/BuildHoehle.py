@@ -441,6 +441,9 @@ def mesh_actor(mesh, x, y, z, folder, label, yaw=0.0, scale=(1.0, 1.0, 1.0), mat
     return actor
 
 
+# Blender -Y (die raue Vorderseite) kommt in Unreal als +Y an: ohne die halbe Drehung zeigte die glatte Rückseite in den Gang
+# (Boris 15.11.: "viele Wände, die zu glatt sind")
+WALL_TURN = float(os.environ.get("VAEL_HOEHLE_WAND_DREHUNG", "180"))
 SKULL_TURN = float(os.environ.get("VAEL_HOEHLE_SCHAEDEL_DREHUNG", "90"))   # die Schädelwand kam um 90° verdreht an
 LIGHTS = []        # wo schon Licht ist (x, y), für die Lichtabdeckung
 
@@ -698,6 +701,50 @@ def wand_erze(world):
     return n
 
 
+def tropfsteine(world):
+    """Stalagmiten am Fuß der Wände und Stalaktiten unter den Überhängen (Boris 15.11.): Stalaktiten hängen dort, wo ein Strahl vom
+    Boden nach oben den Fels trifft; natürliche Höhlen dicht, Stollen und Katakomben spärlich"""
+    dichte = STYLE.get("tropfsteine", 0.4 if NATUR else 0.12)
+    n_mit, n_tit = 0, 0
+    for r in range(H):
+        for c in range(W):
+            if not is_floor(r, c) or cell(r, c) in "XO~E":
+                continue
+            x, y = centre(r, c)
+            for key, (dr, dc, (dx, dy)) in DIRS.items():
+                if is_floor(r + dr, c + dc):
+                    continue
+                low = dx * CAMERA[0] + dy * CAMERA[1] > 0.3
+                narrow = not is_floor(r - dr, c - dc)
+                # Stalagmiten: kleine Gruppen am Wandfuß, aus dem breiten Fuß heraus (nicht in engen Gängen, da versperrten sie den Weg)
+                if not narrow and erng.random() < dichte:
+                    t = erng.uniform(-0.4, 0.4) * S
+                    base = S / 2 - erng.uniform(90.0, 170.0)
+                    for k in range(erng.randint(1, 4)):
+                        h_ = erng.uniform(0.8, 3.2) * (0.6 if low else 1.0)
+                        px = x + dx * (base - erng.uniform(0, 60)) + dy * (t + erng.uniform(-70, 70))
+                        py = y + dy * (base - erng.uniform(0, 60)) - dx * (t + erng.uniform(-70, 70))
+                        mesh_actor(erng.choice(MITES), px, py, -25.0, "Tropfsteine", "Stalagmit", yaw=erng.uniform(0, 360),
+                                   scale=(h_ * 0.42, h_ * 0.42, h_), material=EXTRA_SLOTS.get("Fels"), pitch=erng.uniform(-6, 6), roll=erng.uniform(-6, 6))
+                        n_mit += 1
+                # Stalaktiten unter dem Überhang: von unten nach oben gegen den Fels
+                if not low and erng.random() < min(0.9, dichte * 2.0):
+                    for k in range(erng.randint(3, 7)):
+                        t = erng.uniform(-0.45, 0.45) * S
+                        into = S / 2 - erng.uniform(10.0, 140.0)
+                        px, py = x + dx * into + dy * t, y + dy * into - dx * t
+                        hit = trace(world, unreal.Vector(px, py, 120.0), unreal.Vector(px, py, 1800.0))
+                        if hit is None or hit[0].z < 260.0:
+                            continue
+                        h_ = erng.uniform(0.7, 2.6)
+                        mesh_actor(erng.choice(MITES), px, py, hit[0].z + 30.0, "Tropfsteine", "Stalaktit", yaw=erng.uniform(0, 360),
+                                   scale=(h_ * 0.38, h_ * 0.38, h_), material=EXTRA_SLOTS.get("Fels"), roll=180.0 + erng.uniform(-5, 5),
+                                   collision=False)
+                        n_tit += 1
+    log("Tropfsteine: {} Stalagmiten, {} Stalaktiten".format(n_mit, n_tit))
+    return n_mit + n_tit
+
+
 def ernte_plan():
     """Welche Erzstelle (Z) welches erntebare Erz trägt: je weiter vom Ausgang, desto seltener (Boris 15.11.: so verteilen, dass es
     Sinn macht). Legendäres nur an der tiefsten Stelle, sehr Seltenes nur in der hinteren Hälfte"""
@@ -801,9 +848,15 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 wild = 14.0 if NATUR else 4.0
                 yaw = math.degrees(math.atan2(-dx, dy)) + rng.uniform(-wild, wild)
                 shift = rng.uniform(-60.0, 60.0) if NATUR else 0.0
+                # enger Gang (Fels auf beiden Seiten der Zelle): die Wand mit dem breiten Fuß zurücksetzen und flacher machen,
+                # sonst wuchsen die Füße beider Seiten zusammen und der Gang war zu
+                narrow = not is_floor(r - dr, c - dc)
+                depth = rng.uniform(0.85, 1.4 if NATUR else 1.15)
+                if narrow:
+                    shift, depth = shift * 0.3 + 70.0, 0.6
                 mesh_actor(rng.choice(lows if low else walls), x + dx * (S / 2 + shift), y + dy * (S / 2 + shift), 0.0, "Waende",
-                           "Felswand niedrig" if low else "Felswand", yaw=yaw,
-                           scale=(rng.uniform(1.0, 1.25) if NATUR else 1.0, rng.uniform(0.85, 1.4 if NATUR else 1.15),
+                           "Felswand niedrig" if low else "Felswand", yaw=WALL_TURN + (yaw if not narrow else math.degrees(math.atan2(-dx, dy)) + rng.uniform(-4, 4)),
+                           scale=(rng.uniform(1.0, 1.25) if NATUR else 1.0, depth,
                                   rng.uniform(0.8, 1.35 if NATUR else 1.15) * STYLE.get("wandhoehe", 1.0) if not low else 1.0), material=rock)
                 if not low and rng.random() < STYLE.get("schaedelwand", 0.0):
                     # Schädelreihen der Gilde vor dem Fels, mit dem Gesicht in den Gang
@@ -811,7 +864,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                     mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 170.0),
                                y + dy * (S / 2 - 170.0), 0.0, "Gebeine", "Schaedelwand", yaw=math.degrees(math.atan2(-dx, dy)) + SKULL_TURN,
                                scale=(0.95, 1.0, rng.uniform(1.05, 1.25)))
-                if NATUR and rng.random() < 0.45:
+                if NATUR and rng.random() < 0.45 and not narrow:
                     # Brocken am Fuß der Wand, gegen die geraden Linien des Rasters
                     sz = rng.uniform(0.9, 2.2)
                     t = rng.uniform(-0.4, 0.4) * S
@@ -1043,6 +1096,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
         spawn(unreal.PlayerStart, unreal.Vector(start[0], start[1], 120.0), "Spiel", "Spielerstart")
 
     counts["Wanderz"] = wand_erze(world)
+    counts["Tropfsteine2"] = tropfsteine(world)
 
     if STYLE.get("abgrund"):
         xs = [centre(r, c) for r in range(H) for c in range(W) if cell(r, c) == "X"]

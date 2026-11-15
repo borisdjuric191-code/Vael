@@ -55,7 +55,7 @@ def rock_finish(obj, bm, recalc=True):
         p.use_smooth = True
 
 
-def wall(name, seed, w=4.6, h=7.0, d=1.6, nx=40, nz=56, crown=0.7):
+def wall(name, seed, w=4.6, h=7.0, d=2.7, nx=40, nz=56, crown=0.7):
     """Felswand für eine Kante: Gitter vorn (y <= 0), die Krone nach hinten, hinten und an den Seiten geschlossen"""
     obj = gk.new_object(name, FELS)
     bm = bmesh.new()
@@ -63,12 +63,15 @@ def wall(name, seed, w=4.6, h=7.0, d=1.6, nx=40, nz=56, crown=0.7):
     def top(x):
         return h + crown * noise.noise(Vector((x * 0.5, seed * 1.3, 3.0))) + 0.25 * noise.noise(Vector((x * 2.0, seed, 7.0)))
 
+    # Boris 15.11.: unperfekte Wände, die am Fuß breit sind und weiter in den Boden gehen, oben auch (Überhang)
+    sunk = -0.7 if h > 2.0 else -0.4            # die Wand beginnt unter dem Boden
+    tall = min(1.0, h / 4.0)
     grid = []
     for k in range(nz + 1):
         row = []
         for i in range(nx + 1):
             x = -w / 2 + w * i / nx
-            z = top(x) * k / nz
+            z = sunk + (top(x) - sunk) * k / nz
             p = Vector((x * 0.6, z * 0.6, seed * 3.1))
             strata = 0.2 * math.sin(z * 3.2 + noise.noise(Vector((x * 0.4, 0.0, seed))) * 2.5)
             ridges = 0.32 * math.sin(x * 2.6 + noise.noise(Vector((z * 0.35, seed, 2.0))) * 3.0) * (0.5 + 0.5 * noise.noise(Vector((x, z * 0.3, seed + 2))))
@@ -76,23 +79,41 @@ def wall(name, seed, w=4.6, h=7.0, d=1.6, nx=40, nz=56, crown=0.7):
             ledge = 0.3 * max(0.0, noise.noise(Vector((x * 0.25, z * 0.9, seed + 5.0))))
             bulge = 0.6 * noise.noise(p * 0.7)
             grain = 0.1 * noise.noise(p * 4.0) + 0.04 * noise.noise(p * 11.0)
-            foot = 0.35 * (1.0 - min(1.0, z / 1.2)) ** 2                      # Schutt am Fuß
-            y = -(strata + ridges + crack + ledge + bulge + grain + foot) - 0.15 + 0.25 * (z / h)   # nach oben leicht zurück
+            # breiter Fuß: läuft flach und buckelig in den Boden aus, an manchen Stellen weiter als an anderen
+            reach = 1.0 + 0.6 * noise.noise(Vector((x * 0.45, seed + 11.0, 0.0)))
+            foot = (0.95 * tall * reach + 0.3) * (1.0 - min(1.0, max(0.0, z) / (1.9 * tall + 0.4))) ** 2                 + 0.25 * max(0.0, noise.noise(Vector((x * 1.1, z * 1.1, seed + 13.0)))) * (1.0 - min(1.0, max(0.0, z) / 1.5))
+            # Überhang oben: die Wand wölbt sich zur Decke hin wieder vor
+            hang = 0.0
+            if h > 2.0:
+                over = max(0.0, (z - h * 0.62) / (h * 0.38))
+                hang = (0.55 + 0.35 * noise.noise(Vector((x * 0.5, seed + 17.0, 1.0)))) * over ** 1.6   # mehr verdeckte von oben den Gang
+            # grobe Blöcke: große Buckel und Einbuchtungen, damit keine Fläche glatt bleibt
+            block = 0.6 * noise.noise(Vector((x * 0.28, z * 0.22, seed + 21.0)))                 + 0.35 * noise.noise(Vector((x * 0.7, z * 0.6, seed + 23.0)))           # Vorsprünge und Nischen
+            # schräge Felsbänke: Platten, die aus der Wand stehen
+            bank = 0.35 * max(0.0, math.sin(z * 1.4 + x * 0.35 + seed) - 0.55) * (1.0 + noise.noise(Vector((x * 0.6, seed + 29.0, 0.0))))
+            # weich begrenzt: so viele Buckel übereinander ragten sonst über 3 m in den Gang (im Irrgarten blieb die Figur hängen)
+            reach_max = 1.9 if h > 2.0 else 1.1
+            out = strata + ridges + crack + ledge + bulge + grain + foot + hang + block + bank + 0.15
+            out = reach_max * math.tanh(out / reach_max) if out > 0 else out
+            y = -out + 0.25 * (max(0.0, z) / h)
             row.append(bm.verts.new((x, y, z)))
         grid.append(row)
-    for j in range(1, 4):
-        t = j / 3
+    # die Krone reicht 2,7 m nach hinten (vorher 1,6): zwei Wände in einer Felszelle überlappen, sonst blieb zwischen ihren glatten
+    # Rückseiten ein Spalt, in den die Kamera von oben schaute; oben buckelig statt eben
+    for j in range(1, 7):
+        t = j / 6
         row = []
         for i in range(nx + 1):
             x = -w / 2 + w * i / nx
             front = grid[nz][i].co
-            row.append(bm.verts.new((x, front.y + (d - front.y) * t, top(x) + 0.2 * noise.noise(Vector((x, t * 3, seed + 4))) - 0.2 * t)))
+            lump = (0.45 * noise.noise(Vector((x * 0.6, t * 2.5, seed + 4))) + 0.2 * noise.noise(Vector((x * 1.7, t * 6.0, seed + 6)))) * min(1.0, h / 4.0)
+            row.append(bm.verts.new((x, front.y + (d - front.y) * t, top(x) + lump - 0.25 * t)))
         grid.append(row)
     rows = len(grid) - 1
     for k in range(rows):
         for i in range(nx):
             bm.faces.new((grid[k][i], grid[k][i + 1], grid[k + 1][i + 1], grid[k + 1][i]))
-    b0, b1 = bm.verts.new((-w / 2, d, -0.3)), bm.verts.new((w / 2, d, -0.3))
+    b0, b1 = bm.verts.new((-w / 2, d, sunk)), bm.verts.new((w / 2, d, sunk))
     bm.faces.new([b0, b1] + [grid[rows][i] for i in range(nx, -1, -1)])
     bm.faces.new([b0] + [grid[k][0] for k in range(rows, -1, -1)])
     bm.faces.new([b1] + [grid[k][nx] for k in range(rows + 1)])
@@ -108,12 +129,13 @@ def pillar(name, seed, h=7.5, r=1.3):
     rings, sides = 16, 14
     rows = []
     for k in range(rings + 1):
-        z = h * k / rings
+        z = -0.6 + (h + 0.6) * k / rings          # reicht unter den Boden
         row = []
         for s in range(sides):
             a = 2 * math.pi * s / sides
             n = Vector((math.cos(a), math.sin(a), 0))
-            rad = r * (1.0 + 0.25 * noise.noise(n * 1.5 + Vector((0, 0, z * 0.3 + seed)))) * (1.15 - 0.15 * k / rings)
+            foot = 1.0 + 0.35 * (1.0 - min(1.0, max(0.0, z) / min(2.0, h * 0.6))) ** 2 * (1.0 + 0.4 * noise.noise(n * 2.2 + Vector((seed, 3.0, 0))))
+            rad = r * (1.0 + 0.32 * noise.noise(n * 1.5 + Vector((0, 0, z * 0.3 + seed)))) * (1.15 - 0.15 * k / rings) * foot
             zz = z if k < rings else z + 0.6 * noise.noise(n * 2 + Vector((seed, 0, 0)))
             row.append(bm.verts.new((n.x * rad, n.y * rad, zz)))
         rows.append(row)

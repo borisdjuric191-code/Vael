@@ -167,11 +167,27 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
   - Fehlen die Erntedaten noch, bleibt der alte Platzhalter.
 - **Ausprobieren ohne die echten Erze:** `VAEL_HOEHLE_ERZ_TEST=Niddruse` ersetzt jedes Erz durch ein vorhandenes Tripo-Modell.
 
+## Felswände und Tropfsteine (15.11., Boris: Wände zu glatt)
+
+- **Hauptursache:** Die Wände standen um 180° verdreht. Was Blender als -Y (raue Vorderseite) baut, kommt in Unreal als +Y an. Darum zeigte die glatte Rückseite in den Gang. `WALL_TURN` (180) dreht sie um.
+- **Neue Wandform (`hoehlen_baukasten.py`):**
+  - Der Fuß ist breit und läuft buckelig in den Boden aus. Die Wand beginnt 70 cm unter dem Boden.
+  - Oben wölbt sie sich zu einem Überhang vor.
+  - Vorsprünge, Nischen und schräge Felsbänke brechen die Fläche auf.
+  - Wie weit die Wand vorragt, ist weich begrenzt (hohe Wand 1,9 m, niedrige 1,1 m).
+  - Die Krone reicht 2,7 m nach hinten, damit zwei Wände in einer Felszelle überlappen.
+- **Enge Gänge** (Fels auf beiden Seiten der Zelle): Die Wand wird 70 cm zurückgesetzt und auf 0,6 abgeflacht. Dort stehen keine Stalagmiten und keine Brocken. Der Lauftest im Kobold-Irrgarten geht wieder durch.
+- **Tropfsteine (`tropfsteine()` in `BuildHoehle.py`):**
+  - Stalagmiten stehen in Gruppen am Wandfuß.
+  - Stalaktiten hängen unter den Überhängen. Ein Strahl vom Boden nach oben findet den Fels.
+  - Natürliche Höhlen sind dicht besetzt (0,4), Stollen und Katakomben spärlich (0,12).
+
 ## Was beim Bauen schiefging (für die nächsten Höhlen)
 
 - **Stalagmiten der Schluchten:** In einem Innenlevel ließen sie gar nichts mehr laden: kein Bild, keine Kollision, die Figur fiel endlos. Höhlen nehmen deshalb ihre eigenen Tropfsteine (`SM_HK_Tropfstein_*`).
 - **Materialien:** Werden sie bei jedem Lauf neu angelegt, fehlen beim nächsten Spielstart die Teile, bis die Shader übersetzt sind. Darum bleiben sie jetzt stehen. Neu anlegen nur mit `VAEL_HOEHLE_MATERIAL_NEU=1`.
 - **Fehler eingrenzen:** `VAEL_HOEHLE_TEST_OHNE=<Zeichen>` behandelt diese Zeichen als Boden, `VAEL_HOEHLE_TEST_GERADE=1` schaltet die unregelmäßigen Wände ab.
+- **Drehung beim Import:** Teile aus Blender kommen in Unreal an Y gespiegelt an. Eine Vorderseite -Y zeigt dort nach +Y.
 - **Prüfen:** Mit `-VaelShowcaseWalkTo` im Log nachsehen, ob die Figur steht (Z ≈ 100) oder fällt.
 
 ## Offen
