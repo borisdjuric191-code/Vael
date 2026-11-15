@@ -142,6 +142,23 @@ void UVaelSaveSubsystem::SaveNow()
 	}
 }
 
+void UVaelSaveSubsystem::CaptureForTravel()
+{
+	const UWorld* World = GetGameInstance() != nullptr ? GetGameInstance()->GetWorld() : nullptr;
+	if (World == nullptr || !World->HasBegunPlay() || bSuspended)
+	{
+		return;
+	}
+	Collect();
+	bDirty = false;
+	TimeSinceSave = 0.0f;
+	if (bEnabled)
+	{
+		Current->SavedAt = FDateTime::Now();
+		UGameplayStatics::SaveGameToSlot(Current, SaveSlotName, 0);
+	}
+}
+
 void UVaelSaveSubsystem::Collect()
 {
 	const UGameInstance* GameInstance = GetGameInstance();

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Player/VaelCharacter.h"
+#include "World/VaelCave.h"
 #include "World/VaelFireSpot.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGroundArea.h"
@@ -640,6 +641,12 @@ void AVaelCharacter::RestoreFromSave()
 
 	bRestoredFromSave = true;
 	Save->RestorePlayer(this, VaelController->GetPlayerSlot());
+
+	// Come in through a cave mouth: put down in front of the mouth it leads to
+	if (UVaelCaveTravel* Travel = UVaelCaveTravel::Get(this))
+	{
+		Travel->OnPlayerReady(this);
+	}
 }
 
 bool AVaelCharacter::StartDodge(const FVector& WorldDirection)

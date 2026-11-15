@@ -64,6 +64,10 @@ public:
 	/** Corruption a region of a map had when it was last saved (for a refugium that shows the region it steers); false if none */
 	bool FindSavedRegionCorruption(const FString& MapName, float& OutCorruption) const;
 
+	/** Before the group goes into another level (a cave and back): takes the state of everything into memory, and writes it if
+	 *  saving is on, so the next level starts with it */
+	void CaptureForTravel();
+
 	/** A level has started: saving goes on after a new game */
 	void OnLevelStarted() { bSuspended = false; }
 

@@ -17,6 +17,7 @@
 #include "Items/VaelBrewing.h"
 #include "Items/VaelPotionEffects.h"
 #include "Creatures/VaelTrainingDummy.h"
+#include "World/VaelCave.h"
 #include "Combat/VaelAttributeSet.h"
 #include "AbilitySystemComponent.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
@@ -135,6 +136,14 @@ void UVaelCheatManager::VaelQueue(const FString& Elements)
 	if (VaelCharacter != nullptr)
 	{
 		QueueLetters(*VaelCharacter->GetElementComponent(), Elements);
+	}
+}
+
+void UVaelCheatManager::VaelHoehle(const FString& Level)
+{
+	if (UVaelCaveTravel* Travel = UVaelCaveTravel::Get(GetOuterAPlayerController()))
+	{
+		Travel->Travel(GetOuterAPlayerController(), FName(*(Level.IsEmpty() ? FString(TEXT("L_Gildenmine")) : Level)), FVector2D::ZeroVector, FText::FromString(Level));
 	}
 }
 

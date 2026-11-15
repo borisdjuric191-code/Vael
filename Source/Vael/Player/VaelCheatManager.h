@@ -31,6 +31,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelTeleport(float X, float Y);
 
+	/** Takes the group into a cave level (or back into the world) as its mouth does. Example: VaelHoehle L_Gildenmine */
+	UFUNCTION(Exec)
+	void VaelHoehle(const FString& Level);
+
 	/** The group travels to a found camp of the map (0 = first found). Example: VaelReise 1 */
 	UFUNCTION(Exec)
 	void VaelReise(int32 Index);

@@ -31,7 +31,7 @@ Danach immer: `py Tools/Welt/vael_karte.py` + `Scripts/CreateWorldMaps.py` (Mini
   - Geröll am Rand, der freie Weg ist ~10 m breit.
   - Rauere Wände mit gezackter Krone.
   - Offen: Das Geröll sind ~4500 einzelne Actors; besser später als Instanzen oder mit Nanite. Bis jetzt nur ein paar Bilder angesehen.
-  - Große Höhlen und Minen sollen eigene Innenlevel werden (wie die Glutkammer).
+  - Höhlen: eigene Innenlevel aus einem Baukasten und einem Textgrundriss, siehe `Docs/Eisenschlund_Hoehlen.md`. Die erste ist die Gildenmine (`L_Gildenmine`), ihr Eingang liegt am Kernerz-Stollen.
   - Der Wetter-Vorschlag (Staub, Glutregen, Rostregen, Beben) ist noch nicht gebaut.
 - Nähte: Bodentextur-Kante am Aschenpass, Küstensprung (siehe `Scripts/Data/Welt/AM_Naht.json`).
 - Das Herz (Region V) in der Mitte ist noch nicht entworfen.
