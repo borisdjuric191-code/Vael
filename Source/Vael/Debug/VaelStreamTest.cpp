@@ -278,7 +278,8 @@ bool AVaelStreamTest::MovePlayer(AVaelCharacter* Player, float DeltaSeconds)
 	// The ground a little ahead must be there, else the player waits for it like a falling player would not
 	FHitResult GroundHit;
 	const FVector Ahead = Next + Direction * StreamGroundLookAhead;
-	if (!VaelGround::TraceGround(GetWorld(), Ahead + FVector(0.0f, 0.0f, 3000.0f), Ahead - FVector(0.0f, 0.0f, 5000.0f), GroundHit, Player))
+	// all the way down: at the seam Eisenschlund -> Aschenmark the plateau (638 m) drops further than 50 m, the check waited there for ever
+	if (!VaelGround::TraceGround(GetWorld(), Ahead + FVector(0.0f, 0.0f, 3000.0f), FVector(Ahead.X, Ahead.Y, -200000.0f), GroundHit, Player))
 	{
 		if (!bWaitingForGround)
 		{
