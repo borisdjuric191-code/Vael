@@ -149,6 +149,24 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 2. `py Tools/Welt/hoehlen_karte.py <Name>`
 3. `BuildHoehle.py`
 
+## Verschönern, dritter Durchgang (15.11.)
+
+- **Felsrelief:** `M_HK_FelsRelief` legt die Normal-Map des Felsens auf dieselben drei Projektionen wie die Farbe. Es gibt zwei Größen, und das Relief wird in Weltrichtung zur Flächennormalen addiert. Einen Tangentenraum braucht es nicht, weil die Höhlenteile keine brauchbaren UVs haben.
+- **Lachen, die leben:** `M_HK_Fluss_<Farbe>` lässt Flecken langsam über die Lache ziehen und aufglühen. Jede Schleimart bewegt sich anders: Rot schnell und zackig, Violett träge, Glut zackig (`FLUSS` in `BuildHoehle.py`).
+  - Das Leuchten ist stark gedämpft, weil die Belichtung der Höhlen (+1,9) alles verstärkt.
+  - Das Licht über der Lache hängt höher und ist schwächer. 70 cd auf 1,2 m hatten die Lache weiß angestrahlt.
+- **Erze als Wandschmuck (Boris: zerschneiden, in Wänden und Decken verteilen, nicht erntebar):**
+  - **Zerschneiden:** `Tools/Welt/hoehlen_erzwand.py` (Blender) schneidet jedes Erz in drei Stücke: A Spitzen, B Hälfte auf der Seite, C schräge Ecke. Die Stücke landen in `Vael_Quellen/Hoehlen/export/erze/SM_HK_ErzWand_<Erz>_<A|B|C>.fbx`.
+  - **Verteilen:** `BuildHoehle.py` schießt von den Zellmitten Strahlen gegen den Fels und von oben auf die Felskronen. Jedes Stück wächst entlang der getroffenen Fläche heraus.
+  - **Was zählt:** Nur Wände, Ecken und Brocken zählen als Treffer. Treffer von innen (der Strahl begann im Fels) werden verworfen.
+  - **Welche Erze wo:** Welche Erze in welcher Höhle wachsen, steht in `HOEHLEN_ERZE`. Wie oft sie vorkommen, richtet sich nach `ERZ_SELTENHEIT`.
+  - **Ohne Stücke:** Gibt es für eine Höhle noch keine Stücke, bleibt sie ohne Wanderze.
+- **Erntebare Erze:** Die Erzstellen (Z) bekommen ein `VaelHarvestable` mit `DA_Harvest_<Erz>`, dazu Spitzen am Boden.
+  - Je weiter vom Ausgang (Wegstrecke), desto seltener das Erz.
+  - Sehr Seltenes liegt nur in der hinteren Hälfte, Legendäres nur an der tiefsten Stelle.
+  - Fehlen die Erntedaten noch, bleibt der alte Platzhalter.
+- **Ausprobieren ohne die echten Erze:** `VAEL_HOEHLE_ERZ_TEST=Niddruse` ersetzt jedes Erz durch ein vorhandenes Tripo-Modell.
+
 ## Was beim Bauen schiefging (für die nächsten Höhlen)
 
 - **Stalagmiten der Schluchten:** In einem Innenlevel ließen sie gar nichts mehr laden: kein Bild, keine Kollision, die Figur fiel endlos. Höhlen nehmen deshalb ihre eigenen Tropfsteine (`SM_HK_Tropfstein_*`).
@@ -158,8 +176,11 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 
 ## Offen
 
-- **Aussehen:** Die Wände wirken noch glatt und matt. Es fehlt eine Normal-Map für den Fels, mehr Relief und mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.
-- **Erzstellen:** Es sind Platzhalter (rostige Brocken mit Glanz). Die 11 Tripo-Erze sind noch nicht im Spiel.
+- **Aussehen:** Mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.
+- **Erzstellen:** Die 11 Tripo-Erze sind noch nicht heruntergeladen, weil der Browser bei Tripo abgemeldet war. Danach kommen sie so ins Spiel:
+  1. Je Erz Ordner `Vael_Quellen/<Erz>` mit `02_tripo` und `requisite.json` (Region Eisenschlund) anlegen und das Blender-Skript `requisite` laufen lassen.
+  2. Materialien, Erntedaten und Kompendium anlegen, danach `vael_kreatur_import.py`.
+  3. `hoehlen_erzwand.py` je Erz laufen lassen, dann alle Höhlen neu bauen.
 - **Gegner:** Die Plätze sind markiert (`VaelHoehleGegner`). Die befallenen Bergleute gibt es noch nicht.
 - **Die fünf neuen Höhlen:**
   - Der Kobold-Stollen ist sehr dunkel.

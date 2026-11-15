@@ -73,6 +73,25 @@ ART = {
                      "grundlicht": 1.1, "schaedelwand": 0.85, "nebeldichte": 0.015, "wandhoehe": 0.7, "licht": "kerzen", "schutt": "knochen"},
 }
 
+# Die Erze des Eisenschlunds (Docs/Eisenschlund_Erze_Pflanzen_Wesen.md): Seltenheit 0 häufig bis 5 legendär
+ERZ_SELTENHEIT = {"Rosteisen": 0, "Schwefelkies": 0, "Funkenerz": 1, "Gruenspan": 2, "Salzspat": 2, "Drahtsilber": 3, "Blutzinnober": 3,
+                  "Kobaltbluete": 3, "Siechglas": 4, "Rippenspat": 4, "Kernerz": 5}
+ERZ_GEWICHT = [6.0, 4.0, 2.5, 1.4, 0.8, 0.25]       # wie oft ein Erz als Wandschmuck vorkommt, nach Seltenheit
+# welche Erze in welcher Höhle wachsen (nach "Wo es wächst" und der Art der Höhle)
+HOEHLEN_ERZE = {
+    "Gildenmine": ["Rosteisen", "Schwefelkies", "Funkenerz"],
+    "Olmgrotte": ["Salzspat", "Gruenspan", "Drahtsilber"],
+    "Gebeinkammer": ["Rosteisen", "Siechglas", "Rippenspat"],
+    "FunkenerzAdern": ["Funkenerz", "Rosteisen", "Schwefelkies", "Blutzinnober"],
+    "Ameisenbau": ["Rosteisen", "Schwefelkies", "Gruenspan", "Blutzinnober", "Salzspat"],
+    "KoboldStollen": ["Rosteisen", "Drahtsilber", "Kobaltbluete"],
+    "Rostschwamm": ["Rosteisen", "Gruenspan", "Siechglas"],
+    "TiefsterSchacht": ["Salzspat", "Drahtsilber", "Rippenspat", "Kernerz"],
+}
+ERZ_TEST = os.environ.get("VAEL_HOEHLE_ERZ_TEST")     # zum Ausprobieren: jedes Erz durch dieses ersetzen (z. B. Russquarz)
+ERZ_QUELLE = "C:/Projekte/Vael_Quellen/Hoehlen/export/erze"
+ERZ_ZIEL = "/Game/Vael/Maps/Hoehlen/Erze"
+
 editor = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 PLANE = unreal.load_asset("/Engine/BasicShapes/Plane.Plane")
 CUBE = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
@@ -85,6 +104,7 @@ assets = unreal.EditorAssetLibrary
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 library = unreal.MaterialEditingLibrary
 rng = random.Random(1515)
+erng = random.Random(4242)    # eigener Zufall der Erze: der Rest der Höhle bleibt, wie er war
 counts = {}
 
 D = json.load(open(os.path.join(DATA, NAME + ".json"), encoding="utf-8"))
@@ -147,6 +167,7 @@ def import_piece(name, collision_complex=False):
     return mesh
 
 
+ROCK_MATERIAL = "M_HK_FelsRelief"     # M_HK_Fels ohne Relief bleibt liegen, bis alle Höhlen neu gebaut sind
 EXTRA_SLOTS = {}        # Kristall, Fels, Knochen, Dunkel: im Lauf angelegt (main)
 # Grabschleim in seinen Farben (Lore-Bibel: grün ist der gewöhnliche, violett zieht zum Nid)
 SCHLEIM = {"Gruen": (0.35, 1.0, 0.2), "Violett": (0.6, 0.2, 1.0), "Rot": (1.0, 0.12, 0.08), "Bernstein": (1.0, 0.6, 0.1), "Tuerkis": (0.1, 0.9, 0.8)}
@@ -175,7 +196,7 @@ def kit_materials(mesh):
 def cave_rock_material():
     """M_HK_Fels: Fels nach Weltposition, dreifach projiziert, zwei Größen übereinander (die Wände sind nah an der Kamera, der
     Schluchtfels M_ES_Fels war dafür zu grob); zum Boden hin etwas dunkler. Parameter FelsFarbe"""
-    path = PARTS + "/M_HK_Fels"
+    path = PARTS + "/" + ROCK_MATERIAL
     if assets.does_asset_exist(path) and not os.environ.get("VAEL_HOEHLE_MATERIAL_NEU"):
         # bleibt stehen: neu gebaut müsste das Spiel seine Shader beim nächsten Start erst übersetzen, bis dahin fehlen Boden und Wände
         return unreal.load_asset(path)
@@ -183,7 +204,7 @@ def cave_rock_material():
         material = unreal.load_asset(path)
         library.delete_all_material_expressions(material)
     else:
-        material = tools.create_asset("M_HK_Fels", PARTS, unreal.Material, unreal.MaterialFactoryNew())
+        material = tools.create_asset(ROCK_MATERIAL, PARTS, unreal.Material, unreal.MaterialFactoryNew())
     tex = unreal.load_asset("/Game/Rock_Collection_04/Meshes/Rock_01/Textures/T_Rock_01_A")
     rows = {}
 
@@ -253,6 +274,38 @@ def cave_rock_material():
     colour = op(unreal.MaterialExpressionMultiply, 1, op(unreal.MaterialExpressionMultiply, 2, rock, tint), shade)
     library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
     library.connect_material_property(const(0.88, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+
+    # Relief (Verschönern, 15.11.): die Normal-Map des Felsens auf denselben drei Projektionen, in Weltrichtung zur
+    # Flächennormalen addiert. Die Höhlenteile haben keine brauchbaren UVs, deshalb ohne Tangentenraum
+    ntex = unreal.load_asset("/Game/Rock_Collection_04/Meshes/Rock_01/Textures/T_Rock_01_N")
+    zero = const(0.0, 20)
+
+    def append3(a, b, c, col):
+        return op(unreal.MaterialExpressionAppendVector, col, op(unreal.MaterialExpressionAppendVector, col + 1, a, b), c)
+
+    def relief(size, col):
+        pos = op(unreal.MaterialExpressionDivide, col + 4, world, const(size, col + 5))
+        x, y, z = mask(pos, col + 3, r=True), mask(pos, col + 3, g=True), mask(pos, col + 3, b=True)
+
+        def nsample(u, v):
+            uv = op(unreal.MaterialExpressionAppendVector, col + 2, u, v)
+            t = node(unreal.MaterialExpressionTextureSample, col + 1, texture=ntex, sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+            link(uv, t, "UVs")
+            return mask(t, col, r=True), mask(t, col, g=True)
+        ar, ag = nsample(x, z)          # Wände mit Blick nach Y
+        br, bg = nsample(y, z)          # Wände mit Blick nach X
+        cr, cg = nsample(x, y)          # Draufsicht
+        towards_x = node(unreal.MaterialExpressionSaturate, col - 1)
+        link(op(unreal.MaterialExpressionMultiply, col, nx, const(1.4, col + 1)), towards_x)
+        side = lerp(append3(ar, zero, ag, col - 1), append3(zero, br, bg, col - 1), towards_x, col - 2)
+        return lerp(side, append3(cr, cg, zero, col - 1), up, col - 3)
+    detail = op(unreal.MaterialExpressionAdd, 21, relief(170.0, 30), op(unreal.MaterialExpressionMultiply, 22, relief(650.0, 40), const(0.6, 23)))
+    bent = op(unreal.MaterialExpressionAdd, 20, node(unreal.MaterialExpressionVertexNormalWS, 21),
+              op(unreal.MaterialExpressionMultiply, 21, detail, const(1.1, 22)))
+    nrm = node(unreal.MaterialExpressionNormalize, 19)
+    link(bent, nrm)
+    material.set_editor_property("tangent_space_normal", False)
+    library.connect_material_property(nrm, "", unreal.MaterialProperty.MP_NORMAL)
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)
     return material
@@ -288,12 +341,77 @@ def simple_material(name, base, rough, emissive=None, specular=0.5):
     return material
 
 
+# Wie sich jede Lache bewegt (Boris 13.11.: jede Schleimart auch anders in der Bewegung, Rot zackig und angriffslustig):
+# Tempo, Größe der Flecken in cm, zackig (Turbulenz), Glanz von bis
+FLUSS = {"Gruen": (0.12, 140.0, False, 0.15, 2.4), "Violett": (0.05, 220.0, False, 0.1, 2.6), "Rot": (0.6, 90.0, True, 0.05, 3.0),
+         "Bernstein": (0.08, 180.0, False, 0.2, 2.2), "Tuerkis": (0.2, 120.0, False, 0.15, 2.4), "Glut": (0.1, 160.0, True, 0.1, 2.6),
+         "Gift": (0.15, 110.0, False, 0.12, 2.2)}
+
+
+def flow_material(farbe, col, strength):
+    """Leuchtende Lache, die lebt: Flecken ziehen langsam über die Fläche und glühen auf (Verschönern, 15.11.; vorher flach)"""
+    name = "M_HK_Fluss_" + farbe
+    path = "{}/{}".format(PARTS, name)
+    if assets.does_asset_exist(path) and not (os.environ.get("VAEL_HOEHLE_MATERIAL_NEU") or os.environ.get("VAEL_HOEHLE_FLUSS_NEU")):
+        return unreal.load_asset(path)
+    material = unreal.load_asset(path) if assets.does_asset_exist(path) else         tools.create_asset(name, PARTS, unreal.Material, unreal.MaterialFactoryNew())
+    library.delete_all_material_expressions(material)
+    speed, size, jagged, low, high = FLUSS.get(farbe, (0.12, 140.0, False, 0.5, 1.5))
+    rows = {}
+
+    def node(cls, col_, **props):
+        rows[col_] = rows.get(col_, 0) + 1
+        e = library.create_material_expression(material, cls, -260 * col_, 130 * rows[col_])
+        for k, v in props.items():
+            e.set_editor_property(k, v)
+        return e
+
+    def link(a, b, inp=""):
+        library.connect_material_expressions(a, "", b, inp)
+
+    def op(cls, col_, a, b):
+        e = node(cls, col_)
+        link(a, e, "A")
+        link(b, e, "B")
+        return e
+
+    def vec(c, col_):
+        return node(unreal.MaterialExpressionConstant3Vector, col_, constant=unreal.LinearColor(c[0], c[1], c[2], 1.0))
+
+    def const(v, col_):
+        return node(unreal.MaterialExpressionConstant, col_, r=v)
+    world = node(unreal.MaterialExpressionWorldPosition, 8)
+    time = node(unreal.MaterialExpressionTime, 8)
+    drift = op(unreal.MaterialExpressionMultiply, 7, time, vec((speed * 60.0, speed * 37.0, speed * 45.0), 8))
+    pos = op(unreal.MaterialExpressionAdd, 6, world, drift)
+    noises = []
+    for k, (scale, levels) in enumerate(((1.0 / size, 3), (2.7 / size, 2))):
+        n = node(unreal.MaterialExpressionNoise, 5, scale=scale, levels=levels, turbulence=jagged, level_scale=2.0,
+                 noise_function=unreal.NoiseFunction.NOISEFUNCTION_GRADIENT_ALU, output_min=0.0, output_max=1.0,
+                 quality=1)
+        link(pos if k == 0 else op(unreal.MaterialExpressionMultiply, 6, pos, const(-1.0, 7)), n, "Position")
+        noises.append(n)
+    mix = op(unreal.MaterialExpressionMultiply, 4, op(unreal.MaterialExpressionAdd, 4, noises[0], noises[1]), const(0.5, 5))
+    shine = node(unreal.MaterialExpressionLinearInterpolate, 3)
+    link(const(low, 4), shine, "A")
+    link(const(high, 4), shine, "B")
+    link(mix, shine, "Alpha")
+    emissive = op(unreal.MaterialExpressionMultiply, 2, vec((col[0] * strength, col[1] * strength, col[2] * strength), 3), shine)
+    library.connect_material_property(vec((col[0] * 0.04, col[1] * 0.04, col[2] * 0.04), 1), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(const(0.06, 1), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    library.connect_material_property(const(0.7, 1), "", unreal.MaterialProperty.MP_SPECULAR)
+    library.connect_material_property(emissive, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
 def rock_instance(name, colour):
     """Höhlenfels (M_HK_Fels) in der Farbe der Höhlenart"""
     path = "{}/{}".format(PARTS, name)
     instance = unreal.load_asset(path) if assets.does_asset_exist(path) else \
         tools.create_asset(name, PARTS, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
-    library.set_material_instance_parent(instance, unreal.load_asset(PARTS + "/M_HK_Fels"))
+    library.set_material_instance_parent(instance, unreal.load_asset(PARTS + "/" + ROCK_MATERIAL))
     library.set_material_instance_vector_parameter_value(instance, "FelsFarbe", unreal.LinearColor(colour[0], colour[1], colour[2], 1.0))
     assets.save_loaded_asset(instance, False)
     return instance
@@ -423,6 +541,207 @@ def light_source(meshes, r, c, x, y):
         point_light(x, y, 110.0, "Licht", "Sporenlicht", (0.55, 1.0, 0.3), 40.0, 1400.0, shadows=True)
 
 
+def erz_name(name):
+    return ERZ_TEST or name
+
+
+def erz_material(name):
+    """Die Material-Instanz des aufbereiteten Tripo-Erzes (Kreaturenfabrik, Requisite)"""
+    for region in ("Eisenschlund", "Aschenmark"):
+        path = "/Game/Vael/Requisiten/{}/{}/MI_{}".format(region, name, name)
+        if assets.does_asset_exist(path):
+            return unreal.load_asset(path)
+    return None
+
+
+ERZ_STUECKE = {}
+
+
+def erz_stuecke(name):
+    """Die drei Wandstücke eines Erzes (Tools/Welt/hoehlen_erzwand.py), beim ersten Mal importiert; leer, wenn es sie nicht gibt"""
+    name = erz_name(name)
+    if name in ERZ_STUECKE:
+        return ERZ_STUECKE[name]
+    material = erz_material(name)
+    result = []
+    for label in "ABC":
+        piece = "SM_HK_ErzWand_{}_{}".format(name, label)
+        path = "{}/{}".format(ERZ_ZIEL, piece)
+        fbx = os.path.join(ERZ_QUELLE, piece + ".fbx")
+        if os.path.exists(fbx) and (not assets.does_asset_exist(path) or os.environ.get("VAEL_HOEHLE_ERZ_NEU")):
+            ui = unreal.FbxImportUI()
+            ui.set_editor_property("import_mesh", True)
+            ui.set_editor_property("import_as_skeletal", False)
+            ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_STATIC_MESH)
+            ui.set_editor_property("import_materials", False)
+            ui.set_editor_property("import_textures", False)
+            ui.static_mesh_import_data.set_editor_property("combine_meshes", True)
+            ui.static_mesh_import_data.set_editor_property("auto_generate_collision", False)
+            task = unreal.AssetImportTask()
+            task.set_editor_property("filename", fbx)
+            task.set_editor_property("destination_path", ERZ_ZIEL)
+            task.set_editor_property("destination_name", piece)
+            task.set_editor_property("replace_existing", True)
+            task.set_editor_property("automated", True)
+            task.set_editor_property("save", True)
+            task.set_editor_property("options", ui)
+            tools.import_asset_tasks([task])
+        mesh = unreal.load_asset(path) if assets.does_asset_exist(path) else None
+        if mesh is not None:
+            if material is not None:
+                for i in range(len(mesh.get_editor_property("static_materials"))):
+                    mesh.set_material(i, material)
+            # Schmuck: keine Kollision (man läuft nicht dagegen, und die Spuren der Erzsuche treffen weiter den Fels)
+            body = mesh.get_editor_property("body_setup")
+            if body is not None:
+                body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_SIMPLE_AS_COMPLEX)
+            assets.save_loaded_asset(mesh, False)
+            result.append(mesh)
+    ERZ_STUECKE[name] = result
+    if not result:
+        log("keine Wandstücke für " + name)
+    return result
+
+
+def trace(world, start, end):
+    hit = unreal.SystemLibrary.line_trace_single(world, start, end, unreal.TraceTypeQuery.ECC_VISIBILITY, True, [],
+                                                 unreal.DrawDebugTrace.NONE, True)
+    if hit is None:
+        return None
+    values = hit.to_tuple()
+    if not values[0]:
+        return None
+    # nur der Fels zählt (Wände, Ecken, Brocken), nicht Schädelreihen, Verbau oder Kisten
+    actor = values[9] if len(values) > 9 else None
+    mesh = actor.static_mesh_component.static_mesh if isinstance(actor, unreal.StaticMeshActor) else None
+    name = mesh.get_name() if mesh is not None else ""
+    if not (name.startswith("SM_HK_Wand") or name.startswith("SM_HK_Ecke") or name.startswith("SM_ES_Brocken")):
+        return None
+    normal = values[7]
+    ray = end - start
+    if normal.x * ray.x + normal.y * ray.y + normal.z * ray.z > 0.0:
+        # von innen getroffen: der Strahl begann im Fels (die Felsfront ragt weit in die Zelle); so ein Treffer liegt im Fels
+        return None
+    return values[4], normal
+
+
+def erz_auf(mesh, point, normal, size, label, sink=0.18):
+    """Ein Wandstück so setzen, dass seine +Z-Achse der Flächennormale folgt und die Schnittfläche im Fels steckt"""
+    n = unreal.Vector(normal.x, normal.y, normal.z)
+    n.normalize()
+    side = unreal.Vector(erng.uniform(-1, 1), erng.uniform(-1, 1), erng.uniform(-1, 1))
+    side = side - n * side.dot(n)
+    if side.length() < 0.01:
+        side = unreal.Vector(0, 0, 1) - n * n.z
+    rot = unreal.MathLibrary.make_rot_from_zx(n, side)
+    at = point - n * (size * 100.0 * sink)
+    actor = mesh_actor(mesh, at.x, at.y, at.z, "Erze/Wand", label, collision=False, scale=(size, size, size))
+    actor.set_actor_rotation(rot, False)
+    return actor
+
+
+def erz_wahl(erze):
+    gewichte = [ERZ_GEWICHT[ERZ_SELTENHEIT[e]] for e in erze]
+    return erng.choices(erze, weights=gewichte)[0]
+
+
+def wand_erze(world):
+    """Erze als Teil der Wandoptik, nicht erntebar (Boris 15.11.): in die Wände (Strahl von der Zellmitte gegen den Fels) und oben
+    auf den Fels (die Decke der Höhle sieht die Kamera als Felskrone)"""
+    erze = [e for e in HOEHLEN_ERZE.get(D.get("art", NAME), []) if erz_stuecke(e)]
+    if not erze:
+        return 0
+    dichte = STYLE.get("erzdichte", 0.32)
+    n = 0
+    for r in range(H):
+        for c in range(W):
+            if not is_floor(r, c) or cell(r, c) in "XO":
+                continue
+            x, y = centre(r, c)
+            for key, (dr, dc, (dx, dy)) in DIRS.items():
+                if is_floor(r + dr, c + dc) or erng.random() > dichte:
+                    continue
+                low = dx * CAMERA[0] + dy * CAMERA[1] > 0.3
+                top = 180.0 if low else 520.0 * STYLE.get("wandhoehe", 1.0)
+                e = erz_wahl(erze)
+                back = 1.0 if is_floor(r - dr, c - dc) else 0.0      # von der Zelle davor aus, wenn es Boden ist
+                for k in range(erng.randint(1, 3)):
+                    t = erng.uniform(-0.35, 0.35) * S
+                    z = erng.uniform(60.0, top)
+                    start = unreal.Vector(x + dy * t - dx * S * back, y - dx * t - dy * S * back, z)
+                    end = unreal.Vector(x + dy * t + dx * S, y - dx * t + dy * S, z)
+                    hit = trace(world, start, end)
+                    if hit is None:
+                        continue
+                    mesh = erng.choice(ERZ_STUECKE[erz_name(e)])
+                    size = erng.uniform(1.0, 2.2) * (0.75 if ERZ_SELTENHEIT[e] >= 3 else 1.0)
+                    erz_auf(mesh, hit[0], hit[1], size, e)
+                    n += 1
+    # oben auf dem Fels: Krusten und Spitzen, von oben gesehen (gleich hinter der Felsfront, dort steht die Wand)
+    for r in range(H):
+        for c in range(W):
+            if not is_floor(r, c) or cell(r, c) in "XO":
+                continue
+            x, y = centre(r, c)
+            for key, (dr, dc, (dx, dy)) in DIRS.items():
+                if is_floor(r + dr, c + dc) or erng.random() > dichte * 0.5:
+                    continue
+                t = erng.uniform(-0.4, 0.4) * S
+                into = S / 2 + erng.uniform(-40.0, 90.0)
+                px, py = x + dx * into + dy * t, y + dy * into - dx * t
+                hit = trace(world, unreal.Vector(px, py, 2500.0), unreal.Vector(px, py, -50.0))
+                if hit is None or hit[0].z < 150.0:
+                    continue
+                e = erz_wahl(erze)
+                erz_auf(erng.choice(ERZ_STUECKE[erz_name(e)]), hit[0], hit[1], erng.uniform(1.2, 2.6), e + " (Felskrone)")
+                n += 1
+    return n
+
+
+def ernte_plan():
+    """Welche Erzstelle (Z) welches erntebare Erz trägt: je weiter vom Ausgang, desto seltener (Boris 15.11.: so verteilen, dass es
+    Sinn macht). Legendäres nur an der tiefsten Stelle, sehr Seltenes nur in der hinteren Hälfte"""
+    erze = sorted(HOEHLEN_ERZE.get(D.get("art", NAME), []), key=lambda e: ERZ_SELTENHEIT[e])
+    if not erze:
+        return {}
+    exits = [(r, c) for r in range(H) for c in range(W) if cell(r, c) == "E"]
+    dist = {p: 0 for p in exits}
+    queue = list(exits)
+    while queue:
+        r, c = queue.pop(0)
+        for dr, dc, _ in DIRS.values():
+            q = (r + dr, c + dc)
+            if q not in dist and is_floor(*q) and cell(*q) not in "XO":
+                dist[q] = dist[(r, c)] + 1
+                queue.append(q)
+    spots = sorted([(r, c) for r in range(H) for c in range(W) if cell(r, c) == "Z"], key=lambda p: dist.get(p, 0))
+    plan = {}
+    for i, p in enumerate(spots):
+        q = i / max(1, len(spots) - 1)
+        if q >= 0.999 and ERZ_SELTENHEIT[erze[-1]] >= 4:
+            plan[p] = erze[-1]                                   # das Seltenste an der tiefsten Stelle
+            continue
+        wahl = [e for e in erze if ERZ_SELTENHEIT[e] < 5 and (ERZ_SELTENHEIT[e] < 4 or q > 0.5)]
+        gewichte = [ERZ_GEWICHT[ERZ_SELTENHEIT[e]] * (1.0 + q * 2.0 * ERZ_SELTENHEIT[e]) for e in wahl]
+        plan[p] = erng.choices(wahl, weights=gewichte)[0]
+    return plan
+
+
+ERNTE = {}
+
+
+def ernte_erz(name, x, y, plan_erz):
+    """Ein erntebares Erz (VaelHarvestable mit DA_Harvest_<Erz>); False, wenn es die Daten noch nicht gibt"""
+    data = unreal.load_asset("/Game/Vael/Nature/DA_Harvest_" + erz_name(plan_erz))
+    if data is None or data.get_editor_property("mesh") is None:      # ohne Modell (noch nicht importiert): Platzhalter
+        return False
+    actor = spawn(unreal.VaelHarvestable, unreal.Vector(x, y, 0.0), "Erze/Ernte", "{} (erntebar)".format(plan_erz),
+                  unreal.Rotator(0.0, 0.0, erng.uniform(0, 360)))
+    actor.set_editor_property("data", data)
+    actor.set_editor_property("tags", [unreal.Name("VaelErzstelle"), unreal.Name("VaelNatur")])
+    return True
+
+
 def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=None):
     if assets.does_asset_exist(LEVEL):
         assets.delete_asset(LEVEL)
@@ -433,6 +752,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     walls = [meshes["SM_HK_Wand_A"], meshes["SM_HK_Wand_B"], meshes["SM_HK_Wand_C"]]
     lows = [meshes["SM_HK_Wand_Niedrig_A"], meshes["SM_HK_Wand_Niedrig_B"]]
 
+    ERNTE.clear()
+    ERNTE.update(ernte_plan())
+    log("Erzstellen: " + ", ".join("{}".format(e) for e in sorted(ERNTE.values())))
     indoor = spawn(unreal.VaelIndoorLevel, unreal.Vector(0, 0, 500), "Spiel", "Innenraum")
     indoor.set_editor_property("place_name", unreal.Text(D.get("titel", NAME)))
     # ein Felssockel unter der ganzen Höhle: nichts fällt durch eine Lücke zwischen den Platten ins Leere
@@ -598,7 +920,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 mesh_actor(meshes["SM_HK_Schleim"], x, y, 2.0, "Schleim", "Lache " + farbe, yaw=rng.uniform(0, 360), scale=(s_, s_, 1.0),
                            material=SLIME_MATS[farbe], collision=False)
                 col = SCHLEIM.get(farbe) or LACHEN[farbe]
-                point_light(x, y, 120.0, "Schleim", "Schleimschein " + farbe, col, 70.0 if farbe in SCHLEIM else 30.0, 1100.0)
+                # höher und schwächer: 70 cd auf 1,2 m strahlten die Lache selbst weiß an
+                point_light(x, y, 260.0, "Schleim", "Schleimschein " + farbe, col, 18.0 if farbe in SCHLEIM else 9.0, 1100.0)
+                LIGHTS.append((x, y))           # die Lache leuchtet selbst: die Stelle gilt als hell
             elif ch == "M" and STYLE.get("wucherung") == "schwamm":
                 for k in range(rng.randint(2, 4)):
                     s_ = rng.uniform(0.8, 2.0)
@@ -611,6 +935,15 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                     h_ = rng.uniform(1.2, 4.5)
                     mesh_actor(rng.choice(MITES), x + rng.uniform(-150, 150), y + rng.uniform(-150, 150), -20.0, "Tropfsteine", "Tropfstein",
                                yaw=rng.uniform(0, 360), scale=(h_ * 0.55, h_ * 0.55, h_), material=rock, pitch=rng.uniform(-6, 6))
+            elif ch == "Z" and (r, c) in ERNTE and ernte_erz(NAME, x + erng.uniform(-60, 60), y + erng.uniform(-60, 60), ERNTE[(r, c)]):
+                # ein paar Spitzen desselben Erzes am Boden drumherum, damit die Stelle wie ein Vorkommen aussieht
+                for k in range(erng.randint(1, 3)):
+                    stuecke = erz_stuecke(ERNTE[(r, c)])
+                    if stuecke:
+                        a = erng.uniform(0, 2 * math.pi)
+                        erz_auf(stuecke[0], unreal.Vector(x + math.cos(a) * 130.0, y + math.sin(a) * 130.0, 0.0), unreal.Vector(0, 0, 1),
+                                erng.uniform(0.4, 0.7), ERNTE[(r, c)] + " (Schmuck)")
+                counts["Ernte"] = counts.get("Ernte", 0) + 1
             elif ch == "Z" and (STYLE.get("erz") == "salzspat" or ORE_MAT):
                 for k in range(rng.randint(2, 3)):
                     s_ = rng.uniform(0.7, 1.1)
@@ -704,6 +1037,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
 
     if start is not None:
         spawn(unreal.PlayerStart, unreal.Vector(start[0], start[1], 120.0), "Spiel", "Spielerstart")
+
+    counts["Wanderz"] = wand_erze(world)
 
     if STYLE.get("abgrund"):
         xs = [centre(r, c) for r in range(H) for c in range(W) if cell(r, c) == "X"]
@@ -852,14 +1187,10 @@ def main():
     lachen = list(SCHLEIM) if STYLE.get("schaedelwand") else STYLE.get("schleim", [])
     for farbe in lachen:
         if farbe in SCHLEIM:
-            col = SCHLEIM[farbe]
-            SLIME_MATS[farbe] = simple_material("M_HK_Schleim_" + farbe, (col[0] * 0.3, col[1] * 0.3, col[2] * 0.3), 0.08,
-                                                emissive=(col[0] * 3.0, col[1] * 3.0, col[2] * 3.0))
+            SLIME_MATS[farbe] = flow_material(farbe, SCHLEIM[farbe], 0.3)   # 2,2 und 0,7 waren weiß überstrahlt (Belichtung der Höhlen +1,9)
         else:
             # Glut und Gift glühen gedämpft (mit 3-fachem Leuchten waren sie weiß überstrahlt)
-            col = LACHEN[farbe]
-            SLIME_MATS[farbe] = simple_material("M_HK_Lache_" + farbe, (col[0] * 0.25, col[1] * 0.25, col[2] * 0.25), 0.1,
-                                                emissive=(col[0] * 0.9, col[1] * 0.9, col[2] * 0.9))
+            SLIME_MATS[farbe] = flow_material(farbe, LACHEN[farbe], 0.2)
 
     def glow_mat(prefix, col):
         name = "{}_{:02x}{:02x}{:02x}".format(prefix, int(col[0] * 255), int(col[1] * 255), int(col[2] * 255))

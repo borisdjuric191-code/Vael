@@ -312,6 +312,84 @@ MATERIALS = [
         "region": unreal.Text("Aschenmark"),
         "color": color("8c8a90"),
     },
+    # Eisenschlund (15.11.2026): die elf Erze (Docs/Eisenschlund_Erze_Pflanzen_Wesen.md); Beute heißt wie das Erz
+    {
+        "asset": "DA_Material_Rosteisen",
+        "display_name": unreal.Text("Rosteisen"),
+        "description": unreal.Text("Blättriges Eisen in rostiger Rinde, mit bernsteinfarbenen Spitzen. Das häufigste Erz des Eisenschlunds."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("b0562a"),
+    },
+    {
+        "asset": "DA_Material_Schwefelkies",
+        "display_name": unreal.Text("Schwefelkies"),
+        "description": unreal.Text("Messinggelbe Würfel, die nach faulen Eiern riechen. Verpufft bei Feuer."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("d8c040"),
+    },
+    {
+        "asset": "DA_Material_Funkenerz",
+        "display_name": unreal.Text("Funkenerz"),
+        "description": unreal.Text("Schwarze Kristallspeere mit glühenden Rissen. Sprüht Funken beim Schlag und wärmt die Hand."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("ff6a1a"),
+    },
+    {
+        "asset": "DA_Material_Gruenspan",
+        "display_name": unreal.Text("Grünspan"),
+        "description": unreal.Text("Glänzende Kristallnester von Smaragd bis Saphirblau. Knistert und leitet Blitze."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("20b890"),
+    },
+    {
+        "asset": "DA_Material_Salzspat",
+        "display_name": unreal.Text("Salzspat"),
+        "description": unreal.Text("Rosa Spitze aus zuckriger Salzkruste, glüht warm von innen. Sein Staub trocknet Grabschleim aus."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("f0b0c0"),
+    },
+    {
+        "asset": "DA_Material_Drahtsilber",
+        "display_name": unreal.Text("Drahtsilber"),
+        "description": unreal.Text("Klare, gedrehte Quarzspiralen mit Silber und Eisblau im Inneren. Klingt leise im Luftzug."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("b8d0e8"),
+    },
+    {
+        "asset": "DA_Material_Blutzinnober",
+        "display_name": unreal.Text("Blutzinnober"),
+        "description": unreal.Text("Gebänderte Masse von Himbeerrot bis Rosa, aufgebrochen wie eine Wunde. Quecksilberperlen rollen heraus."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("d02848"),
+    },
+    {
+        "asset": "DA_Material_Kobaltbluete",
+        "display_name": unreal.Text("Kobaltblüte"),
+        "description": unreal.Text("Weinrote Säulen unter pinkem Flaum. Das Erz, das die Kobolde horten."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("e03890"),
+    },
+    {
+        "asset": "DA_Material_Siechglas",
+        "display_name": unreal.Text("Siechglas"),
+        "description": unreal.Text("Gestapelte Glasplatten in blassem, leuchtendem Gelbgrün. Macht langsam krank, wer es trägt."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("c8f040"),
+    },
+    {
+        "asset": "DA_Material_Rippenspat",
+        "display_name": unreal.Text("Rippenspat"),
+        "description": unreal.Text("Bögen wie Rippen, bunt geringelt wie Achat. Pulsiert im Herzschlag der Schlafenden."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("f0b070"),
+    },
+    {
+        "asset": "DA_Material_Kernerz",
+        "display_name": unreal.Text("Kernerz"),
+        "description": unreal.Text("Türkise Säulen mit Regenbogenschimmer um einen pochenden Kern. Verdirbt, wer es zu lange trägt."),
+        "region": unreal.Text("Eisenschlund"),
+        "color": color("50e8e0"),
+    },
 ]
 
 
@@ -391,6 +469,18 @@ EXISTING_INGREDIENTS = {
     "DA_Material_Glutdruese": (K.PART, E.FIRE, W.NEUTRAL),
     "DA_Material_Russfeder": (K.PART, E.AIR, W.NEUTRAL),
     "DA_Material_Aeltestenschwinge": (K.PART, E.AIR, W.NEUTRAL),
+    # Eisenschlund
+    "DA_Material_Rosteisen": (K.PART, E.EARTH, W.NEUTRAL),
+    "DA_Material_Schwefelkies": (K.PART, E.FIRE, W.NEUTRAL),
+    "DA_Material_Funkenerz": (K.PART, E.FIRE, W.NEUTRAL),
+    "DA_Material_Gruenspan": (K.PART, E.AIR, W.NEUTRAL),
+    "DA_Material_Salzspat": (K.PART, E.WATER, W.LIGHT),
+    "DA_Material_Drahtsilber": (K.PART, E.AIR, W.LIGHT),
+    "DA_Material_Blutzinnober": (K.PART, E.EARTH, W.SHADOW),
+    "DA_Material_Kobaltbluete": (K.PART, E.EARTH, W.NEUTRAL),
+    "DA_Material_Siechglas": (K.PART, E.MARK, W.SHADOW),
+    "DA_Material_Rippenspat": (K.PART, E.EARTH, W.LIGHT),
+    "DA_Material_Kernerz": (K.PART, E.MARK, W.SHADOW),
 }
 
 
