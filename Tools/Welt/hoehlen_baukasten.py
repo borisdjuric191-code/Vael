@@ -305,17 +305,18 @@ def skull_wall(name, seed):
     rnd = random.Random(seed)
     for row in range(6):
         z = 0.3 + row * 0.52
-        if row % 3 == 2:
-            # eine Lage Langknochen quer
-            for k in range(9):
-                y = -0.1 + rnd.uniform(-0.03, 0.03)
+        # auf beiden Seiten: so zeigt die Wand ihre Schädel, wie herum sie auch im Gang steht
+        for side, y0 in ((-1.0, -0.2), (1.0, 0.5)):
+            if row % 3 == 2:
+                # eine Lage Langknochen quer
+                y = y0 * 0.6 + rnd.uniform(-0.03, 0.03)
                 zz = z + rnd.uniform(-0.05, 0.05)
                 b.tube([Vector((-2.2, y, zz)), Vector((2.2, y, zz + rnd.uniform(-0.04, 0.04)))], [0.09, 0.08], 0, sides=6)
                 b.tube([Vector((-2.2, y, zz + 0.16)), Vector((2.2, y, zz + 0.16))], [0.09, 0.08], 0, sides=6)
-            continue
-        for k in range(10):
-            x = -1.98 + k * 0.44 + rnd.uniform(-0.02, 0.02)
-            skull(b, Vector((x, -0.2, z)), Vector((rnd.uniform(-0.12, 0.12), -1.0, rnd.uniform(-0.1, 0.1))), rnd.uniform(0.38, 0.42), rnd)
+                continue
+            for k in range(10):
+                x = -1.98 + k * 0.44 + rnd.uniform(-0.02, 0.02)
+                skull(b, Vector((x, y0, z)), Vector((rnd.uniform(-0.12, 0.12), side, rnd.uniform(-0.1, 0.1))), rnd.uniform(0.38, 0.42), rnd)
     box(b, Vector((0, 0.15, 1.6)), (4.4, 0.3, 3.2), 1)
     b.finish(obj)
     gk.export(obj)
@@ -326,11 +327,13 @@ def bone_pile(name, seed):
     obj = gk.new_object(name, ["Knochen", "Dunkel"])
     b = gk.Builder()
     rnd = random.Random(seed)
-    for k in range(26):
-        a = rnd.uniform(0, math.pi)
-        r = rnd.uniform(0, 0.9)
-        c = Vector((math.cos(a * 2) * r, math.sin(a * 2) * r, 0.08 + (0.9 - r) * 0.45 * rnd.random()))
-        d = Vector((math.cos(a), math.sin(a), rnd.uniform(-0.25, 0.25))).normalized() * rnd.uniform(0.3, 0.5)
+    for k in range(34):
+        a = rnd.uniform(0, 2 * math.pi)
+        r = rnd.uniform(0, 0.9) ** 0.7
+        c = Vector((math.cos(a) * r, math.sin(a) * r, 0.06 + (0.95 - r) * 0.4 * rnd.random()))
+        # kreuz und quer, nicht sternförmig um die Mitte (sah nach Spinne aus)
+        b_ = rnd.uniform(0, math.pi)
+        d = Vector((math.cos(b_), math.sin(b_), rnd.uniform(-0.15, 0.15))).normalized() * rnd.uniform(0.18, 0.42)
         b.tube([c - d, c + d], [0.05, 0.05], 0, sides=6)
         for e in (c - d, c + d):
             lathe(b, [(0.0, -0.07), (0.07, -0.04), (0.07, 0.04), (0.0, 0.07)], 0, e, sides=6)

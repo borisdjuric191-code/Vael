@@ -134,6 +134,21 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 - **Olmgrotte:** Das Wasser ist matt und dunkel (glattes Wasser spiegelte den hellen Nebel).
 - **Tiefster Schacht:** Die Rippenbögen stehen jetzt rundum am Rand des Abgrunds (19 statt 6).
 
+## Verschönern, zweiter Durchgang (15.11.)
+
+- **Minikarte und große Karte für jede Höhle:**
+  - `py Tools/Welt/hoehlen_karte.py` zeichnet aus dem Grundriss ein Kartenbild: Fels, Boden, Wasser, Abgrund, Ausgang.
+  - `BuildHoehle.py` legt daraus `DA_Karte_<Name>` an; die Minikarte findet es über den Levelnamen.
+  - Mit Nebel des Krieges: Die Höhle zeigt sich erst beim Erkunden.
+- **Schädelwände:** Schädelreihen auf beiden Seiten. So zeigen sie ihre Schädel, egal wie herum sie stehen; einige zeigten vorher die Rückseite.
+- **Knochenhaufen:** Die Knochen liegen kreuz und quer statt sternförmig.
+- **Olmgrotte:** Die blauen Platzhalter-Scheiben der Wasserquellen sind ausgeblendet; die Quellen wirken weiter.
+
+**Reihenfolge nach einer Änderung am Grundriss:**
+1. `py Tools/Welt/hoehle_grundriss.py <Name>` (nur natürliche Höhlen)
+2. `py Tools/Welt/hoehlen_karte.py <Name>`
+3. `BuildHoehle.py`
+
 ## Was beim Bauen schiefging (für die nächsten Höhlen)
 
 - **Stalagmiten der Schluchten:** In einem Innenlevel ließen sie gar nichts mehr laden: kein Bild, keine Kollision, die Figur fiel endlos. Höhlen nehmen deshalb ihre eigenen Tropfsteine (`SM_HK_Tropfstein_*`).
@@ -146,11 +161,6 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 - **Aussehen:** Die Wände wirken noch glatt und matt. Es fehlt eine Normal-Map für den Fels, mehr Relief und mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.
 - **Erzstellen:** Es sind Platzhalter (rostige Brocken mit Glanz). Die 11 Tripo-Erze sind noch nicht im Spiel.
 - **Gegner:** Die Plätze sind markiert (`VaelHoehleGegner`). Die befallenen Bergleute gibt es noch nicht.
-- **Minikarte:** In den Höhlen gibt es noch keine.
-- **Olmgrotte:** Das Wasser ist nur dunkel und spiegelt kaum. Die Wasserquellen zeigen sich als hellblaue Kreise.
-- **Gebeinkammer:**
-  - Einzelne Schädelwände stehen noch hochkant zur Kamera.
-  - Die Knochenhaufen sehen etwas spinnenartig aus.
 - **Die fünf neuen Höhlen:**
   - Der Kobold-Stollen ist sehr dunkel.
   - Die Glut- und Giftlachen sind flache, leuchtende Flecken.

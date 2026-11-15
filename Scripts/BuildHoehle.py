@@ -464,6 +464,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                     pool.set_editor_property("element", unreal.VaelElement.WATER)
                     pool.set_editor_property("radius", 200.0)
                     pool.set_editor_property("extinguishable", False)
+                    # die Platzhalter-Scheibe ausblenden: das Wasser sieht man ja (die blauen Kreise störten)
+                    for disc_ in pool.get_components_by_class(unreal.StaticMeshComponent):
+                        disc_.set_editor_property("visible", False)
             # Wände zu jedem Felsnachbarn
             for key, (dr, dc, (dx, dy)) in DIRS.items():
                 if is_floor(r + dr, c + dc):
@@ -739,6 +742,48 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
         unreal.log_error("[BuildHoehle] " + LEVEL + " konnte nicht gespeichert werden")
 
 
+def build_map():
+    """Die Karte der Höhle (Tools/Welt/hoehlen_karte.py) als /Game/Vael/UI/Karten/DA_Karte_<Name>: die Minikarte findet sie über
+    den Namen des Levels; mit Nebel, die Höhle zeigt sich erst beim Erkunden"""
+    info = D.get("karte")
+    if not info:
+        log("keine Karte im Grundriss (erst py Tools/Welt/hoehlen_karte.py)")
+        return
+    folder = "/Game/Vael/UI/Karten"
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", os.path.join(DATA, info["bild"]))
+    task.set_editor_property("destination_path", folder)
+    task.set_editor_property("destination_name", "T_Karte_" + NAME)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("save", False)
+    tools.import_asset_tasks([task])
+    texture = unreal.load_asset("{}/T_Karte_{}".format(folder, NAME))
+    texture.set_editor_property("address_x", unreal.TextureAddress.TA_CLAMP)
+    texture.set_editor_property("address_y", unreal.TextureAddress.TA_CLAMP)
+    texture.set_editor_property("never_stream", True)
+    assets.save_loaded_asset(texture, False)
+    path = "{}/DA_Karte_{}".format(folder, NAME)
+    world_map = unreal.load_asset(path) if assets.does_asset_exist(path) else         tools.create_asset("DA_Karte_" + NAME, folder, unreal.VaelWorldMap, unreal.DataAssetFactory())
+    world_map.set_editor_property("title", unreal.Text(D.get("titel", NAME)))
+    world_map.set_editor_property("picture", texture)
+    world_map.set_editor_property("world_min", unreal.Vector2D(info["welt_min"][0], info["welt_min"][1]))
+    world_map.set_editor_property("world_size", float(info["welt_groesse"]))
+    world_map.set_editor_property("focus_min", unreal.Vector2D(info["fokus_min"][0], info["fokus_min"][1]))
+    world_map.set_editor_property("focus_max", unreal.Vector2D(info["fokus_max"][0], info["fokus_max"][1]))
+    labels = []
+    for entry in D.get("karte_marken", []):
+        label = unreal.VaelMapLabel()
+        label.set_editor_property("name", unreal.Text(entry["name"]))
+        label.set_editor_property("location", unreal.Vector2D(entry["welt"][0], entry["welt"][1]))
+        label.set_editor_property("size", int(entry["size"]))
+        labels.append(label)
+    world_map.set_editor_property("labels", labels)
+    world_map.set_editor_property("fog_of_war", True)
+    assets.save_loaded_asset(world_map, False)
+    log("Karte " + path)
+
+
 def build_world_entrance():
     """In L_Vael: der Eingang, der in diese Höhle führt (ersetzt den vom letzten Lauf)"""
     if not levels.load_level(WORLD):
@@ -828,6 +873,7 @@ def main():
         meshes[name] = import_piece(name)
         kit_materials(meshes[name])
     build_cave(meshes, rock, floor_mat, ore_mat, water_mat, crystal_mat)
+    build_map()
     if not os.environ.get("VAEL_HOEHLE_OHNE_WELT"):
         build_world_entrance()
     log("fertig {}: {}".format(NAME, counts))

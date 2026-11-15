@@ -64,5 +64,31 @@
   "#################E.#################",
   "####################################"
  ],
- "welt_eingang_hinweis": "x, y, Bodenhöhe in Metern: der Kernerz-Stollen aus Scripts/Data/Welt/ES_Orte.json; das Portal liegt davor, der Weg in den Stollen geht nach -X"
+ "welt_eingang_hinweis": "x, y, Bodenhöhe in Metern: der Kernerz-Stollen aus Scripts/Data/Welt/ES_Orte.json; das Portal liegt davor, der Weg in den Stollen geht nach -X",
+ "karte_marken": [
+  {
+   "name": "Ausgang",
+   "welt": [
+    400.0,
+    6800.0
+   ],
+   "size": 0
+  }
+ ],
+ "karte": {
+  "bild": "Gildenmine_Karte.png",
+  "welt_min": [
+   -1000.0,
+   -1000.0
+  ],
+  "welt_groesse": 25600.0,
+  "fokus_min": [
+   -400.0,
+   -400.0
+  ],
+  "fokus_max": [
+   16000.0,
+   14400.0
+  ]
+ }
 }
