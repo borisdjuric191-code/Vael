@@ -24,6 +24,14 @@ Danach immer: `py Tools/Welt/vael_karte.py` + `Scripts/CreateWorldMaps.py` (Mini
 ## Offen (für den Feinschliff)
 
 - Sturmzinnen und Eisenschlund: keine Gegner, Orte sind graue Platzhalter (Akademie, Grubenstadt, Schmelzen ...), Nid-Quellen nur Scheiben.
-- Eisenschlund-Schluchten: erster Durchgang; Wände zu glatt, Licht/Stimmung noch nicht wie die Diablo-Höhlen-Inspiration. Große Höhlen/Minen sollen eigene Innenlevel werden (wie die Glutkammer). Wetter-Vorschlag Staub/Glutregen/Rostregen/Beben nicht gebaut.
+- Eisenschlund-Schluchten: zweiter Durchgang (15.11.).
+  - Ein unsichtbares Schattendach (wirft nur Schatten) macht die Schlucht dunkel. Durch Lücken fallen Lichtkegel.
+  - Laternen mit warmen Lichtpfützen.
+  - Dunkler, kühler Boden-Decal (`M_ES_Schluchtboden`).
+  - Geröll am Rand, der freie Weg ist ~10 m breit.
+  - Rauere Wände mit gezackter Krone.
+  - Offen: Das Geröll sind ~4500 einzelne Actors; besser später als Instanzen oder mit Nanite. Bis jetzt nur ein paar Bilder angesehen.
+  - Große Höhlen und Minen sollen eigene Innenlevel werden (wie die Glutkammer).
+  - Der Wetter-Vorschlag (Staub, Glutregen, Rostregen, Beben) ist noch nicht gebaut.
 - Nähte: Bodentextur-Kante am Aschenpass, Küstensprung (siehe `Scripts/Data/Welt/AM_Naht.json`).
 - Das Herz (Region V) in der Mitte ist noch nicht entworfen.

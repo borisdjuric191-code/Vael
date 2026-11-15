@@ -9,6 +9,12 @@
 #   den Wänden.
 # - Licht: Lichtkegel von oben (Spotlichter durch Staub), warme Grubenlaternen am Weg, und in jeder Schlucht eine dunklere,
 #   kühlere Stimmung (Post Process) mit Staub in der Luft (Local Fog).
+# Zweiter Durchgang (15.11.2026, Boris: "Schluchten, 2. Durchgang"): die Spielkamera schaut von oben und zeigt nur ~10 m, der
+# Boden war 40 m breiter heller Sand im Sonnenlicht. Dazu jetzt:
+# - ein unsichtbares Felsdach über jeder Schlucht, das nur Schatten wirft; durch Lücken fällt das Licht in Flecken und Kegeln
+# - ein dunkler, kühler, feuchter Felsboden mit Pfützen (Decal M_ES_Schluchtboden über dem Gelände)
+# - Geröll und Felsbrocken an beiden Rändern, der freie Weg in der Mitte ist ~10 m breit
+# - weniger Umgebungslicht in der Schlucht (Post Process), rauere Wände mit gezackter Krone (eisenschlund_fels.py)
 # Alles trägt den Tag "VaelSchluchten" (Ordner "Eisenschlund/Schluchten/..."); ein neuer Lauf ersetzt nur das.
 #
 # Mit geschlossenem Editor, nach BuildEisenschlund.py:
@@ -29,13 +35,17 @@ ASSETS = "/Game/Vael/Maps/Eisenschlund/Fels"
 TAG = "VaelSchluchten"
 FOLDER = "Eisenschlund/Schluchten"
 PIECES = ["SM_ES_Wand_A", "SM_ES_Wand_B", "SM_ES_Wand_C", "SM_ES_Stalagmit_A", "SM_ES_Stalagmit_B", "SM_ES_Stalagmit_C",
-          "SM_ES_Stalaktit_A", "SM_ES_Stalaktit_B", "SM_ES_Bogen"]
+          "SM_ES_Stalaktit_A", "SM_ES_Stalaktit_B", "SM_ES_Bogen", "SM_ES_Brocken_A", "SM_ES_Brocken_B", "SM_ES_Brocken_C"]
 ROCK_TEXTURE = "/Game/Rock_Collection_04/Meshes/Rock_01/Textures/T_Rock_01_A"
 M = 100.0
 STEP_WALL = 20.0          # m zwischen zwei Wandstücken
 STEP_ARCH = 170.0         # m zwischen zwei Felsbögen
 STEP_SHAFT = 110.0        # m zwischen zwei Lichtkegeln
 STEP_LANTERN = 38.0       # m zwischen zwei Laternen
+ROOF_HEIGHT = 48.0        # m über dem Boden: das Schattendach
+ROOF_GAP = 14.0           # m Lücke im Dach an jedem Lichtkegel
+PATH_HALF = 5.0           # m: so weit von der Mitte bleibt der Weg frei von Geröll
+STEP_RUBBLE = 7.0         # m zwischen zwei Geröllhaufen
 
 editor = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
 levels = unreal.get_editor_subsystem(unreal.LevelEditorSubsystem)
@@ -190,6 +200,49 @@ def rock_material():
     return material
 
 
+def floor_material():
+    """Decal über dem Schluchtboden: dunkler, kühler Fels nach Weltposition, stellenweise feucht (glatter, etwas dunkler), an den
+    Rändern weich. Scharfe Pfützen sahen von oben wie Kleckse aus (15.11.), darum nur eine weiche Feuchte"""
+    path = ASSETS + "/M_ES_Schluchtboden"
+    if assets.does_asset_exist(path):
+        material = unreal.load_asset(path)
+        library.delete_all_material_expressions(material)
+    else:
+        material = tools.create_asset("M_ES_Schluchtboden", ASSETS, unreal.Material, unreal.MaterialFactoryNew())
+    material.set_editor_property("material_domain", unreal.MaterialDomain.MD_DEFERRED_DECAL)
+    material.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
+    tex = unreal.load_asset(ROCK_TEXTURE)
+    g = Graph(material)
+    pos = g.node(unreal.MaterialExpressionWorldPosition, 12)
+    plane = g.mask(pos, 11, r=True, g=True)
+    big = g.sample(tex, g.op(unreal.MaterialExpressionDivide, 10, plane, g.const(900.0, 11)), 9)
+    small = g.sample(tex, g.op(unreal.MaterialExpressionDivide, 10, plane, g.const(260.0, 11)), 9)
+    rock = g.op(unreal.MaterialExpressionMultiply, 7, big, small)
+    tint = g.mask(g.node(unreal.MaterialExpressionVectorParameter, 8, parameter_name="BodenFarbe", default_value=unreal.LinearColor(0.42, 0.45, 0.52, 1.0)),
+                  7, r=True, g=True, b=True)
+    rock = g.op(unreal.MaterialExpressionMultiply, 6, rock, tint)
+    # Feuchte: große, sehr weiche Flecken, dort etwas dunkler und glatter
+    puddle_noise = g.node(unreal.MaterialExpressionNoise, 8, scale=0.0022, levels=3, output_min=0.0, output_max=1.0, quality=1)
+    puddle = g.saturate(g.op(unreal.MaterialExpressionMultiply, 6, g.op(unreal.MaterialExpressionSubtract, 7, puddle_noise, g.const(0.45, 8)), g.const(1.2, 7)), 5)
+    colour = g.lerp(rock, g.op(unreal.MaterialExpressionMultiply, 5, rock, g.const(0.7, 6)), puddle, 4)
+    library.connect_material_property(colour, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    library.connect_material_property(g.lerp(g.const(0.85, 4), g.const(0.45, 4), puddle, 3), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    # Ränder des Decals weich: quer (v) früh, längs (u) nur ganz am Ende, damit die Abschnitte ineinander übergehen
+    uv = g.node(unreal.MaterialExpressionTextureCoordinate, 8)
+    u, v = g.mask(uv, 7, r=True), g.mask(uv, 7, g=True)
+
+    def edge(c, sharp, column):
+        near = g.node(unreal.MaterialExpressionMin, column)
+        g.link(c, near, "A")
+        g.link(g.op(unreal.MaterialExpressionSubtract, column + 1, g.const(1.0, column + 2), c), near, "B")
+        return g.saturate(g.op(unreal.MaterialExpressionMultiply, column - 1, near, g.const(sharp, column)), column - 2)
+    fade = g.op(unreal.MaterialExpressionMultiply, 3, edge(u, 25.0, 6), edge(v, 5.0, 6))
+    library.connect_material_property(g.op(unreal.MaterialExpressionMultiply, 2, fade, g.const(0.94, 3)), "", unreal.MaterialProperty.MP_OPACITY)
+    library.recompile_material(material)
+    assets.save_loaded_asset(material, False)
+    return material
+
+
 # ---------------------------------------------------------------- placing
 
 def spawn(cls, location, folder, label, rotation=None):
@@ -211,6 +264,8 @@ def piece(mesh, material, x, y, z, yaw, scale, folder, label, pitch=0.0, roll=0.
     # Sie werden weiter beleuchtet und werfen Schatten, tragen nur selbst kein indirektes Licht bei.
     actor.static_mesh_component.set_editor_property("affect_dynamic_indirect_lighting", False)
     actor.static_mesh_component.set_editor_property("affect_distance_field_lighting", False)
+    # der Boden-Decal färbt nur den Boden, nicht die Felsen darauf
+    actor.static_mesh_component.set_editor_property("receives_decals", False)
     return actor
 
 
@@ -236,6 +291,77 @@ FREI = [(p["x"], p["y"], 26.0) for p in D["lager"].values()] + [(p["x"], p["y"],
 
 def frei(x, y):
     return all(math.hypot(x - fx, y - fy) > r for fx, fy, r in FREI)
+
+
+def floor_and_roof(name, canyon, floor_mat):
+    """Je Abschnitt der Linie: das Decal über dem Boden, und darüber das Schattendach mit Lücken an den Lichtkegeln"""
+    line = canyon["linie"]
+    half = canyon["boden_halbe_breite"]
+    cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
+    for a, b in zip(line, line[1:]):
+        length = math.hypot(b["x"] - a["x"], b["y"] - a["y"])
+        cx, cy = (a["x"] + b["x"]) * 0.5, (a["y"] + b["y"]) * 0.5
+        yaw = math.degrees(math.atan2(b["y"] - a["y"], b["x"] - a["x"]))
+        floor = ground_at(cx, cy)
+        decal = spawn(unreal.DecalActor, unreal.Vector(cx * M, cy * M, (floor + 5.0) * M), name + "/Boden", "Schluchtboden",
+                      unreal.Rotator(0.0, -90.0, yaw))
+        component = decal.get_component_by_class(unreal.DecalComponent)
+        component.set_editor_property("decal_material", floor_mat)
+        # nach dem Kippen: X nach unten (Tiefe), Y quer, Z längs
+        component.set_editor_property("decal_size", unreal.Vector(30.0 * M, (half + 6.0) * M, (length * 0.5 + 12.0) * M))
+        component.set_editor_property("sort_order", 2)
+    # Das Dach: Stücke zwischen den Lichtkegeln, unsichtbar, werfen aber Schatten (die Schlucht liegt im Dunkeln)
+    shafts = [(x, y) for x, y, dx, dy in along(line, STEP_SHAFT)]
+    points = along(line, 4.0)
+    run = []
+
+    def close(run):
+        if len(run) < 2:
+            return
+        (x0, y0, dx, dy), (x1, y1, _, _) = run[0], run[-1]
+        length = math.hypot(x1 - x0, y1 - y0) + 4.0
+        cx, cy = (x0 + x1) * 0.5, (y0 + y1) * 0.5
+        floor = max(ground_at(x0, y0), ground_at(x1, y1), ground_at(cx, cy))
+        roof = spawn(unreal.StaticMeshActor, unreal.Vector(cx * M, cy * M, (floor + ROOF_HEIGHT) * M), name + "/Dach", "Schattendach",
+                     unreal.Rotator(0.0, 0.0, math.degrees(math.atan2(dy, dx))))
+        c = roof.static_mesh_component
+        c.set_static_mesh(cube)
+        roof.set_actor_scale3d(unreal.Vector(length, 2.0 * half + 50.0, 3.0))
+        c.set_collision_profile_name("NoCollision")
+        c.set_editor_property("visible", False)
+        c.set_editor_property("cast_hidden_shadow", True)
+        c.set_editor_property("cast_shadow", True)
+        c.set_editor_property("affect_dynamic_indirect_lighting", False)
+        c.set_editor_property("affect_distance_field_lighting", False)
+    for p in points:
+        if any(math.hypot(p[0] - sx, p[1] - sy) < ROOF_GAP * 0.5 for sx, sy in shafts):
+            close(run)
+            run = []
+        else:
+            run.append(p)
+    close(run)
+
+
+def rubble(name, canyon, meshes, rock):
+    """Geröll an beiden Rändern: Haufen aus Brocken, große an der Wand, kleine zum Weg hin; der Weg in der Mitte bleibt frei"""
+    line = canyon["linie"]
+    half = canyon["boden_halbe_breite"]
+    stones = [meshes["SM_ES_Brocken_A"], meshes["SM_ES_Brocken_B"], meshes["SM_ES_Brocken_C"]]
+    for x, y, dx, dy in along(line, STEP_RUBBLE):
+        for side in (-1, 1):
+            if rng.random() < 0.15:
+                continue
+            for k in range(rng.randint(3, 8)):
+                t = rng.random()
+                off = (PATH_HALF + 0.5 + t * (half + 2.0 - PATH_HALF)) * side
+                px = x - dy * off + dx * rng.uniform(-4.0, 4.0)
+                py = y + dx * off + dy * rng.uniform(-4.0, 4.0)
+                if not frei(px, py):
+                    continue
+                size = rng.uniform(0.6, 1.6) + t * t * rng.uniform(2.0, 6.0)          # zur Wand hin größer
+                piece(rng.choice(stones), rock, px, py, ground_at(px, py) - size * 0.15, rng.uniform(0, 360),
+                      (size * rng.uniform(0.9, 1.3), size * rng.uniform(0.8, 1.1), size * rng.uniform(0.7, 1.0)), name + "/Geroell", "Brocken",
+                      pitch=rng.uniform(-8, 8), roll=rng.uniform(-8, 8))
 
 
 def dress(name, canyon, meshes, rock, bright):
@@ -284,7 +410,7 @@ def dress(name, canyon, meshes, rock, bright):
             continue
         side = rng.choice((-1, 1))
         for k in range(rng.randint(2, 5)):
-            off = rng.uniform(half * 0.45, half + 1.0) * side
+            off = rng.uniform(max(half * 0.45, PATH_HALF + 1.0), half + 1.0) * side
             px, py = x - dy * off + dx * rng.uniform(-6, 6), y + dx * off + dy * rng.uniform(-6, 6)
             if not frei(px, py):
                 continue
@@ -303,16 +429,17 @@ def dress(name, canyon, meshes, rock, bright):
     # Lichtkegel von oben: Spotlicht hoch über dem Boden, senkrecht nach unten, im Staub sichtbar
     for x, y, dx, dy in along(line, STEP_SHAFT):
         floor = ground_at(x, y)
-        light = spawn(unreal.SpotLight, unreal.Vector((x + rng.uniform(-6, 6)) * M, (y + rng.uniform(-6, 6)) * M, (floor + 70.0) * M),
+        light = spawn(unreal.SpotLight, unreal.Vector((x + rng.uniform(-6, 6)) * M, (y + rng.uniform(-6, 6)) * M, (floor + 30.0) * M),
                       folder + "/Licht", "Lichtkegel", unreal.Rotator(0.0, -90.0, 0.0))
         c = light.spot_light_component
         # In Candela, maßvoll: ein zu heller Kegel lässt die automatische Belichtung alles andere schwarz machen
         c.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
-        c.set_editor_property("intensity", 300.0 * bright)
+        # unter dem Schattendach (48 m), stark genug für eine helle Insel am Boden im Dunkeln (2. Durchgang)
+        c.set_editor_property("intensity", 12000.0 * bright)
         c.set_editor_property("light_color", unreal.Color(r=255, g=236, b=200, a=255))
         c.set_editor_property("attenuation_radius", 9000.0)
-        c.set_editor_property("outer_cone_angle", 9.0)
-        c.set_editor_property("inner_cone_angle", 4.0)
+        c.set_editor_property("outer_cone_angle", 14.0)
+        c.set_editor_property("inner_cone_angle", 6.0)
         c.set_editor_property("cast_shadows", False)
         c.set_editor_property("volumetric_scattering_intensity", 3.0)
 
@@ -329,6 +456,14 @@ def dress(name, canyon, meshes, rock, bright):
                      folder + "/Laternen", "Laterne")
         glow.static_mesh_component.set_collision_profile_name("NoCollision")
         spawn(unreal.VaelFireLight, unreal.Vector(px * M, py * M, (floor + 2.6) * M), folder + "/Laternen", "Laternenlicht")
+        # eine warme Lichtpfütze um die Laterne: im Dunkel der Schlucht das, was man sieht
+        pool = spawn(unreal.PointLight, unreal.Vector(px * M, py * M, (floor + 3.2) * M), folder + "/Laternen", "Laternenschein")
+        pc = pool.point_light_component
+        pc.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
+        pc.set_editor_property("intensity", 450.0)
+        pc.set_editor_property("light_color", unreal.Color(r=255, g=170, b=90, a=255))
+        pc.set_editor_property("attenuation_radius", 1600.0)
+        pc.set_editor_property("cast_shadows", False)
 
     # Stimmung: je Abschnitt ein Kasten, der dunkler und kühler macht, mit Staub in der Luft
     for a, b in zip(line, line[1:]):
@@ -343,7 +478,10 @@ def dress(name, canyon, meshes, rock, bright):
         volume.set_editor_property("priority", 2.0)
         settings = volume.get_editor_property("settings")
         settings.set_editor_property("override_auto_exposure_bias", True)
-        settings.set_editor_property("auto_exposure_bias", -0.6)
+        settings.set_editor_property("auto_exposure_bias", -1.4)
+        # im Schatten des Dachs bleibt sonst das Himmelslicht zu hell: weniger indirektes Licht
+        settings.set_editor_property("override_indirect_lighting_intensity", True)
+        settings.set_editor_property("indirect_lighting_intensity", 0.35)
         settings.set_editor_property("override_vignette_intensity", True)
         settings.set_editor_property("vignette_intensity", 0.7)
         settings.set_editor_property("override_color_gain", True)
@@ -354,9 +492,9 @@ def dress(name, canyon, meshes, rock, bright):
         fog.set_actor_scale3d(unreal.Vector((length + 30.0) / 10.0, (2.0 * half + 10.0) / 10.0, 4.0))
         component = fog.get_component_by_class(unreal.LocalFogVolumeComponent)
         if component is not None:
-            component.set_editor_property("radial_fog_extinction", 0.03)
-            component.set_editor_property("height_fog_extinction", 0.025)
-            component.set_editor_property("fog_albedo", unreal.LinearColor(0.55, 0.5, 0.45, 1.0))
+            component.set_editor_property("radial_fog_extinction", 0.01)
+            component.set_editor_property("height_fog_extinction", 0.008)
+            component.set_editor_property("fog_albedo", unreal.LinearColor(0.35, 0.32, 0.3, 1.0))
 
 
 _wood = {}
@@ -402,6 +540,7 @@ def main():
         log("Felsteile fehlen: {} (zuerst Tools/Welt/eisenschlund_fels.py in Blender)".format(missing))
         return
     rock = rock_material()
+    floor_mat = floor_material()
 
     if not levels.load_level(LEVEL):
         log("konnte " + LEVEL + " nicht öffnen")
@@ -419,6 +558,8 @@ def main():
 
     for name, canyon in D["schluchten"].items():
         dress(name, canyon, meshes, rock, bright=1.0)
+        floor_and_roof(name, canyon, floor_mat)
+        rubble(name, canyon, meshes, rock)
 
     unreal.EditorLoadingAndSavingUtils.save_map(world, LEVEL)
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)

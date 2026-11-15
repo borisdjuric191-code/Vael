@@ -8,6 +8,7 @@
 # - SM_ES_Stalagmit_A/B/C  wächst aus dem Boden, 1 m hoch (beim Setzen auf 2-9 m skaliert), unregelmäßig geringelt
 # - SM_ES_Stalaktit_A/B    hängt von oben, 1 m lang, spitz und tropfnass
 # - SM_ES_Bogen          Felsbogen über eine Schlucht, 34 m Spannweite, 20 m hoch, unten mit Zapfen
+# - SM_ES_Brocken_A/B/C  Felsbrocken, 1 m, unten flach: Geröll am Schluchtrand (2. Durchgang, 15.11.)
 # Ohne UVs: das Material legt den Fels nach Weltposition (M_ES_Fels).
 
 import math
@@ -65,41 +66,81 @@ def export(obj):
 
 
 def wall(name, seed):
-    """Ein Wandstück: Gitter vorn (y = 0) mit Schichten und Klüften, nach hinten geschlossen"""
-    rnd = random.Random(seed)
+    """Ein Wandstück (2. Durchgang, 15.11.): vorn (y = 0) Schichten, senkrechte Pfeiler, tiefe Klüfte, Absätze und kleine
+    Brüche, oben leicht überhängend; die Oberkante gezackt und als raue Fläche nach hinten gezogen (die Kamera schaut von oben
+    auf die Wandkronen), hinten geschlossen"""
     w, d, h = 2400.0, 700.0, 3600.0
-    nx, nz = 36, 54
+    nx, nz, nt = 64, 90, 7
     obj = new_object(name)
     bm = bmesh.new()
+
+    def top_height(x):
+        return h + 320.0 * noise.noise(Vector((x * 0.0016, seed * 1.7, 3.0))) + 140.0 * noise.noise(Vector((x * 0.006, seed, 7.0)))
+
     grid = []
     for k in range(nz + 1):
         row = []
-        z = h * k / nz
         for i in range(nx + 1):
             x = -w / 2 + w * i / nx
+            z = top_height(x) * k / nz
             p = Vector((x * 0.004, z * 0.004, seed * 3.1))
-            strata = 45.0 * math.sin(z * 0.012 + noise.noise(Vector((x * 0.002, 0.0, seed))) * 2.0)      # Schichten
-            ledges = 90.0 * max(0.0, noise.noise(Vector((x * 0.001, z * 0.0025, seed + 5.0))))           # Absätze
-            crack = -160.0 * max(0.0, 1.0 - abs(noise.noise(Vector((x * 0.0012, z * 0.0006, seed + 9.0)))) * 9.0)  # Klüfte
-            bulge = 180.0 * noise.noise(p * 0.5)
-            y = -(strata + ledges + crack + bulge) - 60.0 * (1.0 - z / h)          # unten etwas vorstehend (Schutt)
-            edge = min(i, nx - i) / 3.0
-            y *= min(1.0, edge)                                                       # Seiten flach, damit Stücke aneinander passen
+            strata = 70.0 * math.sin(z * 0.011 + noise.noise(Vector((x * 0.002, 0.0, seed))) * 2.5)               # Schichten
+            pillars = 130.0 * math.sin(x * 0.0085 + noise.noise(Vector((z * 0.0015, seed, 2.0))) * 3.0) * (0.55 + 0.45 * noise.noise(Vector((x * 0.003, z * 0.001, seed + 2.0))))
+            ledges = 110.0 * max(0.0, noise.noise(Vector((x * 0.001, z * 0.0025, seed + 5.0))))                    # Absätze
+            crack = -280.0 * max(0.0, 1.0 - abs(noise.noise(Vector((x * 0.0012, z * 0.0006, seed + 9.0)))) * 7.0)   # Klüfte
+            bulge = 220.0 * noise.noise(p * 0.5)
+            grain = 28.0 * noise.noise(p * 4.0)                                                                       # kleine Brüche
+            over = 170.0 * (z / h) ** 3                                                                               # oben überhängend
+            y = -(strata + pillars + ledges + crack + bulge + grain + over) - 80.0 * (1.0 - z / h)
+            edge = min(i, nx - i) / 4.0
+            y *= min(1.0, edge)                                                                                       # Seiten flach
             row.append(bm.verts.new((x, y, z)))
         grid.append(row)
-    back = [[bm.verts.new((v.co.x, d, v.co.z)) for v in (grid[0][0], grid[0][nx], grid[nz][nx], grid[nz][0])]]
-    for k in range(nz):
+    # die Krone: von der Vorderkante rau nach hinten bis y = d
+    for j in range(1, nt + 1):
+        t = j / nt
+        row = []
+        for i in range(nx + 1):
+            x = -w / 2 + w * i / nx
+            front = grid[nz][i].co
+            y = front.y + (d - front.y) * t
+            z = top_height(x) + 90.0 * noise.noise(Vector((x * 0.004, t * 2.0, seed + 11.0))) - 60.0 * t
+            row.append(bm.verts.new((x, y, z)))
+        grid.append(row)
+    rows = len(grid) - 1
+    for k in range(rows):
         for i in range(nx):
             bm.faces.new((grid[k][i], grid[k][i + 1], grid[k + 1][i + 1], grid[k + 1][i]))
-    b0, b1, b2, b3 = back[0]
-    bm.faces.new((b0, b3, b2, b1))
-    # Seiten, Boden und Deckel zur Rückseite schließen
-    left = [grid[k][0] for k in range(nz + 1)]
-    right = [grid[k][nx] for k in range(nz + 1)]
-    bm.faces.new(left[::-1] + [b0, b3][::-1] if False else [b0] + left + [b3])
-    bm.faces.new([b1, b2] + right[::-1])
-    bm.faces.new([grid[0][i] for i in range(nx + 1)][::-1] + [b0, b1][::-1] if False else [b0, b1] + [grid[0][i] for i in range(nx, -1, -1)])
-    bm.faces.new([grid[nz][i] for i in range(nx + 1)] + [b2, b3])
+    b0 = bm.verts.new((-w / 2, d, 0.0))
+    b1 = bm.verts.new((w / 2, d, 0.0))
+    # Rückseite, Seiten und Boden schließen
+    bm.faces.new([b0, b1] + [grid[rows][i] for i in range(nx, -1, -1)])
+    bm.faces.new([b0] + [grid[k][0] for k in range(rows, -1, -1)])
+    bm.faces.new([b1] + [grid[k][nx] for k in range(rows + 1)])
+    bm.faces.new([b0] + [grid[0][i] for i in range(nx + 1)] + [b1])
+    finish(obj, bm)
+    return obj
+
+
+def boulder(name, seed):
+    """Ein Felsbrocken für das Geröll am Schluchtrand: 1 m breit, unten flach, kantig verwittert"""
+    rnd = random.Random(seed)
+    obj = new_object(name)
+    bm = bmesh.new()
+    bmesh.ops.create_icosphere(bm, subdivisions=3, radius=50.0)
+    stretch = Vector((rnd.uniform(0.9, 1.3), rnd.uniform(0.7, 1.0), rnd.uniform(0.55, 0.8)))
+    for v in bm.verts:
+        n = v.co.normalized()
+        rough = 1.0 + 0.28 * noise.noise(n * 1.6 + Vector((seed, 0, 0))) + 0.08 * noise.noise(n * 6.0 + Vector((0, seed, 0)))
+        p = Vector((n.x * stretch.x, n.y * stretch.y, n.z * stretch.z)) * 50.0 * rough
+        # Bruchflächen: ein paar abgeflachte Seiten
+        for k in range(3):
+            cut = Vector((math.cos(seed * 2.1 + k * 2.2), math.sin(seed * 1.3 + k * 2.2), 0.3 * (k - 1))).normalized()
+            depth = p.dot(cut) - 38.0
+            if depth > 0:
+                p -= cut * depth * 0.85
+        p.z = max(p.z, -18.0)
+        v.co = p + Vector((0, 0, 18.0))
     finish(obj, bm)
     return obj
 
@@ -177,7 +218,7 @@ def main():
     pieces = [wall("SM_ES_Wand_A", 1), wall("SM_ES_Wand_B", 2), wall("SM_ES_Wand_C", 3),
               spike("SM_ES_Stalagmit_A", 11), spike("SM_ES_Stalagmit_B", 12), spike("SM_ES_Stalagmit_C", 13),
               spike("SM_ES_Stalaktit_A", 21, hanging=True), spike("SM_ES_Stalaktit_B", 22, hanging=True),
-              arch("SM_ES_Bogen", 31)]
+              arch("SM_ES_Bogen", 31), boulder("SM_ES_Brocken_A", 41), boulder("SM_ES_Brocken_B", 42), boulder("SM_ES_Brocken_C", 43)]
     for obj in pieces:
         export(obj)
     log("fertig: {} Teile nach {}".format(len(pieces), OUT))
