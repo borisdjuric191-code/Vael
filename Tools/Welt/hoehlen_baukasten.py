@@ -18,6 +18,14 @@ Gildenmine (Slots des Glutkammer-Kits: Holz, Leder, Metall, Faden, Glut, Moos, M
   SM_HK_Kiste             Kiste der Gilde, 1 m
   SM_HK_Balkenstapel      gestapelte Grubenhölzer, 3 m lang
   SM_HK_Laterne           Grubenlaterne an einem Pfahl, 2,6 m; die Glut sitzt oben
+Olmgrotte (Slots Kristall und Fels):
+  SM_HK_Salzspat          Salzspat-Gruppe, die als Lampe leuchtet, ~2 m
+  SM_HK_Salzspat_Klein    kleine Gruppe, Erzstelle
+Gebeinkammer (Slots Knochen, Dunkel, Schleim):
+  SM_HK_Schaedelwand_A/B  Schädelreihen und Langknochen vor dem Fels, 4,4 x 3,2 m, Vorderseite -Y
+  SM_HK_Knochenhaufen     Haufen Gebeine mit Schädeln, ~2 m
+  SM_HK_Schleim           Lache Grabschleim mit Rinnsalen, ~3 m, leuchtet
+  SM_HK_Tropfstein_A/B/C  Tropfstein, 1 m hoch (Slot Fels); die Stalagmiten der Schluchten ließen in einem Innenlevel nichts mehr laden
 
 Run:
   blender -b --factory-startup -P Tools/Welt/hoehlen_baukasten.py -- C:/Projekte/Vael_Quellen/Hoehlen/export
@@ -221,6 +229,141 @@ def lantern():
     gk.export(obj)
 
 
+# ---------------------------------------------------------------- Olmgrotte
+
+def stalagmite(name, seed):
+    """Tropfstein, 1 m hoch (beim Setzen skaliert): geringelter Kegel mit Wülsten, oben stumpf-spitz; Slot Fels"""
+    rnd = random.Random(seed)
+    obj = gk.new_object(name, FELS)
+    bm = bmesh.new()
+    rings, sides = 14, 10
+    base = rnd.uniform(0.17, 0.24)
+    rows = []
+    for k in range(rings + 1):
+        t = k / rings
+        radius = base * (1.0 - t) ** rnd.uniform(0.9, 1.2) + 0.006
+        radius *= 1.0 + 0.12 * math.sin(t * rnd.uniform(18, 26) + seed)
+        lean = Vector((math.sin(seed) * 0.06 * t, math.cos(seed * 1.3) * 0.06 * t, 0.0))
+        row = []
+        for sd in range(sides):
+            a = 2 * math.pi * sd / sides
+            wob = 1.0 + 0.18 * noise.noise(Vector((math.cos(a) * 2.0, math.sin(a) * 2.0, t * 4.0 + seed)))
+            row.append(bm.verts.new(Vector((math.cos(a) * radius * wob, math.sin(a) * radius * wob, t)) + lean))
+        rows.append(row)
+    for k in range(rings):
+        for sd in range(sides):
+            bm.faces.new((rows[k][sd], rows[k][(sd + 1) % sides], rows[k + 1][(sd + 1) % sides], rows[k + 1][sd]))
+    bm.faces.new(rows[-1])
+    bm.faces.new(rows[0][::-1])
+    rock_finish(obj, bm)
+    gk.export(obj)
+
+
+def crystals(name, seed, size=1.0, count=9):
+    """Salzspat: eine Gruppe sechseckiger Säulen aus einem Felsfuß, schräg auseinander, oben spitz; Slot Kristall (leuchtet)
+    und Fels (der Fuß)"""
+    obj = gk.new_object(name, ["Kristall", "Fels"])
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    lathe(b, [(0.0, 0.0), (0.42 * size, 0.0), (0.36 * size, 0.12 * size), (0.18 * size, 0.2 * size), (0.0, 0.22 * size)], 1,
+          Vector((0, 0, -0.05)), sides=9)
+    for k in range(count):
+        length = size * rnd.uniform(0.45, 1.5) * (1.0 if k else 1.4)
+        radius = size * rnd.uniform(0.05, 0.11) * (1.0 if k else 1.5)
+        lean = Vector((rnd.uniform(-0.55, 0.55), rnd.uniform(-0.55, 0.55), 1.0)).normalized() if k else Vector((0.05, 0.02, 1.0)).normalized()
+        base = Vector((rnd.uniform(-0.2, 0.2) * size, rnd.uniform(-0.2, 0.2) * size, 0.05 * size))
+        turn = Vector((0, 0, 1)).rotation_difference(lean).to_matrix()
+        lathe(b, [(radius, 0.0), (radius, length * 0.78), (radius * 0.35, length * 0.95), (0.0, length)], 0, base, sides=6, axis=turn)
+    b.finish(obj)
+    gk.export(obj)
+
+
+# ---------------------------------------------------------------- Gebeinkammer
+
+def skull(b, at, facing, size, rnd):
+    """Ein Schädel aus groben Formen: Hirnschale, zwei dunkle Augenhöhlen, Kiefer; schaut in Richtung facing"""
+    f = facing.normalized()
+    side = Vector((0, 0, 1)).cross(f).normalized()
+    up = f.cross(side).normalized()
+    turn = Matrix((side, up, f)).transposed()
+    lathe(b, [(0.0, -0.5), (0.42, -0.42), (0.5, -0.05), (0.45, 0.25), (0.3, 0.45), (0.0, 0.5)], 0, at, sides=9,
+          axis=turn @ Matrix.Diagonal((size, size, size * 0.9)))
+    for sx in (-0.2, 0.2):
+        disc(b, at + f * size * 0.47 + side * sx * size + up * 0.05 * size, 0.13 * size, f, 1, sides=6)
+    box(b, at + f * size * 0.32 - up * size * 0.42, (size * 0.5, size * 0.3, size * 0.22), 0)
+
+
+def skull_wall(name, seed):
+    """Eine Wand aus geordneten Schädelreihen vor dem Fels (Katakomben): 4,4 m breit, 3,2 m hoch, Vorderseite -Y; dazwischen
+    gestapelte Langknochen; Slots Knochen und Dunkel"""
+    obj = gk.new_object(name, ["Knochen", "Dunkel"])
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    for row in range(6):
+        z = 0.3 + row * 0.52
+        if row % 3 == 2:
+            # eine Lage Langknochen quer
+            for k in range(9):
+                y = -0.1 + rnd.uniform(-0.03, 0.03)
+                zz = z + rnd.uniform(-0.05, 0.05)
+                b.tube([Vector((-2.2, y, zz)), Vector((2.2, y, zz + rnd.uniform(-0.04, 0.04)))], [0.09, 0.08], 0, sides=6)
+                b.tube([Vector((-2.2, y, zz + 0.16)), Vector((2.2, y, zz + 0.16))], [0.09, 0.08], 0, sides=6)
+            continue
+        for k in range(10):
+            x = -1.98 + k * 0.44 + rnd.uniform(-0.02, 0.02)
+            skull(b, Vector((x, -0.2, z)), Vector((rnd.uniform(-0.12, 0.12), -1.0, rnd.uniform(-0.1, 0.1))), rnd.uniform(0.38, 0.42), rnd)
+    box(b, Vector((0, 0.15, 1.6)), (4.4, 0.3, 3.2), 1)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def bone_pile(name, seed):
+    """Ein Haufen Gebeine: Langknochen kreuz und quer, ein paar Schädel obenauf; Slots Knochen und Dunkel"""
+    obj = gk.new_object(name, ["Knochen", "Dunkel"])
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    for k in range(26):
+        a = rnd.uniform(0, math.pi)
+        r = rnd.uniform(0, 0.9)
+        c = Vector((math.cos(a * 2) * r, math.sin(a * 2) * r, 0.08 + (0.9 - r) * 0.45 * rnd.random()))
+        d = Vector((math.cos(a), math.sin(a), rnd.uniform(-0.25, 0.25))).normalized() * rnd.uniform(0.3, 0.5)
+        b.tube([c - d, c + d], [0.05, 0.05], 0, sides=6)
+        for e in (c - d, c + d):
+            lathe(b, [(0.0, -0.07), (0.07, -0.04), (0.07, 0.04), (0.0, 0.07)], 0, e, sides=6)
+    for k in range(5):
+        a = rnd.uniform(0, 2 * math.pi)
+        r = rnd.uniform(0, 0.55)
+        skull(b, Vector((math.cos(a) * r, math.sin(a) * r, 0.5 - r * 0.4)), Vector((math.cos(a), math.sin(a), 0.3)), rnd.uniform(0.34, 0.4), rnd)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def slime(name, seed):
+    """Eine Lache Grabschleim: flacher, zähflüssiger Fleck mit Rinnsalen, 3 m; Slot Schleim (leuchtet in seiner Farbe)"""
+    obj = gk.new_object(name, ["Schleim"])
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    rows = []
+    for k in range(6):
+        t = k / 5
+        ring = []
+        for sd in range(20):
+            a = 2 * math.pi * sd / 20
+            rad = 1.4 * (1.0 - t) * (1.0 + 0.35 * noise.noise(Vector((math.cos(a) * 1.5, math.sin(a) * 1.5, seed))))
+            ring.append(Vector((math.cos(a) * rad, math.sin(a) * rad, 0.02 + 0.06 * math.sin(t * math.pi / 2))))
+        rows.append(ring)
+    b.grid(rows, 0, uv_of=lambda j, i: (i / 20, j / 5), mask_of=lambda j, i: 1.0, closed_u=True)
+    # flache Ausläufer: kleinere Lachen am Rand
+    for k in range(5):
+        a = rnd.uniform(0, 2 * math.pi)
+        c = Vector((math.cos(a) * rnd.uniform(1.3, 2.0), math.sin(a) * rnd.uniform(1.3, 2.0), 0.0))
+        r = rnd.uniform(0.25, 0.5)
+        ring = [c + Vector((math.cos(2 * math.pi * i / 10) * r, math.sin(2 * math.pi * i / 10) * r, 0.02)) for i in range(10)]
+        b.grid([ring, [c + Vector((0, 0, 0.05))] * 10], 0, uv_of=lambda j, i: (i / 10, j), mask_of=lambda j, i: 1.0, closed_u=True)
+    b.finish(obj)
+    gk.export(obj)
+
+
 if __name__ == "__main__":
     random.seed(15)
     builds = [lambda: wall("SM_HK_Wand_A", 1), lambda: wall("SM_HK_Wand_B", 2), lambda: wall("SM_HK_Wand_C", 3),
@@ -228,7 +371,11 @@ if __name__ == "__main__":
               lambda: pillar("SM_HK_Ecke_A", 6), lambda: pillar("SM_HK_Ecke_B", 7), lambda: pillar("SM_HK_Ecke_Niedrig", 8, h=1.6),
               lambda: floor("SM_HK_Boden_A", 9), lambda: floor("SM_HK_Boden_B", 10),
               lambda: support("SM_HK_Verbau", 3.4), lambda: support("SM_HK_Verbau_8", 7.4), lambda: support("SM_HK_Verbau_12", 11.2),
-              rails, cart, crate, beams, lantern]
+              rails, cart, crate, beams, lantern,
+              lambda: crystals("SM_HK_Salzspat", 21, 1.6, 11), lambda: crystals("SM_HK_Salzspat_Klein", 22, 0.7, 6),
+              lambda: stalagmite("SM_HK_Tropfstein_A", 31), lambda: stalagmite("SM_HK_Tropfstein_B", 32), lambda: stalagmite("SM_HK_Tropfstein_C", 33),
+              lambda: skull_wall("SM_HK_Schaedelwand_A", 41), lambda: skull_wall("SM_HK_Schaedelwand_B", 42),
+              lambda: bone_pile("SM_HK_Knochenhaufen", 43), lambda: slime("SM_HK_Schleim", 44)]
     for build in builds:
         gk.clear_scene()
         build()

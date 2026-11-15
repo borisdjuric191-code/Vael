@@ -77,10 +77,45 @@ Später kommen die **Rippennager-Gänge** dazu: kurze Abkürzungen in der offene
   - Spieltest mit 0 Fehlern
   - Bilder angesehen
 
+## Olmgrotte (Geflutete Stollen), erster Stand
+
+- **Natürliche Höhle:** Die Wände stehen schiefer und versetzt, an ihrem Fuß liegen Brocken. Dazu kommen Tropfsteingruppen.
+- **Räume:**
+  - Eingangsgrotte im Süden
+  - ein Bach aus knietiefem Wasser nach Norden
+  - der große See mit tiefem Wasser, das man nicht betreten kann, und einer Insel
+  - die Kristallgrotte im Nordwesten mit Salzspat-Lampen
+  - das Gelege der Drachenbrut am tiefen Becken im Nordosten
+  - ein Nebengang im Osten
+- **Wasser:** Das flache Wasser ist an einzelnen Stellen eine Wasserquelle für die Magie.
+- **Eingang in der Welt:** bei den Gefluteten Stollen (818 / 4959 m).
+- **Grundriss:** erzeugt mit `py Tools/Welt/hoehle_grundriss.py Olmgrotte`. Danach kann man ihn in der JSON von Hand ändern.
+
+## Gebeinkammer (Knochenhalle), erster Stand
+
+- **Katakomben:**
+  - gerade, 8 m breite Gänge im Raster
+  - vor den hohen Wänden meist Schädelreihen mit Lagen von Langknochen
+  - zwei Beinhauskammern mit Knochenhaufen
+- **Knochenhöhle im Norden:** Grabschleim-Lachen in Grün, Violett, Rot, Bernstein und Türkis. Jede Lache leuchtet in ihrer Farbe.
+- **Eingang in der Welt:** an der Knochenhalle (2046 / 4004 m).
+- **Grundriss:** `py Tools/Welt/hoehle_grundriss.py Gebeinkammer`.
+
+## Was beim Bauen schiefging (für die nächsten Höhlen)
+
+- **Stalagmiten der Schluchten:** In einem Innenlevel ließen sie gar nichts mehr laden: kein Bild, keine Kollision, die Figur fiel endlos. Höhlen nehmen deshalb ihre eigenen Tropfsteine (`SM_HK_Tropfstein_*`).
+- **Materialien:** Werden sie bei jedem Lauf neu angelegt, fehlen beim nächsten Spielstart die Teile, bis die Shader übersetzt sind. Darum bleiben sie jetzt stehen. Neu anlegen nur mit `VAEL_HOEHLE_MATERIAL_NEU=1`.
+- **Fehler eingrenzen:** `VAEL_HOEHLE_TEST_OHNE=<Zeichen>` behandelt diese Zeichen als Boden, `VAEL_HOEHLE_TEST_GERADE=1` schaltet die unregelmäßigen Wände ab.
+- **Prüfen:** Mit `-VaelShowcaseWalkTo` im Log nachsehen, ob die Figur steht (Z ≈ 100) oder fällt.
+
 ## Offen
 
 - **Aussehen:** Die Wände wirken noch glatt und matt. Es fehlt eine Normal-Map für den Fels, mehr Relief und mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.
 - **Erzstellen:** Es sind Platzhalter (rostige Brocken mit Glanz). Die 11 Tripo-Erze sind noch nicht im Spiel.
 - **Gegner:** Die Plätze sind markiert (`VaelHoehleGegner`). Die befallenen Bergleute gibt es noch nicht.
 - **Anzeige in der Höhle:** Die Regionsanzeige zeigt in der Höhle „Aschenmark / Klarer Himmel“, und es gibt keine Minikarte. Sie soll stattdessen den Höhlennamen zeigen.
-- **Weitere Höhlen:** Die nächsten sind Olmgrotte und Gebeinkammer.
+- **Olmgrotte:** Das Wasser ist nur dunkel und spiegelt kaum. Die Wasserquellen zeigen sich als hellblaue Kreise.
+- **Gebeinkammer:**
+  - Sehr dunkel; die Schädelwände sind von oben kaum zu sehen, und in den Beinhauskammern fehlt Licht.
+  - Die Knochenhaufen sehen etwas spinnenartig aus.
+- **Weitere Höhlen:** Funkenerz-Adern, Ameisenbau, Kobold-Stollen, Rostschwamm-Höhle und Tiefster Schacht fehlen noch.
