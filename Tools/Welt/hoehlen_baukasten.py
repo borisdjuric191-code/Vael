@@ -27,6 +27,7 @@ Gebeinkammer (Slots Knochen, Dunkel, Schleim):
   SM_HK_Schleim           Lache Grabschleim mit Ausläufern, ~3 m, leuchtet (auch Glut- und Giftlachen anderer Höhlen)
 Rostschwamm-Höhle, Tiefster Schacht:
   SM_HK_Schwamm           Rostschwamm-Wuchs, klumpig und löchrig, ~1,6 m (Slot Fels)
+  SM_HK_Kerzen            Kerzen der Totenwache, ~0,8 m (Slots Knochen = Wachs, Glut = Flamme)
   SM_HK_Rippe             Rippenbogen der Urdrachin, 16 m weit, 9 m hoch, entlang X (Slot Knochen)
   SM_HK_Tropfstein_A/B/C  Tropfstein, 1 m hoch (Slot Fels); die Stalagmiten der Schluchten ließen in einem Innenlevel nichts mehr laden
 
@@ -403,6 +404,25 @@ def rib(name, seed):
     gk.export(obj)
 
 
+def candles(name, seed):
+    """Kerzen der Totenwache: ein Haufen Wachsstümpfe verschiedener Höhe, zerlaufen, mit kleinen Flammen; Slots Knochen (Wachs)
+    und Glut (Flamme)"""
+    obj = gk.new_object(name, ["Knochen", "Glut"])
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    lathe(b, [(0.0, 0.0), (0.38, 0.0), (0.34, 0.04), (0.0, 0.05)], 0, Vector((0, 0, 0)), sides=12)          # zerlaufenes Wachs
+    for k in range(rnd.randint(6, 9)):
+        a = rnd.uniform(0, 2 * math.pi)
+        r = rnd.uniform(0.0, 0.28)
+        c = Vector((math.cos(a) * r, math.sin(a) * r, 0.03))
+        h = rnd.uniform(0.08, 0.45)
+        rad = rnd.uniform(0.025, 0.05)
+        lathe(b, [(rad * 1.3, 0.0), (rad, 0.02), (rad, h), (rad * 0.6, h + 0.01), (0.0, h + 0.012)], 0, c, sides=8)
+        lathe(b, [(0.0, 0.0), (0.012, 0.015), (0.0, 0.05)], 1, c + Vector((0, 0, h + 0.01)), sides=5, glow=1.0)
+    b.finish(obj)
+    gk.export(obj)
+
+
 if __name__ == "__main__":
     random.seed(15)
     builds = [lambda: wall("SM_HK_Wand_A", 1), lambda: wall("SM_HK_Wand_B", 2), lambda: wall("SM_HK_Wand_C", 3),
@@ -415,7 +435,7 @@ if __name__ == "__main__":
               lambda: stalagmite("SM_HK_Tropfstein_A", 31), lambda: stalagmite("SM_HK_Tropfstein_B", 32), lambda: stalagmite("SM_HK_Tropfstein_C", 33),
               lambda: skull_wall("SM_HK_Schaedelwand_A", 41), lambda: skull_wall("SM_HK_Schaedelwand_B", 42),
               lambda: bone_pile("SM_HK_Knochenhaufen", 43), lambda: slime("SM_HK_Schleim", 44),
-              lambda: sponge("SM_HK_Schwamm", 51), lambda: rib("SM_HK_Rippe", 52)]
+              lambda: sponge("SM_HK_Schwamm", 51), lambda: rib("SM_HK_Rippe", 52), lambda: candles("SM_HK_Kerzen", 53)]
     for build in builds:
         gk.clear_scene()
         build()

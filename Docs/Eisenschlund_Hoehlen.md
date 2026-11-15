@@ -115,6 +115,25 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 
 **Getestet:** In allen acht Höhlen steht die Figur auf dem Boden (Lauftest). Von jeder Höhle habe ich Bilder angesehen.
 
+## Verschönern, erster Durchgang (15.11.)
+
+- **Anzeige oben rechts:** zeigt in einer Höhle ihren Namen und „Unter Tage“ statt „Aschenmark / Wetter“. Der Name kommt aus `AVaelIndoorLevel::PlaceName`.
+- **Licht:**
+  - Keine Stelle liegt weiter als ~16 m vom nächsten Licht. Wo es dunkel war, setzt das Skript eine Lichtquelle der jeweiligen Höhle:
+    - Laterne (Mine, grün bei den Kobolden)
+    - Kerzen (Gebeinkammer)
+    - Kristall (Olmgrotte, Ameisenbau, Schacht)
+    - Glutader (Funkenerz)
+    - Sporen am Rostschwamm
+  - Jede Höhle hat ein Grundlicht in ihrer Farbe. Boden und Belichtung sind heller.
+- **Bodenschutt:** Kiesel überall, dazu Gebeine in der Gebeinkammer, Kristallsplitter im Ameisenbau und Glutbrocken in den Funkenerz-Adern.
+- **Gebeinkammer:**
+  - Die Schädelwände stehen vor der Felsfront (vorher steckten sie im Fels). Sie kamen um 90° verdreht an; das korrigiert `VAEL_HOEHLE_SCHAEDEL_DREHUNG`.
+  - Die Wände sind niedriger.
+  - Die Gebeine haben ein dunkleres Material.
+- **Olmgrotte:** Das Wasser ist matt und dunkel (glattes Wasser spiegelte den hellen Nebel).
+- **Tiefster Schacht:** Die Rippenbögen stehen jetzt rundum am Rand des Abgrunds (19 statt 6).
+
 ## Was beim Bauen schiefging (für die nächsten Höhlen)
 
 - **Stalagmiten der Schluchten:** In einem Innenlevel ließen sie gar nichts mehr laden: kein Bild, keine Kollision, die Figur fiel endlos. Höhlen nehmen deshalb ihre eigenen Tropfsteine (`SM_HK_Tropfstein_*`).
@@ -127,10 +146,10 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 - **Aussehen:** Die Wände wirken noch glatt und matt. Es fehlt eine Normal-Map für den Fels, mehr Relief und mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.
 - **Erzstellen:** Es sind Platzhalter (rostige Brocken mit Glanz). Die 11 Tripo-Erze sind noch nicht im Spiel.
 - **Gegner:** Die Plätze sind markiert (`VaelHoehleGegner`). Die befallenen Bergleute gibt es noch nicht.
-- **Anzeige in der Höhle:** Die Regionsanzeige zeigt in der Höhle „Aschenmark / Klarer Himmel“, und es gibt keine Minikarte. Sie soll stattdessen den Höhlennamen zeigen.
+- **Minikarte:** In den Höhlen gibt es noch keine.
 - **Olmgrotte:** Das Wasser ist nur dunkel und spiegelt kaum. Die Wasserquellen zeigen sich als hellblaue Kreise.
 - **Gebeinkammer:**
-  - Sehr dunkel; die Schädelwände sind von oben kaum zu sehen, und in den Beinhauskammern fehlt Licht.
+  - Einzelne Schädelwände stehen noch hochkant zur Kamera.
   - Die Knochenhaufen sehen etwas spinnenartig aus.
 - **Die fünf neuen Höhlen:**
   - Der Kobold-Stollen ist sehr dunkel.

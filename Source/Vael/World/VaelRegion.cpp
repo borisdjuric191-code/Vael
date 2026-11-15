@@ -269,6 +269,11 @@ AVaelRegion* AVaelRegion::GetRegionAt(UWorld* World, const FVector& Location)
 					WholeLevel->RegionName = Map->Title;
 				}
 			}
+			// An indoor place (a cave) names itself
+			if (const AVaelIndoorLevel* Indoor = AVaelIndoorLevel::Find(World); Indoor != nullptr && !Indoor->PlaceName.IsEmpty())
+			{
+				WholeLevel->RegionName = Indoor->PlaceName;
+			}
 			WholeLevel->FinishSpawning(FTransform::Identity);
 
 			UE_LOG(LogVael, Log, TEXT("No region in the level, '%s' covers all of it"), *WholeLevel->RegionName.ToString());

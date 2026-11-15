@@ -36,38 +36,41 @@ ROCK_PIECES = ["SM_HK_Wand_A", "SM_HK_Wand_B", "SM_HK_Wand_C", "SM_HK_Wand_Niedr
                "SM_HK_Tropfstein_A", "SM_HK_Tropfstein_B", "SM_HK_Tropfstein_C"]
 PROPS = ["SM_HK_Verbau", "SM_HK_Verbau_8", "SM_HK_Verbau_12", "SM_HK_Schiene", "SM_HK_Lore", "SM_HK_Kiste", "SM_HK_Balkenstapel", "SM_HK_Laterne",
          "SM_HK_Salzspat", "SM_HK_Salzspat_Klein", "SM_HK_Schaedelwand_A", "SM_HK_Schaedelwand_B", "SM_HK_Knochenhaufen", "SM_HK_Schleim",
-         "SM_HK_Schwamm", "SM_HK_Rippe"]
+         "SM_HK_Schwamm", "SM_HK_Rippe", "SM_HK_Kerzen"]
 KIT_SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut",
              "Moos": "M_GK_Moos", "Messing": "/Game/Vael/Refugium/Glutkammer/Werkstatt/M_IW_Messing"}
 
 # Wie die Höhlenarten aussehen (Farben des Felses, Licht); weitere Arten kommen dazu
 ART = {
-    "Gildenmine": {"fels": (0.5, 0.45, 0.4), "boden": (0.36, 0.32, 0.29), "laterne": (1.0, 0.62, 0.32), "nebel": (0.09, 0.07, 0.055),
-                   "grundlicht": 1.3, "erz": "rost"},
+    "Gildenmine": {"grundfarbe": (0.9, 0.72, 0.55), "fels": (0.5, 0.45, 0.4), "boden": (0.36, 0.32, 0.29), "laterne": (1.0, 0.62, 0.32), "nebel": (0.09, 0.07, 0.055),
+                   "grundlicht": 1.3, "erz": "rost", "licht": "laterne", "schutt": "kiesel"},
     # natürliche Höhle: unregelmäßige Wände, Tropfsteine, Wasser, kaltes Salzspat-Licht
-    "Olmgrotte": {"fels": (0.36, 0.4, 0.46), "boden": (0.27, 0.3, 0.33), "laterne": (0.55, 0.8, 1.0), "nebel": (0.03, 0.06, 0.08),
+    "Olmgrotte": {"grundfarbe": (0.55, 0.75, 0.95), "fels": (0.36, 0.4, 0.46), "boden": (0.27, 0.3, 0.33), "laterne": (0.55, 0.8, 1.0), "nebel": (0.03, 0.06, 0.08),
                   "grundlicht": 0.9, "erz": "salzspat", "natur": True, "kristall": (0.45, 0.8, 1.0),
-                  "nebeldichte": 0.004, "volumennebel": False},
+                  "nebeldichte": 0.004, "volumennebel": False, "licht": "kristall", "schutt": "kiesel"},
     # Katakomben der Gilde: Kalkfels, Schädelreihen an den Wänden, Grabschleim in vielen Farben
     # schmale Spalten im schwarzen Fels, glühende Adern, Feuerquellen
-    "FunkenerzAdern": {"fels": (0.2, 0.18, 0.18), "boden": (0.16, 0.14, 0.13), "laterne": (1.0, 0.5, 0.2), "nebel": (0.08, 0.03, 0.01),
-                       "grundlicht": 0.35, "natur": True, "schleim": ["Glut"], "erzfarbe": (1.0, 0.45, 0.1), "nebeldichte": 0.02},
+    "FunkenerzAdern": {"grundfarbe": (1.0, 0.55, 0.3), "fels": (0.2, 0.18, 0.18), "boden": (0.16, 0.14, 0.13), "laterne": (1.0, 0.5, 0.2), "nebel": (0.08, 0.03, 0.01),
+                       "grundlicht": 0.35, "natur": True, "schleim": ["Glut"], "erzfarbe": (1.0, 0.45, 0.1), "nebeldichte": 0.02,
+                       "licht": "glut", "schutt": "glut"},
     # runde, gefressene Kammern, Kristallreste in vielen Farben, Brut
-    "Ameisenbau": {"fels": (0.55, 0.45, 0.32), "boden": (0.4, 0.33, 0.24), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.04, 0.03),
+    "Ameisenbau": {"grundfarbe": (0.9, 0.76, 0.52), "fels": (0.55, 0.45, 0.32), "boden": (0.4, 0.33, 0.24), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.04, 0.03),
                    "grundlicht": 0.8, "natur": True, "kristalle": [(1.0, 0.3, 0.6), (0.2, 0.9, 0.7), (0.4, 1.0, 0.2), (1.0, 0.7, 0.2), (0.5, 0.4, 1.0)],
-                   "erzfarbe": (0.85, 0.5, 0.2), "nebeldichte": 0.015},
+                   "erzfarbe": (0.85, 0.5, 0.2), "nebeldichte": 0.015, "licht": "kristall", "schutt": "kristall"},
     # Irrgarten der Kobolde: dunkler Fels, falsches grünes Licht, der Hort voller Kobaltblüte
-    "KoboldStollen": {"fels": (0.36, 0.33, 0.36), "boden": (0.26, 0.24, 0.25), "laterne": (0.45, 1.0, 0.35), "nebel": (0.03, 0.05, 0.03),
-                      "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.45},
+    "KoboldStollen": {"grundfarbe": (0.55, 0.78, 0.55), "fels": (0.36, 0.33, 0.36), "boden": (0.26, 0.24, 0.25), "laterne": (0.45, 1.0, 0.35), "nebel": (0.03, 0.05, 0.03),
+                      "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.45,
+                      "licht": "laterne", "schutt": "kiesel"},
     # Schwammwucherungen, Giftlachen, kränkliches Grün
-    "Rostschwamm": {"fels": (0.45, 0.3, 0.2), "boden": (0.3, 0.22, 0.15), "laterne": (0.6, 1.0, 0.3), "nebel": (0.04, 0.07, 0.02),
-                    "grundlicht": 0.6, "natur": True, "wucherung": "schwamm", "schleim": ["Gift"], "erzfarbe": (0.4, 1.0, 0.3), "nebeldichte": 0.03},
+    "Rostschwamm": {"grundfarbe": (0.62, 0.82, 0.45), "fels": (0.45, 0.3, 0.2), "boden": (0.3, 0.22, 0.15), "laterne": (0.6, 1.0, 0.3), "nebel": (0.04, 0.07, 0.02),
+                    "grundlicht": 0.6, "natur": True, "wucherung": "schwamm", "schleim": ["Gift"], "erzfarbe": (0.4, 1.0, 0.3), "nebeldichte": 0.03,
+                    "licht": "sporen", "schutt": "kiesel"},
     # Ringweg um den Abgrund, Rippen der Urdrachin, Rippenspat
-    "TiefsterSchacht": {"fels": (0.38, 0.36, 0.4), "boden": (0.28, 0.27, 0.3), "laterne": (0.8, 0.7, 1.0), "nebel": (0.04, 0.03, 0.06),
+    "TiefsterSchacht": {"grundfarbe": (0.68, 0.6, 0.9), "fels": (0.38, 0.36, 0.4), "boden": (0.28, 0.27, 0.3), "laterne": (0.8, 0.7, 1.0), "nebel": (0.04, 0.03, 0.06),
                         "grundlicht": 0.8, "natur": True, "erzfarbe": (1.0, 0.9, 0.7), "kristalle": [(0.8, 0.7, 1.0)], "abgrund": True,
-                        "nebeldichte": 0.015},
-    "Gebeinkammer": {"fels": (0.6, 0.55, 0.47), "boden": (0.42, 0.38, 0.33), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.045, 0.04),
-                     "grundlicht": 0.9, "schaedelwand": 0.75, "nebeldichte": 0.02},
+                        "nebeldichte": 0.015, "licht": "kristall", "schutt": "kiesel", "rippen_auto": True},
+    "Gebeinkammer": {"grundfarbe": (0.85, 0.74, 0.6), "fels": (0.6, 0.55, 0.47), "boden": (0.42, 0.38, 0.33), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.045, 0.04),
+                     "grundlicht": 1.1, "schaedelwand": 0.85, "nebeldichte": 0.015, "wandhoehe": 0.7, "licht": "kerzen", "schutt": "knochen"},
 }
 
 editor = unreal.get_editor_subsystem(unreal.EditorActorSubsystem)
@@ -320,7 +323,13 @@ def mesh_actor(mesh, x, y, z, folder, label, yaw=0.0, scale=(1.0, 1.0, 1.0), mat
     return actor
 
 
+SKULL_TURN = float(os.environ.get("VAEL_HOEHLE_SCHAEDEL_DREHUNG", "90"))   # die Schädelwand kam um 90° verdreht an
+LIGHTS = []        # wo schon Licht ist (x, y), für die Lichtabdeckung
+
+
 def point_light(x, y, z, folder, label, colour, intensity, radius, shadows=False):
+    if intensity >= 25.0:
+        LIGHTS.append((x, y))
     light = spawn(unreal.PointLight, unreal.Vector(x, y, z), folder, label)
     c = light.light_component
     c.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
@@ -371,6 +380,49 @@ def span_across(r, c, axis):
     return lo + hi + 1, (hi - lo) * 0.5
 
 
+def light_source(meshes, r, c, x, y):
+    """Eine Lichtquelle, wie sie in die Höhle gehört, an einer dunklen Stelle (Lichtabdeckung)"""
+    kind = STYLE.get("licht", "laterne")
+    wall = None
+    for key, (dr, dc, (dx, dy)) in DIRS.items():
+        if not is_floor(r + dr, c + dc):
+            wall = (dx, dy)
+            break
+    if kind == "laterne":
+        dx, dy = wall or (1, 0)
+        px, py = x + dx * (S / 2 - 70.0), y + dy * (S / 2 - 70.0)
+        yaw = math.degrees(math.atan2(-dy, -dx))
+        mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", "Laterne", yaw=yaw, collision=False)
+        point_light(px + math.cos(math.radians(yaw)) * 45.0, py + math.sin(math.radians(yaw)) * 45.0, 210.0, "Licht", "Laternenschein",
+                    STYLE["laterne"], 120.0, 1700.0, shadows=True)
+    elif kind == "kerzen":
+        dx, dy = wall or (0, 0)
+        px, py = x + dx * (S / 2 - 90.0), y + dy * (S / 2 - 90.0)
+        mesh_actor(meshes["SM_HK_Kerzen"], px, py, 0.0, "Licht", "Kerzen", yaw=rng.uniform(0, 360), scale=(1.3, 1.3, 1.3), collision=False)
+        point_light(px, py, 90.0, "Licht", "Kerzenschein", (1.0, 0.68, 0.35), 70.0, 1400.0, shadows=True)
+    elif kind == "kristall":
+        colour, mat = STYLE.get("kristall", (0.45, 0.8, 1.0)), None
+        if CRYSTAL_MATS:
+            colour, mat = CRYSTAL_MATS[(r * 5 + c * 11) % len(CRYSTAL_MATS)]
+        dx, dy = wall or (0, 0)
+        crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + dx * 120.0, y + dy * 120.0, 0.0, "Licht", "Kristall", yaw=rng.uniform(0, 360),
+                             scale=(0.8, 0.8, 0.8))
+        if mat is not None:
+            crystal.static_mesh_component.set_material(0, mat)
+        point_light(x + dx * 120.0, y + dy * 120.0, 150.0, "Licht", "Kristall-Licht", colour, 90.0, 1600.0, shadows=True)
+    elif kind == "glut":
+        if "Glut" in SLIME_MATS:
+            mesh_actor(meshes["SM_HK_Schleim"], x, y, 2.0, "Licht", "Glutader", yaw=rng.uniform(0, 360), scale=(0.6, 0.6, 1.0),
+                       material=SLIME_MATS["Glut"], collision=False)
+        point_light(x, y, 120.0, "Licht", "Glutschein", (1.0, 0.45, 0.12), 80.0, 1500.0, shadows=True)
+    elif kind == "sporen":
+        for k in range(2):
+            s_ = rng.uniform(0.6, 1.1)
+            mesh_actor(meshes["SM_HK_Schwamm"], x + rng.uniform(-100, 100), y + rng.uniform(-100, 100), -5.0, "Licht", "Rostschwamm",
+                       yaw=rng.uniform(0, 360), scale=(s_, s_, s_), material=SPONGE[0] if SPONGE else None)
+        point_light(x, y, 110.0, "Licht", "Sporenlicht", (0.55, 1.0, 0.3), 40.0, 1400.0, shadows=True)
+
+
 def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=None):
     if assets.does_asset_exist(LEVEL):
         assets.delete_asset(LEVEL)
@@ -381,7 +433,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     walls = [meshes["SM_HK_Wand_A"], meshes["SM_HK_Wand_B"], meshes["SM_HK_Wand_C"]]
     lows = [meshes["SM_HK_Wand_Niedrig_A"], meshes["SM_HK_Wand_Niedrig_B"]]
 
-    spawn(unreal.VaelIndoorLevel, unreal.Vector(0, 0, 500), "Spiel", "Innenraum")
+    indoor = spawn(unreal.VaelIndoorLevel, unreal.Vector(0, 0, 500), "Spiel", "Innenraum")
+    indoor.set_editor_property("place_name", unreal.Text(D.get("titel", NAME)))
     # ein Felssockel unter der ganzen Höhle: nichts fällt durch eine Lücke zwischen den Platten ins Leere
     mesh_actor(unreal.load_asset("/Engine/BasicShapes/Cube.Cube"), (H - 1) * S / 2, (W - 1) * S / 2, -4000.0 if STYLE.get("abgrund") else -370.0, "Boden", "Felssockel",
                scale=((H + 2) * S / 100.0, (W + 2) * S / 100.0, 1.0), material=floor_mat)
@@ -409,7 +462,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 elif r % 4 == 0 and c % 4 == 0:     # einzelne Quellen; jede zweite Zelle ergab eine Fläche aus blauen Kreisen
                     pool = spawn(unreal.VaelGroundArea, unreal.Vector(x, y, 20.0), "Wasser", "Wasserquelle")
                     pool.set_editor_property("element", unreal.VaelElement.WATER)
-                    pool.set_editor_property("radius", 300.0)
+                    pool.set_editor_property("radius", 200.0)
                     pool.set_editor_property("extinguishable", False)
             # Wände zu jedem Felsnachbarn
             for key, (dr, dc, (dx, dy)) in DIRS.items():
@@ -425,9 +478,10 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                                   rng.uniform(0.8, 1.35 if NATUR else 1.15) * STYLE.get("wandhoehe", 1.0) if not low else 1.0), material=rock)
                 if not low and rng.random() < STYLE.get("schaedelwand", 0.0):
                     # Schädelreihen der Gilde vor dem Fels, mit dem Gesicht in den Gang
-                    mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 70.0),
-                               y + dy * (S / 2 - 70.0), 0.0, "Gebeine", "Schaedelwand", yaw=math.degrees(math.atan2(-dx, dy)),
-                               scale=(0.95, 1.0, rng.uniform(0.9, 1.1)))
+                    # vor die Felsfront (die ragt bis ~1,5 m in die Zelle), sonst steckten die Schädel im Fels
+                    mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 170.0),
+                               y + dy * (S / 2 - 170.0), 0.0, "Gebeine", "Schaedelwand", yaw=math.degrees(math.atan2(-dx, dy)) + SKULL_TURN,
+                               scale=(0.95, 1.0, rng.uniform(1.05, 1.25)))
                 if NATUR and rng.random() < 0.45:
                     # Brocken am Fuß der Wand, gegen die geraden Linien des Rasters
                     sz = rng.uniform(0.9, 2.2)
@@ -590,6 +644,61 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 exit_.set_editor_property("message", unreal.Text("Eisenschlund"))
                 spot_down(x, y, 1400.0, "Licht", "Tageslicht am Ausgang", (0.8, 0.88, 1.0), 900.0, 12.0, beam)
                 start = (x + 3 * S, y)
+    # --- Schacht: Rippen rundum am Rand des Abgrunds, nicht nur an den gezeichneten Stellen
+    if STYLE.get("rippen_auto"):
+        xs = [centre(rr, cc) for rr in range(H) for cc in range(W) if cell(rr, cc) == "X"]
+        cx_, cy_ = sum(p[0] for p in xs) / len(xs), sum(p[1] for p in xs) / len(xs)
+        placed = []
+        for r in range(H):
+            for c in range(W):
+                if cell(r, c) != "." or not any(cell(r + dr, c + dc) == "X" for dr, dc, _ in DIRS.values()):
+                    continue
+                x, y = centre(r, c)
+                if any(math.hypot(x - px, y - py) < 3.2 * S for px, py in placed):
+                    continue
+                placed.append((x, y))
+                yaw = math.degrees(math.atan2(cy_ - y, cx_ - x)) + rng.uniform(-12, 12)
+                mesh_actor(meshes["SM_HK_Rippe"], x + math.cos(math.radians(yaw)) * 650.0, y + math.sin(math.radians(yaw)) * 650.0, -250.0,
+                           "Rippen", "Rippe der Urdrachin", yaw=yaw, scale=(rng.uniform(0.9, 1.15), 1.0, rng.uniform(1.0, 1.5)), collision=False)
+
+    # --- Lichtabdeckung: keine Stelle weiter als ~16 m vom nächsten Licht; dort eine Lichtquelle, wie sie in diese Höhle gehört
+    cover = STYLE.get("licht_abstand", 4.0) * S
+    for r in range(H):
+        for c in range(W):
+            if cell(r, c) not in ".~":
+                continue
+            x, y = centre(r, c)
+            if any(math.hypot(x - lx, y - ly) < cover for lx, ly in LIGHTS):
+                continue
+            light_source(meshes, r, c, x, y)
+
+    # --- Bodenschutt: Kiesel und Brocken, je Höhle Knochen, Kristallsplitter oder Glutbrocken
+    for r in range(H):
+        for c in range(W):
+            if cell(r, c) not in "." or rng.random() > 0.45:
+                continue
+            x, y = centre(r, c)
+            for k in range(rng.randint(1, 3)):
+                px, py = x + rng.uniform(-180, 180), y + rng.uniform(-180, 180)
+                kind = STYLE.get("schutt", "kiesel")
+                if kind == "knochen" and rng.random() < 0.5:
+                    s_ = rng.uniform(0.3, 0.5)
+                    mesh_actor(meshes["SM_HK_Knochenhaufen"], px, py, -2.0, "Schutt", "Gebeine", yaw=rng.uniform(0, 360), scale=(s_, s_, s_),
+                               collision=False)
+                elif kind == "kristall" and rng.random() < 0.35 and CRYSTAL_MATS:
+                    s_ = rng.uniform(0.25, 0.45)
+                    shard = mesh_actor(meshes["SM_HK_Salzspat_Klein"], px, py, -2.0, "Schutt", "Kristallsplitter", yaw=rng.uniform(0, 360),
+                                       scale=(s_, s_, s_), collision=False)
+                    shard.static_mesh_component.set_material(0, CRYSTAL_MATS[rng.randrange(len(CRYSTAL_MATS))][1])
+                elif kind == "glut" and rng.random() < 0.3 and ORE_MAT:
+                    s_ = rng.uniform(0.12, 0.25)
+                    ember = mesh_actor(rng.choice(BOULDERS), px, py, -3.0, "Schutt", "Glutbrocken", yaw=rng.uniform(0, 360), scale=(s_, s_, s_ * 0.7),
+                                       material=ORE_MAT[0], collision=False)
+                else:
+                    s_ = rng.uniform(0.12, 0.4)
+                    mesh_actor(rng.choice(BOULDERS), px, py, -s_ * 12.0, "Schutt", "Kiesel", yaw=rng.uniform(0, 360), scale=(s_, s_ * rng.uniform(0.7, 1.1), s_ * 0.7),
+                               material=rock, collision=False)
+
     if start is not None:
         spawn(unreal.PlayerStart, unreal.Vector(start[0], start[1], 120.0), "Spiel", "Spielerstart")
 
@@ -602,8 +711,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     # die Laternen und Schächte bleiben das Helle
     moon = spawn(unreal.DirectionalLight, unreal.Vector(0, 0, 3000.0), "Licht", "Grundlicht von oben", unreal.Rotator(0.0, -62.0, 35.0))
     mc = moon.light_component
-    mc.set_editor_property("intensity", STYLE.get("grundlicht", 0.35))
-    mc.set_light_color(unreal.LinearColor(0.62, 0.7, 0.85, 1.0))
+    mc.set_editor_property("intensity", STYLE.get("grundlicht", 0.35) * 1.6)
+    g = STYLE.get("grundfarbe", (0.62, 0.7, 0.85))           # jede Höhle in ihrer Farbe (grau war es ohne Stimmung)
+    mc.set_light_color(unreal.LinearColor(g[0], g[1], g[2], 1.0))
     mc.set_editor_property("cast_shadows", True)
     moon.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
     # Licht und Luft: kein Himmel; ein schwaches Grundlicht im Nebel, damit das Dunkel nicht schwarz ist
@@ -617,7 +727,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     post = spawn(unreal.PostProcessVolume, unreal.Vector(H * S / 2, W * S / 2, 0.0), "Licht", "Nachbearbeitung")
     post.set_editor_property("unbound", True)
     settings = post.get_editor_property("settings")
-    for key, value in (("auto_exposure_min_brightness", 0.0), ("auto_exposure_max_brightness", 0.0), ("auto_exposure_bias", 1.4),
+    for key, value in (("auto_exposure_min_brightness", 0.0), ("auto_exposure_max_brightness", 0.0), ("auto_exposure_bias", 1.9),
                        ("bloom_intensity", 0.9), ("vignette_intensity", 0.55)):
         settings.set_editor_property("override_" + key, True)
         settings.set_editor_property(key, value)
@@ -684,13 +794,14 @@ def main():
     MITES[:] = [meshes["SM_HK_Tropfstein_" + k] for k in "ABC"]
     cave_rock_material()
     rock = rock_instance("MI_HK_Fels_" + D.get("art", NAME), STYLE["fels"])
-    floor_mat = rock_instance("MI_HK_Boden_" + D.get("art", NAME), STYLE["boden"])
+    # der Höhlenfels dunkelt zum Boden hin auf die Hälfte ab: der Boden bekommt dafür eine hellere Farbe (Verschönern, 15.11.)
+    floor_mat = rock_instance("MI_HK_Boden_" + D.get("art", NAME), tuple(min(1.0, v * 1.9) for v in STYLE["boden"]))
     ore_mat = rock_instance("MI_HK_Erz_Platzhalter", (0.75, 0.32, 0.16))
-    water_mat = simple_material("M_HK_Wasser", (0.008, 0.022, 0.03), 0.04, specular=0.9)
+    water_mat = simple_material("M_HK_Grottenwasser_Matt", (0.006, 0.02, 0.025), 0.3, specular=0.4)   # glatt spiegelte es den hellen Nebel
     glow = STYLE.get("kristall", (0.45, 0.8, 1.0))
     crystal_mat = simple_material("M_HK_Salzspat", (0.7, 0.85, 0.95), 0.15, emissive=(glow[0] * 3.0, glow[1] * 3.0, glow[2] * 3.0))
     EXTRA_SLOTS["Kristall"] = crystal_mat
-    EXTRA_SLOTS["Knochen"] = simple_material("M_HK_Knochen", (0.62, 0.56, 0.45), 0.75)
+    EXTRA_SLOTS["Knochen"] = simple_material("M_HK_Gebein", (0.42, 0.37, 0.29), 0.8)      # M_HK_Knochen war zu weiß
     EXTRA_SLOTS["Dunkel"] = simple_material("M_HK_Dunkel", (0.015, 0.012, 0.01), 0.9)
     EXTRA_SLOTS["Schleim"] = simple_material("M_HK_Schleim_Gruen", (0.1, 0.3, 0.06), 0.08, emissive=(1.0, 3.0, 0.6))
     lachen = list(SCHLEIM) if STYLE.get("schaedelwand") else STYLE.get("schleim", [])

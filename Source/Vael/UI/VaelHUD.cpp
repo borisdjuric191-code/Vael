@@ -51,6 +51,7 @@
 #include "UI/VaelCombatTextSubsystem.h"
 #include "VaelGameMode.h"
 #include "World/VaelRegion.h"
+#include "World/VaelIndoorLevel.h"
 #include "World/VaelLocalWeather.h"
 #include "World/VaelTimeOfDay.h"
 
@@ -1409,7 +1410,10 @@ float AVaelHUD::DrawRegionInfo(float Top)
 		const int32 Minutes = FMath::FloorToInt(Clock->GetHour() * 60.0f);
 		TimeText = FText::Format(LOCTEXT("TimeLine", " · {0} {1}:{2}"), PhaseNames[static_cast<int32>(Clock->GetPhase())], FText::AsNumber(Minutes / 60), FText::FromString(FString::Printf(TEXT("%02d"), Minutes % 60)));
 	}
-	DrawLabel(FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}{1}"), AVaelRegion::GetWeatherName(Region->GetWeather()), TimeText), Left + Padding, Top + 40.0f * S, 16.0f * S, Rgb(222, 208, 186));
+	// Under the earth there is no weather
+	const FText WeatherText = AVaelIndoorLevel::IsIndoor(GetWorld()) ? FText::Format(LOCTEXT("IndoorLine", "Unter Tage{0}"), TimeText)
+		: FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}{1}"), AVaelRegion::GetWeatherName(Region->GetWeather()), TimeText);
+	DrawLabel(WeatherText, Left + Padding, Top + 40.0f * S, 16.0f * S, Rgb(222, 208, 186));
 
 	// Die Waage: the own balance and the region's, the same bar for both
 	const float BarWidth = Width - 2.0f * Padding;

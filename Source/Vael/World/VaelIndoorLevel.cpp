@@ -24,3 +24,13 @@ bool AVaelIndoorLevel::IsIndoor(const UWorld* World)
 {
 	return World != nullptr && TActorIterator<AVaelIndoorLevel>(const_cast<UWorld*>(World));
 }
+
+const AVaelIndoorLevel* AVaelIndoorLevel::Find(const UWorld* World)
+{
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+	TActorIterator<AVaelIndoorLevel> It(const_cast<UWorld*>(World));
+	return It ? *It : nullptr;
+}

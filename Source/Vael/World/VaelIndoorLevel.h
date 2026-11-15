@@ -23,4 +23,11 @@ public:
 
 	/** True when the world holds an indoor marker */
 	static bool IsIndoor(const UWorld* World);
+
+	/** The indoor marker of the world, or null */
+	static const AVaelIndoorLevel* Find(const UWorld* World);
+
+	/** The name of the place, shown where the region name stands (a cave of the Eisenschlund: "Kernerz-Stollen") */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Indoor")
+	FText PlaceName;
 };
