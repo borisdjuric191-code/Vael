@@ -182,6 +182,19 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
   - Stalaktiten hängen unter den Überhängen. Ein Strahl vom Boden nach oben findet den Fels.
   - Natürliche Höhlen sind dicht besetzt (0,4), Stollen und Katakomben spärlich (0,12).
 
+## Katakombe und Schleimzapfen (15.11., ohne Tripo)
+
+- **Gebeinkammer als Katakombe (`katakombe()`):**
+  - Breite Schädelbögen (`SM_HK_Schaedelbogen_Breit`, 7,4 m) stehen quer über den zweispurigen Gängen, jede dritte Reihe.
+  - Schmale Bögen (`SM_HK_Schaedelbogen`) stehen über einspurigen Gängen.
+  - Knochensäulen (`SM_HK_Knochensaeule`) stehen in den Hallen.
+  - Die Bögen haben genaue Kollision, man geht darunter durch. Der Lauftest durch einen Gang mit Bögen geht durch.
+  - `VaelTeleport` setzt die Figur unter einem Bogen nicht ab.
+- **Schleimzapfen (`SM_HK_Schleimzapfen_A/B`):** Stalaktiten mit leuchtendem Schleimmantel, Tropfen an der Spitze und einem fallenden Tropfen darunter. Das sind die lockenden Säure-Bakterien aus der Lore.
+  - In der Gebeinkammer werden 70 % der Stalaktiten zu Schleimzapfen, in allen Schleimfarben. Im Rostschwamm sind es 35 %, als Gift.
+  - Jeder dritte Zapfen hat einen schwachen Schein in seiner Farbe.
+- **Stream-Test:** Das Zeitlimit richtet sich jetzt nach der Länge der Strecke. Zuvor brach der Test 14 m vor dem Ende ab.
+
 ## Was beim Bauen schiefging (für die nächsten Höhlen)
 
 - **Stalagmiten der Schluchten:** In einem Innenlevel ließen sie gar nichts mehr laden: kein Bild, keine Kollision, die Figur fiel endlos. Höhlen nehmen deshalb ihre eigenen Tropfsteine (`SM_HK_Tropfstein_*`).

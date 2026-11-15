@@ -52,6 +52,8 @@ namespace
 	// The check stops after this long, but at least this long per route point: the route grows with every region joined
 	constexpr float StreamTimeLimit = 900.0f;
 	constexpr float StreamTimePerPoint = 45.0f;
+	/** Room for waiting on ground and slowing down on the way, on top of the pure running time */
+	constexpr float StreamRunSlack = 1.6f;
 }
 
 AVaelStreamTest::AVaelStreamTest()
@@ -143,7 +145,14 @@ void AVaelStreamTest::Tick(float DeltaSeconds)
 	PhaseTime += DeltaSeconds;
 	AVaelCharacter* Player = GetPlayer();
 
-	const float TimeLimit = FMath::Max(StreamTimeLimit, StreamTimePerPoint * Route.Num());
+	// The run there and back takes as long as the route is long; per point alone was too tight on the long stretches (stopped 14 m before the end)
+	double RouteLength = 0.0;
+	for (int32 Index = 1; Index < Route.Num(); ++Index)
+	{
+		RouteLength += FVector::Dist(Route[Index - 1], Route[Index]);
+	}
+	const float RunTime = static_cast<float>(2.0 * RouteLength / StreamRunSpeed) * StreamRunSlack;
+	const float TimeLimit = FMath::Max3(StreamTimeLimit, StreamTimePerPoint * Route.Num(), StreamTimeLimit + RunTime);
 	if (GetGameTimeSinceCreation() > TimeLimit)
 	{
 		Report.Add(FString::Printf(TEXT("FAILED: the check took longer than %.0f s and was stopped"), TimeLimit));

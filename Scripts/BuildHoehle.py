@@ -36,7 +36,9 @@ ROCK_PIECES = ["SM_HK_Wand_A", "SM_HK_Wand_B", "SM_HK_Wand_C", "SM_HK_Wand_Niedr
                "SM_HK_Tropfstein_A", "SM_HK_Tropfstein_B", "SM_HK_Tropfstein_C"]
 PROPS = ["SM_HK_Verbau", "SM_HK_Verbau_8", "SM_HK_Verbau_12", "SM_HK_Schiene", "SM_HK_Lore", "SM_HK_Kiste", "SM_HK_Balkenstapel", "SM_HK_Laterne",
          "SM_HK_Salzspat", "SM_HK_Salzspat_Klein", "SM_HK_Schaedelwand_A", "SM_HK_Schaedelwand_B", "SM_HK_Knochenhaufen", "SM_HK_Schleim",
-         "SM_HK_Schwamm", "SM_HK_Rippe", "SM_HK_Kerzen"]
+         "SM_HK_Schwamm", "SM_HK_Rippe", "SM_HK_Kerzen", "SM_HK_Schleimzapfen_A", "SM_HK_Schleimzapfen_B",
+         "SM_HK_Knochensaeule", "SM_HK_Schaedelbogen", "SM_HK_Schaedelbogen_Breit"]
+ZAPFEN = []         # Schleimzapfen (main)
 KIT_SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut",
              "Moos": "M_GK_Moos", "Messing": "/Game/Vael/Refugium/Glutkammer/Werkstatt/M_IW_Messing"}
 
@@ -63,14 +65,15 @@ ART = {
                       "licht": "laterne", "schutt": "kiesel"},
     # Schwammwucherungen, Giftlachen, kränkliches Grün
     "Rostschwamm": {"grundfarbe": (0.62, 0.82, 0.45), "fels": (0.45, 0.3, 0.2), "boden": (0.3, 0.22, 0.15), "laterne": (0.6, 1.0, 0.3), "nebel": (0.04, 0.07, 0.02),
-                    "grundlicht": 0.6, "natur": True, "wucherung": "schwamm", "schleim": ["Gift"], "erzfarbe": (0.4, 1.0, 0.3), "nebeldichte": 0.03,
+                    "grundlicht": 0.6, "natur": True, "wucherung": "schwamm", "schleim": ["Gift"], "erzfarbe": (0.4, 1.0, 0.3), "nebeldichte": 0.03, "schleimzapfen": 0.35,
                     "licht": "sporen", "schutt": "kiesel"},
     # Ringweg um den Abgrund, Rippen der Urdrachin, Rippenspat
     "TiefsterSchacht": {"grundfarbe": (0.68, 0.6, 0.9), "fels": (0.38, 0.36, 0.4), "boden": (0.28, 0.27, 0.3), "laterne": (0.8, 0.7, 1.0), "nebel": (0.04, 0.03, 0.06),
                         "grundlicht": 0.8, "natur": True, "erzfarbe": (1.0, 0.9, 0.7), "kristalle": [(0.8, 0.7, 1.0)], "abgrund": True,
                         "nebeldichte": 0.015, "licht": "kristall", "schutt": "kiesel", "rippen_auto": True},
     "Gebeinkammer": {"grundfarbe": (0.85, 0.74, 0.6), "fels": (0.6, 0.55, 0.47), "boden": (0.42, 0.38, 0.33), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.045, 0.04),
-                     "grundlicht": 1.1, "schaedelwand": 0.85, "nebeldichte": 0.015, "wandhoehe": 0.7, "licht": "kerzen", "schutt": "knochen"},
+                     "grundlicht": 1.1, "schaedelwand": 0.85, "nebeldichte": 0.015, "wandhoehe": 0.7, "licht": "kerzen", "schutt": "knochen",
+                     "tropfsteine": 0.3, "schleimzapfen": 0.7},
 }
 
 # Die Erze des Eisenschlunds (Docs/Eisenschlund_Erze_Pflanzen_Wesen.md): Seltenheit 0 häufig bis 5 legendär
@@ -705,7 +708,7 @@ def tropfsteine(world):
     """Stalagmiten am Fuß der Wände und Stalaktiten unter den Überhängen (Boris 15.11.): Stalaktiten hängen dort, wo ein Strahl vom
     Boden nach oben den Fels trifft; natürliche Höhlen dicht, Stollen und Katakomben spärlich"""
     dichte = STYLE.get("tropfsteine", 0.4 if NATUR else 0.12)
-    n_mit, n_tit = 0, 0
+    n_mit, n_tit, n_zap = 0, 0, [0]
     for r in range(H):
         for c in range(W):
             if not is_floor(r, c) or cell(r, c) in "XO~E":
@@ -737,12 +740,62 @@ def tropfsteine(world):
                         if hit is None or hit[0].z < 260.0:
                             continue
                         h_ = erng.uniform(0.7, 2.6)
+                        if SLIME_MATS and ZAPFEN and erng.random() < STYLE.get("schleimzapfen", 0.0):
+                            # Schleimzapfen: leuchtende Säure-Bakterien, die mit ihrem Licht anlocken (Lore, Boris 13.11.)
+                            farbe = erng.choice(sorted(SLIME_MATS))
+                            z_ = mesh_actor(erng.choice(ZAPFEN), px, py, hit[0].z + 25.0, "Tropfsteine", "Schleimzapfen " + farbe,
+                                            yaw=erng.uniform(0, 360), scale=(h_ * 0.4, h_ * 0.4, h_), collision=False)
+                            z_.static_mesh_component.set_material_by_name("Fels", EXTRA_SLOTS.get("Fels"))
+                            z_.static_mesh_component.set_material_by_name("Schleim", SLIME_MATS[farbe])
+                            if erng.random() < 0.35:
+                                col = SCHLEIM.get(farbe) or LACHEN[farbe]
+                                point_light(px, py, hit[0].z - h_ * 100.0 - 40.0, "Tropfsteine", "Zapfenschein " + farbe, col, 6.0, 500.0)
+                            n_zap[0] += 1
+                            continue
                         mesh_actor(erng.choice(MITES), px, py, hit[0].z + 30.0, "Tropfsteine", "Stalaktit", yaw=erng.uniform(0, 360),
                                    scale=(h_ * 0.38, h_ * 0.38, h_), material=EXTRA_SLOTS.get("Fels"), roll=180.0 + erng.uniform(-5, 5),
                                    collision=False)
                         n_tit += 1
-    log("Tropfsteine: {} Stalagmiten, {} Stalaktiten".format(n_mit, n_tit))
+    log("Tropfsteine: {} Stalagmiten, {} Stalaktiten, {} Schleimzapfen".format(n_mit, n_tit, n_zap[0]))
     return n_mit + n_tit
+
+
+def katakombe(meshes):
+    """Die Gebeinkammer als Katakombe (Boris 13.11.: wie die Pariser Katakomben, eine echte Knochensammlung): Schädelbögen quer
+    über die engen Gänge, Knochensäulen in den Hallen"""
+    if not STYLE.get("schaedelwand"):
+        return 0
+    n = 0
+    for r in range(H):
+        for c in range(W):
+            if cell(r, c) != ".":
+                continue
+            x, y = centre(r, c)
+            rock_ns = not is_floor(r - 1, c) and not is_floor(r + 1, c)
+            rock_we = not is_floor(r, c - 1) and not is_floor(r, c + 1)
+            if (rock_ns and is_floor(r, c - 1) and is_floor(r, c + 1)) or (rock_we and is_floor(r - 1, c) and is_floor(r + 1, c)):
+                # Gang: ab und zu ein Bogen quer darüber (Säulen bei Y = ±1,8 m im Teil: entlang Y stehen die Säulen)
+                if (r * 5 + c * 3) % 4 == 0:
+                    yaw = 0.0 if rock_we else 90.0
+                    mesh_actor(meshes["SM_HK_Schaedelbogen"], x, y, 0.0, "Gebeine", "Schaedelbogen", yaw=yaw, scale=(1.0, 0.95, 1.0))
+                    n += 1
+                continue
+            # zweispuriger Gang: ein breiter Bogen über beide Zellen, jede dritte Reihe
+            if is_floor(r, c + 1) and not is_floor(r, c - 1) and not is_floor(r, c + 2) and is_floor(r - 1, c) and is_floor(r + 1, c) and r % 3 == 0:
+                mesh_actor(meshes["SM_HK_Schaedelbogen_Breit"], x, y + S / 2, 0.0, "Gebeine", "Schaedelbogen breit", yaw=0.0)
+                n += 1
+                continue
+            if is_floor(r + 1, c) and not is_floor(r - 1, c) and not is_floor(r + 2, c) and is_floor(r, c - 1) and is_floor(r, c + 1) and c % 3 == 0:
+                mesh_actor(meshes["SM_HK_Schaedelbogen_Breit"], x - S / 2, y, 0.0, "Gebeine", "Schaedelbogen breit", yaw=90.0)
+                n += 1
+                continue
+            if all(is_floor(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1)) and erng.random() < 0.14:
+                s_ = erng.uniform(0.9, 1.15)
+                mesh_actor(meshes["SM_HK_Knochensaeule"], x + erng.uniform(-60, 60), y + erng.uniform(-60, 60), -10.0, "Gebeine",
+                           "Knochensaeule", yaw=erng.uniform(0, 360), scale=(s_, s_, s_ * erng.uniform(0.95, 1.2)))
+                n += 1
+    log("Katakombe: {} Bögen und Säulen".format(n))
+    return n
 
 
 def ernte_plan():
@@ -1097,6 +1150,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
 
     counts["Wanderz"] = wand_erze(world)
     counts["Tropfsteine2"] = tropfsteine(world)
+    counts["Katakombe"] = katakombe(meshes)
 
     if STYLE.get("abgrund"):
         xs = [centre(r, c) for r in range(H) for c in range(W) if cell(r, c) == "X"]
@@ -1259,8 +1313,9 @@ def main():
     SPONGE[:] = [simple_material("M_HK_Rostschwamm", (0.26, 0.11, 0.04), 0.9)]
     EXTRA_SLOTS["Fels"] = rock
     for name in PROPS:
-        meshes[name] = import_piece(name)
+        meshes[name] = import_piece(name, collision_complex=name.startswith("SM_HK_Schaedelbogen"))   # Bogen: man geht darunter durch
         kit_materials(meshes[name])
+    ZAPFEN[:] = [meshes["SM_HK_Schleimzapfen_A"], meshes["SM_HK_Schleimzapfen_B"]]
     build_cave(meshes, rock, floor_mat, ore_mat, water_mat, crystal_mat)
     build_map()
     if not os.environ.get("VAEL_HOEHLE_OHNE_WELT"):

@@ -23,7 +23,10 @@ Olmgrotte (Slots Kristall und Fels):
   SM_HK_Salzspat_Klein    kleine Gruppe, Erzstelle
 Gebeinkammer (Slots Knochen, Dunkel, Schleim):
   SM_HK_Schaedelwand_A/B  Schädelreihen und Langknochen vor dem Fels, 4,4 x 3,2 m, Vorderseite -Y
+  SM_HK_Knochensaeule     Säule aus Schädelringen und Langknochen, 3,6 m (Knochen, Dunkel)
+  SM_HK_Schaedelbogen     Bogen aus Schädeln quer über einen Gang, Säulen bei Y = ±1,8 m, 4,1 m hoch (Knochen, Dunkel)
   SM_HK_Knochenhaufen     Haufen Gebeine mit Schädeln, ~2 m
+  SM_HK_Schleimzapfen_A/B Stalaktit mit leuchtendem Schleimmantel und Tropfen, hängt 1 m vom Ursprung nach unten (Fels, Schleim)
   SM_HK_Schleim           Lache Grabschleim mit Ausläufern, ~3 m, leuchtet (auch Glut- und Giftlachen anderer Höhlen)
 Rostschwamm-Höhle, Tiefster Schacht:
   SM_HK_Schwamm           Rostschwamm-Wuchs, klumpig und löchrig, ~1,6 m (Slot Fels)
@@ -344,6 +347,73 @@ def skull_wall(name, seed):
     gk.export(obj)
 
 
+def bone_column(b, at, rnd, h=3.6, r=0.5):
+    """Eine Säule aus Gebeinen um einen dunklen Kern: Ringe von Schädeln, die nach außen schauen, dazwischen Lagen gekreuzter
+    Langknochen (Pariser Katakomben)"""
+    lathe(b, [(0.0, 0.0), (r * 0.8, 0.0), (r * 0.75, h), (0.0, h)], 1, at, sides=10)
+    z, ring = 0.25, 0
+    while z < h - 0.2:
+        if ring % 3 == 2:
+            for k in range(5):
+                a = rnd.uniform(0, math.pi)
+                d = Vector((math.cos(a), math.sin(a), rnd.uniform(-0.1, 0.1))) * (r + 0.15)
+                c = at + Vector((0, 0, z + rnd.uniform(-0.03, 0.03)))
+                b.tube([c - d, c + d], [0.06, 0.06], 0, sides=6)
+            z += 0.22
+        else:
+            count = 8
+            off = rnd.uniform(0, math.pi)
+            for k in range(count):
+                a = off + 2 * math.pi * k / count
+                n = Vector((math.cos(a), math.sin(a), 0.0))
+                skull(b, at + n * (r * 0.95) + Vector((0, 0, z)), n + Vector((0, 0, rnd.uniform(-0.1, 0.1))), rnd.uniform(0.34, 0.38), rnd)
+            z += 0.4
+        ring += 1
+    # Krone: ein Kranz Langknochen schräg nach außen
+    for k in range(9):
+        a = 2 * math.pi * k / 9
+        n = Vector((math.cos(a), math.sin(a), 0.0))
+        c = at + Vector((0, 0, h))
+        b.tube([c + n * 0.1, c + n * (r + 0.35) + Vector((0, 0, 0.35))], [0.06, 0.05], 0, sides=6)
+
+
+def bone_pillar(name, seed):
+    """Knochensäule der Katakomben, 3,6 m hoch, ~1,3 m dick, Ursprung unten in der Mitte; Slots Knochen und Dunkel"""
+    obj = gk.new_object(name, ["Knochen", "Dunkel"])
+    b = gk.Builder()
+    bone_column(b, Vector((0, 0, 0)), random.Random(seed))
+    b.finish(obj)
+    gk.export(obj)
+
+
+def skull_arch(name, seed, span=3.6):
+    """Schädelbogen quer über einen Gang: zwei Knochensäulen bei Y = ±span/2, darüber ein Bogen aus Schädeln, die in beide
+    Richtungen des Gangs (±X) schauen. Ursprung unten in der Mitte; Slots Knochen und Dunkel"""
+    obj = gk.new_object(name, ["Knochen", "Dunkel"])
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    half = span / 2
+    for sy in (-1, 1):
+        bone_column(b, Vector((0, sy * half, 0)), rnd, h=3.0, r=0.42)
+    # Bogen: Halbkreis von Säule zu Säule, 1,1 m Stich (der breite 1,8 m)
+    steps = 13 if span < 5 else 21
+    pts = []
+    for k in range(steps):
+        t = k / (steps - 1)
+        a = math.pi * t
+        pts.append(Vector((0.0, -math.cos(a) * half, 3.0 + math.sin(a) * (1.1 if span < 5 else 1.8))))
+    b.tube(pts, [0.32] * len(pts), 1, sides=8)
+    for p in pts[1:-1]:
+        for sx in (-1, 1):
+            skull(b, p + Vector((sx * 0.22, 0, 0)), Vector((sx, 0, rnd.uniform(-0.15, 0.1))), rnd.uniform(0.3, 0.34), rnd)
+    # der Schlussstein: ein großer Schädel oben
+    top = pts[steps // 2]
+    for sx in (-1, 1):
+        skull(b, top + Vector((sx * 0.3, 0, 0.25)), Vector((sx, 0, 0.1)), 0.55, rnd)
+    b.finish(obj)
+    gk.export(obj)
+
+
 def bone_pile(name, seed):
     """Ein Haufen Gebeine: Langknochen kreuz und quer, ein paar Schädel obenauf; Slots Knochen und Dunkel"""
     obj = gk.new_object(name, ["Knochen", "Dunkel"])
@@ -389,6 +459,66 @@ def slime(name, seed):
         r = rnd.uniform(0.25, 0.5)
         ring = [c + Vector((math.cos(2 * math.pi * i / 10) * r, math.sin(2 * math.pi * i / 10) * r, 0.02)) for i in range(10)]
         b.grid([ring, [c + Vector((0, 0, 0.05))] * 10], 0, uv_of=lambda j, i: (i / 10, j), mask_of=lambda j, i: 1.0, closed_u=True)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def slime_icicle(name, seed):
+    """Schleimzapfen: ein Stalaktit (Ursprung oben, hängt 1 m nach unten), die untere Hälfte von zähem, leuchtendem Schleim
+    überzogen, der sich an der Spitze zu einem Tropfen sammelt; darunter ein fallender Tropfen. Lore: leuchtende Säure-Bakterien,
+    die als Tropfsteine an der Decke hängen und mit ihrem Licht anlocken (Boris 13.11.). Slots Fels und Schleim"""
+    obj = gk.new_object(name, ["Fels", "Schleim"])
+    b = gk.Builder()
+    rnd = random.Random(seed)
+    sides, rings = 12, 14
+    base = rnd.uniform(0.16, 0.22)
+
+    def radius(t):
+        return base * (1.0 - t) ** rnd.uniform(0.95, 1.1) + 0.008
+
+    rock = []
+    for k in range(rings + 1):
+        t = k / rings
+        ring = []
+        for sd in range(sides):
+            a = 2 * math.pi * sd / sides
+            wob = 1.0 + 0.16 * noise.noise(Vector((math.cos(a) * 2.0, math.sin(a) * 2.0, t * 4.0 + seed)))
+            ring.append(Vector((math.cos(a) * radius(t) * wob, math.sin(a) * radius(t) * wob, -t)))
+        rock.append(ring)
+    b.grid(rock, 0, uv_of=lambda j, i: (i / sides, j / rings), mask_of=lambda j, i: 0.0, closed_u=True)
+    # Schleimmantel: ab 40 % der Länge, dicker werdend, mit Wülsten, die herablaufen
+    coat = []
+    start = rnd.uniform(0.3, 0.45)
+    steps = 10
+    for k in range(steps + 1):
+        t = start + (1.0 - start) * k / steps
+        thick = 0.012 + 0.05 * ((t - start) / (1.0 - start)) ** 1.5
+        ring = []
+        for sd in range(sides):
+            a = 2 * math.pi * sd / sides
+            run = 1.0 + 0.5 * max(0.0, math.sin(a * 3 + seed + t * 2.0))          # Rinnsale
+            r = radius(min(t, 0.97)) + thick * run
+            ring.append(Vector((math.cos(a) * r, math.sin(a) * r, -t)))
+        coat.append(ring)
+    # Tropfen an der Spitze
+    tip = -1.0
+    drop_r = rnd.uniform(0.05, 0.08)
+    for k in range(1, 6):
+        u = k / 5
+        r = drop_r * math.sin(math.pi * (0.25 + 0.75 * u)) + 0.002
+        coat.append([Vector((math.cos(2 * math.pi * sd / sides) * r, math.sin(2 * math.pi * sd / sides) * r, tip - drop_r * 1.6 * u))
+                     for sd in range(sides)])
+    b.grid(coat, 1, uv_of=lambda j, i: (i / sides, j / len(coat)), mask_of=lambda j, i: 1.0, closed_u=True)
+    # ein fallender Tropfen darunter
+    c = Vector((0.0, 0.0, tip - rnd.uniform(0.35, 0.6)))
+    r = drop_r * 0.6
+    bead = []
+    for k in range(7):
+        v = k / 6
+        rr = r * math.sin(math.pi * v) + 0.001
+        bead.append([c + Vector((math.cos(2 * math.pi * sd / 8) * rr, math.sin(2 * math.pi * sd / 8) * rr, r * 1.4 * math.cos(math.pi * v)))
+                     for sd in range(8)])
+    b.grid(bead, 1, uv_of=lambda j, i: (i / 8, j / 6), mask_of=lambda j, i: 1.0, closed_u=True)
     b.finish(obj)
     gk.export(obj)
 
@@ -458,6 +588,8 @@ if __name__ == "__main__":
               rails, cart, crate, beams, lantern,
               lambda: crystals("SM_HK_Salzspat", 21, 1.6, 11), lambda: crystals("SM_HK_Salzspat_Klein", 22, 0.7, 6),
               lambda: stalagmite("SM_HK_Tropfstein_A", 31), lambda: stalagmite("SM_HK_Tropfstein_B", 32), lambda: stalagmite("SM_HK_Tropfstein_C", 33),
+              lambda: bone_pillar("SM_HK_Knochensaeule", 61), lambda: skull_arch("SM_HK_Schaedelbogen", 62), lambda: skull_arch("SM_HK_Schaedelbogen_Breit", 63, span=7.4),
+              lambda: slime_icicle("SM_HK_Schleimzapfen_A", 51), lambda: slime_icicle("SM_HK_Schleimzapfen_B", 52),
               lambda: skull_wall("SM_HK_Schaedelwand_A", 41), lambda: skull_wall("SM_HK_Schaedelwand_B", 42),
               lambda: bone_pile("SM_HK_Knochenhaufen", 43), lambda: slime("SM_HK_Schleim", 44),
               lambda: sponge("SM_HK_Schwamm", 51), lambda: rib("SM_HK_Rippe", 52), lambda: candles("SM_HK_Kerzen", 53)]
