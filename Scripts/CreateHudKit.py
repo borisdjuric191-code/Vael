@@ -726,6 +726,7 @@ def class_data(spec, shapes, symbols, vessel, frame, slot):
 PAINTED_CLASSES = {
     "Magier": {"frame": "T_HUD_Gemalt_Rahmen_Magier", "vessel": "T_HUD_Gemalt_Gefaess_Magier", "slot": "T_HUD_Gemalt_Feld_Magier", "medallion": "T_HUD_Gemalt_Medaillon_Magier"},
     "Floromant": {"frame": "T_HUD_Gemalt_Rahmen_Floromant", "vessel": "T_HUD_Gemalt_Gefaess_Floromant", "slot": "T_HUD_Gemalt_Feld_Floromant", "medallion": "T_HUD_Gemalt_Medaillon_Floromant"},
+    "Ingenieur": {"frame": "T_HUD_Gemalt_Rahmen_Ingenieur", "vessel": "T_HUD_Gemalt_Gefaess_Ingenieur", "slot": "T_HUD_Gemalt_Feld_Ingenieur", "medallion": "T_HUD_Gemalt_Medaillon_Ingenieur"},
 }
 
 

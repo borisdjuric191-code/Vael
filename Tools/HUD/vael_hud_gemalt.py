@@ -1535,6 +1535,193 @@ def wheel_floromant(m):
             radii.append(0.006 * (1 - 0.6 * abs(2 * t - 1)))
         tube(pts, radii, m["verdigris"], name="Ranke")
 
+# ---------------------------------------------------------------- Ingenieur (goal 16.11.)
+
+EMBER_SHADES = ((0.06, 0.004, 0.0), (0.25, 0.03, 0.005), (0.62, 0.14, 0.02), (0.95, 0.42, 0.08), (1.0, 0.8, 0.45))
+
+
+def engineer_materials(m):
+    """His workshop: red work leather, brass, dark iron, copper pipes, glowing coals as the stones"""
+    m["workleather"] = worn(material("Werkleder", (0.1, 0.012, 0.006), roughness=0.72, bump=0.4, bump_scale=220.0, tag="panel"), scale=3.5, darkest=0.55)
+    m["brass"] = material("Messing", (0.55, 0.36, 0.11), metallic=1.0, roughness=0.32, bump=0.12, bump_scale=140.0)
+    m["darkbrass"] = material("Altmessing", (0.2, 0.12, 0.045), metallic=1.0, roughness=0.42, bump=0.15, bump_scale=160.0)
+    m["iron"] = material("Eisen", (0.05, 0.048, 0.05), metallic=0.85, roughness=0.48, bump=0.3, bump_scale=200.0)
+    m["copper"] = material("Kupfer", (0.5, 0.17, 0.08), metallic=1.0, roughness=0.36, bump=0.1, bump_scale=120.0)
+    m["sunkenred"] = material("Werkgrund", (0.012, 0.003, 0.002), roughness=0.75, bump=0.25, bump_scale=220.0, tag="panel")
+    m["ember"] = material("Glutstein", (0.8, 0.2, 0.04), roughness=0.4, emission=((1.0, 0.36, 0.08), 2.6), tag="gem")
+
+
+def cog(m, x, z, radius, teeth, material_, y=-0.05, depth=0.03, hub=None, ember=True):
+    """A gear lying on the frame: toothed rim, a raised hub ring, an ember stone in the middle"""
+    outline = []
+    for k in range(teeth * 4):
+        a = k / (teeth * 4) * math.tau
+        tooth = (k % 4) in (1, 2)
+        r = radius * (1.0 if tooth else 0.82)
+        outline.append((x + r * math.cos(a), z + r * math.sin(a)))
+    plate_from_outline(outline, y + depth * 0.5, -depth, material_, name="Zahnrad", bevel=0.004)
+    torus((x, y - depth * 0.2, z), radius * 0.48, radius * 0.07, hub or m["darkbrass"], name="Nabe")
+    for k in range(6):
+        a = k / 6 * math.tau + 0.3
+        sphere((x + radius * 0.66 * math.cos(a), y - depth * 0.15, z + radius * 0.66 * math.sin(a)), radius * 0.06, m["darkbrass"], name="Bohrung", segments=10)
+    if ember:
+        facet_stone(m, x, y - depth * 0.3, z, radius * 0.32, shades=EMBER_SHADES)
+
+
+def rivet_row(m, path, y, every, size=0.0085):
+    """Rivets set along a path of (x, z) points, one every so much length"""
+    run = 0.0
+    last = None
+    for p in path:
+        if last is not None:
+            run += math.hypot(p[0] - last[0], p[1] - last[1])
+        if last is None or run >= every:
+            sphere((p[0], y, p[1]), size, m["brass"], scale=(1, 0.6, 1), name="Niete", segments=12)
+            run = 0.0
+        last = p
+
+
+def engineer_outline():
+    """Like the mage's silhouette, but the top runs flat and rises in a stepped plinth for the big gear in the middle"""
+    radius, cy, top, bottom = 100.0, 130.0, 48.0, 227.0
+    points = []
+    a0 = math.atan2(top - cy, math.sqrt(radius ** 2 - (top - cy) ** 2))
+    a1 = math.atan2(bottom - cy, math.sqrt(radius ** 2 - (bottom - cy) ** 2)) - math.tau
+    for a in np.linspace(a0, a1, 70):
+        points.append((96.0 + radius * math.cos(a), cy + radius * math.sin(a)))
+    for x in np.linspace(points[-1][0] + 8.0, 880.0 - points[-1][0] - 8.0, 60):
+        points.append((x, bottom))
+    for a in np.linspace(math.pi - a1 - math.tau, math.pi - a0 - math.tau, 70):
+        points.append((784.0 + radius * math.cos(a), cy + radius * math.sin(a)))
+    start = points[-1][0] - 8.0
+    for x in np.linspace(start, 880.0 - start, 120):
+        d = abs(x - 440.0)
+        lift = 16.0 if d < 62.0 else 16.0 * max(0.0, 1.0 - (d - 62.0) / 14.0)
+        points.append((x, top - lift))
+    return points
+
+
+def frame_engineer(m):
+    """The engineer's workshop as the frame: red work leather riveted onto a brass edge, a big gear over the middle with a
+    glowing coal, copper pipes along the top to the plates, small gears where the plates meet the body"""
+    engineer_materials(m)
+    outline = [px(x, y) for x, y in engineer_outline()]
+    plate_from_outline(outline, -0.03, 0.06, m["workleather"], name="Werkleder")
+    closed = lambda path, y: [(x, y, z) for x, z in path]  # noqa: E731
+    tube(closed(outline, -0.04), [0.018] * len(outline), m["brass"], name="Kante", cyclic=True)
+    line = inset(outline, 0.05)
+    tube(closed(line, -0.033), [0.0035] * len(line), m["darkbrass"], name="Praegelinie", cyclic=True)
+    rivet_row(m, inset(outline, 0.032), -0.045, 0.075)
+
+    # Iron rings round the vessels, a small gear where each plate meets the body
+    for x_px in (96.0, 784.0):
+        cx, cz = px(x_px, 130.0)
+        torus((cx, -0.036, cz), 0.44, 0.008, m["iron"], name="Ring")
+    for x_px in (176.0, 704.0):
+        gx, gz = px(x_px, 54.0)
+        cog(m, gx, gz, 0.065, 10, m["brass"])
+    # hex nuts with coals at the outer edges
+    for x_px in (16.0, 864.0):
+        gx, gz = px(x_px, 130.0)
+        nut = [(gx + 0.05 * math.cos(k / 6 * math.tau), gz + 0.05 * math.sin(k / 6 * math.tau)) for k in range(6)]
+        plate_from_outline(nut, -0.045, -0.02, m["darkbrass"], name="Mutter", bevel=0.004)
+        facet_stone(m, gx, -0.06, gz, 0.03, shades=EMBER_SHADES)
+
+    # The tray of the abilities: sunk into the leather, edged in brass, a riveted iron bracket in every corner
+    left, top = px(190.0, 110.0)
+    right, bottom = px(690.0, 208.0)
+    tray = rounded_plate(right - left, top - bottom, 0.03, 0.012, m["sunkenred"], y=-0.032, name="Feldgrund")
+    tray.location.x, tray.location.z = (left + right) / 2, (top + bottom) / 2
+    path = [(x + (left + right) / 2, y, z + (top + bottom) / 2) for x, y, z in rounded_rect_path(right - left + 0.012, top - bottom + 0.012, 0.032, -0.042)]
+    tube(path, [0.0055] * len(path), m["brass"], name="Feldrand", cyclic=True)
+    for x, z, sx, sz in ((left, top, 1, -1), (right, top, -1, -1), (left, bottom, 1, 1), (right, bottom, -1, 1)):
+        bracket = [(x, z), (x + sx * 0.09, z), (x + sx * 0.09, z + sz * 0.02), (x + sx * 0.02, z + sz * 0.02), (x + sx * 0.02, z + sz * 0.09), (x, z + sz * 0.09)]
+        plate_from_outline(bracket, -0.048, -0.008, m["iron"], name="Winkel", bevel=0.002)
+        sphere((x + sx * 0.012, -0.056, z + sz * 0.012), 0.008, m["brass"], scale=(1, 0.6, 1), name="Niete", segments=12)
+
+    # The channel of the experience, a cartridge lying at its end and a small gear where it starts
+    ch_left, ch_top = px(206.0, 212.0)
+    ch_right, ch_bottom = px(650.0, 226.0)
+    channel = rounded_plate(ch_right - ch_left, ch_top - ch_bottom, 0.012, 0.012, m["sunkenred"], y=-0.034, name="Rinne")
+    channel.location.x, channel.location.z = (ch_left + ch_right) / 2, (ch_top + ch_bottom) / 2
+    cpath = [(x + (ch_left + ch_right) / 2, y, z + (ch_top + ch_bottom) / 2) for x, y, z in rounded_rect_path(ch_right - ch_left + 0.01, ch_top - ch_bottom + 0.01, 0.014, -0.042)]
+    tube(cpath, [0.004] * len(cpath), m["darkbrass"], name="Rinnenrand", cyclic=True)
+    ex, ez = px(664.0, 219.0)
+    cylinder((ex, -0.055, ez), 0.022, 0.07, m["brass"], rotation=(0, math.radians(90), 0), name="Huelse")
+    cylinder((ex - 0.04, -0.055, ez), 0.026, 0.012, m["brass"], rotation=(0, math.radians(90), 0), name="Boden")
+    sphere((ex + 0.045, -0.055, ez), 0.021, m["copper"], scale=(1.4, 1, 1), name="Geschoss", segments=16)
+    sx_, sz_ = px(198.0, 219.0)
+    cog(m, sx_, sz_, 0.03, 8, m["darkbrass"], ember=False)
+
+    # The big gear over the middle, an iron one behind it turning the other way, copper pipes from it along the top
+    gx, gz = px(440.0, 62.0)
+    cog(m, gx - 0.13, gz + 0.02, 0.075, 12, m["iron"], y=-0.04, ember=False)
+    cog(m, gx - 0.02, gz, 0.16, 14, m["brass"], y=-0.055, depth=0.035)
+    for side in (1, -1):
+        pts = []
+        for t in np.linspace(0.0, 1.0, 30):
+            x_px = 440.0 + side * (90.0 + 120.0 * t)
+            y_px = 44.0 + 4.0 * math.sin(t * math.pi)
+            sx, sz = px(x_px, y_px)
+            pts.append((sx, -0.05, sz))
+        tube(pts, [0.011] * len(pts), m["copper"], name="Rohr")
+        for t in (0.0, 0.5, 1.0):
+            x, y, z = pts[int(t * (len(pts) - 1))]
+            cylinder((x, y, z), 0.016, 0.022, m["brass"], rotation=(0, math.radians(90), 0), name="Muffe")
+
+
+def cartridge(m):
+    """The vessel of the engineer: a brass cartridge with a glass body (the mask of vael_hud_formen.py), the shot showing inside,
+    a ribbed base rim, a middle band with rivets, a brass tip with a small coal"""
+    engineer_materials(m)
+    z = lambda y: from_mask(0, y).z  # noqa: E731
+    profile = [(z(0.9), 0.0), (z(0.9), 0.17), (z(0.88), 0.18)]
+    profile += [(z(0.33), 0.18)]
+    for a in np.linspace(0.0, math.pi / 2, 14):
+        profile.append((z(0.3) + 0.16 * math.sin(a), 0.18 * math.cos(a) + 0.0001))
+    revolve(profile, Vector((0, 0, 0)), m["glass"], name="Kartusche")
+    # the base: a heavy rim with an extractor groove, the primer in the middle of its face
+    cylinder(tuple(from_mask(0.5, 0.885)), 0.205, 0.09, m["brass"], name="Boden")
+    torus(tuple(from_mask(0.5, 0.84)), 0.19, 0.012, m["darkbrass"], rotation=(0, 0, 0), name="Rille")
+    torus(tuple(from_mask(0.5, 0.93)), 0.205, 0.014, m["brass"], rotation=(0, 0, 0), name="Rand")
+    # the middle band with rivets
+    torus(tuple(from_mask(0.5, 0.52)), 0.186, 0.016, m["brass"], rotation=(0, 0, 0), name="Band")
+    for k in range(5):
+        a = math.radians(-60 + 30 * k)
+        p = from_mask(0.5, 0.52)
+        sphere((p.x + 0.188 * math.sin(a), p.y - 0.188 * math.cos(a), p.z), 0.011, m["darkbrass"], name="Niete", segments=12)
+    # the tip: a brass cap with a ring, a coal on top
+    torus(tuple(from_mask(0.5, 0.2)), 0.1, 0.014, m["brass"], rotation=(0, 0, 0), name="Spitzring")
+    sphere(tuple(from_mask(0.5, 0.15)), 0.05, m["brass"], scale=(1, 1, 0.8), name="Kappe", segments=24)
+    facet_stone(m, 0.0, -0.06, from_mask(0.5, 0.15).z, 0.03, shades=EMBER_SHADES)
+    # thin brass ribs down the glass, not over the middle where the number stands
+    for a in (-70, 70):
+        s, c = math.sin(math.radians(a)), math.cos(math.radians(a))
+        rib = [(s * 0.183, -c * 0.183, z(y)) for y in (0.33, 0.6, 0.83)]
+        tube(rib, [0.006] * 3, m["darkbrass"], name="Rippe")
+
+
+def slot_engineer(m):
+    """A field of the engineer: a brass ring with teeth like a gear, an iron line inside, rivets at the four corners"""
+    engineer_materials(m)
+    torus((0.0, -0.05, 0.0), 0.42, 0.032, m["brass"], name="Feldrand")
+    torus((0.0, -0.06, 0.0), 0.38, 0.008, m["iron"], name="Innenring")
+    for k in range(20):
+        a = k / 20 * math.tau
+        cylinder((0.455 * math.cos(a), -0.05, 0.455 * math.sin(a)), 0.022, 0.035, m["brass"], rotation=(math.radians(90), 0, 0), name="Zahn", vertices=6)
+    for a in (45, 135, 225, 315):
+        sphere((0.43 * math.cos(math.radians(a)), -0.085, 0.43 * math.sin(math.radians(a))), 0.035, m["darkbrass"], name="Niete", segments=16)
+
+
+def medallion_engineer(m):
+    engineer_materials(m)
+    torus((0.0, -0.05, 0.0), 0.38, 0.055, m["brass"], name="Messingring")
+    torus((0.0, -0.065, 0.0), 0.31, 0.012, m["darkbrass"], name="Innenring")
+    for k in range(12):
+        a = k / 12 * math.tau
+        cylinder((0.445 * math.cos(a), -0.05, 0.445 * math.sin(a)), 0.035, 0.05, m["brass"], rotation=(math.radians(90), 0, 0), name="Zahn", vertices=6)
+
+
 # ---------------------------------------------------------------- Felder und Medaillons
 
 def slot(m, bud):
@@ -1579,6 +1766,10 @@ PIECES = {
     "floromant_feld": (160, 160, 1.0, lambda m: slot(m, True)),
     "magier_medaillon": (128, 128, 1.0, lambda m: medallion(m, False)),
     "floromant_medaillon": (128, 128, 1.0, lambda m: medallion(m, True)),
+    "ingenieur_gefaess": (512, 512, VESSEL_VIEW, lambda m: (cartridge(m), claw(m, 0.5, 0.6, 0.22, 0.31))),
+    "ingenieur_rahmen": (1760, 404, FRAME_ASPECT, frame_engineer),
+    "ingenieur_feld": (160, 160, 1.0, slot_engineer),
+    "ingenieur_medaillon": (128, 128, 1.0, medallion_engineer),
 }
 
 FILE_NAMES = {
@@ -1586,6 +1777,8 @@ FILE_NAMES = {
     "magier_inventar": "T_HUD_Gemalt_Inventar_Magier", "magier_drache": "T_HUD_Gemalt_Drache_Magier", "magier_schwanz": "T_HUD_Gemalt_Schwanz_Magier", "magier_rahmen": "T_HUD_Gemalt_Rahmen_Magier", "floromant_rahmen": "T_HUD_Gemalt_Rahmen_Floromant", "floromant_rad": "T_HUD_Gemalt_Rad_Floromant",
     "magier_feld": "T_HUD_Gemalt_Feld_Magier", "floromant_feld": "T_HUD_Gemalt_Feld_Floromant",
     "magier_medaillon": "T_HUD_Gemalt_Medaillon_Magier", "floromant_medaillon": "T_HUD_Gemalt_Medaillon_Floromant",
+    "ingenieur_gefaess": "T_HUD_Gemalt_Gefaess_Ingenieur", "ingenieur_rahmen": "T_HUD_Gemalt_Rahmen_Ingenieur", "ingenieur_feld": "T_HUD_Gemalt_Feld_Ingenieur",
+    "ingenieur_medaillon": "T_HUD_Gemalt_Medaillon_Ingenieur",
 }
 
 
