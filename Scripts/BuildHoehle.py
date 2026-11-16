@@ -167,7 +167,16 @@ def import_piece(name, collision_complex=False):
     if collision_complex:
         body = mesh.get_editor_property("body_setup")
         body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+    if name in FAB_BONES:
+        # aus Hunderten echter Knochen (Tools/Welt/vael_knochen_fab.py): bis 250 000 Dreiecke je Teil, das trägt nur Nanite
+        nanite = mesh.get_editor_property("nanite_settings")
+        nanite.set_editor_property("enabled", True)
+        mesh.set_editor_property("nanite_settings", nanite)
     return mesh
+
+
+FAB_BONES = {"SM_HK_Schaedelwand_A", "SM_HK_Schaedelwand_B", "SM_HK_Knochensaeule", "SM_HK_Schaedelbogen", "SM_HK_Schaedelbogen_Breit",
+             "SM_HK_Knochenhaufen"}
 
 
 ROCK_MATERIAL = "M_HK_FelsRelief"     # M_HK_Fels ohne Relief bleibt liegen, bis alle Höhlen neu gebaut sind
@@ -1294,6 +1303,8 @@ def main():
     crystal_mat = simple_material("M_HK_Salzspat", (0.7, 0.85, 0.95), 0.15, emissive=(glow[0] * 3.0, glow[1] * 3.0, glow[2] * 3.0))
     EXTRA_SLOTS["Kristall"] = crystal_mat
     EXTRA_SLOTS["Knochen"] = simple_material("M_HK_Gebein", (0.42, 0.37, 0.29), 0.8)      # M_HK_Knochen war zu weiß
+    # die echten Knochen (Fab-Textur, gealtert; Scripts/ImportKnochenFab.py), sonst der schlichte Ton
+    EXTRA_SLOTS["Gebein"] = unreal.load_asset("/Game/Vael/Requisiten/Knochen/MI_Gebein_Hoehle") or EXTRA_SLOTS["Knochen"]
     EXTRA_SLOTS["Dunkel"] = simple_material("M_HK_Dunkel", (0.015, 0.012, 0.01), 0.9)
     EXTRA_SLOTS["Schleim"] = simple_material("M_HK_Schleim_Gruen", (0.1, 0.3, 0.06), 0.08, emissive=(1.0, 3.0, 0.6))
     lachen = list(SCHLEIM) if STYLE.get("schaedelwand") else STYLE.get("schleim", [])

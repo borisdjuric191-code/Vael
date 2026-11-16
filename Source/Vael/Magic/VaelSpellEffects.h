@@ -173,4 +173,13 @@ namespace VaelEffects
 
 	/** Sets the glow of a shape made by AddLookShape */
 	void SetLookGlow(UStaticMeshComponent* Shape, float Glow);
+
+	/** Loads a list of bone meshes of the magic settings (missing ones are left out) */
+	TArray<UStaticMesh*> LoadBoneMeshes(const TArray<TSoftObjectPtr<UStaticMesh>>& Meshes);
+
+	/** Adds a hidden real bone (one of Meshes, by Index) to an actor's root in the bone material, glowing in GlowColor; nullptr without bones */
+	UStaticMeshComponent* AddBoneShape(AActor* Owner, const TArray<UStaticMesh*>& Meshes, int32 Index, float Glow = 0.0f, const FLinearColor& GlowColor = FLinearColor(0.6f, 0.2f, 1.0f));
+
+	/** Length of a bone mesh along +Z in cm (its long side) */
+	float GetBoneLength(const UStaticMeshComponent* Bone);
 }

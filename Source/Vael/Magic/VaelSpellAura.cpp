@@ -153,10 +153,19 @@ void AVaelSpellAura::BuildBoneShards()
 	VaelEffects::LoadLookMaterials(CoreMaterial, GlowMaterial);
 	UStaticMesh* Cone = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cone.Cone"));
 
+	// Real bones of the Fab skeleton, mixed so no two neighbours are alike; cones only while they are missing
+	const TArray<UStaticMesh*> Bones = VaelEffects::LoadBoneMeshes(UVaelMagicSettings::Get()->StormBoneMeshes);
+	bRealBones = !Bones.IsEmpty();
+
 	for (int32 ShardIndex = 0; ShardIndex < AuraBoneShards; ++ShardIndex)
 	{
-		UStaticMeshComponent* Shard = VaelEffects::AddLookShape(this, CoreMaterial, AuraBoneColor, 0.0f);
-		Shard->SetStaticMesh(Cone);
+		UStaticMeshComponent* Shard = bRealBones ? VaelEffects::AddBoneShape(this, Bones, ShardIndex * 7) : nullptr;
+		if (Shard == nullptr)
+		{
+			bRealBones = false;
+			Shard = VaelEffects::AddLookShape(this, CoreMaterial, AuraBoneColor, 0.0f);
+			Shard->SetStaticMesh(Cone);
+		}
 		Shard->SetUsingAbsoluteLocation(true);
 		Shard->SetUsingAbsoluteRotation(true);
 		Shard->SetUsingAbsoluteScale(true);
@@ -183,7 +192,16 @@ void AVaelSpellAura::AnimateBoneShards(const FVector& Feet, float Time)
 		const FVector Place = Feet + Out * Settings.Radius * Ring + FVector(0.0f, 0.0f, Height + 14.0f * FMath::Sin(Time * 7.0f + Seed));
 
 		// They fly point first, tipped up and in as if torn along
-		Shards[ShardIndex]->SetWorldLocationAndRotation(Place, FRotationMatrix::MakeFromZ(Along + FVector(0.0f, 0.0f, 0.25f * FMath::Sin(Seed)) - Out * 0.2f).Rotator());
+		const FQuat Flight = FRotationMatrix::MakeFromZ(Along + FVector(0.0f, 0.0f, 0.25f * FMath::Sin(Seed)) - Out * 0.2f).ToQuat();
+		if (bRealBones)
+		{
+			// Real bones in their own size, turning about their length and tumbling a little as the storm tears them along
+			const FQuat Tumble = FQuat(FVector::ForwardVector, 0.5f * FMath::Sin(Time * 3.0f + Seed)) * FQuat(FVector::UpVector, Time * Speed * 1.3f + Seed);
+			Shards[ShardIndex]->SetWorldLocationAndRotation(Place, Flight * Tumble);
+			Shards[ShardIndex]->SetWorldScale3D(FVector(Size));
+			continue;
+		}
+		Shards[ShardIndex]->SetWorldLocationAndRotation(Place, Flight.Rotator());
 		Shards[ShardIndex]->SetWorldScale3D(FVector(0.1f, 0.1f, 0.55f) * Size);
 	}
 }

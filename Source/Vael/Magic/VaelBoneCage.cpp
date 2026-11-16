@@ -76,12 +76,21 @@ void AVaelBoneCage::BeginPlay()
 	UStaticMesh* Cone = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cone.Cone"));
 	const FLinearColor Mark = UVaelMagicSettings::Get()->GetElementColor(EVaelElement::Mark);
 
+	// A thigh or shin bone breaks out of the ground, a forearm bone bends from its top over the target; cones while the bones are missing
+	const TArray<UStaticMesh*> LowerBones = VaelEffects::LoadBoneMeshes(UVaelMagicSettings::Get()->CageLowerBoneMeshes);
+	const TArray<UStaticMesh*> UpperBones = VaelEffects::LoadBoneMeshes(UVaelMagicSettings::Get()->CageUpperBoneMeshes);
+	bRealBones = !LowerBones.IsEmpty() && !UpperBones.IsEmpty();
+
 	for (int32 BoneIndex = 0; BoneIndex < CageBones; ++BoneIndex)
 	{
 		for (TArray<TObjectPtr<UStaticMeshComponent>>* Parts : { &Lower, &Upper })
 		{
-			UStaticMeshComponent* Part = VaelEffects::AddLookShape(this, CoreMaterial, CageBone, 0.0f);
-			Part->SetStaticMesh(Cone);
+			UStaticMeshComponent* Part = bRealBones ? VaelEffects::AddBoneShape(this, Parts == &Lower ? LowerBones : UpperBones, BoneIndex, 0.1f, Mark) : nullptr;
+			if (Part == nullptr)
+			{
+				Part = VaelEffects::AddLookShape(this, CoreMaterial, CageBone, 0.0f);
+				Part->SetStaticMesh(Cone);
+			}
 			Part->SetVisibility(true);
 			Parts->Add(Part);
 		}
@@ -128,11 +137,19 @@ void AVaelBoneCage::Tick(float DeltaSeconds)
 		const FVector Knee = Foot + (Out * 0.12f + FVector::UpVector).GetSafeNormal() * CageHeight * 0.62f * Grown;
 		const FVector Tip = Knee + (-Out * 0.85f + FVector::UpVector * 0.55f).GetSafeNormal() * CageHeight * 0.52f * Grown;
 
-		const auto PlaceBone = [](UStaticMeshComponent* Part, const FVector& From, const FVector& To, float Width)
+		const bool bBones = bRealBones;
+		const auto PlaceBone = [bBones](UStaticMeshComponent* Part, const FVector& From, const FVector& To, float Width)
 		{
 			const float Length = FMath::Max(FVector::Dist(From, To), 0.1f);
 			Part->SetRelativeLocation((From + To) * 0.5f);
 			Part->SetRelativeRotation(FRotationMatrix::MakeFromZ(To - From).Rotator());
+			if (bBones)
+			{
+				// A real bone keeps its shape: as long as the bar, only a little slimmer on a big cage
+				const float Stretch = Length / VaelEffects::GetBoneLength(Part);
+				Part->SetRelativeScale3D(FVector(FMath::Min(Stretch, 2.4f), FMath::Min(Stretch, 2.4f), Stretch));
+				return;
+			}
 			Part->SetRelativeScale3D(FVector(Width, Width, Length) / CageShapeSize);
 		};
 

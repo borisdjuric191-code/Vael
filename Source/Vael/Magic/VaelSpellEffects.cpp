@@ -263,3 +263,48 @@ void VaelEffects::SetLookGlow(UStaticMeshComponent* Shape, float Glow)
 		Dynamic->SetScalarParameterValue(LookGlowParameter, Glow);
 	}
 }
+
+TArray<UStaticMesh*> VaelEffects::LoadBoneMeshes(const TArray<TSoftObjectPtr<UStaticMesh>>& Meshes)
+{
+	TArray<UStaticMesh*> Loaded;
+	for (const TSoftObjectPtr<UStaticMesh>& Mesh : Meshes)
+	{
+		if (UStaticMesh* Bone = VaelAssets::LoadOptional(Mesh))
+		{
+			Loaded.Add(Bone);
+		}
+	}
+	return Loaded;
+}
+
+UStaticMeshComponent* VaelEffects::AddBoneShape(AActor* Owner, const TArray<UStaticMesh*>& Meshes, int32 Index, float Glow, const FLinearColor& GlowColor)
+{
+	UMaterialInterface* Material = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->BoneMaterial);
+	if (Meshes.IsEmpty() || Material == nullptr)
+	{
+		return nullptr;
+	}
+
+	UStaticMeshComponent* Bone = NewObject<UStaticMeshComponent>(Owner);
+	Bone->SetupAttachment(Owner->GetRootComponent());
+	Bone->SetStaticMesh(Meshes[FMath::Abs(Index) % Meshes.Num()]);
+	Bone->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Bone->SetCastShadow(true);
+	Bone->bReceivesDecals = false;
+	Bone->SetVisibility(false);
+	Bone->RegisterComponent();
+	Bone->SetMaterial(0, Material);
+
+	if (UMaterialInstanceDynamic* Dynamic = Bone->CreateAndSetMaterialInstanceDynamic(0))
+	{
+		Dynamic->SetScalarParameterValue(LookGlowParameter, Glow);
+		Dynamic->SetVectorParameterValue(TEXT("Leuchtfarbe"), GlowColor);
+	}
+	return Bone;
+}
+
+float VaelEffects::GetBoneLength(const UStaticMeshComponent* Bone)
+{
+	const UStaticMesh* Mesh = Bone != nullptr ? Bone->GetStaticMesh().Get() : nullptr;
+	return Mesh != nullptr ? FMath::Max(Mesh->GetBoundingBox().GetSize().Z, 1.0f) : 100.0f;
+}

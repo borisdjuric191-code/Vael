@@ -273,6 +273,17 @@ void AVaelGroundStrike::Tick(float DeltaSeconds)
 			const float SpikeLength = FMath::Max(ClusterHeights[SpikeIndex] * Height, 1.0f);
 
 			ClusterSpikes[SpikeIndex]->SetRelativeLocation(ClusterBases[SpikeIndex] + ClusterLeans[SpikeIndex].RotateVector(FVector(0.0f, 0.0f, SpikeLength * 0.5f)));
+			if (bRealBones)
+			{
+				// The bone shoots out at full width and grows in length; a little of its foot stays in the ground
+				const UStaticMesh* BoneMesh = ClusterSpikes[SpikeIndex]->GetStaticMesh();
+				const FVector BoneSize = BoneMesh != nullptr ? BoneMesh->GetBoundingBox().GetSize() : FVector(StrikeShapeSize);
+				const float Stretch = ClusterHeights[SpikeIndex] * 1.15f / FMath::Max(BoneSize.Z, 1.0f);
+				const float Thick = FMath::Max(Stretch * 0.6f, FMath::Min(Stretch, ClusterWidths[SpikeIndex] * 1.4f / FMath::Max(FMath::Max(BoneSize.X, BoneSize.Y), 1.0f)));
+				ClusterSpikes[SpikeIndex]->SetRelativeLocation(ClusterBases[SpikeIndex] + ClusterLeans[SpikeIndex].RotateVector(FVector(0.0f, 0.0f, SpikeLength * 0.5f - ClusterHeights[SpikeIndex] * 0.075f)));
+				ClusterSpikes[SpikeIndex]->SetRelativeScale3D(FVector(Thick, Thick, Stretch * FMath::Max(Height, 0.05f)));
+				continue;
+			}
 			ClusterSpikes[SpikeIndex]->SetRelativeScale3D(FVector(ClusterWidths[SpikeIndex], ClusterWidths[SpikeIndex], SpikeLength) / StrikeShapeSize);
 		}
 
@@ -298,6 +309,9 @@ void AVaelGroundStrike::BuildSpikeCluster()
 
 	// A big spike in the middle, smaller ones leaning out around it; bones are slender, rock is thick and its edges glow
 	const float FirstAngle = FMath::FRandRange(0.0f, 360.0f);
+	const TArray<UStaticMesh*> Bones = bBone ? VaelEffects::LoadBoneMeshes(MagicSettings->SpikeBoneMeshes) : TArray<UStaticMesh*>();
+	bRealBones = !Bones.IsEmpty();
+	const int32 FirstBone = FMath::RandRange(0, 7);
 	for (int32 SpikeIndex = 0; SpikeIndex < ClusterSpikeCount; ++SpikeIndex)
 	{
 		const bool bMain = SpikeIndex == 0;
@@ -312,9 +326,15 @@ void AVaelGroundStrike::BuildSpikeCluster()
 
 		const auto AddSpike = [&](UMaterialInterface* Material, const FLinearColor& Color, float Glow, float Rim, float Grow)
 		{
-			UStaticMeshComponent* Shape = VaelEffects::AddLookShape(this, Material, Color, Glow, Rim);
-			Shape->SetStaticMesh(Spike->GetStaticMesh());
-			Shape->SetRelativeRotation(Leaning);
+			// Bones: a real one, glowing faintly in the violet of the Mark, turned about its length so they differ
+			UStaticMeshComponent* Shape = bRealBones ? VaelEffects::AddBoneShape(this, Bones, FirstBone + SpikeIndex, 0.2f, GlowColor) : nullptr;
+			if (Shape == nullptr)
+			{
+				bRealBones = false;
+				Shape = VaelEffects::AddLookShape(this, Material, Color, Glow, Rim);
+				Shape->SetStaticMesh(Spike->GetStaticMesh());
+			}
+			Shape->SetRelativeRotation((Leaning.Quaternion() * FQuat(FVector::UpVector, FMath::FRandRange(0.0f, UE_TWO_PI))).Rotator());
 			Shape->SetVisibility(true);
 
 			ClusterSpikes.Add(Shape);

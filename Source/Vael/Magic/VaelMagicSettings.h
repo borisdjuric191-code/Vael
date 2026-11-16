@@ -646,8 +646,46 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
 	TSoftObjectPtr<UStaticMesh> FleshWallMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/SM_Narbenwall.SM_Narbenwall")));
 
+	/** Real bones of the Fab skeleton (Tools/Welt/vael_knochen_fab.py, Scripts/ImportKnochenFab.py): real size, middle at the origin,
+	 *  long side along +Z. Splinters of the Knochensturm, spikes of the Knochendornen, bars of the Markkaefig; empty falls back to cones */
+	UPROPERTY(config, EditAnywhere, Category="Bones")
+	TArray<TSoftObjectPtr<UStaticMesh>> StormBoneMeshes = {
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberschenkel.SM_Knochen_Oberschenkel"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schienbein.SM_Knochen_Schienbein"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberarm.SM_Knochen_Oberarm"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Elle.SM_Knochen_Elle"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Speiche.SM_Knochen_Speiche"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schluesselbein.SM_Knochen_Schluesselbein"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wirbel.SM_Knochen_Wirbel"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kiefer.SM_Knochen_Kiefer"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schaedel.SM_Knochen_Schaedel"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Rippen.SM_Knochen_Rippen")))};
+
+	UPROPERTY(config, EditAnywhere, Category="Bones")
+	TArray<TSoftObjectPtr<UStaticMesh>> SpikeBoneMeshes = {
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberschenkel.SM_Knochen_Oberschenkel"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schienbein.SM_Knochen_Schienbein"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberarm.SM_Knochen_Oberarm"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wadenbein.SM_Knochen_Wadenbein")))};
+
+	/** The cage: a long bone grows from the ground, a thin one bends from its top over the target */
+	UPROPERTY(config, EditAnywhere, Category="Bones")
+	TArray<TSoftObjectPtr<UStaticMesh>> CageLowerBoneMeshes = {
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberschenkel.SM_Knochen_Oberschenkel"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schienbein.SM_Knochen_Schienbein")))};
+
+	UPROPERTY(config, EditAnywhere, Category="Bones")
+	TArray<TSoftObjectPtr<UStaticMesh>> CageUpperBoneMeshes = {
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Elle.SM_Knochen_Elle"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Speiche.SM_Knochen_Speiche"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wadenbein.SM_Knochen_Wadenbein")))};
+
+	/** Fab bone texture with Tonung, Glow and Leuchtfarbe */
+	UPROPERTY(config, EditAnywhere, Category="Bones")
+	TSoftObjectPtr<UMaterialInterface> BoneMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/MI_Gebein_Zauber.MI_Gebein_Zauber")));
+
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")
-	TSoftObjectPtr<UStaticMesh> ClayLumpMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/SM_Lehmklumpen.SM_Lehmklumpen")));
+	TSoftObjectPtr<UStaticMesh> ClayLumpMesh =TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/SM_Lehmklumpen.SM_Lehmklumpen")));
 
 	/** Flowing mud of the Lehmgolem: streaks and bulges run down it all the time (Scripts/CreateSpellSurfaceKit.py) */
 	UPROPERTY(config, EditAnywhere, Category="Surfaces")

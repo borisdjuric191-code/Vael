@@ -203,6 +203,27 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 - **Drehung beim Import:** Teile aus Blender kommen in Unreal an Y gespiegelt an. Eine Vorderseite -Y zeigt dort nach +Y.
 - **Prüfen:** Mit `-VaelShowcaseWalkTo` im Log nachsehen, ob die Figur steht (Z ≈ 100) oder fällt.
 
+## Echte Knochen aus dem Fab-Skelett (16.11.)
+
+- **Quelle:** „Human Skeleton“ von Salt Lake Manor (Fab, CC BY: Namensnennung, steht in `Docs/Credits.md`). Liegt als `Vael_Quellen/Skelett_Fab/skeleton.blend` mit Texturen. Modular, mit UE-Mannequin-Rig (67 Knochen).
+- **Blender:** `Tools/Welt/vael_knochen_fab.py` baut aus den echten Knochen:
+  - **Schädelwand A/B:** wie in den Pariser Katakomben. Reihen von Schädeln (ein Viertel mit Kiefer) zwischen dichten Bändern aus Gelenkenden von Oberschenkel, Oberarm und Schienbein, auf beiden Seiten, lose Knochen oben auf der Krone.
+  - **Knochensäule und Schädelbögen:** Ringe aus Schädeln und Bändern aus Knochenenden um den dunklen Kern. Auf dem Bogen schauen Schädel in beide Gangrichtungen, oben sitzt ein großer Schlussstein-Schädel.
+  - **Knochenhaufen:** Langknochen kreuz und quer, Becken, Brustkorb, Schulterblätter, Wirbel und Kiefer, Schädel obenauf.
+  - Die Höhlenknochen sind 1,5-mal so groß wie echte, damit man sie von oben erkennt. Ein Teil hat bis zu 250 000 Dreiecke; `BuildHoehle.py` schaltet dafür Nanite ein.
+  - Die groben Fassungen in `hoehlen_baukasten.py` bleiben als Rückfall, werden aber nicht mehr gebaut.
+- **Unreal:** `Scripts/ImportKnochenFab.py`:
+  - Texturen und `M_Vael_Gebein` (Farbe × Tönung, ORM, Normal, Leuchten).
+  - `MI_Gebein_Hoehle` ist gealtert und dunkler, `MI_Gebein_Zauber` heller.
+  - Einzelknochen `SM_Knochen_*` und der neue Narbenwall, alles unter `/Game/Vael/Requisiten/Knochen`.
+  - In der Höhle bekommt der Slot `Gebein` das Höhlenmaterial.
+- **Zauber des Magiers:**
+  - **Knochensturm:** 60 echte Knochen in echter Größe (Oberschenkel bis Wirbel, Kiefer, Schädel, Rippenbögen) kreisen und taumeln um den Magier.
+  - **Knochendornen:** Oberschenkel, Schienbein, Oberarm und Wadenbein brechen schräg aus dem Boden und glimmen violett.
+  - **Markkäfig:** Je Stab wächst ein Oberschenkel oder Schienbein aus dem Boden, darauf biegt sich ein Unterarm- oder Wadenbein über das Ziel.
+  - **Narbenwall:** rohes Fleisch mit echten Rippenbögen, Langknochen und einem halb versunkenen Schädel.
+  - Fehlen die Knochen, nehmen die Zauber wieder die alten Kegel.
+
 ## Offen
 
 - **Aussehen:** Mehr Requisiten. Die Mine soll noch nicht abgenommen werden, Boris schaut zuerst.

@@ -390,7 +390,9 @@ def import_meshes():
     """Meshes of Tools/Zauber/vael_zauber_formen.py; slots get their materials by name"""
     import os
     sources = os.path.join(unreal.Paths.convert_relative_path_to_full(unreal.Paths.project_dir()), "Scripts", "Data", "Zauber")
-    materials = {"Fleisch": unreal.load_asset(FOLDER + "/M_Vael_Fleisch"), "Knochen": unreal.load_asset(FOLDER + "/MI_Narbenwall_Knochen")}
+    # die echten Knochen des Narbenwalls tragen die Fab-Textur (Scripts/ImportKnochenFab.py)
+    fab = unreal.load_asset("/Game/Vael/Requisiten/Knochen/MI_Gebein_Zauber")
+    materials = {"Fleisch": unreal.load_asset(FOLDER + "/M_Vael_Fleisch"), "Knochen": fab or unreal.load_asset(FOLDER + "/MI_Narbenwall_Knochen")}
     for name in ("SM_Narbenwall", "SM_Lehmklumpen"):
         ui = unreal.FbxImportUI()
         ui.set_editor_property("import_mesh", True)

@@ -117,6 +117,9 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> Shards;
 
+	/** The shards are real bones (they tumble in real size), not stretched cones */
+	bool bRealBones = false;
+
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> Sun;
 

@@ -47,4 +47,7 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> Glows;
+
+	/** The bars are real bones (kept in their proportions), not stretched cones */
+	bool bRealBones = false;
 };

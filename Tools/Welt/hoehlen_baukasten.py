@@ -588,10 +588,10 @@ if __name__ == "__main__":
               rails, cart, crate, beams, lantern,
               lambda: crystals("SM_HK_Salzspat", 21, 1.6, 11), lambda: crystals("SM_HK_Salzspat_Klein", 22, 0.7, 6),
               lambda: stalagmite("SM_HK_Tropfstein_A", 31), lambda: stalagmite("SM_HK_Tropfstein_B", 32), lambda: stalagmite("SM_HK_Tropfstein_C", 33),
-              lambda: bone_pillar("SM_HK_Knochensaeule", 61), lambda: skull_arch("SM_HK_Schaedelbogen", 62), lambda: skull_arch("SM_HK_Schaedelbogen_Breit", 63, span=7.4),
+              # Schädelwand, Knochensäule, Schädelbögen und Knochenhaufen baut seit 16.11. Tools/Welt/vael_knochen_fab.py aus den echten
+              # Knochen des Fab-Skeletts; die groben Fassungen hier (skull_wall, bone_pillar, skull_arch, bone_pile) bleiben als Rückfall
               lambda: slime_icicle("SM_HK_Schleimzapfen_A", 51), lambda: slime_icicle("SM_HK_Schleimzapfen_B", 52),
-              lambda: skull_wall("SM_HK_Schaedelwand_A", 41), lambda: skull_wall("SM_HK_Schaedelwand_B", 42),
-              lambda: bone_pile("SM_HK_Knochenhaufen", 43), lambda: slime("SM_HK_Schleim", 44),
+              lambda: slime("SM_HK_Schleim", 44),
               lambda: sponge("SM_HK_Schwamm", 51), lambda: rib("SM_HK_Rippe", 52), lambda: candles("SM_HK_Kerzen", 53)]
     for build in builds:
         gk.clear_scene()

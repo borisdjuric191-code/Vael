@@ -135,6 +135,9 @@ private:
 	TArray<float> ClusterHeights;
 	TArray<float> ClusterWidths;
 
+	/** The bone spikes are real bones: they keep their shape and only grow longer, at most as wide as the spike */
+	bool bRealBones = false;
+
 	/** Glow on the ground at the foot of the cluster, and its light */
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> ClusterGlow;

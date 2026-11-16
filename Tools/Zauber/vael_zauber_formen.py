@@ -112,7 +112,9 @@ def main():
             low = -22.0 + index * 6.0
             parts.append(bone("Rippe", bones, Vector((side * 42.0, y, low)), Vector((side * 66.0, y + 3.0, low + 26.0)), Vector((side * 40.0, y - 2.0, low + 62.0)), 3.4))
     wall = join(parts, "SM_Narbenwall")
-    export(wall, folder)
+    # seit 16.11.2026 baut Tools/Welt/vael_knochen_fab.py den Narbenwall mit echten Knochen; dieser grobe nur noch auf Wunsch
+    if os.environ.get("VAEL_NARBENWALL_GROB"):
+        export(wall, folder)
 
     lump = lumpy_ball("SM_Lehmklumpen", clay, 46.0, False, 0.3, 2.2, 8.0)
     export(lump, folder)
