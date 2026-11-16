@@ -11,7 +11,7 @@ import unreal
 
 SOURCE = "C:/Projekte/Vael_Quellen/Ingenieur/Ruestung/04_export"
 FOLDER = "/Game/Vael/Characters/Ingenieur/Glutpanzer"
-KIT_VERSION = 1.1
+KIT_VERSION = 1.2
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
@@ -46,6 +46,8 @@ def master():
         library.delete_all_material_expressions(m)
     else:
         m = tools.create_asset("M_Ing_Glutpanzer", FOLDER, unreal.Material, unreal.MaterialFactoryNew())
+    # worn as skeletal meshes (the Glutpanzer as its own body)
+    m.set_editor_property("used_with_skeletal_mesh", True)
     tex = expr(m, unreal.MaterialExpressionTextureSampleParameter2D, -1400, 0, parameter_name="Farbe")
     rgb = tex
     r = expr(m, unreal.MaterialExpressionComponentMask, -1150, 200, r=True, g=False, b=False, a=False)
@@ -94,6 +96,9 @@ def import_textures():
         name = task.get_editor_property("destination_name")
         tex = unreal.load_asset("{}/Texturen/{}".format(FOLDER, name))
         if tex is not None:
+            # the armour is made at runtime as skeletal meshes, whose textures stayed on a blurred low mip: always fully loaded
+            tex.set_editor_property("never_stream", True)
+            assets.save_loaded_asset(tex, False)
             textures[name[2:]] = tex
     return textures
 

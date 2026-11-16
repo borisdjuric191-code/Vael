@@ -10,6 +10,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Engineer/VaelEngineerDevice.h"
 #include "Engineer/VaelEngineerIdeas.h"
+#include "Player/VaelPoseFollowerAnimInstance.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Engineer/VaelEngineerShot.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -242,84 +243,113 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 		const FVaelGear* Gear = GetWorn(Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Place));
 		return Gear != nullptr ? FString::Printf(TEXT("SM_Ing_R_%s_%s"), *Gear->Set.ToString(), Part) : FString();
 	};
-	// The Glutpanzer (goal 16.11.): the Schwarzglut set in the look of the Tripo armour, many pieces per place, each laid in actor
-	// space of the reference pose (Tools/Ingenieur/vael_glutpanzer_bauen.py) and carried by its own bone
-	struct FGlutpanzerPiece { EVaelArmorPlace Place; const TCHAR* Piece; const TCHAR* Bone; };
+	// The Glutpanzer (goal 16.11., Boris: "die Teile ersetzen den MetaHuman, angelegt so, wie Tripo sie gebaut hat"): the
+	// Schwarzglut set as the Tripo armour in its own proportions. Each worn place is a skeletal mesh of its own (Kopf, Brust, Arme,
+	// Beine on one skeleton, Tools/Ingenieur/vael_glutpanzer_rig.py) that follows the base body by the rotations of its bones,
+	// like the MetaHuman, and the part of the MetaHuman it covers is hidden: the legs from the hip down, the arms from the shoulder,
+	// the face and hair under the helmet, the shirt under the chest.
+	struct FGlutpanzerPiece { EVaelArmorPlace Place; const TCHAR* Piece; };
 	static const FGlutpanzerPiece Glutpanzer[] =
 	{
-		{ EVaelArmorPlace::Head, TEXT("Kopf"), TEXT("head") },
-		{ EVaelArmorPlace::Chest, TEXT("Brust"), TEXT("spine_05") },
-		{ EVaelArmorPlace::Chest, TEXT("Ruecken"), TEXT("spine_03") },
-		{ EVaelArmorPlace::Chest, TEXT("Guertel"), TEXT("pelvis") },
-		{ EVaelArmorPlace::Chest, TEXT("Schulter_L"), TEXT("clavicle_l") },
-		{ EVaelArmorPlace::Chest, TEXT("Schulter_R"), TEXT("clavicle_r") },
-		{ EVaelArmorPlace::Arms, TEXT("Oberarm_L"), TEXT("upperarm_l") },
-		{ EVaelArmorPlace::Arms, TEXT("Unterarm_L"), TEXT("lowerarm_l") },
-		{ EVaelArmorPlace::Arms, TEXT("Unterarm_R"), TEXT("lowerarm_r") },
-		{ EVaelArmorPlace::Arms, TEXT("Hand_L"), TEXT("hand_l") },
-		{ EVaelArmorPlace::Arms, TEXT("Hand_R"), TEXT("hand_r") },
-		{ EVaelArmorPlace::Legs, TEXT("Oberschenkel_L"), TEXT("thigh_l") },
-		{ EVaelArmorPlace::Legs, TEXT("Oberschenkel_R"), TEXT("thigh_r") },
-		{ EVaelArmorPlace::Legs, TEXT("Unterschenkel_L"), TEXT("calf_l") },
-		{ EVaelArmorPlace::Legs, TEXT("Unterschenkel_R"), TEXT("calf_r") },
-		{ EVaelArmorPlace::Legs, TEXT("Fuss_L"), TEXT("foot_l") },
-		{ EVaelArmorPlace::Legs, TEXT("Fuss_R"), TEXT("foot_r") },
+		{ EVaelArmorPlace::Head, TEXT("Kopf") }, { EVaelArmorPlace::Chest, TEXT("Brust") },
+		{ EVaelArmorPlace::Arms, TEXT("Arme") }, { EVaelArmorPlace::Legs, TEXT("Beine") },
 	};
-	constexpr int32 GlutpanzerFirstSlot = 8;
-	TSet<EVaelArmorPlace> GlutpanzerPlaces;
-	// It sits on the body that is seen, the MetaHuman: its pieces are laid in the component space of its reference pose
 	USkeletalMeshComponent* Visible = Player->GetMetaHumanBody();
-	const USkeletalMesh* VisibleMesh = Visible != nullptr ? Visible->GetSkeletalMeshAsset() : nullptr;
-	for (int32 Index = 0; VisibleMesh != nullptr && Index < UE_ARRAY_COUNT(Glutpanzer); ++Index)
+	USkeletalMeshComponent* Base = Player->GetMesh();
+	TSet<EVaelArmorPlace> GlutpanzerPlaces;
+	GlutpanzerBodies.SetNum(UE_ARRAY_COUNT(Glutpanzer));
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Glutpanzer); ++Index)
 	{
 		const FGlutpanzerPiece& Each = Glutpanzer[Index];
 		const FVaelGear* Gear = GetWorn(Each.Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Each.Place));
-		const int32 BoneIndex = VisibleMesh->GetRefSkeleton().FindBoneIndex(Each.Bone);
-		UStaticMesh* Mesh = Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")) && BoneIndex != INDEX_NONE
-			? LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/SM_Ing_GP_%s.SM_Ing_GP_%s"), Each.Piece, Each.Piece), nullptr, LOAD_NoWarn | LOAD_Quiet)
+		USkeletalMesh* Mesh = Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")) && Visible != nullptr
+			? LoadObject<USkeletalMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_%s.SKM_Ing_GP_%s"), Each.Piece, Each.Piece), nullptr, LOAD_NoWarn | LOAD_Quiet)
 			: nullptr;
+		TObjectPtr<USkeletalMeshComponent>& Part = GlutpanzerBodies[Index];
 		if (Mesh == nullptr)
 		{
+			if (Part != nullptr)
+			{
+				Part->SetVisibility(false);
+			}
 			continue;
 		}
-		const int32 Slot = GlutpanzerFirstSlot + Index;
-		ArmorMeshes.SetNum(FMath::Max(ArmorMeshes.Num(), Slot + 1));
-		UStaticMeshComponent* Hung = ArmorMeshes[Slot];
-		if (Hung == nullptr)
+		if (Part == nullptr)
 		{
-			Hung = NewObject<UStaticMeshComponent>(Player, *FString::Printf(TEXT("EngineerGlutpanzer%d"), Index));
-			Hung->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			Hung->SetCastShadow(true);
-			Hung->RegisterComponent();
+			Part = NewObject<USkeletalMeshComponent>(Player, *FString::Printf(TEXT("EngineerGlutpanzer%s"), Each.Piece));
+			Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Part->SetCastShadow(true);
+			// the balance mark lies on the skin under the armour, not on its crust (UVaelBalanceSubsystem::UpdateMarks)
+			Part->ComponentTags.Add(TEXT("VaelKeinZeichen"));
+			Part->VisibilityBasedAnimTickOption = EVisibilityBasedAnimTickOption::AlwaysTickPoseAndRefreshBones;
+			Part->SetupAttachment(Base);
+			Part->RegisterComponent();
+			Part->AddTickPrerequisiteComponent(Base);
 		}
-		// the bone as it stands in the reference pose, in component space: the piece's own space is that space
-		const FReferenceSkeleton& Skeleton = VisibleMesh->GetRefSkeleton();
-		FTransform BoneRef = FTransform::Identity;
-		for (int32 Each2 = BoneIndex; Each2 != INDEX_NONE; Each2 = Skeleton.GetParentIndex(Each2))
+		Part->SetRelativeTransform(FTransform::Identity);
+		if (Part->GetSkeletalMeshAsset() != Mesh)
 		{
-			BoneRef = BoneRef * Skeleton.GetRefBonePose()[Each2];
+			Part->SetSkeletalMesh(Mesh);
+			Part->SetAnimInstanceClass(UVaelPoseFollowerAnimInstance::StaticClass());
 		}
-		Hung->AttachToComponent(Visible, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Each.Bone);
-		FTransform Relative = BoneRef.Inverse();
-		Relative.SetScale3D(FVector::OneVector);
-		Hung->SetRelativeTransform(Relative);
-		Hung->SetStaticMesh(Mesh);
-		Hung->SetVisibility(true);
-		ArmorMeshes[Slot] = Hung;
+		if (UVaelPoseFollowerAnimInstance* Follower = Cast<UVaelPoseFollowerAnimInstance>(Part->GetAnimInstance()))
+		{
+			Follower->SetSource(Base);
+		}
+		Part->SetVisibility(true);
 		GlutpanzerPlaces.Add(Each.Place);
 	}
 	const auto Skip = [&GlutpanzerPlaces](EVaelArmorPlace Place) { return GlutpanzerPlaces.Contains(Place); };
 
-	// Under the helmet the hair of the MetaHuman would come through it: the hair grooms hide while the helmet is worn
+	// What the armour covers of the MetaHuman is hidden; what it no longer covers comes back
 	if (AActor* Human = Visible != nullptr ? Visible->GetOwner() : nullptr)
 	{
 		const bool bHelmet = Skip(EVaelArmorPlace::Head);
-		TInlineComponentArray<UPrimitiveComponent*> HumanParts(Human);
-		for (UPrimitiveComponent* Part : HumanParts)
+		const bool bChest = Skip(EVaelArmorPlace::Chest);
+		const TPair<FName, bool> Hidden[] =
 		{
-			if (Part->GetClass()->GetName().Contains(TEXT("Groom")) && Part->GetName().Contains(TEXT("Hair")))
+			{ TEXT("thigh_l"), Skip(EVaelArmorPlace::Legs) }, { TEXT("thigh_r"), Skip(EVaelArmorPlace::Legs) },
+			{ TEXT("upperarm_l"), Skip(EVaelArmorPlace::Arms) }, { TEXT("upperarm_r"), Skip(EVaelArmorPlace::Arms) },
+		};
+		TInlineComponentArray<UPrimitiveComponent*> HumanParts(Human);
+		for (UPrimitiveComponent* HumanPart : HumanParts)
+		{
+			const FString PartName = HumanPart->GetName();
+			if (HumanPart->GetClass()->GetName().Contains(TEXT("Groom")))
 			{
-				Part->SetVisibility(!bHelmet);
+				// hair, brows, lashes and beard would come through the helmet
+				HumanPart->SetVisibility(!bHelmet);
+				continue;
+			}
+			USkeletalMeshComponent* Skinned = Cast<USkeletalMeshComponent>(HumanPart);
+			if (Skinned == nullptr)
+			{
+				continue;
+			}
+			if (PartName == TEXT("Face"))
+			{
+				Skinned->SetVisibility(!bHelmet);
+				continue;
+			}
+			if (PartName != TEXT("Body"))
+			{
+				// the clothes of the MetaHuman: hidden under a whole chest and legs of the armour
+				Skinned->SetVisibility(!(bChest && Skip(EVaelArmorPlace::Legs)));
+			}
+			for (const TPair<FName, bool>& Bone : Hidden)
+			{
+				if (Skinned->GetBoneIndex(Bone.Key) == INDEX_NONE)
+				{
+					continue;
+				}
+				if (Bone.Value)
+				{
+					Skinned->HideBoneByName(Bone.Key, EPhysBodyOp::PBO_None);
+				}
+				else if (Skinned->IsBoneHiddenByName(Bone.Key))
+				{
+					Skinned->UnHideBoneByName(Bone.Key);
+				}
 			}
 		}
 	}

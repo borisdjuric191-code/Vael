@@ -308,6 +308,11 @@ void UVaelBalanceSubsystem::UpdateMarks()
 		It->GetComponents<USkeletalMeshComponent>(Meshes);
 		for (USkeletalMeshComponent* Mesh : Meshes)
 		{
+			// the mark lies on the skin: armour worn as a body of its own (the engineer's Glutpanzer) covers it
+			if (Mesh->ComponentHasTag(TEXT("VaelKeinZeichen")))
+			{
+				continue;
+			}
 			if (bWearsMark && Mesh->GetOverlayMaterial() != Mark)
 			{
 				Mesh->SetOverlayMaterial(Mark);

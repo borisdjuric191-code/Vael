@@ -397,6 +397,10 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> ArmorMeshes;
 
+	/** The Glutpanzer as its own body (goal 16.11.): Kopf, Brust, Arme, Beine, each following the base body */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USkeletalMeshComponent>> GlutpanzerBodies;
+
 	FString ShownArmor;
 	void UpdateArmorMeshes();
 
