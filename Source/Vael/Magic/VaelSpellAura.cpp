@@ -37,6 +37,7 @@ namespace
 	/** Bone splinters of the Knochensturm and their color */
 	constexpr int32 AuraBoneShards = 60;
 	const FLinearColor AuraBoneColor(0.8f, 0.74f, 0.6f);
+	constexpr float AuraSplinterScale = 1.7f;
 
 	/** The black sun: its width and height over the feet in cm, its light in candela; the engine plane is this wide */
 	constexpr float AuraSunSize = 300.0f;
@@ -198,7 +199,8 @@ void AVaelSpellAura::AnimateBoneShards(const FVector& Feet, float Time)
 			// Real bones in their own size, turning about their length and tumbling a little as the storm tears them along
 			const FQuat Tumble = FQuat(FVector::ForwardVector, 0.5f * FMath::Sin(Time * 3.0f + Seed)) * FQuat(FVector::UpVector, Time * Speed * 1.3f + Seed);
 			Shards[ShardIndex]->SetWorldLocationAndRotation(Place, Flight * Tumble);
-			Shards[ShardIndex]->SetWorldScale3D(FVector(Size));
+			// splinters larger than life, or their broken points get lost seen from above
+			Shards[ShardIndex]->SetWorldScale3D(FVector(Size * AuraSplinterScale));
 			continue;
 		}
 		Shards[ShardIndex]->SetWorldLocationAndRotation(Place, Flight.Rotator());

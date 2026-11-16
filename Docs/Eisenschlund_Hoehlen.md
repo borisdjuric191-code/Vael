@@ -218,9 +218,10 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
   - Einzelknochen `SM_Knochen_*` und der neue Narbenwall, alles unter `/Game/Vael/Requisiten/Knochen`.
   - In der Höhle bekommt der Slot `Gebein` das Höhlenmaterial.
 - **Zauber des Magiers:**
-  - **Knochensturm:** 60 echte Knochen in echter Größe (Oberschenkel bis Wirbel, Kiefer, Schädel, Rippenbögen) kreisen und taumeln um den Magier.
+  - **Knochensturm:** 60 gebrochene, spitze Knochensplitter wirbeln und taumeln um den Magier (Boris 16.11.). Es sind zwölf Bruchstücke von Oberschenkel, Schienbein, Oberarm, Elle, Speiche, Wadenbein und Schlüsselbein, dazu Wirbel. Sie sind 1,7-mal so groß wie echte, damit man sie von oben erkennt.
+  - **Bruchstellen:** Jede Bruchstelle ist schräg und splittert in drei bis vier Zacken, eine davon lang und scharf (`broken()` und `jagged_cap()` in `vael_knochen_fab.py`). `VAEL_NUR_SPLITTER=1` baut nur die Splitter neu.
   - **Knochendornen:** Oberschenkel, Schienbein, Oberarm und Wadenbein brechen schräg aus dem Boden und glimmen violett.
-  - **Markkäfig:** Je Stab wächst ein Oberschenkel oder Schienbein aus dem Boden, darauf biegt sich ein Unterarm- oder Wadenbein über das Ziel.
+  - **Markkäfig:** Je Stab wächst ein Oberschenkel oder Schienbein aus dem Boden, das Gelenk sitzt unten, oben ist er spitz abgebrochen. Darauf biegt sich ein abgebrochenes Unterarm- oder Wadenbein mit Splitterklaue über das Ziel.
   - **Narbenwall:** rohes Fleisch mit echten Rippenbögen, Langknochen und einem halb versunkenen Schädel.
   - Fehlen die Knochen, nehmen die Zauber wieder die alten Kegel.
 

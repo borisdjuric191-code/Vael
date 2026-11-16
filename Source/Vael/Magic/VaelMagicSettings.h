@@ -647,19 +647,22 @@ public:
 	TSoftObjectPtr<UStaticMesh> FleshWallMesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Effects/Flaechen/SM_Narbenwall.SM_Narbenwall")));
 
 	/** Real bones of the Fab skeleton (Tools/Welt/vael_knochen_fab.py, Scripts/ImportKnochenFab.py): real size, middle at the origin,
-	 *  long side along +Z. Splinters of the Knochensturm, spikes of the Knochendornen, bars of the Markkaefig; empty falls back to cones */
+	 *  long side along +Z. Broken, pointed splinters of the Knochensturm (Boris 16.11.), spikes of the Knochendornen, bars of the Markkaefig; empty falls back to cones */
 	UPROPERTY(config, EditAnywhere, Category="Bones")
 	TArray<TSoftObjectPtr<UStaticMesh>> StormBoneMeshes = {
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberschenkel.SM_Knochen_Oberschenkel"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schienbein.SM_Knochen_Schienbein"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberarm.SM_Knochen_Oberarm"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Elle.SM_Knochen_Elle"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Speiche.SM_Knochen_Speiche"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schluesselbein.SM_Knochen_Schluesselbein"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wirbel.SM_Knochen_Wirbel"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kiefer.SM_Knochen_Kiefer"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schaedel.SM_Knochen_Schaedel"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Rippen.SM_Knochen_Rippen")))};
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_01.SM_Knochen_Splitter_01"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_02.SM_Knochen_Splitter_02"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_03.SM_Knochen_Splitter_03"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_04.SM_Knochen_Splitter_04"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_05.SM_Knochen_Splitter_05"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_06.SM_Knochen_Splitter_06"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_07.SM_Knochen_Splitter_07"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_08.SM_Knochen_Splitter_08"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_09.SM_Knochen_Splitter_09"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_10.SM_Knochen_Splitter_10"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_11.SM_Knochen_Splitter_11"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_12.SM_Knochen_Splitter_12"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wirbel.SM_Knochen_Wirbel")))};
 
 	UPROPERTY(config, EditAnywhere, Category="Bones")
 	TArray<TSoftObjectPtr<UStaticMesh>> SpikeBoneMeshes = {
@@ -668,17 +671,17 @@ public:
 		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberarm.SM_Knochen_Oberarm"))),
 		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wadenbein.SM_Knochen_Wadenbein")))};
 
-	/** The cage: a long bone grows from the ground, a thin one bends from its top over the target */
+	/** The cage: a long bone, broken off sharp at the top, grows from the ground; a thin one bends from its top over the target and ends in a splintered claw */
 	UPROPERTY(config, EditAnywhere, Category="Bones")
 	TArray<TSoftObjectPtr<UStaticMesh>> CageLowerBoneMeshes = {
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberschenkel.SM_Knochen_Oberschenkel"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schienbein.SM_Knochen_Schienbein")))};
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Unten_01.SM_Knochen_Kaefig_Unten_01"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Unten_02.SM_Knochen_Kaefig_Unten_02")))};
 
 	UPROPERTY(config, EditAnywhere, Category="Bones")
 	TArray<TSoftObjectPtr<UStaticMesh>> CageUpperBoneMeshes = {
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Elle.SM_Knochen_Elle"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Speiche.SM_Knochen_Speiche"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wadenbein.SM_Knochen_Wadenbein")))};
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Oben_01.SM_Knochen_Kaefig_Oben_01"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Oben_02.SM_Knochen_Kaefig_Oben_02"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Oben_03.SM_Knochen_Kaefig_Oben_03")))};
 
 	/** Fab bone texture with Tonung, Glow and Leuchtfarbe */
 	UPROPERTY(config, EditAnywhere, Category="Bones")

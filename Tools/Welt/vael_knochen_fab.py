@@ -452,6 +452,138 @@ def spell_bones():
     export(o, SPELL_OUT)
 
 
+# ---------------------------------------------------------------- gebrochene Knochen (Boris 16.11.: "abbrechen und spitze
+# zerbrochene Knochen wirbeln lassen")
+
+def boundary_loops(bm):
+    """Die offenen Ränder nach einem Schnitt als geordnete Ringe von Ecken"""
+    edges = [e for e in bm.edges if e.is_boundary]
+    nxt = {}
+    for e in edges:
+        a, b = e.verts
+        nxt.setdefault(a, []).append(b)
+        nxt.setdefault(b, []).append(a)
+    seen, loops = set(), []
+    for start in nxt:
+        if start in seen:
+            continue
+        ring, prev, cur = [start], None, start
+        seen.add(start)
+        while True:
+            options = [v for v in nxt[cur] if v is not prev and v not in seen]
+            if not options:
+                break
+            prev, cur = cur, options[0]
+            ring.append(cur)
+            seen.add(cur)
+        if len(ring) >= 4:
+            loops.append(ring)
+    return loops
+
+
+def jagged_cap(bm, normal, rnd, length_share):
+    """Schließt jeden Bruch mit Splittern: der Ring zerfällt in 3-4 Bögen, jeder läuft in eine eigene Zacke aus, eine davon lang
+    und scharf, die anderen kürzer und schief; die Zacken stehen zur Seite versetzt wie bei einem echten Splitterbruch"""
+    uv = bm.loops.layers.uv.active
+    for ring in boundary_loops(bm):
+        n_r = len(ring)
+        c = sum((v.co for v in ring), Vector()) / n_r
+        r = sum((v.co - c).length for v in ring) / n_r
+        uvs = {v: (v.link_loops[0][uv].uv.copy() if (uv and v.link_loops) else None) for v in ring}
+        known = [u for u in uvs.values() if u is not None]
+        mid_uv = (sum(known, Vector((0, 0))) / len(known)) if known else Vector((0.5, 0.5))
+        # der Rand bricht unregelmäßig: kleine Zacken
+        for v in ring:
+            v.co += normal * r * rnd.uniform(0.0, 0.45)
+        m = rnd.choice((3, 3, 4)) if n_r >= 8 else 1
+        first = rnd.randrange(n_r)
+        bounds = sorted(rnd.sample(range(1, n_r), m - 1)) if m > 1 else []
+        cuts = [first] + [(first + b) % n_r for b in bounds]
+        main = rnd.randrange(m)
+        tips = []
+        for k in range(m):
+            a_, b_ = cuts[k], cuts[(k + 1) % m]
+            arc = [ring[(a_ + i) % n_r] for i in range(((b_ - a_) % n_r or n_r) + 1)]
+            ac = sum((v.co for v in arc), Vector()) / len(arc)
+            out = (ac - c)
+            length = r * (length_share * rnd.uniform(0.85, 1.2) if k == main else rnd.uniform(0.8, 2.0))
+            tip = bm.verts.new(ac + normal * length + out * rnd.uniform(-0.2, 0.5) - (ac - c) * (0.6 if k == main else 0.1))
+            tips.append(tip)
+            for i in range(len(arc) - 1):
+                try:
+                    f = bm.faces.new((arc[i], arc[i + 1], tip))
+                except ValueError:
+                    continue
+                if uv:
+                    for loop in f.loops:
+                        loop[uv].uv = uvs.get(loop.vert) if uvs.get(loop.vert) is not None else mid_uv
+        if m > 1:
+            # zwischen zwei Zacken: die Kerbe; in der Mitte der Boden des Bruchs
+            for k in range(m):
+                shared = ring[cuts[(k + 1) % m]]
+                for verts in ((shared, tips[(k + 1) % m], tips[k]),):
+                    try:
+                        f = bm.faces.new(verts)
+                    except ValueError:
+                        continue
+                    if uv:
+                        for loop in f.loops:
+                            loop[uv].uv = uvs.get(loop.vert) if uvs.get(loop.vert) is not None else mid_uv
+            try:
+                f = bm.faces.new(tips)
+                if uv:
+                    for loop in f.loops:
+                        loop[uv].uv = mid_uv
+            except ValueError:
+                pass
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+
+
+def broken(src, lo, hi, seed, target, axis=None, spike=4.0):
+    """Ein gebrochener Knochen: von lo bis hi seiner Länge behalten (0 = unten, 1 = oben), jeder Schnitt schräg und mit
+    gezackter Spitze; Mitte im Ursprung, lange Achse +Z"""
+    rnd = random.Random(seed)
+    me = centred(evaluated([src]), axis)
+    zs = [v.co.z for v in me.vertices]
+    z0, length = min(zs), max(zs) - min(zs)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    for frac, sign in ((hi, 1.0), (lo, -1.0)):
+        if (sign > 0 and frac >= 1.0) or (sign < 0 and frac <= 0.0):
+            continue
+        a = rnd.uniform(0, 2 * math.pi)
+        tilt = rnd.uniform(0.35, 0.8)
+        n = Vector((math.cos(a) * tilt, math.sin(a) * tilt, 1.0)).normalized() * sign
+        geom = bm.verts[:] + bm.edges[:] + bm.faces[:]
+        bmesh.ops.bisect_plane(bm, geom=geom, plane_co=(0, 0, z0 + length * frac), plane_no=n, clear_outer=True)
+        jagged_cap(bm, n, rnd, spike)
+    bm.to_mesh(me)
+    bm.free()
+    return finish_template(decimate(centred(me), target), src + "_gebrochen")
+
+
+def broken_bones():
+    """Splitter für den Knochensturm, gebrochene Stäbe für den Markkäfig (unten das Gelenk, oben die Bruchspitze)"""
+    parts = {
+        # Knochensturm: Schaftstücke mit zwei Bruchspitzen, Gelenkenden mit einer
+        "Splitter_01": ("SM_Femur", 0.22, 0.72, 11, 900, None, 4.5), "Splitter_02": ("SM_Femur", 0.55, 1.0, 12, 800, None, 5.0),
+        "Splitter_03": ("SM_Femur", 0.0, 0.42, 13, 800, None, 4.0), "Splitter_04": ("SM_Tibia", 0.12, 0.62, 14, 700, None, 5.0),
+        "Splitter_05": ("SM_Tibia", 0.5, 1.0, 15, 700, None, 4.0), "Splitter_06": ("SM_Humerus", 0.3, 1.0, 16, 550, None, 5.0),
+        "Splitter_07": ("SM_Ulna", 0.08, 0.6, 17, 450, None, 6.0), "Splitter_08": ("SM_Radius", 0.35, 0.95, 18, 450, None, 6.0),
+        "Splitter_09": ("SM_Fibula", 0.2, 0.75, 19, 450, None, 7.0), "Splitter_10": ("SM_Clavicle", 0.0, 0.62, 20, 350, "X", 5.0),
+        "Splitter_11": ("SM_Humerus", 0.05, 0.5, 21, 500, None, 5.0), "Splitter_12": ("SM_Femur", 0.35, 0.62, 22, 700, None, 6.0),
+        # Markkäfig: unten das ganze Gelenk im Boden, oben abgebrochen und spitz; die gebogenen Stücke mit Klauenspitze
+        "Kaefig_Unten_01": ("SM_Femur", 0.0, 0.82, 31, 900, None, 5.0), "Kaefig_Unten_02": ("SM_Tibia", 0.0, 0.8, 32, 800, None, 5.0),
+        "Kaefig_Oben_01": ("SM_Ulna", 0.0, 0.8, 33, 450, None, 7.0), "Kaefig_Oben_02": ("SM_Radius", 0.0, 0.82, 34, 450, None, 7.0),
+        "Kaefig_Oben_03": ("SM_Fibula", 0.0, 0.75, 35, 450, None, 8.0),
+    }
+    for name, (src, lo, hi, seed, target, axis, spike) in parts.items():
+        me = broken(src, lo, hi, seed, target, axis, spike)
+        o = bpy.data.objects.new("SM_Knochen_" + name, me)
+        SCENE.collection.objects.link(o)
+        export(o, SPELL_OUT)
+
+
 # ---------------------------------------------------------------- Narbenwall
 
 def lumpy_block(radius, amount, scale, seed):
@@ -515,6 +647,10 @@ def scar_wall():
 
 
 # Die Fab-Szene bleibt stehen (die Vorlagen kommen aus ihr); jedes Teil wird für sich ausgewählt und exportiert
+broken_bones()
+if os.environ.get("VAEL_NUR_SPLITTER"):          # nur die gebrochenen Knochen neu (schnell)
+    log("fertig (nur Splitter)")
+    sys.exit(0)
 spell_bones()
 skull_wall("SM_HK_Schaedelwand_A", 41)
 skull_wall("SM_HK_Schaedelwand_B", 42)
