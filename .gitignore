@@ -89,3 +89,4 @@ Content/Vael/Characters/Menschen/MH_Floromantin_Build/
 
 # Generated noise cache from the engine
 /waveletNoiseTile.bin
+__pycache__/
