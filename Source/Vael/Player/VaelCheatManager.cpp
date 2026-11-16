@@ -22,6 +22,9 @@
 #include "AbilitySystemComponent.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Engineer/VaelEngineerIdeas.h"
+#include "Engineer/VaelForge.h"
+#include "Engineer/VaelWorkbench.h"
+#include "Items/VaelStorageChest.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
@@ -1964,6 +1967,31 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			}
 		}
 	};
+	// The first camp (goal 16.11.): "lager" opens the store chest of the level as he would, then mixes his first shot
+	// (Schlacke + Glutstein = Glutladung) and reports what he has
+	if (What == TEXT("lager"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		AVaelStorageChest* Chest = nullptr;
+		for (TActorIterator<AVaelStorageChest> It(GetWorld()); It; ++It)
+		{
+			Chest = *It;
+		}
+		const bool bForge = TActorIterator<AVaelForge>(GetWorld()) ? true : false;
+		const bool bBench = TActorIterator<AVaelWorkbench>(GetWorld()) ? true : false;
+		if (Chest != nullptr)
+		{
+			Chest->Interact(Player);
+		}
+		FText Hint;
+		FName Formula;
+		const EVaelMixResult Result = Engineer->Mix({ TEXT("Schlacke"), TEXT("Glutstein") }, Hint, Formula);
+		UE_LOG(LogVael, Display, TEXT("[LagerTest] %s: chest %d, forge %d, bench %d, mix %d (%s), Glutladung carried %d, Schlacke left %d"),
+			Chest != nullptr && bForge && bBench && Result == EVaelMixResult::Learned ? TEXT("PASS") : TEXT("FAIL"), Chest != nullptr, bForge, bBench,
+			static_cast<int32>(Result), *Formula.ToString(), Engineer->GetCarried(TEXT("Brand")),
+			Player->GetMaterialBag()->GetCount(VaelEngineerGear::LoadMaterial(TEXT("Schlacke"))));
+		return;
+	}
 	// Showcase of the sling (goal 16.11.): "zwille [Ladung]" draws for 1.2 s and lets go every 2.6 s, straight ahead
 	if (What == TEXT("zwille"))
 	{
