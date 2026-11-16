@@ -666,10 +666,16 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="Bones")
 	TArray<TSoftObjectPtr<UStaticMesh>> SpikeBoneMeshes = {
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberschenkel.SM_Knochen_Oberschenkel"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Schienbein.SM_Knochen_Schienbein"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Oberarm.SM_Knochen_Oberarm"))),
-		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Wadenbein.SM_Knochen_Wadenbein")))};
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Unten_01.SM_Knochen_Kaefig_Unten_01"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_04.SM_Knochen_Splitter_04"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Oben_01.SM_Knochen_Kaefig_Oben_01"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_09.SM_Knochen_Splitter_09"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Unten_02.SM_Knochen_Kaefig_Unten_02"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_07.SM_Knochen_Splitter_07"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Oben_03.SM_Knochen_Kaefig_Oben_03"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_01.SM_Knochen_Splitter_01"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Kaefig_Oben_02.SM_Knochen_Kaefig_Oben_02"))),
+		TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(TEXT("/Game/Vael/Requisiten/Knochen/SM_Knochen_Splitter_12.SM_Knochen_Splitter_12")))};
 
 	/** The cage: a long bone, broken off sharp at the top, grows from the ground; a thin one bends from its top over the target and ends in a splintered claw */
 	UPROPERTY(config, EditAnywhere, Category="Bones")

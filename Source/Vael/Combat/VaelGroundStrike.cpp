@@ -50,9 +50,18 @@ namespace
 
 	/** Spikes in a cluster of bone or rock, glow of the ground at their foot and its light in candela */
 	constexpr int32 ClusterSpikeCount = 4;
-	constexpr float ClusterBoneGlow = 2.5f;
+	constexpr float ClusterBoneGlow = 0.7f;      // the bones are the show, the ground only shimmers under them
 	constexpr float ClusterMagmaGlow = 4.0f;
 	constexpr float ClusterLightIntensity = 15.0f;
+
+	/** The wave of the Knochendornen (Boris 16.11.: "eine flüssigere Welle aus mehr und spitzen Knochen"): broken, pointed bones per
+	 *  strike, each shooting out of the ground a little after the one behind it; seconds a bone needs to come out, how long
+	 *  they stand, and how far the bones of one strike spread so they reach into the next one */
+	constexpr int32 WaveBoneCount = 9;
+	constexpr float WaveBoneRise = 0.13f;
+	constexpr float WaveBoneStagger = 0.07f;
+	constexpr float WaveDuration = 0.85f;
+	constexpr float WaveSpread = 1.15f;
 }
 
 AVaelGroundStrike::AVaelGroundStrike()
@@ -181,6 +190,17 @@ AVaelGroundStrike* AVaelGroundStrike::SpawnStrike(AActor* Attacker, const FVecto
 void AVaelGroundStrike::SetLook(EVaelStrikeLook InLook)
 {
 	Look = InLook;
+
+	// The bone wave stands longer; a mage casting it needs no circle on the ground, creatures keep theirs so players can step away
+	if (Look == EVaelStrikeLook::BoneSpikes)
+	{
+		SpikeDuration = FMath::Max(SpikeDuration, WaveDuration);
+		if (GetInstigator() != nullptr && GetInstigator()->IsA<AVaelCharacter>())
+		{
+			WarningDisc->SetVisibility(false);
+			WarningFill->SetVisibility(false);
+		}
+	}
 	if (Look == EVaelStrikeLook::Hail || (Look == EVaelStrikeLook::OpenWound && Delay > StrikeFirstPulse))
 	{
 		WarningDisc->SetVisibility(false);
@@ -275,13 +295,19 @@ void AVaelGroundStrike::Tick(float DeltaSeconds)
 			ClusterSpikes[SpikeIndex]->SetRelativeLocation(ClusterBases[SpikeIndex] + ClusterLeans[SpikeIndex].RotateVector(FVector(0.0f, 0.0f, SpikeLength * 0.5f)));
 			if (bRealBones)
 			{
-				// The bone shoots out at full width and grows in length; a little of its foot stays in the ground
+				// A whole bone shoots out of the ground along its lean, point first, a little after the one behind it, overshoots,
+				// settles and slides back down; nothing is stretched
 				const UStaticMesh* BoneMesh = ClusterSpikes[SpikeIndex]->GetStaticMesh();
 				const FVector BoneSize = BoneMesh != nullptr ? BoneMesh->GetBoundingBox().GetSize() : FVector(StrikeShapeSize);
-				const float Stretch = ClusterHeights[SpikeIndex] * 1.15f / FMath::Max(BoneSize.Z, 1.0f);
-				const float Thick = FMath::Max(Stretch * 0.6f, FMath::Min(Stretch, ClusterWidths[SpikeIndex] * 1.4f / FMath::Max(FMath::Max(BoneSize.X, BoneSize.Y), 1.0f)));
-				ClusterSpikes[SpikeIndex]->SetRelativeLocation(ClusterBases[SpikeIndex] + ClusterLeans[SpikeIndex].RotateVector(FVector(0.0f, 0.0f, SpikeLength * 0.5f - ClusterHeights[SpikeIndex] * 0.075f)));
-				ClusterSpikes[SpikeIndex]->SetRelativeScale3D(FVector(Thick, Thick, Stretch * FMath::Max(Height, 0.05f)));
+				const float Length = ClusterHeights[SpikeIndex] * 1.15f;
+				const float Stretch = Length / FMath::Max(BoneSize.Z, 1.0f);
+				const float Thick = FMath::Max(Stretch * 0.75f, FMath::Min(Stretch, ClusterWidths[SpikeIndex] * 1.6f / FMath::Max(FMath::Max(BoneSize.X, BoneSize.Y), 1.0f)));
+				const float Out = FMath::Clamp((SinceStrike - ClusterDelays[SpikeIndex]) / WaveBoneRise, 0.0f, 1.0f);
+				const float Shot = Out < 1.0f ? FMath::InterpEaseOut(0.0f, 1.08f, Out, 2.5f) : 1.0f + 0.08f * FMath::Max(0.0f, 1.0f - (SinceStrike - ClusterDelays[SpikeIndex] - WaveBoneRise) * 8.0f);
+				const float Shown = Shot * Sink;
+				ClusterSpikes[SpikeIndex]->SetVisibility(Shown > 0.02f);
+				ClusterSpikes[SpikeIndex]->SetRelativeLocation(ClusterBases[SpikeIndex] + ClusterLeans[SpikeIndex].RotateVector(FVector(0.0f, 0.0f, Length * (0.35f - (1.0f - Shown)))));
+				ClusterSpikes[SpikeIndex]->SetRelativeScale3D(FVector(Thick, Thick, Stretch));
 				continue;
 			}
 			ClusterSpikes[SpikeIndex]->SetRelativeScale3D(FVector(ClusterWidths[SpikeIndex], ClusterWidths[SpikeIndex], SpikeLength) / StrikeShapeSize);
@@ -312,7 +338,11 @@ void AVaelGroundStrike::BuildSpikeCluster()
 	const TArray<UStaticMesh*> Bones = bBone ? VaelEffects::LoadBoneMeshes(MagicSettings->SpikeBoneMeshes) : TArray<UStaticMesh*>();
 	bRealBones = !Bones.IsEmpty();
 	const int32 FirstBone = FMath::RandRange(0, 7);
-	for (int32 SpikeIndex = 0; SpikeIndex < ClusterSpikeCount; ++SpikeIndex)
+	if (bRealBones)
+	{
+		BuildBoneWave(Bones, FirstBone, GlowColor);
+	}
+	for (int32 SpikeIndex = 0; SpikeIndex < (bRealBones ? 0 : ClusterSpikeCount); ++SpikeIndex)
 	{
 		const bool bMain = SpikeIndex == 0;
 		const float Angle = FMath::DegreesToRadians(FirstAngle + SpikeIndex * 360.0f / (ClusterSpikeCount - 1) + FMath::FRandRange(-20.0f, 20.0f));
@@ -355,7 +385,7 @@ void AVaelGroundStrike::BuildSpikeCluster()
 	// The ground at the foot glows: violet for bone, molten for rock
 	ClusterGlow = VaelEffects::AddLookShape(this, GlowMaterial, GlowColor, bBone ? ClusterBoneGlow : ClusterMagmaGlow, bBone ? 1.0f : 0.4f);
 	ClusterGlow->SetRelativeLocation(FVector(0.0f, 0.0f, 3.0f));
-	ClusterGlow->SetRelativeScale3D(FVector(Radius * 1.6f, Radius * 1.6f, 8.0f) / StrikeShapeSize);
+	ClusterGlow->SetRelativeScale3D(FVector(Radius * (bRealBones ? 1.3f : 1.6f), Radius * (bRealBones ? 1.3f : 1.6f), bRealBones ? 2.0f : 8.0f) / StrikeShapeSize);
 	ClusterGlow->SetVisibility(true);
 
 	ClusterLight = NewObject<UPointLightComponent>(this);
@@ -378,7 +408,10 @@ void AVaelGroundStrike::BuildSpikeCluster()
 	Pieces.MaxSize = 9.0f;
 	Pieces.Color = bBone ? Bone : Rock;
 	Pieces.RockShare = bBone ? 0.0f : 0.4f;
-	AVaelDebrisBurst::Spawn(this, GetActorLocation(), Pieces);
+	if (!bRealBones)
+	{
+		AVaelDebrisBurst::Spawn(this, GetActorLocation(), Pieces);
+	}
 
 	FVaelDebris Glowing;
 	Glowing.Count = bBone ? 6 : 9;
@@ -393,6 +426,39 @@ void AVaelGroundStrike::BuildSpikeCluster()
 	Glowing.Glow = bBone ? 5.0f : 6.0f;
 	Glowing.bLandOnGround = !bBone;
 	AVaelDebrisBurst::Spawn(this, GetActorLocation() + FVector(0.0f, 0.0f, 10.0f), Glowing);
+}
+
+void AVaelGroundStrike::BuildBoneWave(const TArray<UStaticMesh*>& Bones, int32 FirstBone, const FLinearColor& GlowColor)
+{
+	// The wave runs away from the caster: bones behind come first, those in front last, all leaning forward with it
+	const AActor* Caster = GetInstigator() != nullptr ? GetInstigator() : GetOwner();
+	FVector Ahead = Caster != nullptr ? (GetActorLocation() - Caster->GetActorLocation()).GetSafeNormal2D() : FVector::ForwardVector;
+	Ahead = Ahead.IsNearlyZero() ? FVector::ForwardVector : Ahead;
+	const FVector Side(-Ahead.Y, Ahead.X, 0.0f);
+
+	for (int32 BoneIndex = 0; BoneIndex < WaveBoneCount; ++BoneIndex)
+	{
+		UStaticMeshComponent* Shape = VaelEffects::AddBoneShape(this, Bones, FirstBone + BoneIndex * 3, 0.04f, GlowColor);
+		if (Shape == nullptr)
+		{
+			continue;
+		}
+		const bool bMain = BoneIndex == 0;
+		const FVector2D Spot = bMain ? FVector2D::ZeroVector : FMath::RandPointInCircle(1.0f);
+		const FVector Base = (Ahead * Spot.X * WaveSpread + Side * Spot.Y * 0.8f) * Radius;
+		const FVector Out = (Base.GetSafeNormal2D().IsNearlyZero() ? Ahead : Base.GetSafeNormal2D());
+		const float Lean = FMath::DegreesToRadians(bMain ? 8.0f : FMath::FRandRange(14.0f, 34.0f));
+		const FVector Up = FVector::UpVector + (Ahead * 0.6f + Out * 0.4f).GetSafeNormal() * FMath::Tan(Lean);
+		const FRotator Leaning = FRotationMatrix::MakeFromZ(Up).Rotator();
+
+		Shape->SetRelativeRotation((Leaning.Quaternion() * FQuat(FVector::UpVector, FMath::FRandRange(0.0f, UE_TWO_PI))).Rotator());
+		ClusterSpikes.Add(Shape);
+		ClusterBases.Add(Base);
+		ClusterLeans.Add(Leaning);
+		ClusterHeights.Add(SpikeHeight * (bMain ? 1.15f : FMath::FRandRange(0.55f, 1.0f)));
+		ClusterWidths.Add(Radius * (bMain ? 0.3f : FMath::FRandRange(0.14f, 0.24f)));
+		ClusterDelays.Add(FMath::Clamp((FVector::DotProduct(Base, Ahead) / Radius + 1.0f) * 0.5f, 0.0f, 1.0f) * WaveBoneStagger + FMath::FRandRange(0.0f, 0.03f));
+	}
 }
 
 void AVaelGroundStrike::Strike()

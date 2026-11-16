@@ -220,7 +220,11 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
 - **Zauber des Magiers:**
   - **Knochensturm:** 60 gebrochene, spitze Knochensplitter wirbeln und taumeln um den Magier (Boris 16.11.). Es sind zwölf Bruchstücke von Oberschenkel, Schienbein, Oberarm, Elle, Speiche, Wadenbein und Schlüsselbein, dazu Wirbel. Sie sind 1,7-mal so groß wie echte, damit man sie von oben erkennt.
   - **Bruchstellen:** Jede Bruchstelle ist schräg und splittert in drei bis vier Zacken, eine davon lang und scharf (`broken()` und `jagged_cap()` in `vael_knochen_fab.py`). `VAEL_NUR_SPLITTER=1` baut nur die Splitter neu.
-  - **Knochendornen:** Oberschenkel, Schienbein, Oberarm und Wadenbein brechen schräg aus dem Boden und glimmen violett.
+  - **Knochendornen:** eine rollende Welle (Boris 16.11.). Je Einschlag schießen 9 gebrochene, spitze Knochen schräg aus dem Boden. Es sind Käfigstäbe und Splitter.
+    - Jeder Knochen kommt mit eigener Verzögerung in Laufrichtung, schießt kurz über und gleitet nach 0,85 s zurück in den Boden.
+    - Die Einschläge reichen ineinander.
+    - Der Magier hat keine Warnkreise mehr, Kreaturen (Prediger) behalten sie.
+    - Schaden, Anzahl und Abstand der Einschläge sind unverändert.
   - **Markkäfig:** Je Stab wächst ein Oberschenkel oder Schienbein aus dem Boden, das Gelenk sitzt unten, oben ist er spitz abgebrochen. Darauf biegt sich ein abgebrochenes Unterarm- oder Wadenbein mit Splitterklaue über das Ziel.
   - **Narbenwall:** rohes Fleisch mit echten Rippenbögen, Langknochen und einem halb versunkenen Schädel.
   - Fehlen die Knochen, nehmen die Zauber wieder die alten Kegel.

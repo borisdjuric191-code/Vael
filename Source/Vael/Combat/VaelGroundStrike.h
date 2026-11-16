@@ -135,8 +135,12 @@ private:
 	TArray<float> ClusterHeights;
 	TArray<float> ClusterWidths;
 
-	/** The bone spikes are real bones: they keep their shape and only grow longer, at most as wide as the spike */
+	/** The bone spikes are real bones: whole broken bones shooting out of the ground, each after its own delay in seconds */
 	bool bRealBones = false;
+	TArray<float> ClusterDelays;
+
+	/** The bones of the Knochendornen as a rolling wave away from the caster */
+	void BuildBoneWave(const TArray<UStaticMesh*>& Bones, int32 FirstBone, const FLinearColor& GlowColor);
 
 	/** Glow on the ground at the foot of the cluster, and its light */
 	UPROPERTY(Transient)
