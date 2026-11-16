@@ -1560,3 +1560,20 @@ void AVaelCharacter::SetBurden(float SpeedMultiplier, float Duration)
 	BurdenMultiplier = FMath::Clamp(SpeedMultiplier, 0.0f, 1.0f);
 	BurdenEndTime = GetWorld()->GetTimeSeconds() + Duration;
 }
+
+USkeletalMeshComponent* AVaelCharacter::GetMetaHumanBody() const
+{
+	if (MetaHuman == nullptr)
+	{
+		return nullptr;
+	}
+	TInlineComponentArray<USkeletalMeshComponent*> Meshes(MetaHuman.Get());
+	for (USkeletalMeshComponent* Part : Meshes)
+	{
+		if (Part->GetFName() == TEXT("Body"))
+		{
+			return Part;
+		}
+	}
+	return nullptr;
+}

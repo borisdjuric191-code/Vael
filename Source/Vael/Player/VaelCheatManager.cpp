@@ -25,6 +25,8 @@
 #include "Engineer/VaelForge.h"
 #include "Engineer/VaelWorkbench.h"
 #include "Items/VaelStorageChest.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
@@ -1967,6 +1969,70 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			}
 		}
 	};
+	// Where the Glutpanzer sits against the body that is seen (goal 16.11.): "panzerlage" logs bounds of the helmet, of the face
+	// and of the body of the MetaHuman, and where its head bone is
+	if (What == TEXT("panzerlage"))
+	{
+		USkeletalMeshComponent* Shown = Player->GetMetaHumanBody();
+		const auto Report = [](const TCHAR* Label, const FBoxSphereBounds& B)
+		{
+			UE_LOG(LogVael, Display, TEXT("[Panzerlage] %s z %.1f..%.1f  x %.1f..%.1f  y %.1f..%.1f"), Label, B.Origin.Z - B.BoxExtent.Z, B.Origin.Z + B.BoxExtent.Z,
+				B.Origin.X - B.BoxExtent.X, B.Origin.X + B.BoxExtent.X, B.Origin.Y - B.BoxExtent.Y, B.Origin.Y + B.BoxExtent.Y);
+		};
+		if (Shown != nullptr)
+		{
+			Report(TEXT("MH body"), Shown->Bounds);
+			UE_LOG(LogVael, Display, TEXT("[Panzerlage] MH head bone %s, actor %s, MH scale %s"), *Shown->GetSocketLocation(TEXT("head")).ToString(),
+				*Player->GetActorLocation().ToString(), *Shown->GetComponentScale().ToString());
+			TInlineComponentArray<USkeletalMeshComponent*> Parts(Shown->GetOwner());
+			for (USkeletalMeshComponent* Part : Parts)
+			{
+				Report(*Part->GetName(), Part->Bounds);
+			}
+		}
+		TInlineComponentArray<UStaticMeshComponent*> Pieces(Player);
+		for (UStaticMeshComponent* Piece : Pieces)
+		{
+			if (Piece->GetName().StartsWith(TEXT("EngineerGlutpanzer")) && Piece->IsVisible())
+			{
+				Report(*FString::Printf(TEXT("%s %s"), *Piece->GetName(), *GetNameSafe(Piece->GetStaticMesh())), Piece->Bounds);
+			}
+		}
+		return;
+	}
+	// The bones of the body in the reference pose, in actor space, as AttachPiece reckons them (goal 16.11.: fitting the Glutpanzer
+	// of Tripo in Blender): "knochen" writes Saved/Ingenieur_Knochen.json
+	if (What == TEXT("knochen"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		// the visible body (the MetaHuman) if there is one, its bones in its own component space; else the base look in actor space
+		USkeletalMeshComponent* Shown = Player->GetMetaHumanBody();
+		USkeletalMeshComponent* Body = Shown != nullptr ? Shown : Player->GetMesh();
+		const FTransform Space = Shown != nullptr ? FTransform::Identity : Body->GetRelativeTransform();
+		const FReferenceSkeleton& Skeleton = Body->GetSkeletalMeshAsset()->GetRefSkeleton();
+		FString Json = FString::Printf(TEXT("{\"mesh\": \"%s\", \"component\": {\"loc\": [%f, %f, %f], \"yaw\": %f}, \"bones\": {"),
+			*Body->GetSkeletalMeshAsset()->GetPathName(), Body->GetRelativeLocation().X, Body->GetRelativeLocation().Y, Body->GetRelativeLocation().Z, Body->GetRelativeRotation().Yaw);
+		bool bFirst = true;
+		for (int32 BoneIndex = 0; BoneIndex < Skeleton.GetNum(); ++BoneIndex)
+		{
+			FTransform InComponent = FTransform::Identity;
+			for (int32 Index = BoneIndex; Index != INDEX_NONE; Index = Skeleton.GetParentIndex(Index))
+			{
+				InComponent = InComponent * Skeleton.GetRefBonePose()[Index];
+			}
+			const FTransform InActor = InComponent * Space;
+			const FVector L = InActor.GetLocation();
+			const FQuat Q = InActor.GetRotation();
+			const int32 Parent = Skeleton.GetParentIndex(BoneIndex);
+			Json += FString::Printf(TEXT("%s\"%s\": {\"loc\": [%.3f, %.3f, %.3f], \"quat\": [%.5f, %.5f, %.5f, %.5f], \"parent\": \"%s\"}"), bFirst ? TEXT("") : TEXT(", "),
+				*Skeleton.GetBoneName(BoneIndex).ToString(), L.X, L.Y, L.Z, Q.X, Q.Y, Q.Z, Q.W, Parent != INDEX_NONE ? *Skeleton.GetBoneName(Parent).ToString() : TEXT(""));
+			bFirst = false;
+		}
+		Json += TEXT("}}");
+		FFileHelper::SaveStringToFile(Json, *(FPaths::ProjectSavedDir() / TEXT("Ingenieur_Knochen.json")));
+		UE_LOG(LogVael, Display, TEXT("[Knochen] %d bones of %s written"), Skeleton.GetNum(), *Body->GetSkeletalMeshAsset()->GetName());
+		return;
+	}
 	// The first camp (goal 16.11.): "lager" opens the store chest of the level as he would, then mixes his first shot
 	// (Schlacke + Glutstein = Glutladung) and reports what he has
 	if (What == TEXT("lager"))
@@ -2363,6 +2429,8 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		const FString Set = Id.IsEmpty() ? FString(TEXT("Sichelklinge")) : Id;
 		for (int32 Place = 0; Place < 4; ++Place)
 		{
+			FillMaterials();
+			Engineer->Build(FName(*FString::Printf(TEXT("%s_%d"), *Set, Place)), true);
 			Engineer->Wear(FName(*FString::Printf(TEXT("%s_%d"), *Set, Place)));
 		}
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: wears %s, set count %d, armour %.0f"), *Set, Engineer->CountSet(FName(*Set)), Engineer->GetArmorTotal());

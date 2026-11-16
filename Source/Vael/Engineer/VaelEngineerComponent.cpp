@@ -31,6 +31,7 @@
 #include "World/VaelBalance.h"
 #include "Engine/SkeletalMesh.h"
 #include "TimerManager.h"
+#include "Misc/Paths.h"
 
 #define LOCTEXT_NAMESPACE "VaelEngineer"
 
@@ -145,7 +146,11 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 UStaticMeshComponent* UVaelEngineerComponent::AttachPiece(UStaticMeshComponent* Existing, const TCHAR* Name, const TCHAR* Piece, FName Bone, const FTransform& InActorSpace)
 {
 	AVaelCharacter* Player = GetPlayer();
-	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/%s.%s"), Piece, Piece), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	// a piece of the workshop by its name, or (the Glutpanzer) by its whole path
+	const FString PieceText(Piece);
+	const FString Path = PieceText.StartsWith(TEXT("/Game/")) ? FString::Printf(TEXT("%s.%s"), *PieceText, *FPaths::GetBaseFilename(PieceText))
+		: FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/%s.%s"), Piece, Piece);
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	if (Player == nullptr || Mesh == nullptr)
 	{
 		return Existing;
@@ -237,14 +242,96 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 		const FVaelGear* Gear = GetWorn(Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Place));
 		return Gear != nullptr ? FString::Printf(TEXT("SM_Ing_R_%s_%s"), *Gear->Set.ToString(), Part) : FString();
 	};
-	const FString Head = PieceName(EVaelArmorPlace::Head, TEXT("Kopf"));
+	// The Glutpanzer (goal 16.11.): the Schwarzglut set in the look of the Tripo armour, many pieces per place, each laid in actor
+	// space of the reference pose (Tools/Ingenieur/vael_glutpanzer_bauen.py) and carried by its own bone
+	struct FGlutpanzerPiece { EVaelArmorPlace Place; const TCHAR* Piece; const TCHAR* Bone; };
+	static const FGlutpanzerPiece Glutpanzer[] =
+	{
+		{ EVaelArmorPlace::Head, TEXT("Kopf"), TEXT("head") },
+		{ EVaelArmorPlace::Chest, TEXT("Brust"), TEXT("spine_05") },
+		{ EVaelArmorPlace::Chest, TEXT("Ruecken"), TEXT("spine_03") },
+		{ EVaelArmorPlace::Chest, TEXT("Guertel"), TEXT("pelvis") },
+		{ EVaelArmorPlace::Chest, TEXT("Schulter_L"), TEXT("clavicle_l") },
+		{ EVaelArmorPlace::Chest, TEXT("Schulter_R"), TEXT("clavicle_r") },
+		{ EVaelArmorPlace::Arms, TEXT("Oberarm_L"), TEXT("upperarm_l") },
+		{ EVaelArmorPlace::Arms, TEXT("Unterarm_L"), TEXT("lowerarm_l") },
+		{ EVaelArmorPlace::Arms, TEXT("Unterarm_R"), TEXT("lowerarm_r") },
+		{ EVaelArmorPlace::Arms, TEXT("Hand_L"), TEXT("hand_l") },
+		{ EVaelArmorPlace::Arms, TEXT("Hand_R"), TEXT("hand_r") },
+		{ EVaelArmorPlace::Legs, TEXT("Oberschenkel_L"), TEXT("thigh_l") },
+		{ EVaelArmorPlace::Legs, TEXT("Oberschenkel_R"), TEXT("thigh_r") },
+		{ EVaelArmorPlace::Legs, TEXT("Unterschenkel_L"), TEXT("calf_l") },
+		{ EVaelArmorPlace::Legs, TEXT("Unterschenkel_R"), TEXT("calf_r") },
+		{ EVaelArmorPlace::Legs, TEXT("Fuss_L"), TEXT("foot_l") },
+		{ EVaelArmorPlace::Legs, TEXT("Fuss_R"), TEXT("foot_r") },
+	};
+	constexpr int32 GlutpanzerFirstSlot = 8;
+	TSet<EVaelArmorPlace> GlutpanzerPlaces;
+	// It sits on the body that is seen, the MetaHuman: its pieces are laid in the component space of its reference pose
+	USkeletalMeshComponent* Visible = Player->GetMetaHumanBody();
+	const USkeletalMesh* VisibleMesh = Visible != nullptr ? Visible->GetSkeletalMeshAsset() : nullptr;
+	for (int32 Index = 0; VisibleMesh != nullptr && Index < UE_ARRAY_COUNT(Glutpanzer); ++Index)
+	{
+		const FGlutpanzerPiece& Each = Glutpanzer[Index];
+		const FVaelGear* Gear = GetWorn(Each.Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Each.Place));
+		const int32 BoneIndex = VisibleMesh->GetRefSkeleton().FindBoneIndex(Each.Bone);
+		UStaticMesh* Mesh = Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")) && BoneIndex != INDEX_NONE
+			? LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/SM_Ing_GP_%s.SM_Ing_GP_%s"), Each.Piece, Each.Piece), nullptr, LOAD_NoWarn | LOAD_Quiet)
+			: nullptr;
+		if (Mesh == nullptr)
+		{
+			continue;
+		}
+		const int32 Slot = GlutpanzerFirstSlot + Index;
+		ArmorMeshes.SetNum(FMath::Max(ArmorMeshes.Num(), Slot + 1));
+		UStaticMeshComponent* Hung = ArmorMeshes[Slot];
+		if (Hung == nullptr)
+		{
+			Hung = NewObject<UStaticMeshComponent>(Player, *FString::Printf(TEXT("EngineerGlutpanzer%d"), Index));
+			Hung->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Hung->SetCastShadow(true);
+			Hung->RegisterComponent();
+		}
+		// the bone as it stands in the reference pose, in component space: the piece's own space is that space
+		const FReferenceSkeleton& Skeleton = VisibleMesh->GetRefSkeleton();
+		FTransform BoneRef = FTransform::Identity;
+		for (int32 Each2 = BoneIndex; Each2 != INDEX_NONE; Each2 = Skeleton.GetParentIndex(Each2))
+		{
+			BoneRef = BoneRef * Skeleton.GetRefBonePose()[Each2];
+		}
+		Hung->AttachToComponent(Visible, FAttachmentTransformRules::SnapToTargetNotIncludingScale, Each.Bone);
+		FTransform Relative = BoneRef.Inverse();
+		Relative.SetScale3D(FVector::OneVector);
+		Hung->SetRelativeTransform(Relative);
+		Hung->SetStaticMesh(Mesh);
+		Hung->SetVisibility(true);
+		ArmorMeshes[Slot] = Hung;
+		GlutpanzerPlaces.Add(Each.Place);
+	}
+	const auto Skip = [&GlutpanzerPlaces](EVaelArmorPlace Place) { return GlutpanzerPlaces.Contains(Place); };
+
+	// Under the helmet the hair of the MetaHuman would come through it: the hair grooms hide while the helmet is worn
+	if (AActor* Human = Visible != nullptr ? Visible->GetOwner() : nullptr)
+	{
+		const bool bHelmet = Skip(EVaelArmorPlace::Head);
+		TInlineComponentArray<UPrimitiveComponent*> HumanParts(Human);
+		for (UPrimitiveComponent* Part : HumanParts)
+		{
+			if (Part->GetClass()->GetName().Contains(TEXT("Groom")) && Part->GetName().Contains(TEXT("Hair")))
+			{
+				Part->SetVisibility(!bHelmet);
+			}
+		}
+	}
+
+	const FString Head = Skip(EVaelArmorPlace::Head) ? FString() : PieceName(EVaelArmorPlace::Head, TEXT("Kopf"));
 	if (!Head.IsEmpty() && Body->DoesSocketExist(TEXT("head")))
 	{
 		ArmorMeshes.SetNum(FMath::Max(ArmorMeshes.Num(), 6));
 		const FVector At = Body->GetSocketTransform(TEXT("head"), RTS_Actor).GetLocation() + FVector(2.0f, 0.0f, 15.0f);
 		ArmorMeshes[0] = AttachPiece(ArmorMeshes[0], TEXT("EngineerArmor0"), *Head, TEXT("head"), FTransform(FRotator::ZeroRotator, At));
 	}
-	const FString Chest = PieceName(EVaelArmorPlace::Chest, TEXT("Brust"));
+	const FString Chest = Skip(EVaelArmorPlace::Chest) ? FString() : PieceName(EVaelArmorPlace::Chest, TEXT("Brust"));
 	const FName Spine = Body->DoesSocketExist(TEXT("spine_04")) ? FName(TEXT("spine_04")) : FName(TEXT("spine_03"));
 	if (!Chest.IsEmpty() && Body->DoesSocketExist(Spine))
 	{
@@ -252,13 +339,13 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 		const FVector At = Body->GetSocketTransform(Spine, RTS_Actor).GetLocation() + FVector(0.0f, 0.0f, 16.0f);
 		ArmorMeshes[1] = AttachPiece(ArmorMeshes[1], TEXT("EngineerArmor1"), *Chest, Spine, FTransform(FRotator::ZeroRotator, At));
 	}
-	const FString Arm = PieceName(EVaelArmorPlace::Arms, TEXT("Arm"));
+	const FString Arm = Skip(EVaelArmorPlace::Arms) ? FString() : PieceName(EVaelArmorPlace::Arms, TEXT("Arm"));
 	if (!Arm.IsEmpty())
 	{
 		AttachLimbPiece(2, Arm, TEXT("lowerarm_l"), TEXT("hand_l"), 0.55f);
 		AttachLimbPiece(3, Arm, TEXT("lowerarm_r"), TEXT("hand_r"), 0.55f);
 	}
-	const FString Leg = PieceName(EVaelArmorPlace::Legs, TEXT("Bein"));
+	const FString Leg = Skip(EVaelArmorPlace::Legs) ? FString() : PieceName(EVaelArmorPlace::Legs, TEXT("Bein"));
 	if (!Leg.IsEmpty())
 	{
 		AttachLimbPiece(4, Leg, TEXT("calf_l"), TEXT("foot_l"), 0.45f);
@@ -378,14 +465,22 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	}
 	const bool bShow = Player->IsEngineer();
 	const int32 Tier = bShow ? GetPouchTier() : -1;
-	const bool bGoggles = bShow && HasBuilt(VaelEngineerGear::Goggles);
-	if (Tier == ShownPouchTier && bGoggles == bShownGoggles && bShow == bShownPack)
+	// The Glutpanzer (goal 16.11.): its helmet takes the place of the goggles, its domed back shell the place of the backpack
+	const auto IsPanzer = [this](EVaelArmorPlace Place)
+	{
+		const FVaelGear* Gear = GetWorn(Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Place));
+		return Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut"));
+	};
+	const bool bGoggles = bShow && HasBuilt(VaelEngineerGear::Goggles) && !IsPanzer(EVaelArmorPlace::Head);
+	const bool bPack = bShow && !IsPanzer(EVaelArmorPlace::Chest);
+	if (Tier == ShownPouchTier && bGoggles == bShownGoggles && bShow == bShownPack && bPack == bShownBackpack)
 	{
 		return;
 	}
 	ShownPouchTier = Tier;
 	bShownGoggles = bGoggles;
 	bShownPack = bShow;
+	bShownBackpack = bPack;
 	if (!bShow)
 	{
 		for (UStaticMeshComponent* Piece : { PackMesh.Get(), PouchMesh.Get(), GogglesMesh.Get() })
@@ -401,6 +496,10 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	const float Half = Player->GetSimpleCollisionHalfHeight();
 	PackMesh = AttachPiece(PackMesh, TEXT("EngineerPack"), TEXT("SM_Ing_Rucksack"), TEXT("spine_04"),
 		FTransform(FRotator(0.0f, 180.0f, 0.0f), FVector(-7.0f, 0.0f, Half * 0.22f + 8.0f)));
+	if (PackMesh != nullptr)
+	{
+		PackMesh->SetVisibility(bPack);
+	}
 	const TCHAR* Pouches[] = { TEXT("SM_Ing_Beutel_Leder"), TEXT("SM_Ing_Beutel_Panzer"), TEXT("SM_Ing_Beutel_Seide") };
 	PouchMesh = AttachPiece(PouchMesh, TEXT("EngineerPouches"), Pouches[FMath::Clamp(Tier, 0, 2)], TEXT("pelvis"),
 		FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, Half * 0.02f)));

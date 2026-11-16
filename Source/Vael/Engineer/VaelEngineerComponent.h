@@ -390,6 +390,7 @@ private:
 	int32 ShownPouchTier = -1;
 	bool bShownGoggles = false;
 	bool bShownPack = false;
+	bool bShownBackpack = false;
 	void UpdateCarriedMeshes();
 
 	/** The worn armour on the body: helmet, chest plate, two bracers, two greaves of the set of each piece */

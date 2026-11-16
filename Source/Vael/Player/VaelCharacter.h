@@ -218,6 +218,10 @@ protected:
 
 public:
 
+	/** The body of the MetaHuman shown (its part "Body"), null while the base look is shown: armour that must sit on the visible
+	 *  body hangs on its bones (the Glutpanzer, goal 16.11.) */
+	USkeletalMeshComponent* GetMetaHumanBody() const;
+
 	/** Constructor */
 	AVaelCharacter();
 
