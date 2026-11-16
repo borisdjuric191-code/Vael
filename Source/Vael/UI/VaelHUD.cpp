@@ -255,6 +255,7 @@ void AVaelHUD::DrawHUD()
 	for (const AVaelPlayerController* WheelController : PlayerControllers)
 	{
 		DrawEngineerWheel(WheelController);
+		DrawEngineerIdea(WheelController);
 	}
 	DrawObservation(PlayerControllers);
 

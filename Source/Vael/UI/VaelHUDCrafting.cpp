@@ -7,6 +7,8 @@
 #include "Engine/Canvas.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Engineer/VaelEngineerGear.h"
+#include "Engineer/VaelEngineerIdeas.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Player/VaelCharacter.h"
@@ -78,13 +80,13 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		DrawDisc(Corner, 4.0f * S, CraftCopper);
 	}
 
-	DrawLabel(bWorkbench ? LOCTEXT("EyebrowBench", "WERKBANK DES INGENIEURS · GLUTKAMMER") : LOCTEXT("EyebrowField", "FELDKASTEN AM LAGERFEUER · LADUNGEN, VORRICHTUNGEN, VEREDELN, MISCHEN"),
+	DrawLabel(bWorkbench ? LOCTEXT("EyebrowBench", "WERKBANK UND ESSE DES INGENIEURS") : LOCTEXT("EyebrowField", "FELDKASTEN AM LAGERFEUER · LADUNGEN, VORRICHTUNGEN, VEREDELN, MISCHEN"),
 		Left + Pad, Top + 20.0f * S, 12.0f * S, CraftCopper);
 	DrawLabel(LOCTEXT("Title", "Baupläne"), Left + Pad, Top + 36.0f * S, 34.0f * S, CraftBone);
 
 	// Tabs
 	const int32 TabIndex = PlayerController->GetCraftTab();
-	const float TabWidth = 100.0f * S;
+	const float TabWidth = 92.0f * S;
 	const float TabHeight = 30.0f * S;
 	const float TabTop = Top + 42.0f * S;
 	const float TabsLeft = Left + Width - Pad - VaelCraftTabCount * (TabWidth + 6.0f * S);
@@ -109,6 +111,11 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		DrawCraftMix(PlayerController, Left, Top, Width, Height, BodyTop);
 		return;
 	}
+	if (TabIndex == VaelCraftTabIdeas)
+	{
+		DrawCraftIdeas(PlayerController, Left, Top, Width, Height, BodyTop);
+		return;
+	}
 
 	// ---- the list
 	const TArray<const FVaelGear*> List = AVaelPlayerController::GetCraftList(TabIndex, Engineer);
@@ -129,11 +136,12 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		{
 			DrawFrame(Left + Pad, Y, ListWidth, RowHeight - 4.0f * S, CraftCopper, 2.0f * S);
 		}
-		DrawBox(Left + Pad + 10.0f * S, Y + 12.0f * S, 12.0f * S, 12.0f * S, Gear.Color);
-		DrawLabel(Gear.Name, Left + Pad + 32.0f * S, Y + 4.0f * S, 16.0f * S,
+		const bool bNoIdea = Block == UVaelEngineerComponent::EBuildBlock::NeedsIdea;
+		DrawBox(Left + Pad + 10.0f * S, Y + 12.0f * S, 12.0f * S, 12.0f * S, bNoIdea ? CraftRgb(70, 60, 52) : Gear.Color);
+		DrawLabel(bNoIdea ? LOCTEXT("NoIdeaName", "Noch keine Idee …") : Gear.Name, Left + Pad + 32.0f * S, Y + 4.0f * S, 16.0f * S,
 			Block == UVaelEngineerComponent::EBuildBlock::Ok || bDone ? CraftBone : CraftDim, 0.0f, ListWidth * 0.6f);
 		const FText State = CraftStateText(Engineer, Gear);
-		DrawLabel(State.IsEmpty() ? (Block == UVaelEngineerComponent::EBuildBlock::Ok ? LOCTEXT("CanBuild", "baubar") : FText::GetEmpty()) : State,
+		DrawLabel(State.IsEmpty() ? (Block == UVaelEngineerComponent::EBuildBlock::Ok ? LOCTEXT("CanBuild", "baubar") : bNoIdea ? LOCTEXT("ListNoIdea", "Einfall fehlt") : FText::GetEmpty()) : State,
 			Left + Pad + ListWidth - 10.0f * S, Y + 21.0f * S, 11.0f * S, bDone ? CraftGood : Block == UVaelEngineerComponent::EBuildBlock::Ok ? CraftCopper : CraftDim, 1.0f);
 		if (Gear.Kind == EVaelGearKind::Armor)
 		{
@@ -151,11 +159,26 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 	const float DetailWidth = Left + Width - Pad - DetailLeft;
 	float Y = BodyTop;
 	DrawBox(DetailLeft - 14.0f * S, BodyTop - 4.0f * S, DetailWidth + 14.0f * S, Height - (BodyTop - Top) - 30.0f * S, CraftSheet);
+	const FVaelEngineerIdea* Idea = VaelEngineerIdeas::FindForGear(Gear.Id);
+	if (Idea != nullptr && Engineer->GetBuildBlock(Gear, bWorkbench) == UVaelEngineerComponent::EBuildBlock::NeedsIdea)
+	{
+		DrawLabel(LOCTEXT("RiddleEyebrow", "NOCH KEINE IDEE"), DetailLeft, Y, 12.0f * S, CraftCopper);
+		DrawTitle(LOCTEXT("RiddleTitle", "Ein leeres Blatt im Skizzenbuch"), DetailLeft, Y + 16.0f * S, 24.0f * S, CraftBone, 0.0f, DetailWidth);
+		Y = DrawWrappedLabel(Idea->Hint, DetailLeft, Y + 56.0f * S, 16.0f * S, CraftDim, DetailWidth - 10.0f * S) + 14.0f * S;
+		DrawWrappedLabel(FText::Format(LOCTEXT("RiddleHow", "Ideen kommen von dem, was du triffst: {0} im Kompendium bringt sie."), UVaelCompendiumSubsystem::GetStageWord(Idea->Stage, EVaelCompendiumBook::Bestiary)),
+			DetailLeft, Y, 13.0f * S, CraftCopperDim, DetailWidth - 10.0f * S);
+		return;
+	}
 	DrawLabel(Gear.Name, DetailLeft, Y, 26.0f * S, CraftBone, 0.0f, DetailWidth);
 	Y += 34.0f * S;
 	if (!Gear.Text.IsEmpty())
 	{
 		Y = DrawWrappedLabel(Gear.Text, DetailLeft, Y, 14.0f * S, CraftDim, DetailWidth - 10.0f * S) + 12.0f * S;
+	}
+	if (Idea != nullptr && Engineer->HasIdea(Idea->Id))
+	{
+		DrawLabel(FText::Format(LOCTEXT("FromIdea", "Einfall: {0}"), Idea->Title), DetailLeft, Y, 13.0f * S, CraftCopper, 0.0f, DetailWidth);
+		Y += 22.0f * S;
 	}
 
 	// What it does
@@ -264,8 +287,9 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		ActionColor = CraftGood;
 		break;
 	case UVaelEngineerComponent::EBuildBlock::NeedsFirst: Action = LOCTEXT("BlockFirst", "Erst das Stück davor bauen"); break;
-	case UVaelEngineerComponent::EBuildBlock::NeedsWorkbench: Action = LOCTEXT("BlockBench", "Nur an der Werkbank in der Glutkammer"); break;
+	case UVaelEngineerComponent::EBuildBlock::NeedsWorkbench: Action = LOCTEXT("BlockBench", "Nur an Werkbank oder Esse (Glutkammer, Lager)"); break;
 	case UVaelEngineerComponent::EBuildBlock::NeedsPlan: Action = LOCTEXT("BlockPlan", "Bauplan fehlt – Kreaturen, Bruchstücke und Bosse tragen ihn"); break;
+	case UVaelEngineerComponent::EBuildBlock::NeedsIdea: Action = LOCTEXT("BlockIdea", "Dazu fehlt dir noch die Idee"); break;
 	default: Action = LOCTEXT("BlockMaterials", "Es fehlen Materialien"); ActionColor = CraftBad; break;
 	}
 	DrawLabel(Action, DetailLeft, Top + Height - 70.0f * S, 18.0f * S, ActionColor);
@@ -379,6 +403,99 @@ void AVaelHUD::DrawCraftMix(const AVaelPlayerController* PlayerController, float
 	const FText Confirm = !bPad ? LOCTEXT("MixKeyEnter", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("MixKeyCross", "Kreuz") : LOCTEXT("MixKeyA", "A");
 	DrawLabel(FText::Format(LOCTEXT("MixKeys", "{0}: Teil wählen oder zurücklegen, in der ersten Zeile mischen   ·   {1}: alles zurücklegen"),
 		Confirm, bPad ? LOCTEXT("MixPadDown", "Steuerkreuz runter") : LOCTEXT("MixKeyThree", "3")), Left + Pad, Top + Height - 34.0f * S, 12.0f * S, CraftDim, 0.0f, Width - 2.0f * Pad);
+}
+
+void AVaelHUD::DrawCraftIdeas(const AVaelPlayerController* PlayerController, float Left, float Top, float Width, float Height, float BodyTop)
+{
+	const AVaelCharacter* Player = PlayerController->GetPawn<AVaelCharacter>();
+	const UVaelEngineerComponent* Engineer = Player != nullptr ? Player->GetEngineer() : nullptr;
+	const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+	if (Engineer == nullptr)
+	{
+		return;
+	}
+	const float S = UiScale;
+	const float Pad = 26.0f * S;
+	const TArray<FVaelEngineerIdea>& Ideas = VaelEngineerIdeas::GetAll();
+	const int32 Selected = FMath::Clamp(PlayerController->GetCraftSelection(), 0, FMath::Max(Ideas.Num() - 1, 0));
+
+	// The sketchbook: the ideas on the left, ruled like a notebook, the hidden ones as empty pages
+	const float ListWidth = Width * 0.4f;
+	const float RowHeight = 40.0f * S;
+	const int32 MaxRows = FMath::Max(1, FMath::FloorToInt((Height - (BodyTop - Top) - 60.0f * S) / RowHeight));
+	const int32 First = FMath::Clamp(Selected - MaxRows / 2, 0, FMath::Max(Ideas.Num() - MaxRows, 0));
+	for (int32 Row = 0; Row < MaxRows && First + Row < Ideas.Num(); ++Row)
+	{
+		const FVaelEngineerIdea& Idea = Ideas[First + Row];
+		const bool bHas = Engineer->HasIdea(Idea.Id);
+		const bool bSel = First + Row == Selected;
+		const float Y = BodyTop + Row * RowHeight;
+		DrawBox(Left + Pad, Y, ListWidth, RowHeight - 4.0f * S, bSel ? CraftRgb(60, 40, 26, 240) : CraftSheet);
+		if (bSel)
+		{
+			DrawFrame(Left + Pad, Y, ListWidth, RowHeight - 4.0f * S, CraftCopper, 2.0f * S);
+		}
+		// a small cog: lit for an idea he has, dark for an empty page
+		const FVector2D Cog(Left + Pad + 16.0f * S, Y + 18.0f * S);
+		for (int32 Tooth = 0; Tooth < 8; ++Tooth)
+		{
+			const float Angle = Tooth * UE_TWO_PI / 8.0f;
+			DrawDisc(Cog + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * 7.0f * S, 2.2f * S, bHas ? CraftCopper : CraftRgb(70, 60, 52));
+		}
+		DrawDisc(Cog, 6.5f * S, bHas ? CraftCopper : CraftRgb(70, 60, 52));
+		DrawDisc(Cog, 2.5f * S, bHas ? CraftRgb(255, 220, 150) : CraftSheet);
+		DrawLabel(bHas ? Idea.Title : LOCTEXT("IdeaHidden", "Leeres Blatt"), Left + Pad + 34.0f * S, Y + 4.0f * S, 16.0f * S, bHas ? CraftBone : CraftDim, 0.0f, ListWidth - 44.0f * S);
+		const UVaelCompendiumEntry* Entry = Compendium != nullptr ? Compendium->FindEntry(Idea.Subject) : nullptr;
+		const bool bKnown = Compendium != nullptr && Compendium->GetProgress(Idea.Subject).Stage != EVaelResearchStage::Unknown;
+		const FText Source = Entry != nullptr && bKnown
+			? FText::Format(LOCTEXT("IdeaSource", "{0} · {1}"), Entry->DisplayName, UVaelCompendiumSubsystem::GetStageWord(Idea.Stage, Entry->Book))
+			: LOCTEXT("IdeaSourceUnknown", "etwas, dem du noch nicht begegnet bist");
+		DrawLabel(Source, Left + Pad + 34.0f * S, Y + 22.0f * S, 11.0f * S, CraftDim, 0.0f, ListWidth - 44.0f * S);
+	}
+	int32 Had = 0;
+	for (const FVaelEngineerIdea& Idea : Ideas)
+	{
+		Had += Engineer->HasIdea(Idea.Id) ? 1 : 0;
+	}
+	DrawLabel(FText::Format(LOCTEXT("IdeaCount", "{0} von {1} Ideen der Aschenmark"), Had, Ideas.Num()), Left + Pad, Top + Height - 34.0f * S, 12.0f * S, CraftDim);
+
+	// The page of the idea
+	if (!Ideas.IsValidIndex(Selected))
+	{
+		return;
+	}
+	const FVaelEngineerIdea& Idea = Ideas[Selected];
+	const bool bHas = Engineer->HasIdea(Idea.Id);
+	const float DetailLeft = Left + Pad + ListWidth + 30.0f * S;
+	const float DetailWidth = Left + Width - Pad - DetailLeft;
+	DrawBox(DetailLeft - 14.0f * S, BodyTop - 4.0f * S, DetailWidth + 14.0f * S, Height - (BodyTop - Top) - 30.0f * S, CraftRgb(40, 34, 28, 250));
+	// ruled lines like a page of his notebook
+	for (float Line = BodyTop + 70.0f * S; Line < Top + Height - 50.0f * S; Line += 24.0f * S)
+	{
+		DrawBox(DetailLeft - 6.0f * S, Line, DetailWidth, 1.0f, CraftRgb(70, 58, 46, 120));
+	}
+	float Y = BodyTop + 4.0f * S;
+	DrawLabel(bHas ? LOCTEXT("IdeaPageHas", "EINFALL") : LOCTEXT("IdeaPageNot", "NOCH OFFEN"), DetailLeft, Y, 12.0f * S, CraftCopper);
+	DrawTitle(bHas ? Idea.Title : LOCTEXT("IdeaPageEmpty", "Ein leeres Blatt"), DetailLeft, Y + 16.0f * S, 26.0f * S, CraftBone, 0.0f, DetailWidth);
+	Y += 62.0f * S;
+	Y = DrawWrappedLabel(bHas ? Idea.Thought : Idea.Hint, DetailLeft, Y, 16.0f * S, bHas ? CraftBone : CraftDim, DetailWidth - 10.0f * S) + 18.0f * S;
+
+	DrawLabel(LOCTEXT("IdeaGear", "DARAUS WIRD"), DetailLeft, Y, 11.0f * S, CraftCopper);
+	Y += 18.0f * S;
+	for (const FName Id : Idea.Gear)
+	{
+		const FVaelGear* Gear = VaelEngineerGear::Find(Id);
+		if (Gear == nullptr)
+		{
+			continue;
+		}
+		const bool bBuilt = Engineer->HasBuilt(Id);
+		DrawBox(DetailLeft, Y + 4.0f * S, 10.0f * S, 10.0f * S, bHas ? Gear->Color : CraftRgb(70, 60, 52));
+		DrawLabel(bHas ? Gear->Name : FText::Format(LOCTEXT("IdeaGearHidden", "ein Stück für: {0}"), VaelEngineerGear::GetKindName(Gear->Kind)), DetailLeft + 18.0f * S, Y, 15.0f * S, bHas ? CraftBone : CraftDim);
+		DrawLabel(bBuilt ? LOCTEXT("IdeaBuilt", "gebaut") : bHas ? LOCTEXT("IdeaBuildable", "an Werkbank und Esse") : FText::GetEmpty(),
+			DetailLeft + DetailWidth - 10.0f * S, Y + 2.0f * S, 12.0f * S, bBuilt ? CraftGood : CraftCopper, 1.0f);
+		Y += 22.0f * S;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

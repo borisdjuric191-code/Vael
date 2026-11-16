@@ -128,6 +128,9 @@ private:
 	/** Its Mischen tab: materials, picked parts, the hint of the last try (goal 14.11.) */
 	void DrawCraftMix(const AVaelPlayerController* PlayerController, float Left, float Top, float Width, float Height, float BodyTop);
 
+	/** The sketchbook of the engineer (craft tab Ideen, goal 16.11.): ideas he has had, riddles of those still hidden */
+	void DrawCraftIdeas(const AVaelPlayerController* PlayerController, float Left, float Top, float Width, float Height, float BodyTop);
+
 	/** The engineer's Werkrolle (UI/VaelHUDWerkrolle.cpp) */
 	void DrawWerkrolle(const AVaelPlayerController* PlayerController);
 
@@ -165,6 +168,9 @@ private:
 
 	/** The engineer instead of elements: weapon and reload, the shot, the device (VaelHUDEngineer.cpp) */
 	void DrawEngineerWheel(const AVaelPlayerController* PlayerController);
+
+	/** The moment of an idea: a brass card over his panel with the sketch of the thought (goal 16.11.) */
+	void DrawEngineerIdea(const AVaelPlayerController* PlayerController);
 	void DrawEngineerLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth);
 
 	/** Draws a closed book of the compendium series: cover in its color, strap and seal; lit if it is the open one */

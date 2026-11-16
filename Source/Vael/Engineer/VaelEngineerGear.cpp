@@ -571,7 +571,7 @@ FText VaelEngineerGear::GetPlaceName(EVaelArmorPlace Place)
 
 FText VaelEngineerGear::GetTabName(int32 Tab)
 {
-	return Tab == VaelCraftTabMix ? LOCTEXT("TabMix", "Mischen") : GetKindName(static_cast<EVaelGearKind>(Tab));
+	return Tab == VaelCraftTabMix ? LOCTEXT("TabMix", "Mischen") : Tab == VaelCraftTabIdeas ? LOCTEXT("TabIdeas", "Ideen") : GetKindName(static_cast<EVaelGearKind>(Tab));
 }
 
 FString VaelEngineerGear::GetMixKey(const TArray<FName>& Parts)

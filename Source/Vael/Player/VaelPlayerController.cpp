@@ -5,6 +5,7 @@
 #include "World/VaelProgressSubsystem.h"
 #include "World/VaelTravel.h"
 #include "Engineer/VaelEngineerComponent.h"
+#include "Engineer/VaelEngineerIdeas.h"
 #include "Engineer/VaelWorkbench.h"
 #include "World/VaelFireSpot.h"
 #include "Items/VaelBrewing.h"
@@ -216,6 +217,10 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(EngShieldAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnEngShield, false);
 			EnhancedInputComponent->BindAction(EngAmmoNextAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngAmmo, 1);
 			EnhancedInputComponent->BindAction(EngAmmoPrevAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngAmmo, -1);
+			for (int32 SlotIndex = 0; SlotIndex < EngAmmoSlotActions.Num(); ++SlotIndex)
+			{
+				EnhancedInputComponent->BindAction(EngAmmoSlotActions[SlotIndex], ETriggerEvent::Started, this, &AVaelPlayerController::OnEngAmmoSlot, SlotIndex);
+			}
 			EnhancedInputComponent->BindAction(EngDeviceNextAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngDevice, 1);
 			EnhancedInputComponent->BindAction(EngDevicePrevAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngDevice, -1);
 			EnhancedInputComponent->BindAction(EngWeaponAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnEngWeapon);
@@ -621,12 +626,22 @@ void AVaelPlayerController::CreateEngineerInput()
 		Context->MapKey(EngShieldAction, Key).Triggers.Add(Hold);
 	}
 
-	// The shot: R1 and the mouse wheel
+	// The shot (goal 16.11.): R1 on, d-pad down back, the mouse wheel both ways; on the keyboard 1 takes the endless stone and
+	// 2 to 9 the pockets of the Werkrolle in their order
 	EngAmmoNextAction = CreateAction(TEXT("IA_Ing_LadungVor"));
 	Context->MapKey(EngAmmoNextAction, EKeys::Gamepad_RightShoulder);
 	Context->MapKey(EngAmmoNextAction, EKeys::MouseScrollUp);
 	EngAmmoPrevAction = CreateAction(TEXT("IA_Ing_LadungZurueck"));
 	Context->MapKey(EngAmmoPrevAction, EKeys::MouseScrollDown);
+	Context->MapKey(EngAmmoPrevAction, EKeys::Gamepad_DPad_Down);
+	EngAmmoSlotActions.Reset();
+	const FKey SlotKeys[] = { EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven, EKeys::Eight, EKeys::Nine };
+	for (int32 SlotIndex = 0; SlotIndex < UE_ARRAY_COUNT(SlotKeys); ++SlotIndex)
+	{
+		UInputAction* SlotAction = CreateAction(*FString::Printf(TEXT("IA_Ing_Tasche%d"), SlotIndex + 1));
+		Context->MapKey(SlotAction, SlotKeys[SlotIndex]);
+		EngAmmoSlotActions.Add(SlotAction);
+	}
 
 	// The device: d-pad left / right, Z / C; the weapon: d-pad up, R; ignite every mine: Square, X
 	EngDeviceNextAction = CreateAction(TEXT("IA_Ing_GeraetVor"));
@@ -742,6 +757,16 @@ void AVaelPlayerController::OnEngAmmo(int32 Step)
 	}
 }
 
+void AVaelPlayerController::OnEngAmmoSlot(int32 SlotIndex)
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>(); VaelCharacter != nullptr && VaelCharacter->IsEngineer() && !bGrimoireOpen)
+	{
+		UVaelEngineerComponent* Engineer = VaelCharacter->GetEngineer();
+		const TArray<FName>& Pockets = Engineer->GetPocketKinds();
+		Engineer->PickAmmo(SlotIndex == 0 ? VaelEngineerGear::Standard : Pockets.IsValidIndex(SlotIndex - 1) ? Pockets[SlotIndex - 1] : NAME_None);
+	}
+}
+
 void AVaelPlayerController::OnEngDevice(int32 Step)
 {
 	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>(); VaelCharacter != nullptr && VaelCharacter->IsEngineer())
@@ -803,7 +828,7 @@ TArray<const FVaelGear*> AVaelPlayerController::GetCraftList(int32 Tab, const UV
 bool AVaelPlayerController::IsCraftTabOpen(int32 Tab, bool bAtWorkbench)
 {
 	return bAtWorkbench || Tab == static_cast<int32>(EVaelGearKind::Ammo) || Tab == static_cast<int32>(EVaelGearKind::Device)
-		|| Tab == static_cast<int32>(EVaelGearKind::Refine) || Tab == VaelCraftTabMix;
+		|| Tab == static_cast<int32>(EVaelGearKind::Refine) || Tab == VaelCraftTabMix || Tab == VaelCraftTabIdeas;
 }
 
 void AVaelPlayerController::TurnCraftTab(int32 Step)
@@ -914,9 +939,13 @@ void AVaelPlayerController::StepFigure(int32 Row, int32 Step)
 	VaelCharacter->ApplyFigure(Choice.Height, Choice.Build);
 }
 
-void AVaelPlayerController::OpenCrafting(bool bAtWorkbench)
+void AVaelPlayerController::OpenCrafting(bool bAtWorkbench, int32 StartTab)
 {
 	bCraftAtWorkbench = bAtWorkbench;
+	if (StartTab >= 0)
+	{
+		CraftTab = StartTab;
+	}
 	if (!IsCraftTabOpen(CraftTab, bAtWorkbench))
 	{
 		CraftTab = 1;
@@ -1983,7 +2012,7 @@ void AVaelPlayerController::OnMenuNavigate(const FInputActionValue& Value)
 	if (MenuPage == EVaelMenuPage::Craft)
 	{
 		const AVaelCharacter* Crafter = GetPawn<AVaelCharacter>();
-		const int32 Rows = CraftTab == VaelCraftTabMix ? GetMixList(Crafter).Num() + 1 : GetCraftList(CraftTab, Crafter != nullptr ? Crafter->GetEngineer() : nullptr).Num();
+		const int32 Rows = CraftTab == VaelCraftTabMix ? GetMixList(Crafter).Num() + 1 : CraftTab == VaelCraftTabIdeas ? VaelEngineerIdeas::GetAll().Num() : GetCraftList(CraftTab, Crafter != nullptr ? Crafter->GetEngineer() : nullptr).Num();
 		CraftSelection = FMath::Clamp(CraftSelection + Step, 0, FMath::Max(Rows - 1, 0));
 		return;
 	}
@@ -2110,6 +2139,8 @@ void AVaelPlayerController::OnMenuConfirm()
 				const FText Why = Block == UVaelEngineerComponent::EBuildBlock::Built ? NSLOCTEXT("VaelEngineer", "Built", "Schon gebaut")
 					: Block == UVaelEngineerComponent::EBuildBlock::NeedsFirst ? NSLOCTEXT("VaelEngineer", "NeedsFirst", "Erst das St\u00FCck davor bauen")
 					: Block == UVaelEngineerComponent::EBuildBlock::NeedsWorkbench ? NSLOCTEXT("VaelEngineer", "NeedsBench", "Das geht nur an der Werkbank")
+					: Block == UVaelEngineerComponent::EBuildBlock::NeedsIdea ? NSLOCTEXT("VaelEngineer", "NeedsIdeaBench", "Dazu fehlt ihm noch die Idee")
+					: Block == UVaelEngineerComponent::EBuildBlock::NeedsPlan ? NSLOCTEXT("VaelEngineer", "NeedsPlanBench", "Dazu fehlt der Bauplan")
 					: NSLOCTEXT("VaelEngineer", "Missing", "Es fehlen Materialien");
 				UVaelNoticeSubsystem::Post(this, Why, FText::GetEmpty(), FLinearColor(FColor(158, 143, 125)), 2.0f);
 			}
@@ -3009,6 +3040,7 @@ void AVaelPlayerController::WerkrolleAction(int32 Pad)
 		return;
 	}
 	const FText Why = Block == UVaelEngineerComponent::EBuildBlock::NeedsPlan ? NSLOCTEXT("VaelEngineer", "NeedsPlan", "Dazu fehlt der Bauplan")
+		: Block == UVaelEngineerComponent::EBuildBlock::NeedsIdea ? NSLOCTEXT("VaelEngineer", "NeedsIdea", "Dazu fehlt ihm noch die Idee")
 		: Block == UVaelEngineerComponent::EBuildBlock::NeedsWorkbench ? NSLOCTEXT("VaelEngineer", "NeedsBench", "Das geht nur an der Werkbank")
 		: Block == UVaelEngineerComponent::EBuildBlock::Full ? NSLOCTEXT("VaelEngineer", "Full", "Rolle und Rucksack sind voll")
 		: NSLOCTEXT("VaelEngineer", "Missing", "Es fehlen Materialien");

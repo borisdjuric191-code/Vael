@@ -66,6 +66,7 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 		bHoldsSling = Engineer->IsHoldingSling();
 		SlingKick = Engineer->GetSlingKick();
 		SlingTremble = Engineer->GetSlingTremble();
+		SlingRelease = Engineer->GetReleasePull();
 		SlingClock = GetWorld() != nullptr ? static_cast<float>(FMath::Fmod(GetWorld()->GetTimeSeconds(), 1000.0)) : 0.0f;
 	}
 	else
@@ -172,6 +173,7 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	SlingKick = Instance->SlingKick;
 	SlingTremble = Instance->SlingTremble;
 	SlingClock = Instance->SlingClock;
+	SlingRelease = Instance->SlingRelease;
 	GestureRelease = MagicSettings->GetGestureRelease(Gesture);
 	GestureDuration = MagicSettings->GetGestureDuration(Gesture);
 }
@@ -749,20 +751,29 @@ void FVaelAnimProxy::ApplySlingDraw(FCSPose<FCompactPose>& Pose, const FBoneCont
 	const float W = FMath::SmoothStep(0.0f, 1.0f, SlingAim);
 	const float D = FMath::SmoothStep(0.0f, 1.0f, SlingDraw);
 
-	// An archer's stance: the chest turns a little to the left, the shot side back
+	// An archer's stance: the chest turns a little to the left, the shot side back; the further he draws the more he turns into it
+	// and leans back against the band (goal 16.11.), and the release throws the chest forward after the stone, harder after a
+	// full draw, before he settles
 	const FCompactPoseBoneIndex UpperL = Find(TEXT("upperarm_l"));
 	const FVector ChestAt = Pose.GetComponentSpaceTransform(Chest).GetLocation();
 	const float OutwardL = UpperL != INDEX_NONE ? FMath::Sign(Pose.GetComponentSpaceTransform(UpperL).GetLocation().X - ChestAt.X) : -1.0f;
+	const float Follow = FMath::Sin(SlingKick * UE_PI) * (0.4f + 0.6f * SlingRelease);
 	for (const TCHAR* Spine : { TEXT("spine_02"), TEXT("spine_03"), TEXT("spine_04") })
 	{
-		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(OutwardL * 7.0f * W)));
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::ZAxisVector, FMath::DegreesToRadians(OutwardL * (7.0f + 5.0f * D - 6.0f * Follow) * W)));
+		TurnPoseBone(Pose, Find(Spine), FQuat(FVector::XAxisVector, FMath::DegreesToRadians((2.5f * D - 4.0f * Follow) * W)));
+	}
+	// The head leans to the drawing hand, the eye along the band
+	if (const FCompactPoseBoneIndex Neck = Find(TEXT("neck_01")); Neck != INDEX_NONE)
+	{
+		TurnPoseBone(Pose, Neck, FQuat(FVector::YAxisVector, FMath::DegreesToRadians(-OutwardL * 6.0f * D * W)));
 	}
 
 	// The fork out before him at shoulder height, the arm almost straight
 	const FVector Chest2 = Pose.GetComponentSpaceTransform(Chest).GetLocation();
 	const FVector HeadAt = Head != INDEX_NONE ? Pose.GetComponentSpaceTransform(Head).GetLocation() : Chest2 + FVector(0.0f, 0.0f, 25.0f);
 	// The release kicks the fork forward and up a little; at full draw both arms tremble with the strain
-	const float Kick = FMath::Sin(SlingKick * UE_PI * 0.5f);
+	const float Kick = FMath::Sin(SlingKick * UE_PI * 0.5f) * (0.5f + 0.5f * SlingRelease);
 	const FVector Shake = SlingTremble * 0.7f * FVector(FMath::Sin(SlingClock * 41.0f), FMath::Sin(SlingClock * 37.0f + 1.3f) * 0.5f, FMath::Sin(SlingClock * 53.0f + 0.4f));
 	const FVector Grip = Chest2 + FVector(OutwardL * 4.0f, 52.0f + 4.0f * Kick, 6.0f + 5.0f * Kick) + Shake;
 	for (int32 Side = 0; Side < 2; ++Side)

@@ -95,6 +95,110 @@ AVaelEngineerShot::FLook AVaelEngineerShot::GetLook(FName Ammo)
 	return Look;
 }
 
+
+UStaticMesh* AVaelEngineerShot::GetShotMesh(FName Ammo)
+{
+	const FVaelGear* Gear = Ammo != VaelEngineerGear::Standard ? VaelEngineerGear::Find(Ammo) : nullptr;
+	const FName Hull = Gear != nullptr ? Gear->Hull : NAME_None;
+	const TCHAR* Name = Gear == nullptr ? TEXT("SM_Ing_Stein")
+		: Hull == FName(TEXT("Blasenhaut")) ? TEXT("SM_Ing_Ladung_Blasenhaut")
+		: Hull == FName(TEXT("Latex")) ? TEXT("SM_Ing_Ladung_Latex")
+		: Hull == FName(TEXT("Schlackenglas")) ? TEXT("SM_Ing_Ladung_Glas")
+		: Hull == FName(TEXT("Hohlkiel")) ? TEXT("SM_Ing_Ladung_Kiel")
+		: TEXT("SM_Ing_Ladung_Schlacke");
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Ladungen/%s.%s"), Name, Name), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	// before the import of the pieces: the rock of the mage's stones
+	return Mesh != nullptr ? Mesh : LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Rock_Collection_04/Meshes/Rock_03/StaticMeshes/SM_Rock_03.SM_Rock_03"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+}
+
+void AVaelEngineerShot::DressShot(UStaticMeshComponent* Mesh, FName Ammo, float Diameter, float GlowBoost)
+{
+	if (Mesh == nullptr)
+	{
+		return;
+	}
+	UStaticMesh* Shape = GetShotMesh(Ammo);
+	if (Shape == nullptr)
+	{
+		return;
+	}
+	if (Mesh->GetStaticMesh() != Shape)
+	{
+		Mesh->SetStaticMesh(Shape);
+		Mesh->EmptyOverrideMaterials();
+	}
+	const float Extent = FMath::Max(Shape->GetBoundingBox().GetSize().GetMax(), 0.1f);
+	Mesh->SetWorldScale3D(FVector(Diameter / Extent));
+	const FLook Look = GetLook(Ammo);
+	const FVaelGear* Gear = Ammo != VaelEngineerGear::Standard ? VaelEngineerGear::Find(Ammo) : nullptr;
+	const bool bOwnPiece = Shape->GetPathName().Contains(TEXT("/Ladungen/"));
+	for (int32 Slot = 0; Slot < Mesh->GetNumMaterials(); ++Slot)
+	{
+		const FName SlotName = Shape->GetStaticMaterials().IsValidIndex(Slot) ? Shape->GetStaticMaterials()[Slot].MaterialSlotName : NAME_None;
+		const FString SlotText = SlotName.ToString();
+		if (!bOwnPiece)
+		{
+			// the stand-in rock: tinted by the ammo, glowing in its cracks
+			if (UMaterialInterface* RockLook = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_03.MI_AM_Rock_03"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+			{
+				Mesh->SetMaterial(Slot, RockLook);
+			}
+		}
+		if (SlotText.StartsWith(TEXT("Kern")))
+		{
+			if (UMaterialInstanceDynamic* Material = Mesh->CreateAndSetMaterialInstanceDynamic(Slot))
+			{
+				Material->SetVectorParameterValue(TEXT("Farbe"), Look.Color);
+				Material->SetScalarParameterValue(TEXT("Glut"), FMath::Max(Look.Glow, 0.35f) * GlowBoost);
+			}
+		}
+		else if (SlotText.StartsWith(TEXT("Latex")))
+		{
+			if (UMaterialInstanceDynamic* Material = Mesh->CreateAndSetMaterialInstanceDynamic(Slot))
+			{
+				Material->SetVectorParameterValue(TEXT("Farbe"), Look.Color);
+			}
+		}
+		else if (!bOwnPiece || SlotText.StartsWith(TEXT("Schlacke")) || SlotText.StartsWith(TEXT("Stein")))
+		{
+			if (UMaterialInstanceDynamic* Material = Mesh->CreateAndSetMaterialInstanceDynamic(Slot))
+			{
+				// slag is dark and porous, the plain stone grey; the stand-in rock takes the colour of the ammo
+				const FLinearColor Tint = !bOwnPiece && Gear != nullptr ? FMath::Lerp(FLinearColor(0.6f, 0.58f, 0.56f), Look.Color, 0.85f)
+					: SlotText.StartsWith(TEXT("Schlacke")) ? FLinearColor(0.22f, 0.2f, 0.19f) : FLinearColor(0.7f, 0.68f, 0.65f);
+				Material->SetVectorParameterValue(TEXT("Tint"), Tint);
+				Material->SetScalarParameterValue(TEXT("Asche"), 0.15f);
+				Material->SetScalarParameterValue(TEXT("Glut"), !bOwnPiece ? Look.Glow : SlotText.StartsWith(TEXT("Schlacke")) ? 0.4f : 0.0f);
+			}
+		}
+	}
+}
+
+void AVaelEngineerShot::AddStreak(const FLinearColor& Color, float Strength, float Width, float Length)
+{
+	UStaticMesh* Ribbon = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Ladungen/SM_Ing_Spur.SM_Ing_Spur"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (Ribbon == nullptr)
+	{
+		return;
+	}
+	Streak = NewObject<UStaticMeshComponent>(this, TEXT("Spur"));
+	Streak->SetStaticMesh(Ribbon);
+	Streak->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Streak->SetCastShadow(false);
+	Streak->SetUsingAbsoluteRotation(true);
+	Streak->SetUsingAbsoluteScale(true);
+	Streak->SetupAttachment(RootComponent);
+	Streak->RegisterComponent();
+	if (UMaterialInstanceDynamic* Material = Streak->CreateAndSetMaterialInstanceDynamic(0))
+	{
+		Material->SetVectorParameterValue(TEXT("Farbe"), Color);
+		Material->SetScalarParameterValue(TEXT("Staerke"), Strength);
+	}
+	StreakWidth = Width;
+	StreakLength = Length;
+	Streak->SetWorldScale3D(FVector(0.01f, Width / 100.0f, Width / 100.0f));
+}
+
 AVaelEngineerShot* AVaelEngineerShot::Launch(UVaelEngineerComponent* InEngineer, const FVector& From, const FVector& To, float Speed, float InArc, float InDamage,
 	FName InAmmo, bool bInPierce, const FLinearColor& Color, float Size, bool bInStone)
 {
@@ -163,6 +267,28 @@ AVaelEngineerShot* AVaelEngineerShot::Launch(UVaelEngineerComponent* InEngineer,
 		Shot->Glow->SetCastShadows(false);
 		Shot->Glow->RegisterComponent();
 	}
+	// The sling throws a real piece (goal 16.11.): the plain stone, or the hull of its formula with the core glowing in its colour
+	if (bInStone)
+	{
+		Shot->bStone = true;
+		DressShot(Shot->Body, InAmmo, Size * 1.6f * Look.Scale);
+		const FName Hull = AmmoGear != nullptr ? AmmoGear->Hull : NAME_None;
+		Shot->bNeedle = Hull == FName(TEXT("Hohlkiel"));
+		const bool bSoft = Hull == FName(TEXT("Latex")) || Hull == FName(TEXT("Blasenhaut"));
+		// a stone tumbles, a soft capsule wobbles slowly, a needle flies point first
+		Shot->Spin = Shot->bNeedle ? FRotator::ZeroRotator : bSoft ? FRotator(FMath::FRandRange(120.0f, 220.0f), FMath::FRandRange(-90.0f, 90.0f), FMath::FRandRange(60.0f, 140.0f))
+			: FRotator(FMath::FRandRange(500.0f, 900.0f), FMath::FRandRange(-300.0f, 300.0f), FMath::FRandRange(300.0f, 700.0f));
+		Shot->AddStreak(AmmoGear != nullptr ? FMath::Lerp(Look.Color, FLinearColor::White, 0.15f) : FLinearColor(0.62f, 0.57f, 0.5f),
+			AmmoGear != nullptr ? 0.9f + 0.35f * Look.Glow : 0.22f, AmmoGear != nullptr ? 10.0f : 7.0f, AmmoGear != nullptr ? 120.0f : 80.0f);
+		VaelEffects::SpawnAt(World, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustPuffEffect), From, FRotator::ZeroRotator, FLinearColor(0.32f, 0.29f, 0.26f), 6.0f);
+		if (AmmoGear != nullptr)
+		{
+			// the special shot leaves the pouch with a little flash of its colour
+			VaelEffects::SpawnAt(World, VaelAssets::LoadOptional(Magic->HandEffect), From, FRotator::ZeroRotator, Look.Color, 10.0f);
+		}
+		return Shot;
+	}
+
 	// A drop (glue, water, light, healing): a round blob in its colour instead of a stone
 	if (bInStone && Look.bDrop)
 	{
@@ -202,6 +328,8 @@ AVaelEngineerShot* AVaelEngineerShot::Launch(UVaelEngineerComponent* InEngineer,
 		return Shot;
 	}
 	Shot->Body->SetWorldScale3D(FVector(Size / 50.0f) * FVector(Speed > 3000.0f ? 3.2f : 1.3f, 1.0f, 1.0f));
+	// arrows and bolts draw a thin bright line behind them
+	Shot->AddStreak(AmmoGear != nullptr ? Look.Color : FLinearColor(0.85f, 0.8f, 0.7f), AmmoGear != nullptr ? 1.0f : 0.35f, 4.0f, Speed > 3000.0f ? 180.0f : 130.0f);
 	if (UMaterialInstanceDynamic* Material = Shot->Body->CreateAndSetMaterialInstanceDynamic(0))
 	{
 		Material->SetVectorParameterValue(TEXT("Color"), Color);
@@ -224,10 +352,28 @@ void AVaelEngineerShot::Tick(float DeltaSeconds)
 	const float Alpha = FMath::Clamp(Age / FlightTime, 0.0f, 1.0f);
 	const FVector Location = FMath::Lerp(Start, End, Alpha) + FVector(0.0f, 0.0f, 4.0f * Arc * Alpha * (1.0f - Alpha));
 	SetActorLocation(Location);
-	if (bStone)
+	const FVector Way = Location - LastLocation;
+	if (FParse::Param(FCommandLine::Get(), TEXT("VaelZwilleLog")))
+	{
+		UE_LOG(LogTemp, Display, TEXT("[Schuss] age %.2f/%.2f at %s scale %s mesh %s visible %d"), Age, FlightTime, *Location.ToCompactString(), *Body->GetComponentScale().ToCompactString(),
+			Body->GetStaticMesh() != nullptr ? *Body->GetStaticMesh()->GetName() : TEXT("none"), Body->IsVisible());
+	}
+	if (bNeedle && !Way.IsNearlyZero())
+	{
+		SetActorRotation(Way.Rotation());
+	}
+	else if (bStone)
 	{
 		// A thrown stone tumbles
 		SetActorRotation(Spin * Age);
+	}
+	if (Streak != nullptr && !Way.IsNearlyZero())
+	{
+		// the streak grows out of the hand over the first tenth of a second, then trails at the length of its speed
+		const float Speed = Way.Size() / FMath::Max(DeltaSeconds, 0.001f);
+		const float Length = FMath::Min(StreakLength * FMath::Clamp(Speed / 2000.0f, 0.4f, 1.6f), FVector::Dist(Location, Start)) ;
+		Streak->SetWorldRotation(Way.Rotation());
+		Streak->SetWorldScale3D(FVector(FMath::Max(Length, 1.0f) / 100.0f, StreakWidth / 100.0f, StreakWidth / 100.0f));
 	}
 	// Its trail: a puff every so many centimetres
 	if (TrailPuff != nullptr && TrailEvery > 0.0f)
@@ -239,7 +385,7 @@ void AVaelEngineerShot::Tick(float DeltaSeconds)
 			VaelEffects::SpawnAt(this, TrailPuff, Location, FRotator::ZeroRotator, TrailColor, TrailRadius);
 		}
 	}
-	else if (!(Location - LastLocation).IsNearlyZero())
+	else if (!bStone && !(Location - LastLocation).IsNearlyZero())
 	{
 		SetActorRotation((Location - LastLocation).Rotation());
 	}

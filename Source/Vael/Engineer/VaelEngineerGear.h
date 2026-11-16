@@ -24,7 +24,10 @@ enum class EVaelGearKind : uint8
 
 /** The craft tab where he mixes materials to find new formulas of shots (goal 14.11.: formulas are learned by trying) */
 inline constexpr int32 VaelCraftTabMix = 6;
-inline constexpr int32 VaelCraftTabCount = 7;
+
+/** The sketchbook of his ideas (goal 16.11.): what he has thought of, and riddles of what he still may */
+inline constexpr int32 VaelCraftTabIdeas = 7;
+inline constexpr int32 VaelCraftTabCount = 8;
 
 /** What a shot does where it hits, besides its damage */
 enum class EVaelAmmoEffect : uint8

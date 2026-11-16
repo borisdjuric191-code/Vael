@@ -96,6 +96,10 @@ struct FVaelSavedPlayer
 	/** The kinds of shots with a pocket in his Werkrolle */
 	UPROPERTY()
 	TArray<FName> EngineerPockets;
+
+	/** Ideas he has had from what the group met (goal 16.11.) */
+	UPROPERTY()
+	TArray<FName> EngineerIdeas;
 };
 
 /** State of a region */

@@ -8,6 +8,8 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Engineer/VaelEngineerGear.h"
+#include "Engineer/VaelEngineerIdeas.h"
+#include "Kismet/GameplayStatics.h"
 #include "Player/VaelCharacter.h"
 #include "Player/VaelPlayerController.h"
 
@@ -180,7 +182,7 @@ void AVaelHUD::DrawEngineerLegend(const AVaelPlayerController* PlayerController,
 	const float AmmoLeft = Left + ColumnWidth;
 	const FName Ammo = Engineer->GetAmmo();
 	const bool bStandard = Ammo == VaelEngineerGear::Standard;
-	DrawLabel(bKeyboard ? LOCTEXT("AmmoKey", "LADUNG · Mausrad") : bPlayStation ? LOCTEXT("AmmoPS", "LADUNG · R1") : LOCTEXT("AmmoXbox", "LADUNG · RB"),
+	DrawLabel(bKeyboard ? LOCTEXT("AmmoKey", "LADUNG · Mausrad, 1–9") : bPlayStation ? LOCTEXT("AmmoPS", "LADUNG · R1 / ↓") : LOCTEXT("AmmoXbox", "LADUNG · RB / ↓"),
 		AmmoLeft, Top, 10.0f * S, Copper);
 	DrawBox(AmmoLeft, Top + 16.0f * S, 10.0f * S, 10.0f * S, Engineer->GetAmmoColor());
 	DrawLabel(Engineer->GetAmmoName(), AmmoLeft + 16.0f * S, Top + 13.0f * S, 15.0f * S, Bone, 0.0f, ColumnWidth - 26.0f * S);
@@ -196,6 +198,76 @@ void AVaelHUD::DrawEngineerLegend(const AVaelPlayerController* PlayerController,
 		DeviceLeft, Top + 13.0f * S, 15.0f * S, Device != nullptr ? Bone : Dim, 0.0f, ColumnWidth - 8.0f * S);
 	DrawLabel(FText::Format(bKeyboard ? LOCTEXT("PlacedKey", "{0} gelegt · X zündet") : bPlayStation ? LOCTEXT("PlacedPS", "{0} gelegt · Viereck zündet") : LOCTEXT("PlacedXbox", "{0} gelegt · X zündet"),
 		Engineer->GetNumPlaced()), DeviceLeft, Top + 33.0f * S, 11.0f * S, Dim, 0.0f, ColumnWidth - 8.0f * S);
+}
+
+void AVaelHUD::DrawEngineerIdea(const AVaelPlayerController* PlayerController)
+{
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	const UVaelEngineerComponent* Engineer = Player != nullptr && Player->IsEngineer() ? Player->GetEngineer() : nullptr;
+	if (Engineer == nullptr || PlayerController->IsGrimoireOpen())
+	{
+		return;
+	}
+	const float Age = Engineer->GetSecondsSinceIdea();
+	constexpr float Hold = 8.0f;
+	const FVaelEngineerIdea* Idea = Age < Hold ? VaelEngineerIdeas::Find(Engineer->GetLastIdea()) : nullptr;
+	if (Idea == nullptr)
+	{
+		return;
+	}
+	const float S = UiScale;
+	// In and out: slides up out of his panel, stays, fades
+	const float In = FMath::SmoothStep(0.0f, 0.35f, Age);
+	const float Out = 1.0f - FMath::SmoothStep(Hold - 1.0f, Hold, Age);
+	const float Alpha = In * Out;
+	const auto Fade = [Alpha](FLinearColor Color) { Color.A *= Alpha; return Color; };
+
+	const float Width = 460.0f * S;
+	const float Height = 132.0f * S;
+	const int32 Side = UGameplayStatics::GetPlayerControllerID(const_cast<AVaelPlayerController*>(PlayerController)) % 2;
+	const float X = Side == 0 ? 40.0f * S : Canvas->ClipX - 40.0f * S - Width;
+	const float Y = Canvas->ClipY - 280.0f * S - Height - (1.0f - In) * 24.0f * S;
+
+	// A brass-bound card of dark leather, rivets in the corners
+	DrawBox(X, Y, Width, Height, Fade(EngRgb(22, 17, 14, 238)));
+	DrawFrame(X, Y, Width, Height, Fade(EngRgb(196, 154, 74)), 2.0f * S);
+	DrawFrame(X + 5.0f * S, Y + 5.0f * S, Width - 10.0f * S, Height - 10.0f * S, Fade(EngRgb(176, 87, 74, 170)), 1.0f);
+	for (const FVector2D& Corner : { FVector2D(X + 10.0f * S, Y + 10.0f * S), FVector2D(X + Width - 10.0f * S, Y + 10.0f * S),
+		FVector2D(X + 10.0f * S, Y + Height - 10.0f * S), FVector2D(X + Width - 10.0f * S, Y + Height - 10.0f * S) })
+	{
+		DrawDisc(Corner, 3.5f * S, Fade(EngRgb(196, 154, 74)));
+	}
+
+	// The cog of the class, turning while the thought sinks in, a spark in its middle that flares up at the start
+	const FVector2D Cog(X + 58.0f * S, Y + Height * 0.5f);
+	const float Turn = Age * 0.9f;
+	for (int32 Tooth = 0; Tooth < 10; ++Tooth)
+	{
+		const float Angle = Turn + Tooth * UE_TWO_PI / 10.0f;
+		DrawDisc(Cog + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * 32.0f * S, 7.0f * S, Fade(EngRgb(176, 132, 62)));
+	}
+	DrawDisc(Cog, 32.0f * S, Fade(EngRgb(176, 132, 62)));
+	DrawDisc(Cog, 24.0f * S, Fade(EngRgb(60, 38, 24)));
+	const float Spark = 0.55f + 0.45f * FMath::Exp(-Age * 2.5f) + 0.08f * FMath::Sin(Age * 6.0f);
+	DrawDisc(Cog, 15.0f * S * Spark, Fade(EngRgb(255, 190, 90, 120)));
+	DrawDisc(Cog, 9.0f * S * Spark, Fade(EngRgb(255, 226, 160)));
+
+	const float TextLeft = X + 112.0f * S;
+	const float TextWidth = Width - 130.0f * S;
+	DrawLabel(LOCTEXT("IdeaEyebrow", "EINFALL"), TextLeft, Y + 14.0f * S, 11.0f * S, Fade(EngRgb(206, 140, 70)));
+	DrawTitle(Idea->Title, TextLeft, Y + 26.0f * S, 22.0f * S, Fade(EngRgb(240, 228, 204)), 0.0f, TextWidth);
+	const float After = DrawWrappedLabel(Idea->Thought, TextLeft, Y + 54.0f * S, 12.0f * S, Fade(EngRgb(176, 162, 140)), TextWidth);
+	// What it makes possible
+	TArray<FString> Names;
+	for (const FName Id : Idea->Gear)
+	{
+		if (const FVaelGear* Gear = VaelEngineerGear::Find(Id))
+		{
+			Names.Add(Gear->Name.ToString());
+		}
+	}
+	DrawLabel(FText::Format(LOCTEXT("IdeaUnlocks", "Neuer Bauplan: {0}"), FText::FromString(FString::Join(Names, TEXT(", ")))),
+		TextLeft, FMath::Min(After + 4.0f * S, Y + Height - 24.0f * S), 12.0f * S, Fade(EngRgb(196, 154, 74)), 0.0f, TextWidth);
 }
 
 #undef LOCTEXT_NAMESPACE

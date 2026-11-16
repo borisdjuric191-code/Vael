@@ -9,6 +9,8 @@
 #include "Engine/StaticMesh.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Engineer/VaelEngineerDevice.h"
+#include "Engineer/VaelEngineerIdeas.h"
+#include "Compendium/VaelCompendiumSubsystem.h"
 #include "Engineer/VaelEngineerShot.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
@@ -67,6 +69,10 @@ void UVaelEngineerComponent::ResetToStart()
 	WeaponBranches.Reset();
 	Plans.Reset();
 	Formulas.Reset();
+	Ideas.Reset();
+	bIdeasPrimed = false;
+	LastIdea = NAME_None;
+	LastBuilt = NAME_None;
 	Tried.Reset();
 	Pockets.Reset();
 	DelayedBlasts.Reset();
@@ -109,6 +115,10 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	}
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
+	// Ideas: whatever the group has met by now; the first look after the start or a load takes them without a fuss
+	CheckIdeas(bIdeasPrimed);
+	bIdeasPrimed = true;
+
 	UpdateWeaponMesh();
 	UpdateSling(DeltaTime);
 	UpdateCarriedMeshes();
@@ -482,9 +492,9 @@ UVaelEngineerComponent::EBuildBlock UVaelEngineerComponent::GetBuildBlock(const 
 	{
 		return EBuildBlock::NeedsFirst;
 	}
-	if (Gear.bNeedsPlan && !Plans.Contains(Gear.Id))
+	if (!KnowsRecipe(Gear))
 	{
-		return EBuildBlock::NeedsPlan;
+		return VaelEngineerIdeas::FindForGear(Gear.Id) != nullptr ? EBuildBlock::NeedsIdea : EBuildBlock::NeedsPlan;
 	}
 	if (Gear.IsFormula() && !Formulas.Contains(Gear.Id))
 	{
@@ -584,6 +594,8 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 	}
 	}
 
+	LastBuilt = Id;
+	LastBuiltTime = Now();
 	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("Built", "Gebaut: {0}"), Gear->Name), Gear->Color);
 	UVaelSaveSubsystem::RequestSave(Player);
 	UE_LOG(LogVael, Log, TEXT("Engineer: %s builds %s (pouch %d, stock %d)"), *Player->GetName(), *Id.ToString(), GetCarried(Id), GetStock(Id));
@@ -709,6 +721,15 @@ void UVaelEngineerComponent::CycleAmmo(int32 Step)
 	BeginGrab(Shots[(Current + Step + Shots.Num()) % Shots.Num()]);
 }
 
+void UVaelEngineerComponent::PickAmmo(FName Id)
+{
+	if (Id.IsNone() || (Id != VaelEngineerGear::Standard && GetCarried(Id) + GetStock(Id) <= 0) || Id == (IsGrabbing() ? GrabAmmo : Ammo))
+	{
+		return;
+	}
+	BeginGrab(Id);
+}
+
 void UVaelEngineerComponent::BeginGrab(FName Id)
 {
 	LastCycle = Now();
@@ -767,7 +788,7 @@ FName UVaelEngineerComponent::FindPlan(float Chance)
 	TArray<const FVaelGear*> Unknown;
 	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
 	{
-		if (Gear.bNeedsPlan && !Plans.Contains(Gear.Id))
+		if (Gear.bNeedsPlan && !Plans.Contains(Gear.Id) && !KnowsRecipe(Gear))
 		{
 			Unknown.Add(&Gear);
 		}
@@ -786,12 +807,70 @@ FName UVaelEngineerComponent::FindPlan(float Chance)
 
 void UVaelEngineerComponent::LearnAllPlans()
 {
+	LearnAllIdeas();
 	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
 	{
 		if (Gear.bNeedsPlan)
 		{
 			Plans.Add(Gear.Id);
 		}
+	}
+}
+
+bool UVaelEngineerComponent::KnowsRecipe(const FVaelGear& Gear) const
+{
+	if (Plans.Contains(Gear.Id))
+	{
+		return true;
+	}
+	if (const FVaelEngineerIdea* Idea = VaelEngineerIdeas::FindForGear(Gear.Id))
+	{
+		return Ideas.Contains(Idea->Id);
+	}
+	return !Gear.bNeedsPlan;
+}
+
+void UVaelEngineerComponent::CheckIdeas(bool bTell)
+{
+	const UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(this);
+	if (Compendium == nullptr)
+	{
+		return;
+	}
+	for (const FVaelEngineerIdea& Idea : VaelEngineerIdeas::GetAll())
+	{
+		if (!Ideas.Contains(Idea.Id) && Compendium->GetProgress(Idea.Subject).Stage >= Idea.Stage)
+		{
+			LearnIdea(Idea.Id, bTell);
+		}
+	}
+}
+
+void UVaelEngineerComponent::LearnIdea(FName Id, bool bTell)
+{
+	const FVaelEngineerIdea* Idea = VaelEngineerIdeas::Find(Id);
+	if (Idea == nullptr || Ideas.Contains(Id))
+	{
+		return;
+	}
+	Ideas.Add(Id);
+	UE_LOG(LogVael, Log, TEXT("Engineer: idea %s (%s, stage %d) unlocks %d recipes"), *Id.ToString(), *Idea->Subject.ToString(), static_cast<int32>(Idea->Stage), Idea->Gear.Num());
+	if (!bTell)
+	{
+		return;
+	}
+	// The moment of the idea: a word over his head and the card on the HUD (AVaelHUD::DrawEngineerIdea)
+	LastIdea = Id;
+	LastIdeaTime = Now();
+	UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("Idea", "Einfall!"));
+	UVaelSaveSubsystem::RequestSave(GetOwner());
+}
+
+void UVaelEngineerComponent::LearnAllIdeas()
+{
+	for (const FVaelEngineerIdea& Idea : VaelEngineerIdeas::GetAll())
+	{
+		Ideas.Add(Idea.Id);
 	}
 }
 
@@ -936,6 +1015,7 @@ bool UVaelEngineerComponent::ReleaseDraw(const FVector& AimLocation)
 	{
 		// The slingshot: the further the band is pulled, the further and harder the stone flies (8 m tapped, 24 m full)
 		const float Pull = FMath::Clamp(Held / SlingFullDraw, 0.0f, 1.0f);
+		ReleasePull = Pull;
 		ShotReach = FMath::Lerp(800.0f, 2400.0f, Pull);
 		const bool bFired = Fire(AimLocation, FMath::Lerp(0.6f, 1.4f, Pull), false);
 		ShotReach = 0.0f;
@@ -1974,6 +2054,7 @@ void UVaelEngineerComponent::WriteSave(FVaelSavedPlayer& Saved) const
 	Saved.EngineerFormulas = Formulas.Array();
 	Saved.EngineerTried = Tried.Array();
 	Saved.EngineerPockets = Pockets;
+	Saved.EngineerIdeas = Ideas.Array();
 }
 
 void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
@@ -1990,6 +2071,7 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 	Stock = Saved.EngineerStock;
 	Formulas = TSet<FName>(Saved.EngineerFormulas);
 	Tried = TSet<FString>(Saved.EngineerTried);
+	Ideas = TSet<FName>(Saved.EngineerIdeas);
 	// Saves from before the formulas (goal 14.11.): what he carries he knows how to make
 	for (const TMap<FName, int32>* Held : { &Carried, &Stock })
 	{
@@ -2128,7 +2210,38 @@ void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 	// The band gives easily at first and harder towards the cheek: the pull eases out
 	const float DrawShare = bDrawing ? FMath::Clamp(GetDrawSeconds() / SlingFullDraw, 0.0f, 1.0f) : 0.0f;
 	const float WantDraw = 1.0f - FMath::Square(1.0f - DrawShare);
-	SlingDrawShown = bDrawing ? WantDraw : FMath::FInterpConstantTo(SlingDrawShown, 0.0f, DeltaTime, 14.0f);
+	if (bDrawing)
+	{
+		PouchSwing = WantDraw;
+		PouchSwingSpeed = 0.0f;
+		bPouchSnapping = false;
+	}
+	else if (!bPouchSnapping && PouchSwing > 0.02f)
+	{
+		// The release (goal 16.11.): the band snaps the pouch forward, through the fork and out ahead of it, where it swings
+		// back and forth a few times and settles; a full draw throws it further
+		bPouchSnapping = true;
+		PouchSwingSpeed = -(9.0f + 9.0f * ReleasePull);
+	}
+	if (!bDrawing)
+	{
+		// a stiff, lightly damped spring round the rest behind the fork, in small steps so a long frame doesn't blow it up
+		constexpr float Stiffness = 520.0f;
+		constexpr float Damping = 9.0f;
+		const int32 Steps = FMath::Clamp(FMath::CeilToInt(DeltaTime / 0.008f), 1, 16);
+		const float Step = DeltaTime / Steps;
+		for (int32 Index = 0; Index < Steps; ++Index)
+		{
+			PouchSwingSpeed += (-Stiffness * PouchSwing - Damping * PouchSwingSpeed) * Step;
+			PouchSwing += PouchSwingSpeed * Step;
+		}
+		if (FMath::Abs(PouchSwing) < 0.002f && FMath::Abs(PouchSwingSpeed) < 0.05f)
+		{
+			PouchSwing = PouchSwingSpeed = 0.0f;
+			bPouchSnapping = false;
+		}
+	}
+	SlingDrawShown = FMath::Max(PouchSwing, 0.0f);
 
 	// The fork stands upright in the left fist, the tips ahead; hanging down along the leg while he does not aim
 	USkeletalMeshComponent* Body = Player->GetMesh();
@@ -2175,7 +2288,10 @@ void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 	SlingTips(TipL, TipR);
 	const FVector Middle = (TipL + TipR) * 0.5f;
 	const FVector Rest = Middle - Held.Vector() * 6.0f - FVector(0.0f, 0.0f, 3.0f);
-	const FVector Pouch = FMath::Lerp(Rest, HandR + Held.Vector() * 3.0f, FMath::Max(SlingDrawShown, SlingAim * 0.12f));
+	const FVector Drawn = HandR + Held.Vector() * 3.0f;
+	const FVector Pouch = PouchSwing >= 0.0f
+		? FMath::Lerp(Rest, Drawn, FMath::Max(PouchSwing, bDrawing ? SlingAim * 0.12f : 0.0f))
+		: Rest - Held.Vector() * PouchSwing * 16.0f + FVector(0.0f, 0.0f, -PouchSwing * 5.0f);
 	const FVector Across = (TipR - TipL).GetSafeNormal();
 	PouchShell->SetWorldLocationAndRotation(Pouch, FRotationMatrix::MakeFromYZ(Across, FVector::UpVector).Rotator());
 
@@ -2195,22 +2311,13 @@ void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 	if (bLoaded)
 	{
 		const AVaelEngineerShot::FLook Look = AVaelEngineerShot::GetLook(Ammo);
-		if (PouchLoadAmmo != Ammo || PouchLoad->GetStaticMesh() == nullptr)
+		// the real piece of the shot (goal 16.11.); at full draw its core flares up: the moment to let go
+		const bool bFull = GetDrawSeconds() >= SlingFullDraw;
+		if (PouchLoadAmmo != Ammo || PouchLoad->GetStaticMesh() == nullptr || bPouchLoadFull != bFull)
 		{
 			PouchLoadAmmo = Ammo;
-			UStaticMesh* Shape = Look.bDrop ? LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"))
-				: LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Rock_Collection_04/Meshes/Rock_03/StaticMeshes/SM_Rock_03.SM_Rock_03"), nullptr, LOAD_NoWarn | LOAD_Quiet);
-			PouchLoad->SetStaticMesh(Shape);
-			PouchLoad->SetMaterial(0, Look.bDrop ? LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"))
-				: LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Maps/Aschenmark/Kulisse/Pack/MI_AM_Rock_03.MI_AM_Rock_03"), nullptr, LOAD_NoWarn | LOAD_Quiet));
-			if (UMaterialInstanceDynamic* Material = PouchLoad->CreateAndSetMaterialInstanceDynamic(0))
-			{
-				Material->SetVectorParameterValue(TEXT("Color"), Look.Color * (1.0f + Look.Glow));
-				Material->SetVectorParameterValue(TEXT("Tint"), Look.Color);
-				Material->SetScalarParameterValue(TEXT("Glut"), Look.Glow);
-			}
-			const float Extent = Shape != nullptr ? FMath::Max(Shape->GetBoundingBox().GetSize().GetMax(), 1.0f) : 100.0f;
-			PouchLoad->SetWorldScale3D(FVector(5.0f * Look.Scale / Extent));
+			bPouchLoadFull = bFull;
+			AVaelEngineerShot::DressShot(PouchLoad, Ammo, 5.5f * Look.Scale, bFull ? 2.2f : 1.0f);
 		}
 		PouchLoad->SetWorldLocationAndRotation(Pouch + FVector(0.0f, 0.0f, 1.5f), Held);
 	}

@@ -7,6 +7,7 @@
 #include "VaelEngineerShot.generated.h"
 
 class UStaticMeshComponent;
+class UStaticMesh;
 class UPointLightComponent;
 class UNiagaraSystem;
 class UVaelEngineerComponent;
@@ -50,6 +51,13 @@ public:
 	};
 	static FLook GetLook(FName Ammo);
 
+	/** The piece a shot of the sling is (goal 16.11.): the plain stone, or the hull of its formula (slag, bladder, latex, glass, quill) */
+	static UStaticMesh* GetShotMesh(FName Ammo);
+
+	/** Gives a mesh the look of a shot: its piece, the core in the colour of the formula, sized to this diameter (cm); also the
+	 *  load lying in the pouch of the sling while he draws (GlowBoost lets it shine at full draw) */
+	static void DressShot(UStaticMeshComponent* Mesh, FName Ammo, float Diameter, float GlowBoost = 1.0f);
+
 private:
 
 	TWeakObjectPtr<UVaelEngineerComponent> Engineer;
@@ -67,6 +75,16 @@ private:
 
 	/** A sling stone: a small tumbling rock with a puff of dust where it lands, instead of a bolt of light */
 	bool bStone = false;
+
+	/** A needle of Hohlkiel flies point first instead of tumbling */
+	bool bNeedle = false;
+
+	/** The streak behind it in flight (SM_Ing_Spur): its width and its length at a speed of 20 m/s */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> Streak;
+	float StreakWidth = 8.0f;
+	float StreakLength = 100.0f;
+	void AddStreak(const FLinearColor& Color, float Strength, float Width, float Length);
 	FRotator Spin = FRotator::ZeroRotator;
 
 	/** The trail it leaves: puffs of an effect every so many centimetres of its flight */

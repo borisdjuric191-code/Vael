@@ -21,6 +21,7 @@
 #include "Combat/VaelAttributeSet.h"
 #include "AbilitySystemComponent.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
+#include "Engineer/VaelEngineerIdeas.h"
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
@@ -1963,6 +1964,84 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			}
 		}
 	};
+	// Showcase of the sling (goal 16.11.): "zwille [Ladung]" draws for 1.2 s and lets go every 2.6 s, straight ahead
+	if (What == TEXT("zwille"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		Engineer->LearnAllFormulas();
+		if (!Id.IsEmpty())
+		{
+			Engineer->Build(FName(*Id), true);
+			Engineer->SetAmmo(FName(*Id));
+		}
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		const FName Shot = Id.IsEmpty() ? VaelEngineerGear::Standard : FName(*Id);
+		FTimerHandle Loop;
+		GetWorld()->GetTimerManager().SetTimer(Loop, FTimerDelegate::CreateLambda([WeakEng, WeakPlayer, Shot]()
+		{
+			if (!WeakEng.IsValid() || !WeakPlayer.IsValid())
+			{
+				return;
+			}
+			if (Shot != VaelEngineerGear::Standard && WeakEng->GetCarried(Shot) <= 0)
+			{
+				WeakEng->Build(Shot, true);
+			}
+			WeakEng->SetAmmo(Shot);
+			WeakEng->StartDraw();
+			FTimerHandle Release;
+			WeakPlayer->GetWorldTimerManager().SetTimer(Release, FTimerDelegate::CreateLambda([WeakEng, WeakPlayer]()
+			{
+				if (WeakEng.IsValid() && WeakPlayer.IsValid())
+				{
+					WeakEng->ReleaseDraw(WeakPlayer->GetActorLocation() + WeakPlayer->GetActorForwardVector() * 1500.0f);
+				}
+			}), 1.2f, false);
+		}), 2.6f, true, 0.3f);
+		return;
+	}
+	// Ideas (goal 16.11.): "ideen" lists them, "ideen alle" gives every one, "ideen test" checks that meeting a creature gives
+	// its idea and unlocks its recipe, "ideen <Id>" shows the card of one
+	if (What == TEXT("ideen"))
+	{
+		if (Id == TEXT("alle"))
+		{
+			Engineer->LearnAllIdeas();
+		}
+		else if (Id == TEXT("test"))
+		{
+			Engineer->ResetToStart();
+			FillMaterials();
+			const FVaelGear* Branch = VaelEngineerGear::Find(TEXT("Glutschleuder"));
+			const bool bLockedBefore = Branch != nullptr && Engineer->GetBuildBlock(*Branch, true) == UVaelEngineerComponent::EBuildBlock::NeedsIdea;
+			UVaelCompendiumSubsystem* Compendium = UVaelCompendiumSubsystem::Get(Player);
+			if (Compendium != nullptr)
+			{
+				Compendium->SetStage(TEXT("Glutkriecher"), EVaelResearchStage::Sighted);
+			}
+			Engineer->CheckIdeas(true);
+			const bool bIdea = Engineer->HasIdea(TEXT("Krustenglut")) && Engineer->GetLastIdea() == FName(TEXT("Krustenglut"));
+			const bool bOpenAfter = Branch != nullptr && Engineer->GetBuildBlock(*Branch, true) == UVaelEngineerComponent::EBuildBlock::Ok;
+			const bool bArmorStillLocked = !Engineer->HasIdea(TEXT("Schwarzglut"));
+			const bool bPass = bLockedBefore && bIdea && bOpenAfter && bArmorStillLocked;
+			UE_LOG(LogVael, Display, TEXT("[IdeenTest] %s: locked before %d, idea %d, open after %d, armour still locked %d, %d ideas in all"), bPass ? TEXT("PASS") : TEXT("FAIL"),
+				bLockedBefore, bIdea, bOpenAfter, bArmorStillLocked, VaelEngineerIdeas::GetAll().Num());
+			return;
+		}
+		else if (!Id.IsEmpty())
+		{
+			Engineer->LearnIdea(FName(*Id), true);
+		}
+		for (const FVaelEngineerIdea& Idea : VaelEngineerIdeas::GetAll())
+		{
+			UE_LOG(LogVael, Display, TEXT("[Ideen] %s %s (%s, stage %d): %d recipes"), Engineer->HasIdea(Idea.Id) ? TEXT("+") : TEXT("-"), *Idea.Id.ToString(),
+				*Idea.Subject.ToString(), static_cast<int32>(Idea.Stage), Idea.Gear.Num());
+		}
+		return;
+	}
 
 	if (What == TEXT("material"))
 	{

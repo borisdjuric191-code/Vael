@@ -39,7 +39,28 @@ public:
 	// --- Building
 
 	/** Why a piece can't be built right now; Ok if it can */
-	enum class EBuildBlock : uint8 { Ok, Built, NeedsFirst, NeedsWorkbench, Materials, Full, NeedsPlan, Unknown };
+	enum class EBuildBlock : uint8 { Ok, Built, NeedsFirst, NeedsWorkbench, Materials, Full, NeedsPlan, Unknown, NeedsIdea };
+
+	// --- Ideas (goal 16.11.): what he meets gives him ideas; an idea unlocks fixed recipes of weapons, armour and tools
+
+	bool HasIdea(FName Id) const { return Ideas.Contains(Id); }
+	int32 GetNumIdeas() const { return Ideas.Num(); }
+
+	/** Whether the idea or the blueprint of a recipe is his (true for recipes that need neither) */
+	bool KnowsRecipe(const FVaelGear& Gear) const;
+
+	/** Takes the ideas the compendium of the group has earned by now; bTell shows the moment of the idea */
+	void CheckIdeas(bool bTell);
+	void LearnIdea(FName Id, bool bTell);
+	void LearnAllIdeas();
+
+	/** The last idea he had and how long ago, for the card on the HUD */
+	FName GetLastIdea() const { return LastIdea; }
+	float GetSecondsSinceIdea() const { return LastIdea.IsNone() ? 1000.0f : Now() - LastIdeaTime; }
+
+	/** The last piece he built and when (the forge throws sparks) */
+	FName GetLastBuilt() const { return LastBuilt; }
+	float GetSecondsSinceBuilt() const { return LastBuilt.IsNone() ? 1000.0f : Now() - LastBuiltTime; }
 
 	// --- Formulas of shots (goal 14.11.): found by mixing at the workbench or the field box, then built like any recipe
 
@@ -119,6 +140,9 @@ public:
 	/** The next shot he has in the pouches (R1, mouse wheel) */
 	void CycleAmmo(int32 Step);
 
+	/** Reaches for one kind of shot straight away (keyboard 1 to 9); nothing if he has none of it */
+	void PickAmmo(FName Id);
+
 	/** Fires once towards the aim point if the weapon is ready; holding the button fires again and again.
 	 *  DrawScale: how far the bow was drawn (1.0, 1.35, 1.8); bDrawPierce: a full draw goes through */
 	bool Fire(const FVector& AimLocation, float DrawScale = 1.0f, bool bDrawPierce = false);
@@ -141,6 +165,12 @@ public:
 
 	/** Trembling of the arms when he holds the band at full draw: 0 to 1 over a second */
 	float GetSlingTremble() const;
+
+	/** How far the band was pulled at the last release (0..1): a full draw snaps harder */
+	float GetReleasePull() const { return ReleasePull; }
+
+	/** Where the pouch is: 1 drawn, 0 at rest, below 0 swinging out ahead of the fork after the release */
+	float GetPouchSwing() const { return PouchSwing; }
 
 	/** Seconds to pull the slingshot band all the way */
 	static constexpr float SlingFullDraw = 1.0f;
@@ -270,6 +300,7 @@ public:
 private:
 
 	AVaelCharacter* GetPlayer() const;
+	float Now() const;
 
 	/** The weapon in his hand: shown while he plays the engineer, the mesh of the weapon he holds */
 	void UpdateWeaponMesh();
@@ -288,6 +319,7 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> PouchLoad;
 	FName PouchLoadAmmo;
+	bool bPouchLoadFull = false;
 
 	/** Makes sure the Zwille follows the hand every frame: the component itself ticks only four times a second, so the
 	 *  Zwille hangs on the body's "pose is final" callback (goal 9.11.: it lagged behind and moved in steps) */
@@ -305,13 +337,20 @@ private:
 
 	float SlingAim = 0.0f;
 	float SlingDrawShown = 0.0f;
+
+	/** The pouch after the release (goal 16.11.): a spring that snaps it forward through the fork and lets it swing out; 1 drawn,
+	 *  0 at rest behind the fork, below 0 ahead of the fork */
+	float PouchSwing = 0.0f;
+	float PouchSwingSpeed = 0.0f;
+	bool bPouchSnapping = false;
+	/** The pull at the moment of the release, for the snap and the follow-through */
+	float ReleasePull = 0.0f;
 	float SlingLastShot = -100.0f;
 
 	/** The reach of the next shot, set by how far the slingshot was drawn (cm); 0 = the reach of the weapon */
 	float ShotReach = 0.0f;
 
 	FName ShownWeapon;
-	float Now() const;
 	void ApplyHealthBonus();
 
 	UPROPERTY()
@@ -397,6 +436,15 @@ private:
 
 	UPROPERTY()
 	TSet<FString> Tried;
+
+	/** Ideas he has had (goal 16.11.) */
+	UPROPERTY()
+	TSet<FName> Ideas;
+	FName LastIdea;
+	float LastIdeaTime = -100.0f;
+	bool bIdeasPrimed = false;
+	FName LastBuilt;
+	float LastBuiltTime = -100.0f;
 
 	/** The kinds of shots that have a pocket in the Werkrolle (also when the pocket is empty right now) */
 	UPROPERTY()

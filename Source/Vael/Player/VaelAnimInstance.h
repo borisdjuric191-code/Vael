@@ -71,6 +71,7 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	float SlingKick = 0.0f;
 	float SlingTremble = 0.0f;
 	float SlingClock = 0.0f;
+	float SlingRelease = 0.0f;
 	void ApplyGroundIK(FCSPose<FCompactPose>& Pose, const FBoneContainer& Bones) const;
 
 private:
@@ -223,6 +224,7 @@ protected:
 	float SlingKick = 0.0f;
 	float SlingTremble = 0.0f;
 	float SlingClock = 0.0f;
+	float SlingRelease = 0.0f;
 	float CastExhaustion = 0.0f;
 	int32 CastSkateSide = 0;
 

@@ -312,6 +312,9 @@ protected:
 	TObjectPtr<UInputAction> EngAmmoPrevAction;
 
 	UPROPERTY(Transient)
+	TArray<TObjectPtr<UInputAction>> EngAmmoSlotActions;
+
+	UPROPERTY(Transient)
 	TObjectPtr<UInputAction> EngDeviceNextAction;
 
 	UPROPERTY(Transient)
@@ -477,7 +480,7 @@ public:
 	bool IsPlacePage() const { return MenuPage == EVaelMenuPage::Shop || MenuPage == EVaelMenuPage::Brew || MenuPage == EVaelMenuPage::Sow || MenuPage == EVaelMenuPage::Board || MenuPage == EVaelMenuPage::Craft; }
 
 	/** The engineer's page of building: at the workbench everything, at the field box only shots and devices */
-	void OpenCrafting(bool bAtWorkbench);
+	void OpenCrafting(bool bAtWorkbench, int32 StartTab = -1);
 	int32 GetCraftTab() const { return CraftTab; }
 
 	/** The pocket picked in the Werkrolle, and the pockets in their order (shots, then devices) */
@@ -575,6 +578,8 @@ protected:
 	void OnEngPlace();
 	void OnEngShield(bool bHeld);
 	void OnEngAmmo(int32 Step);
+	/** Keyboard 1 to 9: the endless stone, then the pockets of the Werkrolle in their order */
+	void OnEngAmmoSlot(int32 SlotIndex);
 	void OnEngDevice(int32 Step);
 	void OnEngWeapon();
 	void OnEngIgnite();
