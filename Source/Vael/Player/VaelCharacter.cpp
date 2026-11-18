@@ -582,7 +582,7 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 
 	if (bIsDodging)
 	{
-		if (GetWorld()->GetTimeSeconds() >= DodgeEndTime)
+		if (GetWorld()->GetTimeSeconds() >= DodgeEndTime && !(IsEngineer() && Engineer->WantsRollOn()))
 		{
 			EndDodge();
 
@@ -667,6 +667,7 @@ bool AVaelCharacter::StartDodge(const FVector& WorldDirection)
 	CurrentDodgeSpeed = DodgeSpeed;
 	DashBurstRadius = 0.0f;
 	DodgeEndTime = Now + DodgeDuration;
+	DodgeSafeEndTime = DodgeEndTime;
 	NextDodgeTime = Now + DodgeCooldown;
 
 	BeginRollLook(LoadedDodgeMontage, DodgeDuration * DodgeLookStretch);
@@ -694,6 +695,7 @@ bool AVaelCharacter::StartSpellDash(const FVector& WorldDirection, float Speed, 
 	DashBurstRadius = BurstRadius;
 	DashStartLocation = GetActorLocation();
 	DodgeEndTime = GetWorld()->GetTimeSeconds() + Duration;
+	DodgeSafeEndTime = DodgeEndTime;
 
 	// A Böe is skated (the gesture poses the stride): no roll, only the body turned the way it goes
 	float GestureSeconds = 0.0f;
@@ -1179,7 +1181,25 @@ void AVaelCharacter::EndDodge()
 
 bool AVaelCharacter::IsInvulnerable() const
 {
-	return bIsDodging || GetWorld()->GetTimeSeconds() < InvulnerableEndTime;
+	const float Now = GetWorld()->GetTimeSeconds();
+	return (bIsDodging && Now < DodgeSafeEndTime) || Now < InvulnerableEndTime;
+}
+
+void AVaelCharacter::HoldDodge(const FVector& WorldDirection, float Speed, float Until)
+{
+	if (!bIsDodging)
+	{
+		return;
+	}
+	const FVector Direction = WorldDirection.GetSafeNormal2D();
+	if (!Direction.IsNearlyZero())
+	{
+		DodgeDirection = Direction;
+		SetActorRotation(DodgeDirection.Rotation());
+	}
+	CurrentDodgeSpeed = Speed;
+	DodgeEndTime = FMath::Max(DodgeEndTime, Until);
+	NextDodgeTime = FMath::Max(NextDodgeTime, DodgeEndTime + 0.4f);
 }
 
 void AVaelCharacter::SetInvulnerableFor(float Seconds)

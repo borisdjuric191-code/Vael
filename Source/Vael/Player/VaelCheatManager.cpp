@@ -2,6 +2,7 @@
 
 #include "Player/VaelCheatManager.h"
 #include "Engine/StaticMeshActor.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Nature/VaelHarvestable.h"
 #include "Nature/VaelHarvestableData.h"
 #include "Nature/VaelPlantLifeComponent.h"
@@ -816,6 +817,22 @@ void UVaelCheatManager::VaelMaterial(const FString& Name, int32 Count)
 		return;
 	}
 
+	// "alle": every material of the game, to look at all their pictures (Boris 17.11.)
+	if (Name.Equals(TEXT("alle"), ESearchCase::IgnoreCase))
+	{
+		TArray<FAssetData> Found;
+		FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get().GetAssetsByPath(FName(TEXT("/Game/Vael/Items/Materials")), Found);
+		for (const FAssetData& Each : Found)
+		{
+			if (const UVaelMaterial* Material = Cast<UVaelMaterial>(Each.GetAsset()))
+			{
+				VaelCharacter->GetMaterialBag()->AddMaterial(Material, FMath::Max(Count, 1));
+			}
+		}
+		UE_LOG(LogVael, Log, TEXT("VaelMaterial alle: %d"), Found.Num());
+		return;
+	}
+
 	const FString AssetName = TEXT("DA_Material_") + Name;
 	const FSoftObjectPath Path(FString::Printf(TEXT("/Game/Vael/Items/Materials/%s.%s"), *AssetName, *AssetName));
 
@@ -1337,10 +1354,27 @@ void UVaelCheatManager::VaelMenue(const FString& Page)
 {
 	if (AVaelPlayerController* VaelController = Cast<AVaelPlayerController>(GetOuterAPlayerController()))
 	{
-		const EVaelMenuPage Open = Page.StartsWith(TEXT("i"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Inventory : Page.StartsWith(TEXT("k"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Compendium
+		// "Ruestung" or "Ruestung<n>": the engineer's toolbox open on its armour tab, piece n picked (Boris 17.11.)
+		const bool bArmor = Page.StartsWith(TEXT("r"), ESearchCase::IgnoreCase);
+		const bool bBag = Page.StartsWith(TEXT("b"), ESearchCase::IgnoreCase);
+		const EVaelMenuPage Open = Page.StartsWith(TEXT("i"), ESearchCase::IgnoreCase) || bArmor || bBag ? EVaelMenuPage::Inventory : Page.StartsWith(TEXT("k"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Compendium
 			: Page.StartsWith(TEXT("a"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Quests : Page.StartsWith(TEXT("g"), ESearchCase::IgnoreCase) ? EVaelMenuPage::Hero : EVaelMenuPage::Formulas;
 		VaelController->CloseGrimoire();
 		VaelController->OpenGrimoire(Open);
+		if (bBag)
+		{
+			// "Beutel<n>": the tab n of the bag (Boris 17.11., pictures of the materials)
+			VaelController->ShowBagTab(FCString::Atoi(*Page.RightChop(6)));
+		}
+		if (bArmor)
+		{
+			int32 Digits = Page.Len();
+			while (Digits > 0 && FChar::IsDigit(Page[Digits - 1]))
+			{
+				--Digits;
+			}
+			VaelController->ShowInventoryRow(FCString::Atoi(*Page.Mid(Digits)));
+		}
 	}
 }
 
@@ -2422,11 +2456,18 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}), 0.7f, true);
 		return;
 	}
+	if (What == TEXT("ablegen"))
+	{
+		// Takes the piece off a place (0 helmet, 1 chest, 2 arms, 3 legs, 4 shield); it goes back into the toolbox
+		const int32 Place = FMath::Clamp(FCString::Atoi(*Id), 0, 4);
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur ablegen %d: %d"), Place, Engineer->TakeOff(static_cast<EVaelArmorPlace>(Place)));
+		return;
+	}
 	if (What == TEXT("ruestung"))
 	{
-		// Everything built, the set named in Id worn on all four places (Rollpanzer, Sichelklinge, Russfeder, Blutschuppen)
+		// Everything built, the set named in Id worn on all four places (since 17.11. only Schwarzglut is in the game)
 		VaelIngenieur(TEXT("alles"));
-		const FString Set = Id.IsEmpty() ? FString(TEXT("Sichelklinge")) : Id;
+		const FString Set = Id.IsEmpty() ? FString(TEXT("Schwarzglut")) : Id;
 		for (int32 Place = 0; Place < 4; ++Place)
 		{
 			FillMaterials();
@@ -2434,6 +2475,108 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			Engineer->Wear(FName(*FString::Printf(TEXT("%s_%d"), *Set, Place)));
 		}
 		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: wears %s, set count %d, armour %.0f"), *Set, Engineer->CountSet(FName(*Set)), Engineer->GetArmorTotal());
+		return;
+	}
+	if (What == TEXT("panzerschild"))
+	{
+		// The Glutpanzer with its back shell as shield (16.11.): the whole Schwarzglut set and the Klappschild worn the first
+		// time; with a number the shell holds still that far between back (0) and front (1), for pictures of the roll
+		if (Engineer->GetWorn(EVaelArmorPlace::Shield).IsNone())
+		{
+			Player->SetHero(EVaelHeroClass::Engineer, false);
+			VaelIngenieur(TEXT("alles"));
+			for (int32 Place = 0; Place < 5; ++Place)
+			{
+				FillMaterials();
+				const FName Piece(*FString::Printf(TEXT("Schwarzglut_%d"), Place));
+				Engineer->Build(Piece, true);
+				Engineer->Wear(Piece);
+			}
+		}
+		const float Open = Id.IsEmpty() ? -1.0f : FCString::Atof(*Id);
+		Engineer->SetShieldPreview(Open);
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur panzerschild: set %d, shield %d, preview %.2f"), Engineer->CountSet(TEXT("Schwarzglut")), Engineer->HasShield(), Open);
+		return;
+	}
+	if (What == TEXT("armschleuder"))
+	{
+		// The Panzerschleuder (16.11.): the whole Schwarzglut set and the sling; with a number the aim holds still (0 = fork
+		// back on the forearm, 1 = slid forward over the fist), for pictures
+		VaelIngenieur(TEXT("panzerschild"));
+		Engineer->ForceBranch(VaelEngineerGear::Sling, Engineer->GetBranch(VaelEngineerGear::Sling));
+		Engineer->SetSlingAimPreview(Id.IsEmpty() ? -1.0f : FCString::Atof(*Id));
+		for (UActorComponent* Each : Player->GetComponents())
+		{
+			if (const UStaticMeshComponent* Mesh = Cast<UStaticMeshComponent>(Each); Mesh != nullptr && Mesh->GetName().StartsWith(TEXT("EngineerArmSling")))
+			{
+				UE_LOG(LogVael, Log, TEXT("VaelIngenieur armschleuder: %s visible %d mesh %s at %s (actor space)"), *Mesh->GetName(), Mesh->IsVisible(), *GetNameSafe(Mesh->GetStaticMesh()),
+					*Player->GetActorTransform().InverseTransformPosition(Mesh->GetComponentLocation()).ToCompactString());
+			}
+		}
+		return;
+	}
+	if (What == TEXT("kugel") || What == TEXT("kugelstehen") || What == TEXT("kugelwand"))
+	{
+		// The Panzerkugel (17.11.): the whole Schwarzglut set and a dodge straight ahead, the button held for the seconds
+		// given (none: a plain tap); "kugelstehen" shows the ball standing still, for pictures
+		VaelIngenieur(TEXT("panzerschild"));
+		Engineer->SetShieldPreview(-1.0f);
+		Engineer->SetBallPreview(What == TEXT("kugelstehen"));
+		if (What != TEXT("kugelstehen"))
+		{
+			const float Hold = Id.IsEmpty() ? 0.0f : FCString::Atof(*Id);
+			Engineer->SetRollHeld(Hold > 0.0f);
+			// Rolls the way with the most room, away from tables and fences
+			FVector Away = Player->GetActorForwardVector();
+			float Room = -1.0f;
+			for (int32 Step = 0; Step < 16; ++Step)
+			{
+				const FVector Way = FVector::ForwardVector.RotateAngleAxis(Step * 22.5f, FVector::UpVector);
+				FHitResult Block;
+				const FVector From = Player->GetActorLocation() - FVector(0.0f, 0.0f, 40.0f);
+				const float Free = GetWorld()->SweepSingleByChannel(Block, From, From + Way * 2500.0f, FQuat::Identity, ECC_WorldStatic, FCollisionShape::MakeSphere(30.0f), FCollisionQueryParams(NAME_None, false, Player))
+					? Block.Distance : 2500.0f;
+				// "kugelwand": the nearest wall at least a few metres off instead, to roll into it
+				if (What == TEXT("kugelwand") ? Free > 350.0f && (Room < 0.0f || Free < Room) : Free > Room)
+				{
+					Room = Free;
+					Away = Way;
+				}
+			}
+			const bool bStarted = Player->StartDodge(Away);
+			if (Hold > 0.0f)
+			{
+				FTimerHandle Release;
+				TWeakObjectPtr<UVaelEngineerComponent> Weak(Engineer);
+				Player->GetWorldTimerManager().SetTimer(Release, [Weak]() { if (Weak.IsValid()) { Weak->SetRollHeld(false); } }, Hold, false);
+			}
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur kugel: dodge %d, held %.1f s, set %d, speed scale %.2f"), bStarted, Hold, Engineer->CountSet(TEXT("Schwarzglut")), Engineer->GetMoveSpeedScale());
+		}
+		return;
+	}
+	if (What == TEXT("panzerschildallein"))
+	{
+		// The same, but everything of the hero hidden except the shell, to see the shield alone
+		VaelIngenieur(TEXT("panzerschild"), Id);
+		TArray<AActor*> Owners = { Player };
+		if (USkeletalMeshComponent* Human = Player->GetMetaHumanBody())
+		{
+			Owners.AddUnique(Human->GetOwner());
+		}
+		for (AActor* Each : Owners)
+		{
+			TInlineComponentArray<UPrimitiveComponent*> Parts(Each);
+			for (UPrimitiveComponent* Part : Parts)
+			{
+				const bool bShell = Part->GetName() == TEXT("EngineerGlutpanzerSchild");
+				Part->SetHiddenInGame(!bShell);
+				if (bShell)
+				{
+					UE_LOG(LogVael, Log, TEXT("VaelIngenieur panzerschildallein: shell at %s, bounds %s"), *Player->GetActorTransform().InverseTransformPosition(Part->GetComponentLocation()).ToCompactString(),
+						*Part->Bounds.BoxExtent.ToCompactString());
+				}
+			}
+		}
 		return;
 	}
 	if (What == TEXT("schild"))

@@ -435,8 +435,15 @@ namespace
 		};
 		const FText PlaceNames[] = { LOCTEXT("PieceHead", "{0}haube"), LOCTEXT("PieceChest", "{0}wams"), LOCTEXT("PieceArms", "{0}armschienen"), LOCTEXT("PieceLegs", "{0}beinlinge") };
 		const int32 MainCounts[] = { 2, 4, 2, 3 };
+		// Boris 17.11.: only what has a model stays in the game, that is the Schwarzglut set; these four creature sets wait,
+		// switched off here, until they get models of their own
+		constexpr bool bCreatureSets = false;
 		for (const FSetPieces& Set : Sets)
 		{
+			if constexpr (!bCreatureSets)
+			{
+				break;
+			}
 			for (int32 Place = 0; Place < 4; ++Place)
 			{
 				const FName Id(*FString::Printf(TEXT("%s_%d"), *Set.Set.ToString(), Place));
@@ -488,8 +495,8 @@ namespace
 			{ TEXT("Blutschuppen"), LOCTEXT("SetNameBlut", "Blutschuppen-Satz"),
 				LOCTEXT("Blut2", "2 Teile: 2 % des Schadens kommen als Leben zurück"), LOCTEXT("Blut4", "4 Teile: 6 % des Schadens kommen als Leben zurück") },
 			{ TEXT("Schwarzglut"), LOCTEXT("SetNameSchwarzglut", "Schwarzglut-Rüstung (Glutkriecher und Aschenroller)"),
-				LOCTEXT("Schwarzglut2", "2 Teile: 10 % weniger Schaden, 15 % weniger Feuerschaden"),
-				LOCTEXT("Schwarzglut4", "4 Teile: nach dem Ausweichen eine Sekunde eingerollt, 60 % weniger Schaden; wer ihn dann trifft, fängt Feuer"),
+				LOCTEXT("Schwarzglut2", "2 Teile: 10 % weniger Schaden, 15 % weniger Feuerschaden. Schwer: jedes Rüstungsteil macht 3 % langsamer"),
+				LOCTEXT("Schwarzglut4", "4 Teile: Ausweichen rollt ihn zur Panzerkugel ein; gehalten rollt sie bis zu 3 Sekunden weiter, lenkbar und bergab schneller. Eingerollt 60 % weniger Schaden, wer ihn trifft, fängt Feuer; Gegner im Weg fliegen brennend beiseite. Gegen eine Wand: kurz benommen"),
 				LOCTEXT("SchwarzglutSchild", "Mit Klappschild: ein Block im rechten Augenblick wirft den Angreifer zurück und setzt ihn in Brand") },
 		};
 	}

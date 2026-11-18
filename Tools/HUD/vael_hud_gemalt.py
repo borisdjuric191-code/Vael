@@ -1722,6 +1722,226 @@ def medallion_engineer(m):
         cylinder((0.445 * math.cos(a), -0.05, 0.445 * math.sin(a)), 0.035, 0.05, m["brass"], rotation=(math.radians(90), 0, 0), name="Zahn", vertices=6)
 
 
+def frame_ring(outer, inner, radius_out, radius_in, y, depth, material_, name="Rahmen", bevel=0.006):
+    """A flat square ring with rounded corners: the band between two rounded rectangles, its front at y, depth deep"""
+    bm = bmesh.new()
+    a = [bm.verts.new((x, y, z)) for x, _, z in rounded_rect_path(outer, outer, radius_out, 0.0, n_corner=8)]
+    b = [bm.verts.new((x, y, z)) for x, _, z in rounded_rect_path(inner, inner, radius_in, 0.0, n_corner=8)]
+    n = len(a)
+    faces = [bm.faces.new((a[k], a[(k + 1) % n], b[(k + 1) % n], b[k])) for k in range(n)]
+    bmesh.ops.recalc_face_normals(bm, faces=faces)
+    extruded = bmesh.ops.extrude_face_region(bm, geom=faces)
+    bmesh.ops.translate(bm, vec=(0.0, depth, 0.0), verts=[g for g in extruded["geom"] if isinstance(g, bmesh.types.BMVert)])
+    bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+    mesh = bpy.data.meshes.new(name)
+    bm.to_mesh(mesh)
+    bm.free()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj)
+    mod = obj.modifiers.new("Rund", "BEVEL")
+    mod.width = bevel
+    mod.segments = 3
+    mod.limit_method = "ANGLE"
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    return give(obj, material_)
+
+
+def item_frame(m, rarity):
+    """The frame round a field of the bag, by rarity (Boris 17.11., heavy painted item frames): dark riveted iron for the
+    common, cold steel with blue enamel for the magic, gold with pointed corner leaves for the rare, blackened gold with
+    ember stones for the legendary, old gold with scrolls for the unique. Seen from the front, the middle stays empty: the
+    game draws the picture of the thing inside. The opening is 0.8 of the picture, the frame reaches to 0.98."""
+    engineer_materials(m)
+    steel = material("Stahl", (0.42, 0.45, 0.5), metallic=1.0, roughness=0.3, bump=0.15, bump_scale=160.0)
+    gold = material("Gold", (0.78, 0.55, 0.18), metallic=1.0, roughness=0.26, bump=0.12, bump_scale=140.0)
+    darkgold = material("Schwarzgold", (0.22, 0.13, 0.05), metallic=1.0, roughness=0.36, bump=0.25, bump_scale=150.0)
+    oldgold = material("Altgold", (0.55, 0.4, 0.16), metallic=1.0, roughness=0.4, bump=0.3, bump_scale=120.0)
+    enamel = material("Email", (0.05, 0.14, 0.42), roughness=0.2, coat=0.8, emission=((0.15, 0.35, 0.9), 0.6))
+    outer, inner = 0.97, 0.8
+    body, edge, rivet = {
+        "gewoehnlich": (m["iron"], m["darkbrass"], m["darkbrass"]),
+        "magisch": (steel, steel, steel),
+        "selten": (gold, gold, m["darkbrass"]),
+        "legendaer": (m["iron"], gold, gold),
+        "einzigartig": (m["copper"], oldgold, oldgold),
+    }[rarity]
+    frame_ring(outer, inner, 0.09, 0.05, -0.04, 0.05, body, name="Rahmen")
+    # a raised rim on the outer and the inner edge
+    tube(rounded_rect_path(outer - 0.01, outer - 0.01, 0.085, -0.05), [0.012] * 200, edge, name="Aussenkante", cyclic=True)
+    tube(rounded_rect_path(inner + 0.012, inner + 0.012, 0.05, -0.05), [0.009] * 200, edge, name="Innenkante", cyclic=True)
+    if rarity == "gewoehnlich":
+        for sx, sz in ((-1, 1), (1, 1), (-1, -1), (1, -1)):
+            sphere((sx * 0.44, -0.07, sz * 0.44), 0.02, rivet, scale=(1, 0.6, 1), name="Niete", segments=14)
+        for t in (-0.2, 0.2):
+            for x, z in ((t, 0.445), (t, -0.445), (0.445, t), (-0.445, t)):
+                sphere((x, -0.068, z), 0.012, rivet, scale=(1, 0.6, 1), name="Niete", segments=12)
+    elif rarity == "magisch":
+        tube(rounded_rect_path(0.885, 0.885, 0.07, -0.062), [0.008] * 200, enamel, name="Email", cyclic=True)
+        for x, z in ((0.0, 0.445), (0.0, -0.445), (0.445, 0.0), (-0.445, 0.0)):
+            facet_stone(m, x, -0.075, z, 0.032)
+    else:
+        # pointed corner leaves reaching out of the frame, a stone in each
+        leaf_mat = gold if rarity != "einzigartig" else oldgold
+        for sx, sz in ((-1, 1), (1, 1), (-1, -1), (1, -1)):
+            cx, cz = sx * 0.42, sz * 0.42
+            tip = (sx * 0.5, sz * 0.5)
+            side1 = (cx + sx * 0.02, cz - sz * 0.13)
+            side2 = (cx - sx * 0.13, cz + sz * 0.02)
+            outline = [side1, (cx + sx * 0.07, cz + sz * 0.0), tip, (cx + sx * 0.0, cz + sz * 0.07), side2, (cx - sx * 0.03, cz - sz * 0.03)]
+            plate_from_outline(outline, -0.085, 0.03, leaf_mat, name="Eckblatt", bevel=0.006)
+            shades = EMBER_SHADES if rarity == "legendaer" else None
+            facet_stone(m, cx, -0.095, cz, 0.03, shades=shades)
+        if rarity == "legendaer":
+            for x, z in ((0.0, 0.445), (0.0, -0.445), (0.445, 0.0), (-0.445, 0.0)):
+                facet_stone(m, x, -0.075, z, 0.022, shades=EMBER_SHADES)
+        if rarity == "einzigartig":
+            for x, z, horizontal in ((0.0, 0.445, True), (0.0, -0.445, True), (0.445, 0.0, False), (-0.445, 0.0, False)):
+                pts = []
+                for t in np.linspace(-1.0, 1.0, 40):
+                    along, wave = t * 0.22, 0.018 * math.sin(t * math.pi * 3)
+                    pts.append((x + along, -0.07, z + wave) if horizontal else (x + wave, -0.07, z + along))
+                tube(pts, [0.006] * len(pts), gold, name="Schnoerkel")
+
+
+def box(m, x0, z0, x1, z1, y, depth, material_, name="Leiste", bevel=0.003):
+    """A straight bar between two corners in the XZ plane, its front at y"""
+    return plate_from_outline([(x0, z0), (x1, z0), (x1, z1), (x0, z1)], y + depth, -depth, material_, name=name, bevel=bevel)
+
+
+# The armour places on the lid of the engineer's toolbox (name, x, z, width, height in scene units of the picture); the game
+# keeps the same numbers (UI/VaelHUDToolbox.cpp, ToolboxTiles)
+ENGINEER_TILES = (
+    ("Helm", -1.4, 0.36, 0.24, 0.26),
+    ("Arme", -1.4, -0.04, 0.24, 0.3),
+    ("Beine", -1.4, -0.46, 0.24, 0.34),
+    ("Brust", -0.2, 0.3, 0.24, 0.36),
+    ("Schild", -0.2, -0.2, 0.24, 0.46),
+)
+ENGINEER_BELT_Z = -0.76
+ENGINEER_BELT_STEP = 0.13
+
+
+def inventory_engineer(m):
+    """The inventory of the engineer (Boris 17.11.: "seine Tasche sollte kein Buch sein", a toolbox or manuals): his opened
+    toolbox seen from above, the same places as the grimoire of the mage so the game draws onto both alike.
+    Left the inside of the lid: a construction drawing clipped onto the red work leather, the ten places of the equipment as
+    brass sockets on a drawn gear, four sockets for the belt below. In the middle the iron hinge with a gear and a coal on top.
+    Right the box: an operating manual clipped in the upper half (the game writes the picked thing onto it), below the iron
+    compartments of the backpack, seven by five, and a brass plate for the footer. Text and items are drawn by the game."""
+    engineer_materials(m)
+    paper = worn(material("Zeichenpapier", (0.22, 0.15, 0.075), roughness=0.95, bump=0.35, bump_scale=70.0), scale=3.0, darkest=0.45)
+    sepia = material("Zeichentinte", (0.06, 0.035, 0.018), roughness=0.7)
+    faint = material("Bleistift", (0.085, 0.055, 0.03), roughness=0.75)
+    felt = material("Filz", (0.035, 0.006, 0.004), roughness=0.95, bump=0.5, bump_scale=300.0)
+    socket = material("Fassung", (0.006, 0.005, 0.005), roughness=0.8)
+
+    w, h = 3.42, 1.9
+    # The case: dark iron, a brass edge, riveted iron brackets on the corners
+    rounded_plate(w, h, 0.05, 0.06, m["iron"], y=0.03, name="Kasten")
+    tube(rounded_rect_path(w - 0.012, h - 0.012, 0.05, -0.008), [0.016] * 200, m["brass"], name="Kante", cyclic=True)
+    for sx, sz in ((-1, 1), (1, 1), (-1, -1), (1, -1)):
+        x, z = sx * (w / 2 - 0.01), sz * (h / 2 - 0.01)
+        arm = 0.22
+        bracket = [(x, z), (x - sx * arm, z), (x - sx * arm, z - sz * 0.05), (x - sx * 0.05, z - sz * 0.05), (x - sx * 0.05, z - sz * arm), (x, z - sz * arm)]
+        plate_from_outline(bracket, -0.02, -0.018, m["darkbrass"], name="Winkel", bevel=0.004)
+        for a, b in ((0.025, 0.12), (0.12, 0.025), (0.025, 0.025)):
+            sphere((x - sx * a, -0.042, z - sz * b), 0.011, m["brass"], scale=(1, 0.6, 1), name="Niete", segments=12)
+
+    # --- Left: the inside of the lid, red work leather riveted all round, a drawing on it
+    lid = rounded_plate(1.64, 1.8, 0.03, 0.02, m["workleather"], y=-0.005, name="Deckel")
+    lid.location.x = -0.83
+    rivet_row(m, [(x, z) for x, _, z in rounded_rect_path(1.58, 1.74, 0.03, 0.0, n_corner=4)], -0.018, 0.09)
+    # A blackened sheet of iron, a faint copper grid scratched into it like a drafting board; the game lays the Glutzeichnung
+    # of the armour on it (Boris 17.11.: "wie bei Iron Man die Bauplaene", but forged, not blue)
+    soot = material("Russblech", (0.02, 0.017, 0.016), metallic=0.55, roughness=0.62, bump=0.35, bump_scale=120.0)
+    grid = material("Kupferritz", (0.11, 0.045, 0.02), metallic=0.8, roughness=0.5)
+    sheet = rounded_plate(1.46, 1.66, 0.01, 0.006, soot, y=-0.018, name="Russplatte")
+    sheet.location.x = -0.8
+    on = lambda x, z: (x, -0.0222, z)  # noqa: E731
+    for x in np.arange(-1.5, -0.09, 0.1):
+        tube([on(x, 0.8), on(x, -0.8)], [0.0009] * 2, grid, name="Raster", resolution=2)
+    for z in np.arange(-0.8, 0.81, 0.1):
+        tube([on(-1.5, z), on(-0.1, z)], [0.0009] * 2, grid, name="Raster", resolution=2)
+    for half_w, half_h, width in ((0.7, 0.8, 0.003), (0.685, 0.785, 0.0015)):
+        border = [on(-0.8 + px_, pz) for px_, _, pz in rounded_rect_path(2 * half_w, 2 * half_h, 0.004, 0.0, n_corner=1)]
+        tube(border, [width] * len(border), m["copper"], name="Rahmenlinie", cyclic=True, resolution=3)
+    tube([on(-1.42, 0.66), on(-0.18, 0.66)], [0.0018] * 2, m["copper"], name="Linie", resolution=3)
+    cog(m, -0.8, 0.66, 0.022, 8, m["brass"], y=-0.03, depth=0.008, ember=False)
+    # the places of the armour, like the tiles of Diablo: sunken iron fields of different sizes with a brass rim
+    for _name, x, z, tw, th in ENGINEER_TILES:
+        fill = rounded_plate(tw, th, 0.012, 0.006, socket, y=-0.02, name="Kachel")
+        fill.location.x, fill.location.z = x, z
+        rim = [(x + px_, -0.03, z + pz) for px_, _, pz in rounded_rect_path(tw + 0.014, th + 0.014, 0.016, 0.0, n_corner=4)]
+        tube(rim, [0.007] * len(rim), m["brass"], name="Kachelrand", cyclic=True, resolution=4)
+        for sx, sz in ((-1, 1), (1, 1), (-1, -1), (1, -1)):
+            sphere((x + sx * (tw / 2 - 0.012), -0.036, z + sz * (th / 2 - 0.012)), 0.009, m["darkbrass"], scale=(1, 0.6, 1), name="Niete", segments=12)
+    # four small sockets of the belt under the figure
+    for k in range(4):
+        x = -0.8 + (k - 1.5) * ENGINEER_BELT_STEP
+        fill = rounded_plate(0.1, 0.1, 0.01, 0.004, socket, y=-0.022, name="Guertelfeld")
+        fill.location.x, fill.location.z = x, ENGINEER_BELT_Z
+        frame = [(x + px_, -0.027, ENGINEER_BELT_Z + pz) for px_, _, pz in rounded_rect_path(0.11, 0.11, 0.012, 0.0, n_corner=3)]
+        tube(frame, [0.0045] * len(frame), m["iron"], name="Guertelrahmen", cyclic=True, resolution=3)
+    # brass clips holding the sheet at its corners
+    for sx, sz in ((-1, 1), (1, 1), (-1, -1), (1, -1)):
+        x, z = -0.8 + sx * 0.7, sz * 0.8
+        clip = rounded_plate(0.07, 0.11, 0.012, 0.012, m["brass"], y=-0.03, name="Klemme")
+        clip.location.x, clip.location.z = x, z
+        sphere((x, -0.04, z), 0.012, m["darkbrass"], scale=(1, 0.6, 1), name="Niete", segments=12)
+
+    # --- The middle: the hinge, iron knuckles with brass rings, a gear with a coal at its top
+    box(m, -0.045, -0.9, 0.045, 0.9, -0.02, 0.02, m["iron"], name="Scharnierblatt")
+    for k in range(9):
+        z = -0.8 + k * 0.2
+        cylinder((0.0, -0.045, z), 0.034, 0.17, m["iron"] if k % 2 else m["darkbrass"], name="Knoechel", vertices=24)
+        torus((0.0, -0.045, z + 0.088), 0.034, 0.006, m["brass"], rotation=(0, 0, 0), name="Knoechelring")
+    cog(m, 0.0, 0.895, 0.075, 12, m["brass"], y=-0.07, depth=0.025)
+
+    # --- Right: the box, felt in the bottom, an operating manual over the upper half
+    ground = rounded_plate(1.64, 1.8, 0.03, 0.02, m["workleather"], y=-0.002, name="Kastengrund")
+    ground.location.x = 0.83
+    manual = rounded_plate(1.42, 0.78, 0.008, 0.005, paper, y=-0.02, name="Anleitung")
+    manual.location.x, manual.location.z = 0.8, 0.49
+    # its pages lie under the top sheet, a little out of line
+    for k, (dx, dz) in enumerate(((0.012, -0.01), (0.022, -0.018))):
+        under = rounded_plate(1.42, 0.78, 0.008, 0.004, paper, y=-0.014 + k * 0.003, name="Blatt")
+        under.location.x, under.location.z = 0.8 + dx, 0.49 + dz
+    tube([(0.18, -0.024, 0.66), (1.42, -0.024, 0.66)], [0.0018] * 2, sepia, name="Linie", resolution=3)
+    cog(m, 0.8, 0.66, 0.022, 8, m["brass"], y=-0.034, depth=0.008, ember=False)
+    for x in (0.16, 1.44):
+        clip = rounded_plate(0.07, 0.11, 0.012, 0.012, m["brass"], y=-0.034, name="Klemme")
+        clip.location.x, clip.location.z = x, 0.83
+        sphere((x, -0.044, 0.83), 0.012, m["darkbrass"], scale=(1, 0.6, 1), name="Niete", segments=12)
+
+    # the compartments: felt bottoms, iron walls between them, brass caps where the walls cross
+    columns, rows, step, cx, cz = 7, 5, 0.17, 0.8, -0.35
+    x_lines = [cx + (c - columns / 2) * step for c in range(columns + 1)]
+    z_lines = [cz + (r - rows / 2) * step for r in range(rows + 1)]
+    floor = rounded_plate(columns * step, rows * step, 0.01, 0.006, felt, y=-0.014, name="Faecherboden")
+    floor.location.x, floor.location.z = cx, cz
+    for x in x_lines:
+        box(m, x - 0.009, z_lines[0] - 0.009, x + 0.009, z_lines[-1] + 0.009, -0.05, 0.035, m["iron"], name="Wand")
+    for z in z_lines:
+        box(m, x_lines[0] - 0.009, z - 0.009, x_lines[-1] + 0.009, z + 0.009, -0.048, 0.033, m["iron"], name="Wand")
+    for x in x_lines:
+        for z in z_lines:
+            sphere((x, -0.052, z), 0.013, m["brass"], scale=(1, 0.6, 1), name="Kappe", segments=12)
+
+    # the brass plate for the footer, under the compartments
+    plate = rounded_plate(1.34, 0.075, 0.02, 0.012, m["brass"], y=-0.024, name="Messingschild")
+    plate.location.x, plate.location.z = 0.8, -0.82
+    for x in (0.16, 1.44):
+        sphere((x, -0.034, -0.82), 0.012, m["darkbrass"], scale=(1, 0.6, 1), name="Niete", segments=12)
+
+    # latches on the outer edges, a coal in each
+    for x in (-w / 2 + 0.02, w / 2 - 0.02):
+        for z in (0.45, -0.45):
+            latch = rounded_plate(0.07, 0.16, 0.015, 0.02, m["brass"], y=-0.025, name="Verschluss")
+            latch.location.x, latch.location.z = x, z
+            facet_stone(m, x, -0.045, z, 0.02, shades=EMBER_SHADES)
+
+
 # ---------------------------------------------------------------- Felder und Medaillons
 
 def slot(m, bud):
@@ -1770,6 +1990,12 @@ PIECES = {
     "ingenieur_rahmen": (1760, 404, FRAME_ASPECT, frame_engineer),
     "ingenieur_feld": (160, 160, 1.0, slot_engineer),
     "ingenieur_medaillon": (128, 128, 1.0, medallion_engineer),
+    "ingenieur_inventar": (1920, 1080, 3.5556, inventory_engineer),
+    "rahmen_gewoehnlich": (256, 256, 1.0, lambda m: item_frame(m, "gewoehnlich")),
+    "rahmen_magisch": (256, 256, 1.0, lambda m: item_frame(m, "magisch")),
+    "rahmen_selten": (256, 256, 1.0, lambda m: item_frame(m, "selten")),
+    "rahmen_legendaer": (256, 256, 1.0, lambda m: item_frame(m, "legendaer")),
+    "rahmen_einzigartig": (256, 256, 1.0, lambda m: item_frame(m, "einzigartig")),
 }
 
 FILE_NAMES = {
@@ -1778,7 +2004,9 @@ FILE_NAMES = {
     "magier_feld": "T_HUD_Gemalt_Feld_Magier", "floromant_feld": "T_HUD_Gemalt_Feld_Floromant",
     "magier_medaillon": "T_HUD_Gemalt_Medaillon_Magier", "floromant_medaillon": "T_HUD_Gemalt_Medaillon_Floromant",
     "ingenieur_gefaess": "T_HUD_Gemalt_Gefaess_Ingenieur", "ingenieur_rahmen": "T_HUD_Gemalt_Rahmen_Ingenieur", "ingenieur_feld": "T_HUD_Gemalt_Feld_Ingenieur",
-    "ingenieur_medaillon": "T_HUD_Gemalt_Medaillon_Ingenieur",
+    "ingenieur_medaillon": "T_HUD_Gemalt_Medaillon_Ingenieur", "ingenieur_inventar": "T_HUD_Gemalt_Inventar_Ingenieur",
+    "rahmen_gewoehnlich": "T_HUD_Gemalt_Itemrahmen_0", "rahmen_magisch": "T_HUD_Gemalt_Itemrahmen_1", "rahmen_selten": "T_HUD_Gemalt_Itemrahmen_2",
+    "rahmen_legendaer": "T_HUD_Gemalt_Itemrahmen_3", "rahmen_einzigartig": "T_HUD_Gemalt_Itemrahmen_4",
 }
 
 
@@ -1830,7 +2058,7 @@ def main(folder, wanted):
         build(mats)
         path = os.path.join(folder, FILE_NAMES[key] + ".png")
         render(path)
-        if "rahmen" in key:
+        if key.endswith("_rahmen"):
             mask_render(os.path.join(folder, FILE_NAMES[key] + "_Maske.png"), folder, key)
 
 

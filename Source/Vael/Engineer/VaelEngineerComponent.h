@@ -12,6 +12,7 @@ class AVaelCharacter;
 class AVaelCharacterBase;
 class AVaelEngineerDevice;
 class UStaticMeshComponent;
+class UPoseableMeshComponent;
 struct FVaelSavedPlayer;
 
 /**
@@ -229,6 +230,13 @@ public:
 	/** Wears a built piece on its place */
 	bool Wear(FName Id);
 
+	/** Takes the piece off its place; it stays built, in the toolbox */
+	bool TakeOff(EVaelArmorPlace Place);
+
+	/** For trying the armour out (Boris 17.11.): every piece of the Schwarzglut set built and lying in the toolbox, none worn
+	 *  by this; the toolbox calls it when the engineer opens it. Off with bTestArmorInToolbox in the .cpp */
+	void PutTestArmorInToolbox();
+
 	/** How many worn pieces belong to a set (the shield doesn't count towards two or four pieces) */
 	int32 CountSet(FName Set) const;
 
@@ -245,6 +253,19 @@ public:
 	/** He dodged: four pieces of the Rollpanzer or the Schwarzglut set curl him up for a moment */
 	void OnDodged();
 
+	/** The dodge button is held or let go. In the whole Schwarzglut set he rolls up into the Panzerkugel to dodge (Boris
+	 *  17.11.: the heavy set makes him slow, the roll is how he gets into position), and rolls on while it is held */
+	void SetRollHeld(bool bHeld) { bRollHeld = bHeld; }
+
+	/** True while he is rolled up into the Panzerkugel */
+	bool IsBall() const { return bBallShown; }
+
+	/** True while the Panzerkugel rolls on because the dodge is held (the dodge doesn't end then, even after a long frame) */
+	bool WantsRollOn() const;
+
+	/** Test only: shows the Panzerkugel standing still, for pictures */
+	void SetBallPreview(bool bPreview) { bBallPreview = bPreview; }
+
 	// --- The folding shield (goal 14.11.): L2 / right mouse held
 
 	/** Whether he wears a shield */
@@ -257,10 +278,16 @@ public:
 	/** 0 folded on the forearm .. 1 fanned open */
 	float GetShieldOpen() const { return ShieldOpen; }
 
+	/** Test only: holds the shield still at this much open (0..1) for pictures; below 0 it moves by itself again */
+	void SetShieldPreview(float Open);
+
+	/** Test only: holds the aim of the sling at this much (0..1) for pictures; below 0 it follows the drawing again */
+	void SetSlingAimPreview(float Aim) { SlingAimPreview = Aim; }
+
 	/** How a hit from this attacker is blocked: 0 not at all, 1 by the shield (70 % less), 2 a perfect block (nothing gets through) */
 	int32 GetBlock(const AActor* From) const;
 
-	/** How fast he walks with his set (Rußfeder) */
+	/** How fast he walks with his set (Rußfeder faster, the heavy Schwarzglut slower) and behind the raised shield */
 	float GetMoveSpeedScale() const;
 
 	// --- Shots that land (from AVaelEngineerShot and the turrets)
@@ -335,7 +362,40 @@ private:
 	/** World positions of the two prong tips of the Zwille in the hand */
 	bool SlingTips(FVector& OutLeft, FVector& OutRight) const;
 
+	/** The Panzerschleuder (Boris 16.11.): with the Glutpanzer's arms the sling is mounted on the left forearm instead of held in
+	 *  the fist, so his hands stay free. A bracer along the forearm and a fork riding on top of it that slides forward over
+	 *  the fist while he aims (Tools/Ingenieur/vael_armschleuder.py) */
+	bool UsesArmSling() const;
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ArmSlingBracer;
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> ArmSlingFork;
+	bool bShownArmSling = false;
+	/** Places bracer and fork on the forearm by the aim; returns the frame of the forearm (X ahead, Z the thumb side) */
+	FTransform PlaceArmSling();
+
+	/** The Panzerkugel (Tools/Ingenieur/vael_panzerkugel.py): the curled Aschenroller covered with the Glutpanzer's back
+	 *  shell. Shown instead of the whole hero while he dodges in the full Schwarzglut set; held, the dodge rolls on, steered
+	 *  by the stick, faster downhill; it throws enemies aside and ends dazed against a wall */
+	bool UsesArmorRoll() const;
+	void UpdateArmorRoll(float DeltaTime);
+	void ShowBall(bool bShown);
+	void HideHeroForBall();
+	bool MakeBall();
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> RollBall;
+	TArray<TWeakObjectPtr<UPrimitiveComponent>> HiddenForBall;
+	TArray<TWeakObjectPtr<AActor>> RolledOver;
+	bool bRollHeld = false;
+	bool bBallPreview = false;
+	bool bBallShown = false;
+	float BallSince = 0.0f;
+	float BallSpin = 0.0f;
+	float NextBallDust = 0.0f;
+	FVector LastBallLocation = FVector::ZeroVector;
+
 	float SlingAim = 0.0f;
+	float SlingAimPreview = -1.0f;
 	float SlingDrawShown = 0.0f;
 
 	/** The pouch after the release (goal 16.11.): a spring that snaps it forward through the fork and lets it swing out; 1 drawn,
@@ -391,6 +451,7 @@ private:
 	bool bShownGoggles = false;
 	bool bShownPack = false;
 	bool bShownBackpack = false;
+	bool bShownPouchBelt = false;
 	void UpdateCarriedMeshes();
 
 	/** The worn armour on the body: helmet, chest plate, two bracers, two greaves of the set of each piece */
@@ -411,6 +472,25 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> ShieldBands;
 
+	/** The Glutpanzer's back shell (SKM_Ing_GP_Schild, goal 16.11.): on the back of the chest while it is worn; with the
+	 *  Klappschild worn too it is the shield, which curls into a ball like a rolling Aschenroller, rolls over the left shoulder
+	 *  and unrolls before him into a tower shield */
+	UPROPERTY(Transient)
+	TObjectPtr<UPoseableMeshComponent> ShellShield;
+
+	/** Its rest pose in its own space: the chain Schild_0..4, the joint at the end of the chain, its helpers */
+	TArray<FTransform> ShellBones;
+	FVector ShellEnd = FVector::ZeroVector;
+	FVector ShellDown = FVector::DownVector;
+	FVector ShellIn = FVector::ForwardVector;
+	/** Where it sits on the back, relative to spine_05 of the chest */
+	FTransform ShellOnBack;
+	void UpdateShellShield();
+	/** Moves the shell between back and front by ShieldOpen; false once it rests on the back again */
+	bool TickShellShield();
+	/** Whether the back shell is his shield now (Glutpanzer chest and a shield worn) */
+	bool IsShellShield() const;
+
 	/** Where the folded shield lies on the forearm, relative to the bone */
 	FTransform ShieldFolded;
 	bool bShieldRaised = false;
@@ -418,6 +498,7 @@ private:
 	float ShieldRaisedAt = -100.0f;
 	float LastShieldTick = 0.0f;
 	bool bShieldMoving = false;
+	float ShieldPreview = -1.0f;
 	void UpdateShieldMeshes();
 	void TickShield();
 	UStaticMeshComponent* AttachLimbPiece(int32 Slot, const FString& Piece, FName From, FName To, float Along);

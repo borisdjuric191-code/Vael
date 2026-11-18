@@ -6,6 +6,8 @@
 #include "Combat/VaelAttributeSet.h"
 #include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/PoseableMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Engine/StaticMesh.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Engineer/VaelEngineerDevice.h"
@@ -33,6 +35,12 @@
 #include "Engine/SkeletalMesh.h"
 #include "TimerManager.h"
 #include "Misc/Paths.h"
+#include "Components/CapsuleComponent.h"
+#include "Components/ShapeComponent.h"
+#include "Components/WidgetComponent.h"
+#include "Engine/OverlapResult.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Magic/VaelDebrisBurst.h"
 
 #define LOCTEXT_NAMESPACE "VaelEngineer"
 
@@ -48,6 +56,16 @@ namespace
 	constexpr float ShieldRowHeight = 20.0f;
 	constexpr float ShieldOpenSeconds = 0.18f;
 	constexpr float ShieldPerfectSeconds = 0.35f;
+
+	// The Glutpanzer's back shell as shield: how long the way from the back to the front takes, how far each of its five bands
+	// turns against the next on the way, and where it stands before him. The curl is off: bent, its many small plates came
+	// apart, and Boris wants the shell to leave the back and come back as one piece (16.11.)
+	constexpr float ShellOpenSeconds = 0.32f;
+	constexpr float ShellCurlDegrees = 0.0f;
+	constexpr int32 ShellBands = 5;
+	constexpr float ShellAhead = 32.0f;
+	constexpr float ShellInward = 12.0f;
+	constexpr float ShellLift = 25.0f;
 }
 
 UVaelEngineerComponent::UVaelEngineerComponent()
@@ -122,6 +140,7 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	bIdeasPrimed = true;
 
 	UpdateWeaponMesh();
+	UpdateArmorRoll(DeltaTime);
 	UpdateSling(DeltaTime);
 	UpdateCarriedMeshes();
 	UpdateArmorMeshes();
@@ -253,6 +272,8 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 	{
 		{ EVaelArmorPlace::Head, TEXT("Kopf") }, { EVaelArmorPlace::Chest, TEXT("Brust") },
 		{ EVaelArmorPlace::Arms, TEXT("Arme") }, { EVaelArmorPlace::Legs, TEXT("Beine") },
+		// the plates of the left forearm, which the Panzerschleuder replaces while he carries it (UpdateWeaponMesh)
+		{ EVaelArmorPlace::Arms, TEXT("UnterarmL") },
 	};
 	USkeletalMeshComponent* Visible = Player->GetMetaHumanBody();
 	USkeletalMeshComponent* Base = Player->GetMesh();
@@ -299,6 +320,9 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 		Part->SetVisibility(true);
 		GlutpanzerPlaces.Add(Each.Place);
 	}
+	// the back shell rides on the chest, and with a shield worn it is the shield
+	UpdateShellShield();
+	UpdateShieldMeshes();
 	const auto Skip = [&GlutpanzerPlaces](EVaelArmorPlace Place) { return GlutpanzerPlaces.Contains(Place); };
 
 	// What the armour covers of the MetaHuman is hidden; what it no longer covers comes back
@@ -403,6 +427,15 @@ void UVaelEngineerComponent::UpdateShieldMeshes()
 		ShieldOpen = 0.0f;
 		return;
 	}
+	if (IsShellShield())
+	{
+		// the back shell of the Glutpanzer is the shield; the folded Klappschild on the forearm stays away
+		if (ShieldHub != nullptr)
+		{
+			ShieldHub->SetVisibility(false, true);
+		}
+		return;
+	}
 	const auto Load = [](const TCHAR* Piece)
 	{
 		return LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/%s.%s"), Piece, Piece), nullptr, LOAD_NoWarn | LOAD_Quiet);
@@ -449,7 +482,18 @@ void UVaelEngineerComponent::TickShield()
 {
 	const float Delta = FMath::Clamp(Now() - LastShieldTick, 0.0f, 0.1f);
 	LastShieldTick = Now();
-	ShieldOpen = FMath::Clamp(ShieldOpen + (bShieldRaised ? Delta : -Delta) / ShieldOpenSeconds, 0.0f, 1.0f);
+	const bool bShell = IsShellShield();
+	ShieldOpen = ShieldPreview >= 0.0f ? ShieldPreview
+		: FMath::Clamp(ShieldOpen + (bShieldRaised ? Delta : -Delta) / (bShell ? ShellOpenSeconds : ShieldOpenSeconds), 0.0f, 1.0f);
+	if (bShell)
+	{
+		if (!TickShellShield())
+		{
+			bShieldMoving = false;
+			SetComponentTickInterval(0.25f);
+		}
+		return;
+	}
 	if (ShieldHub == nullptr && HasShield())
 	{
 		// worn just now: the shield is hung on the arm before it moves
@@ -486,6 +530,180 @@ void UVaelEngineerComponent::TickShield()
 	}
 }
 
+void UVaelEngineerComponent::SetShieldPreview(float Open)
+{
+	ShieldPreview = Open >= 0.0f ? FMath::Min(Open, 1.0f) : -1.0f;
+	SetShieldRaised(Open > 0.0f);
+	bShieldMoving = true;
+	LastShieldTick = Now();
+	SetComponentTickInterval(0.0f);
+}
+
+bool UVaelEngineerComponent::IsShellShield() const
+{
+	return HasShield() && ShellShield != nullptr && ShellShield->IsVisible() && ShellShield->GetAttachParent() != nullptr;
+}
+
+void UVaelEngineerComponent::UpdateShellShield()
+{
+	AVaelCharacter* Player = GetPlayer();
+	USkeletalMeshComponent* Chest = GlutpanzerBodies.IsValidIndex(1) ? GlutpanzerBodies[1].Get() : nullptr;
+	const FName Spine(TEXT("spine_05"));
+	USkeletalMesh* ChestMesh = Chest != nullptr && Chest->IsVisible() ? Chest->GetSkeletalMeshAsset() : nullptr;
+	USkeletalMesh* Mesh = ChestMesh != nullptr && Player != nullptr
+		? LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_Schild.SKM_Ing_GP_Schild"), nullptr, LOAD_NoWarn | LOAD_Quiet)
+		: nullptr;
+	const int32 SpineIndex = ChestMesh != nullptr ? ChestMesh->GetRefSkeleton().FindBoneIndex(Spine) : INDEX_NONE;
+	if (Mesh == nullptr || SpineIndex == INDEX_NONE)
+	{
+		if (ShellShield != nullptr)
+		{
+			ShellShield->SetVisibility(false);
+		}
+		return;
+	}
+	// A bone's rest transform in the space of its mesh
+	const auto RestInMesh = [](const FReferenceSkeleton& Skeleton, int32 Index)
+	{
+		FTransform Result = FTransform::Identity;
+		for (; Index != INDEX_NONE; Index = Skeleton.GetParentIndex(Index))
+		{
+			Result = Result * Skeleton.GetRefBonePose()[Index];
+		}
+		return Result;
+	};
+	if (ShellShield == nullptr)
+	{
+		ShellShield = NewObject<UPoseableMeshComponent>(Player, TEXT("EngineerGlutpanzerSchild"));
+		ShellShield->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		ShellShield->SetCastShadow(true);
+		ShellShield->ComponentTags.Add(TEXT("VaelKeinZeichen"));
+		ShellShield->SetSkinnedAssetAndUpdate(Mesh);
+		ShellShield->SetupAttachment(Chest, Spine);
+		ShellShield->RegisterComponent();
+		ShellShield->AddTickPrerequisiteComponent(Chest);
+		// its chain and the axes it curls by, from its rest pose: down along its bands, in toward the body
+		const FReferenceSkeleton& Skeleton = Mesh->GetRefSkeleton();
+		ShellBones.Reset();
+		for (int32 Band = 0; Band < ShellBands; ++Band)
+		{
+			const int32 Index = Skeleton.FindBoneIndex(*FString::Printf(TEXT("Schild_%d"), Band));
+			ShellBones.Add(Index != INDEX_NONE ? RestInMesh(Skeleton, Index) : FTransform::Identity);
+		}
+		ShellEnd = ShellBones.Last().GetLocation() * 2.0f - ShellBones[ShellBands - 2].GetLocation();
+		ShellDown = (ShellEnd - ShellBones[0].GetLocation()).GetSafeNormal();
+		// in toward the body: from the middle of the shell to the chest's spine, both in the armour's own space
+		const FVector ShellMiddle = (ShellBones[0].GetLocation() + ShellEnd) * 0.5f;
+		ShellIn = RestInMesh(ChestMesh->GetRefSkeleton(), SpineIndex).GetLocation() - ShellMiddle;
+		ShellIn = (ShellIn - ShellDown * FVector::DotProduct(ShellIn, ShellDown)).GetSafeNormal();
+		const int32 Inner = Skeleton.FindBoneIndex(TEXT("Schild_Innen"));
+		UE_LOG(LogVael, Verbose, TEXT("Panzerschild: top %s, end %s, spine %s, in %s, helper in %s"), *ShellBones[0].GetLocation().ToCompactString(), *ShellEnd.ToCompactString(),
+			*RestInMesh(ChestMesh->GetRefSkeleton(), SpineIndex).GetLocation().ToCompactString(), *ShellIn.ToCompactString(),
+			Inner != INDEX_NONE ? *(RestInMesh(Skeleton, Inner).GetLocation() - ShellBones[0].GetLocation()).ToCompactString() : TEXT("-"));
+	}
+	ShellShield->SetSkinnedAssetAndUpdate(Mesh);
+	// The shell keeps the coordinates of the chest: relative to the chest's spine_05 it sits where that bone's rest leaves it
+	ShellOnBack = RestInMesh(ChestMesh->GetRefSkeleton(), SpineIndex).Inverse();
+	if (ShellShield->GetAttachParent() != Chest || ShellShield->GetAttachSocketName() != Spine)
+	{
+		ShellShield->AttachToComponent(Chest, FAttachmentTransformRules::KeepRelativeTransform, Spine);
+	}
+	ShellShield->SetVisibility(true);
+	if (!bShieldMoving || !HasShield())
+	{
+		ShellShield->SetRelativeTransform(ShellOnBack);
+		for (int32 Band = 0; Band < ShellBands; ++Band)
+		{
+			ShellShield->ResetBoneTransformByName(*FString::Printf(TEXT("Schild_%d"), Band));
+		}
+	}
+}
+
+bool UVaelEngineerComponent::TickShellShield()
+{
+	AVaelCharacter* Player = GetPlayer();
+	USceneComponent* Chest = ShellShield != nullptr ? ShellShield->GetAttachParent() : nullptr;
+	USkeletalMeshComponent* Body = Player != nullptr ? Player->GetMesh() : nullptr;
+	if (Chest == nullptr || Body == nullptr || ShellBones.Num() != ShellBands || (!bShieldRaised && ShieldOpen <= 0.0f))
+	{
+		ShieldOpen = bShieldRaised ? ShieldOpen : 0.0f;
+		if (ShellShield != nullptr)
+		{
+			ShellShield->SetRelativeTransform(ShellOnBack);
+			for (int32 Band = 0; Band < ShellBands; ++Band)
+			{
+				ShellShield->ResetBoneTransformByName(*FString::Printf(TEXT("Schild_%d"), Band));
+			}
+		}
+		return false;
+	}
+	const float Alpha = FMath::SmoothStep(0.0f, 1.0f, ShieldOpen);
+
+	// Rolled up like the Aschenroller: the middle band stays, the bands above and below it turn in toward the body, each a little
+	// more than the one before, until at the turn of the roll the shell is nearly a closed ball; at both ends it lies open
+	// (sin of pi comes out a hair below zero in floats, and a power of that is NaN: the shell vanished when fully open)
+	const float Curl = FMath::Pow(FMath::Max(FMath::Sin(Alpha * UE_PI), 0.0f), 0.6f) * FMath::DegreesToRadians(ShellCurlDegrees);
+	const FVector Axis = FVector::CrossProduct(ShellDown, ShellIn).GetSafeNormal();
+	TArray<FVector> Joints;
+	for (const FTransform& Bone : ShellBones)
+	{
+		Joints.Add(Bone.GetLocation());
+	}
+	Joints.Add(ShellEnd);
+	constexpr int32 Middle = ShellBands / 2;
+	const FVector Pivot = (Joints[Middle] + Joints[Middle + 1]) * 0.5f;
+	TArray<FVector> Curled = Joints;
+	Curled[Middle] = Pivot + (Joints[Middle] - Pivot);
+	Curled[Middle + 1] = Pivot + (Joints[Middle + 1] - Pivot);
+	for (int32 Joint = Middle + 2; Joint <= ShellBands; ++Joint)
+	{
+		Curled[Joint] = Curled[Joint - 1] + FQuat(Axis, Curl * (Joint - 1 - Middle)).RotateVector(Joints[Joint] - Joints[Joint - 1]);
+	}
+	for (int32 Joint = Middle - 1; Joint >= 0; --Joint)
+	{
+		Curled[Joint] = Curled[Joint + 1] + FQuat(Axis, Curl * (Joint - Middle)).RotateVector(Joints[Joint] - Joints[Joint + 1]);
+	}
+	for (int32 Band = 0; Band < ShellBands; ++Band)
+	{
+		const FQuat Turn(Axis, Curl * (Band - Middle));
+		ShellShield->SetBoneTransformByName(*FString::Printf(TEXT("Schild_%d"), Band),
+			FTransform(Turn * ShellBones[Band].GetRotation(), Curled[Band], ShellBones[Band].GetScale3D()), EBoneSpaces::ComponentSpace);
+	}
+
+	// The way: from the back, rolled up over his left shoulder, unrolled before him. Each stop is where the middle of the shell
+	// stands and which way its outside looks (its outside is away from the body, its top up)
+	const FTransform OnBack = ShellOnBack * Chest->GetSocketTransform(ShellShield->GetAttachSocketName());
+	const FVector Scale = OnBack.GetScale3D();
+	const FVector Middle3 = (Joints[0] + Joints[ShellBands]) * 0.5f;
+	const FQuat ShellFrame = FRotationMatrix::MakeFromXZ(-ShellIn, -ShellDown).ToQuat();
+	const FVector Ahead = Player->GetActorForwardVector();
+	const FVector Right = Player->GetActorRightVector();
+	const FVector Up = FVector::UpVector;
+	const FVector Wrist = Body->GetSocketLocation(TEXT("hand_l"));
+	const FVector Shoulder = Body->GetSocketLocation(TEXT("upperarm_l"));
+	const FQuat AtShoulder = FRotationMatrix::MakeFromXZ(-Right, Up).ToQuat() * ShellFrame.Inverse();
+	const FQuat Before = FRotationMatrix::MakeFromXZ(Ahead, Up).ToQuat() * ShellFrame.Inverse();
+	const FVector BackCenter = OnBack.TransformPosition(Middle3);
+	const FVector ShoulderCenter = Shoulder + Up * 30.0f - Right * 12.0f;
+	const FVector FrontCenter = Wrist + Ahead * ShellAhead + Right * ShellInward + Up * ShellLift;
+	// a curve from the back over the shoulder to the front that passes the shoulder halfway
+	const FVector Control = ShoulderCenter * 2.0f - (BackCenter + FrontCenter) * 0.5f;
+	const FVector Center = FMath::Square(1.0f - Alpha) * BackCenter + 2.0f * (1.0f - Alpha) * Alpha * Control + FMath::Square(Alpha) * FrontCenter;
+	const FQuat Facing = Alpha < 0.5f
+		? FQuat::Slerp(OnBack.GetRotation(), AtShoulder, Alpha * 2.0f)
+		: FQuat::Slerp(AtShoulder, Before, Alpha * 2.0f - 1.0f);
+	ShellShield->SetWorldTransform(FTransform(Facing, Center - Facing.RotateVector(Middle3 * Scale), Scale));
+	if (ShieldPreview >= 0.0f)
+	{
+		const FTransform Actor = Player->GetActorTransform();
+		UE_LOG(LogVael, Verbose, TEXT("Panzerschild %.2f: centre %s, bounds %s, outside %s, top %s (actor space), down %s in %s, scale %s"), Alpha,
+			*Actor.InverseTransformPosition(Center).ToCompactString(), *Actor.InverseTransformPosition(ShellShield->Bounds.Origin).ToCompactString(),
+			*Actor.InverseTransformVector(Facing.RotateVector(-ShellIn)).ToCompactString(), *Actor.InverseTransformVector(Facing.RotateVector(-ShellDown)).ToCompactString(),
+			*ShellDown.ToCompactString(), *ShellIn.ToCompactString(), *Scale.ToCompactString());
+	}
+	return true;
+}
+
 void UVaelEngineerComponent::UpdateCarriedMeshes()
 {
 	AVaelCharacter* Player = GetPlayer();
@@ -503,7 +721,9 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	};
 	const bool bGoggles = bShow && HasBuilt(VaelEngineerGear::Goggles) && !IsPanzer(EVaelArmorPlace::Head);
 	const bool bPack = bShow && !IsPanzer(EVaelArmorPlace::Chest);
-	if (Tier == ShownPouchTier && bGoggles == bShownGoggles && bShow == bShownPack && bPack == bShownBackpack)
+	// the ring of pouches is cut for the bare body and stood out of the Glutpanzer's thick belt: its legs wear their own belt
+	const bool bPouchBelt = bShow && !IsPanzer(EVaelArmorPlace::Legs);
+	if (Tier == ShownPouchTier && bGoggles == bShownGoggles && bShow == bShownPack && bPack == bShownBackpack && bPouchBelt == bShownPouchBelt)
 	{
 		return;
 	}
@@ -511,6 +731,7 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	bShownGoggles = bGoggles;
 	bShownPack = bShow;
 	bShownBackpack = bPack;
+	bShownPouchBelt = bPouchBelt;
 	if (!bShow)
 	{
 		for (UStaticMeshComponent* Piece : { PackMesh.Get(), PouchMesh.Get(), GogglesMesh.Get() })
@@ -533,6 +754,10 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	const TCHAR* Pouches[] = { TEXT("SM_Ing_Beutel_Leder"), TEXT("SM_Ing_Beutel_Panzer"), TEXT("SM_Ing_Beutel_Seide") };
 	PouchMesh = AttachPiece(PouchMesh, TEXT("EngineerPouches"), Pouches[FMath::Clamp(Tier, 0, 2)], TEXT("pelvis"),
 		FTransform(FRotator::ZeroRotator, FVector(0.0f, 0.0f, Half * 0.02f)));
+	if (PouchMesh != nullptr)
+	{
+		PouchMesh->SetVisibility(bPouchBelt);
+	}
 	if (bGoggles)
 	{
 		const USkeletalMeshComponent* Body = Player->GetMesh();
@@ -556,11 +781,55 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 	const bool bShow = Player->IsEngineer();
 	const FName Branch = GetBranch(Weapon);
 	const FName Wanted = bShow ? (Branch.IsNone() ? Weapon : Branch) : NAME_None;
-	if (Wanted == ShownWeapon && (WeaponMesh == nullptr || WeaponMesh->IsVisible() == bShow))
+	// the Panzerschleuder on the forearm takes the place of the Zwille in the fist
+	const bool bArm = bShow && UsesArmSling();
+	if (ArmSlingBracer != nullptr)
+	{
+		ArmSlingBracer->SetVisibility(bArm);
+		ArmSlingFork->SetVisibility(bArm);
+	}
+	// the Panzerschleuder's bracer takes the place of the Glutpanzer's left forearm plates (Boris 16.11.)
+	if (GlutpanzerBodies.IsValidIndex(4) && GlutpanzerBodies[4] != nullptr && GlutpanzerBodies[4]->GetSkeletalMeshAsset() != nullptr)
+	{
+		const bool bForearm = !bArm && GlutpanzerBodies.IsValidIndex(2) && GlutpanzerBodies[2] != nullptr && GlutpanzerBodies[2]->IsVisible();
+		if (GlutpanzerBodies[4]->IsVisible() != bForearm)
+		{
+			GlutpanzerBodies[4]->SetVisibility(bForearm);
+		}
+	}
+	if (Wanted == ShownWeapon && bArm == bShownArmSling && (WeaponMesh == nullptr || WeaponMesh->IsVisible() == (bShow && !bArm)))
 	{
 		return;
 	}
 	ShownWeapon = Wanted;
+	bShownArmSling = bArm;
+	if (bArm)
+	{
+		if (WeaponMesh != nullptr)
+		{
+			WeaponMesh->SetVisibility(false);
+		}
+		if (ArmSlingBracer == nullptr)
+		{
+			const auto Make = [Player](const TCHAR* Name, const TCHAR* Piece)
+			{
+				UStaticMeshComponent* Each = NewObject<UStaticMeshComponent>(Player, Name);
+				Each->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Each->SetCastShadow(true);
+				Each->ComponentTags.Add(TEXT("VaelKeinZeichen"));
+				Each->SetUsingAbsoluteLocation(true);
+				Each->SetUsingAbsoluteRotation(true);
+				Each->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/%s.%s"), Piece, Piece), nullptr, LOAD_NoWarn | LOAD_Quiet));
+				Each->RegisterComponent();
+				return Each;
+			};
+			ArmSlingBracer = Make(TEXT("EngineerArmSlingBracer"), TEXT("SM_Ing_Panzerschleuder_Schiene"));
+			ArmSlingFork = Make(TEXT("EngineerArmSlingFork"), TEXT("SM_Ing_Panzerschleuder_Gabel"));
+		}
+		ArmSlingBracer->SetVisibility(true);
+		ArmSlingFork->SetVisibility(true);
+		return;
+	}
 	if (!bShow)
 	{
 		if (WeaponMesh != nullptr)
@@ -1964,6 +2233,45 @@ bool UVaelEngineerComponent::Wear(FName Id)
 	return true;
 }
 
+bool UVaelEngineerComponent::TakeOff(EVaelArmorPlace Place)
+{
+	const int32 Index = static_cast<int32>(Place);
+	if (!Worn.IsValidIndex(Index) || Worn[Index].IsNone())
+	{
+		return false;
+	}
+	if (Place == EVaelArmorPlace::Shield)
+	{
+		SetShieldRaised(false);
+	}
+	Worn[Index] = NAME_None;
+	ApplyHealthBonus();
+	UVaelSaveSubsystem::RequestSave(GetOwner());
+	return true;
+}
+
+namespace
+{
+	/** The whole Schwarzglut set lies in the toolbox to be tried out (Boris 17.11.); false once it is to be earned again */
+	constexpr bool bTestArmorInToolbox = true;
+}
+
+void UVaelEngineerComponent::PutTestArmorInToolbox()
+{
+	if (!bTestArmorInToolbox)
+	{
+		return;
+	}
+	for (int32 Place = 0; Place < NumArmorPlaces; ++Place)
+	{
+		const FName Id(*FString::Printf(TEXT("Schwarzglut_%d"), Place));
+		if (VaelEngineerGear::Find(Id) != nullptr)
+		{
+			Built.Add(Id);
+		}
+	}
+}
+
 int32 UVaelEngineerComponent::CountSet(FName Set) const
 {
 	int32 Count = 0;
@@ -2067,7 +2375,8 @@ float UVaelEngineerComponent::ScaleIncoming(float Damage, AActor* From, bool bFi
 	{
 		Scale = 0.0f;
 		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("PerfectBlock", "Abgewehrt!"));
-		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), ShieldHub != nullptr ? ShieldHub->GetComponentLocation() : GetOwner()->GetActorLocation(),
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), IsShellShield() ? ShellShield->Bounds.Origin
+			: ShieldHub != nullptr ? ShieldHub->GetComponentLocation() : GetOwner()->GetActorLocation(),
 			FRotator::ZeroRotator, FLinearColor(1.0f, 0.45f, 0.12f), 60.0f);
 		// With the whole set the snapping fan throws the attacker back and sets it on fire
 		if (Black >= 4)
@@ -2106,8 +2415,273 @@ void UVaelEngineerComponent::OnDodged()
 
 float UVaelEngineerComponent::GetMoveSpeedScale() const
 {
-	// behind the open shield he only steps
-	return (CountSet(TEXT("Russfeder")) >= 2 ? 1.1f : 1.0f) * (bShieldRaised ? 0.55f : 1.0f);
+	// The Schwarzglut is heavy (Boris 17.11.: slow in general, slower still behind the shield): 3 % per piece of armour
+	// worn, the shield not counted; behind the open shield he only steps
+	int32 Heavy = 0;
+	for (const FName& Id : Worn)
+	{
+		const FVaelGear* Gear = VaelEngineerGear::Find(Id);
+		Heavy += Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")) && Gear->Place != EVaelArmorPlace::Shield ? 1 : 0;
+	}
+	return (CountSet(TEXT("Russfeder")) >= 2 ? 1.1f : 1.0f) * (1.0f - 0.03f * Heavy) * (bShieldRaised ? 0.55f : 1.0f);
+}
+
+namespace
+{
+	const TCHAR* const PanzerkugelPath = TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/SM_Ing_Panzerkugel.SM_Ing_Panzerkugel");
+	/** Radius of the Panzerkugel in the game, cm: the rolling radius of the model (RADIUS in Tools/Ingenieur/vael_panzerkugel.py),
+	 *  1.2 m across for the 2 m figure of the Glutpanzer curled up (Boris 17.11.: bigger, matching his size) */
+	constexpr float BallRadius = 60.0f;
+	constexpr float BallModelRadius = 60.0f;
+	/** Seconds it takes to curl up into the ball (and out of it) */
+	constexpr float BallCurlSeconds = 0.12f;
+	/** Speed of the ball while the dodge is held beyond the plain dodge, cm/s; downhill up to BallSlopeBoost more */
+	constexpr float BallRollSpeed = 850.0f;
+	constexpr float BallSlopeBoost = 1.2f;
+	/** Longest roll in all, seconds */
+	constexpr float BallMaxSeconds = 3.0f;
+	/** Degrees per second it turns towards the stick */
+	constexpr float BallTurnRate = 140.0f;
+	/** Seconds he lies dazed after rolling into a wall */
+	constexpr float BallDazeSeconds = 0.8f;
+	const FLinearColor BallAshColor(0.2f, 0.17f, 0.15f);
+}
+
+bool UVaelEngineerComponent::UsesArmorRoll() const
+{
+	const AVaelCharacter* Player = GetPlayer();
+	return Player != nullptr && Player->IsEngineer() && CountSet(TEXT("Schwarzglut")) >= 4;
+}
+
+bool UVaelEngineerComponent::MakeBall()
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (RollBall != nullptr || Player == nullptr)
+	{
+		return RollBall != nullptr;
+	}
+	UStaticMesh* Model = LoadObject<UStaticMesh>(nullptr, PanzerkugelPath);
+	if (Model == nullptr)
+	{
+		return false;
+	}
+	RollBall = NewObject<UStaticMeshComponent>(Player, TEXT("EngineerPanzerkugel"));
+	RollBall->SetupAttachment(Player->GetRootComponent());
+	RollBall->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	RollBall->SetStaticMesh(Model);
+	RollBall->ComponentTags.Add(TEXT("VaelKeinZeichen"));
+	RollBall->SetVisibility(false);
+	RollBall->RegisterComponent();
+	return true;
+}
+
+bool UVaelEngineerComponent::WantsRollOn() const
+{
+	return bBallShown && bRollHeld && Now() - BallSince < BallMaxSeconds;
+}
+
+void UVaelEngineerComponent::ShowBall(bool bShown)
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr || bShown == bBallShown)
+	{
+		return;
+	}
+	if (bShown && !MakeBall())
+	{
+		return;
+	}
+	const float Was = Now() - BallSince;
+	bBallShown = bShown;
+	BallSince = Now();
+
+	// The whole hero, the MetaHuman body, the armour and whatever he carries, hides while the ball rolls; only what this
+	// hid comes back (the armour's own visibility, set every frame, stays untouched)
+	if (bShown)
+	{
+		HiddenForBall.Reset();
+		HideHeroForBall();
+		RollBall->SetVisibility(true);
+		UE_LOG(LogVael, Log, TEXT("Panzerkugel: rolled up, %d parts hidden"), HiddenForBall.Num());
+		RolledOver.Reset();
+		BallSpin = 0.0f;
+		LastBallLocation = Player->GetActorLocation();
+	}
+	else
+	{
+		for (const TWeakObjectPtr<UPrimitiveComponent>& Part : HiddenForBall)
+		{
+			if (Part.IsValid())
+			{
+				Part->SetHiddenInGame(false);
+			}
+		}
+		HiddenForBall.Reset();
+		if (RollBall != nullptr)
+		{
+			RollBall->SetVisibility(false);
+		}
+		UE_LOG(LogVael, Log, TEXT("Panzerkugel: opened after %.2f s at %s"), Was, *Player->GetActorLocation().ToCompactString());
+	}
+
+	// A puff of ash and embers hides the moment he curls up or opens
+	const FVector Ground = Player->GetActorLocation() - FVector(0.0f, 0.0f, Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight() - BallRadius);
+	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), Ground, FRotator::ZeroRotator, FLinearColor(0.35f, 0.24f, 0.16f), 45.0f);
+	FVaelDebris Embers;
+	Embers.Count = 8;
+	Embers.Speed = 180.0f;
+	Embers.Lift = 160.0f;
+	Embers.Gravity = 200.0f;
+	Embers.Lifetime = 0.6f;
+	Embers.MinSize = 2.0f;
+	Embers.MaxSize = 4.0f;
+	Embers.Color = FLinearColor(1.0f, 0.42f, 0.1f);
+	Embers.Glow = 3.0f;
+	AVaelDebrisBurst::Spawn(this, Ground, Embers);
+}
+
+void UVaelEngineerComponent::HideHeroForBall()
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr)
+	{
+		return;
+	}
+	// Every frame of the roll: whatever of him is shown, also what was made only now (a weapon, armour put on), hides
+	TArray<AActor*> Owners = { Player };
+	if (USkeletalMeshComponent* Human = Player->GetMetaHumanBody())
+	{
+		Owners.AddUnique(Human->GetOwner());
+	}
+	for (AActor* Each : Owners)
+	{
+		TInlineComponentArray<UPrimitiveComponent*> Pieces(Each);
+		for (UPrimitiveComponent* Part : Pieces)
+		{
+			const FString Name = Part->GetName();
+			if (Part == RollBall || Part->bHiddenInGame || Part->IsA<UShapeComponent>() || Name.Contains(TEXT("Marker")) || Name.Contains(TEXT("Shadow"))
+				|| Part->IsA(UWidgetComponent::StaticClass()))
+			{
+				continue;
+			}
+			Part->SetHiddenInGame(true);
+			HiddenForBall.Add(Part);
+		}
+	}
+}
+
+void UVaelEngineerComponent::UpdateArmorRoll(float DeltaTime)
+{
+	AVaelCharacter* Player = GetPlayer();
+	const bool bUses = UsesArmorRoll();
+	// Made as soon as the set is worn, so the first roll doesn't wait for the model to load
+	if (bUses && RollBall == nullptr)
+	{
+		MakeBall();
+	}
+	const bool bWant = Player != nullptr && (Player->IsDodging() || bBallPreview) && bUses;
+	if (bWant != bBallShown)
+	{
+		ShowBall(bWant);
+	}
+	if (!bBallShown || RollBall == nullptr)
+	{
+		return;
+	}
+	HideHeroForBall();
+
+	const float Rolled = Now() - BallSince;
+	UCharacterMovementComponent* Movement = Player->GetCharacterMovement();
+	const float HalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	FVector Direction = Player->GetDodgeDirection();
+
+	// Held, the ball rolls on: it turns slowly towards the stick and runs faster downhill. The plain dodge carries itself;
+	// the held ball takes over just before it would end.
+	if (bRollHeld && Rolled > Player->GetDodgeDuration() - 0.1f && Rolled < BallMaxSeconds)
+	{
+		const FVector Stick = Player->GetLastMovementInputVector().GetSafeNormal2D();
+		if (!Stick.IsNearlyZero())
+		{
+			const float Angle = FMath::Atan2(FVector::CrossProduct(Direction, Stick).Z, FVector::DotProduct(Direction, Stick));
+			const float Step = FMath::DegreesToRadians(BallTurnRate) * DeltaTime;
+			Direction = Direction.RotateAngleAxis(FMath::RadiansToDegrees(FMath::Clamp(Angle, -Step, Step)), FVector::UpVector);
+		}
+		float Speed = BallRollSpeed;
+		if (Movement->CurrentFloor.IsWalkableFloor())
+		{
+			const FVector Downhill = Movement->CurrentFloor.HitResult.ImpactNormal.GetSafeNormal2D() * FMath::Sqrt(1.0f - FMath::Square(Movement->CurrentFloor.HitResult.ImpactNormal.Z));
+			Speed *= 1.0f + FMath::Clamp(FVector::DotProduct(Downhill, Direction) * 4.0f, -0.4f, BallSlopeBoost);
+		}
+		Player->HoldDodge(Direction, Speed, Now() + 0.15f);
+	}
+	CurledUntil = FMath::Max(CurledUntil, Now() + 0.25f);
+
+	// Spin by the way rolled, like the Aschenroller's ball
+	const FVector Location = Player->GetActorLocation();
+	const float Moved = FVector::Dist2D(Location, LastBallLocation);
+	LastBallLocation = Location;
+	BallSpin = FMath::Fmod(BallSpin + FMath::RadiansToDegrees(Moved / BallRadius), 360.0f);
+	const float Grown = FMath::Lerp(0.55f, 1.0f, FMath::SmoothStep(0.0f, 1.0f, Rolled / BallCurlSeconds));
+	const FVector Scale = FVector(BallRadius / BallModelRadius * Grown);
+	RollBall->SetRelativeScale3D(Scale);
+	RollBall->SetRelativeRotation(FRotator(-BallSpin, 0.0f, 0.0f));
+	RollBall->SetRelativeLocation(FVector(0.0f, 0.0f, -HalfHeight + BallRadius * Grown));
+
+	// A trail of ash behind it
+	if (Now() >= NextBallDust && Moved > 1.0f)
+	{
+		NextBallDust = Now() + 0.07f;
+		FVaelDebris Dust;
+		Dust.Count = 3;
+		Dust.Speed = 120.0f;
+		Dust.Lift = 140.0f;
+		Dust.Gravity = 120.0f;
+		Dust.Lifetime = 0.5f;
+		Dust.MinSize = 14.0f;
+		Dust.MaxSize = 30.0f;
+		Dust.Color = BallAshColor;
+		Dust.bSoft = true;
+		Dust.bDust = true;
+		AVaelDebrisBurst::Spawn(this, Location - FVector(0.0f, 0.0f, HalfHeight), Dust);
+	}
+
+	// Enemies in the way are thrown aside, each once a roll, with a lick of fire from the glowing plates
+	const FVector Middle = Location + FVector(0.0f, 0.0f, -HalfHeight + BallRadius);
+	TArray<FOverlapResult> Hits;
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(VaelPanzerkugel), false, Player);
+	GetWorld()->OverlapMultiByObjectType(Hits, Middle, FQuat::Identity, FCollisionObjectQueryParams(ECC_Pawn), FCollisionShape::MakeSphere(BallRadius + 35.0f), Query);
+	for (const FOverlapResult& Hit : Hits)
+	{
+		AVaelCharacterBase* Enemy = Cast<AVaelCharacterBase>(Hit.GetActor());
+		if (Enemy == nullptr || Enemy->IsA<AVaelCharacter>() || Enemy->GetHealth() <= 0.0f || RolledOver.Contains(Enemy))
+		{
+			continue;
+		}
+		RolledOver.Add(Enemy);
+		FVaelSpellHit Push;
+		Push.Damage = 10.0f;
+		Push.Element = EVaelElement::Fire;
+		Push.Knockback = 650.0f;
+		const FVector Side = (Enemy->GetActorLocation() - Location).GetSafeNormal2D();
+		UVaelCombatStatics::ApplySpellHit(GetOwner(), Enemy, Push, (Side + Player->GetDodgeDirection()).GetSafeNormal2D());
+	}
+
+	// Into a wall: the ball stops dead and he lies dazed for a moment, like the Aschenroller on its back
+	if (Rolled > 0.1f && Movement->Velocity.Size2D() > 300.0f)
+	{
+		FHitResult Wall;
+		FCollisionQueryParams Ignore(SCENE_QUERY_STAT(VaelPanzerkugelWand), false, Player);
+		const FVector Ahead = Player->GetDodgeDirection() * (BallRadius + Movement->Velocity.Size2D() * FMath::Min(DeltaTime, 0.05f) + 8.0f);
+		if (GetWorld()->SweepSingleByChannel(Wall, Middle, Middle + Ahead, FQuat::Identity, ECC_WorldStatic, FCollisionShape::MakeSphere(BallRadius * 0.5f), Ignore)
+			&& Wall.ImpactNormal.Z < 0.5f && FVector::DotProduct(Wall.ImpactNormal.GetSafeNormal2D(), Player->GetDodgeDirection()) < -0.5f)
+		{
+			UE_LOG(LogVael, Log, TEXT("Panzerkugel: into %s"), *GetNameSafe(Wall.GetActor()));
+			Player->StopDodge();
+			ShowBall(false);
+			Player->BeginCastExhaustion(BallDazeSeconds, false);
+			UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("BallWall", "Benommen!"));
+		}
+	}
 }
 
 void UVaelEngineerComponent::ApplyHealthBonus()
@@ -2243,6 +2817,11 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 	{
 		Worn = Saved.EngineerWorn;
 		Worn.SetNum(NumArmorPlaces);
+		// pieces of sets taken out of the game (17.11.: only Schwarzglut) come off
+		for (FName& Piece : Worn)
+		{
+			Piece = !Piece.IsNone() && VaelEngineerGear::Find(Piece) != nullptr ? Piece : NAME_None;
+		}
 	}
 	if (Built.Contains(Saved.EngineerWeapon))
 	{
@@ -2253,8 +2832,75 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 
 #undef LOCTEXT_NAMESPACE
 
+bool UVaelEngineerComponent::UsesArmSling() const
+{
+	const AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr || !Player->IsEngineer() || Weapon != VaelEngineerGear::Sling || GetWorn(EVaelArmorPlace::Arms).IsNone())
+	{
+		return false;
+	}
+	const FVaelGear* Arms = VaelEngineerGear::Find(GetWorn(EVaelArmorPlace::Arms));
+	return Arms != nullptr && Arms->Set == FName(TEXT("Schwarzglut"));
+}
+
+namespace
+{
+	// The Panzerschleuder, in cm in the space of its pieces (Tools/Ingenieur/vael_armschleuder.py): where the band is tied on
+	// the fork, and where the fork rides on the bracer, at rest (pulled back over the forearm) and while he aims (over the
+	// fist). The whole sling sits a little above the forearm's axis, on the Glutpanzer's sleeve
+	const FVector ArmSlingTie(25.7f, 10.4f, 3.5f);
+	const FVector ArmSlingForkRest(-30.0f, 0.0f, 7.0f);
+	const FVector ArmSlingForkAim(0.0f, 0.0f, 7.0f);
+	// Over the Glutpanzer's gauntlet, which is as thick as the Tripo armour (scaled x2): the sling in the same scale, on top
+	constexpr float ArmSlingScale = 1.6f;
+	constexpr float ArmSlingLift = 2.0f;
+	constexpr float ArmSlingBack = 4.0f;
+}
+
+FTransform UVaelEngineerComponent::PlaceArmSling()
+{
+	AVaelCharacter* Player = GetPlayer();
+	// on the bones of the Glutpanzer's arms, which keep their own lengths; the base body without them
+	USkeletalMeshComponent* Body = GlutpanzerBodies.IsValidIndex(2) && GlutpanzerBodies[2] != nullptr && GlutpanzerBodies[2]->IsVisible()
+		? GlutpanzerBodies[2].Get() : Player->GetMesh();
+	const FTransform Hand = Body->DoesSocketExist(TEXT("hand_l")) ? Body->GetSocketTransform(TEXT("hand_l")) : Player->GetActorTransform();
+	const FVector Elbow = Body->DoesSocketExist(TEXT("lowerarm_l")) ? Body->GetSocketLocation(TEXT("lowerarm_l")) : Hand.GetLocation() - Player->GetActorForwardVector() * 30.0f;
+	// ahead along the forearm; up is the thumb side of the hand, kept square to it. The axes come from the base body's hand:
+	// the Glutpanzer's bones were made in Blender and point their axes elsewhere, only its positions are used
+	const USkeletalMeshComponent* Base = Player->GetMesh();
+	const FTransform BaseHand = Base->DoesSocketExist(TEXT("hand_l")) ? Base->GetSocketTransform(TEXT("hand_l")) : Hand;
+	const FVector BaseElbow = Base->DoesSocketExist(TEXT("lowerarm_l")) ? Base->GetSocketLocation(TEXT("lowerarm_l")) : Elbow;
+	FVector Ahead = (BaseHand.GetLocation() - BaseElbow).GetSafeNormal();
+	if (Ahead.IsNearlyZero())
+	{
+		Ahead = (Hand.GetLocation() - Elbow).GetSafeNormal();
+	}
+	FVector Up = BaseHand.GetUnitAxis(EAxis::Y);
+	Up = (Up - Ahead * FVector::DotProduct(Up, Ahead)).GetSafeNormal();
+	if (Up.IsNearlyZero())
+	{
+		Up = FVector::UpVector;
+	}
+	const FQuat Frame = FRotationMatrix::MakeFromXZ(Ahead, Up).ToQuat();
+	const FTransform Forearm(Frame, Hand.GetLocation() - Ahead * ArmSlingBack + Up * ArmSlingLift, FVector(ArmSlingScale));
+	const float Slide = FMath::SmoothStep(0.0f, 1.0f, SlingAim);
+	if (ArmSlingBracer != nullptr)
+	{
+		ArmSlingBracer->SetWorldTransform(Forearm);
+		ArmSlingFork->SetWorldTransform(FTransform(Frame, Forearm.TransformPosition(FMath::Lerp(ArmSlingForkRest, ArmSlingForkAim, Slide)), FVector(ArmSlingScale)));
+	}
+	return Forearm;
+}
+
 bool UVaelEngineerComponent::SlingTips(FVector& OutLeft, FVector& OutRight) const
 {
+	if (ArmSlingFork != nullptr && ArmSlingFork->IsVisible() && Weapon == VaelEngineerGear::Sling)
+	{
+		const FTransform Fork = ArmSlingFork->GetComponentTransform();
+		OutLeft = Fork.TransformPosition(FVector(ArmSlingTie.X, -ArmSlingTie.Y, ArmSlingTie.Z));
+		OutRight = Fork.TransformPosition(ArmSlingTie);
+		return true;
+	}
 	if (WeaponMesh == nullptr || !WeaponMesh->IsVisible() || Weapon != VaelEngineerGear::Sling)
 	{
 		return false;
@@ -2313,7 +2959,9 @@ void UVaelEngineerComponent::OnBodyPoseFinal()
 void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 {
 	AVaelCharacter* Player = GetPlayer();
-	const bool bSling = Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling && WeaponMesh != nullptr && WeaponMesh->IsVisible();
+	const bool bArmSling = ArmSlingFork != nullptr && ArmSlingFork->IsVisible();
+	const bool bSling = Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling
+		&& ((WeaponMesh != nullptr && WeaponMesh->IsVisible()) || bArmSling);
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
 		if (BandMesh[Side] != nullptr)
@@ -2335,7 +2983,7 @@ void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 	const bool bDrawing = IsDrawing();
 	// Raised quickly; after the shot held a moment, then lowered calmly (about 0.8 s)
 	const float WantAim = bDrawing || Now() - SlingLastShot < 0.6f ? 1.0f : 0.0f;
-	SlingAim = FMath::FInterpConstantTo(SlingAim, WantAim, DeltaTime, WantAim > SlingAim ? 5.0f : 1.25f);
+	SlingAim = SlingAimPreview >= 0.0f ? SlingAimPreview : FMath::FInterpConstantTo(SlingAim, WantAim, DeltaTime, WantAim > SlingAim ? 5.0f : 1.25f);
 	// The band gives easily at first and harder towards the cheek: the pull eases out
 	const float DrawShare = bDrawing ? FMath::Clamp(GetDrawSeconds() / SlingFullDraw, 0.0f, 1.0f) : 0.0f;
 	const float WantDraw = 1.0f - FMath::Square(1.0f - DrawShare);
@@ -2383,10 +3031,18 @@ void UVaelEngineerComponent::UpdateSlingFrame(float DeltaTime)
 	const FVector Fingers = HandBone.GetUnitAxis(EAxis::X);
 	const FVector Thumb = HandBone.GetUnitAxis(EAxis::Y);
 	const FVector Palm = -HandBone.GetUnitAxis(EAxis::Z);
-	const FRotator Held = FRotationMatrix::MakeFromZX(Thumb, Fingers).Rotator();
-	const float Scale = 1.0f + 0.06f * GetWeaponTier(Weapon);
-	WeaponMesh->SetWorldLocationAndRotation(HandL + Fingers * 8.0f + Palm * 2.5f - Thumb * 6.0f * Scale, Held);
-	WeaponMesh->SetWorldScale3D(FVector(Scale));
+	FRotator Held = FRotationMatrix::MakeFromZX(Thumb, Fingers).Rotator();
+	if (bArmSling)
+	{
+		// on the forearm: the fork rides forward with the aim; its "held" frame points along the forearm
+		Held = PlaceArmSling().Rotator();
+	}
+	else
+	{
+		const float Scale = 1.0f + 0.06f * GetWeaponTier(Weapon);
+		WeaponMesh->SetWorldLocationAndRotation(HandL + Fingers * 8.0f + Palm * 2.5f - Thumb * 6.0f * Scale, Held);
+		WeaponMesh->SetWorldScale3D(FVector(Scale));
+	}
 
 	if (BandMesh[0] == nullptr)
 	{
@@ -2497,7 +3153,9 @@ bool UVaelEngineerComponent::SetAmmo(FName Id)
 bool UVaelEngineerComponent::IsHoldingSling() const
 {
 	const AVaelCharacter* Player = GetPlayer();
-	return Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling && WeaponMesh != nullptr && WeaponMesh->IsVisible();
+	// the Panzerschleuder on the forearm counts too: the left hand stays a fist under the fork, not an open hand
+	return Player != nullptr && Player->IsEngineer() && Weapon == VaelEngineerGear::Sling
+		&& ((WeaponMesh != nullptr && WeaponMesh->IsVisible()) || (ArmSlingFork != nullptr && ArmSlingFork->IsVisible()));
 }
 
 float UVaelEngineerComponent::GetSlingKick() const

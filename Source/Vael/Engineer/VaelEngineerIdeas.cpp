@@ -62,6 +62,9 @@ const TArray<FVaelEngineerIdea>& VaelEngineerIdeas::GetAll()
 		LOCTEXT("RussfedernTitle", "Federn, die schneiden"),
 		LOCTEXT("RussfedernThought", "Die Harpyie stößt herab, ohne zu flattern: ihre Rußfedern lassen die Luft gleiten. An den Wurfarmen eines Bogens zieht er schneller."),
 		LOCTEXT("RussfedernHint", "Etwas kreischt über den Feldern und stößt aus dem Rauch herab.")));
+	// The armour of the creature sets waits for models (Boris 17.11.: only the Schwarzglut set stays), so do its ideas
+	constexpr bool bCreatureArmourIdeas = false;
+	if constexpr (bCreatureArmourIdeas)
 	All.Add(MakeIdea(TEXT("Russkleid"), TEXT("Aschharpyie"), S::Defeated, { TEXT("Russfeder_0"), TEXT("Russfeder_1"), TEXT("Russfeder_2"), TEXT("Russfeder_3") },
 		LOCTEXT("RusskleidTitle", "Leicht wie Ruß"),
 		LOCTEXT("RusskleidThought", "Ihr Gefieder wiegt fast nichts und hält trotzdem eine Klinge auf. Auf Schleierpelz genäht: eine Rüstung, in der ich schneller bin."),
@@ -71,6 +74,7 @@ const TArray<FVaelEngineerIdea>& VaelEngineerIdeas::GetAll()
 		LOCTEXT("HohlschnabelThought", "Die Älteste trug Schnäbel in ihrer Krone, hohl und zäh. In die Wurfarme eingelassen speichern sie mehr Kraft als jedes Holz."),
 		LOCTEXT("HohlschnabelHint", "Die mit der Krone aus gestohlenem Tand führt die Kreischenden an.")));
 
+	if constexpr (bCreatureArmourIdeas)
 	All.Add(MakeIdea(TEXT("Sichelpanzer"), TEXT("Sichelpuppe"), S::Defeated, { TEXT("Sichelklinge_0"), TEXT("Sichelklinge_1"), TEXT("Sichelklinge_2"), TEXT("Sichelklinge_3") },
 		LOCTEXT("SichelpanzerTitle", "Klingen nach außen"),
 		LOCTEXT("SichelpanzerThought", "Die Puppe ist eine Garbe voller Sicheln. Wer mich packt, schneidet sich: Sichelspitzen auf Kokonseide, die Klingen nach außen."),

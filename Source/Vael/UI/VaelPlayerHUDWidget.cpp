@@ -154,6 +154,12 @@ UVaelPlayerHUDWidget::UVaelPlayerHUDWidget(const FObjectInitializer& ObjectIniti
 	MenuIcons[0] = HudAsset<UTexture2D>(TEXT("T_Symbol_Adernbaum"), TEXT("Symbole"));
 	MenuIcons[1] = HudAsset<UTexture2D>(TEXT("T_Symbol_Rezeptbuch"), TEXT("Symbole"));
 	MenuIcons[2] = HudAsset<UTexture2D>(TEXT("T_Symbol_Karte"), TEXT("Symbole"));
+	MageHudPicture = HudAsset<UTexture2D>(TEXT("T_HUD_Tripo_Magier_HUD"), TEXT("Gemalt"));
+	MageHudMask = HudAsset<UTexture2D>(TEXT("T_HUD_Tripo_Magier_Maske"), TEXT("Gemalt"));
+	MageHudVeins = HudAsset<UTexture2D>(TEXT("T_HUD_Tripo_Magier_Adern"), TEXT("Gemalt"));
+	MageDragonHead = HudAsset<UTexture2D>(TEXT("T_HUD_Tripo_Magier_Drachenkopf"), TEXT("Gemalt"));
+	MagePotionPicture = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Game/Vael/Items/Icons/Bilder/T_Icon_Heiltrank.T_Icon_Heiltrank")));
+	WhiteTexture = TSoftObjectPtr<UTexture2D>(FSoftObjectPath(TEXT("/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture")));
 	TitleFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/AlmendraSC-Regular.AlmendraSC-Regular")));
 	LabelFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/Almendra-Regular.Almendra-Regular")));
 	TextFontFace = TSoftObjectPtr<UFontFace>(FSoftObjectPath(TEXT("/Game/Vael/UI/Fonts/AlegreyaSans-Regular.AlegreyaSans-Regular")));
@@ -176,7 +182,7 @@ void UVaelPlayerHUDWidget::NativeConstruct()
 
 	// Shared pictures, loaded once so painting only looks them up
 	for (const TSoftObjectPtr<UTexture2D>& Texture : { LifeVesselPicture, PlantWheelPicture, ClawTexture, ClawThornsTexture, DragonHeadTexture, PathTextures[0], PathTextures[1], PathTextures[2],
-		PotionIcon, DodgeIcon, SeedIcon, MenuIcons[0], MenuIcons[1], MenuIcons[2] })
+		PotionIcon, DodgeIcon, SeedIcon, MenuIcons[0], MenuIcons[1], MenuIcons[2], MageHudPicture, WhiteTexture, MageDragonHead, MagePotionPicture })
 	{
 		GetTextureBrush(Texture);
 	}
@@ -339,6 +345,20 @@ void UVaelPlayerHUDWidget::ApplyClassData(UVaelHUDClassData* Data)
 	}
 	SetMaterialBrush(FrameBrush, FrameInstance);
 
+	// The mage's painted HUD goes into the same frame material, so the Nid veins creep over it from his R1 square as before
+	MageFrameInstance = nullptr;
+	UTexture2D* MagePicture = VaelAssets::LoadOptional(MageHudPicture);
+	UTexture2D* MageMask = VaelAssets::LoadOptional(MageHudMask);
+	UTexture2D* MageVeins = VaelAssets::LoadOptional(MageHudVeins);
+	if (FramePictureMaterial != nullptr && MagePicture != nullptr && MageMask != nullptr && MageVeins != nullptr)
+	{
+		MageFrameInstance = UMaterialInstanceDynamic::Create(FramePictureMaterial, this);
+		MageFrameInstance->SetTextureParameterValue(TEXT("Picture"), MagePicture);
+		MageFrameInstance->SetTextureParameterValue(TEXT("Mask"), MageMask);
+		MageFrameInstance->SetTextureParameterValue(TEXT("Veins"), MageVeins);
+	}
+	SetMaterialBrush(MageFrameBrush, MageFrameInstance);
+
 	if (UMaterialInterface* Vessel = VaelAssets::LoadOptional(Data->VesselMaterial))
 	{
 		ClassVesselInstance = UMaterialInstanceDynamic::Create(Vessel, this);
@@ -454,6 +474,11 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 		ClassFillTop = 0.5f + 0.4f * FMath::Sin(Time * 0.3f + 1.7f);
 		ResourceText = FText::AsNumber(FMath::RoundToInt(ClassFill * 100.0f));
 	}
+	LifeShare = LifeFill;
+	ClassShare = ClassFill;
+	ExperienceShare = Character->GetExperienceFraction();
+	bMageHud = PreviewClass.IsEmpty() && !Character->IsFloromant() && !Character->IsEngineer() && ShownData->Resource == EVaelHUDResource::Mana
+		&& FindTextureBrush(MageHudPicture) != nullptr && FindTextureBrush(WhiteTexture) != nullptr;
 	if (ClassVesselInstance != nullptr)
 	{
 		ClassVesselInstance->SetScalarParameterValue(FillParameter, ClassFill);
@@ -570,14 +595,18 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 
 	// Frame: Nid veins creep in with the corruption, out of the Nid slot where the class has one: once it is awakened thin threads
 	// already reach over the frame, and corruption makes them thicker and their beat harder; after the oath the way changes the frame
-	if (FrameInstance != nullptr)
+	for (UMaterialInstanceDynamic* Frame : { FrameInstance.Get(), MageFrameInstance.Get() })
 	{
-		FrameInstance->SetScalarParameterValue(CorruptionParameter, Corruption);
-		FrameInstance->SetScalarParameterValue(VeinReachParameter, bNidSlot && bNidAwakened ? FMath::Lerp(NidAwakenedReach, 1.0f, Corruption) : Corruption);
-		FrameInstance->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
-		FrameInstance->SetScalarParameterValue(LightParameter, Path == EVaelPath::Light ? 1.0f : 0.0f);
-		FrameInstance->SetScalarParameterValue(ShadowParameter, Path == EVaelPath::Shadow ? 1.0f : 0.0f);
-		FrameInstance->SetScalarParameterValue(TwilightParameter, Path == EVaelPath::Twilight ? 1.0f : 0.0f);
+		if (Frame == nullptr)
+		{
+			continue;
+		}
+		Frame->SetScalarParameterValue(CorruptionParameter, Corruption);
+		Frame->SetScalarParameterValue(VeinReachParameter, bNidSlot && bNidAwakened ? FMath::Lerp(NidAwakenedReach, 1.0f, Corruption) : Corruption);
+		Frame->SetScalarParameterValue(NidBeatParameter, NidBeatPhase);
+		Frame->SetScalarParameterValue(LightParameter, Path == EVaelPath::Light ? 1.0f : 0.0f);
+		Frame->SetScalarParameterValue(ShadowParameter, Path == EVaelPath::Shadow ? 1.0f : 0.0f);
+		Frame->SetScalarParameterValue(TwilightParameter, Path == EVaelPath::Twilight ? 1.0f : 0.0f);
 	}
 
 	if (TailInstance != nullptr)
@@ -1029,6 +1058,10 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	const FLinearColor Frame = ShownData->FrameColor;
 	const FLinearColor Dim = TextColor.CopyWithNewOpacity(0.7f);
 	int32 L = Base + 1;
+	if (bMageHud)
+	{
+		return PaintMageHud(OutDrawElements, L, O);
+	}
 
 	// Frame of the class with its Nid veins
 	PaintBox(OutDrawElements, L, &FrameBrush, O + FVector2f(0.0f, FrameTop), FVector2f(PanelWidth, PanelHeight - FrameTop));
@@ -1316,6 +1349,169 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 #undef LOCTEXT_NAMESPACE
 
 // ---------------------------------------------------------------- Plant wheel (Floromant)
+
+int32 UVaelPlayerHUDWidget::PaintMageHud(FSlateWindowElementList& Out, int32 L, const FVector2f& O) const
+{
+	// Places are pixels of the painted sheet 1_HUD.png; the picture is the part HudX0..+HudW, HudY0..+HudH of it (vael_tripo_magier.py,
+	// HUD_X0 ...), as wide as the panel and standing on its bottom
+	constexpr float HudX0 = 168.0f;
+	constexpr float HudY0 = 200.0f;
+	constexpr float HudW = 1016.0f;
+	constexpr float HudH = 348.0f;
+	const float K = PanelWidth / HudW;
+	// the squares of the picture against the slots of the drawn HUD, for the veins made for those
+	const float SquareScale = 76.0f * K / SlotSize;
+	// the tail of experience lies under the picture: two layers below everything else
+	const int32 Under = L;
+	L += 2;
+	// lifted a little: the bottom ornaments of the picture hung off the screen
+	const FVector2f TopLeft = O + FVector2f(0.0f, PanelHeight - HudH * K - 90.0f);
+	const auto P = [&TopLeft, K](float X, float Y) { return TopLeft + FVector2f(X - HudX0, Y - HudY0) * K; };
+	const FSlateBrush* White = FindTextureBrush(WhiteTexture);
+	const FLinearColor Dim = TextColor.CopyWithNewOpacity(0.7f);
+	const FLinearColor Glow(0.42f, 0.82f, 1.0f);
+	const auto PaintFrameLines = [&](const FVector2f& At, const FVector2f& Size, const FLinearColor& Color, float Thick)
+	{
+		PaintBox(Out, L + 3, White, At, FVector2f(Size.X, Thick), Color);
+		PaintBox(Out, L + 3, White, At + FVector2f(0.0f, Size.Y - Thick), FVector2f(Size.X, Thick), Color);
+		PaintBox(Out, L + 3, White, At, FVector2f(Thick, Size.Y), Color);
+		PaintBox(Out, L + 3, White, At + FVector2f(Size.X - Thick, 0.0f), FVector2f(Thick, Size.Y), Color);
+	};
+
+	PaintBox(Out, L, MageFrameInstance != nullptr ? &MageFrameBrush : FindTextureBrush(MageHudPicture), TopLeft, FVector2f(HudW, HudH) * K);
+
+	// Experience: the glowing scales of the Urdrachin's tail, as before, run under the lower edge of the frame from orb to orb;
+	// the painted tail and the wax seals lie over them. The dragon's head, cut from the painted menu frame, crowns the HUD
+	const FVector2f TailAt = P(330.0f, 504.0f);
+	const FVector2f TailSize(690.0f * K, 15.0f);
+	PaintBox(Out, Under, &TailBrush, TailAt, TailSize);
+	PaintBox(Out, Under + 1, FindTextureBrush(ShownData->ScalesPicture), TailAt, TailSize);
+	PaintBox(Out, L + 3, FindTextureBrush(MageDragonHead), P(677.0f - 112.0f, 166.0f), FVector2f(224.0f, 87.0f) * K);
+
+	// The orbs are painted full: what is spent darkens from the top like empty glass, a bright line on the surface
+	const auto PaintOrb = [&](const FVector2f& C, float R, float Share, const FLinearColor& Surface, const FText& Value)
+	{
+		const float Level = C.Y + R - 2.0f * R * FMath::Clamp(Share, 0.0f, 1.0f);
+		for (float Y = C.Y - R; Y < Level; Y += 2.0f)
+		{
+			const float Row = FMath::Min(2.0f, Level - Y);
+			const float Dy = Y + Row * 0.5f - C.Y;
+			const float Half = FMath::Sqrt(FMath::Max(R * R - Dy * Dy, 0.0f));
+			PaintBox(Out, L + 1, White, FVector2f(C.X - Half, Y), FVector2f(Half * 2.0f, Row), FLinearColor(0.012f, 0.016f, 0.03f, 0.84f));
+		}
+		if (Share > 0.02f && Share < 0.98f)
+		{
+			const float Dy = Level - C.Y;
+			const float Half = FMath::Sqrt(FMath::Max(R * R - Dy * Dy, 0.0f)) * 0.94f;
+			PaintBox(Out, L + 2, White, FVector2f(C.X - Half, Level - 1.0f), FVector2f(Half * 2.0f, 2.0f), Surface);
+		}
+		PaintText(Out, L + 4, Value, NumberFont, C + FVector2f(0.0f, R * 0.18f), TextColor, 0.5f);
+	};
+	PaintOrb(P(270.0f, 390.0f), 50.0f * K, LifeShare, FLinearColor(1.0f, 0.5f, 0.42f, 0.9f), HealthText);
+	PaintOrb(P(1080.0f, 390.0f), 50.0f * K, ClassShare, FLinearColor(0.55f, 0.85f, 1.0f, 0.9f), ResourceText);
+
+	// Class, player and level above the frame
+	PaintText(Out, L + 4, ShownData->ClassName, TitleFont, P(330.0f, 196.0f), TextColor);
+	PaintText(Out, L + 4, PlayerLine, LabelFont, P(800.0f, 204.0f), Dim);
+
+	// The seven squares: the six abilities, the potion last
+	static const float SquareX[] = { 418.5f, 503.5f, 591.5f, 676.5f, 762.5f, 846.5f, 933.5f };
+	const float Inner = 56.0f * K;
+	const int32 NumAbilities = FMath::Min(Slots.Num(), 6);
+	for (int32 Index = 0; Index < NumAbilities; ++Index)
+	{
+		const FSlotState& State = Slots[Index];
+		const FVector2f Middle = P(SquareX[Index], 414.0f);
+		const float Size = Inner * State.Scale;
+		const FVector2f At = Middle - FVector2f(Size * 0.5f);
+		const FLinearColor IconTint = State.IconColor * (State.bDim ? 0.35f : 1.0f);
+		if (State.Painting != nullptr)
+		{
+			PaintBox(Out, L + 1, State.Painting, At, FVector2f(Size), IconTint);
+		}
+		else
+		{
+			PaintBox(Out, L + 1, State.Icon, Middle - FVector2f(Size * 0.32f), FVector2f(Size * 0.64f), IconTint);
+		}
+		if (State.bLit)
+		{
+			PaintFrameLines(At - FVector2f(3.0f), FVector2f(Size + 6.0f), Glow, 2.0f);
+			PaintFrameLines(At - FVector2f(6.0f), FVector2f(Size + 12.0f), Glow.CopyWithNewOpacity(0.3f), 3.0f);
+		}
+		if (State.bNidHeart && VeinHeartInstance != nullptr)
+		{
+			const float Heart = NidHeartSize * SquareScale;
+			PaintBox(Out, L + 2, &VeinHeartBrush, Middle - FVector2f(Heart * 0.5f), FVector2f(Heart));
+		}
+		// the Nid seizes the other squares from the side of R1, the farther the later (the grips are set in the tick)
+		if (SlotGripInstances.IsValidIndex(Index) && SlotGripInstances[Index] != nullptr)
+		{
+			const float Grip = SlotGripSize * SquareScale;
+			PaintBox(Out, L + 3, &SlotGripBrushes[Index], Middle - FVector2f(Grip * 0.5f), FVector2f(Grip));
+		}
+		if (State.CooldownLeft > 0.0f && CooldownBrushes.IsValidIndex(Index))
+		{
+			PaintBox(Out, L + 2, &CooldownBrushes[Index], At, FVector2f(Size));
+			if (!State.bNoSeconds)
+			{
+				PaintText(Out, L + 4, FText::AsNumber(FMath::CeilToInt(State.CooldownLeft)), NumberFont, Middle - FVector2f(0.0f, 12.0f), TextColor, 0.5f);
+			}
+		}
+		PaintButton(Out, L + 4, State.Button, State.KeyboardKey, Middle + FVector2f(Inner * 0.5f - 3.0f), 11.0f);
+	}
+	{
+		const FVector2f Middle = P(SquareX[6], 414.0f);
+		if (const FSlateBrush* Potion = FindTextureBrush(MagePotionPicture))
+		{
+			PaintBox(Out, L + 1, Potion, Middle - FVector2f(Inner * 0.48f), FVector2f(Inner * 0.96f));
+		}
+		else
+		{
+			PaintBox(Out, L + 1, FindTextureBrush(PotionIcon), Middle - FVector2f(Inner * 0.36f), FVector2f(Inner * 0.72f), Hex(0xD9, 0x57, 0x4A));
+		}
+		PaintBox(Out, L + 3, &BadgeBrush, Middle + FVector2f(Inner * 0.5f - 13.0f, -Inner * 0.5f - 3.0f), FVector2f(16.0f));
+		PaintText(Out, L + 4, PotionText, SmallFont, Middle + FVector2f(Inner * 0.5f - 5.0f, -Inner * 0.5f - 3.0f), GroundColor, 0.5f);
+	}
+
+	// The seal: the elements queued for the next formula sit in its three holes, its name below
+	static const float HoleX[] = { 654.0f, 677.0f, 701.0f };
+	for (int32 Index = 0; Index < 3 && Index < Strip.Num(); ++Index)
+	{
+		if (Strip[Index].bFilled)
+		{
+			const float Hole = 17.0f * K;
+			PaintBox(Out, L + 2, &BadgeBrush, P(HoleX[Index], 311.0f) - FVector2f(Hole * 0.5f), FVector2f(Hole), Strip[Index].Color * 1.3f);
+		}
+	}
+	PaintText(Out, L + 4, StripLabel, SmallFont, P(677.0f, 343.0f), Dim, 0.5f, 160.0f);
+
+	// The quick formulas among the faint signs on the right, the elements nearby among those on the left
+	for (int32 Index = 0; Index < QuickSlots.Num(); ++Index)
+	{
+		const FStripEntry& Entry = QuickSlots[Index];
+		const FVector2f At = P(850.0f + Index * 30.0f, 335.0f) - FVector2f(11.0f * K);
+		PaintBox(Out, L + 1, White, At, FVector2f(22.0f * K), FLinearColor(0.015f, 0.02f, 0.04f, 0.75f));
+		PaintFrameLines(At, FVector2f(22.0f * K), FLinearColor(0.55f, 0.58f, 0.62f, 0.8f), 1.0f);
+		if (Entry.bFilled)
+		{
+			PaintBox(Out, L + 2, &BadgeBrush, At + FVector2f(4.0f * K), FVector2f(14.0f * K), Entry.bPicked ? Entry.Color : Entry.Color * 0.4f);
+		}
+	}
+	for (int32 Index = 0; Index < NearbyElements.Num(); ++Index)
+	{
+		PaintBox(Out, L + 2, &BadgeBrush, P(440.0f + Index * 22.0f, 335.0f) - FVector2f(6.0f * K), FVector2f(12.0f * K), NearbyElements[Index] * 1.4f);
+	}
+
+	// Dodge in the small ring at the right (the level stands in the line above the frame)
+	const FVector2f DodgeAt = P(975.0f, 472.0f);
+	PaintBox(Out, L + 2, FindTextureBrush(DodgeIcon), DodgeAt - FVector2f(10.0f), FVector2f(20.0f), TextColor);
+	if (DodgeLeft > 0.0f)
+	{
+		PaintBox(Out, L + 3, &DodgeCooldownBrush, DodgeAt - FVector2f(13.0f), FVector2f(26.0f));
+	}
+
+	return L + 6;
+}
 
 void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& Dim) const
 {

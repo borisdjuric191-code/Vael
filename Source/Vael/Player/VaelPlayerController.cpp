@@ -140,6 +140,8 @@ void AVaelPlayerController::SetupInputComponent()
 			EnhancedInputComponent->BindAction(AimStickAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnAimStickReleased);
 
 			EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnDodge);
+			EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnDodgeReleased);
+			EnhancedInputComponent->BindAction(DodgeAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnDodgeReleased);
 			EnhancedInputComponent->BindAction(LeaveAction, ETriggerEvent::Triggered, this, &AVaelPlayerController::OnLeave);
 
 			// The element actions are stored in the order of the element enum
@@ -1097,8 +1099,17 @@ void AVaelPlayerController::OnDodge()
 		}
 		if (VaelCharacter->StartDodge(Direction) && VaelCharacter->IsEngineer())
 		{
+			VaelCharacter->GetEngineer()->SetRollHeld(true);
 			VaelCharacter->GetEngineer()->OnDodged();
 		}
+	}
+}
+
+void AVaelPlayerController::OnDodgeReleased()
+{
+	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>(); VaelCharacter != nullptr && VaelCharacter->IsEngineer())
+	{
+		VaelCharacter->GetEngineer()->SetRollHeld(false);
 	}
 }
 
@@ -1895,6 +1906,11 @@ bool AVaelPlayerController::OpenGrimoire(EVaelMenuPage Page)
 		MenuPage = EVaelMenuPage::Werkrolle;
 		WerkrolleSelection = FMath::Clamp(WerkrolleSelection, 0, FMath::Max(GetWerkrolleList(GetPawn<AVaelCharacter>() != nullptr ? GetPawn<AVaelCharacter>()->GetEngineer() : nullptr).Num() - 1, 0));
 	}
+	// The whole Schwarzglut set lies in his toolbox to be tried out (Boris 17.11.)
+	if (Opener != nullptr && Opener->IsEngineer() && Opener->GetEngineer() != nullptr)
+	{
+		Opener->GetEngineer()->PutTestArmorInToolbox();
+	}
 	KeimCursor.Carried = -1;
 
 	// The page of class and body starts on what the player plays
@@ -2234,6 +2250,30 @@ void AVaelPlayerController::OnMenuConfirm()
 		return;
 	}
 
+	// The engineer's toolbox: a tile on the lid takes its piece off, a compartment puts its piece on (in place of the one worn)
+	if (!bMaterialBagShown && VaelCharacter->IsEngineer())
+	{
+		if (UVaelEngineerComponent* Engineer = VaelCharacter->GetEngineer())
+		{
+			const TArray<const FVaelGear*> Pieces = GetToolboxList(Engineer);
+			const FVaelGear* Piece = InventorySelection < NumToolboxTiles ? VaelEngineerGear::Find(Engineer->GetWorn(static_cast<EVaelArmorPlace>(InventorySelection)))
+				: Pieces.IsValidIndex(InventorySelection - NumToolboxTiles) ? Pieces[InventorySelection - NumToolboxTiles] : nullptr;
+			const bool bOn = InventorySelection >= NumToolboxTiles;
+			if (Piece != nullptr && (bOn ? Engineer->Wear(Piece->Id) : Engineer->TakeOff(Piece->Place)))
+			{
+				UVaelNoticeSubsystem::Post(this, FText::Format(bOn ? NSLOCTEXT("VaelItems", "ArmorOn", "{0} angelegt") : NSLOCTEXT("VaelItems", "ArmorOff", "{0} abgelegt"), Piece->Name),
+					FText::GetEmpty(), FLinearColor(FColor(214, 164, 82)), 2.0f);
+			}
+			// what was put on leaves its compartment: the selection stays on the next one, or goes to the tile if none is left
+			const int32 Left = GetToolboxList(Engineer).Num();
+			if (InventorySelection >= NumToolboxTiles)
+			{
+				InventorySelection = Left > 0 ? FMath::Min(InventorySelection, NumToolboxTiles + Left - 1) : static_cast<int32>(Piece != nullptr ? Piece->Place : EVaelArmorPlace::Head);
+			}
+		}
+		return;
+	}
+
 	// In the bag the button uses the selected material (drinking, pouring), which is still a placeholder
 	if (bMaterialBagShown)
 	{
@@ -2348,7 +2388,8 @@ void AVaelPlayerController::OnMenuBag()
 {
 	if (bGrimoireOpen && MenuPage == EVaelMenuPage::Inventory)
 	{
-		// the bag button turns the tabs of the right page: backpack, potions, crystals, ingredients, seeds
+		// the bag button turns the tabs of the right page: backpack (the engineer's: his armour), potions, crystals,
+		// ingredients, seeds
 		BagTab = (BagTab + 1) % UVaelMaterialBag::NumTabs;
 		bMaterialBagShown = BagTab > 0;
 		BagSelection = 0;
@@ -2358,6 +2399,20 @@ void AVaelPlayerController::OnMenuBag()
 	{
 		KeimCursor.bShadowSide = !KeimCursor.bShadowSide;
 	}
+}
+
+void AVaelPlayerController::ShowBagTab(int32 Tab)
+{
+	BagTab = FMath::Clamp(Tab, 0, UVaelMaterialBag::NumTabs - 1);
+	bMaterialBagShown = BagTab > 0;
+	BagSelection = 0;
+}
+
+void AVaelPlayerController::ShowInventoryRow(int32 Row)
+{
+	BagTab = 0;
+	bMaterialBagShown = false;
+	InventorySelection = FMath::Max(Row, 0);
 }
 
 void AVaelPlayerController::NavigateInventory(int32 Right, int32 Down)
@@ -2381,14 +2436,59 @@ void AVaelPlayerController::NavigateInventory(int32 Right, int32 Down)
 		return;
 	}
 
+	// The engineer's toolbox: five tiles round the Glutzeichnung, then the compartments
+	if (const AVaelCharacter* Holder = GetPawn<AVaelCharacter>(); Holder != nullptr && Holder->IsEngineer())
+	{
+		const int32 NumPieces = GetToolboxList(Holder->GetEngineer()).Num();
+		if (InventorySelection < NumToolboxTiles)
+		{
+			// by EVaelArmorPlace: up, down, left, right; the left column helmet, arms, legs, the right one chest and shield;
+			// -2 goes into the compartments
+			static const int32 Tiles[][4] = { { -1, 2, -1, 1 }, { -1, 4, 0, -2 }, { 0, 3, -1, 4 }, { 2, -1, -1, 4 }, { 1, -1, 2, -2 } };
+			const int32* Near = Tiles[InventorySelection];
+			const int32 Next = Down < 0 ? Near[0] : Down > 0 ? Near[1] : Right < 0 ? Near[2] : Near[3];
+			if (Next == -2)
+			{
+				const int32 Row = InventorySelection == static_cast<int32>(EVaelArmorPlace::Shield) ? 2 : 0;
+				const int32 Cell = FMath::Min(Row * Columns, NumPieces - 1);
+				InventorySelection = Cell >= 0 ? NumToolboxTiles + Cell : InventorySelection;
+			}
+			else if (Next >= 0)
+			{
+				InventorySelection = Next;
+			}
+			return;
+		}
+		const int32 Cell = InventorySelection - NumToolboxTiles;
+		if (Right < 0 && Cell % Columns == 0)
+		{
+			InventorySelection = Cell / Columns <= 1 ? static_cast<int32>(EVaelArmorPlace::Chest) : static_cast<int32>(EVaelArmorPlace::Shield);
+			return;
+		}
+		const int32 NewCell = (Cell / Columns + Down) * Columns + FMath::Clamp(Cell % Columns + Right, 0, Columns - 1);
+		if (NewCell >= 0 && NewCell < NumPieces)
+		{
+			InventorySelection = NumToolboxTiles + NewCell;
+		}
+		return;
+	}
+
+	// The mage's painted grimoire (VaelHUD.cpp, MageEquipPlaces) has its rings in other places than the old book of the Floromant
+	const AVaelCharacter* Reader = GetPawn<AVaelCharacter>();
+	const bool bMageBook = Reader != nullptr && !Reader->IsFloromant();
+
 	if (InventorySelection < NumEquip)
 	{
 		// Neighbours of each place around the figure, by EVaelEquipSlot: up, down, left, right; none stays
 		static const int32 Neighbours[][4] = {
 			{ -1, 4, -1, 7 }, { -1, 8, 7, NumEquip }, { -1, 7, 0, 1 }, { 7, 6, 4, 8 }, { 0, 5, -1, 3 },
 			{ 4, -1, -1, 6 }, { 3, -1, 5, 9 }, { 2, 3, 0, 1 }, { 1, 9, 3, NumEquip + 2 * Columns }, { 8, -1, 6, NumEquip + 4 * Columns } };
+		// the grimoire: left column amulet, weapon, hands, ring; right column chest, offhand, belt, ring; head on top, boots below
+		static const int32 MageNeighbours[][4] = {
+			{ 7, 4, -1, 1 }, { 3, 6, 0, NumEquip }, { -1, 7, 7, 3 }, { 2, 1, 2, NumEquip }, { 0, 8, -1, 6 },
+			{ 8, -1, 8, 9 }, { 1, 9, 4, NumEquip + Columns }, { 2, 0, -1, 2 }, { 4, 5, -1, 9 }, { 6, 5, 8, NumEquip + 2 * Columns } };
 
-		const int32* Near = Neighbours[InventorySelection];
+		const int32* Near = bMageBook ? MageNeighbours[InventorySelection] : Neighbours[InventorySelection];
 		const int32 Next = Down < 0 ? Near[0] : Down > 0 ? Near[1] : Right < 0 ? Near[2] : Near[3];
 		InventorySelection = Next >= 0 ? Next : InventorySelection;
 		return;
@@ -2400,7 +2500,7 @@ void AVaelPlayerController::NavigateInventory(int32 Right, int32 Down)
 	if (Right < 0 && Column == 0)
 	{
 		// Back onto the left page, to the ring or offhand beside this row
-		InventorySelection = Row <= 1 ? 1 : Row <= 3 ? 8 : 9;
+		InventorySelection = bMageBook ? (Row <= 2 ? 9 : 5) : Row <= 1 ? 1 : Row <= 3 ? 8 : 9;
 		return;
 	}
 
@@ -2964,6 +3064,24 @@ void AVaelPlayerController::OnSpyglassLowered()
 	{
 		VaelCharacter->SetObserving(false);
 	}
+}
+
+TArray<const FVaelGear*> AVaelPlayerController::GetToolboxList(const UVaelEngineerComponent* Engineer)
+{
+	TArray<const FVaelGear*> List;
+	if (Engineer == nullptr)
+	{
+		return List;
+	}
+	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
+	{
+		if (Gear.Kind == EVaelGearKind::Armor && Engineer->HasBuilt(Gear.Id) && Engineer->GetWorn(Gear.Place) != Gear.Id)
+		{
+			List.Add(&Gear);
+		}
+	}
+	// the order of GetAll keeps each set together and its pieces from head to shield
+	return List;
 }
 
 TArray<const FVaelGear*> AVaelPlayerController::GetWerkrolleList(const UVaelEngineerComponent* Engineer)

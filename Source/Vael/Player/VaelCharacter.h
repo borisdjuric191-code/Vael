@@ -242,6 +242,19 @@ public:
 	UFUNCTION(BlueprintPure, Category="Dodge")
 	bool IsDodging() const { return bIsDodging; }
 
+	/** Keeps the dodge roll going this way and at this speed until the time given (the engineer's Panzerkugel while the dodge
+	 *  is held). Only the first DodgeDuration is safe from harm; the next dodge waits until a little after the roll. */
+	void HoldDodge(const FVector& WorldDirection, float Speed, float Until);
+
+	/** Ends the dodge roll at once (the Panzerkugel ran into a wall) */
+	void StopDodge() { if (bIsDodging) { EndDodge(); } }
+
+	/** Normalized direction of the current dodge roll */
+	const FVector& GetDodgeDirection() const { return DodgeDirection; }
+
+	/** Length of a plain dodge roll in seconds */
+	float GetDodgeDuration() const { return DodgeDuration; }
+
 	/** Gives the character one of the base looks of its class: 0 the man, 1 the woman. Body and head are separate parts. */
 	void SetBaseLook(int32 LookIndex);
 
@@ -589,6 +602,9 @@ private:
 
 	/** World time at which the current dodge roll ends */
 	float DodgeEndTime = 0.0f;
+
+	/** World time until which the current roll keeps the player safe: a held Panzerkugel rolls on beyond it */
+	float DodgeSafeEndTime = 0.0f;
 
 	/** World time from which the next dodge roll is allowed */
 	float NextDodgeTime = 0.0f;

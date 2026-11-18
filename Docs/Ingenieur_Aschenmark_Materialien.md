@@ -363,11 +363,89 @@ Wie bei der Munition: Ein Rüstungsteil besteht aus **Platte + Gelenk + Fassung 
 | Klappschild | 3 Rollpanzer + 1 Rollsehne + 1 Schlackeneisen + 1 Gehärtete Platte |
 
 - Fast der ganze Rückenpanzer eines Aschenrollers, in seine fünf Bandreihen geteilt (je 20 cm, zusammen etwa 1 m hoch und 55 cm breit). Zusammengeschoben liegt er auf dem linken Unterarm; beim Blocken schieben sich die Reihen wie beim Entrollen in 0,18 s zum gewölbten Turmschild aus.
+- **Mit dem Glutpanzer (16.11.):** Trägt er die Glutpanzer-Brust, ist ihr ganzer Rückenpanzer der Schild (SKM_Ing_GP_Schild, der ganze Gürteltier-Panzer aus 11 Tripo-Teilen: 0, 14, 41, Nacken 46, 48, 53, 58, obere Seitenreihen 22, 23, Kuppel 27, 51). Beim Blocken löst er sich in 0,32 s als ein Stück vom Rücken, wandert über die linke Schulter nach vorn und steht dort als Turmschild von der Schulter bis zum Knie. Beim Loslassen geht es denselben Weg zurück auf den Rücken. Der Klappschild am Unterarm bleibt dann weg. Damit der Rücken geschlossen bleibt, wenn der Schild vorn ist, trägt die Brust hinten gespiegelte Platten aus ihrer eigenen Vorderseite, und am Nacken liegen Lamellen aus dem Helmkranz (Boris: keine zweite Schildplatte). Test: `VaelIngenieur panzerschild [0..1]` hält den Panzer an einer Stelle des Wegs fest.
 - **Bedienung:** L2 bzw. rechte Maustaste **tippen** legt weiter das Gerät, **halten** (ab 0,2 s) hebt den Schild. Ohne Schild legt auch langes Drücken das Gerät.
 - **Wirkung:** Was von vorn kommt (breiter Kegel), wird um 70 % gemindert. In den ersten 0,35 s nach dem Anheben kommt gar nichts durch (perfekter Block). Hinter dem Schild geht er mit 55 % Tempo und schießt nicht.
 - **Mit vollem Satz:** Ein perfekter Block wirft den Angreifer zurück und setzt ihn in Brand.
 - Der Schild zählt nicht zu den 2 und 4 Teilen des Satzes.
 - **Später:** die „Rollwall“ als Wurfgerät, die über den Boden rollt und als Deckung aufschnellt (Geräte-Liste).
+
+**Schwer, und die Panzerkugel als Ausgleich (Boris, 17.11.)**
+
+- **Tempo:** Jedes getragene Schwarzglut-Rüstungsteil macht ihn 3 % langsamer (volle Rüstung 88 %, der Schild zählt nicht). Hinter dem gehobenen Schild kommt die 55 % noch dazu, zusammen etwa 48 %.
+- **Panzerkugel (4 Teile):** Beim Ausweichen rollt er sich zur Kugel ein. Das ist die eingerollte Aschenroller-Kugel, überzogen mit dem Rückenpanzer des Glutpanzers, einmal oben und einmal unten herum (Tools/Ingenieur/vael_panzerkugel.py, SM_Ing_Panzerkugel, 1,2 m Durchmesser für die 2 m große Glutpanzer-Figur). Nur Schildplatten, zweimal um die Achse gelegt, mit glühenden Fugen, und an jedem Achsenende zwei Gruppen Schulterzacken (Boris: weniger ist mehr; ein Versuch mit der ganzen Rüstung auf der Kugel war zu unruhig). Beim Einrollen und Öffnen verdeckt ein Stoß aus Asche und Glut den Wechsel.
+- **Antippen:** die normale Ausweichrolle (0,4 s, in der Zeit unverwundbar).
+- **Halten:** Die Kugel rollt weiter, bis zu 3 s insgesamt, mit 8,5 m/s, bergab bis zu doppelt so schnell. Sie lenkt träge (140° pro Sekunde) zum Stick. Nach den ersten 0,4 s ist er nicht mehr unverwundbar, nimmt eingerollt aber 60 % weniger Schaden, und wer ihn trifft, fängt Feuer.
+- **Gegner im Weg** fliegen beiseite (Rückstoß 650) und bekommen 10 Feuerschaden, jeder einmal pro Rolle.
+- **Gegen eine Wand** bleibt die Kugel stehen und er ist 0,8 s benommen, wie der Aschenroller auf dem Rücken.
+- **Test:** `VaelIngenieur kugel [Sekunden gehalten]`, `VaelIngenieur kugelwand [Sekunden]` (rollt zur nächsten Wand), `VaelIngenieur kugelstehen` (zeigt die Kugel still).
+
+### Das Menü des Ingenieurs und sein Werkzeugkasten (Boris, 17.11.)
+
+- **Alles außer „Gestalt“ im Ingenieurstil:** Kompendium und Aufträge stehen in seinem Werkstattfenster aus rotem Werkleder auf dunklem Eisen. Dazu ein Messingrand mit Nieten, eiserne Eckwinkel und oben ein Zahnrad mit Glutstein (`UI/VaelHUDToolbox.cpp`, DrawEngineerWindow). Der erste Reiter heißt bei ihm WERKROLLE statt FORMELN.
+- **Seine Tasche ist kein Buch, sondern ein aufgeklappter Werkzeugkasten** (`Tools/HUD/vael_hud_gemalt.py`, inventory_engineer → `T_HUD_Gemalt_Inventar_Ingenieur`):
+  - Links der Deckel mit einer Bauzeichnung als Bedienungsanleitung. Darauf sitzen die zehn Ausrüstungsplätze als Messingfassungen auf einem gezeichneten Zahnrad und darunter der Werkzeuggürtel.
+  - In der Mitte das Scharnier.
+  - Rechts die eingeklemmte Anleitung (dort steht, was gewählt ist), darunter die eisernen Fächer, 7 × 5.
+  - Die Plätze liegen genau wie im Grimoire des Magiers.
+- **Der Deckel als Bauplan (Boris 17.11., zweite Fassung, „wie bei Iron Man, aber nicht so futuristisch“):**
+  - Statt Papier eine rußgeschwärzte Eisenplatte mit Kupferraster.
+  - Darauf die **Glutzeichnung**: der echte Glutpanzer von vorn, als Freestyle-Linien in Kupfer, die Glutrisse der Platten glimmen. Kein Blau, das bleibt beim Magier.
+  - Fünf Kacheln wie bei Diablo, unterschiedlich groß (Helm, Arme, Beine links; Brust und Schild rechts). Von jeder Kachel läuft eine Linie zu ihrem Teil auf der Zeichnung: glühend, wenn angelegt, sonst matt.
+  - Angelegt zeigt die Kachel das Teil selbst, leer seinen dunklen Geist. Darunter vier Gürtelplätze.
+  - Die Zeichnung leuchtet mit jedem angelegten Teil etwas heller.
+- **Bilder der Teile wie beim Schmied in Monster Hunter** (`Tools/Ingenieur/vael_glutpanzer_bilder.py` → `Vael_Quellen/Ingenieur/Ruestung/08_bilder`, Import `Scripts/ImportRuestungBilder.py` → `/Game/Vael/UI/HUD/Ruestung`):
+  - Jedes Teil aus dem Rig, mit Texturen, schräg von vorn gerendert, freigestellt.
+  - Die Arme zeigen nur einen Arm.
+- **Erster Reiter „Rüstung“** statt des Rucksacks, nur beim Ingenieur:
+  - In den Fächern liegen die gebauten Teile, die er nicht trägt.
+  - Bestätigen auf einem Fach legt das Teil an, auf einer Kachel legt es ab.
+  - Die Anleitung zeigt das gewählte Teil groß mit Platz, Rüstung, Leben, Text und Satz („x von 4 angelegt“). Greifende Boni stehen glutrot.
+- **Nur noch die Schwarzglut-Rüstung:** Die vier Kreatur-Sätze (Panzer, Sichel, Ruß, Blutschuppen) und ihre zwei Einfälle sind abgeschaltet, bis sie Modelle haben (`bCreatureSets` in `VaelEngineerGear.cpp`, `bCreatureArmourIdeas` in `VaelEngineerIdeas.cpp`). Alte Spielstände legen solche Teile beim Laden ab.
+- **Zum Ausprobieren:** Öffnet der Ingenieur das Menü, liegt der ganze Schwarzglut-Satz (Helm, Brust, Arme, Beine, Klappschild) gebaut im Kasten. Abschalten mit `bTestArmorInToolbox` in `VaelEngineerComponent.cpp`.
+- **Test:** `VaelMenue Ruestung<n>` (Kasten auf, Zeile n: 0–4 die Kacheln, ab 5 die Fächer), `VaelIngenieur ablegen <Platz>`.
+
+### Bilder aller Materialien und Farben je Gruppe (Boris, 17.11.)
+
+- **Bilder:** Alle 145 Materialien sind 3D-Renders im Licht der Rüstungsteile: 512 px, groß im Bild, Kantenlicht von hinten (`Tools/Loot/vael_material_bilder.py`, Liste aus `Scripts/ExportMaterialList.py`, Import und Zuweisung mit `Scripts/ImportMaterialBilder.py` nach `/Game/Vael/Items/Icons/Bilder`).
+  - Die 14 Erze und Steine kommen aus ihren echten Tripo-Modellen.
+  - Alles andere hat eine Form nach seiner Beschreibung: Krustenplatten mit Glutrissen, Rollpanzer-Band, Sehnen, Garnknäuel, Federn, Klauen, Schnabel, Stachel, Kiefer, Kronen, Drüsen und Herzen mit glühenden Adern, Augen, Perlen, Felle, Ordenstuch, Siegel, Barren, Messingblech, Latexrollen, Linse, Phiolen, Nektartöpfe, Pilze, Myzel, Kristalle.
+  - Albruns acht Samen sind so gebaut, wie er sie beschreibt.
+  - Tränke stehen in Flaschen nach Seltenheit.
+- **Hintergrund:** Das Spiel malt ihn selbst (`DrawGroupBackdrop`): ein dunkles Feld, hinter der Mitte ein weicher Schein in der Farbe der Gruppe. Die Seltenheit bleibt am Rahmen.
+- **Gruppen** (`Items/VaelItemGroups`, zum späteren Sortieren; die Anleitung nennt die Gruppe statt der alten Kategorie):
+
+| Gruppe | Farbe |
+|---|---|
+| Erz und Gestein | stahlblau |
+| Kristall | violett |
+| Kreaturteil | blutrot |
+| Werkstoff | messing |
+| Pflanze | grün |
+| Saft und Tau | wasserblau |
+| Pollen und Staub | pollengelb |
+| Pilz | erdbraun |
+| Saat | junggrün |
+| Trank | magenta |
+| Rüstung | glutorange |
+
+- **Zweite Fassung, gemalt (Boris 17.11., Referenz: gemalte Itembilder mit viel Eigenheit, schwere Rahmen):** Die 3D-Renders sind ersetzt.
+  - **Bildbeschreibung:** Jedes Material hat eine eigene Beschreibung (`Tools/Loot/vael_bildbogen_motive.py`). Tränke bekommen jeweils eine eigene Flaschenform, Glas mit Blasen, Siegel, Anhänger.
+  - **Erzeugung:** `vael_bildbogen_prompts.py` schreibt 37 Bögen zu 2 × 2 auf Chroma-Grund: grün, magenta oder blau, je nach den Farben der Dinge. Die Bilder kommen aus Nano Banana in Tripo, freie Bilder, 0 Credits (rund 61 von 100 freien Bildern verbraucht). Ablage: `Vael_Quellen/Icons/boegen`.
+  - **Freistellen:** `vael_bildbogen_schneiden.py` misst die Hintergrundfarbe am Rand jedes Viertels und rechnet sie heraus. Glas und Rauch bleiben halbdurchsichtig, Schatten werden weiches Schwarz. Ergebnis 512 px in `Vael_Quellen/Icons/gemalt`, Import mit `Scripts/ImportMaterialBilder.py`.
+  - **Rahmen je Seltenheit** (`Tools/HUD/vael_hud_gemalt.py`, `item_frame`, `T_HUD_Gemalt_Itemrahmen_0..4`):
+
+| Seltenheit | Rahmen |
+|---|---|
+| Gewöhnlich | dunkles Eisen mit Nieten |
+| Magisch | Stahl mit blauer Einlage |
+| Selten | Gold mit Zierecken |
+| Legendär | Schwarzeisen mit Gold und Glutsteinen |
+| Einzigartig | Kupfer mit Altgold-Schnörkeln |
+
+  - **Offen:** An einigen glühenden Teilen von grünen Bögen bleibt ein leichter gelbgrüner Saum.
+- **Achtung:** `Scripts/CreateLootKit.py` setzt beim nächsten Lauf die alten Bilder seiner fünf Beutestücke wieder; danach `ImportMaterialBilder.py` erneut laufen lassen.
+- **Test:** `VaelMaterial alle 3` (jedes Material dreimal in den Beutel), `VaelMenue Beutel<n>` (Reiter n des Beutels).
 
 Nach diesem Muster lassen sich die anderen Sätze mischen, zum Beispiel eine leichte **Aschenjäger-Rüstung** aus Rußfeder, Schleierpelz und Greifklaue (Tempo, Hinterhalt) oder eine **Erntewacht** aus Sichelklinge, Puppengarn und Glimmstroh (Schaden, feuerfest).
 

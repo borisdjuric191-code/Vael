@@ -10,7 +10,9 @@ import unreal
 SOURCE = "C:/Projekte/Vael_Quellen/Ingenieur/Ruestung/05_rig"
 FOLDER = "/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper"
 MATS = "/Game/Vael/Characters/Ingenieur/Glutpanzer/Materialien"
-PIECES = ["Beine", "Brust", "Arme", "Kopf"]
+PIECES = ["Beine", "Brust", "Arme", "Kopf", "Schild", "UnterarmL"]
+# The back shell, the engineer's shield, has a skeleton of its own (root and the chain Schild_0..4 it curls by)
+OWN_SKELETON = {"Schild"}
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 assets = unreal.EditorAssetLibrary
@@ -32,7 +34,11 @@ for piece in PIECES:
     ui.set_editor_property("import_textures", False)
     ui.set_editor_property("import_animations", False)
     ui.set_editor_property("create_physics_asset", False)
-    if skeleton is not None:
+    if piece in OWN_SKELETON:
+        own = unreal.load_asset("{}/{}_Skeleton".format(FOLDER, name)) if assets.does_asset_exist("{}/{}_Skeleton".format(FOLDER, name)) else None
+        if own is not None:
+            ui.set_editor_property("skeleton", own)
+    elif skeleton is not None:
         ui.set_editor_property("skeleton", skeleton)
     data = ui.skeletal_mesh_import_data
     data.set_editor_property("import_morph_targets", False)

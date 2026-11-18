@@ -325,4 +325,43 @@ private:
 
 	/** True while the frame of the class is the painted one: its corners and middle are part of the picture */
 	bool bPaintedFrame = false;
+
+	/** The mage's HUD painted by Tripo (Boris 18.11., Tools/HUD/vael_tripo_magier.py, cut out of 1_HUD.png): the frame with the two
+	 *  orbs, seven squares (the six abilities and the potion), the seal with three holes (the queued elements) */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> MageHudPicture;
+
+	/** A plain white picture for boxes of one colour */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> WhiteTexture;
+
+	/** For the Nid veins over the painted mage HUD (Boris 18.11.): where the frame is (R) and its gems (G), and the veins grown
+	 *  from the R1 square (Tools/HUD/vael_tripo_magier.py, adern); laid with the picture into the frame material of the class */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> MageHudMask;
+
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> MageHudVeins;
+
+	/** The dragon head of the painted menu frame, cut out, crowning the HUD like the menu */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> MageDragonHead;
+
+	/** The painted healing potion (the item picture of the Heiltrank) in the potion square */
+	UPROPERTY(EditDefaultsOnly, Category="Look")
+	TSoftObjectPtr<UTexture2D> MagePotionPicture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> MageFrameInstance;
+
+	FSlateBrush MageFrameBrush;
+
+	/** True while the painted mage HUD is shown in place of the drawn frame; the shares of the orbs and of the experience */
+	bool bMageHud = false;
+	float LifeShare = 1.0f;
+	float ClassShare = 1.0f;
+	float ExperienceShare = 0.0f;
+
+	/** Paints the mage's HUD; O is the top left corner of the panel */
+	int32 PaintMageHud(FSlateWindowElementList& Out, int32 Layer, const FVector2f& O) const;
 };

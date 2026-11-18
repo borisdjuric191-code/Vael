@@ -416,6 +416,20 @@ public:
 	/** Fields per row of the material bag in the book, the same grid as the backpack */
 	static constexpr int32 BagColumns = 7;
 
+	/** The engineer's toolbox (Boris 17.11., like Diablo): its first tab is his armour. The selection of the inventory then
+	 *  runs over the five tiles on the lid first (by EVaelArmorPlace), then over the compartments with the pieces he does not
+	 *  wear (GetToolboxList) */
+	static constexpr int32 NumToolboxTiles = 5;
+
+	/** The built armour pieces of the engineer that lie in the toolbox, not worn: by set, then by place */
+	static TArray<const struct FVaelGear*> GetToolboxList(const class UVaelEngineerComponent* Engineer);
+
+	/** Opens the first tab of the inventory and picks a row (VaelMenue Ruestung<n>, for tests) */
+	void ShowInventoryRow(int32 Row);
+
+	/** Opens a tab of the bag on the inventory page (VaelMenue Beutel<n>, for tests): 1 potions, 2 crystals, 3 ingredients, 4 seeds */
+	void ShowBagTab(int32 Tab);
+
 	/** Switches the right page of the inventory between backpack and bag */
 	void OnMenuBag();
 
@@ -591,6 +605,9 @@ protected:
 	void OnAimStick(const FInputActionValue& Value);
 	void OnAimStickReleased();
 	void OnDodge();
+
+	/** The dodge button let go: the engineer's Panzerkugel stops rolling on */
+	void OnDodgeReleased();
 	void OnLeave();
 	void OnElement(EVaelElement Element);
 	void OnCast();

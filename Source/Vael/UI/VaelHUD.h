@@ -18,6 +18,8 @@ class UVaelGrimoireSubsystem;
 class UVaelWorldMap;
 class UTexture2D;
 struct FCompositeFont;
+struct FVaelQuestProgress;
+struct FVaelQuestStep;
 enum class EVaelWay : uint8;
 struct FSlateFontInfo;
 
@@ -99,6 +101,9 @@ private:
 	/** One field of the material bag: icon (or a disc in its color), a frame and shimmer in the color of its rarity, its way sign and count */
 	void DrawBagField(const struct FVaelMaterialStack& Stack, const FVector2D& Center, float Half, float T, float Pulse);
 
+	/** The ground of a field in the bag: dark, with the colour of the thing's group glowing behind its middle */
+	void DrawGroupBackdrop(const FVector2D& Center, float Half, const FLinearColor& GroupColor);
+
 	/** Small sign of a way: sun for light, crescent for shadow, half and half for twilight, nothing for neutral */
 	void DrawWaySign(EVaelWay Way, const FVector2D& Center, float Radius);
 
@@ -115,6 +120,20 @@ private:
 
 	/** The page of the quests in the grimoire: open quests with their steps, then the finished ones */
 	void DrawQuestLog(const AVaelPlayerController* PlayerController);
+
+	/** The mage's painted menus (Boris 18.11., VaelHUDMage.cpp): the formula page and the quests in the painted menu frame */
+	void DrawMageFormulas(const AVaelPlayerController* PlayerController);
+	void DrawMageQuestLog(const AVaelPlayerController* PlayerController);
+
+	/** Whether a player sees the mage's painted menus: the mage, and the classes without menus of their own */
+	bool UsesMageMenus(const AVaelCharacter* Player) const;
+
+	/** A painted sign of /Game/Vael/UI/HUD/Zauber by name (T_Zauber_<Name>), null if there is none; and the one of a formula */
+	UTexture2D* GetSpellPicture(FName Name);
+	UTexture2D* GetFormulaPicture(const UVaelFormula* Formula);
+
+	/** An objective with its count, like "Glutkriecher besiegen 3/6" */
+	static FText GetQuestObjectiveLine(const FVaelQuestStep& Step, const FVaelQuestProgress& Progress);
 
 	/** Page of a trader: goods, prices, the purse and what the bag holds of each */
 	void DrawShop(const AVaelPlayerController* PlayerController);
@@ -149,8 +168,30 @@ private:
 	/** Kinds of menu windows: parchment for knowledge, dark iron for the system, the class material for the character */
 	enum class EVaelWindow : uint8 { Parchment, Iron, Class };
 
-	/** Background of a menu window in its material; a dark box while the material is missing */
+	/** Background of a menu window in its material; a dark box while the material is missing. In the engineer's menu the
+	 *  parchment becomes his workshop window (DrawEngineerWindow) */
 	void DrawWindow(EVaelWindow Kind, float X, float Y, float Width, float Height, const class AVaelPlayerController* PlayerController);
+
+	/** The engineer's menu window (UI/VaelHUDToolbox.cpp, Boris 17.11.): red work leather on dark iron, a brass edge with rivets,
+	 *  iron brackets on the corners and a gear with a coal over the top, like his HUD frame */
+	void DrawEngineerWindow(float X, float Y, float Width, float Height);
+
+	static FLinearColor WithAlphaOf(FLinearColor Color, float Alpha);
+
+	/** A gear lying flat: toothed rim, hub and, if Ember, a coal in the middle */
+	void DrawGear(const FVector2D& Center, float Radius, int32 Teeth, const FLinearColor& Color, bool bEmber);
+
+	/** The lid of the engineer's toolbox (UI/VaelHUDToolbox.cpp, Boris 17.11.): the Glutzeichnung of his armour on the soot
+	 *  plate, the five tiles of the places like Diablo with a line from each to its piece on the drawing, the belt below.
+	 *  At places a point of the picture in its scene units */
+	void DrawToolboxLid(const AVaelPlayerController* PlayerController, TFunctionRef<FVector2D(float, float)> At, float Unit, float T);
+
+	/** The first tab of the toolbox: the pieces he does not wear in the compartments, the picked one (on a tile or in a
+	 *  compartment) on the manual with its big picture, like at the smith in Monster Hunter */
+	void DrawToolboxArmor(const AVaelPlayerController* PlayerController, TFunctionRef<FVector2D(float, float)> At, float Unit, float T);
+
+	/** The picture of an armour piece, None for pieces without one */
+	UTexture2D* GetArmorPicture(const struct FVaelGear& Piece) const;
 
 	/** Instances of the window materials, by kind */
 	UPROPERTY(Transient)
@@ -338,6 +379,39 @@ private:
 	/** The open grimoire of the inventory */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> BookPicture;
+
+	/** The engineer's opened toolbox in its place (Boris 17.11.: his bag is no book), the same places as the grimoire */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> ToolboxPicture;
+
+	/** The mage's painted menus (Tools/HUD/vael_tripo_magier.py): the grimoire of his inventory, the formula page, the menu frame, the HUD */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> MageInventoryPicture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> MageFormulaPicture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> MageMenuPicture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> MageHudPicture;
+
+	/** Painted signs of the elements and formulas, looked up when first drawn (null where none is painted) */
+	UPROPERTY(Transient)
+	TMap<FName, TObjectPtr<UTexture2D>> SpellPictures;
+
+	/** The pieces of the Schwarzglut set by EVaelArmorPlace (Tools/Ingenieur/vael_glutpanzer_bilder.py), and its Glutzeichnung */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> ArmorPictures;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> BlueprintPicture;
+
+	/** The painted frames of the fields of the bag by rarity (Tools/HUD/vael_hud_gemalt.py, item_frame): iron, steel, gold,
+	 *  black iron with embers, copper; their opening is 0.8 of the picture */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UTexture2D>> ItemFrames;
 
 	/** Signs of the items by EVaelItemSlot */
 	UPROPERTY(Transient)

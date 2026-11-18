@@ -29,6 +29,7 @@
 #include "Magic/VaelFloatingGrimoireComponent.h"
 #include "Magic/VaelFormula.h"
 #include "Items/VaelInventory.h"
+#include "Items/VaelItemGroups.h"
 #include "Items/VaelItemSettings.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
@@ -97,6 +98,8 @@ namespace
 
 	/** The open grimoire of the inventory, as painted: its picture and the places on it in scene units (Tools/HUD/vael_hud_gemalt.py, inventory_mage) */
 	const TCHAR* BookPicturePath = TEXT("/Game/Vael/UI/HUD/Gemalt/T_HUD_Gemalt_Inventar_Magier.T_HUD_Gemalt_Inventar_Magier");
+	/** The engineer's opened toolbox (inventory_engineer), the places the same */
+	const TCHAR* ToolboxPicturePath = TEXT("/Game/Vael/UI/HUD/Gemalt/T_HUD_Gemalt_Inventar_Ingenieur.T_HUD_Gemalt_Inventar_Ingenieur");
 	constexpr float BookAspect = 16.0f / 9.0f;
 	constexpr float BookSceneWidth = 3.5556f;
 	constexpr float BookFigureX = -0.8f;
@@ -109,6 +112,15 @@ namespace
 	/** Places of the equipment around the figure, by EVaelEquipSlot */
 	const FVector2D BookEquipPlaces[] = { FVector2D(-0.5, 0.26), FVector2D(0.5, 0.26), FVector2D(0.0, 0.5), FVector2D(0.0, -0.07), FVector2D(-0.5, -0.1),
 		FVector2D(-0.5, -0.46), FVector2D(0.0, -0.33), FVector2D(0.0, 0.2), FVector2D(0.5, -0.1), FVector2D(0.5, -0.46) };
+
+	/** The mage's painted grimoire (T_HUD_Tripo_Magier_Inventar, 1344x768): pixels of it per scene unit of the old book, and the
+	 *  rings of the equipment by EVaelEquipSlot (x, y, radius in pixels): weapon and offhand at the hips, head on top, chest and
+	 *  amulet at the shoulders, hands and belt where the gloves were painted, rings below, the boots under the figure */
+	constexpr float MagePixelsPerUnit = 378.0f;
+	const FVector3f MageEquipPlaces[] = { FVector3f(348.5f, 286.5f, 25), FVector3f(582, 286.5f, 25), FVector3f(465.5f, 171, 25), FVector3f(557.5f, 206.5f, 25),
+		FVector3f(338, 362, 25), FVector3f(468.5f, 575, 19), FVector3f(592, 362, 25), FVector3f(374, 206.5f, 25), FVector3f(346, 430, 19), FVector3f(592.5f, 430, 19) };
+	/** The cool light of the mage's painted menus (the glow Tripo gave the open tab) */
+	const FLinearColor MageGlowColor = FLinearColor(0.42f, 0.82f, 1.0f);
 
 	/** Colors of the map */
 	const FLinearColor MapNameColor = Rgb(246, 236, 212);
@@ -142,6 +154,31 @@ void AVaelHUD::BeginPlay()
 		return Composite;
 	};
 	BookPicture = Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(BookPicturePath)));
+	ToolboxPicture = Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(ToolboxPicturePath)));
+	const auto LoadMagePicture = [](const TCHAR* Name)
+	{
+		return Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/UI/HUD/Gemalt/T_HUD_Tripo_Magier_%s.T_HUD_Tripo_Magier_%s"), Name, Name))));
+	};
+	MageInventoryPicture = LoadMagePicture(TEXT("Inventar"));
+	MageFormulaPicture = LoadMagePicture(TEXT("Formeln"));
+	MageMenuPicture = LoadMagePicture(TEXT("Menue"));
+	MageHudPicture = LoadMagePicture(TEXT("HUD"));
+	for (int32 Rarity = 0; Rarity < 5; ++Rarity)
+	{
+		ItemFrames.Add(Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/UI/HUD/Gemalt/T_HUD_Gemalt_Itemrahmen_%d.T_HUD_Gemalt_Itemrahmen_%d"), Rarity, Rarity)))));
+	}
+	for (const TCHAR* Piece : { TEXT("Helm"), TEXT("Brust"), TEXT("Arme"), TEXT("Beine"), TEXT("Schild"), TEXT("Bauplan") })
+	{
+		UTexture2D* Picture = Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/UI/HUD/Ruestung/T_Ruestung_Schwarzglut_%s.T_Ruestung_Schwarzglut_%s"), Piece, Piece))));
+		if (FCString::Strcmp(Piece, TEXT("Bauplan")) == 0)
+		{
+			BlueprintPicture = Picture;
+		}
+		else
+		{
+			ArmorPictures.Add(Picture);
+		}
+	}
 	for (const TCHAR* Kind : { TEXT("Weapon"), TEXT("Offhand"), TEXT("Head"), TEXT("Chest"), TEXT("Hands"), TEXT("Feet"), TEXT("Belt"), TEXT("Amulet"), TEXT("Ring") })
 	{
 		ItemIcons.Add(Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/UI/HUD/Items/T_Item_%s.T_Item_%s"), Kind, Kind)))));
@@ -771,6 +808,12 @@ void AVaelHUD::DrawGrimoire(const AVaelPlayerController* PlayerController)
 		return;
 	}
 
+	if (MageFormulaPicture != nullptr && UsesMageMenus(Player))
+	{
+		DrawMageFormulas(PlayerController);
+		return;
+	}
+
 	const float S = UiScale;
 	const EVaelInputGlyphs Glyphs = PlayerController->GetInputGlyphs();
 	const UVaelElementComponent* Elements = Player->GetElementComponent();
@@ -1018,6 +1061,20 @@ void AVaelHUD::DrawMaterialBag(const AVaelCharacter* Player, float PanelLeft, fl
 	}
 }
 
+void AVaelHUD::DrawGroupBackdrop(const FVector2D& Center, float Half, const FLinearColor& GroupColor)
+{
+	// dark ground, then rings of the colour stacked from the edge in, so it is brightest behind the middle and the
+	// corners stay dark: the thing stands in a pool of its own light
+	DrawBox(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, FLinearColor(0.035f, 0.028f, 0.024f, 0.92f));
+	constexpr int32 Rings = 9;
+	for (int32 Ring = 0; Ring < Rings; ++Ring)
+	{
+		const float T = static_cast<float>(Ring) / Rings;
+		DrawDisc(Center, Half * (1.05f - 0.9f * T), FLinearColor(GroupColor.R, GroupColor.G, GroupColor.B, 0.075f + 0.02f * T));
+	}
+	DrawBox(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 0.08f, FLinearColor(GroupColor.R, GroupColor.G, GroupColor.B, 0.25f));
+}
+
 void AVaelHUD::DrawElementButton(EVaelInputGlyphs Glyphs, EVaelElement Element, const FVector2D& Center, float Radius, float Alpha)
 {
 	DrawDisc(Center, Radius, WithAlpha(UVaelMagicSettings::Get()->GetElementColor(Element), Alpha));
@@ -1083,7 +1140,14 @@ void AVaelHUD::DrawQuickSlotLabel(EVaelInputGlyphs Glyphs, int32 SlotIndex, cons
 
 void AVaelHUD::DrawWindow(EVaelWindow Kind, float X, float Y, float Width, float Height, const AVaelPlayerController* PlayerController)
 {
-	// Parchment for knowledge, dark iron with gold filigree for the system, the material of the class for the character
+	// Parchment for knowledge, dark iron with gold filigree for the system, the material of the class for the character; in the
+	// engineer's menu (Boris 17.11.: everything but the page Gestalt in his style) the parchment is his workshop window
+	const AVaelCharacter* WindowPlayer = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Kind == EVaelWindow::Parchment && WindowPlayer != nullptr && WindowPlayer->IsEngineer() && PlayerController->IsGrimoireOpen())
+	{
+		DrawEngineerWindow(X, Y, Width, Height);
+		return;
+	}
 	const TCHAR* Names[] = { TEXT("MI_HUD_Fenster_Pergament"), TEXT("MI_HUD_Fenster_Eisen"), TEXT("MI_HUD_Fenster_Klasse") };
 	const int32 Index = static_cast<int32>(Kind);
 	if (WindowMaterials.Num() < 3)
@@ -1470,11 +1534,27 @@ void AVaelHUD::DrawQuestTracker(float Top)
 	}
 }
 
+FText AVaelHUD::GetQuestObjectiveLine(const FVaelQuestStep& Step, const FVaelQuestProgress& Progress)
+{
+	return GetObjectiveLine(Step, Progress);
+}
+
+bool AVaelHUD::UsesMageMenus(const AVaelCharacter* Player) const
+{
+	return Player != nullptr && !Player->IsFloromant() && !Player->IsEngineer();
+}
+
 void AVaelHUD::DrawQuestLog(const AVaelPlayerController* PlayerController)
 {
 	const UVaelQuestSubsystem* Quests = UVaelQuestSubsystem::Get(this);
 	if (Quests == nullptr)
 	{
+		return;
+	}
+
+	if (MageMenuPicture != nullptr && UsesMageMenus(PlayerController->GetPawn<AVaelCharacter>()))
+	{
+		DrawMageQuestLog(PlayerController);
 		return;
 	}
 
@@ -1754,6 +1834,7 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 	// Right aligned, last page first: the pages, then the switch buttons; the open page is lit
 	const AVaelCharacter* TabPlayer = PlayerController->GetPawn<AVaelCharacter>();
 	const bool bFloromant = TabPlayer != nullptr && TabPlayer->IsFloromant();
+	const bool bEngineer = TabPlayer != nullptr && TabPlayer->IsEngineer();
 	const TPair<EVaelMenuPage, FText> Pages[] =
 	{
 		{ EVaelMenuPage::Hero, LOCTEXT("TabHero", "GESTALT") },
@@ -1761,6 +1842,7 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 		{ EVaelMenuPage::Compendium, LOCTEXT("TabCompendium", "KOMPENDIUM") },
 		{ EVaelMenuPage::Inventory, LOCTEXT("TabInventory", "INVENTAR") },
 		bFloromant ? TPair<EVaelMenuPage, FText>(EVaelMenuPage::Keimgeflecht, LOCTEXT("TabKeim", "KEIMGEFLECHT"))
+			: bEngineer ? TPair<EVaelMenuPage, FText>(EVaelMenuPage::Werkrolle, LOCTEXT("TabWerkrolle", "WERKROLLE"))
 			: TPair<EVaelMenuPage, FText>(EVaelMenuPage::Formulas, LOCTEXT("TabFormulas", "FORMELN")),
 	};
 
@@ -1771,7 +1853,7 @@ void AVaelHUD::DrawMenuTabs(const AVaelPlayerController* PlayerController, float
 		X -= MeasureLabel(Page.Value, 13.0f * S) + 18.0f * S;
 	}
 
-	DrawLabel(Switch, X, Y, 13.0f * S, Rgb(201, 180, 138), 1.0f);
+	DrawLabel(Switch, X, Y, 13.0f * S, bEngineer ? Rgb(214, 164, 82) : Rgb(201, 180, 138), 1.0f);
 }
 
 void AVaelHUD::DrawSeedLegend(const AVaelPlayerController* PlayerController, const AVaelCharacter* Player, float CenterX, float Y, float InnerWidth)
@@ -1910,9 +1992,16 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 	const auto At = [Middle, Unit](float X, float Z) { return FVector2D(Middle.X + X * Unit, Middle.Y - Z * Unit); };
 	const FVector2D PictureSize(PictureWidth, PictureWidth / BookAspect);
 
-	if (BookPicture != nullptr)
+	const bool bToolbox = Player->IsEngineer() && ToolboxPicture != nullptr;
+	// The mage's own grimoire (Boris 18.11., painted by Tripo, Tools/HUD/vael_tripo_magier.py): its places are given in pixels of
+	// the 1344x768 picture, Px turns them into the screen
+	const bool bMageBook = !bToolbox && !Player->IsFloromant() && MageInventoryPicture != nullptr;
+	const auto Px = [&At](float X, float Y) { return At((X - 672.0f) / MagePixelsPerUnit, (384.0f - Y) / MagePixelsPerUnit); };
+	const float PxUnit = 1.0f / MagePixelsPerUnit;
+	const FLinearColor Pick = bMageBook ? MageGlowColor : EmberColor;
+	if (UTexture2D* Picture = bToolbox ? ToolboxPicture.Get() : bMageBook ? MageInventoryPicture.Get() : BookPicture.Get())
 	{
-		Canvas->K2_DrawTexture(BookPicture, Middle - PictureSize * 0.5f, PictureSize, FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Translucent);
+		Canvas->K2_DrawTexture(Picture, Middle - PictureSize * 0.5f, PictureSize, FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Translucent);
 	}
 
 	// Text sizes follow the book
@@ -1931,25 +2020,49 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 		}
 	};
 
-	// Left page: what is worn, around the figure; the empty places show what belongs there
+	// Left page: what is worn, around the figure; the empty places show what belongs there. The engineer's lid is his own
+	// (Boris 17.11.): the Glutzeichnung of his armour with the tiles of its places
+	if (bToolbox)
+	{
+		DrawToolboxLid(PlayerController, At, Unit, T);
+	}
 	const FVector2D LeftHead = At(BookFigureX, BookHeadingZ);
+	if (!bToolbox)
+	{
+	const FText PlayerLine = FText::Format(LOCTEXT("InventoryPlayer", "Spieler {0} · {1} Gildenmünzen"), PlayerController->GetPlayerSlot() + 1, Inventory->GetCoins());
+	if (bMageBook)
+	{
+		// no room on the painted page: under the book
+		const FVector2D Note = Px(236.0f, 694.0f);
+		DrawLabel(PlayerLine, Note.X, Note.Y, 17.0f * T, DimColor, 0.0f);
+	}
+	else
+	{
 	DrawTitle(LOCTEXT("InventoryTitle", "Ausrüstung"), LeftHead.X, LeftHead.Y, 40.0f * T, Ink, 0.5f);
 	const FVector2D LeftNote = At(BookFigureX, BookHeadingZ - 0.2f);
-	DrawLabel(FText::Format(LOCTEXT("InventoryPlayer", "Spieler {0} · {1} Gildenmünzen"), PlayerController->GetPlayerSlot() + 1, Inventory->GetCoins()), LeftNote.X, LeftNote.Y - 9.0f * T, 18.0f * T, FadedInk, 0.5f);
+	DrawLabel(PlayerLine, LeftNote.X, LeftNote.Y - 9.0f * T, 18.0f * T, FadedInk, 0.5f);
+	}
 
 	for (int32 Index = 0; Index < NumEquip; ++Index)
 	{
 		const EVaelEquipSlot EquipSlot = static_cast<EVaelEquipSlot>(Index);
 		const FVaelItem& Item = Inventory->GetEquipped(EquipSlot);
 		const FVector2D& Place = BookEquipPlaces[Index];
-		const FVector2D Center = At(BookFigureX + Place.X, BookFigureZ + Place.Y);
+		const FVector2D Center = bMageBook ? Px(MageEquipPlaces[Index].X, MageEquipPlaces[Index].Y) : At(BookFigureX + Place.X, BookFigureZ + Place.Y);
+		// the rings of the painted grimoire: the sign fills the opening, the selection lies round the ring
+		const float RingRadius = MageEquipPlaces[Index].Z;
 
 		const EVaelItemSlot Kind = EquipSlot == EVaelEquipSlot::Ring1 || EquipSlot == EVaelEquipSlot::Ring2 ? EVaelItemSlot::Ring : static_cast<EVaelItemSlot>(Index);
-		DrawItemIcon(Kind, Center, 0.16f, Item.IsValid() ? VaelItems::GetRarityColor(Item.Rarity) : FLinearColor(0.42f, 0.36f, 0.3f, 0.5f));
+		DrawItemIcon(Kind, Center, bMageBook ? RingRadius * 1.45f * PxUnit : 0.16f, Item.IsValid() ? VaelItems::GetRarityColor(Item.Rarity) : FLinearColor(0.42f, 0.36f, 0.3f, 0.5f));
 		if (Index == Selection)
 		{
-			DrawRing(Center, 0.125f * Unit, EmberColor, 3.0f * T);
+			DrawRing(Center, bMageBook ? (RingRadius + 5.0f) * PxUnit * Unit : 0.125f * Unit, Pick, 3.0f * T);
+			if (bMageBook)
+			{
+				DrawRing(Center, (RingRadius + 8.0f) * PxUnit * Unit, WithAlpha(Pick, 0.35f), 4.0f * T);
+			}
 		}
+	}
 	}
 
 	// Right page, lower half: the backpack, or the bag of materials
@@ -1958,7 +2071,20 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 	const bool bBag = PlayerController->IsMaterialBagShown();
 	const FText Close = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("InvCloseKeyboard", "I / Esc") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("InvClosePlayStation", "Kreis") : LOCTEXT("InvCloseXbox", "B");
 	const FText BagKey = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("BagKeyboard", "B") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("BagPlayStation", "Viereck") : LOCTEXT("BagXbox", "X");
-	const FVector2D Hint = At(RightX, -0.815f);
+	const FVector2D Hint = bMageBook ? Px(1132.0f, 694.0f) : At(RightX, -0.815f);
+	const float HintAlign = bMageBook ? 1.0f : 0.5f;
+	const FLinearColor HintColor = bMageBook ? DimColor : FadedInk;
+	// fields of the backpack and the bag: the painted 7x5 of the grimoire, or the grid of the old book
+	const auto GridCenter = [&](int32 Column, int32 Row)
+	{
+		return bMageBook ? Px(882.0f + (Column - 3) * 43.0f, 431.0f + Row * 38.5f)
+			: At(RightX + (Column - (BookBackpackColumns - 1) * 0.5f) * BookBackpackStep, BookBackpackTop - Row * BookBackpackStep);
+	};
+	const float GridScale = bMageBook ? 38.5f * PxUnit / BookBackpackStep : 1.0f;
+	// what is selected, on the parchment of the right page (the grimoire's is a smaller sheet, its text a bit smaller)
+	const FVector2D DetailAt = bMageBook ? Px(738.0f, 224.0f) : At(RightX - 0.56f, 0.5f);
+	const float DetailWidth = (bMageBook ? 294.0f * PxUnit : 1.12f) * Unit;
+	const float DetailT = bMageBook ? T * 0.74f : T;
 
 	// The container of the class (Boris 2026-11-07): the mage keeps his things in the pockets of his grimoire, the Floromant
 	// in the glasses of her herbarium; the page takes a green glass tint for her and the fields become jars
@@ -1968,33 +2094,55 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 		DrawBox(Middle.X - PictureSize.X * 0.5f, Middle.Y - PictureSize.Y * 0.5f, PictureSize.X, PictureSize.Y, FLinearColor(0.05f, 0.22f, 0.16f, 0.22f));
 	}
 
-	// Tabs of the right page: backpack of gear, potions, crystals, ingredients, seeds (the bag button turns them)
+	// Tabs of the right page: backpack of gear, potions, crystals, ingredients, seeds (the bag button turns them); the engineer's
+	// toolbox holds his armour in place of the backpack
 	const int32 Tab = PlayerController->GetBagTab();
 	{
-		const FText TabNames[] = { LOCTEXT("TabGear", "Ausrüstung"), LOCTEXT("TabPotions", "Tränke"), LOCTEXT("TabCrystals", "Kristalle"), LOCTEXT("TabIngredients", "Zutaten"), LOCTEXT("TabSeeds", "Saat") };
+		const FText TabNames[] = { bToolbox ? LOCTEXT("TabArmor", "Rüstung") : LOCTEXT("TabGear", "Ausrüstung"), LOCTEXT("TabPotions", "Tränke"), LOCTEXT("TabCrystals", "Kristalle"),
+			LOCTEXT("TabIngredients", "Zutaten"), LOCTEXT("TabSeeds", "Saat") };
+		const int32 NumTabs = UE_ARRAY_COUNT(TabNames);
 		const float TabStep = 0.25f;
-		for (int32 Index = 0; Index < UE_ARRAY_COUNT(TabNames); ++Index)
+		for (int32 Index = 0; Index < NumTabs && bMageBook; ++Index)
 		{
-			const FVector2D TabAt = At(RightX + (Index - 2) * TabStep, BookHeadingZ - 0.26f);
+			// the painted tabs of the grimoire: the open one glows
+			const FVector2D TabAt = Px(761.0f + Index * 63.0f, 172.0f);
+			const bool bOn = Index == Tab;
+			const float TabW = 54.0f * PxUnit * Unit;
+			const float TabH = 60.0f * PxUnit * Unit;
+			if (bOn)
+			{
+				DrawBox(TabAt.X - TabW * 0.5f, TabAt.Y - TabH * 0.5f, TabW, TabH, WithAlpha(MageGlowColor, 0.16f));
+				DrawFrame(TabAt.X - TabW * 0.5f - 2.0f * T, TabAt.Y - TabH * 0.5f - 2.0f * T, TabW + 4.0f * T, TabH + 4.0f * T, MageGlowColor, 2.0f * T);
+				DrawFrame(TabAt.X - TabW * 0.5f - 6.0f * T, TabAt.Y - TabH * 0.5f - 6.0f * T, TabW + 12.0f * T, TabH + 12.0f * T, WithAlpha(MageGlowColor, 0.3f), 3.0f * T);
+			}
+			DrawLabel(TabNames[Index], TabAt.X, TabAt.Y - 8.0f * T, 14.0f * T, bOn ? FLinearColor::White : BoneColor * FLinearColor(1, 1, 1, 0.75f), 0.5f, TabW * 0.92f);
+		}
+		for (int32 Index = 0; Index < NumTabs && !bMageBook; ++Index)
+		{
+			const FVector2D TabAt = At(RightX + (Index - (NumTabs - 1) * 0.5f) * TabStep, BookHeadingZ - 0.26f);
 			const bool bOn = Index == Tab;
 			const float TabW = TabStep * Unit * 0.94f;
 			const float TabH = 26.0f * T;
-			DrawBox(TabAt.X - TabW * 0.5f, TabAt.Y - TabH * 0.5f, TabW, TabH, bOn ? (bHerbarium ? FLinearColor(0.12f, 0.3f, 0.2f, 0.75f) : FLinearColor(0.34f, 0.16f, 0.08f, 0.7f)) : FLinearColor(0.1f, 0.07f, 0.05f, 0.25f));
+			DrawBox(TabAt.X - TabW * 0.5f, TabAt.Y - TabH * 0.5f, TabW, TabH, bOn ? (bHerbarium ? FLinearColor(0.12f, 0.3f, 0.2f, 0.75f) : bToolbox ? FLinearColor(0.3f, 0.06f, 0.03f, 0.8f) : FLinearColor(0.34f, 0.16f, 0.08f, 0.7f)) : FLinearColor(0.1f, 0.07f, 0.05f, 0.25f));
 			DrawFrame(TabAt.X - TabW * 0.5f, TabAt.Y - TabH * 0.5f, TabW, TabH, bOn ? EmberColor : FLinearColor(0.3f, 0.22f, 0.14f, 0.6f), bOn ? 2.0f * T : 1.0f);
 			DrawLabel(TabNames[Index], TabAt.X, TabAt.Y - 10.0f * T, 16.0f * T, bOn ? BoneColor : FadedInk, 0.5f);
 		}
 	}
 
 	// The belt: four places for potions, on the left page under the figure
+	if (!bToolbox)
 	{
 		const UVaelMaterialBag* BeltBag = Player->GetMaterialBag();
 		const FVector2D BeltHead = At(BookFigureX, -0.6f);
-		DrawLabel(bHerbarium ? LOCTEXT("BeltTitleFlo", "Gläser am Gürtel") : LOCTEXT("BeltTitleMage", "Gürteltaschen"), BeltHead.X, BeltHead.Y - 10.0f * T, 18.0f * T, FadedInk, 0.5f);
+		if (!bMageBook)
+		DrawLabel(bHerbarium ? LOCTEXT("BeltTitleFlo", "Gläser am Gürtel") : bToolbox ? LOCTEXT("BeltTitleEngineer", "Werkzeuggürtel") : LOCTEXT("BeltTitleMage", "Gürteltaschen"), BeltHead.X, BeltHead.Y - 10.0f * T, 18.0f * T, FadedInk, 0.5f);
 		for (int32 Place = 0; Place < UVaelMaterialBag::BeltSize; ++Place)
 		{
-			const FVector2D Center = At(BookFigureX + (Place - 1.5f) * 0.17f, -0.7f);
+			// the grimoire's four painted squares under the figure, the boots' ring between them
+			static const float MageBeltX[] = { 357.5f, 419.5f, 517.0f, 579.5f };
+			const FVector2D Center = bMageBook ? Px(MageBeltX[FMath::Min(Place, 3)], 575.0f) : At(BookFigureX + (Place - 1.5f) * 0.17f, -0.7f);
 			const UVaelMaterial* Potion = BeltBag->GetBelt().IsValidIndex(Place) ? BeltBag->GetBelt()[Place].Get() : nullptr;
-			const float Half = 0.06f * Unit;
+			const float Half = bMageBook ? 21.0f * PxUnit * Unit : 0.06f * Unit;
 			if (Potion != nullptr)
 			{
 				FVaelMaterialStack BeltStack;
@@ -2009,19 +2157,33 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 					DrawBagField(BeltStack, Center, Half, T, 0.0f);
 				}
 			}
-			else
+			else if (!bMageBook)
 			{
 				DrawBox(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, FLinearColor(0.1f, 0.07f, 0.05f, 0.35f));
 			}
-			DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, Place == BeltBag->GetActiveBelt() ? EmberColor : FLinearColor(0.3f, 0.22f, 0.14f, 0.7f),
-				Place == BeltBag->GetActiveBelt() ? 3.0f * T : 1.0f);
+			if (!bMageBook || Place == BeltBag->GetActiveBelt())
+			{
+				DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, Place == BeltBag->GetActiveBelt() ? Pick : FLinearColor(0.3f, 0.22f, 0.14f, 0.7f),
+					Place == BeltBag->GetActiveBelt() ? 3.0f * T : 1.0f);
+			}
 		}
 	}
 
-	if (bBag)
+	if (bToolbox && !bBag)
+	{
+		DrawTitle(LOCTEXT("ArmorTitle", "Rüstung"), RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
+		DrawToolboxArmor(PlayerController, At, Unit, T);
+		const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "Kreuz") : LOCTEXT("ConfirmXbox", "A");
+		const FText Action = Selection < AVaelPlayerController::NumToolboxTiles ? LOCTEXT("ActionTakeOff", "ablegen") : LOCTEXT("ActionPutOn", "anlegen");
+		DrawLabel(FText::Format(LOCTEXT("ArmorFooter", "{0}: {1} · {2}: nächster Reiter · {3}: schließen"), Confirm, Action, BagKey, Close), Hint.X, Hint.Y, 17.0f * T, HintColor, HintAlign);
+	}
+	else if (bBag)
 	{
 		const FText BagTitles[] = { FText::GetEmpty(), LOCTEXT("BagTitlePotions", "Tränke"), LOCTEXT("BagTitleCrystals", "Kristalle"), LOCTEXT("BagTitleIngredients", "Zutaten"), LOCTEXT("BagTitleSeeds", "Saat") };
-		DrawTitle(BagTitles[FMath::Clamp(Tab, 0, 4)], RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
+		if (!bMageBook)
+		{
+			DrawTitle(BagTitles[FMath::Clamp(Tab, 0, 4)], RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
+		}
 
 		// Lower half: the fields of the tab in the grid of the backpack, scrolled so the selected row is in sight
 		const TArray<FVaelMaterialStack> Stacks = Player->GetMaterialBag()->GetStacks(Tab);
@@ -2040,40 +2202,38 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 				break;
 			}
 
-			const FVector2D Center = At(RightX + (Column - (BookBackpackColumns - 1) * 0.5f) * BookBackpackStep, BookBackpackTop - Row * BookBackpackStep);
+			const FVector2D Center = GridCenter(Column, Row);
 			if (bHerbarium)
 			{
 				DrawBagJar(Stacks[Index], Center, 0.075f * Unit, T);
 			}
 			else
 			{
-				DrawBagField(Stacks[Index], Center, 0.075f * Unit, T, Pulse);
+				DrawBagField(Stacks[Index], Center, 0.075f * GridScale * Unit, T * GridScale, Pulse);
 			}
 			// on the belt: a small buckle in the corner
 			if (Player->GetMaterialBag()->GetBelt().Contains(Stacks[Index].Material))
 			{
-				DrawDisc(Center + FVector2D(-0.055f * Unit, -0.055f * Unit), 5.0f * T, EmberColor);
+				DrawDisc(Center + FVector2D(-0.055f * Unit, -0.055f * Unit) * GridScale, 5.0f * T * GridScale, Pick);
 			}
 			if (Index == BagSelection)
 			{
-				const float Half = 0.08f * Unit;
-				DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, EmberColor, 3.0f * T);
+				const float Half = 0.08f * GridScale * Unit;
+				DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, Pick, 3.0f * T);
 			}
 		}
 
 		// Upper half: what the selected material is
-		const FVector2D DetailAt = At(RightX - 0.56f, 0.56f);
-		const float DetailWidth = 1.12f * Unit;
 		if (Stacks.IsEmpty())
 		{
 			const FText EmptyTexts[] = { FText::GetEmpty(), LOCTEXT("EmptyPotions", "Noch keine Tränke. Am Wurzeltisch der Glutkammer wird gebraut."),
 				LOCTEXT("EmptyCrystals", "Noch keine Kristalle."), LOCTEXT("BagEmpty", "Noch leer. Gefallene Kreaturen lassen Teile zurück."),
 				LOCTEXT("EmptySeeds", "Noch keine Saat. Albrun erforscht, was im Keimpelz wächst.") };
-			DrawLabel(EmptyTexts[FMath::Clamp(Tab, 0, 4)], DetailAt.X + DetailWidth * 0.5f, DetailAt.Y + 30.0f * T, 21.0f * T, FadedInk, 0.5f, DetailWidth);
+			DrawWrappedLabel(EmptyTexts[FMath::Clamp(Tab, 0, 4)], DetailAt.X, DetailAt.Y + 30.0f * DetailT, 21.0f * DetailT, FadedInk, DetailWidth);
 		}
 		else
 		{
-			DrawMaterialDetails(Stacks[BagSelection], DetailAt.X, DetailAt.Y, DetailWidth, T);
+			DrawMaterialDetails(Stacks[BagSelection], DetailAt.X, DetailAt.Y, DetailWidth, DetailT);
 		}
 
 		const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "Kreuz") : LOCTEXT("ConfirmXbox", "A");
@@ -2082,26 +2242,29 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 		const FText Footer = Tab == 1 && bUsable ? FText::Format(LOCTEXT("BagFooterPotion", "{0}: benutzen · {1}: an den Gürtel · {2}: nächster Reiter · {3}: schließen"), Confirm, BeltKey, BagKey, Close)
 			: bUsable ? FText::Format(LOCTEXT("BagFooterUse", "{0}: benutzen · {1}: nächster Reiter · {2}: schließen"), Confirm, BagKey, Close)
 			: FText::Format(LOCTEXT("BagFooter", "{0}: nächster Reiter · {1}: schließen"), BagKey, Close);
-		DrawLabel(Footer, Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
+		DrawLabel(Footer, Hint.X, Hint.Y, 17.0f * T, HintColor, HintAlign);
 	}
 	else
 	{
-		DrawTitle(LOCTEXT("BackpackTitle", "Rucksack"), RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
+		if (!bMageBook)
+		{
+			DrawTitle(LOCTEXT("BackpackTitle", "Rucksack"), RightHead.X, RightHead.Y, 40.0f * T, Ink, 0.5f);
+		}
 
 		for (int32 Index = 0; Index < BackpackSize; ++Index)
 		{
 			const int32 Column = Index % BookBackpackColumns;
 			const int32 Row = Index / BookBackpackColumns;
-			const FVector2D Center = At(RightX + (Column - (BookBackpackColumns - 1) * 0.5f) * BookBackpackStep, BookBackpackTop - Row * BookBackpackStep);
+			const FVector2D Center = GridCenter(Column, Row);
 			if (Inventory->GetBackpack().IsValidIndex(Index))
 			{
 				const FVaelItem& Item = Inventory->GetBackpack()[Index];
-				DrawItemIcon(Item.Slot, Center, 0.125f, VaelItems::GetRarityColor(Item.Rarity));
+				DrawItemIcon(Item.Slot, Center, 0.125f * GridScale, VaelItems::GetRarityColor(Item.Rarity));
 			}
 			if (NumEquip + Index == Selection)
 			{
-				const float Half = 0.08f * Unit;
-				DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, EmberColor, 3.0f * T);
+				const float Half = 0.08f * GridScale * Unit;
+				DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, Pick, 3.0f * T);
 			}
 		}
 
@@ -2116,23 +2279,21 @@ void AVaelHUD::DrawInventory(const AVaelPlayerController* PlayerController)
 			Selected = &Inventory->GetBackpack()[Selection - NumEquip];
 		}
 
-		const FVector2D DetailAt = At(RightX - 0.56f, 0.56f);
-		const float DetailWidth = 1.12f * Unit;
 		if (Selected == nullptr || !Selected->IsValid())
 		{
 			const FText Empty = Selection < NumEquip
 				? FText::Format(LOCTEXT("NothingWorn", "{0}: nichts angelegt"), GetEquipSlotName(static_cast<EVaelEquipSlot>(Selection)))
 				: FText::Format(LOCTEXT("InventoryNote", "{0} von {1} Feldern belegt"), Inventory->GetBackpack().Num(), BackpackSize);
-			DrawLabel(Empty, DetailAt.X + DetailWidth * 0.5f, DetailAt.Y + 30.0f * T, 21.0f * T, FadedInk, 0.5f);
+			DrawLabel(Empty, DetailAt.X + DetailWidth * 0.5f, DetailAt.Y + 30.0f * DetailT, 21.0f * DetailT, FadedInk, 0.5f, DetailWidth);
 		}
 		else
 		{
-			DrawItemDetails(Inventory, *Selected, Selection >= NumEquip, DetailAt.X, DetailAt.Y, DetailWidth, T);
+			DrawItemDetails(Inventory, *Selected, Selection >= NumEquip, DetailAt.X, DetailAt.Y, DetailWidth, DetailT);
 		}
 
 		const FText Confirm = Glyphs == EVaelInputGlyphs::Keyboard ? LOCTEXT("ConfirmKeyboard", "Enter") : Glyphs == EVaelInputGlyphs::PlayStation ? LOCTEXT("ConfirmPlayStation", "Kreuz") : LOCTEXT("ConfirmXbox", "A");
 		const FText Action = Selection < NumEquip ? LOCTEXT("ActionUnequip", "ablegen") : LOCTEXT("ActionEquip", "anlegen");
-		DrawLabel(FText::Format(LOCTEXT("InventoryFooter", "{0}: {1} · {2}: nächster Reiter · {3}: schließen"), Confirm, Action, BagKey, Close), Hint.X, Hint.Y, 17.0f * T, FadedInk, 0.5f);
+		DrawLabel(FText::Format(LOCTEXT("InventoryFooter", "{0}: {1} · {2}: nächster Reiter · {3}: schließen"), Confirm, Action, BagKey, Close), Hint.X, Hint.Y, 17.0f * T, HintColor, HintAlign);
 	}
 
 	DrawMenuTabs(PlayerController, Middle.X + PictureSize.X * 0.47f, 6.0f * UiScale);
@@ -2150,13 +2311,16 @@ void AVaelHUD::DrawBagField(const FVaelMaterialStack& Stack, const FVector2D& Ce
 		const float Glow = Half * (1.08f + 0.04f * Pulse);
 		DrawBox(Center.X - Glow, Center.Y - Glow, Glow * 2.0f, Glow * 2.0f, WithAlpha(RarityColor, (0.1f + 0.06f * RarityLevel) * (0.6f + 0.4f * Pulse)));
 	}
-	DrawBox(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, FLinearColor(0.1f, 0.07f, 0.05f, 0.82f));
-	DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, RarityLevel > 0 ? RarityColor : FLinearColor(0.45f, 0.36f, 0.26f, 0.9f), FMath::Max(1.0f, 2.0f * T));
+	// The painted frame of its rarity round the field (Boris 17.11., heavy item frames); inside it, the colour of its group
+	// glows behind the picture (a background that lifts the thing out, a colour per kind)
+	UTexture2D* FramePicture = ItemFrames.IsValidIndex(RarityLevel) ? ItemFrames[RarityLevel].Get() : nullptr;
+	const float Inner = FramePicture != nullptr ? Half * 0.86f : Half;
+	DrawGroupBackdrop(Center, Inner, VaelItemGroups::GetColor(VaelItemGroups::GetGroup(Material)));
 
 	UTexture2D* Icon = Material->Icon.IsNull() ? nullptr : Material->Icon.LoadSynchronous();
 	if (Icon != nullptr)
 	{
-		const FVector2D Extent(Half * 1.8f);
+		const FVector2D Extent(Inner * 1.95f);
 		Canvas->K2_DrawTexture(Icon, Center - Extent * 0.5f, Extent, FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Translucent);
 	}
 	else
@@ -2164,11 +2328,21 @@ void AVaelHUD::DrawBagField(const FVaelMaterialStack& Stack, const FVector2D& Ce
 		DrawDisc(Center, Half * 0.42f, Material->Color);
 	}
 
-	DrawWaySign(Material->Way, Center + FVector2D(Half * 0.66f, -Half * 0.66f), Half * 0.2f);
+	if (FramePicture != nullptr)
+	{
+		const FVector2D Extent(Half * 2.15f);
+		Canvas->K2_DrawTexture(FramePicture, Center - Extent * 0.5f, Extent, FVector2D::ZeroVector, FVector2D::UnitVector, FLinearColor::White, BLEND_Translucent);
+	}
+	else
+	{
+		DrawFrame(Center.X - Half, Center.Y - Half, Half * 2.0f, Half * 2.0f, RarityLevel > 0 ? RarityColor : FLinearColor(0.45f, 0.36f, 0.26f, 0.9f), FMath::Max(1.0f, 2.0f * T));
+	}
+
+	DrawWaySign(Material->Way, Center + FVector2D(Inner * 0.66f, -Inner * 0.66f), Half * 0.2f);
 
 	if (Stack.Count > 1)
 	{
-		DrawLabel(FText::AsNumber(Stack.Count), Center.X + Half * 0.88f, Center.Y + Half * 0.38f, 16.0f * T, BoneColor, 1.0f);
+		DrawLabel(FText::AsNumber(Stack.Count), Center.X + Inner * 0.9f, Center.Y + Inner * 0.4f, 16.0f * T, BoneColor, 1.0f);
 	}
 }
 
@@ -2281,7 +2455,7 @@ void AVaelHUD::DrawMaterialDetails(const FVaelMaterialStack& Stack, float X, flo
 	Y += 36.0f * T;
 
 	// Category · rarity · element · way, what is not set is left out
-	TArray<FText> Facts = { UEnum::GetDisplayValueAsText(Material->Category), UEnum::GetDisplayValueAsText(Material->Rarity) };
+	TArray<FText> Facts = { VaelItemGroups::GetName(VaelItemGroups::GetGroup(Material)), UEnum::GetDisplayValueAsText(Material->Rarity) };
 	if (Material->bHasElement)
 	{
 		Facts.Add(GetElementName(Material->Element));
@@ -2293,7 +2467,7 @@ void AVaelHUD::DrawMaterialDetails(const FVaelMaterialStack& Stack, float X, flo
 	DrawLabel(FText::Join(FText::FromString(TEXT(" · ")), Facts), X, Y, 18.0f * T, FadedInk, 0.0f, Width);
 	Y += 30.0f * T;
 
-	DrawLabel(Material->Description, X, Y, 19.0f * T, Ink, 0.0f, Width);
+	DrawWrappedLabel(Material->Description, X, Y, 17.0f * T, Ink, Width);
 }
 
 FText AVaelHUD::GetElementName(EVaelElement Element)
