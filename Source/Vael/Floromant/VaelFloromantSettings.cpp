@@ -36,6 +36,17 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	ShadowMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("M_Floromant_Schatten"));
 	GlassMaterial = AssetAt<UMaterialInterface>(FloromantMaterials, TEXT("M_Floromant_Glaskugel"));
 
+	// The root wood of the plant dragons (Scripts/CreateWurzelholzKit.py)
+	const TCHAR* Wood = TEXT("/Game/Vael/Characters/Floromant/Wurzelholz");
+	DragonWoodMaterial = AssetAt<UMaterialInterface>(Wood, TEXT("M_Wurzelholz"));
+	DragonSkullMesh = AssetAt<UStaticMesh>(Wood, TEXT("SM_Wurzelholz_Schaedel"));
+	DragonJawMesh = AssetAt<UStaticMesh>(Wood, TEXT("SM_Wurzelholz_Kiefer"));
+	for (const TCHAR* Strand : { TEXT("SM_Wurzelholz_Strang_1"), TEXT("SM_Wurzelholz_Strang_2"), TEXT("SM_Wurzelholz_Strang_3") })
+	{
+		DragonStrandMeshes.Add(AssetAt<UStaticMesh>(Wood, Strand));
+	}
+	DragonFibreMesh = AssetAt<UStaticMesh>(Wood, TEXT("SM_Wurzelholz_Faser"));
+
 	// A shooter, a healer, a wall and a helper on the belt to start with; every plant with a model can go there
 	for (const TCHAR* Id : { TEXT("Glutdistel"), TEXT("Russrose"), TEXT("Schlotwinde"), TEXT("Glimmklee") })
 	{
@@ -54,6 +65,7 @@ UVaelFloromantSettings::UVaelFloromantSettings()
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Feenragwurz")));
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Mondtraufe")));
 	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Wachbeere")));
+	HandBelt.Add(AssetAt<UVaelPlantArmData>(TEXT("/Game/Vael/Characters/Floromant/Pflanzenarm"), TEXT("DA_Pflanzenarm_Schnappwurz")));
 
 	// The moss of the Keimpelz from the world, as a pad on the forearm
 	KeimpelzPadMesh = AssetAt<UStaticMesh>(TEXT("/Game/Vael/Requisiten/Aschenmark/Keimpelz"), TEXT("SM_Keimpelz"));

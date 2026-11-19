@@ -23,6 +23,7 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 
 	/** Copied from the instance: how far each arm is stretched out (left, right), lean back in degrees, reach of the arms */
 	float ArmStance[2] = { 0.0f, 0.0f };
+	float CrossPose = 0.0f;
 	float LeanDegrees = 0.0f;
 	/** Rooted Floromant: degrees her upper body twists from her rooted legs towards the aim */
 	float RootTwist = 0.0f;
@@ -66,6 +67,8 @@ struct FVaelAnimProxy : public FAnimInstanceProxy
 	float GroundFoot[2] = { 0.0f, 0.0f };
 	FVector GroundNormal[2] = { FVector::UpVector, FVector::UpVector };
 	float GroundPelvis = 0.0f;
+	float StompFoot[2] = { 0.0f, 0.0f };
+	float StompDip = 0.0f;
 	float GroundWeight = 0.0f;
 	bool bHoldsSling = false;
 	float SlingKick = 0.0f;
@@ -186,6 +189,9 @@ protected:
 
 	/** How far each arm of a Floromant is stretched out to fire (0 left, 1 right), 0 to 1, and how far it leans back in degrees */
 	float PlantArmStance[2] = { 0.0f, 0.0f };
+
+	/** The hands drawn together for the Wurzelrohr (0 to 1) */
+	float CrossPose = 0.0f;
 	float PlantArmLean = 0.0f;
 	float PlantRootTwist = 0.0f;
 	float PlantArmReach = 1.0f;
@@ -219,6 +225,10 @@ protected:
 	float GroundFoot[2] = { 0.0f, 0.0f };
 	FVector GroundNormal[2] = { FVector::UpVector, FVector::UpVector };
 	float GroundPelvis = 0.0f;
+
+	/** Taking root: how high each foot is drawn up to stamp, and how far the hips give with the blow (added to the ground IK) */
+	float StompFoot[2] = { 0.0f, 0.0f };
+	float StompDip = 0.0f;
 	float GroundWeight = 0.0f;
 	bool bHoldsSling = false;
 	float SlingKick = 0.0f;

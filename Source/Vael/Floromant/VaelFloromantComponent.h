@@ -109,6 +109,23 @@ public:
 	bool IsPairKnown(EVaelSymbiosis Kind) const { return KnownPairs.Contains(static_cast<uint8>(Kind)); }
 	void LearnPair(EVaelSymbiosis Kind) { if (Kind != EVaelSymbiosis::None) { KnownPairs.Add(static_cast<uint8>(Kind)); } }
 
+	// --- Drachenerbe (dragon heritage, Boris 2026-11-19; first called Gestalt): a pair she has grown can be awakened in the Keimgeflecht into its stronger form (the plant
+	// dragon); she may let it sleep again any time. Opens at her level UVaelFloromantSettings::HeritageLevel
+
+	/** True if the pair's Gestalt is awake: fused towers of the pair grow into it */
+	bool IsHeritageAwake(EVaelSymbiosis Kind) const { return AwakePairs.Contains(static_cast<uint8>(Kind)); }
+
+	/** True once she has grown far enough to awaken a Gestalt */
+	bool IsHeritageLevelReached() const;
+
+	/** Wakes the Gestalt of a pair or lets it sleep; false if the pair has none, is not grown yet or her level is too low.
+	 *  bForce skips the checks (cheat) */
+	bool SetHeritageAwake(EVaelSymbiosis Kind, bool bAwake, bool bForce = false);
+
+	/** The crosses shown on the plate of a plant: the pair with itself and with each other plant of her repertoire, the grown
+	 *  ones first and among them those with a Gestalt */
+	void GetPlateCrosses(const UVaelPlantArmData* Plant, TArray<TPair<EVaelSymbiosis, const UVaelPlantArmData*>>& Out) const;
+
 	// --- Keimgeflecht (Boris 2026-11-04): per plant and tier she takes one of its Erbanlagen into her
 
 	/** The option taken in a tier of a plant, -1 if none yet */
@@ -197,6 +214,9 @@ public:
 	float GetRootGrowth() const { return RootGrowth; }
 	bool IsRooted() const { return RootGrowth > 0.0f; }
 
+	/** She wants to stand rooted (the roots grow while true, and shrink while false) */
+	bool WantsRoot() const { return bRootWanted; }
+
 	/** Rooted: how far her upper body is turned from where her feet took root, in degrees (left and right within MaxRootTwist) */
 	float GetRootTwist() const { return IsRooted() ? RootTwist : 0.0f; }
 
@@ -216,7 +236,20 @@ public:
 
 	/** L2 / R2 (Q / E): the plant of the hand goes into the ground ahead and grows into a tower; the arm grows back meanwhile.
 	 *  Two towers close together fuse into a symbiosis */
-	void RootTower(bool bLeft);
+	void RootTower(bool bLeft, const FVector* At = nullptr, bool bPaid = false);
+
+	/** Aiming towers (L2 / R2 held, Boris 2026-11-19): where the tower of the hands (1 left, 2 right, 3 both) goes after held
+	 *  that many seconds of aiming, and the glowing mark there (Hands 0 hides it) */
+	FVector GetTowerAimPoint(float AimSeconds) const;
+
+	/** Keeps a mark moved by the right stick within her reach (not nearer than a tower is planted, not farther than the aim
+	 *  range) and on the ground */
+	FVector KeepTowerAim(const FVector& Point) const;
+	void ShowTowerAim(int32 Hands, const FVector& At);
+
+	/** Both held and let go: a glowing seed of the pair flies in an arc, burrows into the ground and the pair bursts out of the
+	 *  earth there, a dragon where she has awakened its Drachenerbe */
+	void SowSymbiosis(const FVector& At);
 
 	/** Towers of this Floromant standing now */
 	int32 GetNumTowers() const;
@@ -251,6 +284,21 @@ public:
 
 private:
 
+	/** The mark of an aimed tower and the seed of a sown pair in flight */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> AimMark;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> SeedShape;
+
+	int32 AimHands = 0;
+	FVector SeedFrom = FVector::ZeroVector;
+	FVector SeedTo = FVector::ZeroVector;
+	float SeedTime = -1.0f;
+
+	/** Flies the seed, lets it burrow and the pair burst out */
+	void UpdateSeed(float DeltaSeconds);
+
 	/** Tells the player a control has no ability behind it yet */
 	void ShowNotBuilt(const FText& Name) const;
 
@@ -275,6 +323,9 @@ private:
 
 	TSet<uint8> KnownPairs;
 
+	/** Pairs whose Gestalt she has awakened */
+	TSet<uint8> AwakePairs;
+
 	/** Erbanlagen by plant asset name: the option of each tier in 4 bits (tier 0 lowest), stored as option + 1, 0 = none */
 	TMap<FName, int32> Genes;
 
@@ -293,6 +344,24 @@ private:
 
 	float CrossShowLeft = 0.0f;
 	FVector CrossAim = FVector::ForwardVector;
+
+	/** The Wurzelrohr of two shooting plants crossed (Boris 2026-11-19), whether this cross grows it, and how far her hands are
+	 *  drawn together for it (the pose of the arms) */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelCrossBarrelComponent> CrossBarrel;
+
+	bool bBarrelCross = false;
+	float CrossPose = 0.0f;
+
+	/** Hides the fingers of both hands in the barrel, or shows them again */
+	void MergeHandsIntoBarrel(bool bMerged);
+
+public:
+
+	/** How far her hands are drawn together before her chest for the Wurzelrohr (0 to 1) */
+	float GetCrossPose() const { return CrossPose; }
+
+private:
 
 	/** Her feet on the ground, where the roots start */
 	FVector GetFeet() const;

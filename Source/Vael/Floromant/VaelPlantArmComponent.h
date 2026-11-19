@@ -52,6 +52,10 @@ public:
 	/** While the hands are crossed for the Kreuzschuss they hold still and aim instead of firing */
 	void SetCrossing(bool bInCrossing) { bCrossing = bInCrossing; }
 
+	/** The arm has grown into the Wurzelrohr (Boris 2026-11-19): nothing of the hand's own plant is left to see while the
+	 *  barrel stands (stalks, heads, leaves, petals, pads, vines, its wood); the barrel and its crown carry both plants */
+	void SetMergedIntoBarrel(bool bMerged);
+
 	/** How far the arm is stretched out to fire, 0 to 1, smoothed; drives the pose */
 	float GetStance() const { return Stance; }
 
@@ -107,6 +111,9 @@ public:
 
 	/** Where the hand is in world space, for the knot of crossed hands */
 	FVector GetHandLocation() const;
+
+	/** Where the elbow of the arm is in the world */
+	FVector GetElbowLocation() const;
 
 	// --- Vine arm (Rußrose)
 
@@ -199,6 +206,25 @@ private:
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USplineMeshComponent>> WildStalks;
 
+	/** The wood arm (WoodArmPlants): the root wood material in the colour of the plant and its pieces: two trunk strands up the
+	 *  forearm, two branches over the back of the hand, five twigs (one per finger stalk), two roots up the upper arm */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> WoodMaterial;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> WoodPieces;
+
+	bool bWoodArm = false;
+
+	/** The fingers are hidden in the Wurzelrohr */
+	bool bMergedIntoBarrel = false;
+
+	/** Lays one piece of the wood arm in body space */
+	static void UpdateWoodPiece(USplineMeshComponent* Piece, const FVector& A, const FVector& TA, const FVector& B, const FVector& TB, float S0, float S1, float Roll);
+
+	/** Lays the wood arm and gives where each finger twig leaves its fork (body space) */
+	void UpdateWoodArm(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist, const FVector& Axis, const FVector& U, const FVector& V, FVector OutFingerStarts[5]);
+
 	/** One material per finger, so each can flash on its own, and one for the stalks of the arm */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> FingerMaterials;
@@ -255,6 +281,16 @@ private:
 	/** The Keimpelz pad on the back of the forearm; its size shows how much the pelt holds */
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> KeimpelzPad;
+
+	/** The Keimpelz pelt (Boris 2026-11-19): small flat patches growing from her shoulder over the top of the shoulder and down
+	 *  her back, as many as the pelt is full; their place along the way, sideways, turn and size */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> PeltPatches;
+
+	TArray<FVector4> PeltShapes;
+
+	/** Lays the patches of the pelt on the shoulder and back */
+	void UpdatePelt();
 
 	/** Places the pad and sizes it by the pelt; it shrinks while the stalks draw it in */
 	void UpdatePad(const FVector& Elbow, const FVector& Wrist, const FVector& Out);
@@ -432,6 +468,58 @@ private:
 	float ThrowHold = 0.0f;
 	float BudOpen = 0.0f;
 	float MortarDraw = 0.0f;
+
+	// --- Jaw (Schnappwurz, 2026-11-19): the hand is a snapping maw; tapped it snaps close by, held it shoots out on a vine, bites
+	// and drags the enemy to her
+
+	/** Snaps on a tap, lunges on a hold */
+	void UpdateJawFiring(float DeltaTime);
+
+	/** Places the maw and its vine where the hand is or where the lunge has carried it */
+	void UpdateJawLook(float DeltaTime);
+
+	/** Starts a snap (bLunge: shot out on the vine) at the best enemy ahead, or at the air */
+	void StartBite(bool bLunge);
+
+	/** The bite lands on the enemy (hurts, holds, drains as Würgmaul; a lunge starts the drag) */
+	void LandBite();
+
+	/** The two halves of the maw (with their thorn teeth as children) and the pieces of the lunge vine */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> JawUpper;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> JawLower;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> JawParts;
+
+	/** The maw's own instance of the stalk material (still, glowing red from inside when it opens) */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> JawMaterialInstance;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> JawVine;
+
+	/** The press is held, for how long, whether this press has acted; the bite in progress: seconds into it (negative: none),
+	 *  lunge or snap, bites still to come (rooted: two), whom it bites, where the maw strikes, whether it landed; how far the
+	 *  maw is open (0 to 1) and how far out on its vine (0 to 1) */
+	bool bJawHeld = false;
+	float JawHoldTime = 0.0f;
+	bool bJawActed = false;
+	float BiteTime = -1.0f;
+	bool bBiteLunge = false;
+	int32 BitesLeft = 0;
+	TWeakObjectPtr<AActor> BiteTarget;
+	FVector BitePoint = FVector::ZeroVector;
+	bool bBiteLanded = false;
+	float JawOpen = 0.0f;
+	float JawOut = 0.0f;
+	FVector JawAim = FVector::ForwardVector;
+
+	/** The one the lunge drags to her and for how long still */
+	TWeakObjectPtr<AActor> Dragged;
+	float DragLeft = 0.0f;
 
 	// --- Lasso (Schlotwinde): long tendrils hang from the fingers; tapped they lash a fan, held one shoots out as a lasso
 

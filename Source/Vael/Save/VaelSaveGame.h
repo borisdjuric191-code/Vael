@@ -50,6 +50,10 @@ struct FVaelSavedPlayer
 	UPROPERTY()
 	TArray<uint8> KnownPairs;
 
+	/** Pairs whose Gestalt she has awakened in the Keimgeflecht (2026-11-19) */
+	UPROPERTY()
+	TArray<uint8> AwakePairs;
+
 	UPROPERTY()
 	TMap<FName, int32> Genes;
 

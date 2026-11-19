@@ -35,6 +35,9 @@ public:
 	 *  the hand. Growth and firing per arm (0 left, 1 right); 0 hides an arm's roots. */
 	void SetArms(USkeletalMeshComponent* Body, const float Growth[2], const bool bFiring[2], float DeltaTime);
 
+	/** Hides the roots on her arms while her arms have grown into the Wurzelrohr */
+	void SetArmsHidden(bool bHidden);
+
 private:
 
 	/** A root wound round an arm: which arm, where round it starts, how often it turns, thickness, how far up the arm it reaches */
@@ -145,4 +148,18 @@ private:
 
 	float ShownGrowth = -1.0f;
 	float PulseCountdown = 0.0f;
+
+	/** Taking root as a scene (Boris 2026-11-19): one foot goes down and its roots dig in, then the other, then the strength of the
+	 *  earth runs up the roots into her legs. The growth of the last frame (to see thresholds pass), the next clods of each foot,
+	 *  seconds into the strength flowing up the roots (negative: none) */
+	float LastGrowth = 0.0f;
+	float DigCountdown[2] = { 0.0f, 0.0f };
+	float LightTime = -1.0f;
+
+
+	/** How far the roots of a foot have grown at a growth of the whole (the left foot first, the right one after it) */
+	static float FootGrowth(int32 Foot, float Growth);
+
+	/** The stamps, the digging clods and the strength running up the roots */
+	void UpdateRootingScene(USkeletalMeshComponent* Body, float Growth, float DeltaTime);
 };

@@ -14,6 +14,9 @@
 #include "ProceduralMeshComponent.h"
 #include "VaelAssets.h"
 #include "World/VaelGround.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
+#include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelSpellEffects.h"
 
 namespace
 {
@@ -104,6 +107,18 @@ void UVaelFootRootsComponent::SetGrowth(USkeletalMeshComponent* Body, float Grow
 		Mesh->RegisterComponent();
 		Mesh->SetWorldTransform(FTransform::Identity);
 
+		// The root wood of the dragons (Boris 2026-11-19): the same bark and moss as the dragons and the wood arms; the tube carries
+		// no vertex colour, so no veins glow over the whole root and the moss comes only from the world
+		UMaterialInterface* Wood = VaelAssets::LoadOptional(Settings->DragonWoodMaterial);
+		if (Wood != nullptr)
+		{
+			UMaterialInstanceDynamic* WoodLook = UMaterialInstanceDynamic::Create(Wood, this);
+			WoodLook->SetScalarParameterValue(TEXT("Leuchten"), 0.0f);
+			WoodLook->SetScalarParameterValue(TEXT("Moosgrenze"), 1.0f);
+			WoodLook->SetScalarParameterValue(TEXT("Rindenrelief"), 0.0f);
+			Mesh->SetMaterial(0, WoodLook);
+		}
+
 		// The root material of the plants without the sway of the wind, with dark mangrove bark laid over it
 		if (UMaterialInterface* Material = VaelAssets::LoadOptional(Settings->RootMaterial))
 		{
@@ -122,7 +137,10 @@ void UVaelFootRootsComponent::SetGrowth(USkeletalMeshComponent* Body, float Grow
 			{
 				Instance->SetTextureParameterValue(TEXT("NormalMap"), BarkNormal);
 			}
-			Mesh->SetMaterial(0, Instance);
+			if (Wood == nullptr)
+			{
+				Mesh->SetMaterial(0, Instance);
+			}
 
 			// The pulses of earth power: the same material, glowing all over in the colour of the pulse
 			PulseMaterial = UMaterialInstanceDynamic::Create(Material, this);
@@ -192,12 +210,121 @@ void UVaelFootRootsComponent::SetGrowth(USkeletalMeshComponent* Body, float Grow
 	}
 	Pulses.RemoveAll([](const FPulse& Pulse) { return Pulse.Along > 1.0f + PulseLength; });
 
+	UpdateRootingScene(Body, Growth, DeltaTime);
+
 	// The leg roots follow the bones every frame, so the mesh is built anew while she stands rooted
 	BuildMesh(Body, Growth);
 	if (!FMath::IsNearlyEqual(Growth, ShownGrowth, 0.01f) || (Growth >= 1.0f && ShownGrowth < 1.0f))
 	{
 		PlaceMoss(Growth);
 		ShownGrowth = Growth;
+	}
+}
+
+void UVaelFootRootsComponent::SetArmsHidden(bool bHidden)
+{
+	if (ArmMesh != nullptr)
+	{
+		ArmMesh->SetHiddenInGame(bHidden);
+	}
+}
+
+float UVaelFootRootsComponent::FootGrowth(int32 Foot, float Growth)
+{
+	// Each foot's roots dig in the moment she stamps it down (UVaelAnimInstance): the left one at 16 %, the right one at 54 %
+	return Foot == 0 ? FMath::Clamp((Growth - 0.16f) / 0.42f, 0.0f, 1.0f) : FMath::Clamp((Growth - 0.54f) / 0.42f, 0.0f, 1.0f);
+}
+
+void UVaelFootRootsComponent::UpdateRootingScene(USkeletalMeshComponent* Body, float Growth, float DeltaTime)
+{
+	AActor* Owner = GetOwner();
+	if (Owner == nullptr || Body == nullptr)
+	{
+		return;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Was = LastGrowth;
+	LastGrowth = Growth;
+	const bool bGrowing = Growth > Was;
+	auto FootOnGround = [this, Body](int32 Foot)
+	{
+		const FVector Ankle = Body->GetSocketLocation(FName(Feet[Foot]));
+		return FVector(Ankle.X, Ankle.Y, GroundAt(Ankle, Ankle.Z - 10.0f));
+	};
+	auto Earth = [Owner](const FVector& At, int32 Count, float Speed, float Lift, float Spread)
+	{
+		FVaelDebris Clods;
+		Clods.Count = Count;
+		Clods.Spread = Spread;
+		Clods.Speed = Speed;
+		Clods.Lift = Lift;
+		Clods.Lifetime = 0.8f;
+		Clods.MinSize = 1.5f;
+		Clods.MaxSize = 5.0f;
+		Clods.Color = FLinearColor(0.12f, 0.085f, 0.06f);
+		AVaelDebrisBurst::Spawn(Owner, At, Clods);
+	};
+
+	for (int32 Foot = 0; Foot < 2 && bGrowing; ++Foot)
+	{
+		const float Before = FootGrowth(Foot, Was);
+		const float Now = FootGrowth(Foot, Growth);
+		// The foot comes down: the ground jumps and shakes a little
+		if (Before <= 0.0f && Now > 0.0f)
+		{
+			Earth(FootOnGround(Foot), 22, 230.0f, 260.0f, 14.0f);
+			UVaelHitFeedbackSubsystem::Shake(Owner, 0.22f);
+		}
+		// While its roots dig in, clods keep flying up round it
+		DigCountdown[Foot] -= DeltaTime;
+		if (Now > 0.0f && Now < 0.9f && DigCountdown[Foot] <= 0.0f)
+		{
+			DigCountdown[Foot] = 0.12f;
+			const float Around = FMath::FRandRange(0.0f, 2.0f * UE_PI);
+			Earth(FootOnGround(Foot) + FVector(FMath::Cos(Around), FMath::Sin(Around), 0.0f) * FMath::FRandRange(15.0f, 45.0f), 5, 120.0f, 120.0f, 6.0f);
+		}
+	}
+
+	// Rooted fast: the earth's strength is drawn up through the roots that are there, from the ground into her legs, in three
+	// strong waves that make the roots glow bright (Boris 2026-11-19: the light runs on the roots, not through the air)
+	if (bGrowing && Was < 0.97f && Growth >= 0.97f)
+	{
+		LightTime = 0.0f;
+		UVaelHitFeedbackSubsystem::Shake(Owner, 0.3f);
+	}
+	if (Growth <= 0.0f)
+	{
+		LightTime = -1.0f;
+	}
+	if (LightTime >= 0.0f)
+	{
+		const float Before = LightTime;
+		LightTime += DeltaTime;
+		constexpr float Waves[] = { 0.0f, 0.4f, 0.8f };
+		for (const float Wave : Waves)
+		{
+			if (Before <= Wave && LightTime > Wave)
+			{
+				for (int32 Root = 0; Root < Roots.Num(); ++Root)
+				{
+					Pulses.Add({ Root, INDEX_NONE, -FMath::FRandRange(0.0f, 0.12f) });
+				}
+				for (int32 Leg = 0; Leg < LegRoots.Num(); ++Leg)
+				{
+					Pulses.Add({ INDEX_NONE, Leg, -0.3f - FMath::FRandRange(0.0f, 0.1f) });
+				}
+			}
+		}
+		// The pulses glow much brighter while the strength flows in
+		if (PulseMaterial != nullptr)
+		{
+			const float Bright = 1.0f - FMath::SmoothStep(1.2f, 1.8f, LightTime);
+			PulseMaterial->SetScalarParameterValue(TEXT("FlashGlow"), 1.4f + 5.0f * Bright);
+		}
+		if (LightTime > 1.8f)
+		{
+			LightTime = -1.0f;
+		}
 	}
 }
 
@@ -460,7 +587,8 @@ void UVaelFootRootsComponent::AddTube(TArray<FVector>& Vertices, TArray<FVector>
 		for (int32 SideIndex = 0; SideIndex < Sides; ++SideIndex)
 		{
 			const int32 A = First + Ring * RingSize + SideIndex;
-			Triangles.Append({ A, A + RingSize, A + 1, A + 1, A + RingSize, A + RingSize + 1 });
+			// Wound so the outside is the front: seen from outside the faces turn the right way, and the light falls on the bark
+			Triangles.Append({ A, A + 1, A + RingSize, A + 1, A + RingSize + 1, A + RingSize });
 		}
 	}
 }
@@ -474,11 +602,12 @@ void UVaelFootRootsComponent::BuildMesh(USkeletalMeshComponent* Body, float Grow
 	TArray<FVector> Path;
 	TArray<float> Shares;
 
-	auto Own = [Growth](float Start, float End) { return FMath::Clamp((Growth - Start) / FMath::Max(End - Start, 0.01f), 0.0f, 1.0f); };
+	// Each foot takes root in its own time: the left one first, the right one after it
+	auto Own = [Growth](float Start, float End, int32 Foot) { return FMath::Clamp((FootGrowth(Foot, Growth) - Start) / FMath::Max(End - Start, 0.01f), 0.0f, 1.0f); };
 
 	for (const FRootPath& Root : Roots)
 	{
-		const float Grown = Own(Root.GrowStart, Root.GrowEnd);
+		const float Grown = Own(Root.GrowStart, Root.GrowEnd, Root.Foot);
 		if (Grown <= 0.0f)
 		{
 			continue;
@@ -494,7 +623,7 @@ void UVaelFootRootsComponent::BuildMesh(USkeletalMeshComponent* Body, float Grow
 	{
 		const FLegRoot& Leg = LegRoots[Index];
 		LegPath(Body, Leg, LegPaths[Index]);
-		const float Grown = Own(Leg.GrowStart, Leg.GrowEnd);
+		const float Grown = Own(Leg.GrowStart, Leg.GrowEnd, Leg.Foot);
 		if (Grown <= 0.0f)
 		{
 			continue;

@@ -47,7 +47,9 @@ enum class EVaelKeimZone : uint8
 {
 	Herbarium,
 	Wheel,
-	Genes
+	Genes,
+	/** The crosses at the foot of the plate, where a grown pair's Drachenerbe blooms (2026-11-19) */
+	Crosses
 };
 
 /** The selection of the Keimgeflecht page */
@@ -71,6 +73,10 @@ struct FVaelKeimCursor
 
 	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
 	int32 Option = 0;
+
+	/** Medallion of the crosses row on the plate (index into UVaelFloromantComponent::GetPlateCrosses) */
+	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
+	int32 Cross = 0;
 
 	/** The plant (index in the repertoire) taken from the herbarium to be set into a capsule, -1 while none is carried */
 	UPROPERTY(BlueprintReadOnly, Category="Keimgeflecht")
@@ -449,6 +455,9 @@ public:
 	static constexpr int32 KeimCards = 12;
 	static constexpr int32 KeimCapsules = 8;
 
+	/** Cross medallions the plate shows in its row (the others are counted as "+n") */
+	static constexpr int32 KeimShownCrosses = 4;
+
 	/** Row of the compendium page the player has selected */
 	int32 GetCompendiumSelection() const { return CompendiumSelection; }
 
@@ -687,6 +696,25 @@ protected:
 	bool bFireHeld[2] = { false, false };
 	bool bCrossUses = false;
 	float TowerPressTime[2] = { -1.0f, -1.0f };
+
+	/** Aimed towers (Boris 2026-11-19): which tower buttons are down, whether both were pressed together (the pair), whether the
+	 *  pair was held long enough to aim its seed, and where the mark is */
+	bool bTowerDown[2] = { false, false };
+	bool bTowerChord = false;
+	bool bTowerChordAimed = false;
+	float TowerChordStart = -1.0f;
+	FVector TowerAimAt = FVector::ZeroVector;
+
+	/** The mark is out and steered by the right stick (Boris 2026-11-19): it moves over the ground where the stick points and
+	 *  stays where it was left */
+	bool bTowerAimShown = false;
+	bool bTowerAimSteered = false;
+
+	/** Where the tower mark is now: moved by the right stick, otherwise wandering out the longer it is held */
+	FVector SteerTowerAim(class UVaelFloromantComponent* Floromant, float AimSeconds);
+
+	/** A tower button let go: tapped it plants ahead, held it plants at the mark; both let go: the seed of the pair or the Turmruf */
+	void OnTowerReleased(bool bLeft);
 
 	/** Sets single towers once the wait for the other tower button is over, or calls the garden if both came */
 	void UpdateTowerChord();

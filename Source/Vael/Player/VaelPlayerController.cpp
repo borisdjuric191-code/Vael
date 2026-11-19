@@ -196,6 +196,8 @@ void AVaelPlayerController::SetupInputComponent()
 				EnhancedInputComponent->BindAction(Fire, ETriggerEvent::Completed, this, &AVaelPlayerController::OnFireHand, bLeftHand, false);
 				EnhancedInputComponent->BindAction(Fire, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnFireHand, bLeftHand, false);
 				EnhancedInputComponent->BindAction(bLeftHand ? TowerLeftAction : TowerRightAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnTower, bLeftHand);
+				EnhancedInputComponent->BindAction(bLeftHand ? TowerLeftAction : TowerRightAction, ETriggerEvent::Completed, this, &AVaelPlayerController::OnTowerReleased, bLeftHand);
+				EnhancedInputComponent->BindAction(bLeftHand ? TowerLeftAction : TowerRightAction, ETriggerEvent::Canceled, this, &AVaelPlayerController::OnTowerReleased, bLeftHand);
 				EnhancedInputComponent->BindAction(bLeftHand ? PutLeftAction : PutRightAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnPutOnHand, bLeftHand);
 			}
 			EnhancedInputComponent->BindAction(CrossAction, ETriggerEvent::Started, this, &AVaelPlayerController::OnCrossStarted);
@@ -1426,7 +1428,78 @@ void AVaelPlayerController::OnRoot()
 
 void AVaelPlayerController::OnTower(bool bLeft)
 {
-	TowerPressTime[bLeft ? 0 : 1] = GetWorld()->GetTimeSeconds();
+	// L2 / R2 (Boris 2026-11-19): tapped the tower sprouts ahead, held a mark shows where it goes; both pressed together are the
+	// pair: held they aim its seed, tapped they are the Turmruf
+	const int32 Side = bLeft ? 0 : 1;
+	const float Now = GetWorld()->GetTimeSeconds();
+	TowerPressTime[Side] = Now;
+	bTowerDown[Side] = true;
+	const int32 Other = 1 - Side;
+	if (!bTowerChord && bTowerDown[Other] && TowerPressTime[Other] >= 0.0f && Now - TowerPressTime[Other] <= UVaelFloromantSettings::Get()->TowerChordDelay)
+	{
+		bTowerChord = true;
+		bTowerChordAimed = false;
+		TowerChordStart = Now;
+	}
+}
+
+void AVaelPlayerController::OnTowerReleased(bool bLeft)
+{
+	const int32 Side = bLeft ? 0 : 1;
+	if (TowerPressTime[Side] < 0.0f)
+	{
+		return;
+	}
+	bTowerDown[Side] = false;
+	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
+	UVaelFloromantComponent* Floromant = VaelCharacter != nullptr && VaelCharacter->IsFloromant() && !VaelCharacter->IsDowned() ? VaelCharacter->GetFloromant() : nullptr;
+	const float Now = GetWorld()->GetTimeSeconds();
+	const float Hold = UVaelFloromantSettings::Get()->TowerAimHold;
+
+	if (bTowerChord)
+	{
+		// The pair waits for both to be let go
+		if (bTowerDown[0] || bTowerDown[1])
+		{
+			return;
+		}
+		if (Floromant != nullptr)
+		{
+			if (bTowerChordAimed)
+			{
+				Floromant->SowSymbiosis(TowerAimAt);
+			}
+			else if (Now - TowerChordStart < Hold)
+			{
+				Floromant->Overgrow();
+			}
+			Floromant->ShowTowerAim(0, FVector::ZeroVector);
+		}
+		bTowerChord = false;
+		bTowerChordAimed = false;
+		bTowerAimShown = false;
+		TowerPressTime[0] = TowerPressTime[1] = -1.0f;
+		return;
+	}
+
+	const bool bAimed = Now - TowerPressTime[Side] >= Hold;
+	TowerPressTime[Side] = -1.0f;
+	if (Floromant != nullptr)
+	{
+		if (bAimed)
+		{
+			Floromant->RootTower(bLeft, &TowerAimAt);
+		}
+		else
+		{
+			Floromant->RootTower(bLeft);
+		}
+		if (!bTowerDown[1 - Side])
+		{
+			Floromant->ShowTowerAim(0, FVector::ZeroVector);
+			bTowerAimShown = false;
+		}
+	}
 }
 
 void AVaelPlayerController::UpdateTowerChord()
@@ -1440,28 +1513,62 @@ void AVaelPlayerController::UpdateTowerChord()
 	if (VaelCharacter == nullptr || !VaelCharacter->IsFloromant() || VaelCharacter->IsDowned())
 	{
 		TowerPressTime[0] = TowerPressTime[1] = -1.0f;
+		bTowerDown[0] = bTowerDown[1] = false;
+		bTowerChord = false;
 		return;
 	}
 
-	// Both buttons within the wait: the Ruf des Gartens, every plant around grows into its giant form
+	// Held: the mark shows where it goes, wandering out the longer it is held; both held: the seed of the pair
 	UVaelFloromantComponent* Floromant = VaelCharacter->GetFloromant();
-	if (TowerPressTime[0] >= 0.0f && TowerPressTime[1] >= 0.0f)
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (bTowerChord)
 	{
-		TowerPressTime[0] = TowerPressTime[1] = -1.0f;
-		Floromant->Overgrow();
+		const float Held = Now - TowerChordStart;
+		if (bTowerDown[0] && bTowerDown[1] && Held >= Settings->TowerAimHold)
+		{
+			bTowerChordAimed = true;
+			TowerAimAt = SteerTowerAim(Floromant, Held - Settings->TowerAimHold);
+			Floromant->ShowTowerAim(3, TowerAimAt);
+		}
 		return;
 	}
-
-	// One alone, once the other didn't come: a single tower
-	const float Now = GetWorld()->GetTimeSeconds();
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
-		if (TowerPressTime[Side] >= 0.0f && Now - TowerPressTime[Side] >= UVaelFloromantSettings::Get()->TowerChordDelay)
+		const float Held = TowerPressTime[Side] >= 0.0f ? Now - TowerPressTime[Side] : 0.0f;
+		if (bTowerDown[Side] && Held >= FMath::Max(Settings->TowerAimHold, Settings->TowerChordDelay))
 		{
-			TowerPressTime[Side] = -1.0f;
-			Floromant->RootTower(Side == 0);
+			TowerAimAt = SteerTowerAim(Floromant, Held - Settings->TowerAimHold);
+			Floromant->ShowTowerAim(Side + 1, TowerAimAt);
 		}
 	}
+}
+
+FVector AVaelPlayerController::SteerTowerAim(UVaelFloromantComponent* Floromant, float AimSeconds)
+{
+	// The mark appears a little way ahead of her
+	if (!bTowerAimShown)
+	{
+		bTowerAimShown = true;
+		bTowerAimSteered = false;
+		return Floromant->GetTowerAimPoint(0.4f);
+	}
+	// The right stick moves it over the ground, the way the stick points on the screen; let go, it stays where it is
+	if (!bUsingMouseAim && StickAim.SizeSquared() > FMath::Square(0.2f))
+	{
+		bTowerAimSteered = true;
+		const float Yaw = PlayerCameraManager != nullptr ? PlayerCameraManager->GetCameraRotation().Yaw : GetControlRotation().Yaw;
+		const FVector Ahead = FRotator(0.0f, Yaw, 0.0f).Vector();
+		const FVector Right = FRotator(0.0f, Yaw + 90.0f, 0.0f).Vector();
+		const float Speed = 700.0f;
+		return Floromant->KeepTowerAim(TowerAimAt + (Ahead * StickAim.Y + Right * StickAim.X) * Speed * GetWorld()->GetDeltaSeconds());
+	}
+	if (bTowerAimSteered || !bUsingMouseAim)
+	{
+		return Floromant->KeepTowerAim(TowerAimAt);
+	}
+	// With the mouse it wanders out the longer it is held
+	return Floromant->GetTowerAimPoint(AimSeconds);
 }
 
 void AVaelPlayerController::OnPageBelt(int32 Step)
@@ -2844,9 +2951,38 @@ void AVaelPlayerController::NavigateKeimgeflecht(int32 Right, int32 Down)
 			C.Capsule = FMath::Clamp(C.Tier * 3, 0, KeimCapsules - 1);
 			break;
 		}
+		// Down from the last tier onto the crosses at the foot of the plate
+		if (Down > 0 && C.Tier >= 2)
+		{
+			C.Zone = EVaelKeimZone::Crosses;
+			C.Cross = 0;
+			break;
+		}
 		C.Option = FMath::Clamp(C.Option + Right, 0, 1);
 		C.Tier = FMath::Clamp(C.Tier + Down, 0, 2);
 		break;
+	case EVaelKeimZone::Crosses:
+	{
+		// The medallions stand in a row (as many as the plate shows); up goes back to the last tier, left out of the row to the strand
+		TArray<TPair<EVaelSymbiosis, const UVaelPlantArmData*>> Crosses;
+		Floromant->GetPlateCrosses(Floromant->GetCatalogPlant(C.PlatePlant), Crosses);
+		const int32 Shown = FMath::Min(Crosses.Num(), KeimShownCrosses);
+		if (Down < 0)
+		{
+			C.Zone = EVaelKeimZone::Genes;
+			C.Tier = 2;
+			C.Option = C.Cross < Shown / 2 ? 0 : 1;
+			break;
+		}
+		if (Right < 0 && C.Cross == 0)
+		{
+			C.Zone = EVaelKeimZone::Wheel;
+			C.Capsule = KeimCapsules - 1;
+			break;
+		}
+		C.Cross = FMath::Clamp(C.Cross + Right, 0, FMath::Max(Shown - 1, 0));
+		break;
+	}
 	}
 
 	// The plate shows the plant of the capsule the selection stands on
@@ -2921,6 +3057,45 @@ bool AVaelPlayerController::ConfirmKeimgeflecht()
 		// Taking the same Erbanlage again lets it go
 		const int32 Choice = Floromant->GetGene(Plant, C.Tier) == C.Option ? -1 : C.Option;
 		Floromant->SetGene(Plant, C.Tier, Choice);
+		UVaelSaveSubsystem::RequestSave(this);
+		return true;
+	}
+	case EVaelKeimZone::Crosses:
+	{
+		// Let the dragon heritage of a grown pair bloom, or rest again
+		TArray<TPair<EVaelSymbiosis, const UVaelPlantArmData*>> Crosses;
+		Floromant->GetPlateCrosses(Floromant->GetCatalogPlant(C.PlatePlant), Crosses);
+		if (!Crosses.IsValidIndex(C.Cross))
+		{
+			return false;
+		}
+		const EVaelSymbiosis Kind = Crosses[C.Cross].Key;
+		if (!VaelSymbiosis::HasHeritage(Kind))
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelKeim", "NoGestalt", "Diese Kreuzung trägt kein Drachenerbe in sich"), FText::GetEmpty(), Grey, 2.0f);
+			return false;
+		}
+		if (!Floromant->IsPairKnown(Kind))
+		{
+			UVaelNoticeSubsystem::Post(this, NSLOCTEXT("VaelKeim", "PairUnknown", "Lass diese Kreuzung erst einmal wachsen"), FText::GetEmpty(), Grey, 2.0f);
+			return false;
+		}
+		if (Floromant->IsHeritageAwake(Kind))
+		{
+			Floromant->SetHeritageAwake(Kind, false);
+			UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelKeim", "GestaltSleeps", "{0} ruht wieder"), VaelSymbiosis::GetHeritageName(Kind)), FText::GetEmpty(), Grey, 2.0f);
+		}
+		else if (Floromant->SetHeritageAwake(Kind, true))
+		{
+			UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelKeim", "GestaltWakes", "Drachenerbe erblüht: {0}"), VaelSymbiosis::GetHeritageName(Kind)),
+				VaelSymbiosis::GetHeritageDescription(Kind), VaelSymbiosis::GetColor(Kind), 3.0f);
+		}
+		else
+		{
+			UVaelNoticeSubsystem::Post(this, FText::Format(NSLOCTEXT("VaelKeim", "HeritageLevel", "Das Drachenerbe erblüht erst ab Stufe {0}"), UVaelFloromantSettings::Get()->HeritageLevel),
+				FText::GetEmpty(), Grey, 2.0f);
+			return false;
+		}
 		UVaelSaveSubsystem::RequestSave(this);
 		return true;
 	}

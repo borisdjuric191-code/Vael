@@ -55,6 +55,7 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	PlantArmLean = FloromantSettings->FiringLean * FMath::Max(PlantArmStance[0], PlantArmStance[1]);
 	PlantRootTwist = Floromant != nullptr ? Floromant->GetRootTwist() : 0.0f;
 	PlantArmReach = FloromantSettings->FiringArmReach;
+	CrossPose = Floromant != nullptr ? Floromant->GetCrossPose() : 0.0f;
 
 	FlightPose = Character->GetFlightPose();
 
@@ -78,7 +79,10 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	CastSkateSide = Character->GetSkateSide();
 
 	// The Floromant hovers instead of walking: its legs stay still while it glides; once it has landed to fire, it walks
-	const bool bHovering = Character->IsFloromant() && FMath::Max(PlantArmStance[0], PlantArmStance[1]) < 0.5f;
+	// Taking root she stands on her feet
+	const UVaelFloromantComponent* Rooting = Character->IsFloromant() ? Character->GetFloromant() : nullptr;
+	const bool bRootStance = Rooting != nullptr && (Rooting->WantsRoot() || Rooting->IsRooted());
+	const bool bHovering = Character->IsFloromant() && FMath::Max(PlantArmStance[0], PlantArmStance[1]) < 0.5f && !bRootStance;
 	if (bHovering)
 	{
 		Speed = 0.0f;
@@ -101,7 +105,7 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	// edges, the hips sink with the lower foot. Not in the air, not while hovering, flying or down.
 	const USkeletalMeshComponent* Body = Character->GetMesh();
 	const bool bGroundIK = Body != nullptr && !bIsFalling && !bHovering && !bIsDowned && Character->GetFlightPose().Weight <= KINDA_SMALL_NUMBER;
-	GroundWeight = FMath::FInterpConstantTo(GroundWeight, bGroundIK ? 1.0f : 0.0f, DeltaSeconds, 4.0f);
+	GroundWeight = FMath::FInterpConstantTo(GroundWeight, bGroundIK ? 1.0f : 0.0f, DeltaSeconds, bRootStance ? 12.0f : 4.0f);
 	float Lowest = 0.0f;
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
@@ -126,6 +130,34 @@ void UVaelAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	}
 	GroundPelvis = FMath::FInterpTo(GroundPelvis, Lowest, DeltaSeconds, 10.0f);
 
+	// Taking root (Boris 2026-11-19): she draws one knee up and stamps the foot into the ground, the hips giving with the blow,
+	// its roots dig in; then the same with the other foot (the roots follow these moments, UVaelFootRootsComponent::FootGrowth)
+	StompFoot[0] = StompFoot[1] = StompDip = 0.0f;
+	if (Rooting != nullptr && Rooting->WantsRoot() && Rooting->GetRootGrowth() < 1.0f)
+	{
+		const float Grown = Rooting->GetRootGrowth();
+		float Dip = 0.0f;
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const float LiftStart = Side == 0 ? 0.0f : 0.38f;
+			const float Stamp = LiftStart + 0.12f;
+			constexpr float Slam = 0.04f;
+			float Lift = 0.0f;
+			if (Grown >= LiftStart && Grown < Stamp)
+			{
+				Lift = FMath::SmoothStep(LiftStart, Stamp, Grown);
+			}
+			else if (Grown >= Stamp && Grown < Stamp + Slam)
+			{
+				Lift = 1.0f - (Grown - Stamp) / Slam;
+			}
+			StompFoot[Side] = Lift * 32.0f;
+			Dip = FMath::Max(Dip, FMath::Sin(UE_PI * FMath::Clamp((Grown - Stamp - Slam * 0.5f) / 0.1f, 0.0f, 1.0f)));
+		}
+		StompDip = Dip * 7.0f;
+	}
+
+
 	const UAbilitySystemComponent* AbilitySystem = Character->GetAbilitySystemComponent();
 	bIsCasting = AbilitySystem != nullptr && (AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Casting) || AbilitySystem->HasMatchingGameplayTag(VaelTags::State_Channeling));
 }
@@ -139,6 +171,7 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	const UVaelAnimInstance* Instance = CastChecked<UVaelAnimInstance>(InAnimInstance);
 	ArmStance[0] = Instance->PlantArmStance[0];
 	ArmStance[1] = Instance->PlantArmStance[1];
+	CrossPose = Instance->CrossPose;
 	LeanDegrees = Instance->PlantArmLean;
 	RootTwist = Instance->PlantRootTwist;
 	ArmReach = Instance->PlantArmReach;
@@ -165,9 +198,11 @@ void FVaelAnimProxy::PreUpdate(UAnimInstance* InAnimInstance, float DeltaSeconds
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
 		GroundFoot[Side] = Instance->GroundFoot[Side];
+		StompFoot[Side] = Instance->StompFoot[Side];
 		GroundNormal[Side] = Instance->GroundNormal[Side];
 	}
 	GroundPelvis = Instance->GroundPelvis;
+	StompDip = Instance->StompDip;
 	GroundWeight = Instance->GroundWeight;
 	bHoldsSling = Instance->bHoldsSling;
 	SlingKick = Instance->SlingKick;
@@ -617,11 +652,12 @@ void FVaelAnimProxy::ApplyGroundIK(FCSPose<FCompactPose>& Pose, const FBoneConta
 		if (FootBones[Side] != INDEX_NONE)
 		{
 			Feet[Side] = Pose.GetComponentSpaceTransform(FootBones[Side]);
-			Feet[Side].AddToTranslation(FVector(0.0f, 0.0f, GroundFoot[Side] * GroundWeight));
+			// The stamp of taking root counts in full, also while she is still coming down
+			Feet[Side].AddToTranslation(FVector(0.0f, StompFoot[Side] * 0.3f, GroundFoot[Side] * GroundWeight + StompFoot[Side]));
 		}
 	}
 	FTransform Hips = Pose.GetComponentSpaceTransform(Pelvis);
-	Hips.AddToTranslation(FVector(0.0f, 0.0f, GroundPelvis * GroundWeight));
+	Hips.AddToTranslation(FVector(0.0f, 0.0f, GroundPelvis * GroundWeight - StompDip));
 	TArray<FBoneTransform> Changed = { FBoneTransform(Pelvis, Hips) };
 	Pose.LocalBlendCSBoneTransforms(Changed, 1.0f);
 	for (int32 Side = 0; Side < 2; ++Side)
@@ -1470,8 +1506,9 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 	const bool bGesture = Gesture != EVaelCastGesture::None;
 	const bool bWhipping = WhipSeconds[0] >= 0.0f || WhipSeconds[1] >= 0.0f;
 	const bool bSling = SlingAim > KINDA_SMALL_NUMBER || bHoldsSling;
-	const bool bGround = GroundWeight > KINDA_SMALL_NUMBER && (FMath::Abs(GroundFoot[0]) > 0.5f || FMath::Abs(GroundFoot[1]) > 0.5f);
-	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && !bSling && !bGround && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f))
+	const bool bGround = (GroundWeight > KINDA_SMALL_NUMBER && (FMath::Abs(GroundFoot[0]) > 0.5f || FMath::Abs(GroundFoot[1]) > 0.5f))
+		|| StompFoot[0] > 0.1f || StompFoot[1] > 0.1f || StompDip > 0.1f;
+	if (InRootNode != GetRootNode() || (!bFlying && !bShielding && !bGesture && !bWhipping && !bSling && !bGround && ArmStance[0] <= KINDA_SMALL_NUMBER && ArmStance[1] <= KINDA_SMALL_NUMBER && LeanDegrees <= KINDA_SMALL_NUMBER && FMath::Abs(RootTwist) < 0.05f && CrossPose <= KINDA_SMALL_NUMBER))
 	{
 		return true;
 	}
@@ -1578,6 +1615,31 @@ bool FVaelAnimProxy::Evaluate_WithRoot(FPoseContext& Output, FAnimNode_Base* InR
 		Aim(Upper, Lower, Direction, Weight);
 		Aim(Lower, Hand, Direction, Weight);
 		Aim(Hand, Middle, Direction, Weight);
+	}
+
+	// The Wurzelrohr (Boris 2026-11-19): both hands drawn together before the chest, wrists touching, so the barrel grows out of
+	// them as one; the elbows go out to the sides
+	if (CrossPose > KINDA_SMALL_NUMBER && Chest != INDEX_NONE)
+	{
+		const FVector ChestAt = Pose.GetComponentSpaceTransform(Chest).GetLocation();
+		const float Weight = FMath::SmoothStep(0.0f, 1.0f, CrossPose);
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const TCHAR* Suffix = Side == 0 ? TEXT("l") : TEXT("r");
+			const FCompactPoseBoneIndex Upper = Find(*FString::Printf(TEXT("upperarm_%s"), Suffix));
+			const FCompactPoseBoneIndex Lower = Find(*FString::Printf(TEXT("lowerarm_%s"), Suffix));
+			const FCompactPoseBoneIndex Hand = Find(*FString::Printf(TEXT("hand_%s"), Suffix));
+			const FCompactPoseBoneIndex Middle = Find(*FString::Printf(TEXT("middle_01_%s"), Suffix));
+			if (Upper == INDEX_NONE || Lower == INDEX_NONE || Hand == INDEX_NONE || Middle == INDEX_NONE)
+			{
+				continue;
+			}
+			const float Outward = FMath::Sign(Pose.GetComponentSpaceTransform(Upper).GetLocation().X - ChestAt.X);
+			const FVector Target = ChestAt + FVector(Outward * 5.0f, 38.0f, -12.0f);
+			const FVector Now = Pose.GetComponentSpaceTransform(Hand).GetLocation();
+			ReachPoseArm(Pose, Upper, Lower, Hand, FMath::Lerp(Now, Target, Weight), FVector(Outward * 0.9f, -0.1f, -0.4f));
+			Aim(Hand, Middle, FVector(-Outward * 0.15f, 1.0f, 0.0f).GetSafeNormal(), Weight);
+		}
 	}
 
 	// A shield hand (Glimmklee): the elbow comes forward, the forearm stands up before face and chest, the back of the hand forward

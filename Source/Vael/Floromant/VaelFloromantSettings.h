@@ -186,7 +186,7 @@ public:
 	float TearOutMoveSpeedScale = 0.5f;
 
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0.05))
-	float RootGrowTime = 0.5f;
+	float RootGrowTime = 2.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Flight|Rooting", meta = (ClampMin = 0))
 	float UprootTime = 0.3f;
@@ -445,6 +445,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Keimgeflecht")
 	TArray<int32> GeneTierLevels = { 1, 6, 12 };
 
+	/** Her level from which she can let the Drachenerbe of a grown pair bloom (plant dragon) in the Keimgeflecht; placeholder */
+	UPROPERTY(config, EditAnywhere, Category="Keimgeflecht", meta = (ClampMin = 1))
+	int32 HeritageLevel = 15;
+
 	/** Walking speed while a hand fires: the Floromant lands and braces itself */
 	UPROPERTY(config, EditAnywhere, Category="Plant Arms", meta = (ClampMin = 0, ClampMax = 1))
 	float FiringMoveSpeedScale = 0.45f;
@@ -488,6 +492,14 @@ public:
 
 	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0))
 	float TowerPlantDistance = 110.0f;
+
+	/** Aimed towers (Boris 2026-11-19): L2 / R2 held longer than this (seconds) shows a mark on the ground where the tower goes;
+	 *  the mark wanders out to the range (cm) the longer it is held, ahead where she looks. Both held: the seed of the pair */
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0.1, ClampMax = 1))
+	float TowerAimHold = 0.3f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 100))
+	float TowerAimRange = 900.0f;
 
 	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 1))
 	float TowerLifetime = 20.0f;
@@ -570,6 +582,139 @@ public:
 	UPROPERTY(config, EditAnywhere, Category="Towers", meta = (ClampMin = 0, ClampMax = 1))
 	float HookHeadReach = 0.72f;
 
+	/** Plant dragon neck (Boris 2026-11-19): how stiff the head follows its pose (the curl and the dip follow slower), how far the
+	 *  drumfire sweeps to each side in degrees, and how far the neck reaches out to bite as parts of the tower height */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 5))
+	float DragonNeckStiffness = 40.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0, ClampMax = 60))
+	float DragonSweepDegrees = 22.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.5, ClampMax = 3))
+	float DragonBiteReach = 1.5f;
+
+	/** The bite: fire damage, seconds the bitten one burns, push away in cm/s, seconds between two bites */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonBiteDamage = 18.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonBiteBurnSeconds = 3.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonBiteKnockback = 420.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.5))
+	float DragonBiteInterval = 2.2f;
+
+	/** Dampfdrache: seconds the steam jet lasts, how far it reaches and how wide it scalds (cm, against a 2 m tower), its fire
+	 *  damage per second on whoever stands in the jet, and the clouds it leaves: seconds they hang, their radius, their damage
+	 *  per second */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.2))
+	float DragonSteamSeconds = 1.3f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 100))
+	float DragonSteamReach = 700.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 20))
+	float DragonSteamWidth = 110.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonSteamDamagePerSecond = 30.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.5))
+	float DragonSteamCloudSeconds = 5.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 50))
+	float DragonSteamCloudRadius = 170.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonSteamCloudDamage = 4.0f;
+
+	/** Donnerdrache: seconds the breath lasts (two strikes in it), lightning damage of the first strike on the first enemy,
+	 *  enemies it leaps on to after that, how far one leap reaches (cm), the damage kept at each leap; wet enemies or those in
+	 *  steam carry it this many leaps further and this many times as far */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.3))
+	float DragonThunderSeconds = 0.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonThunderDamage = 40.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	int32 DragonThunderJumps = 4;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 100))
+	float DragonThunderJumpRange = 550.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0, ClampMax = 1))
+	float DragonThunderJumpKeep = 0.8f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	int32 DragonThunderWetJumps = 1;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 1))
+	float DragonThunderWetRange = 1.6f;
+
+	/** Glutglasdrache: seconds the sun beam lasts, its fire damage per second, reach and half width (cm, against a 2 m tower; a thin beam),
+	 *  and the trail of burning ground it leaves: seconds between two fires, their radius, seconds they burn, damage per second */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.3))
+	float DragonSunSeconds = 1.6f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonSunDamagePerSecond = 45.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 100))
+	float DragonSunReach = 900.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 10))
+	float DragonSunHalfWidth = 35.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.05))
+	float DragonSunFireInterval = 0.12f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 10))
+	float DragonSunFireRadius = 80.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.5))
+	float DragonSunFireSeconds = 4.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonSunFireDamage = 6.0f;
+
+	/** Flutdrache: seconds the water jet lasts, its reach and half width (cm, against a 2 m tower), its water damage per second
+	 *  on the one it strikes, and how hard it pushes them away (cm/s, every 0.15 s) */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0.3))
+	float DragonFloodSeconds = 1.2f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 100))
+	float DragonFloodReach = 800.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 10))
+	float DragonFloodHalfWidth = 50.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonFloodDamagePerSecond = 25.0f;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon", meta = (ClampMin = 0))
+	float DragonFloodPush = 350.0f;
+
+	/** The root wood every plant dragon shares (Boris 2026-11-19, the wood dragon of his reference pictures): skull with the
+	 *  hooked beak, lower jaw (origin at its hinge), braided strands for neck and wings, a thin root for fibres; the plants only
+	 *  colour M_Wurzelholz (veins, accent) and adorn it. Made by Tools/Drache/wurzelholz.py and Scripts/CreateWurzelholzKit.py */
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon")
+	TSoftObjectPtr<UMaterialInterface> DragonWoodMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon")
+	TSoftObjectPtr<UStaticMesh> DragonSkullMesh;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon")
+	TSoftObjectPtr<UStaticMesh> DragonJawMesh;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon")
+	TArray<TSoftObjectPtr<UStaticMesh>> DragonStrandMeshes;
+
+	UPROPERTY(config, EditAnywhere, Category="Towers|Dragon")
+	TSoftObjectPtr<UStaticMesh> DragonFibreMesh;
+
 	/** Glass of the Glimmklee dome, M_Floromant_Glaskugel (made by Scripts/CreateFloromantKit.py) */
 	UPROPERTY(config, EditAnywhere, Category="Towers|Symbiosis")
 	TSoftObjectPtr<UMaterialInterface> GlassMaterial;
@@ -624,6 +769,12 @@ public:
 	 *  and the reload grows them back */
 	UPROPERTY(config, EditAnywhere, Category="Ammo stalks")
 	TArray<FName> AmmoStalkPlants = { TEXT("Windhalm") };
+
+	/** Plants whose arm grows out of the root wood of the dragons (Boris 2026-11-19, Glutdistel first): a braided trunk winds up
+	 *  the forearm, forks at the wrist like the plant into branches and twigs, and the stalks of the plant with their heads grow
+	 *  out of the twigs; the winding and wild stalks of the plant are left away */
+	UPROPERTY(config, EditAnywhere, Category="Plant Arms")
+	TArray<FName> WoodArmPlants = { TEXT("Glutdistel") };
 
 	/** How many stalks a full bar is, and their length in cm */
 	UPROPERTY(config, EditAnywhere, Category="Ammo stalks", meta = (ClampMin = 1, ClampMax = 120))

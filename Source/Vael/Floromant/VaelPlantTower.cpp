@@ -19,12 +19,19 @@
 #include "Floromant/VaelRoseHeart.h"
 #include "Floromant/VaelSymbiosisKnotComponent.h"
 #include "Magic/VaelDebrisBurst.h"
+#include "Combat/VaelHitFeedbackSubsystem.h"
 #include "Magic/VaelSpellEffects.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Player/VaelCharacter.h"
 #include "UI/VaelCombatTextSubsystem.h"
 #include "World/VaelSafeZone.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Combat/VaelCharacterBase.h"
+#include "Magic/VaelElementTypes.h"
+#include "Magic/VaelGroundArea.h"
+#include "Magic/VaelCloudCards.h"
+#include "Magic/VaelLightningBolt.h"
+#include "Magic/VaelMagicSettings.h"
 #include "Vael.h"
 #include "VaelAssets.h"
 
@@ -398,6 +405,11 @@ namespace
 
 FVector AVaelPlantTower::GetHookApex() const
 {
+	// The dragon's neck is a chain of springy joints of its own (UpdateDragonNeck)
+	if (bDragon && bNeckPlaced)
+	{
+		return NeckApex;
+	}
 	const float Length = UVaelFloromantSettings::Get()->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI)
 		* (1.0f + (UVaelFloromantSettings::Get()->TowerCallSizeScale - 1.0f) * Giant);
 	// The bend of the spring only sways the curl a little; the neck below swings further
@@ -406,6 +418,10 @@ FVector AVaelPlantTower::GetHookApex() const
 
 FVector AVaelPlantTower::GetOwnCrown() const
 {
+	if (bHook && bDragon && bNeckPlaced)
+	{
+		return NeckHead;
+	}
 	if (bHook)
 	{
 		// The crown hangs down in front of the curl at about half the height
@@ -428,6 +444,10 @@ FVector AVaelPlantTower::GetOwnCrown() const
 
 FVector AVaelPlantTower::GetOwnCrownAxis() const
 {
+	if (bHook && bDragon && bNeckPlaced)
+	{
+		return HeadFacing;
+	}
 	if (bHook)
 	{
 		// The lifted head looks straight ahead, where it shoots
@@ -578,6 +598,10 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 	{
 		Material->SetScalarParameterValue(TEXT("Wuchs"), FMath::Clamp(Grow, 0.0f, 1.0f));
 	}
+	if (WoodMaterial != nullptr)
+	{
+		WoodMaterial->SetScalarParameterValue(TEXT("Wuchs"), FMath::Clamp(Grow, 0.0f, 1.0f));
+	}
 
 	// The tower that leads a symbiosis grows the knot between both and acts for both; the other only stands
 	const bool bActs = !bWithering && Grow >= 1.0f && (Symbiosis == EVaelSymbiosis::None || bLeads);
@@ -592,7 +616,8 @@ void AVaelPlantTower::Tick(float DeltaSeconds)
 			Target = Goal;
 			// A shooter fires only once its crown looks at the target, like a Hydra
 			const FVector GoalWay = Goal != nullptr ? (Goal->GetActorLocation() - GetActorLocation()).GetSafeNormal2D() : FVector::ZeroVector;
-			if (Goal != nullptr && (AimsLikeHydra() || bDragon) && (FVector::DotProduct(LookDirection, GoalWay) < 0.95f || AimBlend < 0.7f))
+			// The dragon waits with its drumfire while it bites
+			if (Goal != nullptr && (((AimsLikeHydra() || bDragon) && (FVector::DotProduct(LookDirection, GoalWay) < 0.95f || AimBlend < 0.7f)) || (bDragon && BiteTime >= 0.0f)))
 			{
 				FireCountdown = 0.05f;
 			}
@@ -696,18 +721,49 @@ void AVaelPlantTower::FuseWith(AVaelPlantTower* Other)
 
 	// Two Glutdistel snakes (Boris 2026-11-06): the new one sinks into the ground, its glow runs through the old snake up to the
 	// head, and the head grows into a plant dragon that fires a drumfire of thistles out of its jaws
-	if (Symbiosis == EVaelSymbiosis::Glutbusch && bHook && Other->bHook && !Other->bDragon)
+	// Only once her Drachenerbe of the pair blooms (Keimgeflecht); before that they grow into the twisted trunk. The Glutdistel is
+	// always the snake that carries the head; the other plant sinks in and builds the organ in its jaws (Dampfdrache: Taublatt)
+	const AVaelCharacter* Grower = GetGardener();
+	const bool bHeritage = Grower != nullptr && Grower->GetFloromant() != nullptr && Grower->GetFloromant()->IsHeritageAwake(Symbiosis);
+	// Which plant carries the head: the Glutdistel before the Taublatt before any other,
+	// with two of a kind the older tower
+	auto BodyRank = [](const AVaelPlantTower* Tower)
 	{
-		bLeads = false;
-		Other->bLeads = true;
-		bAbsorbed = true;
-		SetActorHiddenInGame(true);
-		Other->FeedFrom = GetActorLocation();
-		Other->BuildDragon();
-		Other->FireCountdown = 1.8f;
+		FString Id = Tower->Plant != nullptr ? Tower->Plant->GetName() : FString();
+		Id.RemoveFromStart(TEXT("DA_Pflanzenarm_"));
+		return Id == TEXT("Glutdistel") ? 2 : Id == TEXT("Taublatt") ? 1 : 0;
+	};
+	AVaelPlantTower* Body = Other;
+	AVaelPlantTower* Sunk = this;
+	if (BodyRank(this) > BodyRank(Other))
+	{
+		Swap(Body, Sunk);
+	}
+	// The body must be a snake; the plant that sinks in may be any (the Glimmklee of a Glutglasdrache stands upright)
+	if (VaelSymbiosis::HasHeritage(Symbiosis) && bHeritage && Body->bHook && !Other->bDragon && !bDragon)
+	{
+		if (AVaelGlimmDome* SunkDome = Sunk->Dome.Get())
+		{
+			SunkDome->Lower();
+		}
+		Sunk->Dome = nullptr;
+		Sunk->bLeads = false;
+		Body->bLeads = true;
+		Sunk->bAbsorbed = true;
+		Sunk->SetActorHiddenInGame(true);
+		Body->FeedFrom = Sunk->GetActorLocation();
+		Body->DragonPartner = Sunk->Plant;
+		Body->PartnerMaterial = Sunk->Material;
+		Body->bSteamDragon = Symbiosis == EVaelSymbiosis::Dampfstoss;
+		Body->bThunderDragon = Symbiosis == EVaelSymbiosis::Funkenflug;
+		Body->bSunDragon = Symbiosis == EVaelSymbiosis::Glutglas;
+		Body->bWingDragon = Symbiosis == EVaelSymbiosis::Sturmgras;
+		Body->bFloodDragon = Symbiosis == EVaelSymbiosis::Quellrose;
+		Body->BuildDragon();
+		Body->FireCountdown = 1.8f;
 		if (AVaelCharacter* Gardener = GetGardener())
 		{
-			UVaelCombatTextSubsystem::PostPickup(Gardener, FText::Format(NSLOCTEXT("VaelSymbiosis", "TowersFuse", "Symbiose: {0}"), VaelSymbiosis::GetName(Symbiosis)), VaelSymbiosis::GetColor(Symbiosis));
+			UVaelCombatTextSubsystem::PostPickup(Gardener, FText::Format(NSLOCTEXT("VaelSymbiosis", "TowersFuse", "Symbiose: {0}"), VaelSymbiosis::GetHeritageName(Symbiosis)), VaelSymbiosis::GetColor(Symbiosis));
 		}
 		return;
 	}
@@ -870,6 +926,54 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 	}
 
 	// The plant dragon opens its jaws and the thistle ring in its throat fires round and round (UpdateDragon)
+	// The steam dragon squeezes its gland and breathes a jet of steam over a fan (UpdateDragon)
+	// The thunder dragon opens its jaws, the blades crackle, and lightning strikes twice out of its throat (UpdateDragon)
+	if (bDragon && bThunderDragon)
+	{
+		ThunderLeft = UVaelFloromantSettings::Get()->DragonThunderSeconds;
+		ThunderTimer = 0.22f;
+		ThunderStrikes = 2;
+		ThunderPower = Power;
+		BurstTarget = Goal;
+		return;
+	}
+	// The flood dragon fans its frill open and a gush of water pours out of its jaws (UpdateDragon)
+	if (bDragon && bFloodDragon)
+	{
+		SunLeft = UVaelFloromantSettings::Get()->DragonFloodSeconds;
+		bSunLit = false;
+		SunPower = Power;
+		BurstTarget = Goal;
+		return;
+	}
+	// The storm dragon roars, raises its wings and sweeps them forward: their blades fly off as a fan of darts (UpdateWings)
+	if (bDragon && bWingDragon)
+	{
+		WingStrike = 0.0f;
+		bWingFired = false;
+		WingPower = Power;
+		BurstTarget = Goal;
+		return;
+	}
+	// The sun dragon opens its jaws and a focused sun beam leaves its burning glass, sweeping over the fan (UpdateDragon)
+	if (bDragon && bSunDragon)
+	{
+		SunLeft = UVaelFloromantSettings::Get()->DragonSunSeconds;
+		bSunLit = false;
+		SunPower = Power;
+		BurstTarget = Goal;
+		return;
+	}
+	if (bDragon && bSteamDragon)
+	{
+		JetLeft = UVaelFloromantSettings::Get()->DragonSteamSeconds;
+		JetTimer = 0.0f;
+		JetPower = Power;
+		JetPuffs = 0;
+		BurstTarget = Goal;
+		bSprayed = false;
+		return;
+	}
 	if (bDragon)
 	{
 		BurstLeft = DragonDrumHeads;
@@ -947,6 +1051,31 @@ void AVaelPlantTower::Fire(AActor* Goal, float Power)
 		}
 		AVaelEyeBerry::Throw(Gardener, Plant, GetCrown(), Place, bShadow);
 		VaelSymbiosis::MuzzlePuff(this, Plant, GetCrown(), bShadow, 1.3f);
+		return;
+	}
+
+	// A Schnappwurz tower is a trap (2026-11-19): its buds snap at whoever comes close (its reach is short), bite, hold and
+	// (as Würgmaul) drain; the crown lunges at the prey
+	if (Symbiosis == EVaelSymbiosis::None && Plant->bJaw)
+	{
+		if (FVector::Dist2D(Goal->GetActorLocation(), GetActorLocation()) <= Plant->BiteReach * 1.4f && UVaelCombatStatics::CanDamage(Gardener, Goal))
+		{
+			const float Damage = Plant->BiteDamage * Power * UVaelFloromantSettings::Get()->TowerShotScale * 0.6f;
+			if (bShadow)
+			{
+				VaelRoseCare::DrainAround(Gardener, Goal->GetActorLocation(), 60.0f, Damage, Plant->BiteDrainShare);
+			}
+			else
+			{
+				FVaelSpellHit Hit;
+				Hit.Damage = Damage;
+				Hit.Element = EVaelElement::Earth;
+				Hit.StunDuration = Plant->BiteHold;
+				UVaelCombatStatics::ApplySpellHit(Gardener, Goal, Hit, (Goal->GetActorLocation() - GetActorLocation()).GetSafeNormal2D());
+			}
+			VaelSymbiosis::MuzzlePuff(this, Plant, Goal->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), bShadow, 1.4f);
+			BendVelocity += LookDirection * 4.0f;
+		}
 		return;
 	}
 
@@ -1083,6 +1212,11 @@ void AVaelPlantTower::UpdatePairCharge(float DeltaSeconds)
 void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 {
 	UpdateBend(DeltaSeconds);
+	if (bDragon)
+	{
+		const UVaelFloromantSettings* NeckSettings = UVaelFloromantSettings::Get();
+		UpdateDragonNeck(DeltaSeconds, NeckSettings->TowerHeight * FMath::Sin(FMath::Clamp(Grow, 0.0f, 1.0f) * UE_HALF_PI) * (1.0f + (NeckSettings->TowerCallSizeScale - 1.0f) * Giant));
+	}
 
 	const FVector Base = GetActorLocation();
 	const float Shown = FMath::Clamp(Grow, 0.0f, 1.0f);
@@ -1098,6 +1232,10 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 	const float Gather = bFused ? TrunkGatherAlpha(Fuse) : 0.0f;
 	const float Top = TrunkTop(Fuse);
 	const float Phase = bLeads ? 0.0f : UE_PI;
+
+	// The storm dragon is slim: its neck is thinner
+	// The braided strands of the root wood are fuller than the plant vines, so they are laid thinner
+	const float NeckSlim = (bDragon && bWingDragon ? 0.55f : 1.0f) * (WoodMaterial != nullptr ? 0.62f : 1.0f);
 
 	// The crown grows bigger in the mixed blossom
 	// The crown of a dragon snake withers away while the dragon head grows out of it
@@ -1156,6 +1294,14 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 			// The head arrives level, so the crown on it looks straight out
 			HeadTangent = Axis * Height * 0.45f;
 
+			// The dragon's neck runs through its own joints: the dip follows late, the curl turns over towards it
+			if (bDragon && bNeckPlaced)
+			{
+				Dip = NeckDip + Out1 * 8.0f;
+				DipTangent = (NeckHead - NeckApex) * 0.55f + Around1 * Height * 0.1f;
+				EndTangent = ((NeckDip - NeckApex).GetSafeNormal() * 0.5f + Forward * 0.5f).GetSafeNormal() * Height * 0.7f + ApexAround * Height * 0.2f;
+			}
+
 			// The first vine stands for the middle line (the dragon's sparks run up it)
 			if (Index == 0)
 			{
@@ -1183,8 +1329,8 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 		USplineMeshComponent* Vine = Column[Index];
 		Vine->SetStartAndEnd(Transform.InverseTransformPosition(Start), Transform.InverseTransformVectorNoScale(StartTangent),
 			Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale(EndTangent), false);
-		Vine->SetStartScale(FVector2D(3.0f), false);
-		Vine->SetEndScale(FVector2D(EndScale), false);
+		Vine->SetStartScale(FVector2D(3.0f * NeckSlim), false);
+		Vine->SetEndScale(FVector2D(EndScale * NeckSlim), false);
 		Vine->SetStartRoll(A0, false);
 		Vine->SetEndRoll(A1 + 2.0f, false);
 		Vine->UpdateMesh();
@@ -1198,7 +1344,7 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 			const float Thin = FMath::Max(NeckShown, 0.2f);
 			const FVector Points[3] = { End, DipAt, HeadAt };
 			const FVector Tangents[3] = { EndTangent, DipTangent * NeckShown, HeadTangent * NeckShown };
-			const float Scales[3] = { EndScale, 2.0f, 1.7f };
+			const float Scales[3] = { EndScale * NeckSlim, 2.0f * NeckSlim, 1.7f * NeckSlim };
 			for (int32 Piece = 0; Piece < 2; ++Piece)
 			{
 				USplineMeshComponent* Neck = HookNeck[Index * 2 + Piece];
@@ -1245,6 +1391,22 @@ void AVaelPlantTower::UpdateLook(float DeltaSeconds)
 			Strand->SetEndRoll(A0 + Piece * 2.0f + 2.0f, false);
 			Strand->UpdateMesh();
 		}
+	}
+
+	// The dragon of root wood moves on its own free spine: the snake it grew from is gone
+	if (bDragon && !SpinePieces.IsEmpty() && Spine.Num() >= 3)
+	{
+		for (TArray<TObjectPtr<USplineMeshComponent>>* Vines : { &Column, &HookNeck })
+		{
+			for (USplineMeshComponent* Vine : *Vines)
+			{
+				if (Vine->IsVisible())
+				{
+					Vine->SetVisibility(false);
+				}
+			}
+		}
+		LaySpine(Height, NeckSlim);
 	}
 
 	// Crown of stalks: they fan up and out of the top, each ending in its head
@@ -1799,6 +1961,34 @@ namespace
 	/** Sparks that run up the snake while the head grows */
 	constexpr int32 DragonSurgeOrbs = 8;
 
+	/** Roots of the sunk partner winding up the neck, and the pieces each is laid in */
+	constexpr int32 DragonPartnerRoots = 5;
+	constexpr int32 DragonPartnerPieces = 8;
+
+	/** Side shoots branching off each of those roots */
+	constexpr int32 DragonPartnerSpurs = 3;
+
+	/** Cloud cards of the steam jet, how many are born per second, how long one lives, how fast it leaves the jaws (cm/s, against
+	 *  a 2 m tower), its size at birth and at the end, how dense it is; the eyes and sparks of the steam dragon */
+	constexpr int32 DragonJetCards = 72;
+	constexpr float DragonJetRate = 60.0f;
+	constexpr float DragonJetLife = 1.1f;
+	constexpr float DragonJetSpeed = 1500.0f;
+	constexpr float DragonJetBirthSize = 40.0f;
+	constexpr float DragonJetEndSize = 230.0f;
+	constexpr float DragonJetSolid = 0.95f;
+	const FLinearColor DragonSteamEyes(0.35f, 0.9f, 1.0f);
+	const FLinearColor DragonThunderLight(0.6f, 0.8f, 1.0f);
+	const FLinearColor DragonSunLight(1.0f, 0.85f, 0.4f);
+	const FLinearColor DragonWindLight(0.75f, 1.0f, 0.6f);
+	const FLinearColor DragonFloodLight(0.3f, 0.6f, 1.0f);
+
+	/** Blades in each wing of the storm dragon */
+	constexpr int32 DragonWingFeathers = 8;
+
+	/** Ribs of root strands in each wing (the blades span the gaps between them, two in each) */
+	constexpr int32 DragonWingRibs = 5;
+
 	FVector DragonHermite(const FVector& P0, const FVector& T0, const FVector& P1, const FVector& T1, float T)
 	{
 		const float T2 = T * T;
@@ -1818,8 +2008,33 @@ namespace
 	}
 }
 
+FVector AVaelPlantTower::GetSpinePoint(float U) const
+{
+	const int32 Count = Spine.Num();
+	if (Count < 2)
+	{
+		return GetActorLocation();
+	}
+	const float At = FMath::Clamp(U, 0.0f, 1.0f) * (Count - 1);
+	const int32 K = FMath::Min(FMath::FloorToInt(At), Count - 2);
+	const float F = At - K;
+	// Catmull-Rom through the joints
+	const FVector P0 = Spine[FMath::Max(K - 1, 0)];
+	const FVector P1 = Spine[K];
+	const FVector P2 = Spine[K + 1];
+	const FVector P3 = Spine[FMath::Min(K + 2, Count - 1)];
+	const float F2 = F * F;
+	const float F3 = F2 * F;
+	return 0.5f * ((2.0f * P1) + (P2 - P0) * F + (2.0f * P0 - 5.0f * P1 + 4.0f * P2 - P3) * F2 + (3.0f * P1 - P0 - 3.0f * P2 + P3) * F3);
+}
+
 FVector AVaelPlantTower::GetHookCurve(float T) const
 {
+	// The dragon's body is its free spine (0 at the roots, 3 at the head, as the question mark it grew from)
+	if (bDragon && bNeckPlaced && Spine.Num() >= 2)
+	{
+		return GetSpinePoint(T / 3.0f);
+	}
 	const int32 Piece = FMath::Clamp(FMath::FloorToInt(T), 0, 2);
 	const float Along = FMath::Clamp(T - Piece, 0.0f, 1.0f);
 	return DragonHermite(HookPoints[Piece], HookTangents[Piece], HookPoints[Piece + 1], HookTangents[Piece + 1], Along);
@@ -1878,9 +2093,84 @@ void AVaelPlantTower::BuildDragon()
 		return Head;
 	};
 
-	// Skull and jaw: every vine a bundle of tangled strands
+	// The shared root wood (Boris 2026-11-19): every dragon has the same woody skull, jaw and neck; the body plant colours its
+	// veins, the partner adds its colour to them, and the plants adorn it with their organs and leaves
+	const UVaelFloromantSettings* WoodSettings = UVaelFloromantSettings::Get();
+	UStaticMesh* SkullMesh = VaelAssets::LoadOptional(WoodSettings->DragonSkullMesh);
+	UStaticMesh* JawMesh = VaelAssets::LoadOptional(WoodSettings->DragonJawMesh);
+	if (UMaterialInterface* Wood = VaelAssets::LoadOptional(WoodSettings->DragonWoodMaterial))
+	{
+		WoodMaterial = UMaterialInstanceDynamic::Create(Wood, this);
+		WoodMaterial->SetScalarParameterValue(TEXT("Schatten"), bShadow ? 1.0f : 0.0f);
+		WoodMaterial->SetVectorParameterValue(TEXT("Leuchtfarbe"), VaelSymbiosis::GetPlantColor(Plant, bShadow));
+		if (DragonPartner != nullptr)
+		{
+			WoodMaterial->SetVectorParameterValue(TEXT("Akzentfarbe"), VaelSymbiosis::GetPlantColor(DragonPartner, bShadow));
+			WoodMaterial->SetScalarParameterValue(TEXT("Akzentanteil"), 0.6f);
+		}
+	}
+	const bool bWood = WoodMaterial != nullptr && SkullMesh != nullptr && JawMesh != nullptr;
+	if (bWood)
+	{
+		auto MakeWood = [this](UStaticMesh* Mesh, USceneComponent* Parent)
+		{
+			UStaticMeshComponent* Part = NewObject<UStaticMeshComponent>(this);
+			Part->SetMobility(EComponentMobility::Movable);
+			Part->SetStaticMesh(Mesh);
+			Part->SetMaterial(0, WoodMaterial);
+			Part->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Part->SetCanEverAffectNavigation(false);
+			Part->SetupAttachment(Parent);
+			Part->RegisterComponent();
+			return Part;
+		};
+		WoodSkull = MakeWood(SkullMesh, HeadFrame);
+		// The jaw mesh has its origin at the hinge, like the jaw frame
+		WoodJaw = MakeWood(JawMesh, JawFrame);
+
+		// The snake itself turns to root wood: its vines become braided strands
+		int32 StrandPick = 0;
+		for (TArray<TObjectPtr<USplineMeshComponent>>* Vines : { &Column, &HookNeck })
+		{
+			for (USplineMeshComponent* Vine : *Vines)
+			{
+				if (UStaticMesh* Strand = VaelAssets::LoadOptional(WoodSettings->DragonStrandMeshes.IsEmpty() ? TSoftObjectPtr<UStaticMesh>() : WoodSettings->DragonStrandMeshes[StrandPick++ % WoodSettings->DragonStrandMeshes.Num()]))
+				{
+					Vine->SetStaticMesh(Strand);
+				}
+				Vine->SetMaterial(0, WoodMaterial);
+			}
+		}
+
+		// The free spine: per vine one strand for each of the five pieces of the body, a thick core, and the roots in the ground
+		// (laid each frame by LaySpine; the column and neck of the snake it grew from are hidden then)
+		constexpr int32 Segments = 5;
+		for (int32 Index = 0; Index < (Column.Num() + 1) * Segments; ++Index)
+		{
+			// One kind of strand along a whole vine, so its pieces meet seamlessly
+			UStaticMesh* Strand = WoodSettings->DragonStrandMeshes.IsEmpty() ? nullptr : VaelAssets::LoadOptional(WoodSettings->DragonStrandMeshes[(Index / Segments) % WoodSettings->DragonStrandMeshes.Num()]);
+			USplineMeshComponent* Piece = MakeStalk(Strand);
+			Piece->SetMaterial(0, WoodMaterial);
+			SpinePieces.Add(Piece);
+		}
+		for (int32 Index = 0; Index < 7; ++Index)
+		{
+			UStaticMesh* Strand = WoodSettings->DragonStrandMeshes.IsEmpty() ? nullptr : VaelAssets::LoadOptional(WoodSettings->DragonStrandMeshes[(Index + 1) % WoodSettings->DragonStrandMeshes.Num()]);
+			USplineMeshComponent* Root = MakeStalk(Strand);
+			Root->SetMaterial(0, WoodMaterial);
+			GroundRoots.Add(Root);
+		}
+		// It bursts out of the earth (UpdateDragonNeck)
+		EmergeTime = 0.0f;
+		EmergeRumble = 0.0f;
+	}
+
+	// The storm dragon is slim: thinner strands in its skull
+	const float Slim = bWingDragon ? 0.55f : 1.0f;
+
+	// Skull and jaw: every vine a bundle of tangled strands (only without the root wood)
 	int32 Pick = 0;
-	for (const FDragonVine& Vine : DragonVineTable)
+	for (const FDragonVine& Vine : bWood ? TArrayView<const FDragonVine>() : TArrayView<const FDragonVine>(DragonVineTable))
 	{
 		for (int32 Mirror = 0; Mirror < (Vine.bMirror ? 2 : 1); ++Mirror)
 		{
@@ -1893,13 +2183,14 @@ void AVaelPlantTower::BuildDragon()
 				const float Thin = Strand == 0 ? 1.0f : Random.FRandRange(0.45f, 0.65f);
 				USplineMeshComponent* Piece = MakePiece(TowerFirstMesh({ &Plant->VineMeshes, &Plant->ArmMeshes, &Plant->FingerMeshes }, Pick++), Vine.bJaw ? JawFrame.Get() : HeadFrame.Get());
 				LayPiece(Piece, Vine.A * Flip - Shift + Jitter, Vine.TA * Flip + Bow, Vine.B * Flip - Shift - Jitter, Vine.TB * Flip - Bow,
-					Vine.S0 * Thin, Vine.S1 * Thin, Random.FRandRange(0.0f, 6.0f));
+					Vine.S0 * Thin * Slim, Vine.S1 * Thin * Slim, Random.FRandRange(0.0f, 6.0f));
 			}
 		}
 	}
 
-	// Long thorn teeth hanging from the upper jaw and standing up from the lower one, the front ones longest
-	for (int32 Mirror = 0; Mirror < 2; ++Mirror)
+	// Long thorn teeth hanging from the upper jaw and standing up from the lower one, the front ones longest (the root wood has
+	// its own splinter teeth)
+	for (int32 Mirror = 0; Mirror < (bWood ? 0 : 2); ++Mirror)
 	{
 		const float SideSign = Mirror == 0 ? 1.0f : -1.0f;
 		for (int32 Tooth = 0; Tooth < DragonTeethPerSide; ++Tooth)
@@ -1935,8 +2226,14 @@ void AVaelPlantTower::BuildDragon()
 		const FVector Way = (Out + FVector(-0.5f, 0.0f, 0.15f) + Random.GetUnitVector() * 0.35f).GetSafeNormal();
 		const float Length = Random.FRandRange(8.0f, 22.0f);
 		const FVector Tip = Root + Way * Length;
-		LayPiece(MakePiece(TowerFirstMesh({ &Plant->FingerMeshes, &Plant->ArmMeshes }, Pick++), HeadFrame), Root, Way * Length, Tip, (Way + FVector(-0.4f, 0.0f, -0.3f)).GetSafeNormal() * Length,
-			Random.FRandRange(0.3f, 0.5f), 0.05f, Random.FRandRange(0.0f, 6.0f));
+		// The root wood brings its own shaggy fibres; the roots are still the places of the thistles
+		const float Thin = Random.FRandRange(0.3f, 0.5f);
+		const float FibreRoll = Random.FRandRange(0.0f, 6.0f);
+		if (!bWood)
+		{
+			LayPiece(MakePiece(TowerFirstMesh({ &Plant->FingerMeshes, &Plant->ArmMeshes }, Pick++), HeadFrame), Root, Way * Length, Tip, (Way + FVector(-0.4f, 0.0f, -0.3f)).GetSafeNormal() * Length,
+				Thin, 0.05f, FibreRoll);
+		}
 		FibreRoots.Add(Root + Way * 3.0f);
 	}
 
@@ -1951,8 +2248,15 @@ void AVaelPlantTower::BuildDragon()
 		for (int32 Index = 0; Index < DragonSkullThistles; ++Index)
 		{
 			UStaticMeshComponent* Thistle = MakeHead(HeadFrame);
-			const FVector Root = FibreRoots[(Index * 7 + 3) % FibreRoots.Num()];
-			const FVector Out = (Root - FVector(20.0f, 0.0f, 6.0f)).GetSafeNormal();
+			FVector Root = FibreRoots[(Index * 7 + 3) % FibreRoots.Num()];
+			FVector Out = (Root - FVector(20.0f, 0.0f, 6.0f)).GetSafeNormal();
+			// On the root wood they grow in an arc over the back of the skull, in the mane, so they don't read as more eyes
+			if (bWood)
+			{
+				const float Around = FMath::Lerp(-1.1f, 1.1f, Index / float(FMath::Max(DragonSkullThistles - 1, 1)));
+				Out = FVector(-0.6f, FMath::Sin(Around), FMath::Cos(Around)).GetSafeNormal();
+				Root = FVector(-16.0f - 4.0f * (Index % 2), FMath::Sin(Around) * 17.0f, 13.0f + FMath::Cos(Around) * 15.0f);
+			}
 			Thistle->SetRelativeLocationAndRotation(Root, FRotationMatrix::MakeFromZ(Out).Rotator());
 			Thistle->SetRelativeScale3D(FVector(HeadScale * 0.6f));
 		}
@@ -1967,10 +2271,350 @@ void AVaelPlantTower::BuildDragon()
 	}
 	DrumRegrow.Init(1.0f, DragonDrumHeads);
 
-	// Shaggy root tufts along the lifted neck
+	// The steam gland: four petals of the sunk Taublatt round the throat, clamping a glowing Glutdistel (placed each frame); a
+	// few more of its petals grow out of the tangle of the skull like leaves
+	UStaticMesh* PetalMesh = DragonPartner != nullptr ? VaelAssets::LoadOptional(DragonPartner->PetalMesh) : nullptr;
+	if (bSteamDragon && PetalMesh != nullptr)
+	{
+		UMaterialInterface* PetalMaterial = PartnerMaterial != nullptr ? PartnerMaterial.Get() : PieceMaterial;
+		auto MakePetal = [this, PetalMesh, PetalMaterial]()
+		{
+			UStaticMeshComponent* Petal = NewObject<UStaticMeshComponent>(this);
+			Petal->SetMobility(EComponentMobility::Movable);
+			Petal->SetStaticMesh(PetalMesh);
+			Petal->SetMaterial(0, PetalMaterial);
+			Petal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Petal->SetCanEverAffectNavigation(false);
+			Petal->SetupAttachment(HeadFrame);
+			Petal->RegisterComponent();
+			return Petal;
+		};
+		for (int32 Index = 0; Index < 4; ++Index)
+		{
+			GlandPetals.Add(MakePetal());
+		}
+		// The head adorned with Taublatt as a headdress (Boris 2026-11-19): a crown of large petals fanning up and back from the
+		// back of the skull, two long petals sweeping back from the temples like horns, a ruff fanning back from each cheek, and
+		// a petal over each eye
+		const float LeafScale = DragonPartner->PetalSize / 15.0f;
+		auto LayLeaf = [&](const FVector& Foot, const FVector& Up, const FVector& Face, float Length)
+		{
+			UStaticMeshComponent* Leaf = MakePetal();
+			Leaf->SetRelativeLocationAndRotation(Foot, FRotationMatrix::MakeFromZX(Up.GetSafeNormal(), Face).Rotator());
+			Leaf->SetRelativeScale3D(FVector(Length / 10.0f * LeafScale));
+			HeadLeaves.Add(Leaf);
+		};
+		// Crown: a fan over the back of the skull, the middle petals longest, the outer ones leaning out to the sides
+		constexpr int32 CrownLeaves = 9;
+		for (int32 Index = 0; Index < CrownLeaves; ++Index)
+		{
+			const float Fan = FMath::Lerp(-1.15f, 1.15f, Index / float(CrownLeaves - 1));
+			const FVector Up(-0.8f, FMath::Sin(Fan) * 0.9f, FMath::Cos(Fan) * 0.95f);
+			const FVector FanWay(0.0f, FMath::Cos(Fan), -FMath::Sin(Fan));
+			const FVector Face = (FanWay * 0.7f + FVector::CrossProduct(Up.GetSafeNormal(), FanWay) * 0.3f).GetSafeNormal();
+			LayLeaf(FVector(-14.0f, FMath::Sin(Fan) * 10.0f, 20.0f + FMath::Cos(Fan) * 4.0f), Up, Face, 54.0f - 14.0f * FMath::Abs(Fan) / 1.15f);
+		}
+		constexpr int32 RuffLeaves = 5;
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const float SideSign = Side == 0 ? 1.0f : -1.0f;
+			// Temple petals sweeping back like horns
+			LayLeaf(FVector(4.0f, SideSign * 16.0f, 20.0f), FVector(-1.0f, SideSign * 0.45f, 0.45f), FVector(0.0f, SideSign, 0.35f), 48.0f);
+			for (int32 Index = 0; Index < RuffLeaves; ++Index)
+			{
+				const float Fan = FMath::Lerp(-0.9f, 0.9f, Index / float(RuffLeaves - 1));
+				const FVector Out(0.0f, SideSign * FMath::Cos(Fan), FMath::Sin(Fan));
+				LayLeaf(FVector(-8.0f, SideSign * 18.0f, 0.0f) + Out * 6.0f, FVector(-1.0f, 0.0f, 0.0f) + Out * 0.9f, Out, 40.0f - 8.0f * FMath::Abs(Fan));
+			}
+			LayLeaf(FVector(36.0f, SideSign * 14.0f, 18.0f), FVector(-0.8f, SideSign * 0.4f, 0.6f), FVector(0.0f, SideSign, 0.3f), 20.0f);
+		}
+	}
+
+	// The flood dragon: a frill of its own Taublatt petals round the back of its head (placed each frame, it folds and fans), and
+	// in its jaws a bulb of five petals shut round a heart with an opening at the front, out of which the jet shoots (like the
+	// gland of the steam dragon, Boris 2026-11-19)
+	if (bFloodDragon)
+	{
+		if (UStaticMesh* FrillMesh = VaelAssets::LoadOptional(Plant->PetalMesh))
+		{
+			for (int32 Index = 0; Index < 16; ++Index)
+			{
+				UStaticMeshComponent* Petal = NewObject<UStaticMeshComponent>(this);
+				Petal->SetMobility(EComponentMobility::Movable);
+				Petal->SetStaticMesh(FrillMesh);
+				Petal->SetMaterial(0, PieceMaterial);
+				Petal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				Petal->SetCanEverAffectNavigation(false);
+				Petal->SetupAttachment(HeadFrame);
+				Petal->RegisterComponent();
+				// The first eleven are the frill, the last five the bulb
+				if (Index < 11)
+				{
+					FrillPetals.Add(Petal);
+				}
+				else
+				{
+					GlandPetals.Add(Petal);
+				}
+			}
+		}
+	}
+
+	// The thunder dragon: blades of the sunk Windhalm standing out of the cheeks like gills, long ones sweeping back from the
+	// skull like horns, and a ring of short ones round the glowing core in its throat, pointing out of the jaws
+	if (bThunderDragon && DragonPartner != nullptr)
+	{
+		UMaterialInterface* BladeMaterial = PartnerMaterial != nullptr ? PartnerMaterial.Get() : PieceMaterial;
+		auto LayBlade = [&](const FVector& Foot, const FVector& Way, float Length, float Width, int32 MeshPick, bool bTip)
+		{
+			USplineMeshComponent* Blade = MakePiece(TowerFirstMesh({ &DragonPartner->FingerMeshes, &DragonPartner->ArmMeshes, &DragonPartner->VineMeshes }, MeshPick), HeadFrame);
+			Blade->SetMaterial(0, BladeMaterial);
+			const FVector Dir = Way.GetSafeNormal();
+			// Each blade curves back a little towards its tip, like grass bent by wind
+			const FVector Tip = Foot + Dir * Length + FVector(-0.25f, 0.0f, -0.1f) * Length * 0.3f;
+			LayPiece(Blade, Foot, Dir * Length, Tip, (Dir + FVector(-0.5f, 0.0f, -0.15f)).GetSafeNormal() * Length, Width, Width * 0.12f, Random.FRandRange(0.0f, 6.0f));
+			if (bTip)
+			{
+				BladeTips.Add(Tip);
+			}
+		};
+		int32 BladePick = 0;
+		for (int32 Side = 0; Side < 2; ++Side)
+		{
+			const float SideSign = Side == 0 ? 1.0f : -1.0f;
+			// Gills: five blades fanning back and out of each cheek, the lower ones shorter
+			for (int32 Index = 0; Index < 5; ++Index)
+			{
+				const float Along = Index / 4.0f;
+				LayBlade(FVector(FMath::Lerp(18.0f, -12.0f, Along), SideSign * 17.0f, FMath::Lerp(-4.0f, 14.0f, Along)),
+					FVector(-1.0f, SideSign * 0.65f, 0.15f + 0.35f * Along), FMath::Lerp(26.0f, 40.0f, Along), 0.9f, BladePick++, true);
+			}
+			// Horns: two long blades sweeping back from the skull
+			for (int32 Index = 0; Index < 2; ++Index)
+			{
+				LayBlade(FVector(-6.0f - Index * 8.0f, SideSign * (7.0f + Index * 6.0f), 24.0f), FVector(-1.0f, SideSign * (0.18f + 0.15f * Index), 0.75f - 0.2f * Index),
+					Index == 0 ? 66.0f : 52.0f, 1.3f, BladePick++, true);
+			}
+		}
+		// The ring in the throat: six short blades round the core, pointing out of the jaws
+		for (int32 Index = 0; Index < 6; ++Index)
+		{
+			const float Around = Index * UE_PI / 3.0f;
+			const FVector Out(0.0f, FMath::Cos(Around), FMath::Sin(Around));
+			LayBlade(FVector(16.0f, 0.0f, -12.0f) + Out * 6.0f, FVector(1.0f, 0.0f, 0.0f) + Out * 0.35f, 20.0f, 0.6f, BladePick++, false);
+		}
+	}
+
+	// The sun dragon: a burning glass (the warm glass of the Glimmklee dome) held in its jaws, framed by a ring of glowing clover
+	// leaves; more clover grows out of its brows and stands as a small crown on its skull
+	if (bSunDragon && DragonPartner != nullptr)
+	{
+		UStaticMesh* Sphere = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"));
+		UMaterialInterface* Glass = VaelAssets::LoadOptional(UVaelFloromantSettings::Get()->GlassMaterial);
+		if (Sphere != nullptr)
+		{
+			LensGlass = NewObject<UStaticMeshComponent>(this);
+			LensGlass->SetMobility(EComponentMobility::Movable);
+			LensGlass->SetStaticMesh(Sphere);
+			LensGlass->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			LensGlass->SetCanEverAffectNavigation(false);
+			LensGlass->SetCastShadow(false);
+			LensGlass->SetupAttachment(HeadFrame);
+			LensGlass->RegisterComponent();
+			if (Glass != nullptr)
+			{
+				LensMaterial = UMaterialInstanceDynamic::Create(Glass, this);
+				LensMaterial->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.5f, 0.15f));
+				LensGlass->SetMaterial(0, LensMaterial);
+			}
+		}
+		UStaticMesh* Clover = VaelAssets::LoadOptional(DragonPartner->TipMesh);
+		UMaterialInterface* CloverMaterial = PartnerMaterial != nullptr ? PartnerMaterial.Get() : PieceMaterial;
+		const float CloverScale = FMath::Max(DragonPartner->TipSize * 1.6f / 10.0f, 0.01f);
+		auto MakeClover = [this, Clover, CloverMaterial]()
+		{
+			UStaticMeshComponent* Leaf = NewObject<UStaticMeshComponent>(this);
+			Leaf->SetMobility(EComponentMobility::Movable);
+			Leaf->SetStaticMesh(Clover);
+			Leaf->SetMaterial(0, CloverMaterial);
+			Leaf->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Leaf->SetCanEverAffectNavigation(false);
+			Leaf->SetupAttachment(HeadFrame);
+			Leaf->RegisterComponent();
+			return Leaf;
+		};
+		if (Clover != nullptr)
+		{
+			for (int32 Index = 0; Index < 8; ++Index)
+			{
+				LensLeaves.Add(MakeClover());
+			}
+			auto SetClover = [&](const FVector& Place, const FVector& Out, float Scale)
+			{
+				UStaticMeshComponent* Leaf = MakeClover();
+				Leaf->SetRelativeLocationAndRotation(Place, FRotationMatrix::MakeFromZ(Out.GetSafeNormal()).Rotator());
+				Leaf->SetRelativeScale3D(FVector(CloverScale * Scale));
+				HeadLeaves.Add(Leaf);
+			};
+			for (int32 Side = 0; Side < 2; ++Side)
+			{
+				const float SideSign = Side == 0 ? 1.0f : -1.0f;
+				SetClover(FVector(38.0f, SideSign * 15.0f, 19.0f), FVector(-0.4f, SideSign * 0.6f, 0.7f), 1.1f);
+				SetClover(FVector(28.0f, SideSign * 17.0f, 21.0f), FVector(-0.6f, SideSign * 0.7f, 0.5f), 0.9f);
+			}
+			for (int32 Index = 0; Index < 5; ++Index)
+			{
+				const float Fan = FMath::Lerp(-0.8f, 0.8f, Index / 4.0f);
+				SetClover(FVector(-6.0f, FMath::Sin(Fan) * 10.0f, 26.0f), FVector(-0.5f, FMath::Sin(Fan), FMath::Cos(Fan) * 1.2f), 1.5f - 0.3f * FMath::Abs(Fan));
+			}
+		}
+
+		// The pieces of its own thin sun beam: core and halo are stretched cylinders of glow, the end and the motes small balls
+		UMaterialInterface* BeamCore = nullptr;
+		UMaterialInterface* BeamGlow = nullptr;
+		VaelEffects::LoadLookMaterials(BeamCore, BeamGlow);
+		UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+		if (BeamGlow != nullptr)
+		{
+			auto MakeGlow = [this, BeamGlow](const FLinearColor& Color, UStaticMesh* Mesh)
+			{
+				UStaticMeshComponent* Shape = VaelEffects::AddLookShape(this, BeamGlow, Color, 0.0f);
+				if (Mesh != nullptr)
+				{
+					Shape->SetStaticMesh(Mesh);
+				}
+				Shape->SetUsingAbsoluteLocation(true);
+				Shape->SetUsingAbsoluteRotation(true);
+				Shape->SetUsingAbsoluteScale(true);
+				Shape->SetCastShadow(false);
+				Shape->SetVisibility(false);
+				return Shape;
+			};
+			SunCore = MakeGlow(FLinearColor(1.0f, 0.97f, 0.85f), Cylinder);
+			SunHalo = MakeGlow(DragonSunLight, Cylinder);
+			SunEnd = MakeGlow(DragonSunLight, nullptr);
+			for (int32 Index = 0; Index < 6; ++Index)
+			{
+				SunMotes.Add(MakeGlow(FLinearColor(1.0f, 0.95f, 0.7f), nullptr));
+			}
+		}
+	}
+
+	// The flood dragon's water jet uses the pieces of the sun beam, in the colours of water
+	if (bFloodDragon)
+	{
+		UMaterialInterface* BeamCore = nullptr;
+		UMaterialInterface* BeamGlow = nullptr;
+		VaelEffects::LoadLookMaterials(BeamCore, BeamGlow);
+		UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
+		if (BeamGlow != nullptr)
+		{
+			auto MakeGlow = [this, BeamGlow](const FLinearColor& Color, UStaticMesh* Mesh)
+			{
+				UStaticMeshComponent* Shape = VaelEffects::AddLookShape(this, BeamGlow, Color, 0.0f);
+				if (Mesh != nullptr)
+				{
+					Shape->SetStaticMesh(Mesh);
+				}
+				Shape->SetUsingAbsoluteLocation(true);
+				Shape->SetUsingAbsoluteRotation(true);
+				Shape->SetUsingAbsoluteScale(true);
+				Shape->SetCastShadow(false);
+				Shape->SetVisibility(false);
+				return Shape;
+			};
+			SunCore = MakeGlow(FLinearColor(0.85f, 0.95f, 1.0f), Cylinder);
+			SunHalo = MakeGlow(DragonFloodLight, Cylinder);
+			SunEnd = MakeGlow(FLinearColor(0.7f, 0.9f, 1.0f), nullptr);
+			for (int32 Index = 0; Index < 8; ++Index)
+			{
+				SunMotes.Add(MakeGlow(FLinearColor(0.8f, 0.95f, 1.0f), nullptr));
+			}
+		}
+	}
+
+	// The wings of the storm dragon (Boris 2026-11-19): built of the root strands of its neck: an arm of two strands to the
+	// elbow, ribs of strands fanning from it, and Windhalm blades spanned between the ribs as the skin; the blades are the darts
+	if (bWingDragon)
+	{
+		UStaticMesh* StrandMesh = TowerFirstMesh({ &Plant->VineMeshes, &Plant->ArmMeshes, &Plant->FingerMeshes });
+		if (bWood && !WoodSettings->DragonStrandMeshes.IsEmpty())
+		{
+			if (UStaticMesh* WoodStrand = VaelAssets::LoadOptional(WoodSettings->DragonStrandMeshes.Last()))
+			{
+				StrandMesh = WoodStrand;
+			}
+		}
+		for (int32 Index = 0; Index < 2 * (2 + DragonWingRibs); ++Index)
+		{
+			USplineMeshComponent* Bone = MakeStalk(StrandMesh);
+			if (bWood)
+			{
+				Bone->SetMaterial(0, WoodMaterial);
+			}
+			Bone->SetVisibility(false);
+			WingBones.Add(Bone);
+		}
+		for (int32 Index = 0; Index < 2 * DragonWingFeathers; ++Index)
+		{
+			USplineMeshComponent* Blade = MakeStalk(TowerFirstMesh({ &Plant->FingerMeshes, &Plant->ArmMeshes, &Plant->VineMeshes }, Index));
+			Blade->SetVisibility(false);
+			WingBlades.Add(Blade);
+		}
+		FeatherGrow.Init(1.0f, 2 * DragonWingFeathers);
+		FeatherTips.Init(FVector::ZeroVector, 2 * DragonWingFeathers);
+	}
+
+	// Roots of the partner in its colour, winding up round the neck from the foot to the head (laid each frame)
+	if (DragonPartner != nullptr && (bSteamDragon || bThunderDragon || bSunDragon))
+	{
+		UStaticMesh* RootMesh = TowerFirstMesh({ &DragonPartner->VineMeshes, &DragonPartner->ArmMeshes, &DragonPartner->FingerMeshes });
+		for (int32 Index = 0; Index < DragonPartnerRoots * (DragonPartnerPieces + DragonPartnerSpurs); ++Index)
+		{
+			USplineMeshComponent* PartnerRoot = MakeStalk(RootMesh);
+			if (PartnerMaterial != nullptr)
+			{
+				PartnerRoot->SetMaterial(0, PartnerMaterial);
+			}
+			PartnerRoot->SetVisibility(false);
+			PartnerVines.Add(PartnerRoot);
+		}
+	}
+
+	// The cards of the steam jet, in the material of the mage's steam; they live in world space
+	if (bSteamDragon)
+	{
+		if (UMaterialInterface* CloudMaterial = VaelAssets::LoadOptional(UVaelMagicSettings::Get()->CloudCardMaterial))
+		{
+			JetCards = NewObject<UVaelCloudCardsComponent>(this);
+			JetCards->SetupAttachment(RootComponent);
+			JetCards->SetUsingAbsoluteLocation(true);
+			JetCards->SetUsingAbsoluteRotation(true);
+			JetCards->SetUsingAbsoluteScale(true);
+			JetCards->RegisterComponent();
+			JetCards->SetWorldLocationAndRotation(FVector::ZeroVector, FRotator::ZeroRotator);
+			JetCards->SetWorldScale3D(FVector::OneVector);
+			JetCards->Init(CloudMaterial);
+			for (int32 Index = 0; Index < DragonJetCards; ++Index)
+			{
+				JetCards->AddCard(FVector::ZeroVector, 1.0f, 0.0f);
+			}
+			JetCardPlaces.Init(FVector::ZeroVector, DragonJetCards);
+			JetCardVelocities.Init(FVector::ZeroVector, DragonJetCards);
+			JetCardAges.Init(-1.0f, DragonJetCards);
+		}
+	}
+
+	// Shaggy root tufts along the lifted neck (thin roots of the root wood)
+	UStaticMesh* FibreMesh = bWood ? VaelAssets::LoadOptional(WoodSettings->DragonFibreMesh) : nullptr;
+	bWoodTufts = FibreMesh != nullptr;
 	for (int32 Index = 0; Index < DragonNeckTufts; ++Index)
 	{
-		USplineMeshComponent* Tuft = MakeStalk(TowerFirstMesh({ &Plant->FingerMeshes, &Plant->ArmMeshes }, Index));
+		USplineMeshComponent* Tuft = MakeStalk(FibreMesh != nullptr ? FibreMesh : TowerFirstMesh({ &Plant->FingerMeshes, &Plant->ArmMeshes }, Index));
+		if (FibreMesh != nullptr)
+		{
+			Tuft->SetMaterial(0, WoodMaterial);
+		}
 		Tuft->SetVisibility(false);
 		DragonManeStalks.Add(Tuft);
 	}
@@ -1982,7 +2626,9 @@ void AVaelPlantTower::BuildDragon()
 	{
 		for (int32 Index = 0; Index < 3 + DragonSurgeOrbs; ++Index)
 		{
-			UStaticMeshComponent* Orb = VaelEffects::AddLookShape(this, GlowMaterial, VaelSymbiosis::GetColor(EVaelSymbiosis::Glutbusch), 0.0f);
+			// The steam dragon looks out of turquoise eyes, and its sparks run up in the colour of the Taublatt; the throat glows
+			const bool bTurquoise = (bSteamDragon || bThunderDragon || bSunDragon || bWingDragon || bFloodDragon) && Index != 2;
+			UStaticMeshComponent* Orb = VaelEffects::AddLookShape(this, GlowMaterial, bTurquoise ? (bThunderDragon ? DragonThunderLight : bSunDragon ? DragonSunLight : bWingDragon ? DragonWindLight : bFloodDragon ? DragonFloodLight : DragonSteamEyes) : VaelSymbiosis::GetColor(EVaelSymbiosis::Glutbusch), 0.0f);
 			Orb->SetUsingAbsoluteLocation(true);
 			Orb->SetUsingAbsoluteRotation(true);
 			Orb->SetUsingAbsoluteScale(true);
@@ -2000,11 +2646,13 @@ void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
 	}
 	const float Before = DragonGrow;
 	DragonGrow = bWithering ? FMath::Min(DragonGrow, FMath::Max(Grow, 0.0f)) : FMath::Min(1.0f, DragonGrow + DeltaSeconds / 1.6f);
-	const float Appear = FMath::SmoothStep(0.45f, 1.0f, DragonGrow);
+	// The root-wood dragon comes out of the earth at its full size (see EmergeTime); it only shrinks again when it withers
+	const bool bFromEarth = !SpinePieces.IsEmpty();
+	const float Appear = bFromEarth && !bWithering ? 1.0f : FMath::SmoothStep(0.45f, 1.0f, DragonGrow);
 	const float Time = GetWorld()->GetTimeSeconds();
 
 	// The moment the head breaks out of the crown: a burst of embers
-	if (Before < 0.5f && DragonGrow >= 0.5f)
+	if (Before < 0.5f && DragonGrow >= 0.5f && !bFromEarth)
 	{
 		FVaelDebris Burst;
 		Burst.Count = 26;
@@ -2022,17 +2670,30 @@ void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
 	// The old crown is gone once the head has broken out
 	for (USplineMeshComponent* Stalk : CrownStalks)
 	{
-		Stalk->SetVisibility(DragonGrow < 0.5f);
+		Stalk->SetVisibility(DragonGrow < 0.5f && !bFromEarth);
 	}
 	for (UStaticMeshComponent* Piece : CrownPieces)
 	{
-		Piece->SetVisibility(DragonGrow < 0.5f);
+		Piece->SetVisibility(DragonGrow < 0.5f && !bFromEarth);
 	}
 
 	// The jaw: shut and breathing at rest, ajar while it charges, torn wide open through the drumfire
 	const bool bCharging = Target.IsValid() && !bWithering && FireCountdown < 0.7f;
-	const float JawGoal = BurstLeft > 0 ? 1.0f : (bCharging ? 0.35f : 0.06f + 0.04f * FMath::Sin(Time * 1.7f));
-	Jaw = FMath::FInterpTo(Jaw, JawGoal, DeltaSeconds, JawGoal > Jaw ? 10.0f : 5.0f);
+	// Biting it roars open while it draws back, tears wide open as it lunges and snaps shut on the prey
+	float JawGoal = IsBreathing() ? (bSteamDragon ? 0.7f : bThunderDragon ? 0.85f : bSunDragon ? 0.6f : bFloodDragon ? 0.8f : 1.0f) : (bCharging ? 0.35f : 0.06f + 0.04f * FMath::Sin(Time * 1.7f));
+	float JawSpeed = JawGoal > Jaw ? 10.0f : 5.0f;
+	// Towering up out of the earth it roars with its jaws wide open
+	if (EmergeTime >= 1.3f && EmergeTime < 2.4f)
+	{
+		JawGoal = 1.0f;
+		JawSpeed = 8.0f;
+	}
+	if (BiteTime >= 0.0f)
+	{
+		JawGoal = BiteTime < 0.22f ? 0.75f : (BiteTime < 0.34f ? 1.0f : 0.0f);
+		JawSpeed = BiteTime < 0.34f ? 14.0f : 34.0f;
+	}
+	Jaw = FMath::FInterpTo(Jaw, JawGoal, DeltaSeconds, JawSpeed);
 	DrumAngle += DeltaSeconds * (BurstLeft > 0 ? 10.0f : 1.2f);
 
 	// The head sits on the crown of the snake, sized with the tower
@@ -2049,11 +2710,19 @@ void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
 	{
 		HeadFrame->SetVisibility(bShown, true);
 	}
-	HeadFrame->SetWorldLocationAndRotation(GetCrown(), FRotationMatrix::MakeFromXZ(Forward, FVector::UpVector).Rotator());
-	HeadFrame->SetWorldScale3D(FVector(FMath::Max(Size, 0.001f)));
+	// It looks along the facing of its neck, down when it sniffs or strikes
+	const FVector Facing = GetCrownAxis().IsNearlyZero() ? Forward : GetCrownAxis();
+	HeadFrame->SetWorldLocationAndRotation(GetCrown(), FRotationMatrix::MakeFromXZ(Facing, FVector::UpVector).Rotator());
+	// The storm dragon has a slim, long head
+	HeadFrame->SetWorldScale3D(bWingDragon ? FVector(FMath::Max(Size * 1.1f, 0.001f), FMath::Max(Size * 0.72f, 0.001f), FMath::Max(Size * 0.8f, 0.001f)) : FVector(FMath::Max(Size, 0.001f)));
 	// A slow snarl of the head, and the jaw on its hinge
 	JawFrame->SetRelativeRotation(FRotator(-DragonJawDegrees * Jaw, 0.0f, 0.0f));
 	const FTransform Head = HeadFrame->GetComponentTransform();
+	// The veins of the root wood glow up as the jaws open
+	if (WoodMaterial != nullptr)
+	{
+		WoodMaterial->SetScalarParameterValue(TEXT("Leuchten"), 0.5f + 3.0f * Jaw);
+	}
 
 	// The thistle ring in the throat, turning; the mouth is the middle between the jaws
 	const FVector MouthLocal(28.0f, 0.0f, -9.0f - Jaw * 10.0f);
@@ -2066,9 +2735,92 @@ void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
 		{
 			continue;
 		}
+		// The steam dragon keeps only one glowing thistle, in the heart of its gland
+		if (bSteamDragon || bThunderDragon || bSunDragon || bWingDragon || bFloodDragon)
+		{
+			Thistle->SetVisibility(Index == 0 && HeadFrame->IsVisible());
+			if (Index == 0)
+			{
+				const float Glow = 1.0f + 0.25f * Squeeze;
+				Thistle->SetRelativeLocationAndRotation(MouthLocal - FVector(2.0f, 0.0f, 0.0f), FRotator(-90.0f, DrumAngle * 20.0f, 0.0f));
+				Thistle->SetRelativeScale3D(FVector(HeadScale * 0.9f * Glow));
+			}
+			continue;
+		}
 		const float Angle = DrumAngle + Index * 2.0f * UE_PI / DragonDrumHeads;
 		Thistle->SetRelativeLocationAndRotation(MouthLocal + FVector(0.0f, FMath::Cos(Angle) * 8.0f, FMath::Sin(Angle) * 8.0f), FRotator(-90.0f, 0.0f, 0.0f));
 		Thistle->SetRelativeScale3D(FVector(FMath::Max(HeadScale * 0.7f * FMath::SmoothStep(0.0f, 1.0f, DrumRegrow[Index]), 0.001f)));
+	}
+
+	// The burning glass: a flat lens before the glowing thistle, framed by clover leaves; light gathers in it while the dragon
+	// charges (it glows hotter and the leaves turn to it), and it burns white while the beam runs
+	if (LensGlass != nullptr)
+	{
+		const bool bGathering = Target.IsValid() && !bWithering && FireCountdown < 1.0f && !IsBreathing();
+		Squeeze = FMath::FInterpTo(Squeeze, bGathering ? 1.0f : (SunLeft > 0.0f ? 1.0f : 0.0f), DeltaSeconds, 4.0f);
+		const FVector LensAt = MouthLocal + FVector(10.0f, 0.0f, 0.0f);
+		LensGlass->SetRelativeLocationAndRotation(LensAt, FRotator::ZeroRotator);
+		LensGlass->SetRelativeScale3D(FVector(0.035f, 0.11f, 0.11f) * (1.0f + 0.1f * Squeeze));
+		if (LensMaterial != nullptr)
+		{
+			LensMaterial->SetScalarParameterValue(TEXT("Glow"), 0.3f + 1.0f * Squeeze + (SunLeft > 0.0f ? 1.2f : 0.0f));
+		}
+		const float CloverScale = DragonPartner != nullptr ? FMath::Max(DragonPartner->TipSize * 1.6f / 10.0f, 0.01f) : 1.0f;
+		for (int32 Index = 0; Index < LensLeaves.Num(); ++Index)
+		{
+			const float Around = Index * 2.0f * UE_PI / LensLeaves.Num() + 0.2f * FMath::Sin(Time * 0.7f);
+			const FVector Out(0.0f, FMath::Cos(Around), FMath::Sin(Around));
+			// Spread round the rim, tipping forward to the light while it gathers
+			const FVector Way = (Out + FVector(0.3f + 0.6f * Squeeze, 0.0f, 0.0f)).GetSafeNormal();
+			LensLeaves[Index]->SetRelativeLocationAndRotation(LensAt + Out * 6.0f, FRotationMatrix::MakeFromZ(Way).Rotator());
+			LensLeaves[Index]->SetRelativeScale3D(FVector(CloverScale * 0.5f));
+		}
+		SunMouth = Head.TransformPosition(LensAt + FVector(4.0f, 0.0f, 0.0f));
+	}
+
+	// The frill of the flood dragon: petals in a half ring round the back of the head; folded back flat against the neck at
+	// rest, fanned wide open and upright while it charges and gushes, trembling a little
+	if (!FrillPetals.IsEmpty())
+	{
+		const bool bFlaring = IsBreathing() || (Target.IsValid() && !bWithering && FireCountdown < 0.9f);
+		FrillOpen = FMath::FInterpTo(FrillOpen, bFlaring ? 1.0f : 0.0f, DeltaSeconds, bFlaring ? 9.0f : 3.0f);
+		const float PetalScale = FMath::Max(Plant->PetalSize * 2.6f / 10.0f, 0.01f);
+		for (int32 Index = 0; Index < FrillPetals.Num(); ++Index)
+		{
+			// From one jaw hinge over the skull to the other
+			const float Around = FMath::Lerp(-1.45f, 1.45f, Index / float(FrillPetals.Num() - 1));
+			const FVector Out(0.0f, FMath::Sin(Around), FMath::Cos(Around));
+			const float Lean = FMath::Lerp(1.25f, 0.15f, FrillOpen) + 0.04f * FMath::Sin(Time * 9.0f + Index) * FrillOpen;
+			const FVector Up = (Out * FMath::Cos(Lean) - FVector::ForwardVector * FMath::Sin(Lean)).GetSafeNormal();
+			const FVector Face = FVector::ForwardVector;
+			FrillPetals[Index]->SetRelativeLocationAndRotation(FVector(-12.0f, 0.0f, 6.0f) + Out * 16.0f, FRotationMatrix::MakeFromZX(Up, Face).Rotator());
+			FrillPetals[Index]->SetRelativeScale3D(FVector(PetalScale * (0.75f + 0.35f * FrillOpen) * (1.0f - 0.25f * FMath::Abs(Around) / 1.45f)));
+		}
+	}
+
+	// The steam gland: four Taublatt petals grow forward from the back of the throat round the glowing thistle, their inner
+	// sides to it like a shut rose. While the dragon charges they press tight round it; through the jet their tips spread a
+	// little and the steam streams out between them
+	if (!GlandPetals.IsEmpty())
+	{
+		// The bulb of the flood dragon stays pressed tight through its jet, the pressure behind the opening
+		const bool bGlandCharging = (Target.IsValid() && !bWithering && FireCountdown < 0.9f && !IsBreathing()) || (bFloodDragon && SunLeft > 0.0f);
+		Squeeze = FMath::FInterpTo(Squeeze, bGlandCharging ? 1.0f : 0.0f, DeltaSeconds, bGlandCharging ? 4.0f : 8.0f);
+		const float Spread = JetLeft > 0.0f ? 1.0f : 0.0f;
+		const float PetalScale = FMath::Max(26.0f / 10.0f * (DragonPartner != nullptr ? DragonPartner->PetalSize / 15.0f : 1.0f), 0.01f);
+		const FVector Heart = MouthLocal - FVector(2.0f, 0.0f, 0.0f);
+		for (int32 Index = 0; Index < GlandPetals.Num(); ++Index)
+		{
+			const float Around = Index * 2.0f * UE_PI / GlandPetals.Num() + UE_PI * 0.25f + 0.08f * FMath::Sin(Time * 2.0f + Index);
+			const FVector Out(0.0f, FMath::Cos(Around), FMath::Sin(Around));
+			// Lean of the petal out from the axis of the mouth: shut at rest, pressed while charging, spread through the jet
+			const float Lean = FMath::DegreesToRadians(FMath::Lerp(14.0f, 2.0f, Squeeze) + 26.0f * Spread + 3.0f * FMath::Sin(Time * 3.1f + Index * 1.7f));
+			const FVector Up = (FVector::ForwardVector * FMath::Cos(Lean) + Out * FMath::Sin(Lean)).GetSafeNormal();
+			const FVector Outside = (Out - Up * FVector::DotProduct(Out, Up)).GetSafeNormal();
+			const FVector Foot = Heart - FVector(12.0f, 0.0f, 0.0f) + Out * FMath::Lerp(7.0f, 5.0f, Squeeze);
+			GlandPetals[Index]->SetRelativeLocationAndRotation(Foot, FRotationMatrix::MakeFromXZ(Outside, Up).Rotator());
+			GlandPetals[Index]->SetRelativeScale3D(FVector(PetalScale * (1.0f - 0.08f * Squeeze)));
+		}
 	}
 
 	// Root tufts and a few thistles along the lifted neck, bristling out of the snake
@@ -2097,8 +2849,10 @@ void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
 		const FVector Tip = Root + Way * Length;
 		Tuft->SetStartAndEnd(Transform.InverseTransformPosition(Root), Transform.InverseTransformVectorNoScale(Way * Length),
 			Transform.InverseTransformPosition(Tip), Transform.InverseTransformVectorNoScale((Way - FVector::UpVector * 0.5f).GetSafeNormal() * Length), false);
-		Tuft->SetStartScale(FVector2D(0.6f * NeckSize), false);
-		Tuft->SetEndScale(FVector2D(0.06f * NeckSize), false);
+		// The thin root of the root wood is a few times thinner than the stalks of the plants
+		const float TuftThick = bWoodTufts ? 3.0f : 1.0f;
+		Tuft->SetStartScale(FVector2D(0.6f * NeckSize * TuftThick), false);
+		Tuft->SetEndScale(FVector2D(0.06f * NeckSize * TuftThick), false);
 		Tuft->UpdateMesh();
 
 		if (Index % 3 == 1 && DragonHeads.IsValidIndex(ThistleIndex))
@@ -2107,6 +2861,94 @@ void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
 			Thistle->SetVisibility(true);
 			Thistle->SetWorldLocationAndRotation(Root + Way * 4.0f * NeckSize, FRotationMatrix::MakeFromZ(Way).Rotator());
 			Thistle->SetWorldScale3D(FVector(FMath::Max(HeadScale * 0.6f * NeckSize, 0.001f)));
+		}
+	}
+
+	// The partner's roots wind up through the neck in their own colour, from the foot to the head, growing in with the head:
+	// thin, crossing into a net, weaving in and out of the snake, with side shoots branching off (Boris 2026-11-19)
+	if (!PartnerVines.IsEmpty())
+	{
+		const float Thick = Height / 200.0f;
+		auto Frame = [this](float T, FVector& OutSide, FVector& OutUp)
+		{
+			const FVector Tangent = (GetHookCurve(FMath::Min(T + 0.02f, 3.0f)) - GetHookCurve(FMath::Max(T - 0.02f, 0.0f))).GetSafeNormal();
+			OutSide = FVector::CrossProduct(Tangent, FVector::UpVector).GetSafeNormal();
+			if (OutSide.IsNearlyZero())
+			{
+				OutSide = FVector::RightVector;
+			}
+			OutUp = FVector::CrossProduct(OutSide, Tangent).GetSafeNormal();
+		};
+		auto RootPoint = [&](int32 Root, float T)
+		{
+			FVector Side, Up;
+			Frame(T, Side, Up);
+			// Every other root winds the other way round, so they cross into a net; each weaves into the snake and out again
+			const float Turn = Root % 2 == 0 ? 3.4f : -2.8f;
+			const float Angle = Root * 2.0f * UE_PI / DragonPartnerRoots + T * Turn + Time * 0.25f * (Root % 2 == 0 ? 1.0f : -1.0f);
+			const float Round = (10.0f + 5.0f * FMath::Sin(T * 6.5f + Root * 1.9f) - 2.0f * T / 3.0f) * Thick;
+			return GetHookCurve(T) + (Side * FMath::Cos(Angle) + Up * FMath::Sin(Angle)) * Round;
+		};
+		const float Reach = 3.0f * FMath::SmoothStep(0.0f, 1.0f, Appear);
+
+		// Short side shoots branching off each root, reaching out a little along the neck and bending back into it
+		for (int32 Root = 0; Root < DragonPartnerRoots; ++Root)
+		{
+			for (int32 Spur = 0; Spur < DragonPartnerSpurs; ++Spur)
+			{
+				const int32 Slot = DragonPartnerRoots * DragonPartnerPieces + Root * DragonPartnerSpurs + Spur;
+				if (!PartnerVines.IsValidIndex(Slot))
+				{
+					continue;
+				}
+				USplineMeshComponent* Shoot = PartnerVines[Slot];
+				const float T = 0.4f + (Spur + 0.3f * Root / float(DragonPartnerRoots)) * 2.4f / DragonPartnerSpurs;
+				const bool bShow = bShown && T < Reach;
+				Shoot->SetVisibility(bShow);
+				if (!bShow)
+				{
+					continue;
+				}
+				const FVector Start = RootPoint(Root, T);
+				const FVector Middle = GetHookCurve(T);
+				const FVector Out = (Start - Middle).GetSafeNormal();
+				const FVector Along = (GetHookCurve(FMath::Min(T + 0.05f, 3.0f)) - GetHookCurve(FMath::Max(T - 0.05f, 0.0f))).GetSafeNormal();
+				const float Length = (10.0f + 5.0f * ((Root + Spur) % 3)) * Thick;
+				const FVector End = Start + (Out * 0.7f + Along * (Spur % 2 == 0 ? 0.7f : -0.7f)).GetSafeNormal() * Length;
+				Shoot->SetStartAndEnd(Transform.InverseTransformPosition(Start), Transform.InverseTransformVectorNoScale((Out + Along * 0.3f) * Length),
+					Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale((Along * (Spur % 2 == 0 ? 1.0f : -1.0f) - Out * 0.6f) * Length), false);
+				Shoot->SetStartScale(FVector2D(0.3f * Thick), false);
+				Shoot->SetEndScale(FVector2D(0.06f * Thick), false);
+				Shoot->UpdateMesh();
+			}
+		}
+
+		for (int32 Root = 0; Root < DragonPartnerRoots; ++Root)
+		{
+			for (int32 Piece = 0; Piece < DragonPartnerPieces; ++Piece)
+			{
+				USplineMeshComponent* Vine = PartnerVines[Root * DragonPartnerPieces + Piece];
+				const float T0 = Reach * Piece / DragonPartnerPieces;
+				const float T1 = Reach * (Piece + 1) / DragonPartnerPieces;
+				const bool bShow = bShown && T1 > 0.05f;
+				Vine->SetVisibility(bShow);
+				if (!bShow)
+				{
+					continue;
+				}
+				const FVector P0 = RootPoint(Root, T0);
+				const FVector P1 = RootPoint(Root, T1);
+				const FVector S0 = (RootPoint(Root, FMath::Min(T0 + 0.05f, 3.0f)) - RootPoint(Root, FMath::Max(T0 - 0.05f, 0.0f))) / 0.1f * (T1 - T0);
+				const FVector S1 = (RootPoint(Root, FMath::Min(T1 + 0.05f, 3.0f)) - RootPoint(Root, FMath::Max(T1 - 0.05f, 0.0f))) / 0.1f * (T1 - T0);
+				Vine->SetStartAndEnd(Transform.InverseTransformPosition(P0), Transform.InverseTransformVectorNoScale(S0),
+					Transform.InverseTransformPosition(P1), Transform.InverseTransformVectorNoScale(S1), false);
+				// Thin roots, finer up towards the head
+				Vine->SetStartScale(FVector2D(FMath::Lerp(0.55f, 0.28f, T0 / 3.0f) * Thick), false);
+				Vine->SetEndScale(FVector2D(FMath::Lerp(0.55f, 0.28f, T1 / 3.0f) * Thick), false);
+				Vine->SetStartRoll(Root * 2.0f + Piece * 1.3f, false);
+				Vine->SetEndRoll(Root * 2.0f + Piece * 1.3f + 1.3f, false);
+				Vine->UpdateMesh();
+			}
 		}
 	}
 
@@ -2184,16 +3026,1078 @@ void AVaelPlantTower::UpdateDragon(float DeltaSeconds)
 			NextDrum = (NextDrum + 1) % DragonDrumHeads;
 			const float Angle = DrumAngle + Index * 2.0f * UE_PI / DragonDrumHeads;
 			const FVector Muzzle = Head.TransformPosition(MouthLocal + FVector(16.0f, FMath::Cos(Angle) * 8.0f, FMath::Sin(Angle) * 8.0f));
-			FVector Toward = BurstTarget.IsValid() ? BurstTarget->GetActorLocation() - Muzzle : Forward;
-			Toward.Z = 0.0f;
-			Toward = FRotator(0.0f, FMath::FRandRange(-6.0f, 6.0f), 0.0f).RotateVector(Toward.GetSafeNormal());
+			// The shots leave where the head looks (also down, it may hold its head high), so the fire sweeps with the neck
+			const FVector Toward = FRotator(0.0f, FMath::FRandRange(-3.0f, 3.0f), 0.0f).RotateVector(GetCrownAxis().GetSafeNormal());
 			VaelSymbiosis::FireShot(Gardener, Plant, Muzzle, Toward, BurstPower, bShadow, Settings->TowerShotScale * 0.85f, 0.6f);
 			VaelSymbiosis::MuzzlePuff(this, Plant, Muzzle, bShadow, 0.8f);
 			if (DrumRegrow.IsValidIndex(Index))
 			{
 				DrumRegrow[Index] = 0.0f;
 			}
-			BendVelocity -= Forward * 0.35f;
+			// Every shot knocks the head back on its neck
+			BendVelocity -= Forward * 0.2f;
+			NeckHeadVelocity -= Forward * 230.0f * Size / DragonHeadScale - FVector::UpVector * 60.0f * Size / DragonHeadScale;
+		}
+	}
+
+	// The steam jet: once the jaws are open a puff leaves the gland every tenth of a second along where the head looks, so the
+	// steam sweeps with the neck over the fan
+	if (bWithering)
+	{
+		JetLeft = 0.0f;
+	}
+	else if (JetLeft > 0.0f && Gardener != nullptr && Jaw > 0.45f)
+	{
+		JetLeft -= DeltaSeconds;
+		JetTimer -= DeltaSeconds;
+		if (JetTimer <= 0.0f)
+		{
+			JetTimer = 0.1f;
+			PuffSteam(Head.TransformPosition(MouthLocal + FVector(16.0f, 0.0f, 0.0f)), Forward, Height);
+			NeckHeadVelocity -= Forward * 70.0f * Size / DragonHeadScale;
+		}
+		JetLeft = FMath::Max(JetLeft, 0.0f);
+	}
+
+	// The sun beam (or the water jet of the flood dragon): once the jaws are open it is lit out of the mouth and follows the head
+	// over the fan until its time is out
+	if (bFloodDragon)
+	{
+		SunMouth = Head.TransformPosition(MouthLocal + FVector(12.0f, 0.0f, 0.0f));
+		if (SunShown > 0.05f)
+		{
+			NeckHeadVelocity -= Forward * 40.0f * DeltaSeconds * 10.0f * Size / DragonHeadScale;
+		}
+	}
+	if (bSunDragon || bFloodDragon)
+	{
+		if (bWithering)
+		{
+			SunLeft = 0.0f;
+		}
+		if (SunLeft > 0.0f)
+		{
+			SunLeft = FMath::Max(SunLeft - DeltaSeconds, 0.0f);
+			if (!bSunLit && Jaw > 0.45f && Gardener != nullptr)
+			{
+				bSunLit = true;
+				SunBurnTimer = 0.0f;
+				SunFireTimer = 0.0f;
+				VaelSymbiosis::MuzzlePuff(this, DragonPartner != nullptr ? DragonPartner.Get() : Plant.Get(), SunMouth, bShadow, 1.2f);
+			}
+		}
+		else
+		{
+			bSunLit = false;
+		}
+		UpdateSunBeam(DeltaSeconds, Height);
+	}
+
+	// The wings of the storm dragon
+	if (bWingDragon)
+	{
+		UpdateWings(DeltaSeconds, Height);
+	}
+
+	// The thunder: while it charges and breathes, arcs crackle between the tips of its blades; once the jaws are open lightning
+	// strikes out of the throat, and a moment later a second, weaker strike follows
+	if (bThunderDragon)
+	{
+		if (bWithering)
+		{
+			ThunderLeft = 0.0f;
+		}
+		const bool bCrackles = bShown && !bWithering && (ThunderLeft > 0.0f || (Target.IsValid() && FireCountdown < 0.9f));
+		CrackleTimer -= DeltaSeconds;
+		if (bCrackles && CrackleTimer <= 0.0f && BladeTips.Num() >= 2 && Gardener != nullptr)
+		{
+			CrackleTimer = FMath::FRandRange(0.06f, 0.14f);
+			const int32 First = FMath::RandRange(0, BladeTips.Num() - 1);
+			const int32 Second = (First + FMath::RandRange(1, BladeTips.Num() - 1)) % BladeTips.Num();
+			AVaelLightningBolt::Spawn(this, Head.TransformPosition(BladeTips[First]), Head.TransformPosition(BladeTips[Second]), DragonThunderLight, 0.12f, 0.35f, false);
+		}
+		if (ThunderLeft > 0.0f && Gardener != nullptr)
+		{
+			ThunderLeft -= DeltaSeconds;
+			ThunderTimer -= DeltaSeconds;
+			if (ThunderStrikes > 0 && ThunderTimer <= 0.0f && Jaw > 0.5f)
+			{
+				StrikeThunder(Head.TransformPosition(MouthLocal + FVector(18.0f, 0.0f, 0.0f)), ThunderPower * (ThunderStrikes == 2 ? 1.0f : 0.55f), Height);
+				--ThunderStrikes;
+				ThunderTimer = 0.32f;
+				NeckHeadVelocity -= Forward * 260.0f * Size / DragonHeadScale;
+			}
+			ThunderLeft = FMath::Max(ThunderLeft, 0.0f);
+		}
+	}
+
+	if (JetCards != nullptr)
+	{
+		UpdateJetCards(DeltaSeconds, Head.TransformPosition(MouthLocal + FVector(14.0f, 0.0f, 0.0f)), Forward, Height);
+	}
+
+	// The bite: an enemy close to the foot is struck at; it draws back roaring, earth bursts at the foot, the head lunges out
+	// on the stretched neck, the jaws snap shut on the prey (it burns and is thrown away), and the neck draws back
+	BiteCooldown = FMath::Max(0.0f, BiteCooldown - DeltaSeconds);
+	const FVector Base = GetActorLocation();
+	const float Reach = Height * Settings->DragonBiteReach;
+	if (BiteTime < 0.0f && BiteCooldown <= 0.0f && !IsBreathing() && Appear >= 0.99f && !bWithering && Gardener != nullptr)
+	{
+		if (AActor* Prey = VaelSymbiosis::FindTarget(Gardener, Base, Reach))
+		{
+			BiteTime = 0.0f;
+			BiteTarget = Prey;
+			BitePoint = Prey->GetActorLocation();
+			bBitten = false;
+		}
+		else
+		{
+			// Nothing close: look again in a moment
+			BiteCooldown = 0.2f;
+		}
+	}
+	if (BiteTime >= 0.0f)
+	{
+		const float BiteBefore = BiteTime;
+		BiteTime += DeltaSeconds;
+		if (const AActor* Prey = BiteTarget.Get(); Prey != nullptr && !bBitten)
+		{
+			// Strike where it stands, as far as the neck reaches
+			FVector Way = Prey->GetActorLocation() - Base;
+			const float Flat = FMath::Min(Way.Size2D(), Reach);
+			Way = Way.GetSafeNormal2D() * Flat;
+			BitePoint = Base + Way + FVector::UpVector * FMath::Max(Prey->GetActorLocation().Z - Base.Z, Height * 0.2f);
+		}
+		if (BiteBefore < 0.22f && BiteTime >= 0.22f && Gardener != nullptr)
+		{
+			FVaelDebris Earth;
+			Earth.Count = 26;
+			Earth.Spread = 50.0f;
+			Earth.Speed = 260.0f;
+			Earth.Lift = 220.0f;
+			Earth.Lifetime = 0.9f;
+			Earth.MinSize = 2.0f;
+			Earth.MaxSize = 6.0f;
+			Earth.Color = FLinearColor(0.12f, 0.09f, 0.06f);
+			AVaelDebrisBurst::Spawn(Gardener, Base + FVector(0.0f, 0.0f, 10.0f), Earth);
+		}
+		if (!bBitten && BiteTime >= 0.36f)
+		{
+			bBitten = true;
+			AActor* Prey = BiteTarget.Get();
+			const FVector Mouth = Head.TransformPosition(MouthLocal + FVector(20.0f, 0.0f, 0.0f));
+			if (Gardener != nullptr && Prey != nullptr && FVector::Dist2D(Prey->GetActorLocation(), Base) <= Reach * 1.2f && UVaelCombatStatics::CanDamage(Gardener, Prey))
+			{
+				UVaelCombatStatics::DealDamage(Gardener, Prey, Settings->DragonBiteDamage, EVaelElement::Fire);
+				UVaelCombatStatics::ApplyStatus(Gardener, Prey, EVaelStatus::Burning, Settings->DragonBiteBurnSeconds, 4.0f);
+				if (AVaelCharacterBase* Bitten = Cast<AVaelCharacterBase>(Prey))
+				{
+					Bitten->ApplyKnockback((Prey->GetActorLocation() - Base).GetSafeNormal2D(), Settings->DragonBiteKnockback);
+				}
+				FVaelDebris Embers;
+				Embers.Count = 20;
+				Embers.Spread = 40.0f;
+				Embers.Speed = 300.0f;
+				Embers.Lift = 140.0f;
+				Embers.Lifetime = 0.8f;
+				Embers.MinSize = 2.0f;
+				Embers.MaxSize = 6.0f;
+				Embers.Color = VaelSymbiosis::GetColor(EVaelSymbiosis::Glutbusch);
+				Embers.Glow = 5.0f;
+				AVaelDebrisBurst::Spawn(Gardener, Mouth, Embers);
+			}
+			VaelSymbiosis::MuzzlePuff(this, Plant, Mouth, bShadow, 1.4f);
+		}
+		if (BiteTime >= 0.85f || bWithering)
+		{
+			BiteTime = -1.0f;
+			BiteTarget = nullptr;
+			BiteCooldown = Settings->DragonBiteInterval;
+		}
+	}
+}
+
+void AVaelPlantTower::UpdateDragonNeck(float DeltaSeconds, float Height)
+{
+	// A long frame must not blow the springs up
+	const float Step = FMath::Min(DeltaSeconds, 0.04f);
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const FVector Base = GetActorLocation();
+	const FVector Up = FVector::UpVector;
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Seed = GetUniqueID() * 0.37f;
+	const float H = FMath::Max(Height, 1.0f);
+
+	// Idle it looks around now and then and lowers its head to sniff; with a target it watches it
+	const float Idle = 1.0f - AimBlend;
+	const float LookYaw = Idle * (0.45f * FMath::Sin(Time * 0.31f + Seed) + 0.2f * FMath::Sin(Time * 0.83f + Seed * 1.3f));
+	const float Sniff = Idle * FMath::SmoothStep(0.55f, 0.95f, FMath::Sin(Time * 0.23f + Seed * 2.1f));
+
+	// Before the drumfire it draws back and rears up like a cobra
+	const bool bCharging = Target.IsValid() && !bWithering && FireCountdown < 0.7f && !IsBreathing() && BiteTime < 0.0f;
+	Coil = FMath::FInterpTo(Coil, bCharging ? 1.0f : 0.0f, Step, bCharging ? 5.0f : 12.0f);
+
+	// Through the drumfire the head sweeps from one side of the fan to the other; charging it already turns to where it begins
+	const float SweepWidth = FMath::DegreesToRadians(Settings->DragonSweepDegrees);
+	if (IsBreathing())
+	{
+		BurstAge += Step;
+		const float Along = FMath::Clamp((BurstAge - 0.15f) / GetBreathSeconds(), 0.0f, 1.0f);
+		Sweep = SweepWidth * FMath::Sin((Along - 0.5f) * UE_PI);
+	}
+	else
+	{
+		BurstAge = 0.0f;
+		Sweep = FMath::FInterpTo(Sweep, bCharging ? -SweepWidth : 0.0f, Step, 4.0f);
+	}
+	const float Burst = IsBreathing() ? 1.0f : 0.0f;
+
+	// The head roams freely round its roots (Boris 2026-11-19): idle it wanders all round the foot, high and low, looking out the
+	// way it is turned; with a target it keeps circling, rising and sinking on the target's side, always facing it. It holds
+	// still while it breathes so the fire leaves straight, and moves slower while it charges
+	RoamTime += Step * (IsBreathing() ? 0.0f : (bCharging ? 0.35f : 1.0f));
+	const float Roam = RoamTime;
+	const AActor* Goal = Target.Get();
+	const FVector Forward = HookForward(LookDirection);
+	const float Aim = AimBlend;
+	const float Wander = FMath::Lerp(1.7f * FMath::Sin(Roam * 0.11f + Seed) + 0.8f * FMath::Sin(Roam * 0.27f + Seed * 2.0f),
+		0.75f * FMath::Sin(Roam * 0.33f + Seed) + 0.25f * FMath::Sin(Roam * 0.71f + Seed * 1.4f), Aim);
+	const FVector Out = Forward.RotateAngleAxis(FMath::RadiansToDegrees(Wander), Up);
+	float Reach = H * (FMath::Lerp(0.55f, 0.5f, Aim) + 0.22f * FMath::Sin(Roam * 0.19f + Seed * 3.0f));
+	float Rise = H * (FMath::Lerp(0.95f, 0.8f, Aim) + 0.3f * FMath::Sin(Roam * 0.23f + Seed * 1.1f) + 0.1f * FMath::Sin(Roam * 0.61f + Seed));
+	// The storm dragon stands upright with its head held high over its roots (Boris 2026-11-19)
+	if (bWingDragon)
+	{
+		Reach = H * (0.22f + 0.12f * FMath::Sin(Roam * 0.19f + Seed));
+		Rise = H * (1.3f + 0.08f * FMath::Sin(Roam * 0.23f + Seed));
+	}
+	FVector HeadGoal = Base + Out * Reach + Up * Rise;
+	// Sniffing it lowers its snout towards the ground ahead
+	HeadGoal += Out * H * 0.15f * Sniff - Up * H * 0.5f * Sniff;
+	// Charging it draws back over its roots and rears up like a cobra; breathing it pushes out
+	FVector GoalWay = Out;
+	if (Goal != nullptr)
+	{
+		const FVector ToGoal = (Goal->GetActorLocation() - Base).GetSafeNormal2D();
+		if (!ToGoal.IsNearlyZero())
+		{
+			GoalWay = ToGoal;
+		}
+	}
+	HeadGoal = FMath::Lerp(HeadGoal, Base - GoalWay * H * 0.1f + Out * H * 0.12f + Up * H * 1.2f, 0.6f * Coil);
+	HeadGoal += GoalWay * H * 0.12f * Burst;
+	const FVector HeadWay = Out;
+
+	// Where it looks: idle out the way it roams, glancing about; aiming at the target (down too), sweeping the fan as it breathes
+	float Pitch = -0.15f - 0.55f * Sniff;
+	FVector FacingWay = Out.RotateAngleAxis(FMath::RadiansToDegrees(LookYaw), Up);
+	FVector AimFacing = FVector::ZeroVector;
+	if (Goal != nullptr && Aim > 0.05f)
+	{
+		AimFacing = (Goal->GetActorLocation() + Up * 40.0f - NeckHead).GetSafeNormal().RotateAngleAxis(FMath::RadiansToDegrees(Sweep), Up);
+		AimFacing.Z = FMath::Clamp(AimFacing.Z, -0.75f, 0.35f);
+		AimFacing.Normalize();
+	}
+	float HeadStiffness = Settings->DragonNeckStiffness;
+
+	// The bite: draw back and up, lunge out to the prey on the stretched neck, then back
+	if (BiteTime >= 0.0f)
+	{
+		FVector ToPrey = BitePoint - Base;
+		ToPrey.Z = 0.0f;
+		const FVector PreyWay = ToPrey.IsNearlyZero() ? HeadWay : ToPrey.GetSafeNormal();
+		if (BiteTime < 0.22f)
+		{
+			const float Draw = FMath::SmoothStep(0.0f, 0.22f, BiteTime);
+			HeadGoal = FMath::Lerp(HeadGoal, Base + PreyWay * H * 0.3f + Up * H * 0.95f, Draw);
+			FacingWay = PreyWay;
+			Pitch = -0.35f;
+		}
+		else if (BiteTime < 0.5f)
+		{
+			HeadGoal = BitePoint - PreyWay * H * 0.15f + Up * H * 0.08f;
+			FacingWay = (BitePoint - HeadGoal).GetSafeNormal();
+			Pitch = 0.0f;
+			HeadStiffness *= 5.0f;
+		}
+	}
+	HeadGoal.Z = FMath::Max(HeadGoal.Z, Base.Z + H * 0.15f);
+	// It keeps its head out of its gardener: roaming close by, it bends round her instead of through her
+	if (const AActor* Keeper = GetInstigator())
+	{
+		const FVector Her = Keeper->GetActorLocation();
+		FVector Away = HeadGoal - Her;
+		Away.Z = 0.0f;
+		const float Room = 130.0f + H * 0.35f;
+		if (Away.SizeSquared() < FMath::Square(Room) && FMath::Abs(HeadGoal.Z - Her.Z) < 140.0f)
+		{
+			const FVector Push = Away.IsNearlyZero() ? (HeadGoal - Base).GetSafeNormal2D() : Away.GetSafeNormal();
+			HeadGoal = Her + Push * Room + FVector(0.0f, 0.0f, HeadGoal.Z - Her.Z);
+		}
+	}
+	FVector FacingGoal = FacingWay.GetSafeNormal2D() * FMath::Cos(Pitch) + Up * FMath::Sin(Pitch);
+	if (BiteTime >= 0.22f && BiteTime < 0.5f)
+	{
+		FacingGoal = FacingWay;
+	}
+	else if (BiteTime < 0.0f && !AimFacing.IsNearlyZero())
+	{
+		FacingGoal = FMath::Lerp(FacingGoal.GetSafeNormal(), AimFacing, FMath::Clamp(Aim * 1.5f, 0.0f, 1.0f));
+	}
+
+	// Bursting out of the earth (Boris 2026-11-19): the ground rumbles and cracks, the head breaks out of it and screws itself up,
+	// the body slides out of the hole after it, it towers up high and roars, then settles into its own movement
+	bool bUnderground = false;
+	if (EmergeTime >= 0.0f)
+	{
+		const float Was = EmergeTime;
+		EmergeTime += Step;
+		const float T = EmergeTime;
+		AVaelCharacter* Gardener = GetGardener();
+		const FVector Side = FVector::CrossProduct(Up, Forward);
+		auto Earth = [&](const FVector& At, int32 Count, float Speed, float Lift, float Spread)
+		{
+			FVaelDebris Clods;
+			Clods.Count = Count;
+			Clods.Spread = Spread;
+			Clods.Speed = Speed;
+			Clods.Lift = Lift;
+			Clods.Lifetime = 1.1f;
+			Clods.MinSize = 2.0f;
+			Clods.MaxSize = 7.0f;
+			Clods.Color = FLinearColor(0.14f, 0.1f, 0.07f);
+			AVaelDebrisBurst::Spawn(Gardener, At, Clods);
+		};
+		// The rumble: earth jumps up here and there round the foot, the ground shakes a little
+		EmergeRumble -= Step;
+		if (T < 0.55f && EmergeRumble <= 0.0f && Gardener != nullptr)
+		{
+			EmergeRumble = 0.09f;
+			const float Around = FMath::FRandRange(0.0f, 2.0f * UE_PI);
+			Earth(Base + FVector(FMath::Cos(Around), FMath::Sin(Around), 0.0f) * FMath::FRandRange(10.0f, 60.0f) * H / 200.0f, 6, 120.0f, 90.0f, 10.0f);
+			UVaelHitFeedbackSubsystem::Shake(this, 0.12f);
+		}
+		// The burst: the earth breaks open where it comes out
+		if (Was < 0.55f && T >= 0.55f && Gardener != nullptr)
+		{
+			Earth(Base, 60, 420.0f, 520.0f, 45.0f * H / 200.0f);
+			UVaelHitFeedbackSubsystem::Shake(this, 0.45f);
+		}
+		// While the body slides out, clods keep falling off it at the hole
+		if (T >= 0.55f && T < 1.6f && EmergeRumble <= 0.0f && Gardener != nullptr)
+		{
+			EmergeRumble = 0.14f;
+			Earth(Base + Up * 10.0f, 8, 180.0f, 220.0f, 25.0f);
+		}
+
+		FVector RiseGoal;
+		FVector RiseFacing;
+		if (T < 0.55f)
+		{
+			// Still under the ground, pushing up
+			RiseGoal = Base - Up * H * (0.35f - 0.15f * T);
+			RiseFacing = Up;
+		}
+		else if (T < 1.45f)
+		{
+			// Out, screwing itself up in a turn and a half
+			const float RiseShare = FMath::SmoothStep(0.55f, 1.45f, T);
+			const float Turn = RiseShare * 3.0f * UE_PI;
+			const FVector Swirl = (Side * FMath::Cos(Turn) + Forward * FMath::Sin(Turn)) * H * 0.14f * (1.0f - RiseShare);
+			RiseGoal = FMath::Lerp(Base - Up * H * 0.2f, Base + Up * H * 1.55f + Forward * H * 0.1f, RiseShare) + Swirl;
+			RiseFacing = FMath::Lerp(Up, (Forward + Up * 0.4f).GetSafeNormal(), RiseShare).GetSafeNormal();
+		}
+		else
+		{
+			// Towering up, roaring at the sky, swaying
+			RiseGoal = Base + Up * H * 1.5f + Forward * H * 0.15f + Side * FMath::Sin((T - 1.45f) * 5.0f) * H * 0.04f;
+			RiseFacing = (Forward + Up * 0.45f).GetSafeNormal();
+		}
+		const float Settle = FMath::SmoothStep(2.2f, 3.2f, T);
+		HeadGoal = FMath::Lerp(RiseGoal, HeadGoal, Settle);
+		FacingGoal = FMath::Lerp(RiseFacing, FacingGoal.GetSafeNormal(), Settle);
+		HeadStiffness *= FMath::Lerp(3.0f, 1.0f, Settle);
+		bUnderground = T < 1.6f;
+		if (T >= 3.2f)
+		{
+			EmergeTime = -1.0f;
+		}
+	}
+
+	// The body: from the roots fast in the ground a curve rises and turns into the head; snake waves run along it, less while it
+	// aims and hardly while it breathes. The joints follow their place on it late, the ones near the roots latest
+	constexpr int32 Joints = 6;
+	const float NeckLength = H * (bWingDragon ? 1.7f : 1.8f);
+	const float Rest = NeckLength / (Joints - 1);
+	const FVector Root = Base + Up * 4.0f;
+	const float WaveAmount = H * 0.13f * (1.0f - 0.5f * Aim) * (1.0f - 0.7f * Burst) * (1.0f - 0.6f * Coil);
+	auto BodyAt = [&](float S, const FVector& Head, const FVector& Facing)
+	{
+		const FVector Chord = Head - Root;
+		FVector Flat = Chord.GetSafeNormal2D();
+		if (Flat.IsNearlyZero())
+		{
+			Flat = Forward;
+		}
+		const FVector Side = FVector::CrossProduct(Up, Flat);
+		// It rises from its roots leaning a little away from its head, like a snake rearing
+		const FVector P1 = Root + Up * NeckLength * (bWingDragon ? 0.45f : 0.35f) - Flat * H * 0.12f;
+		const FVector P2 = Head - Facing.GetSafeNormal() * NeckLength * 0.28f;
+		const float T = 1.0f - S;
+		const FVector Curve = Root * (T * T * T) + P1 * (3.0f * T * T * S) + P2 * (3.0f * T * S * S) + Head * (S * S * S);
+		const float Envelope = FMath::Sin(S * UE_PI);
+		return Curve + Side * WaveAmount * FMath::Sin(2.0f * UE_PI * 1.1f * S - Time * 1.7f + Seed) * Envelope
+			+ Up * WaveAmount * 0.4f * FMath::Cos(2.0f * UE_PI * 0.8f * S - Time * 1.3f + Seed) * Envelope;
+	};
+
+	if (!bNeckPlaced || Spine.Num() != Joints)
+	{
+		bNeckPlaced = true;
+		NeckHead = HeadGoal;
+		NeckHeadVelocity = FVector::ZeroVector;
+		HeadFacing = FacingGoal.GetSafeNormal();
+		Spine.SetNum(Joints);
+		SpineVelocity.Init(FVector::ZeroVector, Joints);
+		for (int32 K = 0; K < Joints; ++K)
+		{
+			// Bursting out of the earth it starts coiled straight down in the ground below its roots
+			Spine[K] = EmergeTime >= 0.0f ? Root - Up * Rest * 0.9f * K : BodyAt(K / float(Joints - 1), NeckHead, HeadFacing);
+		}
+		NeckHead = Spine[Joints - 1];
+		NeckApex = Spine[2];
+		NeckDip = Spine[3];
+		return;
+	}
+
+	// Damped springs: the head leads, the body follows late and overshoots a little
+	auto Follow = [Step](FVector& Point, FVector& Velocity, const FVector& Goal, float Stiffness)
+	{
+		const float Damping = 2.0f * 0.7f * FMath::Sqrt(Stiffness);
+		Velocity += ((Goal - Point) * Stiffness - Velocity * Damping) * Step;
+		Point += Velocity * Step;
+	};
+	Follow(NeckHead, NeckHeadVelocity, HeadGoal, HeadStiffness);
+	HeadFacing = FMath::VInterpNormalRotationTo(HeadFacing, FacingGoal.GetSafeNormal(), Step, BiteTime >= 0.0f ? 720.0f : 260.0f);
+	for (int32 K = 1; K < Joints - 1; ++K)
+	{
+		const float S = K / float(Joints - 1);
+		// Coming out of the hole the body follows the head straight through it
+		const FVector BodyGoal = bUnderground ? FMath::Lerp(Root, NeckHead, S) : BodyAt(S, NeckHead, HeadFacing);
+		Follow(Spine[K], SpineVelocity[K], BodyGoal, Settings->DragonNeckStiffness * (bUnderground ? 1.2f : 0.25f + 0.45f * S));
+	}
+	Spine[0] = Root;
+	Spine[Joints - 1] = NeckHead;
+
+	// The body keeps its length: no joint gets further from the one below than its piece allows (it may coil up shorter), and the
+	// body stays off the ground; so the head can only go as far as the neck reaches
+	for (int32 K = 1; K < Joints; ++K)
+	{
+		const FVector Piece = Spine[K] - Spine[K - 1];
+		const float Length = Piece.Size();
+		FVector Placed = Spine[K - 1] + (Length > KINDA_SMALL_NUMBER ? Piece / Length : Up) * FMath::Clamp(Length, Rest * 0.5f, Rest * 1.08f);
+		if (K >= 2 && !bUnderground)
+		{
+			// Just out of the earth the last of the body rises smoothly off the ground instead of popping up
+			const float Floor = Base.Z + H * 0.1f;
+			if (Placed.Z < Floor)
+			{
+				Placed.Z = EmergeTime >= 0.0f ? FMath::Lerp(Placed.Z, Floor, FMath::Min(1.0f, Step * 5.0f)) : Floor;
+			}
+		}
+		const FVector Correction = Placed - Spine[K];
+		Spine[K] = Placed;
+		FVector& Velocity = K == Joints - 1 ? NeckHeadVelocity : SpineVelocity[K];
+		if (!Correction.IsNearlyZero())
+		{
+			// What pushes against the length is lost
+			const FVector Against = Correction.GetSafeNormal();
+			Velocity -= Against * FMath::Min(FVector::DotProduct(Velocity, Against), 0.0f);
+		}
+	}
+	NeckHead = Spine[Joints - 1];
+	NeckApex = Spine[2];
+	NeckDip = Spine[3];
+}
+
+void AVaelPlantTower::LaySpine(float Height, float NeckSlim)
+{
+	const int32 Joints = Spine.Num();
+	const int32 Segments = Joints - 1;
+	if (Joints < 3 || SpinePieces.Num() < Segments * 2)
+	{
+		return;
+	}
+	const int32 Vines = SpinePieces.Num() / Segments - 1;
+	const FTransform& Transform = GetActorTransform();
+	const float Size = FMath::Max(Height / 200.0f, 0.05f);
+	const float Seed = GetUniqueID() * 0.3f;
+
+	// Frames along the body, carried from joint to joint without twisting; the last one turns into the facing of the head
+	TArray<FVector, TInlineAllocator<8>> Tangents, Normals, Binormals;
+	for (int32 K = 0; K < Joints; ++K)
+	{
+		FVector Tangent = (Spine[FMath::Min(K + 1, Segments)] - Spine[FMath::Max(K - 1, 0)]).GetSafeNormal();
+		if (K == Segments)
+		{
+			Tangent = (Tangent + HeadFacing).GetSafeNormal();
+		}
+		const FVector Before = K == 0 ? (FMath::Abs(Tangent.Z) < 0.9f ? FVector::UpVector : FVector::ForwardVector) : Normals[K - 1];
+		const FVector Normal = (Before - Tangent * FVector::DotProduct(Before, Tangent)).GetSafeNormal();
+		Tangents.Add(Tangent);
+		Normals.Add(Normal);
+		Binormals.Add(FVector::CrossProduct(Tangent, Normal));
+	}
+
+	// Each vine winds round the body, spread wide at the roots and close at the nape, where it runs into the skull; the core in
+	// the middle fills the gaps between them
+	for (int32 Vine = 0; Vine <= Vines; ++Vine)
+	{
+		const bool bCore = Vine == Vines;
+		TArray<FVector, TInlineAllocator<8>> Points;
+		TArray<float, TInlineAllocator<8>> Rolls;
+		for (int32 K = 0; K < Joints; ++K)
+		{
+			const float Along = K / float(Segments);
+			const float Angle = Vine * 2.0f * UE_PI / FMath::Max(Vines, 1) + Along * 4.2f + Seed;
+			const float Round = bCore ? 0.0f : FMath::Lerp(K == 0 ? 15.0f : 10.0f, 4.0f, Along) * Size;
+			FVector Point = Spine[K] + (Normals[K] * FMath::Cos(Angle) + Binormals[K] * FMath::Sin(Angle)) * Round;
+			// Into the ground at the roots
+			if (K == 0)
+			{
+				Point.Z -= 8.0f * Size;
+			}
+			Points.Add(Point);
+			Rolls.Add(Angle);
+		}
+		for (int32 K = 0; K < Segments; ++K)
+		{
+			USplineMeshComponent* Piece = SpinePieces[Vine * Segments + K];
+			if (Piece == nullptr)
+			{
+				continue;
+			}
+			const FVector T0 = (Points[FMath::Min(K + 1, Segments)] - Points[FMath::Max(K - 1, 0)]) * (K == 0 ? 1.0f : 0.5f);
+			const FVector T1 = K + 1 == Segments ? Tangents[Segments] * FVector::Dist(Points[K], Points[K + 1])
+				: (Points[K + 2] - Points[K]) * 0.5f;
+			const float Thick0 = FMath::Lerp(3.0f, 1.6f, K / float(Segments)) * NeckSlim * (bCore ? 1.6f : 1.0f);
+			const float Thick1 = FMath::Lerp(3.0f, 1.6f, (K + 1) / float(Segments)) * NeckSlim * (bCore ? 1.6f : 1.0f);
+			Piece->SetStartAndEnd(Transform.InverseTransformPosition(Points[K]), Transform.InverseTransformVectorNoScale(T0),
+				Transform.InverseTransformPosition(Points[K + 1]), Transform.InverseTransformVectorNoScale(T1), false);
+			Piece->SetStartScale(FVector2D(Thick0), false);
+			Piece->SetEndScale(FVector2D(Thick1), false);
+			Piece->SetStartRoll(Rolls[K], false);
+			Piece->SetEndRoll(Rolls[K + 1], false);
+			Piece->UpdateMesh();
+		}
+	}
+
+	// Roots spreading out from the foot and down into the ground, holding it fast
+	for (int32 Index = 0; Index < GroundRoots.Num(); ++Index)
+	{
+		const float Angle = Index * 2.0f * UE_PI / GroundRoots.Num() + Seed * 2.0f + 0.3f * FMath::Sin(Index * 2.7f);
+		const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
+		// They spread out of the cracked earth while the dragon bursts out
+		const float Spread = EmergeTime >= 0.0f ? FMath::SmoothStep(0.5f, 1.8f, EmergeTime) : 1.0f;
+		const float Length = FMath::Max((55.0f + 25.0f * FMath::Frac(Index * 0.618f)) * Size * Spread, 1.0f);
+		const FVector Start = Spine[0] + Out * 10.0f * Size + FVector(0.0f, 0.0f, 10.0f * Size);
+		const FVector End = Spine[0] + Out * Length - FVector(0.0f, 0.0f, 14.0f * Size);
+		USplineMeshComponent* Root = GroundRoots[Index];
+		Root->SetStartAndEnd(Transform.InverseTransformPosition(Start), Transform.InverseTransformVectorNoScale((Out * 0.7f - FVector::UpVector * 0.4f) * Length),
+			Transform.InverseTransformPosition(End), Transform.InverseTransformVectorNoScale((Out - FVector::UpVector * 0.6f) * Length), false);
+		Root->SetStartScale(FVector2D(2.2f * NeckSlim), false);
+		Root->SetEndScale(FVector2D(0.5f * NeckSlim), false);
+		Root->SetStartRoll(Angle, false);
+		Root->SetEndRoll(Angle + 1.5f, false);
+		Root->UpdateMesh();
+	}
+}
+
+float AVaelPlantTower::GetBreathSeconds() const
+{
+	return bSteamDragon ? UVaelFloromantSettings::Get()->DragonSteamSeconds : bThunderDragon ? UVaelFloromantSettings::Get()->DragonThunderSeconds : bSunDragon ? UVaelFloromantSettings::Get()->DragonSunSeconds : bWingDragon ? 0.6f : bFloodDragon ? UVaelFloromantSettings::Get()->DragonFloodSeconds : DragonDrumHeads * 0.075f;
+}
+
+void AVaelPlantTower::PuffSteam(const FVector& Mouth, const FVector& Way, float Height)
+{
+	AVaelCharacter* Gardener = GetGardener();
+	if (Gardener == nullptr)
+	{
+		return;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Grown = FMath::Max(Height / 200.0f, 0.1f);
+	const float Reach = Settings->DragonSteamReach * Grown;
+	const float Width = Settings->DragonSteamWidth * Grown;
+	const FVector Flat = Way.GetSafeNormal2D();
+	++JetPuffs;
+
+	// Whoever stands in the jet is scalded, a tenth of a second at a time
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		AVaelCharacterBase* Enemy = *It;
+		if (!UVaelCombatStatics::CanDamage(Gardener, Enemy))
+		{
+			continue;
+		}
+		const FVector To = Enemy->GetActorLocation() - Mouth;
+		const float Along = FVector::DotProduct(FVector(To.X, To.Y, 0.0f), Flat);
+		const float Aside = FMath::Abs(FVector::CrossProduct(Flat, FVector(To.X, To.Y, 0.0f)).Z);
+		// The jet widens a little as it flies
+		if (Along > 0.0f && Along < Reach && Aside < Width * (0.6f + 0.6f * Along / Reach))
+		{
+			UVaelCombatStatics::DealDamage(Gardener, Enemy, Settings->DragonSteamDamagePerSecond * 0.1f * JetPower, EVaelElement::Fire);
+		}
+	}
+
+	if (DragonPartner != nullptr && JetPuffs % 2 == 1)
+	{
+		VaelSymbiosis::MuzzlePuff(this, DragonPartner, Mouth, bShadow, 1.0f);
+	}
+
+	// Every third puff leaves a cloud of scalding steam where the jet comes down, streaming out of the jaws to it (like the
+	// steam the mage blows): it blinds and burns whoever stands in it, and puts out fires
+	if (JetPuffs % 3 == 1)
+	{
+		FVector Place = Mouth + Flat * Reach * FMath::FRandRange(0.6f, 0.95f);
+		FHitResult Ground;
+		if (VaelGround::TraceGround(GetWorld(), Place + FVector(0.0f, 0.0f, 300.0f), Place - FVector(0.0f, 0.0f, 1200.0f), Ground, this))
+		{
+			Place = Ground.ImpactPoint;
+		}
+		if (AVaelGroundArea* Cloud = AVaelGroundArea::SpawnArea(GetWorld(), Place, EVaelElement::Water, Settings->DragonSteamCloudRadius * FMath::Sqrt(Grown),
+			Settings->DragonSteamCloudSeconds, Settings->DragonSteamCloudDamage * JetPower, Gardener, true, EVaelGroundEffect::Blind))
+		{
+			Cloud->SetBreathOrigin(Mouth, Flat);
+		}
+	}
+}
+
+void AVaelPlantTower::UpdateJetCards(float DeltaSeconds, const FVector& Mouth, const FVector& Way, float Height)
+{
+	const float Grown = FMath::Max(Height / 200.0f, 0.1f);
+	const FVector Flat = Way.GetSafeNormal2D();
+	const FVector Side = FVector::CrossProduct(FVector::UpVector, Flat);
+
+	// While the jet runs, new cards are born at the gland, many a second, flying out fast with a little scatter
+	if (JetLeft > 0.0f && Jaw > 0.45f && !bWithering)
+	{
+		JetSpawnDebt += DeltaSeconds * DragonJetRate;
+		for (int32 Index = 0; Index < JetCardAges.Num() && JetSpawnDebt >= 1.0f; ++Index)
+		{
+			if (JetCardAges[Index] >= 0.0f)
+			{
+				continue;
+			}
+			JetSpawnDebt -= 1.0f;
+			JetCardAges[Index] = 0.0f;
+			JetCardPlaces[Index] = Mouth + Side * FMath::FRandRange(-4.0f, 4.0f) * Grown;
+			const FVector Scatter = Side * FMath::FRandRange(-0.12f, 0.12f) + FVector::UpVector * FMath::FRandRange(-0.08f, 0.05f);
+			JetCardVelocities[Index] = (Flat + Scatter).GetSafeNormal() * DragonJetSpeed * Grown * FMath::FRandRange(0.85f, 1.1f);
+		}
+		JetSpawnDebt = FMath::Min(JetSpawnDebt, 2.0f);
+	}
+	else
+	{
+		JetSpawnDebt = 0.0f;
+	}
+
+	// Each card slows in the air, sinks a little at first and then rises as the steam cools; it swells and fades like the
+	// mage's breath of steam
+	const float Drag = FMath::Exp(-2.4f * DeltaSeconds);
+	for (int32 Index = 0; Index < JetCardAges.Num(); ++Index)
+	{
+		if (JetCardAges[Index] < 0.0f)
+		{
+			JetCards->SetCard(Index, FVector::ZeroVector, 1.0f, 0.0f);
+			continue;
+		}
+		JetCardAges[Index] += DeltaSeconds;
+		const float Life = JetCardAges[Index] / DragonJetLife;
+		if (Life >= 1.0f)
+		{
+			JetCardAges[Index] = -1.0f;
+			JetCards->SetCard(Index, FVector::ZeroVector, 1.0f, 0.0f);
+			continue;
+		}
+		JetCardVelocities[Index] = JetCardVelocities[Index] * Drag + FVector::UpVector * 70.0f * Grown * DeltaSeconds;
+		JetCardPlaces[Index] += JetCardVelocities[Index] * DeltaSeconds;
+		const float Swell = 1.0f - FMath::Square(1.0f - Life);
+		const float Fade = FMath::Min(Life * 10.0f, 1.0f) * FMath::Pow(1.0f - Life, 1.3f);
+		JetCards->SetCard(Index, JetCardPlaces[Index], FMath::Lerp(DragonJetBirthSize, DragonJetEndSize, Swell) * Grown, DragonJetSolid * Fade);
+	}
+	JetCards->Commit();
+}
+
+void AVaelPlantTower::StrikeThunder(const FVector& Mouth, float Power, float Height)
+{
+	AVaelCharacter* Gardener = GetGardener();
+	if (Gardener == nullptr)
+	{
+		return;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Grown = FMath::Max(Height / 200.0f, 0.1f);
+
+	// First the one it aimed at, if it still stands; else the nearest in reach
+	AActor* First = BurstTarget.Get();
+	const AVaelCharacterBase* FirstCharacter = Cast<AVaelCharacterBase>(First);
+	if (FirstCharacter == nullptr || FirstCharacter->IsDefeated())
+	{
+		First = VaelSymbiosis::FindTarget(Gardener, GetActorLocation(), Plant->ShotRange);
+	}
+	if (First == nullptr)
+	{
+		// Nothing there: it strikes the ground ahead
+		AVaelLightningBolt::Spawn(this, Mouth, Mouth + HeadFacing.GetSafeNormal2D() * 500.0f * Grown - FVector(0.0f, 0.0f, Height * 0.5f), DragonThunderLight, 0.3f, 1.6f, true);
+		return;
+	}
+
+	// Then it leaps from enemy to enemy, nearest first; a wet one, or one standing in steam, carries it further and farther
+	FVaelSpellHit Bolt;
+	Bolt.Element = EVaelElement::Air;
+	Bolt.bLightning = true;
+	TArray<AActor*> Struck;
+	AActor* Current = First;
+	FVector From = Mouth;
+	int32 LeapsLeft = Settings->DragonThunderJumps;
+	float Damage = Settings->DragonThunderDamage * Power;
+	while (Current != nullptr)
+	{
+		const FVector To = Current->GetActorLocation() + FVector(0.0f, 0.0f, 30.0f);
+		AVaelLightningBolt::Spawn(this, From, To, DragonThunderLight, 0.3f, Struck.IsEmpty() ? 1.8f : 1.3f, true);
+		Bolt.Damage = Damage;
+		UVaelCombatStatics::ApplySpellHit(Gardener, Current, Bolt, (To - From).GetSafeNormal2D());
+		Struck.Add(Current);
+
+		const bool bConducts = UVaelCombatStatics::HasStatus(Current, EVaelStatus::Wet)
+			|| AVaelGroundArea::FindEffectAt(GetWorld(), Current->GetActorLocation(), EVaelGroundEffect::Blind) != nullptr;
+		LeapsLeft += bConducts ? Settings->DragonThunderWetJumps : 0;
+		if (LeapsLeft <= 0)
+		{
+			break;
+		}
+		--LeapsLeft;
+		const float Range = Settings->DragonThunderJumpRange * (bConducts ? Settings->DragonThunderWetRange : 1.0f);
+
+		AActor* Next = nullptr;
+		float Best = Range * Range;
+		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+		{
+			if (Struck.Contains(*It) || It->IsDefeated() || !UVaelCombatStatics::CanDamage(Gardener, *It))
+			{
+				continue;
+			}
+			const float Distance = FVector::DistSquared(It->GetActorLocation(), Current->GetActorLocation());
+			if (Distance < Best)
+			{
+				Best = Distance;
+				Next = *It;
+			}
+		}
+		From = To;
+		Current = Next;
+		Damage *= Settings->DragonThunderJumpKeep;
+	}
+}
+
+void AVaelPlantTower::UpdateSunBeam(float DeltaSeconds, float Height)
+{
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const bool bOn = bSunLit && SunLeft > 0.0f && !bWithering;
+	// It shoots out of the glass at once and fades quickly when it ends
+	SunShown = FMath::FInterpTo(SunShown, bOn ? 1.0f : 0.0f, DeltaSeconds, bOn ? 14.0f : 9.0f);
+	const bool bVisible = SunShown > 0.02f;
+	const float Grown = FMath::Max(Height / 200.0f, 0.1f);
+	const float Time = GetWorld()->GetTimeSeconds();
+
+	// Where it reaches: as far as it has shot out, stopped by walls
+	const FVector Start = SunMouth;
+	FVector Way = HeadFacing.GetSafeNormal2D();
+	if (Way.IsNearlyZero())
+	{
+		Way = GetActorForwardVector();
+	}
+	float Length = (bFloodDragon ? Settings->DragonFloodReach : Settings->DragonSunReach) * Grown * SunShown;
+	FHitResult Wall;
+	FCollisionQueryParams Query(SCENE_QUERY_STAT(VaelSunBeam), false, this);
+	bool bImpact = false;
+	if (bVisible && GetWorld()->LineTraceSingleByObjectType(Wall, Start, Start + Way * Length, FCollisionObjectQueryParams(ECC_WorldStatic), Query))
+	{
+		Length = Wall.Distance;
+		bImpact = true;
+	}
+
+	// The focused beam ends on the first enemy it meets (Boris 2026-11-19: it burns only where it strikes)
+	AVaelCharacter* Gardener = GetGardener();
+	AVaelCharacterBase* Struck = nullptr;
+	if (bVisible && Gardener != nullptr)
+	{
+		const float Width = (bFloodDragon ? Settings->DragonFloodHalfWidth : Settings->DragonSunHalfWidth) * Grown;
+		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+		{
+			if (!UVaelCombatStatics::CanDamage(Gardener, *It))
+			{
+				continue;
+			}
+			const FVector To = It->GetActorLocation() - Start;
+			const float Ahead = FVector::DotProduct(FVector(To.X, To.Y, 0.0f), Way);
+			const float Aside = FMath::Abs(Way.X * To.Y - Way.Y * To.X);
+			if (Ahead > 0.0f && Ahead < Length && Aside < Width)
+			{
+				Length = Ahead;
+				Struck = *It;
+				bImpact = true;
+			}
+		}
+	}
+	const FVector End = Start + Way * Length;
+
+	// The look: a thin white-hot core inside a narrow golden halo, flickering, a glow where it ends, motes of light running out
+	const FRotator Along = FRotationMatrix::MakeFromZ(Way).Rotator();
+	const float Flicker = 0.85f + 0.15f * FMath::Sin(Time * 47.0f) * FMath::Sin(Time * 31.0f);
+	auto Stretch = [&](UStaticMeshComponent* Shape, float Radius, float Glow)
+	{
+		if (Shape == nullptr)
+		{
+			return;
+		}
+		Shape->SetVisibility(bVisible);
+		if (bVisible)
+		{
+			Shape->SetWorldLocationAndRotation((Start + End) * 0.5f, Along);
+			Shape->SetWorldScale3D(FVector(Radius / 50.0f, Radius / 50.0f, FMath::Max(Length, 1.0f) / 100.0f));
+			VaelEffects::SetLookGlow(Shape, Glow);
+		}
+	};
+	// Water leaves the bulb as a narrow high-pressure jet; light as a thin white-hot line
+	const float Thick = bFloodDragon ? 1.25f : 1.0f;
+	Stretch(SunCore, 1.6f * Thick * Grown * Flicker * SunShown, (bFloodDragon ? 7.0f : 9.0f) * SunShown);
+	Stretch(SunHalo, 5.5f * Thick * Grown * Flicker * SunShown, (bFloodDragon ? 1.2f : 1.8f) * SunShown);
+	if (SunEnd != nullptr)
+	{
+		SunEnd->SetVisibility(bVisible);
+		if (bVisible)
+		{
+			SunEnd->SetWorldLocation(End);
+			SunEnd->SetWorldScale3D(FVector(22.0f * Grown * Flicker * SunShown / 100.0f));
+			VaelEffects::SetLookGlow(SunEnd, 6.0f * SunShown);
+		}
+	}
+	for (int32 Index = 0; Index < SunMotes.Num(); ++Index)
+	{
+		UStaticMeshComponent* Mote = SunMotes[Index];
+		Mote->SetVisibility(bVisible);
+		if (bVisible)
+		{
+			const float Share = FMath::Frac(Time * (bFloodDragon ? 5.0f : 2.2f) + Index / float(SunMotes.Num()));
+			Mote->SetWorldLocation(Start + Way * Length * Share + FVector(0.0f, 0.0f, FMath::Sin(Time * 9.0f + Index) * 2.0f * Grown));
+			Mote->SetWorldScale3D(FVector(3.5f * Grown * SunShown / 100.0f));
+			VaelEffects::SetLookGlow(Mote, 5.0f * SunShown);
+		}
+	}
+
+	if (!bOn || Gardener == nullptr || Length < 10.0f)
+	{
+		return;
+	}
+
+	// The water jet of the flood dragon: it soaks and pushes back the one it strikes and splashes where it hits; no fire
+	if (bFloodDragon)
+	{
+		SunBurnTimer -= DeltaSeconds;
+		if (SunBurnTimer <= 0.0f)
+		{
+			SunBurnTimer = 0.15f;
+			if (Struck != nullptr)
+			{
+				UVaelCombatStatics::DealDamage(Gardener, Struck, Settings->DragonFloodDamagePerSecond * 0.15f * SunPower, EVaelElement::Water);
+				UVaelCombatStatics::ApplyStatus(Gardener, Struck, EVaelStatus::Wet, 4.0f);
+				Struck->ApplyKnockback(Way, Settings->DragonFloodPush);
+			}
+			if (bImpact)
+			{
+				VaelSymbiosis::MuzzlePuff(this, Plant, End, bShadow, 1.4f);
+			}
+		}
+		return;
+	}
+
+	// It burns the one it strikes, a tenth of a second at a time
+	SunBurnTimer -= DeltaSeconds;
+	if (SunBurnTimer <= 0.0f)
+	{
+		SunBurnTimer = 0.1f;
+		if (Struck != nullptr)
+		{
+			UVaelCombatStatics::DealDamage(Gardener, Struck, Settings->DragonSunDamagePerSecond * 0.1f * SunPower, EVaelElement::Fire);
+		}
+	}
+
+	// Only where it strikes (an enemy or a wall) the ground catches fire, no trail through the air: a new fire only once the
+	// point has moved on from the last one, or that one is burning low
+	SunFireTimer -= DeltaSeconds;
+	const float FireRadius = Settings->DragonSunFireRadius * FMath::Sqrt(Grown);
+	if (bImpact && (SunFireTimer <= 0.0f || FVector::Dist2D(End, SunFirePlace) > FireRadius * 1.6f))
+	{
+		FHitResult Ground;
+		if (VaelGround::TraceGround(GetWorld(), End + FVector(0.0f, 0.0f, 300.0f), End - FVector(0.0f, 0.0f, 1200.0f), Ground, this))
+		{
+			SunFireTimer = Settings->DragonSunFireSeconds * 0.8f;
+			SunFirePlace = Ground.ImpactPoint;
+			AVaelGroundArea::SpawnArea(GetWorld(), Ground.ImpactPoint + FVector(0.0f, 0.0f, 2.0f), EVaelElement::Fire, FireRadius,
+				Settings->DragonSunFireSeconds, Settings->DragonSunFireDamage * SunPower, Gardener);
+		}
+	}
+}
+
+void AVaelPlantTower::UpdateWings(float DeltaSeconds, float Height)
+{
+	if (WingBlades.IsEmpty() || WingBones.IsEmpty())
+	{
+		return;
+	}
+	const float Grown = FMath::Max(Height / 200.0f, 0.1f);
+	const float H = FMath::Max(Height, 1.0f);
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Appear = FMath::SmoothStep(0.45f, 1.0f, DragonGrow);
+	const bool bShown = Appear > 0.02f && !bAbsorbed;
+	const FVector Up = FVector::UpVector;
+	FVector Forward = HeadFacing.GetSafeNormal2D();
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::ForwardVector;
+	}
+	const FVector Side = FVector::CrossProduct(Up, Forward);
+
+	// The strike: raise and draw back (0 to 0.2 s), then sweep forward so the fan flies ahead (loosed at 0.26 s), settle
+	float SpreadGoal = 0.85f;
+	float LiftGoal = 0.45f + 0.2f * FMath::Sin(Time * 2.3f);
+	float SweepGoal = 0.0f;
+	float Speed = 6.0f;
+	const bool bCharging = Target.IsValid() && !bWithering && FireCountdown < 0.8f && WingStrike < 0.0f;
+	if (bCharging)
+	{
+		SpreadGoal = 1.0f;
+		LiftGoal = 0.9f;
+		SweepGoal = -0.4f;
+	}
+	if (WingStrike >= 0.0f)
+	{
+		WingStrike += DeltaSeconds;
+		const bool bDraw = WingStrike < 0.2f;
+		SpreadGoal = 1.0f;
+		LiftGoal = bDraw ? 1.0f : 0.15f;
+		SweepGoal = bDraw ? -0.5f : 0.75f;
+		Speed = bDraw ? 14.0f : 26.0f;
+		if (!bWingFired && WingStrike >= 0.26f)
+		{
+			bWingFired = true;
+			AVaelCharacter* Gardener = GetGardener();
+			const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+			// Each grown blade flies off its wing straight ahead, the fan spread from the left wing's edge to the right wing's
+			for (int32 Index = 0; Index < FeatherTips.Num() && Gardener != nullptr; ++Index)
+			{
+				if (FeatherGrow[Index] < 0.9f)
+				{
+					continue;
+				}
+				const bool bLeft = Index < DragonWingFeathers;
+				const float Share = (Index % DragonWingFeathers) / float(DragonWingFeathers - 1);
+				const float Yaw = (bLeft ? -1.0f : 1.0f) * FMath::Lerp(4.0f, 30.0f, Share);
+				VaelSymbiosis::FireShot(Gardener, Plant, FeatherTips[Index], Forward.RotateAngleAxis(Yaw, Up), WingPower, bShadow, Settings->TowerShotScale * 0.9f, 0.55f);
+				FeatherGrow[Index] = 0.0f;
+				if (Index % 3 == 0)
+				{
+					VaelSymbiosis::MuzzlePuff(this, Plant, FeatherTips[Index], bShadow, 0.9f);
+				}
+			}
+			BendVelocity -= Forward * 0.4f;
+			NeckHeadVelocity -= Forward * 120.0f * Grown;
+		}
+		if (WingStrike >= 0.6f || bWithering)
+		{
+			WingStrike = -1.0f;
+		}
+	}
+	WingSpread = FMath::FInterpTo(WingSpread, SpreadGoal * Appear, DeltaSeconds, Speed);
+	WingLift = FMath::FInterpTo(WingLift, LiftGoal, DeltaSeconds, Speed);
+	WingSweep = FMath::FInterpTo(WingSweep, SweepGoal, DeltaSeconds, Speed);
+
+	const FTransform& Transform = GetActorTransform();
+	auto Lay = [&](USplineMeshComponent* Piece, const FVector& A, const FVector& TA, const FVector& B, const FVector& TB, float S0, float S1, float Roll)
+	{
+		Piece->SetVisibility(bShown);
+		if (!bShown)
+		{
+			return;
+		}
+		Piece->SetStartAndEnd(Transform.InverseTransformPosition(A), Transform.InverseTransformVectorNoScale(TA),
+			Transform.InverseTransformPosition(B), Transform.InverseTransformVectorNoScale(TB), false);
+		Piece->SetStartScale(FVector2D(S0), false);
+		Piece->SetEndScale(FVector2D(S1), false);
+		Piece->SetStartRoll(Roll, false);
+		Piece->SetEndRoll(Roll + 0.8f, false);
+		Piece->UpdateMesh();
+	};
+
+	// The wings leave the back of the upright body, between the low back bulge and the forward one
+	const FVector Shoulder = GetHookCurve(1.45f) - Forward * 6.0f * Grown;
+	const float Lift = 0.5f + 0.6f * WingLift;
+	for (int32 Wing = 0; Wing < 2; ++Wing)
+	{
+		const float SideSign = Wing == 0 ? -1.0f : 1.0f;
+		const FVector Out = Side * SideSign;
+
+		// Arm: two strands from the shoulder up and out to the elbow, swinging forward with the strike
+		const FVector ArmWay = (Out * FMath::Cos(Lift) + Up * FMath::Sin(Lift) + Forward * (0.8f * WingSweep - 0.35f)).GetSafeNormal();
+		const FVector Elbow = Shoulder + Out * 8.0f * Grown + ArmWay * 0.35f * H * Appear;
+		const FVector Mid = FMath::Lerp(Shoulder, Elbow, 0.5f) + Up * 0.05f * H * Appear;
+		const int32 BoneBase = Wing * (2 + DragonWingRibs);
+		Lay(WingBones[BoneBase], Shoulder, (Mid - Shoulder) * 1.2f, Mid, (Elbow - Shoulder) * 0.6f, 3.2f * Grown, 2.6f * Grown, SideSign);
+		Lay(WingBones[BoneBase + 1], Mid, (Elbow - Shoulder) * 0.6f, Elbow, (Elbow - Mid) * 1.2f, 2.6f * Grown, 2.1f * Grown, SideSign + 1.0f);
+
+		// Ribs: strands fanning from the elbow, from the leading one (up) to the trailing one (back and low); swept forward they
+		// point ahead and the fan of the wing faces the enemy
+		const FVector UpWay = (Up + Forward * (0.9f * WingSweep - 0.15f)).GetSafeNormal();
+		const FVector BackWay = (-Forward * (1.0f - 0.7f * WingSweep) - Up * 0.35f + Out * 0.2f).GetSafeNormal();
+		FVector RibTips[DragonWingRibs];
+		for (int32 Rib = 0; Rib < DragonWingRibs; ++Rib)
+		{
+			const float Share = Rib / float(DragonWingRibs - 1);
+			const float Angle = FMath::Lerp(0.0f, 1.35f, Share) * WingSpread;
+			const FVector Way = (UpWay * FMath::Cos(Angle) + BackWay * FMath::Sin(Angle) + Out * 0.45f).GetSafeNormal();
+			const float Length = FMath::Lerp(0.62f, 0.38f, Share) * H * Appear;
+			RibTips[Rib] = Elbow + Way * Length - Up * Length * 0.08f + Up * FMath::Sin(Time * 5.0f + Rib) * 1.5f * Grown;
+			Lay(WingBones[BoneBase + 2 + Rib], Elbow, Way * Length, RibTips[Rib], (Way - Up * 0.3f).GetSafeNormal() * Length,
+				FMath::Lerp(2.1f, 1.5f, Share) * Grown, 0.45f * Grown, Rib * 0.9f);
+		}
+
+		// Skin: two Windhalm blades in each gap between two ribs, from near the elbow out to the edge between their tips
+		for (int32 Gap = 0; Gap < DragonWingRibs - 1; ++Gap)
+		{
+			for (int32 Fill = 0; Fill < 2; ++Fill)
+			{
+				const int32 Index = Wing * DragonWingFeathers + Gap * 2 + Fill;
+				if (!WingBlades.IsValidIndex(Index))
+				{
+					continue;
+				}
+				FeatherGrow[Index] = FMath::Min(1.0f, FeatherGrow[Index] + DeltaSeconds / 1.2f);
+				const float BladeGrown = FMath::SmoothStep(0.0f, 1.0f, FeatherGrow[Index]);
+				USplineMeshComponent* Blade = WingBlades[Index];
+				const bool bShow = bShown && BladeGrown > 0.03f;
+				Blade->SetVisibility(bShow);
+				const FVector Edge = FMath::Lerp(RibTips[Gap], RibTips[Gap + 1], (Fill + 1) / 3.0f);
+				const FVector Start = FMath::Lerp(Elbow, Edge, 0.1f);
+				const FVector Tip = Start + (FMath::Lerp(Elbow, Edge, 0.94f) - Start) * BladeGrown;
+				FeatherTips[Index] = Tip;
+				if (!bShow)
+				{
+					continue;
+				}
+				const FVector Way = Tip - Start;
+				Lay(Blade, Start, Way, Tip, Way, Plant->FingerThickness * 2.6f * Grown, Plant->FingerThickness * 1.2f * Grown, SideSign * 1.57f);
+			}
 		}
 	}
 }

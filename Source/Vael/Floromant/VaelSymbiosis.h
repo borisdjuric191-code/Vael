@@ -116,7 +116,14 @@ enum class EVaelSymbiosis : uint8
 	Starrschlinge,
 	Bernsteinauge,
 	Irrlicht,
-	Mondauge
+	Mondauge,
+	// Schnappwurz pairs (2026-11-19): the maw with the partner's touch
+	/** Schnappwurz + Glutdistel: a burning bite */
+	Glutbiss,
+	/** Schnappwurz + Schlotwinde: the vine yanks the enemy straight into the maw */
+	Rankenschlund,
+	/** Schnappwurz + Taublatt: a dripping bite that soaks (lightning leaps further) */
+	Tauschlund
 };
 
 namespace VaelSymbiosis
@@ -129,6 +136,18 @@ namespace VaelSymbiosis
 
 	/** Colour of the knot and of its glow */
 	FLinearColor GetColor(EVaelSymbiosis Kind);
+
+	/** Drachenerbe (dragon heritage, Boris 2026-11-19; first called Gestalt): the stronger form a fused pair grows into once she has awakened it in the Keimgeflecht, a
+	 *  dragon head on the snake for the pairs that fire in a straight line. Whether the pair has one (yet), its name, and what it
+	 *  does in a few words */
+	bool HasHeritage(EVaelSymbiosis Kind);
+
+	/** Plants that shoot (Boris 2026-11-19): Windhalm, Glutdistel, Taublatt, Funkenmohn, Harzkolben, Wachbeere; not the shield,
+	 *  the rose vines, the lasso, the fairies, the veil and the maw. Two shooters crossed grow the Wurzelrohr */
+	bool IsShooter(const UVaelPlantArmData* Plant);
+	bool IsShotPair(const UVaelPlantArmData* A, const UVaelPlantArmData* B);
+	FText GetHeritageName(EVaelSymbiosis Kind);
+	FText GetHeritageDescription(EVaelSymbiosis Kind);
 
 	/** Seconds between two attacks of a fused tower */
 	float GetTowerInterval(EVaelSymbiosis Kind);

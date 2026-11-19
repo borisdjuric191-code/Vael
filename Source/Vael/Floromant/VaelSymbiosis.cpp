@@ -489,7 +489,64 @@ namespace VaelSymbiosis
 		{
 			return EVaelSymbiosis::Mondauge;
 		}
+		if (Is(TEXT("Schnappwurz"), TEXT("Glutdistel")))
+		{
+			return EVaelSymbiosis::Glutbiss;
+		}
+		if (Is(TEXT("Schnappwurz"), TEXT("Schlotwinde")))
+		{
+			return EVaelSymbiosis::Rankenschlund;
+		}
+		if (Is(TEXT("Schnappwurz"), TEXT("Taublatt")))
+		{
+			return EVaelSymbiosis::Tauschlund;
+		}
 		return EVaelSymbiosis::None;
+	}
+
+	bool IsShooter(const UVaelPlantArmData* Plant)
+	{
+		return Plant != nullptr && !Plant->bShield && !Plant->bVineArm && !Plant->bLasso && !Plant->bFairies && !Plant->bVeil && !Plant->bJaw;
+	}
+
+	bool IsShotPair(const UVaelPlantArmData* A, const UVaelPlantArmData* B)
+	{
+		return IsShooter(A) && IsShooter(B) && Find(A, B) != EVaelSymbiosis::None;
+	}
+
+	bool HasHeritage(EVaelSymbiosis Kind)
+	{
+		// Only pairs that fire in a straight line become dragons (Boris 2026-11-19)
+		return Kind == EVaelSymbiosis::Glutbusch || Kind == EVaelSymbiosis::Dampfstoss || Kind == EVaelSymbiosis::Funkenflug || Kind == EVaelSymbiosis::Glutglas
+			|| Kind == EVaelSymbiosis::Sturmgras || Kind == EVaelSymbiosis::Quellrose;
+	}
+
+	FText GetHeritageName(EVaelSymbiosis Kind)
+	{
+		switch (Kind)
+		{
+		case EVaelSymbiosis::Glutbusch:		return NSLOCTEXT("VaelSymbiosis", "GestaltGlutbusch", "Glutbuschdrache");
+		case EVaelSymbiosis::Dampfstoss:	return NSLOCTEXT("VaelSymbiosis", "HeritageDampfstoss", "Dampfdrache");
+		case EVaelSymbiosis::Funkenflug:	return NSLOCTEXT("VaelSymbiosis", "HeritageFunkenflug", "Donnerdrache");
+		case EVaelSymbiosis::Glutglas:		return NSLOCTEXT("VaelSymbiosis", "HeritageGlutglas", "Glutglasdrache");
+		case EVaelSymbiosis::Sturmgras:		return NSLOCTEXT("VaelSymbiosis", "HeritageSturmgras", "Sturmdrache");
+		case EVaelSymbiosis::Quellrose:		return NSLOCTEXT("VaelSymbiosis", "HeritageQuellrose", "Flutdrache");
+		default:							return FText::GetEmpty();
+		}
+	}
+
+	FText GetHeritageDescription(EVaelSymbiosis Kind)
+	{
+		switch (Kind)
+		{
+		case EVaelSymbiosis::Glutbusch:		return NSLOCTEXT("VaelSymbiosis", "GestaltGlutbuschText", "Die zweite Glutdistel versinkt in der Schlange, ihr Kopf wächst zum Drachen: Trommelfeuer aus dem Rachen, Biss auf nahe Feinde.");
+		case EVaelSymbiosis::Dampfstoss:	return NSLOCTEXT("VaelSymbiosis", "HeritageDampfstossText", "Das Taublatt versinkt in der Glutdistel-Schlange und umklammert im Drachenmaul eine glühende Distel: ein Dampfstrahl, der brühende, blendende Wolken hinterlässt.");
+		case EVaelSymbiosis::Funkenflug:	return NSLOCTEXT("VaelSymbiosis", "HeritageFunkenflugText", "Der Windhalm versinkt in der Glutdistel-Schlange, seine Klingen knistern an Wangen und Schädel: ein Blitz aus dem Maul springt von Feind zu Feind, Nässe und Dampf tragen ihn weiter.");
+		case EVaelSymbiosis::Glutglas:		return NSLOCTEXT("VaelSymbiosis", "HeritageGlutglasText", "Der Glimmklee versinkt in der Glutdistel-Schlange und fasst im Drachenmaul ein Brennglas: ein gebündelter Sonnenstrahl, der eine Spur aus brennendem Boden zieht.");
+		case EVaelSymbiosis::Sturmgras:		return NSLOCTEXT("VaelSymbiosis", "HeritageSturmgrasText", "Der zweite Windhalm versinkt, die Schlange wird zu einem schlanken Halmdrachen mit Flügeln aus Klingen: Sie schlagen nach vorn und schießen ihre Klingen als Pfeilfächer ab.");
+		case EVaelSymbiosis::Quellrose:		return NSLOCTEXT("VaelSymbiosis", "HeritageQuellroseText", "Das zweite Taublatt versinkt, der Kopf wächst zu einem Drachen mit einem Kragen aus Blütenblättern: Er klappt auf, und ein Schwall aus Wasser durchnässt alles vor ihm.");
+		default:							return FText::GetEmpty();
+		}
 	}
 
 	FText GetName(EVaelSymbiosis Kind)
@@ -562,6 +619,9 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Bernsteinauge:	return NSLOCTEXT("VaelSymbiosis", "Bernsteinauge", "Bernsteinauge");
 		case EVaelSymbiosis::Irrlicht:	return NSLOCTEXT("VaelSymbiosis", "Irrlicht", "Irrlicht");
 		case EVaelSymbiosis::Mondauge:	return NSLOCTEXT("VaelSymbiosis", "Mondauge", "Mondauge");
+		case EVaelSymbiosis::Glutbiss:		return NSLOCTEXT("VaelSymbiosis", "Glutbiss", "Glutbiss");
+		case EVaelSymbiosis::Rankenschlund:	return NSLOCTEXT("VaelSymbiosis", "Rankenschlund", "Rankenschlund");
+		case EVaelSymbiosis::Tauschlund:	return NSLOCTEXT("VaelSymbiosis", "Tauschlund", "Tauschlund");
 		default:							return FText::GetEmpty();
 		}
 	}
@@ -636,6 +696,9 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Bernsteinauge:	return FLinearColor(1.0f, 0.55f, 0.1f);
 		case EVaelSymbiosis::Irrlicht:	return FLinearColor(0.6f, 1.0f, 0.8f);
 		case EVaelSymbiosis::Mondauge:	return FLinearColor(0.9f, 0.75f, 1.0f);
+		case EVaelSymbiosis::Glutbiss:		return FLinearColor(1.0f, 0.4f, 0.1f);
+		case EVaelSymbiosis::Rankenschlund:	return FLinearColor(0.75f, 0.85f, 0.25f);
+		case EVaelSymbiosis::Tauschlund:	return FLinearColor(0.35f, 0.75f, 1.0f);
 		default:							return FLinearColor::White;
 		}
 	}
@@ -1203,6 +1266,52 @@ namespace VaelSymbiosis
 		case EVaelSymbiosis::Haftmohn:
 			FireBindweed(Instigator, Kind, Pick(TEXT("Schlotwinde")), A == Pick(TEXT("Schlotwinde")) ? B : A, Origin, Ahead, Power * Grown, Charge, bShadow, Reach);
 			break;
+
+		// --- Schnappwurz (2026-11-19): the maw bites the nearest enemy ahead with the partner's touch; the Schlotwinde first yanks
+		// it into the maw
+		case EVaelSymbiosis::Glutbiss:
+		case EVaelSymbiosis::Rankenschlund:
+		case EVaelSymbiosis::Tauschlund:
+		{
+			const UVaelPlantArmData* Jaw = Pick(TEXT("Schnappwurz"));
+			const float Range = Reach > 0.0f ? FMath::Min(Reach + 100.0f, Jaw->LungeReach * 1.5f) : Jaw->LungeReach;
+			const TArray<AActor*> Prey = AVaelBindweedLasso::FindTargets(Instigator, Origin, Ahead, Range, 55.0f, 1);
+			if (Prey.IsEmpty())
+			{
+				break;
+			}
+			AActor* Target = Prey[0];
+			FVaelSpellHit Hit;
+			Hit.Damage = Jaw->BiteDamage * 1.3f * Power * Grown;
+			Hit.Element = EVaelElement::Earth;
+			Hit.StunDuration = Jaw->BiteHold;
+			if (Kind == EVaelSymbiosis::Glutbiss)
+			{
+				Hit.Element = EVaelElement::Fire;
+				Hit.Status = EVaelStatus::Burning;
+				Hit.StatusDuration = 3.0f;
+			}
+			else if (Kind == EVaelSymbiosis::Tauschlund)
+			{
+				Hit.Element = EVaelElement::Water;
+				Hit.Status = EVaelStatus::Wet;
+				Hit.StatusDuration = 5.0f;
+			}
+			else
+			{
+				// The vine yanks it to where the maw waits
+				const UVaelPlantArmData* Vine = Pick(TEXT("Schlotwinde"));
+				FVaelLassoSpec Spec;
+				Spec.HoldSeconds = 0.3f;
+				Spec.OnEnd = EVaelLassoEnd::Yank;
+				Spec.Power = Power;
+				Spec.Color = Color;
+				AVaelBindweedLasso::Throw(Instigator, Vine, Origin, Target, Spec, bShadow);
+			}
+			UVaelCombatStatics::ApplySpellHit(Instigator, Target, Hit, (Target->GetActorLocation() - Origin).GetSafeNormal2D());
+			MuzzlePuff(Instigator, Jaw, Target->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), bShadow, 1.6f);
+			break;
+		}
 
 		// --- Feenragwurz (Boris 2026-11-03): a flight of fairies lures at the place and strews Feenstaub, the partner adds its touch
 		case EVaelSymbiosis::Feenreigen:

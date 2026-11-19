@@ -175,6 +175,60 @@ void UVaelPlantArmComponent::Clear()
 	bLassoHeld = false;
 	bLassoThrown = false;
 	WhipTime = -1.0f;
+
+	for (USplineMeshComponent* Piece : WoodPieces)
+	{
+		if (Piece != nullptr)
+		{
+			Piece->DestroyComponent();
+		}
+	}
+	WoodPieces.Reset();
+	for (UStaticMeshComponent* Patch : PeltPatches)
+	{
+		if (Patch != nullptr)
+		{
+			Patch->DestroyComponent();
+		}
+	}
+	PeltPatches.Reset();
+	WoodMaterial = nullptr;
+	bWoodArm = false;
+
+	// The maw of the Schnappwurz goes (its teeth are children of its halves)
+	for (USplineMeshComponent* Part : JawParts)
+	{
+		if (Part != nullptr)
+		{
+			Part->DestroyComponent();
+		}
+	}
+	JawParts.Reset();
+	for (USplineMeshComponent* Piece : JawVine)
+	{
+		if (Piece != nullptr)
+		{
+			Piece->DestroyComponent();
+		}
+	}
+	JawVine.Reset();
+	for (UStaticMeshComponent* Half : { JawUpper.Get(), JawLower.Get() })
+	{
+		if (Half != nullptr)
+		{
+			Half->DestroyComponent();
+		}
+	}
+	JawUpper = nullptr;
+	JawLower = nullptr;
+	bJawHeld = false;
+	bJawActed = false;
+	BiteTime = -1.0f;
+	BitesLeft = 0;
+	JawOpen = 0.0f;
+	JawOut = 0.0f;
+	Dragged = nullptr;
+	DragLeft = 0.0f;
 	if (KeimpelzPad != nullptr)
 	{
 		KeimpelzPad->DestroyComponent();
@@ -405,7 +459,30 @@ void UVaelPlantArmComponent::BuildStalks()
 
 	ArmMaterial = UMaterialInstanceDynamic::Create(BaseMaterial, this);
 	ArmMaterial->SetScalarParameterValue(PhaseParameter, Offset * 2.1f);
-	for (int32 Index = 0; Index < Plant->WrapCount; ++Index)
+
+	// The wood arm: the root wood of the dragons carries the plant; its veins glow in the plant's colour
+	{
+		const UVaelFloromantSettings* WoodSettings = UVaelFloromantSettings::Get();
+		FString WoodId = Plant->GetName();
+		WoodId.RemoveFromStart(TEXT("DA_Pflanzenarm_"));
+		UMaterialInterface* Wood = WoodSettings->WoodArmPlants.Contains(FName(*WoodId)) ? VaelAssets::LoadOptional(WoodSettings->DragonWoodMaterial) : nullptr;
+		bWoodArm = Wood != nullptr && !WoodSettings->DragonStrandMeshes.IsEmpty();
+		if (bWoodArm)
+		{
+			WoodMaterial = UMaterialInstanceDynamic::Create(Wood, this);
+			WoodMaterial->SetVectorParameterValue(TEXT("Leuchtfarbe"), VaelSymbiosis::GetPlantColor(Plant, IsShadowForm()));
+			WoodMaterial->SetScalarParameterValue(TEXT("Leuchten"), 0.6f);
+			UStaticMesh* Thorn = VaelAssets::LoadOptional(WoodSettings->DragonFibreMesh);
+			for (int32 Index = 0; Index < 21; ++Index)
+			{
+				// Trunk and branches braided, the finger twigs and the roots up the arm the thinnest strand, two thorns on each twig
+				UStaticMesh* Strand = Index >= 11 && Thorn != nullptr ? Thorn
+					: VaelAssets::LoadOptional(WoodSettings->DragonStrandMeshes[Index < 4 ? (Index % 2) : WoodSettings->DragonStrandMeshes.Num() - 1]);
+				WoodPieces.Add(MakeStalk(Strand, WoodMaterial));
+			}
+		}
+	}
+	for (int32 Index = 0; Index < (bWoodArm ? 0 : Plant->WrapCount); ++Index)
 	{
 		WrapStalks.Add(MakeStalk(ArmMeshes[(Index + Offset) % ArmMeshes.Num()], ArmMaterial));
 	}
@@ -413,7 +490,7 @@ void UVaelPlantArmComponent::BuildStalks()
 	// Wild stalks: where on the upper arm, at which angle around it, how long, each a little different
 	FRandomStream Random(GetOwner()->GetUniqueID() * 2 + Offset);
 	WildShapes.Reset();
-	for (int32 Index = 0; Index < Plant->WildCount; ++Index)
+	for (int32 Index = 0; Index < (bWoodArm ? 0 : Plant->WildCount); ++Index)
 	{
 		WildShapes.Add(FVector(Random.FRandRange(0.2f, 1.0f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.6f, 1.2f)));
 		WildStalks.Add(MakeStalk(ArmMeshes[(Index + 1 + Offset) % ArmMeshes.Num()], ArmMaterial));
@@ -436,6 +513,27 @@ void UVaelPlantArmComponent::BuildStalks()
 				AmmoShown.Add(0.0f);
 				AmmoStalks.Add(MakeStalk(ArmMeshes[(Index + Offset) % ArmMeshes.Num()], ArmMaterial));
 			}
+		}
+	}
+
+	// The Keimpelz pelt: patches over her shoulder and down her back on this arm's side
+	if (UStaticMesh* PeltMesh = VaelAssets::LoadOptional(UVaelFloromantSettings::Get()->KeimpelzPadMesh))
+	{
+		PeltShapes.Reset();
+		constexpr int32 PeltCount = 18;
+		for (int32 Index = 0; Index < PeltCount; ++Index)
+		{
+			// Along the way from the shoulder (0) down the back (1), a little to either side, its own turn and size
+			PeltShapes.Add(FVector4((Index + Random.FRandRange(0.1f, 0.9f)) / PeltCount, Random.FRandRange(-1.0f, 1.0f), Random.FRandRange(0.0f, 360.0f), Random.FRandRange(0.75f, 1.25f)));
+			UStaticMeshComponent* Patch = NewObject<UStaticMeshComponent>(GetOwner());
+			Patch->SetMobility(EComponentMobility::Movable);
+			Patch->SetStaticMesh(PeltMesh);
+			Patch->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Patch->SetCanEverAffectNavigation(false);
+			Patch->SetupAttachment(GetBody());
+			Patch->RegisterComponent();
+			Patch->SetVisibility(false);
+			PeltPatches.Add(Patch);
 		}
 	}
 
@@ -464,13 +562,14 @@ void UVaelPlantArmComponent::BuildStalks()
 	OvergrowthMaterialB = UMaterialInstanceDynamic::Create(BaseMaterial, this);
 	OvergrowthMaterialA->SetScalarParameterValue(PhaseParameter, 0.4f + Offset);
 	OvergrowthMaterialB->SetScalarParameterValue(PhaseParameter, 1.7f + Offset);
-	for (int32 Index = 0; Index < Plant->VineCount && !VineMeshes.IsEmpty(); ++Index)
+	// The wood arm is overgrown by its own wood only, not by vines and wild stalks of the plant
+	for (int32 Index = 0; Index < (bWoodArm ? 0 : Plant->VineCount) && !VineMeshes.IsEmpty(); ++Index)
 	{
 		ForearmVines.Add(MakeStalk(VineMeshes[(Index + Offset) % VineMeshes.Num()], OvergrowthMaterialA));
 		UpperArmVines.Add(MakeStalk(VineMeshes[(Index + 1 + Offset) % VineMeshes.Num()], OvergrowthMaterialB));
 	}
 	OvergrowthShapes.Reset();
-	for (int32 Index = 0; Index < Plant->OvergrowthWildCount; ++Index)
+	for (int32 Index = 0; Index < (bWoodArm ? 0 : Plant->OvergrowthWildCount); ++Index)
 	{
 		OvergrowthShapes.Add(FVector(Random.FRandRange(0.0f, 1.0f), Random.FRandRange(0.0f, 2.0f * UE_PI), Random.FRandRange(0.6f, 1.3f)));
 		OvergrowthWild.Add(MakeStalk(ArmMeshes[(Index + Offset) % ArmMeshes.Num()], OvergrowthMaterialB));
@@ -564,6 +663,58 @@ void UVaelPlantArmComponent::BuildStalks()
 		UMaterialInterface* PartMaterial = VaelAssets::LoadOptional(Plant->PartMaterial);
 		CoreMaterial = UMaterialInstanceDynamic::Create(PartMaterial != nullptr ? PartMaterial : BaseMaterial, this);
 		SapCore->SetMaterial(0, CoreMaterial);
+	}
+
+	// The maw (Schnappwurz): the hand vanishes, the two halves of the bud sit in its place hinged at the wrist, thorn teeth along
+	// their rims; the pieces of the vine it shoots out on wait hidden
+	if (Plant->bJaw)
+	{
+		GetBody()->HideBoneByName(Bone(TEXT("hand")), EPhysBodyOp::PBO_None);
+		bHandHidden = true;
+		// An own instance of the stalk material: no wind or twirl (the whole bud counts as tip), and a red glow from inside that
+		// flares when it opens
+		JawMaterialInstance = UMaterialInstanceDynamic::Create(BaseMaterial, this);
+		JawMaterialInstance->SetScalarParameterValue(GrowParameter, 1.0f);
+		JawMaterialInstance->SetScalarParameterValue(WindParameter, 0.0f);
+		JawMaterialInstance->SetScalarParameterValue(SpinParameter, 0.0f);
+		JawMaterialInstance->SetVectorParameterValue(TEXT("Leuchtfarbe"), FLinearColor(0.95f, 0.2f, 0.12f));
+		UMaterialInterface* JawMaterial = JawMaterialInstance;
+		auto MakeHalf = [this, JawMaterial](UStaticMesh* Mesh)
+		{
+			UStaticMeshComponent* Half = NewObject<UStaticMeshComponent>(GetOwner());
+			Half->SetMobility(EComponentMobility::Movable);
+			Half->SetStaticMesh(Mesh);
+			if (JawMaterial != nullptr)
+			{
+				Half->SetMaterial(0, JawMaterial);
+			}
+			Half->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Half->SetCanEverAffectNavigation(false);
+			Half->SetUsingAbsoluteLocation(true);
+			Half->SetUsingAbsoluteRotation(true);
+			Half->SetUsingAbsoluteScale(true);
+			Half->SetupAttachment(GetBody());
+			Half->RegisterComponent();
+			return Half;
+		};
+		// Both halves are the flytrap lobe of Tools/Pflanzenarm/schnappwurz_maul.py (its thorny lashes are part of it); the lower one
+		// is turned over in UpdateJawLook
+		JawUpper = MakeHalf(VaelAssets::LoadOptional(Plant->JawUpperMesh));
+		JawLower = MakeHalf(VaelAssets::LoadOptional(Plant->JawLowerMesh));
+		UStaticMesh* ToothMesh = Plant->FingerMeshes.IsEmpty() ? nullptr : VaelAssets::LoadOptional(Plant->FingerMeshes[0]);
+
+		// The vine the maw shoots out on, in world space
+		UStaticMesh* VineMesh = Plant->VineMeshes.IsEmpty() ? nullptr : VaelAssets::LoadOptional(Plant->VineMeshes[0]);
+		for (int32 Index = 0; Index < 5; ++Index)
+		{
+			USplineMeshComponent* Piece = MakeStalk(VineMesh != nullptr ? VineMesh : ToothMesh, FingerMaterials.IsEmpty() ? nullptr : FingerMaterials[0].Get());
+			Piece->SetUsingAbsoluteLocation(true);
+			Piece->SetUsingAbsoluteRotation(true);
+			Piece->SetUsingAbsoluteScale(true);
+			Piece->SetWorldTransform(FTransform::Identity);
+			Piece->SetVisibility(false);
+			JawVine.Add(Piece);
+		}
 	}
 
 	// The mortar (Funkenmohn): the hand vanishes into the shut bud, a capsule glows inside it, a ring on the ground shows the aim
@@ -794,7 +945,7 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	const bool bLassoHand = Plant->bLasso;
 	const bool bFairyHand = Plant->bFairies;
 	const bool bFiringNow = !bShieldHand && (IsFiring() || (bWaterHand && (PendingShotTime >= 0.0f || Jet != nullptr)) || (bMortarHand && (bThrowQueued || ThrowHold > 0.0f))
-		|| (bLassoHand && (!Lassos.IsEmpty() || WhipTime >= 0.0f)) || bCrossing) && !bFairyHand && Grow >= 1.0f;
+		|| (bLassoHand && (!Lassos.IsEmpty() || WhipTime >= 0.0f)) || (Plant->bJaw && (BiteTime >= 0.0f || bJawHeld)) || bCrossing) && !bFairyHand && Grow >= 1.0f;
 	Stance = FMath::FInterpTo(Stance, bFiringNow ? 1.0f : 0.0f, DeltaTime, bFiringNow ? 12.0f : 5.0f);
 
 	// A shield hand doesn't aim: the forearm comes up before the face, and the clover overgrows the arm as if it fired
@@ -839,6 +990,11 @@ void UVaelPlantArmComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	else if (bMortarHand)
 	{
 		UpdateMortarFiring(DeltaTime);
+	}
+	else if (Plant->bJaw)
+	{
+		UpdateJawFiring(DeltaTime);
+		UpdateJawLook(DeltaTime);
 	}
 	else if (bLassoHand)
 	{
@@ -921,6 +1077,13 @@ void UVaelPlantArmComponent::UpdateStalks()
 		CoreMaterial->SetScalarParameterValue(TEXT("Glut"), 4.0f * Pump * FMath::Clamp(BarShots / FMath::Max(Plant->BarSize, 1), 0.0f, 1.0f));
 	}
 
+	// The wood arm gives each finger stalk the twig it grows out of
+	FVector WoodStarts[5];
+	if (bWoodArm)
+	{
+		UpdateWoodArm(Shoulder, Elbow, Wrist, Axis, U, V, WoodStarts);
+	}
+
 	// Fingers: from the forearm past the fingertip into a long stalk
 	for (int32 Finger = 0; Finger < FingerStalks.Num(); ++Finger)
 	{
@@ -938,15 +1101,17 @@ void UVaelPlantArmComponent::UpdateStalks()
 		const FVector Curl = (U * FMath::Cos(CurlAngle) + V * FMath::Sin(CurlAngle)) * (0.25f + 0.2f * Stance);
 		const float LengthShare = FingerLengthShares[Finger];
 		const FVector Outward = (Direction - HandAxis * FVector::DotProduct(Direction, HandAxis)).GetSafeNormal();
-		if (!Outward.IsNearlyZero() && FanRadians > 0.0f)
+		// The wood fingers spread wide like a clawing hand (Boris 2026-11-19)
+		const float Spread = FanRadians + (bWoodArm ? 0.45f : 0.0f);
+		if (!Outward.IsNearlyZero() && Spread > 0.0f)
 		{
-			Direction = (Direction * FMath::Cos(FanRadians) + Outward * FMath::Sin(FanRadians)).GetSafeNormal();
+			Direction = (Direction * FMath::Cos(Spread) + Outward * FMath::Sin(Spread)).GetSafeNormal();
 		}
 
 		// It comes out of the forearm on the side of its finger
 		const FVector OnArm = FMath::Lerp(Wrist, Elbow, Plant->FingerRootReach);
 		const FVector Side = Root - (Elbow + Axis * FVector::DotProduct(Root - Elbow, Axis));
-		const FVector Start = OnArm + Side.GetSafeNormal() * Radius * 0.8f;
+		const FVector Start = bWoodArm && Finger < 5 ? WoodStarts[Finger] : OnArm + Side.GetSafeNormal() * Radius * 0.8f;
 		FVector End = Tip + (Direction + Curl * 0.5f).GetSafeNormal() * Plant->FingerLength * LengthShare;
 		if (bRose)
 		{
@@ -966,12 +1131,39 @@ void UVaelPlantArmComponent::UpdateStalks()
 		{
 			End += Direction * (TipKicks[Finger] * 5.0f - TipCharges[Finger] * 3.0f);
 		}
-		const float Span = FVector::Dist(Start, End);
+		// The wood arm: a thick knotty twig reaches from its fork most of the way, with two thorns standing off it, and only the
+		// last short piece is the stalk of the plant carrying the head
+		FVector StalkStart = Start;
+		if (bWoodArm && Finger < 5 && WoodPieces.Num() >= 21)
+		{
+			const FVector TwigEnd = FMath::Lerp(Start, End, 0.62f) - Direction * 1.0f;
+			const FVector Twig = TwigEnd - Start;
+			const float TwigLength = Twig.Size();
+			UpdateWoodPiece(WoodPieces[4 + Finger], Start, (Twig.GetSafeNormal() * 0.5f + Axis * 0.5f).GetSafeNormal() * TwigLength * 1.2f, TwigEnd,
+				Direction * TwigLength, 0.62f, 0.36f, Finger * 1.3f);
+			for (int32 Spike = 0; Spike < 2; ++Spike)
+			{
+				const FVector Foot = FMath::Lerp(Start, TwigEnd, Spike == 0 ? 0.4f : 0.75f);
+				const float Around = Finger * 2.1f + Spike * 2.6f;
+				FVector Off = (U * FMath::Cos(Around) + V * FMath::Sin(Around));
+				Off = (Off - Direction * FVector::DotProduct(Off, Direction)).GetSafeNormal();
+				const FVector Way = (Off * 0.8f - Direction * 0.35f).GetSafeNormal();
+				const float Length = Spike == 0 ? 7.0f : 5.0f;
+				UpdateWoodPiece(WoodPieces[11 + Finger * 2 + Spike], Foot, Way * Length, Foot + Way * Length, (Way - Direction * 0.3f).GetSafeNormal() * Length,
+					2.2f, 0.12f, Around);
+			}
+			StalkStart = TwigEnd;
+		}
+		const float Span = FVector::Dist(StalkStart, End);
 
 		USplineMeshComponent* Stalk = FingerStalks[Finger];
-		Stalk->SetStartAndEnd(Start, Axis * Span * 0.8f, End, (Direction - Curl).GetSafeNormal() * Span * 0.9f, false);
-		Stalk->SetStartScale(FVector2D(Plant->FingerThickness * 0.7f), false);
-		Stalk->SetEndScale(FVector2D(Plant->FingerThickness), false);
+		// Out of its twig it leaves along the twig; otherwise along the forearm
+		const FVector StartWay = bWoodArm ? Direction : Axis;
+		Stalk->SetStartAndEnd(StalkStart, StartWay * Span * 0.8f, End, (Direction - Curl).GetSafeNormal() * Span * 0.9f, false);
+		// Out of the wood the stalks are stout, so the heavy heads have something to sit on
+		const float Stout = bWoodArm ? 2.4f : 1.0f;
+		Stalk->SetStartScale(FVector2D(Plant->FingerThickness * 0.7f * Stout), false);
+		Stalk->SetEndScale(FVector2D(Plant->FingerThickness * Stout), false);
 		Stalk->SetStartRoll(Finger * 1.1f, false);
 		Stalk->SetEndRoll(Finger * 1.1f + 0.8f, false);
 		Stalk->UpdateMesh();
@@ -1068,11 +1260,161 @@ void UVaelPlantArmComponent::UpdateStalks()
 	// The Keimpelz pad lies on top of the forearm, where the camera above sees it
 	const FVector Top = (FVector::UpVector - Axis * FVector::DotProduct(FVector::UpVector, Axis)).GetSafeNormal();
 	UpdatePad(Elbow, Wrist, Top.IsNearlyZero() ? U : Top);
+	UpdatePelt();
 	UpdateOvergrowth(Shoulder, Elbow, Wrist);
 
 	// The axis the tips twirl around in the material
 	ArmMaterial->SetVectorParameterValue(ArmPointParameter, FLinearColor(BodyTransform.TransformPosition(Elbow)));
 	ArmMaterial->SetVectorParameterValue(ArmAxisParameter, FLinearColor(BodyTransform.TransformVectorNoScale(Axis)));
+}
+
+void UVaelPlantArmComponent::SetMergedIntoBarrel(bool bMerged)
+{
+	if (bMergedIntoBarrel == bMerged)
+	{
+		return;
+	}
+	bMergedIntoBarrel = bMerged;
+	// Hidden in game, apart from the visibility the arm sets on its parts each frame, so they come back exactly as they were
+	auto Hide = [bMerged](USceneComponent* Part)
+	{
+		if (Part != nullptr)
+		{
+			Part->SetHiddenInGame(bMerged, true);
+		}
+	};
+	auto HideAll = [&Hide](const auto& Parts)
+	{
+		for (const auto& Part : Parts)
+		{
+			Hide(Part.Get());
+		}
+	};
+	HideAll(FingerStalks);
+	HideAll(FingerTips);
+	HideAll(WrapStalks);
+	HideAll(WildStalks);
+	HideAll(WoodPieces);
+	HideAll(ForearmVines);
+	HideAll(UpperArmVines);
+	HideAll(OvergrowthWild);
+	HideAll(OvergrowthPads);
+	HideAll(Leaves);
+	HideAll(FringeThreads);
+	HideAll(FringeDrops);
+	HideAll(ChargeDrops);
+	HideAll(Petals);
+	HideAll(ArmVines);
+	HideAll(TetherPulses);
+	HideAll(TargetDots);
+	HideAll(JawParts);
+	HideAll(JawVine);
+	HideAll(Tendrils);
+	HideAll(TendrilTips);
+	HideAll(TendrilTrumpets);
+	HideAll(AmmoStalks);
+	HideAll(ChargeOrbs);
+	Hide(KeimpelzPad);
+	Hide(ShoulderRose);
+	Hide(BudCapsule);
+	Hide(SapCore);
+	Hide(JawUpper);
+	Hide(JawLower);
+}
+
+FVector UVaelPlantArmComponent::GetElbowLocation() const
+{
+	const USkeletalMeshComponent* Body = GetBody();
+	return Body != nullptr ? Body->GetSocketLocation(Bone(TEXT("lowerarm"))) : FVector::ZeroVector;
+}
+
+void UVaelPlantArmComponent::UpdateWoodPiece(USplineMeshComponent* Piece, const FVector& A, const FVector& TA, const FVector& B, const FVector& TB, float S0, float S1, float Roll)
+{
+	if (Piece == nullptr)
+	{
+		return;
+	}
+	Piece->SetStartAndEnd(A, TA, B, TB, false);
+	Piece->SetStartScale(FVector2D(S0), false);
+	Piece->SetEndScale(FVector2D(S1), false);
+	Piece->SetStartRoll(Roll, false);
+	Piece->SetEndRoll(Roll + 2.0f, false);
+	Piece->UpdateMesh();
+}
+
+void UVaelPlantArmComponent::UpdateWoodArm(const FVector& Shoulder, const FVector& Elbow, const FVector& Wrist, const FVector& Axis, const FVector& U, const FVector& V, FVector OutFingerStarts[5])
+{
+	// Like the Glutdistel grows out of the ground: one trunk that forks into branches and the branches into twigs, each twig
+	// carrying a stalk with its head (Boris 2026-11-19)
+	const float Radius = Plant->WrapRadius;
+	auto Lay = [](USplineMeshComponent* Piece, const FVector& A, const FVector& TA, const FVector& B, const FVector& TB, float S0, float S1, float Roll)
+	{
+		if (Piece == nullptr)
+		{
+			return;
+		}
+		Piece->SetStartAndEnd(A, TA, B, TB, false);
+		Piece->SetStartScale(FVector2D(S0), false);
+		Piece->SetEndScale(FVector2D(S1), false);
+		Piece->SetStartRoll(Roll, false);
+		Piece->SetEndRoll(Roll + 2.0f, false);
+		Piece->UpdateMesh();
+	};
+	auto Piece = [this](int32 Index) { return WoodPieces.IsValidIndex(Index) ? WoodPieces[Index].Get() : nullptr; };
+
+	// The knot on the back of the wrist the trunk gathers in, and the side of the hand the knuckles face
+	FVector Knuckles = FVector::ZeroVector;
+	for (int32 Finger = 1; Finger < 5; ++Finger)
+	{
+		Knuckles += BoneLocation(*(FString(FingerNames[Finger]) + TEXT("_01"))) / 4.0f;
+	}
+	const FVector HandWay = (Knuckles - Wrist).GetSafeNormal();
+	const FVector Knot = Wrist + HandWay * 2.5f;
+
+	// Trunk: two braided strands winding half way round the forearm from below the elbow into the knot
+	const FVector TrunkStart = FMath::Lerp(Elbow, Shoulder, 0.12f);
+	const float TrunkLength = FVector::Dist(TrunkStart, Knot);
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const float A0 = Index * UE_PI + (bLeft ? 0.6f : 0.0f);
+		const float A1 = A0 + UE_PI * 0.9f;
+		const FVector Out0 = U * FMath::Cos(A0) + V * FMath::Sin(A0);
+		const FVector Out1 = U * FMath::Cos(A1) + V * FMath::Sin(A1);
+		const FVector Around0 = -U * FMath::Sin(A0) + V * FMath::Cos(A0);
+		const FVector Around1 = -U * FMath::Sin(A1) + V * FMath::Cos(A1);
+		const float Sideways = 3.0f * Radius;
+		Lay(Piece(Index), TrunkStart + Out0 * Radius * 0.9f, Axis * TrunkLength + Around0 * Sideways,
+			Knot + Out1 * Radius * 0.35f, HandWay * TrunkLength + Around1 * Sideways * 0.5f, 0.7f, 0.55f, A0);
+	}
+
+	// Branches: from the knot over the back of the hand, one to the index and middle finger, one to the ring and little finger
+	const FVector Fork[2] = {
+		FMath::Lerp(Knot, (BoneLocation(TEXT("index_01")) + BoneLocation(TEXT("middle_01"))) * 0.5f, 0.55f),
+		FMath::Lerp(Knot, (BoneLocation(TEXT("ring_01")) + BoneLocation(TEXT("pinky_01"))) * 0.5f, 0.55f) };
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const FVector Way = Fork[Index] - Knot;
+		Lay(Piece(2 + Index), Knot, (HandWay * 0.7f + Way.GetSafeNormal() * 0.3f) * Way.Size() * 1.2f, Fork[Index], Way * 1.1f, 0.48f, 0.36f, Index * 2.0f);
+	}
+
+	// Where each finger twig leaves: out of the forks (the thumb straight out of the knot); the twigs themselves are laid with
+	// the fingers, since they reach out to where the heads are
+	for (int32 Finger = 0; Finger < 5; ++Finger)
+	{
+		OutFingerStarts[Finger] = Finger == 0 ? Knot : Fork[Finger <= 2 ? 0 : 1];
+	}
+
+	// Roots of the trunk reaching up over the elbow into the upper arm, thinning out
+	const FVector UpperAxis = (Shoulder - Elbow).GetSafeNormal();
+	const FVector UpperU = Across(UpperAxis);
+	for (int32 Index = 0; Index < 2; ++Index)
+	{
+		const float Around = Index * UE_PI + 0.8f;
+		const FVector Out = UpperU * FMath::Cos(Around) + FVector::CrossProduct(UpperAxis, UpperU) * FMath::Sin(Around);
+		const FVector From = FMath::Lerp(Elbow, Shoulder, 0.05f) + Out * Radius;
+		const FVector To = FMath::Lerp(Elbow, Shoulder, 0.6f) + Out * Radius * 0.8f;
+		Lay(Piece(9 + Index), From, (To - From) * 1.1f, To, (To - From), 0.5f, 0.08f, Around);
+	}
 }
 
 void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
@@ -1098,6 +1440,13 @@ void UVaelPlantArmComponent::UpdateMaterials(float DeltaTime)
 
 	ArmMaterial->SetScalarParameterValue(GrowParameter, Grow);
 	ArmMaterial->SetScalarParameterValue(WindParameter, Wind);
+	if (WoodMaterial != nullptr)
+	{
+		// The wood grows with the arm; its veins glow up while the hand fires
+		WoodMaterial->SetScalarParameterValue(GrowParameter, Grow);
+		WoodMaterial->SetScalarParameterValue(ShadowParameter, bShadow ? 1.0f : 0.0f);
+		WoodMaterial->SetScalarParameterValue(TEXT("Leuchten"), IsFiring() ? 2.0f : 0.6f);
+	}
 	// The spiral itself turns in UpdateStalks; in the material the tips lag behind, the faster it turns the more
 	ArmMaterial->SetScalarParameterValue(SpinParameter, SpinRate * 0.15f);
 	ApplyForm(ArmMaterial, bShadow);
@@ -1193,7 +1542,7 @@ void UVaelPlantArmComponent::UpdateFiring(float DeltaTime)
 
 bool UVaelPlantArmComponent::ShootsFromFingers() const
 {
-	return Plant != nullptr && !Plant->bShield && !Plant->bMortar && !Plant->bVineArm && !Plant->bLasso && !Plant->bFairies && Plant->WaterSource.IsNull() && !HasRose() && !Plant->bFingersFormBarrel;
+	return Plant != nullptr && !Plant->bShield && !Plant->bMortar && !Plant->bVineArm && !Plant->bLasso && !Plant->bFairies && !Plant->bJaw && Plant->WaterSource.IsNull() && !HasRose() && !Plant->bFingersFormBarrel;
 }
 
 void UVaelPlantArmComponent::UpdateCharge(float DeltaTime)
@@ -1902,10 +2251,71 @@ void UVaelPlantArmComponent::UpdatePad(const FVector& Elbow, const FVector& Wris
 	const float MeshHeight = FMath::Max(KeimpelzPad->GetStaticMesh()->GetBoundingBox().GetSize().GetMax(), 1.0f);
 	const float Scale = Settings->KeimpelzPadSize / MeshHeight * FMath::Lerp(0.3f, 1.0f, Fill) * Grow * Draw;
 
-	const FVector Place = FMath::Lerp(Elbow, Wrist, 0.55f) + Out * Plant->WrapRadius * 0.6f;
+	// A flat mat of moss lying on the forearm, not a clump (Boris 2026-11-19)
+	const FVector Place = FMath::Lerp(Elbow, Wrist, 0.55f) + Out * Plant->WrapRadius * 0.45f;
 	KeimpelzPad->SetRelativeLocationAndRotation(Place, FRotationMatrix::MakeFromZX(Out, Wrist - Elbow).Rotator());
-	KeimpelzPad->SetRelativeScale3D(FVector(Scale * 1.3f, Scale, Scale * 0.7f));
+	KeimpelzPad->SetRelativeScale3D(FVector(Scale * 1.1f, Scale * 0.75f, Scale * 0.3f));
 	KeimpelzPad->SetVisibility(Scale > 0.01f);
+}
+
+void UVaelPlantArmComponent::UpdatePelt()
+{
+	const USkeletalMeshComponent* Body = GetBody();
+	const AVaelCharacter* Character = GetCharacter();
+	if (Body == nullptr || PeltPatches.IsEmpty() || Character == nullptr)
+	{
+		return;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Fill = Character->GetFloromant() != nullptr ? Character->GetFloromant()->GetKeimpelzFraction() : 1.0f;
+	auto At = [Body](const TCHAR* Name) { return Body->GetSocketTransform(FName(Name), RTS_Component).GetLocation(); };
+
+	// The way of the pelt in the space of the body (it faces +Y, up is +Z): from the round of the shoulder over the top of the
+	// shoulder to the neck, then down the back beside the spine; each stop with the way the skin faces there
+	const FVector Upper = BoneLocation(TEXT("upperarm"));
+	const FVector Clavicle = BoneLocation(TEXT("clavicle"));
+	const FVector Neck = At(TEXT("neck_01"));
+	const float Out = FMath::Sign(Upper.X - Neck.X);
+	const FVector Chest = At(TEXT("spine_05"));
+	const FVector Middle = At(TEXT("spine_03"));
+	const FVector Stops[] = {
+		Upper + FVector(Out * 7.0f, -1.0f, 9.0f),
+		FMath::Lerp(Upper, Clavicle, 0.5f) + FVector(Out * 2.0f, -4.0f, 12.0f),
+		Clavicle + FVector(0.0f, -1.0f, 6.0f),
+		// Down the back it lies close on the skin, under her hair (Boris 2026-11-19)
+		Chest + FVector(Out * 10.0f, -8.0f, 2.0f),
+		FMath::Lerp(Chest, Middle, 0.5f) + FVector(Out * 9.0f, -9.0f, 0.0f),
+		Middle + FVector(Out * 6.0f, -9.0f, 0.0f) };
+	const FVector Faces[] = {
+		FVector(Out * 0.6f, -0.1f, 0.8f), FVector(Out * 0.2f, -0.3f, 0.95f), FVector(0.0f, -0.6f, 0.8f),
+		FVector(Out * 0.2f, -0.95f, 0.25f), FVector(Out * 0.15f, -1.0f, 0.0f), FVector(Out * 0.1f, -1.0f, -0.1f) };
+	constexpr int32 StopCount = UE_ARRAY_COUNT(Stops);
+
+	const float MeshSize = FMath::Max(PeltPatches[0]->GetStaticMesh()->GetBoundingBox().GetSize().GetMax(), 1.0f);
+	for (int32 Index = 0; Index < PeltPatches.Num(); ++Index)
+	{
+		UStaticMeshComponent* Patch = PeltPatches[Index];
+		const FVector4& Shape = PeltShapes[Index];
+		// The pelt spreads from the shoulder down the back as it fills: each patch grows in its turn
+		const float Grown = FMath::SmoothStep(0.0f, 1.0f, FMath::Clamp((Fill * 1.15f - float(Shape.X)) / 0.15f, 0.0f, 1.0f)) * Grow;
+		Patch->SetVisibility(Grown > 0.02f);
+		if (Grown <= 0.02f)
+		{
+			continue;
+		}
+		const float Along = float(Shape.X) * (StopCount - 1);
+		const int32 Stop = FMath::Min(FMath::FloorToInt(Along), StopCount - 2);
+		const float Blend = Along - Stop;
+		const FVector Face = FMath::Lerp(Faces[Stop], Faces[Stop + 1], Blend).GetSafeNormal();
+		// Sideways across the way, so the patches overlap into a mat rather than a line
+		const FVector Across = FVector::CrossProduct(Face, (Stops[Stop + 1] - Stops[Stop]).GetSafeNormal()).GetSafeNormal();
+		const FVector Place = FMath::Lerp(Stops[Stop], Stops[Stop + 1], Blend) + Across * float(Shape.Y) * 7.5f;
+		const FRotator Turn = FRotationMatrix::MakeFromZX(Face, Across).Rotator();
+		Patch->SetRelativeLocationAndRotation(Place, (FQuat(Turn) * FQuat(FVector::UpVector, FMath::DegreesToRadians(float(Shape.Z)))).Rotator());
+		// Small and flat, the size of a palm: many of them make the pelt
+		const float Size = Settings->KeimpelzPadSize * 0.7f * float(Shape.W) / MeshSize * Grown;
+		Patch->SetRelativeScale3D(FVector(Size * 1.15f, Size, Size * 0.2f));
+	}
 }
 
 // ---------------------------------------------------------------- Ammunition stalks (Windhalm)
@@ -2058,7 +2468,7 @@ void UVaelPlantArmComponent::UpdateOvergrowth(const FVector& Shoulder, const FVe
 	const float Fill = GetCharacter()->GetFloromant() != nullptr ? GetCharacter()->GetFloromant()->GetKeimpelzFraction() : 1.0f;
 	const FVector Top = (FVector::UpVector - UpperAxis * FVector::DotProduct(FVector::UpVector, UpperAxis)).GetSafeNormal();
 	const FVector Places[] = { Elbow, FMath::Lerp(Elbow, Shoulder, 0.55f), Shoulder };
-	const float Sizes[] = { 1.2f, 1.4f, 1.6f };
+	const float Sizes[] = { 0.8f, 0.9f, 0.9f };
 	for (int32 Index = 0; Index < OvergrowthPads.Num(); ++Index)
 	{
 		UStaticMeshComponent* Pad = OvergrowthPads[Index];
@@ -2067,7 +2477,7 @@ void UVaelPlantArmComponent::UpdateOvergrowth(const FVector& Shoulder, const FVe
 		const float Scale = Settings->KeimpelzPadSize * Sizes[Index] / MeshSize * FMath::Lerp(0.3f, 1.0f, Fill) * Appear;
 		const FVector Out = (Top.IsNearlyZero() ? U : Top);
 		Pad->SetRelativeLocationAndRotation(Places[Index] + Out * Radius * 0.8f, FRotationMatrix::MakeFromZX(Out, UpperAxis).Rotator());
-		Pad->SetRelativeScale3D(FVector(Scale * 1.3f, Scale, Scale * 0.7f));
+		Pad->SetRelativeScale3D(FVector(Scale * 1.2f, Scale * 0.8f, Scale * 0.3f));
 	}
 }
 
@@ -2817,4 +3227,250 @@ FVector UVaelPlantArmComponent::RootedAim(const FVector& Aim) const
 	const AVaelCharacter* Character = Cast<AVaelCharacter>(GetOwner());
 	const UVaelFloromantComponent* Floromant = Character != nullptr ? Character->GetFloromant() : nullptr;
 	return Floromant != nullptr ? Floromant->ClampAimToRoots(Aim) : Aim;
+}
+
+// ---------------------------------------------------------------- Jaw (Schnappwurz)
+
+void UVaelPlantArmComponent::UpdateJawFiring(float DeltaTime)
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr)
+	{
+		return;
+	}
+	FireCountdown = FMath::Max(0.0f, FireCountdown - DeltaTime);
+	const bool bCamp = AVaelSafeZone::IsSafe(GetWorld(), Character->GetActorLocation());
+	const bool bPressed = IsFiring() && Grow >= 1.0f && !Character->IsDowned() && !Character->IsDodging() && !IsReloading() && !bCamp;
+
+	// Tap: snap close by; held long enough: shoot out on the vine
+	if (bPressed)
+	{
+		if (!bJawHeld)
+		{
+			bJawHeld = true;
+			bJawActed = false;
+			JawHoldTime = 0.0f;
+		}
+		JawHoldTime += DeltaTime;
+		if (!bJawActed && JawHoldTime >= Plant->LungeHoldDelay && BiteTime < 0.0f)
+		{
+			bJawActed = true;
+			StartBite(true);
+		}
+	}
+	else if (bJawHeld)
+	{
+		bJawHeld = false;
+		if (!bJawActed && BiteTime < 0.0f)
+		{
+			StartBite(false);
+		}
+	}
+
+	// The bite in progress: a snap opens and shuts at once; a lunge opens, flies out, shuts on the prey and comes back
+	if (BiteTime >= 0.0f)
+	{
+		BiteTime += DeltaTime;
+		const float Land = bBiteLunge ? 0.3f : 0.16f;
+		const float End = bBiteLunge ? 0.65f : 0.32f;
+		if (!bBiteLanded && BiteTime >= Land)
+		{
+			bBiteLanded = true;
+			LandBite();
+		}
+		if (BiteTime >= End)
+		{
+			BiteTime = -1.0f;
+			// Rooted it bites a second time
+			if (BitesLeft > 0)
+			{
+				--BitesLeft;
+				BiteTime = 0.0f;
+				bBiteLanded = false;
+			}
+		}
+	}
+
+	// The lunge drags the bitten one to her
+	if (DragLeft > 0.0f)
+	{
+		DragLeft -= DeltaTime;
+		if (AVaelCharacterBase* Prey = Cast<AVaelCharacterBase>(Dragged.Get()))
+		{
+			Prey->ApplyPull(Character->GetActorLocation() + JawAim * 110.0f, Plant->LungePullSpeed, DeltaTime);
+		}
+	}
+}
+
+void UVaelPlantArmComponent::StartBite(bool bLunge)
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr || FireCountdown > 0.0f)
+	{
+		return;
+	}
+	if (Character->GetMana() < ShotSaft())
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoSaft", "Zu wenig Saft"), FLinearColor(FColor(158, 143, 125)));
+		return;
+	}
+	Character->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Character->GetMana() - ShotSaft());
+	FireCountdown = Plant->FireInterval * GeneScale(EVaelGeneEffect::FireSpeed);
+
+	FVector Aim = RootedAim(UVaelFormulaAbility::GetAimDirection(Character));
+	JawAim = Aim.GetSafeNormal2D().IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal2D();
+	const float Reach = bLunge ? Plant->LungeReach : Plant->BiteReach;
+	const TArray<AActor*> Targets = AVaelBindweedLasso::FindTargets(Character, Character->GetActorLocation(), JawAim, Reach, Plant->BiteHalfAngle, 1);
+	BiteTarget = Targets.IsEmpty() ? nullptr : Targets[0];
+	BitePoint = BiteTarget.IsValid() ? BiteTarget->GetActorLocation() : Character->GetActorLocation() + JawAim * Reach * 0.7f + FVector(0.0f, 0.0f, 40.0f);
+	if (BiteTarget.IsValid())
+	{
+		JawAim = (BitePoint - Character->GetActorLocation()).GetSafeNormal2D();
+	}
+	bBiteLunge = bLunge;
+	BiteTime = 0.0f;
+	bBiteLanded = false;
+	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
+	BitesLeft = Floromant != nullptr && Floromant->IsRooted() ? 1 : 0;
+}
+
+void UVaelPlantArmComponent::LandBite()
+{
+	AVaelCharacter* Character = GetCharacter();
+	AActor* Prey = BiteTarget.Get();
+	const bool bShadow = IsShadowForm();
+	const FVector Mouth = JawUpper != nullptr ? JawUpper->GetComponentLocation() + JawAim * Plant->JawSize * 0.6f : BitePoint;
+	VaelSymbiosis::MuzzlePuff(this, Plant, Mouth, bShadow, 1.3f);
+	if (Character == nullptr || Prey == nullptr || !UVaelCombatStatics::CanDamage(Character, Prey))
+	{
+		return;
+	}
+	const float Reach = (bBiteLunge ? Plant->LungeReach : Plant->BiteReach) * 1.25f;
+	if (FVector::Dist2D(Prey->GetActorLocation(), Character->GetActorLocation()) > Reach)
+	{
+		return;
+	}
+	const UVaelFloromantComponent* Floromant = Character->GetFloromant();
+	const float Damage = Plant->BiteDamage * (Floromant != nullptr ? Floromant->GetPlantPower(Plant) : 1.0f);
+
+	// Wuergmaul: the bite drains life for her; else it bites and holds
+	if (bShadow)
+	{
+		VaelRoseCare::DrainAround(Character, Prey->GetActorLocation(), 60.0f, Damage, Plant->BiteDrainShare);
+	}
+	else
+	{
+		FVaelSpellHit Hit;
+		Hit.Damage = Damage;
+		Hit.Element = EVaelElement::Earth;
+		Hit.StunDuration = Plant->BiteHold;
+		UVaelCombatStatics::ApplySpellHit(Character, Prey, Hit, JawAim);
+	}
+
+	// The lunge drags the bitten one back to her
+	if (bBiteLunge)
+	{
+		Dragged = Prey;
+		DragLeft = 0.4f;
+	}
+}
+
+void UVaelPlantArmComponent::UpdateJawLook(float DeltaTime)
+{
+	// The maw replaces the hand: the finger stalks are not shown
+	for (USplineMeshComponent* Finger : FingerStalks)
+	{
+		if (Finger != nullptr && Finger->IsVisible())
+		{
+			Finger->SetVisibility(false);
+		}
+	}
+	// Nor the buds on the fingertips
+	for (UStaticMeshComponent* Tip : FingerTips)
+	{
+		if (Tip != nullptr && Tip->IsVisible())
+		{
+			Tip->SetVisibility(false);
+		}
+	}
+	if (JawUpper == nullptr || JawLower == nullptr)
+	{
+		return;
+	}
+
+	// How far open and how far out: a snap opens and shuts quickly; a lunge opens, flies out open, shuts on the prey, comes back;
+	// held before the lunge the maw gapes a little, at rest it breathes shut
+	const float Time = GetWorld()->GetTimeSeconds();
+	float OpenGoal = 0.05f + 0.04f * FMath::Sin(Time * 2.3f + (bLeft ? 0.0f : 1.7f));
+	float OutGoal = 0.0f;
+	float OpenSpeed = 10.0f;
+	float OutSpeed = 8.0f;
+	if (bJawHeld && BiteTime < 0.0f)
+	{
+		OpenGoal = 0.45f;
+	}
+	if (BiteTime >= 0.0f)
+	{
+		const float Land = bBiteLunge ? 0.3f : 0.16f;
+		OpenGoal = BiteTime < Land - 0.04f ? 1.0f : 0.0f;
+		OpenSpeed = BiteTime < Land - 0.04f ? 18.0f : 40.0f;
+		if (bBiteLunge)
+		{
+			OutGoal = BiteTime < Land ? 1.0f : 0.0f;
+			OutSpeed = BiteTime < Land ? 14.0f : 7.0f;
+		}
+	}
+	JawOpen = FMath::FInterpTo(JawOpen, OpenGoal, DeltaTime, OpenSpeed);
+	JawOut = FMath::FInterpTo(JawOut, OutGoal, DeltaTime, OutSpeed);
+
+	// Where it sits: on the wrist along the forearm at rest, turned to the aim while it bites, out at the prey on its vine
+	const FVector Elbow = BoneLocation(TEXT("lowerarm"));
+	const FVector Wrist = BoneLocation(TEXT("hand"));
+	const FVector Forearm = (Wrist - Elbow).GetSafeNormal();
+	const FVector Way = FMath::Lerp(Forearm, JawAim, FMath::Clamp(Stance, 0.0f, 1.0f)).GetSafeNormal();
+	const FVector Base = Wrist + Forearm * 2.0f;
+	const FVector Out = BitePoint - Way * Plant->JawSize * 0.55f;
+	const FVector Hinge = FMath::Lerp(Base, Out, JawOut);
+	const FVector Up = FMath::Abs(FVector::DotProduct(Way, FVector::UpVector)) > 0.9f ? FVector::ForwardVector : FVector::UpVector;
+	const FQuat Frame = FRotationMatrix::MakeFromZX(Way, Up).ToQuat();
+	const float Angle = FMath::DegreesToRadians(Plant->JawOpenDegrees * 0.5f) * JawOpen;
+	const float Scale = FMath::Max(Plant->JawSize / 10.0f * Grow, 0.001f);
+	// The lobe bulges to +X with its hollow to -X: the upper one as it is, the lower one turned over about its length, both
+	// turning open about the hinge
+	const FQuat UpperTurn = Frame * FQuat(FVector::YAxisVector, Angle);
+	const FQuat LowerTurn = Frame * FQuat(FVector::YAxisVector, -Angle) * FQuat(FVector::ZAxisVector, UE_PI);
+	JawUpper->SetWorldLocationAndRotation(Hinge, UpperTurn);
+	JawLower->SetWorldLocationAndRotation(Hinge, LowerTurn);
+	JawUpper->SetWorldScale3D(FVector(Scale));
+	JawLower->SetWorldScale3D(FVector(Scale));
+	if (JawMaterialInstance != nullptr)
+	{
+		JawMaterialInstance->SetScalarParameterValue(ShadowParameter, IsShadowForm() ? 1.0f : 0.0f);
+		JawMaterialInstance->SetScalarParameterValue(TEXT("Leuchten"), 0.08f + 0.9f * JawOpen);
+	}
+
+	// The vine from the wrist out to the maw, sagging a little, only while it is out
+	const bool bVine = JawOut > 0.02f;
+	const FVector Span = Hinge - Base;
+	auto At = [&](float T)
+	{
+		return Base + Span * T - FVector::UpVector * FMath::Sin(T * UE_PI) * Span.Size() * 0.08f + Up * FMath::Sin(T * 9.0f + Time * 12.0f) * 2.0f * (1.0f - T);
+	};
+	for (int32 Index = 0; Index < JawVine.Num(); ++Index)
+	{
+		USplineMeshComponent* Piece = JawVine[Index];
+		Piece->SetVisibility(bVine);
+		if (!bVine)
+		{
+			continue;
+		}
+		const float T0 = Index / float(JawVine.Num());
+		const float T1 = (Index + 1) / float(JawVine.Num());
+		const FVector P0 = At(T0);
+		const FVector P1 = At(T1);
+		Piece->SetStartAndEnd(P0, P1 - P0, P1, P1 - P0, false);
+		Piece->SetStartScale(FVector2D(1.1f), false);
+		Piece->SetEndScale(FVector2D(0.8f), false);
+		Piece->UpdateMesh();
+	}
 }

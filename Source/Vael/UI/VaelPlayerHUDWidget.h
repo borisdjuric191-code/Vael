@@ -317,7 +317,7 @@ private:
 	float WheelFlipAge = 10.0f;
 
 	/** Paints the plant wheel: the picked plant big in its frame, its neighbours above and below smaller, rolling */
-	void PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& Dim) const;
+	void PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& DimText) const;
 	float DodgeLeft = 0.0f;
 	/** Phase (0..1) of the heartbeat of the Nid slot; the veins of the frame beat with it */
 	float NidBeatPhase = 0.0f;

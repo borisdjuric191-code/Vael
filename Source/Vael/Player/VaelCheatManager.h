@@ -140,6 +140,20 @@ public:
 	UFUNCTION(Exec)
 	void VaelTurm(const FString& Hand);
 
+	/** Floromant: both tower buttons held for that many seconds and let go: the seed of the pair flies to the mark, burrows in and
+	 *  the pair bursts out of the earth. Example: VaelPaarsaat 1 */
+	UFUNCTION(Exec)
+	void VaelPaarsaat(float Seconds = 1.0f);
+
+	/** Floromant: shows the mark of an aimed tower for the hands (1 left, 2 right, 3 both) as if held that many seconds. Example: VaelZielmarke 3 0.5 */
+	UFUNCTION(Exec)
+	void VaelZielmarke(int32 Hands = 3, float Seconds = 0.5f);
+
+	/** Floromant: lets the Drachenerbe of every pair that has one bloom (plant dragon), ignoring her level; "aus" lets them sleep.
+	 *  Example: VaelDrachenerbe / VaelDrachenerbe aus */
+	UFUNCTION(Exec)
+	void VaelDrachenerbe(const FString& State);
+
 	/** Floromant: the Kreuzschuss, like Cross: the hands cross and charge, and let go after the seconds (0 = the short charge).
 	 *  Example: VaelKreuzen 1.5 */
 	UFUNCTION(Exec)

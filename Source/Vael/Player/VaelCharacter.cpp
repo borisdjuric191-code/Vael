@@ -785,7 +785,8 @@ void AVaelCharacter::UpdateHover(float DeltaSeconds)
 		: FMath::Clamp(-(FlightAccel | Velocity.GetSafeNormal()) / Settings->FlightAccelReference, 0.0f, 1.0f);
 
 	// While a hand fires she lands and braces herself; rooted she stands on the ground, anchored against the wind
-	const float Landed = FMath::Max3(Floromant->GetStance(true), Floromant->GetStance(false), FMath::SmoothStep(0.0f, 1.0f, Floromant->GetRootGrowth()));
+	// Taking root she comes down at once, so she stands to stamp her feet into the ground (Boris 2026-11-19)
+	const float Landed = FMath::Max3(Floromant->GetStance(true), Floromant->GetStance(false), FMath::SmoothStep(0.0f, 0.1f, Floromant->GetRootGrowth()));
 	const float Flying = 1.0f - Landed;
 
 	// A little above the ground, rising and sinking slowly, higher when she flies fast, high up on R3; soaked wings carry her lower.

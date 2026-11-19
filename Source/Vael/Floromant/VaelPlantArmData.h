@@ -503,6 +503,55 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Mortar", meta = (EditCondition = "bMortar"))
 	FLinearColor SleepColor = FLinearColor(0.45f, 0.2f, 0.75f);
 
+	// --- Jaw (Schnappwurz, Boris 2026-11-19): the hand becomes a snapping maw of two flytrap lobes with thorny lashes (built in
+	// Blender, no Tripo). Tapped it snaps close by (high damage, holds a moment); held, the maw shoots out on a vine, bites and drags the enemy
+	// to her. Rooted it bites twice. Würgmaul (shadow): the bite drains life for her. The tower is a trap that bites who comes near
+
+	/** The hand is a snapping maw */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw")
+	bool bJaw = false;
+
+	/** The two halves of the maw, hinged at their pivot, growing along +Z, bulging to +X (the lower one is turned over) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (EditCondition = "bJaw"))
+	TSoftObjectPtr<UStaticMesh> JawUpperMesh;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (EditCondition = "bJaw"))
+	TSoftObjectPtr<UStaticMesh> JawLowerMesh;
+
+	/** Length of the maw in cm, and how wide it opens in degrees */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 5, EditCondition = "bJaw"))
+	float JawSize = 32.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 5, ClampMax = 80, EditCondition = "bJaw"))
+	float JawOpenDegrees = 50.0f;
+
+	/** The snap: reach in cm, half angle in degrees, damage, seconds it holds the bitten one */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 50, EditCondition = "bJaw"))
+	float BiteReach = 260.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 5, ClampMax = 90, EditCondition = "bJaw"))
+	float BiteHalfAngle = 45.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 0, EditCondition = "bJaw"))
+	float BiteDamage = 22.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 0, EditCondition = "bJaw"))
+	float BiteHold = 0.6f;
+
+	/** Held this long the maw shoots out on its vine instead; how far, how fast it drags the bitten one to her (cm/s) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 0.05, EditCondition = "bJaw"))
+	float LungeHoldDelay = 0.25f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 100, EditCondition = "bJaw"))
+	float LungeReach = 420.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 0, EditCondition = "bJaw"))
+	float LungePullSpeed = 900.0f;
+
+	/** Würgmaul: share of the bite's damage she gets as health */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Jaw", meta = (ClampMin = 0, ClampMax = 1, EditCondition = "bJaw"))
+	float BiteDrainShare = 0.5f;
+
 	// --- Lasso (Schlotwinde, Boris 2026-10-27): the hand stays, bindweed winds from the wrist to the shoulder with golden trumpets
 	// that turn forward like horns while aiming, and three long tendrils hang from the fingers. Tapped, the tendrils lash a fan in
 	// front of her (knock back, interrupt, a puff of golden pollen). Held, a tendril shoots out as a lasso, wraps the enemy and holds

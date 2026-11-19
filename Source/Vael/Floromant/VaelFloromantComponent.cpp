@@ -18,6 +18,7 @@
 #include "Floromant/VaelRootRunner.h"
 #include "Floromant/VaelSymbiosis.h"
 #include "Floromant/VaelSymbiosisKnotComponent.h"
+#include "Floromant/VaelCrossBarrelComponent.h"
 #include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelFormulaAbility.h"
 #include "TimerManager.h"
@@ -29,6 +30,7 @@
 #include "Floromant/VaelPlantData.h"
 #include "Floromant/VaelSeed.h"
 #include "Magic/VaelDebrisBurst.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Nature/VaelGarden.h"
 #include "Nature/VaelHarvestable.h"
 #include "Player/VaelCharacter.h"
@@ -70,6 +72,7 @@ void UVaelFloromantComponent::TickComponent(float DeltaTime, ELevelTick TickType
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	WheelFlipAge += DeltaTime;
+	UpdateSeed(DeltaTime);
 
 	// Once the path is chosen it decides the form of each hand, also of the plants laid on before
 	for (const bool bLeftHand : { true, false })
@@ -269,6 +272,35 @@ void UVaelFloromantComponent::StartCross()
 	CrossKnot->Setup(Left->GetPlant(), Right->GetPlant(), VaelSymbiosis::GetColor(Kind), Left->IsShadowForm() && Right->IsShadowForm());
 	CrossShowLeft = 0.0f;
 	SetComponentTickInterval(0.0f);
+
+	// Two shooting plants: the arms grow into the Wurzelrohr instead of the knot (the Rußrosen keep their heart)
+	bBarrelCross = Kind != EVaelSymbiosis::Rosenherz && VaelSymbiosis::IsShotPair(Left->GetPlant(), Right->GetPlant());
+	if (bBarrelCross)
+	{
+		CrossKnot->Clear();
+		if (CrossBarrel == nullptr)
+		{
+			CrossBarrel = NewObject<UVaelCrossBarrelComponent>(GetOwner(), TEXT("CrossBarrel"));
+			CrossBarrel->SetupAttachment(GetOwner()->GetRootComponent());
+			CrossBarrel->RegisterComponent();
+		}
+		CrossBarrel->Begin(Left->GetPlant(), Right->GetPlant(), VaelSymbiosis::GetColor(Kind), Left->IsShadowForm() && Right->IsShadowForm());
+	}
+}
+
+void UVaelFloromantComponent::MergeHandsIntoBarrel(bool bMerged)
+{
+	for (const bool bLeftHand : { true, false })
+	{
+		if (UVaelPlantArmComponent* Hand = FindHand(bLeftHand))
+		{
+			Hand->SetMergedIntoBarrel(bMerged);
+		}
+	}
+	if (FootRoots != nullptr)
+	{
+		FootRoots->SetArmsHidden(bMerged);
+	}
 }
 
 void UVaelFloromantComponent::ReleaseCross()
@@ -304,6 +336,13 @@ void UVaelFloromantComponent::TickCross(float DeltaTime)
 		{
 			CrossKnot->Clear();
 		}
+		if (CrossBarrel != nullptr)
+		{
+			CrossBarrel->Clear();
+		}
+		bBarrelCross = false;
+		CrossPose = 0.0f;
+		MergeHandsIntoBarrel(false);
 		return;
 	}
 
@@ -314,7 +353,16 @@ void UVaelFloromantComponent::TickCross(float DeltaTime)
 	FVector Aim = UVaelFormulaAbility::GetAimDirection(Character);
 	Aim.Z = 0.0f;
 	CrossAim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
-	if (CrossKnot != nullptr)
+	if (bBarrelCross && CrossBarrel != nullptr)
+	{
+		// The hands come together first, then the barrel shoots out of the wrists
+		CrossPose = FMath::Min(1.0f, CrossChargeAge / 0.18f);
+		// The hands' own plants go into the barrel the moment its strands have wound down the forearms
+		MergeHandsIntoBarrel(CrossChargeAge > 0.22f);
+		CrossBarrel->Update(Left->GetElbowLocation(), Left->GetHandLocation(), Right->GetElbowLocation(), Right->GetHandLocation(), CrossAim,
+			FMath::Clamp((CrossChargeAge - 0.08f) / Settings->CrossChargeTime, 0.0f, 1.0f), Charge, DeltaTime);
+	}
+	else if (CrossKnot != nullptr)
 	{
 		const FVector Knot = (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + CrossAim * 40.0f;
 		CrossKnot->SetCharge(Charge);
@@ -1285,7 +1333,7 @@ void UVaelFloromantComponent::ShowNotBuilt(const FText& Name) const
 	UE_LOG(LogVael, Log, TEXT("'%s': %s is not built yet"), *GetNameSafe(GetOwner()), *Name.ToString());
 }
 
-void UVaelFloromantComponent::RootTower(bool bLeft)
+void UVaelFloromantComponent::RootTower(bool bLeft, const FVector* At, bool bPaid)
 {
 	// She sticks the plant of the hand into the ground ahead; it grows into a tower, the arm grows back meanwhile
 	AVaelCharacter* Character = GetCharacter();
@@ -1301,14 +1349,15 @@ void UVaelFloromantComponent::RootTower(bool bLeft)
 		return;
 	}
 	const EVaelHUDAbility Ability = bLeft ? EVaelHUDAbility::HandLeft : EVaelHUDAbility::HandRight;
-	if (!Use(Ability, Settings->TowerSaftCost))
+	if (!bPaid && !Use(Ability, Settings->TowerSaftCost))
 	{
 		return;
 	}
 
+	// Tapped it goes into the ground just ahead; aimed (held) or sown it goes where the mark was
 	const FVector Ahead = Character->GetActorForwardVector().GetSafeNormal2D();
 	const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead) * (bLeft ? -35.0f : 35.0f);
-	const FVector Ground = GroundTarget(Character->GetActorLocation() + Ahead * Settings->TowerPlantDistance + Side, Settings->TowerPlantDistance + 60.0f);
+	const FVector Ground = At != nullptr ? *At : GroundTarget(Character->GetActorLocation() + Ahead * Settings->TowerPlantDistance + Side, Settings->TowerPlantDistance + 60.0f);
 	AVaelPlantTower* Tower = AVaelPlantTower::PlantTower(Character, Plant, Ground, Hand != nullptr && Hand->IsShadowForm());
 	if (Tower == nullptr)
 	{
@@ -1329,6 +1378,232 @@ void UVaelFloromantComponent::RootTower(bool bLeft)
 		Towers.RemoveAt(0);
 	}
 	UE_LOG(LogVael, Log, TEXT("'%s' plants a tower of %s"), *GetNameSafe(Character), *GetNameSafe(Plant));
+}
+
+FVector UVaelFloromantComponent::GetTowerAimPoint(float AimSeconds) const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr)
+	{
+		return FVector::ZeroVector;
+	}
+	// The mark wanders out where she looks, the longer it is held
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const float Reach = FMath::Lerp(Settings->TowerPlantDistance + 80.0f, Settings->TowerAimRange, FMath::SmoothStep(0.0f, 1.2f, AimSeconds));
+	const FVector Ahead = Character->GetActorForwardVector().GetSafeNormal2D();
+	return GroundTarget(Character->GetActorLocation() + Ahead * Reach, Reach + 60.0f);
+}
+
+FVector UVaelFloromantComponent::KeepTowerAim(const FVector& Point) const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr)
+	{
+		return Point;
+	}
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	const FVector Here = Character->GetActorLocation();
+	FVector Away = Point - Here;
+	Away.Z = 0.0f;
+	const float Distance = Away.Size();
+	const float Near = Settings->TowerPlantDistance + 40.0f;
+	FVector Way = Away.IsNearlyZero() ? Character->GetActorForwardVector().GetSafeNormal2D() : Away / Distance;
+	const float Reach = FMath::Clamp(Distance, Near, Settings->TowerAimRange);
+	return GroundTarget(Here + Way * Reach, Reach + 60.0f);
+}
+
+void UVaelFloromantComponent::ShowTowerAim(int32 Hands, const FVector& At)
+{
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr)
+	{
+		return;
+	}
+	if (AimMark == nullptr && Hands != 0)
+	{
+		UMaterialInterface* Core = nullptr;
+		UMaterialInterface* Glow = nullptr;
+		VaelEffects::LoadLookMaterials(Core, Glow);
+		if (Glow == nullptr)
+		{
+			return;
+		}
+		AimMark = VaelEffects::AddLookShape(Character, Glow, FLinearColor::White, 0.0f);
+		AimMark->SetUsingAbsoluteLocation(true);
+		AimMark->SetUsingAbsoluteRotation(true);
+		AimMark->SetUsingAbsoluteScale(true);
+	}
+	if (AimMark == nullptr)
+	{
+		return;
+	}
+	if (Hands == 0)
+	{
+		AimMark->SetVisibility(false);
+		AimHands = 0;
+		return;
+	}
+
+	// The mark glows in the colour of the plant, both hands in the colour of their pair (named once when the pair is aimed)
+	UVaelPlantArmComponent* Left = FindHand(true);
+	UVaelPlantArmComponent* Right = FindHand(false);
+	FLinearColor Colour(0.6f, 0.9f, 0.4f);
+	if (Hands == 3 && Left != nullptr && Right != nullptr)
+	{
+		const EVaelSymbiosis Kind = VaelSymbiosis::Find(Left->GetPlant(), Right->GetPlant());
+		if (Kind != EVaelSymbiosis::None)
+		{
+			Colour = VaelSymbiosis::GetColor(Kind);
+			if (AimHands != 3)
+			{
+				const bool bDragon = VaelSymbiosis::HasHeritage(Kind) && IsHeritageAwake(Kind);
+				UVaelCombatTextSubsystem::PostPickup(Character, bDragon ? VaelSymbiosis::GetHeritageName(Kind) : VaelSymbiosis::GetName(Kind), Colour);
+			}
+		}
+		else
+		{
+			Colour = FLinearColor(0.4f, 0.35f, 0.3f);
+		}
+	}
+	else if (UVaelPlantArmComponent* Hand = Hands == 1 ? Left : Right)
+	{
+		Colour = VaelSymbiosis::GetPlantColor(Hand->GetPlant(), Hand->IsShadowForm());
+	}
+	AimHands = Hands;
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float Size = (Hands == 3 ? 1.4f : 1.0f) * (1.0f + 0.08f * FMath::Sin(Time * 6.0f));
+	AimMark->SetVisibility(true);
+	AimMark->SetWorldLocationAndRotation(At + FVector(0.0f, 0.0f, 3.0f), FRotator::ZeroRotator);
+	AimMark->SetWorldScale3D(FVector(Size * 0.7f, Size * 0.7f, 0.03f));
+	if (UMaterialInstanceDynamic* Dynamic = Cast<UMaterialInstanceDynamic>(AimMark->GetMaterial(0)))
+	{
+		Dynamic->SetVectorParameterValue(VaelEffects::LookColorParameter, Colour);
+	}
+	VaelEffects::SetLookGlow(AimMark, 0.7f + 0.3f * FMath::Sin(Time * 6.0f));
+}
+
+void UVaelFloromantComponent::SowSymbiosis(const FVector& At)
+{
+	AVaelCharacter* Character = GetCharacter();
+	UVaelPlantArmComponent* Left = FindHand(true);
+	UVaelPlantArmComponent* Right = FindHand(false);
+	const UVaelFloromantSettings* Settings = UVaelFloromantSettings::Get();
+	if (Character == nullptr || Left == nullptr || Right == nullptr || Left->GetPlant() == nullptr || Right->GetPlant() == nullptr || SeedTime >= 0.0f)
+	{
+		return;
+	}
+	if (Left->IsRegrowing() || Right->IsRegrowing())
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "Regrowing", "Der Arm wächst noch nach"), FLinearColor(FColor(158, 143, 125)));
+		return;
+	}
+	const EVaelSymbiosis Kind = VaelSymbiosis::Find(Left->GetPlant(), Right->GetPlant());
+	if (Kind == EVaelSymbiosis::None)
+	{
+		UVaelCombatTextSubsystem::PostPickup(Character, NSLOCTEXT("VaelFloromant", "NoPair", "Diese beiden wachsen nicht zusammen"), FLinearColor(FColor(158, 143, 125)));
+		return;
+	}
+	if (!Use(EVaelHUDAbility::HandLeft, Settings->TowerSaftCost) || !Use(EVaelHUDAbility::HandRight, Settings->TowerSaftCost))
+	{
+		return;
+	}
+
+	// The seed leaves her hands
+	if (SeedShape == nullptr)
+	{
+		UMaterialInterface* Core = nullptr;
+		UMaterialInterface* Glow = nullptr;
+		VaelEffects::LoadLookMaterials(Core, Glow);
+		if (Glow != nullptr)
+		{
+			SeedShape = VaelEffects::AddLookShape(Character, Glow, FLinearColor::White, 0.0f);
+			SeedShape->SetUsingAbsoluteLocation(true);
+			SeedShape->SetUsingAbsoluteRotation(true);
+			SeedShape->SetUsingAbsoluteScale(true);
+		}
+	}
+	if (SeedShape != nullptr)
+	{
+		if (UMaterialInstanceDynamic* Dynamic = Cast<UMaterialInstanceDynamic>(SeedShape->GetMaterial(0)))
+		{
+			Dynamic->SetVectorParameterValue(VaelEffects::LookColorParameter, VaelSymbiosis::GetColor(Kind));
+		}
+	}
+	SeedFrom = Character->GetActorLocation() + Character->GetActorForwardVector() * 30.0f + FVector(0.0f, 0.0f, 50.0f);
+	SeedTo = At;
+	SeedTime = 0.0f;
+}
+
+void UVaelFloromantComponent::UpdateSeed(float DeltaSeconds)
+{
+	if (SeedTime < 0.0f)
+	{
+		return;
+	}
+	constexpr float Flight = 0.6f;
+	constexpr float Burrow = 0.35f;
+	const float Was = SeedTime;
+	SeedTime += DeltaSeconds;
+	AVaelCharacter* Character = GetCharacter();
+	if (Character == nullptr)
+	{
+		SeedTime = -1.0f;
+		return;
+	}
+	auto Earth = [Character](const FVector& At, int32 Count, float Speed, float Lift)
+	{
+		FVaelDebris Clods;
+		Clods.Count = Count;
+		Clods.Spread = 12.0f;
+		Clods.Speed = Speed;
+		Clods.Lift = Lift;
+		Clods.Lifetime = 0.9f;
+		Clods.MinSize = 2.0f;
+		Clods.MaxSize = 6.0f;
+		Clods.Color = FLinearColor(0.14f, 0.1f, 0.07f);
+		AVaelDebrisBurst::Spawn(Character, At, Clods);
+	};
+
+	if (SeedShape != nullptr)
+	{
+		if (SeedTime < Flight)
+		{
+			// An arc through the air
+			const float Along = SeedTime / Flight;
+			const FVector Place = FMath::Lerp(SeedFrom, SeedTo, Along) + FVector(0.0f, 0.0f, 160.0f * 4.0f * Along * (1.0f - Along));
+			SeedShape->SetVisibility(true);
+			SeedShape->SetWorldLocation(Place);
+			SeedShape->SetWorldScale3D(FVector(0.12f));
+			VaelEffects::SetLookGlow(SeedShape, 5.0f);
+		}
+		else
+		{
+			// It bores itself into the ground, sinking and dimming
+			const float Down = FMath::Clamp((SeedTime - Flight) / Burrow, 0.0f, 1.0f);
+			SeedShape->SetWorldLocation(SeedTo - FVector(0.0f, 0.0f, 14.0f * Down));
+			SeedShape->SetWorldScale3D(FVector(FMath::Max(0.12f * (1.0f - 0.7f * Down), 0.001f)));
+			VaelEffects::SetLookGlow(SeedShape, 5.0f * (1.0f - Down) + 1.0f);
+			SeedShape->SetVisibility(Down < 1.0f);
+		}
+	}
+	// Where it strikes the ground earth flies
+	if (Was < Flight && SeedTime >= Flight)
+	{
+		Earth(SeedTo, 18, 200.0f, 230.0f);
+		UVaelHitFeedbackSubsystem::Shake(Character, 0.12f);
+	}
+	if (SeedTime >= Flight + Burrow)
+	{
+		// The pair bursts out of the earth: both towers rise together, so they fuse at once
+		SeedTime = -1.0f;
+		const FVector Ahead = (SeedTo - Character->GetActorLocation()).GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead.IsNearlyZero() ? FVector::ForwardVector : Ahead) * 30.0f;
+		const FVector LeftAt = SeedTo - Side;
+		const FVector RightAt = SeedTo + Side;
+		RootTower(true, &LeftAt, true);
+		RootTower(false, &RightAt, true);
+		Earth(SeedTo, 30, 320.0f, 380.0f);
+	}
 }
 
 int32 UVaelFloromantComponent::GetNumTowers() const
@@ -1382,14 +1657,26 @@ void UVaelFloromantComponent::CrossHands(float Charge)
 	Aim.Z = 0.0f;
 	Aim = Aim.IsNearlyZero() ? Character->GetActorForwardVector() : Aim.GetSafeNormal();
 	const bool bShadow = Left->IsShadowForm() && Right->IsShadowForm();
-	const FVector Knot = (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + Aim * 45.0f;
+	// Out of the mouth of the Wurzelrohr, or out of the knot between the hands
+	const bool bFromBarrel = bBarrelCross && CrossBarrel != nullptr;
+	const FVector Knot = bFromBarrel ? CrossBarrel->GetMuzzle() : (Left->GetHandLocation() + Right->GetHandLocation()) * 0.5f + Aim * 45.0f;
 	VaelSymbiosis::Fire(Character, Kind, Left->GetPlant(), Right->GetPlant(), Knot, Aim, GetHandPower(), Charge, bShadow);
 	LearnPair(Kind);
 
 	// The moment the arms grow into each other is felt: a burst of both plants at the knot and a light jolt of the camera
 	VaelSymbiosis::MuzzlePuff(Character, Left->GetPlant(), Knot, bShadow, 2.6f + Charge);
 	VaelSymbiosis::MuzzlePuff(Character, Right->GetPlant(), Knot, bShadow, 2.6f + Charge);
-	UVaelHitFeedbackSubsystem::Shake(Character, 0.12f + 0.08f * Charge);
+	UVaelHitFeedbackSubsystem::Shake(Character, (bFromBarrel ? 0.2f : 0.12f) + 0.1f * Charge);
+
+	// The Wurzelrohr kicks back, flares its crown and unwinds back into the arms
+	if (bFromBarrel)
+	{
+		CrossBarrel->Fire();
+		CrossShowLeft = Settings->CrossShowTime;
+		CrossAim = Aim;
+		UVaelCombatTextSubsystem::PostPickup(Character, VaelSymbiosis::GetName(Kind), VaelSymbiosis::GetColor(Kind));
+		return;
+	}
 
 	// The knot stays a moment between the hands
 	if (CrossKnot == nullptr)
@@ -1449,6 +1736,31 @@ void UVaelFloromantComponent::ShootRoseHeart(UVaelPlantArmComponent* Left, UVael
 
 void UVaelFloromantComponent::UpdateCrossKnot(float DeltaTime)
 {
+	// The Wurzelrohr after its shot: it holds a moment, then unwinds back into the arms and the hands part
+	if (bBarrelCross && !bCrossCharging)
+	{
+		const UVaelPlantArmComponent* BarrelLeft = FindHand(true);
+		const UVaelPlantArmComponent* BarrelRight = FindHand(false);
+		CrossShowLeft -= DeltaTime;
+		if (CrossShowLeft <= 0.0f || CrossBarrel == nullptr || BarrelLeft == nullptr || BarrelRight == nullptr)
+		{
+			if (CrossBarrel != nullptr)
+			{
+				CrossBarrel->Clear();
+			}
+			bBarrelCross = false;
+			CrossPose = 0.0f;
+			CrossShowLeft = 0.0f;
+			MergeHandsIntoBarrel(false);
+			return;
+		}
+		const float Unwind = FMath::Min(1.0f, CrossShowLeft / 0.35f);
+		// The fingers come back out of the arms as the braid unwinds
+		MergeHandsIntoBarrel(Unwind > 0.4f);
+		CrossPose = Unwind;
+		CrossBarrel->Update(BarrelLeft->GetElbowLocation(), BarrelLeft->GetHandLocation(), BarrelRight->GetElbowLocation(), BarrelRight->GetHandLocation(), CrossAim, Unwind, 0.0f, DeltaTime);
+		return;
+	}
 	if (CrossKnot == nullptr || CrossShowLeft <= 0.0f)
 	{
 		return;
@@ -1648,6 +1960,62 @@ bool UVaelFloromantComponent::IsGeneTierOpen(int32 Tier) const
 	return Levels.IsValidIndex(Tier) && Character != nullptr && Character->GetLevel() >= Levels[Tier];
 }
 
+bool UVaelFloromantComponent::IsHeritageLevelReached() const
+{
+	const AVaelCharacter* Character = GetCharacter();
+	return Character != nullptr && Character->GetLevel() >= UVaelFloromantSettings::Get()->HeritageLevel;
+}
+
+bool UVaelFloromantComponent::SetHeritageAwake(EVaelSymbiosis Kind, bool bAwake, bool bForce)
+{
+	if (!VaelSymbiosis::HasHeritage(Kind))
+	{
+		return false;
+	}
+	if (!bAwake)
+	{
+		AwakePairs.Remove(static_cast<uint8>(Kind));
+		return true;
+	}
+	if (!bForce && (!IsPairKnown(Kind) || !IsHeritageLevelReached()))
+	{
+		return false;
+	}
+	LearnPair(Kind);
+	AwakePairs.Add(static_cast<uint8>(Kind));
+	UE_LOG(LogVael, Log, TEXT("'%s' lets the dragon heritage of %s bloom"), *GetNameSafe(GetOwner()), *VaelSymbiosis::GetName(Kind).ToString());
+	return true;
+}
+
+void UVaelFloromantComponent::GetPlateCrosses(const UVaelPlantArmData* Plant, TArray<TPair<EVaelSymbiosis, const UVaelPlantArmData*>>& Out) const
+{
+	Out.Reset();
+	if (Plant == nullptr)
+	{
+		return;
+	}
+	// With itself first (Glutbusch is two Glutdisteln), then with the others of her repertoire
+	const EVaelSymbiosis Self = VaelSymbiosis::Find(Plant, Plant);
+	if (Self != EVaelSymbiosis::None)
+	{
+		Out.Add({ Self, Plant });
+	}
+	for (int32 Index = 0; Index < GetCatalogSize(); ++Index)
+	{
+		const UVaelPlantArmData* Other = GetCatalogPlant(Index);
+		const EVaelSymbiosis Kind = Other != nullptr && Other != Plant ? VaelSymbiosis::Find(Plant, Other) : EVaelSymbiosis::None;
+		if (Kind != EVaelSymbiosis::None)
+		{
+			Out.Add({ Kind, Other });
+		}
+	}
+	auto Rank = [this](EVaelSymbiosis Kind) { return (IsPairKnown(Kind) ? 2 : 0) + (VaelSymbiosis::HasHeritage(Kind) ? 1 : 0); };
+	Out.StableSort([&Rank](const TPair<EVaelSymbiosis, const UVaelPlantArmData*>& A, const TPair<EVaelSymbiosis, const UVaelPlantArmData*>& B)
+	{
+		return Rank(A.Key) > Rank(B.Key);
+	});
+}
+
 float UVaelFloromantComponent::GetGeneScale(const UVaelPlantArmData* Plant, EVaelGeneEffect Effect) const
 {
 	if (Plant == nullptr)
@@ -1687,6 +2055,7 @@ void UVaelFloromantComponent::WriteSave(FVaelSavedPlayer& Saved) const
 	}
 	Saved.WheelShadowSides = WheelShadowSides;
 	Saved.KnownPairs = KnownPairs.Array();
+	Saved.AwakePairs = AwakePairs.Array();
 	Saved.Genes = Genes;
 }
 
@@ -1705,6 +2074,7 @@ void UVaelFloromantComponent::ReadSave(const FVaelSavedPlayer& Saved)
 		WheelShadowSides[Slot] = Saved.WheelShadowSides[Slot];
 	}
 	KnownPairs = TSet<uint8>(Saved.KnownPairs);
+	AwakePairs = TSet<uint8>(Saved.AwakePairs);
 	Genes = Saved.Genes;
 }
 

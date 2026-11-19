@@ -1056,7 +1056,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	const float Row = static_cast<float>(PlayerSlot / 2);
 	const FVector2f O(bRight ? Screen.X - PanelWidth - ScreenMargin : ScreenMargin, Screen.Y - PanelHeight - ScreenMargin * 0.6f - Row * (PanelHeight + StackGap));
 	const FLinearColor Frame = ShownData->FrameColor;
-	const FLinearColor Dim = TextColor.CopyWithNewOpacity(0.7f);
+	const FLinearColor DimText = TextColor.CopyWithNewOpacity(0.7f);
 	int32 L = Base + 1;
 	if (bMageHud)
 	{
@@ -1113,7 +1113,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 	const float TitleTop = bPaintedFrame ? 48.0f : FrameTop + 6.0f;
 	PaintText(OutDrawElements, L + 5, ShownData->ClassName, TitleFont, O + FVector2f(190.0f, TitleTop), TextColor);
 	// In the painted frame the seal stands in the middle: the line goes to the right of it
-	PaintText(OutDrawElements, L + 5, PlayerLine, LabelFont, O + FVector2f(bPaintedFrame ? 484.0f : 190.0f, bPaintedFrame ? TitleTop + 8.0f : FrameTop + 40.0f), Dim);
+	PaintText(OutDrawElements, L + 5, PlayerLine, LabelFont, O + FVector2f(bPaintedFrame ? 484.0f : 190.0f, bPaintedFrame ? TitleTop + 8.0f : FrameTop + 40.0f), DimText);
 	if (Path != EVaelPath::None)
 	{
 		const int32 Way = static_cast<int32>(Path) - 1;
@@ -1207,7 +1207,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		const bool bWheel = ShownData->Strip == EVaelHUDStrip::HandBelt;
 		if (bWheel)
 		{
-			PaintPlantWheel(OutDrawElements, L + 3, O + FVector2f(PanelWidth + 74.0f, SlotTop + SlotSize * 0.5f - 6.0f), Frame, TextColor, Dim);
+			PaintPlantWheel(OutDrawElements, L + 3, O + FVector2f(PanelWidth + 74.0f, SlotTop + SlotSize * 0.5f - 6.0f), Frame, TextColor, DimText);
 		}
 		const bool bSeeds = ShownData->Strip == EVaelHUDStrip::SeedBelt || ShownData->Strip == EVaelHUDStrip::HandBelt;
 		const float Dot = bSeeds ? 20.0f : 16.0f;
@@ -1232,7 +1232,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		}
 		if (!bWheel)
 		{
-			PaintText(OutDrawElements, L + 5, StripLabel, SmallFont, O + FVector2f(BarLeft + Strip.Num() * Step + (bSeeds ? 24.0f : 6.0f), StripTop + 1.0f), Dim);
+			PaintText(OutDrawElements, L + 5, StripLabel, SmallFont, O + FVector2f(BarLeft + Strip.Num() * Step + (bSeeds ? 24.0f : 6.0f), StripTop + 1.0f), DimText);
 		}
 
 		// Small glowing badges left of the queue for the elements the surroundings give right now
@@ -1301,7 +1301,7 @@ int32 UVaelPlayerHUDWidget::NativePaint(const FPaintArgs& Args, const FGeometry&
 		}
 
 		PaintButton(OutDrawElements, L + 6, State.Button, State.KeyboardKey, At + FVector2f(SlotSize - 10.0f, SlotSize - 10.0f), 13.0f);
-		PaintText(OutDrawElements, L + 5, State.Name, SmallFont, At + FVector2f(SlotSize * 0.5f, SlotSize + (ShownData->bDragonInFrame ? -1.0f : 1.0f)), Dim, 0.5f, SlotSize - 4.0f);
+		PaintText(OutDrawElements, L + 5, State.Name, SmallFont, At + FVector2f(SlotSize * 0.5f, SlotSize + (ShownData->bDragonInFrame ? -1.0f : 1.0f)), DimText, 0.5f, SlotSize - 4.0f);
 	}
 
 	// Potion and dodge as round buttons beside the vessels
@@ -1368,8 +1368,8 @@ int32 UVaelPlayerHUDWidget::PaintMageHud(FSlateWindowElementList& Out, int32 L, 
 	const FVector2f TopLeft = O + FVector2f(0.0f, PanelHeight - HudH * K - 90.0f);
 	const auto P = [&TopLeft, K](float X, float Y) { return TopLeft + FVector2f(X - HudX0, Y - HudY0) * K; };
 	const FSlateBrush* White = FindTextureBrush(WhiteTexture);
-	const FLinearColor Dim = TextColor.CopyWithNewOpacity(0.7f);
-	const FLinearColor Glow(0.42f, 0.82f, 1.0f);
+	const FLinearColor DimText = TextColor.CopyWithNewOpacity(0.7f);
+	const FLinearColor GlowLine(0.42f, 0.82f, 1.0f);
 	const auto PaintFrameLines = [&](const FVector2f& At, const FVector2f& Size, const FLinearColor& Color, float Thick)
 	{
 		PaintBox(Out, L + 3, White, At, FVector2f(Size.X, Thick), Color);
@@ -1412,7 +1412,7 @@ int32 UVaelPlayerHUDWidget::PaintMageHud(FSlateWindowElementList& Out, int32 L, 
 
 	// Class, player and level above the frame
 	PaintText(Out, L + 4, ShownData->ClassName, TitleFont, P(330.0f, 196.0f), TextColor);
-	PaintText(Out, L + 4, PlayerLine, LabelFont, P(800.0f, 204.0f), Dim);
+	PaintText(Out, L + 4, PlayerLine, LabelFont, P(800.0f, 204.0f), DimText);
 
 	// The seven squares: the six abilities, the potion last
 	static const float SquareX[] = { 418.5f, 503.5f, 591.5f, 676.5f, 762.5f, 846.5f, 933.5f };
@@ -1435,8 +1435,8 @@ int32 UVaelPlayerHUDWidget::PaintMageHud(FSlateWindowElementList& Out, int32 L, 
 		}
 		if (State.bLit)
 		{
-			PaintFrameLines(At - FVector2f(3.0f), FVector2f(Size + 6.0f), Glow, 2.0f);
-			PaintFrameLines(At - FVector2f(6.0f), FVector2f(Size + 12.0f), Glow.CopyWithNewOpacity(0.3f), 3.0f);
+			PaintFrameLines(At - FVector2f(3.0f), FVector2f(Size + 6.0f), GlowLine, 2.0f);
+			PaintFrameLines(At - FVector2f(6.0f), FVector2f(Size + 12.0f), GlowLine.CopyWithNewOpacity(0.3f), 3.0f);
 		}
 		if (State.bNidHeart && VeinHeartInstance != nullptr)
 		{
@@ -1483,7 +1483,7 @@ int32 UVaelPlayerHUDWidget::PaintMageHud(FSlateWindowElementList& Out, int32 L, 
 			PaintBox(Out, L + 2, &BadgeBrush, P(HoleX[Index], 311.0f) - FVector2f(Hole * 0.5f), FVector2f(Hole), Strip[Index].Color * 1.3f);
 		}
 	}
-	PaintText(Out, L + 4, StripLabel, SmallFont, P(677.0f, 343.0f), Dim, 0.5f, 160.0f);
+	PaintText(Out, L + 4, StripLabel, SmallFont, P(677.0f, 343.0f), DimText, 0.5f, 160.0f);
 
 	// The quick formulas among the faint signs on the right, the elements nearby among those on the left
 	for (int32 Index = 0; Index < QuickSlots.Num(); ++Index)
@@ -1513,7 +1513,7 @@ int32 UVaelPlayerHUDWidget::PaintMageHud(FSlateWindowElementList& Out, int32 L, 
 	return L + 6;
 }
 
-void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& Dim) const
+void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 Layer, const FVector2f& Center, const FLinearColor& Frame, const FLinearColor& Bright, const FLinearColor& DimText) const
 {
 	const int32 Count = Strip.Num();
 	if (Count == 0)
@@ -1621,5 +1621,5 @@ void UVaelPlayerHUDWidget::PaintPlantWheel(FSlateWindowElementList& Out, int32 L
 	{
 		PaintButton(Out, Layer + 5, EVaelHUDButton::DPad, FText::GetEmpty(), Center + FVector2f(BigRadius + 24.0f, 20.0f), 8.0f);
 	}
-	PaintText(Out, Layer + 5, FText::FromString(FString::Printf(TEXT("%d/%d"), Picked + 1, Count)), SmallFont, Center + FVector2f(BigRadius + 38.0f, 12.0f), Dim);
+	PaintText(Out, Layer + 5, FText::FromString(FString::Printf(TEXT("%d/%d"), Picked + 1, Count)), SmallFont, Center + FVector2f(BigRadius + 38.0f, 12.0f), DimText);
 }

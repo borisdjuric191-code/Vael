@@ -1210,6 +1210,46 @@ void UVaelCheatManager::VaelTurm(const FString& Hand)
 }
 
 
+void UVaelCheatManager::VaelZielmarke(int32 Hands, float Seconds)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		UVaelFloromantComponent* Floromant = Player->GetFloromant();
+		Floromant->ShowTowerAim(Hands, Floromant->GetTowerAimPoint(Seconds));
+	}
+}
+
+void UVaelCheatManager::VaelPaarsaat(float Seconds)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player != nullptr && Player->IsFloromant())
+	{
+		UVaelFloromantComponent* Floromant = Player->GetFloromant();
+		Floromant->SowSymbiosis(Floromant->GetTowerAimPoint(Seconds));
+	}
+}
+
+void UVaelCheatManager::VaelDrachenerbe(const FString& State)
+{
+	const APlayerController* PlayerController = GetOuterAPlayerController();
+	const AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr || !Player->IsFloromant())
+	{
+		return;
+	}
+	const bool bAwake = !State.StartsWith(TEXT("aus"), ESearchCase::IgnoreCase);
+	for (int32 Kind = 1; Kind < 256; ++Kind)
+	{
+		if (VaelSymbiosis::HasHeritage(static_cast<EVaelSymbiosis>(Kind)))
+		{
+			Player->GetFloromant()->SetHeritageAwake(static_cast<EVaelSymbiosis>(Kind), bAwake, true);
+		}
+	}
+}
+
 void UVaelCheatManager::VaelKreuzen(float Seconds)
 {
 	const APlayerController* PlayerController = GetOuterAPlayerController();

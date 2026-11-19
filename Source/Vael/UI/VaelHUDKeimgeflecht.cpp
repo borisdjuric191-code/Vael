@@ -450,49 +450,87 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 			Label(Gene.Description, TreeX, SheetY + 770.0f, 18.0f, KeimRgb(12, 40, 10), 0.5f, 320.0f);
 		}
 
-		// Crosses as double medallions: known ones with both pictures, the others as silhouettes
-		struct FCross { FText Name; const UVaelPlantArmData* Other; bool bKnown; };
-		TArray<FCross> Crosses;
-		for (int32 Index = 0; Index < Floromant->GetCatalogSize(); ++Index)
-		{
-			const UVaelPlantArmData* Other = Floromant->GetCatalogPlant(Index);
-			const EVaelSymbiosis Kind = Other != nullptr && Other != Plant ? VaelSymbiosis::Find(Plant, Other) : EVaelSymbiosis::None;
-			if (Kind != EVaelSymbiosis::None)
-			{
-				const bool bKnown = Floromant->IsPairKnown(Kind);
-				Crosses.Add({ bKnown ? VaelSymbiosis::GetName(Kind) : FText::FromString(TEXT("?")), Other, bKnown });
-			}
-		}
-		Crosses.Sort([](const FCross& A, const FCross& B) { return A.bKnown && !B.bKnown; });
+		// Crosses as double medallions: known ones with both pictures, the others as silhouettes; the pair with itself comes first.
+		// A pair with a Gestalt (plant dragon) wears a thorn ring: dim while it sleeps, glowing in the pair's colour once awake
+		TArray<TPair<EVaelSymbiosis, const UVaelPlantArmData*>> Crosses;
+		Floromant->GetPlateCrosses(Plant, Crosses);
 		int32 NumKnown = 0;
-		for (const FCross& Cross : Crosses)
+		for (const TPair<EVaelSymbiosis, const UVaelPlantArmData*>& Cross : Crosses)
 		{
-			NumKnown += Cross.bKnown ? 1 : 0;
+			NumKnown += Floromant->IsPairKnown(Cross.Key) ? 1 : 0;
 		}
 		Label(FText::Format(LOCTEXT("CrossCount", "{0} von {1} gewachsen"), NumKnown, Crosses.Num()), SheetX + 270.0f, SheetY + 684.0f, 16.0f, InkDim);
 		UTexture2D* Own = GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s"), *PlantId(Plant)));
-		for (int32 Index = 0; Index < FMath::Min(Crosses.Num(), 4); ++Index)
+		constexpr int32 ShownCrosses = 4;
+		for (int32 Index = 0; Index < FMath::Min(Crosses.Num(), ShownCrosses); ++Index)
 		{
 			const FVector2D Pair(SheetX + 96.0f + Index * 112.0f, SheetY + 760.0f);
-			const FCross& Cross = Crosses[Index];
+			const EVaelSymbiosis Kind = Crosses[Index].Key;
+			const bool bKnown = Floromant->IsPairKnown(Kind);
+			const bool bHeritage = VaelSymbiosis::HasHeritage(Kind);
+			const bool bAwake = Floromant->IsHeritageAwake(Kind);
+			if (bHeritage)
+			{
+				const FLinearColor PairColor = VaelSymbiosis::GetColor(Kind);
+				const FLinearColor Thorn = bAwake ? PairColor * (0.8f + 0.2f * Pulse) : InkDim;
+				DrawRing(AtV(Pair), 44.0f * K, Thorn, (bAwake ? 3.0f : 1.6f) * K);
+				// Thorns round the ring
+				for (int32 Spike = 0; Spike < 10; ++Spike)
+				{
+					const float Angle = Spike * 2.0f * UE_PI / 10.0f + 0.3f;
+					const FVector2D Way(FMath::Cos(Angle), FMath::Sin(Angle));
+					const FVector2D From = AtV(Pair + Way * 44.0f);
+					const FVector2D To = AtV(Pair + Way * 52.0f);
+					DrawLine(From.X, From.Y, To.X, To.Y, Thorn, 2.0f * K);
+				}
+			}
 			for (int32 Half = 0; Half < 2; ++Half)
 			{
 				const FVector2D Disc = Pair + FVector2D(Half == 0 ? -14.0f : 14.0f, 0.0f);
-				if (Cross.bKnown)
+				if (bKnown)
 				{
-					Centred(Half == 0 ? Own : GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s"), *PlantId(Cross.Other))), Disc, 48.0f, 48.0f, FLinearColor::White);
+					Centred(Half == 0 ? Own : GetKeimPicture(*FString::Printf(TEXT("T_Keim_Rund_%s"), *PlantId(Crosses[Index].Value))), Disc, 48.0f, 48.0f, FLinearColor::White);
 				}
 				else
 				{
 					DrawDisc(AtV(Disc), 24.0f * K, KeimRgb(40, 33, 26));
 				}
-				DrawRing(AtV(Disc), 24.0f * K, Cross.bKnown ? Gold : InkDim, 1.6f * K);
+				DrawRing(AtV(Disc), 24.0f * K, bKnown ? Gold : InkDim, 1.6f * K);
 			}
-			Label(Cross.Name, Pair.X, Pair.Y + 30.0f, 16.0f, Cross.bKnown ? Ink : InkDim, 0.5f, 108.0f);
+			if (Cursor.Zone == EVaelKeimZone::Crosses && Cursor.Cross == Index)
+			{
+				DrawRing(AtV(Pair), 58.0f * K, Gold * (0.7f + 0.3f * Pulse), 2.4f * K);
+			}
+			const FText Name = !bKnown ? FText::FromString(TEXT("?")) : (bAwake ? VaelSymbiosis::GetHeritageName(Kind) : VaelSymbiosis::GetName(Kind));
+			// Under the thorn ring of a Gestalt pair the name sits lower
+			Label(Name, Pair.X, Pair.Y + (bHeritage ? 54.0f : 30.0f), 16.0f, bKnown ? Ink : InkDim, 0.5f, 108.0f);
 		}
-		if (Crosses.Num() > 4)
+
+		// The chosen cross in words under the tree: its Gestalt and what it needs to wake
+		if (Cursor.Zone == EVaelKeimZone::Crosses && Crosses.IsValidIndex(Cursor.Cross))
 		{
-			Label(FText::Format(LOCTEXT("MoreCrosses", "+{0}"), Crosses.Num() - 4), SheetX + 96.0f + 4 * 112.0f - 30.0f, SheetY + 748.0f, 20.0f, InkDim);
+			const EVaelSymbiosis Kind = Crosses[Cursor.Cross].Key;
+			const bool bKnown = Floromant->IsPairKnown(Kind);
+			if (!VaelSymbiosis::HasHeritage(Kind))
+			{
+				Title(bKnown ? VaelSymbiosis::GetName(Kind) : FText::FromString(TEXT("?")), TreeX, SheetY + 738.0f, 22.0f, Ink, 0.5f, 300.0f);
+				Label(LOCTEXT("NoGestaltYet", "kein Drachenerbe"), TreeX, SheetY + 770.0f, 18.0f, InkDim, 0.5f, 320.0f);
+			}
+			else
+			{
+				const int32 Level = UVaelFloromantSettings::Get()->HeritageLevel;
+				const FText State = Floromant->IsHeritageAwake(Kind) ? LOCTEXT("GestaltAwake", "erblüht")
+					: !bKnown ? LOCTEXT("GestaltNeedsPair", "erst die Kreuzung wachsen lassen")
+					: !Floromant->IsHeritageLevelReached() ? FText::Format(LOCTEXT("GestaltNeedsLevel", "erblüht ab Stufe {0}"), Level)
+					: LOCTEXT("GestaltReady", "bereit zu erblühen");
+				Title(FText::Format(LOCTEXT("GestaltTitle", "Drachenerbe: {0}"), VaelSymbiosis::GetHeritageName(Kind)), TreeX, SheetY + 738.0f, 22.0f, Ink, 0.5f, 320.0f);
+				// Only the state fits under the tree; what the Gestalt does is told when it wakes
+				Label(State, TreeX, SheetY + 770.0f, 18.0f, KeimRgb(12, 40, 10), 0.5f, 320.0f);
+			}
+		}
+		if (Crosses.Num() > ShownCrosses)
+		{
+			Label(FText::Format(LOCTEXT("MoreCrosses", "+{0}"), Crosses.Num() - ShownCrosses), SheetX + 96.0f + ShownCrosses * 112.0f - 30.0f, SheetY + 748.0f, 20.0f, InkDim);
 		}
 	}
 
@@ -505,6 +543,7 @@ void AVaelHUD::DrawKeimgeflecht(const AVaelPlayerController* PlayerController)
 	case EVaelKeimZone::Herbarium:	Action = LOCTEXT("TakePlant", "Pflanze nehmen"); break;
 	case EVaelKeimZone::Wheel:		Action = Cursor.Carried >= 0 ? LOCTEXT("SetPlant", "hier einsetzen") : LOCTEXT("PickFirst", "erst eine Pflanze im Herbarium nehmen"); break;
 	case EVaelKeimZone::Genes:		Action = LOCTEXT("TakeGene", "Erbanlage aufnehmen"); break;
+	case EVaelKeimZone::Crosses:	Action = LOCTEXT("WakeGestalt", "Drachenerbe erblühen / ruhen lassen"); break;
 	}
 	// Each hint: the button drawn as its sign (the pad's shapes, Xbox letters, keyboard keys), then what it does
 	enum class EButton : uint8 { Confirm, Back, Turn };

@@ -218,6 +218,23 @@ ARMS = {
                  "tip_size": 8.0, "finger_length": 30.0, "finger_thickness": 0.35, "fan_angle": 12.0, "arm_thickness": 0.5,
                  "wild_count": 1, "rest_wind": 0.25},
     },
+    # Boris 2026-11-19: the hand becomes a snapping maw like a flytrap; tapped it snaps, held it shoots out on a vine and drags
+    # the enemy to her. Stalks and bud (tower crown) from halme_zerlegen.py (kopf), the maw lobe (both halves, built without
+    # Tripo) from Tools/Pflanzenarm/schnappwurz_maul.py, the vine from ranke_bauen.py; the picture is the creature's
+    # (Kreaturen/Wurzelforst)
+    "Schnappwurz": {
+        "finger": [1, 3],
+        "arm": [1, 2],
+        "head": True,
+        "extra": ["Maul"],
+        "props": "/Game/Vael/Kreaturen/Wurzelforst",
+        "values": {"Silber": 0.0, "Leuchten": 0.04, "Leuchtfarbe": (0.9, 0.25, 0.2), "Metall": 0.05, "Rauheit": 0.55},
+        "data": {"jaw": True, "jaw_upper_mesh": FOLDER + "/Schnappwurz/SM_Schnappwurz_Maul",
+                 "jaw_lower_mesh": FOLDER + "/Schnappwurz/SM_Schnappwurz_Maul", "jaw_size": 32.0,
+                 "shot_element": "EARTH", "fire_interval": 0.55, "saft_per_shot": 3.0, "bar_size": 20, "shot_range": 450.0,
+                 "finger_length": 20.0, "finger_thickness": 0.6, "tip_size": 12.0, "fan_angle": 8.0, "arm_thickness": 1.0,
+                 "wild_count": 2, "rest_wind": 0.2},
+    },
 }
 
 
@@ -825,6 +842,21 @@ def make_pitch():
         assets.save_loaded_asset(data, False)
         created.append(path)
 
+    # Schnappwurz (Boris 2026-11-19): the snapping maw; its shadow form Wuergmaul bites and drains life
+    path = "{}/DA_Pflanze_Schnappwurz".format(PLANT_FOLDER)
+    if not assets.does_asset_exist(path):
+        factory = unreal.DataAssetFactory()
+        factory.set_editor_property("data_asset_class", unreal.VaelPlantData)
+        data = tools.create_asset("DA_Pflanze_Schnappwurz", PLANT_FOLDER, unreal.VaelPlantData, factory)
+        data.set_editor_property("plant_id", "Schnappwurz")
+        data.set_editor_property("light_name", unreal.Text("Schnappwurz"))
+        data.set_editor_property("shadow_name", unreal.Text("Würgmaul"))
+        data.set_editor_property("mesh", unreal.load_asset(FOLDER + "/Schnappwurz/SM_Schnappwurz_Kopf"))
+        data.set_editor_property("color", unreal.LinearColor(0.85, 0.3, 0.2, 1.0))
+        data.set_editor_property("shadow_color", unreal.LinearColor(0.3, 0.02, 0.05, 1.0))
+        assets.save_loaded_asset(data, False)
+        created.append(path)
+
 
 def import_wheel_pictures():
     """The ink pictures of Tools/HUD/vael_pflanzen_tusche.py for the plant wheel: imported as UI textures (always anew, so a
@@ -908,6 +940,12 @@ def main():
         if shoulder is not None:
             shoulder.set_material(0, instance)
             assets.save_loaded_asset(shoulder, False)
+        # Further pieces of the plant the data refers to by path (the halves of the Schnappwurz maw)
+        for extra in arm.get("extra", []):
+            piece = import_mesh(plant, "SM_{}_{}".format(plant, extra), 5.0)
+            if piece is not None:
+                piece.set_material(0, instance)
+                assets.save_loaded_asset(piece, False)
         make_arm(plant, fingers, others, head, vine, instance, arm["data"], leaf, petal)
         if shoulder is not None:
             data = unreal.load_asset("{}/DA_Pflanzenarm_{}".format(FOLDER, plant))

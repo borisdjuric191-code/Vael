@@ -226,6 +226,19 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<USceneComponent> JawFrame;
 
+	/** The shared root wood of every dragon: its material (the plants colour its veins), the skull and the lower jaw */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> WoodMaterial;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> WoodSkull;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> WoodJaw;
+
+	/** The neck tufts are thin roots of the root wood (laid thicker than plant stalks) */
+	bool bWoodTufts = false;
+
 	/** The vines, thorn teeth and root fibres of skull and jaw (laid once) */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USplineMeshComponent>> DragonVines;
@@ -247,6 +260,219 @@ private:
 
 	void BuildDragon();
 	void UpdateDragon(float DeltaSeconds);
+
+	// --- Mouth organ (Boris 2026-11-19): the plant that sank into the snake builds an organ in the dragon's jaws and decides its
+	// breath. Dampfdrache (Glutdistel + Taublatt): four Taublatt petals clamp a glowing Glutdistel in the throat like the rose
+	// pistol; they squeeze, and a jet of steam streams out that leaves clouds of scalding, blinding steam
+
+	/** The plant that sank in (the Glutdistel of a Glutbusch, the Taublatt of a Dampfdrache) */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelPlantArmData> DragonPartner;
+
+	/** The material of the sunk tower, for the partner's pieces in the head */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInterface> PartnerMaterial;
+
+	/** True for the steam dragon */
+	bool bSteamDragon = false;
+
+	/** Donnerdrache (Windhalm + Glutdistel, Boris 2026-11-19): like the mage's wind and fire make the Kettenblitz, the dragon
+	 *  breathes lightning that leaps from enemy to enemy; wet ones and those in steam carry it further. Windhalm blades stand
+	 *  out of its cheeks like gills and sweep back from its skull like horns, crackling with arcs while it charges, and a ring
+	 *  of blades round the glowing core in its throat */
+	bool bThunderDragon = false;
+
+	/** Seconds of the breath left, to the next strike, strikes left, its power, seconds to the next crackle between the blades */
+	float ThunderLeft = 0.0f;
+	float ThunderTimer = 0.0f;
+	int32 ThunderStrikes = 0;
+	float ThunderPower = 1.0f;
+	float CrackleTimer = 0.0f;
+
+	/** Tips of the gill and horn blades in the frame of the head (arcs leap between them) */
+	TArray<FVector> BladeTips;
+
+	/** One lightning strike out of the jaws: to the target, then from enemy to enemy */
+	void StrikeThunder(const FVector& Mouth, float Power, float Height);
+
+	/** Glutglasdrache (Glimmklee + Glutdistel, 2026-11-19): leaves of the sunk Glimmklee frame a burning glass in its jaws; light
+	 *  gathers in it, and a thin focused sun beam of its own (Boris: not the mage's beam) sweeps out of it and leaves a trail of
+	 *  burning ground */
+	bool bSunDragon = false;
+
+	/** Seconds of the beam left, whether it has been lit in this breath, its power; seconds to its next burn and next fire */
+	float SunLeft = 0.0f;
+	bool bSunLit = false;
+	float SunPower = 1.0f;
+	float SunBurnTimer = 0.0f;
+	float SunFireTimer = 0.0f;
+
+	/** Where the last fire of the beam was laid (it only burns where it strikes) */
+	FVector SunFirePlace = FVector(1.0e7f);
+
+	/** The look of the beam: a thin white-hot core, a golden halo round it, a glow where it ends, motes of light running along */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> SunCore;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> SunHalo;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> SunEnd;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> SunMotes;
+
+	/** How far the beam is lit (0 to 1, it shoots out and fades) */
+	float SunShown = 0.0f;
+
+	/** Burns along the beam, lays the trail of fire and moves its look */
+	void UpdateSunBeam(float DeltaSeconds, float Height);
+
+	/** Sturmdrache (Windhalm + Windhalm, Boris 2026-11-19): a slim dragon of grass with wings of Windhalm blades growing out of
+	 *  its neck behind the curl. The wings fire the fan of darts: they rise and draw back, sweep forward and their blades fly
+	 *  off as darts and grow again; the head aims, roars and bites */
+	bool bWingDragon = false;
+
+	/** Root strands of both wings (left first): per wing two arm pieces, then the ribs */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> WingBones;
+
+	/** Blades spanned between the ribs of both wings (left first), how far each has grown again (0 to 1), and their tips */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> WingBlades;
+
+	TArray<float> FeatherGrow;
+	TArray<FVector> FeatherTips;
+
+	/** Seconds into the wing strike (negative: none), whether it has fired, its power; the pose: spread, lift, forward sweep */
+	float WingStrike = -1.0f;
+	bool bWingFired = false;
+	float WingPower = 1.0f;
+	float WingSpread = 0.0f;
+	float WingLift = 0.0f;
+	float WingSweep = 0.0f;
+
+	/** Moves the wings and fires their darts */
+	void UpdateWings(float DeltaSeconds, float Height);
+
+	/** Flutdrache (Taublatt + Taublatt, 2026-11-19): a Taublatt dragon with a frill of Taublatt petals behind its head that
+	 *  folds flat at rest and fans wide open when it charges; it breathes a water jet out of its jaws that soaks and pushes back */
+	bool bFloodDragon = false;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> FrillPetals;
+
+	/** How far the frill is open (0 to 1); the water jet itself runs on the beam of the sun dragon (SunLeft, UpdateSunBeam) */
+	float FrillOpen = 0.0f;
+
+	/** Where the beam leaves the glass this frame */
+	FVector SunMouth = FVector::ZeroVector;
+
+	/** The burning glass and the clover leaves round its rim */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> LensGlass;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> LensMaterial;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> LensLeaves;
+
+	/** The four petals of the steam gland, and the partner's leaves grown into the skull */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> GlandPetals;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> HeadLeaves;
+
+	/** Roots of the sunk partner in its own colour, winding up round the neck from the foot to the head (pieces per root in turn) */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> PartnerVines;
+
+	/** The steam jet in the look of the mage's steam (Boris 2026-11-19): soft cloud cards born at the gland, flying out along
+	 *  the jet, swelling and fading; per card where it is, how fast it flies, its age in seconds (negative: free) */
+	UPROPERTY(Transient)
+	TObjectPtr<class UVaelCloudCardsComponent> JetCards;
+
+	TArray<FVector> JetCardPlaces;
+	TArray<FVector> JetCardVelocities;
+	TArray<float> JetCardAges;
+	float JetSpawnDebt = 0.0f;
+
+	/** Births, moves and fades the cards of the steam jet */
+	void UpdateJetCards(float DeltaSeconds, const FVector& Mouth, const FVector& Way, float Height);
+
+	/** Seconds of the steam jet left, to its next puff, its power, puffs so far; how tight the petals press (0 open to 1 shut) */
+	float JetLeft = 0.0f;
+	float JetTimer = 0.0f;
+	float JetPower = 1.0f;
+	int32 JetPuffs = 0;
+	float Squeeze = 0.0f;
+
+	/** True while the dragon breathes: drumfire or steam jet */
+	bool IsBreathing() const { return BurstLeft > 0 || JetLeft > 0.0f || ThunderLeft > 0.0f || SunLeft > 0.0f || WingStrike >= 0.0f; }
+
+	/** Seconds the breath lasts (the sweep of the head runs over it) */
+	float GetBreathSeconds() const;
+
+	/** One puff of the steam jet: scalds along the jet and leaves a cloud where it ends */
+	void PuffSteam(const FVector& Mouth, const FVector& Way, float Height);
+
+	// --- Living dragon neck (Boris 2026-11-19): the long neck from the ground to the head is a chain of springy joints rooted
+	// at the foot; the head leads and the curl and the dip follow late, so it sways, sniffs, follows its target, draws back like
+	// a cobra before the drumfire, kicks back with every shot, sweeps the fire over a fan and lunges out to bite close enemies
+
+	/** Joints of the neck in world space and their speeds: the top of the curl, the dip and the head; the head's facing */
+	FVector NeckApex = FVector::ZeroVector;
+	FVector NeckDip = FVector::ZeroVector;
+	FVector NeckHead = FVector::ZeroVector;
+	FVector NeckApexVelocity = FVector::ZeroVector;
+	FVector NeckDipVelocity = FVector::ZeroVector;
+	FVector NeckHeadVelocity = FVector::ZeroVector;
+	FVector HeadFacing = FVector::ForwardVector;
+	bool bNeckPlaced = false;
+
+	/** The free spine (Boris 2026-11-19): rooted fast in the ground, the whole body from the roots to the nape is a chain of joints
+	 *  of fixed length that snakes after the head, and the head roams freely round its roots; the last joint is NeckHead */
+	TArray<FVector> Spine;
+	TArray<FVector> SpineVelocity;
+
+	/** Time of the roaming head; it stands still while the dragon breathes */
+	float RoamTime = 0.0f;
+
+	/** Seconds since the dragon began to burst out of the earth (negative: done or never), and the next rumble of the ground */
+	float EmergeTime = -1.0f;
+	float EmergeRumble = 0.0f;
+
+	/** The braided strands laid along the spine (per vine one piece per segment, then a thick core that fills the gaps), and the
+	 *  roots anchoring the foot in the ground */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> SpinePieces;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<USplineMeshComponent>> GroundRoots;
+
+	/** A point on the spine, U from 0 at the roots to 1 at the head */
+	FVector GetSpinePoint(float U) const;
+
+	/** Lays the strands of the spine and the ground roots */
+	void LaySpine(float Height, float NeckSlim);
+
+	/** Drawn back before the drumfire (0 to 1), turn of the fan sweep in radians, seconds into the drumfire */
+	float Coil = 0.0f;
+	float Sweep = 0.0f;
+	float BurstAge = 0.0f;
+
+	/** The bite: seconds into it (negative: none), seconds until the next one, whom it bites, where it strikes, whether it hit */
+	float BiteTime = -1.0f;
+	float BiteCooldown = 0.0f;
+	TWeakObjectPtr<AActor> BiteTarget;
+	FVector BitePoint = FVector::ZeroVector;
+	bool bBitten = false;
+
+	/** Moves the joints of the dragon neck towards their pose of the moment */
+	void UpdateDragonNeck(float DeltaSeconds, float Height);
 
 	/** Where the crown looks, eased towards the target */
 	FVector LookDirection = FVector::ForwardVector;
