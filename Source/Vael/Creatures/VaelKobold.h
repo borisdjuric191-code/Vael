@@ -20,7 +20,13 @@ enum class EVaelKoboldRolle : uint8
 	/** Holds its ground and strikes hard */
 	Waechter,
 	/** Keeps away, makes false copies of itself and lays signs that confuse */
-	Zauberer
+	Zauberer,
+	/** Slave driver and ant herder: cracks the whip from afar and throws vials of Tropfseuche that infest */
+	Treiber,
+	/** Blast master: throws crystal charges and lays blast traps */
+	Sprengmeister,
+	/** Lantern bearer: lures with false light and confuses; hit, it puts the light out and hides */
+	Laternentraeger
 };
 
 /**
@@ -70,6 +76,45 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Zauberer", meta = (ClampMin = 0))
 	float SignConfusion = 3.0f;
+
+	/** Thrown things (a vial, a charge): flight time (s), arc height and the radius where they land (cm), damage */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Wurf", meta = (ClampMin = 0.2))
+	float ThrowFlight = 1.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Wurf", meta = (ClampMin = 0))
+	float ThrowApex = 180.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Wurf", meta = (ClampMin = 10))
+	float ThrowRadius = 200.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Wurf", meta = (ClampMin = 0))
+	float ThrowDamage = 20.0f;
+
+	/** Blast trap: trigger radius (cm), seconds until armed, fuse (s), how long it lies, its blast */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Falle", meta = (ClampMin = 10))
+	float TrapRadius = 110.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Falle", meta = (ClampMin = 0))
+	float TrapArmSeconds = 1.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Falle", meta = (ClampMin = 0.1))
+	float TrapFuse = 0.7f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Falle", meta = (ClampMin = 1))
+	float TrapSeconds = 40.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Falle", meta = (ClampMin = 0))
+	float TrapDamage = 26.0f;
+
+	/** Lantern: confusion of the lure (s); light out and hiding after a hit (s) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Laterne", meta = (ClampMin = 0))
+	float LureConfusion = 3.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Laterne", meta = (ClampMin = 0))
+	float LightOutSeconds = 6.0f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Kobold|Laterne", meta = (ClampMin = 0))
+	float HideSeconds = 3.0f;
 };
 
 /** Schleimkratzer body: the thief */
@@ -103,6 +148,74 @@ class UVaelKoboldZaubererData : public UVaelKoboldData
 public:
 
 	UVaelKoboldZaubererData();
+};
+
+/** Sklaventreiber body: the slave driver */
+UCLASS(BlueprintType)
+class UVaelKoboldTreiberData : public UVaelKoboldData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelKoboldTreiberData();
+};
+
+/** Sprengmeister body: the blast master */
+UCLASS(BlueprintType)
+class UVaelKoboldSprengmeisterData : public UVaelKoboldData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelKoboldSprengmeisterData();
+};
+
+/** Laternentraeger body: the lantern bearer */
+UCLASS(BlueprintType)
+class UVaelKoboldLaternentraegerData : public UVaelKoboldData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelKoboldLaternentraegerData();
+};
+
+/** A blast trap of the Sprengmeister: a crystal charge on a tripwire that goes off shortly after someone comes near */
+UCLASS()
+class AVaelSprengfalle : public AActor
+{
+	GENERATED_BODY()
+
+public:
+
+	AVaelSprengfalle();
+
+	virtual void Tick(float DeltaSeconds) override;
+
+	static AVaelSprengfalle* Lay(AActor* Owner, const FVector& GroundLocation, const UVaelKoboldData* Data);
+
+private:
+
+	UPROPERTY(VisibleAnywhere, Category="Trap")
+	TObjectPtr<UStaticMeshComponent> Charge;
+
+	UPROPERTY(VisibleAnywhere, Category="Trap")
+	TObjectPtr<UPointLightComponent> Glow;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> Look;
+
+	TWeakObjectPtr<AActor> Layer;
+	float Radius = 110.0f;
+	float ArmSeconds = 1.2f;
+	float Fuse = 0.7f;
+	float Lifetime = 40.0f;
+	float Damage = 26.0f;
+	float Age = 0.0f;
+	float FuseLeft = -1.0f;
 };
 
 /** A misleading sign of a Kobold on the ground: whoever steps on it while it glows loses the direction */
@@ -166,6 +279,7 @@ protected:
 	virtual void TickBehavior(float DeltaSeconds) override;
 	virtual void OnPreyHit(AVaelCharacter* Player, const FVaelNightAttack& Attack) override;
 	virtual void OnAttackLanded(const FVaelNightAttack& Attack) override;
+	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
 	virtual void Die() override;
 
 private:
@@ -182,10 +296,26 @@ private:
 	void CastIllusions();
 	void CastSign();
 	void Vanish();
+	void ThrowVial();
+	void ThrowCharge();
+	void LayTrap();
+	void Lure();
+	void TickLantern(float DeltaSeconds);
 
 	TArray<FVaelStolenGoods> Stolen;
 	bool bFleeing = false;
 	float FleeLeft = 0.0f;
+	/** Running off without loot to come back (the lantern bearer after a hit) */
+	bool bHiding = false;
+	float HideLeft = 0.0f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UPointLightComponent> LanternLight;
+
+	float LightOutLeft = 0.0f;
+	float LightShown = 1.0f;
+	float LanternFlare = 0.0f;
+	float LanternTime = 0.0f;
 	bool bIllusion = false;
 	float IllusionLeft = 0.0f;
 };

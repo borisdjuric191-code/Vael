@@ -2,7 +2,9 @@
 
 #include "Creatures/VaelKobold.h"
 #include "AbilitySystemComponent.h"
+#include "Combat/VaelArcShot.h"
 #include "Combat/VaelAttributeSet.h"
+#include "Combat/VaelGroundStrike.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/PointLightComponent.h"
@@ -26,6 +28,12 @@
 namespace
 {
 	const FLinearColor KoboldKristall(1.0f, 0.2f, 0.6f);
+	/** The pale blue-white of the cave crystal in the lantern */
+	const FLinearColor LanternColor(0.7f, 0.85f, 1.0f);
+	/** Brightness of the lantern (cd): it hangs right next to the body, more washes it white */
+	const float LanternCandelas = 3.5f;
+	/** How bright the lantern flares while it lures */
+	const float LureFlare = 3.0f;
 
 	FVaelNightAttack MakeAttack(FName Clip, FVector2D Range, float HitTime, float Reach, float HitRadius, float Damage, float Cooldown,
 		float Lunge = 0.0f, EVaelElement Element = EVaelElement::Earth)
@@ -123,6 +131,173 @@ UVaelKoboldZaubererData::UVaelKoboldZaubererData()
 	Attacks.Add(MakeAttack(TEXT("Zaubern"), FVector2D(300.0f, 1000.0f), 0.8f, 0.0f, 0.0f, 0.0f, 14.0f, 0.0f, EVaelElement::Air));
 	Attacks.Add(MakeAttack(TEXT("Zaubern"), FVector2D(150.0f, 900.0f), 0.8f, 0.0f, 0.0f, 0.0f, 7.0f, 0.0f, EVaelElement::Earth));
 	Attacks.Add(MakeAttack(TEXT("Kratzen"), FVector2D(0.0f, 100.0f), 0.4f, 50.0f, 75.0f, 7.0f, 2.0f));
+}
+
+UVaelKoboldTreiberData::UVaelKoboldTreiberData()
+{
+	DisplayName = LOCTEXT("Treiber", "Kobold-Sklaventreiber");
+	KindId = TEXT("Kobold_Treiber");
+	CompendiumId = KindId;
+	AssetName = TEXT("Sklaventreiber");
+	Rolle = EVaelKoboldRolle::Treiber;
+	MaxHealth = 150.0f;
+	MoveSpeed = 95.0f;
+	MoveClipSpeed = 70.0f;
+	CollisionRadius = 30.0f;
+	CollisionHalfHeight = 87.0f;
+	KeepDistance = 180.0f;
+	KnockbackMultiplier = 0.7f;
+	// The vial does little harm itself: the Tropfseuche in it is the danger
+	ThrowDamage = 5.0f;
+	ThrowRadius = 170.0f;
+	// The whip reaches far: it stays out of reach of a sword and lashes
+	Attacks.Add(MakeAttack(TEXT("Peitschen"), FVector2D(0.0f, 300.0f), 0.5f, 220.0f, 90.0f, 15.0f, 2.4f));
+	Attacks.Add(MakeAttack(TEXT("Werfen"), FVector2D(350.0f, 1000.0f), 0.6f, 0.0f, 0.0f, 0.0f, 9.0f));
+}
+
+UVaelKoboldSprengmeisterData::UVaelKoboldSprengmeisterData()
+{
+	DisplayName = LOCTEXT("Sprengmeister", "Kobold-Sprengmeister");
+	KindId = TEXT("Kobold_Sprengmeister");
+	CompendiumId = KindId;
+	AssetName = TEXT("Sprengmeister");
+	Rolle = EVaelKoboldRolle::Sprengmeister;
+	MaxHealth = 120.0f;
+	MoveSpeed = 70.0f;
+	MoveClipSpeed = 50.0f;
+	CollisionRadius = 34.0f;
+	CollisionHalfHeight = 80.0f;
+	// Keeps away and lets its charges fight
+	KeepDistance = 480.0f;
+	ThrowFlight = 1.1f;
+	ThrowDamage = 22.0f;
+	ThrowRadius = 220.0f;
+	Attacks.Add(MakeAttack(TEXT("Werfen"), FVector2D(300.0f, 1100.0f), 0.6f, 0.0f, 0.0f, 0.0f, 4.5f, 0.0f, EVaelElement::Fire));
+	Attacks.Add(MakeAttack(TEXT("Legen"), FVector2D(0.0f, 800.0f), 0.8f, 0.0f, 0.0f, 0.0f, 12.0f, 0.0f, EVaelElement::Fire));
+	Attacks.Add(MakeAttack(TEXT("Kratzen"), FVector2D(0.0f, 110.0f), 0.4f, 55.0f, 80.0f, 8.0f, 2.0f));
+}
+
+UVaelKoboldLaternentraegerData::UVaelKoboldLaternentraegerData()
+{
+	DisplayName = LOCTEXT("Laternentraeger", "Kobold-Laternenträger");
+	KindId = TEXT("Kobold_Laternentraeger");
+	CompendiumId = KindId;
+	AssetName = TEXT("Laternentraeger");
+	Rolle = EVaelKoboldRolle::Laternentraeger;
+	MaxHealth = 55.0f;
+	MoveSpeed = 55.0f;
+	MoveClipSpeed = 35.5f;
+	CollisionRadius = 22.0f;
+	CollisionHalfHeight = 44.0f;
+	// Stays far off in the dark where only its light is seen
+	KeepDistance = 650.0f;
+	FleeSpeed = 200.0f;
+	Attacks.Add(MakeAttack(TEXT("Locken"), FVector2D(250.0f, 1300.0f), 0.8f, 0.0f, 0.0f, 0.0f, 9.0f, 0.0f, EVaelElement::Air));
+	Attacks.Add(MakeAttack(TEXT("Kratzen"), FVector2D(0.0f, 100.0f), 0.4f, 45.0f, 70.0f, 5.0f, 2.2f));
+}
+
+// ------------------------------------------------------------------ Blast trap
+
+AVaelSprengfalle::AVaelSprengfalle()
+{
+	PrimaryActorTick.bCanEverTick = true;
+	Charge = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Charge"));
+	Charge->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere")));
+	Charge->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Charge->SetWorldScale3D(FVector(0.22f, 0.22f, 0.14f));
+	RootComponent = Charge;
+	Glow = CreateDefaultSubobject<UPointLightComponent>(TEXT("Glow"));
+	Glow->SetupAttachment(Charge);
+	Glow->SetCastShadows(false);
+	Glow->SetLightColor(KoboldKristall);
+	Glow->SetIntensity(0.0f);
+}
+
+AVaelSprengfalle* AVaelSprengfalle::Lay(AActor* InOwner, const FVector& GroundLocation, const UVaelKoboldData* Data)
+{
+	UWorld* World = InOwner != nullptr ? InOwner->GetWorld() : nullptr;
+	if (World == nullptr || Data == nullptr)
+	{
+		return nullptr;
+	}
+	FActorSpawnParameters Parameters;
+	Parameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+	AVaelSprengfalle* Trap = World->SpawnActor<AVaelSprengfalle>(GroundLocation + FVector(0.0f, 0.0f, 6.0f), FRotator::ZeroRotator, Parameters);
+	if (Trap == nullptr)
+	{
+		return nullptr;
+	}
+	Trap->Layer = InOwner;
+	Trap->Radius = Data->TrapRadius;
+	Trap->ArmSeconds = Data->TrapArmSeconds;
+	Trap->Fuse = Data->TrapFuse;
+	Trap->Lifetime = Data->TrapSeconds;
+	Trap->Damage = Data->TrapDamage;
+	// A small charge with a glowing crystal plug, in the colour of the Kobold crystals
+	Trap->Look = UVaelTropfseuche::MakeLumpLook(Trap, EVaelSeuchenStamm::Verwesung);
+	if (Trap->Look != nullptr)
+	{
+		Trap->Look->SetVectorParameterValue(TEXT("Farbe"), KoboldKristall);
+		Trap->Look->SetScalarParameterValue(TEXT("Wabern"), 0.0f);
+		Trap->Charge->SetMaterial(0, Trap->Look);
+	}
+	Trap->Glow->SetAttenuationRadius(Data->TrapRadius * 1.5f);
+	Trap->Glow->SetRelativeLocation(FVector(0.0f, 0.0f, 150.0f));
+	UE_LOG(LogVael, Log, TEXT("'%s' lays a blast trap at %s"), *GetNameSafe(InOwner), *GroundLocation.ToCompactString());
+	return Trap;
+}
+
+void AVaelSprengfalle::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	Age += DeltaSeconds;
+	if (Age >= Lifetime && FuseLeft < 0.0f)
+	{
+		// The fuse cord rots: it fizzles out
+		AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation(), 50.0f, FLinearColor(0.3f, 0.28f, 0.3f), KoboldKristall, 0.8f);
+		Destroy();
+		return;
+	}
+	// A slow glow while it waits, a fast blink once the fuse burns
+	const bool bArmed = Age >= ArmSeconds;
+	const float Beat = FuseLeft >= 0.0f ? 0.5f + 0.5f * FMath::Sin(Age * 40.0f) : bArmed ? 0.35f + 0.25f * FMath::Sin(Age * 3.0f) : 0.15f;
+	if (Look != nullptr)
+	{
+		Look->SetScalarParameterValue(TEXT("Staerke"), 2.5f * Beat);
+		Look->SetScalarParameterValue(TEXT("Sichtbar"), 1.0f);
+	}
+	Glow->SetIntensity(4.0f * Beat);
+	if (FuseLeft >= 0.0f)
+	{
+		FuseLeft -= DeltaSeconds;
+		if (FuseLeft <= 0.0f)
+		{
+			FVaelSpellHit Hit;
+			Hit.Damage = Damage;
+			Hit.Element = EVaelElement::Fire;
+			Hit.Knockback = 350.0f;
+			AVaelGroundStrike::SpawnStrike(Layer.IsValid() ? Layer.Get() : this, GetActorLocation(), Hit, Radius * 1.8f, 0.05f, KoboldKristall);
+			AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), Radius * 1.6f, FLinearColor(0.35f, 0.3f, 0.3f), KoboldKristall, 1.2f);
+			UE_LOG(LogVael, Log, TEXT("A blast trap goes off at %s"), *GetActorLocation().ToCompactString());
+			Destroy();
+		}
+		return;
+	}
+	if (!bArmed)
+	{
+		return;
+	}
+	for (TActorIterator<AVaelCharacter> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsDowned() && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) <= Radius + It->GetSimpleCollisionRadius())
+		{
+			// The tripwire snaps: a short moment to jump away
+			FuseLeft = Fuse;
+			UVaelCombatTextSubsystem::PostReaction(*It, LOCTEXT("TrapTriggered", "Stolperdraht!"));
+			UE_LOG(LogVael, Log, TEXT("'%s' trips a blast trap"), *It->GetName());
+			break;
+		}
+	}
 }
 
 // ------------------------------------------------------------------ Misleading sign
@@ -231,6 +406,20 @@ void AVaelKobold::BeginPlay()
 			AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), 1.0f);
 		}
 	}
+	// The lantern bearer's false light hangs in its lantern (kobold_skelett.py puts the bone laterne_licht there)
+	if (GetData<UVaelKoboldData>()->Rolle == EVaelKoboldRolle::Laternentraeger && GetMesh()->DoesSocketExist(TEXT("laterne_licht")))
+	{
+		LanternLight = NewObject<UPointLightComponent>(this);
+		LanternLight->SetupAttachment(GetMesh(), TEXT("laterne_licht"));
+		LanternLight->SetIntensityUnits(ELightUnits::Candelas);
+		LanternLight->SetIntensity(LanternCandelas);
+		LanternLight->SetAttenuationRadius(750.0f);
+		LanternLight->SetSourceRadius(3.0f);
+		LanternLight->SetCastShadows(true);
+		LanternLight->SetLightColor(LanternColor);
+		LanternLight->RegisterComponent();
+		LanternTime = FMath::FRandRange(0.0f, 10.0f);
+	}
 	UE_LOG(LogVael, Log, TEXT("'%s' is a living Kobold (%s)%s"), *GetName(), *GetCreatureName().ToString(), bIllusion ? TEXT(", a false copy") : TEXT(""));
 }
 
@@ -242,6 +431,7 @@ float AVaelKobold::GetOutgoingDamageMultiplier() const
 void AVaelKobold::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	TickLantern(DeltaSeconds);
 	if (bIllusion && !IsDead())
 	{
 		IllusionLeft -= DeltaSeconds;
@@ -252,15 +442,48 @@ void AVaelKobold::Tick(float DeltaSeconds)
 	}
 }
 
+void AVaelKobold::TickLantern(float DeltaSeconds)
+{
+	if (LanternLight == nullptr)
+	{
+		return;
+	}
+	LanternTime += DeltaSeconds;
+	LightOutLeft = FMath::Max(LightOutLeft - DeltaSeconds, 0.0f);
+	// Out after a hit or in death; it comes back slowly, flickering like a draught on a flame
+	const float Wanted = IsDead() || LightOutLeft > 0.0f ? 0.0f : 1.0f;
+	LightShown = FMath::FInterpTo(LightShown, Wanted, DeltaSeconds, Wanted > LightShown ? 1.5f : 6.0f);
+	const float Flicker = 0.85f + 0.1f * FMath::Sin(LanternTime * 7.3f) + 0.05f * FMath::Sin(LanternTime * 23.0f);
+	LanternFlare = FMath::FInterpTo(LanternFlare, 0.0f, DeltaSeconds, 1.2f);
+	LanternLight->SetIntensity(LanternCandelas * LightShown * Flicker * (1.0f + LanternFlare));
+}
+
 void AVaelKobold::TickBehavior(float DeltaSeconds)
 {
+	const UVaelKoboldData* Data = GetData<UVaelKoboldData>();
+	if (bHiding)
+	{
+		// Dark and away from whoever hit it, then back to luring
+		float Distance = 0.0f;
+		const AActor* Chaser = FindTarget(6000.0f, &Distance);
+		const FVector Away = Chaser != nullptr ? (GetActorLocation() - Chaser->GetActorLocation()).GetSafeNormal2D() : GetActorForwardVector();
+		TurnTowards(GetActorLocation() + Away * 400.0f, DeltaSeconds * 1.5f);
+		MoveInDirection(GetActorForwardVector(), Data->FleeSpeed);
+		Loop(Data->RunClip, 0.2f);
+		if (Animator != nullptr)
+		{
+			Animator->SetRate(FMath::Clamp(GetVelocity().Size2D() / FMath::Max(91.0f * Size, 1.0f), 0.6f, 1.8f));
+		}
+		HideLeft -= DeltaSeconds;
+		bHiding = HideLeft > 0.0f;
+		return;
+	}
 	if (!bFleeing)
 	{
 		Super::TickBehavior(DeltaSeconds);
 		return;
 	}
 	// Running off with what it took, away from the nearest player
-	const UVaelKoboldData* Data = GetData<UVaelKoboldData>();
 	float Distance = 0.0f;
 	const AActor* Chaser = FindTarget(6000.0f, &Distance);
 	const FVector Away = Chaser != nullptr ? (GetActorLocation() - Chaser->GetActorLocation()).GetSafeNormal2D() : GetActorForwardVector();
@@ -291,18 +514,140 @@ void AVaelKobold::OnPreyHit(AVaelCharacter* Player, const FVaelNightAttack& Atta
 
 void AVaelKobold::OnAttackLanded(const FVaelNightAttack& Attack)
 {
-	if (bIllusion || Attack.Clip != TEXT("Zaubern"))
+	if (bIllusion)
 	{
 		return;
 	}
-	if (Attack.Element == EVaelElement::Air)
+	const EVaelKoboldRolle Rolle = GetData<UVaelKoboldData>()->Rolle;
+	if (Attack.Clip == TEXT("Zaubern"))
 	{
-		CastIllusions();
+		if (Attack.Element == EVaelElement::Air)
+		{
+			CastIllusions();
+		}
+		else
+		{
+			CastSign();
+		}
 	}
-	else
+	else if (Attack.Clip == TEXT("Werfen"))
 	{
-		CastSign();
+		if (Rolle == EVaelKoboldRolle::Treiber)
+		{
+			ThrowVial();
+		}
+		else
+		{
+			ThrowCharge();
+		}
 	}
+	else if (Attack.Clip == TEXT("Legen"))
+	{
+		LayTrap();
+	}
+	else if (Attack.Clip == TEXT("Locken"))
+	{
+		Lure();
+	}
+}
+
+void AVaelKobold::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
+{
+	Super::OnDamageTaken(Damage, DamageTags);
+	// Hit, the lantern bearer puts its light out and slips away into the dark
+	if (LanternLight != nullptr && !IsDead() && LightOutLeft <= 0.0f && Damage > 0.0f)
+	{
+		const UVaelKoboldData* Data = GetData<UVaelKoboldData>();
+		LightOutLeft = Data->LightOutSeconds;
+		bHiding = true;
+		HideLeft = Data->HideSeconds;
+		UVaelCombatTextSubsystem::PostReaction(this, LOCTEXT("LightOut", "Licht aus!"));
+		UE_LOG(LogVael, Log, TEXT("'%s' puts its lantern out and hides"), *GetName());
+	}
+}
+
+void AVaelKobold::ThrowVial()
+{
+	const UVaelKoboldData* Data = GetData<UVaelKoboldData>();
+	UWorld* World = GetWorld();
+	FVector Ground;
+	if (!Prey.IsValid() || !AVaelCreature::FindGround(World, Prey->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f), Ground))
+	{
+		return;
+	}
+	// A glass vial of Tropfseuche: little harm in the shards, but whoever stands in the splash is infested
+	const EVaelSeuchenStamm Strain = UVaelTropfseuche::PickStrain(World, Ground);
+	const FLinearColor Color = UVaelTropfseucheSettings::Get()->GetStrain(Strain).Color;
+	FVaelSpellHit Hit;
+	Hit.Damage = Data->ThrowDamage;
+	Hit.Element = EVaelElement::Earth;
+	AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Data->ThrowRadius, Data->ThrowFlight, Color);
+	AVaelArcShot::Lob(World, GetMesh()->GetSocketLocation(TEXT("hand_r")), Ground, Data->ThrowFlight, Data->ThrowApex, Color, 12.0f);
+	const float Radius = Data->ThrowRadius;
+	TWeakObjectPtr<AActor> Thrower(this);
+	FTimerHandle Splash;
+	World->GetTimerManager().SetTimer(Splash, FTimerDelegate::CreateWeakLambda(World, [World, Thrower, Ground, Radius, Strain]()
+	{
+		AVaelPollenBurst::Spawn(World, Ground + FVector(0.0f, 0.0f, 30.0f), Radius, UVaelTropfseucheSettings::Get()->GetStrain(Strain).Color,
+			UVaelTropfseucheSettings::Get()->GetStrain(Strain).Color, 1.0f);
+		for (TActorIterator<AVaelCharacter> It(World); It; ++It)
+		{
+			if (!It->IsDowned() && FVector::Dist2D(It->GetActorLocation(), Ground) <= Radius + It->GetSimpleCollisionRadius())
+			{
+				UVaelTropfseuche::Infest(Thrower.Get(), *It, Strain);
+			}
+		}
+	}), Data->ThrowFlight, false);
+	UE_LOG(LogVael, Log, TEXT("'%s' throws a vial of Tropfseuche (%s)"), *GetName(), *UVaelTropfseucheSettings::Get()->GetStrain(Strain).Name.ToString());
+}
+
+void AVaelKobold::ThrowCharge()
+{
+	const UVaelKoboldData* Data = GetData<UVaelKoboldData>();
+	FVector Ground;
+	if (!Prey.IsValid() || !AVaelCreature::FindGround(GetWorld(), Prey->GetActorLocation() + FVector(0.0f, 0.0f, 100.0f), Ground))
+	{
+		return;
+	}
+	// A crystal charge: the mark on the ground gives the flight time to jump away
+	FVaelSpellHit Hit;
+	Hit.Damage = Data->ThrowDamage;
+	Hit.Element = EVaelElement::Fire;
+	Hit.Knockback = 300.0f;
+	AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Data->ThrowRadius, Data->ThrowFlight, KoboldKristall);
+	AVaelArcShot::Lob(GetWorld(), GetMesh()->GetSocketLocation(TEXT("hand_r")), Ground, Data->ThrowFlight, Data->ThrowApex, KoboldKristall, 14.0f);
+	UE_LOG(LogVael, Log, TEXT("'%s' throws a crystal charge"), *GetName());
+}
+
+void AVaelKobold::LayTrap()
+{
+	// On the way between it and its prey, so whoever charges at it runs into the wire
+	FVector Spot = GetActorLocation() + GetActorForwardVector() * 120.0f;
+	if (Prey.IsValid())
+	{
+		const FVector ToPrey = Prey->GetActorLocation() - GetActorLocation();
+		Spot = GetActorLocation() + ToPrey.GetSafeNormal2D() * FMath::Clamp(ToPrey.Size2D() * 0.5f, 120.0f, 350.0f);
+	}
+	FVector Ground;
+	if (AVaelCreature::FindGround(GetWorld(), Spot + FVector(0.0f, 0.0f, 150.0f), Ground))
+	{
+		AVaelSprengfalle::Lay(this, Ground, GetData<UVaelKoboldData>());
+	}
+}
+
+void AVaelKobold::Lure()
+{
+	AVaelCharacter* Player = Cast<AVaelCharacter>(Prey.Get());
+	if (Player == nullptr || LanternLight == nullptr || LightOutLeft > 0.0f)
+	{
+		return;
+	}
+	// The false light flares: whoever looks into it loses the way
+	LanternFlare = LureFlare;
+	UVaelCombatStatics::ApplyStatus(this, Player, EVaelStatus::Confused, GetData<UVaelKoboldData>()->LureConfusion);
+	AVaelPollenBurst::Spawn(GetWorld(), LanternLight->GetComponentLocation(), 70.0f, LanternColor, LanternColor, 1.0f);
+	UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("Lured", "Gelockt"));
+	UE_LOG(LogVael, Log, TEXT("'%s' lures '%s' with its false light"), *GetName(), *Player->GetName());
 }
 
 void AVaelKobold::Steal(AVaelCharacter* Player)
@@ -422,6 +767,9 @@ UVaelKoboldData* UVaelKobolde::GetData(EVaelKoboldRolle Rolle)
 	{
 	case EVaelKoboldRolle::Dieb:	return GetMutableDefault<UVaelKoboldDiebData>();
 	case EVaelKoboldRolle::Zauberer:	return GetMutableDefault<UVaelKoboldZaubererData>();
+	case EVaelKoboldRolle::Treiber:		return GetMutableDefault<UVaelKoboldTreiberData>();
+	case EVaelKoboldRolle::Sprengmeister:	return GetMutableDefault<UVaelKoboldSprengmeisterData>();
+	case EVaelKoboldRolle::Laternentraeger:	return GetMutableDefault<UVaelKoboldLaternentraegerData>();
 	default:						return GetMutableDefault<UVaelKoboldWaechterData>();
 	}
 }
@@ -437,6 +785,16 @@ void UVaelKobolde::SpawnInCaves(UWorld* World)
 	{
 		return;
 	}
+	// Mostly thieves, then guards, few of the rest (proposal); in the ant warren the slave drivers with their ants
+	const bool bAnts = Level.Contains(TEXT("L_Ameisenbau"));
+	const TArray<TPair<EVaelKoboldRolle, float>> Mix = {
+		{ EVaelKoboldRolle::Dieb, 0.32f }, { EVaelKoboldRolle::Waechter, 0.2f }, { EVaelKoboldRolle::Zauberer, 0.1f },
+		{ EVaelKoboldRolle::Treiber, bAnts ? 0.3f : 0.14f }, { EVaelKoboldRolle::Sprengmeister, 0.12f }, { EVaelKoboldRolle::Laternentraeger, 0.12f } };
+	float Total = 0.0f;
+	for (const TPair<EVaelKoboldRolle, float>& Entry : Mix)
+	{
+		Total += Entry.Value;
+	}
 	int32 Count = 0;
 	for (TActorIterator<ATargetPoint> It(World); It; ++It)
 	{
@@ -444,11 +802,19 @@ void UVaelKobolde::SpawnInCaves(UWorld* World)
 		{
 			continue;
 		}
-		// Mostly thieves, some guards, few casters (proposal)
 		for (int32 Index = FMath::RandRange(1, 2); Index > 0; --Index)
 		{
-			const float Roll = FMath::FRand();
-			const EVaelKoboldRolle Rolle = Roll < 0.5f ? EVaelKoboldRolle::Dieb : Roll < 0.8f ? EVaelKoboldRolle::Waechter : EVaelKoboldRolle::Zauberer;
+			float Roll = FMath::FRand() * Total;
+			EVaelKoboldRolle Rolle = EVaelKoboldRolle::Dieb;
+			for (const TPair<EVaelKoboldRolle, float>& Entry : Mix)
+			{
+				Rolle = Entry.Key;
+				Roll -= Entry.Value;
+				if (Roll <= 0.0f)
+				{
+					break;
+				}
+			}
 			FVector Ground;
 			if (AVaelCreature::FindGround(World, It->GetActorLocation() + FVector(FMath::FRandRange(-150.0f, 150.0f), FMath::FRandRange(-150.0f, 150.0f), 200.0f), Ground)
 				&& AVaelCreature::SpawnCreature(World, GetData(Rolle), Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f)) != nullptr)

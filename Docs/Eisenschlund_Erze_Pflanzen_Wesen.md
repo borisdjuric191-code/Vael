@@ -367,3 +367,19 @@ Dieselben drei Körper, aber wach und mit eigenen Bewegungen (`Tools/Nachtwesen/
 - Leben im Kobold-Stollen und im Ameisenbau: an 75 % der Plätze 1–2 Kobolde (50 % Diebe, 30 % Wächter, 20 % Zauberer).
 - Testen: `VaelKobold Dieb 2 1` (die 1 am Ende gibt der Figur vorher Material zum Stehlen), `VaelKobold Zauberer`, `VaelKobold Waechter`.
 - Offen: Geschichte (erst Verbündete, dann Verrat und Raub), der Hort, in dem gestohlene Beute wieder auftaucht, Vertragszauber und Stimmenfang, Rußquarz-Linse, Kobolde, die Ameisen mit Tropfseuche lenken, Beute und Kompendium.
+
+## Gebaut 2026-11-21: zweite Runde lebender Kobolde
+
+Boris und Team: nur männliche Kobolde, unterschiedliche Größen, Kleidung passend zu Höhle und Lore. Je eine Tripo-Zeichnung, dann 3D (H3.0, 3 × 40 Credits).
+
+| Kobold | Größe | Rolle im Kampf |
+|---|---|---|
+| Sklaventreiber (Ameisenhüter) | 1,75 m | Peitschenhieb auf Abstand (bis 3 m), wirft Phiolen mit Tropfseuche: wer im Spritzer steht, ist befallen |
+| Sprengmeister (Fallensteller) | 1,6 m | wirft Kristallladungen (Feuer, Markierung am Boden), legt Sprengfallen mit Stolperdraht zwischen sich und den Spieler |
+| Laternenträger | 0,87 m (mit Stange 1,12 m) | hält sich fern, lockt mit falschem Licht (verwirrt); getroffen löscht er die Laterne und versteckt sich |
+
+- Neue Bewegungen für alle: Werfen, Peitschen, Locken, Legen (Tools/Nachtwesen/kobold_lebend_clips.py).
+- Laternenträger: Stange und Laterne auf eigenem Knochen `laterne`, das Licht hängt am Knochen `laterne_licht`.
+- Mischung in Kobold-Stollen und Ameisenbau: Diebe am häufigsten, im Ameisenbau mehr Sklaventreiber.
+- Cheat: `VaelKobold Treiber|Sprengmeister|Laterne <Anzahl>`.
+- Offen: echte Schürfameisen, die der Sklaventreiber hetzt; ein leuchtender Kristall im Laternen-Material; Kompendium-Texte.

@@ -19,6 +19,11 @@ WESEN = {
     "Schleimkratzer": dict(dreiecke=30000, drehung_z=90.0, hoehe=1.05),
     "Hortwaechter": dict(dreiecke=32000, drehung_z=90.0, hoehe=1.35),
     "Kontoraeltester": dict(dreiecke=32000, drehung_z=90.0, hoehe=1.15),
+    # Second round (Tripo 2026-11-21): two as tall as the player characters, one smaller; the lantern bearer's height
+    # includes the lantern pole above his head
+    "Sklaventreiber": dict(dreiecke=32000, drehung_z=90.0, hoehe=1.75),
+    "Sprengmeister": dict(dreiecke=32000, drehung_z=90.0, hoehe=1.6),
+    "Laternentraeger": dict(dreiecke=30000, drehung_z=90.0, hoehe=1.12),
 }
 
 

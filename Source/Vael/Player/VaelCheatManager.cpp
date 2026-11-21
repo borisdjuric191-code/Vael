@@ -3235,7 +3235,10 @@ void UVaelCheatManager::VaelKobold(const FString& Rolle, int32 Count, bool bBeut
 	}
 	const FString Name = Rolle.ToLower();
 	const EVaelKoboldRolle Kind = Name.StartsWith(TEXT("w")) || Name.StartsWith(TEXT("h")) ? EVaelKoboldRolle::Waechter
-		: Name.StartsWith(TEXT("z")) || Name.StartsWith(TEXT("k")) ? EVaelKoboldRolle::Zauberer : EVaelKoboldRolle::Dieb;
+		: Name.StartsWith(TEXT("z")) || Name.StartsWith(TEXT("k")) ? EVaelKoboldRolle::Zauberer
+		: Name.StartsWith(TEXT("t")) || Name.StartsWith(TEXT("sk")) ? EVaelKoboldRolle::Treiber
+		: Name.StartsWith(TEXT("sp")) ? EVaelKoboldRolle::Sprengmeister
+		: Name.StartsWith(TEXT("l")) ? EVaelKoboldRolle::Laternentraeger : EVaelKoboldRolle::Dieb;
 	const FVector Center = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector().GetSafeNormal2D() * 600.0f;
 	int32 Spawned = 0;
 	for (int32 Index = 0; Index < FMath::Max(Count, 1); ++Index)

@@ -36,6 +36,29 @@ GELENKE = {
         schulter=(0.016, 0.174, 0.733), ellbogen=(0.063, 0.26, 0.543), handgelenk=(0.14, 0.3, 0.464), finger=(0.17, 0.32, 0.346),
         huefte=(0.0, 0.08, 0.47), knie=(0.03, 0.1, 0.3), knoechel=(0.06, 0.11, 0.06), zehen=(0.16, 0.11, 0.01),
         rumpfbreite=0.15),
+    # Second round, read 2026-11-21 the same way
+    "Sklaventreiber": dict(
+        becken=(-0.03, 0.0, 0.77), hals=(0.045, 0.0, 1.25), kopf=(0.07, 0.0, 1.34), scheitel=(0.07, 0.0, 1.61),
+        schulter=(-0.045, 0.205, 1.22), ellbogen=(-0.01, 0.3, 0.97), handgelenk=(0.025, 0.37, 0.78), finger=(0.05, 0.385, 0.63),
+        huefte=(-0.035, 0.095, 0.755), knie=(-0.01, 0.13, 0.42), knoechel=(-0.035, 0.19, 0.115), zehen=(0.145, 0.19, 0.02),
+        rumpfbreite=0.165),
+    "Sprengmeister": dict(
+        becken=(-0.045, 0.0, 0.55), hals=(0.045, 0.0, 1.13), kopf=(0.07, 0.0, 1.21), scheitel=(0.06, 0.0, 1.58),
+        schulter=(-0.065, 0.295, 1.02), ellbogen=(-0.045, 0.415, 0.82), handgelenk=(0.045, 0.46, 0.645), finger=(0.09, 0.48, 0.49),
+        huefte=(-0.045, 0.11, 0.535), knie=(-0.02, 0.155, 0.27), knoechel=(-0.02, 0.22, 0.095), zehen=(0.175, 0.22, 0.02),
+        rumpfbreite=0.24),
+    # Hunched, the big head far forward; the pole with the lantern goes on a bone of its own on the upper back
+    "Laternentraeger": dict(
+        becken=(-0.06, 0.0, 0.39), hals=(0.06, 0.0, 0.605), kopf=(0.12, 0.0, 0.66), scheitel=(0.12, 0.0, 0.86),
+        schulter=(0.0, 0.14, 0.57), ellbogen=(0.025, 0.2, 0.42), handgelenk=(0.06, 0.225, 0.285), finger=(0.085, 0.23, 0.19),
+        huefte=(-0.06, 0.062, 0.375), knie=(0.015, 0.1, 0.237), knoechel=(-0.025, 0.108, 0.098), zehen=(0.075, 0.108, 0.01),
+        rumpfbreite=0.11,
+        extra={"laterne": dict(k=(-0.05, 0.0, 0.95), e=(0.22, 0.21, 0.7), eltern="spine_03", radius=50.0,
+                               maske=lambda P: (P[:, 2] > 0.885) | ((P[:, 0] > 0.15) & (np.abs(P[:, 1]) > 0.15) & (P[:, 2] > 0.58))
+                               | ((P[:, 0] < -0.15) & (P[:, 2] > 0.8))),
+               # Where the game hangs the light: the middle of the lantern itself, an unweighted bone below the pole
+               "laterne_licht": dict(eltern="laterne", mitte_von=lambda P: (P[:, 0] > 0.15) & (np.abs(P[:, 1]) > 0.15)
+                                     & (P[:, 2] > 0.6) & (P[:, 2] < 0.76))}),
 }
 
 
@@ -43,7 +66,7 @@ def V(t, spiegeln=False):
     return Vector((t[0], -t[1] if spiegeln else t[1], t[2]))
 
 
-def plan_bauen(g):
+def plan_bauen(g, P):
     becken, hals, kopf, scheitel = V(g["becken"]), V(g["hals"]), V(g["kopf"]), V(g["scheitel"])
     rumpf = [becken.lerp(hals, f) for f in (0.0, 0.22, 0.47, 0.72, 1.0)]
     plan = {"root": K((0, 0, 0), (-0.1, 0, 0), gewicht=False),
@@ -73,13 +96,22 @@ def plan_bauen(g):
         plan["calf_" + seite] = K(knie, knoechel, "thigh_" + seite, maske=bein)
         plan["foot_" + seite] = K(knoechel, ballen, "calf_" + seite, maske=fuss)
         plan["ball_" + seite] = K(ballen, zehen, "foot_" + seite, maske=fuss)
+    # Rigid things carried on the body (the lantern pole): a bone of their own that no clip moves
+    # A bone placed at the middle of some points (mitte_von) carries no weights: it only marks a place for the game
+    for name, b in g.get("extra", {}).items():
+        if "mitte_von" in b:
+            mitte = Vector(P[b["mitte_von"](P)].mean(axis=0))
+            plan[name] = K(mitte, mitte + Vector((0.0, 0.0, 0.04)), b["eltern"], gewicht=False)
+            gemein.log(name, "an %s" % (tuple(round(c, 3) for c in mitte),))
+        else:
+            plan[name] = K(V(b["k"]), V(b["e"]), b["eltern"], maske=b["maske"], radius=b["radius"])
     return plan
 
 
 def main():
     name = sys.argv[sys.argv.index("--") + 1]
     obj, _ = gemein.oeffnen(name, "01_vorbereitet.blend")
-    plan = plan_bauen(GELENKE[name])
+    plan = plan_bauen(GELENKE[name], gemein.punkte(obj))
     arm = bau.skelett_bauen(name, plan)
     namen, w = bau.gewichte_rechnen(obj, plan, schaerfe=0.25, glatt=4)
     bau.gewichte_schreiben(obj, arm, namen, w)
