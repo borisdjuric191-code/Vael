@@ -25,6 +25,7 @@ namespace VaelTags
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Confused, "Status.Confused", "Confused: staggers about and doesn't attack; a player's steps drift off course");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Lured, "Status.Lured", "Lured by a fairy: goes after her and doesn't attack");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Pitched, "Status.Pitched", "Stuck in pitch: slowed, fire on it burns twice as hard");
+	UE_DEFINE_GAMEPLAY_TAG_COMMENT(Status_Infested, "Status.Infested", "Infested by the Tropfseuche: the body now and then resists its player, the steps drift");
 
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Channeling, "State.Channeling", "Channels a spell: casts nothing else and walks slower");
 	UE_DEFINE_GAMEPLAY_TAG_COMMENT(State_Casting, "State.Casting", "Plays the animation of a spell");
@@ -47,6 +48,7 @@ namespace VaelTags
 		case EVaelStatus::Confused:	return Status_Confused;
 		case EVaelStatus::Pitched:	return Status_Pitched;
 		case EVaelStatus::Lured:		return Status_Lured;
+		case EVaelStatus::Infested:	return Status_Infested;
 		default:					return FGameplayTag();
 		}
 	}

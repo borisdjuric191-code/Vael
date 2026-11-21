@@ -246,7 +246,9 @@ enum class EVaelStatus : uint8
 	/** Lured by a fairy of the Feenragwurz: creatures go after her and don't attack */
 	Lured,
 	/** Stuck in pitch (Harzkolben): moves at a share of its speed, fire on it burns twice as hard and uses the pitch up */
-	Pitched
+	Pitched,
+	/** Infested by the Tropfseuche: now and then the body resists its player (attacks, spells, dodges go wrong), the steps drift; water, a potion or time washes it off */
+	Infested
 };
 
 /** When a charge of Mark left in a target bursts */

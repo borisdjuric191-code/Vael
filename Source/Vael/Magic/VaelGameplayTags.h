@@ -26,6 +26,7 @@ namespace VaelTags
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Confused);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Pitched);
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Lured);
+	UE_DECLARE_GAMEPLAY_TAG_EXTERN(Status_Infested);
 
 	/** Granted while a character channels a spell: no other spell can be cast and the character walks slower */
 	UE_DECLARE_GAMEPLAY_TAG_EXTERN(State_Channeling);

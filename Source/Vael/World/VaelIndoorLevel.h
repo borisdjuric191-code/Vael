@@ -27,6 +27,9 @@ public:
 	/** The indoor marker of the world, or null */
 	static const AVaelIndoorLevel* Find(const UWorld* World);
 
+	/** The places for enemies of a cave fill with what lives there (the Schleimgaenger of the Tropfseuche) */
+	virtual void BeginPlay() override;
+
 	/** The name of the place, shown where the region name stands (a cave of the Eisenschlund: "Kernerz-Stollen") */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Indoor")
 	FText PlaceName;

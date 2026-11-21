@@ -16,6 +16,8 @@ import unreal
 QUELLEN = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
                        "Vael_Quellen")
 eal = unreal.EditorAssetLibrary
+# Region folder under /Game/Vael/Kreaturen/ of creatures that are not from the Wurzelforst
+REGION = {"Schleimgaenger": "Eisenschlund"}
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
 
@@ -25,7 +27,7 @@ def log(text):
 
 
 def anim(name):
-    ziel = "/Game/Vael/Kreaturen/Wurzelforst/" + name
+    ziel = "/Game/Vael/Kreaturen/%s/%s" % (REGION.get(name, "Wurzelforst"), name)
     neu = ziel + "/Nachtrag"
     skm = eal.load_asset("%s/SK_%s" % (ziel, name))
     if skm is None:
@@ -69,7 +71,7 @@ def anim(name):
 
 def effekte():
     name = "Moderglocke"
-    ziel = "/Game/Vael/Kreaturen/Wurzelforst/%s/Effekte" % name
+    ziel = "/Game/Vael/Kreaturen/%s/%s/Effekte" % (REGION.get(name, "Wurzelforst"), name)
     export = os.path.join(QUELLEN, name, "export")
     tasks = []
     for mesh in ("Spore", "Gifttropfen", "Giftlache"):

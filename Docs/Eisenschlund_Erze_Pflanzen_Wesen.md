@@ -26,7 +26,7 @@ Nichts davon steht schon in der Lore-Bibel, nichts ist in Tripo erstellt oder ge
 
 ## Die 10 Erze (Runde 3: nach der Pinnwand)
 
-Sortiert von häufig bis legendär. Jedes Erz hat eine eigene Farbe **und** eine eigene Form. Violett bleibt frei für Niddruse und Mark. Fast alle bestehen aus zwei Teilen (Kristall plus Kruste, Kugeln oder Bänder), wie auf der Pinnwand.
+Sortiert von häufig bis legendär. Jedes Erz hat eine eigene Farbe **und** eine eigene Form. Violett bleibt frei für Niddruse und Nid. Fast alle bestehen aus zwei Teilen (Kristall plus Kruste, Kugeln oder Bänder), wie auf der Pinnwand.
 
 | # | Erz | Seltenheit | Farbe | Form | Eigenheit | Wo es wächst |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -108,7 +108,7 @@ Entschieden: Schürfameisen mit Ahnenpanzern und Erzmutter, Kobolde wie vorgesch
 | Farbe | Stamm | Zusatzwirkung |
 | --- | --- | --- |
 | Giftgrün | Verwesungsschleim (Standard, häufig) | Wirte sind zäher: mehr Leben |
-| Violett | Nidschleim, an Nid-Quellen | seine Wirte verderben, was sie treffen (Brücke zum Nid und zum Mark) |
+| Violett | Nidschleim, an Nid-Quellen | seine Wirte verderben, was sie treffen (Brücke zum Nid) |
 | Eisblau | Kälteschleim | verlangsamt, Wirte bewegen sich träge, schlagen aber hart |
 | Bernstein-Gold | Honigschleim | süß duftend, lockt am stärksten, klebt fest |
 | Blutrot | Rauschschleim | Wirte werden schnell und rasend |
@@ -141,7 +141,7 @@ Entschieden: Schürfameisen mit Ahnenpanzern und Erzmutter, Kobolde wie vorgesch
   - **Beinhaus von Hallstatt:** Schädel, bemalt mit Namen und Blumen.
   - **Kapuzinergruft in Rom:** ganze Räume aus Knochenmustern.
 - **Lore** (Vorschlag):
-  - Als die Gilde tiefer grub, starben in der Grubenstadt Hunderte an Einstürzen, an der Gruben-Seuche und am ersten Mark.
+  - Als die Gilde tiefer grub, starben in der Grubenstadt Hunderte an Einstürzen, an der Gruben-Seuche und am ersten Nid.
   - Die Friedhöfe waren voll, also stapelte die Gilde die Toten in ausgebeuteten Stollen: die **Gebeinkammer**.
   - Dort hat der Grabschleim sein Herz, den **Mutterschleim**. Er sammelt Knochen aus dem ganzen Eisenschlund, nicht nur von toten Bergleuten, und baut aus ihnen.
   - Der Mutterschleim ahmt die Rippen der Schlafenden nach, in denen er lebt: Er will sich einen Körper bauen, so groß wie ihrer.
@@ -177,7 +177,7 @@ Entschieden: Schürfameisen mit Ahnenpanzern und Erzmutter, Kobolde wie vorgesch
 
 ### Drachenbrut (Grottenolm und Axolotl mit Urdrachin-Blut)
 
-- **Lore:** Das Blut der Urdrachin ist das Mark, und es sickert aus der Wunde im Herzen. Die gefluteten Stollen führen dieses Wasser. Die Olme darin trinken ihr Blut und bekommen Drachenzüge. Je mehr Mark, desto drachenartiger.
+- **Lore:** Das Blut der Urdrachin ist das Nid, und es sickert aus der Wunde im Herzen. Die gefluteten Stollen führen dieses Wasser. Die Olme darin trinken ihr Blut und bekommen Drachenzüge. Je mehr Nid, desto drachenartiger.
   - Gesund sind sie harmlose bleiche Olme.
   - Verdorben werden sie zu kleinen Drachen.
 - Mythologie:
@@ -266,3 +266,68 @@ Kurz: **Ja, das geht für jedes Modell, ohne Tripo für jede Kreatur.**
 - Der Grabschleim allein (ohne Maden) ist noch einfacher: nur ein Leucht-Material und das ruckartige Zombie-Gehen im Code.
 
 Schon geplant für den Eisenschlund: Salvenschwein (Bestiarium), Kettenkrabben-Form „Bohrer“.
+## Runde 5: Schleim, Wirte, Kobolde (21. November 2026, Boris und Team)
+
+Ersetzt die Abschnitte oben, wo sie sich widersprechen.
+
+**Begriff:** Es heißt **Nid**, nie Mark. Der Name „Grabschleim“ gefällt nicht, ein neuer wird gesucht (Vorschläge im Chat, offen).
+
+**Herkunft (entschieden, bewusst schlicht):**
+- Wie in der echten Welt: Wer geschwächt ist, wird krank durch Bakterien, Viren, Pilze. Die Urdrachin schläft (inaktiv), und im Eisenschlund haben sich Bakterien in ihr eingenistet, weil die Höhlen perfekte Bedingungen bieten. Genauere Geschichte folgt.
+- Optik wie echte Schleimzapfen aus Bakterien, Wirkweise wie Cordyceps (übernimmt den Wirt).
+- Die abgelehnte Idee „Wundreaktion der Schlafenden, Mutterschleim baut ihre Rippen nach“ entfällt.
+
+**Kobolde, Ameisen, Gilde (entschieden):**
+- Die mutigsten oder schwächsten Kobolde müssen Schleim von den Zapfen abtragen. Die Kobolde geben ihn den Ameisen in kleinen Mengen und halten sie so dauerhaft unter Kontrolle: Die Ameisen sind Sklaven unter Bakterien-Einfluss.
+- Nur die Kobolde sind im Eisenschlund heimisch. Es gibt **keine menschlichen Grubenarbeiter**; Menschen sind nur die Leute der Gilde.
+- Die Gilde ist nicht heimisch und nicht verbündet. Sie besticht den Koboldkönig oder die Koboldkönigin (Kraft, Magie oder anderes), um Erz abzubauen; die Kobolde dulden sie nur. Geben und Nehmen, stark von Korruption geprägt. Details zur Gilde liefert Boris später.
+- Kobolde: aufgebaut wie Höhlenvölker (Inspiration: Zwerge aus „Die Ringe der Macht“), optisch eine Mischung aus Zwerg und Ork, Charakter wie die Kobolde bei Harry Potter: fies, hinterlistig, extrem intelligent und gewitzt. Spitze Ohren, große spitze Nasen, spitze Fingernägel, spitze Zähne. Nur Inspiration, nichts nachbilden.
+
+**Stämme (entschieden: Seltenheit wie bei Pflanzen und Erzen):**
+- Je seltener, desto stärker und aggressiver. Beispiel von Boris: Grün häufig und schwach, Rot selten und sehr stark.
+- Jeder Stamm kann überall vorkommen; in seinen Lieblingsorten ist er nur wahrscheinlicher.
+- Vorschlag zur Einstufung (offen): Grün häufig, Gold und Eisblau besonders, Violett selten, Rot legendär.
+
+**Befall bei Spielern (entschieden):** Kontrollverlust: Angriffe, Verteidigung, Fähigkeiten und Waffen widersetzen sich zu einem gewissen Prozentsatz. Stärke nach Seltenheit des Stamms. Loswerden durch Salz, Wasser oder Trank.
+
+**Wirte:**
+- Skelett-Wirt: angenommen.
+- Grubenwirt (menschlicher Bergmann) entfällt, weil es dort keine menschlichen Grubenarbeiter gibt. Ersatz offen (Vorschlag: befallene Kobolde und tote Gildenleute).
+- Name für die Wirte: **Schleimgänger** (Boris' Favorit).
+
+**Klassen:** Vorschläge für Tamer, Ingenieur, Magier und Prophet angenommen (Schleimkern binden; Grabschleim/Schleimkern als Material, Salzspat-Munition; Wasser wäscht Leichen, Erde schließt Pfützen; Licht gibt Ruhe, Schatten befiehlt kurz). Floromant offen.
+
+**Folgefragen:** Lore der Gebeinkammer (bisher tote Bergleute der Grubenstadt) passt nicht mehr und muss neu gedacht werden.
+
+## Runde 6 (21. November 2026, Boris und Team)
+
+- **Name des Schleims: Tropfseuche.** Ersetzt „Grabschleim“ überall.
+- Herkunft über Bakterien und Stämme nach Seltenheit: bestätigt (Grün häufig, Gold und Eisblau besonders, Violett selten, Rot legendär).
+- **Schleimgänger (Wirte), Gewichtung:**
+  1. Hauptgegner: befallene Kobolde (vor allem die Schwachen, die den Schleim abkratzen mussten).
+  2. Hauptgegner: Gildenleute, die in den Minen gearbeitet haben und dort gestorben sind.
+  3. Später: Elite-Gegner früherer Regionen, die den Spielern und früheren Abenteurern gefolgt und im Schlund gestorben sind, in drei Zuständen: halb verwest, ganz verwest, nur noch Skeletthaufen. Härtetest kurz vor dem Herz; die Spieler sind in Region 4 stärker als damals.
+  4. Skelett-Schleimgänger aus dem Fab-Skelett.
+- **Gebeinkammer = Ahnengruft der Kobolde** (ersetzt die Gruft toter Bergleute der Grubenstadt).
+- **Floromant:** Schattenweg: bestimmte Pflanzen werden zum verlängerten Arm der Tropfseuche; jeder Biss oder Angriff kann sie übertragen, Befallene kämpfen kurz für die Floromantin. Lichtweg: bestimmte Pflanzen reinigen befallene Mitspieler. Welche Pflanzen, ist offen.
+
+## Gebaut: Tropfseuche und Skelett-Schleimgänger (Schritt 1, 21. November 2026)
+
+- **Modell:** das Fab-Skelett (Salt Lake Manor, CC BY), schon auf dem Unreal-Grundskelett. Dieses Skelett teilen später alle menschenähnlichen Schleimgänger (Kobold, Gildenmensch). `Tools/Nachtwesen/schleimgaenger_skelett.py` (Blender) macht daraus das Modell, `schleimgaenger_clips.py` die acht Bewegungen: Liegen, Aufstehen (ruckartig hochgezogen wie an Fäden), Stehen_Idle (gebückt, Kopf hängt, Zucken), Gehen (schlurft, rechter Fuß schleift), Schlag, Packen, Treffer, Tod (fällt in dieselbe Lage wie Liegen). Danach `04_export.py` und `05_unreal_import.py Schleimgaenger` → `/Game/Vael/Kreaturen/Eisenschlund/Schleimgaenger`.
+- **Hülle:** `Scripts/BuildTropfseuche.py` legt `M_Tropfseuche_Huelle` an: durchscheinender, leuchtender Schleimfilm, fleckig wie Bakterienrasen, rinnt nach unten, pulsiert, wabert. Auf Schleimgängern liegt er als Overlay, auf Spielern als zweite Haut über dem MetaHuman (der Overlay-Platz gehört dort der Waage), schwächer, damit die Figur lesbar bleibt.
+- **Stämme** (Projekteinstellungen „Vael Tropfseuche“, alle Zahlen Vorschläge):
+
+| Stamm | Seltenheit | Wirt: Leben / Schaden / Tempo | Treffer | Kontrollverlust Spieler |
+| --- | --- | --- | --- | --- |
+| Grün (Verwesung) | häufig | 1,4 / 1,0 / 1,0 | – | 8 %, Drift 12° |
+| Gold (Honig) | besonders | 1,2 / 1,1 / 1,0 | verlangsamt 2,5 s (klebt) | 12 %, Drift 18° |
+| Eisblau (Kälte) | besonders | 1,3 / 1,5 / 0,8 | verlangsamt 1,5 s | 12 %, Drift 14° |
+| Violett (Nid) | selten | 1,5 / 1,3 / 1,05 | gezeichnet 6 s | 18 %, Drift 24° |
+| Rot (Rausch) | legendär | 1,6 / 1,6 / 1,35 | – | 25 %, Drift 40° |
+
+- **Wo:** Jeder Stamm kann überall vorkommen. In seiner Lieblingshöhle ist er viermal so wahrscheinlich (Gildenmine grün, Kobold-Stollen gold, Tiefster Schacht eisblau, Gebeinkammer violett, Funkenerz-Adern rot), neben Schleimzapfen seiner Farbe doppelt so wahrscheinlich.
+- **Verhalten:** Liegt als Leiche, bis Lebende auf 7,5 m herankommen, steht ruckartig auf, schlägt oder packt (hält 0,7 s fest). Treffer befallen. Fällt er, glimmt der Film weiter und schlägt immer schneller; nach 6–10 s steht er wieder auf, höchstens zweimal. Wasser am Boden bei der Leiche oder nass beim Tod: Er bleibt liegen, der Film erlischt. Beute nur beim ersten Tod. Wasser trifft ihn 1,5-fach.
+- **Befall beim Spieler:** Angriffe, Zauber, Fingerarme, Türme, Vorrichtungen und Ausweichen gehen mit der Chance des Stamms schief (der Körper zuckt 0,3 s, der Film flammt auf), die Schritte driften. Wasser (nass), jeder Trank oder die Zeit (12–18 s) waschen ihn ab. **Salz fehlt noch** (kommt mit der Salzspat-Munition des Ingenieurs).
+- **Höhlen:** Die Plätze für Gegner in Gildenmine und Gebeinkammer füllen sich beim Betreten mit 1–2 Schleimgängern (75 % je Platz).
+- **Testen:** `VaelSchleimgaenger Rot 2` (Stämme: Gruen, Honig, Kaelte, Nid, Rot, Zufall), `VaelSeuche Nid` / `VaelSeuche aus`, `VaelSpawn Schleimgaenger`.
+- **Offen:** tropfende Schleimtropfen als Effekt, Geräusche, Salz, Kompendium-Eintrag, Beute (Schleimkern), eigener Sterbe-Zerfall in Einzelknochen (Knochenmonster), Kobold- und Gildenmensch-Körper auf demselben Skelett.

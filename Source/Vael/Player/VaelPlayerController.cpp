@@ -53,6 +53,7 @@
 #include "Story/VaelQuestSubsystem.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "TimerManager.h"
+#include "Creatures/VaelTropfseuche.h"
 #include "Vael.h"
 #include "VaelGameMode.h"
 
@@ -681,6 +682,11 @@ void AVaelPlayerController::CreateEngineerInput()
 
 void AVaelPlayerController::OnEngFire(bool bHeld)
 {
+	// Infested by the Tropfseuche: now and then the body resists and the action is lost
+	if (bHeld && UVaelTropfseuche::Resists(GetPawn()))
+	{
+		return;
+	}
 	bEngFireHeld = bHeld;
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	UVaelEngineerComponent* Engineer = VaelCharacter != nullptr && VaelCharacter->IsEngineer() ? VaelCharacter->GetEngineer() : nullptr;
@@ -723,6 +729,11 @@ void AVaelPlayerController::UpdateEngineerFire()
 
 void AVaelPlayerController::OnEngPlace()
 {
+	// Infested by the Tropfseuche: now and then the body resists and the action is lost
+	if (UVaelTropfseuche::Resists(GetPawn()))
+	{
+		return;
+	}
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	if (VaelCharacter != nullptr && VaelCharacter->IsEngineer() && !VaelCharacter->IsDowned())
 	{
@@ -1083,6 +1094,11 @@ void AVaelPlayerController::OnAimStickReleased()
 
 void AVaelPlayerController::OnDodge()
 {
+	// Infested by the Tropfseuche: now and then the body resists and the action is lost
+	if (UVaelTropfseuche::Resists(GetPawn()))
+	{
+		return;
+	}
 	if (AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>())
 	{
 		// The move input of this frame may not have been handled yet
@@ -1201,9 +1217,11 @@ void AVaelPlayerController::UsePotionNow()
 		return;
 	}
 	// the potion on the active belt place; with an empty belt the healing potion as before
-	if (!VaelCharacter->GetMaterialBag()->UseBelt())
+	const bool bDrank = VaelCharacter->GetMaterialBag()->UseBelt() || VaelCharacter->DrinkPotion();
+	// Any potion washes the Tropfseuche out (Boris 2026-11-21: salt, water or a potion)
+	if (bDrank && UVaelTropfseuche::Cure(VaelCharacter))
 	{
-		VaelCharacter->DrinkPotion();
+		UE_LOG(LogVael, Log, TEXT("Tropfseuche: a potion washes the infestation off '%s'"), *VaelCharacter->GetName());
 	}
 }
 
@@ -1234,6 +1252,11 @@ void AVaelPlayerController::OnPotion()
 
 void AVaelPlayerController::OnCast()
 {
+	// Infested by the Tropfseuche: now and then the body resists and the action is lost
+	if (UVaelTropfseuche::Resists(GetPawn()))
+	{
+		return;
+	}
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned())
 	{
@@ -1316,6 +1339,11 @@ FVector AVaelPlayerController::GetFloromantAim() const
 
 void AVaelPlayerController::OnFireHand(bool bLeft, bool bHeld)
 {
+	// Infested by the Tropfseuche: now and then the body resists and the action is lost
+	if (bHeld && UVaelTropfseuche::Resists(GetPawn()))
+	{
+		return;
+	}
 	bFireHeld[bLeft ? 0 : 1] = bHeld;
 
 	AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
@@ -1428,6 +1456,11 @@ void AVaelPlayerController::OnRoot()
 
 void AVaelPlayerController::OnTower(bool bLeft)
 {
+	// Infested by the Tropfseuche: now and then the body resists and the action is lost
+	if (UVaelTropfseuche::Resists(GetPawn()))
+	{
+		return;
+	}
 	// L2 / R2 (Boris 2026-11-19): tapped the tower sprouts ahead, held a mark shows where it goes; both pressed together are the
 	// pair: held they aim its seed, tapped they are the Turmruf
 	const int32 Side = bLeft ? 0 : 1;
@@ -1747,6 +1780,12 @@ void AVaelPlayerController::ApplyMoveInput(const FVector2D& Input)
 		Direction = Direction.RotateAngleAxis(Drift, FVector::UpVector);
 	}
 
+	// Infested by the Tropfseuche: the body pulls a little off course, the stronger the strain the more
+	if (const float SeuchenDrift = UVaelTropfseuche::GetDrift(VaelCharacter, GetWorld()->GetTimeSeconds() + PlayerSlot * 2.3f))
+	{
+		Direction = Direction.RotateAngleAxis(SeuchenDrift, FVector::UpVector);
+	}
+
 	// Don't walk out of the area the shared camera can show
 	if (const AVaelSharedCamera* SharedCamera = GetSharedCamera())
 	{
@@ -1905,6 +1944,11 @@ EVaelInputGlyphs AVaelPlayerController::GetInputGlyphs() const
 
 void AVaelPlayerController::OnQuickSlot(int32 SlotIndex)
 {
+	// Infested by the Tropfseuche: now and then the body resists and the action is lost
+	if (UVaelTropfseuche::Resists(GetPawn()))
+	{
+		return;
+	}
 	const AVaelCharacter* VaelCharacter = GetPawn<AVaelCharacter>();
 	if (VaelCharacter != nullptr && !VaelCharacter->IsDodging() && !VaelCharacter->IsDowned() && !UGameplayStatics::IsGamePaused(this))
 	{

@@ -3,6 +3,7 @@
 #include "World/VaelIndoorLevel.h"
 
 #include "Components/BillboardComponent.h"
+#include "Creatures/VaelTropfseuche.h"
 #include "EngineUtils.h"
 
 AVaelIndoorLevel::AVaelIndoorLevel()
@@ -33,4 +34,10 @@ const AVaelIndoorLevel* AVaelIndoorLevel::Find(const UWorld* World)
 	}
 	TActorIterator<AVaelIndoorLevel> It(const_cast<UWorld*>(World));
 	return It ? *It : nullptr;
+}
+
+void AVaelIndoorLevel::BeginPlay()
+{
+	Super::BeginPlay();
+	UVaelTropfseuche::SpawnHosts(GetWorld());
 }

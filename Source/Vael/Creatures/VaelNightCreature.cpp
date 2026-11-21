@@ -36,7 +36,7 @@ UVaelNightCreatureData::UVaelNightCreatureData()
 
 FSoftObjectPath UVaelNightCreatureData::GetAssetPath(const FString& Asset) const
 {
-	return FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Kreaturen/Wurzelforst/%s/%s.%s"), *AssetName, *Asset, *Asset));
+	return FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Kreaturen/%s/%s/%s.%s"), *AssetRegion, *AssetName, *Asset, *Asset));
 }
 
 UVaelModerglockeData::UVaelModerglockeData()
@@ -725,6 +725,7 @@ void AVaelNightCreature::LandAttack()
 			{
 				Caught = Player;
 			}
+			OnPreyHit(Player, Attack);
 		}
 	});
 }

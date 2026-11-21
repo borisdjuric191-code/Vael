@@ -259,6 +259,17 @@ public:
 	UFUNCTION(Exec)
 	void VaelNatterBrut();
 
+	/**
+	 *  Spawns Schleimgaenger of a strain 6 m in front of the player, lying until they come near: Gruen, Honig, Kaelte, Nid, Rot
+	 *  (or Zufall: rolled for the place). Example: VaelSchleimgaenger Rot 2
+	 */
+	UFUNCTION(Exec)
+	void VaelSchleimgaenger(const FString& Stamm = TEXT("Zufall"), int32 Count = 1);
+
+	/** Infests the own figure with a strain of the Tropfseuche (Gruen, Honig, Kaelte, Nid, Rot), "aus" washes it off */
+	UFUNCTION(Exec)
+	void VaelSeuche(const FString& Stamm = TEXT("Gruen"));
+
 	/** Makes every Distelspinne swell and burst into its swarm right now, to see the burst */
 	UFUNCTION(Exec)
 	void VaelDistelPlatzen();

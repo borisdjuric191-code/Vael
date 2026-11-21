@@ -111,6 +111,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
 	FString AssetName;
 
+	/** Region folder its assets lie in: /Game/Vael/Kreaturen/<AssetRegion>/<AssetName>/ */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look")
+	FString AssetRegion = TEXT("Wurzelforst");
+
 	/** Size against the model as made in Blender */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0.1))
 	float BodyScale = 1.0f;
@@ -381,6 +385,9 @@ protected:
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
 	virtual void OnBodyColorShown(const FLinearColor& Color, bool bHitFlash) override;
 	virtual void Die() override;
+
+	/** An attack of it has struck a player (the Schleimgaenger infest whom they strike) */
+	virtual void OnPreyHit(AVaelCharacter* Player, const FVaelNightAttack& Attack) {}
 
 private:
 

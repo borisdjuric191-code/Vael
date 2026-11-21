@@ -94,6 +94,7 @@
 #include "World/VaelAshDrift.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGameplayTags.h"
+#include "Creatures/VaelSchleimgaenger.h"
 
 namespace
 {
@@ -363,6 +364,10 @@ void UVaelCheatManager::VaelSpawn(const FString& Kind, int32 Count)
 	else if (Name.StartsWith(TEXT("peitsch")) || Name.StartsWith(TEXT("unke")))
 	{
 		Data = GetMutableDefault<UVaelPeitschenunkeData>();
+	}
+	else if (Name.StartsWith(TEXT("schleim")))
+	{
+		Data = GetMutableDefault<UVaelSchleimgaengerData>();
 	}
 	else if (Name.StartsWith(TEXT("schnapp")))
 	{
@@ -3120,4 +3125,92 @@ void UVaelCheatManager::VaelLaeutern(const FString& What)
 		UVaelBalanceSubsystem::RestGroup(GetWorld(), 8.0f, false);
 		UE_LOG(LogVael, Log, TEXT("VaelLaeutern: the group rests, balance before %.1f"), Before);
 	}
+}
+
+namespace
+{
+	/** Strain by a German name of the cheats; false for "Zufall" or anything unknown */
+	bool ParseSeuchenStamm(const FString& Name, EVaelSeuchenStamm& OutStrain)
+	{
+		const FString Lower = Name.ToLower();
+		if (Lower.StartsWith(TEXT("gr")) || Lower.StartsWith(TEXT("ver")))
+		{
+			OutStrain = EVaelSeuchenStamm::Verwesung;
+		}
+		else if (Lower.StartsWith(TEXT("hon")) || Lower.StartsWith(TEXT("gold")) || Lower.StartsWith(TEXT("bern")))
+		{
+			OutStrain = EVaelSeuchenStamm::Honig;
+		}
+		else if (Lower.StartsWith(TEXT("k")) || Lower.StartsWith(TEXT("eis")) || Lower.StartsWith(TEXT("blau")))
+		{
+			OutStrain = EVaelSeuchenStamm::Kaelte;
+		}
+		else if (Lower.StartsWith(TEXT("nid")) || Lower.StartsWith(TEXT("viol")))
+		{
+			OutStrain = EVaelSeuchenStamm::Nid;
+		}
+		else if (Lower.StartsWith(TEXT("rot")) || Lower.StartsWith(TEXT("rau")))
+		{
+			OutStrain = EVaelSeuchenStamm::Rausch;
+		}
+		else
+		{
+			return false;
+		}
+		return true;
+	}
+}
+
+void UVaelCheatManager::VaelSchleimgaenger(const FString& Stamm, int32 Count)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (PlayerPawn == nullptr)
+	{
+		return;
+	}
+	EVaelSeuchenStamm Strain = EVaelSeuchenStamm::Verwesung;
+	const bool bChosen = ParseSeuchenStamm(Stamm, Strain);
+	const FVector Center = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector().GetSafeNormal2D() * 600.0f;
+	int32 Spawned = 0;
+	for (int32 Index = 0; Index < FMath::Max(Count, 1); ++Index)
+	{
+		const FVector Spot = Center + FVector(FMath::FRandRange(-180.0f, 180.0f), FMath::FRandRange(-180.0f, 180.0f), 300.0f);
+		FVector Ground;
+		if (!AVaelCreature::FindGround(GetWorld(), Spot, Ground))
+		{
+			continue;
+		}
+		const FRotator Facing = (PlayerPawn->GetActorLocation() - Ground).GetSafeNormal2D().Rotation();
+		if (AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSchleimgaengerData>(), Ground, Facing, nullptr,
+			[bChosen, Strain](AVaelCreature* Creature)
+			{
+				AVaelSchleimgaenger* Host = Cast<AVaelSchleimgaenger>(Creature);
+				if (Host != nullptr && bChosen)
+				{
+					Host->SetStrain(Strain);
+				}
+			}) != nullptr)
+		{
+			++Spawned;
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelSchleimgaenger: %d x %s"), Spawned, bChosen ? *UVaelTropfseucheSettings::Get()->GetStrain(Strain).Name.ToString() : TEXT("Zufall"));
+}
+
+void UVaelCheatManager::VaelSeuche(const FString& Stamm)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	AVaelCharacter* Player = PlayerController != nullptr ? PlayerController->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	EVaelSeuchenStamm Strain = EVaelSeuchenStamm::Verwesung;
+	if (!ParseSeuchenStamm(Stamm, Strain))
+	{
+		UE_LOG(LogVael, Log, TEXT("VaelSeuche: washed off (%s)"), UVaelTropfseuche::Cure(Player) ? TEXT("was infested") : TEXT("was clean"));
+		return;
+	}
+	UVaelTropfseuche::Infest(nullptr, Player, Strain);
 }

@@ -165,6 +165,10 @@ FText AVaelCharacterBase::GetStatusText() const
 	{
 		Names.Add(TEXT("abgelenkt"));
 	}
+	if (AbilitySystemComponent->HasMatchingGameplayTag(VaelTags::Status_Infested))
+	{
+		Names.Add(TEXT("befallen"));
+	}
 
 	return FText::FromString(FString::Join(Names, TEXT(", ")));
 }

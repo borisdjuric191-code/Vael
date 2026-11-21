@@ -19,6 +19,8 @@ MASTER = "/Game/Vael/Materialien/M_Kreatur_Master"
 TEXTUREN = (("basecolor", "jpg", "BaseColor"), ("normal", "png", "Normal"), ("roughness", "jpg", "Roughness"),
             ("metallic", "jpg", "Metallic"))
 eal = unreal.EditorAssetLibrary
+# Region folder under /Game/Vael/Kreaturen/ of creatures that are not from the Wurzelforst
+REGION = {"Schleimgaenger": "Eisenschlund"}
 
 
 def log(text):
@@ -125,7 +127,7 @@ def material(name, ziel):
 
 def main():
     for name in sys.argv[1:]:
-        ziel = "/Game/Vael/Kreaturen/Wurzelforst/" + name
+        ziel = "/Game/Vael/Kreaturen/%s/%s" % (REGION.get(name, "Wurzelforst"), name)
         export = os.path.join(QUELLEN, name, "export")
         if eal.does_asset_exist("%s/SK_%s" % (ziel, name)):
             log("%s ist schon da - nichts importiert (fuer neue Animationen zuerst die Assets im Editor loeschen)" % name)
