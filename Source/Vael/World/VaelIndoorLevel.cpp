@@ -4,6 +4,7 @@
 
 #include "Components/BillboardComponent.h"
 #include "Creatures/VaelTropfseuche.h"
+#include "Creatures/VaelKobold.h"
 #include "EngineUtils.h"
 
 AVaelIndoorLevel::AVaelIndoorLevel()
@@ -40,4 +41,5 @@ void AVaelIndoorLevel::BeginPlay()
 {
 	Super::BeginPlay();
 	UVaelTropfseuche::SpawnHosts(GetWorld());
+	UVaelKobolde::SpawnInCaves(GetWorld());
 }

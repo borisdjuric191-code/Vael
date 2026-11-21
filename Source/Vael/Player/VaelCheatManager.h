@@ -270,6 +270,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelSeuche(const FString& Stamm = TEXT("Gruen"));
 
+	/** Spawns living Kobolde 6 m in front of the player: Dieb (steals and runs), Waechter (strikes) or Zauberer (false copies, misleading signs); with 1 at the end the player first gets something to steal */
+	UFUNCTION(Exec)
+	void VaelKobold(const FString& Rolle = TEXT("Dieb"), int32 Count = 1, bool bBeute = false);
+
 	/** Makes every Distelspinne swell and burst into its swarm right now, to see the burst */
 	UFUNCTION(Exec)
 	void VaelDistelPlatzen();

@@ -352,3 +352,18 @@ Ersetzt die Abschnitte oben, wo sie sich widersprechen.
 - **Höhlen:** Die Plätze für Gegner füllen sich zu 72 % mit Kobolden (45 % Schleimkratzer, 15 % Hortwächter, 12 % Kontorältester), sonst Skelett.
 - **Testen:** `VaelSchleimgaenger Rot 2 Waechter` (Körper: Skelett, Kratzer, Waechter, Aeltester).
 - **Offen:** lebende Kobolde (Magie, Verrat, Hort) brauchen ein Design-Gespräch; Robe und Schulterplatten verziehen sich bei großen Armbewegungen etwas; im kühlen Höhlenlicht wirkt die Haut blass; Farbvarianten der Robe für andere Kobolde.
+
+### Gebaut: lebende Kobolde (21. November 2026, Vorschlag zum Kampf, Geschichte folgt)
+
+Dieselben drei Körper, aber wach und mit eigenen Bewegungen (`Tools/Nachtwesen/kobold_lebend_clips.py`: Wach_Idle, Schleichen, Rennen, Kratzen, Zaubern; per `06_export_nachtrag.py` / `07_unreal_nachtrag.py` zu den Assets gelegt). Code: `Creatures/VaelKobold.*` (`AVaelKobold`, `AVaelIrrzeichen`).
+
+| Rolle | Körper | Was er tut | Werte (Vorschlag) |
+| --- | --- | --- | --- |
+| Dieb | Schleimkratzer | huscht heran, packt, stiehlt 3 Stück eines Materials (keine Tränke) und rennt 9 s davon; dann ist er mit der Beute weg. Wer ihn vorher erwischt, bekommt alles zurück. | 45 Leben, Krallen 4 |
+| Wächter | Hortwächter | hält die Stellung, schwerer Schlag und schnelles Kratzen, kaum zurückzustoßen | 170 Leben, Schlag 18 |
+| Zauberer | Kontorältester | hält etwa 5 m Abstand. **Trugbild:** zwei falsche Kopien von sich (14 s, sterben beim ersten Treffer, richten keinen Schaden an). **Irrzeichen:** leuchtende Kristallrune (1,5 m) unter dem Spieler, wer drauftritt, ist 3 s verwirrt. | 70 Leben |
+
+- Schwäche: Luft (1,5-fach). Die Rußquarz-Linse (Trugbilder erkennen) ist noch nicht gebaut.
+- Leben im Kobold-Stollen und im Ameisenbau: an 75 % der Plätze 1–2 Kobolde (50 % Diebe, 30 % Wächter, 20 % Zauberer).
+- Testen: `VaelKobold Dieb 2 1` (die 1 am Ende gibt der Figur vorher Material zum Stehlen), `VaelKobold Zauberer`, `VaelKobold Waechter`.
+- Offen: Geschichte (erst Verbündete, dann Verrat und Raub), der Hort, in dem gestohlene Beute wieder auftaucht, Vertragszauber und Stimmenfang, Rußquarz-Linse, Kobolde, die Ameisen mit Tropfseuche lenken, Beute und Kompendium.

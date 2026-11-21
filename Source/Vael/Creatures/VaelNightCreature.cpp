@@ -728,6 +728,7 @@ void AVaelNightCreature::LandAttack()
 			OnPreyHit(Player, Attack);
 		}
 	});
+	OnAttackLanded(Attack);
 }
 
 void AVaelNightCreature::TickBehavior(float DeltaSeconds)

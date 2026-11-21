@@ -40,15 +40,16 @@ def skalieren(obj, arm, f):
                     kp.handle_right.y *= f
 
 
-def main():
-    name = sys.argv[sys.argv.index("--") + 1]
-    obj, arm = gemein.oeffnen(name, "02_skelett.blend")
-    becken = arm.data.bones["pelvis"].head_local.z
-    k = BECKEN_SKELETT / becken
+def hochskalieren(obj, arm):
+    """Scales the Kobold up to the skeleton's size; returns the factor"""
+    k = BECKEN_SKELETT / arm.data.bones["pelvis"].head_local.z
     skalieren(obj, arm, k)
     bpy.context.view_layer.update()
+    return k
 
-    # Its own hands and feet: feet where they stand, hands hanging below the shoulders
+
+def ziele_setzen(arm, name):
+    """Its own hands and feet as the targets of the Schleimgaenger poses: feet where they stand, hands below the shoulders"""
     knochen = arm.data.bones
     for seite in ("l", "r"):
         s = 1.0 if seite == "l" else -1.0
@@ -62,6 +63,13 @@ def main():
         sg.FUSS_LIEGEN[seite] = Vector((knochen["pelvis"].head_local.x + 0.05 + (knochen["thigh_" + seite].head_local.z - kn.z),
                                         kn.y * 1.4, 0.08))
     sg.NAME = name
+
+
+def main():
+    name = sys.argv[sys.argv.index("--") + 1]
+    obj, arm = gemein.oeffnen(name, "02_skelett.blend")
+    k = hochskalieren(obj, arm)
+    ziele_setzen(arm, name)
     gemein.log(name, "Faktor %.3f, Fuesse %s, Haende %s" % (k, [tuple(round(c, 2) for c in v) for v in sg.FUSS_STEHEN.values()],
                                                           [tuple(round(c, 2) for c in v) for v in sg.HAND_STEHEN.values()]))
     for aktion, (dauer, pose, schleife, _) in sg.AKTIONEN.items():
@@ -77,4 +85,5 @@ def main():
     gemein.log(name, "Clips fertig, Gehen %.1f cm/s bei eigenem Tempo" % (100.0 * 2 * sg.SCHRITT / sg.GEHEN_DAUER / k))
 
 
-main()
+if __name__ == "__main__":
+    main()

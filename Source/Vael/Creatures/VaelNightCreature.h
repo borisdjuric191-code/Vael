@@ -389,17 +389,28 @@ protected:
 	/** An attack of it has struck a player (the Schleimgaenger infest whom they strike) */
 	virtual void OnPreyHit(AVaelCharacter* Player, const FVaelNightAttack& Attack) {}
 
-private:
+	/** An attack has reached its moment, hit or not (the Kobolde cast their spells here) */
+	virtual void OnAttackLanded(const FVaelNightAttack& Attack) {}
 
 	UAnimSequence* FindClip(FName Clip);
 	void Play(FName Clip, bool bLoop, float BlendTime = 0.25f, float Rate = 1.0f, bool bRestart = false);
-	void EnterState(EVaelNightState NewState);
+	void Loop(FName Clip, float BlendTime = 0.45f);
 	void TurnTowards(const FVector& Location, float DeltaSeconds);
+
+	/** Who it is after, and its size against the model */
+	TWeakObjectPtr<AActor> Prey;
+	float Size = 1.0f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelSequenceAnimInstance> Animator;
+
+private:
+
+	void EnterState(EVaelNightState NewState);
 	bool StartAttack(AActor* Target, float Distance, bool bPreferLunge = false);
 	void LandAttack();
 	void StartCling(AVaelCharacter* Held);
 	void EndCling();
-	void Loop(FName Clip, float BlendTime = 0.45f);
 	void SpawnSpray(EVaelNightSpray Kind, float Reach);
 	void UpdateLift(float DeltaSeconds);
 	void UpdateProcedural(float DeltaSeconds);
@@ -411,8 +422,6 @@ private:
 	int32 ShowIndex = -1;
 	float ShowLeft = 0.0f;
 
-	UPROPERTY(Transient)
-	TObjectPtr<UVaelSequenceAnimInstance> Animator;
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> Materials;
@@ -423,7 +432,6 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> Tongue;
 
-	TWeakObjectPtr<AActor> Prey;
 
 	/** Players its own sting has paralysed, and until when (world seconds) */
 	TMap<TWeakObjectPtr<AActor>, float> PreyHelplessUntil;
@@ -438,7 +446,6 @@ private:
 	bool bMoving = false;
 
 	/** Size of this one against the model (BodyScale times its share of SizeRange) and that share alone */
-	float Size = 1.0f;
 	float SizeShare = 1.0f;
 
 	/** How far the body is carried above its animations right now (cm) */

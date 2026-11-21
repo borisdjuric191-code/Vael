@@ -95,6 +95,7 @@
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Creatures/VaelSchleimgaenger.h"
+#include "Creatures/VaelKobold.h"
 
 namespace
 {
@@ -3218,4 +3219,33 @@ void UVaelCheatManager::VaelSeuche(const FString& Stamm)
 		return;
 	}
 	UVaelTropfseuche::Infest(nullptr, Player, Strain);
+}
+
+void UVaelCheatManager::VaelKobold(const FString& Rolle, int32 Count, bool bBeute)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (PlayerPawn == nullptr)
+	{
+		return;
+	}
+	if (bBeute)
+	{
+		VaelMaterial(TEXT("alle"), 2);
+	}
+	const FString Name = Rolle.ToLower();
+	const EVaelKoboldRolle Kind = Name.StartsWith(TEXT("w")) || Name.StartsWith(TEXT("h")) ? EVaelKoboldRolle::Waechter
+		: Name.StartsWith(TEXT("z")) || Name.StartsWith(TEXT("k")) ? EVaelKoboldRolle::Zauberer : EVaelKoboldRolle::Dieb;
+	const FVector Center = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector().GetSafeNormal2D() * 600.0f;
+	int32 Spawned = 0;
+	for (int32 Index = 0; Index < FMath::Max(Count, 1); ++Index)
+	{
+		FVector Ground;
+		if (AVaelCreature::FindGround(GetWorld(), Center + FVector(FMath::FRandRange(-180.0f, 180.0f), FMath::FRandRange(-180.0f, 180.0f), 300.0f), Ground)
+			&& AVaelCreature::SpawnCreature(GetWorld(), UVaelKobolde::GetData(Kind), Ground, (PlayerPawn->GetActorLocation() - Ground).GetSafeNormal2D().Rotation()) != nullptr)
+		{
+			++Spawned;
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelKobold: %d x %s"), Spawned, *Rolle);
 }
