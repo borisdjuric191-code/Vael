@@ -288,4 +288,5 @@ def main():
             bau.clip_pruefen(NAME, arm, aktion, bilder, MITTE, 2.6, ("seite", "spiel"))
 
 
-main()
+if __name__ == "__main__":
+    main()

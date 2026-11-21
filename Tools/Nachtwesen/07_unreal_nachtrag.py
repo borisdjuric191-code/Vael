@@ -17,7 +17,7 @@ QUELLEN = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.d
                        "Vael_Quellen")
 eal = unreal.EditorAssetLibrary
 # Region folder under /Game/Vael/Kreaturen/ of creatures that are not from the Wurzelforst
-REGION = {"Schleimgaenger": "Eisenschlund"}
+REGION = {"Schleimgaenger": "Eisenschlund", "Schleimkratzer": "Eisenschlund", "Hortwaechter": "Eisenschlund", "Kontoraeltester": "Eisenschlund"}
 tools = unreal.AssetToolsHelpers.get_asset_tools()
 mel = unreal.MaterialEditingLibrary
 

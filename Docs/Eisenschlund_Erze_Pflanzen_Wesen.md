@@ -342,3 +342,13 @@ Ersetzt die Abschnitte oben, wo sie sich widersprechen.
 - **Belichtung:** Die Höhlen sind stark aufgehellt; zu viel Leuchtkraft wird weiß. Werte deshalb klein (Film 0,1 × Glow, Klumpen 0,25 ×, Herz 2 ×).
 - **Debug:** `-VaelSeucheOhneFilm` zeigt Herz, Netz und Klumpen ohne Film.
 - **Offen:** Die Herzkugel selbst ist von schräg vorn hinter den Rippen schwer zu sehen (das Licht schon). Abwarten, wie es aus der Spielkamera wirkt, sonst größer oder weiter nach vorn.
+
+### Gebaut: befallene Kobolde (21. November 2026)
+
+- **Drei Körper** aus Tripo (H3.0, je 40 Credits): Schleimkratzer (1,05 m, ausgemergelter Sklave), Hortwächter (1,35 m, Zwerg-Ork in Rüstung), Kontorältester (1,15 m, Adliger in Robe mit Kristallschmuck). Quellen in `Vael_Quellen/<Name>/`, in Unreal unter `/Game/Vael/Kreaturen/Eisenschlund/<Name>`.
+- **Skelett:** dieselben Knochennamen wie der Schleimgänger (Unreal-Grundskelett, ohne Finger), Gelenke aus den Messbildern (`Tools/Nachtwesen/kobold_skelett.py`), Abstandsgewichte mit Seitenmasken.
+- **Bewegungen:** dieselben acht wie beim Skelett (`kobold_clips.py`): der Kobold wird auf Skelettgröße hochskaliert, gebacken, dann samt Bewegungswegen zurückskaliert.
+- **Im Spiel:** befallene Kobolde sind Schleimgänger (`UVaelKoboldSchleimkratzerData`, `…HortwaechterData`, `…KontoraeltesterData`): Film in der Stammfarbe (dünner als beim Skelett, damit Gesicht und Kleidung lesbar bleiben), 8–12 Schleimklumpen auf Rumpf und Gliedern, Befall, Wiederaufstehen. Größen 85–100 %. Hortwächter zäh und hart (150 Leben, 17 Schaden), Schleimkratzer schwach (55/8), Kontorältester dazwischen (80/10). Keine Wasser-Schwäche (Fleisch, nicht Knochen).
+- **Höhlen:** Die Plätze für Gegner füllen sich zu 72 % mit Kobolden (45 % Schleimkratzer, 15 % Hortwächter, 12 % Kontorältester), sonst Skelett.
+- **Testen:** `VaelSchleimgaenger Rot 2 Waechter` (Körper: Skelett, Kratzer, Waechter, Aeltester).
+- **Offen:** lebende Kobolde (Magie, Verrat, Hort) brauchen ein Design-Gespräch; Robe und Schulterplatten verziehen sich bei großen Armbewegungen etwas; im kühlen Höhlenlicht wirkt die Haut blass; Farbvarianten der Robe für andere Kobolde.

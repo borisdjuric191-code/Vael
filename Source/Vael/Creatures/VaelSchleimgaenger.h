@@ -22,6 +22,50 @@ class UVaelSchleimgaengerData : public UVaelNightCreatureData
 public:
 
 	UVaelSchleimgaengerData();
+
+	/** Lumps of slime the game sticks on a body that has none in its model (the Kobolde), at this size against a 1.8 m human */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Tropfseuche", meta = (ClampMin = 0))
+	int32 BodyLumps = 0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Tropfseuche", meta = (ClampMin = 0.1))
+	float LumpScale = 1.0f;
+};
+
+/**
+ *  The infested Kobolde (Boris and team, 2026-11-21: the main enemies of the Eisenschlund, mostly the weak ones that had
+ *  to scrape the slime). Their models are the Tripo Kobolde with the mannequin bone names (Tools/Nachtwesen/kobold_*.py)
+ *  and the same movements as the skeleton, baked at their own size.
+ */
+UCLASS(BlueprintType)
+class UVaelKoboldSchleimkratzerData : public UVaelSchleimgaengerData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelKoboldSchleimkratzerData();
+};
+
+/** The heavy guard of the hoard, half dwarf, half orc, in battered armour */
+UCLASS(BlueprintType)
+class UVaelKoboldHortwaechterData : public UVaelSchleimgaengerData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelKoboldHortwaechterData();
+};
+
+/** The old noble who keeps the accounts, in a robe hung with crystals */
+UCLASS(BlueprintType)
+class UVaelKoboldKontoraeltesterData : public UVaelSchleimgaengerData
+{
+	GENERATED_BODY()
+
+public:
+
+	UVaelKoboldKontoraeltesterData();
 };
 
 /**
@@ -75,6 +119,10 @@ private:
 	/** The heart lights the ribs from inside, in the colour of the strain, beating with it */
 	UPROPERTY(Transient)
 	TObjectPtr<class UPointLightComponent> HeartLight;
+
+	/** Lumps stuck on a body without its own (Kobolde) */
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> Lumps;
 
 	EVaelSeuchenStamm Strain = EVaelSeuchenStamm::Verwesung;
 	bool bStrainSet = false;

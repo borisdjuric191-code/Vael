@@ -243,13 +243,18 @@ void UVaelSeuchenBefall::AddLumps(USkeletalMeshComponent* Body)
 		}
 	}
 	Lumps.Reset();
-	const UVaelTropfseucheSettings* Settings = UVaelTropfseucheSettings::Get();
 	LumpLook = UVaelTropfseuche::MakeLumpLook(this, Strain);
-	if (Body == nullptr || LumpLook == nullptr || Settings->LumpMeshes.Num() == 0)
+	UVaelTropfseuche::AttachLumps(Body, LumpLook, UVaelTropfseucheSettings::Get()->GetStrain(Strain).PlayerLumps, 1.0f, Lumps);
+}
+
+void UVaelTropfseuche::AttachLumps(USkeletalMeshComponent* Body, UMaterialInstanceDynamic* Look, int32 Wanted, float Scale, TArray<TObjectPtr<UStaticMeshComponent>>& Lumps)
+{
+	const UVaelTropfseucheSettings* Settings = UVaelTropfseucheSettings::Get();
+	if (Body == nullptr || Look == nullptr || Settings->LumpMeshes.Num() == 0 || Wanted <= 0)
 	{
 		return;
 	}
-
+	const int32 Start = Lumps.Num();
 	// Where lumps can sit: a stretch of a limb or the trunk (from a bone to the next) and how far its surface lies from it
 	struct FStretch
 	{
@@ -279,8 +284,8 @@ void UVaelSeuchenBefall::AddLumps(USkeletalMeshComponent* Body)
 		return;
 	}
 	// In patches: a few places, several lumps close together at each
-	const int32 Wanted = Settings->GetStrain(Strain).PlayerLumps;
-	while (Lumps.Num() < Wanted)
+
+	while (Lumps.Num() - Start < Wanted)
 	{
 		const FStretch& Stretch = *Usable[FMath::RandRange(0, Usable.Num() - 1)];
 		const FVector From = Body->GetBoneLocation(Stretch.Bone);
@@ -293,20 +298,20 @@ void UVaelSeuchenBefall::AddLumps(USkeletalMeshComponent* Body)
 		const FVector Side = FVector::CrossProduct(Axis, FVector::UpVector).IsNearlyZero() ? FVector::ForwardVector : FVector::CrossProduct(Axis, FVector::UpVector).GetSafeNormal();
 		const float PatchAt = FMath::FRandRange(0.15f, 0.85f);
 		const float PatchAngle = FMath::FRandRange(0.0f, 360.0f);
-		const int32 InPatch = FMath::Min(FMath::RandRange(2, 4), Wanted - Lumps.Num());
+		const int32 InPatch = FMath::Min(FMath::RandRange(2, 4), Wanted - (Lumps.Num() - Start));
 		for (int32 Index = 0; Index < InPatch; ++Index)
 		{
 			const float At = FMath::Clamp(PatchAt + FMath::FRandRange(-0.12f, 0.12f), 0.05f, 0.95f);
 			const FVector Out = Side.RotateAngleAxis(PatchAngle + FMath::FRandRange(-40.0f, 40.0f), Axis);
-			const float Size = FMath::FRandRange(5.0f, 11.0f);
+			const float Size = FMath::FRandRange(5.0f, 11.0f) * Scale;
 			UStaticMeshComponent* Lump = NewObject<UStaticMeshComponent>(Body->GetOwner());
 			Lump->SetStaticMesh(Settings->LumpMeshes[FMath::RandRange(0, Settings->LumpMeshes.Num() - 1)].LoadSynchronous());
 			Lump->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			Lump->SetCastShadow(false);
-			Lump->SetMaterial(0, LumpLook);
+			Lump->SetMaterial(0, Look);
 			Lump->RegisterComponent();
 			// Sunk a little into the body, flat side down; the mesh is 5 cm across
-			Lump->SetWorldLocationAndRotation(FMath::Lerp(From, To, At) + Out * (Stretch.Radius * 0.9f), FRotationMatrix::MakeFromZX(Out, Axis).Rotator());
+			Lump->SetWorldLocationAndRotation(FMath::Lerp(From, To, At) + Out * (Stretch.Radius * 0.9f * Scale), FRotationMatrix::MakeFromZX(Out, Axis).Rotator());
 			Lump->SetWorldScale3D(FVector(Size / 5.0f));
 			Lump->AttachToComponent(Body, FAttachmentTransformRules::KeepWorldTransform, Stretch.Bone);
 			Lumps.Add(Lump);
@@ -599,7 +604,24 @@ void UVaelTropfseuche::SpawnHosts(UWorld* World)
 	{
 		return;
 	}
-	UVaelSchleimgaengerData* Data = GetMutableDefault<UVaelSchleimgaengerData>();
+	// Bodies: mostly infested Kobolde, the weak scrapers above all; now and then a skeleton (Boris 2026-11-21)
+	const auto PickBody = []() -> UVaelSchleimgaengerData*
+	{
+		const float Roll = FMath::FRand();
+		if (Roll < 0.45f)
+		{
+			return GetMutableDefault<UVaelKoboldSchleimkratzerData>();
+		}
+		if (Roll < 0.6f)
+		{
+			return GetMutableDefault<UVaelKoboldHortwaechterData>();
+		}
+		if (Roll < 0.72f)
+		{
+			return GetMutableDefault<UVaelKoboldKontoraeltesterData>();
+		}
+		return GetMutableDefault<UVaelSchleimgaengerData>();
+	};
 	int32 Places = 0;
 	int32 Hosts = 0;
 	for (TActorIterator<ATargetPoint> It(World); It; ++It)
@@ -623,7 +645,7 @@ void UVaelTropfseuche::SpawnHosts(UWorld* World)
 				continue;
 			}
 			const EVaelSeuchenStamm Strain = PickStrain(World, Ground);
-			if (AVaelCreature::SpawnCreature(World, Data, Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), nullptr,
+			if (AVaelCreature::SpawnCreature(World, PickBody(), Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), nullptr,
 				[Strain](AVaelCreature* Creature)
 				{
 					if (AVaelSchleimgaenger* Host = Cast<AVaelSchleimgaenger>(Creature))

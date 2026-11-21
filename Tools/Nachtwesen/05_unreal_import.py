@@ -20,7 +20,7 @@ TEXTUREN = (("basecolor", "jpg", "BaseColor"), ("normal", "png", "Normal"), ("ro
             ("metallic", "jpg", "Metallic"))
 eal = unreal.EditorAssetLibrary
 # Region folder under /Game/Vael/Kreaturen/ of creatures that are not from the Wurzelforst
-REGION = {"Schleimgaenger": "Eisenschlund"}
+REGION = {"Schleimgaenger": "Eisenschlund", "Schleimkratzer": "Eisenschlund", "Hortwaechter": "Eisenschlund", "Kontoraeltester": "Eisenschlund"}
 
 
 def log(text):
@@ -31,7 +31,11 @@ def texturen(name, ziel, export):
     tasks = []
     for art, endung, _ in TEXTUREN:
         task = unreal.AssetImportTask()
-        task.set_editor_property("filename", os.path.join(export, "T_%s_%s.%s" % (name, art, endung)))
+        datei = os.path.join(export, "T_%s_%s.%s" % (name, art, endung))
+        if not os.path.exists(datei):
+            # Tripo sometimes delivers the normal map as JPG and the others as PNG
+            datei = os.path.join(export, "T_%s_%s.%s" % (name, art, "jpg" if endung == "png" else "png"))
+        task.set_editor_property("filename", datei)
         task.set_editor_property("destination_path", ziel)
         task.set_editor_property("destination_name", "T_%s_%s" % (name, art))
         task.set_editor_property("replace_existing", True)

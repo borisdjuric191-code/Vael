@@ -3161,7 +3161,7 @@ namespace
 	}
 }
 
-void UVaelCheatManager::VaelSchleimgaenger(const FString& Stamm, int32 Count)
+void UVaelCheatManager::VaelSchleimgaenger(const FString& Stamm, int32 Count, const FString& Koerper)
 {
 	APlayerController* PlayerController = GetOuterAPlayerController();
 	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
@@ -3182,7 +3182,12 @@ void UVaelCheatManager::VaelSchleimgaenger(const FString& Stamm, int32 Count)
 			continue;
 		}
 		const FRotator Facing = (PlayerPawn->GetActorLocation() - Ground).GetSafeNormal2D().Rotation();
-		if (AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSchleimgaengerData>(), Ground, Facing, nullptr,
+		const FString Body = Koerper.ToLower();
+		UVaelSchleimgaengerData* Data = Body.StartsWith(TEXT("kr")) ? GetMutableDefault<UVaelKoboldSchleimkratzerData>()
+			: Body.StartsWith(TEXT("w")) || Body.StartsWith(TEXT("hort")) ? GetMutableDefault<UVaelKoboldHortwaechterData>()
+			: Body.StartsWith(TEXT("ae")) || Body.StartsWith(TEXT("äl")) || Body.StartsWith(TEXT("kon")) ? GetMutableDefault<UVaelKoboldKontoraeltesterData>()
+			: GetMutableDefault<UVaelSchleimgaengerData>();
+		if (AVaelCreature::SpawnCreature(GetWorld(), Data, Ground, Facing, nullptr,
 			[bChosen, Strain](AVaelCreature* Creature)
 			{
 				AVaelSchleimgaenger* Host = Cast<AVaelSchleimgaenger>(Creature);

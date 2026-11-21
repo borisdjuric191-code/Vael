@@ -79,6 +79,55 @@ UVaelSchleimgaengerData::UVaelSchleimgaengerData()
 	TwitchAngle = 22.0f;
 }
 
+namespace
+{
+	/** A Kobold body: its own model, size and pace; reach and blows of the skeleton scaled to its size */
+	void MakeKobold(UVaelSchleimgaengerData* Data, const TCHAR* AssetName, const FText& Name, float Scale, float Health, float Damage,
+		float ClipSpeed, int32 Lumps)
+	{
+		Data->DisplayName = Name;
+		Data->KindId = FName(*(FString(TEXT("Kobold_")) + AssetName));
+		Data->CompendiumId = Data->KindId;
+		Data->AssetName = AssetName;
+		Data->MaxHealth = Health;
+		Data->CollisionRadius = FMath::Max(20.0f, 40.0f * Scale);
+		Data->CollisionHalfHeight = 92.0f * Scale;
+		Data->MoveClipSpeed = ClipSpeed;
+		// The skeleton moves 1.39 times faster than its clip plays at its own pace; the same for a Kobold
+		Data->MoveSpeed = ClipSpeed * 1.39f;
+		// Not every Kobold is grown (Boris: mostly small, some bigger)
+		Data->SizeRange = FVector2D(0.85f, 1.0f);
+		Data->BodyLumps = Lumps;
+		Data->LumpScale = Scale;
+		for (FVaelNightAttack& Attack : Data->Attacks)
+		{
+			Attack.Range *= Scale;
+			Attack.Reach *= Scale;
+			Attack.HitRadius *= FMath::Max(Scale, 0.75f);
+			Attack.Lunge *= Scale;
+			Attack.Damage = Damage * (Attack.Clip == TEXT("Packen") ? 0.75f : 1.0f);
+		}
+		// Flesh, not bare bones: water is no special weakness of theirs
+		Data->ElementMultipliers.Remove(EVaelElement::Water);
+	}
+}
+
+UVaelKoboldSchleimkratzerData::UVaelKoboldSchleimkratzerData()
+{
+	MakeKobold(this, TEXT("Schleimkratzer"), LOCTEXT("Schleimkratzer", "Befallener Schleimkratzer"), 0.58f, 55.0f, 8.0f, 35.7f, 8);
+}
+
+UVaelKoboldHortwaechterData::UVaelKoboldHortwaechterData()
+{
+	MakeKobold(this, TEXT("Hortwaechter"), LOCTEXT("Hortwaechter", "Befallener Hortwächter"), 0.75f, 150.0f, 17.0f, 45.5f, 12);
+	KnockbackMultiplier = 0.6f;
+}
+
+UVaelKoboldKontoraeltesterData::UVaelKoboldKontoraeltesterData()
+{
+	MakeKobold(this, TEXT("Kontoraeltester"), LOCTEXT("Kontoraeltester", "Befallener Kontorältester"), 0.64f, 80.0f, 10.0f, 39.0f, 9);
+}
+
 AVaelSchleimgaenger::AVaelSchleimgaenger()
 {
 }
@@ -124,6 +173,18 @@ void AVaelSchleimgaenger::BeginPlay()
 	{
 		Slime = UVaelTropfseuche::MakeLumpLook(this, Strain);
 		GetMesh()->SetMaterial(SlimeSlot, Slime);
+	}
+	else if (GetData<UVaelSchleimgaengerData>()->BodyLumps > 0)
+	{
+		// A body without lumps of its own gets them stuck on, in patches; the film stays thinner, so the face and the
+		// clothes of the Kobold still read (the noise of the film is in world units, so on a small body it covers more)
+		if (Film != nullptr)
+		{
+			Film->SetScalarParameterValue(TEXT("Flecken"), UVaelTropfseucheSettings::Get()->GetStrain(Strain).Patches + 0.16f);
+		}
+		Slime = UVaelTropfseuche::MakeLumpLook(this, Strain);
+		UVaelTropfseuche::AttachLumps(GetMesh(), Slime, GetData<UVaelSchleimgaengerData>()->BodyLumps,
+			GetData<UVaelSchleimgaengerData>()->LumpScale * GetMesh()->GetComponentScale().X, Lumps);
 	}
 	if (HeartSlot != INDEX_NONE)
 	{

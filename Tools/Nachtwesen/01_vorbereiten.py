@@ -15,6 +15,10 @@ WESEN = {
     "Kahlschwinge": dict(dreiecke=30000, drehung_z=90.0, hoehe=1.9),
     "Peitschenunke": dict(dreiecke=26000, drehung_z=90.0, laenge=1.7),
     "Schnappwurz": dict(dreiecke=32000, drehung_z=0.0, hoehe=2.4),
+    # Kobolde of the Eisenschlund (Tripo 2026-11-21): heights are the grown ones, the game makes some smaller
+    "Schleimkratzer": dict(dreiecke=30000, drehung_z=90.0, hoehe=1.05),
+    "Hortwaechter": dict(dreiecke=32000, drehung_z=90.0, hoehe=1.35),
+    "Kontoraeltester": dict(dreiecke=32000, drehung_z=90.0, hoehe=1.15),
 }
 
 

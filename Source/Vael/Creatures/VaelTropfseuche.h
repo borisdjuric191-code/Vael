@@ -261,6 +261,9 @@ public:
 	/** Water on the ground at the place: a puddle, a spring, a spell's water */
 	static bool IsWaterAt(const UWorld* World, const FVector& Location);
 
+	/** Sticks Wanted lumps of slime in patches on the trunk and limbs of a body with mannequin bones; Scale = its size against a 1.8 m human */
+	static void AttachLumps(USkeletalMeshComponent* Body, UMaterialInstanceDynamic* Look, int32 Wanted, float Scale, TArray<TObjectPtr<UStaticMeshComponent>>& Lumps);
+
 	/** Fills the places for enemies of a cave with Schleimgaenger (levels in the settings) */
 	static void SpawnHosts(UWorld* World);
 };
