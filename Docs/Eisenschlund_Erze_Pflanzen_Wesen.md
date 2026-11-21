@@ -331,3 +331,14 @@ Ersetzt die Abschnitte oben, wo sie sich widersprechen.
 - **Höhlen:** Die Plätze für Gegner in Gildenmine und Gebeinkammer füllen sich beim Betreten mit 1–2 Schleimgängern (75 % je Platz).
 - **Testen:** `VaelSchleimgaenger Rot 2` (Stämme: Gruen, Honig, Kaelte, Nid, Rot, Zufall), `VaelSeuche Nid` / `VaelSeuche aus`, `VaelSpawn Schleimgaenger`.
 - **Offen:** tropfende Schleimtropfen als Effekt, Geräusche, Salz, Kompendium-Eintrag, Beute (Schleimkern), eigener Sterbe-Zerfall in Einzelknochen (Knochenmonster), Kobold- und Gildenmensch-Körper auf demselben Skelett.
+
+### Optik überarbeitet (21. November 2026, Boris: „zu lame“, dicker, Klumpen, Herz in den Rippen)
+
+- **Seuchenherz:** eine leuchtende Kugel (13 cm) mitten im Brustkorb, mit Schleimfäden wie ein Netz an die Rippen gespannt, dazu Querfäden zwischen den Rippen. Ein kleines Licht in der Stammfarbe sitzt dort und leuchtet die Rippen von innen an; es schlägt im Takt und rast, bevor die Leiche wieder aufsteht. Gebaut in `schleimgaenger_skelett.py` (Materialplatz „Herz“, an spine_03).
+- **Klumpen:** rund 57 dicke, nass glänzende Schleimklumpen in 11 Flächen über Wirbelsäule, Flanken, Schultern, Becken und Knie, nicht vorn vor dem Herzen und nicht im Gesicht (Materialplatz „Seuche“). Formen in `Tools/Nachtwesen/tropfseuche_formen.py`.
+- **Film:** jetzt fleckig (etwa ein Drittel der Fläche dick bedeckt, dazwischen blanker Knochen), die Flecken heben sich bis 2,4 cm von der Haut ab.
+- **Befallene Spieler:** zusätzlich 7–14 Klumpen (je Stamm) in Gruppen auf Rumpf, Armen und Beinen (`SM_Tropfseuche_Klumpen_A/B/C`, `tropfseuche_klumpen.py`), dazu der fleckige Film.
+- **Neues Material:** `M_Tropfseuche_Klumpen` (dunkle, nasse Masse, glüht von innen und am Rand, wabert im Puls).
+- **Belichtung:** Die Höhlen sind stark aufgehellt; zu viel Leuchtkraft wird weiß. Werte deshalb klein (Film 0,1 × Glow, Klumpen 0,25 ×, Herz 2 ×).
+- **Debug:** `-VaelSeucheOhneFilm` zeigt Herz, Netz und Klumpen ohne Film.
+- **Offen:** Die Herzkugel selbst ist von schräg vorn hinter den Rippen schwer zu sehen (das Licht schon). Abwarten, wie es aus der Spielkamera wirkt, sonst größer oder weiter nach vorn.

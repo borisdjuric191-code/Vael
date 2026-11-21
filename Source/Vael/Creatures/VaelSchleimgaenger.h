@@ -65,6 +65,17 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInstanceDynamic> Film;
 
+	/** The thick slime (lumps, the web) and the heart in the ribs: material slots "Seuche" and "Herz" of the model */
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> Slime;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> Heart;
+
+	/** The heart lights the ribs from inside, in the colour of the strain, beating with it */
+	UPROPERTY(Transient)
+	TObjectPtr<class UPointLightComponent> HeartLight;
+
 	EVaelSeuchenStamm Strain = EVaelSeuchenStamm::Verwesung;
 	bool bStrainSet = false;
 
@@ -72,5 +83,6 @@ private:
 	bool bWaitingToRise = false;
 	bool bWashed = false;
 	float FilmShown = 1.0f;
+	float HeartBeat = 0.0f;
 	FTimerHandle RiseTimer;
 };

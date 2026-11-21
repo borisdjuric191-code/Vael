@@ -5,6 +5,8 @@
 #include "Combat/VaelAttributeSet.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/PointLightComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Items/VaelMaterial.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -106,9 +108,50 @@ void AVaelSchleimgaenger::BeginPlay()
 	CustomTimeDilation = Settings.HostPace;
 
 	Film = UVaelTropfseuche::MakeLook(this, Strain);
+	// Debug: -VaelSeucheOhneFilm leaves the film off, to look at heart, web and lumps alone
+	if (FParse::Param(FCommandLine::Get(), TEXT("VaelSeucheOhneFilm")))
+	{
+		Film = nullptr;
+	}
 	if (Film != nullptr)
 	{
 		GetMesh()->SetOverlayMaterial(Film);
+	}
+	// Lumps, web and heart are part of the model, they only take the colour of the strain
+	const int32 SlimeSlot = GetMesh()->GetMaterialIndex(TEXT("Seuche"));
+	const int32 HeartSlot = GetMesh()->GetMaterialIndex(TEXT("Herz"));
+	if (SlimeSlot != INDEX_NONE)
+	{
+		Slime = UVaelTropfseuche::MakeLumpLook(this, Strain);
+		GetMesh()->SetMaterial(SlimeSlot, Slime);
+	}
+	if (HeartSlot != INDEX_NONE)
+	{
+		Heart = UVaelTropfseuche::MakeLumpLook(this, Strain, true);
+		GetMesh()->SetMaterial(HeartSlot, Heart);
+
+		// A small light where the heart hangs (schleimgaenger_skelett.py puts it at about 142 cm, in the middle of the
+		// rib cage), riding on spine_03 like the heart itself
+		const USkeletalMesh* Model = GetMesh()->GetSkeletalMeshAsset();
+		const int32 Chest = Model != nullptr ? Model->GetRefSkeleton().FindBoneIndex(TEXT("spine_03")) : INDEX_NONE;
+		if (Chest != INDEX_NONE)
+		{
+			FTransform ChestPose = FTransform::Identity;
+			for (int32 Bone = Chest; Bone != INDEX_NONE; Bone = Model->GetRefSkeleton().GetParentIndex(Bone))
+			{
+				ChestPose = ChestPose * Model->GetRefSkeleton().GetRefBonePose()[Bone];
+			}
+			HeartLight = NewObject<UPointLightComponent>(this);
+			HeartLight->SetupAttachment(GetMesh(), TEXT("spine_03"));
+			HeartLight->SetRelativeLocation(ChestPose.InverseTransformPosition(FVector(1.3f, 0.0f, 142.4f)));
+			HeartLight->SetIntensityUnits(ELightUnits::Candelas);
+			HeartLight->SetIntensity(6.0f);
+			HeartLight->SetAttenuationRadius(90.0f);
+			HeartLight->SetSourceRadius(4.0f);
+			HeartLight->SetCastShadows(false);
+			HeartLight->SetLightColor(Settings.Color);
+			HeartLight->RegisterComponent();
+		}
 	}
 	UE_LOG(LogVael, Log, TEXT("'%s' rises as a Schleimgaenger of the strain %s (risen %d times)"), *GetName(), *Settings.Name.ToString(), Rises);
 }
@@ -156,11 +199,20 @@ void AVaelSchleimgaenger::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	const FVaelSeuchenStamm& Settings = UVaelTropfseucheSettings::Get()->GetStrain(Strain);
+	// The light of the heart beats with it, races while the corpse waits to rise and dies out when it is washed
+	if (HeartLight != nullptr)
+	{
+		const float Left = bWaitingToRise ? GetWorldTimerManager().GetTimerRemaining(RiseTimer) : 10.0f;
+		const float Period = FMath::Lerp(Settings.Pulse * 0.55f, 0.25f, FMath::Clamp(1.0f - Left / 4.0f, 0.0f, 1.0f));
+		HeartBeat += DeltaSeconds / FMath::Max(Period, 0.1f);
+		const float Beat = FMath::Pow(0.5f + 0.5f * FMath::Sin(HeartBeat * UE_TWO_PI), 3.0f);
+		HeartLight->SetIntensity(6.0f * (0.45f + 0.9f * Beat) * (bWashed ? FilmShown : 1.0f));
+	}
 	if (Film == nullptr || !IsDead())
 	{
 		return;
 	}
-	const FVaelSeuchenStamm& Settings = UVaelTropfseucheSettings::Get()->GetStrain(Strain);
 	if (bWaitingToRise)
 	{
 		// Water reaching the corpse while it waits puts the Seuche out
@@ -176,12 +228,26 @@ void AVaelSchleimgaenger::Tick(float DeltaSeconds)
 		const float Left = GetWorldTimerManager().GetTimerRemaining(RiseTimer);
 		const float Urge = FMath::Clamp(1.0f - Left / 4.0f, 0.0f, 1.0f);
 		Film->SetScalarParameterValue(TEXT("Puls"), FMath::Lerp(Settings.Pulse, 0.35f, Urge));
-		Film->SetScalarParameterValue(TEXT("Staerke"), Settings.Glow * (1.0f + 1.5f * Urge));
+		Film->SetScalarParameterValue(TEXT("Staerke"), Settings.Glow * 0.1f * (1.0f + 1.5f * Urge));
+		// The heart in the ribs races before the body gets up
+		if (Heart != nullptr)
+		{
+			Heart->SetScalarParameterValue(TEXT("Puls"), FMath::Lerp(Settings.Pulse * 0.55f, 0.25f, Urge));
+			Heart->SetScalarParameterValue(TEXT("Staerke"), Settings.Glow * (2.0f + 2.0f * Urge));
+		}
 	}
 	else if (bWashed)
 	{
+		// Washed: the film fades, the slime goes dark, the heart dies out
 		FilmShown = FMath::FInterpTo(FilmShown, 0.0f, DeltaSeconds, 1.5f);
 		Film->SetScalarParameterValue(TEXT("Sichtbar"), FilmShown);
+		for (UMaterialInstanceDynamic* Look : { Slime.Get(), Heart.Get() })
+		{
+			if (Look != nullptr)
+			{
+				Look->SetScalarParameterValue(TEXT("Sichtbar"), FilmShown);
+			}
+		}
 	}
 }
 

@@ -111,6 +111,24 @@ UVaelTropfseucheSettings::UVaelTropfseucheSettings()
 	Strains.Add(MakeStrain(LOCTEXT("Rausch", "Rausch"), EVaelPlantRarity::Legendary, 3.0f, 1.6f, 1.6f, 1.35f, EVaelStatus::None, 0.0f,
 		0.25f, 40.0f, 18.0f, FLinearColor(1.0f, 0.12f, 0.08f), 3.6f, 0.6f, 14.0f, 0.9f, 1.0f, 1.1f));
 
+	LumpMaterial = TSoftObjectPtr<UMaterialInterface>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Eisenschlund/Tropfseuche/M_Tropfseuche_Klumpen.M_Tropfseuche_Klumpen")));
+	for (const TCHAR* Name : { TEXT("A"), TEXT("B"), TEXT("C") })
+	{
+		LumpMeshes.Add(TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/Kreaturen/Eisenschlund/Tropfseuche/SM_Tropfseuche_Klumpen_%s.SM_Tropfseuche_Klumpen_%s"), Name, Name))));
+	}
+	// Thicker and lumpier the rarer the strain (Boris 2026-11-21: "zu lame", thick patches and lumps)
+	const float StrainPatches[] = { 0.66f, 0.62f, 0.66f, 0.6f, 0.56f };
+	const int32 StrainLumps[] = { 7, 9, 8, 11, 14 };
+	const float StrainCover[] = { 0.9f, 0.95f, 0.8f, 0.9f, 0.95f };
+	const float StrainWobble[] = { 1.6f, 2.4f, 1.0f, 1.8f, 2.0f };
+	for (int32 Index = 0; Index < Strains.Num() && Index < 5; ++Index)
+	{
+		Strains[Index].Patches = StrainPatches[Index];
+		Strains[Index].PlayerLumps = StrainLumps[Index];
+		Strains[Index].Cover = StrainCover[Index];
+		Strains[Index].Wobble = StrainWobble[Index];
+	}
+
 	FavouritePlaces.Add(TEXT("L_Gildenmine"), EVaelSeuchenStamm::Verwesung);
 	FavouritePlaces.Add(TEXT("L_KoboldStollen"), EVaelSeuchenStamm::Honig);
 	FavouritePlaces.Add(TEXT("L_TiefsterSchacht"), EVaelSeuchenStamm::Kaelte);
@@ -198,10 +216,101 @@ void UVaelSeuchenBefall::BuildShell()
 		}
 		Shell.Add(Skin);
 	}
-	UE_LOG(LogVael, Log, TEXT("Tropfseuche: film over %d of %d body meshes of '%s'"), Shell.Num(), Bodies.Num(), *Owner->GetName());
-	for (const USkeletalMeshComponent* Body : Bodies)
+	// Lumps on the body that carries the trunk (the one with the most bones among those with spine_03)
+	USkeletalMeshComponent* Trunk = nullptr;
+	for (USkeletalMeshComponent* Body : Bodies)
 	{
-		UE_LOG(LogVael, Verbose, TEXT("  %s visible %d hidden %d mesh %s"), *Body->GetName(), Body->IsVisible(), Body->bHiddenInGame, *GetNameSafe(Body->GetSkeletalMeshAsset()));
+		const FString BodyName = Body != nullptr ? Body->GetName() + GetNameSafe(Body->GetSkeletalMeshAsset()) : FString();
+		if (Body != nullptr && Body->IsVisible() && !Body->bHiddenInGame && !Body->ComponentHasTag(TEXT("VaelSeuchenHuelle"))
+			&& !BodyName.Contains(TEXT("Face")) && !BodyName.Contains(TEXT("Kopf")) && !BodyName.Contains(TEXT("Head"))
+			&& Body->GetBoneIndex(TEXT("spine_03")) != INDEX_NONE && (Trunk == nullptr || Body->GetNumBones() > Trunk->GetNumBones()))
+		{
+			Trunk = Body;
+		}
+	}
+	AddLumps(Trunk);
+	UE_LOG(LogVael, Log, TEXT("Tropfseuche: film over %d of %d body meshes of '%s', %d lumps on %s"), Shell.Num(), Bodies.Num(), *Owner->GetName(),
+		Lumps.Num(), *GetNameSafe(Trunk));
+}
+
+void UVaelSeuchenBefall::AddLumps(USkeletalMeshComponent* Body)
+{
+	for (UStaticMeshComponent* Old : Lumps)
+	{
+		if (Old != nullptr)
+		{
+			Old->DestroyComponent();
+		}
+	}
+	Lumps.Reset();
+	const UVaelTropfseucheSettings* Settings = UVaelTropfseucheSettings::Get();
+	LumpLook = UVaelTropfseuche::MakeLumpLook(this, Strain);
+	if (Body == nullptr || LumpLook == nullptr || Settings->LumpMeshes.Num() == 0)
+	{
+		return;
+	}
+
+	// Where lumps can sit: a stretch of a limb or the trunk (from a bone to the next) and how far its surface lies from it
+	struct FStretch
+	{
+		FName Bone;
+		FName Next;
+		float Radius;
+	};
+	static const FStretch Stretches[] = {
+		{ TEXT("spine_01"), TEXT("spine_02"), 15.0f }, { TEXT("spine_02"), TEXT("spine_03"), 16.0f }, { TEXT("spine_03"), TEXT("neck_01"), 16.0f },
+		{ TEXT("pelvis"), TEXT("spine_01"), 15.0f }, { TEXT("neck_01"), TEXT("head"), 6.5f },
+		{ TEXT("clavicle_l"), TEXT("upperarm_l"), 7.0f }, { TEXT("clavicle_r"), TEXT("upperarm_r"), 7.0f },
+		{ TEXT("upperarm_l"), TEXT("lowerarm_l"), 7.0f }, { TEXT("upperarm_r"), TEXT("lowerarm_r"), 7.0f },
+		{ TEXT("lowerarm_l"), TEXT("hand_l"), 5.0f }, { TEXT("lowerarm_r"), TEXT("hand_r"), 5.0f },
+		{ TEXT("thigh_l"), TEXT("calf_l"), 10.0f }, { TEXT("thigh_r"), TEXT("calf_r"), 10.0f },
+		{ TEXT("calf_l"), TEXT("foot_l"), 7.0f }, { TEXT("calf_r"), TEXT("foot_r"), 7.0f }
+	};
+	TArray<const FStretch*> Usable;
+	for (const FStretch& Stretch : Stretches)
+	{
+		if (Body->GetBoneIndex(Stretch.Bone) != INDEX_NONE && Body->GetBoneIndex(Stretch.Next) != INDEX_NONE)
+		{
+			Usable.Add(&Stretch);
+		}
+	}
+	if (Usable.Num() == 0)
+	{
+		return;
+	}
+	// In patches: a few places, several lumps close together at each
+	const int32 Wanted = Settings->GetStrain(Strain).PlayerLumps;
+	while (Lumps.Num() < Wanted)
+	{
+		const FStretch& Stretch = *Usable[FMath::RandRange(0, Usable.Num() - 1)];
+		const FVector From = Body->GetBoneLocation(Stretch.Bone);
+		const FVector To = Body->GetBoneLocation(Stretch.Next);
+		const FVector Axis = (To - From).GetSafeNormal();
+		if (Axis.IsNearlyZero())
+		{
+			continue;
+		}
+		const FVector Side = FVector::CrossProduct(Axis, FVector::UpVector).IsNearlyZero() ? FVector::ForwardVector : FVector::CrossProduct(Axis, FVector::UpVector).GetSafeNormal();
+		const float PatchAt = FMath::FRandRange(0.15f, 0.85f);
+		const float PatchAngle = FMath::FRandRange(0.0f, 360.0f);
+		const int32 InPatch = FMath::Min(FMath::RandRange(2, 4), Wanted - Lumps.Num());
+		for (int32 Index = 0; Index < InPatch; ++Index)
+		{
+			const float At = FMath::Clamp(PatchAt + FMath::FRandRange(-0.12f, 0.12f), 0.05f, 0.95f);
+			const FVector Out = Side.RotateAngleAxis(PatchAngle + FMath::FRandRange(-40.0f, 40.0f), Axis);
+			const float Size = FMath::FRandRange(5.0f, 11.0f);
+			UStaticMeshComponent* Lump = NewObject<UStaticMeshComponent>(Body->GetOwner());
+			Lump->SetStaticMesh(Settings->LumpMeshes[FMath::RandRange(0, Settings->LumpMeshes.Num() - 1)].LoadSynchronous());
+			Lump->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			Lump->SetCastShadow(false);
+			Lump->SetMaterial(0, LumpLook);
+			Lump->RegisterComponent();
+			// Sunk a little into the body, flat side down; the mesh is 5 cm across
+			Lump->SetWorldLocationAndRotation(FMath::Lerp(From, To, At) + Out * (Stretch.Radius * 0.9f), FRotationMatrix::MakeFromZX(Out, Axis).Rotator());
+			Lump->SetWorldScale3D(FVector(Size / 5.0f));
+			Lump->AttachToComponent(Body, FAttachmentTransformRules::KeepWorldTransform, Stretch.Bone);
+			Lumps.Add(Lump);
+		}
 	}
 }
 
@@ -231,8 +340,12 @@ void UVaelSeuchenBefall::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 	{
 		const FVaelSeuchenStamm& Look = UVaelTropfseucheSettings::Get()->GetStrain(Strain);
 		// Faint on a player, so the figure stays readable; it flares up when the body resists
-		ShellLook->SetScalarParameterValue(TEXT("Staerke"), Look.Glow * (0.35f + 1.2f * Flare));
-		ShellLook->SetScalarParameterValue(TEXT("Deckung"), FMath::Min(1.0f, Look.Cover * (0.3f + 0.9f * Flare)));
+		ShellLook->SetScalarParameterValue(TEXT("Staerke"), Look.Glow * 0.1f * (0.6f + 1.5f * Flare));
+		ShellLook->SetScalarParameterValue(TEXT("Flecken"), FMath::Max(0.0f, Look.Patches + 0.12f - 0.3f * Flare));
+		if (LumpLook != nullptr)
+		{
+			LumpLook->SetScalarParameterValue(TEXT("Staerke"), Look.Glow * (0.1f + 0.5f * Flare));
+		}
 	}
 }
 
@@ -256,6 +369,14 @@ void UVaelSeuchenBefall::End()
 		}
 	}
 	Shell.Reset();
+	for (UStaticMeshComponent* Lump : Lumps)
+	{
+		if (Lump != nullptr && Lump->IsRegistered())
+		{
+			Lump->DestroyComponent();
+		}
+	}
+	Lumps.Reset();
 	DestroyComponent();
 }
 
@@ -269,6 +390,14 @@ void UVaelSeuchenBefall::OnUnregister()
 		}
 	}
 	Shell.Reset();
+	for (UStaticMeshComponent* Lump : Lumps)
+	{
+		if (Lump != nullptr && Lump->IsRegistered())
+		{
+			Lump->DestroyComponent();
+		}
+	}
+	Lumps.Reset();
 	Super::OnUnregister();
 }
 
@@ -341,12 +470,33 @@ UMaterialInstanceDynamic* UVaelTropfseuche::MakeLook(UObject* Outer, EVaelSeuche
 	const FVaelSeuchenStamm& Look = UVaelTropfseucheSettings::Get()->GetStrain(Strain);
 	UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, Outer);
 	Material->SetVectorParameterValue(TEXT("Farbe"), Look.Color);
-	Material->SetScalarParameterValue(TEXT("Staerke"), Look.Glow);
+	// The film only glows in its patches; the lumps and the heart carry the light
+	Material->SetScalarParameterValue(TEXT("Staerke"), Look.Glow * 0.1f);
 	Material->SetScalarParameterValue(TEXT("Deckung"), Look.Cover);
 	Material->SetScalarParameterValue(TEXT("Fluss"), Look.Flow);
 	Material->SetScalarParameterValue(TEXT("Puls"), Look.Pulse);
 	Material->SetScalarParameterValue(TEXT("Zucken"), Look.Jerk);
 	Material->SetScalarParameterValue(TEXT("Wabern"), Look.Wobble);
+	Material->SetScalarParameterValue(TEXT("Flecken"), Look.Patches);
+	return Material;
+}
+
+UMaterialInstanceDynamic* UVaelTropfseuche::MakeLumpLook(UObject* Outer, EVaelSeuchenStamm Strain, bool bHeart)
+{
+	UMaterialInterface* Base = UVaelTropfseucheSettings::Get()->LumpMaterial.LoadSynchronous();
+	if (Base == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("Tropfseuche: the lump material is missing (Scripts/BuildTropfseuche.py)"));
+		return nullptr;
+	}
+	const FVaelSeuchenStamm& Look = UVaelTropfseucheSettings::Get()->GetStrain(Strain);
+	UMaterialInstanceDynamic* Material = UMaterialInstanceDynamic::Create(Base, Outer);
+	Material->SetVectorParameterValue(TEXT("Farbe"), Look.Color);
+	// The heart burns far brighter than the slime around it and beats faster
+	Material->SetScalarParameterValue(TEXT("Staerke"), Look.Glow * (bHeart ? 2.0f : 0.25f));
+	Material->SetScalarParameterValue(TEXT("Puls"), Look.Pulse * (bHeart ? 0.55f : 1.0f));
+	Material->SetScalarParameterValue(TEXT("Zucken"), bHeart ? FMath::Max(Look.Jerk, 0.6f) : Look.Jerk);
+	Material->SetScalarParameterValue(TEXT("Wabern"), bHeart ? 0.9f : 0.5f);
 	return Material;
 }
 

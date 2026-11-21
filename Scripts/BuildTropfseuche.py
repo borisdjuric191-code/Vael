@@ -1,131 +1,206 @@
-# Die Hülle der Tropfseuche (Boris und Team 21.11.2026: Optik wie echte Schleimzapfen aus Bakterien, Wirkung wie Cordyceps).
+# Die Tropfseuche (Boris und Team 21.11.2026: Optik wie echte Schleimzapfen aus Bakterien, Wirkung wie Cordyceps; danach:
+# "zu lame" - dicker, in großen Flächen, Klumpen, ein leuchtendes Herz in den Rippen).
 #
-# /Game/Vael/Kreaturen/Eisenschlund/Tropfseuche/M_Tropfseuche_Huelle: ein durchscheinender, selbstleuchtender Schleimfilm, den
-# der Code als Overlay über jedes Modell legt (UMeshComponent::SetOverlayMaterial): Schleimgänger, befallene Spieler, später
-# Kobolde und Gildenleute. Er leuchtet an den Kanten stärker, fleckig wie Bakterienrasen, das Muster rinnt langsam nach unten,
-# der Film wabert ein wenig und pulsiert. Jeder Stamm setzt seine Werte (UVaelTropfseucheSettings im Code):
-#   Farbe, Staerke (Leuchten), Deckung (wie dicht der Film ist), Fluss (cm/s, wie schnell das Muster rinnt), Puls (Sekunden je
-#   Herzschlag), Zucken (0 = weich, 1 = zackig wie der Rauschschleim), Wabern (cm).
+# In /Game/Vael/Kreaturen/Eisenschlund/Tropfseuche/:
+# - M_Tropfseuche_Huelle: durchscheinender, selbstleuchtender Schleimfilm als Overlay (Schleimgänger) oder zweite Haut
+#   (befallene Spieler). Fleckig: dick in Flächen, dazwischen nichts (Flecken = wie viel frei bleibt). Rinnt nach unten,
+#   pulsiert, wabert.
+# - M_Tropfseuche_Klumpen: dicker, nass glänzender Schleim, der von innen glüht (Klumpen, Fäden, das Seuchenherz in den
+#   Rippen). Undurchsichtig, damit er wie Masse wirkt; wabert mit dem Puls.
+# - SM_Tropfseuche_Klumpen_A/B/C aus Vael_Quellen/Tropfseuche/export (Tools/Nachtwesen/tropfseuche_klumpen.py): Klumpen,
+#   die der Code auf Körper ohne eigene Klumpen setzt.
+# Werte je Stamm setzt der Code (UVaelTropfseucheSettings): Farbe, Staerke, Deckung, Fluss, Puls, Zucken, Wabern, Flecken.
 #
 # Mit geschlossenem Editor:
 #   UnrealEditor-Cmd.exe Vael.uproject -run=pythonscript -script="C:/Projekte/Vael/Scripts/BuildTropfseuche.py" -unattended -nosplash
+import os
+
 import unreal
 
 eal = unreal.EditorAssetLibrary
 mel = unreal.MaterialEditingLibrary
 ORDNER = "/Game/Vael/Kreaturen/Eisenschlund/Tropfseuche"
-NAME = "M_Tropfseuche_Huelle"
-PFAD = ORDNER + "/" + NAME
+QUELLEN = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "Vael_Quellen", "Tropfseuche", "export")
 
 
-def bauen():
-    if eal.does_asset_exist(PFAD):
-        eal.delete_asset(PFAD)
-    mat = unreal.AssetToolsHelpers.get_asset_tools().create_asset(NAME, ORDNER, unreal.Material, unreal.MaterialFactoryNew())
-    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_TRANSLUCENT)
-    mat.set_editor_property("shading_model", unreal.MaterialShadingModel.MSM_UNLIT)
-    mat.set_editor_property("used_with_skeletal_mesh", True)
-    mat.set_editor_property("two_sided", False)
+class Graph:
+    def __init__(self, mat):
+        self.mat = mat
 
-    def n(cls, x, y, **props):
-        e = mel.create_material_expression(mat, cls, x, y)
+    def n(self, cls, x, y, **props):
+        e = mel.create_material_expression(self.mat, cls, x, y)
         for k, v in props.items():
             e.set_editor_property(k, v)
         return e
 
-    def link(a, b, inp="", out=""):
+    def link(self, a, b, inp="", out=""):
         mel.connect_material_expressions(a, out, b, inp)
 
-    def op(cls, x, y, a, b):
-        e = n(cls, x, y)
-        link(a, e, "A")
-        link(b, e, "B")
+    def op(self, cls, x, y, a, b):
+        e = self.n(cls, x, y)
+        self.link(a, e, "A")
+        self.link(b, e, "B")
         return e
 
-    def c(v, x, y):
-        return n(unreal.MaterialExpressionConstant, x, y, r=v)
+    def mul(self, a, b, x=0, y=0):
+        return self.op(unreal.MaterialExpressionMultiply, x, y, a, b)
 
-    def p(name, wert, x, y):
-        return n(unreal.MaterialExpressionScalarParameter, x, y, parameter_name=name, default_value=wert)
+    def add(self, a, b, x=0, y=0):
+        return self.op(unreal.MaterialExpressionAdd, x, y, a, b)
 
-    farbe = n(unreal.MaterialExpressionVectorParameter, -1400, -300, parameter_name="Farbe", default_value=unreal.LinearColor(0.35, 1.0, 0.2, 1.0))
-    staerke = p("Staerke", 3.0, -1400, -200)
-    deckung = p("Deckung", 0.55, -1400, -100)
-    fluss = p("Fluss", 6.0, -1400, 0)
-    puls = p("Puls", 2.6, -1400, 100)
-    zucken = p("Zucken", 0.0, -1400, 200)
-    wabern = p("Wabern", 0.8, -1400, 300)
-    sichtbar = p("Sichtbar", 1.0, -1400, 400)
+    def sub(self, a, b, x=0, y=0):
+        return self.op(unreal.MaterialExpressionSubtract, x, y, a, b)
 
-    zeit = n(unreal.MaterialExpressionTime, -1400, 500)
-    welt = n(unreal.MaterialExpressionWorldPosition, -1400, 600)
-    akteur = n(unreal.MaterialExpressionActorPositionWS, -1400, 700)
+    def c(self, v, x=0, y=0):
+        return self.n(unreal.MaterialExpressionConstant, x, y, r=v)
 
-    # Das Muster rinnt nach unten: Ort relativ zum Akteur, plus Zeit * Fluss in Z
-    ort = op(unreal.MaterialExpressionSubtract, -1200, 620, welt, akteur)
-    rinnen = n(unreal.MaterialExpressionAppendVector, -1100, 520)
-    null2 = n(unreal.MaterialExpressionConstant2Vector, -1200, 480, r=0.0, g=0.0)
-    link(null2, rinnen, "A")
-    link(op(unreal.MaterialExpressionMultiply, -1200, 540, zeit, fluss), rinnen, "B")
-    ort_fliesst = op(unreal.MaterialExpressionAdd, -1000, 600, ort, rinnen)
-    # Bakterienrasen: zwei Rauschen, grob und fein
-    grob = n(unreal.MaterialExpressionNoise, -850, 560, scale=0.09, levels=2, output_min=0.0, output_max=1.0, quality=1)
-    fein = n(unreal.MaterialExpressionNoise, -850, 700, scale=0.35, levels=2, output_min=0.0, output_max=1.0, quality=1)
-    link(ort_fliesst, grob, "Position")
-    link(ort_fliesst, fein, "Position")
-    flecken_roh = op(unreal.MaterialExpressionAdd, -650, 620, op(unreal.MaterialExpressionMultiply, -720, 580, grob, c(0.7, -820, 520)),
-                     op(unreal.MaterialExpressionMultiply, -720, 680, fein, c(0.45, -820, 780)))
-    flecken = n(unreal.MaterialExpressionSaturate, -450, 620)
-    link(op(unreal.MaterialExpressionMultiply, -550, 620, op(unreal.MaterialExpressionSubtract, -620, 700, flecken_roh, c(0.35, -700, 760)), c(2.2, -620, 760)), flecken)
+    def p(self, name, wert, x, y):
+        return self.n(unreal.MaterialExpressionScalarParameter, x, y, parameter_name=name, default_value=wert)
 
-    # Puls: weich (Sinus) oder zackig (Sägezahn hoch 6), je nach Zucken; jedes Wesen im eigenen Takt
-    phase_versatz = n(unreal.MaterialExpressionDotProduct, -1100, 800)
-    link(akteur, phase_versatz, "A")
-    link(n(unreal.MaterialExpressionConstant3Vector, -1200, 860, constant=unreal.LinearColor(0.011, 0.017, 0.0, 1.0)), phase_versatz, "B")
-    takt = op(unreal.MaterialExpressionAdd, -950, 820, op(unreal.MaterialExpressionDivide, -1050, 780, zeit, puls), phase_versatz)
-    sinus = n(unreal.MaterialExpressionSine, -820, 820, period=1.0)
-    link(takt, sinus)
-    weich = op(unreal.MaterialExpressionAdd, -700, 820, op(unreal.MaterialExpressionMultiply, -760, 860, sinus, c(0.5, -820, 900)), c(0.5, -760, 900))
-    bruch = n(unreal.MaterialExpressionFrac, -820, 960)
-    link(op(unreal.MaterialExpressionMultiply, -900, 960, takt, c(2.0, -1000, 1000)), bruch)
-    zackig = n(unreal.MaterialExpressionPower, -700, 960)
-    link(op(unreal.MaterialExpressionSubtract, -760, 1000, c(1.0, -820, 1040), bruch), zackig, "Base")
-    link(c(6.0, -760, 1060), zackig, "Exp")
-    schlag = n(unreal.MaterialExpressionLinearInterpolate, -550, 880)
-    link(weich, schlag, "A")
-    link(zackig, schlag, "B")
-    link(zucken, schlag, "Alpha")
-    pulsfaktor = op(unreal.MaterialExpressionAdd, -420, 880, op(unreal.MaterialExpressionMultiply, -480, 920, schlag, c(0.6, -550, 980)), c(0.55, -480, 980))
+    def sat(self, a, x=0, y=0):
+        e = self.n(unreal.MaterialExpressionSaturate, x, y)
+        self.link(a, e)
+        return e
 
-    # Kanten leuchten stärker: der Film ist am Rand dicker
-    fres = n(unreal.MaterialExpressionFresnel, -650, 300, exponent=2.2)
-    kante = op(unreal.MaterialExpressionAdd, -450, 300, op(unreal.MaterialExpressionMultiply, -550, 300, fres, c(1.5, -650, 380)), c(0.25, -550, 380))
+    def rauschen(self, pos, skala, x, y):
+        e = self.n(unreal.MaterialExpressionNoise, x, y, scale=skala, levels=3, output_min=0.0, output_max=1.0, quality=1)
+        self.link(pos, e, "Position")
+        return e
 
-    leuchten = op(unreal.MaterialExpressionMultiply, -100, -200,
-                  op(unreal.MaterialExpressionMultiply, -200, -200,
-                     op(unreal.MaterialExpressionMultiply, -300, -250, farbe, staerke),
-                     op(unreal.MaterialExpressionMultiply, -300, -120, kante, pulsfaktor)),
-                  op(unreal.MaterialExpressionAdd, -200, -60, op(unreal.MaterialExpressionMultiply, -300, -20, flecken, c(0.8, -400, 20)), c(0.2, -300, 40)))
-    mel.connect_material_property(op(unreal.MaterialExpressionMultiply, 50, -200, leuchten, sichtbar), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    def puls(self, zeit, puls, zucken, akteur, x, y):
+        """0.55..1.15: soft (sine) or jagged (sawtooth to the 6th) by Zucken; each creature in its own beat"""
+        versatz = self.n(unreal.MaterialExpressionDotProduct, x, y)
+        self.link(akteur, versatz, "A")
+        self.link(self.n(unreal.MaterialExpressionConstant3Vector, x - 100, y + 60, constant=unreal.LinearColor(0.011, 0.017, 0.0, 1.0)), versatz, "B")
+        takt = self.add(self.op(unreal.MaterialExpressionDivide, x + 100, y - 40, zeit, puls), versatz, x + 200, y)
+        sinus = self.n(unreal.MaterialExpressionSine, x + 300, y, period=1.0)
+        self.link(takt, sinus)
+        weich = self.add(self.mul(sinus, self.c(0.5), x + 400, y), self.c(0.5), x + 500, y)
+        bruch = self.n(unreal.MaterialExpressionFrac, x + 300, y + 120)
+        self.link(self.mul(takt, self.c(2.0), x + 250, y + 120), bruch)
+        zackig = self.n(unreal.MaterialExpressionPower, x + 400, y + 120)
+        self.link(self.sub(self.c(1.0), bruch, x + 350, y + 160), zackig, "Base")
+        self.link(self.c(6.0), zackig, "Exp")
+        schlag = self.n(unreal.MaterialExpressionLinearInterpolate, x + 600, y + 40)
+        self.link(weich, schlag, "A")
+        self.link(zackig, schlag, "B")
+        self.link(zucken, schlag, "Alpha")
+        return self.add(self.mul(schlag, self.c(0.6), x + 700, y + 40), self.c(0.55), x + 800, y + 40)
 
-    deck_roh = op(unreal.MaterialExpressionMultiply, -150, 200,
-                  op(unreal.MaterialExpressionMultiply, -250, 200, deckung, op(unreal.MaterialExpressionAdd, -350, 260,
-                                                                               op(unreal.MaterialExpressionMultiply, -450, 220, fres, c(0.7, -550, 200)), c(0.25, -450, 280))),
-                  op(unreal.MaterialExpressionAdd, -250, 320, op(unreal.MaterialExpressionMultiply, -350, 360, flecken, c(0.85, -450, 360)), c(0.15, -350, 400)))
-    deck = n(unreal.MaterialExpressionSaturate, 0, 200)
-    link(op(unreal.MaterialExpressionMultiply, -80, 260, deck_roh, sichtbar), deck)
+
+def neues_material(name, blend, shading):
+    pfad = ORDNER + "/" + name
+    if eal.does_asset_exist(pfad):
+        eal.delete_asset(pfad)
+    mat = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, ORDNER, unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("blend_mode", blend)
+    mat.set_editor_property("shading_model", shading)
+    mat.set_editor_property("used_with_skeletal_mesh", True)
+    mat.set_editor_property("used_with_static_lighting", True)
+    mat.set_editor_property("used_with_nanite", True)
+    return mat, pfad
+
+
+def huelle():
+    mat, pfad = neues_material("M_Tropfseuche_Huelle", unreal.BlendMode.BLEND_TRANSLUCENT, unreal.MaterialShadingModel.MSM_UNLIT)
+    g = Graph(mat)
+    farbe = g.n(unreal.MaterialExpressionVectorParameter, -1400, -300, parameter_name="Farbe", default_value=unreal.LinearColor(0.35, 1.0, 0.2, 1.0))
+    staerke, deckung, fluss = g.p("Staerke", 3.0, -1400, -200), g.p("Deckung", 0.8, -1400, -100), g.p("Fluss", 6.0, -1400, 0)
+    puls, zucken, wabern = g.p("Puls", 2.6, -1400, 100), g.p("Zucken", 0.0, -1400, 200), g.p("Wabern", 1.5, -1400, 300)
+    sichtbar, flecken_frei = g.p("Sichtbar", 1.0, -1400, 400), g.p("Flecken", 0.45, -1400, 500)
+    zeit = g.n(unreal.MaterialExpressionTime, -1400, 600)
+    welt = g.n(unreal.MaterialExpressionWorldPosition, -1400, 700)
+    akteur = g.n(unreal.MaterialExpressionActorPositionWS, -1400, 800)
+
+    # The pattern runs down: place relative to the creature, plus time * Fluss in Z
+    ort = g.sub(welt, akteur, -1200, 700)
+    rinnen = g.n(unreal.MaterialExpressionAppendVector, -1100, 620)
+    g.link(g.n(unreal.MaterialExpressionConstant2Vector, -1200, 580, r=0.0, g=0.0), rinnen, "A")
+    g.link(g.mul(zeit, fluss, -1200, 640), rinnen, "B")
+    ort_fliesst = g.add(ort, rinnen, -1000, 680)
+    # Patches: big blotches thick with slime, bare in between; a finer grain inside them
+    grob = g.rauschen(ort_fliesst, 0.06, -850, 600)
+    fein = g.rauschen(ort_fliesst, 0.3, -850, 760)
+    roh = g.add(g.mul(grob, g.c(0.8), -720, 600), g.mul(fein, g.c(0.35), -720, 760), -620, 680)
+    flecken = g.sat(g.mul(g.sub(roh, flecken_frei, -520, 680), g.c(3.5), -420, 680), -320, 680)
+    pulsf = g.puls(zeit, puls, zucken, akteur, -1200, 900)
+
+    fres = g.n(unreal.MaterialExpressionFresnel, -650, 300, exponent=2.0)
+    kante = g.add(g.mul(fres, g.c(1.2), -550, 300), g.c(0.45), -450, 300)
+    leuchten = g.mul(g.mul(g.mul(farbe, staerke, -300, -250), g.mul(kante, pulsf, -300, -120), -200, -200),
+                     g.add(g.mul(flecken, g.c(1.0), -300, -20), g.c(0.08), -200, -60), -100, -200)
+    mel.connect_material_property(g.mul(leuchten, sichtbar, 50, -200), "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    # Thick where the patches are: almost opaque there, nothing in between
+    deck = g.sat(g.mul(g.mul(g.mul(deckung, g.add(g.mul(fres, g.c(0.4)), g.c(0.75)), -250, 200), flecken, -150, 220), sichtbar, -80, 260), 0, 200)
     mel.connect_material_property(deck, "", unreal.MaterialProperty.MP_OPACITY)
-
-    # Wabern: der Film hebt sich mit den Flecken und dem Puls ein wenig von der Haut
-    normale = n(unreal.MaterialExpressionVertexNormalWS, -450, 1100)
-    hub = op(unreal.MaterialExpressionMultiply, -250, 1100,
-             op(unreal.MaterialExpressionMultiply, -350, 1060, normale, wabern),
-             op(unreal.MaterialExpressionAdd, -350, 1160, op(unreal.MaterialExpressionMultiply, -450, 1200, flecken, pulsfaktor), c(0.4, -450, 1260)))
+    # The patches stand off the skin, the more the thicker
+    normale = g.n(unreal.MaterialExpressionVertexNormalWS, -450, 1100)
+    hub = g.mul(g.mul(normale, wabern, -350, 1060), g.add(g.mul(flecken, pulsf, -450, 1200), g.c(0.1), -350, 1160), -250, 1100)
     mel.connect_material_property(hub, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
-
     mel.recompile_material(mat)
-    eal.save_asset(PFAD, only_if_is_dirty=False)
-    unreal.log_warning("[Tropfseuche] %s angelegt" % PFAD)
+    eal.save_asset(pfad, only_if_is_dirty=False)
+    unreal.log_warning("[Tropfseuche] %s angelegt" % pfad)
 
 
-bauen()
+def klumpen():
+    mat, pfad = neues_material("M_Tropfseuche_Klumpen", unreal.BlendMode.BLEND_OPAQUE, unreal.MaterialShadingModel.MSM_DEFAULT_LIT)
+    mat.set_editor_property("used_with_instanced_static_meshes", True)
+    g = Graph(mat)
+    farbe = g.n(unreal.MaterialExpressionVectorParameter, -1400, -300, parameter_name="Farbe", default_value=unreal.LinearColor(0.35, 1.0, 0.2, 1.0))
+    staerke, puls, zucken = g.p("Staerke", 2.0, -1400, -200), g.p("Puls", 2.6, -1400, -100), g.p("Zucken", 0.0, -1400, 0)
+    wabern, sichtbar = g.p("Wabern", 0.5, -1400, 100), g.p("Sichtbar", 1.0, -1400, 200)
+    zeit = g.n(unreal.MaterialExpressionTime, -1400, 300)
+    welt = g.n(unreal.MaterialExpressionWorldPosition, -1400, 400)
+    akteur = g.n(unreal.MaterialExpressionActorPositionWS, -1400, 500)
+    ort = g.sub(welt, akteur, -1200, 450)
+    # Something moves inside: a slow noise drifting through the mass
+    drift = g.n(unreal.MaterialExpressionAppendVector, -1100, 360)
+    g.link(g.n(unreal.MaterialExpressionConstant2Vector, -1200, 330, r=0.0, g=0.0), drift, "A")
+    g.link(g.mul(zeit, g.c(3.0), -1200, 380), drift, "B")
+    innen = g.rauschen(g.add(ort, drift, -1000, 420), 0.25, -850, 420)
+    pulsf = g.puls(zeit, puls, zucken, akteur, -1200, 650)
+    fres = g.n(unreal.MaterialExpressionFresnel, -700, 100, exponent=3.0)
+    # Dark, wet mass that glows from inside and at its rim
+    mel.connect_material_property(g.mul(farbe, g.c(0.55), -300, -350), "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(g.c(0.08, -300, -280), "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(g.c(1.0, -300, -230), "", unreal.MaterialProperty.MP_SPECULAR)
+    glut = g.add(g.add(g.c(0.25), g.mul(innen, g.c(0.9), -550, 380), -450, 300), g.mul(fres, g.c(0.8), -550, 150), -350, 250)
+    leuchten = g.mul(g.mul(g.mul(farbe, staerke, -300, -150), g.mul(glut, pulsf, -250, 250), -150, -50), sichtbar, 0, -50)
+    mel.connect_material_property(leuchten, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    normale = g.n(unreal.MaterialExpressionVertexNormalWS, -450, 900)
+    hub = g.mul(g.mul(normale, wabern, -350, 900), g.mul(g.add(innen, g.c(-0.3)), pulsf, -350, 1000), -250, 950)
+    mel.connect_material_property(hub, "", unreal.MaterialProperty.MP_WORLD_POSITION_OFFSET)
+    mel.recompile_material(mat)
+    eal.save_asset(pfad, only_if_is_dirty=False)
+    unreal.log_warning("[Tropfseuche] %s angelegt" % pfad)
+    return mat
+
+
+def klumpen_modelle(mat):
+    for name in ("A", "B", "C"):
+        datei = os.path.join(QUELLEN, "SM_Tropfseuche_Klumpen_%s.fbx" % name)
+        if not os.path.exists(datei):
+            unreal.log_error("[Tropfseuche] fehlt: " + datei)
+            continue
+        task = unreal.AssetImportTask()
+        task.set_editor_property("filename", datei)
+        task.set_editor_property("destination_path", ORDNER)
+        task.set_editor_property("replace_existing", True)
+        task.set_editor_property("automated", True)
+        task.set_editor_property("save", True)
+        unreal.AssetToolsHelpers.get_asset_tools().import_asset_tasks([task])
+        mesh = eal.load_asset("%s/SM_Tropfseuche_Klumpen_%s" % (ORDNER, name))
+        if mesh is None:
+            unreal.log_error("[Tropfseuche] Import fehlgeschlagen: " + name)
+            continue
+        mesh.set_material(0, mat)
+        eal.save_asset(mesh.get_path_name(), only_if_is_dirty=False)
+        unreal.log_warning("[Tropfseuche] Klumpen %s importiert" % name)
+    for pfad in eal.list_assets(ORDNER, recursive=False):
+        asset = eal.load_asset(pfad)
+        if isinstance(asset, (unreal.Material, unreal.MaterialInstance)) and not pfad.split(".")[-1].startswith("M_Tropfseuche"):
+            eal.delete_asset(pfad)          # vom FBX-Import mitgebrachtes Material
+
+
+huelle()
+klumpen_modelle(klumpen())

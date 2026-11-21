@@ -13,6 +13,8 @@ class AVaelCharacter;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
 class UMeshComponent;
+class UStaticMesh;
+class UStaticMeshComponent;
 class USkeletalMeshComponent;
 
 /**
@@ -105,6 +107,14 @@ struct FVaelSeuchenStamm
 	/** cm the film lifts off the skin */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
 	float Wobble = 0.8f;
+
+	/** How much of the film stays bare between its thick patches (0 = covers everything, 0.7 = a few patches) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0, ClampMax = 1))
+	float Patches = 0.45f;
+
+	/** Lumps of slime it puts on an infested player (models without lumps of their own) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Look", meta = (ClampMin = 0))
+	int32 PlayerLumps = 8;
 };
 
 /**
@@ -130,6 +140,13 @@ public:
 	/** The film laid over whatever it infests */
 	UPROPERTY(config, EditAnywhere, Category="Look")
 	TSoftObjectPtr<UMaterialInterface> ShellMaterial;
+
+	/** The thick, wet slime of lumps, threads and the heart in the ribs */
+	UPROPERTY(config, EditAnywhere, Category="Look")
+	TSoftObjectPtr<UMaterialInterface> LumpMaterial;
+
+	UPROPERTY(config, EditAnywhere, Category="Look")
+	TArray<TSoftObjectPtr<UStaticMesh>> LumpMeshes;
 
 	/** Levels where a strain is met far more often (short level name), and by how much */
 	UPROPERTY(config, EditAnywhere, Category="Strains")
@@ -202,6 +219,14 @@ private:
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<USkeletalMeshComponent>> Shell;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UMaterialInstanceDynamic> LumpLook;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> Lumps;
+
+	void AddLumps(USkeletalMeshComponent* Body);
 };
 
 /** The Tropfseuche: picking a strain, its film, infesting and washing off */
@@ -214,6 +239,9 @@ public:
 
 	/** A film material for the strain */
 	static UMaterialInstanceDynamic* MakeLook(UObject* Outer, EVaelSeuchenStamm Strain);
+
+	/** A material for the thick slime of the strain: lumps and threads, or (bHeart) the glowing heart in the ribs */
+	static UMaterialInstanceDynamic* MakeLumpLook(UObject* Outer, EVaelSeuchenStamm Strain, bool bHeart = false);
 
 	/** Infests a player (renews the time, a stronger strain takes over) */
 	static void Infest(AActor* Attacker, AVaelCharacter* Player, EVaelSeuchenStamm Strain);

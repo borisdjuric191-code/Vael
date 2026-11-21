@@ -152,8 +152,101 @@ def texturen():
     gemein.log(NAME, "Texturen nach", ziel)
 
 
+def _anhaengen(teil, knochen, material, obj):
+    """Links a shape into the scene, binds it fully to one bone and gives it a material slot of the skeleton"""
+    bpy.context.scene.collection.objects.link(teil)
+    gruppe = teil.vertex_groups.new(name=knochen)
+    gruppe.add(list(range(len(teil.data.vertices))), 1.0, "REPLACE")
+    teil.data.materials.append(material)
+    return teil
+
+
+def seuche_anbauen(obj, arm):
+    """The Tropfseuche in the body (Boris 2026-11-21): a glowing heart in the middle of the ribs, held by a web of slime
+    threads to the ribs, and thick lumps of slime in patches over the bones. Material slots "Herz" and "Seuche": the game
+    gives them the colour of the strain."""
+    import random
+    from mathutils import Matrix as M, Vector as V
+    import tropfseuche_formen as formen
+
+    rng = random.Random(21)
+    seuche = bpy.data.materials.get("Seuche") or bpy.data.materials.new("Seuche")
+    herz_mat = bpy.data.materials.get("Herz") or bpy.data.materials.new("Herz")
+    namen = [g.name for g in obj.vertex_groups]
+    orte, normalen, knochen = [], [], []
+    for v in obj.data.vertices:
+        if not v.groups:
+            continue
+        g = max(v.groups, key=lambda x: x.weight)
+        orte.append(v.co.copy())
+        normalen.append(v.normal.copy())
+        knochen.append(namen[g.group])
+
+    # The heart: in the middle of the rib cage, a little to the left like a real one
+    rippen = [p for p, k in zip(orte, knochen) if k == "spine_03"]
+    lo = V((min(p.x for p in rippen), min(p.y for p in rippen), min(p.z for p in rippen)))
+    hi = V((max(p.x for p in rippen), max(p.y for p in rippen), max(p.z for p in rippen)))
+    mitte = (lo + hi) / 2
+    herz = V((mitte.x + 0.03, mitte.y + 0.02, mitte.z + 0.035))
+    herz_r = 0.065
+    teile = []
+    kern = formen.klumpen("Seuchenherz", herz_r, flach=1.0, saat=3, unterteilung=3, beulen=0.18)
+    kern.data.transform(M.Translation(herz))
+    teile.append(_anhaengen(kern, "spine_03", herz_mat, obj))
+
+    # The web: threads from the heart to ribs all round it, the anchors spread over every direction
+    kandidaten = [p for p in rippen if 0.07 < (p - herz).length < 0.2 and abs(p.z - herz.z) < 0.13]
+    anker = []
+    for p in sorted(kandidaten, key=lambda p: rng.random()):
+        r = (p - herz).normalized()
+        if all(r.dot((q - herz).normalized()) < 0.72 for q in anker):
+            anker.append(p)
+        if len(anker) >= 13:
+            break
+    for i, p in enumerate(anker):
+        start = herz + (p - herz).normalized() * herz_r * 0.8
+        teile.append(_anhaengen(formen.faden("Faden%d" % i, start, p, 0.007, 0.005, durchhang=0.012, zittern=0.008, saat=i),
+                                "spine_03", seuche, obj))
+    # Cross threads between neighbouring anchors close the web
+    for i, p in enumerate(anker):
+        nachbar = min((q for q in anker if q is not p), key=lambda q: (q - p).length)
+        if (nachbar - p).length < 0.16:
+            teile.append(_anhaengen(formen.faden("Netz%d" % i, p, nachbar, 0.0035, 0.0035, durchhang=0.018, zittern=0.006, saat=40 + i),
+                                    "spine_03", seuche, obj))
+
+    # Thick lumps in patches: a few places, several lumps each, on the big bones (not on fingers or the face)
+    erlaubt = {"pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "clavicle_l", "clavicle_r", "upperarm_l", "upperarm_r",
+               "lowerarm_l", "lowerarm_r", "thigh_l", "thigh_r", "calf_l", "calf_r", "head"}
+    # not in front of the heart (it must shine through the ribs) and not on the face
+    stellen = [i for i, k in enumerate(knochen) if k in erlaubt
+               and not (k == "spine_03" and orte[i].x > herz.x + 0.03)
+               and not (k == "head" and orte[i].x > -0.02)]
+    zentren = rng.sample(stellen, 11)
+    n_klumpen = 0
+    for z, zi in enumerate(zentren):
+        nah = [i for i in stellen if (orte[i] - orte[zi]).length < 0.09 and knochen[i] == knochen[zi]]
+        for k in range(rng.randint(4, 7)):
+            i = rng.choice(nah)
+            r = rng.uniform(0.018, 0.04)
+            blob = formen.klumpen("Klumpen%d_%d" % (z, k), r, flach=rng.uniform(0.45, 0.7), saat=z * 10 + k, unterteilung=2)
+            # Z of the lump along the surface normal, sunk a little into the bone
+            n = normalen[i].normalized()
+            dreh = n.to_track_quat("Z", "Y").to_matrix().to_4x4()
+            blob.data.transform(M.Translation(orte[i] + n * r * 0.25) @ dreh)
+            teile.append(_anhaengen(blob, knochen[i], seuche, obj))
+            n_klumpen += 1
+
+    for x in bpy.data.objects:
+        x.select_set(x in teile or x == obj)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.join()
+    gemein.log(NAME, "Seuche: Herz bei %s, %d Faeden ans Netz, %d Klumpen an %d Stellen, Materialien %s" % (
+        tuple(round(c, 3) for c in herz), len(anker), n_klumpen, len(zentren), [m.name for m in obj.data.materials]))
+
+
 def main():
     obj, arm = modell_vorbereiten()
+    seuche_anbauen(obj, arm)
     gemein.speichern(NAME, "02_skelett.blend")
     texturen()
     lo, hi = gemein.grenzen(obj)
