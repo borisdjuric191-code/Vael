@@ -900,6 +900,32 @@ def deckenboegen():
     return n
 
 
+def felsdecke():
+    """Die Decke der Höhle (Boris 2026-11-22: die Decken müssen ersichtlich sein, im Kobold-Stollen sah man keine): über dem massiven
+    Fels (Zellen, deren acht Nachbarn auch Fels sind) liegt eine dunkle Felsplatte über den Wandkronen. Von oben liest sich der Fels so
+    als geschlossene Gesteinsmasse und die Gänge als Stollen darunter; an den Gängen selbst bleiben die Wandkronen sichtbar. Eine Platte
+    je Lauf in einer Zeile, ohne Kollision und ohne Schatten (die Lichter hängen tiefer)"""
+    dunkel = EXTRA_SLOTS.get("Dunkel")
+    n = 0
+    for r in range(H):
+        c = 0
+        while c < W:
+            if not all(not is_floor(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1)):
+                c += 1
+                continue
+            c0 = c
+            while c < W and all(not is_floor(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1)):
+                c += 1
+            x, y0 = centre(r, c0)
+            _, y1 = centre(r, c - 1)
+            platte = mesh_actor(CUBE, x, (y0 + y1) / 2, 640.0 + erng.uniform(-30.0, 30.0), "Decke", "Felsdecke",
+                                scale=(S / 100.0 + 0.02, (y1 - y0 + S) / 100.0 + 0.02, 0.6), material=dunkel, collision=False)
+            platte.static_mesh_component.set_editor_property("cast_shadow", False)
+            n += 1
+    log("Felsdecke: {} Platten".format(n))
+    return n
+
+
 def katakombe(meshes):
     """Die Gebeinkammer als Katakombe (Boris 13.11.: wie die Pariser Katakomben, eine echte Knochensammlung): Schädelbögen quer
     über die engen Gänge, Knochensäulen in den Hallen"""
@@ -1441,7 +1467,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     counts["Wanderz"] = wand_erze(world)
     counts["Tropfsteine2"] = tropfsteine(world)
     counts["Katakombe"] = katakombe(meshes)
-    counts["Decke"] = deckenboegen()
+    counts["Decke"] = deckenboegen() + felsdecke()
 
     basis()
     if jede_art("abgrund"):

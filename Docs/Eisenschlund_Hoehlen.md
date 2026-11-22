@@ -278,7 +278,15 @@ Boris und Team, Nachtauftrag: Höhlen einheitlicher, zusammengeführt zu einer M
   - Daraus entstehen Schleimkratzer_B, Hortwächter_B, Kontorältester_B, Sklaventreiber_B und Sprengmeister_B mit eigenem Skelett und allen Bewegungen.
   - Im Spiel ist etwa jeder zweite Kobold eine Variante (`UVaelKobolde::MaybeVariant`), lebend wie befallen.
 - **Wasser:** `Tools/Welt/hoehlen_wasser.py` (Blender) macht aus den Wasserzellen eine Fläche mit runden Ufern. `M_HK_Hoehlenwasser` ist am Ufer heller und in der Mitte tief und dunkel, darauf ziehen zwei Lagen leichter Wellen.
-- **Sichtbare Decken:** Über natürlichen Gängen spannen sich Felsbrücken von Wand zu Wand. Darunter hängen Tropfsteine und, wo die Höhle Schleim hat, leuchtende Schleimzapfen. Im Kobold-Stollen tropft Bernstein-Schleim (Honig-Stamm).
+- **Sichtbare Decken:**
+  - **Felsdecke:** Über dem massiven Fels (Zellen, deren acht Nachbarn Fels sind) liegt eine dunkle Felsplatte über den Wandkronen. Von oben liest sich der Fels als geschlossene Gesteinsmasse, die Gänge als Stollen darunter. Die Platte liegt mindestens eine Zelle vom Gang weg und verdeckt die Figur nicht.
+  - **Felsbrücken:** Sie spannen sich über natürlichen Gängen von Krone zu Krone. Darunter hängen Tropfsteine und, wo die Höhle Schleim hat, leuchtende Schleimzapfen. Im Kobold-Stollen tropft Bernstein-Schleim (Honig-Stamm).
+  - **Niedrige Wände im Kobold-Stollen:** Mit höheren Wänden verdeckten die Kronen in den engen Gängen die Figur. Unter einer Brücke ist die Figur kurz verdeckt (wie unter den Schädelbögen), bis es den Kamera-Ausschnitt gibt.
+  - **Lumen:** `r.LumenScene.SurfaceCache.AtlasSize=8192` in `Config/DefaultEngine.ini`, sonst stand eine Warnung im Bild.
+- **Getestet:**
+  - Alle sieben Welteingänge führen auf den Boden ihrer Region (Log `VaelTravel: ... lands at`). Der Ameisenbau ist zu Fuß getestet, weil der Teleport auf dem Förderturm landete.
+  - Ein Hinweis erscheint beim Betreten einer Höhle.
+  - 43 bis 45 lebende Kobolde und die Seuchenwirte sind in der Map.
 - **Kein Wetter:** In den Höhlen gibt es kein Wetter, auch in der Region Eisenschlund der offenen Welt nicht mehr (`Scripts/EisenschlundOhneWetter.py`, `BuildEisenschlund.py`).
 - **Bauen:** `py Tools/Welt/hoehle_grundriss.py KoboldStollen`, `py Tools/Welt/hoehlen_verbund.py`, `py Tools/Welt/hoehlen_karte.py Eisenschlund`, `blender -b -P Tools/Welt/hoehlen_wasser.py -- Eisenschlund`, dann `VAEL_HOEHLE=Eisenschlund` und `Scripts/BuildHoehle.py`.
 - **Die alten Einzellevels** (`L_Gildenmine` usw.) liegen noch da, aber kein Eingang führt mehr hinein.
