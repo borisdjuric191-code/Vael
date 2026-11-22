@@ -45,6 +45,16 @@ public:
 
 private:
 
+	/** Ceilings over the way (rock bridges and what hangs from them, skull arches; tag VaelDecke) that hide a player from the camera
+	 *  are hidden while they do */
+	void FadeCeilings();
+
 	TWeakObjectPtr<const AActor> ShownRegion;
 	bool bRegionKnown = false;
+	float NoticeWait = 0.0f;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<AActor>> Ceilings;
+
+	TSet<TObjectPtr<AActor>> HiddenCeilings;
 };

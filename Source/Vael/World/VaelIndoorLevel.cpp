@@ -8,6 +8,7 @@
 #include "EngineUtils.h"
 #include "World/VaelRegion.h"
 #include "GameFramework/Pawn.h"
+#include "Camera/PlayerCameraManager.h"
 #include "Kismet/GameplayStatics.h"
 #include "UI/VaelNoticeSubsystem.h"
 
@@ -33,7 +34,7 @@ namespace
 AVaelIndoorLevel::AVaelIndoorLevel()
 {
 	PrimaryActorTick.bCanEverTick = true;
-	PrimaryActorTick.TickInterval = 0.5f;
+	PrimaryActorTick.TickInterval = 0.1f;
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 
 #if WITH_EDITORONLY_DATA
@@ -77,9 +78,77 @@ FString AVaelIndoorLevel::PlaceKeyAt(const UWorld* World, const FVector& Locatio
 	return UWorld::RemovePIEPrefix(World->GetMapName());
 }
 
+void AVaelIndoorLevel::FadeCeilings()
+{
+	if (Ceilings.IsEmpty())
+	{
+		return;
+	}
+	const APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0);
+	if (Camera == nullptr)
+	{
+		return;
+	}
+	const FVector Eye = Camera->GetCameraLocation();
+	TSet<TObjectPtr<AActor>> Covering;
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		const APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, Index);
+		if (Pawn == nullptr)
+		{
+			continue;
+		}
+		// A ceiling covers the player when it lies near the line from the player's chest up to the camera, below the camera
+		const FVector Chest = Pawn->GetActorLocation() + FVector(0.0f, 0.0f, 60.0f);
+		for (AActor* Ceiling : Ceilings)
+		{
+			if (Ceiling == nullptr)
+			{
+				continue;
+			}
+			FVector Origin, Extent;
+			Ceiling->GetActorBounds(true, Origin, Extent);
+			const float Height = Origin.Z + Extent.Z;
+			if (Height < Chest.Z || FVector::DistSquared2D(Origin, Chest) > FMath::Square(1200.0f))
+			{
+				continue;
+			}
+			// Where the line of sight passes the ceiling's middle height
+			const float T = FMath::Clamp((Origin.Z - Chest.Z) / FMath::Max(Eye.Z - Chest.Z, 1.0f), 0.0f, 1.0f);
+			const FVector Pass = Chest + (Eye - Chest) * T;
+			if (FMath::Abs(Pass.X - Origin.X) <= Extent.X + 60.0f && FMath::Abs(Pass.Y - Origin.Y) <= Extent.Y + 60.0f)
+			{
+				Covering.Add(Ceiling);
+			}
+		}
+	}
+	for (AActor* Ceiling : Covering)
+	{
+		if (!HiddenCeilings.Contains(Ceiling))
+		{
+			Ceiling->SetActorHiddenInGame(true);
+		}
+	}
+	for (AActor* Ceiling : HiddenCeilings)
+	{
+		if (Ceiling != nullptr && !Covering.Contains(Ceiling))
+		{
+			Ceiling->SetActorHiddenInGame(false);
+		}
+	}
+	HiddenCeilings = MoveTemp(Covering);
+}
+
 void AVaelIndoorLevel::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	FadeCeilings();
+	NoticeWait -= DeltaSeconds;
+	if (NoticeWait > 0.0f)
+	{
+		return;
+	}
+	NoticeWait = 0.5f;
 	const APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
 	if (Pawn == nullptr)
 	{
@@ -107,6 +176,13 @@ void AVaelIndoorLevel::Tick(float DeltaSeconds)
 void AVaelIndoorLevel::BeginPlay()
 {
 	Super::BeginPlay();
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(TEXT("VaelDecke")))
+		{
+			Ceilings.Add(*It);
+		}
+	}
 	UVaelTropfseuche::SpawnHosts(GetWorld());
 	UVaelKobolde::SpawnInCaves(GetWorld());
 }
