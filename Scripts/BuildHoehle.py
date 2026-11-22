@@ -871,10 +871,11 @@ def deckenboegen():
                 continue
             x, y = centre(r, c)
             hoch = 520.0 * STYLE.get("wandhoehe", 1.0)
-            bz = max(300.0, hoch * 0.82)
-            dicke = erng.uniform(80.0, 120.0)
+            # über den Wandkronen, von Krone zu Krone: tiefer sah die Brücke von oben wie ein Steg aus, auf dem die Figur steht
+            bz = max(420.0, hoch + 60.0)
+            dicke = erng.uniform(70.0, 100.0)
             mesh_actor(brocken, x, y, bz, "Decke", "Felsbruecke", yaw=(0.0 if quer_x else 90.0) + erng.uniform(-8, 8),
-                       scale=(S * 1.55 / groesse.x, erng.uniform(130.0, 190.0) / groesse.y, dicke / groesse.z), material=fels(), collision=False,
+                       scale=(S * 1.7 / groesse.x, erng.uniform(90.0, 130.0) / groesse.y, dicke / groesse.z), material=fels(), collision=False,
                        roll=erng.uniform(-4, 4))
             unten = bz - dicke * 0.45
             zapfen = lachen_hier() and ZAPFEN and STYLE.get("schleimzapfen", 0.0) > 0.0
@@ -1011,18 +1012,20 @@ def ankunft(r, c, schritte=3):
     return centre(*best)
 
 
-WASSER_NORMAL = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n"
-
-
 def wasser_material():
-    """Höhlenwasser (Boris 2026-11-22: richtiges Wasser statt Vierecke): am Ufer heller und flach, zur Mitte tief und dunkel (Vertexfarbe
-    Rot aus Tools/Welt/hoehlen_wasser.py), zwei Lagen langsam ziehender Wellen, glatt genug für Glanzlichter, aber nicht spiegelnd hell"""
+    """Höhlenwasser (Boris 2026-11-22: richtiges Wasser statt Vierecke): am Ufer etwas heller, zur Mitte tief und dunkel (Vertexfarbe
+    Rot aus Tools/Welt/hoehlen_wasser.py), matt und dunkel. Eine Wellen-Normalmap der Engine (water_n) und Rauschen im Glanz zeigten
+    von oben Kacheln, glatt spiegelte es die Kristalle weiß.
+    VAEL_HOEHLE_WASSER_NEU=1 baut das Material im bestehenden Asset neu (die Map behält ihren Verweis)"""
     path = PARTS + "/M_HK_Hoehlenwasser"
-    if assets.does_asset_exist(path) and not os.environ.get("VAEL_HOEHLE_MATERIAL_NEU"):
-        return unreal.load_asset(path)
+    neu = os.environ.get("VAEL_HOEHLE_MATERIAL_NEU") or os.environ.get("VAEL_HOEHLE_WASSER_NEU")
     if assets.does_asset_exist(path):
-        assets.delete_asset(path)
-    mat = tools.create_asset("M_HK_Hoehlenwasser", PARTS, unreal.Material, unreal.MaterialFactoryNew())
+        mat = unreal.load_asset(path)
+        if not neu:
+            return mat
+        library.delete_all_material_expressions(mat)
+    else:
+        mat = tools.create_asset("M_HK_Hoehlenwasser", PARTS, unreal.Material, unreal.MaterialFactoryNew())
     E = unreal.MaterialProperty
 
     def node(cls, x, y, **props):
@@ -1031,40 +1034,17 @@ def wasser_material():
             n.set_editor_property(k, v)
         return n
     vc = node(unreal.MaterialExpressionVertexColor, -900, 0)
-    flach = node(unreal.MaterialExpressionVectorParameter, -900, -200, parameter_name="Flach", default_value=unreal.LinearColor(0.05, 0.085, 0.08, 1.0))
-    tief = node(unreal.MaterialExpressionVectorParameter, -900, -60, parameter_name="Tief", default_value=unreal.LinearColor(0.004, 0.012, 0.016, 1.0))
+    flach = node(unreal.MaterialExpressionVectorParameter, -900, -200, parameter_name="Flach", default_value=unreal.LinearColor(0.022, 0.04, 0.042, 1.0))
+    tief = node(unreal.MaterialExpressionVectorParameter, -900, -60, parameter_name="Tief", default_value=unreal.LinearColor(0.002, 0.006, 0.009, 1.0))
     farbe = node(unreal.MaterialExpressionLinearInterpolate, -500, -120)
     library.connect_material_expressions(flach, "", farbe, "A")
     library.connect_material_expressions(tief, "", farbe, "B")
     library.connect_material_expressions(vc, "R", farbe, "Alpha")
     library.connect_material_property(farbe, "", E.MP_BASE_COLOR)
-    texture = unreal.load_asset(WASSER_NORMAL)
-    welle = None
-    for i, (scale, sx, sy) in enumerate(((0.55, 0.035, 0.02), (0.9, -0.025, 0.03))):
-        uv = node(unreal.MaterialExpressionTextureCoordinate, -1300, 300 + i * 220, u_tiling=scale, v_tiling=scale)
-        pan = node(unreal.MaterialExpressionPanner, -1100, 300 + i * 220, speed_x=sx, speed_y=sy)
-        library.connect_material_expressions(uv, "", pan, "Coordinate")
-        tex = node(unreal.MaterialExpressionTextureSample, -850, 300 + i * 220, texture=texture,
-                   sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
-        library.connect_material_expressions(pan, "", tex, "UVs")
-        if welle is None:
-            welle = tex
-        else:
-            add = node(unreal.MaterialExpressionAdd, -550, 400)
-            library.connect_material_expressions(welle, "RGB", add, "A")
-            library.connect_material_expressions(tex, "RGB", add, "B")
-            welle = add
-    # flacher machen: die Wellen sind von oben nur ein leichtes Kräuseln
-    flat = node(unreal.MaterialExpressionConstant3Vector, -550, 560, constant=unreal.LinearColor(0.0, 0.0, 1.0, 1.0))
-    staerke = node(unreal.MaterialExpressionScalarParameter, -550, 660, parameter_name="Wellen", default_value=0.45)
-    norm = node(unreal.MaterialExpressionLinearInterpolate, -300, 450)
-    library.connect_material_expressions(flat, "", norm, "A")
-    library.connect_material_expressions(welle, "", norm, "B")
-    library.connect_material_expressions(staerke, "", norm, "Alpha")
-    library.connect_material_property(norm, "", E.MP_NORMAL)
-    rough = node(unreal.MaterialExpressionScalarParameter, -500, 120, parameter_name="Rauheit", default_value=0.14)
-    library.connect_material_property(rough, "", E.MP_ROUGHNESS)
-    spec = node(unreal.MaterialExpressionScalarParameter, -500, 200, parameter_name="Glanz", default_value=0.45)
+    # matt: jede Struktur im Glanz (Wellen-Normalmap, Rauschen) zeigte von oben ein Kachelmuster und spiegelte die hellen Kristalle weiß
+    rauh = node(unreal.MaterialExpressionScalarParameter, -500, 120, parameter_name="Rauheit", default_value=0.55)
+    library.connect_material_property(rauh, "", E.MP_ROUGHNESS)
+    spec = node(unreal.MaterialExpressionScalarParameter, -500, 200, parameter_name="Glanz", default_value=0.25)
     library.connect_material_property(spec, "", E.MP_SPECULAR)
     library.recompile_material(mat)
     assets.save_loaded_asset(mat, False)
@@ -1593,6 +1573,11 @@ def build_world_entrance():
 
 
 def main():
+    if os.environ.get("VAEL_HOEHLE_NUR_WASSER"):
+        # nur das Wassermaterial neu (VAEL_HOEHLE_WASSER_NEU=1 dazu), ohne die Höhle neu zu bauen
+        wasser_material()
+        log("Wassermaterial neu")
+        return
     assets.make_directory(PARTS)
     meshes = {}
     for name in ROCK_PIECES:

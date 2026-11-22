@@ -39,4 +39,12 @@ public:
 	/** The name of the place, shown where the region name stands (a cave of the Eisenschlund: "Kernerz-Stollen") */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Indoor")
 	FText PlaceName;
+
+	/** Walking from one cave of the joined caves into the next shows its name and a line about it */
+	virtual void Tick(float DeltaSeconds) override;
+
+private:
+
+	TWeakObjectPtr<const AActor> ShownRegion;
+	bool bRegionKnown = false;
 };
