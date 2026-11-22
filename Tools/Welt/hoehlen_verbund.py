@@ -155,7 +155,7 @@ def bauen(saat, letzter):
         pa = min(zellen(a), key=lambda p: (p[0] - mb[0]) ** 2 + (p[1] - mb[1]) ** 2)
         pb = min(zellen(b), key=lambda p: (p[0] - ma[0]) ** 2 + (p[1] - ma[1]) ** 2)
         m = ((pa[0] + pb[0]) / 2 + rng.uniform(-4, 4), (pa[1] + pb[1]) / 2 + rng.uniform(-4, 4))
-        graben([pa, m, pb], 1.0, "v", laternen=14)
+        graben([pa, m, pb], 1.6, "v", laternen=14)   # zwei bis drei Zellen breit: einspurig verstellten die Wände den Weg (Lauftest 22.11.)
 
     # The secret way into the Kobold-Stollen: a crack from the far east corner of the Ameisenbau, along the east edge of the
     # network down to the entrance of the maze (its top right corner); one cell wide, crooked, no light

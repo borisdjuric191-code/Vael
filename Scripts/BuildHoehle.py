@@ -1243,6 +1243,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             hier(*floors[0])
             if len(floors) == 2 and (floors[0][0] == floors[1][0] or floors[0][1] == floors[1][1]):
                 continue                                                   # gerade Wand, kein Eck
+            # nicht an einspurigen Stellen (höchstens zwei Bodennachbarn): dort verstellte der Eckfels den Knick (Lauftest 22.11., Spalt)
+            if any(sum(is_floor(fr + a, fc + b) for a, b, _ in DIRS.values()) <= 2 for fr, fc in floors):
+                continue
             rocks = [p for p in around if not is_floor(*p)]
             low = True
             for fr, fc in floors:
