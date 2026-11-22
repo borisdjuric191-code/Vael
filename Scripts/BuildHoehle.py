@@ -608,7 +608,10 @@ def light_source(meshes, r, c, x, y):
             break
     if kind == "laterne":
         dx, dy = wall or (1, 0)
-        px, py = x + dx * (S / 2 - 70.0), y + dy * (S / 2 - 70.0)
+        # in einspurigen Gängen ganz an die Wand (70 cm davor stand sie im Kobold-Labyrinth im Weg, Lauftest 22.11.)
+        einspurig = sum(is_floor(r + a, c + b) for a, b, _ in DIRS.values()) <= 2
+        abstand = 15.0 if einspurig else 70.0
+        px, py = x + dx * (S / 2 - abstand), y + dy * (S / 2 - abstand)
         yaw = math.degrees(math.atan2(-dy, -dx))
         mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", "Laterne", yaw=yaw, collision=False)
         point_light(px + math.cos(math.radians(yaw)) * 45.0, py + math.sin(math.radians(yaw)) * 45.0, 210.0, "Licht", "Laternenschein",
@@ -1292,9 +1295,11 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             elif ch == "L":
                 # an die nächste Felswand, die Laterne hängt zur Mitte hin
                 yaw, px, py = 0.0, x, y
+                # in einspurigen Gängen ganz an die Wand (sonst stand sie im Kobold-Labyrinth im Weg, Lauftest 22.11.)
+                abstand = 15.0 if sum(is_floor(r + a, c + b) for a, b, _ in DIRS.values()) <= 2 else 70.0
                 for key, (dr, dc, (dx, dy)) in DIRS.items():
                     if not is_floor(r + dr, c + dc):
-                        px, py = x + dx * (S / 2 - 70.0), y + dy * (S / 2 - 70.0)
+                        px, py = x + dx * (S / 2 - abstand), y + dy * (S / 2 - abstand)
                         yaw = math.degrees(math.atan2(-dy, -dx))
                         break
                 mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", "Grubenlaterne", yaw=yaw, collision=False)
