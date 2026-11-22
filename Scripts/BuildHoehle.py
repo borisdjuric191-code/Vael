@@ -1109,8 +1109,27 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             region.set_editor_property("tags", [unreal.Name("L_" + info["name"])])
             region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((x1 - x0) / 2, (y1 - y0) / 2, 5000.0))
     # ein Felssockel unter der ganzen Höhle: nichts fällt durch eine Lücke zwischen den Platten ins Leere
-    mesh_actor(unreal.load_asset("/Engine/BasicShapes/Cube.Cube"), (H - 1) * S / 2, (W - 1) * S / 2, -4000.0 if jede_art("abgrund") else -370.0, "Boden", "Felssockel",
-               scale=((H + 2) * S / 100.0, (W + 2) * S / 100.0, 1.0), material=floor_mat)
+    # im Verbund nur unter der Region mit dem Abgrund tief, sonst knapp unter dem Boden (40 m tief fiel man durch jede Lücke)
+    tief = [info["box"] for info in REGION_INFO.values() if info.get("box") and ART.get(info.get("art"), {}).get("abgrund")]
+    cube_ = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
+
+    def sockel(r0, c0, r1, c1, z):
+        if r1 < r0 or c1 < c0:
+            return
+        x0, x1 = (H - 1 - r1) * S - S, (H - 1 - r0) * S + S
+        y0, y1 = c0 * S - S, c1 * S + S
+        mesh_actor(cube_, (x0 + x1) / 2, (y0 + y1) / 2, z, "Boden", "Felssockel", scale=((x1 - x0) / 100.0, (y1 - y0) / 100.0, 1.0), material=floor_mat)
+    if REGIONEN and len(tief) == 1:
+        tr0, tc0, tr1, tc1 = tief[0]
+        sockel(tr0, tc0, tr1, tc1, -4000.0)
+        # der Rest in vier Streifen um die tiefe Region herum
+        sockel(0, 0, tr0 - 2, W - 1, -370.0)
+        sockel(tr1 + 2, 0, H - 1, W - 1, -370.0)
+        sockel(tr0 - 1, 0, tr1 + 1, tc0 - 2, -370.0)
+        sockel(tr0 - 1, tc1 + 2, tr1 + 1, W - 1, -370.0)
+    else:
+        mesh_actor(cube_, (H - 1) * S / 2, (W - 1) * S / 2, -4000.0 if jede_art("abgrund") else -370.0, "Boden", "Felssockel",
+                   scale=((H + 2) * S / 100.0, (W + 2) * S / 100.0, 1.0), material=floor_mat)
 
     WASSER[0] = wasser_flaeche()
     if WASSER[0] is not None:
