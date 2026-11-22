@@ -525,6 +525,9 @@ def mesh_actor(mesh, x, y, z, folder, label, yaw=0.0, scale=(1.0, 1.0, 1.0), mat
             component.set_material(index, material)
     actor.set_actor_scale3d(unreal.Vector(*scale))
     if not collision:
+        # das Profil, nicht nur den Schalter: beim Laden der Map setzte das Profil "BlockAll" die Kollision wieder an, und Laternen,
+        # Kiesel, Knochen und Wanderze versperrten im Spiel die engen Gänge (Lauftest 22.11.)
+        component.set_collision_profile_name("NoCollision")
         component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
     # Decken über dem Weg (Felsbrücken und was daran hängt, Schädelbögen): das Spiel blendet sie aus, wenn sie die Figur verdecken
     # (AVaelIndoorLevel); die Felsdecke über dem massiven Fels verdeckt niemanden
@@ -833,7 +836,8 @@ def tropfsteine(world):
                         px = x + dx * (base - erng.uniform(0, 60)) + dy * (t + erng.uniform(-70, 70))
                         py = y + dy * (base - erng.uniform(0, 60)) - dx * (t + erng.uniform(-70, 70))
                         mesh_actor(erng.choice(MITES), px, py, -25.0, "Tropfsteine", "Stalagmit", yaw=erng.uniform(0, 360),
-                                   scale=(h_ * 0.42, h_ * 0.42, h_), material=fels(), pitch=erng.uniform(-6, 6), roll=erng.uniform(-6, 6))
+                                   scale=(h_ * 0.42, h_ * 0.42, h_), material=fels(), pitch=erng.uniform(-6, 6), roll=erng.uniform(-6, 6),
+                                   collision=False)      # Schmuck: ein Stalagmit darf nie einen Gang versperren (Lauftest 22.11.)
                         n_mit += 1
                 # Stalaktiten unter dem Überhang: von unten nach oben gegen den Fels
                 if not low and erng.random() < min(0.9, dichte * 2.0):
@@ -1226,7 +1230,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                            "Felswand niedrig" if low else "Felswand", yaw=WALL_TURN + (yaw if not narrow else math.degrees(math.atan2(-dx, dy)) + rng.uniform(-4, 4)),
                            scale=(rng.uniform(1.0, 1.25) if natur() else 1.0, depth,
                                   rng.uniform(0.8, 1.35 if natur() else 1.15) * STYLE.get("wandhoehe", 1.0) if not low else 1.0), material=fels())
-                if not low and rng.random() < STYLE.get("schaedelwand", 0.0):
+                # nicht in engen Gängen: die Schädelwand steht 30 cm vor der Zellmitte, beidseits ließ sie kaum einen Spalt (Lauftest 22.11.)
+                # (der Zufall wird gezogen wie zuvor, sonst verrutscht jede Wand der Map)
+                if not low and rng.random() < STYLE.get("schaedelwand", 0.0) and not narrow:
                     # Schädelreihen der Gilde vor dem Fels, mit dem Gesicht in den Gang
                     # vor die Felsfront (die ragt bis ~1,5 m in die Zelle), sonst steckten die Schädel im Fels
                     mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 170.0),
@@ -1370,7 +1376,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 for k in range(rng.randint(3, 6)):
                     h_ = rng.uniform(1.2, 4.5)
                     mesh_actor(rng.choice(MITES), x + rng.uniform(-150, 150), y + rng.uniform(-150, 150), -20.0, "Tropfsteine", "Tropfstein",
-                               yaw=rng.uniform(0, 360), scale=(h_ * 0.55, h_ * 0.55, h_), material=fels(), pitch=rng.uniform(-6, 6))
+                               yaw=rng.uniform(0, 360), scale=(h_ * 0.55, h_ * 0.55, h_), material=fels(), pitch=rng.uniform(-6, 6),
+                               collision=False)
             elif ch == "Z" and (r, c) in ERNTE and ernte_erz(NAME, x + erng.uniform(-60, 60), y + erng.uniform(-60, 60), ERNTE[(r, c)]):
                 # ein paar Spitzen desselben Erzes am Boden drumherum, damit die Stelle wie ein Vorkommen aussieht
                 for k in range(erng.randint(1, 3)):
