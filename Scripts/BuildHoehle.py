@@ -817,7 +817,7 @@ def tropfsteine(world):
                 if is_floor(r + dr, c + dc):
                     continue
                 low = dx * CAMERA[0] + dy * CAMERA[1] > 0.3
-                narrow = not is_floor(r - dr, c - dc)
+                narrow = not is_floor(r - dr, c - dc) or sum(is_floor(r + a, c + b) for a, b, _ in DIRS.values()) <= 2
                 # Stalagmiten: kleine Gruppen am Wandfuß, aus dem breiten Fuß heraus (nicht in engen Gängen, da versperrten sie den Weg)
                 if not narrow and erng.random() < dichte:
                     t = erng.uniform(-0.4, 0.4) * S
@@ -1210,7 +1210,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 shift = rng.uniform(-60.0, 60.0) if natur() else 0.0
                 # enger Gang (Fels auf beiden Seiten der Zelle): die Wand mit dem breiten Fuß zurücksetzen und flacher machen,
                 # sonst wuchsen die Füße beider Seiten zusammen und der Gang war zu
-                narrow = not is_floor(r - dr, c - dc)
+                # auch an Knicken eines einspurigen Gangs (höchstens zwei Bodennachbarn): dort ragte die Außenwand mit voller Tiefe in
+                # die Zelle und schnürte den Weg ab (Lauftest 22.11., der Spalt zum Kobold-Stollen)
+                narrow = not is_floor(r - dr, c - dc) or sum(is_floor(r + a, c + b) for a, b, _ in DIRS.values()) <= 2
                 depth = rng.uniform(0.85, 1.4 if natur() else 1.15)
                 if narrow:
                     shift, depth = shift * 0.3 + 70.0, 0.6
@@ -1688,7 +1690,8 @@ def main():
     SPONGE[:] = [simple_material("M_HK_Rostschwamm", (0.26, 0.11, 0.04), 0.9)]
     EXTRA_SLOTS["Fels"] = rock
     for name in PROPS:
-        meshes[name] = import_piece(name, collision_complex=name.startswith("SM_HK_Schaedelbogen"))   # Bogen: man geht darunter durch
+        # Bögen und Türstöcke: man geht darunter durch (mit der einfachen Hülle versperrte der Türstock den ganzen Stollen, Lauftest 22.11.)
+        meshes[name] = import_piece(name, collision_complex=name.startswith("SM_HK_Schaedelbogen") or name.startswith("SM_HK_Verbau"))
         kit_materials(meshes[name])
     ZAPFEN[:] = [meshes["SM_HK_Schleimzapfen_A"], meshes["SM_HK_Schleimzapfen_B"]]
     build_cave(meshes, rock, floor_mat, ore_mat, water_mat, crystal_mat)

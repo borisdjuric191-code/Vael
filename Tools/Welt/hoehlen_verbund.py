@@ -143,7 +143,9 @@ def bauen(saat, letzter):
         # guild lanterns along the tunnel
         if laternen:
             for i, (rr, cc) in enumerate(gesetzt):
-                if i % laternen == laternen // 2 and g[rr][cc] == "." and reg[rr][cc] == zeichen_region:
+                # nur am Rand des Stollens, an der Felswand (in der Mitte stand die Laterne im Weg)
+                am_fels = any(g[rr + dr][cc + dc] == "#" for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+                if i % laternen == laternen // 2 and am_fels and g[rr][cc] == "." and reg[rr][cc] == zeichen_region:
                     g[rr][cc] = "L"
         return gesetzt
 
