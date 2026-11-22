@@ -91,6 +91,11 @@ void AVaelRegion::Tick(float DeltaSeconds)
 
 	// Indoors (a refugium) the region is a stand-in: no look of the land, and what waits stays for the real region
 	const bool bIndoor = AVaelIndoorLevel::IsIndoor(GetWorld());
+	// A region under the ground without weather has nothing to do each frame (the joined caves have nine of them, 2026-11-22)
+	if (bIndoor && !bChangingWeather && Weather == EVaelWeather::Clear && GetActorTickInterval() < 1.0f)
+	{
+		SetActorTickInterval(1.0f);
+	}
 	if (!bIndoor)
 	{
 		UpdateBalanceLook(DeltaSeconds);
