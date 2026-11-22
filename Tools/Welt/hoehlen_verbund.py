@@ -37,8 +37,32 @@ def lade(name):
         return json.load(f)
 
 
+def erreichbar(g, reg, hoehe, breite):
+    """Kommt man vom ersten Ausgang aus zu Fuß in jede Region und zum Schatz (Ausgänge selbst zählen nicht als Weg)"""
+    start = next((r, c) for r in range(hoehe) for c in range(breite) if g[r][c] == "E")
+    gesehen, offen = {start}, [start]
+    while offen:
+        r, c = offen.pop()
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            n = (r + dr, c + dc)
+            if n not in gesehen and 0 <= n[0] < hoehe and 0 <= n[1] < breite and g[n[0]][n[1]] not in "#XOE":
+                gesehen.add(n)
+                offen.append(n)
+    regionen = {reg[r][c] for r in range(hoehe) for c in range(breite) if g[r][c] not in "#XOE" and reg[r][c] != " "}
+    erreicht = {reg[r][c] for r, c in gesehen}
+    schatz = any(g[r][c] == "Q" for r, c in gesehen)
+    return regionen <= erreicht and schatz
+
+
 def main():
-    rng = random.Random(2211)
+    for versuch in range(40):
+        if bauen(2211 + versuch, versuch == 39):
+            return
+    print("kein Verbund gefunden, in dem alles erreichbar ist")
+
+
+def bauen(saat, letzter):
+    rng = random.Random(saat)
     breite = 3 * SLOT_W + 2 * LUECKE + 2 * RAND
     hoehe = 3 * SLOT_H + 2 * LUECKE + 2 * RAND
     g = [["#"] * breite for _ in range(hoehe)]
@@ -64,9 +88,14 @@ def main():
     def boden(r, c):
         return 0 <= r < hoehe and 0 <= c < breite and g[r][c] != "#"
 
+    ausgaenge = [(r, c) for r in range(hoehe) for c in range(breite) if g[r][c] == "E"]
+
     def zellen(buchstabe):
+        """Boden der Höhle, auf dem ein Stollen beginnen darf: weit weg von jedem Ausgang (ein Stollen durch den Ausgang der Mine
+        schickte jeden, der zur Gebeinkammer wollte, zurück in die Welt)"""
         r0, c0, r1, c1 = info[buchstabe]["box"]
-        return [(r, c) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1) if g[r][c] in ".GLCMZTNB" and reg[r][c] == buchstabe]
+        return [(r, c) for r in range(r0, r1 + 1) for c in range(c0, c1 + 1) if g[r][c] in ".GLCMZTNB" and reg[r][c] == buchstabe
+                and all(max(abs(r - a), abs(c - b)) >= 7 for a, b in ausgaenge)]
 
     def mitte(buchstabe):
         r0, c0, r1, c1 = info[buchstabe]["box"]
@@ -78,6 +107,9 @@ def main():
         vorher = [None]
 
         def frei(rr, cc):
+            # nicht neben einem Ausgang: wer durch den Stollen ging, streifte sonst den Mund und stand wieder in der Welt
+            if any(max(abs(rr - a), abs(cc - b)) <= 2 for a, b in ausgaenge):
+                return
             if 1 <= rr < hoehe - 1 and 1 <= cc < breite - 1 and g[rr][cc] == "#":
                 g[rr][cc] = "."
                 if reg[rr][cc] == " ":
@@ -152,6 +184,8 @@ def main():
                     gesetzt.append((r, c))
                     anzahl -= 1
 
+    if not erreichbar(g, reg, hoehe, breite) and not letzter:
+        return False
     daten = {
         "name": "Eisenschlund",
         "titel": "Eisenschlund – Tiefen",
@@ -169,7 +203,8 @@ def main():
         json.dump(daten, f, ensure_ascii=False, indent=1)
     for z in g[::2]:
         print("".join(z[::2]))
-    print("geschrieben: Eisenschlund.json, {} x {} Zellen".format(breite, hoehe))
+    print("geschrieben: Eisenschlund.json, {} x {} Zellen (Saat {})".format(breite, hoehe, saat))
+    return True
 
 
 if __name__ == "__main__":

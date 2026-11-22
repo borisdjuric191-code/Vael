@@ -1404,7 +1404,14 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                                yaw=rng.uniform(0, 90), scale=(s_, s_, s_))
                 point_light(x, y, 260.0, "Licht", "Hortschein", (1.0, 0.35, 0.6), 60.0, 1400.0, shadows=True)
             elif ch == "E":
-                exit_ = spawn(unreal.VaelCaveEntrance, unreal.Vector(x, y, 120.0), "Spiel", "Ausgang")
+                # der Auslöser an den äußeren Rand der Zelle, zur Felsseite: im Verbund führt manchmal ein Gang neben dem Ausgang vorbei,
+                # und wer dort lief, streifte den Mund und stand wieder in der Welt (Lauftest 2026-11-22)
+                ox, oy = 0.0, 0.0
+                for key, (dr, dc, (dx, dy)) in DIRS.items():
+                    if not is_floor(r + dr, c + dc):
+                        ox, oy = dx * 170.0, dy * 170.0
+                        break
+                exit_ = spawn(unreal.VaelCaveEntrance, unreal.Vector(x + ox, y + oy, 120.0), "Spiel", "Ausgang")
                 exit_.set_editor_property("target_level", unreal.Name("L_Vael"))
                 ein = (REGION_INFO.get(REGIONEN[r][c], {}).get("eingang_m") if REGIONEN else None) or D["welt_eingang_m"]
                 ex, ey = ein[:2]
