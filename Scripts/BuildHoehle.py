@@ -606,8 +606,11 @@ def light_source(meshes, r, c, x, y):
         if not is_floor(r + dr, c + dc):
             wall = (dx, dy)
             break
-    if kind == "laterne":
-        dx, dy = wall or (1, 0)
+    if kind == "laterne" and wall is None:
+        # kein Fels direkt daneben: nur das Licht, ohne Gestell (vorher stand die Laterne mitten im Gang, Lauftest 22.11.)
+        point_light(x, y, 260.0, "Licht", "Laternenschein", STYLE["laterne"], 100.0, 1700.0, shadows=True)
+    elif kind == "laterne":
+        dx, dy = wall
         # in einspurigen Gängen ganz an die Wand (70 cm davor stand sie im Kobold-Labyrinth im Weg, Lauftest 22.11.)
         einspurig = sum(is_floor(r + a, c + b) for a, b, _ in DIRS.values()) <= 2
         abstand = 15.0 if einspurig else 70.0
@@ -1297,12 +1300,15 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 yaw, px, py = 0.0, x, y
                 # in einspurigen Gängen ganz an die Wand (sonst stand sie im Kobold-Labyrinth im Weg, Lauftest 22.11.)
                 abstand = 15.0 if sum(is_floor(r + a, c + b) for a, b, _ in DIRS.values()) <= 2 else 70.0
+                an_wand = False
                 for key, (dr, dc, (dx, dy)) in DIRS.items():
                     if not is_floor(r + dr, c + dc):
                         px, py = x + dx * (S / 2 - abstand), y + dy * (S / 2 - abstand)
                         yaw = math.degrees(math.atan2(-dy, -dx))
+                        an_wand = True
                         break
-                mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", "Grubenlaterne", yaw=yaw, collision=False)
+                if an_wand:      # ohne Wand daneben nur das Licht (das Gestell stand sonst mitten im Weg)
+                    mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", "Grubenlaterne", yaw=yaw, collision=False)
                 hx = px + math.cos(math.radians(yaw)) * 45.0
                 hy = py + math.sin(math.radians(yaw)) * 45.0
                 point_light(hx, hy, 210.0, "Licht", "Laternenschein", STYLE["laterne"], 140.0, 1900.0, shadows=True)   # Schatten zeigen das Relief der Wände
