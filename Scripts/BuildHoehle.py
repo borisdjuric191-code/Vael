@@ -646,7 +646,8 @@ def light_source(meshes, r, c, x, y):
         for k in range(2):
             s_ = rng.uniform(0.6, 1.1)
             mesh_actor(meshes["SM_HK_Schwamm"], x + rng.uniform(-100, 100), y + rng.uniform(-100, 100), -5.0, "Licht", "Rostschwamm",
-                       yaw=rng.uniform(0, 360), scale=(s_, s_, s_), material=SPONGE[0] if SPONGE else None)
+                       yaw=rng.uniform(0, 360), scale=(s_, s_, s_), material=SPONGE[0] if SPONGE else None,
+                       collision=False)   # soft decor: never blocks a corridor
         point_light(x, y, 110.0, "Licht", "Sporenlicht", (0.55, 1.0, 0.3), 40.0, 1400.0, shadows=True)
 
 
@@ -1369,7 +1370,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 for k in range(rng.randint(2, 4)):
                     s_ = rng.uniform(0.8, 2.0)
                     mesh_actor(meshes["SM_HK_Schwamm"], x + rng.uniform(-140, 140), y + rng.uniform(-140, 140), -5.0, "Schwamm", "Rostschwamm",
-                               yaw=rng.uniform(0, 360), scale=(s_, s_, s_ * rng.uniform(0.8, 1.3)), material=SPONGE[0])
+                               yaw=rng.uniform(0, 360), scale=(s_, s_, s_ * rng.uniform(0.8, 1.3)), material=SPONGE[0],
+                               collision=False)   # soft decor: never blocks a corridor
                 if rng.random() < 0.3:
                     point_light(x, y, 80.0, "Schwamm", "Sporenlicht", (0.55, 1.0, 0.3), 6.0, 600.0)
             elif ch == "M":
