@@ -273,6 +273,10 @@ AVaelRegion* AVaelRegion::GetRegionAt(UWorld* World, const FVector& Location)
 			if (const AVaelIndoorLevel* Indoor = AVaelIndoorLevel::Find(World); Indoor != nullptr && !Indoor->PlaceName.IsEmpty())
 			{
 				WholeLevel->RegionName = Indoor->PlaceName;
+				// No weather under the ground (Boris 2026-11-22)
+				WholeLevel->StartWeather = EVaelWeather::Clear;
+				WholeLevel->bChangingWeather = false;
+				WholeLevel->AvailableWeathers = { EVaelWeather::Clear };
 			}
 			WholeLevel->FinishSpawning(FTransform::Identity);
 

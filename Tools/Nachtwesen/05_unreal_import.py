@@ -21,7 +21,9 @@ TEXTUREN = (("basecolor", "jpg", "BaseColor"), ("normal", "png", "Normal"), ("ro
 eal = unreal.EditorAssetLibrary
 # Region folder under /Game/Vael/Kreaturen/ of creatures that are not from the Wurzelforst
 REGION = {"Schleimgaenger": "Eisenschlund", "Schleimkratzer": "Eisenschlund", "Hortwaechter": "Eisenschlund", "Kontoraeltester": "Eisenschlund",
-          "Sklaventreiber": "Eisenschlund", "Sprengmeister": "Eisenschlund", "Laternentraeger": "Eisenschlund"}
+          "Sklaventreiber": "Eisenschlund", "Sprengmeister": "Eisenschlund", "Laternentraeger": "Eisenschlund",
+          "Schleimkratzer_B": "Eisenschlund", "Hortwaechter_B": "Eisenschlund", "Kontoraeltester_B": "Eisenschlund",
+          "Sklaventreiber_B": "Eisenschlund", "Sprengmeister_B": "Eisenschlund"}
 
 
 def log(text):

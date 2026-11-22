@@ -10,7 +10,7 @@
 #   der glühende Schlackenfluss.
 # - Der verschüttete Schlackentor-Stollen: ein Durchgang (AVaelPassage) vom Schlackentor der Aschenmark durch den Berg
 #   in den Eisenschlund und zurück, bis es echte Tunnel gibt.
-# - Region "Eisenschlund" (Wetter nach Verderbnis: rein ruhig, verdorben Hitze, Regen, Sturm), Küstenwände, Route ab 300.
+# - Region "Eisenschlund" (kein Wetter, Boris 2026-11-22), Küstenwände, Route ab 300.
 # Alles trägt den Tag "VaelEisenschlund" (Ordner "Eisenschlund/..."); ein neuer Lauf entfernt erst das.
 #
 # Mit geschlossenem Editor, nach Tools/Welt/eisenschlund_welt.py:
@@ -533,10 +533,12 @@ def main():
     gx1, gy1 = gx0 + (gni - 1) * STEP, gy0 + (gnj - 1) * STEP
     region = spawn(unreal.VaelRegion, unreal.Vector((gx0 + gx1) * 50.0, (2521.0 + gy1) * 50.0, 0.0), "Spiel", "Region Eisenschlund", streamed=False)
     region.set_editor_property("region_name", unreal.Text("Eisenschlund"))
-    region.set_editor_property("start_weather", W.WIND)
-    region.set_editor_property("available_weathers", [W.CLEAR, W.WIND, W.RAIN, W.DROUGHT, W.STORM])
-    region.set_editor_property("weather_weights_pure", {W.CLEAR: 3.0, W.WIND: 2.0, W.RAIN: 1.0, W.DROUGHT: 0.5, W.STORM: 0.3})
-    region.set_editor_property("weather_weights_corrupted", {W.CLEAR: 0.2, W.WIND: 1.0, W.RAIN: 1.5, W.DROUGHT: 2.0, W.STORM: 2.0})
+    # Kein Wetter im Eisenschlund (Boris 2026-11-22: Regen, Dürre usw. sind unter Tage und in den Schluchten nicht relevant)
+    region.set_editor_property("start_weather", W.CLEAR)
+    region.set_editor_property("available_weathers", [W.CLEAR])
+    region.set_editor_property("changing_weather", False)
+    region.set_editor_property("weather_weights_pure", {W.CLEAR: 1.0})
+    region.set_editor_property("weather_weights_corrupted", {W.CLEAR: 1.0})
     region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((gx1 - gx0) * 50.0, (gy1 - 2521.0) * 50.0, 60000.0))
     # Der Kasten des Eisenschlunds reicht in die Ecke des Wurzelforsts: dort zählt der Wurzelforst
     for actor in level_actors:

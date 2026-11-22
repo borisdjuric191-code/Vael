@@ -249,3 +249,36 @@ Alle Grundrisse: `py Tools/Welt/hoehle_grundriss.py <Name>`, danach `set VAEL_HO
   - Der Schacht hat nur wenige Rippen.
   - Die Brut sind Eisäcke aus der Glutkammer.
   - Der Weg durch die fünf neuen Eingänge ist nicht einzeln getestet; die Technik ist dieselbe wie bei der Mine.
+
+## Der Höhlenverbund: eine Map für alle Höhlen (22.11.)
+
+Boris und Team, Nachtauftrag: Höhlen einheitlicher, zusammengeführt zu einer Map, einzeln sinngemäß ausgebaut, Kobold-Stollen als natürliches Labyrinth und Geheimnis, Kobolde verteilt und abgewandelt, echtes Wasser, kein Wetter, sichtbare Decken, ein roter Faden.
+
+- **Eine Map:** `L_Eisenschlund`. `py Tools/Welt/hoehlen_verbund.py` setzt die acht Grundrisse zu `Scripts/Data/Hoehlen/Eisenschlund.json` zusammen (174 × 180 Zellen, 696 × 720 m):
+
+  | | | |
+  |---|---|---|
+  | Funkenerz-Adern | Kernerz-Stollen (Gilde) | Olmgrotte |
+  | Rostschwamm | Gebeinkammer | Ameisenbau |
+  | Tiefster Schacht | (Fels) | Kobold-Stollen |
+
+  - Dazwischen liegen gewundene **Gildenstollen** mit Grubenlaternen (Region „Verbindung“).
+  - Jede Höhle behält ihren Ausgang in die Welt. Die alten sieben Welteingänge führen jetzt in ihre Region der einen Map (`ReturnPlace`).
+- **Roter Faden:** Der Fels jeder Region zieht zur Hälfte zum rostbraunen Eisenfels des Eisenschlunds hin. Grundlicht, Grubenluft und Belichtung sind überall gleich, ebenso das warme Gildenlicht in den Stollen. Jede Region behält ihre Lichtart, Requisiten und Farben.
+- **Regionen im Spiel:** Jede Höhle ist eine `VaelRegion` mit ihrem Namen (oben rechts) und dem Tag `L_<Höhle>`. `AVaelIndoorLevel::PlaceKeyAt` sagt dem Spiel, in welcher Höhle ein Ort liegt (Seuchenwirte, Seuchenstämme, Kobolde).
+- **Ausbau je Höhle:** mehr Kisten und Balken in Mine und Stollen, Glutadern und Feuer in den Funkenerz-Adern, Brut und Kristalle im Ameisenbau, Schwamm und Giftlachen im Rostschwamm, Kristall-Lichter in Olmgrotte und Schacht.
+- **Kobold-Stollen:**
+  - Ein verschachteltes Labyrinth wie eine natürliche Höhle: krumme Gänge in wechselnder Breite, Nischen, Sackgassen, wenige Schleifen.
+  - Kein Eingang in der Welt und kein Gildenstollen. Nur ein enger, dunkler Spalt aus der hintersten Ecke des Ameisenbaus führt hinein.
+  - In den Sackgassen und im Hort gibt es nur seltene Erze: Drahtsilber, Blutzinnober, Kobaltblüte, Siechglas, ganz hinten Kernerz.
+  - Am Ende liegt der Hort mit dem Schatz, einer Truhe mit vier seltenen Gegenständen, umgeben von Hortkisten.
+  - Er ist schwer bewacht: An jedem Gegnerplatz stehen zwei bis drei Kobolde, viele davon Wächter.
+- **Kobolde verteilt:** Im Ameisenbau vor allem Sklaventreiber, in den übrigen Höhlen vereinzelte Diebe, Laternenträger und Sprengmeister. Mine und Gebeinkammer bleiben bei den Seuchenwirten.
+- **Kobold-Varianten:** `Tools/Nachtwesen/kobold_variante.py` biegt einen Kobold in Blender in eine andere Gestalt (Kopf, Rumpf, Arme, Beine) und färbt seine Textur um (Kleidung und Kristalle in anderem Ton, Haut heller oder dunkler).
+  - Daraus entstehen Schleimkratzer_B, Hortwächter_B, Kontorältester_B, Sklaventreiber_B und Sprengmeister_B mit eigenem Skelett und allen Bewegungen.
+  - Im Spiel ist etwa jeder zweite Kobold eine Variante (`UVaelKobolde::MaybeVariant`), lebend wie befallen.
+- **Wasser:** `Tools/Welt/hoehlen_wasser.py` (Blender) macht aus den Wasserzellen eine Fläche mit runden Ufern. `M_HK_Hoehlenwasser` ist am Ufer heller und in der Mitte tief und dunkel, darauf ziehen zwei Lagen leichter Wellen.
+- **Sichtbare Decken:** Über natürlichen Gängen spannen sich Felsbrücken von Wand zu Wand. Darunter hängen Tropfsteine und, wo die Höhle Schleim hat, leuchtende Schleimzapfen. Im Kobold-Stollen tropft Bernstein-Schleim (Honig-Stamm).
+- **Kein Wetter:** In den Höhlen gibt es kein Wetter, auch in der Region Eisenschlund der offenen Welt nicht mehr (`Scripts/EisenschlundOhneWetter.py`, `BuildEisenschlund.py`).
+- **Bauen:** `py Tools/Welt/hoehle_grundriss.py KoboldStollen`, `py Tools/Welt/hoehlen_verbund.py`, `py Tools/Welt/hoehlen_karte.py Eisenschlund`, `blender -b -P Tools/Welt/hoehlen_wasser.py -- Eisenschlund`, dann `VAEL_HOEHLE=Eisenschlund` und `Scripts/BuildHoehle.py`.
+- **Die alten Einzellevels** (`L_Gildenmine` usw.) liegen noch da, aber kein Eingang führt mehr hinein.

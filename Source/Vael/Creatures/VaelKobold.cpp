@@ -15,6 +15,8 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/TargetPoint.h"
 #include "EngineUtils.h"
+#include "Misc/PackageName.h"
+#include "UObject/Package.h"
 #include "Items/VaelMaterial.h"
 #include "Items/VaelMaterialBag.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -22,6 +24,7 @@
 #include "UI/VaelCombatTextSubsystem.h"
 #include "UI/VaelNoticeSubsystem.h"
 #include "Vael.h"
+#include "World/VaelIndoorLevel.h"
 
 #define LOCTEXT_NAMESPACE "VaelKobold"
 
@@ -761,7 +764,37 @@ void AVaelKobold::Die()
 
 // ------------------------------------------------------------------ In the caves
 
+UVaelNightCreatureData* UVaelKobolde::MaybeVariant(UVaelNightCreatureData* Base, float Chance)
+{
+	if (Base == nullptr || FMath::FRand() >= Chance)
+	{
+		return Base;
+	}
+	static TMap<TWeakObjectPtr<UVaelNightCreatureData>, TObjectPtr<UVaelNightCreatureData>> Variants;
+	if (const TObjectPtr<UVaelNightCreatureData>* Found = Variants.Find(Base))
+	{
+		return *Found != nullptr ? Found->Get() : Base;
+	}
+	UVaelNightCreatureData* Variant = nullptr;
+	const FString Name = Base->AssetName + TEXT("_B");
+	const FString Package = FString::Printf(TEXT("/Game/Vael/Kreaturen/%s/%s/SK_%s"), *Base->AssetRegion, *Name, *Name);
+	if (FPackageName::DoesPackageExist(Package))
+	{
+		Variant = NewObject<UVaelNightCreatureData>(GetTransientPackage(), Base->GetClass());
+		Variant->AssetName = Name;
+		Variant->AddToRoot();
+		UE_LOG(LogVael, Log, TEXT("Kobold variant %s"), *Name);
+	}
+	Variants.Add(Base, Variant);
+	return Variant != nullptr ? Variant : Base;
+}
+
 UVaelKoboldData* UVaelKobolde::GetData(EVaelKoboldRolle Rolle)
+{
+	return Cast<UVaelKoboldData>(MaybeVariant(GetBaseData(Rolle)));
+}
+
+UVaelKoboldData* UVaelKobolde::GetBaseData(EVaelKoboldRolle Rolle)
 {
 	switch (Rolle)
 	{
@@ -776,37 +809,52 @@ UVaelKoboldData* UVaelKobolde::GetData(EVaelKoboldRolle Rolle)
 
 void UVaelKobolde::SpawnInCaves(UWorld* World)
 {
-	if (World == nullptr || !World->IsGameWorld())
+	if (World == nullptr || !World->IsGameWorld() || !AVaelIndoorLevel::IsIndoor(World))
 	{
 		return;
 	}
-	const FString Level = UWorld::RemovePIEPrefix(World->GetMapName());
-	if (!Level.Contains(TEXT("L_KoboldStollen")) && !Level.Contains(TEXT("L_Ameisenbau")))
+	// Who lives where (Boris 2026-11-22: Kobolde spread through the caves; their Stollen a secret and heavily guarded)
+	struct FMix
 	{
-		return;
-	}
-	// Mostly thieves, then guards, few of the rest (proposal); in the ant warren the slave drivers with their ants
-	const bool bAnts = Level.Contains(TEXT("L_Ameisenbau"));
-	const TArray<TPair<EVaelKoboldRolle, float>> Mix = {
-		{ EVaelKoboldRolle::Dieb, 0.32f }, { EVaelKoboldRolle::Waechter, 0.2f }, { EVaelKoboldRolle::Zauberer, 0.1f },
-		{ EVaelKoboldRolle::Treiber, bAnts ? 0.3f : 0.14f }, { EVaelKoboldRolle::Sprengmeister, 0.12f }, { EVaelKoboldRolle::Laternentraeger, 0.12f } };
-	float Total = 0.0f;
-	for (const TPair<EVaelKoboldRolle, float>& Entry : Mix)
-	{
-		Total += Entry.Value;
-	}
+		float Chance;
+		int32 MinCount;
+		int32 MaxCount;
+		TArray<TPair<EVaelKoboldRolle, float>> Roles;
+	};
+	const FMix Stollen{ 1.0f, 2, 3, { { EVaelKoboldRolle::Waechter, 0.3f }, { EVaelKoboldRolle::Dieb, 0.2f }, { EVaelKoboldRolle::Zauberer, 0.12f },
+		{ EVaelKoboldRolle::Sprengmeister, 0.16f }, { EVaelKoboldRolle::Laternentraeger, 0.14f }, { EVaelKoboldRolle::Treiber, 0.08f } } };
+	const FMix Ameisen{ 0.75f, 1, 2, { { EVaelKoboldRolle::Treiber, 0.4f }, { EVaelKoboldRolle::Dieb, 0.25f }, { EVaelKoboldRolle::Waechter, 0.15f },
+		{ EVaelKoboldRolle::Sprengmeister, 0.1f }, { EVaelKoboldRolle::Laternentraeger, 0.1f } } };
+	const FMix Streuner{ 0.22f, 1, 1, { { EVaelKoboldRolle::Dieb, 0.5f }, { EVaelKoboldRolle::Laternentraeger, 0.25f }, { EVaelKoboldRolle::Sprengmeister, 0.25f } } };
+	const UVaelTropfseucheSettings* Seuche = UVaelTropfseucheSettings::Get();
 	int32 Count = 0;
 	for (TActorIterator<ATargetPoint> It(World); It; ++It)
 	{
-		if (!It->ActorHasTag(TEXT("VaelHoehleGegner")) || FMath::FRand() > 0.75f)
+		if (!It->ActorHasTag(TEXT("VaelHoehleGegner")))
 		{
 			continue;
 		}
-		for (int32 Index = FMath::RandRange(1, 2); Index > 0; --Index)
+		const FString Place = AVaelIndoorLevel::PlaceKeyAt(World, It->GetActorLocation());
+		// The places of the Tropfseuche hosts stay theirs
+		if (Seuche->HostLevels.ContainsByPredicate([&Place](const FString& Name) { return Place.Contains(Name); }))
+		{
+			continue;
+		}
+		const FMix& Mix = Place.Contains(TEXT("L_KoboldStollen")) ? Stollen : Place.Contains(TEXT("L_Ameisenbau")) ? Ameisen : Streuner;
+		if (FMath::FRand() > Mix.Chance)
+		{
+			continue;
+		}
+		float Total = 0.0f;
+		for (const TPair<EVaelKoboldRolle, float>& Entry : Mix.Roles)
+		{
+			Total += Entry.Value;
+		}
+		for (int32 Index = FMath::RandRange(Mix.MinCount, Mix.MaxCount); Index > 0; --Index)
 		{
 			float Roll = FMath::FRand() * Total;
 			EVaelKoboldRolle Rolle = EVaelKoboldRolle::Dieb;
-			for (const TPair<EVaelKoboldRolle, float>& Entry : Mix)
+			for (const TPair<EVaelKoboldRolle, float>& Entry : Mix.Roles)
 			{
 				Rolle = Entry.Key;
 				Roll -= Entry.Value;
@@ -823,7 +871,7 @@ void UVaelKobolde::SpawnInCaves(UWorld* World)
 			}
 		}
 	}
-	UE_LOG(LogVael, Log, TEXT("Kobolde: %d living Kobolde in %s"), Count, *Level);
+	UE_LOG(LogVael, Log, TEXT("Kobolde: %d living Kobolde in %s"), Count, *UWorld::RemovePIEPrefix(World->GetMapName()));
 }
 
 #undef LOCTEXT_NAMESPACE

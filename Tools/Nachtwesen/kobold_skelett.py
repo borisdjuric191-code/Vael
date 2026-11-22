@@ -110,6 +110,10 @@ def plan_bauen(g, P):
 
 def main():
     name = sys.argv[sys.argv.index("--") + 1]
+    if name not in GELENKE:
+        # a variant (kobold_variante.py): the joints of its base, bent like its body
+        import kobold_variante
+        GELENKE[name] = kobold_variante.gelenke(name, GELENKE)
     obj, _ = gemein.oeffnen(name, "01_vorbereitet.blend")
     plan = plan_bauen(GELENKE[name], gemein.punkte(obj))
     arm = bau.skelett_bauen(name, plan)
@@ -137,4 +141,5 @@ def main():
     bau.ruhe(arm)
 
 
-main()
+if __name__ == "__main__":
+    main()

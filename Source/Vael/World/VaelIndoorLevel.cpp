@@ -6,6 +6,7 @@
 #include "Creatures/VaelTropfseuche.h"
 #include "Creatures/VaelKobold.h"
 #include "EngineUtils.h"
+#include "World/VaelRegion.h"
 
 AVaelIndoorLevel::AVaelIndoorLevel()
 {
@@ -35,6 +36,22 @@ const AVaelIndoorLevel* AVaelIndoorLevel::Find(const UWorld* World)
 	}
 	TActorIterator<AVaelIndoorLevel> It(const_cast<UWorld*>(World));
 	return It ? *It : nullptr;
+}
+
+FString AVaelIndoorLevel::PlaceKeyAt(const UWorld* World, const FVector& Location)
+{
+	if (World == nullptr)
+	{
+		return FString();
+	}
+	for (TActorIterator<AVaelRegion> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		if (It->Tags.Num() > 0 && It->Tags[0].ToString().StartsWith(TEXT("L_")) && It->Contains(Location))
+		{
+			return It->Tags[0].ToString();
+		}
+	}
+	return UWorld::RemovePIEPrefix(World->GetMapName());
 }
 
 void AVaelIndoorLevel::BeginPlay()

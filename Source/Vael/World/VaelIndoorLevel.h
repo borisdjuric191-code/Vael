@@ -27,6 +27,12 @@ public:
 	/** The indoor marker of the world, or null */
 	static const AVaelIndoorLevel* Find(const UWorld* World);
 
+	/**
+	 *  Which cave a place belongs to, like "L_Gildenmine". In the joined caves of the Eisenschlund (one map since 2026-11-22) every
+	 *  cave is a region tagged with its old level name; anywhere else (and outside those regions) the name of the map
+	 */
+	static FString PlaceKeyAt(const UWorld* World, const FVector& Location);
+
 	/** The places for enemies of a cave fill with what lives there (the Schleimgaenger of the Tropfseuche) */
 	virtual void BeginPlay() override;
 

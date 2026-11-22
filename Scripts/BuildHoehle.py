@@ -61,8 +61,8 @@ ART = {
                    "erzfarbe": (0.85, 0.5, 0.2), "nebeldichte": 0.015, "licht": "kristall", "schutt": "kristall"},
     # Irrgarten der Kobolde: dunkler Fels, falsches grünes Licht, der Hort voller Kobaltblüte
     "KoboldStollen": {"grundfarbe": (0.55, 0.78, 0.55), "fels": (0.36, 0.33, 0.36), "boden": (0.26, 0.24, 0.25), "laterne": (0.45, 1.0, 0.35), "nebel": (0.03, 0.05, 0.03),
-                      "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.45, "erzdichte": 0.16,
-                      "licht": "laterne", "schutt": "kiesel"},
+                      "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.55, "erzdichte": 0.3,
+                      "licht": "laterne", "schutt": "kiesel", "schleim": ["Bernstein"], "schleimzapfen": 0.3},
     # Schwammwucherungen, Giftlachen, kränkliches Grün
     "Rostschwamm": {"grundfarbe": (0.62, 0.82, 0.45), "fels": (0.45, 0.3, 0.2), "boden": (0.3, 0.22, 0.15), "laterne": (0.6, 1.0, 0.3), "nebel": (0.04, 0.07, 0.02),
                     "grundlicht": 0.6, "natur": True, "wucherung": "schwamm", "schleim": ["Gift"], "erzfarbe": (0.4, 1.0, 0.3), "nebeldichte": 0.03, "schleimzapfen": 0.35,
@@ -71,6 +71,18 @@ ART = {
     "TiefsterSchacht": {"grundfarbe": (0.68, 0.6, 0.9), "fels": (0.38, 0.36, 0.4), "boden": (0.28, 0.27, 0.3), "laterne": (0.8, 0.7, 1.0), "nebel": (0.04, 0.03, 0.06),
                         "grundlicht": 0.8, "natur": True, "erzfarbe": (1.0, 0.9, 0.7), "kristalle": [(0.8, 0.7, 1.0)], "abgrund": True,
                         "nebeldichte": 0.015, "licht": "kristall", "schutt": "kiesel", "rippen_auto": True},
+    # der Höhlenverbund: das, was alle Höhlen gemeinsam haben (der rote Faden, Boris 2026-11-22): rostbrauner Eisenfels, warmes
+    # Grubenlicht der Gilde, dieselbe Grubenluft
+    "Eisenschlund": {"grundfarbe": (0.8, 0.72, 0.62), "fels": (0.42, 0.37, 0.33), "boden": (0.32, 0.28, 0.25), "laterne": (1.0, 0.62, 0.32),
+                     "nebel": (0.05, 0.04, 0.035), "grundlicht": 0.9, "nebeldichte": 0.012, "volumennebel": False, "licht": "laterne",
+                     "schutt": "kiesel"},
+    # Gildenstollen zwischen den Höhlen: krumm durch den Fels getrieben, Grubenlaternen
+    "Verbindung": {"grundfarbe": (0.9, 0.72, 0.55), "fels": (0.44, 0.39, 0.34), "boden": (0.33, 0.29, 0.26), "laterne": (1.0, 0.62, 0.32),
+                   "nebel": (0.09, 0.07, 0.055), "grundlicht": 1.0, "natur": True, "licht": "laterne", "schutt": "kiesel", "licht_abstand": 5.0,
+                   "tropfsteine": 0.2},
+    # der enge Spalt zum Kobold-Stollen: kein Licht, nur Fels (schwer zu finden)
+    "Spalt": {"grundfarbe": (0.6, 0.6, 0.65), "fels": (0.32, 0.3, 0.32), "boden": (0.24, 0.22, 0.23), "laterne": (0.45, 1.0, 0.35),
+              "nebel": (0.03, 0.03, 0.03), "grundlicht": 0.5, "natur": True, "licht": "keins", "schutt": "kiesel", "tropfsteine": 0.5},
     "Gebeinkammer": {"grundfarbe": (0.85, 0.74, 0.6), "fels": (0.6, 0.55, 0.47), "boden": (0.42, 0.38, 0.33), "laterne": (1.0, 0.7, 0.4), "nebel": (0.05, 0.045, 0.04),
                      "grundlicht": 1.1, "schaedelwand": 0.85, "nebeldichte": 0.015, "wandhoehe": 0.7, "licht": "kerzen", "schutt": "knochen",
                      "tropfsteine": 0.3, "schleimzapfen": 0.7},
@@ -87,7 +99,8 @@ HOEHLEN_ERZE = {
     "Gebeinkammer": ["Rosteisen", "Siechglas", "Rippenspat"],
     "FunkenerzAdern": ["Funkenerz", "Rosteisen", "Schwefelkies", "Blutzinnober"],
     "Ameisenbau": ["Rosteisen", "Schwefelkies", "Gruenspan", "Blutzinnober", "Salzspat"],
-    "KoboldStollen": ["Rosteisen", "Drahtsilber", "Kobaltbluete"],
+    # der Hort der Kobolde (Boris 2026-11-22): nur Erze, die sonst selten sind; das Seltenste ganz hinten
+    "KoboldStollen": ["Drahtsilber", "Blutzinnober", "Kobaltbluete", "Siechglas", "Kernerz"],
     "Rostschwamm": ["Rosteisen", "Gruenspan", "Siechglas"],
     "TiefsterSchacht": ["Salzspat", "Drahtsilber", "Rippenspat", "Kernerz"],
 }
@@ -116,8 +129,71 @@ for _ch in os.environ.get("VAEL_HOEHLE_TEST_OHNE", ""):      # nur zum Eingrenze
     GRID = [row.replace(_ch, ".") for row in GRID]
 H, W = len(GRID), max(len(r) for r in GRID)
 S = D.get("zelle_m", 4.0) * M
-STYLE = ART[D.get("art", "Gildenmine")]
-NATUR = STYLE.get("natur", False) and not os.environ.get("VAEL_HOEHLE_TEST_GERADE")
+# Höhlenverbund (Tools/Welt/hoehlen_verbund.py, Boris 2026-11-22: alle Höhlen in einer Map): jede Zelle gehört zu einer Region mit
+# eigener Höhlenart; was für die ganze Map gilt (Grundlicht, Nebel, Belichtung), nimmt die Grundart "Eisenschlund"
+BASIS_ART = D.get("art", "Gildenmine")
+REGIONEN = D.get("regionen")
+REGION_INFO = D.get("region_info", {})
+_JETZT = [BASIS_ART]
+
+
+def hier(r, c):
+    """Die Region der Zelle wird die aktuelle: STYLE, natur(), fels() und boden() richten sich nach ihr"""
+    art = BASIS_ART
+    if REGIONEN and 0 <= r < len(REGIONEN) and 0 <= c < len(REGIONEN[r]):
+        art = REGION_INFO.get(REGIONEN[r][c], {}).get("art", BASIS_ART)
+    _JETZT[0] = art if art in ART else BASIS_ART
+    return _JETZT[0]
+
+
+def basis():
+    _JETZT[0] = BASIS_ART
+
+
+class _Stil:
+    """Die Werte der Höhlenart der aktuellen Region (Einzelhöhle: immer dieselbe)"""
+    def get(self, key, default=None):
+        return ART[_JETZT[0]].get(key, default)
+
+    def __getitem__(self, key):
+        return ART[_JETZT[0]].get(key, ART[BASIS_ART].get(key))
+
+
+STYLE = _Stil()
+ARTEN = sorted({BASIS_ART} | {v.get("art") for v in REGION_INFO.values() if v.get("art") in ART})
+
+
+def natur():
+    return STYLE.get("natur", False) and not os.environ.get("VAEL_HOEHLE_TEST_GERADE")
+
+
+def jede_art(key):
+    """Hat irgendeine Region der Map diesen Wert (z. B. abgrund)"""
+    return any(ART[a].get(key) for a in ARTEN)
+
+
+ROCKS, FLOORS, KRISTALLE, ERZMATS = {}, {}, {}, {}
+
+
+def fels():
+    return ROCKS.get(_JETZT[0]) or ROCKS.get(BASIS_ART)
+
+
+def boden():
+    return FLOORS.get(_JETZT[0]) or FLOORS.get(BASIS_ART)
+
+
+def kristalle():
+    return KRISTALLE.get(_JETZT[0], [])
+
+
+def erzmat():
+    return ERZMATS.get(_JETZT[0], [])
+
+
+def lachen_hier():
+    farben = list(SCHLEIM) if STYLE.get("schaedelwand") else STYLE.get("schleim", [])
+    return [f for f in sorted(farben) if f in SLIME_MATS]
 
 
 def log(message):
@@ -535,8 +611,8 @@ def light_source(meshes, r, c, x, y):
         point_light(px, py, 90.0, "Licht", "Kerzenschein", (1.0, 0.68, 0.35), 70.0, 1400.0, shadows=True)
     elif kind == "kristall":
         colour, mat = STYLE.get("kristall", (0.45, 0.8, 1.0)), None
-        if CRYSTAL_MATS:
-            colour, mat = CRYSTAL_MATS[(r * 5 + c * 11) % len(CRYSTAL_MATS)]
+        if kristalle():
+            colour, mat = kristalle()[(r * 5 + c * 11) % len(kristalle())]
         dx, dy = wall or (0, 0)
         crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + dx * 120.0, y + dy * 120.0, 0.0, "Licht", "Kristall", yaw=rng.uniform(0, 360),
                              scale=(0.8, 0.8, 0.8))
@@ -663,15 +739,15 @@ def erz_wahl(erze):
 def wand_erze(world):
     """Erze als Teil der Wandoptik, nicht erntebar (Boris 15.11.): in die Wände (Strahl von der Zellmitte gegen den Fels) und oben
     auf den Fels (die Decke der Höhle sieht die Kamera als Felskrone)"""
-    erze = [e for e in HOEHLEN_ERZE.get(D.get("art", NAME), []) if erz_stuecke(e)]
-    if not erze:
-        return 0
-    dichte = STYLE.get("erzdichte", 0.5)          # 0,32 war Boris zu spärlich
     n = 0
     for r in range(H):
         for c in range(W):
             if not is_floor(r, c) or cell(r, c) in "XO":
                 continue
+            erze = [e for e in HOEHLEN_ERZE.get(hier(r, c), []) if erz_stuecke(e)]
+            if not erze:
+                continue
+            dichte = STYLE.get("erzdichte", 0.5)          # 0,32 war Boris zu spärlich
             x, y = centre(r, c)
             for key, (dr, dc, (dx, dy)) in DIRS.items():
                 if is_floor(r + dr, c + dc) or erng.random() > dichte:
@@ -697,6 +773,10 @@ def wand_erze(world):
         for c in range(W):
             if not is_floor(r, c) or cell(r, c) in "XO":
                 continue
+            erze = [e for e in HOEHLEN_ERZE.get(hier(r, c), []) if erz_stuecke(e)]
+            if not erze:
+                continue
+            dichte = STYLE.get("erzdichte", 0.5)
             x, y = centre(r, c)
             for key, (dr, dc, (dx, dy)) in DIRS.items():
                 if is_floor(r + dr, c + dc) or erng.random() > dichte * 0.5:
@@ -716,12 +796,13 @@ def wand_erze(world):
 def tropfsteine(world):
     """Stalagmiten am Fuß der Wände und Stalaktiten unter den Überhängen (Boris 15.11.): Stalaktiten hängen dort, wo ein Strahl vom
     Boden nach oben den Fels trifft; natürliche Höhlen dicht, Stollen und Katakomben spärlich"""
-    dichte = STYLE.get("tropfsteine", 0.4 if NATUR else 0.12)
     n_mit, n_tit, n_zap = 0, 0, [0]
     for r in range(H):
         for c in range(W):
             if not is_floor(r, c) or cell(r, c) in "XO~E":
                 continue
+            hier(r, c)
+            dichte = STYLE.get("tropfsteine", 0.4 if natur() else 0.12)
             x, y = centre(r, c)
             for key, (dr, dc, (dx, dy)) in DIRS.items():
                 if is_floor(r + dr, c + dc):
@@ -737,7 +818,7 @@ def tropfsteine(world):
                         px = x + dx * (base - erng.uniform(0, 60)) + dy * (t + erng.uniform(-70, 70))
                         py = y + dy * (base - erng.uniform(0, 60)) - dx * (t + erng.uniform(-70, 70))
                         mesh_actor(erng.choice(MITES), px, py, -25.0, "Tropfsteine", "Stalagmit", yaw=erng.uniform(0, 360),
-                                   scale=(h_ * 0.42, h_ * 0.42, h_), material=EXTRA_SLOTS.get("Fels"), pitch=erng.uniform(-6, 6), roll=erng.uniform(-6, 6))
+                                   scale=(h_ * 0.42, h_ * 0.42, h_), material=fels(), pitch=erng.uniform(-6, 6), roll=erng.uniform(-6, 6))
                         n_mit += 1
                 # Stalaktiten unter dem Überhang: von unten nach oben gegen den Fels
                 if not low and erng.random() < min(0.9, dichte * 2.0):
@@ -749,12 +830,12 @@ def tropfsteine(world):
                         if hit is None or hit[0].z < 260.0:
                             continue
                         h_ = erng.uniform(0.7, 2.6)
-                        if SLIME_MATS and ZAPFEN and erng.random() < STYLE.get("schleimzapfen", 0.0):
+                        if lachen_hier() and ZAPFEN and erng.random() < STYLE.get("schleimzapfen", 0.0):
                             # Schleimzapfen: leuchtende Säure-Bakterien, die mit ihrem Licht anlocken (Lore, Boris 13.11.)
-                            farbe = erng.choice(sorted(SLIME_MATS))
+                            farbe = erng.choice(lachen_hier())
                             z_ = mesh_actor(erng.choice(ZAPFEN), px, py, hit[0].z + 25.0, "Tropfsteine", "Schleimzapfen " + farbe,
                                             yaw=erng.uniform(0, 360), scale=(h_ * 0.4, h_ * 0.4, h_), collision=False)
-                            z_.static_mesh_component.set_material_by_name("Fels", EXTRA_SLOTS.get("Fels"))
+                            z_.static_mesh_component.set_material_by_name("Fels", fels())
                             z_.static_mesh_component.set_material_by_name("Schleim", SLIME_MATS[farbe])
                             if erng.random() < 0.35:
                                 col = SCHLEIM.get(farbe) or LACHEN[farbe]
@@ -762,22 +843,74 @@ def tropfsteine(world):
                             n_zap[0] += 1
                             continue
                         mesh_actor(erng.choice(MITES), px, py, hit[0].z + 30.0, "Tropfsteine", "Stalaktit", yaw=erng.uniform(0, 360),
-                                   scale=(h_ * 0.38, h_ * 0.38, h_), material=EXTRA_SLOTS.get("Fels"), roll=180.0 + erng.uniform(-5, 5),
+                                   scale=(h_ * 0.38, h_ * 0.38, h_), material=fels(), roll=180.0 + erng.uniform(-5, 5),
                                    collision=False)
                         n_tit += 1
     log("Tropfsteine: {} Stalagmiten, {} Stalaktiten, {} Schleimzapfen".format(n_mit, n_tit, n_zap[0]))
     return n_mit + n_tit
 
 
+def deckenboegen():
+    """Sichtbare Decken (Boris 2026-11-22: wo die tropfenden Bakterien an der Decke hängen, muss man die Decke auch sehen; im
+    Kobold-Stollen sah man keine): in natürlichen Gängen spannt sich ab und zu eine Felsbrücke von Wand zu Wand, darunter hängen
+    Tropfsteine und, wo es die Höhle hat, leuchtende Schleimzapfen. Nicht in der Mine (Türstöcke) und der Katakombe (Schädelbögen)"""
+    brocken = BOULDERS[1]
+    box = brocken.get_bounding_box()
+    groesse = box.max - box.min
+    n = 0
+    for r in range(H):
+        for c in range(W):
+            if cell(r, c) not in ".G":
+                continue
+            hier(r, c)
+            if not (natur() or _JETZT[0] == "KoboldStollen") or STYLE.get("schaedelwand") or (r * 7 + c * 13) % 7:
+                continue
+            quer_x = not is_floor(r - 1, c) and not is_floor(r + 1, c) and is_floor(r, c - 1) and is_floor(r, c + 1)   # Gang entlang Y
+            quer_y = not is_floor(r, c - 1) and not is_floor(r, c + 1) and is_floor(r - 1, c) and is_floor(r + 1, c)   # Gang entlang X
+            if not (quer_x or quer_y):
+                continue
+            x, y = centre(r, c)
+            hoch = 520.0 * STYLE.get("wandhoehe", 1.0)
+            bz = max(300.0, hoch * 0.82)
+            dicke = erng.uniform(80.0, 120.0)
+            mesh_actor(brocken, x, y, bz, "Decke", "Felsbruecke", yaw=(0.0 if quer_x else 90.0) + erng.uniform(-8, 8),
+                       scale=(S * 1.55 / groesse.x, erng.uniform(130.0, 190.0) / groesse.y, dicke / groesse.z), material=fels(), collision=False,
+                       roll=erng.uniform(-4, 4))
+            unten = bz - dicke * 0.45
+            zapfen = lachen_hier() and ZAPFEN and STYLE.get("schleimzapfen", 0.0) > 0.0
+            for k in range(erng.randint(2, 4)):
+                t = erng.uniform(-0.35, 0.35) * S
+                px, py = (x + t, y + erng.uniform(-40, 40)) if quer_x else (x + erng.uniform(-40, 40), y + t)
+                h_ = erng.uniform(0.6, 1.6)
+                if zapfen and erng.random() < 0.6:
+                    farbe = erng.choice(lachen_hier())
+                    z_ = mesh_actor(erng.choice(ZAPFEN), px, py, unten + 25.0, "Decke", "Schleimzapfen " + farbe, yaw=erng.uniform(0, 360),
+                                    scale=(h_ * 0.4, h_ * 0.4, h_), collision=False)
+                    z_.static_mesh_component.set_material_by_name("Fels", fels())
+                    z_.static_mesh_component.set_material_by_name("Schleim", SLIME_MATS[farbe])
+                    if k == 0:
+                        col = SCHLEIM.get(farbe) or LACHEN[farbe]
+                        point_light(px, py, unten - h_ * 100.0 - 40.0, "Decke", "Zapfenschein " + farbe, col, 6.0, 500.0)
+                else:
+                    mesh_actor(erng.choice(MITES), px, py, unten + 30.0, "Decke", "Stalaktit", yaw=erng.uniform(0, 360),
+                               scale=(h_ * 0.38, h_ * 0.38, h_), material=fels(), roll=180.0 + erng.uniform(-5, 5), collision=False)
+            n += 1
+    log("Deckenbögen: {}".format(n))
+    return n
+
+
 def katakombe(meshes):
     """Die Gebeinkammer als Katakombe (Boris 13.11.: wie die Pariser Katakomben, eine echte Knochensammlung): Schädelbögen quer
     über die engen Gänge, Knochensäulen in den Hallen"""
-    if not STYLE.get("schaedelwand"):
+    if not jede_art("schaedelwand"):
         return 0
     n = 0
     for r in range(H):
         for c in range(W):
             if cell(r, c) != ".":
+                continue
+            hier(r, c)
+            if not STYLE.get("schaedelwand"):
                 continue
             x, y = centre(r, c)
             rock_ns = not is_floor(r - 1, c) and not is_floor(r + 1, c)
@@ -810,9 +943,6 @@ def katakombe(meshes):
 def ernte_plan():
     """Welche Erzstelle (Z) welches erntebare Erz trägt: je weiter vom Ausgang, desto seltener (Boris 15.11.: so verteilen, dass es
     Sinn macht). Legendäres nur an der tiefsten Stelle, sehr Seltenes nur in der hinteren Hälfte"""
-    erze = sorted(HOEHLEN_ERZE.get(D.get("art", NAME), []), key=lambda e: ERZ_SELTENHEIT[e])
-    if not erze:
-        return {}
     exits = [(r, c) for r in range(H) for c in range(W) if cell(r, c) == "E"]
     dist = {p: 0 for p in exits}
     queue = list(exits)
@@ -823,8 +953,16 @@ def ernte_plan():
             if q not in dist and is_floor(*q) and cell(*q) not in "XO":
                 dist[q] = dist[(r, c)] + 1
                 queue.append(q)
-    spots = sorted([(r, c) for r in range(H) for c in range(W) if cell(r, c) == "Z"], key=lambda p: dist.get(p, 0))
     plan = {}
+    for art in ARTEN:
+        erze = sorted(HOEHLEN_ERZE.get(art, []), key=lambda e: ERZ_SELTENHEIT[e])
+        spots = sorted([(r, c) for r in range(H) for c in range(W) if cell(r, c) == "Z" and hier(r, c) == art], key=lambda p: dist.get(p, 0))
+        if erze:
+            plan_region(plan, erze, spots)
+    return plan
+
+
+def plan_region(plan, erze, spots):
     for i, p in enumerate(spots):
         q = i / max(1, len(spots) - 1)
         if q >= 0.999 and ERZ_SELTENHEIT[erze[-1]] >= 4:
@@ -833,7 +971,6 @@ def ernte_plan():
         wahl = [e for e in erze if ERZ_SELTENHEIT[e] < 5 and (ERZ_SELTENHEIT[e] < 4 or q > 0.5)]
         gewichte = [ERZ_GEWICHT[ERZ_SELTENHEIT[e]] * (1.0 + q * 2.0 * ERZ_SELTENHEIT[e]) for e in wahl]
         plan[p] = erng.choices(wahl, weights=gewichte)[0]
-    return plan
 
 
 ERNTE = {}
@@ -855,6 +992,111 @@ def ernte_erz(name, x, y, plan_erz):
     return True
 
 
+def ankunft(r, c, schritte=3):
+    """Wo man vom Ausgang (r, c) aus ankommt: ein paar Zellen tiefer in der Höhle"""
+    weit = {(r, c): 0}
+    queue = [(r, c)]
+    best = (r, c)
+    while queue:
+        p = queue.pop(0)
+        if weit[p] >= schritte:
+            best = p
+            break
+        for dr, dc, _ in DIRS.values():
+            q = (p[0] + dr, p[1] + dc)
+            if q not in weit and cell(*q) in ".GL":
+                weit[q] = weit[p] + 1
+                queue.append(q)
+                best = q
+    return centre(*best)
+
+
+WASSER_NORMAL = "/Engine/Functions/Engine_MaterialFunctions02/ExampleContent/Textures/water_n"
+
+
+def wasser_material():
+    """Höhlenwasser (Boris 2026-11-22: richtiges Wasser statt Vierecke): am Ufer heller und flach, zur Mitte tief und dunkel (Vertexfarbe
+    Rot aus Tools/Welt/hoehlen_wasser.py), zwei Lagen langsam ziehender Wellen, glatt genug für Glanzlichter, aber nicht spiegelnd hell"""
+    path = PARTS + "/M_HK_Hoehlenwasser"
+    if assets.does_asset_exist(path) and not os.environ.get("VAEL_HOEHLE_MATERIAL_NEU"):
+        return unreal.load_asset(path)
+    if assets.does_asset_exist(path):
+        assets.delete_asset(path)
+    mat = tools.create_asset("M_HK_Hoehlenwasser", PARTS, unreal.Material, unreal.MaterialFactoryNew())
+    E = unreal.MaterialProperty
+
+    def node(cls, x, y, **props):
+        n = library.create_material_expression(mat, cls, x, y)
+        for k, v in props.items():
+            n.set_editor_property(k, v)
+        return n
+    vc = node(unreal.MaterialExpressionVertexColor, -900, 0)
+    flach = node(unreal.MaterialExpressionVectorParameter, -900, -200, parameter_name="Flach", default_value=unreal.LinearColor(0.05, 0.085, 0.08, 1.0))
+    tief = node(unreal.MaterialExpressionVectorParameter, -900, -60, parameter_name="Tief", default_value=unreal.LinearColor(0.004, 0.012, 0.016, 1.0))
+    farbe = node(unreal.MaterialExpressionLinearInterpolate, -500, -120)
+    library.connect_material_expressions(flach, "", farbe, "A")
+    library.connect_material_expressions(tief, "", farbe, "B")
+    library.connect_material_expressions(vc, "R", farbe, "Alpha")
+    library.connect_material_property(farbe, "", E.MP_BASE_COLOR)
+    texture = unreal.load_asset(WASSER_NORMAL)
+    welle = None
+    for i, (scale, sx, sy) in enumerate(((0.55, 0.035, 0.02), (0.9, -0.025, 0.03))):
+        uv = node(unreal.MaterialExpressionTextureCoordinate, -1300, 300 + i * 220, u_tiling=scale, v_tiling=scale)
+        pan = node(unreal.MaterialExpressionPanner, -1100, 300 + i * 220, speed_x=sx, speed_y=sy)
+        library.connect_material_expressions(uv, "", pan, "Coordinate")
+        tex = node(unreal.MaterialExpressionTextureSample, -850, 300 + i * 220, texture=texture,
+                   sampler_type=unreal.MaterialSamplerType.SAMPLERTYPE_NORMAL)
+        library.connect_material_expressions(pan, "", tex, "UVs")
+        if welle is None:
+            welle = tex
+        else:
+            add = node(unreal.MaterialExpressionAdd, -550, 400)
+            library.connect_material_expressions(welle, "RGB", add, "A")
+            library.connect_material_expressions(tex, "RGB", add, "B")
+            welle = add
+    # flacher machen: die Wellen sind von oben nur ein leichtes Kräuseln
+    flat = node(unreal.MaterialExpressionConstant3Vector, -550, 560, constant=unreal.LinearColor(0.0, 0.0, 1.0, 1.0))
+    staerke = node(unreal.MaterialExpressionScalarParameter, -550, 660, parameter_name="Wellen", default_value=0.45)
+    norm = node(unreal.MaterialExpressionLinearInterpolate, -300, 450)
+    library.connect_material_expressions(flat, "", norm, "A")
+    library.connect_material_expressions(welle, "", norm, "B")
+    library.connect_material_expressions(staerke, "", norm, "Alpha")
+    library.connect_material_property(norm, "", E.MP_NORMAL)
+    rough = node(unreal.MaterialExpressionScalarParameter, -500, 120, parameter_name="Rauheit", default_value=0.14)
+    library.connect_material_property(rough, "", E.MP_ROUGHNESS)
+    spec = node(unreal.MaterialExpressionScalarParameter, -500, 200, parameter_name="Glanz", default_value=0.45)
+    library.connect_material_property(spec, "", E.MP_SPECULAR)
+    library.recompile_material(mat)
+    assets.save_loaded_asset(mat, False)
+    return mat
+
+
+def wasser_flaeche():
+    """Die weiche Wasserfläche dieser Höhle aus Blender (Tools/Welt/hoehlen_wasser.py), oder None (dann die alten Zellen)"""
+    name = "SM_HK_Wasser_" + NAME
+    if not os.path.exists(os.path.join(SOURCE, name + ".fbx")):
+        return None
+    ui = unreal.FbxImportUI()
+    ui.set_editor_property("import_mesh", True)
+    ui.set_editor_property("import_as_skeletal", False)
+    ui.set_editor_property("mesh_type_to_import", unreal.FBXImportType.FBXIT_STATIC_MESH)
+    ui.set_editor_property("import_materials", False)
+    ui.set_editor_property("import_textures", False)
+    ui.static_mesh_import_data.set_editor_property("combine_meshes", True)
+    ui.static_mesh_import_data.set_editor_property("auto_generate_collision", False)
+    ui.static_mesh_import_data.set_editor_property("vertex_color_import_option", unreal.VertexColorImportOption.REPLACE)
+    task = unreal.AssetImportTask()
+    task.set_editor_property("filename", os.path.join(SOURCE, name + ".fbx"))
+    task.set_editor_property("destination_path", PARTS)
+    task.set_editor_property("destination_name", name)
+    task.set_editor_property("replace_existing", True)
+    task.set_editor_property("automated", True)
+    task.set_editor_property("save", True)
+    task.set_editor_property("options", ui)
+    tools.import_asset_tasks([task])
+    return unreal.load_asset("{}/{}".format(PARTS, name))
+
+
 def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=None):
     if assets.does_asset_exist(LEVEL):
         assets.delete_asset(LEVEL)
@@ -870,15 +1112,36 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     log("Erzstellen: " + ", ".join("{}".format(e) for e in sorted(ERNTE.values())))
     indoor = spawn(unreal.VaelIndoorLevel, unreal.Vector(0, 0, 500), "Spiel", "Innenraum")
     indoor.set_editor_property("place_name", unreal.Text(D.get("titel", NAME)))
+    if REGIONEN:
+        # die Regionen des Verbunds als Regionen des Spiels: ihr Name steht oben rechts, kein Wetter unter Tage (Boris 2026-11-22);
+        # der Tag "L_<Höhle>" sagt dem Spiel, welche Höhle es ist (Bewohner, Seuchenstämme: AVaelIndoorLevel::PlaceKeyAt)
+        for buchstabe, info in sorted(REGION_INFO.items()):
+            if not info.get("box"):
+                continue
+            r0, c0, r1, c1 = info["box"]
+            x0, x1 = (H - 1 - r1) * S - S / 2, (H - 1 - r0) * S + S / 2
+            y0, y1 = c0 * S - S / 2, c1 * S + S / 2
+            region = spawn(unreal.VaelRegion, unreal.Vector((x0 + x1) / 2, (y0 + y1) / 2, 0.0), "Spiel", "Region " + info["titel"])
+            region.set_editor_property("region_name", unreal.Text(info["titel"]))
+            region.set_editor_property("start_weather", unreal.VaelWeather.CLEAR)
+            region.set_editor_property("available_weathers", [unreal.VaelWeather.CLEAR])
+            region.set_editor_property("changing_weather", False)
+            region.set_editor_property("tags", [unreal.Name("L_" + info["name"])])
+            region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((x1 - x0) / 2, (y1 - y0) / 2, 5000.0))
     # ein Felssockel unter der ganzen Höhle: nichts fällt durch eine Lücke zwischen den Platten ins Leere
-    mesh_actor(unreal.load_asset("/Engine/BasicShapes/Cube.Cube"), (H - 1) * S / 2, (W - 1) * S / 2, -4000.0 if STYLE.get("abgrund") else -370.0, "Boden", "Felssockel",
+    mesh_actor(unreal.load_asset("/Engine/BasicShapes/Cube.Cube"), (H - 1) * S / 2, (W - 1) * S / 2, -4000.0 if jede_art("abgrund") else -370.0, "Boden", "Felssockel",
                scale=((H + 2) * S / 100.0, (W + 2) * S / 100.0, 1.0), material=floor_mat)
 
+    WASSER[0] = wasser_flaeche()
+    if WASSER[0] is not None:
+        # eine Fläche mit runden Ufern für alles Wasser der Höhle
+        mesh_actor(WASSER[0], 0.0, 0.0, 10.0, "Wasser", "Wasser", material=wasser_material(), collision=False)
     for r in range(H):
         for c in range(W):
             ch = cell(r, c)
             if ch == "#":
                 continue
+            hier(r, c)
             x, y = centre(r, c)
             if ch == "X":
                 # Abgrund: kein Boden, eine unsichtbare Sperre am Rand
@@ -887,10 +1150,11 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 continue
             depth = {"~": -45.0, "O": -300.0}.get(ch, 0.0)
             mesh_actor(rng.choice([meshes["SM_HK_Boden_A"], meshes["SM_HK_Boden_B"]]), x, y, depth, "Boden", "Boden",
-                       yaw=rng.choice((0, 90, 180, 270)), material=floor_mat)
+                       yaw=rng.choice((0, 90, 180, 270)), material=boden())
             if ch in "~O" and water_mat is not None:
-                # Wasserspiegel über der Zelle; knietief zum Durchwaten, tief nur zum Ansehen
-                mesh_actor(PLANE, x, y, 10.0, "Wasser", "Wasser", scale=(S / 100.0 + 0.04, S / 100.0 + 0.04, 1.0), material=water_mat, collision=False)
+                # Wasserspiegel über der Zelle (ohne weiche Fläche aus Blender); knietief zum Durchwaten, tief nur zum Ansehen
+                if WASSER[0] is None:
+                    mesh_actor(PLANE, x, y, 10.0, "Wasser", "Wasser", scale=(S / 100.0 + 0.04, S / 100.0 + 0.04, 1.0), material=water_mat, collision=False)
                 if ch == "O":
                     block = mesh_actor(CUBE, x, y, 100.0, "Wasser", "Tiefes Wasser (Sperre)", scale=(S / 100.0, S / 100.0, 6.0))
                     block.set_actor_hidden_in_game(True)
@@ -907,31 +1171,31 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 if is_floor(r + dr, c + dc):
                     continue
                 low = dx * CAMERA[0] + dy * CAMERA[1] > 0.3
-                wild = 14.0 if NATUR else 4.0
+                wild = 14.0 if natur() else 4.0
                 yaw = math.degrees(math.atan2(-dx, dy)) + rng.uniform(-wild, wild)
-                shift = rng.uniform(-60.0, 60.0) if NATUR else 0.0
+                shift = rng.uniform(-60.0, 60.0) if natur() else 0.0
                 # enger Gang (Fels auf beiden Seiten der Zelle): die Wand mit dem breiten Fuß zurücksetzen und flacher machen,
                 # sonst wuchsen die Füße beider Seiten zusammen und der Gang war zu
                 narrow = not is_floor(r - dr, c - dc)
-                depth = rng.uniform(0.85, 1.4 if NATUR else 1.15)
+                depth = rng.uniform(0.85, 1.4 if natur() else 1.15)
                 if narrow:
                     shift, depth = shift * 0.3 + 70.0, 0.6
                 mesh_actor(rng.choice(lows if low else walls), x + dx * (S / 2 + shift), y + dy * (S / 2 + shift), 0.0, "Waende",
                            "Felswand niedrig" if low else "Felswand", yaw=WALL_TURN + (yaw if not narrow else math.degrees(math.atan2(-dx, dy)) + rng.uniform(-4, 4)),
-                           scale=(rng.uniform(1.0, 1.25) if NATUR else 1.0, depth,
-                                  rng.uniform(0.8, 1.35 if NATUR else 1.15) * STYLE.get("wandhoehe", 1.0) if not low else 1.0), material=rock)
+                           scale=(rng.uniform(1.0, 1.25) if natur() else 1.0, depth,
+                                  rng.uniform(0.8, 1.35 if natur() else 1.15) * STYLE.get("wandhoehe", 1.0) if not low else 1.0), material=fels())
                 if not low and rng.random() < STYLE.get("schaedelwand", 0.0):
                     # Schädelreihen der Gilde vor dem Fels, mit dem Gesicht in den Gang
                     # vor die Felsfront (die ragt bis ~1,5 m in die Zelle), sonst steckten die Schädel im Fels
                     mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 170.0),
                                y + dy * (S / 2 - 170.0), 0.0, "Gebeine", "Schaedelwand", yaw=math.degrees(math.atan2(-dx, dy)) + SKULL_TURN,
                                scale=(0.95, 1.0, rng.uniform(1.05, 1.25)))
-                if NATUR and rng.random() < 0.45 and not narrow:
+                if natur() and rng.random() < 0.45 and not narrow:
                     # Brocken am Fuß der Wand, gegen die geraden Linien des Rasters
                     sz = rng.uniform(0.9, 2.2)
                     t = rng.uniform(-0.4, 0.4) * S
                     mesh_actor(rng.choice(BOULDERS), x + dx * (S / 2 - 60.0) + dy * t, y + dy * (S / 2 - 60.0) - dx * t, -sz * 20.0, "Waende",
-                               "Brocken am Wandfuss", yaw=rng.uniform(0, 360), scale=(sz, sz, sz * 0.8), material=rock)
+                               "Brocken am Wandfuss", yaw=rng.uniform(0, 360), scale=(sz, sz, sz * 0.8), material=fels())
 
     # Eckpfeiler, wo der Fels um eine Ecke geht
     for i in range(H + 1):
@@ -940,6 +1204,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             floors = [p for p in around if is_floor(*p)]
             if not floors or len(floors) == 4:
                 continue
+            hier(*floors[0])
             if len(floors) == 2 and (floors[0][0] == floors[1][0] or floors[0][1] == floors[1][1]):
                 continue                                                   # gerade Wand, kein Eck
             rocks = [p for p in around if not is_floor(*p)]
@@ -957,7 +1222,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             piece = meshes["SM_HK_Ecke_Niedrig"] if low else rng.choice([meshes["SM_HK_Ecke_A"], meshes["SM_HK_Ecke_B"]])
             s = rng.uniform(0.85, 1.1)
             mesh_actor(piece, px, py, -20.0, "Waende", "Eckpfeiler", yaw=rng.uniform(0, 360),
-                       scale=(s, s, rng.uniform(0.9, 1.1) * (1.0 if low else STYLE.get("wandhoehe", 1.0))), material=rock)
+                       scale=(s, s, rng.uniform(0.9, 1.1) * (1.0 if low else STYLE.get("wandhoehe", 1.0))), material=fels())
 
     # Zeichen des Grundrisses
     start = None
@@ -965,6 +1230,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
         for c in range(W):
             ch = cell(r, c)
             x, y = centre(r, c)
+            hier(r, c)
             if ch in "=W":
                 for axis in rail_dir(r, c):
                     mesh_actor(meshes["SM_HK_Schiene"], x, y, 0.0, "Gleis", "Gleis", yaw=0.0 if axis == "X" else 90.0, collision=False)
@@ -1002,8 +1268,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 yaw = rng.uniform(0, 360)
                 s_ = rng.uniform(0.85, 1.25)
                 colour, mat = STYLE.get("kristall", (0.45, 0.8, 1.0)), None
-                if CRYSTAL_MATS:
-                    colour, mat = CRYSTAL_MATS[(r * 5 + c * 11) % len(CRYSTAL_MATS)]
+                if kristalle():
+                    colour, mat = kristalle()[(r * 5 + c * 11) % len(kristalle())]
                 crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + rng.uniform(-80, 80), y + rng.uniform(-80, 80), 0.0, "Licht", "Kristall",
                                      yaw=yaw, scale=(s_, s_, s_))
                 if mat is not None:
@@ -1033,8 +1299,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 s_ = rng.uniform(0.9, 1.4)
                 mesh_actor(meshes["SM_HK_Knochenhaufen"], x + rng.uniform(-60, 60), y + rng.uniform(-60, 60), 0.0, "Gebeine", "Knochenhaufen",
                            yaw=rng.uniform(0, 360), scale=(s_, s_, s_))
-            elif ch == "P" and SLIME_MATS:
-                farbe = sorted(SLIME_MATS)[(r * 7 + c * 3) % len(SLIME_MATS)]
+            elif ch == "P" and (lachen_hier() or SLIME_MATS):
+                farben = lachen_hier() or sorted(SLIME_MATS)
+                farbe = farben[(r * 7 + c * 3) % len(farben)]
                 s_ = rng.uniform(0.8, 1.3)
                 mesh_actor(meshes["SM_HK_Schleim"], x, y, 2.0, "Schleim", "Lache " + farbe, yaw=rng.uniform(0, 360), scale=(s_, s_, 1.0),
                            material=SLIME_MATS[farbe], collision=False)
@@ -1053,7 +1320,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 for k in range(rng.randint(3, 6)):
                     h_ = rng.uniform(1.2, 4.5)
                     mesh_actor(rng.choice(MITES), x + rng.uniform(-150, 150), y + rng.uniform(-150, 150), -20.0, "Tropfsteine", "Tropfstein",
-                               yaw=rng.uniform(0, 360), scale=(h_ * 0.55, h_ * 0.55, h_), material=rock, pitch=rng.uniform(-6, 6))
+                               yaw=rng.uniform(0, 360), scale=(h_ * 0.55, h_ * 0.55, h_), material=fels(), pitch=rng.uniform(-6, 6))
             elif ch == "Z" and (r, c) in ERNTE and ernte_erz(NAME, x + erng.uniform(-60, 60), y + erng.uniform(-60, 60), ERNTE[(r, c)]):
                 # ein paar Spitzen desselben Erzes am Boden drumherum, damit die Stelle wie ein Vorkommen aussieht
                 for k in range(erng.randint(1, 3)):
@@ -1063,14 +1330,14 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                         erz_auf(stuecke[0], unreal.Vector(x + math.cos(a) * 130.0, y + math.sin(a) * 130.0, 0.0), unreal.Vector(0, 0, 1),
                                 erng.uniform(0.4, 0.7), ERNTE[(r, c)] + " (Schmuck)")
                 counts["Ernte"] = counts.get("Ernte", 0) + 1
-            elif ch == "Z" and (STYLE.get("erz") == "salzspat" or ORE_MAT):
+            elif ch == "Z" and (STYLE.get("erz") == "salzspat" or erzmat()):
                 for k in range(rng.randint(2, 3)):
                     s_ = rng.uniform(0.7, 1.1)
                     ore = mesh_actor(meshes["SM_HK_Salzspat_Klein"], x + rng.uniform(-90, 90), y + rng.uniform(-90, 90), 0.0, "Erz", "Erzstelle",
                                      yaw=rng.uniform(0, 360), scale=(s_, s_, s_))
-                    if ORE_MAT:
-                        ore.static_mesh_component.set_material(0, ORE_MAT[0])
-                if ORE_MAT:
+                    if erzmat():
+                        ore.static_mesh_component.set_material(0, erzmat()[0])
+                if erzmat():
                     point_light(x, y, 90.0, "Erz", "Erzglanz", STYLE["erzfarbe"], 25.0, 600.0)
                 marker = spawn(unreal.TargetPoint, unreal.Vector(x, y, 50.0), "Erz", "Erzstelle (Platzhalter)")
                 marker.set_editor_property("tags", [unreal.Name("VaelErzstelle")])
@@ -1089,18 +1356,31 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 for k in range(rng.randint(5, 8)):
                     s = rng.uniform(1.2, 3.2)
                     mesh_actor(rng.choice(boulders), x + rng.uniform(-170, 170), y + rng.uniform(-170, 170), -s * 15.0, "Geroell", "Brocken",
-                               yaw=rng.uniform(0, 360), scale=(s, s * rng.uniform(0.8, 1.1), s * rng.uniform(0.7, 1.0)), material=rock,
+                               yaw=rng.uniform(0, 360), scale=(s, s * rng.uniform(0.8, 1.1), s * rng.uniform(0.7, 1.0)), material=fels(),
                                pitch=rng.uniform(-10, 10), roll=rng.uniform(-10, 10))
+            elif ch == "Q":
+                # der Schatz am Ende des Kobold-Horts (Boris 2026-11-22): eine Truhe mit seltener Beute, im Schein der Kobaltblüte
+                chest = spawn(unreal.VaelChest, unreal.Vector(x, y, 40.0), "Requisiten", "Schatz des Horts", unreal.Rotator(0.0, 0.0, rng.uniform(0, 360)))
+                chest.set_editor_property("rolled_items", 4)
+                chest.set_editor_property("min_rarity", unreal.VaelRarity.RARE)
+                for k in range(6):
+                    a = k / 6.0 * 2 * math.pi
+                    s_ = rng.uniform(0.7, 1.0)
+                    mesh_actor(meshes["SM_HK_Kiste"], x + math.cos(a) * 230.0, y + math.sin(a) * 230.0, 0.0, "Requisiten", "Hortkiste",
+                               yaw=rng.uniform(0, 90), scale=(s_, s_, s_))
+                point_light(x, y, 260.0, "Licht", "Hortschein", (1.0, 0.35, 0.6), 60.0, 1400.0, shadows=True)
             elif ch == "E":
                 exit_ = spawn(unreal.VaelCaveEntrance, unreal.Vector(x, y, 120.0), "Spiel", "Ausgang")
                 exit_.set_editor_property("target_level", unreal.Name("L_Vael"))
-                ex, ey = D["welt_eingang_m"][:2]
+                ein = (REGION_INFO.get(REGIONEN[r][c], {}).get("eingang_m") if REGIONEN else None) or D["welt_eingang_m"]
+                ex, ey = ein[:2]
                 exit_.set_editor_property("return_place", unreal.Vector2D((ex + 7.0) * M, ey * M))
                 exit_.set_editor_property("message", unreal.Text("Eisenschlund"))
                 spot_down(x, y, 1400.0, "Licht", "Tageslicht am Ausgang", (0.8, 0.88, 1.0), 900.0, 12.0, beam)
-                start = (x + 3 * S, y)
+                if start is None or (REGIONEN and REGIONEN[r][c] == "g"):
+                    start = ankunft(r, c)
     # --- Schacht: Rippen rundum am Rand des Abgrunds, nicht nur an den gezeichneten Stellen
-    if STYLE.get("rippen_auto"):
+    if jede_art("rippen_auto"):
         xs = [centre(rr, cc) for rr in range(H) for cc in range(W) if cell(rr, cc) == "X"]
         cx_, cy_ = sum(p[0] for p in xs) / len(xs), sum(p[1] for p in xs) / len(xs)
         placed = []
@@ -1123,7 +1403,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             if cell(r, c) not in ".~":
                 continue
             x, y = centre(r, c)
-            if any(math.hypot(x - lx, y - ly) < cover for lx, ly in LIGHTS):
+            hier(r, c)
+            if any(math.hypot(x - lx, y - ly) < STYLE.get("licht_abstand", 4.0) * S for lx, ly in LIGHTS):
                 continue
             light_source(meshes, r, c, x, y)
 
@@ -1133,6 +1414,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             if cell(r, c) not in "." or rng.random() > 0.45:
                 continue
             x, y = centre(r, c)
+            hier(r, c)
             for k in range(rng.randint(1, 3)):
                 px, py = x + rng.uniform(-180, 180), y + rng.uniform(-180, 180)
                 kind = STYLE.get("schutt", "kiesel")
@@ -1140,19 +1422,19 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                     s_ = rng.uniform(0.3, 0.5)
                     mesh_actor(meshes["SM_HK_Knochenhaufen"], px, py, -2.0, "Schutt", "Gebeine", yaw=rng.uniform(0, 360), scale=(s_, s_, s_),
                                collision=False)
-                elif kind == "kristall" and rng.random() < 0.35 and CRYSTAL_MATS:
+                elif kind == "kristall" and rng.random() < 0.35 and kristalle():
                     s_ = rng.uniform(0.25, 0.45)
                     shard = mesh_actor(meshes["SM_HK_Salzspat_Klein"], px, py, -2.0, "Schutt", "Kristallsplitter", yaw=rng.uniform(0, 360),
                                        scale=(s_, s_, s_), collision=False)
-                    shard.static_mesh_component.set_material(0, CRYSTAL_MATS[rng.randrange(len(CRYSTAL_MATS))][1])
-                elif kind == "glut" and rng.random() < 0.3 and ORE_MAT:
+                    shard.static_mesh_component.set_material(0, kristalle()[rng.randrange(len(kristalle()))][1])
+                elif kind == "glut" and rng.random() < 0.3 and erzmat():
                     s_ = rng.uniform(0.12, 0.25)
                     ember = mesh_actor(rng.choice(BOULDERS), px, py, -3.0, "Schutt", "Glutbrocken", yaw=rng.uniform(0, 360), scale=(s_, s_, s_ * 0.7),
-                                       material=ORE_MAT[0], collision=False)
+                                       material=erzmat()[0], collision=False)
                 else:
                     s_ = rng.uniform(0.12, 0.4)
                     mesh_actor(rng.choice(BOULDERS), px, py, -s_ * 12.0, "Schutt", "Kiesel", yaw=rng.uniform(0, 360), scale=(s_, s_ * rng.uniform(0.7, 1.1), s_ * 0.7),
-                               material=rock, collision=False)
+                               material=fels(), collision=False)
 
     if start is not None:
         spawn(unreal.PlayerStart, unreal.Vector(start[0], start[1], 120.0), "Spiel", "Spielerstart")
@@ -1160,8 +1442,10 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     counts["Wanderz"] = wand_erze(world)
     counts["Tropfsteine2"] = tropfsteine(world)
     counts["Katakombe"] = katakombe(meshes)
+    counts["Decke"] = deckenboegen()
 
-    if STYLE.get("abgrund"):
+    basis()
+    if jede_art("abgrund"):
         xs = [centre(r, c) for r in range(H) for c in range(W) if cell(r, c) == "X"]
         if xs:
             ax_, ay_ = sum(p[0] for p in xs) / len(xs), sum(p[1] for p in xs) / len(xs)
@@ -1240,50 +1524,72 @@ def build_map():
     log("Karte " + path)
 
 
+WASSER = [None]
+ALLE_HOEHLEN = ["Gildenmine", "Olmgrotte", "Gebeinkammer", "FunkenerzAdern", "Ameisenbau", "KoboldStollen", "Rostschwamm", "TiefsterSchacht"]
+
+
+def eingaenge():
+    """Die Eingänge in der Welt: (Name, Titel, [x, y, Boden] in m, Portal bauen, Ziel-Level, Ankunft in cm oder None).
+    Im Verbund führt jeder alte Eingang in seine Region der einen Map; der Kobold-Stollen hat keinen (ein Geheimnis)"""
+    if not REGIONEN:
+        return [(NAME, D.get("titel", NAME), D["welt_eingang_m"], D.get("portal_bauen"), "L_" + NAME, None)]
+    liste = []
+    for buchstabe, info in sorted(REGION_INFO.items()):
+        if not info.get("eingang_m"):
+            continue
+        ausgaenge = [(r, c) for r in range(H) for c in range(W) if cell(r, c) == "E" and REGIONEN[r][c] == buchstabe]
+        ziel = ankunft(*ausgaenge[0]) if ausgaenge else None
+        liste.append((info["name"], info["titel"], info["eingang_m"], info.get("portal_bauen"), "L_" + NAME, ziel))
+    return liste
+
+
 def build_world_entrance():
-    """In L_Vael: der Eingang, der in diese Höhle führt (ersetzt den vom letzten Lauf)"""
+    """In L_Vael: die Eingänge, die in diese Höhle führen (ersetzt die vom letzten Lauf; im Verbund auch die der alten Einzelhöhlen)"""
     if not levels.load_level(WORLD):
         log("konnte " + WORLD + " nicht öffnen")
         return
     world = unreal.get_editor_subsystem(unreal.UnrealEditorSubsystem).get_editor_world()
-    tag = unreal.Name("VaelHoehle_" + NAME)
     try:
         descs = unreal.WorldPartitionBlueprintLibrary.get_actor_descs()
         unreal.WorldPartitionBlueprintLibrary.load_actors([d.guid for d in descs])
     except Exception as error:  # noqa: BLE001
         log("konnte nicht alle Actors laden: {}".format(error))
+    alte = {unreal.Name("VaelHoehle_" + n) for n in ([NAME] + (ALLE_HOEHLEN if REGIONEN else []))}
     for actor in editor.get_all_level_actors():
-        if tag in actor.get_editor_property("tags"):
+        if any(t in alte for t in actor.get_editor_property("tags")):
             editor.destroy_actor(actor)
-    ex, ey, ground = D["welt_eingang_m"]
-    z = ground * M        # die Bodenhöhe aus den Ortsdaten (Abtasten von oben traf den Felssturz über dem Portal)
-    mouth = editor.spawn_actor_from_class(unreal.VaelCaveEntrance, unreal.Vector(ex * M - 80.0, ey * M, z + 120.0), unreal.Rotator(0, 0, 0))
-    mouth.set_actor_label("Eingang " + D.get("titel", NAME))
-    mouth.set_folder_path("Eisenschlund/Hoehlen/" + NAME)
-    mouth.set_editor_property("tags", [tag])
-    mouth.set_editor_property("target_level", unreal.Name("L_" + NAME))
-    mouth.set_editor_property("message", unreal.Text(D.get("titel", NAME)))
-    if D.get("portal_bauen"):
-        # an diesem Ort stand noch kein Stollenportal (BuildEisenschlund.py baut nur einige): zwei Felspfeiler, ein Sturz, Dunkel dahinter
-        cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
-        stone = unreal.load_asset("/Game/Vael/Maps/Blockout/MI_Blockout_Stone")
-        dark = unreal.load_asset("/Game/Vael/Maps/Blockout/MI_Blockout_Dunkel")
-        for label, (px, py, pz), size, mat, solid in (("Pfeiler", (ex * M, ey * M - 350.0, z + 300.0), (2.0, 1.6, 7.0), stone, True),
-                                                      ("Pfeiler", (ex * M, ey * M + 350.0, z + 300.0), (2.0, 1.6, 7.0), stone, True),
-                                                      ("Sturz", (ex * M, ey * M, z + 650.0), (2.4, 9.0, 1.6), stone, True),
-                                                      ("Dunkel", (ex * M - 150.0, ey * M, z + 300.0), (0.4, 5.6, 6.2), dark, False)):
-            part = editor.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(px, py, pz), unreal.Rotator(0, 0, 0))
-            part.static_mesh_component.set_static_mesh(cube)
-            part.static_mesh_component.set_material(0, mat)
-            part.set_actor_scale3d(unreal.Vector(*size))
-            if not solid:
-                part.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
-            part.set_actor_label(label)
-            part.set_folder_path("Eisenschlund/Hoehlen/" + NAME)
-            part.set_editor_property("tags", [tag])
+    cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
+    stone = unreal.load_asset("/Game/Vael/Maps/Blockout/MI_Blockout_Stone")
+    dark = unreal.load_asset("/Game/Vael/Maps/Blockout/MI_Blockout_Dunkel")
+    for name, titel, (ex, ey, ground), portal, ziel_level, ziel in eingaenge():
+        tag = unreal.Name("VaelHoehle_" + name)
+        z = ground * M        # die Bodenhöhe aus den Ortsdaten (Abtasten von oben traf den Felssturz über dem Portal)
+        mouth = editor.spawn_actor_from_class(unreal.VaelCaveEntrance, unreal.Vector(ex * M - 80.0, ey * M, z + 120.0), unreal.Rotator(0, 0, 0))
+        mouth.set_actor_label("Eingang " + titel)
+        mouth.set_folder_path("Eisenschlund/Hoehlen/" + name)
+        mouth.set_editor_property("tags", [tag])
+        mouth.set_editor_property("target_level", unreal.Name(ziel_level))
+        mouth.set_editor_property("message", unreal.Text(titel))
+        if ziel is not None:
+            mouth.set_editor_property("return_place", unreal.Vector2D(ziel[0], ziel[1]))
+        if portal:
+            # an diesem Ort stand noch kein Stollenportal (BuildEisenschlund.py baut nur einige): zwei Felspfeiler, ein Sturz, Dunkel dahinter
+            for label, (px, py, pz), size, mat, solid in (("Pfeiler", (ex * M, ey * M - 350.0, z + 300.0), (2.0, 1.6, 7.0), stone, True),
+                                                          ("Pfeiler", (ex * M, ey * M + 350.0, z + 300.0), (2.0, 1.6, 7.0), stone, True),
+                                                          ("Sturz", (ex * M, ey * M, z + 650.0), (2.4, 9.0, 1.6), stone, True),
+                                                          ("Dunkel", (ex * M - 150.0, ey * M, z + 300.0), (0.4, 5.6, 6.2), dark, False)):
+                part = editor.spawn_actor_from_class(unreal.StaticMeshActor, unreal.Vector(px, py, pz), unreal.Rotator(0, 0, 0))
+                part.static_mesh_component.set_static_mesh(cube)
+                part.static_mesh_component.set_material(0, mat)
+                part.set_actor_scale3d(unreal.Vector(*size))
+                if not solid:
+                    part.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+                part.set_actor_label(label)
+                part.set_folder_path("Eisenschlund/Hoehlen/" + name)
+                part.set_editor_property("tags", [tag])
+        log("Eingang {} in L_Vael bei {:.0f} / {:.0f} m -> {} {}".format(titel, ex, ey, ziel_level, ziel))
     unreal.EditorLoadingAndSavingUtils.save_map(world, WORLD)
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
-    log("Eingang in L_Vael bei {:.0f} / {:.0f} m, Boden {:.1f} m".format(ex, ey, z / M))
 
 
 def main():
@@ -1307,7 +1613,7 @@ def main():
     EXTRA_SLOTS["Gebein"] = unreal.load_asset("/Game/Vael/Requisiten/Knochen/MI_Gebein_Hoehle") or EXTRA_SLOTS["Knochen"]
     EXTRA_SLOTS["Dunkel"] = simple_material("M_HK_Dunkel", (0.015, 0.012, 0.01), 0.9)
     EXTRA_SLOTS["Schleim"] = simple_material("M_HK_Schleim_Gruen", (0.1, 0.3, 0.06), 0.08, emissive=(1.0, 3.0, 0.6))
-    lachen = list(SCHLEIM) if STYLE.get("schaedelwand") else STYLE.get("schleim", [])
+    lachen = sorted({f for art in ARTEN for f in (list(SCHLEIM) if ART[art].get("schaedelwand") else ART[art].get("schleim", []))})
     for farbe in lachen:
         if farbe in SCHLEIM:
             SLIME_MATS[farbe] = flow_material(farbe, SCHLEIM[farbe], 0.3)   # 2,2 und 0,7 waren weiß überstrahlt (Belichtung der Höhlen +1,9)
@@ -1321,6 +1627,18 @@ def main():
     CRYSTAL_MATS[:] = [(col, glow_mat("M_HK_Kristall", col)) for col in STYLE.get("kristalle", [])]
     if STYLE.get("erzfarbe"):
         ORE_MAT[:] = [glow_mat("M_HK_Erz", STYLE["erzfarbe"])]
+    # je Höhlenart der Map ihr Fels, Boden, ihre Kristalle und Erze; im Verbund zieht der Fels halb zur Grundfarbe des Eisenschlunds hin
+    # (ein roter Faden durch alle Höhlen, die Regionen bleiben erkennbar)
+    for art in ARTEN:
+        a = ART[art]
+        if REGIONEN:
+            mix = lambda col, ziel: tuple(v * 0.55 + w * 0.45 for v, w in zip(col, ziel))
+            ROCKS[art] = rock_instance("MI_HK_Fels_V_" + art, mix(a["fels"], ART["Eisenschlund"]["fels"]))
+            FLOORS[art] = rock_instance("MI_HK_Boden_V_" + art, tuple(min(1.0, v * 1.9) for v in mix(a["boden"], ART["Eisenschlund"]["boden"])))
+        else:
+            ROCKS[art], FLOORS[art] = rock, floor_mat
+        KRISTALLE[art] = [(col, glow_mat("M_HK_Kristall", col)) for col in a.get("kristalle", [])]
+        ERZMATS[art] = [glow_mat("M_HK_Erz", a["erzfarbe"])] if a.get("erzfarbe") else []
     SPONGE[:] = [simple_material("M_HK_Rostschwamm", (0.26, 0.11, 0.04), 0.9)]
     EXTRA_SLOTS["Fels"] = rock
     for name in PROPS:

@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelTropfseuche.h"
+#include "World/VaelIndoorLevel.h"
+#include "Creatures/VaelKobold.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -422,7 +424,7 @@ EVaelSeuchenStamm UVaelTropfseuche::PickStrain(const UWorld* World, const FVecto
 	}
 	if (World != nullptr)
 	{
-		const FString Level = UWorld::RemovePIEPrefix(World->GetMapName());
+		const FString Level = AVaelIndoorLevel::PlaceKeyAt(World, Location);
 		for (const TPair<FString, EVaelSeuchenStamm>& Place : Settings->FavouritePlaces)
 		{
 			if (Level.Contains(Place.Key) && Weights.IsValidIndex(static_cast<int32>(Place.Value)))
@@ -599,34 +601,41 @@ void UVaelTropfseuche::SpawnHosts(UWorld* World)
 	{
 		return;
 	}
-	const FString Level = UWorld::RemovePIEPrefix(World->GetMapName());
-	if (!Settings->HostLevels.ContainsByPredicate([&Level](const FString& Name) { return Level.Contains(Name); }))
+	// Hosts only in the caves that are theirs (in the joined caves: only in those regions)
+	const auto IsHostPlace = [Settings, World](const FVector& Location)
 	{
-		return;
-	}
+		const FString Level = AVaelIndoorLevel::PlaceKeyAt(World, Location);
+		return Settings->HostLevels.ContainsByPredicate([&Level](const FString& Name) { return Level.Contains(Name); });
+	};
 	// Bodies: mostly infested Kobolde, the weak scrapers above all; now and then a skeleton (Boris 2026-11-21)
 	const auto PickBody = []() -> UVaelSchleimgaengerData*
 	{
 		const float Roll = FMath::FRand();
+		UVaelSchleimgaengerData* Body = GetMutableDefault<UVaelSchleimgaengerData>();
 		if (Roll < 0.45f)
 		{
-			return GetMutableDefault<UVaelKoboldSchleimkratzerData>();
+			Body = GetMutableDefault<UVaelKoboldSchleimkratzerData>();
 		}
-		if (Roll < 0.6f)
+		else if (Roll < 0.6f)
 		{
-			return GetMutableDefault<UVaelKoboldHortwaechterData>();
+			Body = GetMutableDefault<UVaelKoboldHortwaechterData>();
 		}
-		if (Roll < 0.72f)
+		else if (Roll < 0.72f)
 		{
-			return GetMutableDefault<UVaelKoboldKontoraeltesterData>();
+			Body = GetMutableDefault<UVaelKoboldKontoraeltesterData>();
 		}
-		return GetMutableDefault<UVaelSchleimgaengerData>();
+		else
+		{
+			return Body;
+		}
+		// About every second Kobold host is the variant of its body (Boris 2026-11-22: more variety)
+		return Cast<UVaelSchleimgaengerData>(UVaelKobolde::MaybeVariant(Body));
 	};
 	int32 Places = 0;
 	int32 Hosts = 0;
 	for (TActorIterator<ATargetPoint> It(World); It; ++It)
 	{
-		if (!It->ActorHasTag(TEXT("VaelHoehleGegner")))
+		if (!It->ActorHasTag(TEXT("VaelHoehleGegner")) || !IsHostPlace(It->GetActorLocation()))
 		{
 			continue;
 		}
@@ -658,7 +667,7 @@ void UVaelTropfseuche::SpawnHosts(UWorld* World)
 			}
 		}
 	}
-	UE_LOG(LogVael, Log, TEXT("Tropfseuche: %d Schleimgaenger at %d places in %s"), Hosts, Places, *Level);
+	UE_LOG(LogVael, Log, TEXT("Tropfseuche: %d Schleimgaenger at %d places in %s"), Hosts, Places, *UWorld::RemovePIEPrefix(World->GetMapName()));
 }
 
 #undef LOCTEXT_NAMESPACE

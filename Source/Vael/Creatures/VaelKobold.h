@@ -328,6 +328,15 @@ public:
 	/** Fills the places for enemies of the Kobold caves (Kobold-Stollen, Ameisenbau) with living Kobolde */
 	static void SpawnInCaves(UWorld* World);
 
-	/** Data of a role */
+	/** Data of a role; about every second one is the variant of its body (<AssetName>_B), when that was built */
 	static UVaelKoboldData* GetData(EVaelKoboldRolle Rolle);
+
+	/** Data of a role, always the body itself */
+	static UVaelKoboldData* GetBaseData(EVaelKoboldRolle Rolle);
+
+	/**
+	 *  Now and then the variant of a Kobold body instead of the body itself (Boris 2026-11-22: more variety): the same creature with
+	 *  the assets <AssetName>_B (bent and recoloured in Tools/Nachtwesen/kobold_variante.py). Returns the base when there is no variant.
+	 */
+	static UVaelNightCreatureData* MaybeVariant(UVaelNightCreatureData* Base, float Chance = 0.5f);
 };

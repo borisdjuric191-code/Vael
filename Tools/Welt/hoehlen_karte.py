@@ -42,6 +42,10 @@ def karte(name):
     grid = d["grundriss"]
     H, W = len(grid), max(len(z) for z in grid)
     S = d.get("zelle_m", 4.0) * 100.0
+    # das Bild wächst mit der Höhle (der Höhlenverbund ist fast 200 Zellen groß)
+    GROESSE = 512
+    while GROESSE < (max(H, W) + 2 * RAND) * PX:
+        GROESSE *= 2
 
     def zelle(r, c):
         if 0 <= r < H and 0 <= c < len(grid[r]):
@@ -75,7 +79,8 @@ def karte(name):
             korn = 0.9 + 0.2 * rauschen(u, v)
             zeile += bytes(max(0, min(255, int(x * korn))) for x in farbe)
         zeilen.append(zeile)
-    # der Ausgang als heller Punkt
+    # die Ausgänge als helle Punkte
+    marken = []
     for r in range(H):
         for c in range(len(grid[r])):
             if grid[r][c] == "E":
@@ -85,8 +90,8 @@ def karte(name):
                     for du in range(-4, 5):
                         if du * du + dv * dv <= 16 and 0 <= cv + dv < GROESSE and 0 <= cu + du < GROESSE:
                             zeilen[cv + dv][(cu + du) * 3:(cu + du) * 3 + 3] = bytes((240, 196, 110))
-                d.setdefault("karte_marken", [])
-                d["karte_marken"] = [{"name": "Ausgang", "welt": [(H - 1 - r) * S, c * S], "size": 0}]
+                marken.append({"name": "Ausgang", "welt": [(H - 1 - r) * S, c * S], "size": 0})
+    d["karte_marken"] = marken
     png(os.path.join(DATEN, name + "_Karte.png"), GROESSE, GROESSE, zeilen)
     d["karte"] = {"bild": name + "_Karte.png", "welt_min": list(welt_min), "welt_groesse": welt_groesse,
                   "fokus_min": [-S, -S], "fokus_max": [H * S, W * S]}

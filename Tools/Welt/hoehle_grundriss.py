@@ -38,12 +38,27 @@ class Raster:
 
     def gang(self, punkte, breite=1.2, ch="."):
         """Gewundener Gang durch die Punkte (Zeile, Spalte)"""
+        vorher = None
         for (r0, c0), (r1, c1) in zip(punkte, punkte[1:]):
             n = int(max(abs(r1 - r0), abs(c1 - c0)) * 2) + 1
             for k in range(n + 1):
                 t = k / n
-                r = r0 + (r1 - r0) * t + math.sin(t * 6.0 + r0) * 0.8
-                c = c0 + (c1 - c0) * t + math.cos(t * 5.0 + c0) * 0.8
+                # the wobble fades out at both ends, so passages meeting at a point really meet there
+                fade = math.sin(math.pi * t)
+                r = r0 + (r1 - r0) * t + math.sin(t * 6.0 + r0) * 0.8 * fade
+                c = c0 + (c1 - c0) * t + math.cos(t * 5.0 + c0) * 0.8 * fade
+                # the centre line stays connected side by side: thin passages broke at diagonal steps
+                mr, mc = int(round(r)), int(round(c))
+                if vorher is not None:
+                    pr, pc = vorher
+                    while (pr, pc) != (mr, mc):
+                        if pr != mr:
+                            pr += 1 if mr > pr else -1
+                        else:
+                            pc += 1 if mc > pc else -1
+                        self.put(pr, pc, ch, nur_auf="#")
+                vorher = (mr, mc)
+                self.put(mr, mc, ch, nur_auf="#")
                 b = breite + self.rng.uniform(-0.2, 0.4)
                 for dr in range(-2, 3):
                     for dc in range(-2, 3):
@@ -218,46 +233,68 @@ def ameisenbau():
 
 
 def kobold():
-    """Kobold-Stollen: ein Irrgarten aus engen Gängen mit Sackgassen und falschem Licht; ganz hinten der Hort"""
-    R = Raster(41, 45, 4242)
-    # Irrgarten auf einem Raster von 2 Zellen (Gang, Wand), Tiefensuche von unten
-    zellen_r, zellen_c = range(5, 38, 2), range(3, 38, 2)
-    besucht = set()
-    stapel = [(37, 19)]
-    besucht.add((37, 19))
-    R.put(37, 19, ".")
+    """Kobold-Stollen (Boris 2026-11-22): ein verschachteltes Labyrinth, aber wie eine natürliche Höhle, nicht wie ein Raster:
+    gewundene Gänge in wechselnder Breite, Nischen und kleine Kammern, Sackgassen (dort die seltenen Erze), ein paar Schleifen.
+    Der Zugang liegt oben rechts (im Höhlenverbund ein enger Spalt aus dem Ameisenbau), der Hort ganz hinten unten links:
+    die Schatzkammer mit dem Schatz (Q), Beute (K), Kobaltblüte und schwer bewacht"""
+    R = Raster(46, 48, 4243)
+    # Knoten des Labyrinths, 4 Zellen auseinander, leicht verrückt: Gänge werden krumm
+    knoten_r, knoten_c = list(range(4, 41, 4)), list(range(5, 42, 4))     # off the edge: a node in the border could not be carved
+    lage = {(i, j): (r + R.rng.uniform(-0.7, 0.7), c + R.rng.uniform(-0.7, 0.7)) for i, r in enumerate(knoten_r) for j, c in enumerate(knoten_c)}
+    start = (0, len(knoten_c) - 1)
+    besucht, stapel, kanten = {start}, [start], []
     while stapel:
-        r, c = stapel[-1]
-        nachbarn = [(r + dr, c + dc) for dr, dc in ((-2, 0), (2, 0), (0, -2), (0, 2))
-                    if (r + dr) in zellen_r and (c + dc) in zellen_c and (r + dr, c + dc) not in besucht]
+        i, j = stapel[-1]
+        nachbarn = [(i + di, j + dj) for di, dj in ((-1, 0), (1, 0), (0, -1), (0, 1)) if (i + di, j + dj) in lage and (i + di, j + dj) not in besucht]
         if not nachbarn:
             stapel.pop()
             continue
-        nr, nc = R.rng.choice(nachbarn)
-        R.put((r + nr) // 2, (c + nc) // 2, ".")
-        R.put(nr, nc, ".")
-        besucht.add((nr, nc))
-        stapel.append((nr, nc))
-    # ein paar Schleifen, damit es nicht nur einen Weg gibt
-    for k in range(18):
-        r, c = R.rng.randrange(6, 37), R.rng.randrange(4, 37)
-        if R.g[r][c] == "#" and ((R.g[r - 1][c] == "." and R.g[r + 1][c] == ".") or (R.g[r][c - 1] == "." and R.g[r][c + 1] == ".")):
-            R.put(r, c, ".")
-    _rect(R, 38, 17, 42, 22)                                  # Eingang
-    R.put(43, 19, "E")
-    R.kammer(3, 20, 2, 6)                                    # der Hort im Norden
-    R.put(5, 19, "."); R.put(5, 21, ".")
-    for r, c in [(2, 16), (2, 23), (3, 25), (3, 15), (2, 20)]:
-        R.put(r, c, "Z", ".")
-    for r, c in [(4, 17), (4, 23), (3, 21)]:
-        R.put(r, c, "K", ".")
-    R.streuen("L", 12, ".", 5)                               # falsches Licht
-    R.streuen("T", 5, ".", 6)                                # eingestürzt
-    R.streuen("G", 7, ".", 6)
+        n = R.rng.choice(nachbarn)
+        kanten.append(((i, j), n))
+        besucht.add(n)
+        stapel.append(n)
+    # ein paar Schleifen: nicht jeder Weg ist eine Sackgasse
+    alle = [((i, j), (i + di, j + dj)) for (i, j) in lage for di, dj in ((1, 0), (0, 1)) if (i + di, j + dj) in lage]
+    for k in range(9):
+        kanten.append(R.rng.choice(alle))
+    for a_, b_ in kanten:
+        (r0, c0), (r1, c1) = lage[a_], lage[b_]
+        mitte = ((r0 + r1) / 2 + R.rng.uniform(-0.6, 0.6), (c0 + c1) / 2 + R.rng.uniform(-0.6, 0.6))
+        R.gang([(r0, c0), mitte, (r1, c1)], R.rng.choice((0.3, 0.3, 0.4, 0.4, 0.7)))
+    # Nischen und kleine Kammern an manchen Knoten
+    for (i, j), (r, c) in lage.items():
+        if R.rng.random() < 0.12:
+            R.kammer(r, c, R.rng.uniform(1.0, 1.6), R.rng.uniform(1.0, 1.8), ".", 0.35)
+    # Sackgassen: Knoten mit nur einem Gang; dort liegen die seltenen Erze (die Belohnung fürs Suchen)
+    grad = {}
+    for a_, b_ in kanten:
+        grad[a_] = grad.get(a_, 0) + 1
+        grad[b_] = grad.get(b_, 0) + 1
+    sack = [lage[k] for k, g in grad.items() if g == 1 and k != start]
+    R.rng.shuffle(sack)
+    for r, c in sack[:16]:
+        R.put(int(round(r)), int(round(c)), "Z", ".")
+    # Zugang oben rechts
+    r0, c0 = lage[start]
+    R.gang([(r0, c0), (1, int(c0))], 0.6)
+    R.put(1, int(c0), "E")
+    # der Hort hinten unten links: eine große, unregelmäßige Kammer mit Vorkammer
+    R.kammer(39, 8, 4.5, 6.5, ".", 0.3)
+    R.kammer(33, 6, 2.2, 3.0, ".", 0.3)
+    R.gang([(lage[(len(knoten_r) - 3, 1)][0], lage[(len(knoten_r) - 3, 1)][1]), (33, 6), (39, 8)], 0.9)
+    R.put(40, 7, "Q", ".")                                   # der Schatz
+    for r, c in [(38, 4), (41, 11), (37, 12), (42, 6)]:
+        R.put(r, c, "K", ".")                                # Beute der Kobolde
+    for r, c in [(36, 5), (42, 9), (39, 13), (37, 3), (41, 4)]:
+        R.put(r, c, "Z", ".")                                # Kobaltblüte im Hort
+    for r, c in [(38, 8), (40, 11), (36, 9), (33, 6), (41, 6), (35, 4)]:
+        R.put(r, c, "G", ".")                                # schwer bewacht
+    R.streuen("L", 10, ".", 6)                               # falsches Licht
+    R.streuen("G", 9, ".", 6)                                # (kein Geröll: in den engen Gängen versperrte es den einzigen Weg)
     return R, {"name": "KoboldStollen", "titel": "Kobold-Stollen", "art": "KoboldStollen", "welt_eingang_m": [1647.7, 3686.4, 18.54],
                "portal_bauen": True,
-               "legende": {"L": "Laterne der Kobolde (falsches, grünes Licht)", "T": "Geröll", "Z": "Kobaltblüte (Hort)", "K": "Beute der Kobolde",
-                           "G": "Platz für Gegner (Kobolde)"}}
+               "legende": {"L": "Laterne der Kobolde (falsches, grünes Licht)", "T": "Geröll", "Z": "seltenes Erz (Sackgassen, Hort)",
+                           "K": "Beute der Kobolde", "Q": "der Schatz des Horts", "G": "Platz für Gegner (Kobolde)"}}
 
 
 def rostschwamm():
