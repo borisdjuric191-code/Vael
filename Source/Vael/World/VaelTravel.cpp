@@ -36,12 +36,17 @@ void VaelTravel::Land(APawn* Pawn, const FVector2D& Place)
 		FHitResult Hit;
 		FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(VaelTravel), false, Mover);
 		// Not the sea: it is loaded long before the land under it (land, roofs and rocks above it count)
+		// In a level without partition (a cave) not the rock base far below: in the joined caves of the Eisenschlund it lies 40 m deep
+		// under the abyss and is ready long before the floor tiles, the group landed on it (2026-11-22)
+		const bool bPartitioned = Here->IsPartitionedWorld();
 		const bool bGround = Here->LineTraceSingleByChannel(Hit, Above, Above - FVector(0.0f, 0.0f, 100000.0f), ECC_Visibility, QueryParams)
-			&& (Cast<ALandscapeProxy>(Hit.GetActor()) != nullptr || !Here->IsPartitionedWorld() || Hit.ImpactPoint.Z > 200.0f);
+			&& (Cast<ALandscapeProxy>(Hit.GetActor()) != nullptr || (!bPartitioned && Hit.ImpactPoint.Z > -1000.0f) || (bPartitioned && Hit.ImpactPoint.Z > 200.0f));
 		UCharacterMovementComponent* Movement = Mover->FindComponentByClass<UCharacterMovementComponent>();
-		if (bGround || ++(*Tries) > 75)
+		if (bGround || ++(*Tries) > (bPartitioned ? 75 : 300))
 		{
 			Mover->TeleportTo(FVector(Above.X, Above.Y, (bGround ? Hit.ImpactPoint.Z : 0.0f) + Mover->GetSimpleCollisionHalfHeight() + 5.0f), Mover->GetActorRotation());
+			UE_LOG(LogTemp, Log, TEXT("VaelTravel: '%s' lands at %s on '%s' after %d tries"), *Mover->GetName(), *Mover->GetActorLocation().ToCompactString(),
+				bGround ? *GetNameSafe(Hit.GetActor()) : TEXT("nothing"), *Tries);
 			if (Movement != nullptr)
 			{
 				Movement->SetMovementMode(MOVE_Walking);
