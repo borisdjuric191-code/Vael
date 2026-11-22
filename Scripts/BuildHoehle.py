@@ -528,6 +528,11 @@ def mesh_actor(mesh, x, y, z, folder, label, yaw=0.0, scale=(1.0, 1.0, 1.0), mat
         component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
     # Decken über dem Weg (Felsbrücken und was daran hängt, Schädelbögen): das Spiel blendet sie aus, wenn sie die Figur verdecken
     # (AVaelIndoorLevel); die Felsdecke über dem massiven Fels verdeckt niemanden
+    if folder == "Schutt":
+        # Kiesel und Splitter am Boden: kein Schatten (von oben kaum zu sehen, aber jedes Licht mit Schatten rechnete Tausende davon),
+        # und nur in der Nähe der Kamera
+        component.set_editor_property("cast_shadow", False)
+        component.set_editor_property("ld_max_draw_distance", 4000.0)
     if (folder == "Decke" and label != "Felsdecke") or label.startswith("Schaedelbogen"):
         actor.set_editor_property("tags", [unreal.Name("VaelDecke")])
     return actor
