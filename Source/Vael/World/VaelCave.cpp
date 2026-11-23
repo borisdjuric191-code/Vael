@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "World/VaelCave.h"
+#include "EngineUtils.h"
+#include "TimerManager.h"
 #include "Components/SphereComponent.h"
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
@@ -32,7 +34,18 @@ AVaelCaveEntrance::AVaelCaveEntrance()
 void AVaelCaveEntrance::BeginPlay()
 {
 	Super::BeginPlay();
+	Mouth->SetSphereRadius(MouthRadius);
 	Mouth->OnComponentBeginOverlap.AddDynamic(this, &AVaelCaveEntrance::OnEnter);
+	if (HintRadius > MouthRadius && !Hint.IsEmpty())
+	{
+		HintArea = NewObject<USphereComponent>(this);
+		HintArea->SetupAttachment(RootComponent);
+		HintArea->SetSphereRadius(HintRadius);
+		HintArea->SetCollisionProfileName(TEXT("OverlapAllDynamic"));
+		HintArea->SetGenerateOverlapEvents(true);
+		HintArea->RegisterComponent();
+		HintArea->OnComponentBeginOverlap.AddDynamic(this, &AVaelCaveEntrance::OnNear);
+	}
 	FTimerHandle Handle;
 	GetWorldTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this]()
 	{
@@ -51,12 +64,30 @@ void AVaelCaveEntrance::OnEnter(UPrimitiveComponent* OverlappedComponent, AActor
 	TryTake(Cast<AVaelCharacter>(OtherActor));
 }
 
+void AVaelCaveEntrance::OnNear(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+	bool bFromSweep, const FHitResult& SweepResult)
+{
+	const AVaelCharacter* Player = Cast<AVaelCharacter>(OtherActor);
+	const float Now = GetWorld()->GetTimeSeconds();
+	if (Player == nullptr || !Player->IsPlayerControlled() || Now - LastHint < 8.0f)
+	{
+		return;
+	}
+	LastHint = Now;
+	UVaelNoticeSubsystem::Post(this, Hint, Message, FLinearColor(FColor(232, 214, 186)), 3.0f);
+}
+
 void AVaelCaveEntrance::TryTake(AVaelCharacter* Player)
 {
 	UVaelCaveTravel* Travel = UVaelCaveTravel::Get(this);
 	if (Player == nullptr || Player->IsDowned() || !Player->IsPlayerControlled() || Travel == nullptr || Travel->IsTravelling()
-		|| TargetLevel.IsNone() || GetWorld()->GetTimeSeconds() < MouthRest)
+		|| (TargetLevel.IsNone() && !bInLevel) || GetWorld()->GetTimeSeconds() < MouthRest)
 	{
+		return;
+	}
+	if (bInLevel)
+	{
+		Travel->Hop(this, Destination, Message);
 		return;
 	}
 	Travel->Travel(this, TargetLevel, ReturnPlace, Message);
@@ -91,6 +122,34 @@ void UVaelCaveTravel::Travel(const UObject* WorldContext, FName Level, const FVe
 	UE_LOG(LogVael, Log, TEXT("Cave travel: %s -> %s, landing at %s"), *UWorld::RemovePIEPrefix(World->GetMapName()), *Level.ToString(),
 		Place.IsZero() ? TEXT("the PlayerStart") : *Place.ToString());
 	UGameplayStatics::OpenLevel(World, Level);
+}
+
+void UVaelCaveTravel::Hop(const UObject* WorldContext, const FVector& Place, const FText& Message)
+{
+	UWorld* World = WorldContext != nullptr ? WorldContext->GetWorld() : nullptr;
+	if (World == nullptr || bHopping)
+	{
+		return;
+	}
+	// A short rest so the mouth at the other end doesn't take the group straight back
+	bHopping = true;
+	FTimerHandle Rest;
+	World->GetTimerManager().SetTimer(Rest, FTimerDelegate::CreateWeakLambda(this, [this]() { bHopping = false; }), 2.5f, false);
+	UE_LOG(LogVael, Log, TEXT("Cave hop in %s to %s"), *UWorld::RemovePIEPrefix(World->GetMapName()), *Place.ToCompactString());
+	int32 Slot = 0;
+	for (TActorIterator<AVaelCharacter> It(World); It; ++It)
+	{
+		if (!It->IsPlayerControlled())
+		{
+			continue;
+		}
+		const float Angle = Slot++ * HALF_PI + 0.4f;
+		VaelTravel::Land(*It, FVector2D(Place) + FVector2D(FMath::Cos(Angle), FMath::Sin(Angle)) * 180.0f, Place.Z + 220.0f, Place.Z - 150.0f);
+	}
+	if (!Message.IsEmpty())
+	{
+		UVaelNoticeSubsystem::Post(WorldContext, Message, FText::GetEmpty(), FLinearColor(FColor(232, 214, 186)), 3.5f);
+	}
 }
 
 void UVaelCaveTravel::OnPlayerReady(AVaelCharacter* Player)

@@ -1476,7 +1476,9 @@ float AVaelHUD::DrawRegionInfo(float Top)
 		TimeText = FText::Format(LOCTEXT("TimeLine", " · {0} {1}:{2}"), PhaseNames[static_cast<int32>(Clock->GetPhase())], FText::AsNumber(Minutes / 60), FText::FromString(FString::Printf(TEXT("%02d"), Minutes % 60)));
 	}
 	// Under the earth there is no weather
-	const FText WeatherText = AVaelIndoorLevel::IsIndoor(GetWorld()) ? FText::Format(LOCTEXT("IndoorLine", "Unter Tage{0}"), TimeText)
+	const APawn* LinePawn = GetOwningPawn();
+	const FText WeatherText = (AVaelIndoorLevel::IsIndoor(GetWorld()) || (LinePawn != nullptr && AVaelIndoorLevel::IsIndoorAt(GetWorld(), LinePawn->GetActorLocation())))
+		? FText::Format(LOCTEXT("IndoorLine", "Unter Tage{0}"), TimeText)
 		: FText::Format(LOCTEXT("WeatherLine", "Wetter: {0}{1}"), AVaelRegion::GetWeatherName(Region->GetWeather()), TimeText);
 	DrawLabel(WeatherText, Left + Padding, Top + 40.0f * S, 16.0f * S, Rgb(222, 208, 186));
 
@@ -3149,8 +3151,24 @@ const UVaelWorldMap* AVaelHUD::GetLevelMap()
 	if (!bLevelMapLookedUp)
 	{
 		bLevelMapLookedUp = true;
-		LevelMap = const_cast<UVaelWorldMap*>(UVaelWorldMap::ForWorld(GetWorld()));
-		MapPicture = LevelMap != nullptr ? VaelAssets::LoadOptional(LevelMap->Picture) : nullptr;
+		WholeLevelMap = const_cast<UVaelWorldMap*>(UVaelWorldMap::ForWorld(GetWorld()));
+		WholeLevelPicture = WholeLevelMap != nullptr ? VaelAssets::LoadOptional(WholeLevelMap->Picture) : nullptr;
+		LevelMap = WholeLevelMap;
+		MapPicture = WholeLevelPicture;
+	}
+	// Inside a bounded indoor place with a map of its own (the caves of the Eisenschlund inside L_Vael) that map is shown
+	const APawn* Pawn = GetOwningPawn();
+	const AVaelIndoorLevel* Place = Pawn != nullptr ? AVaelIndoorLevel::FindAt(GetWorld(), Pawn->GetActorLocation()) : nullptr;
+	if (Place != nullptr && (Place->bWholeLevel || Place->PlaceMap.IsNull()))
+	{
+		Place = nullptr;
+	}
+	if (Place != MapPlace.Get())
+	{
+		MapPlace = Place;
+		UVaelWorldMap* PlaceMap = Place != nullptr ? VaelAssets::LoadOptional(Place->PlaceMap) : nullptr;
+		LevelMap = PlaceMap != nullptr ? PlaceMap : WholeLevelMap.Get();
+		MapPicture = PlaceMap != nullptr ? VaelAssets::LoadOptional(PlaceMap->Picture) : WholeLevelPicture.Get();
 	}
 
 	return MapPicture != nullptr ? LevelMap.Get() : nullptr;

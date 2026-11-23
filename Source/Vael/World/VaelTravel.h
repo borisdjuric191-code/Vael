@@ -14,4 +14,7 @@ namespace VaelTravel
 	 *  until it has streamed in (at most 15 s).
 	 */
 	void Land(APawn* Pawn, const FVector2D& Place);
+
+	/** The same, looking for the ground from FromZ down and only above MinZ (a place under a roof, like the caves inside L_Vael) */
+	void Land(APawn* Pawn, const FVector2D& Place, float FromZ, float MinZ);
 }

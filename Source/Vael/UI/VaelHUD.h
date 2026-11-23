@@ -455,6 +455,15 @@ private:
 
 	bool bLevelMapLookedUp = false;
 
+	/** The map of the level and, inside a bounded indoor place (the caves inside L_Vael), that place's own map */
+	UPROPERTY(Transient)
+	TObjectPtr<UVaelWorldMap> WholeLevelMap;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> WholeLevelPicture;
+
+	TWeakObjectPtr<const AActor> MapPlace;
+
 	/** Height of the font at scale 1, in pixels */
 	float FontBaseHeight = 1.0f;
 

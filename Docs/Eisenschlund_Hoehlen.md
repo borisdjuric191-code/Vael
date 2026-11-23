@@ -323,3 +323,20 @@ Auftrag von Boris: Kobolde nach dem freigegebenen Kompendium ausarbeiten, sauber
   - Nid-Siegel, Sondierbohrer
   - Die Rippenbrücke ist jetzt eine echte Rippe. Man geht darunter durch, die Kollision liegt nur an den Füßen.
   - Ort, Drehung und Größe der Platzhalter bleiben gleich, die Farben sind die Blockout-Farben.
+
+## Eine Karte: die Höhlen in L_Vael (23.11.2026)
+
+Boris: „Alle Teile sollen eins ergeben.“ Der Eisenschlund ist jetzt ganz in `L_Vael`, mit Oberwelt und Höhlen. Damit liegen alle vier Regionen in einer Karte, das Herz kann später anschließen.
+
+- **Wo:** südlich neben der Landschaft, nicht unter ihr. Der Versatz ist (−2220 m, 2789 m, +100 m), festgehalten in `Scripts/Data/Hoehlen/Eisenschlund_Welt.json`. World Partition lädt nur nach X/Y: Unter der Oberfläche würden die rund 20.000 Höhlenteile beim Laufen oben mitgeladen.
+- **Ein- und Ausgänge:** Die 7 Stolleneingänge der Welt und die 7 Ausgänge der Höhlen führen ohne Ladezeit innerhalb der Karte (`AVaelCaveEntrance::bInLevel`, `UVaelCaveTravel::Hop`). Man landet erst, wenn der Boden dort geladen ist.
+- **Behobener Fehler:** Wer die Ausgangsnische der Olmgrotte streifte, stand plötzlich draußen. Die Ausgänge haben jetzt einen kleinen Auslöser ganz hinten an der Felswand. Ab 9 m erscheint vorher der Hinweis „Weg nach oben“.
+- **Licht:** Ein dunkles Dach in 45 m Höhe hält Sonne und Himmel fern. Es liegt über der Kamera, deshalb sieht man es nicht. Die Nachbearbeitung der Höhle gilt nur über den Höhlen (Vorrang 50, eigene Belichtung).
+- **Innenraum nur im Kasten:** `AVaelIndoorLevel` hat `bWholeLevel` aus und gilt nur in seinem Kasten. Dort zeigt die Minikarte die Höhlenkarte (`DA_Karte_Eisenschlund_Welt`), das HUD zeigt „Unter Tage“, und es gibt kein Ortswetter.
+- **Bewohner:** Kobolde und Seuchenwirte kommen erst, wenn jemand näher als 60 m ist und ihr Boden geladen ist. Wer weiter als 150 m weg ist, wird angehalten, damit er nicht durch entladenen Boden fällt.
+- **Bauen:**
+  1. `BuildHoehle.py` mit `VAEL_HOEHLE=Eisenschlund` (in der Werkstatt `L_Eisenschlund`)
+  2. `Scripts/PortHoehlenToWelt.py`: ersetzt alles mit dem Tag `VaelHoehlenVerbund`
+- **Lauftests in der Welt:** `ZIELE='b Q' bash Saved/lauf_welt.sh` (Routen aus `Saved/weg.py`, um den Versatz verschoben).
+- **Teleport:** `VaelTeleport X Y` in Weltmetern. Im Höhlenkasten wird der Boden unter dem Dach gesucht.
+- **Entfernt:** die acht alten Einzelhöhlen und ihre Minikarten (`Scripts/AlteHoehlenWeg.py`). `L_Eisenschlund` bleibt als Werkstatt.

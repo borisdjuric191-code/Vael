@@ -55,7 +55,7 @@ AVaelLocalWeather::AVaelLocalWeather()
 AVaelLocalWeather* AVaelLocalWeather::Spawn(UWorld* World, EVaelLocalWeather InKind, const FVector& Center, float InRadius, float InLifetime, const FVector& InDirection)
 {
 	// No fog banks, storms or rain patches under the earth
-	if (World == nullptr || AVaelIndoorLevel::IsIndoor(World))
+	if (World == nullptr || AVaelIndoorLevel::IsIndoorAt(World, Center))
 	{
 		return nullptr;
 	}

@@ -594,7 +594,7 @@ bool UVaelTropfseuche::IsWaterAt(const UWorld* World, const FVector& Location)
 	return false;
 }
 
-void UVaelTropfseuche::SpawnHosts(UWorld* World)
+void UVaelTropfseuche::SpawnHosts(UWorld* World, TFunctionRef<bool(const ATargetPoint*)> Take, TArray<TWeakObjectPtr<AVaelCreature>>* Born)
 {
 	const UVaelTropfseucheSettings* Settings = UVaelTropfseucheSettings::Get();
 	if (World == nullptr || !World->IsGameWorld())
@@ -635,7 +635,7 @@ void UVaelTropfseuche::SpawnHosts(UWorld* World)
 	int32 Hosts = 0;
 	for (TActorIterator<ATargetPoint> It(World); It; ++It)
 	{
-		if (!It->ActorHasTag(TEXT("VaelHoehleGegner")) || !IsHostPlace(It->GetActorLocation()))
+		if (!It->ActorHasTag(TEXT("VaelHoehleGegner")) || !IsHostPlace(It->GetActorLocation()) || !Take(*It))
 		{
 			continue;
 		}
@@ -654,20 +654,27 @@ void UVaelTropfseuche::SpawnHosts(UWorld* World)
 				continue;
 			}
 			const EVaelSeuchenStamm Strain = PickStrain(World, Ground);
-			if (AVaelCreature::SpawnCreature(World, PickBody(), Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), nullptr,
+			if (AVaelCreature* Host = AVaelCreature::SpawnCreature(World, PickBody(), Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), nullptr,
 				[Strain](AVaelCreature* Creature)
 				{
-					if (AVaelSchleimgaenger* Host = Cast<AVaelSchleimgaenger>(Creature))
+					if (AVaelSchleimgaenger* Body = Cast<AVaelSchleimgaenger>(Creature))
 					{
-						Host->SetStrain(Strain);
+						Body->SetStrain(Strain);
 					}
-				}) != nullptr)
+				}))
 			{
 				++Hosts;
+				if (Born != nullptr)
+				{
+					Born->Add(Host);
+				}
 			}
 		}
 	}
-	UE_LOG(LogVael, Log, TEXT("Tropfseuche: %d Schleimgaenger at %d places in %s"), Hosts, Places, *UWorld::RemovePIEPrefix(World->GetMapName()));
+	if (Hosts > 0)
+	{
+		UE_LOG(LogVael, Log, TEXT("Tropfseuche: %d Schleimgaenger at %d places in %s"), Hosts, Places, *UWorld::RemovePIEPrefix(World->GetMapName()));
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

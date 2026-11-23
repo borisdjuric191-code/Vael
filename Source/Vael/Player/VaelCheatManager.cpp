@@ -13,6 +13,7 @@
 #include "UI/VaelWorldMap.h"
 #include "World/VaelProgressSubsystem.h"
 #include "World/VaelTravel.h"
+#include "World/VaelIndoorLevel.h"
 #include "World/VaelBalance.h"
 #include "World/VaelRefugiumClutch.h"
 #include "Items/VaelBrewing.h"
@@ -166,6 +167,16 @@ void UVaelCheatManager::VaelTeleport(float X, float Y)
 		return;
 	}
 
+	// Into the caves inside the open world (under their roof): the ground is looked for just above their floor
+	for (TActorIterator<AVaelIndoorLevel> It(GetWorld()); It; ++It)
+	{
+		const float Floor = It->GetActorLocation().Z;
+		if (!It->bWholeLevel && It->Covers(FVector(X * 100.0f, Y * 100.0f, Floor)))
+		{
+			VaelTravel::Land(Pawn, FVector2D(X * 100.0f, Y * 100.0f), Floor + 3000.0f, Floor - 150.0f);
+			return;
+		}
+	}
 	VaelTravel::Land(Pawn, FVector2D(X * 100.0f, Y * 100.0f));
 }
 

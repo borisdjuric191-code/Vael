@@ -9,6 +9,9 @@
 #include "Nature/VaelGarden.h"
 #include "VaelTropfseuche.generated.h"
 
+class ATargetPoint;
+class AVaelCreature;
+
 class AVaelCharacter;
 class UMaterialInstanceDynamic;
 class UMaterialInterface;
@@ -265,5 +268,6 @@ public:
 	static void AttachLumps(USkeletalMeshComponent* Body, UMaterialInstanceDynamic* Look, int32 Wanted, float Scale, TArray<TObjectPtr<UStaticMeshComponent>>& Lumps);
 
 	/** Fills the places for enemies of a cave with Schleimgaenger (levels in the settings) */
-	static void SpawnHosts(UWorld* World);
+	static void SpawnHosts(UWorld* World, TFunctionRef<bool(const ATargetPoint*)> Take = [](const ATargetPoint*) { return true; },
+		TArray<TWeakObjectPtr<AVaelCreature>>* Born = nullptr);
 };

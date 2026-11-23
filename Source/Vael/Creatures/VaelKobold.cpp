@@ -943,9 +943,9 @@ UVaelKoboldData* UVaelKobolde::GetBaseData(EVaelKoboldRolle Rolle)
 	}
 }
 
-void UVaelKobolde::SpawnInCaves(UWorld* World)
+void UVaelKobolde::SpawnInCaves(UWorld* World, TFunctionRef<bool(const ATargetPoint*)> Take, TArray<TWeakObjectPtr<AVaelCreature>>* Born)
 {
-	if (World == nullptr || !World->IsGameWorld() || !AVaelIndoorLevel::IsIndoor(World))
+	if (World == nullptr || !World->IsGameWorld() || !AVaelIndoorLevel::HasIndoorPlaces(World))
 	{
 		return;
 	}
@@ -972,7 +972,7 @@ void UVaelKobolde::SpawnInCaves(UWorld* World)
 		}
 		const FString Place = AVaelIndoorLevel::PlaceKeyAt(World, It->GetActorLocation());
 		// The places of the Tropfseuche hosts stay theirs
-		if (Seuche->HostLevels.ContainsByPredicate([&Place](const FString& Name) { return Place.Contains(Name); }))
+		if (Seuche->HostLevels.ContainsByPredicate([&Place](const FString& Name) { return Place.Contains(Name); }) || !Take(*It))
 		{
 			continue;
 		}
@@ -1000,14 +1000,23 @@ void UVaelKobolde::SpawnInCaves(UWorld* World)
 				}
 			}
 			FVector Ground;
-			if (AVaelCreature::FindGround(World, It->GetActorLocation() + FVector(FMath::FRandRange(-150.0f, 150.0f), FMath::FRandRange(-150.0f, 150.0f), 200.0f), Ground)
-				&& AVaelCreature::SpawnCreature(World, GetData(Rolle), Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f)) != nullptr)
+			if (AVaelCreature::FindGround(World, It->GetActorLocation() + FVector(FMath::FRandRange(-150.0f, 150.0f), FMath::FRandRange(-150.0f, 150.0f), 200.0f), Ground))
 			{
-				++Count;
+				if (AVaelCreature* Kobold = AVaelCreature::SpawnCreature(World, GetData(Rolle), Ground, FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f)))
+				{
+					++Count;
+					if (Born != nullptr)
+					{
+						Born->Add(Kobold);
+					}
+				}
 			}
 		}
 	}
-	UE_LOG(LogVael, Log, TEXT("Kobolde: %d living Kobolde in %s"), Count, *UWorld::RemovePIEPrefix(World->GetMapName()));
+	if (Count > 0)
+	{
+		UE_LOG(LogVael, Log, TEXT("Kobolde: %d living Kobolde in %s"), Count, *UWorld::RemovePIEPrefix(World->GetMapName()));
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

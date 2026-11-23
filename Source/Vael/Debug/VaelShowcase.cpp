@@ -3,6 +3,7 @@
 #include "Debug/VaelShowcase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Camera/CameraActor.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Camera/CameraComponent.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelHornBeetle.h"
@@ -136,7 +137,9 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		}
 		const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
 		APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
-		if (PlayerPawn != nullptr && Parts.Num() >= 2 && !bWalkDone)
+		// While a travel holds the pawn still (waiting for its ground to stream in) the walk waits too
+		const UCharacterMovementComponent* WalkMovement = PlayerPawn != nullptr ? PlayerPawn->FindComponentByClass<UCharacterMovementComponent>() : nullptr;
+		if (PlayerPawn != nullptr && Parts.Num() >= 2 && !bWalkDone && (WalkMovement == nullptr || WalkMovement->MovementMode != MOVE_None))
 		{
 			const FVector Target(FCString::Atof(*Parts[0]) * 100.0, FCString::Atof(*Parts[1]) * 100.0, PlayerPawn->GetActorLocation().Z);
 			const FVector Here = PlayerPawn->GetActorLocation();

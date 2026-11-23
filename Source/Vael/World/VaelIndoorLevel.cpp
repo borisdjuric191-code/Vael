@@ -10,6 +10,9 @@
 #include "GameFramework/Pawn.h"
 #include "Camera/PlayerCameraManager.h"
 #include "Kismet/GameplayStatics.h"
+#include "Creatures/VaelCreature.h"
+#include "Engine/TargetPoint.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "UI/VaelNoticeSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "VaelIndoorLevel"
@@ -49,7 +52,12 @@ AVaelIndoorLevel::AVaelIndoorLevel()
 
 bool AVaelIndoorLevel::IsIndoor(const UWorld* World)
 {
-	return World != nullptr && TActorIterator<AVaelIndoorLevel>(const_cast<UWorld*>(World));
+	return Find(World) != nullptr;
+}
+
+bool AVaelIndoorLevel::IsIndoorAt(const UWorld* World, const FVector& Location)
+{
+	return FindAt(World, Location) != nullptr;
 }
 
 const AVaelIndoorLevel* AVaelIndoorLevel::Find(const UWorld* World)
@@ -58,8 +66,45 @@ const AVaelIndoorLevel* AVaelIndoorLevel::Find(const UWorld* World)
 	{
 		return nullptr;
 	}
-	TActorIterator<AVaelIndoorLevel> It(const_cast<UWorld*>(World));
-	return It ? *It : nullptr;
+	for (TActorIterator<AVaelIndoorLevel> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		if (It->bWholeLevel)
+		{
+			return *It;
+		}
+	}
+	return nullptr;
+}
+
+const AVaelIndoorLevel* AVaelIndoorLevel::FindAt(const UWorld* World, const FVector& Location)
+{
+	if (World == nullptr)
+	{
+		return nullptr;
+	}
+	for (TActorIterator<AVaelIndoorLevel> It(const_cast<UWorld*>(World)); It; ++It)
+	{
+		if (It->Covers(Location))
+		{
+			return *It;
+		}
+	}
+	return nullptr;
+}
+
+bool AVaelIndoorLevel::HasIndoorPlaces(const UWorld* World)
+{
+	return World != nullptr && TActorIterator<AVaelIndoorLevel>(const_cast<UWorld*>(World));
+}
+
+bool AVaelIndoorLevel::Covers(const FVector& Location) const
+{
+	if (bWholeLevel)
+	{
+		return true;
+	}
+	const FVector Local = Location - GetActorLocation();
+	return FMath::Abs(Local.X) <= Extent.X && FMath::Abs(Local.Y) <= Extent.Y && FMath::Abs(Local.Z) <= Extent.Z;
 }
 
 FString AVaelIndoorLevel::PlaceKeyAt(const UWorld* World, const FVector& Location)
@@ -106,9 +151,9 @@ void AVaelIndoorLevel::FadeCeilings()
 			{
 				continue;
 			}
-			FVector Origin, Extent;
-			Ceiling->GetActorBounds(true, Origin, Extent);
-			const float Height = Origin.Z + Extent.Z;
+			FVector Origin, Size;
+			Ceiling->GetActorBounds(true, Origin, Size);
+			const float Height = Origin.Z + Size.Z;
 			if (Height < Chest.Z || FVector::DistSquared2D(Origin, Chest) > FMath::Square(1200.0f))
 			{
 				continue;
@@ -116,7 +161,7 @@ void AVaelIndoorLevel::FadeCeilings()
 			// Where the line of sight passes the ceiling's middle height
 			const float T = FMath::Clamp((Origin.Z - Chest.Z) / FMath::Max(Eye.Z - Chest.Z, 1.0f), 0.0f, 1.0f);
 			const FVector Pass = Chest + (Eye - Chest) * T;
-			if (FMath::Abs(Pass.X - Origin.X) <= Extent.X + 60.0f && FMath::Abs(Pass.Y - Origin.Y) <= Extent.Y + 60.0f)
+			if (FMath::Abs(Pass.X - Origin.X) <= Size.X + 60.0f && FMath::Abs(Pass.Y - Origin.Y) <= Size.Y + 60.0f)
 			{
 				Covering.Add(Ceiling);
 			}
@@ -139,9 +184,120 @@ void AVaelIndoorLevel::FadeCeilings()
 	HiddenCeilings = MoveTemp(Covering);
 }
 
+void AVaelIndoorLevel::RefreshCeilings()
+{
+	// In a streamed world the ceilings load and unload with the ground: look again now and then while someone is inside
+	Ceilings.Reset();
+	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	{
+		if (It->ActorHasTag(TEXT("VaelDecke")) && Covers(It->GetActorLocation()))
+		{
+			Ceilings.Add(*It);
+		}
+	}
+}
+
+void AVaelIndoorLevel::TickDwellers()
+{
+	UWorld* World = GetWorld();
+	TArray<FVector> Inside;
+	for (int32 Index = 0; Index < 4; ++Index)
+	{
+		if (const APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, Index); Pawn != nullptr && Covers(Pawn->GetActorLocation()))
+		{
+			Inside.Add(Pawn->GetActorLocation());
+		}
+	}
+	const auto Near = [&Inside](const FVector& Location, float Radius)
+	{
+		return Inside.ContainsByPredicate([&](const FVector& At) { return FVector::DistSquared2D(At, Location) <= Radius * Radius; });
+	};
+	// Places of dwellers near a player whose floor has loaded: each place once per visit of the level
+	constexpr float ComeRadius = 6000.0f;
+	TArray<TWeakObjectPtr<AVaelCreature>> Born;
+	if (!Inside.IsEmpty())
+	{
+		const auto Take = [this, World, &Near](const ATargetPoint* Point)
+		{
+			if (UsedPlaces.Contains(Point->GetFName()) || !Covers(Point->GetActorLocation()) || !Near(Point->GetActorLocation(), ComeRadius))
+			{
+				return false;
+			}
+			FVector Ground;
+			if (!AVaelCreature::FindGround(World, Point->GetActorLocation() + FVector(0.0f, 0.0f, 200.0f), Ground)
+				|| FMath::Abs(Ground.Z - Point->GetActorLocation().Z) > 150.0f)
+			{
+				return false;
+			}
+			UsedPlaces.Add(Point->GetFName());
+			return true;
+		};
+		UVaelTropfseuche::SpawnHosts(World, Take, &Born);
+		UVaelKobolde::SpawnInCaves(World, Take, &Born);
+		Dwellers.Append(Born);
+	}
+	// Far from every player: held still and hidden until someone comes near again
+	constexpr float HoldRadius = 15000.0f;
+	Dwellers.RemoveAll([](const TWeakObjectPtr<AVaelCreature>& Each) { return !Each.IsValid(); });
+	for (const TWeakObjectPtr<AVaelCreature>& Each : Dwellers)
+	{
+		AVaelCreature* Creature = Each.Get();
+		const bool bHold = !Near(Creature->GetActorLocation(), HoldRadius);
+		if (bHold == Frozen.Contains(Each))
+		{
+			continue;
+		}
+		UCharacterMovementComponent* Movement = Creature->FindComponentByClass<UCharacterMovementComponent>();
+		if (bHold)
+		{
+			Frozen.Add(Each);
+			Creature->SetActorTickEnabled(false);
+			Creature->SetActorHiddenInGame(true);
+			if (Movement != nullptr)
+			{
+				Movement->DisableMovement();
+				Movement->SetComponentTickEnabled(false);
+			}
+		}
+		else
+		{
+			Frozen.Remove(Each);
+			Creature->SetActorTickEnabled(true);
+			Creature->SetActorHiddenInGame(false);
+			if (Movement != nullptr)
+			{
+				Movement->SetComponentTickEnabled(true);
+				Movement->SetMovementMode(MOVE_Walking);
+			}
+		}
+	}
+}
+
 void AVaelIndoorLevel::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (!bWholeLevel)
+	{
+		DwellerWait -= DeltaSeconds;
+		if (DwellerWait <= 0.0f)
+		{
+			DwellerWait = 1.0f;
+			TickDwellers();
+		}
+		const APawn* Pawn = UGameplayStatics::GetPlayerPawn(this, 0);
+		if (Pawn == nullptr || !Covers(Pawn->GetActorLocation()))
+		{
+			// Outside the caves nothing more to do (no ceilings to fade, no cave names to show)
+			bRegionKnown = false;
+			return;
+		}
+		CeilingWait -= DeltaSeconds;
+		if (CeilingWait <= 0.0f)
+		{
+			CeilingWait = 2.0f;
+			RefreshCeilings();
+		}
+	}
 	FadeCeilings();
 	NoticeWait -= DeltaSeconds;
 	if (NoticeWait > 0.0f)
@@ -160,7 +316,8 @@ void AVaelIndoorLevel::Tick(float DeltaSeconds)
 	{
 		return;
 	}
-	// The first look only remembers where the group starts: the travel itself already says where it is
+	// The first look only remembers where the group starts: the travel itself already says where it is (in the open world the
+	// way down says so too)
 	const bool bShow = bRegionKnown && Cave != nullptr;
 	ShownRegion = Cave;
 	bRegionKnown = true;
@@ -176,13 +333,12 @@ void AVaelIndoorLevel::Tick(float DeltaSeconds)
 void AVaelIndoorLevel::BeginPlay()
 {
 	Super::BeginPlay();
-	for (TActorIterator<AActor> It(GetWorld()); It; ++It)
+	if (!bWholeLevel)
 	{
-		if (It->ActorHasTag(TEXT("VaelDecke")))
-		{
-			Ceilings.Add(*It);
-		}
+		// In the open world the caves stream in when someone comes: ceilings and dwellers come then (Tick)
+		return;
 	}
+	RefreshCeilings();
 	UVaelTropfseuche::SpawnHosts(GetWorld());
 	UVaelKobolde::SpawnInCaves(GetWorld());
 }

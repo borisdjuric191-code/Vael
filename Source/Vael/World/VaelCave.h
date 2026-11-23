@@ -37,6 +37,30 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cave")
 	FText Message;
 
+	/**
+	 *  The way down or up inside one level (the caves of the Eisenschlund inside L_Vael since 2026-11-23): no level is opened, the
+	 *  group is put down at Destination (cm; Z is the floor height there, the ground is looked for just above it)
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cave")
+	bool bInLevel = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cave", meta = (EditCondition = "bInLevel"))
+	FVector Destination = FVector::ZeroVector;
+
+	/** How far the mouth takes whoever steps in (cm) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cave")
+	float MouthRadius = 220.0f;
+
+	/**
+	 *  Coming nearer than this (cm) shows Hint first, so nobody is taken by surprise (Boris 2026-11-23: in a tunnel he was suddenly
+	 *  beamed out; the exits were plain pockets of the cave); 0 = no hint
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cave")
+	float HintRadius = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Cave")
+	FText Hint;
+
 protected:
 
 	virtual void BeginPlay() override;
@@ -45,6 +69,15 @@ private:
 
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	TObjectPtr<USphereComponent> Mouth;
+
+	UPROPERTY(Transient)
+	TObjectPtr<USphereComponent> HintArea;
+
+	float LastHint = -100.0f;
+
+	UFUNCTION()
+	void OnNear(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex,
+		bool bFromSweep, const FHitResult& SweepResult);
 
 	/** Takes the group along if this player may go now */
 	void TryTake(AVaelCharacter* Player);
@@ -71,10 +104,14 @@ public:
 	void OnPlayerReady(AVaelCharacter* Player);
 
 	/** True while a travel is under way (the mouths of the new level wait a moment before they take anyone) */
-	bool IsTravelling() const { return bTravelling; }
+	bool IsTravelling() const { return bTravelling || bHopping; }
+
+	/** Within one level: every player down at a place (cm, Z = floor height), side by side, and the message */
+	void Hop(const UObject* WorldContext, const FVector& Place, const FText& Message);
 
 private:
 
+	bool bHopping = false;
 	FName PendingLevel;
 	FVector2D PendingPlace = FVector2D::ZeroVector;
 	FText PendingMessage;

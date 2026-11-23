@@ -6,6 +6,8 @@
 #include "Creatures/VaelNightCreature.h"
 #include "VaelKobold.generated.h"
 
+class ATargetPoint;
+
 class UMaterialInstanceDynamic;
 class UPointLightComponent;
 class UStaticMeshComponent;
@@ -333,7 +335,8 @@ class UVaelKobolde
 public:
 
 	/** Fills the places for enemies of the Kobold caves (Kobold-Stollen, Ameisenbau) with living Kobolde */
-	static void SpawnInCaves(UWorld* World);
+	static void SpawnInCaves(UWorld* World, TFunctionRef<bool(const ATargetPoint*)> Take = [](const ATargetPoint*) { return true; },
+		TArray<TWeakObjectPtr<AVaelCreature>>* Born = nullptr);
 
 	/** Data of a role; about every second one is the variant of its body (<AssetName>_B), when that was built */
 	static UVaelKoboldData* GetData(EVaelKoboldRolle Rolle);
