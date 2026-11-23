@@ -1,6 +1,6 @@
 # Kobolde im Kompendium – Entwurf zum Abnehmen
 
-Stand 22.11.2026, nachts geschrieben. Die Texte sind **nicht im Spiel**. Sie warten darauf, dass Boris und das Team sie abnehmen. Danach kommen sie als `nature(...)`-Einträge in `Scripts/CreateCompendiumAssets.py`, im Ton der übrigen Einträge, mit Albruns Notiz am Ende.
+Stand 22.11.2026, nachts geschrieben. **Am 23.11.2026 von Boris freigegeben**, mit den Ergänzungen unten (Abschnitt „Freigabe und Änderungen 23.11.“). Die Texte sind noch **nicht im Spiel**. Nach dem Bau kommen sie als `nature(...)`-Einträge in `Scripts/CreateCompendiumAssets.py`, im Ton der übrigen Einträge, mit Albruns Notiz am Ende.
 
 Für jede Rolle gibt es diese Felder:
 - Blick
@@ -73,3 +73,37 @@ Bei den Varianten (`_B`) trägt nur die Gestalt anders, ihre Einträge gelten mi
 - **Nutzen und Beute:** Der Kristall aus der Laterne leuchtet noch tagelang.
 - **Gezeichnete Form:** Gezeichnete Laternenträger tragen kein Licht mehr. Man sieht nur noch, wo es fehlt.
 - **Albruns Notiz:** Ich bin einem Licht gefolgt, weil ich dachte, es sei der Ausgang. Es war der Ausgang. Nur nicht meiner.
+
+---
+
+## Freigabe und Änderungen 23.11.
+
+Boris hat alle 6 Einträge freigegeben. Verhalten, Schwächen und Notizen bleiben so. Gebaut wird erst nach seiner Go-Liste.
+
+**Für alle Kobolde**
+- Mehr Vielfalt, damit sie in Szenen mit vielen Kobolden nicht alle gleich aussehen. Das wird in Blender gemacht: Farbnuancen, Größenänderungen und leicht geänderte Details. Am Grunddesign wird nicht gerüttelt.
+- Ein sauberes, funktionierendes Skelett. Vor allem die Hände prüfen und überarbeiten, die Finger sind oft komisch gebogen.
+
+**Schleimkratzer (Dieb):** passt so.
+
+**Hortwächter:** Er braucht eine Waffe, eine Axt, einen Kolben oder etwas Ähnliches. Die Waffe entsteht zuerst nur in Blender, ohne Tripo.
+
+**Kontorältester:** passt.
+- Die Rauch- und Dampfwolke stammt bisher von der Distelspinne. Sie bekommt eine eigene, farblich lustigere Tönung.
+- Den Juwelenschmuck am Hals in Blender umbauen.
+- Falsche Abbilder und Verwirrungszeichen bleiben.
+
+**Sklaventreiber:**
+- Die Peitsche muss sichtbar in seiner Hand sein.
+- Idee: Sie hängt an der Hüfte. Er greift hin, dort verschwindet sie und er lässt sie in der Hand wie eine echte Peitsche schnalzen.
+- Die Hände überarbeiten.
+- Die Phiolen mit Tropfseuche passen.
+
+**Sprengmeister:**
+- Die Ladungen an seinen Brustgurten bekommen die Farben aller 11 Erze, gemischt: Grünspan, Rosteisen, Schwefelkies, Funkenerz, Salzspat, Drahtsilber, Blutzinnober, Siechglas, Rippenspat, Kernerz, Kobaltblüte.
+- Bisher sind sie nur violett und orange.
+- Jede Farbe bekommt ihre eigene Explosion oder Kristallladung, dazu kommen die Stolperdrähte.
+
+**Laternenträger:** passt.
+- Die Lampe auf seinem Rücken wird zur Lampe in den Kobold-Stollen. Sie ersetzt die bisherige Lampe, die Holzhalter bleiben.
+- So sehen echte Lampen und sein Locklicht gleich aus. Seine Falle wirkt stärker, und die Stollen bekommen schönere Lampen.
