@@ -169,7 +169,7 @@ def bauen(saat, letzter):
     info["v"] = {"name": "Verbindung", "art": "Verbindung", "titel": "Gildenstollen", "box": None, "eingang_m": None, "portal_bauen": False}
 
     # Each cave built out to its theme (Boris 2026-11-22: "die einzelnen Höhlen sinngemäß ausbauen"): more of what makes it what it is
-    AUSBAU = {"g": [("K", 5), ("B", 5)], "v": [("B", 7), ("K", 5)], "f": [("P", 10), ("F", 3)], "a": [("N", 5), ("C", 10)],
+    AUSBAU = {"g": [("K", 5), ("B", 5)], "v": [("B", 7), ("K", 5)], "f": [("P", 10), ("F", 3)], "a": [("N", 5), ("C", 5)],
               "r": [("M", 16), ("P", 5)], "o": [("C", 5)], "s": [("C", 5)], "b": [("B", 4)]}
     for buchstabe, zeichen in AUSBAU.items():
         frei = [(r, c) for r in range(hoehe) for c in range(breite) if g[r][c] == "." and reg[r][c] == buchstabe
