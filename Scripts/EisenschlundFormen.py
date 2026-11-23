@@ -178,6 +178,37 @@ for actor in editor.get_all_level_actors():
     n[swap[0]] = n.get(swap[0], 0) + 1
     unreal.log_warning("[Formen] {} at {:.0f} {:.0f} m -> {} x{:.2f} ({:.1f} m high)".format(label, loc.x / 100, loc.y / 100, mesh.get_name(), s, height / 100))
 
+# the cave mouths: pillars and lintel were grey cubes. Rough rock wall pieces from the caves fill the same box (rock takes the
+# stretch), so the opening, its collision and the walk through it stay as they were.
+ROCK = [unreal.load_asset("/Game/Vael/Maps/Hoehlen/Teile/" + n) for n in ("SM_HK_Wand_A", "SM_HK_Wand_B", "SM_HK_Wand_C")]
+ROCK_MAT = unreal.load_asset("/Game/Vael/Maps/Hoehlen/Teile/MI_HK_Fels_Eisenschlund")
+for actor in editor.get_all_level_actors():
+    if not isinstance(actor, unreal.StaticMeshActor) or DONE in actor.tags:
+        continue
+    label, folder = actor.get_actor_label(), str(actor.get_folder_path())
+    if label not in ("Pfeiler", "Sturz") or not ("Orte/Stollen" in folder or "Hoehlen/" in folder):
+        continue
+    mesh = ROCK[sum(map(ord, folder + str(round(actor.get_actor_location().y)))) % len(ROCK)]
+    loc, rot, scale = actor.get_actor_location(), actor.get_actor_rotation(), actor.get_actor_scale3d()
+    bounds = mesh.get_bounds()
+    ext, origin = bounds.box_extent, bounds.origin
+    new = unreal.Vector(scale.x * 50.0 / ext.x, scale.y * 50.0 / ext.y, scale.z * 50.0 / ext.z)
+    # the piece's box centre sits where the cube's centre was
+    off = unreal.Vector(origin.x * new.x, origin.y * new.y, origin.z * new.z)
+    cy, sy = math.cos(math.radians(rot.yaw)), math.sin(math.radians(rot.yaw))     # the cubes are only turned about Z
+    off = unreal.Vector(off.x * cy - off.y * sy, off.x * sy + off.y * cy, off.z)
+    actor.modify()
+    component = actor.static_mesh_component
+    component.modify()
+    component.set_static_mesh(mesh)
+    component.set_editor_property("override_materials", [])
+    component.set_material(0, ROCK_MAT)
+    actor.set_actor_scale3d(new)
+    actor.set_actor_location(unreal.Vector(loc.x - off.x, loc.y - off.y, loc.z - off.z), False, False)
+    actor.set_editor_property("tags", list(actor.tags) + [DONE])
+    n["Portal"] = n.get("Portal", 0) + 1
+    unreal.log_warning("[Formen] {} ({}) at {:.0f} {:.0f} m -> {}".format(label, folder, loc.x / 100, loc.y / 100, mesh.get_name()))
+
 unreal.EditorLoadingAndSavingUtils.save_map(world, WORLD)
 unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
 unreal.log_warning("[Formen] getauscht: {}".format(n))
