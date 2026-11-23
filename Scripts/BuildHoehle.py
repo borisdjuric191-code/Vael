@@ -1432,11 +1432,22 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 chest = spawn(unreal.VaelChest, unreal.Vector(x, y, 40.0), "Requisiten", "Schatz des Horts", unreal.Rotator(0.0, 0.0, rng.uniform(0, 360)))
                 chest.set_editor_property("rolled_items", 4)
                 chest.set_editor_property("min_rarity", unreal.VaelRarity.RARE)
+                # a real treasure chest instead of the default grey cube (point 5, simple shapes; walk 2026-11-23)
+                chest.set_actor_location(unreal.Vector(x, y, 0.0), False, False)
+                box = chest.get_component_by_class(unreal.StaticMeshComponent)
+                box.set_static_mesh(unreal.load_asset("/Game/Megascans/3D_Assets/OldWoodenChest/SM_OldWoodenChest"))
+                box.set_editor_property("override_materials", [])
+                box.set_relative_location(unreal.Vector(0.0, 0.0, 0.0), False, False)
+                box.set_relative_scale3d(unreal.Vector(1.6, 1.6, 1.6))
+                # the hoard around it: old crates and heaps of Kobaltbluete instead of plain cubes (same rng calls as before)
+                hort_meshes = ["/Game/Megascans/3D_Assets/WoodenBox/SM_WoodenBox", "/Game/Vael/Requisiten/Eisenschlund/Kobaltbluete/SM_Kobaltbluete",
+                               "/Game/Megascans/3D_Assets/WoodenAmmoCrate/SM_WoodenAmmoCrate"]
                 for k in range(6):
                     a = k / 6.0 * 2 * math.pi
-                    s_ = rng.uniform(0.7, 1.0)
-                    mesh_actor(meshes["SM_HK_Kiste"], x + math.cos(a) * 230.0, y + math.sin(a) * 230.0, 0.0, "Requisiten", "Hortkiste",
-                               yaw=rng.uniform(0, 90), scale=(s_, s_, s_))
+                    s_ = rng.uniform(0.9, 1.3)
+                    path = hort_meshes[k % 3]
+                    mesh_actor(unreal.load_asset(path), x + math.cos(a) * 230.0, y + math.sin(a) * 230.0, 0.0, "Requisiten", "Hortkiste",
+                               yaw=rng.uniform(0, 360), scale=(s_, s_, s_), collision=("Kobalt" not in path))
                 point_light(x, y, 260.0, "Licht", "Hortschein", (1.0, 0.35, 0.6), 60.0, 1400.0, shadows=True)
             elif ch == "E":
                 # der Auslöser an den äußeren Rand der Zelle, zur Felsseite: im Verbund führt manchmal ein Gang neben dem Ausgang vorbei,
