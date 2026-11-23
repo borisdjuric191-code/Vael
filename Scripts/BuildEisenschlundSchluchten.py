@@ -401,8 +401,11 @@ def dress(name, canyon, meshes, rock, bright):
             sx, sy = x - dy * t * span, y + dx * t * span
             drop = top - 2.0 * (abs(t) * 3.0) ** 2
             length = rng.uniform(2.5, 6.0)
-            piece(rng.choice(tites), rock, sx + dx * rng.uniform(-1.5, 1.5), sy + dy * rng.uniform(-1.5, 1.5), drop, rng.uniform(0, 360),
-                  (length * 0.45, length * 0.45, length), folder + "/Stalaktiten", "Stalaktit")
+            tite = piece(rng.choice(tites), rock, sx + dx * rng.uniform(-1.5, 1.5), sy + dy * rng.uniform(-1.5, 1.5), drop, rng.uniform(0, 360),
+                         (length * 0.45, length * 0.45, length), folder + "/Stalaktiten", "Stalaktit")
+            # hanging decor: near the arch feet the tips reach the floor and closed the way (walk test 2026-11-23, Knochenhalle)
+            tite.static_mesh_component.set_collision_profile_name("NoCollision")
+            tite.static_mesh_component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
 
     # Stalagmiten: Gruppen am Rand des Bodens, der Weg in der Mitte bleibt frei
     for x, y, dx, dy in along(line, 26.0):

@@ -209,6 +209,20 @@ for actor in editor.get_all_level_actors():
     n["Portal"] = n.get("Portal", 0) + 1
     unreal.log_warning("[Formen] {} ({}) at {:.0f} {:.0f} m -> {}".format(label, folder, loc.x / 100, loc.y / 100, mesh.get_name()))
 
+# the gorge stalactites (BuildEisenschlundSchluchten.py) hang under the rock arches; near the arch feet their tips reach the floor,
+# and with collision they closed the way into the Knochenhalle (walk test 2026-11-23). Hanging decor: no collision, like in the caves.
+for actor in editor.get_all_level_actors():
+    if not isinstance(actor, unreal.StaticMeshActor) or actor.get_actor_label() != "Stalaktit" or "Stalaktiten" not in str(actor.get_folder_path()):
+        continue
+    component = actor.static_mesh_component
+    if component.get_collision_enabled() == unreal.CollisionEnabled.NO_COLLISION:
+        continue
+    actor.modify()
+    component.modify()
+    component.set_collision_profile_name("NoCollision")
+    component.set_collision_enabled(unreal.CollisionEnabled.NO_COLLISION)
+    n["Stalaktit"] = n.get("Stalaktit", 0) + 1
+
 unreal.EditorLoadingAndSavingUtils.save_map(world, WORLD)
 unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
 unreal.log_warning("[Formen] getauscht: {}".format(n))
