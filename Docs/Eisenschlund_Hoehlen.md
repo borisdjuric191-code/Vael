@@ -290,3 +290,36 @@ Boris und Team, Nachtauftrag: Höhlen einheitlicher, zusammengeführt zu einer M
 - **Kein Wetter:** In den Höhlen gibt es kein Wetter, auch in der Region Eisenschlund der offenen Welt nicht mehr (`Scripts/EisenschlundOhneWetter.py`, `BuildEisenschlund.py`).
 - **Bauen:** `py Tools/Welt/hoehle_grundriss.py KoboldStollen`, `py Tools/Welt/hoehlen_verbund.py`, `py Tools/Welt/hoehlen_karte.py Eisenschlund`, `blender -b -P Tools/Welt/hoehlen_wasser.py -- Eisenschlund`, dann `VAEL_HOEHLE=Eisenschlund` und `Scripts/BuildHoehle.py`.
 - **Die alten Einzellevels** (`L_Gildenmine` usw.) liegen noch da, aber kein Eingang führt mehr hinein.
+
+## Kobolde, Lampen, Kristall-Licht und Bauten der Welt (23.11.2026)
+
+Auftrag von Boris: Kobolde nach dem freigegebenen Kompendium ausarbeiten, saubere Animation und Hände, den Eisenschlund fertig machen. Kristalle in Höhlen: Wenn sie eine Lichtquelle sind, müssen die Schatten Sinn ergeben. Wenn sie nur Licht brechen, sollen sie entsprechend eingestellt sein.
+
+- **Neue Kobold-Rigs `K_<Typ>_<0..4>`:** 6 Typen mit je 5 Looks, 0 ist das Grundmodell. Sie sind neu importiert, die alten `<Typ>`- und `<Typ>_B`-Assets bleiben unbenutzt liegen.
+  - **Hände:** Die Hand dreht jetzt mit dem Unterarm (`schleimgaenger_clips.HAND_FOLGT`). Vorher behielt sie ihre Ruhe-Drehung in der Welt und knickte bei gehobenem Arm ab. Dazu gibt es einen Fingerknochen (`middle_01_`). Wer etwas trägt, schließt die Finger darum (`GRIFF`).
+  - **Looks:** Haut- und Kleiderfarbe, Ohrenlänge, Kopf, Rumpf, Arme und Beine leicht verändert (`kobold_variante.STILE`). Im Spiel sehen 4 von 5 lebenden Kobolden anders aus als das Grundmodell, dazu kommt eine zufällige Größe.
+  - **Hortwächter:** Kolben mit Kobaltblüten-Kopf in der rechten Faust (`kobold_ausruestung.py`, leuchtet).
+  - **Sklaventreiber:** Die Peitsche hängt aufgerollt an der Hüfte. Beim Hieb greift er hin, die Peitsche wechselt in die Hand (Materialparameter `Zeigen`, `AVaelKobold::TickWhip`), rollt aus und knallt.
+  - **Kontorältester:** Die Juwelen am Kragen tragen die Farben der Erze, jeder Stein eine. Seine Wölkchen sind bunt statt grau wie die der Distelspinne. Falsche Abbilder werfen keinen Schatten, so wie es im Kompendium steht.
+  - **Sprengmeister:** Die Stopfen seiner Ladungen tragen alle 11 Erzfarben gemischt. Jeder Wurf und jede Falle nimmt ein Erz mit eigener Wirkung, zum Beispiel:
+    - Funkenerz brennt.
+    - Salzspat macht nass.
+    - Kernerz lässt erstarren.
+    - Siechglas steckt mit der Seuche an.
+    - Schwefelkies verwirrt.
+    - Drahtsilber und Kobaltblüte werfen weit.
+  - **Laternenträger:** Seine Laterne hängt als Lampe im Kobold-Stollen (`SM_HK_KoboldLampe` am alten Holzpfahl `SM_HK_Laternenpfahl`), im gleichen blassen Blau wie sein falsches Licht.
+  - **Kompendium:** Die 6 Einträge stehen jetzt im Bestiarium (`CreateCompendiumAssets.py`, `DA_Compendium_Kobold_*`).
+  - **Bauen:** `bash Saved/Kobolde/alle.sh` (Blender), dann `bash Saved/Kobolde/import.sh` bei geschlossenem Editor. Prüfbilder: `Tools/Nachtwesen/kobold_pruefbild.py`.
+- **Kristall-Licht (`BuildHoehle.py`):**
+  - `leuchtkristall()`: Der Kristall ist die Lichtquelle und wirft deshalb keinen eigenen Schatten. Das Licht sitzt in seinem Kern, und die Quellgröße passt zum Kristall, damit die Schatten der anderen Dinge weich vom Kristall weg fallen.
+  - `lichtbrecher()`: Leuchtende Zapfen und Erzglanz brechen nur Licht. Sie bekommen ein schwaches Fülllicht ohne Schatten.
+  - `r.Shadow.Virtual.OnePassProjection.MaxLightsPerPixel=32`, weil sich zu viele Lichter mit Schatten überlagerten.
+- **Eisenschlund in der Welt (`L_Vael`):** `Tools/Welt/eisenschlund_bauten.py` baut die Teile, `Scripts/EisenschlundBauten.py` tauscht die Grundformen aus:
+  - 12 Gildenhäuser, 4 Türme samt Dach (jedes Dach sitzt jetzt auf seinem Turm)
+  - 3 Schmelzhallen mit Schlot
+  - Förderturm (Pfosten, Plattform, Seilrad), Wachturm
+  - 4 Lager mit Feuerstelle und Zelten
+  - Nid-Siegel, Sondierbohrer
+  - Die Rippenbrücke ist jetzt eine echte Rippe. Man geht darunter durch, die Kollision liegt nur an den Füßen.
+  - Ort, Drehung und Größe der Platzhalter bleiben gleich, die Farben sind die Blockout-Farben.

@@ -466,6 +466,8 @@ void AVaelKobold::BeginPlay()
 			AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetMaxHealthAttribute(), 1.0f);
 			AbilitySystem->SetNumericAttributeBase(UVaelAttributeSet::GetHealthAttribute(), 1.0f);
 		}
+		// Compendium (Boris 2026-11-23): the real one casts a shadow, the false ones don't
+		GetMesh()->SetCastShadow(false);
 	}
 	// The lantern bearer's false light hangs in its lantern (kobold_skelett.py puts the bone laterne_licht there)
 	if (GetData<UVaelKoboldData>()->Rolle == EVaelKoboldRolle::Laternentraeger && GetMesh()->DoesSocketExist(TEXT("laterne_licht")))
