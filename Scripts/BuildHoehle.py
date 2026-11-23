@@ -210,6 +210,11 @@ def is_floor(r, c):
     return cell(r, c) != "#"
 
 
+def einspurig(r, c):
+    """True for a single-lane cell: rock on both sides along one axis (props there block the way)."""
+    return (not is_floor(r - 1, c) and not is_floor(r + 1, c)) or (not is_floor(r, c - 1) and not is_floor(r, c + 1))
+
+
 def centre(r, c):
     return ((H - 1 - r) * S, c * S)
 
@@ -544,7 +549,7 @@ def mesh_actor(mesh, x, y, z, folder, label, yaw=0.0, scale=(1.0, 1.0, 1.0), mat
 # Blender -Y (die raue Vorderseite) kommt in Unreal als +Y an: ohne die halbe Drehung zeigte die glatte Rückseite in den Gang
 # (Boris 15.11.: "viele Wände, die zu glatt sind")
 WALL_TURN = float(os.environ.get("VAEL_HOEHLE_WAND_DREHUNG", "180"))
-SKULL_TURN = float(os.environ.get("VAEL_HOEHLE_SCHAEDEL_DREHUNG", "90"))   # die Schädelwand kam um 90° verdreht an
+SKULL_TURN = float(os.environ.get("VAEL_HOEHLE_SCHAEDEL_DREHUNG", "0"))   # 90 stood the skull walls across the corridor (bounds check 23.11.)
 LIGHTS = []        # wo schon Licht ist (x, y), für die Lichtabdeckung
 
 
@@ -633,7 +638,7 @@ def light_source(meshes, r, c, x, y):
             colour, mat = kristalle()[(r * 5 + c * 11) % len(kristalle())]
         dx, dy = wall or (0, 0)
         crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + dx * 120.0, y + dy * 120.0, 0.0, "Licht", "Kristall", yaw=rng.uniform(0, 360),
-                             scale=(0.8, 0.8, 0.8))
+                             scale=(0.8, 0.8, 0.8), collision=False)
         if mat is not None:
             crystal.static_mesh_component.set_material(0, mat)
         point_light(x + dx * 120.0, y + dy * 120.0, 150.0, "Licht", "Kristall-Licht", colour, 90.0, 1600.0, shadows=True)
@@ -980,7 +985,7 @@ def katakombe(meshes):
                 continue
             if all(is_floor(r + dr, c + dc) for dr in (-1, 0, 1) for dc in (-1, 0, 1)) and erng.random() < 0.14:
                 s_ = erng.uniform(0.9, 1.15)
-                mesh_actor(meshes["SM_HK_Knochensaeule"], x + erng.uniform(-60, 60), y + erng.uniform(-60, 60), -10.0, "Gebeine",
+                mesh_actor(meshes["SM_HK_Knochensaeule"], x + S / 3 + erng.uniform(-60, 60), y + S / 3 + erng.uniform(-60, 60), -10.0, "Gebeine",
                            "Knochensaeule", yaw=erng.uniform(0, 360), scale=(s_, s_, s_ * erng.uniform(0.95, 1.2)))
                 n += 1
     log("Katakombe: {} Bögen und Säulen".format(n))
@@ -1236,8 +1241,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 if not low and rng.random() < STYLE.get("schaedelwand", 0.0) and not narrow:
                     # Schädelreihen der Gilde vor dem Fels, mit dem Gesicht in den Gang
                     # vor die Felsfront (die ragt bis ~1,5 m in die Zelle), sonst steckten die Schädel im Fels
-                    mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 170.0),
-                               y + dy * (S / 2 - 170.0), 0.0, "Gebeine", "Schaedelwand", yaw=math.degrees(math.atan2(-dx, dy)) + SKULL_TURN,
+                    mesh_actor(rng.choice([meshes["SM_HK_Schaedelwand_A"], meshes["SM_HK_Schaedelwand_B"]]), x + dx * (S / 2 - 125.0),
+                               y + dy * (S / 2 - 125.0), 0.0, "Gebeine", "Schaedelwand", yaw=math.degrees(math.atan2(-dx, dy)) + SKULL_TURN,
                                scale=(0.95, 1.0, rng.uniform(1.05, 1.25)))
                 if natur() and rng.random() < 0.45 and not narrow:
                     # Brocken am Fuß der Wand, gegen die geraden Linien des Rasters
@@ -1270,7 +1275,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
             rx = sum(centre(*p)[0] for p in rocks) / len(rocks) - vx
             ry = sum(centre(*p)[1] for p in rocks) / len(rocks) - vy
             length = math.hypot(rx, ry) or 1.0
-            px, py = vx + rx / length * 80.0, vy + ry / length * 80.0
+            tief = 150.0 if len(floors) == 3 else 80.0      # a protruding rock corner: deeper in, or it juts into the bend (walk test 22.11.)
+            px, py = vx + rx / length * tief, vy + ry / length * tief
             piece = meshes["SM_HK_Ecke_Niedrig"] if low else rng.choice([meshes["SM_HK_Ecke_A"], meshes["SM_HK_Ecke_B"]])
             s = rng.uniform(0.85, 1.1)
             mesh_actor(piece, px, py, -20.0, "Waende", "Eckpfeiler", yaw=rng.uniform(0, 360),
@@ -1294,14 +1300,18 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                         mesh_actor(meshes[frame], fx, fy, 0.0, "Verbau", "Tuerstock", yaw=0.0 if axis == "X" else 90.0)
                 if ch == "W":
                     axis = rail_dir(r, c)[0]
-                    mesh_actor(meshes["SM_HK_Lore"], x, y, 14.0, "Requisiten", "Lore", yaw=(0.0 if axis == "X" else 90.0) + rng.uniform(-3, 3))
+                    lore_yaw = (0.0 if axis == "X" else 90.0) + rng.uniform(-3, 3)
+                    if not einspurig(r, c):     # in a single-lane tunnel the cart blocked the whole way (walk test 22.11.)
+                        mesh_actor(meshes["SM_HK_Lore"], x, y, 14.0, "Requisiten", "Lore", yaw=lore_yaw)
             elif ch == "K":
                 for k in range(rng.randint(2, 3)):
                     s = rng.uniform(0.8, 1.1)
                     mesh_actor(meshes["SM_HK_Kiste"], x + rng.uniform(-110, 110), y + rng.uniform(-110, 110), (100.0 * s if k == 2 else 0.0),
                                "Requisiten", "Kiste", yaw=rng.uniform(0, 90), scale=(s, s, s))
             elif ch == "B" and not STYLE.get("schaedelwand"):
-                mesh_actor(meshes["SM_HK_Balkenstapel"], x, y, 0.0, "Requisiten", "Balkenstapel", yaw=rng.choice((0, 90)) + rng.uniform(-8, 8))
+                stapel_yaw = rng.choice((0, 90)) + rng.uniform(-8, 8)
+                if not einspurig(r, c):
+                    mesh_actor(meshes["SM_HK_Balkenstapel"], x, y, 0.0, "Requisiten", "Balkenstapel", yaw=stapel_yaw)
             elif ch == "L":
                 # an die nächste Felswand, die Laterne hängt zur Mitte hin
                 yaw, px, py = 0.0, x, y
@@ -1328,7 +1338,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 if kristalle():
                     colour, mat = kristalle()[(r * 5 + c * 11) % len(kristalle())]
                 crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + rng.uniform(-80, 80), y + rng.uniform(-80, 80), 0.0, "Licht", "Kristall",
-                                     yaw=yaw, scale=(s_, s_, s_))
+                                     yaw=yaw, scale=(s_, s_, s_), collision=False)   # glowing decor, walk-through
                 if mat is not None:
                     crystal.static_mesh_component.set_material(0, mat)
                 point_light(x, y, 160.0, "Licht", "Kristall-Licht", colour, 110.0, 1700.0, shadows=True)
@@ -1714,7 +1724,7 @@ def main():
     EXTRA_SLOTS["Fels"] = rock
     for name in PROPS:
         # Bögen und Türstöcke: man geht darunter durch (mit der einfachen Hülle versperrte der Türstock den ganzen Stollen, Lauftest 22.11.)
-        meshes[name] = import_piece(name, collision_complex=name.startswith("SM_HK_Schaedelbogen") or name.startswith("SM_HK_Verbau"))
+        meshes[name] = import_piece(name, collision_complex=name.startswith(("SM_HK_Schaedelbogen", "SM_HK_Verbau", "SM_HK_Schaedelwand", "SM_HK_Knochensaeule")))
         kit_materials(meshes[name])
     ZAPFEN[:] = [meshes["SM_HK_Schleimzapfen_A"], meshes["SM_HK_Schleimzapfen_B"]]
     build_cave(meshes, rock, floor_mat, ore_mat, water_mat, crystal_mat)
