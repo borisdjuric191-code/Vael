@@ -63,6 +63,11 @@ def ziele_setzen(arm, name):
         sg.FUSS_LIEGEN[seite] = Vector((knochen["pelvis"].head_local.x + 0.05 + (knochen["thigh_" + seite].head_local.z - kn.z),
                                         kn.y * 1.4, 0.08))
     sg.NAME = name
+    # K_ rigs: hands turn with the forearm; the ones with something in the right hand close the fingers round it
+    sg.HAND_FOLGT = name.startswith("K_")
+    sg.GRIFF.clear()
+    if name.startswith(("K_Hortwaechter", "K_Sklaventreiber")):
+        sg.GRIFF["r"] = dict(seite=55.0)
 
 
 def main():

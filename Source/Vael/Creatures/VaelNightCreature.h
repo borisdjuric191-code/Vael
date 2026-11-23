@@ -394,6 +394,10 @@ protected:
 
 	UAnimSequence* FindClip(FName Clip);
 	void Play(FName Clip, bool bLoop, float BlendTime = 0.25f, float Rate = 1.0f, bool bRestart = false);
+
+	/** The clip of the attack it is in right now (None outside an attack), and how long it has been in it */
+	FName GetCurrentAttackClip() const;
+	float GetAttackTime() const { return StateTime; }
 	void Loop(FName Clip, float BlendTime = 0.45f);
 	void TurnTowards(const FVector& Location, float DeltaSeconds);
 

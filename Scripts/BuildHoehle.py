@@ -34,7 +34,7 @@ CAMERA = (-0.7071, -0.7071)       # von hier schaut die Spielkamera (Süd-West);
 ROCK_PIECES = ["SM_HK_Wand_A", "SM_HK_Wand_B", "SM_HK_Wand_C", "SM_HK_Wand_Niedrig_A", "SM_HK_Wand_Niedrig_B",
                "SM_HK_Ecke_A", "SM_HK_Ecke_B", "SM_HK_Ecke_Niedrig", "SM_HK_Boden_A", "SM_HK_Boden_B",
                "SM_HK_Tropfstein_A", "SM_HK_Tropfstein_B", "SM_HK_Tropfstein_C"]
-PROPS = ["SM_HK_Verbau", "SM_HK_Verbau_8", "SM_HK_Verbau_12", "SM_HK_Schiene", "SM_HK_Lore", "SM_HK_Kiste", "SM_HK_Balkenstapel", "SM_HK_Laterne",
+PROPS = ["SM_HK_Verbau", "SM_HK_Verbau_8", "SM_HK_Verbau_12", "SM_HK_Schiene", "SM_HK_Lore", "SM_HK_Kiste", "SM_HK_Balkenstapel", "SM_HK_Laterne", "SM_HK_Laternenpfahl", "SM_HK_KoboldLampe",
          "SM_HK_Salzspat", "SM_HK_Salzspat_Klein", "SM_HK_Schaedelwand_A", "SM_HK_Schaedelwand_B", "SM_HK_Knochenhaufen", "SM_HK_Schleim",
          "SM_HK_Schwamm", "SM_HK_Rippe", "SM_HK_Kerzen", "SM_HK_Schleimzapfen_A", "SM_HK_Schleimzapfen_B",
          "SM_HK_Knochensaeule", "SM_HK_Schaedelbogen", "SM_HK_Schaedelbogen_Breit"]
@@ -60,7 +60,10 @@ ART = {
                    "grundlicht": 0.8, "natur": True, "kristalle": [(1.0, 0.3, 0.6), (0.2, 0.9, 0.7), (0.4, 1.0, 0.2), (1.0, 0.7, 0.2), (0.5, 0.4, 1.0)],
                    "erzfarbe": (0.85, 0.5, 0.2), "nebeldichte": 0.015, "licht": "kristall", "schutt": "kristall"},
     # Irrgarten der Kobolde: dunkler Fels, falsches grünes Licht, der Hort voller Kobaltblüte
-    "KoboldStollen": {"grundfarbe": (0.55, 0.78, 0.55), "fels": (0.36, 0.33, 0.36), "boden": (0.26, 0.24, 0.25), "laterne": (0.45, 1.0, 0.35), "nebel": (0.03, 0.05, 0.03),
+    # Lampen: die Laterne des Laternenträgers am Holzpfahl, im blassen Blau seines falschen Lichts (Boris 23.11.: echte und falsche
+    # Lichter sehen gleich aus, seine Falle wirkt besser)
+    "KoboldStollen": {"grundfarbe": (0.55, 0.78, 0.55), "fels": (0.36, 0.33, 0.36), "boden": (0.26, 0.24, 0.25), "laterne": (0.7, 0.85, 1.0),
+                      "lampe": "kobold", "nebel": (0.03, 0.05, 0.03),
                       "grundlicht": 1.4, "erzfarbe": (1.0, 0.35, 0.6), "nebeldichte": 0.01, "wandhoehe": 0.55, "erzdichte": 0.3,
                       "licht": "laterne", "schutt": "kiesel", "schleim": ["Bernstein"], "schleimzapfen": 0.3},
     # Schwammwucherungen, Giftlachen, kränkliches Grün
@@ -553,11 +556,15 @@ SKULL_TURN = float(os.environ.get("VAEL_HOEHLE_SCHAEDEL_DREHUNG", "0"))   # 90 s
 LIGHTS = []        # wo schon Licht ist (x, y), für die Lichtabdeckung
 
 
-def point_light(x, y, z, folder, label, colour, intensity, radius, shadows=False):
+def point_light(x, y, z, folder, label, colour, intensity, radius, shadows=False, source_radius=None):
     if intensity >= 25.0:
         LIGHTS.append((x, y))
     light = spawn(unreal.PointLight, unreal.Vector(x, y, z), folder, label)
     c = light.light_component
+    if source_radius is not None:
+        # a glowing body (crystal) lights from its whole size: soft shadow edges that grow with the distance
+        c.set_editor_property("source_radius", source_radius)
+        c.set_editor_property("soft_source_radius", source_radius * 0.5)
     c.set_editor_property("intensity_units", unreal.LightUnits.CANDELAS)
     c.set_editor_property("intensity", intensity)
     c.set_light_color(unreal.LinearColor(colour[0], colour[1], colour[2], 1.0))
@@ -567,6 +574,44 @@ def point_light(x, y, z, folder, label, colour, intensity, radius, shadows=False
     c.set_editor_property("volumetric_scattering_intensity", 0.15)
     light.root_component.set_mobility(unreal.ComponentMobility.MOVABLE)
     return light
+
+
+def grubenlaterne(meshes, px, py, yaw, label):
+    """A lantern on its post at a wall; in the Kobold-Stollen the Laternentraeger's lamp hangs on the post instead of the old one.
+    Returns where the light goes (x, y, z)"""
+    if STYLE.get("lampe") == "kobold":
+        mesh_actor(meshes["SM_HK_Laternenpfahl"], px, py, 0.0, "Licht", label + " (Pfahl)", yaw=yaw, collision=False)
+        hx = px + math.cos(math.radians(yaw)) * 45.0
+        hy = py + math.sin(math.radians(yaw)) * 45.0
+        lamp = mesh_actor(meshes["SM_HK_KoboldLampe"], hx, hy, 247.0, "Licht", label + " (Koboldlampe)", yaw=yaw + rng.uniform(-25, 25),
+                          collision=False)
+        # the lamp is the light: no shadow of its own across the post and the wall
+        lamp.static_mesh_component.set_editor_property("cast_shadow", False)
+        return hx, hy, 230.0
+    mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", label, yaw=yaw, collision=False)
+    return px + math.cos(math.radians(yaw)) * 45.0, py + math.sin(math.radians(yaw)) * 45.0, 210.0
+
+
+def leuchtkristall(mesh, x, y, folder, colour, intensity, radius, yaw, scale, mat=None):
+    """A crystal that IS a light source (Boris 23.11.: the shadows must make sense): the light sits in its core and it casts no
+    shadow of its own (else it darkened the room round itself, its own light blocked by its body); everything else throws its
+    shadow away from it, soft by the size of the crystal"""
+    crystal = mesh_actor(mesh, x, y, 0.0, folder, "Leuchtkristall", yaw=yaw, scale=(scale, scale, scale), collision=False)
+    comp = crystal.static_mesh_component
+    if mat is not None:
+        comp.set_material(0, mat)
+    comp.set_editor_property("cast_shadow", False)
+    ext = mesh.get_bounds().box_extent
+    hoch = ext.z * 2.0 * scale
+    breit = max(ext.x, ext.y) * scale
+    point_light(x, y, hoch * 0.45, folder, "Kristall-Licht", colour, intensity, radius, shadows=True, source_radius=max(breit * 0.6, 15.0))
+    return crystal
+
+
+def lichtbrecher(x, y, z, folder, colour, intensity, radius):
+    """A crystal that only breaks the light of the room and brightens it a little: a soft fill without shadows (a shadow from
+    a crystal that merely catches the light would be wrong), so it never darkens anything"""
+    return point_light(x, y, z, folder, "Kristallschimmer", colour, intensity, radius, shadows=False)
 
 
 def spot_down(x, y, height, folder, label, colour, intensity, cone, beam=None):
@@ -624,9 +669,8 @@ def light_source(meshes, r, c, x, y):
         abstand = 15.0 if einspurig else 70.0
         px, py = x + dx * (S / 2 - abstand), y + dy * (S / 2 - abstand)
         yaw = math.degrees(math.atan2(-dy, -dx))
-        mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", "Laterne", yaw=yaw, collision=False)
-        point_light(px + math.cos(math.radians(yaw)) * 45.0, py + math.sin(math.radians(yaw)) * 45.0, 210.0, "Licht", "Laternenschein",
-                    STYLE["laterne"], 120.0, 1700.0, shadows=True)
+        lx, ly, lz = grubenlaterne(meshes, px, py, yaw, "Laterne")
+        point_light(lx, ly, lz, "Licht", "Laternenschein", STYLE["laterne"], 120.0, 1700.0, shadows=True, source_radius=8.0)
     elif kind == "kerzen":
         dx, dy = wall or (0, 0)
         px, py = x + dx * (S / 2 - 90.0), y + dy * (S / 2 - 90.0)
@@ -637,11 +681,7 @@ def light_source(meshes, r, c, x, y):
         if kristalle():
             colour, mat = kristalle()[(r * 5 + c * 11) % len(kristalle())]
         dx, dy = wall or (0, 0)
-        crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + dx * 120.0, y + dy * 120.0, 0.0, "Licht", "Kristall", yaw=rng.uniform(0, 360),
-                             scale=(0.8, 0.8, 0.8), collision=False)
-        if mat is not None:
-            crystal.static_mesh_component.set_material(0, mat)
-        point_light(x + dx * 120.0, y + dy * 120.0, 150.0, "Licht", "Kristall-Licht", colour, 90.0, 1600.0, shadows=True)
+        leuchtkristall(meshes["SM_HK_Salzspat"], x + dx * 120.0, y + dy * 120.0, "Licht", colour, 90.0, 1600.0, rng.uniform(0, 360), 0.8, mat)
     elif kind == "glut":
         if "Glut" in SLIME_MATS:
             mesh_actor(meshes["SM_HK_Schleim"], x, y, 2.0, "Licht", "Glutader", yaw=rng.uniform(0, 360), scale=(0.6, 0.6, 1.0),
@@ -864,7 +904,7 @@ def tropfsteine(world):
                             z_.static_mesh_component.set_material_by_name("Schleim", SLIME_MATS[farbe])
                             if erng.random() < 0.35:
                                 col = SCHLEIM.get(farbe) or LACHEN[farbe]
-                                point_light(px, py, hit[0].z - h_ * 100.0 - 40.0, "Tropfsteine", "Zapfenschein " + farbe, col, 6.0, 500.0)
+                                lichtbrecher(px, py, hit[0].z - h_ * 100.0 - 40.0, "Tropfsteine", col, 6.0, 500.0)
                             n_zap[0] += 1
                             continue
                         mesh_actor(erng.choice(MITES), px, py, hit[0].z + 30.0, "Tropfsteine", "Stalaktit", yaw=erng.uniform(0, 360),
@@ -916,7 +956,7 @@ def deckenboegen():
                     z_.static_mesh_component.set_material_by_name("Schleim", SLIME_MATS[farbe])
                     if k == 0:
                         col = SCHLEIM.get(farbe) or LACHEN[farbe]
-                        point_light(px, py, unten - h_ * 100.0 - 40.0, "Decke", "Zapfenschein " + farbe, col, 6.0, 500.0)
+                        lichtbrecher(px, py, unten - h_ * 100.0 - 40.0, "Decke", col, 6.0, 500.0)
                 else:
                     mesh_actor(erng.choice(MITES), px, py, unten + 30.0, "Decke", "Stalaktit", yaw=erng.uniform(0, 360),
                                scale=(h_ * 0.38, h_ * 0.38, h_), material=fels(), roll=180.0 + erng.uniform(-5, 5), collision=False)
@@ -1324,11 +1364,13 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                         yaw = math.degrees(math.atan2(-dy, -dx))
                         an_wand = True
                         break
-                if an_wand:      # ohne Wand daneben nur das Licht (das Gestell stand sonst mitten im Weg)
-                    mesh_actor(meshes["SM_HK_Laterne"], px, py, 0.0, "Licht", "Grubenlaterne", yaw=yaw, collision=False)
                 hx = px + math.cos(math.radians(yaw)) * 45.0
                 hy = py + math.sin(math.radians(yaw)) * 45.0
-                point_light(hx, hy, 210.0, "Licht", "Laternenschein", STYLE["laterne"], 140.0, 1900.0, shadows=True)   # Schatten zeigen das Relief der Wände
+                hz = 210.0
+                if an_wand:      # ohne Wand daneben nur das Licht (das Gestell stand sonst mitten im Weg)
+                    hx, hy, hz = grubenlaterne(meshes, px, py, yaw, "Grubenlaterne")
+                point_light(hx, hy, hz, "Licht", "Laternenschein", STYLE["laterne"], 140.0, 1900.0, shadows=True,
+                            source_radius=8.0)   # Schatten zeigen das Relief der Wände
             elif ch == "S":
                 spot_down(x, y, 1600.0, "Licht", "Wetterschacht", (0.85, 0.9, 1.0), 600.0, 8.0, beam)
             elif ch == "C" and crystal_mat is not None:
@@ -1337,11 +1379,8 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                 colour, mat = STYLE.get("kristall", (0.45, 0.8, 1.0)), None
                 if kristalle():
                     colour, mat = kristalle()[(r * 5 + c * 11) % len(kristalle())]
-                crystal = mesh_actor(meshes["SM_HK_Salzspat"], x + rng.uniform(-80, 80), y + rng.uniform(-80, 80), 0.0, "Licht", "Kristall",
-                                     yaw=yaw, scale=(s_, s_, s_), collision=False)   # glowing decor, walk-through
-                if mat is not None:
-                    crystal.static_mesh_component.set_material(0, mat)
-                point_light(x, y, 160.0, "Licht", "Kristall-Licht", colour, 110.0, 1700.0, shadows=True)
+                leuchtkristall(meshes["SM_HK_Salzspat"], x + rng.uniform(-80, 80), y + rng.uniform(-80, 80), "Licht", colour, 110.0, 1700.0,
+                               yaw, s_, mat)   # glowing decor, walk-through
             elif ch == "F":
                 fire = spawn(unreal.VaelFireSpot, unreal.Vector(x, y, 10.0), "Feuer", "Feuerquelle")
                 if "Glut" in SLIME_MATS:
@@ -1407,7 +1446,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
                     if erzmat():
                         ore.static_mesh_component.set_material(0, erzmat()[0])
                 if erzmat():
-                    point_light(x, y, 90.0, "Erz", "Erzglanz", STYLE["erzfarbe"], 25.0, 600.0)
+                    lichtbrecher(x, y, 90.0, "Erz", STYLE["erzfarbe"], 25.0, 600.0)
                 marker = spawn(unreal.TargetPoint, unreal.Vector(x, y, 50.0), "Erz", "Erzstelle (Platzhalter)")
                 marker.set_editor_property("tags", [unreal.Name("VaelErzstelle")])
             elif ch == "Z":
@@ -1733,6 +1772,12 @@ def main():
         ERZMATS[art] = [glow_mat("M_HK_Erz", a["erzfarbe"])] if a.get("erzfarbe") else []
     SPONGE[:] = [simple_material("M_HK_Rostschwamm", (0.26, 0.11, 0.04), 0.9)]
     EXTRA_SLOTS["Fels"] = rock
+    lampe = unreal.load_asset("/Game/Vael/Kreaturen/Eisenschlund/K_Laternentraeger_0/MI_K_Laternentraeger_0")
+    if lampe is None:
+        lampe = unreal.load_asset("/Game/Vael/Kreaturen/Eisenschlund/Laternentraeger/MI_Laternentraeger")
+    if lampe is not None:
+        EXTRA_SLOTS["KoboldLampe"] = lampe
+    EXTRA_SLOTS.setdefault("Kristall", glow_mat("M_HK_Kristall", (0.7, 0.85, 1.0)))
     for name in PROPS:
         # Bögen und Türstöcke: man geht darunter durch (mit der einfachen Hülle versperrte der Türstock den ganzen Stollen, Lauftest 22.11.)
         meshes[name] = import_piece(name, collision_complex=name.startswith(("SM_HK_Schaedelbogen", "SM_HK_Verbau", "SM_HK_Schaedelwand", "SM_HK_Knochensaeule")))

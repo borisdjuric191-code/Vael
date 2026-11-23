@@ -88,7 +88,8 @@ namespace
 		Data->DisplayName = Name;
 		Data->KindId = FName(*(FString(TEXT("Kobold_")) + AssetName));
 		Data->CompendiumId = Data->KindId;
-		Data->AssetName = AssetName;
+		// The rig of 2026-11-23 (clean hands, five looks); the kind keeps its old name
+		Data->AssetName = FString::Printf(TEXT("K_%s_0"), AssetName);
 		Data->MaxHealth = Health;
 		Data->CollisionRadius = FMath::Max(20.0f, 40.0f * Scale);
 		Data->CollisionHalfHeight = 92.0f * Scale;

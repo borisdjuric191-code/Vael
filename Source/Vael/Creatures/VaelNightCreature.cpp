@@ -701,6 +701,12 @@ bool AVaelNightCreature::StartAttack(AActor* Target, float Distance, bool bPrefe
 	return true;
 }
 
+FName AVaelNightCreature::GetCurrentAttackClip() const
+{
+	const UVaelNightCreatureData* Data = GetData<UVaelNightCreatureData>();
+	return State == EVaelNightState::Attack && Data != nullptr && Data->Attacks.IsValidIndex(AttackIndex) ? Data->Attacks[AttackIndex].Clip : NAME_None;
+}
+
 void AVaelNightCreature::LandAttack()
 {
 	const UVaelNightCreatureData* Data = GetData<UVaelNightCreatureData>();

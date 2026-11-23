@@ -31,6 +31,56 @@
 namespace
 {
 	const FLinearColor KoboldKristall(1.0f, 0.2f, 0.6f);
+
+	/**
+	 *  The ore a Sprengmeister charge is plugged with (Boris 2026-11-23: all eleven ore colours mixed, each its own blast):
+	 *  colour, element, how far it reaches and throws, and what it leaves on whoever is caught
+	 */
+	struct FVaelErzLadung
+	{
+		const TCHAR* Name;
+		FLinearColor Color;
+		EVaelElement Element;
+		float RadiusScale;
+		float Knockback;
+		EVaelStatus Status;
+		float StatusSeconds;
+	};
+
+	const FVaelErzLadung ErzLadungen[] = {
+		{ TEXT("Funkenerz"), FLinearColor(1.0f, 0.35f, 0.05f), EVaelElement::Fire, 1.0f, 300.0f, EVaelStatus::Burning, 3.0f },
+		{ TEXT("Rosteisen"), FLinearColor(1.0f, 0.45f, 0.12f), EVaelElement::Earth, 0.9f, 450.0f, EVaelStatus::None, 0.0f },
+		{ TEXT("Schwefelkies"), FLinearColor(1.0f, 0.85f, 0.3f), EVaelElement::Fire, 1.25f, 200.0f, EVaelStatus::Confused, 2.0f },
+		{ TEXT("Gruenspan"), FLinearColor(0.1f, 0.9f, 0.5f), EVaelElement::Earth, 1.1f, 250.0f, EVaelStatus::Slowed, 3.0f },
+		{ TEXT("Salzspat"), FLinearColor(1.0f, 0.55f, 0.65f), EVaelElement::Water, 1.2f, 200.0f, EVaelStatus::Wet, 4.0f },
+		{ TEXT("Drahtsilber"), FLinearColor(0.7f, 0.85f, 1.0f), EVaelElement::Air, 1.0f, 600.0f, EVaelStatus::None, 0.0f },
+		{ TEXT("Blutzinnober"), FLinearColor(1.0f, 0.12f, 0.25f), EVaelElement::Fire, 0.85f, 350.0f, EVaelStatus::Burning, 4.0f },
+		{ TEXT("Kobaltbluete"), FLinearColor(1.0f, 0.2f, 0.6f), EVaelElement::Air, 1.1f, 400.0f, EVaelStatus::None, 0.0f },
+		{ TEXT("Siechglas"), FLinearColor(0.75f, 1.0f, 0.2f), EVaelElement::Earth, 1.15f, 150.0f, EVaelStatus::Infested, 0.0f },
+		{ TEXT("Rippenspat"), FLinearColor(1.0f, 0.65f, 0.3f), EVaelElement::Earth, 0.8f, 500.0f, EVaelStatus::Slowed, 2.0f },
+		{ TEXT("Kernerz"), FLinearColor(0.3f, 1.0f, 0.95f), EVaelElement::Water, 1.3f, 300.0f, EVaelStatus::Frozen, 1.2f },
+	};
+
+	const FVaelErzLadung& PickErzLadung()
+	{
+		return ErzLadungen[FMath::RandHelper(UE_ARRAY_COUNT(ErzLadungen))];
+	}
+
+	/** The Kontoraeltester's puffs: not the thistle spider's grey pollen, but bright and a little silly (Boris 2026-11-23) */
+	void BuntePuffs(UWorld* World, const FVector& Location, float Radius, float Lifetime)
+	{
+		static const FLinearColor Bunt[] = { FLinearColor(1.0f, 0.3f, 0.75f), FLinearColor(0.25f, 0.95f, 0.9f), FLinearColor(1.0f, 0.85f, 0.2f),
+			FLinearColor(0.6f, 1.0f, 0.3f), FLinearColor(0.65f, 0.4f, 1.0f), FLinearColor(1.0f, 0.55f, 0.2f) };
+		const int32 Count = UE_ARRAY_COUNT(Bunt);
+		const int32 First = FMath::RandHelper(Count);
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			const FLinearColor& A = Bunt[(First + Index * 2) % Count];
+			const FLinearColor& B = Bunt[(First + Index * 2 + 1) % Count];
+			const FVector Offset(FMath::FRandRange(-0.4f, 0.4f) * Radius, FMath::FRandRange(-0.4f, 0.4f) * Radius, Index * 0.25f * Radius);
+			AVaelPollenBurst::Spawn(World, Location + Offset, Radius * (0.6f + 0.2f * Index), A, B, Lifetime * (0.8f + 0.2f * Index));
+		}
+	}
 	/** The pale blue-white of the cave crystal in the lantern */
 	const FLinearColor LanternColor(0.7f, 0.85f, 1.0f);
 	/** Brightness of the lantern (cd): it hangs right next to the body, more washes it white */
@@ -85,7 +135,8 @@ UVaelKoboldDiebData::UVaelKoboldDiebData()
 	DisplayName = LOCTEXT("Dieb", "Kobold-Dieb");
 	KindId = TEXT("Kobold_Dieb");
 	CompendiumId = KindId;
-	AssetName = TEXT("Schleimkratzer");
+	// The rig of 2026-11-23 (clean hands, gear, five looks: kobold_variante.py K_<Body>_<0..4>)
+	AssetName = TEXT("K_Schleimkratzer_0");
 	Rolle = EVaelKoboldRolle::Dieb;
 	MaxHealth = 45.0f;
 	MoveSpeed = 62.0f;
@@ -103,7 +154,8 @@ UVaelKoboldWaechterData::UVaelKoboldWaechterData()
 	DisplayName = LOCTEXT("Waechter", "Kobold-Hortwächter");
 	KindId = TEXT("Kobold_Waechter");
 	CompendiumId = KindId;
-	AssetName = TEXT("Hortwaechter");
+	// The rig of 2026-11-23 (clean hands, gear, five looks: kobold_variante.py K_<Body>_<0..4>)
+	AssetName = TEXT("K_Hortwaechter_0");
 	Rolle = EVaelKoboldRolle::Waechter;
 	MaxHealth = 170.0f;
 	MoveSpeed = 72.0f;
@@ -121,7 +173,8 @@ UVaelKoboldZaubererData::UVaelKoboldZaubererData()
 	DisplayName = LOCTEXT("Zauberer", "Kobold-Kontorältester");
 	KindId = TEXT("Kobold_Zauberer");
 	CompendiumId = KindId;
-	AssetName = TEXT("Kontoraeltester");
+	// The rig of 2026-11-23 (clean hands, gear, five looks: kobold_variante.py K_<Body>_<0..4>)
+	AssetName = TEXT("K_Kontoraeltester_0");
 	Rolle = EVaelKoboldRolle::Zauberer;
 	MaxHealth = 70.0f;
 	MoveSpeed = 60.0f;
@@ -141,7 +194,8 @@ UVaelKoboldTreiberData::UVaelKoboldTreiberData()
 	DisplayName = LOCTEXT("Treiber", "Kobold-Sklaventreiber");
 	KindId = TEXT("Kobold_Treiber");
 	CompendiumId = KindId;
-	AssetName = TEXT("Sklaventreiber");
+	// The rig of 2026-11-23 (clean hands, gear, five looks: kobold_variante.py K_<Body>_<0..4>)
+	AssetName = TEXT("K_Sklaventreiber_0");
 	Rolle = EVaelKoboldRolle::Treiber;
 	MaxHealth = 150.0f;
 	MoveSpeed = 95.0f;
@@ -163,7 +217,8 @@ UVaelKoboldSprengmeisterData::UVaelKoboldSprengmeisterData()
 	DisplayName = LOCTEXT("Sprengmeister", "Kobold-Sprengmeister");
 	KindId = TEXT("Kobold_Sprengmeister");
 	CompendiumId = KindId;
-	AssetName = TEXT("Sprengmeister");
+	// The rig of 2026-11-23 (clean hands, gear, five looks: kobold_variante.py K_<Body>_<0..4>)
+	AssetName = TEXT("K_Sprengmeister_0");
 	Rolle = EVaelKoboldRolle::Sprengmeister;
 	MaxHealth = 120.0f;
 	MoveSpeed = 70.0f;
@@ -185,7 +240,8 @@ UVaelKoboldLaternentraegerData::UVaelKoboldLaternentraegerData()
 	DisplayName = LOCTEXT("Laternentraeger", "Kobold-Laternenträger");
 	KindId = TEXT("Kobold_Laternentraeger");
 	CompendiumId = KindId;
-	AssetName = TEXT("Laternentraeger");
+	// The rig of 2026-11-23 (clean hands, gear, five looks: kobold_variante.py K_<Body>_<0..4>)
+	AssetName = TEXT("K_Laternentraeger_0");
 	Rolle = EVaelKoboldRolle::Laternentraeger;
 	MaxHealth = 55.0f;
 	MoveSpeed = 55.0f;
@@ -236,11 +292,13 @@ AVaelSprengfalle* AVaelSprengfalle::Lay(AActor* InOwner, const FVector& GroundLo
 	Trap->Fuse = Data->TrapFuse;
 	Trap->Lifetime = Data->TrapSeconds;
 	Trap->Damage = Data->TrapDamage;
-	// A small charge with a glowing crystal plug, in the colour of the Kobold crystals
+	// A small charge with a glowing crystal plug of one of the ores
+	Trap->Color = PickErzLadung().Color;
+	Trap->Glow->SetLightColor(Trap->Color);
 	Trap->Look = UVaelTropfseuche::MakeLumpLook(Trap, EVaelSeuchenStamm::Verwesung);
 	if (Trap->Look != nullptr)
 	{
-		Trap->Look->SetVectorParameterValue(TEXT("Farbe"), KoboldKristall);
+		Trap->Look->SetVectorParameterValue(TEXT("Farbe"), Trap->Color);
 		Trap->Look->SetScalarParameterValue(TEXT("Wabern"), 0.0f);
 		Trap->Charge->SetMaterial(0, Trap->Look);
 	}
@@ -257,7 +315,7 @@ void AVaelSprengfalle::Tick(float DeltaSeconds)
 	if (Age >= Lifetime && FuseLeft < 0.0f)
 	{
 		// The fuse cord rots: it fizzles out
-		AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation(), 50.0f, FLinearColor(0.3f, 0.28f, 0.3f), KoboldKristall, 0.8f);
+		AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation(), 50.0f, FLinearColor(0.3f, 0.28f, 0.3f), Color, 0.8f);
 		Destroy();
 		return;
 	}
@@ -279,8 +337,8 @@ void AVaelSprengfalle::Tick(float DeltaSeconds)
 			Hit.Damage = Damage;
 			Hit.Element = EVaelElement::Fire;
 			Hit.Knockback = 350.0f;
-			AVaelGroundStrike::SpawnStrike(Layer.IsValid() ? Layer.Get() : this, GetActorLocation(), Hit, Radius * 1.8f, 0.05f, KoboldKristall);
-			AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), Radius * 1.6f, FLinearColor(0.35f, 0.3f, 0.3f), KoboldKristall, 1.2f);
+			AVaelGroundStrike::SpawnStrike(Layer.IsValid() ? Layer.Get() : this, GetActorLocation(), Hit, Radius * 1.8f, 0.05f, Color);
+			AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation() + FVector(0.0f, 0.0f, 40.0f), Radius * 1.6f, FLinearColor(0.35f, 0.3f, 0.3f), Color, 1.2f);
 			UE_LOG(LogVael, Log, TEXT("A blast trap goes off at %s"), *GetActorLocation().ToCompactString());
 			Destroy();
 		}
@@ -423,7 +481,9 @@ void AVaelKobold::BeginPlay()
 		LanternLight->RegisterComponent();
 		LanternTime = FMath::FRandRange(0.0f, 10.0f);
 	}
-	UE_LOG(LogVael, Log, TEXT("'%s' is a living Kobold (%s)%s"), *GetName(), *GetCreatureName().ToString(), bIllusion ? TEXT(", a false copy") : TEXT(""));
+	TickWhip();
+	UE_LOG(LogVael, Log, TEXT("'%s' is a living Kobold (%s, %s)%s"), *GetName(), *GetCreatureName().ToString(), *GetData<UVaelKoboldData>()->AssetName,
+		bIllusion ? TEXT(", a false copy") : TEXT(""));
 }
 
 float AVaelKobold::GetOutgoingDamageMultiplier() const
@@ -435,6 +495,7 @@ void AVaelKobold::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 	TickLantern(DeltaSeconds);
+	TickWhip();
 	if (bIllusion && !IsDead())
 	{
 		IllusionLeft -= DeltaSeconds;
@@ -459,6 +520,30 @@ void AVaelKobold::TickLantern(float DeltaSeconds)
 	const float Flicker = 0.85f + 0.1f * FMath::Sin(LanternTime * 7.3f) + 0.05f * FMath::Sin(LanternTime * 23.0f);
 	LanternFlare = FMath::FInterpTo(LanternFlare, 0.0f, DeltaSeconds, 1.2f);
 	LanternLight->SetIntensity(LanternCandelas * LightShown * Flicker * (1.0f + LanternFlare));
+}
+
+void AVaelKobold::ShowSlot(FName Slot, bool bShown)
+{
+	const int32 Index = GetMesh()->GetMaterialIndex(Slot);
+	if (Index != INDEX_NONE)
+	{
+		if (UMaterialInstanceDynamic* Material = Cast<UMaterialInstanceDynamic>(GetMesh()->GetMaterial(Index)))
+		{
+			Material->SetScalarParameterValue(TEXT("Zeigen"), bShown ? 1.0f : 0.0f);
+		}
+	}
+}
+
+void AVaelKobold::TickWhip()
+{
+	// The Peitschen clip reaches to the hip first; at 0.15 s the hand has it (kobold_lebend_clips.py)
+	const bool bInHand = GetCurrentAttackClip() == TEXT("Peitschen") && GetAttackTime() >= 0.15f && !IsDead();
+	if (bInHand != bWhipInHand)
+	{
+		bWhipInHand = bInHand;
+		ShowSlot(TEXT("Peitsche_Hand"), bInHand);
+		ShowSlot(TEXT("Peitsche_Huefte"), !bInHand);
+	}
 }
 
 void AVaelKobold::TickBehavior(float DeltaSeconds)
@@ -612,14 +697,46 @@ void AVaelKobold::ThrowCharge()
 	{
 		return;
 	}
-	// A crystal charge: the mark on the ground gives the flight time to jump away
+	// A crystal charge plugged with one of the eleven ores: the mark on the ground gives the flight time to jump away, and its
+	// colour tells what it does
+	const FVaelErzLadung& Erz = PickErzLadung();
 	FVaelSpellHit Hit;
 	Hit.Damage = Data->ThrowDamage;
-	Hit.Element = EVaelElement::Fire;
-	Hit.Knockback = 300.0f;
-	AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Data->ThrowRadius, Data->ThrowFlight, KoboldKristall);
-	AVaelArcShot::Lob(GetWorld(), GetMesh()->GetSocketLocation(TEXT("hand_r")), Ground, Data->ThrowFlight, Data->ThrowApex, KoboldKristall, 14.0f);
-	UE_LOG(LogVael, Log, TEXT("'%s' throws a crystal charge"), *GetName());
+	Hit.Element = Erz.Element;
+	Hit.Knockback = Erz.Knockback;
+	const float Radius = Data->ThrowRadius * Erz.RadiusScale;
+	UWorld* World = GetWorld();
+	AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Radius, Data->ThrowFlight, Erz.Color);
+	AVaelArcShot::Lob(World, GetMesh()->GetSocketLocation(TEXT("hand_r")), Ground, Data->ThrowFlight, Data->ThrowApex, Erz.Color, 14.0f);
+	const FLinearColor Color = Erz.Color;
+	const EVaelStatus Status = Erz.Status;
+	const float StatusSeconds = Erz.StatusSeconds;
+	TWeakObjectPtr<AActor> Thrower(this);
+	FTimerHandle Blast;
+	World->GetTimerManager().SetTimer(Blast, FTimerDelegate::CreateWeakLambda(World, [World, Thrower, Ground, Radius, Color, Status, StatusSeconds]()
+	{
+		AVaelPollenBurst::Spawn(World, Ground + FVector(0.0f, 0.0f, 40.0f), Radius * 1.2f, Color, FLinearColor::White, 0.9f);
+		if (Status == EVaelStatus::None)
+		{
+			return;
+		}
+		for (TActorIterator<AVaelCharacter> It(World); It; ++It)
+		{
+			if (It->IsDowned() || FVector::Dist2D(It->GetActorLocation(), Ground) > Radius + It->GetSimpleCollisionRadius())
+			{
+				continue;
+			}
+			if (Status == EVaelStatus::Infested)
+			{
+				UVaelTropfseuche::Infest(Thrower.Get(), *It, UVaelTropfseuche::PickStrain(World, Ground));
+			}
+			else
+			{
+				UVaelCombatStatics::ApplyStatus(Thrower.Get(), *It, Status, StatusSeconds);
+			}
+		}
+	}), Data->ThrowFlight, false);
+	UE_LOG(LogVael, Log, TEXT("'%s' throws a crystal charge of %s"), *GetName(), Erz.Name);
 }
 
 void AVaelKobold::LayTrap()
@@ -724,7 +841,7 @@ void AVaelKobold::CastIllusions()
 					Copy->MakeIllusion(Seconds);
 				}
 			});
-		AVaelPollenBurst::Spawn(World, Ground + FVector(0.0f, 0.0f, 50.0f), 90.0f, FLinearColor(0.75f, 0.7f, 0.9f), KoboldKristall, 1.2f);
+		BuntePuffs(World, Ground + FVector(0.0f, 0.0f, 50.0f), 90.0f, 1.2f);
 	}
 	UE_LOG(LogVael, Log, TEXT("'%s' makes %d false copies of itself"), *GetName(), Data->IllusionCount);
 }
@@ -745,7 +862,14 @@ void AVaelKobold::CastSign()
 
 void AVaelKobold::Vanish()
 {
-	AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation(), 80.0f, FLinearColor(0.6f, 0.55f, 0.7f), KoboldKristall, 1.0f);
+	if (bIllusion || GetData<UVaelKoboldData>()->Rolle == EVaelKoboldRolle::Zauberer)
+	{
+		BuntePuffs(GetWorld(), GetActorLocation(), 80.0f, 1.0f);
+	}
+	else
+	{
+		AVaelPollenBurst::Spawn(GetWorld(), GetActorLocation(), 80.0f, FLinearColor(0.6f, 0.55f, 0.7f), KoboldKristall, 1.0f);
+	}
 	Destroy();
 }
 
@@ -766,32 +890,42 @@ void AVaelKobold::Die()
 
 UVaelNightCreatureData* UVaelKobolde::MaybeVariant(UVaelNightCreatureData* Base, float Chance)
 {
-	if (Base == nullptr || FMath::FRand() >= Chance)
+	if (Base == nullptr || !Base->AssetName.StartsWith(TEXT("K_")) || !Base->AssetName.EndsWith(TEXT("_0")))
 	{
 		return Base;
 	}
-	static TMap<TWeakObjectPtr<UVaelNightCreatureData>, TObjectPtr<UVaelNightCreatureData>> Variants;
-	if (const TObjectPtr<UVaelNightCreatureData>* Found = Variants.Find(Base))
+	// The looks K_<Body>_1 .. _4 that were built and imported (Tools/Nachtwesen/kobold_variante.py), found once per body
+	static TMap<TWeakObjectPtr<UVaelNightCreatureData>, TArray<TObjectPtr<UVaelNightCreatureData>>> Looks;
+	TArray<TObjectPtr<UVaelNightCreatureData>>* Found = Looks.Find(Base);
+	if (Found == nullptr)
 	{
-		return *Found != nullptr ? Found->Get() : Base;
+		Found = &Looks.Add(Base);
+		const FString Stem = Base->AssetName.LeftChop(1);
+		for (int32 Index = 1; Index <= 4; ++Index)
+		{
+			const FString Name = Stem + FString::FromInt(Index);
+			const FString Package = FString::Printf(TEXT("/Game/Vael/Kreaturen/%s/%s/SK_%s"), *Base->AssetRegion, *Name, *Name);
+			if (FPackageName::DoesPackageExist(Package))
+			{
+				UVaelNightCreatureData* Look = NewObject<UVaelNightCreatureData>(GetTransientPackage(), Base->GetClass());
+				Look->AssetName = Name;
+				Look->AddToRoot();
+				Found->Add(Look);
+			}
+		}
+		UE_LOG(LogVael, Log, TEXT("Kobold %s: %d further looks"), *Base->AssetName, Found->Num());
 	}
-	UVaelNightCreatureData* Variant = nullptr;
-	const FString Name = Base->AssetName + TEXT("_B");
-	const FString Package = FString::Printf(TEXT("/Game/Vael/Kreaturen/%s/%s/SK_%s"), *Base->AssetRegion, *Name, *Name);
-	if (FPackageName::DoesPackageExist(Package))
+	if (Found->IsEmpty() || FMath::FRand() >= Chance)
 	{
-		Variant = NewObject<UVaelNightCreatureData>(GetTransientPackage(), Base->GetClass());
-		Variant->AssetName = Name;
-		Variant->AddToRoot();
-		UE_LOG(LogVael, Log, TEXT("Kobold variant %s"), *Name);
+		return Base;
 	}
-	Variants.Add(Base, Variant);
-	return Variant != nullptr ? Variant : Base;
+	return (*Found)[FMath::RandHelper(Found->Num())].Get();
 }
 
 UVaelKoboldData* UVaelKobolde::GetData(EVaelKoboldRolle Rolle)
 {
-	return Cast<UVaelKoboldData>(MaybeVariant(GetBaseData(Rolle)));
+	// Four of five look different from the plain body
+	return Cast<UVaelKoboldData>(MaybeVariant(GetBaseData(Rolle), 0.8f));
 }
 
 UVaelKoboldData* UVaelKobolde::GetBaseData(EVaelKoboldRolle Rolle)

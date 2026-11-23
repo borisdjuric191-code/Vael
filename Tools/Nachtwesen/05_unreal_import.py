@@ -26,6 +26,52 @@ REGION = {"Schleimgaenger": "Eisenschlund", "Schleimkratzer": "Eisenschlund", "H
           "Sklaventreiber_B": "Eisenschlund", "Sprengmeister_B": "Eisenschlund"}
 
 
+def region(name):
+    # The Kobold rigs of 2026-11-23 (K_<Body>_<n>) are all from the Eisenschlund
+    return "Eisenschlund" if name.startswith("K_") else REGION.get(name, "Wurzelforst")
+
+
+AUSRUESTUNG = "/Game/Vael/Kreaturen/Eisenschlund/M_Kobold_Ausruestung"
+# Material slots of the Kobold gear (kobold_ausruestung.py); everything else is the body
+AUSRUESTUNG_SLOTS = ("Ausruestung", "Peitsche_Huefte", "Peitsche_Hand")
+
+
+def ausruestung_material():
+    """M_Kobold_Ausruestung: colour from the vertex colours, glow from their alpha, Zeigen (0/1) hides a part (the whip
+    at the hip or in the hand). New asset, created once."""
+    if eal.does_asset_exist(AUSRUESTUNG):
+        return eal.load_asset(AUSRUESTUNG)
+    mel = unreal.MaterialEditingLibrary
+    ordner, name = AUSRUESTUNG.rsplit("/", 1)
+    mat = unreal.AssetToolsHelpers.get_asset_tools().create_asset(name, ordner, unreal.Material, unreal.MaterialFactoryNew())
+    mat.set_editor_property("blend_mode", unreal.BlendMode.BLEND_MASKED)
+    mat.set_editor_property("two_sided", True)
+    vc = mel.create_material_expression(mat, unreal.MaterialExpressionVertexColor, -700, 0)
+    glut = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -700, 250)
+    glut.set_editor_property("parameter_name", "Glut")
+    glut.set_editor_property("default_value", 6.0)
+    zeigen = mel.create_material_expression(mat, unreal.MaterialExpressionScalarParameter, -400, 450)
+    zeigen.set_editor_property("parameter_name", "Zeigen")
+    zeigen.set_editor_property("default_value", 1.0)
+    mal = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -450, 150)
+    mel.connect_material_expressions(vc, "A", mal, "A")
+    mel.connect_material_expressions(glut, "", mal, "B")
+    leucht = mel.create_material_expression(mat, unreal.MaterialExpressionMultiply, -250, 100)
+    mel.connect_material_expressions(vc, "", leucht, "A")
+    mel.connect_material_expressions(mal, "", leucht, "B")
+    rau = mel.create_material_expression(mat, unreal.MaterialExpressionConstant, -250, 300)
+    rau.set_editor_property("r", 0.55)
+    mel.connect_material_property(vc, "", unreal.MaterialProperty.MP_BASE_COLOR)
+    mel.connect_material_property(leucht, "", unreal.MaterialProperty.MP_EMISSIVE_COLOR)
+    mel.connect_material_property(rau, "", unreal.MaterialProperty.MP_ROUGHNESS)
+    mel.connect_material_property(zeigen, "", unreal.MaterialProperty.MP_OPACITY_MASK)
+    mel.set_material_usage(mat, unreal.MaterialUsage.MATUSAGE_SKELETAL_MESH)
+    mel.recompile_material(mat)
+    eal.save_asset(AUSRUESTUNG)
+    log("M_Kobold_Ausruestung angelegt")
+    return mat
+
+
 def log(text):
     unreal.log_warning("[Nachtwesen] " + text)
 
@@ -69,7 +115,9 @@ def modell(name, ziel, export):
     ui.set_editor_property("import_animations", True)
     ui.set_editor_property("create_physics_asset", True)
     ui.skeletal_mesh_import_data.set_editor_property("import_morph_targets", False)
-    ui.skeletal_mesh_import_data.set_editor_property("vertex_color_import_option", unreal.VertexColorImportOption.IGNORE)
+    # The Kobold gear carries its colours as vertex colours
+    ui.skeletal_mesh_import_data.set_editor_property(
+        "vertex_color_import_option", unreal.VertexColorImportOption.REPLACE if name.startswith("K_") else unreal.VertexColorImportOption.IGNORE)
     ui.skeletal_mesh_import_data.set_editor_property("convert_scene", True)
     task = unreal.AssetImportTask()
     task.set_editor_property("filename", os.path.join(export, "SK_%s.fbx" % name))
@@ -121,8 +169,13 @@ def material(name, ziel):
                 unreal.MaterialEditingLibrary.set_material_instance_texture_parameter_value(mi, param, tex)
         eal.save_asset(mi_pfad)
         mats = list(skm.get_editor_property("materials"))
+        geraet = ausruestung_material() if name.startswith("K_") else None
         for slot in mats:
-            slot.set_editor_property("material_interface", mi)
+            slot_name = str(slot.get_editor_property("material_slot_name"))
+            if geraet is not None and slot_name in AUSRUESTUNG_SLOTS:
+                slot.set_editor_property("material_interface", geraet)
+            else:
+                slot.set_editor_property("material_interface", mi)
         skm.modify()
         skm.set_editor_property("materials", mats)
         eal.save_asset(skm.get_path_name(), only_if_is_dirty=False)
@@ -134,7 +187,7 @@ def material(name, ziel):
 
 def main():
     for name in sys.argv[1:]:
-        ziel = "/Game/Vael/Kreaturen/%s/%s" % (REGION.get(name, "Wurzelforst"), name)
+        ziel = "/Game/Vael/Kreaturen/%s/%s" % (region(name), name)
         export = os.path.join(QUELLEN, name, "export")
         if eal.does_asset_exist("%s/SK_%s" % (ziel, name)):
             log("%s ist schon da - nichts importiert (fuer neue Animationen zuerst die Assets im Editor loeschen)" % name)

@@ -375,6 +375,64 @@ ENTRIES += [
 ]
 
 
+
+def beast(asset, subject_id, sort_order, name, region, glimpse, behaviour, weakness, uses, marked_form, albrun_note, observe=6.0):
+    """An entry of the Bestiarium"""
+    return {
+        "asset": asset, "subject_id": subject_id, "book": Book.BESTIARY, "sort_order": sort_order,
+        "display_name": unreal.Text(name), "region": unreal.Text(region),
+        "glimpse": unreal.Text(glimpse), "behaviour": unreal.Text(behaviour), "weakness": unreal.Text(weakness),
+        "uses": unreal.Text(uses), "marked_form": unreal.Text(marked_form), "albrun_note": unreal.Text(albrun_note),
+        "observe_seconds": observe, "study_count": 3,
+    }
+
+
+# The living Kobolde of the Eisenschlund (Docs/Kobolde_Kompendium_Entwurf.md, approved by Boris 2026-11-23); subject = KindId
+ENTRIES += [
+    beast("DA_Compendium_Kobold_Dieb", "Kobold_Dieb", 400, "Kobold-Dieb (Schleimkratzer)", "Eisenschlund, Kobold-Stollen und Ameisenbau",
+          "Ein dürrer, gebückter Kobold mit riesigen Ohren und einem Grinsen, das ein bisschen zu breit ist. Seine Finger sind ständig in Bewegung.",
+          "Er huscht heran, greift in die Taschen und rennt. Wer ihn nicht schnell genug erwischt, sieht seine Beute nie wieder.",
+          "Luft wirft ihn um. Fällt er, bevor er im Stollen verschwindet, lässt er alles fallen, was er genommen hat.",
+          "Was er gestohlen hat, und das ist selten nur das eigene.",
+          "Gezeichnete Diebe stehlen nicht mehr, sie behalten. Ihre Taschen sind voll von Dingen, die niemandem gehört haben.",
+          "Er hat mir die Feder aus der Hand genommen, während ich ihn beschrieben habe. Dieser Eintrag ist mit Kohle geschrieben."),
+    beast("DA_Compendium_Kobold_Waechter", "Kobold_Waechter", 410, "Kobold-Hortwächter", "Eisenschlund, Kobold-Stollen und der Weg zum Hort",
+          "Breit wie eine Tür, Eisenplatten über dem Leder, zwei abgebrochene Hornstummel und Kristallsplitter als Trophäen auf der Schulter. In der Faust ein Kolben, dessen Kopf aus Kobaltblüte gewachsen ist.",
+          "Er weicht nicht. Er schlägt schwer und langsam und kommt nicht aus dem Gleichgewicht.",
+          "Er ist langsam. Wer ihn umgeht, statt ihn zu schlagen, kommt an ihm vorbei. Gegen Luft hält er sich besser als die anderen Kobolde, aber nicht gut.",
+          "Eisenplatten, Kobaltblüte aus dem Hort.",
+          "Gezeichnete Wächter bewachen nichts mehr. Sie stehen einfach da, und das ist schlimmer.",
+          "Ich habe ihn gefragt, was er bewacht. Er hat gesagt: „Dich nicht.“ Ich habe das als Einladung verstanden. Es war keine."),
+    beast("DA_Compendium_Kobold_Zauberer", "Kobold_Zauberer", 420, "Kobold-Kontorältester", "Eisenschlund, Kobold-Stollen",
+          "Ein alter Kobold in schwerer Robe, am Kragen Steine aus allen Erzen des Schlunds, mit einem Lächeln wie ein unterschriebener Vertrag.",
+          "Er bleibt zurück und lässt kämpfen. Er macht falsche Abbilder von sich, die beim ersten Treffer zerfallen, in bunten Wölkchen, und legt leuchtende Zeichen auf den Boden. Wer darauf tritt, verliert die Richtung.",
+          "Wind bläst seine Trugbilder fort. Das echte Abbild wirft einen Schatten, die falschen nicht.",
+          "Kristallschmuck, gelegentlich ein Vertrag, den man besser nicht unterschreibt.",
+          "Gezeichnete Älteste machen keine Abbilder mehr von sich, sondern von dir.",
+          "Ich habe drei von ihm getroffen. Einer war echt. Ich weiß bis heute nicht, welcher mir die Hand geschüttelt hat."),
+    beast("DA_Compendium_Kobold_Treiber", "Kobold_Treiber", 430, "Kobold-Sklaventreiber (Ameisenhüter)", "Eisenschlund, vor allem im Ameisenbau",
+          "Groß für einen Kobold, so groß wie ein Mensch, sehnig, mit Haarknoten. An der Hüfte hängt eine aufgerollte Peitsche aus Erzdraht, quer über der Brust ein Gurt mit grün leuchtenden Phiolen.",
+          "Er greift zur Hüfte und schlägt mit der Peitsche aus einer Entfernung, aus der man ihn nicht erreicht. Er wirft Phiolen voller Tropfseuche. Wer im Spritzer steht, ist befallen.",
+          "Aus der Nähe hat er wenig entgegenzusetzen. Wasser oder ein Trank löst den Befall.",
+          "Phiolen mit Tropfseuche (vorsichtig tragen), Erzdraht.",
+          "Gezeichnete Treiber brauchen keine Phiolen mehr. Die Seuche tropft ihnen von selbst aus den Fingern.",
+          "Die Ameisen gehorchen ihm nicht, weil sie ihn fürchten. Sie gehorchen, weil der Schleim es ihnen sagt. Das finde ich schlimmer."),
+    beast("DA_Compendium_Kobold_Sprengmeister", "Kobold_Sprengmeister", 440, "Kobold-Sprengmeister (Fallensteller)", "Eisenschlund, Kobold-Stollen und alte Gildenstollen",
+          "Gedrungen, angesengt, eine Schutzbrille auf der Stirn und zwei Gurte voller Ladungen. Jede hat einen Stopfen aus einem anderen Erz, bunt wie ein Krämerladen. Seine Finger sind vom Erzpulver verfärbt.",
+          "Er hält Abstand und wirft Kristallladungen. Wo sie landen werden, leuchtet der Boden auf, in der Farbe des Erzes, und jedes Erz knallt anders: Funkenerz brennt, Salzspat durchnässt, Kernerz lässt erstarren, Siechglas steckt mit der Seuche an. Zwischen sich und seine Verfolger spannt er Stolperdrähte mit Sprengsätzen.",
+          "Er braucht einen Moment für jede Ladung. Wer den Draht sieht, springt darüber. Feuer in seiner Nähe ist für ihn gefährlicher als für dich.",
+          "Funkenerz, Kristallpulver, nicht gezündete Ladungen.",
+          "Gezeichnete Sprengmeister warten nicht mehr, bis man auf den Draht tritt.",
+          "Er hat gelacht, als es knallte. Ich habe auch gelacht, später, als ich wieder hören konnte."),
+    beast("DA_Compendium_Kobold_Laternentraeger", "Kobold_Laternentraeger", 450, "Kobold-Laternenträger", "Eisenschlund, Kobold-Stollen und dunkle Gänge",
+          "Klein und bucklig, mit großen, blassen Augen. Über seinem Kopf biegt sich eine Stange wie bei einem Anglerfisch, daran hängt eine Laterne mit kaltem, blauem Kristall. Dieselben Laternen hängen in den Stollen der Kobolde.",
+          "Er bleibt weit weg im Dunkeln, wo man nur sein Licht sieht, und zwischen den Stollenlaternen weiß man nie, welches Licht seins ist. Sein Licht lockt und verwirrt. Wird er getroffen, löscht er die Laterne und ist fort.",
+          "Ohne sein Licht ist er nur ein kleiner, schwacher Kobold. Wer ihn im Dunkeln findet, hat leichtes Spiel.",
+          "Der Kristall aus der Laterne leuchtet noch tagelang.",
+          "Gezeichnete Laternenträger tragen kein Licht mehr. Man sieht nur noch, wo es fehlt.",
+          "Ich bin einem Licht gefolgt, weil ich dachte, es sei der Ausgang. Es war der Ausgang. Nur nicht meiner."),
+]
+
 def comparable(value):
     """Brings Unreal values into a form that can be compared with =="""
     if isinstance(value, unreal.Text):

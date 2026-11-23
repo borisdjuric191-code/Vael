@@ -139,17 +139,32 @@ def werfen(t):
     return p
 
 
+PEITSCHE = 10      # bones of the lash on the K_Sklaventreiber (kobold_ausruestung.py)
+
+
 def peitschen(t):
-    """A whip lash: the right arm high over the shoulder, then cracked forward and down (hit at 0.5 s)"""
+    """A whip lash: the right hand reaches to the hip for the whip (the game swaps it into the hand at 0.15 s), goes
+    high over the shoulder, then cracks it forward and down (hit at 0.5 s); the lash follows the hand with a lag, rolls
+    out and snaps at the tip"""
     p = Pose()
-    aus = huegel(t, 0.0, 0.3, 0.38, 0.45)
+    greif = huegel(t, 0.0, 0.08, 0.12, 0.2)
+    aus = huegel(t, 0.12, 0.3, 0.38, 0.45)
     hieb = huegel(t, 0.4, 0.5, 0.6, 0.95)
     aufrecht(p, t, 1.0, buckel=0.3 + 0.6 * hieb, staerke=0.3)
-    p.dazu("spine_03", wende=-20.0 * aus + 20.0 * hieb, beuge=-10.0 * aus + 20.0 * hieb)
+    p.dazu("spine_03", wende=-20.0 * aus + 20.0 * hieb - 8.0 * greif, beuge=-10.0 * aus + 20.0 * hieb)
     p.dazu("head", beuge=8.0 * hieb)
     p.schieben("pelvis", x=0.08 * hieb)
-    hand = {"r": Vector((-0.15 * aus + 0.6 * hieb, -0.1 * aus + 0.05 * hieb, 1.0 * aus + 0.25 * hieb)),
+    hand = {"r": Vector((-0.15 * aus + 0.6 * hieb - 0.12 * greif, -0.1 * aus + 0.05 * hieb - 0.06 * greif, 1.0 * aus + 0.25 * hieb - 0.12 * greif)),
             "l": Vector((0.12, 0.02, 0.15))}
+    # The lash: each link follows the one before a little later; behind and up while the arm goes up, then thrown
+    # forward, the tip overtaking at the crack
+    for i in range(PEITSCHE):
+        spaet = 0.035 * i
+        zurueck = huegel(t - spaet, 0.12, 0.3, 0.4, 0.5)
+        vor = huegel(t - spaet, 0.4, 0.5, 0.62, 1.0)
+        knall = math.sin(2 * math.pi * (t - 0.5 - spaet) * 3.0) * huegel(t - spaet, 0.45, 0.52, 0.6, 0.8)
+        p.dazu("peitsche_%d" % (i + 1), beuge=(14.0 * zurueck - 9.0 * vor + 6.0 * knall) * (0.6 + 0.08 * i),
+               seite=3.0 * math.sin(2 * math.pi * (t * 1.3 + 0.1 * i)))
     fuss = {"l": Vector((0.15, 0.0, 0.0)), "r": Vector((-0.08, 0.0, 0.0))}
     sg.glieder(p, 0.0, hand=hand, fuss=fuss, buckel=0.3)
     return p
@@ -200,6 +215,7 @@ AKTIONEN = {
 def main():
     name = sys.argv[sys.argv.index("--") + 1]
     obj, arm = gemein.oeffnen(name, "03_animationen.blend")
+    # kc.ziele_setzen sets HAND_FOLGT and GRIFF for K_ rigs
     k = kc.hochskalieren(obj, arm)
     kc.ziele_setzen(arm, name)
     for aktion, (dauer, pose, schleife) in AKTIONEN.items():

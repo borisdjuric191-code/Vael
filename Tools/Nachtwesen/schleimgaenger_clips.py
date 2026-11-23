@@ -40,6 +40,10 @@ FUSS_LIEGEN = {"l": Vector((0.8, 0.26, 0.08)), "r": Vector((0.78, -0.22, 0.08))}
 HAND_STEHEN = {"l": Vector((0.06, 0.25, 0.95)), "r": Vector((0.06, -0.25, 0.95))}
 HAND_LIEGEN = {"l": Vector((-0.4, 0.6, 0.06)), "r": Vector((-0.3, -0.62, 0.06))}
 NULL = Vector((0.0, 0.0, 0.0))
+# Hands turn with the forearm (2026-11-23, Kobold rigs K_*); the old Schleimgaenger skeleton was baked without it
+HAND_FOLGT = False
+# Fingers closed round a haft per side (K_ rigs with gear in the hand): angles for the middle_01_ bone
+GRIFF = {}
 
 def _drehen(pb, drehung, um):
     """Turns a pose bone (armature space) by a rotation about a point"""
@@ -76,7 +80,13 @@ def pose_setzen_mannequin(arm, p):
         _drehen(pu, (c2 - b2).rotation_difference((a + richt * dist) - b2), b2)
         lage.update()
         rest = arm.data.bones[ende].matrix_local.to_3x3()
-        m = (bau._welt(ende_winkel) @ rest).to_4x4()
+        if ende.startswith("hand_") and HAND_FOLGT:
+            # A hand turns with its forearm (it used to keep its rest turn in the world, so a raised arm ended in a
+            # hand bent back at the wrist); ende_winkel is a small extra turn on top
+            unterarm = pu.matrix.to_3x3() @ arm.data.bones[unten].matrix_local.to_3x3().inverted()
+            m = (bau._welt(ende_winkel) @ unterarm @ rest).to_4x4()
+        else:
+            m = (bau._welt(ende_winkel) @ rest).to_4x4()
         m.translation = pe.head
         pe.matrix = m
     lage.update()
@@ -122,6 +132,8 @@ def glieder(p, liegen, hand=None, fuss=None, buckel=1.0):
                   "hand_" + n, (0.0, 0.0, 0.0))
         p.greifen("thigh_" + n, "calf_" + n, f, mischen(Vector((1.0, 0.1 * s, 0.0)), Vector((0.2, 0.25 * s, 1.0)), liegen),
                   "foot_" + n, (-80.0 * liegen, 0.0, 0.0))
+        if n in GRIFF:
+            p.dazu("middle_01_" + n, **GRIFF[n])
 
 
 def atem(p, t, schleife, staerke=1.0, saat=0.0):

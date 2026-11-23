@@ -1,6 +1,6 @@
 # Kobolde im Kompendium – Entwurf zum Abnehmen
 
-Stand 22.11.2026, nachts geschrieben. **Am 23.11.2026 von Boris freigegeben**, mit den Ergänzungen unten (Abschnitt „Freigabe und Änderungen 23.11.“). Die Texte sind noch **nicht im Spiel**. Nach dem Bau kommen sie als `nature(...)`-Einträge in `Scripts/CreateCompendiumAssets.py`, im Ton der übrigen Einträge, mit Albruns Notiz am Ende.
+Stand 22.11.2026, nachts geschrieben. **Am 23.11.2026 von Boris freigegeben**, mit den Ergänzungen unten (Abschnitt „Freigabe und Änderungen 23.11.“). **Seit 23.11. im Spiel:** als `beast(...)`-Einträge in `Scripts/CreateCompendiumAssets.py` (Bestiarium, Sortierung 400–450), Blick und Verhalten um Kolben, Peitsche, Erzladungen, bunte Wölkchen und Stollenlaternen ergänzt.
 
 Für jede Rolle gibt es diese Felder:
 - Blick

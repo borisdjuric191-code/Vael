@@ -108,6 +108,28 @@ def plan_bauen(g, P):
     return plan
 
 
+def hand_teilen(plan):
+    """K_ rigs (2026-11-23): the hand is split into the palm (hand_) and the fingers (middle_01_), so the fingers can close
+    round a haft or curl when beckoning; the clips' index/ring/pinky keys are left out on these bodies"""
+    for seite in ("l", "r"):
+        h = plan["hand_" + seite]
+        mitte = h["k"].lerp(h["e"], 0.45)
+        plan["middle_01_" + seite] = K(mitte, h["e"], "hand_" + seite, maske=h["maske"], radius=0.9)
+        plan["hand_" + seite] = K(h["k"], mitte, h["eltern"], maske=h["maske"], radius=1.1)
+
+
+def ausruestung_binden(obj, plan, namen, w):
+    """Gear points (kobold_ausruestung.py) follow exactly the bones they were bound to"""
+    import json
+    bindung = json.loads(obj.get("bindung", "[]"))
+    for i, knochen in bindung:
+        w[i, :] = 0.0
+        for kn, x in knochen:
+            if kn in namen:
+                w[i, namen.index(kn)] += x
+    return len(bindung)
+
+
 def main():
     name = sys.argv[sys.argv.index("--") + 1]
     if name not in GELENKE:
@@ -116,8 +138,15 @@ def main():
         GELENKE[name] = kobold_variante.gelenke(name, GELENKE)
     obj, _ = gemein.oeffnen(name, "01_vorbereitet.blend")
     plan = plan_bauen(GELENKE[name], gemein.punkte(obj))
+    if name.startswith("K_"):
+        import json
+        hand_teilen(plan)
+        for kn, k, e, eltern in json.loads(obj.get("extra_knochen", "[]")):
+            plan[kn] = K(k, e, eltern, maske=lambda P: np.zeros(len(P), dtype=bool))
     arm = bau.skelett_bauen(name, plan)
     namen, w = bau.gewichte_rechnen(obj, plan, schaerfe=0.25, glatt=4)
+    if name.startswith("K_"):
+        gemein.log(name, "Ausruestung gebunden: %d Punkte" % ausruestung_binden(obj, plan, namen, w))
     bau.gewichte_schreiben(obj, arm, namen, w)
     bau.knochen_json(name, plan)
     gemein.speichern(name, "02_skelett.blend")

@@ -209,6 +209,8 @@ private:
 	TObjectPtr<UMaterialInstanceDynamic> Look;
 
 	TWeakObjectPtr<AActor> Layer;
+	/** Colour of its ore plug */
+	FLinearColor Color = FLinearColor(1.0f, 0.2f, 0.6f);
 	float Radius = 110.0f;
 	float ArmSeconds = 1.2f;
 	float Fuse = 0.7f;
@@ -301,6 +303,11 @@ private:
 	void LayTrap();
 	void Lure();
 	void TickLantern(float DeltaSeconds);
+
+	/** Sklaventreiber: the whip hangs coiled at the hip and is in the hand only while it lashes (two material slots of its rig) */
+	void TickWhip();
+	void ShowSlot(FName Slot, bool bShown);
+	bool bWhipInHand = true;
 
 	TArray<FVaelStolenGoods> Stolen;
 	bool bFleeing = false;
