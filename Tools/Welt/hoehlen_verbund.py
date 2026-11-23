@@ -186,6 +186,24 @@ def bauen(saat, letzter):
                     gesetzt.append((r, c))
                     anzahl -= 1
 
+    # Rock islands in the deep lake of the Olmgrotte: the middle was nothing but water and fog (walk test pictures 23.11.).
+    # Own random generator, so every other cell of the network stays where it was
+    irng = random.Random(saat * 31 + 7)
+    tief = [(r, c) for r in range(2, hoehe - 2) for c in range(2, breite - 2) if reg[r][c] == "o" and g[r][c] == "O"
+            and all(g[r + dr][c + dc] == "O" for dr in (-1, 0, 1) for dc in (-1, 0, 1))]
+    irng.shuffle(tief)
+    inseln = []
+    for r, c in tief:
+        if len(inseln) >= 6:
+            break
+        if all(abs(r - a) + abs(c - b) >= 3 for a, b in inseln):
+            inseln.append((r, c))
+            g[r][c] = "#"
+            dr, dc = irng.choice(((0, 1), (1, 0), (0, -1), (-1, 0)))
+            if irng.random() < 0.6 and g[r + dr][c + dc] == "O" and all(
+                    g[r + dr + a][c + dc + b] in "O#" for a in (-1, 0, 1) for b in (-1, 0, 1)):
+                g[r + dr][c + dc] = "#"     # some islands two cells long
+
     if not erreichbar(g, reg, hoehe, breite) and not letzter:
         return False
     daten = {
