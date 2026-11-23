@@ -135,6 +135,49 @@ for actor in editor.get_all_level_actors():
     tilt = math.degrees(math.atan2(math.hypot(up.x, up.y), up.z))
     unreal.log_warning("[Formen] {} at {:.0f} {:.0f} m: z {:.0f} -> {:.0f} cm, tilt {:.1f} deg".format(label, loc.x / 100, loc.y / 100, loc.z, new_z, tilt))
 
+
+# more blockout shapes that have a real piece already: label prefix, folder part, mesh, random turn (deg), sink (share of the height)
+# - Funkenerz: the glowing ore cubes become the Funkenerz ore pieces from the caves
+# - Nackenwirbel: the "big round bone rocks" (flat cylinders) become real giant vertebrae
+SWAPS = [("Funkenerz", "Orte/Funkenerz", ["/Game/Vael/Maps/Hoehlen/Erze/SM_HK_ErzWand_Funkenerz_A", "/Game/Vael/Maps/Hoehlen/Erze/SM_HK_ErzWand_Funkenerz_B",
+                                          "/Game/Vael/Maps/Hoehlen/Erze/SM_HK_ErzWand_Funkenerz_C"], 360.0, 0.15),
+         ("Wirbel", "Orte/Nackenwirbel", ["/Game/Vael/Requisiten/Knochen/SM_Knochen_Wirbel"], 360.0, 0.2)]
+DONE = unreal.Name("VaelFormGetauscht")
+for actor in editor.get_all_level_actors():
+    if not isinstance(actor, unreal.StaticMeshActor) or DONE in actor.tags:
+        continue
+    label, folder = actor.get_actor_label(), str(actor.get_folder_path())
+    swap = next((s for s in SWAPS if label.startswith(s[0]) and s[1] in folder), None)
+    if swap is None:
+        continue
+    _, _, paths, turn, sink = swap
+    mesh = unreal.load_asset(paths[sum(map(ord, label)) % len(paths)])
+    if mesh is None:
+        unreal.log_warning("[Formen] mesh missing for " + label)
+        continue
+    loc, scale = actor.get_actor_location(), actor.get_actor_scale3d()
+    foot = (scale.x + scale.y) * 25.0                      # half footprint of the old shape in cm (100 cm piece, scale in m)
+    bounds = mesh.get_bounds()
+    ext, origin = bounds.box_extent, bounds.origin
+    s = foot / max(ext.x, ext.y, 1.0)
+    actor.modify()
+    component = actor.static_mesh_component
+    component.modify()
+    component.set_static_mesh(mesh)
+    component.set_editor_property("override_materials", [])
+    actor.set_actor_scale3d(unreal.Vector(s, s, s))
+    yaw = (sum(map(ord, label)) * 47.0) % turn
+    actor.set_actor_rotation(unreal.Rotator(0.0, 0.0, yaw), False)
+    hit = unreal.SystemLibrary.line_trace_single(world, unreal.Vector(loc.x, loc.y, loc.z + 5000.0), unreal.Vector(loc.x, loc.y, loc.z - 5000.0),
+                                                 unreal.TraceTypeQuery.TRACE_TYPE_QUERY1, False, [actor], unreal.DrawDebugTrace.NONE, True)
+    ground = hit.to_tuple()[4].z if hit is not None else loc.z
+    height = ext.z * 2 * s
+    z = ground - (origin.z - ext.z) * s - sink * height     # the bottom of the piece a little into the ground
+    actor.set_actor_location(unreal.Vector(loc.x, loc.y, z), False, False)
+    actor.set_editor_property("tags", list(actor.tags) + [DONE])
+    n[swap[0]] = n.get(swap[0], 0) + 1
+    unreal.log_warning("[Formen] {} at {:.0f} {:.0f} m -> {} x{:.2f} ({:.1f} m high)".format(label, loc.x / 100, loc.y / 100, mesh.get_name(), s, height / 100))
+
 unreal.EditorLoadingAndSavingUtils.save_map(world, WORLD)
 unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)
 unreal.log_warning("[Formen] getauscht: {}".format(n))
