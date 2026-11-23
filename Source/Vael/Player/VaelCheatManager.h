@@ -293,6 +293,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelKillAll();
 
+	/** Opens the nearest closed chest within 6 m of the player (walk tests: proves the hoard can be looted) */
+	UFUNCTION(Exec)
+	void VaelKisteOeffnen();
+
 	/** Studies the samples of the group as if at the camp: every entry with enough samples becomes researched */
 	UFUNCTION(Exec)
 	void VaelStudy();

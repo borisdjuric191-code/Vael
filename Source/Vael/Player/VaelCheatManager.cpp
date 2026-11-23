@@ -96,6 +96,7 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Creatures/VaelSchleimgaenger.h"
 #include "Creatures/VaelKobold.h"
+#include "Items/VaelChest.h"
 
 namespace
 {
@@ -513,6 +514,37 @@ void UVaelCheatManager::VaelKillAll()
 	}
 
 	UE_LOG(LogVael, Log, TEXT("VaelKillAll: %d creatures killed"), NumKilled);
+}
+
+void UVaelCheatManager::VaelKisteOeffnen()
+{
+	APlayerController* Controller = GetOuterAPlayerController();
+	AVaelCharacter* Player = Controller != nullptr ? Controller->GetPawn<AVaelCharacter>() : nullptr;
+	if (Player == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelKisteOeffnen: no player"));
+		return;
+	}
+
+	AVaelChest* Nearest = nullptr;
+	double NearestDistSq = FMath::Square(600.0);
+	for (TActorIterator<AVaelChest> It(GetWorld()); It; ++It)
+	{
+		const double DistSq = FVector::DistSquared(It->GetActorLocation(), Player->GetActorLocation());
+		if (It->CanInteract(Player) && DistSq < NearestDistSq)
+		{
+			Nearest = *It;
+			NearestDistSq = DistSq;
+		}
+	}
+
+	if (Nearest == nullptr)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelKisteOeffnen: no closed chest within 6 m of %s"), *Player->GetActorLocation().ToString());
+		return;
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelKisteOeffnen: opening '%s' at %.0f cm"), *Nearest->GetName(), FMath::Sqrt(NearestDistSq));
+	Nearest->Interact(Player);
 }
 
 void UVaelCheatManager::VaelGlyphs(const FString& Glyphs)
