@@ -36,6 +36,13 @@ CYLINDER = unreal.load_asset("/Engine/BasicShapes/Cylinder.Cylinder")
 CONE = unreal.load_asset("/Engine/BasicShapes/Cone.Cone")
 PLANE = unreal.load_asset("/Engine/BasicShapes/Plane.Plane")
 SHAPE_MATERIAL = unreal.load_asset("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")
+
+
+def FORM(name, fallback):
+    """Soft piece from Tools/Welt/eisenschlund_formen.py (imported by EisenschlundFormen.py), else the blockout shape.
+    After a full run, run EisenschlundFormen.py again: it cuts the river into ground-following pieces and sets the real materials."""
+    path = "/Game/Vael/Maps/Eisenschlund/Formen/" + name
+    return unreal.load_asset(path) if unreal.EditorAssetLibrary.does_asset_exist(path) else fallback
 TEXTURES = {
     "grass": "/Game/Fab/Megascans/Surfaces/Uncut_Grass_oeeb70/Low/oeeb70_tier_3/Textures/T_oeeb70_1K_B",
     "rock": "/Game/Rock_Collection_04/Meshes/Rock_01/Textures/T_Rock_01_A",
@@ -335,7 +342,7 @@ def places(mat):
     for i in range(5):
         q = near(p, rng.uniform(-30, 30), rng.uniform(-30, 30))
         q["z"] = ground_at(q["x"], q["y"])
-        shape(CYLINDER, mat["mud"], q, (rng.uniform(5, 9), rng.uniform(4, 7), 0.15), "Orte/Suhlen", "Suhle {}".format(i + 1), yaw=rng.uniform(0, 360),
+        shape(FORM("SM_ES_Suhle", CYLINDER), mat["mud"], q, (rng.uniform(5, 9), rng.uniform(4, 7), 0.15), "Orte/Suhlen", "Suhle {}".format(i + 1), yaw=rng.uniform(0, 360),
               up=0.0, collision=False)
     # Grubenlaternen (Pflanze, Platzhalter): leuchtende Kolben
     p = o["Grubenlaternen"]
@@ -362,7 +369,7 @@ def places(mat):
         yaw = math.degrees(math.atan2(b["y"] - a["y"], b["x"] - a["x"]))
         mid = {"x": (a["x"] + b["x"]) * 0.5, "y": (a["y"] + b["y"]) * 0.5}
         mid["z"] = min(ground_at(mid["x"], mid["y"]), a["z"], b["z"])
-        shape(CUBE, mat["ember"], mid, (length + 4.0, 7.0, 0.3), "Orte/Schlackenfluss", "Glutstrom", yaw=yaw, up=0.2, collision=False)
+        shape(FORM("SM_ES_Glutstrom", CUBE), mat["ember"], mid, (length + 4.0, 7.0, 0.3), "Orte/Schlackenfluss", "Glutstrom", yaw=yaw, up=0.2, collision=False)
         spawn(unreal.VaelFireLight, at(mid, 2.0), "Orte/Schlackenfluss", "Glutschein")
 
 
