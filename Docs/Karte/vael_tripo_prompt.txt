@@ -1,0 +1,13 @@
+Hand-painted antique fantasy world map on aged parchment, top-down, north up, in the style of an old cartographer's chart: ink coastlines, hatched coastal shading, tiny drawn mountains, forests, ruins and ships, two compass roses, a small scale bar. Use the uploaded image EXACTLY as the layout: keep every coastline, island, bay and the large round inner sea in the same place and shape; the colours in the template only mark the four regions. Do not add, remove or reshape land.
+
+Mood: dark, brutal, washed-out; grey, brown and black with muted greens and blues; the only warm colour is ember orange; a faint sickly violet glow only in a few deep cracks. No bright fantasy colours.
+
+Regions (paint the landscape, no region names):
+- West (dark green): Wurzelforst, an ancient dense forest of giant gnarled trees and roots, a murky fog-covered moor with pools in the south, a narrow rocky ridge running north to the jagged skerries at its tip.
+- South-west (ash brown): Aschenmark, a burned plain under ash: charred dead trees, slag slopes, a few glowing ember fields and cracks, a smoking crater basin, a lonely camp with a tiny fire.
+- South-east (rust brown): Eisenschlund, a harsh mining land: deep canyons, huge curved stone arches, mine shafts, slag heaps, smelter chimneys with smoke, rusty iron colours.
+- North-east (grey): Sturmzinnen, cold storm-swept highland: grey cliffs, wind-bent pines, a small academy tower on the high plateau, two long snow-covered mountain ridges curving away to the north-east and breaking into icy rocks.
+
+Sea: dark slate-blue water with drawn wave lines, rocks and sea stacks rising from the sea near the coasts, a few lonely ships, and a handful of sea creatures drawn in the old map style: a long finned sea serpent, a giant armoured crab on a reef, a dark shape under the waves.
+
+Strict rules: the land must read as natural islands and coasts only. No dragon, no eye, no nostrils, no scales, no teeth, no fire breath, no skull, no animal or creature shape in the land. No text, no letters, no names, no title, no cartouche, no labels anywhere.

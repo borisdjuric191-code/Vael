@@ -1,0 +1,17 @@
+Edit this map. Keep the style, the layout, all coastlines and colours and everything not mentioned below exactly as it is.
+
+1. Compass roses: remove the two compass roses with the open book (top centre and bottom right). Keep only the compass rose with the dragons in the top left. Remove the text of the scale bar; no text anywhere.
+
+2. Sea: paint all water clearly as sea, including the large inner sea: a muted dark slate-blue / grey-teal wash, darker in the open ocean, lighter in the shallows along every coast, with fine engraved wave lines and coastal hatching, so the land clearly reads as islands in an ocean. Keep the aged parchment texture. Add two or three small sea creatures drawn in old map style: a long sea serpent with a finned crest, a giant armoured crab on a reef.
+
+3. Western forest region: the long narrow ridge in its north points straight up. Bend it to the east so it curls along the north coast towards the long thin peninsula of the grey northern region and ends in a chain of small jagged skerries just short of that peninsula's western tip, like a curling tail. Where the ridge was, paint sea.
+
+4. Forest: replace the few big drawn trees with many small, dense tree symbols, gnarled roots and patches of fog over a moor. Keep exactly one large ancient tree, the sacred great tree of the grove, in the middle of the forest.
+
+5. Rust-brown mining region: let small glints of ore and crystal flash here and there in the rocks and canyons, thin shining ore veins and tiny sparkles, subtle and sparse, not everywhere.
+
+6. Grey northern highland: add detail so it is less empty: small rocky crags, a few frozen lakes, a winding path up to the tower, wind-bent trees, a ruined watchtower, a small cliff hut. Keep the tower and the two snowy horns as they are.
+
+7. Ash plain in the south-west: add detail: a burned ruined village, broken stone walls, a small survivors' camp with tents and a tiny campfire, ash dunes, a winding road towards the pass, a few more glowing cracks.
+
+Strict: no dragon features in the land, no eye, no scales, no teeth, no text or labels.
