@@ -82,6 +82,15 @@ def ground_at(x, y):
 
 # ---------------------------------------------------------------- assets
 
+def fit_collision(mesh):
+    """The simple hull of these pieces comes out 100 times too big in game, also a freshly built one (a 2 m stalagmite blocked 70 m
+    around it, walk test 2026-11-24); the walls with their real shape as collision are right, so the pieces get that too."""
+    unreal.EditorStaticMeshLibrary.remove_collisions(mesh)
+    body = mesh.get_editor_property("body_setup")
+    body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
+    assets.save_loaded_asset(mesh, False)
+
+
 def import_pieces():
     meshes = {}
     for name in PIECES:
@@ -108,6 +117,8 @@ def import_pieces():
             body = mesh.get_editor_property("body_setup")
             body.set_editor_property("collision_trace_flag", unreal.CollisionTraceFlag.CTF_USE_COMPLEX_AS_SIMPLE)
             assets.save_loaded_asset(mesh, False)
+        elif mesh is not None:
+            fit_collision(mesh)
         meshes[name] = mesh
     return meshes
 
@@ -293,6 +304,35 @@ def frei(x, y):
     return all(math.hypot(x - fx, y - fy) > r for fx, fy, r in FREI)
 
 
+def dense(points, step):
+    """Points every step metres along a polyline of [x, y, ...] lists"""
+    out = []
+    for a, b in zip(points, points[1:]):
+        n = max(1, int(math.hypot(b[0] - a[0], b[1] - a[1]) / step))
+        out += [(a[0] + (b[0] - a[0]) * i / n, a[1] + (b[1] - a[1]) * i / n) for i in range(n)]
+    return out + [tuple(points[-1][:2])]
+
+
+ROADS = [q for w in D["wege"] for q in dense(w["points"], 3.0)]
+
+
+def line_distance(x, y, line):
+    best = 1e9
+    for a, b in zip(line, line[1:]):
+        ax, ay, bx, by = a["x"], a["y"], b["x"], b["y"]
+        l2 = (bx - ax) ** 2 + (by - ay) ** 2
+        t = 0.0 if l2 < 1e-6 else max(0.0, min(1.0, ((x - ax) * (bx - ax) + (y - ay) * (by - ay)) / l2))
+        best = min(best, math.hypot(x - ax - (bx - ax) * t, y - ay - (by - ay) * t))
+    return best
+
+
+def road_leaves(x, y, line, half):
+    """True where a road runs out of the canyon past this wall spot: the Hauptweg leaves the Rippenschlucht sideways and a
+    Felskante closed it (walk test 2026-11-24)"""
+    return any(math.hypot(qx - x, qy - y) < 14.0 and line_distance(qx, qy, line) > half + 1.0
+               for qx, qy in ROADS if abs(qx - x) < 14.0 and abs(qy - y) < 14.0)
+
+
 def floor_and_roof(name, canyon, floor_mat):
     """Je Abschnitt der Linie: das Decal über dem Boden, und darüber das Schattendach mit Lücken an den Lichtkegeln"""
     line = canyon["linie"]
@@ -385,8 +425,10 @@ def dress(name, canyon, meshes, rock, bright):
             yaw = math.degrees(math.atan2(-nyv, -nxv)) + 90.0     # lokale -Y-Achse zeigt zur Mitte
             sc = rng.uniform(0.9, 1.15)
             tall = rng.uniform(0.3, 0.42) if camera_side else rng.uniform(1.6, 2.2)
-            piece(rng.choice(walls), rock, px, py, floor - 4.0, yaw + rng.uniform(-6, 6), (sc, rng.uniform(0.8, 1.2), tall),
-                  folder + "/Waende", "Felskante" if camera_side else "Felswand", roll=rng.uniform(-3, 3))
+            mesh, turn, depth, roll = rng.choice(walls), yaw + rng.uniform(-6, 6), rng.uniform(0.8, 1.2), rng.uniform(-3, 3)
+            if road_leaves(px, py, line, half):
+                continue
+            piece(mesh, rock, px, py, floor - 4.0, turn, (sc, depth, tall), folder + "/Waende", "Felskante" if camera_side else "Felswand", roll=roll)
 
     # Felsbögen quer über die Schlucht, darunter Stalaktiten
     for x, y, dx, dy in along(line, STEP_ARCH)[1:]:

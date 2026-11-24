@@ -525,7 +525,7 @@ def main():
     region.set_editor_property("weather_weights_pure", {W.CLEAR: 3.0, W.WIND: 2.0, W.RAIN: 1.0, W.SNOW: 1.0, W.STORM: 0.3, W.BLIZZARD: 0.0})
     region.set_editor_property("weather_weights_corrupted", {W.CLEAR: 0.1, W.WIND: 0.6, W.RAIN: 0.8, W.SNOW: 1.5, W.STORM: 2.2, W.BLIZZARD: 3.0})
     region.set_editor_property("snow_line_collection", snow_collection())
-    region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((NORTH - X0) * 50.0, (EAST - Y0) * 50.0, 60000.0))
+    region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((NORTH - X0) * 50.0, (EAST - Y0) * 50.0, 200000.0))
 
     # Die Hörner: immer eine Stufe kälter, gleiche Verderbnis wie die Sturmzinnen
     hs, hn, hw, he = 4150.0, NORTH, 4700.0, 6150.0
@@ -537,7 +537,7 @@ def main():
     horns.set_editor_property("available_weathers", [W.CLEAR, W.WIND, W.SNOW, W.BLIZZARD])
     horns.set_editor_property("weather_weights_pure", {W.CLEAR: 1.0, W.WIND: 1.5, W.SNOW: 2.5, W.BLIZZARD: 0.2})
     horns.set_editor_property("weather_weights_corrupted", {W.CLEAR: 0.0, W.WIND: 0.3, W.SNOW: 1.2, W.BLIZZARD: 4.0})
-    horns.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((hn - hs) * 50.0, (he - hw) * 50.0, 60000.0))
+    horns.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((hn - hs) * 50.0, (he - hw) * 50.0, 200000.0))
 
     n_walls = walls()
 

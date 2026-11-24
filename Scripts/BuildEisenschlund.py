@@ -546,7 +546,7 @@ def main():
     region.set_editor_property("changing_weather", False)
     region.set_editor_property("weather_weights_pure", {W.CLEAR: 1.0})
     region.set_editor_property("weather_weights_corrupted", {W.CLEAR: 1.0})
-    region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((gx1 - gx0) * 50.0, (gy1 - 2521.0) * 50.0, 60000.0))
+    region.get_component_by_class(unreal.BoxComponent).set_box_extent(unreal.Vector((gx1 - gx0) * 50.0, (gy1 - 2521.0) * 50.0, 200000.0))  # up to 2 km: the plateau at the Nackenstieg lies at ~640 m
     # Der Kasten des Eisenschlunds reicht in die Ecke des Wurzelforsts: dort zählt der Wurzelforst
     for actor in level_actors:
         if isinstance(actor, unreal.VaelRegion) and actor.get_actor_label() == "Region Wurzelforst":

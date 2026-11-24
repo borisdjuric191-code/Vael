@@ -309,7 +309,7 @@ def main():
         "hoerner": [[ort(p) for p in kamm] for kamm in HOERNER],
         "wege": wege_aus,
         "kueste": kueste,
-        "bruecke": {"von": {"x": 3800.0, "y": 2622.0}, "nach": {"x": 3805.0, "y": 2842.0}},
+        "bruecke": {"von": {"x": 3800.0, "y": 2622.0}, "nach": {"x": 3805.0, "y": 2858.0}},  # on top of the jaw edge: at 2842 the deck ended 22 m below it (walk test 2026-11-24)
     }
     json.dump(out, open(os.path.join(WELT, "SZ_Orte.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 

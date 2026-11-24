@@ -148,6 +148,8 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 			{
 				UE_LOG(LogVael, Display, TEXT("[WalkTest] reached %d %s after %.1f s"), WalkIndex, *Target.ToCompactString(), Age - WalkStart);
 				WalkStart = -1.0f;
+				WalkDetours = 0;
+				WalkDetourUntil = -1.0f;
 				bWalkDone = ++WalkIndex >= Points.Num();
 			}
 			else
@@ -158,13 +160,33 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 					WalkCheckTime = Age;
 					WalkCheckLocation = Here;
 				}
-				PlayerPawn->AddMovementInput((Target - Here).GetSafeNormal2D());
+				const FVector Toward = (Target - Here).GetSafeNormal2D();
+				if (Age < WalkDetourUntil)
+				{
+					// Round the obstacle: mostly sideways, a little forward
+					PlayerPawn->AddMovementInput((FVector(-Toward.Y, Toward.X, 0.0f) * WalkDetourSide + Toward * 0.3f).GetSafeNormal2D());
+				}
+				else
+				{
+					PlayerPawn->AddMovementInput(Toward);
+				}
 				if (Age - WalkCheckTime > 1.0f)
 				{
 					const float Moved = FVector::Dist2D(Here, WalkCheckLocation);
 					UE_LOG(LogVael, Display, TEXT("[WalkTest] at %s, %.0f cm left, moved %.0f cm"), *Here.ToCompactString(), Left, Moved);
-					if (Moved < 20.0f && Age - WalkStart > 2.0f)
+					// Something in the way: first try to walk round it (alternating sides, a little longer each time), like a player
+					// steering past a post or a stone; only a wall that can't be got round counts as stuck
+					if (Moved < 20.0f && Age - WalkStart > 2.0f && WalkDetours < 10)
 					{
+						++WalkDetours;
+						WalkDetourSide = (((WalkDetours - 1) / 2) % 2 == 0) ? 1.0f : -1.0f;
+						WalkDetourUntil = Age + 0.6f + 0.35f * WalkDetours;
+						UE_LOG(LogVael, Display, TEXT("[WalkTest] around %d (try %d) at %s"), WalkIndex, WalkDetours, *Here.ToCompactString());
+					}
+					else if (Moved < 20.0f && Age - WalkStart > 2.0f)
+					{
+						WalkDetours = 0;
+						WalkDetourUntil = -1.0f;
 						UE_LOG(LogVael, Display, TEXT("[WalkTest] STUCK %d at %s, %.0f cm before the target"), WalkIndex, *Here.ToCompactString(), Left);
 						WalkStart = -1.0f;
 						bWalkDone = ++WalkIndex >= Points.Num();
@@ -175,8 +197,15 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 						GetWorld()->SweepMultiByChannel(Hits, Here, Here + Ahead * 150.0f, FQuat::Identity, ECC_Pawn, FCollisionShape::MakeCapsule(40.0f, 80.0f), Query);
 						for (const FHitResult& Hit : Hits)
 						{
-							UE_LOG(LogVael, Display, TEXT("[WalkTest] blocked by %s (%s) component %s at %s"), *GetNameSafe(Hit.GetActor()),
-								Hit.GetActor() != nullptr ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("-"), *GetNameSafe(Hit.GetComponent()), *Hit.ImpactPoint.ToCompactString());
+							UE_LOG(LogVael, Display, TEXT("[WalkTest] blocked by %s (%s) component %s at %s, component at %s"), *GetNameSafe(Hit.GetActor()),
+								Hit.GetActor() != nullptr ? *Hit.GetActor()->GetActorNameOrLabel() : TEXT("-"), *GetNameSafe(Hit.GetComponent()), *Hit.ImpactPoint.ToCompactString(),
+								Hit.GetComponent() != nullptr ? *Hit.GetComponent()->GetComponentLocation().ToCompactString() : TEXT("-"));
+							if (const FBodyInstance* Body = Hit.GetComponent() != nullptr ? Hit.GetComponent()->GetBodyInstance() : nullptr)
+							{
+								const FBox BodyBox = Body->GetBodyBounds();
+								UE_LOG(LogVael, Display, TEXT("[WalkTest]   body bounds %s .. %s, render bounds %s"), *BodyBox.Min.ToCompactString(), *BodyBox.Max.ToCompactString(),
+									*Hit.GetComponent()->Bounds.GetBox().ToString());
+							}
 						}
 					}
 					WalkCheckTime = Age;
@@ -452,7 +481,8 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 		return;
 	}
 
-	if (ShotsTaken >= NumShots)
+	// A walk test ends with its last point, not with the last picture
+	if (ShotsTaken >= NumShots || (bWalkDone && FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseWalkQuit"))))
 	{
 		UE_LOG(LogVael, Display, TEXT("Showcase: done"));
 		FPlatformMisc::RequestExit(false);

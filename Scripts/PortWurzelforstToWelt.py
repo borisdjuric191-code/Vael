@@ -37,6 +37,7 @@ GROUND = "/Game/Vael/Wurzelforst/Blockout/Materialien/M_WF_Zonenkarte"
 GROUND_WORLD = "/Game/Vael/Wurzelforst/Blockout/Materialien/MI_WF_Zonenkarte_Welt"
 TAG = "VaelWurzelforst"
 OPEN_TAG = "VaelWurzelforstOffen"
+VERSETZT = {"Fang_1": (3784.0, 2690.0), "Fang_3": (3776.0, 2763.0)}
 FOLDER = "Wurzelforst (aus L_Wurzelforst_Blockout)"
 BATCH = 200
 SKIP_CLASSES = (unreal.Landscape, unreal.LandscapeProxy, unreal.DirectionalLight, unreal.SkyLight, unreal.SkyAtmosphere,
@@ -244,7 +245,7 @@ def main():
     region.set_editor_property("is_spatially_loaded", False)
     region.set_editor_property("tags", [unreal.Name(TAG)])
     box = region.get_component_by_class(unreal.BoxComponent)
-    box.set_box_extent(unreal.Vector((NORTH_END - ORIGIN[0]) * 0.5, (EAST_END - ORIGIN[1]) * 0.5, 40000.0))
+    box.set_box_extent(unreal.Vector((NORTH_END - ORIGIN[0]) * 0.5, (EAST_END - ORIGIN[1]) * 0.5, 200000.0))
 
     # Unsichtbare Wände zum offenen Meer (wie die Küstenwände der Aschenmark, BuildVaelWelt.py), Linie aus wurzelforst_welt.py
     cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
@@ -311,6 +312,15 @@ def main():
                 actor.set_editor_property("tags", list(actor.get_editor_property("tags")) + [unreal.Name(OPEN_TAG)])
             opened += 1
     log("{} Randwände und Tor an der Naht ausgeschaltet".format(opened))
+
+    # Was im Blockout dem Weg der übrigen Welt im Weg steht, rückt zur Seite (Weltmeter, Höhe bleibt). Fang_1 und Fang_3 standen auf dem Steg
+    # der Seilbrücke in die Sturmzinnen (Lauftest 24.11.: die Brücke war nur halb begehbar); jetzt flankieren sie den Aufgang.
+    for actor in unreal.get_editor_subsystem(unreal.EditorActorSubsystem).get_all_level_actors():
+        if unreal.Name(TAG) in actor.get_editor_property("tags") and actor.get_actor_label() in VERSETZT:
+            x, y = VERSETZT[actor.get_actor_label()]
+            l = actor.get_actor_location()
+            actor.set_actor_location(unreal.Vector(x * 100.0, y * 100.0, l.z), False, True)
+            log("versetzt: {} nach {} / {} m".format(actor.get_actor_label(), x, y))
 
     unreal.EditorLoadingAndSavingUtils.save_map(world, NEW_LEVEL)
     unreal.EditorLoadingAndSavingUtils.save_dirty_packages(True, True)

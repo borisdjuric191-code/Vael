@@ -60,6 +60,11 @@ private:
 	float WalkStart = -1.0f;
 	float WalkCheckTime = 0.0f;
 	FVector WalkCheckLocation = FVector::ZeroVector;
+
+	/** Steering round something in the way like a player would: sideways until this time, to this side (+1/-1), tries so far */
+	float WalkDetourUntil = -1.0f;
+	float WalkDetourSide = 1.0f;
+	int32 WalkDetours = 0;
 	FVector CircleCentre = FVector::ZeroVector;
 	bool bCircleCentre = false;
 };
