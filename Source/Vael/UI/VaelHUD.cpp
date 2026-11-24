@@ -3720,9 +3720,10 @@ void AVaelHUD::DrawPaintedBigMap(const AVaelPlayerController* PlayerController, 
 		{
 			continue;
 		}
+		// Kept on painted land: where the painted coast differs from the terrain the arrow waits at the nearest shore
 		const FVector2D Feet(Pawn->GetActorLocation());
-		const FVector2D Point = ToScreen(Feet);
-		const FVector2D Forward = (ToScreen(Feet + FVector2D(Pawn->GetActorForwardVector()) * 2000.0f) - Point).GetSafeNormal();
+		const FVector2D Point = SheetMin + Map->SnapToPaintedLand(Map->WorldToPainted(Feet)) * SheetSize;
+		const FVector2D Forward = (ToScreen(Feet + FVector2D(Pawn->GetActorForwardVector()) * 2000.0f) - ToScreen(Feet)).GetSafeNormal();
 		const FVector2D Side(-Forward.Y, Forward.X);
 		const FLinearColor Color = GameMode != nullptr ? GameMode->GetPlayerColor(Other->GetPlayerSlot()) : BoneColor;
 		const float Half = 11.0f * S;

@@ -109,6 +109,16 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
 	TArray<FVaelMapAnchor> PaintedAnchors;
 
+	/** Land of the painted picture, PaintedLandSize x PaintedLandSize cells row by row, 1 = land; players are kept on it */
+	UPROPERTY(EditAnywhere, Category="Map")
+	TArray<uint8> PaintedLand;
+
+	UPROPERTY(EditAnywhere, Category="Map")
+	int32 PaintedLandSize = 0;
+
+	/** A place on the painted picture (0..1) moved onto painted land if it lies on painted sea: the nearest cell a little inland */
+	FVector2D SnapToPaintedLand(const FVector2D& Place) const;
+
 	/** True when the big map uses the painted picture */
 	bool HasPaintedMap() const { return !PaintedPicture.IsNull() && PaintedAnchors.Num() >= 3; }
 
@@ -128,7 +138,7 @@ public:
 	FVector2D WorldToPicture(const FVector2D& World) const { return (World - WorldMin) / FMath::Max(WorldSize, 1.0f); }
 
 #if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override { Super::PostEditChangeProperty(Event); SplineAnchorCount = -1; FogCellsOnPainted.Reset(); }
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override { Super::PostEditChangeProperty(Event); SplineAnchorCount = -1; FogCellsOnPainted.Reset(); NearestLandCell.Reset(); }
 #endif
 
 private:
@@ -138,6 +148,9 @@ private:
 	mutable TArray<double> SplineV;
 	mutable int32 SplineAnchorCount = -1;
 	mutable TArray<FVector2f> FogCellsOnPainted;
+
+	/** Per cell of PaintedLand the cell a player on it is drawn on (itself on land); worked out once */
+	mutable TArray<int32> NearestLandCell;
 
 	void SolveSpline() const;
 };

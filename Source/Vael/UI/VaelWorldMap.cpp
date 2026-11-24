@@ -134,6 +134,84 @@ FVector2D UVaelWorldMap::WorldToPainted(const FVector2D& World) const
 	return FVector2D(U, V);
 }
 
+FVector2D UVaelWorldMap::SnapToPaintedLand(const FVector2D& Place) const
+{
+	const int32 N = PaintedLandSize;
+	if (N <= 0 || PaintedLand.Num() != N * N)
+	{
+		return Place;
+	}
+	if (NearestLandCell.Num() != N * N)
+	{
+		// Breadth first from the inland cells (land with land all round), then from any land if a cell is reached by none
+		NearestLandCell.Init(INDEX_NONE, N * N);
+		TArray<int32> Queue;
+		Queue.Reserve(N * N);
+		const auto IsLand = [this, N](int32 X, int32 Y) { return X >= 0 && Y >= 0 && X < N && Y < N && PaintedLand[Y * N + X] != 0; };
+		for (int32 Pass = 0; Pass < 2; ++Pass)
+		{
+			Queue.Reset();
+			for (int32 Y = 0; Y < N; ++Y)
+			{
+				for (int32 X = 0; X < N; ++X)
+				{
+					const int32 Index = Y * N + X;
+					if (NearestLandCell[Index] != INDEX_NONE || !IsLand(X, Y))
+					{
+						continue;
+					}
+					const bool bInland = IsLand(X - 1, Y) && IsLand(X + 1, Y) && IsLand(X, Y - 1) && IsLand(X, Y + 1)
+						&& IsLand(X - 1, Y - 1) && IsLand(X + 1, Y - 1) && IsLand(X - 1, Y + 1) && IsLand(X + 1, Y + 1);
+					if (Pass == 1 || bInland)
+					{
+						NearestLandCell[Index] = Index;
+						Queue.Add(Index);
+					}
+				}
+			}
+			for (int32 Head = 0; Head < Queue.Num(); ++Head)
+			{
+				const int32 Index = Queue[Head];
+				const int32 X = Index % N;
+				const int32 Y = Index / N;
+				const int32 Next[4][2] = { { X + 1, Y }, { X - 1, Y }, { X, Y + 1 }, { X, Y - 1 } };
+				for (const auto& Cell : Next)
+				{
+					if (Cell[0] < 0 || Cell[1] < 0 || Cell[0] >= N || Cell[1] >= N)
+					{
+						continue;
+					}
+					const int32 Other = Cell[1] * N + Cell[0];
+					// Land cells keep themselves; only sea cells (and in the first pass coastal land) take the nearest inland cell
+					if (NearestLandCell[Other] == INDEX_NONE && (Pass == 0 || PaintedLand[Other] == 0))
+					{
+						NearestLandCell[Other] = NearestLandCell[Index];
+						Queue.Add(Other);
+					}
+				}
+			}
+		}
+		// Land always stays where it is
+		for (int32 Index = 0; Index < N * N; ++Index)
+		{
+			if (PaintedLand[Index] != 0)
+			{
+				NearestLandCell[Index] = Index;
+			}
+		}
+	}
+
+	const int32 X = FMath::Clamp(FMath::FloorToInt(Place.X * N), 0, N - 1);
+	const int32 Y = FMath::Clamp(FMath::FloorToInt(Place.Y * N), 0, N - 1);
+	const int32 Index = Y * N + X;
+	if (PaintedLand[Index] != 0 || NearestLandCell[Index] == INDEX_NONE)
+	{
+		return Place;
+	}
+	const int32 Target = NearestLandCell[Index];
+	return FVector2D((Target % N + 0.5) / N, (Target / N + 0.5) / N);
+}
+
 const TArray<FVector2f>& UVaelWorldMap::GetFogCellsOnPainted() const
 {
 	if (FogCellsOnPainted.Num() != FogCells * FogCells || SplineAnchorCount != PaintedAnchors.Num())

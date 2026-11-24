@@ -104,6 +104,12 @@ def main():
                 anchor.set_editor_property("world", unreal.Vector2D(entry["world"][0], entry["world"][1]))
                 anchor.set_editor_property("picture", unreal.Vector2D(entry["picture"][0] / size, entry["picture"][1] / size))
                 anchors.append(anchor)
+            # land mask of the painting (Tools/Welt/Umriss/landmaske.ps1): players are kept on painted land
+            land_file = os.path.splitext(data_file)[0] + "_Gemalt_Land.txt"
+            if os.path.isfile(land_file):
+                rows = [row.strip() for row in open(land_file, encoding="utf-8") if row.strip()]
+                world_map.set_editor_property("painted_land", [1 if c == "1" else 0 for row in rows for c in row])
+                world_map.set_editor_property("painted_land_size", len(rows))
             world_map.set_editor_property("painted_picture", painted_texture)
             world_map.set_editor_property("painted_anchors", anchors)
             log("{}: painted map with {} anchors".format(name, len(anchors)))
