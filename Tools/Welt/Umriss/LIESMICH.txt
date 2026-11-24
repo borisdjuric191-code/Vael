@@ -1,0 +1,4 @@
+Umriss-Entwuerfe der Weltkarte (Drachenform). Reihenfolge in PowerShell:
+  teile.ps1   -> teile.png (Koerperteile der Lore-Karte auf die Regionen gelegt)
+  karte3.ps1  -> v3.png / v3_vergleich.png; Regler: $env:DEEP=90 BIG=85 MID=22 ROUGH=0.8 ISLES=0.6
+welt_klein.png = T_Vael_Karte.png auf 1024 px; schutz.json = Orte und Ringweg in Kartenpixeln (Norden oben).
