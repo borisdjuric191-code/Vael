@@ -11,8 +11,8 @@ $prot = [C5]::Protect($today, 1024, 1024, (New-Object double[] 0), $(if ($env:WE
 $land = [C5]::Land($parts, $today, $prot, 1024, 1024, (N $env:BIG), (N $env:MID), (N $env:ROUGH), (N $env:ISLES))
 if ($env:FELSEN -and $env:FELSEN -ne "0") { $sd = [C5]::Dist($land, 1024, 1024, $true); "felsen px $([RG]::Stacks($land, $sd, 1024, 1024, (N $env:FELSEN)))" }
 # ring route from the tail tip (rope bridge) round the body to the jaw tip, same points as the spine and head in teile5
-[double[]]$ring = 440,318, 402,309, 332,304, 262,318, 204,374, 184,458, 184,556, 198,656, 246,748, 348,786, 470,772, 600,734,
-  722,694, 824,640, 882,560, 896,478, 890,410, 870,320, 810,300, 740,300, 660,310, 580,318, 510,322, 470,322
+[double[]]$ring = $(if ($env:TEILE -eq "teile9") { @(512,375, 478,358, 452,342) } else { @() }) + @(440,318, 402,309, 332,304, 262,318, 204,374, 184,458, 184,556, 198,656, 246,748, 348,786, 470,772, 600,734,
+  722,694, 824,640, 882,560, 896,478, 890,410, 870,320, 810,300, 740,300, 660,310, 580,318, 510,322, 470,322)
 $cum = [RG]::Cum($ring)
 $along = [RG]::Along($land, 1024, 1024, $ring, $(if ($env:GRENZE) { N $env:GRENZE } else { 0 }))
 # today's borders: Aschenpass (Wurzelforst/Aschenmark), Schlackentor (Aschenmark/Eisenschlund), Nackenstieg (Eisenschlund/Sturmzinnen)
@@ -25,9 +25,9 @@ $names = "Wurzelforst", "Aschenmark", "Eisenschlund", "Sturmzinnen"
 for ($r = 0; $r -lt 4; $r++) { "{0,-13} heute {1,5:N2} km2   neu {2,5:N2} km2" -f $names[$r], ($aT[$r] * 48 / 1e6), ($aB[$r] * 48 / 1e6) }
 "grenzen heute $($bt -join ' ')  neu $($b -join ' ')"
 $img = [C5]::Render($land, $today, 1024, 1024, $false)
-[int[]]$cols = 0x5E8A46, 0xD2783A, 0x8C5E46, $(if ($env:TEILE -in "teile7", "teile8") { 0x6E7C8E } else { 0x9CB4D2 })
+[int[]]$cols = 0x5E8A46, 0xD2783A, 0x8C5E46, $(if ($env:TEILE -in "teile7", "teile8", "teile9") { 0x6E7C8E } else { 0x9CB4D2 })
 [RG]::Overlay($img, $along, $b, $bt, $cols)
-$snowFile = "$d\$($env:TEILE -replace 'teile', 'schnee').png"; $snowBmp = if ($env:TEILE -in "teile7", "teile8" -and (Test-Path $snowFile)) { New-Object System.Drawing.Bitmap ([System.Drawing.Bitmap]::FromFile($snowFile)) } else { $null }
+$snowFile = "$d\$($env:TEILE -replace 'teile', 'schnee').png"; $snowBmp = if ($env:TEILE -in "teile7", "teile8", "teile9" -and (Test-Path $snowFile)) { New-Object System.Drawing.Bitmap ([System.Drawing.Bitmap]::FromFile($snowFile)) } else { $null }
 [RG]::Finish($img, $land, ([C5]::Dist($land, 1024, 1024, $false)), $snowBmp)
 $g = [System.Drawing.Graphics]::FromImage($img); $g.SmoothingMode = 'AntiAlias'; $g.TextRenderingHint = 'AntiAlias'
 $ink = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(40, 28, 20))

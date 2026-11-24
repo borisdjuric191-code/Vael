@@ -44,6 +44,13 @@ public static class KB {
       int c=src[sy*W+sx]; double r=ch[0][y*w+x]+R(c)-mr/n, g=ch[1][y*w+x]+G(c)-mg/n, b=ch[2][y*w+x]+B(c)-mb/n;
       int nc=unchecked((int)0xFF000000)|((int)Math.Max(0,Math.Min(255,r))<<16)|((int)Math.Max(0,Math.Min(255,g))<<8)|(int)Math.Max(0,Math.Min(255,b));
       p[Y*W+X]=Mix(p[Y*W+X],nc,al); } }
+  // stretch a land strip vertically: between x0 and x1 the row yB (a coast) moves to yC, row yA stays put; tapered over
+  // 'tap' px at both ends so the strip grows smoothly (thicker jaws)
+  public static void Stretch(int[] p,int W,int H,int x0,int x1,double yA,double yB,double yC,double tap){ var src=(int[])p.Clone();
+    for(int x=x0;x<=x1;x++){ double w=Smooth(Math.Min((x-x0)/tap,(x1-x)/tap)); double c=yB+(yC-yB)*w; if(Math.Abs(c-yA)<1) continue;
+      int lo=(int)Math.Min(yA,c), hi=(int)Math.Max(yA,c);
+      for(int y=lo;y<=hi;y++){ double sy=yA+(y-yA)*(yB-yA)/(c-yA); int s0=(int)Math.Floor(sy); double t=sy-s0; if(s0<0||s0+1>=H) continue;
+        p[y*W+x]=Mix(src[s0*W+x],src[(s0+1)*W+x],t); } } }
   // blend an ellipse (feathered) towards a flat colour, keeping a little of the drawing underneath (keep 0..1)
   public static void Clear(int[] p,int W,int H,double cx,double cy,double rx,double ry,double f,int col,double keep){
     for(int y=(int)(cy-ry-f);y<cy+ry+f;y++) for(int x=(int)(cx-rx-f);x<cx+rx+f;x++){ if(x<0||y<0||x>=W||y>=H) continue;
