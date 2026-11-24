@@ -1,0 +1,15 @@
+Hand-painted antique fantasy world map on aged parchment, top-down, north up, in the style of an old cartographer's chart: ink coastlines, hatched coastal shading, many tiny drawn symbols for mountains, trees, ruins and ships. Use the uploaded image EXACTLY as the layout: keep every coastline, island, bay and the large round inner sea in the same place and shape; the flat colours in the template only mark the four regions and the sea. Do not add, remove or reshape land.
+
+Mood: dark, brutal, washed-out; grey, brown and black with muted greens; the only warm colour is ember orange; a faint violet glow only in one or two deep cracks. No bright fantasy colours.
+
+Sea: ALL water, the outer ocean and the large inner sea, is clearly painted as sea: a muted dark slate-blue / grey-teal wash, darker in deep water, lighter in the shallows along every coast, with fine engraved wave lines and coastal hatching, so the land clearly reads as islands in an ocean. Rocks and sea stacks rise from the sea near the coasts. A few small ships, and two or three sea creatures in old map style: a long sea serpent with a finned crest, a giant armoured crab on a reef, a dark shape under the waves.
+
+Only ONE compass rose: an ornate compass rose with two small dragons in the top left corner. No other compass roses, no scale bar, no cartouche.
+
+Regions (paint the landscape only, no names):
+- West (dark green): an ancient forest drawn with many small, dense tree symbols, gnarled roots and patches of fog over a murky moor with pools in the south; exactly one large ancient tree, the sacred great tree of the grove, in the middle of the forest. The forest narrows to the east into a slim ridge that ends in small jagged skerries.
+- South-west (ash brown): a burned plain under ash: many tiny charred dead trees, slag slopes, glowing ember cracks, a smoking crater basin, a burned ruined village with broken stone walls, a small survivors' camp with tents and a tiny campfire, ash dunes, a winding road towards a mountain pass in the north-west.
+- South-east (rust brown): a harsh mining land: deep canyons, huge curved stone arches, mine shafts, slag heaps, smelter chimneys with smoke, rusty iron colours; here and there small glints of ore and crystal flash in the rocks, thin shining ore veins and tiny sparkles, subtle and sparse.
+- North-east (grey): a cold storm-swept highland: grey cliffs, rocky crags, a few frozen lakes, wind-bent pines, a small academy tower on the high plateau with a winding path up to it, a ruined watchtower, a small cliff hut; two long snow-covered mountain ridges curve away to the north-east and break into icy rocks; the long thin southern peninsula is a cliff coast.
+
+Strict rules: the land must read as natural islands and coasts only. No dragon, no eye, no nostrils, no scales, no teeth, no skull, no animal or creature shape in the land. No text, no letters, no numbers, no names, no labels anywhere.
