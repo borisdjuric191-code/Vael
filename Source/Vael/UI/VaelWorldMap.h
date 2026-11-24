@@ -115,6 +115,9 @@ public:
 	/** Place in the painted picture (0..1) of a world location: thin plate spline through the anchors */
 	FVector2D WorldToPainted(const FVector2D& World) const;
 
+	/** Where each fog cell (row by row, FogCells x FogCells) lies on the painted picture, 0..1; worked out once */
+	const TArray<FVector2f>& GetFogCellsOnPainted() const;
+
 	/** Fog cells along each side of the picture square */
 	static constexpr int32 FogCells = 256;
 
@@ -125,7 +128,7 @@ public:
 	FVector2D WorldToPicture(const FVector2D& World) const { return (World - WorldMin) / FMath::Max(WorldSize, 1.0f); }
 
 #if WITH_EDITOR
-	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override { Super::PostEditChangeProperty(Event); SplineAnchorCount = -1; }
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override { Super::PostEditChangeProperty(Event); SplineAnchorCount = -1; FogCellsOnPainted.Reset(); }
 #endif
 
 private:
@@ -134,6 +137,7 @@ private:
 	mutable TArray<double> SplineU;
 	mutable TArray<double> SplineV;
 	mutable int32 SplineAnchorCount = -1;
+	mutable TArray<FVector2f> FogCellsOnPainted;
 
 	void SolveSpline() const;
 };

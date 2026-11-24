@@ -134,6 +134,25 @@ FVector2D UVaelWorldMap::WorldToPainted(const FVector2D& World) const
 	return FVector2D(U, V);
 }
 
+const TArray<FVector2f>& UVaelWorldMap::GetFogCellsOnPainted() const
+{
+	if (FogCellsOnPainted.Num() != FogCells * FogCells || SplineAnchorCount != PaintedAnchors.Num())
+	{
+		FogCellsOnPainted.SetNumUninitialized(FogCells * FogCells);
+		const double Cell = FMath::Max(WorldSize, 1.0f) / FogCells;
+		for (int32 Y = 0; Y < FogCells; ++Y)
+		{
+			for (int32 X = 0; X < FogCells; ++X)
+			{
+				// Fog cells lie over the terrain picture: cell (X, Y) covers WorldMin + (X, Y) * Cell
+				const FVector2D World = WorldMin + FVector2D((X + 0.5) * Cell, (Y + 0.5) * Cell);
+				FogCellsOnPainted[Y * FogCells + X] = FVector2f(WorldToPainted(World));
+			}
+		}
+	}
+	return FogCellsOnPainted;
+}
+
 const UVaelWorldMap* UVaelWorldMap::ForWorld(const UWorld* World)
 {
 	if (World == nullptr)

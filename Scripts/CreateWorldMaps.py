@@ -98,6 +98,8 @@ def main():
             size = float(painted.get("size", 1024))
             anchors = []
             for entry in painted["anchors"]:
+                if entry.get("aus"):   # kept for reference, switched off (kuestenanker.ps1 fits without them)
+                    continue
                 anchor = unreal.VaelMapAnchor()
                 anchor.set_editor_property("world", unreal.Vector2D(entry["world"][0], entry["world"][1]))
                 anchor.set_editor_property("picture", unreal.Vector2D(entry["picture"][0] / size, entry["picture"][1] / size))

@@ -1,4 +1,4 @@
-# Check of the painted map anchors: the terrain of today (welt_klein.png) bent through the same thin plate spline as the game
+﻿# Check of the painted map anchors: the terrain of today (welt_klein.png) bent through the same thin plate spline as the game
 # (UVaelWorldMap::WorldToPainted), drawn as red dots over the painted picture, anchors as yellow rings. Output: kartenpruefung.png
 Add-Type -AssemblyName System.Drawing
 $d = $PSScriptRoot; $root = Resolve-Path "$d\..\..\.."
@@ -21,19 +21,22 @@ public static class TPS {
 "@
 $j = Get-Content "$root\Scripts\Data\Welt\Vael_Karte_Gemalt.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 $k = Get-Content "$root\Scripts\Data\Welt\Vael_Karte.json" -Raw -Encoding UTF8 | ConvertFrom-Json
-$wx = [double[]]($j.anchors | % { $_.world[0] / 1e5 }); $wy = [double[]]($j.anchors | % { $_.world[1] / 1e5 })
-$u = [double[]]($j.anchors | % { $_.picture[0] }); $v = [double[]]($j.anchors | % { $_.picture[1] })
+$used = @($j.anchors | Where-Object { -not $_.aus })
+$wx = [double[]]($used | % { $_.world[0] / 1e5 }); $wy = [double[]]($used | % { $_.world[1] / 1e5 })
+$u = [double[]]($used | % { $_.picture[0] }); $v = [double[]]($used | % { $_.picture[1] })
 $sol = [TPS]::Solve($wx, $wy, $u, $v, 0.02)
 $pic = New-Object System.Drawing.Bitmap ([System.Drawing.Bitmap]::FromFile("$root\$($j.picture)"))
 $g = [System.Drawing.Graphics]::FromImage($pic)
-$terrain = New-Object System.Drawing.Bitmap "$d\welt_klein.png"; $TW = $terrain.Width
-$min = $k.world_min; $size = [double]$k.world_size
+# today's land exactly as the coast tools see it (C5.Today on the north-up map), every 4th pixel
+Add-Type -TypeDefinition ([IO.File]::ReadAllText("$d\kueste5.cs")) -ReferencedAssemblies System.Drawing
+Add-Type -TypeDefinition ([IO.File]::ReadAllText("$d\gelaendeplan.cs")) -ReferencedAssemblies System.Drawing
+$game = [System.Drawing.Bitmap]::FromFile("$d\welt_klein.png"); $game.RotateFlip('Rotate270FlipNone'); $game = New-Object System.Drawing.Bitmap $game
+$today = [C5]::Today($game); [GP]::Min0 = $k.world_min[0]; [GP]::Min1 = $k.world_min[1]; [GP]::Size = $k.world_size
 $red = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(110, 230, 30, 30))
-for ($py = 0; $py -lt $TW; $py += 4) { for ($px = 0; $px -lt $TW; $px += 4) { $c = $terrain.GetPixel($px, $py)
-  if ($c.B -gt $c.R + 15) { continue }   # sea in the terrain picture is blue
-  $X = ($min[0] + ($px + 0.5) / $TW * $size) / 1e5; $Y = ($min[1] + ($py + 0.5) / $TW * $size) / 1e5
-  $mx = [TPS]::Eval($sol[0], $wx, $wy, $X, $Y); $my = [TPS]::Eval($sol[1], $wx, $wy, $X, $Y)
-  $g.FillRectangle($red, [float]($mx - 1.5), [float]($my - 1.5), [float]3, [float]3) } }
+for ($my = 1; $my -lt 1024; $my += 4) { for ($mx = 1; $mx -lt 1024; $mx += 4) { if (-not $today[$my * 1024 + $mx]) { continue }
+  $xm = 0.0; $ym = 0.0; [GP]::ToWorld($mx, $my, [ref]$xm, [ref]$ym); $X = $xm / 1000; $Y = $ym / 1000
+  $u = [TPS]::Eval($sol[0], $wx, $wy, $X, $Y); $v = [TPS]::Eval($sol[1], $wx, $wy, $X, $Y)
+  $g.FillRectangle($red, [float]($u - 1.5), [float]($v - 1.5), [float]3, [float]3) } }
 $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::Yellow), 2
-foreach ($a in $j.anchors) { $g.DrawEllipse($pen, [float]($a.picture[0] - 4), [float]($a.picture[1] - 4), [float]8, [float]8) }
+foreach ($a in $used) { $g.DrawEllipse($pen, [float]($a.picture[0] - 4), [float]($a.picture[1] - 4), [float]8, [float]8) }
 $pic.Save("$d\kartenpruefung.png"); "ok"

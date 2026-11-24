@@ -299,6 +299,10 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> FogTexture;
 
+	/** The same fog bent onto the painted world map, if the level map has one */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> PaintedFogTexture;
+
 	uint32 FogTextureVersion = 0;
 	double NextFogUpload = 0.0;
 

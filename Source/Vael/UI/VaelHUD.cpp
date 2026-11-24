@@ -3240,6 +3240,67 @@ void AVaelHUD::UpdateMapFog(const TArray<const AVaelPlayerController*>& PlayerCo
 		delete[] Data;
 		delete Regions;
 	});
+
+	// The painted map: every seen cell lifts the fog where it lies on the painting, a little wider so no holes stay between cells
+	if (!Map->HasPaintedMap())
+	{
+		return;
+	}
+	if (PaintedFogTexture == nullptr)
+	{
+		PaintedFogTexture = UTexture2D::CreateTransient(N, N, PF_B8G8R8A8, TEXT("VaelPaintedMapFog"));
+		PaintedFogTexture->Filter = TF_Bilinear;
+		PaintedFogTexture->AddressX = TA_Clamp;
+		PaintedFogTexture->AddressY = TA_Clamp;
+		PaintedFogTexture->SRGB = true;
+		PaintedFogTexture->UpdateResource();
+	}
+	const TArray<FVector2f>& OnPainted = Map->GetFogCellsOnPainted();
+	TArray<uint8> Seen;
+	Seen.SetNumZeroed(N * N);
+	if (Cells != nullptr)
+	{
+		for (int32 Index = 0; Index < N * N; ++Index)
+		{
+			const uint8 Value = (*Cells)[Index];
+			if (Value == 0)
+			{
+				continue;
+			}
+			const FVector2f P = OnPainted[Index] * N;
+			const int32 CX = FMath::FloorToInt(P.X);
+			const int32 CY = FMath::FloorToInt(P.Y);
+			for (int32 DY = -2; DY <= 2; ++DY)
+			{
+				for (int32 DX = -2; DX <= 2; ++DX)
+				{
+					const int32 X = CX + DX;
+					const int32 Y = CY + DY;
+					if (X < 0 || Y < 0 || X >= N || Y >= N)
+					{
+						continue;
+					}
+					const float Falloff = FMath::Clamp(2.6f - FMath::Sqrt(static_cast<float>(DX * DX + DY * DY)), 0.0f, 1.0f);
+					uint8& Old = Seen[Y * N + X];
+					Old = FMath::Max<uint8>(Old, static_cast<uint8>(Value * Falloff));
+				}
+			}
+		}
+	}
+	uint8* PaintedPixels = new uint8[N * N * 4];
+	for (int32 Index = 0; Index < N * N; ++Index)
+	{
+		PaintedPixels[Index * 4 + 0] = 14;
+		PaintedPixels[Index * 4 + 1] = 15;
+		PaintedPixels[Index * 4 + 2] = 19;
+		PaintedPixels[Index * 4 + 3] = static_cast<uint8>((255 - Seen[Index]) * 235 / 255);
+	}
+	FUpdateTextureRegion2D* PaintedRegion = new FUpdateTextureRegion2D(0, 0, 0, 0, N, N);
+	PaintedFogTexture->UpdateTextureRegions(0, 1, PaintedRegion, N * 4, 4, PaintedPixels, [](uint8* Data, const FUpdateTextureRegion2D* Regions)
+	{
+		delete[] Data;
+		delete Regions;
+	});
 }
 
 void AVaelHUD::DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha, UTexture2D* Texture)
@@ -3574,6 +3635,13 @@ void AVaelHUD::DrawPaintedBigMap(const AVaelPlayerController* PlayerController, 
 	FCanvasTileItem Sheet(SheetMin, Resource, SheetSize, FLinearColor::White);
 	Sheet.BlendMode = SE_BLEND_Opaque;
 	Canvas->DrawItem(Sheet);
+	// The fog bent onto the painting: dark ash where the group has not been yet
+	if (Map->bFogOfWar && PaintedFogTexture != nullptr && PaintedFogTexture->GetResource() != nullptr)
+	{
+		FCanvasTileItem Fog(SheetMin, PaintedFogTexture->GetResource(), SheetSize, FLinearColor::White);
+		Fog.BlendMode = SE_BLEND_Translucent;
+		Canvas->DrawItem(Fog);
+	}
 	DrawFrame(SheetMin.X, SheetMin.Y, SheetSize.X, SheetSize.Y, RimColor, 2.0f * S);
 	const FBox2D Clip(SheetMin, SheetMin + SheetSize);
 

@@ -27,3 +27,5 @@ v7 (Charakter): teile7.ps1 -> teile7.png + schnee7.png, dann regionen5.ps1 mit T
   Wichtig: die Skripte in einem frischen Prozess starten (powershell -NoProfile -File ...), sonst bleibt alter C#-Code geladen.
 
 Gemalte Weltkarte (25.11.2026): Tripo-Bild Docs/Karte/vael_weltkarte_tripo_original.png, nachbearbeitet mit kartenbild.ps1 (Inselgruppe Nord und zweiter Kompass weg, Zahnfelsen am Maul, Urbaum aus dem ersten Tripo-Bild). Aufruf mit KARTE, BAUM=erstes Tripo-Bild, BX=215 BY=220 BW=46 BH=60 TS=1.9 TX=152 TY=335 AX=250 AY=330, frischer Prozess. Ergebnis: Docs/Karte/vael_weltkarte_gemalt.png
+
+Geländeplan und Küsten-Passpunkte (Nacht 24./25.11.2026): erst teile9.ps1 (Einstellungen wie v9), dann gelaendeplan.ps1 (Docs/Gelaendeplan_Umriss.md + Docs/Karte/vael_gelaendeplan.png) und kuestenanker.ps1 mit RASTER=32 RUNDEN=7 MAXAUTO=300 (schreibt die auto-Passpunkte in Scripts/Data/Welt/Vael_Karte_Gemalt.json; feste Punkte sind nur die 12 Lager, KEEP_ORTE=1 nimmt die abgeschalteten Ortspunkte wieder dazu). Danach Scripts/CreateWorldMaps.py (Editor zu) und kartenpruefung.ps1.
