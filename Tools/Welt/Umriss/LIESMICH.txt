@@ -1,4 +1,4 @@
-Umriss-Entwuerfe der Weltkarte (Drachenform). Reihenfolge in PowerShell:
+﻿Umriss-Entwuerfe der Weltkarte (Drachenform). Reihenfolge in PowerShell:
   teile.ps1   -> teile.png (Koerperteile der Lore-Karte auf die Regionen gelegt)
   karte3.ps1  -> v3.png / v3_vergleich.png; Regler: $env:DEEP=90 BIG=85 MID=22 ROUGH=0.8 ISLES=0.6
 welt_klein.png = T_Vael_Karte.png auf 1024 px; schutz.json = Orte und Ringweg in Kartenpixeln (Norden oben).
@@ -21,7 +21,7 @@ v6 (schlankerer Bauch, groesseres rundes Innenmeer, mehr Buchten): teile6.ps1 ->
   Regler: ZACKEN=1 ORTE=0 DEEP=999 BIG=55 MID=40 ROUGH=1.0 ISLES=0.8 WFW=205 AMW=150 ESW=150 SKW=130 HOLEH=300 WEG=0 TEILUNG=mitte GRENZE=80 HERZ=0
   WEG=0 schuetzt den Kampagnenweg nicht: der Weg im Eisenschlund hielt sonst die Innenkueste fest und muesste verlegt werden.
 
-v7 (Charakter): teile7.ps1 -> teile7.png + schnee7.png, dann regionen5.ps1 mit TEILE=teile7 FELSEN=0.8 (sonst Regler wie v6)
+v7 (Charakter): teile7.ps1 -> teile7.png + schnee7.png, dann regionen5.ps1 mit TEILE=teile7 FELSEN=0.45 (sonst Regler wie v6)
   Hoerner als zwei Klingen nach Nordosten (scharfer Kanal) mit Schnee, Zaehne als kleine Felsnadeln im Maul,
   FELSEN = Dichte der Felsnadeln und Schären vor der Kueste, dazu Klippenkanten an der Kueste.
   Wichtig: die Skripte in einem frischen Prozess starten (powershell -NoProfile -File ...), sonst bleibt alter C#-Code geladen.
