@@ -25,3 +25,5 @@ v7 (Charakter): teile7.ps1 -> teile7.png + schnee7.png, dann regionen5.ps1 mit T
   Hoerner als zwei Klingen nach Nordosten (scharfer Kanal) mit Schnee, Zaehne als kleine Felsnadeln im Maul,
   FELSEN = Dichte der Felsnadeln und Schären vor der Kueste, dazu Klippenkanten an der Kueste.
   Wichtig: die Skripte in einem frischen Prozess starten (powershell -NoProfile -File ...), sonst bleibt alter C#-Code geladen.
+
+Gemalte Weltkarte (25.11.2026): Tripo-Bild Docs/Karte/vael_weltkarte_tripo_original.png, nachbearbeitet mit kartenbild.ps1 (Inselgruppe Nord und zweiter Kompass weg, Zahnfelsen am Maul, Urbaum aus dem ersten Tripo-Bild). Aufruf mit KARTE, BAUM=erstes Tripo-Bild, BX=215 BY=220 BW=46 BH=60 TS=1.9 TX=152 TY=335 AX=250 AY=330, frischer Prozess. Ergebnis: Docs/Karte/vael_weltkarte_gemalt.png
