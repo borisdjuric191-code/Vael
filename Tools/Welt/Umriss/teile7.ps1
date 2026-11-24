@@ -115,6 +115,6 @@ $k = 0; foreach ($x in 525, 565, 605, 645, 685) { $k++; if ((Jit ($x + 9) $k) -l
 for ($k = 0; $k -lt 8; $k++) { $x = 480 + 220 * (Jit 31 $k); $y = ((JawY $x) + 362 + ($x - 460) * 0.02) / 2 + 4 * ((Jit 57 $k) - 0.5); $r = 1.4 + 1.6 * (Jit 83 $k)
   Disc $sharp $x $y $r }
 # the lower jaw itself as a narrow rock bar in the sharp channel, so the blur cannot melt it
-$wk5 = $w; $w = $sharp; Limb (Smooth @(@(792,376,20), @(725,390,16), @(645,398,14), @(565,402,12), @(495,402,8), @(462,400,4))); $w = $wk5
+$wk5 = $w; $w = $sharp; Limb (Smooth @(@(792,379,28), @(725,393,23), @(645,401,20), @(565,405,17), @(495,404,12), @(462,401,5))); $w = $wk5
 $snow.Save("$d\schnee7.png")
 $b.Save("$d\teile7.png"); "ok"
