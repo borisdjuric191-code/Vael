@@ -7,3 +7,7 @@ v4 (Ouroboros, Pinnwand-Vorlage): teile4.ps1 -> teile4.png, dann karte4.ps1 -> v
   Regler (als Text, Punkt als Komma): $env:DEEP="999" BIG="70" MID="36" ROUGH="0.85" ISLES="0.8" HOLE="0"
   HOLE="1" schneidet testweise ein groesseres Innenmeer aus (Variante B, noch nicht schoen).
   teile4: weiss = Land, gruen = Bucht/Schnitt. kueste4: Kuesten weichen geschuetzten Orten weich aus.
+
+v5 (schlanker Ouroboros entlang des Ringwegs): teile5.ps1 -> teile5.png, dann karte5.ps1 -> v5.png / v5_vergleich.png
+  Regler: $env:ORTE="0" DEEP="999" BIG="55" MID="34" ROUGH="0.85" ISLES="0.8"
+  ORTE="0" schuetzt nur den Ringweg; das Skript listet Orte, die im Meer landen wuerden. ORTE="1" schuetzt alle Orte.
