@@ -46,8 +46,8 @@ Limb (Smooth @(@(870,320,[double]$env:SKW), @(810,300,[double]$env:SKW), @(740,3
 Limb (Smooth @(@(840,250,70), @(785,250,46), @(735,262,26)))
 # lower jaw, hanging open under the snout; the mouth between stays water and closes round the tail tip
 # v7b: tilted up towards the snout and longer, the tip reaches under the snout tip
-Limb (Smooth @(@(810,440,70), @(740,430,40), @(660,422,24)))
-$wk = $w; $w = $cut; Limb (Smooth @(@(448,398,10), @(540,401,18), @(640,405,20), @(730,410,16), @(780,416,8))); $w = $wk
+Limb (Smooth @(@(798,408,60), @(735,408,36), @(665,409,22)))
+$wk = $w; $w = $cut; Limb (Smooth @(@(448,398,10), @(540,399,16), @(640,397,18), @(730,393,16), @(785,388,8))); $w = $wk
 # v7: horns swept back over the neck, readable but not drawn: a solid root, a sharp rock blade in the sharp channel,
 # tips breaking into a trail of skerries; every horn also goes into the snow mask
 $snow = New-Object System.Drawing.Bitmap 1024, 1024; $gs = [System.Drawing.Graphics]::FromImage($snow); $gs.SmoothingMode = 'AntiAlias'; $gs.Clear([System.Drawing.Color]::Black)
@@ -99,17 +99,17 @@ foreach ($n6 in @(@(@(40,420,70), @(80,430,30), @(96,434,8)), @(@(30,700,80), @(
   @(@(410,960,100), @(420,880,40), @(424,852,10)), @(@(620,930,100), @(624,860,40), @(626,830,10)), @(@(830,880,100), @(800,812,40), @(790,790,10)),
   @(@(1010,640,90), @(968,630,40), @(950,626,10)), @(@(250,240,60), @(252,276,26), @(254,292,8)))) { Limb (Smooth $n6) }
 $w = $wk
-# v7: teeth, small and irregular: upper ones hang from the snout into the mouth, lower ones stand on the jaw
-$k = 0; foreach ($x in 500, 528, 552, 580, 606, 634, 660, 690) { $k++; if ((Jit $x $k) -lt 0.2) { continue }
-  $len = 8 + 6 * (Jit ($x + 1) $k); $y0 = 390 + ($x - 500) * 0.04
-  $wk3 = $w; $w = $sharp; Limb @(@($x, $y0, 11), @(($x + 4), ($y0 + $len), 2)); $w = $wk3 }
-$k = 0; foreach ($x in 515, 545, 575, 600, 630, 655, 685, 712) { $k++; if ((Jit ($x + 9) $k) -lt 0.2) { continue }
-  $len = 7 + 5 * (Jit ($x + 2) $k); $y0 = 413 + ($x - 515) * 0.07
-  $wk3 = $w; $w = $sharp; Limb @(@($x, $y0, 10), @(($x - 4), ($y0 - $len), 2)); $w = $wk3 }
-# v7b: broken rock and stumps between the teeth, the mouth reads as a rocky strait
-for ($k = 0; $k -lt 26; $k++) { $x = 470 + 280 * (Jit 31 $k); $y = 400 + ($x - 470) * 0.05 + 5 * ((Jit 57 $k) - 0.5); $r = 1.6 + 2.6 * (Jit 83 $k)
+# v7c: teeth interlock: upper ones hang from the snout, lower ones stand on the jaw in the gaps between them, tips past each other
+$k = 0; foreach ($x in 505, 545, 585, 625, 665, 705, 745) { $k++; if ((Jit $x $k) -lt 0.12) { continue }
+  $len = 13 + 5 * (Jit ($x + 1) $k); $y0 = 389 - ($x - 500) * 0.03
+  $wk3 = $w; $w = $sharp; Limb @(@($x, $y0, 10), @(($x + 2), ($y0 + $len * 0.6), 5), @(($x + 3), ($y0 + $len), 1)); $w = $wk3 }
+$k = 0; foreach ($x in 525, 565, 605, 645, 685, 725, 765) { $k++; if ((Jit ($x + 9) $k) -lt 0.12) { continue }
+  $len = 12 + 5 * (Jit ($x + 2) $k); $y0 = 409 - ($x - 500) * 0.02
+  $wk3 = $w; $w = $sharp; Limb @(@($x, $y0, 10), @(($x - 2), ($y0 - $len * 0.6), 5), @(($x - 3), ($y0 - $len), 1)); $w = $wk3 }
+# a few broken stumps between the teeth
+for ($k = 0; $k -lt 8; $k++) { $x = 480 + 280 * (Jit 31 $k); $y = 398 - ($x - 480) * 0.03 + 4 * ((Jit 57 $k) - 0.5); $r = 1.4 + 1.6 * (Jit 83 $k)
   Disc $sharp $x $y $r }
 # the lower jaw itself as a narrow rock bar in the sharp channel, so the blur cannot melt it
-$wk5 = $w; $w = $sharp; Limb (Smooth @(@(800,436,26), @(725,427,22), @(645,420,17), @(565,415,13), @(495,411,8), @(462,409,4))); $w = $wk5
+$wk5 = $w; $w = $sharp; Limb (Smooth @(@(792,406,24), @(725,408,20), @(645,410,16), @(565,411,12), @(495,411,8), @(462,409,4))); $w = $wk5
 $snow.Save("$d\schnee7.png")
 $b.Save("$d\teile7.png"); "ok"
