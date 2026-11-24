@@ -90,6 +90,21 @@ def main():
             camp.set_editor_property("size", 1)
             camps.append(camp)
         world_map.set_editor_property("camps", camps)
+        # Optional painted world map for the big map, pinned onto the world by anchors (Scripts/Data/Welt/<data>_Gemalt.json)
+        painted_file = os.path.splitext(data_file)[0] + "_Gemalt.json"
+        if os.path.isfile(painted_file):
+            painted = json.load(open(painted_file, encoding="utf-8"))
+            painted_texture = import_picture(os.path.join(ROOT, painted["picture"]), "T_Karte_{}_Gemalt".format(name))
+            size = float(painted.get("size", 1024))
+            anchors = []
+            for entry in painted["anchors"]:
+                anchor = unreal.VaelMapAnchor()
+                anchor.set_editor_property("world", unreal.Vector2D(entry["world"][0], entry["world"][1]))
+                anchor.set_editor_property("picture", unreal.Vector2D(entry["picture"][0] / size, entry["picture"][1] / size))
+                anchors.append(anchor)
+            world_map.set_editor_property("painted_picture", painted_texture)
+            world_map.set_editor_property("painted_anchors", anchors)
+            log("{}: painted map with {} anchors".format(name, len(anchors)))
         assets.save_loaded_asset(world_map, False)
         made.append("{} ({} names)".format(name, len(labels)))
 

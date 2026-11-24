@@ -27,6 +27,21 @@ struct FVaelMapLabel
 	int32 Size = 1;
 };
 
+/** A place pinned on the painted map: where it lies in the world and where the painter put it */
+USTRUCT(BlueprintType)
+struct FVaelMapAnchor
+{
+	GENERATED_BODY()
+
+	/** World cm (X, Y) */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
+	FVector2D World = FVector2D::ZeroVector;
+
+	/** Place in the painted picture, 0..1 from the top left */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
+	FVector2D Picture = FVector2D::ZeroVector;
+};
+
 /** What the group has seen of one map: FogCells x FogCells values, 0 hidden .. 255 seen */
 USTRUCT()
 struct FVaelMapFog
@@ -83,6 +98,23 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
 	TArray<FVaelMapLabel> Camps;
 
+	/**
+	 *  Optional painted world map for the big map, north up and not turning. Its coast is drawn freely, so it is not a scaled
+	 *  copy of the terrain: the anchors pin places of the world onto it and everything in between is bent smoothly.
+	 *  Without it (or with fewer than 3 anchors) the big map shows Picture like the mini map.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
+	TSoftObjectPtr<UTexture2D> PaintedPicture;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Map")
+	TArray<FVaelMapAnchor> PaintedAnchors;
+
+	/** True when the big map uses the painted picture */
+	bool HasPaintedMap() const { return !PaintedPicture.IsNull() && PaintedAnchors.Num() >= 3; }
+
+	/** Place in the painted picture (0..1) of a world location: thin plate spline through the anchors */
+	FVector2D WorldToPainted(const FVector2D& World) const;
+
 	/** Fog cells along each side of the picture square */
 	static constexpr int32 FogCells = 256;
 
@@ -91,4 +123,17 @@ public:
 
 	/** Place in the picture (0..1) of a world location */
 	FVector2D WorldToPicture(const FVector2D& World) const { return (World - WorldMin) / FMath::Max(WorldSize, 1.0f); }
+
+#if WITH_EDITOR
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& Event) override { Super::PostEditChangeProperty(Event); SplineAnchorCount = -1; }
+#endif
+
+private:
+
+	/** Spline weights per anchor and the affine part (3 values), for U and V; solved once on first use */
+	mutable TArray<double> SplineU;
+	mutable TArray<double> SplineV;
+	mutable int32 SplineAnchorCount = -1;
+
+	void SolveSpline() const;
 };

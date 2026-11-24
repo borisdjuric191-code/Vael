@@ -285,6 +285,10 @@ private:
 	/** The whole map of the level over the screen, with the names of the places, while a player has it open */
 	void DrawBigMap(const AVaelPlayerController* PlayerController, const TArray<const AVaelPlayerController*>& PlayerControllers);
 
+	/** The big map on the painted picture: north up, not turning; places, camps and players pinned on it through the anchors */
+	void DrawPaintedBigMap(const AVaelPlayerController* PlayerController, const TArray<const AVaelPlayerController*>& PlayerControllers,
+		const UVaelWorldMap* Map, UTexture2D* Painted, const FVector2D& PanelMin, const FVector2D& PanelMax);
+
 	/** Draws the part of the map picture (or another picture over the same square, like the fog) under the four screen corners (clockwise) */
 	void DrawMapPicture(const FMapView& View, const FVector2D (&Corners)[4], float Alpha, UTexture2D* Texture = nullptr);
 
@@ -375,6 +379,13 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> MapPicture;
+
+	/** The painted world map of the level map, if it has one, and the map it was loaded for */
+	UPROPERTY(Transient)
+	TObjectPtr<UTexture2D> PaintedMapPicture;
+
+	UPROPERTY(Transient)
+	TObjectPtr<const UVaelWorldMap> PaintedMapOwner;
 
 	/** The open grimoire of the inventory */
 	UPROPERTY(Transient)

@@ -3426,6 +3426,19 @@ void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const T
 	const FVector2D PanelMin((Canvas->ClipX - MapPanelWidth) * 0.5f, (Canvas->ClipY - MapPanelHeight) * 0.5f + 14.0f * S);
 	const FVector2D PanelMax = PanelMin + FVector2D(MapPanelWidth, MapPanelHeight);
 
+	// The painted world map, when the level map has one; otherwise the terrain picture turned like the camera
+	if (Map->HasPaintedMap() && PaintedMapOwner != Map)
+	{
+		PaintedMapOwner = Map;
+		PaintedMapPicture = VaelAssets::LoadOptional(Map->PaintedPicture);
+	}
+	UTexture2D* Painted = Map->HasPaintedMap() ? PaintedMapPicture.Get() : nullptr;
+	if (Painted != nullptr)
+	{
+		DrawPaintedBigMap(PlayerController, PlayerControllers, Map, Painted, PanelMin, PanelMax);
+	}
+	else
+	{
 	const bool bHasFocus = Map->FocusMax.X > Map->FocusMin.X && Map->FocusMax.Y > Map->FocusMin.Y;
 	const FVector2D FocusMin = bHasFocus ? Map->FocusMin : Map->WorldMin;
 	const FVector2D FocusMax = bHasFocus ? Map->FocusMax : Map->WorldMin + FVector2D(Map->WorldSize);
@@ -3515,6 +3528,7 @@ void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const T
 		DrawLabel(LOCTEXT("BigMapTravel", "Hoch/Runter: Lager wählen · Bestätigen: dorthin reisen"),
 			PanelMin.X, PanelMin.Y - 30.0f * S, 17.0f * S, WithAlpha(EmberColor, 0.9f), 0.0f);
 	}
+	}
 
 	// Die Waage of the region and of the player, on a dark strip at the foot of the map
 	if (const AVaelRegion* MapRegion = PlayerController->GetPawn() != nullptr ? AVaelRegion::GetRegionAt(GetWorld(), PlayerController->GetPawn()->GetActorLocation()) : nullptr)
@@ -3533,6 +3547,121 @@ void AVaelHUD::DrawBigMap(const AVaelPlayerController* PlayerController, const T
 	DrawTitle(Map->Title, Canvas->ClipX * 0.5f, PanelMin.Y - 50.0f * S, 38.0f * S, BoneColor, 0.5f);
 	DrawLabel(FText::Format(LOCTEXT("BigMapClose", "{0}: Karte schließen"), GetMapButtonName(PlayerController->GetInputGlyphs())),
 		PanelMax.X, PanelMin.Y - 30.0f * S, 17.0f * S, BoneColor, 1.0f);
+}
+
+void AVaelHUD::DrawPaintedBigMap(const AVaelPlayerController* PlayerController, const TArray<const AVaelPlayerController*>& PlayerControllers,
+	const UVaelWorldMap* Map, UTexture2D* Painted, const FVector2D& PanelMin, const FVector2D& PanelMax)
+{
+	const float S = UiScale;
+	const FTexture* Resource = Painted->GetResource();
+	if (Resource == nullptr)
+	{
+		return;
+	}
+
+	// The painted sheet as large as the panel allows, north up
+	const FVector2D PanelSize = PanelMax - PanelMin;
+	const float Aspect = Painted->GetSizeY() > 0 ? static_cast<float>(Painted->GetSizeX()) / Painted->GetSizeY() : 1.0f;
+	const float Height = FMath::Min(PanelSize.Y, PanelSize.X / Aspect);
+	const FVector2D SheetSize(Height * Aspect, Height);
+	const FVector2D SheetMin = (PanelMin + PanelMax - SheetSize) * 0.5f;
+	const auto ToScreen = [Map, SheetMin, SheetSize](const FVector2D& World)
+	{
+		return SheetMin + Map->WorldToPainted(World) * SheetSize;
+	};
+
+	DrawBox(SheetMin.X - 6.0f * S, SheetMin.Y - 6.0f * S, SheetSize.X + 12.0f * S, SheetSize.Y + 12.0f * S, Rgb(13, 9, 10, 235));
+	FCanvasTileItem Sheet(SheetMin, Resource, SheetSize, FLinearColor::White);
+	Sheet.BlendMode = SE_BLEND_Opaque;
+	Canvas->DrawItem(Sheet);
+	DrawFrame(SheetMin.X, SheetMin.Y, SheetSize.X, SheetSize.Y, RimColor, 2.0f * S);
+	const FBox2D Clip(SheetMin, SheetMin + SheetSize);
+
+	// Names: the great areas always, the rest once the group has been there; smaller ones move below bigger ones they would cover
+	const UVaelProgressSubsystem* Progress = GetGameInstance() != nullptr ? GetGameInstance()->GetSubsystem<UVaelProgressSubsystem>() : nullptr;
+	TArray<const FVaelMapLabel*> Labels;
+	for (const FVaelMapLabel& Label : Map->Labels)
+	{
+		if (Label.Size >= 2 || !Map->bFogOfWar || Progress == nullptr || Progress->GetRevealed(Map, Label.Location) > 0.3f)
+		{
+			Labels.Add(&Label);
+		}
+	}
+	Labels.StableSort([](const FVaelMapLabel& A, const FVaelMapLabel& B) { return A.Size > B.Size; });
+	TArray<FBox2D> Written;
+	for (const FVaelMapLabel* Label : Labels)
+	{
+		const FVector2D Point = ToScreen(Label->Location);
+		if (!Clip.IsInside(Point))
+		{
+			continue;
+		}
+		const float TextHeight = (Label->Size >= 2 ? 30.0f : Label->Size == 1 ? 21.0f : 15.0f) * S;
+		float HalfWidth = 0.0f;
+		{
+			TGuardValue<bool> TitleGuard(bTitleText, true);
+			HalfWidth = MeasureLabel(Label->Name, TextHeight) * 0.5f;
+		}
+		FBox2D Box(FVector2D(Point.X - HalfWidth, Point.Y - TextHeight * 0.5f), FVector2D(Point.X + HalfWidth, Point.Y + TextHeight * 0.6f));
+		for (const FBox2D& Other : Written)
+		{
+			if (Box.Intersect(Other))
+			{
+				Box = Box.ShiftBy(FVector2D(0.0f, Other.Max.Y - Box.Min.Y + 2.0f * S));
+			}
+		}
+		Written.Add(Box);
+		// Dark ink on the light parchment
+		const FLinearColor Ink = Label->Size >= 2 ? Rgb(52, 30, 22) : Label->Size == 1 ? Rgb(44, 32, 26) : Rgb(44, 32, 26, 215);
+		DrawTitle(Label->Name, Point.X, Box.Min.Y, TextHeight, Ink, 0.5f);
+	}
+
+	// Found camps: a fire to travel to, the chosen one ringed
+	const TArray<FVaelMapLabel> Camps = Progress != nullptr ? Progress->GetFoundCamps(Map) : TArray<FVaelMapLabel>();
+	for (int32 Index = 0; Index < Camps.Num(); ++Index)
+	{
+		const FVector2D Point = ToScreen(Camps[Index].Location);
+		if (!Clip.IsInside(Point))
+		{
+			continue;
+		}
+		const bool bChosen = Index == PlayerController->GetMapCampSelection();
+		DrawDisc(Point, (bChosen ? 11.0f : 8.0f) * S, Rgb(13, 9, 10, 235));
+		DrawDisc(Point, (bChosen ? 8.0f : 6.0f) * S, bChosen ? EmberColor : WithAlpha(EmberColor, 0.75f));
+		DrawDisc(Point + FVector2D(0.0f, -2.0f * S), 2.5f * S, Rgb(255, 230, 170));
+		if (bChosen)
+		{
+			DrawRing(Point, 16.0f * S, EmberColor, 2.0f * S);
+			DrawBox(Point.X - MeasureLabel(Camps[Index].Name, 20.0f * S) * 0.5f - 6.0f * S, Point.Y + 17.0f * S, MeasureLabel(Camps[Index].Name, 20.0f * S) + 12.0f * S, 26.0f * S, Rgb(13, 9, 10, 200));
+			DrawTitle(Camps[Index].Name, Point.X, Point.Y + 18.0f * S, 20.0f * S, EmberColor, 0.5f);
+		}
+	}
+	if (Camps.Num() > 0)
+	{
+		DrawLabel(LOCTEXT("BigMapTravel", "Hoch/Runter: Lager wählen · Bestätigen: dorthin reisen"),
+			PanelMin.X, PanelMin.Y - 30.0f * S, 17.0f * S, WithAlpha(EmberColor, 0.9f), 0.0f);
+	}
+
+	// Players: arrows in their colours, pointing where they look on the bent map
+	const AVaelGameMode* GameMode = GetWorld()->GetAuthGameMode<AVaelGameMode>();
+	const FLinearColor Outline = Rgb(13, 9, 10, 230);
+	for (const AVaelPlayerController* Other : PlayerControllers)
+	{
+		const APawn* Pawn = Other->GetPawn();
+		if (Pawn == nullptr)
+		{
+			continue;
+		}
+		const FVector2D Feet(Pawn->GetActorLocation());
+		const FVector2D Point = ToScreen(Feet);
+		const FVector2D Forward = (ToScreen(Feet + FVector2D(Pawn->GetActorForwardVector()) * 2000.0f) - Point).GetSafeNormal();
+		const FVector2D Side(-Forward.Y, Forward.X);
+		const FLinearColor Color = GameMode != nullptr ? GameMode->GetPlayerColor(Other->GetPlayerSlot()) : BoneColor;
+		const float Half = 11.0f * S;
+		const float Rim = 2.0f * S;
+		DrawPolygon({ Point + Forward * (Half + Rim), Point - Forward * (Half * 0.7f + Rim) + Side * (Half + Rim), Point - Forward * (Half * 0.7f + Rim) - Side * (Half + Rim) }, Outline);
+		DrawPolygon({ Point + Forward * Half, Point - Forward * Half * 0.7f + Side * Half, Point - Forward * Half * 0.7f - Side * Half }, Color);
+	}
 }
 
 FText AVaelHUD::GetMapButtonName(EVaelInputGlyphs Glyphs)
