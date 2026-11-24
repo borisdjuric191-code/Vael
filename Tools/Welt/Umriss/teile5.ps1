@@ -49,12 +49,23 @@ $wk = $w; $w = $cut; Limb (Smooth @(@(462,352,8), @(560,352,22), @(660,356,28), 
 # horns swept back over the neck, east and south-east, breaking up into skerries at the tips
 foreach ($h in @(@(@(870,225,60), @(940,225,40), @(995,260,22), @(1020,305,8)), @(@(920,300,50), @(975,340,30), @(995,390,14), @(1000,425,5)))) {
   $k = 0; foreach ($p in (Smooth $h)) { $k++; if ($k -gt 12 -and (Jit $p[0] $k) -lt 0.35) { continue }; Disc $w $p[0] $p[1] ($p[2] / 2) } }
-# dorsal crest: skerries off the outer side of the back, from the neck down the flank, fading towards the tail
-$cx = 560; $cy = 520; $k = 0
-foreach ($p in $spine) { $k++; if ($k % 4 -ne 0 -or $k -lt 10 -or $k -gt $spine.Count - 4) { continue }
-  if ((Jit $p[1] $k) -lt 0.3) { continue }
-  $dx = $p[0] - $cx; $dy = $p[1] - $cy; $l = [Math]::Sqrt($dx*$dx + $dy*$dy); $o = $p[2] / 2 + 48 + 18 * (Jit $p[0] $k)
-  Disc $w ($p[0] + $dx / $l * $o) ($p[1] + $dy / $l * $o) ((3 + $p[2] / 30) * (0.6 + 0.7 * (Jit ($p[0]+$p[1]) $k))) }
+# dorsal spines: a chain of narrow, jagged rock islands off the outer coast, laid back towards the tail like spines,
+# longest at the shoulders, shrinking down the back; some joined to the coast as thin headlands, gaps between them
+$cx = 560; $cy = 520; $k = 0; $n = $spine.Count
+$wk2 = $w; $w = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(0, 0, 255))
+if ($env:ZACKEN -ne '0') { foreach ($i in ($n - 12)..14) { if (($n - 12 - $i) % 5 -ne 0) { continue }
+  $p = $spine[$i]; $q = $spine[$i - 3]; $k++
+  $dx = $p[0] - $cx; $dy = $p[1] - $cy; $l = [Math]::Sqrt($dx*$dx + $dy*$dy); $nx = $dx / $l; $ny = $dy / $l
+  $bx = $q[0] - $p[0]; $by = $q[1] - $p[1]; $bl = [Math]::Sqrt($bx*$bx + $by*$by); $bx /= $bl; $by /= $bl
+  $t = ($n - 12 - $i) / ($n - 26.0)                    # 0 at the shoulders, 1 near the tail
+  $len = (78 - 54 * $t) * (0.75 + 0.5 * (Jit $p[0] $i)); $wid = (24 - 14 * $t) * (0.8 + 0.4 * (Jit $p[1] $i))
+  $gap = if ((Jit ($p[0] + 7) $i) -lt 0.35) { -6 } else { 10 + 8 * (Jit ($p[1] + 3) $i) }
+  $x0 = $p[0] + $nx * ($p[2] / 2 + $gap); $y0 = $p[1] + $ny * ($p[2] / 2 + $gap)
+  $x1 = $x0 + ($nx * 0.75 + $bx * 0.65) * $len * 0.55; $y1 = $y0 + ($ny * 0.75 + $by * 0.65) * $len * 0.55
+  $x2 = $x0 + ($nx * 0.7 + $bx * 0.75) * $len; $y2 = $y0 + ($ny * 0.7 + $by * 0.75) * $len
+  if ((Jit ($p[0] + $p[1]) $i) -lt 0.12) { continue }   # a missing spine here and there
+  Limb (Smooth @(@($x0, $y0, $wid), @($x1, $y1, $wid * 0.6), @($x2, $y2, 4))) } }
+$w = $wk2
 # the throat between skull and body on the outer side
 $w = $cut; Limb (Smooth @(@(1060,470,150), @(1010,468,80), @(962,466,26))); $w = $wk
 # the ring's hole: open inner sea, a slightly irregular oval

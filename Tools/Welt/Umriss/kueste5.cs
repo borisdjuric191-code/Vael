@@ -46,6 +46,8 @@ public static class C5 {
     var pp=Px(parts); var f=new float[W*H]; var dp=Dist(prot,W,H,true);   // soft falloff round protected content: coasts hug it instead of biting circles
     for(int i=0;i<f.Length;i++) f[i]=(((pp[i]>>16)&255)/255f)-((((pp[i]>>8)&255)>128&&((pp[i]>>16)&255)<128)?0.9f:0f)+(today[i]?0.15f:0f)+0.8f*Math.Max(0f,1f-dp[i]/40f);
     f=Blur(f,W,H,12);
+    // sharp channel (blue): dorsal spines, only lightly softened so they stay narrow and jagged
+    var sp=new float[W*H]; for(int i=0;i<sp.Length;i++){ int c=pp[i]; sp[i]=((c&255)>128&&((c>>16)&255)<128)?1f:0f; } sp=Blur(sp,W,H,2);
     var land=new bool[W*H];
     for(int y=0;y<H;y++) for(int x=0;x<W;x++){
       // big warp: gulfs and headlands a few hundred metres deep; mid warp: fjords and capes
@@ -53,7 +55,10 @@ public static class C5 {
       double wy=y+big*(Fbm(x,y,240,3,57)-0.5)*2+mid*(Fbm(x,y,70,4,59)-0.5)*2+0.4*mid*(Fbm(x,y,24,3,61)-0.5)*2;
       int ix=Math.Max(0,Math.Min(W-1,(int)wx)), iy=Math.Max(0,Math.Min(H-1,(int)wy));
       double v=f[iy*W+ix]+rough*(Fbm(x,y,22,5,93)-0.5)+0.4*rough*(Fbm(x,y,7,3,94)-0.5);
-      land[y*W+x]=v>0.5||prot[y*W+x]; }
+      double sx=x+0.35*mid*(Fbm(x,y,24,3,15)-0.5)*2, sy=y+0.35*mid*(Fbm(x,y,24,3,61)-0.5)*2;
+      int jx=Math.Max(0,Math.Min(W-1,(int)sx)), jy=Math.Max(0,Math.Min(H-1,(int)sy));
+      double vs=sp[jy*W+jx]+0.6*rough*(Fbm(x,y,9,3,95)-0.5);
+      land[y*W+x]=v>0.5||vs>0.5||prot[y*W+x]; }
     // archipelagos: islands in clusters off the coast, thinning out towards the open sea
     var ds=Dist(land,W,H,true);
     for(int y=0;y<H;y++) for(int x=0;x<W;x++){ int i=y*W+x; if(land[i]) continue; double d=ds[i]; if(d<8||d>130) continue;

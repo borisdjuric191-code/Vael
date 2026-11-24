@@ -11,3 +11,4 @@ v4 (Ouroboros, Pinnwand-Vorlage): teile4.ps1 -> teile4.png, dann karte4.ps1 -> v
 v5 (schlanker Ouroboros entlang des Ringwegs): teile5.ps1 -> teile5.png, dann karte5.ps1 -> v5.png / v5_vergleich.png
   Regler: $env:ORTE="0" DEEP="999" BIG="55" MID="34" ROUGH="0.85" ISLES="0.8"
   ORTE="0" schuetzt nur den Ringweg; das Skript listet Orte, die im Meer landen wuerden. ORTE="1" schuetzt alle Orte.
+  ZACKEN="1" zeichnet die Rueckenzacken (blauer Kanal in teile5, bleibt scharf), "0" ohne.
