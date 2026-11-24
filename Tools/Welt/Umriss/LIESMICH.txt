@@ -12,3 +12,6 @@ v5 (schlanker Ouroboros entlang des Ringwegs): teile5.ps1 -> teile5.png, dann ka
   Regler: $env:ORTE="0" DEEP="999" BIG="55" MID="34" ROUGH="0.85" ISLES="0.8"
   ORTE="0" schuetzt nur den Ringweg; das Skript listet Orte, die im Meer landen wuerden. ORTE="1" schuetzt alle Orte.
   ZACKEN="1" zeichnet die Rueckenzacken (blauer Kanal in teile5, bleibt scharf), "0" ohne.
+
+Regionen auf v5: regionen5.ps1 (gleiche Regler wie v5, teile5.png muss da sein), TEILUNG=heute|mitte|gleich
+  heute = Grenzen von heute, gleich = vier gleich grosse Regionen, mitte = halbe Strecke dazwischen. Flaeche je Region steht im Bild.
