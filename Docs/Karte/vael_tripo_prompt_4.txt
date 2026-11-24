@@ -1,15 +1,15 @@
 ABSOLUTELY NO TEXT: no letters, words, names, labels, numbers or titles anywhere on the map.
 
 Two images are attached.
-Image 1 (flat colours) is the LAYOUT guide: the ring of land, the large round inner sea, where the four regions lie and roughly how big they are. Follow its shape loosely, refine coastlines and islands so they look natural.
-Image 2 (painted map) is the STYLE and DETAIL reference: copy its look exactly: aged parchment with burned edges, ink coastlines, hatched coasts, the slate-blue sea with wave texture, the region colours, the density of small hand-drawn details, the sea serpent and the crab. Repaint the land of image 1 in this style.
+Image 1 (the newer map with the blue sea and labels) is the SHAPE reference: keep its overall land shape, the ring around the large inner sea, the coastlines and the islands as they are. Ignore its labels, its colours and its drawing style.
+Image 2 (the painted map with the large arches and the crater) is the STYLE and DETAIL reference: copy its look exactly: aged parchment with burned edges, ink coastlines, hatched coasts, the slate-blue sea with wave texture, its region colours (dark green forest, ash-brown plain, rust-brown mining land, grey and white cold highland), the density of small hand-drawn details, the sea serpent and the crab. Repaint the land of image 1 in this style.
 
-The hidden idea: the ring of land is an ouroboros, a serpent biting its own tail, only felt in the overall shape, never drawn. The western forest region narrows towards the east into a slim ridge with skerries (the tail); it reaches into the narrow sea gap between the two long parallel peninsulas of the grey northern region, which close around it like open jaws. In image 1 the forest has NO ridge pointing north; do not add one.
+One change to the shape of image 1: the two long parallel peninsulas in the north (the grey region) form a mouth. Open this mouth a little wider: the southern peninsula angles slightly further down and away from the northern one, so a clear, wedge-shaped strait of sea lies between them, wider at its western opening. The slim eastern end of the green forest region narrows into a thin ridge with a few skerries and points straight into this open strait, its tip lying just inside the opening between the two peninsulas, as if the mouth were closing around it. It must not point north and must not touch either peninsula.
 
-Regions, same colours as in image 2:
-- West (dark green forest): many small dense tree symbols, gnarled roots and fog over a moor in the south; one large ancient tree in the middle, drawn no bigger than a small hill, not with giant roots across the region.
+Regions:
+- West (dark green forest): many small dense tree symbols, gnarled roots and fog over a moor in the south; one large ancient tree in the middle, drawn no bigger than a small hill, without giant roots across the region.
 - South-west (ash brown plain): tiny charred dead trees, the smoking crater with a faint violet glow, glowing ember cracks, a burned ruined village, broken walls, a small camp with tents and a tiny fire, ash dunes, a winding road.
-- South-east (rust brown mining land): the big curved stone arches, canyons, mine shafts, smelter chimneys with smoke, slag heaps, and here and there small subtle glints of ore and crystal in the rocks.
+- South-east (rust brown mining land): the big curved stone arches, canyons, mine shafts, smelter chimneys with smoke, slag heaps, and here and there small subtle glints of ore and crystal in the rocks. No large violet chasm.
 - North-east (grey and white cold highland): the small tower on the high plateau with a winding path, frozen lakes, crags, wind-bent pines, a ruined watchtower, a cliff hut, the two long snowy ridges in the far north-east breaking into icy rocks.
 
 Only one compass rose, with two small dragons, in the top left corner. A few small ships. No other compass roses, no scale bar, no cartouche.
