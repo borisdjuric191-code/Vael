@@ -46,4 +46,38 @@ public static class RG {
       if(edge){ R=40; G=28; B=20; }
       px[i]=unchecked((int)0xFF000000)|((int)Math.Min(255,Math.Max(0,R))<<16)|((int)Math.Min(255,Math.Max(0,G))<<8)|(int)Math.Min(255,Math.Max(0,B)); }
     System.Runtime.InteropServices.Marshal.Copy(px,0,r.Scan0,px.Length); img.UnlockBits(r); }
+  // v7: sea stacks and skerries: on a jittered grid, one candidate per cell; kept with a chance that falls off with the
+  // distance to the coast (dist = distance to land for sea pixels); a few large rocks, many small needles; denser at the head
+  static float[] Blur(float[] m,int w,int h,int rad){ var t=new float[m.Length]; var o=new float[m.Length];
+    for(int y=0;y<h;y++){ float s=0; int n=0; for(int x=-rad;x<w;x++){ if(x+rad<w){s+=m[y*w+x+rad];n++;} if(x-rad-1>=0){s-=m[y*w+x-rad-1];n--;} if(x>=0)t[y*w+x]=s/n; } }
+    for(int x=0;x<w;x++){ float s=0; int n=0; for(int y=-rad;y<h;y++){ if(y+rad<h){s+=t[(y+rad)*w+x];n++;} if(y-rad-1>=0){s-=t[(y-rad-1)*w+x];n--;} if(y>=0)o[y*w+x]=s/n; } }
+    return o; }
+  public static int Stacks(bool[] land,float[] dist,int W,int H,double dens){ int added=0; int cell=11;
+    for(int cy=0;cy<H/cell;cy++) for(int cx=0;cx<W/cell;cx++){
+      int x=cx*cell+(int)(Hash(cx,cy,401)*cell), y=cy*cell+(int)(Hash(cx,cy,402)*cell); if(x<4||y<4||x>=W-4||y>=H-4) continue;
+      int i=y*W+x; if(land[i]) continue; double d=dist[i]; if(d<5||d>70) continue;
+      double head=(x>600&&y<470)?1.8:1.0; double cluster=Fbm(x,y,90,2,405);
+      double cl=Math.Max(0,(cluster-0.45)/0.3); double p=dens*head*Math.Exp(-d/16.0)*cl*cl;
+      if(Hash(cx,cy,403)>p) continue;
+      double u=Hash(cx,cy,404); double r=u<0.85?1.0+1.6*u:3.0+25*(u-0.85);   // mostly needles, now and then a big rock
+      double ang=Hash(cx,cy,406)*Math.PI, ex=0.55+0.9*Hash(cx,cy,407);
+      int R=(int)Math.Ceiling(r*1.6)+2;
+      for(int yy=y-R;yy<=y+R;yy++) for(int xx=x-R;xx<=x+R;xx++){ if(xx<0||yy<0||xx>=W||yy>=H) continue;
+        double dx=xx-x, dy=yy-y; double ax=dx*Math.Cos(ang)+dy*Math.Sin(ang), ay=(-dx*Math.Sin(ang)+dy*Math.Cos(ang))/ex;
+        double rr=r*(0.75+0.5*Fbm(xx,yy,4,2,408)); if(ax*ax+ay*ay<=rr*rr && !land[yy*W+xx]){ land[yy*W+xx]=true; added++; } } }
+    return added; }
+  // v7: snow from a painted mask (white = snow), only on land; keeps the relief by scaling with the pixel's own brightness
+  // cliffs: on the outer coast, where noise says so, the first pixels inland get a dark cliff face with a light top edge
+  public static void Finish(Bitmap img,bool[] land,float[] seaDist,Bitmap snowMask){ int W=img.Width,H=img.Height;
+    var r=img.LockBits(new Rectangle(0,0,W,H),ImageLockMode.ReadWrite,PixelFormat.Format32bppArgb); var px=new int[W*H];
+    System.Runtime.InteropServices.Marshal.Copy(r.Scan0,px,0,px.Length);
+    var sm=new float[W*H]; if(snowMask!=null){ for(int y=0;y<H;y++) for(int x=0;x<W;x++) sm[y*W+x]=snowMask.GetPixel(x,y).R/255f; sm=Blur(sm,W,H,5); }
+    for(int y=1;y<H-1;y++) for(int x=1;x<W-1;x++){ int i=y*W+x; if(!land[i]) continue; int c=px[i];
+      double R=(c>>16)&255, G=(c>>8)&255, B=c&255; double lum=(R+G+B)/3.0;
+      double s=sm[i]*(0.7+0.6*(Fbm(x,y,12,3,501)-0.5)); s=Math.Max(0,Math.Min(1,(s-0.18)/0.4));
+      if(s>0){ double v=0.93+(lum-140)/220.0+0.12*(Fbm(x,y,5,2,503)-0.5); v=Math.Max(0.55,Math.Min(1.05,v)); R=R*(1-s)+236*v*s; G=G*(1-s)+241*v*s; B=B*(1-s)+250*v*s; }
+      double d=seaDist[i]; double cl=Fbm(x,y,60,3,502);
+      if(d<=4 && cl>0.52){ if(d<=1.5){ R*=0.55; G*=0.55; B*=0.55; } else if(d<=3){ R*=0.75; G*=0.75; B*=0.75; } else { R=Math.Min(255,R*1.12); G=Math.Min(255,G*1.12); B=Math.Min(255,B*1.12); } }
+      px[i]=unchecked((int)0xFF000000)|((int)Math.Min(255,Math.Max(0,R))<<16)|((int)Math.Min(255,Math.Max(0,G))<<8)|(int)Math.Min(255,Math.Max(0,B)); }
+    System.Runtime.InteropServices.Marshal.Copy(px,0,r.Scan0,px.Length); img.UnlockBits(r); }
 }
