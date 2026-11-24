@@ -16,3 +16,7 @@ v5 (schlanker Ouroboros entlang des Ringwegs): teile5.ps1 -> teile5.png, dann ka
 Regionen auf v5: regionen5.ps1 (gleiche Regler wie v5, teile5.png muss da sein), TEILUNG=heute|mitte|gleich
   heute = Grenzen von heute, gleich = vier gleich grosse Regionen, mitte = halbe Strecke dazwischen. Flaeche je Region steht im Bild.
   GRENZE=80 macht die Grenzen natuerlich uneben (Rauschen entlang des Rings), HERZ=0 laesst den Herz-Namen weg.
+
+v6 (schlankerer Bauch, groesseres rundes Innenmeer, mehr Buchten): teile6.ps1 -> teile6.png, dann regionen5.ps1 mit TEILE=teile6
+  Regler: ZACKEN=1 ORTE=0 DEEP=999 BIG=55 MID=40 ROUGH=1.0 ISLES=0.8 WFW=205 AMW=150 ESW=150 SKW=130 HOLEH=300 WEG=0 TEILUNG=mitte GRENZE=80 HERZ=0
+  WEG=0 schuetzt den Kampagnenweg nicht: der Weg im Eisenschlund hielt sonst die Innenkueste fest und muesste verlegt werden.

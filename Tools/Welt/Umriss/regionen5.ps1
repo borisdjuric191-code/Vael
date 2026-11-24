@@ -4,10 +4,10 @@ function N($v) { [double]::Parse($v, [Globalization.CultureInfo]::InvariantCultu
 Add-Type -TypeDefinition ([IO.File]::ReadAllText("$d\kueste5.cs")) -ReferencedAssemblies System.Drawing
 Add-Type -TypeDefinition ([IO.File]::ReadAllText("$d\regionen5.cs")) -ReferencedAssemblies System.Drawing
 $game = [System.Drawing.Bitmap]::FromFile("$d\welt_klein.png"); $game.RotateFlip('Rotate270FlipNone'); $game = New-Object System.Drawing.Bitmap $game
-$parts = New-Object System.Drawing.Bitmap ([System.Drawing.Bitmap]::FromFile("$d\teile5.png"))
+$parts = New-Object System.Drawing.Bitmap ([System.Drawing.Bitmap]::FromFile("$d\$(if ($env:TEILE) { $env:TEILE } else { 'teile5' }).png"))
 $s = Get-Content "$d\schutz.json" | ConvertFrom-Json
 $today = [C5]::Today($game)
-$prot = [C5]::Protect($today, 1024, 1024, (New-Object double[] 0), [double[]]$s.weg, 26, 16, (N $env:DEEP))
+$prot = [C5]::Protect($today, 1024, 1024, (New-Object double[] 0), $(if ($env:WEG -eq "0") { New-Object double[] 0 } else { [double[]]$s.weg }), 26, 16, (N $env:DEEP))
 $land = [C5]::Land($parts, $today, $prot, 1024, 1024, (N $env:BIG), (N $env:MID), (N $env:ROUGH), (N $env:ISLES))
 # ring route from the tail tip (rope bridge) round the body to the jaw tip, same points as the spine and head in teile5
 [double[]]$ring = 440,318, 402,309, 332,304, 262,318, 204,374, 184,458, 184,556, 198,656, 246,748, 348,786, 470,772, 600,734,
@@ -32,7 +32,7 @@ $paper = New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(
 $tf = New-Object System.Drawing.Font "Georgia", 24, ([System.Drawing.FontStyle]::Bold)
 $rf = New-Object System.Drawing.Font "Georgia", 17, ([System.Drawing.FontStyle]::Bold)
 $sf = New-Object System.Drawing.Font "Georgia", 12
-$g.DrawString("Vael · Regionen auf Umriss v5", $tf, $ink, 24, 18)
+$g.DrawString("Vael · Regionen auf Umriss $(if ($env:TEILE -eq 'teile6') { 'v6' } else { 'v5' })", $tf, $ink, 24, 18)
 $g.DrawString("durchgezogen: Vorschlag ($mode) · weiß gestrichelt: Grenzen von heute (ungefähr)", $sf, $ink, 26, 58)
 $cen = [RG]::Centroids($along, $b, 1024)
 $roman = "II", "I", "IV", "III"
