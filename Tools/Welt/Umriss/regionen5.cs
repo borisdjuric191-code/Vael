@@ -2,10 +2,19 @@ using System; using System.Drawing; using System.Drawing.Imaging;
 // Region split for outline v5: every land pixel gets its position s along the ring route (tail tip -> jaw tip);
 // regions are cuts across the ring at fixed s values.
 public static class RG {
-  public static float[] Along(bool[] land,int W,int H,double[] p){ int n=p.Length/2; var cum=new double[n];
+  static double Hash(int x,int y,int s){ unchecked{ int h=x*374761393+y*668265263+s*1442695041; h=(h^(h>>13))*1274126177; return ((h^(h>>16))&0x7fffffff)/(double)0x7fffffff; } }
+  static double Val(double x,double y,int s){ int ix=(int)Math.Floor(x), iy=(int)Math.Floor(y); double fx=x-ix, fy=y-iy; fx=fx*fx*(3-2*fx); fy=fy*fy*(3-2*fy);
+    double a=Hash(ix,iy,s), b=Hash(ix+1,iy,s), c=Hash(ix,iy+1,s), d=Hash(ix+1,iy+1,s); return a+(b-a)*fx+(c-a)*fy+(a-b-c+d)*fx*fy; }
+  static double Fbm(double x,double y,double period,int oct,int s){ double sum=0, amp=1, norm=0, f=1/period;
+    for(int o=0;o<oct;o++){ sum+=amp*Val(x*f,y*f,s+o*31); norm+=amp; amp*=0.5; f*=2.03; } return sum/norm; }
+  public static float[] Along(bool[] land,int W,int H,double[] p){ return Along(land,W,H,p,0); }
+  // warp > 0 bends the borders: each pixel's position along the ring is shifted by noise, so the cuts wander like
+  // ridges and streams instead of straight lines (big bends plus small wiggles)
+  public static float[] Along(bool[] land,int W,int H,double[] p,double warp){ int n=p.Length/2; var cum=new double[n];
     for(int k=1;k<n;k++){ double dx=p[2*k]-p[2*k-2], dy=p[2*k+1]-p[2*k-1]; cum[k]=cum[k-1]+Math.Sqrt(dx*dx+dy*dy); }
     var s=new float[W*H];
-    for(int y=0;y<H;y++) for(int x=0;x<W;x++){ int i=y*W+x; if(!land[i]){ s[i]=-1; continue; } s[i]=(float)Project(x,y,p,cum); }
+    for(int y=0;y<H;y++) for(int x=0;x<W;x++){ int i=y*W+x; if(!land[i]){ s[i]=-1; continue; } s[i]=(float)Project(x,y,p,cum);
+      if(warp>0) s[i]=(float)Math.Max(0,s[i]+warp*(Fbm(x,y,150,4,301)-0.5)*2+0.35*warp*(Fbm(x,y,30,3,303)-0.5)*2); }
     return s; }
   public static double Project(double x,double y,double[] p,double[] cum){ int n=p.Length/2; double best=1e18, bs=0;
     for(int k=0;k<n-1;k++){ double ax=p[2*k], ay=p[2*k+1], vx=p[2*k+2]-ax, vy=p[2*k+3]-ay; double l2=vx*vx+vy*vy;

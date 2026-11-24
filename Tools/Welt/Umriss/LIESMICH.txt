@@ -15,3 +15,4 @@ v5 (schlanker Ouroboros entlang des Ringwegs): teile5.ps1 -> teile5.png, dann ka
 
 Regionen auf v5: regionen5.ps1 (gleiche Regler wie v5, teile5.png muss da sein), TEILUNG=heute|mitte|gleich
   heute = Grenzen von heute, gleich = vier gleich grosse Regionen, mitte = halbe Strecke dazwischen. Flaeche je Region steht im Bild.
+  GRENZE=80 macht die Grenzen natuerlich uneben (Rauschen entlang des Rings), HERZ=0 laesst den Herz-Namen weg.

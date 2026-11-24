@@ -13,7 +13,7 @@ $land = [C5]::Land($parts, $today, $prot, 1024, 1024, (N $env:BIG), (N $env:MID)
 [double[]]$ring = 440,318, 402,309, 332,304, 262,318, 204,374, 184,458, 184,556, 198,656, 246,748, 348,786, 470,772, 600,734,
   722,694, 824,640, 882,560, 896,478, 890,410, 870,320, 810,300, 740,300, 660,310, 580,318, 510,322, 470,322
 $cum = [RG]::Cum($ring)
-$along = [RG]::Along($land, 1024, 1024, $ring)
+$along = [RG]::Along($land, 1024, 1024, $ring, $(if ($env:GRENZE) { N $env:GRENZE } else { 0 }))
 # today's borders: Aschenpass (Wurzelforst/Aschenmark), Schlackentor (Aschenmark/Eisenschlund), Nackenstieg (Eisenschlund/Sturmzinnen)
 [double[]]$bt = ([RG]::Project(190, 550, $ring, $cum)), ([RG]::Project(435, 760, $ring, $cum)), ([RG]::Project(900, 450, $ring, $cum))
 $bq = [RG]::Quantiles($along, 4)
@@ -33,7 +33,7 @@ $tf = New-Object System.Drawing.Font "Georgia", 24, ([System.Drawing.FontStyle]:
 $rf = New-Object System.Drawing.Font "Georgia", 17, ([System.Drawing.FontStyle]::Bold)
 $sf = New-Object System.Drawing.Font "Georgia", 12
 $g.DrawString("Vael · Regionen auf Umriss v5", $tf, $ink, 24, 18)
-$g.DrawString("durchgezogen: Vorschlag ($mode) · weiß gestrichelt: Grenzen von heute", $sf, $ink, 26, 58)
+$g.DrawString("durchgezogen: Vorschlag ($mode) · weiß gestrichelt: Grenzen von heute (ungefähr)", $sf, $ink, 26, 58)
 $cen = [RG]::Centroids($along, $b, 1024)
 $roman = "II", "I", "IV", "III"
 for ($r = 0; $r -lt 4; $r++) {
@@ -44,7 +44,7 @@ for ($r = 0; $r -lt 4; $r++) {
   $g.DrawString($t1, $rf, $ink, [float]$x, [float]$y); $g.DrawString($t2, $sf, $ink, [float]($x + ($ww - $w2.Width) / 2), [float]($y + 24))
 }
 $hf = New-Object System.Drawing.Font "Georgia", 16, ([System.Drawing.FontStyle]::Italic)
-$g.DrawString("V · Das Herz", $hf, $ink, 500, 470)
+if ($env:HERZ -ne "0") { $g.DrawString("V · Das Herz", $hf, $ink, 500, 470) }
 $k = 1024 / 7.1; $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(40, 28, 20)), 2
 $g.DrawLine($pen, 30, 990, 30 + $k, 990); $g.DrawString("1 km", $sf, $ink, 40 + $k, 980)
 $img.Save("$d\v5_regionen_$mode.png")
