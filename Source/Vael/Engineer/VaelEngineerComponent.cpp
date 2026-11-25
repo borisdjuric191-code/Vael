@@ -145,6 +145,10 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	CheckIdeas(bIdeasPrimed);
 	bIdeasPrimed = true;
 
+	if (WhistleMesh != nullptr && WhistleMesh->IsVisible() && Now() > WhistleShownUntil)
+	{
+		WhistleMesh->SetVisibility(false);
+	}
 	UpdateWeaponMesh();
 	UpdateArmorRoll(DeltaTime);
 	UpdateSling(DeltaTime);
@@ -496,7 +500,7 @@ void UVaelEngineerComponent::TickShield()
 		if (!TickShellShield())
 		{
 			bShieldMoving = false;
-			SetComponentTickInterval(0.25f);
+			RestoreTickRate();
 		}
 		return;
 	}
@@ -515,7 +519,7 @@ void UVaelEngineerComponent::TickShield()
 			UpdateShieldMeshes();
 		}
 		bShieldMoving = false;
-		SetComponentTickInterval(0.25f);
+		RestoreTickRate();
 		return;
 	}
 	// The Rollsehne snaps it open the way the Aschenroller unrolls: from the forearm the shield swings round before him, facing
@@ -956,7 +960,8 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 		break;
 	case EVaelGearKind::Armor:
 		Built.Add(Id);
-		if (GetWorn(Gear->Place).IsNone())
+		// a shield goes on at once; a set only when its last piece is built and nothing of it is worn yet
+		if (GetWorn(Gear->Place).IsNone() && (Gear->Place == EVaelArmorPlace::Shield || CountSetBuilt(Gear->Set) == GetSetPieces(Gear->Set).Num()))
 		{
 			Wear(Id);
 		}
@@ -1662,6 +1667,28 @@ int32 UVaelEngineerComponent::Whistle(const FVector& Spot)
 		It->LureTo(Player, Near, It->IsHeavy() ? WhistleSeconds * 0.5f : WhistleSeconds, 1.0f);
 		++Came;
 	}
+	// the whistle at his mouth for a moment (the built piece; nothing where it is missing)
+	if (WhistleMesh == nullptr)
+	{
+		if (UStaticMesh* Piece = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Lockpfeife.SM_Ing_Lockpfeife"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			WhistleMesh = NewObject<UStaticMeshComponent>(Player, TEXT("EngineerLockpfeife"));
+			WhistleMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+			WhistleMesh->SetStaticMesh(Piece);
+			const FName Socket = Player->GetMesh()->DoesSocketExist(TEXT("hand_r")) ? FName(TEXT("hand_r")) : NAME_None;
+			WhistleMesh->SetupAttachment(Player->GetMesh(), Socket);
+			WhistleMesh->SetRelativeLocation(FVector(-4.0f, 4.0f, 0.0f));
+			WhistleMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
+			WhistleMesh->SetRelativeScale3D(FVector(1.4f));
+			WhistleMesh->RegisterComponent();
+		}
+	}
+	if (WhistleMesh != nullptr)
+	{
+		WhistleMesh->SetVisibility(true);
+		WhistleShownUntil = Now() + 1.2f;
+	}
+
 	const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
 	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->HandEffect), Spot, FRotator::ZeroRotator, FLinearColor(1.0f, 0.82f, 0.45f), 160.0f);
 	UVaelCombatTextSubsystem::PostReaction(Player, Came > 0 ? FText::Format(LOCTEXT("Whistled", "Pfiff! ({0} folgen)"), FText::AsNumber(Came)) : LOCTEXT("WhistledNone", "Pfiff!"));
@@ -2290,6 +2317,29 @@ FName UVaelEngineerComponent::GetWorn(EVaelArmorPlace Place) const
 	return Worn.IsValidIndex(Index) ? Worn[Index] : NAME_None;
 }
 
+TArray<FName> UVaelEngineerComponent::GetSetPieces(FName Set)
+{
+	TArray<FName> Pieces;
+	for (const FVaelGear& Each : VaelEngineerGear::GetAll())
+	{
+		if (Each.Kind == EVaelGearKind::Armor && Each.Set == Set && !Set.IsNone() && Each.Place != EVaelArmorPlace::Shield)
+		{
+			Pieces.Add(Each.Id);
+		}
+	}
+	return Pieces;
+}
+
+int32 UVaelEngineerComponent::CountSetBuilt(FName Set) const
+{
+	int32 Count = 0;
+	for (const FName& Piece : GetSetPieces(Set))
+	{
+		Count += Built.Contains(Piece) ? 1 : 0;
+	}
+	return Count;
+}
+
 bool UVaelEngineerComponent::Wear(FName Id)
 {
 	const FVaelGear* Gear = VaelEngineerGear::Find(Id);
@@ -2298,7 +2348,31 @@ bool UVaelEngineerComponent::Wear(FName Id)
 		return false;
 	}
 	Worn.SetNum(NumArmorPlaces);
-	Worn[static_cast<int32>(Gear->Place)] = Id;
+
+	// A set is built piece by piece but worn only as a whole (Boris 25.11.: half a Glutpanzer looks patched together);
+	// the shield stays a piece of its own
+	const TArray<FName> Pieces = Gear->Place != EVaelArmorPlace::Shield ? GetSetPieces(Gear->Set) : TArray<FName>();
+	if (Pieces.Num() > 0)
+	{
+		const int32 Ready = CountSetBuilt(Gear->Set);
+		if (Ready < Pieces.Num())
+		{
+			UVaelCombatTextSubsystem::PostReaction(GetOwner(), FText::Format(LOCTEXT("SetIncomplete", "Erst den ganzen Satz bauen ({0} von {1})"),
+				FText::AsNumber(Ready), FText::AsNumber(Pieces.Num())));
+			return false;
+		}
+		for (const FName& Piece : Pieces)
+		{
+			if (const FVaelGear* Each = VaelEngineerGear::Find(Piece))
+			{
+				Worn[static_cast<int32>(Each->Place)] = Piece;
+			}
+		}
+	}
+	else
+	{
+		Worn[static_cast<int32>(Gear->Place)] = Id;
+	}
 	ApplyHealthBonus();
 	UVaelSaveSubsystem::RequestSave(GetOwner());
 	return true;
@@ -2314,11 +2388,34 @@ bool UVaelEngineerComponent::TakeOff(EVaelArmorPlace Place)
 	if (Place == EVaelArmorPlace::Shield)
 	{
 		SetShieldRaised(false);
+		Worn[Index] = NAME_None;
 	}
-	Worn[Index] = NAME_None;
+	else
+	{
+		// the whole set comes off together
+		const FName Removing = Worn[Index];
+		const FVaelGear* Gear = VaelEngineerGear::Find(Removing);
+		const TArray<FName> Pieces = Gear != nullptr ? GetSetPieces(Gear->Set) : TArray<FName>();
+		for (FName& Piece : Worn)
+		{
+			Piece = Piece == Removing || Pieces.Contains(Piece) ? FName(NAME_None) : Piece;
+		}
+	}
 	ApplyHealthBonus();
 	UVaelSaveSubsystem::RequestSave(GetOwner());
 	return true;
+}
+
+void UVaelEngineerComponent::DropIncompleteSets()
+{
+	for (FName& Piece : Worn)
+	{
+		const FVaelGear* Gear = Piece.IsNone() ? nullptr : VaelEngineerGear::Find(Piece);
+		if (Gear != nullptr && Gear->Place != EVaelArmorPlace::Shield && !Gear->Set.IsNone() && CountSet(Gear->Set) < GetSetPieces(Gear->Set).Num())
+		{
+			Piece = NAME_None;
+		}
+	}
 }
 
 namespace
@@ -2482,6 +2579,11 @@ void UVaelEngineerComponent::OnDodged()
 	{
 		CurledUntil = Now() + 1.0f;
 	}
+	// the Panzerkugel turns every frame (four ticks a second made it jump a quarter turn at a time and look still)
+	if (UsesArmorRoll())
+	{
+		SetComponentTickInterval(0.0f);
+	}
 }
 
 float UVaelEngineerComponent::GetMoveSpeedScale() const
@@ -2522,6 +2624,12 @@ bool UVaelEngineerComponent::UsesArmorRoll() const
 {
 	const AVaelCharacter* Player = GetPlayer();
 	return Player != nullptr && Player->IsEngineer() && CountSet(TEXT("Schwarzglut")) >= 4;
+}
+
+void UVaelEngineerComponent::RestoreTickRate()
+{
+	// every frame while something of his moves smoothly (the shield, the Panzerkugel), else four times a second
+	SetComponentTickInterval(bShieldMoving || bBallShown ? 0.0f : 0.25f);
 }
 
 bool UVaelEngineerComponent::MakeBall()
@@ -2573,9 +2681,12 @@ void UVaelEngineerComponent::ShowBall(bool bShown)
 		HiddenForBall.Reset();
 		HideHeroForBall();
 		RollBall->SetVisibility(true);
+		RestoreTickRate();
 		UE_LOG(LogVael, Log, TEXT("Panzerkugel: rolled up, %d parts hidden"), HiddenForBall.Num());
 		RolledOver.Reset();
 		BallSpin = 0.0f;
+		BallSpunTotal = 0.0f;
+		BallFrames = 0;
 		LastBallLocation = Player->GetActorLocation();
 	}
 	else
@@ -2592,7 +2703,8 @@ void UVaelEngineerComponent::ShowBall(bool bShown)
 		{
 			RollBall->SetVisibility(false);
 		}
-		UE_LOG(LogVael, Log, TEXT("Panzerkugel: opened after %.2f s at %s"), Was, *Player->GetActorLocation().ToCompactString());
+		RestoreTickRate();
+		UE_LOG(LogVael, Log, TEXT("Panzerkugel: opened after %.2f s at %s, spun %.0f degrees in %d frames"), Was, *Player->GetActorLocation().ToCompactString(), BallSpunTotal, BallFrames);
 	}
 
 	// A puff of ash and embers hides the moment he curls up or opens
@@ -2692,6 +2804,8 @@ void UVaelEngineerComponent::UpdateArmorRoll(float DeltaTime)
 	const float Moved = FVector::Dist2D(Location, LastBallLocation);
 	LastBallLocation = Location;
 	BallSpin = FMath::Fmod(BallSpin + FMath::RadiansToDegrees(Moved / BallRadius), 360.0f);
+	BallSpunTotal += FMath::RadiansToDegrees(Moved / BallRadius);
+	++BallFrames;
 	const float Grown = FMath::Lerp(0.55f, 1.0f, FMath::SmoothStep(0.0f, 1.0f, Rolled / BallCurlSeconds));
 	const FVector Scale = FVector(BallRadius / BallModelRadius * Grown);
 	RollBall->SetRelativeScale3D(Scale);
@@ -2893,6 +3007,8 @@ void UVaelEngineerComponent::ReadSave(const FVaelSavedPlayer& Saved)
 		{
 			Piece = !Piece.IsNone() && VaelEngineerGear::Find(Piece) != nullptr ? Piece : NAME_None;
 		}
+		// sets are worn only whole (25.11.): half a set of an older save comes off
+		DropIncompleteSets();
 	}
 	if (Built.Contains(Saved.EngineerWeapon))
 	{

@@ -353,7 +353,8 @@ void AVaelHUD::DrawToolboxArmor(const AVaelPlayerController* PlayerController, T
 	if (const FVaelGearSet* Set = VaelEngineerGear::FindSet(Piece->Set))
 	{
 		const int32 Count = Engineer->CountSet(Piece->Set);
-		DrawLabel(FText::Format(LOCTEXT("SetCount", "{0} · {1} von 4 angelegt"), Set->Name, Count), TextAt.X, Y, 13.0f * T, PaperInk, 0.0f, TextWidth);
+		DrawLabel(FText::Format(LOCTEXT("SetCountWhole", "{0} · {1} von 4 gebaut · {2}"), Set->Name, Engineer->CountSetBuilt(Piece->Set),
+			Count >= 4 ? LOCTEXT("SetWornWhole", "angelegt") : LOCTEXT("SetOnlyWhole", "nur ganz zu tragen")), TextAt.X, Y, 13.0f * T, PaperInk, 0.0f, TextWidth);
 		Y += 17.0f * T;
 		Y = DrawWrappedLabel(Set->TwoPieces, TextAt.X, Y, 11.5f * T, Count >= 2 ? PaperActive : PaperFaded, TextWidth);
 		Y = DrawWrappedLabel(Set->FourPieces, TextAt.X, Y, 11.5f * T, Count >= 4 ? PaperActive : PaperFaded, TextWidth);

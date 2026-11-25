@@ -88,15 +88,37 @@ AVaelGrappleHook* AVaelGrappleHook::Throw(UVaelEngineerComponent* InEngineer, co
 	UStaticMesh* Cone = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cone.Cone"));
 	UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
 	UMaterialInterface* Material = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-	Hook->Head->SetStaticMesh(Cone);
-	Hook->Head->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.3f));
-	Hook->Head->SetWorldRotation(FRotationMatrix::MakeFromZ(Flat).Rotator());
+	// The built hook (Tools/Ingenieur/vael_ingenieur_werkstuecke.py, VAEL_ING_FALLEN): hub at the origin, fingers ahead along +X;
+	// the rope in the thread of the workshop. Shapes of the engine where the pieces are missing.
+	UStaticMesh* Piece = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Wurfhaken.SM_Ing_Wurfhaken"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	UMaterialInterface* Thread = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Faden.M_GK_Faden"), nullptr, LOAD_NoWarn | LOAD_Quiet);
 	Hook->Rope->SetStaticMesh(Cylinder);
+	if (Piece != nullptr)
+	{
+		Hook->Head->SetStaticMesh(Piece);
+		Hook->Head->SetRelativeScale3D(FVector(1.6f));
+		Hook->Head->SetWorldRotation(Flat.Rotation());
+	}
+	else
+	{
+		Hook->Head->SetStaticMesh(Cone);
+		Hook->Head->SetRelativeScale3D(FVector(0.22f, 0.22f, 0.3f));
+		Hook->Head->SetWorldRotation(FRotationMatrix::MakeFromZ(Flat).Rotator());
+	}
 	const TPair<UStaticMeshComponent*, FLinearColor> Looks[] = {
 		{ Hook->Head.Get(), FLinearColor(FColor(120, 100, 80)) },
 		{ Hook->Rope.Get(), FLinearColor(FColor(150, 125, 85)) } };
 	for (const TPair<UStaticMeshComponent*, FLinearColor>& Look : Looks)
 	{
+		if (Look.Key == Hook->Head && Piece != nullptr)
+		{
+			continue;
+		}
+		if (Look.Key == Hook->Rope && Thread != nullptr)
+		{
+			Look.Key->SetMaterial(0, Thread);
+			continue;
+		}
 		Look.Key->SetMaterial(0, Material);
 		if (UMaterialInstanceDynamic* Dynamic = Look.Key->CreateAndSetMaterialInstanceDynamic(0))
 		{
@@ -269,7 +291,7 @@ void AVaelGrappleHook::UpdateRope()
 	}
 	// The engine cylinder is 100 cm high round its middle
 	Rope->SetWorldLocationAndRotation((Hand + Tip) * 0.5f, FRotationMatrix::MakeFromZ(Span / Length).Rotator());
-	Rope->SetWorldScale3D(FVector(0.025f, 0.025f, Length / 100.0f));
+	Rope->SetWorldScale3D(FVector(0.035f, 0.035f, Length / 100.0f));
 }
 
 #undef LOCTEXT_NAMESPACE

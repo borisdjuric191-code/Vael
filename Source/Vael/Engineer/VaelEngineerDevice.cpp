@@ -88,6 +88,7 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 	Device->Type = Gear.Device;
 	Device->Id = Gear.Id;
 	Device->Born = World->GetTimeSeconds();
+	Device->LaidZ = Ground.Z;
 	Device->LifeTime = Gear.Device == EVaelDeviceType::Turret ? TurretLife : Gear.Device == EVaelDeviceType::Smoke ? SmokeLife : 120.0f;
 
 	// The look of each: a flat plate with jaws, a round bladder, a post with a head
@@ -180,8 +181,17 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 		{
 			// digs in: sinks until only a faint glow shows where it lies (so he knows, the enemies don't)
 			const float Sink = FMath::Clamp(Age / BuriedArmSeconds, 0.0f, 1.0f);
-			// (the base is the root and stays; only the gland on top sinks into the plate)
-			Top->SetRelativeLocation(FVector(0.0f, 0.0f, 40.0f - 38.0f * Sink));
+			if (bBuiltPiece)
+			{
+				// the built plate sinks until its rim is level with the ground
+				const FVector At = GetActorLocation();
+				SetActorLocation(FVector(At.X, At.Y, LaidZ - 4.0f * Sink));
+			}
+			else
+			{
+				// (the base is the root and stays; only the gland on top sinks into the plate)
+				Top->SetRelativeLocation(FVector(0.0f, 0.0f, 40.0f - 38.0f * Sink));
+			}
 			return;
 		}
 		Glow->SetIntensity(0.6f + 0.3f * FMath::Sin(Now * 2.0f));

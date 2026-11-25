@@ -243,6 +243,10 @@ public:
 	 *  by this; the toolbox calls it when the engineer opens it. Off with bTestArmorInToolbox in the .cpp */
 	void PutTestArmorInToolbox();
 
+	/** The pieces of a set (without the shield): it is built piece by piece but worn only whole (Boris 25.11.) */
+	static TArray<FName> GetSetPieces(FName Set);
+	int32 CountSetBuilt(FName Set) const;
+
 	/** How many worn pieces belong to a set (the shield doesn't count towards two or four pieces) */
 	int32 CountSet(FName Set) const;
 
@@ -333,6 +337,8 @@ public:
 private:
 
 	AVaelCharacter* GetPlayer() const;
+	void RestoreTickRate();
+	void DropIncompleteSets();
 	float Now() const;
 
 	/** The weapon in his hand: shown while he plays the engineer, the mesh of the weapon he holds */
@@ -340,6 +346,11 @@ private:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> WeaponMesh;
+
+	/** The Lockpfeife in his right hand for a moment while he whistles */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> WhistleMesh;
+	float WhistleShownUntil = 0.0f;
 
 	/** The slingshot band (two strands from the prong tips to the pouch) and the leather pouch; stretched every frame */
 	UPROPERTY(Transient)
@@ -397,6 +408,8 @@ private:
 	bool bBallShown = false;
 	float BallSince = 0.0f;
 	float BallSpin = 0.0f;
+	float BallSpunTotal = 0.0f;
+	int32 BallFrames = 0;
 	float NextBallDust = 0.0f;
 	FVector LastBallLocation = FVector::ZeroVector;
 

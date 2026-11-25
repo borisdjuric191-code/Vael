@@ -23,6 +23,10 @@ if __import__("os").environ.get("VAEL_ING_NUR_RUESTUNG"):
     PIECES = [p for p in PIECES if p.startswith("SM_Ing_R_")]
 if __import__("os").environ.get("VAEL_ING_NUR_SCHWARZGLUT"):
     PIECES = SCHWARZGLUT
+FALLEN = ["SM_Ing_Grabmine", "SM_Ing_Rauchtopf", "SM_Ing_Lockpfeife", "SM_Ing_Wurfhaken"]
+PIECES += FALLEN
+if __import__("os").environ.get("VAEL_ING_NUR_FALLEN"):
+    PIECES = FALLEN
 SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut", "Moos": "M_GK_Moos", "Messing": "M_IW_Messing"}
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()

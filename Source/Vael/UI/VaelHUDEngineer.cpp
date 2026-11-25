@@ -194,7 +194,10 @@ void AVaelHUD::DrawEngineerLegend(const AVaelPlayerController* PlayerController,
 	const FVaelGear* Device = Engineer->GetDevice().IsNone() ? nullptr : VaelEngineerGear::Find(Engineer->GetDevice());
 	DrawLabel(bKeyboard ? LOCTEXT("DeviceKey", "VORRICHTUNG · Z/C, RMB") : bPlayStation ? LOCTEXT("DevicePS", "VORRICHTUNG · ←→, L2") : LOCTEXT("DeviceXbox", "VORRICHTUNG · ←→, LT"),
 		DeviceLeft, Top, 10.0f * S, Copper, 0.0f, ColumnWidth);
-	DrawLabel(Device != nullptr ? FText::Format(LOCTEXT("DeviceCount", "{0} ×{1}"), Device->Name, Engineer->GetCarried(Device->Id)) : LOCTEXT("NoDevice", "keine dabei"),
+	DrawLabel(Device != nullptr && Device->IsKeptDevice() ? (Engineer->GetDeviceReadyIn(Device->Id) > 0.0f
+		? FText::Format(LOCTEXT("DeviceCooling", "{0} · noch {1} s"), Device->Name, FText::AsNumber(FMath::CeilToInt(Engineer->GetDeviceReadyIn(Device->Id))))
+		: FText::Format(LOCTEXT("DeviceReady", "{0} · bereit"), Device->Name))
+		: Device != nullptr ? FText::Format(LOCTEXT("DeviceCount", "{0} ×{1}"), Device->Name, Engineer->GetCarried(Device->Id)) : LOCTEXT("NoDevice", "keine dabei"),
 		DeviceLeft, Top + 13.0f * S, 15.0f * S, Device != nullptr ? Bone : Dim, 0.0f, ColumnWidth - 8.0f * S);
 	DrawLabel(FText::Format(bKeyboard ? LOCTEXT("PlacedKey", "{0} gelegt · X zündet") : bPlayStation ? LOCTEXT("PlacedPS", "{0} gelegt · Viereck zündet") : LOCTEXT("PlacedXbox", "{0} gelegt · X zündet"),
 		Engineer->GetNumPlaced()), DeviceLeft, Top + 33.0f * S, 11.0f * S, Dim, 0.0f, ColumnWidth - 8.0f * S);

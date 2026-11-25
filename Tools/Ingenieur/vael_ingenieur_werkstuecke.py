@@ -247,7 +247,7 @@ def build_turret():
     gk.export(obj)
 
 
-if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE"):
+if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE") and not os.environ.get("VAEL_ING_FALLEN"):
     os.makedirs(gk.OUT, exist_ok=True)
     for build in (build_sling, build_sling_pouch, build_bow, build_crossbow, build_trap, build_mine, build_turret):
         gk.clear_scene()
@@ -487,3 +487,112 @@ if __name__ == "__main__" and os.environ.get("VAEL_ING_ZWEIGE"):
         gk.clear_scene()
         base()
     gk.log("Zweige des Ingenieurs fertig")
+
+
+# ---------------------------------------------------------------- the Fallen-Paket (2026-11-25): VAEL_ING_FALLEN=1
+# Devices: pivot at the bottom middle. The hook: pivot at its hub, +X the way it flies. The whistle: pivot in the middle,
+# +X towards the mouthpiece.
+
+def build_buried_mine():
+    """Grabmine: a domed crust plate with glowing cracks, the gland peeking out in the middle, thistle down at the rim"""
+    obj = gk.new_object("SM_Ing_Grabmine", SLOTS)
+    b = gk.Builder()
+    random.seed(71)
+    sides = 22
+    jag = [1.0 + random.uniform(-0.12, 0.1) for _ in range(sides)]
+    rows = []
+    for r, z in ((0.0, 0.075), (0.12, 0.07), (0.22, 0.055), (0.3, 0.03), (0.34, 0.008), (0.33, 0.0)):
+        rows.append([Vector((math.cos(2 * math.pi * s / sides) * r * jag[s], math.sin(2 * math.pi * s / sides) * r * jag[s], z)) for s in range(sides)])
+    b.grid(rows, METALL, uv_of=lambda j, i: (i / sides, j / 5), mask_of=lambda j, i: 0.0, closed_u=True)
+    # cracks from the gland to the rim, glowing
+    for k in range(7):
+        a = 2 * math.pi * k / 7 + random.uniform(-0.2, 0.2)
+        pts = []
+        for t in (0.07, 0.15, 0.23, 0.31):
+            wob = random.uniform(-0.12, 0.12)
+            r = t
+            z = 0.075 - 0.07 * (t / 0.34) ** 2 + 0.004
+            pts.append(Vector((math.cos(a + wob) * r, math.sin(a + wob) * r, z)))
+        b.tube(pts, [0.012, 0.01, 0.008, 0.005], GLUT, sides=5, mask_of=lambda t: 1.0)
+    # the gland in the middle
+    lathe(b, [(0.0, 0.06), (0.05, 0.075), (0.055, 0.1), (0.035, 0.12), (0.0, 0.125)], GLUT, Vector((0, 0, 0)), sides=10, glow=1.0)
+    # tufts of thistle down round the rim
+    for k in range(9):
+        a = 2 * math.pi * k / 9 + 0.2
+        base = Vector((math.cos(a) * 0.31, math.sin(a) * 0.31, 0.02))
+        for m in range(4):
+            tip = base + Vector((math.cos(a + m * 0.5) * 0.06, math.sin(a + m * 0.5) * 0.06, 0.05 + 0.02 * m))
+            b.tube([base, tip], [0.004, 0.001], FADEN, sides=3)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_smoke_pot():
+    """Rauchtopf: a squat pot of sealing wax, two smoke bladders bulging out of its mouth, a cord and a red seal"""
+    obj = gk.new_object("SM_Ing_Rauchtopf", SLOTS)
+    b = gk.Builder()
+    lathe(b, [(0.0, 0.0), (0.11, 0.0), (0.15, 0.05), (0.16, 0.12), (0.12, 0.2), (0.1, 0.22), (0.0, 0.22)], LEDER, Vector((0, 0, 0)), sides=16)
+    # two bladders, grey-brown, pushing out of the neck
+    for k, (dx, dy, s) in enumerate(((-0.04, 0.02, 1.0), (0.05, -0.03, 0.85))):
+        c = Vector((dx, dy, 0.27))
+        lathe(b, [(0.0, -0.06 * s), (0.07 * s, -0.03 * s), (0.08 * s, 0.02 * s), (0.05 * s, 0.07 * s), (0.0, 0.09 * s)], MOOS, c, sides=12)
+    # cord round the neck and the wax seal with its glowing mark
+    ring = [Vector((math.cos(2 * math.pi * s / 14) * 0.112, math.sin(2 * math.pi * s / 14) * 0.112, 0.205)) for s in range(15)]
+    b.tube(ring, [0.01] * len(ring), FADEN, sides=5)
+    disc(b, Vector((0.158, 0.0, 0.11)), 0.045, Vector((1, 0, 0)), GLUT, glow=0.35)
+    b.tube([Vector((0.11, 0, 0.205)), Vector((0.16, 0.02, 0.16)), Vector((0.165, 0.0, 0.11))], [0.006, 0.006, 0.006], FADEN, sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_whistle():
+    """Lockpfeife: a hollow quill, a leather screech bladder at its back, brass bands, a tongue of spores at the mouth"""
+    obj = gk.new_object("SM_Ing_Lockpfeife", SLOTS)
+    b = gk.Builder()
+    quill = [Vector((x, 0, 0.004 * math.sin(x * 20))) for x in (-0.09, -0.04, 0.0, 0.05, 0.1, 0.14)]
+    b.tube(quill, [0.022, 0.021, 0.019, 0.016, 0.013, 0.01], FADEN, sides=10)
+    for x in (-0.02, 0.06):
+        lathe(b, [(0.024, -0.008), (0.026, 0.0), (0.024, 0.008)], MESSING, Vector((x, 0, 0)), sides=12,
+              axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+    # the screech bladder, wrinkled leather, at the back
+    lathe(b, [(0.0, 0.0), (0.04, 0.01), (0.055, 0.04), (0.05, 0.07), (0.025, 0.09), (0.0, 0.095)], LEDER, Vector((-0.085, 0, 0)), sides=12,
+          axis=Matrix.Rotation(-math.pi / 2, 3, "Y"))
+    # spore tongue at the mouthpiece, a faint glow
+    lathe(b, [(0.0, 0.0), (0.012, 0.005), (0.006, 0.02), (0.0, 0.025)], MOOS, Vector((0.145, 0, 0.0)), sides=8,
+          axis=Matrix.Rotation(math.pi / 2, 3, "Y"), glow=0.4)
+    # a cord to hang it by
+    b.tube([Vector((-0.02, 0, 0.024)), Vector((0.0, 0, 0.06)), Vector((0.06, 0, 0.024))], [0.004, 0.004, 0.004], FADEN, sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_hook():
+    """Wurfhaken: a harpy claw as the hub, three long monkey fingers curling back as hooks, a knot of fibre rope behind"""
+    obj = gk.new_object("SM_Ing_Wurfhaken", SLOTS)
+    b = gk.Builder()
+    # hub: the claw's knuckle, bound with brass
+    b.tube([Vector((-0.06, 0, 0)), Vector((0.0, 0, 0)), Vector((0.05, 0, 0))], [0.028, 0.034, 0.026], LEDER, sides=10)
+    lathe(b, [(0.036, -0.01), (0.038, 0.0), (0.036, 0.01)], MESSING, Vector((-0.01, 0, 0)), sides=12, axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+    # three fingers: forward, then curling back, dark horn tipped with a claw
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.3
+        out = Vector((0, math.cos(a), math.sin(a)))
+        pts = [Vector((0.04, 0, 0)) + out * 0.02, Vector((0.12, 0, 0)) + out * 0.06, Vector((0.17, 0, 0)) + out * 0.12,
+               Vector((0.14, 0, 0)) + out * 0.18, Vector((0.08, 0, 0)) + out * 0.19]
+        b.tube(pts, [0.016, 0.014, 0.012, 0.009, 0.004], METALL, sides=7, rough=0.08, seed=80 + k)
+        for j in (1, 2):
+            p = pts[j]
+            lathe(b, [(0.017, -0.006), (0.019, 0.0), (0.017, 0.006)], FADEN, p, sides=8)
+    # rope knot and a short stub of the rope
+    lathe(b, [(0.0, 0.0), (0.03, 0.01), (0.032, 0.03), (0.0, 0.045)], FADEN, Vector((-0.06, 0, 0)), sides=10, axis=Matrix.Rotation(-math.pi / 2, 3, "Y"))
+    b.tube([Vector((-0.1, 0, 0)), Vector((-0.16, 0.01, -0.01)), Vector((-0.22, 0.0, -0.02))], [0.012, 0.011, 0.011], FADEN, sides=6)
+    b.finish(obj)
+    gk.export(obj)
+
+
+if __name__ == "__main__" and os.environ.get("VAEL_ING_FALLEN"):
+    os.makedirs(gk.OUT, exist_ok=True)
+    for build in (build_buried_mine, build_smoke_pot, build_whistle, build_hook):
+        gk.clear_scene()
+        build()
+    gk.log("Fallen-Paket des Ingenieurs fertig")

@@ -774,6 +774,13 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 				State.Name = Device != nullptr ? FText::Format(NSLOCTEXT("VaelPlayerHUD", "EngDeviceSlot", "{0} \u00D7{1}"), Device->Name, Eng->GetCarried(Device->Id)) : State.Name;
 				State.IconColor = State.Painting != nullptr ? FLinearColor::White : Device != nullptr ? Device->Color : TextColor;
 				State.bDim = Device == nullptr || Eng->GetCarried(Device->Id) <= 0;
+				// the kept devices (Lockpfeife, Wurfhaken) show no count but the wipe until they are ready again
+				if (Device != nullptr && Device->IsKeptDevice())
+				{
+					State.Name = Device->Name;
+					State.CooldownLeft = Eng->GetDeviceReadyIn(Device->Id);
+					Total = Device->Cooldown;
+				}
 				break;
 			case EVaelHUDAbility::EngIgnite:
 				State.bDim = Eng->GetNumPlaced() <= 0;

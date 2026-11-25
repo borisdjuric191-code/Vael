@@ -2158,6 +2158,45 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Display, TEXT("[Knochen] %d bones of %s written"), Skeleton.GetNum(), *Body->GetSkeletalMeshAsset()->GetName());
 		return;
 	}
+	// Sets only whole (Boris 25.11.): "satz" builds the Schwarzglut piece by piece; nothing goes on until the fourth, then all
+	// four at once; taking off one place takes off the whole set, the shield stays its own
+	if (What == TEXT("satz"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		Engineer->ResetToStart();
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		const auto Worn = [Engineer]()
+		{
+			int32 Count = 0;
+			for (int32 Place = 0; Place < 4; ++Place)
+			{
+				Count += Engineer->GetWorn(static_cast<EVaelArmorPlace>(Place)).IsNone() ? 0 : 1;
+			}
+			return Count;
+		};
+		bool bOk = true;
+		for (int32 Place = 0; Place < 3; ++Place)
+		{
+			const FName Id(*FString::Printf(TEXT("Schwarzglut_%d"), Place));
+			const bool bBuilt = Engineer->Build(Id, true);
+			const bool bRefused = !Engineer->Wear(Id);
+			bOk &= bBuilt && bRefused && Worn() == 0;
+			UE_LOG(LogVael, Display, TEXT("[SatzTest] built %s %d, wear refused %d, worn %d"), *Id.ToString(), bBuilt, bRefused, Worn());
+		}
+		Engineer->Build(TEXT("Schwarzglut_3"), true);
+		const int32 AllOn = Worn();
+		Engineer->Build(TEXT("Schwarzglut_4"), true);
+		const bool bShield = Engineer->HasShield();
+		Engineer->TakeOff(EVaelArmorPlace::Arms);
+		const int32 AfterOff = Worn();
+		const bool bShieldStays = Engineer->HasShield();
+		Engineer->Wear(TEXT("Schwarzglut_1"));
+		const int32 Again = Worn();
+		UE_LOG(LogVael, Display, TEXT("[SatzTest] %s: fourth piece puts on %d, shield %d, one off takes %d left, shield stays %d, wear one puts on %d"),
+			bOk && AllOn == 4 && bShield && AfterOff == 0 && bShieldStays && Again == 4 ? TEXT("PASS") : TEXT("FAIL"), AllOn, bShield, AfterOff, bShieldStays, Again);
+		return;
+	}
 	// Fallen-Paket (25.11.): "fallen" builds Grabmine, Rauchtopf, Lockpfeife and Wurfhaken, lays a Grabmine, whistles three
 	// Sichelpuppen onto it, smokes the rest, then hooks a light and a heavy creature; every step logs [FallenTest]
 	if (What == TEXT("fallen"))
