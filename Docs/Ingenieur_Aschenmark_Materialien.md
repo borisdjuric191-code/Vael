@@ -466,6 +466,7 @@ Grabmine, Rauchtopf, Lockpfeife und Wurfhaken sind im Spiel. Bauplan, Wirkung un
 - **Fünf weitere Vorrichtungen (25.11.):** Sichelkreisel, Würgnetz, Blendlaterne, Sturmwarner, Rollwall mit Modellen und Bewegung (`AVaelEngineerDevice::TickNewer` und `Animate`). Test `VaelIngenieur geraete` (alle PASS).
 - **Quarzbrille (25.11.):** Die Zielhilfebrille hat ein eigenes Modell (`VAEL_ING_BRILLE=1`, `SM_Ing_Quarzbrille`): Augenschalen aus Schlackeneisen mit Latexdichtung und Messingnieten, Gläser aus Rauchquarz, Nasensteg, rechts eine hochgeklappte Zielhilfe-Lupe, ein geflochtenes Silberhalm-Band um den Hinterkopf. Sie ist an die Augenknochen des MetaHuman-Gesichts angepasst und hängt am Kopfknochen des Gesichts (`AttachQuartzGoggles`), mit Farben über die Glutkammer-Materialien. Messen mit `VaelIngenieur gesicht`, Bild mit `-VaelShowcaseHero=Kopf` bzw. `KopfSeite` und `-VaelShowcaseCmd=VaelIngenieur_brille`. Bilder: Docs/Bilder/Ingenieur/Quarzbrille_*.png.
 - **Offen:** Rammschild; Werkzeuge (Wärmeglas, Aderglas, Fernglas); weitere ganze Sätze (Aschenjäger, Erntewacht, Glutkronen).
+- **Tripo-Bauliste:** Alle offenen Modelle stehen in `Docs/Ingenieur_Tripo_Bauliste.md` (Aschenmark und Wurzelforst, Rüstungen als Symbiose aus 2–3 Monstern).
 
 
 ## 6d. Aschenjäger (Idee, besprochen 25.11., NICHT gebaut)
