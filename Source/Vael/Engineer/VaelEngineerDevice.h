@@ -51,6 +51,13 @@ public:
 	/** Whether it has gone off (mines), and the most enemies its smoke held at once (for the tests) */
 	bool HasDetonated() const { return bDetonated; }
 	int32 GetSmokeHeld() const { return SmokeHeld; }
+	int32 GetTapperShots() const { return TapperShots; }
+	bool IsPool() const { return PoolUntil >= 0.0f; }
+	float GetSmokeDrifted() const { return SmokeDrifted.Size(); }
+	int32 GetAcidBitten() const { return AcidBitten; }
+
+	/** The Säurefass bursts into its pool (stepped on or shot) */
+	void BurstAcid();
 
 private:
 
@@ -65,6 +72,12 @@ private:
 	int32 LoadedShots = 0;
 	int32 SmokeHeld = 0;
 	float LaidZ = 0.0f;
+	float PoolUntil = -1.0f;
+	float PoolRadius = 0.0f;
+	int32 TapperShots = 0;
+	FVector SmokeDrifted = FVector::ZeroVector;
+	int32 AcidBitten = 0;
+
 	bool bDetonated = false;
 	bool bBuiltPiece = false;
 };

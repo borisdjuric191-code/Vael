@@ -98,7 +98,13 @@ enum class EVaelDeviceType : uint8
 	/** Lockpfeife (kept, used again after its cooldown): enemies around come to the spot he whistles to */
 	Whistle,
 	/** Wurfhaken (kept): snags the first enemy on the way; small ones are yanked to him, heavy ones pull him to them */
-	Hook
+	Hook,
+	/** Glutzapfer (Umwelt 25.11.): set only by fire (a Brandherd, a Glutfeld, a Glutdistel); taps it and spits flames at enemies */
+	Tapper,
+	/** Säurefass: bursts when stepped on or shot, a pool of acid eats the armour of whoever stands in it */
+	Acid,
+	/** Löschpulver: bursts where it lands, puts out fires and cools whatever burns */
+	Douse
 };
 
 /** True for both kinds of mine: shots and the ignition set them off, and they go off together in a chain */

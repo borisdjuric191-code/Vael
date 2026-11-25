@@ -441,6 +441,18 @@ namespace
 			GearRgb(160, 130, 90), { { TEXT("Greifklaue"), 1 }, { TEXT("Klammerfinger"), 1 }, { TEXT("Rankenfaser"), 3 } }, None, EVaelDeviceType::Hook, 1));
 		All.Last().Cooldown = 6.0f;
 
+		// --- Umwelt (25.11.): devices that use what lies round them. Mines and smoke read their surroundings too (fire, wet
+		// ground, wind), see AVaelEngineerDevice.
+		All.Add(MakeDevice(TEXT("Glutzapfer"), LOCTEXT("Glutzapfer", "Glutzapfer"),
+			LOCTEXT("GlutzapferText", "Ein Schlot aus Schlackeneisen, der Glutkiefer als Düse, mit Kriechersehne verspannt: nur an ein Feuer gesetzt – einen Brandherd, ein Glutfeld, Glutdisteln. Er zapft die Glut an und spuckt 15 Sekunden lang Flammen auf den nächsten Feind. Ein Brandherd brennt dabei herunter."),
+			GearRgb(240, 120, 40), { { TEXT("Glutkiefer"), 1 }, { TEXT("Schlackeneisen"), 2 }, { TEXT("Kriechersehne"), 1 } }, None, EVaelDeviceType::Tapper, 1));
+		All.Add(MakeDevice(TEXT("Saeurefass"), LOCTEXT("Saeurefass", "Säurefass"),
+			LOCTEXT("SaeurefassText", "Verdauungssäure des Fleischkelchs, mit Kelchschleim gebunden und in Siegelwachs gegossen: platzt, wenn ein Feind darauf tritt oder ein Schuss es trifft. Die Pfütze frisst acht Sekunden lang den Panzer – wer darin steht, nimmt mehr Schaden. Im Regen läuft sie breiter."),
+			GearRgb(140, 200, 60), { { TEXT("Verdauungssaeure"), 2 }, { TEXT("Kelchschleim"), 1 }, { TEXT("Siegelwachs"), 1 } }, None, EVaelDeviceType::Acid, 2));
+		All.Add(MakeDevice(TEXT("Loeschpulver"), LOCTEXT("Loeschpulver", "Löschpulver"),
+			LOCTEXT("LoeschpulverText", "Stäublingspulver in einem Wachsbeutel: platzt, wo er landet. Entfachte Brände gehen aus, was brennt, kühlt ab, und Feinde bleiben eine Weile nass – auch ein Glutkriecher zündet dann schwer."),
+			GearRgb(200, 196, 186), { { TEXT("Staeublingspulver"), 2 }, { TEXT("Siegelwachs"), 1 } }, None, EVaelDeviceType::Douse, 2));
+
 		// --- Armour: four places, each set of one creature; two and four pieces of one set give its bonus
 		struct FSetPieces { FName Set; FText Prefix; FName Main; FName Second; FLinearColor Color; float ArmorScale; };
 		const FSetPieces Sets[] =

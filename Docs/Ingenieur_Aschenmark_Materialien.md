@@ -460,7 +460,9 @@ Grabmine, Rauchtopf, Lockpfeife und Wurfhaken sind im Spiel. Bauplan, Wirkung un
 - Lockpfeife und Wurfhaken sind **Vorrichtungen, die bleiben** (`FVaelGear::Cooldown`). Dadurch braucht es keine neue Taste.
 - Code: `Engineer/VaelGrappleHook.*` (neu), `EVaelDeviceType` BuriedMine/Smoke/Whistle/Hook, `UVaelEngineerComponent::Whistle`, `AVaelCreature::LureTo` mit Tempo.
 - Test: `VaelIngenieur fallen` (alle Schritte PASS).
-- **Offen:** echte Modelle (Platzhalterformen), Abklingzeit im HUD, Sturmwarner, Sichelkreisel, Rammschild, Rollwall.
+- Modelle der vier Fallen gebaut und importiert (VAEL_ING_FALLEN, VAEL_ING_NUR_FALLEN), Abklingzeit im HUD.
+- **Umwelt (25.11.):** Glutknall, Dampfknall, Rauch im Wind, Glutzapfer, Säurefass, Löschpulver (Doc-Nachtraege). Test `VaelIngenieur umwelt` (alle PASS).
+- **Offen:** Modelle für Glutzapfer, Säurefass und Löschpulver (Platzhalterformen); Sturmwarner, Sichelkreisel, Würgnetz, Blendlaterne, Rammschild, Rollwall; Werkzeuge (Wärmeglas, Aderglas, Fernglas); weitere ganze Sätze (Aschenjäger, Erntewacht, Glutkronen).
 
 
 ## 7. Was in der Aschenmark fehlt (und wie ich es löse)

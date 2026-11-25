@@ -2158,6 +2158,151 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Display, TEXT("[Knochen] %d bones of %s written"), Skeleton.GetNum(), *Body->GetSkeletalMeshAsset()->GetName());
 		return;
 	}
+	// Umwelt (25.11.): "umwelt" tries the devices that read their surroundings: the Glutzapfer refused away from fire and
+	// spitting by a Brandherd, a Glutknall by the fire, the Löschpulver putting the Brandherd out, the Säurefass pool, then in
+	// rain a Dampfknall and in a storm smoke that drifts; every step logs [UmweltTest]
+	if (What == TEXT("umwelt"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		for (const TCHAR* Piece : { TEXT("Knallmine"), TEXT("Knallmine"), TEXT("Rauchtopf"), TEXT("Glutzapfer"), TEXT("Saeurefass"), TEXT("Loeschpulver") })
+		{
+			Engineer->Build(Piece, true);
+		}
+		const auto Ground = [this](const FVector& Spot)
+		{
+			FHitResult Hit;
+			return GetWorld()->LineTraceSingleByChannel(Hit, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), ECC_Visibility) ? Hit.ImpactPoint : Spot;
+		};
+		const auto Pick = [](UVaelEngineerComponent* Eng, FName Id)
+		{
+			for (int32 Step = 0; Step < 16 && Eng->GetDevice() != Id; ++Step)
+			{
+				Eng->CycleDevice(1);
+			}
+			return Eng->GetDevice() == Id;
+		};
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation(), 1800.0f))
+		{
+			for (int32 Turn = 0; Turn < 8; ++Turn)
+			{
+				const FVector Spot = Ground(Player->GetActorLocation() + FRotator(0.0f, 45.0f * Turn, 0.0f).Vector() * 3000.0f);
+				if (!AVaelSafeZone::IsSafe(GetWorld(), Spot, 1800.0f) && Player->TeleportTo(Spot + FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight() + 20.0f), Player->GetActorRotation()))
+				{
+					break;
+				}
+			}
+		}
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+
+		// 1. No fire here: the Glutzapfer stays with him
+		Pick(Engineer, TEXT("Glutzapfer"));
+		const bool bFireHere = UVaelEnvironmentStatics::IsElementInEnvironment(Player, EVaelElement::Fire);
+		const bool bRefused = !Engineer->PlaceDevice(Home - Ahead * 300.0f) && Engineer->GetCarried(TEXT("Glutzapfer")) == 1;
+		UE_LOG(LogVael, Display, TEXT("[UmweltTest] Glutzapfer refused away from fire: %s (fire here %d)"), bRefused || bFireHere ? TEXT("PASS") : TEXT("FAIL"), bFireHere);
+
+		// 2. A Brandherd ahead; the Glutzapfer by it, an Aschenroller to spit at, a mine by the fire
+		const FVector FireAt = Ground(Home + Ahead * 450.0f);
+		FVaelFireShape Shape;
+		Shape.Radius = 90.0f;
+		TWeakObjectPtr<AVaelFireSpot> Fire = AVaelFireSpot::Spawn(GetWorld(), FireAt, Shape, 60.0f);
+		Pick(Engineer, TEXT("Glutzapfer"));
+		const bool bTapped = Engineer->PlaceDevice(FireAt - Ahead * 110.0f);
+		AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelAshRollerData>(), Ground(FireAt + Side * 450.0f), (-Side).Rotation());
+		Pick(Engineer, TEXT("Knallmine"));
+		Engineer->PlaceDevice(FireAt + Ahead * 120.0f);
+		UE_LOG(LogVael, Display, TEXT("[UmweltTest] Glutzapfer set by the Brandherd: %s"), bTapped ? TEXT("PASS") : TEXT("FAIL"));
+
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		TWeakObjectPtr<AVaelPlayerController> WeakController = Controller;
+		FTimerHandle First;
+		GetWorld()->GetTimerManager().SetTimer(First, FTimerDelegate::CreateLambda([this, WeakEng, WeakController, Fire, FireAt, Home, Ahead, Side, Pick, Ground]()
+		{
+			UVaelEngineerComponent* Eng = WeakEng.Get();
+			if (Eng == nullptr)
+			{
+				return;
+			}
+			int32 Shots = 0;
+			for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+			{
+				Shots = FMath::Max(Shots, It->GetDeviceType() == EVaelDeviceType::Tapper ? It->GetTapperShots() : 0);
+			}
+			UE_LOG(LogVael, Display, TEXT("[UmweltTest] Glutzapfer spits: %s (%d spits)"), Shots > 0 ? TEXT("PASS") : TEXT("FAIL"), Shots);
+			// the mine by the fire (look for "by fire" in the log), then the Löschpulver on the Brandherd
+			Eng->IgniteAll();
+			Pick(Eng, TEXT("Loeschpulver"));
+			Eng->PlaceDevice(FireAt);
+			// the Säurefass, with a roller dropped right on it
+			Pick(Eng, TEXT("Saeurefass"));
+			const FVector Barrel = Ground(Home - Side * 400.0f);
+			Eng->PlaceDevice(Barrel);
+			AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelAshRollerData>(), Barrel, Ahead.Rotation());
+
+			FTimerHandle Second;
+			GetWorld()->GetTimerManager().SetTimer(Second, FTimerDelegate::CreateLambda([this, WeakEng, WeakController, Fire, Home, Ahead, Pick, Ground]()
+			{
+				UVaelEngineerComponent* Eng = WeakEng.Get();
+				if (Eng == nullptr)
+				{
+					return;
+				}
+				const bool bOut = !Fire.IsValid() || !Fire->CanGiveFire();
+				UE_LOG(LogVael, Display, TEXT("[UmweltTest] Löschpulver puts the Brandherd out: %s"), bOut ? TEXT("PASS") : TEXT("FAIL"));
+				int32 Bitten = 0;
+				bool bPool = false;
+				for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+				{
+					if (It->GetDeviceType() == EVaelDeviceType::Acid)
+					{
+						bPool |= It->IsPool();
+						Bitten = FMath::Max(Bitten, It->GetAcidBitten());
+					}
+				}
+				UE_LOG(LogVael, Display, TEXT("[UmweltTest] Säurefass pool bites: %s (pool %d, bites %d)"), bPool && Bitten > 0 ? TEXT("PASS") : TEXT("FAIL"), bPool, Bitten);
+
+				// rain: the second mine bursts as steam (look for "on wet ground")
+				if (WeakController.IsValid())
+				{
+					WeakController->ConsoleCommand(TEXT("VaelWeather regen"));
+				}
+				Pick(Eng, TEXT("Knallmine"));
+				Eng->PlaceDevice(Home - Ahead * 400.0f);
+				FTimerHandle Third;
+				GetWorld()->GetTimerManager().SetTimer(Third, FTimerDelegate::CreateLambda([this, WeakEng, WeakController, Home, Ahead, Pick]()
+				{
+					UVaelEngineerComponent* Eng = WeakEng.Get();
+					if (Eng == nullptr)
+					{
+						return;
+					}
+					Eng->IgniteAll();
+					// storm: the smoke drifts
+					if (WeakController.IsValid())
+					{
+						WeakController->ConsoleCommand(TEXT("VaelWeather sturm"));
+					}
+					Pick(Eng, TEXT("Rauchtopf"));
+					Eng->PlaceDevice(Home + Ahead * 200.0f);
+					FTimerHandle Fourth;
+					GetWorld()->GetTimerManager().SetTimer(Fourth, FTimerDelegate::CreateLambda([this]()
+					{
+						float Drifted = 0.0f;
+						for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+						{
+							Drifted = FMath::Max(Drifted, It->GetDeviceType() == EVaelDeviceType::Smoke ? It->GetSmokeDrifted() : 0.0f);
+						}
+						UE_LOG(LogVael, Display, TEXT("[UmweltTest] smoke drifts in the storm: %s (%.0f cm)"), Drifted > 100.0f ? TEXT("PASS") : TEXT("FAIL"), Drifted);
+					}), 4.0f, false);
+				}), 2.0f, false);
+			}), 2.5f, false);
+		}), 4.0f, false);
+		return;
+	}
 	// Sets only whole (Boris 25.11.): "satz" builds the Schwarzglut piece by piece; nothing goes on until the fourth, then all
 	// four at once; taking off one place takes off the whole set, the shield stays its own
 	if (What == TEXT("satz"))

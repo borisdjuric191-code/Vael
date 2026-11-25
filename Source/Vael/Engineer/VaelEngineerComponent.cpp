@@ -29,6 +29,7 @@
 #include "UI/VaelCombatTextSubsystem.h"
 #include "Vael.h"
 #include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelEnvironmentStatics.h"
 #include "Magic/VaelSpellEffects.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
@@ -1622,6 +1623,13 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 	{
 		return false;
 	}
+	// The Glutzapfer needs fire to tap (a Brandherd, a Glutfeld, Glutdisteln): elsewhere he keeps it
+	if (Gear->Device == EVaelDeviceType::Tapper && !UVaelEnvironmentStatics::IsElementInEnvironment(NewDevice, EVaelElement::Fire))
+	{
+		NewDevice->Destroy();
+		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("NoFireToTap", "Hier ist keine Glut zum Anzapfen"));
+		return false;
+	}
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
 	if (Placed.Num() >= MaxPlaced && Placed[0].IsValid())
@@ -1733,6 +1741,10 @@ void UVaelEngineerComponent::OnDeviceShot(AVaelEngineerDevice* Shot, FName ShotA
 	if (VaelIsMine(Shot->GetDeviceType()))
 	{
 		Shot->Detonate(ShotAmmo);
+	}
+	else if (Shot->GetDeviceType() == EVaelDeviceType::Acid)
+	{
+		Shot->BurstAcid();
 	}
 	else if (Shot->GetDeviceType() == EVaelDeviceType::Turret && ShotAmmo != VaelEngineerGear::Standard)
 	{
