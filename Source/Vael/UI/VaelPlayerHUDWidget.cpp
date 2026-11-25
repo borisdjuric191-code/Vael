@@ -781,6 +781,13 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 					State.CooldownLeft = Eng->GetDeviceReadyIn(Device->Id);
 					Total = Device->Cooldown;
 				}
+				// Nid charges of the Saugkreis (Orden 25.11.): shown beside the device, the slot lit while the Überdruck is armed
+				if (Eng->GetNidCharges() > 0 || Eng->IsOvercharged())
+				{
+					State.Name = FText::Format(NSLOCTEXT("VaelPlayerHUD", "EngNidCharges", "{0} · Nid {1}/5{2}"), State.Name, Eng->GetNidCharges(),
+						Eng->IsOvercharged() ? NSLOCTEXT("VaelPlayerHUD", "EngOvercharged", " · Überdruck") : FText::GetEmpty());
+					State.bLit = State.bLit || Eng->IsOvercharged();
+				}
 				break;
 			case EVaelHUDAbility::EngIgnite:
 				State.bDim = Eng->GetNumPlaced() <= 0;

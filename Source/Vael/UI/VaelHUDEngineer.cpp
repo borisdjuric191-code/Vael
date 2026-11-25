@@ -201,6 +201,31 @@ void AVaelHUD::DrawEngineerLegend(const AVaelPlayerController* PlayerController,
 		DeviceLeft, Top + 13.0f * S, 15.0f * S, Device != nullptr ? Bone : Dim, 0.0f, ColumnWidth - 8.0f * S);
 	DrawLabel(FText::Format(bKeyboard ? LOCTEXT("PlacedKey", "{0} gelegt · X zündet") : bPlayStation ? LOCTEXT("PlacedPS", "{0} gelegt · Viereck zündet") : LOCTEXT("PlacedXbox", "{0} gelegt · X zündet"),
 		Engineer->GetNumPlaced()), DeviceLeft, Top + 33.0f * S, 11.0f * S, Dim, 0.0f, ColumnWidth - 8.0f * S);
+
+	// Nid charges of the Saugkreis (Orden 25.11.): five violet pips at the right of the column, lit while armed for the Überdruck
+	const int32 Charges = Engineer->GetNidCharges();
+	if (Charges > 0 || Engineer->IsOvercharged())
+	{
+		const FLinearColor Nid = EngRgb(170, 80, 210);
+		const float Pip = 7.0f * S;
+		const float Gap = 4.0f * S;
+		const float PipsLeft = DeviceLeft + ColumnWidth - 12.0f * S - 5.0f * (Pip + Gap);
+		const float PipsTop = Top + 2.0f * S;
+		if (Engineer->IsOvercharged())
+		{
+			const float Pulse = 0.6f + 0.4f * FMath::Sin(GetWorld()->GetTimeSeconds() * 6.0f);
+			DrawBox(PipsLeft - 3.0f * S, PipsTop - 3.0f * S, 5.0f * (Pip + Gap) + 2.0f * S, Pip + 6.0f * S, Nid * Pulse * 0.45f);
+		}
+		for (int32 Index = 0; Index < 5; ++Index)
+		{
+			const float X = PipsLeft + Index * (Pip + Gap);
+			DrawBox(X, PipsTop, Pip, Pip, EngRgb(40, 24, 48));
+			if (Index < Charges)
+			{
+				DrawBox(X + 1.0f * S, PipsTop + 1.0f * S, Pip - 2.0f * S, Pip - 2.0f * S, Nid);
+			}
+		}
+	}
 }
 
 void AVaelHUD::DrawEngineerIdea(const AVaelPlayerController* PlayerController)

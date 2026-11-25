@@ -2211,6 +2211,13 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}
 		return;
 	}
+	// "nid": the engineer with three Nid charges, to see them in the HUD
+	if (What == TEXT("nid"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		Engineer->AddNidCharge(3);
+		return;
+	}
 	// Nid-Verlockungen aus dem Orden (25.11.): "orden" builds the Siegelkapsel, Gebrochenes Siegel, Bannkreis, Saugkreis and
 	// Überdruck, holds a doll in the Bannkreis, drains one in the Saugkreis for a Nid charge, spends it on an overcharged
 	// Funkenladung, and checks the Sprengmeister's loot; every step logs [OrdenTest]

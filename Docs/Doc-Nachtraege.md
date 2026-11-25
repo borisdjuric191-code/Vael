@@ -63,4 +63,5 @@ Der Orden versiegelt das Nid, um es zu horten; der Ingenieur lernt sein Handwerk
 
 - **Kobold-Sprengmeister** lässt jetzt Funkenerz (60 %, 1–2), Kobaltblüte (35 %) und Drahtsilber (20 %) fallen.
 - Modelle: `VAEL_ING_ORDEN=1` (Blender), Import `VAEL_ING_NUR_ORDEN=1`. Test: `VaelIngenieur orden` (alle PASS).
-- Offen: Narbeneisen und Weihrauchfass (warten auf die Optik des Ordens); die Nidladungen zeigt das HUD noch nicht (nur als Kampftext).
+- **HUD:** Die Nidladungen stehen im gemalten HUD unter dem Vorrichtungsfeld (L2): „<Vorrichtung> · Nid 3/5“, mit „· Überdruck“ und leuchtendem Feld, solange der Überdruck scharf ist (Bild: Docs/Bilder/Ingenieur/HUD_Nidladungen.png). Test: `VaelIngenieur nid` gibt drei Ladungen.
+- Offen: Narbeneisen und Weihrauchfass (warten auf die Optik des Ordens).
