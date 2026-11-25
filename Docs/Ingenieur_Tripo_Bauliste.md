@@ -65,9 +65,10 @@ Die Wesen in den Vorschlägen sind noch **nicht entschieden**.
 |---|---|---|---|---|---|
 | W12 | **Lauscher-Satz I** | Rankenluchs + Kahlschwinge | Beide jagen nach Gehör: Der Luchs lauert, die Schwinge hört den Herzschlag. Lautloser Jäger mit Bogen, siehe unten. | Tripo + Blender | ⬜ |
 | W13 | **Lauscher-Satz II** | + Rudelführer | Fell und Blattkleid des Führers, noch dichter; Rudel-Gedanke im Koop. | Tripo + Blender | 🟨 W0 |
-| W14 | **Pfuhl-Satz** | Pfuhlnatter + Peitschenunke | Beide leben im selben Pfuhl, die Natter frisst die Unken. Natternhaut, Unkenhaut, gibt Giftschutz und Heilung in Pfützen. | Tripo | ⬜ |
-| W15 | **Falter-Satz** | Draculaupe + Blutfalter (oder Tauraupe + Taufalter) | Ein Lebenskreis, von der Raupe zum Falter: Kokon-Seide als Polster, Flügelschuppen als Umhang. Leicht und schnell. | Tripo | ⬜ |
-| W16 | **Moder-Satz** | Kelchreißer + Moderglocke | Die Moderglocke wächst auf dem, was der Kelchreißer verdaut. Hört durch den Boden, Lähmsporen, Nid-violett. Eine Mark-Versuchung. | Tripo | ⬜ |
+| W14 | **Pfuhl-Satz** | Pfuhlnatter + Peitschenunke | Beide leben im selben Pfuhl. Kontrolle und Gift: Zunge reißt heran, Pfützen heilen ihn, Häutung als Köder. Optik noch offen. | Tripo | ⬜ |
+| W15 | **Falter-Satz** (Licht: Tau, Schatten: Blut) | Tauraupe + Taufalter / Draculaupe + Blutfalter | Ein Lebenskreis von der Raupe zum Falter, in zwei Formen. Flattern, Verpuppen. Siehe Licht, Schatten, Zwielicht. | Tripo + Blender | ⬜ |
+| W16 | **Moder-Satz** | Kelchreißer + Moderglocke | Mark-Versuchung, stark mit Preis. Pilzmäuler an den Schultern, Beißer am Rücken. Siehe unten. | Tripo | ⬜ |
+| W17 | **Kletten-Satz** | Schleieraffe + Distelspinne | Distelsamen hängen als Kletten im Affenfell. Klammersprung, Sämlinge fallen bei Treffern ab. | Tripo | ⬜ |
 
 ---
 
@@ -97,3 +98,36 @@ Wenn eine Kreatur dazukommt, eine Zeile in ihrer Region ergänzen:
   - Der Pelz hängt über den Rücken.
   - Nach unten geht er hinten in ein **komplettes Blattkleid** über, viel dichter als beim Luchs, aber von ihm inspiriert. Es erhöht die Tarnung, ein Mantel aus Blättern.
   - Beim Rudelführer (Stufe II) wahrscheinlich dasselbe, noch dichter.
+
+## Weitere Wurzelforst-Sätze (Ideen angenommen 25.11.)
+
+- **Pfuhl-Satz:** Funktion steht (Kontrolle und Gift, Ausweichen „Häutung“ lässt eine Haut als Köder zurück). **Optik offen**, beide Wesen haben eine starke eigene Optik. Mein Vorschlag:
+  - Natternhaut in Himbeerrosa mit gelb-orangem Bauch als gewickelter Panzer um Brust und Arme.
+  - Das Kehlglühen der Natter als Kern auf der Brust; es leuchtet vor dem Giftstoß wie bei ihr.
+  - Unkenhaut als Schulter- und Kniepolster, die Zunge als aufgerollte Peitsche an der Hüfte.
+- **Kletten-Satz:** Weiß und Schwarz wie Yin und Yang, Panda-Stil:
+  - schwarzes Affenfell an Gliedern und Rücken;
+  - weiße Distelschuppen an Brust und Schultern mit rosa Spitzen;
+  - dazwischen hängen überall Kletten (Distelköpfe).
+- **Falter-Satz:** zwei Formen, siehe Licht, Schatten, Zwielicht.
+- **Moder-Satz** (Boris' Optik-Idee):
+  - An den Schultern sitzen zwei Pilzkappen. Geschlossen sehen sie aus wie Pilze, geöffnet sind es Mäuler (inspiriert von einem Endgegner mit Schultermäulern; nur die Grundidee, kein Nachbau).
+  - Am Rücken sitzen Beißer, die selbstständig zupacken, sobald jemand zu nahe kommt. Das ersetzt das Hören durch den Boden, das bleibt beim Lauscher.
+  - **Gefühl:** wie eine verfluchte Rüstung, die stärkt, aber einen Preis hat. Kein Selbstschaden; der Preis läuft über die **Verderbnis**, die Rüstung korrumpiert ihren Träger.
+  - Mein Vorschlag für den Preis: Die Mäuler haben **Hunger**, jeder Kill füttert sie. Satt sind sie stärker, schneller und beißen weiter. Bleibt er im Kampf hungrig, steigt seine Verderbnis. Ablegen geht nur außerhalb des Kampfes an der Werkbank, „sie lässt nicht los“. Mit der Verderbnis wächst die Rüstung sichtbar über ihn (mehr Mäuler, violette Adern im Gesicht).
+
+## Licht, Schatten, Zwielicht beim Ingenieur (Vorschlag, noch nicht entschieden)
+
+- **Eine Formel, zwei Kerne:** Jedes Wesen hat eine natürliche bzw. Lichtform und eine Schattenform (ab ~55 % Verderbnis), jede mit eigenem Material. Ein Rüstungsteil hat dieselbe Formel, nur der Kern kommt aus der einen oder anderen Form.
+  - **Lichtfassung:** saubere Handarbeit, poliertes Messing, Tau- bzw. Silberglanz. Stärken: Ausdauer, Umwelt, Koop.
+  - **Schattenfassung:** Nid-Adern, die Rüstung lebt und bewegt sich. Stärker im Schaden, erhöht aber die Verderbnis.
+- **Nicht jeder Satz gibt es in beiden Formen:**
+  - Lauscher und Kletten natürlich bzw. Licht;
+  - Moder nur Schatten;
+  - Falter und Pfuhl in beiden Formen.
+- **Zwielicht = Symbiose:** Nur der Zwielicht-Weg darf Licht- und Schattenteile in einem Satz mischen (2 + 2). Dafür gibt es einen eigenen Bonus, er muss aber zwischen 40 und 60 % bleiben.
+- **Beispiel Falter:**
+  - **Tau-Falter (Licht):** Morgentau heilt ihn und Mitspieler nahe; Verpuppen heilt die Gruppe.
+  - **Blut-Falter (Schatten):** Treffer saugen Leben; Verpuppen platzt als Blutwolke.
+  - **Dämmerfalter (Zwielicht, 2 Tau + 2 Blut):** Was die Blutteile saugen, verteilt der Tau an die Gruppe.
+- **Waffen und Munition** gehen genauso: Die Licht- und Schattenladungen aus den Munitionsformeln gibt es schon. Ein Bogenzweig mit Schattenkern (z. B. Natternbogen mit Nidgift) zieht an der Verderbnis.
