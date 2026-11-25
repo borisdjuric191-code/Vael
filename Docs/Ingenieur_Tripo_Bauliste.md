@@ -73,6 +73,20 @@ Die Wesen in den Vorschlägen sind noch **nicht entschieden**.
 
 ---
 
+## 2b. Eisenschlund (Ideen angenommen 25.11.)
+
+Die Wesen stehen in der Lore (`Docs/Eisenschlund_Erze_Pflanzen_Wesen.md`), als Figuren gibt es bisher nur die Kobolde. **Optik erst, wenn die Gegner stehen.**
+
+| # | Satz | Wesen | Kern der Idee | Weg | Status |
+|---|---|---|---|---|---|
+| E1 | **Erzpanzer** (Stufe II: Erzmutter) | Schürfameise + Ahnenpanzer | Schwer und wachsend: Im Kampf setzt die Rüstung Kristallplatten an, Treffer schlagen sie als Splitter heraus. Jede Kolonie hat ihre Erzfarbe; die Erzvarianten (Grünspan leitet Blitze, Salzspat glüht, Funkenerz sprüht) entstehen in Blender. Stufe II: schneller wachsend, bei voller Panzerung ein Beben. | Tripo + Blender | 🟨 Gegner |
+| E2 | **Gräber-Satz** | Sternmaul + Rippennager | Beide graben das Tunnelnetz. Magnet: zieht Gegner mit Metall heran, lenkt Geschosse ab, Erzbrocken kreisen als Schild, verschossene Metallmunition kehrt zurück. Ausweichen „Eingraben“ mit Ringmaul-Biss. | Tripo | 🟨 Gegner |
+| E3 | **Olm-Satz / Drachenbrut-Satz** (Licht / Schatten) | Drachenbrut (Brut, Jungdrache, Alte Brut) | Licht: bleicher Olm, Regeneration im Wasser. Schatten: glühende Augen, Kiemenkamm wie Hörner, Blutdampf; Kandidat für **Hochmut**. Zweites Wesen offen, sonst ein Lebenskreis einer Familie. | Tripo + Blender | 🟨 Gegner |
+| E4 | **Wirt-Satz** (Schatten, **Wollust**) | Grabschleim + Maden, Knochen der Gebeinkammer | Der Madenwirt am Spieler: Maden panzern, verlängern Schläge, ballen sich zum Schild, fallen bei schwerem Schaden ab und kriechen auf Gegner zu. Fünf Schleimstämme = fünf Farbvarianten mit Zusatzwirkung. Er lockt Gegner an und kann sich mit der Verderbnis selbst dem Locken kaum entziehen. | Tripo + Blender | 🟨 Gegner |
+| E5 | **Kobold-Hort-Satz** (Schatten, **Gier**, 2. Gier-Satz) | Kobolde (Sprengmeister, Laternenträger, Hortwächter …) | **Boris' Favorit.** Gier = **Materialanhäufung**: Je mehr Material (Kobaltblüte) er im Beutel hortet, desto stärker. Treffer stehlen Beute oder Stärkungen, Ausweichen „Trugbild“ lässt ein Abbild zurück, Preis ist ein Vertrag, dessen Schuld mit der Verderbnis wächst. | Tripo | ⬜ (Kobolde gibt es schon) |
+| E6 | **Sprengmeister-Technik** | Kobold-Sprengmeister | Er ist selbst ein kleiner Ingenieur: Seine Kristallladungen und Fallen werden für den Ingenieur gleich nutzbar (neue Ladungen und Vorrichtungen, Pulver fürs erste Gewehr). | Blender | ⬜ |
+| E7 | **Armbrust / erstes Gewehr** mit Magnet-Baustein | echte Metalle, Sternmaul | Magnet für Haken und Bolzen, Sprengkristall als Pulver | Tripo + Blender | 🟨 E2 |
+
 ## 3. Neues Monster hinzufügen
 
 Wenn eine Kreatur dazukommt, eine Zeile in ihrer Region ergänzen:
