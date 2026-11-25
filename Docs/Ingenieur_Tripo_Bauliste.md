@@ -63,8 +63,8 @@ Die Wesen in den Vorschlägen sind noch **nicht entschieden**.
 
 | # | Satz | Wesen | Warum sie zusammenpassen | Weg | Status |
 |---|---|---|---|---|---|
-| W12 | **Luchsrüstung I** (Rindenjäger) | Rankenluchs + Kahlschwinge | Beide jagen nach Gehör: Der Luchs hetzt, die Schwinge spießt auf. Fell und Ranken, dazu Klingenfedern an den Schultern. Leise, für den Bogen. | Tripo | ⬜ |
-| W13 | **Luchsrüstung II** | + Rudelführer | Der Führer hält das Rudel zusammen: Mähne und Leitranken auf Helm und Rücken, dazu ein Rudelruf (Koop-Bonus?). | Tripo + Blender | 🟨 W0 |
+| W12 | **Lauscher-Satz I** | Rankenluchs + Kahlschwinge | Beide jagen nach Gehör: Der Luchs lauert, die Schwinge hört den Herzschlag. Lautloser Jäger mit Bogen, siehe unten. | Tripo + Blender | ⬜ |
+| W13 | **Lauscher-Satz II** | + Rudelführer | Fell und Blattkleid des Führers, noch dichter; Rudel-Gedanke im Koop. | Tripo + Blender | 🟨 W0 |
 | W14 | **Pfuhl-Satz** | Pfuhlnatter + Peitschenunke | Beide leben im selben Pfuhl, die Natter frisst die Unken. Natternhaut, Unkenhaut, gibt Giftschutz und Heilung in Pfützen. | Tripo | ⬜ |
 | W15 | **Falter-Satz** | Draculaupe + Blutfalter (oder Tauraupe + Taufalter) | Ein Lebenskreis, von der Raupe zum Falter: Kokon-Seide als Polster, Flügelschuppen als Umhang. Leicht und schnell. | Tripo | ⬜ |
 | W16 | **Moder-Satz** | Kelchreißer + Moderglocke | Die Moderglocke wächst auf dem, was der Kelchreißer verdaut. Hört durch den Boden, Lähmsporen, Nid-violett. Eine Mark-Versuchung. | Tripo | ⬜ |
@@ -83,3 +83,17 @@ Wenn eine Kreatur dazukommt, eine Zeile in ihrer Region ergänzen:
 ## 4. Erledigt
 
 *(fertige Einträge hierher verschieben, mit Datum und Commit)*
+
+---
+
+## Lauscher-Satz (entschieden 25.11.)
+
+- **Name:** Lauscher (nicht nach dem Luchs benannt, weil zwei Wesen drinstecken; es geht um Gehör und Lauern).
+- **Wesen:** Rankenluchs + Kahlschwinge. Stufe II mit dem Rudelführer.
+- **Spielidee:** lautloser Jäger mit guter eigener Wahrnehmung. Mit dem Bogen trifft er kritisch, solange er unbemerkt ist. Er soll sich **klar vom Aschenjäger** (Rauch, Bewegung) unterscheiden.
+- **Aussehen (Boris' Inspiration, nur Optik):**
+  - Die Oberseite des Luchses als Haube über dem Kopf, die Zähne des Oberkiefers gehen übers Gesicht.
+  - Zahnketten.
+  - Der Pelz hängt über den Rücken.
+  - Nach unten geht er hinten in ein **komplettes Blattkleid** über, viel dichter als beim Luchs, aber von ihm inspiriert. Es erhöht die Tarnung, ein Mantel aus Blättern.
+  - Beim Rudelführer (Stufe II) wahrscheinlich dasselbe, noch dichter.
