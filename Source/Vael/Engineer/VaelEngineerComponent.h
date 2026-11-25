@@ -356,10 +356,18 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> SpyglassMesh;
 	int32 SpyglassMarked = 0;
+	int32 NidCharges = 0;
+	bool bOvercharged = false;
 	void UpdateSpyglass();
 public:
 	/** How often the Fernglas marked a creature, for the tests */
 	int32 GetSpyglassMarked() const { return SpyglassMarked; }
+
+	/** Nid charges (Orden 25.11.): the Saugkreis fills them, the Überdruck spends them */
+	int32 GetNidCharges() const { return NidCharges; }
+	void AddNidCharge(int32 Count = 1);
+	/** True while the next blast device he lays will be overcharged */
+	bool IsOvercharged() const { return bOvercharged; }
 private:
 
 	/** The slingshot band (two strands from the prong tips to the pouch) and the leather pouch; stretched every frame */

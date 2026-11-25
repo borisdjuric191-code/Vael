@@ -233,6 +233,10 @@ UVaelKoboldSprengmeisterData::UVaelKoboldSprengmeisterData()
 	Attacks.Add(MakeAttack(TEXT("Werfen"), FVector2D(300.0f, 1100.0f), 0.6f, 0.0f, 0.0f, 0.0f, 4.5f, 0.0f, EVaelElement::Fire));
 	Attacks.Add(MakeAttack(TEXT("Legen"), FVector2D(0.0f, 800.0f), 0.8f, 0.0f, 0.0f, 0.0f, 12.0f, 0.0f, EVaelElement::Fire));
 	Attacks.Add(MakeAttack(TEXT("Kratzen"), FVector2D(0.0f, 110.0f), 0.4f, 55.0f, 80.0f, 8.0f, 2.0f));
+	// What he carries (25.11.): the ore of his charges, the pink stoppers, the wire; for the engineer's Sprengmeister craft
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Funkenerz.DA_Material_Funkenerz"), 0.6f, 1, 2));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Kobaltbluete.DA_Material_Kobaltbluete"), 0.35f));
+	Loot.Add(FVaelLootEntry(TEXT("/Game/Vael/Items/Materials/DA_Material_Drahtsilber.DA_Material_Drahtsilber"), 0.2f));
 }
 
 UVaelKoboldLaternentraegerData::UVaelKoboldLaternentraegerData()

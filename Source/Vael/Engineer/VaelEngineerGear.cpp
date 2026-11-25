@@ -493,6 +493,28 @@ namespace
 			GearRgb(25, 230, 130), { { TEXT("Gruenspan"), 2 }, { TEXT("Kobaltbluete"), 1 } }, None, EVaelDeviceType::OreCharge, 3));
 		All.Last().Effect = EVaelAmmoEffect::Sticky;
 
+		// --- Nid-Verlockungen aus dem Orden der Narbe (25.11.): the Order seals the Nid to hoard it, he learns their craft
+		All.Add(MakeAmmo(TEXT("Siegelkapsel"), LOCTEXT("Siegelkapsel", "Siegelkapsel"),
+			LOCTEXT("SiegelkapselText", "Ein Splitter Nid in Siegelwachs, mit dem Ordenssiegel verschlossen: das Siegel hält, das Nid gibt nur seine Hitze ab. Der Schuss brennt hart und zieht kaum an der Waage."),
+			GearRgb(200, 140, 90), { { TEXT("Ordenssiegel"), 1 }, { TEXT("Siegelwachs"), 1 }, { TEXT("Nidkristall"), 1 } }, None, EVaelAmmoEffect::Fire, 1.6f));
+		All.Last().Batch = 5;
+		All.Last().ShadowPull = 0.05f;
+		All.Add(MakeAmmo(TEXT("GebrochenesSiegel"), LOCTEXT("GebrochenesSiegel", "Gebrochenes Siegel"),
+			LOCTEXT("GebrochenesSiegelText", "Dieselbe Kapsel, das Siegel absichtlich angebrochen: das Nid bricht frei als violettes Feuer, das kein Feuerschutz aufhält. Doppelter Schaden, aber jeder Schuss zieht dich zum Schatten."),
+			GearRgb(130, 50, 170), { { TEXT("Ordenssiegel"), 1 }, { TEXT("Nidkristall"), 2 } }, TEXT("Siegelkapsel"), EVaelAmmoEffect::BlackFire, 2.0f));
+		All.Last().Batch = 5;
+		All.Last().ShadowPull = 0.4f;
+		All.Add(MakeDevice(TEXT("Bannkreis"), LOCTEXT("Bannkreis", "Bannkreis"),
+			LOCTEXT("BannkreisText", "Eine Kette aus Ordenssiegeln, auf Ordenstuch genäht, als Ring auf den Boden gelegt: zehn Sekunden lang hält er jedes Nidwesen darin fest (gezeichnete Kreaturen, Sichelpuppen, Prediger). Was der Orden einsperrt, sperrst jetzt du ein."),
+			GearRgb(230, 200, 140), { { TEXT("Ordenssiegel"), 1 }, { TEXT("Ordenstuch"), 1 }, { TEXT("Schlackeneisen"), 1 } }, None, EVaelDeviceType::Ward, 1));
+		All.Add(MakeDevice(TEXT("Saugkreis"), LOCTEXT("Saugkreis", "Saugkreis"),
+			LOCTEXT("SaugkreisText", "Derselbe Ring, die Siegel nach innen gedreht, ein Nidkristall in der Mitte: er saugt den Nidwesen darin das Nid aus, das schmerzt sie, und füllt dich mit Nidladungen für den Überdruck. Jede Ladung zieht dich zum Schatten."),
+			GearRgb(140, 60, 180), { { TEXT("Ordenssiegel"), 1 }, { TEXT("Nidkristall"), 1 }, { TEXT("Schlackeneisen"), 1 } }, TEXT("Bannkreis"), EVaelDeviceType::Drain, 1));
+		All.Add(MakeDevice(TEXT("Ueberdruck"), LOCTEXT("Ueberdruck", "Überdruck"),
+			LOCTEXT("UeberdruckText", "Ein Ventil aus Messing mit einem Nidkristall: verbraucht eine Nidladung, und die nächste Sprengvorrichtung, die du legst (Mine, Grabmine, Stolperdraht, Kristallladung), knallt doppelt so hart und weiter. Jede fünfte birst schon beim Legen."),
+			GearRgb(170, 80, 200), { { TEXT("Nidkristall"), 1 }, { TEXT("Messingblech"), 2 }, { TEXT("Rollsehne"), 1 } }, TEXT("Saugkreis"), EVaelDeviceType::Overcharge, 1));
+		All.Last().Cooldown = 3.0f;
+
 		// --- Armour: four places, each set of one creature; two and four pieces of one set give its bonus
 		struct FSetPieces { FName Set; FText Prefix; FName Main; FName Second; FLinearColor Color; float ArmorScale; };
 		const FSetPieces Sets[] =

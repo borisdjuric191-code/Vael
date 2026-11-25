@@ -121,7 +121,13 @@ enum class EVaelDeviceType : uint8
 	/** Stolperdraht (Kobold-Sprengmeister 25.11.): a wire between two pegs across the way; whoever crosses it sets off its charge */
 	Tripwire,
 	/** Kristallladung (Kobold-Sprengmeister): thrown, the ground glows where it lands, it bursts after its fuse with the effect of its ore */
-	OreCharge
+	OreCharge,
+	/** Bannkreis (Orden der Narbe 25.11., light): a ring of seal chain on the ground; Nid creatures inside are held fast */
+	Ward,
+	/** Saugkreis (shadow): the same ring turned round; it drains the Nid of the creatures inside into him as Nid charges */
+	Drain,
+	/** Überdruck (kept): spends one Nid charge, the next blast device he lays bursts much harder (and may crack early) */
+	Overcharge
 };
 
 /** True for both kinds of mine: shots and the ignition set them off, and they go off together in a chain */

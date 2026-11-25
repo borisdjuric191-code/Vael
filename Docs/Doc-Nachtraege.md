@@ -48,3 +48,19 @@ Auch der Ingenieur nutzt jetzt, was um ihn liegt, genau wie der Magier seine Umw
 - Modelle: `VAEL_ING_NEU=1` (Blender), Import `VAEL_ING_NUR_NEU=1`.
 - **Verlangen** (Grundsystem der Schattensätze): `UVaelCravingComponent` am Spieler mit `FVaelCravingSpec` (Hunger, Durst als Vorlagen). Es wächst im Kampf, mit der Verderbnis schneller. Tode in der Nähe füttern es und heilen. Satt: ×1,2 Schaden. Hungrig (über 75 %): Verderbnis steigt, kein Selbstschaden. Hungrig ab 85 % Verderbnis übernimmt es: schlägt selbst nach dem nächsten Feind, die Rüstung lässt sich nicht ablegen, bis es gefüttert ist. Noch an keinen Satz gebunden (die Schattensätze gibt es noch nicht).
 - Tests: `VaelIngenieur sprengmeister`, `VaelIngenieur verlangen` (alle PASS).
+
+## Ingenieur: Nid-Verlockungen aus dem Orden der Narbe (25.11.2026)
+
+Der Orden versiegelt das Nid, um es zu horten; der Ingenieur lernt sein Handwerk und dreht es um. Eine frühe Nid-Quelle, damit er etwa gleichzeitig mit den anderen Klassen ans Nid kommt. Ordenssiegel gibt es nur von Predigern, deshalb ohne eigene Idee (die Prediger haben keinen Kompendium-Eintrag).
+
+| Stück | Bauplan | Wirkung |
+|---|---|---|
+| **Siegelkapsel** (Munition, ×5) | Ordenssiegel, Siegelwachs, Nidkristall | Lichtfassung: das Siegel hält, das Nid gibt nur Hitze. Feuer, 1,6-facher Schaden, zieht kaum an der Waage (0,05). |
+| **Gebrochenes Siegel** (Munition, ×5, nach der Siegelkapsel) | Ordenssiegel, 2 Nidkristall | Schattenfassung: Schwarzfeuer, doppelter Schaden, 0,4 zum Schatten je Schuss. |
+| **Bannkreis** (Vorrichtung) | Ordenssiegel, Ordenstuch, Schlackeneisen | Ring 3,2 m, 10 s: jedes Nidwesen darin (gezeichnete Kreaturen, Sichelpuppen, Prediger) wird festgehalten. |
+| **Saugkreis** (Vorrichtung, nach dem Bannkreis) | Ordenssiegel, Nidkristall, Schlackeneisen | Ring 3,2 m, 10 s: saugt Nidwesen aus (6 Schaden/s, langsam), alle 2 s je Wesen eine **Nidladung** (höchstens 5), jede zieht 0,3 zum Schatten. |
+| **Überdruck** (Werkzeug, bleibt, 3 s) | Nidkristall, 2 Messingblech, Rollsehne | verbraucht eine Nidladung: die nächste Sprengvorrichtung (Mine, Grabmine, Stolperdraht, Kristallladung) knallt doppelt so hart und 30 % weiter; jede fünfte birst schon beim Legen. |
+
+- **Kobold-Sprengmeister** lässt jetzt Funkenerz (60 %, 1–2), Kobaltblüte (35 %) und Drahtsilber (20 %) fallen.
+- Modelle: `VAEL_ING_ORDEN=1` (Blender), Import `VAEL_ING_NUR_ORDEN=1`. Test: `VaelIngenieur orden` (alle PASS).
+- Offen: Narbeneisen und Weihrauchfass (warten auf die Optik des Ordens); die Nidladungen zeigt das HUD noch nicht (nur als Kampftext).

@@ -78,6 +78,10 @@ public:
 	/** A burst of a Sprengmeister charge where it goes off: returns how many it struck */
 	int32 ChargeBurst(const FVector& At, float Radius, float Damage, EVaelAmmoEffect Effect);
 
+	/** Überdruck: it bursts this much harder (and a little wider); cracking, it goes off at once where it lies */
+	void SetOvercharge(float Scale, bool bCrack);
+	float GetOvercharge() const { return Overcharge; }
+
 private:
 
 	TWeakObjectPtr<UVaelEngineerComponent> Engineer;
@@ -125,6 +129,8 @@ private:
 	/** Kristallladung: the effect of its ore */
 	EVaelAmmoEffect ChargeEffect = EVaelAmmoEffect::None;
 	FLinearColor ChargeColor = FLinearColor::White;
+	float Overcharge = 1.0f;
+	bool bCrackPending = false;
 
 	bool bDetonated = false;
 	bool bBuiltPiece = false;

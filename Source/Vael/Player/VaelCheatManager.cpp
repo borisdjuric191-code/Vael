@@ -2211,6 +2211,93 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}
 		return;
 	}
+	// Nid-Verlockungen aus dem Orden (25.11.): "orden" builds the Siegelkapsel, Gebrochenes Siegel, Bannkreis, Saugkreis and
+	// Überdruck, holds a doll in the Bannkreis, drains one in the Saugkreis for a Nid charge, spends it on an overcharged
+	// Funkenladung, and checks the Sprengmeister's loot; every step logs [OrdenTest]
+	if (What == TEXT("orden"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		for (const TCHAR* Piece : { TEXT("Siegelkapsel"), TEXT("GebrochenesSiegel"), TEXT("Bannkreis"), TEXT("Saugkreis"), TEXT("Ueberdruck"), TEXT("Funkenladung") })
+		{
+			Engineer->Build(Piece, true);
+			UE_LOG(LogVael, Display, TEXT("[OrdenTest] build %s: %s"), Piece, Engineer->HasBuilt(Piece) || Engineer->GetCarried(Piece) > 0 ? TEXT("PASS") : TEXT("FAIL"));
+		}
+		UE_LOG(LogVael, Display, TEXT("[OrdenTest] Sprengmeister drops ore, stoppers, wire: %s (%d entries)"),
+			GetMutableDefault<UVaelKoboldSprengmeisterData>()->Loot.Num() >= 3 ? TEXT("PASS") : TEXT("FAIL"), GetMutableDefault<UVaelKoboldSprengmeisterData>()->Loot.Num());
+		const auto Ground = [this](const FVector& Spot)
+		{
+			FHitResult Hit;
+			return GetWorld()->LineTraceSingleByChannel(Hit, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), ECC_Visibility) ? Hit.ImpactPoint : Spot;
+		};
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation(), 1800.0f))
+		{
+			for (int32 Turn = 0; Turn < 8; ++Turn)
+			{
+				const FVector Spot = Ground(Player->GetActorLocation() + FRotator(0.0f, 45.0f * Turn, 0.0f).Vector() * 3000.0f);
+				if (!AVaelSafeZone::IsSafe(GetWorld(), Spot, 1800.0f) && Player->TeleportTo(Spot + FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight() + 20.0f), Player->GetActorRotation()))
+				{
+					break;
+				}
+			}
+		}
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+		const auto Doll = [this, Ground](const FVector& Spot)
+		{
+			return AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Spot), FRotator::ZeroRotator);
+		};
+		const auto Lay = [Engineer](FName Id, const FVector& Spot)
+		{
+			for (int32 Step = 0; Step < 30 && Engineer->GetDevice() != Id; ++Step)
+			{
+				Engineer->CycleDevice(1);
+			}
+			return Engineer->GetDevice() == Id && Engineer->PlaceDevice(Spot);
+		};
+		const bool bWard = Lay(TEXT("Bannkreis"), Home + Ahead * 400.0f);
+		Doll(Home + Ahead * 420.0f);
+		const bool bDrain = Lay(TEXT("Saugkreis"), Home - Ahead * 400.0f);
+		Doll(Home - Ahead * 420.0f);
+		const float Before = UVaelBalanceSubsystem::GetPlayer(Player);
+		UE_LOG(LogVael, Display, TEXT("[OrdenTest] laid: ward %d, drain %d"), bWard, bDrain);
+
+		FTimerHandle Check;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		GetWorld()->GetTimerManager().SetTimer(Check, FTimerDelegate::CreateLambda([this, WeakPlayer, Lay, Home, Side, Before]()
+		{
+			AVaelCharacter* P = WeakPlayer.Get();
+			UVaelEngineerComponent* Eng = P != nullptr ? P->GetEngineer() : nullptr;
+			if (Eng == nullptr)
+			{
+				return;
+			}
+			int32 Held = 0;
+			for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+			{
+				Held += It->GetDeviceType() == EVaelDeviceType::Ward ? It->GetWork() : 0;
+			}
+			UE_LOG(LogVael, Display, TEXT("[OrdenTest] Bannkreis holds a Nid doll: %s (%d)"), Held > 0 ? TEXT("PASS") : TEXT("FAIL"), Held);
+			const float After = UVaelBalanceSubsystem::GetPlayer(P);
+			UE_LOG(LogVael, Display, TEXT("[OrdenTest] Saugkreis gives Nid charges: %s (%d), pulls to shadow: %s (%.2f -> %.2f)"), Eng->GetNidCharges() > 0 ? TEXT("PASS") : TEXT("FAIL"),
+				Eng->GetNidCharges(), After > Before ? TEXT("PASS") : TEXT("FAIL"), Before, After);
+			const int32 Charges = Eng->GetNidCharges();
+			Lay(TEXT("Ueberdruck"), Home);
+			UE_LOG(LogVael, Display, TEXT("[OrdenTest] Überdruck spends a charge: %s (%d -> %d, armed %d)"), Eng->IsOvercharged() && Eng->GetNidCharges() == Charges - 1 ? TEXT("PASS") : TEXT("FAIL"),
+				Charges, Eng->GetNidCharges(), Eng->IsOvercharged());
+			Lay(TEXT("Funkenladung"), Home + Side * 450.0f);
+			float Over = 1.0f;
+			for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+			{
+				Over = It->GetDeviceType() == EVaelDeviceType::OreCharge ? It->GetOvercharge() : Over;
+			}
+			UE_LOG(LogVael, Display, TEXT("[OrdenTest] the next charge is overcharged: %s (x%.1f), valve free again: %s"), Over > 1.5f ? TEXT("PASS") : TEXT("FAIL"), Over,
+				!Eng->IsOvercharged() ? TEXT("PASS") : TEXT("FAIL"));
+		}), 5.0f, false);
+		return;
+	}
 	// Verlangen of the shadow sets (Todsünden 25.11.): "verlangen" wakes the Hunger with much Nid in him, lets it grow in a fight,
 	// starves it until it takes him over and lashes out, then feeds it with a kill; every step logs [VerlangenTest]
 	if (What == TEXT("verlangen"))

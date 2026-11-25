@@ -954,6 +954,60 @@ if __name__ == "__main__" and os.environ.get("VAEL_ING_NEU"):
     gk.log("Rammschild, Fernglas und Sprengmeister-Technik fertig")
 
 
+# ---------------------------------------------------------------- Bannkreis and Saugkreis of the Orden der Narbe (2026-11-25): VAEL_ING_ORDEN=1
+# A ring of 1 m radius lying flat at the origin (the game scales it to its reach).
+
+def _seal_ring(b, inward):
+    """Chain links of slag iron round the ring, wax seals on order cloth between them; turned inward for the Saugkreis"""
+    links = 28
+    for k in range(links):
+        a0 = 2 * math.pi * k / links
+        a1 = 2 * math.pi * (k + 0.8) / links
+        b.tube([Vector((math.cos(a0), math.sin(a0), 0.03)), Vector((math.cos((a0 + a1) / 2) * 1.01, math.sin((a0 + a1) / 2) * 1.01, 0.045)), Vector((math.cos(a1), math.sin(a1), 0.03))],
+               [0.018, 0.02, 0.018], METALL, sides=5)
+    for k in range(7):
+        a = 2 * math.pi * k / 7 + 0.2
+        c = Vector((math.cos(a), math.sin(a), 0.0))
+        # a strip of order cloth under the seal
+        box(b, c * 0.97 + Vector((0, 0, 0.012)), (0.16, 0.09, 0.02), LEDER, yaw=a)
+        n = (-c if inward else c)
+        seal = c * 0.97 + Vector((0, 0, 0.03))
+        lathe(b, [(0.0, 0.0), (0.06, 0.0), (0.065, 0.015), (0.05, 0.03), (0.0, 0.032)], GLUT, seal, sides=10, glow=0.25)
+        # the stamp of the scar: a raised line across the seal, pointing in or out
+        b.tube([seal + Vector((0, 0, 0.034)) - n * 0.035, seal + Vector((0, 0, 0.036)) + n * 0.035], [0.008, 0.008], MESSING, sides=4)
+
+
+def build_ward():
+    obj = gk.new_object("SM_Ing_Bannkreis", SLOTS)
+    b = gk.Builder()
+    _seal_ring(b, inward=False)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_drain():
+    obj = gk.new_object("SM_Ing_Saugkreis", SLOTS)
+    b = gk.Builder()
+    _seal_ring(b, inward=True)
+    # a Nid crystal in the middle on an iron spike, its light drawn in along three thin chains
+    lathe(b, [(0.05, 0.0), (0.03, 0.1), (0.0, 0.14)], METALL, Vector((0, 0, 0)), sides=6)
+    lathe(b, [(0.0, 0.1), (0.05, 0.16), (0.035, 0.26), (0.0, 0.32)], GLUT, Vector((0, 0, 0)), sides=6, glow=1.0)
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        b.tube([Vector((math.cos(a) * 0.95, math.sin(a) * 0.95, 0.03)), Vector((math.cos(a) * 0.5, math.sin(a) * 0.5, 0.02)), Vector((math.cos(a) * 0.06, math.sin(a) * 0.06, 0.08))],
+               [0.01, 0.009, 0.008], METALL, sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
+if __name__ == "__main__" and os.environ.get("VAEL_ING_ORDEN"):
+    os.makedirs(gk.OUT, exist_ok=True)
+    for build in (build_ward, build_drain):
+        gk.clear_scene()
+        build()
+    gk.log("Bannkreis und Saugkreis fertig")
+
+
 # ---------------------------------------------------------------- the Quarzbrille on the MetaHuman (2026-11-25): VAEL_ING_BRILLE=1
 # Fitted to the face of MH_Ingenieur (bones logged by `VaelIngenieur gesicht`): eyes 6.5 cm apart, the brow about 2 cm before
 # the middle of the eyes, the back of the head about 20 cm behind them. Origin = the point between the eyes, +X ahead, +Z up;

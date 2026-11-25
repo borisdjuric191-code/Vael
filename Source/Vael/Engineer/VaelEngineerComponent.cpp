@@ -52,6 +52,9 @@ namespace
 {
 	constexpr int32 MaxPlaced = 6;
 	constexpr float PlaceReach = 700.0f;
+	/** Überdruck: how often an overcharged blast device cracks as it is laid, and how many Nid charges he can hold */
+	constexpr float OverchargeCrackChance = 0.2f;
+	constexpr int32 MaxNidCharges = 5;
 	/** How far the Rollwall rolls out at most */
 	constexpr float RollReach = 1000.0f;
 	/** The Quarzbrille from the point between the eyes (face component space, +Y ahead): the cups sit on the brow and cheeks */
@@ -1711,6 +1714,26 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 			const FVector Direction = Offset.IsNearlyZero() ? Player->GetActorForwardVector() : Offset.GetSafeNormal();
 			bUsed = AVaelGrappleHook::Throw(this, Player->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f) + Direction * 40.0f, Direction) != nullptr;
 		}
+		else if (Gear->Device == EVaelDeviceType::Overcharge)
+		{
+			// the valve presses one Nid charge into the next blast device he lays
+			if (bOvercharged)
+			{
+				UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("AlreadyOvercharged", "Schon unter Druck"));
+			}
+			else if (NidCharges <= 0)
+			{
+				UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("NoNidCharge", "Keine Nidladung"));
+			}
+			else
+			{
+				--NidCharges;
+				bOvercharged = true;
+				bUsed = true;
+				UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("Overcharged", "Überdruck!"));
+				UE_LOG(LogVael, Log, TEXT("Engineer: %s overcharges (%d Nid charges left)"), *Player->GetName(), NidCharges);
+			}
+		}
 		if (bUsed)
 		{
 			DeviceReadyAt.Add(Device, Now() + Gear->Cooldown);
@@ -1743,6 +1766,13 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 		UVaelCombatTextSubsystem::PostReaction(Player, LOCTEXT("NoFireToTap", "Hier ist keine Glut zum Anzapfen"));
 		return false;
 	}
+	// Überdruck: the next blast device bursts twice as hard; one in five cracks as he lays it
+	const bool bBlast = VaelIsMine(Gear->Device) || Gear->Device == EVaelDeviceType::Tripwire || Gear->Device == EVaelDeviceType::OreCharge;
+	if (bOvercharged && bBlast)
+	{
+		bOvercharged = false;
+		NewDevice->SetOvercharge(2.0f, FMath::FRand() < OverchargeCrackChance);
+	}
 
 	Placed.RemoveAll([](const TWeakObjectPtr<AVaelEngineerDevice>& Each) { return !Each.IsValid(); });
 	if (Placed.Num() >= MaxPlaced && Placed[0].IsValid())
@@ -1760,6 +1790,16 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 		CycleDevice(1);
 	}
 	return true;
+}
+
+void UVaelEngineerComponent::AddNidCharge(int32 Count)
+{
+	const int32 Before = NidCharges;
+	NidCharges = FMath::Clamp(NidCharges + Count, 0, MaxNidCharges);
+	if (NidCharges > Before)
+	{
+		UVaelCombatTextSubsystem::PostReaction(GetOwner(), FText::Format(LOCTEXT("NidCharge", "Nidladung {0}/{1}"), FText::AsNumber(NidCharges), FText::AsNumber(MaxNidCharges)));
+	}
 }
 
 void UVaelEngineerComponent::UpdateSpyglass()

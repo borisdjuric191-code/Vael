@@ -6,6 +6,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelAshRoller.h"
+#include "Creatures/VaelCreatureData.h"
 #include "Magic/VaelEnvironmentStatics.h"
 #include "World/VaelFireSpot.h"
 #include "World/VaelLocalWeather.h"
@@ -125,6 +126,25 @@ namespace
 	constexpr float OreFuse = 1.5f;
 	constexpr float OreRadius = 260.0f;
 	constexpr float OreDamage = 26.0f;
+	/** Bannkreis and Saugkreis: the ring, how long it lies, the pulse, the drain and how often it gives a Nid charge */
+	constexpr float WardRadius = 320.0f;
+	constexpr float WardLife = 10.0f;
+	constexpr float WardPulse = 0.5f;
+	constexpr float DrainDps = 6.0f;
+	constexpr float DrainChargeEvery = 2.0f;
+	constexpr float DrainShadowPull = 0.3f;
+
+	/** Nid creatures: marked by a corrupted region, or the kinds the Nid woke (the dolls, the preachers) */
+	bool IsNidBeing(const AVaelCharacterBase* Who)
+	{
+		const AVaelCreature* Creature = Cast<AVaelCreature>(Who);
+		if (Creature == nullptr)
+		{
+			return false;
+		}
+		const FName Kind = Creature->GetCreatureData() != nullptr ? Creature->GetCreatureData()->KindId : NAME_None;
+		return Creature->IsMarked() || Kind == TEXT("Sichelpuppe") || Kind == TEXT("Prediger") || Kind == TEXT("PredigerMarkwasser");
+	}
 
 	/** The moving part of a device that has one, and how high it sits on the base */
 	const TCHAR* PartOf(EVaelDeviceType Type)
@@ -235,7 +255,8 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 	Device->LifeTime = Gear.Device == EVaelDeviceType::Turret ? TurretLife : Gear.Device == EVaelDeviceType::Smoke ? SmokeLife
 		: Gear.Device == EVaelDeviceType::Tapper ? TapperLife : Gear.Device == EVaelDeviceType::Douse ? 0.8f : Gear.Device == EVaelDeviceType::Whirl ? WhirlLife
 		: Gear.Device == EVaelDeviceType::Lantern ? LanternLife : Gear.Device == EVaelDeviceType::Warner ? WarnerLife
-		: Gear.Device == EVaelDeviceType::Ram ? RamLife : Gear.Device == EVaelDeviceType::Tripwire ? TripLife : Gear.Device == EVaelDeviceType::OreCharge ? OreFuse + 0.6f : 120.0f;
+		: Gear.Device == EVaelDeviceType::Ram ? RamLife : Gear.Device == EVaelDeviceType::Tripwire ? TripLife : Gear.Device == EVaelDeviceType::OreCharge ? OreFuse + 0.6f
+		: (Gear.Device == EVaelDeviceType::Ward || Gear.Device == EVaelDeviceType::Drain) ? WardLife : 120.0f;
 	Device->ChargeEffect = Gear.Effect;
 	Device->ChargeColor = Gear.Color;
 
@@ -354,6 +375,26 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 	}
 	Glow->SetIntensity(2.0f + 1.5f * FMath::Sin(Now * 4.0f));
 	Animate(Now, DeltaSeconds);
+	// Überdruck: one in five cracks as he lays it and goes off at once where it lies
+	if (bCrackPending)
+	{
+		bCrackPending = false;
+		UVaelCombatTextSubsystem::PostReaction(this, LOCTEXT("Cracked", "Geborsten!"));
+		if (VaelIsMine(Type))
+		{
+			Detonate(VaelEngineerGear::Standard);
+			return;
+		}
+		if (Type == EVaelDeviceType::Tripwire)
+		{
+			bDetonated = true;
+			LifeTime = Now - Born + 0.5f;
+			Work = ChargeBurst(GetActorLocation(), TripRadius, TripDamage, EVaelAmmoEffect::Fire);
+			return;
+		}
+		// a Kristallladung: its fuse is spent
+		Born = Now - OreFuse;
+	}
 	if (TickNewer(Now, DeltaSeconds))
 	{
 		return;
@@ -627,8 +668,8 @@ void AVaelEngineerDevice::Detonate(FName ShotAmmo)
 	// scalds and leaves a cloud of steam that blinds
 	const bool bFire = UVaelEnvironmentStatics::IsElementInEnvironment(this, EVaelElement::Fire);
 	const bool bSteam = !bFire && UVaelEnvironmentStatics::IsElementInEnvironment(this, EVaelElement::Water);
-	const float Radius = MineRadius * (bFire ? FireMineRadius : 1.0f);
-	const float Damage = MineDamage * Eng->GetDamageScale() * ChainScale * (bFire ? FireMineDamage : 1.0f);
+	const float Radius = MineRadius * (bFire ? FireMineRadius : 1.0f) * (1.0f + 0.3f * (Overcharge - 1.0f));
+	const float Damage = MineDamage * Eng->GetDamageScale() * ChainScale * (bFire ? FireMineDamage : 1.0f) * Overcharge;
 	if (bFire)
 	{
 		AVaelFireSpot::SpawnBurst(GetWorld(), GetActorLocation(), Radius * 0.8f);
@@ -805,6 +846,50 @@ bool AVaelEngineerDevice::TickNewer(float Now, float DeltaSeconds)
 		}
 		return true;
 	}
+	case EVaelDeviceType::Ward:
+	case EVaelDeviceType::Drain:
+	{
+		// Bannkreis: every Nid creature inside is held fast. Saugkreis: it drains them (it hurts) and every few seconds
+		// a creature gives him a Nid charge, which pulls him to shadow. Other creatures walk through untouched.
+		if (Now < NextPulse)
+		{
+			return true;
+		}
+		NextPulse = Now + WardPulse;
+		for (AVaelCharacterBase* Enemy : Enemies(Here, WardRadius))
+		{
+			if (!IsNidBeing(Enemy))
+			{
+				continue;
+			}
+			if (Type == EVaelDeviceType::Ward)
+			{
+				UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Frozen, WardPulse + 0.25f);
+				if (!Touched.Contains(Enemy))
+				{
+					Touched.Add(Enemy);
+					++Work;
+					UE_LOG(LogVael, Log, TEXT("Engineer: Bannkreis holds %s"), *Enemy->GetName());
+				}
+				continue;
+			}
+			FVaelSpellHit Drain;
+			Drain.Damage = DrainDps * WardPulse * Eng->GetDamageScale();
+			Drain.Element = EVaelElement::Earth;
+			UVaelCombatStatics::ApplySpellHit(Thrower, Enemy, Drain, FVector::ZeroVector);
+			UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Slowed, WardPulse + 0.25f);
+			float& Last = RamTouched.FindOrAdd(Enemy, Now);
+			if (Now - Last >= DrainChargeEvery)
+			{
+				Last = Now;
+				Eng->AddNidCharge(1);
+				UVaelBalanceSubsystem::ChangePlayer(Thrower, DrainShadowPull, LOCTEXT("DrainReason", "Saugkreis"));
+				++Work;
+				UE_LOG(LogVael, Log, TEXT("Engineer: Saugkreis drains %s, %d Nid charges"), *Enemy->GetName(), Eng->GetNidCharges());
+			}
+		}
+		return true;
+	}
 	case EVaelDeviceType::Ram:
 	{
 		// Stands across the way at once; whoever charged or rolled into it bounces off hurt and stunned, whoever leans on it
@@ -977,6 +1062,14 @@ bool AVaelEngineerDevice::TickNewer(float Now, float DeltaSeconds)
 }
 
 
+void AVaelEngineerDevice::SetOvercharge(float Scale, bool bCrack)
+{
+	Overcharge = FMath::Max(Scale, 1.0f);
+	bCrackPending = bCrack;
+	Glow->SetLightColor(FLinearColor(0.6f, 0.2f, 0.85f));
+	UE_LOG(LogVael, Log, TEXT("Engineer: %s overcharged x%.1f%s"), *Id.ToString(), Overcharge, bCrack ? TEXT(", cracks") : TEXT(""));
+}
+
 int32 AVaelEngineerDevice::ChargeBurst(const FVector& At, float Radius, float Damage, EVaelAmmoEffect Effect)
 {
 	// A burst of the Sprengmeister's kind (25.11.): fire sets alight, salt soaks, verdigris slows
@@ -986,8 +1079,9 @@ int32 AVaelEngineerDevice::ChargeBurst(const FVector& At, float Radius, float Da
 	{
 		return 0;
 	}
+	Radius *= 1.0f + 0.3f * (Overcharge - 1.0f);
 	FVaelSpellHit Hit;
-	Hit.Damage = Damage * Eng->GetDamageScale();
+	Hit.Damage = Damage * Eng->GetDamageScale() * Overcharge;
 	Hit.Knockback = 350.0f;
 	switch (Effect)
 	{
@@ -1199,6 +1293,20 @@ void AVaelEngineerDevice::Animate(float Now, float DeltaSeconds)
 		const float Since = Now - KickAt;
 		const float Shake = Since < 0.35f ? 0.04f * (1.0f - Since / 0.35f) * FMath::Sin(Since * 70.0f) : 0.0f;
 		Base->SetRelativeScale3D(BaseScale * FVector(1.0f - Shake, 1.0f + Shake, FMath::Max(Up, 0.05f)));
+		break;
+	}
+	case EVaelDeviceType::Ward:
+	case EVaelDeviceType::Drain:
+	{
+		// The ring of seals spreads out over the ground (the built ring is 1 m, the game scales it to its reach) and fades at
+		// the end; the Saugkreis turns slowly inward
+		const float Spread = FMath::Clamp(Age / 0.3f, 0.0f, 1.0f) * FMath::Clamp((LifeTime - Age) / 0.4f, 0.0f, 1.0f);
+		const float Size = bBuiltPiece ? WardRadius / 100.0f : 1.0f;
+		Base->SetRelativeScale3D(BaseScale * FVector(Size * FMath::Max(Spread, 0.05f), Size * FMath::Max(Spread, 0.05f), 1.0f));
+		if (Type == EVaelDeviceType::Drain)
+		{
+			AddActorLocalRotation(FRotator(0.0f, -40.0f * DeltaSeconds, 0.0f));
+		}
 		break;
 	}
 	case EVaelDeviceType::Douse:
