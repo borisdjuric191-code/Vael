@@ -13,110 +13,116 @@
       <stop offset="1" stop-color="#9b3fd0"/>
     </linearGradient>
 
-    <!-- The eye: lids (almond), a vertical dragon slit, the drop of Nid running out below -->
+    <!-- The whole eye stands upright: pointed at top and bottom, a dragon slit inside, the drop at the lower tip -->
     <g id="lids">
-      <path d="M-100,0 Q0,-78 100,0 Q0,78 -100,0 Z" fill="#efe6d4" stroke="#2c1838" stroke-width="7" stroke-linejoin="round"/>
-      <path d="M-86,-4 Q0,-62 86,-4" fill="none" stroke="#2c1838" stroke-width="2.5" opacity="0.55"/>
+      <path d="M0,-100 Q78,0 0,100 Q-78,0 0,-100 Z" fill="#efe6d4" stroke="#2c1838" stroke-width="7" stroke-linejoin="round"/>
+      <path d="M-5,-84 Q-60,0 -5,84" fill="none" stroke="#2c1838" stroke-width="2.5" opacity="0.5"/>
     </g>
-    <path id="slit" d="M0,-50 Q15,0 0,50 Q-15,0 0,-50 Z" fill="#2c1838"/>
-    <path id="slitOpen" d="M0,-52 Q30,0 0,52 Q-30,0 0,-52 Z" fill="#3a1350"/>
-    <path id="dropShape" d="M0,46 C4,70 15,92 0,112 C-15,92 -4,70 0,46 Z" fill="url(#drop)" stroke="#2c1838" stroke-width="3"/>
+    <path id="slit" d="M0,-52 Q11,0 0,52 Q-11,0 0,-52 Z" fill="#2c1838"/>
+    <path id="slitOpen" d="M0,-58 Q24,0 0,58 Q-24,0 0,-58 Z" fill="#3a1350"/>
+    <path id="dropShape" d="M0,100 C5,124 16,146 0,168 C-16,146 -5,124 0,100 Z" fill="url(#drop)" stroke="#2c1838" stroke-width="3"/>
 
-    <!-- One stitch across the slit: silver thread with its two needle holes -->
-    <g id="stitch">
-      <line x1="-26" y1="0" x2="26" y2="0" stroke="#3a3440" stroke-width="7" stroke-linecap="round"/>
-      <line x1="-26" y1="0" x2="26" y2="0" stroke="#d8d8e2" stroke-width="3.5" stroke-linecap="round"/>
-      <circle cx="-28" cy="0" r="3.2" fill="#2c1838"/>
-      <circle cx="28" cy="0" r="3.2" fill="#2c1838"/>
+    <!-- A stitch across the whole eye, from lid to lid: silver thread, the needle holes outside the lids -->
+    <g id="stitchW">
+      <line x1="-52" y1="0" x2="52" y2="0" stroke="#3a3440" stroke-width="7" stroke-linecap="round"/>
+      <line x1="-52" y1="0" x2="52" y2="0" stroke="#d8d8e2" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="-54" cy="0" r="3.4" fill="#2c1838"/><circle cx="54" cy="0" r="3.4" fill="#2c1838"/>
     </g>
-    <!-- Where a stitch was cut: only the holes and a torn end of thread -->
-    <g id="cut">
-      <circle cx="-28" cy="0" r="3.2" fill="#2c1838"/>
-      <circle cx="28" cy="0" r="3.2" fill="#2c1838"/>
-      <path d="M-28,0 q-6,6 -3,13" fill="none" stroke="#b9b9c6" stroke-width="2.2" stroke-linecap="round"/>
+    <g id="stitchN">
+      <line x1="-44" y1="0" x2="44" y2="0" stroke="#3a3440" stroke-width="7" stroke-linecap="round"/>
+      <line x1="-44" y1="0" x2="44" y2="0" stroke="#d8d8e2" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="-46" cy="0" r="3.4" fill="#2c1838"/><circle cx="46" cy="0" r="3.4" fill="#2c1838"/>
+    </g>
+    <!-- A cut stitch: only the holes and a torn end of thread -->
+    <g id="cutW">
+      <circle cx="-54" cy="0" r="3.4" fill="#2c1838"/><circle cx="54" cy="0" r="3.4" fill="#2c1838"/>
+      <path d="M-54,0 q-7,6 -4,14" fill="none" stroke="#b9b9c6" stroke-width="2.2" stroke-linecap="round"/>
+    </g>
+    <g id="cutN">
+      <circle cx="-46" cy="0" r="3.4" fill="#2c1838"/><circle cx="46" cy="0" r="3.4" fill="#2c1838"/>
+      <path d="M46,0 q7,6 4,14" fill="none" stroke="#b9b9c6" stroke-width="2.2" stroke-linecap="round"/>
     </g>
 
-    <!-- The full sign with three stitches -->
     <g id="sign3">
       <use href="#lids"/><use href="#slit"/>
-      <use href="#stitch" y="-26"/><use href="#stitch" y="0"/><use href="#stitch" y="26"/>
+      <use href="#stitchN" y="-42"/><use href="#stitchW" y="0"/><use href="#stitchN" y="42"/>
       <use href="#dropShape"/>
     </g>
   </defs>
 
   <rect width="1200" height="860" fill="url(#paper)"/>
-  <text x="600" y="52" text-anchor="middle" font-family="Georgia, serif" font-size="34" fill="#2c1838" letter-spacing="3">ORDEN DER NARBE · SYMBOL-ENTWURF</text>
-  <text x="600" y="84" text-anchor="middle" font-family="Georgia, serif" font-size="17" fill="#5a4a5e">Auge mit senkrechtem Schlitz, dreimal quer zugenäht, ein Tropfen Nid rinnt heraus</text>
+  <text x="600" y="52" text-anchor="middle" font-family="Georgia, serif" font-size="34" fill="#2c1838" letter-spacing="3">ORDEN DER NARBE · SYMBOL-ENTWURF 2</text>
+  <text x="600" y="84" text-anchor="middle" font-family="Georgia, serif" font-size="17" fill="#5a4a5e">Ein senkrechtes Auge, ganz zugenäht, Schlitzpupille, ein Tropfen Nid an der unteren Spitze</text>
 
   <!-- Row 1: three ways to use it -->
-  <g transform="translate(220,260)">
+  <g transform="translate(220,240)">
     <use href="#sign3"/>
-    <text y="165" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838">A · Grundform</text>
-    <text y="192" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#5a4a5e">Banner, Buch, Kathedrale</text>
+    <text y="210" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838">A · Grundform</text>
+    <text y="236" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#5a4a5e">Banner, Buch, Kathedrale</text>
   </g>
 
-  <g transform="translate(600,260)">
-    <!-- the wax seal: a rough wax disc, the sign pressed in, a ring of stitch marks -->
+  <g transform="translate(600,270)">
     <path d="M0,-128 C40,-130 74,-112 98,-88 C124,-62 132,-26 128,8 C126,44 110,80 82,104 C52,128 14,134 -22,130 C-60,126 -92,106 -112,78 C-130,50 -136,14 -130,-22 C-124,-58 -104,-90 -74,-110 C-52,-124 -26,-128 0,-128 Z" fill="#6b2e8a" stroke="#3a1350" stroke-width="5"/>
     <circle r="104" fill="none" stroke="#3a1350" stroke-width="4"/>
     <circle r="92" fill="none" stroke="#9b62c0" stroke-width="2" stroke-dasharray="7 9"/>
-    <g transform="scale(0.72)" opacity="0.95">
-      <path d="M-100,0 Q0,-78 100,0 Q0,78 -100,0 Z" fill="#4b1d64" stroke="#2a0c3a" stroke-width="7"/>
-      <path d="M0,-50 Q15,0 0,50 Q-15,0 0,-50 Z" fill="#2a0c3a"/>
-      <g stroke="#c9a6e0" stroke-width="5" stroke-linecap="round">
-        <line x1="-26" y1="-26" x2="26" y2="-26"/><line x1="-26" y1="0" x2="26" y2="0"/><line x1="-26" y1="26" x2="26" y2="26"/>
+    <g transform="translate(0,-24) scale(0.6)">
+      <path d="M0,-100 Q78,0 0,100 Q-78,0 0,-100 Z" fill="#4b1d64" stroke="#2a0c3a" stroke-width="8"/>
+      <path d="M0,-52 Q11,0 0,52 Q-11,0 0,-52 Z" fill="#2a0c3a"/>
+      <g stroke="#c9a6e0" stroke-width="6" stroke-linecap="round">
+        <line x1="-44" y1="-42" x2="44" y2="-42"/><line x1="-52" y1="0" x2="52" y2="0"/><line x1="-44" y1="42" x2="44" y2="42"/>
       </g>
-      <path d="M0,46 C4,70 15,92 0,112 C-15,92 -4,70 0,46 Z" fill="#2a0c3a"/>
+      <path d="M0,100 C5,124 16,146 0,168 C-16,146 -5,124 0,100 Z" fill="#2a0c3a"/>
     </g>
-    <text y="165" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838">B · Ordenssiegel</text>
-    <text y="192" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#5a4a5e">Siegelwachs, Bannkreis, Siegelkapsel</text>
+    <text y="180" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838">B · Ordenssiegel</text>
+    <text y="206" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#5a4a5e">Siegelwachs, Bannkreis, Siegelkapsel</text>
   </g>
 
-  <g transform="translate(980,260)">
-    <!-- embroidered on the robe: a patch of dark cloth, the sign in silver thread, bold and simple -->
+  <g transform="translate(980,270)">
     <rect x="-118" y="-118" width="236" height="236" rx="18" fill="#3a2b44" stroke="#24182c" stroke-width="5"/>
     <rect x="-106" y="-106" width="212" height="212" rx="12" fill="none" stroke="#8d8798" stroke-width="2" stroke-dasharray="5 6"/>
-    <g stroke="#d6d4de" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <path d="M-88,0 Q0,-68 88,0 Q0,68 -88,0 Z"/>
-      <path d="M0,-44 L0,44"/>
-      <path d="M-22,-22 L22,-22 M-22,0 L22,0 M-22,22 L22,22"/>
+    <g transform="translate(0,-18)">
+      <g stroke="#d6d4de" stroke-width="9" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <path d="M0,-80 Q62,0 0,80 Q-62,0 0,-80 Z"/>
+        <path d="M0,-38 L0,38"/>
+        <path d="M-40,-32 L40,-32 M-46,0 L46,0 M-40,32 L40,32"/>
+      </g>
+      <path d="M0,84 C4,100 13,114 0,128 C-13,114 -4,100 0,84 Z" fill="#a463cf"/>
     </g>
-    <path d="M0,50 C4,70 13,86 0,100 C-13,86 -4,70 0,50 Z" fill="#a463cf"/>
-    <text y="165" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838">C · Kuttenzeichen</text>
-    <text y="192" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#5a4a5e">gestickt, grob, aus der Iso-Kamera lesbar</text>
+    <text y="180" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838">C · Kuttenzeichen</text>
+    <text y="206" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#5a4a5e">gestickt, grob, aus der Iso-Kamera lesbar</text>
   </g>
 
-  <line x1="80" y1="500" x2="1120" y2="500" stroke="#8b7a68" stroke-width="2"/>
-  <text x="600" y="540" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838" letter-spacing="2">DER RANG AN DEN STICHEN</text>
+  <line x1="80" y1="510" x2="1120" y2="510" stroke="#8b7a68" stroke-width="2"/>
+  <text x="600" y="548" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#2c1838" letter-spacing="2">DER RANG AN DEN STICHEN</text>
 
   <!-- Row 2: ranks, the stitches cut from the top -->
-  <g transform="translate(180,680) scale(0.75)">
+  <g transform="translate(180,660) scale(0.6)">
     <use href="#sign3"/>
   </g>
-  <g transform="translate(460,680) scale(0.75)">
+  <g transform="translate(460,660) scale(0.6)">
     <use href="#lids"/><use href="#slit"/>
-    <use href="#cut" y="-26"/><use href="#stitch" y="0"/><use href="#stitch" y="26"/>
+    <use href="#cutN" y="-42"/><use href="#stitchW" y="0"/><use href="#stitchN" y="42"/>
     <use href="#dropShape"/>
   </g>
-  <g transform="translate(740,680) scale(0.75)">
+  <g transform="translate(740,660) scale(0.6)">
     <use href="#lids"/><use href="#slit"/>
-    <use href="#cut" y="-26"/><use href="#cut" y="0"/><use href="#stitch" y="26"/>
+    <use href="#cutN" y="-42"/><use href="#cutW" y="0"/><use href="#stitchN" y="42"/>
     <use href="#dropShape"/>
   </g>
-  <g transform="translate(1020,680) scale(0.75)">
-    <circle r="120" fill="url(#nidglow)"/>
+  <g transform="translate(1020,660) scale(0.6)">
+    <circle r="140" fill="url(#nidglow)"/>
     <use href="#lids"/><use href="#slitOpen"/>
-    <use href="#cut" y="-26"/><use href="#cut" y="0"/><use href="#cut" y="26"/>
+    <use href="#cutN" y="-42"/><use href="#cutW" y="0"/><use href="#cutN" y="42"/>
     <use href="#dropShape"/>
   </g>
   <g font-family="Georgia, serif" text-anchor="middle" fill="#2c1838">
-    <text x="180" y="800" font-size="20">Novize · Wachsmund</text>
-    <text x="180" y="824" font-size="14" fill="#5a4a5e">drei Stiche</text>
-    <text x="460" y="800" font-size="20">Prediger</text>
-    <text x="460" y="824" font-size="14" fill="#5a4a5e">zwei Stiche</text>
-    <text x="740" y="800" font-size="20">Die Hohen</text>
-    <text x="740" y="824" font-size="14" fill="#5a4a5e">ein Stich</text>
-    <text x="1020" y="800" font-size="20">Corvin</text>
-    <text x="1020" y="824" font-size="14" fill="#5a4a5e">das Auge offen</text>
+    <text x="180" y="805" font-size="20">Novize · Wachsmund</text>
+    <text x="180" y="829" font-size="14" fill="#5a4a5e">drei Stiche</text>
+    <text x="460" y="805" font-size="20">Prediger</text>
+    <text x="460" y="829" font-size="14" fill="#5a4a5e">zwei Stiche</text>
+    <text x="740" y="805" font-size="20">Die Hohen</text>
+    <text x="740" y="829" font-size="14" fill="#5a4a5e">ein Stich</text>
+    <text x="1020" y="805" font-size="20">Corvin</text>
+    <text x="1020" y="829" font-size="14" fill="#5a4a5e">das Auge offen</text>
   </g>
 </svg>
