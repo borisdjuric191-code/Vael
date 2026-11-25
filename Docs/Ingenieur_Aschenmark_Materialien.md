@@ -465,6 +465,40 @@ Grabmine, Rauchtopf, Lockpfeife und Wurfhaken sind im Spiel. Bauplan, Wirkung un
 - **Offen:** Modelle für Glutzapfer, Säurefass und Löschpulver (Platzhalterformen); Sturmwarner, Sichelkreisel, Würgnetz, Blendlaterne, Rammschild, Rollwall; Werkzeuge (Wärmeglas, Aderglas, Fernglas); weitere ganze Sätze (Aschenjäger, Erntewacht, Glutkronen).
 
 
+## 6d. Aschenjäger (Idee, besprochen 25.11., NICHT gebaut)
+
+Boris' Idee, nur festgehalten: Ein zweiter, leichter Satz als Gegenstück zur schweren Schwarzglut. Er ist schlank, mit Bandagen gewickelt und mit Federn besetzt, dunkel bis aschgrau, für beide Geschlechter. Die Stimmung ist von einem verhüllten Ninja-Kämpfer inspiriert. Form und Symbole kommen aber nur aus unseren Kreaturen, kein Nachbau. Er arbeitet viel mit Rauch. Gebaut wird erst, wenn Boris am PC ist (Tripo-Modelle).
+
+**Drei Wesen (entschieden):**
+- **Sichelpuppe:** Puppengarn als Bandagen (glimmt leicht, schwacher Glutfaden an den Kanten), Sichelklingen für die Waffe.
+- **Aschharpyie:** Rußfedern an Kragen, Unterarmen und Kapuze, Greifklauen als Knöchelschutz.
+- **Schleieraffe:** passt mit seinen Bandagen, der Wendigkeit und den dunklen Elementen. Vorschlag: Schleierpelz für Kapuze und Schal, Klammerfinger in den Handwicklungen (sicheres Fangen), Glimmaugen als Gläser in der Maske (Sicht durch Rauch).
+
+**Entschieden:**
+- **Name:** Aschenjäger.
+- Wie alle Sätze nur **ganz** tragbar.
+- **Waffe Doppelsichel:** zwei Sichelklingen in S-Form an der Nabe vernietet. Sie **ersetzt die Schleuder**, solange der Satz getragen wird, und hat einen eigenen Spielstil.
+  - Sie **kehrt immer zurück** („Rauch-Dreh-Sichel-Spiel“).
+  - Antippen wirft gerade, Halten wirft im Bogen um den Zielpunkt.
+  - Genau gefangen wird der nächste Wurf schneller.
+- **Rauchschritt** statt Ausweichrolle: ein kurzer Satz zur Seite in einer Rauchwolke, Gegner verlieren ihn kurz, der erste Wurf aus dem Rauch trifft kritisch.
+
+**Vorschläge, noch nicht entschieden:**
+- **Satzbonus:** etwa 10 % schneller, deutlich weniger Rüstung als die Schwarzglut.
+- **Umwelt:** durch Feuer kommt die Sichel brennend zurück, durch die Säurepfütze ätzend, durch Rauch mit Rauchspur. Streift sie eine Mine, zündet sie diese.
+- **Formeln:** Die Ladungsformeln **bestreichen** die Klingen (Gift, Glut, Rauch), statt verschossen zu werden.
+- **Einfall:** Die Sichelpuppe beim Wirbeln besiegen gibt die Doppelsichel. Rußfedern als Stabilisator kommen von der Harpyie.
+- **Bauplan-Skizze Waffe:** 2 Sichelklinge + Puppengarn + Schlackeneisen (Niete) + Rußfeder.
+
+**Stufe II (Idee Boris):**
+- Die **Harpyien-Älteste** ist kein großer Boss wie die Glutkönigin, sie passt deshalb zum Ausbau.
+- **Wirbeltanz:** Er dreht sich mit den Sicheln, die um ihn kreisen, ein Tanz aus Kreisen. Im richtigen Moment wird daraus ein **Aschenteufel** (Staubteufel).
+- Mein Vorschlag dazu:
+  - Der Aschenteufel wandert eine Weile, zieht kleine Gegner hinein und trägt Rauch.
+  - **Umwelt:** Zieht er durch ein Feuer, wird er zum Feuerteufel. Im Sturm wird er größer und hält länger, im Regen zum Aschenregen.
+  - Die Älteste verstärkt ihn: Ihr Kreischen könnte Gegner im Teufel betäuben.
+- **Zweites Material**, Vorschlag: Ältestenschwinge (ihr Hauptmaterial) plus etwas für Wind. Möglich sind Silberhalm bzw. Flüsterfaser vom Windhalm, oder die Pfeifensporen der Pfeifenmorchel, die vor Stürmen pfeift. Noch nicht entschieden.
+
 ## 7. Was in der Aschenmark fehlt (und wie ich es löse)
 
 - **Metall:** Die Aschenmark hat kein echtes Erz. Lösung: Schlackeneisen (veredelte Schlacke) und Harpyientand als Messing. Echte Metalle kommen erst im Eisenschlund (Rosteisen, Kupferkristall, Silberlocke) als nächste Stufe.
