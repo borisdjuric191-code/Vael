@@ -52,6 +52,8 @@ namespace
 	constexpr float PlaceReach = 700.0f;
 	/** How far the Rollwall rolls out at most */
 	constexpr float RollReach = 1000.0f;
+	/** The Quarzbrille from the point between the eyes (face component space, +Y ahead): the cups sit on the brow and cheeks */
+	const FVector QuartzGogglesOffset(0.0f, 1.2f, 0.2f);
 	/** Lockpfeife: how far he can point the call, who hears it, and how long they follow */
 	constexpr float WhistleReach = 1200.0f;
 	constexpr float WhistleRadius = 1500.0f;
@@ -771,8 +773,14 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	{
 		PouchMesh->SetVisibility(bPouchBelt);
 	}
-	if (bGoggles)
+	if (bGoggles && AttachQuartzGoggles())
 	{
+		// the Quarzbrille sits on the face of the MetaHuman (25.11.)
+	}
+	else if (bGoggles)
+	{
+		// the MetaHuman may not be there yet: look again on the next update
+		bShownGoggles = false;
 		const USkeletalMeshComponent* Body = Player->GetMesh();
 		const FVector Head = Body->DoesSocketExist(TEXT("head")) ? Body->GetSocketTransform(TEXT("head"), RTS_Actor).GetLocation() : FVector(0.0f, 0.0f, Half * 0.8f);
 		GogglesMesh = AttachPiece(GogglesMesh, TEXT("EngineerGoggles"), TEXT("SM_Ing_Brille"), TEXT("head"),
@@ -782,6 +790,94 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	{
 		GogglesMesh->SetVisibility(false);
 	}
+}
+
+bool UVaelEngineerComponent::AttachQuartzGoggles()
+{
+	// The Quarzbrille (Tools/Ingenieur/vael_ingenieur_werkstuecke.py, VAEL_ING_BRILLE) is built round the point between the
+	// eyes, +X ahead, +Z up. It hangs on the head bone of the MetaHuman's face: the place is reckoned from the eye bones of
+	// the face in its reference pose (the face looks along +Y of its component), so it follows every turn and nod of the head.
+	AVaelCharacter* Player = GetPlayer();
+	const USkeletalMeshComponent* Body = Player != nullptr ? Player->GetMetaHumanBody() : nullptr;
+	USkeletalMeshComponent* Face = nullptr;
+	if (Body != nullptr)
+	{
+		TInlineComponentArray<USkeletalMeshComponent*> HumanParts(Body->GetOwner());
+		for (USkeletalMeshComponent* Part : HumanParts)
+		{
+			Face = Part->GetFName() == TEXT("Face") ? Part : Face;
+		}
+	}
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Quarzbrille.SM_Ing_Quarzbrille"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	const USkeletalMesh* FaceMesh = Face != nullptr ? Face->GetSkeletalMeshAsset() : nullptr;
+	if (Mesh == nullptr || FaceMesh == nullptr)
+	{
+		return false;
+	}
+	const FReferenceSkeleton& Skeleton = FaceMesh->GetRefSkeleton();
+	const auto InComponent = [&Skeleton](FName Bone, FTransform& Out)
+	{
+		const int32 BoneIndex = Skeleton.FindBoneIndex(Bone);
+		if (BoneIndex == INDEX_NONE)
+		{
+			return false;
+		}
+		Out = FTransform::Identity;
+		for (int32 Index = BoneIndex; Index != INDEX_NONE; Index = Skeleton.GetParentIndex(Index))
+		{
+			Out = Out * Skeleton.GetRefBonePose()[Index];
+		}
+		return true;
+	};
+	FTransform Head, EyeL, EyeR;
+	if (!InComponent(TEXT("head"), Head) || !InComponent(TEXT("FACIAL_L_Eye"), EyeL) || !InComponent(TEXT("FACIAL_R_Eye"), EyeR))
+	{
+		return false;
+	}
+	const FTransform OnFace(FRotationMatrix::MakeFromXZ(FVector(0.0f, 1.0f, 0.0f), FVector::UpVector).ToQuat(),
+		(EyeL.GetLocation() + EyeR.GetLocation()) * 0.5f + QuartzGogglesOffset);
+	if (GogglesMesh == nullptr)
+	{
+		GogglesMesh = NewObject<UStaticMeshComponent>(Player, TEXT("EngineerGoggles"));
+		GogglesMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		GogglesMesh->SetCastShadow(true);
+		GogglesMesh->RegisterComponent();
+	}
+	GogglesMesh->AttachToComponent(Face, FAttachmentTransformRules::SnapToTargetNotIncludingScale, TEXT("head"));
+	FTransform Relative = OnFace.GetRelativeTransform(Head);
+	Relative.SetScale3D(FVector::OneVector);
+	GogglesMesh->SetRelativeTransform(Relative);
+	if (GogglesMesh->GetStaticMesh() != Mesh)
+	{
+		GogglesMesh->SetStaticMesh(Mesh);
+		// The workshop colours are warm bronze and ember; the goggles want dark slag iron, smoky quartz with a warm rim and a
+		// band of silver grass
+		struct FTint { const TCHAR* Slot; const TCHAR* Material; const TCHAR* Param; FLinearColor Color; const TCHAR* Param2; FLinearColor Color2; };
+		static const FTint Tints[] =
+		{
+			{ TEXT("Metall"), TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Metall.M_GK_Metall"), TEXT("Farbe"), FLinearColor(0.085f, 0.08f, 0.075f), nullptr, FLinearColor::Black },
+			{ TEXT("Glut"), TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Glas.M_GK_Glas"), TEXT("Farbe"), FLinearColor(0.05f, 0.035f, 0.025f), TEXT("Rand"), FLinearColor(0.7f, 0.38f, 0.12f) },
+			{ TEXT("Faden"), TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Faden.M_GK_Faden"), TEXT("Farbe"), FLinearColor(0.13f, 0.14f, 0.12f), nullptr, FLinearColor::Black },
+		};
+		for (const FTint& Tint : Tints)
+		{
+			const int32 Index = GogglesMesh->GetMaterialIndex(Tint.Slot);
+			UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, Tint.Material, nullptr, LOAD_NoWarn | LOAD_Quiet);
+			if (Index == INDEX_NONE || Base == nullptr)
+			{
+				continue;
+			}
+			UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Base, GogglesMesh);
+			Dynamic->SetVectorParameterValue(Tint.Param, Tint.Color);
+			if (Tint.Param2 != nullptr)
+			{
+				Dynamic->SetVectorParameterValue(Tint.Param2, Tint.Color2);
+			}
+			GogglesMesh->SetMaterial(Index, Dynamic);
+		}
+	}
+	GogglesMesh->SetVisibility(true);
+	return true;
 }
 
 void UVaelEngineerComponent::UpdateWeaponMesh()

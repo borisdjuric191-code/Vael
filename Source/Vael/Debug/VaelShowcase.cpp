@@ -16,6 +16,7 @@
 #include "HAL/PlatformMisc.h"
 #include "Misc/CommandLine.h"
 #include "Misc/Parse.h"
+#include "Player/VaelCharacter.h"
 #include "UnrealClient.h"
 #include "Vael.h"
 
@@ -450,10 +451,21 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 			}
 
 			// =Legs: low and close on the legs and roots of a rooted Floromant
-			const FVector Offset = HeroView == TEXT("Back") ? FVector(-300.0f, 140.0f, 120.0f) : HeroView == TEXT("Far") ? FVector(700.0f, -520.0f, 520.0f)
+			const FVector Offset = HeroView == TEXT("Kopf") ? FVector(62.0f, -38.0f, 92.0f) : HeroView == TEXT("KopfSeite") ? FVector(8.0f, -78.0f, 96.0f) : HeroView == TEXT("KopfHinten") ? FVector(-60.0f, -30.0f, 100.0f)
+				: HeroView == TEXT("Back") ? FVector(-300.0f, 140.0f, 120.0f) : HeroView == TEXT("Far") ? FVector(700.0f, -520.0f, 520.0f)
 				: HeroView == TEXT("Legs") ? FVector(230.0f, -150.0f, -10.0f) : FVector(300.0f, -140.0f, 90.0f);
-			const FVector Focus = PlayerPawn->GetActorLocation() + (HeroView == TEXT("Far") ? PlayerPawn->GetActorForwardVector() * 250.0f : HeroView == TEXT("Legs") ? FVector(0.0f, 0.0f, -55.0f) : FVector(0.0f, 0.0f, 20.0f));
-			const FVector Eye = PlayerPawn->GetActorLocation() + FRotator(0.0f, PlayerPawn->GetActorRotation().Yaw, 0.0f).RotateVector(Offset);
+			FVector Focus = PlayerPawn->GetActorLocation() + (HeroView.StartsWith(TEXT("Kopf")) ? FVector(0.0f, 0.0f, 84.0f) : HeroView == TEXT("Far") ? PlayerPawn->GetActorForwardVector() * 250.0f : HeroView == TEXT("Legs") ? FVector(0.0f, 0.0f, -55.0f) : FVector(0.0f, 0.0f, 20.0f));
+			FVector Eye = PlayerPawn->GetActorLocation() + FRotator(0.0f, PlayerPawn->GetActorRotation().Yaw, 0.0f).RotateVector(Offset);
+			// =Kopf, =KopfSeite, =KopfHinten: on the head of the MetaHuman, by the way its face looks (+Y of its body), for what
+			// it wears on the head
+			const AVaelCharacter* Hero = Cast<AVaelCharacter>(PlayerPawn);
+			if (const USkeletalMeshComponent* Human = HeroView.StartsWith(TEXT("Kopf")) && Hero != nullptr ? Hero->GetMetaHumanBody() : nullptr)
+			{
+				const FVector Ahead = Human->GetRightVector().GetSafeNormal2D();
+				const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+				Focus = Human->GetSocketLocation(TEXT("head")) + FVector(0.0f, 0.0f, 6.0f) + Ahead * 6.0f;
+				Eye = Focus + Ahead * Offset.X + Side * Offset.Y + FVector(0.0f, 0.0f, Offset.Z - 90.0f);
+			}
 			Closeup->SetActorLocationAndRotation(Eye, (Focus - Eye).Rotation());
 			if (PlayerController->GetViewTarget() != Closeup)
 			{

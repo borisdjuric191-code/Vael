@@ -247,7 +247,7 @@ def build_turret():
     gk.export(obj)
 
 
-if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE") and not os.environ.get("VAEL_ING_FALLEN"):
+if __name__ == "__main__" and not os.environ.get("VAEL_ING_TRAGEN") and not os.environ.get("VAEL_ING_RUESTUNG") and not os.environ.get("VAEL_ING_ZWEIGE") and not os.environ.get("VAEL_ING_FALLEN") and not os.environ.get("VAEL_ING_BRILLE"):
     os.makedirs(gk.OUT, exist_ok=True)
     for build in (build_sling, build_sling_pouch, build_bow, build_crossbow, build_trap, build_mine, build_turret):
         gk.clear_scene()
@@ -862,3 +862,69 @@ if __name__ == "__main__" and os.environ.get("VAEL_ING_FALLEN"):
         gk.clear_scene()
         build()
     gk.log("Fallen-Paket des Ingenieurs fertig")
+
+
+# ---------------------------------------------------------------- the Quarzbrille on the MetaHuman (2026-11-25): VAEL_ING_BRILLE=1
+# Fitted to the face of MH_Ingenieur (bones logged by `VaelIngenieur gesicht`): eyes 6.5 cm apart, the brow about 2 cm before
+# the middle of the eyes, the back of the head about 20 cm behind them. Origin = the point between the eyes, +X ahead, +Z up;
+# the game places it there on the head bone of the face.
+
+EYE = 0.0325          # half the distance of the eyes
+
+
+def build_quartz_goggles():
+    obj = gk.new_object("SM_Ing_Quarzbrille", SLOTS)
+    b = gk.Builder()
+    rx = Matrix.Rotation(math.pi / 2, 3, "Y")     # lathe axis Z -> X (ahead)
+    for side in (-1, 1):
+        c = Vector((0.0, side * EYE, 0.0))
+        # the latex seal against the face, then the cup of slag iron, slightly flared to the front
+        lathe(b, [(0.019, 0.004), (0.023, 0.006), (0.024, 0.011), (0.021, 0.013)], LEDER, c, sides=18, axis=rx)
+        lathe(b, [(0.021, 0.012), (0.0225, 0.02), (0.023, 0.03), (0.0245, 0.034)], METALL, c, sides=18, axis=rx)
+        # the front rim, rivets of brass round it
+        lathe(b, [(0.0245, 0.033), (0.027, 0.034), (0.027, 0.039), (0.022, 0.04)], METALL, c, sides=18, axis=rx)
+        for k in range(6):
+            a = 2 * math.pi * k / 6 + 0.26
+            p = c + Vector((0.0385, math.cos(a) * 0.0255, math.sin(a) * 0.0255))
+            lathe(b, [(0.0025, 0.0), (0.002, 0.002), (0.0, 0.0028)], MESSING, p, sides=6, axis=rx)
+        # the lens of smoky quartz: a low dome cut in facets (few sides), a faint amber glow from within
+        lathe(b, [(0.0215, 0.036), (0.016, 0.0405), (0.0, 0.0425)], GLUT, c, sides=7, axis=rx, glow=0.35)
+        # the hinge plate at the outer side, where the band is fixed
+        box(b, c + Vector((0.016, side * 0.024, 0.0)), (0.016, 0.006, 0.022), METALL)
+    # the bridge over the nose: a little arch of iron
+    b.tube([Vector((0.03, -0.012, 0.004)), Vector((0.033, 0.0, 0.009)), Vector((0.03, 0.012, 0.004))], [0.004, 0.0045, 0.004], METALL, sides=6)
+    # the Zielhilfe: a small magnifying lens on a hinged arm, flipped up over the right cup (its brass ring catches the light)
+    hinge = Vector((0.036, -EYE - 0.02, 0.018))
+    b.tube([hinge, hinge + Vector((0.006, 0.012, 0.022)), hinge + Vector((0.008, 0.02, 0.034))], [0.0025, 0.0025, 0.0025], MESSING, sides=5)
+    lens_at = hinge + Vector((0.01, 0.022, 0.045))
+    tilt = Matrix.Rotation(math.radians(70), 3, "Y")
+    lathe(b, [(0.0, -0.002), (0.013, -0.002), (0.014, 0.0), (0.013, 0.002), (0.0, 0.002)], MESSING, lens_at, sides=14, axis=tilt)
+    lathe(b, [(0.0, -0.0025), (0.011, 0.0), (0.0, 0.0025)], GLUT, lens_at, sides=14, axis=tilt, glow=0.5)
+    # the band of braided silver grass round the back of the head: two strands twisting round each other
+    cx, ax, ay = -0.095, 0.108, 0.082
+    for strand in (0, 1):
+        pts = []
+        steps = 44
+        for k in range(steps + 1):
+            th = math.radians(28 + (360 - 56) * k / steps)
+            x = cx + ax * math.cos(th)
+            y = ay * math.sin(th)
+            z = 0.003 + 0.022 * (1 - math.cos(th)) / 2
+            twist = 0.0035 * math.sin(k * 1.4 + strand * math.pi)
+            n = Vector((math.cos(th) / ax, math.sin(th) / ay, 0)).normalized()
+            pts.append(Vector((x, y, z + twist)) + n * 0.002)
+        b.tube(pts, [0.0032] * len(pts), FADEN, sides=5)
+    # clasps where the band meets the hinge plates
+    for side in (-1, 1):
+        th = math.radians(28 if side > 0 else -28)
+        p = Vector((cx + ax * math.cos(th), ay * math.sin(th), 0.003))
+        box(b, p, (0.012, 0.004, 0.012), MESSING)
+    b.finish(obj)
+    gk.export(obj)
+
+
+if __name__ == "__main__" and os.environ.get("VAEL_ING_BRILLE"):
+    os.makedirs(gk.OUT, exist_ok=True)
+    gk.clear_scene()
+    build_quartz_goggles()
+    gk.log("Quarzbrille fertig")

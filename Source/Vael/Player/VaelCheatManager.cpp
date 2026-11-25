@@ -2158,6 +2158,56 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Display, TEXT("[Knochen] %d bones of %s written"), Skeleton.GetNum(), *Body->GetSkeletalMeshAsset()->GetName());
 		return;
 	}
+	// "brille": builds the Zielhilfebrille (shown as the Quarzbrille on the face) and takes the helmet off, for pictures
+	if (What == TEXT("brille"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		Engineer->TakeOff(EVaelArmorPlace::Head);
+		const bool bBuilt = Engineer->Build(VaelEngineerGear::Goggles, true) || Engineer->HasBuilt(VaelEngineerGear::Goggles);
+		UE_LOG(LogVael, Display, TEXT("[Brille] built %d"), bBuilt);
+		return;
+	}
+	// The face of the MetaHuman (25.11., fitting the Quarzbrille): "gesicht" logs the skeletal parts of the MetaHuman and, in the
+	// face, the eye and head bones in its component space (reference pose)
+	if (What == TEXT("gesicht"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		const USkeletalMeshComponent* Body = Player->GetMetaHumanBody();
+		AActor* Human = Body != nullptr ? Body->GetOwner() : nullptr;
+		if (Human == nullptr)
+		{
+			UE_LOG(LogVael, Display, TEXT("[Gesicht] no MetaHuman"));
+			return;
+		}
+		TInlineComponentArray<USkeletalMeshComponent*> Parts(Human);
+		for (USkeletalMeshComponent* Part : Parts)
+		{
+			const USkeletalMesh* Mesh = Part->GetSkeletalMeshAsset();
+			UE_LOG(LogVael, Display, TEXT("[Gesicht] part %s mesh %s parent %s"), *Part->GetName(), *GetNameSafe(Mesh), *GetNameSafe(Part->GetAttachParent()));
+			if (Mesh == nullptr)
+			{
+				continue;
+			}
+			const FReferenceSkeleton& Skeleton = Mesh->GetRefSkeleton();
+			for (int32 BoneIndex = 0; BoneIndex < Skeleton.GetNum(); ++BoneIndex)
+			{
+				const FString Name = Skeleton.GetBoneName(BoneIndex).ToString();
+				if (Name == TEXT("head") || Name.Contains(TEXT("_Eye")) && !Name.Contains(TEXT("lid")) && !Name.Contains(TEXT("Lid")) || Name.Contains(TEXT("Forehead")) || Name == TEXT("FACIAL_C_Nose"))
+				{
+					FTransform InComponent = FTransform::Identity;
+					for (int32 Index = BoneIndex; Index != INDEX_NONE; Index = Skeleton.GetParentIndex(Index))
+					{
+						InComponent = InComponent * Skeleton.GetRefBonePose()[Index];
+					}
+					UE_LOG(LogVael, Display, TEXT("[Gesicht]   %s: loc %s rot %s"), *Name, *InComponent.GetLocation().ToString(), *InComponent.Rotator().ToString());
+				}
+			}
+			UE_LOG(LogVael, Display, TEXT("[Gesicht]   bounds %s / %s, comp rel %s"), *Part->Bounds.Origin.ToString(), *Part->Bounds.BoxExtent.ToString(), *Part->GetRelativeTransform().ToString());
+		}
+		return;
+	}
 	// Five more devices (25.11.): "geraete" lays the Sichelkreisel, Würgnetz, Blendlaterne, Sturmwarner and Rollwall each by
 	// Sichelpuppen and reports what each did after a while; every step logs [GeraeteTest]
 	if (What == TEXT("geraete"))

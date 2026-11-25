@@ -338,6 +338,7 @@ private:
 
 	AVaelCharacter* GetPlayer() const;
 	void RestoreTickRate();
+	bool AttachQuartzGoggles();
 	void DropIncompleteSets();
 	float Now() const;
 
