@@ -5,6 +5,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
+#include "Creatures/VaelAshRoller.h"
 #include "Magic/VaelEnvironmentStatics.h"
 #include "World/VaelFireSpot.h"
 #include "World/VaelLocalWeather.h"
@@ -102,6 +103,28 @@ namespace
 	constexpr float WallSeconds = 10.0f;
 	constexpr float WallHalfWidth = 130.0f;
 	constexpr float WallHeight = 160.0f;
+	/** Rammschild: its size, how long it stands, who it reaches, how fast one must come to bounce off, what that costs, the
+	 *  pricks of its spikes, and how often the same enemy is struck */
+	constexpr float RamHalfWidth = 90.0f;
+	constexpr float RamHeight = 125.0f;
+	constexpr float RamLife = 25.0f;
+	constexpr float RamReach = 150.0f;
+	constexpr float RamTouch = 95.0f;
+	constexpr float RamChargeSpeed = 280.0f;
+	constexpr float RamBounceDamage = 22.0f;
+	constexpr float RamStun = 1.6f;
+	constexpr float RamSpikeDamage = 5.0f;
+	constexpr float RamCooldown = 1.0f;
+	/** Stolperdraht: arming, half its length, the blast where it is crossed */
+	constexpr float TripArm = 0.8f;
+	constexpr float TripHalfLength = 200.0f;
+	constexpr float TripRadius = 220.0f;
+	constexpr float TripDamage = 30.0f;
+	constexpr float TripLife = 120.0f;
+	/** Kristallladung: fuse, blast, damage */
+	constexpr float OreFuse = 1.5f;
+	constexpr float OreRadius = 260.0f;
+	constexpr float OreDamage = 26.0f;
 
 	/** The moving part of a device that has one, and how high it sits on the base */
 	const TCHAR* PartOf(EVaelDeviceType Type)
@@ -211,7 +234,10 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 	}
 	Device->LifeTime = Gear.Device == EVaelDeviceType::Turret ? TurretLife : Gear.Device == EVaelDeviceType::Smoke ? SmokeLife
 		: Gear.Device == EVaelDeviceType::Tapper ? TapperLife : Gear.Device == EVaelDeviceType::Douse ? 0.8f : Gear.Device == EVaelDeviceType::Whirl ? WhirlLife
-		: Gear.Device == EVaelDeviceType::Lantern ? LanternLife : Gear.Device == EVaelDeviceType::Warner ? WarnerLife : 120.0f;
+		: Gear.Device == EVaelDeviceType::Lantern ? LanternLife : Gear.Device == EVaelDeviceType::Warner ? WarnerLife
+		: Gear.Device == EVaelDeviceType::Ram ? RamLife : Gear.Device == EVaelDeviceType::Tripwire ? TripLife : Gear.Device == EVaelDeviceType::OreCharge ? OreFuse + 0.6f : 120.0f;
+	Device->ChargeEffect = Gear.Effect;
+	Device->ChargeColor = Gear.Color;
 
 	// The look of each: a flat plate with jaws, a round bladder, a post with a head
 	UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -779,6 +805,115 @@ bool AVaelEngineerDevice::TickNewer(float Now, float DeltaSeconds)
 		}
 		return true;
 	}
+	case EVaelDeviceType::Ram:
+	{
+		// Stands across the way at once; whoever charged or rolled into it bounces off hurt and stunned, whoever leans on it
+		// is pricked by the spikes. A roller that crashed on it (lying on its back) counts as charging too.
+		if (!bWallUp)
+		{
+			bWallUp = true;
+			WallSince = Now;
+			WallBox->SetBoxExtent(FVector(30.0f, RamHalfWidth, RamHeight * 0.5f));
+			WallBox->SetRelativeLocation(FVector(0.0f, 0.0f, RamHeight * 0.5f));
+			WallBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+		}
+		const FVector Front = GetActorForwardVector();
+		const FVector Right = GetActorRightVector();
+		for (AVaelCharacterBase* Enemy : Enemies(Here, RamReach))
+		{
+			const FVector To = Enemy->GetActorLocation() - Here;
+			const float Ahead = FVector::DotProduct(To, Front);
+			if (Ahead < -20.0f || FMath::Abs(FVector::DotProduct(To, Right)) > RamHalfWidth + 40.0f)
+			{
+				continue;
+			}
+			// how fast it comes at the wall, now or the frame before (it may already have been stopped by the box)
+			const float Toward = -FVector::DotProduct(Enemy->GetVelocity(), Front);
+			float& Seen = RamSpeed.FindOrAdd(Enemy);
+			const float Came = FMath::Max(Toward, Seen);
+			Seen = Toward;
+			const float* Last = RamTouched.Find(Enemy);
+			if (Last != nullptr && Now - *Last < RamCooldown)
+			{
+				continue;
+			}
+			const AVaelAshRoller* Roller = Cast<AVaelAshRoller>(Enemy);
+			const bool bCrashed = Roller != nullptr && Roller->GetRollerState() == EVaelRollerState::OnBack && !RamTouched.Contains(Enemy);
+			FVaelSpellHit Hit;
+			Hit.Element = EVaelElement::Earth;
+			if (Came > RamChargeSpeed || bCrashed)
+			{
+				Hit.Damage = RamBounceDamage * Eng->GetDamageScale();
+				Hit.Knockback = 900.0f;
+				Hit.Status = EVaelStatus::Frozen;
+				Hit.StatusDuration = RamStun;
+				KickAt = Now;
+				++Work;
+				UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("RamBounce", "Abgeprallt!"));
+				UE_LOG(LogVael, Log, TEXT("Engineer: %s bounces off the Rammschild (%.0f cm/s%s)"), *Enemy->GetName(), Came, bCrashed ? TEXT(", crashed roller") : TEXT(""));
+			}
+			else if (Ahead < RamTouch + Enemy->GetSimpleCollisionRadius())
+			{
+				Hit.Damage = RamSpikeDamage * Eng->GetDamageScale();
+				Hit.Knockback = 350.0f;
+			}
+			else
+			{
+				continue;
+			}
+			UVaelCombatStatics::ApplySpellHit(Thrower, Enemy, Hit, Front);
+			RamTouched.Add(Enemy, Now);
+		}
+		return true;
+	}
+	case EVaelDeviceType::Tripwire:
+	{
+		// Armed after a moment; whoever crosses the wire sets off the charge where it catches, and the wire is spent
+		if (Age < TripArm || bDetonated)
+		{
+			return true;
+		}
+		const FVector Right = GetActorRightVector();
+		const FVector Front = GetActorForwardVector();
+		for (AVaelCharacterBase* Enemy : Enemies(Here, TripHalfLength + 60.0f))
+		{
+			const FVector To = Enemy->GetActorLocation() - Here;
+			const float Along = FVector::DotProduct(To, Right);
+			if (FMath::Abs(Along) > TripHalfLength || FMath::Abs(FVector::DotProduct(To, Front)) > 25.0f + Enemy->GetSimpleCollisionRadius() * 0.6f)
+			{
+				continue;
+			}
+			bDetonated = true;
+			LifeTime = Age + 0.5f;
+			const FVector At = Here + Right * Along;
+			Work = ChargeBurst(At, TripRadius, TripDamage, EVaelAmmoEffect::Fire);
+			UVaelCombatTextSubsystem::PostReaction(this, LOCTEXT("TripBoom", "Stolperdraht!"));
+			UE_LOG(LogVael, Log, TEXT("Engineer: %s crosses the Stolperdraht, %d struck"), *Enemy->GetName(), Work);
+			break;
+		}
+		return true;
+	}
+	case EVaelDeviceType::OreCharge:
+	{
+		// The ground glows where it lies, faster and faster, then it bursts with the effect of its ore
+		if (Age < OreFuse)
+		{
+			const float Fuse = Age / OreFuse;
+			Glow->SetLightColor(ChargeColor);
+			Glow->SetAttenuationRadius(OreRadius);
+			Glow->SetIntensity(6.0f + 40.0f * Fuse * (0.5f + 0.5f * FMath::Sin(Now * (8.0f + 30.0f * Fuse))));
+			return true;
+		}
+		if (!bDetonated)
+		{
+			bDetonated = true;
+			LifeTime = Age + 0.4f;
+			Work = ChargeBurst(Here, OreRadius, OreDamage, ChargeEffect);
+			Glow->SetIntensity(400.0f);
+			UE_LOG(LogVael, Log, TEXT("Engineer: %s bursts, %d struck"), *Id.ToString(), Work);
+		}
+		return true;
+	}
 	case EVaelDeviceType::Rollwall:
 	{
 		if (bRolling)
@@ -841,6 +976,56 @@ bool AVaelEngineerDevice::TickNewer(float Now, float DeltaSeconds)
 	}
 }
 
+
+int32 AVaelEngineerDevice::ChargeBurst(const FVector& At, float Radius, float Damage, EVaelAmmoEffect Effect)
+{
+	// A burst of the Sprengmeister's kind (25.11.): fire sets alight, salt soaks, verdigris slows
+	UVaelEngineerComponent* Eng = Engineer.Get();
+	AActor* Thrower = Eng != nullptr ? Eng->GetOwner() : nullptr;
+	if (Eng == nullptr)
+	{
+		return 0;
+	}
+	FVaelSpellHit Hit;
+	Hit.Damage = Damage * Eng->GetDamageScale();
+	Hit.Knockback = 350.0f;
+	switch (Effect)
+	{
+	case EVaelAmmoEffect::Dew:
+		Hit.Element = EVaelElement::Water;
+		Hit.Status = EVaelStatus::Wet;
+		Hit.StatusDuration = 6.0f;
+		break;
+	case EVaelAmmoEffect::Sticky:
+		Hit.Element = EVaelElement::Earth;
+		Hit.Status = EVaelStatus::Slowed;
+		Hit.StatusDuration = 4.0f;
+		break;
+	default:
+		Hit.Element = EVaelElement::Fire;
+		Hit.Status = EVaelStatus::Burning;
+		Hit.StatusDuration = 3.0f;
+		Hit.StatusDamagePerSecond = 3.0f;
+		break;
+	}
+	int32 Struck = 0;
+	for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+	{
+		if (It->IsA<AVaelCharacter>() || It->GetHealth() <= 0.0f || !UVaelCombatStatics::CanDamage(Thrower, *It)
+			|| FVector::Dist2D(It->GetActorLocation(), At) > Radius + It->GetSimpleCollisionRadius() * 0.5f)
+		{
+			continue;
+		}
+		UVaelCombatStatics::ApplySpellHit(Thrower, *It, Hit, (It->GetActorLocation() - At).GetSafeNormal2D());
+		++Struck;
+	}
+	if (Hit.Element == EVaelElement::Fire)
+	{
+		AVaelFireSpot::SpawnBurst(GetWorld(), At, Radius * 0.8f);
+	}
+	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), At, FRotator::ZeroRotator, ChargeColor, Radius);
+	return Struck;
+}
 void AVaelEngineerDevice::StartRoll(const FVector& Target)
 {
 	RollTarget = Target;
@@ -1004,6 +1189,16 @@ void AVaelEngineerDevice::Animate(float Now, float DeltaSeconds)
 				Top->SetVisibility(Open < 1.0f);
 			}
 		}
+		break;
+	}
+	case EVaelDeviceType::Ram:
+	{
+		// Shoots up out of the ground with a little overshoot, trembles when something bounces off, sinks in its last half second
+		const float Rise = FMath::Clamp(Age / RiseSeconds, 0.0f, 1.0f);
+		const float Up = FMath::Sin(Rise * PI * 0.5f) * (1.0f + 0.12f * FMath::Sin(Rise * PI)) * FMath::Clamp((LifeTime - Age) / 0.5f, 0.0f, 1.0f);
+		const float Since = Now - KickAt;
+		const float Shake = Since < 0.35f ? 0.04f * (1.0f - Since / 0.35f) * FMath::Sin(Since * 70.0f) : 0.0f;
+		Base->SetRelativeScale3D(BaseScale * FVector(1.0f - Shake, 1.0f + Shake, FMath::Max(Up, 0.05f)));
 		break;
 	}
 	case EVaelDeviceType::Douse:

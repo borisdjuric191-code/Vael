@@ -75,6 +75,9 @@ public:
 	/** The Säurefass bursts into its pool (stepped on or shot) */
 	void BurstAcid();
 
+	/** A burst of a Sprengmeister charge where it goes off: returns how many it struck */
+	int32 ChargeBurst(const FVector& At, float Radius, float Damage, EVaelAmmoEffect Effect);
+
 private:
 
 	TWeakObjectPtr<UVaelEngineerComponent> Engineer;
@@ -116,6 +119,12 @@ private:
 	int32 TapperShots = 0;
 	FVector SmokeDrifted = FVector::ZeroVector;
 	int32 AcidBitten = 0;
+	/** Rammschild: when each enemy was last struck, and how fast it last came at the wall */
+	TMap<TWeakObjectPtr<AActor>, float> RamTouched;
+	TMap<TWeakObjectPtr<AActor>, float> RamSpeed;
+	/** Kristallladung: the effect of its ore */
+	EVaelAmmoEffect ChargeEffect = EVaelAmmoEffect::None;
+	FLinearColor ChargeColor = FLinearColor::White;
 
 	bool bDetonated = false;
 	bool bBuiltPiece = false;

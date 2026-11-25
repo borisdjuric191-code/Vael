@@ -114,7 +114,14 @@ enum class EVaelDeviceType : uint8
 	/** Sturmwarner: whistles and marks enemies that come near; in wind it throws a gust that pushes them away */
 	Warner,
 	/** Rollwall: rolls from him to the spot, knocking enemies aside, and springs up into a wall of shell plates */
-	Rollwall
+	Rollwall,
+	/** Rammschild (Aschenmark 25.11.): a spiked wall of roller shell set across the way; whoever charges or rolls into it bounces
+	 *  off hurt and stunned, whoever leans on it is pricked */
+	Ram,
+	/** Stolperdraht (Kobold-Sprengmeister 25.11.): a wire between two pegs across the way; whoever crosses it sets off its charge */
+	Tripwire,
+	/** Kristallladung (Kobold-Sprengmeister): thrown, the ground glows where it lands, it bursts after its fuse with the effect of its ore */
+	OreCharge
 };
 
 /** True for both kinds of mine: shots and the ignition set them off, and they go off together in a chain */
@@ -297,6 +304,8 @@ namespace VaelEngineerGear
 	inline const FName Goggles = TEXT("Brille");
 	inline const FName LensFog = TEXT("LinseGlimm");
 	inline const FName LensMark = TEXT("LinseNid");
+	/** Fernglas (25.11.): his own spyglass reaches twice as far and marks what it watches */
+	inline const FName Spyglass = TEXT("Fernglas");
 	inline const FName LensBreak = TEXT("LinseStern");
 	inline const FName PouchArmor = TEXT("Panzerbeutel");
 	inline const FName PouchSilk = TEXT("Seidenbeutel");

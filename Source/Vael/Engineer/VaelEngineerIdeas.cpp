@@ -119,6 +119,20 @@ const TArray<FVaelEngineerIdea>& VaelEngineerIdeas::GetAll()
 		LOCTEXT("WurfhakenTitle", "Finger, die nicht loslassen"),
 		LOCTEXT("WurfhakenThought", "Der Affe hielt sich noch im Sterben am Fels fest. Seine Klammerfinger an einer Greifklaue, an einem Seil aus Rankenfaser: was ich treffe, hole ich mir her."),
 		LOCTEXT("WurfhakenHint", "Bezwinge, was im Schleier klettert und nie loslässt.")));
+
+	// --- Rammschild (25.11.) and the craft of the Kobold-Sprengmeister, who is a small engineer himself
+	All.Add(MakeIdea(TEXT("Rammschild"), TEXT("Aschenroller"), S::Observed, { TEXT("Rammschild") },
+		LOCTEXT("RammschildTitle", "Was gegen den Fels rollt"),
+		LOCTEXT("RammschildThought", "Der Roller rast los und prallt am Fels ab, dann liegt er auf dem Rücken und strampelt. Stelle ich ihm eine Wand aus seinem eigenen Panzer in den Weg, mit Eisen gespickt, macht er das bei mir."),
+		LOCTEXT("RammschildHint", "Beobachte in Ruhe, was geschieht, wenn die rollende Kugel auf Fels trifft.")));
+	All.Add(MakeIdea(TEXT("Kristallladung"), TEXT("Kobold_Sprengmeister"), S::Observed, { TEXT("Funkenladung"), TEXT("Salzladung"), TEXT("Gruenspanladung") },
+		LOCTEXT("KristallladungTitle", "Ein Stopfen aus Kobaltblüte"),
+		LOCTEXT("KristallladungThought", "Jede seiner Ladungen hat einen pinken Stopfen, und jedes Erz darunter knallt anders. Funkenerz brennt, Salzspat nässt, Grünspan klebt. Der kleine Kerl ist ein Ingenieur wie ich."),
+		LOCTEXT("KristallladungHint", "Beobachte den Kobold mit den Gurten voller Ladungen, ohne dass er dich bemerkt.")));
+	All.Add(MakeIdea(TEXT("Stolperdraht"), TEXT("Kobold_Sprengmeister"), S::Defeated, { TEXT("Stolperdraht") },
+		LOCTEXT("StolperdrahtTitle", "Der Draht, den ich nicht sah"),
+		LOCTEXT("StolperdrahtThought", "Er spannte Drahtsilber zwischen sich und mich, und ich bin hineingelaufen. Zwei Pflöcke, ein Draht, eine Ladung in der Mitte: das kann ich auch."),
+		LOCTEXT("StolperdrahtHint", "Bezwinge den Kobold, der Drähte zwischen sich und seine Verfolger spannt.")));
 	return All;
 }
 

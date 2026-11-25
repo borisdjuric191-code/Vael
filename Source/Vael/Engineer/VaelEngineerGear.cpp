@@ -222,6 +222,9 @@ namespace
 		All.Add(MakeTool(VaelEngineerGear::LensBreak, LOCTEXT("LinseStern", "Sternmilch-Linse"),
 			LOCTEXT("LinseSternText", "Sternmilch zwischen zwei Scheiben: er sieht die Risse im Panzer. Teile brechen 25 % fr\u00FCher."),
 			GearRgb(220, 220, 240), { { TEXT("Sternmilch"), 1 }, { TEXT("Russglas"), 1 }, { TEXT("Messingblech"), 1 } }, VaelEngineerGear::Goggles));
+		All.Add(MakeTool(VaelEngineerGear::Spyglass, LOCTEXT("Fernglas", "Fernglas"),
+			LOCTEXT("FernglasText", "Zwei Scheiben Rußglas in einem Rohr aus Narbenholz, mit Messing gefasst: sein Fernrohr reicht doppelt so weit, und was er darin beobachtet, ist gezeichnet und nimmt mehr Schaden."),
+			GearRgb(180, 150, 90), { { TEXT("Russglas"), 2 }, { TEXT("Narbenholz"), 1 }, { TEXT("Messingblech"), 1 } }, None));
 
 		// --- Shots as formulas (goal 14.11., Docs/Ingenieur_Aschenmark_Materialien.md section 6): Hülle + Kern + up to two
 		// Verstärker. Hüllen: Schlacke (hard, hits one target), Blasenhaut (bursts into a cloud), Latex (splashes like a water
@@ -469,6 +472,26 @@ namespace
 		All.Add(MakeDevice(TEXT("Rollwall"), LOCTEXT("Rollwall", "Rollwall"),
 			LOCTEXT("RollwallText", "Rückenpanzer eines Aschenrollers, mit seiner Rollsehne zur Kugel gespannt: rollt von dir bis zu 10 m zur Stelle, rempelt Feinde beiseite und schnellt dort zu einer Wand auf, die zehn Sekunden steht."),
 			GearRgb(150, 140, 120), { { TEXT("Rollpanzer"), 2 }, { TEXT("Rollsehne"), 1 }, { TEXT("Schlackeneisen"), 1 } }, None, EVaelDeviceType::Rollwall, 1));
+
+		// --- Rammschild (Aschenmark abgeschlossen 25.11.) and the craft of the Kobold-Sprengmeister (Eisenschlund)
+		All.Add(MakeDevice(TEXT("Rammschild"), LOCTEXT("Rammschild", "Rammschild"),
+			LOCTEXT("RammschildText", "Drei Reihen Rollerpanzer, schräg gestellt und mit Schlackeneisen gespickt, von einer Rollsehne gehalten: steht 25 Sekunden quer im Weg. Wer dagegen stürmt oder rollt, prallt verletzt und benommen ab, ein Aschenroller liegt danach auf dem Rücken. Wer sich anlehnt, sticht sich."),
+			GearRgb(140, 130, 115), { { TEXT("Rollpanzer"), 3 }, { TEXT("Rollsehne"), 1 }, { TEXT("Schlackeneisen"), 2 } }, None, EVaelDeviceType::Ram, 1));
+		All.Add(MakeDevice(TEXT("Stolperdraht"), LOCTEXT("Stolperdraht", "Stolperdraht"),
+			LOCTEXT("StolperdrahtText", "Abgeschaut beim Kobold-Sprengmeister: ein Draht aus Drahtsilber zwischen zwei Pflöcken, vier Meter quer zu deinem Blick, mit Funkenerz-Ladungen behängt. Wer ihn kreuzt, löst sie dort aus, wo er hängen bleibt."),
+			GearRgb(230, 110, 60), { { TEXT("Funkenerz"), 1 }, { TEXT("Drahtsilber"), 1 }, { TEXT("Schlackeneisen"), 1 } }, None, EVaelDeviceType::Tripwire, 2));
+		All.Add(MakeDevice(TEXT("Funkenladung"), LOCTEXT("Funkenladung", "Funkenladung"),
+			LOCTEXT("FunkenladungText", "Funkenerz, mit Kobaltblüte verstopft wie die Ladungen der Kobolde: geworfen leuchtet der Boden auf, wo sie liegt, nach eineinhalb Sekunden platzt sie und setzt alles in Brand."),
+			GearRgb(255, 90, 15), { { TEXT("Funkenerz"), 2 }, { TEXT("Kobaltbluete"), 1 } }, None, EVaelDeviceType::OreCharge, 3));
+		All.Last().Effect = EVaelAmmoEffect::Fire;
+		All.Add(MakeDevice(TEXT("Salzladung"), LOCTEXT("Salzladung", "Salzladung"),
+			LOCTEXT("SalzladungText", "Salzspat unter einem Kobaltstopfen: platzt zu einer Wolke aus nassem Salz. Wer darin steht, ist durchnässt, und Blitze treffen ihn härter."),
+			GearRgb(255, 140, 165), { { TEXT("Salzspat"), 2 }, { TEXT("Kobaltbluete"), 1 } }, None, EVaelDeviceType::OreCharge, 3));
+		All.Last().Effect = EVaelAmmoEffect::Dew;
+		All.Add(MakeDevice(TEXT("Gruenspanladung"), LOCTEXT("Gruenspanladung", "Grünspanladung"),
+			LOCTEXT("GruenspanladungText", "Grünspan unter einem Kobaltstopfen: der knisternde Staub legt sich auf alles in der Nähe, sie werden langsam."),
+			GearRgb(25, 230, 130), { { TEXT("Gruenspan"), 2 }, { TEXT("Kobaltbluete"), 1 } }, None, EVaelDeviceType::OreCharge, 3));
+		All.Last().Effect = EVaelAmmoEffect::Sticky;
 
 		// --- Armour: four places, each set of one creature; two and four pieces of one set give its bonus
 		struct FSetPieces { FName Set; FText Prefix; FName Main; FName Second; FLinearColor Color; float ArmorScale; };

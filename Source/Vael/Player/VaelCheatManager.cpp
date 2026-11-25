@@ -32,6 +32,8 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
+#include "Creatures/VaelAshRoller.h"
+#include "Compendium/VaelCompendiumSettings.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEncounterDirector.h"
 #include "Creatures/VaelKelchreisser.h"
@@ -2206,6 +2208,105 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			}
 			UE_LOG(LogVael, Display, TEXT("[Gesicht]   bounds %s / %s, comp rel %s"), *Part->Bounds.Origin.ToString(), *Part->Bounds.BoxExtent.ToString(), *Part->GetRelativeTransform().ToString());
 		}
+		return;
+	}
+	// Rammschild, Fernglas and the Sprengmeister craft (25.11.): "sprengmeister" lays the Rammschild with a roller rolling at it,
+	// a Stolperdraht a doll walks across, the three Kristallladungen each by a doll, and raises the Fernglas on a doll at its
+	// far focus; every step logs [SprengTest]
+	if (What == TEXT("sprengmeister"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		for (const TCHAR* Piece : { TEXT("Rammschild"), TEXT("Stolperdraht"), TEXT("Funkenladung"), TEXT("Salzladung"), TEXT("Gruenspanladung"), TEXT("Fernglas") })
+		{
+			Engineer->Build(Piece, true);
+		}
+		UE_LOG(LogVael, Display, TEXT("[SprengTest] Fernglas built: %s"), Engineer->HasBuilt(VaelEngineerGear::Spyglass) ? TEXT("PASS") : TEXT("FAIL"));
+		const auto Ground = [this](const FVector& Spot)
+		{
+			FHitResult Hit;
+			return GetWorld()->LineTraceSingleByChannel(Hit, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), ECC_Visibility) ? Hit.ImpactPoint : Spot;
+		};
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation(), 1800.0f))
+		{
+			for (int32 Turn = 0; Turn < 8; ++Turn)
+			{
+				const FVector Spot = Ground(Player->GetActorLocation() + FRotator(0.0f, 45.0f * Turn, 0.0f).Vector() * 3000.0f);
+				if (!AVaelSafeZone::IsSafe(GetWorld(), Spot, 1800.0f) && Player->TeleportTo(Spot + FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight() + 20.0f), Player->GetActorRotation()))
+				{
+					break;
+				}
+			}
+		}
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+		const auto Doll = [this, Ground](const FVector& Spot)
+		{
+			return AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Spot), FRotator::ZeroRotator);
+		};
+		const auto Lay = [Engineer](FName Id, const FVector& Spot)
+		{
+			for (int32 Step = 0; Step < 24 && Engineer->GetDevice() != Id; ++Step)
+			{
+				Engineer->CycleDevice(1);
+			}
+			return Engineer->GetDevice() == Id && Engineer->PlaceDevice(Spot);
+		};
+		const bool bRam = Lay(TEXT("Rammschild"), Home + Ahead * 350.0f);
+		if (AVaelAshRoller* Roller = Cast<AVaelAshRoller>(AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelAshRollerData>(), Ground(Home + Ahead * 1100.0f), FRotator::ZeroRotator)))
+		{
+			Roller->StartRoll(-Ahead);
+		}
+		const bool bTrip = Lay(TEXT("Stolperdraht"), Home + Side * 450.0f);
+		if (AVaelCreature* Walker = Doll(Home + Side * 750.0f))
+		{
+			Walker->LureTo(Player, Home + Side * 150.0f, 8.0f, 1.0f);
+		}
+		const bool bFire = Lay(TEXT("Funkenladung"), Home - Side * 450.0f);
+		Doll(Home - Side * 470.0f);
+		const bool bSalt = Lay(TEXT("Salzladung"), Home - Ahead * 450.0f);
+		Doll(Home - Ahead * 470.0f);
+		const bool bGreen = Lay(TEXT("Gruenspanladung"), Home + (Ahead - Side).GetSafeNormal() * 500.0f);
+		Doll(Home + (Ahead - Side).GetSafeNormal() * 520.0f);
+		UE_LOG(LogVael, Display, TEXT("[SprengTest] laid: ram %d, wire %d, fire %d, salt %d, verdigris %d"), bRam, bTrip, bFire, bSalt, bGreen);
+
+		FTimerHandle Check;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		GetWorld()->GetTimerManager().SetTimer(Check, FTimerDelegate::CreateLambda([this, WeakPlayer, Doll]()
+		{
+			TMap<FName, int32> Work;
+			for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+			{
+				Work.FindOrAdd(It->GetDeviceType() == EVaelDeviceType::Ram ? FName(TEXT("Ram")) : It->GetDeviceType() == EVaelDeviceType::Tripwire ? FName(TEXT("Wire")) : FName(TEXT("Charge"))) += It->GetWork();
+			}
+			UE_LOG(LogVael, Display, TEXT("[SprengTest] Rammschild bounces the roller: %s (%d)"), Work.FindRef(TEXT("Ram")) > 0 ? TEXT("PASS") : TEXT("FAIL"), Work.FindRef(TEXT("Ram")));
+			UE_LOG(LogVael, Display, TEXT("[SprengTest] Stolperdraht / charges still lying: wire %d, charges %d (the log lines \"crosses the Stolperdraht\" and \"bursts\" tell)"),
+				Work.FindRef(TEXT("Wire")), Work.FindRef(TEXT("Charge")));
+			// the Fernglas: raised, its focus reaches twice as far, and a doll there is marked
+			AVaelCharacter* P = WeakPlayer.Get();
+			if (P == nullptr)
+			{
+				return;
+			}
+			P->SetObserving(true);
+			const FVector Feet = P->GetActorLocation() - FVector(0.0f, 0.0f, P->GetSimpleCollisionHalfHeight());
+			const float Reach = FVector::Dist2D(P->GetFocusLocation(), Feet);
+			UE_LOG(LogVael, Display, TEXT("[SprengTest] Fernglas reach %.0f cm (plain %.0f): %s"), Reach, UVaelCompendiumSettings::Get()->SpyglassReach,
+				Reach > UVaelCompendiumSettings::Get()->SpyglassReach * 1.5f ? TEXT("PASS") : TEXT("FAIL"));
+			Doll(P->GetFocusLocation());
+			FTimerHandle Look;
+			GetWorld()->GetTimerManager().SetTimer(Look, FTimerDelegate::CreateLambda([WeakPlayer]()
+			{
+				if (AVaelCharacter* Watcher = WeakPlayer.Get())
+				{
+					const int32 Marked = Watcher->GetEngineer() != nullptr ? Watcher->GetEngineer()->GetSpyglassMarked() : 0;
+					UE_LOG(LogVael, Display, TEXT("[SprengTest] Fernglas marks: %s (%d)"), Marked > 0 ? TEXT("PASS") : TEXT("FAIL"), Marked);
+					Watcher->SetObserving(false);
+				}
+			}), 1.5f, false);
+		}), 4.0f, false);
 		return;
 	}
 	// Five more devices (25.11.): "geraete" lays the Sichelkreisel, Würgnetz, Blendlaterne, Sturmwarner and Rollwall each by

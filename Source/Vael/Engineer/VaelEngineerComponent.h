@@ -352,6 +352,15 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UStaticMeshComponent> WhistleMesh;
 	float WhistleShownUntil = 0.0f;
+	/** The Fernglas (25.11.) in his hand while the spyglass is raised; it marks what is inside its focus circle */
+	UPROPERTY(Transient)
+	TObjectPtr<UStaticMeshComponent> SpyglassMesh;
+	int32 SpyglassMarked = 0;
+	void UpdateSpyglass();
+public:
+	/** How often the Fernglas marked a creature, for the tests */
+	int32 GetSpyglassMarked() const { return SpyglassMarked; }
+private:
 
 	/** The slingshot band (two strands from the prong tips to the pouch) and the leather pouch; stretched every frame */
 	UPROPERTY(Transient)

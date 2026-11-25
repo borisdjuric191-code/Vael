@@ -28,10 +28,15 @@ FALLEN = ["SM_Ing_Grabmine", "SM_Ing_Rauchtopf", "SM_Ing_Lockpfeife", "SM_Ing_Wu
           "SM_Ing_Wuergnetz", "SM_Ing_Wuergnetz_Netz", "SM_Ing_Blendlaterne", "SM_Ing_Sturmwarner", "SM_Ing_Sturmwarner_Fahne", "SM_Ing_Rollwall",
           "SM_Ing_Rollwall_Kugel", "SM_Ing_Quarzbrille"]
 PIECES += FALLEN
+# Rammschild, Fernglas and the Sprengmeister craft (2026-11-25)
+NEU = ["SM_Ing_Rammschild", "SM_Ing_Stolperdraht", "SM_Ing_Fernglas", "SM_Ing_Funkenladung", "SM_Ing_Salzladung", "SM_Ing_Gruenspanladung"]
+PIECES += NEU
 if __import__("os").environ.get("VAEL_ING_NUR_BRILLE"):
     PIECES = ["SM_Ing_Quarzbrille"]
 elif __import__("os").environ.get("VAEL_ING_NUR_FALLEN"):
     PIECES = FALLEN
+elif __import__("os").environ.get("VAEL_ING_NUR_NEU"):
+    PIECES = NEU
 SLOTS = {"Holz": "MI_GK_Holz", "Leder": "M_GK_Leder", "Metall": "M_GK_Metall", "Faden": "M_GK_Faden", "Glut": "M_GK_Glut", "Moos": "M_GK_Moos", "Messing": "M_IW_Messing"}
 
 tools = unreal.AssetToolsHelpers.get_asset_tools()

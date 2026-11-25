@@ -1357,16 +1357,18 @@ void AVaelCharacter::UpdateFocus()
 	const UVaelCompendiumSettings* Settings = UVaelCompendiumSettings::Get();
 	const FVector Feet = GetActorLocation() - FVector(0.0f, 0.0f, GetSimpleCollisionHalfHeight());
 	const AVaelPlayerController* PlayerController = Cast<AVaelPlayerController>(GetController());
+	// the engineer's own Fernglas reaches twice as far
+	const float Reach = Settings->SpyglassReach * (Engineer != nullptr && Engineer->HasBuilt(VaelEngineerGear::Spyglass) ? 2.0f : 1.0f);
 
 	FVector MouseLocation;
 	if (PlayerController != nullptr && PlayerController->GetMouseAimLocation(MouseLocation))
 	{
 		const FVector Offset = (MouseLocation - Feet) * FVector(1.0f, 1.0f, 0.0f);
-		FocusLocation = Feet + Offset.GetClampedToMaxSize(Settings->SpyglassReach);
+		FocusLocation = Feet + Offset.GetClampedToMaxSize(Reach);
 	}
 	else
 	{
-		FocusLocation = Feet + UVaelFormulaAbility::GetAimDirection(this) * Settings->SpyglassReach;
+		FocusLocation = Feet + UVaelFormulaAbility::GetAimDirection(this) * Reach;
 	}
 
 	FHitResult GroundHit;

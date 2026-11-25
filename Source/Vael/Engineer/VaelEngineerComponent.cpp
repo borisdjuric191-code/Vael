@@ -15,6 +15,7 @@
 #include "Engineer/VaelEngineerIdeas.h"
 #include "Player/VaelPoseFollowerAnimInstance.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
+#include "Compendium/VaelCompendiumSettings.h"
 #include "Engineer/VaelEngineerShot.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
@@ -154,6 +155,7 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 	{
 		WhistleMesh->SetVisibility(false);
 	}
+	UpdateSpyglass();
 	UpdateWeaponMesh();
 	UpdateArmorRoll(DeltaTime);
 	UpdateSling(DeltaTime);
@@ -1727,6 +1729,12 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 	{
 		return false;
 	}
+	// The Rammschild faces away from him, the Stolperdraht spans across the way he looks
+	if (Gear->Device == EVaelDeviceType::Ram || Gear->Device == EVaelDeviceType::Tripwire)
+	{
+		const FVector Facing = Offset.IsNearlyZero() ? Player->GetActorForwardVector() : Offset;
+		NewDevice->SetActorRotation(FRotator(0.0f, Facing.Rotation().Yaw, 0.0f));
+	}
 	// The Glutzapfer needs fire to tap (a Brandherd, a Glutfeld, Glutdisteln): elsewhere he keeps it
 	if (Gear->Device == EVaelDeviceType::Tapper && !UVaelEnvironmentStatics::IsElementInEnvironment(NewDevice, EVaelElement::Fire))
 	{
@@ -1751,6 +1759,44 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 		CycleDevice(1);
 	}
 	return true;
+}
+
+void UVaelEngineerComponent::UpdateSpyglass()
+{
+	// The Fernglas (25.11.): raised, it sits in his hand, and whatever creature is inside its focus circle is marked
+	AVaelCharacter* Player = Cast<AVaelCharacter>(GetOwner());
+	const bool bUse = Player != nullptr && Player->IsObserving() && HasBuilt(VaelEngineerGear::Spyglass);
+	if (bUse)
+	{
+		const FVector Focus = Player->GetFocusLocation();
+		const float Radius = UVaelCompendiumSettings::Get()->SpyglassFocusRadius;
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsDead() && !It->IsOnPlayerSide() && FVector::Dist2D(It->GetActorLocation(), Focus) <= Radius + It->GetSimpleCollisionRadius())
+			{
+				UVaelCombatStatics::ApplyStatus(Player, *It, EVaelStatus::Marked, 2.0f);
+				++SpyglassMarked;
+			}
+		}
+		if (SpyglassMesh == nullptr)
+		{
+			if (UStaticMesh* Piece = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Fernglas.SM_Ing_Fernglas"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+			{
+				SpyglassMesh = NewObject<UStaticMeshComponent>(Player, TEXT("EngineerFernglas"));
+				SpyglassMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+				SpyglassMesh->SetStaticMesh(Piece);
+				const FName Socket = Player->GetMesh()->DoesSocketExist(TEXT("hand_r")) ? FName(TEXT("hand_r")) : NAME_None;
+				SpyglassMesh->SetupAttachment(Player->GetMesh(), Socket);
+				SpyglassMesh->SetRelativeLocation(FVector(-4.0f, 4.0f, 0.0f));
+				SpyglassMesh->SetRelativeRotation(FRotator(0.0f, 90.0f, 90.0f));
+				SpyglassMesh->RegisterComponent();
+			}
+		}
+	}
+	if (SpyglassMesh != nullptr && SpyglassMesh->IsVisible() != bUse)
+	{
+		SpyglassMesh->SetVisibility(bUse);
+	}
 }
 
 float UVaelEngineerComponent::GetDeviceReadyIn(FName Id) const

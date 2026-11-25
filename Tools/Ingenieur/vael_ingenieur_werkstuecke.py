@@ -864,6 +864,96 @@ if __name__ == "__main__" and os.environ.get("VAEL_ING_FALLEN"):
     gk.log("Fallen-Paket des Ingenieurs fertig")
 
 
+# ---------------------------------------------------------------- Rammschild, Fernglas and the Sprengmeister craft (2026-11-25): VAEL_ING_NEU=1
+# Rammschild: +X is the side that faces the enemies (the game turns it away from him). Stolperdraht: the wire runs along Y.
+
+def build_ram_shield():
+    """Rammschild: three rows of roller shell, 1.8 m wide and 1.25 m high, leaning back on two struts, spiked with slag iron"""
+    obj = gk.new_object("SM_Ing_Rammschild", SLOTS)
+    b = gk.Builder()
+    to_x = Matrix.Rotation(math.pi / 2, 3, "Y")
+    for row in range(3):
+        z0, z1 = 0.04 + row * 0.39, 0.04 + row * 0.39 + 0.45
+        rows = []
+        for z in (z0, z1):
+            rows.append([Vector((0.1 * (1 - (y / 0.9) ** 2) - 0.16 * z, y, z)) for y in [-0.9 + 1.8 * s / 10 for s in range(11)]])
+        b.grid(rows, METALL, uv_of=lambda j, i: (i / 10, j), mask_of=lambda j, i: 0.0)
+        b.grid([list(reversed(r)) for r in rows], METALL, uv_of=lambda j, i: (i / 10, j), mask_of=lambda j, i: 0.0)
+        # the glowing seam at the lower edge of each row
+        b.tube([Vector((0.1 * (1 - (y / 0.9) ** 2) - 0.16 * z0 + 0.012, y, z0 + 0.02)) for y in [-0.85 + 1.7 * s / 8 for s in range(9)]], [0.01] * 9, GLUT, sides=4, mask_of=lambda t: 0.7)
+        # three spikes of slag iron on each row, pointing at the enemy
+        zc = (z0 + z1) / 2
+        for y in (-0.5, 0.0, 0.5):
+            x = 0.1 * (1 - (y / 0.9) ** 2) - 0.16 * zc
+            lathe(b, [(0.045, 0.0), (0.03, 0.08), (0.0, 0.24)], METALL, Vector((x, y, zc)), sides=6, axis=to_x)
+    for side in (-1, 1):
+        # struts of root wood behind, bound with roller sinew
+        b.tube([Vector((-0.17, side * 0.6, 1.05)), Vector((-0.45, side * 0.65, 0.5)), Vector((-0.75, side * 0.7, 0.0))], [0.04, 0.035, 0.03], HOLZ, sides=6, rough=0.1, seed=3 + side)
+        b.tube([Vector((-0.12, side * 0.6, 0.7 + k * 0.02)) for k in range(2)] + [Vector((-0.36, side * 0.63, 0.66))], [0.018] * 3, FADEN, sides=4)
+    b.tube([Vector((-0.15, y, 0.62)) for y in (-0.8, -0.3, 0.3, 0.8)], [0.02] * 4, FADEN, sides=5)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def _charge(b, at, scale=1.0):
+    """A Kobold charge: a banded iron flask with a glowing crystal stopper and a strap of leather"""
+    lathe(b, [(0.0, 0.0), (0.05, 0.005), (0.06, 0.05), (0.058, 0.11), (0.03, 0.14), (0.025, 0.16)], METALL, at, sides=10)
+    for z in (0.035, 0.095):
+        lathe(b, [(0.062, z - 0.008), (0.066, z), (0.062, z + 0.008)], MESSING, at, sides=10)
+    lathe(b, [(0.0, 0.15), (0.03, 0.16), (0.022, 0.2), (0.0, 0.235)], GLUT, at, sides=6, glow=1.0)
+    b.tube([at + Vector((math.cos(a) * 0.064, math.sin(a) * 0.064, 0.07)) for a in [i * 0.6 for i in range(11)]], [0.006] * 11, LEDER, sides=4)
+
+
+def build_ore_charge(name):
+    obj = gk.new_object(name, SLOTS)
+    b = gk.Builder()
+    _charge(b, Vector((0, 0, 0)))
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_tripwire():
+    """Stolperdraht: two pegs 4 m apart, a wire of drawn silver between them, three charges hanging from it"""
+    obj = gk.new_object("SM_Ing_Stolperdraht", SLOTS)
+    b = gk.Builder()
+    for side in (-1, 1):
+        p = Vector((0.0, side * 2.0, 0.0))
+        b.tube([p - Vector((0, 0, 0.08)), p + Vector((0, 0, 0.3))], [0.03, 0.022], HOLZ, sides=6, rough=0.15, seed=7 + side)
+        lathe(b, [(0.03, 0.26), (0.034, 0.3), (0.0, 0.34)], METALL, p, sides=6)
+    b.tube([Vector((0.0, y, 0.22 - 0.03 * (1 - (y / 2.0) ** 2))) for y in [-2.0 + 4.0 * s / 16 for s in range(17)]], [0.006] * 17, MESSING, sides=4)
+    for y in (-1.0, 0.0, 1.0):
+        sag = 0.22 - 0.03 * (1 - (y / 2.0) ** 2)
+        b.tube([Vector((0.0, y, sag)), Vector((0.0, y, sag - 0.05))], [0.004, 0.004], FADEN, sides=3)
+        _charge(b, Vector((0.0, y, sag - 0.05 - 0.17 * 0.6)), 0.6)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_spyglass():
+    """Fernglas: a tube of scar wood in brass rings, two lenses of soot glass, the front one catching the light; along +X"""
+    obj = gk.new_object("SM_Ing_Fernglas", SLOTS)
+    b = gk.Builder()
+    to_x = Matrix.Rotation(math.pi / 2, 3, "Y")
+    o = Vector((0, 0, 0))
+    lathe(b, [(0.0, -0.13), (0.016, -0.13), (0.018, -0.1), (0.02, 0.05), (0.024, 0.06), (0.026, 0.19), (0.03, 0.2), (0.03, 0.215), (0.0, 0.215)], HOLZ, o, sides=12, axis=to_x)
+    for x, r in ((-0.125, 0.019), (-0.04, 0.021), (0.055, 0.026), (0.12, 0.028), (0.205, 0.032)):
+        lathe(b, [(r, x - 0.008), (r + 0.004, x), (r, x + 0.008)], MESSING, o, sides=12, axis=to_x)
+    disc(b, Vector((0.216, 0, 0)), 0.026, Vector((1, 0, 0)), GLUT, glow=0.4, sides=12)
+    disc(b, Vector((-0.131, 0, 0)), 0.013, Vector((-1, 0, 0)), GLUT, glow=0.2, sides=10)
+    b.tube([Vector((-0.06, 0, 0.022)), Vector((0.03, 0, 0.03)), Vector((0.12, 0, 0.032))], [0.005] * 3, LEDER, sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
+if __name__ == "__main__" and os.environ.get("VAEL_ING_NEU"):
+    os.makedirs(gk.OUT, exist_ok=True)
+    for build in (build_ram_shield, build_tripwire, build_spyglass, lambda: build_ore_charge("SM_Ing_Funkenladung"),
+                  lambda: build_ore_charge("SM_Ing_Salzladung"), lambda: build_ore_charge("SM_Ing_Gruenspanladung")):
+        gk.clear_scene()
+        build()
+    gk.log("Rammschild, Fernglas und Sprengmeister-Technik fertig")
+
+
 # ---------------------------------------------------------------- the Quarzbrille on the MetaHuman (2026-11-25): VAEL_ING_BRILLE=1
 # Fitted to the face of MH_Ingenieur (bones logged by `VaelIngenieur gesicht`): eyes 6.5 cm apart, the brow about 2 cm before
 # the middle of the eyes, the back of the head about 20 cm behind them. Origin = the point between the eyes, +X ahead, +Z up;
