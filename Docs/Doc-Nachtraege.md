@@ -25,3 +25,13 @@ Auch der Ingenieur nutzt jetzt, was um ihn liegt, genau wie der Magier seine Umw
 | **Glutzapfer** (Glutkiefer + 2 Schlackeneisen + Kriechersehne) | Lässt sich nur an ein Feuer setzen und zapft es an: 15 s lang spuckt er Flammen auf den nächsten Feind bis 6,5 m. Ein Brandherd brennt dabei herunter und kann ausgehen, dann verstummt der Zapfer. |
 | **Säurefass** (2 Verdauungssäure + Kelchschleim + Siegelwachs, 2 Stück) | Platzt, wenn ein Feind darauf tritt oder ein Schuss es trifft. Die Pfütze frisst 8 s lang den Panzer: Wer darin steht, ist gezeichnet (nimmt mehr Schaden) und verätzt. Bei Nässe läuft sie 40 % breiter. |
 | **Löschpulver** (2 Stäublingspulver + Siegelwachs, 2 Stück) | Platzt, wo es landet. Entfachte Brände gehen aus (Lagerfeuer nicht), Brennendes kühlt ab (auch Verbündete), Feinde bleiben 6 s nass, ein Glutkriecher zündet dann schwer. |
+
+## Ingenieur · Fünf weitere Vorrichtungen (25.11.2026), Tab „Ingenieur“
+
+| Vorrichtung | Bauplan | Wirkung |
+|---|---|---|
+| **Sichelkreisel** | 2 Sichelklinge + Puppengarn + Glimmstroh (2 Stück) | Wirbelt 4 s seine Sicheln wie die Sichelpuppe: Wer näher als knapp 2 m kommt, wird geschnitten, weggeschleudert und fängt Feuer. |
+| **Würgnetz** (Schatten) | 2 Würgranke + 2 Rankenfaser + Dornpollen (2 Stück) | Schnellt hoch, wenn ein Feind darauftritt, und hält alle im Umkreis von 2,8 m 2,5 s fest. Beim Losreißen bluten sie. Zieht dich wie die Schattenladungen 0,5 zum Schatten. |
+| **Blendlaterne** | Glockenglut + Rußglas + Schlackeneisen + Glimmauge | Leuchtet 30 s und blitzt alle 3 s: Feinde bis 5,5 m sind geblendet und taumeln. Nachts reicht das Licht 30 % weiter. |
+| **Sturmwarner** | Pfeifensporen + Messingblech + Silberhalm | Ein Pfahl mit Sporenpfeife und Windfahne, steht 1 Minute. Er pfeift bei jedem Feind, der sich bis 12 m nähert, und zeichnet ihn für 4 s. Bei Wind fängt die Fahne ihn und stößt alle 2 s nahe Feinde weg. |
+| **Rollwall** | 2 Rollpanzer + Rollsehne + Schlackeneisen | Rollt als Kugel von dir bis zu 10 m zur Stelle, rempelt Feinde beiseite und schnellt dort zu einer 2,6 m breiten Wand auf, die 10 s im Weg steht. |

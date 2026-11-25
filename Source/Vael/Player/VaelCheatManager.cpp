@@ -2158,6 +2158,106 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		UE_LOG(LogVael, Display, TEXT("[Knochen] %d bones of %s written"), Skeleton.GetNum(), *Body->GetSkeletalMeshAsset()->GetName());
 		return;
 	}
+	// Five more devices (25.11.): "geraete" lays the Sichelkreisel, Würgnetz, Blendlaterne, Sturmwarner and Rollwall each by
+	// Sichelpuppen and reports what each did after a while; every step logs [GeraeteTest]
+	if (What == TEXT("geraete"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		const TCHAR* Pieces[] = { TEXT("Sichelkreisel"), TEXT("Wuergnetz"), TEXT("Blendlaterne"), TEXT("Sturmwarner"), TEXT("Rollwall") };
+		for (const TCHAR* Piece : Pieces)
+		{
+			Engineer->Build(Piece, true);
+		}
+		const auto Ground = [this](const FVector& Spot)
+		{
+			FHitResult Hit;
+			return GetWorld()->LineTraceSingleByChannel(Hit, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), ECC_Visibility) ? Hit.ImpactPoint : Spot;
+		};
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation(), 1800.0f))
+		{
+			for (int32 Turn = 0; Turn < 8; ++Turn)
+			{
+				const FVector Spot = Ground(Player->GetActorLocation() + FRotator(0.0f, 45.0f * Turn, 0.0f).Vector() * 3000.0f);
+				if (!AVaelSafeZone::IsSafe(GetWorld(), Spot, 1800.0f) && Player->TeleportTo(Spot + FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight() + 20.0f), Player->GetActorRotation()))
+				{
+					break;
+				}
+			}
+		}
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+		const auto Doll = [this, Ground](const FVector& Spot)
+		{
+			return AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Spot), FRotator::ZeroRotator);
+		};
+		const auto Lay = [Engineer](FName Id, const FVector& Spot)
+		{
+			for (int32 Step = 0; Step < 20 && Engineer->GetDevice() != Id; ++Step)
+			{
+				Engineer->CycleDevice(1);
+			}
+			return Engineer->GetDevice() == Id && Engineer->PlaceDevice(Spot);
+		};
+		// each device on its own side, its dolls placed so they come to it
+		const bool bWhirl = Lay(TEXT("Sichelkreisel"), Home + Ahead * 350.0f);
+		Doll(Home + Ahead * 420.0f);
+		const bool bNet = Lay(TEXT("Wuergnetz"), Home + Side * 450.0f);
+		const bool bLantern = Lay(TEXT("Blendlaterne"), Home - Side * 450.0f);
+		Doll(Home - Side * 750.0f);
+		const bool bWarner = Lay(TEXT("Sturmwarner"), Home - Ahead * 300.0f);
+		const bool bRoll = Lay(TEXT("Rollwall"), Home + (Ahead + Side).GetSafeNormal() * 900.0f);
+		Doll(Home + (Ahead + Side).GetSafeNormal() * 450.0f);
+		UE_LOG(LogVael, Display, TEXT("[GeraeteTest] laid: whirl %d, net %d, lantern %d, warner %d, rollwall %d"), bWhirl, bNet, bLantern, bWarner, bRoll);
+		// the net is sprung by a doll put down beside it once it is armed
+		FTimerHandle NetDoll;
+		GetWorld()->GetTimerManager().SetTimer(NetDoll, FTimerDelegate::CreateLambda([Doll, Home, Side]()
+		{
+			Doll(Home + Side * 520.0f);
+			Doll(Home + Side * 380.0f);
+		}), 1.0f, false);
+
+		FTimerHandle Check;
+		TWeakObjectPtr<AVaelPlayerController> WeakController = Controller;
+		GetWorld()->GetTimerManager().SetTimer(Check, FTimerDelegate::CreateLambda([this, WeakController]()
+		{
+			TMap<EVaelDeviceType, int32> Work;
+			bool bWall = false;
+			for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+			{
+				Work.FindOrAdd(It->GetDeviceType()) += It->GetWork();
+				bWall |= It->IsWallUp();
+			}
+			const auto Line = [&Work](const TCHAR* Name, EVaelDeviceType Kind)
+			{
+				const int32 Done = Work.FindRef(Kind);
+				UE_LOG(LogVael, Display, TEXT("[GeraeteTest] %s: %s (%d)"), Name, Done > 0 ? TEXT("PASS") : TEXT("FAIL"), Done);
+			};
+			Line(TEXT("Sichelkreisel cuts"), EVaelDeviceType::Whirl);
+			Line(TEXT("Blendlaterne blinds"), EVaelDeviceType::Lantern);
+			Line(TEXT("Sturmwarner marks"), EVaelDeviceType::Warner);
+			Line(TEXT("Rollwall knocks aside"), EVaelDeviceType::Rollwall);
+			UE_LOG(LogVael, Display, TEXT("[GeraeteTest] Rollwall stands: %s"), bWall ? TEXT("PASS") : TEXT("FAIL"));
+			// the net is gone once its hold is over; its log line "Würgnetz holds" tells
+			if (WeakController.IsValid())
+			{
+				WeakController->ConsoleCommand(TEXT("VaelWeather sturm"));
+			}
+			FTimerHandle Storm;
+			GetWorld()->GetTimerManager().SetTimer(Storm, FTimerDelegate::CreateLambda([this]()
+			{
+				int32 Done = 0;
+				for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+				{
+					Done += It->GetDeviceType() == EVaelDeviceType::Warner ? It->GetWork() : 0;
+				}
+				UE_LOG(LogVael, Display, TEXT("[GeraeteTest] Sturmwarner in the storm (marks + gusts): %d"), Done);
+			}), 4.0f, false);
+		}), 2.2f, false);
+		return;
+	}
 	// Umwelt (25.11.): "umwelt" tries the devices that read their surroundings: the Glutzapfer refused away from fire and
 	// spitting by a Brandherd, a Glutknall by the fire, the Löschpulver putting the Brandherd out, the Säurefass pool, then in
 	// rain a Dampfknall and in a storm smoke that drifts; every step logs [UmweltTest]

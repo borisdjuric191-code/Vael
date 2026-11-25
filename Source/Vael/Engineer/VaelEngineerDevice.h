@@ -35,6 +35,10 @@ class AVaelEngineerDevice : public AActor
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	TObjectPtr<UStaticMeshComponent> Pool;
 
+	/** The Rollwall stands in the way once it is up */
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	TObjectPtr<class UBoxComponent> WallBox;
+
 public:
 
 	AVaelEngineerDevice();
@@ -56,6 +60,14 @@ public:
 	bool HasDetonated() const { return bDetonated; }
 	int32 GetSmokeHeld() const { return SmokeHeld; }
 	int32 GetTapperShots() const { return TapperShots; }
+
+	/** What the newer devices did, for the tests: hits of the Sichelkreisel, enemies held by the net, blinded by the
+	 *  lantern, marked or pushed by the Sturmwarner, knocked aside by the Rollwall */
+	int32 GetWork() const { return Work; }
+
+	/** The Rollwall starts at his feet and rolls to this spot */
+	void StartRoll(const FVector& Target);
+	bool IsWallUp() const { return bWallUp; }
 	bool IsPool() const { return PoolUntil >= 0.0f; }
 	float GetSmokeDrifted() const { return SmokeDrifted.Size(); }
 	int32 GetAcidBitten() const { return AcidBitten; }
@@ -89,6 +101,18 @@ private:
 	float LidSpin = 0.0f;
 	bool bHasPart = false;
 	FVector BaseScale = FVector::ZeroVector;
+
+	/** The five newer devices (25.11.): returns true when it handled the tick */
+	bool TickNewer(float Now, float DeltaSeconds);
+	int32 Work = 0;
+	float SprungAt = -1.0f;
+	float NextPulse = 0.0f;
+	FVector RollTarget = FVector::ZeroVector;
+	bool bRolling = false;
+	bool bWallUp = false;
+	float WallSince = 0.0f;
+	float RollSpun = 0.0f;
+	TSet<TWeakObjectPtr<AActor>> Touched;
 	int32 TapperShots = 0;
 	FVector SmokeDrifted = FVector::ZeroVector;
 	int32 AcidBitten = 0;

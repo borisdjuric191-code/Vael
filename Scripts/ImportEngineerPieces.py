@@ -24,7 +24,9 @@ if __import__("os").environ.get("VAEL_ING_NUR_RUESTUNG"):
 if __import__("os").environ.get("VAEL_ING_NUR_SCHWARZGLUT"):
     PIECES = SCHWARZGLUT
 FALLEN = ["SM_Ing_Grabmine", "SM_Ing_Rauchtopf", "SM_Ing_Lockpfeife", "SM_Ing_Wurfhaken", "SM_Ing_Glutzapfer", "SM_Ing_Glutzapfer_Duese",
-          "SM_Ing_Saeurefass", "SM_Ing_Saeurefass_Deckel", "SM_Ing_Loeschpulver"]
+          "SM_Ing_Saeurefass", "SM_Ing_Saeurefass_Deckel", "SM_Ing_Loeschpulver", "SM_Ing_Sichelkreisel", "SM_Ing_Sichelkreisel_Kreisel",
+          "SM_Ing_Wuergnetz", "SM_Ing_Wuergnetz_Netz", "SM_Ing_Blendlaterne", "SM_Ing_Sturmwarner", "SM_Ing_Sturmwarner_Fahne", "SM_Ing_Rollwall",
+          "SM_Ing_Rollwall_Kugel"]
 PIECES += FALLEN
 if __import__("os").environ.get("VAEL_ING_NUR_FALLEN"):
     PIECES = FALLEN

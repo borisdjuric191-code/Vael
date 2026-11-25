@@ -453,6 +453,23 @@ namespace
 			LOCTEXT("LoeschpulverText", "Stäublingspulver in einem Wachsbeutel: platzt, wo er landet. Entfachte Brände gehen aus, was brennt, kühlt ab, und Feinde bleiben eine Weile nass – auch ein Glutkriecher zündet dann schwer."),
 			GearRgb(200, 196, 186), { { TEXT("Staeublingspulver"), 2 }, { TEXT("Siegelwachs"), 1 } }, None, EVaelDeviceType::Douse, 2));
 
+		// --- Five more devices (25.11.)
+		All.Add(MakeDevice(TEXT("Sichelkreisel"), LOCTEXT("Sichelkreisel", "Sichelkreisel"),
+			LOCTEXT("SichelkreiselText", "Zwei Sichelklingen auf einem Kreisel aus Puppengarn, mit glimmendem Stroh gepolstert: wirbelt vier Sekunden wie die Sichelpuppe. Wer zu nahe kommt, wird geschnitten, weggeschleudert und fängt Feuer."),
+			GearRgb(200, 170, 110), { { TEXT("Sichelklinge"), 2 }, { TEXT("Puppengarn"), 1 }, { TEXT("Glimmstroh"), 1 } }, None, EVaelDeviceType::Whirl, 2));
+		All.Add(MakeDevice(TEXT("Wuergnetz"), LOCTEXT("Wuergnetz", "Würgnetz"),
+			LOCTEXT("WuergnetzText", "Würgranke und Rankenfaser, mit Dornpollen bestäubt: schnellt hoch, wenn ein Feind darauf tritt, und hält alle in der Nähe zweieinhalb Sekunden fest. Wer sich losreißt, blutet. Eine Schattenpflanze: Sie zieht dich ein wenig zum Schatten."),
+			GearRgb(90, 110, 70), { { TEXT("Wuergranke"), 2 }, { TEXT("Rankenfaser"), 2 }, { TEXT("Dornpollen"), 1 } }, None, EVaelDeviceType::Net, 2));
+		All.Add(MakeDevice(TEXT("Blendlaterne"), LOCTEXT("Blendlaterne", "Blendlaterne"),
+			LOCTEXT("BlendlaterneText", "Glockenglut hinter Rußglas, ein Glimmauge als Linse, in Schlackeneisen gefasst: leuchtet 30 Sekunden hell und blitzt alle drei Sekunden. Wer im Licht steht, ist geblendet und taumelt. Nachts reicht das Licht weiter."),
+			GearRgb(250, 210, 120), { { TEXT("Glockenglut"), 1 }, { TEXT("Russglas"), 1 }, { TEXT("Schlackeneisen"), 1 }, { TEXT("Glimmauge"), 1 } }, None, EVaelDeviceType::Lantern, 1));
+		All.Add(MakeDevice(TEXT("Sturmwarner"), LOCTEXT("Sturmwarner", "Sturmwarner"),
+			LOCTEXT("SturmwarnerText", "Pfeifensporen in einem Messingrohr, eine Windfahne aus Silberhalm: Die Pfeifenmorchel pfeift, bevor es stürmt, und sie pfeift auch, wenn Feinde kommen. Wer sich bis 12 m nähert, ist gezeichnet. Bläst Wind, fängt die Fahne ihn und stößt nahe Feinde weg. Steht eine Minute."),
+			GearRgb(200, 180, 120), { { TEXT("Pfeifensporen"), 1 }, { TEXT("Messingblech"), 1 }, { TEXT("Silberhalm"), 1 } }, None, EVaelDeviceType::Warner, 1));
+		All.Add(MakeDevice(TEXT("Rollwall"), LOCTEXT("Rollwall", "Rollwall"),
+			LOCTEXT("RollwallText", "Rückenpanzer eines Aschenrollers, mit seiner Rollsehne zur Kugel gespannt: rollt von dir bis zu 10 m zur Stelle, rempelt Feinde beiseite und schnellt dort zu einer Wand auf, die zehn Sekunden steht."),
+			GearRgb(150, 140, 120), { { TEXT("Rollpanzer"), 2 }, { TEXT("Rollsehne"), 1 }, { TEXT("Schlackeneisen"), 1 } }, None, EVaelDeviceType::Rollwall, 1));
+
 		// --- Armour: four places, each set of one creature; two and four pieces of one set give its bonus
 		struct FSetPieces { FName Set; FText Prefix; FName Main; FName Second; FLinearColor Color; float ArmorScale; };
 		const FSetPieces Sets[] =

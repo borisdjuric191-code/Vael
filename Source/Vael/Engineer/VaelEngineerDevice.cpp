@@ -9,10 +9,13 @@
 #include "World/VaelFireSpot.h"
 #include "World/VaelLocalWeather.h"
 #include "World/VaelRegion.h"
+#include "World/VaelTimeOfDay.h"
+#include "World/VaelBalance.h"
 #include "Magic/VaelMagicSettings.h"
 #include "Magic/VaelSpellEffects.h"
 #include "NiagaraSystem.h"
 #include "VaelAssets.h"
+#include "Components/BoxComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engineer/VaelEngineerComponent.h"
@@ -67,6 +70,66 @@ namespace
 	constexpr float DouseFall = 0.22f;
 	/** A device rises out of the ground this long when laid (the Glutzapfer, the Säurefass) */
 	constexpr float RiseSeconds = 0.35f;
+	/** Sichelkreisel: wind-up, pulse, reach, cut; it whirls 4 s after the wind-up */
+	constexpr float WhirlWindUp = 0.4f;
+	constexpr float WhirlPulse = 0.4f;
+	constexpr float WhirlRadius = 190.0f;
+	constexpr float WhirlDamage = 10.0f;
+	constexpr float WhirlLife = 4.4f;
+	/** Würgnetz: arming, trigger, reach, hold, the bite when they tear free, the pull to shadow */
+	constexpr float NetArm = 0.6f;
+	constexpr float NetTrigger = 150.0f;
+	constexpr float NetRadius = 280.0f;
+	constexpr float NetHold = 2.5f;
+	constexpr float NetTearDamage = 15.0f;
+	constexpr float NetShadowPull = 0.5f;
+	/** Blendlaterne: reach (30 % more at night), flash every, blind for, life */
+	constexpr float LanternRadius = 550.0f;
+	constexpr float LanternPulse = 3.0f;
+	constexpr float LanternBlind = 2.5f;
+	constexpr float LanternLife = 30.0f;
+	/** Sturmwarner: who it warns, how long they stay marked, the gust in wind, life */
+	constexpr float WarnerRadius = 1200.0f;
+	constexpr float WarnerMark = 4.0f;
+	constexpr float WarnerGustEvery = 2.0f;
+	constexpr float WarnerGustRadius = 500.0f;
+	constexpr float WarnerLife = 60.0f;
+	/** Rollwall: speed, size of the rolled ball, who it bumps, how hard, how long the wall stands, its size */
+	constexpr float RollSpeed = 850.0f;
+	constexpr float RollBallRadius = 40.0f;
+	constexpr float RollHitRadius = 110.0f;
+	constexpr float RollDamage = 10.0f;
+	constexpr float WallSeconds = 10.0f;
+	constexpr float WallHalfWidth = 130.0f;
+	constexpr float WallHeight = 160.0f;
+
+	/** The moving part of a device that has one, and how high it sits on the base */
+	const TCHAR* PartOf(EVaelDeviceType Type)
+	{
+		switch (Type)
+		{
+		case EVaelDeviceType::Tapper: return TEXT("Glutzapfer_Duese");
+		case EVaelDeviceType::Acid: return TEXT("Saeurefass_Deckel");
+		case EVaelDeviceType::Whirl: return TEXT("Sichelkreisel_Kreisel");
+		case EVaelDeviceType::Net: return TEXT("Wuergnetz_Netz");
+		case EVaelDeviceType::Warner: return TEXT("Sturmwarner_Fahne");
+		case EVaelDeviceType::Rollwall: return TEXT("Rollwall_Kugel");
+		default: return nullptr;
+		}
+	}
+
+	float PartHeight(EVaelDeviceType Type)
+	{
+		switch (Type)
+		{
+		case EVaelDeviceType::Tapper: return 64.0f;
+		case EVaelDeviceType::Acid: return 43.0f;
+		case EVaelDeviceType::Whirl: return 34.0f;
+		case EVaelDeviceType::Warner: return 150.0f;
+		case EVaelDeviceType::Rollwall: return RollBallRadius;
+		default: return 0.0f;
+		}
+	}
 }
 
 AVaelEngineerDevice::AVaelEngineerDevice()
@@ -97,6 +160,14 @@ AVaelEngineerDevice::AVaelEngineerDevice()
 	Pool->SetUsingAbsoluteRotation(true);
 	Pool->SetUsingAbsoluteScale(true);
 	Pool->SetVisibility(false);
+
+	WallBox = CreateDefaultSubobject<UBoxComponent>(TEXT("WallBox"));
+	WallBox->SetupAttachment(Base);
+	WallBox->SetUsingAbsoluteScale(true);
+	WallBox->SetBoxExtent(FVector(25.0f, WallHalfWidth, WallHeight * 0.5f));
+	WallBox->SetRelativeLocation(FVector(0.0f, 0.0f, WallHeight * 0.5f));
+	WallBox->SetCollisionProfileName(TEXT("BlockAllDynamic"));
+	WallBox->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 }
 
 AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer, const FVaelGear& Gear, const FVector& Location)
@@ -129,7 +200,7 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 	Device->Born = World->GetTimeSeconds();
 	Device->LaidZ = Ground.Z;
 	// the moving devices are watched every frame (the others four times less often are enough)
-	if (Gear.Device == EVaelDeviceType::Tapper || Gear.Device == EVaelDeviceType::Acid || Gear.Device == EVaelDeviceType::Douse)
+	if (Gear.Device >= EVaelDeviceType::Tapper)
 	{
 		Device->SetActorTickInterval(0.0f);
 	}
@@ -139,7 +210,8 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 		Device->SetActorLocation(Ground + FVector(0.0f, 0.0f, DouseDrop));
 	}
 	Device->LifeTime = Gear.Device == EVaelDeviceType::Turret ? TurretLife : Gear.Device == EVaelDeviceType::Smoke ? SmokeLife
-		: Gear.Device == EVaelDeviceType::Tapper ? TapperLife : Gear.Device == EVaelDeviceType::Douse ? 0.8f : 120.0f;
+		: Gear.Device == EVaelDeviceType::Tapper ? TapperLife : Gear.Device == EVaelDeviceType::Douse ? 0.8f : Gear.Device == EVaelDeviceType::Whirl ? WhirlLife
+		: Gear.Device == EVaelDeviceType::Lantern ? LanternLife : Gear.Device == EVaelDeviceType::Warner ? WarnerLife : 120.0f;
 
 	// The look of each: a flat plate with jaws, a round bladder, a post with a head
 	UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -217,13 +289,13 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 		Device->Base->EmptyOverrideMaterials();
 		Device->Top->SetVisibility(false);
 		// a moving part of its own: the nozzle of the Glutzapfer, the lid of the Säurefass
-		const TCHAR* PartName = Gear.Device == EVaelDeviceType::Tapper ? TEXT("Glutzapfer_Duese") : Gear.Device == EVaelDeviceType::Acid ? TEXT("Saeurefass_Deckel") : nullptr;
+		const TCHAR* PartName = PartOf(Gear.Device);
 		if (UStaticMesh* Part = PartName != nullptr ? LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_%s.SM_Ing_%s"), PartName, PartName), nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr)
 		{
 			Device->Top->SetStaticMesh(Part);
 			Device->Top->EmptyOverrideMaterials();
 			Device->Top->SetRelativeScale3D(FVector::OneVector);
-			Device->Top->SetRelativeLocation(FVector(0.0f, 0.0f, Gear.Device == EVaelDeviceType::Tapper ? 64.0f : 43.0f));
+			Device->Top->SetRelativeLocation(FVector(0.0f, 0.0f, PartHeight(Gear.Device)));
 			Device->Top->SetVisibility(true);
 			Device->bHasPart = true;
 		}
@@ -256,6 +328,10 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 	}
 	Glow->SetIntensity(2.0f + 1.5f * FMath::Sin(Now * 4.0f));
 	Animate(Now, DeltaSeconds);
+	if (TickNewer(Now, DeltaSeconds))
+	{
+		return;
+	}
 
 	const AActor* Shooter = Eng->GetOwner();
 	if (Type == EVaelDeviceType::BuriedMine)
@@ -566,6 +642,213 @@ void AVaelEngineerDevice::Detonate(FName ShotAmmo)
 	Type = EVaelDeviceType::Trap;
 }
 
+bool AVaelEngineerDevice::TickNewer(float Now, float DeltaSeconds)
+{
+	UVaelEngineerComponent* Eng = Engineer.Get();
+	AActor* Thrower = Eng != nullptr ? Eng->GetOwner() : nullptr;
+	const float Age = Now - Born;
+	const FVector Here = GetActorLocation();
+	const auto Enemies = [this, Thrower](const FVector& Center, float Radius)
+	{
+		TArray<AVaelCharacterBase*> Found;
+		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && UVaelCombatStatics::CanDamage(Thrower, *It)
+				&& FVector::Dist2D(It->GetActorLocation(), Center) < Radius + It->GetSimpleCollisionRadius() * 0.5f)
+			{
+				Found.Add(*It);
+			}
+		}
+		return Found;
+	};
+
+	switch (Type)
+	{
+	case EVaelDeviceType::Whirl:
+	{
+		// Winds up, then whirls its sickles: every pulse cuts whoever is near and throws them out a little; the glowing straw
+		// of the doll sets them alight
+		if (Age >= WhirlWindUp && Now >= NextPulse)
+		{
+			NextPulse = Now + WhirlPulse;
+			for (AVaelCharacterBase* Enemy : Enemies(Here, WhirlRadius))
+			{
+				FVaelSpellHit Cut;
+				Cut.Damage = WhirlDamage * Eng->GetDamageScale();
+				Cut.Element = EVaelElement::Earth;
+				Cut.Knockback = 260.0f;
+				Cut.Status = EVaelStatus::Burning;
+				Cut.StatusDuration = 2.0f;
+				Cut.StatusDamagePerSecond = 2.0f;
+				UVaelCombatStatics::ApplySpellHit(Thrower, Enemy, Cut, (Enemy->GetActorLocation() - Here).GetSafeNormal2D());
+				++Work;
+			}
+		}
+		return true;
+	}
+	case EVaelDeviceType::Net:
+	{
+		// Armed after a moment; the first enemy that steps near springs it: everyone round is held, and they bleed tearing free
+		if (SprungAt < 0.0f && Age >= NetArm && Enemies(Here, NetTrigger).Num() > 0)
+		{
+			SprungAt = Now;
+			LifeTime = Age + NetHold + 0.6f;
+			TArray<TWeakObjectPtr<AVaelCharacterBase>> Held;
+			for (AVaelCharacterBase* Enemy : Enemies(Here, NetRadius))
+			{
+				UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Frozen, NetHold);
+				Held.Add(Enemy);
+				++Work;
+			}
+			// shadow plants: the net draws him a little towards shadow, like the shadow shots
+			if (const FVaelGear* Gear = VaelEngineerGear::Find(Id))
+			{
+				UVaelBalanceSubsystem::ChangePlayer(Thrower, NetShadowPull, Gear->Name);
+			}
+			TWeakObjectPtr<AActor> WeakOwner = Thrower;
+			FTimerHandle Tear;
+			GetWorld()->GetTimerManager().SetTimer(Tear, FTimerDelegate::CreateWeakLambda(this, [Held, WeakOwner]()
+			{
+				for (const TWeakObjectPtr<AVaelCharacterBase>& Each : Held)
+				{
+					if (Each.IsValid() && Each->GetHealth() > 0.0f)
+					{
+						UVaelCombatStatics::DealDamage(WeakOwner.Get(), Each.Get(), NetTearDamage, EVaelElement::Earth);
+						UVaelCombatTextSubsystem::PostReaction(Each.Get(), LOCTEXT("TornFree", "Losgerissen"));
+					}
+				}
+			}), NetHold, false);
+			UVaelCombatTextSubsystem::PostReaction(this, LOCTEXT("NetSprung", "Würgnetz!"));
+			UE_LOG(LogVael, Log, TEXT("Engineer: Würgnetz holds %d"), Work);
+		}
+		return true;
+	}
+	case EVaelDeviceType::Lantern:
+	{
+		// A strong warm light; every few seconds the shutter snaps open and the flash blinds whoever is in reach (farther at
+		// night, when the light carries)
+		const float Night = UVaelTimeOfDay::NightFactorOf(this);
+		const float Reach = LanternRadius * (1.0f + 0.3f * Night);
+		Glow->SetIntensity(40.0f + 360.0f * FMath::Clamp(1.0f - (Now - KickAt) / 0.25f, 0.0f, 1.0f));
+		Glow->SetAttenuationRadius(Reach * 1.4f);
+		if (Age >= 0.5f && Now >= NextPulse)
+		{
+			NextPulse = Now + LanternPulse;
+			KickAt = Now;
+			for (AVaelCharacterBase* Enemy : Enemies(Here, Reach))
+			{
+				Enemy->ApplyBlind(LanternBlind);
+				UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Confused, 1.0f);
+				UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("LanternBlind", "Geblendet"));
+				++Work;
+			}
+		}
+		return true;
+	}
+	case EVaelDeviceType::Warner:
+	{
+		// The spores whistle at whoever comes near: each enemy is marked once (it takes more damage and he sees it coming).
+		// In wind the vane catches it and throws a gust that pushes everyone near away.
+		for (AVaelCharacterBase* Enemy : Enemies(Here, WarnerRadius))
+		{
+			if (!Touched.Contains(Enemy))
+			{
+				Touched.Add(Enemy);
+				UVaelCombatStatics::ApplyStatus(Thrower, Enemy, EVaelStatus::Marked, WarnerMark);
+				UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("Warned", "Gewarnt"));
+				++Work;
+			}
+		}
+		FVector Wind = AVaelRegion::GetWindAt(GetWorld(), Here) + AVaelLocalWeather::GetWindAt(GetWorld(), Here);
+		Wind.Z = 0.0f;
+		NozzleYaw += (60.0f + Wind.Size() * 1.5f) * DeltaSeconds;
+		if (Wind.Size() > 50.0f && Now >= NextPulse)
+		{
+			NextPulse = Now + WarnerGustEvery;
+			KickAt = Now;
+			for (AVaelCharacterBase* Enemy : Enemies(Here, WarnerGustRadius))
+			{
+				FVaelSpellHit Gust;
+				Gust.Element = EVaelElement::Air;
+				Gust.Knockback = 750.0f;
+				UVaelCombatStatics::ApplyNatureHit(Enemy, Gust, (Enemy->GetActorLocation() - Here).GetSafeNormal2D());
+				++Work;
+			}
+			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), Here, FRotator::ZeroRotator,
+				FLinearColor(0.42f, 0.39f, 0.36f), WarnerGustRadius * 0.6f);
+		}
+		return true;
+	}
+	case EVaelDeviceType::Rollwall:
+	{
+		if (bRolling)
+		{
+			// Rolls along the ground to its spot; enemies in the way fly aside (each once); a rock stops it early
+			FVector To = RollTarget - Here;
+			To.Z = 0.0f;
+			const FVector Way = To.GetSafeNormal();
+			const float Step = RollSpeed * DeltaSeconds;
+			FVector Next = Here + Way * FMath::Min(Step, To.Size());
+			FHitResult Hit;
+			FCollisionQueryParams Query(SCENE_QUERY_STAT(VaelRollwall), false, this);
+			Query.AddIgnoredActor(Thrower);
+			if (GetWorld()->LineTraceSingleByChannel(Hit, Next + FVector(0.0f, 0.0f, 150.0f), Next - FVector(0.0f, 0.0f, 400.0f), ECC_WorldStatic, Query))
+			{
+				Next.Z = Hit.ImpactPoint.Z;
+			}
+			const bool bBlocked = GetWorld()->LineTraceSingleByChannel(Hit, Here + FVector(0.0f, 0.0f, 50.0f), Next + FVector(0.0f, 0.0f, 50.0f), ECC_WorldStatic, Query)
+				&& Cast<APawn>(Hit.GetActor()) == nullptr && Hit.ImpactNormal.Z < 0.5f;
+			if (!bBlocked)
+			{
+				SetActorLocation(Next);
+				RollSpun += FMath::RadiansToDegrees(Step / RollBallRadius);
+			}
+			const FVector Side = FVector::CrossProduct(FVector::UpVector, Way);
+			for (AVaelCharacterBase* Enemy : Enemies(GetActorLocation(), RollHitRadius))
+			{
+				if (!Touched.Contains(Enemy))
+				{
+					Touched.Add(Enemy);
+					FVaelSpellHit Bump;
+					Bump.Damage = RollDamage * Eng->GetDamageScale();
+					Bump.Element = EVaelElement::Earth;
+					Bump.Knockback = 650.0f;
+					const FVector Aside = Side * (FVector::DotProduct(Enemy->GetActorLocation() - Here, Side) >= 0.0f ? 1.0f : -1.0f);
+					UVaelCombatStatics::ApplySpellHit(Thrower, Enemy, Bump, (Aside + Way * 0.5f).GetSafeNormal());
+					++Work;
+				}
+			}
+			if (bBlocked || To.Size() <= Step)
+			{
+				// springs up into a wall across the way it rolled
+				bRolling = false;
+				bWallUp = true;
+				WallSince = Now;
+				LaidZ = GetActorLocation().Z;
+				SetActorRotation(FRotator(0.0f, Way.Rotation().Yaw, 0.0f));
+				LifeTime = Age + WallSeconds;
+				WallBox->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+				VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->DustBurstEffect), GetActorLocation(), FRotator::ZeroRotator,
+					FLinearColor(0.35f, 0.3f, 0.26f), 120.0f);
+				UVaelCombatTextSubsystem::PostReaction(this, LOCTEXT("WallUp", "Rollwall!"));
+				UE_LOG(LogVael, Log, TEXT("Engineer: Rollwall stands after knocking %d aside%s"), Work, bBlocked ? TEXT(" (stopped by rock)") : TEXT(""));
+			}
+		}
+		return true;
+	}
+	default:
+		return false;
+	}
+}
+
+void AVaelEngineerDevice::StartRoll(const FVector& Target)
+{
+	RollTarget = Target;
+	bRolling = true;
+	Touched.Reset();
+	SetActorTickInterval(0.0f);
+}
+
 void AVaelEngineerDevice::Animate(float Now, float DeltaSeconds)
 {
 	const float Age = Now - Born;
@@ -638,6 +921,89 @@ void AVaelEngineerDevice::Animate(float Now, float DeltaSeconds)
 		const float Heave = 1.0f + 0.04f * FMath::Sin(Now * 6.0f);
 		Pool->SetWorldScale3D(FVector(PoolRadius / 50.0f * Spread * Heave, PoolRadius / 50.0f * Spread * (2.0f - Heave), 0.02f));
 		Glow->SetIntensity(6.0f * Spread);
+		break;
+	}
+	case EVaelDeviceType::Whirl:
+	{
+		// The rotor of sickles winds up and whirls, and runs down in its last half second
+		const float Left = LifeTime - Age;
+		const float Speed = FMath::Clamp(Age / WhirlWindUp, 0.0f, 1.0f) * FMath::Clamp(Left / 0.5f, 0.0f, 1.0f);
+		NozzleYaw = FMath::Fmod(NozzleYaw + 1080.0f * Speed * DeltaSeconds, 360.0f);
+		if (bHasPart)
+		{
+			Top->SetRelativeRotation(FRotator(0.0f, NozzleYaw, 0.0f));
+			Top->SetRelativeLocation(FVector(0.0f, 0.0f, PartHeight(Type) + 6.0f * Speed));
+		}
+		Glow->SetIntensity(2.0f + 10.0f * Speed);
+		break;
+	}
+	case EVaelDeviceType::Net:
+	{
+		// Folded it lies flat; sprung, the net flies up and spreads over everyone near, then sinks onto them
+		if (bHasPart)
+		{
+			if (SprungAt < 0.0f)
+			{
+				Top->SetVisibility(false);
+			}
+			else
+			{
+				const float Since = Now - SprungAt;
+				const float Spread = FMath::SmoothStep(0.0f, 0.25f, Since);
+				Top->SetVisibility(true);
+				Top->SetRelativeScale3D(FVector(FMath::Max(Spread, 0.05f) * NetRadius / 100.0f, FMath::Max(Spread, 0.05f) * NetRadius / 100.0f, 1.0f));
+				Top->SetRelativeLocation(FVector(0.0f, 0.0f, 120.0f * FMath::Sin(FMath::Clamp(Since / 0.45f, 0.0f, 1.0f) * PI) + 10.0f));
+				Base->SetVisibility(Since < 0.1f);
+			}
+		}
+		break;
+	}
+	case EVaelDeviceType::Lantern:
+	{
+		// Hangs from its post and sways a little; the flash makes it jump
+		const float Flash = FMath::Clamp(1.0f - (Now - KickAt) / 0.25f, 0.0f, 1.0f);
+		SetActorRotation(FRotator(3.0f * FMath::Sin(Now * 1.3f) + 4.0f * Flash, GetActorRotation().Yaw, 2.0f * FMath::Cos(Now * 1.1f)));
+		break;
+	}
+	case EVaelDeviceType::Warner:
+	{
+		// The vane turns with the wind (NozzleYaw is driven by the work of the device), the post shudders at each gust
+		const float Gust = FMath::Clamp(1.0f - (Now - KickAt) / 0.4f, 0.0f, 1.0f);
+		if (bHasPart)
+		{
+			Top->SetRelativeRotation(FRotator(0.0f, NozzleYaw, 6.0f * Gust * FMath::Sin(Now * 40.0f)));
+		}
+		Base->SetRelativeScale3D(BaseScale * FVector(1.0f, 1.0f, 1.0f + 0.03f * Gust * FMath::Sin(Now * 30.0f)));
+		break;
+	}
+	case EVaelDeviceType::Rollwall:
+	{
+		if (!bWallUp)
+		{
+			// rolled up into its ball it rolls on, the wall folded away
+			Base->SetVisibility(false);
+			if (bHasPart)
+			{
+				Top->SetVisibility(true);
+				FVector Way = RollTarget - GetActorLocation();
+				Way.Z = 0.0f;
+				SetActorRotation(FRotator(0.0f, Way.IsNearlyZero() ? GetActorRotation().Yaw : Way.Rotation().Yaw, 0.0f));
+				Top->SetRelativeRotation(FRotator(-RollSpun, 0.0f, 0.0f));
+			}
+		}
+		else
+		{
+			// springs open: the plates fan up out of the ball with a little overshoot, and fold back in its last half second
+			const float Since = Now - WallSince;
+			const float Open = FMath::Clamp(Since / 0.25f, 0.0f, 1.0f);
+			const float Up = (Open < 1.0f ? FMath::Sin(Open * PI * 0.5f) * (1.0f + 0.15f * FMath::Sin(Open * PI)) : 1.0f) * FMath::Clamp((LifeTime - Age) / 0.5f, 0.0f, 1.0f);
+			Base->SetVisibility(true);
+			Base->SetRelativeScale3D(BaseScale * FVector(1.0f, FMath::Max(Up, 0.05f), FMath::Max(Up, 0.05f)));
+			if (bHasPart)
+			{
+				Top->SetVisibility(Open < 1.0f);
+			}
+		}
 		break;
 	}
 	case EVaelDeviceType::Douse:

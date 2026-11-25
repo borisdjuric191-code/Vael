@@ -104,7 +104,17 @@ enum class EVaelDeviceType : uint8
 	/** Säurefass: bursts when stepped on or shot, a pool of acid eats the armour of whoever stands in it */
 	Acid,
 	/** Löschpulver: bursts where it lands, puts out fires and cools whatever burns */
-	Douse
+	Douse,
+	/** Sichelkreisel: whirls its sickles for a few seconds and cuts whoever comes near */
+	Whirl,
+	/** Würgnetz (shadow): springs up when stepped on, holds everyone near, and they bleed tearing free; pulls Die Waage */
+	Net,
+	/** Blendlaterne: a strong light that flashes now and then and blinds (farther at night) */
+	Lantern,
+	/** Sturmwarner: whistles and marks enemies that come near; in wind it throws a gust that pushes them away */
+	Warner,
+	/** Rollwall: rolls from him to the spot, knocking enemies aside, and springs up into a wall of shell plates */
+	Rollwall
 };
 
 /** True for both kinds of mine: shots and the ignition set them off, and they go off together in a chain */

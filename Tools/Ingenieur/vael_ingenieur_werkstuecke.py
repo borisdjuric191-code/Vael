@@ -692,9 +692,173 @@ def build_douse():
     gk.export(obj)
 
 
+
+
+# ---------------------------------------------------------------- five more devices (2026-11-25), also under VAEL_ING_FALLEN
+# Moving parts as pieces of their own: the rotor of the Sichelkreisel (pivot at its hub), the spread net of the Würgnetz
+# (a disc of 1 m radius at the origin, the game scales it), the vane of the Sturmwarner (pivot on its axle), the rolled
+# ball of the Rollwall (pivot in its middle, radius 0.4).
+
+def build_whirl_base():
+    """Sichelkreisel: a squat drum of root wood on a crust plate, wound with harvest twine, glowing straw at its rim"""
+    obj = gk.new_object("SM_Ing_Sichelkreisel", SLOTS)
+    b = gk.Builder()
+    lathe(b, [(0.0, 0.0), (0.3, 0.0), (0.3, 0.03), (0.0, 0.035)], METALL, Vector((0, 0, 0)), sides=18)
+    lathe(b, [(0.12, 0.03), (0.14, 0.12), (0.12, 0.3), (0.0, 0.32)], HOLZ, Vector((0, 0, 0)), sides=12)
+    for k in range(5):
+        z = 0.08 + k * 0.045
+        lathe(b, [(0.135, z - 0.01), (0.145, z), (0.135, z + 0.01)], FADEN, Vector((0, 0, 0)), sides=12)
+    for k in range(10):
+        a = 2 * math.pi * k / 10
+        base = Vector((math.cos(a) * 0.24, math.sin(a) * 0.24, 0.03))
+        b.tube([base, base + Vector((math.cos(a) * 0.05, math.sin(a) * 0.05, 0.09))], [0.012, 0.003], GLUT, sides=4, mask_of=lambda t: 0.6)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_whirl_rotor():
+    """The rotor: a hub with three long sickles curving the same way, like the arms of the doll when it whirls"""
+    obj = gk.new_object("SM_Ing_Sichelkreisel_Kreisel", SLOTS)
+    b = gk.Builder()
+    lathe(b, [(0.0, -0.03), (0.07, -0.03), (0.08, 0.0), (0.07, 0.03), (0.0, 0.04)], MESSING, Vector((0, 0, 0)), sides=12)
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        pts = []
+        for t in (0.0, 0.25, 0.5, 0.75, 1.0):
+            ang = a + 1.1 * t * t
+            r = 0.07 + 0.42 * t
+            pts.append(Vector((math.cos(ang) * r, math.sin(ang) * r, 0.0)))
+        b.tube(pts, [0.03, 0.028, 0.022, 0.014, 0.003], METALL, sides=6, flat=0.25)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_net_bundle():
+    """Würgnetz folded: a coiled bundle of strangler vine with thorns, tied with fibre"""
+    obj = gk.new_object("SM_Ing_Wuergnetz", SLOTS)
+    b = gk.Builder()
+    random.seed(17)
+    for k in range(4):
+        pts = [Vector((math.cos(a) * (0.16 - k * 0.03), math.sin(a) * (0.16 - k * 0.03), 0.03 + k * 0.035)) for a in [i * 0.5 for i in range(14)]]
+        b.tube(pts, [0.025] * len(pts), MOOS, sides=6, rough=0.1, seed=k)
+    for k in range(14):
+        a = random.uniform(0, 2 * math.pi)
+        p = Vector((math.cos(a) * 0.15, math.sin(a) * 0.15, random.uniform(0.04, 0.13)))
+        lathe(b, [(0.01, 0.0), (0.0, 0.04)], HOLZ, p, sides=4, axis=Matrix.Rotation(math.pi / 2, 3, Vector((-math.sin(a), math.cos(a), 0))))
+    for k in range(2):
+        a = k * math.pi / 2
+        b.tube([Vector((math.cos(a) * 0.18, math.sin(a) * 0.18, 0.0)), Vector((0, 0, 0.2)), Vector((-math.cos(a) * 0.18, -math.sin(a) * 0.18, 0.0))], [0.008] * 3, FADEN, sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_net_spread():
+    """The spread net: rings and spokes of vine, 1 m radius, lying flat (the game scales it to its reach)"""
+    obj = gk.new_object("SM_Ing_Wuergnetz_Netz", SLOTS)
+    b = gk.Builder()
+    for ring in (0.3, 0.6, 0.95):
+        pts = [Vector((math.cos(2 * math.pi * s / 24) * ring, math.sin(2 * math.pi * s / 24) * ring, 0.02 * math.sin(s * 1.7))) for s in range(25)]
+        b.tube(pts, [0.02] * len(pts), MOOS, sides=5)
+    for k in range(12):
+        a = 2 * math.pi * k / 12
+        b.tube([Vector((0, 0, 0.03)), Vector((math.cos(a) * 0.5, math.sin(a) * 0.5, 0.0)), Vector((math.cos(a) * 1.0, math.sin(a) * 1.0, -0.02))], [0.018, 0.016, 0.012], MOOS, sides=5)
+        for r in (0.45, 0.8):
+            lathe(b, [(0.012, 0.0), (0.0, 0.05)], HOLZ, Vector((math.cos(a) * r, math.sin(a) * r, 0.01)), sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_lantern():
+    """Blendlaterne: a slag iron lantern on a crooked post, a lens in front, the bell-ember glowing inside, a shutter on top"""
+    obj = gk.new_object("SM_Ing_Blendlaterne", SLOTS)
+    b = gk.Builder()
+    b.tube([Vector((0, 0, 0)), Vector((0.02, 0.0, 0.6)), Vector((0.0, 0.0, 1.2)), Vector((0.18, 0, 1.3))], [0.04, 0.035, 0.03, 0.025], HOLZ, sides=8, rough=0.1, seed=5)
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        b.tube([Vector((0, 0, 0.25)), Vector((math.cos(a) * 0.3, math.sin(a) * 0.3, 0.0))], [0.025, 0.02], HOLZ, sides=6)
+    c = Vector((0.22, 0, 1.12))
+    b.tube([c + Vector((0, 0, 0.18)), c + Vector((0, 0, 0.12))], [0.006, 0.006], METALL, sides=4)
+    lathe(b, [(0.0, -0.12), (0.1, -0.12), (0.11, -0.1), (0.11, 0.08), (0.08, 0.12), (0.0, 0.14)], METALL, c, sides=6)
+    lathe(b, [(0.0, -0.08), (0.075, -0.06), (0.08, 0.04), (0.0, 0.07)], GLUT, c, sides=10, glow=1.0)
+    lathe(b, [(0.0, 0.0), (0.075, 0.0), (0.075, 0.03), (0.0, 0.035)], MESSING, c + Vector((0.11, 0, 0)), sides=12, axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+    disc(b, c + Vector((0.147, 0, 0)), 0.06, Vector((1, 0, 0)), GLUT, glow=1.0, sides=12)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_warner():
+    """Sturmwarner: a thin brass pipe on a post, spore caps at its mouth (the pipe of the Pfeifenmorchel)"""
+    obj = gk.new_object("SM_Ing_Sturmwarner", SLOTS)
+    b = gk.Builder()
+    b.tube([Vector((0, 0, 0)), Vector((0.01, 0, 0.8)), Vector((0, 0, 1.5))], [0.035, 0.03, 0.025], HOLZ, sides=8, rough=0.1, seed=9)
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + 0.5
+        b.tube([Vector((0, 0, 0.3)), Vector((math.cos(a) * 0.3, math.sin(a) * 0.3, 0.0))], [0.02, 0.018], HOLZ, sides=6)
+    b.tube([Vector((0.0, 0.0, 1.2)), Vector((0.12, 0.0, 1.26)), Vector((0.2, 0.0, 1.38))], [0.025, 0.028, 0.04], MESSING, sides=10)
+    for k in range(4):
+        a = 2 * math.pi * k / 4
+        p = Vector((0.2 + math.cos(a) * 0.04, math.sin(a) * 0.04, 1.42))
+        lathe(b, [(0.0, 0.0), (0.03, 0.01), (0.028, 0.03), (0.0, 0.04)], MOOS, p, sides=8, glow=0.3)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_warner_vane():
+    """The vane on the top of the post: a brass arrow with a tail of silver blades of grass"""
+    obj = gk.new_object("SM_Ing_Sturmwarner_Fahne", SLOTS)
+    b = gk.Builder()
+    lathe(b, [(0.0, 0.0), (0.02, 0.0), (0.02, 0.06), (0.0, 0.07)], MESSING, Vector((0, 0, 0)), sides=8)
+    b.tube([Vector((-0.3, 0, 0.04)), Vector((0.3, 0, 0.04))], [0.01, 0.01], MESSING, sides=6)
+    lathe(b, [(0.03, 0.0), (0.0, 0.08)], MESSING, Vector((0.3, 0, 0.04)), sides=4, axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+    for k in range(5):
+        y = (k - 2) * 0.02
+        b.tube([Vector((-0.28, y, 0.04)), Vector((-0.4, y * 2.5, 0.08 + 0.02 * k)), Vector((-0.5, y * 4, 0.04 + 0.03 * k))], [0.008, 0.006, 0.002], FADEN, sides=3, flat=0.3)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_rollwall():
+    """The Rollwall standing: five rows of roller shell plates, curved, 2.6 m wide and 1.6 m high, on two splayed struts"""
+    obj = gk.new_object("SM_Ing_Rollwall", SLOTS)
+    b = gk.Builder()
+    for row in range(5):
+        z0, z1 = row * 0.31, row * 0.31 + 0.36
+        rows = []
+        for v, z in enumerate((z0, z1)):
+            rows.append([Vector((0.12 * (1 - (y / 1.3) ** 2) + 0.03 * row, y, z)) for y in [-1.3 + 2.6 * s / 10 for s in range(11)]])
+        b.grid(rows, METALL, uv_of=lambda j, i: (i / 10, j), mask_of=lambda j, i: 0.0)
+        b.grid([list(reversed(r)) for r in rows], METALL, uv_of=lambda j, i: (i / 10, j), mask_of=lambda j, i: 0.0)
+        # the glowing seam at the lower edge of each row and rivets
+        b.tube([Vector((0.13 * (1 - (y / 1.3) ** 2) + 0.03 * row + 0.01, y, z0 + 0.02)) for y in [-1.25 + 2.5 * s / 8 for s in range(9)]], [0.012] * 9, GLUT, sides=4, mask_of=lambda t: 0.7)
+    for side in (-1, 1):
+        b.tube([Vector((0.05, side * 0.9, 1.3)), Vector((-0.5, side * 1.0, 0.0))], [0.04, 0.035], LEDER, sides=6)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_rollwall_ball():
+    """The rolled Rollwall: the plates curled into a ball of 0.4 m radius, bands round its axle (Y)"""
+    obj = gk.new_object("SM_Ing_Rollwall_Kugel", SLOTS)
+    b = gk.Builder()
+    for k in range(5):
+        y0 = -0.34 + k * 0.17
+        prof = []
+        for y in (y0, y0 + 0.16):
+            r = math.sqrt(max(0.4 ** 2 - y ** 2, 0.01))
+            prof.append((r, y))
+        lathe(b, [(prof[0][0] * 0.98, prof[0][1]), (prof[0][0] * 1.03, prof[0][1] + 0.08), (prof[1][0] * 0.98, prof[1][1])], METALL, Vector((0, 0, 0)), sides=16,
+              axis=Matrix.Rotation(-math.pi / 2, 3, "X"))
+    for y in (-0.36, 0.36):
+        disc(b, Vector((0, y, 0)), 0.16, Vector((0, y, 0)), LEDER, sides=12)
+    b.finish(obj)
+    gk.export(obj)
+
+
 if __name__ == "__main__" and os.environ.get("VAEL_ING_FALLEN"):
     os.makedirs(gk.OUT, exist_ok=True)
-    for build in (build_buried_mine, build_smoke_pot, build_whistle, build_hook, build_tapper, build_tapper_nozzle, build_acid_barrel, build_acid_lid, build_douse):
+    for build in (build_buried_mine, build_smoke_pot, build_whistle, build_hook, build_tapper, build_tapper_nozzle, build_acid_barrel, build_acid_lid, build_douse,
+                  build_whirl_base, build_whirl_rotor, build_net_bundle, build_net_spread, build_lantern, build_warner, build_warner_vane,
+                  build_rollwall, build_rollwall_ball):
         gk.clear_scene()
         build()
     gk.log("Fallen-Paket des Ingenieurs fertig")

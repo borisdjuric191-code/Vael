@@ -50,6 +50,8 @@ namespace
 {
 	constexpr int32 MaxPlaced = 6;
 	constexpr float PlaceReach = 700.0f;
+	/** How far the Rollwall rolls out at most */
+	constexpr float RollReach = 1000.0f;
 	/** Lockpfeife: how far he can point the call, who hears it, and how long they follow */
 	constexpr float WhistleReach = 1200.0f;
 	constexpr float WhistleRadius = 1500.0f;
@@ -1618,7 +1620,13 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 	}
 
 	const FVector Spot = Player->GetActorLocation() + Offset.GetClampedToMaxSize(PlaceReach);
-	AVaelEngineerDevice* NewDevice = AVaelEngineerDevice::Lay(this, *Gear, Spot);
+	// the Rollwall starts at his feet and rolls out to the spot
+	const bool bRolls = Gear->Device == EVaelDeviceType::Rollwall;
+	AVaelEngineerDevice* NewDevice = AVaelEngineerDevice::Lay(this, *Gear, bRolls ? Player->GetActorLocation() + Offset.GetSafeNormal() * 60.0f : Spot);
+	if (NewDevice != nullptr && bRolls)
+	{
+		NewDevice->StartRoll(Player->GetActorLocation() + Offset.GetClampedToMaxSize(RollReach));
+	}
 	if (NewDevice == nullptr)
 	{
 		return false;

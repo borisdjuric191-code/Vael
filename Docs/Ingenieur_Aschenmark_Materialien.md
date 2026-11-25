@@ -463,7 +463,8 @@ Grabmine, Rauchtopf, Lockpfeife und Wurfhaken sind im Spiel. Bauplan, Wirkung un
 - Modelle der vier Fallen gebaut und importiert (VAEL_ING_FALLEN, VAEL_ING_NUR_FALLEN), Abklingzeit im HUD.
 - **Umwelt (25.11.):** Glutknall, Dampfknall, Rauch im Wind, Glutzapfer, Säurefass, Löschpulver (Doc-Nachtraege). Test `VaelIngenieur umwelt` (alle PASS).
 - Modelle für Glutzapfer (mit Kieferdüse), Säurefass (mit Deckel) und Löschpulver gebaut und importiert, animiert in `AVaelEngineerDevice::Animate`: Der Zapfer fährt aus dem Boden, atmet, dreht die Düse zum Ziel, hat Rückstoß und lässt die Düse ohne Feuer hängen. Das Fass schaukelt, rüttelt bei nahen Gegnern, schwillt beim Platzen, der Deckel fliegt weg, die Pfütze breitet sich aus und schrumpft am Ende. Der Pulverbeutel fällt, staucht sich und pufft.
-- **Offen:** Sturmwarner, Sichelkreisel, Würgnetz, Blendlaterne, Rammschild, Rollwall; Werkzeuge (Wärmeglas, Aderglas, Fernglas); weitere ganze Sätze (Aschenjäger, Erntewacht, Glutkronen).
+- **Fünf weitere Vorrichtungen (25.11.):** Sichelkreisel, Würgnetz, Blendlaterne, Sturmwarner, Rollwall mit Modellen und Bewegung (`AVaelEngineerDevice::TickNewer` und `Animate`). Test `VaelIngenieur geraete` (alle PASS).
+- **Offen:** Rammschild; Werkzeuge (Wärmeglas, Aderglas, Fernglas); weitere ganze Sätze (Aschenjäger, Erntewacht, Glutkronen).
 
 
 ## 6d. Aschenjäger (Idee, besprochen 25.11., NICHT gebaut)
