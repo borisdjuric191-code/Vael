@@ -4,6 +4,11 @@
 
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Creatures/VaelCreature.h"
+#include "Magic/VaelMagicSettings.h"
+#include "Magic/VaelSpellEffects.h"
+#include "NiagaraSystem.h"
+#include "VaelAssets.h"
 #include "Components/PointLightComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engineer/VaelEngineerComponent.h"
@@ -25,6 +30,12 @@ namespace
 	constexpr float TurretRange = 1200.0f;
 	constexpr float TurretInterval = 1.0f;
 	constexpr float TurretLife = 25.0f;
+	/** Grabmine: armed after this, then whoever steps this close sets it off */
+	constexpr float BuriedArmSeconds = 0.8f;
+	constexpr float BuriedRadius = 120.0f;
+	/** Rauchtopf: how long the smoke stands and how far it reaches */
+	constexpr float SmokeLife = 8.0f;
+	constexpr float SmokeRadius = 420.0f;
 }
 
 AVaelEngineerDevice::AVaelEngineerDevice()
@@ -77,7 +88,7 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 	Device->Type = Gear.Device;
 	Device->Id = Gear.Id;
 	Device->Born = World->GetTimeSeconds();
-	Device->LifeTime = Gear.Device == EVaelDeviceType::Turret ? TurretLife : 120.0f;
+	Device->LifeTime = Gear.Device == EVaelDeviceType::Turret ? TurretLife : Gear.Device == EVaelDeviceType::Smoke ? SmokeLife : 120.0f;
 
 	// The look of each: a flat plate with jaws, a round bladder, a post with a head
 	UStaticMesh* Cylinder = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder"));
@@ -99,6 +110,22 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 		Device->Top->SetStaticMesh(Cylinder);
 		Device->Top->SetRelativeLocation(FVector(0.0f, 0.0f, 60.0f));
 		Device->Top->SetRelativeScale3D(FVector(0.2f, 0.2f, 0.6f));
+		break;
+	case EVaelDeviceType::BuriedMine:
+		// a crust plate with a glowing gland under it; it sinks into the ground once armed
+		Device->Base->SetStaticMesh(Cylinder);
+		Device->Base->SetRelativeScale3D(FVector(0.55f, 0.55f, 0.08f));
+		Device->Top->SetStaticMesh(Sphere);
+		Device->Top->SetRelativeLocation(FVector(0.0f, 0.0f, 40.0f));
+		Device->Top->SetRelativeScale3D(FVector(0.35f, 0.35f, 0.25f));
+		break;
+	case EVaelDeviceType::Smoke:
+		// a small pot of wax that bursts; the smoke itself is the effect
+		Device->Base->SetStaticMesh(Cylinder);
+		Device->Base->SetRelativeScale3D(FVector(0.25f, 0.25f, 0.22f));
+		Device->Top->SetStaticMesh(Sphere);
+		Device->Top->SetRelativeLocation(FVector(0.0f, 0.0f, 70.0f));
+		Device->Top->SetRelativeScale3D(FVector(0.6f, 0.6f, 0.3f));
 		break;
 	default:
 		Device->Base->SetStaticMesh(Cylinder);
@@ -146,7 +173,51 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 	Glow->SetIntensity(2.0f + 1.5f * FMath::Sin(Now * 4.0f));
 
 	const AActor* Shooter = Eng->GetOwner();
-	if (Type == EVaelDeviceType::Trap && SnappedAt < 0.0f)
+	if (Type == EVaelDeviceType::BuriedMine)
+	{
+		const float Age = Now - Born;
+		if (Age < BuriedArmSeconds)
+		{
+			// digs in: sinks until only a faint glow shows where it lies (so he knows, the enemies don't)
+			const float Sink = FMath::Clamp(Age / BuriedArmSeconds, 0.0f, 1.0f);
+			// (the base is the root and stays; only the gland on top sinks into the plate)
+			Top->SetRelativeLocation(FVector(0.0f, 0.0f, 40.0f - 38.0f * Sink));
+			return;
+		}
+		Glow->SetIntensity(0.6f + 0.3f * FMath::Sin(Now * 2.0f));
+		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && UVaelCombatStatics::CanDamage(Shooter, *It)
+				&& FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < BuriedRadius + It->GetSimpleCollisionRadius() * 0.5f)
+			{
+				UE_LOG(LogVael, Log, TEXT("Engineer: %s steps on a Grabmine"), *It->GetName());
+				Detonate(VaelEngineerGear::Standard);
+				return;
+			}
+		}
+	}
+	else if (Type == EVaelDeviceType::Smoke)
+	{
+		// the smoke stands: new puffs every two seconds, and everyone inside staggers without a target
+		if (Now >= NextShot)
+		{
+			NextShot = Now + 2.0f;
+			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->SteamEffect), GetActorLocation(), FRotator::ZeroRotator,
+				FLinearColor(0.32f, 0.3f, 0.29f), SmokeRadius * 0.9f);
+		}
+		int32 Inside = 0;
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsDead() && UVaelCombatStatics::CanDamage(Shooter, *It) && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < SmokeRadius)
+			{
+				UVaelCombatStatics::ApplyStatus(Eng->GetOwner(), *It, EVaelStatus::Confused, 0.6f);
+				It->ApplyBlind(0.6f);
+				++Inside;
+			}
+		}
+		SmokeHeld = FMath::Max(SmokeHeld, Inside);
+	}
+	else if (Type == EVaelDeviceType::Trap && SnappedAt < 0.0f)
 	{
 		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It; ++It)
 		{
@@ -214,7 +285,7 @@ void AVaelEngineerDevice::Detonate(FName ShotAmmo)
 	TArray<AVaelEngineerDevice*> Chain;
 	for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
 	{
-		if (*It != this && !It->bDetonated && It->Type == EVaelDeviceType::Mine && It->GetEngineer() == Eng
+		if (*It != this && !It->bDetonated && VaelIsMine(It->Type) && It->GetEngineer() == Eng
 			&& FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < MineRadius * 1.2f)
 		{
 			Chain.Add(*It);

@@ -11,6 +11,7 @@
 #include "Engine/StaticMesh.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Engineer/VaelEngineerDevice.h"
+#include "Engineer/VaelGrappleHook.h"
 #include "Engineer/VaelEngineerIdeas.h"
 #include "Player/VaelPoseFollowerAnimInstance.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
@@ -48,6 +49,10 @@ namespace
 {
 	constexpr int32 MaxPlaced = 6;
 	constexpr float PlaceReach = 700.0f;
+	/** Lockpfeife: how far he can point the call, who hears it, and how long they follow */
+	constexpr float WhistleReach = 1200.0f;
+	constexpr float WhistleRadius = 1500.0f;
+	constexpr float WhistleSeconds = 6.0f;
 	constexpr int32 NumArmorPlaces = 5;
 
 	// The tower shield: five rows of Aschenroller bands, 20 cm each; how fast it slides open, and the moment after raising it
@@ -80,6 +85,7 @@ void UVaelEngineerComponent::ResetToStart()
 	Built.Reset();
 	Built.Add(VaelEngineerGear::Sling);
 	Carried.Reset();
+	DeviceReadyAt.Reset();
 	Stock.Reset();
 	Worn.Init(NAME_None, NumArmorPlaces);
 	Weapon = VaelEngineerGear::Sling;
@@ -877,7 +883,7 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 
 UVaelEngineerComponent::EBuildBlock UVaelEngineerComponent::GetBuildBlock(const FVaelGear& Gear, bool bAtWorkbench) const
 {
-	const bool bLasting = Gear.Kind == EVaelGearKind::Weapon || Gear.Kind == EVaelGearKind::Armor || Gear.Kind == EVaelGearKind::Tool;
+	const bool bLasting = Gear.Kind == EVaelGearKind::Weapon || Gear.Kind == EVaelGearKind::Armor || Gear.Kind == EVaelGearKind::Tool || Gear.IsKeptDevice();
 	if (bLasting && Built.Contains(Gear.Id))
 	{
 		return EBuildBlock::Built;
@@ -984,6 +990,10 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 		{
 			Stock.FindOrAdd(Id) += Gear->Batch - IntoPouch;
 		}
+		if (Gear->IsKeptDevice())
+		{
+			Built.Add(Id);
+		}
 		if (Gear->Kind == EVaelGearKind::Device && Device.IsNone())
 		{
 			Device = Id;
@@ -1047,7 +1057,7 @@ int32 UVaelEngineerComponent::GetPouchTier() const
 int32 UVaelEngineerComponent::GetCarryLimit(const FVaelGear& Gear) const
 {
 	const int32 Tier = GetPouchTier();
-	return Gear.Kind == EVaelGearKind::Ammo ? 20 + 10 * Tier : Gear.Kind == EVaelGearKind::Device ? 2 + Tier : 1;
+	return Gear.Kind == EVaelGearKind::Ammo ? 20 + 10 * Tier : Gear.IsKeptDevice() ? 1 : Gear.Kind == EVaelGearKind::Device ? 2 + Tier : 1;
 }
 
 // ---------------------------------------------------------------- Weapon and shot
@@ -1573,6 +1583,34 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 
 	FVector Offset = AimLocation - Player->GetActorLocation();
 	Offset.Z = 0.0f;
+
+	// The kept devices (Fallen-Paket 25.11.): the whistle and the hook stay with him and are ready again after a while
+	if (Gear->IsKeptDevice())
+	{
+		const float ReadyIn = GetDeviceReadyIn(Device);
+		if (ReadyIn > 0.0f)
+		{
+			UVaelCombatTextSubsystem::PostReaction(Player, FText::Format(LOCTEXT("DeviceNotReady", "{0}: noch {1} s"), Gear->Name, FText::AsNumber(FMath::CeilToInt(ReadyIn))));
+			return false;
+		}
+		bool bUsed = false;
+		if (Gear->Device == EVaelDeviceType::Whistle)
+		{
+			Whistle(Player->GetActorLocation() + Offset.GetClampedToMaxSize(WhistleReach));
+			bUsed = true;
+		}
+		else if (Gear->Device == EVaelDeviceType::Hook)
+		{
+			const FVector Direction = Offset.IsNearlyZero() ? Player->GetActorForwardVector() : Offset.GetSafeNormal();
+			bUsed = AVaelGrappleHook::Throw(this, Player->GetActorLocation() + FVector(0.0f, 0.0f, 40.0f) + Direction * 40.0f, Direction) != nullptr;
+		}
+		if (bUsed)
+		{
+			DeviceReadyAt.Add(Device, Now() + Gear->Cooldown);
+		}
+		return bUsed;
+	}
+
 	const FVector Spot = Player->GetActorLocation() + Offset.GetClampedToMaxSize(PlaceReach);
 	AVaelEngineerDevice* NewDevice = AVaelEngineerDevice::Lay(this, *Gear, Spot);
 	if (NewDevice == nullptr)
@@ -1598,12 +1636,45 @@ bool UVaelEngineerComponent::PlaceDevice(const FVector& AimLocation)
 	return true;
 }
 
+float UVaelEngineerComponent::GetDeviceReadyIn(FName Id) const
+{
+	const float* ReadyAt = DeviceReadyAt.Find(Id);
+	return ReadyAt != nullptr ? FMath::Max(*ReadyAt - Now(), 0.0f) : 0.0f;
+}
+
+int32 UVaelEngineerComponent::Whistle(const FVector& Spot)
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr)
+	{
+		return 0;
+	}
+	int32 Came = 0;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		if (It->IsDead() || It->IsBossFightActive() || !UVaelCombatStatics::CanDamage(Player, *It)
+			|| FVector::Dist2D(It->GetActorLocation(), Player->GetActorLocation()) > WhistleRadius)
+		{
+			continue;
+		}
+		// each comes to its own spot round the call, so they bunch up on the trap instead of on one point
+		const FVector Near = Spot + FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f).Vector() * FMath::FRandRange(0.0f, 90.0f);
+		It->LureTo(Player, Near, It->IsHeavy() ? WhistleSeconds * 0.5f : WhistleSeconds, 1.0f);
+		++Came;
+	}
+	const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->HandEffect), Spot, FRotator::ZeroRotator, FLinearColor(1.0f, 0.82f, 0.45f), 160.0f);
+	UVaelCombatTextSubsystem::PostReaction(Player, Came > 0 ? FText::Format(LOCTEXT("Whistled", "Pfiff! ({0} folgen)"), FText::AsNumber(Came)) : LOCTEXT("WhistledNone", "Pfiff!"));
+	UE_LOG(LogVael, Log, TEXT("Engineer: %s whistles, %d come to %s"), *Player->GetName(), Came, *Spot.ToString());
+	return Came;
+}
+
 int32 UVaelEngineerComponent::IgniteAll()
 {
 	int32 Ignited = 0;
 	for (const TWeakObjectPtr<AVaelEngineerDevice>& Each : TArray<TWeakObjectPtr<AVaelEngineerDevice>>(Placed))
 	{
-		if (Each.IsValid() && Each->GetDeviceType() == EVaelDeviceType::Mine)
+		if (Each.IsValid() && VaelIsMine(Each->GetDeviceType()))
 		{
 			Each->Detonate(VaelEngineerGear::Standard);
 			++Ignited;
@@ -1632,7 +1703,7 @@ void UVaelEngineerComponent::OnDeviceShot(AVaelEngineerDevice* Shot, FName ShotA
 	{
 		return;
 	}
-	if (Shot->GetDeviceType() == EVaelDeviceType::Mine)
+	if (VaelIsMine(Shot->GetDeviceType()))
 	{
 		Shot->Detonate(ShotAmmo);
 	}
@@ -1872,7 +1943,7 @@ void UVaelEngineerComponent::Explode(const FVector& Location, float Radius, floa
 	// his own mines nearby go off with it
 	for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
 	{
-		if (It->GetEngineer() == this && It->GetDeviceType() == EVaelDeviceType::Mine && FVector::Dist2D(It->GetActorLocation(), Location) < Radius)
+		if (It->GetEngineer() == this && VaelIsMine(It->GetDeviceType()) && FVector::Dist2D(It->GetActorLocation(), Location) < Radius)
 		{
 			It->Detonate(TEXT("Brand"));
 		}

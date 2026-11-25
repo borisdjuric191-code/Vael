@@ -372,7 +372,7 @@ void AVaelCreature::Tick(float DeltaSeconds)
 		const FVector ToPlace = (LurePlace - GetActorLocation()).GetSafeNormal2D();
 		if (FVector::DistSquared2D(LurePlace, GetActorLocation()) > FMath::Square(120.0f))
 		{
-			MoveInDirection(ToPlace, ActiveData->MoveSpeed * 0.7f);
+			MoveInDirection(ToPlace, ActiveData->MoveSpeed * LureSpeed);
 		}
 		return;
 	}
@@ -1223,9 +1223,10 @@ void AVaelCreature::UpdateBurning()
 	RefreshBodyColor();
 }
 
-void AVaelCreature::LureTo(AActor* Attacker, const FVector& Place, float Seconds)
+void AVaelCreature::LureTo(AActor* Attacker, const FVector& Place, float Seconds, float SpeedScale)
 {
 	LurePlace = Place;
+	LureSpeed = SpeedScale;
 	UVaelCombatStatics::ApplyStatus(Attacker, this, EVaelStatus::Lured, Seconds);
 }
 

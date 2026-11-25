@@ -424,6 +424,23 @@ namespace
 			LOCTEXT("SchleuderturmText", "Ein Gestell aus Narbenholz mit Rollpanzer-Schild: schießt eine Weile Steine auf den nächsten Feind. Ein besonderer Schuss hinein lädt ihn mit dieser Ladung."),
 			GearRgb(150, 120, 80), { { TEXT("Narbenholz"), 2 }, { TEXT("Rollpanzer"), 2 }, { TEXT("Spannfaden"), 2 } }, TEXT("Knallmine"), EVaelDeviceType::Turret, 1));
 
+		// --- Fallen-Paket (25.11.): lure them in with the whistle, yank the strays with the hook, let them step on the buried
+		// mine, and hide in the smoke. Whistle and hook are kept and used again after a while.
+		All.Add(MakeDevice(TEXT("Grabmine"), LOCTEXT("Grabmine", "Grabmine"),
+			LOCTEXT("GrabmineText", "Eine Glutdrüse unter einer Krustenplatte, mit Distelflaum gepolstert: gräbt sich ein und ist nicht mehr zu sehen. Wer darauf tritt, fliegt in die Luft. Ein Schuss oder die Zündung lässt sie auch hochgehen, und mit anderen Minen geht sie in einer Kette."),
+			GearRgb(200, 80, 40), { { TEXT("Glutdruese"), 1 }, { TEXT("Krustenplatte"), 1 }, { TEXT("Distelflaum"), 1 } }, None, EVaelDeviceType::BuriedMine, 2));
+		All.Add(MakeDevice(TEXT("Rauchtopf"), LOCTEXT("Rauchtopf", "Rauchtopf"),
+			LOCTEXT("RauchtopfText", "Zwei Rauchblasen in Siegelwachs, die beim Aufschlag platzen: acht Sekunden eine Wand aus Rauch. Wer darin steht, taumelt und verliert sein Ziel."),
+			GearRgb(120, 116, 110), { { TEXT("Rauchblase"), 2 }, { TEXT("Siegelwachs"), 1 } }, TEXT("Knallmine"), EVaelDeviceType::Smoke, 2));
+		All.Add(MakeDevice(TEXT("Lockpfeife"), LOCTEXT("Lockpfeife", "Lockpfeife"),
+			LOCTEXT("LockpfeifeText", "Ein Kreischbalg im Hohlkiel, Pfeifensporen als Zunge: ein Pfiff, und die Feinde im Umkreis laufen sechs Sekunden zu der Stelle, auf die er zeigt – am besten auf eine Grabmine. Große Tiere folgen nur kurz, Bosse gar nicht. Bleibt bei ihm, wieder bereit nach 12 Sekunden."),
+			GearRgb(220, 190, 120), { { TEXT("Kreischbalg"), 1 }, { TEXT("Hohlkiel"), 1 }, { TEXT("Pfeifensporen"), 1 } }, None, EVaelDeviceType::Whistle, 1));
+		All.Last().Cooldown = 12.0f;
+		All.Add(MakeDevice(TEXT("Wurfhaken"), LOCTEXT("Wurfhaken", "Wurfhaken"),
+			LOCTEXT("WurfhakenText", "Greifklaue und Klammerfinger an einem Seil aus Rankenfaser: hakt sich in den ersten Feind auf dem Weg. Kleine reißt er zu sich her, an schwere zieht er sich selbst heran. Bleibt bei ihm, wieder bereit nach 6 Sekunden."),
+			GearRgb(160, 130, 90), { { TEXT("Greifklaue"), 1 }, { TEXT("Klammerfinger"), 1 }, { TEXT("Rankenfaser"), 3 } }, None, EVaelDeviceType::Hook, 1));
+		All.Last().Cooldown = 6.0f;
+
 		// --- Armour: four places, each set of one creature; two and four pieces of one set give its bonus
 		struct FSetPieces { FName Set; FText Prefix; FName Main; FName Second; FLinearColor Color; float ArmorScale; };
 		const FSetPieces Sets[] =

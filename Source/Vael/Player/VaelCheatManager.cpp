@@ -47,6 +47,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Items/VaelInventory.h"
 #include "Engineer/VaelEngineerComponent.h"
+#include "Engineer/VaelEngineerDevice.h"
+#include "World/VaelSafeZone.h"
 #include "Engineer/VaelEngineerGear.h"
 #include "Engineer/VaelEngineerShot.h"
 #include "Items/VaelItemData.h"
@@ -2154,6 +2156,191 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		Json += TEXT("}}");
 		FFileHelper::SaveStringToFile(Json, *(FPaths::ProjectSavedDir() / TEXT("Ingenieur_Knochen.json")));
 		UE_LOG(LogVael, Display, TEXT("[Knochen] %d bones of %s written"), Skeleton.GetNum(), *Body->GetSkeletalMeshAsset()->GetName());
+		return;
+	}
+	// Fallen-Paket (25.11.): "fallen" builds Grabmine, Rauchtopf, Lockpfeife and Wurfhaken, lays a Grabmine, whistles three
+	// Sichelpuppen onto it, smokes the rest, then hooks a light and a heavy creature; every step logs [FallenTest]
+	if (What == TEXT("fallen"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		Engineer->Build(TEXT("Knallmine"), true);
+		const TCHAR* Pieces[] = { TEXT("Grabmine"), TEXT("Rauchtopf"), TEXT("Lockpfeife"), TEXT("Wurfhaken") };
+		for (const TCHAR* Piece : Pieces)
+		{
+			const bool bBuilt = Engineer->Build(Piece, true);
+			UE_LOG(LogVael, Display, TEXT("[FallenTest] build %s: %s (carried %d)"), Piece, bBuilt ? TEXT("PASS") : TEXT("FAIL"), Engineer->GetCarried(Piece));
+		}
+		const bool bAgain = Engineer->Build(TEXT("Lockpfeife"), true);
+		UE_LOG(LogVael, Display, TEXT("[FallenTest] second Lockpfeife refused: %s"), !bAgain ? TEXT("PASS") : TEXT("FAIL"));
+
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng = Engineer;
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		const auto Pick = [](UVaelEngineerComponent* Eng, FName Id)
+		{
+			for (int32 Step = 0; Step < 12 && Eng->GetDevice() != Id; ++Step)
+			{
+				Eng->CycleDevice(1);
+			}
+			return Eng->GetDevice() == Id;
+		};
+		const auto Ground = [this](const FVector& Spot)
+		{
+			FHitResult Hit;
+			return GetWorld()->LineTraceSingleByChannel(Hit, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), ECC_Visibility) ? Hit.ImpactPoint : Spot;
+		};
+		// Creatures keep out of the camps: out of the safe zone first, on open ground with room round it
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation(), 1800.0f))
+		{
+			bool bMoved = false;
+			for (float Distance = 3000.0f; Distance <= 9000.0f && !bMoved; Distance += 1500.0f)
+			{
+				for (int32 Turn = 0; Turn < 8 && !bMoved; ++Turn)
+				{
+					const FVector Spot = Ground(Player->GetActorLocation() + FRotator(0.0f, 45.0f * Turn, 0.0f).Vector() * Distance);
+					if (!AVaelSafeZone::IsSafe(GetWorld(), Spot, 1800.0f))
+					{
+						bMoved = Player->TeleportTo(Spot + FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight() + 20.0f), Player->GetActorRotation());
+					}
+				}
+			}
+			UE_LOG(LogVael, Display, TEXT("[FallenTest] out of the safe zone: %s (%s)"), bMoved ? TEXT("PASS") : TEXT("FAIL"), *Player->GetActorLocation().ToString());
+		}
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+		const FVector Home = Player->GetActorLocation();
+		const FVector MineSpot = Home + Ahead * 500.0f;
+
+		// 1. The Grabmine, and three Sichelpuppen 13 m off to the side, whistled onto it
+		Pick(Engineer, TEXT("Grabmine"));
+		Engineer->PlaceDevice(MineSpot);
+		TArray<TWeakObjectPtr<AVaelCreature>> Dolls;
+		for (int32 Index = 0; Index < 3; ++Index)
+		{
+			const FVector Spot = Ground(Home + Ahead * 600.0f + Side * (500.0f + 150.0f * Index));
+			Dolls.Add(AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Spot, (-Side).Rotation()));
+		}
+		FTimerHandle Call;
+		GetWorld()->GetTimerManager().SetTimer(Call, FTimerDelegate::CreateLambda([WeakEng, MineSpot, Pick]()
+		{
+			if (UVaelEngineerComponent* Eng = WeakEng.Get())
+			{
+				Pick(Eng, TEXT("Lockpfeife"));
+				Eng->PlaceDevice(MineSpot);
+				const bool bWaits = !Eng->PlaceDevice(MineSpot) && Eng->GetDeviceReadyIn(TEXT("Lockpfeife")) > 10.0f;
+				UE_LOG(LogVael, Display, TEXT("[FallenTest] whistle cooldown holds: %s (%.1f s)"), bWaits ? TEXT("PASS") : TEXT("FAIL"), Eng->GetDeviceReadyIn(TEXT("Lockpfeife")));
+			}
+		}), 1.0f, false);
+
+		FTimerHandle Check;
+		GetWorld()->GetTimerManager().SetTimer(Check, FTimerDelegate::CreateLambda([this, WeakEng, WeakPlayer, Dolls, MineSpot, Pick, Ground, Ahead, Side, Home]()
+		{
+			UVaelEngineerComponent* Eng = WeakEng.Get();
+			AVaelCharacter* Hero = WeakPlayer.Get();
+			if (Eng == nullptr || Hero == nullptr)
+			{
+				return;
+			}
+			bool bMineLeft = false;
+			for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+			{
+				bMineLeft |= It->GetDeviceType() == EVaelDeviceType::BuriedMine && !It->HasDetonated();
+			}
+			int32 Hurt = 0;
+			AVaelCreature* Living = nullptr;
+			for (const TWeakObjectPtr<AVaelCreature>& Doll : Dolls)
+			{
+				Hurt += Doll.IsValid() ? 0 : 1;
+				if (Doll.IsValid())
+				{
+					UE_LOG(LogVael, Display, TEXT("[FallenTest]   %s %.0f cm from the mine, health %.0f/%.0f, lured %d"), *Doll->GetName(), FVector::Dist2D(Doll->GetActorLocation(), MineSpot), Doll->GetHealth(), Doll->GetMaxHealth(), UVaelCombatStatics::HasStatus(Doll.Get(), EVaelStatus::Lured));
+					Hurt += Doll->GetHealth() < Doll->GetMaxHealth() || Doll->IsDead() ? 1 : 0;
+					Living = !Doll->IsDead() ? Doll.Get() : Living;
+				}
+			}
+			UE_LOG(LogVael, Display, TEXT("[FallenTest] lured onto the Grabmine: %s (mine went off %d, %d of %d dolls hurt)"),
+				!bMineLeft && Hurt > 0 ? TEXT("PASS") : TEXT("FAIL"), !bMineLeft, Hurt, Dolls.Num());
+
+			// 2. The Rauchtopf on a doll that still stands (or a fresh one)
+			if (Living == nullptr)
+			{
+				Living = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Home + Ahead * 450.0f), (-Ahead).Rotation());
+			}
+			Pick(Eng, TEXT("Rauchtopf"));
+			const bool bLaid = Living != nullptr && Eng->PlaceDevice(Living->GetActorLocation());
+			TWeakObjectPtr<AVaelCreature> WeakLiving = Living;
+			FTimerHandle SmokeCheck;
+			GetWorld()->GetTimerManager().SetTimer(SmokeCheck, FTimerDelegate::CreateLambda([this, WeakEng, WeakPlayer, bLaid, WeakLiving, Pick, Ground, Ahead, Side, Home]()
+			{
+				int32 Held = 0;
+				for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+				{
+					Held = FMath::Max(Held, It->GetDeviceType() == EVaelDeviceType::Smoke ? It->GetSmokeHeld() : 0);
+				}
+				const bool bConfused = WeakLiving.IsValid() && UVaelCombatStatics::HasStatus(WeakLiving.Get(), EVaelStatus::Confused);
+				UE_LOG(LogVael, Display, TEXT("[FallenTest] smoke holds: %s (laid %d, held %d, doll confused %d)"), bLaid && Held > 0 ? TEXT("PASS") : TEXT("FAIL"), bLaid, Held, bConfused);
+
+				// 3. The Wurfhaken: a light doll 9 m off is yanked in, then a heavy roller pulls him
+				UVaelEngineerComponent* Eng = WeakEng.Get();
+				AVaelCharacter* Hero = WeakPlayer.Get();
+				if (Eng == nullptr || Hero == nullptr)
+				{
+					return;
+				}
+				AVaelCreature* Light = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Hero->GetActorLocation() + Side * 900.0f), (-Side).Rotation());
+				const float Before = Light != nullptr ? FVector::Dist2D(Light->GetActorLocation(), Hero->GetActorLocation()) : 0.0f;
+				Pick(Eng, TEXT("Wurfhaken"));
+				Hero->SetActorRotation(Side.Rotation());
+				const bool bThrown = Light != nullptr && Eng->PlaceDevice(Light->GetActorLocation());
+				TWeakObjectPtr<AVaelCreature> WeakLight = Light;
+				FTimerHandle HookCheck;
+				GetWorld()->GetTimerManager().SetTimer(HookCheck, FTimerDelegate::CreateLambda([this, WeakEng, WeakPlayer, WeakLight, Before, bThrown, Ground, Ahead]()
+				{
+					UVaelEngineerComponent* Eng = WeakEng.Get();
+					AVaelCharacter* Hero = WeakPlayer.Get();
+					if (Eng == nullptr || Hero == nullptr)
+					{
+						return;
+					}
+					const float After = WeakLight.IsValid() ? FVector::Dist2D(WeakLight->GetActorLocation(), Hero->GetActorLocation()) : -1.0f;
+					UE_LOG(LogVael, Display, TEXT("[FallenTest] hook yanks a light one: %s (thrown %d, %.0f -> %.0f cm)"),
+						bThrown && After >= 0.0f && After < Before - 300.0f ? TEXT("PASS") : TEXT("FAIL"), bThrown, Before, After);
+
+					AVaelCreature* Heavy = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelEmberQueenData>(), Ground(Hero->GetActorLocation() + Ahead * 1000.0f), (-Ahead).Rotation());
+					const bool bHeavy = Heavy != nullptr && Heavy->IsHeavy();
+					const FVector HeroBefore = Hero->GetActorLocation();
+					const float HeavyBefore = Heavy != nullptr ? FVector::Dist2D(Heavy->GetActorLocation(), HeroBefore) : 0.0f;
+					// the hook is still cooling down: wait it out
+					FTimerHandle Second;
+					TWeakObjectPtr<AVaelCreature> WeakHeavy = Heavy;
+					GetWorld()->GetTimerManager().SetTimer(Second, FTimerDelegate::CreateLambda([this, WeakEng, WeakPlayer, WeakHeavy, bHeavy, HeavyBefore]()
+					{
+						UVaelEngineerComponent* Eng = WeakEng.Get();
+						AVaelCharacter* Hero = WeakPlayer.Get();
+						if (Eng == nullptr || Hero == nullptr || !WeakHeavy.IsValid())
+						{
+							UE_LOG(LogVael, Display, TEXT("[FallenTest] hook pulls him to a heavy one: FAIL (no roller)"));
+							return;
+						}
+						const FVector HeroBefore = Hero->GetActorLocation();
+						const bool bThrown = Eng->PlaceDevice(WeakHeavy->GetActorLocation());
+						FTimerHandle Third;
+						GetWorld()->GetTimerManager().SetTimer(Third, FTimerDelegate::CreateLambda([WeakPlayer, WeakHeavy, bHeavy, bThrown, HeroBefore, HeavyBefore]()
+						{
+							if (!WeakPlayer.IsValid() || !WeakHeavy.IsValid())
+							{
+								return;
+							}
+							const float Moved = FVector::Dist2D(WeakPlayer->GetActorLocation(), HeroBefore);
+							const float Gap = FVector::Dist2D(WeakPlayer->GetActorLocation(), WeakHeavy->GetActorLocation());
+							UE_LOG(LogVael, Display, TEXT("[FallenTest] hook on a heavy one: %s (heavy %d, thrown %d, he moved %.0f cm, gap %.0f of %.0f cm)"),
+								bThrown && (!bHeavy || Moved > 300.0f) ? TEXT("PASS") : TEXT("FAIL"), bHeavy, bThrown, Moved, Gap, HeavyBefore);
+						}), 1.5f, false);
+					}), 6.2f, false);
+				}), 1.5f, false);
+			}), 2.0f, false);
+		}), 8.0f, false);
 		return;
 	}
 	// The first camp (goal 16.11.): "lager" opens the store chest of the level as he would, then mixes his first shot

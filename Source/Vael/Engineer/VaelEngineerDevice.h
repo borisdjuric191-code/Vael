@@ -48,6 +48,10 @@ public:
 	/** The turret takes a special shot as its ammo for the next shots */
 	void LoadAmmo(FName ShotAmmo);
 
+	/** Whether it has gone off (mines), and the most enemies its smoke held at once (for the tests) */
+	bool HasDetonated() const { return bDetonated; }
+	int32 GetSmokeHeld() const { return SmokeHeld; }
+
 private:
 
 	TWeakObjectPtr<UVaelEngineerComponent> Engineer;
@@ -59,6 +63,7 @@ private:
 	float SnappedAt = -1.0f;
 	FName Loaded;
 	int32 LoadedShots = 0;
+	int32 SmokeHeld = 0;
 	bool bDetonated = false;
 	bool bBuiltPiece = false;
 };

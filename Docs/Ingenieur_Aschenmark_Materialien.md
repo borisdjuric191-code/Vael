@@ -451,6 +451,18 @@ Nach diesem Muster lassen sich die anderen Sätze mischen, zum Beispiel eine lei
 
 ---
 
+## 6c. Fallen-Paket (gebaut 25.11.)
+
+Grabmine, Rauchtopf, Lockpfeife und Wurfhaken sind im Spiel. Bauplan, Wirkung und Einfälle stehen in `Docs/Doc-Nachtraege.md`. Abweichungen von den Entwürfen in Abschnitt 5:
+
+- **Rauchtopf** mit 2 Rauchblasen statt Rauchstaub, weil es Rauchstaub als Material nicht gibt.
+- **Lockpfeife** mit Pfeifensporen, das ist das Material der Pfeifenmorchel.
+- Lockpfeife und Wurfhaken sind **Vorrichtungen, die bleiben** (`FVaelGear::Cooldown`). Dadurch braucht es keine neue Taste.
+- Code: `Engineer/VaelGrappleHook.*` (neu), `EVaelDeviceType` BuriedMine/Smoke/Whistle/Hook, `UVaelEngineerComponent::Whistle`, `AVaelCreature::LureTo` mit Tempo.
+- Test: `VaelIngenieur fallen` (alle Schritte PASS).
+- **Offen:** echte Modelle (Platzhalterformen), Abklingzeit im HUD, Sturmwarner, Sichelkreisel, Rammschild, Rollwall.
+
+
 ## 7. Was in der Aschenmark fehlt (und wie ich es löse)
 
 - **Metall:** Die Aschenmark hat kein echtes Erz. Lösung: Schlackeneisen (veredelte Schlacke) und Harpyientand als Messing. Echte Metalle kommen erst im Eisenschlund (Rosteisen, Kupferkristall, Silberlocke) als nächste Stufe.

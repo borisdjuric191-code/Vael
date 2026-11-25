@@ -222,6 +222,12 @@ public:
 
 	int32 GetNumPlaced() const;
 
+	/** Seconds until a kept device (Lockpfeife, Wurfhaken) can be used again, 0 when ready */
+	float GetDeviceReadyIn(FName Id) const;
+
+	/** Lockpfeife: enemies round him follow the whistle to this spot (heavy ones shortly, bosses not); returns how many came */
+	int32 Whistle(const FVector& Spot);
+
 	// --- Armour
 
 	/** The piece worn on a place, None if none */
@@ -568,6 +574,9 @@ private:
 	void TickEffects();
 
 	FName Device;
+
+	/** When each kept device can be used again (world seconds) */
+	TMap<FName, float> DeviceReadyAt;
 	float LastShot = -100.0f;
 	float CurledUntil = 0.0f;
 	float AppliedHealth = 0.0f;

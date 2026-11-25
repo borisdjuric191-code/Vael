@@ -90,8 +90,22 @@ enum class EVaelDeviceType : uint8
 	/** Waits until a shot of the engineer hits it (or the remote ignition), then bursts; it carries the effect of that shot */
 	Mine,
 	/** Fires stones at the nearest enemy for a while; a special shot into it loads it with that ammo */
-	Turret
+	Turret,
+	/** Grabmine (Fallen-Paket 25.11.): digs itself in, goes off when an enemy steps on it; shots and the ignition set it off too */
+	BuriedMine,
+	/** Rauchtopf: a wall of smoke for a while, enemies inside stagger and lose the target */
+	Smoke,
+	/** Lockpfeife (kept, used again after its cooldown): enemies around come to the spot he whistles to */
+	Whistle,
+	/** Wurfhaken (kept): snags the first enemy on the way; small ones are yanked to him, heavy ones pull him to them */
+	Hook
 };
+
+/** True for both kinds of mine: shots and the ignition set them off, and they go off together in a chain */
+inline bool VaelIsMine(EVaelDeviceType Type)
+{
+	return Type == EVaelDeviceType::Mine || Type == EVaelDeviceType::BuriedMine;
+}
 
 /** Armour places of the engineer's own pieces */
 enum class EVaelArmorPlace : uint8
@@ -149,6 +163,10 @@ struct FVaelGear
 
 	// Device
 	EVaelDeviceType Device = EVaelDeviceType::Trap;
+
+	/** Above 0 the device is a tool he keeps (Lockpfeife, Wurfhaken): built once, used again after this many seconds */
+	float Cooldown = 0.0f;
+	bool IsKeptDevice() const { return Kind == EVaelGearKind::Device && Cooldown > 0.0f; }
 
 	// Armour: place, armour, life, and the creature set it belongs to (two and four pieces of one set give its bonus)
 	// Weapon upgrade (the tree of the workbench): the weapon it improves, its tier (1.18^tier damage); a branch of tier 1 also

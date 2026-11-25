@@ -105,6 +105,20 @@ const TArray<FVaelEngineerIdea>& VaelEngineerIdeas::GetAll()
 		LOCTEXT("NidlinseTitle", "Ein Splitter, der zeichnet"),
 		LOCTEXT("NidlinseThought", "Was das Nid berührt, leuchtet noch lange nach. Ein Splitter davon im Glas, und was ich treffe, trägt das Zeichen."),
 		LOCTEXT("NidlinseHint", "Wo das Blut der Schlafenden an die Oberfläche tritt, wachsen violette Drusen.")));
+
+	// --- Fallen-Paket (25.11.): lure, snag, bury, smoke; the devices that make a fight a place he prepared
+	All.Add(MakeIdea(TEXT("Grabmine"), TEXT("Glutkriecher"), S::Observed, { TEXT("Grabmine") },
+		LOCTEXT("GrabmineTitle", "Was unter der Asche wartet"),
+		LOCTEXT("GrabmineThought", "Der Kriecher gräbt sich ein, bis nur noch die Glut atmet, und wartet, bis jemand auf ihn tritt. Eine Glutdrüse unter einer Krustenplatte, mit Distelflaum gepolstert – und ich lege dasselbe in den Boden."),
+		LOCTEXT("GrabmineHint", "Beobachte in Ruhe, wie der Gräber in der Asche auf seine Beute wartet.")));
+	All.Add(MakeIdea(TEXT("Lockpfeife"), TEXT("Aschharpyie"), S::Observed, { TEXT("Lockpfeife") },
+		LOCTEXT("LockpfeifeTitle", "Ein Schrei, und alle kommen"),
+		LOCTEXT("LockpfeifeThought", "Eine Harpyie kreischt, und der ganze Schwarm dreht ab zu ihr. Ein Kreischbalg in einem Hohlkiel, mit Pfeifensporen als Zunge: dann rufe ich sie, wohin ich will – in meine Fallen."),
+		LOCTEXT("LockpfeifeHint", "Beobachte, was die Kreischenden tun, wenn eine von ihnen ruft.")));
+	All.Add(MakeIdea(TEXT("Wurfhaken"), TEXT("Schleieraffe"), S::Defeated, { TEXT("Wurfhaken") },
+		LOCTEXT("WurfhakenTitle", "Finger, die nicht loslassen"),
+		LOCTEXT("WurfhakenThought", "Der Affe hielt sich noch im Sterben am Fels fest. Seine Klammerfinger an einer Greifklaue, an einem Seil aus Rankenfaser: was ich treffe, hole ich mir her."),
+		LOCTEXT("WurfhakenHint", "Bezwinge, was im Schleier klettert und nie loslässt.")));
 	return All;
 }
 
