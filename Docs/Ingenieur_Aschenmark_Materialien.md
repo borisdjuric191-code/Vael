@@ -462,7 +462,8 @@ Grabmine, Rauchtopf, Lockpfeife und Wurfhaken sind im Spiel. Bauplan, Wirkung un
 - Test: `VaelIngenieur fallen` (alle Schritte PASS).
 - Modelle der vier Fallen gebaut und importiert (VAEL_ING_FALLEN, VAEL_ING_NUR_FALLEN), Abklingzeit im HUD.
 - **Umwelt (25.11.):** Glutknall, Dampfknall, Rauch im Wind, Glutzapfer, Säurefass, Löschpulver (Doc-Nachtraege). Test `VaelIngenieur umwelt` (alle PASS).
-- **Offen:** Modelle für Glutzapfer, Säurefass und Löschpulver (Platzhalterformen); Sturmwarner, Sichelkreisel, Würgnetz, Blendlaterne, Rammschild, Rollwall; Werkzeuge (Wärmeglas, Aderglas, Fernglas); weitere ganze Sätze (Aschenjäger, Erntewacht, Glutkronen).
+- Modelle für Glutzapfer (mit Kieferdüse), Säurefass (mit Deckel) und Löschpulver gebaut und importiert, animiert in `AVaelEngineerDevice::Animate`: Der Zapfer fährt aus dem Boden, atmet, dreht die Düse zum Ziel, hat Rückstoß und lässt die Düse ohne Feuer hängen. Das Fass schaukelt, rüttelt bei nahen Gegnern, schwillt beim Platzen, der Deckel fliegt weg, die Pfütze breitet sich aus und schrumpft am Ende. Der Pulverbeutel fällt, staucht sich und pufft.
+- **Offen:** Sturmwarner, Sichelkreisel, Würgnetz, Blendlaterne, Rammschild, Rollwall; Werkzeuge (Wärmeglas, Aderglas, Fernglas); weitere ganze Sätze (Aschenjäger, Erntewacht, Glutkronen).
 
 
 ## 6d. Aschenjäger (Idee, besprochen 25.11., NICHT gebaut)
@@ -497,7 +498,7 @@ Boris' Idee, nur festgehalten: Ein zweiter, leichter Satz als Gegenstück zur sc
   - Der Aschenteufel wandert eine Weile, zieht kleine Gegner hinein und trägt Rauch.
   - **Umwelt:** Zieht er durch ein Feuer, wird er zum Feuerteufel. Im Sturm wird er größer und hält länger, im Regen zum Aschenregen.
   - Die Älteste verstärkt ihn: Ihr Kreischen könnte Gegner im Teufel betäuben.
-- **Zweites Material**, Vorschlag: Ältestenschwinge (ihr Hauptmaterial) plus etwas für Wind. Möglich sind Silberhalm bzw. Flüsterfaser vom Windhalm, oder die Pfeifensporen der Pfeifenmorchel, die vor Stürmen pfeift. Noch nicht entschieden.
+- **Materialien (entschieden 25.11.):** Ältestenschwinge plus **beide** Windpflanzen, Silberhalm bzw. Flüsterfaser vom Windhalm **und** Pfeifensporen der Pfeifenmorchel. Monsterteile sind sonst der Kern, hier dürfen mehrere Pflanzenteile dazu. Als Stufe II darf sie schwerer zu bauen sein und mehr Materialien brauchen.
 
 ## 7. Was in der Aschenmark fehlt (und wie ich es löse)
 

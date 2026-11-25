@@ -62,6 +62,11 @@ namespace
 	/** Löschpulver: how far it reaches, how long it keeps them cool */
 	constexpr float DouseRadius = 450.0f;
 	constexpr float DouseWet = 6.0f;
+	/** The pouch drops this far in this long before it bursts */
+	constexpr float DouseDrop = 160.0f;
+	constexpr float DouseFall = 0.22f;
+	/** A device rises out of the ground this long when laid (the Glutzapfer, the Säurefass) */
+	constexpr float RiseSeconds = 0.35f;
 }
 
 AVaelEngineerDevice::AVaelEngineerDevice()
@@ -84,6 +89,14 @@ AVaelEngineerDevice::AVaelEngineerDevice()
 	Glow->SetAttenuationRadius(220.0f);
 	Glow->SetCastShadows(false);
 	Glow->SetRelativeLocation(FVector(0.0f, 0.0f, 60.0f));
+
+	Pool = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Pool"));
+	Pool->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Pool->SetCastShadow(false);
+	Pool->SetupAttachment(Base);
+	Pool->SetUsingAbsoluteRotation(true);
+	Pool->SetUsingAbsoluteScale(true);
+	Pool->SetVisibility(false);
 }
 
 AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer, const FVaelGear& Gear, const FVector& Location)
@@ -115,6 +128,16 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 	Device->Id = Gear.Id;
 	Device->Born = World->GetTimeSeconds();
 	Device->LaidZ = Ground.Z;
+	// the moving devices are watched every frame (the others four times less often are enough)
+	if (Gear.Device == EVaelDeviceType::Tapper || Gear.Device == EVaelDeviceType::Acid || Gear.Device == EVaelDeviceType::Douse)
+	{
+		Device->SetActorTickInterval(0.0f);
+	}
+	// the pouch of powder is thrown: it drops in from above and bursts where it lands
+	if (Gear.Device == EVaelDeviceType::Douse)
+	{
+		Device->SetActorLocation(Ground + FVector(0.0f, 0.0f, DouseDrop));
+	}
 	Device->LifeTime = Gear.Device == EVaelDeviceType::Turret ? TurretLife : Gear.Device == EVaelDeviceType::Smoke ? SmokeLife
 		: Gear.Device == EVaelDeviceType::Tapper ? TapperLife : Gear.Device == EVaelDeviceType::Douse ? 0.8f : 120.0f;
 
@@ -193,6 +216,17 @@ AVaelEngineerDevice* AVaelEngineerDevice::Lay(UVaelEngineerComponent* InEngineer
 		Device->Base->SetRelativeScale3D(FVector::OneVector);
 		Device->Base->EmptyOverrideMaterials();
 		Device->Top->SetVisibility(false);
+		// a moving part of its own: the nozzle of the Glutzapfer, the lid of the Säurefass
+		const TCHAR* PartName = Gear.Device == EVaelDeviceType::Tapper ? TEXT("Glutzapfer_Duese") : Gear.Device == EVaelDeviceType::Acid ? TEXT("Saeurefass_Deckel") : nullptr;
+		if (UStaticMesh* Part = PartName != nullptr ? LoadObject<UStaticMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_%s.SM_Ing_%s"), PartName, PartName), nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr)
+		{
+			Device->Top->SetStaticMesh(Part);
+			Device->Top->EmptyOverrideMaterials();
+			Device->Top->SetRelativeScale3D(FVector::OneVector);
+			Device->Top->SetRelativeLocation(FVector(0.0f, 0.0f, Gear.Device == EVaelDeviceType::Tapper ? 64.0f : 43.0f));
+			Device->Top->SetVisibility(true);
+			Device->bHasPart = true;
+		}
 		Device->Glow->SetLightColor(Gear.Color);
 		Device->bBuiltPiece = true;
 		return Device;
@@ -221,6 +255,7 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 		return;
 	}
 	Glow->SetIntensity(2.0f + 1.5f * FMath::Sin(Now * 4.0f));
+	Animate(Now, DeltaSeconds);
 
 	const AActor* Shooter = Eng->GetOwner();
 	if (Type == EVaelDeviceType::BuriedMine)
@@ -326,7 +361,8 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 			{
 				Spot->GiveFire(GetActorLocation());
 			}
-			SetActorRotation(FRotator(0.0f, (Nearest->GetActorLocation() - GetActorLocation()).Rotation().Yaw, 0.0f));
+			NozzleYaw = (Nearest->GetActorLocation() - GetActorLocation()).Rotation().Yaw - GetActorRotation().Yaw;
+			KickAt = Now;
 			Glow->SetIntensity(30.0f);
 			++TapperShots;
 		}
@@ -364,7 +400,7 @@ void AVaelEngineerDevice::Tick(float DeltaSeconds)
 			}
 		}
 	}
-	else if (Type == EVaelDeviceType::Douse && !bDetonated)
+	else if (Type == EVaelDeviceType::Douse && !bDetonated && Now - Born >= DouseFall)
 	{
 		// Bursts at once: fires that were lit (not the placed campfires) go out, burning things cool down and are wet a while
 		bDetonated = true;
@@ -530,6 +566,100 @@ void AVaelEngineerDevice::Detonate(FName ShotAmmo)
 	Type = EVaelDeviceType::Trap;
 }
 
+void AVaelEngineerDevice::Animate(float Now, float DeltaSeconds)
+{
+	const float Age = Now - Born;
+	// the size it was laid with (the built pieces 1, the placeholder shapes their own), everything below scales from it
+	if (BaseScale.IsZero())
+	{
+		BaseScale = Base->GetRelativeScale3D();
+	}
+	switch (Type)
+	{
+	case EVaelDeviceType::Tapper:
+	{
+		// Rises out of the ground with a little overshoot, then breathes with the fire it draws
+		const float Rise = FMath::Clamp(Age / RiseSeconds, 0.0f, 1.0f);
+		const float Up = Rise < 1.0f ? FMath::Sin(Rise * PI * 0.5f) * (1.0f + 0.12f * FMath::Sin(Rise * PI)) : 1.0f;
+		const float Kick = FMath::Clamp(1.0f - (Now - KickAt) / 0.3f, 0.0f, 1.0f);
+		const float Breath = 1.0f + 0.025f * FMath::Sin(Now * 5.0f);
+		Base->SetRelativeScale3D(BaseScale * FVector(1.0f + 0.08f * Kick, 1.0f + 0.08f * Kick, FMath::Max(Up, 0.05f) * Breath * (1.0f - 0.1f * Kick)));
+		if (bHasPart)
+		{
+			// the jaw turns smoothly to its target and kicks back when it spits; without fire it droops
+			const bool bFire = UVaelEnvironmentStatics::IsElementInEnvironment(this, EVaelElement::Fire);
+			const FRotator Was = Top->GetRelativeRotation();
+			const float Yaw = FMath::FInterpTo(Was.Yaw, Was.Yaw + FRotator::NormalizeAxis(NozzleYaw - Was.Yaw), DeltaSeconds, 8.0f);
+			const float Pitch = bFire ? 12.0f * Kick : -25.0f;
+			Top->SetRelativeRotation(FRotator(FMath::FInterpTo(Was.Pitch, Pitch, DeltaSeconds, 12.0f), Yaw, 0.0f));
+			Top->SetRelativeLocation(FVector(0.0f, 0.0f, 64.0f) - FRotator(0.0f, Yaw, 0.0f).Vector() * 8.0f * Kick);
+		}
+		Glow->SetIntensity(4.0f + 26.0f * Kick + 2.0f * FMath::Sin(Now * 9.0f));
+		break;
+	}
+	case EVaelDeviceType::Acid:
+	{
+		if (BurstAt < 0.0f)
+		{
+			// Rises in, then rocks gently; with an enemy close it rattles and the lid jumps on the bubbles
+			const float Rise = FMath::Clamp(Age / RiseSeconds, 0.0f, 1.0f);
+			bool bNear = false;
+			for (TActorIterator<AVaelCreature> It(GetWorld()); It && !bNear; ++It)
+			{
+				bNear = !It->IsDead() && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < 350.0f;
+			}
+			const float Shake = bNear ? 4.0f : 1.5f;
+			const float Speed = bNear ? 14.0f : 2.2f;
+			Base->SetRelativeScale3D(BaseScale * FVector(1.0f, 1.0f, FMath::Max(FMath::Sin(Rise * PI * 0.5f), 0.05f)));
+			SetActorRotation(FRotator(Shake * FMath::Sin(Now * Speed), GetActorRotation().Yaw, Shake * FMath::Cos(Now * Speed * 0.8f)));
+			if (bHasPart)
+			{
+				const float Bubble = FMath::Max(FMath::Sin(Now * (bNear ? 11.0f : 3.0f)), 0.0f);
+				Top->SetRelativeLocation(FVector(0.0f, 0.0f, 43.0f + Bubble * (bNear ? 2.5f : 0.8f)));
+			}
+			break;
+		}
+		const float Since = Now - BurstAt;
+		// the barrel swells and is gone in a tenth of a second
+		Base->SetRelativeScale3D(BaseScale * (1.0f + 1.5f * Since));
+		Base->SetVisibility(Since < 0.1f);
+		SetActorRotation(FRotator(0.0f, GetActorRotation().Yaw, 0.0f));
+		// the lid flies off, tumbling, and is gone when it lands
+		if (bHasPart && Top->IsVisible())
+		{
+			LidVelocity.Z -= 980.0f * DeltaSeconds;
+			Top->SetWorldLocation(Top->GetComponentLocation() + LidVelocity * DeltaSeconds);
+			Top->AddLocalRotation(FRotator(LidSpin * DeltaSeconds, 0.0f, LidSpin * 0.6f * DeltaSeconds));
+			Top->SetVisibility(Top->GetComponentLocation().Z > LaidZ);
+		}
+		// the pool spreads in a third of a second, heaves while it eats, and shrinks away in its last second
+		const float Left = PoolUntil - Now;
+		const float Spread = FMath::SmoothStep(0.0f, 0.35f, Since) * FMath::Clamp(Left, 0.0f, 1.0f);
+		const float Heave = 1.0f + 0.04f * FMath::Sin(Now * 6.0f);
+		Pool->SetWorldScale3D(FVector(PoolRadius / 50.0f * Spread * Heave, PoolRadius / 50.0f * Spread * (2.0f - Heave), 0.02f));
+		Glow->SetIntensity(6.0f * Spread);
+		break;
+	}
+	case EVaelDeviceType::Douse:
+	{
+		// Drops in from above, squashes on the ground and puffs out
+		const float Fall = FMath::Clamp(Age / DouseFall, 0.0f, 1.0f);
+		const FVector At = GetActorLocation();
+		SetActorLocation(FVector(At.X, At.Y, LaidZ + DouseDrop * (1.0f - Fall * Fall)));
+		AddActorLocalRotation(FRotator(0.0f, 0.0f, 720.0f * DeltaSeconds * (1.0f - Fall)));
+		if (Fall >= 1.0f)
+		{
+			const float Puff = FMath::Clamp((Age - DouseFall) / 0.3f, 0.0f, 1.0f);
+			Base->SetRelativeScale3D(BaseScale * FVector(1.0f + 1.6f * Puff, 1.0f + 1.6f * Puff, FMath::Max(0.6f - 0.6f * Puff, 0.02f)));
+			Base->SetVisibility(Puff < 0.95f);
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
 void AVaelEngineerDevice::BurstAcid()
 {
 	if (Type != EVaelDeviceType::Acid || PoolUntil >= 0.0f)
@@ -541,14 +671,19 @@ void AVaelEngineerDevice::BurstAcid()
 	PoolRadius = AcidPoolRadius * (bWet ? 1.4f : 1.0f);
 	PoolUntil = GetWorld()->GetTimeSeconds() + AcidPoolSeconds;
 	LifeTime = GetWorld()->GetTimeSeconds() - Born + AcidPoolSeconds + 1.0f;
-	// the barrel gone, a flat green pool in its place
-	Base->SetVisibility(false);
-	Top->SetVisibility(true);
-	Top->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")));
-	Top->SetUsingAbsoluteScale(true);
-	Top->SetWorldScale3D(FVector(PoolRadius / 50.0f, PoolRadius / 50.0f, 0.02f));
-	Top->SetRelativeLocation(FVector(0.0f, 0.0f, 2.0f));
-	Top->SetVectorParameterValueOnMaterials(TEXT("Color"), FVector(0.45f, 0.75f, 0.15f));
+	// the barrel bursts (Animate swells it, throws the lid off, and spreads the green pool where it stood)
+	BurstAt = GetWorld()->GetTimeSeconds();
+	LidVelocity = FVector(FMath::FRandRange(-120.0f, 120.0f), FMath::FRandRange(-120.0f, 120.0f), 520.0f);
+	LidSpin = FMath::FRandRange(540.0f, 900.0f) * (FMath::RandBool() ? 1.0f : -1.0f);
+	Pool->SetStaticMesh(LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Cylinder.Cylinder")));
+	Pool->SetMaterial(0, LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial")));
+	if (UMaterialInstanceDynamic* Acid = Pool->CreateAndSetMaterialInstanceDynamic(0))
+	{
+		Acid->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.45f, 0.75f, 0.15f));
+	}
+	Pool->SetWorldLocation(FVector(GetActorLocation().X, GetActorLocation().Y, LaidZ + 2.0f));
+	Pool->SetWorldScale3D(FVector(0.01f, 0.01f, 0.02f));
+	Pool->SetVisibility(true);
 	Glow->SetLightColor(FLinearColor(0.5f, 0.9f, 0.2f));
 	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(UVaelMagicSettings::Get()->WaterBoltTrailEffect), GetActorLocation(), FRotator::ZeroRotator,
 		FLinearColor(0.5f, 0.85f, 0.15f), PoolRadius * 0.6f);

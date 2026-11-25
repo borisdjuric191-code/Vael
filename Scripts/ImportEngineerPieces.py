@@ -23,7 +23,8 @@ if __import__("os").environ.get("VAEL_ING_NUR_RUESTUNG"):
     PIECES = [p for p in PIECES if p.startswith("SM_Ing_R_")]
 if __import__("os").environ.get("VAEL_ING_NUR_SCHWARZGLUT"):
     PIECES = SCHWARZGLUT
-FALLEN = ["SM_Ing_Grabmine", "SM_Ing_Rauchtopf", "SM_Ing_Lockpfeife", "SM_Ing_Wurfhaken"]
+FALLEN = ["SM_Ing_Grabmine", "SM_Ing_Rauchtopf", "SM_Ing_Lockpfeife", "SM_Ing_Wurfhaken", "SM_Ing_Glutzapfer", "SM_Ing_Glutzapfer_Duese",
+          "SM_Ing_Saeurefass", "SM_Ing_Saeurefass_Deckel", "SM_Ing_Loeschpulver"]
 PIECES += FALLEN
 if __import__("os").environ.get("VAEL_ING_NUR_FALLEN"):
     PIECES = FALLEN

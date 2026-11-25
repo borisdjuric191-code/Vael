@@ -31,6 +31,10 @@ class AVaelEngineerDevice : public AActor
 	UPROPERTY(VisibleAnywhere, Category="Components")
 	TObjectPtr<UPointLightComponent> Glow;
 
+	/** The acid pool of the Säurefass (a flat disc that spreads and shrinks again) */
+	UPROPERTY(VisibleAnywhere, Category="Components")
+	TObjectPtr<UStaticMeshComponent> Pool;
+
 public:
 
 	AVaelEngineerDevice();
@@ -74,6 +78,17 @@ private:
 	float LaidZ = 0.0f;
 	float PoolUntil = -1.0f;
 	float PoolRadius = 0.0f;
+
+	/** The look moves (25.11.): rising out of the ground, the nozzle turning and kicking back, the barrel rocking, the lid
+	 *  flying off, the pouch falling; called every frame before the work of the device */
+	void Animate(float Now, float DeltaSeconds);
+	float NozzleYaw = 0.0f;
+	float KickAt = -10.0f;
+	float BurstAt = -10.0f;
+	FVector LidVelocity = FVector::ZeroVector;
+	float LidSpin = 0.0f;
+	bool bHasPart = false;
+	FVector BaseScale = FVector::ZeroVector;
 	int32 TapperShots = 0;
 	FVector SmokeDrifted = FVector::ZeroVector;
 	int32 AcidBitten = 0;

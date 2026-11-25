@@ -590,9 +590,111 @@ def build_hook():
     gk.export(obj)
 
 
+
+
+# ---------------------------------------------------------------- Umwelt devices (2026-11-25), also under VAEL_ING_FALLEN
+# Moving parts are pieces of their own so the game can animate them: the nozzle of the Glutzapfer (pivot where it sits on the
+# chimney, +X the way it spits), the lid of the Säurefass (pivot at its middle, it pops off).
+
+def build_tapper():
+    """Glutzapfer: a squat chimney of slag iron on three clawed feet, riveted bands, a glowing grate at the bottom, sinew stays"""
+    obj = gk.new_object("SM_Ing_Glutzapfer", SLOTS)
+    b = gk.Builder()
+    lathe(b, [(0.0, 0.0), (0.2, 0.0), (0.22, 0.06), (0.17, 0.3), (0.13, 0.62), (0.15, 0.66), (0.0, 0.66)], METALL, Vector((0, 0, 0)), sides=14)
+    for z in (0.12, 0.36, 0.58):
+        r = 0.22 - z * 0.14
+        lathe(b, [(r, z - 0.015), (r + 0.015, z), (r, z + 0.015)], MESSING, Vector((0, 0, 0)), sides=14)
+    # glowing grate where it takes the fire in
+    for k in range(4):
+        a = 2 * math.pi * k / 4 + 0.4
+        disc(b, Vector((math.cos(a) * 0.205, math.sin(a) * 0.205, 0.08)), 0.045, Vector((math.cos(a), math.sin(a), 0.1)), GLUT, glow=1.0, sides=8)
+    # three feet like claws gripping the ground
+    for k in range(3):
+        a = 2 * math.pi * k / 3
+        out = Vector((math.cos(a), math.sin(a), 0))
+        b.tube([out * 0.18 + Vector((0, 0, 0.08)), out * 0.3 + Vector((0, 0, 0.04)), out * 0.36 + Vector((0, 0, -0.01))], [0.03, 0.022, 0.01], METALL, sides=6)
+    # sinew stays from the top to the feet
+    for k in range(3):
+        a = 2 * math.pi * k / 3 + math.pi / 3
+        out = Vector((math.cos(a), math.sin(a), 0))
+        b.tube([out * 0.12 + Vector((0, 0, 0.6)), out * 0.26 + Vector((0, 0, 0.25)), out * 0.32 + Vector((0, 0, 0.02))], [0.008, 0.008, 0.008], FADEN, sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_tapper_nozzle():
+    """The nozzle: the Glutkiefer, jaws open forward, glowing inside; sits on the chimney (pivot at its base)"""
+    obj = gk.new_object("SM_Ing_Glutzapfer_Duese", SLOTS)
+    b = gk.Builder()
+    lathe(b, [(0.0, 0.0), (0.14, 0.0), (0.15, 0.05), (0.0, 0.07)], METALL, Vector((0, 0, 0)), sides=14)
+    for side in (-1, 1):
+        pts = [Vector((0.0, 0, 0.06 + side * 0.03)), Vector((0.12, 0, 0.1 + side * 0.07)), Vector((0.26, 0, 0.12 + side * 0.1)), Vector((0.32, 0, 0.11 + side * 0.08))]
+        b.tube(pts, [0.07, 0.06, 0.04, 0.02], METALL, sides=8, flat=0.55, rough=0.1, seed=60 + side)
+        for k in range(1, 4):
+            p = pts[k]
+            lathe(b, [(0.012, 0.0), (0.0, -side * 0.045)], FADEN, p + Vector((0, 0, -side * 0.02)), sides=5)
+    # the glow inside the jaw
+    lathe(b, [(0.0, 0.0), (0.05, 0.02), (0.04, 0.12), (0.0, 0.16)], GLUT, Vector((0.02, 0, 0.12)), sides=8, glow=1.0, axis=Matrix.Rotation(math.pi / 2, 3, "Y"))
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_acid_barrel():
+    """Säurefass: a small bellied barrel of dark wood, sealed with wax, green acid weeping from the seams"""
+    obj = gk.new_object("SM_Ing_Saeurefass", SLOTS)
+    b = gk.Builder()
+    prof = [(0.0, 0.0), (0.15, 0.0), (0.18, 0.08), (0.2, 0.22), (0.18, 0.36), (0.15, 0.44), (0.0, 0.44)]
+    lathe(b, prof, HOLZ, Vector((0, 0, 0)), sides=16)
+    for z in (0.06, 0.38):
+        r = 0.17 + (0.01 if z > 0.2 else 0.0)
+        lathe(b, [(r, z - 0.02), (r + 0.012, z), (r, z + 0.02)], METALL, Vector((0, 0, 0)), sides=16)
+    # wax drips at the top rim and green streaks weeping down
+    for k in range(7):
+        a = 2 * math.pi * k / 7 + 0.3
+        top = Vector((math.cos(a) * 0.15, math.sin(a) * 0.15, 0.44))
+        b.tube([top, top + Vector((math.cos(a) * 0.02, math.sin(a) * 0.02, -0.06))], [0.014, 0.008], LEDER, sides=5)
+    for k in range(5):
+        a = 2 * math.pi * k / 5 + 1.0
+        pts = [Vector((math.cos(a) * r * 1.03, math.sin(a) * r * 1.03, z)) for r, z in ((0.19, 0.3), (0.2, 0.2), (0.185, 0.1))]
+        b.tube(pts, [0.008, 0.01, 0.006], MOOS, sides=4, mask_of=lambda t: 0.8)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_acid_lid():
+    """The lid with its wax seal and bung (pivot at its middle); it pops off when the barrel bursts"""
+    obj = gk.new_object("SM_Ing_Saeurefass_Deckel", SLOTS)
+    b = gk.Builder()
+    lathe(b, [(0.0, 0.0), (0.15, 0.0), (0.15, 0.02), (0.0, 0.025)], HOLZ, Vector((0, 0, 0)), sides=16)
+    lathe(b, [(0.0, 0.02), (0.05, 0.02), (0.045, 0.045), (0.0, 0.05)], LEDER, Vector((0.05, 0.0, 0)), sides=10)
+    disc(b, Vector((0.05, 0.0, 0.051)), 0.03, Vector((0, 0, 1)), GLUT, glow=0.3, sides=10)
+    b.finish(obj)
+    gk.export(obj)
+
+
+def build_douse():
+    """Löschpulver: a pale wax pouch bulging with powder, tied at the neck, a little powder dusting out"""
+    obj = gk.new_object("SM_Ing_Loeschpulver", SLOTS)
+    b = gk.Builder()
+    random.seed(91)
+    sides = 14
+    rows = []
+    for r, z in ((0.001, 0.0), (0.1, 0.02), (0.14, 0.08), (0.13, 0.15), (0.07, 0.2), (0.035, 0.22)):
+        rows.append([Vector((math.cos(2 * math.pi * s / sides) * r * (1 + 0.08 * math.sin(3 * s)), math.sin(2 * math.pi * s / sides) * r * (1 + 0.08 * math.sin(3 * s)), z)) for s in range(sides)])
+    b.grid(rows, FADEN, uv_of=lambda j, i: (i / sides, j / 5), mask_of=lambda j, i: 0.0, closed_u=True)
+    # the tied neck and its tuft
+    ring = [Vector((math.cos(2 * math.pi * s / 10) * 0.04, math.sin(2 * math.pi * s / 10) * 0.04, 0.215)) for s in range(11)]
+    b.tube(ring, [0.009] * 11, LEDER, sides=4)
+    for k in range(6):
+        a = 2 * math.pi * k / 6
+        b.tube([Vector((0, 0, 0.22)), Vector((math.cos(a) * 0.05, math.sin(a) * 0.05, 0.28))], [0.012, 0.004], FADEN, sides=4)
+    b.finish(obj)
+    gk.export(obj)
+
+
 if __name__ == "__main__" and os.environ.get("VAEL_ING_FALLEN"):
     os.makedirs(gk.OUT, exist_ok=True)
-    for build in (build_buried_mine, build_smoke_pot, build_whistle, build_hook):
+    for build in (build_buried_mine, build_smoke_pot, build_whistle, build_hook, build_tapper, build_tapper_nozzle, build_acid_barrel, build_acid_lid, build_douse):
         gk.clear_scene()
         build()
     gk.log("Fallen-Paket des Ingenieurs fertig")
