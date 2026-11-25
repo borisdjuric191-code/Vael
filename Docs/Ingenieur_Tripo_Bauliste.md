@@ -131,3 +131,22 @@ Wenn eine Kreatur dazukommt, eine Zeile in ihrer Region ergänzen:
   - **Blut-Falter (Schatten):** Treffer saugen Leben; Verpuppen platzt als Blutwolke.
   - **Dämmerfalter (Zwielicht, 2 Tau + 2 Blut):** Was die Blutteile saugen, verteilt der Tau an die Gruppe.
 - **Waffen und Munition** gehen genauso: Die Licht- und Schattenladungen aus den Munitionsformeln gibt es schon. Ein Bogenzweig mit Schattenkern (z. B. Natternbogen mit Nidgift) zieht an der Verderbnis.
+
+## Nid-Zugang für alle Klassen (entschieden 25.11.)
+
+- Jede Klasse bekommt den Zugang zu Nid, Licht und Schatten **auf ihre eigene Art**, aber zu einem **ungefähr gleichen Zeitpunkt**. So gibt es im Koop keinen Unterschied, und die Klassen bleiben im Gleichgewicht. Bis zum Schwur sind Licht und Schatten mehr oder weniger frei nutzbar.
+- **Offen:** Beim Magier steht „Nid-Element ab Akt III“, der Schwur liegt am Ende von Akt II. Das muss dazu passen.
+- Der Ingenieur braucht dafür **mehr frühe Verlockungen**.
+
+## Nid-Verlockungen des Ingenieurs aus dem Orden der Narbe (Vorschlag)
+
+Der Orden **versiegelt** das Nid (die Kathedrale über der versiegelten Quelle; die Prediger tragen Ordenssiegel, Ordenstuch, Siegelwachs). Der Ingenieur lernt ihr Handwerk und dreht es um. Das passt zur Lore: Lichtweg = Nid versiegelt, Schattenweg = Nid frei.
+
+| Idee | Woraus | Wirkung | Licht / Schatten |
+|---|---|---|---|
+| **Siegelkapsel** | Ordenssiegel + Siegelwachs + Nidkristall | Nid in einer versiegelten Kapsel als Munitionskern. Jeder Schuss bricht ein Siegel: großer Schaden, wenig Verderbnis. Die erste, frühe Verlockung. | Licht: Kapsel bleibt zu, Nid nur als Hitze. Schatten: offen, mehr Schaden, mehr Verderbnis. |
+| **Narbeneisen** (Brandstempel des Ordens) | Prediger-Waffe/-Gerät + Schlackeneisen | Brennt eine Nidnarbe in eine Vorrichtung oder Waffe: Sie wird stärker, jede Benutzung kostet etwas Verderbnis. Ein Ausbau für alles. | eher Schatten |
+| **Siegelkette** | Ordenstuch + Siegel + Schlackeneisen | Vorrichtung **Bannkreis**: Licht hält Nidwesen (Sichelpuppe, Prediger) fest; Schatten saugt ihr Nid in den Ingenieur (Ladung für Überdruck). | beide |
+| **Weihrauchfass** | Siegelwachs + Pilzsporen + Glockenglut | Räucherwerk als Wolke: Licht schwächt Nidwesen darin, Schatten macht Gegner rasend, sie greifen einander an. | beide |
+| **Überdruck** | Nid aus Bannkreis oder Kapsel | Eine Vorrichtung mit Nid überladen: doppelte Wirkung, aber Verderbnis, und sie kann zerbersten. | Schatten |
+| **Ordensbaupläne** | in der Kathedrale gefunden | frühe Schatten-Rezepte (das Ordenssiegel öffnet schon heute die Schattenseiten im Rezeptbuch) | Schatten |
