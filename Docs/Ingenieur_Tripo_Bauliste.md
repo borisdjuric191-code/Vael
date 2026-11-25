@@ -186,5 +186,11 @@ Der Orden **versiegelt** das Nid (die Kathedrale über der versiegelten Quelle; 
   - **Gier, Kobold-Hort:** Je größer das Verlangen, desto **mehr Materialien** fallen, gegen einen Preis.
   - **Gier, Prediger:** dasselbe mit **Nid**, also mehr Nidkristalle oder ein Gegenstück (Vorschlag: Nidtropfen aus Kills, die Siegelkapsel und Überdruck füllen).
   - **Preis der Gier (entschieden 25.11.):** Kobold: bei großem Verlangen landet Aufgehobenes im Hort und ist erst an der Werkbank nutzbar, im Koop greift er auch nach der Beute der Mitspieler. Prediger: jeder Nidtropfen hebt die Verderbnis ein wenig, bei vollem Verlangen saugt er Nid aus der Umgebung und hebt die Verderbnis der Region.
+  - **Hochmut, Drachenbrut-Satz (entschieden 25.11.):**
+    - **Will** sich mit Stärkeren messen: Nur starke Gegner füttern ihn (Elite, Bosse, mehr Leben als er), kleine Kills kaum. Ein Treffer von schwachen Gegnern ist eine **Kränkung**, das Verlangen steigt.
+    - **Gibt:** Die Drachin erwacht. Kamm und Augen glühen, der Blutdampf-Stoß wird stärker, gesättigt prallt alle paar Sekunden ein Treffer ab (Drachenhaut), mehr Regeneration.
+    - **Preis:** Ein Drache weicht nicht. Ausweichen und Zurückweichen steigern das Verlangen, Heilung und Stärkung von Mitspielern wirken schwächer.
+    - **Übernimmt:** **Herausforderung.** Er brüllt, alle Gegner in der Nähe greifen nur noch ihn an, er kann nicht ausweichen und nicht blocken, bis er einen starken Gegner besiegt hat.
+    - **Lichtweg, Olm:** Demut, Regeneration im Wasser und Stärke durch Rückzug.
   - Im Code bekommt das Verlangen dafür später eine Art „was es will“ (Leben, Beute, Nid) statt nur Kills und Heilung.
 - **Für später (Boris 25.11.):** Aus den **Kobolden** im Eisenschlund lässt sich sicher etwas in die Todsünden einfügen.
