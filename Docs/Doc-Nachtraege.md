@@ -35,3 +35,16 @@ Auch der Ingenieur nutzt jetzt, was um ihn liegt, genau wie der Magier seine Umw
 | **Blendlaterne** | Glockenglut + Rußglas + Schlackeneisen + Glimmauge | Leuchtet 30 s und blitzt alle 3 s: Feinde bis 5,5 m sind geblendet und taumeln. Nachts reicht das Licht 30 % weiter. |
 | **Sturmwarner** | Pfeifensporen + Messingblech + Silberhalm | Ein Pfahl mit Sporenpfeife und Windfahne, steht 1 Minute. Er pfeift bei jedem Feind, der sich bis 12 m nähert, und zeichnet ihn für 4 s. Bei Wind fängt die Fahne ihn und stößt alle 2 s nahe Feinde weg. |
 | **Rollwall** | 2 Rollpanzer + Rollsehne + Schlackeneisen | Rollt als Kugel von dir bis zu 10 m zur Stelle, rempelt Feinde beiseite und schnellt dort zu einer 2,6 m breiten Wand auf, die 10 s im Weg steht. |
+
+## Ingenieur: Rammschild, Fernglas, Sprengmeister-Technik, Verlangen (25.11.2026)
+
+| Stück | Bauplan | Wirkung |
+|---|---|---|
+| **Rammschild** (Vorrichtung) | 3 Rollpanzer, 1 Rollsehne, 2 Schlackeneisen | 3 Reihen Rollerpanzer mit Schlackeneisen-Stacheln, 1,8 m breit, steht 25 s quer, von dir abgewandt. Wer mit mehr als 2,8 m/s dagegen stürmt oder rollt, prallt ab: 22 Schaden, weit zurück, 1,6 s festgehalten (ein Aschenroller liegt danach auf dem Rücken). Wer sich anlehnt, sticht sich (5 Schaden). Idee: Aschenroller beobachten. |
+| **Fernglas** (Werkzeug) | 2 Rußglas, 1 Narbenholz, 1 Messingblech | Das Fernrohr (L3 / F) reicht doppelt so weit (15 m statt 7,5 m), was im Kreis liegt, ist gezeichnet (mehr Schaden). Das Fernglas liegt dabei in seiner Hand. |
+| **Stolperdraht** (Vorrichtung, Kobold-Sprengmeister) | 1 Funkenerz, 1 Drahtsilber, 1 Schlackeneisen (×2) | 4 m Draht quer zu deinem Blick; wer ihn kreuzt, löst dort einen Funkenknall aus (2,2 m, 30 Schaden, Brand). Idee: Sprengmeister bezwingen. |
+| **Funken-, Salz-, Grünspanladung** (Vorrichtung) | je 2 Erz + 1 Kobaltblüte (×3) | Geworfen leuchtet der Boden in der Erzfarbe, nach 1,5 s Knall (2,6 m, 26 Schaden): Funken = Brand, Salz = nass, Grünspan = langsam. Idee: Sprengmeister beobachten. |
+
+- Modelle: `VAEL_ING_NEU=1` (Blender), Import `VAEL_ING_NUR_NEU=1`.
+- **Verlangen** (Grundsystem der Schattensätze): `UVaelCravingComponent` am Spieler mit `FVaelCravingSpec` (Hunger, Durst als Vorlagen). Es wächst im Kampf, mit der Verderbnis schneller. Tode in der Nähe füttern es und heilen. Satt: ×1,2 Schaden. Hungrig (über 75 %): Verderbnis steigt, kein Selbstschaden. Hungrig ab 85 % Verderbnis übernimmt es: schlägt selbst nach dem nächsten Feind, die Rüstung lässt sich nicht ablegen, bis es gefüttert ist. Noch an keinen Satz gebunden (die Schattensätze gibt es noch nicht).
+- Tests: `VaelIngenieur sprengmeister`, `VaelIngenieur verlangen` (alle PASS).

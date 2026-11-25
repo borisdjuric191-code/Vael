@@ -33,6 +33,7 @@
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
 #include "Creatures/VaelAshRoller.h"
+#include "Combat/VaelCravingComponent.h"
 #include "Compendium/VaelCompendiumSettings.h"
 #include "Creatures/VaelCreatureData.h"
 #include "Creatures/VaelEncounterDirector.h"
@@ -2208,6 +2209,88 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			}
 			UE_LOG(LogVael, Display, TEXT("[Gesicht]   bounds %s / %s, comp rel %s"), *Part->Bounds.Origin.ToString(), *Part->Bounds.BoxExtent.ToString(), *Part->GetRelativeTransform().ToString());
 		}
+		return;
+	}
+	// Verlangen of the shadow sets (Todsünden 25.11.): "verlangen" wakes the Hunger with much Nid in him, lets it grow in a fight,
+	// starves it until it takes him over and lashes out, then feeds it with a kill; every step logs [VerlangenTest]
+	if (What == TEXT("verlangen"))
+	{
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		UVaelCravingComponent* Craving = Player->GetCraving();
+		if (Craving == nullptr)
+		{
+			return;
+		}
+		const auto Ground = [this](const FVector& Spot)
+		{
+			FHitResult Hit;
+			return GetWorld()->LineTraceSingleByChannel(Hit, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), ECC_Visibility) ? Hit.ImpactPoint : Spot;
+		};
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation(), 1800.0f))
+		{
+			for (int32 Turn = 0; Turn < 8; ++Turn)
+			{
+				const FVector Spot = Ground(Player->GetActorLocation() + FRotator(0.0f, 45.0f * Turn, 0.0f).Vector() * 3000.0f);
+				if (!AVaelSafeZone::IsSafe(GetWorld(), Spot, 1800.0f) && Player->TeleportTo(Spot + FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight() + 20.0f), Player->GetActorRotation()))
+				{
+					break;
+				}
+			}
+		}
+		UVaelBalanceSubsystem::ChangePlayer(Player, 90.0f - UVaelBalanceSubsystem::GetPlayer(Player), FText::FromString(TEXT("Test")));
+		Craving->SetCraving(VaelCravings::Hunger());
+		const FVector Home = Player->GetActorLocation();
+		AVaelCreature* Near = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Home + Player->GetActorForwardVector() * 220.0f), FRotator::ZeroRotator);
+		AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Home - Player->GetActorForwardVector() * 900.0f), FRotator::ZeroRotator);
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer = Player;
+		TWeakObjectPtr<AVaelCreature> WeakNear = Near;
+		FTimerHandle Grow;
+		GetWorld()->GetTimerManager().SetTimer(Grow, FTimerDelegate::CreateLambda([this, WeakPlayer, WeakNear]()
+		{
+			AVaelCharacter* P = WeakPlayer.Get();
+			UVaelCravingComponent* C = P != nullptr ? P->GetCraving() : nullptr;
+			if (C == nullptr)
+			{
+				return;
+			}
+			UE_LOG(LogVael, Display, TEXT("[VerlangenTest] grows in the fight: %s (meter %.2f)"), C->GetMeter() > 0.05f ? TEXT("PASS") : TEXT("FAIL"), C->GetMeter());
+			UE_LOG(LogVael, Display, TEXT("[VerlangenTest] fed it hits harder: %s (x%.2f)"), C->GetDamageScale() > 1.0f ? TEXT("PASS") : TEXT("FAIL"), C->GetDamageScale());
+			const float Before = UVaelBalanceSubsystem::GetPlayer(P);
+			C->SetMeter(1.0f);
+			FTimerHandle Starve;
+			GetWorld()->GetTimerManager().SetTimer(Starve, FTimerDelegate::CreateLambda([this, WeakPlayer, WeakNear, Before]()
+			{
+				AVaelCharacter* P2 = WeakPlayer.Get();
+				UVaelCravingComponent* C2 = P2 != nullptr ? P2->GetCraving() : nullptr;
+				if (C2 == nullptr)
+				{
+					return;
+				}
+				const float After = UVaelBalanceSubsystem::GetPlayer(P2);
+				UE_LOG(LogVael, Display, TEXT("[VerlangenTest] starving raises corruption: %s (%.2f -> %.2f), life %.0f"), After > Before ? TEXT("PASS") : TEXT("FAIL"), Before, After, P2->GetHealth());
+				UE_LOG(LogVael, Display, TEXT("[VerlangenTest] takes him over: %s, won't come off: %s, lashes %d: %s"), C2->IsPossessed() ? TEXT("PASS") : TEXT("FAIL"),
+					!C2->CanTakeOff() ? TEXT("PASS") : TEXT("FAIL"), C2->GetLashes(), C2->GetLashes() > 0 ? TEXT("PASS") : TEXT("FAIL"));
+				// a kill close by feeds it and it lets go
+				if (AVaelCreature* Victim = WeakNear.Get())
+				{
+					FVaelSpellHit Kill;
+					Kill.Damage = 99999.0f;
+					UVaelCombatStatics::ApplySpellHit(P2, Victim, Kill, FVector::ForwardVector);
+				}
+				FTimerHandle Fed;
+				GetWorld()->GetTimerManager().SetTimer(Fed, FTimerDelegate::CreateLambda([WeakPlayer]()
+				{
+					AVaelCharacter* P3 = WeakPlayer.Get();
+					UVaelCravingComponent* C3 = P3 != nullptr ? P3->GetCraving() : nullptr;
+					if (C3 != nullptr)
+					{
+						UE_LOG(LogVael, Display, TEXT("[VerlangenTest] a kill feeds it: %s (feedings %d, meter %.2f), lets go: %s"), C3->GetFeedings() > 0 ? TEXT("PASS") : TEXT("FAIL"),
+							C3->GetFeedings(), C3->GetMeter(), !C3->IsPossessed() ? TEXT("PASS") : TEXT("FAIL"));
+						C3->ClearCraving();
+					}
+				}), 1.0f, false);
+			}), 3.0f, false);
+		}), 3.0f, false);
 		return;
 	}
 	// Rammschild, Fernglas and the Sprengmeister craft (25.11.): "sprengmeister" lays the Rammschild with a roller rolling at it,

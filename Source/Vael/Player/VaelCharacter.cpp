@@ -28,6 +28,7 @@
 #include "Floromant/VaelFairyWingsComponent.h"
 #include "Floromant/VaelFloromantComponent.h"
 #include "Engineer/VaelEngineerComponent.h"
+#include "Combat/VaelCravingComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Items/VaelInventory.h"
 #include "Items/VaelItemSettings.h"
@@ -168,6 +169,7 @@ AVaelCharacter::AVaelCharacter()
 	// Create the seeds and plants and the wings of the Floromant; both rest while the player plays a mage
 	Floromant = CreateDefaultSubobject<UVaelFloromantComponent>(TEXT("Floromant"));
 	Engineer = CreateDefaultSubobject<UVaelEngineerComponent>(TEXT("Engineer"));
+	Craving = CreateDefaultSubobject<UVaelCravingComponent>(TEXT("Craving"));
 
 	Wings = CreateDefaultSubobject<UVaelFairyWingsComponent>(TEXT("Wings"));
 	Wings->SetupAttachment(RootComponent);

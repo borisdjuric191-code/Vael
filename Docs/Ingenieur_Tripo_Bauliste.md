@@ -21,8 +21,8 @@ Arbeitsliste für alle Modelle des Ingenieurs, die noch gebaut werden müssen. S
 | A5 | **Aschenjäger II** (Wirbeltanz) | + Harpyien-Älteste, Silberhalm, Pfeifensporen | Tripo + Blender | Kreatur Harpyien-Älteste | 🟨 |
 | A6 | **Erntewacht-Satz** | Sichelpuppe (Sichelklinge, Puppengarn, Glimmstroh) + 1–2 weitere Wesen | Tripo | Wesen festlegen | ⬜ |
 | A7 | **Glutkronen-Rüstung** (Schwarzglut Stufe II) | Brutkrone, Herz der Glut, Königinnenauge | Tripo + Blender | – | ⬜ |
-| A8 | **Rammschild** | 3 Rollpanzer, Rollsehne, Schlackeneisen | Blender (Roller-Teile) | – | ⬜ |
-| A9 | Werkzeuge: **Fernglas**, Wärmeglas, Aderglas, Königinnenlinse | siehe Ingenieur-Dokument, Abschnitt 5 | Blender, dann prüfen | – | ⬜ |
+| A8 | **Rammschild** | 3 Rollpanzer, Rollsehne, Schlackeneisen | Blender (Roller-Teile) | – | ✅ 25.11. |
+| A9 | Werkzeuge: **Fernglas**, Wärmeglas, Aderglas, Königinnenlinse | siehe Ingenieur-Dokument, Abschnitt 5 | Blender, dann prüfen | – | Fernglas ✅ 25.11., Rest ⬜ |
 | A10 | **Prediger-Satz** (Schatten, Todsünde Gier) | Prediger der Narbe (Ordenstuch, Siegel, Siegelwachs) + ? | Tripo | Orden-Optik ausarbeiten | 🟨 |
 
 ---
@@ -84,7 +84,7 @@ Die Wesen stehen in der Lore (`Docs/Eisenschlund_Erze_Pflanzen_Wesen.md`), als F
 | E3 | **Olm-Satz / Drachenbrut-Satz** (Licht / Schatten) | Drachenbrut (Brut, Jungdrache, Alte Brut) | Licht: bleicher Olm, Regeneration im Wasser. Schatten: glühende Augen, Kiemenkamm wie Hörner, Blutdampf; **Hochmut** (entschieden). Ein Wesen, mehrere Tripo-Modelle für die Verwandlung wie bei der Draculaupe; daraus der Licht- und der Schattenweg. | Tripo + Blender | 🟨 Gegner |
 | E4 | **Wirt-Satz** (Schatten, **Wollust**) | Grabschleim + Maden, Knochen der Gebeinkammer | Der Madenwirt am Spieler: Maden panzern, verlängern Schläge, ballen sich zum Schild, fallen bei schwerem Schaden ab und kriechen auf Gegner zu. Fünf Schleimstämme = fünf Farbvarianten mit Zusatzwirkung. Er lockt Gegner an und kann sich mit der Verderbnis selbst dem Locken kaum entziehen. | Tripo + Blender | 🟨 Gegner |
 | E5 | **Kobold-Hort-Satz** (Schatten, **Gier**, 2. Gier-Satz) | Kobolde (Sprengmeister, Laternenträger, Hortwächter …) | **Boris' Favorit.** Gier = **Materialanhäufung**: Je mehr Material (Kobaltblüte) er im Beutel hortet, desto stärker. Treffer stehlen Beute oder Stärkungen, Ausweichen „Trugbild“ lässt ein Abbild zurück, Preis ist ein Vertrag, dessen Schuld mit der Verderbnis wächst. | Tripo | ⬜ (Kobolde gibt es schon) |
-| E6 | **Sprengmeister-Technik** | Kobold-Sprengmeister | Er ist selbst ein kleiner Ingenieur: Seine Kristallladungen und Fallen werden für den Ingenieur gleich nutzbar (neue Ladungen und Vorrichtungen, Pulver fürs erste Gewehr). | Blender | ⬜ |
+| E6 | **Sprengmeister-Technik** | Kobold-Sprengmeister | Er ist selbst ein kleiner Ingenieur: Seine Kristallladungen und Fallen werden für den Ingenieur gleich nutzbar (neue Ladungen und Vorrichtungen, Pulver fürs erste Gewehr). | Blender | ✅ 25.11. (Stolperdraht, 3 Ladungen) |
 | E7 | **Armbrust / erstes Gewehr** mit Magnet-Baustein | echte Metalle, Sternmaul | Magnet für Haken und Bolzen, Sprengkristall als Pulver | Tripo + Blender | 🟨 E2 |
 
 ## 3. Neues Monster hinzufügen

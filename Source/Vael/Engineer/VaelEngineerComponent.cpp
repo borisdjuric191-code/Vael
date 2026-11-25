@@ -16,6 +16,7 @@
 #include "Player/VaelPoseFollowerAnimInstance.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Compendium/VaelCompendiumSettings.h"
+#include "Combat/VaelCravingComponent.h"
 #include "Engineer/VaelEngineerShot.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "EngineUtils.h"
@@ -2463,7 +2464,10 @@ void UVaelEngineerComponent::ApplyBurst(const FVector& Location, FName ShotAmmo,
 
 float UVaelEngineerComponent::GetDamageScale() const
 {
-	return CountSet(TEXT("Sichelklinge")) >= 2 ? 1.15f : 1.0f;
+	// a fed craving of a shadow set (Todsünden 25.11.) makes him hit harder
+	const AVaelCharacter* Player = Cast<AVaelCharacter>(GetOwner());
+	const UVaelCravingComponent* Craving = Player != nullptr ? Player->GetCraving() : nullptr;
+	return (CountSet(TEXT("Sichelklinge")) >= 2 ? 1.15f : 1.0f) * (Craving != nullptr ? Craving->GetDamageScale() : 1.0f);
 }
 
 bool UVaelEngineerComponent::PiercesAll() const
@@ -2545,6 +2549,13 @@ bool UVaelEngineerComponent::TakeOff(EVaelArmorPlace Place)
 	const int32 Index = static_cast<int32>(Place);
 	if (!Worn.IsValidIndex(Index) || Worn[Index].IsNone())
 	{
+		return false;
+	}
+	// a shadow set whose craving has taken him over does not let go
+	const AVaelCharacter* Wearer = Cast<AVaelCharacter>(GetOwner());
+	if (Place != EVaelArmorPlace::Shield && Wearer != nullptr && Wearer->GetCraving() != nullptr && !Wearer->GetCraving()->CanTakeOff())
+	{
+		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("WontLetGo", "Sie lässt nicht los"));
 		return false;
 	}
 	if (Place == EVaelArmorPlace::Shield)
