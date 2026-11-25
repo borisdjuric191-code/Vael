@@ -181,4 +181,9 @@ Der Orden **versiegelt** das Nid (die Kathedrale über der versiegelten Quelle; 
 | **Völlerei: Trinken** | Blut-Falter (Draculaupe + Blutfalter) | Durst: heilt sich durch Aussaugen, will Feinde ständig aussaugen; je höher die Verderbnis, desto größer der Durst | Idee |
 | Hochmut, Zorn, Neid, Trägheit, Wollust | später, mit neuen Wesen | – | offen |
 
+- **Jede Sünde hat ihr eigenes Verlangen (Boris 25.11.):**
+  - **Völlerei (Hunger, Durst):** Gegner töten, um Leben zu bekommen. So ist es gebaut (`UVaelCravingComponent`).
+  - **Gier, Kobold-Hort:** Je größer das Verlangen, desto **mehr Materialien** fallen, gegen einen Preis.
+  - **Gier, Prediger:** dasselbe mit **Nid**, also mehr Nidkristalle oder ein Gegenstück (Vorschlag: Nidtropfen aus Kills, die Siegelkapsel und Überdruck füllen).
+  - Im Code bekommt das Verlangen dafür später eine Art „was es will“ (Leben, Beute, Nid) statt nur Kills und Heilung.
 - **Für später (Boris 25.11.):** Aus den **Kobolden** im Eisenschlund lässt sich sicher etwas in die Todsünden einfügen.
