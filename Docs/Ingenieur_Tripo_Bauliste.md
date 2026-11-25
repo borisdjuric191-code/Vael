@@ -136,7 +136,7 @@ Wenn eine Kreatur dazukommt, eine Zeile in ihrer Region ergänzen:
 ## Nid-Zugang für alle Klassen (entschieden 25.11.)
 
 - Jede Klasse bekommt den Zugang zu Nid, Licht und Schatten **auf ihre eigene Art**, aber zu einem **ungefähr gleichen Zeitpunkt**. So gibt es im Koop keinen Unterschied, und die Klassen bleiben im Gleichgewicht. Bis zum Schwur sind Licht und Schatten mehr oder weniger frei nutzbar.
-- **Magier (entschieden 25.11.):** Das Nid-Element kommt früher, etwa gleichzeitig mit den anderen Klassen, damit die Spieler ihre Richtung vor dem Schwur vorwählen. Was Akt III bringt, wird mit den Sturmzinnen entschieden Entschieden: Akt III bringt den 4. Zauber-Slot. Offen: ob es Zauberstäbe für Slot 4/5 überhaupt gibt, denn sie würden die Handzeichen verdrängen.
+- **Magier (entschieden 25.11.):** Das Nid-Element kommt früher, etwa gleichzeitig mit den anderen Klassen, damit die Spieler ihre Richtung vor dem Schwur vorwählen. Was Akt III bringt, wird mit den Sturmzinnen entschieden Entschieden: Akt III bringt den 4. Zauber-Slot. Offen: ob es Zauberstäbe für Slot 4/5 überhaupt gibt, denn sie würden die Handzeichen verdrängen. Idee: Statt eines Stabs gibt ein anderes magisches Artefakt den Slot und erweitert die Zauber, sodass der Magier ganz ohne Zauberstab bleibt (offen).
 - Der Ingenieur braucht dafür **mehr frühe Verlockungen**.
 
 ## Nid-Verlockungen des Ingenieurs aus dem Orden der Narbe (Vorschlag)
@@ -166,3 +166,5 @@ Der Orden **versiegelt** das Nid (die Kathedrale über der versiegelten Quelle; 
 | **Völlerei: Essen** | Moder-Satz (Kelchreißer + Moderglocke) | Hunger: Die Mäuler wollen gefüttert werden, bis der Hunger den Träger selbst verzehrt | Idee |
 | **Völlerei: Trinken** | Blut-Falter (Draculaupe + Blutfalter) | Durst: heilt sich durch Aussaugen, will Feinde ständig aussaugen; je höher die Verderbnis, desto größer der Durst | Idee |
 | Hochmut, Zorn, Neid, Trägheit, Wollust | später, mit neuen Wesen | – | offen |
+
+- **Für später (Boris 25.11.):** Aus den **Kobolden** im Eisenschlund lässt sich sicher etwas in die Todsünden einfügen.
