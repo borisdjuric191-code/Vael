@@ -23,6 +23,7 @@ Arbeitsliste für alle Modelle des Ingenieurs, die noch gebaut werden müssen. S
 | A7 | **Glutkronen-Rüstung** (Schwarzglut Stufe II) | Brutkrone, Herz der Glut, Königinnenauge | Tripo + Blender | – | ⬜ |
 | A8 | **Rammschild** | 3 Rollpanzer, Rollsehne, Schlackeneisen | Blender (Roller-Teile) | – | ⬜ |
 | A9 | Werkzeuge: **Fernglas**, Wärmeglas, Aderglas, Königinnenlinse | siehe Ingenieur-Dokument, Abschnitt 5 | Blender, dann prüfen | – | ⬜ |
+| A10 | **Prediger-Satz** (Schatten, Todsünde Gier) | Prediger der Narbe (Ordenstuch, Siegel, Siegelwachs) + ? | Tripo | Orden-Optik ausarbeiten | 🟨 |
 
 ---
 
@@ -135,7 +136,7 @@ Wenn eine Kreatur dazukommt, eine Zeile in ihrer Region ergänzen:
 ## Nid-Zugang für alle Klassen (entschieden 25.11.)
 
 - Jede Klasse bekommt den Zugang zu Nid, Licht und Schatten **auf ihre eigene Art**, aber zu einem **ungefähr gleichen Zeitpunkt**. So gibt es im Koop keinen Unterschied, und die Klassen bleiben im Gleichgewicht. Bis zum Schwur sind Licht und Schatten mehr oder weniger frei nutzbar.
-- **Magier (entschieden 25.11.):** Das Nid-Element kommt früher, etwa gleichzeitig mit den anderen Klassen, damit die Spieler ihre Richtung vor dem Schwur vorwählen. Was Akt III bringt, wird mit den Sturmzinnen entschieden (Idee Boris: der 4. Zauber-Slot für mehr Kombos; heute gibt den 4. Slot der Einhand-Zauberstab, das muss dazu passen).
+- **Magier (entschieden 25.11.):** Das Nid-Element kommt früher, etwa gleichzeitig mit den anderen Klassen, damit die Spieler ihre Richtung vor dem Schwur vorwählen. Was Akt III bringt, wird mit den Sturmzinnen entschieden Entschieden: Akt III bringt den 4. Zauber-Slot. Offen: ob es Zauberstäbe für Slot 4/5 überhaupt gibt, denn sie würden die Handzeichen verdrängen.
 - Der Ingenieur braucht dafür **mehr frühe Verlockungen**.
 
 ## Nid-Verlockungen des Ingenieurs aus dem Orden der Narbe (Vorschlag)
@@ -153,16 +154,15 @@ Der Orden **versiegelt** das Nid (die Kathedrale über der versiegelten Quelle; 
 
 **Zum Orden (25.11.):** Laut Siedlungsplan ist der Orden der Narbe der „Wächter der versiegelten Nid-Quelle“. Boris sieht ihn eher als die, die die Wunde aufreißen wollen. Stimmige Lösung (Vorschlag): Der Orden versiegelt die Quelle nicht zum Schutz der Welt, sondern um das Nid für sich zu horten, bis zum „Erwachen“; die Prediger tragen es in die Welt. Ihre Siegel sind also Behälter, keine Schutzwälle, und genau das kopiert der Ingenieur. Aussehen, Zeichen und Ziele des Ordens sind noch nicht ausgearbeitet.
 
-## Schattensätze und die Todsünden (Idee Boris 25.11.)
+## Schattensätze und die Todsünden (entschieden 25.11.)
 
-Jeder Schattensatz trägt ein **Verlangen**, das mit der Verderbnis wächst und den Träger am Ende verzehrt. Kein Selbstschaden: Der Preis ist die Verderbnis und der Verlust von Kontrolle (bei voller Verderbnis greift die Rüstung selbst an und lässt sich nicht ablegen).
+- **Nur die Nid- bzw. Schattenweg-Rüstungen** tragen ein Todsünden-Zeichen, nicht alle Sätze.
+- **Etwa 2 Sätze pro Sünde**, je nachdem, wie viele wir früher oder später schaffen.
+- Jedes Verlangen wächst mit der Verderbnis und verzehrt den Träger am Ende. Kein Selbstschaden: Der Preis ist die Verderbnis und der Verlust von Kontrolle (Vorschlag: bei voller Verderbnis greift die Rüstung selbst an und lässt sich nicht ablegen).
 
-| Sünde | Satz | Verlangen |
-|---|---|---|
-| **Völlerei** | Moder-Satz (Kelchreißer + Moderglocke) | Hunger: Die Mäuler wollen gefüttert werden, bis der Hunger den Träger selbst verzehrt. |
-| **Gier** | Blut-Falter (Draculaupe + Blutfalter) | Durst: Er heilt sich durch Aussaugen, will Feinde ständig aussaugen; je höher die Verderbnis, desto größer der Durst. |
-| **Neid** | Pfuhl-Satz, Schattenform | Gift gegen Stärkere: stärker gegen Ziele mit mehr Leben als er, Mitspieler mit mehr Beute „neidet“ er (nur Optik/Text?). Wortspiel Nid / Neid. |
-| **Zorn** | Schwarzglut, Schattenform | Wut: Jeder eingesteckte Treffer heizt die Glutrisse auf, bis er nicht mehr blocken will. |
-| **Hochmut** | Glutkronen-Rüstung, Schattenform | Krone: Er will allein kämpfen, stärker ohne Mitspieler in der Nähe. |
-| **Trägheit** | später (ein neues Wesen) | stärker, je länger er still bleibt; kann sich bei voller Verderbnis kaum noch lösen |
-| **Wollust** | später | offen |
+| Sünde | Satz | Verlangen | Status |
+|---|---|---|---|
+| **Gier** (das Nid beanspruchen) | **Prediger-Satz** aus dem Orden der Narbe (Ordenstuch, Siegel, Siegelwachs …), der **erste** Schattensatz, schon in der Aschenmark | will das Nid an sich reißen; Optik offen, hängt am Orden | Idee |
+| **Völlerei: Essen** | Moder-Satz (Kelchreißer + Moderglocke) | Hunger: Die Mäuler wollen gefüttert werden, bis der Hunger den Träger selbst verzehrt | Idee |
+| **Völlerei: Trinken** | Blut-Falter (Draculaupe + Blutfalter) | Durst: heilt sich durch Aussaugen, will Feinde ständig aussaugen; je höher die Verderbnis, desto größer der Durst | Idee |
+| Hochmut, Zorn, Neid, Trägheit, Wollust | später, mit neuen Wesen | – | offen |
