@@ -185,5 +185,6 @@ Der Orden **versiegelt** das Nid (die Kathedrale über der versiegelten Quelle; 
   - **Völlerei (Hunger, Durst):** Gegner töten, um Leben zu bekommen. So ist es gebaut (`UVaelCravingComponent`).
   - **Gier, Kobold-Hort:** Je größer das Verlangen, desto **mehr Materialien** fallen, gegen einen Preis.
   - **Gier, Prediger:** dasselbe mit **Nid**, also mehr Nidkristalle oder ein Gegenstück (Vorschlag: Nidtropfen aus Kills, die Siegelkapsel und Überdruck füllen).
+  - **Preis der Gier (entschieden 25.11.):** Kobold: bei großem Verlangen landet Aufgehobenes im Hort und ist erst an der Werkbank nutzbar, im Koop greift er auch nach der Beute der Mitspieler. Prediger: jeder Nidtropfen hebt die Verderbnis ein wenig, bei vollem Verlangen saugt er Nid aus der Umgebung und hebt die Verderbnis der Region.
   - Im Code bekommt das Verlangen dafür später eine Art „was es will“ (Leben, Beute, Nid) statt nur Kills und Heilung.
 - **Für später (Boris 25.11.):** Aus den **Kobolden** im Eisenschlund lässt sich sicher etwas in die Todsünden einfügen.
