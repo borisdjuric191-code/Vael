@@ -9,6 +9,8 @@ import os
 import unreal
 
 SOURCES = [
+    # 26.11.: the other Tripo sets (Aschenjaeger, Aschenjaeger2, Schwarzglut2 = Glutkrone)
+    ("C:/Projekte/Vael_Quellen/Ingenieur/Ruestung_Bilder", "T_Ruestung_", "/Game/Vael/UI/HUD/Ruestung"),
     ("C:/Projekte/Vael_Quellen/Ingenieur/Ruestung/08_bilder", "T_Ruestung_", "/Game/Vael/UI/HUD/Ruestung"),
     ("C:/Projekte/Vael/Scripts/Data/HUD/Gemalt", "T_HUD_Gemalt_Inventar_Ingenieur", "/Game/Vael/UI/HUD/Gemalt"),
 ]

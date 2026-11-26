@@ -20,7 +20,12 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-RIG = "C:/Projekte/Vael_Quellen/Ingenieur/Ruestung/05_rig/SKM_Ing_GP_{}.fbx"
+# 26.11.: the same pictures for the other Tripo sets: VAEL_BILD_SET (name in the file), VAEL_BILD_RIG (path with {} for the piece),
+# VAEL_BILD_TEX (their one colour texture), VAEL_BILD_GLUT=0 for no glowing cracks
+RIG = os.environ.get("VAEL_BILD_RIG", "C:/Projekte/Vael_Quellen/Ingenieur/Ruestung/05_rig/SKM_Ing_GP_{}.fbx")
+SET_NAME = os.environ.get("VAEL_BILD_SET", "Schwarzglut")
+TEX_ONE = os.environ.get("VAEL_BILD_TEX", "")
+GLUT = os.environ.get("VAEL_BILD_GLUT", "1") != "0"
 TEX = "C:/Projekte/Vael_Quellen/Ingenieur/Ruestung/04_export/Texturen"
 
 # The pieces of the set by EVaelArmorPlace and the rig files they are made of
@@ -84,7 +89,7 @@ def textured(objs):
             if m is None or m.name in done:
                 continue
             done.add(m.name)
-            path = os.path.join(TEX, m.name + ".png")
+            path = TEX_ONE or os.path.join(TEX, m.name + ".png")
             m.use_nodes = True
             nodes = m.node_tree.nodes
             for other in [x for x in nodes if x.type == "TEX_IMAGE"]:
@@ -108,6 +113,8 @@ def textured(objs):
             ramp.inputs["From Min"].default_value = 0.12
             ramp.inputs["From Max"].default_value = 0.4
             m.node_tree.links.new(sub.outputs[0], ramp.inputs["Value"])
+            if not GLUT:
+                continue
             bsdf.inputs["Emission Color"].default_value = (1.0, 0.32, 0.06, 1.0)
             m.node_tree.links.new(ramp.outputs["Result"], bsdf.inputs["Emission Strength"])
 
@@ -176,6 +183,8 @@ def setup_render():
 
 def piece_pictures(folder):
     for name, files in PIECES:
+        if not os.path.exists(RIG.format(files[0])):
+            continue
         reset()
         setup_render()
         objs = load_piece(files)
@@ -196,7 +205,7 @@ def piece_pictures(folder):
         look = VIEWS[name]
         camera(look, centre, size * 1.12, 512, 512)
         lights(centre, size)
-        path = os.path.join(folder, "T_Ruestung_Schwarzglut_{}.png".format(name))
+        path = os.path.join(folder, "T_Ruestung_{}_{}.png".format(SET_NAME, name))
         bpy.context.scene.render.filepath = path
         bpy.ops.render.render(write_still=True)
         log("Teil {}: {}".format(name, path))
@@ -212,7 +221,7 @@ def blueprint(folder):
     for name, files in PIECES:
         if name == "Schild":
             continue
-        made = load_piece(files + (["UnterarmL"] if name == "Arme" else []))
+        made = load_piece(files + (["UnterarmL"] if name == "Arme" and os.path.exists(RIG.format("UnterarmL")) else []))
         objs += made
         lo, hi = bounds(made)
         places[name] = ((lo + hi) / 2, lo, hi)
@@ -286,7 +295,7 @@ def blueprint(folder):
     out = np.dstack([np.clip(rgb, 0, 1), alpha])
     img = bpy.data.images.new("Bauplan", out.shape[1], out.shape[0], alpha=True)
     img.pixels[:] = out.ravel()
-    img.filepath_raw = os.path.join(folder, "T_Ruestung_Schwarzglut_Bauplan.png")
+    img.filepath_raw = os.path.join(folder, "T_Ruestung_{}_Bauplan.png".format(SET_NAME))
     img.file_format = "PNG"
     img.save()
     os.remove(os.path.join(folder, "_bauplan_farbe.png"))

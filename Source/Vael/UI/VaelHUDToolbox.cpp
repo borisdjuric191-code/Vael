@@ -7,6 +7,7 @@
 // the tiles of its places, in the box the pieces he does not wear, to put on and take off like in Diablo.
 
 #include "UI/VaelHUD.h"
+#include "VaelAssets.h"
 #include "Engine/Canvas.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Engineer/VaelEngineerGear.h"
@@ -138,7 +139,25 @@ FLinearColor AVaelHUD::WithAlphaOf(FLinearColor Color, float Alpha)
 UTexture2D* AVaelHUD::GetArmorPicture(const FVaelGear& Piece) const
 {
 	const int32 Index = static_cast<int32>(Piece.Place);
-	return Piece.Set == FName(TEXT("Schwarzglut")) && ArmorPictures.IsValidIndex(Index) ? ArmorPictures[Index].Get() : nullptr;
+	if (Piece.Set == FName(TEXT("Schwarzglut")) && Piece.SetStage == 1 && ArmorPictures.IsValidIndex(Index))
+	{
+		return ArmorPictures[Index].Get();
+	}
+	static const TCHAR* const Names[] = { TEXT("Helm"), TEXT("Brust"), TEXT("Arme"), TEXT("Beine"), TEXT("Schild") };
+	return Index >= 0 && Index < UE_ARRAY_COUNT(Names) ? GetSetPicture(Piece.Set, Piece.SetStage, Names[Index]) : nullptr;
+}
+
+UTexture2D* AVaelHUD::GetSetPicture(FName Set, int32 Stage, const TCHAR* Piece) const
+{
+	// Tools/Ingenieur/vael_glutpanzer_bilder.py with VAEL_BILD_SET, Scripts/ImportRuestungBilder.py
+	const FString Key = FString::Printf(TEXT("%s%s_%s"), *Set.ToString(), Stage >= 2 ? TEXT("2") : TEXT(""), Piece);
+	if (const TObjectPtr<UTexture2D>* Found = SetPictures.Find(Key))
+	{
+		return Found->Get();
+	}
+	UTexture2D* Picture = Cast<UTexture2D>(VaelAssets::LoadOptional(FSoftObjectPath(FString::Printf(TEXT("/Game/Vael/UI/HUD/Ruestung/T_Ruestung_%s.T_Ruestung_%s"), *Key, *Key))));
+	SetPictures.Add(Key, Picture);
+	return Picture;
 }
 
 namespace
@@ -191,10 +210,16 @@ void AVaelHUD::DrawToolboxLid(const AVaelPlayerController* PlayerController, TFu
 	// The Glutzeichnung of the whole armour; it glows a little brighter for each piece he wears
 	const FVector2D DrawTopLeft = At(LidX - BlueprintHeight * BlueprintAspect * 0.5f, BlueprintTop);
 	const FVector2D DrawSize(BlueprintHeight * BlueprintAspect * Unit, BlueprintHeight * Unit);
-	const int32 NumWorn = Engineer->CountSet(TEXT("Schwarzglut")) + (Engineer->HasShield() ? 1 : 0);
-	if (BlueprintPicture != nullptr)
+	// the drawing of the set he wears (26.11.: every Tripo set and stage has its own), the Glutpanzer's when none is worn
+	const FVaelGear* WornChest = VaelEngineerGear::Find(Engineer->GetWorn(EVaelArmorPlace::Chest));
+	const FName DrawnSet = WornChest != nullptr && !WornChest->Set.IsNone() ? WornChest->Set : FName(TEXT("Schwarzglut"));
+	UTexture2D* Drawing = WornChest != nullptr && (DrawnSet != FName(TEXT("Schwarzglut")) || WornChest->SetStage >= 2)
+		? GetSetPicture(DrawnSet, WornChest->SetStage, TEXT("Bauplan")) : BlueprintPicture.Get();
+	Drawing = Drawing != nullptr ? Drawing : BlueprintPicture.Get();
+	const int32 NumWorn = Engineer->CountSet(DrawnSet) + (Engineer->HasShield() ? 1 : 0);
+	if (Drawing != nullptr)
 	{
-		Canvas->K2_DrawTexture(BlueprintPicture, DrawTopLeft, DrawSize, FVector2D::ZeroVector, FVector2D::UnitVector,
+		Canvas->K2_DrawTexture(Drawing, DrawTopLeft, DrawSize, FVector2D::ZeroVector, FVector2D::UnitVector,
 			FLinearColor(1.0f, 1.0f, 1.0f, 0.55f + 0.08f * NumWorn), BLEND_Translucent);
 	}
 

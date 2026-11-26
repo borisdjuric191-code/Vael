@@ -2903,6 +2903,12 @@ void UVaelEngineerComponent::PutTestArmorInToolbox()
 			if (VaelEngineerGear::Find(Id) != nullptr)
 			{
 				Built.Add(Id);
+				// and known, as if its plan and idea were found (Boris 26.11.: everything unlocked for testing)
+				Plans.Add(Id);
+				if (const FVaelEngineerIdea* Idea = VaelEngineerIdeas::FindForGear(Id))
+				{
+					Ideas.Add(Idea->Id);
+				}
 			}
 		}
 	}

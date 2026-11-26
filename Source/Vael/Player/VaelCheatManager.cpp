@@ -2513,6 +2513,27 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}), 1.5f, false);
 		return;
 	}
+	if (What == TEXT("wechsel"))
+	{
+		// 26.11.: everything lies in the toolbox as if unlocked; each set (and stage) is put on in turn from there. [Wechsel]
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		Engineer->ResetToStart();
+		Engineer->PutTestArmorInToolbox();
+		bool bAll = true;
+		for (const TCHAR* Piece : { TEXT("Schwarzglut_1"), TEXT("Aschenjaeger_1"), TEXT("Schwarzglut2_1"), TEXT("Aschenjaeger2_1"), TEXT("Schwarzglut_2") })
+		{
+			const FVaelGear* Gear = VaelEngineerGear::Find(Piece);
+			const bool bKnown = Gear != nullptr && Engineer->KnowsRecipe(*Gear) && Engineer->HasBuilt(Piece);
+			const bool bOn = Engineer->Wear(Piece);
+			const int32 Stage = Gear != nullptr ? Engineer->GetSetStage(Gear->Set) : 0;
+			const bool bOk = bKnown && bOn && Gear != nullptr && Engineer->CountSet(Gear->Set) == 4 && Stage == Gear->SetStage;
+			bAll &= bOk;
+			UE_LOG(LogVael, Display, TEXT("[Wechsel] %s: known %d, put on %d, set %d of 4, stage %d: %s"), Piece, bKnown, bOn, Gear != nullptr ? Engineer->CountSet(Gear->Set) : 0, Stage,
+				bOk ? TEXT("PASS") : TEXT("FAIL"));
+		}
+		UE_LOG(LogVael, Display, TEXT("[Wechsel] pieces in the toolbox %d: %s"), AVaelPlayerController::GetToolboxList(Engineer).Num(), bAll ? TEXT("PASS") : TEXT("FAIL"));
+		return;
+	}
 	if (What == TEXT("glutkrone") || What == TEXT("drehtanz"))
 	{
 		// Stage II (26.11.): "glutkrone" = Brutbuechse (one pellet, then the clutch), a Glutei that seeks the doll, the Glutbad;

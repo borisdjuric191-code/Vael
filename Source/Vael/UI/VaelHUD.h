@@ -423,6 +423,11 @@ private:
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture2D> BlueprintPicture;
 
+	/** 26.11.: the pictures of every Tripo set by "<Set>[2]_<Piece>" (Aschenjaeger, Aschenjaeger2, Schwarzglut2 = Glutkrone), loaded when first shown */
+	UPROPERTY(Transient)
+	mutable TMap<FString, TObjectPtr<UTexture2D>> SetPictures;
+	UTexture2D* GetSetPicture(FName Set, int32 Stage, const TCHAR* Piece) const;
+
 	/** The painted frames of the fields of the bag by rarity (Tools/HUD/vael_hud_gemalt.py, item_frame): iron, steel, gold,
 	 *  black iron with embers, copper; their opening is 0.8 of the picture */
 	UPROPERTY(Transient)
