@@ -662,6 +662,7 @@ private:
 	bool bStingEggSent = false;
 	float StingClock = 0.0f;
 	float NextStingLook = 0.0f;
+	TWeakObjectPtr<class AVaelGlutEgg> StingEgg;
 	void UpdateSting();
 	void TickSting(float DeltaTime);
 	UPROPERTY()

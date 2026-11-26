@@ -80,7 +80,7 @@ AVaelGlutEgg* AVaelGlutEgg::Lay(UVaelEngineerComponent* Engineer, const FVector&
 	if (UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 	{
 		Egg->Body->SetStaticMesh(Mesh);
-		Egg->Body->SetWorldScale3D(FVector(0.32f, 0.32f, 0.42f));
+		Egg->Body->SetWorldScale3D(FVector(0.42f, 0.42f, 0.55f));
 		if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Glas.M_GK_Glas"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 		{
 			UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Base, Egg);
@@ -90,6 +90,14 @@ AVaelGlutEgg* AVaelGlutEgg::Lay(UVaelEngineerComponent* Engineer, const FVector&
 		}
 	}
 	return Egg;
+}
+
+void AVaelGlutEgg::PushInto(const FVector& Ground)
+{
+	bCarried = false;
+	SinkAge = 0.0f;
+	SinkFrom = GetActorLocation();
+	SinkTo = Ground - FVector(0.0f, 0.0f, 35.0f);
 }
 
 void AVaelGlutEgg::SetUnderground(bool bUnder)
@@ -140,6 +148,26 @@ void AVaelGlutEgg::Tick(float DeltaSeconds)
 	if (!Engineer.IsValid() || Age > EggLife)
 	{
 		Destroy();
+		return;
+	}
+	// on the tip of the sting it only glows; pushed into the ground it sinks in, turning, and is gone under the earth
+	if (bCarried)
+	{
+		Glow->SetIntensity(6000.0f);
+		return;
+	}
+	if (SinkAge >= 0.0f)
+	{
+		SinkAge += DeltaSeconds;
+		const float T = FMath::Clamp(SinkAge / 0.3f, 0.0f, 1.0f);
+		SetActorLocation(FMath::Lerp(SinkFrom, SinkTo, FMath::InterpEaseIn(0.0f, 1.0f, T, 2.0f)));
+		SetActorRotation(FRotator(0.0f, SinkAge * 900.0f, 0.0f));
+		if (T >= 1.0f)
+		{
+			SinkAge = -1.0f;
+			SetActorLocation(SinkTo + FVector(0.0f, 0.0f, 20.0f));
+			SetUnderground(true);
+		}
 		return;
 	}
 	// it breathes like the eggs in the queen's chambers

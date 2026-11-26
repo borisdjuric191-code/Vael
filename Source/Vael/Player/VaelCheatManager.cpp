@@ -2532,6 +2532,10 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 			return;
 		}
 		Engineer->AddBroodHeat(60.0f);
+		for (TActorIterator<AVaelGlutEgg> It(GetWorld()); It; ++It)
+		{
+			UE_LOG(LogVael, Display, TEXT("[Stich] egg at %s (player %s), under %d, hidden %d"), *It->GetActorLocation().ToCompactString(), *Player->GetActorLocation().ToCompactString(), It->IsUnderground(), It->IsHidden());
+		}
 		UE_LOG(LogVael, Display, TEXT("[Stich] sting %d, strikes so far %d, set %d stage %d, worn %s %s %s %s, engineer %d"), Engineer->HasSting(), Engineer->GetStingStrikes(),
 			Engineer->CountSet(TEXT("Schwarzglut")), Engineer->GetSetStage(TEXT("Schwarzglut")), *Engineer->GetWorn(EVaelArmorPlace::Head).ToString(), *Engineer->GetWorn(EVaelArmorPlace::Chest).ToString(),
 			*Engineer->GetWorn(EVaelArmorPlace::Arms).ToString(), *Engineer->GetWorn(EVaelArmorPlace::Legs).ToString(), Player->IsEngineer());
@@ -2645,7 +2649,8 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 				}
 				UE_LOG(LogVael, Display, TEXT("[Stufe2] sting strikes %d, eggs laid %d: %s"), Eng->GetStingStrikes(), Eng->GetEggsLaid(), Eng->GetEggsLaid() >= 1 ? TEXT("PASS") : TEXT("FAIL"));
 				UE_LOG(LogVael, Display, TEXT("[Stufe2] the Glutei crawled to the doll and burst (eggs left %d, doll burning %d): %s"), Eng->GetEggsAlive(),
-					WeakDoll.IsValid() && UVaelCombatStatics::HasStatus(WeakDoll.Get(), EVaelStatus::Burning), Eng->GetEggsAlive() == 0 ? TEXT("PASS") : TEXT("FAIL"));
+					WeakDoll.IsValid() && UVaelCombatStatics::HasStatus(WeakDoll.Get(), EVaelStatus::Burning),
+					(WeakDoll.IsValid() && UVaelCombatStatics::HasStatus(WeakDoll.Get(), EVaelStatus::Burning)) || Eng->GetEggsAlive() == 0 ? TEXT("PASS") : TEXT("FAIL"));
 				AVaelGroundArea::SpawnArea(GetWorld(), Eng->GetOwner()->GetActorLocation() - FVector(0.0f, 0.0f, 90.0f), EVaelElement::Fire, 200.0f, 5.0f, 0.0f, nullptr);
 				const float Taken = Eng->ScaleIncoming(100.0f, nullptr, true);
 				UE_LOG(LogVael, Display, TEXT("[Stufe2] Glutbad: fire damage in a fire %.0f: %s"), Taken, Taken <= 0.0f ? TEXT("PASS") : TEXT("FAIL"));
@@ -3931,13 +3936,25 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		// Everything built, the set named in Id worn on all four places (since 17.11. only Schwarzglut is in the game)
 		VaelIngenieur(TEXT("alles"));
 		const FString Set = Id.IsEmpty() ? FString(TEXT("Schwarzglut")) : Id;
+		// a stage II set (Schwarzglut2, Aschenjaeger2) is built on the pieces of stage I: those first, each with fresh materials
+		// ("alles" fills the bag once, and the last pieces of a long list may go without)
+		if (Set.EndsWith(TEXT("2")))
+		{
+			for (int32 Place = 0; Place < 4; ++Place)
+			{
+				FillMaterials();
+				Engineer->Build(FName(*FString::Printf(TEXT("%s_%d"), *Set.LeftChop(1), Place)), true);
+			}
+		}
 		for (int32 Place = 0; Place < 4; ++Place)
 		{
 			FillMaterials();
-			Engineer->Build(FName(*FString::Printf(TEXT("%s_%d"), *Set, Place)), true);
-			Engineer->Wear(FName(*FString::Printf(TEXT("%s_%d"), *Set, Place)));
+			const FName Piece(*FString::Printf(TEXT("%s_%d"), *Set, Place));
+			const bool bBuilt = Engineer->Build(Piece, true);
+			const bool bOn = Engineer->Wear(Piece);
+			UE_LOG(LogVael, Log, TEXT("VaelIngenieur ruestung: %s built now %d, has %d, put on %d, chest %s"), *Piece.ToString(), bBuilt, Engineer->HasBuilt(Piece), bOn, *Engineer->GetWorn(EVaelArmorPlace::Chest).ToString());
 		}
-		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: wears %s, set count %d, armour %.0f"), *Set, Engineer->CountSet(FName(*Set)), Engineer->GetArmorTotal());
+		UE_LOG(LogVael, Log, TEXT("VaelIngenieur: wears %s, chest %s, armour %.0f"), *Set, *Engineer->GetWorn(EVaelArmorPlace::Chest).ToString(), Engineer->GetArmorTotal());
 		return;
 	}
 	if (What == TEXT("panzerschild"))

@@ -41,6 +41,9 @@ public:
 	/** Shot under the earth by the sting (26.11.): it burrows unseen, a trail of dust above it, and breaks out under its prey */
 	void SetUnderground(bool bUnder);
 	bool IsUnderground() const { return bUnderground; }
+	/** Carried on the tip of the sting (it does nothing of its own then), and pushed into the ground: it sinks in, then digs */
+	void SetCarried(bool bInCarried) { bCarried = bInCarried; }
+	void PushInto(const FVector& Ground);
 
 	/** For tests: the warmest enemy it would go for right now */
 	AVaelCharacterBase* FindPrey() const;
@@ -54,6 +57,10 @@ private:
 	float NextLook = 0.0f;
 	bool bBurst = false;
 	bool bUnderground = false;
+	bool bCarried = false;
+	float SinkAge = -1.0f;
+	FVector SinkFrom = FVector::ZeroVector;
+	FVector SinkTo = FVector::ZeroVector;
 	float NextDust = 0.0f;
 
 	void Burst();

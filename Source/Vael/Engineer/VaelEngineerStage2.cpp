@@ -474,7 +474,7 @@ namespace
 	constexpr float StingUp = 0.45f;
 	/** How far the strike swings the root and curls the rest (degrees), and the sway at rest */
 	constexpr float StingStrikeRoot = 95.0f;
-	constexpr float StingStrikeCurl = 18.0f;
+	constexpr float StingStrikeCurl = -16.0f;
 	constexpr float StingSway = 4.0f;
 
 	FTransform RestInMeshOf(const FReferenceSkeleton& Skeleton, int32 Index)
@@ -586,6 +586,19 @@ void UVaelEngineerComponent::TickSting(float DeltaTime)
 		--PendingStrikes;
 		StingStrikeAge = 0.0f;
 		bStingEggSent = false;
+		// the egg comes out at the tip and rides it down (26.11., Boris: "das Ei, das durch den Schwanz in den Boden gebumpt wird")
+		GlutEggs.RemoveAll([](const TWeakObjectPtr<AActor>& Egg) { return !Egg.IsValid(); });
+		StingEgg.Reset();
+		if (GlutEggs.Num() < MaxEggs)
+		{
+			if (AVaelGlutEgg* Egg = AVaelGlutEgg::Lay(this, StingMesh->GetComponentTransform().TransformPosition(StingRest.Last().GetLocation()), EggDamage * GetDamageScale() * GetTierScale()))
+			{
+				Egg->SetCarried(true);
+				StingEgg = Egg;
+				GlutEggs.Add(Egg);
+				++EggsLaid;
+			}
+		}
 	}
 	float Strike = 0.0f;
 	if (StingStrikeAge >= 0.0f)
@@ -613,27 +626,30 @@ void UVaelEngineerComponent::TickSting(float DeltaTime)
 	{
 		StingMesh->SetBoneTransformByName(*FString::Printf(TEXT("Stachel_%d"), Bone), Pose[Bone], EBoneSpaces::ComponentSpace);
 	}
+	// the egg rides the tip of the sting on its way down
+	if (AVaelGlutEgg* Riding = StingEgg.Get(); Riding != nullptr && !bStingEggSent)
+	{
+		// at the very tip: the last link carried on by its own length
+		const FVector TipLocal = Pose.Last().GetLocation() * 2.0f - Pose[StingBones - 2].GetLocation();
+		Riding->SetActorLocation(StingMesh->GetComponentTransform().TransformPosition(TipLocal));
+	}
 	// in the ground: a Glutei is shot under the earth where the tip went in
 	if (StingStrikeAge >= StingDown && !bStingEggSent)
 	{
 		bStingEggSent = true;
 		++StingStrikes;
-		const FVector Tip = StingMesh->GetComponentTransform().TransformPosition(Pose.Last().GetLocation());
+		const FVector Tip = StingMesh->GetComponentTransform().TransformPosition(Pose.Last().GetLocation() * 2.0f - Pose[StingBones - 2].GetLocation());
 		FHitResult Hit;
 		const bool bGround = GetWorld()->LineTraceSingleByChannel(Hit, Tip + FVector(0.0f, 0.0f, 150.0f), Tip - FVector(0.0f, 0.0f, 400.0f), ECC_Visibility);
 		const FVector Spot = bGround ? Hit.ImpactPoint : Tip;
 		const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
 		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->DustBurstEffect), Spot, FRotator::ZeroRotator, FLinearColor(0.9f, 0.4f, 0.1f), 110.0f);
-		GlutEggs.RemoveAll([](const TWeakObjectPtr<AActor>& Egg) { return !Egg.IsValid(); });
-		if (GlutEggs.Num() < MaxEggs)
+		// the tip is in: it pushes the egg into the earth
+		if (AVaelGlutEgg* Riding = StingEgg.Get())
 		{
-			if (AVaelGlutEgg* Egg = AVaelGlutEgg::Lay(this, Spot, EggDamage * GetDamageScale() * GetTierScale()))
-			{
-				Egg->SetUnderground(true);
-				GlutEggs.Add(Egg);
-				++EggsLaid;
-			}
+			Riding->PushInto(Spot);
 		}
+		StingEgg.Reset();
 	}
 }
 #undef LOCTEXT_NAMESPACE
