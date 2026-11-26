@@ -274,6 +274,11 @@ public:
 	UFUNCTION(Exec)
 	void VaelKobold(const FString& Rolle = TEXT("Dieb"), int32 Count = 1, bool bBeute = false);
 
+	/** Spawns Schürfameisen 6 m in front of the player: ore of the colony (Rosteisen, Salzspat, Kernerz …), how many,
+	 *  1 = Ahnenpanzer (old, elite, big crystals), 1 = enslaved by the Kobolde (attacks; free ants only fight back) */
+	UFUNCTION(Exec)
+	void VaelAmeise(const FString& Erz = TEXT("Salzspat"), int32 Count = 3, bool bAhnenpanzer = false, bool bVersklavt = false);
+
 	/** Makes every Distelspinne swell and burst into its swarm right now, to see the burst */
 	UFUNCTION(Exec)
 	void VaelDistelPlatzen();

@@ -103,6 +103,7 @@
 #include "Magic/VaelGameplayTags.h"
 #include "Creatures/VaelSchleimgaenger.h"
 #include "Creatures/VaelKobold.h"
+#include "Creatures/VaelSchuerfameise.h"
 #include "Items/VaelChest.h"
 #include "Engineer/VaelDoubleSickle.h"
 #include "Engineer/VaelEngineerStage2Actors.h"
@@ -4685,4 +4686,32 @@ void UVaelCheatManager::VaelKobold(const FString& Rolle, int32 Count, bool bBeut
 		}
 	}
 	UE_LOG(LogVael, Log, TEXT("VaelKobold: %d x %s"), Spawned, *Rolle);
+}
+
+void UVaelCheatManager::VaelAmeise(const FString& Erz, int32 Count, bool bAhnenpanzer, bool bVersklavt)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (PlayerPawn == nullptr)
+	{
+		return;
+	}
+	const FVector Center = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector().GetSafeNormal2D() * 600.0f;
+	int32 Spawned = 0;
+	for (int32 Index = 0; Index < FMath::Max(Count, 1); ++Index)
+	{
+		FVector Ground;
+		if (!AVaelCreature::FindGround(GetWorld(), Center + FVector(FMath::FRandRange(-250.0f, 250.0f), FMath::FRandRange(-250.0f, 250.0f), 300.0f), Ground))
+		{
+			continue;
+		}
+		AVaelSchuerfameise* Ant = Cast<AVaelSchuerfameise>(AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSchuerfameiseData>(), Ground,
+			(PlayerPawn->GetActorLocation() - Ground).GetSafeNormal2D().Rotation()));
+		if (Ant != nullptr)
+		{
+			Ant->SetupAnt(FName(*Erz), bAhnenpanzer, bVersklavt);
+			++Spawned;
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelAmeise: %d x %s%s%s"), Spawned, *Erz, bAhnenpanzer ? TEXT(" Ahnenpanzer") : TEXT(""), bVersklavt ? TEXT(" versklavt") : TEXT(""));
 }

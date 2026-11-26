@@ -56,7 +56,7 @@ namespace
 	constexpr int32 TornadoStacks = 8;
 	constexpr float WhirlRing = 130.0f;
 	constexpr float WhirlCutEvery = 0.35f;
-	constexpr float WhirlDamage = 8.0f;
+	constexpr float Stage2WhirlDamage = 8.0f;
 	constexpr float TornadoRadius = 380.0f;
 	constexpr float TornadoPull = 220.0f;
 	constexpr float DevilEvery = 0.8f;
@@ -397,7 +397,7 @@ void UVaelEngineerComponent::TickWhirl(float DeltaTime)
 		if (bCut)
 		{
 			++WhirlCuts;
-			ApplyHit(Enemy, Enemy->GetActorLocation(), WhirlDamage * GetDamageScale() * GetTierScale() * (1.0f + 0.05f * WhirlStacks), VaelEngineerGear::Standard, Here, NAME_None);
+			ApplyHit(Enemy, Enemy->GetActorLocation(), Stage2WhirlDamage * GetDamageScale() * GetTierScale() * (1.0f + 0.05f * WhirlStacks), VaelEngineerGear::Standard, Here, NAME_None);
 		}
 	}
 }

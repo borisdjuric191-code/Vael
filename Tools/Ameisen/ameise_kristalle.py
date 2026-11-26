@@ -253,7 +253,28 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 ameise()
 with open(MULDEN, encoding="utf-8") as f:
     mulden = json.load(f)["mulden"]
-if MODUS == "spitze":
+if MODUS == "export":
+    # Kristallstücke für Unreal: jede Spitze/jedes Stück als eigenes FBX (Fuß bei 0, Achse +Z, Maßstab: Erz = 1 m),
+    # dazu Breite und Länge je Stück für die Platzierung im Spiel
+    quelle, vorlagen = spitzen()
+    bpy.data.objects.remove(quelle)
+    os.makedirs(OUT, exist_ok=True)
+    info = []
+    for k, (o, b, l) in enumerate(vorlagen):
+        name = "SM_AK_{}_{}".format(ERZ, k)
+        o.name = o.data.name = name
+        bpy.ops.object.select_all(action="DESELECT")
+        o.select_set(True)
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.export_scene.fbx(filepath=os.path.join(OUT, name + ".fbx"), use_selection=True, object_types={"MESH"},
+                                 apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL", bake_anim=False,
+                                 mesh_smooth_type="FACE", path_mode="STRIP")
+        info.append({"name": name, "breite": b, "laenge": l})
+    with open(os.path.join(OUT, "SM_AK_{}.json".format(ERZ)), "w", encoding="utf-8") as f:
+        json.dump(info, f, indent=1)
+    print("EXPORT", ERZ, len(info))
+    sys.exit(0)
+elif MODUS == "spitze":
     quelle, vorlagen = spitzen()
     bpy.data.objects.remove(quelle)
     rnd = random.Random(SAAT)
@@ -270,11 +291,26 @@ if MODUS == "spitze":
         ziel = (tiefe + r * (2.4 + alter * 1.8)) * rnd.uniform(0.85, 1.2)   # wie weit sie herausragt
         streck = 2.4 if l / b > 1.2 else 1.5           # Brocken (Würfel, Trauben) nur leicht strecken
         s_z = s_xy * min(streck, max(1.0, ziel / lang))       # lang gestreckt, nie gestaucht
-        k = o.copy()
-        bpy.context.scene.collection.objects.link(k)
-        dreh = n.to_track_quat("Z", "Y") @ Quaternion((0, 0, 1), rnd.uniform(0, 2 * math.pi))
-        neig = Quaternion(n.orthogonal().normalized(), math.radians(rnd.uniform(-8, 8)))
-        k.matrix_world = Matrix.Translation(p - n * r * 0.12) @ (neig @ dreh).to_matrix().to_4x4() @             Matrix.Diagonal((s_xy, s_xy, s_z, 1))
+        stellen = [(p - n * r * 0.12, n, s_xy, s_z)]
+        if alter > 0.2:
+            # Ahnenpanzer: aus dem Rand der Fassung wachsen zusätzlich Nebenspitzen schräg nach außen, der Panzer
+            # wirkt dadurch dichter und gezackter
+            t1 = n.orthogonal().normalized()
+            t2 = n.cross(t1)
+            start = rnd.uniform(0, 2 * math.pi)
+            zahl = 2 if r < 0.02 else 3
+            for i in range(zahl):
+                a = start + 2 * math.pi * i / zahl + rnd.uniform(-0.4, 0.4)
+                e = t1 * math.cos(a) + t2 * math.sin(a)
+                rich = (n + e * math.tan(math.radians(rnd.uniform(25, 40)))).normalized()
+                f = rnd.uniform(0.45, 0.6)
+                stellen.append((p + e * r * 0.7, rich, s_xy * f, s_z * f * rnd.uniform(0.9, 1.2)))
+        for ort, rich, sx, sz in stellen:
+            k = o.copy()
+            bpy.context.scene.collection.objects.link(k)
+            dreh = rich.to_track_quat("Z", "Y") @ Quaternion((0, 0, 1), rnd.uniform(0, 2 * math.pi))
+            neig = Quaternion(rich.orthogonal().normalized(), math.radians(rnd.uniform(-8, 8)))
+            k.matrix_world = Matrix.Translation(ort) @ (neig @ dreh).to_matrix().to_4x4() @ Matrix.Diagonal((sx, sx, sz, 1))
     for o, b, l in vorlagen:
         bpy.data.objects.remove(o)
     print("KRISTALLE", anzahl, "von", len(mulden))
