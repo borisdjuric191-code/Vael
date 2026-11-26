@@ -614,20 +614,20 @@ namespace
 	{
 		return {
 			{ TEXT("Rollpanzer"), LOCTEXT("SetNameRollpanzer", "Panzer-Satz (Rollpanzer)"),
-				LOCTEXT("Roll2", "2 Teile: 10 % weniger Schaden"), LOCTEXT("Roll4", "4 Teile: nach dem Ausweichen eine Sekunde lang wie ein eingerollter Käfer, 60 % weniger Schaden") },
+				LOCTEXT("Roll2", "Ganzer Satz: 10 % weniger Schaden"), LOCTEXT("Roll4", "Nach dem Ausweichen eine Sekunde lang wie ein eingerollter Käfer, 60 % weniger Schaden") },
 			{ TEXT("Sichelklinge"), LOCTEXT("SetNameSichel", "Sichel-Satz (Sichelklinge)"),
-				LOCTEXT("Sichel2", "2 Teile: 15 % mehr Schaden"), LOCTEXT("Sichel4", "4 Teile: jeder Schuss geht durch das erste Ziel hindurch") },
+				LOCTEXT("Sichel2", "Ganzer Satz: 15 % mehr Schaden"), LOCTEXT("Sichel4", "Jeder Schuss geht durch das erste Ziel hindurch") },
 			{ TEXT("Russfeder"), LOCTEXT("SetNameRuss", "Ruß-Satz (Rußfeder)"),
-				LOCTEXT("Russ2", "2 Teile: 10 % schneller zu Fuß"), LOCTEXT("Russ4", "4 Teile: 20 % schneller nachladen") },
+				LOCTEXT("Russ2", "Ganzer Satz: 10 % schneller zu Fuß"), LOCTEXT("Russ4", "Dazu 20 % schneller nachladen") },
 			{ TEXT("Blutschuppen"), LOCTEXT("SetNameBlut", "Blutschuppen-Satz"),
-				LOCTEXT("Blut2", "2 Teile: 2 % des Schadens kommen als Leben zurück"), LOCTEXT("Blut4", "4 Teile: 6 % des Schadens kommen als Leben zurück") },
+				LOCTEXT("Blut2", "Ganzer Satz: 6 % des Schadens kommen als Leben zurück"), LOCTEXT("Blut4", "Jeder Treffer nährt ihn") },
 			{ TEXT("Schwarzglut"), LOCTEXT("SetNameSchwarzglut", "Schwarzglut-Rüstung (Glutkriecher und Aschenroller)"),
-				LOCTEXT("Schwarzglut2", "2 Teile: 10 % weniger Schaden, 15 % weniger Feuerschaden. Schwer: jedes Rüstungsteil macht 3 % langsamer"),
-				LOCTEXT("Schwarzglut4", "4 Teile: Ausweichen rollt ihn zur Panzerkugel ein; gehalten rollt sie bis zu 3 Sekunden weiter, lenkbar und bergab schneller. Eingerollt 60 % weniger Schaden, wer ihn trifft, fängt Feuer; Gegner im Weg fliegen brennend beiseite. Gegen eine Wand: kurz benommen"),
+				LOCTEXT("Schwarzglut2", "Ganzer Satz: 10 % weniger Schaden, 15 % weniger Feuerschaden. Schwer: 12 % langsamer"),
+				LOCTEXT("Schwarzglut4", "Ausweichen rollt ihn zur Panzerkugel ein; gehalten rollt sie bis zu 3 Sekunden weiter, lenkbar und bergab schneller. Eingerollt 60 % weniger Schaden, wer ihn trifft, fängt Feuer; Gegner im Weg fliegen brennend beiseite. Gegen eine Wand: kurz benommen"),
 				LOCTEXT("SchwarzglutSchild", "Mit Klappschild: ein Block im rechten Augenblick wirft den Angreifer zurück und setzt ihn in Brand") },
 			{ TEXT("Aschenjaeger"), LOCTEXT("SetNameAschenjaeger", "Aschenjäger (Sichelpuppe, Aschharpyie und Schleieraffe)"),
-				LOCTEXT("Aschenjaeger2", "2 Teile: 10 % schneller zu Fuß"),
-				LOCTEXT("Aschenjaeger4", "4 Teile: die Doppelsichel ersetzt die Schleuder und kehrt immer zurück. Antippen wirft gerade, Halten im Bogen um den Zielpunkt; sie schneidet auf Hin- und Rückweg. Kurz vor der Rückkehr gedrückt fängt er sie, der nächste Wurf ist 30 % schneller und härter. Eine Ladung in der Hand wird auf die Klingen gestrichen statt verschossen; durch Feuer, Rauch oder Säure geflogen, nehmen die blanken Klingen es mit, und streifen sie eine Mine oder ein Säurefass, geht es los. Rauchschritt statt Ausweichrolle: Rauch, wo er absprang und landet, Gegner nahebei taumeln kurz, der erste Treffer aus dem Rauch ist kritisch") },
+				LOCTEXT("Aschenjaeger2", "Ganzer Satz: 10 % schneller zu Fuß"),
+				LOCTEXT("Aschenjaeger4", "Die Doppelsichel ersetzt die Schleuder und kehrt immer zurück. Antippen wirft gerade, Halten im Bogen um den Zielpunkt; sie schneidet auf Hin- und Rückweg. Kurz vor der Rückkehr gedrückt fängt er sie, der nächste Wurf ist 30 % schneller und härter. Eine Ladung in der Hand wird auf die Klingen gestrichen statt verschossen; durch Feuer, Rauch oder Säure geflogen, nehmen die blanken Klingen es mit, und streifen sie eine Mine oder ein Säurefass, geht es los. Rauchschritt statt Ausweichrolle: Rauch, wo er absprang und landet, Gegner nahebei taumeln kurz, der erste Treffer aus dem Rauch ist kritisch") },
 		};
 	}
 }

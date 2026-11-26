@@ -511,7 +511,7 @@ Boris' Idee, nur festgehalten: Ein zweiter, leichter Satz als Gegenstück zur sc
 - Fangen: Die Angriffstaste höchstens 0,3 s vor der Ankunft gedrückt, dann „Gefangen!“, und der nächste Wurf ist 30 % schneller und härter. Das HUD zeigt „Doppelsichel · gefangen“.
 - **Rauchschritt** (26.11.): Ausweichen im ganzen Satz lässt Rauch, wo er absprang und landet (3,8 m), Gegner darin taumeln 1,5 s, der erste Treffer innerhalb von 3 s ist kritisch („Aus dem Rauch!“). Die Sichel zählt wie die Schleuder (Schwachstellen, Krit).
 - **Ausbau (26.11.):** Eine gewählte Ladung wird auf die Klingen gestrichen statt verschossen (eine pro Wurf, jeder Schnitt trägt ihre Wirkung). Blanke Klingen nehmen im Flug auf: Feuer am Boden → brennend (Glutladung), Rauch von Rauchladung oder Rauchschritt → Rauchspur (Rauchladung), Säurefass-Pfütze → ätzend (Säureladung). Streift sie eine eigene Mine oder ein Säurefass, geht es los, mit der Wirkung der Klingen.
-- Tests: `VaelIngenieur sichel`, `sichelumwelt`, `rauchschritt` (alles PASS). Noch offen: „nur ganz tragbar“, Stufe II Wirbeltanz (braucht das Tripo-Modell A5).
+- **Nur ganz (26.11., Boris):** Ein Satz wird Teil für Teil entdeckt und gebaut, aber nur ganz angezogen (halb sieht es nicht gut aus); jeder Bonus gilt nur mit dem vollen Satz (für alle Sätze, Texte jetzt „Ganzer Satz: …“). Die Aschenjäger-Teile kommen als Einfälle von den drei Wesen: Kapuze = Schleieraffe erforscht, Wams = Sichelpuppe beobachtet, Armwicklungen = Aschharpyie bezwungen, Beinwicklungen = Aschharpyie erforscht.- Tests: `VaelIngenieur sichel`, `sichelumwelt`, `rauchschritt`, `satz` (alles PASS). Noch offen: Stufe II Wirbeltanz (braucht das Tripo-Modell A5).
 
 ## 7. Was in der Aschenmark fehlt (und wie ich es löse)
 

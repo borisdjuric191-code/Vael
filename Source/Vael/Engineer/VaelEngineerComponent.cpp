@@ -2711,7 +2711,7 @@ float UVaelEngineerComponent::GetDamageScale() const
 	// a fed craving of a shadow set (Todsünden 25.11.) makes him hit harder
 	const AVaelCharacter* Player = Cast<AVaelCharacter>(GetOwner());
 	const UVaelCravingComponent* Craving = Player != nullptr ? Player->GetCraving() : nullptr;
-	return (CountSet(TEXT("Sichelklinge")) >= 2 ? 1.15f : 1.0f) * (Craving != nullptr ? Craving->GetDamageScale() : 1.0f);
+	return (CountSet(TEXT("Sichelklinge")) >= 4 ? 1.15f : 1.0f) * (Craving != nullptr ? Craving->GetDamageScale() : 1.0f);
 }
 
 bool UVaelEngineerComponent::PiercesAll() const
@@ -3051,11 +3051,12 @@ float UVaelEngineerComponent::ScaleIncoming(float Damage, AActor* From, bool bFi
 {
 	float Scale = 1.0f - FMath::Clamp(GetArmorTotal(), 0.0f, 60.0f) / 100.0f;
 	const int32 Black = CountSet(TEXT("Schwarzglut"));
-	if (CountSet(TEXT("Rollpanzer")) >= 2 || Black >= 2)
+	// set bonuses only with the whole set (Boris 26.11.: sets are worn whole, pieces are found and built one by one)
+	if (CountSet(TEXT("Rollpanzer")) >= 4 || Black >= 4)
 	{
 		Scale *= 0.9f;
 	}
-	if (Black >= 2 && bFire)
+	if (Black >= 4 && bFire)
 	{
 		Scale *= 0.85f;
 	}
@@ -3108,9 +3109,9 @@ float UVaelEngineerComponent::ScaleIncoming(float Damage, AActor* From, bool bFi
 void UVaelEngineerComponent::OnDamageDealt(float Damage)
 {
 	const int32 Blood = CountSet(TEXT("Blutschuppen"));
-	if (Blood >= 2 && Damage > 0.0f)
+	if (Blood >= 4 && Damage > 0.0f)
 	{
-		UVaelCombatStatics::Heal(GetOwner(), Damage * (Blood >= 4 ? 0.06f : 0.02f));
+		UVaelCombatStatics::Heal(GetOwner(), Damage * 0.06f);
 	}
 }
 
@@ -3166,8 +3167,8 @@ float UVaelEngineerComponent::GetMoveSpeedScale() const
 		const FVaelGear* Gear = VaelEngineerGear::Find(Id);
 		Heavy += Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")) && Gear->Place != EVaelArmorPlace::Shield ? 1 : 0;
 	}
-	// the light Aschenjaeger: 10 % faster from two pieces on
-	const bool bLight = CountSet(TEXT("Russfeder")) >= 2 || CountSet(TEXT("Aschenjaeger")) >= 2;
+	// the light Aschenjaeger: 10 % faster, the whole set worn
+	const bool bLight = CountSet(TEXT("Russfeder")) >= 4 || CountSet(TEXT("Aschenjaeger")) >= 4;
 	return (bLight ? 1.1f : 1.0f) * (1.0f - 0.03f * Heavy) * (bShieldRaised ? 0.55f : 1.0f);
 }
 

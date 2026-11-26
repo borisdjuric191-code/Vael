@@ -3126,6 +3126,29 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		const int32 Again = Worn();
 		UE_LOG(LogVael, Display, TEXT("[SatzTest] %s: fourth piece puts on %d, shield %d, one off takes %d left, shield stays %d, wear one puts on %d"),
 			bOk && AllOn == 4 && bShield && AfterOff == 0 && bShieldStays && Again == 4 ? TEXT("PASS") : TEXT("FAIL"), AllOn, bShield, AfterOff, bShieldStays, Again);
+
+		// 26.11.: the Aschenjaeger too, its pieces found one by one at its creatures, its bonus only with the whole set
+		Engineer->ResetToStart();
+		FillMaterials();
+		const FVaelGear* Hood = VaelEngineerGear::Find(TEXT("Aschenjaeger_0"));
+		const bool bLocked = Hood != nullptr && !Engineer->KnowsRecipe(*Hood);
+		Engineer->LearnAllPlans();
+		bool bPartsOff = true;
+		for (int32 Place = 0; Place < 3; ++Place)
+		{
+			FillMaterials();
+			const FName Id(*FString::Printf(TEXT("Aschenjaeger_%d"), Place));
+			Engineer->Build(Id, true);
+			bPartsOff &= !Engineer->Wear(Id) && Worn() == 0;
+		}
+		const float SpeedPart = Engineer->GetMoveSpeedScale();
+		FillMaterials();
+		Engineer->Build(TEXT("Aschenjaeger_3"), true);
+		Engineer->Wear(TEXT("Aschenjaeger_3"));
+		const float SpeedWhole = Engineer->GetMoveSpeedScale();
+		UE_LOG(LogVael, Display, TEXT("[SatzTest] Aschenjaeger %s: hood locked before its idea %d, three pieces not worn %d (speed %.2f), whole set worn %d (speed %.2f)"),
+			bLocked && bPartsOff && FMath::IsNearlyEqual(SpeedPart, 1.0f) && Worn() == 4 && FMath::IsNearlyEqual(SpeedWhole, 1.1f) ? TEXT("PASS") : TEXT("FAIL"),
+			bLocked, bPartsOff, SpeedPart, Worn(), SpeedWhole);
 		return;
 	}
 	// Fallen-Paket (25.11.): "fallen" builds Grabmine, Rauchtopf, Lockpfeife and Wurfhaken, lays a Grabmine, whistles three

@@ -79,6 +79,23 @@ const TArray<FVaelEngineerIdea>& VaelEngineerIdeas::GetAll()
 		LOCTEXT("SichelpanzerTitle", "Klingen nach außen"),
 		LOCTEXT("SichelpanzerThought", "Die Puppe ist eine Garbe voller Sicheln. Wer mich packt, schneidet sich: Sichelspitzen auf Kokonseide, die Klingen nach außen."),
 		LOCTEXT("SichelpanzerHint", "Etwas steht auf den Feldern wie eine Garbe und erntet, was ihm zu nahe kommt.")));
+	// The Aschenjaeger (26.11., Boris: "Teil für Teil zum Entdecken und Bauen"): each of its three creatures gives a piece of it
+	All.Add(MakeIdea(TEXT("Schleierkapuze"), TEXT("Schleieraffe"), S::Researched, { TEXT("Aschenjaeger_0") },
+		LOCTEXT("SchleierkapuzeTitle", "Ein Schleier vor den Augen"),
+		LOCTEXT("SchleierkapuzeThought", "Der Affe sieht durch seinen Schleier, ich sehe ihn nicht. Eine Kapuze aus seinem Pelz, die Glimmaugen als Gläser: im Rauch bin ich der, der sieht."),
+		LOCTEXT("SchleierkapuzeHint", "Erforsche das verhüllte Tier, das aus dem Dunkel stiehlt.")));
+	All.Add(MakeIdea(TEXT("Puppenwickel"), TEXT("Sichelpuppe"), S::Observed, { TEXT("Aschenjaeger_1") },
+		LOCTEXT("PuppenwickelTitle", "Gewickelt wie eine Garbe"),
+		LOCTEXT("PuppenwickelThought", "Die Puppe ist nur Stroh und Garn, und doch hält sie Schläge aus: die Wicklung gibt nach und federt zurück. Kreuzweise um den Leib gebunden, leicht und leise."),
+		LOCTEXT("PuppenwickelHint", "Sieh dir an, was auf den Feldern steht und sich bewegt wie eine Garbe.")));
+	All.Add(MakeIdea(TEXT("Schwingenarme"), TEXT("Aschharpyie"), S::Defeated, { TEXT("Aschenjaeger_2") },
+		LOCTEXT("SchwingenarmeTitle", "Federn am Arm"),
+		LOCTEXT("SchwingenarmeThought", "Ihre Rußfedern lassen die Luft gleiten. In Reihen an die Unterarme gebunden, wie kleine Schwingen: der Wurf fliegt ruhiger, die Hand fängt sicherer."),
+		LOCTEXT("SchwingenarmeHint", "Bezwinge die Kreischende aus dem Rauch.")));
+	All.Add(MakeIdea(TEXT("Krallenschritt"), TEXT("Aschharpyie"), S::Researched, { TEXT("Aschenjaeger_3") },
+		LOCTEXT("KrallenschrittTitle", "Krallen an den Stiefeln"),
+		LOCTEXT("KrallenschrittThought", "Sie landet lautlos und greift sofort. Ihre Krallen an weichen, gewickelten Stiefeln: kein Laut auf der Asche, und der Fuß greift, wo ich lande."),
+		LOCTEXT("KrallenschrittHint", "Erforsche die Kreischende, die aus dem Rauch herabstößt.")));
 	All.Add(MakeIdea(TEXT("Glimmblick"), TEXT("Schleieraffe"), S::Observed, { TEXT("LinseGlimm") },
 		LOCTEXT("GlimmblickTitle", "Augen für den Nebel"),
 		LOCTEXT("GlimmblickThought", "Der Affe findet seine Beute im dichtesten Schleier. Seine Augen glimmen von innen. Hinter Rußglas gefasst sehe ich weiter als jetzt."),
