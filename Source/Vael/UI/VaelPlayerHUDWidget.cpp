@@ -780,7 +780,7 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 				// stage II (26.11.): the Brutbüchse with its pellets and eggs, the Drehtanz with its turns
 				if (Eng->UsesBroodGun())
 				{
-					State.Name = FText::Format(NSLOCTEXT("VaelPlayerHUD", "BroodSlot", "Brutbüchse {0}/6 · Glutei {1}"), Eng->GetBroodPellets(), Eng->GetEggsAlive());
+					State.Name = FText::Format(NSLOCTEXT("VaelPlayerHUD", "BroodSlot", "Brutbüchse {0}/6 · Kammer {1} % · Glutei {2}"), Eng->GetBroodPellets(), FMath::RoundToInt(Eng->GetBroodHeat() * 100.0f), Eng->GetEggsAlive());
 					State.bDim = Eng->GetBroodPellets() <= 0;
 					State.CooldownLeft = 0.0f;
 				}

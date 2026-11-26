@@ -140,11 +140,24 @@ def segment(name):
     return head, tail
 
 
+def is_tail(p):
+    """The Glutkrone's sting (26.11., Boris: "nicht sauber eine Einheit"): behind the back from the hip and out past the left
+    shoulder; one piece of the chest, hung on the spine alone"""
+    return PROFILE == "GK" and (p.x > 0.28 or (p.x > 0.2 and p.y > 0.04) or (p.y > 0.12 and p.x > 0.04 and p.z < 0.62))
+
+
+def arm_distance(p):
+    return min(seg_dist(p, *segment(n)) for n in ARM_BONES)
+
+
 def place_of(p):
     """Which piece a point of the Tripo figure (unscaled) belongs to"""
+    if is_tail(p):
+        return "Brust"
     if p.z > HEAD_Z and abs(p.x - CENTRE_X) < HEAD_X:
         return "Kopf"
-    if abs(p.x - CENTRE_X) > MANTLE_X and p.z > MANTLE_Z:
+    # the mantle away from the arms is chest; the feathers on the arms go with the arms (else they hang in the air before him)
+    if abs(p.x - CENTRE_X) > MANTLE_X and p.z > MANTLE_Z and arm_distance(p) > 0.07:
         return "Brust"
     near = min(JOINTS, key=lambda n: seg_dist(p, *segment(n)) if n != "root" else 9.0)
     if near in ARM_BONES and p.z < ARM_Z:
@@ -244,8 +257,10 @@ def main():
         mesh.data.transform(Matrix.Scale(SCALE, 4))
         segs = {b: (arm_data.bones[b].head_local.copy(), arm_data.bones[b].tail_local.copy()) for b in WEIGHT_BONES[piece]}
         groups = {b: mesh.vertex_groups.new(name=b) for b in segs}
+        tail_segs = {b: segs[b] for b in segs if b.startswith("spine")}
         for v in mesh.data.vertices:
-            ds = sorted(((seg_dist(v.co, a, c), b) for b, (a, c) in segs.items()))[:3]
+            use = tail_segs if piece == "Brust" and tail_segs and is_tail(v.co / SCALE) else segs
+            ds = sorted(((seg_dist(v.co, a, c), b) for b, (a, c) in use.items()))[:3]
             ws = [(1.0 / (d ** 4 + 1e-6), b) for d, b in ds]
             total = sum(w for w, _ in ws)
             for w, b in ws:

@@ -2810,6 +2810,7 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		// The Doppelsichel of the Aschenjaeger (26.11.): the whole set worn, a straight throw at a doll ahead, caught in time as it
 		// comes back, then the faster held throw round a second doll; logs PASS/FAIL per step
 		Player->SetHero(EVaelHeroClass::Engineer, false);
+		Engineer->LearnAllPlans();
 		for (int32 Place = 0; Place < 4; ++Place)
 		{
 			FillMaterials();
@@ -2856,8 +2857,10 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		const float FirstHealth = First->GetHealth();
 		const float SecondHealth = Second->GetHealth();
 		const bool bThrown = Engineer->Fire(First->GetActorLocation());
-		UE_LOG(LogVael, Display, TEXT("[SichelTest] straight throw: %s, second throw while flying refused: %s"), bThrown ? TEXT("PASS") : TEXT("FAIL"),
-			!Engineer->Fire(First->GetActorLocation()) ? TEXT("PASS") : TEXT("FAIL"));
+		// two at once (26.11.): the second goes after the first, a third is refused while both are out
+		const bool bSecond = Engineer->Fire(Second->GetActorLocation());
+		UE_LOG(LogVael, Display, TEXT("[SichelTest] straight throw: %s, second at once: %s, third refused: %s"), bThrown ? TEXT("PASS") : TEXT("FAIL"),
+			bSecond && Engineer->GetSicklesOut() == 2 ? TEXT("PASS") : TEXT("FAIL"), !Engineer->Fire(First->GetActorLocation()) ? TEXT("PASS") : TEXT("FAIL"));
 		TWeakObjectPtr<UVaelEngineerComponent> WeakEng(Engineer);
 		TWeakObjectPtr<AVaelCreature> WeakFirst(First), WeakSecond(Second);
 		TSharedRef<FTimerHandle> Watch = MakeShared<FTimerHandle>();

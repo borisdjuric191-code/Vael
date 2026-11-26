@@ -80,7 +80,7 @@ AVaelGlutEgg* AVaelGlutEgg::Lay(UVaelEngineerComponent* Engineer, const FVector&
 	if (UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Sphere.Sphere"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 	{
 		Egg->Body->SetStaticMesh(Mesh);
-		Egg->Body->SetWorldScale3D(FVector(0.22f, 0.22f, 0.28f));
+		Egg->Body->SetWorldScale3D(FVector(0.32f, 0.32f, 0.42f));
 		if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Glas.M_GK_Glas"), nullptr, LOAD_NoWarn | LOAD_Quiet))
 		{
 			UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Base, Egg);

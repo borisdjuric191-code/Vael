@@ -15,6 +15,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Engineer/VaelEngineerShot.h"
+#include "Engineer/VaelDoubleSickle.h"
 #include "Engineer/VaelEngineerStage2Actors.h"
 #include "EngineUtils.h"
 #include "Magic/VaelGroundArea.h"
@@ -114,12 +115,75 @@ void UVaelEngineerComponent::LayGlutEgg(const FVector& At)
 	{
 		GlutEggs.Add(Egg);
 		++EggsLaid;
+		const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->DustBurstEffect), Spot, FRotator::ZeroRotator, FLinearColor(1.0f, 0.45f, 0.1f), 90.0f);
 		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("EggLaid", "Glutei"));
+	}
+}
+
+AVaelDoubleSickle* UVaelEngineerComponent::GetFlyingSickle() const
+{
+	for (const TWeakObjectPtr<AVaelDoubleSickle>& Each : FlyingSickles)
+	{
+		if (Each.IsValid())
+		{
+			return Each.Get();
+		}
+	}
+	return nullptr;
+}
+
+int32 UVaelEngineerComponent::GetSicklesOut() const
+{
+	int32 Count = 0;
+	for (const TWeakObjectPtr<AVaelDoubleSickle>& Each : FlyingSickles)
+	{
+		Count += Each.IsValid() ? 1 : 0;
+	}
+	return Count;
+}
+
+void UVaelEngineerComponent::TickSickleBand()
+{
+	// Two Doppelsicheln out at once (Boris 26.11.: "die 2 hin und her"): between them a band of whirling ash cuts what stands on
+	// the line from one to the other; in the Aschenjaeger II the wind makes it a gale
+	TArray<AVaelDoubleSickle*> Out;
+	for (const TWeakObjectPtr<AVaelDoubleSickle>& Each : FlyingSickles)
+	{
+		if (Each.IsValid())
+		{
+			Out.Add(Each.Get());
+		}
+	}
+	if (Out.Num() < 2 || Now() < NextBandCut)
+	{
+		return;
+	}
+	NextBandCut = Now() + 0.3f;
+	const bool bGale = GetSetStage(TEXT("Aschenjaeger")) >= 2;
+	const FVector A = Out[0]->GetActorLocation();
+	const FVector B = Out[1]->GetActorLocation();
+	const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+	for (int32 Step = 1; Step <= 3; ++Step)
+	{
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->SteamEffect), FMath::Lerp(A, B, Step / 4.0f), FRotator::ZeroRotator,
+			FLinearColor(0.4f, 0.38f, 0.36f), bGale ? 50.0f : 30.0f);
+	}
+	for (AVaelCharacterBase* Enemy : EnemiesAround((A + B) * 0.5f, FVector::Dist2D(A, B) * 0.5f + 80.0f))
+	{
+		const FVector Closest = FMath::ClosestPointOnSegment(Enemy->GetActorLocation(), A, B);
+		if (FVector::Dist2D(Closest, Enemy->GetActorLocation()) > (bGale ? 90.0f : 55.0f) + Enemy->GetSimpleCollisionRadius() * 0.5f)
+		{
+			continue;
+		}
+		++BandCuts;
+		ApplyHit(Enemy, Closest, (bGale ? 9.0f : 6.0f) * GetDamageScale() * GetTierScale(), VaelEngineerGear::Standard, Closest, NAME_None);
 	}
 }
 
 void UVaelEngineerComponent::TickStage2(float DeltaTime)
 {
+	TickSickleBand();
 	if (GetSetStage(TEXT("Schwarzglut")) >= 2)
 	{
 		TickGlutkrone(DeltaTime);
@@ -191,7 +255,7 @@ bool UVaelEngineerComponent::FireBroodGun(const FVector& AimLocation, bool bClut
 	{
 		const float Spread = Count > 1 ? (Index - (Count - 1) * 0.5f) * BroodClutchSpread : 0.0f;
 		const FVector Way = FRotator(0.0f, Spread, 0.0f).RotateVector(Offset);
-		AVaelEngineerShot::Launch(this, From, From + Way, BroodSpeed, 0.04f, Damage, Load, false, FLinearColor(1.0f, 0.45f, 0.1f), 8.0f, true);
+		AVaelEngineerShot::Launch(this, From, From + Way, BroodSpeed, 0.04f, Damage, Load, false, FLinearColor(1.0f, 0.45f, 0.1f), 14.0f, false);
 	}
 	VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->SteamEffect), From, FRotator::ZeroRotator, FLinearColor(0.8f, 0.35f, 0.1f), bClutch ? 90.0f : 45.0f);
 	BroodPellets -= Count;
@@ -220,7 +284,8 @@ void UVaelEngineerComponent::TickWhirl(float DeltaTime)
 	{
 		return;
 	}
-	const bool bWant = bRollHeld && GetSetStage(TEXT("Aschenjaeger")) >= 2 && Now() - DodgeAt >= WhirlDelay && !IsDizzy() && !Player->IsDowned();
+	const bool bHeldNow = bWhirlHeld || (bRollHeld && Now() - DodgeAt >= WhirlDelay);
+	const bool bWant = bHeldNow && GetSetStage(TEXT("Aschenjaeger")) >= 2 && !IsDizzy() && !Player->IsDowned();
 	if (!bWhirling)
 	{
 		if (bWant)
@@ -237,7 +302,7 @@ void UVaelEngineerComponent::TickWhirl(float DeltaTime)
 	if (!bWant)
 	{
 		// let go: after a long dance the tornado leaves as the Aschenteufel
-		EndWhirl(!bRollHeld);
+		EndWhirl(!bRollHeld && !bWhirlHeld);
 		return;
 	}
 	WhirlTime += DeltaTime;
@@ -363,4 +428,23 @@ void UVaelEngineerComponent::EndWhirl(bool bRelease)
 	}
 }
 
+
+
+bool UVaelEngineerComponent::HandleL2(bool bHeld, const FVector& AimLocation)
+{
+	if (GetSetStage(TEXT("Aschenjaeger")) >= 2)
+	{
+		bWhirlHeld = bHeld;
+		return true;
+	}
+	if (UsesBroodGun())
+	{
+		if (bHeld)
+		{
+			FireBroodGun(AimLocation, true);
+		}
+		return true;
+	}
+	return false;
+}
 #undef LOCTEXT_NAMESPACE

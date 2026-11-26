@@ -79,6 +79,7 @@ AVaelDoubleSickle* AVaelDoubleSickle::Throw(UVaelEngineerComponent* Engineer, co
 	Sickle->ThrownFrom = From;
 	Sickle->LastLocation = From;
 	Sickle->Coat = InCoat;
+	Sickle->bGale = Engineer->GetSetStage(TEXT("Aschenjaeger")) >= 2;
 	// the aim point at the height of the hand, within reach
 	FVector Toward = Aim - From;
 	Toward.Z = 0.0f;
@@ -128,7 +129,7 @@ void AVaelDoubleSickle::CutAlong(const FVector& From, const FVector& To)
 			continue;
 		}
 		const FVector Closest = FMath::ClosestPointOnSegment(Enemy->GetActorLocation(), From, To);
-		if (FVector::Dist2D(Closest, Enemy->GetActorLocation()) > SickleCutRadius + Enemy->GetSimpleCollisionRadius()
+		if (FVector::Dist2D(Closest, Enemy->GetActorLocation()) > SickleCutRadius * (bGale ? 1.6f : 1.0f) + Enemy->GetSimpleCollisionRadius()
 			|| FMath::Abs(Closest.Z - Enemy->GetActorLocation().Z) > 160.0f)
 		{
 			continue;
@@ -217,6 +218,29 @@ void AVaelDoubleSickle::Tick(float DeltaSeconds)
 	SetActorLocation(Location);
 	// it spins flat about its hub, a little tilted so the blades read from the camera above
 	SetActorRotation(FRotator(12.0f, FMath::Fmod(Age * SickleSpinRate, 360.0f), 0.0f));
+	// the wind of the Aschenjaeger II: a whirl of ash round the blades that draws light enemies in
+	if (bGale)
+	{
+		if (Age >= NextTrail)
+		{
+			NextTrail = Age + 0.05f;
+			const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+			const FVector Swirl = Location + FRotator(0.0f, Age * 720.0f, 0.0f).RotateVector(FVector(70.0f, 0.0f, FMath::FRandRange(-20.0f, 40.0f)));
+			VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->SteamEffect), Swirl, FRotator::ZeroRotator, FLinearColor(0.45f, 0.43f, 0.4f), 38.0f);
+		}
+		UVaelEngineerComponent* Pulling = Engineer.Get();
+		const AActor* Thrower = Pulling != nullptr ? Pulling->GetOwner() : nullptr;
+		for (TActorIterator<AVaelCharacterBase> It(GetWorld()); It && Thrower != nullptr; ++It)
+		{
+			FVector Toward = Location - It->GetActorLocation();
+			Toward.Z = 0.0f;
+			if (!It->IsA<AVaelCharacter>() && It->GetHealth() > 0.0f && It->GetSimpleCollisionRadius() <= 70.0f && Toward.Size() < 220.0f && Toward.Size() > 40.0f
+				&& UVaelCombatStatics::CanDamage(Thrower, *It))
+			{
+				It->SetActorLocation(It->GetActorLocation() + Toward.GetSafeNormal() * 180.0f * GetWorld()->GetDeltaSeconds(), true);
+			}
+		}
+	}
 	TakeUpFromWorld(Location);
 	StrikeDevices(LastLocation, Location);
 	CutAlong(LastLocation, Location);

@@ -151,6 +151,8 @@ public:
 	int32 GetDevilsReleased() const { return DevilsReleased; }
 	int32 GetWhirlCuts() const { return WhirlCuts; }
 	bool IsDizzy() const;
+	/** L2 (26.11., Boris): held, the Aschenjaeger II dances; the Glutkrone fires its whole clutch. True if the set took it */
+	bool HandleL2(bool bHeld, const FVector& AimLocation);
 
 	/** How many shots or devices of a kind are in the pouches and in the stock */
 	int32 GetCarried(FName Id) const;
@@ -189,7 +191,10 @@ public:
 	 *  round the aim point and back; caught in time the next throw goes faster and harder */
 	bool UsesDoubleSickle() const;
 	bool ThrowDoubleSickle(const FVector& AimLocation, bool bCurve);
-	class AVaelDoubleSickle* GetFlyingSickle() const { return FlyingSickle.Get(); }
+	class AVaelDoubleSickle* GetFlyingSickle() const;
+	/** How many Doppelsicheln are out (two at once, 26.11.), and the cuts of the blade band between two */
+	int32 GetSicklesOut() const;
+	int32 GetBandCuts() const { return BandCuts; }
 	int32 GetSickleCatches() const { return SickleCatches; }
 	bool HasSickleCatchBonus() const { return bSickleCatchBonus; }
 
@@ -472,7 +477,10 @@ private:
 	float NextBallDust = 0.0f;
 	FVector LastBallLocation = FVector::ZeroVector;
 
-	TWeakObjectPtr<class AVaelDoubleSickle> FlyingSickle;
+	TArray<TWeakObjectPtr<class AVaelDoubleSickle>> FlyingSickles;
+	int32 BandCuts = 0;
+	float NextBandCut = 0.0f;
+	void TickSickleBand();
 	/** The button went down just as the sickle came home: caught, the next throw is faster */
 	bool bSickleCatchPending = false;
 	bool bSickleCatchBonus = false;
@@ -638,6 +646,7 @@ private:
 	float NextDevil = 0.0f;
 	int32 DevilsReleased = 0;
 	float DizzyUntil = 0.0f;
+	bool bWhirlHeld = false;
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> WhirlBlades;
 	void TickStage2(float DeltaTime);

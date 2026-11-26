@@ -80,6 +80,8 @@ private:
 	FVector ThrownFrom = FVector::ZeroVector;
 	bool bCurve = false;
 	FName Coat;
+	/** Aschenjaeger II (26.11.): winds circle the blades, they cut wider and draw light enemies in */
+	bool bGale = false;
 	int32 DevicesStruck = 0;
 	float NextTrail = 0.0f;
 	TSet<TWeakObjectPtr<AActor>> StruckDevices;

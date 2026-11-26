@@ -362,7 +362,12 @@ void AVaelHUD::DrawToolboxArmor(const AVaelPlayerController* PlayerController, T
 	}
 	const bool bWorn = Engineer->GetWorn(Piece->Place) == Piece->Id;
 	float Y = TextAt.Y;
-	DrawLabel(Piece->Name, TextAt.X, Y, 22.0f * T, PaperInk, 0.0f, TextWidth * 0.72f);
+	// a set in the box is shown as the set (26.11.)
+	const FVaelGearSet* WholeSet = !Piece->Set.IsNone() && Piece->Place != EVaelArmorPlace::Shield && !bWorn ? VaelEngineerGear::FindSet(Piece->Set) : nullptr;
+	const FText Title = WholeSet != nullptr
+		? (Piece->SetStage >= 2 ? FText::Format(LOCTEXT("SetStage2Title", "{0} · Stufe II"), WholeSet->Name) : WholeSet->Name)
+		: Piece->Name;
+	DrawLabel(Title, TextAt.X, Y, 22.0f * T, PaperInk, 0.0f, TextWidth * 0.72f);
 	DrawLabel(bWorn ? LOCTEXT("ArmorWorn", "angelegt") : LOCTEXT("ArmorInBox", "im Kasten"), TextAt.X + TextWidth, Y + 4.0f * T, 15.0f * T, bWorn ? PaperWorn : PaperFaded, 1.0f);
 	Y += 27.0f * T;
 	const FText Stats = Piece->Place == EVaelArmorPlace::Shield

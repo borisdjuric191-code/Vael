@@ -1622,13 +1622,19 @@ void UVaelEngineerComponent::StartDraw()
 		ReleaseWindDevil(Owner->GetActorLocation() + Owner->GetActorForwardVector() * 600.0f, false);
 		return;
 	}
-	// The Doppelsichel on its way home: the button pressed just before it arrives catches it cleanly (the next throw is faster)
-	if (const AVaelDoubleSickle* Sickle = FlyingSickle.Get())
+	// A Doppelsichel on its way home: the button pressed just before it arrives catches it cleanly (the next throw is faster);
+	// with one still out he throws the second (26.11., Boris: two at once), with both out there is nothing to throw
+	FlyingSickles.RemoveAll([](const TWeakObjectPtr<AVaelDoubleSickle>& Each) { return !Each.IsValid(); });
+	for (const TWeakObjectPtr<AVaelDoubleSickle>& Each : FlyingSickles)
 	{
-		if (Sickle->IsReturning() && Sickle->GetSecondsToHand() <= SickleCatchWindow)
+		if (Each->IsReturning() && Each->GetSecondsToHand() <= SickleCatchWindow)
 		{
 			bSickleCatchPending = true;
+			return;
 		}
+	}
+	if (FlyingSickles.Num() >= 2)
+	{
 		return;
 	}
 	if (UsesDraw() && DrawStart < 0.0f)
@@ -1646,7 +1652,7 @@ bool UVaelEngineerComponent::UsesDoubleSickle() const
 bool UVaelEngineerComponent::ThrowDoubleSickle(const FVector& AimLocation, bool bCurve)
 {
 	AVaelCharacter* Player = GetPlayer();
-	if (Player == nullptr || !UsesDoubleSickle() || FlyingSickle.IsValid() || Player->IsDowned() || IsGrabbing())
+	if (Player == nullptr || !UsesDoubleSickle() || GetSicklesOut() >= 2 || Player->IsDowned() || IsGrabbing())
 	{
 		return false;
 	}
@@ -1681,7 +1687,7 @@ bool UVaelEngineerComponent::ThrowDoubleSickle(const FVector& AimLocation, bool 
 	}
 	bSickleCatchBonus = false;
 	bSickleCatchPending = false;
-	FlyingSickle = Sickle;
+	FlyingSickles.Add(Sickle);
 	Sickle->OnCaught.AddUObject(this, &UVaelEngineerComponent::OnSickleCaught);
 	LastShot = Now();
 	// the sickle leaves the hip while it flies
@@ -1694,7 +1700,7 @@ bool UVaelEngineerComponent::ThrowDoubleSickle(const FVector& AimLocation, bool 
 
 void UVaelEngineerComponent::OnSickleCaught(AVaelDoubleSickle* Sickle)
 {
-	FlyingSickle.Reset();
+	FlyingSickles.RemoveAll([Sickle](const TWeakObjectPtr<AVaelDoubleSickle>& Each) { return !Each.IsValid() || Each.Get() == Sickle; });
 	if (bSickleCatchPending)
 	{
 		// caught cleanly: the next throw goes out faster and cuts harder
@@ -1703,7 +1709,7 @@ void UVaelEngineerComponent::OnSickleCaught(AVaelDoubleSickle* Sickle)
 		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("SickleCaught", "Gefangen!"));
 	}
 	bSickleCatchPending = false;
-	if (ArmorMeshes.IsValidIndex(8) && ArmorMeshes[8] != nullptr && UsesDoubleSickle())
+	if (ArmorMeshes.IsValidIndex(8) && ArmorMeshes[8] != nullptr && UsesDoubleSickle() && GetSicklesOut() == 0)
 	{
 		ArmorMeshes[8]->SetVisibility(true);
 	}
@@ -2250,7 +2256,8 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 		: Effect == EVaelAmmoEffect::Dew || Effect == EVaelAmmoEffect::Steam ? EVaelElement::Water : EVaelElement::Earth;
 	UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Scaled, Element);
 	// the Glutkrone's brood chambers fill with the fire of his weapons (26.11.)
-	if (!WeaponId.IsNone() && Element == EVaelElement::Fire)
+	// (the glowing slag pellets of the Brutbuechse count as fire: Boris 26.11. saw no egg come)
+	if (!WeaponId.IsNone() && (Element == EVaelElement::Fire || UsesBroodGun()))
 	{
 		AddBroodHeat(Scaled);
 	}
@@ -2928,7 +2935,8 @@ int32 UVaelEngineerComponent::CountSet(FName Set) const
 bool UVaelEngineerComponent::HasShield() const
 {
 	const AVaelCharacter* Player = GetPlayer();
-	return Player != nullptr && Player->IsEngineer() && !GetWorn(EVaelArmorPlace::Shield).IsNone();
+	// the Klappschild is the Glutpanzer's back shell: only with that set (26.11.: the other sets have L2 for their own)
+	return Player != nullptr && Player->IsEngineer() && !GetWorn(EVaelArmorPlace::Shield).IsNone() && GetSetStage(TEXT("Schwarzglut")) == 1;
 }
 
 void UVaelEngineerComponent::SetShieldRaised(bool bRaised)

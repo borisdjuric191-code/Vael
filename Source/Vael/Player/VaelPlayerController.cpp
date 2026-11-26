@@ -750,6 +750,11 @@ void AVaelPlayerController::OnEngShield(bool bHeld)
 	{
 		return;
 	}
+	// the Tripo sets of stage II have their own L2 (26.11.): the Drehtanz, the clutch of the Brutbuechse
+	if (Engineer->HandleL2(bHeld && !VaelCharacter->IsDowned(), GetFloromantAim()))
+	{
+		return;
+	}
 	if (Engineer->HasShield())
 	{
 		Engineer->SetShieldRaised(bHeld && !VaelCharacter->IsDowned());
@@ -3294,12 +3299,21 @@ TArray<const FVaelGear*> AVaelPlayerController::GetToolboxList(const UVaelEngine
 	}
 	for (const FVaelGear& Gear : VaelEngineerGear::GetAll())
 	{
-		if (Gear.Kind == EVaelGearKind::Armor && Engineer->HasBuilt(Gear.Id) && Engineer->GetWorn(Gear.Place) != Gear.Id)
+		if (Gear.Kind != EVaelGearKind::Armor || !Engineer->HasBuilt(Gear.Id) || Engineer->GetWorn(Gear.Place) == Gear.Id)
 		{
-			List.Add(&Gear);
+			continue;
 		}
+		// A set is one entry (Boris 26.11.: "sauberer als ein Set"): it stands for its chest, once all four pieces of its stage
+		// are built; putting it on puts on the whole set. The shield and pieces of no set stay single
+		if (!Gear.Set.IsNone() && Gear.Place != EVaelArmorPlace::Shield)
+		{
+			if (Gear.Place != EVaelArmorPlace::Chest || Engineer->CountSetBuilt(Gear.Set, Gear.SetStage) < UVaelEngineerComponent::GetSetPieces(Gear.Set, Gear.SetStage).Num())
+			{
+				continue;
+			}
+		}
+		List.Add(&Gear);
 	}
-	// the order of GetAll keeps each set together and its pieces from head to shield
 	return List;
 }
 
