@@ -15,6 +15,9 @@
 #include "Engineer/VaelEngineerIdeas.h"
 #include "Player/VaelPoseFollowerAnimInstance.h"
 #include "Engineer/VaelDoubleSickle.h"
+#include "Creatures/VaelEmberCrawler.h"
+#include "World/VaelNidVeins.h"
+#include "World/VaelMarkSource.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Compendium/VaelCompendiumSettings.h"
 #include "Combat/VaelCravingComponent.h"
@@ -66,6 +69,17 @@ namespace
 	constexpr float SickleCurveHold = 0.3f;
 	constexpr float SickleCatchWindow = 0.3f;
 	constexpr float SickleCatchBonus = 1.3f;
+	/** The Rauchschritt (26.11.): radius of its cloud, how long enemies in it stagger, how long the critical first hit waits (s) */
+	constexpr float SmokeStepRadius = 380.0f;
+	constexpr float SmokeStepConfuse = 1.5f;
+	constexpr float SmokeStrikeSeconds = 3.0f;
+	/** The glasses' look under the ground (26.11.): how often, how far the Waermeglas sees burrowed Glutkriecher and the Aderglas
+	 *  hidden Nid veins (cm), one glow every so many cm along a vein, at most so many glows a look */
+	constexpr float GlassLookEvery = 1.4f;
+	constexpr float GlassHeatReach = 1500.0f;
+	constexpr float GlassVeinReach = 1200.0f;
+	constexpr float GlassVeinSpacing = 220.0f;
+	constexpr int32 GlassVeinMaxGlows = 40;
 	/** Lockpfeife: how far he can point the call, who hears it, and how long they follow */
 	constexpr float WhistleReach = 1200.0f;
 	constexpr float WhistleRadius = 1500.0f;
@@ -151,6 +165,7 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 			UVaelCombatStatics::DealDamage(GetOwner(), Poison.Target.Get(), Poison.DamagePerSecond * 0.5f, Poison.Element);
 		}
 	}
+	UpdateGlassSight();
 	TickEffects();
 	if (bShieldMoving)
 	{
@@ -2162,6 +2177,20 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 			UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("WeakSpot", "Schwachstelle"));
 		}
 	}
+	// Out of the smoke (26.11.): through the Rauchglas he sees what the smoke hides, an enemy staggering in it is always hit
+	// critically; and the first hit after his Rauchschritt is critical
+	const bool bSmokeSight = GetGlass() == VaelEngineerGear::GlassSmoke && UVaelCombatStatics::HasStatus(Enemy, EVaelStatus::Confused);
+	const bool bSmokeStrike = Now() < SmokeStrikeUntil;
+	if (bSmokeStrike)
+	{
+		SmokeStrikeUntil = 0.0f;
+	}
+	if (!bLastCrit && (bSmokeSight || bSmokeStrike))
+	{
+		bLastCrit = true;
+		Scaled *= 1.6f;
+		UVaelCombatTextSubsystem::PostReaction(Enemy, LOCTEXT("SmokeCrit", "Aus dem Rauch!"));
+	}
 	const EVaelElement Element = Effect == EVaelAmmoEffect::BlackFire ? EVaelElement::Mark
 		: Effect == EVaelAmmoEffect::Fire || Effect == EVaelAmmoEffect::Crackle || Effect == EVaelAmmoEffect::Flame || Effect == EVaelAmmoEffect::Blast
 			|| Effect == EVaelAmmoEffect::FireField ? EVaelElement::Fire
@@ -2878,6 +2907,82 @@ float UVaelEngineerComponent::GetArmorTotal() const
 	return Total;
 }
 
+bool UVaelEngineerComponent::HasSmokeStrike() const
+{
+	return Now() < SmokeStrikeUntil;
+}
+
+void UVaelEngineerComponent::UpdateGlassSight()
+{
+	// What the glasses show under the ground (26.11.), a look every GlassLookEvery seconds:
+	//   Waermeglas  burrowed Glutkriecher glow through the ash, orange
+	//   Aderglas    the stretches of the Nid veins that run under the ground glow violet, and open Nid springs pulse
+	if (Now() < NextGlassLook)
+	{
+		return;
+	}
+	NextGlassLook = Now() + GlassLookEvery;
+	const AVaelCharacter* Player = GetPlayer();
+	const FName Glass = Player != nullptr && Player->IsEngineer() && !Player->IsDowned() ? GetGlass() : NAME_None;
+	if (Glass != VaelEngineerGear::GlassHeat && Glass != VaelEngineerGear::GlassVein)
+	{
+		GlassGlows = 0;
+		return;
+	}
+	const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+	// a coloured haze rising out of the ground (a glow alone was lost in daylight)
+	UNiagaraSystem* Glow = VaelAssets::LoadOptional(Magic->SteamEffect);
+	const FVector Here = Player->GetActorLocation();
+	int32 Glows = 0;
+	if (Glass == VaelEngineerGear::GlassHeat)
+	{
+		for (TActorIterator<AVaelEmberCrawler> It(GetWorld()); It; ++It)
+		{
+			if (It->GetHealth() > 0.0f && It->GetCrawlerState() == EVaelCrawlerState::Burrowed && FVector::Dist2D(It->GetActorLocation(), Here) < GlassHeatReach)
+			{
+				VaelEffects::SpawnAt(this, Glow, It->GetActorLocation(), FRotator::ZeroRotator, FLinearColor(0.55f, 0.16f, 0.03f), 45.0f);
+				++Glows;
+			}
+		}
+	}
+	else
+	{
+		for (TActorIterator<AVaelNidVeins> It(GetWorld()); It && Glows < GlassVeinMaxGlows; ++It)
+		{
+			float LastAlong = -1.0e9f;
+			int32 LastVein = INDEX_NONE;
+			for (const FVaelNidVeinPoint& Point : It->Points)
+			{
+				if (Point.bOpen || FVector::Dist2D(Point.Location, Here) > GlassVeinReach)
+				{
+					continue;
+				}
+				// one glow every GlassVeinSpacing along each vein
+				if (Point.Vein == LastVein && FMath::Abs(Point.Along - LastAlong) < GlassVeinSpacing)
+				{
+					continue;
+				}
+				LastVein = Point.Vein;
+				LastAlong = Point.Along;
+				VaelEffects::SpawnAt(this, Glow, Point.Location, FRotator::ZeroRotator, FLinearColor(0.3f, 0.07f, 0.45f), FMath::Clamp(Point.Width * 0.6f, 18.0f, 40.0f));
+				if (++Glows >= GlassVeinMaxGlows)
+				{
+					break;
+				}
+			}
+		}
+		for (TActorIterator<AVaelMarkSource> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsSealed() && FVector::Dist2D(It->GetActorLocation(), Here) < GlassVeinReach * 2.0f)
+			{
+				VaelEffects::SpawnAt(this, Glow, It->GetActorLocation(), FRotator::ZeroRotator, FLinearColor(0.3f, 0.07f, 0.45f), 90.0f);
+				++Glows;
+			}
+		}
+	}
+	GlassGlows = Glows;
+}
+
 FName UVaelEngineerComponent::GetGlass() const
 {
 	if (!HasBuilt(VaelEngineerGear::Goggles))
@@ -2971,6 +3076,34 @@ void UVaelEngineerComponent::OnDodged()
 	if (CountSet(TEXT("Rollpanzer")) >= 4 || CountSet(TEXT("Schwarzglut")) >= 4)
 	{
 		CurledUntil = Now() + 1.0f;
+	}
+	// The Rauchschritt of the whole Aschenjaeger (Boris 25.11., built 26.11.): the dodge leaves a cloud of ash smoke where he
+	// was and where he lands; enemies near him stagger and lose him for a moment, and the first hit out of the smoke is critical
+	if (CountSet(TEXT("Aschenjaeger")) >= 4)
+	{
+		AActor* Owner = GetOwner();
+		const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+		const FVector Start = Owner->GetActorLocation() - FVector(0.0f, 0.0f, 60.0f);
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->SteamEffect), Start, FRotator::ZeroRotator, FLinearColor(0.26f, 0.25f, 0.24f), SmokeStepRadius);
+		for (AVaelCharacterBase* Enemy : EnemiesAround(Start, SmokeStepRadius))
+		{
+			UVaelCombatStatics::ApplyStatus(Owner, Enemy, EVaelStatus::Confused, SmokeStepConfuse);
+		}
+		SmokeStrikeUntil = Now() + SmokeStrikeSeconds;
+		++SmokeSteps;
+		UVaelCombatTextSubsystem::PostReaction(Owner, LOCTEXT("SmokeStep", "Rauchschritt"));
+		// and a second cloud where the dodge carries him
+		TWeakObjectPtr<UVaelEngineerComponent> WeakThis(this);
+		FTimerHandle Landing;
+		GetWorld()->GetTimerManager().SetTimer(Landing, FTimerDelegate::CreateWeakLambda(this, [WeakThis]()
+		{
+			if (UVaelEngineerComponent* Self = WeakThis.Get())
+			{
+				const UVaelMagicSettings* Settings = UVaelMagicSettings::Get();
+				VaelEffects::SpawnAt(Self, VaelAssets::LoadOptional(Settings->SteamEffect), Self->GetOwner()->GetActorLocation() - FVector(0.0f, 0.0f, 60.0f),
+					FRotator::ZeroRotator, FLinearColor(0.26f, 0.25f, 0.24f), SmokeStepRadius * 0.7f);
+			}
+		}), 0.3f, false);
 	}
 	// the Panzerkugel turns every frame (four ticks a second made it jump a quarter turn at a time and look still)
 	if (UsesArmorRoll())

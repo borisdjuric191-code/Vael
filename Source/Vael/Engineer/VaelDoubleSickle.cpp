@@ -125,7 +125,8 @@ void AVaelDoubleSickle::CutAlong(const FVector& From, const FVector& To)
 		}
 		CutThisWay.Add(Enemy);
 		++Hits;
-		Eng->ApplyHit(Enemy, Closest, Damage, VaelEngineerGear::Standard, ThrownFrom, NAME_None);
+		// as the weapon in his hand (the sling it replaces): weak spots, distance and crits count as for any throw
+		Eng->ApplyHit(Enemy, Closest, Damage, VaelEngineerGear::Standard, ThrownFrom, VaelEngineerGear::Sling);
 		const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
 		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->DustPuffEffect), Closest, FRotator::ZeroRotator, FLinearColor(0.35f, 0.08f, 0.05f), 22.0f);
 	}

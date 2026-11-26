@@ -104,6 +104,8 @@
 #include "Creatures/VaelKobold.h"
 #include "Items/VaelChest.h"
 #include "Engineer/VaelDoubleSickle.h"
+#include "Creatures/VaelEmberCrawler.h"
+#include "World/VaelNidVeins.h"
 
 namespace
 {
@@ -2398,6 +2400,117 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 	// Rammschild, Fernglas and the Sprengmeister craft (25.11.): "sprengmeister" lays the Rammschild with a roller rolling at it,
 	// a Stolperdraht a doll walks across, the three Kristallladungen each by a doll, and raises the Fernglas on a doll at its
 	// far focus; every step logs [SprengTest]
+	if (What == TEXT("rauchschritt") || What == TEXT("glaeser"))
+	{
+		// 26.11.: "rauchschritt" = the whole Aschenjaeger dodges: smoke, a doll beside him staggers, the first hit is critical, the
+		// Rauchglas makes hits on staggering enemies critical. "glaeser" = Waermeglas beside a burrowed Glutkriecher, Aderglas
+		// beside a hidden stretch of a Nid vein (if the level has one); logs PASS/FAIL
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		FillMaterials();
+		Engineer->LearnAllPlans();
+		Engineer->Build(VaelEngineerGear::Goggles, true);
+		Player->GetCharacterMovement()->StopMovementImmediately();
+		Player->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		if (What == TEXT("rauchschritt"))
+		{
+			for (int32 Place = 0; Place < 4; ++Place)
+			{
+				FillMaterials();
+				const FName Piece(*FString::Printf(TEXT("Aschenjaeger_%d"), Place));
+				Engineer->Build(Piece, true);
+				Engineer->Wear(Piece);
+			}
+			AVaelCreature* Doll = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Home + Ahead * 200.0f - FVector(0.0f, 0.0f, 60.0f), FRotator::ZeroRotator);
+			if (Doll == nullptr)
+			{
+				UE_LOG(LogVael, Display, TEXT("[RauchTest] doll: FAIL"));
+				return;
+			}
+			Doll->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+			Engineer->OnDodged();
+			UE_LOG(LogVael, Display, TEXT("[RauchTest] Rauchschritt %d, doll staggers: %s, next hit critical: %s"), Engineer->GetSmokeSteps(),
+				UVaelCombatStatics::HasStatus(Doll, EVaelStatus::Confused) ? TEXT("PASS") : TEXT("FAIL"), Engineer->HasSmokeStrike() ? TEXT("PASS") : TEXT("FAIL"));
+			Engineer->ApplyHit(Doll, Doll->GetActorLocation(), 10.0f, VaelEngineerGear::Standard, Home);
+			UE_LOG(LogVael, Display, TEXT("[RauchTest] first hit out of the smoke critical: %s, used up: %s"), Engineer->WasLastCrit() ? TEXT("PASS") : TEXT("FAIL"),
+				!Engineer->HasSmokeStrike() ? TEXT("PASS") : TEXT("FAIL"));
+			FillMaterials();
+			Engineer->Build(VaelEngineerGear::GlassSmoke, true);
+			int32 Crits = 0;
+			for (int32 Hit = 0; Hit < 5; ++Hit)
+			{
+				UVaelCombatStatics::ApplyStatus(Player, Doll, EVaelStatus::Confused, 2.0f);
+				Engineer->ApplyHit(Doll, Doll->GetActorLocation(), 1.0f, VaelEngineerGear::Standard, Home);
+				Crits += Engineer->WasLastCrit() ? 1 : 0;
+			}
+			UE_LOG(LogVael, Display, TEXT("[RauchTest] Rauchglas in the frame: %s, staggering doll hit critically %d/5: %s"), *Engineer->GetGlass().ToString(), Crits, Crits == 5 ? TEXT("PASS") : TEXT("FAIL"));
+			return;
+		}
+		FillMaterials();
+		Engineer->Build(VaelEngineerGear::GlassHeat, true);
+		AVaelCreature* Crawler = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelEmberCrawlerData>(), Home + Ahead * 500.0f - FVector(0.0f, 0.0f, 60.0f), FRotator::ZeroRotator);
+		const AVaelEmberCrawler* Ember = Cast<AVaelEmberCrawler>(Crawler);
+		UE_LOG(LogVael, Display, TEXT("[GlasTest] Waermeglas in the frame: %s, crawler burrowed: %d"), *Engineer->GetGlass().ToString(),
+			Ember != nullptr && Ember->GetCrawlerState() == EVaelCrawlerState::Burrowed);
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng(Engineer);
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer(Player);
+		FTimerHandle Look;
+		GetWorld()->GetTimerManager().SetTimer(Look, FTimerDelegate::CreateWeakLambda(this, [this, WeakEng, WeakPlayer, FillMaterials]()
+		{
+			UVaelEngineerComponent* Eng = WeakEng.Get();
+			AVaelCharacter* Hero = WeakPlayer.Get();
+			if (Eng == nullptr || Hero == nullptr)
+			{
+				return;
+			}
+			UE_LOG(LogVael, Display, TEXT("[GlasTest] Waermeglas shows the burrowed crawler (%d glows): %s"), Eng->GetGlassGlows(), Eng->GetGlassGlows() > 0 ? TEXT("PASS") : TEXT("FAIL"));
+			// the Aderglas beside the nearest hidden stretch of a Nid vein
+			const FVaelNidVeinPoint* Hidden = nullptr;
+			for (TActorIterator<AVaelNidVeins> It(GetWorld()); It && Hidden == nullptr; ++It)
+			{
+				Hidden = It->Points.FindByPredicate([](const FVaelNidVeinPoint& Point) { return !Point.bOpen; });
+			}
+			if (Hidden == nullptr)
+			{
+				// this level has none: a short vein beside him, under the ground for its first ten metres
+				FActorSpawnParameters Params;
+				Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+				if (AVaelNidVeins* Veins = GetWorld()->SpawnActor<AVaelNidVeins>(AVaelNidVeins::StaticClass(), Hero->GetActorLocation(), FRotator::ZeroRotator, Params))
+				{
+					for (int32 Step = 0; Step < 10; ++Step)
+					{
+						FVaelNidVeinPoint Point;
+						Point.Location = Hero->GetActorLocation() + FVector(300.0f + Step * 100.0f, 200.0f, -90.0f);
+						Point.Along = Step * 100.0f;
+						Point.Width = 40.0f;
+						Point.bOpen = false;
+						Veins->Points.Add(Point);
+					}
+					Hidden = &Veins->Points[0];
+					UE_LOG(LogVael, Display, TEXT("[GlasTest] no Nid vein in this level: a test vein laid"));
+				}
+			}
+			if (Hidden == nullptr)
+			{
+				UE_LOG(LogVael, Display, TEXT("[GlasTest] Aderglas not checked: FAIL"));
+				return;
+			}
+			FillMaterials();
+			Eng->Build(VaelEngineerGear::GlassVein, true);
+			Hero->TeleportTo(Hidden->Location + FVector(0.0f, 0.0f, 150.0f), Hero->GetActorRotation());
+			FTimerHandle Again;
+			GetWorld()->GetTimerManager().SetTimer(Again, FTimerDelegate::CreateWeakLambda(this, [WeakEng]()
+			{
+				if (const UVaelEngineerComponent* Later = WeakEng.Get())
+				{
+					UE_LOG(LogVael, Display, TEXT("[GlasTest] Aderglas (%s) shows the hidden vein (%d glows): %s"), *Later->GetGlass().ToString(), Later->GetGlassGlows(),
+						Later->GetGlassGlows() > 0 ? TEXT("PASS") : TEXT("FAIL"));
+				}
+			}), 1.5f, false);
+		}), 1.5f, false);
+		return;
+	}
 	if (What == TEXT("sichel"))
 	{
 		// The Doppelsichel of the Aschenjaeger (26.11.): the whole set worn, a straight throw at a doll ahead, caught in time as it

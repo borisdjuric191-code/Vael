@@ -124,6 +124,12 @@ public:
 	/** The glass in the Quarzbrille (Waermeglas, Rauchglas, Aderglas), none for the plain quartz */
 	FName GetGlass() const;
 
+	/** For tests: Rauchschritte made, whether the next hit is critical out of the smoke, glows the last look of the glasses made */
+	int32 GetSmokeSteps() const { return SmokeSteps; }
+	bool HasSmokeStrike() const;
+	int32 GetGlassGlows() const { return GlassGlows; }
+	bool WasLastCrit() const { return bLastCrit; }
+
 	/** How many shots or devices of a kind are in the pouches and in the stock */
 	int32 GetCarried(FName Id) const;
 	int32 GetStock(FName Id) const;
@@ -588,6 +594,13 @@ private:
 	/** The glass in the Quarzbrille's frame (26.11.): the one built last; none = the plain smoky quartz */
 	FName WornGlass;
 	FName ShownGlass;
+	/** Until when the first hit out of the Rauchschritt's smoke is critical, and how many Rauchschritte he made */
+	float SmokeStrikeUntil = 0.0f;
+	int32 SmokeSteps = 0;
+	/** The Waermeglas and Aderglas show what lies under the ground: next look, and how many glows the last look made */
+	float NextGlassLook = 0.0f;
+	int32 GlassGlows = 0;
+	void UpdateGlassSight();
 	float LastBuiltTime = -100.0f;
 
 	/** The kinds of shots that have a pocket in the Werkrolle (also when the pocket is empty right now) */

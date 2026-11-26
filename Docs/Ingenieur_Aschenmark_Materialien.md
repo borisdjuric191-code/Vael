@@ -132,6 +132,7 @@ Alle Rezepte sind fest. Ausbauten sind eigene Rezepte auf dem vorigen Stück.
 | ↳ **Wärmeglas-Brille** | Brille + 2 Glimmblatt + 1 Mohnblütenblatt | zusätzlich +20 % Feuerwiderstand, sieht Hitze (Glutkriecher im Boden) |
 | ↳ **Rauchglas-Brille** | Brille + 2 Rauchstaub + 1 Siegelwachs | zusätzlich Sicht durch Rauch, auch die eigene Rauchladung |
 | ↳ **Aderglas-Brille** | Brille + 2 Adernflechte + 1 Nidkristall | zusätzlich leuchten Nid-Adern und Niddrusen in der Nähe auf |
+**Gebaut 26.11.:** Die drei Gläser sitzen in der Tripo-Brille (eigener Glas-Slot, eingefärbt), Rauchstaub = Rauchblase, Adernflechte = Myzelprobe. Wärmeglas: 20 % weniger Feuerschaden, eingegrabene Glutkriecher bis 15 m steigen als orange Hitze aus der Asche. Rauchglas: Gegner, die im Rauch taumeln, trifft er immer kritisch. Aderglas: unterirdische Stücke der Nid-Adern bis 12 m dampfen violett aus dem Boden, offene Nidquellen pulsieren. Er trägt das zuletzt gebaute Glas. Test: `VaelIngenieur glaeser`, `VaelIngenieur brille <Glas>`.
 | **Linsen** (wie heute) | Glimmauge / Nidkristall / Sternmilch, jeweils + 1 Rußglas + 1 Messingblech | wie heute |
 | **Königinnenlinse** *(neu)* | 1 Königinnenauge + 1 Klarglas + 1 Messingblech | sieht Feinde hinter Fels als Wärmeschatten |
 | **Fernglas** *(neu)* | 2 Rußglas + 1 Narbenholz + 1 Messingblech | weit spähen, Kreaturen aus der Ferne ins Kompendium eintragen |
@@ -508,7 +509,7 @@ Boris' Idee, nur festgehalten: Ein zweiter, leichter Satz als Gegenstück zur sc
 - Antippen: gerade bis zum Zielpunkt (höchstens 11 m) und zurück. Halten (ab 0,3 s): eine Bumerang-Schleife rechts hinaus, durch den Zielpunkt, links zurück.
 - Sie schneidet jeden Gegner auf dem Hin- und auf dem Rückweg je einmal (16 Schaden pro Schnitt, mit den üblichen Schadensboni) und kommt immer zur Hand zurück. Solange sie fliegt, kein zweiter Wurf, und sie fehlt am Gürtel.
 - Fangen: Die Angriffstaste höchstens 0,3 s vor der Ankunft gedrückt, dann „Gefangen!“, und der nächste Wurf ist 30 % schneller und härter. Das HUD zeigt „Doppelsichel · gefangen“.
-- Test: `VaelIngenieur sichel` (alles PASS). Noch offen: Rauchschritt, die Umweltvorschläge (brennend durch Feuer usw.), „nur ganz tragbar“.
+- **Rauchschritt** (26.11.): Ausweichen im ganzen Satz lässt Rauch, wo er absprang und landet (3,8 m), Gegner darin taumeln 1,5 s, der erste Treffer innerhalb von 3 s ist kritisch („Aus dem Rauch!“). Die Sichel zählt wie die Schleuder (Schwachstellen, Krit).- Tests: `VaelIngenieur sichel`, `VaelIngenieur rauchschritt` (alles PASS). Noch offen: die Umweltvorschläge (brennend durch Feuer usw.), „nur ganz tragbar“.
 
 ## 7. Was in der Aschenmark fehlt (und wie ich es löse)
 
