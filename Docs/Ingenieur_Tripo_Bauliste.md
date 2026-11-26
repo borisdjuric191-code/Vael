@@ -14,10 +14,10 @@ Arbeitsliste für alle Modelle des Ingenieurs, die noch gebaut werden müssen. S
 
 | # | Stück | Wesen / Materialien | Weg | Voraussetzung | Status |
 |---|---|---|---|---|---|
-| A1 | **Quarzbrille** (Zielhilfebrille) | Rußglas, Schlackeneisen, Silberhalm, Latex | Tripo + Blender | – (das Platzhaltermodell aus Blender sitzt schon) | ⬜ |
+| A1 | **Quarzbrille** (Zielhilfebrille) | Rußglas, Schlackeneisen, Silberhalm, Latex | Tripo + Blender | – (das Platzhaltermodell aus Blender sitzt schon) | 🟦 Tripo-Modell 26.11. |
 | A2 | ↳ Wärmeglas-, Rauchglas-, Aderglas-Brille | Abwandlungen von A1 | Blender | A1 | ⬜ |
-| A3 | **Aschenjäger-Satz** (Helm/Kapuze, Brust, Arme, Beine) | Sichelpuppe + Aschharpyie + Schleieraffe | Tripo | Boris' Go | 🟨 |
-| A4 | **Doppelsichel** (ersetzt die Schleuder) | 2 Sichelklinge, Puppengarn, Schlackeneisen, Rußfeder | Tripo | mit A3 | 🟨 |
+| A3 | **Aschenjäger-Satz** (Helm/Kapuze, Brust, Arme, Beine) | Sichelpuppe + Aschharpyie + Schleieraffe | Tripo | – | 🟦 Tripo-Modell 26.11. |
+| A4 | **Doppelsichel** (ersetzt die Schleuder) | 2 Sichelklinge, Puppengarn, Schlackeneisen, Rußfeder | Tripo | – | 🟦 Tripo-Modell 26.11. |
 | A5 | **Aschenjäger II** (Wirbeltanz) | + Harpyien-Älteste, Silberhalm, Pfeifensporen | Tripo + Blender | Kreatur Harpyien-Älteste | 🟨 |
 | A6 | **Erntewacht-Satz** | Sichelpuppe (Sichelklinge, Puppengarn, Glimmstroh) + 1–2 weitere Wesen | Tripo | Wesen festlegen | ⬜ |
 | A7 | **Glutkronen-Rüstung** (Schwarzglut Stufe II) | Brutkrone, Herz der Glut, Königinnenauge | Tripo + Blender | – | ⬜ |
