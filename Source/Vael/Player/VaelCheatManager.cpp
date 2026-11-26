@@ -2513,6 +2513,30 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		}), 1.5f, false);
 		return;
 	}
+	if (What == TEXT("stich"))
+	{
+		// 26.11.: one brood chamber full: the Glutkrone's sting strikes into the ground (for pictures)
+		if (Engineer->GetSetStage(TEXT("Schwarzglut")) < 2)
+		{
+			Player->SetHero(EVaelHeroClass::Engineer, false);
+			Engineer->LearnAllPlans();
+			for (const TCHAR* Format : { TEXT("Schwarzglut_%d"), TEXT("Schwarzglut2_%d") })
+			{
+				for (int32 Place = 0; Place < 4; ++Place)
+				{
+					FillMaterials();
+					Engineer->Build(FName(FString(Format).Replace(TEXT("%d"), *FString::FromInt(Place))), true);
+				}
+			}
+			Engineer->Wear(TEXT("Schwarzglut2_1"));
+			return;
+		}
+		Engineer->AddBroodHeat(60.0f);
+		UE_LOG(LogVael, Display, TEXT("[Stich] sting %d, strikes so far %d, set %d stage %d, worn %s %s %s %s, engineer %d"), Engineer->HasSting(), Engineer->GetStingStrikes(),
+			Engineer->CountSet(TEXT("Schwarzglut")), Engineer->GetSetStage(TEXT("Schwarzglut")), *Engineer->GetWorn(EVaelArmorPlace::Head).ToString(), *Engineer->GetWorn(EVaelArmorPlace::Chest).ToString(),
+			*Engineer->GetWorn(EVaelArmorPlace::Arms).ToString(), *Engineer->GetWorn(EVaelArmorPlace::Legs).ToString(), Player->IsEngineer());
+		return;
+	}
 	if (What == TEXT("wechsel"))
 	{
 		// 26.11.: everything lies in the toolbox as if unlocked; each set (and stage) is put on in turn from there. [Wechsel]
@@ -2600,7 +2624,7 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 						Second->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
 					}
 					Eng->AddBroodHeat(60.0f);
-					UE_LOG(LogVael, Display, TEXT("[Stufe2] 60 heat in the chambers lays a Glutei: %s"), Eng->GetEggsLaid() == 1 ? TEXT("PASS") : TEXT("FAIL"));
+					UE_LOG(LogVael, Display, TEXT("[Stufe2] 60 heat in the chambers: sting there %d, egg laid or strike coming: %s"), Eng->HasSting(), Eng->GetEggsLaid() == 1 || Eng->HasSting() ? TEXT("PASS") : TEXT("FAIL"));
 				}
 			});
 			Later(2.0f, [WeakDoll, Start]() { if (WeakDoll.IsValid()) { UE_LOG(LogVael, Display, TEXT("[Stufe2] doll before the egg: %.0f lost"), Start - WeakDoll->GetHealth()); } });
@@ -2619,6 +2643,7 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 				{
 					return;
 				}
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] sting strikes %d, eggs laid %d: %s"), Eng->GetStingStrikes(), Eng->GetEggsLaid(), Eng->GetEggsLaid() >= 1 ? TEXT("PASS") : TEXT("FAIL"));
 				UE_LOG(LogVael, Display, TEXT("[Stufe2] the Glutei crawled to the doll and burst (eggs left %d, doll burning %d): %s"), Eng->GetEggsAlive(),
 					WeakDoll.IsValid() && UVaelCombatStatics::HasStatus(WeakDoll.Get(), EVaelStatus::Burning), Eng->GetEggsAlive() == 0 ? TEXT("PASS") : TEXT("FAIL"));
 				AVaelGroundArea::SpawnArea(GetWorld(), Eng->GetOwner()->GetActorLocation() - FVector(0.0f, 0.0f, 90.0f), EVaelElement::Fire, 200.0f, 5.0f, 0.0f, nullptr);

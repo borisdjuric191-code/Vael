@@ -381,6 +381,7 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 	}
 	// the back shell rides on the chest, and with a shield worn it is the shield
 	UpdateShellShield();
+	UpdateSting();
 	UpdateShieldMeshes();
 	const auto Skip = [&GlutpanzerPlaces](EVaelArmorPlace Place) { return GlutpanzerPlaces.Contains(Place); };
 

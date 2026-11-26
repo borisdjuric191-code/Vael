@@ -113,7 +113,9 @@ def set_materials(mesh, mi):
 
 def import_rig(mi, rig=RIG, folder=AJ, prefix="AJ"):
     skeleton = None
-    for piece in ("Beine", "Brust", "Arme", "Kopf"):
+    # the Glutkrone's sting has a chain of its own (26.11.), with its own skeleton
+    extra = ("Stachel",) if os.path.exists(os.path.join(rig, "SKM_Ing_{}_Stachel.fbx".format(prefix))) else ()
+    for piece in ("Beine", "Brust", "Arme", "Kopf") + extra:
         name = "SKM_Ing_{}_{}".format(prefix, piece)
         ui = unreal.FbxImportUI()
         ui.set_editor_property("import_mesh", True)
@@ -123,7 +125,7 @@ def import_rig(mi, rig=RIG, folder=AJ, prefix="AJ"):
         ui.set_editor_property("import_textures", False)
         ui.set_editor_property("import_animations", False)
         ui.set_editor_property("create_physics_asset", False)
-        if skeleton is not None:
+        if skeleton is not None and piece != "Stachel":
             ui.set_editor_property("skeleton", skeleton)
         ui.skeletal_mesh_import_data.set_editor_property("import_morph_targets", False)
         task = unreal.AssetImportTask()
@@ -142,7 +144,7 @@ def import_rig(mi, rig=RIG, folder=AJ, prefix="AJ"):
         build = unreal.SkeletalMeshEditorSubsystem.get_lod_build_settings(mesh, 0)
         build.set_editor_property("use_full_precision_u_vs", True)
         unreal.SkeletalMeshEditorSubsystem.set_lod_build_settings(mesh, 0, build)
-        if skeleton is None:
+        if skeleton is None and piece != "Stachel":
             skeleton = mesh.get_editor_property("skeleton")
         set_materials(mesh, mi)
         assets.save_loaded_asset(mesh, False)

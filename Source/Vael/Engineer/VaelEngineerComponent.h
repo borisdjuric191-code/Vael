@@ -142,6 +142,9 @@ public:
 	float GetBroodHeat() const { return BroodHeat; }
 	int32 GetEggsLaid() const { return EggsLaid; }
 	int32 GetEggsAlive() const;
+	/** Strikes of the Glutkrone's sting into the ground (each sends a Glutei under the earth) */
+	int32 GetStingStrikes() const { return StingStrikes; }
+	bool HasSting() const;
 	/** Fire dealt or taken in the Glutkrone fills the chambers; a full one lays a Glutei */
 	void AddBroodHeat(float Heat);
 	/** The Drehtanz of the Aschenjaeger II: dodge held; turns, speed stacks, the tornado round him, devils let go */
@@ -647,6 +650,20 @@ private:
 	int32 DevilsReleased = 0;
 	float DizzyUntil = 0.0f;
 	bool bWhirlHeld = false;
+	// the Glutkrone's sting (26.11.): its own chain, sways, and strikes into the ground to send a Glutei under the earth
+	UPROPERTY()
+	TObjectPtr<class UPoseableMeshComponent> StingMesh;
+	TArray<FTransform> StingRest;
+	FVector StingAxis = FVector::RightVector;
+	float StingStrikeSign = 1.0f;
+	float StingStrikeAge = -1.0f;
+	int32 PendingStrikes = 0;
+	int32 StingStrikes = 0;
+	bool bStingEggSent = false;
+	float StingClock = 0.0f;
+	float NextStingLook = 0.0f;
+	void UpdateSting();
+	void TickSting(float DeltaTime);
 	UPROPERTY()
 	TArray<TObjectPtr<UStaticMeshComponent>> WhirlBlades;
 	void TickStage2(float DeltaTime);

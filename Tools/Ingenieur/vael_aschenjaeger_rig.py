@@ -105,6 +105,8 @@ elif PROFILE == "GK":
         TIPS["ball_" + s] = J(0.13 * sx, -0.12, 0.01)
     HEAD_Z, HEAD_X, ARM_Z, LEGS_Z = 0.72, 0.10, 0.60, 0.50
     MANTLE_X, MANTLE_Z = 0.29, 0.25
+    # the sting is its own piece with its own chain of bones, moved by the game (26.11.: it strikes into the ground)
+    WEIGHT_BONES_EXTRA = True
 TEX = os.path.join(OUT, "Texturen")
 ARM_BONES = {"upperarm_l", "lowerarm_l", "hand_l", "upperarm_r", "lowerarm_r", "hand_r"}
 WEIGHT_BONES = {
@@ -113,6 +115,8 @@ WEIGHT_BONES = {
     "Arme": ["upperarm_l", "lowerarm_l", "hand_l", "upperarm_r", "lowerarm_r", "hand_r", "clavicle_l", "clavicle_r"],
     "Beine": ["pelvis", "spine_01", "spine_02", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"],
 }
+if PROFILE == "GK":
+    WEIGHT_BONES["Stachel"] = []
 MATCH = []
 for s in ("l", "r"):
     MATCH += [("upperarm_" + s, "lowerarm_" + s), ("lowerarm_" + s, "hand_" + s), ("hand_" + s, "middle_03_" + s),
@@ -153,7 +157,7 @@ def arm_distance(p):
 def place_of(p):
     """Which piece a point of the Tripo figure (unscaled) belongs to"""
     if is_tail(p):
-        return "Brust"
+        return "Stachel"
     if p.z > HEAD_Z and abs(p.x - CENTRE_X) < HEAD_X:
         return "Kopf"
     # the mantle away from the arms is chest; the feathers on the arms go with the arms (else they hang in the air before him)
@@ -190,6 +194,87 @@ def save_textures(mat):
         img.save()
         log("texture {} {}x{}".format(key, *img.size))
     return found
+
+
+STING_BONES = 6
+
+
+def export_sting(o):
+    """The Glutkrone's sting as SKM_Ing_GK_Stachel on a chain of its own (stachel_root, Stachel_0..5 from the back to the tip),
+    in the coordinates of the armour like the Glutpanzer's shell shield; each vertex on the two links nearest along the sting"""
+    import heapq
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.verts.ensure_lookup_table()
+    # the root of the sting: the vertex nearest the lower back (spine_02 of the body, scaled)
+    base_at = JOINTS["spine_02"] * SCALE + Vector((0.0, 0.25, 0.0))
+    start = min(bm.verts, key=lambda v: (v.co - base_at).length)
+    # the decimated mesh falls apart in islands: neighbours by distance, not by edges
+    from mathutils.kdtree import KDTree
+    tree = KDTree(len(bm.verts))
+    for v in bm.verts:
+        tree.insert(v.co, v.index)
+    tree.balance()
+    dist = {start.index: 0.0}
+    heap = [(0.0, start.index)]
+    while heap:
+        d, i = heapq.heappop(heap)
+        if d > dist.get(i, 1e9):
+            continue
+        for (co_j, j, gap) in tree.find_range(bm.verts[i].co, 0.07):
+            nd = d + gap
+            if nd < dist.get(j, 1e9):
+                dist[j] = nd
+                heapq.heappush(heap, (nd, j))
+    far = max(dist.values()) if dist else 1.0
+    # loose bits the edges do not reach go by their straight distance
+    for v in bm.verts:
+        if v.index not in dist:
+            dist[v.index] = (v.co - start.co).length
+    joints = []
+    for k in range(STING_BONES + 1):
+        lo, hi = far * (k - 0.5) / STING_BONES, far * (k + 0.5) / STING_BONES
+        near = [v.co for v in bm.verts if lo <= dist[v.index] <= hi] or [start.co]
+        joints.append(sum(near, Vector()) / len(near))
+    bm.free()
+    log("Stachel {:.2f} m along, joints {}".format(far, [[round(c, 2) for c in j] for j in joints]))
+    arm_data = bpy.data.armatures.new("GK_Stachel_Skelett")
+    rig = bpy.data.objects.new("GK_Stachel_Skelett", arm_data)
+    bpy.context.scene.collection.objects.link(rig)
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.object.mode_set(mode="EDIT")
+    root = arm_data.edit_bones.new("stachel_root")
+    root.head, root.tail = Vector((0, 0, 0)), Vector((0, 0, 0.1))
+    parent = root
+    for k in range(STING_BONES):
+        eb = arm_data.edit_bones.new("Stachel_{}".format(k))
+        eb.head, eb.tail = joints[k], joints[k + 1]
+        eb.parent = parent
+        eb.use_connect = k > 0
+        parent = eb
+    bpy.ops.object.mode_set(mode="OBJECT")
+    groups = [o.vertex_groups.new(name="Stachel_{}".format(k)) for k in range(STING_BONES)]
+    for v in o.data.vertices:
+        t = min(max(dist[v.index] / far * STING_BONES - 0.5, 0.0), STING_BONES - 1.0)
+        a = int(t)
+        b = min(a + 1, STING_BONES - 1)
+        f = t - a
+        groups[a].add([v.index], 1.0 - f, "REPLACE")
+        if b != a and f > 0.02:
+            groups[b].add([v.index], f, "REPLACE")
+    o.name = o.data.name = "SKM_Ing_GK_Stachel"
+    o.parent = rig
+    am = o.modifiers.new("Skelett", "ARMATURE")
+    am.object = rig
+    bpy.ops.object.select_all(action="DESELECT")
+    rig.select_set(True)
+    o.select_set(True)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.export_scene.fbx(filepath=os.path.join(OUT, o.name + ".fbx"), use_selection=True, object_types={"ARMATURE", "MESH"},
+                             apply_unit_scale=True, apply_scale_options="FBX_SCALE_ALL", add_leaf_bones=False, bake_anim=False,
+                             use_armature_deform_only=False, mesh_smooth_type="FACE", path_mode="STRIP", armature_nodetype="NULL")
+    log("Stachel {} tris".format(sum(len(p.vertices) - 2 for p in o.data.polygons)))
 
 
 def main():
@@ -236,6 +321,9 @@ def main():
         pieces[piece] = o
     bpy.data.objects.remove(src)
 
+    sting = pieces.pop("Stachel", None)
+    if sting is not None:
+        sting.data.transform(Matrix.Scale(SCALE, 4))
     # the armature at the joints, then everything scaled to the engineer
     arm_data = bpy.data.armatures.new("AJ_Skelett")
     rig = bpy.data.objects.new("AJ_Skelett", arm_data)
@@ -323,6 +411,8 @@ def main():
         cam.location = loc; cam.rotation_euler = rot
         scene.render.filepath = os.path.join(OUT, "rig_" + view + ".png")
         bpy.ops.render.render(write_still=True)
+    if sting is not None:
+        export_sting(sting)
     log("done")
 
 

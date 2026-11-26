@@ -16,6 +16,7 @@
 #include "Engine/World.h"
 #include "Engineer/VaelEngineerShot.h"
 #include "Engineer/VaelDoubleSickle.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Engineer/VaelEngineerStage2Actors.h"
 #include "EngineUtils.h"
 #include "Magic/VaelGroundArea.h"
@@ -96,6 +97,12 @@ void UVaelEngineerComponent::AddBroodHeat(float Heat)
 	while (BroodHeat >= 1.0f)
 	{
 		BroodHeat -= 1.0f;
+		// the sting strikes it into the ground (26.11.); without the sting it is laid behind him
+		if (HasSting())
+		{
+			++PendingStrikes;
+			continue;
+		}
 		const AActor* Owner = GetOwner();
 		LayGlutEgg(Owner->GetActorLocation() - Owner->GetActorForwardVector() * 70.0f);
 	}
@@ -184,6 +191,13 @@ void UVaelEngineerComponent::TickSickleBand()
 void UVaelEngineerComponent::TickStage2(float DeltaTime)
 {
 	TickSickleBand();
+	// the sting is looked for again while the Glutkrone is on and it is not there yet (the body may come after the armour)
+	const bool bGlutkrone = GetSetStage(TEXT("Schwarzglut")) >= 2;
+	if (bGlutkrone != HasSting() && Now() >= NextStingLook)
+	{
+		NextStingLook = Now() + 0.5f;
+		UpdateSting();
+	}
 	if (GetSetStage(TEXT("Schwarzglut")) >= 2)
 	{
 		TickGlutkrone(DeltaTime);
@@ -196,6 +210,7 @@ void UVaelEngineerComponent::TickStage2(float DeltaTime)
 
 void UVaelEngineerComponent::TickGlutkrone(float DeltaTime)
 {
+	TickSting(DeltaTime);
 	AActor* Owner = GetOwner();
 	const bool bInFire = AVaelGroundArea::IsFireNear(GetWorld(), Owner->GetActorLocation(), 20.0f);
 	// Glutbad: fire on the ground heals him (the burning itself is held off in ScaleIncoming)
@@ -446,5 +461,179 @@ bool UVaelEngineerComponent::HandleL2(bool bHeld, const FVector& AimLocation)
 		return true;
 	}
 	return false;
+}
+
+// ---------------------------------------------------------------- the sting of the Glutkrone (Boris 26.11.)
+
+namespace
+{
+	constexpr int32 StingBones = 6;
+	/** Seconds of a strike: down into the ground, held there (the egg goes off at its start), back up */
+	constexpr float StingDown = 0.35f;
+	constexpr float StingHold = 0.3f;
+	constexpr float StingUp = 0.45f;
+	/** How far the strike swings the root and curls the rest (degrees), and the sway at rest */
+	constexpr float StingStrikeRoot = 95.0f;
+	constexpr float StingStrikeCurl = 18.0f;
+	constexpr float StingSway = 4.0f;
+
+	FTransform RestInMeshOf(const FReferenceSkeleton& Skeleton, int32 Index)
+	{
+		FTransform Result = FTransform::Identity;
+		for (; Index != INDEX_NONE; Index = Skeleton.GetParentIndex(Index))
+		{
+			Result = Result * Skeleton.GetRefBonePose()[Index];
+		}
+		return Result;
+	}
+
+	/** The chain turned joint by joint about one axis (component space): each angle turns its bone and all after it */
+	TArray<FTransform> BendChain(const TArray<FTransform>& Rest, const FVector& Axis, const TArray<float>& Degrees)
+	{
+		TArray<FTransform> Out = Rest;
+		for (int32 K = 0; K < Out.Num() && K < Degrees.Num(); ++K)
+		{
+			if (FMath::IsNearlyZero(Degrees[K]))
+			{
+				continue;
+			}
+			const FQuat Turn(Axis, FMath::DegreesToRadians(Degrees[K]));
+			const FVector Pivot = Out[K].GetLocation();
+			for (int32 J = K; J < Out.Num(); ++J)
+			{
+				Out[J].SetRotation(Turn * Out[J].GetRotation());
+				Out[J].SetLocation(Pivot + Turn.RotateVector(Out[J].GetLocation() - Pivot));
+			}
+		}
+		return Out;
+	}
+}
+
+bool UVaelEngineerComponent::HasSting() const
+{
+	return StingMesh != nullptr && StingMesh->IsVisible() && StingRest.Num() == StingBones;
+}
+
+void UVaelEngineerComponent::UpdateSting()
+{
+	AVaelCharacter* Player = GetPlayer();
+	USkeletalMeshComponent* Chest = GlutpanzerBodies.IsValidIndex(1) ? GlutpanzerBodies[1].Get() : nullptr;
+	USkeletalMesh* ChestMesh = Chest != nullptr && Chest->IsVisible() ? Chest->GetSkeletalMeshAsset() : nullptr;
+	USkeletalMesh* Mesh = Player != nullptr && ChestMesh != nullptr && GetSetStage(TEXT("Schwarzglut")) >= 2
+		? LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Glutkrone/Koerper/SKM_Ing_GK_Stachel.SKM_Ing_GK_Stachel"), nullptr, LOAD_NoWarn | LOAD_Quiet)
+		: nullptr;
+	const FName Spine(TEXT("spine_05"));
+	const int32 SpineIndex = ChestMesh != nullptr ? ChestMesh->GetRefSkeleton().FindBoneIndex(Spine) : INDEX_NONE;
+	if (Mesh == nullptr || SpineIndex == INDEX_NONE)
+	{
+		if (StingMesh != nullptr)
+		{
+			StingMesh->SetVisibility(false);
+		}
+		return;
+	}
+	if (StingMesh == nullptr)
+	{
+		StingMesh = NewObject<UPoseableMeshComponent>(Player, TEXT("EngineerGlutkroneStachel"));
+		StingMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		StingMesh->SetCastShadow(true);
+		StingMesh->ComponentTags.Add(TEXT("VaelKeinZeichen"));
+		StingMesh->RegisterComponent();
+	}
+	if (StingMesh->GetSkinnedAsset() != Mesh)
+	{
+		StingMesh->SetSkinnedAssetAndUpdate(Mesh);
+	}
+	// like the Glutpanzer's shell: the sting keeps the coordinates of the armour, hung on the chest's spine_05
+	StingMesh->AttachToComponent(Chest, FAttachmentTransformRules::KeepRelativeTransform, Spine);
+	StingMesh->SetRelativeTransform(RestInMeshOf(ChestMesh->GetRefSkeleton(), SpineIndex).Inverse());
+	StingMesh->AddTickPrerequisiteComponent(Chest);
+	StingMesh->SetVisibility(true);
+	const FReferenceSkeleton& Skeleton = Mesh->GetRefSkeleton();
+	StingRest.Reset();
+	for (int32 Bone = 0; Bone < StingBones; ++Bone)
+	{
+		const int32 Index = Skeleton.FindBoneIndex(*FString::Printf(TEXT("Stachel_%d"), Bone));
+		if (Index == INDEX_NONE)
+		{
+			StingRest.Reset();
+			return;
+		}
+		StingRest.Add(RestInMeshOf(Skeleton, Index));
+	}
+	// the strike swings it about the axis across his back; the sign that brings the tip lowest
+	FVector Back = StingRest[0].GetLocation() - RestInMeshOf(ChestMesh->GetRefSkeleton(), SpineIndex).GetLocation();
+	Back.Z = 0.0f;
+	StingAxis = FVector::CrossProduct(Back.GetSafeNormal(), FVector::UpVector).GetSafeNormal();
+	TArray<float> Try;
+	Try.Init(0.0f, StingBones);
+	Try[0] = StingStrikeRoot;
+	const float TipPlus = BendChain(StingRest, StingAxis, Try).Last().GetLocation().Z;
+	Try[0] = -StingStrikeRoot;
+	const float TipMinus = BendChain(StingRest, StingAxis, Try).Last().GetLocation().Z;
+	StingStrikeSign = TipPlus < TipMinus ? 1.0f : -1.0f;
+}
+
+void UVaelEngineerComponent::TickSting(float DeltaTime)
+{
+	if (!HasSting())
+	{
+		return;
+	}
+	StingClock += DeltaTime;
+	if (StingStrikeAge < 0.0f && PendingStrikes > 0)
+	{
+		--PendingStrikes;
+		StingStrikeAge = 0.0f;
+		bStingEggSent = false;
+	}
+	float Strike = 0.0f;
+	if (StingStrikeAge >= 0.0f)
+	{
+		StingStrikeAge += DeltaTime;
+		const float T = StingStrikeAge;
+		Strike = T < StingDown ? FMath::InterpEaseIn(0.0f, 1.0f, T / StingDown, 2.0f)
+			: T < StingDown + StingHold ? 1.0f
+			: FMath::InterpEaseOut(1.0f, 0.0f, FMath::Clamp((T - StingDown - StingHold) / StingUp, 0.0f, 1.0f), 2.0f);
+		if (T >= StingDown + StingHold + StingUp)
+		{
+			StingStrikeAge = -1.0f;
+		}
+	}
+	TArray<float> Degrees;
+	Degrees.Init(0.0f, StingBones);
+	for (int32 Bone = 0; Bone < StingBones; ++Bone)
+	{
+		// at rest a slow sway like a tail; striking, the root swings it down behind him and the rest curls the tip in
+		const float Sway = StingSway * FMath::Sin(StingClock * 1.6f + Bone * 0.7f) * (1.0f - Strike);
+		Degrees[Bone] = Sway + StingStrikeSign * Strike * (Bone == 0 ? StingStrikeRoot : StingStrikeCurl);
+	}
+	const TArray<FTransform> Pose = BendChain(StingRest, StingAxis, Degrees);
+	for (int32 Bone = 0; Bone < StingBones; ++Bone)
+	{
+		StingMesh->SetBoneTransformByName(*FString::Printf(TEXT("Stachel_%d"), Bone), Pose[Bone], EBoneSpaces::ComponentSpace);
+	}
+	// in the ground: a Glutei is shot under the earth where the tip went in
+	if (StingStrikeAge >= StingDown && !bStingEggSent)
+	{
+		bStingEggSent = true;
+		++StingStrikes;
+		const FVector Tip = StingMesh->GetComponentTransform().TransformPosition(Pose.Last().GetLocation());
+		FHitResult Hit;
+		const bool bGround = GetWorld()->LineTraceSingleByChannel(Hit, Tip + FVector(0.0f, 0.0f, 150.0f), Tip - FVector(0.0f, 0.0f, 400.0f), ECC_Visibility);
+		const FVector Spot = bGround ? Hit.ImpactPoint : Tip;
+		const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->DustBurstEffect), Spot, FRotator::ZeroRotator, FLinearColor(0.9f, 0.4f, 0.1f), 110.0f);
+		GlutEggs.RemoveAll([](const TWeakObjectPtr<AActor>& Egg) { return !Egg.IsValid(); });
+		if (GlutEggs.Num() < MaxEggs)
+		{
+			if (AVaelGlutEgg* Egg = AVaelGlutEgg::Lay(this, Spot, EggDamage * GetDamageScale() * GetTierScale()))
+			{
+				Egg->SetUnderground(true);
+				GlutEggs.Add(Egg);
+				++EggsLaid;
+			}
+		}
+	}
 }
 #undef LOCTEXT_NAMESPACE

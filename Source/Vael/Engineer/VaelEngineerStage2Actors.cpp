@@ -92,6 +92,13 @@ AVaelGlutEgg* AVaelGlutEgg::Lay(UVaelEngineerComponent* Engineer, const FVector&
 	return Egg;
 }
 
+void AVaelGlutEgg::SetUnderground(bool bUnder)
+{
+	bUnderground = bUnder;
+	Body->SetVisibility(!bUnder);
+	Glow->SetVisibility(!bUnder);
+}
+
 AVaelCharacterBase* AVaelGlutEgg::GetPrey() const
 {
 	return Prey.Get();
@@ -151,6 +158,22 @@ void AVaelGlutEgg::Tick(float DeltaSeconds)
 	{
 		FVector Way = Target->GetActorLocation() - GetActorLocation();
 		Way.Z = 0.0f;
+		// under the earth: a trail of dust where it digs, and it breaks out just before it reaches the prey
+		if (bUnderground)
+		{
+			if (Age >= NextDust)
+			{
+				NextDust = Age + 0.12f;
+				const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+				VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->DustPuffEffect), GetActorLocation(), FRotator::ZeroRotator, FLinearColor(0.55f, 0.32f, 0.14f), 40.0f);
+			}
+			if (Way.Size() < 180.0f)
+			{
+				SetUnderground(false);
+				const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+				VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->DustBurstEffect), GetActorLocation(), FRotator::ZeroRotator, FLinearColor(1.0f, 0.45f, 0.12f), 80.0f);
+			}
+		}
 		if (Way.Size() <= EggBurstReach + Target->GetSimpleCollisionRadius() * 0.5f)
 		{
 			Burst();

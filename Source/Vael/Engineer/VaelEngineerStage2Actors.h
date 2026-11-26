@@ -38,6 +38,9 @@ public:
 	/** The enemy it crawls to, none while it lies still */
 	AVaelCharacterBase* GetPrey() const;
 	bool HasBurst() const { return bBurst; }
+	/** Shot under the earth by the sting (26.11.): it burrows unseen, a trail of dust above it, and breaks out under its prey */
+	void SetUnderground(bool bUnder);
+	bool IsUnderground() const { return bUnderground; }
 
 	/** For tests: the warmest enemy it would go for right now */
 	AVaelCharacterBase* FindPrey() const;
@@ -50,6 +53,8 @@ private:
 	float Age = 0.0f;
 	float NextLook = 0.0f;
 	bool bBurst = false;
+	bool bUnderground = false;
+	float NextDust = 0.0f;
 
 	void Burst();
 };
