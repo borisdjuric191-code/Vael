@@ -313,6 +313,10 @@ namespace VaelEngineerGear
 	/** Fernglas (25.11.): his own spyglass reaches twice as far and marks what it watches */
 	inline const FName Spyglass = TEXT("Fernglas");
 	inline const FName LensBreak = TEXT("LinseStern");
+	/** The glasses made of the Quarzbrille (26.11.): another glass in the same frame; the one built last is worn */
+	inline const FName GlassHeat = TEXT("Waermeglas");
+	inline const FName GlassSmoke = TEXT("Rauchglas");
+	inline const FName GlassVein = TEXT("Aderglas");
 	inline const FName PouchArmor = TEXT("Panzerbeutel");
 	inline const FName PouchSilk = TEXT("Seidenbeutel");
 }

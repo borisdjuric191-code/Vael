@@ -2171,6 +2171,13 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 		Engineer->TakeOff(EVaelArmorPlace::Head);
 		const bool bBuilt = Engineer->Build(VaelEngineerGear::Goggles, true) || Engineer->HasBuilt(VaelEngineerGear::Goggles);
 		UE_LOG(LogVael, Display, TEXT("[Brille] built %d"), bBuilt);
+		// "brille Waermeglas|Rauchglas|Aderglas": that glass set into the frame too (26.11.); logs the fire damage scale
+		if (!Id.IsEmpty())
+		{
+			FillMaterials();
+			const bool bGlass = Engineer->Build(FName(*Id), true) || Engineer->HasBuilt(FName(*Id));
+			UE_LOG(LogVael, Display, TEXT("[Brille] glass %s built %d, in the frame %s, fire 100 -> %.0f"), *Id, bGlass, *Engineer->GetGlass().ToString(), Engineer->ScaleIncoming(100.0f, nullptr, true));
+		}
 		return;
 	}
 	// The face of the MetaHuman (25.11., fitting the Quarzbrille): "gesicht" logs the skeletal parts of the MetaHuman and, in the

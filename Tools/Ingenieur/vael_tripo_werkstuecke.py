@@ -102,10 +102,36 @@ def quarzbrille():
         v.co = Vector((-p.y, p.x, p.z))
     bm.to_mesh(o.data)
     bm.free()
+    # The glass on its own material slot "Glas" (26.11., the Wärmeglas, Rauchglas and Aderglas tint it in the game): the domes
+    # in the cups and the flipped-up magnifier, found by place (game metres, origin between the eyes)
+    glass = bpy.data.materials.new("Glas")
+    o.data.materials.append(glass)
+    centres = [(Vector((0.0, side * 0.0325, -0.0015)), 0.0168, -0.01) for side in (-1.0, 1.0)] + [(Vector((0.0, 0.0317, 0.039)), 0.0105, -1.0)]
+    count = 0
+    for poly in o.data.polygons:
+        c = poly.center
+        for centre, radius, min_x in centres:
+            if Vector((0.0, c.y - centre.y, c.z - centre.z)).length < radius and c.x > min_x:
+                poly.material_index = 1
+                count += 1
+                break
+    log("Quarzbrille: {} faces of glass".format(count))
     export(o)
+    # a look at which faces became glass: front view, glass red
+    glass.diffuse_color = (1.0, 0.1, 0.05, 1.0)
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_WORKBENCH"
+    scene.display.shading.color_type = "MATERIAL"
+    scene.render.resolution_x, scene.render.resolution_y = 800, 500
+    cam_data = bpy.data.cameras.new("C"); cam_data.type = "ORTHO"; cam_data.ortho_scale = 0.18
+    cam = bpy.data.objects.new("C", cam_data); scene.collection.objects.link(cam); scene.camera = cam
+    cam.location = (0.5, 0.0, 0.01); cam.rotation_euler = (math.radians(90), 0.0, math.radians(90))
+    scene.render.filepath = os.path.join(OUT, "Quarzbrille_Glas.png")
+    bpy.ops.render.render(write_still=True)
 
 
 os.makedirs(OUT, exist_ok=True)
-doppelsichel()
+if not os.environ.get("VAEL_NUR_BRILLE"):
+    doppelsichel()
 quarzbrille()
 log("done")

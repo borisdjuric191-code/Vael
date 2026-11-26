@@ -778,7 +778,7 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	const bool bPack = bShow && !IsPanzer(EVaelArmorPlace::Chest);
 	// the ring of pouches is cut for the bare body and stood out of the Glutpanzer's thick belt: its legs wear their own belt
 	const bool bPouchBelt = bShow && !IsPanzer(EVaelArmorPlace::Legs);
-	if (Tier == ShownPouchTier && bGoggles == bShownGoggles && bShow == bShownPack && bPack == bShownBackpack && bPouchBelt == bShownPouchBelt)
+	if (Tier == ShownPouchTier && bGoggles == bShownGoggles && bShow == bShownPack && bPack == bShownBackpack && bPouchBelt == bShownPouchBelt && (!bGoggles || GetGlass() == ShownGlass))
 	{
 		return;
 	}
@@ -920,7 +920,40 @@ bool UVaelEngineerComponent::AttachQuartzGoggles()
 			}
 			GogglesMesh->SetMaterial(Index, Dynamic);
 		}
+		ShownGlass = FName(TEXT("-"));
 	}
+	// The glass of the Tripo goggles (slot "Glas", Tools/Ingenieur/vael_tripo_werkstuecke.py) in the colour of the glass in the
+	// frame: smoky quartz, the red-glowing Waermeglas, the smoke-grey Rauchglas, the violet shimmer of the Aderglas
+	const FName Glass = GetGlass();
+	const int32 GlassSlot = GogglesMesh->GetMaterialIndex(TEXT("Glas"));
+	if (Glass != ShownGlass && GlassSlot != INDEX_NONE)
+	{
+		if (UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Vael/Refugium/Glutkammer/Probe/M_GK_Glas.M_GK_Glas"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+		{
+			FLinearColor Color(0.05f, 0.035f, 0.025f);
+			FLinearColor Rim(0.35f, 0.19f, 0.06f);
+			if (Glass == VaelEngineerGear::GlassHeat)
+			{
+				Color = FLinearColor(0.3f, 0.05f, 0.01f);
+				Rim = FLinearColor(1.6f, 0.45f, 0.06f);
+			}
+			else if (Glass == VaelEngineerGear::GlassSmoke)
+			{
+				Color = FLinearColor(0.035f, 0.035f, 0.04f);
+				Rim = FLinearColor(0.3f, 0.3f, 0.34f);
+			}
+			else if (Glass == VaelEngineerGear::GlassVein)
+			{
+				Color = FLinearColor(0.07f, 0.015f, 0.11f);
+				Rim = FLinearColor(0.8f, 0.2f, 1.4f);
+			}
+			UMaterialInstanceDynamic* Dynamic = UMaterialInstanceDynamic::Create(Base, GogglesMesh);
+			Dynamic->SetVectorParameterValue(TEXT("Farbe"), Color);
+			Dynamic->SetVectorParameterValue(TEXT("Rand"), Rim);
+			GogglesMesh->SetMaterial(GlassSlot, Dynamic);
+		}
+	}
+	ShownGlass = Glass;
 	GogglesMesh->SetVisibility(true);
 	return true;
 }
@@ -1156,6 +1189,11 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 	}
 
 	LastBuilt = Id;
+	if (Id == VaelEngineerGear::GlassHeat || Id == VaelEngineerGear::GlassSmoke || Id == VaelEngineerGear::GlassVein)
+	{
+		// the new glass goes into the frame
+		WornGlass = Id;
+	}
 	LastBuiltTime = Now();
 	UVaelCombatTextSubsystem::PostPickup(Player, FText::Format(LOCTEXT("Built", "Gebaut: {0}"), Gear->Name), Gear->Color);
 	UVaelSaveSubsystem::RequestSave(Player);
@@ -2840,6 +2878,27 @@ float UVaelEngineerComponent::GetArmorTotal() const
 	return Total;
 }
 
+FName UVaelEngineerComponent::GetGlass() const
+{
+	if (!HasBuilt(VaelEngineerGear::Goggles))
+	{
+		return NAME_None;
+	}
+	if (!WornGlass.IsNone() && HasBuilt(WornGlass))
+	{
+		return WornGlass;
+	}
+	// after a load the last one built is not known: the strongest built glass
+	for (const FName& Glass : { VaelEngineerGear::GlassVein, VaelEngineerGear::GlassSmoke, VaelEngineerGear::GlassHeat })
+	{
+		if (HasBuilt(Glass))
+		{
+			return Glass;
+		}
+	}
+	return NAME_None;
+}
+
 float UVaelEngineerComponent::ScaleIncoming(float Damage, AActor* From, bool bFire)
 {
 	float Scale = 1.0f - FMath::Clamp(GetArmorTotal(), 0.0f, 60.0f) / 100.0f;
@@ -2851,6 +2910,11 @@ float UVaelEngineerComponent::ScaleIncoming(float Damage, AActor* From, bool bFi
 	if (Black >= 2 && bFire)
 	{
 		Scale *= 0.85f;
+	}
+	// the Waermeglas keeps the heat from his face (26.11.)
+	if (bFire && GetGlass() == VaelEngineerGear::GlassHeat)
+	{
+		Scale *= 0.8f;
 	}
 	// An attacker of his enemies (a creature), not a teammate or a damage over time without one
 	AVaelCharacterBase* Attacker = Cast<AVaelCharacterBase>(From);

@@ -222,6 +222,17 @@ namespace
 		All.Add(MakeTool(VaelEngineerGear::LensBreak, LOCTEXT("LinseStern", "Sternmilch-Linse"),
 			LOCTEXT("LinseSternText", "Sternmilch zwischen zwei Scheiben: er sieht die Risse im Panzer. Teile brechen 25 % fr\u00FCher."),
 			GearRgb(220, 220, 240), { { TEXT("Sternmilch"), 1 }, { TEXT("Russglas"), 1 }, { TEXT("Messingblech"), 1 } }, VaelEngineerGear::Goggles));
+		// The three glasses of the Quarzbrille (Docs/Ingenieur_Aschenmark_Materialien.md 5, made 26.11.): a new glass in the same frame
+		// (Rauchstaub is the Rauchblase, Adernflechte the Myzelprobe); he wears the one he set in last
+		All.Add(MakeTool(VaelEngineerGear::GlassHeat, LOCTEXT("Waermeglas", "Wärmeglas-Brille"),
+			LOCTEXT("WaermeglasText", "Glimmblatt und Mohnblütenblatt zwischen die Quarzscheiben gepresst: das Glas glüht rot und hält die Hitze vom Gesicht. 20 % weniger Feuerschaden."),
+			GearRgb(220, 90, 30), { { TEXT("Glimmblatt"), 2 }, { TEXT("Mohnbluetenblatt"), 1 } }, VaelEngineerGear::Goggles));
+		All.Add(MakeTool(VaelEngineerGear::GlassSmoke, LOCTEXT("Rauchglas", "Rauchglas-Brille"),
+			LOCTEXT("RauchglasText", "Rauchstaub in Siegelwachs auf dem Quarz eingebrannt: rauchgraue Gläser. (Die Sicht durch Rauch kommt noch.)"),
+			GearRgb(120, 116, 126), { { TEXT("Rauchblase"), 2 }, { TEXT("Siegelwachs"), 1 } }, VaelEngineerGear::Goggles));
+		All.Add(MakeTool(VaelEngineerGear::GlassVein, LOCTEXT("Aderglas", "Aderglas-Brille"),
+			LOCTEXT("AderglasText", "Adernflechte und ein Splitter Nid im Glas: die Gläser schimmern violett. (Das Aufleuchten der Nid-Adern in der Nähe kommt noch.)"),
+			GearRgb(150, 70, 200), { { TEXT("Myzelprobe"), 2 }, { TEXT("Nidkristall"), 1 } }, VaelEngineerGear::Goggles));
 		All.Add(MakeTool(VaelEngineerGear::Spyglass, LOCTEXT("Fernglas", "Fernglas"),
 			LOCTEXT("FernglasText", "Zwei Scheiben Rußglas in einem Rohr aus Narbenholz, mit Messing gefasst: sein Fernrohr reicht doppelt so weit, und was er darin beobachtet, ist gezeichnet und nimmt mehr Schaden."),
 			GearRgb(180, 150, 90), { { TEXT("Russglas"), 2 }, { TEXT("Narbenholz"), 1 }, { TEXT("Messingblech"), 1 } }, None));

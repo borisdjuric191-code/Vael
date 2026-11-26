@@ -121,6 +121,9 @@ public:
 
 	bool HasBuilt(FName Id) const;
 
+	/** The glass in the Quarzbrille (Waermeglas, Rauchglas, Aderglas), none for the plain quartz */
+	FName GetGlass() const;
+
 	/** How many shots or devices of a kind are in the pouches and in the stock */
 	int32 GetCarried(FName Id) const;
 	int32 GetStock(FName Id) const;
@@ -582,6 +585,9 @@ private:
 	float LastIdeaTime = -100.0f;
 	bool bIdeasPrimed = false;
 	FName LastBuilt;
+	/** The glass in the Quarzbrille's frame (26.11.): the one built last; none = the plain smoky quartz */
+	FName WornGlass;
+	FName ShownGlass;
 	float LastBuiltTime = -100.0f;
 
 	/** The kinds of shots that have a pocket in the Werkrolle (also when the pocket is empty right now) */
