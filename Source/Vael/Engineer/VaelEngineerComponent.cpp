@@ -1636,10 +1636,31 @@ bool UVaelEngineerComponent::ThrowDoubleSickle(const FVector& AimLocation, bool 
 	const FVector From = Player->GetActorLocation() + Player->GetActorForwardVector() * 40.0f + FVector(0.0f, 0.0f, 40.0f);
 	const float Bonus = bSickleCatchBonus ? SickleCatchBonus : 1.0f;
 	const float Damage = SickleDamage * GetDamageScale() * GetTierScale() * Bonus;
-	AVaelDoubleSickle* Sickle = AVaelDoubleSickle::Throw(this, From, AimLocation, bCurve, Damage, Bonus);
+	// A charge in his hand is not shot but brushed on the blades (Boris 25.11.): every cut of this throw carries its effect,
+	// one charge a throw
+	if (Ammo != VaelEngineerGear::Standard && GetCarried(Ammo) <= 0)
+	{
+		Ammo = VaelEngineerGear::Standard;
+	}
+	const FName Coat = Ammo != VaelEngineerGear::Standard ? Ammo : NAME_None;
+	AVaelDoubleSickle* Sickle = AVaelDoubleSickle::Throw(this, From, AimLocation, bCurve, Damage, Bonus, Coat);
 	if (Sickle == nullptr)
 	{
 		return false;
+	}
+	if (!Coat.IsNone())
+	{
+		int32& Left = Carried.FindOrAdd(Coat);
+		Left = FMath::Max(Left - 1, 0);
+		if (Left == 0)
+		{
+			UVaelCombatTextSubsystem::PostReaction(Player, FText::Format(LOCTEXT("SickleCoatOut", "{0} verbraucht"), GetAmmoName()));
+			Ammo = VaelEngineerGear::Standard;
+			if (GetStock(Coat) > 0)
+			{
+				BeginGrab(Coat);
+			}
+		}
 	}
 	bSickleCatchBonus = false;
 	bSickleCatchPending = false;
@@ -2536,6 +2557,10 @@ void UVaelEngineerComponent::ApplyBurst(const FVector& Location, FName ShotAmmo,
 			: AmmoGear != nullptr && AmmoGear->bAlsoBurn ? FLinearColor(0.55f, 0.3f, 0.18f) : FLinearColor(0.32f, 0.3f, 0.29f);
 		const float Reach = Radius > 0.0f ? Radius : 340.0f;
 		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->SteamEffect), Location, FRotator::ZeroRotator, Tint, Reach * 0.9f);
+		if (Effect == EVaelAmmoEffect::Smoke)
+		{
+			AddSmokeSpot(Location, Reach, FMath::Max(Seconds, 4.0f));
+		}
 		for (AVaelCharacterBase* Enemy : EnemiesAround(Location, Reach))
 		{
 			if (Effect == EVaelAmmoEffect::Smoke)
@@ -2907,6 +2932,24 @@ float UVaelEngineerComponent::GetArmorTotal() const
 	return Total;
 }
 
+void UVaelEngineerComponent::AddSmokeSpot(const FVector& Location, float Radius, float Seconds)
+{
+	SmokeSpots.RemoveAll([this](const FSmokeSpot& Spot) { return Spot.Until < Now(); });
+	SmokeSpots.Add({ Location, Radius, Now() + Seconds });
+}
+
+bool UVaelEngineerComponent::IsSmokeAt(const FVector& Location) const
+{
+	for (const FSmokeSpot& Spot : SmokeSpots)
+	{
+		if (Spot.Until >= Now() && FVector::Dist2D(Spot.Location, Location) < Spot.Radius && FMath::Abs(Spot.Location.Z - Location.Z) < 300.0f)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 bool UVaelEngineerComponent::HasSmokeStrike() const
 {
 	return Now() < SmokeStrikeUntil;
@@ -3090,6 +3133,7 @@ void UVaelEngineerComponent::OnDodged()
 			UVaelCombatStatics::ApplyStatus(Owner, Enemy, EVaelStatus::Confused, SmokeStepConfuse);
 		}
 		SmokeStrikeUntil = Now() + SmokeStrikeSeconds;
+		AddSmokeSpot(Start, SmokeStepRadius, 4.0f);
 		++SmokeSteps;
 		UVaelCombatTextSubsystem::PostReaction(Owner, LOCTEXT("SmokeStep", "Rauchschritt"));
 		// and a second cloud where the dodge carries him

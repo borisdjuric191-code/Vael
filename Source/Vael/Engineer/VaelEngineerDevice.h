@@ -69,6 +69,7 @@ public:
 	void StartRoll(const FVector& Target);
 	bool IsWallUp() const { return bWallUp; }
 	bool IsPool() const { return PoolUntil >= 0.0f; }
+	float GetPoolRadius() const { return PoolRadius; }
 	float GetSmokeDrifted() const { return SmokeDrifted.Size(); }
 	int32 GetAcidBitten() const { return AcidBitten; }
 

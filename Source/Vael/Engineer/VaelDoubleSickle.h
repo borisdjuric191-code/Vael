@@ -33,7 +33,14 @@ public:
 
 	/** Throws it from the hand towards the aim point; bCurve swings round the aim point instead of flying straight there.
 	 *  SpeedScale and Damage carry a caught throw's bonus. */
-	static AVaelDoubleSickle* Throw(UVaelEngineerComponent* Engineer, const FVector& From, const FVector& Aim, bool bCurve, float Damage, float SpeedScale);
+	static AVaelDoubleSickle* Throw(UVaelEngineerComponent* Engineer, const FVector& From, const FVector& Aim, bool bCurve, float Damage, float SpeedScale, FName Coat = NAME_None);
+
+	/** What the blades carry (26.11.): a charge formula he brushed on before the throw, or what they took up in flight - fire
+	 *  (Glutladung), the acid of a Säurefass pool (Säureladung), smoke (Rauchladung); none for bare blades */
+	FName GetCoat() const { return Coat; }
+
+	/** Mines and Säurefässer it set off on this throw */
+	int32 GetDevicesStruck() const { return DevicesStruck; }
 
 	/** On its way back to the hand */
 	bool IsReturning() const { return Phase == EPhase::Return; }
@@ -72,6 +79,16 @@ private:
 	FVector LastLocation = FVector::ZeroVector;
 	FVector ThrownFrom = FVector::ZeroVector;
 	bool bCurve = false;
+	FName Coat;
+	int32 DevicesStruck = 0;
+	float NextTrail = 0.0f;
+	TSet<TWeakObjectPtr<AActor>> StruckDevices;
+
+	/** Fire, acid or smoke on its way: the bare blades take it up */
+	void TakeUpFromWorld(const FVector& Location);
+	/** A mine or Säurefass the blades brush goes off */
+	void StrikeDevices(const FVector& From, const FVector& To);
+	void SetCoat(FName NewCoat, const FText& Shout);
 
 	/** Who it has cut in the current phase (out, or back): each enemy at most once per way */
 	TSet<TWeakObjectPtr<AActor>> CutThisWay;

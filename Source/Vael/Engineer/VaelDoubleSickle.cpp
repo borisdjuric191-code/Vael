@@ -7,6 +7,9 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
 #include "Engineer/VaelEngineerComponent.h"
+#include "Engineer/VaelEngineerDevice.h"
+#include "Magic/VaelGroundArea.h"
+#include "UI/VaelCombatTextSubsystem.h"
 #include "Engineer/VaelEngineerGear.h"
 #include "EngineUtils.h"
 #include "Magic/VaelMagicSettings.h"
@@ -34,6 +37,12 @@ namespace
 	constexpr float SickleCatchRadius = 70.0f;
 	/** Longest flight in all, s: past this it flies straight home whatever happens */
 	constexpr float SickleMaxSeconds = 4.0f;
+	/** What the bare blades take up flying through it, as the charge whose effect they then carry (26.11.) */
+	const FName CoatFire(TEXT("Brand"));
+	const FName CoatAcid(TEXT("Saeure"));
+	const FName CoatSmoke(TEXT("Rauch"));
+	/** How close a mine or Säurefass must come to the blades to go off, cm */
+	constexpr float SickleDeviceRadius = 70.0f;
 }
 
 AVaelDoubleSickle::AVaelDoubleSickle()
@@ -45,7 +54,7 @@ AVaelDoubleSickle::AVaelDoubleSickle()
 	RootComponent = Body;
 }
 
-AVaelDoubleSickle* AVaelDoubleSickle::Throw(UVaelEngineerComponent* Engineer, const FVector& From, const FVector& Aim, bool bInCurve, float InDamage, float SpeedScale)
+AVaelDoubleSickle* AVaelDoubleSickle::Throw(UVaelEngineerComponent* Engineer, const FVector& From, const FVector& Aim, bool bInCurve, float InDamage, float SpeedScale, FName InCoat)
 {
 	UWorld* World = Engineer != nullptr ? Engineer->GetWorld() : nullptr;
 	if (World == nullptr)
@@ -69,6 +78,7 @@ AVaelDoubleSickle* AVaelDoubleSickle::Throw(UVaelEngineerComponent* Engineer, co
 	Sickle->Speed = SickleSpeed * SpeedScale;
 	Sickle->ThrownFrom = From;
 	Sickle->LastLocation = From;
+	Sickle->Coat = InCoat;
 	// the aim point at the height of the hand, within reach
 	FVector Toward = Aim - From;
 	Toward.Z = 0.0f;
@@ -126,7 +136,7 @@ void AVaelDoubleSickle::CutAlong(const FVector& From, const FVector& To)
 		CutThisWay.Add(Enemy);
 		++Hits;
 		// as the weapon in his hand (the sling it replaces): weak spots, distance and crits count as for any throw
-		Eng->ApplyHit(Enemy, Closest, Damage, VaelEngineerGear::Standard, ThrownFrom, VaelEngineerGear::Sling);
+		Eng->ApplyHit(Enemy, Closest, Damage, Coat.IsNone() ? VaelEngineerGear::Standard : Coat, ThrownFrom, VaelEngineerGear::Sling);
 		const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
 		VaelEffects::SpawnAt(this, VaelAssets::LoadOptional(Magic->DustPuffEffect), Closest, FRotator::ZeroRotator, FLinearColor(0.35f, 0.08f, 0.05f), 22.0f);
 	}
@@ -207,6 +217,79 @@ void AVaelDoubleSickle::Tick(float DeltaSeconds)
 	SetActorLocation(Location);
 	// it spins flat about its hub, a little tilted so the blades read from the camera above
 	SetActorRotation(FRotator(12.0f, FMath::Fmod(Age * SickleSpinRate, 360.0f), 0.0f));
+	TakeUpFromWorld(Location);
+	StrikeDevices(LastLocation, Location);
 	CutAlong(LastLocation, Location);
 	LastLocation = Location;
+}
+
+void AVaelDoubleSickle::SetCoat(FName NewCoat, const FText& Shout)
+{
+	Coat = NewCoat;
+	UVaelCombatTextSubsystem::PostReaction(this, Shout);
+}
+
+void AVaelDoubleSickle::TakeUpFromWorld(const FVector& Location)
+{
+	// Bare blades only: what he brushed on stays (Boris 25.11.: through fire it comes back burning, through the acid pool
+	// corroding, through smoke with a trail of smoke)
+	UVaelEngineerComponent* Eng = Engineer.Get();
+	if (Eng != nullptr && Coat.IsNone())
+	{
+		if (AVaelGroundArea::IsFireNear(GetWorld(), Location, 40.0f))
+		{
+			SetCoat(CoatFire, NSLOCTEXT("VaelSickle", "Burning", "Brennende Sichel!"));
+		}
+		else if (Eng->IsSmokeAt(Location))
+		{
+			SetCoat(CoatSmoke, NSLOCTEXT("VaelSickle", "Smoking", "Rauchsichel!"));
+		}
+		else
+		{
+			for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+			{
+				if (It->IsPool() && FVector::Dist2D(It->GetActorLocation(), Location) < It->GetPoolRadius() && Location.Z - It->GetActorLocation().Z < 250.0f)
+				{
+					SetCoat(CoatAcid, NSLOCTEXT("VaelSickle", "Corroding", "Ätzende Sichel!"));
+					break;
+				}
+			}
+		}
+	}
+	// a coated blade leaves its trail: sparks of fire, wisps of smoke, drops of acid, in the colour of the charge
+	if (!Coat.IsNone() && Age >= NextTrail)
+	{
+		NextTrail = Age + 0.06f;
+		const FVaelGear* Charge = VaelEngineerGear::Find(Coat);
+		const UVaelMagicSettings* Magic = UVaelMagicSettings::Get();
+		UNiagaraSystem* Trail = VaelAssets::LoadOptional(Coat == CoatSmoke ? Magic->SteamEffect : Magic->DustPuffEffect);
+		VaelEffects::SpawnAt(this, Trail, Location, FRotator::ZeroRotator, Charge != nullptr ? Charge->Color : FLinearColor(0.5f, 0.45f, 0.4f), Coat == CoatSmoke ? 40.0f : 16.0f);
+	}
+}
+
+void AVaelDoubleSickle::StrikeDevices(const FVector& From, const FVector& To)
+{
+	// The blades brush one of his mines or a Säurefass: it goes off, carrying what the blades carry
+	UVaelEngineerComponent* Eng = Engineer.Get();
+	if (Eng == nullptr)
+	{
+		return;
+	}
+	for (TActorIterator<AVaelEngineerDevice> It(GetWorld()); It; ++It)
+	{
+		AVaelEngineerDevice* Device = *It;
+		const EVaelDeviceType Type = Device->GetDeviceType();
+		if (Device->GetEngineer() != Eng || StruckDevices.Contains(Device) || !(VaelIsMine(Type) || (Type == EVaelDeviceType::Acid && !Device->IsPool())))
+		{
+			continue;
+		}
+		const FVector Closest = FMath::ClosestPointOnSegment(Device->GetActorLocation(), From, To);
+		if (FVector::Dist2D(Closest, Device->GetActorLocation()) > SickleDeviceRadius || FMath::Abs(Closest.Z - Device->GetActorLocation().Z) > 160.0f)
+		{
+			continue;
+		}
+		StruckDevices.Add(Device);
+		++DevicesStruck;
+		Eng->OnDeviceShot(Device, Coat.IsNone() ? VaelEngineerGear::Standard : Coat);
+	}
 }

@@ -509,7 +509,8 @@ Boris' Idee, nur festgehalten: Ein zweiter, leichter Satz als Gegenstück zur sc
 - Antippen: gerade bis zum Zielpunkt (höchstens 11 m) und zurück. Halten (ab 0,3 s): eine Bumerang-Schleife rechts hinaus, durch den Zielpunkt, links zurück.
 - Sie schneidet jeden Gegner auf dem Hin- und auf dem Rückweg je einmal (16 Schaden pro Schnitt, mit den üblichen Schadensboni) und kommt immer zur Hand zurück. Solange sie fliegt, kein zweiter Wurf, und sie fehlt am Gürtel.
 - Fangen: Die Angriffstaste höchstens 0,3 s vor der Ankunft gedrückt, dann „Gefangen!“, und der nächste Wurf ist 30 % schneller und härter. Das HUD zeigt „Doppelsichel · gefangen“.
-- **Rauchschritt** (26.11.): Ausweichen im ganzen Satz lässt Rauch, wo er absprang und landet (3,8 m), Gegner darin taumeln 1,5 s, der erste Treffer innerhalb von 3 s ist kritisch („Aus dem Rauch!“). Die Sichel zählt wie die Schleuder (Schwachstellen, Krit).- Tests: `VaelIngenieur sichel`, `VaelIngenieur rauchschritt` (alles PASS). Noch offen: die Umweltvorschläge (brennend durch Feuer usw.), „nur ganz tragbar“.
+- **Rauchschritt** (26.11.): Ausweichen im ganzen Satz lässt Rauch, wo er absprang und landet (3,8 m), Gegner darin taumeln 1,5 s, der erste Treffer innerhalb von 3 s ist kritisch („Aus dem Rauch!“). Die Sichel zählt wie die Schleuder (Schwachstellen, Krit).- **Ausbau (26.11.):** Eine gewählte Ladung wird auf die Klingen gestrichen statt verschossen (eine pro Wurf, jeder Schnitt trägt ihre Wirkung). Blanke Klingen nehmen im Flug auf: Feuer am Boden → brennend (Glutladung), Rauch von Rauchladung oder Rauchschritt → Rauchspur (Rauchladung), Säurefass-Pfütze → ätzend (Säureladung). Streift sie eine eigene Mine oder ein Säurefass, geht es los, mit der Wirkung der Klingen.
+- Tests: `VaelIngenieur sichel`, `sichelumwelt`, `rauchschritt` (alles PASS). Noch offen: „nur ganz tragbar“, Stufe II Wirbeltanz (braucht das Tripo-Modell A5).
 
 ## 7. Was in der Aschenmark fehlt (und wie ich es löse)
 

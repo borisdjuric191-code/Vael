@@ -128,6 +128,10 @@ public:
 	int32 GetSmokeSteps() const { return SmokeSteps; }
 	bool HasSmokeStrike() const;
 	int32 GetGlassGlows() const { return GlassGlows; }
+
+	/** Clouds of smoke on the ground (Rauchladung, Rauchschritt), for the Doppelsichel that takes smoke along as it flies through */
+	void AddSmokeSpot(const FVector& Location, float Radius, float Seconds);
+	bool IsSmokeAt(const FVector& Location) const;
 	bool WasLastCrit() const { return bLastCrit; }
 
 	/** How many shots or devices of a kind are in the pouches and in the stock */
@@ -596,6 +600,8 @@ private:
 	FName ShownGlass;
 	/** Until when the first hit out of the Rauchschritt's smoke is critical, and how many Rauchschritte he made */
 	float SmokeStrikeUntil = 0.0f;
+	struct FSmokeSpot { FVector Location; float Radius; float Until; };
+	TArray<FSmokeSpot> SmokeSpots;
 	int32 SmokeSteps = 0;
 	/** The Waermeglas and Aderglas show what lies under the ground: next look, and how many glows the last look made */
 	float NextGlassLook = 0.0f;

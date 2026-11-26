@@ -51,6 +51,7 @@
 #include "Items/VaelInventory.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Engineer/VaelEngineerDevice.h"
+#include "Magic/VaelGroundArea.h"
 #include "World/VaelSafeZone.h"
 #include "Engineer/VaelEngineerGear.h"
 #include "Engineer/VaelEngineerShot.h"
@@ -2509,6 +2510,133 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 				}
 			}), 1.5f, false);
 		}), 1.5f, false);
+		return;
+	}
+	if (What == TEXT("sichelumwelt"))
+	{
+		// The Doppelsichel built out (26.11.): five throws one after the other, each logged [SichelUmwelt] PASS/FAIL:
+		// a Giftladung brushed on, through a fire, through smoke, through a Säurefass pool, over a Knallmine
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		Engineer->LearnAllPlans();
+		for (int32 Place = 0; Place < 4; ++Place)
+		{
+			FillMaterials();
+			const FName Piece(*FString::Printf(TEXT("Aschenjaeger_%d"), Place));
+			Engineer->Build(Piece, true);
+			Engineer->Wear(Piece);
+		}
+		FillMaterials();
+		{
+			FText Hint;
+			FName Formula;
+			Engineer->Mix({ TEXT("Schlacke"), TEXT("Glutstein") }, Hint, Formula);
+		}
+		Player->GetCharacterMovement()->StopMovementImmediately();
+		Player->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		const FVector Ground = Home - FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight());
+		const FVector Aim = Home + Ahead * 900.0f;
+		const FVector Middle = Ground + Ahead * 450.0f;
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng(Engineer);
+		TWeakObjectPtr<AVaelCharacter> WeakPlayer(Player);
+		TSharedRef<int32> Stage = MakeShared<int32>(0);
+		TSharedRef<FName> Seen = MakeShared<FName>();
+		TSharedRef<int32> Struck = MakeShared<int32>(0);
+		TSharedRef<int32> GiftBefore = MakeShared<int32>(Engineer->GetCarried(TEXT("Brand")));
+		TSharedRef<TWeakObjectPtr<AVaelEngineerDevice>> Mine = MakeShared<TWeakObjectPtr<AVaelEngineerDevice>>();
+		TSharedRef<FTimerHandle> Watch = MakeShared<FTimerHandle>();
+		TSharedRef<float> Waited = MakeShared<float>(0.0f);
+		const auto Setup = [this, WeakEng, WeakPlayer, Middle, Mine](int32 Step)
+		{
+			UVaelEngineerComponent* Eng = WeakEng.Get();
+			switch (Step)
+			{
+			case 0: Eng->PickAmmo(TEXT("Brand")); break;
+			case 1:
+				Eng->PickAmmo(VaelEngineerGear::Standard);
+				AVaelGroundArea::SpawnArea(GetWorld(), Middle, EVaelElement::Fire, 150.0f, 3.0f, 0.0f, nullptr);
+				break;
+			case 2:
+				for (TActorIterator<AVaelGroundArea> It(GetWorld()); It; ++It)
+				{
+					It->Destroy();
+				}
+				Eng->AddSmokeSpot(Middle, 200.0f, 4.0f);
+				break;
+			case 3:
+				if (const FVaelGear* Barrel = VaelEngineerGear::Find(TEXT("Saeurefass")))
+				{
+					if (AVaelEngineerDevice* Placed = AVaelEngineerDevice::Lay(Eng, *Barrel, Middle + FVector(0.0f, 0.0f, 5.0f)))
+					{
+						Placed->BurstAcid();
+					}
+				}
+				break;
+			case 4:
+				if (const FVaelGear* Knall = VaelEngineerGear::Find(TEXT("Knallmine")))
+				{
+					// on the ground under the sickle's path, raised to its height so the blades brush it
+					*Mine = AVaelEngineerDevice::Lay(Eng, *Knall, WeakPlayer->GetActorLocation() + WeakPlayer->GetActorForwardVector().GetSafeNormal2D() * 300.0f);
+				}
+				break;
+			default: break;
+			}
+		};
+		Setup(0);
+		// he reaches into the pouch for the charge first (0.35 s)
+		FTimerHandle FirstThrow;
+		GetWorld()->GetTimerManager().SetTimer(FirstThrow, FTimerDelegate::CreateWeakLambda(this, [WeakEng, Aim]()
+		{
+			if (UVaelEngineerComponent* Eng = WeakEng.Get())
+			{
+				UE_LOG(LogVael, Display, TEXT("[SichelUmwelt] in hand: %s"), *Eng->GetAmmo().ToString());
+				Eng->Fire(Aim);
+			}
+		}), 0.6f, false);
+		GetWorld()->GetTimerManager().SetTimer(*Watch, FTimerDelegate::CreateWeakLambda(this, [this, WeakEng, Stage, Seen, Struck, GiftBefore, Mine, Watch, Waited, Aim, Setup]()
+		{
+			UVaelEngineerComponent* Eng = WeakEng.Get();
+			*Waited += 0.02f;
+			if (Eng == nullptr || *Waited > 10.0f)
+			{
+				UE_LOG(LogVael, Display, TEXT("[SichelUmwelt] stage %d timed out: FAIL"), *Stage);
+				GetWorld()->GetTimerManager().ClearTimer(*Watch);
+				return;
+			}
+			if (const AVaelDoubleSickle* Flying = Eng->GetFlyingSickle())
+			{
+				*Seen = Flying->GetCoat().IsNone() ? *Seen : Flying->GetCoat();
+				*Struck = FMath::Max(*Struck, Flying->GetDevicesStruck());
+				return;
+			}
+			if (*Waited < (*Stage == 0 ? 0.8f : 0.2f))
+			{
+				return;
+			}
+			static const TCHAR* const Names[] = { TEXT("Glutladung brushed on"), TEXT("through fire"), TEXT("through smoke"), TEXT("through acid"), TEXT("over a Knallmine") };
+			static const TCHAR* const Wanted[] = { TEXT("Brand"), TEXT("Brand"), TEXT("Rauch"), TEXT("Saeure"), TEXT("") };
+			bool bPass = *Seen == FName(Wanted[*Stage]) || (*Stage == 4 && Seen->IsNone());
+			if (*Stage == 0)
+			{
+				bPass = bPass && Eng->GetCarried(TEXT("Brand")) == *GiftBefore - 1;
+			}
+			if (*Stage == 4)
+			{
+				bPass = *Struck > 0 && (!Mine->IsValid() || (*Mine)->HasDetonated());
+			}
+			UE_LOG(LogVael, Display, TEXT("[SichelUmwelt] %s: blades carried %s, devices struck %d: %s"), Names[*Stage], *Seen->ToString(), *Struck, bPass ? TEXT("PASS") : TEXT("FAIL"));
+			if (++*Stage > 4)
+			{
+				GetWorld()->GetTimerManager().ClearTimer(*Watch);
+				return;
+			}
+			*Seen = NAME_None;
+			*Struck = 0;
+			*Waited = 0.0f;
+			Setup(*Stage);
+			Eng->Fire(Aim);
+		}), 0.02f, true);
 		return;
 	}
 	if (What == TEXT("sichel"))
