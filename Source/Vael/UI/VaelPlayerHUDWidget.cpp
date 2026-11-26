@@ -768,6 +768,15 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 				State.CooldownLeft = Eng->GetReloadLeft();
 				Total = Eng->GetInterval();
 				State.bNoSeconds = true;
+				// the whole Aschenjaeger throws the Doppelsichel; the slot is dim while it is out, lit once a catch made the next throw faster
+				if (Eng->UsesDoubleSickle())
+				{
+					State.Name = Eng->HasSickleCatchBonus() ? NSLOCTEXT("VaelPlayerHUD", "SickleSlotCaught", "Doppelsichel · gefangen")
+						: NSLOCTEXT("VaelPlayerHUD", "SickleSlot", "Doppelsichel");
+					State.bDim = Eng->GetFlyingSickle() != nullptr;
+					State.bLit = Eng->HasSickleCatchBonus();
+					State.CooldownLeft = 0.0f;
+				}
 				break;
 			case EVaelHUDAbility::EngPlace:
 			case EVaelHUDAbility::EngDevice:

@@ -103,6 +103,7 @@
 #include "Creatures/VaelSchleimgaenger.h"
 #include "Creatures/VaelKobold.h"
 #include "Items/VaelChest.h"
+#include "Engineer/VaelDoubleSickle.h"
 
 namespace
 {
@@ -2390,6 +2391,115 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 	// Rammschild, Fernglas and the Sprengmeister craft (25.11.): "sprengmeister" lays the Rammschild with a roller rolling at it,
 	// a Stolperdraht a doll walks across, the three Kristallladungen each by a doll, and raises the Fernglas on a doll at its
 	// far focus; every step logs [SprengTest]
+	if (What == TEXT("sichel"))
+	{
+		// The Doppelsichel of the Aschenjaeger (26.11.): the whole set worn, a straight throw at a doll ahead, caught in time as it
+		// comes back, then the faster held throw round a second doll; logs PASS/FAIL per step
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		for (int32 Place = 0; Place < 4; ++Place)
+		{
+			FillMaterials();
+			const FName Piece(*FString::Printf(TEXT("Aschenjaeger_%d"), Place));
+			Engineer->Build(Piece, true);
+			Engineer->Wear(Piece);
+		}
+		UE_LOG(LogVael, Display, TEXT("[SichelTest] set worn, sickle in use: %s"), Engineer->UsesDoubleSickle() ? TEXT("PASS") : TEXT("FAIL"));
+		const auto Ground = [this](const FVector& Spot)
+		{
+			FHitResult Hit;
+			return GetWorld()->LineTraceSingleByChannel(Hit, Spot + FVector(0.0f, 0.0f, 500.0f), Spot - FVector(0.0f, 0.0f, 1000.0f), ECC_Visibility) ? Hit.ImpactPoint : Spot;
+		};
+		if (AVaelSafeZone::IsSafe(GetWorld(), Player->GetActorLocation(), 1800.0f))
+		{
+			for (int32 Turn = 0; Turn < 8; ++Turn)
+			{
+				const FVector Spot = Ground(Player->GetActorLocation() + FRotator(0.0f, 45.0f * Turn, 0.0f).Vector() * 3000.0f);
+				if (!AVaelSafeZone::IsSafe(GetWorld(), Spot, 1800.0f) && Player->TeleportTo(Spot + FVector(0.0f, 0.0f, Player->GetSimpleCollisionHalfHeight() + 20.0f), Player->GetActorRotation()))
+				{
+					break;
+				}
+			}
+		}
+		// headless the ground may not hold him after the teleport: he stays where he is for the test
+		Player->GetCharacterMovement()->StopMovementImmediately();
+		Player->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		const FVector Side = FVector::CrossProduct(FVector::UpVector, Ahead);
+		AVaelCreature* First = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Home + Ahead * 650.0f), FRotator::ZeroRotator);
+		AVaelCreature* Second = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Ground(Home + Ahead * 700.0f + Side * 500.0f), FRotator::ZeroRotator);
+		if (First == nullptr || Second == nullptr)
+		{
+			UE_LOG(LogVael, Display, TEXT("[SichelTest] dolls: FAIL"));
+			return;
+		}
+		for (AVaelCreature* Doll : { First, Second })
+		{
+			// headless the ground does not hold them either
+			Doll->GetCharacterMovement()->StopMovementImmediately();
+			Doll->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		}
+		const float FirstHealth = First->GetHealth();
+		const float SecondHealth = Second->GetHealth();
+		const bool bThrown = Engineer->Fire(First->GetActorLocation());
+		UE_LOG(LogVael, Display, TEXT("[SichelTest] straight throw: %s, second throw while flying refused: %s"), bThrown ? TEXT("PASS") : TEXT("FAIL"),
+			!Engineer->Fire(First->GetActorLocation()) ? TEXT("PASS") : TEXT("FAIL"));
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng(Engineer);
+		TWeakObjectPtr<AVaelCreature> WeakFirst(First), WeakSecond(Second);
+		TSharedRef<FTimerHandle> Watch = MakeShared<FTimerHandle>();
+		TSharedRef<int32> Stage = MakeShared<int32>(0);
+		TSharedRef<float> Waited = MakeShared<float>(0.0f);
+		GetWorld()->GetTimerManager().SetTimer(*Watch, FTimerDelegate::CreateWeakLambda(this, [this, WeakEng, WeakFirst, WeakSecond, Watch, Stage, Waited, FirstHealth, SecondHealth]()
+		{
+			UVaelEngineerComponent* Eng = WeakEng.Get();
+			*Waited += 0.02f;
+			if (Eng == nullptr || *Waited > 12.0f)
+			{
+				const AVaelDoubleSickle* Late = Eng != nullptr ? Eng->GetFlyingSickle() : nullptr;
+				UE_LOG(LogVael, Display, TEXT("[SichelTest] timed out at stage %d (sickle %s, returning %d, to hand %.1f s, at %s, thrower at %s): FAIL"), *Stage, Late != nullptr ? TEXT("flying") : TEXT("none"),
+					Late != nullptr && Late->IsReturning(), Late != nullptr ? Late->GetSecondsToHand() : 0.0f, Late != nullptr ? *Late->GetActorLocation().ToCompactString() : TEXT("-"), Eng != nullptr ? *Eng->GetOwner()->GetActorLocation().ToCompactString() : TEXT("-"));
+				GetWorld()->GetTimerManager().ClearTimer(*Watch);
+				return;
+			}
+			const AVaelDoubleSickle* Sickle = Eng->GetFlyingSickle();
+			if (*Stage == 0 && Sickle != nullptr && Sickle->IsReturning() && Sickle->GetSecondsToHand() < 0.15f)
+			{
+				// the button just before it arrives: caught
+				Eng->StartDraw();
+				*Stage = 1;
+			}
+			else if (*Stage <= 1 && Sickle == nullptr && *Waited > 0.2f)
+			{
+				const float Lost = WeakFirst.IsValid() ? FirstHealth - WeakFirst->GetHealth() : FirstHealth;
+				UE_LOG(LogVael, Display, TEXT("[SichelTest] straight throw cut the doll (%.0f damage, out and back): %s, came home: PASS, caught: %s"),
+					Lost, Lost > 0.0f ? TEXT("PASS") : TEXT("FAIL"), Eng->HasSickleCatchBonus() ? TEXT("PASS") : TEXT("FAIL"));
+				const FVector Aim = WeakSecond.IsValid() ? WeakSecond->GetActorLocation() : Eng->GetOwner()->GetActorLocation() + Eng->GetOwner()->GetActorForwardVector() * 700.0f;
+				Eng->StartDraw();
+				*Stage = 2;
+				*Waited = 0.0f;
+				// held past the curve hold, then let go
+				FTimerHandle Release;
+				GetWorld()->GetTimerManager().SetTimer(Release, FTimerDelegate::CreateWeakLambda(this, [WeakEng, Aim, Stage]()
+				{
+					if (UVaelEngineerComponent* Held = WeakEng.Get())
+					{
+						const bool bCurve = Held->ReleaseDraw(Aim);
+						UE_LOG(LogVael, Display, TEXT("[SichelTest] held throw round the second doll: %s, catch bonus used: %s"), bCurve ? TEXT("PASS") : TEXT("FAIL"),
+							!Held->HasSickleCatchBonus() ? TEXT("PASS") : TEXT("FAIL"));
+						*Stage = 3;
+					}
+				}), 0.45f, false);
+			}
+			else if (*Stage == 3 && Sickle == nullptr)
+			{
+				const float Lost = WeakSecond.IsValid() ? SecondHealth - WeakSecond->GetHealth() : SecondHealth;
+				UE_LOG(LogVael, Display, TEXT("[SichelTest] curve cut the second doll (%.0f damage, doll at %s, thrower at %s): %s, home again: PASS"), Lost,
+					WeakSecond.IsValid() ? *WeakSecond->GetActorLocation().ToCompactString() : TEXT("-"), *Eng->GetOwner()->GetActorLocation().ToCompactString(), Lost > 0.0f ? TEXT("PASS") : TEXT("FAIL"));
+				GetWorld()->GetTimerManager().ClearTimer(*Watch);
+			}
+		}), 0.02f, true);
+		return;
+	}
 	if (What == TEXT("sprengmeister"))
 	{
 		Player->SetHero(EVaelHeroClass::Engineer, false);

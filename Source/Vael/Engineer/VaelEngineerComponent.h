@@ -154,6 +154,14 @@ public:
 	bool ReleaseDraw(const FVector& AimLocation);
 	bool IsDrawing() const { return DrawStart >= 0.0f; }
 
+	/** The whole Aschenjaeger throws the Doppelsichel instead of the sling (26.11.): tapped straight to the aim point and back, held
+	 *  round the aim point and back; caught in time the next throw goes faster and harder */
+	bool UsesDoubleSickle() const;
+	bool ThrowDoubleSickle(const FVector& AimLocation, bool bCurve);
+	class AVaelDoubleSickle* GetFlyingSickle() const { return FlyingSickle.Get(); }
+	int32 GetSickleCatches() const { return SickleCatches; }
+	bool HasSickleCatchBonus() const { return bSickleCatchBonus; }
+
 	/** The slingshot: how much it is held up (eases in while drawing, out after the shot) and how far the band is pulled, 0..1 */
 	float GetSlingAim() const { return SlingAim; }
 	float GetSlingDraw() const { return SlingDrawShown; }
@@ -430,6 +438,13 @@ private:
 	int32 BallFrames = 0;
 	float NextBallDust = 0.0f;
 	FVector LastBallLocation = FVector::ZeroVector;
+
+	TWeakObjectPtr<class AVaelDoubleSickle> FlyingSickle;
+	/** The button went down just as the sickle came home: caught, the next throw is faster */
+	bool bSickleCatchPending = false;
+	bool bSickleCatchBonus = false;
+	int32 SickleCatches = 0;
+	void OnSickleCaught(class AVaelDoubleSickle* Sickle);
 
 	float SlingAim = 0.0f;
 	float SlingAimPreview = -1.0f;

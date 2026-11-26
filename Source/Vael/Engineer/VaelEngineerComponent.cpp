@@ -14,6 +14,7 @@
 #include "Engineer/VaelGrappleHook.h"
 #include "Engineer/VaelEngineerIdeas.h"
 #include "Player/VaelPoseFollowerAnimInstance.h"
+#include "Engineer/VaelDoubleSickle.h"
 #include "Compendium/VaelCompendiumSubsystem.h"
 #include "Compendium/VaelCompendiumSettings.h"
 #include "Combat/VaelCravingComponent.h"
@@ -59,6 +60,12 @@ namespace
 	constexpr float RollReach = 1000.0f;
 	/** The Quarzbrille from the point between the eyes (face component space, +Y ahead): the cups sit on the brow and cheeks */
 	const FVector QuartzGogglesOffset(0.0f, 1.2f, 0.2f);
+	/** The Doppelsichel of the Aschenjaeger (26.11.): damage per cut, the hold that makes the throw a curve round the aim point (s),
+	 *  how early before it arrives the button may go down to catch it (s), and how much faster and harder a caught throw is */
+	constexpr float SickleDamage = 16.0f;
+	constexpr float SickleCurveHold = 0.3f;
+	constexpr float SickleCatchWindow = 0.3f;
+	constexpr float SickleCatchBonus = 1.3f;
 	/** Lockpfeife: how far he can point the call, who hears it, and how long they follow */
 	constexpr float WhistleReach = 1200.0f;
 	constexpr float WhistleRadius = 1500.0f;
@@ -925,7 +932,8 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 	{
 		return;
 	}
-	const bool bShow = Player->IsEngineer();
+	// the whole Aschenjaeger throws the Doppelsichel from the hip instead (26.11.): no weapon in the hand
+	const bool bShow = Player->IsEngineer() && !UsesDoubleSickle();
 	const FName Branch = GetBranch(Weapon);
 	const FName Wanted = bShow ? (Branch.IsNone() ? Weapon : Branch) : NAME_None;
 	// the Panzerschleuder on the forearm takes the place of the Zwille in the fist
@@ -938,7 +946,10 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 	// the Panzerschleuder's bracer takes the place of the Glutpanzer's left forearm plates (Boris 16.11.)
 	if (GlutpanzerBodies.IsValidIndex(4) && GlutpanzerBodies[4] != nullptr && GlutpanzerBodies[4]->GetSkeletalMeshAsset() != nullptr)
 	{
-		const bool bForearm = !bArm && GlutpanzerBodies.IsValidIndex(2) && GlutpanzerBodies[2] != nullptr && GlutpanzerBodies[2]->IsVisible();
+		// only under the Glutpanzer's own arms (the component keeps its mesh while another set is worn)
+		const FVaelGear* ArmsGear = GetWorn(EVaelArmorPlace::Arms).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(EVaelArmorPlace::Arms));
+		const bool bForearm = !bArm && ArmsGear != nullptr && ArmsGear->Set == FName(TEXT("Schwarzglut"))
+			&& GlutpanzerBodies.IsValidIndex(2) && GlutpanzerBodies[2] != nullptr && GlutpanzerBodies[2]->IsVisible();
 		if (GlutpanzerBodies[4]->IsVisible() != bForearm)
 		{
 			GlutpanzerBodies[4]->SetVisibility(bForearm);
@@ -1536,14 +1547,74 @@ bool UVaelEngineerComponent::UsesDraw() const
 {
 	const FVaelGear* Gear = GetWeapon();
 	// The bow and the slingshot are drawn while held and loose on release
-	return Gear != nullptr && (Gear->Id == VaelEngineerGear::Bow || Gear->Id == VaelEngineerGear::Sling);
+	return UsesDoubleSickle() || (Gear != nullptr && (Gear->Id == VaelEngineerGear::Bow || Gear->Id == VaelEngineerGear::Sling));
 }
 
 void UVaelEngineerComponent::StartDraw()
 {
+	// The Doppelsichel on its way home: the button pressed just before it arrives catches it cleanly (the next throw is faster)
+	if (const AVaelDoubleSickle* Sickle = FlyingSickle.Get())
+	{
+		if (Sickle->IsReturning() && Sickle->GetSecondsToHand() <= SickleCatchWindow)
+		{
+			bSickleCatchPending = true;
+		}
+		return;
+	}
 	if (UsesDraw() && DrawStart < 0.0f)
 	{
 		DrawStart = Now();
+	}
+}
+
+bool UVaelEngineerComponent::UsesDoubleSickle() const
+{
+	const AVaelCharacter* Player = GetPlayer();
+	return Player != nullptr && Player->IsEngineer() && CountSet(TEXT("Aschenjaeger")) >= 4;
+}
+
+bool UVaelEngineerComponent::ThrowDoubleSickle(const FVector& AimLocation, bool bCurve)
+{
+	AVaelCharacter* Player = GetPlayer();
+	if (Player == nullptr || !UsesDoubleSickle() || FlyingSickle.IsValid() || Player->IsDowned() || IsGrabbing())
+	{
+		return false;
+	}
+	const FVector From = Player->GetActorLocation() + Player->GetActorForwardVector() * 40.0f + FVector(0.0f, 0.0f, 40.0f);
+	const float Bonus = bSickleCatchBonus ? SickleCatchBonus : 1.0f;
+	const float Damage = SickleDamage * GetDamageScale() * GetTierScale() * Bonus;
+	AVaelDoubleSickle* Sickle = AVaelDoubleSickle::Throw(this, From, AimLocation, bCurve, Damage, Bonus);
+	if (Sickle == nullptr)
+	{
+		return false;
+	}
+	bSickleCatchBonus = false;
+	bSickleCatchPending = false;
+	FlyingSickle = Sickle;
+	Sickle->OnCaught.AddUObject(this, &UVaelEngineerComponent::OnSickleCaught);
+	LastShot = Now();
+	// the sickle leaves the hip while it flies
+	if (ArmorMeshes.IsValidIndex(8) && ArmorMeshes[8] != nullptr)
+	{
+		ArmorMeshes[8]->SetVisibility(false);
+	}
+	return true;
+}
+
+void UVaelEngineerComponent::OnSickleCaught(AVaelDoubleSickle* Sickle)
+{
+	FlyingSickle.Reset();
+	if (bSickleCatchPending)
+	{
+		// caught cleanly: the next throw goes out faster and cuts harder
+		bSickleCatchBonus = true;
+		++SickleCatches;
+		UVaelCombatTextSubsystem::PostReaction(GetOwner(), LOCTEXT("SickleCaught", "Gefangen!"));
+	}
+	bSickleCatchPending = false;
+	if (ArmorMeshes.IsValidIndex(8) && ArmorMeshes[8] != nullptr && UsesDoubleSickle())
+	{
+		ArmorMeshes[8]->SetVisibility(true);
 	}
 }
 
@@ -1560,6 +1631,11 @@ bool UVaelEngineerComponent::ReleaseDraw(const FVector& AimLocation)
 	}
 	const float Held = GetDrawSeconds();
 	DrawStart = -1.0f;
+	if (UsesDoubleSickle())
+	{
+		// tapped: straight there and back; held: round the aim point
+		return ThrowDoubleSickle(AimLocation, Held >= SickleCurveHold);
+	}
 	const FVaelGear* Drawn = GetWeapon();
 	if (Drawn != nullptr && Drawn->Id == VaelEngineerGear::Sling)
 	{
@@ -1580,6 +1656,10 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 {
 	AVaelCharacter* Player = GetPlayer();
 	const FVaelGear* Gear = GetWeapon();
+	if (UsesDoubleSickle())
+	{
+		return ThrowDoubleSickle(AimLocation, false);
+	}
 	if (Player == nullptr || Gear == nullptr || GetReloadLeft() > 0.0f || Player->IsDowned() || IsGrabbing() || bShieldRaised)
 	{
 		return false;

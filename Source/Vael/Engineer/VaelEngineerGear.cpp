@@ -616,7 +616,7 @@ namespace
 				LOCTEXT("SchwarzglutSchild", "Mit Klappschild: ein Block im rechten Augenblick wirft den Angreifer zurück und setzt ihn in Brand") },
 			{ TEXT("Aschenjaeger"), LOCTEXT("SetNameAschenjaeger", "Aschenjäger (Sichelpuppe, Aschharpyie und Schleieraffe)"),
 				LOCTEXT("Aschenjaeger2", "2 Teile: 10 % schneller zu Fuß"),
-				LOCTEXT("Aschenjaeger4", "4 Teile: die Doppelsichel hängt am Gürtel. Doppelsichel-Wurf und Rauchschritt sind noch nicht gebaut") },
+				LOCTEXT("Aschenjaeger4", "4 Teile: die Doppelsichel ersetzt die Schleuder und kehrt immer zurück. Antippen wirft gerade, Halten im Bogen um den Zielpunkt; sie schneidet auf Hin- und Rückweg. Kurz vor der Rückkehr gedrückt fängt er sie, der nächste Wurf ist 30 % schneller und härter. Rauchschritt folgt") },
 		};
 	}
 }
