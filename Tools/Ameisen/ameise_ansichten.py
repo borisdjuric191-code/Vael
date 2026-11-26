@@ -94,8 +94,8 @@ for name, d in ANSICHTEN.items():
         uv = world_to_camera_view(scn, co, p)
         # sichtbar, wenn die Mulde zur Kamera zeigt und nichts davor liegt
         richtung = (co.location - p)
-        hit = scn.ray_cast(deps, p + n * 0.004, d)
-        frei = (not hit[0]) and n.dot(d) > 0.15
+        hit = scn.ray_cast(deps, p + n * (m.get("tiefe", 0.0) + 0.006), d)   # über dem eigenen Rand starten
+        frei = (not hit[0]) and n.dot(d) > -0.1
         punkte.append({"i": i, "x": uv.x * RES, "y": (1 - uv.y) * RES, "r": m["r"] / cam.ortho_scale * RES, "frei": frei})
     info[name] = punkte
 with open(os.path.join(OUT, "ansichten.json"), "w", encoding="utf-8") as f:

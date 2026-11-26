@@ -5,7 +5,11 @@ machen"). Die Mulden kommen aus ameise_mulden.py (mulden.json, gleiche Normalisi
 Als Kristall dient das echte Erz aus dem Spiel (Vael_Quellen/<Erz>/04_export/SM_<Erz>.fbx): Nur die Spitzen werden
 behalten (obere Hälfte, wie ErzWand "A"), die Schnittfläche steckt in der Mulde.
 
-  blender -b -P Tools/Ameisen/ameise_kristalle.py -- <ameise.fbx> <mulden.json> <Erz> <Anteil 0..1> <Größe> <Ausgabe-Präfix> [Saat]
+  blender -b -P Tools/Ameisen/ameise_kristalle.py -- <ameise.fbx> <mulden.json> <Erz> <Anteil 0..1> <Größe> <Ausgabe-Präfix> [Saat] [druse|spitze]
+
+Modus druse: in jeder Fassung ein Mittelkristall mit Kranz (Ausschnitt aus dem ganzen Erz).
+Modus spitze (Boris 27.11.): das Erz wird zerschnitten, nur die langen herausstehenden Einzelkristalle bleiben; jede
+Fassung bekommt EINE dicke Spitze, passend zu ihrer Größe, die aus der Mulde ragt.
 
 Anteil: wie viele Mulden einen Kristall bekommen (junge Arbeiterin wenig, Ahnenpanzer alle).
 Größe: 1 = Kristall füllt die Fassung, >1 = wächst über den Rand hinaus (älter).
@@ -24,6 +28,7 @@ from mathutils import Matrix, Quaternion, Vector
 args = sys.argv[sys.argv.index("--") + 1:]
 ANT, MULDEN, ERZ, ANTEIL, GROESSE, OUT = args[0], args[1], args[2], float(args[3]), float(args[4]), args[5]
 SAAT = int(args[6]) if len(args) > 6 else 1
+MODUS = args[7] if len(args) > 7 else "druse"
 QUELLEN = "C:/Projekte/Vael_Quellen"
 SPITZEN_ANTEIL = 0.5      # welcher Teil der Höhe vom Erz wegfällt (Fels unten)
 EINSENKEN = 0.3           # wie tief der Kristall in der Mulde sitzt (Anteil des Muldenradius)
@@ -88,6 +93,90 @@ def kristall():
     breite = 2 * ab[int(len(ab) * 0.75)]
     hoehen = sorted(v.co.z for v in me.vertices)
     return obj, breite, hoehen[-1]
+
+
+def spitzen():
+    for verh in (1.4, 0.8, 0.35):
+        try:
+            return spitzen_mit(verh)
+        except RuntimeError:
+            for o in [o for o in bpy.context.scene.objects if o.name.startswith(("SM_", "Spitze_"))]:
+                bpy.data.objects.remove(o)
+    raise RuntimeError("auch keine Brocken gefunden")
+
+
+def spitzen_mit(verh):
+    """Zerschneidet das Erz in seine einzelnen langen Kristalle: oberhalb eines Schnitts zerfällt der Haufen in lose
+    Spitzen. Jede Spitze wird auf ihren Fuß gestellt (Fuß bei Z = 0, Achse entlang +Z)."""
+    obj = import_joined("{}/{}/04_export/SM_{}.fbx".format(QUELLEN, ERZ, ERZ))
+    me = obj.data
+    lo, hi = bounds(me)
+    me.transform(Matrix.Scale(1.0 / max(hi - lo), 4))
+    lo, hi = bounds(me)
+    H = hi.z - lo.z
+    teile = []
+    for anteil in (0.75, 0.65, 0.55, 0.45, 0.35):
+        z0 = lo.z + H * anteil
+        kopie = me.copy()
+        bm = bmesh.new()
+        bm.from_mesh(kopie)
+        bmesh.ops.bisect_plane(bm, geom=bm.verts[:] + bm.edges[:] + bm.faces[:], plane_co=(0, 0, z0),
+                               plane_no=(0, 0, 1), clear_inner=True)
+        bm.verts.ensure_lookup_table()
+        gesehen = set()
+        for v0 in bm.verts:
+            if v0.index in gesehen:
+                continue
+            stapel, insel = [v0], []
+            gesehen.add(v0.index)
+            while stapel:
+                v = stapel.pop()
+                insel.append(v)
+                for e in v.link_edges:
+                    w = e.other_vert(v)
+                    if w.index not in gesehen:
+                        gesehen.add(w.index)
+                        stapel.append(w)
+            zs = [v.co.z for v in insel]
+            hoch = max(zs) - min(zs)
+            if hoch < H * 0.12 or len(insel) < 60:
+                continue
+            # Fuß = Punkte nahe der Schnittebene; Achse = vom Fuß zur Spitze
+            fuss_pts = [v.co for v in insel if v.co.z < z0 + hoch * 0.08]
+            if len(fuss_pts) < 3:
+                continue
+            fuss = sum(fuss_pts, Vector()) / len(fuss_pts)
+            spitze = max(insel, key=lambda v: v.co.z).co.copy()
+            achse = (spitze - fuss).normalized()
+            ab = sorted((p - fuss - achse * (p - fuss).dot(achse)).length for p in fuss_pts)
+            breite = 2 * ab[int(len(ab) * 0.8)]
+            if breite <= 0 or (spitze - fuss).length / breite < verh:
+                continue          # kein langer Einzelkristall, sondern ein Brocken
+            teile.append(({v.index for v in insel}, fuss, achse, (spitze - fuss).length, breite, kopie))
+        bm.to_mesh(kopie)          # Indizes bleiben gleich: so lassen sich die Inseln samt UV und Material ausschneiden
+        bm.free()
+        if len(teile) >= 4:
+            break
+    if not teile:
+        raise RuntimeError("keine Spitzen gefunden")
+    vorlagen = []
+    teile.sort(key=lambda t: -t[3])           # die längsten zuerst
+    for k, (insel, fuss, achse, laenge, breite, kopie) in enumerate(teile[:6]):
+        nm = kopie.copy()
+        nm.name = "Spitze_{}_{}".format(ERZ, k)
+        bm2 = bmesh.new()
+        bm2.from_mesh(nm)
+        bm2.verts.ensure_lookup_table()
+        bmesh.ops.delete(bm2, geom=[v for v in bm2.verts if v.index not in insel], context="VERTS")
+        bm2.to_mesh(nm)
+        bm2.free()
+        rot = achse.to_track_quat("Z", "Y").to_matrix().to_4x4().inverted()
+        nm.transform(rot @ Matrix.Translation(-fuss))
+        o = bpy.data.objects.new(nm.name, nm)
+        bpy.context.scene.collection.objects.link(o)
+        vorlagen.append((o, breite, laenge))
+    print("SPITZEN" if verh > 1 else "BROCKEN", len(vorlagen), [round(l / b, 2) for o, b, l in vorlagen])
+    return obj, vorlagen
 
 
 def setzen(vorlage, ort, n, breite_soll, hoehe_soll, breite, hoehe, rnd):
@@ -164,7 +253,33 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 ameise()
 with open(MULDEN, encoding="utf-8") as f:
     mulden = json.load(f)["mulden"]
-vorlage, breite, hoehe = kristall()
-besetzen(vorlage, breite, hoehe, mulden)
+if MODUS == "spitze":
+    quelle, vorlagen = spitzen()
+    bpy.data.objects.remove(quelle)
+    rnd = random.Random(SAAT)
+    reihe = sorted(mulden, key=lambda m: -m["r"] - rnd.uniform(0, 0.02))
+    anzahl = max(1, round(len(reihe) * ANTEIL))
+    alter = GROESSE - 1.0
+    for m in reihe[:anzahl]:
+        p, n, r = Vector(m["p"]), Vector(m["n"]).normalized(), m["r"]
+        tiefe = m.get("tiefe", r * 0.3)
+        o, b, l = rnd.choice(vorlagen)
+        weit = 2 * r * 0.7 * (1 + alter * 0.4) * rnd.uniform(0.9, 1.08)     # dick: füllt den Boden der Fassung
+        s_xy = weit / b
+        lang = l * s_xy
+        ziel = (tiefe + r * (2.4 + alter * 1.8)) * rnd.uniform(0.85, 1.2)   # wie weit sie herausragt
+        streck = 2.4 if l / b > 1.2 else 1.5           # Brocken (Würfel, Trauben) nur leicht strecken
+        s_z = s_xy * min(streck, max(1.0, ziel / lang))       # lang gestreckt, nie gestaucht
+        k = o.copy()
+        bpy.context.scene.collection.objects.link(k)
+        dreh = n.to_track_quat("Z", "Y") @ Quaternion((0, 0, 1), rnd.uniform(0, 2 * math.pi))
+        neig = Quaternion(n.orthogonal().normalized(), math.radians(rnd.uniform(-8, 8)))
+        k.matrix_world = Matrix.Translation(p - n * r * 0.12) @ (neig @ dreh).to_matrix().to_4x4() @             Matrix.Diagonal((s_xy, s_xy, s_z, 1))
+    for o, b, l in vorlagen:
+        bpy.data.objects.remove(o)
+    print("KRISTALLE", anzahl, "von", len(mulden))
+else:
+    vorlage, breite, hoehe = kristall()
+    besetzen(vorlage, breite, hoehe, mulden)
 bilder()
 bpy.ops.wm.save_as_mainfile(filepath=OUT + ".blend")

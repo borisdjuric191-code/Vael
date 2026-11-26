@@ -11,7 +11,11 @@ Ring). Ausgangspunkte sind die von Hand gelesenen Mulden aus mulden_saat.json (P
   4. Durch die 36 Randpunkte wird ein Kreis gelegt (Ausreißer raus) -> echte Mitte, echter Radius.
   5. Tiefe = Rand minus Boden in der Mitte. Doppelte (aus mehreren Ansichten) werden zusammengelegt.
 
-  blender -b -P Tools/Ameisen/ameise_mulden_ring.py -- <ameise.fbx> <mulden_saat.json> <mulden.json>
+  6. (mit Textur) Boris 27.11.: auch alle Kreise, die in der Mitte dunkler sind. Jeder dunkle Fleck der Grundfarbe
+     (dunkler als die Umgebung, nicht schwarz) wird ein weiterer Startpunkt; aufgenommen wird er nur, wenn die
+     Ringabtastung dort eine echte Fassung findet und der Körper darunter dick ist (keine Beine).
+
+  blender -b -P Tools/Ameisen/ameise_mulden_ring.py -- <ameise.fbx> <mulden_saat.json> <mulden.json> [basecolor.jpg]
 """
 import json
 import math
@@ -24,6 +28,7 @@ from mathutils.kdtree import KDTree
 
 args = sys.argv[sys.argv.index("--") + 1:]
 ANT, SAAT, OUT = args[0], args[1], args[2]
+TEX = args[3] if len(args) > 3 else None
 RES, ORTHO = 1600, 1.15
 ZIEL = Vector((0, 0, 0.32))
 ANSICHTEN = {
@@ -40,6 +45,7 @@ ANSICHTEN = {
     "oben_kopf": Vector((-0.7, 0, 0.7)),
 }
 RICHTUNGEN = 36
+NACHRICHTEN = False      # Achse nach dem ersten Kreis aus dem Rand neu bestimmen (brachte Fehltreffer, aus)
 
 
 def load():
@@ -106,13 +112,17 @@ def kreis(pts):
     return (cx, cy, math.sqrt(r2)) if r2 > 0 else None
 
 
-def ring(obj, bvh, kd, p, r0):
+def ring(obj, bvh, kd, p, r0, n=None, tiefe_runde=0):
+    """Fassung um p abtasten. Die Achse (n) ist zuerst das Mittel der Normalen in der Nähe; nach dem ersten Kreis wird sie
+    aus den Normalen auf dem gefundenen Rand neu bestimmt (der Rand ist symmetrisch, sein Mittel ist die Körpernormale an
+    der Mulde, auch auf stark gewölbten Stellen) und der Kreis einmal neu eingepasst."""
     vs = obj.data.vertices
-    near = kd.find_range(p, r0 * 2.0)
-    n = Vector()
-    for co, j, d in near:
-        n += vs[j].normal
-    n = n.normalized()
+    if n is None:
+        near = kd.find_range(p, r0 * 1.3)
+        n = Vector()
+        for co, j, d in near:
+            n += vs[j].normal
+        n = n.normalized()
     t1 = n.orthogonal().normalized()
     t2 = n.cross(t1)
     rand = []
@@ -159,8 +169,22 @@ def ring(obj, bvh, kd, p, r0):
              for a in [2 * math.pi * k / 12 for k in range(12)]) / 12
     if hm is None:
         return None
+    if tiefe_runde == 0 and NACHRICHTEN:
+        rn = Vector()
+        for co, j, d in kd.find_range(mitte, r * 1.45):
+            if d > r * 0.85:
+                rn += vs[j].normal
+        if rn.length > 0:
+            rn = rn.normalized()
+            if rn.angle(n) > math.radians(8):
+                besser = ring(obj, bvh, kd, mitte + n * hm, r, rn, 1)
+                # nur übernehmen, wenn es dieselbe Fassung bleibt (ähnliche Größe, kaum verschoben)
+                if besser and 0.75 * r < besser["r"] < 1.3 * r and                         (Vector(besser["p"]) - (mitte + n * hm)).length < 0.5 * r:
+                    return besser
     boden = mitte + n * hm
-    return {"p": list(boden), "n": list(n), "r": r, "tiefe": max(0.0, hr - hm), "gut": len(gut)}
+    hubs = sorted(hub for e, t, hub in rand)
+    return {"p": list(boden), "n": list(n), "r": r, "tiefe": max(0.0, hr - hm), "gut": len(gut),
+            "rand": hubs[len(hubs) // 4] / r}      # Randhöhe (unteres Viertel der Richtungen) im Verhältnis zum Radius
 
 
 obj = load()
@@ -189,7 +213,24 @@ for name, liste in saat.items():
             continue
         m["quelle"] = [name, x, y]
         m["blick"] = Vector(m["n"]).dot(-d)        # wie gerade die Ansicht auf die Mulde schaut
-        if m["blick"] < 0.15 or (m["blick"] < 0.45 and m["tiefe"] < 0.003):
+        if m["blick"] < 0.45:
+            # zweiter Versuch: Achse aus der Fläche genau an der Klickstelle (auf stark gewölbten Stellen kippt das
+            # Mittel über die ganze Umgebung weg)
+            nk = Vector()
+            for co, j, dd in kd.find_range(loc, r0 * 0.8):
+                nk += me.vertices[j].normal
+            if nk.length > 0 and nk.normalized().dot(-d) > 0.4:
+                m2 = ring(obj, bvh, kd, loc, r0, nk.normalized(), 1)
+                if m2:
+                    m2["quelle"] = [name, x, y, "achse"]
+                    m2["blick"] = Vector(m2["n"]).dot(-d)
+                    m = m2
+        # weder Rand noch Boden: kein Ring, sondern eine glatte Stelle (der Kreis wurde ins Leere eingepasst)
+        if m["rand"] < 0.15 and m["tiefe"] / m["r"] < 0.05:
+            fehl.append((name, x, y, "kein Rand, kein Boden"))
+            continue
+        # schräg gesehen: nur nehmen, wenn die Form eindeutig eine Fassung ist (erhabener Rand, flacher Boden)
+        if m["blick"] < 0.45 and (m["rand"] < 0.25 or not (0.1 <= m["tiefe"] / m["r"] <= 0.9)):
             fehl.append((name, x, y, "zu schraeg gesehen"))
             continue
         # Doppelte zusammenlegen: dieselbe Mulde aus mehreren Ansichten, die am geradesten gesehene bleibt
@@ -201,6 +242,92 @@ for name, liste in saat.items():
                 mulden[k] = m
             continue
         mulden.append(m)
+
+
+def dicke(p, n):
+    loc, nor, idx, dist = bvh.ray_cast(p - n * 0.003, -n, 1.0)
+    return dist if loc is not None else 0.0
+
+
+def farbflecken():
+    import numpy as np
+    from collections import deque
+    img = bpy.data.images.load(TEX)
+    w, h = img.size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    img.pixels.foreach_get(px)
+    px = px.reshape(h, w, 4)
+    lum = 0.3 * px[:, :, 0] + 0.59 * px[:, :, 1] + 0.11 * px[:, :, 2]
+    uv = me.uv_layers.active.data
+    summe = np.zeros(len(me.vertices)); zahl = np.zeros(len(me.vertices))
+    for loop in me.loops:
+        u, v = uv[loop.index].uv
+        summe[loop.vertex_index] += lum[min(h - 1, max(0, int((v % 1.0) * h))), min(w - 1, max(0, int((u % 1.0) * w)))]
+        zahl[loop.vertex_index] += 1
+    L = summe / np.maximum(zahl, 1)
+    vs = me.vertices
+    dunkel = []
+    for i, v in enumerate(vs):
+        hood = kd.find_range(v.co, 0.045)
+        mittel = sum(L[j] for _, j, _ in hood) / len(hood)
+        dunkel.append(L[i] < mittel - 0.03 and L[i] > 0.16 and v.co.z > 0.15 and v.normal.z > -0.35)
+    nach = [[] for _ in vs]
+    for e in me.edges:
+        a, b = e.vertices
+        nach[a].append(b); nach[b].append(a)
+    gesehen = [False] * len(vs)
+    flecken = []
+    for s0 in range(len(vs)):
+        if not dunkel[s0] or gesehen[s0]:
+            continue
+        q = deque([s0]); gesehen[s0] = True; teil = []
+        while q:
+            i = q.popleft(); teil.append(i)
+            for j in nach[i]:
+                if dunkel[j] and not gesehen[j]:
+                    gesehen[j] = True; q.append(j)
+        if len(teil) < 4:
+            continue
+        pts = [vs[i].co for i in teil]
+        c = sum(pts, Vector()) / len(pts)
+        rf = math.sqrt(sum((p - c).length_squared for p in pts) / len(pts)) * 1.41
+        _, k, _ = kd.find(c)
+        flecken.append((vs[k].co.copy(), rf))
+    return flecken
+
+
+_raster_pts = []
+
+
+def kd_r_naechster(co):
+    return min(((co - q).length for q in _raster_pts), default=9.0)
+
+
+def kd_r_add(co):
+    _raster_pts.append(co.copy())
+
+
+if TEX:
+    flecken = farbflecken()
+    dazu = 0
+    for c, rf in flecken:
+        for r0 in (rf * 1.3, rf * 1.0, rf * 1.7):
+            r0 = min(0.07, max(0.008, r0))
+            m = ring(obj, bvh, kd, c, r0)
+            # echte Fassung: erhabener Rand ringsum und ein Boden, aber kein tiefes Loch (Auge, Spalt am Gelenk)
+            if not m or m["rand"] < 0.25 or not (0.1 <= m["tiefe"] / m["r"] <= 0.9) or m["r"] > 0.035:
+                continue
+            p, n = Vector(m["p"]), Vector(m["n"])
+            if dicke(p, n) < 0.07 or n.z < -0.18:
+                break           # Bein, Fühler, Gelenk oder Unterseite (eingebackene Schatten)
+            if any((Vector(a["p"]) - p).length < 0.8 * max(a["r"], m["r"]) for a in mulden):
+                break
+            m["quelle"] = ["farbe", round(rf, 3)]
+            m["blick"] = 0.9
+            mulden.append(m)
+            dazu += 1
+            break
+    print("FARBFLECKEN", len(flecken), "DAZU", dazu)
 for f_ in fehl:
     print("FEHL", f_)
 print("MULDEN", len(mulden), "FEHL", len(fehl))
