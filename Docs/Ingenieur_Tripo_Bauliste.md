@@ -101,6 +101,7 @@ Die Wesen stehen in der Lore (`Docs/Eisenschlund_Erze_Pflanzen_Wesen.md`), als F
 - **Tornado (Boris):** ab einer gewissen Zahl Drehungen wächst ein Tornado um ihn herum, der ihn trägt; am Ende entlässt er ihn als Aschenteufel.
 - Vorschläge: Umwelt (Sturm = schneller, Feuer = Feuertornado, Regen = nasser Sturm für Blitz, Rauch = blendend); Schwindel als Preis, wenn er zu lange dreht, ohne zu entlassen; Steuerung wie die Panzerkugel: Ausweichen halten = Drehtanz.
 - Abgrenzung: Aschenjäger belohnt Bewegung (Rauch, Drehen, Fangen), der Lauscher Stillstand.
+- Entschieden 26.11.: Drehtanz = Ausweichen halten; Tornado und Klingenteufel lassen Mitspieler unberührt. Zeichnungen: Vael_Quellen/Ingenieur/Aschenjaeger/01_konzept/Aschenjaeger_Stufe2.png und Ruestung/01_konzept/Glutkrone_Stufe2.png.
 
 ## 3. Neues Monster hinzufügen
 
