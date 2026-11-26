@@ -212,6 +212,8 @@ struct FVaelGear
 	float Armor = 0.0f;
 	float Health = 0.0f;
 	FName Set;
+	/** Stage of its set (26.11.): 2 is the stage II of the set (Glutkrone, Aschenjaeger II), built on the piece of stage 1 */
+	int32 SetStage = 1;
 
 	// Formula of a shot (goal 14.11.): Hülle + Kern + up to two Verstärker; the costs are exactly these parts, one of each.
 	// A formula must be found by mixing before it can be built.

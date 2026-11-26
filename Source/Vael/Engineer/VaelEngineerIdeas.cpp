@@ -96,6 +96,31 @@ const TArray<FVaelEngineerIdea>& VaelEngineerIdeas::GetAll()
 		LOCTEXT("KrallenschrittTitle", "Krallen an den Stiefeln"),
 		LOCTEXT("KrallenschrittThought", "Sie landet lautlos und greift sofort. Ihre Krallen an weichen, gewickelten Stiefeln: kein Laut auf der Asche, und der Fuß greift, wo ich lande."),
 		LOCTEXT("KrallenschrittHint", "Erforsche die Kreischende, die aus dem Rauch herabstößt.")));
+	// Stage II (26.11.): the Glutkrone from the Glutkoenigin, the Aschenjaeger II from the Harpyien-Aelteste, piece by piece
+	All.Add(MakeIdea(TEXT("Brutkrone"), TEXT("Glutkoenigin"), S::Observed, { TEXT("Schwarzglut2_0") },
+		LOCTEXT("BrutkroneTitle", "Eine Krone, die Wärme sieht"),
+		LOCTEXT("BrutkroneThought", "Ihre vielen Augen sehen nicht Licht, sie sehen Wärme. Ein Kamm aus ihrer Krone, ihr Auge als Scheibe: dann sehe ich, was glüht."),
+		LOCTEXT("BrutkroneHint", "Beobachte die Mutter der Glutkriecher in ihrer Kammer.")));
+	All.Add(MakeIdea(TEXT("HerzDerGlut"), TEXT("Glutkoenigin"), S::Defeated, { TEXT("Schwarzglut2_1"), TEXT("Schwarzglut2_3") },
+		LOCTEXT("HerzDerGlutTitle", "Ein Herz für den Panzer"),
+		LOCTEXT("HerzDerGlutThought", "Ihr Herz hört nicht auf zu glühen, auch jetzt nicht. In die Brust gesetzt, treibt es Glut durch jede Platte, und die Kammern brüten weiter."),
+		LOCTEXT("HerzDerGlutHint", "Bezwinge die Königin der Glutkriecher.")));
+	All.Add(MakeIdea(TEXT("Brutbuechse"), TEXT("Glutkoenigin"), S::Researched, { TEXT("Schwarzglut2_2") },
+		LOCTEXT("BrutbuechseTitle", "Ein Sack unter Druck"),
+		LOCTEXT("BrutbuechseThought", "Ihr Brutsack hält Hitze und Druck. Kugeln statt Eier, eine Düse am Ende: die Glut treibt sie hinaus, schneller als jede Schleuder."),
+		LOCTEXT("BrutbuechseHint", "Erforsche die Königin der Glutkriecher ganz.")));
+	All.Add(MakeIdea(TEXT("Kielkrone"), TEXT("HarpyienAelteste"), S::Observed, { TEXT("Aschenjaeger2_0") },
+		LOCTEXT("KielkroneTitle", "Die Krone der Ältesten"),
+		LOCTEXT("KielkroneThought", "Sie trägt ihre Kiele wie eine Krone, und die Kreischenden folgen ihr. Über meiner Kapuze würden sie den Wind teilen."),
+		LOCTEXT("KielkroneHint", "Beobachte die mit der Krone aus gestohlenem Tand.")));
+	All.Add(MakeIdea(TEXT("Aeltestenmantel"), TEXT("HarpyienAelteste"), S::Defeated, { TEXT("Aschenjaeger2_1"), TEXT("Aschenjaeger2_2") },
+		LOCTEXT("AeltestenmantelTitle", "Schwingen, die tanzen"),
+		LOCTEXT("AeltestenmantelThought", "Wenn sie kreist, wird der Wind zum Wirbel. Ihre Schwungfedern als Mantel, die Kiele an den Armen: dreh ich mich, dreht der Wind mit."),
+		LOCTEXT("AeltestenmantelHint", "Bezwinge die Älteste der Harpyien.")));
+	All.Add(MakeIdea(TEXT("Windlaeufer"), TEXT("HarpyienAelteste"), S::Researched, { TEXT("Aschenjaeger2_3") },
+		LOCTEXT("WindlaeuferTitle", "Pfeifen im Lauf"),
+		LOCTEXT("WindlaeuferThought", "Pfeifensporen an den Stiefeln: jeder Schritt ein Ton, und der Wind läuft mit."),
+		LOCTEXT("WindlaeuferHint", "Erforsche die Älteste der Harpyien ganz.")));
 	All.Add(MakeIdea(TEXT("Glimmblick"), TEXT("Schleieraffe"), S::Observed, { TEXT("LinseGlimm") },
 		LOCTEXT("GlimmblickTitle", "Augen für den Nebel"),
 		LOCTEXT("GlimmblickThought", "Der Affe findet seine Beute im dichtesten Schleier. Seine Augen glimmen von innen. Hinter Rußglas gefasst sehe ich weiter als jetzt."),

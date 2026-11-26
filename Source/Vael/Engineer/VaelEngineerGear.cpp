@@ -607,6 +607,44 @@ namespace
 				LOCTEXT("AschenjaegerBeineText", "Gewickelte Beinlinge mit Strohringen an Knie und Schienbein, ein Strohrock am Gürtel, an den Stiefeln Greifklauen der Harpyie."),
 				{ { TEXT("Puppengarn"), 2 }, { TEXT("Glimmstroh"), 2 }, { TEXT("Greifklaue"), 2 } }, 3.0f, 8.0f);
 		}
+
+		// --- Stage II (26.11., Tripo models of the same day): each piece is built on the piece of stage I at its place; the set of
+		// stage II is worn whole too and keeps everything of stage I
+		{
+			const auto Stage2 = [&All](const TCHAR* Set, int32 Place, FText Name, FText Text, FLinearColor Color, TArray<FVaelGearCost> Costs, float Armor, float Health)
+			{
+				All.Add(MakeArmor(FName(*FString::Printf(TEXT("%s2_%d"), Set, Place)), Name, FName(Set), static_cast<EVaelArmorPlace>(Place), Color, MoveTemp(Costs),
+					FName(*FString::Printf(TEXT("%s_%d"), Set, Place)), Armor, Health));
+				All.Last().Text = Text;
+				All.Last().SetStage = 2;
+			};
+			const FLinearColor Ember = GearRgb(90, 40, 24);
+			Stage2(TEXT("Schwarzglut"), 0, LOCTEXT("GlutkroneHelm", "Glutkronen-Helm"),
+				LOCTEXT("GlutkroneHelmText", "Die Brutkrone der Königin als Kamm über dem Helm, ihr Auge als Sichtscheibe: viele kleine Glutaugen, die Wärme sehen."),
+				Ember, { { TEXT("Brutkrone"), 1 }, { TEXT("Koeniginnenauge"), 1 }, { TEXT("Schlackeneisen"), 1 } }, 9.0f, 18.0f);
+			Stage2(TEXT("Schwarzglut"), 1, LOCTEXT("GlutkroneBrust", "Glutkronen-Brustpanzer"),
+				LOCTEXT("GlutkroneBrustText", "Das Herz der Glut ersetzt den Glutstein und treibt Glutadern durch die Platten. In den Schulterkammern reifen Eier aus Glut, hinten ragt der Legestachel."),
+				Ember, { { TEXT("HerzDerGlut"), 1 }, { TEXT("Legestachel"), 1 }, { TEXT("GehaertetePlatte"), 2 }, { TEXT("Glutdruese"), 2 } }, 16.0f, 35.0f);
+			Stage2(TEXT("Schwarzglut"), 2, LOCTEXT("GlutkroneArme", "Glutkronen-Armschienen"),
+				LOCTEXT("GlutkroneArmeText", "Schwerere Platten, und am linken Unterarm der Brutsack der Königin: die Brutbüchse, ein Druckbeutel voller Schlackenkugeln."),
+				Ember, { { TEXT("Glutdruese"), 2 }, { TEXT("Kriechersehne"), 1 }, { TEXT("Schlackeneisen"), 1 } }, 9.0f, 18.0f);
+			Stage2(TEXT("Schwarzglut"), 3, LOCTEXT("GlutkroneBeine", "Glutkronen-Beinschienen"),
+				LOCTEXT("GlutkroneBeineText", "Beinplatten mit den Gliedern der Königinnenbeine, gezackt und glühend."),
+				Ember, { { TEXT("GehaertetePlatte"), 2 }, { TEXT("Rollpanzer"), 1 }, { TEXT("Glutdruese"), 1 } }, 9.0f, 18.0f);
+			const FLinearColor Gale = GearRgb(96, 92, 100);
+			Stage2(TEXT("Aschenjaeger"), 0, LOCTEXT("Aschenjaeger2Kopf", "Kielkrone"),
+				LOCTEXT("Aschenjaeger2KopfText", "Die Krone der Ältesten aus knochenweißen Kielen über der Kapuze, darin ihr gestohlener Tand."),
+				Gale, { { TEXT("Aeltestenschwinge"), 1 }, { TEXT("Silberhalm"), 2 } }, 4.0f, 10.0f);
+			Stage2(TEXT("Aschenjaeger"), 1, LOCTEXT("Aschenjaeger2Brust", "Ältestenmantel"),
+				LOCTEXT("Aschenjaeger2BrustText", "Ein Mantel aus den langen Schwungfedern der Ältesten, weit wie halb geöffnete Flügel. Er fängt den Wind, wenn er tanzt."),
+				Gale, { { TEXT("Aeltestenschwinge"), 2 }, { TEXT("Russfeder"), 2 }, { TEXT("Pfeifensporen"), 1 } }, 8.0f, 20.0f);
+			Stage2(TEXT("Aschenjaeger"), 2, LOCTEXT("Aschenjaeger2Arme", "Sturmwicklungen"),
+				LOCTEXT("Aschenjaeger2ArmeText", "Längere Federreihen mit Kielen, Flüsterfaser in den Wicklungen: die Sicheln liegen auch im Wirbel ruhig in der Hand."),
+				Gale, { { TEXT("Fluesterfaser"), 1 }, { TEXT("Russfeder"), 2 }, { TEXT("Silberhalm"), 1 } }, 4.0f, 10.0f);
+			Stage2(TEXT("Aschenjaeger"), 3, LOCTEXT("Aschenjaeger2Beine", "Windläufer"),
+				LOCTEXT("Aschenjaeger2BeineText", "Pfeifensporen an den Stiefeln, die im Lauf leise pfeifen, und die Krallen der Ältesten."),
+				Gale, { { TEXT("Pfeifensporen"), 1 }, { TEXT("Greifklaue"), 2 }, { TEXT("Fluesterfaser"), 1 } }, 4.0f, 10.0f);
+		}
 		return All;
 	}
 

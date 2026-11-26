@@ -105,6 +105,7 @@
 #include "Creatures/VaelKobold.h"
 #include "Items/VaelChest.h"
 #include "Engineer/VaelDoubleSickle.h"
+#include "Engineer/VaelEngineerStage2Actors.h"
 #include "Creatures/VaelEmberCrawler.h"
 #include "World/VaelNidVeins.h"
 
@@ -2510,6 +2511,150 @@ void UVaelCheatManager::VaelIngenieur(const FString& What, const FString& Id)
 				}
 			}), 1.5f, false);
 		}), 1.5f, false);
+		return;
+	}
+	if (What == TEXT("glutkrone") || What == TEXT("drehtanz"))
+	{
+		// Stage II (26.11.): "glutkrone" = Brutbuechse (one pellet, then the clutch), a Glutei that seeks the doll, the Glutbad;
+		// "drehtanz" = Aschenjaeger II, dodge held: turns, tornado, a Klingenteufel, the Aschenteufel on letting go. [Stufe2]
+		const bool bGlut = What == TEXT("glutkrone");
+		const TCHAR* Set = bGlut ? TEXT("Schwarzglut") : TEXT("Aschenjaeger");
+		Player->SetHero(EVaelHeroClass::Engineer, false);
+		Engineer->LearnAllPlans();
+		for (int32 Stage = 1; Stage <= 2; ++Stage)
+		{
+			for (int32 Place = 0; Place < 4; ++Place)
+			{
+				FillMaterials();
+				Engineer->Build(FName(Stage == 1 ? *FString::Printf(TEXT("%s_%d"), Set, Place) : *FString::Printf(TEXT("%s2_%d"), Set, Place)), true);
+			}
+		}
+		Engineer->Wear(FName(*FString::Printf(TEXT("%s2_1"), Set)));
+		UE_LOG(LogVael, Display, TEXT("[Stufe2] %s stage %d worn: %s"), Set, Engineer->GetSetStage(Set), Engineer->GetSetStage(Set) == 2 ? TEXT("PASS") : TEXT("FAIL"));
+		Player->GetCharacterMovement()->StopMovementImmediately();
+		Player->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		const FVector Home = Player->GetActorLocation();
+		const FVector Ahead = Player->GetActorForwardVector().GetSafeNormal2D();
+		AVaelCreature* Doll = AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Home + Ahead * (bGlut ? 500.0f : 200.0f) - FVector(0.0f, 0.0f, 60.0f), FRotator::ZeroRotator);
+		if (Doll == nullptr)
+		{
+			UE_LOG(LogVael, Display, TEXT("[Stufe2] doll: FAIL"));
+			return;
+		}
+		Doll->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		const float Start = Doll->GetHealth();
+		TWeakObjectPtr<UVaelEngineerComponent> WeakEng(Engineer);
+		TWeakObjectPtr<AVaelCreature> WeakDoll(Doll);
+		const auto Later = [this](float Seconds, TFunction<void()> Work)
+		{
+			FTimerHandle Handle;
+			GetWorld()->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [Work]() { Work(); }), Seconds, false);
+		};
+		if (bGlut)
+		{
+			const bool bGun = Engineer->UsesBroodGun();
+			Engineer->Fire(Doll->GetActorLocation());
+			UE_LOG(LogVael, Display, TEXT("[Stufe2] Brutbuechse in use %d, one pellet fired (left %d): %s"), bGun, Engineer->GetBroodPellets(), bGun && Engineer->GetBroodPellets() == 5 ? TEXT("PASS") : TEXT("FAIL"));
+			Later(1.0f, [WeakEng, WeakDoll, Start]()
+			{
+				UVaelEngineerComponent* Eng = WeakEng.Get();
+				if (Eng == nullptr || !WeakDoll.IsValid())
+				{
+					return;
+				}
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] pellet hit the doll (%.0f): %s"), Start - WeakDoll->GetHealth(), WeakDoll->GetHealth() < Start ? TEXT("PASS") : TEXT("FAIL"));
+				Eng->StartDraw();
+			});
+			Later(1.6f, [WeakEng, WeakDoll]()
+			{
+				if (UVaelEngineerComponent* Eng = WeakEng.Get())
+				{
+					const int32 Before = Eng->GetBroodPellets();
+					Eng->ReleaseDraw(WeakDoll.IsValid() ? WeakDoll->GetActorLocation() : Eng->GetOwner()->GetActorLocation());
+					UE_LOG(LogVael, Display, TEXT("[Stufe2] held: the clutch of %d pellets, sack empty: %s"), Before, Eng->GetBroodPellets() == 0 && Before > 1 ? TEXT("PASS") : TEXT("FAIL"));
+					// a fresh doll for the egg (the clutch may have finished the first)
+					const FVector Ahead2 = Eng->GetOwner()->GetActorForwardVector().GetSafeNormal2D();
+					if (AVaelCreature* Second = AVaelCreature::SpawnCreature(Eng->GetWorld(), GetMutableDefault<UVaelSickleDollData>(), Eng->GetOwner()->GetActorLocation() + Ahead2 * 450.0f - FVector(0.0f, 0.0f, 60.0f), FRotator::ZeroRotator))
+					{
+						Second->GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+					}
+					Eng->AddBroodHeat(60.0f);
+					UE_LOG(LogVael, Display, TEXT("[Stufe2] 60 heat in the chambers lays a Glutei: %s"), Eng->GetEggsLaid() == 1 ? TEXT("PASS") : TEXT("FAIL"));
+				}
+			});
+			Later(2.0f, [WeakDoll, Start]() { if (WeakDoll.IsValid()) { UE_LOG(LogVael, Display, TEXT("[Stufe2] doll before the egg: %.0f lost"), Start - WeakDoll->GetHealth()); } });
+			Later(3.0f, [this, WeakDoll]()
+			{
+				for (TActorIterator<AVaelGlutEgg> It(GetWorld()); It; ++It)
+				{
+					UE_LOG(LogVael, Display, TEXT("[Stufe2] egg at %s, prey %s, would seek %s, doll at %s"), *It->GetActorLocation().ToCompactString(), It->GetPrey() ? *It->GetPrey()->GetName() : TEXT("-"),
+						It->FindPrey() ? *It->FindPrey()->GetName() : TEXT("-"), WeakDoll.IsValid() ? *WeakDoll->GetActorLocation().ToCompactString() : TEXT("-"));
+				}
+			});
+			Later(4.5f, [this, WeakEng, WeakDoll]()
+			{
+				UVaelEngineerComponent* Eng = WeakEng.Get();
+				if (Eng == nullptr)
+				{
+					return;
+				}
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] the Glutei crawled to the doll and burst (eggs left %d, doll burning %d): %s"), Eng->GetEggsAlive(),
+					WeakDoll.IsValid() && UVaelCombatStatics::HasStatus(WeakDoll.Get(), EVaelStatus::Burning), Eng->GetEggsAlive() == 0 ? TEXT("PASS") : TEXT("FAIL"));
+				AVaelGroundArea::SpawnArea(GetWorld(), Eng->GetOwner()->GetActorLocation() - FVector(0.0f, 0.0f, 90.0f), EVaelElement::Fire, 200.0f, 5.0f, 0.0f, nullptr);
+				const float Taken = Eng->ScaleIncoming(100.0f, nullptr, true);
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] Glutbad: fire damage in a fire %.0f: %s"), Taken, Taken <= 0.0f ? TEXT("PASS") : TEXT("FAIL"));
+			});
+			return;
+		}
+		// the Drehtanz: dodge pressed and held
+		Engineer->OnDodged();
+		Engineer->SetRollHeld(true);
+		Later(1.0f, [WeakEng]()
+		{
+			if (const UVaelEngineerComponent* Eng = WeakEng.Get())
+			{
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] dodge held: Drehtanz %d, turns %d, speed %.2f: %s"), Eng->IsWhirling(), Eng->GetWhirlStacks(), Eng->GetMoveSpeedScale(),
+					Eng->IsWhirling() ? TEXT("PASS") : TEXT("FAIL"));
+			}
+		});
+		Later(2.0f, [WeakEng, WeakDoll]()
+		{
+			if (UVaelEngineerComponent* Eng = WeakEng.Get())
+			{
+				// away from the doll, so the devil does not carry it off before the blades reach it
+				Eng->Fire(Eng->GetOwner()->GetActorLocation() - Eng->GetOwner()->GetActorForwardVector() * 600.0f);
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] attack in the dance lets go a Klingenteufel: %s"), Eng->GetDevilsReleased() == 1 ? TEXT("PASS") : TEXT("FAIL"));
+			}
+		});
+		// the doll wanders off on its own: set it back beside him once the tornado stands
+		Later(4.5f, [WeakEng, WeakDoll]()
+		{
+			if (WeakEng.IsValid() && WeakDoll.IsValid())
+			{
+				const AActor* Owner = WeakEng->GetOwner();
+				WeakDoll->SetActorLocation(Owner->GetActorLocation() + Owner->GetActorForwardVector() * 180.0f, false, nullptr, ETeleportType::TeleportPhysics);
+			}
+		});
+		Later(6.0f, [WeakEng, WeakDoll, Start]()
+		{
+			if (UVaelEngineerComponent* Eng = WeakEng.Get())
+			{
+				if (WeakDoll.IsValid())
+				{
+					UE_LOG(LogVael, Display, TEXT("[Stufe2] doll %.0f cm away (z %.0f)"), FVector::Dist2D(WeakDoll->GetActorLocation(), Eng->GetOwner()->GetActorLocation()), WeakDoll->GetActorLocation().Z - Eng->GetOwner()->GetActorLocation().Z);
+				}
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] after 5 s: turns %d, tornado %d, cuts %d, doll lost %.0f: %s"), Eng->GetWhirlStacks(), Eng->HasTornado(), Eng->GetWhirlCuts(),
+					WeakDoll.IsValid() ? Start - WeakDoll->GetHealth() : Start, Eng->HasTornado() && Eng->GetWhirlCuts() > 0 ? TEXT("PASS") : TEXT("FAIL"));
+				Eng->SetRollHeld(false);
+			}
+		});
+		Later(6.5f, [WeakEng]()
+		{
+			if (const UVaelEngineerComponent* Eng = WeakEng.Get())
+			{
+				UE_LOG(LogVael, Display, TEXT("[Stufe2] let go after the tornado: Aschenteufel (%d devils), dance over: %s"), Eng->GetDevilsReleased(), Eng->GetDevilsReleased() == 2 && !Eng->IsWhirling() ? TEXT("PASS") : TEXT("FAIL"));
+			}
+		});
 		return;
 	}
 	if (What == TEXT("sichelumwelt"))

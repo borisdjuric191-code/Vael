@@ -777,6 +777,19 @@ void UVaelPlayerHUDWidget::NativeTick(const FGeometry& MyGeometry, float InDelta
 					State.bLit = Eng->HasSickleCatchBonus();
 					State.CooldownLeft = 0.0f;
 				}
+				// stage II (26.11.): the Brutbüchse with its pellets and eggs, the Drehtanz with its turns
+				if (Eng->UsesBroodGun())
+				{
+					State.Name = FText::Format(NSLOCTEXT("VaelPlayerHUD", "BroodSlot", "Brutbüchse {0}/6 · Glutei {1}"), Eng->GetBroodPellets(), Eng->GetEggsAlive());
+					State.bDim = Eng->GetBroodPellets() <= 0;
+					State.CooldownLeft = 0.0f;
+				}
+				if (Eng->IsWhirling())
+				{
+					State.Name = Eng->HasTornado() ? NSLOCTEXT("VaelPlayerHUD", "WhirlTornado", "Tornado · loslassen = Aschenteufel")
+						: FText::Format(NSLOCTEXT("VaelPlayerHUD", "WhirlSlot", "Drehtanz {0}/8"), Eng->GetWhirlStacks());
+					State.bLit = true;
+				}
 				break;
 			case EVaelHUDAbility::EngPlace:
 			case EVaelHUDAbility::EngDevice:

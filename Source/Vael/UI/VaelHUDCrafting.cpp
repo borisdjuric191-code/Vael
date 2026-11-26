@@ -233,7 +233,7 @@ void AVaelHUD::DrawCrafting(const AVaelPlayerController* PlayerController)
 		if (const FVaelGearSet* Set = VaelEngineerGear::FindSet(Gear.Set))
 		{
 			const int32 Count = Engineer->CountSet(Gear.Set);
-			DrawLabel(FText::Format(LOCTEXT("SetLineWhole", "{0} · {1} von 4 gebaut · nur ganz zu tragen"), Set->Name, Engineer->CountSetBuilt(Gear.Set)), DetailLeft, Y, 14.0f * S, CraftBone);
+			DrawLabel(FText::Format(LOCTEXT("SetLineWhole", "{0} · {1} von 4 gebaut · nur ganz zu tragen"), Set->Name, Engineer->CountSetBuilt(Gear.Set, Gear.SetStage)), DetailLeft, Y, 14.0f * S, CraftBone);
 			Y += 20.0f * S;
 			DrawLabel(Set->TwoPieces, DetailLeft + 10.0f * S, Y, 13.0f * S, Count >= 4 ? CraftGood : CraftDim, 0.0f, DetailWidth - 10.0f * S);
 			Y += 18.0f * S;

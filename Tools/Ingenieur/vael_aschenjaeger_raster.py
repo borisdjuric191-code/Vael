@@ -4,8 +4,8 @@ The figure is set on the ground (lowest point z 0) and centred in x/y first, as 
 import bpy, math, os
 from mathutils import Vector
 
-SRC = "C:/Projekte/Vael_Quellen/Ingenieur/Aschenjaeger/02_tripo/Aschenjaeger.glb"
-OUT = "C:/Projekte/Vael_Quellen/Ingenieur/Aschenjaeger/03_blender"
+SRC = os.environ.get("AJ_SRC", "C:/Projekte/Vael_Quellen/Ingenieur/Aschenjaeger/02_tripo/Aschenjaeger.glb")
+OUT = os.environ.get("AJ_RASTER_OUT", "C:/Projekte/Vael_Quellen/Ingenieur/Aschenjaeger/03_blender")
 os.makedirs(OUT, exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.gltf(filepath=SRC)

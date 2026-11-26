@@ -18,9 +18,9 @@ Arbeitsliste für alle Modelle des Ingenieurs, die noch gebaut werden müssen. S
 | A2 | ↳ Wärmeglas-, Rauchglas-, Aderglas-Brille | Abwandlungen von A1 | Blender | A1 | ✅ 26.11. Gläser eingefärbt, Rezepte, alle drei Wirkungen |
 | A3 | **Aschenjäger-Satz** (Helm/Kapuze, Brust, Arme, Beine) | Sichelpuppe + Aschharpyie + Schleieraffe | Tripo | – | ✅ 26.11. tragbar (Modell, Rezepte, 10 % schneller, Rauchschritt) |
 | A4 | **Doppelsichel** (ersetzt die Schleuder) | 2 Sichelklinge, Puppengarn, Schlackeneisen, Rußfeder | Tripo | – | ✅ 26.11. Wurf gerade und im Bogen, kehrt zurück, Fangen |
-| A5 | **Aschenjäger II** (Wirbeltanz) | + Harpyien-Älteste, Silberhalm, Pfeifensporen | Tripo + Blender | Kreatur Harpyien-Älteste | 🟨 |
+| A5 | **Aschenjäger II** (Wirbeltanz) | + Harpyien-Älteste, Silberhalm, Pfeifensporen | Tripo + Blender | Kreatur Harpyien-Älteste | ✅ 26.11. |
 | A6 | **Erntewacht-Satz** | Sichelpuppe (Sichelklinge, Puppengarn, Glimmstroh) + 1–2 weitere Wesen | Tripo | Wesen festlegen | ⬜ |
-| A7 | **Glutkronen-Rüstung** (Schwarzglut Stufe II) | Brutkrone, Herz der Glut, Königinnenauge | Tripo + Blender | – | ⬜ |
+| A7 | **Glutkronen-Rüstung** (Schwarzglut Stufe II) | Brutkrone, Herz der Glut, Königinnenauge | Tripo + Blender | – | ✅ 26.11. |
 | A8 | **Rammschild** | 3 Rollpanzer, Rollsehne, Schlackeneisen | Blender (Roller-Teile) | – | ✅ 25.11. |
 | A9 | Werkzeuge: **Fernglas**, Wärmeglas, Aderglas, Königinnenlinse | siehe Ingenieur-Dokument, Abschnitt 5 | Blender, dann prüfen | – | Fernglas ✅ 25.11., Rest ⬜ |
 | A10 | **Prediger-Satz** (Schatten, Todsünde Gier) | Prediger der Narbe (Ordenstuch, Siegel, Siegelwachs) + ? | Tripo | Orden-Optik ausarbeiten | 🟨 |
@@ -101,7 +101,8 @@ Die Wesen stehen in der Lore (`Docs/Eisenschlund_Erze_Pflanzen_Wesen.md`), als F
 - **Tornado (Boris):** ab einer gewissen Zahl Drehungen wächst ein Tornado um ihn herum, der ihn trägt; am Ende entlässt er ihn als Aschenteufel.
 - Vorschläge: Umwelt (Sturm = schneller, Feuer = Feuertornado, Regen = nasser Sturm für Blitz, Rauch = blendend); Schwindel als Preis, wenn er zu lange dreht, ohne zu entlassen; Steuerung wie die Panzerkugel: Ausweichen halten = Drehtanz.
 - Abgrenzung: Aschenjäger belohnt Bewegung (Rauch, Drehen, Fangen), der Lauscher Stillstand.
-- Entschieden 26.11.: Drehtanz = Ausweichen halten; Tornado und Klingenteufel lassen Mitspieler unberührt. Zeichnungen: Vael_Quellen/Ingenieur/Aschenjaeger/01_konzept/Aschenjaeger_Stufe2.png und Ruestung/01_konzept/Glutkrone_Stufe2.png.
+- Entschieden 26.11.: Drehtanz = Ausweichen halten; Tornado und Klingenteufel lassen Mitspieler unberührt.
+- **Gebaut 26.11.:** beide Stufe-II-Rüstungen im Spiel (Tripo H3.0, `vael_aschenjaeger_rig.py` RIG_PROFILE=AJ2/GK), je Teil ein Ausbau des Stufe-1-Teils mit Einfall von Glutkönigin bzw. Ältester; nur ganz, Stufe 1 bleibt enthalten. Glutkrone: Brutkammern (60 Feuer = 1 Glutei, höchstens 4), wärmesuchende Glutei-Minen (brennende zuerst, nasse und gefrorene nicht), Panzerkugel legt jede Sekunde ein Ei, Glutbad (Feuer am Boden heilt, kein Feuerschaden), Brutbüchse (6 Kugeln, antippen 1, halten = Gelege, nass = Fehlzündung, Ladungen kommen in den Sack). Aschenjäger II: Drehtanz (jede Drehung +4 % Tempo, Sicheln kreisen und schneiden), Angriff = Klingenteufel, ab 8 Drehungen Tornado (zieht Leichte heran), loslassen = Aschenteufel, nach 8 s Schwindel; Teufel nehmen Feuer und Rauch mit. Tests: `VaelIngenieur glutkrone`, `drehtanz` (alles PASS). Zeichnungen: Vael_Quellen/Ingenieur/Aschenjaeger/01_konzept/Aschenjaeger_Stufe2.png und Ruestung/01_konzept/Glutkrone_Stufe2.png.
 
 ## 3. Neues Monster hinzufügen
 

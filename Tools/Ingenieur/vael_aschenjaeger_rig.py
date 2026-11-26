@@ -60,6 +60,52 @@ for s in ("l", "r"):
     CHILD.update({"clavicle_" + s: "upperarm_" + s, "upperarm_" + s: "lowerarm_" + s, "lowerarm_" + s: "hand_" + s,
                   "thigh_" + s: "calf_" + s, "calf_" + s: "foot_" + s, "foot_" + s: "ball_" + s})
 
+
+# ---- profiles (26.11.): the same rig for the Aschenjaeger II (Harpyien-Aelteste) and the Glutkrone (Schwarzglut II, Glutkoenigin);
+# RIG_PROFILE=AJ1|AJ2|GK. Joints read from their 03_blender*/raster_*.png like the first.
+PROFILE = os.environ.get("RIG_PROFILE", "AJ1")
+PREFIX = "AJ"
+# classification: head above HEAD_Z within HEAD_X of the middle; arms below ARM_Z; legs below LEGS_Z; MANTLE: points beyond
+# MANTLE_X from the middle above MANTLE_Z are chest (the elder's feather mantle, the queen's sting)
+CENTRE_X = 0.0
+HEAD_Z, HEAD_X, ARM_Z, LEGS_Z = 0.80, 0.085, 0.715, 0.585
+MANTLE_X, MANTLE_Z = 9.0, 9.0
+if PROFILE == "AJ2":
+    SRC = "C:/Projekte/Vael_Quellen/Ingenieur/Aschenjaeger/02_tripo/Aschenjaeger_Stufe2.glb"
+    OUT = "C:/Projekte/Vael_Quellen/Ingenieur/Aschenjaeger/05_rig_stufe2"
+    PREFIX = "AJ2"
+    # the same hunter, smaller in the box under the tall quill crown: everything at 0.876, then scaled to the engineer
+    K = 0.876
+    for d in (JOINTS, TIPS):
+        for n in d:
+            d[n] = d[n] * K
+    SCALE = 1.95 / K
+    HEAD_Z, HEAD_X, ARM_Z, LEGS_Z = 0.80 * K, 0.085 * K, 0.715 * K, 0.585 * K
+    MANTLE_X, MANTLE_Z = 0.21, 0.25
+elif PROFILE == "GK":
+    SRC = "C:/Projekte/Vael_Quellen/Ingenieur/Glutkrone/02_tripo/Glutkrone.glb"
+    OUT = "C:/Projekte/Vael_Quellen/Ingenieur/Glutkrone/05_rig"
+    PREFIX = "GK"
+    SCALE = 2.05
+    # the body stands off the middle of the box (the sting reaches out on its left and behind)
+    CENTRE_X, CY = -0.072, -0.06
+    JOINTS = {
+        "root": J(0, 0, 0.0), "pelvis": J(0, 0, 0.47), "spine_01": J(0, 0, 0.50), "spine_02": J(0, 0, 0.54),
+        "spine_03": J(0, 0, 0.58), "spine_04": J(0, 0, 0.62), "spine_05": J(0, 0, 0.66), "neck_01": J(0, -0.005, 0.71),
+        "neck_02": J(0, -0.01, 0.735), "head": J(0, -0.015, 0.76),
+    }
+    TIPS = {"head": J(0, -0.015, 0.88)}
+    for s, sx in (("l", 1.0), ("r", -1.0)):
+        JOINTS.update({
+            "clavicle_" + s: J(0.02 * sx, 0.0, 0.66), "upperarm_" + s: J(0.14 * sx, 0.0, 0.68), "lowerarm_" + s: J(0.20 * sx, 0.0, 0.575),
+            "hand_" + s: J(0.225 * sx, 0.0, 0.43), "thigh_" + s: J(0.11 * sx, 0.0, 0.47), "calf_" + s: J(0.12 * sx, 0.0, 0.26),
+            "foot_" + s: J(0.13 * sx, 0.01, 0.07), "ball_" + s: J(0.13 * sx, -0.07, 0.02),
+        })
+        TIPS["hand_" + s] = J(0.23 * sx, -0.005, 0.34)
+        TIPS["ball_" + s] = J(0.13 * sx, -0.12, 0.01)
+    HEAD_Z, HEAD_X, ARM_Z, LEGS_Z = 0.72, 0.10, 0.60, 0.50
+    MANTLE_X, MANTLE_Z = 0.29, 0.25
+TEX = os.path.join(OUT, "Texturen")
 ARM_BONES = {"upperarm_l", "lowerarm_l", "hand_l", "upperarm_r", "lowerarm_r", "hand_r"}
 WEIGHT_BONES = {
     "Kopf": ["head", "neck_02", "neck_01"],
@@ -96,12 +142,14 @@ def segment(name):
 
 def place_of(p):
     """Which piece a point of the Tripo figure (unscaled) belongs to"""
-    if p.z > 0.80 and abs(p.x) < 0.085:
+    if p.z > HEAD_Z and abs(p.x - CENTRE_X) < HEAD_X:
         return "Kopf"
+    if abs(p.x - CENTRE_X) > MANTLE_X and p.z > MANTLE_Z:
+        return "Brust"
     near = min(JOINTS, key=lambda n: seg_dist(p, *segment(n)) if n != "root" else 9.0)
-    if near in ARM_BONES and p.z < 0.715:
+    if near in ARM_BONES and p.z < ARM_Z:
         return "Arme"
-    if p.z < 0.585:
+    if p.z < LEGS_Z:
         return "Beine"
     return "Brust"
 
@@ -124,7 +172,7 @@ def save_textures(mat):
                 found["ORM"] = node.image
     for key, img in found.items():
         img.scale(TEX_SIZE, TEX_SIZE)
-        img.filepath_raw = os.path.join(TEX, "T_Ing_AJ_{}.png".format(key))
+        img.filepath_raw = os.path.join(TEX, "T_Ing_{}_{}.png".format(PREFIX, key))
         img.file_format = "PNG"
         img.save()
         log("texture {} {}x{}".format(key, *img.size))
@@ -143,6 +191,11 @@ def main():
     lo = Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
     hi = Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
     src.data.transform(Matrix.Translation(Vector((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z))))
+    # the body (not the box with the sting) to the middle
+    global CENTRE_X
+    if PROFILE == "GK":
+        src.data.transform(Matrix.Translation(Vector((-CENTRE_X, -CY, 0.0))))
+        CENTRE_X = 0.0
     mat = src.material_slots[0].material
     save_textures(mat)
     mat.name = "MI_Ing_Aschenjaeger"
@@ -159,7 +212,7 @@ def main():
     for piece in WEIGHT_BONES:
         o = src.copy()
         o.data = src.data.copy()
-        o.name = o.data.name = "SKM_Ing_AJ_" + piece
+        o.name = o.data.name = "SKM_Ing_{}_{}".format(PREFIX, piece)
         bpy.context.scene.collection.objects.link(o)
         bm = bmesh.new()
         bm.from_mesh(o.data)

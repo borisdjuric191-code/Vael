@@ -134,6 +134,24 @@ public:
 	bool IsSmokeAt(const FVector& Location) const;
 	bool WasLastCrit() const { return bLastCrit; }
 
+	// ---- stage II (26.11., Engineer/VaelEngineerStage2.cpp)
+	/** The whole Glutkrone: the Brutbüchse takes the place of the sling (tap one pellet, hold the whole clutch) */
+	bool UsesBroodGun() const;
+	int32 GetBroodPellets() const { return BroodPellets; }
+	/** Heat in the brood chambers, 0..1 of the next egg, and the Glutei laid so far */
+	float GetBroodHeat() const { return BroodHeat; }
+	int32 GetEggsLaid() const { return EggsLaid; }
+	int32 GetEggsAlive() const;
+	/** Fire dealt or taken in the Glutkrone fills the chambers; a full one lays a Glutei */
+	void AddBroodHeat(float Heat);
+	/** The Drehtanz of the Aschenjaeger II: dodge held; turns, speed stacks, the tornado round him, devils let go */
+	bool IsWhirling() const { return bWhirling; }
+	int32 GetWhirlStacks() const { return WhirlStacks; }
+	bool HasTornado() const { return bWhirling && WhirlStacks >= 8; }
+	int32 GetDevilsReleased() const { return DevilsReleased; }
+	int32 GetWhirlCuts() const { return WhirlCuts; }
+	bool IsDizzy() const;
+
 	/** How many shots or devices of a kind are in the pouches and in the stock */
 	int32 GetCarried(FName Id) const;
 	int32 GetStock(FName Id) const;
@@ -265,8 +283,10 @@ public:
 	void PutTestArmorInToolbox();
 
 	/** The pieces of a set (without the shield): it is built piece by piece but worn only whole (Boris 25.11.) */
-	static TArray<FName> GetSetPieces(FName Set);
-	int32 CountSetBuilt(FName Set) const;
+	static TArray<FName> GetSetPieces(FName Set, int32 Stage = 1);
+	int32 CountSetBuilt(FName Set, int32 Stage = 1) const;
+	/** The stage of the set worn whole (1 or 2), 0 if it is not worn */
+	int32 GetSetStage(FName Set) const;
 
 	/** How many worn pieces belong to a set (the shield doesn't count towards two or four pieces) */
 	int32 CountSet(FName Set) const;
@@ -600,6 +620,33 @@ private:
 	FName ShownGlass;
 	/** Until when the first hit out of the Rauchschritt's smoke is critical, and how many Rauchschritte he made */
 	float SmokeStrikeUntil = 0.0f;
+	// stage II state
+	float BroodHeat = 0.0f;
+	int32 EggsLaid = 0;
+	TArray<TWeakObjectPtr<AActor>> GlutEggs;
+	float NextBallEgg = 0.0f;
+	int32 BroodPellets = 6;
+	float NextPellet = 0.0f;
+	float DodgeAt = -100.0f;
+	bool bWhirling = false;
+	float WhirlTime = 0.0f;
+	float WhirlTurns = 0.0f;
+	int32 WhirlStacks = 0;
+	int32 WhirlCuts = 0;
+	float NextWhirlCut = 0.0f;
+	float NextWhirlPuff = 0.0f;
+	float NextDevil = 0.0f;
+	int32 DevilsReleased = 0;
+	float DizzyUntil = 0.0f;
+	UPROPERTY()
+	TArray<TObjectPtr<UStaticMeshComponent>> WhirlBlades;
+	void TickStage2(float DeltaTime);
+	void TickGlutkrone(float DeltaTime);
+	void TickWhirl(float DeltaTime);
+	bool FireBroodGun(const FVector& AimLocation, bool bClutch);
+	void LayGlutEgg(const FVector& At);
+	void ReleaseWindDevil(const FVector& AimLocation, bool bBig);
+	void EndWhirl(bool bRelease);
 	struct FSmokeSpot { FVector Location; float Radius; float Until; };
 	TArray<FSmokeSpot> SmokeSpots;
 	int32 SmokeSteps = 0;

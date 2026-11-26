@@ -111,10 +111,10 @@ def set_materials(mesh, mi):
     mesh.set_editor_property("materials" if isinstance(mesh, unreal.SkeletalMesh) else "static_materials", materials)
 
 
-def import_rig(mi):
+def import_rig(mi, rig=RIG, folder=AJ, prefix="AJ"):
     skeleton = None
     for piece in ("Beine", "Brust", "Arme", "Kopf"):
-        name = "SKM_Ing_AJ_" + piece
+        name = "SKM_Ing_{}_{}".format(prefix, piece)
         ui = unreal.FbxImportUI()
         ui.set_editor_property("import_mesh", True)
         ui.set_editor_property("import_as_skeletal", True)
@@ -127,15 +127,15 @@ def import_rig(mi):
             ui.set_editor_property("skeleton", skeleton)
         ui.skeletal_mesh_import_data.set_editor_property("import_morph_targets", False)
         task = unreal.AssetImportTask()
-        task.set_editor_property("filename", os.path.join(RIG, name + ".fbx"))
-        task.set_editor_property("destination_path", AJ + "/Koerper")
+        task.set_editor_property("filename", os.path.join(rig, name + ".fbx"))
+        task.set_editor_property("destination_path", folder + "/Koerper")
         task.set_editor_property("destination_name", name)
         task.set_editor_property("replace_existing", True)
         task.set_editor_property("automated", True)
         task.set_editor_property("save", True)
         task.set_editor_property("options", ui)
         tools.import_asset_tasks([task])
-        mesh = unreal.load_asset("{}/Koerper/{}".format(AJ, name))
+        mesh = unreal.load_asset("{}/Koerper/{}".format(folder, name))
         if mesh is None:
             log("import failed: " + name)
             continue
@@ -178,7 +178,18 @@ def import_prop(name, mi):
 
 
 parent = master()
-import_rig(instance(parent, os.path.join(RIG, "Texturen"), "T_Ing_AJ", AJ + "/Materialien", "MI_Ing_Aschenjaeger"))
-for prop in ("Doppelsichel", "Quarzbrille"):
+if not os.environ.get("VAEL_NUR_STUFE2"):
+    import_rig(instance(parent, os.path.join(RIG, "Texturen"), "T_Ing_AJ", AJ + "/Materialien", "MI_Ing_Aschenjaeger"))
+for prop in (() if os.environ.get("VAEL_NUR_STUFE2") else ("Doppelsichel", "Quarzbrille")):
     import_prop(prop, instance(parent, PROPS, "T_Ing_" + prop, WS + "/Materialien", "MI_Ing_{}_Tripo".format(prop)))
 log("fertig")
+
+# Stage II (26.11.): the Aschenjaeger II and the Glutkrone (Tools/Ingenieur/vael_aschenjaeger_rig.py RIG_PROFILE=AJ2 / GK)
+GK = "/Game/Vael/Characters/Ingenieur/Glutkrone"
+STAGE2 = [
+    ("C:/Projekte/Vael_Quellen/Ingenieur/Aschenjaeger/05_rig_stufe2", AJ, "AJ2", "MI_Ing_Aschenjaeger2"),
+    ("C:/Projekte/Vael_Quellen/Ingenieur/Glutkrone/05_rig", GK, "GK", "MI_Ing_Glutkrone"),
+]
+for rig_dir, folder, prefix, mi_name in STAGE2:
+    import_rig(instance(parent, os.path.join(rig_dir, "Texturen"), "T_Ing_" + prefix, folder + "/Materialien", mi_name), rig_dir, folder, prefix)
+log("Stufe II fertig")

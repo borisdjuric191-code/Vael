@@ -15,6 +15,7 @@
 #include "Engineer/VaelEngineerIdeas.h"
 #include "Player/VaelPoseFollowerAnimInstance.h"
 #include "Engineer/VaelDoubleSickle.h"
+#include "Magic/VaelGroundArea.h"
 #include "Creatures/VaelEmberCrawler.h"
 #include "World/VaelNidVeins.h"
 #include "World/VaelMarkSource.h"
@@ -166,6 +167,7 @@ void UVaelEngineerComponent::TickComponent(float DeltaTime, ELevelTick TickType,
 		}
 	}
 	UpdateGlassSight();
+	TickStage2(DeltaTime);
 	TickEffects();
 	if (bShieldMoving)
 	{
@@ -328,13 +330,17 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 		const FVaelGear* Gear = GetWorn(Each.Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Each.Place));
 		// the Aschenjaeger (26.11.) is a Tripo body the same way: Tools/Ingenieur/vael_aschenjaeger_rig.py, four pieces on one skeleton
 		FString Path;
+		// stage II (26.11.): the Glutkrone and the Aschenjaeger II, same pieces, own skeletons
+		const bool bStage2 = Gear != nullptr && Gear->SetStage >= 2;
 		if (Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")))
 		{
-			Path = FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_%s.SKM_Ing_GP_%s"), Each.Piece, Each.Piece);
+			Path = bStage2 ? FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutkrone/Koerper/SKM_Ing_GK_%s.SKM_Ing_GK_%s"), Each.Piece, Each.Piece)
+				: FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_%s.SKM_Ing_GP_%s"), Each.Piece, Each.Piece);
 		}
 		else if (Gear != nullptr && Gear->Set == FName(TEXT("Aschenjaeger")))
 		{
-			Path = FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Aschenjaeger/Koerper/SKM_Ing_AJ_%s.SKM_Ing_AJ_%s"), Each.Piece, Each.Piece);
+			Path = bStage2 ? FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Aschenjaeger/Koerper/SKM_Ing_AJ2_%s.SKM_Ing_AJ2_%s"), Each.Piece, Each.Piece)
+				: FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Aschenjaeger/Koerper/SKM_Ing_AJ_%s.SKM_Ing_AJ_%s"), Each.Piece, Each.Piece);
 		}
 		USkeletalMesh* Mesh = !Path.IsEmpty() && Visible != nullptr
 			? LoadObject<USkeletalMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet)
@@ -617,7 +623,7 @@ void UVaelEngineerComponent::UpdateShellShield()
 	const FName Spine(TEXT("spine_05"));
 	// only the Glutpanzer chest carries the armadillo shell (the Aschenjaeger's chest uses the same component)
 	const FVaelGear* ChestGear = GetWorn(EVaelArmorPlace::Chest).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(EVaelArmorPlace::Chest));
-	const bool bGlutpanzer = ChestGear != nullptr && ChestGear->Set == FName(TEXT("Schwarzglut"));
+	const bool bGlutpanzer = ChestGear != nullptr && ChestGear->Set == FName(TEXT("Schwarzglut")) && ChestGear->SetStage == 1;
 	USkeletalMesh* ChestMesh = bGlutpanzer && Chest != nullptr && Chest->IsVisible() ? Chest->GetSkeletalMeshAsset() : nullptr;
 	USkeletalMesh* Mesh = ChestMesh != nullptr && Player != nullptr
 		? LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_Schild.SKM_Ing_GP_Schild"), nullptr, LOAD_NoWarn | LOAD_Quiet)
@@ -981,7 +987,7 @@ void UVaelEngineerComponent::UpdateWeaponMesh()
 		return;
 	}
 	// the whole Aschenjaeger throws the Doppelsichel from the hip instead (26.11.): no weapon in the hand
-	const bool bShow = Player->IsEngineer() && !UsesDoubleSickle();
+	const bool bShow = Player->IsEngineer() && !UsesDoubleSickle() && !UsesBroodGun();
 	const FName Branch = GetBranch(Weapon);
 	const FName Wanted = bShow ? (Branch.IsNone() ? Weapon : Branch) : NAME_None;
 	// the Panzerschleuder on the forearm takes the place of the Zwille in the fist
@@ -1157,9 +1163,14 @@ bool UVaelEngineerComponent::Build(FName Id, bool bAtWorkbench)
 	case EVaelGearKind::Armor:
 		Built.Add(Id);
 		// a shield goes on at once; a set only when its last piece is built and nothing of it is worn yet
-		if (GetWorn(Gear->Place).IsNone() && (Gear->Place == EVaelArmorPlace::Shield || CountSetBuilt(Gear->Set) == GetSetPieces(Gear->Set).Num()))
+		// a stage II set goes on over its stage I as soon as its last piece is built (26.11.)
 		{
-			Wear(Id);
+			const FVaelGear* There = GetWorn(Gear->Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Gear->Place));
+			const bool bFree = There == nullptr || (Gear->SetStage > 1 && There->Set == Gear->Set && There->SetStage < Gear->SetStage);
+			if (bFree && (Gear->Place == EVaelArmorPlace::Shield || CountSetBuilt(Gear->Set, Gear->SetStage) == GetSetPieces(Gear->Set, Gear->SetStage).Num()))
+			{
+				Wear(Id);
+			}
 		}
 		break;
 	case EVaelGearKind::Tool:
@@ -1600,11 +1611,17 @@ bool UVaelEngineerComponent::UsesDraw() const
 {
 	const FVaelGear* Gear = GetWeapon();
 	// The bow and the slingshot are drawn while held and loose on release
-	return UsesDoubleSickle() || (Gear != nullptr && (Gear->Id == VaelEngineerGear::Bow || Gear->Id == VaelEngineerGear::Sling));
+	return UsesDoubleSickle() || UsesBroodGun() || (Gear != nullptr && (Gear->Id == VaelEngineerGear::Bow || Gear->Id == VaelEngineerGear::Sling));
 }
 
 void UVaelEngineerComponent::StartDraw()
 {
+	if (bWhirling)
+	{
+		const AActor* Owner = GetOwner();
+		ReleaseWindDevil(Owner->GetActorLocation() + Owner->GetActorForwardVector() * 600.0f, false);
+		return;
+	}
 	// The Doppelsichel on its way home: the button pressed just before it arrives catches it cleanly (the next throw is faster)
 	if (const AVaelDoubleSickle* Sickle = FlyingSickle.Get())
 	{
@@ -1710,6 +1727,11 @@ bool UVaelEngineerComponent::ReleaseDraw(const FVector& AimLocation)
 		// tapped: straight there and back; held: round the aim point
 		return ThrowDoubleSickle(AimLocation, Held >= SickleCurveHold);
 	}
+	if (UsesBroodGun())
+	{
+		// tapped one pellet, held the whole clutch
+		return FireBroodGun(AimLocation, Held >= 0.35f);
+	}
 	const FVaelGear* Drawn = GetWeapon();
 	if (Drawn != nullptr && Drawn->Id == VaelEngineerGear::Sling)
 	{
@@ -1730,6 +1752,16 @@ bool UVaelEngineerComponent::Fire(const FVector& AimLocation, float DrawScale, b
 {
 	AVaelCharacter* Player = GetPlayer();
 	const FVaelGear* Gear = GetWeapon();
+	// stage II: in the Drehtanz an attack lets go a Klingenteufel; the Glutkrone fires its Brutbuechse
+	if (bWhirling)
+	{
+		ReleaseWindDevil(AimLocation, false);
+		return true;
+	}
+	if (UsesBroodGun())
+	{
+		return FireBroodGun(AimLocation, false);
+	}
 	if (UsesDoubleSickle())
 	{
 		return ThrowDoubleSickle(AimLocation, false);
@@ -2217,6 +2249,11 @@ void UVaelEngineerComponent::ApplyHit(AActor* Target, const FVector& Location, f
 			|| Effect == EVaelAmmoEffect::FireField ? EVaelElement::Fire
 		: Effect == EVaelAmmoEffect::Dew || Effect == EVaelAmmoEffect::Steam ? EVaelElement::Water : EVaelElement::Earth;
 	UVaelCombatStatics::DealDamage(GetOwner(), Enemy, Scaled, Element);
+	// the Glutkrone's brood chambers fill with the fire of his weapons (26.11.)
+	if (!WeaponId.IsNone() && Element == EVaelElement::Fire)
+	{
+		AddBroodHeat(Scaled);
+	}
 	if (!WeaponId.IsNone())
 	{
 		// the Säurenadel eats one spot: parts break sooner
@@ -2727,12 +2764,12 @@ FName UVaelEngineerComponent::GetWorn(EVaelArmorPlace Place) const
 	return Worn.IsValidIndex(Index) ? Worn[Index] : NAME_None;
 }
 
-TArray<FName> UVaelEngineerComponent::GetSetPieces(FName Set)
+TArray<FName> UVaelEngineerComponent::GetSetPieces(FName Set, int32 Stage)
 {
 	TArray<FName> Pieces;
 	for (const FVaelGear& Each : VaelEngineerGear::GetAll())
 	{
-		if (Each.Kind == EVaelGearKind::Armor && Each.Set == Set && !Set.IsNone() && Each.Place != EVaelArmorPlace::Shield)
+		if (Each.Kind == EVaelGearKind::Armor && Each.Set == Set && !Set.IsNone() && Each.Place != EVaelArmorPlace::Shield && Each.SetStage == Stage)
 		{
 			Pieces.Add(Each.Id);
 		}
@@ -2740,14 +2777,24 @@ TArray<FName> UVaelEngineerComponent::GetSetPieces(FName Set)
 	return Pieces;
 }
 
-int32 UVaelEngineerComponent::CountSetBuilt(FName Set) const
+int32 UVaelEngineerComponent::CountSetBuilt(FName Set, int32 Stage) const
 {
 	int32 Count = 0;
-	for (const FName& Piece : GetSetPieces(Set))
+	for (const FName& Piece : GetSetPieces(Set, Stage))
 	{
 		Count += Built.Contains(Piece) ? 1 : 0;
 	}
 	return Count;
+}
+
+int32 UVaelEngineerComponent::GetSetStage(FName Set) const
+{
+	if (CountSet(Set) < 4)
+	{
+		return 0;
+	}
+	const FVaelGear* Chest = GetWorn(EVaelArmorPlace::Chest).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(EVaelArmorPlace::Chest));
+	return Chest != nullptr && Chest->Set == Set ? Chest->SetStage : 1;
 }
 
 bool UVaelEngineerComponent::Wear(FName Id)
@@ -2761,10 +2808,10 @@ bool UVaelEngineerComponent::Wear(FName Id)
 
 	// A set is built piece by piece but worn only as a whole (Boris 25.11.: half a Glutpanzer looks patched together);
 	// the shield stays a piece of its own
-	const TArray<FName> Pieces = Gear->Place != EVaelArmorPlace::Shield ? GetSetPieces(Gear->Set) : TArray<FName>();
+	const TArray<FName> Pieces = Gear->Place != EVaelArmorPlace::Shield ? GetSetPieces(Gear->Set, Gear->SetStage) : TArray<FName>();
 	if (Pieces.Num() > 0)
 	{
-		const int32 Ready = CountSetBuilt(Gear->Set);
+		const int32 Ready = CountSetBuilt(Gear->Set, Gear->SetStage);
 		if (Ready < Pieces.Num())
 		{
 			UVaelCombatTextSubsystem::PostReaction(GetOwner(), FText::Format(LOCTEXT("SetIncomplete", "Erst den ganzen Satz bauen ({0} von {1})"),
@@ -2812,7 +2859,7 @@ bool UVaelEngineerComponent::TakeOff(EVaelArmorPlace Place)
 		// the whole set comes off together
 		const FName Removing = Worn[Index];
 		const FVaelGear* Gear = VaelEngineerGear::Find(Removing);
-		const TArray<FName> Pieces = Gear != nullptr ? GetSetPieces(Gear->Set) : TArray<FName>();
+		const TArray<FName> Pieces = Gear != nullptr ? GetSetPieces(Gear->Set, Gear->SetStage) : TArray<FName>();
 		for (FName& Piece : Worn)
 		{
 			Piece = Piece == Removing || Pieces.Contains(Piece) ? FName(NAME_None) : Piece;
@@ -2848,7 +2895,7 @@ void UVaelEngineerComponent::PutTestArmorInToolbox()
 		return;
 	}
 	// the Aschenjaeger too, since its Tripo model is in (26.11.)
-	for (const TCHAR* Set : { TEXT("Schwarzglut"), TEXT("Aschenjaeger") })
+	for (const TCHAR* Set : { TEXT("Schwarzglut"), TEXT("Aschenjaeger"), TEXT("Schwarzglut2"), TEXT("Aschenjaeger2") })
 	{
 		for (int32 Place = 0; Place < NumArmorPlaces; ++Place)
 		{
@@ -3060,6 +3107,15 @@ float UVaelEngineerComponent::ScaleIncoming(float Damage, AActor* From, bool bFi
 	{
 		Scale *= 0.85f;
 	}
+	// the Glutkrone: fire taken fills the brood chambers by half, and standing in fire on the ground is a bath (26.11.)
+	if (bFire && GetSetStage(TEXT("Schwarzglut")) >= 2)
+	{
+		AddBroodHeat(Damage * 0.5f);
+		if (AVaelGroundArea::IsFireNear(GetWorld(), GetOwner()->GetActorLocation(), 20.0f))
+		{
+			Scale = 0.0f;
+		}
+	}
 	// the Waermeglas keeps the heat from his face (26.11.)
 	if (bFire && GetGlass() == VaelEngineerGear::GlassHeat)
 	{
@@ -3117,6 +3173,7 @@ void UVaelEngineerComponent::OnDamageDealt(float Damage)
 
 void UVaelEngineerComponent::OnDodged()
 {
+	DodgeAt = Now();
 	if (CountSet(TEXT("Rollpanzer")) >= 4 || CountSet(TEXT("Schwarzglut")) >= 4)
 	{
 		CurledUntil = Now() + 1.0f;
@@ -3169,7 +3226,7 @@ float UVaelEngineerComponent::GetMoveSpeedScale() const
 	}
 	// the light Aschenjaeger: 10 % faster, the whole set worn
 	const bool bLight = CountSet(TEXT("Russfeder")) >= 4 || CountSet(TEXT("Aschenjaeger")) >= 4;
-	return (bLight ? 1.1f : 1.0f) * (1.0f - 0.03f * Heavy) * (bShieldRaised ? 0.55f : 1.0f);
+	return (bWhirling ? 1.0f + 0.04f * WhirlStacks : 1.0f) * (bLight ? 1.1f : 1.0f) * (1.0f - 0.03f * Heavy) * (bShieldRaised ? 0.55f : 1.0f);
 }
 
 namespace
