@@ -87,6 +87,21 @@ Die Wesen stehen in der Lore (`Docs/Eisenschlund_Erze_Pflanzen_Wesen.md`), als F
 | E6 | **Sprengmeister-Technik** | Kobold-Sprengmeister | Er ist selbst ein kleiner Ingenieur: Seine Kristallladungen und Fallen werden für den Ingenieur gleich nutzbar (neue Ladungen und Vorrichtungen, Pulver fürs erste Gewehr). | Blender | ✅ 25.11. (Stolperdraht, 3 Ladungen) |
 | E7 | **Armbrust / erstes Gewehr** mit Magnet-Baustein | echte Metalle, Sternmaul | Magnet für Haken und Bolzen, Sprengkristall als Pulver | Tripo + Blender | 🟨 E2 |
 
+## Stufe II von Schwarzglut und Aschenjäger (Richtung entschieden 26.11., Details offen)
+
+**Schwarzglut II – Glutkronen-Rüstung** (Glutkönigin: Brutkrone, Herz der Glut, Königinnenauge, Legestachel):
+- Optik: Brutkrone als Helmkamm, Königinnenauge als Sichtscheibe, Herz der Glut in der Brust, glühende Brutkammern im Rückenpanzer, Legestachel als Sporn.
+- **Glutminen statt Brut (Boris):** Feuer füllt die Brutkammern; eine volle Kammer legt eine Glutei-Mine. Sie ist **wärmesuchend**: erwacht, wenn ein warmes Wesen nahe kommt, kriecht hin und platzt (brennende zuerst; kalte und nasse Gegner sieht sie nicht).
+- Vorschläge: Panzerkugel II legt beim Rollen Glutminen; Glutbad (Feuer am Boden heilt); Klappschild II speichert Hitze aus dem Block; Preis: noch schwerer, Wasser dampft die Kammern leer.
+- **Waffe: Brutbüchse, ein Druckbeutel ohne Pulver (Boris: ja)** aus dem Brutsack, statt Eiern Schlackenkugeln. Antippen ein Schuss, Halten das ganze Gelege als Streuung; Hitze füllt den Druck (schneller bei Feuer); Ladungsformeln kommen in den Sack; nur die Glutkrone fängt den Rückstoß; nass = Fehlzündung mit Dampf. Das echte Gewehr bleibt dem Eisenschlund.
+
+**Aschenjäger II** (Harpyien-Älteste, Silberhalm, Pfeifensporen): **Wind** als Element.
+- **Drehtanz (Boris):** Er dreht sich mit den Sicheln; jede volle Drehung macht ihn schneller (Tempo und Drehung), die Klingen kreisen weiter außen.
+- **Klingenteufel (Boris):** kleine Tornados aus Klingen, die er aus dem Drehtanz entlässt; sie wandern, schneiden und ziehen Kleines hinein.
+- **Tornado (Boris):** ab einer gewissen Zahl Drehungen wächst ein Tornado um ihn herum, der ihn trägt; am Ende entlässt er ihn als Aschenteufel.
+- Vorschläge: Umwelt (Sturm = schneller, Feuer = Feuertornado, Regen = nasser Sturm für Blitz, Rauch = blendend); Schwindel als Preis, wenn er zu lange dreht, ohne zu entlassen; Steuerung wie die Panzerkugel: Ausweichen halten = Drehtanz.
+- Abgrenzung: Aschenjäger belohnt Bewegung (Rauch, Drehen, Fangen), der Lauscher Stillstand.
+
 ## 3. Neues Monster hinzufügen
 
 Wenn eine Kreatur dazukommt, eine Zeile in ihrer Region ergänzen:
