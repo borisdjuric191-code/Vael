@@ -304,8 +304,18 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 	{
 		const FGlutpanzerPiece& Each = Glutpanzer[Index];
 		const FVaelGear* Gear = GetWorn(Each.Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Each.Place));
-		USkeletalMesh* Mesh = Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")) && Visible != nullptr
-			? LoadObject<USkeletalMesh>(nullptr, *FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_%s.SKM_Ing_GP_%s"), Each.Piece, Each.Piece), nullptr, LOAD_NoWarn | LOAD_Quiet)
+		// the Aschenjaeger (26.11.) is a Tripo body the same way: Tools/Ingenieur/vael_aschenjaeger_rig.py, four pieces on one skeleton
+		FString Path;
+		if (Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")))
+		{
+			Path = FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_%s.SKM_Ing_GP_%s"), Each.Piece, Each.Piece);
+		}
+		else if (Gear != nullptr && Gear->Set == FName(TEXT("Aschenjaeger")))
+		{
+			Path = FString::Printf(TEXT("/Game/Vael/Characters/Ingenieur/Aschenjaeger/Koerper/SKM_Ing_AJ_%s.SKM_Ing_AJ_%s"), Each.Piece, Each.Piece);
+		}
+		USkeletalMesh* Mesh = !Path.IsEmpty() && Visible != nullptr
+			? LoadObject<USkeletalMesh>(nullptr, *Path, nullptr, LOAD_NoWarn | LOAD_Quiet)
 			: nullptr;
 		TObjectPtr<USkeletalMeshComponent>& Part = GlutpanzerBodies[Index];
 		if (Mesh == nullptr)
@@ -429,6 +439,19 @@ void UVaelEngineerComponent::UpdateArmorMeshes()
 		const FString Thigh = PieceName(EVaelArmorPlace::Legs, TEXT("Oberschenkel"));
 		AttachLimbPiece(6, Thigh, TEXT("thigh_l"), TEXT("calf_l"), 0.5f);
 		AttachLimbPiece(7, Thigh, TEXT("thigh_r"), TEXT("calf_r"), 0.5f);
+	}
+	// The whole Aschenjaeger carries the Doppelsichel (Tripo 26.11., Tools/Ingenieur/vael_tripo_werkstuecke.py) on the right hip,
+	// upright against the straw skirt; the throw is not built yet
+	if (CountSet(TEXT("Aschenjaeger")) >= 4 && Body->DoesSocketExist(TEXT("pelvis")))
+	{
+		ArmorMeshes.SetNum(FMath::Max(ArmorMeshes.Num(), 9));
+		const FVector At = Body->GetSocketTransform(TEXT("pelvis"), RTS_Actor).GetLocation() + FVector(-6.0f, 26.0f, -6.0f);
+		ArmorMeshes[8] = AttachPiece(ArmorMeshes[8], TEXT("EngineerArmor8"), TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Doppelsichel_Tripo"),
+			TEXT("pelvis"), FTransform(FRotator(15.0f, 0.0f, 90.0f), At));
+		if (ArmorMeshes[8] != nullptr)
+		{
+			ArmorMeshes[8]->SetVisibility(true);
+		}
 	}
 }
 
@@ -570,7 +593,10 @@ void UVaelEngineerComponent::UpdateShellShield()
 	AVaelCharacter* Player = GetPlayer();
 	USkeletalMeshComponent* Chest = GlutpanzerBodies.IsValidIndex(1) ? GlutpanzerBodies[1].Get() : nullptr;
 	const FName Spine(TEXT("spine_05"));
-	USkeletalMesh* ChestMesh = Chest != nullptr && Chest->IsVisible() ? Chest->GetSkeletalMeshAsset() : nullptr;
+	// only the Glutpanzer chest carries the armadillo shell (the Aschenjaeger's chest uses the same component)
+	const FVaelGear* ChestGear = GetWorn(EVaelArmorPlace::Chest).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(EVaelArmorPlace::Chest));
+	const bool bGlutpanzer = ChestGear != nullptr && ChestGear->Set == FName(TEXT("Schwarzglut"));
+	USkeletalMesh* ChestMesh = bGlutpanzer && Chest != nullptr && Chest->IsVisible() ? Chest->GetSkeletalMeshAsset() : nullptr;
 	USkeletalMesh* Mesh = ChestMesh != nullptr && Player != nullptr
 		? LoadObject<USkeletalMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Glutpanzer/Koerper/SKM_Ing_GP_Schild.SKM_Ing_GP_Schild"), nullptr, LOAD_NoWarn | LOAD_Quiet)
 		: nullptr;
@@ -814,7 +840,12 @@ bool UVaelEngineerComponent::AttachQuartzGoggles()
 			Face = Part->GetFName() == TEXT("Face") ? Part : Face;
 		}
 	}
-	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Quarzbrille.SM_Ing_Quarzbrille"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	// the Tripo goggles (26.11., Tools/Ingenieur/vael_tripo_werkstuecke.py, same origin and axes) before the Blender ones
+	UStaticMesh* Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Quarzbrille_Tripo.SM_Ing_Quarzbrille_Tripo"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	if (Mesh == nullptr)
+	{
+		Mesh = LoadObject<UStaticMesh>(nullptr, TEXT("/Game/Vael/Characters/Ingenieur/Werkstuecke/SM_Ing_Quarzbrille.SM_Ing_Quarzbrille"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	}
 	const USkeletalMesh* FaceMesh = Face != nullptr ? Face->GetSkeletalMeshAsset() : nullptr;
 	if (Mesh == nullptr || FaceMesh == nullptr)
 	{
@@ -2643,12 +2674,16 @@ void UVaelEngineerComponent::PutTestArmorInToolbox()
 	{
 		return;
 	}
-	for (int32 Place = 0; Place < NumArmorPlaces; ++Place)
+	// the Aschenjaeger too, since its Tripo model is in (26.11.)
+	for (const TCHAR* Set : { TEXT("Schwarzglut"), TEXT("Aschenjaeger") })
 	{
-		const FName Id(*FString::Printf(TEXT("Schwarzglut_%d"), Place));
-		if (VaelEngineerGear::Find(Id) != nullptr)
+		for (int32 Place = 0; Place < NumArmorPlaces; ++Place)
 		{
-			Built.Add(Id);
+			const FName Id(*FString::Printf(TEXT("%s_%d"), Set, Place));
+			if (VaelEngineerGear::Find(Id) != nullptr)
+			{
+				Built.Add(Id);
+			}
 		}
 	}
 }
@@ -2809,7 +2844,9 @@ float UVaelEngineerComponent::GetMoveSpeedScale() const
 		const FVaelGear* Gear = VaelEngineerGear::Find(Id);
 		Heavy += Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut")) && Gear->Place != EVaelArmorPlace::Shield ? 1 : 0;
 	}
-	return (CountSet(TEXT("Russfeder")) >= 2 ? 1.1f : 1.0f) * (1.0f - 0.03f * Heavy) * (bShieldRaised ? 0.55f : 1.0f);
+	// the light Aschenjaeger: 10 % faster from two pieces on
+	const bool bLight = CountSet(TEXT("Russfeder")) >= 2 || CountSet(TEXT("Aschenjaeger")) >= 2;
+	return (bLight ? 1.1f : 1.0f) * (1.0f - 0.03f * Heavy) * (bShieldRaised ? 0.55f : 1.0f);
 }
 
 namespace

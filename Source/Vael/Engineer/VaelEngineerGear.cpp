@@ -571,6 +571,31 @@ namespace
 				LOCTEXT("KlappschildText", "Fast der ganze Rückenpanzer eines Aschenrollers, in fünf Bandreihen geteilt und mit Schlackeneisen gefasst. Zusammengeschoben liegt er auf dem linken Unterarm; L2 oder die rechte Maustaste gehalten, und die Rollsehne schiebt ihn zum Turmschild auf. Er hält, was von vorn kommt, im rechten Augenblick alles."),
 				{ { TEXT("Rollpanzer"), 3 }, { TEXT("Rollsehne"), 1 }, { TEXT("Schlackeneisen"), 1 }, { TEXT("GehaertetePlatte"), 1 } }, 0.0f, 0.0f);
 		}
+
+		// --- Aschenjäger (Boris 25.11., Tripo model 26.11., Docs/Ingenieur_Aschenmark_Materialien.md 6d): the light set of
+		// Sichelpuppe, Aschharpyie and Schleieraffe. Straw and doll's twine bind the body, soot feathers lie on collar and
+		// forearms, the monkey's veil makes the hood and its glow eyes the glasses. Little armour, he is fast instead
+		{
+			const FName Set(TEXT("Aschenjaeger"));
+			const FLinearColor Ash = GearRgb(70, 62, 54);
+			const auto Piece = [&All, Set, Ash](int32 Place, FText Name, FText Text, TArray<FVaelGearCost> Costs, float Armor, float Health)
+			{
+				All.Add(MakeArmor(FName(*FString::Printf(TEXT("Aschenjaeger_%d"), Place)), Name, Set, static_cast<EVaelArmorPlace>(Place), Ash, MoveTemp(Costs), NAME_None, Armor, Health));
+				All.Last().Text = Text;
+			};
+			Piece(0, LOCTEXT("AschenjaegerKopf", "Aschenjäger-Kapuze"),
+				LOCTEXT("AschenjaegerKopfText", "Eine tiefe Kapuze aus dem Schleierpelz des Affen, die Maske aus Puppengarn gewickelt. Zwei Glimmaugen sind als Gläser eingesetzt: durch sie sieht er im Rauch."),
+				{ { TEXT("Schleierpelz"), 2 }, { TEXT("Glimmauge"), 2 }, { TEXT("Puppengarn"), 1 }, { TEXT("Russfeder"), 1 } }, 3.0f, 8.0f);
+			Piece(1, LOCTEXT("AschenjaegerBrust", "Aschenjäger-Wams"),
+				LOCTEXT("AschenjaegerBrustText", "Der Leib kreuzweise in Glimmstroh und Puppengarn gebunden wie eine Sichelpuppe, darüber ein Kragen aus Rußfedern mit rostroten Spitzen."),
+				{ { TEXT("Puppengarn"), 3 }, { TEXT("Glimmstroh"), 2 }, { TEXT("Russfeder"), 2 }, { TEXT("Schleierpelz"), 1 } }, 6.0f, 15.0f);
+			Piece(2, LOCTEXT("AschenjaegerArme", "Aschenjäger-Armwicklungen"),
+				LOCTEXT("AschenjaegerArmeText", "Bandagen aus Puppengarn, außen Reihen von Rußfedern wie kleine Schwingen. In den Handwicklungen stecken Klammerfinger: was er wirft, fängt er sicher."),
+				{ { TEXT("Puppengarn"), 2 }, { TEXT("Russfeder"), 2 }, { TEXT("Klammerfinger"), 1 } }, 3.0f, 8.0f);
+			Piece(3, LOCTEXT("AschenjaegerBeine", "Aschenjäger-Beinwicklungen"),
+				LOCTEXT("AschenjaegerBeineText", "Gewickelte Beinlinge mit Strohringen an Knie und Schienbein, ein Strohrock am Gürtel, an den Stiefeln Greifklauen der Harpyie."),
+				{ { TEXT("Puppengarn"), 2 }, { TEXT("Glimmstroh"), 2 }, { TEXT("Greifklaue"), 2 } }, 3.0f, 8.0f);
+		}
 		return All;
 	}
 
@@ -589,6 +614,9 @@ namespace
 				LOCTEXT("Schwarzglut2", "2 Teile: 10 % weniger Schaden, 15 % weniger Feuerschaden. Schwer: jedes Rüstungsteil macht 3 % langsamer"),
 				LOCTEXT("Schwarzglut4", "4 Teile: Ausweichen rollt ihn zur Panzerkugel ein; gehalten rollt sie bis zu 3 Sekunden weiter, lenkbar und bergab schneller. Eingerollt 60 % weniger Schaden, wer ihn trifft, fängt Feuer; Gegner im Weg fliegen brennend beiseite. Gegen eine Wand: kurz benommen"),
 				LOCTEXT("SchwarzglutSchild", "Mit Klappschild: ein Block im rechten Augenblick wirft den Angreifer zurück und setzt ihn in Brand") },
+			{ TEXT("Aschenjaeger"), LOCTEXT("SetNameAschenjaeger", "Aschenjäger (Sichelpuppe, Aschharpyie und Schleieraffe)"),
+				LOCTEXT("Aschenjaeger2", "2 Teile: 10 % schneller zu Fuß"),
+				LOCTEXT("Aschenjaeger4", "4 Teile: die Doppelsichel hängt am Gürtel. Doppelsichel-Wurf und Rauchschritt sind noch nicht gebaut") },
 		};
 	}
 }
