@@ -760,11 +760,12 @@ void UVaelEngineerComponent::UpdateCarriedMeshes()
 	}
 	const bool bShow = Player->IsEngineer();
 	const int32 Tier = bShow ? GetPouchTier() : -1;
-	// The Glutpanzer (goal 16.11.): its helmet takes the place of the goggles, its domed back shell the place of the backpack
+	// Any armour (Glutpanzer 16.11., in general since Boris 26.11.: "bei Rüstungen den Rucksack entfernen"): a helmet or hood
+	// takes the place of the goggles, a chest the place of the backpack, the legs bring their own belt
 	const auto IsPanzer = [this](EVaelArmorPlace Place)
 	{
 		const FVaelGear* Gear = GetWorn(Place).IsNone() ? nullptr : VaelEngineerGear::Find(GetWorn(Place));
-		return Gear != nullptr && Gear->Set == FName(TEXT("Schwarzglut"));
+		return Gear != nullptr && !Gear->Set.IsNone();
 	};
 	const bool bGoggles = bShow && HasBuilt(VaelEngineerGear::Goggles) && !IsPanzer(EVaelArmorPlace::Head);
 	const bool bPack = bShow && !IsPanzer(EVaelArmorPlace::Chest);
