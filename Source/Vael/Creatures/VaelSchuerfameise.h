@@ -16,9 +16,13 @@ struct FVaelAmeisenFassung
 {
 	GENERATED_BODY()
 
-	/** Bone it moves with: "head" or "body" */
+	/** Bone it moves with: "head" or "body" (Erztochter also "wing_L", "wing_R") */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise")
 	FName Bone;
+
+	/** Part of the body, used by the Erztochter to choose the ore (Kamm, Kopf, Sattel, Hinterleib, Fluegel); none for workers */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise")
+	FName Zone;
 
 	/** Floor of the setting, Blender model space in metres (faces -Y, feet on Z = 0) */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise")
@@ -162,13 +166,22 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Ameise")
 	int32 CrystalSeed = 0;
 
-private:
-
 	/** Puts the crystals of its ore into the settings */
-	void BuildCrystals();
+	virtual void BuildCrystals();
+
+	/** Grows one crystal piece out of a setting (plus side spikes when old); Age 0 = fills the setting, LengthScale stretches it */
+	void PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random);
+
+	/** Removes all crystals */
+	void ClearCrystals();
+
+	/** Adds one crystal piece to the ant mesh, attached to the bone; transform in mesh component space */
+	UStaticMeshComponent* AddCrystal(UStaticMesh* PieceMesh, FName Bone, const FTransform& InMesh);
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> Crystals;
+
+private:
 
 	float AngerTime = 0.0f;
 	float BiteCooldown = 0.0f;

@@ -279,6 +279,11 @@ public:
 	UFUNCTION(Exec)
 	void VaelAmeise(const FString& Erz = TEXT("Salzspat"), int32 Count = 3, bool bAhnenpanzer = false, bool bVersklavt = false);
 
+	/** Spawns Erztöchter in front of the player: ore pair 1–5 (1 Schwefelkies+Funkenerz, 2 Rosteisen+Salzspat,
+	 *  3 Gruenspan+Drahtsilber, 4 Blutzinnober+Siechglas, 5 Kobaltbluete+Rippenspat), count, enslaved by the Kobolde */
+	UFUNCTION(Exec)
+	void VaelErztochter(int32 Paar = 1, int32 Count = 1, bool bVersklavt = false);
+
 	/** Makes every Distelspinne swell and burst into its swarm right now, to see the burst */
 	UFUNCTION(Exec)
 	void VaelDistelPlatzen();

@@ -104,6 +104,7 @@
 #include "Creatures/VaelSchleimgaenger.h"
 #include "Creatures/VaelKobold.h"
 #include "Creatures/VaelSchuerfameise.h"
+#include "Creatures/VaelErztochter.h"
 #include "Items/VaelChest.h"
 #include "Engineer/VaelDoubleSickle.h"
 #include "Engineer/VaelEngineerStage2Actors.h"
@@ -4714,4 +4715,34 @@ void UVaelCheatManager::VaelAmeise(const FString& Erz, int32 Count, bool bAhnenp
 		}
 	}
 	UE_LOG(LogVael, Log, TEXT("VaelAmeise: %d x %s%s%s"), Spawned, *Erz, bAhnenpanzer ? TEXT(" Ahnenpanzer") : TEXT(""), bVersklavt ? TEXT(" versklavt") : TEXT(""));
+}
+
+void UVaelCheatManager::VaelErztochter(int32 Paar, int32 Count, bool bVersklavt)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	const APawn* PlayerPawn = PlayerController != nullptr ? PlayerController->GetPawn() : nullptr;
+	if (PlayerPawn == nullptr)
+	{
+		return;
+	}
+	const FVector Center = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector().GetSafeNormal2D() * 700.0f;
+	int32 Spawned = 0;
+	for (int32 Index = 0; Index < FMath::Max(Count, 1); ++Index)
+	{
+		FVector Ground;
+		if (!AVaelCreature::FindGround(GetWorld(), Center + FVector(FMath::FRandRange(-300.0f, 300.0f), FMath::FRandRange(-300.0f, 300.0f), 300.0f), Ground))
+		{
+			continue;
+		}
+		AVaelErztochter* Daughter = Cast<AVaelErztochter>(AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelErztochterData>(), Ground,
+			(PlayerPawn->GetActorLocation() - Ground).GetSafeNormal2D().Rotation()));
+		if (Daughter != nullptr)
+		{
+			Daughter->SetupDaughter(Paar, bVersklavt);
+			++Spawned;
+		}
+	}
+	FName Lead, Companion;
+	AVaelErztochter::GetPairOres(Paar, Lead, Companion);
+	UE_LOG(LogVael, Log, TEXT("VaelErztochter: %d x %s + %s%s"), Spawned, *Lead.ToString(), *Companion.ToString(), bVersklavt ? TEXT(" versklavt") : TEXT(""));
 }

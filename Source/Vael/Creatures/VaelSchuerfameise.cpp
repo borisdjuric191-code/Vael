@@ -104,7 +104,7 @@ void AVaelSchuerfameise::SetupAnt(FName InOre, bool bInAncestor, bool bInEnslave
 	BuildCrystals();
 }
 
-void AVaelSchuerfameise::BuildCrystals()
+void AVaelSchuerfameise::ClearCrystals()
 {
 	for (UStaticMeshComponent* Crystal : Crystals)
 	{
@@ -114,6 +114,26 @@ void AVaelSchuerfameise::BuildCrystals()
 		}
 	}
 	Crystals.Reset();
+}
+
+UStaticMeshComponent* AVaelSchuerfameise::AddCrystal(UStaticMesh* PieceMesh, FName Bone, const FTransform& InMesh)
+{
+	UPoseableMeshComponent* AntMesh = GetFactoryMesh();
+	const FTransform BoneTransform = AntMesh->GetBoneTransformByName(Bone, EBoneSpaces::ComponentSpace);
+	UStaticMeshComponent* Crystal = NewObject<UStaticMeshComponent>(this);
+	Crystal->SetStaticMesh(PieceMesh);
+	Crystal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	Crystal->SetCanEverAffectNavigation(false);
+	Crystal->SetupAttachment(AntMesh, Bone);
+	Crystal->SetRelativeTransform(InMesh.GetRelativeTransform(BoneTransform));
+	Crystal->RegisterComponent();
+	Crystals.Add(Crystal);
+	return Crystal;
+}
+
+void AVaelSchuerfameise::BuildCrystals()
+{
+	ClearCrystals();
 
 	UPoseableMeshComponent* AntMesh = GetFactoryMesh();
 	const UVaelSchuerfameiseData* Data = GetData<UVaelSchuerfameiseData>();
@@ -151,71 +171,65 @@ void AVaelSchuerfameise::BuildCrystals()
 	const int32 Count = bAncestor ? Order.Num() : FMath::Max(1, FMath::RoundToInt(Order.Num() * Data->WorkerFill));
 	const float Age = bAncestor ? Data->AncestorGrowth : 0.0f;
 
-	// Meshes are cut at 1 m = 100 cm; the ant model is 1.1 m long in Blender and imported 1:1 in cm
-	constexpr float MetresToCm = 100.0f;
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
-		const FVaelAmeisenFassung& Fassung = *Order[Index];
 		const FVaelAmeisenKristall& Piece = *Pieces[Random.RandRange(0, Pieces.Num() - 1)];
-		UStaticMesh* PieceMesh = Piece.Mesh.LoadSynchronous();
-		if (PieceMesh == nullptr)
-		{
-			continue;
-		}
-		const FTransform BoneTransform = AntMesh->GetBoneTransformByName(Fassung.Bone, EBoneSpaces::ComponentSpace);
-		const FVector Floor = BlenderToMesh(Fassung.Location, MetresToCm);
-		const FVector Normal = BlenderToMesh(Fassung.Normal, 1.0f).GetSafeNormal();
-		const float Radius = Fassung.Radius * MetresToCm;
-		const float Depth = Fassung.Depth * MetresToCm;
-
-		// One thick piece per setting, sized to it; it stands on the floor and rises out of the setting
-		// (same rules as Tools/Ameisen/ameise_kristalle.py, mode 'spitze')
-		const float Width = 2.0f * Radius * 0.7f * (1.0f + Age * 0.4f) * Random.FRandRange(0.9f, 1.08f);
-		const float ScaleXY = Width / (Piece.Width * MetresToCm);
-		const float Length = Piece.Length * MetresToCm * ScaleXY;
-		const float Goal = (Depth + Radius * (2.4f + Age * 1.8f)) * Random.FRandRange(0.85f, 1.2f);
-		const float Stretch = Piece.Length / Piece.Width > 1.2f ? 2.4f : 1.5f;
-		const float ScaleZ = ScaleXY * FMath::Clamp(Goal / Length, 1.0f, Stretch);
-
-		struct FPlace { FVector Location; FVector Axis; float XY; float Z; };
-		TArray<FPlace, TInlineAllocator<4>> Places;
-		Places.Add({Floor - Normal * Radius * 0.12f, Normal, ScaleXY, ScaleZ});
-		if (Age > 0.2f)
-		{
-			// Ahnenpanzer: side spikes leaning out of the rim make the shell denser and more jagged
-			FVector Side1, Side2;
-			Normal.FindBestAxisVectors(Side1, Side2);
-			const float Start = Random.FRandRange(0.0f, UE_TWO_PI);
-			const int32 Sides = Radius < 2.0f ? 2 : 3;
-			for (int32 SideIndex = 0; SideIndex < Sides; ++SideIndex)
-			{
-				const float Angle = Start + UE_TWO_PI * SideIndex / Sides + Random.FRandRange(-0.4f, 0.4f);
-				const FVector Out = Side1 * FMath::Cos(Angle) + Side2 * FMath::Sin(Angle);
-				const FVector Axis = (Normal + Out * FMath::Tan(FMath::DegreesToRadians(Random.FRandRange(25.0f, 40.0f)))).GetSafeNormal();
-				const float Factor = Random.FRandRange(0.45f, 0.6f);
-				Places.Add({Floor + Out * Radius * 0.7f, Axis, ScaleXY * Factor, ScaleZ * Factor * static_cast<float>(Random.FRandRange(0.9f, 1.2f))});
-			}
-		}
-		for (const FPlace& Place : Places)
-		{
-			const FQuat Spin(Place.Axis, Random.FRandRange(0.0f, UE_TWO_PI));
-			FVector TiltAxis, Unused;
-			Place.Axis.FindBestAxisVectors(TiltAxis, Unused);
-			const FQuat Tilt(TiltAxis, FMath::DegreesToRadians(Random.FRandRange(-8.0f, 8.0f)));
-			const FQuat Rotation = Tilt * Spin * FQuat::FindBetweenNormals(FVector::UpVector, Place.Axis);
-			const FTransform InMesh(Rotation, Place.Location, FVector(Place.XY, Place.XY, Place.Z));
-
-			UStaticMeshComponent* Crystal = NewObject<UStaticMeshComponent>(this);
-			Crystal->SetStaticMesh(PieceMesh);
-			Crystal->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-			Crystal->SetCanEverAffectNavigation(false);
-			Crystal->SetupAttachment(AntMesh, Fassung.Bone);
-			Crystal->SetRelativeTransform(InMesh.GetRelativeTransform(BoneTransform));
-			Crystal->RegisterComponent();
-			Crystals.Add(Crystal);
-		}
+		PlaceCrystal(*Order[Index], Piece, Age, 1.0f, Random);
 	}
 	UE_LOG(LogVael, Verbose, TEXT("Schuerfameise %s: %d crystals (%s)"), *GetName(), Crystals.Num(), *Ore.ToString());
+}
+
+void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random)
+{
+	UStaticMesh* PieceMesh = Piece.Mesh.LoadSynchronous();
+	if (PieceMesh == nullptr)
+	{
+		return;
+	}
+	// Meshes are cut at 1 m = 100 cm; the models are imported 1:1 in cm
+	constexpr float MetresToCm = 100.0f;
+	const FVector Floor = BlenderToMesh(Fassung.Location, MetresToCm);
+	const FVector Normal = BlenderToMesh(Fassung.Normal, 1.0f).GetSafeNormal();
+	const float Radius = Fassung.Radius * MetresToCm;
+	const float Depth = Fassung.Depth * MetresToCm;
+
+	// One thick piece per setting, sized to it; it stands on the floor and rises out of the setting
+	// (same rules as Tools/Ameisen/ameise_kristalle.py, mode 'spitze')
+	const float Width = 2.0f * Radius * 0.7f * (1.0f + Age * 0.4f) * Random.FRandRange(0.9f, 1.08f);
+	const float ScaleXY = Width / (Piece.Width * MetresToCm);
+	const float Length = Piece.Length * MetresToCm * ScaleXY;
+	const float Goal = (Depth + Radius * (2.4f + Age * 1.8f)) * LengthScale * Random.FRandRange(0.85f, 1.2f);
+	const float Stretch = (Piece.Length / Piece.Width > 1.2f ? 2.4f : 1.5f) * FMath::Max(1.0f, LengthScale);
+	const float ScaleZ = ScaleXY * FMath::Clamp(Goal / Length, 1.0f, Stretch);
+
+	struct FPlace { FVector Location; FVector Axis; float XY; float Z; };
+	TArray<FPlace, TInlineAllocator<4>> Places;
+	Places.Add({Floor - Normal * Radius * 0.12f, Normal, ScaleXY, ScaleZ});
+	if (Age > 0.2f)
+	{
+		// Ahnenpanzer: side spikes leaning out of the rim make the shell denser and more jagged
+		FVector Side1, Side2;
+		Normal.FindBestAxisVectors(Side1, Side2);
+		const float Start = Random.FRandRange(0.0f, UE_TWO_PI);
+		const int32 Sides = Radius < 2.0f ? 2 : 3;
+		for (int32 SideIndex = 0; SideIndex < Sides; ++SideIndex)
+		{
+			const float Angle = Start + UE_TWO_PI * SideIndex / Sides + Random.FRandRange(-0.4f, 0.4f);
+			const FVector Out = Side1 * FMath::Cos(Angle) + Side2 * FMath::Sin(Angle);
+			const FVector Axis = (Normal + Out * FMath::Tan(FMath::DegreesToRadians(Random.FRandRange(25.0f, 40.0f)))).GetSafeNormal();
+			const float Factor = Random.FRandRange(0.45f, 0.6f);
+			Places.Add({Floor + Out * Radius * 0.7f, Axis, ScaleXY * Factor, ScaleZ * Factor * static_cast<float>(Random.FRandRange(0.9f, 1.2f))});
+		}
+	}
+	for (const FPlace& Place : Places)
+	{
+		const FQuat Spin(Place.Axis, Random.FRandRange(0.0f, UE_TWO_PI));
+		FVector TiltAxis, Unused;
+		Place.Axis.FindBestAxisVectors(TiltAxis, Unused);
+		const FQuat Tilt(TiltAxis, FMath::DegreesToRadians(Random.FRandRange(-8.0f, 8.0f)));
+		const FQuat Rotation = Tilt * Spin * FQuat::FindBetweenNormals(FVector::UpVector, Place.Axis);
+		AddCrystal(PieceMesh, Fassung.Bone, FTransform(Rotation, Place.Location, FVector(Place.XY, Place.XY, Place.Z)));
+	}
 }
 
 void AVaelSchuerfameise::Anger()
