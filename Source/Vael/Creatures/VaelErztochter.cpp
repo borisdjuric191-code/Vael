@@ -16,6 +16,16 @@ namespace
 
 	const FName ZoneKamm(TEXT("Kamm"));
 	const FName ZoneKammFuss(TEXT("KammFuss"));
+	const FName ZoneKammBelag(TEXT("KammBelag"));
+	const FName ZoneFluegelBelag(TEXT("FluegelBelag"));
+
+	/** The most elongated pieces of an ore (at least one): the coat on horns and stumps grows in long lines */
+	TArray<const FVaelAmeisenKristall*> LongPieces(TArray<const FVaelAmeisenKristall*> Pieces)
+	{
+		Pieces.Sort([](const FVaelAmeisenKristall& A, const FVaelAmeisenKristall& B) { return A.Length / A.Width > B.Length / B.Width; });
+		Pieces.SetNum(FMath::Max(1, (Pieces.Num() + 1) / 2));
+		return Pieces;
+	}
 	const FName ZoneBein(TEXT("Bein"));
 	const FName ZoneKopf(TEXT("Kopf"));
 	const FName ZoneSattel(TEXT("Sattel"));
@@ -123,13 +133,30 @@ void AVaelErztochter::BuildCrystals()
 		return;
 	}
 
+	const TArray<const FVaelAmeisenKristall*> LeadLong = LongPieces(LeadPieces);
+	const TArray<const FVaelAmeisenKristall*> CompanionLong = LongPieces(CompanionPieces);
+
 	FRandomStream Random(CrystalSeed);
 	for (const FVaelAmeisenFassung& Fassung : Data->Fassungen)
 	{
 		bool bLead = true;
 		float Age = Data->CrystalGrowth;
 		float LengthScale = 1.0f;
-		if (Fassung.Zone == ZoneKamm)
+		const bool bCoat = Fassung.Zone == ZoneKammBelag || Fassung.Zone == ZoneKammFuss || Fassung.Zone == ZoneFluegelBelag;
+		if (Fassung.Zone == ZoneKammBelag)
+		{
+			// Horns overgrown by the lead ore: close rows leaning to the tip, the horn itself hardly shows
+			Age = 0.0f;
+			LengthScale = Data->CoatLength;
+		}
+		else if (Fassung.Zone == ZoneFluegelBelag)
+		{
+			// Stumps overgrown by the companion ore, leaning outwards along the stump
+			bLead = false;
+			Age = 0.0f;
+			LengthScale = Data->CoatLength;
+		}
+		else if (Fassung.Zone == ZoneKamm)
 		{
 			// The crown: long spikes of the lead ore along both horns
 			Age = 0.0f;
@@ -140,7 +167,7 @@ void AVaelErztochter::BuildCrystals()
 			// The foot of the horns: the companion ore, a little shorter
 			bLead = false;
 			Age = 0.0f;
-			LengthScale = Data->CrestLength * 0.75f;
+			LengthScale = Data->CoatLength * 0.8f;
 		}
 		else if (Fassung.Zone == ZoneBein)
 		{
@@ -175,10 +202,10 @@ void AVaelErztochter::BuildCrystals()
 		{
 			bLead = !bLead;
 		}
-		const TArray<const FVaelAmeisenKristall*>& Pieces = bLead ? LeadPieces : CompanionPieces;
-		PlaceCrystal(Fassung, *Pieces[Random.RandRange(0, Pieces.Num() - 1)], Age, LengthScale, Random);
+		const TArray<const FVaelAmeisenKristall*>& Pieces = bCoat ? (bLead ? LeadLong : CompanionLong) : (bLead ? LeadPieces : CompanionPieces);
+		PlaceCrystal(Fassung, *Pieces[Random.RandRange(0, Pieces.Num() - 1)], Age, LengthScale, Random, bCoat ? Data->CoatJitter : 1.0f);
 	}
-	UE_LOG(LogVael, Log, TEXT("Erztochter %s: %d crystals (%s + %s)"), *GetName(), Crystals.Num(), *Lead.ToString(), *Companion.ToString());
+	UE_LOG(LogVael, Log, TEXT("Erztochter %s: %d crystals (%s + %s)"), *GetName(), CrystalCount, *Lead.ToString(), *Companion.ToString());
 }
 
 #undef LOCTEXT_NAMESPACE

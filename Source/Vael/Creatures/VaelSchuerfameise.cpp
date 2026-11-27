@@ -114,9 +114,10 @@ void AVaelSchuerfameise::ClearCrystals()
 		}
 	}
 	Crystals.Reset();
+	CrystalCount = 0;
 }
 
-UStaticMeshComponent* AVaelSchuerfameise::AddCrystal(UStaticMesh* PieceMesh, FName Bone, const FTransform& InMesh)
+void AVaelSchuerfameise::AddCrystal(UStaticMesh* PieceMesh, FName Bone, const FTransform& InMesh)
 {
 	UPoseableMeshComponent* AntMesh = GetFactoryMesh();
 	const FTransform BoneTransform = AntMesh->GetBoneTransformByName(Bone, EBoneSpaces::ComponentSpace);
@@ -128,7 +129,7 @@ UStaticMeshComponent* AVaelSchuerfameise::AddCrystal(UStaticMesh* PieceMesh, FNa
 	Crystal->SetRelativeTransform(InMesh.GetRelativeTransform(BoneTransform));
 	Crystal->RegisterComponent();
 	Crystals.Add(Crystal);
-	return Crystal;
+	++CrystalCount;
 }
 
 void AVaelSchuerfameise::BuildCrystals()
@@ -176,10 +177,10 @@ void AVaelSchuerfameise::BuildCrystals()
 		const FVaelAmeisenKristall& Piece = *Pieces[Random.RandRange(0, Pieces.Num() - 1)];
 		PlaceCrystal(*Order[Index], Piece, Age, 1.0f, Random);
 	}
-	UE_LOG(LogVael, Verbose, TEXT("Schuerfameise %s: %d crystals (%s)"), *GetName(), Crystals.Num(), *Ore.ToString());
+	UE_LOG(LogVael, Verbose, TEXT("Schuerfameise %s: %d crystals (%s)"), *GetName(), CrystalCount, *Ore.ToString());
 }
 
-void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random)
+void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random, float Jitter)
 {
 	UStaticMesh* PieceMesh = Piece.Mesh.LoadSynchronous();
 	if (PieceMesh == nullptr)
@@ -195,10 +196,18 @@ void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const 
 
 	// One thick piece per setting, sized to it; it stands on the floor and rises out of the setting
 	// (same rules as Tools/Ameisen/ameise_kristalle.py, mode 'spitze')
-	const float Width = 2.0f * Radius * 0.7f * (1.0f + Age * 0.4f) * Random.FRandRange(0.9f, 1.08f);
-	const float ScaleXY = Width / (Piece.Width * MetresToCm);
+	const float Width = 2.0f * Radius * 0.7f * (1.0f + Age * 0.4f) * FMath::Lerp(1.0f, static_cast<float>(Random.FRandRange(0.9f, 1.08f)), Jitter);
+	// Tight fit (the coat of the Erztochter): measure the whole piece, not its core, so wide or bent pieces (Rippenspat)
+	// do not swell beyond their place
+	float PieceWidth = Piece.Width * MetresToCm;
+	if (Jitter < 1.0f)
+	{
+		const FBoxSphereBounds Bounds = PieceMesh->GetBounds();
+		PieceWidth = FMath::Max(PieceWidth, 2.0f * FMath::Max(Bounds.BoxExtent.X, Bounds.BoxExtent.Y) * 0.8f);
+	}
+	const float ScaleXY = Width / PieceWidth;
 	const float Length = Piece.Length * MetresToCm * ScaleXY;
-	const float Goal = (Depth + Radius * (2.4f + Age * 1.8f)) * LengthScale * Random.FRandRange(0.85f, 1.2f);
+	const float Goal = (Depth + Radius * (2.4f + Age * 1.8f)) * LengthScale * FMath::Lerp(1.0f, static_cast<float>(Random.FRandRange(0.85f, 1.2f)), Jitter);
 	const float Stretch = (Piece.Length / Piece.Width > 1.2f ? 2.4f : 1.5f) * FMath::Max(1.0f, LengthScale);
 	const float ScaleZ = ScaleXY * FMath::Clamp(Goal / Length, 1.0f, Stretch);
 
@@ -226,7 +235,7 @@ void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const 
 		const FQuat Spin(Place.Axis, Random.FRandRange(0.0f, UE_TWO_PI));
 		FVector TiltAxis, Unused;
 		Place.Axis.FindBestAxisVectors(TiltAxis, Unused);
-		const FQuat Tilt(TiltAxis, FMath::DegreesToRadians(Random.FRandRange(-8.0f, 8.0f)));
+		const FQuat Tilt(TiltAxis, FMath::DegreesToRadians(Random.FRandRange(-8.0f, 8.0f) * Jitter));
 		const FQuat Rotation = Tilt * Spin * FQuat::FindBetweenNormals(FVector::UpVector, Place.Axis);
 		AddCrystal(PieceMesh, Fassung.Bone, FTransform(Rotation, Place.Location, FVector(Place.XY, Place.XY, Place.Z)));
 	}

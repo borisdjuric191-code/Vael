@@ -141,7 +141,7 @@ public:
 	FName GetOre() const { return Ore; }
 	bool IsAncestor() const { return bAncestor; }
 	bool IsEnslaved() const { return bEnslaved; }
-	int32 GetCrystalCount() const { return Crystals.Num(); }
+	int32 GetCrystalCount() const { return CrystalCount; }
 
 protected:
 
@@ -169,17 +169,22 @@ protected:
 	/** Puts the crystals of its ore into the settings */
 	virtual void BuildCrystals();
 
-	/** Grows one crystal piece out of a setting (plus side spikes when old); Age 0 = fills the setting, LengthScale stretches it */
-	void PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random);
+	/** Grows one crystal piece out of a setting (plus side spikes when old); Age 0 = fills the setting, LengthScale stretches it,
+	 *  Jitter scales the random size and tilt (0 = orderly rows, 1 = natural); below 1 the piece is also fitted by its full width */
+	void PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random, float Jitter = 1.0f);
 
 	/** Removes all crystals */
 	void ClearCrystals();
 
-	/** Adds one crystal piece to the ant mesh, attached to the bone; transform in mesh component space */
-	UStaticMeshComponent* AddCrystal(UStaticMesh* PieceMesh, FName Bone, const FTransform& InMesh);
+	/** Adds one crystal piece to the ant mesh, attached to the bone; transform in mesh component space.
+	 *  (Instanced components would be cheaper for the Erztochter's few hundred pieces, but the ore materials are not
+	 *  flagged for instancing and render grey; that needs Boris' OK to change the material assets.) */
+	void AddCrystal(UStaticMesh* PieceMesh, FName Bone, const FTransform& InMesh);
 
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UStaticMeshComponent>> Crystals;
+
+	int32 CrystalCount = 0;
 
 private:
 

@@ -10,8 +10,9 @@
  *  Erztochter of the Eisenschlund: young queen under the Erzmutter, twice the size of a worker, with a bone crest,
  *  an armoured saddle, a huge abdomen and two pairs of crystal-crusted wing stumps. She carries the two ores of her
  *  pair: the lead ore crowns the crest, fills the middle of the saddle and every other band of the abdomen; the
- *  companion ore fills the rims, the head, the foot of the horns and splinters along the torn wing edges; a few small
- *  crystals of both sit on the legs (design Boris 27.11.).
+ *  companion ore fills the rims, the head and the foot of the horns. Horns (lead) and wing stumps (companion) are
+ *  overgrown by a coat of long crystals in close rows that follows their shape; a few small crystals sit on the legs
+ *  (design Boris 27.11.).
  *  Values are first proposals; the fight (Resonanz, Splitterschlag, leap, breakable stumps) follows.
  */
 UCLASS(BlueprintType)
@@ -30,6 +31,14 @@ public:
 	/** The crest crystals are long spikes: length times this */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0.5))
 	float CrestLength = 1.8f;
+
+	/** Horns and wing stumps are overgrown by a coat of crystals in close rows: length of each piece times this */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0.5))
+	float CoatLength = 1.6f;
+
+	/** Randomness of the coat (0 = strict rows, 1 = like the settings) */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0, ClampMax = 1))
+	float CoatJitter = 0.25f;
 
 	/** The splinters along the torn edges of the wing stumps: length times this */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0.5))
