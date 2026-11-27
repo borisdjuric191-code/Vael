@@ -10,7 +10,8 @@
  *  Erztochter of the Eisenschlund: young queen under the Erzmutter, twice the size of a worker, with a bone crest,
  *  an armoured saddle, a huge abdomen and two pairs of crystal-crusted wing stumps. She carries the two ores of her
  *  pair: the lead ore crowns the crest, fills the middle of the saddle and every other band of the abdomen; the
- *  companion ore fills the rims, the head and splinters along the torn wing edges (design Boris 27.11.).
+ *  companion ore fills the rims, the head, the foot of the horns and splinters along the torn wing edges; a few small
+ *  crystals of both sit on the legs (design Boris 27.11.).
  *  Values are first proposals; the fight (Resonanz, Splitterschlag, leap, breakable stumps) follows.
  */
 UCLASS(BlueprintType)
@@ -29,6 +30,10 @@ public:
 	/** The crest crystals are long spikes: length times this */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0.5))
 	float CrestLength = 1.8f;
+
+	/** The splinters along the torn edges of the wing stumps: length times this */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0.5))
+	float WingLength = 2.4f;
 
 	/** Chance that a setting takes the other ore of the pair, so the two ores interlock instead of splitting the body */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0, ClampMax = 0.5))

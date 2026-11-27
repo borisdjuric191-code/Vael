@@ -15,6 +15,8 @@ namespace
 	};
 
 	const FName ZoneKamm(TEXT("Kamm"));
+	const FName ZoneKammFuss(TEXT("KammFuss"));
+	const FName ZoneBein(TEXT("Bein"));
 	const FName ZoneKopf(TEXT("Kopf"));
 	const FName ZoneSattel(TEXT("Sattel"));
 	const FName ZoneHinterleib(TEXT("Hinterleib"));
@@ -129,9 +131,23 @@ void AVaelErztochter::BuildCrystals()
 		float LengthScale = 1.0f;
 		if (Fassung.Zone == ZoneKamm)
 		{
-			// The crown: long spikes of the lead ore on both horns
+			// The crown: long spikes of the lead ore along both horns
 			Age = 0.0f;
 			LengthScale = Data->CrestLength;
+		}
+		else if (Fassung.Zone == ZoneKammFuss)
+		{
+			// The foot of the horns: the companion ore, a little shorter
+			bLead = false;
+			Age = 0.0f;
+			LengthScale = Data->CrestLength * 0.75f;
+		}
+		else if (Fassung.Zone == ZoneBein)
+		{
+			// A few small ones on the legs, both ores
+			bLead = Random.FRand() < 0.5f;
+			Age = 0.0f;
+			LengthScale = 1.2f;
 		}
 		else if (Fassung.Zone == ZoneKopf)
 		{
@@ -153,9 +169,9 @@ void AVaelErztochter::BuildCrystals()
 			// Splinters along the torn edges of the stumps
 			bLead = false;
 			Age = 0.0f;
-			LengthScale = 1.3f;
+			LengthScale = Data->WingLength;
 		}
-		if (Fassung.Zone != ZoneKamm && Fassung.Zone != ZoneFluegel && Random.FRand() < Data->MixChance)
+		if ((Fassung.Zone == ZoneKopf || Fassung.Zone == ZoneSattel || Fassung.Zone == ZoneHinterleib) && Random.FRand() < Data->MixChance)
 		{
 			bLead = !bLead;
 		}
