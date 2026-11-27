@@ -141,6 +141,7 @@ public:
 	FName GetOre() const { return Ore; }
 	bool IsAncestor() const { return bAncestor; }
 	bool IsEnslaved() const { return bEnslaved; }
+	bool IsAngry() const { return AngerTime > 0.0f; }
 	int32 GetCrystalCount() const { return CrystalCount; }
 
 protected:

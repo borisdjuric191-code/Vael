@@ -55,6 +55,31 @@ public:
 	/** Width of the bands on the abdomen that switch between the two ores, metres in the Blender model */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0.05))
 	float AbdomenBand = 0.2f;
+
+	/** Middle of each eye on the surface and its outward axis, Blender model space (metres); measured on the model */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter|Augen")
+	TArray<FVector> EyeLocations;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter|Augen")
+	TArray<FVector> EyeNormals;
+
+	/** Radius of an eye, metres */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter|Augen", meta = (ClampMin = 0.005))
+	float EyeRadius = 0.034f;
+
+	/** Milky glow of a free daughter, and the sick green of one the Kobolde fed with Tropfseuche */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter|Augen")
+	FLinearColor EyeColor = FLinearColor(0.80f, 0.88f, 1.0f);
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter|Augen")
+	FLinearColor EnslavedEyeColor = FLinearColor(0.45f, 1.0f, 0.25f);
+
+	/** Glow at rest and when she fights */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter|Augen", meta = (ClampMin = 0))
+	float EyeGlow = 1.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter|Augen", meta = (ClampMin = 0))
+	float AngryEyeGlow = 4.0f;
 };
 
 UCLASS()
@@ -65,6 +90,7 @@ class AVaelErztochter : public AVaelSchuerfameise
 public:
 
 	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	/** Ore pair 1–5 (1 Schwefelkies+Funkenerz, 2 Rosteisen+Salzspat, 3 Gruenspan+Drahtsilber, 4 Blutzinnober+Siechglas,
 	 *  5 Kobaltbluete+Rippenspat; the first is the lead ore) and whether the Kobolde enslaved her */
@@ -80,8 +106,36 @@ protected:
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
 	virtual void BuildCrystals() override;
 	virtual float GetStatusTextHeight() const override { return 190.0f * GetActorScale3D().Z; }
+	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
+
+	/** Puts the living eyes on the head: a milky eyeball that breathes light and a brighter core that drifts and turns to her target */
+	void BuildEyes();
+
+	/** Breathing, gaze, anger and the flare when hit */
+	void UpdateEyes(float DeltaSeconds);
 
 	/** Ore pair 1–5 */
 	UPROPERTY(EditAnywhere, Category="Erztochter", meta = (ClampMin = 1, ClampMax = 5))
 	int32 Pair = 1;
+
+private:
+
+	struct FEye
+	{
+		UStaticMeshComponent* Ball = nullptr;   // kept alive by EyeParts
+		UStaticMeshComponent* Core = nullptr;
+		FVector Centre = FVector::ZeroVector;   // mesh space, cm
+		FVector Normal = FVector::UpVector;
+		FTransform Bone;                        // head bone at build time, mesh space
+		FVector Gaze = FVector::ZeroVector;
+	};
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UStaticMeshComponent>> EyeParts;
+
+	TArray<FEye> Eyes;
+	float EyeTime = 0.0f;
+	float EyeFlare = 0.0f;
+	float EyeAnger = 0.0f;
+	float EyeLife = 1.0f;
 };

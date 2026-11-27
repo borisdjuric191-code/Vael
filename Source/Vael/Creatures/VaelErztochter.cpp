@@ -3,6 +3,8 @@
 #include "Creatures/VaelErztochter.h"
 
 #include "Components/PoseableMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Magic/VaelSpellEffects.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelErztochter"
@@ -39,6 +41,10 @@ UVaelErztochterData::UVaelErztochterData()
 	CompendiumId = TEXT("Erztochter");
 	KindId = TEXT("Erztochter");
 	CreatureClass = AVaelErztochter::StaticClass();
+
+	// Eyes on both sides of the head, behind the feelers (measured on SK_Erztochter in Blender)
+	EyeLocations = {FVector(0.166f, -0.675f, 0.875f), FVector(-0.1875f, -0.675f, 0.875f)};
+	EyeNormals = {FVector(0.967f, -0.202f, 0.155f), FVector(-0.84f, -0.45f, 0.302f)};
 	Mesh = TSoftObjectPtr<USkeletalMesh>(FSoftObjectPath(TEXT("/Game/Vael/Kreaturen/Eisenschlund/Erztochter/SK_Erztochter.SK_Erztochter")));
 
 	MaxHealth = 520.0f;
@@ -206,6 +212,113 @@ void AVaelErztochter::BuildCrystals()
 		PlaceCrystal(Fassung, *Pieces[Random.RandRange(0, Pieces.Num() - 1)], Age, LengthScale, Random, bCoat ? Data->CoatJitter : 1.0f);
 	}
 	UE_LOG(LogVael, Log, TEXT("Erztochter %s: %d crystals (%s + %s)"), *GetName(), CrystalCount, *Lead.ToString(), *Companion.ToString());
+	BuildEyes();
+}
+
+void AVaelErztochter::BuildEyes()
+{
+	for (UStaticMeshComponent* Part : EyeParts)
+	{
+		if (Part != nullptr)
+		{
+			Part->DestroyComponent();
+		}
+	}
+	EyeParts.Reset();
+	Eyes.Reset();
+
+	UPoseableMeshComponent* QueenMesh = GetFactoryMesh();
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	if (QueenMesh == nullptr || QueenMesh->GetSkinnedAsset() == nullptr)
+	{
+		return;
+	}
+	UMaterialInterface* CoreMaterial = nullptr;
+	UMaterialInterface* GlowMaterial = nullptr;
+	VaelEffects::LoadLookMaterials(CoreMaterial, GlowMaterial);
+	const FLinearColor Color = bEnslaved ? Data->EnslavedEyeColor : Data->EyeColor;
+	const FName HeadBone(TEXT("head"));
+	const FTransform BoneTransform = QueenMesh->GetBoneTransformByName(HeadBone, EBoneSpaces::ComponentSpace);
+	const float Radius = Data->EyeRadius * 100.0f;
+
+	for (int32 Index = 0; Index < FMath::Min(Data->EyeLocations.Num(), Data->EyeNormals.Num()); ++Index)
+	{
+		// Blender model space (metres) to the mesh (cm, Y flips on import)
+		const FVector& L = Data->EyeLocations[Index];
+		const FVector& N = Data->EyeNormals[Index];
+		FEye& Eye = Eyes.AddDefaulted_GetRef();
+		Eye.Normal = FVector(N.X, -N.Y, N.Z).GetSafeNormal();
+		// The eyeball bulges a little out of its socket
+		Eye.Centre = FVector(L.X, -L.Y, L.Z) * 100.0f - Eye.Normal * Radius * 0.45f;
+		Eye.Bone = BoneTransform;
+
+		Eye.Ball = VaelEffects::AddLookShape(this, CoreMaterial, Color, Data->EyeGlow, 0.6f);
+		Eye.Core = VaelEffects::AddLookShape(this, GlowMaterial, Color, Data->EyeGlow * 2.0f);
+		for (UStaticMeshComponent* Part : {Eye.Ball, Eye.Core})
+		{
+			Part->AttachToComponent(QueenMesh, FAttachmentTransformRules::KeepRelativeTransform, HeadBone);
+			Part->SetVisibility(true);
+			EyeParts.Add(Part);
+		}
+		// Oval, a little flat along its axis (the sphere mesh is 100 cm across)
+		const FQuat Facing = FQuat::FindBetweenNormals(FVector::UpVector, Eye.Normal);
+		const FTransform BallInMesh(Facing, Eye.Centre, FVector(1.15f, 0.95f, 0.8f) * (2.0f * Radius / 100.0f));
+		Eye.Ball->SetRelativeTransform(BallInMesh.GetRelativeTransform(Eye.Bone));
+	}
+	UpdateEyes(0.0f);
+}
+
+void AVaelErztochter::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
+{
+	Super::OnDamageTaken(Damage, DamageTags);
+	EyeFlare = 1.0f;
+}
+
+void AVaelErztochter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	UpdateEyes(DeltaSeconds);
+}
+
+void AVaelErztochter::UpdateEyes(float DeltaSeconds)
+{
+	if (Eyes.IsEmpty() || GetFactoryMesh() == nullptr)
+	{
+		return;
+	}
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	EyeTime += DeltaSeconds;
+	EyeFlare = FMath::Max(0.0f, EyeFlare - DeltaSeconds * 2.5f);
+	EyeAnger = FMath::FInterpTo(EyeAnger, (bEnslaved || IsAngry()) ? 1.0f : 0.0f, DeltaSeconds, 2.0f);
+	EyeLife = FMath::FInterpTo(EyeLife, IsDead() ? 0.0f : 1.0f, DeltaSeconds, 0.8f);
+
+	// A slow breath of light, a little faster when she fights; a flare when hit; it fades when she dies
+	const float Breath = 0.78f + 0.22f * FMath::Sin(EyeTime * (1.1f + EyeAnger * 1.6f));
+	const float Glow = (FMath::Lerp(Data->EyeGlow, Data->AngryEyeGlow, EyeAnger) * Breath + EyeFlare * 6.0f) * EyeLife;
+
+	// The light inside drifts slowly while she works and turns to her target when she fights
+	const AActor* Target = (EyeAnger > 0.2f && EyeLife > 0.5f) ? FindTarget(Data->AggroRange) : nullptr;
+	const FTransform MeshToWorld = GetFactoryMesh()->GetComponentTransform();
+	const float Radius = Data->EyeRadius * 100.0f;
+	for (int32 Index = 0; Index < Eyes.Num(); ++Index)
+	{
+		FEye& Eye = Eyes[Index];
+		FVector Side1, Side2;
+		Eye.Normal.FindBestAxisVectors(Side1, Side2);
+		FVector Wish = (Side1 * FMath::Sin(EyeTime * 0.37f + Index * 2.1f) + Side2 * FMath::Sin(EyeTime * 0.23f + Index)) * 0.5f;
+		if (Target != nullptr)
+		{
+			const FVector ToTarget = MeshToWorld.InverseTransformVectorNoScale(Target->GetActorLocation() - MeshToWorld.TransformPosition(Eye.Centre)).GetSafeNormal();
+			Wish = ToTarget - Eye.Normal * FVector::DotProduct(ToTarget, Eye.Normal);
+		}
+		Eye.Gaze = DeltaSeconds > 0.0f ? FMath::VInterpTo(Eye.Gaze, Wish.GetClampedToMaxSize(1.0f), DeltaSeconds, Target != nullptr ? 5.0f : 1.2f) : Wish.GetClampedToMaxSize(1.0f);
+
+		const FVector CoreAt = Eye.Centre + Eye.Normal * Radius * 0.5f + Eye.Gaze * Radius * 0.35f;
+		const float CoreSize = (0.42f + 0.08f * Breath + EyeFlare * 0.25f) * (2.0f * Radius / 100.0f) * FMath::Max(0.05f, EyeLife);
+		Eye.Core->SetRelativeTransform(FTransform(FQuat::Identity, CoreAt, FVector(CoreSize)).GetRelativeTransform(Eye.Bone));
+		VaelEffects::SetLookGlow(Eye.Ball, Glow);
+		VaelEffects::SetLookGlow(Eye.Core, Glow * 2.2f);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE
