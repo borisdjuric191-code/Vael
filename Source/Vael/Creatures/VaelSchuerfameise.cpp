@@ -180,7 +180,8 @@ void AVaelSchuerfameise::BuildCrystals()
 	UE_LOG(LogVael, Verbose, TEXT("Schuerfameise %s: %d crystals (%s)"), *GetName(), CrystalCount, *Ore.ToString());
 }
 
-void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random, float Jitter)
+void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random, float Jitter,
+	bool bBent, float Sink)
 {
 	UStaticMesh* PieceMesh = Piece.Mesh.LoadSynchronous();
 	if (PieceMesh == nullptr)
@@ -193,6 +194,7 @@ void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const 
 	const FVector Normal = BlenderToMesh(Fassung.Normal, 1.0f).GetSafeNormal();
 	const float Radius = Fassung.Radius * MetresToCm;
 	const float Depth = Fassung.Depth * MetresToCm;
+	const FVector Surface = Fassung.Surface.IsNearlyZero() ? Normal : BlenderToMesh(Fassung.Surface, 1.0f).GetSafeNormal();
 
 	// One thick piece per setting, sized to it; it stands on the floor and rises out of the setting
 	// (same rules as Tools/Ameisen/ameise_kristalle.py, mode 'spitze')
@@ -213,7 +215,8 @@ void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const 
 
 	struct FPlace { FVector Location; FVector Axis; float XY; float Z; };
 	TArray<FPlace, TInlineAllocator<4>> Places;
-	Places.Add({Floor - Normal * Radius * 0.12f, Normal, ScaleXY, ScaleZ});
+	// The foot sits in the body (along the surface normal), so the crystal grows out of its place instead of resting on it
+	Places.Add({Floor - Surface * Radius * Sink, Normal, ScaleXY, ScaleZ});
 	if (Age > 0.2f)
 	{
 		// Ahnenpanzer: side spikes leaning out of the rim make the shell denser and more jagged
@@ -232,11 +235,24 @@ void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const 
 	}
 	for (const FPlace& Place : Places)
 	{
-		const FQuat Spin(Place.Axis, Random.FRandRange(0.0f, UE_TWO_PI));
+		const FQuat Base = FQuat::FindBetweenNormals(FVector::UpVector, Place.Axis);
+		float SpinAngle = Random.FRandRange(0.0f, UE_TWO_PI);
+		if (bBent)
+		{
+			// Bent pieces curl their tip to local -X: turn that side to the body, so the tip lies against the surface
+			const FVector Curl = Base.RotateVector(-FVector::XAxisVector);
+			const FVector Toward = (-Surface - Place.Axis * FVector::DotProduct(-Surface, Place.Axis)).GetSafeNormal();
+			if (!Toward.IsNearlyZero())
+			{
+				SpinAngle = FMath::Atan2(FVector::DotProduct(Place.Axis, FVector::CrossProduct(Curl, Toward)), FVector::DotProduct(Curl, Toward))
+					+ FMath::DegreesToRadians(Random.FRandRange(-12.0f, 12.0f) * Jitter);
+			}
+		}
+		const FQuat Spin(Place.Axis, SpinAngle);
 		FVector TiltAxis, Unused;
 		Place.Axis.FindBestAxisVectors(TiltAxis, Unused);
 		const FQuat Tilt(TiltAxis, FMath::DegreesToRadians(Random.FRandRange(-8.0f, 8.0f) * Jitter));
-		const FQuat Rotation = Tilt * Spin * FQuat::FindBetweenNormals(FVector::UpVector, Place.Axis);
+		const FQuat Rotation = Tilt * Spin * Base;
 		AddCrystal(PieceMesh, Fassung.Bone, FTransform(Rotation, Place.Location, FVector(Place.XY, Place.XY, Place.Z)));
 	}
 }

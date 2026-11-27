@@ -32,6 +32,10 @@ struct FVaelAmeisenFassung
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise")
 	FVector Normal = FVector::UpVector;
 
+	/** Normal of the body surface there, Blender model space (zero = same as Normal); bent pieces curl their tip towards it */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise")
+	FVector Surface = FVector::ZeroVector;
+
 	/** Radius up to the rim, metres */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise")
 	float Radius = 0.02f;
@@ -172,7 +176,8 @@ protected:
 
 	/** Grows one crystal piece out of a setting (plus side spikes when old); Age 0 = fills the setting, LengthScale stretches it,
 	 *  Jitter scales the random size and tilt (0 = orderly rows, 1 = natural); below 1 the piece is also fitted by its full width */
-	void PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random, float Jitter = 1.0f);
+	void PlaceCrystal(const FVaelAmeisenFassung& Fassung, const FVaelAmeisenKristall& Piece, float Age, float LengthScale, FRandomStream& Random, float Jitter = 1.0f,
+		bool bBent = false, float Sink = 0.12f);
 
 	/** Removes all crystals */
 	void ClearCrystals();

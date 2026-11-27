@@ -40,6 +40,17 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0, ClampMax = 1))
 	float CoatJitter = 0.25f;
 
+	/** How deep the foot of a crystal sits in the body, times its radius: the coat (lying flat) and the other crystals */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0))
+	float CoatSink = 0.4f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0))
+	float CrystalSink = 0.25f;
+
+	/** Bent crystal pieces for the coat (tip curls to local -X), from Tools/Ameisen/kristalle_biegen.py */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter")
+	TArray<FVaelAmeisenKristall> BentKristalle;
+
 	/** The splinters along the torn edges of the wing stumps: length times this */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Erztochter", meta = (ClampMin = 0.5))
 	float WingLength = 2.4f;

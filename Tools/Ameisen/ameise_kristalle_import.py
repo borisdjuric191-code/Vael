@@ -4,14 +4,18 @@ Unreal (Editor geschlossen, -run=pythonscript): importiert die Kristallstücke d
 /Game/Vael/Kreaturen/Eisenschlund/Schuerfameise/Kristalle und gibt jedem Stück das Material seines Erzes
 (/Game/Vael/Requisiten/Eisenschlund/<Erz>/MI_<Erz>; die Stücke sind aus diesem Erz geschnitten, die UVs passen).
 Ohne Kollision: die Kristalle sitzen auf der Ameise, getroffen wird ihre Kapsel.
+
+Optional ein Dateimuster, z. B. "SM_AK_*_B.fbx" für nur die gebogenen Stücke (kristalle_biegen.py).
 """
 import glob
 import os
+import sys
 
 import unreal
 
 QUELLE = "C:/Projekte/Vael_Quellen/Schuerfameise/04_export/kristalle"
 ZIEL = "/Game/Vael/Kreaturen/Eisenschlund/Schuerfameise/Kristalle"
+MUSTER = sys.argv[1] if len(sys.argv) > 1 else "SM_AK_*.fbx"
 
 
 def log(msg):
@@ -19,7 +23,7 @@ def log(msg):
 
 
 tasks = []
-for fbx in sorted(glob.glob(os.path.join(QUELLE, "SM_AK_*.fbx"))):
+for fbx in sorted(glob.glob(os.path.join(QUELLE, MUSTER))):
     ui = unreal.FbxImportUI()
     ui.set_editor_property("import_mesh", True)
     ui.set_editor_property("import_as_skeletal", False)

@@ -11,9 +11,14 @@
 
 namespace
 {
-	struct FTochterRow { const TCHAR* Bone; const TCHAR* Zone; FVector Location; FVector Normal; float Radius; float Depth; };
+	struct FTochterRow { const TCHAR* Bone; const TCHAR* Zone; FVector Location; FVector Normal; FVector Surface; float Radius; float Depth; };
 	const FTochterRow TochterRows[] = {
 #include "Creatures/VaelErztochterFassungen.inl"
+	};
+
+	struct FBogenRow { const TCHAR* Ore; const TCHAR* Mesh; float Width; float Length; };
+	const FBogenRow BogenRows[] = {
+#include "Creatures/VaelErztochterBogen.inl"
 	};
 
 	const FName ZoneKamm(TEXT("Kamm"));
@@ -68,8 +73,17 @@ UVaelErztochterData::UVaelErztochterData()
 		Fassung.Zone = Row.Zone;
 		Fassung.Location = Row.Location;
 		Fassung.Normal = Row.Normal;
+		Fassung.Surface = Row.Surface;
 		Fassung.Radius = Row.Radius;
 		Fassung.Depth = Row.Depth;
+	}
+	for (const FBogenRow& Row : BogenRows)
+	{
+		FVaelAmeisenKristall& Kristall = BentKristalle.AddDefaulted_GetRef();
+		Kristall.Ore = Row.Ore;
+		Kristall.Mesh = TSoftObjectPtr<UStaticMesh>(FSoftObjectPath(Row.Mesh));
+		Kristall.Width = Row.Width;
+		Kristall.Length = Row.Length;
 	}
 }
 
@@ -139,8 +153,21 @@ void AVaelErztochter::BuildCrystals()
 		return;
 	}
 
-	const TArray<const FVaelAmeisenKristall*> LeadLong = LongPieces(LeadPieces);
-	const TArray<const FVaelAmeisenKristall*> CompanionLong = LongPieces(CompanionPieces);
+	// The coat uses the bent pieces (Tools/Ameisen/kristalle_biegen.py), the most elongated ones; straight ones if missing
+	TArray<const FVaelAmeisenKristall*> LeadBent, CompanionBent;
+	for (const FVaelAmeisenKristall& Kristall : Data->BentKristalle)
+	{
+		if (Kristall.Ore == Lead)
+		{
+			LeadBent.Add(&Kristall);
+		}
+		else if (Kristall.Ore == Companion)
+		{
+			CompanionBent.Add(&Kristall);
+		}
+	}
+	const TArray<const FVaelAmeisenKristall*> LeadLong = LongPieces(LeadBent.IsEmpty() ? LeadPieces : LeadBent);
+	const TArray<const FVaelAmeisenKristall*> CompanionLong = LongPieces(CompanionBent.IsEmpty() ? CompanionPieces : CompanionBent);
 
 	FRandomStream Random(CrystalSeed);
 	for (const FVaelAmeisenFassung& Fassung : Data->Fassungen)
@@ -209,7 +236,10 @@ void AVaelErztochter::BuildCrystals()
 			bLead = !bLead;
 		}
 		const TArray<const FVaelAmeisenKristall*>& Pieces = bCoat ? (bLead ? LeadLong : CompanionLong) : (bLead ? LeadPieces : CompanionPieces);
-		PlaceCrystal(Fassung, *Pieces[Random.RandRange(0, Pieces.Num() - 1)], Age, LengthScale, Random, bCoat ? Data->CoatJitter : 1.0f);
+		// Rooted in the body: the coat deepest (it lies flat), the settings a little below their floor
+		const float Sink = bCoat ? Data->CoatSink : Data->CrystalSink;
+		PlaceCrystal(Fassung, *Pieces[Random.RandRange(0, Pieces.Num() - 1)], Age, LengthScale, Random, bCoat ? Data->CoatJitter : 1.0f,
+			bCoat && !LeadBent.IsEmpty() && !CompanionBent.IsEmpty(), Sink);
 	}
 	UE_LOG(LogVael, Log, TEXT("Erztochter %s: %d crystals (%s + %s)"), *GetName(), CrystalCount, *Lead.ToString(), *Companion.ToString());
 	BuildEyes();

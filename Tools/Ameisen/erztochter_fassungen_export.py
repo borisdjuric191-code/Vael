@@ -40,9 +40,11 @@ KOPF_BIS = lo.y + 0.33 * L          # vor der Brust: Kopf und Kamm
 SATTEL_BIS = lo.y + 0.50 * L        # Brustpanzer (Sattel) bis zur Taille
 
 
-def zeile(bone, zone, p, n, r, tiefe):
-    return '\t{{TEXT("{}"), TEXT("{}"), FVector({:.4f}, {:.4f}, {:.4f}), FVector({:.4f}, {:.4f}, {:.4f}), {:.4f}f, {:.4f}f}},'.format(
-        bone, zone, p.x, p.y, p.z, n.x, n.y, n.z, r, tiefe)
+def zeile(bone, zone, p, n, r, tiefe, flaeche=None):
+    # flaeche: Normale der Körperoberfläche an dieser Stelle (der Belag biegt sich zu ihr hin); sonst die Achse selbst
+    f = flaeche if flaeche is not None else n
+    return '\t{{TEXT("{}"), TEXT("{}"), FVector({:.4f}, {:.4f}, {:.4f}), FVector({:.4f}, {:.4f}, {:.4f}), FVector({:.4f}, {:.4f}, {:.4f}), {:.4f}f, {:.4f}f}},'.format(
+        bone, zone, p.x, p.y, p.z, n.x, n.y, n.z, f.x, f.y, f.z, r, tiefe)
 
 
 zeilen, fehler, zaehl = [], [], {}
@@ -79,21 +81,26 @@ def belag(ids, wuchs, abstand, bone, zone_von, r):
     daten.sort(key=lambda d: d[2])                 # vom Ansatz zur Spitze: Reihe für Reihe
     raster = {}
     zahl = 0
+    # zur Spitze hin dichter und kleiner, damit auch die dünnen Enden von Horn und Stummel ganz bedeckt sind
+    zelle = abstand * 0.6
     for i, richt, anteil in daten:
         q = P[i]
-        k = (int(q.x // abstand), int(q.y // abstand), int(q.z // abstand))
-        nah = any((q - o).length < abstand
-                  for dx in (-1, 0, 1) for dy in (-1, 0, 1) for dz in (-1, 0, 1)
+        hier = abstand * (1.0 - 0.4 * max(0.0, min(1.0, anteil)))
+        k = (int(q.x // zelle), int(q.y // zelle), int(q.z // zelle))
+        nah = any((q - o).length < hier
+                  for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2) for dz in (-2, -1, 0, 1, 2)
                   for o in raster.get((k[0] + dx, k[1] + dy, k[2] + dz), ()))
         if nah:
             continue
         raster.setdefault(k, []).append(q.copy())
+        r_hier = r * hier / abstand
         n = N[i]
-        achse = (richt + n * 0.45).normalized()
-        if achse.dot(n) < 0.15:
-            achse = (achse + n * 0.4).normalized()
+        # flach angelegt (Boris 27.11.: sauber anliegen); das gebogene Stück legt die Spitze zusätzlich an die Fläche
+        achse = (richt + n * 0.3).normalized()
+        if achse.dot(n) < 0.12:
+            achse = (achse + n * 0.3).normalized()
         zone = zone_von(anteil)
-        zeilen.append(zeile(bone, zone, P[i] - n * 0.004 * S, achse, r, 0.0))
+        zeilen.append(zeile(bone, zone, P[i], achse, r_hier, 0.0, n))
         zaehl[zone] = zaehl.get(zone, 0) + 1
         zahl += 1
     return zahl
@@ -138,7 +145,11 @@ for seite, vz in (("L", 1), ("R", -1)):
     lang = (spitze_f - wurzel).length
 
     def wuchs_fluegel(i):
-        return achse_f, (P[i] - wurzel).dot(achse_f) / lang
+        # jeder der beiden Stummel einer Seite zeigt woanders hin: von der Wurzel weg, entlang der Fläche
+        v = P[i] - wurzel
+        richt = (v - N[i] * v.dot(N[i]))
+        richt = richt.normalized() if richt.length > 0.01 else achse_f
+        return richt, v.length / lang
 
     zahl = belag(ids, wuchs_fluegel, ABSTAND_FLUEGEL, "wing_" + seite, lambda a_: "FluegelBelag", 0.9 * ABSTAND_FLUEGEL)
     print("FLUEGEL", seite, len(ids), "Belag", zahl)
@@ -165,12 +176,12 @@ for seite, vz in (("L", 1), ("R", -1)):
             richt = Vector((vz * 0.8, 0, 0.6)).normalized()
             i = max(kand, key=lambda i: N[i].dot(richt) - (P[i] - ziel).length / S * 3)
             n = (N[i] + richt * 0.5).normalized()
-            zeilen.append(zeile(name, "Bein", P[i], n, 0.014 * S, 0.0))
+            zeilen.append(zeile(name, "Bein", P[i], n, 0.014 * S, 0.0, N[i]))
             zaehl["Bein"] = zaehl.get("Bein", 0) + 1
 
 with open(OUT, "w", encoding="utf-8") as f:
     f.write("// Erzeugt von Tools/Ameisen/erztochter_fassungen_export.py – nicht von Hand ändern.\n")
     f.write("// Kristallplätze der Erztochter im Raum des Blender-Modells (Meter, Blick nach -Y, Fuß unten mittig):\n")
-    f.write("// Knochen, Zone, Boden der Mulde (bzw. Ansatz), Achse heraus, Radius, Tiefe.\n")
+    f.write("// Knochen, Zone, Boden der Mulde (bzw. Ansatz), Achse heraus, Normale der Oberfläche, Radius, Tiefe.\n")
     f.write("\n".join(zeilen) + "\n")
 print("PLAETZE", len(zeilen), zaehl, "Mulden-Abstand zum Netz max", round(max(fehler) * 100, 2), "cm")
