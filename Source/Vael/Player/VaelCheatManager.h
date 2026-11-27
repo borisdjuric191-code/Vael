@@ -303,6 +303,10 @@ public:
 	UFUNCTION(Exec)
 	void VaelKillAll();
 
+	/** Hits every living creature within 30 m of the player once: damage and element (0 fire, 1 water, 2 earth, 3 air), for tests */
+	UFUNCTION(Exec)
+	void VaelTreffen(float Schaden = 40.0f, int32 Element = 2);
+
 	/** Opens the nearest closed chest within 6 m of the player (walk tests: proves the hoard can be looted) */
 	UFUNCTION(Exec)
 	void VaelKisteOeffnen();

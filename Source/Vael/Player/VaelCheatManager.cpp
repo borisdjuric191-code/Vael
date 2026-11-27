@@ -539,6 +539,27 @@ void UVaelCheatManager::VaelKillAll()
 	UE_LOG(LogVael, Log, TEXT("VaelKillAll: %d creatures killed"), NumKilled);
 }
 
+void UVaelCheatManager::VaelTreffen(float Schaden, int32 Element)
+{
+	APlayerController* Controller = GetOuterAPlayerController();
+	APawn* Player = Controller != nullptr ? Controller->GetPawn() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	const EVaelElement HitElement = static_cast<EVaelElement>(FMath::Clamp(Element, 0, 3));
+	int32 NumHit = 0;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		if (!It->IsDead() && FVector::Dist(It->GetActorLocation(), Player->GetActorLocation()) < 3000.0f)
+		{
+			UVaelCombatStatics::DealDamage(Player, *It, Schaden, HitElement);
+			++NumHit;
+		}
+	}
+	UE_LOG(LogVael, Log, TEXT("VaelTreffen: %d creatures hit for %.0f"), NumHit, Schaden);
+}
+
 void UVaelCheatManager::VaelKisteOeffnen()
 {
 	APlayerController* Controller = GetOuterAPlayerController();

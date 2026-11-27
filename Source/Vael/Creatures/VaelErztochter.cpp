@@ -2,9 +2,21 @@
 
 #include "Creatures/VaelErztochter.h"
 
+#include "Combat/VaelArcShot.h"
+#include "Combat/VaelCombatStatics.h"
+#include "Combat/VaelGroundStrike.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "Creatures/VaelKobold.h"
+#include "Creatures/VaelPoisonPuddle.h"
+#include "EngineUtils.h"
+#include "GameFramework/CharacterMovementComponent.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
+#include "Magic/VaelGameplayTags.h"
 #include "Magic/VaelSpellEffects.h"
+#include "Player/VaelCharacter.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelErztochter"
@@ -58,7 +70,7 @@ UVaelErztochterData::UVaelErztochterData()
 	CollisionHalfHeight = 70.0f;
 	KnockbackMultiplier = 0.25f;
 	AggroRange = 1600.0f;
-	BiteDamage = 22.0f;
+	BiteDamage = 18.0f;
 	BiteReach = 130.0f;
 	BiteInterval = 1.7f;
 	WanderRadius = 350.0f;
@@ -302,12 +314,427 @@ void AVaelErztochter::OnDamageTaken(float Damage, const FGameplayTagContainer& D
 {
 	Super::OnDamageTaken(Damage, DamageTags);
 	EyeFlare = 1.0f;
+	if (IsDead() || Damage <= 0.0f)
+	{
+		return;
+	}
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	CastDamage += Damage;
+
+	// Hits wear the wing stumps down, one side after the other; earth and frost shatter the crystal crust twice as fast
+	const int32 Side = !bStumpBroken[0] ? 0 : !bStumpBroken[1] ? 1 : INDEX_NONE;
+	if (Side != INDEX_NONE)
+	{
+		const bool bShatter = DamageTags.HasTagExact(VaelTags::Element_Earth) || UVaelCombatStatics::HasStatus(this, EVaelStatus::Frozen);
+		StumpDamage[Side] += Damage * Data->StumpHitShare * (bShatter ? 2.0f : 1.0f);
+		if (StumpDamage[Side] >= GetMaxHealth() * Data->StumpShare)
+		{
+			BreakStump(Side);
+		}
+	}
 }
 
 void AVaelErztochter::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
+	if (Action == EAction::JumpAir && !IsDead())
+	{
+		// The flight runs here, not in the behavior: it must not stop when she is hit
+		const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+		ActionTime += DeltaSeconds;
+		const float Alpha = FMath::Clamp(ActionTime / Data->JumpFlight, 0.0f, 1.0f);
+		const float Height = FMath::Sin(Alpha * UE_PI) * FMath::Max(180.0f, FVector::Dist2D(JumpStart, JumpEnd) * 0.35f);
+		SetActorLocation(FMath::Lerp(JumpStart, JumpEnd, Alpha) + FVector(0.0f, 0.0f, Height), false, nullptr, ETeleportType::TeleportPhysics);
+		if (Alpha >= 1.0f)
+		{
+			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
+			Action = EAction::None;
+			WingLift = 0.0f;
+		}
+	}
+	PoseWings(DeltaSeconds);
 	UpdateEyes(DeltaSeconds);
+}
+
+void AVaelErztochter::TickBehavior(float DeltaSeconds)
+{
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	if (!bEscortSpawned)
+	{
+		SpawnEscort();
+	}
+	ResonanceTimer -= DeltaSeconds;
+	ShardTimer -= DeltaSeconds;
+	JumpTimer -= DeltaSeconds;
+	BiteTimer -= DeltaSeconds;
+
+	// Kobaltbluete daughter: their harvest is the protection money of the Kobolde, she hates them on sight
+	if (Pair == 5 && !IsAngry())
+	{
+		for (TActorIterator<AVaelKobold> It(GetWorld()); It; ++It)
+		{
+			if (!It->IsDead() && FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < Data->AggroRange)
+			{
+				Anger();
+				break;
+			}
+		}
+	}
+
+	switch (Action)
+	{
+	case EAction::Resonance:
+		ActionTime += DeltaSeconds;
+		WingShake = 1.0f;
+		WingLift = FMath::Min(1.0f, WingLift + DeltaSeconds * 3.0f);
+		EyeFlare = FMath::Max(EyeFlare, 0.35f);
+		if (CastDamage >= GetMaxHealth() * Data->ResonanceInterrupt)
+		{
+			// Broken off: she stumbles and the call fails
+			Action = EAction::None;
+			WingShake = 0.0f;
+			WingLift = 0.0f;
+			ResonanceTimer = Data->ResonanceCooldown * 0.5f;
+			Stagger(1.2f);
+		}
+		else if (ActionTime >= Data->ResonanceCast)
+		{
+			FinishResonance();
+		}
+		return;
+	case EAction::Shards:
+		ActionTime += DeltaSeconds;
+		WingLift = FMath::Min(1.0f, WingLift + DeltaSeconds * 2.5f);
+		WingShake = 0.4f;
+		if (ActionTime >= Data->ShardWindup)
+		{
+			FireShards();
+		}
+		return;
+	case EAction::JumpWindup:
+		ActionTime += DeltaSeconds;
+		WingLift = FMath::Min(1.0f, WingLift + DeltaSeconds * 2.0f);
+		WingShake = 0.7f;
+		if (ActionTime >= Data->JumpWindup)
+		{
+			Action = EAction::JumpAir;
+			ActionTime = 0.0f;
+			JumpStart = GetActorLocation();
+			GetCharacterMovement()->StopMovementImmediately();
+			GetCharacterMovement()->SetMovementMode(MOVE_Flying);
+		}
+		return;
+	case EAction::JumpAir:
+		return;
+	default:
+		break;
+	}
+	WingShake = FMath::Max(0.0f, WingShake - DeltaSeconds * 3.0f);
+	WingLift = FMath::Max(0.0f, WingLift - DeltaSeconds * 2.0f);
+
+	const bool bFighting = bEnslaved || IsAngry();
+	float Distance = 0.0f;
+	AActor* Target = bFighting ? FindTarget(Data->AggroRange, &Distance) : nullptr;
+	if (Target == nullptr)
+	{
+		// At work like her workers: wander about her place
+		Super::TickBehavior(DeltaSeconds);
+		return;
+	}
+
+	const int32 Stumps = GetIntactStumps();
+	if (Stumps > 0 && ResonanceTimer <= 0.0f && CountColony() < Data->ResonanceColony)
+	{
+		StartResonance();
+		return;
+	}
+	if (ShardTimer <= 0.0f && Distance < Data->ShardRange)
+	{
+		StartShards(Target);
+		return;
+	}
+	if (Stumps > 0 && JumpTimer <= 0.0f && Distance > Data->JumpMinDistance && Distance < Data->JumpMaxDistance)
+	{
+		StartJump(Target);
+		return;
+	}
+
+	// Close in and bite; without her stumps she rages
+	const float Rage = IsRaging() ? Data->RageSpeed : 1.0f;
+	const float Reach = Data->CollisionRadius * GetActorScale3D().X + Data->BiteReach;
+	if (Distance > Reach)
+	{
+		MoveTowards(Target->GetActorLocation(), Data->MoveSpeed * Rage);
+	}
+	else
+	{
+		FaceTowards(Target->GetActorLocation());
+		if (BiteTimer <= 0.0f)
+		{
+			BiteTimer = Data->BiteInterval * (IsRaging() ? Data->RageBiteInterval : 1.0f);
+			HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
+		}
+	}
+}
+
+void AVaelErztochter::SpawnEscort()
+{
+	bEscortSpawned = true;
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	FName Lead, Companion;
+	GetPairOres(Pair, Lead, Companion);
+	for (int32 Index = 0; Index < Data->EscortCount; ++Index)
+	{
+		const float Angle = UE_TWO_PI * Index / FMath::Max(1, Data->EscortCount) + FMath::FRandRange(-0.4f, 0.4f);
+		const FVector Around = GetActorLocation() + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * FMath::FRandRange(250.0f, 420.0f);
+		FVector Ground;
+		if (!AVaelCreature::FindGround(GetWorld(), Around + FVector(0.0f, 0.0f, 300.0f), Ground))
+		{
+			continue;
+		}
+		if (AVaelSchuerfameise* Ant = Cast<AVaelSchuerfameise>(AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSchuerfameiseData>(), Ground, GetActorRotation())))
+		{
+			Ant->SetupAnt(Lead, false, bEnslaved);
+		}
+	}
+}
+
+int32 AVaelErztochter::CountColony() const
+{
+	const float Range = GetData<UVaelErztochterData>()->ResonanceRange;
+	int32 Count = 0;
+	for (TActorIterator<AVaelSchuerfameise> It(GetWorld()); It; ++It)
+	{
+		if (*It != this && !It->IsA<AVaelErztochter>() && !It->IsDead() && It->GetOre() == Ore
+			&& FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) < Range)
+		{
+			++Count;
+		}
+	}
+	return Count;
+}
+
+void AVaelErztochter::StartResonance()
+{
+	Action = EAction::Resonance;
+	ActionTime = 0.0f;
+	CastDamage = 0.0f;
+	ResonanceTimer = GetData<UVaelErztochterData>()->ResonanceCooldown;
+}
+
+void AVaelErztochter::FinishResonance()
+{
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	Action = EAction::None;
+	WingShake = 0.0f;
+	EyeFlare = 1.0f;
+
+	// Her colony hears her: the ants of her ore around join the fight, a few more come out of the rock
+	for (TActorIterator<AVaelSchuerfameise> It(GetWorld()); It; ++It)
+	{
+		if (*It == this || It->IsA<AVaelErztochter>() || It->IsDead() || It->GetOre() != Ore
+			|| FVector::Dist2D(It->GetActorLocation(), GetActorLocation()) > Data->ResonanceRange)
+		{
+			continue;
+		}
+		if (Pair == 2 && It->IsEnslaved() && !bEnslaved)
+		{
+			// Salzspat dries the Tropfseuche out: enslaved ants of her colony come free and back to her
+			It->SetupAnt(It->GetOre(), It->IsAncestor(), false);
+		}
+		It->Anger();
+	}
+	const int32 Missing = FMath::Min(Data->ResonanceReinforcements, Data->ResonanceColony - CountColony());
+	for (int32 Index = 0; Index < Missing; ++Index)
+	{
+		const FVector2D Offset = FMath::RandPointInCircle(1.0f).GetSafeNormal() * FMath::FRandRange(350.0f, 600.0f);
+		FVector Ground;
+		if (AVaelCreature::FindGround(GetWorld(), GetActorLocation() + FVector(Offset, 300.0f), Ground))
+		{
+			if (AVaelSchuerfameise* Ant = Cast<AVaelSchuerfameise>(AVaelCreature::SpawnCreature(GetWorld(), GetMutableDefault<UVaelSchuerfameiseData>(), Ground, GetActorRotation())))
+			{
+				Ant->SetupAnt(Ore, false, bEnslaved);
+				Ant->Anger();
+			}
+		}
+	}
+
+	// Drahtsilber sings in the stumps: the sound confuses the players near her
+	if (Pair == 3)
+	{
+		ForEachActivePlayer([this](AVaelCharacter* Player)
+		{
+			if (FVector::Dist2D(Player->GetActorLocation(), GetActorLocation()) < 900.0f)
+			{
+				UVaelCombatStatics::ApplyStatus(this, Player, EVaelStatus::Confused, 2.5f);
+			}
+		});
+	}
+}
+
+void AVaelErztochter::StartShards(const AActor* Target)
+{
+	Action = EAction::Shards;
+	ActionTime = 0.0f;
+	ShardTimer = GetData<UVaelErztochterData>()->ShardCooldown;
+	ShardAim = (Target->GetActorLocation() - GetActorLocation()).GetSafeNormal2D();
+	FaceTowards(Target->GetActorLocation());
+}
+
+void AVaelErztochter::FireShards()
+{
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	Action = EAction::None;
+	FName Lead, Companion;
+	GetPairOres(Pair, Lead, Companion);
+	const FLinearColor Color = VaelOre::GetColor(Companion);
+
+	// What a shard does depends on the pair
+	FVaelSpellHit Hit;
+	Hit.Damage = Data->ShardDamage;
+	Hit.Element = EVaelElement::Earth;
+	switch (Pair)
+	{
+	case 1:   // Funkenerz sparks set the Schwefelkies fumes alight
+		Hit.Element = EVaelElement::Fire;
+		Hit.Status = EVaelStatus::Burning;
+		Hit.StatusDuration = 4.0f;
+		Hit.StatusDamagePerSecond = 5.0f;
+		break;
+	case 2:   // Rust eats the armour: the one hit takes more damage for a while
+		Hit.Status = EVaelStatus::Marked;
+		Hit.StatusDuration = 5.0f;
+		break;
+	case 3:   // Gruenspan carries lightning: twice on the wet
+		Hit.Element = EVaelElement::Air;
+		Hit.bLightning = true;
+		break;
+	case 4:   // Quecksilber from the Blutzinnober: slippery and slow; Siechglas poisons the ground
+		Hit.Status = EVaelStatus::Slowed;
+		Hit.StatusDuration = 3.0f;
+		break;
+	default:  // Rippenspat: ribs close around the one hit
+		Hit.StunDuration = 1.1f;
+		Hit.bBoneCage = true;
+		break;
+	}
+
+	// Fewer shards for every broken stump; every third time a ring all around instead of a fan
+	const int32 Count = FMath::Max(2, FMath::RoundToInt(Data->ShardCount * (0.4f + 0.3f * GetIntactStumps())));
+	const bool bRing = (++ShardCasts % 3) == 0;
+	const FVector From = GetActorLocation() + FVector(0.0f, 0.0f, 150.0f * GetActorScale3D().Z);
+	constexpr float Flight = 0.55f;
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const float Angle = bRing ? 360.0f * Index / Count
+			: FMath::Lerp(-Data->ShardCone * 0.5f, Data->ShardCone * 0.5f, Count > 1 ? static_cast<float>(Index) / (Count - 1) : 0.5f);
+		const FVector Direction = ShardAim.RotateAngleAxis(Angle + FMath::FRandRange(-5.0f, 5.0f), FVector::UpVector);
+		const float Reach = bRing ? FMath::FRandRange(350.0f, 600.0f) : FMath::FRandRange(Data->ShardRange * 0.45f, Data->ShardRange);
+		FVector Ground;
+		if (!AVaelCreature::FindGround(GetWorld(), GetActorLocation() + Direction * Reach + FVector(0.0f, 0.0f, 300.0f), Ground))
+		{
+			continue;
+		}
+		AVaelArcShot::Lob(GetWorld(), From, Ground, Flight, 140.0f, Color, 20.0f);
+		AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Data->ShardRadius, Flight, Color);
+		if (Pair == 4 && Index % 3 == 1)
+		{
+			AVaelPoisonPuddle::Spit(GetWorld(), Ground, Flight, this);
+		}
+	}
+	WingShake = 1.0f;
+}
+
+void AVaelErztochter::StartJump(const AActor* Target)
+{
+	const UVaelErztochterData* Data = GetData<UVaelErztochterData>();
+	FVector Ground;
+	if (!AVaelCreature::FindGround(GetWorld(), Target->GetActorLocation() + FVector(0.0f, 0.0f, 300.0f), Ground))
+	{
+		JumpTimer = 2.0f;
+		return;
+	}
+	Action = EAction::JumpWindup;
+	ActionTime = 0.0f;
+	JumpTimer = Data->JumpCooldown;
+	FaceTowards(Target->GetActorLocation());
+	// She lands with her capsule on the ground; the warning shows where from the start
+	JumpEnd = Ground + FVector(0.0f, 0.0f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+	FVaelSpellHit Hit;
+	Hit.Damage = Data->JumpDamage;
+	Hit.Element = EVaelElement::Earth;
+	Hit.Knockback = 900.0f;
+	FName Lead, Companion;
+	GetPairOres(Pair, Lead, Companion);
+	AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Data->JumpRadius, Data->JumpWindup + Data->JumpFlight, VaelOre::GetColor(Lead));
+}
+
+void AVaelErztochter::BreakStump(int32 Side)
+{
+	if (bStumpBroken[Side])
+	{
+		return;
+	}
+	bStumpBroken[Side] = true;
+	const FName Bone = Side == 0 ? TEXT("wing_L") : TEXT("wing_R");
+	UPoseableMeshComponent* QueenMesh = GetFactoryMesh();
+	if (QueenMesh != nullptr)
+	{
+		ThrowShards(QueenMesh->GetBoneLocationByName(Bone, EBoneSpaces::WorldSpace), 6, 12.0f);
+	}
+
+	// The crust of the stump is ore: every player gets some
+	FName Lead, Companion;
+	GetPairOres(Pair, Lead, Companion);
+	UVaelMaterialBag::GiveToGroup(this, {FVaelLootEntry(*VaelOre::GetMaterialPath(Companion), 1.0f, 2, 3), FVaelLootEntry(*VaelOre::GetMaterialPath(Lead), 0.5f)});
+
+	// A call or leap in progress fails
+	if (Action == EAction::Resonance || Action == EAction::Shards || Action == EAction::JumpWindup)
+	{
+		Action = EAction::None;
+	}
+	Stagger(1.0f);
+	EyeFlare = 1.0f;
+	if (IsRaging())
+	{
+		Anger();
+	}
+	UE_LOG(LogVael, Log, TEXT("Erztochter %s: wing stump %d broken%s"), *GetName(), Side, IsRaging() ? TEXT(", she rages") : TEXT(""));
+}
+
+void AVaelErztochter::PoseWings(float DeltaSeconds)
+{
+	UPoseableMeshComponent* QueenMesh = GetFactoryMesh();
+	if (QueenMesh == nullptr || QueenMesh->GetSkinnedAsset() == nullptr)
+	{
+		return;
+	}
+	WingTime += DeltaSeconds;
+	const FReferenceSkeleton& RefSkeleton = QueenMesh->GetSkinnedAsset()->GetRefSkeleton();
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const int32 Index = RefSkeleton.FindBoneIndex(Side == 0 ? FName(TEXT("wing_L")) : FName(TEXT("wing_R")));
+		if (Index == INDEX_NONE || !QueenMesh->BoneSpaceTransforms.IsValidIndex(Index))
+		{
+			continue;
+		}
+		FTransform Local = RefSkeleton.GetRefBonePose()[Index];
+		if (bStumpBroken[Side])
+		{
+			// Broken off: the stump and its crystals are gone
+			Local.SetScale3D(FVector(0.01f));
+		}
+		else
+		{
+			// Raised for a call or a throw, humming fast while she calls
+			const float Sign = Side == 0 ? 1.0f : -1.0f;
+			const float Lift = FMath::DegreesToRadians(-22.0f * WingLift);
+			const float Shake = FMath::DegreesToRadians(4.0f * WingShake * FMath::Sin(WingTime * 55.0f));
+			Local.SetRotation(Local.GetRotation() * FQuat(FVector::ForwardVector, (Lift + Shake) * Sign));
+		}
+		QueenMesh->BoneSpaceTransforms[Index] = Local;
+	}
+	QueenMesh->MarkRefreshTransformDirty();
 }
 
 void AVaelErztochter::UpdateEyes(float DeltaSeconds)

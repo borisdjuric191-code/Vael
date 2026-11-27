@@ -2,13 +2,42 @@
 
 #include "Creatures/VaelSchuerfameise.h"
 
+#include "Combat/VaelArcShot.h"
+#include "Combat/VaelCombatStatics.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
+#include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialBag.h"
+#include "Magic/VaelGameplayTags.h"
 #include "Vael.h"
 
 #define LOCTEXT_NAMESPACE "VaelSchuerfameise"
+
+FLinearColor VaelOre::GetColor(FName Ore)
+{
+	static const TMap<FName, FLinearColor> Colors = {
+		{TEXT("Rosteisen"), FLinearColor(0.95f, 0.50f, 0.15f)},
+		{TEXT("Schwefelkies"), FLinearColor(0.90f, 0.88f, 0.30f)},
+		{TEXT("Funkenerz"), FLinearColor(1.0f, 0.38f, 0.08f)},
+		{TEXT("Gruenspan"), FLinearColor(0.10f, 0.75f, 0.65f)},
+		{TEXT("Salzspat"), FLinearColor(1.0f, 0.78f, 0.84f)},
+		{TEXT("Drahtsilber"), FLinearColor(0.75f, 0.90f, 1.0f)},
+		{TEXT("Blutzinnober"), FLinearColor(0.90f, 0.12f, 0.30f)},
+		{TEXT("Siechglas"), FLinearColor(0.70f, 1.0f, 0.20f)},
+		{TEXT("Rippenspat"), FLinearColor(0.95f, 0.85f, 0.70f)},
+		{TEXT("Kobaltbluete"), FLinearColor(1.0f, 0.30f, 0.70f)},
+		{TEXT("Kernerz"), FLinearColor(0.75f, 0.25f, 0.95f)},
+	};
+	const FLinearColor* Color = Colors.Find(Ore);
+	return Color != nullptr ? *Color : FLinearColor(0.9f, 0.85f, 0.7f);
+}
+
+FString VaelOre::GetMaterialPath(FName Ore)
+{
+	return FString::Printf(TEXT("/Game/Vael/Items/Materials/DA_Material_%s.DA_Material_%s"), *Ore.ToString(), *Ore.ToString());
+}
 
 namespace
 {
@@ -257,6 +286,46 @@ void AVaelSchuerfameise::PlaceCrystal(const FVaelAmeisenFassung& Fassung, const 
 	}
 }
 
+bool AVaelSchuerfameise::BreakCrystal()
+{
+	TArray<UStaticMeshComponent*> Whole;
+	for (UStaticMeshComponent* Crystal : Crystals)
+	{
+		if (Crystal != nullptr && Crystal->IsVisible() && !Crystal->GetAttachSocketName().ToString().StartsWith(TEXT("wing_")))
+		{
+			Whole.Add(Crystal);
+		}
+	}
+	if (Whole.IsEmpty())
+	{
+		return false;
+	}
+	UStaticMeshComponent* Crystal = Whole[FMath::RandRange(0, Whole.Num() - 1)];
+	const FBoxSphereBounds Bounds = Crystal->Bounds;
+	Crystal->SetVisibility(false);
+	ThrowShards(Bounds.Origin, 2, FMath::Clamp(Bounds.SphereRadius * 0.3f, 5.0f, 12.0f));
+
+	if (FMath::FRand() < GetData<UVaelSchuerfameiseData>()->BreakLootChance)
+	{
+		UVaelMaterialBag::GiveToGroup(this, {FVaelLootEntry(*VaelOre::GetMaterialPath(Ore), 1.0f)});
+	}
+	return true;
+}
+
+void AVaelSchuerfameise::ThrowShards(const FVector& From, int32 Count, float Size)
+{
+	for (int32 Index = 0; Index < Count; ++Index)
+	{
+		const FVector2D Away = FMath::RandPointInCircle(1.0f).GetSafeNormal() * FMath::FRandRange(60.0f, 160.0f);
+		FVector Ground;
+		if (!AVaelCreature::FindGround(GetWorld(), From + FVector(Away, 0.0f), Ground))
+		{
+			Ground = From + FVector(Away, -100.0f);
+		}
+		AVaelArcShot::Lob(GetWorld(), From, Ground, FMath::FRandRange(0.4f, 0.6f), FMath::FRandRange(30.0f, 70.0f), VaelOre::GetColor(Ore), Size);
+	}
+}
+
 void AVaelSchuerfameise::Anger()
 {
 	AngerTime = GetData<UVaelSchuerfameiseData>()->AngerSeconds;
@@ -265,6 +334,15 @@ void AVaelSchuerfameise::Anger()
 void AVaelSchuerfameise::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
 {
 	Super::OnDamageTaken(Damage, DamageTags);
+
+	// Crystals break out of the shell under hits; earth (and anything on a frozen shell) shatters them
+	const UVaelSchuerfameiseData* Data = GetData<UVaelSchuerfameiseData>();
+	const bool bShatter = DamageTags.HasTagExact(VaelTags::Element_Earth) || UVaelCombatStatics::HasStatus(this, EVaelStatus::Frozen);
+	if (Damage > 0.0f && FMath::FRand() < (bShatter ? Data->EarthBreakChance : Data->BreakChance))
+	{
+		BreakCrystal();
+	}
+
 	if (bEnslaved)
 	{
 		return;

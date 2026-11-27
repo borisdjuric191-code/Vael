@@ -123,7 +123,27 @@ public:
 	/** Distance in which hit ants call the others of their colony, cm */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise", meta = (ClampMin = 0))
 	float AlarmRange = 1500.0f;
+
+	/** Chance per hit that a crystal breaks out of the shell (the empty setting stays); earth shatters them far more often */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise|Kristalle", meta = (ClampMin = 0, ClampMax = 1))
+	float BreakChance = 0.2f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise|Kristalle", meta = (ClampMin = 0, ClampMax = 1))
+	float EarthBreakChance = 0.6f;
+
+	/** Chance that a broken crystal drops a piece of its ore for every player */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Ameise|Kristalle", meta = (ClampMin = 0, ClampMax = 1))
+	float BreakLootChance = 0.3f;
 };
+
+namespace VaelOre
+{
+	/** Colour of an ore of the Eisenschlund, for shards, warnings and glows */
+	FLinearColor GetColor(FName Ore);
+
+	/** Material data asset of an ore, like /Game/Vael/Items/Materials/DA_Material_Salzspat */
+	FString GetMaterialPath(FName Ore);
+}
 
 UCLASS()
 class AVaelSchuerfameise : public AVaelCreature
@@ -191,6 +211,12 @@ protected:
 	TArray<TObjectPtr<UStaticMeshComponent>> Crystals;
 
 	int32 CrystalCount = 0;
+
+	/** Breaks one crystal out of the shell (not those of the wing stumps): it flies off, the setting stays empty, maybe drops ore */
+	bool BreakCrystal();
+
+	/** Throws a few shards of an ore from a place to the ground around it (look only) */
+	void ThrowShards(const FVector& From, int32 Count, float Size);
 
 private:
 
