@@ -2,8 +2,10 @@
 
 #include "Creatures/VaelSchuerfameise.h"
 
+#include "AnimationRuntime.h"
 #include "Combat/VaelArcShot.h"
 #include "Combat/VaelCombatStatics.h"
+#include "Creatures/VaelLegIKComponent.h"
 #include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -101,6 +103,156 @@ UVaelSchuerfameiseData::UVaelSchuerfameiseData()
 AVaelSchuerfameise::AVaelSchuerfameise()
 {
 	CrystalSeed = FMath::Rand();
+	// Every ant keeps its own pace
+	LifePace = FMath::FRandRange(0.85f, 1.2f);
+	LifePhase = FMath::FRandRange(0.0f, 100.0f);
+}
+
+void AVaelSchuerfameise::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+	PoseLife(DeltaSeconds);
+}
+
+bool AVaelSchuerfameise::PrepareLife()
+{
+	UPoseableMeshComponent* AntMesh = GetFactoryMesh();
+	if (AntMesh == nullptr || AntMesh->GetSkinnedAsset() == nullptr || AntMesh->BoneSpaceTransforms.IsEmpty())
+	{
+		return false;
+	}
+	const FReferenceSkeleton& RefSkeleton = AntMesh->GetSkinnedAsset()->GetRefSkeleton();
+	auto Find = [&RefSkeleton](const TCHAR* Name, const TCHAR* TipName, FLifeBone& Out)
+	{
+		Out.Index = RefSkeleton.FindBoneIndex(Name);
+		if (Out.Index == INDEX_NONE)
+		{
+			return;
+		}
+		Out.RefLocal = RefSkeleton.GetRefBonePose()[Out.Index];
+		const FTransform Comp = FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, Out.Index);
+		const int32 Parent = RefSkeleton.GetParentIndex(Out.Index);
+		Out.RefComp = Comp.GetRotation();
+		Out.ParentRefComp = Parent != INDEX_NONE ? FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, Parent).GetRotation() : FQuat::Identity;
+		// Direction of the bone: towards its child (feelers, mandibles: the tip), else along its own axis
+		const int32 Tip = TipName != nullptr ? RefSkeleton.FindBoneIndex(TipName) : INDEX_NONE;
+		const FVector TipAt = Tip != INDEX_NONE ? FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, Tip).GetLocation()
+			: Comp.GetLocation() + Comp.GetRotation().GetAxisY() * 10.0f;
+		Out.Dir = (TipAt - Comp.GetLocation()).GetSafeNormal();
+		// Outwards: away from the middle line of the body (mesh X is the side axis)
+		Out.Out = FVector(FMath::Sign(Comp.GetLocation().X + KINDA_SMALL_NUMBER), 0.0f, 0.0f);
+	};
+	Find(TEXT("head"), nullptr, LifeHead);
+	Find(TEXT("antenna_L1"), TEXT("antenna_L2"), LifeAntenna[0]);
+	Find(TEXT("antenna_L2"), nullptr, LifeAntenna[1]);
+	Find(TEXT("antenna_R1"), TEXT("antenna_R2"), LifeAntenna[2]);
+	Find(TEXT("antenna_R2"), nullptr, LifeAntenna[3]);
+	Find(TEXT("mandible_L"), nullptr, LifeMandible[0]);
+	Find(TEXT("mandible_R"), nullptr, LifeMandible[1]);
+	return true;
+}
+
+void AVaelSchuerfameise::TurnLifeBone(const FLifeBone& Bone, const FQuat& MeshDelta)
+{
+	UPoseableMeshComponent* AntMesh = GetFactoryMesh();
+	if (Bone.Index == INDEX_NONE || !AntMesh->BoneSpaceTransforms.IsValidIndex(Bone.Index))
+	{
+		return;
+	}
+	FTransform Local = Bone.RefLocal;
+	Local.SetRotation(Bone.ParentRefComp.Inverse() * MeshDelta * Bone.RefComp);
+	AntMesh->BoneSpaceTransforms[Bone.Index] = Local;
+}
+
+void AVaelSchuerfameise::PoseLife(float DeltaSeconds)
+{
+	if (IsDead())
+	{
+		return;
+	}
+	if (!bLifeReady)
+	{
+		bLifeReady = PrepareLife();
+		if (!bLifeReady)
+		{
+			return;
+		}
+	}
+	const bool bFight = IsFighting();
+	const float Pace = LifePace * (bFight ? 1.8f : 1.0f);
+	const float Reach = bFight ? 1.3f : 1.0f;
+	LifeTime += DeltaSeconds * Pace;
+	const float T = LifeTime + LifePhase;
+	auto Wave = [](float X) { return FMath::Sin(X) * 0.6f + FMath::Sin(X * 2.31f + 1.7f) * 0.3f + FMath::Sin(X * 4.13f + 0.4f) * 0.1f; };
+
+	// Body: a slow breath and a little rocking on the legs
+	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
+	{
+		Legs->SetExtraBodyTilt(FRotator(1.6f * Reach * Wave(T * 1.7f), 0.0f, 1.1f * Reach * Wave(T * 1.15f + 2.0f)));
+	}
+
+	// Head: looks about, quicker and jerkier in a fight
+	const FVector Up = FVector::UpVector;
+	if (LifeHead.Index != INDEX_NONE)
+	{
+		const FVector Side = FVector::CrossProduct(LifeHead.Dir, Up).GetSafeNormal();
+		const FQuat Look = FQuat(Up, FMath::DegreesToRadians(7.0f * Reach * Wave(T * 0.45f)))
+			* FQuat(Side, FMath::DegreesToRadians(4.0f * Reach * Wave(T * 0.6f + 3.0f)));
+		TurnLifeBone(LifeHead, Look);
+	}
+
+	// Feelers: both swing, a little apart; now and then one probes ahead and down
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		ProbeTimer[Side] -= DeltaSeconds * Pace;
+		if (ProbeTimer[Side] <= 0.0f)
+		{
+			ProbeTimer[Side] = FMath::FRandRange(1.5f, 5.0f);
+			Probe[Side] = 0.0f;
+		}
+		Probe[Side] = FMath::Min(1.0f, Probe[Side] + DeltaSeconds * 1.6f * Pace);
+		const float Probing = FMath::Sin(Probe[Side] * UE_PI);
+		const float Phase = Side * 1.9f;
+		for (int32 Part = 0; Part < 2; ++Part)
+		{
+			const FLifeBone& Bone = LifeAntenna[Side * 2 + Part];
+			if (Bone.Index == INDEX_NONE)
+			{
+				continue;
+			}
+			const FVector Lift = FVector::CrossProduct(Bone.Dir, Up).GetSafeNormal();
+			const float Scale = Part == 0 ? 1.0f : 0.7f;
+			const float LiftDeg = (9.0f * Wave(T * 1.3f + Phase + Part * 0.6f) - 22.0f * Probing) * Reach * Scale;
+			const float SweepDeg = (8.0f * Wave(T * 0.9f + Phase * 1.3f + Part * 0.8f)) * Reach * Scale;
+			TurnLifeBone(Bone, FQuat(Up, FMath::DegreesToRadians(SweepDeg)) * FQuat(Lift, FMath::DegreesToRadians(LiftDeg)));
+		}
+	}
+
+	// Mandibles: tremble, and snap shut now and then (often in a fight, always with a bite)
+	MandibleTimer -= DeltaSeconds * Pace;
+	if (MandibleTimer <= 0.0f)
+	{
+		MandibleTimer = bFight ? FMath::FRandRange(0.5f, 1.8f) : FMath::FRandRange(1.5f, 5.0f);
+		SnapMandibles();
+	}
+	MandibleSnap = FMath::Min(1.0f, MandibleSnap + DeltaSeconds * 2.6f);
+	// 0..0.45 open wide, 0.45..0.6 slam shut, then back to rest
+	const float Open = MandibleSnap < 0.45f ? FMath::InterpEaseOut(0.0f, 1.0f, MandibleSnap / 0.45f, 2.0f)
+		: MandibleSnap < 0.6f ? FMath::Lerp(1.0f, -0.25f, (MandibleSnap - 0.45f) / 0.15f)
+		: FMath::Lerp(-0.25f, 0.0f, (MandibleSnap - 0.6f) / 0.4f);
+	for (int32 Side = 0; Side < 2; ++Side)
+	{
+		const FLifeBone& Bone = LifeMandible[Side];
+		if (Bone.Index == INDEX_NONE)
+		{
+			continue;
+		}
+		// Rotating the bone about Dir x Out turns its tip outwards
+		const FVector Axis = FVector::CrossProduct(Bone.Dir, Bone.Out).GetSafeNormal();
+		const float Deg = 24.0f * Open + 2.0f * FMath::Sin(T * 9.0f + Side * 2.0f);
+		TurnLifeBone(Bone, FQuat(Axis, FMath::DegreesToRadians(Deg)));
+	}
+	GetFactoryMesh()->MarkRefreshTransformDirty();
 }
 
 TSubclassOf<UVaelCreatureData> AVaelSchuerfameise::GetDefaultDataClass() const
@@ -382,6 +534,7 @@ void AVaelSchuerfameise::TickBehavior(float DeltaSeconds)
 				{
 					BiteCooldown = Data->BiteInterval;
 					HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
+					SnapMandibles();
 				}
 			}
 			return;

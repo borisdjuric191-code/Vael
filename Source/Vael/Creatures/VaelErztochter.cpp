@@ -473,6 +473,7 @@ void AVaelErztochter::TickBehavior(float DeltaSeconds)
 		{
 			BiteTimer = Data->BiteInterval * (IsRaging() ? Data->RageBiteInterval : 1.0f);
 			HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
+			SnapMandibles();
 		}
 	}
 }
@@ -710,6 +711,17 @@ void AVaelErztochter::PoseWings(float DeltaSeconds)
 		return;
 	}
 	WingTime += DeltaSeconds;
+	// Even as stumps they twitch now and then, a short buzz with a little lift
+	FlutterTimer -= DeltaSeconds;
+	if (FlutterTimer <= 0.0f)
+	{
+		FlutterTimer = IsFighting() ? FMath::FRandRange(1.2f, 3.0f) : FMath::FRandRange(2.5f, 6.0f);
+		Flutter = 0.0f;
+	}
+	Flutter = FMath::Min(1.0f, Flutter + DeltaSeconds * 2.8f);
+	const float Buzz = FMath::Sin(Flutter * UE_PI);
+	const float ShownShake = FMath::Max(WingShake, 0.7f * Buzz);
+	const float ShownLift = FMath::Max(WingLift, 0.15f * Buzz) + 0.03f * FMath::Sin(WingTime * 1.6f);
 	const FReferenceSkeleton& RefSkeleton = QueenMesh->GetSkinnedAsset()->GetRefSkeleton();
 	for (int32 Side = 0; Side < 2; ++Side)
 	{
@@ -728,8 +740,8 @@ void AVaelErztochter::PoseWings(float DeltaSeconds)
 		{
 			// Raised for a call or a throw, humming fast while she calls
 			const float Sign = Side == 0 ? 1.0f : -1.0f;
-			const float Lift = FMath::DegreesToRadians(-22.0f * WingLift);
-			const float Shake = FMath::DegreesToRadians(4.0f * WingShake * FMath::Sin(WingTime * 55.0f));
+			const float Lift = FMath::DegreesToRadians(-22.0f * ShownLift);
+			const float Shake = FMath::DegreesToRadians(4.0f * ShownShake * FMath::Sin(WingTime * 55.0f));
 			Local.SetRotation(Local.GetRotation() * FQuat(FVector::ForwardVector, (Lift + Shake) * Sign));
 		}
 		QueenMesh->BoneSpaceTransforms[Index] = Local;

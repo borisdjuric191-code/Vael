@@ -276,6 +276,8 @@ private:
 	float WingLift = 0.0f;
 	float WingShake = 0.0f;
 	float WingTime = 0.0f;
+	float FlutterTimer = 3.0f;
+	float Flutter = 1.0f;
 
 	float EyeTime = 0.0f;
 	float EyeFlare = 0.0f;

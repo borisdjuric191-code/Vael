@@ -218,7 +218,51 @@ protected:
 	/** Throws a few shards of an ore from a place to the ground around it (look only) */
 	void ThrowShards(const FVector& From, int32 Count, float Size);
 
+	virtual void Tick(float DeltaSeconds) override;
+
+	/** The mandibles snap shut once (a bite, or now and then on their own) */
+	void SnapMandibles() { MandibleSnap = 0.0f; }
+
+	/** Life between the steps (Boris 27.11.: not a stiff model that only moves its legs): the body sways and breathes,
+	 *  the head looks about, the feelers swing and now and then probe ahead, the mandibles tremble and snap; all faster
+	 *  and sharper while it fights. Every ant has its own pace. */
+	void PoseLife(float DeltaSeconds);
+
+	/** True while it fights (enslaved or angry) */
+	bool IsFighting() const { return bEnslaved || AngerTime > 0.0f; }
+
+	/** Free time of this ant, for its own rhythms */
+	float LifeTime = 0.0f;
+
 private:
+
+	/** A bone posed by the life layer: its reference pose and the directions it moves in, in mesh space */
+	struct FLifeBone
+	{
+		int32 Index = INDEX_NONE;
+		FTransform RefLocal;
+		FQuat ParentRefComp = FQuat::Identity;
+		FQuat RefComp = FQuat::Identity;
+		FVector Dir = FVector::ForwardVector;
+		FVector Out = FVector::RightVector;
+	};
+
+	/** Finds the bones of the life layer once the mesh is there */
+	bool PrepareLife();
+
+	/** Turns a bone by a rotation given in mesh space, from its reference pose */
+	void TurnLifeBone(const FLifeBone& Bone, const FQuat& MeshDelta);
+
+	FLifeBone LifeHead;
+	FLifeBone LifeAntenna[4];     // L1, L2, R1, R2
+	FLifeBone LifeMandible[2];    // L, R
+	bool bLifeReady = false;
+	float LifePace = 1.0f;
+	float LifePhase = 0.0f;
+	float ProbeTimer[2] = {2.0f, 4.0f};
+	float Probe[2] = {1.0f, 1.0f};
+	float MandibleTimer = 2.0f;
+	float MandibleSnap = 1.0f;
 
 	float AngerTime = 0.0f;
 	float BiteCooldown = 0.0f;
