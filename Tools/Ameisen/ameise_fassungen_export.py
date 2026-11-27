@@ -43,7 +43,7 @@ for m in mulden:
     n = (dreh.to_3x3() @ Vector(m["n"])).normalized()
     nah, _, _, d = bvh.find_nearest(p)
     fehler.append(d)
-    bone = min(("head", "body"), key=lambda k: abstand(p, *knochen[k]))
+    bone = min([k for k in ("head", "body", "abdomen") if k in knochen], key=lambda k: abstand(p, *knochen[k]))
     zeilen.append('\t{{TEXT("{}"), FVector({:.4f}, {:.4f}, {:.4f}), FVector({:.4f}, {:.4f}, {:.4f}), {:.4f}f, {:.4f}f}},'.format(
         bone, p.x, p.y, p.z, n.x, n.y, n.z, m["r"] * laenge, m.get("tiefe", 0.0) * laenge))
 with open(OUT, "w", encoding="utf-8") as f:

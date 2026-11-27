@@ -9,7 +9,7 @@ Quellen:
     die zerrissenen Kanten der Flügelstummel werden dort direkt gesucht (keine Mulden, aber Boris' Entwurf 27.11.:
     Kamm-Spitzen tragen das Leit-Erz als Krone, die Stummelkanten Splitter des Begleit-Erzes).
 
-Zonen: Kamm, KammBelag, KammFuss, FluegelBelag, Kopf, Sattel (Brustpanzer), Hinterleib, Fluegel, Bein. Knochen: head, body, wing_L, wing_R, leg_*.
+Zonen: Kamm, KammBelag, KammFuss, FluegelBelag, Kopf, Sattel (Brustpanzer), Hinterleib, Fluegel, Bein. Knochen: head, body, abdomen, wing_L, wing_R, leg_*.
 
   blender -b <Erztochter.blend> -P Tools/Ameisen/erztochter_fassungen_export.py -- <mulden_alle.json> <Ausgabe.inl>
 """
@@ -58,7 +58,9 @@ for m in mulden:
     if p.y < KOPF_BIS:
         bone, zone = "head", "Kopf"
     else:
-        bone, zone = "body", ("Sattel" if p.y < SATTEL_BIS else "Hinterleib")
+        zone = "Sattel" if p.y < SATTEL_BIS else "Hinterleib"
+        # der Hinterleib hat seinen eigenen Knochen (ameise_rig.py, Taille)
+        bone = "abdomen" if zone == "Hinterleib" and "abdomen" in knochen else "body"
     zaehl[zone] = zaehl.get(zone, 0) + 1
     zeilen.append(zeile(bone, zone, p, n, m["r"] * L, m.get("tiefe", 0.0) * L))
 

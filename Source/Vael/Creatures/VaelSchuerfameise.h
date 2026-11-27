@@ -254,6 +254,9 @@ private:
 	void TurnLifeBone(const FLifeBone& Bone, const FQuat& MeshDelta);
 
 	FLifeBone LifeHead;
+	FLifeBone LifeAbdomen;
+	float PumpTimer = 1.5f;
+	float Pump = 1.0f;
 	FLifeBone LifeAntenna[4];     // L1, L2, R1, R2
 	FLifeBone LifeMandible[2];    // L, R
 	bool bLifeReady = false;

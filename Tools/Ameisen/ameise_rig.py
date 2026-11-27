@@ -7,7 +7,8 @@ Spiel überspringt solche Beine), bei der Tochter standen die Hinterbeine. Auße
 - Beine: jedes vom Fuß aus über das Netz verfolgt. Hüfte = wo die Linie an der Körperunterseite ankommt (liegt sie noch
   außen, wird sie nach innen gesetzt), Knie = höchster Punkt dazwischen (sonst 60 % der Linie), Fußgelenk = wo das Bein
   den Boden verlässt. Jeder Knochen hat eine echte Länge.
-- Rumpf und Kopf wie bisher (Arbeiterin: Werte aus ameise_skelett.py, Tochter: aus ihrem Längsprofil).
+- Rumpf und Kopf wie bisher (Arbeiterin: Werte aus ameise_skelett.py, Tochter: aus ihrem Längsprofil); mit "taille" in
+  rig.json endet der Rumpf (Brust) dort, und ein eigener Knochen "abdomen" trägt den Hinterleib.
 - Fühler (zwei Knochen: Schaft und Geißel) und Zangen (ein Knochen) an den Punkten aus rig.json, Kind des Kopfes.
 - Flügelstummel der Tochter wie in erztochter_skelett.py (je Seite ein Knochen).
 - Bindung: automatische Gewichtung, dann bekommen Fühler, Zangen und Stummel ihre Teile fest (Korridor um die Knochen).
@@ -163,6 +164,13 @@ else:
     eb["body"].tail = inv @ Vector((0, lo.y + L * 0.94, H * 0.30))
     eb["head"].head = inv @ Vector((0, lo.y + L * 0.32, H * 0.47))
     eb["head"].tail = inv @ Vector((0, lo.y + L * 0.10, H * 0.42))
+if CFG.get("taille"):
+    # Boris 27.11.: der Hinterleib soll sich eigen bewegen (heben, senken, pumpen): eigener Knochen ab der Taille,
+    # der Rumpfknochen trägt nur noch die Brust (Beine und Flügel hängen dort)
+    ende = arm.matrix_world @ eb["body"].tail
+    taille = Vector(CFG["taille"])
+    eb["body"].tail = inv @ taille
+    knochen("abdomen", eb["body"], taille, ende)
 kopf = eb["head"]
 for seite, (wurzel, spitze) in fluegel.items():
     knochen("wing_" + seite, body, wurzel, spitze)
@@ -202,9 +210,64 @@ def fest(name, ids):
     vg.remove([v.index for v in me.vertices if v.index not in menge])
 
 
+# Flügelstummel zuerst fest (sonst hielten Brustpunkte Reste der Wärme-Gewichtung der Flügel)
 for seite in fluegel:
     vz = 1 if seite == "L" else -1
     fest("wing_" + seite, [v.index for v in me.vertices if ist_fluegel(mw @ v.co) and (mw @ v.co).x * vz > 0])
+
+# Körperkern fest nach der Lage entlang der Längsachse (die Wärme-Gewichtung warf Kopf, Brust und Hinterleib durcheinander):
+# vor dem Hals der Kopf (bei der Tochter auch der ganze Knochenkamm), bis zur Taille die Brust, dahinter der Hinterleib,
+# an den Übergängen weich gemischt. Punkte, die an Beinen, Fühlern, Zangen oder Stummeln hängen, bleiben unberührt.
+hals_y = (arm.matrix_world @ arm.data.bones["head"].head_local).y
+taille_y = CFG["taille"][1] if CFG.get("taille") else None
+weich = 0.03 * S
+kern_namen = {"head", "body", "abdomen", "root"}
+gid = {g.name: g.index for g in obj.vertex_groups}
+name_von = {g.index: g.name for g in obj.vertex_groups}
+
+
+def anteile(p):
+    if CFG["rumpf"] != "ameise" and p.z > 0.62 * H and p.y < lo.y + 0.35 * L:
+        return {"head": 1.0}                    # Knochenkamm der Tochter
+    k = max(0.0, min(1.0, (p.y - (hals_y - weich)) / (2 * weich)))      # 0 = Kopf, 1 = Brust
+    w = {"head": 1.0 - k, "body": k}
+    if taille_y is not None:
+        a = max(0.0, min(1.0, (p.y - (taille_y - weich)) / (2 * weich)))  # 0 = Brust, 1 = Hinterleib
+        w = {"head": w["head"] * (1 - a), "body": w["body"] * (1 - a), "abdomen": a}
+    return {n: x for n, x in w.items() if x > 0.001}
+
+
+# Ein Bein behält nur Punkte nahe seiner Knochenkette; was die Wärme-Gewichtung ihm sonst gab (bei der Tochter ein Stück
+# Sattel über der Hüfte), gehört zum Körperkern
+kette = {}
+for b in arm.data.bones:
+    if b.name.startswith("leg_") and not b.name.endswith("_coxa"):    # die Hüfte liegt im Körper
+        kette.setdefault(b.name[:7], []).append((arm.matrix_world @ b.head_local, arm.matrix_world @ b.tail_local))
+BEIN_R = 0.05 * S
+
+
+def nahe_bein(p, bein):
+    for a, z in kette.get(bein, []):
+        q, t = intersect_point_line(p, a, z)
+        t = max(0.0, min(1.0, t))
+        if (p - (a + (z - a) * t)).length < BEIN_R:
+            return True
+    return False
+
+
+kern = 0
+for v in me.vertices:
+    p = mw @ v.co
+    stark = [name_von[g.group] for g in v.groups if g.weight > 0.25]
+    if any(n not in kern_namen and not (n.startswith("leg_") and not nahe_bein(p, n[:7])) for n in stark):
+        continue
+    for g in list(v.groups):
+        obj.vertex_groups[g.group].remove([v.index])
+    for n, x in anteile(mw @ v.co).items():
+        obj.vertex_groups[n].add([v.index], x, "REPLACE")
+    kern += 1
+print("KERN fest gewichtet", kern)
+
 
 # Fühler und Zangen: Startpunkte im engen Korridor um die abgelesene Linie, dann über das Netz wachsen, solange der Punkt
 # jenseits des Ansatzes liegt (der Kopf liegt dahinter) und nahe der Linie bleibt (die Teile sind gebogen)

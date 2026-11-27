@@ -143,6 +143,15 @@ bool AVaelSchuerfameise::PrepareLife()
 		Out.Out = FVector(FMath::Sign(Comp.GetLocation().X + KINDA_SMALL_NUMBER), 0.0f, 0.0f);
 	};
 	Find(TEXT("head"), nullptr, LifeHead);
+	Find(TEXT("abdomen"), nullptr, LifeAbdomen);
+	if (LifeAbdomen.Index != INDEX_NONE)
+	{
+		// The abdomen points backwards: from the chest to the waist
+		const int32 BodyIndex = RefSkeleton.FindBoneIndex(TEXT("body"));
+		const FVector Waist = FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, LifeAbdomen.Index).GetLocation();
+		const FVector Chest = BodyIndex != INDEX_NONE ? FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, BodyIndex).GetLocation() : Waist - FVector(0.0f, 1.0f, 0.0f);
+		LifeAbdomen.Dir = (Waist - Chest).GetSafeNormal2D();
+	}
 	Find(TEXT("antenna_L1"), TEXT("antenna_L2"), LifeAntenna[0]);
 	Find(TEXT("antenna_L2"), nullptr, LifeAntenna[1]);
 	Find(TEXT("antenna_R1"), TEXT("antenna_R2"), LifeAntenna[2]);
@@ -188,7 +197,26 @@ void AVaelSchuerfameise::PoseLife(float DeltaSeconds)
 	// Body: a slow breath and a little rocking on the legs
 	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
 	{
-		Legs->SetExtraBodyTilt(FRotator(1.6f * Reach * Wave(T * 1.7f), 0.0f, 1.1f * Reach * Wave(T * 1.15f + 2.0f)));
+		Legs->SetExtraBodyTilt(FRotator(2.6f * Reach * Wave(T * 1.5f), 0.0f, 1.7f * Reach * Wave(T * 1.05f + 2.0f)));
+	}
+
+	// Abdomen (Boris 27.11.: like bees and other insects): rises and sinks slowly, always pumps a little and now and then
+	// in a burst, swings to the side; raised in threat while it fights
+	if (LifeAbdomen.Index != INDEX_NONE)
+	{
+		PumpTimer -= DeltaSeconds * Pace;
+		if (PumpTimer <= 0.0f)
+		{
+			PumpTimer = bFight ? FMath::FRandRange(0.8f, 2.0f) : FMath::FRandRange(2.0f, 5.0f);
+			Pump = 0.0f;
+		}
+		Pump = FMath::Min(1.0f, Pump + DeltaSeconds * 0.9f);
+		const float Burst = FMath::Sin(Pump * UE_PI);
+		const float PumpDeg = (1.2f + 4.0f * Burst) * FMath::Sin(T * 10.0f);
+		const float RiseDeg = 5.5f * Wave(T * 0.45f + 0.8f) + (bFight ? 9.0f : 0.0f) + PumpDeg;
+		const float SwayDeg = 3.5f * Reach * Wave(T * 0.65f + 4.0f);
+		const FVector Side = FVector::CrossProduct(LifeAbdomen.Dir, FVector::UpVector).GetSafeNormal();
+		TurnLifeBone(LifeAbdomen, FQuat(FVector::UpVector, FMath::DegreesToRadians(SwayDeg)) * FQuat(Side, FMath::DegreesToRadians(RiseDeg)));
 	}
 
 	// Head: looks about, quicker and jerkier in a fight
