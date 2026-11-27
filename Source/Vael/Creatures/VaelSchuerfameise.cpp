@@ -11,6 +11,9 @@
 #include "Engine/StaticMesh.h"
 #include "EngineUtils.h"
 #include "Items/VaelMaterial.h"
+#include "Items/VaelMaterialDrop.h"
+#include "Magic/VaelDebrisBurst.h"
+#include "Player/VaelCharacter.h"
 #include "Items/VaelMaterialBag.h"
 #include "Magic/VaelGameplayTags.h"
 #include "Vael.h"
@@ -114,6 +117,16 @@ void AVaelSchuerfameise::Tick(float DeltaSeconds)
 	PoseLife(DeltaSeconds);
 }
 
+void AVaelSchuerfameise::BiteLunge()
+{
+	Lunge = 0.0f;
+	SnapMandibles();
+	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
+	{
+		Legs->AddBodyJolt(GetActorForwardVector() * 9.0f * GetActorScale3D().X - FVector(0.0f, 0.0f, 3.0f));
+	}
+}
+
 bool AVaelSchuerfameise::PrepareLife()
 {
 	UPoseableMeshComponent* AntMesh = GetFactoryMesh();
@@ -158,6 +171,13 @@ bool AVaelSchuerfameise::PrepareLife()
 	Find(TEXT("antenna_R2"), nullptr, LifeAntenna[3]);
 	Find(TEXT("mandible_L"), nullptr, LifeMandible[0]);
 	Find(TEXT("mandible_R"), nullptr, LifeMandible[1]);
+	if (LifeHead.Index != INDEX_NONE && LifeMandible[0].Index != INDEX_NONE)
+	{
+		// The head looks forward: from its joint to the mandibles (rotating about Dir x Up raises it)
+		const FVector Joint = FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, LifeHead.Index).GetLocation();
+		const FVector Jaw = FAnimationRuntime::GetComponentSpaceTransformRefPose(RefSkeleton, LifeMandible[0].Index).GetLocation();
+		LifeHead.Dir = (Jaw - Joint).GetSafeNormal2D();
+	}
 	return true;
 }
 
@@ -195,9 +215,17 @@ void AVaelSchuerfameise::PoseLife(float DeltaSeconds)
 	auto Wave = [](float X) { return FMath::Sin(X) * 0.6f + FMath::Sin(X * 2.31f + 1.7f) * 0.3f + FMath::Sin(X * 4.13f + 0.4f) * 0.1f; };
 
 	// Body: a slow breath and a little rocking on the legs
+	Lunge = FMath::Min(1.0f, Lunge + DeltaSeconds * 3.0f);
+	const float LungeShow = FMath::Sin(FMath::Min(Lunge * 1.6f, 1.0f) * UE_PI);   // fast out, slower back
 	if (UVaelLegIKComponent* Legs = GetFactoryLegs())
 	{
-		Legs->SetExtraBodyTilt(FRotator(2.6f * Reach * Wave(T * 1.5f), 0.0f, 1.7f * Reach * Wave(T * 1.05f + 2.0f)));
+		// Breath and rocking; the front dips with a bite and when crouched for a leap
+		Legs->SetExtraBodyTilt(FRotator(2.6f * Reach * Wave(T * 1.5f) - 6.0f * LungeShow - 9.0f * Crouch, 0.0f, 1.7f * Reach * Wave(T * 1.05f + 2.0f)));
+		if (Crouch > 0.001f || bCrouchShown)
+		{
+			Legs->SetCurl(0.35f * Crouch);
+			bCrouchShown = Crouch > 0.001f;
+		}
 	}
 
 	// Abdomen (Boris 27.11.: like bees and other insects): rises and sinks slowly, always pumps a little and now and then
@@ -225,7 +253,7 @@ void AVaelSchuerfameise::PoseLife(float DeltaSeconds)
 	{
 		const FVector Side = FVector::CrossProduct(LifeHead.Dir, Up).GetSafeNormal();
 		const FQuat Look = FQuat(Up, FMath::DegreesToRadians(7.0f * Reach * Wave(T * 0.45f)))
-			* FQuat(Side, FMath::DegreesToRadians(4.0f * Reach * Wave(T * 0.6f + 3.0f)));
+			* FQuat(Side, FMath::DegreesToRadians(4.0f * Reach * Wave(T * 0.6f + 3.0f) - 16.0f * LungeShow));
 		TurnLifeBone(LifeHead, Look);
 	}
 
@@ -482,27 +510,74 @@ bool AVaelSchuerfameise::BreakCrystal()
 	}
 	UStaticMeshComponent* Crystal = Whole[FMath::RandRange(0, Whole.Num() - 1)];
 	const FBoxSphereBounds Bounds = Crystal->Bounds;
+	UStaticMesh* PieceMesh = Crystal->GetStaticMesh();
+	const float Length = 2.0f * Bounds.SphereRadius;
 	Crystal->SetVisibility(false);
-	ThrowShards(Bounds.Origin, 2, FMath::Clamp(Bounds.SphereRadius * 0.3f, 5.0f, 12.0f));
 
+	// It crumbles: a few pieces of its own ore, a quarter to half its length, tumble off and lie still for a moment
+	FVaelDebris Crumbs;
+	Crumbs.Meshes = {PieceMesh};
+	Crumbs.Count = 4;
+	Crumbs.Spread = Length * 0.3f;
+	Crumbs.Speed = 220.0f;
+	Crumbs.Lift = 260.0f;
+	Crumbs.Lifetime = 1.4f;
+	Crumbs.MinSize = Length * 0.25f;
+	Crumbs.MaxSize = Length * 0.45f;
+	AVaelDebrisBurst::Spawn(this, Bounds.Origin, Crumbs);
+
+	// Sometimes the crystal itself falls whole: it lies where it fell, every player can pick up their own
 	if (FMath::FRand() < GetData<UVaelSchuerfameiseData>()->BreakLootChance)
 	{
-		UVaelMaterialBag::GiveToGroup(this, {FVaelLootEntry(*VaelOre::GetMaterialPath(Ore), 1.0f)});
+		DropOrePieces(Ore, Bounds.Origin, 1, PieceMesh, FMath::Clamp(Length, 8.0f, 22.0f));
 	}
 	return true;
 }
 
 void AVaelSchuerfameise::ThrowShards(const FVector& From, int32 Count, float Size)
 {
-	for (int32 Index = 0; Index < Count; ++Index)
+	// Pieces of its ore burst from a place, from half to the full size
+	FVaelDebris Burst;
+	for (const FVaelAmeisenKristall& Kristall : GetData<UVaelSchuerfameiseData>()->Kristalle)
 	{
-		const FVector2D Away = FMath::RandPointInCircle(1.0f).GetSafeNormal() * FMath::FRandRange(60.0f, 160.0f);
-		FVector Ground;
-		if (!AVaelCreature::FindGround(GetWorld(), From + FVector(Away, 0.0f), Ground))
+		if (Kristall.Ore == Ore)
 		{
-			Ground = From + FVector(Away, -100.0f);
+			if (UStaticMesh* PieceMesh = Kristall.Mesh.LoadSynchronous())
+			{
+				Burst.Meshes.Add(PieceMesh);
+			}
 		}
-		AVaelArcShot::Lob(GetWorld(), From, Ground, FMath::FRandRange(0.4f, 0.6f), FMath::FRandRange(30.0f, 70.0f), VaelOre::GetColor(Ore), Size);
+	}
+	Burst.Count = Count;
+	Burst.Spread = Size;
+	Burst.Speed = 380.0f;
+	Burst.Lift = 420.0f;
+	Burst.Lifetime = 1.6f;
+	Burst.MinSize = Size * 0.5f;
+	Burst.MaxSize = Size;
+	AVaelDebrisBurst::Spawn(this, From, Burst);
+}
+
+void AVaelSchuerfameise::DropOrePieces(FName InOre, const FVector& Where, int32 Count, UStaticMesh* Model, float Size)
+{
+	const UVaelMaterial* OreMaterial = LoadObject<UVaelMaterial>(nullptr, *VaelOre::GetMaterialPath(InOre));
+	if (OreMaterial == nullptr || Count <= 0)
+	{
+		return;
+	}
+	// One piece per player in a small ring where it fell
+	int32 PlayerIndex = 0;
+	const float Turn = FMath::FRandRange(0.0f, UE_TWO_PI);
+	for (FConstPlayerControllerIterator It = GetWorld()->GetPlayerControllerIterator(); It; ++It)
+	{
+		AVaelCharacter* Player = It->Get() != nullptr ? It->Get()->GetPawn<AVaelCharacter>() : nullptr;
+		if (Player == nullptr)
+		{
+			continue;
+		}
+		const float Angle = Turn + PlayerIndex++ * UE_TWO_PI / 4.0f;
+		const FVector Spot = FVector(Where.X, Where.Y, Where.Z) + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * FMath::FRandRange(50.0f, 100.0f);
+		AVaelMaterialDrop::DropMaterialAs(GetWorld(), Spot, OreMaterial, Count, Player, Model, Size);
 	}
 }
 
@@ -562,7 +637,7 @@ void AVaelSchuerfameise::TickBehavior(float DeltaSeconds)
 				{
 					BiteCooldown = Data->BiteInterval;
 					HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
-					SnapMandibles();
+					BiteLunge();
 				}
 			}
 			return;

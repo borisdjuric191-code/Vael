@@ -205,6 +205,9 @@ protected:
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
 	virtual void TickBehavior(float DeltaSeconds) override;
 
+	/** Crystal pieces of an ore (only the most elongated ones if asked) */
+	TArray<UStaticMesh*> GetOreMeshes(FName InOre, bool bLongOnly) const;
+
 	/** Spawns her escort of workers (once) */
 	void SpawnEscort();
 
@@ -277,6 +280,8 @@ private:
 	float WingShake = 0.0f;
 	float WingTime = 0.0f;
 	float FlutterTimer = 3.0f;
+	float WingSlam = 0.0f;
+	float ResonanceSpark = 0.0f;
 	float Flutter = 1.0f;
 
 	float EyeTime = 0.0f;

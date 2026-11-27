@@ -91,6 +91,33 @@ AVaelMaterialDrop* AVaelMaterialDrop::DropMaterial(UWorld* World, const FVector&
 	return Drop;
 }
 
+AVaelMaterialDrop* AVaelMaterialDrop::DropMaterialAs(UWorld* World, const FVector& Location, const UVaelMaterial* InMaterial, int32 InCount, AVaelCharacter* InOwner,
+	UStaticMesh* InModel, float InSize)
+{
+	if (World == nullptr || InMaterial == nullptr || InCount <= 0 || InOwner == nullptr)
+	{
+		return nullptr;
+	}
+	FVector Ground = Location;
+	FHitResult GroundHit;
+	if (VaelGround::TraceGround(World, Location + FVector(0.0f, 0.0f, 80.0f), Location - FVector(0.0f, 0.0f, 500.0f), GroundHit, nullptr))
+	{
+		Ground = GroundHit.Location;
+	}
+	const FTransform SpawnTransform(FRotator(0.0f, FMath::FRandRange(0.0f, 360.0f), 0.0f), Ground + FVector(0.0f, 0.0f, 1.0f));
+	AVaelMaterialDrop* Drop = World->SpawnActorDeferred<AVaelMaterialDrop>(AVaelMaterialDrop::StaticClass(), SpawnTransform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+	if (Drop != nullptr)
+	{
+		Drop->Material = InMaterial;
+		Drop->Count = InCount;
+		Drop->OwningPlayer = InOwner;
+		Drop->ModelOverride = InModel;
+		Drop->ModelSize = InSize;
+		Drop->FinishSpawning(SpawnTransform);
+	}
+	return Drop;
+}
+
 void AVaelMaterialDrop::BeginPlay()
 {
 	Super::BeginPlay();
@@ -125,8 +152,20 @@ void AVaelMaterialDrop::BeginPlay()
 		}
 	};
 
-	Dress(Model, Material->Mesh, Material->MeshMaterial);
-	Dress(InnerModel, Material->InnerMesh, Material->InnerMaterial);
+	if (ModelOverride != nullptr)
+	{
+		// Its own model: lies on its side, sized by its whole length, in its own material
+		Model->SetStaticMesh(ModelOverride);
+		Model->SetVisibility(true);
+		Model->SetRelativeScale3D(FVector(ModelSize / FMath::Max(1.0f, 2.0f * ModelOverride->GetBounds().SphereRadius)));
+		Model->SetRelativeRotation(FRotator(FMath::FRandRange(60.0f, 90.0f), 0.0f, 0.0f));
+		InnerModel->SetVisibility(false);
+	}
+	else
+	{
+		Dress(Model, Material->Mesh, Material->MeshMaterial);
+		Dress(InnerModel, Material->InnerMesh, Material->InnerMaterial);
+	}
 
 	GlowIntensity = DropGlowIntensity * (1.0f + 0.35f * static_cast<int32>(Material->Rarity));
 	Glow->SetLightColor(Material->Color);

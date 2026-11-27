@@ -215,13 +215,22 @@ protected:
 	/** Breaks one crystal out of the shell (not those of the wing stumps): it flies off, the setting stays empty, maybe drops ore */
 	bool BreakCrystal();
 
-	/** Throws a few shards of an ore from a place to the ground around it (look only) */
+	/** Pieces of its ore burst from a place and tumble to the ground (look only); Size = the largest, cm */
 	void ThrowShards(const FVector& From, int32 Count, float Size);
+
+	/** Leaves pieces of an ore on the ground that every player can pick up: one model per player, this many of the ore */
+	void DropOrePieces(FName InOre, const FVector& Where, int32 Count, UStaticMesh* Model, float Size);
 
 	virtual void Tick(float DeltaSeconds) override;
 
 	/** The mandibles snap shut once (a bite, or now and then on their own) */
 	void SnapMandibles() { MandibleSnap = 0.0f; }
+
+	/** A bite: the head lunges forward and down, the body jerks after it, the mandibles snap */
+	void BiteLunge();
+
+	/** 0..1: crouched low before a leap (the legs fold in a little, the front dips) */
+	float Crouch = 0.0f;
 
 	/** Life between the steps (Boris 27.11.: not a stiff model that only moves its legs): the body sways and breathes,
 	 *  the head looks about, the feelers swing and now and then probe ahead, the mandibles tremble and snap; all faster
@@ -265,6 +274,8 @@ private:
 	float ProbeTimer[2] = {2.0f, 4.0f};
 	float Probe[2] = {1.0f, 1.0f};
 	float MandibleTimer = 2.0f;
+	float Lunge = 1.0f;
+	bool bCrouchShown = false;
 	float MandibleSnap = 1.0f;
 
 	float AngerTime = 0.0f;

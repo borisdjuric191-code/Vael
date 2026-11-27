@@ -6,6 +6,8 @@
 #include "GameFramework/Actor.h"
 #include "VaelMaterialDrop.generated.h"
 
+class UStaticMesh;
+
 class AVaelCharacter;
 class UPointLightComponent;
 class UStaticMeshComponent;
@@ -44,6 +46,11 @@ public:
 	/** Drops a number of a material on the ground near a location for one player */
 	static AVaelMaterialDrop* DropMaterial(UWorld* World, const FVector& Location, const UVaelMaterial* InMaterial, int32 InCount, AVaelCharacter* InOwner);
 
+	/** The same with its own model instead of the material's, in its own material, this many cm long (a broken-off crystal
+	 *  of an ore that lies where it fell, for example) */
+	static AVaelMaterialDrop* DropMaterialAs(UWorld* World, const FVector& Location, const UVaelMaterial* InMaterial, int32 InCount, AVaelCharacter* InOwner,
+		UStaticMesh* InModel, float InSize);
+
 	virtual void Tick(float DeltaSeconds) override;
 
 	const UVaelMaterial* GetMaterial() const { return Material; }
@@ -58,6 +65,12 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<const UVaelMaterial> Material;
+
+	/** Own model and its length in cm, instead of the material's model */
+	UPROPERTY()
+	TObjectPtr<UStaticMesh> ModelOverride;
+
+	float ModelSize = 0.0f;
 
 	int32 Count = 1;
 

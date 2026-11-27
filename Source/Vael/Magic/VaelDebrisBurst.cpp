@@ -98,6 +98,15 @@ void AVaelDebrisBurst::Build(const FVaelDebris& InDebris)
 			Piece->EmptyOverrideMaterials();
 		}
 
+		// A real piece (a crystal of an ore) keeps its own material and is sized by its whole length
+		UStaticMesh* RealMesh = Debris.Meshes.IsEmpty() ? nullptr : Debris.Meshes[FMath::RandRange(0, Debris.Meshes.Num() - 1)];
+		if (RealMesh != nullptr)
+		{
+			Piece->SetStaticMesh(RealMesh);
+			Piece->EmptyOverrideMaterials();
+			Piece->SetCastShadow(true);
+		}
+
 		const float Angle = FMath::FRandRange(0.0f, UE_TWO_PI);
 		const FVector Out(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f);
 		const float Share = FMath::FRandRange(0.5f, 1.0f);
@@ -106,7 +115,8 @@ void AVaelDebrisBurst::Build(const FVaelDebris& InDebris)
 		Origins.Add(Center + Out * Debris.Spread * FMath::Sqrt(FMath::FRand()));
 		Velocities.Add(Out * Debris.Speed * Share + FVector(0.0f, 0.0f, Debris.Lift * FMath::FRandRange(0.5f, 1.0f)));
 		Tumbles.Add(FRotator(FMath::FRandRange(-720.0f, 720.0f), FMath::FRandRange(-540.0f, 540.0f), 0.0f));
-		Sizes.Add(Size / (bRock && RockMesh != nullptr ? DebrisRockMeshSize : DebrisSphereSize));
+		Sizes.Add(RealMesh != nullptr ? Size / FMath::Max(1.0f, 2.0f * RealMesh->GetBounds().SphereRadius)
+			: Size / (bRock && RockMesh != nullptr ? DebrisRockMeshSize : DebrisSphereSize));
 		Delays.Add(FMath::FRandRange(0.0f, DebrisLatestStart));
 	}
 

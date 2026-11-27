@@ -9,6 +9,10 @@
 #include "Components/PoseableMeshComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Creatures/VaelKobold.h"
+#include "Creatures/VaelLegIKComponent.h"
+#include "Creatures/VaelOreShard.h"
+#include "Engine/StaticMesh.h"
+#include "Magic/VaelDebrisBurst.h"
 #include "Creatures/VaelPoisonPuddle.h"
 #include "EngineUtils.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -345,11 +349,29 @@ void AVaelErztochter::Tick(float DeltaSeconds)
 		const float Alpha = FMath::Clamp(ActionTime / Data->JumpFlight, 0.0f, 1.0f);
 		const float Height = FMath::Sin(Alpha * UE_PI) * FMath::Max(180.0f, FVector::Dist2D(JumpStart, JumpEnd) * 0.35f);
 		SetActorLocation(FMath::Lerp(JumpStart, JumpEnd, Alpha) + FVector(0.0f, 0.0f, Height), false, nullptr, ETeleportType::TeleportPhysics);
+		Crouch = FMath::Max(0.0f, Crouch - DeltaSeconds * 4.0f);
 		if (Alpha >= 1.0f)
 		{
 			GetCharacterMovement()->SetMovementMode(MOVE_Walking);
 			Action = EAction::None;
 			WingLift = 0.0f;
+			// She lands hard: rock and pieces of her ore fly up, the body sinks in and springs back
+			const FVector Ground = GetActorLocation() - FVector(0.0f, 0.0f, GetCapsuleComponent()->GetScaledCapsuleHalfHeight());
+			FVaelDebris Rocks;
+			Rocks.Count = 14;
+			Rocks.Spread = 120.0f;
+			Rocks.Speed = 520.0f;
+			Rocks.Lift = 420.0f;
+			Rocks.Lifetime = 1.1f;
+			Rocks.MinSize = 7.0f;
+			Rocks.MaxSize = 16.0f;
+			Rocks.RockShare = 0.35f;
+			AVaelDebrisBurst::Spawn(this, Ground + FVector(0.0f, 0.0f, 10.0f), Rocks);
+			ThrowShards(Ground + FVector(0.0f, 0.0f, 40.0f), 5, 16.0f);
+			if (UVaelLegIKComponent* Legs = GetFactoryLegs())
+			{
+				Legs->AddBodyJolt(FVector(0.0f, 0.0f, -35.0f));
+			}
 		}
 	}
 	PoseWings(DeltaSeconds);
@@ -388,6 +410,35 @@ void AVaelErztochter::TickBehavior(float DeltaSeconds)
 		WingShake = 1.0f;
 		WingLift = FMath::Min(1.0f, WingLift + DeltaSeconds * 3.0f);
 		EyeFlare = FMath::Max(EyeFlare, 0.35f);
+		ResonanceSpark -= DeltaSeconds;
+		if (ResonanceSpark <= 0.0f && GetFactoryMesh() != nullptr)
+		{
+			// The humming stumps throw off sparks in the light of her lead ore
+			ResonanceSpark = 0.18f;
+			FName Lead, Companion;
+			GetPairOres(Pair, Lead, Companion);
+			for (int32 Side = 0; Side < 2; ++Side)
+			{
+				if (bStumpBroken[Side])
+				{
+					continue;
+				}
+				FVaelDebris Sparks;
+				Sparks.Count = 5;
+				Sparks.Spread = 30.0f;
+				Sparks.Speed = 260.0f;
+				Sparks.Lift = 220.0f;
+				Sparks.Gravity = -150.0f;
+				Sparks.Lifetime = 0.6f;
+				Sparks.MinSize = 3.0f;
+				Sparks.MaxSize = 6.0f;
+				Sparks.Color = VaelOre::GetColor(Lead);
+				Sparks.Glow = 8.0f;
+				Sparks.bLandOnGround = false;
+				const FVector Root = GetFactoryMesh()->GetBoneLocationByName(Side == 0 ? TEXT("wing_L") : TEXT("wing_R"), EBoneSpaces::WorldSpace);
+				AVaelDebrisBurst::Spawn(this, Root + FVector(0.0f, 0.0f, 30.0f), Sparks);
+			}
+		}
 		if (CastDamage >= GetMaxHealth() * Data->ResonanceInterrupt)
 		{
 			// Broken off: she stumbles and the call fails
@@ -415,6 +466,8 @@ void AVaelErztochter::TickBehavior(float DeltaSeconds)
 		ActionTime += DeltaSeconds;
 		WingLift = FMath::Min(1.0f, WingLift + DeltaSeconds * 2.0f);
 		WingShake = 0.7f;
+		// She sinks low on her legs before she springs
+		Crouch = FMath::Min(1.0f, ActionTime / FMath::Max(0.1f, Data->JumpWindup * 0.7f));
 		if (ActionTime >= Data->JumpWindup)
 		{
 			Action = EAction::JumpAir;
@@ -473,9 +526,30 @@ void AVaelErztochter::TickBehavior(float DeltaSeconds)
 		{
 			BiteTimer = Data->BiteInterval * (IsRaging() ? Data->RageBiteInterval : 1.0f);
 			HitPlayer(Target, Data->BiteDamage, EVaelElement::Earth);
-			SnapMandibles();
+			BiteLunge();
 		}
 	}
+}
+
+TArray<UStaticMesh*> AVaelErztochter::GetOreMeshes(FName InOre, bool bLongOnly) const
+{
+	TArray<const FVaelAmeisenKristall*> Pieces;
+	for (const FVaelAmeisenKristall& Kristall : GetData<UVaelErztochterData>()->Kristalle)
+	{
+		if (Kristall.Ore == InOre)
+		{
+			Pieces.Add(&Kristall);
+		}
+	}
+	TArray<UStaticMesh*> Meshes;
+	for (const FVaelAmeisenKristall* Piece : bLongOnly ? LongPieces(Pieces) : Pieces)
+	{
+		if (UStaticMesh* PieceMesh = Piece->Mesh.LoadSynchronous())
+		{
+			Meshes.Add(PieceMesh);
+		}
+	}
+	return Meshes;
 }
 
 void AVaelErztochter::SpawnEscort()
@@ -529,6 +603,26 @@ void AVaelErztochter::FinishResonance()
 	Action = EAction::None;
 	WingShake = 0.0f;
 	EyeFlare = 1.0f;
+	{
+		// The call goes out as a ring of light in her lead ore
+		FName Lead, Companion;
+		GetPairOres(Pair, Lead, Companion);
+		FVaelDebris Ring;
+		Ring.bSoft = true;
+		Ring.Count = 28;
+		Ring.Spread = 80.0f;
+		Ring.Speed = 1300.0f;
+		Ring.Lift = 0.0f;
+		Ring.Gravity = 0.0f;
+		Ring.Drag = 2.0f;
+		Ring.Lifetime = 0.7f;
+		Ring.MinSize = 35.0f;
+		Ring.MaxSize = 60.0f;
+		Ring.Color = VaelOre::GetColor(Lead);
+		Ring.Glow = 3.0f;
+		Ring.bLandOnGround = false;
+		AVaelDebrisBurst::Spawn(this, GetActorLocation() - FVector(0.0f, 0.0f, 40.0f), Ring);
+	}
 
 	// Her colony hears her: the ants of her ore around join the fight, a few more come out of the rock
 	for (TActorIterator<AVaelSchuerfameise> It(GetWorld()); It; ++It)
@@ -625,6 +719,9 @@ void AVaelErztochter::FireShards()
 	const bool bRing = (++ShardCasts % 3) == 0;
 	const FVector From = GetActorLocation() + FVector(0.0f, 0.0f, 150.0f * GetActorScale3D().Z);
 	constexpr float Flight = 0.55f;
+	const TArray<UStaticMesh*> ShardMeshes = GetOreMeshes(Companion, true);
+	const EVaelShardImpact Impact = Pair == 1 ? EVaelShardImpact::SulphurSparks : Pair == 2 ? EVaelShardImpact::RustSalt
+		: Pair == 3 ? EVaelShardImpact::Lightning : Pair == 4 ? EVaelShardImpact::Quicksilver : EVaelShardImpact::Ribs;
 	for (int32 Index = 0; Index < Count; ++Index)
 	{
 		const float Angle = bRing ? 360.0f * Index / Count
@@ -636,7 +733,16 @@ void AVaelErztochter::FireShards()
 		{
 			continue;
 		}
-		AVaelArcShot::Lob(GetWorld(), From, Ground, Flight, 140.0f, Color, 20.0f);
+		if (!ShardMeshes.IsEmpty())
+		{
+			// Real crystals of her companion ore, torn from the stumps, spinning through the air
+			AVaelOreShard::Throw(GetWorld(), From + ShardAim * 40.0f, Ground, Flight, 140.0f, ShardMeshes[FMath::RandRange(0, ShardMeshes.Num() - 1)],
+				FMath::FRandRange(24.0f, 34.0f), Impact, Color);
+		}
+		else
+		{
+			AVaelArcShot::Lob(GetWorld(), From, Ground, Flight, 140.0f, Color, 20.0f);
+		}
 		AVaelGroundStrike::SpawnStrike(this, Ground, Hit, Data->ShardRadius, Flight, Color);
 		if (Pair == 4 && Index % 3 == 1)
 		{
@@ -644,6 +750,8 @@ void AVaelErztochter::FireShards()
 		}
 	}
 	WingShake = 1.0f;
+	// The throw is a hard beat of the stumps: down from high up
+	WingSlam = 1.0f;
 }
 
 void AVaelErztochter::StartJump(const AActor* Target)
@@ -679,15 +787,36 @@ void AVaelErztochter::BreakStump(int32 Side)
 	bStumpBroken[Side] = true;
 	const FName Bone = Side == 0 ? TEXT("wing_L") : TEXT("wing_R");
 	UPoseableMeshComponent* QueenMesh = GetFactoryMesh();
-	if (QueenMesh != nullptr)
-	{
-		ThrowShards(QueenMesh->GetBoneLocationByName(Bone, EBoneSpaces::WorldSpace), 6, 12.0f);
-	}
-
-	// The crust of the stump is ore: every player gets some
 	FName Lead, Companion;
 	GetPairOres(Pair, Lead, Companion);
-	UVaelMaterialBag::GiveToGroup(this, {FVaelLootEntry(*VaelOre::GetMaterialPath(Companion), 1.0f, 2, 3), FVaelLootEntry(*VaelOre::GetMaterialPath(Lead), 0.5f)});
+	const FVector Root = QueenMesh != nullptr ? QueenMesh->GetBoneLocationByName(Bone, EBoneSpaces::WorldSpace) : GetActorLocation();
+	const TArray<UStaticMesh*> Crust = GetOreMeshes(Companion, false);
+
+	// The stump bursts: big and small pieces of its crust tumble down
+	FVaelDebris Burst;
+	Burst.Meshes = Crust;
+	Burst.Count = 16;
+	Burst.Spread = 60.0f;
+	Burst.Speed = 420.0f;
+	Burst.Lift = 380.0f;
+	Burst.Lifetime = 1.8f;
+	Burst.MinSize = 8.0f;
+	Burst.MaxSize = 26.0f;
+	AVaelDebrisBurst::Spawn(this, Root, Burst);
+
+	// The crust of the stump is ore: pieces lie on the ground for every player to pick up
+	if (!Crust.IsEmpty())
+	{
+		DropOrePieces(Companion, Root, FMath::RandRange(2, 3), Crust[FMath::RandRange(0, Crust.Num() - 1)], 24.0f);
+	}
+	if (FMath::FRand() < 0.5f)
+	{
+		const TArray<UStaticMesh*> LeadMeshes = GetOreMeshes(Lead, false);
+		if (!LeadMeshes.IsEmpty())
+		{
+			DropOrePieces(Lead, Root, 1, LeadMeshes[FMath::RandRange(0, LeadMeshes.Num() - 1)], 18.0f);
+		}
+	}
 
 	// A call or leap in progress fails
 	if (Action == EAction::Resonance || Action == EAction::Shards || Action == EAction::JumpWindup)
@@ -721,7 +850,8 @@ void AVaelErztochter::PoseWings(float DeltaSeconds)
 	Flutter = FMath::Min(1.0f, Flutter + DeltaSeconds * 2.8f);
 	const float Buzz = FMath::Sin(Flutter * UE_PI);
 	const float ShownShake = FMath::Max(WingShake, 0.7f * Buzz);
-	const float ShownLift = FMath::Max(WingLift, 0.15f * Buzz) + 0.03f * FMath::Sin(WingTime * 1.6f);
+	WingSlam = FMath::Max(0.0f, WingSlam - DeltaSeconds * 3.0f);
+	const float ShownLift = FMath::Max(WingLift, 0.15f * Buzz) + 0.03f * FMath::Sin(WingTime * 1.6f) - 1.3f * FMath::Sin(WingSlam * UE_PI);
 	const FReferenceSkeleton& RefSkeleton = QueenMesh->GetSkinnedAsset()->GetRefSkeleton();
 	for (int32 Side = 0; Side < 2; ++Side)
 	{

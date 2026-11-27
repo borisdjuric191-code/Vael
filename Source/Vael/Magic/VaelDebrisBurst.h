@@ -6,6 +6,7 @@
 #include "GameFramework/Actor.h"
 #include "VaelDebrisBurst.generated.h"
 
+class UStaticMesh;
 class UStaticMeshComponent;
 
 /** How a burst of debris looks and flies */
@@ -45,6 +46,10 @@ struct FVaelDebris
 
 	/** True if the pieces stop on the ground below the burst instead of falling through it */
 	bool bLandOnGround = true;
+
+	/** Real pieces to throw instead of spheres, like the crystals of an ore; each keeps its own material and is sized by
+	 *  its whole length (MinSize..MaxSize). The meshes must stay loaded while the burst lasts (assets do). */
+	TArray<UStaticMesh*> Meshes;
 };
 
 /**
