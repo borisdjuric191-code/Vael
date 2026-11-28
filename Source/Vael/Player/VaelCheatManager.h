@@ -151,6 +151,11 @@ public:
 	UFUNCTION(Exec)
 	void VaelTodAlle();
 
+	/** Picture against smoothness, for weaker graphics cards: hoch (as made, default), mittel (80 % render size, upscaled by TSR,
+	 *  shadows and global light one step down), niedrig (65 %, two steps down). Example: VaelGrafik mittel */
+	UFUNCTION(Exec)
+	void VaelGrafik(const FString& Stufe = TEXT("hoch"));
+
 	/** Looks every half second for scene components with a broken transform (NaN, zero scale, far out) and logs each once */
 	UFUNCTION(Exec)
 	void VaelNaNSuche();

@@ -1580,6 +1580,26 @@ void UVaelCheatManager::VaelNaNSuche()
 	}), 0.5f);
 }
 
+void UVaelCheatManager::VaelGrafik(const FString& Stufe)
+{
+	const FString Level = Stufe.ToLower();
+	const int32 Step = Level.StartsWith(TEXT("n")) ? 2 : Level.StartsWith(TEXT("m")) ? 1 : 0;
+	const TCHAR* Percent[] = { TEXT("100"), TEXT("80"), TEXT("65") };
+	const TCHAR* Quality[] = { TEXT("3"), TEXT("2"), TEXT("1") };
+	const auto Set = [](const TCHAR* Name, const TCHAR* Value)
+	{
+		if (IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(Name))
+		{
+			Variable->Set(Value, ECVF_SetByConsole);
+		}
+	};
+	Set(TEXT("r.ScreenPercentage"), Percent[Step]);
+	Set(TEXT("sg.ShadowQuality"), Quality[Step]);
+	Set(TEXT("sg.GlobalIlluminationQuality"), Quality[Step]);
+	Set(TEXT("sg.ReflectionQuality"), Quality[Step]);
+	UE_LOG(LogVael, Display, TEXT("VaelGrafik: %s (render size %s %%, shadows/light/reflections %s)"), Step == 0 ? TEXT("hoch") : Step == 1 ? TEXT("mittel") : TEXT("niedrig"), Percent[Step], Quality[Step]);
+}
+
 void UVaelCheatManager::VaelTodAlle()
 {
 	static const TCHAR* Kinds[] = { TEXT("Glutkriecher"), TEXT("Aschharpyie"), TEXT("Aelteste"), TEXT("Prediger"), TEXT("Markprediger"),
@@ -1655,7 +1675,9 @@ void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int
 			// close beside the player, in the picture of the camera
 			const float Angle = Fresh.Num() * 50.0f - 50.0f;
 			const FVector Side = FVector(1.0f, 0.0f, 0.0f).RotateAngleAxis(Angle, FVector::UpVector);
-			It->SetActorLocation(Player->GetActorLocation() + Side * 380.0f + FVector(0.0f, 0.0f, It->GetSimpleCollisionHalfHeight() - Player->GetSimpleCollisionHalfHeight() + 10.0f),
+			// fliers hang in the air, so their fall from the sky shows
+			const bool bFlier = It->GetCharacterMovement() != nullptr && It->GetCharacterMovement()->IsFlying();
+			It->SetActorLocation(Player->GetActorLocation() + Side * 380.0f + FVector(0.0f, 0.0f, It->GetSimpleCollisionHalfHeight() - Player->GetSimpleCollisionHalfHeight() + (bFlier ? 380.0f : 10.0f)),
 				false, nullptr, ETeleportType::TeleportPhysics);
 			Fresh.Add(*It);
 		}

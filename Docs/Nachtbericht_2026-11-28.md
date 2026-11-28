@@ -40,7 +40,7 @@ Ziel der Nacht (Boris): Wasser im Eisenschlund, Höhlen weniger perfekt, Ruckeln
 ## Getestet
 - Kompiliert ohne Fehler, Smoke-Test ohne neue Fehler (ein alter Zähler bei Floromant-Paaren meldet wie vorher FAILED).
 - Lauftests durch alle Höhlen in L_Vael: siehe Tabelle unten.
-- Alle acht Todesarten per Bildserie angeschaut (Wegschleudern, Verkohlen, Zerspringen, Zerquetschen, Blitz, Nid; Umkippen und Absturz im Test aller Arten).
+- Alle acht Todesarten per Bildserie angeschaut: Wegschleudern, Verkohlen, Zerspringen, Zerquetschen, Blitz (nach der Funken-Änderung), Nid, Umkippen (Prediger), Absturz (Harpyien aus der Luft).
 - Testpunkte stehen auch im Aufgaben-Dokument unter „Testrunde am PC“.
 
 | Lauftest in L_Vael | Ergebnis |
@@ -62,6 +62,7 @@ Ziel der Nacht (Boris): Wasser im Eisenschlund, Höhlen weniger perfekt, Ruckeln
 5. **Höhlenboden und Wasser** ansehen: Olmgrotte (Wasser), Rostschwamm-Höhle (Platten, Kiesel, Pfützen), Tropfen unter Stalaktiten.
 
 ## Offen / Hinweise
+- **Grafikstufe zum Ausprobieren:** `VaelGrafik hoch|mittel|niedrig` in der Konsole (Standard bleibt hoch). Kampftest: hoch 54 fps, mittel 53 fps, niedrig 64 fps (Grafikkarte 17 → 11 ms pro Bild). Wenn dir eine Stufe gefällt, mache ich sie zum Standard.
 - **Entscheidung für dich:** Der Rest der Bildzeit ist jetzt die Grafik selbst (Lumen-Licht, TSR-Kantenglättung, virtuelle Schatten, Hardware-Raytracing ~1,2 ms pro Bild). Wenn es auf deinem Bildschirm noch nicht flüssig genug ist, könnte ich Hardware-Raytracing abschalten oder eine Grafikstufe einbauen; das ändert die Optik leicht und erfordert einmal langes Shader-Kompilieren, deshalb nicht ohne dich.
 - Der Levelstart dauert im Editor-Build ein paar Sekunden länger (Effekte werden vorbereitet); in einem fertig gepackten Spiel fällt das weg.
 - Die Zielhilfe ist bewusst kräftig. Falls sie zu stark ist: Kegel und Drehgeschwindigkeit in `AVaelSpellProjectile::TickAimAssist`.
