@@ -132,6 +132,9 @@ public:
 	/** Called by the attributes right before damage is taken off the health, with the final amount and the tags of the damage */
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) {}
 
+	/** Called with the one who dealt the damage, right before OnDamageTaken */
+	virtual void NoteDamageSource(const AActor* Source) {}
+
 protected:
 
 	/** Called whenever the health changes */

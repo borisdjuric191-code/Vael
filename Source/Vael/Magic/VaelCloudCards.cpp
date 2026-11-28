@@ -93,7 +93,7 @@ void UVaelCloudCardsComponent::Commit()
 		const FQuat Turn = FQuat(Facing, FMath::DegreesToRadians(Card.Roll)) * FRotationMatrix::MakeFromZ(Facing).ToQuat();
 		Transforms[Index] = FTransform(Turn, World, FVector(Card.Size / CloudPlaneSize));
 	}
-	Instances->BatchUpdateInstancesTransforms(0, Transforms, true, true, true);
+	Instances->BatchUpdateInstancesTransforms(0, Transforms, true, false, true);
 }
 
 void UVaelCloudCardsComponent::SetBrightness(int32 Index, float Brightness)

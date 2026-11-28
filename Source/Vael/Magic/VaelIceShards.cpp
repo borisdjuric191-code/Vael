@@ -182,6 +182,6 @@ void AVaelIceShards::Tick(float DeltaSeconds)
 		{
 			Shard.SetScale3D(Shard.GetScale3D() * Size);
 		}
-		Shards->BatchUpdateInstancesTransforms(0, Shrunk, true, true, true);
+		Shards->BatchUpdateInstancesTransforms(0, Shrunk, true, false, true);
 	}
 }

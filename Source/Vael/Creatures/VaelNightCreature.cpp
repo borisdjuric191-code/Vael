@@ -1004,6 +1004,11 @@ void AVaelNightCreature::OnBodyColorShown(const FLinearColor& Color, bool bHitFl
 	}
 }
 
+bool AVaelNightCreature::HasOwnDeathClip() const
+{
+	return GetData<UVaelNightCreatureData>() != nullptr && !GetData<UVaelNightCreatureData>()->DeathClip.IsNone();
+}
+
 void AVaelNightCreature::Die()
 {
 	if (State == EVaelNightState::Cling)

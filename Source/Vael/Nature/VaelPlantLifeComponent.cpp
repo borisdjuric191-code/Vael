@@ -241,6 +241,6 @@ void UVaelPlantLifeComponent::TickComponent(float DeltaTime, ELevelTick TickType
 		BlotTransforms[Index] = FTransform(FRotator(0.0f, Index * 77.0f, 0.0f).Quaternion(), FVector(Blot.X, Blot.Y, GroundZ + 0.8f), FVector(Size / PlantBlotMeshSize, Size / PlantBlotMeshSize, 0.5f));
 	}
 
-	Drops->BatchUpdateInstancesTransforms(0, DropTransforms, true, true, true);
-	Blots->BatchUpdateInstancesTransforms(0, BlotTransforms, true, true, true);
+	Drops->BatchUpdateInstancesTransforms(0, DropTransforms, true, false, true);
+	Blots->BatchUpdateInstancesTransforms(0, BlotTransforms, true, false, true);
 }

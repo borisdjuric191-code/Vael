@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Magic/VaelSpellProjectile.h"
+#include "Creatures/VaelCreature.h"
+#include "Player/VaelCharacter.h"
+#include "EngineUtils.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SphereComponent.h"
@@ -304,6 +307,11 @@ void AVaelSpellProjectile::Tick(float DeltaSeconds)
 		{
 			Movement->Velocity = (Movement->Velocity + Wind * UVaelWorldSettings::Get()->WindMissileDrift * DeltaSeconds).GetSafeNormal() * Speed;
 		}
+	}
+
+	if (!bFlightEnded && Movement != nullptr && Movement->IsActive() && !Movement->bIsHomingProjectile && Look != EVaelProjectileLook::FireRoller)
+	{
+		TickAimAssist(DeltaSeconds);
 	}
 
 	if (bMistSplit && !bFlightEnded && AVaelGroundArea::FindEffectAt(GetWorld(), GetActorLocation(), EVaelGroundEffect::Veil) != nullptr)
@@ -2221,6 +2229,102 @@ void AVaelSpellProjectile::StartPlantFeel()
 	{
 		AddLookLight(PlantFeelColor, 10.0f * PlantFeelStrength);
 	}
+}
+
+void AVaelSpellProjectile::TickAimAssist(float DeltaSeconds)
+{
+	AssistAge += DeltaSeconds;
+	const float Speed = Movement->Velocity.Size();
+	if (Speed < 200.0f)
+	{
+		return;
+	}
+	const FVector Here = GetActorLocation();
+	const FVector Heading = Movement->Velocity / Speed;
+	const AVaelCharacter* Shooter = Cast<AVaelCharacter>(GetInstigator());
+	if (!bAssistChecked)
+	{
+		bAssistChecked = true;
+		if (Shooter == nullptr)
+		{
+			return;
+		}
+		// The enemy closest to the line of fire: a narrow cone, a little wider for near ones (their body fills more of it)
+		const float Range = FMath::Min(Speed * FMath::Max(InitialLifeSpan, 1.5f), 2800.0f);
+		float Best = UE_BIG_NUMBER;
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			AVaelCreature* Enemy = *It;
+			if (Enemy->IsDead() || !UVaelCombatStatics::CanDamage(Shooter, Enemy))
+			{
+				continue;
+			}
+			const FVector To = Enemy->GetActorLocation() - Here;
+			const float Distance = To.Size2D();
+			if (Distance > Range || Distance < 1.0f)
+			{
+				continue;
+			}
+			const float Cone = 13.0f + FMath::RadiansToDegrees(FMath::Atan((Enemy->GetSimpleCollisionRadius() + 50.0f) / Distance));
+			const float Angle = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(To.GetSafeNormal2D(), Heading.GetSafeNormal2D()), -1.0f, 1.0f)));
+			if (Angle > Cone)
+			{
+				continue;
+			}
+			const float Score = Angle + Distance * 0.004f;
+			if (Score < Best)
+			{
+				Best = Score;
+				AssistTarget = Enemy;
+			}
+		}
+	}
+	AVaelCreature* Target = Cast<AVaelCreature>(AssistTarget.Get());
+	if (Target == nullptr || Target->IsDead())
+	{
+		AssistTarget = nullptr;
+		return;
+	}
+
+	// Leads the target: where it will be when the shot gets there
+	const FVector Centre = Target->GetActorLocation();
+	const FVector TargetVelocity = Target->GetVelocity();
+	FVector Aim = Centre;
+	for (int32 Step = 0; Step < 2; ++Step)
+	{
+		const float Time = FVector::Dist(Here, Aim) / Speed;
+		Aim = Centre + TargetVelocity * FMath::Min(Time, 1.2f);
+	}
+	FVector Wanted = Aim - Here;
+	const float Distance = Wanted.Size();
+	if (Distance < Target->GetSimpleCollisionRadius())
+	{
+		return;
+	}
+	// Height only towards fliers and where it is far off; on the ground the shot keeps its height (no dive into the floor)
+	const float Rise = Wanted.Z;
+	if (Rise < 50.0f && Rise > -70.0f)
+	{
+		Wanted.Z = Heading.Z * Wanted.Size2D();
+	}
+	Wanted = Wanted.GetSafeNormal();
+	const float Off = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(Wanted, Heading), -1.0f, 1.0f)));
+	// Out of the line of fire (stepped aside, behind the shot): it is let go and flies on as it was
+	if (Off > 40.0f || FVector::DotProduct(Centre - Here, Heading) < 0.0f)
+	{
+		AssistTarget = nullptr;
+		return;
+	}
+	// Turns fast at first (the cast corrects itself), then as a gentle curve
+	const float Rate = AssistAge < 0.06f ? 900.0f : 260.0f;
+	const float Step = FMath::Min(Off, Rate * DeltaSeconds);
+	if (Step <= 0.01f)
+	{
+		return;
+	}
+	const FVector NewHeading = FMath::Lerp(Heading, Wanted, Step / FMath::Max(Off, 0.01f)).GetSafeNormal();
+	Movement->Velocity = NewHeading * Speed;
+	SetActorRotation(NewHeading.Rotation());
 }
 
 void AVaelSpellProjectile::TickPlantFeel(float DeltaSeconds)

@@ -351,6 +351,6 @@ void UVaelHandWaterComponent::TickComponent(float DeltaTime, ELevelTick TickType
 	}
 	if (Frame.Num() > 0)
 	{
-		Beads->BatchUpdateInstancesTransforms(0, Frame, true, true, true);
+		Beads->BatchUpdateInstancesTransforms(0, Frame, true, false, true);
 	}
 }

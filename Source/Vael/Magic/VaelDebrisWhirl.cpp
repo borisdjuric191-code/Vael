@@ -328,10 +328,6 @@ void UVaelDebrisWhirlComponent::TickComponent(float DeltaTime, ELevelTick TickTy
 		Piece.Tumble += Piece.TumbleSpeed * DeltaTime;
 		Kinds[Piece.Kind]->UpdateInstanceTransform(Piece.Instance, FTransform(Piece.Tumble, PlaceOf(Piece), FVector(Piece.Scale * FMath::Max(Gather, 0.15f))), false, false, true);
 	}
-	for (UInstancedStaticMeshComponent* Instances : Kinds)
-	{
-		Instances->MarkRenderStateDirty();
-	}
 
 	// The body: cards of rolling sand racing round and up the spiral, overlapping into one mass
 	if (SandCards != nullptr)

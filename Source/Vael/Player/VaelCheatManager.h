@@ -128,6 +128,12 @@ public:
 	UFUNCTION(Exec)
 	void VaelFrameTest(int32 ExtraMetaHumans = 0);
 
+	/** Combat load test (Boris 2026-11-27: "beim Kaempfen wird es sehr stockend"): spawns a mixed pack of enemies around the player
+	 *  (God mode on), casts a different formula at the nearest one every 0.5 s and logs frame times for the given seconds:
+	 *  mean, 99th percentile, worst frame and the number of hitches over 33 and 50 ms. Example: VaelLastTest 30 */
+	UFUNCTION(Exec)
+	void VaelLastTest(float Seconds = 30.0f, int32 Pack = 12);
+
 	/** Turns the player into a mage, a Floromant or the engineer (stand-in): "Magier", "Floromant" or "Ingenieur", then "Mann" or "Frau". Example: VaelKlasse Floromant Frau */
 	UFUNCTION(Exec)
 	void VaelKlasse(const FString& Class, const FString& Look);

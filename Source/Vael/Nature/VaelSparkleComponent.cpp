@@ -136,8 +136,13 @@ void UVaelSparkleComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 	}
 
 	// Nothing to do for a model nobody sees; its stars are put away once
-	const bool bSeen = Model->IsVisible() && Model->WasRecentlyRendered(0.3f);
+	const APlayerController* Viewer = GetWorld()->GetFirstPlayerController();
+	const FVector Eye = Viewer != nullptr && Viewer->PlayerCameraManager != nullptr ? Viewer->PlayerCameraManager->GetCameraLocation() : GetComponentLocation();
+	// far from the camera the glints are smaller than a pixel: as good as unseen
+	const bool bSeen = Model->IsVisible() && Model->WasRecentlyRendered(0.3f) && FVector::DistSquared(Eye, Model->GetComponentLocation()) < FMath::Square(5000.0f);
 	const float Time = GetWorld()->GetTimeSeconds();
+	// unseen: a look four times a second is enough (there were ~160 of them updating every frame, 2026-11-27)
+	SetComponentTickInterval(bSeen ? 0.0f : 0.25f);
 
 	if (GlowMaterial != nullptr && Sparkle.Pulse > 0.0f && bSeen)
 	{
@@ -155,8 +160,22 @@ void UVaelSparkleComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		Credit = FMath::Min(Credit + Sparkle.Rate * Strength * DeltaTime, 2.0f);
 	}
 
-	const APlayerController* PlayerController = GetWorld()->GetFirstPlayerController();
-	const FVector Camera = PlayerController != nullptr && PlayerController->PlayerCameraManager != nullptr ? PlayerController->PlayerCameraManager->GetCameraLocation() : GetComponentLocation() + FVector(0.0f, 0.0f, 1000.0f);
+	// nothing shining and nobody looking: the stars were put away already
+	const bool bAnyLeft = Glints.ContainsByPredicate([](const FGlint& Each) { return Each.Age < Each.Life; });
+	if (!bSeen && !bAnyLeft)
+	{
+		Credit = 0.0f;
+		if (bStarsAway)
+		{
+			return;
+		}
+		bStarsAway = true;
+	}
+	else
+	{
+		bStarsAway = false;
+	}
+	const FVector Camera = Viewer != nullptr && Viewer->PlayerCameraManager != nullptr ? Eye : GetComponentLocation() + FVector(0.0f, 0.0f, 1000.0f);
 	const FTransform ModelTransform = Model->GetComponentTransform();
 	const FTransform Hidden(FQuat::Identity, ModelTransform.GetLocation(), FVector::ZeroVector);
 
@@ -201,10 +220,10 @@ void UVaelSparkleComponent::TickComponent(float DeltaTime, ELevelTick TickType, 
 		(Glint.bSecond ? Second : First)[Index] = Star;
 	}
 
-	Stars->BatchUpdateInstancesTransforms(0, First, true, true, true);
+	Stars->BatchUpdateInstancesTransforms(0, First, true, false, true);
 	if (SecondStars != nullptr)
 	{
-		SecondStars->BatchUpdateInstancesTransforms(0, Second, true, true, true);
+		SecondStars->BatchUpdateInstancesTransforms(0, Second, true, false, true);
 	}
 
 	// Out of the picture and every star spent: sleeps until the look is refreshed or it is seen again

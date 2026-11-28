@@ -117,5 +117,5 @@ void AVaelCaveMotes::Tick(float DeltaSeconds)
 		const float Scale = Mote.Size * Shown / MoteSphereSize;
 		Transforms[Index] = FTransform(FQuat::Identity, Mote.Location, FVector(Scale));
 	}
-	Mesh->BatchUpdateInstancesTransforms(0, Transforms, false, true, true);
+	Mesh->BatchUpdateInstancesTransforms(0, Transforms, false, false, true);
 }

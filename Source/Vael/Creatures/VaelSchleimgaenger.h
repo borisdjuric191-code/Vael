@@ -98,6 +98,8 @@ protected:
 
 	virtual TSubclassOf<UVaelCreatureData> GetDefaultDataClass() const override;
 	virtual void Die() override;
+	/** It gets up again unless washed: its own way of lying down */
+	virtual bool WantsDeathMotion() const override { return false; }
 	virtual void OnPreyHit(AVaelCharacter* Player, const FVaelNightAttack& Attack) override;
 	virtual TArray<FVaelLootEntry> GetLoot() const override;
 

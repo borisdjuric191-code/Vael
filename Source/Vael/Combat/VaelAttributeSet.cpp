@@ -86,6 +86,7 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 		{
 			if (Target != nullptr)
 			{
+				Target->NoteDamageSource(Data.EffectSpec.GetContext().GetInstigator());
 				Target->OnDamageTaken(Damage, DamageTags);
 
 				// The number on screen: how well the hit worked, from weaknesses and the reaction it caused
@@ -94,7 +95,9 @@ void UVaelAttributeSet::PostGameplayEffectExecute(const FGameplayEffectModCallba
 				const float EffectMultiplier = ReactionMultiplier * (BaseDamage > 0.0f ? Damage / BaseDamage : 1.0f);
 
 				UVaelCombatTextSubsystem::PostDamage(Target, Damage, EffectMultiplier, Target->IsA<AVaelCharacter>());
-				UVaelHitFeedbackSubsystem::OnDamageTaken(Target, Damage, EffectMultiplier, Target->IsA<AVaelCharacter>());
+				// burning and other effects over time get no flash and sparks on every step
+				const bool bOverTime = Data.EffectSpec.GetPeriod() > 0.0f;
+				UVaelHitFeedbackSubsystem::OnDamageTaken(Target, Damage, EffectMultiplier, Target->IsA<AVaelCharacter>(), &DamageTags, bOverTime, GetHealth());
 			}
 
 			SetHealth(FMath::Clamp(GetHealth() - Damage, 0.0f, GetMaxHealth()));

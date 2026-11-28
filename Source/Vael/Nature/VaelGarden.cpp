@@ -1217,7 +1217,7 @@ void AVaelSownPlant::UpdateGreen(float DeltaSeconds)
 		const float Grown = FMath::Clamp(Tuft.Age / TuftGrowSeconds, 0.0f, 1.0f);
 		FTransform Shown = Tuft.Grown;
 		Shown.SetScale3D(Tuft.Grown.GetScale3D() * FMath::InterpEaseOut(0.01f, 1.0f, Grown, 2.0f));
-		Tufts[Tuft.Mesh]->UpdateInstanceTransform(Tuft.Instance, Shown, true, true);
+		Tufts[Tuft.Mesh]->UpdateInstanceTransform(Tuft.Instance, Shown, true, false);
 
 		if (Grown >= 1.0f)
 		{

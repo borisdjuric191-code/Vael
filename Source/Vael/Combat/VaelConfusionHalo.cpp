@@ -66,5 +66,5 @@ void UVaelConfusionHalo::TickComponent(float DeltaTime, ELevelTick TickType, FAc
 		const float Size = SpiralScale * (1.0f + 0.15f * FMath::Sin(Time * 3.1f + Index * 1.3f));
 		Transforms.Add(FTransform(Rotation, Location, FVector(Size)));
 	}
-	BatchUpdateInstancesTransforms(0, Transforms, false, true, false);
+	BatchUpdateInstancesTransforms(0, Transforms, false, false, false);
 }

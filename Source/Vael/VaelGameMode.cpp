@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "VaelGameMode.h"
+#include "VaelAssets.h"
 #include "VaelScriptStatics.h"
 #include "Debug/VaelShowcase.h"
 #include "Debug/VaelSmokeTest.h"
@@ -301,6 +302,9 @@ void AVaelGameMode::RespawnGroup()
 void AVaelGameMode::StartPlay()
 {
 	Super::StartPlay();
+
+	// What earlier games had to load in the middle of a fight comes in the background now (Boris 2026-11-27: stutter in fights)
+	VaelAssets::PreloadRemembered();
 
 	if (UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this))
 	{

@@ -82,6 +82,7 @@ protected:
 	virtual void TickBehavior(float DeltaSeconds) override;
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
 	virtual void Die() override;
+	virtual bool HasOwnDeathClip() const override { return true; }
 	virtual TArray<FVaelLootEntry> GetLoot() const override;
 
 private:

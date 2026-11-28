@@ -105,4 +105,6 @@ private:
 	float Credit = 0.0f;
 	float BaseGlow = 0.0f;
 	float Seed = 0.0f;
+	/** True while every star is shrunk away and nobody looks: no instance updates then */
+	bool bStarsAway = false;
 };

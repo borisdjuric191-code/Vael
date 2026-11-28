@@ -214,9 +214,9 @@ void AVaelNightSpray::Tick(float DeltaSeconds)
 		}
 	}
 
-	Flying->BatchUpdateInstancesTransforms(0, FlyingTransforms, true, true, true);
+	Flying->BatchUpdateInstancesTransforms(0, FlyingTransforms, true, false, true);
 	if (Landed != nullptr)
 	{
-		Landed->BatchUpdateInstancesTransforms(0, LandedTransforms, true, true, true);
+		Landed->BatchUpdateInstancesTransforms(0, LandedTransforms, true, false, true);
 	}
 }

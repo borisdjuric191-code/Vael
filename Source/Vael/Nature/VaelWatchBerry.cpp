@@ -199,7 +199,7 @@ void AVaelWatchBerry::Tick(float DeltaSeconds)
 		Directions[Index] = FMath::VInterpTo(Directions[Index], Wanted, DeltaSeconds, FollowSpeed).GetSafeNormal();
 		Transforms.Add(BeamTransform(Index, Directions[Index]));
 	}
-	Beams->BatchUpdateInstancesTransforms(0, Transforms, false, true, false);
+	Beams->BatchUpdateInstancesTransforms(0, Transforms, false, false, false);
 
 	if (GetWorld()->GetTimeSeconds() >= NextConfuseCheck)
 	{

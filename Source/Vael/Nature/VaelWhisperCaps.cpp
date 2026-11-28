@@ -286,7 +286,7 @@ void AVaelWhisperCaps::Tick(float DeltaSeconds)
 		Transforms[Index].SetRotation(FQuat(FVector::UpVector, FMath::DegreesToRadians(Turn[Index])) * Base.GetRotation());
 	}
 	SpeakTime += DeltaSeconds;
-	Caps->BatchUpdateInstancesTransforms(0, Transforms, false, true, false);
+	Caps->BatchUpdateInstancesTransforms(0, Transforms, false, false, false);
 
 	Glow->SetIntensity(FMath::Lerp(LightIntensity.X, LightIntensity.Y, Night) * (1.0f + 0.35f * Spoken / Total));
 }

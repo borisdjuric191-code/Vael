@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Engineer/VaelEngineerShot.h"
+#include "Creatures/VaelCreature.h"
 
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
@@ -348,6 +349,7 @@ void AVaelEngineerShot::Tick(float DeltaSeconds)
 		return;
 	}
 
+	SteerToTarget(DeltaSeconds);
 	Age += DeltaSeconds;
 	const float Alpha = FMath::Clamp(Age / FlightTime, 0.0f, 1.0f);
 	const FVector Location = FMath::Lerp(Start, End, Alpha) + FVector(0.0f, 0.0f, 4.0f * Arc * Alpha * (1.0f - Alpha));
@@ -402,8 +404,10 @@ void AVaelEngineerShot::Tick(float DeltaSeconds)
 			continue;
 		}
 		const FVector Closest = FMath::ClosestPointOnSegment(Enemy->GetActorLocation(), From, Location);
-		if (FVector::Dist2D(Closest, Enemy->GetActorLocation()) > ShotHitRadius + Enemy->GetSimpleCollisionRadius() * 0.5f
-			|| FMath::Abs(Closest.Z - Enemy->GetActorLocation().Z) > 160.0f)
+		// the whole body counts: its width and, for tall ones and fliers, its height (a harpy was missed above the shot)
+		const float HalfHeight = Enemy->GetSimpleCollisionHalfHeight();
+		if (FVector::Dist2D(Closest, Enemy->GetActorLocation()) > ShotHitRadius + Enemy->GetSimpleCollisionRadius() * 0.8f
+			|| FMath::Abs(Closest.Z - Enemy->GetActorLocation().Z) > FMath::Max(160.0f, HalfHeight + 60.0f))
 		{
 			continue;
 		}
@@ -452,6 +456,73 @@ void AVaelEngineerShot::Tick(float DeltaSeconds)
 		}
 		Destroy();
 	}
+}
+
+void AVaelEngineerShot::SteerToTarget(float DeltaSeconds)
+{
+	UVaelEngineerComponent* Eng = Engineer.Get();
+	const AActor* Shooter = Eng != nullptr ? Eng->GetOwner() : nullptr;
+	if (!bAssistChecked)
+	{
+		bAssistChecked = true;
+		AimedEnd = End;
+		ShotSpeed = FVector::Dist(Start, End) / FMath::Max(FlightTime, 0.05f);
+		const FVector Line = End - Start;
+		const float Length = Line.Size2D();
+		if (Shooter == nullptr || Length < 100.0f)
+		{
+			return;
+		}
+		// The enemy nearest to the line of the shot, in a narrow band that widens a little with the distance
+		float Best = UE_BIG_NUMBER;
+		for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+		{
+			AVaelCreature* Enemy = *It;
+			if (Enemy->IsDead() || !UVaelCombatStatics::CanDamage(Shooter, Enemy))
+			{
+				continue;
+			}
+			const FVector Where = Enemy->GetActorLocation();
+			const float Along = FVector::DotProduct(Where - Start, Line.GetSafeNormal2D());
+			if (Along < 0.0f || Along > Length + 250.0f)
+			{
+				continue;
+			}
+			const FVector Closest = FMath::ClosestPointOnSegment(Where, Start, End + Line.GetSafeNormal2D() * 250.0f);
+			const float Aside = FVector::Dist2D(Closest, Where);
+			const float Band = 90.0f + Enemy->GetSimpleCollisionRadius() + Along * 0.12f;
+			if (Aside > Band)
+			{
+				continue;
+			}
+			const float Score = Aside + Along * 0.05f;
+			if (Score < Best)
+			{
+				Best = Score;
+				AssistTarget = Enemy;
+			}
+		}
+	}
+	const AVaelCreature* Target = Cast<AVaelCreature>(AssistTarget.Get());
+	if (Target == nullptr || Target->IsDead())
+	{
+		AssistTarget = nullptr;
+		return;
+	}
+	// Where it will be when the shot arrives; let go if it left the line of fire
+	const float Left = FMath::Max(FlightTime - Age, 0.0f);
+	const FVector Wanted = Target->GetActorLocation() + Target->GetVelocity() * FMath::Min(Left, 1.0f);
+	const float Drift = FVector::Dist2D(Wanted, AimedEnd);
+	const float Allowed = 200.0f + FVector::Dist2D(Start, AimedEnd) * 0.14f;
+	if (Drift > Allowed)
+	{
+		AssistTarget = nullptr;
+		return;
+	}
+	// the end moves towards it; the shot is a straight line from the start, so it bends there smoothly
+	const FVector Goal(Wanted.X, Wanted.Y, FMath::Max(Wanted.Z, End.Z - 40.0f));
+	End = FMath::VInterpTo(End, Goal, DeltaSeconds, Age < 0.05f ? 40.0f : 14.0f);
+	FlightTime = FMath::Max(FVector::Dist(Start, End) / FMath::Max(ShotSpeed, 100.0f), 0.05f);
 }
 
 void AVaelEngineerShot::SpawnImpact(const FVector& Location) const

@@ -201,6 +201,13 @@ private:
 
 	/** Moves the look: the flying shapes, the loose pieces, and what plays out after the flight */
 	void AnimateLook(float DeltaSeconds);
+
+	/** Aim help for what the players shoot (Boris 2026-11-27: "wenn wir Gegner beschiessen, soll das auch treffen"): picks the enemy
+	 *  in a narrow cone ahead, leads it (fliers included, in height too) and follows it gently while it stays in the line of fire */
+	void TickAimAssist(float DeltaSeconds);
+	TWeakObjectPtr<AActor> AssistTarget;
+	bool bAssistChecked = false;
+	float AssistAge = 0.0f;
 	void AnimateSpark(float Time, float DeltaSeconds);
 	void AnimateFireball(float Time, float DeltaSeconds);
 	void AnimateWaterOrb(float Time);

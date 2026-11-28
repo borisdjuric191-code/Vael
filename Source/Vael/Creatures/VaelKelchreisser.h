@@ -130,6 +130,7 @@ protected:
 	virtual void TickBehavior(float DeltaSeconds) override;
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
 	virtual void Die() override;
+	virtual bool HasOwnDeathClip() const override { return true; }
 	virtual float GetStatusTextHeight() const override;
 	virtual float GetOutgoingDamageMultiplier() const override;
 	virtual void OnBodyColorShown(const FLinearColor& Color, bool bHitFlash) override;

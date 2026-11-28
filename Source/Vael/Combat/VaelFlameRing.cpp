@@ -118,6 +118,6 @@ void AVaelFlameRing::RefreshFlames()
 		const float Angle = UE_TWO_PI * FlameIndex / NumFlames;
 		const FVector Location(FMath::Cos(Angle) * Radius, FMath::Sin(Angle) * Radius, FlameHeight);
 
-		Flames->UpdateInstanceTransform(FlameIndex, FTransform(FQuat::Identity, Location, FVector(FlameScale)), false, FlameIndex == NumFlames - 1, true);
+		Flames->UpdateInstanceTransform(FlameIndex, FTransform(FQuat::Identity, Location, FVector(FlameScale)), false, false, true);
 	}
 }

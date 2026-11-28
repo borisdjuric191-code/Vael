@@ -88,4 +88,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
 	static AActor* SpawnInstanceCell(UObject* WorldContext, FVector Origin, const TArray<FVaelInstanceBatch>& Batches, FName Tag,
 		const FString& Folder, const FString& Label);
+
+	/**
+	 *  Replaces plain static mesh actors by instances (Boris 2026-11-27: the game stutters; the joined caves were ~60 000 single
+	 *  actors that World Partition streamed one by one). The actors are grouped by square chunks of ChunkSize cm and by everything
+	 *  that must stay the same for a copy (mesh, materials, collision, shadow, draw distance); each chunk becomes one actor with one
+	 *  instanced component per group. Only actors with a single static mesh component, nothing attached and no tag but KeepTag are
+	 *  taken (tags mark actors the game looks for, like the fading ceilings). The originals are destroyed. Returns how many were replaced.
+	 */
+	UFUNCTION(BlueprintCallable, Category="Vael|World", meta = (WorldContext = "WorldContext"))
+	static int32 InstanceStaticMeshActors(UObject* WorldContext, const TArray<AActor*>& Actors, float ChunkSize, FName KeepTag, const FString& Folder);
 };

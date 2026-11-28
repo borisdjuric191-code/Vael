@@ -11,6 +11,11 @@
  */
 namespace VaelAssets
 {
+	/** Loads, while the level starts, every optional asset an earlier game had to load in the middle of play
+	 *  (Config/VaelPreload.txt, kept in the project, and Saved/VaelPreload.txt, written while playing), and in the editor build
+	 *  prepares every loaded Niagara system. Once per run. */
+	void PreloadRemembered();
+
 	/** Loads the asset at the path. Returns null without a warning if it doesn't exist. */
 	UObject* LoadOptional(const FSoftObjectPath& Path);
 

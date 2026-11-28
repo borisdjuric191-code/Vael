@@ -25,6 +25,7 @@ class UVaelFloromantComponent;
 class UVaelEngineerComponent;
 class UVaelInventory;
 class UVaelMaterialBag;
+class UVaelPositionGuard;
 class UDecalComponent;
 
 /**
@@ -61,6 +62,10 @@ private:
 	/** Ores, plants and parts of creatures of this player */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UVaelMaterialBag> MaterialBag;
+
+	/** Remembers the last safe spot, logs unexplained jumps and catches falls through the floor */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta=(AllowPrivateAccess="true"))
+	TObjectPtr<UVaelPositionGuard> PositionGuard;
 
 	/** The queued elements, circling above the head */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
@@ -234,6 +239,9 @@ public:
 
 	/** Update */
 	virtual void Tick(float DeltaSeconds) override;
+
+	/** Every teleport tells the position guard, so it is not taken for a fault */
+	virtual bool TeleportTo(const FVector& DestLocation, const FRotator& DestRotation, bool bIsATest = false, bool bNoCheck = false) override;
 
 	/** Applies the color of the possessing player */
 	virtual void PossessedBy(AController* NewController) override;

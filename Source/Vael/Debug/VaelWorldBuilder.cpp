@@ -16,6 +16,8 @@
 #include "LandscapeProxy.h"
 #include "Engine/Engine.h"
 #include "Components/HierarchicalInstancedStaticMeshComponent.h"
+#include "Components/InstancedStaticMeshComponent.h"
+#include "Engine/StaticMeshActor.h"
 #include "Vael.h"
 
 #if WITH_EDITOR
@@ -288,3 +290,143 @@ int32 UVaelWorldBuilder::EnableLandscapeNanite(UObject* WorldContext)
 	return Count;
 }
 
+
+int32 UVaelWorldBuilder::InstanceStaticMeshActors(UObject* WorldContext, const TArray<AActor*>& Actors, float ChunkSize, FName KeepTag, const FString& Folder)
+{
+#if WITH_EDITOR
+	UWorld* World = GEngine != nullptr ? GEngine->GetWorldFromContextObject(WorldContext, EGetWorldErrorMode::LogAndReturnNull) : nullptr;
+	if (World == nullptr || ChunkSize <= 0.0f)
+	{
+		return 0;
+	}
+
+	struct FGroup
+	{
+		UStaticMeshComponent* Sample = nullptr;
+		TArray<FTransform> Transforms;
+		TArray<AActor*> Sources;
+	};
+	// chunk -> key -> group
+	TMap<FIntPoint, TMap<FString, FGroup>> Chunks;
+	int32 Taken = 0;
+	for (AActor* Actor : Actors)
+	{
+		AStaticMeshActor* MeshActor = Cast<AStaticMeshActor>(Actor);
+		if (MeshActor == nullptr || !IsValid(MeshActor) || MeshActor->GetAttachParentActor() != nullptr)
+		{
+			continue;
+		}
+		bool bOtherTag = false;
+		for (const FName& Each : MeshActor->Tags)
+		{
+			bOtherTag |= Each != KeepTag;
+		}
+		TArray<AActor*> Attached;
+		MeshActor->GetAttachedActors(Attached);
+		TInlineComponentArray<UActorComponent*> Components(MeshActor);
+		UStaticMeshComponent* Mesh = MeshActor->GetStaticMeshComponent();
+		if (bOtherTag || !Attached.IsEmpty() || Components.Num() != 1 || Mesh == nullptr || Mesh->GetStaticMesh() == nullptr || !Mesh->ComponentTags.IsEmpty()
+			|| Mesh->Mobility != EComponentMobility::Static || Mesh->GetNumChildrenComponents() > 0)
+		{
+			continue;
+		}
+		FString Key = Mesh->GetStaticMesh()->GetPathName();
+		for (int32 Slot = 0; Slot < Mesh->GetNumMaterials(); ++Slot)
+		{
+			Key += TEXT("|") + GetPathNameSafe(Mesh->GetMaterial(Slot));
+		}
+		const FCollisionResponseContainer& Responses = Mesh->GetCollisionResponseToChannels();
+		uint32 ResponseHash = 0;
+		for (int32 Channel = 0; Channel < 32; ++Channel)
+		{
+			ResponseHash = HashCombine(ResponseHash, static_cast<uint32>(Responses.GetResponse(static_cast<ECollisionChannel>(Channel))));
+		}
+		Key += FString::Printf(TEXT("|%s|%d|%d|%u|%d|%d|%d|%.0f|%d|%s"), *Mesh->GetCollisionProfileName().ToString(), static_cast<int32>(Mesh->GetCollisionEnabled()),
+			static_cast<int32>(Mesh->GetCollisionObjectType()), ResponseHash, Mesh->CastShadow ? 1 : 0, Mesh->IsVisible() ? 1 : 0, MeshActor->IsHidden() ? 1 : 0,
+			Mesh->LDMaxDrawDistance, Mesh->bReceivesDecals ? 1 : 0, *GetPathNameSafe(Mesh->GetOverlayMaterial()));
+		const FVector Location = Mesh->GetComponentLocation();
+		const FIntPoint Chunk(FMath::FloorToInt32(Location.X / ChunkSize), FMath::FloorToInt32(Location.Y / ChunkSize));
+		FGroup& Group = Chunks.FindOrAdd(Chunk).FindOrAdd(Key);
+		Group.Sample = Group.Sample != nullptr ? Group.Sample : Mesh;
+		Group.Transforms.Add(Mesh->GetComponentTransform());
+		Group.Sources.Add(MeshActor);
+	}
+
+	TArray<AActor*> Replaced;
+	for (TPair<FIntPoint, TMap<FString, FGroup>>& Chunk : Chunks)
+	{
+		const FVector Origin((Chunk.Key.X + 0.5f) * ChunkSize, (Chunk.Key.Y + 0.5f) * ChunkSize, 0.0f);
+		AActor* Cell = World->SpawnActor<AActor>(AActor::StaticClass(), FTransform(Origin));
+		if (Cell == nullptr)
+		{
+			continue;
+		}
+		USceneComponent* Root = NewObject<USceneComponent>(Cell, TEXT("Stueck"));
+		Root->CreationMethod = EComponentCreationMethod::Instance;
+		Root->SetMobility(EComponentMobility::Static);
+		Cell->SetRootComponent(Root);
+		Cell->AddInstanceComponent(Root);
+		Root->RegisterComponent();
+		Root->SetWorldLocation(Origin);
+		int32 Count = 0;
+		for (TPair<FString, FGroup>& Pair : Chunk.Value)
+		{
+			FGroup& Group = Pair.Value;
+			UStaticMeshComponent* Sample = Group.Sample;
+			if (Group.Transforms.Num() < 2)
+			{
+				// one alone stays as it is: an instanced component costs more than a single actor
+				continue;
+			}
+			UInstancedStaticMeshComponent* Instances = NewObject<UInstancedStaticMeshComponent>(Cell,
+				MakeUniqueObjectName(Cell, UInstancedStaticMeshComponent::StaticClass(), Sample->GetStaticMesh()->GetFName()));
+			Instances->CreationMethod = EComponentCreationMethod::Instance;
+			Instances->SetMobility(EComponentMobility::Static);
+			Instances->SetStaticMesh(Sample->GetStaticMesh());
+			for (int32 Slot = 0; Slot < Sample->GetNumMaterials(); ++Slot)
+			{
+				Instances->SetMaterial(Slot, Sample->GetMaterial(Slot));
+			}
+			Instances->SetOverlayMaterial(Sample->GetOverlayMaterial());
+			Instances->SetupAttachment(Root);
+			Instances->SetCollisionProfileName(Sample->GetCollisionProfileName());
+			Instances->SetCollisionEnabled(Sample->GetCollisionEnabled());
+			Instances->SetCollisionObjectType(Sample->GetCollisionObjectType());
+			Instances->SetCollisionResponseToChannels(Sample->GetCollisionResponseToChannels());
+			Instances->BodyInstance.SetUseCCD(false);
+			Instances->SetCanEverAffectNavigation(Sample->CanEverAffectNavigation());
+			Instances->SetCastShadow(Sample->CastShadow);
+			Instances->bReceivesDecals = Sample->bReceivesDecals;
+			Instances->SetVisibility(Sample->IsVisible());
+			Instances->SetHiddenInGame(Sample->bHiddenInGame || Sample->GetOwner()->IsHidden());
+			Instances->LDMaxDrawDistance = Sample->LDMaxDrawDistance;
+			if (Sample->LDMaxDrawDistance > 0.0f)
+			{
+				Instances->SetCullDistances(0, FMath::RoundToInt32(Sample->LDMaxDrawDistance));
+			}
+			Cell->AddInstanceComponent(Instances);
+			Instances->RegisterComponent();
+			Instances->AddInstances(Group.Transforms, false, true);
+			Replaced.Append(Group.Sources);
+			Count += Group.Transforms.Num();
+		}
+		if (Count == 0)
+		{
+			World->DestroyActor(Cell);
+			continue;
+		}
+		Cell->Tags.Add(KeepTag);
+		Cell->SetFolderPath(FName(*Folder));
+		Cell->SetActorLabel(FString::Printf(TEXT("Instanzen_%d_%d"), Chunk.Key.X, Chunk.Key.Y));
+		Taken += Count;
+	}
+	for (AActor* Each : Replaced)
+	{
+		World->EditorDestroyActor(Each, true);
+	}
+	UE_LOG(LogVael, Display, TEXT("InstanceStaticMeshActors: %d of %d actors became instances"), Taken, Actors.Num());
+	return Taken;
+#else
+	return 0;
+#endif
+}

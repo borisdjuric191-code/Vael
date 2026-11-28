@@ -241,6 +241,6 @@ void UVaelFlakesComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
 		{
 			Frame.Add(FTransform(FQuat::Identity, GetComponentLocation(), FVector::ZeroVector));
 		}
-		Mesh->BatchUpdateInstancesTransforms(0, Frame, true, true, true);
+		Mesh->BatchUpdateInstancesTransforms(0, Frame, true, false, true);
 	}
 }

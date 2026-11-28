@@ -6,6 +6,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Items/VaelMaterial.h"
 #include "Magic/VaelElementTypes.h"
+#include "Creatures/VaelDeathMotion.h"
 #include "VaelCreature.generated.h"
 
 class AVaelCharacter;
@@ -107,6 +108,9 @@ public:
 	UFUNCTION(BlueprintPure, Category="Creature")
 	bool IsDead() const { return bDead; }
 
+	/** The last blow it took (where from, element, damage) */
+	const FVaelKillingBlow& GetLastBlow() const { return LastBlow; }
+
 	/** Entry of the compendium this creature is researched under, none for people */
 	FName GetCompendiumId() const;
 
@@ -196,6 +200,12 @@ protected:
 	/** Kills the creature: stops it, teaches its formula and removes it after a moment */
 	virtual void Die();
 
+	/** True if the creature plays a death clip of its own: the death motion then leaves its pose alone */
+	virtual bool HasOwnDeathClip() const { return false; }
+
+	/** False for creatures that get up again or vanish their own way: no death motion (UVaelDeathMotion) for them */
+	virtual bool WantsDeathMotion() const { return true; }
+
 	/** Gives every player their copy of the dropped materials and leaves health and mana orbs on the ground */
 	void DropLoot();
 
@@ -262,6 +272,9 @@ protected:
 
 	/** Jolts the legs of a factory mesh after a hit */
 	virtual void OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags) override;
+
+	/** Remembers where the blow came from */
+	virtual void NoteDamageSource(const AActor* Source) override;
 
 	/** Mesh of the creature factory if the data names one, posed bone by bone; null for placeholder and code looks */
 	UPoseableMeshComponent* GetFactoryMesh() const { return FactoryMesh.Get(); }
@@ -369,6 +382,10 @@ private:
 
 	/** True once the creature has died */
 	bool bDead = false;
+
+	/** The last blow it took, for the way it dies */
+	FVaelKillingBlow LastBlow;
+	float LastBlowTime = -100.0f;
 
 	/** True for a stronger version sent by a corrupted region */
 	bool bMarked = false;

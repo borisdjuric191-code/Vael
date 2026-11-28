@@ -467,6 +467,11 @@ void AVaelCreature::ApplyKnockback(const FVector& Direction, float Speed)
 	{
 		Super::ApplyKnockback(Direction, Speed * ActiveData->KnockbackMultiplier);
 	}
+	// The knockback of the killing hit comes after its damage: it throws the corpse
+	else if (UVaelDeathMotion* Motion = FindComponentByClass<UVaelDeathMotion>())
+	{
+		Motion->AddBlow(Direction, Speed * ActiveData->KnockbackMultiplier);
+	}
 }
 
 void AVaelCreature::ApplyStun(float Duration)
@@ -612,12 +617,24 @@ void AVaelCreature::Die()
 	GetCharacterMovement()->DisableMovement();
 	DetachFromControllerPendingDestroy();
 
-	// Placeholder for a death animation: the body slumps and darkens
-	Body->SetRelativeScale3D(Body->GetRelativeScale3D() * FVector(1.2f, 1.2f, 0.25f));
 	bShowingHitFlash = false;
 	SetBodyColor(ActiveData->BodyColor * 0.25f);
 
-	SetLifeSpan(FMath::Max(CorpseDuration, 0.01f));
+	// The death of it (Boris 2026-11-27): flung by a heavy blow, charred by fire, shattered when frozen, toppled otherwise
+	float CorpseTime = CorpseDuration;
+	if (WantsDeathMotion())
+	{
+		LastBlow.bBurning = UVaelCombatStatics::HasStatus(this, EVaelStatus::Burning);
+		LastBlow.bFrozen = UVaelCombatStatics::HasStatus(this, EVaelStatus::Frozen);
+		CorpseTime = FMath::Max(CorpseTime, UVaelDeathMotion::Start(this, LastBlow, HasOwnDeathClip()));
+	}
+	else
+	{
+		// the old slump: the body flattens and darkens
+		Body->SetRelativeScale3D(Body->GetRelativeScale3D() * FVector(1.2f, 1.2f, 0.25f));
+	}
+
+	SetLifeSpan(FMath::Max(CorpseTime, 0.01f));
 }
 
 TArray<FVaelLootEntry> AVaelCreature::GetLoot() const
@@ -1151,9 +1168,40 @@ void AVaelCreature::SetFactoryMeshOffset(const FVector& Offset, float Scale, flo
 	}
 }
 
+void AVaelCreature::NoteDamageSource(const AActor* Source)
+{
+	if (Source != nullptr && Source != this)
+	{
+		LastBlow.From = Source->GetActorLocation();
+	}
+}
+
 void AVaelCreature::OnDamageTaken(float Damage, const FGameplayTagContainer& DamageTags)
 {
 	Super::OnDamageTaken(Damage, DamageTags);
+
+	// What the blow was, for the way it dies if this one kills it
+	if (!bDead && Damage > 0.0f)
+	{
+		LastBlow.Damage = Damage;
+		LastBlow.HealthBefore = GetHealth();
+		LastBlow.bHasElement = false;
+		for (const EVaelElement Element : { EVaelElement::Fire, EVaelElement::Water, EVaelElement::Earth, EVaelElement::Air, EVaelElement::Mark })
+		{
+			if (DamageTags.HasTag(VaelTags::GetElementTag(Element)))
+			{
+				LastBlow.Element = Element;
+				LastBlow.bHasElement = true;
+				break;
+			}
+		}
+		if (GetWorld()->GetTimeSeconds() - LastBlowTime > 0.05f)
+		{
+			LastBlow.Knockback = 0.0f;
+			LastBlow.KnockbackDirection = FVector::ZeroVector;
+		}
+		LastBlowTime = GetWorld()->GetTimeSeconds();
+	}
 
 	// Being hurt wakes a sleeping creature at once
 	if (Damage > 0.0f && IsAsleep())

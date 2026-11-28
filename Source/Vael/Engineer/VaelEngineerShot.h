@@ -63,6 +63,13 @@ private:
 	TWeakObjectPtr<UVaelEngineerComponent> Engineer;
 	FVector Start = FVector::ZeroVector;
 	FVector End = FVector::ZeroVector;
+
+	/** Aim help (Boris 2026-11-27): the enemy near the line of the shot, followed while it stays close to where the shot was aimed */
+	TWeakObjectPtr<AActor> AssistTarget;
+	FVector AimedEnd = FVector::ZeroVector;
+	bool bAssistChecked = false;
+	float ShotSpeed = 0.0f;
+	void SteerToTarget(float DeltaSeconds);
 	FVector LastLocation = FVector::ZeroVector;
 	float FlightTime = 0.5f;
 	float Arc = 0.0f;

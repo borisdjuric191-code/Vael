@@ -2,6 +2,7 @@
 
 #include "Player/VaelCharacter.h"
 #include "World/VaelCave.h"
+#include "World/VaelPositionGuard.h"
 #include "World/VaelFireSpot.h"
 #include "World/VaelWorldSettings.h"
 #include "Magic/VaelGroundArea.h"
@@ -154,6 +155,8 @@ AVaelCharacter::AVaelCharacter()
 
 	// Create the material bag
 	MaterialBag = CreateDefaultSubobject<UVaelMaterialBag>(TEXT("MaterialBag"));
+
+	PositionGuard = CreateDefaultSubobject<UVaelPositionGuard>(TEXT("PositionGuard"));
 
 	// Create the equipment and backpack
 	Inventory = CreateDefaultSubobject<UVaelInventory>(TEXT("Inventory"));
@@ -603,6 +606,15 @@ void AVaelCharacter::Tick(float DeltaSeconds)
 			Movement->Velocity = FVector(DodgeDirection.X * CurrentDodgeSpeed, DodgeDirection.Y * CurrentDodgeSpeed, Movement->Velocity.Z);
 		}
 	}
+}
+
+bool AVaelCharacter::TeleportTo(const FVector& DestLocation, const FRotator& DestRotation, bool bIsATest, bool bNoCheck)
+{
+	if (!bIsATest && PositionGuard != nullptr)
+	{
+		PositionGuard->NoteTeleport(DestLocation);
+	}
+	return Super::TeleportTo(DestLocation, DestRotation, bIsATest, bNoCheck);
 }
 
 void AVaelCharacter::PossessedBy(AController* NewController)

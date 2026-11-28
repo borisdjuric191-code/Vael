@@ -209,5 +209,5 @@ void AVaelHailStorm::Tick(float DeltaSeconds)
 			StoneTransforms[Index].SetScale3D(FVector::ZeroVector);
 		}
 	}
-	Lances->BatchUpdateInstancesTransforms(0, StoneTransforms, true, true, true);
+	Lances->BatchUpdateInstancesTransforms(0, StoneTransforms, true, false, true);
 }

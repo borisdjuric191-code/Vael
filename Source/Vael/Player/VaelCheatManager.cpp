@@ -47,6 +47,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "Containers/Ticker.h"
 #include "GameFramework/PlayerController.h"
 #include "Items/VaelInventory.h"
 #include "Engineer/VaelEngineerComponent.h"
@@ -1256,6 +1257,141 @@ void UVaelCheatManager::VaelFrameTest(int32 ExtraMetaHumans)
 			World->GetTimerManager().ClearTimer(*Handle);
 		}
 	}), 0.02f, true);
+}
+
+void UVaelCheatManager::VaelLastTest(float Seconds, int32 Pack)
+{
+	APlayerController* PlayerController = GetOuterAPlayerController();
+	if (PlayerController == nullptr || PlayerController->GetPawn() == nullptr)
+	{
+		return;
+	}
+	if (PlayerController->GetPawn()->CanBeDamaged())
+	{
+		God();
+	}
+	VaelLearnAll();
+
+
+	struct FLoad
+	{
+		float Age = 0.0f;
+		float NextCast = 0.0f;
+		int32 Cast = 0;
+		TArray<float> Frames;
+		double Game = 0.0, Render = 0.0, Gpu = 0.0;
+		float Worst = 0.0f;
+		float WorstAt = 0.0f;
+		bool bSpawned = false;
+	};
+	TSharedRef<FLoad> Load = MakeShared<FLoad>();
+	TWeakObjectPtr<UWorld> WeakWorld(GetWorld());
+	TWeakObjectPtr<UVaelCheatManager> WeakThis(this);
+	static const TCHAR* Formulas[] = { TEXT("F"), TEXT("FF"), TEXT("FFF"), TEXT("W"), TEXT("WL"), TEXT("E"), TEXT("EE"), TEXT("L"), TEXT("LL"), TEXT("FL"),
+		TEXT("FE"), TEXT("WE"), TEXT("WW"), TEXT("LLL"), TEXT("FFL"), TEXT("EEE"), TEXT("FW"), TEXT("WWL") };
+	// Once per frame (a looping timer would fire several times in a long frame)
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakThis, Load, WeakWorld, Seconds, Pack](float) -> bool
+	{
+		UVaelCheatManager* Self = WeakThis.Get();
+		UWorld* World = WeakWorld.Get();
+		if (Self == nullptr || World == nullptr)
+		{
+			return false;
+		}
+		const float Delta = FApp::GetDeltaTime();
+		Load->Age += Delta;
+		APlayerController* Controller = Self->GetOuterAPlayerController();
+		const APawn* Pawn = Controller != nullptr ? Controller->GetPawn() : nullptr;
+		if (Pawn == nullptr)
+		{
+			return false;
+		}
+		// A mixed pack: walkers, fliers and casters, like a fight in the open (after a moment, so a teleport has landed)
+		if (!Load->bSpawned && Load->Age >= 3.0f)
+		{
+			Load->bSpawned = true;
+			static const TCHAR* Kinds[] = { TEXT("Kriecher"), TEXT("Harpyie"), TEXT("Prediger"), TEXT("Kriecher"), TEXT("Falter"), TEXT("Spinne") };
+			for (int32 Index = 0; Index < Pack; ++Index)
+			{
+				Self->VaelSpawn(Kinds[Index % UE_ARRAY_COUNT(Kinds)], 1);
+			}
+		}
+		if (Load->Age < 5.0f)
+		{
+			return true;
+		}
+		const float Frame = Delta * 1000.0f;
+		Load->Frames.Add(Frame);
+		Load->Game += FPlatformTime::ToMilliseconds(GGameThreadTime);
+		Load->Render += FPlatformTime::ToMilliseconds(GRenderThreadTime);
+		Load->Gpu += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles());
+		if (Frame > Load->Worst)
+		{
+			Load->Worst = Frame;
+			Load->WorstAt = Load->Age;
+		}
+		if (Frame > 50.0f)
+		{
+			UE_LOG(LogVael, Display, TEXT("Load test: hitch %.0f ms at %.1f s (game %.1f, render %.1f, GPU %.1f)"), Frame, Load->Age,
+				FPlatformTime::ToMilliseconds(GGameThreadTime), FPlatformTime::ToMilliseconds(GRenderThreadTime), FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles()));
+		}
+
+		// Casts at the nearest living enemy
+		if (Load->Age >= Load->NextCast)
+		{
+			Load->NextCast = Load->Age + 0.5f;
+			const AActor* Nearest = nullptr;
+			float Best = UE_BIG_NUMBER;
+			for (TActorIterator<AVaelCreature> It(World); It; ++It)
+			{
+				const float Distance = FVector::DistSquared(It->GetActorLocation(), Pawn->GetActorLocation());
+				if (!It->IsDead() && Distance < Best)
+				{
+					Best = Distance;
+					Nearest = *It;
+				}
+			}
+			if (Nearest == nullptr)
+			{
+				Self->VaelSpawn(TEXT("Kriecher"), 3);
+				Self->VaelSpawn(TEXT("Harpyie"), 2);
+			}
+			else
+			{
+				const float Yaw = (Nearest->GetActorLocation() - Pawn->GetActorLocation()).Rotation().Yaw;
+				if (const AVaelCharacter* Hero = Cast<AVaelCharacter>(Pawn))
+				{
+					Hero->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Hero->GetMaxMana());
+				}
+				Self->VaelCast(Formulas[Load->Cast++ % UE_ARRAY_COUNT(Formulas)], Yaw);
+			}
+		}
+
+		if (Load->Age >= Seconds + 5.0f)
+		{
+			TArray<float> Sorted = Load->Frames;
+			Sorted.Sort();
+			const int32 Num = FMath::Max(Sorted.Num(), 1);
+			double Sum = 0.0;
+			int32 Over33 = 0, Over50 = 0;
+			for (const float Each : Sorted)
+			{
+				Sum += Each;
+				Over33 += Each > 33.4f ? 1 : 0;
+				Over50 += Each > 50.0f ? 1 : 0;
+			}
+			int32 Alive = 0;
+			for (TActorIterator<AVaelCreature> It(World); It; ++It)
+			{
+				Alive += It->IsDead() ? 0 : 1;
+			}
+			UE_LOG(LogVael, Display, TEXT("Load test (%.0f s, %d casts, %d enemies alive): frame mean %.1f ms (%.0f fps), p99 %.1f ms, worst %.0f ms at %.1f s, hitches >33 ms %d, >50 ms %d; game %.1f, render %.1f, GPU %.1f ms"),
+				Seconds, Load->Cast, Alive, Sum / Num, 1000.0 / FMath::Max(Sum / Num, 0.1), Sorted.IsEmpty() ? 0.0f : Sorted[FMath::Min(Num - 1, FMath::FloorToInt(Num * 0.99f))],
+				Load->Worst, Load->WorstAt, Over33, Over50, Load->Game / Num, Load->Render / Num, Load->Gpu / Num);
+			return false;
+		}
+		return true;
+	}));
 }
 
 void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)

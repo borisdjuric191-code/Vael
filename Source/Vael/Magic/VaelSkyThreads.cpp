@@ -184,7 +184,7 @@ void UVaelSkyThreadsComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 	}
 	if (Frame.Num() > 0)
 	{
-		Motes->BatchUpdateInstancesTransforms(0, Frame, true, true, true);
+		Motes->BatchUpdateInstancesTransforms(0, Frame, true, false, true);
 	}
 	for (int32 Index = 0; Index < FrameGlyphs.Num(); ++Index)
 	{
