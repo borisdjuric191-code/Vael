@@ -111,6 +111,9 @@ public:
 	/** The last blow it took (where from, element, damage) */
 	const FVaelKillingBlow& GetLastBlow() const { return LastBlow; }
 
+	/** False for creatures that lie down their own way (no UVaelDeathMotion) */
+	bool UsesDeathMotion() const { return WantsDeathMotion(); }
+
 	/** Entry of the compendium this creature is researched under, none for people */
 	FName GetCompendiumId() const;
 
@@ -199,6 +202,10 @@ protected:
 
 	/** Kills the creature: stops it, teaches its formula and removes it after a moment */
 	virtual void Die();
+
+	/** Every creature tick gets at most a tenth of a second: after a long pause (held far away, a hitch) the procedural bodies,
+	 *  springs and legs exploded with one giant step (2026-11-28: crystals of an ant 20 000 km away) */
+	virtual void TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction) override;
 
 	/** True if the creature plays a death clip of its own: the death motion then leaves its pose alone */
 	virtual bool HasOwnDeathClip() const { return false; }
@@ -303,6 +310,15 @@ private:
 	/** Seconds until the next check of the tick rate, and whether the creature is updating slowly */
 	float TickRateCountdown = 0.0f;
 	bool bTickingFar = false;
+
+	/** Sanity of the body (2026-11-28: an ant flung 20 000 km away after the players left its cave): the last good place,
+	 *  and whether it is held still because no player is near (its ground may not be loaded) */
+	FVector LastGoodLocation = FVector::ZeroVector;
+	bool bHasGoodLocation = false;
+	bool bHeldFar = false;
+	TEnumAsByte<EMovementMode> HeldMode = MOVE_Walking;
+	void KeepSane(float DeltaSeconds);
+	float RawTickDelta = 0.0f;
 
 	/** Seconds until the next look of the compendium, and when the creature was last hurt */
 	float ResearchCountdown = 0.0f;

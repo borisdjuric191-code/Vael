@@ -113,13 +113,16 @@ void UVaelDeathMotion::Choose()
 	}
 	FallDirection = Away.IsNearlyZero() ? FVector::ForwardVector : Away;
 
-	// How hard the blow was: knockback, or damage far beyond what was left of its life
+	// How hard the blow was: knockback, or damage far beyond what was left of its life (2026-11-28: "damage over 45 and more
+	// than its life" made nearly every kill a fling, a lightning kill never twitched)
 	const float Overkill = Blow.HealthBefore > 0.0f ? Blow.Damage / Blow.HealthBefore : 1.0f;
-	const float Share = Blow.HealthBefore > 0.0f && Blow.Damage > 0.0f ? Blow.Damage / FMath::Max(Blow.HealthBefore, 1.0f) : 0.0f;
-	const bool bBig = Radius > 110.0f || HalfHeight > 220.0f;
-	const bool bHeavy = !bBig && (Blow.Knockback >= 450.0f || Overkill >= 2.5f || (Share >= 1.0f && Blow.Damage >= 45.0f));
+	const AVaelCreature* Creature = Cast<AVaelCreature>(Owner);
+	const bool bBig = Radius > 110.0f || HalfHeight > 220.0f || (Creature != nullptr && Creature->GetMaxHealth() > 600.0f);
+	const bool bKnocked = !bBig && Blow.Knockback >= 450.0f;
+	const bool bCrushing = !bBig && Overkill >= 2.5f;
 	const bool bInAir = StartLocation.Z - HalfHeight > GroundZ + 90.0f;
 	bFlat = Radius > HalfHeight * 0.95f;
+	const bool bFire = Blow.bBurning || (Blow.bHasElement && Blow.Element == EVaelElement::Fire);
 
 	if (Blow.bFrozen)
 	{
@@ -133,17 +136,21 @@ void UVaelDeathMotion::Choose()
 	{
 		Style = EVaelDeathStyle::Fall;
 	}
-	else if (bHeavy && (!Blow.bHasElement || Blow.Element != EVaelElement::Fire))
+	else if (bKnocked)
 	{
-		Style = Blow.bHasElement && Blow.Element == EVaelElement::Earth && Blow.Knockback < 450.0f && !bOwnClip ? EVaelDeathStyle::Crush : EVaelDeathStyle::Fling;
+		Style = EVaelDeathStyle::Fling;
 	}
-	else if (Blow.bBurning || (Blow.bHasElement && Blow.Element == EVaelElement::Fire))
+	else if (bFire)
 	{
 		Style = EVaelDeathStyle::Burn;
 	}
 	else if (Blow.bHasElement && Blow.Element == EVaelElement::Air)
 	{
 		Style = EVaelDeathStyle::Shock;
+	}
+	else if (bCrushing)
+	{
+		Style = Blow.bHasElement && Blow.Element == EVaelElement::Earth && !bOwnClip ? EVaelDeathStyle::Crush : EVaelDeathStyle::Fling;
 	}
 	else
 	{
@@ -256,6 +263,7 @@ void UVaelDeathMotion::Debris(const FVector& Where, const FLinearColor& Color, f
 void UVaelDeathMotion::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	DeltaTime = FMath::Min(DeltaTime, 0.1f);
 	AActor* Owner = GetOwner();
 	if (Owner == nullptr)
 	{
@@ -266,6 +274,19 @@ void UVaelDeathMotion::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 		Choose();
 	}
 	Age += DeltaTime;
+	// a corpse that went astray (fell through everything, a broken number) is simply gone
+	const FVector Now = Owner->GetActorLocation();
+	if (Now.ContainsNaN() || Velocity.ContainsNaN() || Now.Z < GroundZ - 3000.0f || Velocity.SizeSquared() > FMath::Square(20000.0f))
+	{
+		if (Now.ContainsNaN())
+		{
+			Owner->SetActorLocation(StartLocation);
+		}
+		Owner->SetActorHiddenInGame(true);
+		Owner->SetLifeSpan(0.1f);
+		SetComponentTickEnabled(false);
+		return;
+	}
 	const FVector Centre = Owner->GetActorLocation();
 
 	switch (Style)

@@ -150,6 +150,8 @@ FVector UVaelLegIKComponent::FindRestingSpot(const FVaelLeg& Leg, const FVector&
 void UVaelLegIKComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
+	// springs and steps take at most a tenth of a second at once (a long pause made the legs explode, 2026-11-28)
+	DeltaTime = FMath::Min(DeltaTime, 0.1f);
 
 	if (Mesh == nullptr || Legs.IsEmpty() || DeltaTime <= 0.0f || !Mesh->IsRegistered())
 	{
@@ -308,9 +310,15 @@ void UVaelLegIKComponent::PoseBody(float DeltaTime)
 	const float Bob = BodyBob * static_cast<float>(Lift / FMath::Max(Num * 0.5, 1.0));
 
 	// Jolts from hits spring back
-	const FVector Spring = -Jolt * (LegJoltFrequency * LegJoltFrequency) - JoltVelocity * (2.0f * LegJoltFrequency);
-	JoltVelocity += Spring * DeltaTime;
-	Jolt += JoltVelocity * DeltaTime;
+	// in small steps: one step of more than ~0.06 s made the stiff spring blow up (far creatures tick every 0.25 s, an ant's
+	// crystals ended 20 000 km away, 2026-11-28)
+	for (float Left = DeltaTime; Left > 0.0f; Left -= 0.016f)
+	{
+		const float Step = FMath::Min(Left, 0.016f);
+		const FVector Spring = -Jolt * (LegJoltFrequency * LegJoltFrequency) - JoltVelocity * (2.0f * LegJoltFrequency);
+		JoltVelocity += Spring * Step;
+		Jolt += JoltVelocity * Step;
+	}
 
 	const FQuat ActorQuat = Owner->GetActorQuat();
 	const FQuat WorldDelta = BodyTilt * (ActorQuat * FQuat(ExtraTilt) * ActorQuat.Inverse());

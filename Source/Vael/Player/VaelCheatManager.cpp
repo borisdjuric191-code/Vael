@@ -1539,6 +1539,68 @@ void UVaelCheatManager::VaelZielTest(float Seconds, const FString& Kind, int32 C
 	}));
 }
 
+void UVaelCheatManager::VaelNaNSuche()
+{
+	TSharedRef<TSet<FString>> Seen = MakeShared<TSet<FString>>();
+	TWeakObjectPtr<UWorld> WeakWorld(GetWorld());
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakWorld, Seen](float) -> bool
+	{
+		UWorld* World = WeakWorld.Get();
+		if (World == nullptr)
+		{
+			return false;
+		}
+		for (TActorIterator<AActor> It(World); It; ++It)
+		{
+			TInlineComponentArray<USceneComponent*> Components(*It);
+			for (const USceneComponent* Each : Components)
+			{
+				if (!Each->IsRegistered())
+				{
+					continue;
+				}
+				const FTransform& T = Each->GetComponentTransform();
+				const bool bNaN = T.ContainsNaN();
+				const bool bFar = !bNaN && T.GetLocation().GetAbsMax() > 5.0e6;
+				const UPrimitiveComponent* Primitive = Cast<UPrimitiveComponent>(Each);
+				const bool bZero = !bNaN && Primitive != nullptr && Primitive->IsVisible() && T.GetScale3D().GetAbsMin() < 1.0e-6;
+				if (bNaN || bFar || bZero)
+				{
+					const FString Key = It->GetName() + TEXT(".") + Each->GetName();
+					if (!Seen->Contains(Key))
+					{
+						Seen->Add(Key);
+						UE_LOG(LogVael, Warning, TEXT("NaNSuche: %s (%s) %s at %s scale %s"), *Key, *It->GetClass()->GetName(),
+							bNaN ? TEXT("NaN") : bFar ? TEXT("far out") : TEXT("zero scale"), *T.GetLocation().ToCompactString(), *T.GetScale3D().ToCompactString());
+					}
+				}
+			}
+		}
+		return true;
+	}), 0.5f);
+}
+
+void UVaelCheatManager::VaelTodAlle()
+{
+	static const TCHAR* Kinds[] = { TEXT("Glutkriecher"), TEXT("Aschharpyie"), TEXT("Aelteste"), TEXT("Prediger"), TEXT("Markprediger"),
+		TEXT("Koenigin"), TEXT("Waechter"), TEXT("Spannhornkaefer"), TEXT("Rankenluchs"), TEXT("Kelchreisser"), TEXT("Pfuhlnatter"),
+		TEXT("Distelspinne"), TEXT("Distelsaemling"), TEXT("Aschenroller"), TEXT("Sichelpuppe"), TEXT("Schleieraffe"), TEXT("Moderglocke"),
+		TEXT("Kahlschwinge"), TEXT("Peitschenunke"), TEXT("Schnappwurz"), TEXT("Blutfalter"), TEXT("Draculaupe"), TEXT("Taufalter"),
+		TEXT("Kobold"), TEXT("Ameise"), TEXT("Erztochter"), TEXT("Schleimgaenger") };
+	static const TCHAR* Ways[] = { TEXT("normal"), TEXT("feuer"), TEXT("eis"), TEXT("wucht"), TEXT("blitz"), TEXT("erde"), TEXT("nid") };
+	for (int32 Index = 0; Index < UE_ARRAY_COUNT(Kinds); ++Index)
+	{
+		const FString Kind = Kinds[Index];
+		const FString Way = Ways[Index % UE_ARRAY_COUNT(Ways)];
+		FTimerHandle Handle;
+		GetWorld()->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [this, Kind, Way]()
+		{
+			UE_LOG(LogVael, Display, TEXT("TodAlle: %s %s"), *Kind, *Way);
+			VaelTodTest(Way, Kind, 1);
+		}), 1.0f + Index * 7.0f, false);
+	}
+}
+
 void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int32 Count)
 {
 	APlayerController* Controller = GetOuterAPlayerController();
@@ -1563,7 +1625,28 @@ void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int
 	{
 		Before.Add(*It);
 	}
-	VaelSpawn(Kind, Count);
+	// kinds with spawn commands of their own
+	const FString KindLower = Kind.ToLower();
+	if (KindLower.StartsWith(TEXT("kobold")))
+	{
+		VaelKobold(TEXT("Dieb"), Count, false);
+	}
+	else if (KindLower.StartsWith(TEXT("ameise")))
+	{
+		VaelAmeise(TEXT("Salzspat"), Count, false, false);
+	}
+	else if (KindLower.StartsWith(TEXT("erztochter")))
+	{
+		VaelErztochter(1, Count, false);
+	}
+	else if (KindLower.StartsWith(TEXT("schleimg")))
+	{
+		VaelSchleimgaenger(TEXT("Zufall"), Count, TEXT("Skelett"));
+	}
+	else
+	{
+		VaelSpawn(Kind, Count);
+	}
 	TArray<TWeakObjectPtr<AVaelCreature>> Fresh;
 	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
 	{
@@ -1619,14 +1702,16 @@ void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int
 				Element = EVaelElement::Earth;
 				Damage = Life * 4.0f;
 			}
-			else if (Lower.StartsWith(TEXT("n")))
+			else if (Lower.StartsWith(TEXT("nid")))
 			{
 				Element = EVaelElement::Mark;
 			}
 			// resistances can swallow a lot: hit again with what is left until it falls (few hits, so the last one stays light)
-			for (int32 Try = 0; Try < 8 && !Creature->IsDead(); ++Try)
+			for (int32 Try = 0; Try < 16 && !Creature->IsDead(); ++Try)
 			{
-				UVaelCombatStatics::DealDamage(Hero, Creature, Try == 0 ? Damage : FMath::Max(Damage, Creature->GetHealth() * 4.0f + 5.0f), Element);
+				// heavy ways keep their weight; light ways hit with just what is left, so the last hit stays light
+				const bool bHeavyWay = Push > 0.0f || Lower.StartsWith(TEXT("er"));
+				UVaelCombatStatics::DealDamage(Hero, Creature, Try == 0 ? Damage : bHeavyWay ? FMath::Max(Damage, Creature->GetHealth() * 4.0f + 5.0f) : Creature->GetHealth() + 2.0f, Element);
 			}
 			if (Push > 0.0f)
 			{
@@ -1634,6 +1719,17 @@ void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int
 			}
 			const UVaelDeathMotion* Motion = Creature->FindComponentByClass<UVaelDeathMotion>();
 			UE_LOG(LogVael, Log, TEXT("VaelTodTest: '%s' %s"), *Creature->GetName(), Motion != nullptr ? TEXT("dies with a motion") : TEXT("no motion"));
+			// the result a moment later: dead, its death playing, nothing left standing
+			TWeakObjectPtr<AVaelCreature> Later(Creature);
+			FTimerHandle Check;
+			Creature->GetWorldTimerManager().SetTimer(Check, FTimerDelegate::CreateLambda([Later, Lower]()
+			{
+				const AVaelCreature* Body = Later.Get();
+				const UVaelDeathMotion* Playing = Body != nullptr ? Body->FindComponentByClass<UVaelDeathMotion>() : nullptr;
+				UE_LOG(LogVael, Display, TEXT("TodErgebnis %s %s: %s, %s"), *Lower, Body != nullptr ? *Body->GetClass()->GetName() : TEXT("(gone)"),
+					Body == nullptr ? TEXT("corpse already gone") : Body->IsDead() ? TEXT("dead") : TEXT("ALIVE"),
+					Playing != nullptr ? *UEnum::GetValueAsString(Playing->GetStyle()) : Body != nullptr && !Body->UsesDeathMotion() ? TEXT("own way (no motion wanted)") : TEXT("NO MOTION"));
+			}), 1.5f, false);
 		}
 	}), 1.2f, false);
 	}), 3.5f, false);

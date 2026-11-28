@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Creatures/VaelCreature.h"
+#include "HAL/IConsoleManager.h"
 #include "World/VaelLocalWeather.h"
 #include "Engineer/VaelEngineerComponent.h"
 #include "Items/VaelPotionEffects.h"
@@ -200,6 +201,39 @@ void AVaelCreature::UpdateTickRate(float DeltaSeconds)
 		bFar = bFar && bAnyPlayer;
 	}
 
+	// Far beyond every player (their ground may be streamed out): held still where they are until someone comes near
+	{
+		constexpr float HoldDistance = 15000.0f;
+		bool bHold = !bServant && !bDead;
+		bool bAnyone = false;
+		ForEachActivePlayer([this, &bHold, &bAnyone, HoldDistance](AVaelCharacter* Player)
+		{
+			bAnyone = true;
+			if (FVector::DistSquared2D(GetActorLocation(), Player->GetActorLocation()) < FMath::Square(HoldDistance))
+			{
+				bHold = false;
+			}
+		});
+		bHold = bHold && bAnyone;
+		if (bHold != bHeldFar)
+		{
+			bHeldFar = bHold;
+			if (UCharacterMovementComponent* Movement = GetCharacterMovement())
+			{
+				Movement->StopMovementImmediately();
+				if (bHold)
+				{
+					HeldMode = Movement->MovementMode;
+					Movement->DisableMovement();
+				}
+				else
+				{
+					Movement->SetMovementMode(HeldMode == MOVE_None ? MOVE_Falling : HeldMode.GetValue());
+				}
+			}
+		}
+	}
+
 	if (bFar == bTickingFar)
 	{
 		return;
@@ -276,10 +310,45 @@ float AVaelCreature::GetOutgoingDamageMultiplier() const
 	return Strength * (bMarked ? UVaelWorldSettings::Get()->MarkedDamageMultiplier : 1.0f) * (bElite ? UVaelWorldSettings::Get()->EliteDamageMultiplier : 1.0f) * BrokenAttackScale;
 }
 
+void AVaelCreature::TickActor(float DeltaTime, ELevelTick TickType, FActorTickFunction& ThisTickFunction)
+{
+	RawTickDelta = DeltaTime;
+	Super::TickActor(FMath::Min(DeltaTime, 0.1f), TickType, ThisTickFunction);
+}
+
+void AVaelCreature::KeepSane(float DeltaSeconds)
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	const FVector Here = GetActorLocation();
+	// a broken step (a huge time step after a long pause, a push out of a mesh): back to the last good place, standing still
+	const bool bBroken = Here.ContainsNaN() || Here.GetAbsMax() > 5.0e6 || (Movement != nullptr && Movement->Velocity.ContainsNaN())
+		|| (bHasGoodLocation && !bDead && DeltaSeconds > 0.3f && FVector::DistSquared(Here, LastGoodLocation) > FMath::Square(3000.0f));
+	if (bBroken && bHasGoodLocation)
+	{
+		UE_LOG(LogVael, Warning, TEXT("'%s' jumped from %s to %s (step %.2f s): set back"), *GetName(), *LastGoodLocation.ToCompactString(), *Here.ToCompactString(), DeltaSeconds);
+		SetActorLocation(LastGoodLocation, false, nullptr, ETeleportType::ResetPhysics);
+		if (Movement != nullptr)
+		{
+			Movement->StopMovementImmediately();
+		}
+	}
+	else if (!bBroken && !bDead)
+	{
+		LastGoodLocation = Here;
+		bHasGoodLocation = true;
+	}
+	if (Movement != nullptr && !bDead && DeltaSeconds > 0.5f)
+	{
+		// after a long pause the movement would take one giant step: no speed into it
+		Movement->StopMovementImmediately();
+	}
+}
+
 void AVaelCreature::Tick(float DeltaSeconds)
 {
 	Super::Tick(DeltaSeconds);
 
+	KeepSane(RawTickDelta);
 	UpdateTickRate(DeltaSeconds);
 
 	// Dead factory creatures curl their legs up
@@ -544,6 +613,8 @@ void AVaelCreature::OnHealthChanged(float OldValue, float NewValue)
 	}
 }
 
+static TAutoConsoleVariable<int32> CVarDeathMotion(TEXT("vael.DeathMotion"), 1, TEXT("Deaths of creatures (UVaelDeathMotion): 1 on, 0 the old slump"));
+
 void AVaelCreature::Die()
 {
 	if (bDead)
@@ -622,7 +693,7 @@ void AVaelCreature::Die()
 
 	// The death of it (Boris 2026-11-27): flung by a heavy blow, charred by fire, shattered when frozen, toppled otherwise
 	float CorpseTime = CorpseDuration;
-	if (WantsDeathMotion())
+	if (WantsDeathMotion() && CVarDeathMotion.GetValueOnGameThread() != 0)
 	{
 		LastBlow.bBurning = UVaelCombatStatics::HasStatus(this, EVaelStatus::Burning);
 		LastBlow.bFrozen = UVaelCombatStatics::HasStatus(this, EVaelStatus::Frozen);

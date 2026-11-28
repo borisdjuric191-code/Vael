@@ -146,6 +146,15 @@ public:
 	UFUNCTION(Exec)
 	void VaelZielTest(float Seconds = 20.0f, const FString& Kind = TEXT("Harpyie"), int32 Count = 3);
 
+	/** Every creature kind in turn (one every 7 s), each killed another way (normal, feuer, eis, wucht, blitz, erde, nid);
+	 *  logs "TodErgebnis" per kind: dead, and which death it plays */
+	UFUNCTION(Exec)
+	void VaelTodAlle();
+
+	/** Looks every half second for scene components with a broken transform (NaN, zero scale, far out) and logs each once */
+	UFUNCTION(Exec)
+	void VaelNaNSuche();
+
 	UFUNCTION(Exec)
 	void VaelTodTest(const FString& Way = TEXT("normal"), const FString& Kind = TEXT("Kriecher"), int32 Count = 3);
 
