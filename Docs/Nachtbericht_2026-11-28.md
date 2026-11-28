@@ -32,6 +32,11 @@ Ziel der Nacht (Boris): Wasser im Eisenschlund, Höhlen weniger perfekt, Ruckeln
 - Umkippen, Wegschleudern bei Wucht (fliegt, prallt ab, rutscht aus), Absturz aus der Luft, Verkohlen bei Feuer (schwarz, glühende Risse, zerfällt zu Asche), Zerspringen wenn gefroren, Zucken bei Blitz, Zerquetschen bei wuchtiger Erde, violettes Auflösen bei Nid. Danach versinkt die Leiche.
 - Gegner mit eigenem Sterbe-Clip (Nachtwesen, Kobolde, Pfuhlnatter …) behalten ihn und bekommen Element-Look und Wegfliegen dazu.
 
+**7. Nachtrag am Morgen: weggeschleuderte Gegner**
+- Test aller 27 Gegnerarten (`VaelTodAlle`): jede stirbt und spielt ihre Todesart. Dabei fiel auf, dass fast jeder Tod als Wegschleudern gewählt wurde und Blitz nie zuckte; die Regeln sind korrigiert.
+- Echter alter Fehler gefunden: Die Wackel-Feder des Bein-IK schaukelte sich bei Gegnern in der Ferne (sie rechnen nur alle 0,25 s) auf. Die Kristalle einer Ameise flogen 20 000 km weit, der Renderer meldete tausende ungültige Matrizen (kostet Bildzeit). Behoben: Feder in kleinen Schritten, Gegner-Zeitschritt höchstens 0,1 s, unplausible Sprünge werden zurückgesetzt, Gegner fern aller Spieler werden angehalten (ihr Höhlenboden kann entladen sein). Danach 0 Fehler.
+- Werkzeuge dafür: `VaelNaNSuche` (meldet kaputte Positionen), `vael.DeathMotion 0` (alte Todesart zum Vergleich).
+
 ## Getestet
 - Kompiliert ohne Fehler, Smoke-Test ohne neue Fehler (ein alter Zähler bei Floromant-Paaren meldet wie vorher FAILED).
 - Lauftests durch alle Höhlen in L_Vael: siehe Tabelle unten.
