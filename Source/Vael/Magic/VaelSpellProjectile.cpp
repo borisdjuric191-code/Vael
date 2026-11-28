@@ -2312,9 +2312,15 @@ void AVaelSpellProjectile::TickAimAssist(float DeltaSeconds)
 	// Height only towards fliers and where it is far off; on the ground the shot keeps its height (no dive into the floor); a wave
 	// rolls on the ground and never rises
 	const float Rise = Wanted.Z;
-	if ((Rise < 50.0f && Rise > -70.0f) || Look == EVaelProjectileLook::TidalWave || Movement->ProjectileGravityScale > 0.0f)
+	if ((Rise < 50.0f && Rise > -70.0f) || Look == EVaelProjectileLook::TidalWave)
 	{
 		Wanted.Z = Heading.Z * Wanted.Size2D();
+	}
+	else if (Movement->ProjectileGravityScale > 0.0f)
+	{
+		// a shot that falls (water ball, rock) is aimed above a flier by what it drops on the way
+		const float Time = Wanted.Size() / Speed;
+		Wanted.Z += 0.5f * FMath::Abs(Movement->GetGravityZ()) * Time * Time;
 	}
 	Wanted = Wanted.GetSafeNormal();
 	const float Off = FMath::RadiansToDegrees(FMath::Acos(FMath::Clamp(FVector::DotProduct(Wanted, Heading), -1.0f, 1.0f)));

@@ -1414,11 +1414,12 @@ void UVaelCheatManager::VaelZielTest(float Seconds, const FString& Kind, int32 C
 		float NextCast = 3.0f;
 		int32 Casts = 0;
 		int32 Hits = 0;
+		bool bHitThisCast = true;
 		TMap<TWeakObjectPtr<AVaelCreature>, float> Health;
 	};
 	TSharedRef<FAim> Aim = MakeShared<FAim>();
 	TWeakObjectPtr<UVaelCheatManager> WeakThis(this);
-	static const TCHAR* Shots[] = { TEXT("F"), TEXT("W"), TEXT("E") };
+	static const TCHAR* Shots[] = { TEXT("W"), TEXT("E") };
 	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakThis, Aim, Seconds, Kind, Count](float) -> bool
 	{
 		UVaelCheatManager* Self = WeakThis.Get();
@@ -1440,9 +1441,11 @@ void UVaelCheatManager::VaelZielTest(float Seconds, const FString& Kind, int32 C
 				continue;
 			}
 			const float Now = Creature->IsDead() ? 0.0f : Creature->GetHealth();
-			if (Now < It.Value() - 0.5f)
+			// one hit per cast at most (a shot that bursts or pierces hurts several)
+			if (Now < It.Value() - 0.5f && !Aim->bHitThisCast)
 			{
 				++Aim->Hits;
+				Aim->bHitThisCast = true;
 			}
 			It.Value() = Now;
 			Alive += Creature->IsDead() ? 0 : 1;
@@ -1486,6 +1489,7 @@ void UVaelCheatManager::VaelZielTest(float Seconds, const FString& Kind, int32 C
 				}
 				Self->VaelCast(Shots[Aim->Casts % UE_ARRAY_COUNT(Shots)], (Nearest->GetActorLocation() - Hero->GetActorLocation()).Rotation().Yaw);
 				++Aim->Casts;
+				Aim->bHitThisCast = false;
 			}
 		}
 		if (Aim->Age >= Seconds + 3.0f)
