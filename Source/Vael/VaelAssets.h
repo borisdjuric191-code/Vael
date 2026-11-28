@@ -16,6 +16,10 @@ namespace VaelAssets
 	 *  prepares every loaded Niagara system. Once per run. */
 	void PreloadRemembered();
 
+	/** Starts loading, in the background, what the creatures and the settings of the game name by soft reference (meshes,
+	 *  animations, materials, effects of every creature kind): the first of a kind that appears then needs no load from the disk. */
+	void PreloadInBackground();
+
 	/** Loads the asset at the path. Returns null without a warning if it doesn't exist. */
 	UObject* LoadOptional(const FSoftObjectPath& Path);
 

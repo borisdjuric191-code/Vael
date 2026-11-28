@@ -2,6 +2,11 @@
 
 #include "VaelAssets.h"
 #include "NiagaraSystem.h"
+#include "Creatures/VaelCreatureData.h"
+#include "Engine/AssetManager.h"
+#include "Engine/DeveloperSettings.h"
+#include "Engine/StreamableManager.h"
+#include "Engine/World.h"
 #include "UObject/UObjectIterator.h"
 #include "HAL/PlatformTime.h"
 #include "Misc/App.h"
@@ -26,6 +31,7 @@ namespace
 		TSet<FSoftObjectPath> Missing;
 		/** Paths already in one of the preload lists */
 		TSet<FString> Remembered;
+		TSharedPtr<FStreamableHandle> Background;
 		bool bPreloadStarted = false;
 
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
@@ -56,6 +62,8 @@ namespace
 	}
 }
 
+static void CollectGameSoftReferences(TSet<FSoftObjectPath>& Paths);
+
 void VaelAssets::PreloadRemembered()
 {
 	FVaelAssetCache& Assets = Cache();
@@ -66,6 +74,21 @@ void VaelAssets::PreloadRemembered()
 	Assets.bPreloadStarted = true;
 	const double Start = FPlatformTime::Seconds();
 	int32 Count = 0;
+	// what every creature kind and the settings name by soft reference (the first spider or harpy of a fight loaded its body from
+	// the disk), loaded with the level, before play
+	TSet<FSoftObjectPath> GameReferences;
+	CollectGameSoftReferences(GameReferences);
+	for (const FSoftObjectPath& Path : GameReferences)
+	{
+		if (Path.ResolveObject() == nullptr && FPackageName::DoesPackageExist(Path.GetLongPackageName()))
+		{
+			if (UObject* Found = Path.TryLoad())
+			{
+				Assets.Loaded.Add(Path, Found);
+				++Count;
+			}
+		}
+	}
 	for (const FString& File : { ProjectList(), SavedList() })
 	{
 		TArray<FString> Lines;
@@ -118,6 +141,88 @@ void VaelAssets::PreloadRemembered()
 #else
 	UE_LOG(LogVael, Log, TEXT("VaelAssets: %d assets loaded before play (%.1f s)"), Count, FPlatformTime::Seconds() - Start);
 #endif
+}
+
+namespace
+{
+	/** Soft references in a property, its arrays and structs (a few levels deep); never whole levels */
+	void CollectSoft(const FProperty* Property, const void* Container, int32 Depth, TSet<FSoftObjectPath>& Out)
+	{
+		if (Depth > 3 || Property == nullptr || Container == nullptr)
+		{
+			return;
+		}
+		for (int32 Index = 0; Index < Property->ArrayDim; ++Index)
+		{
+			const void* Value = Property->ContainerPtrToValuePtr<void>(Container, Index);
+			if (const FSoftObjectProperty* Soft = CastField<FSoftObjectProperty>(Property))
+			{
+				const UClass* Kind = Soft->PropertyClass;
+				if (Kind != nullptr && !Kind->IsChildOf(UWorld::StaticClass()))
+				{
+					const FSoftObjectPath Path = Soft->GetPropertyValue(Value).ToSoftObjectPath();
+					if (!Path.IsNull())
+					{
+						Out.Add(Path);
+					}
+				}
+			}
+			else if (const FArrayProperty* Array = CastField<FArrayProperty>(Property))
+			{
+				FScriptArrayHelper Helper(Array, Value);
+				for (int32 Element = 0; Element < Helper.Num() && Element < 256; ++Element)
+				{
+					// the element sits at its pointer; CollectSoft reads it as a container of the inner property at offset 0
+					CollectSoft(Array->Inner, Helper.GetRawPtr(Element) - Array->Inner->GetOffset_ForInternal(), Depth + 1, Out);
+				}
+			}
+			else if (const FStructProperty* Struct = CastField<FStructProperty>(Property))
+			{
+				for (TFieldIterator<FProperty> It(Struct->Struct); It; ++It)
+				{
+					CollectSoft(*It, Value, Depth + 1, Out);
+				}
+			}
+		}
+	}
+}
+
+static void CollectGameSoftReferences(TSet<FSoftObjectPath>& Paths)
+{
+	for (TObjectIterator<UClass> It; It; ++It)
+	{
+		UClass* Class = *It;
+		if (Class->HasAnyClassFlags(CLASS_Abstract | CLASS_Deprecated | CLASS_NewerVersionExists) || !Class->GetName().StartsWith(TEXT("Vael")))
+		{
+			continue;
+		}
+		if (!Class->IsChildOf(UVaelCreatureData::StaticClass()) && !Class->IsChildOf(UDeveloperSettings::StaticClass()))
+		{
+			continue;
+		}
+		const UObject* Defaults = Class->GetDefaultObject();
+		for (TFieldIterator<FProperty> Field(Class); Field; ++Field)
+		{
+			CollectSoft(*Field, Defaults, 0, Paths);
+		}
+	}
+	// the creature kinds made as data assets in the editor
+	for (TObjectIterator<UVaelCreatureData> It; It; ++It)
+	{
+		if (!It->HasAnyFlags(RF_ClassDefaultObject))
+		{
+			for (TFieldIterator<FProperty> Field(It->GetClass()); Field; ++Field)
+			{
+				CollectSoft(*Field, *It, 0, Paths);
+			}
+		}
+	}
+}
+
+void VaelAssets::PreloadInBackground()
+{
+	// loading during play made hitches of its own (post-load work on the game thread, up to 670 ms, 2026-11-28):
+	// PreloadRemembered loads the same before play
 }
 
 UObject* VaelAssets::LoadOptional(const FSoftObjectPath& Path)

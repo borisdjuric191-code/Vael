@@ -305,6 +305,8 @@ void AVaelGameMode::StartPlay()
 
 	// What earlier games had to load in the middle of a fight comes in the background now (Boris 2026-11-27: stutter in fights)
 	VaelAssets::PreloadRemembered();
+	// and what every creature kind needs, in the background (the first spider or harpy of a fight loaded its body from the disk)
+	VaelAssets::PreloadInBackground();
 
 	if (UVaelSaveSubsystem* Save = UVaelSaveSubsystem::Get(this))
 	{
