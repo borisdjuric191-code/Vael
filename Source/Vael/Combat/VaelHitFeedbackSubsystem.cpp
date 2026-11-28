@@ -25,7 +25,7 @@ namespace
 	constexpr float FlashTime = 0.13f;
 
 	/** Most flashes at once (every one is a material instance) */
-	constexpr int32 MaxFlashes = 24;
+	constexpr int32 MaxFlashes = 64;
 
 	FLinearColor ElementColor(const FGameplayTagContainer* Tags, float& OutGlow)
 	{
@@ -76,10 +76,11 @@ void UVaelHitFeedbackSubsystem::OnDamageTaken(AActor* Target, float Damage, floa
 
 	if (bTargetIsPlayer)
 	{
-		// The harder the blow, the more the screen shakes
+		// The harder the blow, the more the screen shakes; the hero flashes red (Boris 2026-11-27: getting hit must be felt)
 		if (!bOverTime)
 		{
 			Shake(Target, Settings->PlayerHurtShake * (bHeavy ? 2.0f : 1.0f));
+			Subsystem->Flash(Target, FLinearColor(1.0f, 0.08f, 0.04f), bHeavy ? 0.9f : 0.6f);
 		}
 	}
 	else
@@ -141,15 +142,19 @@ void UVaelHitFeedbackSubsystem::Flash(AActor* Target, const FLinearColor& Color,
 	{
 		return;
 	}
-	const double Now = FPlatformTime::Seconds();
-	FFlash* Running = Flashes.FindByPredicate([Target](const FFlash& Each) { return Each.Target.Get() == Target; });
-	if (Running == nullptr)
+	FFlash* Entry = Flashes.FindByPredicate([Target](const FFlash& Each) { return Each.Target.Get() == Target; });
+	if (Entry == nullptr)
 	{
 		if (Flashes.Num() >= MaxFlashes)
 		{
-			return;
+			// the bodies gone since are dropped first
+			Flashes.RemoveAll([](const FFlash& Each) { return !Each.Target.IsValid(); });
+			if (Flashes.Num() >= MaxFlashes)
+			{
+				return;
+			}
 		}
-		// a free material: one not used by a running flash
+		// a material of a body that is gone is used again
 		TBitArray<> Used(false, FlashMaterials.Num());
 		for (const FFlash& Each : Flashes)
 		{
@@ -160,27 +165,47 @@ void UVaelHitFeedbackSubsystem::Flash(AActor* Target, const FLinearColor& Color,
 		{
 			Slot = FlashMaterials.Add(UMaterialInstanceDynamic::Create(Material, this));
 		}
+		FlashMaterials[Slot]->SetScalarParameterValue(TEXT("Staerke"), 0.0f);
 		FFlash& Added = Flashes.AddDefaulted_GetRef();
 		Added.Target = Target;
 		Added.Slot = Slot;
-		TInlineComponentArray<UMeshComponent*> Meshes(Target);
-		for (UMeshComponent* Mesh : Meshes)
+		// the body and what hangs on it (the MetaHuman of a hero is an actor of its own, attached to the mesh)
+		TArray<AActor*> Parts;
+		Target->GetAttachedActors(Parts, true, true);
+		Parts.Add(Target);
+		TArray<UMeshComponent*> Meshes;
+		for (AActor* Part : Parts)
 		{
-			// a mesh that already wears an overlay (a corpse) keeps it
-			if (Mesh->IsVisible() && Mesh->GetOverlayMaterial() == nullptr)
+			TInlineComponentArray<UMeshComponent*> Found(Part);
+			for (UMeshComponent* Mesh : Found)
 			{
-				Mesh->SetOverlayMaterial(FlashMaterials[Slot]);
-				Added.Meshes.Add(Mesh);
+				// a mesh that already wears an overlay (a corpse) keeps it
+				if (Mesh->IsVisible() && Mesh->GetOverlayMaterial() == nullptr)
+				{
+					Meshes.Add(Mesh);
+				}
 			}
 		}
-		Running = &Added;
+		// only the big parts, once: some bodies carry hundreds of small pieces (the crystals of the Erztochter)
+		Meshes.Sort([](const UMeshComponent& A, const UMeshComponent& B) { return A.Bounds.SphereRadius > B.Bounds.SphereRadius; });
+		const float Biggest = Meshes.IsEmpty() ? 0.0f : Meshes[0]->Bounds.SphereRadius;
+		for (int32 Index = 0; Index < Meshes.Num() && Index < 6; ++Index)
+		{
+			if (Meshes[Index]->Bounds.SphereRadius < Biggest * 0.3f)
+			{
+				break;
+			}
+			Meshes[Index]->SetOverlayMaterial(FlashMaterials[Slot]);
+		}
+		Entry = &Added;
 	}
-	Running->Start = Now;
-	Running->Strength = FMath::Max(Strength, 0.1f);
-	if (UMaterialInstanceDynamic* Instance = FlashMaterials[Running->Slot])
+	Entry->Start = FPlatformTime::Seconds();
+	Entry->Strength = FMath::Max(Strength, 0.1f);
+	Entry->bRunning = true;
+	if (UMaterialInstanceDynamic* Instance = FlashMaterials[Entry->Slot])
 	{
 		Instance->SetVectorParameterValue(TEXT("Farbe"), Color);
-		Instance->SetScalarParameterValue(TEXT("Staerke"), Running->Strength);
+		Instance->SetScalarParameterValue(TEXT("Staerke"), Entry->Strength);
 	}
 }
 
@@ -265,25 +290,26 @@ void UVaelHitFeedbackSubsystem::Tick(float DeltaTime)
 		EndHitStop();
 	}
 
-	// The flashes fade quickly and leave the meshes as they were
+	// The flashes fade quickly; the material stays on the body, at nothing
 	for (int32 Index = Flashes.Num() - 1; Index >= 0; --Index)
 	{
 		FFlash& Each = Flashes[Index];
-		UMaterialInstanceDynamic* Instance = FlashMaterials.IsValidIndex(Each.Slot) ? FlashMaterials[Each.Slot].Get() : nullptr;
-		const float Left = 1.0f - static_cast<float>((Now - Each.Start) / FlashTime);
-		if (Left > 0.0f && Each.Target.IsValid() && Instance != nullptr)
+		if (!Each.Target.IsValid())
 		{
-			Instance->SetScalarParameterValue(TEXT("Staerke"), Each.Strength * Left * Left);
+			Flashes.RemoveAtSwap(Index);
 			continue;
 		}
-		for (const TWeakObjectPtr<UMeshComponent>& Mesh : Each.Meshes)
+		if (!Each.bRunning)
 		{
-			if (UMeshComponent* Alive = Mesh.Get(); Alive != nullptr && Alive->GetOverlayMaterial() == Instance)
-			{
-				Alive->SetOverlayMaterial(nullptr);
-			}
+			continue;
 		}
-		Flashes.RemoveAtSwap(Index);
+		UMaterialInstanceDynamic* Instance = FlashMaterials.IsValidIndex(Each.Slot) ? FlashMaterials[Each.Slot].Get() : nullptr;
+		const float Left = 1.0f - static_cast<float>((Now - Each.Start) / FlashTime);
+		if (Instance != nullptr)
+		{
+			Instance->SetScalarParameterValue(TEXT("Staerke"), Left > 0.0f ? Each.Strength * Left * Left : 0.0f);
+		}
+		Each.bRunning = Left > 0.0f;
 	}
 }
 

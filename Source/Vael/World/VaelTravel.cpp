@@ -51,7 +51,10 @@ void VaelTravel::Land(APawn* Pawn, const FVector2D& Place, float FromZ, float Mi
 		UCharacterMovementComponent* Movement = Mover->FindComponentByClass<UCharacterMovementComponent>();
 		// Under a roof (the caves inside L_Vael) the floor of a far place can take a while to stream in: wait up to a minute, and
 		// never give up below it (once the group fell into nothing after 15 s, walk test 2026-11-23)
-		if (bGround || ++(*Tries) > (bUnderRoof || !bPartitioned ? 300 : 75))
+		// Under a roof the floor always comes (the caves of the Eisenschlund lie in L_Vael): wait for it as long as it takes, frozen in
+		// the air, instead of letting the group drop into nothing (Boris 2026-11-27: thrown out of the caves); give up only after
+		// three minutes, then on the height of the floor
+		if (bGround || ++(*Tries) > (bUnderRoof ? 900 : !bPartitioned ? 300 : 75))
 		{
 			const float GroundZ = bGround ? Hit.ImpactPoint.Z : bUnderRoof ? Above.Z : 0.0f;
 			Mover->TeleportTo(FVector(Above.X, Above.Y, GroundZ + Mover->GetSimpleCollisionHalfHeight() + 5.0f), Mover->GetActorRotation());

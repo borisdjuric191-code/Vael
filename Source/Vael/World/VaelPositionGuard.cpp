@@ -25,6 +25,11 @@ void UVaelPositionGuard::NoteTeleport(const FVector& To)
 {
 	bTeleported = true;
 	FallingTime = 0.0f;
+	// where a teleport puts the player is the new safe spot until real ground is found there: a rescue never brings someone back
+	// to where they came from (out of a cave they just went into)
+	LastSafe = To;
+	bHasSafe = true;
+	SafeClock = 0.0f;
 }
 
 void UVaelPositionGuard::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)

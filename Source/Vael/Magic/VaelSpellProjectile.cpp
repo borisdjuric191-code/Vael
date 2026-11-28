@@ -4,6 +4,7 @@
 #include "Creatures/VaelCreature.h"
 #include "Player/VaelCharacter.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/PointLightComponent.h"
 #include "Components/SphereComponent.h"
@@ -2231,8 +2232,15 @@ void AVaelSpellProjectile::StartPlantFeel()
 	}
 }
 
+static TAutoConsoleVariable<int32> CVarVaelAimAssist(TEXT("vael.AimAssist"), 1,
+	TEXT("Aim help for the shots of the players (spells and engineer): 1 on, 0 off (for comparing hit rates)"));
+
 void AVaelSpellProjectile::TickAimAssist(float DeltaSeconds)
 {
+	if (CVarVaelAimAssist.GetValueOnGameThread() == 0)
+	{
+		return;
+	}
 	AssistAge += DeltaSeconds;
 	const float Speed = Movement->Velocity.Size();
 	if (Speed < 200.0f)
@@ -2301,9 +2309,10 @@ void AVaelSpellProjectile::TickAimAssist(float DeltaSeconds)
 	{
 		return;
 	}
-	// Height only towards fliers and where it is far off; on the ground the shot keeps its height (no dive into the floor)
+	// Height only towards fliers and where it is far off; on the ground the shot keeps its height (no dive into the floor); a wave
+	// rolls on the ground and never rises
 	const float Rise = Wanted.Z;
-	if (Rise < 50.0f && Rise > -70.0f)
+	if ((Rise < 50.0f && Rise > -70.0f) || Look == EVaelProjectileLook::TidalWave || Movement->ProjectileGravityScale > 0.0f)
 	{
 		Wanted.Z = Heading.Z * Wanted.Size2D();
 	}

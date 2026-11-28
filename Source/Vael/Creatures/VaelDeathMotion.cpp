@@ -63,13 +63,13 @@ float UVaelDeathMotion::Start(AVaelCreature* Creature, const FVaelKillingBlow& B
 	Motion->GroundZ = Motion->TraceGround(Motion->StartLocation);
 
 	// What is seen of it: every mesh (static, skeletal, procedural) gets the overlay of its death
+	// (the biggest dozen: every overlay change rebuilds the part for the renderer, the Erztochter carries 177 crystals)
 	TInlineComponentArray<UMeshComponent*> Found(Creature);
-	for (UMeshComponent* Each : Found)
+	Found.RemoveAll([](const UMeshComponent* Each) { return !Each->IsVisible() || Each->bHiddenInGame; });
+	Found.Sort([](const UMeshComponent& A, const UMeshComponent& B) { return A.Bounds.SphereRadius > B.Bounds.SphereRadius; });
+	for (int32 Index = 0; Index < Found.Num() && Index < 12; ++Index)
 	{
-		if (Each->IsVisible() && !Each->bHiddenInGame)
-		{
-			Motion->Meshes.Add(Each);
-		}
+		Motion->Meshes.Add(Found[Index]);
 	}
 
 	// The style is chosen in the first tick: the knockback of the killing hit arrives after its damage

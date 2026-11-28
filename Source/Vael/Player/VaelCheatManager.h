@@ -136,6 +136,12 @@ public:
 
 	/** Death test: spawns creatures 6 m ahead and kills them a certain way after a second: normal, feuer, eis, wucht, blitz, erde,
 	 *  nid, flieger (harpies shot from the air). Example: VaelTodTest wucht Kriecher 3 */
+	/** Aim test: keeps Count creatures (fliers by default) alive 7 m around the player and casts a single shot (Funke, Wassergeschoss,
+	 *  Steinbrocken in turn) at where the nearest one is, every 0.6 s, for the given seconds; logs how many casts hit.
+	 *  Compare with "vael.AimAssist 0". Example: VaelZielTest 20 Harpyie 3 */
+	UFUNCTION(Exec)
+	void VaelZielTest(float Seconds = 20.0f, const FString& Kind = TEXT("Harpyie"), int32 Count = 3);
+
 	UFUNCTION(Exec)
 	void VaelTodTest(const FString& Way = TEXT("normal"), const FString& Kind = TEXT("Kriecher"), int32 Count = 3);
 

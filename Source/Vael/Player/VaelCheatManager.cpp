@@ -48,6 +48,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 #include "Containers/Ticker.h"
 #include "GameFramework/PlayerController.h"
 #include "Items/VaelInventory.h"
@@ -1389,6 +1390,109 @@ void UVaelCheatManager::VaelLastTest(float Seconds, int32 Pack)
 			UE_LOG(LogVael, Display, TEXT("Load test (%.0f s, %d casts, %d enemies alive): frame mean %.1f ms (%.0f fps), p99 %.1f ms, worst %.0f ms at %.1f s, hitches >33 ms %d, >50 ms %d; game %.1f, render %.1f, GPU %.1f ms"),
 				Seconds, Load->Cast, Alive, Sum / Num, 1000.0 / FMath::Max(Sum / Num, 0.1), Sorted.IsEmpty() ? 0.0f : Sorted[FMath::Min(Num - 1, FMath::FloorToInt(Num * 0.99f))],
 				Load->Worst, Load->WorstAt, Over33, Over50, Load->Game / Num, Load->Render / Num, Load->Gpu / Num);
+			return false;
+		}
+		return true;
+	}));
+}
+
+void UVaelCheatManager::VaelZielTest(float Seconds, const FString& Kind, int32 Count)
+{
+	APlayerController* Controller = GetOuterAPlayerController();
+	if (Controller == nullptr || Controller->GetPawn() == nullptr)
+	{
+		return;
+	}
+	if (Controller->GetPawn()->CanBeDamaged())
+	{
+		God();
+	}
+	VaelLearnAll();
+	struct FAim
+	{
+		float Age = 0.0f;
+		float NextCast = 3.0f;
+		int32 Casts = 0;
+		int32 Hits = 0;
+		TMap<TWeakObjectPtr<AVaelCreature>, float> Health;
+	};
+	TSharedRef<FAim> Aim = MakeShared<FAim>();
+	TWeakObjectPtr<UVaelCheatManager> WeakThis(this);
+	static const TCHAR* Shots[] = { TEXT("F"), TEXT("W"), TEXT("E") };
+	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakThis, Aim, Seconds, Kind, Count](float) -> bool
+	{
+		UVaelCheatManager* Self = WeakThis.Get();
+		APlayerController* Owner = Self != nullptr ? Self->GetOuterAPlayerController() : nullptr;
+		APawn* Hero = Owner != nullptr ? Owner->GetPawn() : nullptr;
+		if (Hero == nullptr)
+		{
+			return false;
+		}
+		Aim->Age += FApp::GetDeltaTime();
+		// hits: every drop of health of a test creature after a cast
+		int32 Alive = 0;
+		for (auto It = Aim->Health.CreateIterator(); It; ++It)
+		{
+			AVaelCreature* Creature = It.Key().Get();
+			if (Creature == nullptr)
+			{
+				It.RemoveCurrent();
+				continue;
+			}
+			const float Now = Creature->IsDead() ? 0.0f : Creature->GetHealth();
+			if (Now < It.Value() - 0.5f)
+			{
+				++Aim->Hits;
+			}
+			It.Value() = Now;
+			Alive += Creature->IsDead() ? 0 : 1;
+		}
+		if (Alive < Count && Aim->Age > 1.0f)
+		{
+			TSet<AVaelCreature*> Before;
+			for (TActorIterator<AVaelCreature> It(Hero->GetWorld()); It; ++It)
+			{
+				Before.Add(*It);
+			}
+			Self->VaelSpawn(Kind, Count - Alive);
+			for (TActorIterator<AVaelCreature> It(Hero->GetWorld()); It; ++It)
+			{
+				if (!Before.Contains(*It))
+				{
+					Aim->Health.Add(*It, It->GetHealth());
+				}
+			}
+		}
+		if (Aim->Age >= Aim->NextCast)
+		{
+			Aim->NextCast = Aim->Age + 0.6f;
+			const AVaelCreature* Nearest = nullptr;
+			float Best = UE_BIG_NUMBER;
+			for (const TPair<TWeakObjectPtr<AVaelCreature>, float>& Each : Aim->Health)
+			{
+				const AVaelCreature* Creature = Each.Key.Get();
+				const float Distance = Creature != nullptr && !Creature->IsDead() ? FVector::DistSquared(Creature->GetActorLocation(), Hero->GetActorLocation()) : UE_BIG_NUMBER;
+				if (Distance < Best)
+				{
+					Best = Distance;
+					Nearest = Creature;
+				}
+			}
+			if (Nearest != nullptr)
+			{
+				if (const AVaelCharacter* Mage = Cast<AVaelCharacter>(Hero))
+				{
+					Mage->GetAbilitySystemComponent()->SetNumericAttributeBase(UVaelAttributeSet::GetManaAttribute(), Mage->GetMaxMana());
+				}
+				Self->VaelCast(Shots[Aim->Casts % UE_ARRAY_COUNT(Shots)], (Nearest->GetActorLocation() - Hero->GetActorLocation()).Rotation().Yaw);
+				++Aim->Casts;
+			}
+		}
+		if (Aim->Age >= Seconds + 3.0f)
+		{
+			const IConsoleVariable* Assist = IConsoleManager::Get().FindConsoleVariable(TEXT("vael.AimAssist"));
+			UE_LOG(LogVael, Display, TEXT("Aim test (%s, aim help %s): %d casts, %d hits (%.0f %%)"), *Kind, Assist != nullptr && Assist->GetInt() != 0 ? TEXT("on") : TEXT("off"),
+				Aim->Casts, Aim->Hits, Aim->Casts > 0 ? 100.0f * Aim->Hits / Aim->Casts : 0.0f);
 			return false;
 		}
 		return true;

@@ -91,6 +91,15 @@ ART = {
                      "tropfsteine": 0.3, "schleimzapfen": 0.7},
 }
 
+# Der unperfekte Boden je Art (boden_ausbau, Boris 2026-11-27): Steinplatten, Kiesel, Geröll, Felsnasen, Wandbuckel, Säulen, Pfützen
+ART["Olmgrotte"].update({"pfuetzen": 0.09, "platten": 0.35, "saeulen": 0.04})
+ART["Gebeinkammer"].update({"platten": 0.7, "kiesel": 0.35, "pfuetzen": 0.02})
+ART["Gildenmine"].update({"platten": 0.22, "kiesel": 0.7, "geroell": 0.12, "pfuetzen": 0.035})
+ART["FunkenerzAdern"].update({"pfuetzen": 0.0, "kiesel": 0.4, "geroell": 0.2})
+ART["Rostschwamm"].update({"pfuetzen": 0.06})
+ART["KoboldStollen"].update({"platten": 0.3, "pfuetzen": 0.02})
+ART["TiefsterSchacht"].update({"saeulen": 0.03})
+
 # Die Erze des Eisenschlunds (Docs/Eisenschlund_Erze_Pflanzen_Wesen.md): Seltenheit 0 häufig bis 5 legendär
 ERZ_SELTENHEIT = {"Rosteisen": 0, "Schwefelkies": 0, "Funkenerz": 1, "Gruenspan": 2, "Salzspat": 2, "Drahtsilber": 3, "Blutzinnober": 3,
                   "Kobaltbluete": 3, "Siechglas": 4, "Rippenspat": 4, "Kernerz": 5}
@@ -258,6 +267,12 @@ def import_piece(name, collision_complex=False):
         mesh.set_editor_property("nanite_settings", nanite)
     return mesh
 
+
+TROPFEN = []        # Spitzen der Stalaktiten und Schleimzapfen (x, y, z, Schleimfarbe oder None, Zeile, Spalte): dort tropft es
+BODEN_TEILE = ["SM_HK_Platte_A", "SM_HK_Platte_B", "SM_HK_Platte_C", "SM_HK_Platte_D", "SM_HK_Kiesel_A", "SM_HK_Kiesel_B", "SM_HK_Kiesel_C",
+               "SM_HK_Geroell_A", "SM_HK_Geroell_B", "SM_HK_Felsnase_A", "SM_HK_Felsnase_B", "SM_HK_Pfuetze_A", "SM_HK_Pfuetze_B", "SM_HK_Pfuetze_C"]
+WASSER_KIT = "/Game/VFX/Water/Materials/M_Water_Puddle"
+WASSER_WEISS = "/Engine/EngineResources/WhiteSquareTexture.WhiteSquareTexture"
 
 FAB_BONES = {"SM_HK_Schaedelwand_A", "SM_HK_Schaedelwand_B", "SM_HK_Knochensaeule", "SM_HK_Schaedelbogen", "SM_HK_Schaedelbogen_Breit",
              "SM_HK_Knochenhaufen"}
@@ -900,6 +915,7 @@ def tropfsteine(world):
                             farbe = erng.choice(lachen_hier())
                             z_ = mesh_actor(erng.choice(ZAPFEN), px, py, hit[0].z + 25.0, "Tropfsteine", "Schleimzapfen " + farbe,
                                             yaw=erng.uniform(0, 360), scale=(h_ * 0.4, h_ * 0.4, h_), collision=False)
+                            TROPFEN.append((px, py, hit[0].z + 25.0 - h_ * 100.0, farbe, r, c))
                             z_.static_mesh_component.set_material_by_name("Fels", fels())
                             z_.static_mesh_component.set_material_by_name("Schleim", SLIME_MATS[farbe])
                             if erng.random() < 0.35:
@@ -910,6 +926,7 @@ def tropfsteine(world):
                         mesh_actor(erng.choice(MITES), px, py, hit[0].z + 30.0, "Tropfsteine", "Stalaktit", yaw=erng.uniform(0, 360),
                                    scale=(h_ * 0.38, h_ * 0.38, h_), material=fels(), roll=180.0 + erng.uniform(-5, 5),
                                    collision=False)
+                        TROPFEN.append((px, py, hit[0].z + 30.0 - h_ * 100.0, None, r, c))
                         n_tit += 1
     log("Tropfsteine: {} Stalagmiten, {} Stalaktiten, {} Schleimzapfen".format(n_mit, n_tit, n_zap[0]))
     return n_mit + n_tit
@@ -1168,6 +1185,158 @@ def wasser_flaeche():
     return unreal.load_asset("{}/{}".format(PARTS, name))
 
 
+def kit_wasser(name, tief, flach, murk, wellen, kontakt=6.0):
+    """Wasser des Wasser-Kits wie der Teich der Aschenmark (Boris 2026-11-27: "richtiges Wasser, das was wir schon haben"):
+    Instanz von M_Water_Puddle mit weißer Maske (ganze Fläche), Wellen in Weltkoordinaten, weicher Rand am Boden (ContactFade)"""
+    path = PARTS + "/" + name
+    if assets.does_asset_exist(path):
+        inst = unreal.load_asset(path)
+    else:
+        inst = tools.create_asset(name, PARTS, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
+    parent = unreal.load_asset(WASSER_KIT)
+    if parent is None:
+        log("Wasser-Kit fehlt: " + WASSER_KIT)
+        return wasser_material()
+    library.set_material_instance_parent(inst, parent)
+    scalars = {"EmissiveStrength": 0.0, "WobbleStrength": 0.0, "WobbleSpeed": 0.1, "Refraction": 0.12, "FresnelPower": 5.0, "Wetness": 1.0,
+               "SpecularScale": 0.3, "WaveStrength": wellen, "WaveTiling": 1.4, "WaveSpeed": 0.03, "Sparkle": 0.25, "ContactFade": kontakt,
+               "Murkiness": murk, "FoamAmount": 0.04, "EdgeSoftness": 0.08, "EdgeFoam": 0.12, "EdgeFoamWidth": 0.06}
+    for k, v in scalars.items():
+        library.set_material_instance_scalar_parameter_value(inst, k, v)
+    for k, v in (("DeepColor", tief), ("ShallowColor", flach)):
+        library.set_material_instance_vector_parameter_value(inst, k, unreal.LinearColor(v[0], v[1], v[2], 1.0))
+    weiss = unreal.load_asset(WASSER_WEISS)
+    if weiss is not None:
+        library.set_material_instance_texture_parameter_value(inst, "PuddleMask", weiss)
+    library.set_material_instance_vector_parameter_value(inst, "MaskOrigin", unreal.LinearColor(-100000.0, -100000.0, 0.0, 0.0))
+    library.set_material_instance_scalar_parameter_value(inst, "MaskSize", 200000.0)
+    library.update_material_instance(inst)
+    assets.save_loaded_asset(inst, False)
+    return inst
+
+
+def boden_ausbau(meshes):
+    """Ein unperfekter Höhlenboden (Boris 2026-11-27): Steinplatten, Kiesel, Geröll am Wandfuß, Felsnasen in weiten Hallen, Pfützen
+    unter tropfenden Zapfen und Tropfen, die von der Decke fallen. Eigener Zufall: der Rest der Höhle bleibt, wie er war."""
+    zrng = random.Random(2711)
+    platten = [meshes["SM_HK_Platte_" + k] for k in "ABCD"]
+    kiesel = [meshes["SM_HK_Kiesel_" + k] for k in "ABC"]
+    geroell = [meshes["SM_HK_Geroell_A"], meshes["SM_HK_Geroell_B"]]
+    nasen = [meshes["SM_HK_Felsnase_A"], meshes["SM_HK_Felsnase_B"]]
+    pfuetzen = [meshes["SM_HK_Pfuetze_" + k] for k in "ABC"]
+    # dunkel und spiegelnd: eine nasse Senke, kein blauer Fleck (erster Versuch 28.11. sah verwaschen hellblau aus)
+    pfuetze_mat = kit_wasser("MI_HK_Pfuetze", (0.001, 0.002, 0.0025), (0.006, 0.009, 0.01), 0.9, 0.15, kontakt=1.5)
+    # die Platten etwas dunkler als der Boden, damit ihre Kanten sich abheben (heller Boden mit gleichem Fels verschwamm)
+    platte_mats = {}
+
+    def platte_mat():
+        art = _JETZT[0]
+        if art not in platte_mats:
+            base = ART[art].get("boden", ART[BASIS_ART]["boden"])
+            mix = tuple(v * 0.55 + w * 0.45 for v, w in zip(base, ART["Eisenschlund"]["boden"])) if REGIONEN else base
+            platte_mats[art] = rock_instance("MI_HK_Platte_" + art, tuple(min(1.0, v * 1.25) for v in mix))
+        return platte_mats[art]
+    n = {"Platten": 0, "Kiesel": 0, "Geroell": 0, "Felsnasen": 0, "Pfuetzen": 0, "Tropfstellen": 0}
+
+    def offen(r, c):
+        return all(is_floor(r + a, c + b) and cell(r + a, c + b) not in "XO~" for a in (-1, 0, 1) for b in (-1, 0, 1))
+    for r in range(H):
+        for c in range(W):
+            ch = cell(r, c)
+            if not is_floor(r, c) or ch in "XO~E=":
+                continue
+            hier(r, c)
+            x, y = centre(r, c)
+            art = STYLE.get("_art", "")
+            # Steinplatten: alte Pflaster in Stollen und Katakomben, wilde Bruchplatten in natürlichen Höhlen
+            p_platte = min(0.9, STYLE.get("platten", 0.45 if natur() else 0.3) * 1.4)
+            if zrng.random() < p_platte:
+                for k in range(zrng.randint(2, 4)):
+                    s_ = zrng.uniform(0.9, 1.6)
+                    mesh_actor(zrng.choice(platten), x + zrng.uniform(-160, 160), y + zrng.uniform(-160, 160), zrng.uniform(1.0, 6.0), "Schutt",
+                               "Steinplatte", yaw=zrng.uniform(0, 360), scale=(s_, s_ * zrng.uniform(0.8, 1.1), zrng.uniform(1.0, 1.6)),
+                               material=platte_mat(), pitch=zrng.uniform(-3.5, 3.5), roll=zrng.uniform(-3.5, 3.5), collision=False)
+                    n["Platten"] += 1
+            # Kiesel: lieber an den Wänden, wo sie hinrollen
+            wand = [(dx, dy) for key, (dr, dc, (dx, dy)) in DIRS.items() if not is_floor(r + dr, c + dc)]
+            if zrng.random() < min(0.95, STYLE.get("kiesel", 0.55) * 1.3):
+                for k in range(zrng.randint(1, 2)):
+                    ox, oy = (zrng.choice(wand) if wand and zrng.random() < 0.7 else (0.0, 0.0))
+                    px = x + ox * zrng.uniform(80, 150) + zrng.uniform(-110, 110)
+                    py = y + oy * zrng.uniform(80, 150) + zrng.uniform(-110, 110)
+                    s_ = zrng.uniform(1.0, 2.0)
+                    mesh_actor(zrng.choice(kiesel), px, py, -1.5, "Schutt", "Kiesel", yaw=zrng.uniform(0, 360), scale=(s_, s_, s_),
+                               material=fels(), collision=False)
+                    n["Kiesel"] += 1
+            # Geröll am Wandfuß (nicht in engen Gängen)
+            if wand and len(wand) <= 2 and zrng.random() < STYLE.get("geroell", 0.14 if natur() else 0.08):
+                ox, oy = zrng.choice(wand)
+                s_ = zrng.uniform(0.8, 1.5)
+                mesh_actor(zrng.choice(geroell), x + ox * 120.0 + oy * zrng.uniform(-90, 90), y + oy * 120.0 - ox * zrng.uniform(-90, 90), -6.0,
+                           "Schutt", "Geroell", yaw=zrng.uniform(0, 360), scale=(s_, s_, s_ * zrng.uniform(0.7, 1.1)), material=fels(), collision=False)
+                n["Geroell"] += 1
+            # Felsnasen nur mitten in weiten Hallen: sie stehen im Weg, aber nie in einem Gang
+            if natur() and offen(r, c) and zrng.random() < STYLE.get("felsnasen", 0.07):
+                s_ = zrng.uniform(0.7, 1.35)
+                mesh_actor(zrng.choice(nasen), x + zrng.uniform(-100, 100), y + zrng.uniform(-100, 100), -zrng.uniform(10, 35), "Boden",
+                           "Felsnase", yaw=zrng.uniform(0, 360), scale=(s_, s_ * zrng.uniform(0.8, 1.2), s_ * zrng.uniform(0.6, 1.0)), material=fels())
+                n["Felsnasen"] += 1
+            # Felsbuckel am Wandfuß: die Wand springt unregelmäßig vor, statt am Raster entlang zu laufen (nur wo der Gang weit ist)
+            frei = sum(is_floor(r + a, c + b) for a, b, _ in DIRS.values())
+            if wand and frei >= 3 and natur() and zrng.random() < STYLE.get("wandbuckel", 0.2):
+                ox, oy = zrng.choice(wand)
+                s_ = zrng.uniform(0.8, 1.5)
+                t = zrng.uniform(-120, 120)
+                mesh_actor(zrng.choice(nasen), x + ox * zrng.uniform(150, 185) + oy * t, y + oy * zrng.uniform(150, 185) - ox * t, -zrng.uniform(5, 30),
+                           "Waende", "Wandbuckel", yaw=zrng.uniform(0, 360), scale=(s_, s_ * 1.2, s_ * zrng.uniform(0.9, 1.5)), material=fels())
+                n["Wandbuckel"] = n.get("Wandbuckel", 0) + 1
+            # Tropfsteinsäulen in weiten natürlichen Hallen: wo Stalagmit und Stalaktit zusammengewachsen sind
+            if natur() and offen(r, c) and zrng.random() < STYLE.get("saeulen", 0.025) and MITES:
+                h_ = zrng.uniform(2.4, 3.4)
+                px, py = x + zrng.uniform(-80, 80), y + zrng.uniform(-80, 80)
+                mesh_actor(zrng.choice(MITES), px, py, -20.0, "Tropfsteine", "Tropfsteinsaeule", yaw=zrng.uniform(0, 360),
+                           scale=(h_ * 0.55, h_ * 0.55, h_), material=fels())
+                mesh_actor(zrng.choice(MITES), px + zrng.uniform(-15, 15), py + zrng.uniform(-15, 15), h_ * 100.0 + 60.0, "Tropfsteine",
+                           "Tropfsteinsaeule oben", yaw=zrng.uniform(0, 360), scale=(h_ * 0.4, h_ * 0.4, h_ * 0.55), material=fels(), roll=180.0,
+                           collision=False)
+                n["Saeulen"] = n.get("Saeulen", 0) + 1
+            # Pfützen hier und da, in nassen Höhlen öfter
+            if zrng.random() < STYLE.get("pfuetzen", 0.025):
+                s_ = zrng.uniform(0.8, 1.3)
+                mesh_actor(zrng.choice(pfuetzen), x + zrng.uniform(-120, 120), y + zrng.uniform(-120, 120), 3.0, "Wasser", "Pfuetze",
+                           yaw=zrng.uniform(0, 360), scale=(s_, s_, 1.0), material=pfuetze_mat, collision=False)
+                n["Pfuetzen"] += 1
+
+    # Tropfen: von gut der Hälfte der Zapfen, je Region und Farbe ein Akteur; unter manchen bildet sich eine Pfütze
+    gruppen = {}
+    for (px, py, tz, farbe, r, c) in TROPFEN:
+        if zrng.random() > 0.55 or tz < 150.0:
+            continue
+        ch = cell(r, c)
+        boden_z = 10.0 if ch in "~O" else (-45.0 if False else 0.0)
+        region = REGIONEN[r][c] if REGIONEN else "-"
+        gruppen.setdefault((region, farbe), []).append((px, py, tz, boden_z))
+        if ch not in "~O" and zrng.random() < 0.3:
+            s_ = zrng.uniform(0.45, 0.8)
+            mesh_actor(zrng.choice(pfuetzen), px, py, 3.0, "Wasser", "Tropfpfuetze", yaw=zrng.uniform(0, 360), scale=(s_, s_, 1.0),
+                       material=pfuetze_mat, collision=False)
+            n["Pfuetzen"] += 1
+    for (region, farbe), tips in gruppen.items():
+        mx = sum(t[0] for t in tips) / len(tips)
+        my = sum(t[1] for t in tips) / len(tips)
+        drips = spawn(unreal.VaelCaveDrips, unreal.Vector(mx, my, 300.0), "Wasser", "Tropfen " + str(region) + (" " + farbe if farbe else ""))
+        drips.set_editor_property("tips", [unreal.Vector(t[0], t[1], t[2]) for t in tips])
+        drips.set_editor_property("floor_heights", [t[3] for t in tips])
+        if farbe:
+            col = SCHLEIM.get(farbe) or LACHEN.get(farbe, (0.5, 0.9, 0.3))
+            drips.set_editor_property("color", unreal.LinearColor(col[0], col[1], col[2], 1.0))
+            drips.set_editor_property("glow", 4.0)
+            drips.set_editor_property("interval", unreal.Vector2D(2.5, 7.0))
+        n["Tropfstellen"] += len(tips)
+    log("Bodenausbau: " + ", ".join("{} {}".format(v, k) for k, v in n.items()))
+    return sum(n.values())
+
+
 def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=None):
     if assets.does_asset_exist(LEVEL):
         assets.delete_asset(LEVEL)
@@ -1225,7 +1394,9 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     WASSER[0] = wasser_flaeche()
     if WASSER[0] is not None:
         # eine Fläche mit runden Ufern für alles Wasser der Höhle
-        mesh_actor(WASSER[0], 0.0, 0.0, 10.0, "Wasser", "Wasser", material=wasser_material(), collision=False)
+        # das Wasser des Wasser-Kits (Boris 2026-11-27), kalt und dunkel, über dem Grottenboden heller
+        mesh_actor(WASSER[0], 0.0, 0.0, 10.0, "Wasser", "Wasser", material=kit_wasser("MI_HK_Hoehlenwasser_Kit", (0.002, 0.008, 0.01),
+                   (0.03, 0.07, 0.07), 0.78, 0.3, kontakt=8.0), collision=False)
     for r in range(H):
         for c in range(W):
             ch = cell(r, c)
@@ -1569,6 +1740,7 @@ def build_cave(meshes, rock, floor_mat, ore_mat, water_mat=None, crystal_mat=Non
     counts["Tropfsteine2"] = tropfsteine(world)
     counts["Katakombe"] = katakombe(meshes)
     counts["Decke"] = deckenboegen() + felsdecke()
+    counts["Bodenausbau"] = boden_ausbau(meshes)
 
     basis()
     if jede_art("abgrund"):
@@ -1730,6 +1902,11 @@ def main():
         meshes[name] = import_piece(name, collision_complex=("Wand" in name or "Boden" in name or "Ecke" in name))
         assets.save_loaded_asset(meshes[name], False)
     MITES[:] = [meshes["SM_HK_Tropfstein_" + k] for k in "ABC"]
+    for name in BODEN_TEILE:
+        meshes[name] = import_piece(name)
+        if name.startswith("SM_HK_Felsnase"):
+            pass        # einfache Hülle reicht: ein Buckel
+        assets.save_loaded_asset(meshes[name], False)
     cave_rock_material()
     rock = rock_instance("MI_HK_Fels_" + D.get("art", NAME), STYLE["fels"])
     # der Höhlenfels dunkelt zum Boden hin auf die Hälfte ab: der Boden bekommt dafür eine hellere Farbe (Verschönern, 15.11.)

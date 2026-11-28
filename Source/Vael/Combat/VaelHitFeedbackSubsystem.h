@@ -48,17 +48,18 @@ private:
 	void Sparks(AActor* Target, const FLinearColor& Color, float Glow, bool bKill) const;
 	void StartHitStop(float Duration);
 
+	/** The flash of one body: its own material, worn as overlay from the first hit on (changing the overlay rebuilds a part for the
+	 *  renderer; a flash only changes a number of the material) */
 	struct FFlash
 	{
 		TWeakObjectPtr<AActor> Target;
-		TArray<TWeakObjectPtr<UMeshComponent>> Meshes;
 		double Start = 0.0;
-		float Strength = 1.0f;
+		float Strength = 0.0f;
+		bool bRunning = false;
 		int32 Slot = 0;
 	};
 	TArray<FFlash> Flashes;
 
-	/** One flash material per running flash, reused */
 	UPROPERTY(Transient)
 	TArray<TObjectPtr<UMaterialInstanceDynamic>> FlashMaterials;
 

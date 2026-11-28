@@ -182,6 +182,14 @@ def main():
             mouths += 1
     log("{} Eingaenge in der Welt fuehren jetzt in die Hoehlen der Karte".format(mouths))
 
+    # Boris 2026-11-27 ("es soll immer flüssig laufen"): the ~60 000 single pieces become instances, one actor per 64 m chunk with one
+    # instanced component per mesh and look; World Partition streamed every piece as an actor of its own (a minute before the floor
+    # under a far teleport was there, hitches while walking). Actors with a tag of their own (fading ceilings) stay as they are.
+    if not os.environ.get("VAEL_HOEHLEN_OHNE_INSTANZEN"):
+        pieces = [a for a in editor.get_all_level_actors() if isinstance(a, unreal.StaticMeshActor) and unreal.Name(TAG) in a.get_editor_property("tags")]
+        made = unreal.VaelWorldBuilder.instance_static_mesh_actors(world, pieces, 6400.0, unreal.Name(TAG), FOLDER + "/Instanzen")
+        log("{} von {} Teilen sind jetzt Instanzen".format(made, len(pieces)))
+
     # the roof: keeps sun, moon and sky out; high above the floor, above the camera
     cube = unreal.load_asset("/Engine/BasicShapes/Cube.Cube")
     dark = unreal.load_asset("/Game/Vael/Maps/Blockout/MI_Blockout_Dunkel")

@@ -10,6 +10,7 @@
 #include "Engineer/VaelEngineerDevice.h"
 #include "Engineer/VaelEngineerGear.h"
 #include "EngineUtils.h"
+#include "HAL/IConsoleManager.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Player/VaelCharacter.h"
 #include "UObject/ConstructorHelpers.h"
@@ -460,6 +461,11 @@ void AVaelEngineerShot::Tick(float DeltaSeconds)
 
 void AVaelEngineerShot::SteerToTarget(float DeltaSeconds)
 {
+	static const IConsoleVariable* AimAssist = IConsoleManager::Get().FindConsoleVariable(TEXT("vael.AimAssist"));
+	if (AimAssist != nullptr && AimAssist->GetInt() == 0)
+	{
+		return;
+	}
 	UVaelEngineerComponent* Eng = Engineer.Get();
 	const AActor* Shooter = Eng != nullptr ? Eng->GetOwner() : nullptr;
 	if (!bAssistChecked)
