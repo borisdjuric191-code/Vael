@@ -37,7 +37,7 @@ public:
 
 	/** Glow of the drops (0 dark water; the slime drips glow) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drips")
-	float Glow = 0.6f;
+	float Glow = 2.4f;
 
 	/** Seconds between two drops of one tip, from .. to */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Drips")

@@ -48,6 +48,7 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "World/VaelCaveDrips.h"
 #include "HAL/IConsoleManager.h"
 #include "Containers/Ticker.h"
 #include "GameFramework/PlayerController.h"
@@ -1394,6 +1395,41 @@ void UVaelCheatManager::VaelLastTest(float Seconds, int32 Pack)
 		}
 		return true;
 	}));
+}
+
+void UVaelCheatManager::VaelTropfen(float X, float Y)
+{
+	APlayerController* Controller = GetOuterAPlayerController();
+	APawn* Player = Controller != nullptr ? Controller->GetPawn() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	const FVector From = X == 0.0f && Y == 0.0f ? Player->GetActorLocation() : FVector(X * 100.0f, Y * 100.0f, Player->GetActorLocation().Z);
+	FVector Best = FVector::ZeroVector;
+	float BestFloor = 0.0f;
+	float BestDistance = UE_BIG_NUMBER;
+	for (TActorIterator<AVaelCaveDrips> It(GetWorld()); It; ++It)
+	{
+		for (int32 Index = 0; Index < It->Tips.Num(); ++Index)
+		{
+			const float Distance = FVector::DistSquared2D(It->Tips[Index], From);
+			if (Distance < BestDistance)
+			{
+				BestDistance = Distance;
+				Best = It->Tips[Index];
+				BestFloor = It->FloorHeights.IsValidIndex(Index) ? It->FloorHeights[Index] : 0.0f;
+			}
+		}
+	}
+	if (BestDistance >= UE_BIG_NUMBER)
+	{
+		UE_LOG(LogVael, Warning, TEXT("VaelTropfen: no dripping tip in this level"));
+		return;
+	}
+	const FVector Spot(Best.X + 150.0f, Best.Y - 150.0f, BestFloor + Player->GetSimpleCollisionHalfHeight() + 20.0f);
+	Player->TeleportTo(Spot, Player->GetActorRotation());
+	UE_LOG(LogVael, Log, TEXT("VaelTropfen: beside the tip at %s"), *Best.ToCompactString());
 }
 
 void UVaelCheatManager::VaelZielTest(float Seconds, const FString& Kind, int32 Count)

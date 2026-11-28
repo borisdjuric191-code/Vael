@@ -17,11 +17,11 @@ namespace
 {
 	constexpr float SphereSize = 100.0f;
 	/** A drop: cm across, seconds it swells at the tip */
-	constexpr float DropSize = 2.6f;
+	constexpr float DropSize = 4.5f;      // 2.6 cm was smaller than a pixel from the camera
 	constexpr float SwellTime = 0.7f;
 	constexpr float DropGravity = 1600.0f;
 	/** The splash on the floor */
-	constexpr int32 SplashDroplets = 4;
+	constexpr int32 SplashDroplets = 6;
 	constexpr float DropletLife = 0.32f;
 	/** Most drops in the air at once */
 	constexpr int32 MaxDrops = 96;

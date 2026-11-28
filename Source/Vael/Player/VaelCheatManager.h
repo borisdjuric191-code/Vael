@@ -139,6 +139,10 @@ public:
 	/** Aim test: keeps Count creatures (fliers by default) alive 7 m around the player and casts a single shot (Funke, Wassergeschoss,
 	 *  Steinbrocken in turn) at where the nearest one is, every 0.6 s, for the given seconds; logs how many casts hit.
 	 *  Compare with "vael.AimAssist 0". Example: VaelZielTest 20 Harpyie 3 */
+	/** Puts the player beside the dripping tip of a cave nearest to the given place in metres (or to the player), to look at the drops */
+	UFUNCTION(Exec)
+	void VaelTropfen(float X = 0.0f, float Y = 0.0f);
+
 	UFUNCTION(Exec)
 	void VaelZielTest(float Seconds = 20.0f, const FString& Kind = TEXT("Harpyie"), int32 Count = 3);
 
