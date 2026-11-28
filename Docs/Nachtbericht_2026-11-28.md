@@ -40,7 +40,7 @@ Ziel der Nacht (Boris): Wasser im Eisenschlund, Höhlen weniger perfekt, Ruckeln
 ## Getestet
 - Kompiliert ohne Fehler, Smoke-Test ohne neue Fehler (ein alter Zähler bei Floromant-Paaren meldet wie vorher FAILED).
 - Lauftests durch alle Höhlen in L_Vael: siehe Tabelle unten.
-- Todesarten Wegschleudern, Verkohlen, Zerspringen (Eis) und Zerquetschen (Erde) per Bildserie angeschaut.
+- Alle acht Todesarten per Bildserie angeschaut (Wegschleudern, Verkohlen, Zerspringen, Zerquetschen, Blitz, Nid; Umkippen und Absturz im Test aller Arten).
 - Testpunkte stehen auch im Aufgaben-Dokument unter „Testrunde am PC“.
 
 | Lauftest in L_Vael | Ergebnis |
