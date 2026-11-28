@@ -149,6 +149,8 @@ void UVaelDeathMotion::Choose()
 	{
 		Style = EVaelDeathStyle::Collapse;
 	}
+	UE_LOG(LogTemp, Log, TEXT("DeathMotion: '%s' dies by %s (damage %.0f of %.0f, knockback %.0f, element %d)"), *GetNameSafe(Owner),
+		*UEnum::GetValueAsString(Style), Blow.Damage, Blow.HealthBefore, Blow.Knockback, Blow.bHasElement ? static_cast<int32>(Blow.Element) : -1);
 	BeginStyle();
 }
 

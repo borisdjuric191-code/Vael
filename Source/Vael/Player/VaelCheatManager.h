@@ -134,6 +134,11 @@ public:
 	UFUNCTION(Exec)
 	void VaelLastTest(float Seconds = 30.0f, int32 Pack = 12);
 
+	/** Death test: spawns creatures 6 m ahead and kills them a certain way after a second: normal, feuer, eis, wucht, blitz, erde,
+	 *  nid, flieger (harpies shot from the air). Example: VaelTodTest wucht Kriecher 3 */
+	UFUNCTION(Exec)
+	void VaelTodTest(const FString& Way = TEXT("normal"), const FString& Kind = TEXT("Kriecher"), int32 Count = 3);
+
 	/** Turns the player into a mage, a Floromant or the engineer (stand-in): "Magier", "Floromant" or "Ingenieur", then "Mann" or "Frau". Example: VaelKlasse Floromant Frau */
 	UFUNCTION(Exec)
 	void VaelKlasse(const FString& Class, const FString& Look);

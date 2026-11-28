@@ -32,6 +32,7 @@
 #include "Combat/VaelCharacterBase.h"
 #include "Combat/VaelCombatStatics.h"
 #include "Creatures/VaelCreature.h"
+#include "Creatures/VaelDeathMotion.h"
 #include "Creatures/VaelAshRoller.h"
 #include "Combat/VaelCravingComponent.h"
 #include "Compendium/VaelCompendiumSettings.h"
@@ -1392,6 +1393,102 @@ void UVaelCheatManager::VaelLastTest(float Seconds, int32 Pack)
 		}
 		return true;
 	}));
+}
+
+void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int32 Count)
+{
+	APlayerController* Controller = GetOuterAPlayerController();
+	APawn* Player = Controller != nullptr ? Controller->GetPawn() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	// after a moment, so a teleport just before has landed
+	TWeakObjectPtr<UVaelCheatManager> WeakThis(this);
+	FTimerHandle Later;
+	GetWorld()->GetTimerManager().SetTimer(Later, FTimerDelegate::CreateWeakLambda(this, [this, Way, Kind, Count]()
+	{
+	APlayerController* Controller = GetOuterAPlayerController();
+	APawn* Player = Controller != nullptr ? Controller->GetPawn() : nullptr;
+	if (Player == nullptr)
+	{
+		return;
+	}
+	TSet<AVaelCreature*> Before;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		Before.Add(*It);
+	}
+	VaelSpawn(Kind, Count);
+	TArray<TWeakObjectPtr<AVaelCreature>> Fresh;
+	for (TActorIterator<AVaelCreature> It(GetWorld()); It; ++It)
+	{
+		if (!Before.Contains(*It))
+		{
+			// close beside the player, in the picture of the camera
+			const float Angle = Fresh.Num() * 50.0f - 50.0f;
+			const FVector Side = FVector(1.0f, 0.0f, 0.0f).RotateAngleAxis(Angle, FVector::UpVector);
+			It->SetActorLocation(Player->GetActorLocation() + Side * 380.0f + FVector(0.0f, 0.0f, It->GetSimpleCollisionHalfHeight() - Player->GetSimpleCollisionHalfHeight() + 10.0f),
+				false, nullptr, ETeleportType::TeleportPhysics);
+			Fresh.Add(*It);
+		}
+	}
+	const FString Lower = Way.ToLower();
+	TWeakObjectPtr<APawn> WeakPlayer(Player);
+	FTimerHandle Handle;
+	GetWorld()->GetTimerManager().SetTimer(Handle, FTimerDelegate::CreateWeakLambda(this, [Fresh, Lower, WeakPlayer]()
+	{
+		APawn* Hero = WeakPlayer.Get();
+		for (const TWeakObjectPtr<AVaelCreature>& Weak : Fresh)
+		{
+			AVaelCreature* Creature = Weak.Get();
+			if (Creature == nullptr || Creature->IsDead() || Hero == nullptr)
+			{
+				continue;
+			}
+			const float Life = Creature->GetHealth();
+			const FVector Away = (Creature->GetActorLocation() - Hero->GetActorLocation()).GetSafeNormal2D();
+			EVaelElement Element = EVaelElement::Earth;
+			float Damage = Life + 1.0f;
+			float Push = 0.0f;
+			if (Lower.StartsWith(TEXT("f")))
+			{
+				Element = EVaelElement::Fire;
+			}
+			else if (Lower.StartsWith(TEXT("ei")))
+			{
+				UVaelCombatStatics::ApplyStatus(Hero, Creature, EVaelStatus::Frozen, 3.0f);
+				Element = EVaelElement::Water;
+			}
+			else if (Lower.StartsWith(TEXT("w")))
+			{
+				Element = EVaelElement::Air;
+				Damage = Life * 4.0f;
+				Push = 1100.0f;
+			}
+			else if (Lower.StartsWith(TEXT("b")))
+			{
+				Element = EVaelElement::Air;
+			}
+			else if (Lower.StartsWith(TEXT("er")))
+			{
+				Element = EVaelElement::Earth;
+				Damage = Life * 4.0f;
+			}
+			else if (Lower.StartsWith(TEXT("n")))
+			{
+				Element = EVaelElement::Mark;
+			}
+			UVaelCombatStatics::DealDamage(Hero, Creature, Damage, Element);
+			if (Push > 0.0f)
+			{
+				Creature->ApplyKnockback(Away, Push);
+			}
+			const UVaelDeathMotion* Motion = Creature->FindComponentByClass<UVaelDeathMotion>();
+			UE_LOG(LogVael, Log, TEXT("VaelTodTest: '%s' %s"), *Creature->GetName(), Motion != nullptr ? TEXT("dies with a motion") : TEXT("no motion"));
+		}
+	}), 1.2f, false);
+	}), 1.5f, false);
 }
 
 void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)

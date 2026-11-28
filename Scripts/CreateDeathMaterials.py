@@ -90,6 +90,13 @@ def setup_translucent(material):
 
 
 def finish(material):
+    # worn as overlay over every kind of body: skeletal creatures, static ones, morphing heads, instanced pieces
+    for flag in ("used_with_skeletal_mesh", "used_with_morph_targets", "used_with_instanced_static_meshes", "used_with_static_lighting",
+                 "used_with_nanite"):
+        try:
+            material.set_editor_property(flag, True)
+        except Exception:  # noqa: BLE001
+            log("kein Schalter " + flag)
     library.recompile_material(material)
     assets.save_loaded_asset(material, False)
     log("fertig: " + material.get_path_name())
