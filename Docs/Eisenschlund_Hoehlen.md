@@ -340,3 +340,13 @@ Boris: „Alle Teile sollen eins ergeben.“ Der Eisenschlund ist jetzt ganz in 
 - **Lauftests in der Welt:** `ZIELE='b Q' bash Saved/lauf_welt.sh` (Routen aus `Saved/weg.py`, um den Versatz verschoben).
 - **Teleport:** `VaelTeleport X Y` in Weltmetern. Im Höhlenkasten wird der Boden unter dem Dach gesucht.
 - **Entfernt:** die acht alten Einzelhöhlen und ihre Minikarten (`Scripts/AlteHoehlenWeg.py`). `L_Eisenschlund` bleibt als Werkstatt.
+
+## Wasser, unperfekter Boden, Tropfen, Instanzen (Nacht 27./28.11.2026)
+
+Boris: „richtiges Wasser wie in der Aschenmark", „Höhle weniger perfekt, Steinplatten, kleine Steinchen, tropfende Animationen", „es soll immer flüssig laufen".
+
+- **Wasser:** Die Wasserfläche der Höhlen trägt jetzt `MI_HK_Hoehlenwasser_Kit`, eine Instanz von `M_Water_Puddle` aus dem Wasser-Kit (wie der Teich der Aschenmark) mit weißer Maske: Wellen in Weltkoordinaten, weiches Ufer (ContactFade), kalt und dunkel. Pfützen (`SM_HK_Pfuetze_A..C`, flache Schale, der Boden schneidet das Ufer aus) tragen `MI_HK_Pfuetze`, dunkel und spiegelnd. Beides baut `kit_wasser()` in `BuildHoehle.py`.
+- **Boden:** `Tools/Welt/hoehlen_boden_extra.py` (Blender) macht Bruchplatten, Kieselgruppen, Geröllhaufen, Felsnasen und Pfützen. `boden_ausbau()` in `BuildHoehle.py` verteilt sie mit eigenem Zufall (Saat 2711, der Rest der Höhle bleibt gleich): Platten etwas dunkler als der Boden (`MI_HK_Platte_<Art>`), Kiesel lieber an den Wänden, Geröll am Wandfuß, Felsnasen und Tropfsteinsäulen nur mitten in weiten Hallen (alle acht Nachbarn Boden), Wandbuckel am Fuß der Wände, wo der Gang weit ist. Dichten je Art über `platten`, `kiesel`, `geroell`, `felsnasen`, `wandbuckel`, `saeulen`, `pfuetzen` in `ART`. Kleinteile ohne Kollision und ohne Schatten (Ordner „Schutt").
+- **Tropfen:** `tropfsteine()` merkt sich die Spitzen der Stalaktiten und Schleimzapfen (`TROPFEN`). Gut die Hälfte tropft: je Region und Schleimfarbe ein `AVaelCaveDrips` (C++), Tropfen schwellen an, fallen und zerspritzen am Boden; nur in 26 m um die Spieler, sonst schläft der Akteur. Unter manchen Zapfen eine Pfütze.
+- **Instanzen:** `PortHoehlenToWelt.py` ruft am Ende `UVaelWorldBuilder::InstanceStaticMeshActors`: 34 646 von 35 519 Einzelteilen werden Instanzen, ein Akteur je 64-m-Stück. Teile mit eigenem Tag (ausblendende Decken) bleiben einzeln. Folge: Nach einem Teleport ist der Höhlenboden in rund 2 s geladen (vorher über 60 s), Lauftest Olmgrotte 116/116. `VAEL_HOEHLEN_OHNE_INSTANZEN=1` schaltet es ab.
+- **Bauen:** wie bisher, `BuildHoehle.py` mit `VAEL_HOEHLE=Eisenschlund`, dann `PortHoehlenToWelt.py`. Neue Teile vorher: `blender -b --factory-startup -P Tools/Welt/hoehlen_boden_extra.py -- C:/Projekte/Vael_Quellen/Hoehlen/export`.

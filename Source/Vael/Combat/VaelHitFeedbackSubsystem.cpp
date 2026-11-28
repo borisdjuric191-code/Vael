@@ -4,6 +4,7 @@
 #include "Camera/VaelSharedCamera.h"
 #include "Components/MeshComponent.h"
 #include "Creatures/VaelCreature.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
 #include "GameplayTagContainer.h"
@@ -102,7 +103,20 @@ void UVaelHitFeedbackSubsystem::OnDamageTaken(AActor* Target, float Damage, floa
 		if (!bOverTime)
 		{
 			Subsystem->Flash(Target, FLinearColor::LerpUsingHSV(FLinearColor(1.0f, 0.95f, 0.85f), Color, 0.35f), bHeavy || bKill ? 1.0f : 0.75f);
-			Subsystem->Sparks(Target, Color, Glow, bKill);
+			// a flier hit in the air is knocked back in its flight and throws a bigger shower (Boris 2026-11-27: hits on fast fliers
+			// need more satisfaction)
+			const UCharacterMovementComponent* Movement = Creature != nullptr ? Creature->GetCharacterMovement() : nullptr;
+			const bool bFlier = Movement != nullptr && (Movement->IsFlying() || Movement->IsFalling());
+			Subsystem->Sparks(Target, Color, Glow, bKill || bFlier);
+			if (bFlier && !bKill && Creature != nullptr)
+			{
+				const FVector From = Creature->GetLastBlow().From;
+				if (!From.IsNearlyZero())
+				{
+					Creature->ApplyKnockback(Creature->GetActorLocation() - From, 320.0f);
+				}
+				Shake(Target, Settings->HeavyHitShake * 0.35f);
+			}
 		}
 		else
 		{

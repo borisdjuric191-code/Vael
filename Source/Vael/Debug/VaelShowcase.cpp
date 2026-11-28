@@ -126,6 +126,13 @@ void AVaelShowcase::Tick(float DeltaSeconds)
 	// -VaelShowcaseWalkTo=X,Y (world metres): the first player walks there with real movement input after the first command
 	// step; logs every second where it is and whether it got there or got stuck (a wall in the way)
 	FString WalkText;
+	// a finished walk test ends the game at once (the check with the pictures below was not always reached)
+	if (bWalkDone && FParse::Param(FCommandLine::Get(), TEXT("VaelShowcaseWalkQuit")))
+	{
+		UE_LOG(LogVael, Display, TEXT("Showcase: walk done"));
+		FPlatformMisc::RequestExit(false);
+		return;
+	}
 	if (NumCommandsRun > 0 && FParse::Value(FCommandLine::Get(), TEXT("-VaelShowcaseWalkTo="), WalkText, false))
 	{
 		// Several points separated by ; are walked one after the other; a stuck point is skipped after logging it
