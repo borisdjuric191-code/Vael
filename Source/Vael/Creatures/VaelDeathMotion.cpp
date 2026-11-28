@@ -321,8 +321,8 @@ void UVaelDeathMotion::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 			SetOverlayParameter(CoverParameter, FMath::Clamp(Age / 0.6f, 0.0f, 0.75f));
 			if (Age >= NextEmber)
 			{
-				NextEmber = Age + 0.12f;
-				Debris(Centre + FMath::VRand() * Radius * 0.5f, FLinearColor(0.55f, 0.75f, 1.0f), 9.0f, 4, 420.0f, 200.0f, 600.0f, 2.0f, 4.0f, 0.25f, false, true);
+				NextEmber = Age + 0.09f;
+				Debris(Centre + FMath::VRand() * Radius * 0.5f, FLinearColor(0.55f, 0.8f, 1.0f), 14.0f, 7, 480.0f, 240.0f, 600.0f, 4.0f, 8.0f, 0.3f, false, true);
 			}
 		}
 		else
