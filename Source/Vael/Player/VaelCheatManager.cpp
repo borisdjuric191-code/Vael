@@ -1623,7 +1623,11 @@ void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int
 			{
 				Element = EVaelElement::Mark;
 			}
-			UVaelCombatStatics::DealDamage(Hero, Creature, Damage, Element);
+			// resistances can swallow a lot: hit again with what is left until it falls (few hits, so the last one stays light)
+			for (int32 Try = 0; Try < 8 && !Creature->IsDead(); ++Try)
+			{
+				UVaelCombatStatics::DealDamage(Hero, Creature, Try == 0 ? Damage : FMath::Max(Damage, Creature->GetHealth() * 4.0f + 5.0f), Element);
+			}
 			if (Push > 0.0f)
 			{
 				Creature->ApplyKnockback(Away, Push);
@@ -1632,7 +1636,7 @@ void UVaelCheatManager::VaelTodTest(const FString& Way, const FString& Kind, int
 			UE_LOG(LogVael, Log, TEXT("VaelTodTest: '%s' %s"), *Creature->GetName(), Motion != nullptr ? TEXT("dies with a motion") : TEXT("no motion"));
 		}
 	}), 1.2f, false);
-	}), 1.5f, false);
+	}), 3.5f, false);
 }
 
 void UVaelCheatManager::VaelKlasse(const FString& Class, const FString& Look)
