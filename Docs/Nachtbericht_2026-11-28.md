@@ -56,7 +56,7 @@ Ziel der Nacht (Boris): Wasser im Eisenschlund, Höhlen weniger perfekt, Ruckeln
 
 **Spielnaher Gesamttest (Mittag 28.11.):** zu Fuß über den Welteingang in die Gefluteten Stollen, durchs Wasser bis zum See, dabei ständig Kämpfe mit 8 Gegnern: alle Wegpunkte erreicht, Boden nach dem Eingang nach 1,6 s da, ein einziger Hänger über 50 ms (80 ms), kein Rücksetzer, keine Engine-Fehler.
 
-**Dynamische Auflösung (Mittag):** Die Rendergröße sinkt nur, wenn 60 fps nicht reichen (bis 70 %, die Kantenglättung skaliert hoch). Kampftest jetzt **62 fps**, schlimmster Hänger 34 ms, keiner über 50 ms. Bildserie aller 27 Gegnerarten beim Sterben: `Docs/Bilder/Todesarten_alle_Gegner.png`.
+**Dynamische Auflösung (Mittag):** Die Rendergröße sinkt nur, wenn 60 fps nicht reichen (bis 70 %, die Kantenglättung skaliert hoch). Drei Kampftests hintereinander: **65 / 59 / 62 fps**, schlimmster Hänger 33 / 36 / 51 ms; die Rendergröße lag dabei im Schnitt bei 93 / 79 / 91 % (niedrigste 70 %), sie greift also tatsächlich nur bei Bedarf ein. Bildserie aller 27 Gegnerarten beim Sterben: `Docs/Bilder/Todesarten_alle_Gegner.png`.
 
 ## Bitte im Editor testen
 1. **Eisenschlund über einen Welteingang betreten**, ein Stück hinein und durchs Wasser laufen: Kommt das Hinausschleudern noch? Falls ja, bitte grob sagen wo; im Log steht dann `VaelGuard:` mit der Ursache.

@@ -48,6 +48,8 @@
 #include "Engine/GameInstance.h"
 #include "Engine/World.h"
 #include "EngineUtils.h"
+#include "DynamicResolutionState.h"
+#include "Engine/Engine.h"
 #include "World/VaelCaveDrips.h"
 #include "HAL/IConsoleManager.h"
 #include "Containers/Ticker.h"
@@ -1286,6 +1288,10 @@ void UVaelCheatManager::VaelLastTest(float Seconds, int32 Pack)
 		float Worst = 0.0f;
 		float WorstAt = 0.0f;
 		bool bSpawned = false;
+		double Fraction = 0.0;
+		int32 FractionSamples = 0;
+		float MinFraction = 1.0f;
+		int32 DynStatus = -1;
 	};
 	TSharedRef<FLoad> Load = MakeShared<FLoad>();
 	TWeakObjectPtr<UWorld> WeakWorld(GetWorld());
@@ -1325,6 +1331,20 @@ void UVaelCheatManager::VaelLastTest(float Seconds, int32 Pack)
 		}
 		const float Frame = Delta * 1000.0f;
 		Load->Frames.Add(Frame);
+		// how big the picture was rendered (dynamic resolution)
+		if (GEngine != nullptr)
+		{
+			FDynamicResolutionStateInfos Infos;
+			GEngine->GetDynamicResolutionCurrentStateInfos(Infos);
+			Load->DynStatus = static_cast<int32>(Infos.Status);
+			const float Share = Infos.ResolutionFractionApproximations[GDynamicPrimaryResolutionFraction];
+			if (Share > 0.0f)
+			{
+				Load->Fraction += Share;
+				++Load->FractionSamples;
+				Load->MinFraction = FMath::Min(Load->MinFraction, Share);
+			}
+		}
 		Load->Game += FPlatformTime::ToMilliseconds(GGameThreadTime);
 		Load->Render += FPlatformTime::ToMilliseconds(GRenderThreadTime);
 		Load->Gpu += FPlatformTime::ToMilliseconds(RHIGetGPUFrameCycles());
@@ -1391,6 +1411,8 @@ void UVaelCheatManager::VaelLastTest(float Seconds, int32 Pack)
 			UE_LOG(LogVael, Display, TEXT("Load test (%.0f s, %d casts, %d enemies alive): frame mean %.1f ms (%.0f fps), p99 %.1f ms, worst %.0f ms at %.1f s, hitches >33 ms %d, >50 ms %d; game %.1f, render %.1f, GPU %.1f ms"),
 				Seconds, Load->Cast, Alive, Sum / Num, 1000.0 / FMath::Max(Sum / Num, 0.1), Sorted.IsEmpty() ? 0.0f : Sorted[FMath::Min(Num - 1, FMath::FloorToInt(Num * 0.99f))],
 				Load->Worst, Load->WorstAt, Over33, Over50, Load->Game / Num, Load->Render / Num, Load->Gpu / Num);
+			UE_LOG(LogVael, Display, TEXT("Load test render size: status %d, mean %.0f %%, lowest %.0f %% (%d samples)"), Load->DynStatus,
+				Load->FractionSamples > 0 ? 100.0 * Load->Fraction / Load->FractionSamples : 100.0, 100.0f * Load->MinFraction, Load->FractionSamples);
 			return false;
 		}
 		return true;
